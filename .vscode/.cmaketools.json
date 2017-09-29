@@ -1,0 +1,85 @@
+{
+  "variant": {
+    "label": "Release",
+    "keywordSettings": {
+      "buildType": "release"
+    },
+    "description": "Enable optimizations, omit debug info"
+  },
+  "activeEnvironments": [],
+  "codeModel": {
+    "configurations": [
+      {
+        "name": "Release",
+        "projects": [
+          {
+            "buildDirectory": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib/build",
+            "name": "Experiment",
+            "sourceDirectory": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib",
+            "targets": [
+              {
+                "artifacts": [
+                  "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib/build/Experiment"
+                ],
+                "buildDirectory": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib/build",
+                "fileGroups": [
+                  {
+                    "compileFlags": "-O3 -DNDEBUG  ",
+                    "includePath": [
+                      {
+                        "path": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib"
+                      }
+                    ],
+                    "isGenerated": false,
+                    "language": "CXX",
+                    "sources": [
+                      "main.cpp"
+                    ]
+                  }
+                ],
+                "fullName": "Experiment",
+                "linkLanguageFlags": "-O3 -DNDEBUG",
+                "linkerLanguage": "CXX",
+                "name": "Experiment",
+                "sourceDirectory": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib",
+                "type": "EXECUTABLE"
+              },
+              {
+                "artifacts": [
+                  "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib/build/accum/libaccumulator.so"
+                ],
+                "buildDirectory": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib/build/accum",
+                "fileGroups": [
+                  {
+                    "compileFlags": "-O3 -DNDEBUG -fPIC  ",
+                    "defines": [
+                      "accumulator_EXPORTS"
+                    ],
+                    "includePath": [
+                      {
+                        "path": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib"
+                      }
+                    ],
+                    "isGenerated": false,
+                    "language": "CXX",
+                    "sources": [
+                      "accumulator.cpp"
+                    ]
+                  }
+                ],
+                "fullName": "libaccumulator.so",
+                "linkerLanguage": "CXX",
+                "name": "accumulator",
+                "sourceDirectory": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib/accum",
+                "type": "SHARED_LIBRARY"
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "cookie": "0.3312647817394079",
+    "inReplyTo": "codemodel",
+    "type": "reply"
+  }
+}
