@@ -8,4 +8,4 @@ add_subdirectory (accum)
 # set (EXTRA_LIBS ${EXTRA_LIBS} Accumulator)
 
 add_executable (Experiment main.cpp)
-# target_link_libraries (Experiment accumulator )
+target_link_libraries (Experiment accumulator )
