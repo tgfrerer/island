@@ -1,0 +1,1 @@
+add_library(state_machine SHARED state_machine.cpp)
