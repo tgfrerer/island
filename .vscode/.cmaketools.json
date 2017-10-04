@@ -1,16 +1,16 @@
 {
   "variant": {
-    "label": "Release",
+    "label": "Debug",
     "keywordSettings": {
-      "buildType": "release"
+      "buildType": "debug"
     },
-    "description": "Enable optimizations, omit debug info"
+    "description": "Emit debug information without performing optimizations"
   },
   "activeEnvironments": [],
   "codeModel": {
     "configurations": [
       {
-        "name": "Release",
+        "name": "Debug",
         "projects": [
           {
             "buildDirectory": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib/build",
@@ -19,39 +19,12 @@
             "targets": [
               {
                 "artifacts": [
-                  "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib/build/Experiment"
-                ],
-                "buildDirectory": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib/build",
-                "fileGroups": [
-                  {
-                    "compileFlags": "-O3 -DNDEBUG  ",
-                    "includePath": [
-                      {
-                        "path": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib"
-                      }
-                    ],
-                    "isGenerated": false,
-                    "language": "CXX",
-                    "sources": [
-                      "main.cpp"
-                    ]
-                  }
-                ],
-                "fullName": "Experiment",
-                "linkLanguageFlags": "-O3 -DNDEBUG",
-                "linkerLanguage": "CXX",
-                "name": "Experiment",
-                "sourceDirectory": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib",
-                "type": "EXECUTABLE"
-              },
-              {
-                "artifacts": [
                   "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib/build/accum/libaccumulator.so"
                 ],
                 "buildDirectory": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib/build/accum",
                 "fileGroups": [
                   {
-                    "compileFlags": "-O3 -DNDEBUG -fPIC  ",
+                    "compileFlags": "-g -fPIC   -std=gnu++14",
                     "defines": [
                       "accumulator_EXPORTS"
                     ],
@@ -72,13 +45,42 @@
                 "name": "accumulator",
                 "sourceDirectory": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib/accum",
                 "type": "SHARED_LIBRARY"
+              },
+              {
+                "artifacts": [
+                  "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib/build/Experiment"
+                ],
+                "buildDirectory": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib/build",
+                "fileGroups": [
+                  {
+                    "compileFlags": "-g   -std=gnu++14",
+                    "includePath": [
+                      {
+                        "path": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib"
+                      }
+                    ],
+                    "isGenerated": false,
+                    "language": "CXX",
+                    "sources": [
+                      "main.cpp",
+                      "loader/ApiLoader.cpp"
+                    ]
+                  }
+                ],
+                "fullName": "Experiment",
+                "linkLanguageFlags": "-g",
+                "linkLibraries": "-ldl -lstdc++fs",
+                "linkerLanguage": "CXX",
+                "name": "Experiment",
+                "sourceDirectory": "/home/tim/Documents/dev/raw_cpp/load_dynamic_lib",
+                "type": "EXECUTABLE"
               }
             ]
           }
         ]
       }
     ],
-    "cookie": "0.3312647817394079",
+    "cookie": "0.4273049525588155",
     "inReplyTo": "codemodel",
     "type": "reply"
   }

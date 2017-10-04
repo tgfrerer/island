@@ -4,9 +4,12 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "taskName": "echo",
+            "taskName": "make",
             "type": "shell",
-            "command": "echo Hello"
+            "command": "make",
+            "options": {
+                "cwd": "build"
+            }
         }
     ]
 }

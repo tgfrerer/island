@@ -5,11 +5,13 @@
 extern "C" {
 #endif
 
-struct pal_accum_i {
-  int (*add_two)(int lhs);
-};
+void register_api(void *api);
 
-void register_fun(pal_accum_i *api);
+struct pal_accum_i {
+  int (*add_two)(int lhs) = nullptr;
+  int (*sub_three)(int lhs) = nullptr;
+  const char *(*get_text)() = nullptr;
+};
 
 #ifdef __cplusplus
 }
