@@ -25,14 +25,14 @@ extern "C" {
 namespace pal {
 
 class ApiLoader {
-  const char *mPath;
-  void *mHandle;
+	const char *mPath;
+	void *mHandle;
 
-public:
-  ApiLoader(const char *path_);
-  ~ApiLoader();
-  bool register_api(void *p_api);
-  bool reload();
+  public:
+	ApiLoader( const char *path_ );
+	~ApiLoader( );
+	bool register_api( void *api );
+	bool reload( );
 };
 }
 
