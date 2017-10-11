@@ -21,7 +21,7 @@ struct traffic_light_o {
   State currentState = State::eInitial;
 };
 
-// declare state instance
+// declare interface
 struct pal_state_machine_i {
   traffic_light_o *(*createState)();
   void (*destroyState)(traffic_light_o *);
