@@ -17,17 +17,14 @@
 #include "state_machine/state_machine.h"
 
 static void callbackFun( const char *path ) {
-	std::cout << "**** callback ****" << std::endl
-	          << path << std::endl
-	          << "******************" << std::endl;
+	std::cout << "**** callback ****" << std::endl << path << std::endl << "******************" << std::endl;
 }
 
 // ----------------------------------------------------------------------
 
 int main( int argc, char const *argv[] ) {
 
-	auto fileWatcherApiLoader = std::make_unique< pal::ApiLoader >(
-	    "./file_watcher/libfile_watcher.so" );
+	auto fileWatcherApiLoader = std::make_unique< pal::ApiLoader >( "./file_watcher/libfile_watcher.so" );
 
 	file_watcher_i file_watcher;
 	fileWatcherApiLoader->register_api( &file_watcher );
@@ -36,8 +33,7 @@ int main( int argc, char const *argv[] ) {
 
 	file_watcher.set_callback_function( watched_file, callbackFun );
 
-	std::cout << "file watcher is watching path: "
-	          << file_watcher.get_path( watched_file ) << std::endl;
+	std::cout << "file watcher is watching path: " << file_watcher.get_path( watched_file ) << std::endl;
 
 	for ( ;; ) {
 		file_watcher.poll_notifications( watched_file );
@@ -47,8 +43,7 @@ int main( int argc, char const *argv[] ) {
 
 	pal_state_machine_i stateMachineApi{};
 
-	auto apiLoaderStateMachine = std::make_unique< pal::ApiLoader >(
-	    "./state_machine/libstate_machine.so" );
+	auto apiLoaderStateMachine = std::make_unique< pal::ApiLoader >( "./state_machine/libstate_machine.so" );
 
 	apiLoaderStateMachine->register_api( &stateMachineApi );
 
