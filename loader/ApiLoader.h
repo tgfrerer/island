@@ -22,19 +22,17 @@ table of function pointers which, together, declare the api.
 extern "C" {
 #endif // end __cplusplus
 
-namespace pal {
+struct Loader_o;
 
-class ApiLoader {
-	const char *mPath;
-	void *mHandle;
+struct api_loader_i {
+	Loader_o *( *create )( const char *path_ );
+	void ( *destroy )( Loader_o *obj );
 
-  public:
-	ApiLoader( const char *path_ );
-	~ApiLoader( );
-	bool register_api( void *api );
-	bool reload( );
+	bool ( *register_api )( Loader_o *obj, void *api_reg_fun );
+	bool ( *load )( Loader_o *obj );
 };
-}
+
+bool register_api_loader_i( api_loader_i *api );
 
 #ifdef __cplusplus
 }

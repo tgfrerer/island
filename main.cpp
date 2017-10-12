@@ -24,12 +24,16 @@ static void callbackFun( const char *path ) {
 
 int main( int argc, char const *argv[] ) {
 
-	auto fileWatcherApiLoader = std::make_unique< pal::ApiLoader >( "./file_watcher/libfile_watcher.so" );
+	api_loader_i loaderApi;
+	register_api_loader_i( &loaderApi );
+
+	Loader_o *fileWatcherPlugin = loaderApi.create( ( "./file_watcher/libfile_watcher.so" ) );
+	loaderApi.load( fileWatcherPlugin );
 
 	file_watcher_i file_watcher;
-	fileWatcherApiLoader->register_api( &file_watcher );
+	loaderApi.register_api( fileWatcherPlugin, &file_watcher );
 
-	auto watched_file = file_watcher.create( "/tmp/" );
+	file_watcher_o *watched_file = file_watcher.create( "/tmp/hello.txt" );
 
 	file_watcher.set_callback_function( watched_file, callbackFun );
 
@@ -39,67 +43,8 @@ int main( int argc, char const *argv[] ) {
 		file_watcher.poll_notifications( watched_file );
 		// std::cout << ".";
 	};
+
 	// ----
-
-	pal_state_machine_i stateMachineApi{};
-
-	auto apiLoaderStateMachine = std::make_unique< pal::ApiLoader >( "./state_machine/libstate_machine.so" );
-
-	apiLoaderStateMachine->register_api( &stateMachineApi );
-
-	auto trafficLight = stateMachineApi.createState( );
-
-	//	bool appShouldLoop = true;
-	//	do {
-
-	//		std::cout << "Current state machine state: "
-	//		          << stateMachineApi.get_state_as_string( trafficLight )
-	//		          << std::endl;
-
-	//		char i = 0;
-	//		std::cin >> i;
-
-	//		switch ( i ) {
-	//		case 'l': {
-	//			std::cout << "reloading accumulator library" <<
-	// std::endl;
-	//			apiLoaderAccum->reload( );
-	//			apiLoaderAccum->register_api( &accum );
-	//			break;
-	//		}
-	//		case 'a': {
-	//			std::cout << "reloading state machine library" <<
-	// std::endl;
-	//			pal_state_machine_i tmp;
-
-	//			apiLoaderStateMachine->reload( );
-	//			apiLoaderStateMachine->register_api( &tmp );
-	//			break;
-	//		}
-	//		case 'r': {
-	//			stateMachineApi.reset_state( trafficLight );
-	//			break;
-	//		}
-	//		case 'i': {
-	//			stateMachineApi.next_state( trafficLight );
-	//			break;
-	//		}
-	//		case 'q':
-	//			appShouldLoop = false;
-	//		    break;
-	//		default:
-	//		    break;
-	//		};
-
-	//	} while ( appShouldLoop );
-
-	//	std::cout << "And with this, goodbye." << std::endl;
-
-	//	//	stateMachineApi.destroyState( trafficLight );
-	//	file_watcher.destroy( watched_file );
-
-	// main needs to load the dynamic library and then watch the dynamic library
-	// file - if there is change the library needs to be re-loaded.
 
 	return 0;
 }

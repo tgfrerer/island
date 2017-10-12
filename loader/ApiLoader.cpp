@@ -3,17 +3,19 @@
 #include <dlfcn.h>
 #include <iostream>
 
-using namespace pal;
-
 // declare function pointer type to register_fun function
 typedef void ( *register_api_fun_p_t )( void * );
+
+struct Loader_o {
+	const char *mPath = nullptr;
+	void *mHandle     = nullptr;
+};
 
 // ----------------------------------------------------------------------
 
 static void *load_library( const char *lib_name ) {
 	void *handle = dlopen( lib_name, RTLD_NOW );
-	std::cout << "\topening library handle: " << std::hex << handle
-	          << std::endl;
+	std::cout << "\topening library handle: " << std::hex << handle << std::endl;
 
 	if ( !handle ) {
 		auto loadResult = dlerror( );
@@ -27,8 +29,7 @@ static void *load_library( const char *lib_name ) {
 
 static void unload_library( void *handle_ ) {
 	if ( handle_ ) {
-		std::cout << "\tclosing library handle: " << std::hex << handle_
-		          << std::endl;
+		std::cout << "\tclosing library handle: " << std::hex << handle_ << std::endl;
 		dlclose( handle_ );
 		handle_ = nullptr;
 	}
@@ -36,32 +37,34 @@ static void unload_library( void *handle_ ) {
 
 // ----------------------------------------------------------------------
 
-ApiLoader::ApiLoader( const char *path_ ) : mPath( path_ ), mHandle( nullptr ) {
-	mHandle = load_library( mPath );
+Loader_o *create( const char *path_ ) {
+	Loader_o *tmp = new Loader_o{};
+	tmp->mPath    = path_;
+	return tmp;
 };
 
 // ----------------------------------------------------------------------
 
-ApiLoader::~ApiLoader( ) {
-	unload_library( mHandle );
+void destroy( Loader_o *obj ) {
+	unload_library( obj->mHandle );
+	delete obj;
 };
 
 // ----------------------------------------------------------------------
 
-bool ApiLoader::reload( ) {
-	unload_library( mHandle );
-	mHandle = load_library( mPath );
-	return ( mHandle != nullptr );
+bool load( Loader_o *obj ) {
+	unload_library( obj->mHandle );
+	obj->mHandle = load_library( obj->mPath );
+	return ( obj->mHandle != nullptr );
 }
 
 // ----------------------------------------------------------------------
 
-bool ApiLoader::register_api( void *api ) {
+bool register_api( Loader_o *obj, void *api ) {
 	// define function pointer we will use to initialise api
 	register_api_fun_p_t fptr;
 	// load function pointer to initialisation method
-	fptr = reinterpret_cast< register_api_fun_p_t >(
-	    dlsym( mHandle, "register_api" ) );
+	fptr = reinterpret_cast< register_api_fun_p_t >( dlsym( obj->mHandle, "register_api" ) );
 	if ( !fptr ) {
 		std::cerr << "error: " << dlerror( ) << std::endl;
 		return false;
@@ -73,3 +76,11 @@ bool ApiLoader::register_api( void *api ) {
 }
 
 // ----------------------------------------------------------------------
+
+bool register_api_loader_i( api_loader_i *api ) {
+	api->create       = create;
+	api->destroy      = destroy;
+	api->load         = load;
+	api->register_api = register_api;
+	return true;
+};
