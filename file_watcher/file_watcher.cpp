@@ -17,17 +17,18 @@ struct file_watcher_o {
 	int in_watch_handle  = -1;
 	const char *path     = nullptr;
 
-	void ( *callback_fun )( const char *path );
+	void *callback_user_data = nullptr;
+	void ( *callback_fun )( void * );
 };
 
 // ----------------------------------------------------------------------
 
-file_watcher_o *create( const char *path ) noexcept {
+static file_watcher_o *create( const char *path ) noexcept {
 	auto tmp  = new file_watcher_o{};
 	tmp->path = path;
 
 	tmp->in_socket_handle = inotify_init1( IN_NONBLOCK );
-	tmp->in_watch_handle  = inotify_add_watch( tmp->in_socket_handle, path, IN_CLOSE_WRITE );
+	tmp->in_watch_handle  = inotify_add_watch( tmp->in_socket_handle, path, IN_CLOSE_WRITE | IN_MODIFY );
 
 	return tmp;
 }
@@ -45,8 +46,9 @@ void destroy( file_watcher_o *instance ) noexcept {
 
 // ----------------------------------------------------------------------
 
-void set_callback_function( file_watcher_o *instance, void ( *callback_fun_p )( const char *path ) ) {
-	instance->callback_fun = callback_fun_p;
+void set_callback_function( file_watcher_o *instance, void ( *callback_fun_p )( void * ), void *user_data ) {
+	instance->callback_fun       = callback_fun_p;
+	instance->callback_user_data = user_data;
 };
 
 // ----------------------------------------------------------------------
@@ -71,26 +73,34 @@ void poll_notifications( file_watcher_o *instance ) {
 			inotify_event *ev = nullptr;
 			for ( ssize_t i = 0; i < ret; i += ev->len + sizeof( struct inotify_event ) ) {
 
-				ev = reinterpret_cast< inotify_event * >( &buffer + i );
+				ev = reinterpret_cast< inotify_event * >( buffer + i );
 
-				std::cout << "some bytes read. Flags: 0x" << std::bitset< 32 >( ev->mask ) << std::endl;
-
-				if ( ev->mask & IN_CLOSE_WRITE ) {
-					std::cout << "CLOSE_WRITE detected" << std::endl;
-				}
+				std::cout << "Some bytes read. Flags: 0x" << std::bitset< 32 >( ev->mask ) << "b" << std::endl;
 
 				if ( ev->wd == instance->in_watch_handle ) {
 					std::cout << "current watch handle affected" << std::endl;
 
 					if ( ev->len > 1 ) {
+						// For directory watches, this means a specific file from this directory is reporting
+						// a change.
+
 						std::string tmpNameStr( ev->name, ev->len );
 						std::string tmpPathStr( instance->path );
-						( *instance->callback_fun )( ( tmpPathStr + tmpNameStr ).c_str( ) );
-					} else {
-						( *instance->callback_fun )( instance->path );
+						std::cout << "File: " << tmpPathStr << tmpNameStr << std::endl;
+					}
+
+					if ( ev->mask & ( IN_CLOSE_WRITE ) ) {
+						std::cout << "CLOSE_WRITE detected" << std::endl;
+						std::cout << "Trigger callback." << std::endl;
+
+						( *instance->callback_fun )( instance->callback_user_data );
+					}
+
+					if ( ev->mask & ( IN_MODIFY ) ) {
+						std::cout << "IN_MODIFY detected" << std::endl;
 					}
 				}
-				std::cout << "i: " << i << std::endl;
+				std::cout << "watch descriptor: " << ev->wd << std::endl;
 			}
 
 			std::cout << std::flush;
@@ -102,7 +112,7 @@ void poll_notifications( file_watcher_o *instance ) {
 
 // ----------------------------------------------------------------------
 
-void register_api( void *api_p ) {
+void register_file_watcher_api( void *api_p ) {
 	auto api                   = reinterpret_cast< file_watcher_i * >( api_p );
 	api->create                = create;
 	api->destroy               = destroy;

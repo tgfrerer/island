@@ -6,7 +6,7 @@
 // declare function pointer type to register_fun function
 typedef void ( *register_api_fun_p_t )( void * );
 
-struct Loader_o {
+struct Loader {
 	const char *mPath = nullptr;
 	void *mHandle     = nullptr;
 };
@@ -37,22 +37,22 @@ static void unload_library( void *handle_ ) {
 
 // ----------------------------------------------------------------------
 
-Loader_o *create( const char *path_ ) {
-	Loader_o *tmp = new Loader_o{};
-	tmp->mPath    = path_;
+static Loader *create( const char *path_ ) {
+	Loader *tmp = new Loader{};
+	tmp->mPath  = path_;
 	return tmp;
 };
 
 // ----------------------------------------------------------------------
 
-void destroy( Loader_o *obj ) {
+static void destroy( Loader *obj ) {
 	unload_library( obj->mHandle );
 	delete obj;
 };
 
 // ----------------------------------------------------------------------
 
-bool load( Loader_o *obj ) {
+static bool load( Loader *obj ) {
 	unload_library( obj->mHandle );
 	obj->mHandle = load_library( obj->mPath );
 	return ( obj->mHandle != nullptr );
@@ -60,18 +60,18 @@ bool load( Loader_o *obj ) {
 
 // ----------------------------------------------------------------------
 
-bool register_api( Loader_o *obj, void *api ) {
+static bool register_api( Loader *obj, void *api_interface, const char *api_registry_name ) {
 	// define function pointer we will use to initialise api
 	register_api_fun_p_t fptr;
 	// load function pointer to initialisation method
-	fptr = reinterpret_cast< register_api_fun_p_t >( dlsym( obj->mHandle, "register_api" ) );
+	fptr = reinterpret_cast< register_api_fun_p_t >( dlsym( obj->mHandle, api_registry_name ) );
 	if ( !fptr ) {
 		std::cerr << "error: " << dlerror( ) << std::endl;
 		return false;
 	}
 	// Initialize the API. This means telling the API to populate function
 	// pointers inside the struct which we are passing as parameter.
-	( *fptr )( api );
+	( *fptr )( api_interface );
 	return true;
 }
 
