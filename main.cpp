@@ -58,21 +58,23 @@ int main( int argc, char const *argv[] ) {
 	loaderApi.register_api( fileWatcherPlugin, &file_watcher, "register_file_watcher_api" );
 #endif
 
-#ifdef PLUGIN_STATE_MACHINE_STATIC
-#else
-#endif
-
-	Loader *stateMachinePlugin = loaderApi.create( ( "./state_machine/libstate_machine.so" ) );
 	pal_state_machine_i stateMachineApi;
+
+#ifdef PLUGIN_STATE_MACHINE_STATIC
+	std::cout << "using STATIC state machine module " << std::endl;
+	register_state_machine_api( &stateMachineApi );
+#else
+	std::cout << "using DYNAMIC state machine module" << std::endl;
+	Loader *stateMachinePlugin = loaderApi.create( ( "./state_machine/libstate_machine.so" ) );
+	loaderApi.load( stateMachinePlugin );
+	loaderApi.register_api( stateMachinePlugin, &stateMachineApi, "register_state_machine_api" );
+#endif
 
 	LibData trafficLightLibData;
 	trafficLightLibData.loaderApi          = &loaderApi;
 	trafficLightLibData.pLoader            = stateMachinePlugin;
 	trafficLightLibData.interface          = &stateMachineApi;
 	trafficLightLibData.registry_func_name = "register_state_machine_api";
-
-	//	loaderApi.load( stateMachinePlugin );
-	//	loaderApi.register_api( stateMachinePlugin, &stateMachineApi );
 
 	reloadLibrary( &trafficLightLibData );
 
