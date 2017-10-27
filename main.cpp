@@ -41,6 +41,10 @@ void reloadLibrary( void *user_data ) {
 
 // ----------------------------------------------------------------------
 
+
+
+// ----------------------------------------------------------------------
+
 int main( int argc, char const *argv[] ) {
 
 	api_loader_i loaderInterface;
@@ -76,7 +80,9 @@ int main( int argc, char const *argv[] ) {
 	trafficLightLibData.api                   = &iTrafficLight;
 	trafficLightLibData.api_register_fun_name = "register_state_machine_api";
 
-	pal_state_machine_o *trafficLight = iTrafficLight.create();
+	//pal_state_machine_o *trafficLight = iTrafficLight.create(&iTrafficLight);
+
+	pal::StateMachine trafficLight(&iTrafficLight);
 
 	file_watcher_o *watched_file = file_watcher.create( "./state_machine/" );
 
@@ -87,18 +93,14 @@ int main( int argc, char const *argv[] ) {
 	for ( ;; ) {
 		file_watcher.poll_notifications( watched_file );
 
-		iTrafficLight.next_state( trafficLight );
-		std::cout << "Traffic light: " << iTrafficLight.get_state_as_string( trafficLight ) << std::endl;
+		//trafficLight->vtable->next_state(trafficLight);
+		trafficLight.nextState();
+
+		//std::cout << "Traffic light: " << iTrafficLight.get_state_as_string( trafficLight ) << std::endl;
+		std::cout << "Traffic light: " << trafficLight.getStateAsString() << std::endl;
+
 		std::this_thread::sleep_for( std::chrono::milliseconds( 250 ) );
 	};
-
-	//	class Abstraction{
-	//		TrafficLight* object;
-	//		pal_state_machine_i* interface;
-
-	//		// any function call must be interface.fun_name(object, args);
-
-	//	};
 
 	// ----
 }

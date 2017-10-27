@@ -3,8 +3,9 @@
 
 // ----------------------------------------------------------------------
 
-static pal_state_machine_o *create() {
+static pal_state_machine_o *create(pal_state_machine_i* interface_) {
 	pal_state_machine_o *newObj = new pal_state_machine_o{};
+	newObj->vtable = interface_;
 	return newObj;
 }
 
@@ -30,17 +31,18 @@ static void nextState( pal_state_machine_o *instance ) {
 		s = State::eGreen;
 	    break;
 	case State::eGreen:
-		s = State::eYellow;
-	    break;
-	case State::eYellow:
 		s = State::eBlink;
 	    break;
 	case State::eBlink:
+		s = State::eYellow;
+	    break;
+	case State::eYellow:
 		s = State::eRed;
 	    break;
 	case State::eRed:
 		s = State::eGreen;
-	    break;
+
+	break;
 	}
 }
 
@@ -53,7 +55,7 @@ static void resetState( pal_state_machine_o *instance ) {
 // ----------------------------------------------------------------------
 
 static const char *get_state_as_string( pal_state_machine_o *instance ) {
-	const char *names[ 5 ] = {"Initial", "Green", "Yellow", "\tBlink", "Red"};
+	const char *names[ 5 ] = {"Initial", "GREEN", "Yellow", "\tBlink", "Red"};
 
 	auto index =
 	    static_cast<std::underlying_type<decltype( instance->currentState )>::type>( instance->currentState );
