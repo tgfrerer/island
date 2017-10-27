@@ -11,6 +11,6 @@ else()
     # to the library.
     set (STATIC_LIBS ${STATIC_LIBS} state_machine PARENT_SCOPE)
 
-    add_library(file_watcher STATIC state_machine.cpp)
+    add_library(state_machine STATIC state_machine.cpp)
 
 endif()

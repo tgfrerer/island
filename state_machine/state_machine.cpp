@@ -3,26 +3,26 @@
 
 // ----------------------------------------------------------------------
 
-static TrafficLight *create( ) {
-	TrafficLight *newObj = new TrafficLight{};
+static pal_state_machine_o *create() {
+	pal_state_machine_o *newObj = new pal_state_machine_o{};
 	return newObj;
 }
 
 // ----------------------------------------------------------------------
 
-static void destroy( TrafficLight *obj ) {
+static void destroy( pal_state_machine_o *obj ) {
 	delete ( obj );
 }
 
 // ----------------------------------------------------------------------
 
-static const State &get_state( TrafficLight *instance ) {
+static const State &get_state( pal_state_machine_o *instance ) {
 	return instance->currentState;
 }
 
 // ----------------------------------------------------------------------
 
-static void nextState( TrafficLight *instance ) {
+static void nextState( pal_state_machine_o *instance ) {
 	auto &s = instance->currentState;
 
 	switch ( s ) {
@@ -46,17 +46,17 @@ static void nextState( TrafficLight *instance ) {
 
 // ----------------------------------------------------------------------
 
-static void resetState( TrafficLight *instance ) {
+static void resetState( pal_state_machine_o *instance ) {
 	instance->currentState = State::eInitial;
 }
 
 // ----------------------------------------------------------------------
 
-static const char *get_state_as_string( TrafficLight *instance ) {
-	const char *names[ 5 ] = {"Initial", " Green", "Yellow", "\t\tBlink", "Red"};
+static const char *get_state_as_string( pal_state_machine_o *instance ) {
+	const char *names[ 5 ] = {"Initial", "Green", "Yellow", "\tBlink", "Red"};
 
 	auto index =
-	    static_cast< std::underlying_type< decltype( instance->currentState ) >::type >( instance->currentState );
+	    static_cast<std::underlying_type<decltype( instance->currentState )>::type>( instance->currentState );
 
 	return names[ index ];
 }
@@ -64,7 +64,7 @@ static const char *get_state_as_string( TrafficLight *instance ) {
 // ----------------------------------------------------------------------
 
 void register_state_machine_api( void *api ) {
-	auto a                 = static_cast< pal_state_machine_i * >( api );
+	auto a                 = static_cast<pal_state_machine_i *>( api );
 	a->create              = create;
 	a->destroy             = destroy;
 	a->get_state           = get_state;

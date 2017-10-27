@@ -7,8 +7,8 @@
 typedef void ( *register_api_fun_p_t )( void * );
 
 struct Loader {
-	const char *mPath = nullptr;
-	void *mHandle     = nullptr;
+	const char *mPath   = nullptr;
+	void *      mHandle = nullptr;
 };
 
 // ----------------------------------------------------------------------
@@ -18,7 +18,7 @@ static void *load_library( const char *lib_name ) {
 	std::cout << "\topening library handle: " << std::hex << handle << std::endl;
 
 	if ( !handle ) {
-		auto loadResult = dlerror( );
+		auto loadResult = dlerror();
 		std::cerr << "error: " << loadResult << std::endl;
 	}
 
@@ -64,9 +64,9 @@ static bool register_api( Loader *obj, void *api_interface, const char *api_regi
 	// define function pointer we will use to initialise api
 	register_api_fun_p_t fptr;
 	// load function pointer to initialisation method
-	fptr = reinterpret_cast< register_api_fun_p_t >( dlsym( obj->mHandle, api_registry_name ) );
+	fptr = reinterpret_cast<register_api_fun_p_t>( dlsym( obj->mHandle, api_registry_name ) );
 	if ( !fptr ) {
-		std::cerr << "error: " << dlerror( ) << std::endl;
+		std::cerr << "error: " << dlerror() << std::endl;
 		return false;
 	}
 	// Initialize the API. This means telling the API to populate function

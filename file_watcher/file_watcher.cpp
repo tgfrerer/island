@@ -13,9 +13,9 @@ using namespace std;
 // ----------------------------------------------------------------------
 
 struct file_watcher_o {
-	int in_socket_handle = -1;
-	int in_watch_handle  = -1;
-	const char *path     = nullptr;
+	int         in_socket_handle = -1;
+	int         in_watch_handle  = -1;
+	const char *path             = nullptr;
 
 	void *callback_user_data = nullptr;
 	void ( *callback_fun )( void * );
@@ -37,6 +37,10 @@ static file_watcher_o *create( const char *path ) noexcept {
 
 void destroy( file_watcher_o *instance ) noexcept {
 	if ( instance->in_socket_handle > 0 ) {
+		if ( instance->in_watch_handle > 0 ) {
+			std::cout << "removing inotify watch handle: " << std::hex << instance->in_watch_handle << std::endl;
+			inotify_rm_watch( instance->in_socket_handle, instance->in_watch_handle );
+		}
 		std::cout << "closing inotify instance file handle: " << std::hex << instance->in_socket_handle << std::endl;
 		close( instance->in_socket_handle );
 	}
@@ -73,9 +77,9 @@ void poll_notifications( file_watcher_o *instance ) {
 			inotify_event *ev = nullptr;
 			for ( ssize_t i = 0; i < ret; i += ev->len + sizeof( struct inotify_event ) ) {
 
-				ev = reinterpret_cast< inotify_event * >( buffer + i );
+				ev = reinterpret_cast<inotify_event *>( buffer + i );
 
-				std::cout << "Some bytes read. Flags: 0x" << std::bitset< 32 >( ev->mask ) << "b" << std::endl;
+				std::cout << "Some bytes read. Flags: 0x" << std::bitset<32>( ev->mask ) << "b" << std::endl;
 
 				if ( ev->wd == instance->in_watch_handle ) {
 					std::cout << "current watch handle affected" << std::endl;
@@ -113,7 +117,7 @@ void poll_notifications( file_watcher_o *instance ) {
 // ----------------------------------------------------------------------
 
 void register_file_watcher_api( void *api_p ) {
-	auto api                   = reinterpret_cast< file_watcher_i * >( api_p );
+	auto api                   = reinterpret_cast<file_watcher_i *>( api_p );
 	api->create                = create;
 	api->destroy               = destroy;
 	api->set_callback_function = set_callback_function;

@@ -22,20 +22,20 @@
 
 struct LibData {
 	api_loader_i *loaderApi;
-	Loader *pLoader;
-	const char *registry_func_name = nullptr;
-	void *interface;
+	Loader *      pLoader;
+	const char *  api_register_fun_name = nullptr;
+	void *        api;
 };
 
 // ----------------------------------------------------------------------
 
 void reloadLibrary( void *user_data ) {
-	auto data = reinterpret_cast< LibData * >( user_data );
+	auto data = reinterpret_cast<LibData *>( user_data );
 
 	std::cout << "Reload callback start" << std::endl;
 	//	 reload library file
 	data->loaderApi->load( data->pLoader );
-	data->loaderApi->register_api( data->pLoader, data->interface, data->registry_func_name );
+	data->loaderApi->register_api( data->pLoader, data->api, data->api_register_fun_name );
 	std::cout << "Reload callback end" << std::endl;
 }
 
@@ -43,8 +43,8 @@ void reloadLibrary( void *user_data ) {
 
 int main( int argc, char const *argv[] ) {
 
-	api_loader_i loaderApi;
-	register_api_loader_i( &loaderApi );
+	api_loader_i loaderInterface;
+	register_api_loader_i( &loaderInterface );
 
 	file_watcher_i file_watcher;
 
@@ -53,34 +53,31 @@ int main( int argc, char const *argv[] ) {
 	register_file_watcher_api( &file_watcher );
 #else
 	std::cout << "using DYNAMIC file watcher" << std::endl;
-	Loader *fileWatcherPlugin = loaderApi.create( ( "./file_watcher/libfile_watcher.so" ) );
-	loaderApi.load( fileWatcherPlugin );
-	loaderApi.register_api( fileWatcherPlugin, &file_watcher, "register_file_watcher_api" );
+	Loader *fileWatcherPlugin = loaderInterface.create( ( "./file_watcher/libfile_watcher.so" ) );
+	loaderInterface.load( fileWatcherPlugin );
+	loaderInterface.register_api( fileWatcherPlugin, &file_watcher, "register_file_watcher_api" );
 #endif
 
-	pal_state_machine_i stateMachineApi;
+	pal_state_machine_i iTrafficLight;
 
 #ifdef PLUGIN_STATE_MACHINE_STATIC
 	std::cout << "using STATIC state machine module " << std::endl;
 	register_state_machine_api( &stateMachineApi );
 #else
 	std::cout << "using DYNAMIC state machine module" << std::endl;
-	Loader *stateMachinePlugin = loaderApi.create( ( "./state_machine/libstate_machine.so" ) );
-	loaderApi.load( stateMachinePlugin );
-	loaderApi.register_api( stateMachinePlugin, &stateMachineApi, "register_state_machine_api" );
+	Loader *stateMachinePluginLoader = loaderInterface.create( ( "./state_machine/libstate_machine.so" ) );
+	loaderInterface.load( stateMachinePluginLoader );
+	loaderInterface.register_api( stateMachinePluginLoader, &iTrafficLight, "register_state_machine_api" );
 #endif
 
 	LibData trafficLightLibData;
-	trafficLightLibData.loaderApi          = &loaderApi;
-	trafficLightLibData.pLoader            = stateMachinePlugin;
-	trafficLightLibData.interface          = &stateMachineApi;
-	trafficLightLibData.registry_func_name = "register_state_machine_api";
+	trafficLightLibData.loaderApi             = &loaderInterface;
+	trafficLightLibData.pLoader               = stateMachinePluginLoader;
+	trafficLightLibData.api                   = &iTrafficLight;
+	trafficLightLibData.api_register_fun_name = "register_state_machine_api";
 
-	reloadLibrary( &trafficLightLibData );
+	pal_state_machine_o *trafficLight = iTrafficLight.create();
 
-	TrafficLight *trafficLight = stateMachineApi.create( );
-
-	//	file_watcher_o *watched_file = file_watcher.create( "/tmp/hello.txt" );
 	file_watcher_o *watched_file = file_watcher.create( "./state_machine/" );
 
 	file_watcher.set_callback_function( watched_file, reloadLibrary, &trafficLightLibData );
@@ -90,10 +87,18 @@ int main( int argc, char const *argv[] ) {
 	for ( ;; ) {
 		file_watcher.poll_notifications( watched_file );
 
-		stateMachineApi.next_state( trafficLight );
-		std::cout << "Traffic light: " << stateMachineApi.get_state_as_string( trafficLight ) << std::endl;
+		iTrafficLight.next_state( trafficLight );
+		std::cout << "Traffic light: " << iTrafficLight.get_state_as_string( trafficLight ) << std::endl;
 		std::this_thread::sleep_for( std::chrono::milliseconds( 250 ) );
 	};
+
+	//	class Abstraction{
+	//		TrafficLight* object;
+	//		pal_state_machine_i* interface;
+
+	//		// any function call must be interface.fun_name(object, args);
+
+	//	};
 
 	// ----
 }

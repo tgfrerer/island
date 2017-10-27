@@ -1,6 +1,6 @@
+# if (NOT ${PLUGINS_DYNAMIC})
 if (${PLUGINS_DYNAMIC})
     add_library(file_watcher SHARED file_watcher.cpp)
-
 else()
 
     # We also set a compiler flag so that our main source file can use the correct
