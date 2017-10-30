@@ -55,7 +55,7 @@ static void resetState( pal_state_machine_o *instance ) {
 // ----------------------------------------------------------------------
 
 static const char *get_state_as_string( pal_state_machine_o *instance ) {
-	const char *names[ 5 ] = {"Initial", "GREEN", "Yellow", "\tBlink", "Red"};
+	const char *names[ 5 ] = {"Initial", "Green", "Yellow", "\tBlink", "Red"};
 
 	auto index =
 	    static_cast<std::underlying_type<decltype( instance->currentState )>::type>( instance->currentState );

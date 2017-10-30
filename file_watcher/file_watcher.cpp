@@ -18,7 +18,7 @@ struct file_watcher_o {
 	const char *path             = nullptr;
 
 	void *callback_user_data = nullptr;
-	void ( *callback_fun )( void * );
+	bool ( *callback_fun )( void * );
 };
 
 // ----------------------------------------------------------------------
@@ -50,7 +50,7 @@ void destroy( file_watcher_o *instance ) noexcept {
 
 // ----------------------------------------------------------------------
 
-void set_callback_function( file_watcher_o *instance, void ( *callback_fun_p )( void * ), void *user_data ) {
+void set_callback_function( file_watcher_o *instance, bool ( *callback_fun_p )( void * ), void *user_data ) {
 	instance->callback_fun       = callback_fun_p;
 	instance->callback_user_data = user_data;
 };

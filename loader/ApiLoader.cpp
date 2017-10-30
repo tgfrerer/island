@@ -6,7 +6,7 @@
 // declare function pointer type to register_fun function
 typedef void ( *register_api_fun_p_t )( void * );
 
-struct Loader {
+struct api_loader_o {
 	const char *mPath   = nullptr;
 	void *      mHandle = nullptr;
 };
@@ -37,22 +37,22 @@ static void unload_library( void *handle_ ) {
 
 // ----------------------------------------------------------------------
 
-static Loader *create( const char *path_ ) {
-	Loader *tmp = new Loader{};
+static api_loader_o *create( const char *path_ ) {
+	api_loader_o *tmp = new api_loader_o{};
 	tmp->mPath  = path_;
 	return tmp;
 };
 
 // ----------------------------------------------------------------------
 
-static void destroy( Loader *obj ) {
+static void destroy( api_loader_o *obj ) {
 	unload_library( obj->mHandle );
 	delete obj;
 };
 
 // ----------------------------------------------------------------------
 
-static bool load( Loader *obj ) {
+static bool load( api_loader_o *obj ) {
 	unload_library( obj->mHandle );
 	obj->mHandle = load_library( obj->mPath );
 	return ( obj->mHandle != nullptr );
@@ -60,7 +60,7 @@ static bool load( Loader *obj ) {
 
 // ----------------------------------------------------------------------
 
-static bool register_api( Loader *obj, void *api_interface, const char *api_registry_name ) {
+static bool register_api( api_loader_o *obj, void *api_interface, const char *api_registry_name ) {
 	// define function pointer we will use to initialise api
 	register_api_fun_p_t fptr;
 	// load function pointer to initialisation method
