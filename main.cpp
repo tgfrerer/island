@@ -41,15 +41,15 @@ int main( int argc, char const *argv[] ) {
 
 	file_watcher_o *watched_file = nullptr;
 
-#ifdef PLUGIN_STATE_MACHINE_STATIC
-	std::cout << "using STATIC state machine module " << std::endl;
+#ifdef PLUGIN_TRAFFIC_LIGHT_STATIC
+	std::cout << "using STATIC traffic light module " << std::endl;
 	register_traffic_light_api( &trafficLightInterface );
 #else
-	std::cout << "using DYNAMIC state machine module" << std::endl;
+	std::cout << "using DYNAMIC traffic light module" << std::endl;
 	pal::ApiLoader trafficLightPlugin( &loaderInterface, &trafficLightInterface, "./traffic_light/libtraffic_light.so", "register_traffic_light_api" );
 	trafficLightPlugin.loadLibrary();
 
-	watched_file = file_watcher.create( "./state_machine/" );
+	watched_file = file_watcher.create( "./traffic_light/" );
 	file_watcher.set_callback_function( watched_file, &pal::ApiLoader::loadLibraryCallback, &trafficLightPlugin );
 #endif
 

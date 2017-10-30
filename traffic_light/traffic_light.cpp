@@ -58,10 +58,10 @@ static const char *get_state_as_string( pal_traffic_light_o *instance ) {
 	const char *names[ 5 ] =
 	    {
 	        "Initial",
-	        "\033[32;1mGREEN\033[0m",
-	        "\033[33;1mYELLOW\033[0m",
-	        "\033[32;1mB\033[0mL\033[32;1mI\033[0mN\033[32;1mK\033[0m",
-	        "\033[31;1mRED\033[0m",
+	        "\033[32;1mGreen\033[0m",
+	        "\033[33;1mYellow\033[0m",
+	        "\t\033[32;1mB\033[0ml\033[32;1mi\033[0mn\033[32;1mk\033[0m",
+	        "\033[31;1mRed\033[0m",
 	    };
 
 	auto index =
