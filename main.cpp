@@ -14,7 +14,7 @@
 //#include "accum/accumulator.h"
 #include "file_watcher/file_watcher.h"
 #include "loader/ApiLoader.h"
-#include "state_machine/state_machine.h"
+#include "traffic_light/traffic_light.h"
 
 #include <thread>
 
@@ -37,23 +37,23 @@ int main( int argc, char const *argv[] ) {
 	loaderInterface.register_api( fileWatcherPlugin, &file_watcher, "register_file_watcher_api" );
 #endif
 
-	pal_state_machine_i trafficLightInterface;
+	pal_traffic_light_i trafficLightInterface;
 
 	file_watcher_o *watched_file = nullptr;
 
 #ifdef PLUGIN_STATE_MACHINE_STATIC
 	std::cout << "using STATIC state machine module " << std::endl;
-	register_state_machine_api( &trafficLightInterface );
+	register_traffic_light_api( &trafficLightInterface );
 #else
 	std::cout << "using DYNAMIC state machine module" << std::endl;
-	pal::ApiLoader stateMachinePlugin( &loaderInterface, &trafficLightInterface, "./state_machine/libstate_machine.so", "register_state_machine_api" );
-	stateMachinePlugin.loadLibrary();
+	pal::ApiLoader trafficLightPlugin( &loaderInterface, &trafficLightInterface, "./traffic_light/libtraffic_light.so", "register_traffic_light_api" );
+	trafficLightPlugin.loadLibrary();
 
 	watched_file = file_watcher.create( "./state_machine/" );
-	file_watcher.set_callback_function( watched_file, &pal::ApiLoader::loadLibraryCallback, &stateMachinePlugin );
+	file_watcher.set_callback_function( watched_file, &pal::ApiLoader::loadLibraryCallback, &trafficLightPlugin );
 #endif
 
-	pal::StateMachine trafficLight( &trafficLightInterface );
+	pal::TrafficLight trafficLight( &trafficLightInterface );
 
 	if ( watched_file ) {
 		std::cout << "file watcher is watching path: " << file_watcher.get_path( watched_file ) << std::endl;
@@ -66,7 +66,7 @@ int main( int argc, char const *argv[] ) {
 		}
 
 		// trafficLight->vtable->next_state(trafficLight);
-		trafficLight.nextState();
+		trafficLight.step();
 
 		std::cout << "Traffic light: " << trafficLight.getStateAsString() << std::endl;
 

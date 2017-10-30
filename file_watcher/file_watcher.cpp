@@ -69,7 +69,6 @@ void poll_notifications( file_watcher_o *instance ) {
 
 		alignas( inotify_event ) char buffer[ sizeof( inotify_event ) + NAME_MAX + 1 ];
 
-		// careful ! read is a blocking call
 		ssize_t ret = read( instance->in_socket_handle, buffer, sizeof( buffer ) );
 
 		if ( ret > 0 ) {

@@ -10,7 +10,7 @@ set ( PLUGIN_DEFINITIONS "")
 
 include_directories ("${PROJECT_SOURCE_DIR}")
 
-add_subdirectory (state_machine)
+add_subdirectory (traffic_light)
 add_subdirectory (file_watcher)
 
 # set (EXTRA_LIBS ${EXTRA_LIBS} Accumulator)
