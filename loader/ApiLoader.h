@@ -25,6 +25,7 @@ extern "C" {
 
 struct api_loader_o;
 
+
 struct api_loader_i {
 	api_loader_o *( *create )( const char *path_ );
 	void ( *destroy )( api_loader_o *obj );
@@ -35,6 +36,9 @@ struct api_loader_i {
 
 bool register_api_loader_i( api_loader_i *api );
 
+struct file_watcher_i;
+struct file_watcher_o;
+
 // ----------------------------------------------------------------------
 
 #ifdef __cplusplus
@@ -42,33 +46,32 @@ bool register_api_loader_i( api_loader_i *api );
 namespace pal{
 
 class ApiLoader {
-	api_loader_i *loaderInterface;
-	void *        api;
-	api_loader_o *loader;
-	const char *  api_register_fun_name;
+	api_loader_i *  loaderInterface        = nullptr;
+	api_loader_o *  loader                 = nullptr;
+	void *          api                    = nullptr;
+	const char *    api_register_fun_name  = nullptr;
+	file_watcher_i *file_watcher_interface = nullptr;
+	file_watcher_o *file_watcher           = nullptr;
 
-public:
-
+  public:
 	ApiLoader( api_loader_i *loaderInterface_, void *apiInterface_, const char *libpath_, const char *api_register_fun_name_ )
-	  : loaderInterface( loaderInterface_ )
-	  , api ( apiInterface_ )
-	  , loader( loaderInterface->create( libpath_ ) )
-	  , api_register_fun_name( api_register_fun_name_ ) {
-  }
+	    : loaderInterface( loaderInterface_ )
+	    , loader( loaderInterface->create( libpath_ ) )
+	    , api( apiInterface_ )
+	    , api_register_fun_name( api_register_fun_name_ ) {
+	}
 
-  static bool loadLibraryCallback( void *userData ) {
-	  auto self = reinterpret_cast<ApiLoader *>( userData );
-	  self->loaderInterface->load( self->loader );
-	  return self->loaderInterface->register_api( self->loader, self->api, self->api_register_fun_name );
-  }
+	static bool loadLibraryCallback( void *userData ) {
+		auto self = reinterpret_cast<ApiLoader *>( userData );
+		self->loaderInterface->load( self->loader );
+		return self->loaderInterface->register_api( self->loader, self->api, self->api_register_fun_name );
+	}
 
-  bool loadLibrary() {
-	  return loadLibraryCallback( this );
-    }
+	bool loadLibrary();
 
-    ~ApiLoader() {
-	    loaderInterface->destroy( loader );
-    }
+	bool checkReload();
+
+	~ApiLoader();
 };
 
 } // end namespace pal

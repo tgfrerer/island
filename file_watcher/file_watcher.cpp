@@ -6,16 +6,24 @@
 #include <unistd.h>
 #include <type_traits>
 #include <bitset>
+#include <stdio.h>
 #include <string>
+
+#include <experimental/filesystem>
 
 using namespace std;
 
+namespace std{
+namespace filesystem{
+    using namespace experimental::filesystem;
+}
+}
 // ----------------------------------------------------------------------
 
 struct file_watcher_o {
 	int         in_socket_handle = -1;
 	int         in_watch_handle  = -1;
-	const char *path             = nullptr;
+	std::string path;
 
 	void *callback_user_data = nullptr;
 	bool ( *callback_fun )( void * );
@@ -25,10 +33,15 @@ struct file_watcher_o {
 
 static file_watcher_o *create( const char *path ) noexcept {
 	auto tmp  = new file_watcher_o{};
-	tmp->path = path;
+
+	auto tmp_path = std::filesystem::path(path);
+	if (tmp_path.has_filename()){
+		tmp_path.remove_filename();
+	}
+	tmp->path = tmp_path;
 
 	tmp->in_socket_handle = inotify_init1( IN_NONBLOCK );
-	tmp->in_watch_handle  = inotify_add_watch( tmp->in_socket_handle, path, IN_CLOSE_WRITE | IN_MODIFY );
+	tmp->in_watch_handle  = inotify_add_watch( tmp->in_socket_handle, tmp->path.c_str(), IN_CLOSE_WRITE | IN_MODIFY );
 
 	return tmp;
 }
@@ -44,6 +57,7 @@ void destroy( file_watcher_o *instance ) noexcept {
 		std::cout << "closing inotify instance file handle: " << std::hex << instance->in_socket_handle << std::endl;
 		close( instance->in_socket_handle );
 	}
+
 	delete ( instance );
 	instance = nullptr;
 }
@@ -58,7 +72,7 @@ void set_callback_function( file_watcher_o *instance, bool ( *callback_fun_p )( 
 // ----------------------------------------------------------------------
 
 const char *get_path( file_watcher_o *instance ) {
-	return instance->path;
+	return instance->path.c_str();
 }
 
 // ----------------------------------------------------------------------
@@ -81,13 +95,13 @@ void poll_notifications( file_watcher_o *instance ) {
 				std::cout << "Some bytes read. Flags: 0x" << std::bitset<32>( ev->mask ) << "b" << std::endl;
 
 				if ( ev->wd == instance->in_watch_handle ) {
-					std::cout << "current watch handle affected" << std::endl;
+					std::cout << "Current watch handle affected" << std::endl;
 
 					if ( ev->len > 1 ) {
 						// For directory watches, this means a specific file from this directory is reporting
 						// a change.
 
-						std::string tmpNameStr( ev->name, ev->len );
+						std::string tmpNameStr{ev->name};
 						std::string tmpPathStr( instance->path );
 						std::cout << "File: " << tmpPathStr << tmpNameStr << std::endl;
 					}
@@ -95,7 +109,6 @@ void poll_notifications( file_watcher_o *instance ) {
 					if ( ev->mask & ( IN_CLOSE_WRITE ) ) {
 						std::cout << "CLOSE_WRITE detected" << std::endl;
 						std::cout << "Trigger callback." << std::endl;
-
 						( *instance->callback_fun )( instance->callback_user_data );
 					}
 

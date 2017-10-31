@@ -3,6 +3,8 @@
 #include <dlfcn.h>
 #include <iostream>
 
+
+
 // declare function pointer type to register_fun function
 typedef void ( *register_api_fun_p_t )( void * );
 
@@ -84,3 +86,42 @@ bool register_api_loader_i( api_loader_i *api ) {
 	api->register_api = register_api;
 	return true;
 };
+// ----------------------------------------------------------------------
+// ----------------------------------------------------------------------
+#ifdef __cplusplus
+
+#include "file_watcher/file_watcher.h"
+#include <string>
+
+// ----------------------------------------------------------------------
+
+bool pal::ApiLoader::loadLibrary(){
+	if (file_watcher_interface == nullptr){
+		file_watcher_interface = new file_watcher_i;
+		register_file_watcher_api( file_watcher_interface );
+		file_watcher = file_watcher_interface->create( loader->mPath );
+		file_watcher_interface->set_callback_function( file_watcher, loadLibraryCallback, this );
+	}
+	return loadLibraryCallback( this );
+}
+
+// ----------------------------------------------------------------------
+
+pal::ApiLoader::~ApiLoader(){
+	if (file_watcher_interface){
+		file_watcher_interface->destroy(file_watcher);
+		delete file_watcher_interface;
+	}
+	   loaderInterface->destroy( loader );
+}
+
+bool pal::ApiLoader::checkReload(){
+	bool result= false;
+	if (file_watcher){
+		file_watcher_interface->poll_notifications(file_watcher);
+	}
+	return result;
+}
+
+// ----------------------------------------------------------------------
+#endif //__cplusplus
