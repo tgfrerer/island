@@ -38,7 +38,7 @@ struct pal_api_loader_i {
 	void ( *destroy )( pal_api_loader_o *obj );
 
 	bool ( *register_api )( pal_api_loader_o *obj, void *api_interface, const char *api_registry_name );
-	bool ( *register_static_api )( void ( *register_api_fun_p )( void * ), void *api_interface );
+
 	bool ( *load )( pal_api_loader_o *obj );
 
 	struct file_watcher {

@@ -81,19 +81,11 @@ static bool register_api( pal_api_loader_o *obj, void *api_interface, const char
 
 // ----------------------------------------------------------------------
 
-static bool register_static_api( void ( *register_api_fun_p )( void * ), void *api_interface ) {
-	( *register_api_fun_p )( api_interface );
-	return true;
-}
-
-// ----------------------------------------------------------------------
-
 bool pal_register_api_loader_i( pal_api_loader_i *api ) {
 	api->create              = create;
 	api->destroy             = destroy;
 	api->load                = load;
 	api->register_api        = register_api;
-	api->register_static_api = register_static_api;
 	return true;
 };
 // ----------------------------------------------------------------------

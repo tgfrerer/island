@@ -13,8 +13,6 @@ include_directories ("${PROJECT_SOURCE_DIR}")
 add_subdirectory (traffic_light)
 add_subdirectory (file_watcher)
 
-# set (EXTRA_LIBS ${EXTRA_LIBS} Accumulator)
-
 set (SOURCES main.cpp)
 set (SOURCES ${SOURCES} "loader/ApiLoader.cpp")
 set (SOURCES ${SOURCES} "registry/ApiRegistry.cpp")
