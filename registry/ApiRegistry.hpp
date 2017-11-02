@@ -2,6 +2,8 @@
 #define GUARD_API_REGISTRY_HPP
 
 #include <unordered_map>
+#include "loader/ApiLoader.h"
+#include <string>
 
 /*
 
@@ -21,16 +23,56 @@
 class Registry {
     static std::unordered_map<const char *, void *> apiTable;
 
+    template <typename T>
+    inline static constexpr auto getPointerToStaticRegFun() noexcept {
+        return T::pRegFun;
+    }
+
   public:
     template <typename T>
-    inline static constexpr const char *getId() noexcept {
+    inline static constexpr auto getId() noexcept {
         return T::id;
     }
 
 	template <typename T>
-	inline static T *addApi() {
-		auto api               = new T();
-		apiTable[ getId<T>() ] = api;
+	inline static T *addApiStatic(  ) {
+		auto api = static_cast<T *>(apiTable[ getId<T>() ]);
+		// We assume failed map lookup returns a pointer which is
+		// initialised to be a nullptr.
+		if ( api == nullptr ) {
+			api = new T();
+			( *getPointerToStaticRegFun<T>() )( api );
+			apiTable[ getId<T>() ] = api;
+		}
+		return api;
+	}
+
+	template <typename T>
+	static T *addApiDynamic() {
+
+		// TODO: we need to add file watcher hook for when api gets reloaded.
+		// We should be able to create a table of watched apis,
+		// and iterate over all file hooks with all watched apis.
+
+		static auto apiName_ = getId<T>();
+		static auto api      = static_cast<T *>( apiTable[ apiName_ ] );
+
+		if ( api == nullptr ) {
+
+			static const std::string lib_path              = "./" + std::string{apiName_} + "/lib" + std::string{apiName_} + ".so";
+			static const std::string lib_register_fun_name = "register_" + std::string{apiName_} + "_api";
+
+			static pal_api_loader_i *loaderInterface = Registry::addApiStatic<pal_api_loader_i>();
+			static pal_api_loader_o *loader          = loaderInterface->create( lib_path.c_str() );
+
+			api = new T();
+			loaderInterface->load( loader );
+			loaderInterface->register_api( loader, api, lib_register_fun_name.c_str() );
+			apiTable[ getId<T>() ] = api;
+		} else {
+			// todo: we should warn that this api was already added.
+		}
+
 		return api;
 	}
 

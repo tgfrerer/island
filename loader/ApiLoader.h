@@ -22,12 +22,18 @@ table of function pointers which, together, declare the api.
 extern "C" {
 #endif // end __cplusplus
 
+struct pal_api_loader_i;
 struct pal_api_loader_o;
 struct pal_file_watcher_i;
 struct pal_file_watcher_o;
 
+bool pal_register_api_loader_i( pal_api_loader_i *api );
+
 struct pal_api_loader_i {
+
 	static constexpr auto id = "pal_api_loader";
+	static constexpr auto pRegFun = pal_register_api_loader_i;
+
 	pal_api_loader_o *( *create )( const char *path_ );
 	void ( *destroy )( pal_api_loader_o *obj );
 
@@ -41,7 +47,6 @@ struct pal_api_loader_i {
 	} watcher;
 };
 
-bool pal_register_api_loader_i( pal_api_loader_i *api );
 
 // ----------------------------------------------------------------------
 
