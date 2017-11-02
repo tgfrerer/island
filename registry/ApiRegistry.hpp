@@ -21,12 +21,12 @@
 */
 
 class Registry {
-    static std::unordered_map<const char *, void *> apiTable;
+	static std::unordered_map<const char *, void *> apiTable;
 
-    template <typename T>
-    inline static constexpr auto getPointerToStaticRegFun() noexcept {
-        return T::pRegFun;
-    }
+	template <typename T>
+	inline static constexpr auto getPointerToStaticRegFun() noexcept {
+		return T::pRegFun;
+	}
 
   public:
     template <typename T>
@@ -35,8 +35,8 @@ class Registry {
     }
 
 	template <typename T>
-	inline static T *addApiStatic(  ) {
-		auto api = static_cast<T *>(apiTable[ getId<T>() ]);
+	static T *addApiStatic() {
+		auto api = static_cast<T *>( apiTable[ getId<T>() ] );
 		// We assume failed map lookup returns a pointer which is
 		// initialised to be a nullptr.
 		if ( api == nullptr ) {
@@ -77,7 +77,7 @@ class Registry {
 	}
 
 	template <typename T>
-	inline static T *getApi() {
+	static T *getApi() {
 		// WARNING: this will return a void* if nothing found!
 		// TODO: add error checking if compiled in debug mode.
 		return static_cast<T *>( apiTable[ getId<T>() ] );

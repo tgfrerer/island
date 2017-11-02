@@ -1,13 +1,10 @@
-#include <chrono>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <stdio.h>
 #include <string>
 
-#include <sys/inotify.h>
-#include <dirent.h>
-#include <unistd.h>
+#include <chrono>
 #include <thread> // needed for sleep_for
 
 #include "registry/ApiRegistry.hpp"
