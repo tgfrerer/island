@@ -24,20 +24,25 @@ extern "C" {
 #endif // end __cplusplus
 
 struct api_loader_o;
-
+struct file_watcher_i;
+struct file_watcher_o;
 
 struct api_loader_i {
 	api_loader_o *( *create )( const char *path_ );
 	void ( *destroy )( api_loader_o *obj );
 
 	bool ( *register_api )( api_loader_o *obj, void *api_interface, const char *api_registry_name );
+	bool ( *register_static_api )( const char* api_name, void (*register_api_fun_p)(void*), void* api_interface );
 	bool ( *load )( api_loader_o *obj );
+
+	struct file_watcher {
+		file_watcher_i* interface;
+		file_watcher_o* watcher;
+	} watcher;
 };
 
 bool register_api_loader_i( api_loader_i *api );
 
-struct file_watcher_i;
-struct file_watcher_o;
 
 // ----------------------------------------------------------------------
 
@@ -53,6 +58,12 @@ class ApiLoader {
 	file_watcher_i *file_watcher_interface = nullptr;
 	file_watcher_o *file_watcher           = nullptr;
 
+	static bool loadLibraryCallback( void *userData ) {
+		auto self = reinterpret_cast<ApiLoader *>( userData );
+		self->loaderInterface->load( self->loader );
+		return self->loaderInterface->register_api( self->loader, self->api, self->api_register_fun_name );
+	}
+
   public:
 	ApiLoader( api_loader_i *loaderInterface_, void *apiInterface_, const char *libpath_, const char *api_register_fun_name_ )
 	    : loaderInterface( loaderInterface_ )
@@ -61,14 +72,7 @@ class ApiLoader {
 	    , api_register_fun_name( api_register_fun_name_ ) {
 	}
 
-	static bool loadLibraryCallback( void *userData ) {
-		auto self = reinterpret_cast<ApiLoader *>( userData );
-		self->loaderInterface->load( self->loader );
-		return self->loaderInterface->register_api( self->loader, self->api, self->api_register_fun_name );
-	}
-
 	bool loadLibrary();
-
 	bool checkReload();
 
 	~ApiLoader();

@@ -9,8 +9,11 @@
 typedef void ( *register_api_fun_p_t )( void * );
 
 struct api_loader_o {
-	const char *mPath   = nullptr;
-	void *      mHandle = nullptr;
+	const char *    mApiName             = nullptr;
+	const char *    mRegisterApiFuncName = nullptr;
+	const char *    mPath                = nullptr;
+	void *          mLibraryHandle       = nullptr;
+	file_watcher_o *mFileWatcher         = nullptr;
 };
 
 // ----------------------------------------------------------------------
@@ -48,16 +51,16 @@ static api_loader_o *create( const char *path_ ) {
 // ----------------------------------------------------------------------
 
 static void destroy( api_loader_o *obj ) {
-	unload_library( obj->mHandle );
+	unload_library( obj->mLibraryHandle );
 	delete obj;
 };
 
 // ----------------------------------------------------------------------
 
 static bool load( api_loader_o *obj ) {
-	unload_library( obj->mHandle );
-	obj->mHandle = load_library( obj->mPath );
-	return ( obj->mHandle != nullptr );
+	unload_library( obj->mLibraryHandle );
+	obj->mLibraryHandle = load_library( obj->mPath );
+	return ( obj->mLibraryHandle != nullptr );
 }
 
 // ----------------------------------------------------------------------
@@ -66,7 +69,7 @@ static bool register_api( api_loader_o *obj, void *api_interface, const char *ap
 	// define function pointer we will use to initialise api
 	register_api_fun_p_t fptr;
 	// load function pointer to initialisation method
-	fptr = reinterpret_cast<register_api_fun_p_t>( dlsym( obj->mHandle, api_registry_name ) );
+	fptr = reinterpret_cast<register_api_fun_p_t>( dlsym( obj->mLibraryHandle, api_registry_name ) );
 	if ( !fptr ) {
 		std::cerr << "error: " << dlerror() << std::endl;
 		return false;
@@ -79,11 +82,19 @@ static bool register_api( api_loader_o *obj, void *api_interface, const char *ap
 
 // ----------------------------------------------------------------------
 
+static bool register_static_api(const char* api_name, void ( *register_api_fun_p )(void*), void *api_interface ){
+	( *register_api_fun_p )( api_interface );
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
 bool register_api_loader_i( api_loader_i *api ) {
-	api->create       = create;
-	api->destroy      = destroy;
-	api->load         = load;
-	api->register_api = register_api;
+	api->create              = create;
+	api->destroy             = destroy;
+	api->load                = load;
+	api->register_api        = register_api;
+	api->register_static_api = register_static_api;
 	return true;
 };
 // ----------------------------------------------------------------------

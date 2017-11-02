@@ -77,7 +77,7 @@ void register_traffic_light_api( void *api ) {
 	a->create              = create;
 	a->destroy             = destroy;
 	a->get_state           = get_state;
-	a->step          = nextState;
+	a->step                = nextState;
 	a->reset_state         = resetState;
 	a->get_state_as_string = get_state_as_string;
 }

@@ -25,21 +25,29 @@ int main( int argc, char const *argv[] ) {
 
 	pal_traffic_light_i trafficLightInterface;
 
-
 #ifdef PLUGIN_TRAFFIC_LIGHT_STATIC
 	std::cout << "using STATIC traffic light module " << std::endl;
-	register_traffic_light_api( &trafficLightInterface );
+	loaderInterface.register_static_api( "traffic_light", register_traffic_light_api, &trafficLightInterface );
 #else
+
+	api_loader_o* loader = loaderInterface.create("./traffic_light/libtraffic_light.so");
+
 	std::cout << "using DYNAMIC traffic light module" << std::endl;
-	pal::ApiLoader trafficLightPlugin( &loaderInterface, &trafficLightInterface, "./traffic_light/libtraffic_light.so", "register_traffic_light_api" );
+	pal::ApiLoader trafficLightPlugin( &loaderInterface,
+	                                   &trafficLightInterface,
+	                                   "./traffic_light/libtraffic_light.so",
+	                                   "register_traffic_light_api" );
 	trafficLightPlugin.loadLibrary();
 #endif
 
 	pal::TrafficLight trafficLight( &trafficLightInterface );
 
+//	interfaceA = loader.load("interface_name", pal::interfaceType::eStatic);
+//	loader.pollLibraries();
+
 	for ( ;; ) {
 
-		trafficLightPlugin.checkReload();
+		//trafficLightPlugin.checkReload();
 
 		trafficLight.step();
 

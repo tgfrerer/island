@@ -85,6 +85,8 @@ void poll_notifications( file_watcher_o *instance ) {
 
 		ssize_t ret = read( instance->in_socket_handle, buffer, sizeof( buffer ) );
 
+		static_assert(sizeof(inotify_event)==sizeof(struct inotify_event),"must be equal");
+
 		if ( ret > 0 ) {
 
 			inotify_event *ev = nullptr;
