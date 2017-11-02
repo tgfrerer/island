@@ -20,7 +20,7 @@ namespace filesystem{
 }
 // ----------------------------------------------------------------------
 
-struct file_watcher_o {
+struct pal_file_watcher_o {
 	int         in_socket_handle = -1;
 	int         in_watch_handle  = -1;
 	std::string path;
@@ -31,8 +31,8 @@ struct file_watcher_o {
 
 // ----------------------------------------------------------------------
 
-static file_watcher_o *create( const char *path ) noexcept {
-	auto tmp  = new file_watcher_o{};
+static pal_file_watcher_o *create( const char *path ) noexcept {
+	auto tmp  = new pal_file_watcher_o{};
 
 	auto tmp_path = std::filesystem::path(path);
 	if (tmp_path.has_filename()){
@@ -48,7 +48,7 @@ static file_watcher_o *create( const char *path ) noexcept {
 
 // ----------------------------------------------------------------------
 
-void destroy( file_watcher_o *instance ) noexcept {
+void destroy( pal_file_watcher_o *instance ) noexcept {
 	if ( instance->in_socket_handle > 0 ) {
 		if ( instance->in_watch_handle > 0 ) {
 			std::cout << "removing inotify watch handle: " << std::hex << instance->in_watch_handle << std::endl;
@@ -64,20 +64,20 @@ void destroy( file_watcher_o *instance ) noexcept {
 
 // ----------------------------------------------------------------------
 
-void set_callback_function( file_watcher_o *instance, bool ( *callback_fun_p )( void * ), void *user_data ) {
+void set_callback_function( pal_file_watcher_o *instance, bool ( *callback_fun_p )( void * ), void *user_data ) {
 	instance->callback_fun       = callback_fun_p;
 	instance->callback_user_data = user_data;
 };
 
 // ----------------------------------------------------------------------
 
-const char *get_path( file_watcher_o *instance ) {
+const char *get_path( pal_file_watcher_o *instance ) {
 	return instance->path.c_str();
 }
 
 // ----------------------------------------------------------------------
 
-void poll_notifications( file_watcher_o *instance ) {
+void poll_notifications( pal_file_watcher_o *instance ) {
 
 	for ( ;; ) {
 
@@ -131,7 +131,7 @@ void poll_notifications( file_watcher_o *instance ) {
 // ----------------------------------------------------------------------
 
 void register_file_watcher_api( void *api_p ) {
-	auto api                   = reinterpret_cast<file_watcher_i *>( api_p );
+	auto api                   = reinterpret_cast<pal_file_watcher_i *>( api_p );
 	api->create                = create;
 	api->destroy               = destroy;
 	api->set_callback_function = set_callback_function;

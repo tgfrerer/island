@@ -7,15 +7,15 @@ extern "C" {
 
 void register_file_watcher_api( void *api );
 
-struct file_watcher_o;
+struct pal_file_watcher_o;
 
 // file watcher interface
-struct file_watcher_i {
-	file_watcher_o *( *create )( const char *path );
-	void ( *destroy )( file_watcher_o *lhs );
-	void ( *set_callback_function )( file_watcher_o *instance, bool ( *fun )( void *user_data ), void *user_data );
-	void ( *poll_notifications )( file_watcher_o *instance );
-	const char *( *get_path )( file_watcher_o *instance );
+struct pal_file_watcher_i {
+	pal_file_watcher_o *( *create )( const char *path );
+	void ( *destroy )( pal_file_watcher_o *lhs );
+	void ( *set_callback_function )( pal_file_watcher_o *instance, bool ( *fun )( void *user_data ), void *user_data );
+	void ( *poll_notifications )( pal_file_watcher_o *instance );
+	const char *( *get_path )( pal_file_watcher_o *instance );
 };
 
 #ifdef __cplusplus

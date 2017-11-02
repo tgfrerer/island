@@ -18,45 +18,44 @@ table of function pointers which, together, declare the api.
 
 */
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif // end __cplusplus
 
-struct api_loader_o;
-struct file_watcher_i;
-struct file_watcher_o;
+struct pal_api_loader_o;
+struct pal_file_watcher_i;
+struct pal_file_watcher_o;
 
-struct api_loader_i {
-	api_loader_o *( *create )( const char *path_ );
-	void ( *destroy )( api_loader_o *obj );
+struct pal_api_loader_i {
+	static constexpr auto id = "pal_api_loader";
+	pal_api_loader_o *( *create )( const char *path_ );
+	void ( *destroy )( pal_api_loader_o *obj );
 
-	bool ( *register_api )( api_loader_o *obj, void *api_interface, const char *api_registry_name );
-	bool ( *register_static_api )( const char* api_name, void (*register_api_fun_p)(void*), void* api_interface );
-	bool ( *load )( api_loader_o *obj );
+	bool ( *register_api )( pal_api_loader_o *obj, void *api_interface, const char *api_registry_name );
+	bool ( *register_static_api )( void ( *register_api_fun_p )( void * ), void *api_interface );
+	bool ( *load )( pal_api_loader_o *obj );
 
 	struct file_watcher {
-		file_watcher_i* interface;
-		file_watcher_o* watcher;
+		pal_file_watcher_i *interface;
+		pal_file_watcher_o *watcher;
 	} watcher;
 };
 
-bool register_api_loader_i( api_loader_i *api );
-
+bool pal_register_api_loader_i( pal_api_loader_i *api );
 
 // ----------------------------------------------------------------------
 
 #ifdef __cplusplus
 
-namespace pal{
+namespace pal {
 
 class ApiLoader {
-	api_loader_i *  loaderInterface        = nullptr;
-	api_loader_o *  loader                 = nullptr;
-	void *          api                    = nullptr;
-	const char *    api_register_fun_name  = nullptr;
-	file_watcher_i *file_watcher_interface = nullptr;
-	file_watcher_o *file_watcher           = nullptr;
+	pal_api_loader_i *  loaderInterface        = nullptr;
+	pal_api_loader_o *  loader                 = nullptr;
+	void *              api                    = nullptr;
+	const char *        api_register_fun_name  = nullptr;
+	pal_file_watcher_i *file_watcher_interface = nullptr;
+	pal_file_watcher_o *file_watcher           = nullptr;
 
 	static bool loadLibraryCallback( void *userData ) {
 		auto self = reinterpret_cast<ApiLoader *>( userData );
@@ -65,7 +64,7 @@ class ApiLoader {
 	}
 
   public:
-	ApiLoader( api_loader_i *loaderInterface_, void *apiInterface_, const char *libpath_, const char *api_register_fun_name_ )
+	ApiLoader( pal_api_loader_i *loaderInterface_, void *apiInterface_, const char *libpath_, const char *api_register_fun_name_ )
 	    : loaderInterface( loaderInterface_ )
 	    , loader( loaderInterface->create( libpath_ ) )
 	    , api( apiInterface_ )

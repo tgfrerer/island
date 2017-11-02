@@ -7,6 +7,8 @@
 extern "C" {
 #endif
 
+
+
 void register_traffic_light_api( void *api );
 
 enum class State : uint8_t {
@@ -22,6 +24,9 @@ struct pal_traffic_light_o;
 
 // declare interface
 struct pal_traffic_light_i {
+
+	static constexpr auto id = "pal_traffic_light";
+
 	pal_traffic_light_o * ( *create )             ( pal_traffic_light_i * );
 	void                  ( *destroy )            ( pal_traffic_light_o * );
 	const State &         ( *get_state )          ( pal_traffic_light_o * );
@@ -30,11 +35,15 @@ struct pal_traffic_light_i {
 	const char *          ( *get_state_as_string )( pal_traffic_light_o * );
 };
 
+
+
+
 // declare state machine object
 struct pal_traffic_light_o {
 	pal_traffic_light_i *       vtable;
 	State currentState = State::eInitial;
 };
+
 
 
 #ifdef __cplusplus

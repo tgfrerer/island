@@ -17,6 +17,7 @@ add_subdirectory (file_watcher)
 
 set (SOURCES main.cpp)
 set (SOURCES ${SOURCES} "loader/ApiLoader.cpp")
+set (SOURCES ${SOURCES} "registry/ApiRegistry.cpp")
 
 add_executable (Experiment ${SOURCES})
 

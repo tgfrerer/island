@@ -4,16 +4,15 @@
 #include <iostream>
 
 
-
 // declare function pointer type to register_fun function
 typedef void ( *register_api_fun_p_t )( void * );
 
-struct api_loader_o {
+struct pal_api_loader_o {
 	const char *    mApiName             = nullptr;
 	const char *    mRegisterApiFuncName = nullptr;
 	const char *    mPath                = nullptr;
 	void *          mLibraryHandle       = nullptr;
-	file_watcher_o *mFileWatcher         = nullptr;
+	pal_file_watcher_o *mFileWatcher         = nullptr;
 };
 
 // ----------------------------------------------------------------------
@@ -42,22 +41,22 @@ static void unload_library( void *handle_ ) {
 
 // ----------------------------------------------------------------------
 
-static api_loader_o *create( const char *path_ ) {
-	api_loader_o *tmp = new api_loader_o{};
+static pal_api_loader_o *create( const char *path_ ) {
+	pal_api_loader_o *tmp = new pal_api_loader_o{};
 	tmp->mPath  = path_;
 	return tmp;
 };
 
 // ----------------------------------------------------------------------
 
-static void destroy( api_loader_o *obj ) {
+static void destroy( pal_api_loader_o *obj ) {
 	unload_library( obj->mLibraryHandle );
 	delete obj;
 };
 
 // ----------------------------------------------------------------------
 
-static bool load( api_loader_o *obj ) {
+static bool load( pal_api_loader_o *obj ) {
 	unload_library( obj->mLibraryHandle );
 	obj->mLibraryHandle = load_library( obj->mPath );
 	return ( obj->mLibraryHandle != nullptr );
@@ -65,7 +64,7 @@ static bool load( api_loader_o *obj ) {
 
 // ----------------------------------------------------------------------
 
-static bool register_api( api_loader_o *obj, void *api_interface, const char *api_registry_name ) {
+static bool register_api( pal_api_loader_o *obj, void *api_interface, const char *api_registry_name ) {
 	// define function pointer we will use to initialise api
 	register_api_fun_p_t fptr;
 	// load function pointer to initialisation method
@@ -82,14 +81,14 @@ static bool register_api( api_loader_o *obj, void *api_interface, const char *ap
 
 // ----------------------------------------------------------------------
 
-static bool register_static_api(const char* api_name, void ( *register_api_fun_p )(void*), void *api_interface ){
+static bool register_static_api(void ( *register_api_fun_p )(void*), void *api_interface ){
 	( *register_api_fun_p )( api_interface );
 	return true;
 }
 
 // ----------------------------------------------------------------------
 
-bool register_api_loader_i( api_loader_i *api ) {
+bool pal_register_api_loader_i( pal_api_loader_i *api ) {
 	api->create              = create;
 	api->destroy             = destroy;
 	api->load                = load;
@@ -108,7 +107,7 @@ bool register_api_loader_i( api_loader_i *api ) {
 
 bool pal::ApiLoader::loadLibrary(){
 	if (file_watcher_interface == nullptr){
-		file_watcher_interface = new file_watcher_i;
+		file_watcher_interface = new pal_file_watcher_i;
 		register_file_watcher_api( file_watcher_interface );
 		file_watcher = file_watcher_interface->create( loader->mPath );
 		file_watcher_interface->set_callback_function( file_watcher, loadLibraryCallback, this );
