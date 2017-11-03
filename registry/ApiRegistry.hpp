@@ -3,7 +3,6 @@
 
 #include <unordered_map>
 #include <string>
-#include "loader/ApiLoader.h"
 
 /*
 
@@ -19,6 +18,9 @@
   to be unique.
 
 */
+
+struct pal_api_loader_i;
+struct pal_api_loader_o;
 
 class Registry {
 	static std::unordered_map<const char *, void *> apiTable;
@@ -36,6 +38,18 @@ class Registry {
 		void *            api;
 		const char *      lib_register_fun_name;
 	};
+
+	// We need these loader-related methods so we can keep this header file opaque,
+	// i.e. we don't want to include ApiLoader.h in this header file - as this header
+	// file will get included by lots of other headers.
+	//
+	// This is messy, i know, but since the templated method addApiDynamic must live
+	// in the header file, these methods must be declared here, too.
+
+	static pal_api_loader_i *getLoaderInterface();
+	static pal_api_loader_o *createLoader( pal_api_loader_i *loaderInterface, const char *libPath_ );
+	static void              loadLibrary( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader );
+	static void              registerApi( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader, void *api, const char *api_register_fun_name );
 
   public:
 	template <typename T>
@@ -59,11 +73,13 @@ class Registry {
 	static int addWatch( const char *watchedPath, CallbackParams &settings );
 
 	template <typename T>
-	static T *addApiDynamic( bool shouldWatchForAutoReload = false) {
+	static T *addApiDynamic( bool shouldWatchForAutoReload = false ) {
 
-		// TODO: we need to add file watcher hook for when api gets reloaded.
-		// We should be able to create a table of watched apis,
-		// and iterate over all file hooks with all watched apis.
+		// Because this is a templated function, there will be
+		// static memory allocated for each type this function will get
+		// fleshed out with.
+		// We want this, as we use the addresses of these static variables
+		// for the life-time of the application.
 
 		static auto apiName = getId<T>();
 		static auto api     = static_cast<T *>( apiTable[ apiName ] );
@@ -73,17 +89,21 @@ class Registry {
 			static const std::string lib_path              = "./" + std::string{apiName} + "/lib" + std::string{apiName} + ".so";
 			static const std::string lib_register_fun_name = "register_" + std::string{apiName} + "_api";
 
-			static pal_api_loader_i *loaderInterface = Registry::addApiStatic<pal_api_loader_i>();
-			static pal_api_loader_o *loader          = loaderInterface->create( lib_path.c_str() );
+			static pal_api_loader_i *loaderInterface = getLoaderInterface();
+			static pal_api_loader_o *loader          = createLoader( loaderInterface, lib_path.c_str() );
 
 			api = new T();
-			loaderInterface->load( loader );
-			loaderInterface->register_api( loader, api, lib_register_fun_name.c_str() );
+			loadLibrary( loaderInterface, loader );
+			registerApi( loaderInterface, loader, api, lib_register_fun_name.c_str() );
+
 			apiTable[ getId<T>() ] = api;
 
 			// ----
 			if ( shouldWatchForAutoReload ) {
 				static CallbackParams callbackParams = {loaderInterface, loader, api, lib_register_fun_name.c_str()};
+				// TODO: We keep watchId static so that a watch is only created once per type T.
+				// ideally, if we ever wanted to be able to remove watches, we'd keep the watchIds in a
+				// table, similar to the apiTable.
 				static int            watchId        = addWatch( lib_path.c_str(), callbackParams );
 			}
 

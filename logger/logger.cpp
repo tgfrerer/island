@@ -27,7 +27,6 @@ static void destroy( pal_logger_o *instance ) {
 	delete instance;
 }
 
-
 void register_logger_api( void *api ) {
 	auto a     = static_cast<pal_logger_i *>( api );
 	a->create  = create;
@@ -35,6 +34,3 @@ void register_logger_api( void *api ) {
 	a->append  = append;
 	a->flush   = flush;
 }
-
-
-

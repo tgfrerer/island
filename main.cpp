@@ -38,10 +38,7 @@ int main( int argc, char const *argv[] ) {
 
 		trafficLight.step();
 
-		auto logger = std::move(pal::Logger());
-
-		logger << trafficLight.getStateAsString();
-
+		pal::Logger() << trafficLight.getStateAsString();
 
 		std::this_thread::sleep_for( std::chrono::milliseconds( 250 ) );
 	};
