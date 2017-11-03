@@ -11,7 +11,7 @@ struct pal_api_loader_o {
 	const char *        mRegisterApiFuncName = nullptr;
 	const char *        mPath                = nullptr;
 	void *              mLibraryHandle       = nullptr;
-	pal_file_watcher_o *mFileWatcher         = nullptr;
+	Pal_File_Watcher_o *mFileWatcher         = nullptr;
 };
 
 // ----------------------------------------------------------------------
@@ -23,7 +23,7 @@ static void *load_library( const char *lib_name ) {
 
 	if ( !handle ) {
 		auto loadResult = dlerror();
-		std::cerr << "error: " << loadResult << std::endl;
+		std::cerr << "ERROR: " << loadResult << std::endl;
 	}
 
 	return handle;
@@ -70,11 +70,12 @@ static bool register_api( pal_api_loader_o *obj, void *api_interface, const char
 	// load function pointer to initialisation method
 	fptr = reinterpret_cast<register_api_fun_p_t>( dlsym( obj->mLibraryHandle, api_registry_name ) );
 	if ( !fptr ) {
-		std::cerr << "error: " << dlerror() << std::endl;
+		std::cerr << "ERROR: " << dlerror() << std::endl;
 		return false;
 	}
 	// Initialize the API. This means telling the API to populate function
 	// pointers inside the struct which we are passing as parameter.
+	std::cout << "Registering API via '" << api_registry_name << "'" << std::endl;
 	( *fptr )( api_interface );
 	return true;
 }
@@ -82,48 +83,9 @@ static bool register_api( pal_api_loader_o *obj, void *api_interface, const char
 // ----------------------------------------------------------------------
 
 bool pal_register_api_loader_i( pal_api_loader_i *api ) {
-	api->create              = create;
-	api->destroy             = destroy;
-	api->load                = load;
-	api->register_api        = register_api;
+	api->create       = create;
+	api->destroy      = destroy;
+	api->load         = load;
+	api->register_api = register_api;
 	return true;
 };
-// ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
-#ifdef __cplusplus
-
-#include "file_watcher/file_watcher.h"
-#include <string>
-
-// ----------------------------------------------------------------------
-
-bool pal::ApiLoader::loadLibrary() {
-	if ( file_watcher_interface == nullptr ) {
-		file_watcher_interface = new pal_file_watcher_i;
-		register_file_watcher_api( file_watcher_interface );
-		file_watcher = file_watcher_interface->create( loader->mPath );
-		file_watcher_interface->set_callback_function( file_watcher, loadLibraryCallback, this );
-	}
-	return loadLibraryCallback( this );
-}
-
-// ----------------------------------------------------------------------
-
-pal::ApiLoader::~ApiLoader() {
-	if ( file_watcher_interface ) {
-		file_watcher_interface->destroy( file_watcher );
-		delete file_watcher_interface;
-	}
-	loaderInterface->destroy( loader );
-}
-
-bool pal::ApiLoader::checkReload() {
-	bool result = false;
-	if ( file_watcher ) {
-		file_watcher_interface->poll_notifications( file_watcher );
-	}
-	return result;
-}
-
-// ----------------------------------------------------------------------
-#endif //__cplusplus

@@ -2,8 +2,8 @@
 #define GUARD_API_REGISTRY_HPP
 
 #include <unordered_map>
-#include "loader/ApiLoader.h"
 #include <string>
+#include "loader/ApiLoader.h"
 
 /*
 
@@ -28,11 +28,20 @@ class Registry {
 		return T::pRegFun;
 	}
 
+	static bool loaderCallback( void * );
+
+	struct CallbackParams {
+		pal_api_loader_i *loaderInterface;
+		pal_api_loader_o *loader;
+		void *            api;
+		const char *      lib_register_fun_name;
+	};
+
   public:
-    template <typename T>
-    inline static constexpr auto getId() noexcept {
-        return T::id;
-    }
+	template <typename T>
+	inline static constexpr auto getId() noexcept {
+		return T::id;
+	}
 
 	template <typename T>
 	static T *addApiStatic() {
@@ -47,20 +56,22 @@ class Registry {
 		return api;
 	}
 
+	static int addWatch( const char *watchedPath, CallbackParams &settings );
+
 	template <typename T>
-	static T *addApiDynamic() {
+	static T *addApiDynamic( bool shouldWatchForAutoReload = false) {
 
 		// TODO: we need to add file watcher hook for when api gets reloaded.
 		// We should be able to create a table of watched apis,
 		// and iterate over all file hooks with all watched apis.
 
-		static auto apiName_ = getId<T>();
-		static auto api      = static_cast<T *>( apiTable[ apiName_ ] );
+		static auto apiName = getId<T>();
+		static auto api     = static_cast<T *>( apiTable[ apiName ] );
 
 		if ( api == nullptr ) {
 
-			static const std::string lib_path              = "./" + std::string{apiName_} + "/lib" + std::string{apiName_} + ".so";
-			static const std::string lib_register_fun_name = "register_" + std::string{apiName_} + "_api";
+			static const std::string lib_path              = "./" + std::string{apiName} + "/lib" + std::string{apiName} + ".so";
+			static const std::string lib_register_fun_name = "register_" + std::string{apiName} + "_api";
 
 			static pal_api_loader_i *loaderInterface = Registry::addApiStatic<pal_api_loader_i>();
 			static pal_api_loader_o *loader          = loaderInterface->create( lib_path.c_str() );
@@ -69,6 +80,13 @@ class Registry {
 			loaderInterface->load( loader );
 			loaderInterface->register_api( loader, api, lib_register_fun_name.c_str() );
 			apiTable[ getId<T>() ] = api;
+
+			// ----
+			if ( shouldWatchForAutoReload ) {
+				static CallbackParams callbackParams = {loaderInterface, loader, api, lib_register_fun_name.c_str()};
+				static int            watchId        = addWatch( lib_path.c_str(), callbackParams );
+			}
+
 		} else {
 			// todo: we should warn that this api was already added.
 		}
@@ -82,6 +100,8 @@ class Registry {
 		// TODO: add error checking if compiled in debug mode.
 		return static_cast<T *>( apiTable[ getId<T>() ] );
 	}
+
+	static void pollForDynamicReload();
 };
 
 #endif // GUARD_API_REGISTRY_HPP

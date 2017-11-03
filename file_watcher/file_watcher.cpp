@@ -4,88 +4,106 @@
 #include <iostream>
 #include <sys/inotify.h>
 #include <unistd.h>
-#include <type_traits>
 #include <bitset>
 #include <stdio.h>
 #include <string>
-
+#include <list>
 #include <experimental/filesystem>
+#include <algorithm>
 
 using namespace std;
 
-namespace std{
-namespace filesystem{
-    using namespace experimental::filesystem;
+namespace std {
+namespace filesystem {
+using namespace experimental::filesystem;
 }
-}
+} // namespace std
+
 // ----------------------------------------------------------------------
 
-struct pal_file_watcher_o {
-	int         in_socket_handle = -1;
-	int         in_watch_handle  = -1;
-	std::string path;
-
-	void *callback_user_data = nullptr;
+struct Watch {
+	int                 inotify_watch_handle = -1;
+	pal_file_watcher_o *watcher_o;
+	std::string         path;
+	void *              callback_user_data = nullptr;
 	bool ( *callback_fun )( void * );
 };
 
 // ----------------------------------------------------------------------
 
-static pal_file_watcher_o *create( const char *path ) noexcept {
-	auto tmp  = new pal_file_watcher_o{};
+struct pal_file_watcher_o {
+	int              inotify_socket_handle = -1;
+	std::list<Watch> mWatches;
+};
 
-	auto tmp_path = std::filesystem::path(path);
-	if (tmp_path.has_filename()){
-		tmp_path.remove_filename();
-	}
-	tmp->path = tmp_path;
+// ----------------------------------------------------------------------
 
-	tmp->in_socket_handle = inotify_init1( IN_NONBLOCK );
-	tmp->in_watch_handle  = inotify_add_watch( tmp->in_socket_handle, tmp->path.c_str(), IN_CLOSE_WRITE | IN_MODIFY );
-
+static pal_file_watcher_o *create() {
+	auto tmp                   = new pal_file_watcher_o();
+	tmp->inotify_socket_handle = inotify_init1( IN_NONBLOCK );
 	return tmp;
 }
 
 // ----------------------------------------------------------------------
 
-void destroy( pal_file_watcher_o *instance ) noexcept {
-	if ( instance->in_socket_handle > 0 ) {
-		if ( instance->in_watch_handle > 0 ) {
-			std::cout << "removing inotify watch handle: " << std::hex << instance->in_watch_handle << std::endl;
-			inotify_rm_watch( instance->in_socket_handle, instance->in_watch_handle );
-		}
-		std::cout << "closing inotify instance file handle: " << std::hex << instance->in_socket_handle << std::endl;
-		close( instance->in_socket_handle );
-	}
+static void destroy( pal_file_watcher_o *instance ) {
 
+	for ( auto &w : instance->mWatches ) {
+		inotify_rm_watch( instance->inotify_socket_handle, w.inotify_watch_handle );
+	}
+	instance->mWatches.clear();
+
+	if ( instance->inotify_socket_handle > 0 ) {
+		std::cout << "closing inotify instance file handle: " << std::hex << instance->inotify_socket_handle << std::endl;
+		close( instance->inotify_socket_handle );
+	}
 	delete ( instance );
-	instance = nullptr;
 }
 
 // ----------------------------------------------------------------------
 
-void set_callback_function( pal_file_watcher_o *instance, bool ( *callback_fun_p )( void * ), void *user_data ) {
-	instance->callback_fun       = callback_fun_p;
-	instance->callback_user_data = user_data;
+static int add_watch( pal_file_watcher_o *instance, const pal_file_watcher_watch_settings &settings ) noexcept {
+	Watch tmp;
+
+	auto tmp_path = std::filesystem::path( settings.filePath );
+	if ( tmp_path.has_filename() ) {
+		tmp_path.remove_filename();
+	}
+	tmp.path                 = tmp_path;
+	tmp.watcher_o            = instance;
+	tmp.callback_fun         = settings.callback_fun;
+	tmp.callback_user_data   = settings.callback_user_data;
+	tmp.inotify_watch_handle = inotify_add_watch( instance->inotify_socket_handle, tmp.path.c_str(), IN_CLOSE_WRITE );
+
+	instance->mWatches.emplace_back( std::move( tmp ) );
+	return tmp.inotify_watch_handle;
+}
+
+// ----------------------------------------------------------------------
+
+bool remove_watch( pal_file_watcher_o *instance, int watch_id ) {
+	auto found_watch = std::find_if( instance->mWatches.begin(), instance->mWatches.end(), [=]( const Watch &w ) -> bool { return w.inotify_watch_handle == watch_id; } );
+	if ( found_watch != instance->mWatches.end() ) {
+		std::cout << "removing inotify watch handle: " << std::hex << found_watch->inotify_watch_handle << std::endl;
+		inotify_rm_watch( instance->inotify_socket_handle, found_watch->inotify_watch_handle );
+		instance->mWatches.erase( found_watch );
+		return true;
+	} else {
+		std::cout << "WARNING: " << __FUNCTION__ << ": could not find and thus remove watch with id:" << watch_id << std::endl;
+		return false;
+	}
 };
 
 // ----------------------------------------------------------------------
 
-const char *get_path( pal_file_watcher_o *instance ) {
-	return instance->path.c_str();
-}
-
-// ----------------------------------------------------------------------
-
 void poll_notifications( pal_file_watcher_o *instance ) {
+	static_assert( sizeof( inotify_event ) == sizeof( struct inotify_event ), "must be equal" );
 
 	for ( ;; ) {
 
 		alignas( inotify_event ) char buffer[ sizeof( inotify_event ) + NAME_MAX + 1 ];
 
-		ssize_t ret = read( instance->in_socket_handle, buffer, sizeof( buffer ) );
-
-		static_assert(sizeof(inotify_event)==sizeof(struct inotify_event),"must be equal");
+		ssize_t ret = read( instance->inotify_socket_handle, buffer, sizeof( buffer ) );
 
 		if ( ret > 0 ) {
 
@@ -94,34 +112,31 @@ void poll_notifications( pal_file_watcher_o *instance ) {
 
 				ev = reinterpret_cast<inotify_event *>( buffer + i );
 
-				std::cout << "Some bytes read. Flags: 0x" << std::bitset<32>( ev->mask ) << "b" << std::endl;
+				// std::cout << __FUNCTION__ << ": Some bytes read. Flags: 0x" << std::bitset<32>( ev->mask ) << "b" << std::endl;
 
-				if ( ev->wd == instance->in_watch_handle ) {
-					std::cout << "Current watch handle affected" << std::endl;
+				auto foundWatch = std::find_if( instance->mWatches.begin(), instance->mWatches.end(), [&]( const Watch &w ) -> bool {
+					return w.inotify_watch_handle == ev->wd;
+				} );
 
-					if ( ev->len > 1 ) {
-						// For directory watches, this means a specific file from this directory is reporting
-						// a change.
+				if ( foundWatch != instance->mWatches.end() ) {
 
-						std::string tmpNameStr{ev->name};
-						std::string tmpPathStr( instance->path );
-						std::cout << "File: " << tmpPathStr << tmpNameStr << std::endl;
-					}
+					std::cout << "Found affected watch" << std::endl;
 
 					if ( ev->mask & ( IN_CLOSE_WRITE ) ) {
-						std::cout << "CLOSE_WRITE detected" << std::endl;
-						std::cout << "Trigger callback." << std::endl;
-						( *instance->callback_fun )( instance->callback_user_data );
+						std::cout << "File Watcher: CLOSE_WRITE on "
+						          << "watched file: '" << foundWatch->path << ev->name << "'" << std::endl
+						          << "Trigger CLOSE_WRITE callback." << std::endl;
+
+						( *foundWatch->callback_fun )( foundWatch->callback_user_data );
 					}
 
-					if ( ev->mask & ( IN_MODIFY ) ) {
-						std::cout << "IN_MODIFY detected" << std::endl;
-					}
+				} else {
+					std::cout << __FUNCTION__ << ": found no affected watch." << std::endl;
 				}
-				std::cout << "watch descriptor: " << ev->wd << std::endl;
+				// std::cout << "watch descriptor: " << ev->wd << std::endl;
 			}
-
 			std::cout << std::flush;
+
 		} else {
 			break;
 		}
@@ -131,12 +146,12 @@ void poll_notifications( pal_file_watcher_o *instance ) {
 // ----------------------------------------------------------------------
 
 void register_file_watcher_api( void *api_p ) {
-	auto api                   = reinterpret_cast<pal_file_watcher_i *>( api_p );
-	api->create                = create;
-	api->destroy               = destroy;
-	api->set_callback_function = set_callback_function;
-	api->get_path              = get_path;
-	api->poll_notifications    = poll_notifications;
+	auto api                = reinterpret_cast<pal_file_watcher_i *>( api_p );
+	api->create             = create;
+	api->destroy            = destroy;
+	api->add_watch          = add_watch;
+	api->remove_watch       = remove_watch;
+	api->poll_notifications = poll_notifications;
 };
 
 // ----------------------------------------------------------------------

@@ -25,13 +25,13 @@ extern "C" {
 struct pal_api_loader_i;
 struct pal_api_loader_o;
 struct pal_file_watcher_i;
-struct pal_file_watcher_o;
+struct Pal_File_Watcher_o;
 
 bool pal_register_api_loader_i( pal_api_loader_i *api );
 
 struct pal_api_loader_i {
 
-	static constexpr auto id = "pal_api_loader";
+	static constexpr auto id      = "pal_api_loader";
 	static constexpr auto pRegFun = pal_register_api_loader_i;
 
 	pal_api_loader_o *( *create )( const char *path_ );
@@ -40,49 +40,11 @@ struct pal_api_loader_i {
 	bool ( *register_api )( pal_api_loader_o *obj, void *api_interface, const char *api_registry_name );
 
 	bool ( *load )( pal_api_loader_o *obj );
-
-	struct file_watcher {
-		pal_file_watcher_i *interface;
-		pal_file_watcher_o *watcher;
-	} watcher;
 };
-
 
 // ----------------------------------------------------------------------
 
 #ifdef __cplusplus
-
-namespace pal {
-
-class ApiLoader {
-	pal_api_loader_i *  loaderInterface        = nullptr;
-	pal_api_loader_o *  loader                 = nullptr;
-	void *              api                    = nullptr;
-	const char *        api_register_fun_name  = nullptr;
-	pal_file_watcher_i *file_watcher_interface = nullptr;
-	pal_file_watcher_o *file_watcher           = nullptr;
-
-	static bool loadLibraryCallback( void *userData ) {
-		auto self = reinterpret_cast<ApiLoader *>( userData );
-		self->loaderInterface->load( self->loader );
-		return self->loaderInterface->register_api( self->loader, self->api, self->api_register_fun_name );
-	}
-
-  public:
-	ApiLoader( pal_api_loader_i *loaderInterface_, void *apiInterface_, const char *libpath_, const char *api_register_fun_name_ )
-	    : loaderInterface( loaderInterface_ )
-	    , loader( loaderInterface->create( libpath_ ) )
-	    , api( apiInterface_ )
-	    , api_register_fun_name( api_register_fun_name_ ) {
-	}
-
-	bool loadLibrary();
-	bool checkReload();
-
-	~ApiLoader();
-};
-
-} // end namespace pal
 } // end extern "C"
 #endif // end __cplusplus,
 
