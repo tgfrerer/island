@@ -23,7 +23,7 @@ struct pal_traffic_light_o;
 // declare interface
 struct pal_traffic_light_i {
 
-	static constexpr auto id = "traffic_light";
+	static constexpr auto id      = "traffic_light";
 	static constexpr auto pRegFun = register_traffic_light_api;
 
 	pal_traffic_light_o * ( *create )             ( pal_traffic_light_i * );

@@ -10,8 +10,9 @@ set ( PLUGIN_DEFINITIONS "")
 
 include_directories ("${PROJECT_SOURCE_DIR}")
 
-add_subdirectory (traffic_light)
 add_subdirectory (file_watcher)
+add_subdirectory (traffic_light)
+add_subdirectory (logger)
 
 set (SOURCES main.cpp)
 set (SOURCES ${SOURCES} "loader/ApiLoader.cpp")

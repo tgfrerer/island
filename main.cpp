@@ -12,7 +12,7 @@
 // ----------------------------------------------------------------------
 
 #include "traffic_light/traffic_light.h"
-
+#include "logger/logger.h"
 
 // ----------------------------------------------------------------------
 
@@ -24,6 +24,12 @@ int main( int argc, char const *argv[] ) {
 	Registry::addApiDynamic<pal_traffic_light_i>(true);
 #endif
 
+#ifdef PLUGIN_LOGGER_STATIC
+	Registry::addApiStatic<pal_logger_i>();
+#else
+	Registry::addApiDynamic<pal_logger_i>(true);
+#endif
+
 	pal::TrafficLight trafficLight( Registry::getApi<pal_traffic_light_i>() );
 
 	for ( ;; ) {
@@ -31,7 +37,12 @@ int main( int argc, char const *argv[] ) {
 		Registry::pollForDynamicReload();
 
 		trafficLight.step();
-		std::cout << trafficLight.getStateAsString() << std::endl;
+
+		auto logger = std::move(pal::Logger());
+
+		logger << trafficLight.getStateAsString();
+
+
 		std::this_thread::sleep_for( std::chrono::milliseconds( 250 ) );
 	};
 }
