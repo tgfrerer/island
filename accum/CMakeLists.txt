@@ -1,1 +1,0 @@
-add_library(accumulator SHARED accumulator.cpp)
