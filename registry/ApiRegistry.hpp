@@ -51,7 +51,9 @@ class Registry {
 	static void              loadLibrary( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader );
 	static void              registerApi( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader, void *api, const char *api_register_fun_name );
 
-  public:
+	static int addWatch( const char *watchedPath, CallbackParams &settings );
+
+public:
 	template <typename T>
 	inline static constexpr auto getId() noexcept {
 		return T::id;
@@ -59,7 +61,7 @@ class Registry {
 
 	template <typename T>
 	static T *addApiStatic() {
-		auto api = static_cast<T *>( apiTable[ getId<T>() ] );
+		static auto api = getApi<T>();
 		// We assume failed map lookup returns a pointer which is
 		// initialised to be a nullptr.
 		if ( api == nullptr ) {
@@ -70,7 +72,6 @@ class Registry {
 		return api;
 	}
 
-	static int addWatch( const char *watchedPath, CallbackParams &settings );
 
 	template <typename T>
 	static T *addApiDynamic( bool shouldWatchForAutoReload = false ) {
@@ -82,7 +83,7 @@ class Registry {
 		// for the life-time of the application.
 
 		static auto apiName = getId<T>();
-		static auto api     = static_cast<T *>( apiTable[ apiName ] );
+		static auto api     = getApi<T>();
 
 		if ( api == nullptr ) {
 
