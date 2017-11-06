@@ -1,11 +1,15 @@
 #include "traffic_light/traffic_light.h"
 #include <type_traits>
 
+// declare state machine object
+struct pal_traffic_light_o {
+	State                currentState = State::eInitial;
+};
+
 // ----------------------------------------------------------------------
 
-static pal_traffic_light_o *create(pal_traffic_light_i* interface_) {
+static pal_traffic_light_o *create() {
 	pal_traffic_light_o *newObj = new pal_traffic_light_o{};
-	newObj->vtable = interface_;
 	return newObj;
 }
 
@@ -73,13 +77,15 @@ static const char *get_state_as_string( pal_traffic_light_o *instance ) {
 // ----------------------------------------------------------------------
 
 void register_traffic_light_api( void *api ) {
-	auto a                 = static_cast<pal_traffic_light_i *>( api );
-	a->create              = create;
-	a->destroy             = destroy;
-	a->get_state           = get_state;
-	a->step                = nextState;
-	a->reset_state         = resetState;
-	a->get_state_as_string = get_state_as_string;
+	auto a                 = static_cast<pal_traffic_light_api *>( api );
+	auto traffic_light_vtable = &a->traffic_light_i;
+
+	traffic_light_vtable->create = create;
+	traffic_light_vtable->destroy             = destroy;
+	traffic_light_vtable->get_state           = get_state;
+	traffic_light_vtable->step                = nextState;
+	traffic_light_vtable->reset_state         = resetState;
+	traffic_light_vtable->get_state_as_string = get_state_as_string;
 }
 
 // ----------------------------------------------------------------------

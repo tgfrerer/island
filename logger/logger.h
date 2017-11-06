@@ -12,17 +12,16 @@ void register_logger_api( void *api );
 
 struct pal_logger_o;
 
-struct pal_logger_i {
+struct pal_logger_api {
 	static constexpr auto id      = "logger";
 	static constexpr auto pRegFun = register_logger_api;
 
-	pal_logger_o *( *create )();
-	pal_logger_o *( *copy )( pal_logger_o *rhs );
-
-	void ( *destroy )( pal_logger_o *obj );
-
-	void ( *append )( pal_logger_o *obj, const char *message );
-	void ( *flush )( pal_logger_o *obj );
+	struct logger_interface_t{
+		pal_logger_o *( *create )();
+		void ( *destroy )( pal_logger_o *obj );
+		void ( *append ) ( pal_logger_o *obj, const char *message );
+		void ( *flush )  ( pal_logger_o *obj );
+	} logger_i;
 };
 
 #ifdef __cplusplus
@@ -31,7 +30,7 @@ struct pal_logger_i {
 namespace pal {
 
 class Logger {
-	pal_logger_i const *mInterface;
+	pal_logger_api::logger_interface_t const *mInterface;
 	pal_logger_o *      mObj;
 
   private:
@@ -57,10 +56,9 @@ class Logger {
   public:
 	// default constructor
 	Logger()
-	    : mInterface( Registry::getApi<pal_logger_i>() )
+	    : mInterface( &Registry::getApi<pal_logger_api>()->logger_i )
 	    , mObj( mInterface->create() ) {
 	}
-
 
 	~Logger() {
 		mInterface->flush( mObj );

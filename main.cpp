@@ -21,16 +21,16 @@ int main( int argc, char const *argv[] ) {
 #ifdef PLUGIN_TRAFFIC_LIGHT_STATIC
 	Registry::addApiStatic<pal_traffic_light_i>();
 #else
-	Registry::addApiDynamic<pal_traffic_light_i>(true);
+	Registry::addApiDynamic<pal_traffic_light_api>(true);
 #endif
 
 #ifdef PLUGIN_LOGGER_STATIC
 	Registry::addApiStatic<pal_logger_i>();
 #else
-	Registry::addApiDynamic<pal_logger_i>(true);
+	Registry::addApiDynamic<pal_logger_api>(true);
 #endif
 
-	pal::TrafficLight trafficLight( Registry::getApi<pal_traffic_light_i>() );
+	pal::TrafficLight trafficLight{};
 
 	for ( ;; ) {
 

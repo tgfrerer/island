@@ -17,60 +17,61 @@ enum class State : uint8_t {
 
 void register_traffic_light_api( void *api );
 
-struct pal_traffic_light_i;
+struct pal_traffic_light_api;
 struct pal_traffic_light_o;
 
 // declare interface
-struct pal_traffic_light_i {
+struct pal_traffic_light_api {
 
 	static constexpr auto id      = "traffic_light";
 	static constexpr auto pRegFun = register_traffic_light_api;
 
-	pal_traffic_light_o * ( *create )             ( pal_traffic_light_i * );
-	void                  ( *destroy )            ( pal_traffic_light_o * );
-	const State &         ( *get_state )          ( pal_traffic_light_o * );
-	void                  ( *step )               ( pal_traffic_light_o * );
-	void                  ( *reset_state )        ( pal_traffic_light_o * );
-	const char *          ( *get_state_as_string )( pal_traffic_light_o * );
+	struct traffic_light_interface_t{
+		pal_traffic_light_o * ( *create )             ( );
+		void                  ( *destroy )            ( pal_traffic_light_o * );
+		const State &         ( *get_state )          ( pal_traffic_light_o * );
+		void                  ( *step )               ( pal_traffic_light_o * );
+		void                  ( *reset_state )        ( pal_traffic_light_o * );
+		const char *          ( *get_state_as_string )( pal_traffic_light_o * );
+	} traffic_light_i;
+
 };
 
-// declare state machine object
-struct pal_traffic_light_o {
-	pal_traffic_light_i *vtable;
-	State                currentState = State::eInitial;
-};
 
 #ifdef __cplusplus
 
+} // extern "C"
+
 // ----------------------------------------------------------------------
+
+#include "registry/ApiRegistry.hpp"
 
 namespace pal {
 
 class TrafficLight {
-	pal_traffic_light_i *const interface;
-	pal_traffic_light_o *const obj;
+	pal_traffic_light_api::traffic_light_interface_t *const interface;
+	pal_traffic_light_o *const                              obj;
 
   public:
-	TrafficLight( pal_traffic_light_i *interface_ )
-	    : interface( interface_ )
-	    , obj( interface->create( interface ) ) {
+	TrafficLight()
+	    : interface( &Registry::getApi<pal_traffic_light_api>()->traffic_light_i )
+	    , obj(interface->create()) {
 	}
 
 	~TrafficLight() {
-		obj->vtable->destroy( obj );
+		interface->destroy( obj );
 	}
 
 	void step() {
-		obj->vtable->step( obj );
+		interface->step( obj );
 	}
 
 	const char *getStateAsString() {
-		return obj->vtable->get_state_as_string( obj );
+		return interface->get_state_as_string( obj );
 	}
 };
 } // namespace pal
 
-} // extern "C"
 #endif
 
 #endif // GUARD_STATE_MACHINE_H
