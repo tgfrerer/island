@@ -1,0 +1,49 @@
+* Project Architecture
+
+1. The project is organised into independent subsystems
+2. Each subsystem is fully contained within its own library
+3. Libraries may be static or dynamic - there shall be no difference in program function
+4. Dynamic libraries may be reloaded while the program is running
+
+* Library Architecture 
+
+1. Each Library must provide exactly one free function with c-linkage: `register_${library_name}_api` - the library registration function
+2. The library registration function is responsible for connecting function pointers declared in the library interface to free functions defined in implementation (.cpp) files of the library.
+3. Library must declare its interface through a struct named `pal_${library_name}_api`
+4. Library interface struct must provide two fields:
+   1. `static constexpr auto id` - this field must be a string literal, and its value must be the value of ${library_name}, i.e. the unique name of the library.
+   2. `static constexpr auto pRegFun` - contains the address of the library registration function
+5. A library may have a number of objects which it may instantiate.
+
+* Object Architecture
+
+We treat objects as structured data, with functions associated with them. Objects don't own their functions, but may have a vtable pointer, which contains just the methods relevant to manipulating the object. Object data is kept secret, only the object library's implementation may touch and manipulate object data.
+
+1. An object is declared as an opaque struct in library header files
+2. Objects data must be private - to interact with objects clients of the library must use the library interface for the object
+3. Objects must provide `create` and `destroy` methods.
+4. Object interfaces may be declared as inner structs of the library interface struct.
+
+* Implementation rules
+
+The Biedermeyer principle: "Public appearance must be pure, private life may be a promiscuous mess"
+
+* Library Header Rules
+
+Header files must follow strict rules, and c-interfaces must be "holier-than-thou". 
+
+1. must not include any cpp headers.
+2. must not include any other library headers
+3. may forward-declare elements needed from other libraries
+4. may include <stdint.h>
+
+* Implementation file Rules 
+
+Implementations may do whatever they see fit - as long as it never seeps into the header file.
+
+1. may include any library header
+2. may include any cpp header
+3. may use advanced cpp 
+
+
+
