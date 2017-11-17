@@ -7,10 +7,12 @@ set(PLUGINS_DYNAMIC ON CACHE BOOL "Use dynamic linking for plugins" FORCE)
 
 set ( STATIC_LIBS "")
 set ( PLUGIN_DEFINITIONS "")
+set ( PLUGIN_LIBS_DEPENDENCIES "")
 
 include_directories ("${PROJECT_SOURCE_DIR}")
 
 add_subdirectory (file_watcher)
+add_subdirectory (pal_window)
 add_subdirectory (traffic_light)
 add_subdirectory (logger)
 
@@ -26,5 +28,6 @@ target_compile_definitions(Experiment PUBLIC ${PLUGIN_DEFINITIONS})
 
 # we need to link in the dynamic linking library so we can use dynamic linking
 target_link_libraries(Experiment dl)
+target_link_libraries(Experiment ${PLUGIN_LIBS_DEPENDENCIES})
 target_link_libraries(Experiment ${STATIC_LIBS})
 
