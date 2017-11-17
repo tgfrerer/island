@@ -17,7 +17,7 @@ static void append( pal_logger_o *instance_, const char *message_ ) {
 }
 
 static void flush( pal_logger_o *instance ) {
-	std::cout << "[ NOTICE ] " << instance->buffer.str();
+	std::cout << "[ NOTICE ] " << instance->buffer.str() << std::endl;
 	std::cout << std::flush;
 	instance->buffer.clear();
 }

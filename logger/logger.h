@@ -2,7 +2,6 @@
 #define GUARD_LOGGER_H
 
 #include <stdint.h>
-#include "registry/ApiRegistry.hpp"
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,15 +16,17 @@ struct pal_logger_api {
 	static constexpr auto pRegFun = register_logger_api;
 
 	struct logger_interface_t{
-		pal_logger_o *( *create )();
-		void ( *destroy )( pal_logger_o *obj );
-		void ( *append ) ( pal_logger_o *obj, const char *message );
-		void ( *flush )  ( pal_logger_o *obj );
+		pal_logger_o* ( *create  ) ();
+		void          ( *destroy ) ( pal_logger_o *obj );
+		void          ( *append  ) ( pal_logger_o *obj, const char *message );
+		void          ( *flush   ) ( pal_logger_o *obj );
 	} logger_i;
 };
 
 #ifdef __cplusplus
 } // extern "C"
+
+#include "registry/ApiRegistry.hpp"
 
 namespace pal {
 
@@ -77,6 +78,6 @@ class Logger {
 
 } // namespace pal
 
-#endif
+#endif // __cplusplus
 
 #endif
