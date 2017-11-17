@@ -16,9 +16,19 @@ struct pal_api_loader_o {
 
 // ----------------------------------------------------------------------
 
+static void unload_library( void *handle_ ) {
+	if ( handle_ ) {
+		dlclose( handle_ );
+		std::cout << "Closed library handle: " << std::hex << handle_ << std::endl;
+		handle_ = nullptr;
+	}
+}
+
+// ----------------------------------------------------------------------
+
 static void *load_library( const char *lib_name ) {
 	std::cout << "Loading Library    : '" << lib_name << "'" << std::endl;
-	void *handle = dlopen( lib_name, RTLD_NOW );
+	void *handle = dlopen( lib_name, RTLD_NOW | RTLD_GLOBAL );
 	std::cout << "Open library handle: " << std::hex << handle << std::endl;
 
 	if ( !handle ) {
@@ -27,16 +37,6 @@ static void *load_library( const char *lib_name ) {
 	}
 
 	return handle;
-}
-
-// ----------------------------------------------------------------------
-
-static void unload_library( void *handle_ ) {
-	if ( handle_ ) {
-		dlclose( handle_ );
-		std::cout << "Closed library handle: " << std::hex << handle_ << std::endl;
-		handle_ = nullptr;
-	}
 }
 
 // ----------------------------------------------------------------------
