@@ -23,13 +23,13 @@
 
 void test_traffic_light() {
 #ifdef PLUGIN_TRAFFIC_LIGHT_STATIC
-	Registry::addApiStatic<pal_traffic_light_i>();
+	Registry::addApiStatic<pal_traffic_light_api>();
 #else
 	Registry::addApiDynamic<pal_traffic_light_api>( true );
 #endif
 
 #ifdef PLUGIN_LOGGER_STATIC
-	Registry::addApiStatic<pal_logger_i>();
+	Registry::addApiStatic<pal_logger_api>();
 #else
 	Registry::addApiDynamic<pal_logger_api>( true );
 #endif
@@ -51,18 +51,21 @@ void test_traffic_light() {
 // ----------------------------------------------------------------------
 
 int main( int argc, char const *argv[] ) {
-	// test_traffic_light();
+// test_traffic_light();
 
 #ifdef PLUGIN_TRAFFIC_LIGHT_STATIC
-	Registry::addApiStatic<pal_traffic_light_i>();
+	Registry::addApiStatic<pal_traffic_light_api>();
 #else
 	Registry::addApiDynamic<pal_traffic_light_api>( true );
 #endif
 
+#ifdef PLUGIN_PAL_WINDOW_STATIC
+	Registry::addApiStatic<pal_window_api>();
+#else
 	Registry::addApiDynamic<pal_window_api>( true );
+#endif
 
 	glfwInit();
-
 
 	{
 		pal::Window window{};
