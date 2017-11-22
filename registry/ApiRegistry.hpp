@@ -1,7 +1,6 @@
 #ifndef GUARD_API_REGISTRY_HPP
 #define GUARD_API_REGISTRY_HPP
 
-#include <unordered_map>
 #include <string>
 
 /*
@@ -22,8 +21,18 @@
 struct pal_api_loader_i;
 struct pal_api_loader_o;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+extern "C" void* pal_registry_get_api( const char *id );
+extern "C" void  pal_registry_set_api( const char *id, void *api );
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
 class Registry {
-	static std::unordered_map<const char *, void *> apiTable;
 
 	template <typename T>
 	inline static constexpr auto getPointerToStaticRegFun() noexcept {
@@ -53,10 +62,17 @@ class Registry {
 
 	static int addWatch( const char *watchedPath, CallbackParams &settings );
 
-public:
+  public:
 	template <typename T>
 	inline static constexpr auto getId() noexcept {
 		return T::id;
+	}
+
+	template <typename T>
+	static T *getApi() {
+		// WARNING: this will return a nullptr if nothing found!
+		// TODO: add error checking if compiled in debug mode.
+		return static_cast<T *>( pal_registry_get_api( getId<T>() ) );
 	}
 
 	template <typename T>
@@ -67,11 +83,10 @@ public:
 		if ( api == nullptr ) {
 			api = new T();
 			( *getPointerToStaticRegFun<T>() )( api );
-			apiTable[ getId<T>() ] = api;
+			pal_registry_set_api( getId<T>(), api );
 		}
 		return api;
 	}
-
 
 	template <typename T>
 	static T *addApiDynamic( bool shouldWatchForAutoReload = false ) {
@@ -97,7 +112,7 @@ public:
 			loadLibrary( loaderInterface, loader );
 			registerApi( loaderInterface, loader, api, lib_register_fun_name.c_str() );
 
-			apiTable[ getId<T>() ] = api;
+			pal_registry_set_api( getId<T>(), api );
 
 			// ----
 			if ( shouldWatchForAutoReload ) {
@@ -105,7 +120,7 @@ public:
 				// TODO: We keep watchId static so that a watch is only created once per type T.
 				// ideally, if we ever wanted to be able to remove watches, we'd keep the watchIds in a
 				// table, similar to the apiTable.
-				static int            watchId        = addWatch( lib_path.c_str(), callbackParams );
+				static int watchId = addWatch( lib_path.c_str(), callbackParams );
 			}
 
 		} else {
@@ -113,13 +128,6 @@ public:
 		}
 
 		return api;
-	}
-
-	template <typename T>
-	static T *getApi() {
-		// WARNING: this will return a void* if nothing found!
-		// TODO: add error checking if compiled in debug mode.
-		return static_cast<T *>( apiTable[ getId<T>() ] );
 	}
 
 	static void pollForDynamicReload();

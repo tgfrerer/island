@@ -21,32 +21,32 @@
 
 // ----------------------------------------------------------------------
 
-void test_traffic_light() {
-#ifdef PLUGIN_TRAFFIC_LIGHT_STATIC
-	Registry::addApiStatic<pal_traffic_light_api>();
-#else
-	Registry::addApiDynamic<pal_traffic_light_api>( true );
-#endif
+//void test_traffic_light() {
+//#ifdef PLUGIN_TRAFFIC_LIGHT_STATIC
+//	Registry::addApiStatic<pal_traffic_light_api>();
+//#else
+//	Registry::addApiDynamic<pal_traffic_light_api>( true );
+//#endif
 
-#ifdef PLUGIN_LOGGER_STATIC
-	Registry::addApiStatic<pal_logger_api>();
-#else
-	Registry::addApiDynamic<pal_logger_api>( true );
-#endif
+//#ifdef PLUGIN_LOGGER_STATIC
+//	Registry::addApiStatic<pal_logger_api>();
+//#else
+//	Registry::addApiDynamic<pal_logger_api>( true );
+//#endif
 
-	pal::TrafficLight trafficLight{};
+//	pal::TrafficLight trafficLight{};
 
-	for ( ;; ) {
+////	for ( ;; ) {
 
-		Registry::pollForDynamicReload();
+//		Registry::pollForDynamicReload();
 
-		trafficLight.step();
+//		trafficLight.step();
 
-		pal::Logger() << trafficLight.getStateAsString();
+//		pal::Logger() << trafficLight.getStateAsString();
 
-		std::this_thread::sleep_for( std::chrono::milliseconds( 250 ) );
-	};
-}
+//		std::this_thread::sleep_for( std::chrono::milliseconds( 250 ) );
+////	};
+//}
 
 // ----------------------------------------------------------------------
 

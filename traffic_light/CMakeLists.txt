@@ -5,7 +5,7 @@ else()
 
     # We also set a compiler flag so that our main source file can use the correct
     # static code path to statically load the library function pointers.
-    set (PLUGIN_DEFINITIONS ${PLUGIN_DEFINITIONS} "PLUGIN_TRAFFIC_LIGHT_STATIC" PARENT_SCOPE)
+#     set (PLUGIN_DEFINITIONS ${PLUGIN_DEFINITIONS} "PLUGIN_TRAFFIC_LIGHT_STATIC" PARENT_SCOPE)
 
     # Adding a static library means to also add a linker dependency for our target
     # to the library.
@@ -13,4 +13,5 @@ else()
 
     add_library(traffic_light STATIC traffic_light.cpp)
 
+    target_compile_definitions(traffic_light PUBLIC "PLUGIN_TRAFFIC_LIGHT_STATIC")
 endif()

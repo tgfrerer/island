@@ -2,6 +2,7 @@
 #define GUARD_PAL_WINDOW_H
 
 #include <stdint.h>
+#include "registry/ApiRegistry.hpp"
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,7 +28,7 @@ struct pal_window_api {
 #ifdef __cplusplus
 } // extern "C"
 
-#include "registry/ApiRegistry.hpp"
+
 
 namespace pal {
 

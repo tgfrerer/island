@@ -5,13 +5,16 @@ else()
 
     # We also set a compiler flag so that our main source file can use the correct
     # static code path to statically load the library function pointers.
-    set (PLUGIN_DEFINITIONS ${PLUGIN_DEFINITIONS} "PLUGIN_PAL_WINDOW_STATIC" PARENT_SCOPE)
+    # set (PLUGIN_DEFINITIONS ${PLUGIN_DEFINITIONS} "PLUGIN_PAL_WINDOW_STATIC" PARENT_SCOPE)
+
 
     # Adding a static library means to also add a linker dependency for our target
     # to the library.
     set (STATIC_LIBS ${STATIC_LIBS} pal_window PARENT_SCOPE)
 
     add_library(pal_window STATIC pal_window.cpp)
+
+    target_compile_definitions(pal_window PUBLIC "PLUGIN_PAL_WINDOW_STATIC")
 
 endif()
 

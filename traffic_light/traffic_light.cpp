@@ -1,9 +1,13 @@
 #include "traffic_light/traffic_light.h"
 #include <type_traits>
 
+#if !defined( PLUGIN_TRAFFIC_LIGHT_STATIC )
+extern "C" void *( pal_registry_get_api )( const char * ){};
+#endif
+
 // declare state machine object
 struct pal_traffic_light_o {
-	State                currentState = State::eInitial;
+	State currentState = State::eInitial;
 };
 
 // ----------------------------------------------------------------------
@@ -46,7 +50,7 @@ static void nextState( pal_traffic_light_o *instance ) {
 	case State::eRed:
 		s = State::eGreen;
 
-	break;
+	    break;
 	}
 }
 
@@ -77,10 +81,10 @@ static const char *get_state_as_string( pal_traffic_light_o *instance ) {
 // ----------------------------------------------------------------------
 
 void register_traffic_light_api( void *api ) {
-	auto a                 = static_cast<pal_traffic_light_api *>( api );
+	auto a                    = static_cast<pal_traffic_light_api *>( api );
 	auto traffic_light_vtable = &a->traffic_light_i;
 
-	traffic_light_vtable->create = create;
+	traffic_light_vtable->create              = create;
 	traffic_light_vtable->destroy             = destroy;
 	traffic_light_vtable->get_state           = get_state;
 	traffic_light_vtable->step                = nextState;

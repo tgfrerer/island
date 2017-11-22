@@ -1,12 +1,21 @@
 #include "ApiRegistry.hpp"
 #include "loader/ApiLoader.h"
+#include <unordered_map>
 
 #include "file_watcher/file_watcher.h"
 
-std::unordered_map<const char *, void *> Registry::apiTable;
+static std::unordered_map<const char *, void *> apiTable;
 
 static auto file_watcher_i = Registry::addApiStatic<pal_file_watcher_i>();
 static auto file_watcher   = file_watcher_i -> create();
+
+void* pal_registry_get_api(const char* id){
+	return apiTable[id];
+};
+
+void pal_registry_set_api(const char* id, void * api){
+	apiTable[id] = api;
+}
 
 bool Registry::loaderCallback( void *user_data_ ) {
 

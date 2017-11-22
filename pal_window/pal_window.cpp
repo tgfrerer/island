@@ -1,32 +1,46 @@
 #include "pal_window/pal_window.h"
+#include "traffic_light/traffic_light.h"
+
+#include "assert.h"
 #include "GL/glew.h"
 #include "GLFW/glfw3.h"
 
-#include "assert.h"
+#if !defined(PLUGIN_PAL_WINDOW_STATIC)
+extern "C" void *( pal_registry_get_api )( const char * ){
+	assert(false); // this should never be called, as this method is just a placeholder for the linker to patch.
+	return nullptr;
+};
+#endif
+
+
 
 struct pal_window_o {
 	GLFWwindow *window;
+	pal_traffic_light_o* tl;
+	void * placeholder[31];
 };
 
 static pal_window_o *create() {
 	auto obj    = new pal_window_o();
+	auto tlApi = Registry::getApi<pal_traffic_light_api>()->traffic_light_i;
+	obj->tl = tlApi.create();
 	obj->window = glfwCreateWindow( 200, 200, "hello world", nullptr, nullptr );
 	return obj;
 }
 
 static void destroy( pal_window_o *instance ) {
-	glfwDestroyWindow(instance->window);
+	glfwDestroyWindow( instance->window );
 	delete instance;
 }
 
 static void draw( pal_window_o *instance ) {
 	glfwMakeContextCurrent( instance->window );
-	glClearColor( 1.f, 1.f, 0.f, 0.0f );
+	glClearColor( 0.f, 1.f, 0.f, 0.0f );
 	glClear( GL_COLOR_BUFFER_BIT );
 	glfwSwapBuffers( instance->window );
 }
 
-static void update( pal_window_o* instance) {
+static void update( pal_window_o *instance ) {
 	glfwMakeContextCurrent( instance->window );
 	glfwPollEvents();
 }
@@ -49,6 +63,6 @@ void register_pal_window_api( void *api ) {
 	window_interface.update       = update;
 	window_interface.draw         = draw;
 
-	int result                    = initializeGLFW();
+	int result = initializeGLFW();
 	assert( result == GLFW_TRUE );
 }

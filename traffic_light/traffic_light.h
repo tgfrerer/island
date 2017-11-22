@@ -2,6 +2,7 @@
 #define GUARD_STATE_MACHINE_H
 
 #include <stdint.h>
+#include "registry/ApiRegistry.hpp"
 
 #ifdef __cplusplus
 extern "C" {
@@ -17,7 +18,6 @@ enum class State : uint8_t {
 
 void register_traffic_light_api( void *api );
 
-struct pal_traffic_light_api;
 struct pal_traffic_light_o;
 
 // declare interface
@@ -37,14 +37,13 @@ struct pal_traffic_light_api {
 
 };
 
-
 #ifdef __cplusplus
 
 } // extern "C"
 
 // ----------------------------------------------------------------------
 
-#include "registry/ApiRegistry.hpp"
+
 
 namespace pal {
 
