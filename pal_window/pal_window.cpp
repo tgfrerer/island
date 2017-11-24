@@ -6,13 +6,13 @@
 #include "GLFW/glfw3.h"
 
 #if !defined(PLUGIN_PAL_WINDOW_STATIC)
-extern "C" void *( pal_registry_get_api )( const char * ){
-	assert(false); // this should never be called, as this method is just a placeholder for the linker to patch.
-	return nullptr;
+
+extern "C" void * pal_registry_get_api(const char* ){
+	// FIXME: this function should be automatically patched by the runtime-linker
+	// and not called from this location, but from ApiRegistry.cpp
+	assert(false);
 };
 #endif
-
-
 
 struct pal_window_o {
 	GLFWwindow *window;

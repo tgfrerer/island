@@ -9,12 +9,12 @@ static std::unordered_map<const char *, void *> apiTable;
 static auto file_watcher_i = Registry::addApiStatic<pal_file_watcher_i>();
 static auto file_watcher   = file_watcher_i -> create();
 
-void* pal_registry_get_api(const char* id){
-	return apiTable[id];
+extern "C" void *pal_registry_get_api( const char *id ) {
+	return apiTable[ id ];
 };
 
-void pal_registry_set_api(const char* id, void * api){
-	apiTable[id] = api;
+void pal_registry_set_api( const char *id, void *api ) {
+	apiTable[ id ] = api;
 }
 
 bool Registry::loaderCallback( void *user_data_ ) {
@@ -43,14 +43,12 @@ pal_api_loader_o *Registry::createLoader( pal_api_loader_i *loaderInterface_, co
 	return loaderInterface_->create( libPath_ );
 }
 
-void Registry::loadLibrary(pal_api_loader_i* loaderInterface_, pal_api_loader_o* loader_)
-{
-	loaderInterface_->load(loader_);
+void Registry::loadLibrary( pal_api_loader_i *loaderInterface_, pal_api_loader_o *loader_ ) {
+	loaderInterface_->load( loader_ );
 }
 
-void Registry::registerApi(pal_api_loader_i* loaderInterface, pal_api_loader_o* loader, void* api, const char* api_register_fun_name)
-{
-	loaderInterface->register_api(loader,api,api_register_fun_name);
+void Registry::registerApi( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader, void *api, const char *api_register_fun_name ) {
+	loaderInterface->register_api( loader, api, api_register_fun_name );
 }
 
 void Registry::pollForDynamicReload() {

@@ -1,8 +1,14 @@
 #include "traffic_light/traffic_light.h"
 #include <type_traits>
+#include <assert.h>
+#include <dlfcn.h>
 
 #if !defined( PLUGIN_TRAFFIC_LIGHT_STATIC )
-extern "C" void *( pal_registry_get_api )( const char * ){};
+extern "C" void * pal_registry_get_api(const char* ){
+	// FIXME: this function should be automatically patched by the runtime-linker
+	// and not called from this location, but from ApiRegistry.cpp
+	assert(false);
+};
 #endif
 
 // declare state machine object

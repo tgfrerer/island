@@ -33,7 +33,7 @@ struct pal_window_api {
 namespace pal {
 
 class Window {
-	pal_window_api::window_interface_t const *mInterface;
+	pal_window_api::window_interface_t const &mInterface;
 	pal_window_o *                            mObj;
 
   private:
@@ -57,24 +57,24 @@ class Window {
   public:
 	// default constructor
 	Window()
-	    : mInterface( &Registry::getApi<pal_window_api>()->window_i )
-	    , mObj( mInterface->create() ) {
+	    : mInterface( Registry::getApi<pal_window_api>()->window_i )
+	    , mObj( mInterface.create() ) {
 	}
 
 	~Window() {
-		mInterface->destroy( mObj );
+		mInterface.destroy( mObj );
 	}
 
 	bool shouldClose() {
-		return mInterface->should_close( mObj );
+		return mInterface.should_close( mObj );
 	}
 
 	void update() {
-		mInterface->update( mObj );
+		mInterface.update( mObj );
 	}
 
 	void draw(){
-		mInterface->draw(mObj);
+		mInterface.draw(mObj);
 	}
 };
 

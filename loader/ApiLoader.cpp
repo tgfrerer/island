@@ -67,6 +67,13 @@ static bool load( pal_api_loader_o *obj ) {
 static bool register_api( pal_api_loader_o *obj, void *api_interface, const char *api_registry_name ) {
 	// define function pointer we will use to initialise api
 	register_api_fun_p_t fptr;
+
+	if ( true ) {
+		// only for debug.
+		auto pFn_pal_registry_get_api = dlsym( obj->mLibraryHandle, "pal_registry_get_api" );
+		std::cout << "pal_registry_get_api found at: " << std::hex << pFn_pal_registry_get_api << std::endl;
+	}
+
 	// load function pointer to initialisation method
 	fptr = reinterpret_cast<register_api_fun_p_t>( dlsym( obj->mLibraryHandle, api_registry_name ) );
 	if ( !fptr ) {
