@@ -7,15 +7,13 @@
 
 struct pal_window_o {
 	GLFWwindow *window;
-	pal_traffic_light_o* tl;
+	pal::TrafficLight * tl;
 	void * placeholder[31];
 };
 
 static pal_window_o *create() {
 	auto obj    = new pal_window_o();
-	auto tlApiP = Registry::getApi<pal_traffic_light_api>();
-	auto tlApi = tlApiP->traffic_light_i;
-	obj->tl = tlApi.create();
+	obj->tl = new pal::TrafficLight();
 	obj->window = glfwCreateWindow( 200, 200, "hello world", nullptr, nullptr );
 	return obj;
 }
