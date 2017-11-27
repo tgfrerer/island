@@ -19,7 +19,7 @@ struct pal_api_loader_o {
 static void unload_library( void *handle_ ) {
 	if ( handle_ ) {
 		dlclose( handle_ );
-		std::cout << "Closed library handle: " << std::hex << handle_ << std::endl;
+		//std::cout << "Closed library handle: " << std::hex << handle_ << std::endl;
 		handle_ = nullptr;
 	}
 }
@@ -27,9 +27,9 @@ static void unload_library( void *handle_ ) {
 // ----------------------------------------------------------------------
 
 static void *load_library( const char *lib_name ) {
-	std::cout << "Loading Library    : '" << lib_name << "'" << std::endl;
+	//std::cout << "Loading Library    : '" << lib_name << "'" << std::endl;
 	void *handle = dlopen( lib_name, RTLD_NOW | RTLD_GLOBAL );
-	std::cout << "Open library handle: " << std::hex << handle << std::endl;
+	//std::cout << "Open library handle: " << std::hex << handle << std::endl;
 
 	if ( !handle ) {
 		auto loadResult = dlerror();
@@ -76,7 +76,7 @@ static bool register_api( pal_api_loader_o *obj, void *api_interface, const char
 	}
 	// Initialize the API. This means telling the API to populate function
 	// pointers inside the struct which we are passing as parameter.
-	std::cout << "Registering API via '" << api_registry_name << "'" << std::endl;
+	std::cout << "Registering API: '" << api_registry_name << "'" << std::endl;
 	( *fptr )( api_interface );
 	return true;
 }

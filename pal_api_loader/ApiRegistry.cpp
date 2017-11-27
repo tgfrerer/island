@@ -23,12 +23,12 @@ static auto file_watcher_i = Registry::addApiStatic<pal_file_watcher_i>();
 static auto file_watcher   = file_watcher_i -> create();
 
 extern "C" void *pal_registry_get_api( const char *id ) {
-#ifndef NDEBUG
-	auto find_result = apiTable.find(std::string(id));
-	if (find_result == apiTable.end()){
-		std::cerr << "warning: could not find api: " << id << std::endl;
-	}
-#endif
+//#ifndef NDEBUG
+//	auto find_result = apiTable.find(std::string(id));
+//	if (find_result == apiTable.end()){
+//		std::cerr << "warning: could not find api: " << id << std::endl;
+//	}
+//#endif
 	return apiTable[ std::string( id ) ];
 };
 

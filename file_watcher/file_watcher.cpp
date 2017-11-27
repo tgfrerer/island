@@ -114,20 +114,18 @@ void poll_notifications( pal_file_watcher_o *instance ) {
 
 				ev = reinterpret_cast<inotify_event *>( buffer + i );
 
-				// std::cout << __FUNCTION__ << ": Some bytes read. Flags: 0x" << std::bitset<32>( ev->mask ) << "b" << std::endl;
-
 				auto foundWatch = std::find_if( instance->mWatches.begin(), instance->mWatches.end(), [&]( const Watch &w ) -> bool {
 					return w.inotify_watch_handle == ev->wd;
 				} );
 
 				if ( foundWatch != instance->mWatches.end() ) {
 
-					std::cout << "Found affected watch" << std::endl;
+//					std::cout << "Found affected watch" << std::endl;
 
 					if ( ev->mask & ( IN_CLOSE_WRITE ) ) {
-						std::cout << "File Watcher: CLOSE_WRITE on "
-						          << "watched file: '" << foundWatch->path << ev->name << "'" << std::endl
-						          << "Trigger CLOSE_WRITE callback." << std::endl;
+//						std::cout << "File Watcher: CLOSE_WRITE on "
+//						          << "watched file: '" << foundWatch->path << ev->name << "'" << std::endl
+//						          << "Trigger CLOSE_WRITE callback." << std::endl;
 
 						( *foundWatch->callback_fun )( foundWatch->callback_user_data );
 					}
