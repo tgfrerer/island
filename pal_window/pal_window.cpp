@@ -6,14 +6,14 @@
 #include "GLFW/glfw3.h"
 
 struct pal_window_o {
-	GLFWwindow *window;
-	pal::TrafficLight * tl;
-	void * placeholder[31];
+	GLFWwindow *       window;
+	pal::TrafficLight *tl;
+	void *             placeholder[ 31 ];
 };
 
 static pal_window_o *create() {
 	auto obj    = new pal_window_o();
-	obj->tl = new pal::TrafficLight();
+	obj->tl     = new pal::TrafficLight();
 	obj->window = glfwCreateWindow( 200, 200, "hello world", nullptr, nullptr );
 	return obj;
 }
@@ -26,21 +26,21 @@ static void destroy( pal_window_o *instance ) {
 static void draw( pal_window_o *instance ) {
 	glfwMakeContextCurrent( instance->window );
 
-	switch (instance->tl->getState()) {
+	switch ( instance->tl->getState() ) {
 	case State::eInitial:
-	        break;
+	    break;
 	case State::eGreen:
 		glClearColor( 0.f, 1.f, 0.f, 0.0f );
-	break;
+	    break;
 	case State::eBlink:
 		glClearColor( 1.f, 1.f, 1.f, 0.0f );
-	break;
+	    break;
 	case State::eRed:
 		glClearColor( 1.f, 0.f, 0.f, 0.0f );
-	break;
+	    break;
 	case State::eYellow:
 		glClearColor( 1.f, 1.f, 0.f, 0.0f );
-	break;
+	    break;
 	}
 
 	glClear( GL_COLOR_BUFFER_BIT );
@@ -51,8 +51,8 @@ static void update( pal_window_o *instance ) {
 	glfwMakeContextCurrent( instance->window );
 	static uint64_t frameCounter = 0;
 
-	if (frameCounter % 60 == 0){
-		    instance->tl->step();
+	if ( frameCounter % 60 == 0 ) {
+		instance->tl->step();
 	}
 
 	++frameCounter;
