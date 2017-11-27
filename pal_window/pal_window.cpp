@@ -25,13 +25,38 @@ static void destroy( pal_window_o *instance ) {
 
 static void draw( pal_window_o *instance ) {
 	glfwMakeContextCurrent( instance->window );
-	glClearColor( 0.f, 1.f, 0.f, 0.0f );
+
+	switch (instance->tl->getState()) {
+	case State::eInitial:
+	        break;
+	case State::eGreen:
+		glClearColor( 0.f, 1.f, 0.f, 0.0f );
+	break;
+	case State::eBlink:
+		glClearColor( 1.f, 1.f, 1.f, 0.0f );
+	break;
+	case State::eRed:
+		glClearColor( 1.f, 0.f, 0.f, 0.0f );
+	break;
+	case State::eYellow:
+		glClearColor( 1.f, 1.f, 0.f, 0.0f );
+	break;
+	}
+
 	glClear( GL_COLOR_BUFFER_BIT );
 	glfwSwapBuffers( instance->window );
 }
 
 static void update( pal_window_o *instance ) {
 	glfwMakeContextCurrent( instance->window );
+	static uint64_t frameCounter = 0;
+
+	if (frameCounter % 60 == 0){
+		    instance->tl->step();
+	}
+
+	++frameCounter;
+
 	glfwPollEvents();
 }
 

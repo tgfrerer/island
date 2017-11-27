@@ -68,6 +68,10 @@ class TrafficLight {
 	const char *getStateAsString() {
 		return interface->get_state_as_string( obj );
 	}
+
+	const State& getState(){
+		return interface->get_state(obj);
+	}
 };
 } // namespace pal
 
