@@ -3,14 +3,6 @@
 #include <assert.h>
 #include <dlfcn.h>
 
-#if !defined( PLUGIN_TRAFFIC_LIGHT_STATIC )
-extern "C" void * pal_registry_get_api(const char* ){
-	// FIXME: this function should be automatically patched by the runtime-linker
-	// and not called from this location, but from ApiRegistry.cpp
-	assert(false);
-};
-#endif
-
 // declare state machine object
 struct pal_traffic_light_o {
 	State currentState = State::eInitial;
@@ -87,15 +79,14 @@ static const char *get_state_as_string( pal_traffic_light_o *instance ) {
 // ----------------------------------------------------------------------
 
 void register_traffic_light_api( void *api ) {
-	auto a                    = static_cast<pal_traffic_light_api *>( api );
-	auto traffic_light_vtable = &a->traffic_light_i;
+	auto a = static_cast<pal_traffic_light_api *>( api );
 
-	traffic_light_vtable->create              = create;
-	traffic_light_vtable->destroy             = destroy;
-	traffic_light_vtable->get_state           = get_state;
-	traffic_light_vtable->step                = nextState;
-	traffic_light_vtable->reset_state         = resetState;
-	traffic_light_vtable->get_state_as_string = get_state_as_string;
+	a->traffic_light_i.create              = create;
+	a->traffic_light_i.destroy             = destroy;
+	a->traffic_light_i.get_state           = get_state;
+	a->traffic_light_i.step                = nextState;
+	a->traffic_light_i.reset_state         = resetState;
+	a->traffic_light_i.get_state_as_string = get_state_as_string;
 }
 
 // ----------------------------------------------------------------------

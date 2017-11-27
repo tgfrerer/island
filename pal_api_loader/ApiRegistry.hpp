@@ -70,8 +70,6 @@ class Registry {
 
 	template <typename T>
 	static T *getApi() {
-		// WARNING: this will return a nullptr if nothing found!
-		// TODO: add error checking if compiled in debug mode.
 		return static_cast<T *>( pal_registry_get_api( getId<T>() ) );
 	}
 

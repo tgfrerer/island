@@ -23,6 +23,7 @@ using namespace experimental::filesystem;
 
 struct Watch {
 	int                 inotify_watch_handle = -1;
+	int                 __padding            = 0;
 	pal_file_watcher_o *watcher_o;
 	std::string         path;
 	void *              callback_user_data = nullptr;
@@ -33,6 +34,7 @@ struct Watch {
 
 struct pal_file_watcher_o {
 	int              inotify_socket_handle = -1;
+	int              __padding             = 0;
 	std::list<Watch> mWatches;
 };
 

@@ -5,15 +5,6 @@
 #include "GL/glew.h"
 #include "GLFW/glfw3.h"
 
-#if !defined(PLUGIN_PAL_WINDOW_STATIC)
-
-extern "C" void * pal_registry_get_api(const char* ){
-	// FIXME: this function should be automatically patched by the runtime-linker
-	// and not called from this location, but from ApiRegistry.cpp
-	assert(false);
-};
-#endif
-
 struct pal_window_o {
 	GLFWwindow *window;
 	pal_traffic_light_o* tl;
@@ -22,7 +13,8 @@ struct pal_window_o {
 
 static pal_window_o *create() {
 	auto obj    = new pal_window_o();
-	auto tlApi = Registry::getApi<pal_traffic_light_api>()->traffic_light_i;
+	auto tlApiP = Registry::getApi<pal_traffic_light_api>();
+	auto tlApi = tlApiP->traffic_light_i;
 	obj->tl = tlApi.create();
 	obj->window = glfwCreateWindow( 200, 200, "hello world", nullptr, nullptr );
 	return obj;

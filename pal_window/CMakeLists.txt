@@ -1,6 +1,6 @@
 if (${PLUGINS_DYNAMIC})
     add_library(pal_window SHARED pal_window.cpp)
-
+    target_link_libraries(pal_window PUBLIC pal_api_loader)
 else()
 
     # We also set a compiler flag so that our main source file can use the correct

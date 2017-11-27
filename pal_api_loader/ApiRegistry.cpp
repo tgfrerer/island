@@ -1,20 +1,39 @@
 #include "ApiRegistry.hpp"
-#include "loader/ApiLoader.h"
+#include "pal_api_loader/ApiLoader.h"
 #include <unordered_map>
-
+#include <string>
 #include "file_watcher/file_watcher.h"
+#include <stdio.h>
+#include <iostream>
+#include <iomanip>
 
-static std::unordered_map<const char *, void *> apiTable;
+/*
+
+  Note that we're using string as hash input for our unordered map
+  - as using const char * is not reliable. Object ids might have more
+  than one location - this is probably due to templating in ApiRegistry.
+
+  It's better to compare
+
+*/
+
+static std::unordered_map<std::string, void *> apiTable;
 
 static auto file_watcher_i = Registry::addApiStatic<pal_file_watcher_i>();
 static auto file_watcher   = file_watcher_i -> create();
 
 extern "C" void *pal_registry_get_api( const char *id ) {
-	return apiTable[ id ];
+#ifndef NDEBUG
+	auto find_result = apiTable.find(std::string(id));
+	if (find_result == apiTable.end()){
+		std::cerr << "warning: could not find api: " << id << std::endl;
+	}
+#endif
+	return apiTable[ std::string( id ) ];
 };
 
-void pal_registry_set_api( const char *id, void *api ) {
-	apiTable[ id ] = api;
+extern "C" void pal_registry_set_api( const char *id, void *api ) {
+	apiTable[ std::string( id ) ] = api;
 }
 
 bool Registry::loaderCallback( void *user_data_ ) {

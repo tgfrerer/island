@@ -11,14 +11,13 @@ set ( PLUGIN_LIBS_DEPENDENCIES "")
 
 include_directories ("${PROJECT_SOURCE_DIR}")
 
+add_subdirectory (pal_api_loader)
 add_subdirectory (file_watcher)
 add_subdirectory (pal_window)
 add_subdirectory (traffic_light)
 add_subdirectory (logger)
 
 set (SOURCES main.cpp)
-set (SOURCES ${SOURCES} "loader/ApiLoader.cpp")
-set (SOURCES ${SOURCES} "registry/ApiRegistry.cpp")
 
 add_executable (Experiment ${SOURCES})
 

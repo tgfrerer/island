@@ -26,7 +26,7 @@ struct pal_logger_api {
 #ifdef __cplusplus
 } // extern "C"
 
-#include "registry/ApiRegistry.hpp"
+#include "pal_api_loader/ApiRegistry.hpp"
 
 namespace pal {
 

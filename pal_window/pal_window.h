@@ -2,7 +2,7 @@
 #define GUARD_PAL_WINDOW_H
 
 #include <stdint.h>
-#include "registry/ApiRegistry.hpp"
+#include "pal_api_loader/ApiRegistry.hpp"
 
 #ifdef __cplusplus
 extern "C" {
