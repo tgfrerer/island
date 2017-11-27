@@ -27,6 +27,5 @@ set (GLFW -Wl,--whole-archive glfw -Wl,--no-whole-archive)
 set (PLUGIN_LIBS_DEPENDENCIES ${PLUGIN_LIBS_DEPENDENCIES} ${GLFW} PARENT_SCOPE)
 
 target_link_libraries(pal_window PRIVATE ${GLFW})
-target_link_libraries(pal_window PRIVATE GL)
 
 include_directories("/usr/local/include")

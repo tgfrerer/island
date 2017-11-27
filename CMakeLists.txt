@@ -14,8 +14,8 @@ include_directories ("${PROJECT_SOURCE_DIR}")
 add_subdirectory (pal_api_loader)
 add_subdirectory (pal_file_watcher)
 add_subdirectory (pal_window)
-add_subdirectory (traffic_light)
-add_subdirectory (logger)
+#add_subdirectory (logger)
+#add_subdirectory (traffic_light)
 
 set (SOURCES main.cpp)
 

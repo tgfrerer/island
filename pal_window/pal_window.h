@@ -22,19 +22,22 @@ struct pal_window_api {
 		bool ( *should_close )( pal_window_o *obj );
 		void ( *update )( pal_window_o *obj );
 		void ( *draw )( pal_window_o *obj );
-	} window_i;
+	};
+
+	int ( *init )();
+	void ( *terminate )();
+
+	window_interface_t window_i;
 };
 
 #ifdef __cplusplus
 } // extern "C"
 
-
-
 namespace pal {
 
 class Window {
-	pal_window_api::window_interface_t const &mInterface;
-	pal_window_o *                            mObj;
+	pal_window_api::window_interface_t const &mWindow;
+	pal_window_o *                            self;
 
   private:
 	// Note this class disables copy constructor and copy assignment operator,
@@ -57,24 +60,34 @@ class Window {
   public:
 	// default constructor
 	Window()
-	    : mInterface( Registry::getApi<pal_window_api>()->window_i )
-	    , mObj( mInterface.create() ) {
+	    : mWindow( Registry::getApi<pal_window_api>()->window_i )
+	    , self( mWindow.create() ) {
 	}
 
 	~Window() {
-		mInterface.destroy( mObj );
+		mWindow.destroy( self );
 	}
 
 	bool shouldClose() {
-		return mInterface.should_close( mObj );
+		return mWindow.should_close( self );
 	}
 
 	void update() {
-		mInterface.update( mObj );
+		mWindow.update( self );
 	}
 
-	void draw(){
-		mInterface.draw(mObj);
+	void draw() {
+		mWindow.draw( self );
+	}
+
+	static int init() {
+		static auto pApi = Registry::getApi<pal_window_api>();
+		return pApi->init();
+	}
+
+	static void terminate() {
+		static auto pApi = Registry::getApi<pal_window_api>();
+		pApi->terminate();
 	}
 };
 
