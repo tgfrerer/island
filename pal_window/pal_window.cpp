@@ -27,6 +27,7 @@ static void draw( pal_window_o *self ) {
 }
 
 static void update( pal_window_o *self ) {
+//	std::cout << ".";
 }
 
 static bool should_close( pal_window_o *self ) {

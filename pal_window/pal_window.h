@@ -34,6 +34,7 @@ struct pal_window_api {
 #ifdef __cplusplus
 } // extern "C"
 
+
 namespace pal {
 
 class Window {
