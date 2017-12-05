@@ -1,8 +1,8 @@
 #include "ApiRegistry.hpp"
 #include "pal_api_loader/ApiLoader.h"
+#include "pal_file_watcher/pal_file_watcher.h"
 #include <unordered_map>
 #include <string>
-#include "pal_file_watcher/pal_file_watcher.h"
 #include <stdio.h>
 #include <iostream>
 #include <iomanip>
