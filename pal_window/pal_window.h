@@ -26,6 +26,7 @@ struct pal_window_api {
 
 	int ( *init )();
 	void ( *terminate )();
+	void ( *pollEvents )();
 
 	window_interface_t window_i;
 };
@@ -88,6 +89,11 @@ class Window {
 	static void terminate() {
 		static auto pApi = Registry::getApi<pal_window_api>();
 		pApi->terminate();
+	}
+
+	static void pollEvents(){
+		static auto pApi = Registry::getApi<pal_window_api>();
+		pApi->pollEvents();
 	}
 };
 

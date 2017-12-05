@@ -12,8 +12,8 @@ struct pal_window_o {
 };
 
 static pal_window_o *create() {
-	auto obj    = new pal_window_o();
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+	auto obj = new pal_window_o();
+	glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
 	obj->window = glfwCreateWindow( 200, 200, "hello world", nullptr, nullptr );
 	return obj;
 }
@@ -24,12 +24,9 @@ static void destroy( pal_window_o *self ) {
 }
 
 static void draw( pal_window_o *self ) {
-
 }
 
 static void update( pal_window_o *self ) {
-
-	glfwPollEvents();
 }
 
 static bool should_close( pal_window_o *self ) {
@@ -40,13 +37,17 @@ static int init() {
 	auto result = glfwInit();
 	assert( result == GLFW_TRUE );
 
-	if (glfwVulkanSupported()){
+	if ( glfwVulkanSupported() ) {
 		std::cout << "Vulkan supported." << std::endl;
 	} else {
 		std::cout << "Vulkan not supported." << std::endl;
 	}
 
 	return result;
+}
+
+static void pollEvents() {
+	glfwPollEvents();
 }
 
 static void terminate() {
@@ -57,8 +58,9 @@ void register_pal_window_api( void *api ) {
 
 	auto windowApi = static_cast<pal_window_api *>( api );
 
-	windowApi->init      = init;
-	windowApi->terminate = terminate;
+	windowApi->init       = init;
+	windowApi->terminate  = terminate;
+	windowApi->pollEvents = pollEvents;
 
 	auto &window_interface        = windowApi->window_i;
 	window_interface.create       = create;

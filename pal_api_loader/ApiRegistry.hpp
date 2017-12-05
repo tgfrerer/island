@@ -1,8 +1,6 @@
 #ifndef GUARD_API_REGISTRY_HPP
 #define GUARD_API_REGISTRY_HPP
 
-#include <string>
-
 /*
 
   Registry is a global, canonical, table of apis, indexed through their type.
@@ -25,12 +23,13 @@ struct pal_api_loader_o;
 extern "C" {
 #endif
 
-extern "C" void* pal_registry_get_api( const char *id );
+extern "C" void *pal_registry_get_api( const char *id );
 extern "C" void  pal_registry_set_api( const char *id, void *api );
 
 #ifdef __cplusplus
 } // extern "C"
-#endif
+
+#include <string>
 
 class Registry {
 
@@ -52,7 +51,7 @@ class Registry {
 	// i.e. we don't want to include ApiLoader.h in this header file - as this header
 	// file will get included by lots of other headers.
 	//
-	// This is messy, i know, but since the templated method addApiDynamic must live
+	// This is messy, I know, but since the templated method addApiDynamic must live
 	// in the header file, these methods must be declared here, too.
 
 	static pal_api_loader_i *getLoaderInterface();
@@ -122,7 +121,7 @@ class Registry {
 			}
 
 		} else {
-			// todo: we should warn that this api was already added.
+			// TODO: we should warn that this api was already added.
 		}
 
 		return api;
@@ -131,4 +130,5 @@ class Registry {
 	static void pollForDynamicReload();
 };
 
+#endif // __cplusplus
 #endif // GUARD_API_REGISTRY_HPP

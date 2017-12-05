@@ -45,6 +45,7 @@ bool Registry::loaderCallback( void *user_data_ ) {
 
 int Registry::addWatch( const char *watchedPath_, Registry::CallbackParams &settings_ ) {
 
+
 	pal_file_watcher_watch_settings watchSettings;
 
 	watchSettings.callback_fun       = loaderCallback;
