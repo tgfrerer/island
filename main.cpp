@@ -1,14 +1,6 @@
-
 #include "pal_api_loader/ApiRegistry.hpp"
 #include "pal_window/pal_window.h"
 #include "pal_backend_vk/pal_backend_vk.h"
-
-#include <cstdlib>
-#include <iostream>
-#include <memory>
-#include <stdio.h>
-#include <string>
-
 // ----------------------------------------------------------------------
 
 int main( int argc, char const *argv[] ) {

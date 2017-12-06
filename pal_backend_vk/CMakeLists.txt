@@ -4,6 +4,7 @@ set (SOURCES ${SOURCES} "instance_vk.cpp")
 
 if (${PLUGINS_DYNAMIC})
     add_library(pal_backend_vk SHARED ${SOURCES})  
+#    target_link_libraries(pal_backend_vk PUBLIC pal_api_loader)
 else()
 
     # We also set a compiler flag so that our main source file can use the correct
@@ -19,6 +20,9 @@ else()
 
 endif()
 
-target_link_libraries(pal_backend_vk PRIVATE vulkan)
+set (VULKAN -Wl,--whole-archive vulkan -Wl,--no-whole-archive)
+target_link_libraries(pal_backend_vk PRIVATE ${VULKAN})
+
+#set (PLUGIN_LIBS_DEPENDENCIES ${PLUGIN_LIBS_DEPENDENCIES} ${VULKAN} PARENT_SCOPE)
 
 include_directories("/usr/local/include")

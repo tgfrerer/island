@@ -33,7 +33,26 @@ static void *load_library( const char *lib_name ) {
 
 
 	std::cout << "Loading Library    : '" << lib_name << "'" << std::endl;
-	void *handle = dlopen( lib_name, RTLD_NOW | RTLD_GLOBAL );
+
+	// We may pre-load any library dependencies so that these won't get deleted
+	// when our main plugin gets reloaded.
+	//
+	// TODO: allow modules to specify resident library dependencies
+	//
+	// We manually load symbols for libraries upon which our plugins depend -
+	// and make sure these are loaded with the NO_DELETE flag so that dependent
+	// libraries will not be reloaded if a module which uses the library is unloaded.
+	//
+	// This is necessary since with linux linking against a library does not mean
+	// its symbols are actually loaded, symbols are loaded lazily by default,
+	// which means they are only loaded when the library is first used by the module
+	// against which the library was linked.
+
+
+	static auto handleglfw = dlopen( "libglfw.so", RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
+	static auto handlevk = dlopen( "libvulkan.so", RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
+
+	void *handle = dlopen( lib_name, RTLD_NOW | RTLD_LOCAL );
 	std::cout << "Open library handle: " << std::hex << handle << std::endl;
 
 	if ( !handle ) {

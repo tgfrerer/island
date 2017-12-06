@@ -1,16 +1,14 @@
 #include "pal_backend_vk/pal_backend_vk.h"
-#include "vulkan/vulkan.hpp"
-
 #include <iostream>
 #include <iomanip>
 
-struct pal_backend_o {
-	vk::Instance vkInstance = nullptr;
-};
+struct pal_backend_o;
 
 extern pal_backend_o *create();                   // defined in instance_vk.cpp
 extern void           destroy( pal_backend_o * ); // defined in instance_vk.cpp
 extern void           update( pal_backend_o * );
+
+
 
 // ----------------------------------------------------------------------
 
