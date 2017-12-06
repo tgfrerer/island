@@ -20,6 +20,9 @@ static void unload_library( void *handle_ ) {
 	if ( handle_ ) {
 		auto result = dlclose( handle_ );
 		std::cout << "Closed library handle: " << std::hex << handle_ << " - Result: " << result << std::endl;
+		if (result) {
+			std::cerr << "ERROR dlclose: " << dlerror() << std::endl;
+		}
 		handle_ = nullptr;
 	}
 }
@@ -27,8 +30,10 @@ static void unload_library( void *handle_ ) {
 // ----------------------------------------------------------------------
 
 static void *load_library( const char *lib_name ) {
+
+
 	std::cout << "Loading Library    : '" << lib_name << "'" << std::endl;
-	void *handle = dlopen( lib_name, RTLD_NOW | RTLD_GLOBAL);
+	void *handle = dlopen( lib_name, RTLD_NOW | RTLD_GLOBAL );
 	std::cout << "Open library handle: " << std::hex << handle << std::endl;
 
 	if ( !handle ) {
@@ -64,19 +69,21 @@ static bool load( pal_api_loader_o *obj ) {
 
 // ----------------------------------------------------------------------
 
-static bool register_api( pal_api_loader_o *obj, void *api_interface, const char *api_registry_name ) {
+static bool register_api( pal_api_loader_o *obj, void *api_interface, const char *register_api_fun_name ) {
 	// define function pointer we will use to initialise api
 	register_api_fun_p_t fptr;
 
 	// load function pointer to initialisation method
-	fptr = reinterpret_cast<register_api_fun_p_t>( dlsym( obj->mLibraryHandle, api_registry_name ) );
+	fptr = reinterpret_cast<register_api_fun_p_t>( dlsym( obj->mLibraryHandle, register_api_fun_name ) );
 	if ( !fptr ) {
 		std::cerr << "ERROR: " << dlerror() << std::endl;
 		return false;
 	}
 	// Initialize the API. This means telling the API to populate function
 	// pointers inside the struct which we are passing as parameter.
-	std::cout << "Registering API: '" << api_registry_name << "'" << std::endl;
+	std::cout << "Registering API via: '" << register_api_fun_name << "'" << std::endl;
+	std::cout << "fptr                  = " << std::hex << (void*)fptr << std::endl;
+	std::cout << "Api interface address = " << std::hex << api_interface << std::endl;
 	( *fptr )( api_interface );
 	return true;
 }

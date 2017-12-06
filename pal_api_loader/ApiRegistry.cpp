@@ -13,7 +13,7 @@
   - as using const char * is not reliable. Object ids might have more
   than one location - this is probably due to templating in ApiRegistry.
 
-  It's better to compare
+  It's better to compare by value.
 
 */
 

@@ -19,6 +19,6 @@ else()
 
 endif()
 
-target_link_libraries(pal_backend_vk PUBLIC vulkan)
+target_link_libraries(pal_backend_vk PRIVATE vulkan)
 
 include_directories("/usr/local/include")

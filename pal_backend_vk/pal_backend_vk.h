@@ -20,7 +20,6 @@ struct pal_backend_vk_api {
 	void ( *update )(pal_backend_o*);
 };
 
-
 #ifdef __cplusplus
 } // extern "C"
 
