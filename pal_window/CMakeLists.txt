@@ -1,7 +1,8 @@
+set (SOURCES "pal_window.cpp")
+
 if (${PLUGINS_DYNAMIC})
 
-    add_library(pal_window SHARED pal_window.cpp)
-#    target_link_libraries(pal_window PUBLIC pal_api_loader)
+    add_library(pal_window SHARED ${SOURCES})
 
 else()
 
@@ -14,7 +15,7 @@ else()
     # to the library.
     set (STATIC_LIBS ${STATIC_LIBS} pal_window PARENT_SCOPE)
 
-    add_library(pal_window STATIC pal_window.cpp)
+    add_library(pal_window STATIC ${SOURCES})
 
     target_compile_definitions(pal_window PUBLIC "PLUGIN_PAL_WINDOW_STATIC")
 
@@ -29,8 +30,6 @@ endif()
 # This is done in the ApiLoader.cpp - by explicitly loading glfw and specifying RTLD_NODELETE
 
 set (GLFW -Wl,--whole-archive glfw -Wl,--no-whole-archive)
-#set (PLUGIN_LIBS_DEPENDENCIES ${PLUGIN_LIBS_DEPENDENCIES} ${GLFW} PARENT_SCOPE)
-
 target_link_libraries(pal_window PUBLIC ${GLFW})
 
-include_directories("/usr/local/include")
+#include_directories("/usr/local/include")

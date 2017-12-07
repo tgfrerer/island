@@ -53,7 +53,7 @@ static void pollEvents() {
 
 static void terminate() {
 	glfwTerminate();
-	std::cout << "Glfw terminated." << std::endl;
+	std::cout << "Glfw was terminated." << std::endl;
 }
 
 void register_pal_window_api( void *api ) {

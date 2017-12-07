@@ -14,15 +14,21 @@ struct pal_api_loader_o {
 	Pal_File_Watcher_o *mFileWatcher         = nullptr;
 };
 
+
 // ----------------------------------------------------------------------
 
-static void unload_library( void *handle_ ) {
+static void unload_library( void *handle_, const char* path) {
 	if ( handle_ ) {
 		auto result = dlclose( handle_ );
 		std::cout << "Closed library handle: " << std::hex << handle_ << " - Result: " << result << std::endl;
 		if (result) {
 			std::cerr << "ERROR dlclose: " << dlerror() << std::endl;
 		}
+		auto handle = dlopen(path,RTLD_NOLOAD);
+		if (handle){
+			std::cerr << "ERROR dlclose: " << "handle "<< std::hex << (void*)handle << " staying resident.";
+		}
+
 		handle_ = nullptr;
 	}
 }
@@ -47,6 +53,7 @@ static void *load_library( const char *lib_name ) {
 	// its symbols are actually loaded, symbols are loaded lazily by default,
 	// which means they are only loaded when the library is first used by the module
 	// against which the library was linked.
+
 
 
 	static auto handleglfw = dlopen( "libglfw.so", RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
@@ -74,14 +81,14 @@ static pal_api_loader_o *create( const char *path_ ) {
 // ----------------------------------------------------------------------
 
 static void destroy( pal_api_loader_o *obj ) {
-	unload_library( obj->mLibraryHandle );
+	unload_library( obj->mLibraryHandle, obj->mPath );
 	delete obj;
 };
 
 // ----------------------------------------------------------------------
 
 static bool load( pal_api_loader_o *obj ) {
-	unload_library( obj->mLibraryHandle );
+	unload_library( obj->mLibraryHandle, obj->mPath );
 	obj->mLibraryHandle = load_library( obj->mPath );
 	return ( obj->mLibraryHandle != nullptr );
 }
@@ -101,8 +108,8 @@ static bool register_api( pal_api_loader_o *obj, void *api_interface, const char
 	// Initialize the API. This means telling the API to populate function
 	// pointers inside the struct which we are passing as parameter.
 	std::cout << "Registering API via: '" << register_api_fun_name << "'" << std::endl;
-	std::cout << "fptr                  = " << std::hex << (void*)fptr << std::endl;
-	std::cout << "Api interface address = " << std::hex << api_interface << std::endl;
+//	std::cout << "fptr                  = " << std::hex << (void*)fptr << std::endl;
+//	std::cout << "Api interface address = " << std::hex << api_interface << std::endl;
 	( *fptr )( api_interface );
 	return true;
 }

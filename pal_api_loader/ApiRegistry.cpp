@@ -33,6 +33,12 @@ extern "C" void *pal_registry_get_api( const char *id ) {
 };
 
 extern "C" void pal_registry_set_api( const char *id, void *api ) {
+#ifndef NDEBUG
+	auto find_result = apiTable.find(std::string(id));
+	if (find_result == apiTable.end()){
+		std::cerr << "set api warning: could not find api: " << id << std::endl;
+	}
+#endif
 	apiTable[ std::string( id ) ] = api;
 }
 

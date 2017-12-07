@@ -15,6 +15,7 @@ add_subdirectory (pal_api_loader)
 add_subdirectory (pal_file_watcher)
 add_subdirectory (pal_window)
 add_subdirectory (pal_backend_vk)
+add_subdirectory (pal_dl_audit)
 
 set (SOURCES main.cpp)
 
@@ -25,7 +26,7 @@ add_executable (Experiment ${SOURCES})
 target_compile_definitions(Experiment PUBLIC ${PLUGIN_DEFINITIONS})
 
 # we need to link in the dynamic linking library so we can use dynamic linking
-target_link_libraries(Experiment dl)
-target_link_libraries(Experiment ${PLUGIN_LIBS_DEPENDENCIES})
-target_link_libraries(Experiment ${STATIC_LIBS})
+target_link_libraries(Experiment PUBLIC dl)
+target_link_libraries(Experiment PRIVATE ${PLUGIN_LIBS_DEPENDENCIES})
+target_link_libraries(Experiment PRIVATE ${STATIC_LIBS})
 

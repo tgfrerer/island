@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-extern "C" void register_pal_backend_vk_api( void *api );
+void register_pal_backend_vk_api( void *api );
 
 struct pal_backend_o;
 

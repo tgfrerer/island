@@ -4,13 +4,12 @@
 #include <iostream>
 #include <iomanip>
 
-
 struct pal_backend_o {
-	vk::Instance        vkInstance = nullptr;
+	vk::Instance                 vkInstance = nullptr;
+	PFN_vkDebugReportCallbackEXT debugCallback;
 };
 
-extern PFN_vkDebugReportCallbackEXT cPVkDebugCallback;
-PFN_vkDebugReportCallbackEXT        cPVkDebugCallback;
+//extern PFN_vkDebugReportCallbackEXT cPVkDebugCallback;
 
 // ----------------------------------------------------------------------
 
@@ -42,7 +41,7 @@ static VkBool32 debugCallback(
 
 	std::ostringstream os;
 	os << std::left << std::setw( 8 ) << logLevel << "{" << std::setw( 10 ) << pLayerPrefix << "}: " << pMessage << std::endl;
-	std::cout << os.str();
+	//std::cout << os.str();
 
 	// if error returns true, this layer will try to bail out and not forward the command
 	return shouldBailout;
@@ -50,7 +49,7 @@ static VkBool32 debugCallback(
 
 // ----------------------------------------------------------------------
 
-pal_backend_o* create() {
+pal_backend_o *create() {
 
 	auto obj = new pal_backend_o();
 
@@ -76,13 +75,13 @@ pal_backend_o* create() {
 		instanceLayerNames.push_back( "VK_LAYER_LUNARG_object_tracker" );
 	}
 
-	cPVkDebugCallback = debugCallback;
+	obj->debugCallback = debugCallback;
 
 	vk::DebugReportCallbackCreateInfoEXT debugCallbackCreateInfo;
 	debugCallbackCreateInfo
 	    .setPNext( nullptr )
 	    .setFlags( ~vk::DebugReportFlagBitsEXT() )
-	    .setPfnCallback( cPVkDebugCallback )
+	    .setPfnCallback( obj->debugCallback )
 	    .setPUserData( nullptr );
 
 	vk::InstanceCreateInfo info;
@@ -101,13 +100,13 @@ pal_backend_o* create() {
 
 // ----------------------------------------------------------------------
 
-void update(pal_backend_o* obj) {
+void update( pal_backend_o *obj ) {
 }
 
 // ----------------------------------------------------------------------
 
-void destroy(pal_backend_o* obj) {
+void destroy( pal_backend_o *obj ) {
 	obj->vkInstance.destroy();
-	delete(obj);
-	std::cout << "Instance destroyed." << std::endl;
+	delete ( obj );
+	std::cout << "Instance was destroyed." << std::endl;
 }

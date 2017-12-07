@@ -5,13 +5,14 @@
 
 int main( int argc, char const *argv[] ) {
 
-#ifdef PLUGIN_PAL_WINDOW_STATIC
-	Registry::addApiStatic<pal_window_api>();
-#else
-	Registry::addApiDynamic<pal_window_api>( true );
-#endif
+//#ifdef PLUGIN_PAL_WINDOW_STATIC
+//	Registry::addApiStatic<pal_window_api>();
+//#else
+//	Registry::addApiDynamic<pal_window_api>( true );
+//#endif
 
 	Registry::addApiDynamic<pal_backend_vk_api>( true );
+	Registry::addApiDynamic<pal_window_api>( true );
 
 	{
 		pal::Backend mBackend;
