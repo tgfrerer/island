@@ -58,6 +58,7 @@ class Registry {
 	static pal_api_loader_o *createLoader( pal_api_loader_i *loaderInterface, const char *libPath_ );
 	static void              loadLibrary( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader );
 	static void              registerApi( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader, void *api, const char *api_register_fun_name );
+	static void              loadLibraryPersistent( pal_api_loader_i *loaderInterface, const char *libName_ );
 
 	static int addWatch( const char *watchedPath, CallbackParams &settings );
 
@@ -128,6 +129,11 @@ class Registry {
 	}
 
 	static void pollForDynamicReload();
+
+	static void loadLibraryPersistent(const char* libName_) {
+		static pal_api_loader_i *loader = getLoaderInterface();
+		loadLibraryPersistent(loader,libName_);
+	}
 };
 
 #endif // __cplusplus

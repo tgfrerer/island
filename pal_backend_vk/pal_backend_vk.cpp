@@ -1,4 +1,5 @@
 #include "pal_backend_vk/pal_backend_vk.h"
+#include "pal_api_loader/ApiRegistry.hpp"
 #include <iostream>
 #include <iomanip>
 
@@ -17,4 +18,6 @@ void register_pal_backend_vk_api( void *api_ ) {
 	pal_backend_vk->create  = create;
 	pal_backend_vk->destroy = destroy;
 	pal_backend_vk->update  = update;
+
+	Registry::loadLibraryPersistent("libvulkan.so");
 }

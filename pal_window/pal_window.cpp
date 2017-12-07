@@ -53,7 +53,7 @@ static void pollEvents() {
 
 static void terminate() {
 	glfwTerminate();
-	std::cout << "Glfw was asd terminated." << std::endl;
+	std::cout << "Glfw was terminated." << std::endl;
 }
 
 void register_pal_window_api( void *api ) {
@@ -70,4 +70,6 @@ void register_pal_window_api( void *api ) {
 	window_interface.should_close = should_close;
 	window_interface.update       = update;
 	window_interface.draw         = draw;
+
+	Registry::loadLibraryPersistent("libglfw.so");
 }

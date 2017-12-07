@@ -34,10 +34,11 @@ struct pal_api_loader_i {
 	static constexpr auto id      = "pal_api_loader";
 	static constexpr auto pRegFun = pal_register_api_loader_i;
 
-	pal_api_loader_o * ( *create )       ( const char *path_ );
-	void               ( *destroy )      ( pal_api_loader_o *obj );
-	bool               ( *register_api ) ( pal_api_loader_o *obj, void *api_interface, const char *api_registry_name );
-	bool               ( *load )         ( pal_api_loader_o *obj );
+	pal_api_loader_o * ( *create )               ( const char *path_ );
+	void               ( *destroy )              ( pal_api_loader_o *obj );
+	bool               ( *register_api )         ( pal_api_loader_o *obj, void *api_interface, const char *api_registry_name );
+	bool               ( *load )                 ( pal_api_loader_o *obj );
+	bool               (* loadLibraryPersistent) (const char* libName_);
 };
 
 // ----------------------------------------------------------------------

@@ -73,6 +73,10 @@ void Registry::loadLibrary( pal_api_loader_i *loaderInterface_, pal_api_loader_o
 	loaderInterface_->load( loader_ );
 }
 
+void Registry::loadLibraryPersistent( pal_api_loader_i *loaderInterface_, const char *libName_) {
+	loaderInterface_->loadLibraryPersistent( libName_ );
+}
+
 void Registry::registerApi( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader, void *api, const char *api_register_fun_name ) {
 	loaderInterface->register_api( loader, api, api_register_fun_name );
 }
@@ -80,3 +84,4 @@ void Registry::registerApi( pal_api_loader_i *loaderInterface, pal_api_loader_o 
 void Registry::pollForDynamicReload() {
 	file_watcher_i->poll_notifications( file_watcher );
 }
+

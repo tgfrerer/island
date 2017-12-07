@@ -5,6 +5,10 @@
 #include <iostream>
 #include <iomanip>
 
+// TODO: debug callback needs to be re-assigned once this library has been reloaded, otherwise
+// vulkan will call the wrong address.
+
+
 struct pal_backend_o {
 	vk::Instance                 vkInstance = nullptr;
 	PFN_vkDebugReportCallbackEXT debugCallback;

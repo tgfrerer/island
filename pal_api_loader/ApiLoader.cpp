@@ -20,7 +20,7 @@ struct pal_api_loader_o {
 static void unload_library( void *handle_, const char *path ) {
 	if ( handle_ ) {
 		auto result = dlclose( handle_ );
-		std::cout << "Closed library handle: " << std::hex << handle_ << " - Result: " << result << std::endl;
+		// std::cout << "Closed library handle: " << std::hex << handle_ << std::endl;
 		if ( result ) {
 			std::cerr << "ERROR dlclose: " << dlerror() << std::endl;
 		}
@@ -29,7 +29,6 @@ static void unload_library( void *handle_, const char *path ) {
 			std::cerr << "ERROR dlclose: "
 			          << "handle " << std::hex << ( void * )handle << " staying resident.";
 		}
-
 		handle_ = nullptr;
 	}
 }
@@ -54,11 +53,11 @@ static void *load_library( const char *lib_name ) {
 	// which means they are only loaded when the library is first used by the module
 	// against which the library was linked.
 
-	    static auto handleglfw = dlopen( "libglfw.so", RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
-		static auto handlevk   = dlopen( "libvulkan.so", RTLD_NOW  | RTLD_GLOBAL | RTLD_NODELETE );
+	//	    static auto handleglfw = dlopen( "libglfw.so", RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
+	//		static auto handlevk   = dlopen( "libvulkan.so", RTLD_NOW  | RTLD_GLOBAL | RTLD_NODELETE );
 
 	void *handle = dlopen( lib_name, RTLD_NOW | RTLD_LOCAL );
-	std::cout << "Open library handle: " << std::hex << handle << std::endl;
+	// std::cout << "Open library handle: " << std::hex << handle << std::endl;
 
 	if ( !handle ) {
 		auto loadResult = dlerror();
@@ -68,12 +67,20 @@ static void *load_library( const char *lib_name ) {
 	return handle;
 }
 
-// TODO: implement
-static void* load_library_persistent(const char* lib_name){
-//	static auto handleglfw = dlopen( "libglfw.so", RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
-//	static auto handlevk   = dlopen( "libvulkan.so", RTLD_NOW  | RTLD_GLOBAL | RTLD_NODELETE );
-	static auto handlevk   = dlopen( lib_name, RTLD_NOW  | RTLD_GLOBAL | RTLD_NODELETE );
-	return handlevk;
+// ----------------------------------------------------------------------
+
+static bool load_library_persistent( const char *lib_name ) {
+	void *lib_handle = dlopen( lib_name, RTLD_NOLOAD );
+	if ( !lib_handle ) {
+		lib_handle = dlopen( lib_name, RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
+		if ( !lib_handle ) {
+			auto loadResult = dlerror();
+			std::cerr << "ERROR: " << loadResult << std::endl;
+		} else {
+			std::cout << "Loaded library persistently: " << lib_name << ", handle:  " << std::hex << lib_handle << std::endl;
+		}
+	}
+	return ( lib_handle != nullptr );
 }
 
 // ----------------------------------------------------------------------
@@ -123,10 +130,11 @@ static bool register_api( pal_api_loader_o *obj, void *api_interface, const char
 // ----------------------------------------------------------------------
 
 bool pal_register_api_loader_i( pal_api_loader_i *api ) {
-	api->create       = create;
-	api->destroy      = destroy;
-	api->load         = load;
-	api->register_api = register_api;
+	api->create                = create;
+	api->destroy               = destroy;
+	api->load                  = load;
+	api->register_api          = register_api;
+	api->loadLibraryPersistent = load_library_persistent;
 	return true;
 };
 
@@ -135,7 +143,6 @@ bool pal_register_api_loader_i( pal_api_loader_i *api ) {
 // to enable, start app with environment variable `LD_AUDIT` set to path of
 // libpal_api_loader.so:
 // EXPORT LD_AUDIT=./pal_api_loader/libpal_api_loader.so
-
 
 extern "C" unsigned int
 la_version( unsigned int version ) {
@@ -176,4 +183,3 @@ la_objsearch( const char *name, uintptr_t *cookie, unsigned int flag ) {
 
 	return const_cast<char *>( name );
 }
-
