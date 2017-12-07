@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.7.2) 
-set (CMAKE_CXX_STANDARD 14)
+set (CMAKE_CXX_STANDARD 17)
 
 project (Experiment)
 
@@ -15,7 +15,6 @@ add_subdirectory (pal_api_loader)
 add_subdirectory (pal_file_watcher)
 add_subdirectory (pal_window)
 add_subdirectory (pal_backend_vk)
-add_subdirectory (pal_dl_audit)
 
 set (SOURCES main.cpp)
 

@@ -1,9 +1,19 @@
 set (SOURCES "pal_backend_vk.cpp")
 set (SOURCES ${SOURCES} "instance_vk.cpp")
 
+set ( TARGET pal_backend_vk )
+
 if (${PLUGINS_DYNAMIC})
 
-    add_library(pal_backend_vk SHARED ${SOURCES})
+    add_library(${TARGET} SHARED ${SOURCES})
+
+    # IMPORTANT: --no-gnu-unique
+    #            This compiler flag is neccesary as otherwise the library may get compiled
+    #            with some symbols exported as UNIQUE, which implicitly makes this library
+    #            un-closeable. This means, any calls to `dlclose` on this library, once
+    #            loaded, will have no effect, and autoreload for this library will not work
+    #            as the first version of the library will remain resident.
+    target_compile_options (${TARGET} PUBLIC --no-gnu-unique)
 
 else()
 
@@ -12,15 +22,17 @@ else()
 
     # Adding a static library means to also add a linker dependency for our target
     # to the library.
-    set (STATIC_LIBS ${STATIC_LIBS} pal_backend_vk PARENT_SCOPE)
+    set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
 
-    add_library(pal_backend_vk STATIC ${SOURCES})
+    add_library(${TARGET}  STATIC ${SOURCES})
 
-    target_compile_definitions(pal_backend_vk PUBLIC "PLUGIN_PAL_BACKEND_VK_STATIC")
+    target_compile_definitions(${TARGET}  PUBLIC "PLUGIN_PAL_BACKEND_VK_STATIC")
 
 endif()
 
-set (VULKAN -Wl,--whole-archive vulkan -Wl,--no-whole-archive)
-target_link_libraries(pal_backend_vk PUBLIC ${VULKAN})
+set (LINKER_FLAGS -Wl,--whole-archive vulkan -Wl,--no-whole-archive )
+
+
+target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
 #include_directories("/usr/local/include")

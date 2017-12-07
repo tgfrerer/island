@@ -1,6 +1,7 @@
 #include "ApiLoader.h"
 
 #include <dlfcn.h>
+#include <link.h>
 #include <iostream>
 
 // declare function pointer type to register_fun function
@@ -14,19 +15,19 @@ struct pal_api_loader_o {
 	Pal_File_Watcher_o *mFileWatcher         = nullptr;
 };
 
-
 // ----------------------------------------------------------------------
 
-static void unload_library( void *handle_, const char* path) {
+static void unload_library( void *handle_, const char *path ) {
 	if ( handle_ ) {
 		auto result = dlclose( handle_ );
 		std::cout << "Closed library handle: " << std::hex << handle_ << " - Result: " << result << std::endl;
-		if (result) {
+		if ( result ) {
 			std::cerr << "ERROR dlclose: " << dlerror() << std::endl;
 		}
-		auto handle = dlopen(path,RTLD_NOLOAD);
-		if (handle){
-			std::cerr << "ERROR dlclose: " << "handle "<< std::hex << (void*)handle << " staying resident.";
+		auto handle = dlopen( path, RTLD_NOLOAD );
+		if ( handle ) {
+			std::cerr << "ERROR dlclose: "
+			          << "handle " << std::hex << ( void * )handle << " staying resident.";
 		}
 
 		handle_ = nullptr;
@@ -36,7 +37,6 @@ static void unload_library( void *handle_, const char* path) {
 // ----------------------------------------------------------------------
 
 static void *load_library( const char *lib_name ) {
-
 
 	std::cout << "Loading Library    : '" << lib_name << "'" << std::endl;
 
@@ -54,10 +54,8 @@ static void *load_library( const char *lib_name ) {
 	// which means they are only loaded when the library is first used by the module
 	// against which the library was linked.
 
-
-
-	static auto handleglfw = dlopen( "libglfw.so", RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
-	static auto handlevk = dlopen( "libvulkan.so", RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
+	    static auto handleglfw = dlopen( "libglfw.so", RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
+		static auto handlevk   = dlopen( "libvulkan.so", RTLD_NOW  | RTLD_GLOBAL | RTLD_NODELETE );
 
 	void *handle = dlopen( lib_name, RTLD_NOW | RTLD_LOCAL );
 	std::cout << "Open library handle: " << std::hex << handle << std::endl;
@@ -68,6 +66,14 @@ static void *load_library( const char *lib_name ) {
 	}
 
 	return handle;
+}
+
+// TODO: implement
+static void* load_library_persistent(const char* lib_name){
+//	static auto handleglfw = dlopen( "libglfw.so", RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
+//	static auto handlevk   = dlopen( "libvulkan.so", RTLD_NOW  | RTLD_GLOBAL | RTLD_NODELETE );
+	static auto handlevk   = dlopen( lib_name, RTLD_NOW  | RTLD_GLOBAL | RTLD_NODELETE );
+	return handlevk;
 }
 
 // ----------------------------------------------------------------------
@@ -108,8 +114,8 @@ static bool register_api( pal_api_loader_o *obj, void *api_interface, const char
 	// Initialize the API. This means telling the API to populate function
 	// pointers inside the struct which we are passing as parameter.
 	std::cout << "Registering API via: '" << register_api_fun_name << "'" << std::endl;
-//	std::cout << "fptr                  = " << std::hex << (void*)fptr << std::endl;
-//	std::cout << "Api interface address = " << std::hex << api_interface << std::endl;
+	//	std::cout << "fptr                  = " << std::hex << (void*)fptr << std::endl;
+	//	std::cout << "Api interface address = " << std::hex << api_interface << std::endl;
 	( *fptr )( api_interface );
 	return true;
 }
@@ -123,3 +129,51 @@ bool pal_register_api_loader_i( pal_api_loader_i *api ) {
 	api->register_api = register_api;
 	return true;
 };
+
+// ----------------------------------------------------------------------
+// LINUX: these methods are for auditing library loading.
+// to enable, start app with environment variable `LD_AUDIT` set to path of
+// libpal_api_loader.so:
+// EXPORT LD_AUDIT=./pal_api_loader/libpal_api_loader.so
+
+
+extern "C" unsigned int
+la_version( unsigned int version ) {
+	std::cout << "\t AUDIT: loaded autiting interface" << std::endl;
+	std::cout << std::flush;
+	return version;
+}
+
+extern "C" unsigned int
+la_objclose( uintptr_t *cookie ) {
+	std::cout << "\t AUDIT: objclose: " << std::hex << cookie << std::endl;
+	std::cout << std::flush;
+	return 0;
+}
+
+extern "C" void
+la_activity( uintptr_t *cookie, unsigned int flag ) {
+	printf( "\t AUDIT: la_activity(): cookie = %p; flag = %s\n", cookie,
+	        ( flag == LA_ACT_CONSISTENT ) ? "LA_ACT_CONSISTENT" : ( flag == LA_ACT_ADD ) ? "LA_ACT_ADD" : ( flag == LA_ACT_DELETE ) ? "LA_ACT_DELETE" : "???" );
+	std::cout << std::flush;
+};
+
+extern "C" unsigned int
+la_objopen( struct link_map *map, Lmid_t lmid, uintptr_t *cookie ) {
+	printf( "\t AUDIT: la_objopen(): loading \"%s\"; lmid = %s; cookie=%p\n",
+	        map->l_name,
+	        ( lmid == LM_ID_BASE ) ? "LM_ID_BASE" : ( lmid == LM_ID_NEWLM ) ? "LM_ID_NEWLM" : "???",
+	        cookie );
+	std::cout << std::flush;
+	return LA_FLG_BINDTO | LA_FLG_BINDFROM;
+}
+
+extern "C" char *
+la_objsearch( const char *name, uintptr_t *cookie, unsigned int flag ) {
+	printf( "\t AUDIT: la_objsearch(): name = %s; cookie = %p", name, cookie );
+	printf( "; flag = %s\n",
+	        ( flag == LA_SER_ORIG ) ? "LA_SER_ORIG" : ( flag == LA_SER_LIBPATH ) ? "LA_SER_LIBPATH" : ( flag == LA_SER_RUNPATH ) ? "LA_SER_RUNPATH" : ( flag == LA_SER_DEFAULT ) ? "LA_SER_DEFAULT" : ( flag == LA_SER_CONFIG ) ? "LA_SER_CONFIG" : ( flag == LA_SER_SECURE ) ? "LA_SER_SECURE" : "???" );
+
+	return const_cast<char *>( name );
+}
+

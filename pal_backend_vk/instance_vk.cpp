@@ -1,4 +1,5 @@
 #include "pal_backend_vk/pal_backend_vk.h"
+
 #include "vulkan/vulkan.hpp"
 
 #include <iostream>
@@ -8,8 +9,6 @@ struct pal_backend_o {
 	vk::Instance                 vkInstance = nullptr;
 	PFN_vkDebugReportCallbackEXT debugCallback;
 };
-
-//extern PFN_vkDebugReportCallbackEXT cPVkDebugCallback;
 
 // ----------------------------------------------------------------------
 
@@ -41,7 +40,7 @@ static VkBool32 debugCallback(
 
 	std::ostringstream os;
 	os << std::left << std::setw( 8 ) << logLevel << "{" << std::setw( 10 ) << pLayerPrefix << "}: " << pMessage << std::endl;
-	//std::cout << os.str();
+	std::cout << os.str();
 
 	// if error returns true, this layer will try to bail out and not forward the command
 	return shouldBailout;
@@ -93,7 +92,7 @@ pal_backend_o *create() {
 	    .setEnabledExtensionCount( uint32_t( instanceExtensionNames.size() ) )
 	    .setPpEnabledExtensionNames( instanceExtensionNames.data() );
 
-	obj->vkInstance = vk::createInstance( info );
+	obj->vkInstance = vk::createInstance(info);
 	std::cout << "Instance created." << std::endl;
 	return obj;
 }
