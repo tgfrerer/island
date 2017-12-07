@@ -18,10 +18,14 @@ int main( int argc, char const *argv[] ) {
 #endif
 
 	{
+		// todo: feed backend list of required extensions coming from glfw
 		pal::Backend mBackend;
-		pal::Window::init();
 
+		pal::Window::init();
 		pal::Window window{};
+
+		// todo: implement
+		// window.createSurface(mBackend);
 
 		for ( ; window.shouldClose() == false; ) {
 
@@ -32,6 +36,8 @@ int main( int argc, char const *argv[] ) {
 			window.draw();
 		}
 
+		// todo: implement
+		// window.destroySurface(mBackend);
 		pal::Window::terminate();
 	}
 

@@ -59,11 +59,31 @@ static VkBool32 debugCallback(
 	}
 
 	std::ostringstream os;
-	os << "\t" << std::left << std::setw( 8 ) << logLevel << "{" << std::setw( 10 ) << pLayerPrefix << "}: " << pMessage << std::endl;
+	os << "\t " << std::left << std::setw( 8 ) << logLevel << "{" << std::setw( 10 ) << pLayerPrefix << "}: " << pMessage << std::endl;
 	std::cout << os.str();
 
 	// if error returns true, this layer will try to bail out and not forward the command
 	return shouldBailout;
+}
+
+// ----------------------------------------------------------------------
+
+static void create_debug_callback(pal_backend_o* obj){
+	vk::DebugReportCallbackCreateInfoEXT debugCallbackCreateInfo;
+	debugCallbackCreateInfo
+	    .setPNext( nullptr )
+	    .setFlags( ~vk::DebugReportFlagBitsEXT() )
+	    .setPfnCallback( debugCallback )
+	    .setPUserData( nullptr );
+
+	obj->debugCallback = obj->vkInstance.createDebugReportCallbackEXT( debugCallbackCreateInfo );
+}
+
+// ----------------------------------------------------------------------
+
+static void destroy_debug_callback(pal_backend_o * obj){
+	obj->vkInstance.destroyDebugReportCallbackEXT( obj->debugCallback );
+	obj->debugCallback = nullptr;
 }
 
 // ----------------------------------------------------------------------
@@ -136,34 +156,11 @@ void destroy( pal_backend_o *obj ) {
 
 void post_reload_hook( pal_backend_o *obj ) {
 	std::cout << "** post reload hook triggered." << std::endl;
-
 	patchExtProcAddrs( obj );
 	destroy_debug_callback(obj);
-
-	std::cout << "Removed debug report callback." << std::endl;
-
+	std::cout << "** Removed debug report callback." << std::endl;
 	create_debug_callback(obj);
-	std::cout << "Added new debug report callback." << std::endl;
-}
-
-// ----------------------------------------------------------------------
-
-static void create_debug_callback(pal_backend_o* obj){
-	vk::DebugReportCallbackCreateInfoEXT debugCallbackCreateInfo;
-	debugCallbackCreateInfo
-	    .setPNext( nullptr )
-	    .setFlags( ~vk::DebugReportFlagBitsEXT() )
-	    .setPfnCallback( debugCallback )
-	    .setPUserData( nullptr );
-
-	obj->debugCallback = obj->vkInstance.createDebugReportCallbackEXT( debugCallbackCreateInfo );
-}
-
-// ----------------------------------------------------------------------
-
-static void destroy_debug_callback(pal_backend_o * obj){
-	obj->vkInstance.destroyDebugReportCallbackEXT( obj->debugCallback );
-	obj->debugCallback = nullptr;
+	std::cout << "** Added new debug report callback." << std::endl;
 }
 
 // ----------------------------------------------------------------------

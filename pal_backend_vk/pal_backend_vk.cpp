@@ -8,7 +8,6 @@ struct pal_backend_o;
 extern pal_backend_o *create( pal_backend_vk_api * );      // defined in instance_vk.cpp
 extern void           destroy( pal_backend_o * );          // defined in instance_vk.cpp
 extern void           post_reload_hook( pal_backend_o * ); // defined in instance_vk.cpp
-extern void           pre_reload_hook( pal_backend_o * );  // defined in instance_vk.cpp
 
 // ----------------------------------------------------------------------
 
