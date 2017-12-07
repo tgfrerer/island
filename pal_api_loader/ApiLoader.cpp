@@ -40,23 +40,6 @@ static void *load_library( const char *lib_name ) {
 
 	std::cout << "Loading dynamic library    : '" << lib_name << "'" << std::endl;
 
-	// We may pre-load any library dependencies so that these won't get deleted
-	// when our main plugin gets reloaded.
-	//
-	// TODO: allow modules to specify resident library dependencies
-	//
-	// We manually load symbols for libraries upon which our plugins depend -
-	// and make sure these are loaded with the NO_DELETE flag so that dependent
-	// libraries will not be reloaded if a module which uses the library is unloaded.
-	//
-	// This is necessary since with linux linking against a library does not mean
-	// its symbols are actually loaded, symbols are loaded lazily by default,
-	// which means they are only loaded when the library is first used by the module
-	// against which the library was linked.
-
-	//	    static auto handleglfw = dlopen( "libglfw.so", RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
-	//		static auto handlevk   = dlopen( "libvulkan.so", RTLD_NOW  | RTLD_GLOBAL | RTLD_NODELETE );
-
 	void *handle = dlopen( lib_name, RTLD_NOW | RTLD_LOCAL );
 	// std::cout << "Open library handle: " << std::hex << handle << std::endl;
 
@@ -72,10 +55,21 @@ static void *load_library( const char *lib_name ) {
 
 static bool load_library_persistent( const char *lib_name ) {
 
+	// We persistently load symbols for libraries upon which our plugins depend -
+	// and make sure these are loaded with the NO_DELETE flag so that dependent
+	// libraries will not be reloaded if a module which uses the library is unloaded.
+	//
+	// This is necessary since with linux linking against a library does not mean
+	// its symbols are actually loaded, symbols are loaded lazily by default,
+	// which means they are only loaded when the library is first used by the module
+	// against which the library was linked.
+
+
+	// TODO: FIXME
 	// what we expect: if a library is already loaded, we should get a valid handle
 	// what we get: always nullptr
 
-	void *lib_handle = dlopen(lib_name, RTLD_NOLOAD | RTLD_NODELETE );
+	void *lib_handle = dlopen( lib_name, RTLD_NOLOAD | RTLD_NODELETE );
 	if ( !lib_handle ) {
 		lib_handle = dlopen( lib_name, RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
 		if ( !lib_handle ) {
@@ -144,10 +138,12 @@ bool pal_register_api_loader_i( pal_api_loader_i *api ) {
 };
 
 // ----------------------------------------------------------------------
-// LINUX: these methods are for auditing library loading.
-// to enable, start app with environment variable `LD_AUDIT` set to path of
+// LINUX: these methods are to audit runtime dyanmic library linking and loading.
+//
+// To enable, start app with environment variable `LD_AUDIT` set to path of
 // libpal_api_loader.so:
-// EXPORT LD_AUDIT=./pal_api_loader/libpal_api_loader.so
+//
+//		EXPORT LD_AUDIT=./pal_api_loader/libpal_api_loader.so
 
 extern "C" unsigned int
 la_version( unsigned int version ) {

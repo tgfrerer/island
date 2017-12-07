@@ -9,8 +9,6 @@ extern pal_backend_o *create();                   // defined in instance_vk.cpp
 extern void           destroy( pal_backend_o * ); // defined in instance_vk.cpp
 extern void           update( pal_backend_o * );
 
-
-
 // ----------------------------------------------------------------------
 
 void register_pal_backend_vk_api( void *api_ ) {
