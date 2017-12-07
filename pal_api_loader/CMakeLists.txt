@@ -1,21 +1,30 @@
+set ( TARGET pal_api_loader )
 
 set ( SOURCES ApiLoader.cpp )
 set ( SOURCES ${SOURCES} ApiRegistry.cpp )
 
 if (${PLUGINS_DYNAMIC})
 
-    add_library(pal_api_loader SHARED ${SOURCES})
+    add_library(${TARGET} SHARED ${SOURCES})
+
+    # IMPORTANT: --no-gnu-unique
+    #            This compiler flag is neccesary as otherwise the library may get compiled
+    #            with some symbols exported as UNIQUE, which implicitly makes this library
+    #            un-closeable. This means, any calls to `dlclose` on this library, once
+    #            loaded, will have no effect, and autoreload for this library will not work
+    #            as the first version of the library will remain resident.
+    target_compile_options (${TARGET} PUBLIC --no-gnu-unique)
 
 else()
 
-    add_library(pal_api_loader STATIC ${SOURCES})
-    set (STATIC_LIBS ${STATIC_LIBS} pal_api_loader PARENT_SCOPE)
-    target_compile_definitions(pal_api_loader PUBLIC "PLUGIN_PAL_API_LOADER_STATIC")
+    add_library(${TARGET} STATIC ${SOURCES})
+    set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
+    target_compile_definitions(${TARGET} PUBLIC "PLUGIN_PAL_API_LOADER_STATIC")
 
 endif()
 
-target_link_libraries(pal_api_loader PUBLIC dl)
-target_link_libraries(pal_api_loader PRIVATE pal_file_watcher)
+target_link_libraries(${TARGET} PUBLIC dl)
+target_link_libraries(${TARGET} PRIVATE pal_file_watcher)
 
 set (PLUGIN_LIBS_DEPENDENCIES ${PLUGIN_LIBS_DEPENDENCIES} pal_file_watcher PARENT_SCOPE)
 set (PLUGIN_LIBS_DEPENDENCIES ${PLUGIN_LIBS_DEPENDENCIES} pal_api_loader PARENT_SCOPE)

@@ -11,7 +11,11 @@ int main( int argc, char const *argv[] ) {
 	Registry::addApiDynamic<pal_window_api>( true );
 #endif
 
+#ifdef PLUGIN_PAL_BACKEND_VK_STATIC
+	Registry::addApiStatic<pal_backend_vk_api>( );
+#else
 	Registry::addApiDynamic<pal_backend_vk_api>( true );
+#endif
 
 	{
 		pal::Backend mBackend;

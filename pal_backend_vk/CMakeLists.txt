@@ -1,7 +1,7 @@
+set (TARGET pal_backend_vk)
+
 set (SOURCES "pal_backend_vk.cpp")
 set (SOURCES ${SOURCES} "instance_vk.cpp")
-
-set ( TARGET pal_backend_vk )
 
 if (${PLUGINS_DYNAMIC})
 
@@ -24,15 +24,13 @@ else()
     # to the library.
     set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
 
-    add_library(${TARGET}  STATIC ${SOURCES})
+    add_library(${TARGET} STATIC ${SOURCES})
 
     target_compile_definitions(${TARGET}  PUBLIC "PLUGIN_PAL_BACKEND_VK_STATIC")
 
 endif()
 
 set (LINKER_FLAGS -Wl,--whole-archive vulkan -Wl,--no-whole-archive )
-
-
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
 #include_directories("/usr/local/include")

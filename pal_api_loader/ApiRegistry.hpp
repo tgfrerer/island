@@ -56,7 +56,7 @@ class Registry {
 
 	static pal_api_loader_i *getLoaderInterface();
 	static pal_api_loader_o *createLoader( pal_api_loader_i *loaderInterface, const char *libPath_ );
-	static void              loadLibrary( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader );
+	static void              loadApi( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader );
 	static void              registerApi( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader, void *api, const char *api_register_fun_name );
 	static void              loadLibraryPersistent( pal_api_loader_i *loaderInterface, const char *libName_ );
 
@@ -107,7 +107,7 @@ class Registry {
 			static pal_api_loader_o *loader          = createLoader( loaderInterface, lib_path.c_str() );
 
 			api = new T();
-			loadLibrary( loaderInterface, loader );
+			loadApi( loaderInterface, loader );
 			registerApi( loaderInterface, loader, api, lib_register_fun_name.c_str() );
 
 			pal_registry_set_api( getId<T>(), api );

@@ -2,6 +2,7 @@
 
 #include <dlfcn.h>
 #include <link.h>
+
 #include <iostream>
 
 // declare function pointer type to register_fun function
@@ -37,7 +38,7 @@ static void unload_library( void *handle_, const char *path ) {
 
 static void *load_library( const char *lib_name ) {
 
-	std::cout << "Loading Library    : '" << lib_name << "'" << std::endl;
+	std::cout << "Loading dynamic library    : '" << lib_name << "'" << std::endl;
 
 	// We may pre-load any library dependencies so that these won't get deleted
 	// when our main plugin gets reloaded.
@@ -70,14 +71,18 @@ static void *load_library( const char *lib_name ) {
 // ----------------------------------------------------------------------
 
 static bool load_library_persistent( const char *lib_name ) {
-	void *lib_handle = dlopen( lib_name, RTLD_NOLOAD );
+
+	// what we expect: if a library is already loaded, we should get a valid handle
+	// what we get: always nullptr
+
+	void *lib_handle = dlopen(lib_name, RTLD_NOLOAD | RTLD_NODELETE );
 	if ( !lib_handle ) {
 		lib_handle = dlopen( lib_name, RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
 		if ( !lib_handle ) {
 			auto loadResult = dlerror();
 			std::cerr << "ERROR: " << loadResult << std::endl;
 		} else {
-			std::cout << "Loaded library persistently: " << lib_name << ", handle:  " << std::hex << lib_handle << std::endl;
+			std::cout << "Loaded dynamic library persistently: " << lib_name << ", handle:  " << std::hex << lib_handle << std::endl;
 		}
 	}
 	return ( lib_handle != nullptr );
