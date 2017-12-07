@@ -5,17 +5,30 @@
 #include <iostream>
 #include <iomanip>
 
+// ----------------------------------------------------------------------
+
 struct pal_backend_o {
 	vk::Instance               vkInstance = nullptr;
 	vk::DebugReportCallbackEXT debugCallback;
 };
 
+// ----------------------------------------------------------------------
+
 static PFN_vkCreateDebugReportCallbackEXT  pfn_vkCreateDebugReportCallbackEXT;
 static PFN_vkDestroyDebugReportCallbackEXT pfn_vkDestroyDebugReportCallbackEXT;
 static PFN_vkDebugReportMessageEXT         pfn_vkDebugReportMessageEXT;
 
-static void create_debug_callback(pal_backend_o* obj);
-static void destroy_debug_callback(pal_backend_o* obj);
+void patchExtProcAddrs( pal_backend_o *obj ) {
+	pfn_vkCreateDebugReportCallbackEXT  = ( PFN_vkCreateDebugReportCallbackEXT  ) obj->vkInstance.getProcAddr( "vkCreateDebugReportCallbackEXT" );
+	pfn_vkDestroyDebugReportCallbackEXT = ( PFN_vkDestroyDebugReportCallbackEXT ) obj->vkInstance.getProcAddr( "vkDestroyDebugReportCallbackEXT" );
+	pfn_vkDebugReportMessageEXT         = ( PFN_vkDebugReportMessageEXT         ) obj->vkInstance.getProcAddr( "vkDebugReportMessageEXT" );
+	std::cout << "Patched proc addrs." << std::endl;
+}
+
+// ----------------------------------------------------------------------
+
+static void create_debug_callback(pal_backend_o* obj);  // ffdecl.
+static void destroy_debug_callback(pal_backend_o* obj);	// ffdecl.
 
 // ----------------------------------------------------------------------
 
@@ -46,20 +59,11 @@ static VkBool32 debugCallback(
 	}
 
 	std::ostringstream os;
-	os << " + + + " << std::left << std::setw( 8 ) << logLevel << "{" << std::setw( 10 ) << pLayerPrefix << "}: " << pMessage << std::endl;
+	os << "\t" << std::left << std::setw( 8 ) << logLevel << "{" << std::setw( 10 ) << pLayerPrefix << "}: " << pMessage << std::endl;
 	std::cout << os.str();
 
 	// if error returns true, this layer will try to bail out and not forward the command
 	return shouldBailout;
-}
-
-// ----------------------------------------------------------------------
-
-void patchExtProcAddrs( pal_backend_o *obj ) {
-	pfn_vkCreateDebugReportCallbackEXT  = ( PFN_vkCreateDebugReportCallbackEXT )obj->vkInstance.getProcAddr( "vkCreateDebugReportCallbackEXT" );
-	pfn_vkDestroyDebugReportCallbackEXT = ( PFN_vkDestroyDebugReportCallbackEXT )obj->vkInstance.getProcAddr( "vkDestroyDebugReportCallbackEXT" );
-	pfn_vkDebugReportMessageEXT         = ( PFN_vkDebugReportMessageEXT )obj->vkInstance.getProcAddr( "vkDebugReportMessageEXT" );
-	std::cout << "Patched proc addrs." << std::endl;
 }
 
 // ----------------------------------------------------------------------
