@@ -120,8 +120,6 @@ static bool register_api( pal_api_loader_o *obj, void *api_interface, const char
 	// Initialize the API. This means telling the API to populate function
 	// pointers inside the struct which we are passing as parameter.
 	std::cout << "Registering API via: '" << register_api_fun_name << "'" << std::endl;
-	//	std::cout << "fptr                  = " << std::hex << (void*)fptr << std::endl;
-	//	std::cout << "Api interface address = " << std::hex << api_interface << std::endl;
 	( *fptr )( api_interface );
 	return true;
 }

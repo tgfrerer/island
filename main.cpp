@@ -30,7 +30,6 @@ int main( int argc, char const *argv[] ) {
 			pal::Window::pollEvents();
 			window.update();
 			window.draw();
-			mBackend.update();
 		}
 
 		pal::Window::terminate();
