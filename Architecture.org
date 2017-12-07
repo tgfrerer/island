@@ -45,5 +45,7 @@ Implementations may do whatever they see fit - as long as it never seeps into th
 2. may include any cpp header
 3. may use advanced cpp 
 
-
+* Library programming
+	
+Library cpp file must not assume to own any data - if it has any static or global variables, these must be assumed invalid after reload, and must be re-assigned (patched).
 

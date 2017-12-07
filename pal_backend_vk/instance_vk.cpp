@@ -46,7 +46,7 @@ static VkBool32 debugCallback(
 	}
 
 	std::ostringstream os;
-	os << "\t" << std::left << std::setw( 8 ) << logLevel << "{" << std::setw( 10 ) << pLayerPrefix << "}: " << pMessage << std::endl;
+	os << " + + + " << std::left << std::setw( 8 ) << logLevel << "{" << std::setw( 10 ) << pLayerPrefix << "}: " << pMessage << std::endl;
 	std::cout << os.str();
 
 	// if error returns true, this layer will try to bail out and not forward the command
