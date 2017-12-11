@@ -1,24 +1,21 @@
-#include "pal_backend_vk/pal_backend_vk.h"
+#include "pal_backend_vk/private/backend_private.h"
 #include "pal_api_loader/ApiRegistry.hpp"
+
 #include <iostream>
 #include <iomanip>
-
-struct pal_backend_o;
-
-extern pal_backend_o *create( pal_backend_vk_api * );      // defined in instance_vk.cpp
-extern void           destroy( pal_backend_o * );          // defined in instance_vk.cpp
-extern void           post_reload_hook( pal_backend_o * ); // defined in instance_vk.cpp
 
 // ----------------------------------------------------------------------
 
 void register_pal_backend_vk_api( void *api_ ) {
-	auto pal_backend_vk              = static_cast<pal_backend_vk_api *>( api_ );
-	pal_backend_vk->create           = create;
-	pal_backend_vk->destroy          = destroy;
-	pal_backend_vk->post_reload_hook = post_reload_hook;
+	auto  pal_backend_vk          = static_cast<pal_backend_vk_api *>( api_ );
+	auto &pal_backend_instance_vk = pal_backend_vk->instance_i;
 
-	if ( pal_backend_vk->cBackend != nullptr ) {
-		pal_backend_vk->post_reload_hook( pal_backend_vk->cBackend );
+	pal_backend_instance_vk.create           = create_instance;
+	pal_backend_instance_vk.destroy          = destroy_instance;
+	pal_backend_instance_vk.post_reload_hook = post_reload_hook;
+
+	if ( pal_backend_vk->cUniqueInstance != nullptr ) {
+		pal_backend_instance_vk.post_reload_hook( pal_backend_vk->cUniqueInstance );
 	}
 
 	Registry::loadLibraryPersistent( "libvulkan.so" );

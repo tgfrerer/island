@@ -18,14 +18,17 @@ int main( int argc, char const *argv[] ) {
 #endif
 
 	{
-		// todo: feed backend list of required extensions coming from glfw
-		pal::Backend mBackend;
 
 		pal::Window::init();
 		pal::Window window{};
 
-		// todo: implement
-		// window.createSurface(mBackend);
+		// todo: feed backend list of required extensions coming from glfw
+		pal::vk::Instance mBackend;
+
+		// the window must create a surface - and it can only create a surface
+		// by using the backend
+		// the window will own the surface
+		//window.createSurface(mBackend);
 
 		for ( ; window.shouldClose() == false; ) {
 
@@ -37,7 +40,7 @@ int main( int argc, char const *argv[] ) {
 		}
 
 		// todo: implement
-		// window.destroySurface(mBackend);
+		//window.destroySurface(mBackend);
 		pal::Window::terminate();
 	}
 

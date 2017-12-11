@@ -1,16 +1,7 @@
-#include "pal_backend_vk/pal_backend_vk.h"
-
-#include "vulkan/vulkan.hpp"
+#include "pal_backend_vk/private/backend_private.h"
 
 #include <iostream>
 #include <iomanip>
-
-// ----------------------------------------------------------------------
-
-struct pal_backend_o {
-	vk::Instance               vkInstance = nullptr;
-	vk::DebugReportCallbackEXT debugCallback;
-};
 
 // ----------------------------------------------------------------------
 
@@ -18,7 +9,7 @@ static PFN_vkCreateDebugReportCallbackEXT  pfn_vkCreateDebugReportCallbackEXT;
 static PFN_vkDestroyDebugReportCallbackEXT pfn_vkDestroyDebugReportCallbackEXT;
 static PFN_vkDebugReportMessageEXT         pfn_vkDebugReportMessageEXT;
 
-void patchExtProcAddrs( pal_backend_o *obj ) {
+void patchExtProcAddrs( pal_backend_vk_instance_o *obj ) {
 	pfn_vkCreateDebugReportCallbackEXT  = ( PFN_vkCreateDebugReportCallbackEXT  ) obj->vkInstance.getProcAddr( "vkCreateDebugReportCallbackEXT" );
 	pfn_vkDestroyDebugReportCallbackEXT = ( PFN_vkDestroyDebugReportCallbackEXT ) obj->vkInstance.getProcAddr( "vkDestroyDebugReportCallbackEXT" );
 	pfn_vkDebugReportMessageEXT         = ( PFN_vkDebugReportMessageEXT         ) obj->vkInstance.getProcAddr( "vkDebugReportMessageEXT" );
@@ -27,8 +18,8 @@ void patchExtProcAddrs( pal_backend_o *obj ) {
 
 // ----------------------------------------------------------------------
 
-static void create_debug_callback(pal_backend_o* obj);  // ffdecl.
-static void destroy_debug_callback(pal_backend_o* obj);	// ffdecl.
+static void create_debug_callback(pal_backend_vk_instance_o* obj);  // ffdecl.
+static void destroy_debug_callback(pal_backend_vk_instance_o* obj);	// ffdecl.
 
 // ----------------------------------------------------------------------
 
@@ -68,7 +59,7 @@ static VkBool32 debugCallback(
 
 // ----------------------------------------------------------------------
 
-static void create_debug_callback(pal_backend_o* obj){
+static void create_debug_callback(pal_backend_vk_instance_o* obj){
 	vk::DebugReportCallbackCreateInfoEXT debugCallbackCreateInfo;
 	debugCallbackCreateInfo
 	    .setPNext( nullptr )
@@ -81,16 +72,16 @@ static void create_debug_callback(pal_backend_o* obj){
 
 // ----------------------------------------------------------------------
 
-static void destroy_debug_callback(pal_backend_o * obj){
+static void destroy_debug_callback(pal_backend_vk_instance_o * obj){
 	obj->vkInstance.destroyDebugReportCallbackEXT( obj->debugCallback );
 	obj->debugCallback = nullptr;
 }
 
 // ----------------------------------------------------------------------
 
-pal_backend_o *create( pal_backend_vk_api *api ) {
+pal_backend_vk_instance_o *create_instance( pal_backend_vk_api *api ) {
 
-	auto obj = new pal_backend_o();
+	auto obj = new pal_backend_vk_instance_o();
 
 	vk::ApplicationInfo appInfo;
 	appInfo
@@ -132,29 +123,28 @@ pal_backend_o *create( pal_backend_vk_api *api ) {
 
 	obj->vkInstance = vk::createInstance( info );
 
-	api->cBackend = obj;
+	api->cUniqueInstance = obj;
 
 	patchExtProcAddrs( obj );
 
-	obj->debugCallback = obj->vkInstance.createDebugReportCallbackEXT( debugCallbackCreateInfo );
+	create_debug_callback( obj );
 
 	std::cout << "Instance created." << std::endl;
 	return obj;
 }
 
-
 // ----------------------------------------------------------------------
 
-void destroy( pal_backend_o *obj ) {
+void destroy_instance( pal_backend_vk_instance_o *obj ) {
 	destroy_debug_callback(obj);
 	obj->vkInstance.destroy();
 	delete ( obj );
-	std::cout << "Instance was destroyed." << std::endl;
+	std::cout << "Instance destroyed." << std::endl;
 }
 
 // ----------------------------------------------------------------------
 
-void post_reload_hook( pal_backend_o *obj ) {
+void post_reload_hook( pal_backend_vk_instance_o *obj ) {
 	std::cout << "** post reload hook triggered." << std::endl;
 	patchExtProcAddrs( obj );
 	destroy_debug_callback(obj);
