@@ -10,23 +10,29 @@ extern "C" {
 
 void register_pal_window_api( void *api );
 
+struct pal_backend_vk_instance_o;
 struct pal_window_o;
+struct VkSurfaceKHR_T;
 
 struct pal_window_api {
 	static constexpr auto id      = "pal_window";
 	static constexpr auto pRegFun = register_pal_window_api;
 
 	struct window_interface_t {
-		pal_window_o *( *create )();
-		void ( *destroy )( pal_window_o *obj );
-		bool ( *should_close )( pal_window_o *obj );
-		void ( *update )( pal_window_o *obj );
-		void ( *draw )( pal_window_o *obj );
+		pal_window_o *  ( *create             ) ();
+		void            ( *destroy            ) ( pal_window_o * );
+		bool            ( *should_close       ) ( pal_window_o * );
+		void            ( *update             ) ( pal_window_o * );
+		void            ( *draw               ) ( pal_window_o * );
+		bool            ( *create_surface     ) ( pal_window_o *, pal_backend_vk_instance_o * );
+		void            ( *destroy_surface    ) ( pal_window_o *, pal_backend_vk_instance_o * );
+		VkSurfaceKHR_T* ( *get_vk_surface_khr ) ( pal_window_o * );
 	};
 
-	int ( *init )();
-	void ( *terminate )();
-	void ( *pollEvents )();
+	int           ( *init                       ) ();
+	void          ( *terminate                  ) ();
+	void          ( *pollEvents                 ) ();
+	const char ** ( *get_required_vk_extensions ) ( uint32_t *count );
 
 	window_interface_t window_i;
 };
@@ -82,6 +88,23 @@ class Window {
 		mWindow.draw( self );
 	}
 
+	/// \brief create and store a vk surface in the current window object
+	bool createSurface( pal_backend_vk_instance_o *instance ) {
+		return mWindow.create_surface( self, instance );
+	}
+
+	VkSurfaceKHR_T* getVkSurfaceKHR(){
+		return mWindow.get_vk_surface_khr(self);
+	}
+
+	void destroySurface( pal_backend_vk_instance_o *instance ) {
+		mWindow.destroy_surface( self, instance );
+	}
+
+	operator pal_window_o*(){
+		return self;
+	}
+
 	static int init() {
 		static auto pApi = Registry::getApi<pal_window_api>();
 		return pApi->init();
@@ -95,6 +118,11 @@ class Window {
 	static void pollEvents(){
 		static auto pApi = Registry::getApi<pal_window_api>();
 		pApi->pollEvents();
+	}
+
+	static const char** getRequiredVkExtensions(uint32_t* count){
+		static auto pApi = Registry::getApi<pal_window_api>();
+		pApi->get_required_vk_extensions(count);
 	}
 };
 

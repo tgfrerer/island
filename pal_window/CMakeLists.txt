@@ -40,6 +40,7 @@ endif()
 # This is done in the ApiLoader.cpp - by explicitly loading glfw and specifying RTLD_NODELETE
 
 set (LINKER_FLAGS -Wl,--whole-archive glfw -Wl,--no-whole-archive)
+set (LINKER_FLAGS ${LINKER_FLAGS} vulkan)
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
 #include_directories("/usr/local/include")

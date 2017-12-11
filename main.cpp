@@ -1,6 +1,7 @@
 #include "pal_api_loader/ApiRegistry.hpp"
 #include "pal_window/pal_window.h"
 #include "pal_backend_vk/pal_backend_vk.h"
+
 // ----------------------------------------------------------------------
 
 int main( int argc, char const *argv[] ) {
@@ -23,12 +24,13 @@ int main( int argc, char const *argv[] ) {
 		pal::Window window{};
 
 		// todo: feed backend list of required extensions coming from glfw
-		pal::vk::Instance mBackend;
+		pal::Instance mVkInstance;
 
-		// the window must create a surface - and it can only create a surface
+		// The window must create a surface - and it can only create a surface
 		// by using the backend
-		// the window will own the surface
-		//window.createSurface(mBackend);
+		window.createSurface(mVkInstance);
+
+		//backend.createSwapchain(window.getSurface);
 
 		for ( ; window.shouldClose() == false; ) {
 
@@ -39,8 +41,7 @@ int main( int argc, char const *argv[] ) {
 			window.draw();
 		}
 
-		// todo: implement
-		//window.destroySurface(mBackend);
+		window.destroySurface(mVkInstance);
 		pal::Window::terminate();
 	}
 

@@ -84,7 +84,7 @@ static bool load_library_persistent( const char *lib_name ) {
 
 // ----------------------------------------------------------------------
 
-static pal_api_loader_o *create_instance( const char *path_ ) {
+static pal_api_loader_o *instance_create( const char *path_ ) {
 	pal_api_loader_o *tmp = new pal_api_loader_o{};
 	tmp->mPath            = path_;
 	return tmp;
@@ -92,7 +92,7 @@ static pal_api_loader_o *create_instance( const char *path_ ) {
 
 // ----------------------------------------------------------------------
 
-static void destroy_instance( pal_api_loader_o *obj ) {
+static void instance_destroy( pal_api_loader_o *obj ) {
 	unload_library( obj->mLibraryHandle, obj->mPath );
 	delete obj;
 };
@@ -127,8 +127,8 @@ static bool register_api( pal_api_loader_o *obj, void *api_interface, const char
 // ----------------------------------------------------------------------
 
 bool pal_register_api_loader_i( pal_api_loader_i *api ) {
-	api->create                = create_instance;
-	api->destroy               = destroy_instance;
+	api->create                = instance_create;
+	api->destroy               = instance_destroy;
 	api->load                  = load;
 	api->register_api          = register_api;
 	api->loadLibraryPersistent = load_library_persistent;

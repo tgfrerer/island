@@ -79,7 +79,7 @@ static void destroy_debug_callback(pal_backend_vk_instance_o * obj){
 
 // ----------------------------------------------------------------------
 
-pal_backend_vk_instance_o *create_instance( pal_backend_vk_api *api ) {
+pal_backend_vk_instance_o *instance_create( pal_backend_vk_api *api ) {
 
 	auto obj = new pal_backend_vk_instance_o();
 
@@ -135,11 +135,17 @@ pal_backend_vk_instance_o *create_instance( pal_backend_vk_api *api ) {
 
 // ----------------------------------------------------------------------
 
-void destroy_instance( pal_backend_vk_instance_o *obj ) {
+void instance_destroy( pal_backend_vk_instance_o *obj ) {
 	destroy_debug_callback(obj);
 	obj->vkInstance.destroy();
 	delete ( obj );
 	std::cout << "Instance destroyed." << std::endl;
+}
+
+// ----------------------------------------------------------------------
+
+VkInstance_T* instance_get_VkInstance(pal_backend_vk_instance_o* obj){
+	return (reinterpret_cast<VkInstance&>(obj->vkInstance));
 }
 
 // ----------------------------------------------------------------------

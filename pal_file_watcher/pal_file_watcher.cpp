@@ -40,7 +40,7 @@ struct pal_file_watcher_o {
 
 // ----------------------------------------------------------------------
 
-static pal_file_watcher_o *create_instance() {
+static pal_file_watcher_o *instance_create() {
 	auto tmp                   = new pal_file_watcher_o();
 	tmp->inotify_socket_handle = inotify_init1( IN_NONBLOCK );
 	return tmp;
@@ -48,7 +48,7 @@ static pal_file_watcher_o *create_instance() {
 
 // ----------------------------------------------------------------------
 
-static void destroy_instance( pal_file_watcher_o *instance ) {
+static void instance_destroy( pal_file_watcher_o *instance ) {
 
 	for ( auto &w : instance->mWatches ) {
 		inotify_rm_watch( instance->inotify_socket_handle, w.inotify_watch_handle );
@@ -147,8 +147,8 @@ void poll_notifications( pal_file_watcher_o *instance ) {
 
 void register_file_watcher_api( void *api_p ) {
 	auto api                = reinterpret_cast<pal_file_watcher_i *>( api_p );
-	api->create             = create_instance;
-	api->destroy            = destroy_instance;
+	api->create             = instance_create;
+	api->destroy            = instance_destroy;
 	api->add_watch          = add_watch;
 	api->remove_watch       = remove_watch;
 	api->poll_notifications = poll_notifications;
