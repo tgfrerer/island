@@ -61,7 +61,7 @@ static bool window_create_surface( pal_window_o *self, pal_backend_vk_instance_o
 
 // ----------------------------------------------------------------------
 
-VkSurfaceKHR get_vk_surface_khr(pal_window_o* self){
+VkSurfaceKHR window_get_vk_surface_khr(pal_window_o* self){
 	return self->mSurface;
 }
 
@@ -124,7 +124,7 @@ void register_pal_window_api( void *api ) {
 	window_interface.draw               = window_draw;
 	window_interface.create_surface     = window_create_surface;
 	window_interface.destroy_surface    = window_destroy_surface;
-	window_interface.get_vk_surface_khr = get_vk_surface_khr;
+	window_interface.get_vk_surface_khr = window_get_vk_surface_khr;
 
 	Registry::loadLibraryPersistent( "libglfw.so" );
 
