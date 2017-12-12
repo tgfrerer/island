@@ -6,17 +6,66 @@
 #define GLFW_INCLUDE_VULKAN
 #include "GLFW/glfw3.h"
 
+struct pal_window_settings_o {
+	int          width   = 640;
+	int          height  = 480;
+	std::string  title   = "default window title";
+	GLFWmonitor *monitor = nullptr;
+};
+
 struct pal_window_o {
 	GLFWwindow * window;
 	VkSurfaceKHR mSurface;
+	pal_window_settings_o mSettings;
 };
 
 // ----------------------------------------------------------------------
 
-static pal_window_o *window_create() {
+static pal_window_settings_o* window_settings_create(){
+	pal_window_settings_o* obj = new(pal_window_settings_o);
+	return obj;
+}
+
+// ----------------------------------------------------------------------
+
+static void window_settings_set_title(pal_window_settings_o* self_, const char* title_){
+	self_->title = std::string(title_);
+}
+
+// ----------------------------------------------------------------------
+
+static void window_settings_set_width(pal_window_settings_o* self_, int width_){
+	self_->width = width_;
+}
+
+// ----------------------------------------------------------------------
+
+static void window_settings_set_height(pal_window_settings_o* self_, int height_){
+	self_->height = height_;
+}
+
+// ----------------------------------------------------------------------
+
+static void window_settings_destroy(pal_window_settings_o* self_){
+	delete self_;
+}
+
+// ----------------------------------------------------------------------
+
+static pal_window_o *window_create(const pal_window_settings_o* settings_) {
 	auto obj = new pal_window_o();
+
+	if (settings_){
+		obj->mSettings = *settings_;
+	}
+
+	// TODO: implement GLFW window hints, based on settings.
+	// See: http://www.glfw.org/docs/latest/window_guide.html#window_hints
+
 	glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
-	obj->window = glfwCreateWindow( 200, 200, "hello world", nullptr, nullptr );
+
+	obj->window = glfwCreateWindow( obj->mSettings.width, obj->mSettings.height, obj->mSettings.title.c_str(), obj->mSettings.monitor, nullptr );
+
 	return obj;
 }
 
@@ -96,10 +145,14 @@ static void pollEvents() {
 	glfwPollEvents();
 }
 
+// ----------------------------------------------------------------------
+
 static void terminate() {
 	glfwTerminate();
 	std::cout << "Glfw was terminated." << std::endl;
 }
+
+// ----------------------------------------------------------------------
 
 void register_pal_window_api( void *api ) {
 
@@ -110,15 +163,22 @@ void register_pal_window_api( void *api ) {
 	windowApi->pollEvents                 = pollEvents;
 	windowApi->get_required_vk_extensions = get_required_vk_instance_extensions;
 
-	auto &window_interface              = windowApi->window_i;
-	window_interface.create             = window_create;
-	window_interface.destroy            = window_destroy;
-	window_interface.should_close       = window_should_close;
-	window_interface.update             = window_update;
-	window_interface.draw               = window_draw;
-	window_interface.create_surface     = window_create_surface;
-	window_interface.destroy_surface    = window_destroy_surface;
-	window_interface.get_vk_surface_khr = window_get_vk_surface_khr;
+	auto &window_i              = windowApi->window_i;
+	window_i.create             = window_create;
+	window_i.destroy            = window_destroy;
+	window_i.should_close       = window_should_close;
+	window_i.update             = window_update;
+	window_i.draw               = window_draw;
+	window_i.create_surface     = window_create_surface;
+	window_i.destroy_surface    = window_destroy_surface;
+	window_i.get_vk_surface_khr = window_get_vk_surface_khr;
+
+	auto &window_settings_i      = windowApi->window_settings_i;
+	window_settings_i.create     = window_settings_create;
+	window_settings_i.destroy    = window_settings_destroy;
+	window_settings_i.set_title  = window_settings_set_title;
+	window_settings_i.set_width  = window_settings_set_width;
+	window_settings_i.set_height = window_settings_set_height;
 
 	Registry::loadLibraryPersistently( "libglfw.so" );
 

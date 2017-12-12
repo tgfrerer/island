@@ -12,14 +12,23 @@ void register_pal_window_api( void *api );
 
 struct VkInstance_T;
 struct pal_window_o;
+struct pal_window_settings_o;
 struct VkSurfaceKHR_T;
 
 struct pal_window_api {
 	static constexpr auto id      = "pal_window";
 	static constexpr auto pRegFun = register_pal_window_api;
 
+	struct window_settings_interface_t {
+		pal_window_settings_o * ( *create     ) ();
+		void                    ( *destroy    ) ( pal_window_settings_o * );
+		void                    ( *set_title  ) ( pal_window_settings_o *, const char *title_ );
+		void                    ( *set_width  ) ( pal_window_settings_o *, int width_ );
+		void                    ( *set_height ) ( pal_window_settings_o *, int height_ );
+	};
+
 	struct window_interface_t {
-		pal_window_o *  ( *create             ) ();
+		pal_window_o *  ( *create             ) ( const pal_window_settings_o* );
 		void            ( *destroy            ) ( pal_window_o * );
 		bool            ( *should_close       ) ( pal_window_o * );
 		void            ( *update             ) ( pal_window_o * );
@@ -35,6 +44,7 @@ struct pal_window_api {
 	const char ** ( *get_required_vk_extensions ) ( uint32_t *count );
 
 	window_interface_t window_i;
+	window_settings_interface_t window_settings_i;
 };
 
 #ifdef __cplusplus
@@ -46,6 +56,34 @@ namespace pal {
 class Window {
 	pal_window_api::window_interface_t const &mWindow;
 	pal_window_o *                            self;
+
+  public:
+	class Settings {
+		pal_window_api::window_settings_interface_t const &windowSettingsI;
+		pal_window_settings_o *                            self;
+
+	  public:
+		Settings()
+		    : windowSettingsI( Registry::getApi<pal_window_api>()->window_settings_i )
+		    , self( windowSettingsI.create() ) {
+		}
+		Settings &setWidth( int width_ ) {
+			windowSettingsI.set_width( self, width_ );
+			return *this;
+		}
+		Settings &setHeight( int height_ ) {
+			windowSettingsI.set_height( self, height_ );
+			return *this;
+		}
+		Settings &setTitle( const char *title_ ) {
+			windowSettingsI.set_title( self, title_ );
+			return *this;
+		}
+
+		operator const pal_window_settings_o *() const {
+			return self;
+		}
+	};
 
   private:
 	// Note this class disables copy constructor and copy assignment operator,
@@ -69,7 +107,12 @@ class Window {
 	// default constructor
 	Window()
 	    : mWindow( Registry::getApi<pal_window_api>()->window_i )
-	    , self( mWindow.create() ) {
+	    , self( mWindow.create(nullptr) ) {
+	}
+
+	Window(const Settings& settings_)
+	    : mWindow( Registry::getApi<pal_window_api>()->window_i )
+	    , self( mWindow.create(settings_) ) {
 	}
 
 	~Window() {

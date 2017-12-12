@@ -233,7 +233,6 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 		device->queueFamilyIndices[ requestedQueueIndex ] = queueFamilyIndex;
 	}
 
-
 //	// Create mutexes to protect each queue
 //	mQueueMutex = std::vector<mutex>( mQueues.size() );
 
@@ -260,6 +259,7 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 
 	return device;
 };
+
 
 void device_destroy( le_backend_vk_device_o *self_ ) {
 	self_->vkDevice.destroy();

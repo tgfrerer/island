@@ -23,15 +23,21 @@ int main( int argc, char const *argv[] ) {
 
 		pal::Window::init();
 		auto requestedExtensions = pal::Window::getRequiredVkExtensions(&numRequestedExtensions);
-		pal::Window window{};
+
+		pal::Window::Settings settings;
+		settings
+		    .setWidth( 640 )
+		    .setHeight( 480 )
+		    .setTitle( "Hello world" )
+		    ;
+
+		pal::Window window{settings};
 
 		le::Backend mBackend( requestedExtensions, numRequestedExtensions );
 
-		// The window must create a surface - and it can only create a surface
-		// by using the backend
 		window.createSurface( mBackend.getVkInstance() );
 
-		//backend.createSwapchain(window.getSurface);
+		// le::Swapchain(window.getSurface);
 
 		for ( ; window.shouldClose() == false; ) {
 
