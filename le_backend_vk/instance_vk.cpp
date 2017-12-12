@@ -1,4 +1,4 @@
-#include "pal_backend_vk/private/backend_private.h"
+#include "le_backend_vk/private/le_backend_private.h"
 
 #include <iostream>
 #include <iomanip>
@@ -10,17 +10,17 @@ PFN_vkCreateDebugReportCallbackEXT  pfn_vkCreateDebugReportCallbackEXT;
 PFN_vkDestroyDebugReportCallbackEXT pfn_vkDestroyDebugReportCallbackEXT;
 PFN_vkDebugReportMessageEXT         pfn_vkDebugReportMessageEXT;
 
-void patchExtProcAddrs( pal_backend_vk_instance_o *obj ) {
-	pfn_vkCreateDebugReportCallbackEXT  = ( PFN_vkCreateDebugReportCallbackEXT  ) obj->vkInstance.getProcAddr( "vkCreateDebugReportCallbackEXT" );
-	pfn_vkDestroyDebugReportCallbackEXT = ( PFN_vkDestroyDebugReportCallbackEXT ) obj->vkInstance.getProcAddr( "vkDestroyDebugReportCallbackEXT" );
-	pfn_vkDebugReportMessageEXT         = ( PFN_vkDebugReportMessageEXT         ) obj->vkInstance.getProcAddr( "vkDebugReportMessageEXT" );
+void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
+	pfn_vkCreateDebugReportCallbackEXT  = ( PFN_vkCreateDebugReportCallbackEXT )obj->vkInstance.getProcAddr( "vkCreateDebugReportCallbackEXT" );
+	pfn_vkDestroyDebugReportCallbackEXT = ( PFN_vkDestroyDebugReportCallbackEXT )obj->vkInstance.getProcAddr( "vkDestroyDebugReportCallbackEXT" );
+	pfn_vkDebugReportMessageEXT         = ( PFN_vkDebugReportMessageEXT )obj->vkInstance.getProcAddr( "vkDebugReportMessageEXT" );
 	std::cout << "Patched proc addrs." << std::endl;
 }
 
 // ----------------------------------------------------------------------
 
-static void create_debug_callback(pal_backend_vk_instance_o* obj);  // ffdecl.
-static void destroy_debug_callback(pal_backend_vk_instance_o* obj);	// ffdecl.
+static void create_debug_callback( le_backend_vk_instance_o *obj );  // ffdecl.
+static void destroy_debug_callback( le_backend_vk_instance_o *obj ); // ffdecl.
 
 // ----------------------------------------------------------------------
 
@@ -60,7 +60,7 @@ static VkBool32 debugCallback(
 
 // ----------------------------------------------------------------------
 
-static void create_debug_callback(pal_backend_vk_instance_o* obj){
+static void create_debug_callback( le_backend_vk_instance_o *obj ) {
 	vk::DebugReportCallbackCreateInfoEXT debugCallbackCreateInfo;
 	debugCallbackCreateInfo
 	    .setPNext( nullptr )
@@ -73,16 +73,16 @@ static void create_debug_callback(pal_backend_vk_instance_o* obj){
 
 // ----------------------------------------------------------------------
 
-static void destroy_debug_callback(pal_backend_vk_instance_o * obj){
+static void destroy_debug_callback( le_backend_vk_instance_o *obj ) {
 	obj->vkInstance.destroyDebugReportCallbackEXT( obj->debugCallback );
 	obj->debugCallback = nullptr;
 }
 
 // ----------------------------------------------------------------------
 
-pal_backend_vk_instance_o *instance_create( pal_backend_vk_api *api, const char** extensionNamesArray_, uint32_t numExtensionNames_) {
+le_backend_vk_instance_o *instance_create( le_backend_vk_api *api, const char **extensionNamesArray_, uint32_t numExtensionNames_ ) {
 
-	auto obj = new pal_backend_vk_instance_o();
+	auto obj = new le_backend_vk_instance_o();
 
 	vk::ApplicationInfo appInfo;
 	appInfo
@@ -92,20 +92,19 @@ pal_backend_vk_instance_o *instance_create( pal_backend_vk_api *api, const char*
 	    .setEngineVersion( VK_MAKE_VERSION( 0, 1, 0 ) )
 	    .setApiVersion( VK_MAKE_VERSION( 1, 0, 46 ) );
 
-
 	std::set<std::string> instanceExtensionSet;
 
 	instanceExtensionSet.emplace( "VK_KHR_surface" );
 
-	for (uint32_t i=0; i!= numExtensionNames_; ++i){
-		instanceExtensionSet.emplace(extensionNamesArray_[i]);
+	for ( uint32_t i = 0; i != numExtensionNames_; ++i ) {
+		instanceExtensionSet.emplace( extensionNamesArray_[ i ] );
 	}
 
 	std::vector<const char *> instanceLayerNames     = {};
 	std::vector<const char *> instanceExtensionNames = {};
 
-	for (auto&e:instanceExtensionSet){
-		instanceExtensionNames.emplace_back(e.c_str());
+	for ( auto &e : instanceExtensionSet ) {
+		instanceExtensionNames.emplace_back( e.c_str() );
 	}
 
 	bool shouldDebug = true;
@@ -146,8 +145,8 @@ pal_backend_vk_instance_o *instance_create( pal_backend_vk_api *api, const char*
 
 // ----------------------------------------------------------------------
 
-void instance_destroy( pal_backend_vk_instance_o *obj ) {
-	destroy_debug_callback(obj);
+void instance_destroy( le_backend_vk_instance_o *obj ) {
+	destroy_debug_callback( obj );
 	obj->vkInstance.destroy();
 	delete ( obj );
 	std::cout << "Instance destroyed." << std::endl;
@@ -155,18 +154,18 @@ void instance_destroy( pal_backend_vk_instance_o *obj ) {
 
 // ----------------------------------------------------------------------
 
-VkInstance_T* instance_get_VkInstance(pal_backend_vk_instance_o* obj){
-	return (reinterpret_cast<VkInstance&>(obj->vkInstance));
+VkInstance_T *instance_get_VkInstance( le_backend_vk_instance_o *obj ) {
+	return ( reinterpret_cast<VkInstance &>( obj->vkInstance ) );
 }
 
 // ----------------------------------------------------------------------
 
-void post_reload_hook( pal_backend_vk_instance_o *obj ) {
+void post_reload_hook( le_backend_vk_instance_o *obj ) {
 	std::cout << "** post reload hook triggered." << std::endl;
 	patchExtProcAddrs( obj );
-	destroy_debug_callback(obj);
+	destroy_debug_callback( obj );
 	std::cout << "** Removed debug report callback." << std::endl;
-	create_debug_callback(obj);
+	create_debug_callback( obj );
 	std::cout << "** Added new debug report callback." << std::endl;
 }
 

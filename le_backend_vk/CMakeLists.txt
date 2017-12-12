@@ -1,6 +1,6 @@
-set (TARGET pal_backend_vk)
+set (TARGET le_backend_vk)
 
-set (SOURCES "pal_backend_vk.cpp")
+set (SOURCES "le_backend_vk.cpp")
 set (SOURCES ${SOURCES} "instance_vk.cpp")
 
 if (${PLUGINS_DYNAMIC})

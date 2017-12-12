@@ -3,7 +3,7 @@
 
 #include <iostream>
 
-#include "pal_backend_vk/pal_backend_vk.h"
+#include "le_backend_vk/le_backend_vk.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include "GLFW/glfw3.h"
@@ -47,8 +47,8 @@ static bool window_should_close( pal_window_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static bool window_create_surface( pal_window_o *self, pal_backend_vk_instance_o *instance_o ) {
-	static auto instance_api = Registry::getApi<pal_backend_vk_api>()->instance_i;
+static bool window_create_surface( pal_window_o *self, le_backend_vk_instance_o *instance_o ) {
+	static auto instance_api = Registry::getApi<le_backend_vk_api>()->instance_i;
 	VkInstance  vkInstance   = instance_api.get_VkInstance( instance_o );
 	auto        result       = glfwCreateWindowSurface( vkInstance, self->window, nullptr, &self->mSurface );
 	if ( result == VK_SUCCESS ) {
@@ -67,8 +67,8 @@ VkSurfaceKHR window_get_vk_surface_khr(pal_window_o* self){
 
 // ----------------------------------------------------------------------
 // note: this is the only function for which we need to link this lib against vulkan!
-static void window_destroy_surface(pal_window_o* self, pal_backend_vk_instance_o * instance_o){
-	static auto instance_api = Registry::getApi<pal_backend_vk_api>()->instance_i;
+static void window_destroy_surface(pal_window_o* self, le_backend_vk_instance_o * instance_o){
+	static auto instance_api = Registry::getApi<le_backend_vk_api>()->instance_i;
 	VkInstance  vkInstance   = instance_api.get_VkInstance( instance_o );
 	PFN_vkDestroySurfaceKHR destroySurfaceFun = (PFN_vkDestroySurfaceKHR)vkGetInstanceProcAddr(vkInstance,"vkDestroySurfaceKHR");
 	destroySurfaceFun(vkInstance,self->mSurface,nullptr);
