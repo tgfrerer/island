@@ -41,42 +41,31 @@ struct le_backend_vk_api {
 #ifdef __cplusplus
 } // extern "C"
 
-
 namespace le {
 
-class Instance {
+class Backend {
+	le_backend_vk_api &                      mBackendApi;
 	le_backend_vk_api::instance_interface_t &mInstanceI;
-	le_backend_vk_instance_o *               self;
+	le_backend_vk_instance_o *               instance = nullptr;
+	le_backend_vk_api::device_interface_t &  mDeviceI;
+	le_backend_vk_device_o *                 device = nullptr;
 
   public:
-
-	Instance(const char** extensionsArray_ = nullptr, uint32_t numExtensions_ = 0)
-	    : mInstanceI( Registry::getApi<le_backend_vk_api>()->instance_i )
-	    , self( mInstanceI.create( Registry::getApi<le_backend_vk_api>(),extensionsArray_, numExtensions_ ) ) {
+	Backend( const char **extensionsArray_ = nullptr, uint32_t numExtensions_ = 0 )
+	    : mBackendApi( *Registry::getApi<le_backend_vk_api>() )
+	    , mInstanceI( mBackendApi.instance_i )
+	    , instance( mInstanceI.create( &mBackendApi, extensionsArray_, numExtensions_ ) )
+	    , mDeviceI( mBackendApi.device_i )
+	    , device( mDeviceI.create( instance ) ) {
 	}
 
-	~Instance() {
-		mInstanceI.destroy( self );
+	~Backend() {
+		mDeviceI.destroy( device );
+		mInstanceI.destroy( instance );
 	}
 
-	operator VkInstance_T* (){
-		return mInstanceI.get_VkInstance(self);
-	}
-
-};
-
-class Device {
-	le_backend_vk_api::device_interface_t &mDeviceI;
-	le_backend_vk_device_o *               self;
-
-  public:
-	Device( le_backend_vk_instance_o *instance_ )
-	    : mDeviceI( Registry::getApi<le_backend_vk_api>()->device_i )
-	    , self( mDeviceI.create( instance_ ) ) {
-	}
-
-	~Device(){
-		mDeviceI.destroy(self);
+	VkInstance_T * getVkInstance() {
+		return mInstanceI.get_VkInstance( instance );
 	}
 };
 

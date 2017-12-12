@@ -25,13 +25,11 @@ int main( int argc, char const *argv[] ) {
 		auto requestedExtensions = pal::Window::getRequiredVkExtensions(&numRequestedExtensions);
 		pal::Window window{};
 
-		le::Instance mInstance( requestedExtensions, numRequestedExtensions );
+		le::Backend mBackend( requestedExtensions, numRequestedExtensions );
 
 		// The window must create a surface - and it can only create a surface
 		// by using the backend
-		window.createSurface( mInstance );
-
-		//le::Device mDevice{mInstance};
+		window.createSurface( mBackend.getVkInstance() );
 
 		//backend.createSwapchain(window.getSurface);
 
@@ -44,7 +42,7 @@ int main( int argc, char const *argv[] ) {
 			window.draw();
 		}
 
-		window.destroySurface( mInstance );
+		window.destroySurface( mBackend.getVkInstance() );
 		pal::Window::terminate();
 	}
 
