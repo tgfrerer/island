@@ -4,19 +4,26 @@
 #include <iostream>
 #include <iomanip>
 
+
+
+
 // ----------------------------------------------------------------------
 
 void register_le_backend_vk_api( void *api_ ) {
-	auto  le_backend_vk          = static_cast<le_backend_vk_api *>( api_ );
-	auto &le_backend_instance_vk = le_backend_vk->instance_i;
+	auto  le_backend_vk_i  = static_cast<le_backend_vk_api *>( api_ );
+	auto &le_instance_vk_i = le_backend_vk_i->instance_i;
+	auto &le_device_vk_i   = le_backend_vk_i->device_i;
 
-	le_backend_instance_vk.create           = instance_create;
-	le_backend_instance_vk.destroy          = instance_destroy;
-	le_backend_instance_vk.post_reload_hook = post_reload_hook;
-	le_backend_instance_vk.get_VkInstance   = instance_get_VkInstance;
+	le_instance_vk_i.create           = instance_create;
+	le_instance_vk_i.destroy          = instance_destroy;
+	le_instance_vk_i.post_reload_hook = post_reload_hook;
+	le_instance_vk_i.get_VkInstance   = instance_get_VkInstance;
 
-	if ( le_backend_vk->cUniqueInstance != nullptr ) {
-		le_backend_instance_vk.post_reload_hook( le_backend_vk->cUniqueInstance );
+	le_device_vk_i.create = device_create;
+	le_device_vk_i.destroy = device_destroy;
+
+	if ( le_backend_vk_i->cUniqueInstance != nullptr ) {
+		le_instance_vk_i.post_reload_hook( le_backend_vk_i->cUniqueInstance );
 	}
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );

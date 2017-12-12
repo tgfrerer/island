@@ -31,7 +31,7 @@ int main( int argc, char const *argv[] ) {
 		// by using the backend
 		window.createSurface( mInstance );
 
-		//le::Device mDevice{mInstance};
+		le::Device mDevice{mInstance};
 
 		//backend.createSwapchain(window.getSurface);
 

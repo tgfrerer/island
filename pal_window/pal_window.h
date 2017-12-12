@@ -10,7 +10,7 @@ extern "C" {
 
 void register_pal_window_api( void *api );
 
-struct le_backend_vk_instance_o;
+struct VkInstance_T;
 struct pal_window_o;
 struct VkSurfaceKHR_T;
 
@@ -24,8 +24,8 @@ struct pal_window_api {
 		bool            ( *should_close       ) ( pal_window_o * );
 		void            ( *update             ) ( pal_window_o * );
 		void            ( *draw               ) ( pal_window_o * );
-		bool            ( *create_surface     ) ( pal_window_o *, le_backend_vk_instance_o * );
-		void            ( *destroy_surface    ) ( pal_window_o *, le_backend_vk_instance_o * );
+		bool            ( *create_surface     ) ( pal_window_o *, VkInstance_T * );
+		void            ( *destroy_surface    ) ( pal_window_o *, VkInstance_T * );
 		VkSurfaceKHR_T* ( *get_vk_surface_khr ) ( pal_window_o * );
 	};
 
@@ -89,7 +89,7 @@ class Window {
 	}
 
 	/// \brief create and store a vk surface in the current window object
-	bool createSurface( le_backend_vk_instance_o *instance ) {
+	bool createSurface( VkInstance_T *instance ) {
 		return mWindow.create_surface( self, instance );
 	}
 
@@ -97,7 +97,7 @@ class Window {
 		return mWindow.get_vk_surface_khr(self);
 	}
 
-	void destroySurface( le_backend_vk_instance_o *instance ) {
+	void destroySurface( VkInstance_T *instance ) {
 		mWindow.destroy_surface( self, instance );
 	}
 
