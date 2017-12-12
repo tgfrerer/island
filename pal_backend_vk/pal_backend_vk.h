@@ -19,7 +19,7 @@ struct pal_backend_vk_api {
 	static constexpr auto pRegFun  = register_pal_backend_vk_api;
 
 	struct instance_interface_t {
-		pal_backend_vk_instance_o * ( *create )           ( pal_backend_vk_api * );
+		pal_backend_vk_instance_o * ( *create )           ( pal_backend_vk_api * , const char**, uint32_t);
 		void                        ( *destroy )          ( pal_backend_vk_instance_o * );
 		void                        ( *post_reload_hook ) ( pal_backend_vk_instance_o * );
 		VkInstance_T*               ( *get_VkInstance )   ( pal_backend_vk_instance_o * );
@@ -40,9 +40,10 @@ class Instance {
 	pal_backend_vk_instance_o *               self;
 
   public:
-	Instance()
+
+	Instance(const char** extensionsArray_ = nullptr, uint32_t numExtensions_ = 0)
 	    : mInstanceI( Registry::getApi<pal_backend_vk_api>()->instance_i )
-	    , self( mInstanceI.create( Registry::getApi<pal_backend_vk_api>() ) ) {
+	    , self( mInstanceI.create( Registry::getApi<pal_backend_vk_api>(),extensionsArray_, numExtensions_ ) ) {
 	}
 
 	~Instance() {

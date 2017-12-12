@@ -2,12 +2,13 @@
 
 #include <iostream>
 #include <iomanip>
-
+#include <set>
+#include <string>
 // ----------------------------------------------------------------------
 
-static PFN_vkCreateDebugReportCallbackEXT  pfn_vkCreateDebugReportCallbackEXT;
-static PFN_vkDestroyDebugReportCallbackEXT pfn_vkDestroyDebugReportCallbackEXT;
-static PFN_vkDebugReportMessageEXT         pfn_vkDebugReportMessageEXT;
+PFN_vkCreateDebugReportCallbackEXT  pfn_vkCreateDebugReportCallbackEXT;
+PFN_vkDestroyDebugReportCallbackEXT pfn_vkDestroyDebugReportCallbackEXT;
+PFN_vkDebugReportMessageEXT         pfn_vkDebugReportMessageEXT;
 
 void patchExtProcAddrs( pal_backend_vk_instance_o *obj ) {
 	pfn_vkCreateDebugReportCallbackEXT  = ( PFN_vkCreateDebugReportCallbackEXT  ) obj->vkInstance.getProcAddr( "vkCreateDebugReportCallbackEXT" );
@@ -50,7 +51,7 @@ static VkBool32 debugCallback(
 	}
 
 	std::ostringstream os;
-	os << "\t " << std::left << std::setw( 8 ) << logLevel << "{" << std::setw( 10 ) << pLayerPrefix << "}: " << pMessage << std::endl;
+	os << " * \t " << std::left << std::setw( 8 ) << logLevel << "{" << std::setw( 10 ) << pLayerPrefix << "}: " << pMessage << std::endl;
 	std::cout << os.str();
 
 	// if error returns true, this layer will try to bail out and not forward the command
@@ -79,7 +80,7 @@ static void destroy_debug_callback(pal_backend_vk_instance_o * obj){
 
 // ----------------------------------------------------------------------
 
-pal_backend_vk_instance_o *instance_create( pal_backend_vk_api *api ) {
+pal_backend_vk_instance_o *instance_create( pal_backend_vk_api *api, const char** extensionNamesArray_, uint32_t numExtensionNames_) {
 
 	auto obj = new pal_backend_vk_instance_o();
 
@@ -87,15 +88,25 @@ pal_backend_vk_instance_o *instance_create( pal_backend_vk_api *api ) {
 	appInfo
 	    .setPApplicationName( "debug app" )
 	    .setApplicationVersion( VK_MAKE_VERSION( 0, 0, 0 ) )
-	    .setPEngineName( "project island" )
+	    .setPEngineName( "light engine" )
 	    .setEngineVersion( VK_MAKE_VERSION( 0, 1, 0 ) )
 	    .setApiVersion( VK_MAKE_VERSION( 1, 0, 46 ) );
+
+
+	std::set<std::string> instanceExtensionSet;
+
+	instanceExtensionSet.emplace( "VK_KHR_surface" );
+
+	for (uint32_t i=0; i!= numExtensionNames_; ++i){
+		instanceExtensionSet.emplace(extensionNamesArray_[i]);
+	}
 
 	std::vector<const char *> instanceLayerNames     = {};
 	std::vector<const char *> instanceExtensionNames = {};
 
-	instanceExtensionNames.push_back( "VK_KHR_xcb_surface" );
-	instanceExtensionNames.push_back( "VK_KHR_surface" );
+	for (auto&e:instanceExtensionSet){
+		instanceExtensionNames.emplace_back(e.c_str());
+	}
 
 	bool shouldDebug = true;
 

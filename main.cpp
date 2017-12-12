@@ -13,22 +13,23 @@ int main( int argc, char const *argv[] ) {
 #endif
 
 #ifdef PLUGIN_PAL_BACKEND_VK_STATIC
-	Registry::addApiStatic<pal_backend_vk_api>( );
+	Registry::addApiStatic<pal_backend_vk_api>();
 #else
 	Registry::addApiDynamic<pal_backend_vk_api>( true );
 #endif
 
 	{
+		uint32_t numRequestedExtensions = 0;
 
 		pal::Window::init();
+		auto requestedExtensions = pal::Window::getRequiredVkExtensions(&numRequestedExtensions);
 		pal::Window window{};
 
-		// todo: feed backend list of required extensions coming from glfw
-		pal::Instance mVkInstance;
+		pal::Instance mVkInstance( requestedExtensions, numRequestedExtensions );
 
 		// The window must create a surface - and it can only create a surface
 		// by using the backend
-		window.createSurface(mVkInstance);
+		window.createSurface( mVkInstance );
 
 		//backend.createSwapchain(window.getSurface);
 
@@ -41,7 +42,7 @@ int main( int argc, char const *argv[] ) {
 			window.draw();
 		}
 
-		window.destroySurface(mVkInstance);
+		window.destroySurface( mVkInstance );
 		pal::Window::terminate();
 	}
 
