@@ -126,7 +126,7 @@ void register_pal_window_api( void *api ) {
 	window_interface.destroy_surface    = window_destroy_surface;
 	window_interface.get_vk_surface_khr = window_get_vk_surface_khr;
 
-	Registry::loadLibraryPersistent( "libglfw.so" );
+	Registry::loadLibraryPersistently( "libglfw.so" );
 
 }
 

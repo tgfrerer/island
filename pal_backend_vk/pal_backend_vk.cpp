@@ -19,5 +19,5 @@ void register_pal_backend_vk_api( void *api_ ) {
 		pal_backend_instance_vk.post_reload_hook( pal_backend_vk->cUniqueInstance );
 	}
 
-	Registry::loadLibraryPersistent( "libvulkan.so" );
+	Registry::loadLibraryPersistently( "libvulkan.so" );
 }

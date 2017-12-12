@@ -89,7 +89,7 @@ void Registry::loadApi( pal_api_loader_i *loaderInterface_, pal_api_loader_o *lo
 
 // ----------------------------------------------------------------------
 
-void Registry::loadLibraryPersistent( pal_api_loader_i *loaderInterface_, const char *libName_) {
+void Registry::loadLibraryPersistently( pal_api_loader_i *loaderInterface_, const char *libName_) {
 	loaderInterface_->loadLibraryPersistent( libName_ );
 }
 
