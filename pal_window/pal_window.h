@@ -54,19 +54,33 @@ struct pal_window_api {
 namespace pal {
 
 class Window {
-	pal_window_api::window_interface_t const &mWindow;
-	pal_window_o *                            self;
+	const pal_window_api::window_interface_t &mWindow = Registry::getApi<pal_window_api>()->window_i;
+	pal_window_o*                             self    = mWindow.create( nullptr );
 
   public:
 	class Settings {
-		pal_window_api::window_settings_interface_t const &windowSettingsI;
-		pal_window_settings_o *                            self;
+		const pal_window_api::window_settings_interface_t &windowSettingsI = Registry::getApi<pal_window_api>()->window_settings_i;
+		pal_window_settings_o *                            self            = windowSettingsI.create();
 
 	  public:
-		Settings()
-		    : windowSettingsI( Registry::getApi<pal_window_api>()->window_settings_i )
-		    , self( windowSettingsI.create() ) {
+		Settings() = default;
+
+		// copy assignment operator
+		Settings &operator=( const Settings &rhs ) = delete;
+
+		// copy constructor
+		Settings( const Settings &rhs ) = delete;
+
+		// move assignment operator
+		Settings &operator=( Settings &&rhs ) = delete;
+
+		// move constructor
+		Settings( const Settings &&rhs ) = delete;
+
+		~Settings(){
+			windowSettingsI.destroy(self);
 		}
+
 		Settings &setWidth( int width_ ) {
 			windowSettingsI.set_width( self, width_ );
 			return *this;
@@ -88,8 +102,7 @@ class Window {
   private:
 	// Note this class disables copy constructor and copy assignment operator,
 
-	// Also, this class disables move operators, as a move will trigger the
-	// destructor, and we hijack the destructor to print to the log.
+	// Also, this class disables move operators, as a move will trigger the destructor
 
 	// copy assignment operator
 	Window &operator=( const Window &rhs ) = delete;
@@ -105,14 +118,10 @@ class Window {
 
   public:
 	// default constructor
-	Window()
-	    : mWindow( Registry::getApi<pal_window_api>()->window_i )
-	    , self( mWindow.create(nullptr) ) {
-	}
+	Window() = default;
 
 	Window(const Settings& settings_)
-	    : mWindow( Registry::getApi<pal_window_api>()->window_i )
-	    , self( mWindow.create(settings_) ) {
+	    : self( mWindow.create(settings_) ) {
 	}
 
 	~Window() {

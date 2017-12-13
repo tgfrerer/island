@@ -8,7 +8,7 @@
 * Library Architecture 
 
 1. Each Library must provide exactly one free function with c-linkage: `register_${library_name}_api` - the library registration function
-2. The library registration function is responsible for connecting function pointers declared in the library interface to free functions defined in implementation (.cpp) files of the library.
+2. The library registration function is responsible for connecting function pointers declared in the library interface to free functions defined inf2a3b66a1cf7d44de44e0c20a6c283e4b58e6ddc implementation (.cpp) files of the library.
 3. Library must declare its interface through a struct named `pal_${library_name}_api`
 4. Library interface struct must provide two fields:
    1. `static constexpr auto id` - this field must be a string literal, and its value must be the value of ${library_name}, i.e. the unique name of the library.
@@ -49,3 +49,15 @@ Implementations may do whatever they see fit - as long as it never seeps into th
 	
 Library cpp file must not assume to own any data - if it has any static or global variables, these must be assumed invalid after reload, and must be re-assigned (patched).
 
+
+* Caveats
+
+when hot-reloading, function pointers will be re-assigned. be careful when hot- adding and then calling new static methods to libraries, as these might not be found when called. It seems possible to change the contents of functions which are defined before the first start, so changing the logic of existing methods (and calling them at will) appears to work.
+
+* vulkan types in interfaces
+
+In headers, we forward-declare and use `struct VkType_T*` in interfaces for non-dispatchable handles. In implementation files which include vulkan.h, these types will be recognised as what they are when matched with the correct vulkan type: `VkType`. 
+
+* Types in engine interfaces 
+
+In headers, we forward-declare and use `struct engine_type_o*` for engine types which are passed between plug-ins. The implementations might use each other's private headers to get acces into these handles (like friend, and not very elegant), or use the public headers, and the Registry to call methods on the handles to interrogate the objects in an opaque way.

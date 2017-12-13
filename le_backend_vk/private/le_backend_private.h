@@ -19,7 +19,7 @@ struct le_backend_vk_instance_o {
 	vk::DebugReportCallbackEXT debugCallback;
 };
 
-extern le_backend_vk_instance_o *instance_create( le_backend_vk_api *, const char **, uint32_t ); // defined in le_instance_vk.cpp
+extern le_backend_vk_instance_o *instance_create( const le_backend_vk_api *, const char **, uint32_t ); // defined in le_instance_vk.cpp
 extern void                      instance_destroy( le_backend_vk_instance_o * );                  // defined in le_instance_vk.cpp
 extern VkInstance_T *            instance_get_VkInstance( le_backend_vk_instance_o * );           // defined in le_instance_vk.cpp
 extern void                      post_reload_hook( le_backend_vk_instance_o * );                  // defined in le_instance_vk.cpp

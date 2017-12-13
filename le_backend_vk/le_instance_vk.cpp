@@ -80,7 +80,7 @@ static void destroy_debug_callback( le_backend_vk_instance_o *obj ) {
 
 // ----------------------------------------------------------------------
 
-le_backend_vk_instance_o *instance_create( le_backend_vk_api *api, const char **extensionNamesArray_, uint32_t numExtensionNames_ ) {
+le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const char **extensionNamesArray_, uint32_t numExtensionNames_ ) {
 
 	auto obj = new le_backend_vk_instance_o();
 
