@@ -5,12 +5,12 @@
 #include <iomanip>
 
 struct le_backend_swapchain_vk_settings_o {
-	uint32_t                      width           = 0;
-	uint32_t                      height          = 0;
-	uint32_t                      imagecount      = 0;
-	uint32_t                      imagecountHint  = 3;
+	uint32_t                         width           = 0;
+	uint32_t                         height          = 0;
+	uint32_t                         imagecount      = 0;
+	uint32_t                         imagecountHint  = 3;
 	le_swapchain_vk_api::Presentmode presentmodeHint = le_swapchain_vk_api::Presentmode::eDefault;
-	vk::PresentModeKHR            presentMode     = vk::PresentModeKHR::eFifo;
+	vk::PresentModeKHR               presentMode     = vk::PresentModeKHR::eFifo;
 };
 
 // ----------------------------------------------------------------------
