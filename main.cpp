@@ -39,18 +39,27 @@ int main( int argc, char const *argv[] ) {
 
 		pal::Window window{settings};
 
-		le::Backend mBackend{requestedExtensions, numRequestedExtensions};
+		le::Backend backend{requestedExtensions, numRequestedExtensions};
 
-		window.createSurface( mBackend.getVkInstance() );
+		window.createSurface( backend.getVkInstance() );
 
 		le::Swapchain::Settings swapchainSettings;
 		swapchainSettings
 		    .setImageCountHint( 3 )
 		    .setPresentModeHint( le::Swapchain::Presentmode::eFifo )
-		    .setWidth( 640 )
-		    .setHeight( 480 );
+		    .setWidthHint( 640 )
+		    .setHeightHint( 480 )
+		    .setVkDevice( backend.getVkDevice() )
+		    .setVkSurfaceKHR( window.getVkSurfaceKHR() );
 
-		le::Swapchain mSwapchain{swapchainSettings};
+		le::Swapchain swapchain{swapchainSettings};
+
+		// TODO: `swapchain.reset()` needs to run when surface has been lost -
+		// Swapchain will report as such.
+		//
+		// Window will then have to re-acquire surface.
+		// then swapchain must be reset.
+		// swapchain.reset(swapchainSettings);
 
 		for ( ; window.shouldClose() == false; ) {
 
@@ -61,7 +70,7 @@ int main( int argc, char const *argv[] ) {
 			window.draw();
 		}
 
-		window.destroySurface( mBackend.getVkInstance() );
+		window.destroySurface( backend.getVkInstance() );
 		pal::Window::terminate();
 	}
 

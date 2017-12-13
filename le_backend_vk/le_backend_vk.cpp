@@ -17,10 +17,12 @@ void register_le_backend_vk_api( void *api_ ) {
 	le_instance_vk_i.create           = instance_create;
 	le_instance_vk_i.destroy          = instance_destroy;
 	le_instance_vk_i.post_reload_hook = post_reload_hook;
-	le_instance_vk_i.get_VkInstance   = instance_get_VkInstance;
+	le_instance_vk_i.get_vk_instance  = instance_get_vk_instance;
 
-	le_device_vk_i.create = device_create;
-	le_device_vk_i.destroy = device_destroy;
+	le_device_vk_i.create                 = device_create;
+	le_device_vk_i.destroy                = device_destroy;
+	le_device_vk_i.get_vk_device          = device_get_vk_device;
+	le_device_vk_i.get_vk_physical_device = device_get_vk_physical_device;
 
 	if ( le_backend_vk_i->cUniqueInstance != nullptr ) {
 		le_instance_vk_i.post_reload_hook( le_backend_vk_i->cUniqueInstance );

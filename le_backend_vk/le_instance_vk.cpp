@@ -154,7 +154,7 @@ void instance_destroy( le_backend_vk_instance_o *obj ) {
 
 // ----------------------------------------------------------------------
 
-VkInstance_T *instance_get_VkInstance( le_backend_vk_instance_o *obj ) {
+VkInstance_T *instance_get_vk_instance( le_backend_vk_instance_o *obj ) {
 	return ( reinterpret_cast<VkInstance &>( obj->vkInstance ) );
 }
 

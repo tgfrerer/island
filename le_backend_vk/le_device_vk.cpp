@@ -7,6 +7,7 @@
 #include <set>
 #include <map>
 
+// ----------------------------------------------------------------------
 
 uint32_t findQueueFamilyIndex( const std::vector<vk::QueueFamilyProperties>& props, const ::vk::QueueFlags & flags ){
 
@@ -122,10 +123,10 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 	// CONSIDER: find the best appropriate GPU
 	// Select a physical device (GPU) from the above queried list of options.
 	// For now, we assume the first one to be the best one.
-	device->physicalDevice = deviceList.front();
+	device->vkPhysicalDevice = deviceList.front();
 
 	// query the gpu for more info about itself
-	device->physicalDeviceProperties = device->physicalDevice.getProperties();
+	device->vkPhysicalDeviceProperties = device->vkPhysicalDevice.getProperties();
 
 //	ofLog() << "GPU Type: " << mPhysicalDeviceProperties.deviceName;
 
@@ -140,18 +141,18 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 //	}
 
 	// let's find out the devices' memory properties
-	device->physicalDeviceMemoryProperties = device->physicalDevice.getMemoryProperties();
+	device->vkPhysicalDeviceMemoryProperties = device->vkPhysicalDevice.getMemoryProperties();
 
 	// Check which features must be switched on for default operations.
 	// For now, we just make sure we can draw with lines.
 	//
 	// We should put this into the renderer setttings.
-	vk::PhysicalDeviceFeatures deviceFeatures = device->physicalDevice.getFeatures();
+	vk::PhysicalDeviceFeatures deviceFeatures = device->vkPhysicalDevice.getFeatures();
 	deviceFeatures
 	    .setFillModeNonSolid( VK_TRUE ) // allow wireframe drawing
 	    ;
 
-	const auto &queueFamilyProperties = device->physicalDevice.getQueueFamilyProperties();
+	const auto &queueFamilyProperties = device->vkPhysicalDevice.getQueueFamilyProperties();
 
 	struct QueueIndices {
 		uint32_t graphics      = ~uint32_t( 0 );
@@ -215,7 +216,7 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 		    .setPEnabledFeatures( &deviceFeatures );
 
 		// Create device
-		device->vkDevice = device->physicalDevice.createDevice( deviceCreateInfo );
+		device->vkDevice = device->vkPhysicalDevice.createDevice( deviceCreateInfo );
 	}
 
 	// Store queue flags, and queue family index per queue into renderer properties,
@@ -260,8 +261,23 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 	return device;
 };
 
+// ----------------------------------------------------------------------
+
+VkDevice device_get_vk_device(le_backend_vk_device_o* self_){
+	return self_->vkDevice;
+}
+
+// ----------------------------------------------------------------------
+
+VkPhysicalDevice device_get_vk_physical_device(le_backend_vk_device_o* self_){
+	return self_->vkPhysicalDevice;
+}
+
+// ----------------------------------------------------------------------
 
 void device_destroy( le_backend_vk_device_o *self_ ) {
 	self_->vkDevice.destroy();
 	delete ( self_ );
 };
+
+// ----------------------------------------------------------------------
