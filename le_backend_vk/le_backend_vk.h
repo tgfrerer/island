@@ -1,5 +1,5 @@
-#ifndef GUARD_PAL_BACKEND_VK_H
-#define GUARD_PAL_BACKEND_VK_H
+#ifndef GUARD_LE_BACKEND_VK_H
+#define GUARD_LE_BACKEND_VK_H
 
 #include <stdint.h>
 #include "pal_api_loader/ApiRegistry.hpp"
@@ -13,7 +13,6 @@ void register_le_backend_vk_api( void *api );
 struct le_backend_vk_api;
 struct le_backend_vk_instance_o;
 struct le_backend_vk_device_o;
-struct le_backend_vk_swapchain_o;
 
 struct VkInstance_T;
 
@@ -33,14 +32,8 @@ struct le_backend_vk_api {
 		void                        ( *destroy          ) ( le_backend_vk_device_o* self_ );
 	};
 
-	struct swapchain_interface_t {
-		le_backend_vk_swapchain_o * ( *create           ) ( le_backend_vk_swapchain_o* old_swapchain );
-		void                        ( *destroy          ) ( le_backend_vk_swapchain_o* self_ );
-	};
-
 	instance_interface_t  instance_i;
 	device_interface_t    device_i;
-	swapchain_interface_t swapchain_i;
 
 	mutable le_backend_vk_instance_o *cUniqueInstance = nullptr;
 };
@@ -74,6 +67,6 @@ class Backend {
 
 };
 
-} // namespace pal
+} // namespace le
 #endif // __cplusplus
 #endif // GUARD_PAL_BACKEND_VK_H
