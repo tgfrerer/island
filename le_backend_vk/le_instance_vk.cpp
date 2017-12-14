@@ -110,7 +110,7 @@ le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const c
 	bool shouldDebug = true;
 
 	if ( shouldDebug ) {
-		instanceExtensionNames.push_back( VK_EXT_DEBUG_REPORT_EXTENSION_NAME );
+		instanceExtensionNames.push_back( VK_EXT_DEBUG_REPORT_EXTENSION_NAME );		
 		instanceLayerNames.push_back( "VK_LAYER_LUNARG_standard_validation" );
 		instanceLayerNames.push_back( "VK_LAYER_LUNARG_object_tracker" );
 	}

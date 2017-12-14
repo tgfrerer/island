@@ -193,15 +193,22 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 			createInfos.emplace_back( std::move( queueCreateInfo ) );
 		}
 
+		// TODO: make this optional - get this from outside world.
+
+		std::vector<const char *> enabledDeviceExtensionNames     = {
+		    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+		};
+
 		vk::DeviceCreateInfo deviceCreateInfo;
 		deviceCreateInfo
-		    .setQueueCreateInfoCount( createInfos.size() )
-		    .setPQueueCreateInfos( createInfos.data() )
-		    .setEnabledLayerCount( 0 )
-		    .setPpEnabledLayerNames( nullptr )
-		    .setEnabledExtensionCount( 0)
-		    .setPpEnabledExtensionNames( nullptr )
-		    .setPEnabledFeatures( &deviceFeatures );
+		    .setQueueCreateInfoCount    ( uint32_t( createInfos.size() ) )
+		    .setPQueueCreateInfos       ( createInfos.data() )
+		    .setEnabledLayerCount       ( 0 )
+		    .setPpEnabledLayerNames     ( nullptr )
+		    .setEnabledExtensionCount   ( uint32_t( enabledDeviceExtensionNames.size() ) )
+		    .setPpEnabledExtensionNames ( enabledDeviceExtensionNames.data() )
+		    .setPEnabledFeatures        ( &deviceFeatures )
+		    ;
 
 		// Create device
 		device->vkDevice = device->vkPhysicalDevice.createDevice( deviceCreateInfo );

@@ -26,6 +26,10 @@ int main( int argc, char const *argv[] ) {
 #endif
 
 	{
+
+		// TODO: we need a way to easily add enabled device extensions
+		// and to add easily to requestedExtensions.
+
 		uint32_t numRequestedExtensions = 0;
 
 		pal::Window::init();
@@ -33,9 +37,10 @@ int main( int argc, char const *argv[] ) {
 
 		pal::Window::Settings settings;
 		settings
-		    .setWidth( 640 )
+		    .setWidth ( 640 )
 		    .setHeight( 480 )
-		    .setTitle( "Hello world" );
+		    .setTitle ( "Hello world" )
+		    ;
 
 		pal::Window window{settings};
 
@@ -45,31 +50,35 @@ int main( int argc, char const *argv[] ) {
 
 		le::Swapchain::Settings swapchainSettings;
 		swapchainSettings
-		    .setImageCountHint( 3 )
-		    .setPresentModeHint( le::Swapchain::Presentmode::eFifo )
-		    .setWidthHint( 640 )
-		    .setHeightHint( 480 )
-		    .setVkDevice( backend.getVkDevice() )
-		    .setVkSurfaceKHR( window.getVkSurfaceKHR() );
+		    .setImageCountHint          ( 3 )
+		    .setPresentModeHint         ( le::Swapchain::Presentmode::eFifo )
+		    .setWidthHint               ( 640 )
+		    .setHeightHint              ( 480 )
+		    .setVkDevice                ( backend.getVkDevice() )
+		    .setVkPhysicalDevice        ( backend.getVkPhysicalDevice() )
+		    .setGraphicsQueueFamilyIndex( backend.getDefaultGraphicsQueueFamilyIndex() )
+		    .setVkSurfaceKHR            ( window.getVkSurfaceKHR() )
+		   ;
 
-		le::Swapchain swapchain{swapchainSettings};
+		{
+			le::Swapchain swapchain{swapchainSettings};
 
-		// TODO: `swapchain.reset()` needs to run when surface has been lost -
-		// Swapchain will report as such.
-		//
-		// Window will then have to re-acquire surface.
-		// then swapchain must be reset.
-		// swapchain.reset(swapchainSettings);
+			// TODO: `swapchain.reset()` needs to run when surface has been lost -
+			// Swapchain will report as such.
+			//
+			// Window will then have to re-acquire surface.
+			// then swapchain must be reset.
+			// swapchain.reset(swapchainSettings);
 
-		for ( ; window.shouldClose() == false; ) {
+			for ( ; window.shouldClose() == false; ) {
 
-			Registry::pollForDynamicReload();
+				Registry::pollForDynamicReload();
 
-			pal::Window::pollEvents();
-			window.update();
-			window.draw();
+				pal::Window::pollEvents();
+				window.update();
+				window.draw();
+			}
 		}
-
 		window.destroySurface( backend.getVkInstance() );
 		pal::Window::terminate();
 	}
