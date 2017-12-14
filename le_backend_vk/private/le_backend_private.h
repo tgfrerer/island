@@ -31,15 +31,33 @@ struct le_backend_vk_device_o {
 	vk::PhysicalDeviceProperties       vkPhysicalDeviceProperties;
 	vk::PhysicalDeviceMemoryProperties vkPhysicalDeviceMemoryProperties;
 
-	std::vector<vk::Queue>      queues;
-	std::vector<vk::QueueFlags> queueCapabilities{vk::QueueFlagBits::eGraphics, vk::QueueFlagBits::eCompute};
+	// This may be set externally- it defines how many queues will be created, and what their capabilities must include.
+	// queues will be created so that if no exact fit can be found, a queue will be created from the next available family
+	// which closest fits requested capabilities.
+	//
+	std::vector<vk::QueueFlags> queuesWithCapabilitiesRequest = {vk::QueueFlagBits::eGraphics, vk::QueueFlagBits::eCompute};
 	std::vector<uint32_t>       queueFamilyIndices;
+	std::vector<vk::Queue>      queues;
+
+	struct DefaultQueueIndices {
+		uint32_t graphics      = ~uint32_t( 0 );
+		uint32_t compute       = ~uint32_t( 0 );
+		uint32_t transfer      = ~uint32_t( 0 );
+		uint32_t sparseBinding = ~uint32_t( 0 );
+	};
+
+	DefaultQueueIndices defaultQueueIndices;
 };
 
 extern le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ );
 extern void                    device_destroy( le_backend_vk_device_o *self_ );
 extern VkDevice                device_get_vk_device( le_backend_vk_device_o *self_ );
 extern VkPhysicalDevice        device_get_vk_physical_device( le_backend_vk_device_o *self_ );
+
+extern uint32_t                device_get_default_graphics_queue_family_index( le_backend_vk_device_o *self );
+extern uint32_t                device_get_default_compute_queue_family_index( le_backend_vk_device_o *self );
+extern VkQueue                 device_get_default_graphics_queue( le_backend_vk_device_o *self );
+extern VkQueue                 device_get_default_compute_queue( le_backend_vk_device_o *self );
 
 extern PFN_vkCreateDebugReportCallbackEXT  pfn_vkCreateDebugReportCallbackEXT;
 extern PFN_vkDestroyDebugReportCallbackEXT pfn_vkDestroyDebugReportCallbackEXT;

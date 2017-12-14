@@ -17,6 +17,7 @@ struct le_backend_vk_device_o;
 struct VkInstance_T;
 struct VkDevice_T;
 struct VkPhysicalDevice_T;
+struct VkQueue_T;
 
 struct le_backend_vk_api {
 	static constexpr auto id       = "le_backend_vk";
@@ -30,10 +31,14 @@ struct le_backend_vk_api {
 	};
 
 	struct device_interface_t {
-		le_backend_vk_device_o *    ( *create                 ) ( le_backend_vk_instance_o* instance_ );
-		VkPhysicalDevice_T*         ( *get_vk_physical_device ) ( le_backend_vk_device_o* self_ );
-		VkDevice_T*                 ( *get_vk_device          ) ( le_backend_vk_device_o* self_ );
-		void                        ( *destroy                ) ( le_backend_vk_device_o* self_ );
+		le_backend_vk_device_o *    ( *create                                  ) ( le_backend_vk_instance_o* instance_ );
+		void                        ( *destroy                                 ) ( le_backend_vk_device_o* self_ );
+		uint32_t                    ( *get_default_graphics_queue_family_index ) ( le_backend_vk_device_o* self_ );
+		uint32_t                    ( *get_default_compute_queue_family_index  ) ( le_backend_vk_device_o* self_ );
+		VkQueue_T *                 ( *get_default_graphics_queue              ) ( le_backend_vk_device_o* self_ );
+		VkQueue_T *                 ( *get_default_compute_queue               ) ( le_backend_vk_device_o* self_ );
+		VkPhysicalDevice_T*         ( *get_vk_physical_device                  ) ( le_backend_vk_device_o* self_ );
+		VkDevice_T*                 ( *get_vk_device                           ) ( le_backend_vk_device_o* self_ );
 	};
 
 	instance_interface_t  instance_i;
@@ -66,18 +71,33 @@ class Backend  {
 		instanceI.destroy( mInstance );
 	}
 
-	VkInstance_T * getVkInstance() {
+	VkInstance_T *getVkInstance() {
 		return instanceI.get_vk_instance( mInstance );
 	}
 
-	VkDevice_T * getVkDevice(){
-		return deviceI.get_vk_device(mDevice);
+	VkDevice_T *getVkDevice() {
+		return deviceI.get_vk_device( mDevice );
 	}
 
-	VkPhysicalDevice_T* getVkPhysicalDevice(){
-		return deviceI.get_vk_physical_device(mDevice);
+	VkPhysicalDevice_T *getVkPhysicalDevice() {
+		return deviceI.get_vk_physical_device( mDevice );
 	}
 
+	uint32_t getDefaultGraphicsQueueFamilyIndex() {
+		return deviceI.get_default_graphics_queue_family_index( mDevice );
+	}
+
+	uint32_t getDefaultComputeQueueFamilyIndex() {
+		return deviceI.get_default_compute_queue_family_index( mDevice );
+	}
+
+	VkQueue_T *getDefaultGraphicsQueue() {
+		return deviceI.get_default_graphics_queue( mDevice );
+	}
+
+	VkQueue_T *getDefaultComputeQueue() {
+		return deviceI.get_default_compute_queue( mDevice );
+	}
 };
 
 } // namespace le

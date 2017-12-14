@@ -9,28 +9,30 @@
 
 // ----------------------------------------------------------------------
 
-uint32_t findQueueFamilyIndex( const std::vector<vk::QueueFamilyProperties>& props, const ::vk::QueueFlags & flags ){
+uint32_t findClosestMatchingQueueIndex( const std::vector<vk::QueueFlags>& queueFlags_, const vk::QueueFlags & flags ){
 
 	// Find out the queue family index for a queue best matching the given flags.
 	// We use this to find out the index of the Graphics Queue for example.
 
-	for ( uint32_t familyIndex = 0; familyIndex != props.size(); familyIndex++ ){
-		if ( props[familyIndex].queueFlags == flags ){
+	for ( uint32_t i = 0; i != queueFlags_.size(); i++ ){
+		if ( queueFlags_[i] == flags ){
 			// First perfect match
-			return familyIndex;
+			return i;
 		}
 	}
 
-	for ( uint32_t familyIndex = 0; familyIndex != props.size(); familyIndex++ ){
-		if ( props[familyIndex].queueFlags & flags ){
+	for ( uint32_t i = 0; i != queueFlags_.size(); i++ ){
+		if ( queueFlags_[i] & flags ){
 			// First multi-function queue match
-			return familyIndex;
+			return i;
 		}
 	}
 
 	// ---------| invariant: no queue found
 
-	std::cout << "Could not find queue family index matching: " << ::vk::to_string( flags );
+	if (flags & vk::QueueFlagBits::eGraphics){
+		std::cerr << "Could not find queue family index matching: " << vk::to_string( flags );
+	}
 
 	return ~( uint32_t( 0 ) );
 }
@@ -154,23 +156,8 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 
 	const auto &queueFamilyProperties = device->vkPhysicalDevice.getQueueFamilyProperties();
 
-	struct QueueIndices {
-		uint32_t graphics      = ~uint32_t( 0 );
-		uint32_t compute       = ~uint32_t( 0 );
-		uint32_t transfer      = ~uint32_t( 0 );
-		uint32_t sparseBinding = ~uint32_t( 0 );
-	};
-
-	QueueIndices                       queueIndices;
-
-	// Find out family index for graphics queue
-	queueIndices.graphics      = findQueueFamilyIndex( queueFamilyProperties, ::vk::QueueFlagBits::eGraphics );
-	queueIndices.compute       = findQueueFamilyIndex( queueFamilyProperties, ::vk::QueueFlagBits::eCompute );
-	queueIndices.transfer      = findQueueFamilyIndex( queueFamilyProperties, ::vk::QueueFlagBits::eTransfer );
-	queueIndices.sparseBinding = findQueueFamilyIndex( queueFamilyProperties, ::vk::QueueFlagBits::eSparseBinding );
-
 	// See findBestMatchForRequestedQueues for how this tuple is laid out.
-	auto queriedQueueFamilyAndIndex = findBestMatchForRequestedQueues( queueFamilyProperties, device->queueCapabilities );
+	auto queriedQueueFamilyAndIndex = findBestMatchForRequestedQueues( queueFamilyProperties, device->queuesWithCapabilitiesRequest );
 
 	// Consolidate queues by queue family type - this will also sort by queue family type.
 	{
@@ -178,6 +165,7 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 
 		for ( const auto &q : queriedQueueFamilyAndIndex ) {
 			// Attempt to insert family to map
+
 			auto insertResult = queueCountPerFamily.insert( {std::get<0>( q ), 1} );
 			if ( false == insertResult.second ) {
 				// Increment count if family entry already existed in map.
@@ -222,7 +210,7 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 	// Store queue flags, and queue family index per queue into renderer properties,
 	// so that queue capabilities and family index may be queried thereafter.
 
-	device->queueFamilyIndices.resize( device->queueCapabilities.size() );
+	device->queueFamilyIndices.resize( device->queuesWithCapabilitiesRequest.size() );
 	device->queues.resize( queriedQueueFamilyAndIndex.size() );
 
 	// Fetch queue handle into mQueue, matching indices with the original queue request vector
@@ -233,6 +221,14 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 		device->queues[ requestedQueueIndex ]             = device->vkDevice.getQueue( queueFamilyIndex, queueIndex );
 		device->queueFamilyIndices[ requestedQueueIndex ] = queueFamilyIndex;
 	}
+
+
+	// Populate indices for default queues - so that default queue may be queried by queue type
+	device->defaultQueueIndices.graphics      = findClosestMatchingQueueIndex( device->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eGraphics );
+	device->defaultQueueIndices.compute       = findClosestMatchingQueueIndex( device->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eCompute );
+	device->defaultQueueIndices.transfer      = findClosestMatchingQueueIndex( device->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eTransfer );
+	device->defaultQueueIndices.sparseBinding = findClosestMatchingQueueIndex( device->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eSparseBinding );
+
 
 //	// Create mutexes to protect each queue
 //	mQueueMutex = std::vector<mutex>( mQueues.size() );
@@ -271,6 +267,23 @@ VkDevice device_get_vk_device(le_backend_vk_device_o* self_){
 
 VkPhysicalDevice device_get_vk_physical_device(le_backend_vk_device_o* self_){
 	return self_->vkPhysicalDevice;
+}
+
+uint32_t device_get_default_graphics_queue_family_index(le_backend_vk_device_o *self_){
+	return self_->queueFamilyIndices[ self_->defaultQueueIndices.graphics];
+};
+
+
+uint32_t device_get_default_compute_queue_family_index(le_backend_vk_device_o *self_){
+	return self_->queueFamilyIndices[self_->defaultQueueIndices.compute];
+}
+
+VkQueue device_get_default_graphics_queue(le_backend_vk_device_o* self_){
+	return self_->queues[self_->defaultQueueIndices.graphics];
+}
+
+VkQueue device_get_default_compute_queue(le_backend_vk_device_o* self_){
+	return self_->queues[self_->defaultQueueIndices.compute];
 }
 
 // ----------------------------------------------------------------------
