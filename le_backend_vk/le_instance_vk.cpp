@@ -11,9 +11,9 @@ PFN_vkDestroyDebugReportCallbackEXT pfn_vkDestroyDebugReportCallbackEXT;
 PFN_vkDebugReportMessageEXT         pfn_vkDebugReportMessageEXT;
 
 void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
-	pfn_vkCreateDebugReportCallbackEXT  = ( PFN_vkCreateDebugReportCallbackEXT )obj->vkInstance.getProcAddr( "vkCreateDebugReportCallbackEXT" );
-	pfn_vkDestroyDebugReportCallbackEXT = ( PFN_vkDestroyDebugReportCallbackEXT )obj->vkInstance.getProcAddr( "vkDestroyDebugReportCallbackEXT" );
-	pfn_vkDebugReportMessageEXT         = ( PFN_vkDebugReportMessageEXT )obj->vkInstance.getProcAddr( "vkDebugReportMessageEXT" );
+	pfn_vkCreateDebugReportCallbackEXT  = reinterpret_cast< PFN_vkCreateDebugReportCallbackEXT  >(obj->vkInstance.getProcAddr( "vkCreateDebugReportCallbackEXT"  ));
+	pfn_vkDestroyDebugReportCallbackEXT = reinterpret_cast< PFN_vkDestroyDebugReportCallbackEXT >(obj->vkInstance.getProcAddr( "vkDestroyDebugReportCallbackEXT" ));
+	pfn_vkDebugReportMessageEXT         = reinterpret_cast< PFN_vkDebugReportMessageEXT         >(obj->vkInstance.getProcAddr( "vkDebugReportMessageEXT"         ));
 	std::cout << "Patched proc addrs." << std::endl;
 }
 
