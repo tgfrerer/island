@@ -66,6 +66,9 @@ static pal_window_o *window_create(const pal_window_settings_o* settings_) {
 
 	obj->window = glfwCreateWindow( obj->mSettings.width, obj->mSettings.height, obj->mSettings.title.c_str(), obj->mSettings.monitor, nullptr );
 
+	// Set the user pointer so callbacks know which obj they belong to
+	glfwSetWindowUserPointer(obj->window,obj);
+
 	return obj;
 }
 
