@@ -4,6 +4,10 @@
 #include <iostream>
 #include <iomanip>
 
+#ifndef NDEBUG
+    #include <assert.h>
+#endif
+
 // ----------------------------------------------------------------------
 
 struct SurfaceProperties {
@@ -19,6 +23,7 @@ struct le_backend_swapchain_o {
 	le_swapchain_vk_api::settings_o mSettings;
 	vk::PresentModeKHR              mPresentMode     = vk::PresentModeKHR::eFifo;
 	uint32_t                        mImagecount      = 0;
+	uint32_t                        mImageIndex      = uint32_t(~0); // current image index
 	vk::SwapchainKHR                mSwapchain       = nullptr;
 	::vk::Extent2D                  mSwapchainExtent = {};
 	SurfaceProperties               mSurfaceProperties;
@@ -165,10 +170,10 @@ static void swapchain_reset( le_backend_swapchain_o *self, const le_swapchain_vk
 	// just before this setup() method was called.
 	swapchain_query_surface_capabilities( self );
 
-	vk::SwapchainKHR                         oldSwapchain = self->mSwapchain;
-	vk::Device                               device       = self->mSettings.vk_device;
-	const vk::SurfaceCapabilitiesKHR &       surfaceCapabilities     = self->mSurfaceProperties.surfaceCapabilities;
-	const std::vector<::vk::PresentModeKHR> &presentModes = self->mSurfaceProperties.presentmodes;
+	vk::SwapchainKHR                         oldSwapchain        = self->mSwapchain;
+	vk::Device                               device              = self->mSettings.vk_device;
+	const vk::SurfaceCapabilitiesKHR &       surfaceCapabilities = self->mSurfaceProperties.surfaceCapabilities;
+	const std::vector<::vk::PresentModeKHR> &presentModes        = self->mSurfaceProperties.presentmodes;
 
 	// Either set or get the swapchain surface extents
 
@@ -258,6 +263,51 @@ static le_backend_swapchain_o *swapchain_create( const le_swapchain_vk_api::sett
 
 // ----------------------------------------------------------------------
 
+static bool swapchain_acquire_next_image( le_backend_swapchain_o* self, VkSemaphore semaphorePresentComplete_, uint32_t& imageIndex_ ){
+
+	// This method will return the next avaliable vk image index for this swapchain, possibly
+	// before this image is available for writing. Image will be ready for writing when
+	// semaphorePresentComplete is signalled.
+
+	auto result = vkAcquireNextImageKHR( self->mSettings.vk_device, self->mSwapchain, 0, semaphorePresentComplete_, nullptr, &imageIndex_ );
+
+	switch ( result ) {
+	case VK_SUCCESS:
+		self->mImageIndex = imageIndex_;
+	    return true;
+	    break;
+	case VK_SUBOPTIMAL_KHR:         // | fall-through
+	case VK_ERROR_SURFACE_LOST_KHR: // |
+	case VK_ERROR_OUT_OF_DATE_KHR:  // |
+		swapchain_reset( self, nullptr );
+	    return false;
+	    break;
+	default:
+	    return false;
+	}
+
+}
+
+// ----------------------------------------------------------------------
+
+static VkImage swapchain_get_image(le_backend_swapchain_o* self, uint32_t index){
+#ifndef NDEBUG
+	assert(index < self->mImageRefs.size());
+#endif
+	return self->mImageRefs[index];
+}
+
+// ----------------------------------------------------------------------
+
+static VkImageView swapchain_get_image_view(le_backend_swapchain_o* self, uint32_t index){
+#ifndef NDEBUG
+	assert(index < self->mImageViews.size());
+#endif
+	return self->mImageViews[index];
+}
+
+// ----------------------------------------------------------------------
+
 static void swapchain_destroy( le_backend_swapchain_o *self_ ) {
 
 	vk::Device device = self_->mSettings.vk_device;
@@ -277,9 +327,12 @@ void register_le_swapchain_vk_api( void *api_ ) {
 	auto  api         = static_cast<le_swapchain_vk_api *>( api_ );
 	auto &swapchain_i = api->swapchain_i;
 
-	swapchain_i.create  = swapchain_create;
-	swapchain_i.reset   = swapchain_reset;
-	swapchain_i.destroy = swapchain_destroy;
+	swapchain_i.create             = swapchain_create;
+	swapchain_i.reset              = swapchain_reset;
+	swapchain_i.acquire_next_image = swapchain_acquire_next_image;
+	swapchain_i.get_image          = swapchain_get_image;
+	swapchain_i.get_image_view     = swapchain_get_image_view;
+	swapchain_i.destroy            = swapchain_destroy;
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
 }

@@ -15,6 +15,9 @@ struct le_backend_swapchain_o;
 struct VkDevice_T;
 struct VkPhysicalDevice_T;
 struct VkSurfaceKHR_T;
+struct VkSemaphore_T;
+struct VkImage_T;
+struct VkImageView_T;
 
 struct le_swapchain_vk_api {
 	static constexpr auto id       = "le_swapchain_vk";
@@ -41,9 +44,12 @@ struct le_swapchain_vk_api {
 	};
 
 	struct swapchain_interface_t {
-		le_backend_swapchain_o * ( *create           ) ( const settings_o* settings_ );
-		void                     ( *reset            ) ( le_backend_swapchain_o* self, const settings_o* settings_ );
-		void                     ( *destroy          ) ( le_backend_swapchain_o* self_ );
+		le_backend_swapchain_o * ( *create             ) ( const settings_o* settings_ );
+		void                     ( *reset              ) ( le_backend_swapchain_o* , const settings_o* settings_ );
+		bool                     ( *acquire_next_image ) ( le_backend_swapchain_o* , VkSemaphore_T* semaphore_, uint32_t& imageIndex_ );
+		VkImage_T*               ( *get_image          ) ( le_backend_swapchain_o* , uint32_t index_);
+		VkImageView_T*           ( *get_image_view     ) ( le_backend_swapchain_o* , uint32_t index_);
+		void                     ( *destroy            ) ( le_backend_swapchain_o* );
 	};
 
 	swapchain_interface_t swapchain_i;
