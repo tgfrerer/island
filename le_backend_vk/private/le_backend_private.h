@@ -47,6 +47,7 @@ struct le_backend_vk_device_o {
 	};
 
 	DefaultQueueIndices defaultQueueIndices;
+	uint32_t referenceCount = 0;
 };
 
 extern le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ );
@@ -58,6 +59,10 @@ extern uint32_t                device_get_default_graphics_queue_family_index( l
 extern uint32_t                device_get_default_compute_queue_family_index( le_backend_vk_device_o *self );
 extern VkQueue                 device_get_default_graphics_queue( le_backend_vk_device_o *self );
 extern VkQueue                 device_get_default_compute_queue( le_backend_vk_device_o *self );
+
+extern uint32_t                device_get_reference_count(le_backend_vk_device_o* self);
+extern void                    device_increase_reference_count(le_backend_vk_device_o* self);
+extern void                    device_decrease_reference_count(le_backend_vk_device_o* self);
 
 extern PFN_vkCreateDebugReportCallbackEXT  pfn_vkCreateDebugReportCallbackEXT;
 extern PFN_vkDestroyDebugReportCallbackEXT pfn_vkDestroyDebugReportCallbackEXT;

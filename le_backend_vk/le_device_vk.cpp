@@ -236,7 +236,6 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 	device->defaultQueueIndices.transfer      = findClosestMatchingQueueIndex( device->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eTransfer );
 	device->defaultQueueIndices.sparseBinding = findClosestMatchingQueueIndex( device->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eSparseBinding );
 
-
 //	// Create mutexes to protect each queue
 //	mQueueMutex = std::vector<mutex>( mQueues.size() );
 
@@ -263,6 +262,24 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 
 	return device;
 };
+
+// ----------------------------------------------------------------------
+
+void device_increase_reference_count(le_backend_vk_device_o* self){
+	++self->referenceCount;
+}
+
+// ----------------------------------------------------------------------
+
+void device_decrease_reference_count(le_backend_vk_device_o* self){
+	--self->referenceCount;
+}
+
+// ----------------------------------------------------------------------
+
+uint32_t device_get_reference_count(le_backend_vk_device_o* self){
+	return self->referenceCount;
+}
 
 // ----------------------------------------------------------------------
 
