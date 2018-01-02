@@ -33,6 +33,11 @@ struct le_backend_vk_api {
 	struct device_interface_t {
 		le_backend_vk_device_o *    ( *create                                  ) ( le_backend_vk_instance_o* instance_ );
 		void                        ( *destroy                                 ) ( le_backend_vk_device_o* self_ );
+
+		void                        ( *decrease_reference_count                ) ( le_backend_vk_device_o* self_ );
+		void                        ( *increase_reference_count                ) ( le_backend_vk_device_o* self_ );
+		uint32_t                    ( *get_reference_count                     ) ( le_backend_vk_device_o* self_ );
+
 		uint32_t                    ( *get_default_graphics_queue_family_index ) ( le_backend_vk_device_o* self_ );
 		uint32_t                    ( *get_default_compute_queue_family_index  ) ( le_backend_vk_device_o* self_ );
 		VkQueue_T *                 ( *get_default_graphics_queue              ) ( le_backend_vk_device_o* self_ );
@@ -53,51 +58,96 @@ struct le_backend_vk_api {
 
 namespace le {
 
-class Backend  {
+class Instance {
 	const le_backend_vk_api &                      backendApiI = *Registry::getApi<le_backend_vk_api>();
 	const le_backend_vk_api::instance_interface_t &instanceI   = backendApiI.instance_i;
-	const le_backend_vk_api::device_interface_t &  deviceI     = backendApiI.device_i;
-	le_backend_vk_instance_o *                     mInstance   = nullptr;
-	le_backend_vk_device_o *                       mDevice     = nullptr;
+	le_backend_vk_instance_o *                     self        = nullptr;
 
   public:
-	Backend( const char **extensionsArray_ = nullptr, uint32_t numExtensions_ = 0 )
-	    : mInstance( instanceI.create( &backendApiI, extensionsArray_, numExtensions_ ) )
-	    , mDevice( deviceI.create( mInstance ) ) {
+	Instance( const char **extensionsArray_ = nullptr, uint32_t numExtensions_ = 0 )
+	    : self( instanceI.create( &backendApiI, extensionsArray_, numExtensions_ ) ) {
 	}
 
-	~Backend() {
-		deviceI.destroy( mDevice );
-		instanceI.destroy( mInstance );
+	~Instance() {
+		instanceI.destroy( self );
 	}
 
 	VkInstance_T *getVkInstance() {
-		return instanceI.get_vk_instance( mInstance );
+		return instanceI.get_vk_instance( self );
+	}
+
+	operator le_backend_vk_instance_o *() {
+		return self;
+	}
+};
+
+
+
+class Device {
+	const le_backend_vk_api &                    backendApiI = *Registry::getApi<le_backend_vk_api>();
+	const le_backend_vk_api::device_interface_t &deviceI     = backendApiI.device_i;
+	le_backend_vk_device_o *                     self        = nullptr;
+
+  public:
+
+	Device( le_backend_vk_instance_o *instance_ )
+	    : self( deviceI.create( instance_ ) ){
+		deviceI.increase_reference_count(self);
+	}
+
+	~Device() {
+		deviceI.decrease_reference_count(self);
+		if (deviceI.get_reference_count(self) == 0){
+			deviceI.destroy( self );
+		}
+	}
+
+	// copy assignment operator
+	Device& operator=(const Device& lhs) = delete ;
+
+	// move assignment operator
+	Device& operator=(const Device&& lhs) = delete ;
+
+	// copy constructor
+	Device(const Device& lhs)
+	    :self(lhs.self){
+		deviceI.increase_reference_count( self );
+	}
+
+	// reference from data constructor
+	Device( le_backend_vk_device_o *device_ )
+	    : self( device_ ) {
+		deviceI.increase_reference_count( self );
 	}
 
 	VkDevice_T *getVkDevice() {
-		return deviceI.get_vk_device( mDevice );
+		return deviceI.get_vk_device( self );
 	}
 
 	VkPhysicalDevice_T *getVkPhysicalDevice() {
-		return deviceI.get_vk_physical_device( mDevice );
+		return deviceI.get_vk_physical_device( self );
 	}
 
 	uint32_t getDefaultGraphicsQueueFamilyIndex() {
-		return deviceI.get_default_graphics_queue_family_index( mDevice );
+		return deviceI.get_default_graphics_queue_family_index( self );
 	}
 
 	uint32_t getDefaultComputeQueueFamilyIndex() {
-		return deviceI.get_default_compute_queue_family_index( mDevice );
+		return deviceI.get_default_compute_queue_family_index( self );
 	}
 
 	VkQueue_T *getDefaultGraphicsQueue() {
-		return deviceI.get_default_graphics_queue( mDevice );
+		return deviceI.get_default_graphics_queue( self );
 	}
 
 	VkQueue_T *getDefaultComputeQueue() {
-		return deviceI.get_default_compute_queue( mDevice );
+		return deviceI.get_default_compute_queue( self );
 	}
+
+	operator le_backend_vk_device_o*(){
+		return self;
+	}
+
 };
 
 } // namespace le

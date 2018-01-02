@@ -21,6 +21,11 @@ void register_le_backend_vk_api( void *api_ ) {
 
 	le_device_vk_i.create                                  = device_create;
 	le_device_vk_i.destroy                                 = device_destroy;
+
+	le_device_vk_i.get_reference_count                     = device_get_reference_count;
+	le_device_vk_i.increase_reference_count                = device_increase_reference_count;
+	le_device_vk_i.decrease_reference_count                = device_decrease_reference_count;
+
 	le_device_vk_i.get_vk_device                           = device_get_vk_device;
 	le_device_vk_i.get_vk_physical_device                  = device_get_vk_physical_device;
 	le_device_vk_i.get_default_compute_queue               = device_get_default_compute_queue;

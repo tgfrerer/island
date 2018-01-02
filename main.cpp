@@ -13,7 +13,7 @@ int main( int argc, char const *argv[] ) {
 	Registry::addApiDynamic<pal_window_api>( true );
 #endif
 
-#ifdef PLUGIN_PAL_BACKEND_VK_STATIC
+#ifdef PLUGIN_LE_BACKEND_VK_STATIC
 	Registry::addApiStatic<le_backend_vk_api>();
 #else
 	Registry::addApiDynamic<le_backend_vk_api>( true );
@@ -44,23 +44,26 @@ int main( int argc, char const *argv[] ) {
 
 		pal::Window window{settings};
 
-		le::Backend backend{requestedExtensions, numRequestedExtensions};
+		le::Instance instance{requestedExtensions, numRequestedExtensions};
 
-		window.createSurface( backend.getVkInstance() );
+		window.createSurface( instance.getVkInstance() );
+
+		le::Device device{instance};
 
 		le::Swapchain::Settings swapchainSettings;
 		swapchainSettings
 		    .setImageCountHint          ( 3 )
 		    .setPresentModeHint         ( le::Swapchain::Presentmode::eFifo )
-		    .setWidthHint               ( 640 )
-		    .setHeightHint              ( 480 )
-		    .setVkDevice                ( backend.getVkDevice() )
-		    .setVkPhysicalDevice        ( backend.getVkPhysicalDevice() )
-		    .setGraphicsQueueFamilyIndex( backend.getDefaultGraphicsQueueFamilyIndex() )
+		    .setWidthHint               ( window.getSurfaceWidth() )
+		    .setHeightHint              ( window.getSurfaceHeight() )
+		    .setVkDevice                ( device.getVkDevice() )
+		    .setVkPhysicalDevice        ( device.getVkPhysicalDevice() )
+		    .setGraphicsQueueFamilyIndex( device.getDefaultGraphicsQueueFamilyIndex() )
 		    .setVkSurfaceKHR            ( window.getVkSurfaceKHR() )
-		   ;
+		    ;
 
 		{
+			// create swapchain, and attach it to window via the window's VkSurface
 			le::Swapchain swapchain{swapchainSettings};
 
 			// TODO: `swapchain.reset()` needs to run when surface has been lost -
@@ -75,11 +78,14 @@ int main( int argc, char const *argv[] ) {
 				Registry::pollForDynamicReload();
 
 				pal::Window::pollEvents();
-				window.update();
-				window.draw();
+
+				// app.update
+				// app.draw
+
 			}
 		}
-		window.destroySurface( backend.getVkInstance() );
+		window.destroySurface( instance.getVkInstance() );
+
 		pal::Window::terminate();
 	}
 
