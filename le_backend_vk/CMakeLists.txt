@@ -27,11 +27,9 @@ else()
 
     add_library(${TARGET} STATIC ${SOURCES})
 
-    target_compile_definitions(${TARGET}  PUBLIC "PLUGIN_PAL_BACKEND_VK_STATIC")
+    target_compile_definitions(${TARGET}  PUBLIC "PLUGIN_LE_BACKEND_VK_STATIC")
 
 endif()
 
 set (LINKER_FLAGS -Wl,--whole-archive vulkan -Wl,--no-whole-archive )
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
-
-#include_directories("/usr/local/include")
