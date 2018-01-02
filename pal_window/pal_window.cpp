@@ -14,8 +14,9 @@ struct pal_window_settings_o {
 };
 
 struct pal_window_o {
-	GLFWwindow * window;
-	VkSurfaceKHR mSurface;
+	GLFWwindow *          window   = nullptr;
+	VkSurfaceKHR          mSurface = nullptr;
+	VkExtent2D            mSurfaceExtent;
 	pal_window_settings_o mSettings;
 };
 
@@ -52,6 +53,16 @@ static void window_settings_destroy(pal_window_settings_o* self_){
 
 // ----------------------------------------------------------------------
 
+static void glfw_framebuffer_resize_callback(GLFWwindow* window_, int width_px_, int height_px_){
+	auto self = static_cast<pal_window_o*> (glfwGetWindowUserPointer(window_));
+	glfwGetWindowSize( window_, &self->mSettings.width, &self->mSettings.height );
+	self->mSurfaceExtent.width  = uint32_t(width_px_ );
+	self->mSurfaceExtent.height = uint32_t(height_px_);
+	std::cout << "Framebuffer resized callback: " << width_px_ << ", "  << height_px_ << std::endl;
+};
+
+// ----------------------------------------------------------------------
+
 static pal_window_o *window_create(const pal_window_settings_o* settings_) {
 	auto obj = new pal_window_o();
 
@@ -66,8 +77,24 @@ static pal_window_o *window_create(const pal_window_settings_o* settings_) {
 
 	obj->window = glfwCreateWindow( obj->mSettings.width, obj->mSettings.height, obj->mSettings.title.c_str(), obj->mSettings.monitor, nullptr );
 
-	// Set the user pointer so callbacks know which obj they belong to
+	// Set the user pointer so callbacks know which window they belong to
 	glfwSetWindowUserPointer(obj->window,obj);
+
+	// FIXME: Callback function address target may have changed after library hot-reload
+	// Problem -- the address of the callback function may have changed
+	// after the library was reloaded, and we would have to go through
+	// all windows to patch the callback function.
+	//
+	// We could make sure that there is a forwarder which has a constant
+	// address, and which calls, in turn, a method which we can patch during
+	// reload.
+	//
+	// The forwarder function would have to live somewhere permanent.
+	// Could this be a function object inside registry?
+	//
+	// This problem arises mostly because each window within GLFW may have its own
+	// callbacks - which means, each GLFW window would have to be patched after hot-reloading.
+	glfwSetFramebufferSizeCallback( obj->window, glfw_framebuffer_resize_callback );
 
 	return obj;
 }
@@ -81,16 +108,6 @@ static void window_destroy( pal_window_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void window_draw( pal_window_o *self ) {
-}
-
-// ----------------------------------------------------------------------
-
-static void window_update( pal_window_o *self ) {
-}
-
-// ----------------------------------------------------------------------
-
 static bool window_should_close( pal_window_o *self ) {
 	return glfwWindowShouldClose( self->window );
 }
@@ -98,18 +115,42 @@ static bool window_should_close( pal_window_o *self ) {
 // ----------------------------------------------------------------------
 
 static bool window_create_surface( pal_window_o *self, VkInstance vkInstance) {
-	auto        result       = glfwCreateWindowSurface( vkInstance, self->window, nullptr, &self->mSurface );
+	auto result = glfwCreateWindowSurface( vkInstance, self->window, nullptr, &self->mSurface );
 	if ( result == VK_SUCCESS ) {
+		int tmp_w = 0;
+		int tmp_h = 0;
+		glfwGetFramebufferSize( self->window, &tmp_w, &tmp_h );
+		self->mSurfaceExtent.height = uint32_t( tmp_h );
+		self->mSurfaceExtent.width  = uint32_t( tmp_w );
 		std::cout << "Created surface" << std::endl;
 	} else {
 		std::cerr << "Error creating surface" << std::endl;
+		return false;
 	}
 	return true;
 }
 
 // ----------------------------------------------------------------------
 
-VkSurfaceKHR window_get_vk_surface_khr(pal_window_o* self){
+static uint32_t window_get_surface_width(pal_window_o* self){
+	if (self->mSurface){
+		return self->mSurfaceExtent.width;
+	}
+	return 0;
+}
+
+// ----------------------------------------------------------------------
+
+static uint32_t window_get_surface_height(pal_window_o* self){
+	if (self->mSurface){
+		return self->mSurfaceExtent.height;
+	}
+	return 0;
+}
+
+// ----------------------------------------------------------------------
+
+static VkSurfaceKHR window_get_vk_surface_khr(pal_window_o* self){
 	return self->mSurface;
 }
 
@@ -170,8 +211,8 @@ void register_pal_window_api( void *api ) {
 	window_i.create             = window_create;
 	window_i.destroy            = window_destroy;
 	window_i.should_close       = window_should_close;
-	window_i.update             = window_update;
-	window_i.draw               = window_draw;
+	window_i.get_surface_width  = window_get_surface_width;
+	window_i.get_surface_height = window_get_surface_height;
 	window_i.create_surface     = window_create_surface;
 	window_i.destroy_surface    = window_destroy_surface;
 	window_i.get_vk_surface_khr = window_get_vk_surface_khr;

@@ -31,10 +31,10 @@ struct pal_window_api {
 		pal_window_o *  ( *create             ) ( const pal_window_settings_o* );
 		void            ( *destroy            ) ( pal_window_o * );
 		bool            ( *should_close       ) ( pal_window_o * );
-		void            ( *update             ) ( pal_window_o * );
-		void            ( *draw               ) ( pal_window_o * );
 		bool            ( *create_surface     ) ( pal_window_o *, VkInstance_T * );
 		void            ( *destroy_surface    ) ( pal_window_o *, VkInstance_T * );
+		uint32_t        ( *get_surface_width  ) ( pal_window_o * );
+		uint32_t        ( *get_surface_height ) ( pal_window_o * );
 		VkSurfaceKHR_T* ( *get_vk_surface_khr ) ( pal_window_o * );
 	};
 
@@ -132,17 +132,17 @@ class Window {
 		return mWindow.should_close( self );
 	}
 
-	void update() {
-		mWindow.update( self );
-	}
-
-	void draw() {
-		mWindow.draw( self );
-	}
-
 	/// \brief create and store a vk surface in the current window object
 	bool createSurface( VkInstance_T *instance ) {
 		return mWindow.create_surface( self, instance );
+	}
+
+	uint32_t getSurfaceWidth(){
+		return mWindow.get_surface_width(self);
+	}
+
+	uint32_t getSurfaceHeight(){
+		return mWindow.get_surface_height(self);
 	}
 
 	VkSurfaceKHR_T* getVkSurfaceKHR(){
