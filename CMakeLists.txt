@@ -18,6 +18,7 @@ add_subdirectory (pal_file_watcher)
 add_subdirectory (pal_window)
 add_subdirectory (le_backend_vk)
 add_subdirectory (le_swapchain_vk)
+add_subdirectory (le_renderer)
 
 set (SOURCES main.cpp)
 
