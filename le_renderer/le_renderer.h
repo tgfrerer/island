@@ -24,6 +24,7 @@ struct le_renderer_api {
 		le_renderer_o* ( *create  ) (le_backend_vk_device_o* device, le_backend_swapchain_o* swapchain);
 		void           ( *destroy ) (le_renderer_o* obj);
 		void           ( *setup   ) (le_renderer_o* obj);
+		void           ( *update  ) (le_renderer_o* obj);
 	};
 
 	renderer_interface_t le_renderer_i;
@@ -52,6 +53,10 @@ class Renderer  {
 
 	void setup(){
 		rendererI.setup(self);
+	}
+
+	void update(){
+		rendererI.update(self);
 	}
 
 };
