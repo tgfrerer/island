@@ -330,6 +330,31 @@ static void swapchain_destroy( le_backend_swapchain_o *self_ ) {
 
 // ----------------------------------------------------------------------
 
+static bool swapchain_present( le_backend_swapchain_o *self, VkQueue queue_, VkSemaphore renderCompleteSemaphore_, uint32_t *pImageIndex ) {
+	vk::PresentInfoKHR presentInfo;
+
+	auto renderCompleteSemaphore = vk::Semaphore{renderCompleteSemaphore_};
+	auto queue = vk::Queue{queue_};
+
+	presentInfo
+	    .setWaitSemaphoreCount( 1 )
+	    .setPWaitSemaphores( &renderCompleteSemaphore)
+	    .setSwapchainCount( 1 )
+	    .setPSwapchains( &self->mSwapchain )
+	    .setPImageIndices( pImageIndex )
+	    .setPResults( nullptr );
+
+	auto result = queue.presentKHR( presentInfo );
+
+	if ( result != vk::Result::eSuccess ) {
+		return false;
+	}
+
+	return true;
+};
+
+// ----------------------------------------------------------------------
+
 static void swapchain_increase_reference_count( le_backend_swapchain_o *self ) {
 	++self->referenceCount;
 }
@@ -358,10 +383,12 @@ void register_le_swapchain_vk_api( void *api_ ) {
 	swapchain_i.get_image                  = swapchain_get_image;
 	swapchain_i.get_image_view             = swapchain_get_image_view;
 	swapchain_i.destroy                    = swapchain_destroy;
+	swapchain_i.get_swapchain_images_count = swapchain_get_swapchain_images_count;
+	swapchain_i.present                    = swapchain_present;
+
 	swapchain_i.increase_reference_count   = swapchain_increase_reference_count;
 	swapchain_i.decrease_reference_count   = swapchain_decrease_reference_count;
 	swapchain_i.get_reference_count        = swapchain_get_reference_count;
-	swapchain_i.get_swapchain_images_count = swapchain_get_swapchain_images_count;
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
 }
