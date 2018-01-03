@@ -13,6 +13,7 @@ extern "C" {
 void register_le_renderer_api( void *api );
 
 struct le_backend_vk_device_o;
+struct le_backend_swapchain_o;
 struct le_renderer_o;
 
 struct le_renderer_api {
@@ -20,8 +21,9 @@ struct le_renderer_api {
 	static constexpr auto pRegFun  = register_le_renderer_api;
 
 	struct renderer_interface_t {
-		le_renderer_o* ( *create  ) (le_backend_vk_device_o* device);
+		le_renderer_o* ( *create  ) (le_backend_vk_device_o* device, le_backend_swapchain_o* swapchain);
 		void           ( *destroy ) (le_renderer_o* obj);
+		void           ( *setup   ) (le_renderer_o* obj);
 	};
 
 	renderer_interface_t le_renderer_i;
@@ -40,14 +42,17 @@ class Renderer  {
 	le_renderer_o* self;
 
   public:
-	Renderer( le_backend_vk_device_o* device )
-	    : self( rendererI.create(device)) {
+	Renderer( le_backend_vk_device_o* device, le_backend_swapchain_o* swapchain )
+	    : self( rendererI.create(device, swapchain)) {
 	}
 
 	~Renderer() {
 		rendererI.destroy(self);
 	}
 
+	void setup(){
+		rendererI.setup(self);
+	}
 
 };
 

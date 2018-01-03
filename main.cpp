@@ -73,7 +73,9 @@ int main( int argc, char const *argv[] ) {
 			// create swapchain, and attach it to window via the window's VkSurface
 			le::Swapchain swapchain{swapchainSettings};
 
-			le::Renderer renderer{device};
+			le::Renderer renderer{device, swapchain};
+
+			renderer.setup();
 
 			// TODO: `swapchain.reset()` needs to run when surface has been lost -
 			// Swapchain will report as such.
