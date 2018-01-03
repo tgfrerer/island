@@ -29,6 +29,7 @@ struct le_backend_swapchain_o {
 	SurfaceProperties               mSurfaceProperties;
 	std::vector<vk::Image>          mImageRefs; // owned by SwapchainKHR, don't delete
 	std::vector<vk::ImageView>      mImageViews;
+	uint32_t                        referenceCount = 0;
 };
 
 // ----------------------------------------------------------------------
@@ -308,6 +309,24 @@ static VkImageView swapchain_get_image_view(le_backend_swapchain_o* self, uint32
 
 // ----------------------------------------------------------------------
 
+void swapchain_increase_reference_count(le_backend_swapchain_o* self){
+	++self->referenceCount;
+}
+
+// ----------------------------------------------------------------------
+
+void swapchain_decrease_reference_count(le_backend_swapchain_o* self){
+	--self->referenceCount;
+}
+
+// ----------------------------------------------------------------------
+
+uint32_t swapchain_get_reference_count(le_backend_swapchain_o* self){
+	return self->referenceCount;
+}
+
+// ----------------------------------------------------------------------
+
 static void swapchain_destroy( le_backend_swapchain_o *self_ ) {
 
 	vk::Device device = self_->mSettings.vk_device;
@@ -327,12 +346,15 @@ void register_le_swapchain_vk_api( void *api_ ) {
 	auto  api         = static_cast<le_swapchain_vk_api *>( api_ );
 	auto &swapchain_i = api->swapchain_i;
 
-	swapchain_i.create             = swapchain_create;
-	swapchain_i.reset              = swapchain_reset;
-	swapchain_i.acquire_next_image = swapchain_acquire_next_image;
-	swapchain_i.get_image          = swapchain_get_image;
-	swapchain_i.get_image_view     = swapchain_get_image_view;
-	swapchain_i.destroy            = swapchain_destroy;
+	swapchain_i.create                     = swapchain_create;
+	swapchain_i.reset                      = swapchain_reset;
+	swapchain_i.acquire_next_image         = swapchain_acquire_next_image;
+	swapchain_i.get_image                  = swapchain_get_image;
+	swapchain_i.get_image_view             = swapchain_get_image_view;
+	swapchain_i.destroy                    = swapchain_destroy;
+	swapchain_i.increase_reference_count   = swapchain_increase_reference_count;
+	swapchain_i.decrease_reference_count   = swapchain_decrease_reference_count;
+	swapchain_i.get_reference_count        = swapchain_get_reference_count;
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
 }
