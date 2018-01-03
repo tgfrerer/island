@@ -25,7 +25,7 @@ struct le_backend_swapchain_o {
 	uint32_t                        mImagecount      = 0;
 	uint32_t                        mImageIndex      = uint32_t(~0); // current image index
 	vk::SwapchainKHR                mSwapchain       = nullptr;
-	::vk::Extent2D                  mSwapchainExtent = {};
+	vk::Extent2D                    mSwapchainExtent = {};
 	SurfaceProperties               mSurfaceProperties;
 	std::vector<vk::Image>          mImageRefs; // owned by SwapchainKHR, don't delete
 	std::vector<vk::ImageView>      mImageViews;

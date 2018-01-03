@@ -93,6 +93,7 @@ int main( int argc, char const *argv[] ) {
 				// app.update
 				// app.draw
 
+				renderer.update();
 			}
 		}
 		window.destroySurface( instance.getVkInstance() );

@@ -160,11 +160,11 @@ class Swapchain {
 		swapchainI.reset( self, settings_ );
 	}
 
-	VkImage_T* getImage(uint32_t index){
+	VkImage_T* getImage(uint32_t index) const {
 		return swapchainI.get_image(self,index);
 	}
 
-	VkImageView_T* getImageView(uint32_t index){
+	VkImageView_T* getImageView(uint32_t index) const {
 		return swapchainI.get_image_view(self,index);
 	}
 
@@ -172,7 +172,7 @@ class Swapchain {
 		return swapchainI.acquire_next_image(self,semaphore,imageIndex);
 	}
 
-	size_t getSwapchainImageCount(){
+	size_t getSwapchainImageCount() const {
 		return swapchainI.get_swapchain_images_count(self);
 	}
 

@@ -120,31 +120,31 @@ class Device {
 		deviceI.increase_reference_count( self );
 	}
 
-	VkDevice_T *getVkDevice() {
+	VkDevice_T *getVkDevice() const {
 		return deviceI.get_vk_device( self );
 	}
 
-	VkPhysicalDevice_T *getVkPhysicalDevice() {
+	VkPhysicalDevice_T *getVkPhysicalDevice() const {
 		return deviceI.get_vk_physical_device( self );
 	}
 
-	uint32_t getDefaultGraphicsQueueFamilyIndex() {
+	uint32_t getDefaultGraphicsQueueFamilyIndex() const {
 		return deviceI.get_default_graphics_queue_family_index( self );
 	}
 
-	uint32_t getDefaultComputeQueueFamilyIndex() {
+	uint32_t getDefaultComputeQueueFamilyIndex() const {
 		return deviceI.get_default_compute_queue_family_index( self );
 	}
 
-	VkQueue_T *getDefaultGraphicsQueue() {
+	VkQueue_T *getDefaultGraphicsQueue() const {
 		return deviceI.get_default_graphics_queue( self );
 	}
 
-	VkQueue_T *getDefaultComputeQueue() {
+	VkQueue_T *getDefaultComputeQueue() const {
 		return deviceI.get_default_compute_queue( self );
 	}
 
-	operator le_backend_vk_device_o*(){
+	operator le_backend_vk_device_o*() {
 		return self;
 	}
 
