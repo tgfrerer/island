@@ -2,6 +2,7 @@
 #include "pal_window/pal_window.h"
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_swapchain_vk/le_swapchain_vk.h"
+#include "le_renderer/le_renderer.h"
 
 // ----------------------------------------------------------------------
 
@@ -23,6 +24,12 @@ int main( int argc, char const *argv[] ) {
 	Registry::addApiStatic<le_swapchain_vk_api>();
 #else
 	Registry::addApiDynamic<le_swapchain_vk_api>( true );
+#endif
+
+#ifdef PLUGIN_LE_RENDERER_STATIC
+	Registry::addApiStatic<le_renderer_api>();
+#else
+	Registry::addApiDynamic<le_renderer_api>( true );
 #endif
 
 	{
@@ -65,6 +72,8 @@ int main( int argc, char const *argv[] ) {
 		{
 			// create swapchain, and attach it to window via the window's VkSurface
 			le::Swapchain swapchain{swapchainSettings};
+
+			le::Renderer renderer{device};
 
 			// TODO: `swapchain.reset()` needs to run when surface has been lost -
 			// Swapchain will report as such.

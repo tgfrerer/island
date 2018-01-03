@@ -7,12 +7,15 @@
 #include <iomanip>
 
 struct le_renderer_o{
-//	le::Device mBackend;
+	le::Device mDevice;
+	le_renderer_o(const le::Device& device)
+	    :mDevice(device){
+
+	}
 };
 
-
-static le_renderer_o* renderer_create(){
-	auto obj = new le_renderer_o();
+static le_renderer_o* renderer_create(le_backend_vk_device_o* device){
+	auto obj = new le_renderer_o(device);
 	return obj;
 }
 
