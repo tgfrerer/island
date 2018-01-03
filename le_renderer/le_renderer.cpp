@@ -15,6 +15,7 @@ struct FrameData {
 	vk::Semaphore                  semaphoreRenderComplete  = nullptr;
 	vk::Semaphore                  semaphorePresentComplete = nullptr;
 	vk::CommandPool                commandPool              = nullptr;
+	uint32_t                       swapchainImageIndex      = uint32_t( ~0 );
 	std::vector<vk::CommandBuffer> commandBuffers;
 };
 
@@ -27,6 +28,7 @@ struct le_renderer_o {
 	vk::Device       vkDevice = nullptr;
 
 	std::vector<FrameData> frames;
+	size_t currentFrame = size_t(~0);
 
 	le_renderer_o( const le::Device &device_, const le::Swapchain &swapchain_ )
 	    : leDevice( device_ )
@@ -75,24 +77,90 @@ static void renderer_setup( le_renderer_o *self ) {
 
 		self->frames.emplace_back( std::move( frameData ) );
 	}
+
+	if (numImages !=0) {
+		self->currentFrame = 0;
+	}
 }
 
 // ----------------------------------------------------------------------
 
-static void renderer_fetch_frame(FrameData* frame){
+static void renderer_clear_frame(le_renderer_o* self, FrameData& frame){
 	// + ensure frame fence has been reached
 
-	// + free transient gpu resources
+	auto &device = self->vkDevice;
+
+	device.waitForFences({frame.frameFence},true,100'000'000);
+	device.resetFences({frame.frameFence});
+
+	device.freeCommandBuffers(frame.commandPool,frame.commandBuffers);
+	frame.commandBuffers.clear();
+
+	device.resetCommandPool(frame.commandPool,vk::CommandPoolResetFlagBits::eReleaseResources);
+
+	// TODO: free transient gpu resources
+	//       + transient memory
+	//       + framebuffers
+	// TODO: update descriptor pool for this frame
+
+	auto acquireSuccess = self->swapchain.acquireNextImage(frame.semaphorePresentComplete,frame.swapchainImageIndex);
+
+	if (!acquireSuccess){
+		// TODO: deal with failed acquisition - frame needs to be placed back onto
+		// stack. Failure most likely means that the swapchain was reset,
+		// perhaps because of window resize.
+		return;
+	}
 
 	// + acquire image from swapchain
+}
+
+static void renderer_record_frame(le_renderer_o* self, FrameData& frame){
+
+}
+
+static void renderer_process_frame(le_renderer_o*self, FrameData& frame){
+
+}
+
+static void renderer_dispatch_frame(le_renderer_o*self, FrameData& frame){
+
+	std::array<::vk::PipelineStageFlags, 1> wait_dst_stage_mask = { ::vk::PipelineStageFlagBits::eColorAttachmentOutput };
+
+	vk::SubmitInfo submitInfo;
+	submitInfo
+	        .setWaitSemaphoreCount( 1 )
+	        .setPWaitSemaphores( &frame.semaphorePresentComplete )
+	        .setPWaitDstStageMask( wait_dst_stage_mask.data() )
+	        .setCommandBufferCount( uint32_t(frame.commandBuffers.size()) )
+	        .setPCommandBuffers( frame.commandBuffers.data() )
+	        .setSignalSemaphoreCount( 1 )
+	        .setPSignalSemaphores( &frame.semaphorePresentComplete)
+	        ;
+
+	auto queue = vk::Queue{self->leDevice.getDefaultGraphicsQueue()};
+
+	queue.submit({submitInfo}, frame.frameFence);
+
+	self->swapchain.present(self->leDevice.getDefaultGraphicsQueue(), frame.semaphoreRenderComplete, &frame.swapchainImageIndex);
 }
 
 // ----------------------------------------------------------------------
 
 static void renderer_update(le_renderer_o* self){
 
-// trigger resolve on oldest prepared frame.
+	// trigger resolve on oldest prepared frame.
+	std::cout << self->currentFrame << std::endl;
 
+	auto &frame = self->frames[ self->currentFrame ];
+
+	renderer_clear_frame   ( self, frame );
+	renderer_process_frame ( self, frame );
+	renderer_record_frame  ( self, frame );
+	renderer_dispatch_frame( self, frame );
+
+	// swap frame
+	self->currentFrame = ( ++self->currentFrame ) % self->frames.size();
 }
 
 // ----------------------------------------------------------------------
