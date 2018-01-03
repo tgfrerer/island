@@ -8,7 +8,7 @@
 * Library Architecture 
 
 1. Each Library must provide exactly one free function with c-linkage: `register_${library_name}_api` - the library registration function
-2. The library registration function is responsible for connecting function pointers declared in the library interface to free functions defined inf2a3b66a1cf7d44de44e0c20a6c283e4b58e6ddc implementation (.cpp) files of the library.
+2. The library registration function is responsible for connecting function pointers declared in the library interface to free functions defined in the implementation (.cpp) files of the library.
 3. Library must declare its interface through a struct named `pal_${library_name}_api`
 4. Library interface struct must provide two fields:
    1. `static constexpr auto id` - this field must be a string literal, and its value must be the value of ${library_name}, i.e. the unique name of the library.
