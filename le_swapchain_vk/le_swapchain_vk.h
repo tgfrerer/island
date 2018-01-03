@@ -44,15 +44,16 @@ struct le_swapchain_vk_api {
 	};
 
 	struct swapchain_interface_t {
-		le_backend_swapchain_o * ( *create                   ) ( const settings_o* settings_ );
-		void                     ( *reset                    ) ( le_backend_swapchain_o* , const settings_o* settings_ );
-		bool                     ( *acquire_next_image       ) ( le_backend_swapchain_o* , VkSemaphore_T* semaphore_, uint32_t& imageIndex_ );
-		VkImage_T*               ( *get_image                ) ( le_backend_swapchain_o* , uint32_t index_);
-		VkImageView_T*           ( *get_image_view           ) ( le_backend_swapchain_o* , uint32_t index_);
-		void                     ( *destroy                  ) ( le_backend_swapchain_o* );
-		void                     ( *decrease_reference_count ) ( le_backend_swapchain_o* );
-		void                     ( *increase_reference_count ) ( le_backend_swapchain_o* );
-		uint32_t                 ( *get_reference_count      ) ( le_backend_swapchain_o* );
+		le_backend_swapchain_o * ( *create                     ) ( const settings_o* settings_ );
+		void                     ( *reset                      ) ( le_backend_swapchain_o* , const settings_o* settings_ );
+		bool                     ( *acquire_next_image         ) ( le_backend_swapchain_o* , VkSemaphore_T* semaphore_, uint32_t& imageIndex_ );
+		VkImage_T*               ( *get_image                  ) ( le_backend_swapchain_o* , uint32_t index_);
+		VkImageView_T*           ( *get_image_view             ) ( le_backend_swapchain_o* , uint32_t index_);
+		void                     ( *destroy                    ) ( le_backend_swapchain_o* );
+		size_t                   ( *get_swapchain_images_count ) ( le_backend_swapchain_o* );
+		void                     ( *decrease_reference_count   ) ( le_backend_swapchain_o* );
+		void                     ( *increase_reference_count   ) ( le_backend_swapchain_o* );
+		uint32_t                 ( *get_reference_count        ) ( le_backend_swapchain_o* );
 
 	};
 
@@ -157,6 +158,22 @@ class Swapchain {
 
 	void reset( const Settings &settings_ ) {
 		swapchainI.reset( self, settings_ );
+	}
+
+	VkImage_T* getImage(uint32_t index){
+		return swapchainI.get_image(self,index);
+	}
+
+	VkImageView_T* getImageView(uint32_t index){
+		return swapchainI.get_image_view(self,index);
+	}
+
+	bool acquireNextImage(VkSemaphore_T* semaphore, uint32_t& imageIndex){
+		return swapchainI.acquire_next_image(self,semaphore,imageIndex);
+	}
+
+	size_t getSwapchainImageCount(){
+		return swapchainI.get_swapchain_images_count(self);
 	}
 
 	operator le_backend_swapchain_o*(){

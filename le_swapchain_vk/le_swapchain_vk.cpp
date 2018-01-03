@@ -291,38 +291,26 @@ static bool swapchain_acquire_next_image( le_backend_swapchain_o* self, VkSemaph
 
 // ----------------------------------------------------------------------
 
-static VkImage swapchain_get_image(le_backend_swapchain_o* self, uint32_t index){
+static VkImage swapchain_get_image( le_backend_swapchain_o *self, uint32_t index ) {
 #ifndef NDEBUG
-	assert(index < self->mImageRefs.size());
+	assert( index < self->mImageRefs.size() );
 #endif
-	return self->mImageRefs[index];
+	return self->mImageRefs[ index ];
 }
 
 // ----------------------------------------------------------------------
 
-static VkImageView swapchain_get_image_view(le_backend_swapchain_o* self, uint32_t index){
+static VkImageView swapchain_get_image_view( le_backend_swapchain_o *self, uint32_t index ) {
 #ifndef NDEBUG
-	assert(index < self->mImageViews.size());
+	assert( index < self->mImageViews.size() );
 #endif
-	return self->mImageViews[index];
+	return self->mImageViews[ index ];
 }
 
 // ----------------------------------------------------------------------
 
-void swapchain_increase_reference_count(le_backend_swapchain_o* self){
-	++self->referenceCount;
-}
-
-// ----------------------------------------------------------------------
-
-void swapchain_decrease_reference_count(le_backend_swapchain_o* self){
-	--self->referenceCount;
-}
-
-// ----------------------------------------------------------------------
-
-uint32_t swapchain_get_reference_count(le_backend_swapchain_o* self){
-	return self->referenceCount;
+static size_t swapchain_get_swapchain_images_count( le_backend_swapchain_o *self ) {
+	return self->mImagecount;
 }
 
 // ----------------------------------------------------------------------
@@ -342,6 +330,24 @@ static void swapchain_destroy( le_backend_swapchain_o *self_ ) {
 
 // ----------------------------------------------------------------------
 
+static void swapchain_increase_reference_count( le_backend_swapchain_o *self ) {
+	++self->referenceCount;
+}
+
+// ----------------------------------------------------------------------
+
+static void swapchain_decrease_reference_count( le_backend_swapchain_o *self ) {
+	--self->referenceCount;
+}
+
+// ----------------------------------------------------------------------
+
+static uint32_t swapchain_get_reference_count( le_backend_swapchain_o *self ) {
+	return self->referenceCount;
+}
+
+// ----------------------------------------------------------------------
+
 void register_le_swapchain_vk_api( void *api_ ) {
 	auto  api         = static_cast<le_swapchain_vk_api *>( api_ );
 	auto &swapchain_i = api->swapchain_i;
@@ -355,6 +361,7 @@ void register_le_swapchain_vk_api( void *api_ ) {
 	swapchain_i.increase_reference_count   = swapchain_increase_reference_count;
 	swapchain_i.decrease_reference_count   = swapchain_decrease_reference_count;
 	swapchain_i.get_reference_count        = swapchain_get_reference_count;
+	swapchain_i.get_swapchain_images_count = swapchain_get_swapchain_images_count;
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
 }
