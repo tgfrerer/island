@@ -17,6 +17,8 @@ struct FrameData {
 	vk::CommandPool                commandPool              = nullptr;
 	uint32_t                       swapchainImageIndex      = uint32_t( ~0 );
 	std::vector<vk::CommandBuffer> commandBuffers;
+	std::vector<vk::Framebuffer>   debugFramebuffers;
+	bool frameValid = true;
 };
 
 // ----------------------------------------------------------------------
@@ -26,6 +28,8 @@ struct le_renderer_o {
 	const le::Device leDevice;
 	le::Swapchain    swapchain;
 	vk::Device       vkDevice = nullptr;
+
+	vk::RenderPass   debugRenderPass;
 
 	std::vector<FrameData> frames;
 	size_t currentFrame = size_t(~0);
@@ -47,6 +51,10 @@ static le_renderer_o *renderer_create( le_backend_vk_device_o *device, le_backen
 // ----------------------------------------------------------------------
 
 static void renderer_destroy( le_renderer_o *self ) {
+
+	// todo: call renderer_clear_frame on all frames which are not yet cleared.
+
+	self->vkDevice.destroyRenderPass(self->debugRenderPass);
 
 	for ( auto &frameData : self->frames ) {
 		self->vkDevice.destroyFence( frameData.frameFence );
@@ -81,6 +89,88 @@ static void renderer_setup( le_renderer_o *self ) {
 	if (numImages !=0) {
 		self->currentFrame = 0;
 	}
+
+	// stand-in: create default renderpass.
+
+	{
+		std::array<vk::AttachmentDescription, 1> attachments;
+
+		attachments[0]		// color attachment
+		    .setFormat          ( vk::Format(self->swapchain.getSurfaceFormat()->format) )
+		    .setSamples         ( vk::SampleCountFlagBits::e1 )
+		    .setLoadOp          ( vk::AttachmentLoadOp::eClear )
+		    .setStoreOp         ( vk::AttachmentStoreOp::eStore )
+		    .setStencilLoadOp   ( vk::AttachmentLoadOp::eDontCare )
+		    .setStencilStoreOp  ( vk::AttachmentStoreOp::eDontCare )
+		    .setInitialLayout   ( vk::ImageLayout::eUndefined )
+		    .setFinalLayout     ( vk::ImageLayout::ePresentSrcKHR )
+		    ;
+//		attachments[1]		//depth stencil attachment
+//			.setFormat          ( depthFormat_ )
+//			.setSamples         ( vk::SampleCountFlagBits::e1 )
+//			.setLoadOp          ( vk::AttachmentLoadOp::eClear )
+//			.setStoreOp         ( vk::AttachmentStoreOp::eStore)
+//			.setStencilLoadOp   ( vk::AttachmentLoadOp::eDontCare )
+//			.setStencilStoreOp  ( vk::AttachmentStoreOp::eDontCare )
+//			.setInitialLayout   ( vk::ImageLayout::eUndefined )
+//			.setFinalLayout     ( vk::ImageLayout::eDepthStencilAttachmentOptimal )
+//			;
+
+		// Define 2 attachments, and tell us what layout to expect these to be in.
+		// Index references attachments from above.
+
+		vk::AttachmentReference colorReference{ 0, vk::ImageLayout::eColorAttachmentOptimal };
+		//vk::AttachmentReference depthReference{ 1, vk::ImageLayout::eDepthStencilAttachmentOptimal};
+
+		vk::SubpassDescription subpassDescription;
+		subpassDescription
+		    .setPipelineBindPoint       ( vk::PipelineBindPoint::eGraphics )
+		    .setInputAttachmentCount    ( 0 )
+		    .setPInputAttachments       ( nullptr )
+		    .setColorAttachmentCount    ( 1 )
+		    .setPColorAttachments       ( &colorReference )
+		    .setPResolveAttachments     ( nullptr )
+		    .setPDepthStencilAttachment ( nullptr ) /* &depthReference */
+		    .setPPreserveAttachments    ( nullptr )
+		    .setPreserveAttachmentCount (0)
+		    ;
+
+		// Define 2 self-dependencies for subpass 0
+
+		std::array<vk::SubpassDependency, 2> dependencies;
+		dependencies[0]
+		    .setSrcSubpass      ( VK_SUBPASS_EXTERNAL ) // producer
+		    .setDstSubpass      ( 0 )                   // consumer
+		    .setSrcStageMask    ( vk::PipelineStageFlagBits::eBottomOfPipe )
+		    .setDstStageMask    ( vk::PipelineStageFlagBits::eColorAttachmentOutput )
+		    .setSrcAccessMask   ( vk::AccessFlagBits::eMemoryRead )
+		    .setDstAccessMask   ( vk::AccessFlagBits::eColorAttachmentWrite )
+		    .setDependencyFlags ( vk::DependencyFlagBits::eByRegion )
+		    ;
+		dependencies[1]
+		    .setSrcSubpass      ( 0 )                                     // producer (last possible subpass)
+		    .setDstSubpass      ( VK_SUBPASS_EXTERNAL )                   // consumer
+		    .setSrcStageMask    ( vk::PipelineStageFlagBits::eColorAttachmentOutput )
+		    .setDstStageMask    ( vk::PipelineStageFlagBits::eBottomOfPipe )
+		    .setSrcAccessMask   ( vk::AccessFlagBits::eColorAttachmentWrite )
+		    .setDstAccessMask   ( vk::AccessFlagBits::eMemoryRead )
+		    .setDependencyFlags ( vk::DependencyFlagBits::eByRegion )
+		    ;
+
+		// Define 1 renderpass with 1 subpass
+
+		vk::RenderPassCreateInfo renderPassCreateInfo;
+		renderPassCreateInfo
+		    .setAttachmentCount ( attachments.size() )
+		    .setPAttachments    ( attachments.data() )
+		    .setSubpassCount    ( 1 )
+		    .setPSubpasses      ( &subpassDescription )
+		    .setDependencyCount ( dependencies.size() )
+		    .setPDependencies   ( dependencies.data() );
+
+		self->debugRenderPass = self->vkDevice.createRenderPass(renderPassCreateInfo);
+	}
+
 }
 
 // ----------------------------------------------------------------------
@@ -98,32 +188,108 @@ static void renderer_clear_frame(le_renderer_o* self, FrameData& frame){
 
 	device.resetCommandPool(frame.commandPool,vk::CommandPoolResetFlagBits::eReleaseResources);
 
-	// TODO: free transient gpu resources
+	for (auto & fb:frame.debugFramebuffers){
+		device.destroyFramebuffer(fb);
+	}
+	frame.debugFramebuffers.clear();
+
+	// NOTE: free transient gpu resources
 	//       + transient memory
 	//       + framebuffers
-	// TODO: update descriptor pool for this frame
+	// NOTE: update descriptor pool for this frame
 
+	// + acquire image from swapchain
 	auto acquireSuccess = self->swapchain.acquireNextImage(frame.semaphorePresentComplete,frame.swapchainImageIndex);
 
-	if (!acquireSuccess){
+	frame.frameValid = acquireSuccess;
+
+	if (acquireSuccess == false){
 		// TODO: deal with failed acquisition - frame needs to be placed back onto
 		// stack. Failure most likely means that the swapchain was reset,
 		// perhaps because of window resize.
+		std::cout << "could not acquire frame." << std::endl;
 		return;
 	}
 
-	// + acquire image from swapchain
 }
+
+// ----------------------------------------------------------------------
 
 static void renderer_record_frame(le_renderer_o* self, FrameData& frame){
  // record api-agnostic intermediate draw lists
 }
 
+// ----------------------------------------------------------------------
+
 static void renderer_process_frame(le_renderer_o*self, FrameData& frame){
-// translate intermediate draw lists into vk command buffers, and sync primitives
+
+	if (frame.frameValid == false){
+		return;
+	}
+
+	// translate intermediate draw lists into vk command buffers, and sync primitives
+
+	auto cmdBufs = self->vkDevice.allocateCommandBuffers({frame.commandPool,vk::CommandBufferLevel::ePrimary,1});
+	assert(cmdBufs.size() == 1 );
+
+
+	// create frame buffer, based on swapchain and renderpass
+
+	{
+		std::array<vk::ImageView,1> framebufferAttachments {
+			{self->swapchain.getImageView(frame.swapchainImageIndex)}
+		};
+
+		vk::FramebufferCreateInfo framebufferCreateInfo;
+		framebufferCreateInfo
+		        .setFlags( {} )
+		        .setRenderPass( self->debugRenderPass )
+		        .setAttachmentCount( uint32_t(framebufferAttachments.size()) )
+		        .setPAttachments( framebufferAttachments.data() )
+		        .setWidth( self->swapchain.getImageWidth() )
+		        .setHeight( self->swapchain.getImageHeight())
+		        .setLayers( 1 )
+		        ;
+
+		vk::Framebuffer fb = self->vkDevice.createFramebuffer(framebufferCreateInfo);
+		frame.debugFramebuffers.emplace_back(std::move(fb));
+	}
+
+	std::array<vk::ClearValue, 1> clearValues{
+		{vk::ClearColorValue( std::array<float, 4>{{0.3f, 1.f, 0.4f, 1.f}} )}};
+
+	auto & cmd = cmdBufs.front();
+
+	cmd.begin({ ::vk::CommandBufferUsageFlagBits::eOneTimeSubmit });
+	{
+		vk::RenderPassBeginInfo renderPassBeginInfo;
+
+		renderPassBeginInfo
+		    .setRenderPass( self->debugRenderPass )
+		    .setFramebuffer( frame.debugFramebuffers.front() )
+		    .setRenderArea( vk::Rect2D( {0, 0}, {self->swapchain.getImageWidth(), self->swapchain.getImageHeight()} ) )
+		    .setClearValueCount( uint32_t( clearValues.size() ) )
+		    .setPClearValues( clearValues.data() );
+
+		cmd.beginRenderPass(renderPassBeginInfo,vk::SubpassContents::eInline);
+		cmd.endRenderPass();
+	}
+	cmd.end();
+
+	// place command buffer in frame store so that it can be submitted.
+	for (auto &&c:cmdBufs){
+		frame.commandBuffers.emplace_back(c);
+	}
+
 }
 
+// ----------------------------------------------------------------------
+
 static void renderer_dispatch_frame(le_renderer_o*self, FrameData& frame){
+
+	if (frame.frameValid == false){
+		return;
+	}
 
 	std::array<::vk::PipelineStageFlags, 1> wait_dst_stage_mask = { ::vk::PipelineStageFlagBits::eColorAttachmentOutput };
 
@@ -142,7 +308,9 @@ static void renderer_dispatch_frame(le_renderer_o*self, FrameData& frame){
 
 	queue.submit({submitInfo}, frame.frameFence);
 
-	self->swapchain.present(self->leDevice.getDefaultGraphicsQueue(), frame.semaphoreRenderComplete, &frame.swapchainImageIndex);
+	bool presentSuccessful = self->swapchain.present(self->leDevice.getDefaultGraphicsQueue(), frame.semaphoreRenderComplete, &frame.swapchainImageIndex);
+
+	frame.frameValid = presentSuccessful;
 }
 
 // ----------------------------------------------------------------------
@@ -150,7 +318,7 @@ static void renderer_dispatch_frame(le_renderer_o*self, FrameData& frame){
 static void renderer_update(le_renderer_o* self){
 
 	// trigger resolve on oldest prepared frame.
-	std::cout << self->currentFrame << std::endl;
+	// std::cout << self->currentFrame << std::endl;
 
 	auto &frame = self->frames[ self->currentFrame ];
 
