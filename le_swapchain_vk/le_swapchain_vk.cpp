@@ -280,8 +280,10 @@ static bool swapchain_acquire_next_image( le_backend_swapchain_o* self, VkSemaph
 	case VK_SUBOPTIMAL_KHR:         // | fall-through
 	case VK_ERROR_SURFACE_LOST_KHR: // |
 	case VK_ERROR_OUT_OF_DATE_KHR:  // |
-		swapchain_reset( self, nullptr );
-	    return false;
+	{
+		// TODO: deal with swapchain resize event
+		return false;
+	}
 	    break;
 	default:
 	    return false;
@@ -300,11 +302,29 @@ static VkImage swapchain_get_image( le_backend_swapchain_o *self, uint32_t index
 
 // ----------------------------------------------------------------------
 
+static VkSurfaceFormatKHR* swapchain_get_surface_format(le_backend_swapchain_o* self){
+	return (VkSurfaceFormatKHR*)&self->mSurfaceProperties.windowSurfaceFormat;
+}
+
+// ----------------------------------------------------------------------
+
 static VkImageView swapchain_get_image_view( le_backend_swapchain_o *self, uint32_t index ) {
 #ifndef NDEBUG
 	assert( index < self->mImageViews.size() );
 #endif
 	return self->mImageViews[ index ];
+}
+
+// ----------------------------------------------------------------------
+
+static uint32_t swapchain_get_image_width(le_backend_swapchain_o*self) {
+	return self->mSwapchainExtent.width;
+}
+
+// ----------------------------------------------------------------------
+
+static uint32_t swapchain_get_image_height(le_backend_swapchain_o*self) {
+	return self->mSwapchainExtent.height;
 }
 
 // ----------------------------------------------------------------------
@@ -334,7 +354,6 @@ static bool swapchain_present( le_backend_swapchain_o *self, VkQueue queue_, VkS
 	vk::PresentInfoKHR presentInfo;
 
 	auto renderCompleteSemaphore = vk::Semaphore{renderCompleteSemaphore_};
-	auto queue = vk::Queue{queue_};
 
 	presentInfo
 	    .setWaitSemaphoreCount( 1 )
@@ -344,9 +363,10 @@ static bool swapchain_present( le_backend_swapchain_o *self, VkQueue queue_, VkS
 	    .setPImageIndices( pImageIndex )
 	    .setPResults( nullptr );
 
-	auto result = queue.presentKHR( presentInfo );
+	auto result = vkQueuePresentKHR(queue_,(VkPresentInfoKHR*)&presentInfo);
 
-	if ( result != vk::Result::eSuccess ) {
+	if (vk::Result(result) == vk::Result::eErrorOutOfDateKHR){
+		// FIXME: handle swapchain resize event properly
 		return false;
 	}
 
@@ -378,11 +398,14 @@ void register_le_swapchain_vk_api( void *api_ ) {
 	auto &swapchain_i = api->swapchain_i;
 
 	swapchain_i.create                     = swapchain_create;
+	swapchain_i.destroy                    = swapchain_destroy;
 	swapchain_i.reset                      = swapchain_reset;
 	swapchain_i.acquire_next_image         = swapchain_acquire_next_image;
 	swapchain_i.get_image                  = swapchain_get_image;
 	swapchain_i.get_image_view             = swapchain_get_image_view;
-	swapchain_i.destroy                    = swapchain_destroy;
+	swapchain_i.get_image_width            = swapchain_get_image_width;
+	swapchain_i.get_image_height           = swapchain_get_image_height;
+	swapchain_i.get_surface_format         = swapchain_get_surface_format;
 	swapchain_i.get_swapchain_images_count = swapchain_get_swapchain_images_count;
 	swapchain_i.present                    = swapchain_present;
 

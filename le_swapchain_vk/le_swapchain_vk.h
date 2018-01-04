@@ -19,6 +19,7 @@ struct VkSemaphore_T;
 struct VkImage_T;
 struct VkImageView_T;
 struct VkQueue_T;
+struct VkSurfaceFormatKHR;
 
 struct le_swapchain_vk_api {
 	static constexpr auto id       = "le_swapchain_vk";
@@ -45,17 +46,20 @@ struct le_swapchain_vk_api {
 	};
 
 	struct swapchain_interface_t {
-		le_backend_swapchain_o * ( *create                     ) ( const settings_o* settings_ );
-		void                     ( *reset                      ) ( le_backend_swapchain_o* , const settings_o* settings_ );
-		bool                     ( *acquire_next_image         ) ( le_backend_swapchain_o* , VkSemaphore_T* semaphore_, uint32_t& imageIndex_ );
-		VkImage_T*               ( *get_image                  ) ( le_backend_swapchain_o* , uint32_t index_);
-		VkImageView_T*           ( *get_image_view             ) ( le_backend_swapchain_o* , uint32_t index_);
-		void                     ( *destroy                    ) ( le_backend_swapchain_o* );
-		size_t                   ( *get_swapchain_images_count ) ( le_backend_swapchain_o* );
-		bool                     ( *present                    ) ( le_backend_swapchain_o*, VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex);
-		void                     ( *decrease_reference_count   ) ( le_backend_swapchain_o* );
-		void                     ( *increase_reference_count   ) ( le_backend_swapchain_o* );
-		uint32_t                 ( *get_reference_count        ) ( le_backend_swapchain_o* );
+		le_backend_swapchain_o *  ( *create                     ) ( const settings_o* settings_ );
+		void                      ( *destroy                    ) ( le_backend_swapchain_o* );
+		void                      ( *reset                      ) ( le_backend_swapchain_o* , const settings_o* settings_ );
+		bool                      ( *present                    ) ( le_backend_swapchain_o* , VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex);
+		bool                      ( *acquire_next_image         ) ( le_backend_swapchain_o* , VkSemaphore_T* semaphore_, uint32_t& imageIndex_ );
+		VkSurfaceFormatKHR*       ( *get_surface_format         ) ( le_backend_swapchain_o* );
+		VkImage_T*                ( *get_image                  ) ( le_backend_swapchain_o* , uint32_t index_);
+		VkImageView_T*            ( *get_image_view             ) ( le_backend_swapchain_o* , uint32_t index_);
+		uint32_t                  ( *get_image_width            ) ( le_backend_swapchain_o* );
+		uint32_t                  ( *get_image_height           ) ( le_backend_swapchain_o* );
+		size_t                    ( *get_swapchain_images_count ) ( le_backend_swapchain_o* );
+		void                      ( *decrease_reference_count   ) ( le_backend_swapchain_o* );
+		void                      ( *increase_reference_count   ) ( le_backend_swapchain_o* );
+		uint32_t                  ( *get_reference_count        ) ( le_backend_swapchain_o* );
 
 	};
 
@@ -170,13 +174,26 @@ class Swapchain {
 		return swapchainI.get_image_view(self,index);
 	}
 
-	bool acquireNextImage(VkSemaphore_T* semaphore, uint32_t& imageIndex){
-		return swapchainI.acquire_next_image(self,semaphore,imageIndex);
+	uint32_t getImageWidth() const{
+		return swapchainI.get_image_width(self);
+	}
+
+	uint32_t getImageHeight() const {
+		return swapchainI.get_image_height(self);
+	}
+
+	const VkSurfaceFormatKHR* getSurfaceFormat() const {
+		return swapchainI.get_surface_format(self);
 	}
 
 	size_t getSwapchainImageCount() const {
 		return swapchainI.get_swapchain_images_count(self);
 	}
+
+	bool acquireNextImage(VkSemaphore_T* semaphore, uint32_t& imageIndex){
+		return swapchainI.acquire_next_image(self,semaphore,imageIndex);
+	}
+
 
 	bool present(VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex){
 		return swapchainI.present(self, queue, renderCompleteSemaphore, pImageIndex);
