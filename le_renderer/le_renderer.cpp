@@ -116,11 +116,11 @@ static void renderer_clear_frame(le_renderer_o* self, FrameData& frame){
 }
 
 static void renderer_record_frame(le_renderer_o* self, FrameData& frame){
-
+ // record api-agnostic intermediate draw lists
 }
 
 static void renderer_process_frame(le_renderer_o*self, FrameData& frame){
-
+// translate intermediate draw lists into vk command buffers, and sync primitives
 }
 
 static void renderer_dispatch_frame(le_renderer_o*self, FrameData& frame){
@@ -135,7 +135,7 @@ static void renderer_dispatch_frame(le_renderer_o*self, FrameData& frame){
 	        .setCommandBufferCount( uint32_t(frame.commandBuffers.size()) )
 	        .setPCommandBuffers( frame.commandBuffers.data() )
 	        .setSignalSemaphoreCount( 1 )
-	        .setPSignalSemaphores( &frame.semaphorePresentComplete)
+	        .setPSignalSemaphores( &frame.semaphoreRenderComplete)
 	        ;
 
 	auto queue = vk::Queue{self->leDevice.getDefaultGraphicsQueue()};
