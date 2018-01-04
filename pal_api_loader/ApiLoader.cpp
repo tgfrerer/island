@@ -65,8 +65,8 @@ static bool load_library_persistent( const char *lib_name ) {
 	// against which the library was linked.
 
 
-	// TODO: FIXME
-	// what we expect: if a library is already loaded, we should get a valid handle
+
+	// FIXME: what we expect: if a library is already loaded, we should get a valid handle
 	// what we get: always nullptr
 
 	void *lib_handle = dlopen( lib_name, RTLD_NOLOAD | RTLD_NODELETE );

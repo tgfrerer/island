@@ -34,7 +34,7 @@ int main( int argc, char const *argv[] ) {
 
 	{
 
-		// TODO: we need a way to easily add enabled device extensions
+		// NOTE: we need a way to easily add enabled device extensions
 		// and to add easily to requestedExtensions.
 
 		uint32_t numRequestedExtensions = 0;
