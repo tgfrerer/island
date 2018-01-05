@@ -7,18 +7,38 @@
 
 #include <iostream>
 #include <iomanip>
+#include <chrono>
+
+using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 // ----------------------------------------------------------------------
 
 struct FrameData {
+
+	struct Meta {
+		 NanoTime time_clear_frame_start;
+		 NanoTime time_clear_frame_end;
+
+		 NanoTime time_process_frame_start;
+		 NanoTime time_process_frame_end;
+
+		 NanoTime time_record_frame_start;
+		 NanoTime time_record_frame_end;
+
+		 NanoTime time_dispatch_frame_start;
+		 NanoTime time_dispatch_frame_end;
+	};
+
 	vk::Fence                      frameFence               = nullptr;
 	vk::Semaphore                  semaphoreRenderComplete  = nullptr;
 	vk::Semaphore                  semaphorePresentComplete = nullptr;
 	vk::CommandPool                commandPool              = nullptr;
 	uint32_t                       swapchainImageIndex      = uint32_t( ~0 );
 	std::vector<vk::CommandBuffer> commandBuffers;
+
 	std::vector<vk::Framebuffer>   debugFramebuffers;
-	bool frameValid = true;
+
+	Meta meta;
 };
 
 // ----------------------------------------------------------------------
@@ -178,6 +198,7 @@ static void renderer_setup( le_renderer_o *self ) {
 static void renderer_clear_frame(le_renderer_o* self, FrameData& frame){
 	// + ensure frame fence has been reached
 
+	frame.meta.time_clear_frame_start = std::chrono::high_resolution_clock::now();
 	auto &device = self->vkDevice;
 
 	device.waitForFences({frame.frameFence},true,100'000'000);
@@ -201,31 +222,35 @@ static void renderer_clear_frame(le_renderer_o* self, FrameData& frame){
 	// + acquire image from swapchain
 	auto acquireSuccess = self->swapchain.acquireNextImage(frame.semaphorePresentComplete,frame.swapchainImageIndex);
 
-	frame.frameValid = acquireSuccess;
 
 	if (acquireSuccess == false){
 		// TODO: deal with failed acquisition - frame needs to be placed back onto
 		// stack. Failure most likely means that the swapchain was reset,
 		// perhaps because of window resize.
 		std::cout << "could not acquire frame." << std::endl;
-		return;
+	} else {
+
+		// NOTE: frame was acquired successfully.
 	}
 
+	frame.meta.time_clear_frame_end = std::chrono::high_resolution_clock::now();
+
+	// std::cout << std::dec << std::chrono::duration_cast<std::chrono::nanoseconds>(frame.meta.time_clear_frame_end-frame.meta.time_clear_frame_start).count() << std::endl;
 }
 
 // ----------------------------------------------------------------------
 
 static void renderer_record_frame(le_renderer_o* self, FrameData& frame){
  // record api-agnostic intermediate draw lists
+	frame.meta.time_record_frame_start = std::chrono::high_resolution_clock::now();
+	frame.meta.time_record_frame_end = std::chrono::high_resolution_clock::now();
 }
 
 // ----------------------------------------------------------------------
 
 static void renderer_process_frame(le_renderer_o*self, FrameData& frame){
 
-	if (frame.frameValid == false){
-		return;
-	}
+	frame.meta.time_process_frame_start = std::chrono::high_resolution_clock::now();
 
 	// translate intermediate draw lists into vk command buffers, and sync primitives
 
@@ -281,36 +306,36 @@ static void renderer_process_frame(le_renderer_o*self, FrameData& frame){
 		frame.commandBuffers.emplace_back(c);
 	}
 
+	frame.meta.time_process_frame_end = std::chrono::high_resolution_clock::now();
+
+	//std::cout << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_process_frame_end-frame.meta.time_process_frame_start).count() << std::endl;
 }
 
 // ----------------------------------------------------------------------
 
-static void renderer_dispatch_frame(le_renderer_o*self, FrameData& frame){
+static void renderer_dispatch_frame( le_renderer_o *self, FrameData &frame ) {
+	frame.meta.time_dispatch_frame_start = std::chrono::high_resolution_clock::now();
 
-	if (frame.frameValid == false){
-		return;
-	}
-
-	std::array<::vk::PipelineStageFlags, 1> wait_dst_stage_mask = { ::vk::PipelineStageFlagBits::eColorAttachmentOutput };
+	std::array<::vk::PipelineStageFlags, 1> wait_dst_stage_mask = {::vk::PipelineStageFlagBits::eColorAttachmentOutput};
 
 	vk::SubmitInfo submitInfo;
 	submitInfo
-	        .setWaitSemaphoreCount( 1 )
-	        .setPWaitSemaphores( &frame.semaphorePresentComplete )
-	        .setPWaitDstStageMask( wait_dst_stage_mask.data() )
-	        .setCommandBufferCount( uint32_t(frame.commandBuffers.size()) )
-	        .setPCommandBuffers( frame.commandBuffers.data() )
-	        .setSignalSemaphoreCount( 1 )
-	        .setPSignalSemaphores( &frame.semaphoreRenderComplete)
-	        ;
+	    .setWaitSemaphoreCount( 1 )
+	    .setPWaitSemaphores( &frame.semaphorePresentComplete )
+	    .setPWaitDstStageMask( wait_dst_stage_mask.data() )
+	    .setCommandBufferCount( uint32_t( frame.commandBuffers.size() ) )
+	    .setPCommandBuffers( frame.commandBuffers.data() )
+	    .setSignalSemaphoreCount( 1 )
+	    .setPSignalSemaphores( &frame.semaphoreRenderComplete )
+	    ;
 
 	auto queue = vk::Queue{self->leDevice.getDefaultGraphicsQueue()};
 
-	queue.submit({submitInfo}, frame.frameFence);
+	queue.submit( {submitInfo}, frame.frameFence );
 
-	bool presentSuccessful = self->swapchain.present(self->leDevice.getDefaultGraphicsQueue(), frame.semaphoreRenderComplete, &frame.swapchainImageIndex);
+	bool presentSuccessful = self->swapchain.present( self->leDevice.getDefaultGraphicsQueue(), frame.semaphoreRenderComplete, &frame.swapchainImageIndex );
 
-	frame.frameValid = presentSuccessful;
+	frame.meta.time_dispatch_frame_end = std::chrono::high_resolution_clock::now();
 }
 
 // ----------------------------------------------------------------------
