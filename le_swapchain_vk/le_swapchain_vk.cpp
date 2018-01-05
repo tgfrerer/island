@@ -13,7 +13,6 @@
 struct SurfaceProperties {
 	vk::SurfaceFormatKHR                windowSurfaceFormat;
 	vk::SurfaceCapabilitiesKHR          surfaceCapabilities;
-	VkBool32                            queried          = VK_FALSE;
 	VkBool32                            presentSupported = VK_FALSE;
 	std::vector<::vk::PresentModeKHR>   presentmodes;
 	std::vector<::vk::SurfaceFormatKHR> availableSurfaceFormats;
@@ -35,10 +34,6 @@ struct le_backend_swapchain_o {
 // ----------------------------------------------------------------------
 
 static void swapchain_query_surface_capabilities( le_backend_swapchain_o *self ) {
-
-	if ( self->mSurfaceProperties.queried == true ) {
-		return;
-	}
 
 	// we need to find out if the current physical device supports PRESENT
 
@@ -71,7 +66,7 @@ static void swapchain_query_surface_capabilities( le_backend_swapchain_o *self )
 	surfaceProperties.windowSurfaceFormat.colorSpace = surfaceProperties.availableSurfaceFormats[ 0 ].colorSpace;
 
 	// ofLog() << "Present supported: " << ( mSurfaceProperties.presentSupported ? "TRUE" : "FALSE" );
-	self->mSurfaceProperties.queried = true;
+
 }
 
 // ----------------------------------------------------------------------
@@ -247,9 +242,9 @@ static void swapchain_reset( le_backend_swapchain_o *self, const le_swapchain_vk
 		oldSwapchain = nullptr;
 	}
 
-	swapchain_destroy_image_views(self);
+	swapchain_destroy_image_views( self );
 	swapchain_attach_images( self );
-	swapchain_create_image_views(self);
+	swapchain_create_image_views( self );
 }
 
 // ----------------------------------------------------------------------
@@ -281,7 +276,6 @@ static bool swapchain_acquire_next_image( le_backend_swapchain_o* self, VkSemaph
 	case VK_ERROR_SURFACE_LOST_KHR: // |
 	case VK_ERROR_OUT_OF_DATE_KHR:  // |
 	{
-		// TODO: deal with swapchain resize event
 		return false;
 	}
 	    break;
@@ -289,6 +283,10 @@ static bool swapchain_acquire_next_image( le_backend_swapchain_o* self, VkSemaph
 	    return false;
 	}
 
+}
+
+static le_swapchain_vk_api::settings_o& swapchain_get_settings(le_backend_swapchain_o* self){
+	return self->mSettings;
 }
 
 // ----------------------------------------------------------------------
@@ -406,7 +404,7 @@ void register_le_swapchain_vk_api( void *api_ ) {
 	swapchain_i.get_image_width            = swapchain_get_image_width;
 	swapchain_i.get_image_height           = swapchain_get_image_height;
 	swapchain_i.get_surface_format         = swapchain_get_surface_format;
-	swapchain_i.get_swapchain_images_count = swapchain_get_swapchain_images_count;
+	swapchain_i.get_images_count           = swapchain_get_swapchain_images_count;
 	swapchain_i.present                    = swapchain_present;
 
 	swapchain_i.increase_reference_count   = swapchain_increase_reference_count;

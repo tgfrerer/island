@@ -46,20 +46,20 @@ struct le_swapchain_vk_api {
 	};
 
 	struct swapchain_interface_t {
-		le_backend_swapchain_o *  ( *create                     ) ( const settings_o* settings_ );
-		void                      ( *destroy                    ) ( le_backend_swapchain_o* );
-		void                      ( *reset                      ) ( le_backend_swapchain_o* , const settings_o* settings_ );
-		bool                      ( *present                    ) ( le_backend_swapchain_o* , VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex);
-		bool                      ( *acquire_next_image         ) ( le_backend_swapchain_o* , VkSemaphore_T* semaphore_, uint32_t& imageIndex_ );
-		VkSurfaceFormatKHR*       ( *get_surface_format         ) ( le_backend_swapchain_o* );
-		VkImage_T*                ( *get_image                  ) ( le_backend_swapchain_o* , uint32_t index_);
-		VkImageView_T*            ( *get_image_view             ) ( le_backend_swapchain_o* , uint32_t index_);
-		uint32_t                  ( *get_image_width            ) ( le_backend_swapchain_o* );
-		uint32_t                  ( *get_image_height           ) ( le_backend_swapchain_o* );
-		size_t                    ( *get_swapchain_images_count ) ( le_backend_swapchain_o* );
-		void                      ( *decrease_reference_count   ) ( le_backend_swapchain_o* );
-		void                      ( *increase_reference_count   ) ( le_backend_swapchain_o* );
-		uint32_t                  ( *get_reference_count        ) ( le_backend_swapchain_o* );
+		le_backend_swapchain_o *  ( *create                   ) ( const settings_o* settings_ );
+		void                      ( *destroy                  ) ( le_backend_swapchain_o* );
+		void                      ( *reset                    ) ( le_backend_swapchain_o* , const settings_o* settings_ );
+		bool                      ( *present                  ) ( le_backend_swapchain_o* , VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex);
+		bool                      ( *acquire_next_image       ) ( le_backend_swapchain_o* , VkSemaphore_T* semaphore_, uint32_t& imageIndex_ );
+		VkSurfaceFormatKHR*       ( *get_surface_format       ) ( le_backend_swapchain_o* );
+		VkImage_T*                ( *get_image                ) ( le_backend_swapchain_o* , uint32_t index_);
+		VkImageView_T*            ( *get_image_view           ) ( le_backend_swapchain_o* , uint32_t index_);
+		uint32_t                  ( *get_image_width          ) ( le_backend_swapchain_o* );
+		uint32_t                  ( *get_image_height         ) ( le_backend_swapchain_o* );
+		size_t                    ( *get_images_count         ) ( le_backend_swapchain_o* );
+		void                      ( *decrease_reference_count ) ( le_backend_swapchain_o* );
+		void                      ( *increase_reference_count ) ( le_backend_swapchain_o* );
+		uint32_t                  ( *get_reference_count      ) ( le_backend_swapchain_o* );
 
 	};
 
@@ -81,11 +81,15 @@ class Swapchain {
 	using Presentmode = le_swapchain_vk_api::settings_o::Presentmode;
 
 	class Settings {
-		le_swapchain_vk_api::settings_o                           self;
+		le_swapchain_vk_api::settings_o self;
 
 	  public:
-		Settings() = default;
+		Settings()  = default;
 		~Settings() = default;
+
+		Settings( const le_swapchain_vk_api::settings_o &settings_ )
+		    : self( settings_ ) {
+		}
 
 		Settings &setPresentModeHint( const Presentmode &presentmode_ ) {
 			self.presentmode_hint = presentmode_;
@@ -112,17 +116,17 @@ class Swapchain {
 			return *this;
 		}
 
-		Settings &setVkPhysicalDevice(VkPhysicalDevice_T* vk_physical_device_){
+		Settings &setVkPhysicalDevice( VkPhysicalDevice_T *vk_physical_device_ ) {
 			self.vk_physical_device = vk_physical_device_;
 			return *this;
 		}
 
 		Settings &setVkSurfaceKHR( VkSurfaceKHR_T *vk_surface_khr_ ) {
-			self.vk_surface= vk_surface_khr_;
+			self.vk_surface = vk_surface_khr_;
 			return *this;
 		}
 
-		Settings& setGraphicsQueueFamilyIndex(uint32_t index_){
+		Settings &setGraphicsQueueFamilyIndex( uint32_t index_ ) {
 			self.vk_graphics_queue_family_index = index_;
 			return *this;
 		}
@@ -132,6 +136,7 @@ class Swapchain {
 		}
 	};
 
+  public:
 	Swapchain( const Settings &settings_ )
 	    : self( swapchainI.create( settings_ ) ) {
 		swapchainI.increase_reference_count( self );
@@ -145,9 +150,9 @@ class Swapchain {
 	}
 
 	// copy constructor
-	Swapchain(const Swapchain& lhs)
-	    :self(lhs.self){
-		swapchainI.increase_reference_count(self);
+	Swapchain( const Swapchain &lhs )
+	    : self( lhs.self ) {
+		swapchainI.increase_reference_count( self );
 	}
 
 	// reference from data constructor
@@ -157,46 +162,49 @@ class Swapchain {
 	}
 
 	// deactivate copy assignment operator
-	Swapchain& operator=(const Swapchain&) = delete;
+	Swapchain &operator=( const Swapchain & ) = delete;
 
 	// deactivate move assignment operator
-	Swapchain& operator=(const Swapchain&&) = delete;
+	Swapchain &operator=( const Swapchain && ) = delete;
 
 	void reset( const Settings &settings_ ) {
 		swapchainI.reset( self, settings_ );
 	}
 
-	VkImage_T* getImage(uint32_t index) const {
-		return swapchainI.get_image(self,index);
+	void reset() {
+		swapchainI.reset( self, nullptr );
 	}
 
-	VkImageView_T* getImageView(uint32_t index) const {
-		return swapchainI.get_image_view(self,index);
+	VkImage_T *getImage( uint32_t index ) const {
+		return swapchainI.get_image( self, index );
 	}
 
-	uint32_t getImageWidth() const{
-		return swapchainI.get_image_width(self);
+	VkImageView_T *getImageView( uint32_t index ) const {
+		return swapchainI.get_image_view( self, index );
+	}
+
+	uint32_t getImageWidth() const {
+		return swapchainI.get_image_width( self );
 	}
 
 	uint32_t getImageHeight() const {
-		return swapchainI.get_image_height(self);
+		return swapchainI.get_image_height( self );
 	}
 
-	const VkSurfaceFormatKHR* getSurfaceFormat() const {
-		return swapchainI.get_surface_format(self);
+	const VkSurfaceFormatKHR *getSurfaceFormat() const {
+		return swapchainI.get_surface_format( self );
 	}
 
-	size_t getSwapchainImageCount() const {
-		return swapchainI.get_swapchain_images_count(self);
+	size_t getImagesCount() const {
+		return swapchainI.get_images_count( self );
 	}
 
-	bool acquireNextImage(VkSemaphore_T* semaphore, uint32_t& imageIndex){
-		return swapchainI.acquire_next_image(self,semaphore,imageIndex);
+	bool acquireNextImage( VkSemaphore_T *semaphore, uint32_t &imageIndex ) {
+		return swapchainI.acquire_next_image( self, semaphore, imageIndex );
 	}
 
-
-	bool present(VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex){
-		return swapchainI.present(self, queue, renderCompleteSemaphore, pImageIndex);
+	bool present( VkQueue_T *queue, VkSemaphore_T *renderCompleteSemaphore, uint32_t *pImageIndex ) {
+		return swapchainI.present( self, queue, renderCompleteSemaphore, pImageIndex );
 	}
 
 	operator le_backend_swapchain_o*(){

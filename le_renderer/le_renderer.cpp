@@ -106,11 +106,10 @@ static le_renderer_o *renderer_create( le_backend_vk_device_o *device, le_backen
 	return obj;
 }
 
-
 // ----------------------------------------------------------------------
 
 static void renderer_setup( le_renderer_o *self ) {
-	auto numImages = self->swapchain.getSwapchainImageCount();
+	auto numImages = self->swapchain.getImagesCount();
 
 	vk::CommandPoolCreateInfo commandPoolCreateInfo;
 
@@ -263,7 +262,7 @@ static void renderer_acquire_frame(le_renderer_o* self){
 	} else {
 
 		// TODO: deal with failed acquisition - frame needs to be placed back onto
-		// stack. Failure most likely means that the swapchain was reset,
+		// acquire queue. Failure most likely means that the swapchain was reset,
 		// perhaps because of window resize.
 		std::cout << "could not acquire frame." << std::endl;
 	}
@@ -342,7 +341,7 @@ static void renderer_process_frame( le_renderer_o *self ) {
 
 		renderPassBeginInfo
 		    .setRenderPass      ( self->debugRenderPass )
-		    .setFramebuffer     ( frame.debugFramebuffers.front() )
+		    .setFramebuffer     ( frame.debugFramebuffers.back() )
 		    .setRenderArea      ( vk::Rect2D( {0, 0}, {self->swapchain.getImageWidth(), self->swapchain.getImageHeight()} ) )
 		    .setClearValueCount ( uint32_t( clearValues.size() ) )
 		    .setPClearValues    ( clearValues.data() )
@@ -404,14 +403,20 @@ static void renderer_dispatch_frame( le_renderer_o *self) {
 		self->queue_frames_dispatch.pop();
 		self->queue_frames_acquire.push(std::move(currentFrameIndex));
 	} else {
-		// TODO: handle unsuccessful present
-		// - this is most likely down to screen resize.
-		// Q: what should we do with the frame?
-		//    + can we issue it again as it is?
-		//    + do we need to reset some semaphores if possible?
-		//    + do we need to reset the frame fence?
-		//    + what state will our semaphores be in?
-		// maybe we only need to try to present again?
+
+		std::cout << "WARNING: " << "could not present frame." << std::endl;
+
+		// Present was not successful -
+		//
+		// This most likely happened because the window surface has been resized.
+		// We therefore attempt to reset the swapchain.
+
+		// first, remove this frame from present queue.
+		renderer_clear_frame(self,frame);
+		self->queue_frames_dispatch.pop();
+		self->queue_frames_acquire.push(currentFrameIndex);
+
+		self->swapchain.reset();
 	}
 
 }
