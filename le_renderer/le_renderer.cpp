@@ -213,6 +213,29 @@ static void renderer_setup( le_renderer_o *self ) {
 
 // ----------------------------------------------------------------------
 
+static void renderer_clear_frame( le_renderer_o *self, FrameData &frame ) {
+
+	auto &device = self->vkDevice;
+	// + ensure frame fence has been reached
+	device.waitForFences( {frame.frameFence}, true, 100'000'000 );
+	device.resetFences( {frame.frameFence} );
+
+	device.freeCommandBuffers( frame.commandPool, frame.commandBuffers );
+	frame.commandBuffers.clear();
+
+	device.resetCommandPool( frame.commandPool, vk::CommandPoolResetFlagBits::eReleaseResources );
+
+	for ( auto &fb : frame.debugFramebuffers ) {
+		device.destroyFramebuffer( fb );
+	}
+	frame.debugFramebuffers.clear();
+
+	// NOTE: free transient gpu resources
+	//       + transient memory
+}
+
+// ----------------------------------------------------------------------
+
 static void renderer_acquire_frame(le_renderer_o* self){
 
 	if (self->queue_frames_acquire.empty()){
@@ -226,27 +249,10 @@ static void renderer_acquire_frame(le_renderer_o* self){
 	auto &frame = self->frames[ currentFrameIndex ];
 	frame.meta.time_clear_frame_start = std::chrono::high_resolution_clock::now();
 
-	auto &device = self->vkDevice;
-	// + ensure frame fence has been reached
-	device.waitForFences({frame.frameFence},true,100'000'000);
-	device.resetFences({frame.frameFence});
+	renderer_clear_frame(self, frame);
 
-	device.freeCommandBuffers(frame.commandPool,frame.commandBuffers);
-	frame.commandBuffers.clear();
+	// TODO: update descriptor pool for this frame
 
-	device.resetCommandPool(frame.commandPool,vk::CommandPoolResetFlagBits::eReleaseResources);
-
-	for (auto & fb:frame.debugFramebuffers){
-		device.destroyFramebuffer(fb);
-	}
-	frame.debugFramebuffers.clear();
-
-	// NOTE: free transient gpu resources
-	//       + transient memory
-	//       + framebuffers
-	// NOTE: update descriptor pool for this frame
-
-	// + acquire image from swapchain
 	auto acquireSuccess = self->swapchain.acquireNextImage(frame.semaphorePresentComplete,frame.swapchainImageIndex);
 
 	frame.meta.time_clear_frame_end = std::chrono::high_resolution_clock::now();
@@ -397,6 +403,15 @@ static void renderer_dispatch_frame( le_renderer_o *self) {
 	if (presentSuccessful){
 		self->queue_frames_dispatch.pop();
 		self->queue_frames_acquire.push(std::move(currentFrameIndex));
+	} else {
+		// TODO: handle unsuccessful present
+		// - this is most likely down to screen resize.
+		// Q: what should we do with the frame?
+		//    + can we issue it again as it is?
+		//    + do we need to reset some semaphores if possible?
+		//    + do we need to reset the frame fence?
+		//    + what state will our semaphores be in?
+		// maybe we only need to try to present again?
 	}
 
 }
@@ -405,11 +420,8 @@ static void renderer_dispatch_frame( le_renderer_o *self) {
 
 static void renderer_update(le_renderer_o* self){
 
-	// trigger resolve on oldest prepared frame.
-	// std::cout << self->currentFrame << std::endl;
-
 	renderer_acquire_frame ( self );
-	renderer_record_frame  ( self );
+	renderer_record_frame  ( self ); // this should run on the main thread
 	renderer_process_frame ( self );
 	renderer_dispatch_frame( self );
 
@@ -420,6 +432,12 @@ static void renderer_update(le_renderer_o* self){
 static void renderer_destroy( le_renderer_o *self ) {
 
 	// todo: call renderer_clear_frame on all frames which are not yet cleared.
+
+	while(!self->queue_frames_acquire.empty()){
+		auto frameIndex = self->queue_frames_acquire.front();
+		renderer_clear_frame(self,self->frames[frameIndex]);
+		self->queue_frames_acquire.pop();
+	}
 
 	self->vkDevice.destroyRenderPass(self->debugRenderPass);
 
