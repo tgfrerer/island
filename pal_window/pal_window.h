@@ -174,7 +174,7 @@ class Window {
 
 	static const char** getRequiredVkExtensions(uint32_t* count){
 		static auto pApi = Registry::getApi<pal_window_api>();
-		pApi->get_required_vk_extensions(count);
+		return pApi->get_required_vk_extensions(count);
 	}
 };
 
