@@ -13,6 +13,7 @@
 #include <thread>
 #include <queue>
 #include <mutex>
+#include <future>
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
@@ -20,9 +21,21 @@ using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 struct FrameData {
 
+	enum class State : int32_t {
+		eFailedClear    = -4,
+		eFailedDispatch = -3,
+		eFailedAcquire  = -2,
+		eInitial        = -1,
+		eCleared        = 0,
+		eAcquired,
+		eRecorded,
+		eProcessed,
+		eDispatched,
+	};
+
 	struct Meta {
-		 NanoTime time_clear_frame_start;
-		 NanoTime time_clear_frame_end;
+		 NanoTime time_acquire_frame_start;
+		 NanoTime time_acquire_frame_end;
 
 		 NanoTime time_process_frame_start;
 		 NanoTime time_process_frame_end;
@@ -39,6 +52,7 @@ struct FrameData {
 	vk::Semaphore                  semaphorePresentComplete = nullptr;
 	vk::CommandPool                commandPool              = nullptr;
 	uint32_t                       swapchainImageIndex      = uint32_t( ~0 );
+	State                          state                    = State::eInitial;
 	std::vector<vk::CommandBuffer> commandBuffers;
 
 	std::vector<vk::Framebuffer>   debugFramebuffers;
@@ -46,51 +60,18 @@ struct FrameData {
 	Meta meta;
 };
 
-template <typename T>
-class AtomicQueue{
-	std::queue<T> mQueue;
-	std::mutex mMutex;
-public:
-	T& front(){
-		std::lock_guard<std::mutex> lck(mMutex);
-		return mQueue.front();
-	}
-	void pop(){
-		std::lock_guard<std::mutex> lck(mMutex);
-		mQueue.pop();
-	}
-	void push(const T& val){
-		std::lock_guard<std::mutex> lck(mMutex);
-		mQueue.push(val);
-	}
-	size_t size(){
-		std::lock_guard<std::mutex> lck(mMutex);
-		size_t currentSize = mQueue.size();
-		return currentSize;
-	}
-	bool empty(){
-		std::lock_guard<std::mutex> lck(mMutex);
-		bool currentEmpty = mQueue.empty();
-		return currentEmpty;
-	}
-};
-
 // ----------------------------------------------------------------------
 
 struct le_renderer_o {
 
-	const le::Device leDevice;
-	le::Swapchain    swapchain;
-	vk::Device       vkDevice = nullptr;
-
-	vk::RenderPass   debugRenderPass = nullptr;
-
-	AtomicQueue<size_t> queue_frames_acquire;
-	AtomicQueue<size_t> queue_frames_process;
-	AtomicQueue<size_t> queue_frames_record;
-	AtomicQueue<size_t> queue_frames_dispatch;
+	const le::Device       leDevice;
+	le::Swapchain          swapchain;
+	uint64_t               swapchainDirty   = false;
+	vk::Device             vkDevice         = nullptr;
+	vk::RenderPass         debugRenderPass  = nullptr;
 
 	std::vector<FrameData> frames;
+	size_t                 currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
 
 	le_renderer_o( const le::Device &device_, const le::Swapchain &swapchain_ )
 	    : leDevice( device_ )
@@ -109,23 +90,24 @@ static le_renderer_o *renderer_create( le_backend_vk_device_o *device, le_backen
 // ----------------------------------------------------------------------
 
 static void renderer_setup( le_renderer_o *self ) {
-	auto numImages = self->swapchain.getImagesCount();
 
 	vk::CommandPoolCreateInfo commandPoolCreateInfo;
 
-	for ( size_t i = 0; i != numImages; ++i ) {
+	const size_t numFrames = 4;
+
+	for ( size_t i = 0; i != numFrames; ++i ) {
 		auto frameData = FrameData();
 
-		frameData.frameFence               = self->vkDevice.createFence( {::vk::FenceCreateFlagBits::eSignaled} ); // fence starts out as "signalled"
+		frameData.frameFence               = self->vkDevice.createFence( {} ); // fence starts out as "signalled"
 		frameData.semaphorePresentComplete = self->vkDevice.createSemaphore( {} );
 		frameData.semaphoreRenderComplete  = self->vkDevice.createSemaphore( {} );
 		frameData.commandPool              = self->vkDevice.createCommandPool( {vk::CommandPoolCreateFlagBits::eTransient, self->leDevice.getDefaultGraphicsQueueFamilyIndex()} );
 
-		self->frames.emplace_back( std::move( frameData ) );
+		self->frames.push_back( std::move( frameData ) );
 
-		// pre-populate aqcuire queue
-		self->queue_frames_acquire.push(i);
 	}
+
+	self->currentFrameNumber = 0;
 
 	// stand-in: create default renderpass.
 
@@ -212,96 +194,122 @@ static void renderer_setup( le_renderer_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void renderer_clear_frame( le_renderer_o *self, FrameData &frame ) {
+static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
+
+	auto &frame  = self->frames[ frameIndex ];
+
+	if (frame.state == FrameData::State::eCleared || frame.state==FrameData::State::eInitial){
+		return;
+	}
+
+	// ----------| invariant: frame was not yet cleared
 
 	auto &device = self->vkDevice;
 	// + ensure frame fence has been reached
-	device.waitForFences( {frame.frameFence}, true, 100'000'000 );
+	if ( frame.state == FrameData::State::eDispatched ||
+	     frame.state == FrameData::State::eFailedDispatch ||
+	     frame.state == FrameData::State::eFailedClear ) {
+		auto result = device.waitForFences( {frame.frameFence}, true, 100'000'000 );
+
+		if (result != vk::Result::eSuccess){
+			frame.state = FrameData::State::eFailedClear;
+			return ;
+		}
+	}
+
 	device.resetFences( {frame.frameFence} );
-
-	device.freeCommandBuffers( frame.commandPool, frame.commandBuffers );
-	frame.commandBuffers.clear();
-
-	device.resetCommandPool( frame.commandPool, vk::CommandPoolResetFlagBits::eReleaseResources );
 
 	for ( auto &fb : frame.debugFramebuffers ) {
 		device.destroyFramebuffer( fb );
 	}
 	frame.debugFramebuffers.clear();
 
+	device.freeCommandBuffers( frame.commandPool, frame.commandBuffers );
+	frame.commandBuffers.clear();
+
+	device.resetCommandPool( frame.commandPool, vk::CommandPoolResetFlagBits::eReleaseResources );
+
+
 	// NOTE: free transient gpu resources
 	//       + transient memory
+
+	frame.state = FrameData::State::eCleared;
 }
 
 // ----------------------------------------------------------------------
 
-static void renderer_acquire_frame(le_renderer_o* self){
-
-	if (self->queue_frames_acquire.empty()){
-		return;
-	}
+static const FrameData::State& renderer_acquire_swapchain_image(le_renderer_o* self, size_t frameIndex){
 
 	// ---------| invariant: There are frames to process.
 
-	auto currentFrameIndex = self->queue_frames_acquire.front();
+	auto &frame = self->frames[ frameIndex ];
 
-	auto &frame = self->frames[ currentFrameIndex ];
-	frame.meta.time_clear_frame_start = std::chrono::high_resolution_clock::now();
+	frame.meta.time_acquire_frame_start = std::chrono::high_resolution_clock::now();
 
-	renderer_clear_frame(self, frame);
+	if ( frame.state != FrameData::State::eRecorded ) {
+		return frame.state;
+	}
+
+	// ----------| invariant: frame is either initial, or cleared.
 
 	// TODO: update descriptor pool for this frame
 
 	auto acquireSuccess = self->swapchain.acquireNextImage(frame.semaphorePresentComplete,frame.swapchainImageIndex);
 
-	frame.meta.time_clear_frame_end = std::chrono::high_resolution_clock::now();
+	frame.meta.time_acquire_frame_end = std::chrono::high_resolution_clock::now();
 
 	if ( acquireSuccess ) {
-		self->queue_frames_acquire.pop();
-		self->queue_frames_record.push( std::move( currentFrameIndex ) );
-	} else {
+		frame.state = FrameData::State::eAcquired;
 
-		// TODO: deal with failed acquisition - frame needs to be placed back onto
-		// acquire queue. Failure most likely means that the swapchain was reset,
+	} else {
+		frame.state = FrameData::State::eFailedAcquire;
+		// Failure most likely means that the swapchain was reset,
 		// perhaps because of window resize.
-		std::cout << "could not acquire frame." << std::endl;
+		std::cout << "WARNING: Could not acquire frame." << std::endl;
+		self->swapchainDirty = true;
 	}
+
+	return frame.state;
 }
 
 // ----------------------------------------------------------------------
 
-static void renderer_record_frame(le_renderer_o* self){
+static void renderer_record_frame(le_renderer_o* self, size_t frameIndex){
 
-	if (self->queue_frames_record.empty()){
+	auto &frame = self->frames[ frameIndex ];
+
+	if (frame.state != FrameData::State::eCleared && frame.state != FrameData::State::eInitial){
 		return;
 	}
-	// ---------| invariant: There are frames to process.
+	// ---------| invariant: Frame was previously acquired successfully.
 
-	auto currentFrameIndex = self->queue_frames_record.front();
 
-	auto &frame = self->frames[ currentFrameIndex ];
+	// TODO:
+	// - resolve rendergraph: which passes do contribute?
+	// - consolidate resources, synchronisation for resources
+	//
+	// For each render pass, call renderpass' render method, build intermediary command lists
+	//
+
 
 	// record api-agnostic intermediate draw lists
 	frame.meta.time_record_frame_start = std::chrono::high_resolution_clock::now();
 	frame.meta.time_record_frame_end = std::chrono::high_resolution_clock::now();
 
-	self->queue_frames_record.pop();
-	self->queue_frames_process.push(std::move(currentFrameIndex));
+	frame.state = FrameData::State::eRecorded;
 }
 
 // ----------------------------------------------------------------------
 
-static void renderer_process_frame( le_renderer_o *self ) {
+static const FrameData::State& renderer_process_frame( le_renderer_o *self, size_t frameIndex ) {
 
-	if ( self->queue_frames_process.empty() ) {
-		return;
+	auto &frame = self->frames[ frameIndex ];
+
+	if (frame.state != FrameData::State::eAcquired){
+		return frame.state;
 	}
-	// ---------| invariant: There are frames to process.
+	// ---------| invariant: frame was previously recorded successfully
 
-	auto currentFrameIndex = self->queue_frames_process.front();
-
-
-	auto &frame                         = self->frames[ currentFrameIndex ];
 	frame.meta.time_process_frame_start = std::chrono::high_resolution_clock::now();
 
 	// translate intermediate draw lists into vk command buffers, and sync primitives
@@ -331,7 +339,7 @@ static void renderer_process_frame( le_renderer_o *self ) {
 	}
 
 	std::array<vk::ClearValue, 1> clearValues{
-		{vk::ClearColorValue( std::array<float, 4>{{0.3f, 1.f, 0.4f, 1.f}} )}};
+		{vk::ClearColorValue( std::array<float, 4>{{0.2f, 1.f, 0.0f, 1.f}} )}};
 
 	auto &cmd = cmdBufs.front();
 
@@ -360,22 +368,24 @@ static void renderer_process_frame( le_renderer_o *self ) {
 	frame.meta.time_process_frame_end = std::chrono::high_resolution_clock::now();
 	//std::cout << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_process_frame_end-frame.meta.time_process_frame_start).count() << std::endl;
 
-	self->queue_frames_process.pop();
-	self->queue_frames_dispatch.push( std::move( currentFrameIndex ) );
+	frame.state = FrameData::State::eProcessed;
+	return frame.state;
 }
+
 
 // ----------------------------------------------------------------------
 
-static void renderer_dispatch_frame( le_renderer_o *self) {
+static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex) {
 
-	if (self->queue_frames_dispatch.empty()){
+
+	auto &frame = self->frames[ frameIndex ];
+
+	if (frame.state != FrameData::State::eProcessed){
 		return;
 	}
-	// ---------| invariant: There are frames to process.
 
-	auto currentFrameIndex = self->queue_frames_dispatch.front();
+	// ---------| invariant: frame was successfully processed previously
 
-	auto &frame = self->frames[ currentFrameIndex ];
 	frame.meta.time_dispatch_frame_start = std::chrono::high_resolution_clock::now();
 
 	std::array<::vk::PipelineStageFlags, 1> wait_dst_stage_mask = {::vk::PipelineStageFlagBits::eColorAttachmentOutput};
@@ -400,48 +410,68 @@ static void renderer_dispatch_frame( le_renderer_o *self) {
 	frame.meta.time_dispatch_frame_end = std::chrono::high_resolution_clock::now();
 
 	if (presentSuccessful){
-		self->queue_frames_dispatch.pop();
-		self->queue_frames_acquire.push(std::move(currentFrameIndex));
+		frame.state = FrameData::State::eDispatched;
 	} else {
 
-		std::cout << "WARNING: " << "could not present frame." << std::endl;
+		std::cout << "WARNING: Could not present frame." << std::endl;
 
 		// Present was not successful -
 		//
 		// This most likely happened because the window surface has been resized.
 		// We therefore attempt to reset the swapchain.
 
-		// first, remove this frame from present queue.
-		renderer_clear_frame(self,frame);
-		self->queue_frames_dispatch.pop();
-		self->queue_frames_acquire.push(currentFrameIndex);
+		frame.state = FrameData::State::eFailedDispatch;
 
-		self->swapchain.reset();
+		self->swapchainDirty = true;
 	}
 
 }
 
 // ----------------------------------------------------------------------
 
-static void renderer_update(le_renderer_o* self){
+static void renderer_update( le_renderer_o *self ) {
 
-	renderer_acquire_frame ( self );
-	renderer_record_frame  ( self ); // this should run on the main thread
-	renderer_process_frame ( self );
-	renderer_dispatch_frame( self );
+	const auto& index = self->currentFrameNumber;
 
+	renderer_clear_frame            ( self, ( index + 1 ) % 4 );
+
+	renderer_record_frame           ( self, ( index + 0 ) % 4 );
+
+	renderer_acquire_swapchain_image( self, ( index + 3 ) % 4 );
+	renderer_process_frame          ( self, ( index + 3 ) % 4 );
+
+	renderer_dispatch_frame         ( self, ( index + 2 ) % 4 );
+
+	if (self->swapchainDirty){
+		// we must dispatch, then clear all previously processed frames,
+		// before recreating swapchain. This is because this frame
+		// was processed against the vkImage object from the previous
+		// swapchain.
+
+		// TODO: check if you could just signal these fences so that the
+		// leftover frames must not be dispatched.
+
+		for ( size_t i = 0; i != self->frames.size(); ++i ) {
+			if ( self->frames[ i ].state == FrameData::State::eProcessed ) {
+				renderer_dispatch_frame( self, i );
+				renderer_clear_frame( self, i );
+			}
+		}
+
+		self->swapchain.reset();
+		self->swapchainDirty = false;
+	}
+
+	++ self->currentFrameNumber;
 }
 
 // ----------------------------------------------------------------------
 
 static void renderer_destroy( le_renderer_o *self ) {
 
-	// todo: call renderer_clear_frame on all frames which are not yet cleared.
-
-	while(!self->queue_frames_acquire.empty()){
-		auto frameIndex = self->queue_frames_acquire.front();
-		renderer_clear_frame(self,self->frames[frameIndex]);
-		self->queue_frames_acquire.pop();
+	const auto &lastIndex = self->currentFrameNumber;
+	for ( size_t i = 0; i != self->frames.size(); ++i ) {
+		renderer_clear_frame( self, ( lastIndex + i) % self->frames.size() );
 	}
 
 	self->vkDevice.destroyRenderPass(self->debugRenderPass);

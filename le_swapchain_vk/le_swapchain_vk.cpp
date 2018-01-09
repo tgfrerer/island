@@ -265,7 +265,7 @@ static bool swapchain_acquire_next_image( le_backend_swapchain_o* self, VkSemaph
 	// before this image is available for writing. Image will be ready for writing when
 	// semaphorePresentComplete is signalled.
 
-	auto result = vkAcquireNextImageKHR( self->mSettings.vk_device, self->mSwapchain, 0, semaphorePresentComplete_, nullptr, &imageIndex_ );
+	auto result = vkAcquireNextImageKHR( self->mSettings.vk_device, self->mSwapchain, UINT64_MAX, semaphorePresentComplete_, nullptr, &imageIndex_ );
 
 	switch ( result ) {
 	case VK_SUCCESS:
