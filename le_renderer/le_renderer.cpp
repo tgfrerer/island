@@ -15,6 +15,8 @@
 #include <mutex>
 #include <future>
 
+#include "le_rendergraph.h"
+
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 // ----------------------------------------------------------------------
@@ -229,7 +231,6 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 
 	device.resetCommandPool( frame.commandPool, vk::CommandPoolResetFlagBits::eReleaseResources );
 
-
 	// NOTE: free transient gpu resources
 	//       + transient memory
 
@@ -283,6 +284,8 @@ static void renderer_record_frame(le_renderer_o* self, size_t frameIndex){
 	}
 	// ---------| invariant: Frame was previously acquired successfully.
 
+	// record api-agnostic intermediate draw lists
+	frame.meta.time_record_frame_start = std::chrono::high_resolution_clock::now();
 
 	// TODO:
 	// - resolve rendergraph: which passes do contribute?
@@ -292,9 +295,55 @@ static void renderer_record_frame(le_renderer_o* self, size_t frameIndex){
 	//
 
 
-	// record api-agnostic intermediate draw lists
-	frame.meta.time_record_frame_start = std::chrono::high_resolution_clock::now();
-	frame.meta.time_record_frame_end = std::chrono::high_resolution_clock::now();
+	le::RenderPass renderPassEarlyZ( "earlyZ" );
+	renderPassEarlyZ.setSetupCallback( []( auto self, auto graph_builder ) {
+		auto rp = le::RenderPassRef{self};
+		rp
+		    .addOutputAttachment( "depth" );
+
+		auto gb = le::GraphBuilder{graph_builder};
+		gb.addRenderpass( rp );
+	} );
+
+	le::RenderPass renderPassForward( "forward" );
+	renderPassForward.setSetupCallback( []( auto self, auto graph_builder ) {
+		auto rp = le::RenderPassRef{self};
+		rp
+		    .addOutputAttachment( "backbuffer" );
+
+		auto gb = le::GraphBuilder{graph_builder};
+		gb.addRenderpass( rp );
+	} );
+
+	le::RenderPass renderPassBeauty( "beauty" );
+	renderPassBeauty.setSetupCallback( []( auto self, auto graph_builder ) {
+		auto rp = le::RenderPassRef{self};
+		rp
+		    .addInputAttachment( "backbuffer" )
+		    .addInputAttachment( "depth" )
+
+		    .addOutputAttachment( "backbuffer" );
+
+		auto gb = le::GraphBuilder{graph_builder};
+		gb.addRenderpass( rp );
+	} );
+
+
+	// TODO: add setExecuteFun to renderpass - this is the method which actually
+	// does specify the draw calls, and which pipelines to use.
+
+	le::GraphBuilder graphBuilder;
+
+	le::RenderModule renderModule;
+
+	renderModule.addRenderPass(renderPassEarlyZ);
+	renderModule.addRenderPass(renderPassForward);
+	renderModule.addRenderPass(renderPassBeauty);
+
+	renderModule.buildGraph(graphBuilder);
+	// TODO: renderModule.executeGraph(graphBuilder); - this is where we execute the rendergraph
+
+	frame.meta.time_record_frame_end   = std::chrono::high_resolution_clock::now();
 
 	frame.state = FrameData::State::eRecorded;
 }
@@ -501,4 +550,13 @@ void register_le_renderer_api( void *api_ ) {
 	le_renderer_i.update  = renderer_update;
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
+
+	// TODO: check if this actually really does that it should
+	// this should force loading of dependencies if these are not loaded already.
+
+	// + this causes crashes if an api was loaded dynamic previously, and
+	// is now set to be loaded dynamic.
+
+	//Registry::addApiDynamic<le_backend_vk_api>(true);
+	Registry::addApiStatic<le_rendergraph_api>();
 }

@@ -1,6 +1,7 @@
 set (TARGET le_renderer)
 
 set (SOURCES "le_renderer.cpp")
+set (SOURCES ${SOURCES} "le_rendergraph.cpp")
 
 if (${PLUGINS_DYNAMIC})
 
