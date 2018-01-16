@@ -53,7 +53,7 @@ struct pal_window_api {
 
 namespace pal {
 
-class Window {
+class Window : NoMove, NoCopy {
 	const pal_window_api::window_interface_t &mWindow = Registry::getApi<pal_window_api>()->window_i;
 	pal_window_o*                             self    = mWindow.create( nullptr );
 
@@ -64,18 +64,6 @@ class Window {
 
 	  public:
 		Settings() = default;
-
-		// copy assignment operator
-		Settings &operator=( const Settings &rhs ) = delete;
-
-		// copy constructor
-		Settings( const Settings &rhs ) = delete;
-
-		// move assignment operator
-		Settings &operator=( Settings &&rhs ) = delete;
-
-		// move constructor
-		Settings( const Settings &&rhs ) = delete;
 
 		~Settings(){
 			windowSettingsI.destroy(self);

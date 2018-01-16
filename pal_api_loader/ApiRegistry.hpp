@@ -136,5 +136,36 @@ class Registry {
 	}
 };
 
+
+// ---------- utilities
+
+struct NoCopy {
+
+	NoCopy() = default;
+
+	// copy assignment operator
+	NoCopy &operator=( const NoCopy &rhs ) = delete;
+
+	// copy constructor
+	NoCopy( const NoCopy &rhs ) = delete;
+
+  protected:
+	~NoCopy() = default;
+};
+
+struct NoMove {
+
+	NoMove() = default;
+
+	// move assignment operator
+	NoMove &operator=( NoMove &&rhs ) = delete;
+
+	// move constructor
+	NoMove( const NoMove &&rhs ) = delete;
+
+  protected:
+	~NoMove() = default;
+};
+
 #endif // __cplusplus
 #endif // GUARD_API_REGISTRY_HPP
