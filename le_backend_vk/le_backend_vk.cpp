@@ -32,6 +32,7 @@ void register_le_backend_vk_api( void *api_ ) {
 	le_device_vk_i.get_default_compute_queue_family_index  = device_get_default_compute_queue_family_index;
 	le_device_vk_i.get_default_graphics_queue              = device_get_default_graphics_queue;
 	le_device_vk_i.get_default_graphics_queue_family_index = device_get_default_graphics_queue_family_index;
+	le_device_vk_i.get_default_depth_stencil_format        = device_get_default_depth_stencil_format;
 
 	if ( le_backend_vk_i->cUniqueInstance != nullptr ) {
 		le_instance_vk_i.post_reload_hook( le_backend_vk_i->cUniqueInstance );

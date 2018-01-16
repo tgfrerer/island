@@ -47,6 +47,8 @@ struct le_backend_vk_device_o {
 	};
 
 	DefaultQueueIndices defaultQueueIndices;
+	vk::Format          defaultDepthStencilFormat;
+
 	uint32_t referenceCount = 0;
 };
 
@@ -59,6 +61,7 @@ extern uint32_t                device_get_default_graphics_queue_family_index( l
 extern uint32_t                device_get_default_compute_queue_family_index( le_backend_vk_device_o *self );
 extern VkQueue                 device_get_default_graphics_queue( le_backend_vk_device_o *self );
 extern VkQueue                 device_get_default_compute_queue( le_backend_vk_device_o *self );
+extern vk::Format              device_get_default_depth_stencil_format(le_backend_vk_device_o *self );
 
 extern uint32_t                device_get_reference_count(le_backend_vk_device_o* self);
 extern void                    device_increase_reference_count(le_backend_vk_device_o* self);

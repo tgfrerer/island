@@ -236,29 +236,27 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 	device->defaultQueueIndices.transfer      = findClosestMatchingQueueIndex( device->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eTransfer );
 	device->defaultQueueIndices.sparseBinding = findClosestMatchingQueueIndex( device->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eSparseBinding );
 
-//	// Create mutexes to protect each queue
-//	mQueueMutex = std::vector<mutex>( mQueues.size() );
 
-//	// Query possible depth formats, find the
-//	// first format that supports attachment as a depth stencil
-//	//
-//	// Since all depth formats may be optional, we need to find a suitable depth format to use
-//	// Start with the highest precision packed format
-//	std::vector<vk::Format> depthFormats = {
-//	    vk::Format::eD32SfloatS8Uint,
-//	    vk::Format::eD32Sfloat,
-//	    vk::Format::eD24UnormS8Uint,
-//	    vk::Format::eD16Unorm,
-//	    vk::Format::eD16UnormS8Uint};
+	// Query possible depth formats, find the
+	// first format that supports attachment as a depth stencil
+	//
+	// Since all depth formats may be optional, we need to find a suitable depth format to use
+	// Start with the highest precision packed format
+	std::vector<vk::Format> depthFormats = {
+	    vk::Format::eD32SfloatS8Uint,
+	    vk::Format::eD32Sfloat,
+	    vk::Format::eD24UnormS8Uint,
+	    vk::Format::eD16Unorm,
+	    vk::Format::eD16UnormS8Uint};
 
-//	for ( auto &format : depthFormats ) {
-//		vk::FormatProperties formatProps = mPhysicalDevice.getFormatProperties( format );
-//		// Format must support depth stencil attachment for optimal tiling
-//		if ( formatProps.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment ) {
-//			mDepthFormat = format;
-//			break;
-//		}
-//	}
+	for ( auto &format : depthFormats ) {
+		vk::FormatProperties formatProps = device->vkPhysicalDevice.getFormatProperties( format );
+		// Format must support depth stencil attachment for optimal tiling
+		if ( formatProps.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment ) {
+			device->defaultDepthStencilFormat = format;
+			break;
+		}
+	}
 
 	return device;
 };
@@ -308,6 +306,10 @@ VkQueue device_get_default_graphics_queue(le_backend_vk_device_o* self_){
 
 VkQueue device_get_default_compute_queue(le_backend_vk_device_o* self_){
 	return self_->queues[self_->defaultQueueIndices.compute];
+}
+
+vk::Format device_get_default_depth_stencil_format(le_backend_vk_device_o* self){
+	return self->defaultDepthStencilFormat;
 }
 
 // ----------------------------------------------------------------------

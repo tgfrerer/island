@@ -19,6 +19,10 @@ struct VkDevice_T;
 struct VkPhysicalDevice_T;
 struct VkQueue_T;
 
+namespace vk {
+    enum class Format;
+}
+
 struct le_backend_vk_api {
 	static constexpr auto id       = "le_backend_vk";
 	static constexpr auto pRegFun  = register_le_backend_vk_api;
@@ -42,6 +46,7 @@ struct le_backend_vk_api {
 		uint32_t                    ( *get_default_compute_queue_family_index  ) ( le_backend_vk_device_o* self_ );
 		VkQueue_T *                 ( *get_default_graphics_queue              ) ( le_backend_vk_device_o* self_ );
 		VkQueue_T *                 ( *get_default_compute_queue               ) ( le_backend_vk_device_o* self_ );
+		vk::Format                  ( *get_default_depth_stencil_format        ) ( le_backend_vk_device_o* self_ );
 		VkPhysicalDevice_T*         ( *get_vk_physical_device                  ) ( le_backend_vk_device_o* self_ );
 		VkDevice_T*                 ( *get_vk_device                           ) ( le_backend_vk_device_o* self_ );
 	};
@@ -83,7 +88,7 @@ class Instance {
 
 
 
-class Device {
+class Device : NoCopy, NoMove {
 	const le_backend_vk_api &                    backendApiI = *Registry::getApi<le_backend_vk_api>();
 	const le_backend_vk_api::device_interface_t &deviceI     = backendApiI.device_i;
 	le_backend_vk_device_o *                     self        = nullptr;
@@ -144,7 +149,11 @@ class Device {
 		return deviceI.get_default_compute_queue( self );
 	}
 
-	operator le_backend_vk_device_o*() {
+	vk::Format getDefaultDepthStencilFormat() const {
+		return deviceI.get_default_depth_stencil_format(self);
+	}
+
+	operator auto () {
 		return self;
 	}
 
