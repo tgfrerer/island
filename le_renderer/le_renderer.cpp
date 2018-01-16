@@ -66,11 +66,11 @@ struct FrameData {
 
 struct le_renderer_o {
 
-	const le::Device       leDevice;
-	le::Swapchain          swapchain;
-	uint64_t               swapchainDirty   = false;
-	vk::Device             vkDevice         = nullptr;
-	vk::RenderPass         debugRenderPass  = nullptr;
+	le::Device     leDevice;
+	le::Swapchain  swapchain;
+	uint64_t       swapchainDirty  = false;
+	vk::Device     vkDevice        = nullptr;
+	vk::RenderPass debugRenderPass = nullptr;
 
 	std::vector<FrameData> frames;
 	size_t                 currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
@@ -275,7 +275,7 @@ static const FrameData::State& renderer_acquire_swapchain_image(le_renderer_o* s
 
 // ----------------------------------------------------------------------
 
-static void renderer_record_frame(le_renderer_o* self, size_t frameIndex){
+static void renderer_record_frame(le_renderer_o* self, size_t frameIndex, le_render_module_o * module_){
 
 	auto &frame = self->frames[ frameIndex ];
 
@@ -287,7 +287,7 @@ static void renderer_record_frame(le_renderer_o* self, size_t frameIndex){
 	// record api-agnostic intermediate draw lists
 	frame.meta.time_record_frame_start = std::chrono::high_resolution_clock::now();
 
-	// TODO:
+	// TODO: implement record_frame
 	// - resolve rendergraph: which passes do contribute?
 	// - consolidate resources, synchronisation for resources
 	//
@@ -295,50 +295,10 @@ static void renderer_record_frame(le_renderer_o* self, size_t frameIndex){
 	//
 
 
-	le::RenderPass renderPassEarlyZ( "earlyZ" );
-	renderPassEarlyZ.setSetupCallback( []( auto self, auto graph_builder ) {
-		auto rp = le::RenderPassRef{self};
-		rp
-		    .addOutputAttachment( "depth" );
+	le::GraphBuilder graphBuilder{self->leDevice};
 
-		auto gb = le::GraphBuilder{graph_builder};
-		gb.addRenderpass( rp );
-	} );
+	le::RenderModule renderModule(module_);
 
-	le::RenderPass renderPassForward( "forward" );
-	renderPassForward.setSetupCallback( []( auto self, auto graph_builder ) {
-		auto rp = le::RenderPassRef{self};
-		rp
-		    .addOutputAttachment( "backbuffer" );
-
-		auto gb = le::GraphBuilder{graph_builder};
-		gb.addRenderpass( rp );
-	} );
-
-	le::RenderPass renderPassBeauty( "beauty" );
-	renderPassBeauty.setSetupCallback( []( auto self, auto graph_builder ) {
-		auto rp = le::RenderPassRef{self};
-		rp
-		    .addInputAttachment( "backbuffer" )
-		    .addInputAttachment( "depth" )
-
-		    .addOutputAttachment( "backbuffer" );
-
-		auto gb = le::GraphBuilder{graph_builder};
-		gb.addRenderpass( rp );
-	} );
-
-
-	// TODO: add setExecuteFun to renderpass - this is the method which actually
-	// does specify the draw calls, and which pipelines to use.
-
-	le::GraphBuilder graphBuilder;
-
-	le::RenderModule renderModule;
-
-	renderModule.addRenderPass(renderPassEarlyZ);
-	renderModule.addRenderPass(renderPassForward);
-	renderModule.addRenderPass(renderPassBeauty);
 
 	renderModule.buildGraph(graphBuilder);
 	// TODO: renderModule.executeGraph(graphBuilder); - this is where we execute the rendergraph
@@ -388,7 +348,7 @@ static const FrameData::State& renderer_process_frame( le_renderer_o *self, size
 	}
 
 	std::array<vk::ClearValue, 1> clearValues{
-		{vk::ClearColorValue( std::array<float, 4>{{0.2f, 1.f, 0.0f, 1.f}} )}};
+		{vk::ClearColorValue( std::array<float, 4>{{1.f, 1.f, 0.0f, 1.f}} )}};
 
 	auto &cmd = cmdBufs.front();
 
@@ -415,7 +375,7 @@ static const FrameData::State& renderer_process_frame( le_renderer_o *self, size
 	}
 
 	frame.meta.time_process_frame_end = std::chrono::high_resolution_clock::now();
-	//std::cout << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_process_frame_end-frame.meta.time_process_frame_start).count() << std::endl;
+	std::cout << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_process_frame_end-frame.meta.time_process_frame_start).count() << std::endl;
 
 	frame.state = FrameData::State::eProcessed;
 	return frame.state;
@@ -478,13 +438,13 @@ static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex) {
 
 // ----------------------------------------------------------------------
 
-static void renderer_update( le_renderer_o *self ) {
+static void renderer_update( le_renderer_o *self, le_render_module_o * module_ ) {
 
 	const auto& index = self->currentFrameNumber;
 
 	renderer_clear_frame            ( self, ( index + 1 ) % 4 );
 
-	renderer_record_frame           ( self, ( index + 0 ) % 4 );
+	renderer_record_frame           ( self, ( index + 0 ) % 4, module_ );
 
 	renderer_acquire_swapchain_image( self, ( index + 3 ) % 4 );
 	renderer_process_frame          ( self, ( index + 3 ) % 4 );

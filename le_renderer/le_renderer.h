@@ -15,6 +15,7 @@ void register_le_renderer_api( void *api );
 struct le_backend_vk_device_o;
 struct le_backend_swapchain_o;
 struct le_renderer_o;
+struct le_render_module_o;
 
 struct le_renderer_api {
 	static constexpr auto id       = "le_renderer";
@@ -24,7 +25,7 @@ struct le_renderer_api {
 		le_renderer_o* ( *create  ) (le_backend_vk_device_o* device, le_backend_swapchain_o* swapchain);
 		void           ( *destroy ) (le_renderer_o* obj);
 		void           ( *setup   ) (le_renderer_o* obj);
-		void           ( *update  ) (le_renderer_o* obj);
+		void           ( *update  ) (le_renderer_o* obj, le_render_module_o* module);
 	};
 
 	renderer_interface_t le_renderer_i;
@@ -55,8 +56,8 @@ class Renderer  {
 		rendererI.setup(self);
 	}
 
-	void update(){
-		rendererI.update(self);
+	void update(le_render_module_o* module){
+		rendererI.update(self, module);
 	}
 
 };

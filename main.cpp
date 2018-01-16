@@ -4,6 +4,10 @@
 #include "le_swapchain_vk/le_swapchain_vk.h"
 #include "le_renderer/le_renderer.h"
 
+// include this in application, rather.
+#include "le_renderer/le_rendergraph.h"
+#include "vulkan/vulkan.hpp"
+
 // ----------------------------------------------------------------------
 
 int main( int argc, char const *argv[] ) {
@@ -93,7 +97,68 @@ int main( int argc, char const *argv[] ) {
 				// app.update
 				// app.draw
 
-				renderer.update();
+				{
+
+					le::RenderPass renderPassEarlyZ( "earlyZ" );
+					renderPassEarlyZ.setSetupCallback( []( auto pRp, auto pDevice ) {
+						auto rp     = le::RenderPassRef{pRp};
+						auto device = le::Device{pDevice};
+
+						le::ImageAttachmentInfo depthAttachmentInfo;
+						depthAttachmentInfo.format  = device.getDefaultDepthStencilFormat();
+						depthAttachmentInfo.onClear = []( void *clearVal ) {
+							auto clear = reinterpret_cast<vk::ClearValue *>( clearVal );
+							clear->setDepthStencil( vk::ClearDepthStencilValue( 1.f, 0 ) );
+						};
+
+						rp.addOutputAttachment( "depth", &depthAttachmentInfo );
+
+						return true;
+					} );
+
+					le::RenderPass renderPassForward( "forward" );
+					renderPassForward.setSetupCallback( []( auto pRp, auto pDevice ) {
+						auto rp     = le::RenderPassRef{pRp};
+
+						le::ImageAttachmentInfo colorAttachmentInfo;
+						colorAttachmentInfo.format  = vk::Format::eR8G8B8A8Unorm;
+						colorAttachmentInfo.onClear = []( void *clearVal ) {
+							auto clear = reinterpret_cast<vk::ClearValue *>( clearVal );
+							clear->setColor( vk::ClearColorValue( std::array<float,4>{{1.f, 0.f, 0.f, 1.f}}) );
+						};
+
+						rp.addOutputAttachment( "backbuffer", &colorAttachmentInfo );
+						return true;
+					} );
+
+					le::RenderPass renderPassFinal( "final" );
+					renderPassFinal.setSetupCallback( []( auto pRp, auto pDevice ) {
+						auto rp     = le::RenderPassRef{pRp};
+						auto device = le::Device{pDevice};
+
+						le::ImageAttachmentInfo colorAttachmentInfo;
+						colorAttachmentInfo.format  = vk::Format::eR8G8B8A8Unorm;
+
+						le::ImageAttachmentInfo depthAttachmentInfo;
+						depthAttachmentInfo.format  = device.getDefaultDepthStencilFormat();
+
+						rp.addInputAttachment("depth", &depthAttachmentInfo);
+						rp.addInputAttachment("backbuffer", &colorAttachmentInfo);
+
+						rp.addOutputAttachment( "backbuffer", &colorAttachmentInfo );
+						return true;
+					} );
+
+					// TODO: add setExecuteFun to renderpass - this is the method which actually
+					// does specify the draw calls, and which pipelines to use.
+					le::RenderModule renderModule;
+					renderModule.addRenderPass( renderPassForward );
+					renderModule.addRenderPass( renderPassEarlyZ );
+					renderModule.addRenderPass( renderPassFinal );
+
+					renderer.update( renderModule );
+
+				}
 			}
 		}
 		window.destroySurface( instance.getVkInstance() );

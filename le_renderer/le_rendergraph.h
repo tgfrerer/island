@@ -16,19 +16,31 @@ void register_le_rendergraph_api( void *api );
 struct le_renderpass_o;
 struct le_graph_builder_o;
 struct le_render_module_o;
+struct le_backend_vk_device_o;
+
+namespace vk {
+    enum class Format; // forward declaration
+
+}
 
 struct le_rendergraph_api {
 	static constexpr auto id       = "le_rendergraph";
 	static constexpr auto pRegFun  = register_le_rendergraph_api;
 
-	typedef void(*pfn_renderpass_setup_t)(le_renderpass_o* obj, le_graph_builder_o* gb);
+	struct image_attachment_info_o {
+		vk::Format format;
+		void (*onClear)(void* clear_data) = nullptr;
+	};
+
+	typedef bool(*pfn_renderpass_setup_t)(le_renderpass_o* obj, le_backend_vk_device_o *);
 
 	struct renderpass_interface_t {
 		le_renderpass_o* ( *create                ) (const char* renderpass_name);
 		void             ( *destroy               ) (le_renderpass_o* obj);
 		void             ( *set_setup_fun         ) (le_renderpass_o* obj, pfn_renderpass_setup_t setup_fun );
-		void             ( *add_input_attachment  ) (le_renderpass_o* obj, const char*);
-		void             ( *add_output_attachment ) (le_renderpass_o* obj, const char*);
+
+		void             ( *add_input_attachment  ) (le_renderpass_o* obj, const char*, image_attachment_info_o* info);
+		void             ( *add_output_attachment ) (le_renderpass_o* obj, const char*, image_attachment_info_o* info);
 	};
 
 	struct rendermodule_interface_t {
@@ -40,7 +52,7 @@ struct le_rendergraph_api {
 
 	// graph builder builds a graph for a module
 	struct graph_builder_interface_t {
-		le_graph_builder_o* ( *create        ) ( );
+		le_graph_builder_o* ( *create        ) ( le_backend_vk_device_o* device);
 		void                ( *destroy       ) ( le_graph_builder_o* obj );
 		void                ( *add_renderpass) ( le_graph_builder_o* obj, le_renderpass_o* rp );
 		void                ( *build_graph)    ( le_graph_builder_o* obj );
@@ -56,6 +68,8 @@ struct le_rendergraph_api {
 #endif
 
 namespace le {
+
+using ImageAttachmentInfo = le_rendergraph_api::image_attachment_info_o ;
 
 class RenderPass {
 	const le_rendergraph_api &                        rendergraphApiI = *Registry::getApi<le_rendergraph_api>();
@@ -98,13 +112,13 @@ class RenderPassRef {
 		return self;
 	}
 
-	RenderPassRef &addInputAttachment( const char *name_ ) {
-		renderpassI.add_input_attachment( self, name_ );
+	RenderPassRef &addInputAttachment( const char *name_,  le_rendergraph_api::image_attachment_info_o* info ) {
+		renderpassI.add_input_attachment( self, name_, info );
 		return *this;
 	}
 
-	RenderPassRef &addOutputAttachment( const char *name_ ) {
-		renderpassI.add_output_attachment( self, name_ );
+	RenderPassRef &addOutputAttachment( const char *name_, le_rendergraph_api::image_attachment_info_o* info ) {
+		renderpassI.add_output_attachment( self, name_, info );
 		return *this;
 	}
 };
@@ -119,8 +133,8 @@ class GraphBuilder {
 	bool                is_reference = false;
 
   public:
-	GraphBuilder()
-	    : self( graphbuilderI.create() ) {
+	GraphBuilder(le_backend_vk_device_o* device)
+	    : self( graphbuilderI.create(device) ) {
 	}
 
 	GraphBuilder( le_graph_builder_o *self_ )
@@ -145,8 +159,6 @@ class GraphBuilder {
 	void buildGraph(){
 		graphbuilderI.build_graph(self);
 	}
-
-
 };
 
 // ----------------------------------------------------------------------
