@@ -152,8 +152,8 @@ int main( int argc, char const *argv[] ) {
 					// TODO: add setExecuteFun to renderpass - this is the method which actually
 					// does specify the draw calls, and which pipelines to use.
 					le::RenderModule renderModule;
-					renderModule.addRenderPass( renderPassForward );
 					renderModule.addRenderPass( renderPassEarlyZ );
+					renderModule.addRenderPass( renderPassForward );
 					renderModule.addRenderPass( renderPassFinal );
 
 					renderer.update( renderModule );

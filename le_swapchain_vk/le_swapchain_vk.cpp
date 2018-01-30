@@ -154,6 +154,13 @@ static void swapchain_attach_images(le_backend_swapchain_o *self)
 
 // ----------------------------------------------------------------------
 
+template <typename T>
+static inline auto clamp( const T &val_, const T &min_, const T &max_ ) {
+	return std::max( min_, ( std::min( val_, max_ ) ) );
+}
+
+// ----------------------------------------------------------------------
+
 static void swapchain_reset( le_backend_swapchain_o *self, const le_swapchain_vk_api::settings_o *settings_ ) {
 
 	if ( settings_ ) {
@@ -196,9 +203,9 @@ static void swapchain_reset( le_backend_swapchain_o *self, const le_swapchain_vk
 		          << "falling back to: " << vk::to_string( self->mPresentMode );
 	}
 
-	self->mImagecount = std::clamp( self->mSettings.imagecount_hint,
-	                                surfaceCapabilities.minImageCount,
-	                                surfaceCapabilities.maxImageCount );
+	self->mImagecount = clamp( self->mSettings.imagecount_hint,
+	                           surfaceCapabilities.minImageCount,
+	                           surfaceCapabilities.maxImageCount );
 
 	if ( self->mImagecount != self->mSettings.imagecount_hint ) {
 		std::cout << " WARNING: Swapchain: Number of swapchain images was adjusted to: " << self->mImagecount;

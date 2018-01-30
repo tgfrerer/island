@@ -82,6 +82,8 @@ static void destroy_debug_callback( le_backend_vk_instance_o *obj ) {
 
 le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const char **extensionNamesArray_, uint32_t numExtensionNames_ ) {
 
+	// TODO: make debug layers optional
+
 	auto obj = new le_backend_vk_instance_o();
 
 	vk::ApplicationInfo appInfo;

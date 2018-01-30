@@ -22,10 +22,11 @@ struct le_renderpass_o {
 
 	using imageAttachments_t = std::unordered_map<std::string, image_attachment_t>;
 
-	std::string                                         name;
+	std::string        name;
 	imageAttachments_t inputAttachments;
 	imageAttachments_t outputAttachments;
 	imageAttachments_t inputTextureAttachments;
+
 	std::unordered_map<std::string, image_attachment_t> inputBufferAttachments;
 	std::unordered_map<std::string, image_attachment_t> outputBufferAttachments;
 
@@ -113,7 +114,10 @@ static void render_module_add_renderpass(le_render_module_o*self, le_renderpass_
 
 // ----------------------------------------------------------------------
 
-static void render_module_build_graph(le_render_module_o* self, le_graph_builder_o* graph_builder){
+static void render_module_build_graph(le_render_module_o* self, le_graph_builder_o* graph_builder_){
+
+	le::GraphBuilder graphBuilder{graph_builder_};
+
 	for (auto &pass: self->passes){
 		// Call setup function on all passes, in order of addition to module
 		//
@@ -122,12 +126,10 @@ static void render_module_build_graph(le_render_module_o* self, le_graph_builder
 		// + populate output attachments
 		// + (optionally) add renderpass to graph builder.
 		assert(pass->callbackSetup != nullptr);
-		if (pass->callbackSetup(pass, graph_builder->device)){
+		if (pass->callbackSetup(pass, graph_builder_->device)){
 			// if pass.setup() returns true, this means we shall add this pass to the graph
-			auto gb = le::GraphBuilder(graph_builder);
-			gb.addRenderpass(pass);
-
-		};
+			graphBuilder.addRenderpass(pass);
+		}
 	}
 	// Now, renderpasses should have their attachment properly set.
 	// Further, user will have added all renderpasses they wanted included in the module
@@ -140,9 +142,7 @@ static void render_module_build_graph(le_render_module_o* self, le_graph_builder
 	// Step 2: sort passes in dependency order (by adding an execution order index to each pass)
 	// Step 3: add  markers to each attachment for each pass, depending on their read/write status
 
-	le::GraphBuilder gb{graph_builder};
-
-	gb.buildGraph();
+	graphBuilder.buildGraph();
 
 };
 
@@ -167,21 +167,24 @@ static void graph_builder_add_renderpass(le_graph_builder_o* self, le_renderpass
 
 // ----------------------------------------------------------------------
 
-static bool traverse_tree( uint64_t                                      execution_order,
-                           const std::vector<le_renderpass_o>::iterator &begin_range,
-                           const std::vector<le_renderpass_o>::iterator &end_range,
-                           std::string                                   outputSignature ) {
+static bool traverse_graph( uint64_t                                      execution_priority,
+                            const std::vector<le_renderpass_o>::iterator &begin_range,
+                            const std::vector<le_renderpass_o>::iterator &end_range,
+                            std::string                                   outputSignature ) {
 
-	auto found_element = std::find_if( begin_range, end_range, [&outputSignature]( const le_renderpass_o &pass ) -> bool {
+	auto source_pass = std::find_if( begin_range, end_range, [&outputSignature]( const le_renderpass_o &pass ) -> bool {
 		return ( pass.outputAttachments.count( outputSignature ) == 1 );
 	} );
 
-	if (found_element != end_range){
-		found_element->graphInfo.execution_order = std::max(execution_order, found_element->graphInfo.execution_order);
-		auto & inputAttachments = found_element->inputAttachments;
+	// If an attachment is read/write, the affected renderpass must let other renderpasses with the
+	// same priority read first.
+
+	if (source_pass != end_range){
+		source_pass->graphInfo.execution_order = std::max(execution_priority, source_pass->graphInfo.execution_order);
+		auto & inputAttachments = source_pass->inputAttachments;
 		bool result = true;
 		for (auto & i : inputAttachments){
-			result &= traverse_tree(execution_order + 1, found_element+1, end_range, i.first);
+			result &= traverse_graph(execution_priority + 1, source_pass+1, end_range, i.first);
 		}
 		return result;
 	} else {
@@ -204,7 +207,7 @@ static void graph_builder_order_passes(std::vector<le_renderpass_o>& passes){
 
 	std::reverse(passes.begin(),passes.end());
 
-	bool tree_valid = traverse_tree(0, passes.begin(), passes.end(), "backbuffer");
+	bool tree_valid = traverse_graph(0, passes.begin(), passes.end(), "backbuffer");
 
 	if (!tree_valid){
 		std::cerr << "tree not valid" << std::endl;
@@ -212,7 +215,6 @@ static void graph_builder_order_passes(std::vector<le_renderpass_o>& passes){
 
 	// with this pass, list all inputs
 	// for each input, find last pass writing to this input
-
 
 }
 
