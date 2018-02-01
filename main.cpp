@@ -118,7 +118,8 @@ int main( int argc, char const *argv[] ) {
 
 					le::RenderPass renderPassForward( "forward" );
 					renderPassForward.setSetupCallback( []( auto pRp, auto pDevice ) {
-						auto rp = le::RenderPassRef{pRp};
+						auto                    rp     = le::RenderPassRef{pRp};
+						auto                    device = le::Device{pDevice};
 
 						le::ImageAttachmentInfo colorAttachmentInfo;
 						colorAttachmentInfo.format  = vk::Format::eR8G8B8A8Unorm;
@@ -126,6 +127,11 @@ int main( int argc, char const *argv[] ) {
 							auto clear = reinterpret_cast<vk::ClearValue *>( clearVal );
 							clear->setColor( vk::ClearColorValue( std::array<float, 4>{{1.f, 0.f, 0.f, 1.f}} ) );
 						};
+
+						le::ImageAttachmentInfo depthAttachmentInfo;
+						depthAttachmentInfo.format = device.getDefaultDepthStencilFormat();
+
+						rp.addInputAttachment( "depth", &depthAttachmentInfo );
 
 						rp.addOutputAttachment( "backbuffer", &colorAttachmentInfo );
 						return true;
