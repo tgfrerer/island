@@ -10,6 +10,7 @@
 #include <iomanip>
 #include "vulkan/vulkan.hpp"
 
+
 // ----------------------------------------------------------------------
 // FNV hash using constexpr recursion over char string length (executes at compile time)
 inline uint64_t constexpr const_char_hash64( const char *input ) noexcept {
@@ -20,7 +21,7 @@ inline uint32_t constexpr const_char_hash32( const char *input ) noexcept {
 	return *input ? ( 0x1000193 * const_char_hash32( input + 1 ) ) ^ static_cast<uint32_t>( *input ) : 0x811c9dc5;
 }
 
-struct PassthroughHash {
+struct IdentityHash {
 	size_t operator()( const uint64_t &key_ ) const noexcept {
 		return key_;
 	}
@@ -242,7 +243,8 @@ static inline std::vector<le_renderpass_o>::iterator find_first_pass_matching_ou
 }
 
 // ----------------------------------------------------------------------
-
+/// \brief find corresponding output for each input attachment,
+/// and tag input with output id
 static void graph_builder_resolve_attachment_ids(std::vector<le_renderpass_o>& passes){
 
 	// Since rendermodule gives us a pre-sorted list of renderpasses,
@@ -252,8 +254,8 @@ static void graph_builder_resolve_attachment_ids(std::vector<le_renderpass_o>& p
 	// with its writer's id. Eventually, we'll find a way to re-use
 	// attachments which may be aliased.
 
-	std::unordered_map<uint64_t, image_attachment_t, PassthroughHash> imageInputAttachments;
-	std::unordered_map<uint64_t, image_attachment_t, PassthroughHash> imageOutputAttachments;
+	std::unordered_map<uint64_t, image_attachment_t, IdentityHash> imageInputAttachments;
+	std::unordered_map<uint64_t, image_attachment_t, IdentityHash> imageOutputAttachments;
 
 	for ( auto &p : passes ) {
 
@@ -276,6 +278,37 @@ static void graph_builder_resolve_attachment_ids(std::vector<le_renderpass_o>& p
 			imageOutputAttachments[ o.id ] = o;
 		}
 	}
+
+	// TODO: check if all resources have an associated source id, because
+	// resources without source ID are unresolved.
+}
+
+// ----------------------------------------------------------------------
+// depth-first traversal of graph, following each input to its corresponding output
+static void graph_builder_traverse_passes( const std::unordered_map<uint64_t, le_renderpass_o *, IdentityHash> &passes,
+                                           const uint64_t &                                                     sourceRenderpassId,
+                                           const uint64_t                                                       recursion_depth ) {
+
+	static const size_t MAX_PASS_RECURSION_DEPTH = 20;
+
+	if ( recursion_depth > MAX_PASS_RECURSION_DEPTH ) {
+		std::cerr << __FUNCTION__ << " : "
+		          << "max recursion level reached. check for cycles in render graph";
+		return;
+	}
+
+	// as each input tells us its source renderpass,
+	// we can look it up by id
+	auto &sourcePass = passes.at( sourceRenderpassId );
+
+	// We want the maximum edge distance (one recursion equals one edge) from the root node
+	// for each pass, since the max distance makes sure that all resources are available,
+	// even resources which have a shorter path.
+	sourcePass->graphInfo.execution_order = std::max( recursion_depth, sourcePass->graphInfo.execution_order );
+
+	for ( auto &inAttachment : sourcePass->inputAttachments ) {
+		graph_builder_traverse_passes( passes, inAttachment.source_id, recursion_depth + 1 );
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -284,14 +317,20 @@ static void graph_builder_resolve_attachment_ids(std::vector<le_renderpass_o>& p
 // on graph dependencies
 static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 
-	graph_builder_resolve_attachment_ids(passes);
-
-	//traverse_passes(passes.begin(),passes.end(), const_char_hash64("backbuffer"));
-
-	// TODO: check if all resources have an associated source id, because
-	// resources without source ID are unresolved.
-
 	// ----------| invariant: resources know their source id
+
+	std::unordered_map<uint64_t, le_renderpass_o*, IdentityHash> passTable;
+	passTable.reserve(passes.size());
+
+	for ( auto &p : passes ) {
+		passTable.emplace( p.id, &p );
+	}
+
+	graph_builder_traverse_passes(passTable, const_char_hash64("final"), 1);
+
+	std::sort( passes.begin(), passes.end(), []( const le_renderpass_o &lhs, const le_renderpass_o &rhs ) -> bool {
+		return lhs.graphInfo.execution_order > rhs.graphInfo.execution_order;
+	} );
 
 	std::ostringstream msg;
 
@@ -313,11 +352,15 @@ static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 
 static void graph_builder_build_graph(le_graph_builder_o* self){
 
-	// Validate:
-	// + make sure that no two passes write_only to an attachment
+	// find corresponding output for each input attachment,
+	// and tag input with output id
+	graph_builder_resolve_attachment_ids(self->passes);
 
 	// first, we must establish the sort order
 	graph_builder_order_passes(self->passes);
+
+	// we should be able to prune any passes which have execution order 0
+	// as they don't contribute to our final pass(es).
 
 }
 
