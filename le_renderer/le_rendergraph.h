@@ -28,6 +28,8 @@ struct le_rendergraph_api {
 	static constexpr auto pRegFun  = register_le_rendergraph_api;
 
 	struct image_attachment_info_o {
+		uint64_t id = 0;
+		uint64_t source_id = 0; ///< id of last writer/creator
 		vk::Format format;
 		void (*onClear)(void* clear_data) = nullptr;
 	};

@@ -10,6 +10,18 @@
 #include <iomanip>
 #include "vulkan/vulkan.hpp"
 
+// ----------------------------------------------------------------------
+// FNV hash using constexpr recursion over char string length (executes at compile time)
+inline uint64_t constexpr const_char_hash64( const char *input ) noexcept {
+	return *input ? ( 0x100000001b3 * const_char_hash64( input + 1 ) ) ^ static_cast<uint64_t>( *input ) : 0xcbf29ce484222325;
+}
+
+inline uint32_t constexpr const_char_hash32( const char *input ) noexcept {
+	return *input ? ( 0x1000193 * const_char_hash32( input + 1 ) ) ^ static_cast<uint32_t>( *input ) : 0x811c9dc5;
+}
+
+// ----------------------------------------------------------------------
+
 using image_attachment_t = le_rendergraph_api::image_attachment_info_o;
 
 struct le_renderpass_o {
@@ -20,15 +32,12 @@ struct le_renderpass_o {
 	// if it were CLEAR, we must provide a clear
 	// value.
 
-	using imageAttachments_t = std::unordered_map<std::string, image_attachment_t>;
-
-	std::string        name;
-	imageAttachments_t inputAttachments;
-	imageAttachments_t outputAttachments;
-	imageAttachments_t inputTextureAttachments;
-
-	std::unordered_map<std::string, image_attachment_t> inputBufferAttachments;
-	std::unordered_map<std::string, image_attachment_t> outputBufferAttachments;
+	uint64_t                        id;
+	std::vector<image_attachment_t> inputAttachments;
+	std::vector<image_attachment_t> outputAttachments;
+	std::vector<image_attachment_t> inputTextureAttachments;
+//	std::vector<buffer_attachment_t> inputBufferAttachments;
+//	std::vector<buffer_attachment_t> outputBufferAttachments;
 
 	le_rendergraph_api::pfn_renderpass_setup_t callbackSetup = nullptr;
 
@@ -64,7 +73,7 @@ struct le_graph_builder_o {
 
 static le_renderpass_o *renderpass_create(const char* renderpass_name) {
 	auto self = new le_renderpass_o();
-	self->name = std::string(renderpass_name);
+	self->id = const_char_hash64(renderpass_name);
 	return self;
 }
 
@@ -82,14 +91,20 @@ static void renderpass_set_setup_fun(le_renderpass_o*self, le_rendergraph_api::p
 
 // ----------------------------------------------------------------------
 
-static void renderpass_add_input_attachment(le_renderpass_o*self, const char* name_, le_rendergraph_api::image_attachment_info_o* info){
-	self->inputAttachments.emplace(name_, *info);
+static void renderpass_add_input_attachment(le_renderpass_o*self, const char* name_, le_rendergraph_api::image_attachment_info_o* info_){
+	auto info = *info_;
+	info.id = const_char_hash64(name_);
+	self->inputAttachments.emplace_back(std::move(info));
 }
 
 // ----------------------------------------------------------------------
 
-static void renderpass_add_output_attachment(le_renderpass_o*self, const char* name_, le_rendergraph_api::image_attachment_info_o* info){
-	self->outputAttachments.emplace(name_, *info);
+static void renderpass_add_output_attachment(le_renderpass_o*self, const char* name_, le_rendergraph_api::image_attachment_info_o* info_){
+	// TODO: annotate the current renderpass to name of output attachment
+	auto info = *info_;
+	info.id = const_char_hash64(name_);
+	info.source_id = self->id;
+	self->outputAttachments.emplace_back(std::move(info));
 }
 
 // ----------------------------------------------------------------------
@@ -146,6 +161,7 @@ static void render_module_build_graph(le_render_module_o* self, le_graph_builder
 
 };
 
+
 // ----------------------------------------------------------------------
 
 static le_graph_builder_o* graph_builder_create(le_backend_vk_device_o* device){
@@ -167,54 +183,116 @@ static void graph_builder_add_renderpass(le_graph_builder_o* self, le_renderpass
 
 // ----------------------------------------------------------------------
 
-static bool traverse_graph( uint64_t                                      execution_priority,
-                            const std::vector<le_renderpass_o>::iterator &begin_range,
-                            const std::vector<le_renderpass_o>::iterator &end_range,
-                            std::string                                   outputSignature ) {
+//static bool traverse_graph( uint64_t                                      execution_priority,
+//                            const std::vector<le_renderpass_o>::iterator &begin_range,
+//                            const std::vector<le_renderpass_o>::iterator &end_range,
+//                            uint64_t                                      output_attachment_id) {
 
-	auto source_pass = std::find_if( begin_range, end_range, [&outputSignature]( const le_renderpass_o &pass ) -> bool {
-		return ( pass.outputAttachments.count( outputSignature ) == 1 );
-	} );
+//	// find source pass which provides us with an output matching our input
+//	auto source_pass = std::find_if( begin_range, end_range, [output_attachment_id]( const le_renderpass_o &pass ) -> bool {
+//		bool result = false;
+//		for (auto &a : pass.outputAttachments){
+//			if (a.id == output_attachment_id){
+//				result = true;
+//				break;
+//			}
+//		}
+//		return result;
+//	} );
 
-	// If an attachment is read/write, the affected renderpass must let other renderpasses with the
-	// same priority read first.
+//	// TODO: If an attachment is read/write, the affected renderpass must let other renderpasses with the
+//	// same priority read first.
 
-	if (source_pass != end_range){
-		source_pass->graphInfo.execution_order = std::max(execution_priority, source_pass->graphInfo.execution_order);
-		auto & inputAttachments = source_pass->inputAttachments;
-		bool result = true;
-		for (auto & i : inputAttachments){
-			result &= traverse_graph(execution_priority + 1, source_pass+1, end_range, i.first);
+//	if (source_pass != end_range){
+//		source_pass->graphInfo.execution_order = std::max(execution_priority, source_pass->graphInfo.execution_order);
+//		auto & inputAttachments = source_pass->inputAttachments;
+//		bool result = true;
+//		for (auto & i : inputAttachments){
+//			// depth-first recursive search
+//			result &= traverse_graph(execution_priority + 1, source_pass+1, end_range, i.first);
+//		}
+//		return result;
+//	} else {
+//		std::cerr << "could not find prior matching output attachment: '" << outputSignature << "' for pass: " << (begin_range-1)->name << std::endl;
+//		return false;
+//	}
+//}
+
+static inline std::vector<le_renderpass_o>::iterator find_first_pass_matching_output(
+    std::vector<le_renderpass_o>::iterator start_range,
+    std::vector<le_renderpass_o>::iterator end_range,
+    uint64_t                               signature ) noexcept {
+	auto result = std::find_if( start_range, end_range, [signature]( const le_renderpass_o &rp ) {
+		bool was_found = false;
+		for ( auto outputs : rp.outputAttachments ) {
+			if ( outputs.id == signature ) {
+				was_found = true;
+				break;
+			}
 		}
-		return result;
-	} else {
-		std::cerr << "could not find prior matching output attachment: '" << outputSignature << "' for pass: " << (begin_range-1)->name << std::endl;
-		return false;
-	}
+		return was_found;
+	} );
+	return result;
 }
 
 // ----------------------------------------------------------------------
 
 // re-order renderpasses in topological order, based
 // on graph dependencies
-static void graph_builder_order_passes(std::vector<le_renderpass_o>& passes){
+static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 
-	std::string outputSignature = "backbuffer";
+	uint64_t backbufferSignature = const_char_hash64( "backbuffer" );
 
 	// we can only look for earlier passes for dependencies
-
 	// find last pass writing to backbuffer
 
-	std::reverse(passes.begin(),passes.end());
+	std::reverse( passes.begin(), passes.end() );
 
-	bool tree_valid = traverse_graph(0, passes.begin(), passes.end(), "backbuffer");
+	// for each pass, resolve attachments
 
-	if (!tree_valid){
-		std::cerr << "tree not valid" << std::endl;
+	/*
+
+  we use rendermodule to have basic ordering for render passes.
+
+  this allows us to look up sources for inputs based on renderpasses which have been submitted earlier.
+
+  each input resolves to the first matching output from an earlier renderpass.
+
+*/
+
+	// a list of all image resources
+	std::vector<image_attachment_t> image;
+
+	for (auto &p: passes){
+
+		// look up from list of images if this id is already 
+		// defined.
+		for (auto &i : p.inputAttachments){
+		}
+		
+		
+		for (auto &o : p.outputAttachments){
+			// we know these are unique. 
+			image.push_back(o);
+		}
+
 	}
 
-	// with this pass, list all inputs
-	// for each input, find last pass writing to this input
+
+	std::ostringstream msg;
+
+	msg << "render graph: " << std::endl;
+	for ( const auto &pass : passes ) {
+		msg << "renderpass: " << std::setw( 15 ) << pass.id << ", order: " << pass.graphInfo.execution_order << std::endl;
+
+		for (const auto & attachment: pass.inputAttachments){
+			msg << "in : " << std::setw(32) << std::hex << attachment.id << ":" << attachment.source_id << std::endl;
+		}
+		for (const auto & attachment: pass.outputAttachments){
+			msg << "out: " << std::setw(32) << std::hex << attachment.id << ":" << attachment.source_id << std::endl;
+		}
+	}
+	std::cout << msg.str() << std::endl;
 
 }
 

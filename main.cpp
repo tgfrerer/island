@@ -118,13 +118,13 @@ int main( int argc, char const *argv[] ) {
 
 					le::RenderPass renderPassForward( "forward" );
 					renderPassForward.setSetupCallback( []( auto pRp, auto pDevice ) {
-						auto rp     = le::RenderPassRef{pRp};
+						auto rp = le::RenderPassRef{pRp};
 
 						le::ImageAttachmentInfo colorAttachmentInfo;
 						colorAttachmentInfo.format  = vk::Format::eR8G8B8A8Unorm;
 						colorAttachmentInfo.onClear = []( void *clearVal ) {
 							auto clear = reinterpret_cast<vk::ClearValue *>( clearVal );
-							clear->setColor( vk::ClearColorValue( std::array<float,4>{{1.f, 0.f, 0.f, 1.f}}) );
+							clear->setColor( vk::ClearColorValue( std::array<float, 4>{{1.f, 0.f, 0.f, 1.f}} ) );
 						};
 
 						rp.addOutputAttachment( "backbuffer", &colorAttachmentInfo );
@@ -137,15 +137,16 @@ int main( int argc, char const *argv[] ) {
 						auto device = le::Device{pDevice};
 
 						le::ImageAttachmentInfo colorAttachmentInfo;
-						colorAttachmentInfo.format  = vk::Format::eR8G8B8A8Unorm;
+						colorAttachmentInfo.format = vk::Format::eR8G8B8A8Unorm;
 
 						le::ImageAttachmentInfo depthAttachmentInfo;
-						depthAttachmentInfo.format  = device.getDefaultDepthStencilFormat();
+						depthAttachmentInfo.format = device.getDefaultDepthStencilFormat();
 
-						rp.addInputAttachment("depth", &depthAttachmentInfo);
-						rp.addInputAttachment("backbuffer", &colorAttachmentInfo);
+						rp.addInputAttachment( "depth", &depthAttachmentInfo );
+						rp.addInputAttachment( "backbuffer", &colorAttachmentInfo );
 
 						rp.addOutputAttachment( "backbuffer", &colorAttachmentInfo );
+						rp.addOutputAttachment( "depth", &depthAttachmentInfo );
 						return true;
 					} );
 
