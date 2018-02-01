@@ -20,6 +20,12 @@ inline uint32_t constexpr const_char_hash32( const char *input ) noexcept {
 	return *input ? ( 0x1000193 * const_char_hash32( input + 1 ) ) ^ static_cast<uint32_t>( *input ) : 0x811c9dc5;
 }
 
+struct PassthroughHash {
+	size_t operator()( const uint64_t &key_ ) const noexcept {
+		return key_;
+	}
+};
+
 // ----------------------------------------------------------------------
 
 using image_attachment_t = le_rendergraph_api::image_attachment_info_o;
@@ -237,9 +243,7 @@ static inline std::vector<le_renderpass_o>::iterator find_first_pass_matching_ou
 
 // ----------------------------------------------------------------------
 
-// re-order renderpasses in topological order, based
-// on graph dependencies
-static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
+static void graph_builder_resolve_attachment_ids(std::vector<le_renderpass_o>& passes){
 
 	// Since rendermodule gives us a pre-sorted list of renderpasses,
 	// we use this to resolve attachment aliases.
@@ -248,8 +252,8 @@ static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 	// with its writer's id. Eventually, we'll find a way to re-use
 	// attachments which may be aliased.
 
-	std::unordered_map<uint64_t, image_attachment_t> imageInputAttachments;
-	std::unordered_map<uint64_t, image_attachment_t> imageOutputAttachments;
+	std::unordered_map<uint64_t, image_attachment_t, PassthroughHash> imageInputAttachments;
+	std::unordered_map<uint64_t, image_attachment_t, PassthroughHash> imageOutputAttachments;
 
 	for ( auto &p : passes ) {
 
@@ -272,6 +276,17 @@ static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 			imageOutputAttachments[ o.id ] = o;
 		}
 	}
+}
+
+// ----------------------------------------------------------------------
+
+// re-order renderpasses in topological order, based
+// on graph dependencies
+static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
+
+	graph_builder_resolve_attachment_ids(passes);
+
+	//traverse_passes(passes.begin(),passes.end(), const_char_hash64("backbuffer"));
 
 	// TODO: check if all resources have an associated source id, because
 	// resources without source ID are unresolved.
