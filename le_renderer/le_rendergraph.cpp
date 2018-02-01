@@ -241,59 +241,57 @@ static inline std::vector<le_renderpass_o>::iterator find_first_pass_matching_ou
 // on graph dependencies
 static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 
-	uint64_t backbufferSignature = const_char_hash64( "backbuffer" );
+	// Since rendermodule gives us a pre-sorted list of renderpasses,
+	// we use this to resolve attachment aliases.
+	// We can't render to the same attachment at the same time,
+	// which is why every output attachment initially gets tagged
+	// with its writer's id. Eventually, we'll find a way to re-use
+	// attachments which may be aliased.
 
-	// we can only look for earlier passes for dependencies
-	// find last pass writing to backbuffer
+	std::unordered_map<uint64_t, image_attachment_t> imageInputAttachments;
+	std::unordered_map<uint64_t, image_attachment_t> imageOutputAttachments;
 
-	std::reverse( passes.begin(), passes.end() );
+	for ( auto &p : passes ) {
 
-	// for each pass, resolve attachments
-
-	/*
-
-  we use rendermodule to have basic ordering for render passes.
-
-  this allows us to look up sources for inputs based on renderpasses which have been submitted earlier.
-
-  each input resolves to the first matching output from an earlier renderpass.
-
-*/
-
-	// a list of all image resources
-	std::vector<image_attachment_t> image;
-
-	for (auto &p: passes){
-
-		// look up from list of images if this id is already 
-		// defined.
-		for (auto &i : p.inputAttachments){
-		}
-		
-		
-		for (auto &o : p.outputAttachments){
-			// we know these are unique. 
-			image.push_back(o);
+		for ( auto &i : p.inputAttachments ) {
+			auto foundOutputIt = imageOutputAttachments.find( i.id );
+			if ( foundOutputIt != imageOutputAttachments.end() ) {
+				i.source_id = foundOutputIt->second.source_id;
+			}
 		}
 
+		for ( auto &i : p.inputTextureAttachments ) {
+			auto foundOutputIt = imageOutputAttachments.find( i.id );
+			if ( foundOutputIt != imageOutputAttachments.end() ) {
+				i.source_id = foundOutputIt->second.source_id;
+			}
+		}
+
+		// for all subsequent passes, replace any aliased attachments.
+		for ( auto &o : p.outputAttachments ) {
+			imageOutputAttachments[ o.id ] = o;
+		}
 	}
 
+	// TODO: check if all resources have an associated source id, because
+	// resources without source ID are unresolved.
+
+	// ----------| invariant: resources know their source id
 
 	std::ostringstream msg;
 
 	msg << "render graph: " << std::endl;
 	for ( const auto &pass : passes ) {
-		msg << "renderpass: " << std::setw( 15 ) << pass.id << ", order: " << pass.graphInfo.execution_order << std::endl;
+		msg << "renderpass: " << std::setw( 15 ) << std::hex << pass.id << ", order: " << pass.graphInfo.execution_order << std::endl;
 
-		for (const auto & attachment: pass.inputAttachments){
-			msg << "in : " << std::setw(32) << std::hex << attachment.id << ":" << attachment.source_id << std::endl;
+		for ( const auto &attachment : pass.inputAttachments ) {
+			msg << "in : " << std::setw( 32 ) << std::hex << attachment.id << ":" << attachment.source_id << std::endl;
 		}
-		for (const auto & attachment: pass.outputAttachments){
-			msg << "out: " << std::setw(32) << std::hex << attachment.id << ":" << attachment.source_id << std::endl;
+		for ( const auto &attachment : pass.outputAttachments ) {
+			msg << "out: " << std::setw( 32 ) << std::hex << attachment.id << ":" << attachment.source_id << std::endl;
 		}
 	}
 	std::cout << msg.str() << std::endl;
-
 }
 
 // ----------------------------------------------------------------------
@@ -332,4 +330,5 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_graph_builder_i.destroy        = graph_builder_destroy;
 	le_graph_builder_i.add_renderpass = graph_builder_add_renderpass;
 	le_graph_builder_i.build_graph    = graph_builder_build_graph;
+
 }
