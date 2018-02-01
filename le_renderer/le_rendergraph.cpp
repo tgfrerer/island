@@ -12,7 +12,7 @@
 
 
 // ----------------------------------------------------------------------
-// FNV hash using constexpr recursion over char string length (executes at compile time)
+// FNV hash using constexpr recursion over char string length (may execute at compile time)
 inline uint64_t constexpr const_char_hash64( const char *input ) noexcept {
 	return *input ? ( 0x100000001b3 * const_char_hash64( input + 1 ) ) ^ static_cast<uint64_t>( *input ) : 0xcbf29ce484222325;
 }
@@ -186,60 +186,6 @@ static void graph_builder_destroy(le_graph_builder_o* self){
 
 static void graph_builder_add_renderpass(le_graph_builder_o* self, le_renderpass_o* renderpass){
 	self->passes.emplace_back(*renderpass);
-}
-
-// ----------------------------------------------------------------------
-
-//static bool traverse_graph( uint64_t                                      execution_priority,
-//                            const std::vector<le_renderpass_o>::iterator &begin_range,
-//                            const std::vector<le_renderpass_o>::iterator &end_range,
-//                            uint64_t                                      output_attachment_id) {
-
-//	// find source pass which provides us with an output matching our input
-//	auto source_pass = std::find_if( begin_range, end_range, [output_attachment_id]( const le_renderpass_o &pass ) -> bool {
-//		bool result = false;
-//		for (auto &a : pass.outputAttachments){
-//			if (a.id == output_attachment_id){
-//				result = true;
-//				break;
-//			}
-//		}
-//		return result;
-//	} );
-
-//	// TODO: If an attachment is read/write, the affected renderpass must let other renderpasses with the
-//	// same priority read first.
-
-//	if (source_pass != end_range){
-//		source_pass->graphInfo.execution_order = std::max(execution_priority, source_pass->graphInfo.execution_order);
-//		auto & inputAttachments = source_pass->inputAttachments;
-//		bool result = true;
-//		for (auto & i : inputAttachments){
-//			// depth-first recursive search
-//			result &= traverse_graph(execution_priority + 1, source_pass+1, end_range, i.first);
-//		}
-//		return result;
-//	} else {
-//		std::cerr << "could not find prior matching output attachment: '" << outputSignature << "' for pass: " << (begin_range-1)->name << std::endl;
-//		return false;
-//	}
-//}
-
-static inline std::vector<le_renderpass_o>::iterator find_first_pass_matching_output(
-    std::vector<le_renderpass_o>::iterator start_range,
-    std::vector<le_renderpass_o>::iterator end_range,
-    uint64_t                               signature ) noexcept {
-	auto result = std::find_if( start_range, end_range, [signature]( const le_renderpass_o &rp ) {
-		bool was_found = false;
-		for ( auto outputs : rp.outputAttachments ) {
-			if ( outputs.id == signature ) {
-				was_found = true;
-				break;
-			}
-		}
-		return was_found;
-	} );
-	return result;
 }
 
 // ----------------------------------------------------------------------
