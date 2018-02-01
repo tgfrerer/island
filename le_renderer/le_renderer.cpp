@@ -518,5 +518,5 @@ void register_le_renderer_api( void *api_ ) {
 	// is now set to be loaded dynamic.
 
 	//Registry::addApiDynamic<le_backend_vk_api>(true);
-	Registry::addApiStatic<le_rendergraph_api>();
+	Registry::addApiStatic<le_rendergraph_api>(true);
 }

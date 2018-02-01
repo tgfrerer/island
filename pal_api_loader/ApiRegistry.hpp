@@ -74,11 +74,16 @@ class Registry {
 	}
 
 	template <typename T>
-	static T *addApiStatic() {
+	static T *addApiStatic(bool force = false) {
 		static auto api = getApi<T>();
 		// We assume failed map lookup returns a pointer which is
 		// initialised to be a nullptr.
-		if ( api == nullptr ) {
+		if ( api == nullptr || force == true) {
+			// in case the api is a sub-module, it must be forced to update
+			// as the main library from which it comes will have changed.
+			if (api != nullptr){
+				delete api;
+			}
 			api = new T();
 			( *getPointerToStaticRegFun<T>() )( api );
 			pal_registry_set_api( getId<T>(), api );
