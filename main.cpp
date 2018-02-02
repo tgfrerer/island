@@ -106,10 +106,10 @@ int main( int argc, char const *argv[] ) {
 
 						le::ImageAttachmentInfo depthAttachmentInfo;
 						depthAttachmentInfo.format  = device.getDefaultDepthStencilFormat();
-						depthAttachmentInfo.onClear = []( void *clearVal ) {
-							auto clear = reinterpret_cast<vk::ClearValue *>( clearVal );
-							clear->setDepthStencil( vk::ClearDepthStencilValue( 1.f, 0 ) );
-						};
+//						depthAttachmentInfo.onClear = []( void *clearVal ) {
+//							auto clear = reinterpret_cast<vk::ClearValue *>( clearVal );
+//							clear->setDepthStencil( vk::ClearDepthStencilValue( 1.f, 0 ) );
+//						};
 
 						rp.addOutputAttachment( "depth", &depthAttachmentInfo );
 
@@ -123,15 +123,15 @@ int main( int argc, char const *argv[] ) {
 
 						le::ImageAttachmentInfo colorAttachmentInfo;
 						colorAttachmentInfo.format  = vk::Format::eR8G8B8A8Unorm;
-						colorAttachmentInfo.onClear = []( void *clearVal ) {
-							auto clear = reinterpret_cast<vk::ClearValue *>( clearVal );
-							clear->setColor( vk::ClearColorValue( std::array<float, 4>{{1.f, 0.f, 0.f, 1.f}} ) );
-						};
+//						colorAttachmentInfo.onClear = []( void *clearVal ) {
+//							auto clear = reinterpret_cast<vk::ClearValue *>( clearVal );
+//							clear->setColor( vk::ClearColorValue( std::array<float, 4>{{1.f, 0.f, 0.f, 1.f}} ) );
+//						};
 
 						le::ImageAttachmentInfo depthAttachmentInfo;
 						depthAttachmentInfo.format = device.getDefaultDepthStencilFormat();
 
-						rp.addInputAttachment( "depth", &depthAttachmentInfo );
+						//rp.addInputAttachment( "depth", &depthAttachmentInfo );
 
 						rp.addOutputAttachment( "backbuffer", &colorAttachmentInfo );
 						return true;
