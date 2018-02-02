@@ -10,12 +10,26 @@
 #include <iomanip>
 #include "vulkan/vulkan.hpp"
 
+using image_attachment_t = le_rendergraph_api::image_attachment_info_o;
 
 // ----------------------------------------------------------------------
 // FNV hash using constexpr recursion over char string length (may execute at compile time)
 inline uint64_t constexpr const_char_hash64( const char *input ) noexcept {
 	return *input ? ( 0x100000001b3 * const_char_hash64( input + 1 ) ) ^ static_cast<uint64_t>( *input ) : 0xcbf29ce484222325;
 }
+
+// FNV hash using constexpr recursion over char string length (may execute at compile time)
+template <typename T>
+inline uint64_t fnv_hash64( const T &input_) noexcept {
+	const char* input = reinterpret_cast<const char*>(&input_);
+	const size_t num_bytes = sizeof(T);
+	size_t hash = 0xcbf29ce484222325;
+	for (const char *p = input; p != input + num_bytes; ++p){
+		hash = ( 0x100000001b3 * hash ) ^ static_cast<size_t>( *p );
+	}
+	return hash;
+}
+
 
 inline uint32_t constexpr const_char_hash32( const char *input ) noexcept {
 	return *input ? ( 0x1000193 * const_char_hash32( input + 1 ) ) ^ static_cast<uint32_t>( *input ) : 0x811c9dc5;
@@ -29,7 +43,6 @@ struct IdentityHash {
 
 // ----------------------------------------------------------------------
 
-using image_attachment_t = le_rendergraph_api::image_attachment_info_o;
 
 struct le_renderpass_o {
 
@@ -298,15 +311,97 @@ static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 
 static void graph_builder_build_graph(le_graph_builder_o* self){
 
-	// find corresponding output for each input attachment,
-	// and tag input with output id
+	// Find corresponding output for each input attachment,
+	// and tag input with output id, as dependencies are
+	// declared using names rather than directly established
 	graph_builder_resolve_attachment_ids(self->passes);
 
-	// first, we must establish the sort order
+	// First, we must establish a toplogical sort order
+	// so that passes which produce resources for other
+	// passes are executed *before* their dependencies
 	graph_builder_order_passes(self->passes);
 
-	// we should be able to prune any passes which have execution order 0
+	// NOTE: We should be able to prune any passes which have execution order 0
 	// as they don't contribute to our final pass(es).
+
+
+//	std::unordered_map<uint64_t, std::vector<uint64_t>>	resourcesWrittenIn;
+
+//	for (auto &p : self->passes){
+//		for (auto o: p.outputAttachments){
+//			resourcesWrittenIn[o.id].emplace_back(o.source_id);
+//		}
+//	}
+
+//	std::unordered_map<uint64_t, std::vector<uint64_t>>	resourcesReadIn;
+
+//	for (auto &p : self->passes){
+//		for (auto i: p.inputAttachments){
+//			resourcesReadIn[i.id].emplace_back(p.id);
+//		}
+//	}
+
+//	std::ostringstream msg;
+
+//	msg << "Write table: " << std::endl;
+//	for ( const auto &resource : resourcesWrittenIn ) {
+//		msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << std::endl;
+
+//		for ( const auto &resource_version: resource.second) {
+//			msg << "needs flush: " << std::setw( 32 ) << std::hex << resource_version << std::endl;
+//		}
+
+//	}
+
+//	msg << "Read table: " << std::endl;
+//	for ( const auto &resource : resourcesReadIn ) {
+//		msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << std::endl;
+
+//		for ( const auto &resource_version: resource.second) {
+//			msg << "needs invalidate: " << std::setw( 32 ) << std::hex << resource_version << std::endl;
+//		}
+
+//	}
+
+//	std::cout << msg.str() << std::endl;
+
+	// todo: create a list of unique resources so that resource manager knows what it must provide for this
+	// frame - these must be allocated if not yet present.
+
+	/*
+
+	to be able to fully compare inputs we need a hashing function which takes into account id, source_id and extent_in_swapchain_units
+	- but: if we attach callbacks to image attachments this will impact on their hash signature.
+	- this means, when we resolve attachments, we must also copy over callbacks...
+
+	*/
+
+	std::unordered_map<size_t, image_attachment_t, IdentityHash> imageResources;
+
+	for (auto & p: self->passes){
+		for (auto & i:p.inputAttachments){
+			imageResources.emplace(fnv_hash64(i),i);
+		}
+		for (auto & i:p.inputTextureAttachments){
+			imageResources.emplace(fnv_hash64(i),i);
+		}
+		for (auto & o:p.outputAttachments){
+			imageResources.emplace(fnv_hash64(o),o);
+		}
+	}
+
+	    std::ostringstream msg;
+
+		msg << "Resource table: " << std::endl;
+		for ( const auto &resource : imageResources ) {
+			msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << " > "
+			    << resource.second.id << ":"
+			    << resource.second.source_id
+			    << ", extent_factor: " << std::dec << resource.second.extent_in_backbuffer_units
+			    << ", format: " << vk::to_string( resource.second.format ) << std::endl;
+		}
+
+		std::cout << msg.str() << std::endl;
 
 }
 
