@@ -20,7 +20,6 @@ struct le_backend_vk_device_o;
 
 namespace vk {
     enum class Format; // forward declaration
-
 }
 
 struct le_rendergraph_api {
@@ -28,10 +27,11 @@ struct le_rendergraph_api {
 	static constexpr auto pRegFun  = register_le_rendergraph_api;
 
 	struct image_attachment_info_o {
-		uint64_t id = 0;
-		uint64_t source_id = 0; ///< id of last writer/creator
+		uint64_t   id        = 0; // hash of name given to attachment
+		uint64_t   source_id = 0; // hash name given to last writer/creator
+		float      extent_in_backbuffer_units  = 1;
 		vk::Format format;
-		void (*onClear)(void* clear_data) = nullptr;
+		void ( *onClear )( void *clear_data ) = nullptr;
 	};
 
 	typedef bool(*pfn_renderpass_setup_t)(le_renderpass_o* obj, le_backend_vk_device_o *);
