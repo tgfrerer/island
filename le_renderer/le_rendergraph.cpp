@@ -211,7 +211,7 @@ static void graph_builder_resolve_attachment_ids(std::vector<le_renderpass_o>& p
 	// We can't render to the same attachment at the same time,
 	// which is why every output attachment initially gets tagged
 	// with its writer's id. Eventually, we'll find a way to re-use
-	// attachments which may be aliased.
+	// (=alias) attachments.
 
 	std::unordered_map<uint64_t, image_attachment_t, IdentityHash> imageInputAttachments;
 	std::unordered_map<uint64_t, image_attachment_t, IdentityHash> imageOutputAttachments;
@@ -257,7 +257,7 @@ static void graph_builder_traverse_passes( const std::unordered_map<uint64_t, le
 	}
 
 	// as each input tells us its source renderpass,
-	// we can look it up by id
+	// we can look up the provider pass for each source by id
 	auto &sourcePass = passes.at( sourceRenderpassId );
 
 	// We want the maximum edge distance (one recursion equals one edge) from the root node
@@ -267,6 +267,10 @@ static void graph_builder_traverse_passes( const std::unordered_map<uint64_t, le
 
 	for ( auto &inAttachment : sourcePass->inputAttachments ) {
 		graph_builder_traverse_passes( passes, inAttachment.source_id, recursion_depth + 1 );
+	}
+
+	for (auto &texAttachment : sourcePass->inputTextureAttachments){
+		graph_builder_traverse_passes( passes, texAttachment.source_id, recursion_depth + 1 );
 	}
 }
 
@@ -325,52 +329,57 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 	// as they don't contribute to our final pass(es).
 
 
-//	std::unordered_map<uint64_t, std::vector<uint64_t>>	resourcesWrittenIn;
+	// for each resource, add sync marker before read
+	// for each resource, add marker object after write
 
-//	for (auto &p : self->passes){
-//		for (auto o: p.outputAttachments){
-//			resourcesWrittenIn[o.id].emplace_back(o.source_id);
-//		}
-//	}
 
-//	std::unordered_map<uint64_t, std::vector<uint64_t>>	resourcesReadIn;
 
-//	for (auto &p : self->passes){
-//		for (auto i: p.inputAttachments){
-//			resourcesReadIn[i.id].emplace_back(p.id);
-//		}
-//	}
+	std::unordered_map<uint64_t, std::vector<uint64_t>>	resourcesWrittenIn;
 
-//	std::ostringstream msg;
+	for (auto &p : self->passes){
+		for (auto o: p.outputAttachments){
+			resourcesWrittenIn[o.id].emplace_back(o.source_id);
+		}
+	}
 
-//	msg << "Write table: " << std::endl;
-//	for ( const auto &resource : resourcesWrittenIn ) {
-//		msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << std::endl;
+	std::unordered_map<uint64_t, std::vector<uint64_t>>	resourcesReadIn;
 
-//		for ( const auto &resource_version: resource.second) {
-//			msg << "needs flush: " << std::setw( 32 ) << std::hex << resource_version << std::endl;
-//		}
+	for (auto &p : self->passes){
+		for (auto i: p.inputAttachments){
+			resourcesReadIn[i.id].emplace_back(p.id);
+		}
+	}
 
-//	}
+	std::ostringstream msg;
 
-//	msg << "Read table: " << std::endl;
-//	for ( const auto &resource : resourcesReadIn ) {
-//		msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << std::endl;
+	msg << "Write table: " << std::endl;
+	for ( const auto &resource : resourcesWrittenIn ) {
+		msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << std::endl;
 
-//		for ( const auto &resource_version: resource.second) {
-//			msg << "needs invalidate: " << std::setw( 32 ) << std::hex << resource_version << std::endl;
-//		}
+		for ( const auto &resource_version: resource.second) {
+			msg << "write: " << std::setw( 32 ) << std::hex << resource_version << std::endl;
+		}
 
-//	}
+	}
 
-//	std::cout << msg.str() << std::endl;
+	msg << "Read table: " << std::endl;
+	for ( const auto &resource : resourcesReadIn ) {
+		msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << std::endl;
+
+		for ( const auto &resource_version: resource.second) {
+			msg << "read: " << std::setw( 32 ) << std::hex << resource_version << std::endl;
+		}
+
+	}
+
+	std::cout << msg.str() << std::endl;
 
 	// todo: create a list of unique resources so that resource manager knows what it must provide for this
 	// frame - these must be allocated if not yet present.
 
 	/*
 
-	to be able to fully compare inputs we need a hashing function which takes into account id, source_id and extent_in_swapchain_units
+	To be able to fully compare inputs we need a hashing function which takes into account id, source_id and extent_in_swapchain_units
 	- but: if we attach callbacks to image attachments this will impact on their hash signature.
 	- this means, when we resolve attachments, we must also copy over callbacks...
 
@@ -390,11 +399,10 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 		}
 	}
 
-	    std::ostringstream msg;
 
 		msg << "Resource table: " << std::endl;
 		for ( const auto &resource : imageResources ) {
-			msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << " > "
+			msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << " = "
 			    << resource.second.id << ":"
 			    << resource.second.source_id
 			    << ", extent_factor: " << std::dec << resource.second.extent_in_backbuffer_units
