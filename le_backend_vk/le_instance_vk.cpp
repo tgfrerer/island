@@ -66,7 +66,7 @@ static void create_debug_callback( le_backend_vk_instance_o *obj ) {
 	    .setPNext( nullptr )
 	    .setFlags( vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning )
 	    .setPfnCallback( debugCallback )
-	    .setPUserData( nullptr );
+	    .setPUserData( obj);
 
 	obj->debugCallback = obj->vkInstance.createDebugReportCallbackEXT( debugCallbackCreateInfo );
 }

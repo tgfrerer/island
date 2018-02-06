@@ -169,12 +169,12 @@ static void renderer_setup( le_renderer_o *self ) {
 		    .setDependencyFlags ( vk::DependencyFlagBits::eByRegion )
 		    ;
 		dependencies[1]
-		    .setSrcSubpass      ( 0 )                                     // producer (last possible subpass)
+		    .setSrcSubpass      ( 0 )                                     // producer (last possible subpass == subpass 1)
 		    .setDstSubpass      ( VK_SUBPASS_EXTERNAL )                   // consumer
 		    .setSrcStageMask    ( vk::PipelineStageFlagBits::eColorAttachmentOutput )
 		    .setDstStageMask    ( vk::PipelineStageFlagBits::eBottomOfPipe )
-		    .setSrcAccessMask   ( vk::AccessFlagBits::eColorAttachmentWrite )
-		    .setDstAccessMask   ( vk::AccessFlagBits::eMemoryRead )
+		    .setSrcAccessMask   ( vk::AccessFlagBits::eColorAttachmentWrite ) // this needs to be complete,
+		    .setDstAccessMask   ( vk::AccessFlagBits::eMemoryRead )			  // before this can begin
 		    .setDependencyFlags ( vk::DependencyFlagBits::eByRegion )
 		    ;
 
@@ -349,7 +349,7 @@ static const FrameData::State& renderer_process_frame( le_renderer_o *self, size
 	}
 
 	std::array<vk::ClearValue, 1> clearValues{
-		{vk::ClearColorValue( std::array<float, 4>{{1.f, 1.f, 0.0f, 1.f}} )}};
+		{vk::ClearColorValue( std::array<float, 4>{{0.f, 1.f, 0.0f, 1.f}} )}};
 
 	auto &cmd = cmdBufs.front();
 
@@ -398,7 +398,7 @@ static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex) {
 
 	frame.meta.time_dispatch_frame_start = std::chrono::high_resolution_clock::now();
 
-	std::array<::vk::PipelineStageFlags, 1> wait_dst_stage_mask = {::vk::PipelineStageFlagBits::eColorAttachmentOutput};
+	std::array<::vk::PipelineStageFlags, 1> wait_dst_stage_mask = {{::vk::PipelineStageFlagBits::eColorAttachmentOutput}};
 
 	vk::SubmitInfo submitInfo;
 	submitInfo
@@ -512,12 +512,6 @@ void register_le_renderer_api( void *api_ ) {
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
 
-	// TODO: check if this actually really does that it should
-	// this should force loading of dependencies if these are not loaded already.
-
-	// + this causes crashes if an api was loaded dynamic previously, and
-	// is now set to be loaded dynamic.
-
-	//Registry::addApiDynamic<le_backend_vk_api>(true);
+	// load dependent api - force re-gathering of function pointers
 	Registry::addApiStatic<le_rendergraph_api>(true);
 }

@@ -116,6 +116,7 @@ int main( int argc, char const *argv[] ) {
 						return true;
 					} );
 
+
 					le::RenderPass renderPassForward( "forward" );
 					renderPassForward.setSetupCallback( []( auto pRp, auto pDevice ) {
 						auto                    rp     = le::RenderPassRef{pRp};
