@@ -38,7 +38,7 @@ int main( int argc, char const *argv[] ) {
 
 	{
 
-		// NOTE: we need a way to easily add enabled device extensions
+		// NOTaccess_flags to easily add enabled device extensions
 		// and to add easily to requestedExtensions.
 
 		uint32_t numRequestedExtensions = 0;
@@ -105,17 +105,13 @@ int main( int argc, char const *argv[] ) {
 						auto device = le::Device{pDevice};
 
 						le::ImageAttachmentInfo depthAttachmentInfo;
-						depthAttachmentInfo.format  = device.getDefaultDepthStencilFormat();
-//						depthAttachmentInfo.onClear = []( void *clearVal ) {
-//							auto clear = reinterpret_cast<vk::ClearValue *>( clearVal );
-//							clear->setDepthStencil( vk::ClearDepthStencilValue( 1.f, 0 ) );
-//						};
+						depthAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
+						depthAttachmentInfo.format       = device.getDefaultDepthStencilFormat();
 
-						rp.addOutputAttachment( "depth", &depthAttachmentInfo );
+						rp.addImageAttachment( "depth", &depthAttachmentInfo );
 
 						return true;
 					} );
-
 
 					le::RenderPass renderPassForward( "forward" );
 					renderPassForward.setSetupCallback( []( auto pRp, auto pDevice ) {
@@ -124,17 +120,13 @@ int main( int argc, char const *argv[] ) {
 
 						le::ImageAttachmentInfo colorAttachmentInfo;
 						colorAttachmentInfo.format  = vk::Format::eR8G8B8A8Unorm;
-//						colorAttachmentInfo.onClear = []( void *user_data ) {
-//							auto clear = reinterpret_cast<vk::ClearValue *>( user_data );
-//							clear->setColor( vk::ClearColorValue( std::array<float, 4>{{1.f, 0.f, 0.f, 1.f}} ) );
-//						};
+						colorAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
 
-						le::ImageAttachmentInfo depthAttachmentInfo;
-						depthAttachmentInfo.format = device.getDefaultDepthStencilFormat();
+						// le::ImageAttachmentInfo depthAttachmentInfo;
+						// depthAttachmentInfo.format = device.getDefaultDepthStencilFormat();
+						// rp.addInputAttachment( "depth", &depthAttachmentInfo );
 
-						//rp.addInputAttachment( "depth", &depthAttachmentInfo );
-
-						rp.addOutputAttachment( "backbuffer", &colorAttachmentInfo );
+						rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
 						return true;
 					} );
 
@@ -145,15 +137,14 @@ int main( int argc, char const *argv[] ) {
 
 						le::ImageAttachmentInfo colorAttachmentInfo;
 						colorAttachmentInfo.format = vk::Format::eR8G8B8A8Unorm;
+						colorAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
 
 						le::ImageAttachmentInfo depthAttachmentInfo;
 						depthAttachmentInfo.format = device.getDefaultDepthStencilFormat();
+						depthAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
 
-						rp.addInputAttachment( "depth", &depthAttachmentInfo );
-						rp.addInputAttachment( "backbuffer", &colorAttachmentInfo );
-
-						rp.addOutputAttachment( "backbuffer", &colorAttachmentInfo );
-						rp.addOutputAttachment( "depth", &depthAttachmentInfo );
+						rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
+						rp.addImageAttachment( "depth", &depthAttachmentInfo );
 						return true;
 					} );
 

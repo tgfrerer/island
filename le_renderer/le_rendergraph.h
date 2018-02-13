@@ -21,19 +21,31 @@ struct le_backend_vk_device_o;
 namespace vk {
     enum class Format; // forward declaration
 	enum class Layout;
+	enum class AttachmentStoreOp;
+	enum class AttachmentLoadOp;
 }
 
 struct le_rendergraph_api {
 	static constexpr auto id       = "le_rendergraph";
 	static constexpr auto pRegFun  = register_le_rendergraph_api;
 
+	enum AccessFlagBits : uint8_t {
+		eRead      = 0x01,
+		eWrite     = 0x02,
+		eReadWrite = eRead | eWrite,
+	};
+
 	struct image_attachment_info_o {
-		uint64_t   id        = 0; // hash of name given to attachment
-		uint64_t   source_id = 0; // hash name given to last writer/creator
-		float      extent_in_backbuffer_units  = 1;
+
+		uint64_t   id           = 0; // hash name given to this attachment, based on name string
+		uint64_t   source_id    = 0; // hash name of writer/creator
+		uint8_t    access_flags = 0;
 		vk::Format format;
-		vk::Layout layout;
+		vk::Layout finalLayout;
+		vk::AttachmentLoadOp loadOp;
+		vk::AttachmentStoreOp storeOp;
 		void ( *onClear )( void *clear_data ) = nullptr;
+		char debugName[32];
 	};
 
 	typedef bool(*pfn_renderpass_setup_t)(le_renderpass_o* obj, le_backend_vk_device_o *);
@@ -43,8 +55,7 @@ struct le_rendergraph_api {
 		void             ( *destroy               ) (le_renderpass_o* obj);
 		void             ( *set_setup_fun         ) (le_renderpass_o* obj, pfn_renderpass_setup_t setup_fun );
 
-		void             ( *add_input_attachment  ) (le_renderpass_o* obj, const char*, image_attachment_info_o* info);
-		void             ( *add_output_attachment ) (le_renderpass_o* obj, const char*, image_attachment_info_o* info);
+		void             ( *add_image_attachment  ) (le_renderpass_o* obj, const char*, image_attachment_info_o* info);
 	};
 
 	struct rendermodule_interface_t {
@@ -73,7 +84,8 @@ struct le_rendergraph_api {
 
 namespace le {
 
-using ImageAttachmentInfo = le_rendergraph_api::image_attachment_info_o ;
+using ImageAttachmentInfo = le_rendergraph_api::image_attachment_info_o;
+using AccessFlagBits      = le_rendergraph_api::AccessFlagBits;
 
 class RenderPass {
 	const le_rendergraph_api &                        rendergraphApiI = *Registry::getApi<le_rendergraph_api>();
@@ -116,15 +128,11 @@ class RenderPassRef {
 		return self;
 	}
 
-	RenderPassRef &addInputAttachment( const char *name_,  le_rendergraph_api::image_attachment_info_o* info ) {
-		renderpassI.add_input_attachment( self, name_, info );
+	RenderPassRef &addImageAttachment( const char *name_,  le_rendergraph_api::image_attachment_info_o* info ) {
+		renderpassI.add_image_attachment( self, name_, info );
 		return *this;
 	}
 
-	RenderPassRef &addOutputAttachment( const char *name_, le_rendergraph_api::image_attachment_info_o* info ) {
-		renderpassI.add_output_attachment( self, name_, info );
-		return *this;
-	}
 };
 
 // ----------------------------------------------------------------------

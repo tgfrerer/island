@@ -47,22 +47,6 @@ struct IdentityHash {
 
 // ----------------------------------------------------------------------
 
-struct image_attachment_state {
-	enum class SetupBehaviour : uint8_t {
-		eReadOnly         = 0x0,
-		eDiscardThenWrite = 0x1,
-		eLoadThenWrite    = 0x2,
-		eClearThenWrite   = 0x4,
-	};
-	uint64_t        id;
-	bool            transient = false; // if only used in one Renderpass, and not Store
-	vk::Extent2D    mExtent;           // const
-	vk::ImageLayout mLayout           = vk::ImageLayout::eUndefined;
-	vk::AccessFlags mSrcAccessFlags  = {};
-	vk::AccessFlags mDstAccessFlags = {};
-	SetupBehaviour  mSetupBehaviour   = SetupBehaviour::eDiscardThenWrite;
-};
-
 struct le_renderpass_o {
 
 	// For each output attachment, we must know
@@ -72,9 +56,9 @@ struct le_renderpass_o {
 	// value.
 
 	uint64_t                        id;
-	std::vector<image_attachment_t> inputAttachments;
-	std::vector<image_attachment_t> inputTextureAttachments;
-	std::vector<image_attachment_t> outputAttachments;
+
+	std::vector<image_attachment_t> imageAttachments;
+
 //	std::vector<buffer_attachment_t> inputBufferAttachments;
 //	std::vector<buffer_attachment_t> outputBufferAttachments;
 
@@ -130,21 +114,32 @@ static void renderpass_set_setup_fun(le_renderpass_o*self, le_rendergraph_api::p
 
 // ----------------------------------------------------------------------
 
-static void renderpass_add_input_attachment(le_renderpass_o*self, const char* name_, le_rendergraph_api::image_attachment_info_o* info_){
-	auto info = *info_;
-	info.id = const_char_hash64(name_);
-	self->inputAttachments.emplace_back(std::move(info));
-}
-
-// ----------------------------------------------------------------------
-
-static void renderpass_add_output_attachment(le_renderpass_o*self, const char* name_, le_rendergraph_api::image_attachment_info_o* info_){
+static void renderpass_add_image_attachment(le_renderpass_o*self, const char* name_, le_rendergraph_api::image_attachment_info_o* info_){
 	// TODO: annotate the current renderpass to name of output attachment
 	auto info = *info_;
 	info.id = const_char_hash64(name_);
-	info.source_id = self->id;
-	self->outputAttachments.emplace_back(std::move(info));
+
+	if ( info.access_flags == le::AccessFlagBits::eReadWrite ) {
+		info.loadOp  = vk::AttachmentLoadOp::eLoad;
+		info.storeOp = vk::AttachmentStoreOp::eStore;
+	} else if ( info.access_flags & le::AccessFlagBits::eWrite ) {
+		// write-only means clear before -- TODO: we need to check that there is a clear callback, though.
+		info.loadOp  = vk::AttachmentLoadOp::eClear;
+		info.storeOp = vk::AttachmentStoreOp::eStore;
+	} else if ( info.access_flags & le::AccessFlagBits::eRead ) {
+		// TODO: we need to make sure to distinguish between image attachments and texture attachments
+		info.loadOp  = vk::AttachmentLoadOp::eLoad;
+		info.storeOp = vk::AttachmentStoreOp::eDontCare;
+	} else {
+		info.loadOp  = vk::AttachmentLoadOp::eDontCare;
+		info.storeOp = vk::AttachmentStoreOp::eDontCare;
+	}
+
+	strncpy( info.debugName, name_, sizeof(info.debugName));
+
+	self->imageAttachments.emplace_back(std::move(info));
 }
+
 
 // ----------------------------------------------------------------------
 
@@ -223,41 +218,38 @@ static void graph_builder_add_renderpass(le_graph_builder_o* self, le_renderpass
 // ----------------------------------------------------------------------
 /// \brief find corresponding output for each input attachment,
 /// and tag input with output id
-static void graph_builder_resolve_attachment_ids(std::vector<le_renderpass_o>& passes){
+static void graph_builder_resolve_attachment_ids( std::vector<le_renderpass_o> &passes ) {
 
-	// Since rendermodule gives us a pre-sorted list of renderpasses,
-	// we use this to resolve attachment aliases.
-	// We can't render to the same attachment at the same time,
-	// which is why every output attachment initially gets tagged
-	// with its writer's id. Eventually, we'll find a way to re-use
-	// (=alias) attachments.
+	// Rendermodule gives us a pre-sorted list of renderpasses,
+	// we use this to resolve attachment aliases. Since Rendermodule is a linear sequence,
+	// this means that dependencies for resources are well-defined. It's impossible for
+	// two renderpasses using the same resource not to have a clearly defined priority, as
+	// the first submitted renderpasses of the two will get priority.
 
-	std::unordered_map<uint64_t, image_attachment_t, IdentityHash> imageInputAttachments;
-	std::unordered_map<uint64_t, image_attachment_t, IdentityHash> imageOutputAttachments;
+	// map from output id -> source id
+	std::unordered_map<uint64_t, uint64_t, IdentityHash> attachmentTable;
 
-	// we go through passes in module submission order,
-	// so that outputs will match later inputs.
-	for ( auto &p : passes ) {
+	// We go through passes in module submission order, so that outputs will match later inputs.
+	for ( auto &pass : passes ) {
 
-		for ( auto &i : p.inputAttachments ) {
-			auto foundOutputIt = imageOutputAttachments.find( i.id );
-			if ( foundOutputIt != imageOutputAttachments.end() ) {
-				i.source_id = foundOutputIt->second.source_id;
-			}
-		}
-
-		for ( auto &i : p.inputTextureAttachments ) {
-			auto foundOutputIt = imageOutputAttachments.find( i.id );
-			if ( foundOutputIt != imageOutputAttachments.end() ) {
-				i.source_id = foundOutputIt->second.source_id;
+		// We must first look if any of our READ attachments are already present in the attachment table.
+		// If so, we update source ids (from table) for each attachment we found.
+		for ( auto &attachment : pass.imageAttachments ) {
+			if ( attachment.access_flags & le::AccessFlagBits::eRead ) {
+				auto foundOutputIt = attachmentTable.find( attachment.id );
+				if ( foundOutputIt != attachmentTable.end() ) {
+					attachment.source_id = foundOutputIt->second;
+				}
 			}
 		}
 
 		// Outputs from current pass overwrite any cached outputs with same name:
 		// later inputs with same name will then resolve to the latest version
 		// of an output with a particular name.
-		for ( auto &o : p.outputAttachments ) {
-			imageOutputAttachments[ o.id ] = o;
+		for ( auto &attachment : pass.imageAttachments ) {
+			if ( attachment.access_flags & le::AccessFlagBits::eWrite ) {
+				attachmentTable[ attachment.id ] = pass.id;
+			}
 		}
 	}
 
@@ -288,13 +280,12 @@ static void graph_builder_traverse_passes( const std::unordered_map<uint64_t, le
 	// even resources which have a shorter path.
 	sourcePass->graphInfo.execution_order = std::max( recursion_depth, sourcePass->graphInfo.execution_order );
 
-	for ( auto &inAttachment : sourcePass->inputAttachments ) {
-		graph_builder_traverse_passes( passes, inAttachment.source_id, recursion_depth + 1 );
+	for ( auto &attachment: sourcePass->imageAttachments ) {
+		if (attachment.access_flags & le::AccessFlagBits::eRead){
+			graph_builder_traverse_passes( passes, attachment.source_id, recursion_depth + 1 );
+		}
 	}
 
-	for (auto &texAttachment : sourcePass->inputTextureAttachments){
-		graph_builder_traverse_passes( passes, texAttachment.source_id, recursion_depth + 1 );
-	}
 }
 
 // ----------------------------------------------------------------------
@@ -324,11 +315,14 @@ static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 	for ( const auto &pass : passes ) {
 		msg << "renderpass: " << std::setw( 15 ) << std::hex << pass.id << ", order: " << pass.graphInfo.execution_order << std::endl;
 
-		for ( const auto &attachment : pass.inputAttachments ) {
-			msg << "in : " << std::setw( 32 ) << std::hex << attachment.id << ":" << attachment.source_id << std::endl;
-		}
-		for ( const auto &attachment : pass.outputAttachments ) {
-			msg << "out: " << std::setw( 32 ) << std::hex << attachment.id << ":" << attachment.source_id << std::endl;
+		for ( const auto &attachment : pass.imageAttachments ) {
+			if (attachment.access_flags & le::AccessFlagBits::eRead){
+				msg << "r";
+			}
+			if (attachment.access_flags & le::AccessFlagBits::eWrite){
+				msg << "w";
+			}
+			msg << " : " << std::setw( 32 ) << std::hex << attachment.id << ":" << attachment.source_id << ", " << attachment.debugName << std::endl;
 		}
 	}
 	std::cout << msg.str() << std::endl;
@@ -365,15 +359,15 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 	// when we add resources to a queue, the queue guarantees that
 	// resource state transfers happen in a linear manner.
 
-	for ( auto &p : self->passes ) {
-		for ( auto &i : p.inputTextureAttachments ) {
-		}
-		for ( auto &o : p.outputAttachments ) {
-			// by default, output attachments should be placed in shader_read layout
-			// unless we're talking about the swapchain texture, which should be in
-			// memory_read state.
-		}
-	}
+//	for ( auto &p : self->passes ) {
+//		for ( auto &i : p.inputTextureAttachments ) {
+//		}
+//		for ( auto &o : p.outputAttachments ) {
+//			// by default, output attachments should be placed in shader_read layout
+//			// unless we're talking about the swapchain texture, which should be in
+//			// memory_read state.
+//		}
+//	}
 
 	//	std::unordered_map<uint64_t, std::vector<uint64_t>>	resourcesWrittenIn;
 
@@ -464,8 +458,7 @@ void register_le_rendergraph_api( void *api_ ) {
 
 	le_renderpass_i.create                = renderpass_create;
 	le_renderpass_i.destroy               = renderpass_destroy;
-	le_renderpass_i.add_input_attachment  = renderpass_add_input_attachment;
-	le_renderpass_i.add_output_attachment = renderpass_add_output_attachment;
+	le_renderpass_i.add_image_attachment  = renderpass_add_image_attachment;
 	le_renderpass_i.set_setup_fun         = renderpass_set_setup_fun;
 
 	le_render_module_i.create         = render_module_create;
