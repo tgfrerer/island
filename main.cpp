@@ -124,8 +124,8 @@ int main( int argc, char const *argv[] ) {
 
 						le::ImageAttachmentInfo colorAttachmentInfo;
 						colorAttachmentInfo.format  = vk::Format::eR8G8B8A8Unorm;
-//						colorAttachmentInfo.onClear = []( void *clearVal ) {
-//							auto clear = reinterpret_cast<vk::ClearValue *>( clearVal );
+//						colorAttachmentInfo.onClear = []( void *user_data ) {
+//							auto clear = reinterpret_cast<vk::ClearValue *>( user_data );
 //							clear->setColor( vk::ClearColorValue( std::array<float, 4>{{1.f, 0.f, 0.f, 1.f}} ) );
 //						};
 

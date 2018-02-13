@@ -73,6 +73,7 @@ struct le_renderer_o {
 	vk::RenderPass debugRenderPass = nullptr;
 
 	std::vector<FrameData> frames;
+	size_t                 numSwapchainImages = 0;
 	size_t                 currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
 
 	le_renderer_o( const le::Device &device_, const le::Swapchain &swapchain_ )
@@ -95,9 +96,9 @@ static void renderer_setup( le_renderer_o *self ) {
 
 	vk::CommandPoolCreateInfo commandPoolCreateInfo;
 
-	const size_t numFrames = 4;
+	self->numSwapchainImages = self->swapchain.getImagesCount();
 
-	for ( size_t i = 0; i != numFrames; ++i ) {
+	for ( size_t i = 0; i != self->numSwapchainImages; ++i ) {
 		auto frameData = FrameData();
 
 		frameData.frameFence               = self->vkDevice.createFence( {} ); // fence starts out as "signalled"
@@ -441,16 +442,22 @@ static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex) {
 
 static void renderer_update( le_renderer_o *self, le_render_module_o * module_ ) {
 
-	const auto& index = self->currentFrameNumber;
+	const auto &index     = self->currentFrameNumber;
+	const auto &numFrames = self->numSwapchainImages;
 
-	renderer_clear_frame            ( self, ( index + 1 ) % 4 );
+	// TODO: think more about itnerleaving - ideally, each one of these stages
+	// should be able to be executed in its own thread.
+	//
+	// At the moment, this is not possible, as acquisition might acquire more images
+	// than available if there are more threads than swapchain images.
 
-	renderer_record_frame           ( self, ( index + 0 ) % 4, module_ );
+	renderer_clear_frame            ( self, ( index + 0 ) % numFrames );
+	renderer_record_frame           ( self, ( index + 0 ) % numFrames, module_ );
 
-	renderer_acquire_swapchain_image( self, ( index + 3 ) % 4 );
-	renderer_process_frame          ( self, ( index + 3 ) % 4 );
+	renderer_acquire_swapchain_image( self, ( index + 1 ) % numFrames );
+	renderer_process_frame          ( self, ( index + 1 ) % numFrames );
+	renderer_dispatch_frame         ( self, ( index + 1 ) % numFrames );
 
-	renderer_dispatch_frame         ( self, ( index + 2 ) % 4 );
 
 	if (self->swapchainDirty){
 		// we must dispatch, then clear all previously processed frames,
