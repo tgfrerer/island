@@ -47,6 +47,21 @@ struct IdentityHash {
 
 // ----------------------------------------------------------------------
 
+struct image_attachment_state {
+	enum class SetupBehaviour : uint8_t {
+		eReadOnly         = 0x0,
+		eDiscardThenWrite = 0x1,
+		eLoadThenWrite    = 0x2,
+		eClearThenWrite   = 0x4,
+	};
+	uint64_t        id;
+	bool            transient = false; // if only used in one Renderpass, and not Store
+	vk::Extent2D    mExtent;           // const
+	vk::ImageLayout mLayout           = vk::ImageLayout::eUndefined;
+	vk::AccessFlags mSrcAccessFlags  = {};
+	vk::AccessFlags mDstAccessFlags = {};
+	SetupBehaviour  mSetupBehaviour   = SetupBehaviour::eDiscardThenWrite;
+};
 
 struct le_renderpass_o {
 
@@ -240,7 +255,7 @@ static void graph_builder_resolve_attachment_ids(std::vector<le_renderpass_o>& p
 
 		// Outputs from current pass overwrite any cached outputs with same name:
 		// later inputs with same name will then resolve to the latest version
-		// of an output with a particular name
+		// of an output with a particular name.
 		for ( auto &o : p.outputAttachments ) {
 			imageOutputAttachments[ o.id ] = o;
 		}
@@ -325,99 +340,116 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 
 	// Find corresponding output for each input attachment,
 	// and tag input with output id, as dependencies are
-	// declared using names rather than directly established
+	// declared using names rather than linked in code.
 	graph_builder_resolve_attachment_ids(self->passes);
 
 	// First, we must establish a toplogical sort order
 	// so that passes which produce resources for other
 	// passes are executed *before* their dependencies
+	//
+	// NOTE: We can use the passes' sort order as a field in the
+	// sorting key for any command buffers associated with that
+	// renderpass.
 	graph_builder_order_passes(self->passes);
 
 	// NOTE: We should be able to prune any passes which have execution order 0
 	// as they don't contribute to our final pass(es).
 
-	// for each resource, add READ  marker before first read
-	// for each resource, add WRITE marker after write
+	// For each resource, add READ  marker before first read
+	// For each resource, add WRITE marker after write
 
+	// resources are stateful - when we build command buffers,
+	// command buffers, and renderpasses are responsible to
+	// minimise state transfers for resources.
 
+	// when we add resources to a queue, the queue guarantees that
+	// resource state transfers happen in a linear manner.
 
+	for ( auto &p : self->passes ) {
+		for ( auto &i : p.inputTextureAttachments ) {
+		}
+		for ( auto &o : p.outputAttachments ) {
+			// by default, output attachments should be placed in shader_read layout
+			// unless we're talking about the swapchain texture, which should be in
+			// memory_read state.
+		}
+	}
 
-//	std::unordered_map<uint64_t, std::vector<uint64_t>>	resourcesWrittenIn;
+	//	std::unordered_map<uint64_t, std::vector<uint64_t>>	resourcesWrittenIn;
 
-//	for (auto &p : self->passes){
-//		for (auto o: p.outputAttachments){
-//			resourcesWrittenIn[o.id].emplace_back(o.source_id);
-//		}
-//	}
+	//	for (auto &p : self->passes){
+	//		for (auto o: p.outputAttachments){
+	//			resourcesWrittenIn[o.id].emplace_back(o.source_id);
+	//		}
+	//	}
 
-//	std::unordered_map<uint64_t, std::vector<uint64_t>>	resourcesReadIn;
+	//	std::unordered_map<uint64_t, std::vector<uint64_t>>	resourcesReadIn;
 
-//	for (auto &p : self->passes){
-//		for (auto i: p.inputAttachments){
-//			resourcesReadIn[i.id].emplace_back(p.id);
-//		}
-//	}
+	//	for (auto &p : self->passes){
+	//		for (auto i: p.inputAttachments){
+	//			resourcesReadIn[i.id].emplace_back(p.id);
+	//		}
+	//	}
 
-//	std::ostringstream msg;
+	//	std::ostringstream msg;
 
-//	msg << "Write table: " << std::endl;
-//	for ( const auto &resource : resourcesWrittenIn ) {
-//		msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << std::endl;
+	//	msg << "Write table: " << std::endl;
+	//	for ( const auto &resource : resourcesWrittenIn ) {
+	//		msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << std::endl;
 
-//		for ( const auto &resource_version: resource.second) {
-//			msg << "write: " << std::setw( 32 ) << std::hex << resource_version << std::endl;
-//		}
+	//		for ( const auto &resource_version: resource.second) {
+	//			msg << "write: " << std::setw( 32 ) << std::hex << resource_version << std::endl;
+	//		}
 
-//	}
+	//	}
 
-//	msg << "Read table: " << std::endl;
-//	for ( const auto &resource : resourcesReadIn ) {
-//		msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << std::endl;
+	//	msg << "Read table: " << std::endl;
+	//	for ( const auto &resource : resourcesReadIn ) {
+	//		msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << std::endl;
 
-//		for ( const auto &resource_version: resource.second) {
-//			msg << "read: " << std::setw( 32 ) << std::hex << resource_version << std::endl;
-//		}
+	//		for ( const auto &resource_version: resource.second) {
+	//			msg << "read: " << std::setw( 32 ) << std::hex << resource_version << std::endl;
+	//		}
 
-//	}
+	//	}
 
-//	std::cout << msg.str() << std::endl;
+	//	std::cout << msg.str() << std::endl;
 
-//	// todo: create a list of unique resources so that resource manager knows what it must provide for this
-//	// frame - these must be allocated if not yet present.
+	//	// todo: create a list of unique resources so that resource manager knows what it must provide for this
+	//	// frame - these must be allocated if not yet present.
 
-//	/*
+	//	/*
 
-//	To be able to fully compare inputs we need a hashing function which takes into account id, source_id and extent_in_swapchain_units
-//	- but: if we attach callbacks to image attachments this will impact on their hash signature.
-//	- this means, when we resolve attachments, we must also copy over callbacks...
+	//	To be able to fully compare inputs we need a hashing function which takes into account id, source_id and extent_in_swapchain_units
+	//	- but: if we attach callbacks to image attachments this will impact on their hash signature.
+	//	- this means, when we resolve attachments, we must also copy over callbacks...
 
-//	*/
+	//	*/
 
-//	std::unordered_map<size_t, image_attachment_t, IdentityHash> imageResources;
+	//	std::unordered_map<size_t, image_attachment_t, IdentityHash> imageResources;
 
-//	for (auto & p: self->passes){
-//		for (auto & i:p.inputAttachments){
-//			imageResources.emplace(fnv_hash64(i,sizeof(i)),i);
-//		}
-//		for (auto & i:p.inputTextureAttachments){
-//			imageResources.emplace(fnv_hash64(i,sizeof(i)),i);
-//		}
-//		for (auto & o:p.outputAttachments){
-//			imageResources.emplace(fnv_hash64(o,sizeof(o)),o);
-//		}
-//	}
+	//	for (auto & p: self->passes){
+	//		for (auto & i:p.inputAttachments){
+	//			imageResources.emplace(fnv_hash64(i,sizeof(i)),i);
+	//		}
+	//		for (auto & i:p.inputTextureAttachments){
+	//			imageResources.emplace(fnv_hash64(i,sizeof(i)),i);
+	//		}
+	//		for (auto & o:p.outputAttachments){
+	//			imageResources.emplace(fnv_hash64(o,sizeof(o)),o);
+	//		}
+	//	}
 
+	//		msg << "Resource table: " << std::endl;
+	//		for ( const auto &resource : imageResources ) {
+	//			msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << " = "
+	//			    << resource.second.id << ":"
+	//			    << resource.second.source_id
+	//			    << ", extent_factor: " << std::dec << resource.second.extent_in_backbuffer_units
+	//			    << ", format: " << vk::to_string( resource.second.format ) << std::endl;
+	//		}
 
-//		msg << "Resource table: " << std::endl;
-//		for ( const auto &resource : imageResources ) {
-//			msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << " = "
-//			    << resource.second.id << ":"
-//			    << resource.second.source_id
-//			    << ", extent_factor: " << std::dec << resource.second.extent_in_backbuffer_units
-//			    << ", format: " << vk::to_string( resource.second.format ) << std::endl;
-//		}
-
-//		std::cout << msg.str() << std::endl;
+	//		std::cout << msg.str() << std::endl;
 
 }
 

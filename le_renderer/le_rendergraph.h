@@ -20,6 +20,7 @@ struct le_backend_vk_device_o;
 
 namespace vk {
     enum class Format; // forward declaration
+	enum class Layout;
 }
 
 struct le_rendergraph_api {
@@ -31,6 +32,7 @@ struct le_rendergraph_api {
 		uint64_t   source_id = 0; // hash name given to last writer/creator
 		float      extent_in_backbuffer_units  = 1;
 		vk::Format format;
+		vk::Layout layout;
 		void ( *onClear )( void *clear_data ) = nullptr;
 	};
 
