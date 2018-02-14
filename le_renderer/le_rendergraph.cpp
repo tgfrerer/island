@@ -62,6 +62,7 @@ struct le_renderpass_o {
 		uint64_t execution_order = 0;
 	};
 	graph_info_t graphInfo;
+	char         debugName[ 32 ];
 };
 
 struct le_render_module_o {
@@ -91,6 +92,7 @@ struct le_graph_builder_o {
 static le_renderpass_o *renderpass_create(const char* renderpass_name) {
 	auto self = new le_renderpass_o();
 	self->id = const_char_hash64(renderpass_name);
+	strncpy(self->debugName,renderpass_name,sizeof(self->debugName));
 	return self;
 }
 
