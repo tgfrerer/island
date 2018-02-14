@@ -160,6 +160,7 @@ int main( int argc, char const *argv[] ) {
 				}
 			}
 		}
+
 		window.destroySurface( instance.getVkInstance() );
 
 		pal::Window::terminate();

@@ -49,12 +49,6 @@ struct IdentityHash {
 
 struct le_renderpass_o {
 
-	// For each output attachment, we must know
-	// the LOAD OP- it can be any of these:
-	// LOAD, CLEAR, DONT_CARE
-	// if it were CLEAR, we must provide a clear
-	// value.
-
 	uint64_t                        id;
 
 	std::vector<image_attachment_t> imageAttachments;
@@ -341,109 +335,15 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 	// so that passes which produce resources for other
 	// passes are executed *before* their dependencies
 	//
-	// NOTE: We can use the passes' sort order as a field in the
+	// We use the passes' sort order as a field in the
 	// sorting key for any command buffers associated with that
 	// renderpass.
 	graph_builder_order_passes(self->passes);
 
+
 	// NOTE: We should be able to prune any passes which have execution order 0
 	// as they don't contribute to our final pass(es).
 
-	// For each resource, add READ  marker before first read
-	// For each resource, add WRITE marker after write
-
-	// resources are stateful - when we build command buffers,
-	// command buffers, and renderpasses are responsible to
-	// minimise state transfers for resources.
-
-	// when we add resources to a queue, the queue guarantees that
-	// resource state transfers happen in a linear manner.
-
-//	for ( auto &p : self->passes ) {
-//		for ( auto &i : p.inputTextureAttachments ) {
-//		}
-//		for ( auto &o : p.outputAttachments ) {
-//			// by default, output attachments should be placed in shader_read layout
-//			// unless we're talking about the swapchain texture, which should be in
-//			// memory_read state.
-//		}
-//	}
-
-	//	std::unordered_map<uint64_t, std::vector<uint64_t>>	resourcesWrittenIn;
-
-	//	for (auto &p : self->passes){
-	//		for (auto o: p.outputAttachments){
-	//			resourcesWrittenIn[o.id].emplace_back(o.source_id);
-	//		}
-	//	}
-
-	//	std::unordered_map<uint64_t, std::vector<uint64_t>>	resourcesReadIn;
-
-	//	for (auto &p : self->passes){
-	//		for (auto i: p.inputAttachments){
-	//			resourcesReadIn[i.id].emplace_back(p.id);
-	//		}
-	//	}
-
-	//	std::ostringstream msg;
-
-	//	msg << "Write table: " << std::endl;
-	//	for ( const auto &resource : resourcesWrittenIn ) {
-	//		msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << std::endl;
-
-	//		for ( const auto &resource_version: resource.second) {
-	//			msg << "write: " << std::setw( 32 ) << std::hex << resource_version << std::endl;
-	//		}
-
-	//	}
-
-	//	msg << "Read table: " << std::endl;
-	//	for ( const auto &resource : resourcesReadIn ) {
-	//		msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << std::endl;
-
-	//		for ( const auto &resource_version: resource.second) {
-	//			msg << "read: " << std::setw( 32 ) << std::hex << resource_version << std::endl;
-	//		}
-
-	//	}
-
-	//	std::cout << msg.str() << std::endl;
-
-	//	// todo: create a list of unique resources so that resource manager knows what it must provide for this
-	//	// frame - these must be allocated if not yet present.
-
-	//	/*
-
-	//	To be able to fully compare inputs we need a hashing function which takes into account id, source_id and extent_in_swapchain_units
-	//	- but: if we attach callbacks to image attachments this will impact on their hash signature.
-	//	- this means, when we resolve attachments, we must also copy over callbacks...
-
-	//	*/
-
-	//	std::unordered_map<size_t, image_attachment_t, IdentityHash> imageResources;
-
-	//	for (auto & p: self->passes){
-	//		for (auto & i:p.inputAttachments){
-	//			imageResources.emplace(fnv_hash64(i,sizeof(i)),i);
-	//		}
-	//		for (auto & i:p.inputTextureAttachments){
-	//			imageResources.emplace(fnv_hash64(i,sizeof(i)),i);
-	//		}
-	//		for (auto & o:p.outputAttachments){
-	//			imageResources.emplace(fnv_hash64(o,sizeof(o)),o);
-	//		}
-	//	}
-
-	//		msg << "Resource table: " << std::endl;
-	//		for ( const auto &resource : imageResources ) {
-	//			msg << "resource: " << std::setw( 15 ) << std::hex << resource.first << " = "
-	//			    << resource.second.id << ":"
-	//			    << resource.second.source_id
-	//			    << ", extent_factor: " << std::dec << resource.second.extent_in_backbuffer_units
-	//			    << ", format: " << vk::to_string( resource.second.format ) << std::endl;
-	//		}
-
-	//		std::cout << msg.str() << std::endl;
 
 }
 

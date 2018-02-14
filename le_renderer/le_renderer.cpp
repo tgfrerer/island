@@ -445,22 +445,27 @@ static void renderer_update( le_renderer_o *self, le_render_module_o * module_ )
 	const auto &index     = self->currentFrameNumber;
 	const auto &numFrames = self->numSwapchainImages;
 
-	// TODO: think more about itnerleaving - ideally, each one of these stages
+	// TODO: think more about interleaving - ideally, each one of these stages
 	// should be able to be executed in its own thread.
 	//
 	// At the moment, this is not possible, as acquisition might acquire more images
 	// than available if there are more threads than swapchain images.
 
 	renderer_clear_frame            ( self, ( index + 0 ) % numFrames );
+
+	// generate an intermediary, api-agnostic, representation of the frame
 	renderer_record_frame           ( self, ( index + 0 ) % numFrames, module_ );
 
 	renderer_acquire_swapchain_image( self, ( index + 1 ) % numFrames );
+
+	// generate api commands for the frame
 	renderer_process_frame          ( self, ( index + 1 ) % numFrames );
+
 	renderer_dispatch_frame         ( self, ( index + 1 ) % numFrames );
 
 
 	if (self->swapchainDirty){
-		// we must dispatch, then clear all previously processed frames,
+		// we must dispatch, then clear all previous dispatchable frames,
 		// before recreating swapchain. This is because this frame
 		// was processed against the vkImage object from the previous
 		// swapchain.
