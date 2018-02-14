@@ -109,7 +109,6 @@ int main( int argc, char const *argv[] ) {
 						depthAttachmentInfo.format       = device.getDefaultDepthStencilFormat();
 
 						rp.addImageAttachment( "depth", &depthAttachmentInfo );
-
 						return true;
 					} );
 
@@ -130,7 +129,7 @@ int main( int argc, char const *argv[] ) {
 						return true;
 					} );
 
-					le::RenderPass renderPassFinal( "final" );
+					le::RenderPass renderPassFinal( "root" );
 					renderPassFinal.setSetupCallback( []( auto pRp, auto pDevice ) {
 						auto rp     = le::RenderPassRef{pRp};
 						auto device = le::Device{pDevice};

@@ -299,7 +299,9 @@ static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 		passTable.emplace( p.id, &p );
 	}
 
-	graph_builder_traverse_passes(passTable, const_char_hash64("final"), 1);
+	// Note that we set the lowest execution order to 1, so that any passes with order 0
+	// are flagged as non-contributing (these may be pruned)
+	graph_builder_traverse_passes(passTable, const_char_hash64("root"), 1);
 
 	std::sort( passes.begin(), passes.end(), []( const le_renderpass_o &lhs, const le_renderpass_o &rhs ) -> bool {
 		return lhs.graphInfo.execution_order > rhs.graphInfo.execution_order;
