@@ -210,6 +210,17 @@ static void render_module_execute_graph(le_render_module_o* self, le_graph_build
 	}
 	std::cout << msg.str() << std::endl;
 
+
+	/*
+
+	  This method creates api-independent command lists for draw commands
+
+	  We need to track the state of our resources - especially for texture
+	  resources - can they change layout?.
+
+	*/
+
+
 }
 
 // ----------------------------------------------------------------------
@@ -240,10 +251,10 @@ static void graph_builder_resolve_attachment_ids( std::vector<le_renderpass_o> &
 	// we use this to resolve attachment aliases. Since Rendermodule is a linear sequence,
 	// this means that dependencies for resources are well-defined. It's impossible for
 	// two renderpasses using the same resource not to have a clearly defined priority, as
-	// the first submitted renderpasses of the two will get priority.
+	// the earliest submitted renderpasses of the two will get priority.
 
 	// map from output id -> source id
-	std::unordered_map<uint64_t, uint64_t, IdentityHash> attachmentTable;
+	std::unordered_map<uint64_t, uint64_t, IdentityHash> writeAttachmentTable;
 
 	// We go through passes in module submission order, so that outputs will match later inputs.
 	for ( auto &pass : passes ) {
@@ -252,8 +263,8 @@ static void graph_builder_resolve_attachment_ids( std::vector<le_renderpass_o> &
 		// If so, we update source ids (from table) for each attachment we found.
 		for ( auto &attachment : pass.imageAttachments ) {
 			if ( attachment.access_flags & le::AccessFlagBits::eRead ) {
-				auto foundOutputIt = attachmentTable.find( attachment.id );
-				if ( foundOutputIt != attachmentTable.end() ) {
+				auto foundOutputIt = writeAttachmentTable.find( attachment.id );
+				if ( foundOutputIt != writeAttachmentTable.end() ) {
 					attachment.source_id = foundOutputIt->second;
 				}
 			}
@@ -264,7 +275,7 @@ static void graph_builder_resolve_attachment_ids( std::vector<le_renderpass_o> &
 		// of an output with a particular name.
 		for ( auto &attachment : pass.imageAttachments ) {
 			if ( attachment.access_flags & le::AccessFlagBits::eWrite ) {
-				attachmentTable[ attachment.id ] = pass.id;
+				writeAttachmentTable[ attachment.id ] = pass.id;
 			}
 		}
 	}
