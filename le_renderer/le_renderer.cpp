@@ -300,9 +300,8 @@ static void renderer_record_frame(le_renderer_o* self, size_t frameIndex, le_ren
 
 	le::RenderModule renderModule(module_);
 
-
 	renderModule.buildGraph(graphBuilder);
-	// TODO: renderModule.executeGraph(graphBuilder); - this is where we execute the rendergraph
+	renderModule.executeGraph(graphBuilder); // - this is where we execute the rendergraph
 
 	frame.meta.time_record_frame_end   = std::chrono::high_resolution_clock::now();
 	std::cout << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_record_frame_end-frame.meta.time_record_frame_start).count() << "ms" << std::endl;

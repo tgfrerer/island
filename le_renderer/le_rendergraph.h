@@ -63,6 +63,7 @@ struct le_rendergraph_api {
 		void                ( *destroy)        ( le_render_module_o* obj );
 		void                ( *add_renderpass) ( le_render_module_o* obj, le_renderpass_o* rp );
 		void                ( *build_graph)    ( le_render_module_o* obj, le_graph_builder_o* gb );
+		void                ( *execute_graph ) ( le_render_module_o* obj, le_graph_builder_o* gb );
 	};
 
 	// graph builder builds a graph for a module
@@ -208,6 +209,10 @@ class RenderModule {
 
 	void buildGraph( le_graph_builder_o *gb_ ) {
 		rendermoduleI.build_graph( self, gb_ );
+	}
+
+	void executeGraph( le_graph_builder_o *gb_ ) {
+		rendermoduleI.execute_graph( self, gb_ );
 	}
 };
 

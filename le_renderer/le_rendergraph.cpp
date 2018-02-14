@@ -52,9 +52,7 @@ struct le_renderpass_o {
 	uint64_t                        id;
 
 	std::vector<image_attachment_t> imageAttachments;
-
-//	std::vector<buffer_attachment_t> inputBufferAttachments;
-//	std::vector<buffer_attachment_t> outputBufferAttachments;
+	//std::vector<buffer_attachment_t> bufferAttachments;
 
 	le_rendergraph_api::pfn_renderpass_setup_t callbackSetup = nullptr;
 
@@ -153,7 +151,6 @@ static void render_module_destroy(le_render_module_o* self){
 // ----------------------------------------------------------------------
 
 static void render_module_add_renderpass(le_render_module_o*self, le_renderpass_o* pass){
-	// note that we store a copy
 	self->passes.emplace_back(pass);
 }
 
@@ -176,7 +173,7 @@ static void render_module_build_graph(le_render_module_o* self, le_graph_builder
 			graphBuilder.addRenderpass(pass);
 		}
 	}
-	// Now, renderpasses should have their attachment properly set.
+	// Now, renderpasses should have their attachments properly set.
 	// Further, user will have added all renderpasses they wanted included in the module
 	// to the graph builder.
 
@@ -191,6 +188,29 @@ static void render_module_build_graph(le_render_module_o* self, le_graph_builder
 
 };
 
+// ----------------------------------------------------------------------
+
+static void render_module_execute_graph(le_render_module_o* self, le_graph_builder_o* graph_builder){
+
+	std::ostringstream msg;
+
+	msg << "render graph: " << std::endl;
+	for ( const auto &pass : graph_builder->passes ) {
+		msg << "renderpass: " << std::setw( 15 ) << std::hex << pass.id << ", " << "'" << pass.debugName << "' , order: " << pass.graphInfo.execution_order << std::endl;
+
+		for ( const auto &attachment : pass.imageAttachments ) {
+			if (attachment.access_flags & le::AccessFlagBits::eRead){
+				msg << "r";
+			}
+			if (attachment.access_flags & le::AccessFlagBits::eWrite){
+				msg << "w";
+			}
+			msg << " : " << std::setw( 32 ) << std::hex << attachment.id << ":" << attachment.source_id << ", '" << attachment.debugName << "'" << std::endl;
+		}
+	}
+	std::cout << msg.str() << std::endl;
+
+}
 
 // ----------------------------------------------------------------------
 
@@ -307,23 +327,6 @@ static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 		return lhs.graphInfo.execution_order > rhs.graphInfo.execution_order;
 	} );
 
-	std::ostringstream msg;
-
-	msg << "render graph: " << std::endl;
-	for ( const auto &pass : passes ) {
-		msg << "renderpass: " << std::setw( 15 ) << std::hex << pass.id << ", order: " << pass.graphInfo.execution_order << std::endl;
-
-		for ( const auto &attachment : pass.imageAttachments ) {
-			if (attachment.access_flags & le::AccessFlagBits::eRead){
-				msg << "r";
-			}
-			if (attachment.access_flags & le::AccessFlagBits::eWrite){
-				msg << "w";
-			}
-			msg << " : " << std::setw( 32 ) << std::hex << attachment.id << ":" << attachment.source_id << ", " << attachment.debugName << std::endl;
-		}
-	}
-	std::cout << msg.str() << std::endl;
 }
 
 // ----------------------------------------------------------------------
@@ -344,10 +347,8 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 	// renderpass.
 	graph_builder_order_passes(self->passes);
 
-
 	// NOTE: We should be able to prune any passes which have execution order 0
 	// as they don't contribute to our final pass(es).
-
 
 }
 
@@ -369,6 +370,7 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_render_module_i.destroy        = render_module_destroy;
 	le_render_module_i.add_renderpass = render_module_add_renderpass;
 	le_render_module_i.build_graph    = render_module_build_graph;
+	le_render_module_i.execute_graph  = render_module_execute_graph;
 
 	le_graph_builder_i.create         = graph_builder_create;
 	le_graph_builder_i.destroy        = graph_builder_destroy;
