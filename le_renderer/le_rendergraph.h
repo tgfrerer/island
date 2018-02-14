@@ -99,6 +99,10 @@ class RenderPass {
 	    : self( renderpassI.create( name_ ) ) {
 	}
 
+	~RenderPass(){
+		renderpassI.destroy(self);
+	}
+
 	operator auto() {
 		return self;
 	}
