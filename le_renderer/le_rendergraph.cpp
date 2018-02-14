@@ -64,7 +64,7 @@ struct le_renderpass_o {
 };
 
 struct le_render_module_o {
-	std::vector<le_renderpass_o*> passes;
+	std::vector<le_renderpass_o> passes;
 };
 
 struct le_graph_builder_o {
@@ -151,7 +151,7 @@ static void render_module_destroy(le_render_module_o* self){
 // ----------------------------------------------------------------------
 
 static void render_module_add_renderpass(le_render_module_o*self, le_renderpass_o* pass){
-	self->passes.emplace_back(pass);
+	self->passes.emplace_back(*pass);
 }
 
 // ----------------------------------------------------------------------
@@ -167,10 +167,10 @@ static void render_module_build_graph(le_render_module_o* self, le_graph_builder
 		// + populate input attachments
 		// + populate output attachments
 		// + (optionally) add renderpass to graph builder.
-		assert(pass->callbackSetup != nullptr);
-		if (pass->callbackSetup(pass, graph_builder_->device)){
+		assert(pass.callbackSetup != nullptr);
+		if (pass.callbackSetup(&pass, graph_builder_->device)){
 			// if pass.setup() returns true, this means we shall add this pass to the graph
-			graphBuilder.addRenderpass(pass);
+			graphBuilder.addRenderpass(&pass);
 		}
 	}
 	// Now, renderpasses should have their attachments properly set.

@@ -98,62 +98,63 @@ int main( int argc, char const *argv[] ) {
 				// app.draw
 
 				{
-
-					le::RenderPass renderPassEarlyZ( "earlyZ" );
-					renderPassEarlyZ.setSetupCallback( []( auto pRp, auto pDevice ) {
-						auto rp     = le::RenderPassRef{pRp};
-						auto device = le::Device{pDevice};
-
-						le::ImageAttachmentInfo depthAttachmentInfo;
-						depthAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
-						depthAttachmentInfo.format       = device.getDefaultDepthStencilFormat();
-
-						rp.addImageAttachment( "depth", &depthAttachmentInfo );
-						return true;
-					} );
-
-					le::RenderPass renderPassForward( "forward" );
-					renderPassForward.setSetupCallback( []( auto pRp, auto pDevice ) {
-						auto                    rp     = le::RenderPassRef{pRp};
-						auto                    device = le::Device{pDevice};
-
-						le::ImageAttachmentInfo colorAttachmentInfo;
-						colorAttachmentInfo.format  = vk::Format::eR8G8B8A8Unorm;
-						colorAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
-
-						// le::ImageAttachmentInfo depthAttachmentInfo;
-						// depthAttachmentInfo.format = device.getDefaultDepthStencilFormat();
-						// rp.addInputAttachment( "depth", &depthAttachmentInfo );
-
-						rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
-						return true;
-					} );
-
-					le::RenderPass renderPassFinal( "root" );
-					renderPassFinal.setSetupCallback( []( auto pRp, auto pDevice ) {
-						auto rp     = le::RenderPassRef{pRp};
-						auto device = le::Device{pDevice};
-
-						le::ImageAttachmentInfo colorAttachmentInfo;
-						colorAttachmentInfo.format = vk::Format::eR8G8B8A8Unorm;
-						colorAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
-
-						le::ImageAttachmentInfo depthAttachmentInfo;
-						depthAttachmentInfo.format = device.getDefaultDepthStencilFormat();
-						depthAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
-
-						rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
-						rp.addImageAttachment( "depth", &depthAttachmentInfo );
-						return true;
-					} );
-
-					// TODO: add setExecuteFun to renderpass - this is the method which actually
-					// does specify the draw calls, and which pipelines to use.
 					le::RenderModule renderModule;
-					renderModule.addRenderPass( renderPassEarlyZ );
-					renderModule.addRenderPass( renderPassForward );
-					renderModule.addRenderPass( renderPassFinal );
+					{
+						le::RenderPass renderPassEarlyZ( "earlyZ" );
+						renderPassEarlyZ.setSetupCallback( []( auto pRp, auto pDevice ) {
+							auto rp     = le::RenderPassRef{pRp};
+							auto device = le::Device{pDevice};
 
+							le::ImageAttachmentInfo depthAttachmentInfo;
+							depthAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
+							depthAttachmentInfo.format       = device.getDefaultDepthStencilFormat();
+
+							rp.addImageAttachment( "depth", &depthAttachmentInfo );
+							return true;
+						} );
+
+						le::RenderPass renderPassForward( "forward" );
+						renderPassForward.setSetupCallback( []( auto pRp, auto pDevice ) {
+							auto rp     = le::RenderPassRef{pRp};
+							auto device = le::Device{pDevice};
+
+							le::ImageAttachmentInfo colorAttachmentInfo;
+							colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
+							colorAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
+
+							// le::ImageAttachmentInfo depthAttachmentInfo;
+							// depthAttachmentInfo.format = device.getDefaultDepthStencilFormat();
+							// rp.addInputAttachment( "depth", &depthAttachmentInfo );
+
+							rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
+							return true;
+						} );
+
+						le::RenderPass renderPassFinal( "root" );
+						renderPassFinal.setSetupCallback( []( auto pRp, auto pDevice ) {
+							auto rp     = le::RenderPassRef{pRp};
+							auto device = le::Device{pDevice};
+
+							le::ImageAttachmentInfo colorAttachmentInfo;
+							colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
+							colorAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
+
+							le::ImageAttachmentInfo depthAttachmentInfo;
+							depthAttachmentInfo.format       = device.getDefaultDepthStencilFormat();
+							depthAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
+
+							rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
+							rp.addImageAttachment( "depth", &depthAttachmentInfo );
+							return true;
+						} );
+
+						// TODO: add setExecuteFun to renderpass - this is the method which actually
+						// does specify the draw calls, and which pipelines to use.
+
+						renderModule.addRenderPass( renderPassEarlyZ );
+						renderModule.addRenderPass( renderPassForward );
+						renderModule.addRenderPass( renderPassFinal );
+					}
 					renderer.update( renderModule );
 
 				}
