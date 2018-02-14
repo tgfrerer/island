@@ -98,7 +98,7 @@ int main( int argc, char const *argv[] ) {
 				// app.draw
 
 				{
-					le::RenderModule renderModule;
+					le::RenderModule renderModule{device};
 					{
 						le::RenderPass renderPassEarlyZ( "earlyZ" );
 						renderPassEarlyZ.setSetupCallback( []( auto pRp, auto pDevice ) {

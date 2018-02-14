@@ -48,41 +48,36 @@ struct IdentityHash {
 // ----------------------------------------------------------------------
 
 struct le_renderpass_o {
+	struct graph_info_t {
+		uint64_t execution_order = 0;
+	};
 
 	uint64_t                        id;
-
 	std::vector<image_attachment_t> imageAttachments;
 	//std::vector<buffer_attachment_t> bufferAttachments;
 
 	le_rendergraph_api::pfn_renderpass_setup_t callbackSetup = nullptr;
 
-	struct graph_info_t {
-		uint64_t execution_order = 0;
-	};
 	graph_info_t graphInfo;
 	char         debugName[ 32 ];
 };
 
-struct le_render_module_o {
+// ----------------------------------------------------------------------
+
+struct le_render_module_o : NoCopy, NoMove {
+	le_render_module_o(le_backend_vk_device_o* device_)
+	    : device(device_){
+
+	}
+
+	le_backend_vk_device_o* device;
 	std::vector<le_renderpass_o> passes;
 };
 
-struct le_graph_builder_o {
-	le_backend_vk_device_o* device;
+// ----------------------------------------------------------------------
+
+struct le_graph_builder_o : NoCopy, NoMove {
 	std::vector<le_renderpass_o> passes;
-
-	le_graph_builder_o(le_backend_vk_device_o* device_)
-	    :device(device_){
-	}
-
-	~le_graph_builder_o() = default;
-
-	// copy assignment operator
-	le_graph_builder_o& operator=(const le_graph_builder_o& lhs) = delete ;
-
-	// move assignment operator
-	le_graph_builder_o& operator=(const le_graph_builder_o&& lhs) = delete;
-
 };
 
 // ----------------------------------------------------------------------
@@ -137,8 +132,8 @@ static void renderpass_add_image_attachment(le_renderpass_o*self, const char* na
 
 // ----------------------------------------------------------------------
 
-static le_render_module_o* render_module_create(){
-	auto obj = new le_render_module_o();
+static le_render_module_o *render_module_create( le_backend_vk_device_o *device_ ) {
+	auto obj = new le_render_module_o( device_ );
 	return obj;
 }
 
@@ -168,7 +163,7 @@ static void render_module_build_graph(le_render_module_o* self, le_graph_builder
 		// + populate output attachments
 		// + (optionally) add renderpass to graph builder.
 		assert(pass.callbackSetup != nullptr);
-		if (pass.callbackSetup(&pass, graph_builder_->device)){
+		if (pass.callbackSetup(&pass, self->device)){
 			// if pass.setup() returns true, this means we shall add this pass to the graph
 			graphBuilder.addRenderpass(&pass);
 		}
@@ -225,9 +220,15 @@ static void render_module_execute_graph(le_render_module_o* self, le_graph_build
 
 // ----------------------------------------------------------------------
 
-static le_graph_builder_o* graph_builder_create(le_backend_vk_device_o* device){
-	auto obj = new le_graph_builder_o(device);
+static le_graph_builder_o* graph_builder_create(){
+	auto obj = new le_graph_builder_o();
 	return obj;
+}
+
+// ----------------------------------------------------------------------
+
+static void graph_builder_reset(le_graph_builder_o* self){
+	self->passes.clear();
 }
 
 // ----------------------------------------------------------------------
@@ -385,7 +386,7 @@ void register_le_rendergraph_api( void *api_ ) {
 
 	le_graph_builder_i.create         = graph_builder_create;
 	le_graph_builder_i.destroy        = graph_builder_destroy;
+	le_graph_builder_i.reset          = graph_builder_reset;
 	le_graph_builder_i.add_renderpass = graph_builder_add_renderpass;
 	le_graph_builder_i.build_graph    = graph_builder_build_graph;
-
 }

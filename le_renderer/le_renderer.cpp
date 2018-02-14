@@ -59,6 +59,8 @@ struct FrameData {
 
 	std::vector<vk::Framebuffer>   debugFramebuffers;
 
+	std::unique_ptr<le::GraphBuilder> graphBuilder;
+
 	Meta meta;
 };
 
@@ -98,6 +100,8 @@ static void renderer_setup( le_renderer_o *self ) {
 
 	self->numSwapchainImages = self->swapchain.getImagesCount();
 
+	self->frames.reserve( self->numSwapchainImages );
+
 	for ( size_t i = 0; i != self->numSwapchainImages; ++i ) {
 		auto frameData = FrameData();
 
@@ -106,6 +110,7 @@ static void renderer_setup( le_renderer_o *self ) {
 		frameData.semaphoreRenderComplete  = self->vkDevice.createSemaphore( {} );
 		frameData.commandPool              = self->vkDevice.createCommandPool( {vk::CommandPoolCreateFlagBits::eTransient, self->leDevice.getDefaultGraphicsQueueFamilyIndex()} );
 
+		frameData.graphBuilder = std::make_unique<le::GraphBuilder>();
 		self->frames.push_back( std::move( frameData ) );
 
 	}
@@ -234,6 +239,7 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 
 	// NOTE: free transient gpu resources
 	//       + transient memory
+	frame.graphBuilder->reset();
 
 	frame.state = FrameData::State::eCleared;
 }
@@ -295,13 +301,10 @@ static void renderer_record_frame(le_renderer_o* self, size_t frameIndex, le_ren
 	// For each render pass, call renderpass' render method, build intermediary command lists
 	//
 
+	le::RenderModule renderModule{module_};
 
-	le::GraphBuilder graphBuilder{self->leDevice};
-
-	le::RenderModule renderModule(module_);
-
-	renderModule.buildGraph(graphBuilder);
-	renderModule.executeGraph(graphBuilder); // - this is where we execute the rendergraph
+	renderModule.buildGraph(*frame.graphBuilder);
+	renderModule.executeGraph(*frame.graphBuilder); // - this is where we execute the rendergraph
 
 	frame.meta.time_record_frame_end   = std::chrono::high_resolution_clock::now();
 	std::cout << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_record_frame_end-frame.meta.time_record_frame_start).count() << "ms" << std::endl;

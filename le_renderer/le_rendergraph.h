@@ -54,12 +54,11 @@ struct le_rendergraph_api {
 		le_renderpass_o* ( *create                ) (const char* renderpass_name);
 		void             ( *destroy               ) (le_renderpass_o* obj);
 		void             ( *set_setup_fun         ) (le_renderpass_o* obj, pfn_renderpass_setup_t setup_fun );
-
 		void             ( *add_image_attachment  ) (le_renderpass_o* obj, const char*, image_attachment_info_o* info);
 	};
 
 	struct rendermodule_interface_t {
-		le_render_module_o* ( *create)         ( );
+		le_render_module_o* ( *create)         ( le_backend_vk_device_o* device );
 		void                ( *destroy)        ( le_render_module_o* obj );
 		void                ( *add_renderpass) ( le_render_module_o* obj, le_renderpass_o* rp );
 		void                ( *build_graph)    ( le_render_module_o* obj, le_graph_builder_o* gb );
@@ -68,8 +67,9 @@ struct le_rendergraph_api {
 
 	// graph builder builds a graph for a module
 	struct graph_builder_interface_t {
-		le_graph_builder_o* ( *create        ) ( le_backend_vk_device_o* device);
+		le_graph_builder_o* ( *create        ) ( );
 		void                ( *destroy       ) ( le_graph_builder_o* obj );
+		void                ( *reset         ) ( le_graph_builder_o* obj );
 		void                ( *add_renderpass) ( le_graph_builder_o* obj, le_renderpass_o* rp );
 		void                ( *build_graph)    ( le_graph_builder_o* obj );
 	};
@@ -142,7 +142,7 @@ class RenderPassRef {
 
 // ----------------------------------------------------------------------
 
-class GraphBuilder {
+class GraphBuilder : NoCopy, NoMove {
 	const le_rendergraph_api &                           rendergraphApiI = *Registry::getApi<le_rendergraph_api>();
 	const le_rendergraph_api::graph_builder_interface_t &graphbuilderI   = rendergraphApiI.le_graph_builder_i;
 
@@ -150,8 +150,8 @@ class GraphBuilder {
 	bool                is_reference = false;
 
   public:
-	GraphBuilder(le_backend_vk_device_o* device)
-	    : self( graphbuilderI.create(device) ) {
+	GraphBuilder()
+	    : self( graphbuilderI.create() ) {
 	}
 
 	GraphBuilder( le_graph_builder_o *self_ )
@@ -167,6 +167,10 @@ class GraphBuilder {
 
 	operator auto() {
 		return self;
+	}
+
+	void reset(){
+		graphbuilderI.reset(self);
 	}
 
 	void addRenderpass( le_renderpass_o *rp ) {
@@ -188,8 +192,8 @@ class RenderModule {
 	bool                is_reference = false;
 
   public:
-	RenderModule()
-	    : self( rendermoduleI.create() ) {
+	RenderModule(le_backend_vk_device_o* device_)
+	    : self( rendermoduleI.create(device_) ) {
 	}
 
 	RenderModule( le_render_module_o *self_ )
