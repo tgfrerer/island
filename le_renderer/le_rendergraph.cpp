@@ -10,6 +10,9 @@
 #include <iomanip>
 #include "vulkan/vulkan.hpp"
 
+
+#define LE_RENDER_PASS_EXTERNAL_MARKER "rp-external"
+
 using image_attachment_t = le_rendergraph_api::image_attachment_info_o;
 
 // TODO: const_char_hash64 and fnv_hash64 must return the same hash value
@@ -103,7 +106,13 @@ static void renderpass_set_setup_fun(le_renderpass_o*self, le_rendergraph_api::p
 static void renderpass_add_image_attachment(le_renderpass_o*self, const char* name_, le_rendergraph_api::image_attachment_info_o* info_){
 	// TODO: annotate the current renderpass to name of output attachment
 	auto info = *info_;
+
 	info.id = const_char_hash64(name_);
+
+	// By default, flag attachment source as being external, if attachment was previously written in this pass,
+	// source will be substituted by id of pass which writes to attachment, otherwise the flag will persist and
+	// tell us that this attachment must be externally resolved.
+	info.source_id = const_char_hash64(LE_RENDER_PASS_EXTERNAL_MARKER);
 
 	if ( info.access_flags == le::AccessFlagBits::eReadWrite ) {
 		info.loadOp  = vk::AttachmentLoadOp::eLoad;
@@ -293,12 +302,13 @@ static void graph_builder_traverse_passes( const std::unordered_map<uint64_t, le
 
 	if ( recursion_depth > MAX_PASS_RECURSION_DEPTH ) {
 		std::cerr << __FUNCTION__ << " : "
-		          << "max recursion level reached. check for cycles in render graph";
+		          << "max recursion level reached. check for cycles in render graph" << std::endl;
 		return;
 	}
 
-	if (sourceRenderpassId == 0){
-		std::cerr << __FUNCTION__ << " : Input attachment referenced which is not available in this frame";
+	if (sourceRenderpassId == const_char_hash64(LE_RENDER_PASS_EXTERNAL_MARKER)){
+		// TODO: how do we deal with external resources?
+		std::cerr << __FUNCTION__ << " : READ to attachment referenced which was not previously written in this graph." << std::endl;
 		return;
 	}
 
@@ -345,7 +355,6 @@ static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 	passes.erase( endIt, passes.end() );
 
 	// sort passes by execution order
-
 	std::sort( passes.begin(), passes.end(), []( const le_renderpass_o &lhs, const le_renderpass_o &rhs ) -> bool {
 		return lhs.execution_order > rhs.execution_order;
 	} );
@@ -369,8 +378,6 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 	// renderpass.
 	graph_builder_order_passes(self->passes);
 
-	// NOTE: We should be able to prune any passes which have execution order 0
-	// as they don't contribute to our final pass(es).
 
 }
 
