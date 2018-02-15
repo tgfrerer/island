@@ -10,8 +10,8 @@
 #include <iomanip>
 #include "vulkan/vulkan.hpp"
 
-
-#define LE_RENDER_PASS_EXTERNAL_MARKER "rp-external"
+#define LE_RENDERPASS_MARKER_EXTERNAL "rp-external"
+#define LE_GRAPH_BUILDER_RECURSION_DEPTH 20
 
 using image_attachment_t = le_rendergraph_api::image_attachment_info_o;
 
@@ -112,15 +112,18 @@ static void renderpass_add_image_attachment(le_renderpass_o*self, const char* na
 	// By default, flag attachment source as being external, if attachment was previously written in this pass,
 	// source will be substituted by id of pass which writes to attachment, otherwise the flag will persist and
 	// tell us that this attachment must be externally resolved.
-	info.source_id = const_char_hash64(LE_RENDER_PASS_EXTERNAL_MARKER);
+	info.source_id = const_char_hash64(LE_RENDERPASS_MARKER_EXTERNAL);
 
 	if ( info.access_flags == le::AccessFlagBits::eReadWrite ) {
 		info.loadOp  = vk::AttachmentLoadOp::eLoad;
 		info.storeOp = vk::AttachmentStoreOp::eStore;
 	} else if ( info.access_flags & le::AccessFlagBits::eWrite ) {
-		// write-only means clear before -- TODO: we need to check that there is a clear callback, though.
+		// Write-only means clear before --
+		// TODO: we need to check that there is a clear callback, though.
 		info.loadOp  = vk::AttachmentLoadOp::eClear;
 		info.storeOp = vk::AttachmentStoreOp::eStore;
+		// Write-only means we may be seen as the creator of this resource
+		info.source_id = self->id;
 	} else if ( info.access_flags & le::AccessFlagBits::eRead ) {
 		// TODO: we need to make sure to distinguish between image attachments and texture attachments
 		info.loadOp  = vk::AttachmentLoadOp::eLoad;
@@ -298,15 +301,15 @@ static void graph_builder_traverse_passes( const std::unordered_map<uint64_t, le
                                            const uint64_t &                                                     sourceRenderpassId,
                                            const uint64_t                                                       recursion_depth ) {
 
-	static const size_t MAX_PASS_RECURSION_DEPTH = 20;
 
-	if ( recursion_depth > MAX_PASS_RECURSION_DEPTH ) {
+
+	if ( recursion_depth > LE_GRAPH_BUILDER_RECURSION_DEPTH ) {
 		std::cerr << __FUNCTION__ << " : "
 		          << "max recursion level reached. check for cycles in render graph" << std::endl;
 		return;
 	}
 
-	if (sourceRenderpassId == const_char_hash64(LE_RENDER_PASS_EXTERNAL_MARKER)){
+	if (sourceRenderpassId == const_char_hash64(LE_RENDERPASS_MARKER_EXTERNAL)){
 		// TODO: how do we deal with external resources?
 		std::cerr << __FUNCTION__ << " : READ to attachment referenced which was not previously written in this graph." << std::endl;
 		return;
@@ -355,9 +358,20 @@ static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 	passes.erase( endIt, passes.end() );
 
 	// sort passes by execution order
-	std::sort( passes.begin(), passes.end(), []( const le_renderpass_o &lhs, const le_renderpass_o &rhs ) -> bool {
+	// Note: we use stable sort so that write-after-write is performed in module submission order.
+	std::stable_sort( passes.begin(), passes.end(), []( const le_renderpass_o &lhs, const le_renderpass_o &rhs ) -> bool {
 		return lhs.execution_order > rhs.execution_order;
 	} );
+}
+
+// ----------------------------------------------------------------------
+
+static void graph_builder_create_resource_table(le_graph_builder_o* self){
+
+	// we want a list of unique resources referenced in the renderpass,
+	// and for each resource we must know its first reference.
+
+
 }
 
 // ----------------------------------------------------------------------
@@ -379,6 +393,7 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 	graph_builder_order_passes(self->passes);
 
 
+	graph_builder_create_resource_table(self);
 }
 
 // ----------------------------------------------------------------------
