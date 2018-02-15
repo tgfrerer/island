@@ -48,17 +48,14 @@ struct IdentityHash {
 // ----------------------------------------------------------------------
 
 struct le_renderpass_o {
-	struct graph_info_t {
-		uint64_t execution_order = 0;
-	};
 
 	uint64_t                        id;
+	uint64_t                        execution_order = 0;
 	std::vector<image_attachment_t> imageAttachments;
-	//std::vector<buffer_attachment_t> bufferAttachments;
+	// std::vector<buffer_attachment_t> bufferAttachments;
 
 	le_rendergraph_api::pfn_renderpass_setup_t callbackSetup = nullptr;
 
-	graph_info_t graphInfo;
 	char         debugName[ 32 ];
 };
 
@@ -191,7 +188,7 @@ static void render_module_execute_graph(le_render_module_o* self, le_graph_build
 
 	msg << "render graph: " << std::endl;
 	for ( const auto &pass : graph_builder->passes ) {
-		msg << "renderpass: " << std::setw( 15 ) << std::hex << pass.id << ", " << "'" << pass.debugName << "' , order: " << pass.graphInfo.execution_order << std::endl;
+		msg << "renderpass: " << std::setw( 15 ) << std::hex << pass.id << ", " << "'" << pass.debugName << "' , order: " << pass.execution_order << std::endl;
 
 		for ( const auto &attachment : pass.imageAttachments ) {
 			if (attachment.access_flags & le::AccessFlagBits::eRead){
@@ -306,7 +303,7 @@ static void graph_builder_traverse_passes( const std::unordered_map<uint64_t, le
 	// We want the maximum edge distance (one recursion equals one edge) from the root node
 	// for each pass, since the max distance makes sure that all resources are available,
 	// even resources which have a shorter path.
-	sourcePass->graphInfo.execution_order = std::max( recursion_depth, sourcePass->graphInfo.execution_order );
+	sourcePass->execution_order = std::max( recursion_depth, sourcePass->execution_order );
 
 	for ( auto &attachment: sourcePass->imageAttachments ) {
 		if (attachment.access_flags & le::AccessFlagBits::eRead){
@@ -336,7 +333,7 @@ static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 	graph_builder_traverse_passes(passTable, const_char_hash64("root"), 1);
 
 	std::sort( passes.begin(), passes.end(), []( const le_renderpass_o &lhs, const le_renderpass_o &rhs ) -> bool {
-		return lhs.graphInfo.execution_order > rhs.graphInfo.execution_order;
+		return lhs.execution_order > rhs.execution_order;
 	} );
 
 }

@@ -36,12 +36,10 @@ struct le_rendergraph_api {
 	};
 
 	struct image_attachment_info_o {
-
 		uint64_t              id           = 0; // hash name given to this attachment, based on name string
 		uint64_t              source_id    = 0; // hash name of writer/creator
-		uint8_t               access_flags = 0;
+		uint8_t               access_flags = 0; // read, write or readwrite
 		vk::Format            format;
-		vk::Layout            finalLayout;
 		vk::AttachmentLoadOp  loadOp;
 		vk::AttachmentStoreOp storeOp;
 		void ( *onClear )( void *clear_data ) = nullptr;
