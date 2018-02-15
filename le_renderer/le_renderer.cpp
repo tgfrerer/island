@@ -56,7 +56,6 @@ struct FrameData {
 	uint32_t                       swapchainImageIndex      = uint32_t( ~0 );
 	State                          state                    = State::eInitial;
 	std::vector<vk::CommandBuffer> commandBuffers;
-
 	std::vector<vk::Framebuffer>   debugFramebuffers;
 
 	std::unique_ptr<le::GraphBuilder> graphBuilder;
@@ -143,7 +142,7 @@ static void renderer_setup( le_renderer_o *self ) {
 //			.setFinalLayout     ( vk::ImageLayout::eDepthStencilAttachmentOptimal )
 //			;
 
-		// Define 2 attachments, and tell us what layout to expect these to be in.
+		// Define 2 attachments, and tell us what layout to use during the subpass
 		// Index references attachments from above.
 
 		vk::AttachmentReference colorReference{ 0, vk::ImageLayout::eColorAttachmentOptimal };
@@ -162,18 +161,19 @@ static void renderer_setup( le_renderer_o *self ) {
 		    .setPreserveAttachmentCount (0)
 		    ;
 
-		// Define 2 self-dependencies for subpass 0
+		// Define a external dependency for subpass 0
 
 		std::array<vk::SubpassDependency, 2> dependencies;
 		dependencies[0]
 		    .setSrcSubpass      ( VK_SUBPASS_EXTERNAL ) // producer
 		    .setDstSubpass      ( 0 )                   // consumer
-		    .setSrcStageMask    ( vk::PipelineStageFlagBits::eBottomOfPipe )
+		    .setSrcStageMask    ( vk::PipelineStageFlagBits::eColorAttachmentOutput )
 		    .setDstStageMask    ( vk::PipelineStageFlagBits::eColorAttachmentOutput )
-		    .setSrcAccessMask   ( vk::AccessFlagBits::eMemoryRead )
+		    .setSrcAccessMask   ( vk::AccessFlagBits(0) )
 		    .setDstAccessMask   ( vk::AccessFlagBits::eColorAttachmentWrite )
 		    .setDependencyFlags ( vk::DependencyFlagBits::eByRegion )
 		    ;
+
 		dependencies[1]
 		    .setSrcSubpass      ( 0 )                                     // producer (last possible subpass == subpass 1)
 		    .setDstSubpass      ( VK_SUBPASS_EXTERNAL )                   // consumer
