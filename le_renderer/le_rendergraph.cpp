@@ -143,6 +143,7 @@ static void render_module_destroy(le_render_module_o* self){
 // ----------------------------------------------------------------------
 
 static void render_module_add_renderpass(le_render_module_o*self, le_renderpass_o* pass){
+	// TODO: make sure name for each pass is unique per rendermodule.
 	self->passes.emplace_back(*pass);
 }
 
@@ -296,6 +297,11 @@ static void graph_builder_traverse_passes( const std::unordered_map<uint64_t, le
 		return;
 	}
 
+	if (sourceRenderpassId == 0){
+		std::cerr << __FUNCTION__ << " : Input attachment referenced which is not available in this frame";
+		return;
+	}
+
 	// as each input tells us its source renderpass,
 	// we can look up the provider pass for each source by id
 	auto &sourcePass = passes.at( sourceRenderpassId );
@@ -321,8 +327,8 @@ static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 
 	// ----------| invariant: resources know their source id
 
-	std::unordered_map<uint64_t, le_renderpass_o*, IdentityHash> passTable;
-	passTable.reserve(passes.size());
+	std::unordered_map<uint64_t, le_renderpass_o *, IdentityHash> passTable;
+	passTable.reserve( passes.size() );
 
 	for ( auto &p : passes ) {
 		passTable.emplace( p.id, &p );
@@ -330,12 +336,19 @@ static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 
 	// Note that we set the lowest execution order to 1, so that any passes with order 0
 	// are flagged as non-contributing (these may be pruned)
-	graph_builder_traverse_passes(passTable, const_char_hash64("root"), 1);
+	graph_builder_traverse_passes( passTable, const_char_hash64( "root" ), 1 );
+
+	// remove any passes which are not contributing
+	auto endIt = std::remove_if( passes.begin(), passes.end(), []( const le_renderpass_o &pass ) -> bool {
+		return pass.execution_order == 0;
+	} );
+	passes.erase( endIt, passes.end() );
+
+	// sort passes by execution order
 
 	std::sort( passes.begin(), passes.end(), []( const le_renderpass_o &lhs, const le_renderpass_o &rhs ) -> bool {
 		return lhs.execution_order > rhs.execution_order;
 	} );
-
 }
 
 // ----------------------------------------------------------------------
