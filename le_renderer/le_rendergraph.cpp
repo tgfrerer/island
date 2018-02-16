@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <string>
+#include <list>
 #include <assert.h>
 #include <algorithm>
 #include <unordered_map>
@@ -118,10 +119,6 @@ static void renderpass_add_image_attachment(le_renderpass_o*self, const char* na
 		info.loadOp  = vk::AttachmentLoadOp::eLoad;
 		info.storeOp = vk::AttachmentStoreOp::eStore;
 	} else if ( info.access_flags & le::AccessFlagBits::eWrite ) {
-		// Write-only means clear before --
-		// TODO: we need to check that there is a clear callback, though.
-		info.loadOp  = vk::AttachmentLoadOp::eClear;
-		info.storeOp = vk::AttachmentStoreOp::eStore;
 		// Write-only means we may be seen as the creator of this resource
 		info.source_id = self->id;
 	} else if ( info.access_flags & le::AccessFlagBits::eRead ) {
@@ -364,12 +361,124 @@ static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 	} );
 }
 
+static inline bool is_depth_stencil_format(vk::Format format_){
+	return (format_ >= vk::Format::eD16Unorm && format_ <= vk::Format::eD32SfloatS8Uint);
+}
+
 // ----------------------------------------------------------------------
 
 static void graph_builder_create_resource_table(le_graph_builder_o* self){
 
 	// we want a list of unique resources referenced in the renderpass,
 	// and for each resource we must know its first reference.
+
+	// we also need to know if there are any external resources
+
+	// then, we go through all passes, and we track the resource state for each resource
+
+	struct ResourceInfo {
+		uint64_t   id = 0;
+		vk::Format format;
+	};
+
+	std::unordered_map<uint64_t, ResourceInfo, IdentityHash> resourceTable;
+
+	for (auto & pass : self->passes){
+		for (auto &resource : pass.imageAttachments){
+			ResourceInfo info;
+			info.id = resource.id;
+			info.format = resource.format;
+			auto result = resourceTable.insert({info.id,info});
+			if (!result.second){
+				if (result.first->second.format != info.format){
+					std::cerr << "WARNING: Resource '" << resource.debugName << "' re-defined with incompatible format." << std::endl;
+				}
+			}
+		}
+	}
+
+	// track resource state
+
+	// we should mark persistent resources which are not frame-local with special flags, so that they
+	// come with an initial element in their sync chain, this element signals their last (frame-crossing) state
+	// this naturally applies to "backbuffer", for example.
+
+	struct ResourceState {
+		vk::AccessFlags        srcAccess;
+		vk::AccessFlags        dstAccess;
+		vk::PipelineStageFlags srcStage;
+		vk::PipelineStageFlags dstStage;
+		vk::ImageLayout        layout;
+		vk::Format format;
+	};
+
+	std::unordered_map<uint64_t, std::list<ResourceState>,IdentityHash> syncChainTable;
+
+	for (auto&resource:resourceTable){
+		syncChainTable[resource.first].push_back(ResourceState{});
+	}
+
+	for ( auto &pass : self->passes ) {
+		for ( auto &resource : pass.imageAttachments ) {
+
+			auto &info = resourceTable[ resource.id ];
+			auto &syncChain = syncChainTable[resource.id];
+
+			// Renderpass implicit sync:
+			// + enter renderpass : initial layout (layout must match)
+			// + enter subpass
+			// + load op
+			// + layout transform if initial layout and attachment reference layout differ for subpass
+			// + command execution
+			// + store op
+			// + exit subpass : final layout
+			// + layout transform (if final layout differs)
+
+			// add renderpass begin
+
+			ResourceState renderpassBegin;
+			renderpassBegin.format    = info.format;
+			renderpassBegin.srcAccess = syncChain.back().dstAccess;
+			renderpassBegin.srcStage  = syncChain.back().dstStage;
+
+			if ( resource.access_flags == le::AccessFlagBits::eReadWrite ) {
+				// resource.loadOp most be load
+			} else if ( resource.access_flags & le::AccessFlagBits::eRead ) {
+			} else if ( resource.access_flags & le::AccessFlagBits::eWrite ) {
+				// resource.loadOp must be either clear / or don't care
+				renderpassBegin.dstAccess = vk::AccessFlagBits::eColorAttachmentWrite;
+				renderpassBegin.dstStage  = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+				renderpassBegin.layout    = vk::ImageLayout::eUndefined;
+			}
+
+			resource.syncState.idxBegin = syncChain.size();
+			syncChain.emplace_back( std::move( renderpassBegin ) ); // subpass external dependency
+
+			ResourceState subpassState;
+			subpassState.srcAccess = syncChain.back().dstAccess;
+			subpassState.srcStage  = syncChain.back().dstStage;
+			subpassState.format    = syncChain.back().format;
+
+			if ( resource.access_flags == le::AccessFlagBits::eReadWrite ) {
+			} else if ( resource.access_flags & le::AccessFlagBits::eRead ) {
+			} else if ( resource.access_flags & le::AccessFlagBits::eWrite ) {
+				// resource.loadOp must be either clear / or don't care
+				subpassState.layout    = is_depth_stencil_format( resource.format ) ? vk::ImageLayout::eDepthStencilAttachmentOptimal : vk::ImageLayout::eColorAttachmentOptimal;
+				subpassState.dstStage  = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+				subpassState.dstAccess = vk::AccessFlagBits::eColorAttachmentWrite;
+			}
+
+			resource.syncState.idxEnter = syncChain.size();
+			syncChain.emplace_back( std::move( subpassState ) ); // subpass layout transition
+
+			// next begin will be this exit
+			resource.syncState.idxExit = syncChain.size();
+
+			// subpass begin
+
+			// print out info for this resource at this pass.
+		}
+	}
 
 
 }

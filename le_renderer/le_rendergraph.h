@@ -20,7 +20,6 @@ struct le_backend_vk_device_o;
 
 namespace vk {
     enum class Format; // forward declaration
-	enum class Layout;
 	enum class AttachmentStoreOp;
 	enum class AttachmentLoadOp;
 }
@@ -42,6 +41,14 @@ struct le_rendergraph_api {
 		vk::Format            format;
 		vk::AttachmentLoadOp  loadOp;
 		vk::AttachmentStoreOp storeOp;
+
+		struct SubPassSyncState {
+			uint64_t idxEnter   : 16;
+			uint64_t idxBegin   : 16;
+			uint64_t idxExit    : 16;
+			uint64_t idxOutside : 16;
+		} syncState = {0,0,0,0};
+
 		void ( *onClear )( void *clear_data ) = nullptr;
 		char debugName[ 32 ];
 	};
