@@ -412,17 +412,29 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 		vk::Format format;
 	};
 
-	std::unordered_map<uint64_t, std::list<ResourceState>,IdentityHash> syncChainTable;
+	// With `syncChainTable` and image_attachment_info_o.syncState, we should
+	// be able to create renderpasses. Each resource has a sync chain, and each attachment_info
+	// has a struct which holds indices into the sync chain telling us where to look
+	// up the sync state for a resource at different stages of renderpass construction.
 
-	for (auto&resource:resourceTable){
-		syncChainTable[resource.first].push_back(ResourceState{});
+	std::unordered_map<uint64_t, std::list<ResourceState>, IdentityHash> syncChainTable;
+
+	for ( auto &resource : resourceTable ) {
+		syncChainTable[ resource.first ].push_back( ResourceState{} );
 	}
+
+	// TODO: frame-external ("persistent") resources such as backbuffer
+	// need to be correctly initialised:
+	//
+	auto &backbufferState     = syncChainTable[ const_char_hash64( "backbuffer" ) ].front();
+	backbufferState.dstStage  = vk::PipelineStageFlagBits::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
+	backbufferState.dstAccess = vk::AccessFlagBits( 0 );                           // no stage was made available
 
 	for ( auto &pass : self->passes ) {
 		for ( auto &resource : pass.imageAttachments ) {
 
-			auto &info = resourceTable[ resource.id ];
-			auto &syncChain = syncChainTable[resource.id];
+			auto &info      = resourceTable[ resource.id ];
+			auto &syncChain = syncChainTable[ resource.id ];
 
 			// Renderpass implicit sync:
 			// + enter renderpass : initial layout (layout must match)
@@ -434,53 +446,71 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 			// + exit subpass : final layout
 			// + layout transform (if final layout differs)
 
-			// add renderpass begin
-
-			ResourceState renderpassBegin;
-			renderpassBegin.format    = info.format;
-			renderpassBegin.srcAccess = syncChain.back().dstAccess;
-			renderpassBegin.srcStage  = syncChain.back().dstStage;
+			ResourceState attachmentLoadOrClear;
+			attachmentLoadOrClear.format    = info.format;
+			attachmentLoadOrClear.srcAccess = syncChain.back().dstAccess;
+			attachmentLoadOrClear.srcStage  = syncChain.back().dstStage;
 
 			if ( resource.access_flags == le::AccessFlagBits::eReadWrite ) {
-				// resource.loadOp most be load
+				// resource.loadOp most be LOAD
+				if ( is_depth_stencil_format( resource.format ) ) {
+					attachmentLoadOrClear.dstStage  = vk::PipelineStageFlagBits::eEarlyFragmentTests;
+					attachmentLoadOrClear.dstAccess = vk::AccessFlagBits::eDepthStencilAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentRead;
+				} else {
+					// we need to make visible the information from color attachment output stage
+					// to anyone using read or write on the color attachment.
+					// TODO: is this correct?
+					attachmentLoadOrClear.dstStage  = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+					// TODO: RESEARCH ------------> what does the access mask Flag mean?
+					attachmentLoadOrClear.dstAccess = vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead;
+				}
+
 			} else if ( resource.access_flags & le::AccessFlagBits::eRead ) {
 			} else if ( resource.access_flags & le::AccessFlagBits::eWrite ) {
-				// resource.loadOp must be either clear / or don't care
-				renderpassBegin.dstAccess = vk::AccessFlagBits::eColorAttachmentWrite;
-				renderpassBegin.dstStage  = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-				renderpassBegin.layout    = vk::ImageLayout::eUndefined;
+				// resource.loadOp must be either CLEAR / or DONT_CARE
+				attachmentLoadOrClear.dstStage  = is_depth_stencil_format( resource.format ) ? vk::PipelineStageFlagBits::eEarlyFragmentTests : vk::PipelineStageFlagBits::eColorAttachmentOutput; /* NOTE: what is the correct dst stage for depth stencil writing?*/
+				attachmentLoadOrClear.dstAccess = is_depth_stencil_format( resource.format ) ? vk::AccessFlagBits::eDepthStencilAttachmentWrite : vk::AccessFlagBits::eColorAttachmentWrite;
+				attachmentLoadOrClear.layout    = vk::ImageLayout::eUndefined; // override to undefined to invalidate attachment which will be cleared.
 			}
 
-			resource.syncState.idxBegin = syncChain.size();
-			syncChain.emplace_back( std::move( renderpassBegin ) ); // subpass external dependency
+			resource.syncState.idxInitial = syncChain.size();
+			syncChain.emplace_back( std::move( attachmentLoadOrClear ) ); // attachment initial load/clear
 
-			ResourceState subpassState;
-			subpassState.srcAccess = syncChain.back().dstAccess;
-			subpassState.srcStage  = syncChain.back().dstStage;
-			subpassState.format    = syncChain.back().format;
+			// Nothing changes in terms of sync, only the layout may change - layout transitions happen outside the regular pipeline,
+			// they happen-after availability operations, and happen-before any visibility operations
+			ResourceState subpassLayoutTransition{syncChain.back()};
 
-			if ( resource.access_flags == le::AccessFlagBits::eReadWrite ) {
-			} else if ( resource.access_flags & le::AccessFlagBits::eRead ) {
+			if ( resource.access_flags & le::AccessFlagBits::eRead ) {
 			} else if ( resource.access_flags & le::AccessFlagBits::eWrite ) {
+				// same for both write and read/write
 				// resource.loadOp must be either clear / or don't care
-				subpassState.layout    = is_depth_stencil_format( resource.format ) ? vk::ImageLayout::eDepthStencilAttachmentOptimal : vk::ImageLayout::eColorAttachmentOptimal;
-				subpassState.dstStage  = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-				subpassState.dstAccess = vk::AccessFlagBits::eColorAttachmentWrite;
+				subpassLayoutTransition.layout = is_depth_stencil_format( resource.format ) ? vk::ImageLayout::eDepthStencilAttachmentOptimal : vk::ImageLayout::eColorAttachmentOptimal;
 			}
 
-			resource.syncState.idxEnter = syncChain.size();
-			syncChain.emplace_back( std::move( subpassState ) ); // subpass layout transition
+			resource.syncState.idxSubpassLayoutTransition = syncChain.size();
+			syncChain.emplace_back( std::move( subpassLayoutTransition ) ); // subpass layout transition
 
-			// next begin will be this exit
-			resource.syncState.idxExit = syncChain.size();
+			ResourceState externalToSubpassDependency{syncChain.back()};
+			externalToSubpassDependency.srcAccess = externalToSubpassDependency.dstAccess; // flush caches which were written at previous stage
+			externalToSubpassDependency.srcStage  = externalToSubpassDependency.dstStage;  // flush caches which were written at previous stage
 
-			// subpass begin
+			resource.syncState.idxExternalToSubpass = syncChain.size();
+			syncChain.emplace_back( std::move( externalToSubpassDependency ) );
+
+			// ... NOTE: if resource is modified by commands inside the renderpass, this needs to be added to the sync chain here.
+
+			// Whichever next resource state will be in the sync chain will be the resource state we should transition to
+			// when defining the last_subpass_to_external dependency
+			// which is why, optimistically, we designate the index of the next, not yet written state here -
+			resource.syncState.idxFinal = syncChain.size();
 
 			// print out info for this resource at this pass.
 		}
 	}
 
-
+	// TODO: add final states for resources which are permanent - or are used on another queue
+	// this includes backbuffer, and makes sure the backbuffer transitions to the correct state in its last
+	// subpass dependency.
 }
 
 // ----------------------------------------------------------------------

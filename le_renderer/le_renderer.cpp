@@ -167,9 +167,9 @@ static void renderer_setup( le_renderer_o *self ) {
 		dependencies[0]
 		    .setSrcSubpass      ( VK_SUBPASS_EXTERNAL ) // producer
 		    .setDstSubpass      ( 0 )                   // consumer
-		    .setSrcStageMask    ( vk::PipelineStageFlagBits::eColorAttachmentOutput )
+		    .setSrcStageMask    ( vk::PipelineStageFlagBits::eColorAttachmentOutput )  // we need this because the semaphore waits on colorAttachmentOutput
 		    .setDstStageMask    ( vk::PipelineStageFlagBits::eColorAttachmentOutput )
-		    .setSrcAccessMask   ( vk::AccessFlagBits(0) )
+		    .setSrcAccessMask   ( vk::AccessFlagBits(0) ) // don't flush anything - nothing needs flushing.
 		    .setDstAccessMask   ( vk::AccessFlagBits::eColorAttachmentWrite )
 		    .setDependencyFlags ( vk::DependencyFlagBits::eByRegion )
 		    ;
