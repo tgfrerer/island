@@ -137,7 +137,7 @@ int main( int argc, char const *argv[] ) {
 
 							le::ImageAttachmentInfo colorAttachmentInfo;
 							colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
-							colorAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
+							colorAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
 
 							le::ImageAttachmentInfo depthAttachmentInfo;
 							depthAttachmentInfo.format       = device.getDefaultDepthStencilFormat();
@@ -152,7 +152,7 @@ int main( int argc, char const *argv[] ) {
 						// does specify the draw calls, and which pipelines to use.
 
 						renderModule.addRenderPass( renderPassEarlyZ );
-						renderModule.addRenderPass( renderPassForward );
+//						renderModule.addRenderPass( renderPassForward );
 						renderModule.addRenderPass( renderPassFinal );
 					}
 					renderer.update( renderModule );
