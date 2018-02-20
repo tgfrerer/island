@@ -428,7 +428,9 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 	//
 	auto &backbufferState     = syncChainTable[ const_char_hash64( "backbuffer" ) ].front();
 	backbufferState.dstStage  = vk::PipelineStageFlagBits::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
-	backbufferState.dstAccess = vk::AccessFlagBits( 0 );                           // no stage was made available
+	backbufferState.dstAccess = vk::AccessFlagBits( 0 );                           // semaphore took care of availability - we can assume memory is already available
+
+	// * sync state: ready to enter renderpass: colorattachmentOutput=visible *
 
 	// we use this to mask out any reads dstAccess, as it doesn't make sense to
 	const auto ANY_WRITE_ACCESS_FLAGS = ( vk::AccessFlagBits::eColorAttachmentWrite |
@@ -448,10 +450,10 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 
 			bool isDepthStencil = is_depth_stencil_format( resource.format );
 
-			// Renderpass implicit sync:
+			// Renderpass implicit sync (per resource):
 			// + enter renderpass : initial layout (layout must match)
 			// + enter subpass
-			// + load op
+			// + load/clear op (executed once before first use per-resource)
 			// + layout transform if initial layout and attachment reference layout differ for subpass
 			// + command execution
 			// + store op
@@ -459,33 +461,42 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 			// + layout transform (if final layout differs)
 
 			{
-				ResourceState attachmentLoadOrClear{syncChain.back()};
-				attachmentLoadOrClear.format = info.format;
+				auto & previousSyncState = syncChain.back();
+				ResourceState resourceFirstUse{previousSyncState};
+				resourceFirstUse.srcAccess = previousSyncState.dstAccess & ANY_WRITE_ACCESS_FLAGS;
+				resourceFirstUse.srcStage  = previousSyncState.dstStage;
+				resourceFirstUse.format    = info.format;
 
-				if ( resource.access_flags == le::AccessFlagBits::eReadWrite ) {
-					// resource.loadOp most be LOAD
+				switch ( resource.access_flags ) {
+				case le::AccessFlagBits::eReadWrite:
+					// resource.loadOp must be LOAD
 
 					// we must now specify which stages need to be visible for which coming memory access
 					if ( isDepthStencil ) {
-						attachmentLoadOrClear.dstStage |= vk::PipelineStageFlagBits::eEarlyFragmentTests;
-						attachmentLoadOrClear.dstAccess |= vk::AccessFlagBits::eDepthStencilAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentRead;
+						resourceFirstUse.dstStage |= vk::PipelineStageFlagBits::eEarlyFragmentTests;
+						resourceFirstUse.dstAccess |= vk::AccessFlagBits::eDepthStencilAttachmentRead;
 					} else {
 						// we need to make visible the information from color attachment output stage
 						// to anyone using read or write on the color attachment.
-						attachmentLoadOrClear.dstStage |= vk::PipelineStageFlagBits::eColorAttachmentOutput;
-						attachmentLoadOrClear.dstAccess |= vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead;
+						resourceFirstUse.dstStage |= vk::PipelineStageFlagBits::eColorAttachmentOutput;
+						resourceFirstUse.dstAccess |=  vk::AccessFlagBits::eColorAttachmentRead;
 					}
+				    break;
 
-				} else if ( resource.access_flags & le::AccessFlagBits::eRead ) {
-				} else if ( resource.access_flags & le::AccessFlagBits::eWrite ) {
+				case le::AccessFlagBits::eWrite:
 					// resource.loadOp must be either CLEAR / or DONT_CARE
-					attachmentLoadOrClear.dstStage |= isDepthStencil ? vk::PipelineStageFlagBits::eEarlyFragmentTests : vk::PipelineStageFlagBits::eColorAttachmentOutput;
-					attachmentLoadOrClear.dstAccess |= isDepthStencil ? vk::AccessFlagBits::eDepthStencilAttachmentWrite : vk::AccessFlagBits::eColorAttachmentWrite;
-					attachmentLoadOrClear.layout = vk::ImageLayout::eUndefined; // override to undefined to invalidate attachment which will be cleared.
+					resourceFirstUse.layout = vk::ImageLayout::eUndefined; // override to undefined to invalidate attachment which will be cleared.
+					resourceFirstUse.dstStage |= isDepthStencil ? vk::PipelineStageFlagBits::eEarlyFragmentTests : vk::PipelineStageFlagBits::eColorAttachmentOutput;
+					resourceFirstUse.srcAccess |=  vk::AccessFlagBits(0); // no need to flush "stale" cache, if we're overwriting this anyway.
+				    break;
+
+				case le::AccessFlagBits::eRead:
+				    break;
 				}
 
 				resource.syncState.idxInitial = syncChain.size();
-				syncChain.emplace_back( std::move( attachmentLoadOrClear ) ); // attachment initial state for a renderpass - may be loaded/cleared
+				syncChain.emplace_back( std::move( resourceFirstUse ) ); // attachment initial state for a renderpass - may be loaded/cleared on first use
+				    // * sync state: ready for load/store *
 			}
 
 			{
@@ -508,9 +519,31 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 			}
 
 			{
-				ResourceState externalToSubpassDependency{syncChain.back()};
-				externalToSubpassDependency.srcAccess = vk::AccessFlagBits( 0 );              // load/clear OP will automatically have made available already.
-				externalToSubpassDependency.srcStage  = externalToSubpassDependency.dstStage; // ... in stages which were written at previous stage
+				auto & previousSyncState = syncChain.back();
+				ResourceState externalToSubpassDependency{previousSyncState};
+				externalToSubpassDependency.srcAccess = previousSyncState.dstAccess & ANY_WRITE_ACCESS_FLAGS;
+				externalToSubpassDependency.srcStage  = previousSyncState.dstStage;
+
+				if ( resource.access_flags == le::AccessFlagBits::eReadWrite ) {
+					// resource.loadOp most be LOAD
+
+					// we must now specify which stages need to be visible for which coming memory access
+					if ( isDepthStencil ) {
+						externalToSubpassDependency.dstStage |= vk::PipelineStageFlagBits::eEarlyFragmentTests;
+						externalToSubpassDependency.dstAccess |= vk::AccessFlagBits::eDepthStencilAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentRead;
+					} else {
+						// we need to make visible the information from color attachment output stage
+						// to anyone using read or write on the color attachment.
+						externalToSubpassDependency.dstStage |= vk::PipelineStageFlagBits::eColorAttachmentOutput;
+						externalToSubpassDependency.dstAccess |= vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead;
+					}
+
+				} else if ( resource.access_flags & le::AccessFlagBits::eRead ) {
+				} else if ( resource.access_flags & le::AccessFlagBits::eWrite ) {
+
+					externalToSubpassDependency.dstStage |= isDepthStencil ? vk::PipelineStageFlagBits::eEarlyFragmentTests : vk::PipelineStageFlagBits::eColorAttachmentOutput;
+					externalToSubpassDependency.dstAccess |= isDepthStencil ? vk::AccessFlagBits::eDepthStencilAttachmentWrite : vk::AccessFlagBits::eColorAttachmentWrite;
+				}
 
 				resource.syncState.idxExternalToSubpass = syncChain.size();
 				syncChain.emplace_back( std::move( externalToSubpassDependency ) );
