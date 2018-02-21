@@ -38,7 +38,7 @@ int main( int argc, char const *argv[] ) {
 
 	{
 
-		// NOTaccess_flags to easily add enabled device extensions
+		// access_flags to easily add enabled device extensions
 		// and to add easily to requestedExtensions.
 
 		uint32_t numRequestedExtensions = 0;
@@ -137,22 +137,22 @@ int main( int argc, char const *argv[] ) {
 
 							le::ImageAttachmentInfo colorAttachmentInfo;
 							colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
-							colorAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
+							colorAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
 
 							le::ImageAttachmentInfo depthAttachmentInfo;
 							depthAttachmentInfo.format       = device.getDefaultDepthStencilFormat();
 							depthAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
 
 							rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
-							rp.addImageAttachment( "depth", &depthAttachmentInfo );
+							//rp.addImageAttachment( "depth", &depthAttachmentInfo );
 							return true;
 						} );
 
 						// TODO: add setExecuteFun to renderpass - this is the method which actually
 						// does specify the draw calls, and which pipelines to use.
 
-						renderModule.addRenderPass( renderPassEarlyZ );
-//						renderModule.addRenderPass( renderPassForward );
+//						renderModule.addRenderPass( renderPassEarlyZ );
+						renderModule.addRenderPass( renderPassForward );
 						renderModule.addRenderPass( renderPassFinal );
 					}
 					renderer.update( renderModule );

@@ -43,11 +43,10 @@ struct le_rendergraph_api {
 		vk::AttachmentStoreOp storeOp;
 
 		struct SyncState {
-			uint64_t idxInitial : 16;                 // info for renderpass load/clear op
-			uint64_t idxSubpassLayoutTransition : 16; // target layout for subpass layout transition
-			uint64_t idxExternalToSubpass : 16;       // info for external_to_first_subpass_dependency
-			uint64_t idxFinal : 16;                   // info for last_subpass_to_external_dependency
-		} syncState = {0,0,0,0};
+			    uint64_t idxInitial : 16;                 // info for renderpass load/clear op
+				uint64_t idxFinal : 16;                   // info for last_subpass_to_external_dependency
+				uint64_t reserved : 32;
+		} syncState = {0,0,0};
 
 		void ( *onClear )( void *clear_data ) = nullptr;
 		char debugName[ 32 ];
