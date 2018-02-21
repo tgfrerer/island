@@ -404,12 +404,10 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 	// this naturally applies to "backbuffer", for example.
 
 	struct ResourceState {
-		vk::AccessFlags        srcAccess;
-		vk::AccessFlags        dstAccess;
-		vk::PipelineStageFlags srcStage; // ? TODO: what is a valid default?
-		vk::PipelineStageFlags dstStage;
-		vk::ImageLayout        layout = vk::ImageLayout::eUndefined;
-		vk::Format format = vk::Format::eUndefined;
+		vk::AccessFlags        access;                               // last memory write access
+		vk::PipelineStageFlags stage;                                // last known stage using write access
+		vk::ImageLayout        layout = vk::ImageLayout::eUndefined; // last known image layout
+		vk::Format             format = vk::Format::eUndefined;      // last known image format
 	};
 
 	// With `syncChainTable` and image_attachment_info_o.syncState, we should
@@ -427,8 +425,8 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 	// need to be correctly initialised:
 	//
 	auto &backbufferState     = syncChainTable[ const_char_hash64( "backbuffer" ) ].front();
-	backbufferState.dstStage  = vk::PipelineStageFlagBits::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
-	backbufferState.dstAccess = vk::AccessFlagBits( 0 );                           // semaphore took care of availability - we can assume memory is already available
+	backbufferState.stage  = vk::PipelineStageFlagBits::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
+	backbufferState.access = vk::AccessFlagBits( 0 );                           // semaphore took care of availability - we can assume memory is already available
 
 	// * sync state: ready to enter renderpass: colorattachmentOutput=visible *
 
@@ -463,8 +461,6 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 			{
 				auto & previousSyncState = syncChain.back();
 				ResourceState resourceFirstUse{previousSyncState};
-				resourceFirstUse.srcAccess = previousSyncState.dstAccess & ANY_WRITE_ACCESS_FLAGS;
-				resourceFirstUse.srcStage  = previousSyncState.dstStage;
 				resourceFirstUse.format    = info.format;
 
 				switch ( resource.access_flags ) {
@@ -473,21 +469,21 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 
 					// we must now specify which stages need to be visible for which coming memory access
 					if ( isDepthStencil ) {
-						resourceFirstUse.dstStage |= vk::PipelineStageFlagBits::eEarlyFragmentTests;
-						resourceFirstUse.dstAccess |= vk::AccessFlagBits::eDepthStencilAttachmentRead;
+						resourceFirstUse.stage  = vk::PipelineStageFlagBits::eEarlyFragmentTests;
+						resourceFirstUse.access = vk::AccessFlagBits::eDepthStencilAttachmentRead;
 					} else {
 						// we need to make visible the information from color attachment output stage
 						// to anyone using read or write on the color attachment.
-						resourceFirstUse.dstStage |= vk::PipelineStageFlagBits::eColorAttachmentOutput;
-						resourceFirstUse.dstAccess |=  vk::AccessFlagBits::eColorAttachmentRead;
+						resourceFirstUse.stage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+						resourceFirstUse.access =  vk::AccessFlagBits::eColorAttachmentRead;
 					}
 				    break;
 
 				case le::AccessFlagBits::eWrite:
 					// resource.loadOp must be either CLEAR / or DONT_CARE
 					resourceFirstUse.layout = vk::ImageLayout::eUndefined; // override to undefined to invalidate attachment which will be cleared.
-					resourceFirstUse.dstStage |= isDepthStencil ? vk::PipelineStageFlagBits::eEarlyFragmentTests : vk::PipelineStageFlagBits::eColorAttachmentOutput;
-					resourceFirstUse.srcAccess |=  vk::AccessFlagBits(0); // no need to flush "stale" cache, if we're overwriting this anyway.
+					resourceFirstUse.stage = isDepthStencil ? vk::PipelineStageFlagBits::eEarlyFragmentTests : vk::PipelineStageFlagBits::eColorAttachmentOutput;
+					resourceFirstUse.access =  vk::AccessFlagBits(0); // no need to flush "stale" cache, if we're overwriting this anyway.
 				    break;
 
 				case le::AccessFlagBits::eRead:
@@ -521,28 +517,26 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 			{
 				auto & previousSyncState = syncChain.back();
 				ResourceState externalToSubpassDependency{previousSyncState};
-				externalToSubpassDependency.srcAccess = previousSyncState.dstAccess & ANY_WRITE_ACCESS_FLAGS;
-				externalToSubpassDependency.srcStage  = previousSyncState.dstStage;
 
 				if ( resource.access_flags == le::AccessFlagBits::eReadWrite ) {
 					// resource.loadOp most be LOAD
 
 					// we must now specify which stages need to be visible for which coming memory access
 					if ( isDepthStencil ) {
-						externalToSubpassDependency.dstStage |= vk::PipelineStageFlagBits::eEarlyFragmentTests;
-						externalToSubpassDependency.dstAccess |= vk::AccessFlagBits::eDepthStencilAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentRead;
+						externalToSubpassDependency.stage = vk::PipelineStageFlagBits::eEarlyFragmentTests;
+						externalToSubpassDependency.access = vk::AccessFlagBits::eDepthStencilAttachmentWrite | vk::AccessFlagBits::eDepthStencilAttachmentRead;
 					} else {
 						// we need to make visible the information from color attachment output stage
 						// to anyone using read or write on the color attachment.
-						externalToSubpassDependency.dstStage |= vk::PipelineStageFlagBits::eColorAttachmentOutput;
-						externalToSubpassDependency.dstAccess |= vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead;
+						externalToSubpassDependency.stage = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+						externalToSubpassDependency.access = vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead;
 					}
 
 				} else if ( resource.access_flags & le::AccessFlagBits::eRead ) {
 				} else if ( resource.access_flags & le::AccessFlagBits::eWrite ) {
 
-					externalToSubpassDependency.dstStage |= isDepthStencil ? vk::PipelineStageFlagBits::eEarlyFragmentTests : vk::PipelineStageFlagBits::eColorAttachmentOutput;
-					externalToSubpassDependency.dstAccess |= isDepthStencil ? vk::AccessFlagBits::eDepthStencilAttachmentWrite : vk::AccessFlagBits::eColorAttachmentWrite;
+					externalToSubpassDependency.stage = isDepthStencil ? vk::PipelineStageFlagBits::eEarlyFragmentTests : vk::PipelineStageFlagBits::eColorAttachmentOutput;
+					externalToSubpassDependency.access = isDepthStencil ? vk::AccessFlagBits::eDepthStencilAttachmentWrite : vk::AccessFlagBits::eColorAttachmentWrite;
 				}
 
 				resource.syncState.idxExternalToSubpass = syncChain.size();
@@ -571,18 +565,16 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 		auto & syncChain = syncChainPair.second;
 
 		ResourceState finalState{syncChain.back()};
-		finalState.srcAccess = finalState.dstAccess & ANY_WRITE_ACCESS_FLAGS;
-		finalState.srcStage  = finalState.dstStage;
 
 		if (id == const_char_hash64( "backbuffer" )){
-			finalState.dstStage  = vk::PipelineStageFlagBits::eBottomOfPipe;
-			finalState.dstAccess = vk::AccessFlagBits::eMemoryRead;
+			finalState.stage  = vk::PipelineStageFlagBits::eBottomOfPipe;
+			finalState.access = vk::AccessFlagBits::eMemoryRead;
 			finalState.layout    = vk::ImageLayout::ePresentSrcKHR;
 		} else {
 			// we mimick implicit dependency here, which exists for a final subpass
 			// see p.210 vk spec (chapter 7, render pass)
-			finalState.dstStage = vk::PipelineStageFlagBits::eBottomOfPipe;
-			finalState.dstAccess = vk::AccessFlagBits(0);
+			finalState.stage = vk::PipelineStageFlagBits::eBottomOfPipe;
+			finalState.access = vk::AccessFlagBits(0);
 		}
 
 		syncChain.emplace_back(std::move(finalState));
@@ -633,22 +625,25 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 			    .setFinalLayout    ( syncFinal.layout )
 			    ;
 
+			std::cout << "attachment: " << attachment.debugName << std::endl;
+			std::cout << "layout initial: " << vk::to_string(syncInitial.layout) << std::endl;
+			std::cout << "layout subpass: " << vk::to_string(syncSubpassLayoutTransition.layout) << std::endl;
+			std::cout << "layout   final: " << vk::to_string(syncFinal.layout) << std::endl;
+			
 			attachments.emplace_back(attachmentDescription);
 			colorAttachmentReferences.emplace_back( attachments.size() - 1, syncSubpassLayoutTransition.layout );
 
-			srcStageFromExternalFlags |= syncFromExternal.srcStage;
-			dstStageFromExternalFlags |= syncFromExternal.dstStage;
-			srcAccessFromExternalFlags |= syncFromExternal.srcAccess;
-			dstAccessFromExternalFlags |= syncFromExternal.dstAccess;
+			srcStageFromExternalFlags |= syncInitial.stage;
+			dstStageFromExternalFlags |= syncFromExternal.stage;
+			srcAccessFromExternalFlags |= (syncInitial.access & ANY_WRITE_ACCESS_FLAGS);
+			dstAccessFromExternalFlags |= syncFromExternal.access;
 
-			srcStageToExternalFlags |= syncFinal.srcStage;
-			dstStageToExternalFlags |= syncFinal.dstStage;
-			srcAccessToExternalFlags |= syncFinal.srcAccess;
-			dstAccessToExternalFlags |= syncFinal.dstAccess;
+			srcStageToExternalFlags |= syncChain.at(syncIndices.idxFinal-1).stage;
+			dstStageToExternalFlags |= syncFinal.stage;
+			srcAccessToExternalFlags |= (syncChain.at(syncIndices.idxFinal-1).access & ANY_WRITE_ACCESS_FLAGS);
+			dstAccessToExternalFlags |= syncFinal.access;
 
 		}
-
-		vk::AttachmentReference colorAttachment;
 
 		std::vector<vk::SubpassDescription>    subpasses;
 		subpasses.reserve(1);
@@ -678,12 +673,14 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 			std::cout << "\t dstStage: " << vk::to_string(dstStageFromExternalFlags ) << std::endl;
 			std::cout << "\tsrcAccess: " << vk::to_string(srcAccessFromExternalFlags) << std::endl;
 			std::cout << "\tdstAccess: " << vk::to_string(dstAccessFromExternalFlags) << std::endl;
+			
 			std::cout << "- subpass to external -" << std::endl;
 			std::cout << "\t srcStage: " << vk::to_string( srcStageToExternalFlags ) << std::endl;
 			std::cout << "\t dstStage: " << vk::to_string( dstStageToExternalFlags ) << std::endl;
 			std::cout << "\tsrcAccess: " << vk::to_string( srcAccessToExternalFlags) << std::endl;
 			std::cout << "\tdstAccess: " << vk::to_string( dstAccessToExternalFlags) << std::endl;
-
+			
+			
 			vk::SubpassDependency externalToSubpassDependency;
 			externalToSubpassDependency
 			    .setSrcSubpass      ( VK_SUBPASS_EXTERNAL )                // outside of renderpass
