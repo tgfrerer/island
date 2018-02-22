@@ -5,7 +5,7 @@ set (PROJECT_NAME "Island")
 
 project (${PROJECT_NAME})
 
-set(PLUGINS_DYNAMIC OFF CACHE BOOL "Use dynamic linking for all plugins" FORCE)
+set(PLUGINS_DYNAMIC OFF CACHE BOOL "Use dynamic linking for all plugins")
 
 set ( STATIC_LIBS "")
 set ( PLUGIN_DEFINITIONS "")
