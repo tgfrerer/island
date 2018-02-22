@@ -25,7 +25,6 @@ struct le_render_module_o;
 struct le_renderpass_o;
 struct le_graph_builder_o;
 
-
 struct le_renderer_api {
 
 	static constexpr auto id       = "le_renderer";
@@ -103,35 +102,33 @@ namespace le {
 using ImageAttachmentInfo = le_renderer_api::image_attachment_info_o;
 using AccessFlagBits      = le_renderer_api::AccessFlagBits;
 
-class Renderer  {
+class Renderer {
 	const le_renderer_api &                      rendererApiI = *Registry::getApi<le_renderer_api>();
 	const le_renderer_api::renderer_interface_t &rendererI    = rendererApiI.le_renderer_i;
 
-	le_renderer_o* self;
+	le_renderer_o *self;
 
   public:
-	Renderer( le_backend_vk_device_o* device, le_backend_swapchain_o* swapchain )
-	    : self( rendererI.create(device, swapchain)) {
+	Renderer( le_backend_vk_device_o *device, le_backend_swapchain_o *swapchain )
+	    : self( rendererI.create( device, swapchain ) ) {
 	}
 
 	~Renderer() {
-		rendererI.destroy(self);
+		rendererI.destroy( self );
 	}
 
-	void setup(){
-		rendererI.setup(self);
+	void setup() {
+		rendererI.setup( self );
 	}
 
-	void update(le_render_module_o* module){
-		rendererI.update(self, module);
+	void update( le_render_module_o *module ) {
+		rendererI.update( self, module );
 	}
-
 };
-
 
 class RenderPass {
 	const le_renderer_api &                        rendererApiI = *Registry::getApi<le_renderer_api>();
-	const le_renderer_api::renderpass_interface_t &renderpassI = rendererApiI.le_renderpass_i;
+	const le_renderer_api::renderpass_interface_t &renderpassI  = rendererApiI.le_renderpass_i;
 
 	le_renderpass_o *self;
 
@@ -140,8 +137,8 @@ class RenderPass {
 	    : self( renderpassI.create( name_ ) ) {
 	}
 
-	~RenderPass(){
-		renderpassI.destroy(self);
+	~RenderPass() {
+		renderpassI.destroy( self );
 	}
 
 	operator auto() {
@@ -158,7 +155,7 @@ class RenderPass {
 class RenderPassRef {
 	// non-owning version of RenderPass, but with more public methods
 	const le_renderer_api &                        rendererApiI = *Registry::getApi<le_renderer_api>();
-	const le_renderer_api::renderpass_interface_t &renderpassI     = rendererApiI.le_renderpass_i;
+	const le_renderer_api::renderpass_interface_t &renderpassI  = rendererApiI.le_renderpass_i;
 
 	le_renderpass_o *self = nullptr;
 
@@ -174,18 +171,17 @@ class RenderPassRef {
 		return self;
 	}
 
-	RenderPassRef &addImageAttachment( const char *name_,  le_renderer_api::image_attachment_info_o* info ) {
+	RenderPassRef &addImageAttachment( const char *name_, le_renderer_api::image_attachment_info_o *info ) {
 		renderpassI.add_image_attachment( self, name_, info );
 		return *this;
 	}
-
 };
 
 // ----------------------------------------------------------------------
 
 class GraphBuilder : NoCopy, NoMove {
-	const le_renderer_api &                        rendererApiI = *Registry::getApi<le_renderer_api>();
-	const le_renderer_api::graph_builder_interface_t &graphbuilderI   = rendererApiI.le_graph_builder_i;
+	const le_renderer_api &                           rendererApiI  = *Registry::getApi<le_renderer_api>();
+	const le_renderer_api::graph_builder_interface_t &graphbuilderI = rendererApiI.le_graph_builder_i;
 
 	le_graph_builder_o *self;
 	bool                is_reference = false;
@@ -210,31 +206,31 @@ class GraphBuilder : NoCopy, NoMove {
 		return self;
 	}
 
-	void reset(){
-		graphbuilderI.reset(self);
+	void reset() {
+		graphbuilderI.reset( self );
 	}
 
 	void addRenderpass( le_renderpass_o *rp ) {
 		graphbuilderI.add_renderpass( self, rp );
 	}
 
-	void buildGraph(){
-		graphbuilderI.build_graph(self);
+	void buildGraph() {
+		graphbuilderI.build_graph( self );
 	}
 };
 
 // ----------------------------------------------------------------------
 
 class RenderModule {
-	const le_renderer_api &                        rendererApiI = *Registry::getApi<le_renderer_api>();
-	const le_renderer_api::rendermodule_interface_t &rendermoduleI   = rendererApiI.le_render_module_i;
+	const le_renderer_api &                          rendererApiI  = *Registry::getApi<le_renderer_api>();
+	const le_renderer_api::rendermodule_interface_t &rendermoduleI = rendererApiI.le_render_module_i;
 
 	le_render_module_o *self;
 	bool                is_reference = false;
 
   public:
-	RenderModule(le_backend_vk_device_o* device_)
-	    : self( rendermoduleI.create(device_) ) {
+	RenderModule( le_backend_vk_device_o *device_ )
+	    : self( rendermoduleI.create( device_ ) ) {
 	}
 
 	RenderModule( le_render_module_o *self_ )
@@ -252,8 +248,8 @@ class RenderModule {
 		return self;
 	}
 
-	void addRenderPass(le_renderpass_o* renderpass){
-		rendermoduleI.add_renderpass(self,renderpass);
+	void addRenderPass( le_renderpass_o *renderpass ) {
+		rendermoduleI.add_renderpass( self, renderpass );
 	}
 
 	void buildGraph( le_graph_builder_o *gb_ ) {
@@ -264,7 +260,6 @@ class RenderModule {
 		rendermoduleI.execute_graph( self, gb_ );
 	}
 };
-
 
 } // namespace le
 #endif // __cplusplus

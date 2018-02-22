@@ -1,6 +1,7 @@
 #include "pal_api_loader/ApiRegistry.hpp"
 #include "le_renderer/le_renderer.h"
-#include "le_renderer/le_rendergraph.h"
+#include "le_renderer/private/le_rendergraph.h"
+#include "le_renderer/private/le_renderpass.h"
 
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_swapchain_vk/le_swapchain_vk.h"
@@ -526,6 +527,7 @@ void register_le_renderer_api( void *api_ ) {
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
 
-	// load components of this api - register method is declared in le_rendergraph.h
+	// force-load sub-components of this api
 	register_le_rendergraph_api(api_);
+	register_le_renderpass_api(api_);
 }
