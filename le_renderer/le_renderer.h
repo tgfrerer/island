@@ -91,7 +91,7 @@ struct le_renderer_api {
 	renderpass_interface_t    le_renderpass_i;
 	rendermodule_interface_t  le_render_module_i;
 	graph_builder_interface_t le_graph_builder_i;
-	renderer_interface_t le_renderer_i;
+	renderer_interface_t      le_renderer_i;
 };
 
 #ifdef __cplusplus

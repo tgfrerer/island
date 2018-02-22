@@ -5,13 +5,15 @@ set (PROJECT_NAME "Island")
 
 project (${PROJECT_NAME})
 
-set(PLUGINS_DYNAMIC ON CACHE BOOL "Use dynamic linking for all plugins" FORCE)
+set(PLUGINS_DYNAMIC OFF CACHE BOOL "Use dynamic linking for all plugins" FORCE)
 
 set ( STATIC_LIBS "")
 set ( PLUGIN_DEFINITIONS "")
 set ( PLUGIN_LIBS_DEPENDENCIES "")
 
 include_directories ("${PROJECT_SOURCE_DIR}")
+
+add_subdirectory (test_app)
 
 add_subdirectory (pal_api_loader)
 add_subdirectory (pal_file_watcher)
