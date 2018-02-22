@@ -2,6 +2,7 @@ set (TARGET le_renderer)
 
 set (SOURCES "le_renderer.cpp")
 set (SOURCES ${SOURCES} "le_rendergraph.cpp")
+set (SOURCES ${SOURCES} "le_renderpass.cpp")
 
 if (${PLUGINS_DYNAMIC})
 

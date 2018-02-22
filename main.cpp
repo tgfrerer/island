@@ -5,7 +5,6 @@
 #include "le_renderer/le_renderer.h"
 
 // include this in application, rather.
-#include "le_renderer/le_rendergraph.h"
 #include "vulkan/vulkan.hpp"
 
 // ----------------------------------------------------------------------

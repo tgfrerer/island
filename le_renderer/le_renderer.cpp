@@ -1,5 +1,6 @@
 #include "pal_api_loader/ApiRegistry.hpp"
 #include "le_renderer/le_renderer.h"
+#include "le_renderer/le_rendergraph.h"
 
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_swapchain_vk/le_swapchain_vk.h"
@@ -15,9 +16,8 @@
 #include <mutex>
 #include <future>
 
-#include "le_rendergraph.h"
-
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
+
 
 // ----------------------------------------------------------------------
 
@@ -526,6 +526,6 @@ void register_le_renderer_api( void *api_ ) {
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
 
-	// load dependent api - force re-gathering of function pointers
-	Registry::addApiStatic<le_rendergraph_api>(true);
+	// load components of this api - register method is declared in le_rendergraph.h
+	register_le_rendergraph_api(api_);
 }

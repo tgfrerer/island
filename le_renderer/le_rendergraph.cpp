@@ -1,4 +1,6 @@
-#include "le_rendergraph.h"
+#include "le_renderer/private/le_rendergraph.h"
+#include "le_renderer.h"
+
 #include "le_backend_vk/le_backend_vk.h"
 
 #include <vector>
@@ -14,7 +16,7 @@
 #define LE_RENDERPASS_MARKER_EXTERNAL "rp-external"
 #define LE_GRAPH_BUILDER_RECURSION_DEPTH 20
 
-using image_attachment_t = le_rendergraph_api::image_attachment_info_o;
+using image_attachment_t = le_renderer_api::image_attachment_info_o;
 
 // TODO: const_char_hash64 and fnv_hash64 must return the same hash value
 // for the same string - currently, this is not the case, most probably,
@@ -58,7 +60,7 @@ struct le_renderpass_o {
 	std::vector<image_attachment_t> imageAttachments;
 	// std::vector<buffer_attachment_t> bufferAttachments;
 
-	le_rendergraph_api::pfn_renderpass_setup_t callbackSetup = nullptr;
+	le_renderer_api::pfn_renderpass_setup_t callbackSetup = nullptr;
 
 	char         debugName[ 32 ];
 };
@@ -98,13 +100,13 @@ static void renderpass_destroy( le_renderpass_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void renderpass_set_setup_fun(le_renderpass_o*self, le_rendergraph_api::pfn_renderpass_setup_t fun){
+static void renderpass_set_setup_fun(le_renderpass_o*self, le_renderer_api::pfn_renderpass_setup_t fun){
 	self->callbackSetup = fun;
 }
 
 // ----------------------------------------------------------------------
 
-static void renderpass_add_image_attachment(le_renderpass_o*self, const char* name_, le_rendergraph_api::image_attachment_info_o* info_){
+static void renderpass_add_image_attachment(le_renderpass_o*self, const char* name_, le_renderer_api::image_attachment_info_o* info_){
 	// TODO: annotate the current renderpass to name of output attachment
 	auto info = *info_;
 
@@ -587,7 +589,7 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 		syncChain.emplace_back(std::move(finalState));
 	}
 
-	static_assert(sizeof(le_rendergraph_api::image_attachment_info_o::SyncState) == sizeof(uint64_t), "must be tightly packed.");
+	static_assert(sizeof(le_renderer_api::image_attachment_info_o::SyncState) == sizeof(uint64_t), "must be tightly packed.");
 
 	// create renderpasses
 
@@ -726,8 +728,6 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 		    ;
 	}
 
-
-
 }
 
 // ----------------------------------------------------------------------
@@ -747,8 +747,6 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 	// sorting key for any command buffers associated with that
 	// renderpass.
 	graph_builder_order_passes(self->passes);
-
-
 	graph_builder_create_resource_table(self);
 }
 
@@ -756,10 +754,10 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 
 void register_le_rendergraph_api( void *api_ ) {
 
-	auto  le_rendergraph_api_i = static_cast<le_rendergraph_api *>( api_ );
-	auto &le_renderpass_i      = le_rendergraph_api_i->le_renderpass_i;
-	auto &le_render_module_i   = le_rendergraph_api_i->le_render_module_i;
-	auto &le_graph_builder_i   = le_rendergraph_api_i->le_graph_builder_i;
+	auto  le_renderer_api_i = static_cast<le_renderer_api *>( api_ );
+	auto &le_renderpass_i      = le_renderer_api_i->le_renderpass_i;
+	auto &le_render_module_i   = le_renderer_api_i->le_render_module_i;
+	auto &le_graph_builder_i   = le_renderer_api_i->le_graph_builder_i;
 
 	le_renderpass_i.create                = renderpass_create;
 	le_renderpass_i.destroy               = renderpass_destroy;
