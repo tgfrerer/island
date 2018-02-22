@@ -40,12 +40,19 @@ int main( int argc, char const *argv[] ) {
 	Registry::addApiDynamic<le_renderer_api>( true );
 #endif
 
+
 	TestApp::initialize();
 
 	TestApp testApp{};
 
-	for ( ; testApp.update() == true; ) {
+	for ( ;; ) {
 		Registry::pollForDynamicReload();
+
+		auto result = testApp.update();
+
+		if ( !result ) {
+			break;
+		}
 	}
 
 	TestApp::terminate();
