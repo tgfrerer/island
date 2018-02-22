@@ -236,7 +236,6 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 	device->defaultQueueIndices.transfer      = findClosestMatchingQueueIndex( device->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eTransfer );
 	device->defaultQueueIndices.sparseBinding = findClosestMatchingQueueIndex( device->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eSparseBinding );
 
-
 	// Query possible depth formats, find the
 	// first format that supports attachment as a depth stencil
 	//

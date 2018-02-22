@@ -32,7 +32,7 @@ struct pal_window_api {
 		void            ( *destroy            ) ( pal_window_o * );
 		bool            ( *should_close       ) ( pal_window_o * );
 		bool            ( *create_surface     ) ( pal_window_o *, VkInstance_T * );
-		void            ( *destroy_surface    ) ( pal_window_o *, VkInstance_T * );
+		void            ( *destroy_surface    ) ( pal_window_o * );
 		uint32_t        ( *get_surface_width  ) ( pal_window_o * );
 		uint32_t        ( *get_surface_height ) ( pal_window_o * );
 		VkSurfaceKHR_T* ( *get_vk_surface_khr ) ( pal_window_o * );
@@ -137,8 +137,8 @@ class Window : NoMove, NoCopy {
 		return mWindow.get_vk_surface_khr(self);
 	}
 
-	void destroySurface( VkInstance_T *instance ) {
-		mWindow.destroy_surface( self, instance );
+	void destroySurface() {
+		mWindow.destroy_surface( self );
 	}
 
 	operator pal_window_o*(){

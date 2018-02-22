@@ -18,6 +18,7 @@ struct pal_window_o {
 	VkSurfaceKHR          mSurface = nullptr;
 	VkExtent2D            mSurfaceExtent;
 	pal_window_settings_o mSettings;
+	VkInstance            mInstance = nullptr;
 };
 
 // ----------------------------------------------------------------------
@@ -63,6 +64,60 @@ static void glfw_framebuffer_resize_callback(GLFWwindow* window_, int width_px_,
 
 // ----------------------------------------------------------------------
 
+static bool window_create_surface( pal_window_o *self, VkInstance vkInstance) {
+	auto result = glfwCreateWindowSurface( vkInstance, self->window, nullptr, &self->mSurface );
+	if ( result == VK_SUCCESS ) {
+		int tmp_w = 0;
+		int tmp_h = 0;
+		glfwGetFramebufferSize( self->window, &tmp_w, &tmp_h );
+		self->mSurfaceExtent.height = uint32_t( tmp_h );
+		self->mSurfaceExtent.width  = uint32_t( tmp_w );
+		self->mInstance = vkInstance;
+		std::cout << "Created surface" << std::endl;
+	} else {
+		std::cerr << "Error creating surface" << std::endl;
+		return false;
+	}
+	return true;
+}
+
+// ----------------------------------------------------------------------
+// note: this is the only function for which we need to link this lib against vulkan!
+static void window_destroy_surface( pal_window_o *self ) {
+	if ( self->mInstance ) {
+		PFN_vkDestroySurfaceKHR destroySurfaceFun = reinterpret_cast<PFN_vkDestroySurfaceKHR>( vkGetInstanceProcAddr( self->mInstance, "vkDestroySurfaceKHR" ) );
+		destroySurfaceFun( self->mInstance, self->mSurface, nullptr );
+		std::cout << "Surface destroyed" << std::endl;
+		self->mSurface = nullptr;
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static uint32_t window_get_surface_width(pal_window_o* self){
+	if (self->mSurface){
+		return self->mSurfaceExtent.width;
+	}
+	return 0;
+}
+
+// ----------------------------------------------------------------------
+
+static uint32_t window_get_surface_height(pal_window_o* self){
+	if (self->mSurface){
+		return self->mSurfaceExtent.height;
+	}
+	return 0;
+}
+
+// ----------------------------------------------------------------------
+
+static VkSurfaceKHR window_get_vk_surface_khr(pal_window_o* self){
+	return self->mSurface;
+}
+
+// ----------------------------------------------------------------------
+
 static pal_window_o *window_create(const pal_window_settings_o* settings_) {
 	auto obj = new pal_window_o();
 
@@ -102,6 +157,9 @@ static pal_window_o *window_create(const pal_window_settings_o* settings_) {
 // ----------------------------------------------------------------------
 
 static void window_destroy( pal_window_o *self ) {
+	if (self->mSurface){
+		window_destroy_surface(self);
+	}
 	glfwDestroyWindow( self->window );
 	delete self;
 }
@@ -110,56 +168,6 @@ static void window_destroy( pal_window_o *self ) {
 
 static bool window_should_close( pal_window_o *self ) {
 	return glfwWindowShouldClose( self->window );
-}
-
-// ----------------------------------------------------------------------
-
-static bool window_create_surface( pal_window_o *self, VkInstance vkInstance) {
-	auto result = glfwCreateWindowSurface( vkInstance, self->window, nullptr, &self->mSurface );
-	if ( result == VK_SUCCESS ) {
-		int tmp_w = 0;
-		int tmp_h = 0;
-		glfwGetFramebufferSize( self->window, &tmp_w, &tmp_h );
-		self->mSurfaceExtent.height = uint32_t( tmp_h );
-		self->mSurfaceExtent.width  = uint32_t( tmp_w );
-		std::cout << "Created surface" << std::endl;
-	} else {
-		std::cerr << "Error creating surface" << std::endl;
-		return false;
-	}
-	return true;
-}
-
-// ----------------------------------------------------------------------
-
-static uint32_t window_get_surface_width(pal_window_o* self){
-	if (self->mSurface){
-		return self->mSurfaceExtent.width;
-	}
-	return 0;
-}
-
-// ----------------------------------------------------------------------
-
-static uint32_t window_get_surface_height(pal_window_o* self){
-	if (self->mSurface){
-		return self->mSurfaceExtent.height;
-	}
-	return 0;
-}
-
-// ----------------------------------------------------------------------
-
-static VkSurfaceKHR window_get_vk_surface_khr(pal_window_o* self){
-	return self->mSurface;
-}
-
-// ----------------------------------------------------------------------
-// note: this is the only function for which we need to link this lib against vulkan!
-static void window_destroy_surface(pal_window_o* self, VkInstance vkInstance){
-	PFN_vkDestroySurfaceKHR destroySurfaceFun = reinterpret_cast<PFN_vkDestroySurfaceKHR>(vkGetInstanceProcAddr(vkInstance,"vkDestroySurfaceKHR"));
-	destroySurfaceFun(vkInstance,self->mSurface,nullptr);
-	std::cout << "Surface destroyed" << std::endl;
 }
 
 // ----------------------------------------------------------------------
