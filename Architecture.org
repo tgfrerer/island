@@ -26,7 +26,7 @@ We treat objects as structured data, with functions associated with them. Object
 
 * Implementation rules
 
-The Biedermeyer principle: "Public appearance must be pure, private life may be a promiscuous mess"
+The Biedermeyer principle: "Public appearance must be pure, private life can be the most promiscuous mess (although we all try to be good)"
 
 * Library Header Rules
 
@@ -36,6 +36,12 @@ Header files must follow strict rules, and c-interfaces must be "holier-than-tho
 2. must not include any other library headers
 3. may forward-declare elements needed from other libraries
 4. may include <stdint.h>
+
+** Private headers
+   1. Modules may define private headers
+   2. Private headers go in a sub-folder `private`
+   3. Private headers can be included from all `.cpp` files inside a module.
+   4. Private headers can include other headers as long as they are from the same module. 
 
 * Implementation file Rules 
 
@@ -61,3 +67,11 @@ In headers, we forward-declare and use `struct VkType_T*` in interfaces for non-
 * Types in engine interfaces 
 
 In headers, we forward-declare and use `struct engine_type_o*` for engine types which are passed between plug-ins. The implementations might use each other's private headers to get acces into these handles (like friend, and not very elegant), or use the public headers, and the Registry to call methods on the handles to interrogate the objects in an opaque way.
+
+* Engine internals
+
+** use of resources
+
+   1. Any resource used in renderpass must be declared in the renderpass' setup callback.
+   2. Any declared resource will tracked
+   3. Tracked means: sync state, layout (for images) 

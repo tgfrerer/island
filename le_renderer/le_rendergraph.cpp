@@ -446,6 +446,7 @@ static void graph_builder_track_resource_state(le_graph_builder_o* self){
 			}
 
 
+			// TODO: here, go through command instructions for renderpass and update resource chain
 
 			// ... NOTE: if resource is modified by commands inside the renderpass, this needs to be added to the sync chain here.
 
@@ -487,6 +488,8 @@ static void graph_builder_track_resource_state(le_graph_builder_o* self){
 	static_assert(sizeof(le_renderer_api::image_attachment_info_o::SyncState) == sizeof(uint64_t), "must be tightly packed.");
 
 }
+
+// ----------------------------------------------------------------------
 
 static void graph_builder_create_renderpasses(le_graph_builder_o* self){
 	// create renderpasses
