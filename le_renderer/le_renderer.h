@@ -84,7 +84,8 @@ struct le_renderer_api {
 		void                ( *destroy       ) ( le_graph_builder_o* obj );
 		void                ( *reset         ) ( le_graph_builder_o* obj );
 		void                ( *add_renderpass) ( le_graph_builder_o* obj, le_renderpass_o* rp );
-		void                ( *build_graph)    ( le_graph_builder_o* obj );
+		void                ( *build_graph   ) ( le_graph_builder_o* obj );
+		void                ( *execute_graph ) ( le_graph_builder_o* obj );
 	};
 
 	renderpass_interface_t    le_renderpass_i;
@@ -217,6 +218,11 @@ class GraphBuilder : NoCopy, NoMove {
 	void buildGraph() {
 		graphbuilderI.build_graph( self );
 	}
+
+	void executeGraph() {
+		graphbuilderI.execute_graph( self );
+	}
+
 };
 
 // ----------------------------------------------------------------------

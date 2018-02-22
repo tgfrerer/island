@@ -36,9 +36,29 @@ struct le_render_module_o : NoCopy, NoMove {
 
 struct le_graph_builder_o : NoCopy, NoMove {
 	std::vector<le_renderpass_o> passes;
+
+	struct ResourceInfo {
+		uint64_t   id = 0;
+		vk::Format format;
+		uint32_t   reserved;
+	};
+
+	// ResourceState keeps track of the resource stage *before* a barrier
+	struct ResourceState {
+		vk::AccessFlags        visible_access; // which memory access must be be visible - if any of these are WRITE accesses, these must be made available(flushed) before next access
+		vk::PipelineStageFlags write_stage;    // current or last stage at which write occurs
+		vk::ImageLayout        layout;         // current layout
+	};
+
+	// With `syncChainTable` and image_attachment_info_o.syncState, we should
+	// be able to create renderpasses. Each resource has a sync chain, and each attachment_info
+	// has a struct which holds indices into the sync chain telling us where to look
+	// up the sync state for a resource at different stages of renderpass construction.
+	std::unordered_map<uint64_t, std::vector<ResourceState>, IdentityHash> syncChainTable;
+
+	std::unordered_map<uint64_t, ResourceInfo, IdentityHash> resourceTable;
+
 };
-
-
 
 // ----------------------------------------------------------------------
 
@@ -96,12 +116,12 @@ static void render_module_build_graph(le_render_module_o* self, le_graph_builder
 
 // ----------------------------------------------------------------------
 
-static void render_module_execute_graph(le_render_module_o* self, le_graph_builder_o* graph_builder){
+static void render_module_execute_graph(le_render_module_o* self, le_graph_builder_o* graph_builder_){
 
 	std::ostringstream msg;
 
 	msg << "render graph: " << std::endl;
-	for ( const auto &pass : graph_builder->passes ) {
+	for ( const auto &pass : graph_builder_->passes ) {
 		msg << "renderpass: " << std::setw( 15 ) << std::hex << pass.id << ", " << "'" << pass.debugName << "' , order: " << pass.execution_order << std::endl;
 
 		for ( const auto &attachment : pass.imageAttachments ) {
@@ -126,6 +146,8 @@ static void render_module_execute_graph(le_render_module_o* self, le_graph_build
 
 	*/
 
+	le::GraphBuilder graphBuilder{graph_builder_};
+	graphBuilder.executeGraph();
 
 }
 
@@ -275,24 +297,17 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 
 	// we want a list of unique resources referenced in the renderpass,
 	// and for each resource we must know its first reference.
-
 	// we also need to know if there are any external resources
-
 	// then, we go through all passes, and we track the resource state for each resource
 
-	struct ResourceInfo {
-		uint64_t   id = 0;
-		vk::Format format;
-	};
-
-	std::unordered_map<uint64_t, ResourceInfo, IdentityHash> resourceTable;
+	self->resourceTable.clear();
 
 	for (auto & pass : self->passes){
 		for (auto &resource : pass.imageAttachments){
-			ResourceInfo info;
+			le_graph_builder_o::ResourceInfo info;
 			info.id = resource.id;
 			info.format = resource.format;
-			auto result = resourceTable.insert({info.id,info});
+			auto result = self->resourceTable.insert({info.id,info});
 			if (!result.second){
 				if (result.first->second.format != info.format){
 					std::cerr << "WARNING: Resource '" << resource.debugName << "' re-defined with incompatible format." << std::endl;
@@ -300,7 +315,11 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 			}
 		}
 	}
+}
 
+// ----------------------------------------------------------------------
+
+static void graph_builder_track_resource_state(le_graph_builder_o* self){
 	// track resource state
 
 	// we should mark persistent resources which are not frame-local with special flags, so that they
@@ -314,34 +333,15 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 	// A MEMORY DEPENDECY tells us which memory needs to be made available/flushed (srcAccess) after srcStage
 	// before another memory can be made visible/invalidated (dstAccess) before dstStage
 
-	struct BarrierInfo {
-		vk::PipelineStageFlags srcStage;
-		vk::AccessFlags        srcAccess;
-		vk::PipelineStageFlags dstStage;
-		vk::AccessFlags        dstAccess;
-	};
-
-	// ResourceState keeps track of the resource stage *before* a barrier
-	struct ResourceState {
-		vk::AccessFlags        visible_access; // which memory access must be be visible - if any of these are WRITE accesses, these must be made available(flushed) before next access
-		vk::PipelineStageFlags write_stage;    // current or last stage at which write occurs
-		vk::ImageLayout        layout;         // current layout
-	};
-
-	// With `syncChainTable` and image_attachment_info_o.syncState, we should
-	// be able to create renderpasses. Each resource has a sync chain, and each attachment_info
-	// has a struct which holds indices into the sync chain telling us where to look
-	// up the sync state for a resource at different stages of renderpass construction.
-
-	std::unordered_map<uint64_t, std::vector<ResourceState>, IdentityHash> syncChainTable;
+	auto & syncChainTable = self->syncChainTable;
 
 	{
 		// TODO: frame-external ("persistent") resources such as backbuffer
 		// need to be correctly initialised:
 		//
 
-		for ( auto &resource : resourceTable ) {
-			syncChainTable[ resource.first ].push_back( ResourceState{} );
+		for ( auto &resource : self->resourceTable ) {
+			syncChainTable[ resource.first ].push_back( le_graph_builder_o::ResourceState{} );
 		}
 
 		auto &backbufferState         = syncChainTable[ const_char_hash64( "backbuffer" ) ].front();
@@ -351,15 +351,6 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 
 	// * sync state: ready to enter renderpass: colorattachmentOutput=visible *
 
-	// we use this to mask out any reads in srcAccess, as it never makes sense to flush reads
-	const auto ANY_WRITE_ACCESS_FLAGS = ( vk::AccessFlagBits::eColorAttachmentWrite |
-	                                      vk::AccessFlagBits::eCommandProcessWriteNVX |
-	                                      vk::AccessFlagBits::eCommandProcessWriteNVX |
-	                                      vk::AccessFlagBits::eDepthStencilAttachmentWrite |
-	                                      vk::AccessFlagBits::eHostWrite |
-	                                      vk::AccessFlagBits::eMemoryWrite |
-	                                      vk::AccessFlagBits::eShaderWrite |
-	                                      vk::AccessFlagBits::eTransferWrite );
 
 	for ( auto &pass : self->passes ) {
 		for ( auto &resource : pass.imageAttachments ) {
@@ -381,7 +372,7 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 
 			{
 				auto & previousSyncState = syncChain.back();
-				ResourceState beforeFirstUse{previousSyncState};
+				auto beforeFirstUse{previousSyncState};
 
 				switch ( resource.access_flags ) {
 				case le::AccessFlagBits::eReadWrite:
@@ -419,7 +410,7 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 
 			{
 				auto &        previousSyncState = syncChain.back();
-				ResourceState beforeSubpass{previousSyncState};
+				auto beforeSubpass{previousSyncState};
 
 				if ( resource.access_flags == le::AccessFlagBits::eReadWrite ) {
 					// resource.loadOp most be LOAD
@@ -454,6 +445,8 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 				syncChain.emplace_back( std::move( beforeSubpass ) );
 			}
 
+
+
 			// ... NOTE: if resource is modified by commands inside the renderpass, this needs to be added to the sync chain here.
 
 			{
@@ -475,7 +468,7 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 		const auto & id = syncChainPair.first;
 		auto & syncChain = syncChainPair.second;
 
-		ResourceState finalState{syncChain.back()};
+		auto finalState{syncChain.back()};
 
 		if (id == const_char_hash64( "backbuffer" )){
 			finalState.write_stage  = vk::PipelineStageFlagBits::eBottomOfPipe;
@@ -493,9 +486,23 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 
 	static_assert(sizeof(le_renderer_api::image_attachment_info_o::SyncState) == sizeof(uint64_t), "must be tightly packed.");
 
-	// create renderpasses
+}
 
-	std::unordered_map<uint64_t, ResourceState, IdentityHash> resourceStates;
+static void graph_builder_create_renderpasses(le_graph_builder_o* self){
+	// create renderpasses
+	auto & syncChainTable = self->syncChainTable;
+
+	// we use this to mask out any reads in srcAccess, as it never makes sense to flush reads
+	const auto ANY_WRITE_ACCESS_FLAGS = ( vk::AccessFlagBits::eColorAttachmentWrite |
+	                                      vk::AccessFlagBits::eCommandProcessWriteNVX |
+	                                      vk::AccessFlagBits::eCommandProcessWriteNVX |
+	                                      vk::AccessFlagBits::eDepthStencilAttachmentWrite |
+	                                      vk::AccessFlagBits::eHostWrite |
+	                                      vk::AccessFlagBits::eMemoryWrite |
+	                                      vk::AccessFlagBits::eShaderWrite |
+	                                      vk::AccessFlagBits::eTransferWrite );
+
+
 	for ( auto &pass : self->passes ) {
 
 		std::vector<vk::AttachmentDescription> attachments;
@@ -629,7 +636,6 @@ static void graph_builder_create_resource_table(le_graph_builder_o* self){
 		    .setPDependencies   ( dependencies.data() )
 		    ;
 	}
-
 }
 
 // ----------------------------------------------------------------------
@@ -654,10 +660,22 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 
 // ----------------------------------------------------------------------
 
+static void graph_builder_execute_graph(le_graph_builder_o* self){
+
+//	for (auto & pass: self->passes){
+//		pass.callbackRender();
+//	}
+
+	graph_builder_track_resource_state(self);
+	graph_builder_create_renderpasses(self);
+
+}
+
+// ----------------------------------------------------------------------
+
 void register_le_rendergraph_api( void *api_ ) {
 
 	auto  le_renderer_api_i = static_cast<le_renderer_api *>( api_ );
-	auto &le_renderpass_i      = le_renderer_api_i->le_renderpass_i;
 	auto &le_render_module_i   = le_renderer_api_i->le_render_module_i;
 	auto &le_graph_builder_i   = le_renderer_api_i->le_graph_builder_i;
 
@@ -672,4 +690,5 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_graph_builder_i.reset          = graph_builder_reset;
 	le_graph_builder_i.add_renderpass = graph_builder_add_renderpass;
 	le_graph_builder_i.build_graph    = graph_builder_build_graph;
+	le_graph_builder_i.execute_graph  = graph_builder_execute_graph;
 }
