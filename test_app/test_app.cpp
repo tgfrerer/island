@@ -10,11 +10,23 @@
 #include <memory>
 
 struct test_app_o {
-	std::unique_ptr<pal::Window> window;
 	std::unique_ptr<le::Instance> instance;
+	std::unique_ptr<pal::Window> window;
 	std::unique_ptr<le::Device> device;
 	std::unique_ptr<le::Swapchain> swapchain;
 	std::unique_ptr<le::Renderer> renderer;
+};
+
+// ----------------------------------------------------------------------
+
+static void initialize() {
+	pal::Window::init();
+};
+
+// ----------------------------------------------------------------------
+
+static void terminate() {
+	pal::Window::terminate();
 };
 
 // ----------------------------------------------------------------------
@@ -29,13 +41,13 @@ static test_app_o *test_app_create() {
 	    .setTitle ( "Hello world" )
 	    ;
 
-	obj->window = std::make_unique<pal::Window>(settings);
 
 	uint32_t numRequestedExtensions = 0;
 	auto requestedExtensions = pal::Window::getRequiredVkExtensions( &numRequestedExtensions );
 
 	obj->instance = std::make_unique<le::Instance>(requestedExtensions, numRequestedExtensions);
 
+	obj->window = std::make_unique<pal::Window>(settings);
 	obj->window->createSurface(obj->instance->getVkInstance());
 
 	obj->device = std::make_unique<le::Device>(*obj->instance);
@@ -63,7 +75,9 @@ static test_app_o *test_app_create() {
 // ----------------------------------------------------------------------
 
 static bool test_app_update(test_app_o* self){
+
 	pal::Window::pollEvents();
+
 	if (self->window->shouldClose()){
 		return false;
 	}
@@ -136,28 +150,8 @@ static bool test_app_update(test_app_o* self){
 // ----------------------------------------------------------------------
 
 static void test_app_destroy(test_app_o* self){
-	self->device.reset();
-	self->swapchain.reset();
-	self->renderer.reset();
-	self->window->destroySurface( self->instance->getVkInstance() );
-	self->instance.reset();
-	self->window.reset();
 	delete(self);
 }
-
-// ----------------------------------------------------------------------
-
-static void initialize(){
-
-	pal::Window::init();
-
-};
-
-// ----------------------------------------------------------------------
-
-static void terminate(){
-	pal::Window::terminate();
-};
 
 // ----------------------------------------------------------------------
 
