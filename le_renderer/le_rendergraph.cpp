@@ -361,9 +361,10 @@ static void graph_builder_track_resource_state(le_graph_builder_o* self){
 
 			// Renderpass implicit sync (per resource):
 			// + enter renderpass : INITIAL LAYOUT (layout must match)
+			// + layout transition if initial layout and attachment reference layout differ for subpass [ attachment memory is automatically made AVAILABLE | see Spec 6.1.1]
+			//   [layout transition happens-before any LOAD OPs: source: amd open source driver | https://github.com/GPUOpen-Drivers/xgl/blob/aa330d8e9acffb578c88193e4abe017c8fe15426/icd/api/renderpass/renderpass_builder.cpp#L819]
 			// + load/clear op (executed using INITIAL LAYOUT once before first use per-resource) [ attachment memory must be AVAILABLE ]
 			// + enter subpass
-			// + layout transform if initial layout and attachment reference layout differ for subpass [ attachment memory is automatically made AVAILABLE | see Spec 6.1.1]
 			// + command execution [attachment memory must be VISIBLE ]
 			// + store op
 			// + exit subpass : final layout
