@@ -47,15 +47,22 @@ from command buffer generation (which happens in the backend).
 
 	```cpp
 	
-	void (* render) (void * user_data){
+	void (* render) (encoder, void * user_data){
 	
 	// we use user_data to have access to the objects we actually want to
 	render
 
-	encoder
-		.setPSO("passthrough")
-		.setTexture("src_texture_0", resources.getTexture("textureName", eRO))
-		.setVertices(resources.getBuffer("vbuf_1"));
+    // this basically mirrors the drawcommand syntax
+    
+	encoder->setRenderPipelineId("passthrough")
+	encoder->setTexture(texture_binding_position, texture_id)
+	encoder->setDescriptorData({})
+    encoder->bindVertexBuffers([buffers],[offsets]); // vertex attributes
+    encoder->bindIndexBuffer(buffer,offset); // optional
+    encoder->setViewport({viewportData});
+    encoder->setLineWidth(1.f);
+    encoder->drawPrimitiveIndexed(...);
+        
 
 	}
 	```
