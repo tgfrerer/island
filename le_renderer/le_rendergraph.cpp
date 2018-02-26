@@ -16,6 +16,12 @@
 #include <iomanip>
 #include "vulkan/vulkan.hpp"
 
+#include "le_renderer/private/le_renderer_types.h"
+// these are some sanity checks for le_renderer_types
+
+static_assert(sizeof(CommandHeader)==sizeof(uint64_t),"size must be 64bit");
+
+
 #define LE_GRAPH_BUILDER_RECURSION_DEPTH 20
 
 using image_attachment_t = le_renderer_api::image_attachment_info_o;
