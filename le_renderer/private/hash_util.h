@@ -1,5 +1,5 @@
 #ifndef GUARD_LE_HASH_UTIL_H
-#define GUARE_LE_HASH_UTIL_H
+#define GUARD_LE_HASH_UTIL_H
 
 #include <stdint.h>
 
