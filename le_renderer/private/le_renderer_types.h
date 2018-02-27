@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 enum class CommandType : uint32_t {
-	eDraw = 1,
+	eDrawIndexed = 1,
 };
 
 struct CommandHeader {
@@ -22,12 +22,14 @@ struct BufferOffset {
 	uint64_t offset : 32;
 };
 
-struct CommandDraw {
-	CommandHeader header = {{{CommandType::eDraw, sizeof( CommandDraw )}}};
+struct CommandDrawIndexed {
+	CommandHeader header = {{{CommandType::eDrawIndexed, sizeof( CommandDrawIndexed )}}};
 	struct {
-		uint64_t pso_id;
-		uint64_t vertex_buffer_bindings;
-		uint64_t uniform_buffers_bindings;
+		uint64_t numIndices;
+		uint64_t instanceCount;
+		uint64_t firstIndex;
+		uint64_t vertexOffset;
+		uint64_t firstInstance;
 	} payload;
 };
 

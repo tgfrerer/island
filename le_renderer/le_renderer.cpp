@@ -527,7 +527,7 @@ void register_le_renderer_api( void *api_ ) {
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
 
-	// force-load sub-components of this api
+	// register sub-components of this api
 	register_le_rendergraph_api(api_);
 	register_le_renderpass_api(api_);
 }

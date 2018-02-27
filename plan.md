@@ -37,13 +37,15 @@ from command buffer generation (which happens in the backend).
 
 ## Rendergraph
 
-	1. Merge passes with same order into *one* Renderpass, as subpasses
+    1. TODO: Merge passes with same order into *one* Renderpass, as subpasses
 	
 ## How do we want the `render` callback to look like?
 
     * set PSO parameters: we want to set textures, uniforms
     
-
+We call back providing an encoder (encoder for command list) and `void *
+user_data` - the encoder is used to create an intermediate representation of a
+renderpass. 
 
 	```cpp
 	
@@ -57,15 +59,59 @@ from command buffer generation (which happens in the backend).
 	encoder->setRenderPipelineId("passthrough")
 	encoder->setTexture(texture_binding_position, texture_id)
 	encoder->setDescriptorData({})
-    encoder->bindVertexBuffers([buffers],[offsets]); // vertex attributes
+    encoder->bindDescriptorSets([buffers],[dynamic_offsets]); // pipeline parameters
+    encoder->bindVertexBuffers([buffers],[dynamic_offsets]);
     encoder->bindIndexBuffer(buffer,offset); // optional
     encoder->setViewport({viewportData});
     encoder->setLineWidth(1.f);
     encoder->drawPrimitiveIndexed(...);
-        
-
 	}
 	```
+
+### How do we specify pipeline parameters? 
+
+For now we want to be able to specify two things: 
+
+    * buffers (for UBO structs) and 
+    * image resources.
+
+We want to be able to set parameters directly - these parameters then map to
+descriptorSets. Ideally, we should be able to map them by index, so that this
+maps directly to a DescriptorSet, which can then be bound:
+
+```cpp
+    mVkCmd.bindDescriptorSets(
+		pipelineBindPoint(graphics)	  // use graphics, not compute pipeline
+		PIPELINE_LAYOUT               // VkPipelineLayout object used to program the bindings.
+		0,                            // firstset: first set index (of the above) to bind to - mDescriptorSet[0] will be bound to pipeline layout [firstset]
+		boundVkDescriptorSets.size(), // setCount: how many sets to bind
+-->     boundVkDescriptorSets.data(), // the descriptorSets to bind
+        dynamicBindingOffsets.size(), // dynamic offsets count how many dynamic offsets
+		dynamicBindingOffsets.data()  // dynamic offsets for each descriptor
+	);
+```
+
+Perhaps we can introduce something like a descriptor table - this could also be
+hashed - and descriptors can be generated upfront in vulkan from all requested
+descriptors for the frame.
+
+We could use this descriptor table with VkDescriptorUpdateTemplateKHR, so that
+we don't have to create write descriptors for everything.
+
+### In Vulkan, how is a resource bound to a pipeline?
+
+    1. pipeline defines pipelineLayout
+    2. pipelineLayout is an array of DescriptorSetLayouts
+    3. DescriptorSetLayout is an array of DescritptorSets
+    4. DescriptorSet is an array of Bindings
+    5. Bindings has an array of Descriptors
+
+In Vulkan, you bind resources to a pipeline by binding descriptorSets. If you
+want to associate a particular texture with a pipeline you do so by creating a
+descriptorSet which references the texture. 
+
+Descriptors must be allocated from designated pools - and they must be written
+to so that they can be used. 
 
 ## What is the minimum subset of commands we need to implement for intermediate command buffers?
 
