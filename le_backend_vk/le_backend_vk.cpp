@@ -6,7 +6,7 @@
 
 // ----------------------------------------------------------------------
 
-API_REGISTRY_ENTRY void register_le_backend_vk_api( void *api_ ) {
+ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 
 	register_le_device_vk_api(api_);
 	register_le_instance_vk_api(api_);

@@ -227,7 +227,7 @@ void vkDebugReportMessageEXT(
 
 // ----------------------------------------------------------------------
 
-API_REGISTRY_ENTRY void register_le_instance_vk_api(void * api_) {
+ISL_API_ATTR void register_le_instance_vk_api(void * api_) {
 	auto api_i = static_cast<le_backend_vk_api*>(api_);
 	auto &instance_i = api_i->instance_i;
 

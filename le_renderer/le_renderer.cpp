@@ -516,7 +516,7 @@ static void renderer_destroy( le_renderer_o *self ) {
 
 // ----------------------------------------------------------------------
 
-API_REGISTRY_ENTRY void register_le_renderer_api( void *api_ ) {
+ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	auto  le_renderer_api_i = static_cast<le_renderer_api *>( api_ );
 	auto &le_renderer_i     = le_renderer_api_i->le_renderer_i;
 

@@ -17,9 +17,9 @@
 */
 
 #ifdef __cplusplus
-#	define API_REGISTRY_ENTRY extern "C"
+#	define ISL_API_ATTR extern "C"
 #else
-#	define API_REGISTRY_ENTRY
+#	define ISL_API_ATTR
 #endif
 
 struct pal_api_loader_i;
@@ -29,8 +29,8 @@ struct pal_api_loader_o;
 extern "C" {
 #endif
 
-API_REGISTRY_ENTRY void *pal_registry_get_api( const char *id );
-API_REGISTRY_ENTRY void  pal_registry_set_api( const char *id, void *api );
+ISL_API_ATTR void *pal_registry_get_api( const char *id );
+ISL_API_ATTR void  pal_registry_set_api( const char *id, void *api );
 
 #ifdef __cplusplus
 } // extern "C"

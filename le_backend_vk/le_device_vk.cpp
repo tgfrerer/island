@@ -355,7 +355,7 @@ void device_destroy( le_backend_vk_device_o *self_ ) {
 
 // ----------------------------------------------------------------------
 
-API_REGISTRY_ENTRY void register_le_device_vk_api(void * api_){
+ISL_API_ATTR void register_le_device_vk_api(void * api_){
 	auto api_i = static_cast<le_backend_vk_api*>(api_);
 	auto & device_i = api_i->device_i;
 
