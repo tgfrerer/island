@@ -6,7 +6,8 @@
 namespace le {
 
 enum class CommandType : uint32_t {
-	eDrawIndexed = 1,
+	eDrawIndexed,
+	eSetLineWidth,
 };
 
 struct CommandHeader {
@@ -29,6 +30,15 @@ struct CommandDrawIndexed {
 		uint64_t firstInstance;
 	} info;
 };
+
+struct CommandSetLineWidth{
+	CommandHeader header = {{{CommandType::eSetLineWidth, sizeof(CommandSetLineWidth)}}};
+	struct {
+		float width;
+	} info;
+};
+
+
 
 } // namespace le
 #endif
