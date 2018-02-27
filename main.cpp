@@ -40,21 +40,27 @@ int main( int argc, char const *argv[] ) {
 	Registry::addApiDynamic<le_renderer_api>( true );
 #endif
 
-
 	TestApp::initialize();
 
-	TestApp testApp{};
+	{
+		// We instantiate TestApp in its own scope - so that 
+		// it will be destroyed before TestApp::terminate 
+		// is called.
+		
+		TestApp testApp{};
 
-	for ( ;; ) {
-		Registry::pollForDynamicReload();
+		for ( ;; ) {
+			Registry::pollForDynamicReload();
 
-		auto result = testApp.update();
+			auto result = testApp.update();
 
-		if ( !result ) {
-			break;
+			if ( !result ) {
+				break;
+			}
 		}
 	}
 
+	// Must only be called once last TestApp is destroyed
 	TestApp::terminate();
 
 	return 0;
