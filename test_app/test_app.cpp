@@ -135,13 +135,25 @@ static bool test_app_update(test_app_o* self){
 			return true;
 		} );
 
+
+		renderPassFinal.setRenderCallback([](auto encoder_, auto user_data_){
+			auto self = static_cast<test_app_o*>(user_data_);
+
+			std::cout << "** rendercallback called" << std::endl;
+
+		}, self);
+
 		// TODO: add setExecuteFun to renderpass - this is the method which actually
 		// does specify the draw calls, and which pipelines to use.
 
 		//						renderModule.addRenderPass( renderPassEarlyZ );
 		renderModule.addRenderPass( renderPassForward );
 		renderModule.addRenderPass( renderPassFinal );
+
+
+
 	}
+	// update will call all rendercallbacks in this frame.
 	self->renderer->update( renderModule );
 
 	return true;

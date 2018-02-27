@@ -62,12 +62,14 @@ struct le_renderer_api {
 	};
 
 	typedef bool(*pfn_renderpass_setup_t)(le_renderpass_o* obj, le_backend_vk_device_o *);
+	typedef void(*pfn_renderpass_render_t)(void* encoder, void* user_data);
 
 	struct renderpass_interface_t {
 		le_renderpass_o* ( *create                ) (const char* renderpass_name);
 		void             ( *destroy               ) (le_renderpass_o* obj);
 		void             ( *set_setup_fun         ) (le_renderpass_o* obj, pfn_renderpass_setup_t setup_fun );
 		void             ( *add_image_attachment  ) (le_renderpass_o* obj, const char*, image_attachment_info_o* info);
+		void             ( *set_render_callback   ) (le_renderpass_o* obj, pfn_renderpass_render_t render_fun, void* user_data );
 	};
 
 	struct rendermodule_interface_t {
@@ -148,6 +150,10 @@ class RenderPass {
 
 	void setSetupCallback( le_renderer_api::pfn_renderpass_setup_t fun ) {
 		renderpassI.set_setup_fun( self, fun );
+	}
+
+	void setRenderCallback(le_renderer_api::pfn_renderpass_render_t fun, void* user_data_=nullptr){
+		renderpassI.set_render_callback( self, fun,user_data_ );
 	}
 };
 

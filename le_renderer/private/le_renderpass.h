@@ -18,6 +18,9 @@ struct le_renderpass_o {
 
 	le_renderer_api::pfn_renderpass_setup_t callbackSetup = nullptr;
 
+	le_renderer_api::pfn_renderpass_render_t callbackRender = nullptr;
+	void * render_callback_user_data = nullptr;
+
 	char         debugName[ 32 ];
 };
 

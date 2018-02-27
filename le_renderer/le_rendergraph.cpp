@@ -673,9 +673,11 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 
 static void graph_builder_execute_graph(le_graph_builder_o* self){
 
-//	for (auto & pass: self->passes){
-//		pass.callbackRender();
-//	}
+	for (auto & pass: self->passes){
+		if (pass.callbackRender != nullptr){
+			pass.callbackRender(nullptr, pass.render_callback_user_data);
+		}
+	}
 
 	graph_builder_track_resource_state(self);
 	graph_builder_create_renderpasses(self);
