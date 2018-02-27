@@ -2,6 +2,7 @@
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/le_rendergraph.h"
 #include "le_renderer/private/le_renderpass.h"
+#include "le_renderer/private/le_command_buffer_encoder.h"
 
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_swapchain_vk/le_swapchain_vk.h"
@@ -530,4 +531,5 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	// register sub-components of this api
 	register_le_rendergraph_api(api_);
 	register_le_renderpass_api(api_);
+	register_le_command_buffer_encoder_api(api_);
 }

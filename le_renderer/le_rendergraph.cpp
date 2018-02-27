@@ -673,9 +673,11 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 
 static void graph_builder_execute_graph(le_graph_builder_o* self){
 
+	le::CommandBufferEncoder cb;
+
 	for (auto & pass: self->passes){
 		if (pass.callbackRender != nullptr){
-			pass.callbackRender(nullptr, pass.render_callback_user_data);
+			pass.callbackRender(cb, pass.render_callback_user_data);
 		}
 	}
 

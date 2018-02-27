@@ -20,10 +20,12 @@ namespace vk {
 
 struct le_backend_vk_device_o;
 struct le_backend_swapchain_o;
+
 struct le_renderer_o;
 struct le_render_module_o;
 struct le_renderpass_o;
 struct le_graph_builder_o;
+struct le_command_buffer_encoder_o;
 
 struct le_renderer_api {
 
@@ -62,7 +64,7 @@ struct le_renderer_api {
 	};
 
 	typedef bool(*pfn_renderpass_setup_t)(le_renderpass_o* obj, le_backend_vk_device_o *);
-	typedef void(*pfn_renderpass_render_t)(void* encoder, void* user_data);
+	typedef void(*pfn_renderpass_render_t)(le_command_buffer_encoder_o* encoder, void* user_data);
 
 	struct renderpass_interface_t {
 		le_renderpass_o* ( *create                ) (const char* renderpass_name);
@@ -90,10 +92,16 @@ struct le_renderer_api {
 		void                ( *execute_graph ) ( le_graph_builder_o* obj );
 	};
 
-	renderpass_interface_t    le_renderpass_i;
-	rendermodule_interface_t  le_render_module_i;
-	graph_builder_interface_t le_graph_builder_i;
-	renderer_interface_t      le_renderer_i;
+	struct command_buffer_encoder_interface_t {
+		le_command_buffer_encoder_o * ( *create )  ( );
+		void                          ( *destroy ) ( le_command_buffer_encoder_o *obj );
+	};
+
+	renderpass_interface_t             le_renderpass_i;
+	rendermodule_interface_t           le_render_module_i;
+	graph_builder_interface_t          le_graph_builder_i;
+	renderer_interface_t               le_renderer_i;
+	command_buffer_encoder_interface_t le_command_buffer_encoder_i;
 };
 
 #ifdef __cplusplus
@@ -152,8 +160,8 @@ class RenderPass {
 		renderpassI.set_setup_fun( self, fun );
 	}
 
-	void setRenderCallback(le_renderer_api::pfn_renderpass_render_t fun, void* user_data_=nullptr){
-		renderpassI.set_render_callback( self, fun,user_data_ );
+	void setRenderCallback(le_renderer_api::pfn_renderpass_render_t fun, void* user_data_ = nullptr){
+		renderpassI.set_render_callback( self, fun, user_data_ );
 	}
 };
 
@@ -269,7 +277,40 @@ class RenderModule {
 	}
 
 	void executeGraph( le_graph_builder_o *gb_ ) {
+		// this will, in turn, call execute_graph() on the graph_builder,
+		// which will call the render callbacks.
+		// TODO: clean up call tree for execute_graph
 		rendermoduleI.execute_graph( self, gb_ );
+	}
+};
+
+// ----------------------------------------------------------------------
+
+class CommandBufferEncoder {
+	const le_renderer_api &                                    rendererApiI = *Registry::getApi<le_renderer_api>();
+	const le_renderer_api::command_buffer_encoder_interface_t &cbEncoderI   = rendererApiI.le_command_buffer_encoder_i;
+
+	le_command_buffer_encoder_o *self;
+	bool                         is_reference = false;
+
+  public:
+	CommandBufferEncoder()
+	    : self( cbEncoderI.create() ) {
+	}
+
+	CommandBufferEncoder( le_command_buffer_encoder_o *self_ )
+	    : self( self_ )
+	    , is_reference( true ) {
+	}
+
+	~CommandBufferEncoder() {
+		if ( !is_reference ) {
+			cbEncoderI.destroy( self );
+		}
+	}
+
+	operator auto() {
+		return self;
 	}
 };
 
