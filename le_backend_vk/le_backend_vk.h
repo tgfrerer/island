@@ -87,7 +87,6 @@ class Instance {
 };
 
 
-
 class Device : NoCopy, NoMove {
 	const le_backend_vk_api &                    backendApiI = *Registry::getApi<le_backend_vk_api>();
 	const le_backend_vk_api::device_interface_t &deviceI     = backendApiI.device_i;
@@ -106,12 +105,6 @@ class Device : NoCopy, NoMove {
 			deviceI.destroy( self );
 		}
 	}
-
-	// copy assignment operator
-	Device& operator=(const Device& lhs) = delete ;
-
-	// move assignment operator
-	Device& operator=(const Device&& lhs) = delete ;
 
 	// copy constructor
 	Device(const Device& lhs)

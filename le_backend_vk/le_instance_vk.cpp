@@ -1,10 +1,19 @@
-#include "le_backend_vk/private/le_backend_private.h"
+
+#include <vulkan/vulkan.hpp>
+
+#include "le_backend_vk/le_backend_vk.h"
+#include "le_backend_vk/private/le_device_vk.h"
 
 #include <iostream>
 #include <iomanip>
 #include <set>
 #include <string>
 // ----------------------------------------------------------------------
+
+struct le_backend_vk_instance_o {
+	vk::Instance               vkInstance = nullptr;
+	vk::DebugReportCallbackEXT debugCallback;
+};
 
 PFN_vkCreateDebugReportCallbackEXT  pfn_vkCreateDebugReportCallbackEXT;
 PFN_vkDestroyDebugReportCallbackEXT pfn_vkDestroyDebugReportCallbackEXT;
@@ -147,7 +156,7 @@ le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const c
 
 // ----------------------------------------------------------------------
 
-void instance_destroy( le_backend_vk_instance_o *obj ) {
+static void instance_destroy( le_backend_vk_instance_o *obj ) {
 	destroy_debug_callback( obj );
 	obj->vkInstance.destroy();
 	delete ( obj );
@@ -156,13 +165,13 @@ void instance_destroy( le_backend_vk_instance_o *obj ) {
 
 // ----------------------------------------------------------------------
 
-VkInstance_T *instance_get_vk_instance( le_backend_vk_instance_o *obj ) {
+static VkInstance_T *instance_get_vk_instance( le_backend_vk_instance_o *obj ) {
 	return ( reinterpret_cast<VkInstance &>( obj->vkInstance ) );
 }
 
 // ----------------------------------------------------------------------
 
-void post_reload_hook( le_backend_vk_instance_o *obj ) {
+static void instance_post_reload_hook( le_backend_vk_instance_o *obj ) {
 	std::cout << "** post reload hook triggered." << std::endl;
 	patchExtProcAddrs( obj );
 	destroy_debug_callback( obj );
@@ -217,3 +226,13 @@ void vkDebugReportMessageEXT(
 }
 
 // ----------------------------------------------------------------------
+
+API_REGISTRY_ENTRY void register_le_instance_vk_api(void * api_) {
+	auto api_i = static_cast<le_backend_vk_api*>(api_);
+	auto &instance_i = api_i->instance_i;
+
+	instance_i.create           = instance_create;
+	instance_i.destroy          = instance_destroy;
+	instance_i.get_vk_instance  = instance_get_vk_instance;
+	instance_i.post_reload_hook = instance_post_reload_hook;
+}

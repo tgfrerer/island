@@ -1,4 +1,7 @@
-#include "le_backend_vk/private/le_backend_private.h"
+#include "le_backend_vk/le_backend_vk.h"
+#include "le_backend_vk/private/le_instance_vk.h"
+
+#include "vulkan/vulkan.hpp"
 
 #include <iostream>
 #include <iomanip>
@@ -6,6 +9,35 @@
 #include <vector>
 #include <set>
 #include <map>
+
+struct le_backend_vk_device_o {
+
+	vk::Device                         vkDevice         = nullptr;
+	vk::PhysicalDevice                 vkPhysicalDevice = nullptr;
+	vk::PhysicalDeviceProperties       vkPhysicalDeviceProperties;
+	vk::PhysicalDeviceMemoryProperties vkPhysicalDeviceMemoryProperties;
+
+	// This may be set externally- it defines how many queues will be created, and what their capabilities must include.
+	// queues will be created so that if no exact fit can be found, a queue will be created from the next available family
+	// which closest fits requested capabilities.
+	//
+	std::vector<vk::QueueFlags> queuesWithCapabilitiesRequest = {vk::QueueFlagBits::eGraphics, vk::QueueFlagBits::eCompute};
+	std::vector<uint32_t>       queueFamilyIndices;
+	std::vector<vk::Queue>      queues;
+
+	struct DefaultQueueIndices {
+		uint32_t graphics      = ~uint32_t( 0 );
+		uint32_t compute       = ~uint32_t( 0 );
+		uint32_t transfer      = ~uint32_t( 0 );
+		uint32_t sparseBinding = ~uint32_t( 0 );
+	};
+
+	DefaultQueueIndices defaultQueueIndices;
+	vk::Format          defaultDepthStencilFormat;
+
+	uint32_t referenceCount = 0;
+};
+
 
 // ----------------------------------------------------------------------
 
@@ -119,7 +151,10 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 
 	le_backend_vk_device_o *device = new ( le_backend_vk_device_o );
 
-	auto &instance   = instance_->vkInstance;
+	const le_backend_vk_api &                      backendApiI = *Registry::getApi<le_backend_vk_api>();
+	const le_backend_vk_api::instance_interface_t &instanceI   = backendApiI.instance_i;
+
+	vk::Instance instance   = instanceI.get_vk_instance(instance_);
 	auto  deviceList = instance.enumeratePhysicalDevices();
 
 	// CONSIDER: find the best appropriate GPU
@@ -319,3 +354,21 @@ void device_destroy( le_backend_vk_device_o *self_ ) {
 };
 
 // ----------------------------------------------------------------------
+
+API_REGISTRY_ENTRY void register_le_device_vk_api(void * api_){
+	auto api_i = static_cast<le_backend_vk_api*>(api_);
+	auto & device_i = api_i->device_i;
+
+	device_i.create                                  = device_create;
+	device_i.destroy                                 = device_destroy;
+	device_i.decrease_reference_count                = device_decrease_reference_count;
+	device_i.increase_reference_count                = device_increase_reference_count;
+	device_i.get_reference_count                     = device_get_reference_count;
+	device_i.get_default_graphics_queue_family_index = device_get_default_graphics_queue_family_index;
+	device_i.get_default_compute_queue_family_index  = device_get_default_compute_queue_family_index;
+	device_i.get_default_graphics_queue              = device_get_default_graphics_queue;
+	device_i.get_default_compute_queue               = device_get_default_compute_queue;
+	device_i.get_default_depth_stencil_format        = device_get_default_depth_stencil_format;
+	device_i.get_vk_physical_device                  = device_get_vk_physical_device;
+	device_i.get_vk_device                           = device_get_vk_device;
+}

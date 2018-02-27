@@ -1,6 +1,5 @@
 #ifndef GUARD_LE_RENDERPASS_H
 #define GUARD_LE_RENDERPASS_H
-#endif //GUARD_LE_RENDERPASS_H
 
 #include "le_renderer/le_renderer.h"
 #include <vector>
@@ -22,3 +21,4 @@ struct le_renderpass_o {
 	char         debugName[ 32 ];
 };
 
+#endif //GUARD_LE_RENDERPASS_H

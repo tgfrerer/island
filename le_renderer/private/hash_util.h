@@ -1,6 +1,5 @@
 #ifndef GUARD_LE_HASH_UTIL_H
 #define GUARE_LE_HASH_UTIL_H
-#endif
 
 #include <stdint.h>
 
@@ -36,3 +35,5 @@ struct IdentityHash {
 		return key_;
 	}
 };
+
+#endif

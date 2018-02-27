@@ -1,6 +1,5 @@
 #ifndef GUARD_LE_RENDERGRAPH_H
 #define GUARD_LE_RENDERGRAPH_H
-#endif //GUARD_LE_RENDERGRAPH_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -12,9 +11,10 @@ extern "C" {
 
 */
 
-
 void register_le_rendergraph_api( void *api );
 
 #ifdef __cplusplus
 }
 #endif
+
+#endif //GUARD_LE_RENDERGRAPH_H

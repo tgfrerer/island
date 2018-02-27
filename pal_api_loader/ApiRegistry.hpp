@@ -16,6 +16,12 @@
 
 */
 
+#ifdef __cplusplus
+#	define API_REGISTRY_ENTRY extern "C"
+#else
+#	define API_REGISTRY_ENTRY
+#endif
+
 struct pal_api_loader_i;
 struct pal_api_loader_o;
 
@@ -23,8 +29,8 @@ struct pal_api_loader_o;
 extern "C" {
 #endif
 
-extern "C" void *pal_registry_get_api( const char *id );
-extern "C" void  pal_registry_set_api( const char *id, void *api );
+API_REGISTRY_ENTRY void *pal_registry_get_api( const char *id );
+API_REGISTRY_ENTRY void  pal_registry_set_api( const char *id, void *api );
 
 #ifdef __cplusplus
 } // extern "C"
@@ -174,3 +180,4 @@ struct NoMove {
 
 #endif // __cplusplus
 #endif // GUARD_API_REGISTRY_HPP
+
