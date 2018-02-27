@@ -141,7 +141,7 @@ static void render_module_execute_graph(le_render_module_o* self, le_graph_build
 			msg << " : " << std::setw( 32 ) << std::hex << attachment.id << ":" << attachment.source_id << ", '" << attachment.debugName << "'" << std::endl;
 		}
 	}
-	std::cout << msg.str() << std::endl;
+	// std::cout << msg.str() << std::endl;
 
 
 	/*
@@ -555,10 +555,12 @@ static void graph_builder_create_renderpasses(le_graph_builder_o* self){
 			    .setFinalLayout    ( syncFinal.layout )
 			    ;
 
-			std::cout << "attachment: " << attachment.debugName << std::endl;
-			std::cout << "layout initial: " << vk::to_string( syncInitial.layout ) << std::endl;
-			std::cout << "layout subpass: " << vk::to_string( syncSubpass.layout ) << std::endl;
-			std::cout << "layout   final: " << vk::to_string( syncFinal.layout ) << std::endl;
+			if (false){
+				std::cout << "attachment: " << attachment.debugName << std::endl;
+				std::cout << "layout initial: " << vk::to_string( syncInitial.layout ) << std::endl;
+				std::cout << "layout subpass: " << vk::to_string( syncSubpass.layout ) << std::endl;
+				std::cout << "layout   final: " << vk::to_string( syncFinal.layout ) << std::endl;
+			}
 
 			attachments.emplace_back( attachmentDescription );
 			colorAttachmentReferences.emplace_back( attachments.size() - 1, syncSubpass.layout );
@@ -598,6 +600,8 @@ static void graph_builder_create_renderpasses(le_graph_builder_o* self){
 		std::vector<vk::SubpassDependency> dependencies;
 		dependencies.reserve( 2 );
 		{
+			if (false){
+				
 			std::cout << "PASS :'" << pass.debugName << "'" << std::endl;
 			std::cout << "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass [0]" << std::endl;
 			std::cout << "\t srcStage: " << vk::to_string( srcStageFromExternalFlags ) << std::endl;
@@ -612,6 +616,7 @@ static void graph_builder_create_renderpasses(le_graph_builder_o* self){
 			std::cout << "\tsrcAccess: " << vk::to_string( srcAccessToExternalFlags ) << std::endl;
 			std::cout << "\tdstAccess: " << vk::to_string( dstAccessToExternalFlags ) << std::endl
 			          << std::endl;
+			}
 
 			vk::SubpassDependency externalToSubpassDependency;
 			externalToSubpassDependency
