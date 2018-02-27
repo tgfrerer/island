@@ -3,6 +3,8 @@
 
 #include <stdint.h>
 
+namespace le {
+
 enum class CommandType : uint32_t {
 	eDrawIndexed = 1,
 };
@@ -17,11 +19,6 @@ struct CommandHeader {
 	} info;
 };
 
-struct BufferOffset {
-	uint64_t buffer_id : 32;
-	uint64_t offset : 32;
-};
-
 struct CommandDrawIndexed {
 	CommandHeader header = {{{CommandType::eDrawIndexed, sizeof( CommandDrawIndexed )}}};
 	struct {
@@ -30,7 +27,8 @@ struct CommandDrawIndexed {
 		uint64_t firstIndex;
 		uint64_t vertexOffset;
 		uint64_t firstInstance;
-	} payload;
+	} info;
 };
 
+} // namespace le
 #endif
