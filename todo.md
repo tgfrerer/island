@@ -1,4 +1,6 @@
 #Todo
 
-+ refactor backend to use same principles as renderer (sub-components, private
-  headers)
+------------------------------
+
+* Create a templating script to generate class scaffold so you don't have to
+  type that much boilerplate.

@@ -51,18 +51,16 @@ renderpass.
 	
 	void (* render) (encoder, void * user_data){
 	
-	// we use user_data to have access to the objects we actually want to
-	render
+	// we use user_data to have access to the objects we actually want to render
 
     // this basically mirrors the drawcommand syntax
     
-	encoder->setRenderPipelineId("passthrough")
-	encoder->setTexture(texture_binding_position, texture_id)
-	encoder->setDescriptorData({})
-    encoder->bindDescriptorSets([buffers],[dynamic_offsets]); // pipeline parameters
+	encoder->bindRenderPipeline("passthrough")
+	encoder->setTexture(set_number, binding_position, binding_index, texture_id) // pipeline paramters
+    encoder->bindDynamicDescriptorData([buffers],[dynamic_offsets]); // pipeline parameters
     encoder->bindVertexBuffers([buffers],[dynamic_offsets]);
     encoder->bindIndexBuffer(buffer,offset); // optional
-    encoder->setViewport({viewportData});
+    encoder->setViewport(/*{viewportData}*/);
     encoder->setLineWidth(1.f);
     encoder->drawPrimitiveIndexed(...);
 	}
@@ -91,12 +89,11 @@ maps directly to a DescriptorSet, which can then be bound:
 	);
 ```
 
-Perhaps we can introduce something like a descriptor table - this could also be
-hashed - and descriptors can be generated upfront in vulkan from all requested
-descriptors for the frame.
+Perhaps we can introduce something like a descriptor table and descriptors can
+be generated upfront in vulkan from all requested descriptors for the frame.
 
 We could use this descriptor table with VkDescriptorUpdateTemplateKHR, so that
-we don't have to create write descriptors for everything.
+we don't have to create separate write descriptors for everything.
 
 ### In Vulkan, how is a resource bound to a pipeline?
 
@@ -111,7 +108,7 @@ want to associate a particular texture with a pipeline you do so by creating a
 descriptorSet which references the texture. 
 
 Descriptors must be allocated from designated pools - and they must be written
-to so that they can be used. 
+to, so that they can be used. 
 
 ## What is the minimum subset of commands we need to implement for intermediate command buffers?
 
