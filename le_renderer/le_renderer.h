@@ -95,6 +95,7 @@ struct le_renderer_api {
 	struct command_buffer_encoder_interface_t {
 		le_command_buffer_encoder_o * ( *create )  ( );
 		void                          ( *destroy ) ( le_command_buffer_encoder_o *obj );
+		void                          ( *set_line_width)(le_command_buffer_encoder_o* obj, float line_width_);
 	};
 
 	renderpass_interface_t             le_renderpass_i;
@@ -311,6 +312,10 @@ class CommandBufferEncoder {
 
 	operator auto() {
 		return self;
+	}
+	
+	void setLineWidth(float lineWidth){
+		cbEncoderI.set_line_width(self, lineWidth);
 	}
 };
 
