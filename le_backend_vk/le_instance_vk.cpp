@@ -62,6 +62,7 @@ static VkBool32 debugCallback(
 	std::ostringstream os;
 	os << " * \t " << std::left << std::setw( 8 ) << logLevel << "{" << std::setw( 10 ) << pLayerPrefix << "}: " << pMessage << std::endl;
 	std::cout << os.str();
+	std::cout << std::flush;
 
 	// if error returns true, this layer will try to bail out and not forward the command
 	return shouldBailout;
@@ -101,7 +102,7 @@ le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const c
 	    .setApplicationVersion( VK_MAKE_VERSION( 0, 0, 0 ) )
 	    .setPEngineName( "light engine" )
 	    .setEngineVersion( VK_MAKE_VERSION( 0, 1, 0 ) )
-	    .setApiVersion( VK_MAKE_VERSION( 1, 0, 46 ) );
+	    .setApiVersion( VK_MAKE_VERSION( 1, 0, 68 ) );
 
 	std::set<std::string> instanceExtensionSet;
 
