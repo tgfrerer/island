@@ -7,14 +7,20 @@ struct le_command_buffer_encoder_o {
 	size_t mCommandStreamSize = 0;
 };
 
+// ----------------------------------------------------------------------
+
 static le_command_buffer_encoder_o* cbe_create(){
 	auto obj = new le_command_buffer_encoder_o;
 	return obj;
 };
 
+// ----------------------------------------------------------------------
+
 static void cbe_destroy(le_command_buffer_encoder_o* self){
 	delete(self);
 }
+
+// ----------------------------------------------------------------------
 
 static void cbe_set_line_width(le_command_buffer_encoder_o* self, float lineWidth){
 
@@ -24,8 +30,9 @@ static void cbe_set_line_width(le_command_buffer_encoder_o* self, float lineWidt
 	cmd->info.width = lineWidth;
 	
 	self->mCommandStreamSize += sizeof( le::CommandSetLineWidth );
-
 }
+
+// ----------------------------------------------------------------------
 
 ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 
