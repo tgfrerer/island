@@ -1,5 +1,12 @@
 #Todo
 
++ use encoder to draw basic triangle (this will allow us to test backend)
++ create renderpass programmatically
++ use backend to record command buffers, to submit command buffers, to track
+  gpu object state  
+
+------------------------------
+
 * have one encoder per renderpass
     * make sure encoder stores into correct (local) frame
     * add minimal encoder methods
@@ -12,7 +19,6 @@
         * pass-through shader
         * descriptorset
      
-     * add a basic pipeline
 
 ------------------------------
 

@@ -99,7 +99,7 @@ we don't have to create separate write descriptors for everything.
 
     1. pipeline defines pipelineLayout
     2. pipelineLayout is an array of DescriptorSetLayouts
-    3. DescriptorSetLayout is an array of DescritptorSets
+    3. DescriptorSetLayout is an array of DescriptorSets
     4. DescriptorSet is an array of Bindings
     5. Bindings has an array of Descriptors
 
