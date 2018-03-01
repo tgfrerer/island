@@ -5,6 +5,7 @@
 struct le_command_buffer_encoder_o {
 	char mCommandStream[4096];
 	size_t mCommandStreamSize = 0;
+	size_t mCommandCount      = 0;
 };
 
 // ----------------------------------------------------------------------
@@ -30,6 +31,14 @@ static void cbe_set_line_width(le_command_buffer_encoder_o* self, float lineWidt
 	cmd->info.width = lineWidth;
 	
 	self->mCommandStreamSize += sizeof( le::CommandSetLineWidth );
+	self->mCommandCount++;
+}
+
+static void cbe_draw(le_command_buffer_encoder_o* self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstIndex, uint32_t firstInstance){
+	le::CommandDraw * cmd = new(&self->mCommandStream[0]+self->mCommandStreamSize) le::CommandDraw;
+	cmd->info = {vertexCount, instanceCount,firstIndex,firstInstance};
+	self->mCommandStreamSize += sizeof(le::CommandDraw);
+	self->mCommandCount ++;
 }
 
 // ----------------------------------------------------------------------
@@ -42,4 +51,5 @@ ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 	le_command_buffer_encoder_i.create         = cbe_create;
 	le_command_buffer_encoder_i.destroy        = cbe_destroy;
 	le_command_buffer_encoder_i.set_line_width = cbe_set_line_width;
+	le_command_buffer_encoder_i.draw           = cbe_draw;
 }

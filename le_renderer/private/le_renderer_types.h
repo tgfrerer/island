@@ -7,6 +7,7 @@ namespace le {
 
 enum class CommandType : uint32_t {
 	eDrawIndexed,
+	eDraw,
 	eSetLineWidth,
 };
 
@@ -23,11 +24,21 @@ struct CommandHeader {
 struct CommandDrawIndexed {
 	CommandHeader header = {{{CommandType::eDrawIndexed, sizeof( CommandDrawIndexed )}}};
 	struct {
-		uint64_t numIndices;
-		uint64_t instanceCount;
-		uint64_t firstIndex;
-		uint64_t vertexOffset;
-		uint64_t firstInstance;
+		uint32_t numIndices;
+		uint32_t instanceCount;
+		uint32_t firstIndex;
+		uint32_t vertexOffset;
+		uint32_t firstInstance;
+	} info;
+};
+
+struct CommandDraw {
+	CommandHeader header = {{{CommandType::eDraw, sizeof( CommandDraw )}}};
+	struct {
+		uint32_t vertexCount;
+		uint32_t instanceCount;
+		uint32_t firstIndex;
+		uint32_t firstInstance;
 	} info;
 };
 

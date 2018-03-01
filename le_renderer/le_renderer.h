@@ -93,9 +93,10 @@ struct le_renderer_api {
 	};
 
 	struct command_buffer_encoder_interface_t {
-		le_command_buffer_encoder_o * ( *create )  ( );
-		void                          ( *destroy ) ( le_command_buffer_encoder_o *obj );
-		void                          ( *set_line_width)(le_command_buffer_encoder_o* obj, float line_width_);
+		le_command_buffer_encoder_o * ( *create         ) ( );
+		void                          ( *destroy        ) ( le_command_buffer_encoder_o *obj );
+		void                          ( *set_line_width ) ( le_command_buffer_encoder_o* obj, float line_width_);
+		void                          ( *draw           ) ( le_command_buffer_encoder_o* obj, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstIndex, uint32_t firstInstance);
 	};
 
 	renderpass_interface_t             le_renderpass_i;
