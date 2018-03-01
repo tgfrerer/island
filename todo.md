@@ -4,6 +4,7 @@
 
 * find a better way to store window surface- it should probably live inside the backend, tagged with window name, or perhaps it should be owned by the swapchain which uses it, so that it can be deleted at the correct time. 
 
+* make sure reset_swapchain is clean - at the moment it complains about deleting an object which is currently in use by a command buffer.
 
 ----------------------------------------------------------------------
 
