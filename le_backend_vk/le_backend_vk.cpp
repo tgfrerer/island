@@ -515,7 +515,7 @@ static void backend_process_frame(le_backend_o*self, size_t frameIndex /* render
 	}
 
 	std::array<vk::ClearValue, 1> clearValues{
-		{vk::ClearColorValue( std::array<float, 4>{{0.f, 0.f, 0.0f, 1.f}} )}};
+		{vk::ClearColorValue( std::array<float, 4>{{0.f, 0.3f, 1.0f, 1.f}} )}};
 
 	auto &cmd = cmdBufs.front();
 
@@ -599,6 +599,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.dispatch_frame           = backend_dispatch_frame;
 	vk_backend_i.process_frame            = backend_process_frame;
 	vk_backend_i.get_num_swapchain_images = backend_get_num_swapchain_images;
+	vk_backend_i.reset_swapchain          = backend_reset_swapchain;
 
 	// register/update submodules inside this plugin
 
