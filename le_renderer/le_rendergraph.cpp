@@ -686,6 +686,7 @@ static void graph_builder_execute_graph(le_graph_builder_o* self){
 		}
 	}
 
+	// TODO: these functions need happen in the backend as they are API specific
 	graph_builder_track_resource_state(self);
 	graph_builder_create_renderpasses(self);
 
