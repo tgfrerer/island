@@ -19,7 +19,7 @@ struct SurfaceProperties {
 };
 
 struct le_backend_swapchain_o {
-	le_swapchain_vk_api::settings_o mSettings;
+	le_swapchain_vk_settings_o      mSettings;
 	vk::PresentModeKHR              mPresentMode     = vk::PresentModeKHR::eFifo;
 	uint32_t                        mImagecount      = 0;
 	uint32_t                        mImageIndex      = uint32_t(~0); // current image index
@@ -161,7 +161,7 @@ static inline auto clamp( const T &val_, const T &min_, const T &max_ ) {
 
 // ----------------------------------------------------------------------
 
-static void swapchain_reset( le_backend_swapchain_o *self, const le_swapchain_vk_api::settings_o *settings_ ) {
+static void swapchain_reset( le_backend_swapchain_o *self, const le_swapchain_vk_settings_o *settings_ ) {
 
 	if ( settings_ ) {
 		self->mSettings = *settings_;
@@ -256,7 +256,7 @@ static void swapchain_reset( le_backend_swapchain_o *self, const le_swapchain_vk
 
 // ----------------------------------------------------------------------
 
-static le_backend_swapchain_o *swapchain_create( const le_swapchain_vk_api::settings_o *settings_ ) {
+static le_backend_swapchain_o *swapchain_create( const le_swapchain_vk_settings_o *settings_ ) {
 	auto self = new ( le_backend_swapchain_o );
 
 	swapchain_reset( self, settings_ );
@@ -278,22 +278,16 @@ static bool swapchain_acquire_next_image( le_backend_swapchain_o* self, VkSemaph
 	case VK_SUCCESS:
 		self->mImageIndex = imageIndex_;
 	    return true;
-	    break;
 	case VK_SUBOPTIMAL_KHR:         // | fall-through
 	case VK_ERROR_SURFACE_LOST_KHR: // |
 	case VK_ERROR_OUT_OF_DATE_KHR:  // |
 	{
 		return false;
 	}
-	    break;
 	default:
 	    return false;
 	}
 
-}
-
-static le_swapchain_vk_api::settings_o& swapchain_get_settings(le_backend_swapchain_o* self){
-	return self->mSettings;
 }
 
 // ----------------------------------------------------------------------

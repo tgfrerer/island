@@ -21,34 +21,36 @@ struct VkImageView_T;
 struct VkQueue_T;
 struct VkSurfaceFormatKHR;
 
+struct le_swapchain_vk_settings_o {
+	enum class Presentmode : uint32_t {
+		eDefault = 0,
+		eImmediate,
+		eMailbox,
+		eFifo,
+		eFifoRelaxed,
+		eSharedDemandRefresh,
+		eSharedContinuousRefresh,
+	};
+	uint32_t            width_hint                     = 640;
+	uint32_t            height_hint                    = 480;
+	uint32_t            imagecount_hint                = 3;
+	Presentmode         presentmode_hint               = Presentmode::eFifo;
+	VkDevice_T *        vk_device                      = nullptr; // owned by backend
+	VkPhysicalDevice_T *vk_physical_device             = nullptr;
+	VkSurfaceKHR_T *    vk_surface                     = nullptr; // owned by window
+	uint32_t            vk_graphics_queue_family_index = ~uint32_t( 0 );
+};
+
+
 struct le_swapchain_vk_api {
 	static constexpr auto id       = "le_swapchain_vk";
 	static constexpr auto pRegFun  = register_le_swapchain_vk_api;
 
-	struct settings_o {
-		enum class Presentmode : uint32_t {
-			eDefault = 0,
-			eImmediate,
-			eMailbox,
-			eFifo,
-			eFifoRelaxed,
-			eSharedDemandRefresh,
-			eSharedContinuousRefresh,
-		};
-		uint32_t            width_hint                     = 640;
-		uint32_t            height_hint                    = 480;
-		uint32_t            imagecount_hint                = 3;
-		Presentmode         presentmode_hint               = Presentmode::eFifo;
-		VkDevice_T *        vk_device                      = nullptr; // owned by backend
-		VkPhysicalDevice_T *vk_physical_device             = nullptr;
-		VkSurfaceKHR_T *    vk_surface                     = nullptr; // owned by window
-		uint32_t            vk_graphics_queue_family_index = ~uint32_t( 0 );
-	};
 
 	struct swapchain_interface_t {
-		le_backend_swapchain_o *  ( *create                   ) ( const settings_o* settings_ );
+		le_backend_swapchain_o *  ( *create                   ) ( const le_swapchain_vk_settings_o* settings_ );
 		void                      ( *destroy                  ) ( le_backend_swapchain_o* );
-		void                      ( *reset                    ) ( le_backend_swapchain_o* , const settings_o* settings_ );
+		void                      ( *reset                    ) ( le_backend_swapchain_o* , const le_swapchain_vk_settings_o* settings_ );
 		bool                      ( *present                  ) ( le_backend_swapchain_o* , VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex);
 		bool                      ( *acquire_next_image       ) ( le_backend_swapchain_o* , VkSemaphore_T* semaphore_, uint32_t& imageIndex_ );
 		VkSurfaceFormatKHR*       ( *get_surface_format       ) ( le_backend_swapchain_o* );
@@ -78,66 +80,10 @@ class Swapchain {
 	le_backend_swapchain_o *                          self       = swapchainI.create( nullptr );
 
   public:
-	using Presentmode = le_swapchain_vk_api::settings_o::Presentmode;
-
-	class Settings {
-		le_swapchain_vk_api::settings_o self;
-
-	  public:
-		Settings()  = default;
-		~Settings() = default;
-
-		Settings( const le_swapchain_vk_api::settings_o &settings_ )
-		    : self( settings_ ) {
-		}
-
-		Settings &setPresentModeHint( const Presentmode &presentmode_ ) {
-			self.presentmode_hint = presentmode_;
-			return *this;
-		}
-
-		Settings &setImageCountHint( uint32_t imageCount_ ) {
-			self.imagecount_hint = imageCount_;
-			return *this;
-		}
-
-		Settings &setWidthHint( uint32_t width_ ) {
-			self.width_hint = width_;
-			return *this;
-		}
-
-		Settings &setHeightHint( uint32_t height_ ) {
-			self.height_hint = height_;
-			return *this;
-		}
-
-		Settings &setVkDevice( VkDevice_T *vk_device_ ) {
-			self.vk_device = vk_device_;
-			return *this;
-		}
-
-		Settings &setVkPhysicalDevice( VkPhysicalDevice_T *vk_physical_device_ ) {
-			self.vk_physical_device = vk_physical_device_;
-			return *this;
-		}
-
-		Settings &setVkSurfaceKHR( VkSurfaceKHR_T *vk_surface_khr_ ) {
-			self.vk_surface = vk_surface_khr_;
-			return *this;
-		}
-
-		Settings &setGraphicsQueueFamilyIndex( uint32_t index_ ) {
-			self.vk_graphics_queue_family_index = index_;
-			return *this;
-		}
-
-		operator const auto *() const {
-			return &self;
-		}
-	};
+	using Presentmode = le_swapchain_vk_settings_o::Presentmode;
 
   public:
-	Swapchain( const Settings &settings_ )
+	Swapchain( le_swapchain_vk_settings_o *settings_ )
 	    : self( swapchainI.create( settings_ ) ) {
 		swapchainI.increase_reference_count( self );
 	}
@@ -167,7 +113,7 @@ class Swapchain {
 	// deactivate move assignment operator
 	Swapchain &operator=( const Swapchain && ) = delete;
 
-	void reset( const Settings &settings_ ) {
+	void reset( le_swapchain_vk_settings_o* settings_ ) {
 		swapchainI.reset( self, settings_ );
 	}
 

@@ -1,11 +1,17 @@
 #Todo
 
+----------------------------------------------------------------------
+
+* find a better way to store window surface- it should probably live inside the backend, tagged with window name, or perhaps it should be owned by the swapchain which uses it, so that it can be deleted at the correct time. 
+
+
+----------------------------------------------------------------------
+
+
 + use encoder to draw basic triangle (this will allow us to test backend)
 + create renderpass programmatically
 + use backend to record command buffers, to submit command buffers, to track
   gpu object state  
-
-------------------------------
 
 * have one encoder per renderpass
     * make sure encoder stores into correct (local) frame
@@ -20,7 +26,7 @@
         * descriptorset
      
 
-------------------------------
+----------------------------------------------------------------------
 
 * Create a templating script to generate class scaffold so you don't have to type that much boilerplate.
 

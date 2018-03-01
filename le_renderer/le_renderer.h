@@ -18,14 +18,13 @@ namespace vk {
 	enum class AttachmentLoadOp;
 }
 
-struct le_backend_vk_device_o;
-struct le_backend_swapchain_o;
-
 struct le_renderer_o;
 struct le_render_module_o;
 struct le_renderpass_o;
 struct le_graph_builder_o;
 struct le_command_buffer_encoder_o;
+struct le_backend_o;
+
 
 struct le_renderer_api {
 
@@ -33,7 +32,7 @@ struct le_renderer_api {
 	static constexpr auto pRegFun  = register_le_renderer_api;
 
 	struct renderer_interface_t {
-		le_renderer_o* ( *create  ) (le_backend_vk_device_o* device, le_backend_swapchain_o* swapchain);
+		le_renderer_o* ( *create  ) (le_backend_o* backend);
 		void           ( *destroy ) (le_renderer_o* obj);
 		void           ( *setup   ) (le_renderer_o* obj);
 		void           ( *update  ) (le_renderer_o* obj, le_render_module_o* module);
@@ -63,7 +62,7 @@ struct le_renderer_api {
 		char debugName[ 32 ];
 	};
 
-	typedef bool(*pfn_renderpass_setup_t)(le_renderpass_o* obj, le_backend_vk_device_o *);
+	typedef bool(*pfn_renderpass_setup_t)(le_renderpass_o* obj);
 	typedef void(*pfn_renderpass_render_t)(le_command_buffer_encoder_o* encoder, void* user_data);
 
 	struct renderpass_interface_t {
@@ -75,7 +74,7 @@ struct le_renderer_api {
 	};
 
 	struct rendermodule_interface_t {
-		le_render_module_o* ( *create)         ( le_backend_vk_device_o* device );
+		le_render_module_o* ( *create)         ( );
 		void                ( *destroy)        ( le_render_module_o* obj );
 		void                ( *add_renderpass) ( le_render_module_o* obj, le_renderpass_o* rp );
 		void                ( *build_graph)    ( le_render_module_o* obj, le_graph_builder_o* gb );
@@ -122,8 +121,8 @@ class Renderer {
 	le_renderer_o *self;
 
   public:
-	Renderer( le_backend_vk_device_o *device, le_backend_swapchain_o *swapchain )
-	    : self( rendererI.create( device, swapchain ) ) {
+	Renderer( le_backend_o *backend)
+	    : self( rendererI.create( backend ) ) {
 	}
 
 	~Renderer() {
@@ -251,8 +250,8 @@ class RenderModule {
 	bool                is_reference = false;
 
   public:
-	RenderModule( le_backend_vk_device_o *device_ )
-	    : self( rendermoduleI.create( device_ ) ) {
+	RenderModule(  )
+	    : self( rendermoduleI.create( ) ) {
 	}
 
 	RenderModule( le_render_module_o *self_ )

@@ -10,10 +10,8 @@
 #include <memory>
 
 struct test_app_o {
-	std::unique_ptr<le::Instance> instance;
+	std::unique_ptr<le::Backend> backend;
 	std::unique_ptr<pal::Window> window;
-	std::unique_ptr<le::Device> device;
-	std::unique_ptr<le::Swapchain> swapchain;
 	std::unique_ptr<le::Renderer> renderer;
 };
 
@@ -41,32 +39,22 @@ static test_app_o *test_app_create() {
 	    .setTitle ( "Hello world" )
 	    ;
 
-
-	uint32_t numRequestedExtensions = 0;
-	auto requestedExtensions = pal::Window::getRequiredVkExtensions( &numRequestedExtensions );
-
-	obj->instance = std::make_unique<le::Instance>(requestedExtensions, numRequestedExtensions);
-
 	obj->window = std::make_unique<pal::Window>(settings);
-	obj->window->createSurface(obj->instance->getVkInstance());
 
-	obj->device = std::make_unique<le::Device>(*obj->instance);
+	le_backend_vk_settings_t backendCreateInfo;
+	backendCreateInfo.requestedExtensions =  pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
 
-	le::Swapchain::Settings swapchainSettings;
-	swapchainSettings
-	    .setImageCountHint          ( 3 )
-	    .setPresentModeHint         ( le::Swapchain::Presentmode::eFifo )
-	    .setWidthHint               ( obj->window->getSurfaceWidth() )
-	    .setHeightHint              ( obj->window->getSurfaceHeight() )
-	    .setVkDevice                ( obj->device->getVkDevice() )
-	    .setVkPhysicalDevice        ( obj->device->getVkPhysicalDevice() )
-	    .setGraphicsQueueFamilyIndex( obj->device->getDefaultGraphicsQueueFamilyIndex() )
-	    .setVkSurfaceKHR            ( obj->window->getVkSurfaceKHR() )
-	    ;
+	obj->backend = std::make_unique<le::Backend>(&backendCreateInfo);
 
-	obj->swapchain = std::make_unique<le::Swapchain>(swapchainSettings);
+	// we need a valid instance at this point.
+	obj->backend->createWindowSurface(*obj->window);
+	obj->backend->createSwapchain(nullptr); // todo - make it possible to set swapchain parameters
 
-	obj->renderer = std::make_unique<le::Renderer>(*obj->device,*obj->swapchain);
+	obj->backend->setup();
+
+
+
+	obj->renderer = std::make_unique<le::Renderer>(*obj->backend);
 	obj->renderer->setup();
 
 	return obj;
@@ -85,25 +73,23 @@ static bool test_app_update(test_app_o* self){
 	// app.update
 	// app.draw
 
-	le::RenderModule renderModule{*self->device};
+	le::RenderModule renderModule{};
 	{
 		le::RenderPass renderPassEarlyZ( "earlyZ" );
-		renderPassEarlyZ.setSetupCallback( []( auto pRp, auto pDevice ) {
+		renderPassEarlyZ.setSetupCallback( []( auto pRp) {
 			auto rp     = le::RenderPassRef{pRp};
-			auto device = le::Device{pDevice};
 
 			le::ImageAttachmentInfo depthAttachmentInfo;
 			depthAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
-			depthAttachmentInfo.format       = device.getDefaultDepthStencilFormat();
+			depthAttachmentInfo.format       = vk::Format::eD32SfloatS8Uint; // TODO: signal correct depth stencil format
 
 			rp.addImageAttachment( "depth", &depthAttachmentInfo );
 			return true;
 		} );
 
 		le::RenderPass renderPassForward( "forward" );
-		renderPassForward.setSetupCallback( []( auto pRp, auto pDevice ) {
+		renderPassForward.setSetupCallback( []( auto pRp) {
 			auto rp     = le::RenderPassRef{pRp};
-			auto device = le::Device{pDevice};
 
 			le::ImageAttachmentInfo colorAttachmentInfo;
 			colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
@@ -118,16 +104,15 @@ static bool test_app_update(test_app_o* self){
 		} );
 
 		le::RenderPass renderPassFinal( "root" );
-		renderPassFinal.setSetupCallback( []( auto pRp, auto pDevice ) {
+		renderPassFinal.setSetupCallback( []( auto pRp) {
 			auto rp     = le::RenderPassRef{pRp};
-			auto device = le::Device{pDevice};
 
 			le::ImageAttachmentInfo colorAttachmentInfo;
 			colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
 			colorAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
 
 			le::ImageAttachmentInfo depthAttachmentInfo;
-			depthAttachmentInfo.format       = device.getDefaultDepthStencilFormat();
+			depthAttachmentInfo.format       = vk::Format::eD32SfloatS8Uint; // TODO: signal correct depth stencil format
 			depthAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
 
 			rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );

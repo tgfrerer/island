@@ -152,7 +152,7 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 	le_backend_vk_device_o *device = new ( le_backend_vk_device_o );
 
 	const le_backend_vk_api &                      backendApiI = *Registry::getApi<le_backend_vk_api>();
-	const le_backend_vk_api::instance_interface_t &instanceI   = backendApiI.instance_i;
+	const le_backend_vk_api::instance_interface_t &instanceI   = backendApiI.vk_instance_i;
 
 	vk::Instance instance   = instanceI.get_vk_instance(instance_);
 	auto  deviceList = instance.enumeratePhysicalDevices();
@@ -357,7 +357,7 @@ void device_destroy( le_backend_vk_device_o *self_ ) {
 
 ISL_API_ATTR void register_le_device_vk_api(void * api_){
 	auto api_i = static_cast<le_backend_vk_api*>(api_);
-	auto & device_i = api_i->device_i;
+	auto & device_i = api_i->vk_device_i;
 
 	device_i.create                                  = device_create;
 	device_i.destroy                                 = device_destroy;

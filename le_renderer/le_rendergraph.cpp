@@ -30,12 +30,6 @@ using image_attachment_t = le_renderer_api::image_attachment_info_o;
 // ----------------------------------------------------------------------
 
 struct le_render_module_o : NoCopy, NoMove {
-	le_render_module_o(le_backend_vk_device_o* device_)
-	    : device(device_){
-
-	}
-
-	le_backend_vk_device_o* device;
 	std::vector<le_renderpass_o> passes;
 };
 
@@ -69,8 +63,8 @@ struct le_graph_builder_o : NoCopy, NoMove {
 
 // ----------------------------------------------------------------------
 
-static le_render_module_o *render_module_create( le_backend_vk_device_o *device_ ) {
-	auto obj = new le_render_module_o( device_ );
+static le_render_module_o *render_module_create( ) {
+	auto obj = new le_render_module_o( );
 	return obj;
 }
 
@@ -101,7 +95,7 @@ static void render_module_build_graph(le_render_module_o* self, le_graph_builder
 		// + populate output attachments
 		// + (optionally) add renderpass to graph builder.
 		assert(pass.callbackSetup != nullptr);
-		if (pass.callbackSetup(&pass, self->device)){
+		if (pass.callbackSetup(&pass)){
 			// if pass.setup() returns true, this means we shall add this pass to the graph
 			graphBuilder.addRenderpass(&pass);
 		}

@@ -230,7 +230,7 @@ void vkDebugReportMessageEXT(
 
 ISL_API_ATTR void register_le_instance_vk_api(void * api_) {
 	auto api_i = static_cast<le_backend_vk_api*>(api_);
-	auto &instance_i = api_i->instance_i;
+	auto &instance_i = api_i->vk_instance_i;
 
 	instance_i.create           = instance_create;
 	instance_i.destroy          = instance_destroy;

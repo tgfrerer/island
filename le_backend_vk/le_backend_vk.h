@@ -11,8 +11,15 @@ extern "C" {
 void register_le_backend_vk_api( void *api );
 
 struct le_backend_vk_api;
-struct le_backend_vk_instance_o;
-struct le_backend_vk_device_o;
+
+struct le_backend_o;
+
+struct le_backend_vk_instance_o; // defined in le_instance_vk.cpp
+struct le_backend_vk_device_o;   // defined in le_device_vk.cpp
+
+struct le_swapchain_vk_settings_o;
+
+struct pal_window_o;
 
 struct VkInstance_T;
 struct VkDevice_T;
@@ -23,9 +30,31 @@ namespace vk {
     enum class Format;
 }
 
+struct le_backend_vk_settings_t {
+
+	const char** requestedExtensions = nullptr;
+	uint32_t numRequestedExtensions = 0;
+	le_swapchain_vk_settings_o * swapchain_settings = nullptr;
+};
+
 struct le_backend_vk_api {
 	static constexpr auto id       = "le_backend_vk";
 	static constexpr auto pRegFun  = register_le_backend_vk_api;
+
+
+	struct backend_vk_interface_t {
+		le_backend_o* (*create)(le_backend_vk_settings_t* settings);
+		void (*destroy)(le_backend_o* self);
+		void (*setup)(le_backend_o* self);
+		bool (*clear_frame)(le_backend_o* self, size_t frameIndex);
+		bool (*acquire_swapchain_image)(le_backend_o*self, size_t frameIndex);
+		void (*process_frame)(le_backend_o*self, size_t frameIndex /* renderGraph */);
+		bool (*dispatch_frame)(le_backend_o* self, size_t frameIndex);
+		bool (*create_window_surface)(le_backend_o* self, pal_window_o* window_);
+		void (*create_swapchain)(le_backend_o* self, le_swapchain_vk_settings_o* swapchainSettings_);
+		size_t(*get_num_swapchain_images)(le_backend_o* self);
+		void (*reset_swapchain)(le_backend_o* self);
+	};
 
 	struct instance_interface_t {
 		le_backend_vk_instance_o *  ( *create           ) ( const le_backend_vk_api * , const char** requestedExtensionNames_, uint32_t requestedExtensionNamesCount_ );
@@ -51,8 +80,9 @@ struct le_backend_vk_api {
 		VkDevice_T*                 ( *get_vk_device                           ) ( le_backend_vk_device_o* self_ );
 	};
 
-	instance_interface_t  instance_i;
-	device_interface_t    device_i;
+	instance_interface_t   vk_instance_i;
+	device_interface_t     vk_device_i;
+	backend_vk_interface_t vk_backend_i;
 
 	mutable le_backend_vk_instance_o *cUniqueInstance = nullptr;
 };
@@ -63,9 +93,76 @@ struct le_backend_vk_api {
 
 namespace le {
 
+class Backend : NoCopy, NoMove {
+	const le_backend_vk_api &                      backendApiI = *Registry::getApi<le_backend_vk_api>();
+	const le_backend_vk_api::backend_vk_interface_t &backendI   = backendApiI.vk_backend_i;
+	le_backend_o *                     self        = nullptr;
+	bool is_reference = false;
+
+public:
+
+	operator auto (){
+		return self;
+	}
+
+	Backend( le_backend_vk_settings_t *settings )
+	    : self( backendI.create( settings ) )
+	    , is_reference( false ) {
+	}
+
+	Backend( le_backend_o *ref )
+	    : self( ref )
+	    , is_reference( true ) {
+	}
+
+	~Backend(){
+		if ( !is_reference ) {
+			backendI.destroy( self );
+		}
+	}
+
+	void setup(){
+		backendI.setup(self);
+	}
+
+	bool clearFrame(size_t frameIndex){
+		return backendI.clear_frame(self, frameIndex);
+	}
+
+	void processFrame(size_t frameIndex){
+		backendI.process_frame(self,frameIndex);
+	}
+
+	bool createWindowSurface(pal_window_o* window){
+		return backendI.create_window_surface(self, window);
+	}
+
+	void createSwapchain(le_swapchain_vk_settings_o* swapchainSettings){
+		backendI.create_swapchain(self,swapchainSettings);
+	}
+
+	size_t getNumSwapchainImages(){
+		return backendI.get_num_swapchain_images(self);
+	}
+
+	bool acquireSwapchainImage(size_t frameIndex){
+		return backendI.acquire_swapchain_image(self, frameIndex);
+	}
+
+	bool dispatchFrame(size_t frameIndex){
+		return backendI.dispatch_frame(self, frameIndex);
+	}
+
+	bool resetSwapchain(){
+		backendI.reset_swapchain(self);
+	};
+
+};
+
+
 class Instance {
 	const le_backend_vk_api &                      backendApiI = *Registry::getApi<le_backend_vk_api>();
-	const le_backend_vk_api::instance_interface_t &instanceI   = backendApiI.instance_i;
+	const le_backend_vk_api::instance_interface_t &instanceI   = backendApiI.vk_instance_i;
 	le_backend_vk_instance_o *                     self        = nullptr;
 
   public:
@@ -81,7 +178,7 @@ class Instance {
 		return instanceI.get_vk_instance( self );
 	}
 
-	operator le_backend_vk_instance_o *() {
+	operator auto () {
 		return self;
 	}
 };
@@ -89,7 +186,7 @@ class Instance {
 
 class Device : NoCopy, NoMove {
 	const le_backend_vk_api &                    backendApiI = *Registry::getApi<le_backend_vk_api>();
-	const le_backend_vk_api::device_interface_t &deviceI     = backendApiI.device_i;
+	const le_backend_vk_api::device_interface_t &deviceI     = backendApiI.vk_device_i;
 	le_backend_vk_device_o *                     self        = nullptr;
 
   public:

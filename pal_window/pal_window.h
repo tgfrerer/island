@@ -57,6 +57,8 @@ class Window : NoMove, NoCopy {
 	const pal_window_api::window_interface_t &mWindow = Registry::getApi<pal_window_api>()->window_i;
 	pal_window_o*                             self    = mWindow.create( nullptr );
 
+	bool is_reference = false;
+
   public:
 	class Settings {
 		const pal_window_api::window_settings_interface_t &windowSettingsI = Registry::getApi<pal_window_api>()->window_settings_i;
@@ -109,11 +111,21 @@ class Window : NoMove, NoCopy {
 	Window() = default;
 
 	Window(const Settings& settings_)
-	    : self( mWindow.create(settings_) ) {
+	    : self( mWindow.create(settings_) )
+	    , is_reference(false){
+	}
+
+	Window(pal_window_o* ref)
+	    : self(ref)
+	    , is_reference(true) {
+
 	}
 
 	~Window() {
-		mWindow.destroy( self );
+		if (!is_reference){
+			destroySurface();
+			mWindow.destroy( self );
+		}
 	}
 
 	bool shouldClose() {
@@ -141,7 +153,7 @@ class Window : NoMove, NoCopy {
 		mWindow.destroy_surface( self );
 	}
 
-	operator pal_window_o*(){
+	operator auto (){
 		return self;
 	}
 
