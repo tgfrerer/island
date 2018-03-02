@@ -17,6 +17,8 @@ struct le_backend_o;
 struct le_backend_vk_instance_o; // defined in le_instance_vk.cpp
 struct le_backend_vk_device_o;   // defined in le_device_vk.cpp
 
+struct le_graph_builder_o; // from renderer
+
 struct le_swapchain_vk_settings_o;
 
 struct pal_window_o;
@@ -41,19 +43,19 @@ struct le_backend_vk_api {
 	static constexpr auto id       = "le_backend_vk";
 	static constexpr auto pRegFun  = register_le_backend_vk_api;
 
-
 	struct backend_vk_interface_t {
-		le_backend_o* (*create)(le_backend_vk_settings_t* settings);
-		void (*destroy)(le_backend_o* self);
-		void (*setup)(le_backend_o* self);
-		bool (*clear_frame)(le_backend_o* self, size_t frameIndex);
-		bool (*acquire_swapchain_image)(le_backend_o*self, size_t frameIndex);
-		void (*process_frame)(le_backend_o*self, size_t frameIndex /* renderGraph */);
-		bool (*dispatch_frame)(le_backend_o* self, size_t frameIndex);
-		bool (*create_window_surface)(le_backend_o* self, pal_window_o* window_);
-		void (*create_swapchain)(le_backend_o* self, le_swapchain_vk_settings_o* swapchainSettings_);
-		size_t(*get_num_swapchain_images)(le_backend_o* self);
-		void (*reset_swapchain)(le_backend_o* self);
+		le_backend_o *( *create )( le_backend_vk_settings_t *settings );
+		void ( *destroy )( le_backend_o *self );
+		void ( *setup )( le_backend_o *self );
+		bool ( *clear_frame )( le_backend_o *self, size_t frameIndex );
+		bool ( *acquire_swapchain_image )( le_backend_o *self, size_t frameIndex );
+		void ( *process_frame )( le_backend_o *self, size_t frameIndex, le_graph_builder_o *graph_ );
+		bool ( *dispatch_frame )( le_backend_o *self, size_t frameIndex );
+		bool ( *create_window_surface )( le_backend_o *self, pal_window_o *window_ );
+		void ( *create_swapchain )( le_backend_o *self, le_swapchain_vk_settings_o *swapchainSettings_ );
+		size_t ( *get_num_swapchain_images )( le_backend_o *self );
+		void ( *reset_swapchain )( le_backend_o *self );
+		void ( *track_resource_state )( le_backend_o *self, size_t frameIndex, le_graph_builder_o *graph_ );
 	};
 
 	struct instance_interface_t {
@@ -99,9 +101,8 @@ class Backend : NoCopy, NoMove {
 	le_backend_o *                     self        = nullptr;
 	bool is_reference = false;
 
-public:
-
-	operator auto (){
+  public:
+	operator auto() {
 		return self;
 	}
 
@@ -115,48 +116,47 @@ public:
 	    , is_reference( true ) {
 	}
 
-	~Backend(){
+	~Backend() {
 		if ( !is_reference ) {
 			backendI.destroy( self );
 		}
 	}
 
-	void setup(){
-		backendI.setup(self);
+	void setup() {
+		backendI.setup( self );
 	}
 
-	bool clearFrame(size_t frameIndex){
-		return backendI.clear_frame(self, frameIndex);
+	bool clearFrame( size_t frameIndex ) {
+		return backendI.clear_frame( self, frameIndex );
 	}
 
-	void processFrame(size_t frameIndex){
-		backendI.process_frame(self,frameIndex);
+	void processFrame( size_t frameIndex, le_graph_builder_o *graph ) {
+		backendI.process_frame( self, frameIndex, graph );
 	}
 
-	bool createWindowSurface(pal_window_o* window){
-		return backendI.create_window_surface(self, window);
+	bool createWindowSurface( pal_window_o *window ) {
+		return backendI.create_window_surface( self, window );
 	}
 
-	void createSwapchain(le_swapchain_vk_settings_o* swapchainSettings){
-		backendI.create_swapchain(self,swapchainSettings);
+	void createSwapchain( le_swapchain_vk_settings_o *swapchainSettings ) {
+		backendI.create_swapchain( self, swapchainSettings );
 	}
 
-	size_t getNumSwapchainImages(){
-		return backendI.get_num_swapchain_images(self);
+	size_t getNumSwapchainImages() {
+		return backendI.get_num_swapchain_images( self );
 	}
 
-	bool acquireSwapchainImage(size_t frameIndex){
-		return backendI.acquire_swapchain_image(self, frameIndex);
+	bool acquireSwapchainImage( size_t frameIndex ) {
+		return backendI.acquire_swapchain_image( self, frameIndex );
 	}
 
-	bool dispatchFrame(size_t frameIndex){
-		return backendI.dispatch_frame(self, frameIndex);
+	bool dispatchFrame( size_t frameIndex ) {
+		return backendI.dispatch_frame( self, frameIndex );
 	}
 
-	bool resetSwapchain(){
-		backendI.reset_swapchain(self);
-	};
-
+	bool resetSwapchain() {
+		backendI.reset_swapchain( self );
+	}
 };
 
 

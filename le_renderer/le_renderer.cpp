@@ -201,7 +201,7 @@ static void renderer_record_frame(le_renderer_o* self, size_t frameIndex, le_ren
 	frame.graphBuilder->executeGraph();				// - this is where we execute the rendergraph, which should create an intermediate representation of the frame
 
 	frame.meta.time_record_frame_end   = std::chrono::high_resolution_clock::now();
-	std::cout << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_record_frame_end-frame.meta.time_record_frame_start).count() << "ms" << std::endl;
+	std::cout << "renderer_record_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_record_frame_end-frame.meta.time_record_frame_start).count() << "ms" << std::endl;
 
 	frame.state = FrameData::State::eRecorded;
 }
@@ -221,7 +221,7 @@ static const FrameData::State& renderer_process_frame( le_renderer_o *self, size
 
 	// translate intermediate draw lists into vk command buffers, and sync primitives
 
-	self->backend.processFrame(frameIndex);
+	self->backend.processFrame(frameIndex, *frame.graphBuilder);
 
 	frame.meta.time_process_frame_end = std::chrono::high_resolution_clock::now();
 	//std::cout << "process: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_process_frame_end-frame.meta.time_process_frame_start).count() << "ms" << std::endl;

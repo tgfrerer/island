@@ -89,6 +89,7 @@ struct le_renderer_api {
 		void                ( *add_renderpass) ( le_graph_builder_o* obj, le_renderpass_o* rp );
 		void                ( *build_graph   ) ( le_graph_builder_o* obj );
 		void                ( *execute_graph ) ( le_graph_builder_o* obj );
+		void                ( *get_passes)(le_graph_builder_o* obj, le_renderpass_o** pPasses, size_t* pNumPasses);
 	};
 
 	struct command_buffer_encoder_interface_t {
@@ -164,6 +165,7 @@ class RenderPass {
 	void setRenderCallback(le_renderer_api::pfn_renderpass_render_t fun, void* user_data_ = nullptr){
 		renderpassI.set_render_callback( self, fun, user_data_ );
 	}
+
 };
 
 // ----------------------------------------------------------------------
@@ -237,6 +239,11 @@ class GraphBuilder : NoCopy, NoMove {
 	void executeGraph() {
 		graphbuilderI.execute_graph( self );
 	}
+
+	void getPasses(le_renderpass_o**pPasses, size_t* numPasses){
+		graphbuilderI.get_passes(self, pPasses,numPasses);
+	}
+
 
 };
 
