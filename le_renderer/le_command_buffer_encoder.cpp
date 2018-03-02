@@ -34,6 +34,8 @@ static void cbe_set_line_width(le_command_buffer_encoder_o* self, float lineWidt
 	self->mCommandCount++;
 }
 
+// ----------------------------------------------------------------------
+
 static void cbe_draw(le_command_buffer_encoder_o* self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstIndex, uint32_t firstInstance){
 	le::CommandDraw * cmd = new(&self->mCommandStream[0]+self->mCommandStreamSize) le::CommandDraw;
 	cmd->info = {vertexCount, instanceCount,firstIndex,firstInstance};
