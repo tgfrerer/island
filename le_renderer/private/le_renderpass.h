@@ -17,6 +17,15 @@ void register_le_renderpass_api( void *api_ );
 }
 #endif
 
+/*
+
+  TODO: look if you can make image_attachment_info_o a pointer - created and owned by the renderer,
+  so that we can reduce the size of this object, and so that we can remove the headers upon we de-
+  pend currently;
+
+*/
+
+
 struct le_renderpass_o {
 
 	uint64_t                                              id;

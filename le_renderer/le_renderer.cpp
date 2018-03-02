@@ -198,6 +198,8 @@ static void renderer_record_frame(le_renderer_o* self, size_t frameIndex, le_ren
 	le::RenderModule renderModule{module_};
 
 	renderModule.buildGraph(*frame.graphBuilder);   // - build up dependencies for graph, create table of unique resources for graph
+	// execute callbacks into main application for each renderpass,
+	// build command lists per renderpass in intermediate, api-agnostic representation
 	frame.graphBuilder->executeGraph();				// - this is where we execute the rendergraph, which should create an intermediate representation of the frame
 
 	frame.meta.time_record_frame_end   = std::chrono::high_resolution_clock::now();

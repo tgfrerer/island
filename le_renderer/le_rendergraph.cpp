@@ -279,10 +279,10 @@ static void graph_builder_execute_graph(le_graph_builder_o* self){
 	}
 	std::cout << msg.str();
 
-	le::CommandBufferEncoder cb;
 
 	for (auto & pass: self->passes){
 		if (pass.callbackRender != nullptr){
+			le::CommandBufferEncoder cb;
 			pass.callbackRender(cb, pass.render_callback_user_data);
 		}
 	}

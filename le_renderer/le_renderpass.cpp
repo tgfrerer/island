@@ -4,6 +4,8 @@
 
 // ----------------------------------------------------------------------
 
+
+
 static le_renderpass_o *renderpass_create(const char* renderpass_name) {
 	auto self = new le_renderpass_o();
 	self->id = const_char_hash64(renderpass_name);

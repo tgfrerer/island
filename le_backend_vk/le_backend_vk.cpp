@@ -18,6 +18,7 @@
 #include <iostream>
 #include <iomanip>
 
+
 // herein goes all data which is associated with the current frame
 // backend keeps track of multiple frames.
 struct BackendFrameData {
@@ -946,8 +947,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 
 		cmd.beginRenderPass( renderPassBeginInfo, vk::SubpassContents::eInline );
 
-		// TODO: bind pipeline
-		// TODO: draw something
+		// TODO: translate intermediary into api specific draw calls here...
+
 		cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, self->debugPipeline );
 		cmd.setViewport( 0, {vk::Viewport( 200, 0, renderAreaWidth - 200, renderAreaHeight, 0, 1 )} );
 		cmd.setScissor( 0, {vk::Rect2D( {0, 0}, {renderAreaWidth, renderAreaHeight} )} );
@@ -1022,4 +1023,5 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	}
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
+
 }
