@@ -277,12 +277,6 @@ class RenderModule {
 		rendermoduleI.build_graph( self, gb_ );
 	}
 
-	void executeGraph( le_graph_builder_o *gb_ ) {
-		// this will, in turn, call execute_graph() on the graph_builder,
-		// which will call the render callbacks.
-		// TODO: clean up call tree for execute_graph
-		rendermoduleI.execute_graph( self, gb_ );
-	}
 };
 
 // ----------------------------------------------------------------------

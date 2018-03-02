@@ -117,43 +117,6 @@ static void render_module_build_graph(le_render_module_o* self, le_graph_builder
 
 // ----------------------------------------------------------------------
 
-static void render_module_execute_graph(le_render_module_o* self, le_graph_builder_o* graph_builder_){
-
-	std::ostringstream msg;
-
-	msg << "render graph: " << std::endl;
-	for ( const auto &pass : graph_builder_->passes ) {
-		msg << "renderpass: " << std::setw( 15 ) << std::hex << pass.id << ", " << "'" << pass.debugName << "' , order: " << pass.execution_order << std::endl;
-
-		for ( const auto &attachment : pass.imageAttachments ) {
-			if (attachment.access_flags & le::AccessFlagBits::eRead){
-				msg << "r";
-			}
-			if (attachment.access_flags & le::AccessFlagBits::eWrite){
-				msg << "w";
-			}
-			msg << " : " << std::setw( 32 ) << std::hex << attachment.id << ":" << attachment.source_id << ", '" << attachment.debugName << "'" << std::endl;
-		}
-	}
-	// std::cout << msg.str() << std::endl;
-
-
-	/*
-
-	  This method creates api-independent command lists for draw commands
-
-	  We need to track the state of our resources - especially for texture
-	  resources - can they change layout?.
-
-	*/
-
-	le::GraphBuilder graphBuilder{graph_builder_};
-	graphBuilder.executeGraph();
-
-}
-
-// ----------------------------------------------------------------------
-
 static le_graph_builder_o* graph_builder_create(){
 	auto obj = new le_graph_builder_o();
 	return obj;
@@ -672,6 +635,24 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 
 static void graph_builder_execute_graph(le_graph_builder_o* self){
 
+	std::ostringstream msg;
+
+	msg << "render graph: " << std::endl;
+	for ( const auto &pass : self->passes ) {
+		msg << "renderpass: " << std::setw( 15 ) << std::hex << pass.id << ", " << "'" << pass.debugName << "' , order: " << pass.execution_order << std::endl;
+
+		for ( const auto &attachment : pass.imageAttachments ) {
+			if (attachment.access_flags & le::AccessFlagBits::eRead){
+				msg << "r";
+			}
+			if (attachment.access_flags & le::AccessFlagBits::eWrite){
+				msg << "w";
+			}
+			msg << " : " << std::setw( 32 ) << std::hex << attachment.id << ":" << attachment.source_id << ", '" << attachment.debugName << "'" << std::endl;
+		}
+	}
+	std::cout << msg.str();
+
 	le::CommandBufferEncoder cb;
 
 	for (auto & pass: self->passes){
@@ -698,7 +679,6 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_render_module_i.destroy        = render_module_destroy;
 	le_render_module_i.add_renderpass = render_module_add_renderpass;
 	le_render_module_i.build_graph    = render_module_build_graph;
-	le_render_module_i.execute_graph  = render_module_execute_graph;
 
 	le_graph_builder_i.create         = graph_builder_create;
 	le_graph_builder_i.destroy        = graph_builder_destroy;
