@@ -19,7 +19,20 @@ struct pal_window_o {
 	VkExtent2D            mSurfaceExtent;
 	pal_window_settings_o mSettings;
 	VkInstance            mInstance = nullptr;
+	size_t				  referenceCount = 0;
 };
+
+static size_t window_get_reference_count(pal_window_o* self){
+	return self->referenceCount;
+}
+
+static void window_increase_reference_count(pal_window_o* self){
+	++self->referenceCount;
+}
+
+static void window_decrease_reference_count(pal_window_o* self){
+	--self->referenceCount;
+}
 
 // ----------------------------------------------------------------------
 
@@ -157,10 +170,13 @@ static pal_window_o *window_create(const pal_window_settings_o* settings_) {
 // ----------------------------------------------------------------------
 
 static void window_destroy( pal_window_o *self ) {
-	if (self->mSurface){
-		window_destroy_surface(self);
+
+	if ( self->mSurface ) {
+		window_destroy_surface( self );
 	}
+
 	glfwDestroyWindow( self->window );
+
 	delete self;
 }
 
@@ -224,6 +240,9 @@ void register_pal_window_api( void *api ) {
 	window_i.create_surface     = window_create_surface;
 	window_i.destroy_surface    = window_destroy_surface;
 	window_i.get_vk_surface_khr = window_get_vk_surface_khr;
+	window_i.increase_reference_count = window_increase_reference_count;
+	window_i.decrease_reference_count = window_decrease_reference_count;
+	window_i.get_reference_count = window_get_reference_count;
 
 	auto &window_settings_i      = windowApi->window_settings_i;
 	window_settings_i.create     = window_settings_create;

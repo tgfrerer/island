@@ -30,6 +30,11 @@ struct pal_window_api {
 	struct window_interface_t {
 		pal_window_o *  ( *create             ) ( const pal_window_settings_o* );
 		void            ( *destroy            ) ( pal_window_o * );
+
+		void            ( *increase_reference_count )( pal_window_o* self );
+		void            ( *decrease_reference_count )( pal_window_o* self );
+		size_t          ( *get_reference_count      )( pal_window_o* self );
+
 		bool            ( *should_close       ) ( pal_window_o * );
 		bool            ( *create_surface     ) ( pal_window_o *, VkInstance_T * );
 		void            ( *destroy_surface    ) ( pal_window_o * );
@@ -56,8 +61,6 @@ namespace pal {
 class Window : NoMove, NoCopy {
 	const pal_window_api::window_interface_t &mWindow = Registry::getApi<pal_window_api>()->window_i;
 	pal_window_o*                             self    = mWindow.create( nullptr );
-
-	bool is_reference = false;
 
   public:
 	class Settings {
@@ -89,41 +92,26 @@ class Window : NoMove, NoCopy {
 		}
 	};
 
-  private:
-	// Note this class disables copy constructor and copy assignment operator,
+private:
 
-	// Also, this class disables move operators, as a move will trigger the destructor
-
-	// copy assignment operator
-	Window &operator=( const Window &rhs ) = delete;
-
-	// copy constructor
-	Window( const Window &rhs ) = delete;
-
-	// move assignment operator
-	Window &operator=( Window &&rhs ) = delete;
-
-	// move constructor
-	Window( const Window &&rhs ) = delete;
+	// deactivate default constructor
+	Window() = delete;
 
   public:
-	// default constructor
-	Window() = default;
 
 	Window(const Settings& settings_)
-	    : self( mWindow.create(settings_) )
-	    , is_reference(false){
+	    : self( mWindow.create(settings_) ){
+		mWindow.increase_reference_count(self);
 	}
 
 	Window(pal_window_o* ref)
-	    : self(ref)
-	    , is_reference(true) {
-
+	    : self(ref){
+		mWindow.increase_reference_count(self);
 	}
 
 	~Window() {
-		if (!is_reference){
-			destroySurface();
+		mWindow.decrease_reference_count(self);
+		if (mWindow.get_reference_count(self) == 0){
 			mWindow.destroy( self );
 		}
 	}
