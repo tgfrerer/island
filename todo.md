@@ -23,6 +23,12 @@
 
 ----------------------------------------------------------------------
 
++ find a way to minimize calls to the api registry - once the api has
+  been registered, the pointer address will not change, only the
+  contents of the struct the pointer points to - looking up the api
+  from the registry creates some unnecessary overhead, especially when
+  running the app statically compiled, where reloading is impossible.
+
 
 + use encoder to draw basic triangle (this will allow us to test
   backend)
