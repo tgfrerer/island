@@ -84,11 +84,11 @@ struct le_renderer_api {
 	// graph builder builds a graph for a module
 	struct graph_builder_interface_t {
 		le_graph_builder_o* ( *create        ) ( );
-		void                ( *destroy       ) ( le_graph_builder_o* obj );
-		void                ( *reset         ) ( le_graph_builder_o* obj );
+		void                ( *destroy       ) ( le_graph_builder_o* obj, const le_renderer_api& api );
+		void                ( *reset         ) ( le_graph_builder_o* obj, const le_renderer_api& api );
 		void                ( *add_renderpass) ( le_graph_builder_o* obj, le_renderpass_o* rp );
 		void                ( *build_graph   ) ( le_graph_builder_o* obj );
-		void                ( *execute_graph ) ( le_graph_builder_o* obj );
+		void                ( *execute_graph ) ( le_graph_builder_o* obj, const le_renderer_api& api );
 		void                ( *get_passes    ) ( le_graph_builder_o* obj, le_renderpass_o** pPasses, size_t* pNumPasses);
 	};
 
@@ -216,7 +216,7 @@ class GraphBuilder : NoCopy, NoMove {
 
 	~GraphBuilder() {
 		if ( !is_reference ) {
-			graphbuilderI.destroy( self );
+			graphbuilderI.destroy( self, rendererApiI);
 		}
 	}
 
@@ -225,7 +225,7 @@ class GraphBuilder : NoCopy, NoMove {
 	}
 
 	void reset() {
-		graphbuilderI.reset( self );
+		graphbuilderI.reset( self, rendererApiI );
 	}
 
 	void addRenderpass( le_renderpass_o *rp ) {
@@ -237,7 +237,7 @@ class GraphBuilder : NoCopy, NoMove {
 	}
 
 	void executeGraph() {
-		graphbuilderI.execute_graph( self );
+		graphbuilderI.execute_graph( self, rendererApiI );
 	}
 
 	void getPasses(le_renderpass_o**pPasses, size_t* numPasses){
@@ -288,7 +288,7 @@ class RenderModule {
 
 // ----------------------------------------------------------------------
 
-class CommandBufferEncoder {
+class CommandBufferEncoder: NoCopy, NoMove {
 	const le_renderer_api &                                    rendererApiI = *Registry::getApi<le_renderer_api>();
 	const le_renderer_api::command_buffer_encoder_interface_t &cbEncoderI   = rendererApiI.le_command_buffer_encoder_i;
 

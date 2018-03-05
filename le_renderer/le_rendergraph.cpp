@@ -37,8 +37,7 @@ struct le_render_module_o : NoCopy, NoMove {
 
 struct le_graph_builder_o : NoCopy, NoMove {
 	std::vector<le_renderpass_o> passes;
-
-
+	std::list<le_command_buffer_encoder_o*> encoders;
 };
 
 // ----------------------------------------------------------------------
@@ -104,13 +103,20 @@ static le_graph_builder_o* graph_builder_create(){
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_reset(le_graph_builder_o* self){
+static void graph_builder_reset(le_graph_builder_o* self, const le_renderer_api& api){
+
+	for (auto & encoder: self->encoders){
+		api.le_command_buffer_encoder_i.destroy(encoder);
+	}
+
+	self->encoders.clear();
 	self->passes.clear();
 }
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_destroy(le_graph_builder_o* self){
+static void graph_builder_destroy(le_graph_builder_o* self, const le_renderer_api& api){
+	graph_builder_reset(self, api);
 	delete self;
 }
 
@@ -259,7 +265,7 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_execute_graph(le_graph_builder_o* self){
+static void graph_builder_execute_graph(le_graph_builder_o* self, const le_renderer_api& api){
 
 	std::ostringstream msg;
 
@@ -280,10 +286,13 @@ static void graph_builder_execute_graph(le_graph_builder_o* self){
 	std::cout << msg.str();
 
 
+	auto & encoderApi = api.le_command_buffer_encoder_i;
+
 	for (auto & pass: self->passes){
 		if (pass.callbackRender != nullptr){
-			le::CommandBufferEncoder cb;
-			pass.callbackRender(cb, pass.render_callback_user_data);
+			auto encoder = encoderApi.create(); // NOTE: we must manually track the lifetime of encoder!
+			pass.callbackRender(encoder, pass.render_callback_user_data);
+			self->encoders.push_back(encoder);
 		}
 	}
 
@@ -294,14 +303,14 @@ static void graph_builder_execute_graph(le_graph_builder_o* self){
 void register_le_rendergraph_api( void *api_ ) {
 
 	auto  le_renderer_api_i = static_cast<le_renderer_api *>( api_ );
-	auto &le_render_module_i   = le_renderer_api_i->le_render_module_i;
-	auto &le_graph_builder_i   = le_renderer_api_i->le_graph_builder_i;
 
+	auto &le_render_module_i          = le_renderer_api_i->le_render_module_i;
 	le_render_module_i.create         = render_module_create;
 	le_render_module_i.destroy        = render_module_destroy;
 	le_render_module_i.add_renderpass = render_module_add_renderpass;
 	le_render_module_i.build_graph    = render_module_build_graph;
 
+	auto &le_graph_builder_i          = le_renderer_api_i->le_graph_builder_i;
 	le_graph_builder_i.create         = graph_builder_create;
 	le_graph_builder_i.destroy        = graph_builder_destroy;
 	le_graph_builder_i.reset          = graph_builder_reset;

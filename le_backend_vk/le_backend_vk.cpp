@@ -505,6 +505,8 @@ static inline bool is_depth_stencil_format(vk::Format format_){
 	return (format_ >= vk::Format::eD16Unorm && format_ <= vk::Format::eD32SfloatS8Uint);
 }
 
+// ----------------------------------------------------------------------
+
 static void backend_create_resource_table(le_backend_o* self, size_t frameIndex, le_graph_builder_o* graph_){
 	// we want a list of unique resources referenced in the renderpass,
 	// and for each resource we must know its first reference.
@@ -725,6 +727,8 @@ static void backend_track_resource_state(le_backend_o* self, size_t frameIndex, 
 
 }
 
+// ----------------------------------------------------------------------
+
 static void backend_create_renderpasses(le_backend_o* self, size_t frameIndex, le_graph_builder_o* graph_ ){
 
 	auto &frame = self->mFrames[ frameIndex ];
@@ -896,9 +900,9 @@ static void backend_create_renderpasses(le_backend_o* self, size_t frameIndex, l
 
 static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_graph_builder_o* graph_) {
 
-	backend_create_resource_table(self,frameIndex,graph_);
-	backend_track_resource_state(self, frameIndex,graph_);
-	backend_create_renderpasses(self, frameIndex, graph_);
+	backend_create_resource_table( self, frameIndex, graph_ );
+	backend_track_resource_state( self, frameIndex, graph_ );
+	backend_create_renderpasses( self, frameIndex, graph_ );
 
 	auto &     frame  = self->mFrames[ frameIndex ];
 	vk::Device device = self->device->getVkDevice();
