@@ -4,11 +4,11 @@
 
 ## (A)
 
-    * create command buffer using encoder data    
+    * populate command buffer using encoder data    
   
 ## (B)
 
-    * store encoder data with frame
+    * store encoder data with frame, using `graph_builder`
 
 ## (C)
 
