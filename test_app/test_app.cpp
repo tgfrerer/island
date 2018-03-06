@@ -4,6 +4,7 @@
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_swapchain_vk/le_swapchain_vk.h"
 #include "le_renderer/le_renderer.h"
+#include "le_renderer/private/le_renderer_types.h"
 
 #include "vulkan/vulkan.hpp"
 #include <iostream>
@@ -129,7 +130,15 @@ static bool test_app_update(test_app_o* self){
 //				encoder.setLineWidth(1.2f);
 //			}
 //			encoder.setLineWidth(5.3f);
-			encoder.draw(3,1,0,0);
+			le::Viewport viewports[ 2 ] = {
+			    {{0.f, 0.f, 100.f, 100.f, 0.f, 1.f}},
+			    {{20.f, 20.f, 220.f, 220.f, 0.f, 1.f}}
+			};
+
+			encoder.setViewport( 0, 2, viewports );
+
+			encoder.draw(4,1,0,0);
+
 			// encoder.setVertexBuffers({buffer1,buffer2},{offset1,offset2});
 
 

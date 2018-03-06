@@ -18,6 +18,10 @@ namespace vk {
 	enum class AttachmentLoadOp;
 }
 
+namespace le {
+    struct Viewport;
+}
+
 struct le_renderer_o;
 struct le_render_module_o;
 struct le_renderpass_o;
@@ -99,8 +103,9 @@ struct le_renderer_api {
 
 		void                          ( *get_encoded_data )(le_command_buffer_encoder_o* self, void** data, size_t* numBytes, size_t* numCommands);
 
-		void                          ( *set_line_width ) ( le_command_buffer_encoder_o* obj, float line_width_);
-		void                          ( *draw           ) ( le_command_buffer_encoder_o* obj, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
+		void                          ( *set_line_width ) ( le_command_buffer_encoder_o* self, float line_width_);
+		void                          ( *draw           ) ( le_command_buffer_encoder_o* self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
+		void                          ( *set_viewport   ) ( le_command_buffer_encoder_o* self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport* pViewports);
 	};
 
 	renderpass_interface_t             le_renderpass_i;
@@ -325,6 +330,10 @@ class CommandBufferEncoder: NoCopy, NoMove {
 
 	void draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance){
 		cbEncoderI.draw( self, vertexCount, instanceCount, firstVertex, firstInstance );
+	}
+
+	void setViewport(uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport* pViewports){
+		cbEncoderI.set_viewport(self,firstViewport, viewportCount, pViewports);
 	}
 };
 

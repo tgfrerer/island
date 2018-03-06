@@ -9,6 +9,7 @@ enum class CommandType : uint32_t {
 	eDrawIndexed,
 	eDraw,
 	eSetLineWidth,
+	eSetViewport,
 };
 
 struct CommandHeader {
@@ -21,6 +22,14 @@ struct CommandHeader {
 	} info;
 };
 
+struct Viewport {
+	float data[6]; // x,y,width,height,mindepth,maxdepth
+};
+
+struct Rect2D {
+	uint32_t data[4]; // x,y,width,height
+};
+
 struct CommandDrawIndexed {
 	CommandHeader header = {{{CommandType::eDrawIndexed, sizeof( CommandDrawIndexed )}}};
 	struct {
@@ -29,6 +38,7 @@ struct CommandDrawIndexed {
 		uint32_t firstIndex;
 		uint32_t vertexOffset;
 		uint32_t firstInstance;
+		uint32_t reserved; // padding
 	} info;
 };
 
@@ -42,10 +52,21 @@ struct CommandDraw {
 	} info;
 };
 
+struct CommandSetViewport {
+	CommandHeader header = {{{CommandType::eSetViewport, sizeof( CommandSetViewport )}}};
+	struct {
+		uint32_t firstViewport;
+		uint32_t viewportCount;
+		Viewport * pViewports;
+	} info;
+};
+
+
 struct CommandSetLineWidth{
 	CommandHeader header = {{{CommandType::eSetLineWidth, sizeof(CommandSetLineWidth)}}};
 	struct {
 		float width;
+		uint32_t reserved; // padding
 	} info;
 };
 

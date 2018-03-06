@@ -954,6 +954,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 					//cmd.setLineWidth(le_cmd->info.width);
 				} break;
 
+				case le::CommandType::eSetViewport: {
+					auto *le_cmd = static_cast<le::CommandSetViewport*>( dataIt );
+					// cmd.setViewport( le_cmd->info.firstViewport, le_cmd->info.pViewports,le_cmd->info.viewportCount );
+				} break;
+
 				}
 
 				// Move iterator by size of current le_command so that it points
