@@ -11,6 +11,8 @@
 #include "le_renderer/private/hash_util.h"  // todo: not cool to include privates!
 #include "le_renderer/private/le_renderpass.h"
 
+#include "le_renderer/private/le_renderer_types.h"
+
 #include <vector>
 #include <unordered_map>
 #include <vulkan/vulkan.hpp>
@@ -903,6 +905,66 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 	backend_create_resource_table( self, frameIndex, graph_ );
 	backend_track_resource_state( self, frameIndex, graph_ );
 	backend_create_renderpasses( self, frameIndex, graph_ );
+
+
+
+	static const le_renderer_api& rendererApiI = *Registry::getApi<le_renderer_api>();
+	static const auto & le_graph_builder_i = rendererApiI.le_graph_builder_i;
+
+	le_renderpass_o *passes;
+	size_t           numRenderPasses = 0;
+	le_graph_builder_i.get_passes( graph_, &passes, &numRenderPasses );
+
+
+
+	// TODO: we can go wide here - each renderpass can be processed independently of
+	// other renderpasses.
+	for ( size_t i = 0; i != numRenderPasses; ++i ) {
+
+		//		auto &pass = passes[ i ];
+
+		void *data = nullptr;
+		size_t dataSize   =0;
+		size_t numCommands=0;
+		size_t commandIndex = 0;
+
+		le_graph_builder_i.get_encoded_data_for_pass( graph_, i, &data, &dataSize, &numCommands );
+
+		if (data != nullptr && numCommands > 0){
+
+			void * dataIt = data;
+
+			while ( commandIndex != numCommands ) {
+
+				le::CommandHeader *header = static_cast<le::CommandHeader *>( dataIt );
+
+				switch ( header->info.type ) {
+
+				case le::CommandType::eDraw: {
+					auto *le_cmd = static_cast<le::CommandDraw *>( dataIt );
+					//cmd.draw( le_cmd->info.vertexCount, le_cmd->info.instanceCount, le_cmd->info.firstVertex, le_cmd->info.firstInstance );
+				} break;
+
+				case le::CommandType::eDrawIndexed: {
+					auto *le_cmd = static_cast<le::CommandDrawIndexed *>( dataIt );
+				} break;
+
+				case le::CommandType::eSetLineWidth: {
+					auto *le_cmd = static_cast<le::CommandSetLineWidth *>( dataIt );
+					//cmd.setLineWidth(le_cmd->info.width);
+				} break;
+
+				}
+
+				// Move iterator by size of current le_command so that it points
+				// to the next command in the list.
+				dataIt = static_cast<char *>( dataIt ) + header->info.size;
+
+				++commandIndex;
+			}
+		}
+	}
+
 
 	auto &     frame  = self->mFrames[ frameIndex ];
 	vk::Device device = self->device->getVkDevice();

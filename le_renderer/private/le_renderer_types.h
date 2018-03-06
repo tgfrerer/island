@@ -37,7 +37,7 @@ struct CommandDraw {
 	struct {
 		uint32_t vertexCount;
 		uint32_t instanceCount;
-		uint32_t firstIndex;
+		uint32_t firstVertex;
 		uint32_t firstInstance;
 	} info;
 };
