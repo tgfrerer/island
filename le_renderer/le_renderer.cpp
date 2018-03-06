@@ -226,7 +226,7 @@ static const FrameData::State& renderer_process_frame( le_renderer_o *self, size
 	self->backend.processFrame(frameIndex, *frame.graphBuilder);
 
 	frame.meta.time_process_frame_end = std::chrono::high_resolution_clock::now();
-	//std::cout << "process: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_process_frame_end-frame.meta.time_process_frame_start).count() << "ms" << std::endl;
+	std::cout << "renderer_process_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_process_frame_end-frame.meta.time_process_frame_start).count() << "ms" << std::endl;
 
 	frame.state = FrameData::State::eProcessed;
 	return frame.state;
@@ -294,7 +294,6 @@ static void renderer_update( le_renderer_o *self, le_render_module_o * module_ )
 	renderer_process_frame          ( self, ( index + 1 ) % numFrames );
 
 	renderer_dispatch_frame         ( self, ( index + 1 ) % numFrames );
-
 
 	if (self->swapchainDirty){
 		// we must dispatch, then clear all previous dispatchable frames,

@@ -1,6 +1,5 @@
 # Todo
 
-----------------------------------------------------------------------
 
 ## (A)
 
@@ -9,6 +8,13 @@
 ## (B)
 
     * store encoder data with frame, using `graph_builder`
+    
+    * find out: what happens to method-static variables upon api reload - do
+      these get re-initialized?
+
+    * instead of passing the api via parameter- you can retrieve it via the
+      registry inside the function which uses it, and store it as a
+      function-level static variable.
 
 ## (C)
 
@@ -28,7 +34,6 @@
   contents of the struct the pointer points to - looking up the api
   from the registry creates some unnecessary overhead, especially when
   running the app statically compiled, where reloading is impossible.
-
 
 + use encoder to draw basic triangle (this will allow us to test
   backend)

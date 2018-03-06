@@ -70,40 +70,39 @@ static bool test_app_update(test_app_o* self){
 		return false;
 	}
 
-	// app.update
-	// app.draw
 
 	le::RenderModule renderModule{};
 	{
-		le::RenderPass renderPassEarlyZ( "earlyZ" );
-		renderPassEarlyZ.setSetupCallback( []( auto pRp) {
-			auto rp     = le::RenderPassRef{pRp};
+//		le::RenderPass renderPassEarlyZ( "earlyZ" );
+//		renderPassEarlyZ.setSetupCallback( []( auto pRp) {
+//			auto rp     = le::RenderPassRef{pRp};
 
-			le::ImageAttachmentInfo depthAttachmentInfo;
-			depthAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
-			depthAttachmentInfo.format       = vk::Format::eD32SfloatS8Uint; // TODO: signal correct depth stencil format
+//			le::ImageAttachmentInfo depthAttachmentInfo;
+//			depthAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
+//			depthAttachmentInfo.format       = vk::Format::eD32SfloatS8Uint; // TODO: signal correct depth stencil format
 
-			rp.addImageAttachment( "depth", &depthAttachmentInfo );
-			return true;
-		} );
+//			rp.addImageAttachment( "depth", &depthAttachmentInfo );
+//			return true;
+//		} );
 
-		le::RenderPass renderPassForward( "forward" );
-		renderPassForward.setSetupCallback( []( auto pRp) {
-			auto rp     = le::RenderPassRef{pRp};
+//		le::RenderPass renderPassForward( "forward" );
+//		renderPassForward.setSetupCallback( []( auto pRp) {
+//			auto rp     = le::RenderPassRef{pRp};
 
-			le::ImageAttachmentInfo colorAttachmentInfo;
-			colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
-			colorAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
+//			le::ImageAttachmentInfo colorAttachmentInfo;
+//			colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
+//			colorAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
 
-			// le::ImageAttachmentInfo depthAttachmentInfo;
-			// depthAttachmentInfo.format = device.getDefaultDepthStencilFormat();
-			// rp.addInputAttachment( "depth", &depthAttachmentInfo );
+//			// le::ImageAttachmentInfo depthAttachmentInfo;
+//			// depthAttachmentInfo.format = device.getDefaultDepthStencilFormat();
+//			// rp.addInputAttachment( "depth", &depthAttachmentInfo );
 
-			rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
-			return true;
-		} );
+//			rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
+//			return true;
+//		} );
 
 		le::RenderPass renderPassFinal( "root" );
+
 		renderPassFinal.setSetupCallback( []( auto pRp) {
 			auto rp     = le::RenderPassRef{pRp};
 
@@ -120,28 +119,25 @@ static bool test_app_update(test_app_o* self){
 			return true;
 		} );
 
-
 		renderPassFinal.setRenderCallback([](auto encoder_, auto user_data_){
 			std::cout << "** rendercallback called" << std::endl;
 			auto self = static_cast<test_app_o*>(user_data_);
 			le::CommandBufferEncoder encoder{encoder_};
 //			// encoder.setPipeline(pipelineId);
 //			// encoder.setDescriptor(setIndex,bindingNumber,arrayIndex,descriptorValue);
-			encoder.setLineWidth(1.2f);
-			encoder.setLineWidth(5.3f);
+//			for (int i = 0; i !=100; ++i ){
+//				encoder.setLineWidth(1.2f);
+//			}
+//			encoder.setLineWidth(5.3f);
+			encoder.draw(3,1,0,0);
 			// encoder.setVertexBuffers({buffer1,buffer2},{offset1,offset2});
-			// encoder.drawPrimitiveIndexed();
+
 
 		}, self);
 
-		// TODO: add setExecuteFun to renderpass - this is the method which actually
-		// does specify the draw calls, and which pipelines to use.
-
-		//						renderModule.addRenderPass( renderPassEarlyZ );
-		renderModule.addRenderPass( renderPassForward );
+		// renderModule.addRenderPass( renderPassEarlyZ );
+		// renderModule.addRenderPass( renderPassForward );
 		renderModule.addRenderPass( renderPassFinal );
-
-
 
 	}
 	// update will call all rendercallbacks in this frame.

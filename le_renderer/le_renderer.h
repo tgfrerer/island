@@ -84,19 +84,23 @@ struct le_renderer_api {
 	// graph builder builds a graph for a module
 	struct graph_builder_interface_t {
 		le_graph_builder_o* ( *create        ) ( );
-		void                ( *destroy       ) ( le_graph_builder_o* obj );
-		void                ( *reset         ) ( le_graph_builder_o* obj );
+		void                ( *destroy       ) ( le_graph_builder_o* obj, const le_renderer_api& api );
+		void                ( *reset         ) ( le_graph_builder_o* obj, const le_renderer_api& api );
 		void                ( *add_renderpass) ( le_graph_builder_o* obj, le_renderpass_o* rp );
 		void                ( *build_graph   ) ( le_graph_builder_o* obj );
-		void                ( *execute_graph ) ( le_graph_builder_o* obj );
+		void                ( *execute_graph ) ( le_graph_builder_o* obj, const le_renderer_api& api );
 		void                ( *get_passes    ) ( le_graph_builder_o* obj, le_renderpass_o** pPasses, size_t* pNumPasses);
+		void                ( *get_encoded_data_for_pass) (le_graph_builder_o* obj, size_t passIndex, void** data, size_t *numBytes, size_t* numCommands);
 	};
 
 	struct command_buffer_encoder_interface_t {
 		le_command_buffer_encoder_o * ( *create         ) ( );
 		void                          ( *destroy        ) ( le_command_buffer_encoder_o *obj );
+
+		void                          ( *get_encoded_data )(le_command_buffer_encoder_o* self, void** data, size_t* numBytes, size_t* numCommands);
+
 		void                          ( *set_line_width ) ( le_command_buffer_encoder_o* obj, float line_width_);
-		void                          ( *draw           ) ( le_command_buffer_encoder_o* obj, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstIndex, uint32_t firstInstance);
+		void                          ( *draw           ) ( le_command_buffer_encoder_o* obj, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
 	};
 
 	renderpass_interface_t             le_renderpass_i;
@@ -216,7 +220,7 @@ class GraphBuilder : NoCopy, NoMove {
 
 	~GraphBuilder() {
 		if ( !is_reference ) {
-			graphbuilderI.destroy( self );
+			graphbuilderI.destroy( self, rendererApiI);
 		}
 	}
 
@@ -225,7 +229,7 @@ class GraphBuilder : NoCopy, NoMove {
 	}
 
 	void reset() {
-		graphbuilderI.reset( self );
+		graphbuilderI.reset( self, rendererApiI );
 	}
 
 	void addRenderpass( le_renderpass_o *rp ) {
@@ -237,7 +241,7 @@ class GraphBuilder : NoCopy, NoMove {
 	}
 
 	void executeGraph() {
-		graphbuilderI.execute_graph( self );
+		graphbuilderI.execute_graph( self, rendererApiI );
 	}
 
 	void getPasses(le_renderpass_o**pPasses, size_t* numPasses){
@@ -288,7 +292,7 @@ class RenderModule {
 
 // ----------------------------------------------------------------------
 
-class CommandBufferEncoder {
+class CommandBufferEncoder: NoCopy, NoMove {
 	const le_renderer_api &                                    rendererApiI = *Registry::getApi<le_renderer_api>();
 	const le_renderer_api::command_buffer_encoder_interface_t &cbEncoderI   = rendererApiI.le_command_buffer_encoder_i;
 
@@ -317,6 +321,10 @@ class CommandBufferEncoder {
 	
 	void setLineWidth(float lineWidth){
 		cbEncoderI.set_line_width(self, lineWidth);
+	}
+
+	void draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance){
+		cbEncoderI.draw( self, vertexCount, instanceCount, firstVertex, firstInstance );
 	}
 };
 
