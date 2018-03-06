@@ -154,7 +154,7 @@ class Backend : NoCopy, NoMove {
 		return backendI.dispatch_frame( self, frameIndex );
 	}
 
-	bool resetSwapchain() {
+	void resetSwapchain() {
 		backendI.reset_swapchain( self );
 	}
 };
