@@ -131,16 +131,37 @@ static bool test_app_update(test_app_o* self){
 //				encoder.setLineWidth(1.2f);
 //			}
 //			encoder.setLineWidth(5.3f);
-			le::Viewport viewports[ 1 ] = {
+			le::Viewport viewports[ 2 ] = {
 			    {{0.f, 0.f, 100.f, 100.f, 0.f, 1.f}},
+			    {{120.f, 0.f, 100.f, 100.f, 0.f, 1.f}},
 			};
 
-			le::Rect2D scissors[ 1 ] = {{{0, 0, 100, 100}}};
+			le::Rect2D scissors[ 2 ] = {
+			    {{0, 0, 100, 100}},
+			    {{120, 0, 100, 100}},
+			};
 
 			encoder.setScissor(0,1,scissors);
 			encoder.setViewport( 0, 1, viewports );
 
 			encoder.draw(3,1,0,0);
+
+			encoder.setScissor(0,1,&scissors[1]);
+			encoder.setViewport( 0, 1, &viewports[1] );
+
+			// vertex data must be stored to GPU mapped memory using an allocator through encoder first,
+			// will then be available to the gpu.
+
+			// this will use the scratch buffer -- and the encoded command will store the
+			// location of the data as it was laid down in the scratch buffer.
+
+			// the scratch buffer is uploaded/transferred before the renderpass begins
+			// so that data from it is read-visible,
+
+
+			encoder.draw(3,1,0,0);
+
+
 
 			// encoder.setVertexBuffers({buffer1,buffer2},{offset1,offset2});
 
@@ -153,6 +174,7 @@ static bool test_app_update(test_app_o* self){
 
 	}
 	// update will call all rendercallbacks in this frame.
+	// the RECORD phase is guaranteed to execute - all rendercallbacks will get called.
 	self->renderer->update( renderModule );
 
 	return true;

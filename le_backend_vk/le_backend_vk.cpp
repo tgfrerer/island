@@ -930,10 +930,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 
 	// TODO: we can go wide here - each renderpass can be processed independently of
 	// other renderpasses.
-	for ( size_t i = 0; i != numRenderPasses; ++i ) {
+	for ( size_t passIndex = 0; passIndex != numRenderPasses; ++passIndex ) {
 
 		// auto &pass = passes[ i ];
-		auto &cmd = cmdBufs[i];
+		auto &cmd = cmdBufs[passIndex];
 
 		// create frame buffer, based on swapchain and renderpass
 
@@ -982,7 +982,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 		size_t numCommands   = 0;
 		size_t commandIndex  = 0;
 
-		le_graph_builder_i.get_encoded_data_for_pass( graph_, i, &commandStream, &dataSize, &numCommands );
+		le_graph_builder_i.get_encoded_data_for_pass( graph_, passIndex, &commandStream, &dataSize, &numCommands );
 
 		if (commandStream != nullptr && numCommands > 0){
 

@@ -3,18 +3,30 @@
 
 ## (A)
 
-    * populate command buffer using encoder data    
+    * implement setVertexBytes
+        vertex data must first be stored inside encoder- in process_frame this is transferred to GPU coherent memory. Don't use updateBuffer for this. You can just write to gpu-mapped memory, if you have an allocator for this.
+
+    * add a method to store an attribute for a specific binding location
+    * add scratch buffer for vertex data
+    * draw a triangle
   
+
+    + allocate a scratch buffer per frame.
+    + map the scratch buffer per frame.
+    + use scratch buffer memory when you write vertex data
+    + later introduce allocator which will give you access to scratch data.
+
+
 ## (B)
 
-    * store encoder data with frame, using `graph_builder`
-    
     * find out: what happens to method-static variables upon api reload - do
       these get re-initialized?
 
     * instead of passing the api via parameter- you can retrieve it via the
       registry inside the function which uses it, and store it as a
       function-level static variable.
+
+    * think: can we use macros to generate encoder methods?
 
 ## (C)
 
@@ -35,18 +47,8 @@
   from the registry creates some unnecessary overhead, especially when
   running the app statically compiled, where reloading is impossible.
 
-+ use encoder to draw basic triangle (this will allow us to test
-  backend)
 + create renderpass programmatically
-+ use backend to record command buffers, to submit command buffers, to
-  track gpu object state  
 
-* have one encoder per renderpass
-    * make sure encoder stores into correct (local) frame
-    * add minimal encoder methods
-    * add storage to encoder - somewhere to store scissors, viewports,
-      buffer data - so that it can be pieced back together later. 
-    
 * minimal methods for encoder to draw into a frame: 
     * we need a buffer for vertex data
     * a simple pass-through pipleine 
