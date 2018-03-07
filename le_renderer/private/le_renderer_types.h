@@ -10,6 +10,7 @@ enum class CommandType : uint32_t {
 	eDraw,
 	eSetLineWidth,
 	eSetViewport,
+	eSetScissor,
 };
 
 struct CommandHeader {
@@ -61,6 +62,14 @@ struct CommandSetViewport {
 	} info;
 };
 
+struct CommandSetScissor {
+	CommandHeader header = {{{CommandType::eSetScissor, sizeof(CommandSetScissor)}}};
+	struct {
+		uint32_t firstScissor;
+		uint32_t scissorCount;
+		Rect2D* pScissors;
+	} info;
+};
 
 struct CommandSetLineWidth{
 	CommandHeader header = {{{CommandType::eSetLineWidth, sizeof(CommandSetLineWidth)}}};

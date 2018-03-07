@@ -47,21 +47,43 @@ static void cbe_draw( le_command_buffer_encoder_o *self, uint32_t vertexCount, u
 // ----------------------------------------------------------------------
 
 static void cbe_set_viewport(le_command_buffer_encoder_o* self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport* pViewports){
+
 	le::CommandSetViewport *cmd = new ( &self->mCommandStream[ 0 ] + self->mCommandStreamSize ) le::CommandSetViewport; // placement new!
 
 	// We point to the next available position in the data stream
 	// so that we can store the data for viewports inline.
-	void * viewportData = (cmd + sizeof( le::CommandSetViewport ));
-	size_t viewportDataSize = sizeof(le::Viewport) * viewportCount;
+	void * data = (cmd + sizeof( le::CommandSetViewport ));
+	size_t dataSize = sizeof(le::Viewport) * viewportCount;
 
-	cmd->info = {firstViewport, viewportCount, static_cast<le::Viewport *>( viewportData )};
-	cmd->header.info.size += viewportDataSize; // we must increase the size of this command by its payload size
+	cmd->info = {firstViewport, viewportCount, static_cast<le::Viewport *>( data )};
+	cmd->header.info.size += dataSize; // we must increase the size of this command by its payload size
 
-	memcpy(viewportData, pViewports, viewportDataSize);
+	memcpy(data, pViewports, dataSize);
 
 	self->mCommandStreamSize += cmd->header.info.size;
 	self->mCommandCount++;
 };
+
+// ----------------------------------------------------------------------
+
+static void cbe_set_scissor(le_command_buffer_encoder_o* self, uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D*pScissors){
+
+	le::CommandSetScissor *cmd = new ( &self->mCommandStream[ 0 ] + self->mCommandStreamSize ) le::CommandSetScissor; // placement new!
+
+	// We point to the next available position in the data stream
+	// so that we can store the data for viewports inline.
+	void * data = (cmd + sizeof( le::CommandSetScissor));
+	size_t dataSize = sizeof(le::Rect2D) * scissorCount;
+
+	cmd->info = {firstScissor, scissorCount, static_cast<le::Rect2D*>( data )};
+	cmd->header.info.size += dataSize; // we must increase the size of this command by its payload size
+
+	memcpy(data, pScissors, dataSize);
+
+	self->mCommandStreamSize += cmd->header.info.size;
+	self->mCommandCount++;
+
+}
 
 // ----------------------------------------------------------------------
 
@@ -84,4 +106,5 @@ ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 	le_command_buffer_encoder_i.draw             = cbe_draw;
 	le_command_buffer_encoder_i.get_encoded_data = cbe_get_encoded_data;
 	le_command_buffer_encoder_i.set_viewport     = cbe_set_viewport;
+	le_command_buffer_encoder_i.set_scissor      = cbe_set_scissor;
 }
