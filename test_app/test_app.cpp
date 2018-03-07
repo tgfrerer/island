@@ -154,10 +154,12 @@ static bool test_app_update(test_app_o* self){
 
 			// this will use the scratch buffer -- and the encoded command will store the
 			// location of the data as it was laid down in the scratch buffer.
+			//encoder.setVertexData(void* data, size_t numBytes, uint32_t bindingIndex);
 
 			// the scratch buffer is uploaded/transferred before the renderpass begins
 			// so that data from it is read-visible,
 
+			//encoder.setVertexBuffer(bufferO* buffer, uint32_t bindingIndex);
 
 			encoder.draw(3,1,0,0);
 
