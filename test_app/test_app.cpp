@@ -115,6 +115,7 @@ static bool test_app_update(test_app_o* self){
 			depthAttachmentInfo.format       = vk::Format::eD32SfloatS8Uint; // TODO: signal correct depth stencil format
 			depthAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
 
+
 			rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
 			//rp.addImageAttachment( "depth", &depthAttachmentInfo );
 			return true;
@@ -130,14 +131,16 @@ static bool test_app_update(test_app_o* self){
 //				encoder.setLineWidth(1.2f);
 //			}
 //			encoder.setLineWidth(5.3f);
-			le::Viewport viewports[ 2 ] = {
+			le::Viewport viewports[ 1 ] = {
 			    {{0.f, 0.f, 100.f, 100.f, 0.f, 1.f}},
-			    {{20.f, 20.f, 220.f, 220.f, 0.f, 1.f}}
 			};
 
-			encoder.setViewport( 0, 2, viewports );
+			le::Rect2D scissors[ 1 ] = {{{0, 0, 100, 100}}};
 
-			encoder.draw(4,1,0,0);
+			encoder.setScissor(0,1,scissors);
+			encoder.setViewport( 0, 1, viewports );
+
+			encoder.draw(3,1,0,0);
 
 			// encoder.setVertexBuffers({buffer1,buffer2},{offset1,offset2});
 

@@ -906,33 +906,87 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 	backend_track_resource_state( self, frameIndex, graph_ );
 	backend_create_renderpasses( self, frameIndex, graph_ );
 
+	auto &     frame  = self->mFrames[ frameIndex ];
+	vk::Device device = self->device->getVkDevice();
 
+	static_assert(sizeof(vk::Viewport) == sizeof(le::Viewport), "Viewport data size must be same in vk and le");
+	static_assert(sizeof(vk::Rect2D) == sizeof(le::Rect2D), "Rect2D data size must be same in vk and le");
 
-	static const le_renderer_api& rendererApiI = *Registry::getApi<le_renderer_api>();
-	static const auto & le_graph_builder_i = rendererApiI.le_graph_builder_i;
+	static const le_renderer_api &rendererApiI       = *Registry::getApi<le_renderer_api>();
+	static const auto &           le_graph_builder_i = rendererApiI.le_graph_builder_i;
 
-	le_renderpass_o *passes;
+	le_renderpass_o *passes          = nullptr;
 	size_t           numRenderPasses = 0;
 	le_graph_builder_i.get_passes( graph_, &passes, &numRenderPasses );
 
+
+	// TODO: when going wide, there needs to be a commandPool for each execution context so that
+	// command buffer generation may be free-threaded.
+	uint32_t numCommandBuffers = uint32_t(numRenderPasses);
+	auto cmdBufs = device.allocateCommandBuffers( {frame.commandPool, vk::CommandBufferLevel::ePrimary, numCommandBuffers} );
+
+	assert( cmdBufs.size() == 1 ); // for debug purposes
 
 
 	// TODO: we can go wide here - each renderpass can be processed independently of
 	// other renderpasses.
 	for ( size_t i = 0; i != numRenderPasses; ++i ) {
 
-		//		auto &pass = passes[ i ];
+		// auto &pass = passes[ i ];
+		auto &cmd = cmdBufs[i];
 
-		void *data = nullptr;
-		size_t dataSize   =0;
-		size_t numCommands=0;
-		size_t commandIndex = 0;
+		// create frame buffer, based on swapchain and renderpass
 
-		le_graph_builder_i.get_encoded_data_for_pass( graph_, i, &data, &dataSize, &numCommands );
+		{
+			std::array<vk::ImageView, 1> framebufferAttachments{
+				{self->swapchain->getImageView( frame.swapchainImageIndex )}};
 
-		if (data != nullptr && numCommands > 0){
+			vk::FramebufferCreateInfo framebufferCreateInfo;
+			framebufferCreateInfo
+			    .setFlags( {} )
+			    .setRenderPass( self->debugRenderPass )
+			    .setAttachmentCount( uint32_t( framebufferAttachments.size() ) )
+			    .setPAttachments( framebufferAttachments.data() )
+			    .setWidth( self->swapchain->getImageWidth() )
+			    .setHeight( self->swapchain->getImageHeight() )
+			    .setLayers( 1 );
 
-			void * dataIt = data;
+			vk::Framebuffer fb = device.createFramebuffer( framebufferCreateInfo );
+			frame.debugFramebuffers.emplace_back( std::move( fb ) );
+		}
+
+		cmd.begin( {::vk::CommandBufferUsageFlagBits::eOneTimeSubmit} );
+
+		vk::RenderPassBeginInfo renderPassBeginInfo;
+
+		auto renderAreaWidth  = self->swapchain->getImageWidth();
+		auto renderAreaHeight = self->swapchain->getImageHeight();
+
+		std::array<vk::ClearValue, 1> clearValues{
+			{vk::ClearColorValue( std::array<float, 4>{{0.f, 0.3f, 1.0f, 1.f}} )}};
+
+		renderPassBeginInfo
+		    .setRenderPass( self->debugRenderPass )
+		    .setFramebuffer( frame.debugFramebuffers.back() )
+		    .setRenderArea( vk::Rect2D( {0, 0}, {renderAreaWidth, renderAreaHeight} ) )
+		    .setClearValueCount( uint32_t( clearValues.size() ) )
+		    .setPClearValues( clearValues.data() );
+
+		cmd.beginRenderPass( renderPassBeginInfo, vk::SubpassContents::eInline );
+		cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, self->debugPipeline );
+
+		// Translate intermediary command stream data to api-native instructions
+
+		void * commandStream = nullptr;
+		size_t dataSize      = 0;
+		size_t numCommands   = 0;
+		size_t commandIndex  = 0;
+
+		le_graph_builder_i.get_encoded_data_for_pass( graph_, i, &commandStream, &dataSize, &numCommands );
+
+		if (commandStream != nullptr && numCommands > 0){
+
+			void * dataIt = commandStream;
 
 			while ( commandIndex != numCommands ) {
 
@@ -942,21 +996,27 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 
 				case le::CommandType::eDraw: {
 					auto *le_cmd = static_cast<le::CommandDraw *>( dataIt );
-					//cmd.draw( le_cmd->info.vertexCount, le_cmd->info.instanceCount, le_cmd->info.firstVertex, le_cmd->info.firstInstance );
+					cmd.draw( le_cmd->info.vertexCount, le_cmd->info.instanceCount, le_cmd->info.firstVertex, le_cmd->info.firstInstance );
 				} break;
 
 				case le::CommandType::eDrawIndexed: {
 					auto *le_cmd = static_cast<le::CommandDrawIndexed *>( dataIt );
+					cmd.drawIndexed( le_cmd->info.indexCount, le_cmd->info.instanceCount, le_cmd->info.firstIndex, le_cmd->info.vertexOffset, le_cmd->info.firstInstance );
 				} break;
 
 				case le::CommandType::eSetLineWidth: {
 					auto *le_cmd = static_cast<le::CommandSetLineWidth *>( dataIt );
-					//cmd.setLineWidth(le_cmd->info.width);
+					cmd.setLineWidth( le_cmd->info.width );
 				} break;
 
 				case le::CommandType::eSetViewport: {
-					auto *le_cmd = static_cast<le::CommandSetViewport*>( dataIt );
-					// cmd.setViewport( le_cmd->info.firstViewport, le_cmd->info.pViewports,le_cmd->info.viewportCount );
+					auto *le_cmd = static_cast<le::CommandSetViewport *>( dataIt );
+					cmd.setViewport( le_cmd->info.firstViewport, le_cmd->info.viewportCount, reinterpret_cast<vk::Viewport *>( le_cmd->info.pViewports ) );
+				} break;
+
+				case le::CommandType::eSetScissor: {
+					auto *le_cmd = static_cast<le::CommandSetScissor *>( dataIt );
+					cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D *>( le_cmd->info.pScissors ) );
 				} break;
 
 				}
@@ -968,66 +1028,12 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 				++commandIndex;
 			}
 		}
-	}
-
-
-	auto &     frame  = self->mFrames[ frameIndex ];
-	vk::Device device = self->device->getVkDevice();
-
-	auto cmdBufs = device.allocateCommandBuffers( {frame.commandPool, vk::CommandBufferLevel::ePrimary, 1} );
-	assert( cmdBufs.size() == 1 );
-
-	// create frame buffer, based on swapchain and renderpass
-
-	{
-		std::array<vk::ImageView, 1> framebufferAttachments{
-			{self->swapchain->getImageView( frame.swapchainImageIndex )}};
-
-		vk::FramebufferCreateInfo framebufferCreateInfo;
-		framebufferCreateInfo
-		    .setFlags( {} )
-		    .setRenderPass( self->debugRenderPass )
-		    .setAttachmentCount( uint32_t( framebufferAttachments.size() ) )
-		    .setPAttachments( framebufferAttachments.data() )
-		    .setWidth( self->swapchain->getImageWidth() )
-		    .setHeight( self->swapchain->getImageHeight() )
-		    .setLayers( 1 );
-
-		vk::Framebuffer fb = device.createFramebuffer( framebufferCreateInfo );
-		frame.debugFramebuffers.emplace_back( std::move( fb ) );
-	}
-
-	std::array<vk::ClearValue, 1> clearValues{
-		{vk::ClearColorValue( std::array<float, 4>{{0.f, 0.3f, 1.0f, 1.f}} )}};
-
-	auto &cmd = cmdBufs.front();
-
-	cmd.begin( {::vk::CommandBufferUsageFlagBits::eOneTimeSubmit} );
-	{
-		vk::RenderPassBeginInfo renderPassBeginInfo;
-
-		auto renderAreaWidth  = self->swapchain->getImageWidth();
-		auto renderAreaHeight = self->swapchain->getImageHeight();
-
-		renderPassBeginInfo
-		    .setRenderPass( self->debugRenderPass )
-		    .setFramebuffer( frame.debugFramebuffers.back() )
-		    .setRenderArea( vk::Rect2D( {0, 0}, {renderAreaWidth, renderAreaHeight} ) )
-		    .setClearValueCount( uint32_t( clearValues.size() ) )
-		    .setPClearValues( clearValues.data() );
-
-		cmd.beginRenderPass( renderPassBeginInfo, vk::SubpassContents::eInline );
-
-		// TODO: translate intermediary into api specific draw calls here...
-
-		cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, self->debugPipeline );
-		cmd.setViewport( 0, {vk::Viewport( 200, 0, renderAreaWidth - 200, renderAreaHeight, 0, 1 )} );
-		cmd.setScissor( 0, {vk::Rect2D( {0, 0}, {renderAreaWidth, renderAreaHeight} )} );
-		cmd.draw( 3, 1, 0, 0 );
 
 		cmd.endRenderPass();
+
+		cmd.end();
 	}
-	cmd.end();
+
 
 	// place command buffer in frame store so that it can be submitted.
 	for ( auto &&c : cmdBufs ) {

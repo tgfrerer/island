@@ -34,10 +34,10 @@ struct Rect2D {
 struct CommandDrawIndexed {
 	CommandHeader header = {{{CommandType::eDrawIndexed, sizeof( CommandDrawIndexed )}}};
 	struct {
-		uint32_t numIndices;
+		uint32_t indexCount;
 		uint32_t instanceCount;
 		uint32_t firstIndex;
-		uint32_t vertexOffset;
+		int32_t  vertexOffset;
 		uint32_t firstInstance;
 		uint32_t reserved; // padding
 	} info;
