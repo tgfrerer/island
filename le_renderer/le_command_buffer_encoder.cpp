@@ -4,16 +4,17 @@
 #include <cstring>
 
 struct le_command_buffer_encoder_o {
-	char                         mCommandStream[ 4096 ];
-	size_t                       mCommandStreamSize = 0;
-	size_t                       mCommandCount      = 0;
+	char   mCommandStream[ 4096 ];
+	size_t mCommandStreamSize = 0;
+	size_t mCommandCount      = 0;
 };
 
 // ----------------------------------------------------------------------
 
+// TODO: must assign allocator
 static le_command_buffer_encoder_o *cbe_create() {
-	auto obj = new le_command_buffer_encoder_o;
-	return obj;
+	auto self = new le_command_buffer_encoder_o;
+	return self;
 };
 
 // ----------------------------------------------------------------------
@@ -46,7 +47,7 @@ static void cbe_draw( le_command_buffer_encoder_o *self, uint32_t vertexCount, u
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_viewport(le_command_buffer_encoder_o* self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport* pViewports){
+static void cbe_set_viewport( le_command_buffer_encoder_o *self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport *pViewports ) {
 
 	le::CommandSetViewport *cmd = new ( &self->mCommandStream[ 0 ] + self->mCommandStreamSize ) le::CommandSetViewport; // placement new!
 
@@ -58,7 +59,7 @@ static void cbe_set_viewport(le_command_buffer_encoder_o* self, uint32_t firstVi
 	cmd->info = {firstViewport, viewportCount, static_cast<le::Viewport *>( data )};
 	cmd->header.info.size += dataSize; // we must increase the size of this command by its payload size
 
-	memcpy(data, pViewports, dataSize);
+	memcpy( data, pViewports, dataSize );
 
 	self->mCommandStreamSize += cmd->header.info.size;
 	self->mCommandCount++;
@@ -75,10 +76,10 @@ static void cbe_set_scissor(le_command_buffer_encoder_o* self, uint32_t firstSci
 	void * data = (cmd + sizeof( le::CommandSetScissor));
 	size_t dataSize = sizeof(le::Rect2D) * scissorCount;
 
-	cmd->info = {firstScissor, scissorCount, static_cast<le::Rect2D*>( data )};
+	cmd->info = {firstScissor, scissorCount, static_cast<le::Rect2D *>( data )};
 	cmd->header.info.size += dataSize; // we must increase the size of this command by its payload size
 
-	memcpy(data, pScissors, dataSize);
+	memcpy( data, pScissors, dataSize );
 
 	self->mCommandStreamSize += cmd->header.info.size;
 	self->mCommandCount++;

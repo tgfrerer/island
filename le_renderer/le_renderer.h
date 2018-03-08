@@ -29,7 +29,9 @@ struct le_renderpass_o;
 struct le_graph_builder_o;
 struct le_command_buffer_encoder_o;
 struct le_backend_o;
+struct le_buffer_o;
 
+typedef struct le_buffer_o* le_buffer;
 
 struct le_renderer_api {
 
@@ -99,15 +101,16 @@ struct le_renderer_api {
 	};
 
 	struct command_buffer_encoder_interface_t {
-		le_command_buffer_encoder_o * ( *create         ) ( );
-		void                          ( *destroy        ) ( le_command_buffer_encoder_o *obj );
+		le_command_buffer_encoder_o * ( *create              ) ( );
+		void                          ( *destroy             ) ( le_command_buffer_encoder_o *obj );
 
-		void                          ( *get_encoded_data )(le_command_buffer_encoder_o* self, void** data, size_t* numBytes, size_t* numCommands);
+		void                          ( *get_encoded_data    )(le_command_buffer_encoder_o* self, void** data, size_t* numBytes, size_t* numCommands);
 
-		void                          ( *set_line_width ) ( le_command_buffer_encoder_o* self, float line_width_);
-		void                          ( *draw           ) ( le_command_buffer_encoder_o* self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
-		void                          ( *set_viewport   ) ( le_command_buffer_encoder_o* self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport* pViewports);
-		void                          ( *set_scissor    ) ( le_command_buffer_encoder_o* self, uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D* pViewports);
+		void                          ( *set_line_width      ) ( le_command_buffer_encoder_o* self, float line_width_);
+		void                          ( *draw                ) ( le_command_buffer_encoder_o* self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
+		void                          ( *set_viewport        ) ( le_command_buffer_encoder_o* self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport* pViewports);
+		void                          ( *set_scissor         ) ( le_command_buffer_encoder_o* self, uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D* pViewports);
+		void                          ( *bind_vertex_buffers )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, le_buffer *pBuffers, uint64_t *pOffsets );
 	};
 
 	renderpass_interface_t             le_renderpass_i;
@@ -119,7 +122,6 @@ struct le_renderer_api {
 
 #ifdef __cplusplus
 } // extern "C"
-
 
 namespace le {
 
@@ -254,8 +256,6 @@ class GraphBuilder : NoCopy, NoMove {
 	void getPasses(le_renderpass_o**pPasses, size_t* numPasses){
 		graphbuilderI.get_passes(self, pPasses,numPasses);
 	}
-
-
 };
 
 // ----------------------------------------------------------------------
@@ -294,7 +294,6 @@ class RenderModule {
 	void buildGraph( le_graph_builder_o *gb_ ) {
 		rendermoduleI.build_graph( self, gb_ );
 	}
-
 };
 
 // ----------------------------------------------------------------------
@@ -325,24 +324,28 @@ class CommandBufferEncoder: NoCopy, NoMove {
 	operator auto() {
 		return self;
 	}
-	
-	void setLineWidth(float lineWidth){
-		cbEncoderI.set_line_width(self, lineWidth);
+
+	void setLineWidth( float lineWidth ) {
+		cbEncoderI.set_line_width( self, lineWidth );
 	}
 
-	void draw(uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance){
+	void draw( uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance ) {
 		cbEncoderI.draw( self, vertexCount, instanceCount, firstVertex, firstInstance );
 	}
 
-	 void setViewport(uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport* pViewports){
-		cbEncoderI.set_viewport(self,firstViewport, viewportCount, pViewports);
+	void setViewport( uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport *pViewports ) {
+		cbEncoderI.set_viewport( self, firstViewport, viewportCount, pViewports );
 	}
 
-	void setScissor(uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D* pScissors){
-		cbEncoderI.set_scissor(self,firstScissor,scissorCount,pScissors);
+	void setScissor( uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D *pScissors ) {
+		cbEncoderI.set_scissor( self, firstScissor, scissorCount, pScissors );
+	}
+
+	void bindVertexBuffers( uint32_t firstBinding, uint32_t bindingCount, le_buffer *pBuffers, uint64_t *pOffsets ) {
+		cbEncoderI.bind_vertex_buffers( self, firstBinding, bindingCount, pBuffers, pOffsets );
 	}
 };
 
 } // namespace le
-#endif // __cplusplus
+#	endif // __cplusplus
 #endif // GUARD_LE_RENDERER_H

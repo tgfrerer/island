@@ -17,12 +17,11 @@ struct le_backend_o;
 struct le_backend_vk_instance_o; // defined in le_instance_vk.cpp
 struct le_backend_vk_device_o;   // defined in le_device_vk.cpp
 
-struct le_graph_builder_o; // from renderer
 struct le_buffer_o;
 struct le_allocator_linear_o;
 
+struct le_graph_builder_o; // from renderer
 struct le_swapchain_vk_settings_o;
-
 struct pal_window_o;
 
 struct VkInstance_T;
@@ -35,10 +34,9 @@ namespace vk {
 }
 
 struct le_backend_vk_settings_t {
-
-	const char** requestedExtensions = nullptr;
-	uint32_t numRequestedExtensions = 0;
-	le_swapchain_vk_settings_o * swapchain_settings = nullptr;
+	const char **               requestedExtensions    = nullptr;
+	uint32_t                    numRequestedExtensions = 0;
+	le_swapchain_vk_settings_o *swapchain_settings     = nullptr;
 };
 
 struct le_backend_vk_api {
@@ -84,16 +82,17 @@ struct le_backend_vk_api {
 		VkDevice_T*                 ( *get_vk_device                           ) ( le_backend_vk_device_o* self_ );
 	};
 
-	instance_interface_t   vk_instance_i;
-	device_interface_t     vk_device_i;
-	backend_vk_interface_t vk_backend_i;
 	struct allocator_linear_interface_t {
 		le_allocator_linear_o * ( *create               ) ( );
 		void                    ( *destroy              ) ( le_allocator_linear_o *self );
 		bool                    ( *allocate             ) ( le_allocator_linear_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset);
 		le_buffer_o*            ( *get_le_buffer_handle ) ( le_allocator_linear_o* self);
 	};
+
 	allocator_linear_interface_t le_allocator_linear_i;
+	instance_interface_t         vk_instance_i;
+	device_interface_t           vk_device_i;
+	backend_vk_interface_t       vk_backend_i;
 
 	mutable le_backend_vk_instance_o *cUniqueInstance = nullptr;
 };

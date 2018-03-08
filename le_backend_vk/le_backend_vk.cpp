@@ -56,6 +56,8 @@ struct BackendFrameData {
 
 };
 
+// ----------------------------------------------------------------------
+
 // backend data object
 struct le_backend_o {
 
@@ -904,6 +906,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 
 	backend_create_resource_table( self, frameIndex, graph_ );
 	backend_track_resource_state( self, frameIndex, graph_ );
+
+	// TODO: Go through command stream and substitute any references to (virtual) le resource ids with (actual) api resources.
+	// backend_patch_resources(self, frameIndex, graph_);
+
 	backend_create_renderpasses( self, frameIndex, graph_ );
 
 	auto &     frame  = self->mFrames[ frameIndex ];
@@ -926,7 +932,6 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 	auto cmdBufs = device.allocateCommandBuffers( {frame.commandPool, vk::CommandBufferLevel::ePrimary, numCommandBuffers} );
 
 	assert( cmdBufs.size() == 1 ); // for debug purposes
-
 
 	// TODO: we can go wide here - each renderpass can be processed independently of
 	// other renderpasses.
