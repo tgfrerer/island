@@ -159,7 +159,7 @@ static bool test_app_update(test_app_o* self){
 			// the scratch buffer is uploaded/transferred before the renderpass begins
 			// so that data from it is read-visible,
 
-			//encoder.setVertexBuffer(bufferO* buffer, uint32_t bindingIndex);
+			//encoder.setVertexData(bufferO* buffer, uint64_t numBytes, uint32_t bindingIndex);
 
 			encoder.draw(3,1,0,0);
 
