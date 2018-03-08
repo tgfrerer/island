@@ -1,129 +1,110 @@
+# Todo
 
-# Thoughts
+    * we can pass around le objects (buffers, attachments, pipelines, etc.) as
+      opaque handles, effectively using a uint64_t which represents an object. 
 
-## Renderer Architecture: 
+## (A)
 
-	1. We should not store state with graphbuilder - instead use graph builder
-	   to manipulate frame state - memory which belongs to that particular
-	   frameData.
-  
-	2. We need a way to record commands in an abstraction of command buffers, so
-	   that the backend can translate these commands back to an api specific
-	   version of command buffers.
-  
-	3. We might need some commands to operate on resources - these need syncing
-	   inserted at the correct time.
-
-Generally, we want to separate command encoding (which happens in Engineland)
-from command buffer generation (which happens in the backend). 
-
-# Inside of a Renderpass, to draw something, we need to:
-
-	1. Set up Resources (Images)
-
-	2. Set up Pipeline (Shader)
-
-	3. Set up Vertex Data (Attributes) and Indices
-
-	4. Set up Uniform Data
-
---------------------------------------------------------------------------------
-
-# Next steps
-
-	* Create Renderpass from FrameData (programmatically create Renderpass)
-	  [Needs ResourceManager for Images?]
-	* Add ExecutePass callback to renderpass
-
-## Rendergraph
-
-    1. TODO: Merge passes with same order into *one* Renderpass, as subpasses
-	
-## How do we want the `render` callback to look like?
-
-    * set PSO parameters: we want to set textures, uniforms
+    * implement setVertexBytes 
     
-We call back providing an encoder (encoder for command list) and `void *
-user_data` - the encoder is used to create an intermediate representation of a
-renderpass. 
+        vertex data must first be stored inside encoder- in `process_frame`,
+        this is transferred to GPU coherent memory. 
+        
+        Don't use updateBuffer for this. 
+        
+        You can just write to gpu-mapped memory, if you have an allocator for
+        this.
 
-	```cpp
-	
-	void (* render) (encoder, void * user_data){
-	
-	// we use user_data to have access to the objects we actually want to render
+    * add a method to store an attribute for a specific binding location
 
-    // this basically mirrors the drawcommand syntax
+    * add scratch buffer for vertex data
+
+    * draw a triangle:
+
+        + allocate a scratch buffer per frame.
+
+        + map the scratch buffer per frame.
+
+        + use scratch buffer memory when you write vertex data
+
+        + uses of the scratch buffer means that the scratch buffer is bound at
+          the binding address specified. 
+
+        + later introduce allocator which will give you access to scratch data.
     
-	encoder->bindRenderPipeline("passthrough")
-	encoder->setTexture(set_number, binding_position, binding_index, texture_id) // pipeline paramters
-    encoder->bindDynamicDescriptorData([buffers],[dynamic_offsets]); // pipeline parameters
-    encoder->bindVertexBuffers([buffers],[dynamic_offsets]);
-    encoder->bindIndexBuffer(buffer,offset); // optional
-    encoder->setViewport(/*{viewportData}*/);
-    encoder->setLineWidth(1.f);
-    encoder->drawPrimitiveIndexed(...);
-	}
-	```
+        + we must somehow keep track of the state of bound attributes, and
+          store these with draw commands?! 
+      
+          That, or we bind vertex buffers explicitly. It appears that APIs like
+          Metal keep track of the binding state for you and will automatically
+          bind when you issue `setVertexData(...,bindingIndex)`. 
+          
+          We could automatically add a bind command in here, but then, binding
+          is not done piece-meal, it's better to bind the full set. But we can
+          do it.
 
-### How do we specify pipeline parameters? 
+        + If we wanted to have a stateless solution it would be better to bind
+          buffers in bulk: we can achieve this by adding a method which allows
+          us to bind buffers in bulk. A stateless solution needs to happen on
+          the next-higher abstraction layer, i think, as commandbuffers
+          themselves are by definition stateful, and our encoder is a wrapper
+          around the command buffer. 
 
-For now we want to be able to specify two things: 
+## (B)
 
-    * buffers (for UBO structs) and 
-    * image resources.
+    * find out: what happens to method-static variables upon api reload - do
+      these get re-initialized?
 
-We want to be able to set parameters directly - these parameters then map to
-descriptorSets. Ideally, we should be able to map them by index, so that this
-maps directly to a DescriptorSet, which can then be bound:
+    * think: can we use macros to generate encoder methods?
 
-```cpp
-    mVkCmd.bindDescriptorSets(
-		pipelineBindPoint(graphics)	  // use graphics, not compute pipeline
-		PIPELINE_LAYOUT               // VkPipelineLayout object used to program the bindings.
-		0,                            // firstset: first set index (of the above) to bind to - mDescriptorSet[0] will be bound to pipeline layout [firstset]
-		boundVkDescriptorSets.size(), // setCount: how many sets to bind
--->     boundVkDescriptorSets.data(), // the descriptorSets to bind
-        dynamicBindingOffsets.size(), // dynamic offsets count how many dynamic offsets
-		dynamicBindingOffsets.data()  // dynamic offsets for each descriptor
-	);
-```
+## (C)
 
-Perhaps we can introduce something like a descriptor table and descriptors can
-be generated upfront in vulkan from all requested descriptors for the frame.
+    * find a better way to store window surface- it should probably live inside
+      the backend, tagged with window name, or perhaps it should be owned by
+      the swapchain which uses it, so that it can be deleted at the correct
+      time. 
 
-We could use this descriptor table with VkDescriptorUpdateTemplateKHR, so that
-we don't have to create separate write descriptors for everything.
+    * make sure `reset_swapchain` is clean - at the moment it complains about
+      deleting an object which is currently in use by a command buffer.
 
-### In Vulkan, how is a resource bound to a pipeline?
+----------------------------------------------------------------------
 
-    1. pipeline defines pipelineLayout
-    2. pipelineLayout is an array of DescriptorSetLayouts
-    3. DescriptorSetLayout is an array of DescriptorSets
-    4. DescriptorSet is an array of Bindings
-    5. Bindings has an array of Descriptors
+# LEARNED SO FAR:
 
-In Vulkan, you bind resources to a pipeline by binding descriptorSets. If you
-want to associate a particular texture with a pipeline you do so by creating a
-descriptorSet which references the texture. 
 
-Descriptors must be allocated from designated pools - and they must be written
-to, so that they can be used. 
+    * instead of passing the api via parameter- you can retrieve it via the
+      registry inside the function which uses it, and store it as a
+      function-level static variable.
 
-## What is the minimum subset of commands we need to implement for intermediate command buffers?
 
-	* bindPipeline
-	* bindIndexBuffer
-	* bindDescriptorSets
-	* draw
-	* bindVertexBuffers
 
-## How can we intercept any resource-modifying calls?
+----------------------------------------------------------------------
+# RESOURCE HANDLING
 
-    We need to specify the API for resource-acquisition (buffers, images)
+    * when we encode commands which mention resources, resources are referenced
+      by opaque ids retrieved via the engine. the engine then patches the
+      command stream and substitutes any engine-specific resource ids by
+      api-specific ids. this happens between command recording and command
+      processing. 
 
-## How do we store command parameters?
-	--> we can use an offset into a parameter buffer, cast it to command
-	parameter type
-## How do we store command data?
-	--> offset into buffer, header tells us size and type of data
+----------------------------------------------------------------------
++ find a way to minimize calls to the api registry - once the api has been
+  registered, the pointer address will not change, only the contents of the
+  struct the pointer points to - looking up the api from the registry creates
+  some unnecessary overhead, especially when running the app statically
+  compiled, where reloading is impossible.
+
++ create renderpass programmatically
+
+* minimal methods for encoder to draw into a frame: 
+    * we need a buffer for vertex data
+    * a simple pass-through pipleine 
+        * pass-through shader
+        * descriptorset
+     
+
+----------------------------------------------------------------------
+
+* Create a templating script to generate class scaffold so you don't have to
+  type that much boilerplate.
+
