@@ -18,6 +18,8 @@ struct le_backend_vk_instance_o; // defined in le_instance_vk.cpp
 struct le_backend_vk_device_o;   // defined in le_device_vk.cpp
 
 struct le_graph_builder_o; // from renderer
+struct le_buffer_o;
+struct le_allocator_linear_o;
 
 struct le_swapchain_vk_settings_o;
 
@@ -85,6 +87,13 @@ struct le_backend_vk_api {
 	instance_interface_t   vk_instance_i;
 	device_interface_t     vk_device_i;
 	backend_vk_interface_t vk_backend_i;
+	struct allocator_linear_interface_t {
+		le_allocator_linear_o * ( *create               ) ( );
+		void                    ( *destroy              ) ( le_allocator_linear_o *self );
+		bool                    ( *allocate             ) ( le_allocator_linear_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset);
+		le_buffer_o*            ( *get_le_buffer_handle ) ( le_allocator_linear_o* self);
+	};
+	allocator_linear_interface_t le_allocator_linear_i;
 
 	mutable le_backend_vk_instance_o *cUniqueInstance = nullptr;
 };

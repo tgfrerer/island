@@ -3,6 +3,7 @@ set (TARGET le_backend_vk)
 set (SOURCES "le_backend_vk.cpp")
 set (SOURCES ${SOURCES} "le_instance_vk.cpp")
 set (SOURCES ${SOURCES} "le_device_vk.cpp")
+set (SOURCES ${SOURCES} "le_allocator_linear.cpp")
 
 if (${PLUGINS_DYNAMIC})
 
