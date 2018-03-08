@@ -3,6 +3,14 @@
 
 #include <stdint.h>
 
+
+#ifndef LE_DEFINE_HANDLE
+    #define LE_DEFINE_HANDLE(object) typedef struct object##_o* object;
+#endif
+
+LE_DEFINE_HANDLE(le_buffer);
+
+
 namespace le {
 
 enum class CommandType : uint32_t {
@@ -11,6 +19,7 @@ enum class CommandType : uint32_t {
 	eSetLineWidth,
 	eSetViewport,
 	eSetScissor,
+	eBindVertexBuffers,
 };
 
 struct CommandHeader {
@@ -79,6 +88,15 @@ struct CommandSetLineWidth{
 	} info;
 };
 
+struct CommandBindVertexBuffers{
+	CommandHeader header = {{{CommandType::eBindVertexBuffers, sizeof(CommandBindVertexBuffers)}}};
+	struct {
+		uint32_t firstBinding;
+		uint32_t bindingCount;
+		le_buffer* pBuffers;  // TODO: place proper buffer_id type here
+		uint64_t* pOffsets;
+	}info;
+};
 
 
 } // namespace le

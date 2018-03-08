@@ -1024,6 +1024,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 					cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D *>( le_cmd->info.pScissors ) );
 				} break;
 
+				case le::CommandType::eBindVertexBuffers: {
+					auto *le_cmd = static_cast<le::CommandBindVertexBuffers *>( dataIt );
+					cmd.bindVertexBuffers( le_cmd->info.firstBinding, le_cmd->info.bindingCount, reinterpret_cast<vk::Buffer *>( le_cmd->info.pBuffers ), le_cmd->info.pOffsets );
+				} break;
 				}
 
 				// Move iterator by size of current le_command so that it points
