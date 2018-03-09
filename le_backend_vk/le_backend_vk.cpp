@@ -208,7 +208,8 @@ static void backend_setup( le_backend_o *self ) {
 
 	self->mFrames.reserve( frameCount );
 
-	vk::Device device = self->device->getVkDevice();
+	vk::Device vkDevice = self->device->getVkDevice();
+
 	{
 		/// TODO:  allocate & map some memory which we may use for scratch buffers.
 		///
@@ -228,7 +229,8 @@ static void backend_setup( le_backend_o *self ) {
 		///
 	}
 
-	assert( device ); // device must come from somewhere! it must have been introduced to backend before, or backend must create device used by everyone else...
+
+	assert( vkDevice ); // device must come from somewhere! it must have been introduced to backend before, or backend must create device used by everyone else...
 
 	for ( size_t i = 0; i != frameCount; ++i ) {
 		auto frameData = BackendFrameData();
@@ -318,7 +320,7 @@ static void backend_setup( le_backend_o *self ) {
 		    .setDependencyCount( dependencies.size() )
 		    .setPDependencies( dependencies.data() );
 
-		self->debugRenderPass = device.createRenderPass( renderPassCreateInfo );
+		self->debugRenderPass = vkDevice.createRenderPass( renderPassCreateInfo );
 	}
 
 	// stand-in: create default pipeline
@@ -330,7 +332,7 @@ static void backend_setup( le_backend_o *self ) {
 		    .setInitialDataSize( 0 )
 		    .setPInitialData( nullptr );
 
-		self->debugPipelineCache = device.createPipelineCache( pipelineCacheInfo );
+		self->debugPipelineCache = vkDevice.createPipelineCache( pipelineCacheInfo );
 
 		static const std::vector<uint32_t> shaderCodeVert{
 		// converted using: `glslc vertex_shader.vert fragment_shader.frag -c -mfmt=num`
@@ -341,8 +343,8 @@ static void backend_setup( le_backend_o *self ) {
 #include "fragment_shader.frag.spv"
 		};
 
-		self->debugVertexShaderModule   = device.createShaderModule( {vk::ShaderModuleCreateFlags(), shaderCodeVert.size() * sizeof( uint32_t ), shaderCodeVert.data()} );
-		self->debugFragmentShaderModule = device.createShaderModule( {vk::ShaderModuleCreateFlags(), shaderCodeFrag.size() * sizeof( uint32_t ), shaderCodeFrag.data()} );
+		self->debugVertexShaderModule   = vkDevice.createShaderModule( {vk::ShaderModuleCreateFlags(), shaderCodeVert.size() * sizeof( uint32_t ), shaderCodeVert.data()} );
+		self->debugFragmentShaderModule = vkDevice.createShaderModule( {vk::ShaderModuleCreateFlags(), shaderCodeFrag.size() * sizeof( uint32_t ), shaderCodeFrag.data()} );
 
 		std::array<vk::PipelineShaderStageCreateInfo, 2> pipelineStages;
 		pipelineStages[ 0 ]
@@ -374,7 +376,7 @@ static void backend_setup( le_backend_o *self ) {
 		    .setBindingCount( 0 )
 		    .setPBindings( nullptr );
 
-		self->debugDescriptorSetLayout = device.createDescriptorSetLayout( setLayoutInfo );
+		self->debugDescriptorSetLayout = vkDevice.createDescriptorSetLayout( setLayoutInfo );
 
 		vk::PipelineLayoutCreateInfo layoutCreateInfo;
 		layoutCreateInfo
@@ -384,7 +386,7 @@ static void backend_setup( le_backend_o *self ) {
 		    .setPushConstantRangeCount( 0 )
 		    .setPPushConstantRanges( nullptr );
 
-		self->debugPipelineLayout = device.createPipelineLayout( layoutCreateInfo );
+		self->debugPipelineLayout = vkDevice.createPipelineLayout( layoutCreateInfo );
 
 		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState;
 		inputAssemblyState
@@ -505,7 +507,7 @@ static void backend_setup( le_backend_o *self ) {
 		    .setBasePipelineIndex( 0 ) // -1 signals not to use a base pipeline index
 		    ;
 
-		self->debugPipeline = device.createGraphicsPipeline( self->debugPipelineCache, gpi );
+		self->debugPipeline = vkDevice.createGraphicsPipeline( self->debugPipelineCache, gpi );
 	}
 }
 
