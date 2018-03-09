@@ -20,6 +20,8 @@
 #include "le_renderer/private/le_renderer_types.h"
 // these are some sanity checks for le_renderer_types
 
+#define PRINT_DEBUG_MESSAGES true
+
 static_assert(sizeof(le::CommandHeader)==sizeof(uint64_t),"size must be 64bit");
 
 
@@ -277,25 +279,37 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_execute_graph(le_graph_builder_o* self, const le_renderer_api& api){
+static void graph_builder_execute_graph(le_graph_builder_o* self, size_t frameIndex, le_backend_o* backend){
 
-	std::ostringstream msg;
+	/// Record render commands by calling rendercallbacks for each renderpass.
+	///
+	/// Render Commands are stored as a command stream. This command stream uses a binary,
+	/// API-agnostic representation, and contains an ordered list of commands, and optionally,
+	/// inlined parameters for each command.
+	///
+	/// The command stream is stored inside of the Encoder that is used to record it (that's not elegant).
+	///
+	/// We could possibly go wide when recording renderpasses, with one context per renderpass.
 
-	msg << "render graph: " << std::endl;
-	for ( const auto &pass : self->passes ) {
-		msg << "renderpass: " << std::setw( 15 ) << std::hex << pass.id << ", " << "'" << pass.debugName << "' , order: " << pass.execution_order << std::endl;
+	if ( PRINT_DEBUG_MESSAGES ) {
+		std::ostringstream msg;
+		msg << "render graph: " << std::endl;
+		for ( const auto &pass : self->passes ) {
+			msg << "renderpass: " << std::setw( 15 ) << std::hex << pass.id << ", "
+			    << "'" << pass.debugName << "' , order: " << pass.execution_order << std::endl;
 
-		for ( const auto &attachment : pass.imageAttachments ) {
-			if (attachment.access_flags & le::AccessFlagBits::eRead){
-				msg << "r";
+			for ( const auto &attachment : pass.imageAttachments ) {
+				if ( attachment.access_flags & le::AccessFlagBits::eRead ) {
+					msg << "r";
+				}
+				if ( attachment.access_flags & le::AccessFlagBits::eWrite ) {
+					msg << "w";
+				}
+				msg << " : " << std::setw( 32 ) << std::hex << attachment.id << ":" << attachment.source_id << ", '" << attachment.debugName << "'" << std::endl;
 			}
-			if (attachment.access_flags & le::AccessFlagBits::eWrite){
-				msg << "w";
-			}
-			msg << " : " << std::setw( 32 ) << std::hex << attachment.id << ":" << attachment.source_id << ", '" << attachment.debugName << "'" << std::endl;
 		}
+		std::cout << msg.str();
 	}
-	std::cout << msg.str();
 
 	auto & encoderApi = api.le_command_buffer_encoder_i;
 
