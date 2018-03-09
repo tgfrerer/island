@@ -29,7 +29,7 @@ struct le_allocator_linear_o {
 	uint8_t *bufferBaseMemoryAddress = nullptr; // mapped memory address
 	uint64_t bufferBaseOffsetInBytes = 0;       // offset into buffer for first address belonging to this allocator
 	uint64_t capacity                = 0;
-	uint64_t alignment               = 1; // minimum allocation chunk size
+	uint64_t alignment               = 256; // minimum allocation chunk size
 
 	uint8_t *pData               = bufferBaseMemoryAddress; // address of last allocation, initially
 	uint64_t bufferOffsetInBytes = bufferBaseOffsetInBytes;
@@ -60,7 +60,8 @@ static void allocator_reset(le_allocator_linear_o* self){
 static bool allocator_allocate(le_allocator_linear_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset){
 
 	// Calculate allocation size as a multiple (rounded up) of alignment
-	auto allocationSizeInBytes  = ( numBytes + ( self->alignment - 1 ) ) / self->alignment;
+	// TODO: check alignment-based allocation size calculation is correct.
+	auto allocationSizeInBytes  = self->alignment * (( numBytes + ( self->alignment - 1 ) ) / self->alignment);
 
 	auto addressAfterAllocation = self->pData + allocationSizeInBytes;
 
