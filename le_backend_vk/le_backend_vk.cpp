@@ -84,6 +84,9 @@ struct le_backend_o {
 	vk::ShaderModule        debugFragmentShaderModule = nullptr;
 	vk::PipelineLayout      debugPipelineLayout       = nullptr;
 	vk::DescriptorSetLayout debugDescriptorSetLayout  = nullptr;
+
+	vk::DeviceMemory        debugTransientVertexDeviceMemory = nullptr;
+	vk::Buffer              debugTransientVertexBuffer = nullptr;
 };
 
 // ----------------------------------------------------------------------
@@ -139,8 +142,6 @@ static void backend_destroy( le_backend_o *self ) {
 		device.destroySemaphore( frameData.semaphoreRenderComplete );
 		device.destroyCommandPool( frameData.commandPool );
 
-		// TODO: destroy allocators
-
 		for (auto & a: frameData.allocators){
 			allocatorInterface.destroy(a);
 		}
@@ -150,6 +151,12 @@ static void backend_destroy( le_backend_o *self ) {
 	}
 
 	self->mFrames.clear();
+
+
+	// Note: teardown for transient buffer and memory.
+	device.destroyBuffer(self->debugTransientVertexBuffer);
+	device.freeMemory(self->debugTransientVertexDeviceMemory);
+
 
 	delete self;
 }
@@ -203,6 +210,7 @@ static void backend_setup( le_backend_o *self ) {
 
 	static auto backendVkAPi = *Registry::getApi<le_backend_vk_api>();
 	static auto & allocatorI = backendVkAPi.le_allocator_linear_i;
+	static auto & deviceI = backendVkAPi.vk_device_i;
 
 	auto frameCount = backend_get_num_swapchain_images( self );
 
@@ -227,6 +235,43 @@ static void backend_setup( le_backend_o *self ) {
 		/// It's probably easiest for now to allocate the memory for scratch buffers
 		/// from COHERENT memory - so that we don't have to worry about flushes.
 		///
+
+		uint64_t memSize = 4096 * frameCount;
+		// TODO: check which alignment we need to consider for a vertex/index buffer
+		uint64_t memAlignment = deviceI.get_vk_physical_device_properties(*self->device).limits.minUniformBufferOffsetAlignment;
+		// TODO: check alignment-based memSize calculation is correct
+		memSize = memAlignment * ((memSize + memAlignment -1 ) / memAlignment);
+
+		uint32_t graphicsQueueFamilyIndex = self->device->getDefaultGraphicsQueueFamilyIndex();
+
+		vk::BufferCreateInfo bufferCreateInfo;
+		bufferCreateInfo
+		    .setSize( memSize )
+		    .setUsage( vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eVertexBuffer ) // TODO: add missing flag bits if you want to use this buffer for uniforms, and storage, too.
+		    .setSharingMode( vk::SharingMode::eExclusive )  // this means only one queue may access this buffer at a time
+		    .setQueueFamilyIndexCount( 1 )
+		    .setPQueueFamilyIndices( &graphicsQueueFamilyIndex);
+
+		// NOTE: store buffer with the frame - needs to be deleted on teardown.
+		self->debugTransientVertexBuffer = vkDevice.createBuffer( bufferCreateInfo );
+
+		vk::MemoryRequirements memReqs = vkDevice.getBufferMemoryRequirements(self->debugTransientVertexBuffer);
+
+		auto memFlags = vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible;
+
+		// TODO: this is not elegant! we must initialise the object first, then
+		// pass it as a pointer, otherwise it will not have sane defaults.
+		vk::MemoryAllocateInfo memAllocateInfo;
+
+		deviceI.get_memory_allocation_info( *self->device, memReqs,
+		                                    reinterpret_cast<VkFlags&>(memFlags),
+		                                    &reinterpret_cast<VkMemoryAllocateInfo&>(memAllocateInfo));
+
+		// TODO: store this with the frame.
+		self->debugTransientVertexDeviceMemory = vkDevice.allocateMemory(memAllocateInfo);
+
+		// TODO: allocators need to get the correct offsets.
+
 	}
 
 
@@ -235,10 +280,10 @@ static void backend_setup( le_backend_o *self ) {
 	for ( size_t i = 0; i != frameCount; ++i ) {
 		auto frameData = BackendFrameData();
 
-		frameData.frameFence               = device.createFence( {} ); // fence starts out as "signalled"
-		frameData.semaphorePresentComplete = device.createSemaphore( {} );
-		frameData.semaphoreRenderComplete  = device.createSemaphore( {} );
-		frameData.commandPool              = device.createCommandPool( {vk::CommandPoolCreateFlagBits::eTransient, self->device->getDefaultGraphicsQueueFamilyIndex()} );
+		frameData.frameFence               = vkDevice.createFence( {} ); // fence starts out as "signalled"
+		frameData.semaphorePresentComplete = vkDevice.createSemaphore( {} );
+		frameData.semaphoreRenderComplete  = vkDevice.createSemaphore( {} );
+		frameData.commandPool              = vkDevice.createCommandPool( {vk::CommandPoolCreateFlagBits::eTransient, self->device->getDefaultGraphicsQueueFamilyIndex()} );
 
 		frameData.allocators.emplace_back(allocatorI.create());
 
