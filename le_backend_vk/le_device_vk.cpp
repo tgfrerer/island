@@ -369,6 +369,42 @@ vk::Format device_get_default_depth_stencil_format(le_backend_vk_device_o* self)
 
 // ----------------------------------------------------------------------
 
+// get memory allocation info for best matching memory type that matches any of the type bits and flags
+static bool device_get_memory_allocation_info( le_backend_vk_device_o *     self,
+                                               const VkMemoryRequirements & memReqs,
+                                               const VkFlags & memPropsRef,
+                                               VkMemoryAllocateInfo *       pMemoryAllocationInfo ) {
+
+	if ( !memReqs.size ) {
+		pMemoryAllocationInfo->allocationSize  = 0;
+		pMemoryAllocationInfo->memoryTypeIndex = ~0u;
+		return true;
+	}
+
+	const auto &physicalMemProperties = self->vkPhysicalDeviceMemoryProperties;
+
+	const vk::MemoryPropertyFlags memProps {reinterpret_cast<const vk::MemoryPropertyFlags&>(memPropsRef)};
+
+	// Find an available memory type that satisfies the requested properties.
+	uint32_t memoryTypeIndex;
+	for ( memoryTypeIndex = 0; memoryTypeIndex < physicalMemProperties.memoryTypeCount; ++memoryTypeIndex ) {
+		if ( ( memReqs.memoryTypeBits & ( 1 << memoryTypeIndex ) ) &&
+		     ( physicalMemProperties.memoryTypes[ memoryTypeIndex ].propertyFlags & memProps ) == memProps ) {
+			break;
+		}
+	}
+	if ( memoryTypeIndex >= physicalMemProperties.memoryTypeCount ) {
+		std::cout << "ERROR " << __PRETTY_FUNCTION__ << ": MemoryTypeIndex not found" << std::endl;
+		std::cout << std::flush;
+		return false;
+	}
+
+	pMemoryAllocationInfo->allocationSize  = memReqs.size;
+	pMemoryAllocationInfo->memoryTypeIndex = memoryTypeIndex;
+
+	return true;
+}
+
 void device_destroy( le_backend_vk_device_o *self_ ) {
 	self_->vkDevice.destroy();
 	delete ( self_ );
@@ -380,18 +416,19 @@ ISL_API_ATTR void register_le_device_vk_api(void * api_){
 	auto api_i = static_cast<le_backend_vk_api*>(api_);
 	auto & device_i = api_i->vk_device_i;
 
-	device_i.create                                  = device_create;
-	device_i.destroy                                 = device_destroy;
-	device_i.decrease_reference_count                = device_decrease_reference_count;
-	device_i.increase_reference_count                = device_increase_reference_count;
-	device_i.get_reference_count                     = device_get_reference_count;
-	device_i.get_default_graphics_queue_family_index = device_get_default_graphics_queue_family_index;
-	device_i.get_default_compute_queue_family_index  = device_get_default_compute_queue_family_index;
-	device_i.get_default_graphics_queue              = device_get_default_graphics_queue;
-	device_i.get_default_compute_queue               = device_get_default_compute_queue;
-	device_i.get_default_depth_stencil_format        = device_get_default_depth_stencil_format;
-	device_i.get_vk_physical_device                  = device_get_vk_physical_device;
-	device_i.get_vk_device                           = device_get_vk_device;
+	device_i.create                                   = device_create;
+	device_i.destroy                                  = device_destroy;
+	device_i.decrease_reference_count                 = device_decrease_reference_count;
+	device_i.increase_reference_count                 = device_increase_reference_count;
+	device_i.get_reference_count                      = device_get_reference_count;
+	device_i.get_default_graphics_queue_family_index  = device_get_default_graphics_queue_family_index;
+	device_i.get_default_compute_queue_family_index   = device_get_default_compute_queue_family_index;
+	device_i.get_default_graphics_queue               = device_get_default_graphics_queue;
+	device_i.get_default_compute_queue                = device_get_default_compute_queue;
+	device_i.get_default_depth_stencil_format         = device_get_default_depth_stencil_format;
+	device_i.get_vk_physical_device                   = device_get_vk_physical_device;
+	device_i.get_vk_device                            = device_get_vk_device;
 	device_i.get_vk_physical_device_properties        = device_get_vk_physical_device_properties;
 	device_i.get_vk_physical_device_memory_properties = device_get_vk_physical_device_memory_properties;
+	device_i.get_memory_allocation_info               = device_get_memory_allocation_info;
 }

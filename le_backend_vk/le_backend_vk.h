@@ -31,6 +31,11 @@ struct VkQueue_T;
 struct VkPhysicalDeviceProperties;
 struct VkPhysicalDeviceMemoryProperties;
 
+struct VkMemoryRequirements;
+struct VkMemoryAllocateInfo;
+
+//typedef uint32_t VkFlags;
+
 namespace vk {
     enum class Format;
 }
@@ -86,6 +91,8 @@ struct le_backend_vk_api {
 
 		const VkPhysicalDeviceProperties& (*get_vk_physical_device_properties)(le_backend_vk_device_o* self);
 		const VkPhysicalDeviceMemoryProperties& (*get_vk_physical_device_memory_properties)(le_backend_vk_device_o* self);
+
+		bool                        ( *get_memory_allocation_info              ) ( le_backend_vk_device_o *self, const VkMemoryRequirements &memReqs, const uint32_t &memPropsRef, VkMemoryAllocateInfo *pMemoryAllocationInfo );
 	};
 
 	struct allocator_linear_interface_t {
