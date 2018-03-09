@@ -325,22 +325,43 @@ VkPhysicalDevice device_get_vk_physical_device(le_backend_vk_device_o* self_){
 	return self_->vkPhysicalDevice;
 }
 
+// ----------------------------------------------------------------------
+
+const VkPhysicalDeviceProperties& device_get_vk_physical_device_properties(le_backend_vk_device_o* self){
+	return self->vkPhysicalDeviceProperties;
+}
+
+// ----------------------------------------------------------------------
+
+const VkPhysicalDeviceMemoryProperties& device_get_vk_physical_device_memory_properties(le_backend_vk_device_o* self){
+	return self->vkPhysicalDeviceMemoryProperties;
+}
+
+// ----------------------------------------------------------------------
+
 uint32_t device_get_default_graphics_queue_family_index(le_backend_vk_device_o *self_){
 	return self_->queueFamilyIndices[ self_->defaultQueueIndices.graphics];
 };
 
+// ----------------------------------------------------------------------
 
 uint32_t device_get_default_compute_queue_family_index(le_backend_vk_device_o *self_){
 	return self_->queueFamilyIndices[self_->defaultQueueIndices.compute];
 }
 
+// ----------------------------------------------------------------------
+
 VkQueue device_get_default_graphics_queue(le_backend_vk_device_o* self_){
 	return self_->queues[self_->defaultQueueIndices.graphics];
 }
 
+// ----------------------------------------------------------------------
+
 VkQueue device_get_default_compute_queue(le_backend_vk_device_o* self_){
 	return self_->queues[self_->defaultQueueIndices.compute];
 }
+
+// ----------------------------------------------------------------------
 
 vk::Format device_get_default_depth_stencil_format(le_backend_vk_device_o* self){
 	return self->defaultDepthStencilFormat;
@@ -371,4 +392,6 @@ ISL_API_ATTR void register_le_device_vk_api(void * api_){
 	device_i.get_default_depth_stencil_format        = device_get_default_depth_stencil_format;
 	device_i.get_vk_physical_device                  = device_get_vk_physical_device;
 	device_i.get_vk_device                           = device_get_vk_device;
+	device_i.get_vk_physical_device_properties        = device_get_vk_physical_device_properties;
+	device_i.get_vk_physical_device_memory_properties = device_get_vk_physical_device_memory_properties;
 }

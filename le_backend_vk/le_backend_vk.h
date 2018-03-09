@@ -28,6 +28,8 @@ struct VkInstance_T;
 struct VkDevice_T;
 struct VkPhysicalDevice_T;
 struct VkQueue_T;
+struct VkPhysicalDeviceProperties;
+struct VkPhysicalDeviceMemoryProperties;
 
 namespace vk {
     enum class Format;
@@ -81,6 +83,9 @@ struct le_backend_vk_api {
 		vk::Format                  ( *get_default_depth_stencil_format        ) ( le_backend_vk_device_o* self_ );
 		VkPhysicalDevice_T*         ( *get_vk_physical_device                  ) ( le_backend_vk_device_o* self_ );
 		VkDevice_T*                 ( *get_vk_device                           ) ( le_backend_vk_device_o* self_ );
+
+		const VkPhysicalDeviceProperties& (*get_vk_physical_device_properties)(le_backend_vk_device_o* self);
+		const VkPhysicalDeviceMemoryProperties& (*get_vk_physical_device_memory_properties)(le_backend_vk_device_o* self);
 	};
 
 	struct allocator_linear_interface_t {
