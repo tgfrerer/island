@@ -495,15 +495,26 @@ static void backend_setup( le_backend_o *self ) {
 
 static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 
+	static auto & backendI = *Registry::getApi<le_backend_vk_api>();
+	static auto & allocatorI = backendI.le_allocator_linear_i;
+
 	auto &     frame  = self->mFrames[ frameIndex ];
 	vk::Device device = self->device->getVkDevice();
 
 	auto result = device.waitForFences( {frame.frameFence}, true, 100'000'000 );
+
 	if ( result != vk::Result::eSuccess ) {
 		return false;
 	}
 
+	// -------- Invariant: fence has been crossed, all resources protected by fence
+	//          can now be claimed back.
+
 	device.resetFences( {frame.frameFence} );
+
+	for (auto & alloc : frame.allocators){
+		allocatorI.reset(alloc);
+	}
 
 	for ( auto &fb : frame.debugFramebuffers ) {
 		device.destroyFramebuffer( fb );

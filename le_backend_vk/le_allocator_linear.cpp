@@ -96,6 +96,7 @@ ISL_API_ATTR void register_le_allocator_linear_api( void *api_ ) {
 	le_allocator_linear_i.destroy              = allocator_destroy;
 	le_allocator_linear_i.get_le_buffer_handle = allocator_get_le_buffer_handle;
 	le_allocator_linear_i.allocate             = allocator_allocate;
+	le_allocator_linear_i.reset                = allocator_reset;
 }
 
 // ----------------------------------------------------------------------
