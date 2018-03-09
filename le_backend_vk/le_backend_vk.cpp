@@ -209,6 +209,24 @@ static void backend_setup( le_backend_o *self ) {
 	self->mFrames.reserve( frameCount );
 
 	vk::Device device = self->device->getVkDevice();
+	{
+		/// TODO:  allocate & map some memory which we may use for scratch buffers.
+		///
+		/// This memory will be owned by the frame, and we hand out chunks from it
+		/// via allocators, so that each allocator can only sub-allocate the chunk
+		/// it actually owns.
+		///
+		/// when the frame is transitioned to be submitted, we can either flush
+		/// that memory, or, realistically, the memory will be made automatically
+		/// available throught the implicit synchronisation guarantee that any
+		/// memory writes are made available when submission occurs. (we probably
+		/// have to look up how implicit synchronisation works with buffers which
+		/// are written to outside a regular command buffer, but which are mapped)
+		///
+		/// It's probably easiest for now to allocate the memory for scratch buffers
+		/// from COHERENT memory - so that we don't have to worry about flushes.
+		///
+	}
 
 	assert( device ); // device must come from somewhere! it must have been introduced to backend before, or backend must create device used by everyone else...
 
@@ -939,7 +957,7 @@ static le_allocator_linear_o* backend_get_transient_allocator(le_backend_o* self
 
 	auto &     frame  = self->mFrames[ frameIndex ];
 
-	// TODO: make sure to not just return the frame-global allocator, but one allocator per commandbuffer,
+	// TODO: (parallelize) make sure to not just return the frame-global allocator, but one allocator per commandbuffer,
 	// so that command buffer generation can happen in parallel.
 	assert (!frame.allocators.empty()); // there must be at least one allocator present, and it must have been created in setup()
 
@@ -972,14 +990,14 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 	le_graph_builder_i.get_passes( graph_, &passes, &numRenderPasses );
 
 
-	// TODO: when going wide, there needs to be a commandPool for each execution context so that
+	// TODO: (parallelize) when going wide, there needs to be a commandPool for each execution context so that
 	// command buffer generation may be free-threaded.
 	uint32_t numCommandBuffers = uint32_t(numRenderPasses);
 	auto cmdBufs = device.allocateCommandBuffers( {frame.commandPool, vk::CommandBufferLevel::ePrimary, numCommandBuffers} );
 
 	assert( cmdBufs.size() == 1 ); // for debug purposes
 
-	// TODO: we can go wide here - each renderpass can be processed independently of
+	// TODO: (parallelize) we can go wide here - each renderpass can be processed independently of
 	// other renderpasses.
 	for ( size_t passIndex = 0; passIndex != numRenderPasses; ++passIndex ) {
 
