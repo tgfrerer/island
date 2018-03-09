@@ -44,18 +44,19 @@ struct le_backend_vk_api {
 	static constexpr auto pRegFun  = register_le_backend_vk_api;
 
 	struct backend_vk_interface_t {
-		le_backend_o *( *create )( le_backend_vk_settings_t *settings );
-		void ( *destroy )( le_backend_o *self );
-		void ( *setup )( le_backend_o *self );
-		bool ( *clear_frame )( le_backend_o *self, size_t frameIndex );
-		bool ( *acquire_swapchain_image )( le_backend_o *self, size_t frameIndex );
-		void ( *process_frame )( le_backend_o *self, size_t frameIndex, le_graph_builder_o *graph_ );
-		bool ( *dispatch_frame )( le_backend_o *self, size_t frameIndex );
-		bool ( *create_window_surface )( le_backend_o *self, pal_window_o *window_ );
-		void ( *create_swapchain )( le_backend_o *self, le_swapchain_vk_settings_o *swapchainSettings_ );
-		size_t ( *get_num_swapchain_images )( le_backend_o *self );
-		void ( *reset_swapchain )( le_backend_o *self );
-		void ( *track_resource_state )( le_backend_o *self, size_t frameIndex, le_graph_builder_o *graph_ );
+		le_backend_o *         ( *create                   ) ( le_backend_vk_settings_t *settings );
+		void                   ( *destroy                  ) ( le_backend_o *self );
+		void                   ( *setup                    ) ( le_backend_o *self );
+		bool                   ( *clear_frame              ) ( le_backend_o *self, size_t frameIndex );
+		bool                   ( *acquire_swapchain_image  ) ( le_backend_o *self, size_t frameIndex );
+		void                   ( *process_frame            ) ( le_backend_o *self, size_t frameIndex, le_graph_builder_o *graph_ );
+		bool                   ( *dispatch_frame           ) ( le_backend_o *self, size_t frameIndex );
+		bool                   ( *create_window_surface    ) ( le_backend_o *self, pal_window_o *window_ );
+		void                   ( *create_swapchain         ) ( le_backend_o *self, le_swapchain_vk_settings_o *swapchainSettings_ );
+		size_t                 ( *get_num_swapchain_images ) ( le_backend_o *self );
+		void                   ( *reset_swapchain          ) ( le_backend_o *self );
+		void                   ( *track_resource_state     ) ( le_backend_o *self, size_t frameIndex, le_graph_builder_o *graph_ );
+		le_allocator_linear_o* ( *get_transient_allocator  ) ( le_backend_o* self, size_t frameIndex);
 	};
 
 	struct instance_interface_t {

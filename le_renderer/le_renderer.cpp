@@ -25,7 +25,7 @@ using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 struct FrameData {
 
-	enum class State : int32_t {
+	enum class State : int64_t {
 		eFailedClear    = -4,
 		eFailedDispatch = -3,
 		eFailedAcquire  = -2,
@@ -122,6 +122,7 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 	if ( frame.state == FrameData::State::eDispatched ||
 	     frame.state == FrameData::State::eFailedDispatch ||
 	     frame.state == FrameData::State::eFailedClear ) {
+
 		bool result = self->backend.clearFrame(frameIndex);
 
 		if (result != true){
@@ -130,9 +131,6 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 		}
 	}
 
-
-	// NOTE: free transient gpu resources
-	//       + transient memory
 	frame.graphBuilder->reset();
 
 	frame.state = FrameData::State::eCleared;
@@ -195,12 +193,16 @@ static void renderer_record_frame(le_renderer_o* self, size_t frameIndex, le_ren
 	// For each render pass, call renderpass' render method, build intermediary command lists
 	//
 
-	le::RenderModule renderModule{module_};
+	static auto  rendererApi   = *Registry::getApi<le_renderer_api>();
+	static auto &renderModuleI = rendererApi.le_render_module_i;
 
-	renderModule.buildGraph(*frame.graphBuilder);   // - build up dependencies for graph, create table of unique resources for graph
+	// - build up dependencies for graph, create table of unique resources for graph
+
+	renderModuleI.build_graph(module_, *frame.graphBuilder);
+
 	// execute callbacks into main application for each renderpass,
 	// build command lists per renderpass in intermediate, api-agnostic representation
-	frame.graphBuilder->executeGraph();				// - this is where we execute the rendergraph, which should create an intermediate representation of the frame
+	frame.graphBuilder->executeGraph(frameIndex, self->backend);				// - this is where we execute the rendergraph, which should create an intermediate representation of the frame
 
 	frame.meta.time_record_frame_end   = std::chrono::high_resolution_clock::now();
 	std::cout << "renderer_record_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_record_frame_end-frame.meta.time_record_frame_start).count() << "ms" << std::endl;

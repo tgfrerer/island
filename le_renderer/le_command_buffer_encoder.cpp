@@ -6,6 +6,8 @@
 #include "le_backend_vk/le_backend_vk.h"
 
 #include <cstring>
+#include <iostream>
+#include <iomanip>
 
 struct le_command_buffer_encoder_o {
 	char   mCommandStream[ 4096 ];
@@ -16,9 +18,9 @@ struct le_command_buffer_encoder_o {
 
 // ----------------------------------------------------------------------
 
-// TODO: must assign allocator
-static le_command_buffer_encoder_o *cbe_create() {
+static le_command_buffer_encoder_o *cbe_create(le_allocator_linear_o * allocator_) {
 	auto self = new le_command_buffer_encoder_o;
+	self->pAllocator = allocator_;
 	return self;
 };
 
@@ -123,18 +125,23 @@ static void cbe_set_vertex_data(le_command_buffer_encoder_o* self, void* data, u
 	// Allocate data on scratch buffer
 	// upload data via scratch allocator
 	// bind vertex buffers to scratch allocator
+
+	static auto  le_backend_vk_api_i = Registry::getApi<le_backend_vk_api>();
+	static auto &allocator_i         = le_backend_vk_api_i->le_allocator_linear_i;
+
 	void * memAddr;
 	uint64_t bufferOffset = 0;
 
-	static auto  le_backend_vk_api_i           = Registry::getApi<le_backend_vk_api>();
-	static auto &allocator_i = le_backend_vk_api_i->le_allocator_linear_i;
+	if (allocator_i.allocate(self->pAllocator, numBytes, &memAddr, &bufferOffset)){
+		memcpy(memAddr,data,numBytes);
 
+		le_buffer allocatorBufferId = allocator_i.get_le_buffer_handle(self->pAllocator);
 
-	allocator_i.allocate(self->pAllocator, numBytes, &memAddr, &bufferOffset);
-	le_buffer allocatorBufferId = allocator_i.get_le_buffer_handle(self->pAllocator);
-	memcpy(memAddr,data,numBytes);
+		cbe_bind_vertex_buffers( self, bindingIndex, 1, &allocatorBufferId, &bufferOffset );
+	} else {
+		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << "bytes.";
+	}
 
-	cbe_bind_vertex_buffers( self, bindingIndex, 1, &allocatorBufferId, &bufferOffset );
 }
 
 // ----------------------------------------------------------------------
@@ -160,4 +167,5 @@ ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 	le_command_buffer_encoder_i.set_viewport       = cbe_set_viewport;
 	le_command_buffer_encoder_i.set_scissor        = cbe_set_scissor;
 	le_command_buffer_encoder_i.bind_vertex_buffers = cbe_bind_vertex_buffers;
+	le_command_buffer_encoder_i.set_vertex_data    = cbe_set_vertex_data;
 }

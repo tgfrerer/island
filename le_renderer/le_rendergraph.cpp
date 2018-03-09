@@ -38,8 +38,8 @@ struct le_render_module_o : NoCopy, NoMove {
 // ----------------------------------------------------------------------
 
 struct le_graph_builder_o : NoCopy, NoMove {
-	std::vector<le_renderpass_o> passes;
-	std::vector<le_command_buffer_encoder_o*> encoders;
+	std::vector<le_renderpass_o>               passes;
+	std::vector<le_command_buffer_encoder_o *> encoders;
 };
 
 // ----------------------------------------------------------------------
@@ -105,10 +105,13 @@ static le_graph_builder_o* graph_builder_create(){
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_reset(le_graph_builder_o* self, const le_renderer_api& api){
+static void graph_builder_reset(le_graph_builder_o* self){
+
+	static auto rendererApiI = *Registry::getApi<le_renderer_api>();
+	const auto &encoderApi   = rendererApiI.le_command_buffer_encoder_i;
 
 	for (auto & encoder: self->encoders){
-		api.le_command_buffer_encoder_i.destroy(encoder);
+		encoderApi.destroy(encoder);
 	}
 
 	self->encoders.clear();
@@ -117,8 +120,8 @@ static void graph_builder_reset(le_graph_builder_o* self, const le_renderer_api&
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_destroy(le_graph_builder_o* self, const le_renderer_api& api){
-	graph_builder_reset(self, api);
+static void graph_builder_destroy(le_graph_builder_o* self){
+	graph_builder_reset(self);
 	delete self;
 }
 
@@ -311,13 +314,23 @@ static void graph_builder_execute_graph(le_graph_builder_o* self, size_t frameIn
 		std::cout << msg.str();
 	}
 
-	auto & encoderApi = api.le_command_buffer_encoder_i;
-
 	self->encoders.reserve(self->passes.size());
+
+	static auto rendererApiI = *Registry::getApi<le_renderer_api>();
+	static auto & encoderInterface = rendererApiI.le_command_buffer_encoder_i;
+
+	static auto backendApiI = *Registry::getApi<le_backend_vk_api>();
+	static auto & backendInterface = backendApiI.vk_backend_i;
+
+	// TODO: have one allocator per pass, so that allocator and encoder may be interleaved,
+	// and run on parallel threads.
+	auto allocator = backendInterface.get_transient_allocator(backend, frameIndex);
 
 	for (auto & pass: self->passes){
 		if (pass.callbackRender != nullptr){
-			auto encoder = encoderApi.create(); // NOTE: we must manually track the lifetime of encoder!
+
+			auto encoder = encoderInterface.create(allocator); // NOTE: we must manually track the lifetime of encoder!
+
 			pass.callbackRender(encoder, pass.render_callback_user_data);
 			self->encoders.emplace_back(encoder);
 		}

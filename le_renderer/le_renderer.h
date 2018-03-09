@@ -30,6 +30,7 @@ struct le_graph_builder_o;
 struct le_command_buffer_encoder_o;
 struct le_backend_o;
 struct le_buffer_o;
+struct le_allocator_linear_o;
 
 typedef struct le_buffer_o* le_buffer;
 
@@ -91,17 +92,17 @@ struct le_renderer_api {
 	// graph builder builds a graph for a module
 	struct graph_builder_interface_t {
 		le_graph_builder_o* ( *create        ) ( );
-		void                ( *destroy       ) ( le_graph_builder_o* obj, const le_renderer_api& api );
-		void                ( *reset         ) ( le_graph_builder_o* obj, const le_renderer_api& api );
+		void                ( *destroy       ) ( le_graph_builder_o* obj );
+		void                ( *reset         ) ( le_graph_builder_o* obj );
 		void                ( *add_renderpass) ( le_graph_builder_o* obj, le_renderpass_o* rp );
 		void                ( *build_graph   ) ( le_graph_builder_o* obj );
-		void                ( *execute_graph ) ( le_graph_builder_o* obj, const le_renderer_api& api );
+		void                ( *execute_graph ) ( le_graph_builder_o* obj, size_t frameIndex, le_backend_o* backend);
 		void                ( *get_passes    ) ( le_graph_builder_o* obj, le_renderpass_o** pPasses, size_t* pNumPasses);
 		void                ( *get_encoded_data_for_pass) (le_graph_builder_o* obj, size_t passIndex, void** data, size_t *numBytes, size_t* numCommands);
 	};
 
 	struct command_buffer_encoder_interface_t {
-		le_command_buffer_encoder_o * ( *create              ) ( );
+		le_command_buffer_encoder_o * ( *create              ) ( le_allocator_linear_o* allocator);
 		void                          ( *destroy             ) ( le_command_buffer_encoder_o *obj );
 
 		void                          ( *get_encoded_data    )(le_command_buffer_encoder_o* self, void** data, size_t* numBytes, size_t* numCommands);
@@ -111,6 +112,7 @@ struct le_renderer_api {
 		void                          ( *set_viewport        ) ( le_command_buffer_encoder_o* self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport* pViewports);
 		void                          ( *set_scissor         ) ( le_command_buffer_encoder_o* self, uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D* pViewports);
 		void                          ( *bind_vertex_buffers ) ( le_command_buffer_encoder_o* self, uint32_t firstBinding, uint32_t bindingCount, le_buffer* pBuffers, uint64_t* pOffsets );
+		void                          ( *set_vertex_data     ) ( le_command_buffer_encoder_o* self, void* data, uint64_t numBytes, uint32_t bindingIndex );
 	};
 
 	renderpass_interface_t             le_renderpass_i;
@@ -229,7 +231,7 @@ class GraphBuilder : NoCopy, NoMove {
 
 	~GraphBuilder() {
 		if ( !is_reference ) {
-			graphbuilderI.destroy( self, rendererApiI);
+			graphbuilderI.destroy( self);
 		}
 	}
 
@@ -238,7 +240,7 @@ class GraphBuilder : NoCopy, NoMove {
 	}
 
 	void reset() {
-		graphbuilderI.reset( self, rendererApiI );
+		graphbuilderI.reset( self );
 	}
 
 	void addRenderpass( le_renderpass_o *rp ) {
@@ -249,8 +251,8 @@ class GraphBuilder : NoCopy, NoMove {
 		graphbuilderI.build_graph( self );
 	}
 
-	void executeGraph() {
-		graphbuilderI.execute_graph( self, rendererApiI );
+	void executeGraph( size_t frameIndex, le_backend_o* backend) {
+		graphbuilderI.execute_graph( self, frameIndex, backend );
 	}
 
 	void getPasses(le_renderpass_o**pPasses, size_t* numPasses){
@@ -306,8 +308,8 @@ class CommandBufferEncoder: NoCopy, NoMove {
 	bool                         is_reference = false;
 
   public:
-	CommandBufferEncoder()
-	    : self( cbEncoderI.create() ) {
+	CommandBufferEncoder(le_allocator_linear_o * allocator)
+	    : self( cbEncoderI.create(allocator) ) {
 	}
 
 	CommandBufferEncoder( le_command_buffer_encoder_o *self_ )
@@ -343,6 +345,10 @@ class CommandBufferEncoder: NoCopy, NoMove {
 
 	void bindVertexBuffers( uint32_t firstBinding, uint32_t bindingCount, le_buffer *pBuffers, uint64_t *pOffsets ) {
 		cbEncoderI.bind_vertex_buffers( self, firstBinding, bindingCount, pBuffers, pOffsets );
+	}
+
+	void setVertexData( void* data, uint64_t numBytes, uint32_t bindingIndex ){
+		cbEncoderI.set_vertex_data( self, data, numBytes, bindingIndex );
 	}
 };
 

@@ -3,6 +3,8 @@
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_backend_vk/private/le_device_vk.h"
 #include "le_backend_vk/private/le_instance_vk.h"
+#include "le_backend_vk/private/le_allocator_linear.h"
+
 #include "le_swapchain_vk/le_swapchain_vk.h"
 
 #include "pal_window/pal_window.h"
@@ -54,6 +56,10 @@ struct BackendFrameData {
 
 	std::unordered_map<uint64_t, ResourceInfo, IdentityHash> resourceTable;
 
+	// todo: one allocator per command buffer eventually -
+	// one allocator per frame for now.
+	std::vector<le_allocator_linear_o*> allocators;
+
 };
 
 // ----------------------------------------------------------------------
@@ -99,6 +105,8 @@ static void backend_destroy( le_backend_o *self ) {
 
 	vk::Device device = self->device->getVkDevice();
 
+	static auto allocatorInterface = (*Registry::getApi<le_backend_vk_api>()).le_allocator_linear_i;
+
 	device.destroyRenderPass( self->debugRenderPass );
 
 	if ( self->debugDescriptorSetLayout ) {
@@ -130,6 +138,15 @@ static void backend_destroy( le_backend_o *self ) {
 		device.destroySemaphore( frameData.semaphorePresentComplete );
 		device.destroySemaphore( frameData.semaphoreRenderComplete );
 		device.destroyCommandPool( frameData.commandPool );
+
+		// TODO: destroy allocators
+
+		for (auto & a: frameData.allocators){
+			allocatorInterface.destroy(a);
+		}
+
+		frameData.allocators.clear();
+
 	}
 
 	self->mFrames.clear();
@@ -184,6 +201,9 @@ void backend_reset_swapchain( le_backend_o *self ) {
 
 static void backend_setup( le_backend_o *self ) {
 
+	static auto backendVkAPi = *Registry::getApi<le_backend_vk_api>();
+	static auto & allocatorI = backendVkAPi.le_allocator_linear_i;
+
 	auto frameCount = backend_get_num_swapchain_images( self );
 
 	self->mFrames.reserve( frameCount );
@@ -199,6 +219,8 @@ static void backend_setup( le_backend_o *self ) {
 		frameData.semaphorePresentComplete = device.createSemaphore( {} );
 		frameData.semaphoreRenderComplete  = device.createSemaphore( {} );
 		frameData.commandPool              = device.createCommandPool( {vk::CommandPoolCreateFlagBits::eTransient, self->device->getDefaultGraphicsQueueFamilyIndex()} );
+
+		frameData.allocators.emplace_back(allocatorI.create());
 
 		self->mFrames.emplace_back( std::move( frameData ) );
 	}
@@ -902,6 +924,19 @@ static void backend_create_renderpasses(le_backend_o* self, size_t frameIndex, l
 
 // ----------------------------------------------------------------------
 
+static le_allocator_linear_o* backend_get_transient_allocator(le_backend_o* self, size_t frameIndex){
+
+	auto &     frame  = self->mFrames[ frameIndex ];
+
+	// TODO: make sure to not just return the frame-global allocator, but one allocator per commandbuffer,
+	// so that command buffer generation can happen in parallel.
+	assert (!frame.allocators.empty()); // there must be at least one allocator present, and it must have been created in setup()
+
+	return frame.allocators[0];
+}
+
+// ----------------------------------------------------------------------
+
 static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_graph_builder_o* graph_) {
 
 	backend_create_resource_table( self, frameIndex, graph_ );
@@ -1094,6 +1129,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.process_frame            = backend_process_frame;
 	vk_backend_i.get_num_swapchain_images = backend_get_num_swapchain_images;
 	vk_backend_i.reset_swapchain          = backend_reset_swapchain;
+	vk_backend_i.get_transient_allocator  = backend_get_transient_allocator;
 
 	vk_backend_i.track_resource_state = backend_track_resource_state;
 
@@ -1101,6 +1137,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 
 	register_le_device_vk_api( api_ );
 	register_le_instance_vk_api( api_ );
+	register_le_allocator_linear_api(api_);
 
 	auto &le_instance_vk_i = le_backend_vk_api_i->vk_instance_i;
 

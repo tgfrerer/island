@@ -1,7 +1,5 @@
-# Todo
+# TODO
 
-    * we can pass around le objects (buffers, attachments, pipelines, etc.) as
-      opaque handles, effectively using a uint64_t which represents an object. 
 
 ## (A)
 
@@ -72,6 +70,14 @@
 # LEARNED SO FAR:
 
 
+    * we can pass around LE objects (buffers, attachments, pipelines, etc.) as
+      opaque handles, effectively using a pointer-to-object-type which
+      represents an object:
+
+      ```c
+      typedef struct our_object_t* our_object;
+      ```
+    
     * instead of passing the api via parameter- you can retrieve it via the
       registry inside the function which uses it, and store it as a
       function-level static variable.

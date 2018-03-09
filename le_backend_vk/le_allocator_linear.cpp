@@ -24,16 +24,15 @@ Linear sub-allocator
 
 struct le_allocator_linear_o {
 
-	le_buffer_o* leBufferHandle = nullptr;
+	le_buffer_o *leBufferHandle = nullptr;
 
-	uint8_t *  bufferBaseMemoryAddress = nullptr; // mapped memory address
-	uint64_t   bufferBaseOffsetInBytes   = 0;     // offset into buffer for first address belonging to this allocator
-	uint64_t   capacity   = 0;
-	uint64_t   alignment = 1;                   // minimum allocation chunk size
+	uint8_t *bufferBaseMemoryAddress = nullptr; // mapped memory address
+	uint64_t bufferBaseOffsetInBytes = 0;       // offset into buffer for first address belonging to this allocator
+	uint64_t capacity                = 0;
+	uint64_t alignment               = 1; // minimum allocation chunk size
 
-	uint8_t *  pData    = bufferBaseMemoryAddress; // address of last allocation, initially
-	uint64_t   bufferOffsetInBytes = bufferBaseOffsetInBytes;
-
+	uint8_t *pData               = bufferBaseMemoryAddress; // address of last allocation, initially
+	uint64_t bufferOffsetInBytes = bufferBaseOffsetInBytes;
 };
 
 // ----------------------------------------------------------------------
@@ -48,6 +47,8 @@ static le_allocator_linear_o* allocator_create(){
 static void allocator_destroy(le_allocator_linear_o* self){
 	delete self;
 }
+
+// ----------------------------------------------------------------------
 
 static void allocator_reset(le_allocator_linear_o* self){
 	self->pData               = self->bufferBaseMemoryAddress;
