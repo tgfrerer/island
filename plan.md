@@ -1,21 +1,14 @@
+# PLAN
+
 # TODO
 
+ * We're quite gung-ho about `le_buffer` in `le_backend_vk` when we create a
+   buffer - ideally, a buffer is reference-tracked. we're currently not
+   tracking the lifetime of a buffer, and we're also allowing other frames to
+   alias parts of it. this means, it becomes complicated to track the lifetime
+   of a `le_buffer` : CLEAN THIS UP.
 
 ## (A)
-
-    * implement setVertexBytes 
-    
-        vertex data must first be stored inside encoder- in `process_frame`,
-        this is transferred to GPU coherent memory. 
-        
-        Don't use updateBuffer for this. 
-        
-        You can just write to gpu-mapped memory, if you have an allocator for
-        this.
-
-    * add a method to store an attribute for a specific binding location
-
-    * add scratch buffer for vertex data
 
     * draw a triangle:
 
