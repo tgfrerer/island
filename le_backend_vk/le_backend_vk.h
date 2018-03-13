@@ -96,7 +96,7 @@ struct le_backend_vk_api {
 	};
 
 	struct allocator_linear_interface_t {
-		le_allocator_linear_o * ( *create               ) ( );
+		le_allocator_linear_o * ( *create               ) ( const struct LE_AllocatorCreateInfo& info);
 		void                    ( *destroy              ) ( le_allocator_linear_o *self );
 		bool                    ( *allocate             ) ( le_allocator_linear_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset);
 		void                    ( *reset                ) ( le_allocator_linear_o* self);

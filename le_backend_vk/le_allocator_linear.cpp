@@ -37,8 +37,24 @@ struct le_allocator_linear_o {
 
 // ----------------------------------------------------------------------
 
-static le_allocator_linear_o* allocator_create(){
-	auto self = new le_allocator_linear_o;
+static void allocator_reset(le_allocator_linear_o* self){
+	self->pData               = self->bufferBaseMemoryAddress;
+	self->bufferOffsetInBytes = self->bufferBaseOffsetInBytes;
+}
+
+// ----------------------------------------------------------------------
+
+static le_allocator_linear_o* allocator_create(const LE_AllocatorCreateInfo& info){
+	auto self                     = new le_allocator_linear_o;
+
+	self->bufferBaseMemoryAddress = info.bufferBaseMemoryAddress;
+	self->bufferBaseOffsetInBytes = info.bufferBaseOffsetInBytes;
+	self->capacity                = info.capacity;
+	self->leBufferHandle          = info.bufferHandle;
+	self->alignment               = info.alignment;
+
+	allocator_reset(self);
+
 	return self;
 }
 
@@ -46,13 +62,6 @@ static le_allocator_linear_o* allocator_create(){
 
 static void allocator_destroy(le_allocator_linear_o* self){
 	delete self;
-}
-
-// ----------------------------------------------------------------------
-
-static void allocator_reset(le_allocator_linear_o* self){
-	self->pData               = self->bufferBaseMemoryAddress;
-	self->bufferOffsetInBytes = self->bufferBaseOffsetInBytes;
 }
 
 // ----------------------------------------------------------------------
