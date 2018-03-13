@@ -23,6 +23,29 @@
 #include <iomanip>
 
 
+struct le_buffer_o {
+	vk::Buffer buffer = nullptr;
+	vk::Device device = nullptr; // non-owning reference to device
+};
+
+static le_buffer_o* le_buffer_create(vk::Buffer vkBuffer, vk::Device vkDevice){
+	auto self = new le_buffer_o();
+	self->buffer = vkBuffer;
+	self->device = vkDevice;
+	return self;
+}
+
+static void le_buffer_destroy(le_buffer_o* self){
+	if (self->device && self->buffer){
+		self->device.destroyBuffer(self->buffer);
+	}
+	delete self;
+}
+
+static vk::Buffer le_buffer_get_vk_buffer(le_buffer_o* self){
+	return self->buffer;
+}
+
 // herein goes all data which is associated with the current frame
 // backend keeps track of multiple frames.
 struct BackendFrameData {
