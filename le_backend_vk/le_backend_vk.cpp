@@ -241,6 +241,7 @@ static void backend_setup( le_backend_o *self ) {
 
 	vk::Device vkDevice = self->device->getVkDevice();
 
+	LE_AllocatorCreateInfo allocatorCreateInfo;
 	{
 		/// TODO:  allocate & map some memory which we may use for scratch buffers.
 		///
@@ -259,11 +260,11 @@ static void backend_setup( le_backend_o *self ) {
 		/// from COHERENT memory - so that we don't have to worry about flushes.
 		///
 
-		uint64_t memSize = 4096 * frameCount;
+		uint64_t memSize = 4096;
 		// TODO: check which alignment we need to consider for a vertex/index buffer
 		uint64_t memAlignment = deviceI.get_vk_physical_device_properties(*self->device).limits.minUniformBufferOffsetAlignment;
 		// TODO: check alignment-based memSize calculation is correct
-		memSize = memAlignment * ((memSize + memAlignment -1 ) / memAlignment);
+		memSize = frameCount * memAlignment * ((memSize + memAlignment -1 ) / memAlignment);
 
 		uint32_t graphicsQueueFamilyIndex = self->device->getDefaultGraphicsQueueFamilyIndex();
 
@@ -290,15 +291,23 @@ static void backend_setup( le_backend_o *self ) {
 		                                    reinterpret_cast<VkFlags&>(memFlags),
 		                                    &reinterpret_cast<VkMemoryAllocateInfo&>(memAllocateInfo));
 
-		// TODO: store this with the frame.
+		// store allocated memory with backend
+		// TODO: each frame may allocate their own memory
 		self->debugTransientVertexDeviceMemory = vkDevice.allocateMemory(memAllocateInfo);
 
-		// TODO: allocators need to get the correct offsets.
+		vkDevice.bindBufferMemory( self->debugTransientVertexBuffer, self->debugTransientVertexDeviceMemory, 0 );
 
+		auto leBuffer = le_buffer_create(self->debugTransientVertexBuffer, vkDevice);
+
+		// TODO: track lifetime for bufferHandle
+
+		allocatorCreateInfo.alignment               = memAlignment;
+		allocatorCreateInfo.bufferBaseMemoryAddress = static_cast<uint8_t*>( vkDevice.mapMemory( self->debugTransientVertexDeviceMemory, 0, VK_WHOLE_SIZE ) );
+		allocatorCreateInfo.bufferHandle            = leBuffer;
+		allocatorCreateInfo.capacity                = memSize;
 	}
 
-
-	assert( vkDevice ); // device must come from somewhere! it must have been introduced to backend before, or backend must create device used by everyone else...
+	assert( vkDevice ); // device must come from somewhere! It must have been introduced to backend before, or backend must create device used by everyone else...
 
 	for ( size_t i = 0; i != frameCount; ++i ) {
 		auto frameData = BackendFrameData();
@@ -308,7 +317,13 @@ static void backend_setup( le_backend_o *self ) {
 		frameData.semaphoreRenderComplete  = vkDevice.createSemaphore( {} );
 		frameData.commandPool              = vkDevice.createCommandPool( {vk::CommandPoolCreateFlagBits::eTransient, self->device->getDefaultGraphicsQueueFamilyIndex()} );
 
-		frameData.allocators.emplace_back(allocatorI.create());
+		LE_AllocatorCreateInfo allocInfo = allocatorCreateInfo;
+		allocInfo.capacity /= frameCount;
+		allocInfo.bufferBaseOffsetInBytes = i * allocInfo.capacity;
+
+		auto allocator = allocatorI.create(allocInfo);
+
+		frameData.allocators.emplace_back(std::move(allocator));
 
 		self->mFrames.emplace_back( std::move( frameData ) );
 	}
