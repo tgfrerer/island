@@ -1070,6 +1070,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 	static const le_renderer_api &rendererApiI       = *Registry::getApi<le_renderer_api>();
 	static const auto &           le_graph_builder_i = rendererApiI.le_graph_builder_i;
 
+	static const auto &backendApiI       = *Registry::getApi<le_backend_vk_api>();
+	static const auto &      vk_device_i = backendApiI.vk_device_i;
+
+	static auto maxVertexInputBindings = vk_device_i.get_vk_physical_device_properties(*self->device).limits.maxVertexInputBindings;
+
 	le_renderpass_o *passes          = nullptr;
 	size_t           numRenderPasses = 0;
 	le_graph_builder_i.get_passes( graph_, &passes, &numRenderPasses );
@@ -1089,6 +1094,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 		// auto &pass = passes[ i ];
 		auto &cmd = cmdBufs[passIndex];
 
+		std::vector<vk::Buffer> vertexInputBindings(maxVertexInputBindings, nullptr);
 		// create frame buffer, based on swapchain and renderpass
 
 		{
@@ -1175,7 +1181,17 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 
 				case le::CommandType::eBindVertexBuffers: {
 					auto *le_cmd = static_cast<le::CommandBindVertexBuffers *>( dataIt );
-					cmd.bindVertexBuffers( le_cmd->info.firstBinding, le_cmd->info.bindingCount, reinterpret_cast<vk::Buffer *>( le_cmd->info.pBuffers ), le_cmd->info.pOffsets );
+
+					uint32_t firstBinding = le_cmd->info.firstBinding;
+					uint32_t numBuffers   = le_cmd->info.bindingCount;
+
+					// translate le_buffers to vk_buffers
+					for (uint32_t b =0; b!=numBuffers; ++b)
+					{
+						vertexInputBindings[b + firstBinding] = le_buffer_get_vk_buffer(le_cmd->info.pBuffers[b]);
+					}
+
+					cmd.bindVertexBuffers( le_cmd->info.firstBinding, le_cmd->info.bindingCount, &vertexInputBindings[firstBinding], le_cmd->info.pOffsets );
 				} break;
 				}
 

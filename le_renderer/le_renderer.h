@@ -29,10 +29,7 @@ struct le_renderpass_o;
 struct le_graph_builder_o;
 struct le_command_buffer_encoder_o;
 struct le_backend_o;
-struct le_buffer_o;
 struct le_allocator_linear_o;
-
-typedef struct le_buffer_o* le_buffer;
 
 struct le_renderer_api {
 
@@ -111,7 +108,7 @@ struct le_renderer_api {
 		void                          ( *draw                ) ( le_command_buffer_encoder_o* self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
 		void                          ( *set_viewport        ) ( le_command_buffer_encoder_o* self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport* pViewports);
 		void                          ( *set_scissor         ) ( le_command_buffer_encoder_o* self, uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D* pViewports);
-		void                          ( *bind_vertex_buffers ) ( le_command_buffer_encoder_o* self, uint32_t firstBinding, uint32_t bindingCount, le_buffer* pBuffers, uint64_t* pOffsets );
+		void                          ( *bind_vertex_buffers ) ( le_command_buffer_encoder_o* self, uint32_t firstBinding, uint32_t bindingCount, struct le_buffer_o** pBuffers, uint64_t* pOffsets );
 		void                          ( *set_vertex_data     ) ( le_command_buffer_encoder_o* self, void* data, uint64_t numBytes, uint32_t bindingIndex );
 	};
 
@@ -343,7 +340,7 @@ class CommandBufferEncoder: NoCopy, NoMove {
 		cbEncoderI.set_scissor( self, firstScissor, scissorCount, pScissors );
 	}
 
-	void bindVertexBuffers( uint32_t firstBinding, uint32_t bindingCount, le_buffer *pBuffers, uint64_t *pOffsets ) {
+	void bindVertexBuffers( uint32_t firstBinding, uint32_t bindingCount, le_buffer_o **pBuffers, uint64_t *pOffsets ) {
 		cbEncoderI.bind_vertex_buffers( self, firstBinding, bindingCount, pBuffers, pOffsets );
 	}
 
