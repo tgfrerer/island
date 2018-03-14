@@ -31,15 +31,15 @@ struct le_allocator_linear_o {
 	uint64_t capacity                = 0;
 	uint64_t alignment               = 256; // minimum allocation chunk size
 
-	uint8_t *pData               = bufferBaseMemoryAddress; // address of last allocation, initially
+	uint8_t *pData               = bufferBaseMemoryAddress; // address of last allocation, initially: (bufferBaseMemoryAddress + bufferBaseOffsetInBytes)
 	uint64_t bufferOffsetInBytes = bufferBaseOffsetInBytes;
 };
 
 // ----------------------------------------------------------------------
 
 static void allocator_reset(le_allocator_linear_o* self){
-	self->pData               = self->bufferBaseMemoryAddress;
 	self->bufferOffsetInBytes = self->bufferBaseOffsetInBytes;
+	self->pData               = self->bufferBaseMemoryAddress + self->bufferBaseOffsetInBytes;
 }
 
 // ----------------------------------------------------------------------
@@ -69,12 +69,12 @@ static void allocator_destroy(le_allocator_linear_o* self){
 static bool allocator_allocate(le_allocator_linear_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset){
 
 	// Calculate allocation size as a multiple (rounded up) of alignment
-	// TODO: check alignment-based allocation size calculation is correct.
+
 	auto allocationSizeInBytes  = self->alignment * (( numBytes + ( self->alignment - 1 ) ) / self->alignment);
 
 	auto addressAfterAllocation = self->pData + allocationSizeInBytes;
 
-	if ( (addressAfterAllocation) > (self->bufferBaseMemoryAddress + self->capacity) ) {
+	if ( (addressAfterAllocation) > (self->bufferBaseMemoryAddress + self->bufferBaseOffsetInBytes + self->capacity) ) {
 		return false;
 	}
 
@@ -83,7 +83,8 @@ static bool allocator_allocate(le_allocator_linear_o* self, uint64_t numBytes, v
 	*pData        = self->pData; // point to next free memory address
 	*bufferOffset = self->bufferOffsetInBytes;
 
-	self->pData               += allocationSizeInBytes;
+	self->pData = addressAfterAllocation;
+
 	self->bufferOffsetInBytes += allocationSizeInBytes;
 
 	return true;
