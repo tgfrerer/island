@@ -10,6 +10,13 @@
 
 ## (A)
 
+    * simplify linear allocator: 
+
+        Currently, one leBuffer can have more than one allcator - this can turn
+        into a nightmare. allocator must own buffer exclusively. memory may be
+        handed out in chunks per buffer, but buffer must be owned exclusively
+        by allocator. 
+
     * draw a triangle:
 
         + allocate a scratch buffer per frame.
@@ -47,6 +54,8 @@
       these get re-initialized?
 
     * think: can we use macros to generate encoder methods?
+
+    * get Renderdoc to actually work on both of your test systems.
 
 ## (C)
 

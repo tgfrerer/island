@@ -175,11 +175,9 @@ static void backend_destroy( le_backend_o *self ) {
 
 	self->mFrames.clear();
 
-
 	// Note: teardown for transient buffer and memory.
 	device.destroyBuffer(self->debugTransientVertexBuffer);
 	device.freeMemory(self->debugTransientVertexDeviceMemory);
-
 
 	delete self;
 }
@@ -419,7 +417,7 @@ static void backend_setup( le_backend_o *self ) {
 
 		static const std::vector<uint32_t> shaderCodeVert{
 		// converted using: `glslc vertex_shader.vert fragment_shader.frag -c -mfmt=num`
-#include "vertex_shader.vert.spv"
+#include "vertex_shader_ext.vert.spv"
 		};
 
 		static const std::vector<uint32_t> shaderCodeFrag{
@@ -443,13 +441,21 @@ static void backend_setup( le_backend_o *self ) {
 		    .setPName( "main" )
 		    .setPSpecializationInfo( nullptr );
 
+		vk::VertexInputBindingDescription   vertexBindingDescrition{0, sizeof( float ) * 4};
+		vk::VertexInputAttributeDescription vertexAttributeDescription{0, 0, vk::Format::eR32G32B32A32Sfloat, 0};
+
 		vk::PipelineVertexInputStateCreateInfo vertexInputStageInfo;
 		vertexInputStageInfo
 		    .setFlags( vk::PipelineVertexInputStateCreateFlags() )
-		    .setVertexBindingDescriptionCount( 0 )
-		    .setPVertexBindingDescriptions( nullptr )
-		    .setVertexAttributeDescriptionCount( 0 )
-		    .setPVertexAttributeDescriptions( nullptr );
+		        .setVertexBindingDescriptionCount( 1 )
+		        .setPVertexBindingDescriptions( &vertexBindingDescrition )
+//		    .setVertexBindingDescriptionCount( 0 )
+//		    .setPVertexBindingDescriptions( nullptr )
+		        .setVertexAttributeDescriptionCount( 1 )
+		        .setPVertexAttributeDescriptions( &vertexAttributeDescription )
+//		    .setVertexAttributeDescriptionCount( 0 )
+//		    .setPVertexAttributeDescriptions( nullptr )
+		        ;
 
 		// todo: get layout from shader
 

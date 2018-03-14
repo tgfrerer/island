@@ -141,6 +141,27 @@ static bool test_app_update(test_app_o* self){
 			    {{120, 0, 100, 100}},
 			};
 
+			struct vec4{
+				float x=0;
+				float y=0;
+				float z=0;
+				float w=0;
+			};
+
+			vec4 vertData[3]= {{0,0,0,0},{2,0,0,0},{0,2,0,0}};
+
+			static_assert(sizeof(vertData)==sizeof(float)*4*3,"vertData must be tightly packed");
+
+			// this will use the scratch buffer -- and the encoded command will store the
+			// location of the data as it was laid down in the scratch buffer.
+
+			// vertex data must be stored to GPU mapped memory using an allocator through encoder first,
+			// will then be available to the gpu.
+
+			// the scratch buffer is uploaded/transferred before the renderpass begins
+			// so that data from it is read-visible,
+			encoder.setVertexData(vertData, sizeof(vertData), 0);
+
 			encoder.setScissor(0,1,scissors);
 			encoder.setViewport( 0, 1, viewports );
 
@@ -149,33 +170,7 @@ static bool test_app_update(test_app_o* self){
 			encoder.setScissor(0,1,&scissors[1]);
 			encoder.setViewport( 0, 1, &viewports[1] );
 
-			// vertex data must be stored to GPU mapped memory using an allocator through encoder first,
-			// will then be available to the gpu.
-
-			struct vec3{
-				float x=0;
-				float y=0;
-				float z=0;
-			};
-			vec3 vertData[3]= {{0,1,0},{0,0,0},{1,0,0}};
-
-			static_assert(sizeof(vertData)==sizeof(float)*3*3,"vertData must be tightly packed");
-
-			// this will use the scratch buffer -- and the encoded command will store the
-			// location of the data as it was laid down in the scratch buffer.
-			encoder.setVertexData(vertData, sizeof(vertData), 0);
-
-			// the scratch buffer is uploaded/transferred before the renderpass begins
-			// so that data from it is read-visible,
-
-			//encoder.setVertexData(bufferO* buffer, uint64_t numBytes, uint32_t bindingIndex);
-
 			encoder.draw(3,1,0,0);
-
-
-
-			// encoder.setVertexBuffers({buffer1,buffer2},{offset1,offset2});
-
 
 		}, self);
 
