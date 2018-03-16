@@ -102,8 +102,6 @@ static void renderer_setup( le_renderer_o *self ) {
 
 	self->currentFrameNumber = 0;
 
-
-
 }
 
 // ----------------------------------------------------------------------
@@ -200,9 +198,10 @@ static void renderer_record_frame(le_renderer_o* self, size_t frameIndex, le_ren
 
 	renderModuleI.build_graph(module_, *frame.graphBuilder);
 
-	// execute callbacks into main application for each renderpass,
+	// Execute callbacks into main application for each renderpass,
 	// build command lists per renderpass in intermediate, api-agnostic representation
-	frame.graphBuilder->executeGraph(frameIndex, self->backend);				// - this is where we execute the rendergraph, which should create an intermediate representation of the frame
+	//
+	frame.graphBuilder->executeGraph(frameIndex, self->backend);
 
 	frame.meta.time_record_frame_end   = std::chrono::high_resolution_clock::now();
 	std::cout << "renderer_record_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_record_frame_end-frame.meta.time_record_frame_start).count() << "ms" << std::endl;

@@ -47,7 +47,7 @@ static vk::Buffer le_buffer_get_vk_buffer(le_buffer_o* self){
 }
 
 // herein goes all data which is associated with the current frame
-// backend keeps track of multiple frames.
+// backend keeps track of multiple frames, exactly one per renderer::FrameData frame.
 struct BackendFrameData {
 	vk::Fence                      frameFence               = nullptr;
 	vk::Semaphore                  semaphoreRenderComplete  = nullptr;

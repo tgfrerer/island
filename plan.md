@@ -80,6 +80,8 @@
       typedef struct our_object_t* our_object;
       ```
     
+      This is also how APIs like Vulkan present their objects.
+
     * instead of passing the api via parameter- you can retrieve it via the
       registry inside the function which uses it, and store it as a
       function-level static variable.
@@ -87,6 +89,7 @@
 
 
 ----------------------------------------------------------------------
+
 # RESOURCE HANDLING
 
     * when we encode commands which mention resources, resources are referenced
