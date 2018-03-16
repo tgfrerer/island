@@ -135,20 +135,20 @@ le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const c
 	if ( SHOULD_USE_DEBUG_LAYERS ) {
 		instanceExtensionNames.push_back( VK_EXT_DEBUG_REPORT_EXTENSION_NAME );		
 		instanceLayerNames.push_back( "VK_LAYER_LUNARG_standard_validation" );
-		instanceLayerNames.push_back( "VK_LAYER_LUNARG_object_tracker" );
+		std::cout << "Debug instance layers added." << std::endl;
 	}
 
 // seems that the latest driver won't let us do this.
-//	vk::DebugReportCallbackCreateInfoEXT debugCallbackCreateInfo;
-//	debugCallbackCreateInfo
-//	    .setPNext( nullptr )
-//	    .setFlags( ~vk::DebugReportFlagBitsEXT() )
-//	    .setPfnCallback( debugCallback )
-//	    .setPUserData( nullptr );
+	vk::DebugReportCallbackCreateInfoEXT debugCallbackCreateInfo;
+	debugCallbackCreateInfo
+	    .setPNext( nullptr )
+	    .setFlags( ~vk::DebugReportFlagBitsEXT() )
+	    .setPfnCallback( debugCallback )
+	    .setPUserData( nullptr );
 
 	vk::InstanceCreateInfo info;
 	info.setFlags( {} )
-//	    .setPNext( &debugCallbackCreateInfo )
+//	    .setPNext( &debugCallbackCreateInfo ) // this trick won't work when using parameter_validation layer
 	    .setPApplicationInfo( &appInfo )
 	    .setEnabledLayerCount( uint32_t( instanceLayerNames.size() ) )
 	    .setPpEnabledLayerNames( instanceLayerNames.data() )
