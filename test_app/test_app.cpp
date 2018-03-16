@@ -132,7 +132,7 @@ static bool test_app_update(test_app_o* self){
 		} );
 
 		renderPassFinal.setRenderCallback([](auto encoder_, auto user_data_){
-			std::cout << "** rendercallback called" << std::endl;
+			//std::cout << "** rendercallback called" << std::endl;
 			auto self = static_cast<test_app_o*>(user_data_);
 			le::CommandBufferEncoder encoder{encoder_};
 //			// encoder.setPipeline(pipelineId);
