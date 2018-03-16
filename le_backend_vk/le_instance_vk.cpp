@@ -8,6 +8,8 @@
 #include <iomanip>
 #include <set>
 #include <string>
+
+#define SHOULD_USE_DEBUG_LAYERS true
 // ----------------------------------------------------------------------
 
 struct le_backend_vk_instance_o {
@@ -71,6 +73,11 @@ static VkBool32 debugCallback(
 // ----------------------------------------------------------------------
 
 static void create_debug_callback( le_backend_vk_instance_o *obj ) {
+
+	if (!SHOULD_USE_DEBUG_LAYERS) {
+		return ;
+	}
+
 	vk::DebugReportCallbackCreateInfoEXT debugCallbackCreateInfo;
 	debugCallbackCreateInfo
 	    .setPNext( nullptr )
@@ -84,6 +91,11 @@ static void create_debug_callback( le_backend_vk_instance_o *obj ) {
 // ----------------------------------------------------------------------
 
 static void destroy_debug_callback( le_backend_vk_instance_o *obj ) {
+
+	if (!SHOULD_USE_DEBUG_LAYERS) {
+		return ;
+	}
+
 	obj->vkInstance.destroyDebugReportCallbackEXT( obj->debugCallback );
 	obj->debugCallback = nullptr;
 }
@@ -102,7 +114,7 @@ le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const c
 	    .setApplicationVersion( VK_MAKE_VERSION( 0, 0, 0 ) )
 	    .setPEngineName( "light engine" )
 	    .setEngineVersion( VK_MAKE_VERSION( 0, 1, 0 ) )
-	    .setApiVersion( VK_MAKE_VERSION( 1, 0, 68 ) );
+	    .setApiVersion( VK_MAKE_VERSION( 1, 1, 70 ) );
 
 	std::set<std::string> instanceExtensionSet;
 
@@ -119,9 +131,8 @@ le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const c
 		instanceExtensionNames.emplace_back( e.c_str() );
 	}
 
-	bool shouldDebug = true;
 
-	if ( shouldDebug ) {
+	if ( SHOULD_USE_DEBUG_LAYERS ) {
 		instanceExtensionNames.push_back( VK_EXT_DEBUG_REPORT_EXTENSION_NAME );		
 		instanceLayerNames.push_back( "VK_LAYER_LUNARG_standard_validation" );
 		instanceLayerNames.push_back( "VK_LAYER_LUNARG_object_tracker" );
@@ -148,9 +159,10 @@ le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const c
 
 	api->cUniqueInstance = obj;
 
-	patchExtProcAddrs( obj );
-
-	create_debug_callback( obj );
+	if ( SHOULD_USE_DEBUG_LAYERS ){
+		patchExtProcAddrs( obj );
+		create_debug_callback( obj );
+	}
 
 	std::cout << "Instance created." << std::endl;
 	return obj;
