@@ -24,11 +24,10 @@ enum ResourceMemoryTypeFlag : uint32_t {
 };
 
 struct ResourceInfo {
-
-	ResourceType type;
-	char                 name[ 32 ] = "";
-	uint64_t            size;
+	ResourceType        type;
 	uint32_t            memoryTypeFlags;
+	uint64_t            size;
+	char                name[ 32 ] = "";
 };
 
 

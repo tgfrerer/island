@@ -668,11 +668,10 @@ static void backend_create_resource_table(le_backend_o* self, size_t frameIndex,
 	le_renderpass_o* pPasses = nullptr;
 	{
 		le::GraphBuilder graph{graph_};
-		graph.getPasses(&pPasses,&numRenderPasses);
+		graph.getPasses( &pPasses, &numRenderPasses );
 	}
 
-
-	for ( size_t i = 0; i!=numRenderPasses; i++) {
+	for ( size_t i = 0; i != numRenderPasses; i++ ) {
 
 		auto &pass = pPasses[i];
 
@@ -693,6 +692,7 @@ static void backend_create_resource_table(le_backend_o* self, size_t frameIndex,
 // ----------------------------------------------------------------------
 
 static void backend_track_resource_state(le_backend_o* self, size_t frameIndex, le_graph_builder_o* graph_ ){
+
 	// track resource state
 
 	// we should mark persistent resources which are not frame-local with special flags, so that they
@@ -1178,11 +1178,17 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 
 				case le::CommandType::eSetViewport: {
 					auto *le_cmd = static_cast<le::CommandSetViewport *>( dataIt );
+					// NOTE: since data for viewports *is stored inline*, we could also increase the typed pointer
+					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
+					// cmd.setViewport( le_cmd->info.firstViewport, le_cmd->info.viewportCount, reinterpret_cast<vk::Viewport *>( le_cmd + 1 ) );
 					cmd.setViewport( le_cmd->info.firstViewport, le_cmd->info.viewportCount, reinterpret_cast<vk::Viewport *>( le_cmd->info.pViewports ) );
 				} break;
 
 				case le::CommandType::eSetScissor: {
 					auto *le_cmd = static_cast<le::CommandSetScissor *>( dataIt );
+					// NOTE: since data for scissors *is stored inline*, we could also increase the typed pointer
+					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
+					// cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D *>( le_cmd + 1 ));
 					cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D *>( le_cmd->info.pScissors ) );
 				} break;
 

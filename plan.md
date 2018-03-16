@@ -2,6 +2,13 @@
 
 # TODO
 
+ * combine `resource` and `buffer`- a buffer is-a resource, as an image is-a
+   resource. We define a resource as something which has memory backing on the
+   GPU.
+
+ * backendFrameData also has a resource table - and a type ResourceInfo - we
+   should consolidate this with our resource type.
+
  * We're quite gung-ho about `le_buffer` in `le_backend_vk` when we create a
    buffer - ideally, a buffer is reference-tracked. we're currently not
    tracking the lifetime of a buffer, and we're also allowing other frames to
@@ -19,39 +26,9 @@
 
     * draw a triangle:
 
-        + allocate a scratch buffer per frame.
-
-        + map the scratch buffer per frame.
-
-        + use scratch buffer memory when you write vertex data
-
-        + uses of the scratch buffer means that the scratch buffer is bound at
-          the binding address specified. 
-
         + later introduce allocator which will give you access to scratch data.
     
-        + we must somehow keep track of the state of bound attributes, and
-          store these with draw commands?! 
-      
-          That, or we bind vertex buffers explicitly. It appears that APIs like
-          Metal keep track of the binding state for you and will automatically
-          bind when you issue `setVertexData(...,bindingIndex)`. 
-          
-          We could automatically add a bind command in here, but then, binding
-          is not done piece-meal, it's better to bind the full set. But we can
-          do it.
-
-        + If we wanted to have a stateless solution it would be better to bind
-          buffers in bulk: we can achieve this by adding a method which allows
-          us to bind buffers in bulk. A stateless solution needs to happen on
-          the next-higher abstraction layer, i think, as commandbuffers
-          themselves are by definition stateful, and our encoder is a wrapper
-          around the command buffer. 
-
 ## (B)
-
-    * find out: what happens to method-static variables upon api reload - do
-      these get re-initialized?
 
     * think: can we use macros to generate encoder methods?
 
