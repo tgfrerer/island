@@ -21,6 +21,7 @@ namespace vk {
 namespace le {
     struct Viewport;
 	struct Rect2D;
+	struct ResourceInfo;
 }
 
 struct le_renderer_o;
@@ -30,6 +31,7 @@ struct le_graph_builder_o;
 struct le_command_buffer_encoder_o;
 struct le_backend_o;
 struct le_allocator_linear_o;
+struct le_resource_o;
 
 struct le_renderer_api {
 
@@ -41,6 +43,9 @@ struct le_renderer_api {
 		void           ( *destroy ) (le_renderer_o* obj);
 		void           ( *setup   ) (le_renderer_o* obj);
 		void           ( *update  ) (le_renderer_o* obj, le_render_module_o* module);
+
+		le_resource_o* ( *create_resource)(le_renderer_o* self, const le::ResourceInfo& info);
+		void           ( *destroy_resource)(le_renderer_o* self, le_resource_o* resource_);
 	};
 
 	enum AccessFlagBits : uint8_t {
@@ -58,9 +63,9 @@ struct le_renderer_api {
 		vk::AttachmentStoreOp storeOp;
 
 		struct SyncState {
-			    uint64_t idxInitial : 16;                 // info for renderpass load/clear op
-				uint64_t idxFinal : 16;                   // info for last_subpass_to_external_dependency
-				uint64_t reserved : 32;
+			    uint64_t idxInitial : 16; // info for renderpass load/clear op
+				uint64_t idxFinal   : 16; // info for last_subpass_to_external_dependency
+				uint64_t reserved   : 32;
 		} syncState = {0,0,0};
 
 		void ( *onClear )( void *clear_data ) = nullptr;
@@ -112,11 +117,17 @@ struct le_renderer_api {
 		void                          ( *set_vertex_data     ) ( le_command_buffer_encoder_o* self, void* data, uint64_t numBytes, uint32_t bindingIndex );
 	};
 
+	struct le_resource_interface_t {
+		le_resource_o*                ( *create  ) ( const le::ResourceInfo& info_ );
+		void                          ( *destroy ) ( le_resource_o* self );
+	};
+
 	renderpass_interface_t             le_renderpass_i;
 	rendermodule_interface_t           le_render_module_i;
 	graph_builder_interface_t          le_graph_builder_i;
 	renderer_interface_t               le_renderer_i;
 	command_buffer_encoder_interface_t le_command_buffer_encoder_i;
+	le_resource_interface_t            le_resource_i;
 };
 
 #ifdef __cplusplus
@@ -148,6 +159,14 @@ class Renderer {
 
 	void update( le_render_module_o *module ) {
 		rendererI.update( self, module );
+	}
+
+	le_resource_o* createResource(const le::ResourceInfo& info_){
+		return rendererI.create_resource(self,info_);
+	}
+
+	void destroyResource(le_resource_o* resource_){
+		rendererI.destroy_resource(self, resource_);
 	}
 };
 

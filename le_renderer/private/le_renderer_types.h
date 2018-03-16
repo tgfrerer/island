@@ -13,6 +13,25 @@ LE_DEFINE_HANDLE(le_buffer);
 
 namespace le {
 
+enum ResourceType : uint32_t {
+  eBuffer,
+  eImage,
+};
+
+enum ResourceMemoryTypeFlag : uint32_t {
+	eDeviceLocal = 0x1,
+	eHostVisible = 0x1 << 1,
+};
+
+struct ResourceInfo {
+
+	ResourceType type;
+	char                 name[ 32 ];
+	uint64_t            size;
+	uint32_t            memoryTypeFlags;
+};
+
+
 enum class CommandType : uint32_t {
 	eDrawIndexed,
 	eDraw,

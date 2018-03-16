@@ -3,6 +3,7 @@
 #include "le_renderer/private/le_rendergraph.h"
 #include "le_renderer/private/le_renderpass.h"
 #include "le_renderer/private/le_command_buffer_encoder.h"
+#include "le_renderer/private/le_renderer_resource.h"
 
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_swapchain_vk/le_swapchain_vk.h"
@@ -79,6 +80,37 @@ struct le_renderer_o {
 static le_renderer_o *renderer_create( le_backend_o *backend ) {
 	auto obj = new le_renderer_o( backend );
 	return obj;
+}
+
+// ----------------------------------------------------------------------
+
+static le_resource_o* renderer_create_resource(le_renderer_o* self, const le::ResourceInfo& info_){
+
+	static auto  renderer_api_i = Registry::getApi<le_renderer_api>();
+	static auto &resource_api_i = renderer_api_i->le_resource_i;
+
+	// TODO: create and register resource with backend
+
+	return resource_api_i.create(info_);
+}
+
+// ----------------------------------------------------------------------
+
+static void renderer_destroy_resource(le_renderer_o* self, le_resource_o* resource_){
+
+	static auto  renderer_api_i = Registry::getApi<le_renderer_api>();
+	static auto &resource_api_i = renderer_api_i->le_resource_i;
+
+	// TODO: inform backend that resource is not used by renderer anymore
+	// it's possible that we may not immediately be able to destroy the resource,
+	// as it may still be in-flight on some frames. If this is the case, we must
+	// add the resource into a reclaim-buffer, which is a buffer that should check
+	// whether a resource may be reclaimed.
+	//
+	// What's for sure is that there will be no more references to the resource from
+	// outside the renderer, as that is the contract of destroying a handle.
+
+	resource_api_i.destroy(resource_);
 }
 
 // ----------------------------------------------------------------------
@@ -204,7 +236,7 @@ static void renderer_record_frame(le_renderer_o* self, size_t frameIndex, le_ren
 	frame.graphBuilder->executeGraph(frameIndex, self->backend);
 
 	frame.meta.time_record_frame_end   = std::chrono::high_resolution_clock::now();
-	std::cout << "renderer_record_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_record_frame_end-frame.meta.time_record_frame_start).count() << "ms" << std::endl;
+	//std::cout << "renderer_record_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_record_frame_end-frame.meta.time_record_frame_start).count() << "ms" << std::endl;
 
 	frame.state = FrameData::State::eRecorded;
 }
@@ -227,7 +259,7 @@ static const FrameData::State& renderer_process_frame( le_renderer_o *self, size
 	self->backend.processFrame(frameIndex, *frame.graphBuilder);
 
 	frame.meta.time_process_frame_end = std::chrono::high_resolution_clock::now();
-	std::cout << "renderer_process_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_process_frame_end-frame.meta.time_process_frame_start).count() << "ms" << std::endl;
+	//std::cout << "renderer_process_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_process_frame_end-frame.meta.time_process_frame_start).count() << "ms" << std::endl;
 
 	frame.state = FrameData::State::eProcessed;
 	return frame.state;
@@ -342,10 +374,12 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	auto  le_renderer_api_i = static_cast<le_renderer_api *>( api_ );
 	auto &le_renderer_i     = le_renderer_api_i->le_renderer_i;
 
-	le_renderer_i.create  = renderer_create;
-	le_renderer_i.destroy = renderer_destroy;
-	le_renderer_i.setup   = renderer_setup;
-	le_renderer_i.update  = renderer_update;
+	le_renderer_i.create           = renderer_create;
+	le_renderer_i.destroy          = renderer_destroy;
+	le_renderer_i.setup            = renderer_setup;
+	le_renderer_i.update           = renderer_update;
+	le_renderer_i.create_resource  = renderer_create_resource;
+	le_renderer_i.destroy_resource = renderer_destroy_resource;
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
 
@@ -353,4 +387,5 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	register_le_rendergraph_api(api_);
 	register_le_renderpass_api(api_);
 	register_le_command_buffer_encoder_api(api_);
+	register_le_renderer_resource_api(api_);
 }

@@ -14,6 +14,8 @@ struct test_app_o {
 	std::unique_ptr<le::Backend> backend;
 	std::unique_ptr<pal::Window> window;
 	std::unique_ptr<le::Renderer> renderer;
+
+	le_resource_o* debugBuffer = nullptr; //
 };
 
 // ----------------------------------------------------------------------
@@ -55,6 +57,15 @@ static test_app_o *test_app_create() {
 
 	obj->renderer = std::make_unique<le::Renderer>(*obj->backend);
 	obj->renderer->setup();
+
+	le::ResourceInfo resourceInfo;
+
+	resourceInfo.type = le::ResourceType::eBuffer;
+	resourceInfo.size = 4096;
+	resourceInfo.memoryTypeFlags = le::ResourceMemoryTypeFlag::eDeviceLocal | le::ResourceMemoryTypeFlag::eHostVisible;
+
+	obj->debugBuffer = obj->renderer->createResource(resourceInfo);
+
 
 	return obj;
 }
