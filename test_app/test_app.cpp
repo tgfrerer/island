@@ -47,25 +47,24 @@ static test_app_o *test_app_create() {
 	le_backend_vk_settings_t backendCreateInfo;
 	backendCreateInfo.requestedExtensions =  pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
 
-	obj->backend = std::make_unique<le::Backend>(&backendCreateInfo);
+	obj->backend = std::make_unique<le::Backend>( &backendCreateInfo );
 
 	// we need a valid instance at this point.
-	obj->backend->createWindowSurface(*obj->window);
-	obj->backend->createSwapchain(nullptr); // todo - make it possible to set swapchain parameters
+	obj->backend->createWindowSurface( *obj->window );
+	obj->backend->createSwapchain( nullptr ); // todo - make it possible to set swapchain parameters
 
 	obj->backend->setup();
 
-	obj->renderer = std::make_unique<le::Renderer>(*obj->backend);
+	obj->renderer = std::make_unique<le::Renderer>( *obj->backend );
 	obj->renderer->setup();
 
 	le::ResourceInfo resourceInfo;
 
-	resourceInfo.type = le::ResourceType::eBuffer;
-	resourceInfo.size = 4096;
+	resourceInfo.type            = le::ResourceType::eBuffer;
+	resourceInfo.size            = 4096;
 	resourceInfo.memoryTypeFlags = le::ResourceMemoryTypeFlag::eDeviceLocal | le::ResourceMemoryTypeFlag::eHostVisible;
 
-	obj->debugBuffer = obj->renderer->createResource(resourceInfo);
-
+	obj->debugBuffer = obj->renderer->createResource( resourceInfo );
 
 	return obj;
 }
