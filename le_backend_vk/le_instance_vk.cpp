@@ -127,16 +127,17 @@ le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const c
 		instanceLayerNames.push_back( "VK_LAYER_LUNARG_object_tracker" );
 	}
 
-	vk::DebugReportCallbackCreateInfoEXT debugCallbackCreateInfo;
-	debugCallbackCreateInfo
-	    .setPNext( nullptr )
-	    .setFlags( ~vk::DebugReportFlagBitsEXT() )
-	    .setPfnCallback( debugCallback )
-	    .setPUserData( nullptr );
+// seems that the latest driver won't let us do this.
+//	vk::DebugReportCallbackCreateInfoEXT debugCallbackCreateInfo;
+//	debugCallbackCreateInfo
+//	    .setPNext( nullptr )
+//	    .setFlags( ~vk::DebugReportFlagBitsEXT() )
+//	    .setPfnCallback( debugCallback )
+//	    .setPUserData( nullptr );
 
 	vk::InstanceCreateInfo info;
 	info.setFlags( {} )
-	    .setPNext( &debugCallbackCreateInfo )
+//	    .setPNext( &debugCallbackCreateInfo )
 	    .setPApplicationInfo( &appInfo )
 	    .setEnabledLayerCount( uint32_t( instanceLayerNames.size() ) )
 	    .setPpEnabledLayerNames( instanceLayerNames.data() )
