@@ -141,13 +141,13 @@ static bool test_app_update(test_app_o* self){
 //			}
 //			encoder.setLineWidth(5.3f);
 			le::Viewport viewports[ 2 ] = {
-			    {{0.f, 0.f, 100.f, 100.f, 0.f, 1.f}},
-			    {{120.f, 0.f, 200.f, 200.f, 0.f, 1.f}},
+			    {{50.f, 50.f, 100.f, 100.f, 0.f, 1.f}},
+			    {{200.f, 50.f, 200.f, 200.f, 0.f, 1.f}},
 			};
 
 			le::Rect2D scissors[ 2 ] = {
-			    {{0, 0, 100, 100}},
-			    {{120, 0, 200, 200}},
+			    {{50, 50, 100, 100}},
+			    {{200, 50, 200, 200}},
 			};
 
 			struct vec4{
