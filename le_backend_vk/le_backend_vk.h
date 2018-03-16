@@ -19,6 +19,7 @@ struct le_backend_vk_device_o;   // defined in le_device_vk.cpp
 
 struct le_buffer_o;
 struct le_allocator_linear_o;
+struct le_resource_o;
 
 struct le_graph_builder_o; // from renderer
 struct le_swapchain_vk_settings_o;
@@ -38,6 +39,10 @@ struct VkMemoryAllocateInfo;
 
 namespace vk {
     enum class Format;
+}
+
+namespace le {
+    struct ResourceInfo;
 }
 
 struct le_backend_vk_settings_t {
@@ -103,10 +108,16 @@ struct le_backend_vk_api {
 		le_buffer_o*            ( *get_le_buffer_handle ) ( le_allocator_linear_o* self);
 	};
 
+	struct le_resource_interface_t {
+		le_resource_o*                ( *create  ) ( const le::ResourceInfo& info_ );
+		void                          ( *destroy ) ( le_resource_o* self );
+	};
+
 	allocator_linear_interface_t le_allocator_linear_i;
 	instance_interface_t         vk_instance_i;
 	device_interface_t           vk_device_i;
 	backend_vk_interface_t       vk_backend_i;
+	le_resource_interface_t      le_resource_i;
 
 	mutable le_backend_vk_instance_o *cUniqueInstance = nullptr;
 };

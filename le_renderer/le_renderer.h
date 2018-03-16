@@ -117,17 +117,11 @@ struct le_renderer_api {
 		void                          ( *set_vertex_data     ) ( le_command_buffer_encoder_o* self, void* data, uint64_t numBytes, uint32_t bindingIndex );
 	};
 
-	struct le_resource_interface_t {
-		le_resource_o*                ( *create  ) ( const le::ResourceInfo& info_ );
-		void                          ( *destroy ) ( le_resource_o* self );
-	};
-
 	renderpass_interface_t             le_renderpass_i;
 	rendermodule_interface_t           le_render_module_i;
 	graph_builder_interface_t          le_graph_builder_i;
 	renderer_interface_t               le_renderer_i;
 	command_buffer_encoder_interface_t le_command_buffer_encoder_i;
-	le_resource_interface_t            le_resource_i;
 };
 
 #ifdef __cplusplus

@@ -4,6 +4,7 @@
 #include "le_backend_vk/private/le_device_vk.h"
 #include "le_backend_vk/private/le_instance_vk.h"
 #include "le_backend_vk/private/le_allocator_linear.h"
+#include "le_backend_vk/private/le_resource.h"
 
 #include "le_swapchain_vk/le_swapchain_vk.h"
 
@@ -1274,6 +1275,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	register_le_device_vk_api( api_ );
 	register_le_instance_vk_api( api_ );
 	register_le_allocator_linear_api(api_);
+	register_le_resource_api(api_);
 
 	auto &le_instance_vk_i = le_backend_vk_api_i->vk_instance_i;
 

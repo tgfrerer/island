@@ -3,7 +3,6 @@
 #include "le_renderer/private/le_rendergraph.h"
 #include "le_renderer/private/le_renderpass.h"
 #include "le_renderer/private/le_command_buffer_encoder.h"
-#include "le_renderer/private/le_renderer_resource.h"
 
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_swapchain_vk/le_swapchain_vk.h"
@@ -86,10 +85,8 @@ static le_renderer_o *renderer_create( le_backend_o *backend ) {
 
 static le_resource_o* renderer_create_resource(le_renderer_o* self, const le::ResourceInfo& info_){
 
-	static auto  renderer_api_i = Registry::getApi<le_renderer_api>();
+	static auto  renderer_api_i = Registry::getApi<le_backend_vk_api>();
 	static auto &resource_api_i = renderer_api_i->le_resource_i;
-
-	// TODO: create and register resource with backend
 
 	return resource_api_i.create(info_);
 }
@@ -98,17 +95,8 @@ static le_resource_o* renderer_create_resource(le_renderer_o* self, const le::Re
 
 static void renderer_destroy_resource(le_renderer_o* self, le_resource_o* resource_){
 
-	static auto  renderer_api_i = Registry::getApi<le_renderer_api>();
+	static auto  renderer_api_i = Registry::getApi<le_backend_vk_api>();
 	static auto &resource_api_i = renderer_api_i->le_resource_i;
-
-	// TODO: inform backend that resource is not used by renderer anymore
-	// it's possible that we may not immediately be able to destroy the resource,
-	// as it may still be in-flight on some frames. If this is the case, we must
-	// add the resource into a reclaim-buffer, which is a buffer that should check
-	// whether a resource may be reclaimed.
-	//
-	// What's for sure is that there will be no more references to the resource from
-	// outside the renderer, as that is the contract of destroying a handle.
 
 	resource_api_i.destroy(resource_);
 }
@@ -367,7 +355,6 @@ static void renderer_destroy( le_renderer_o *self ) {
 	delete self;
 }
 
-
 // ----------------------------------------------------------------------
 
 ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
@@ -387,5 +374,4 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	register_le_rendergraph_api(api_);
 	register_le_renderpass_api(api_);
 	register_le_command_buffer_encoder_api(api_);
-	register_le_renderer_resource_api(api_);
 }
