@@ -85,8 +85,8 @@ static le_renderer_o *renderer_create( le_backend_o *backend ) {
 
 static le_resource_o* renderer_create_resource(le_renderer_o* self, const le::ResourceInfo& info_){
 
-	static auto  renderer_api_i = Registry::getApi<le_backend_vk_api>();
-	static auto &resource_api_i = renderer_api_i->le_resource_i;
+	static auto  backend_api_i  = Registry::getApi<le_backend_vk_api>();
+	static auto &resource_api_i = backend_api_i->le_resource_i;
 
 	return resource_api_i.create(info_);
 }
@@ -95,8 +95,8 @@ static le_resource_o* renderer_create_resource(le_renderer_o* self, const le::Re
 
 static void renderer_destroy_resource(le_renderer_o* self, le_resource_o* resource_){
 
-	static auto  renderer_api_i = Registry::getApi<le_backend_vk_api>();
-	static auto &resource_api_i = renderer_api_i->le_resource_i;
+	static auto  backend_api_i  = Registry::getApi<le_backend_vk_api>();
+	static auto &resource_api_i = backend_api_i->le_resource_i;
 
 	resource_api_i.destroy(resource_);
 }
