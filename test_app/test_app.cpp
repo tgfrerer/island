@@ -11,11 +11,11 @@
 #include <memory>
 
 struct test_app_o {
-	std::unique_ptr<le::Backend> backend;
-	std::unique_ptr<pal::Window> window;
+	std::unique_ptr<le::Backend>  backend;
+	std::unique_ptr<pal::Window>  window;
 	std::unique_ptr<le::Renderer> renderer;
 
-	le_resource_o* debugBuffer = nullptr; //
+	le_resource_o *debugBuffer = nullptr; //
 };
 
 // ----------------------------------------------------------------------
@@ -37,15 +37,14 @@ static test_app_o *test_app_create() {
 
 	pal::Window::Settings settings;
 	settings
-	    .setWidth ( 640 )
+	    .setWidth( 640 )
 	    .setHeight( 480 )
-	    .setTitle ( "Hello world" )
-	    ;
+	    .setTitle( "Hello world" );
 
-	obj->window = std::make_unique<pal::Window>(settings);
+	obj->window = std::make_unique<pal::Window>( settings );
 
 	le_backend_vk_settings_t backendCreateInfo;
-	backendCreateInfo.requestedExtensions =  pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
+	backendCreateInfo.requestedExtensions = pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
 
 	obj->backend = std::make_unique<le::Backend>( &backendCreateInfo );
 
@@ -58,7 +57,7 @@ static test_app_o *test_app_create() {
 	obj->renderer = std::make_unique<le::Renderer>( *obj->backend );
 	obj->renderer->setup();
 
-	le::ResourceAllocateInfo resourceInfo;
+	le::ResourceCreateInfo resourceInfo;
 
 	resourceInfo.type            = le::ResourceType::eBuffer;
 	resourceInfo.size            = 4096;
@@ -71,50 +70,50 @@ static test_app_o *test_app_create() {
 
 // ----------------------------------------------------------------------
 
-static bool test_app_update(test_app_o* self){
+static bool test_app_update( test_app_o *self ) {
 
 	pal::Window::pollEvents();
 
-	if (self->window->shouldClose()){
+	if ( self->window->shouldClose() ) {
 		return false;
 	}
 
 	le::RenderModule renderModule{};
 	{
 
-{
-//		le::RenderPass renderPassEarlyZ( "earlyZ" );
-//		renderPassEarlyZ.setSetupCallback( []( auto pRp) {
-//			auto rp     = le::RenderPassRef{pRp};
+		{
+			//		le::RenderPass renderPassEarlyZ( "earlyZ" );
+			//		renderPassEarlyZ.setSetupCallback( []( auto pRp) {
+			//			auto rp     = le::RenderPassRef{pRp};
 
-//			le::ImageAttachmentInfo depthAttachmentInfo;
-//			depthAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
-//			depthAttachmentInfo.format       = vk::Format::eD32SfloatS8Uint; // TODO: signal correct depth stencil format
+			//			le::ImageAttachmentInfo depthAttachmentInfo;
+			//			depthAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
+			//			depthAttachmentInfo.format       = vk::Format::eD32SfloatS8Uint; // TODO: signal correct depth stencil format
 
-//			rp.addImageAttachment( "depth", &depthAttachmentInfo );
-//			return true;
-//		} );
+			//			rp.addImageAttachment( "depth", &depthAttachmentInfo );
+			//			return true;
+			//		} );
 
-//		le::RenderPass renderPassForward( "forward" );
-//		renderPassForward.setSetupCallback( []( auto pRp) {
-//			auto rp     = le::RenderPassRef{pRp};
+			//		le::RenderPass renderPassForward( "forward" );
+			//		renderPassForward.setSetupCallback( []( auto pRp) {
+			//			auto rp     = le::RenderPassRef{pRp};
 
-//			le::ImageAttachmentInfo colorAttachmentInfo;
-//			colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
-//			colorAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
+			//			le::ImageAttachmentInfo colorAttachmentInfo;
+			//			colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
+			//			colorAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
 
-//			// le::ImageAttachmentInfo depthAttachmentInfo;
-//			// depthAttachmentInfo.format = device.getDefaultDepthStencilFormat();
-//			// rp.addInputAttachment( "depth", &depthAttachmentInfo );
+			//			// le::ImageAttachmentInfo depthAttachmentInfo;
+			//			// depthAttachmentInfo.format = device.getDefaultDepthStencilFormat();
+			//			// rp.addInputAttachment( "depth", &depthAttachmentInfo );
 
-//			rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
-//			return true;
-//		} );
-}
+			//			rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
+			//			return true;
+			//		} );
+		}
 		le::RenderPass renderPassFinal( "root" );
 
-		renderPassFinal.setSetupCallback( []( auto pRp) {
-			auto rp     = le::RenderPassRef{pRp};
+		renderPassFinal.setSetupCallback( []( auto pRp ) {
+			auto rp = le::RenderPassRef{pRp};
 
 			le::ImageAttachmentInfo colorAttachmentInfo;
 			colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
@@ -124,22 +123,21 @@ static bool test_app_update(test_app_o* self){
 			depthAttachmentInfo.format       = vk::Format::eD32SfloatS8Uint; // TODO: signal correct depth stencil format
 			depthAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
 
-
 			rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
 			//rp.addImageAttachment( "depth", &depthAttachmentInfo );
 			return true;
 		} );
 
-		renderPassFinal.setRenderCallback([](auto encoder_, auto user_data_){
+		renderPassFinal.setRenderCallback( []( auto encoder_, auto user_data_ ) {
 			//std::cout << "** rendercallback called" << std::endl;
-			auto self = static_cast<test_app_o*>(user_data_);
+			auto                     self = static_cast<test_app_o *>( user_data_ );
 			le::CommandBufferEncoder encoder{encoder_};
-//			// encoder.setPipeline(pipelineId);
-//			// encoder.setDescriptor(setIndex,bindingNumber,arrayIndex,descriptorValue);
-//			for (int i = 0; i !=100; ++i ){
-//				encoder.setLineWidth(1.2f);
-//			}
-//			encoder.setLineWidth(5.3f);
+			//			// encoder.setPipeline(pipelineId);
+			//			// encoder.setDescriptor(setIndex,bindingNumber,arrayIndex,descriptorValue);
+			//			for (int i = 0; i !=100; ++i ){
+			//				encoder.setLineWidth(1.2f);
+			//			}
+			//			encoder.setLineWidth(5.3f);
 			le::Viewport viewports[ 2 ] = {
 			    {{50.f, 50.f, 100.f, 100.f, 0.f, 1.f}},
 			    {{200.f, 50.f, 200.f, 200.f, 0.f, 1.f}},
@@ -150,16 +148,16 @@ static bool test_app_update(test_app_o* self){
 			    {{200, 50, 200, 200}},
 			};
 
-			struct vec4{
-				float x=0;
-				float y=0;
-				float z=0;
-				float w=0;
+			struct vec4 {
+				float x = 0;
+				float y = 0;
+				float z = 0;
+				float w = 0;
 			};
 
-			vec4 vertData[3]= {{0,0,0,0},{2,0,0,0},{0,2,0,0}};
+			vec4 vertData[ 3 ] = {{0, 0, 0, 0}, {2, 0, 0, 0}, {0, 2, 0, 0}};
 
-			static_assert(sizeof(vertData)==sizeof(float)*4*3,"vertData must be tightly packed");
+			static_assert( sizeof( vertData ) == sizeof( float ) * 4 * 3, "vertData must be tightly packed" );
 
 			// this will use the scratch buffer -- and the encoded command will store the
 			// location of the data as it was laid down in the scratch buffer.
@@ -169,28 +167,27 @@ static bool test_app_update(test_app_o* self){
 
 			// the scratch buffer is uploaded/transferred before the renderpass begins
 			// so that data from it is read-visible,
-			encoder.setVertexData(vertData, sizeof(vertData), 0);
+			encoder.setVertexData( vertData, sizeof( vertData ), 0 );
 
-			encoder.setScissor(0,1,scissors);
+			encoder.setScissor( 0, 1, scissors );
 			encoder.setViewport( 0, 1, viewports );
 
-			encoder.draw(3,1,0,0);
+			encoder.draw( 3, 1, 0, 0 );
 
-			encoder.setScissor(0,1,&scissors[1]);
-			encoder.setViewport( 0, 1, &viewports[1] );
+			encoder.setScissor( 0, 1, &scissors[ 1 ] );
+			encoder.setViewport( 0, 1, &viewports[ 1 ] );
 
-			encoder.draw(3,1,0,0);
+			encoder.draw( 3, 1, 0, 0 );
 
-//			encoder.bindVertexBuffers(0,1,)
-
-		}, self);
+			//			encoder.bindVertexBuffers(0,1,)
+		},
+		                                   self );
 
 		// renderModule.addRenderPass( renderPassEarlyZ );
 		// renderModule.addRenderPass( renderPassForward );
 		renderModule.addRenderPass( renderPassFinal );
-
 	}
-	// update will call all rendercallbacks in this frame.
+	// update will call all rendercallbacks in this module.
 	// the RECORD phase is guaranteed to execute - all rendercallbacks will get called.
 	self->renderer->update( renderModule );
 
@@ -199,8 +196,8 @@ static bool test_app_update(test_app_o* self){
 
 // ----------------------------------------------------------------------
 
-static void test_app_destroy(test_app_o* self){
-	delete(self);
+static void test_app_destroy( test_app_o *self ) {
+	delete ( self );
 }
 
 // ----------------------------------------------------------------------
@@ -212,7 +209,7 @@ void register_test_app_api( void *api_ ) {
 	test_app_i.initialize = initialize;
 	test_app_i.terminate  = terminate;
 
-	test_app_i.create    = test_app_create;
-	test_app_i.destroy   = test_app_destroy;
-	test_app_i.update    = test_app_update;
+	test_app_i.create  = test_app_create;
+	test_app_i.destroy = test_app_destroy;
+	test_app_i.update  = test_app_update;
 }
