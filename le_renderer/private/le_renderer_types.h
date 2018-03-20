@@ -23,7 +23,7 @@ enum ResourceMemoryTypeFlag : uint32_t {
 	eHostVisible = 0x1 << 1,
 };
 
-struct ResourceAllocateInfo {
+struct ResourceCreateInfo {
 
 	ResourceType        type;
 	uint32_t            memoryTypeFlags;

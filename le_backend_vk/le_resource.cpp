@@ -9,10 +9,10 @@
 #include <iomanip>
 
 struct le_resource_o{
-	le::ResourceAllocateInfo info;
+	le::ResourceCreateInfo info;
 };
 
-static le_resource_o* resource_create(const le::ResourceAllocateInfo& info_){
+static le_resource_o* resource_create(const le::ResourceCreateInfo& info_){
 	auto self = new le_resource_o();
 	self->info = info_;
 	return self;

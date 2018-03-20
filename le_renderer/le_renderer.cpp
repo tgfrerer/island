@@ -83,7 +83,7 @@ static le_renderer_o *renderer_create( le_backend_o *backend ) {
 
 // ----------------------------------------------------------------------
 
-static le_resource_o* renderer_create_resource(le_renderer_o* self, const le::ResourceAllocateInfo& info_){
+static le_resource_o* renderer_create_resource(le_renderer_o* self, const le::ResourceCreateInfo& info_){
 
 	static auto  backend_api_i  = Registry::getApi<le_backend_vk_api>();
 	static auto &resource_api_i = backend_api_i->le_resource_i;

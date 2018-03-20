@@ -21,7 +21,7 @@ namespace vk {
 namespace le {
     struct Viewport;
 	struct Rect2D;
-	struct ResourceAllocateInfo;
+	struct ResourceCreateInfo;
 }
 
 struct le_renderer_o;
@@ -44,7 +44,7 @@ struct le_renderer_api {
 		void           ( *setup   ) (le_renderer_o* obj);
 		void           ( *update  ) (le_renderer_o* obj, le_render_module_o* module);
 
-		le_resource_o* ( *create_resource)(le_renderer_o* self, const le::ResourceAllocateInfo& info);
+		le_resource_o* ( *create_resource)(le_renderer_o* self, const le::ResourceCreateInfo& info);
 		void           ( *destroy_resource)(le_renderer_o* self, le_resource_o* resource_);
 	};
 
@@ -155,7 +155,7 @@ class Renderer {
 		rendererI.update( self, module );
 	}
 
-	le_resource_o* createResource(const le::ResourceAllocateInfo& info_){
+	le_resource_o* createResource(const le::ResourceCreateInfo& info_){
 		return rendererI.create_resource(self,info_);
 	}
 
