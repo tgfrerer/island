@@ -108,16 +108,11 @@ struct le_backend_vk_api {
 		le_buffer_o*            ( *get_le_buffer_handle ) ( le_allocator_linear_o* self);
 	};
 
-	struct le_resource_interface_t {
-		le_resource_o*                ( *create  ) ( const le::ResourceCreateInfo& info_ );
-		void                          ( *destroy ) ( le_resource_o* self );
-	};
 
 	allocator_linear_interface_t le_allocator_linear_i;
 	instance_interface_t         vk_instance_i;
 	device_interface_t           vk_device_i;
 	backend_vk_interface_t       vk_backend_i;
-	le_resource_interface_t      le_resource_i;
 
 	mutable le_backend_vk_instance_o *cUniqueInstance = nullptr;
 };

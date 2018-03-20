@@ -1,8 +1,11 @@
 #include "pal_api_loader/ApiRegistry.hpp"
+
 #include "le_renderer/le_renderer.h"
+
 #include "le_renderer/private/le_rendergraph.h"
 #include "le_renderer/private/le_renderpass.h"
 #include "le_renderer/private/le_command_buffer_encoder.h"
+#include "le_renderer/private/le_resource.h"
 
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_swapchain_vk/le_swapchain_vk.h"
@@ -85,8 +88,7 @@ static le_renderer_o *renderer_create( le_backend_o *backend ) {
 
 static le_resource_o* renderer_create_resource(le_renderer_o* self, const le::ResourceCreateInfo& info_){
 
-	static auto  backend_api_i  = Registry::getApi<le_backend_vk_api>();
-	static auto &resource_api_i = backend_api_i->le_resource_i;
+	static auto& resource_api_i  = Registry::getApi<le_renderer_api>()->le_resource_i;
 
 	return resource_api_i.create(info_);
 }
@@ -95,8 +97,7 @@ static le_resource_o* renderer_create_resource(le_renderer_o* self, const le::Re
 
 static void renderer_destroy_resource(le_renderer_o* self, le_resource_o* resource_){
 
-	static auto  backend_api_i  = Registry::getApi<le_backend_vk_api>();
-	static auto &resource_api_i = backend_api_i->le_resource_i;
+	static auto& resource_api_i  = Registry::getApi<le_renderer_api>()->le_resource_i;
 
 	resource_api_i.destroy(resource_);
 }
@@ -374,4 +375,6 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	register_le_rendergraph_api(api_);
 	register_le_renderpass_api(api_);
 	register_le_command_buffer_encoder_api(api_);
+	register_le_resource_api(api_);
+
 }
