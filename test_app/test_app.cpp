@@ -58,7 +58,7 @@ static test_app_o *test_app_create() {
 	obj->renderer = std::make_unique<le::Renderer>( *obj->backend );
 	obj->renderer->setup();
 
-	le::ResourceInfo resourceInfo;
+	le::ResourceAllocateInfo resourceInfo;
 
 	resourceInfo.type            = le::ResourceType::eBuffer;
 	resourceInfo.size            = 4096;
@@ -180,6 +180,8 @@ static bool test_app_update(test_app_o* self){
 			encoder.setViewport( 0, 1, &viewports[1] );
 
 			encoder.draw(3,1,0,0);
+
+//			encoder.bindVertexBuffers(0,1,)
 
 		}, self);
 

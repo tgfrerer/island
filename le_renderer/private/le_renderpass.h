@@ -25,7 +25,6 @@ void register_le_renderpass_api( void *api_ );
 
 */
 
-
 struct le_renderpass_o {
 
 	uint64_t                                              id;

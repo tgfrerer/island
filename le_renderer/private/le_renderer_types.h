@@ -23,10 +23,12 @@ enum ResourceMemoryTypeFlag : uint32_t {
 	eHostVisible = 0x1 << 1,
 };
 
-struct ResourceInfo {
+struct ResourceAllocateInfo {
+
 	ResourceType        type;
 	uint32_t            memoryTypeFlags;
 	uint64_t            size;
+
 	char                name[ 32 ] = "";
 };
 

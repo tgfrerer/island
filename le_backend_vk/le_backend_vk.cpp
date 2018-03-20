@@ -1074,11 +1074,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 	static_assert(sizeof(vk::Viewport) == sizeof(le::Viewport), "Viewport data size must be same in vk and le");
 	static_assert(sizeof(vk::Rect2D) == sizeof(le::Rect2D), "Rect2D data size must be same in vk and le");
 
-	static const le_renderer_api &rendererApiI       = *Registry::getApi<le_renderer_api>();
-	static const auto &           le_graph_builder_i = rendererApiI.le_graph_builder_i;
-
-	static const auto &backendApiI       = *Registry::getApi<le_backend_vk_api>();
-	static const auto &      vk_device_i = backendApiI.vk_device_i;
+	static const auto &le_graph_builder_i = ( *Registry::getApi<le_renderer_api>() ).le_graph_builder_i;
+	static const auto &vk_device_i        = ( *Registry::getApi<le_backend_vk_api>() ).vk_device_i;
 
 	static auto maxVertexInputBindings = vk_device_i.get_vk_physical_device_properties(*self->device).limits.maxVertexInputBindings;
 

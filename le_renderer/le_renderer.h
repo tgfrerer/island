@@ -21,7 +21,7 @@ namespace vk {
 namespace le {
     struct Viewport;
 	struct Rect2D;
-	struct ResourceInfo;
+	struct ResourceAllocateInfo;
 }
 
 struct le_renderer_o;
@@ -44,11 +44,11 @@ struct le_renderer_api {
 		void           ( *setup   ) (le_renderer_o* obj);
 		void           ( *update  ) (le_renderer_o* obj, le_render_module_o* module);
 
-		le_resource_o* ( *create_resource)(le_renderer_o* self, const le::ResourceInfo& info);
+		le_resource_o* ( *create_resource)(le_renderer_o* self, const le::ResourceAllocateInfo& info);
 		void           ( *destroy_resource)(le_renderer_o* self, le_resource_o* resource_);
 	};
 
-	enum AccessFlagBits : uint8_t {
+	enum AccessFlagBits : uint32_t {
 		eRead      = 0x01,
 		eWrite     = 0x02,
 		eReadWrite = eRead | eWrite,
@@ -65,8 +65,8 @@ struct le_renderer_api {
 		struct SyncState {
 			    uint64_t idxInitial : 16; // info for renderpass load/clear op
 				uint64_t idxFinal   : 16; // info for last_subpass_to_external_dependency
-				uint64_t reserved   : 32;
-		} syncState = {0,0,0};
+				uint64_t : 32;            // reserved
+		} syncState = {0, 0};
 
 		void ( *onClear )( void *clear_data ) = nullptr;
 		char debugName[ 32 ];
@@ -155,7 +155,7 @@ class Renderer {
 		rendererI.update( self, module );
 	}
 
-	le_resource_o* createResource(const le::ResourceInfo& info_){
+	le_resource_o* createResource(const le::ResourceAllocateInfo& info_){
 		return rendererI.create_resource(self,info_);
 	}
 

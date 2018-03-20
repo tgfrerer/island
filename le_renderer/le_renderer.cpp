@@ -83,7 +83,7 @@ static le_renderer_o *renderer_create( le_backend_o *backend ) {
 
 // ----------------------------------------------------------------------
 
-static le_resource_o* renderer_create_resource(le_renderer_o* self, const le::ResourceInfo& info_){
+static le_resource_o* renderer_create_resource(le_renderer_o* self, const le::ResourceAllocateInfo& info_){
 
 	static auto  backend_api_i  = Registry::getApi<le_backend_vk_api>();
 	static auto &resource_api_i = backend_api_i->le_resource_i;
@@ -156,42 +156,6 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
-static const FrameData::State& renderer_acquire_swapchain_image(le_renderer_o* self, size_t frameIndex){
-
-	// ---------| invariant: There are frames to process.
-
-	auto &frame = self->frames[ frameIndex ];
-
-	frame.meta.time_acquire_frame_start = std::chrono::high_resolution_clock::now();
-
-	if ( frame.state != FrameData::State::eRecorded ) {
-		return frame.state;
-	}
-
-	// ----------| invariant: frame is either initial, or cleared.
-
-	// TODO: update descriptor pool for this frame
-
-	auto acquireSuccess = self->backend.acquireSwapchainImage(frameIndex);
-
-	frame.meta.time_acquire_frame_end = std::chrono::high_resolution_clock::now();
-
-	if ( acquireSuccess ) {
-		frame.state = FrameData::State::eAcquired;
-
-	} else {
-		frame.state = FrameData::State::eFailedAcquire;
-		// Failure most likely means that the swapchain was reset,
-		// perhaps because of window resize.
-		std::cout << "WARNING: Could not acquire frame." << std::endl;
-		self->swapchainDirty = true;
-	}
-
-	return frame.state;
-}
-
-// ----------------------------------------------------------------------
-
 static void renderer_record_frame(le_renderer_o* self, size_t frameIndex, le_render_module_o * module_){
 
 	auto &frame = self->frames[ frameIndex ];
@@ -227,6 +191,42 @@ static void renderer_record_frame(le_renderer_o* self, size_t frameIndex, le_ren
 	//std::cout << "renderer_record_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_record_frame_end-frame.meta.time_record_frame_start).count() << "ms" << std::endl;
 
 	frame.state = FrameData::State::eRecorded;
+}
+
+// ----------------------------------------------------------------------
+
+static const FrameData::State& renderer_acquire_swapchain_image(le_renderer_o* self, size_t frameIndex){
+
+	// ---------| invariant: There are frames to process.
+
+	auto &frame = self->frames[ frameIndex ];
+
+	frame.meta.time_acquire_frame_start = std::chrono::high_resolution_clock::now();
+
+	if ( frame.state != FrameData::State::eRecorded ) {
+		return frame.state;
+	}
+
+	// ----------| invariant: frame is either initial, or cleared.
+
+	// TODO: update descriptor pool for this frame
+
+	auto acquireSuccess = self->backend.acquireSwapchainImage(frameIndex);
+
+	frame.meta.time_acquire_frame_end = std::chrono::high_resolution_clock::now();
+
+	if ( acquireSuccess ) {
+		frame.state = FrameData::State::eAcquired;
+
+	} else {
+		frame.state = FrameData::State::eFailedAcquire;
+		// Failure most likely means that the swapchain was reset,
+		// perhaps because of window resize.
+		std::cout << "WARNING: Could not acquire frame." << std::endl;
+		self->swapchainDirty = true;
+	}
+
+	return frame.state;
 }
 
 // ----------------------------------------------------------------------

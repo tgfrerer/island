@@ -42,7 +42,7 @@ namespace vk {
 }
 
 namespace le {
-    struct ResourceInfo;
+    struct ResourceAllocateInfo;
 }
 
 struct le_backend_vk_settings_t {
@@ -109,7 +109,7 @@ struct le_backend_vk_api {
 	};
 
 	struct le_resource_interface_t {
-		le_resource_o*                ( *create  ) ( const le::ResourceInfo& info_ );
+		le_resource_o*                ( *create  ) ( const le::ResourceAllocateInfo& info_ );
 		void                          ( *destroy ) ( le_resource_o* self );
 	};
 
