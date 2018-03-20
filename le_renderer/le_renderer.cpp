@@ -5,7 +5,6 @@
 #include "le_renderer/private/le_rendergraph.h"
 #include "le_renderer/private/le_renderpass.h"
 #include "le_renderer/private/le_command_buffer_encoder.h"
-#include "le_renderer/private/le_resource.h"
 
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_swapchain_vk/le_swapchain_vk.h"
@@ -20,9 +19,16 @@
 #include <queue>
 #include <mutex>
 #include <future>
+#include <unordered_set>
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
+
+struct le_renderer_resource_o {
+	    le::ResourceType sType;
+		uint32_t transient;
+		uint64_t size;
+};
 
 // ----------------------------------------------------------------------
 
@@ -72,6 +78,8 @@ struct le_renderer_o {
 	size_t                 numSwapchainImages = 0;
 	size_t                 currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
 
+	std::unordered_set<le_renderer_resource_o*> resources; // all persistent resources we retain across frames
+
 	le_renderer_o( le_backend_o* backend )
 	    : backend( backend ){
 	}
@@ -86,20 +94,30 @@ static le_renderer_o *renderer_create( le_backend_o *backend ) {
 
 // ----------------------------------------------------------------------
 
-static le_resource_o* renderer_create_resource(le_renderer_o* self, const le::ResourceCreateInfo& info_){
+static le_renderer_resource_o* renderer_create_resource(le_renderer_o* self, const le::ResourceType& s_type_, uint64_t size, bool transient=false){
 
-	static auto& resource_api_i  = Registry::getApi<le_renderer_api>()->le_resource_i;
+	auto resource = new le_renderer_resource_o();
 
-	return resource_api_i.create(info_);
+	resource->sType     = s_type_;
+	resource->size      = size;
+	resource->transient = transient;
+
+//	self->backend.createResource
+
+	return resource;
 }
 
 // ----------------------------------------------------------------------
 
-static void renderer_destroy_resource(le_renderer_o* self, le_resource_o* resource_){
-
-	static auto& resource_api_i  = Registry::getApi<le_renderer_api>()->le_resource_i;
-
-	resource_api_i.destroy(resource_);
+static void renderer_destroy_resource(le_renderer_o* self, le_renderer_resource_o* resource_){
+	if (resource_){
+		if (!resource_->transient){
+			self->resources.erase(resource_);
+			// TODO: release resource on the backend
+			// self->backend.release_resource(resource_,self->currentFrameNumber);
+		}
+		delete(resource_);
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -375,6 +393,5 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	register_le_rendergraph_api(api_);
 	register_le_renderpass_api(api_);
 	register_le_command_buffer_encoder_api(api_);
-	register_le_resource_api(api_);
 
 }

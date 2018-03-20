@@ -4,7 +4,6 @@ set (SOURCES "le_renderer.cpp")
 set (SOURCES ${SOURCES} "le_rendergraph.cpp")
 set (SOURCES ${SOURCES} "le_renderpass.cpp")
 set (SOURCES ${SOURCES} "le_command_buffer_encoder.cpp")
-set (SOURCES ${SOURCES} "le_resource.cpp")
 
 if (${PLUGINS_DYNAMIC})
 

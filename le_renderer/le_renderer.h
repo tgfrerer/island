@@ -21,7 +21,13 @@ namespace vk {
 namespace le {
     struct Viewport;
 	struct Rect2D;
-	struct ResourceCreateInfo;
+
+	enum ResourceType : uint32_t {
+	  eBuffer,
+	  eImage,
+	};
+
+
 }
 
 struct le_renderer_o;
@@ -31,7 +37,7 @@ struct le_graph_builder_o;
 struct le_command_buffer_encoder_o;
 struct le_backend_o;
 struct le_allocator_linear_o;
-struct le_resource_o;
+struct le_renderer_resource_o;
 
 struct le_renderer_api {
 
@@ -44,8 +50,8 @@ struct le_renderer_api {
 		void           ( *setup   ) (le_renderer_o* obj);
 		void           ( *update  ) (le_renderer_o* obj, le_render_module_o* module);
 
-		le_resource_o* ( *create_resource)(le_renderer_o* self, const le::ResourceCreateInfo& info);
-		void           ( *destroy_resource)(le_renderer_o* self, le_resource_o* resource_);
+		le_renderer_resource_o* ( *create_resource)(le_renderer_o* self, const le::ResourceType& type, uint64_t size, bool transient);
+		void           ( *destroy_resource)(le_renderer_o* self, le_renderer_resource_o* resource_);
 	};
 
 	enum AccessFlagBits : uint32_t {
@@ -117,17 +123,11 @@ struct le_renderer_api {
 		void                          ( *set_vertex_data     ) ( le_command_buffer_encoder_o* self, void* data, uint64_t numBytes, uint32_t bindingIndex );
 	};
 
-	struct le_resource_interface_t {
-		le_resource_o*                ( *create  ) ( const le::ResourceCreateInfo& info_ );
-		void                          ( *destroy ) ( le_resource_o* self );
-	};
-
 	renderpass_interface_t             le_renderpass_i;
 	rendermodule_interface_t           le_render_module_i;
 	graph_builder_interface_t          le_graph_builder_i;
 	renderer_interface_t               le_renderer_i;
 	command_buffer_encoder_interface_t le_command_buffer_encoder_i;
-	le_resource_interface_t            le_resource_i;
 };
 
 #ifdef __cplusplus
@@ -161,11 +161,11 @@ class Renderer {
 		rendererI.update( self, module );
 	}
 
-	le_resource_o* createResource(const le::ResourceCreateInfo& info_){
-		return rendererI.create_resource(self,info_);
+	le_renderer_resource_o* createResource(const le::ResourceType& s_type_, uint64_t size, bool transient=false){
+		return rendererI.create_resource(self, s_type_, size, transient);
 	}
 
-	void destroyResource(le_resource_o* resource_){
+	void destroyResource(le_renderer_resource_o* resource_){
 		rendererI.destroy_resource(self, resource_);
 	}
 };

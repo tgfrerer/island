@@ -15,7 +15,7 @@ struct test_app_o {
 	std::unique_ptr<pal::Window>  window;
 	std::unique_ptr<le::Renderer> renderer;
 
-	le_resource_o *debugBuffer = nullptr; //
+	le_renderer_resource_o *debugBuffer = nullptr; //
 };
 
 // ----------------------------------------------------------------------
@@ -57,13 +57,16 @@ static test_app_o *test_app_create() {
 	obj->renderer = std::make_unique<le::Renderer>( *obj->backend );
 	obj->renderer->setup();
 
-	le::ResourceCreateInfo resourceInfo;
 
-	resourceInfo.type            = le::ResourceType::eBuffer;
-	resourceInfo.size            = 4096;
-	resourceInfo.memoryTypeFlags = le::ResourceMemoryTypeFlag::eDeviceLocal | le::ResourceMemoryTypeFlag::eHostVisible;
+	/*
 
-	obj->debugBuffer = obj->renderer->createResource( resourceInfo );
+	  resources can be:
+		transient   - this means they can be written to and used in the same frame, their lifetime is limited to frame lifetime.
+		persistent  - this means they must be staged, first their data must be written to (mapped) scratch, then copied using the queue.
+
+	*/
+
+	obj->debugBuffer = obj->renderer->createResource(le::ResourceType::eBuffer, 4096);
 
 	return obj;
 }
@@ -81,35 +84,14 @@ static bool test_app_update( test_app_o *self ) {
 	le::RenderModule renderModule{};
 	{
 
-		{
-			//		le::RenderPass renderPassEarlyZ( "earlyZ" );
-			//		renderPassEarlyZ.setSetupCallback( []( auto pRp) {
-			//			auto rp     = le::RenderPassRef{pRp};
+//		le::TransferPass transferPass("copy");
+//		transferPass.setResources(resources,num_resources);
+//		tranferPass.setCallback(self, [](auto encoder_, auto user_data){
 
-			//			le::ImageAttachmentInfo depthAttachmentInfo;
-			//			depthAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
-			//			depthAttachmentInfo.format       = vk::Format::eD32SfloatS8Uint; // TODO: signal correct depth stencil format
+//	    });
 
-			//			rp.addImageAttachment( "depth", &depthAttachmentInfo );
-			//			return true;
-			//		} );
 
-			//		le::RenderPass renderPassForward( "forward" );
-			//		renderPassForward.setSetupCallback( []( auto pRp) {
-			//			auto rp     = le::RenderPassRef{pRp};
 
-			//			le::ImageAttachmentInfo colorAttachmentInfo;
-			//			colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
-			//			colorAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
-
-			//			// le::ImageAttachmentInfo depthAttachmentInfo;
-			//			// depthAttachmentInfo.format = device.getDefaultDepthStencilFormat();
-			//			// rp.addInputAttachment( "depth", &depthAttachmentInfo );
-
-			//			rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
-			//			return true;
-			//		} );
-		}
 		le::RenderPass renderPassFinal( "root" );
 
 		renderPassFinal.setSetupCallback( []( auto pRp ) {
@@ -178,15 +160,13 @@ static bool test_app_update( test_app_o *self ) {
 			encoder.setViewport( 0, 1, &viewports[ 1 ] );
 
 			encoder.draw( 3, 1, 0, 0 );
-
-			//			encoder.bindVertexBuffers(0,1,)
 		},
 		                                   self );
 
-		// renderModule.addRenderPass( renderPassEarlyZ );
-		// renderModule.addRenderPass( renderPassForward );
+		//renderModule.addTransferPass(transferPass);
 		renderModule.addRenderPass( renderPassFinal );
 	}
+
 	// update will call all rendercallbacks in this module.
 	// the RECORD phase is guaranteed to execute - all rendercallbacks will get called.
 	self->renderer->update( renderModule );
