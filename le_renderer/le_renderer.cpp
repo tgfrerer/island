@@ -239,7 +239,6 @@ static const FrameData::State& renderer_process_frame( le_renderer_o *self, size
 	return frame.state;
 }
 
-
 // ----------------------------------------------------------------------
 
 static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex) {

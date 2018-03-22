@@ -94,14 +94,13 @@ static bool test_app_update( test_app_o *self ) {
 
 			rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
 
-
 			return true;
 		} );
 
 		renderPassFinal.setRenderCallback( self, []( auto encoder_, auto user_data_ ) {
 			auto                     self = static_cast<test_app_o *>( user_data_ );
 			le::CommandBufferEncoder encoder{encoder_};
-			le::Viewport viewports[ 2 ] = {
+			le::Viewport             viewports[ 2 ] = {
 			    {{50.f, 50.f, 100.f, 100.f, 0.f, 1.f}},
 			    {{200.f, 50.f, 200.f, 200.f, 0.f, 1.f}},
 			};
