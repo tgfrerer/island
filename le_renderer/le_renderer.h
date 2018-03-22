@@ -37,7 +37,6 @@ struct le_graph_builder_o;
 struct le_command_buffer_encoder_o;
 struct le_backend_o;
 struct le_allocator_linear_o;
-struct le_renderer_resource_o;
 
 struct le_renderer_api {
 
@@ -50,8 +49,6 @@ struct le_renderer_api {
 		void           ( *setup   ) (le_renderer_o* obj);
 		void           ( *update  ) (le_renderer_o* obj, le_render_module_o* module);
 
-		le_renderer_resource_o* ( *create_resource)(le_renderer_o* self, const le::ResourceType& type, uint64_t size, bool transient);
-		void           ( *destroy_resource)(le_renderer_o* self, le_renderer_resource_o* resource_);
 	};
 
 	enum AccessFlagBits : uint32_t {
@@ -161,13 +158,6 @@ class Renderer {
 		rendererI.update( self, module );
 	}
 
-	le_renderer_resource_o* createResource(const le::ResourceType& s_type_, uint64_t size, bool transient=false){
-		return rendererI.create_resource(self, s_type_, size, transient);
-	}
-
-	void destroyResource(le_renderer_resource_o* resource_){
-		rendererI.destroy_resource(self, resource_);
-	}
 };
 
 class RenderPass {

@@ -6,7 +6,9 @@
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/le_renderer_types.h"
 
+#define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
+
 #include <iostream>
 #include <memory>
 
@@ -15,7 +17,6 @@ struct test_app_o {
 	std::unique_ptr<pal::Window>  window;
 	std::unique_ptr<le::Renderer> renderer;
 
-	le_renderer_resource_o *debugBuffer = nullptr; //
 };
 
 // ----------------------------------------------------------------------
@@ -66,8 +67,6 @@ static test_app_o *test_app_create() {
 
 	*/
 
-	obj->debugBuffer = obj->renderer->createResource(le::ResourceType::eBuffer, 4096);
-
 	return obj;
 }
 
@@ -94,7 +93,6 @@ static bool test_app_update( test_app_o *self ) {
 			colorAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
 
 			rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
-
 
 
 			return true;

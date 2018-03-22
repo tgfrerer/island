@@ -2,6 +2,13 @@
 
 # TODO
 
+ * we want three different types of passes: render, transfer, compute. Each
+   pass has a list of inputs, and a list of outputs.
+
+   Rendergraph is calculated based on module, which contains a list of
+   pre-sorted passes. 
+
+
  * combine `resource` and `buffer`- a buffer is-a resource, as an image is-a
    resource. We define a resource as something which has memory backing on the
    GPU.
@@ -74,6 +81,17 @@
       command stream and substitutes any engine-specific resource ids by
       api-specific ids. this happens between command recording and command
       processing. 
+
+----------------------------------------------------------------------
+
+# WHO OWNS RESOURCES
+
+    * The BACKEND owns all resources. It knows all about resources. The
+      RENDERER, being the front-end, acts as an interface, it deals only with
+      opaque handles of resources.
+
+    * The BACKEND does everything which is API specific.
+
 
 ----------------------------------------------------------------------
 + find a way to minimize calls to the api registry - once the api has been

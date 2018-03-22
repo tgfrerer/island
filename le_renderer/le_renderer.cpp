@@ -8,6 +8,8 @@
 
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_swapchain_vk/le_swapchain_vk.h"
+
+#define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
 
 #include <iostream>
@@ -22,13 +24,6 @@
 #include <unordered_set>
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
-
-
-struct le_renderer_resource_o {
-	    le::ResourceType sType;
-		uint32_t transient;
-		uint64_t size;
-};
 
 // ----------------------------------------------------------------------
 
@@ -78,8 +73,6 @@ struct le_renderer_o {
 	size_t                 numSwapchainImages = 0;
 	size_t                 currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
 
-	std::unordered_set<le_renderer_resource_o*> resources; // all persistent resources we retain across frames
-
 	le_renderer_o( le_backend_o* backend )
 	    : backend( backend ){
 	}
@@ -90,34 +83,6 @@ struct le_renderer_o {
 static le_renderer_o *renderer_create( le_backend_o *backend ) {
 	auto obj = new le_renderer_o( backend );
 	return obj;
-}
-
-// ----------------------------------------------------------------------
-
-static le_renderer_resource_o* renderer_create_resource(le_renderer_o* self, const le::ResourceType& s_type_, uint64_t size, bool transient=false){
-
-	auto resource = new le_renderer_resource_o();
-
-	resource->sType     = s_type_;
-	resource->size      = size;
-	resource->transient = transient;
-
-//	self->backend.createResource
-
-	return resource;
-}
-
-// ----------------------------------------------------------------------
-
-static void renderer_destroy_resource(le_renderer_o* self, le_renderer_resource_o* resource_){
-	if (resource_){
-		if (!resource_->transient){
-			self->resources.erase(resource_);
-			// TODO: release resource on the backend
-			// self->backend.release_resource(resource_,self->currentFrameNumber);
-		}
-		delete(resource_);
-	}
 }
 
 // ----------------------------------------------------------------------
@@ -387,8 +352,6 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	le_renderer_i.destroy          = renderer_destroy;
 	le_renderer_i.setup            = renderer_setup;
 	le_renderer_i.update           = renderer_update;
-	le_renderer_i.create_resource  = renderer_create_resource;
-	le_renderer_i.destroy_resource = renderer_destroy_resource;
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
 
