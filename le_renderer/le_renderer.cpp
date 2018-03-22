@@ -199,7 +199,9 @@ static void renderer_record_frame(le_renderer_o* self, size_t frameIndex, le_ren
 
 	// - build up dependencies for graph, create table of unique resources for graph
 
-	renderModuleI.build_graph(module_, *frame.graphBuilder);
+	renderModuleI.setup_passes(module_, *frame.graphBuilder);
+
+	frame.graphBuilder->buildGraph();
 
 	// Execute callbacks into main application for each renderpass,
 	// build command lists per renderpass in intermediate, api-agnostic representation
@@ -334,6 +336,7 @@ static void renderer_update( le_renderer_o *self, le_render_module_o * module_ )
 	renderer_process_frame          ( self, ( index + 1 ) % numFrames );
 
 	renderer_dispatch_frame         ( self, ( index + 1 ) % numFrames );
+
 
 	if (self->swapchainDirty){
 		// we must dispatch, then clear all previous dispatchable frames,

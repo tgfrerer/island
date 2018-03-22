@@ -93,7 +93,7 @@ struct le_renderer_api {
 		le_render_module_o* ( *create)         ( );
 		void                ( *destroy)        ( le_render_module_o* obj );
 		void                ( *add_renderpass) ( le_render_module_o* obj, le_renderpass_o* rp );
-		void                ( *build_graph)    ( le_render_module_o* obj, le_graph_builder_o* gb );
+		void                ( *setup_passes)   ( le_render_module_o* obj, le_graph_builder_o* gb );
 		void                ( *execute_graph ) ( le_render_module_o* obj, le_graph_builder_o* gb );
 	};
 
@@ -193,7 +193,7 @@ class RenderPass {
 		renderpassI.set_setup_fun( self, fun );
 	}
 
-	void setRenderCallback(le_renderer_api::pfn_renderpass_render_t fun, void* user_data_ = nullptr){
+	void setRenderCallback(void* user_data_, le_renderer_api::pfn_renderpass_render_t fun){
 		renderpassI.set_render_callback( self, fun, user_data_ );
 	}
 
@@ -309,8 +309,8 @@ class RenderModule {
 		rendermoduleI.add_renderpass( self, renderpass );
 	}
 
-	void buildGraph( le_graph_builder_o *gb_ ) {
-		rendermoduleI.build_graph( self, gb_ );
+	void setupPasses( le_graph_builder_o *gb_ ) {
+		rendermoduleI.setup_passes( self, gb_ );
 	}
 };
 

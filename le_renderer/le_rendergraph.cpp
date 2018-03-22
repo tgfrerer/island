@@ -44,60 +44,6 @@ struct le_graph_builder_o : NoCopy, NoMove {
 
 // ----------------------------------------------------------------------
 
-static le_render_module_o *render_module_create( ) {
-	auto obj = new le_render_module_o( );
-	return obj;
-}
-
-// ----------------------------------------------------------------------
-
-static void render_module_destroy(le_render_module_o* self){
-	delete self;
-}
-
-// ----------------------------------------------------------------------
-
-static void render_module_add_renderpass(le_render_module_o*self, le_renderpass_o* pass){
-	// TODO: make sure name for each pass is unique per rendermodule.
-	self->passes.emplace_back(*pass);
-}
-
-// ----------------------------------------------------------------------
-
-static void render_module_build_graph(le_render_module_o* self, le_graph_builder_o* graph_builder_){
-
-	le::GraphBuilder graphBuilder{graph_builder_};
-
-	for (auto &pass: self->passes){
-		// Call setup function on all passes, in order of addition to module
-		//
-		// Setup Function must:
-		// + populate input attachments
-		// + populate output attachments
-		// + (optionally) add renderpass to graph builder.
-		assert(pass.callbackSetup != nullptr);
-		if (pass.callbackSetup(&pass)){
-			// if pass.setup() returns true, this means we shall add this pass to the graph
-			graphBuilder.addRenderpass(&pass);
-		}
-	}
-	// Now, renderpasses should have their attachments properly set.
-	// Further, user will have added all renderpasses they wanted included in the module
-	// to the graph builder.
-
-	// The graph builder now has a list of all passes which contribute to the current module.
-
-	// Step 1: Validate
-	// - find any name clashes: inputs and outputs for each renderpass must be unique.
-	// Step 2: sort passes in dependency order (by adding an execution order index to each pass)
-	// Step 3: add  markers to each attachment for each pass, depending on their read/write status
-
-	graphBuilder.buildGraph();
-
-};
-
-// ----------------------------------------------------------------------
-
 static le_graph_builder_o* graph_builder_create(){
 	auto obj = new le_graph_builder_o();
 	return obj;
@@ -340,6 +286,56 @@ static void graph_builder_execute_graph(le_graph_builder_o* self, size_t frameIn
 
 // ----------------------------------------------------------------------
 
+static le_render_module_o *render_module_create( ) {
+	auto obj = new le_render_module_o( );
+	return obj;
+}
+
+// ----------------------------------------------------------------------
+
+static void render_module_destroy(le_render_module_o* self){
+	delete self;
+}
+
+// ----------------------------------------------------------------------
+
+static void render_module_add_renderpass(le_render_module_o*self, le_renderpass_o* pass){
+	// TODO: make sure name for each pass is unique per rendermodule.
+	self->passes.emplace_back(*pass);
+}
+
+// ----------------------------------------------------------------------
+
+static void render_module_setup_passes(le_render_module_o* self, le_graph_builder_o* graph_builder_){
+
+	for (auto &pass: self->passes){
+		// Call setup function on all passes, in order of addition to module
+		//
+		// Setup Function must:
+		// + populate input attachments
+		// + populate output attachments
+		// + (optionally) add renderpass to graph builder.
+		assert(pass.callbackSetup != nullptr);
+		if (pass.callbackSetup(&pass)){
+			// if pass.setup() returns true, this means we shall add this pass to the graph
+			graph_builder_add_renderpass(graph_builder_,&pass);
+		}
+	}
+	// Now, renderpasses should have their attachments properly set.
+	// Further, user will have added all renderpasses they wanted included in the module
+	// to the graph builder.
+
+	// The graph builder now has a list of all passes which contribute to the current module.
+
+	// Step 1: Validate
+	// - find any name clashes: inputs and outputs for each renderpass must be unique.
+	// Step 2: sort passes in dependency order (by adding an execution order index to each pass)
+	// Step 3: add  markers to each attachment for each pass, depending on their read/write status
+
+};
+
+// ----------------------------------------------------------------------
+
 void register_le_rendergraph_api( void *api_ ) {
 
 	auto  le_renderer_api_i = static_cast<le_renderer_api *>( api_ );
@@ -348,7 +344,7 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_render_module_i.create         = render_module_create;
 	le_render_module_i.destroy        = render_module_destroy;
 	le_render_module_i.add_renderpass = render_module_add_renderpass;
-	le_render_module_i.build_graph    = render_module_build_graph;
+	le_render_module_i.setup_passes   = render_module_setup_passes;
 
 	auto &le_graph_builder_i                     = le_renderer_api_i->le_graph_builder_i;
 	le_graph_builder_i.create                    = graph_builder_create;

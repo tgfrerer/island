@@ -84,42 +84,25 @@ static bool test_app_update( test_app_o *self ) {
 	le::RenderModule renderModule{};
 	{
 
-//		le::TransferPass transferPass("copy");
-//		transferPass.setResources(resources,num_resources);
-//		tranferPass.setCallback(self, [](auto encoder_, auto user_data){
-
-//	    });
-
-
-
 		le::RenderPass renderPassFinal( "root" );
 
 		renderPassFinal.setSetupCallback( []( auto pRp ) {
 			auto rp = le::RenderPassRef{pRp};
 
-			le::ImageAttachmentInfo colorAttachmentInfo;
+			le::ImageAttachmentInfo colorAttachmentInfo{};
 			colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
 			colorAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
 
-			le::ImageAttachmentInfo depthAttachmentInfo;
-			depthAttachmentInfo.format       = vk::Format::eD32SfloatS8Uint; // TODO: signal correct depth stencil format
-			depthAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
-
 			rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
-			//rp.addImageAttachment( "depth", &depthAttachmentInfo );
+
+
+
 			return true;
 		} );
 
-		renderPassFinal.setRenderCallback( []( auto encoder_, auto user_data_ ) {
-			//std::cout << "** rendercallback called" << std::endl;
+		renderPassFinal.setRenderCallback( self, []( auto encoder_, auto user_data_ ) {
 			auto                     self = static_cast<test_app_o *>( user_data_ );
 			le::CommandBufferEncoder encoder{encoder_};
-			//			// encoder.setPipeline(pipelineId);
-			//			// encoder.setDescriptor(setIndex,bindingNumber,arrayIndex,descriptorValue);
-			//			for (int i = 0; i !=100; ++i ){
-			//				encoder.setLineWidth(1.2f);
-			//			}
-			//			encoder.setLineWidth(5.3f);
 			le::Viewport viewports[ 2 ] = {
 			    {{50.f, 50.f, 100.f, 100.f, 0.f, 1.f}},
 			    {{200.f, 50.f, 200.f, 200.f, 0.f, 1.f}},
@@ -160,10 +143,8 @@ static bool test_app_update( test_app_o *self ) {
 			encoder.setViewport( 0, 1, &viewports[ 1 ] );
 
 			encoder.draw( 3, 1, 0, 0 );
-		},
-		                                   self );
+		} );
 
-		//renderModule.addTransferPass(transferPass);
 		renderModule.addRenderPass( renderPassFinal );
 	}
 
