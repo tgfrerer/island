@@ -27,6 +27,12 @@ namespace le {
 	  eImage,
 	};
 
+	enum RenderpassType: uint32_t {
+		eUndefined,
+		eDraw,
+		eTransfer,
+		eCompute,
+	};
 
 }
 
@@ -76,14 +82,14 @@ struct le_renderer_api {
 	};
 
 	typedef bool(*pfn_renderpass_setup_t)(le_renderpass_o* obj);
-	typedef void(*pfn_renderpass_render_t)(le_command_buffer_encoder_o* encoder, void* user_data);
+	typedef void(*pfn_renderpass_execute_t)(le_command_buffer_encoder_o* encoder, void* user_data);
 
 	struct renderpass_interface_t {
-		le_renderpass_o* ( *create                ) (const char* renderpass_name);
+		le_renderpass_o* ( *create                ) (const char* renderpass_name, const le::RenderpassType& type_);
 		void             ( *destroy               ) (le_renderpass_o* obj);
 		void             ( *set_setup_fun         ) (le_renderpass_o* obj, pfn_renderpass_setup_t setup_fun );
 		void             ( *add_image_attachment  ) (le_renderpass_o* obj, const char*, image_attachment_info_o* info);
-		void             ( *set_render_callback   ) (le_renderpass_o* obj, pfn_renderpass_render_t render_fun, void* user_data );
+		void             ( *set_execute_callback   ) (le_renderpass_o* obj, pfn_renderpass_execute_t render_fun, void* user_data );
 	};
 
 	struct rendermodule_interface_t {
@@ -167,8 +173,8 @@ class RenderPass {
 	le_renderpass_o *self;
 
   public:
-	RenderPass( const char *name_ )
-	    : self( renderpassI.create( name_ ) ) {
+	RenderPass( const char *name_, const RenderpassType& type_ )
+	    : self( renderpassI.create( name_, type_) ) {
 	}
 
 	~RenderPass() {
@@ -183,8 +189,8 @@ class RenderPass {
 		renderpassI.set_setup_fun( self, fun );
 	}
 
-	void setRenderCallback(void* user_data_, le_renderer_api::pfn_renderpass_render_t fun){
-		renderpassI.set_render_callback( self, fun, user_data_ );
+	void setExecuteCallback(void* user_data_, le_renderer_api::pfn_renderpass_execute_t fun){
+		renderpassI.set_execute_callback( self, fun, user_data_ );
 	}
 
 };

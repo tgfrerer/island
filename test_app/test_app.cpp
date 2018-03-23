@@ -82,10 +82,15 @@ static bool test_app_update( test_app_o *self ) {
 
 	le::RenderModule renderModule{};
 	{
+		le::RenderPass resourcePass("resource copy", le::RenderpassType::eTransfer);
+		resourcePass.setSetupCallback([](auto pRp) -> bool {
 
-		le::RenderPass renderPassFinal( "root" );
+			return true;
+		});
 
-		renderPassFinal.setSetupCallback( []( auto pRp ) {
+		le::RenderPass renderPassFinal( "root", le::RenderpassType::eDraw );
+
+		renderPassFinal.setSetupCallback( []( auto pRp ) -> bool {
 			auto rp = le::RenderPassRef{pRp};
 
 			le::ImageAttachmentInfo colorAttachmentInfo{};
@@ -97,7 +102,7 @@ static bool test_app_update( test_app_o *self ) {
 			return true;
 		} );
 
-		renderPassFinal.setRenderCallback( self, []( auto encoder_, auto user_data_ ) {
+		renderPassFinal.setExecuteCallback( self, []( auto encoder_, auto user_data_ ) {
 			auto                     self = static_cast<test_app_o *>( user_data_ );
 			le::CommandBufferEncoder encoder{encoder_};
 			le::Viewport             viewports[ 2 ] = {

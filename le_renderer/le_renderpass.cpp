@@ -6,9 +6,10 @@
 
 
 
-static le_renderpass_o *renderpass_create(const char* renderpass_name) {
+static le_renderpass_o *renderpass_create(const char* renderpass_name, const le::RenderpassType& type_) {
 	auto self = new le_renderpass_o();
 	self->id = const_char_hash64(renderpass_name);
+	self->type = type_;
 	strncpy(self->debugName,renderpass_name,sizeof(self->debugName));
 	return self;
 }
@@ -27,9 +28,9 @@ static void renderpass_set_setup_fun(le_renderpass_o*self, le_renderer_api::pfn_
 
 // ----------------------------------------------------------------------
 
-static void renderpass_set_render_callback(le_renderpass_o*self, le_renderer_api::pfn_renderpass_render_t callback_, void * user_data_){
-	self->render_callback_user_data = user_data_;
-	self->callbackRender = callback_;
+static void renderpass_set_execute_callback(le_renderpass_o*self, le_renderer_api::pfn_renderpass_execute_t callback_, void * user_data_){
+	self->execute_callback_user_data = user_data_;
+	self->callbackExecute = callback_;
 }
 
 // ----------------------------------------------------------------------
@@ -76,5 +77,5 @@ void register_le_renderpass_api( void *api_ ) {
 	le_renderpass_i.destroy               = renderpass_destroy;
 	le_renderpass_i.add_image_attachment  = renderpass_add_image_attachment;
 	le_renderpass_i.set_setup_fun         = renderpass_set_setup_fun;
-	le_renderpass_i.set_render_callback   = renderpass_set_render_callback;
+	le_renderpass_i.set_execute_callback   = renderpass_set_execute_callback;
 }

@@ -27,13 +27,14 @@ void register_le_renderpass_api( void *api_ );
 
 struct le_renderpass_o {
 
+	le::RenderpassType                                    type = le::RenderpassType::eUndefined;
 	uint64_t                                              id;
 	uint64_t                                              execution_order = 0;
 	std::vector<le_renderer_api::image_attachment_info_o> imageAttachments;
 
 	le_renderer_api::pfn_renderpass_setup_t  callbackSetup             = nullptr;
-	le_renderer_api::pfn_renderpass_render_t callbackRender            = nullptr;
-	void *                                   render_callback_user_data = nullptr;
+	le_renderer_api::pfn_renderpass_execute_t callbackExecute            = nullptr;
+	void *                                   execute_callback_user_data = nullptr;
 
 	char debugName[ 32 ];
 };
