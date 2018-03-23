@@ -1,5 +1,25 @@
 # PLAN
 
+Let's refer to all resources in the renderer using opaque `uint64_t` ids. These
+ids should be based on hashing the name - but we could decide later how we want
+to handle id generation and retrieval if we put the id generator into its own
+method. 
+
+Hashing the name has the benefit that this can be done independently and that
+no locking has to occur, and everyone who hashes a name should get the same
+result. Also, hashing is potentially executable as a constexpr, so the id will
+not have to be calculated at runtime at all.
+
+Resources are introduced in passes during their setup stage - if a resource is
+permanent, the backend will remember the reource id, this also means that if a
+permanent resource gets dropped during a resource pass, the backend will mark
+that physical resource for recycling once no frame which is in-flight still
+uses it.  
+
+    > does this mean we could also introduce shader resources in setup stage?
+    
+
+
 # TODO
 
  * we want three different types of passes: render, transfer, compute. Each
