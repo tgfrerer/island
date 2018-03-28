@@ -67,7 +67,6 @@ struct CommandSetViewport {
 	struct {
 		uint32_t firstViewport;
 		uint32_t viewportCount;
-		Viewport * pViewports;
 	} info;
 };
 
@@ -76,7 +75,6 @@ struct CommandSetScissor {
 	struct {
 		uint32_t firstScissor;
 		uint32_t scissorCount;
-		Rect2D* pScissors;
 	} info;
 };
 

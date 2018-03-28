@@ -63,7 +63,7 @@ static void cbe_set_viewport( le_command_buffer_encoder_o *self, uint32_t firstV
 	void * data     = ( cmd + 1 ); // note: this increments a le::CommandSetViewport pointer by one time its object size, then gets the address
 	size_t dataSize = sizeof( le::Viewport ) * viewportCount;
 
-	cmd->info = {firstViewport, viewportCount, static_cast<le::Viewport *>( data )};
+	cmd->info = {firstViewport, viewportCount};
 	cmd->header.info.size += dataSize; // we must increase the size of this command by its payload size
 
 	memcpy( data, pViewports, dataSize );
@@ -83,7 +83,7 @@ static void cbe_set_scissor( le_command_buffer_encoder_o *self, uint32_t firstSc
 	void * data     = ( cmd + 1 );
 	size_t dataSize = sizeof( le::Rect2D ) * scissorCount;
 
-	cmd->info = {firstScissor, scissorCount, static_cast<le::Rect2D *>( data )};
+	cmd->info = {firstScissor, scissorCount};
 	cmd->header.info.size += dataSize; // we must increase the size of this command by its payload size
 
 	memcpy( data, pScissors, dataSize );

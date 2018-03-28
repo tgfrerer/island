@@ -1176,16 +1176,14 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 					auto *le_cmd = static_cast<le::CommandSetViewport *>( dataIt );
 					// NOTE: since data for viewports *is stored inline*, we could also increase the typed pointer
 					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
-					// cmd.setViewport( le_cmd->info.firstViewport, le_cmd->info.viewportCount, reinterpret_cast<vk::Viewport *>( le_cmd + 1 ) );
-					cmd.setViewport( le_cmd->info.firstViewport, le_cmd->info.viewportCount, reinterpret_cast<vk::Viewport *>( le_cmd->info.pViewports ) );
+					cmd.setViewport( le_cmd->info.firstViewport, le_cmd->info.viewportCount, reinterpret_cast<vk::Viewport *>( le_cmd + 1 ) );
 				} break;
 
 				case le::CommandType::eSetScissor: {
 					auto *le_cmd = static_cast<le::CommandSetScissor *>( dataIt );
 					// NOTE: since data for scissors *is stored inline*, we could also increase the typed pointer
 					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
-					// cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D *>( le_cmd + 1 ));
-					cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D *>( le_cmd->info.pScissors ) );
+					cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D *>( le_cmd + 1 ));
 				} break;
 
 				case le::CommandType::eBindVertexBuffers: {
