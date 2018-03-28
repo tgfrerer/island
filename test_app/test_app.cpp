@@ -82,13 +82,27 @@ static bool test_app_update( test_app_o *self ) {
 
 	le::RenderModule mainModule{};
 	{
-		le::RenderPass resourcePass("resource copy", le::RenderpassType::eTransfer);
+
+		le::RenderPass resourcePass("resource copy", le::RenderPassType::eTransfer);
 		resourcePass.setSetupCallback([](auto pRp) -> bool {
+			auto rp = le::RenderPassRef{pRp};
+
+//			le::BufferInfo bufferInfo {
+//				.capacity = 4096,
+//			};
 
 			return true;
 		});
 
-		le::RenderPass renderPassFinal( "root", le::RenderpassType::eDraw );
+		resourcePass.setExecuteCallback( self, []( auto encoder_, auto user_data_ ) {
+			auto                     self = static_cast<test_app_o *>( user_data_ );
+
+			le::CommandBufferEncoder encoder{encoder_};
+
+		} );
+
+
+		le::RenderPass renderPassFinal( "root", le::RenderPassType::eDraw );
 
 		renderPassFinal.setSetupCallback( []( auto pRp ) -> bool {
 			auto rp = le::RenderPassRef{pRp};
