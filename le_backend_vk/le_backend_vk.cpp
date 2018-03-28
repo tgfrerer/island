@@ -672,7 +672,7 @@ static void backend_create_resource_table(le_backend_o* self, size_t frameIndex,
 
 	for ( size_t i = 0; i != numRenderPasses; i++ ) {
 
-		auto &pass = pPasses[i];
+		const auto &pass = pPasses[i];
 
 		for (auto &resource : pass.imageAttachments){
 			BackendFrameData::ResourceInfo info;
@@ -734,6 +734,7 @@ static void backend_track_resource_state(le_backend_o* self, size_t frameIndex, 
 
 	for ( size_t i = 0; i!=numRenderPasses; i++) {
 
+		// TODO: pass must be const - we don't want to change pass which belongs to renderer.
 		auto &pass = pPasses[i];
 
 		for ( auto &resource : pass.imageAttachments ) {
@@ -902,7 +903,7 @@ static void backend_create_renderpasses(le_backend_o* self, size_t frameIndex, l
 
 	for ( size_t i = 0; i!=numRenderPasses; i++) {
 
-		auto &pass = pPasses[i];
+		const auto &pass = pPasses[i];
 
 		std::vector<vk::AttachmentDescription> attachments;
 		attachments.reserve(pass.imageAttachments.size());
