@@ -5,8 +5,7 @@
 // ----------------------------------------------------------------------
 
 
-
-static le_renderpass_o *renderpass_create(const char* renderpass_name, const le::RenderpassType& type_) {
+static le_renderpass_o *renderpass_create(const char* renderpass_name, const le::RenderPassType& type_) {
 	auto self = new le_renderpass_o();
 	self->id = const_char_hash64(renderpass_name);
 	self->type = type_;
@@ -36,7 +35,7 @@ static void renderpass_set_execute_callback(le_renderpass_o*self, le_renderer_ap
 // ----------------------------------------------------------------------
 
 static void renderpass_add_image_attachment(le_renderpass_o*self, const char* name_, le_renderer_api::image_attachment_info_o* info_){
-	// TODO: annotate the current renderpass to name of output attachment
+
 	auto info = *info_;
 
 	info.id = const_char_hash64(name_);

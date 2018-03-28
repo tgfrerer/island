@@ -27,7 +27,7 @@ namespace le {
 	  eImage,
 	};
 
-	enum RenderpassType: uint32_t {
+	enum RenderPassType: uint32_t {
 		eUndefined,
 		eDraw,
 		eTransfer,
@@ -85,7 +85,7 @@ struct le_renderer_api {
 	typedef void(*pfn_renderpass_execute_t)(le_command_buffer_encoder_o* encoder, void* user_data);
 
 	struct renderpass_interface_t {
-		le_renderpass_o* ( *create                ) (const char* renderpass_name, const le::RenderpassType& type_);
+		le_renderpass_o* ( *create                ) (const char* renderpass_name, const le::RenderPassType& type_);
 		void             ( *destroy               ) (le_renderpass_o* obj);
 		void             ( *set_setup_fun         ) (le_renderpass_o* obj, pfn_renderpass_setup_t setup_fun );
 		void             ( *add_image_attachment  ) (le_renderpass_o* obj, const char*, image_attachment_info_o* info);
@@ -173,7 +173,7 @@ class RenderPass {
 	le_renderpass_o *self;
 
   public:
-	RenderPass( const char *name_, const RenderpassType& type_ )
+	RenderPass( const char *name_, const RenderPassType& type_ )
 	    : self( renderpassI.create( name_, type_) ) {
 	}
 

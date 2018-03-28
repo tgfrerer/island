@@ -27,7 +27,7 @@ void register_le_renderpass_api( void *api_ );
 
 struct le_renderpass_o {
 
-	le::RenderpassType                                    type = le::RenderpassType::eUndefined;
+	le::RenderPassType                                    type = le::RenderPassType::eUndefined;
 	uint64_t                                              id;
 	uint64_t                                              execution_order = 0;
 	std::vector<le_renderer_api::image_attachment_info_o> imageAttachments;

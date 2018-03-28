@@ -80,7 +80,7 @@ static bool test_app_update( test_app_o *self ) {
 		return false;
 	}
 
-	le::RenderModule renderModule{};
+	le::RenderModule mainModule{};
 	{
 		le::RenderPass resourcePass("resource copy", le::RenderpassType::eTransfer);
 		resourcePass.setSetupCallback([](auto pRp) -> bool {
@@ -147,12 +147,12 @@ static bool test_app_update( test_app_o *self ) {
 			encoder.draw( 3, 1, 0, 0 );
 		} );
 
-		renderModule.addRenderPass( renderPassFinal );
+		mainModule.addRenderPass( renderPassFinal );
 	}
 
 	// update will call all rendercallbacks in this module.
 	// the RECORD phase is guaranteed to execute - all rendercallbacks will get called.
-	self->renderer->update( renderModule );
+	self->renderer->update( mainModule );
 
 	return true;
 }
