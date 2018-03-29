@@ -1,4 +1,3 @@
-
 #include "le_renderer.h"
 #include "le_renderer/private/le_rendergraph.h"
 
@@ -119,6 +118,7 @@ static void graph_builder_resolve_attachment_ids( std::vector<le_renderpass_o> &
 	// resources without source ID are unresolved.
 }
 
+// ----------------------------------------------------------------------
 
 static std::vector<std::vector<uint64_t>> graph_builder_resolve_resource_ids( const std::vector<le_renderpass_o> &passes ) {
 
@@ -138,8 +138,9 @@ static std::vector<std::vector<uint64_t>> graph_builder_resolve_resource_ids( co
 	std::unordered_map<uint64_t, uint64_t, IdentityHash> writeAttachmentTable;
 
 	// We go through passes in module submission order, so that outputs will match later inputs.
+	uint64_t passIndex = 0;
 	for ( auto &pass : passes ) {
-
+		
 		std::vector<uint64_t> passesThisPassDependsOn;
 		passesThisPassDependsOn.reserve(pass.readResourceCount);
 
@@ -161,8 +162,10 @@ static std::vector<std::vector<uint64_t>> graph_builder_resolve_resource_ids( co
 		// of an output with a particular name.
 		for ( size_t i =0; i!=pass.writeResourceCount; ++i ) {
 			const auto & writeResourceId = pass.writeResources[i];
-			writeAttachmentTable[ writeResourceId ] = pass.id;
+			writeAttachmentTable[ writeResourceId ] = passIndex;
 		}
+		
+		++passIndex;
 	}
 
 	return dependenciesPerPass;
@@ -173,8 +176,6 @@ static std::vector<std::vector<uint64_t>> graph_builder_resolve_resource_ids( co
 static void graph_builder_traverse_passes( const std::unordered_map<uint64_t, le_renderpass_o *, IdentityHash> &passes,
                                            const uint64_t &                                                     sourceRenderpassId,
                                            const uint64_t                                                       recursion_depth ) {
-
-
 
 	if ( recursion_depth > LE_GRAPH_BUILDER_RECURSION_DEPTH ) {
 		std::cerr << __FUNCTION__ << " : "
@@ -206,6 +207,33 @@ static void graph_builder_traverse_passes( const std::unordered_map<uint64_t, le
 }
 
 // ----------------------------------------------------------------------
+
+static void graph_builder_traverse_passes_2( const std::vector<std::vector<uint64_t>> &passes,
+                                             const uint64_t &                          currentRenderpassId,
+                                             const uint32_t                            recursion_depth,
+                                             std::vector<uint32_t> &                   pass_sort_orders ) {
+
+	if ( recursion_depth > LE_GRAPH_BUILDER_RECURSION_DEPTH ) {
+		std::cerr << __FUNCTION__ << " : "
+		          << "max recursion level reached. check for cycles in render graph" << std::endl;
+		return;
+	}
+
+	// TODO: how do we deal with external resources?
+
+	// as each input tells us its source renderpass,
+	// we can look up the provider pass for each source by id
+	auto &sourcePasses = passes.at( currentRenderpassId );
+
+	// We want the maximum edge distance (one recursion equals one edge) from the root node
+	// for each pass, since the max distance makes sure that all resources are available,
+	// even resources which have a shorter path.
+	pass_sort_orders[ currentRenderpassId ] = std::max( recursion_depth, pass_sort_orders[ currentRenderpassId ] );
+
+	for ( auto &sourcePass : sourcePasses ) {
+		graph_builder_traverse_passes_2( passes, sourcePass, recursion_depth + 1, pass_sort_orders );
+	}
+}
 
 // Re-order renderpasses in topological order, based
 // on graph dependencies
@@ -239,10 +267,39 @@ static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 
 // ----------------------------------------------------------------------
 
+static std::vector<uint64_t> graph_builder_find_root_passes(const std::vector<le_renderpass_o>& passes){
+	std::vector<uint64_t> roots;
+	roots.reserve(passes.size());
+	
+	uint64_t i = 0 ;
+	for (auto & pass : passes){
+		if (pass.isRoot){
+			roots.push_back(i);
+		}
+		++i;
+	}
+	
+	return roots;
+}
+
+// ----------------------------------------------------------------------
+
 static void graph_builder_build_graph(le_graph_builder_o* self){
 
-	graph_builder_resolve_resource_ids(self->passes);
+	auto pass_dependencies = graph_builder_resolve_resource_ids(self->passes);
 
+	auto root_passes = graph_builder_find_root_passes(self->passes);
+
+	std::vector<uint32_t> pass_sort_orders; // sort order for each pass in self->passes 
+	pass_sort_orders.resize(self->passes.size(),0);
+
+	for (auto root : root_passes){
+		// note that we begin with sort order 1, so that any passes which have 
+		// sort order 0 still after this loop is complete can be seen as 
+		// marked for deletion / or can be ignored. 
+		graph_builder_traverse_passes_2(pass_dependencies, root, 1, pass_sort_orders);
+	}
+	
 	// Find corresponding output for each input attachment,
 	// and tag input with output id, as dependencies are
 	// declared using names rather than linked in code.
