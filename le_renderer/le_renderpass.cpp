@@ -67,6 +67,25 @@ static void renderpass_add_image_attachment(le_renderpass_o*self, const char* na
 
 // ----------------------------------------------------------------------
 
+static void renderpass_use_resource(le_renderpass_o* self, uint64_t resource_id, uint32_t accessFlags){
+
+	assert(self->readResourceCount<32); // todo: fix this, as soon as we have potential for growth here.
+	assert(self->writeResourceCount<32);// todo: fix this, as soon as we have potential for growth here.
+
+	if (accessFlags & le::AccessFlagBits::eRead){
+		self->readResources[self->readResourceCount] = resource_id;
+		self->readResourceCount++;
+	}
+
+	if (accessFlags & le::AccessFlagBits::eWrite){
+		self->writeResources[self->writeResourceCount] = resource_id;
+		self->writeResourceCount++;
+	}
+
+}
+
+// ----------------------------------------------------------------------
+
 void register_le_renderpass_api( void *api_ ) {
 
 	auto  le_renderer_api_i = static_cast<le_renderer_api *>( api_ );
@@ -76,5 +95,6 @@ void register_le_renderpass_api( void *api_ ) {
 	le_renderpass_i.destroy               = renderpass_destroy;
 	le_renderpass_i.add_image_attachment  = renderpass_add_image_attachment;
 	le_renderpass_i.set_setup_fun         = renderpass_set_setup_fun;
-	le_renderpass_i.set_execute_callback   = renderpass_set_execute_callback;
+	le_renderpass_i.set_execute_callback  = renderpass_set_execute_callback;
+	le_renderpass_i.use_resource          = renderpass_use_resource;
 }

@@ -32,6 +32,14 @@ struct le_renderpass_o {
 	uint64_t                                              execution_order = 0;
 	std::vector<le_renderer_api::image_attachment_info_o> imageAttachments;
 
+	uint64_t readResources[32];
+	uint64_t writeResources[32];
+
+	uint32_t readResourceCount  = 0;
+	uint32_t writeResourceCount = 0;
+
+	struct ColorAttachmentInfo* colorAttachmentInfo[8];
+
 	le_renderer_api::pfn_renderpass_setup_t   callbackSetup              = nullptr;
 	le_renderer_api::pfn_renderpass_execute_t callbackExecute            = nullptr;
 	void *                                    execute_callback_user_data = nullptr;

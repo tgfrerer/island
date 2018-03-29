@@ -5,6 +5,7 @@
 #include "le_swapchain_vk/le_swapchain_vk.h"
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/le_renderer_types.h"
+#include "le_renderer/private/hash_util.h"
 
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
@@ -80,6 +81,10 @@ static bool test_app_update( test_app_o *self ) {
 		return false;
 	}
 
+	static_assert(const_char_hash64("resource-image-testing") == RESOURCE_IMAGE_ID("testing"), "hashes must match");
+	static_assert(const_char_hash64("resource-buffer-testing") == RESOURCE_BUFFER_ID("testing"), "hashes must match");
+	static_assert(RESOURCE_IMAGE_ID("testing") != RESOURCE_BUFFER_ID("testing"), "buffer and image resources can't have same id based on same name");
+
 	le::RenderModule mainModule{};
 	{
 
@@ -87,10 +92,7 @@ static bool test_app_update( test_app_o *self ) {
 		resourcePass.setSetupCallback([](auto pRp) -> bool {
 			auto rp = le::RenderPassRef{pRp};
 
-//			le::BufferInfo bufferInfo {
-//				.capacity = 4096,
-//			};
-
+			rp.useResource( RESOURCE_BUFFER_ID("debugbuffer"), le::AccessFlagBits::eWrite);
 
 			return true;
 		});
@@ -100,22 +102,37 @@ static bool test_app_update( test_app_o *self ) {
 
 			le::CommandBufferEncoder encoder{encoder_};
 
-
+			le_renderer_api::ResourceInfo resourceInfo;
+			resourceInfo.id = RESOURCE_BUFFER_ID( "test" );
+			//encoder.createResource(RESOURCE_BUFFER_ID("debugbuffer"), resourceInfo);
 
 		} );
-
 
 		le::RenderPass renderPassFinal( "root", le::RenderPassType::eDraw );
 
 		renderPassFinal.setSetupCallback( []( auto pRp ) -> bool {
 			auto rp = le::RenderPassRef{pRp};
 
+			// colorAttachmentInfo defines the *STATE* of the resource during this renderpass.
+			struct ColorAttachmentInfo {
+				vk::Format format;
+				uint32_t loadOp;
+				uint32_t storeOp;
+			};
+
+			ColorAttachmentInfo info;
+
+			info.format  = vk::Format::eR8G8B8A8Unorm;
+			info.loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
+			info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+
 			le::ImageAttachmentInfo colorAttachmentInfo{};
 			colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
 			colorAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
-
 			rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
-//			rp.useResource("uniformbuffer",le::AccessFlagBits::eRead);
+
+			//rp.addImageAttachment( "backbuffer", &resourceStateBackbuffer );
+			rp.useResource( RESOURCE_BUFFER_ID("debugbuffer"), le::AccessFlagBits::eRead);
 
 			return true;
 		} );
@@ -165,6 +182,7 @@ static bool test_app_update( test_app_o *self ) {
 			encoder.draw( 3, 1, 0, 0 );
 		} );
 
+		mainModule.addRenderPass( resourcePass );
 		mainModule.addRenderPass( renderPassFinal );
 	}
 

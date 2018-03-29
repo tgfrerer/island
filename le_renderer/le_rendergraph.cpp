@@ -119,6 +119,55 @@ static void graph_builder_resolve_attachment_ids( std::vector<le_renderpass_o> &
 	// resources without source ID are unresolved.
 }
 
+
+static std::vector<std::vector<uint64_t>> graph_builder_resolve_resource_ids( const std::vector<le_renderpass_o> &passes ) {
+
+	std::vector<std::vector<uint64_t>> dependenciesPerPass;
+
+	// Rendermodule gives us a pre-sorted list of renderpasses,
+	// we use this to resolve attachment aliases. Since Rendermodule is a linear sequence,
+	// this means that dependencies for resources are well-defined. It's impossible for
+	// two renderpasses using the same resource not to have a clearly defined priority, as
+	// the earliest submitted renderpasses of the two will get priority.
+
+	// returns: for each pass, a list of passes which write to resources that this pass uses.
+
+	dependenciesPerPass.reserve(passes.size());
+
+	// map from resource id -> source pass id
+	std::unordered_map<uint64_t, uint64_t, IdentityHash> writeAttachmentTable;
+
+	// We go through passes in module submission order, so that outputs will match later inputs.
+	for ( auto &pass : passes ) {
+
+		std::vector<uint64_t> passesThisPassDependsOn;
+		passesThisPassDependsOn.reserve(pass.readResourceCount);
+
+		// We must first look if any of our READ attachments are already present in the attachment table.
+		// If so, we update source ids (from table) for each attachment we found.
+		for ( size_t i = 0; i != pass.readResourceCount; ++i) {
+			const auto & resource = pass.readResources[i];
+
+			    auto foundOutputIt = writeAttachmentTable.find( resource );
+				if ( foundOutputIt != writeAttachmentTable.end() ) {
+					passesThisPassDependsOn.emplace_back(foundOutputIt->second);
+				}
+		}
+
+		dependenciesPerPass.emplace_back(passesThisPassDependsOn);
+
+		// Outputs from current pass overwrite any cached outputs with same name:
+		// later inputs with same name will then resolve to the latest version
+		// of an output with a particular name.
+		for ( size_t i =0; i!=pass.writeResourceCount; ++i ) {
+			const auto & writeResourceId = pass.writeResources[i];
+			writeAttachmentTable[ writeResourceId ] = pass.id;
+		}
+	}
+
+	return dependenciesPerPass;
+}
+
 // ----------------------------------------------------------------------
 // depth-first traversal of graph, following each input to its corresponding output
 static void graph_builder_traverse_passes( const std::unordered_map<uint64_t, le_renderpass_o *, IdentityHash> &passes,
@@ -190,26 +239,9 @@ static void graph_builder_order_passes( std::vector<le_renderpass_o> &passes ) {
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_get_passes( le_graph_builder_o *self, le_renderpass_o **pPasses, size_t *pNumPasses ) {
-
-	*pPasses = self->passes.data();
-	*pNumPasses = self->passes.size();
-
-}
-
-// ----------------------------------------------------------------------
-
-static void graph_builder_get_encoded_data_for_pass(le_graph_builder_o* self, size_t passIndex, void** data, size_t *numBytes, size_t* numCommands){
-
-	static auto rendererApi = Registry::getApi<le_renderer_api>();
-	static auto encoderApi = &rendererApi->le_command_buffer_encoder_i;
-
-	encoderApi->get_encoded_data( self->encoders[ passIndex ], data, numBytes, numCommands );
-}
-
-// ----------------------------------------------------------------------
-
 static void graph_builder_build_graph(le_graph_builder_o* self){
+
+	graph_builder_resolve_resource_ids(self->passes);
 
 	// Find corresponding output for each input attachment,
 	// and tag input with output id, as dependencies are
@@ -262,11 +294,11 @@ static void graph_builder_execute_graph(le_graph_builder_o* self, size_t frameIn
 
 	self->encoders.reserve(self->passes.size());
 
-	static auto rendererApiI = *Registry::getApi<le_renderer_api>();
-	static auto & encoderInterface = rendererApiI.le_command_buffer_encoder_i;
+	static const auto & rendererApiI = *Registry::getApi<le_renderer_api>();
+	static const auto & encoderInterface = rendererApiI.le_command_buffer_encoder_i;
 
-	static auto backendApiI = *Registry::getApi<le_backend_vk_api>();
-	static auto & backendInterface = backendApiI.vk_backend_i;
+	static const auto & backendApiI = *Registry::getApi<le_backend_vk_api>();
+	static const auto & backendInterface = backendApiI.vk_backend_i;
 
 	// TODO: have one allocator per pass, so that allocator and encoder may be interleaved,
 	// and run on parallel threads.
@@ -282,6 +314,25 @@ static void graph_builder_execute_graph(le_graph_builder_o* self, size_t frameIn
 		}
 	}
 
+}
+
+// ----------------------------------------------------------------------
+
+static void graph_builder_get_passes( le_graph_builder_o *self, le_renderpass_o **pPasses, size_t *pNumPasses ) {
+
+	*pPasses = self->passes.data();
+	*pNumPasses = self->passes.size();
+
+}
+
+// ----------------------------------------------------------------------
+
+static void graph_builder_get_encoded_data_for_pass(le_graph_builder_o* self, size_t passIndex, void** data, size_t *numBytes, size_t* numCommands){
+
+	static auto rendererApi = Registry::getApi<le_renderer_api>();
+	static auto encoderApi = &rendererApi->le_command_buffer_encoder_i;
+
+	encoderApi->get_encoded_data( self->encoders[ passIndex ], data, numBytes, numCommands );
 }
 
 // ----------------------------------------------------------------------

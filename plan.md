@@ -17,21 +17,41 @@ that physical resource for recycling once no frame which is in-flight still
 uses it.  
 
     > does this mean we could also introduce shader resources in setup stage?
-    
 
+Where should we *declare* resources? 
+
+    * if we declare resources at the point of first use, this means that
+      resources always need to be declared using their full resource
+      descriptor, which means all callbacks need to have access to the same
+      version of the resource descriptor. 
+
+    * if we declare resources upfront, this means we have one central point
+      where resources are defined. 
+
+# ROADMAP
+
+    * all resources should be the of type `resource_descriptor`, so that their
+      dependencies can be tracked. The interface for tracking resource
+      dependencies is the same for textures and for buffers.
+
+    * we should use descriptors so that resources can be instantiated when we
+      first need them.
+
+    * add sort-key to encoder, so that we can decouple calling the callbacks
+      from generating the command buffers.
 
 # TODO
 
+ * combine `resource` and `buffer`- a buffer is-a resource, as an image is-a
+   resource. We define a resource as something which has memory backing on the
+   GPU.
+ 
  * we want three different types of passes: render, transfer, compute. Each
    pass has a list of inputs, and a list of outputs.
 
    Rendergraph is calculated based on module, which contains a list of
    pre-sorted passes. 
 
-
- * combine `resource` and `buffer`- a buffer is-a resource, as an image is-a
-   resource. We define a resource as something which has memory backing on the
-   GPU.
 
  * backendFrameData also has a resource table - and a type ResourceInfo - we
    should consolidate this with our resource type.
@@ -51,10 +71,6 @@ uses it.
         handed out in chunks per buffer, but buffer must be owned exclusively
         by allocator. 
 
-    * draw a triangle:
-
-        + later introduce allocator which will give you access to scratch data.
-    
 ## (B)
 
     * think: can we use macros to generate encoder methods?

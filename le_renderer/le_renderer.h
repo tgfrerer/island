@@ -63,6 +63,11 @@ struct le_renderer_api {
 		eReadWrite = eRead | eWrite,
 	};
 
+	struct ResourceInfo {
+		uint64_t id;
+		uint64_t type;
+	};
+
 	struct image_attachment_info_o {
 		uint64_t              id           = 0; // hash name given to this attachment, based on name string
 		uint64_t              source_id    = 0; // hash name of writer/creator renderpass
@@ -89,7 +94,8 @@ struct le_renderer_api {
 		void             ( *destroy               ) (le_renderpass_o* obj);
 		void             ( *set_setup_fun         ) (le_renderpass_o* obj, pfn_renderpass_setup_t setup_fun );
 		void             ( *add_image_attachment  ) (le_renderpass_o* obj, const char*, image_attachment_info_o* info);
-		void             ( *set_execute_callback   ) (le_renderpass_o* obj, pfn_renderpass_execute_t render_fun, void* user_data );
+		void             ( *set_execute_callback  ) (le_renderpass_o* obj, pfn_renderpass_execute_t render_fun, void* user_data );
+		void             ( *use_resource          ) (le_renderpass_o* obj, uint64_t resource_id, uint32_t access_flags);
 	};
 
 	struct rendermodule_interface_t {
@@ -219,6 +225,10 @@ class RenderPassRef {
 	RenderPassRef &addImageAttachment( const char *name_, le_renderer_api::image_attachment_info_o *info ) {
 		renderpassI.add_image_attachment( self, name_, info );
 		return *this;
+	}
+
+	RenderPassRef &useResource(uint64_t resource_id, uint32_t access_flags){
+		renderpassI.use_resource(self, resource_id, access_flags);
 	}
 };
 

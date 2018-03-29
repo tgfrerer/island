@@ -36,4 +36,10 @@ struct IdentityHash {
 	}
 };
 
+#define RESOURCE_IMAGE_ID(x) \
+	const_char_hash64( "resource-image-" x )
+
+#define RESOURCE_BUFFER_ID(x) \
+	const_char_hash64( "resource-buffer-" x )
+
 #endif
