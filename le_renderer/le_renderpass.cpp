@@ -86,6 +86,10 @@ static void renderpass_use_resource(le_renderpass_o* self, uint64_t resource_id,
 
 // ----------------------------------------------------------------------
 
+static void renderpass_set_is_root(le_renderpass_o* self, bool isRoot){
+	self->isRoot = isRoot;
+}
+
 void register_le_renderpass_api( void *api_ ) {
 
 	auto  le_renderer_api_i = static_cast<le_renderer_api *>( api_ );
@@ -97,4 +101,5 @@ void register_le_renderpass_api( void *api_ ) {
 	le_renderpass_i.set_setup_fun         = renderpass_set_setup_fun;
 	le_renderpass_i.set_execute_callback  = renderpass_set_execute_callback;
 	le_renderpass_i.use_resource          = renderpass_use_resource;
+	le_renderpass_i.set_is_root           = renderpass_set_is_root;
 }

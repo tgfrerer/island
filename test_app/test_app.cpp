@@ -92,7 +92,7 @@ static bool test_app_update( test_app_o *self ) {
 		resourcePass.setSetupCallback([](auto pRp) -> bool {
 			auto rp = le::RenderPassRef{pRp};
 
-			rp.useResource( RESOURCE_BUFFER_ID("debugbuffer"), le::AccessFlagBits::eWrite);
+			rp.useResource( RESOURCE_BUFFER_ID("debug-buffer"), le::AccessFlagBits::eWrite);
 
 			return true;
 		});
@@ -132,8 +132,9 @@ static bool test_app_update( test_app_o *self ) {
 			rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
 
 			//rp.addImageAttachment( "backbuffer", &resourceStateBackbuffer );
-			rp.useResource( RESOURCE_BUFFER_ID("debugbuffer"), le::AccessFlagBits::eRead);
-
+			rp.useResource( RESOURCE_BUFFER_ID("debug-buffer"), le::AccessFlagBits::eRead);
+			rp.setIsRoot(true);
+			
 			return true;
 		} );
 
