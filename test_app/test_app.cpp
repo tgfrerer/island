@@ -91,6 +91,7 @@ static bool test_app_update( test_app_o *self ) {
 //				.capacity = 4096,
 //			};
 
+
 			return true;
 		});
 
@@ -98,6 +99,8 @@ static bool test_app_update( test_app_o *self ) {
 			auto                     self = static_cast<test_app_o *>( user_data_ );
 
 			le::CommandBufferEncoder encoder{encoder_};
+
+
 
 		} );
 
@@ -112,6 +115,7 @@ static bool test_app_update( test_app_o *self ) {
 			colorAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
 
 			rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
+//			rp.useResource("uniformbuffer",le::AccessFlagBits::eRead);
 
 			return true;
 		} );

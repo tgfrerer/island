@@ -1121,14 +1121,13 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 
 		cmd.begin( {::vk::CommandBufferUsageFlagBits::eOneTimeSubmit} );
 
-		vk::RenderPassBeginInfo renderPassBeginInfo;
-
 		auto renderAreaWidth  = self->swapchain->getImageWidth();
 		auto renderAreaHeight = self->swapchain->getImageHeight();
 
 		std::array<vk::ClearValue, 1> clearValues{
 			{vk::ClearColorValue( std::array<float, 4>{{0.f, 0.3f, 1.0f, 1.f}} )}};
 
+		vk::RenderPassBeginInfo renderPassBeginInfo;
 		renderPassBeginInfo
 		    .setRenderPass( self->debugRenderPass )
 		    .setFramebuffer( frame.debugFramebuffers.back() )

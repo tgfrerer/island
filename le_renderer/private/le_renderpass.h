@@ -32,9 +32,9 @@ struct le_renderpass_o {
 	uint64_t                                              execution_order = 0;
 	std::vector<le_renderer_api::image_attachment_info_o> imageAttachments;
 
-	le_renderer_api::pfn_renderpass_setup_t  callbackSetup             = nullptr;
+	le_renderer_api::pfn_renderpass_setup_t   callbackSetup              = nullptr;
 	le_renderer_api::pfn_renderpass_execute_t callbackExecute            = nullptr;
-	void *                                   execute_callback_user_data = nullptr;
+	void *                                    execute_callback_user_data = nullptr;
 
 	char debugName[ 32 ];
 };
