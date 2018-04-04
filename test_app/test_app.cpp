@@ -17,7 +17,6 @@ struct test_app_o {
 	std::unique_ptr<le::Backend>  backend;
 	std::unique_ptr<pal::Window>  window;
 	std::unique_ptr<le::Renderer> renderer;
-
 };
 
 // ----------------------------------------------------------------------
@@ -59,7 +58,6 @@ static test_app_o *test_app_create() {
 	obj->renderer = std::make_unique<le::Renderer>( *obj->backend );
 	obj->renderer->setup();
 
-
 	/*
 
 	  resources can be:
@@ -81,31 +79,34 @@ static bool test_app_update( test_app_o *self ) {
 		return false;
 	}
 
-	static_assert(const_char_hash64("resource-image-testing") == RESOURCE_IMAGE_ID("testing"), "hashes must match");
-	static_assert(const_char_hash64("resource-buffer-testing") == RESOURCE_BUFFER_ID("testing"), "hashes must match");
-	static_assert(RESOURCE_IMAGE_ID("testing") != RESOURCE_BUFFER_ID("testing"), "buffer and image resources can't have same id based on same name");
+	static_assert( const_char_hash64( "resource-image-testing" ) == RESOURCE_IMAGE_ID( "testing" ), "hashes must match" );
+	static_assert( const_char_hash64( "resource-buffer-testing" ) == RESOURCE_BUFFER_ID( "testing" ), "hashes must match" );
+	static_assert( RESOURCE_IMAGE_ID( "testing" ) != RESOURCE_BUFFER_ID( "testing" ), "buffer and image resources can't have same id based on same name" );
 
 	le::RenderModule mainModule{};
 	{
 
-		le::RenderPass resourcePass("resource copy", le::RenderPassType::eTransfer);
-		resourcePass.setSetupCallback([](auto pRp) -> bool {
+		le::RenderPass resourcePass( "resource copy", le::RenderPassType::eTransfer );
+
+		resourcePass.setSetupCallback( []( auto pRp ) -> bool {
 			auto rp = le::RenderPassRef{pRp};
 
-			rp.useResource( RESOURCE_BUFFER_ID("debug-buffer"), le::AccessFlagBits::eWrite);
+			le_renderer_api::ResourceInfo resourceInfo;
+			resourceInfo.ownership = le_renderer_api::ResourceInfo::eFrameLocal;
+
+			//rp.createResource( RESOURCE_BUFFER_ID( "debug-buffer" ), resourceInfo );
+
+			rp.useResource( RESOURCE_BUFFER_ID( "debug-buffer" ), le::AccessFlagBits::eWrite );
 
 			return true;
-		});
+		} );
 
 		resourcePass.setExecuteCallback( self, []( auto encoder_, auto user_data_ ) {
-			auto                     self = static_cast<test_app_o *>( user_data_ );
+			auto self = static_cast<test_app_o *>( user_data_ );
 
 			le::CommandBufferEncoder encoder{encoder_};
 
-			le_renderer_api::ResourceInfo resourceInfo;
-			resourceInfo.id = RESOURCE_BUFFER_ID( "test" );
-			//encoder.createResource(RESOURCE_BUFFER_ID("debugbuffer"), resourceInfo);
-
+			//encoder.updateResource(RESOURCE_BUFFER_ID("debug-buffer"), ptr);
 		} );
 
 		le::RenderPass renderPassFinal( "root", le::RenderPassType::eDraw );
@@ -116,8 +117,8 @@ static bool test_app_update( test_app_o *self ) {
 			// colorAttachmentInfo defines the *STATE* of the resource during this renderpass.
 			struct ColorAttachmentInfo {
 				vk::Format format;
-				uint32_t loadOp;
-				uint32_t storeOp;
+				uint32_t   loadOp;
+				uint32_t   storeOp;
 			};
 
 			ColorAttachmentInfo info;
@@ -125,16 +126,16 @@ static bool test_app_update( test_app_o *self ) {
 			info.format  = vk::Format::eR8G8B8A8Unorm;
 			info.loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
 			info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+			// info.imageID = RESOURCE_IMAGE_ID("backbuffer");
 
 			le::ImageAttachmentInfo colorAttachmentInfo{};
 			colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
 			colorAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
 			rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
 
-			//rp.addImageAttachment( "backbuffer", &resourceStateBackbuffer );
-			rp.useResource( RESOURCE_BUFFER_ID("debug-buffer"), le::AccessFlagBits::eRead);
-			rp.setIsRoot(true);
-			
+			rp.useResource( RESOURCE_BUFFER_ID( "debug-buffer" ), le::AccessFlagBits::eRead );
+			rp.setIsRoot( true );
+
 			return true;
 		} );
 
@@ -162,14 +163,14 @@ static bool test_app_update( test_app_o *self ) {
 
 			static_assert( sizeof( vertData ) == sizeof( float ) * 4 * 3, "vertData must be tightly packed" );
 
-			// this will use the scratch buffer -- and the encoded command will store the
+			// This will use the scratch buffer -- and the encoded command will store the
 			// location of the data as it was laid down in the scratch buffer.
 
 			// vertex data must be stored to GPU mapped memory using an allocator through encoder first,
 			// will then be available to the gpu.
 
-			// the scratch buffer is uploaded/transferred before the renderpass begins
-			// so that data from it is read-visible,
+			// The scratch buffer is uploaded/transferred before the renderpass begins
+			// so that data from it is read-visible
 			encoder.setVertexData( vertData, sizeof( vertData ), 0 );
 
 			encoder.setScissor( 0, 1, scissors );
