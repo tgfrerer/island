@@ -241,53 +241,6 @@ class RenderPassRef {
 
 // ----------------------------------------------------------------------
 
-class GraphBuilder : NoCopy, NoMove {
-	const le_renderer_api &                           rendererApiI  = *Registry::getApi<le_renderer_api>();
-	const le_renderer_api::graph_builder_interface_t &graphbuilderI = rendererApiI.le_graph_builder_i;
-
-	le_graph_builder_o *self;
-	bool                is_reference = false;
-
-  public:
-	GraphBuilder()
-	    : self( graphbuilderI.create() ) {
-	}
-
-	GraphBuilder( le_graph_builder_o *self_ )
-	    : self( self_ )
-	    , is_reference( true ) {
-	}
-
-	~GraphBuilder() {
-		if ( !is_reference ) {
-			graphbuilderI.destroy( self);
-		}
-	}
-
-	operator auto() {
-		return self;
-	}
-
-	void reset() {
-		graphbuilderI.reset( self );
-	}
-
-	void addRenderpass( le_renderpass_o *rp ) {
-		graphbuilderI.add_renderpass( self, rp );
-	}
-
-	void buildGraph() {
-		graphbuilderI.build_graph( self );
-	}
-
-	void executeGraph( size_t frameIndex, le_backend_o* backend) {
-		graphbuilderI.execute_graph( self, frameIndex, backend );
-	}
-
-	void getPasses(le_renderpass_o**pPasses, size_t* numPasses){
-		graphbuilderI.get_passes(self, pPasses,numPasses);
-	}
-};
 
 // ----------------------------------------------------------------------
 

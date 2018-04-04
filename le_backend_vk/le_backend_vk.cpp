@@ -663,11 +663,13 @@ static void backend_create_resource_table(le_backend_o* self, size_t frameIndex,
 
 	frame.resourceTable.clear();
 
+	static auto &rendererApi   = *Registry::getApi<le_renderer_api>();
+	static auto &graphBuilderI = rendererApi.le_graph_builder_i;
+
 	size_t numRenderPasses = 0;
 	le_renderpass_o* pPasses = nullptr;
 	{
-		le::GraphBuilder graph{graph_};
-		graph.getPasses( &pPasses, &numRenderPasses );
+		graphBuilderI.get_passes(graph_, &pPasses, &numRenderPasses);
 	}
 
 	for ( size_t i = 0; i != numRenderPasses; i++ ) {
@@ -725,12 +727,13 @@ static void backend_track_resource_state(le_backend_o* self, size_t frameIndex, 
 
 	// * sync state: ready to enter renderpass: colorattachmentOutput=visible *
 
+	static const auto &rendererApi   = *Registry::getApi<le_renderer_api>();
+	static const auto &graphBuilderI = rendererApi.le_graph_builder_i;
+
 	size_t numRenderPasses = 0;
 	le_renderpass_o* pPasses = nullptr;
-	{
-		le::GraphBuilder graph{graph_};
-		graph.getPasses(&pPasses,&numRenderPasses);
-	}
+
+	graphBuilderI.get_passes(graph_,&pPasses,&numRenderPasses);
 
 	for ( size_t i = 0; i!=numRenderPasses; i++) {
 
@@ -896,10 +899,11 @@ static void backend_create_renderpasses(le_backend_o* self, size_t frameIndex, l
 
 	size_t numRenderPasses = 0;
 	le_renderpass_o* pPasses = nullptr;
-	{
-		le::GraphBuilder graph{graph_};
-		graph.getPasses(&pPasses,&numRenderPasses);
-	}
+
+	static const auto &rendererApi   = *Registry::getApi<le_renderer_api>();
+	static const auto &graphBuilderI = rendererApi.le_graph_builder_i;
+
+	graphBuilderI.get_passes(graph_,&pPasses,&numRenderPasses);
 
 	for ( size_t i = 0; i!=numRenderPasses; i++) {
 
@@ -1089,7 +1093,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 	uint32_t numCommandBuffers = uint32_t(numRenderPasses);
 	auto cmdBufs = device.allocateCommandBuffers( {frame.commandPool, vk::CommandBufferLevel::ePrimary, numCommandBuffers} );
 
-	assert( cmdBufs.size() == 1 ); // for debug purposes
+	assert( cmdBufs.size() == 2 ); // for debug purposes
 
 	// TODO: (parallelize) we can go wide here - each renderpass can be processed independently of
 	// other renderpasses.

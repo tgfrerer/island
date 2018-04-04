@@ -57,7 +57,7 @@ struct FrameData {
 
 	State                          state                    = State::eInitial;
 
-	std::unique_ptr<le::GraphBuilder> graphBuilder;
+	le_graph_builder_o* graphBuilder = nullptr;
 
 	Meta meta;
 };
@@ -95,13 +95,13 @@ static void renderer_setup( le_renderer_o *self ) {
 
 	self->frames.reserve( self->numSwapchainImages );
 
+	static auto &rendererApi   = *Registry::getApi<le_renderer_api>();
+	static auto &graphBuilderI = rendererApi.le_graph_builder_i;
+
 	for ( size_t i = 0; i != self->numSwapchainImages; ++i ) {
 		auto frameData = FrameData();
-
-
-		frameData.graphBuilder = std::make_unique<le::GraphBuilder>();
+		frameData.graphBuilder = graphBuilderI.create();
 		self->frames.push_back( std::move( frameData ) );
-
 	}
 
 	self->currentFrameNumber = 0;
@@ -133,7 +133,10 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 		}
 	}
 
-	frame.graphBuilder->reset();
+	static auto &rendererApi   = *Registry::getApi<le_renderer_api>();
+	static auto &graphBuilderI = rendererApi.le_graph_builder_i;
+
+	graphBuilderI.reset(frame.graphBuilder);
 
 	frame.state = FrameData::State::eCleared;
 }
@@ -159,19 +162,24 @@ static void renderer_record_frame(le_renderer_o* self, size_t frameIndex, le_ren
 	// For each render pass, call renderpass' render method, build intermediary command lists
 	//
 
-	static auto  rendererApi   = *Registry::getApi<le_renderer_api>();
+	static auto &rendererApi   = *Registry::getApi<le_renderer_api>();
 	static auto &renderModuleI = rendererApi.le_render_module_i;
+	static auto &graphBuilderI = rendererApi.le_graph_builder_i;
 
 	// - build up dependencies for graph, create table of unique resources for graph
 
-	renderModuleI.setup_passes(module_, *frame.graphBuilder);
+	// setup passes calls setup for all passes - this initalises virtual resources,
+	// and stores their descriptors (information needed to allocate physical resources)
+	renderModuleI.setup_passes(module_, frame.graphBuilder);
 
-	frame.graphBuilder->buildGraph();
+	graphBuilderI.build_graph(frame.graphBuilder);
+
+	// TODO: allocate physical resources for frame-local data
 
 	// Execute callbacks into main application for each renderpass,
 	// build command lists per renderpass in intermediate, api-agnostic representation
 	//
-	frame.graphBuilder->executeGraph(frameIndex, self->backend);
+	graphBuilderI.execute_graph(frame.graphBuilder, frameIndex, self->backend);
 
 	frame.meta.time_record_frame_end   = std::chrono::high_resolution_clock::now();
 	//std::cout << "renderer_record_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_record_frame_end-frame.meta.time_record_frame_start).count() << "ms" << std::endl;
@@ -230,7 +238,7 @@ static const FrameData::State& renderer_process_frame( le_renderer_o *self, size
 
 	// translate intermediate draw lists into vk command buffers, and sync primitives
 
-	self->backend.processFrame(frameIndex, *frame.graphBuilder);
+	self->backend.processFrame(frameIndex, frame.graphBuilder);
 
 	frame.meta.time_process_frame_end = std::chrono::high_resolution_clock::now();
 	//std::cout << "renderer_process_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_process_frame_end-frame.meta.time_process_frame_start).count() << "ms" << std::endl;
