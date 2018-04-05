@@ -197,7 +197,7 @@ static void renderer_record_frame(le_renderer_o* self, size_t frameIndex, le_ren
 
 // ----------------------------------------------------------------------
 
-static const FrameData::State& renderer_acquire_swapchain_image(le_renderer_o* self, size_t frameIndex){
+static const FrameData::State& renderer_acquire_backend_resources(le_renderer_o* self, size_t frameIndex){
 
 	// ---------| invariant: There are frames to process.
 
@@ -213,7 +213,7 @@ static const FrameData::State& renderer_acquire_swapchain_image(le_renderer_o* s
 
 	// TODO: update descriptor pool for this frame
 
-	auto acquireSuccess = self->backend.acquireSwapchainImage(frameIndex);
+	auto acquireSuccess = self->backend.acquirePhysicalResources(frameIndex);
 
 	frame.meta.time_acquire_frame_end = std::chrono::high_resolution_clock::now();
 
@@ -310,9 +310,9 @@ static void renderer_update( le_renderer_o *self, le_render_module_o * module_ )
 	// generate an intermediary, api-agnostic, representation of the frame
 	renderer_record_frame           ( self, ( index + 0 ) % numFrames, module_ );
 
-	// acquire external backend resources
-	// TODO: rename this method.
-	renderer_acquire_swapchain_image( self, ( index + 1 ) % numFrames );
+	// acquire external backend resources such as swapchain
+	// and create any temporary resources
+	renderer_acquire_backend_resources( self, ( index + 1 ) % numFrames );
 
 	// generate api commands for the frame
 	renderer_process_frame          ( self, ( index + 1 ) % numFrames );

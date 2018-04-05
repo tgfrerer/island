@@ -649,7 +649,7 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
-static bool backend_acquire_swapchain_image( le_backend_o *self, size_t frameIndex ) {
+static bool backend_acquire_physical_resources( le_backend_o *self, size_t frameIndex ) {
 	auto &frame = self->mFrames[ frameIndex ];
 
 	if (!self->swapchain->acquireNextImage( frame.semaphorePresentComplete, frame.swapchainImageIndex )){
@@ -1311,7 +1311,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.destroy                  = backend_destroy;
 	vk_backend_i.setup                    = backend_setup;
 	vk_backend_i.clear_frame              = backend_clear_frame;
-	vk_backend_i.acquire_swapchain_image  = backend_acquire_swapchain_image;
+	vk_backend_i.acquire_physical_resources  = backend_acquire_physical_resources;
 	vk_backend_i.create_window_surface    = backend_create_window_surface;
 	vk_backend_i.create_swapchain         = backend_create_swapchain;
 	vk_backend_i.dispatch_frame           = backend_dispatch_frame;

@@ -14,6 +14,8 @@
 #include <unordered_map>
 #include <iostream>
 #include <iomanip>
+
+#define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
 
 #include "le_renderer/private/le_renderer_types.h"

@@ -55,8 +55,8 @@ struct le_backend_vk_api {
 		void                   ( *destroy                  ) ( le_backend_o *self );
 		void                   ( *setup                    ) ( le_backend_o *self );
 		bool                   ( *clear_frame              ) ( le_backend_o *self, size_t frameIndex );
-		bool                   ( *acquire_swapchain_image  ) ( le_backend_o *self, size_t frameIndex );
 		void                   ( *process_frame            ) ( le_backend_o *self, size_t frameIndex, le_graph_builder_o *graph_ );
+		bool                   ( *acquire_physical_resources  ) ( le_backend_o *self, size_t frameIndex );
 		bool                   ( *dispatch_frame           ) ( le_backend_o *self, size_t frameIndex );
 		bool                   ( *create_window_surface    ) ( le_backend_o *self, pal_window_o *window_ );
 		void                   ( *create_swapchain         ) ( le_backend_o *self, le_swapchain_vk_settings_o *swapchainSettings_ );
@@ -169,8 +169,8 @@ class Backend : NoCopy, NoMove {
 		return backendI.get_num_swapchain_images( self );
 	}
 
-	bool acquireSwapchainImage( size_t frameIndex ) {
-		return backendI.acquire_swapchain_image( self, frameIndex );
+	bool acquirePhysicalResources( size_t frameIndex ) {
+		return backendI.acquire_physical_resources( self, frameIndex );
 	}
 
 	bool dispatchFrame( size_t frameIndex ) {
