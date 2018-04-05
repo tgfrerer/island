@@ -4,7 +4,6 @@
 
 // ----------------------------------------------------------------------
 
-
 static le_renderpass_o *renderpass_create(const char* renderpass_name, const le::RenderPassType& type_) {
 	auto self = new le_renderpass_o();
 	self->id = const_char_hash64(renderpass_name);
@@ -34,11 +33,11 @@ static void renderpass_set_execute_callback(le_renderpass_o*self, le_renderer_ap
 
 // ----------------------------------------------------------------------
 
-static void renderpass_add_image_attachment(le_renderpass_o*self, const char* name_, le_renderer_api::image_attachment_info_o* info_){
+static void renderpass_add_image_attachment(le_renderpass_o*self, uint64_t resource_id, le_renderer_api::image_attachment_info_o* info_){
 
 	auto info = *info_;
 
-	info.id = const_char_hash64(name_);
+	info.id = resource_id;
 
 	// By default, flag attachment source as being external, if attachment was previously written in this pass,
 	// source will be substituted by id of pass which writes to attachment, otherwise the flag will persist and
@@ -60,7 +59,7 @@ static void renderpass_add_image_attachment(le_renderpass_o*self, const char* na
 		info.storeOp = vk::AttachmentStoreOp::eDontCare;
 	}
 
-	strncpy( info.debugName, name_, sizeof(info.debugName));
+	//strncpy( info.debugName, name_, sizeof(info.debugName));
 
 	self->imageAttachments.emplace_back(std::move(info));
 }
@@ -86,6 +85,22 @@ static void renderpass_use_resource(le_renderpass_o* self, uint64_t resource_id,
 
 // ----------------------------------------------------------------------
 
+static void renderpass_declare_resource(le_renderpass_o* self, uint64_t resource_id, const le_renderer_api::ResourceInfo& info){
+
+	self->createResources[self->createResourceCount] = resource_id;
+	self->createResourceCount++;
+
+	self->createResourceInfos.push_back(info);
+
+	// additionally, we introduce this resource to the write resource table, so that it will be considered
+	// when building the graph based on dependencies.
+	renderpass_use_resource( self, resource_id, le::AccessFlagBits::eWrite );
+
+	assert(self->createResourceInfos.size() == self->createResourceCount); // size must match, as these two arrays correspond
+}
+
+// ----------------------------------------------------------------------
+
 static void renderpass_set_is_root(le_renderpass_o* self, bool isRoot){
 	self->isRoot = isRoot;
 }
@@ -102,4 +117,5 @@ void register_le_renderpass_api( void *api_ ) {
 	le_renderpass_i.set_execute_callback  = renderpass_set_execute_callback;
 	le_renderpass_i.use_resource          = renderpass_use_resource;
 	le_renderpass_i.set_is_root           = renderpass_set_is_root;
+	le_renderpass_i.declare_resource      = renderpass_declare_resource;
 }

@@ -24,7 +24,7 @@ Linear sub-allocator
 
 struct le_allocator_linear_o {
 
-	le_buffer_o *leBufferHandle = nullptr;
+	uint64_t resourceId = 0;
 
 	uint8_t *bufferBaseMemoryAddress = nullptr; // mapped memory address
 	uint64_t bufferBaseOffsetInBytes = 0;       // offset into buffer for first address belonging to this allocator
@@ -50,7 +50,7 @@ static le_allocator_linear_o* allocator_create(const LE_AllocatorCreateInfo& inf
 	self->bufferBaseMemoryAddress = info.bufferBaseMemoryAddress;
 	self->bufferBaseOffsetInBytes = info.bufferBaseOffsetInBytes;
 	self->capacity                = info.capacity;
-	self->leBufferHandle          = info.bufferHandle;
+	self->resourceId              = info.resourceId;
 	self->alignment               = info.alignment;
 
 	allocator_reset(self);
@@ -92,8 +92,8 @@ static bool allocator_allocate(le_allocator_linear_o* self, uint64_t numBytes, v
 
 // ----------------------------------------------------------------------
 
-static le_buffer_o* allocator_get_le_buffer_handle(le_allocator_linear_o* self){
-	return self->leBufferHandle;
+static uint64_t allocator_get_le_resource_id(le_allocator_linear_o* self){
+	return self->resourceId;
 }
 
 // ----------------------------------------------------------------------
@@ -105,7 +105,7 @@ ISL_API_ATTR void register_le_allocator_linear_api( void *api_ ) {
 
 	le_allocator_linear_i.create               = allocator_create;
 	le_allocator_linear_i.destroy              = allocator_destroy;
-	le_allocator_linear_i.get_le_buffer_handle = allocator_get_le_buffer_handle;
+	le_allocator_linear_i.get_le_resource_id = allocator_get_le_resource_id;
 	le_allocator_linear_i.allocate             = allocator_allocate;
 	le_allocator_linear_i.reset                = allocator_reset;
 }

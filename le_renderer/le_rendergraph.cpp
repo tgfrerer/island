@@ -266,6 +266,11 @@ static void graph_builder_execute_graph(le_graph_builder_o* self, size_t frameIn
 	auto allocator = backendInterface.get_transient_allocator(backend, frameIndex);
 
 	for (auto & pass: self->passes){
+
+		if (pass.sort_key != 0){
+
+		}
+
 		if (pass.callbackExecute != nullptr && pass.sort_key != 0){
 
 			auto encoder = encoderInterface.create(allocator); // NOTE: we must manually track the lifetime of encoder!

@@ -94,20 +94,20 @@ static void cbe_set_scissor( le_command_buffer_encoder_o *self, uint32_t firstSc
 
 // ----------------------------------------------------------------------
 
-static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, le_buffer *pBuffers, uint64_t *pOffsets ) {
+static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, uint64_t *pBuffers, uint64_t *pOffsets ) {
 
-	// Note: pBuffers will hold ids for virtual buffers, we must match these somehow/somewhere to
-	// actual vulkan buffer ids.
+	// Note: pBuffers will hold ids for virtual buffers, we must match these
+	// in the backend to actual vulkan buffer ids.
 
 	le::CommandBindVertexBuffers *cmd = new ( &self->mCommandStream[ 0 ] + self->mCommandStreamSize ) le::CommandBindVertexBuffers; // placement new!
 
 	void * dataBuffers     = ( cmd + 1 );
-	void * dataOffsets     = ( static_cast<char*>(dataBuffers) + sizeof(le_buffer) * bindingCount);
+	void * dataOffsets     = ( static_cast<char*>(dataBuffers) + sizeof(uint64_t) * bindingCount);
 
-	size_t dataBuffersSize = (sizeof( void* ) + sizeof(le_buffer)) * bindingCount;
+	size_t dataBuffersSize = (sizeof( void* ) + sizeof(uint64_t)) * bindingCount;
 	size_t dataOffsetsSize = (sizeof( void* ) + sizeof(uint64_t)) * bindingCount;
 
-	cmd->info = {firstBinding, bindingCount, static_cast<le_buffer*>(dataBuffers), static_cast<uint64_t*>( dataOffsets)};
+	cmd->info = {firstBinding, bindingCount, static_cast<uint64_t*>(dataBuffers), static_cast<uint64_t*>( dataOffsets)};
 	cmd->header.info.size += dataBuffersSize + dataOffsetsSize; // we must increase the size of this command by its payload size
 
 	memcpy( dataBuffers, pBuffers, dataBuffersSize );
@@ -135,7 +135,7 @@ static void cbe_set_vertex_data(le_command_buffer_encoder_o* self, void* data, u
 	if (allocator_i.allocate(self->pAllocator, numBytes, &memAddr, &bufferOffset)){
 		memcpy(memAddr,data,numBytes);
 
-		le_buffer allocatorBufferId = allocator_i.get_le_buffer_handle(self->pAllocator);
+		auto allocatorBufferId = allocator_i.get_le_resource_id(self->pAllocator);
 
 		cbe_bind_vertex_buffers( self, bindingIndex, 1, &allocatorBufferId, &bufferOffset );
 	} else {

@@ -22,6 +22,7 @@
 #include <mutex>
 #include <future>
 #include <unordered_set>
+#include <unordered_map>
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
@@ -58,6 +59,9 @@ struct FrameData {
 	State                          state                    = State::eInitial;
 
 	le_graph_builder_o* graphBuilder = nullptr;
+
+	std::unordered_map<uint64_t, le_renderer_api::ResourceInfo> localResources;
+	std::unordered_map<uint64_t, le_renderer_api::ResourceInfo> externalResources;
 
 	Meta meta;
 };
@@ -170,16 +174,20 @@ static void renderer_record_frame(le_renderer_o* self, size_t frameIndex, le_ren
 
 	// setup passes calls setup for all passes - this initalises virtual resources,
 	// and stores their descriptors (information needed to allocate physical resources)
-	renderModuleI.setup_passes(module_, frame.graphBuilder);
+	renderModuleI.setup_passes( module_, frame.graphBuilder );
 
-	graphBuilderI.build_graph(frame.graphBuilder);
+	graphBuilderI.build_graph( frame.graphBuilder );
 
 	// TODO: allocate physical resources for frame-local data
+
+	// at this point we know the resources which must be created for the frame.
+
+
 
 	// Execute callbacks into main application for each renderpass,
 	// build command lists per renderpass in intermediate, api-agnostic representation
 	//
-	graphBuilderI.execute_graph(frame.graphBuilder, frameIndex, self->backend);
+	graphBuilderI.execute_graph( frame.graphBuilder, frameIndex, self->backend );
 
 	frame.meta.time_record_frame_end   = std::chrono::high_resolution_clock::now();
 	//std::cout << "renderer_record_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_record_frame_end-frame.meta.time_record_frame_start).count() << "ms" << std::endl;
@@ -302,6 +310,8 @@ static void renderer_update( le_renderer_o *self, le_render_module_o * module_ )
 	// generate an intermediary, api-agnostic, representation of the frame
 	renderer_record_frame           ( self, ( index + 0 ) % numFrames, module_ );
 
+	// acquire external backend resources
+	// TODO: rename this method.
 	renderer_acquire_swapchain_image( self, ( index + 1 ) % numFrames );
 
 	// generate api commands for the frame

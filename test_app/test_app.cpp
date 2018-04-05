@@ -94,9 +94,7 @@ static bool test_app_update( test_app_o *self ) {
 			le_renderer_api::ResourceInfo resourceInfo;
 			resourceInfo.ownership = le_renderer_api::ResourceInfo::eFrameLocal;
 
-			//rp.createResource( RESOURCE_BUFFER_ID( "debug-buffer" ), resourceInfo );
-
-			rp.useResource( RESOURCE_BUFFER_ID( "debug-buffer" ), le::AccessFlagBits::eWrite );
+			rp.createResource( RESOURCE_BUFFER_ID( "debug-buffer" ), resourceInfo );
 
 			return true;
 		} );
@@ -131,7 +129,7 @@ static bool test_app_update( test_app_o *self ) {
 			le::ImageAttachmentInfo colorAttachmentInfo{};
 			colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
 			colorAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
-			rp.addImageAttachment( "backbuffer", &colorAttachmentInfo );
+			rp.addImageAttachment( RESOURCE_IMAGE_ID("backbuffer"), &colorAttachmentInfo );
 
 			rp.useResource( RESOURCE_BUFFER_ID( "debug-buffer" ), le::AccessFlagBits::eRead );
 			rp.setIsRoot( true );

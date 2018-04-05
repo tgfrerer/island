@@ -17,34 +17,13 @@
 
 #include <vector>
 #include <unordered_map>
-#include <vulkan/vulkan.hpp>
-
 #include <iostream>
 #include <iomanip>
+#include <list>
 
+#define VULKAN_HPP_NO_SMART_HANDLE
+#include <vulkan/vulkan.hpp>
 
-struct le_buffer_o {
-	vk::Buffer buffer = nullptr;
-	vk::Device device = nullptr; // non-owning reference to device
-};
-
-static le_buffer_o* le_buffer_create(vk::Buffer vkBuffer, vk::Device vkDevice){
-	auto self = new le_buffer_o();
-	self->buffer = vkBuffer;
-	self->device = vkDevice;
-	return self;
-}
-
-static void le_buffer_destroy(le_buffer_o* self){
-	if (self->device && self->buffer){
-		self->device.destroyBuffer(self->buffer);
-	}
-	delete self;
-}
-
-static vk::Buffer le_buffer_get_vk_buffer(le_buffer_o* self){
-	return self->buffer;
-}
 
 // herein goes all data which is associated with the current frame
 // backend keeps track of multiple frames, exactly one per renderer::FrameData frame.
@@ -59,7 +38,7 @@ struct BackendFrameData {
 	std::vector<vk::Framebuffer>   debugFramebuffers;
 
 	struct ResourceInfo {
-		uint64_t   id = 0;
+		uint64_t   id = 0; // resource id
 		vk::Format format;
 		uint32_t   reserved;
 	};
@@ -79,6 +58,29 @@ struct BackendFrameData {
 
 	std::unordered_map<uint64_t, ResourceInfo, IdentityHash> resourceTable;
 
+	struct AbstractPhysicalResource{
+		enum Type : uint64_t {
+			Undefined = 0,
+			Buffer,
+			Image,
+		};
+		union {
+			uint64_t      asRawData;
+			VkBuffer    asBuffer;
+			VkImage     asImage;
+			VkImageView asImageView;
+		};
+		Type type;
+	};
+
+	static_assert(sizeof(vk::Buffer) == sizeof(VkImageView) && sizeof(VkBuffer) == sizeof(VkImage), "size of AbstractPhysicalResource components must be identical");
+
+	// Todo: clarify ownership of physical resources inside FrameData
+	// Q: Does this table actually own the resources? A: It must not: as it is used to map external resources as well.
+	std::unordered_map<uint64_t, AbstractPhysicalResource> physicalResources; // map from renderer resource id to physical resources - only contains resources this frame uses.
+
+	std::list<AbstractPhysicalResource> ownedResources;
+
 	// todo: one allocator per command buffer eventually -
 	// one allocator per frame for now.
 	std::vector<le_allocator_linear_o*> allocators;
@@ -87,7 +89,7 @@ struct BackendFrameData {
 
 // ----------------------------------------------------------------------
 
-// backend data object
+/// \brief backend data object
 struct le_backend_o {
 
 	le_backend_vk_settings_t settings;
@@ -100,6 +102,9 @@ struct le_backend_o {
 
 	std::vector<BackendFrameData> mFrames;
 
+
+	// these resources are potentially in-flight, and may be used read-only
+	// by more than one frame.
 	vk::RenderPass          debugRenderPass           = nullptr;
 	vk::Pipeline            debugPipeline             = nullptr;
 	vk::PipelineCache       debugPipelineCache        = nullptr;
@@ -181,6 +186,7 @@ static void backend_destroy( le_backend_o *self ) {
 
 	delete self;
 }
+
 
 // ----------------------------------------------------------------------
 
@@ -295,13 +301,12 @@ static void backend_setup( le_backend_o *self ) {
 
 		vkDevice.bindBufferMemory( self->debugTransientVertexBuffer, self->debugTransientVertexDeviceMemory, 0 );
 
-		auto leBuffer = le_buffer_create(self->debugTransientVertexBuffer, vkDevice);
 
 		// TODO: track lifetime for bufferHandle
 
 		allocatorCreateInfo.alignment               = memAlignment;
 		allocatorCreateInfo.bufferBaseMemoryAddress = static_cast<uint8_t*>( vkDevice.mapMemory( self->debugTransientVertexDeviceMemory, 0, VK_WHOLE_SIZE ) );
-		allocatorCreateInfo.bufferHandle            = leBuffer;
+		allocatorCreateInfo.resourceId              = RESOURCE_BUFFER_ID("scratch");
 		allocatorCreateInfo.capacity                = memSize;
 	}
 
@@ -633,6 +638,10 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 	device.freeCommandBuffers( frame.commandPool, frame.commandBuffers );
 	frame.commandBuffers.clear();
 
+	// todo: we should probably notify anyone who wanted to recycle these
+	// physical resources that they are not in use anymore.
+	frame.physicalResources.clear();
+
 	device.resetCommandPool( frame.commandPool, vk::CommandPoolResetFlagBits::eReleaseResources );
 
 	return true;
@@ -642,7 +651,19 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 
 static bool backend_acquire_swapchain_image( le_backend_o *self, size_t frameIndex ) {
 	auto &frame = self->mFrames[ frameIndex ];
-	return self->swapchain->acquireNextImage( frame.semaphorePresentComplete, frame.swapchainImageIndex );
+
+	if (!self->swapchain->acquireNextImage( frame.semaphorePresentComplete, frame.swapchainImageIndex )){
+		return false;
+	}
+
+	// ----------| invariant: swapchain acquisition successful.
+
+	frame.physicalResources[ RESOURCE_IMAGE_VIEW_ID( "backbuffer" ) ].asImageView = self->swapchain->getImageView( frame.swapchainImageIndex );
+	frame.physicalResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].asImage          = self->swapchain->getImage( frame.swapchainImageIndex );
+
+	frame.physicalResources[ RESOURCE_BUFFER_ID("scratch")].asBuffer = self->debugTransientVertexBuffer;
+
+	return true;
 };
 
 // ----------------------------------------------------------------------
@@ -720,9 +741,14 @@ static void backend_track_resource_state(le_backend_o* self, size_t frameIndex, 
 			syncChainTable[ resource.first ].push_back( BackendFrameData::ResourceState{} );
 		}
 
-		auto &backbufferState         = syncChainTable[ const_char_hash64( "backbuffer" ) ].front();
-		backbufferState.write_stage   = vk::PipelineStageFlagBits::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
-		backbufferState.visible_access = vk::AccessFlagBits( 0 );                           // semaphore took care of availability - we can assume memory is already available
+		auto backbufferIt = syncChainTable.find(RESOURCE_IMAGE_ID("backbuffer"));
+		if (backbufferIt != syncChainTable.end()){
+			auto &backbufferState         = backbufferIt->second.front();
+			backbufferState.write_stage   = vk::PipelineStageFlagBits::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
+			backbufferState.visible_access = vk::AccessFlagBits( 0 );                           // semaphore took care of availability - we can assume memory is already available
+		} else {
+			std::cout << "warning: no reference to backbuffer found in rendergraph" << std::flush;
+		}
 	}
 
 	// * sync state: ready to enter renderpass: colorattachmentOutput=visible *
@@ -859,7 +885,7 @@ static void backend_track_resource_state(le_backend_o* self, size_t frameIndex, 
 
 		auto finalState{syncChain.back()};
 
-		if (id == const_char_hash64( "backbuffer" )){
+		if (id == RESOURCE_IMAGE_ID( "backbuffer" )){
 			finalState.write_stage  = vk::PipelineStageFlagBits::eBottomOfPipe;
 			finalState.visible_access = vk::AccessFlagBits::eMemoryRead;
 			finalState.layout    = vk::ImageLayout::ePresentSrcKHR;
@@ -1062,6 +1088,21 @@ static le_allocator_linear_o* backend_get_transient_allocator(le_backend_o* self
 
 // ----------------------------------------------------------------------
 
+vk::Buffer get_physical_buffer_from_resource_id(const BackendFrameData* frame, uint64_t resourceId){
+	static_assert(sizeof(BackendFrameData::AbstractPhysicalResource::asBuffer) == sizeof (uint64_t), "size of the union must match");
+	return frame->physicalResources.at(resourceId).asBuffer;
+}
+
+vk::ImageView get_image_view_from_resource_id(const BackendFrameData* frame, uint64_t resourceId){
+	return frame->physicalResources.at(resourceId).asImageView;
+}
+
+vk::Image get_image_from_resource_id(const BackendFrameData* frame, uint64_t resourceId){
+	return frame->physicalResources.at(resourceId).asImage;
+}
+
+// ----------------------------------------------------------------------
+
 static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_graph_builder_o* graph_) {
 
 	backend_create_resource_table( self, frameIndex, graph_ );
@@ -1090,7 +1131,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 
 	// TODO: (parallelize) when going wide, there needs to be a commandPool for each execution context so that
 	// command buffer generation may be free-threaded.
-	uint32_t numCommandBuffers = uint32_t(numRenderPasses);
+	auto numCommandBuffers = uint32_t(numRenderPasses);
 	auto cmdBufs = device.allocateCommandBuffers( {frame.commandPool, vk::CommandBufferLevel::ePrimary, numCommandBuffers} );
 
 	assert( cmdBufs.size() == 2 ); // for debug purposes
@@ -1099,7 +1140,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 	// other renderpasses.
 	for ( size_t passIndex = 0; passIndex != numRenderPasses; ++passIndex ) {
 
-		// auto &pass = passes[ i ];
+		auto &pass = passes[ passIndex ];
+
 		auto &cmd = cmdBufs[passIndex];
 
 		std::vector<vk::Buffer> vertexInputBindings(maxVertexInputBindings, nullptr);
@@ -1107,7 +1149,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 
 		{
 			std::array<vk::ImageView, 1> framebufferAttachments{
-				{self->swapchain->getImageView( frame.swapchainImageIndex )}};
+				{get_image_view_from_resource_id( &frame, RESOURCE_IMAGE_VIEW_ID( "backbuffer" ) )}};
 
 			vk::FramebufferCreateInfo framebufferCreateInfo;
 			framebufferCreateInfo
@@ -1157,7 +1199,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 
 			while ( commandIndex != numCommands ) {
 
-				le::CommandHeader *header = static_cast<le::CommandHeader *>( dataIt );
+				auto header = static_cast<le::CommandHeader *>( dataIt );
 
 				switch ( header->info.type ) {
 
@@ -1196,10 +1238,16 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 					uint32_t firstBinding = le_cmd->info.firstBinding;
 					uint32_t numBuffers   = le_cmd->info.bindingCount;
 
+					// TODO: here, when we match resource ids to physical resources,
+					// we can be much quicker (and safer) if we only search through the resources
+					// declared in the setup callback with useResource().
+
+					// fine - but where are these resources actually matched to physical resources?
+
 					// translate le_buffers to vk_buffers
 					for (uint32_t b =0; b!=numBuffers; ++b)
 					{
-						vertexInputBindings[b + firstBinding] = le_buffer_get_vk_buffer(le_cmd->info.pBuffers[b]);
+						vertexInputBindings[b + firstBinding] = get_physical_buffer_from_resource_id(&frame, le_cmd->info.pBuffers[b]);
 					}
 
 					cmd.bindVertexBuffers( le_cmd->info.firstBinding, le_cmd->info.bindingCount, &vertexInputBindings[firstBinding], le_cmd->info.pOffsets );

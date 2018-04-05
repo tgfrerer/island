@@ -18,7 +18,7 @@ void register_le_allocator_linear_api( void *api_ );
 struct le_buffer_o;
 
 struct LE_AllocatorCreateInfo {
-	le_buffer_o * bufferHandle;
+	uint64_t resourceId;
 	uint8_t *bufferBaseMemoryAddress = nullptr; // mapped memory address
 	uint64_t bufferBaseOffsetInBytes = 0;       // offset into buffer for first address belonging to this allocator
 	uint64_t capacity                = 0;

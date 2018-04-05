@@ -100,7 +100,7 @@ struct le_backend_vk_api {
 		void                    ( *destroy              ) ( le_allocator_linear_o *self );
 		bool                    ( *allocate             ) ( le_allocator_linear_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset);
 		void                    ( *reset                ) ( le_allocator_linear_o* self);
-		le_buffer_o*            ( *get_le_buffer_handle ) ( le_allocator_linear_o* self);
+		uint64_t                ( *get_le_resource_id ) ( le_allocator_linear_o* self);
 	};
 
 

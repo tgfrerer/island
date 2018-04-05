@@ -64,8 +64,31 @@ struct le_renderer_api {
 	};
 
 	struct ResourceInfo {
-		uint64_t id;
-		uint64_t type;
+
+		enum ResourceOwnership : uint32_t {
+			eFrameLocal    = 0, // frame owns this resource, it will be gone once frame has passed through pipeline. direct memory assignment / direct access possible
+			eFrameExternal = 1, // renderer owns this resource, it will be kept alive until the resource is destroyed. must use resourcePass to update resource
+		};
+
+		uint32_t usageFlags = 0;
+		uint32_t capacity   = 0;
+
+		ResourceOwnership ownership = eFrameLocal;
+
+//		struct ImageInfo {
+//			uint32_t usageFlags                     = 0;
+//			uint32_t useSwapchainRelativeDimensions = true;
+//			float    swapchainRelativeDimensions    = 1.f; // dimensions expressed relative to swapchain
+//			uint32_t width                          = 0;
+//			uint32_t height                         = 0;
+//		};
+
+
+//		struct BufferInfo {
+//			uint32_t usageFlags = 0; // vertex or ssao, etc.
+//			uint32_t capacity   = 0;
+//		};
+
 	};
 
 	struct image_attachment_info_o {
@@ -93,9 +116,10 @@ struct le_renderer_api {
 		le_renderpass_o* ( *create                ) (const char* renderpass_name, const le::RenderPassType& type_);
 		void             ( *destroy               ) (le_renderpass_o* obj);
 		void             ( *set_setup_fun         ) (le_renderpass_o* obj, pfn_renderpass_setup_t setup_fun );
-		void             ( *add_image_attachment  ) (le_renderpass_o* obj, const char*, image_attachment_info_o* info);
+		void             ( *add_image_attachment  ) (le_renderpass_o* obj, uint64_t resource_id, image_attachment_info_o* info);
 		void             ( *set_execute_callback  ) (le_renderpass_o* obj, pfn_renderpass_execute_t render_fun, void* user_data );
 		void             ( *use_resource          ) (le_renderpass_o* obj, uint64_t resource_id, uint32_t access_flags);
+		void             ( *declare_resource      ) (le_renderpass_o* obj, uint64_t resource_id, const ResourceInfo& info);
 		void 			 ( *set_is_root           ) (le_renderpass_o* obj, bool is_root);
 	};
 
@@ -129,7 +153,7 @@ struct le_renderer_api {
 		void                          ( *draw                ) ( le_command_buffer_encoder_o* self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance);
 		void                          ( *set_viewport        ) ( le_command_buffer_encoder_o* self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport* pViewports);
 		void                          ( *set_scissor         ) ( le_command_buffer_encoder_o* self, uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D* pViewports);
-		void                          ( *bind_vertex_buffers ) ( le_command_buffer_encoder_o* self, uint32_t firstBinding, uint32_t bindingCount, struct le_buffer_o** pBuffers, uint64_t* pOffsets );
+		void                          ( *bind_vertex_buffers ) ( le_command_buffer_encoder_o* self, uint32_t firstBinding, uint32_t bindingCount, uint64_t* pBuffers, uint64_t* pOffsets );
 		void                          ( *set_vertex_data     ) ( le_command_buffer_encoder_o* self, void* data, uint64_t numBytes, uint32_t bindingIndex );
 	};
 
@@ -223,8 +247,8 @@ class RenderPassRef {
 		return self;
 	}
 
-	RenderPassRef &addImageAttachment( const char *name_, le_renderer_api::image_attachment_info_o *info ) {
-		renderpassI.add_image_attachment( self, name_, info );
+	RenderPassRef &addImageAttachment( uint64_t resource_id, le_renderer_api::image_attachment_info_o *info ) {
+		renderpassI.add_image_attachment( self, resource_id, info );
 		return *this;
 	}
 
@@ -233,14 +257,16 @@ class RenderPassRef {
 		return *this;
 	}
 	
+	RenderPassRef &createResource(uint64_t resource_id, const le_renderer_api::ResourceInfo& info){
+		renderpassI.declare_resource(self, resource_id, info);
+		return *this;
+	}
+
 	RenderPassRef &setIsRoot(bool isRoot=true){
 		renderpassI.set_is_root(self,isRoot);
 		return *this;
 	}
 };
-
-// ----------------------------------------------------------------------
-
 
 // ----------------------------------------------------------------------
 
@@ -325,7 +351,7 @@ class CommandBufferEncoder: NoCopy, NoMove {
 		cbEncoderI.set_scissor( self, firstScissor, scissorCount, pScissors );
 	}
 
-	void bindVertexBuffers( uint32_t firstBinding, uint32_t bindingCount, le_buffer_o **pBuffers, uint64_t *pOffsets ) {
+	void bindVertexBuffers( uint32_t firstBinding, uint32_t bindingCount, uint64_t *pBuffers, uint64_t *pOffsets ) {
 		cbEncoderI.bind_vertex_buffers( self, firstBinding, bindingCount, pBuffers, pOffsets );
 	}
 
