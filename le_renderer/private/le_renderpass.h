@@ -2,9 +2,9 @@
 #define GUARD_LE_RENDERPASS_H
 
 #include "le_renderer/le_renderer.h"
-#include <vector>
-// ----------------------------------------------------------------------
 
+// ----------------------------------------------------------------------
+// fixme: remove this
 #define LE_RENDERPASS_MARKER_EXTERNAL "rp-external"
 
 #ifdef __cplusplus
@@ -29,20 +29,20 @@ struct le_renderpass_o {
 
 	le::RenderPassType type = le::RenderPassType::eUndefined;
 	uint64_t           id;
-	uint64_t	       sort_key = 0;
+	uint64_t           sort_key = 0;
 	bool               isRoot   = false; // whether pass *must* be processed
 
-	std::vector<le_renderer_api::image_attachment_info_o> imageAttachments;
+	le_renderer_api::image_attachment_info_o imageAttachments[ 15 ]; /// max number of image attachments is 15
 
-	uint64_t createResources[32];
-	uint32_t createResourceCount = 0;
+	uint64_t                      createResources[ 32 ];
+	le_renderer_api::ResourceInfo createResourceInfos[ 32 ]; // createResources holds ids at matching index
+	uint64_t                      readResources[ 32 ];
+	uint64_t                      writeResources[ 32 ];
 
-	std::vector<le_renderer_api::ResourceInfo> createResourceInfos; // createResources holds ids at matching index
-
-	uint64_t readResources[ 32 ];
-	uint64_t writeResources[ 32 ];
-	uint32_t readResourceCount  = 0;
-	uint32_t writeResourceCount = 0;
+	uint32_t imageAttachmentCount = 0;
+	uint32_t createResourceCount  = 0;
+	uint32_t readResourceCount    = 0;
+	uint32_t writeResourceCount   = 0;
 
 	le_renderer_api::pfn_renderpass_setup_t   callbackSetup              = nullptr;
 	le_renderer_api::pfn_renderpass_execute_t callbackExecute            = nullptr;

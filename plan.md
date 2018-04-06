@@ -1,11 +1,22 @@
 # PLAN
 
+## Structs as Data
+
+Think of *structs as data* - your main interaction should be with data,
+sequences of functions acting collaboratively on data. 
+
+## Objects as abstract *state* machines
+
+You use objects and object methods if you want objects to update their internal
+state. The internal state of an object may be hidden, and this is how you
+implement encapsulation, and abstraction (an object may decide for itself how
+it implements a certain method).
+
 * backend should not need to know about graphbuilder - just pass passes in the
   correct order when calling backend methods
 
     * for this to work, encoder needs to come out of the graphbuilder, and
       needs to live with framedata. this is a better place for encoder anyway.
-
 
 Let's refer to all resources in the renderer using opaque `uint64_t` ids. These
 ids should be based on hashing the name - but we could decide later how we want

@@ -27,8 +27,7 @@
 
 #define LE_GRAPH_BUILDER_RECURSION_DEPTH 20
 
-static_assert(sizeof(le::CommandHeader)==sizeof(uint64_t),"size must be 64bit");
-
+static_assert( sizeof( le::CommandHeader ) == sizeof( uint64_t ), "size must be 64bit" );
 
 using image_attachment_t = le_renderer_api::image_attachment_info_o;
 
@@ -47,20 +46,20 @@ struct le_graph_builder_o : NoCopy, NoMove {
 
 // ----------------------------------------------------------------------
 
-static le_graph_builder_o* graph_builder_create(){
+static le_graph_builder_o *graph_builder_create() {
 	auto obj = new le_graph_builder_o();
 	return obj;
 }
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_reset(le_graph_builder_o* self){
+static void graph_builder_reset( le_graph_builder_o *self ) {
 
 	static auto rendererApiI = *Registry::getApi<le_renderer_api>();
 	const auto &encoderApi   = rendererApiI.le_command_buffer_encoder_i;
 
-	for (auto & encoder: self->encoders){
-		encoderApi.destroy(encoder);
+	for ( auto &encoder : self->encoders ) {
+		encoderApi.destroy( encoder );
 	}
 
 	self->encoders.clear();
@@ -69,15 +68,15 @@ static void graph_builder_reset(le_graph_builder_o* self){
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_destroy(le_graph_builder_o* self){
-	graph_builder_reset(self);
+static void graph_builder_destroy( le_graph_builder_o *self ) {
+	graph_builder_reset( self );
 	delete self;
 }
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_add_renderpass(le_graph_builder_o* self, le_renderpass_o* renderpass){
-	self->passes.emplace_back(*renderpass);
+static void graph_builder_add_renderpass( le_graph_builder_o *self, le_renderpass_o *renderpass ) {
+	self->passes.emplace_back( *renderpass );
 }
 
 // ----------------------------------------------------------------------
@@ -94,7 +93,7 @@ static std::vector<std::vector<uint64_t>> graph_builder_resolve_resource_ids( co
 
 	// returns: for each pass, a list of passes which write to resources that this pass uses.
 
-	dependenciesPerPass.reserve(passes.size());
+	dependenciesPerPass.reserve( passes.size() );
 
 	// map from resource id -> source pass id
 	std::unordered_map<uint64_t, uint64_t, IdentityHash> writeAttachmentTable;
@@ -102,31 +101,31 @@ static std::vector<std::vector<uint64_t>> graph_builder_resolve_resource_ids( co
 	// We go through passes in module submission order, so that outputs will match later inputs.
 	uint64_t passIndex = 0;
 	for ( auto &pass : passes ) {
-		
+
 		std::vector<uint64_t> passesThisPassDependsOn;
-		passesThisPassDependsOn.reserve(pass.readResourceCount);
+		passesThisPassDependsOn.reserve( pass.readResourceCount );
 
 		// We must first look if any of our READ attachments are already present in the attachment table.
 		// If so, we update source ids (from table) for each attachment we found.
-		for ( size_t i = 0; i != pass.readResourceCount; ++i) {
-			const auto & resource = pass.readResources[i];
+		for ( size_t i = 0; i != pass.readResourceCount; ++i ) {
+			const auto &resource = pass.readResources[ i ];
 
-			    auto foundOutputIt = writeAttachmentTable.find( resource );
-				if ( foundOutputIt != writeAttachmentTable.end() ) {
-					passesThisPassDependsOn.emplace_back(foundOutputIt->second);
-				}
+			auto foundOutputIt = writeAttachmentTable.find( resource );
+			if ( foundOutputIt != writeAttachmentTable.end() ) {
+				passesThisPassDependsOn.emplace_back( foundOutputIt->second );
+			}
 		}
 
-		dependenciesPerPass.emplace_back(passesThisPassDependsOn);
+		dependenciesPerPass.emplace_back( passesThisPassDependsOn );
 
 		// Outputs from current pass overwrite any cached outputs with same name:
 		// later inputs with same name will then resolve to the latest version
 		// of an output with a particular name.
-		for ( size_t i =0; i!=pass.writeResourceCount; ++i ) {
-			const auto & writeResourceId = pass.writeResources[i];
+		for ( size_t i = 0; i != pass.writeResourceCount; ++i ) {
+			const auto &writeResourceId             = pass.writeResources[ i ];
 			writeAttachmentTable[ writeResourceId ] = passIndex;
 		}
-		
+
 		++passIndex;
 	}
 
@@ -136,9 +135,9 @@ static std::vector<std::vector<uint64_t>> graph_builder_resolve_resource_ids( co
 // ----------------------------------------------------------------------
 /// \brief depth-first traversal of graph, following each input to its corresponding output
 static void graph_builder_traverse_passes( const std::vector<std::vector<uint64_t>> &passes,
-                                             const uint64_t &                          currentRenderpassId,
-                                             const uint32_t                            recursion_depth,
-                                             std::vector<uint32_t> &                   pass_sort_orders ) {
+                                           const uint64_t &                          currentRenderpassId,
+                                           const uint32_t                            recursion_depth,
+                                           std::vector<uint32_t> &                   pass_sort_orders ) {
 
 	if ( recursion_depth > LE_GRAPH_BUILDER_RECURSION_DEPTH ) {
 		std::cerr << __FUNCTION__ << " : "
@@ -162,32 +161,31 @@ static void graph_builder_traverse_passes( const std::vector<std::vector<uint64_
 	}
 }
 
-
 // ----------------------------------------------------------------------
 
-static std::vector<uint64_t> graph_builder_find_root_passes(const std::vector<le_renderpass_o>& passes){
+static std::vector<uint64_t> graph_builder_find_root_passes( const std::vector<le_renderpass_o> &passes ) {
 	std::vector<uint64_t> roots;
-	roots.reserve(passes.size());
-	
-	uint64_t i = 0 ;
-	for (auto & pass : passes){
-		if (pass.isRoot){
-			roots.push_back(i);
+	roots.reserve( passes.size() );
+
+	uint64_t i = 0;
+	for ( auto &pass : passes ) {
+		if ( pass.isRoot ) {
+			roots.push_back( i );
 		}
 		++i;
 	}
-	
+
 	return roots;
 }
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_build_graph(le_graph_builder_o* self){
+static void graph_builder_build_graph( le_graph_builder_o *self ) {
 
 	// Find corresponding output for each input attachment,
 	// and tag input with output id, as dependencies are
 	// declared using names rather than linked in code.
-	auto pass_dependencies = graph_builder_resolve_resource_ids(self->passes);
+	auto pass_dependencies = graph_builder_resolve_resource_ids( self->passes );
 
 	{
 		// Establish a toplogical sorting order
@@ -218,15 +216,14 @@ static void graph_builder_build_graph(le_graph_builder_o* self){
 
 	// Use sort key to order passes in decending order, based on sort key.
 	// pass with lower sort key depends on pass with higher sort key.
-	std::stable_sort(self->passes.begin(),self->passes.end(),[](const le_renderpass_o& lhs, const le_renderpass_o& rhs){
+	std::stable_sort( self->passes.begin(), self->passes.end(), []( const le_renderpass_o &lhs, const le_renderpass_o &rhs ) {
 		return lhs.sort_key > rhs.sort_key;
-	});
-
+	} );
 }
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_execute_graph(le_graph_builder_o* self, size_t frameIndex, le_backend_o* backend){
+static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameIndex, le_backend_o *backend ) {
 
 	/// Record render commands by calling rendercallbacks for each renderpass.
 	///
@@ -252,83 +249,80 @@ static void graph_builder_execute_graph(le_graph_builder_o* self, size_t frameIn
 				if ( attachment.access_flags & le::AccessFlagBits::eWrite ) {
 					msg << "w";
 				}
-				msg << " : " << std::setw( 32 ) << std::hex << attachment.id << ":" << attachment.source_id << ", '" << attachment.debugName << "'" << std::endl;
+				msg << " : " << std::setw( 32 ) << std::hex << attachment.resource_id << ":" << attachment.source_id << ", '" << attachment.debugName << "'" << std::endl;
 			}
 		}
 		std::cout << msg.str();
 	}
 
-	self->encoders.reserve(self->passes.size());
+	self->encoders.reserve( self->passes.size() );
 
-	static const auto & rendererApiI = *Registry::getApi<le_renderer_api>();
-	static const auto & encoderInterface = rendererApiI.le_command_buffer_encoder_i;
+	static const auto &rendererApiI     = *Registry::getApi<le_renderer_api>();
+	static const auto &encoderInterface = rendererApiI.le_command_buffer_encoder_i;
 
-	static const auto & backendApiI = *Registry::getApi<le_backend_vk_api>();
-	static const auto & backendInterface = backendApiI.vk_backend_i;
+	static const auto &backendApiI      = *Registry::getApi<le_backend_vk_api>();
+	static const auto &backendInterface = backendApiI.vk_backend_i;
 
 	// TODO: have one allocator per pass, so that allocator and encoder may be interleaved,
 	// and run on parallel threads.
-	auto allocator = backendInterface.get_transient_allocator(backend, frameIndex);
+	auto allocator = backendInterface.get_transient_allocator( backend, frameIndex );
 
-	for (auto & pass: self->passes){
+	for ( auto &pass : self->passes ) {
 
-		if (pass.sort_key != 0){
-
+		if ( pass.sort_key != 0 ) {
 		}
 
-		if (pass.callbackExecute != nullptr && pass.sort_key != 0){
+		if ( pass.callbackExecute != nullptr && pass.sort_key != 0 ) {
 
-			auto encoder = encoderInterface.create(allocator); // NOTE: we must manually track the lifetime of encoder!
+			auto encoder = encoderInterface.create( allocator ); // NOTE: we must manually track the lifetime of encoder!
 
-			pass.callbackExecute(encoder, pass.execute_callback_user_data);
-			self->encoders.emplace_back(encoder);
+			pass.callbackExecute( encoder, pass.execute_callback_user_data );
+			self->encoders.emplace_back( encoder );
 		}
 	}
-
 }
 
 // ----------------------------------------------------------------------
 
 static void graph_builder_get_passes( le_graph_builder_o *self, le_renderpass_o **pPasses, size_t *pNumPasses ) {
 
-	*pPasses = self->passes.data();
+	*pPasses    = self->passes.data();
 	*pNumPasses = self->passes.size();
-
 }
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_get_encoded_data_for_pass(le_graph_builder_o* self, size_t passIndex, void** data, size_t *numBytes, size_t* numCommands){
+static void graph_builder_get_encoded_data_for_pass( le_graph_builder_o *self, size_t passIndex, void **data, size_t *numBytes, size_t *numCommands ) {
 
 	static auto rendererApi = Registry::getApi<le_renderer_api>();
-	static auto encoderApi = &rendererApi->le_command_buffer_encoder_i;
+	static auto encoderApi  = &rendererApi->le_command_buffer_encoder_i;
 
 	encoderApi->get_encoded_data( self->encoders[ passIndex ], data, numBytes, numCommands );
 }
 
 // ----------------------------------------------------------------------
 
-static le_render_module_o *render_module_create( ) {
-	auto obj = new le_render_module_o( );
+static le_render_module_o *render_module_create() {
+	auto obj = new le_render_module_o();
 	return obj;
 }
 
 // ----------------------------------------------------------------------
 
-static void render_module_destroy(le_render_module_o* self){
+static void render_module_destroy( le_render_module_o *self ) {
 	delete self;
 }
 
 // ----------------------------------------------------------------------
 
-static void render_module_add_renderpass(le_render_module_o*self, le_renderpass_o* pass){
+static void render_module_add_renderpass( le_render_module_o *self, le_renderpass_o *pass ) {
 	// TODO: make sure name for each pass is unique per rendermodule.
-	self->passes.emplace_back(*pass);
+	self->passes.emplace_back( *pass );
 }
 
 // ----------------------------------------------------------------------
 
-static void render_module_setup_passes(le_render_module_o* self, le_graph_builder_o* graph_builder_){
+static void render_module_setup_passes( le_render_module_o *self, le_graph_builder_o *graph_builder_ ) {
 
 	for ( auto &pass : self->passes ) {
 		// Call setup function on all passes, in order of addition to module
@@ -353,14 +347,13 @@ static void render_module_setup_passes(le_render_module_o* self, le_graph_builde
 	// - find any name clashes: inputs and outputs for each renderpass must be unique.
 	// Step 2: sort passes in dependency order (by adding an execution order index to each pass)
 	// Step 3: add  markers to each attachment for each pass, depending on their read/write status
-
 };
 
 // ----------------------------------------------------------------------
 
 void register_le_rendergraph_api( void *api_ ) {
 
-	auto  le_renderer_api_i = static_cast<le_renderer_api *>( api_ );
+	auto le_renderer_api_i = static_cast<le_renderer_api *>( api_ );
 
 	auto &le_render_module_i          = le_renderer_api_i->le_render_module_i;
 	le_render_module_i.create         = render_module_create;
