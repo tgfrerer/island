@@ -1,5 +1,12 @@
 # PLAN
 
+* backend should not need to know about graphbuilder - just pass passes in the
+  correct order when calling backend methods
+
+    * for this to work, encoder needs to come out of the graphbuilder, and
+      needs to live with framedata. this is a better place for encoder anyway.
+
+
 Let's refer to all resources in the renderer using opaque `uint64_t` ids. These
 ids should be based on hashing the name - but we could decide later how we want
 to handle id generation and retrieval if we put the id generator into its own
@@ -44,7 +51,7 @@ Where should we *declare* resources?
 
  * combine `resource` and `buffer`- a buffer is-a resource, as an image is-a
    resource. We define a resource as something which has memory backing on the
-   GPU.
+   GPU and needs synchronisation.
  
  * we want three different types of passes: render, transfer, compute. Each
    pass has a list of inputs, and a list of outputs.
@@ -56,11 +63,6 @@ Where should we *declare* resources?
  * backendFrameData also has a resource table - and a type ResourceInfo - we
    should consolidate this with our resource type.
 
- * We're quite gung-ho about `le_buffer` in `le_backend_vk` when we create a
-   buffer - ideally, a buffer is reference-tracked. we're currently not
-   tracking the lifetime of a buffer, and we're also allowing other frames to
-   alias parts of it. this means, it becomes complicated to track the lifetime
-   of a `le_buffer` : CLEAN THIS UP.
 
 ## (A)
 
@@ -85,7 +87,8 @@ Where should we *declare* resources?
       time. 
 
     * make sure `reset_swapchain` is clean - at the moment it complains about
-      deleting an object which is currently in use by a command buffer.
+      deleting an object which is currently in use by a command buffer : the
+      view, which is owned by the swapchain.
 
 ----------------------------------------------------------------------
 
@@ -116,7 +119,7 @@ Where should we *declare* resources?
       by opaque ids retrieved via the engine. the engine then patches the
       command stream and substitutes any engine-specific resource ids by
       api-specific ids. this happens between command recording and command
-      processing. 
+      processing, in a method called `renderer_acquire_backend_resources`. 
 
 ----------------------------------------------------------------------
 
