@@ -1,5 +1,14 @@
 # PLAN
 
+## Data Flow
+
+    * if two objects communicate by sharing an object, communication should be
+      strictly pipeline-style, i.e. the consumer is not allowed to write back
+      to the object borrowed from the provider. This makes it easier to reason
+      about data-flow. we should also enforce that borrowing is an atomic
+      operation, i.e. the provider *must not* be able to write to an object
+      once it has been handed out for reading.
+
 ## Structs as Data
 
 Think of *structs as data* - your main interaction should be with data,
