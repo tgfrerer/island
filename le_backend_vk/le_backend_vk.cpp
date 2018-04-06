@@ -674,7 +674,7 @@ static inline bool is_depth_stencil_format(vk::Format format_){
 
 // ----------------------------------------------------------------------
 
-static void backend_create_resource_table(le_backend_o* self, size_t frameIndex, le_graph_builder_o* graph_){
+static void backend_create_resource_table(le_backend_o* self, size_t frameIndex, le_renderpass_o const * passes, size_t numRenderPasses){
 	// we want a list of unique resources referenced in the renderpass,
 	// and for each resource we must know its first reference.
 	// we also need to know if there are any external resources
@@ -684,20 +684,9 @@ static void backend_create_resource_table(le_backend_o* self, size_t frameIndex,
 
 	frame.resourceTable.clear();
 
-	static auto &rendererApi   = *Registry::getApi<le_renderer_api>();
-	static auto &graphBuilderI = rendererApi.le_graph_builder_i;
+	for ( le_renderpass_o const * pass = passes; pass != passes + numRenderPasses; pass++ ) {
 
-	size_t numRenderPasses = 0;
-	le_renderpass_o* pPasses = nullptr;
-	{
-		graphBuilderI.get_passes(graph_, &pPasses, &numRenderPasses);
-	}
-
-	for ( size_t i = 0; i != numRenderPasses; i++ ) {
-
-		const auto &pass = pPasses[i];
-
-		for (auto &resource : pass.imageAttachments){
+		for (auto &resource : pass->imageAttachments){
 			BackendFrameData::ResourceInfo info;
 			info.id = resource.id;
 			info.format = resource.format;
@@ -712,8 +701,8 @@ static void backend_create_resource_table(le_backend_o* self, size_t frameIndex,
 }
 
 // ----------------------------------------------------------------------
-
-static void backend_track_resource_state(le_backend_o* self, size_t frameIndex, le_graph_builder_o* graph_ ){
+/// note: this method updates individual renderpasses
+static void backend_track_resource_state(le_backend_o* self, size_t frameIndex, le_renderpass_o * passes, size_t numRenderPasses){
 
 	// track resource state
 
@@ -753,24 +742,16 @@ static void backend_track_resource_state(le_backend_o* self, size_t frameIndex, 
 
 	// * sync state: ready to enter renderpass: colorattachmentOutput=visible *
 
-	static const auto &rendererApi   = *Registry::getApi<le_renderer_api>();
-	static const auto &graphBuilderI = rendererApi.le_graph_builder_i;
-
-	size_t numRenderPasses = 0;
-	le_renderpass_o* pPasses = nullptr;
-
-	graphBuilderI.get_passes(graph_,&pPasses,&numRenderPasses);
-
-	for ( size_t i = 0; i!=numRenderPasses; i++) {
+	for ( le_renderpass_o * pass = passes; pass != passes + numRenderPasses; pass++) {
 
 		// TODO: pass must be const - we don't want to change pass which belongs to renderer.
-		auto &pass = pPasses[i];
 
-		for ( auto &resource : pass.imageAttachments ) {
 
-			auto &syncChain = syncChainTable[ resource.id ];
+		for ( auto &imageAttachment : pass->imageAttachments ) {
 
-			bool isDepthStencil = is_depth_stencil_format( resource.format );
+			auto &syncChain = syncChainTable[ imageAttachment.id ];
+
+			bool isDepthStencil = is_depth_stencil_format( imageAttachment.format );
 
 			// Renderpass implicit sync (per resource):
 			// + enter renderpass : INITIAL LAYOUT (layout must match)
@@ -785,10 +766,12 @@ static void backend_track_resource_state(le_backend_o* self, size_t frameIndex, 
 			// + layout transform (if final layout differs)
 
 			{
+				// track resource state before entering a subpass
+
 				auto & previousSyncState = syncChain.back();
 				auto beforeFirstUse{previousSyncState};
 
-				switch ( resource.access_flags ) {
+				switch ( imageAttachment.access_flags ) {
 				case le::AccessFlagBits::eReadWrite:
 					// resource.loadOp must be LOAD
 
@@ -816,17 +799,19 @@ static void backend_track_resource_state(le_backend_o* self, size_t frameIndex, 
 				    break;
 				}
 
-				resource.syncState.idxInitial = syncChain.size();
+				imageAttachment.syncState.idxInitial = syncChain.size();
 				syncChain.emplace_back( std::move( beforeFirstUse ) ); // attachment initial state for a renderpass - may be loaded/cleared on first use
 				    // * sync state: ready for load/store *
 			}
 
 
 			{
+				// track resource state before subpass
+
 				auto &        previousSyncState = syncChain.back();
 				auto beforeSubpass{previousSyncState};
 
-				if ( resource.access_flags == le::AccessFlagBits::eReadWrite ) {
+				if ( imageAttachment.access_flags == le::AccessFlagBits::eReadWrite ) {
 					// resource.loadOp most be LOAD
 
 					// we must now specify which stages need to be visible for which coming memory access
@@ -842,8 +827,8 @@ static void backend_track_resource_state(le_backend_o* self, size_t frameIndex, 
 						beforeSubpass.layout         = vk::ImageLayout::eColorAttachmentOptimal;
 					}
 
-				} else if ( resource.access_flags & le::AccessFlagBits::eRead ) {
-				} else if ( resource.access_flags & le::AccessFlagBits::eWrite ) {
+				} else if ( imageAttachment.access_flags & le::AccessFlagBits::eRead ) {
+				} else if ( imageAttachment.access_flags & le::AccessFlagBits::eWrite ) {
 
 					if ( isDepthStencil ) {
 						beforeSubpass.visible_access = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
@@ -868,7 +853,7 @@ static void backend_track_resource_state(le_backend_o* self, size_t frameIndex, 
 				// Whichever next resource state will be in the sync chain will be the resource state we should transition to
 				// when defining the last_subpass_to_external dependency
 				// which is why, optimistically, we designate the index of the next, not yet written state here -
-				resource.syncState.idxFinal = syncChain.size();
+				imageAttachment.syncState.idxFinal = syncChain.size();
 			}
 
 			// print out info for this resource at this pass.
@@ -905,7 +890,7 @@ static void backend_track_resource_state(le_backend_o* self, size_t frameIndex, 
 
 // ----------------------------------------------------------------------
 
-static void backend_create_renderpasses(le_backend_o* self, size_t frameIndex, le_graph_builder_o* graph_ ){
+static void backend_create_renderpasses(le_backend_o* self, size_t frameIndex, le_renderpass_o const * passes, size_t numRenderPasses ){
 
 	auto &frame = self->mFrames[ frameIndex ];
 
@@ -923,20 +908,11 @@ static void backend_create_renderpasses(le_backend_o* self, size_t frameIndex, l
 	                                      vk::AccessFlagBits::eTransferWrite );
 
 
-	size_t numRenderPasses = 0;
-	le_renderpass_o* pPasses = nullptr;
 
-	static const auto &rendererApi   = *Registry::getApi<le_renderer_api>();
-	static const auto &graphBuilderI = rendererApi.le_graph_builder_i;
-
-	graphBuilderI.get_passes(graph_,&pPasses,&numRenderPasses);
-
-	for ( size_t i = 0; i!=numRenderPasses; i++) {
-
-		const auto &pass = pPasses[i];
+	for ( le_renderpass_o const * pass = passes; pass!= passes+numRenderPasses; pass++) {
 
 		std::vector<vk::AttachmentDescription> attachments;
-		attachments.reserve(pass.imageAttachments.size());
+		attachments.reserve(pass->imageAttachments.size());
 
 		std::vector<vk::AttachmentReference> colorAttachmentReferences;
 
@@ -952,7 +928,7 @@ static void backend_create_renderpasses(le_backend_o* self, size_t frameIndex, l
 		vk::AccessFlags        srcAccessToExternalFlags;
 		vk::AccessFlags        dstAccessToExternalFlags;
 
-		for ( auto &attachment : pass.imageAttachments ) {
+		for ( auto &attachment : pass->imageAttachments ) {
 			auto &syncChain   = syncChainTable.at( attachment.id );
 			auto &syncIndices = attachment.syncState;
 			auto &syncInitial = syncChain.at( syncIndices.idxInitial );
@@ -1021,7 +997,7 @@ static void backend_create_renderpasses(le_backend_o* self, size_t frameIndex, l
 		{
 			if (false){
 
-			std::cout << "PASS :'" << pass.debugName << "'" << std::endl;
+			std::cout << "PASS :'" << pass->debugName << "'" << std::endl;
 			std::cout << "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass [0]" << std::endl;
 			std::cout << "\t srcStage: " << vk::to_string( srcStageFromExternalFlags ) << std::endl;
 			std::cout << "\t dstStage: " << vk::to_string( dstStageFromExternalFlags ) << std::endl;
@@ -1105,13 +1081,16 @@ vk::Image get_image_from_resource_id(const BackendFrameData* frame, uint64_t res
 
 static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_graph_builder_o* graph_) {
 
-	backend_create_resource_table( self, frameIndex, graph_ );
-	backend_track_resource_state( self, frameIndex, graph_ );
+	static const auto &le_graph_builder_i = ( *Registry::getApi<le_renderer_api>() ).le_graph_builder_i;
+	static const auto &vk_device_i        = ( *Registry::getApi<le_backend_vk_api>() ).vk_device_i;
 
-	// TODO: Go through command stream and substitute any references to (virtual) le resource ids with (actual) api resources.
-	// backend_patch_resources(self, frameIndex, graph_);
+	le_renderpass_o *passes          = nullptr;
+	size_t           numRenderPasses = 0;
+	le_graph_builder_i.get_passes( graph_, &passes, &numRenderPasses );
 
-	backend_create_renderpasses( self, frameIndex, graph_ );
+	backend_create_resource_table( self, frameIndex, passes, numRenderPasses );
+	backend_track_resource_state ( self, frameIndex, passes, numRenderPasses );
+	backend_create_renderpasses  ( self, frameIndex, passes, numRenderPasses );
 
 	auto &     frame  = self->mFrames[ frameIndex ];
 	vk::Device device = self->device->getVkDevice();
@@ -1119,14 +1098,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 	static_assert(sizeof(vk::Viewport) == sizeof(le::Viewport), "Viewport data size must be same in vk and le");
 	static_assert(sizeof(vk::Rect2D) == sizeof(le::Rect2D), "Rect2D data size must be same in vk and le");
 
-	static const auto &le_graph_builder_i = ( *Registry::getApi<le_renderer_api>() ).le_graph_builder_i;
-	static const auto &vk_device_i        = ( *Registry::getApi<le_backend_vk_api>() ).vk_device_i;
 
 	static auto maxVertexInputBindings = vk_device_i.get_vk_physical_device_properties(*self->device).limits.maxVertexInputBindings;
-
-	le_renderpass_o *passes          = nullptr;
-	size_t           numRenderPasses = 0;
-	le_graph_builder_i.get_passes( graph_, &passes, &numRenderPasses );
 
 
 	// TODO: (parallelize) when going wide, there needs to be a commandPool for each execution context so that
@@ -1320,7 +1293,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.reset_swapchain          = backend_reset_swapchain;
 	vk_backend_i.get_transient_allocator  = backend_get_transient_allocator;
 
-	vk_backend_i.track_resource_state = backend_track_resource_state;
+//	vk_backend_i.track_resource_state = backend_track_resource_state;
 
 	// register/update submodules inside this plugin
 

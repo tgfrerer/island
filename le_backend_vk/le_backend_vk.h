@@ -62,7 +62,7 @@ struct le_backend_vk_api {
 		void                   ( *create_swapchain         ) ( le_backend_o *self, le_swapchain_vk_settings_o *swapchainSettings_ );
 		size_t                 ( *get_num_swapchain_images ) ( le_backend_o *self );
 		void                   ( *reset_swapchain          ) ( le_backend_o *self );
-		void                   ( *track_resource_state     ) ( le_backend_o *self, size_t frameIndex, le_graph_builder_o *graph_ );
+		//void                   ( *track_resource_state     ) ( le_backend_o *self, size_t frameIndex, struct le_renderpass_o* passes, size_t numRenderPasses );
 		le_allocator_linear_o* ( *get_transient_allocator  ) ( le_backend_o* self, size_t frameIndex);
 	};
 
