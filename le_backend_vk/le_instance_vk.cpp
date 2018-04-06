@@ -1,4 +1,5 @@
 
+#define VULKAN_HPP_NO_SMART_HANDLE
 #include <vulkan/vulkan.hpp>
 
 #include "le_backend_vk/le_backend_vk.h"
@@ -9,7 +10,9 @@
 #include <set>
 #include <string>
 
-#define SHOULD_USE_DEBUG_LAYERS true
+#ifndef SHOULD_USE_DEBUG_LAYERS
+#	define SHOULD_USE_DEBUG_LAYERS true
+#endif
 // ----------------------------------------------------------------------
 
 struct le_backend_vk_instance_o {

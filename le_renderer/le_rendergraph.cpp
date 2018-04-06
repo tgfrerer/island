@@ -21,7 +21,10 @@
 #include "le_renderer/private/le_renderer_types.h"
 // these are some sanity checks for le_renderer_types
 
-#define PRINT_DEBUG_MESSAGES false
+#ifndef PRINT_DEBUG_MESSAGES
+#	define PRINT_DEBUG_MESSAGES false
+#endif
+
 #define LE_GRAPH_BUILDER_RECURSION_DEPTH 20
 
 static_assert(sizeof(le::CommandHeader)==sizeof(uint64_t),"size must be 64bit");

@@ -3,10 +3,7 @@
 
 #include <iostream>
 #include <iomanip>
-
-#ifndef NDEBUG
-    #include <assert.h>
-#endif
+#include <assert.h>
 
 // ----------------------------------------------------------------------
 

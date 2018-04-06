@@ -21,6 +21,10 @@
 #include <iomanip>
 #include <list>
 
+#ifndef PRINT_DEBUG_MESSAGES
+#	define PRINT_DEBUG_MESSAGES false
+#endif
+
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include <vulkan/vulkan.hpp>
 
@@ -995,22 +999,22 @@ static void backend_create_renderpasses(le_backend_o* self, size_t frameIndex, l
 		std::vector<vk::SubpassDependency> dependencies;
 		dependencies.reserve( 2 );
 		{
-			if (false){
+			if ( PRINT_DEBUG_MESSAGES ) {
 
-			std::cout << "PASS :'" << pass->debugName << "'" << std::endl;
-			std::cout << "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass [0]" << std::endl;
-			std::cout << "\t srcStage: " << vk::to_string( srcStageFromExternalFlags ) << std::endl;
-			std::cout << "\t dstStage: " << vk::to_string( dstStageFromExternalFlags ) << std::endl;
-			std::cout << "\tsrcAccess: " << vk::to_string( srcAccessFromExternalFlags ) << std::endl;
-			std::cout << "\tdstAccess: " << vk::to_string( dstAccessFromExternalFlags ) << std::endl
-			          << std::endl;
+				std::cout << "PASS :'" << pass->debugName << "'" << std::endl;
+				std::cout << "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass [0]" << std::endl;
+				std::cout << "\t srcStage: " << vk::to_string( srcStageFromExternalFlags ) << std::endl;
+				std::cout << "\t dstStage: " << vk::to_string( dstStageFromExternalFlags ) << std::endl;
+				std::cout << "\tsrcAccess: " << vk::to_string( srcAccessFromExternalFlags ) << std::endl;
+				std::cout << "\tdstAccess: " << vk::to_string( dstAccessFromExternalFlags ) << std::endl
+				          << std::endl;
 
-			std::cout << "Subpass Dependency: subpass [0] to VK_SUBPASS_EXTERNAL:" << std::endl;
-			std::cout << "\t srcStage: " << vk::to_string( srcStageToExternalFlags ) << std::endl;
-			std::cout << "\t dstStage: " << vk::to_string( dstStageToExternalFlags ) << std::endl;
-			std::cout << "\tsrcAccess: " << vk::to_string( srcAccessToExternalFlags ) << std::endl;
-			std::cout << "\tdstAccess: " << vk::to_string( dstAccessToExternalFlags ) << std::endl
-			          << std::endl;
+				std::cout << "Subpass Dependency: subpass [0] to VK_SUBPASS_EXTERNAL:" << std::endl;
+				std::cout << "\t srcStage: " << vk::to_string( srcStageToExternalFlags ) << std::endl;
+				std::cout << "\t dstStage: " << vk::to_string( dstStageToExternalFlags ) << std::endl;
+				std::cout << "\tsrcAccess: " << vk::to_string( srcAccessToExternalFlags ) << std::endl;
+				std::cout << "\tdstAccess: " << vk::to_string( dstAccessToExternalFlags ) << std::endl
+				          << std::endl;
 			}
 
 			vk::SubpassDependency externalToSubpassDependency;
