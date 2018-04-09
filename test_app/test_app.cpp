@@ -86,7 +86,7 @@ static bool test_app_update( test_app_o *self ) {
 	le::RenderModule mainModule{};
 	{
 
-		le::RenderPass resourcePass( "resource copy", le::RenderPassType::eTransfer );
+		le::RenderPass resourcePass( "resource copy", LE_RENDER_PASS_TYPE_TRANSFER );
 
 		resourcePass.setSetupCallback( []( auto pRp ) -> bool {
 			auto rp = le::RenderPassRef{pRp};
@@ -107,7 +107,7 @@ static bool test_app_update( test_app_o *self ) {
 			//encoder.updateResource(RESOURCE_BUFFER_ID("debug-buffer"), ptr);
 		} );
 
-		le::RenderPass renderPassFinal( "root", le::RenderPassType::eDraw );
+		le::RenderPass renderPassFinal( "root", LE_RENDER_PASS_TYPE_DRAW );
 
 		renderPassFinal.setSetupCallback( []( auto pRp ) -> bool {
 			auto rp = le::RenderPassRef{pRp};
@@ -129,7 +129,7 @@ static bool test_app_update( test_app_o *self ) {
 			le::ImageAttachmentInfo colorAttachmentInfo{};
 			colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
 			colorAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
-			rp.addImageAttachment( RESOURCE_IMAGE_ID("backbuffer"), &colorAttachmentInfo );
+			rp.addImageAttachment( RESOURCE_IMAGE_ID( "backbuffer" ), &colorAttachmentInfo );
 
 			rp.useResource( RESOURCE_BUFFER_ID( "debug-buffer" ), le::AccessFlagBits::eRead );
 			rp.setIsRoot( true );

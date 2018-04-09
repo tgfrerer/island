@@ -23,7 +23,7 @@
 #include <list>
 
 #ifndef PRINT_DEBUG_MESSAGES
-#	define PRINT_DEBUG_MESSAGES true
+#	define PRINT_DEBUG_MESSAGES false
 #endif
 
 #define VULKAN_HPP_NO_SMART_HANDLE
@@ -59,14 +59,14 @@ struct ImageAttachmentInfo {
 // careful with layout though: as this is part of the renderpass though attachmentdescription
 // we must also hash that somehow.
 struct Pass {
+
 	ImageAttachmentInfo colorAttachments[ 15 ]; // maximum of 16 color output attachments
 	ImageAttachmentInfo depthStencilAttachment;
 	//	ImageAttachmentInfo inputAttachment[15];
-	uint8_t  numColorAttachments : 4;
-	uint8_t  numDepthStencilAttachments : 1;
-	uint8_t  padding_8;
-	uint16_t padding_16;
-	uint32_t padding_32;
+	uint16_t numColorAttachments;
+	uint16_t numDepthStencilAttachments;
+
+	LeRenderPassType type;
 };
 
 // herein goes all data which is associated with the current frame
@@ -94,10 +94,11 @@ struct BackendFrameData {
 	// up the sync state for a resource at different stages of renderpass construction.
 	std::unordered_map<uint64_t, std::vector<ResourceState>, IdentityHash> syncChainTable;
 
-	static_assert( sizeof( vk::Buffer ) == sizeof( VkImageView ) && sizeof( VkBuffer ) == sizeof( VkImage ), "size of AbstractPhysicalResource components must be identical" );
+	static_assert( sizeof( VkBuffer ) == sizeof( VkImageView ) && sizeof( VkBuffer ) == sizeof( VkImage ), "size of AbstractPhysicalResource components must be identical" );
 
 	// Todo: clarify ownership of physical resources inside FrameData
-	// Q: Does this table actually own the resources? A: It must not: as it is used to map external resources as well.
+	// Q: Does this table actually own the resources?
+	// A: It must not: as it is used to map external resources as well.
 	std::unordered_map<uint64_t, AbstractPhysicalResource> physicalResources; // map from renderer resource id to physical resources - only contains resources this frame uses.
 
 	//std::list<AbstractPhysicalResource> ownedResources;
@@ -773,9 +774,8 @@ static void backend_track_resource_state( le_backend_o *self, size_t frameIndex,
 
 	for ( auto pass = passes; pass != passes + numRenderPasses; pass++ ) {
 
-		frame.passes.emplace_back();
-
-		auto &currentPass = frame.passes.back();
+		Pass currentPass{};
+		currentPass.type = pass->type;
 
 		for ( auto imageAttachment = pass->imageAttachments; imageAttachment != pass->imageAttachments + pass->imageAttachmentCount; imageAttachment++ ) {
 
@@ -893,6 +893,8 @@ static void backend_track_resource_state( le_backend_o *self, size_t frameIndex,
 
 			// print out info for this resource at this pass.
 		}
+
+		frame.passes.emplace_back( std::move( currentPass ) );
 	}
 
 	// TODO: add final states for resources which are permanent - or are used on another queue
@@ -942,6 +944,10 @@ static void backend_create_renderpasses( le_backend_o *self, size_t frameIndex )
 	for ( size_t i = 0; i != frame.passes.size(); ++i ) {
 
 		auto &pass = frame.passes[ i ];
+
+		if ( pass.type != LE_RENDER_PASS_TYPE_DRAW ) {
+			continue;
+		}
 
 		std::vector<vk::AttachmentDescription> attachments;
 		attachments.reserve( pass.numColorAttachments + pass.numDepthStencilAttachments );

@@ -27,10 +27,10 @@ void register_le_renderpass_api( void *api_ );
 
 struct le_renderpass_o {
 
-	le::RenderPassType type = le::RenderPassType::eUndefined;
-	uint64_t           id;
-	uint64_t           sort_key = 0;
-	bool               isRoot   = false; // whether pass *must* be processed
+	LeRenderPassType type     = LE_RENDER_PASS_TYPE_UNDEFINED;
+	uint64_t         id       = 0;
+	uint64_t         sort_key = 0;
+	bool             isRoot   = false; // whether pass *must* be processed
 
 	le_renderer_api::image_attachment_info_o imageAttachments[ 15 ]; /// max number of image attachments is 15
 

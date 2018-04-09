@@ -4,7 +4,7 @@
 
 // ----------------------------------------------------------------------
 
-static le_renderpass_o *renderpass_create( const char *renderpass_name, const le::RenderPassType &type_ ) {
+static le_renderpass_o *renderpass_create( const char *renderpass_name, const LeRenderPassType &type_ ) {
 	auto self  = new le_renderpass_o();
 	self->id   = const_char_hash64( renderpass_name );
 	self->type = type_;

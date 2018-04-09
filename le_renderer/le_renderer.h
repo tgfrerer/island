@@ -12,6 +12,13 @@ extern "C" {
 
 void register_le_renderer_api( void *api );
 
+enum LeRenderPassType : uint32_t {
+	LE_RENDER_PASS_TYPE_UNDEFINED,
+	LE_RENDER_PASS_TYPE_DRAW,
+	LE_RENDER_PASS_TYPE_TRANSFER,
+	LE_RENDER_PASS_TYPE_COMPUTE,
+};
+
 namespace vk {
 enum class Format; // forward declaration
 enum class AttachmentStoreOp;
@@ -23,15 +30,9 @@ struct Viewport;
 struct Rect2D;
 
 enum ResourceType : uint32_t {
+	eUndefined,
 	eBuffer,
 	eImage,
-};
-
-enum RenderPassType : uint32_t {
-	eUndefined,
-	eDraw,
-	eTransfer,
-	eCompute,
 };
 
 } // namespace le
@@ -104,7 +105,7 @@ struct le_renderer_api {
 	typedef void ( *pfn_renderpass_execute_t )( le_command_buffer_encoder_o *encoder, void *user_data );
 
 	struct renderpass_interface_t {
-		le_renderpass_o *( *create )( const char *renderpass_name, const le::RenderPassType &type_ );
+		le_renderpass_o *( *create )( const char *renderpass_name, const LeRenderPassType &type_ );
 		void ( *destroy )( le_renderpass_o *obj );
 		void ( *set_setup_fun )( le_renderpass_o *obj, pfn_renderpass_setup_t setup_fun );
 		void ( *add_image_attachment )( le_renderpass_o *obj, uint64_t resource_id, image_attachment_info_o *info );
@@ -194,7 +195,7 @@ class RenderPass {
 	le_renderpass_o *self;
 
   public:
-	RenderPass( const char *name_, const RenderPassType &type_ )
+	RenderPass( const char *name_, const LeRenderPassType &type_ )
 	    : self( renderpassI.create( name_, type_ ) ) {
 	}
 
