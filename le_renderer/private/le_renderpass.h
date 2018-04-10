@@ -48,7 +48,8 @@ struct le_renderpass_o {
 	le_renderer_api::pfn_renderpass_execute_t callbackExecute            = nullptr;
 	void *                                    execute_callback_user_data = nullptr;
 
-	char debugName[ 32 ];
+	struct le_command_buffer_encoder_o *encoder = nullptr;
+	char                                debugName[ 32 ];
 };
 
 #endif //GUARD_LE_RENDERPASS_H

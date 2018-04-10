@@ -54,15 +54,6 @@ static le_graph_builder_o *graph_builder_create() {
 // ----------------------------------------------------------------------
 
 static void graph_builder_reset( le_graph_builder_o *self ) {
-
-	static auto rendererApiI = *Registry::getApi<le_renderer_api>();
-	const auto &encoderApi   = rendererApiI.le_command_buffer_encoder_i;
-
-	for ( auto &encoder : self->encoders ) {
-		encoderApi.destroy( encoder );
-	}
-
-	self->encoders.clear();
 	self->passes.clear();
 }
 
@@ -277,7 +268,7 @@ static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameI
 			auto encoder = encoderInterface.create( allocator ); // NOTE: we must manually track the lifetime of encoder!
 
 			pass.callbackExecute( encoder, pass.execute_callback_user_data );
-			self->encoders.emplace_back( encoder );
+			pass.encoder = ( encoder );
 		}
 	}
 }
@@ -288,16 +279,6 @@ static void graph_builder_get_passes( le_graph_builder_o *self, le_renderpass_o 
 
 	*pPasses    = self->passes.data();
 	*pNumPasses = self->passes.size();
-}
-
-// ----------------------------------------------------------------------
-
-static void graph_builder_get_encoded_data_for_pass( le_graph_builder_o *self, size_t passIndex, void **data, size_t *numBytes, size_t *numCommands ) {
-
-	static auto rendererApi = Registry::getApi<le_renderer_api>();
-	static auto encoderApi  = &rendererApi->le_command_buffer_encoder_i;
-
-	encoderApi->get_encoded_data( self->encoders[ passIndex ], data, numBytes, numCommands );
 }
 
 // ----------------------------------------------------------------------
@@ -361,13 +342,12 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_render_module_i.add_renderpass = render_module_add_renderpass;
 	le_render_module_i.setup_passes   = render_module_setup_passes;
 
-	auto &le_graph_builder_i                     = le_renderer_api_i->le_graph_builder_i;
-	le_graph_builder_i.create                    = graph_builder_create;
-	le_graph_builder_i.destroy                   = graph_builder_destroy;
-	le_graph_builder_i.reset                     = graph_builder_reset;
-	le_graph_builder_i.add_renderpass            = graph_builder_add_renderpass;
-	le_graph_builder_i.build_graph               = graph_builder_build_graph;
-	le_graph_builder_i.execute_graph             = graph_builder_execute_graph;
-	le_graph_builder_i.get_passes                = graph_builder_get_passes;
-	le_graph_builder_i.get_encoded_data_for_pass = graph_builder_get_encoded_data_for_pass;
+	auto &le_graph_builder_i          = le_renderer_api_i->le_graph_builder_i;
+	le_graph_builder_i.create         = graph_builder_create;
+	le_graph_builder_i.destroy        = graph_builder_destroy;
+	le_graph_builder_i.reset          = graph_builder_reset;
+	le_graph_builder_i.add_renderpass = graph_builder_add_renderpass;
+	le_graph_builder_i.build_graph    = graph_builder_build_graph;
+	le_graph_builder_i.execute_graph  = graph_builder_execute_graph;
+	le_graph_builder_i.get_passes     = graph_builder_get_passes;
 }

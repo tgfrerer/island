@@ -20,7 +20,6 @@ struct le_backend_vk_device_o;   // defined in le_device_vk.cpp
 struct le_buffer_o;
 struct le_allocator_linear_o;
 
-struct le_graph_builder_o; // from renderer
 struct le_swapchain_vk_settings_o;
 struct pal_window_o;
 
@@ -37,7 +36,7 @@ struct VkMemoryAllocateInfo;
 //typedef uint32_t VkFlags;
 
 namespace vk {
-    enum class Format;
+enum class Format;
 }
 
 struct le_backend_vk_settings_t {
@@ -47,22 +46,22 @@ struct le_backend_vk_settings_t {
 };
 
 struct le_backend_vk_api {
-	static constexpr auto id       = "le_backend_vk";
-	static constexpr auto pRegFun  = register_le_backend_vk_api;
+	static constexpr auto id      = "le_backend_vk";
+	static constexpr auto pRegFun = register_le_backend_vk_api;
 
+	// clang-format off
 	struct backend_vk_interface_t {
 		le_backend_o *         ( *create                   ) ( le_backend_vk_settings_t *settings );
 		void                   ( *destroy                  ) ( le_backend_o *self );
 		void                   ( *setup                    ) ( le_backend_o *self );
 		bool                   ( *clear_frame              ) ( le_backend_o *self, size_t frameIndex );
-		void                   ( *process_frame            ) ( le_backend_o *self, size_t frameIndex, le_graph_builder_o *graph_ );
-		bool                   ( *acquire_physical_resources  ) ( le_backend_o *self, size_t frameIndex );
+		void                   ( *process_frame            ) ( le_backend_o *self, size_t frameIndex );
+		bool                   ( *acquire_physical_resources  ) ( le_backend_o *self, size_t frameIndex, struct le_renderpass_o *passes, size_t numRenderPasses  );
 		bool                   ( *dispatch_frame           ) ( le_backend_o *self, size_t frameIndex );
 		bool                   ( *create_window_surface    ) ( le_backend_o *self, pal_window_o *window_ );
 		void                   ( *create_swapchain         ) ( le_backend_o *self, le_swapchain_vk_settings_o *swapchainSettings_ );
 		size_t                 ( *get_num_swapchain_images ) ( le_backend_o *self );
 		void                   ( *reset_swapchain          ) ( le_backend_o *self );
-		//void                   ( *track_resource_state     ) ( le_backend_o *self, size_t frameIndex, struct le_renderpass_o* passes, size_t numRenderPasses );
 		le_allocator_linear_o* ( *get_transient_allocator  ) ( le_backend_o* self, size_t frameIndex);
 	};
 
@@ -89,10 +88,9 @@ struct le_backend_vk_api {
 		VkPhysicalDevice_T*         ( *get_vk_physical_device                  ) ( le_backend_vk_device_o* self_ );
 		VkDevice_T*                 ( *get_vk_device                           ) ( le_backend_vk_device_o* self_ );
 
-		const VkPhysicalDeviceProperties& (*get_vk_physical_device_properties)(le_backend_vk_device_o* self);
-		const VkPhysicalDeviceMemoryProperties& (*get_vk_physical_device_memory_properties)(le_backend_vk_device_o* self);
-
-		bool                        ( *get_memory_allocation_info              ) ( le_backend_vk_device_o *self, const VkMemoryRequirements &memReqs, const uint32_t &memPropsRef, VkMemoryAllocateInfo *pMemoryAllocationInfo );
+		const VkPhysicalDeviceProperties&       ( *get_vk_physical_device_properties        ) ( le_backend_vk_device_o* self );
+		const VkPhysicalDeviceMemoryProperties& ( *get_vk_physical_device_memory_properties ) ( le_backend_vk_device_o* self );
+		bool                                    ( *get_memory_allocation_info               ) ( le_backend_vk_device_o *self, const VkMemoryRequirements &memReqs, const uint32_t &memPropsRef, VkMemoryAllocateInfo *pMemoryAllocationInfo );
 	};
 
 	struct allocator_linear_interface_t {
@@ -102,7 +100,7 @@ struct le_backend_vk_api {
 		void                    ( *reset                ) ( le_allocator_linear_o* self);
 		uint64_t                ( *get_le_resource_id ) ( le_allocator_linear_o* self);
 	};
-
+	// clang-format on
 
 	allocator_linear_interface_t le_allocator_linear_i;
 	instance_interface_t         vk_instance_i;
@@ -115,14 +113,13 @@ struct le_backend_vk_api {
 #ifdef __cplusplus
 } // extern "C"
 
-
 namespace le {
 
 class Backend : NoCopy, NoMove {
-	const le_backend_vk_api &                      backendApiI = *Registry::getApi<le_backend_vk_api>();
-	const le_backend_vk_api::backend_vk_interface_t &backendI   = backendApiI.vk_backend_i;
-	le_backend_o *                     self        = nullptr;
-	bool is_reference = false;
+	const le_backend_vk_api &                        backendApiI  = *Registry::getApi<le_backend_vk_api>();
+	const le_backend_vk_api::backend_vk_interface_t &backendI     = backendApiI.vk_backend_i;
+	le_backend_o *                                   self         = nullptr;
+	bool                                             is_reference = false;
 
   public:
 	operator auto() {
@@ -153,8 +150,8 @@ class Backend : NoCopy, NoMove {
 		return backendI.clear_frame( self, frameIndex );
 	}
 
-	void processFrame( size_t frameIndex, le_graph_builder_o *graph ) {
-		backendI.process_frame( self, frameIndex, graph );
+	void processFrame( size_t frameIndex ) {
+		backendI.process_frame( self, frameIndex );
 	}
 
 	bool createWindowSurface( pal_window_o *window ) {
@@ -169,8 +166,8 @@ class Backend : NoCopy, NoMove {
 		return backendI.get_num_swapchain_images( self );
 	}
 
-	bool acquirePhysicalResources( size_t frameIndex ) {
-		return backendI.acquire_physical_resources( self, frameIndex );
+	bool acquirePhysicalResources( size_t frameIndex, struct le_renderpass_o *passes, size_t numRenderPasses ) {
+		return backendI.acquire_physical_resources( self, frameIndex, passes, numRenderPasses );
 	}
 
 	bool dispatchFrame( size_t frameIndex ) {
@@ -181,7 +178,6 @@ class Backend : NoCopy, NoMove {
 		backendI.reset_swapchain( self );
 	}
 };
-
 
 class Instance {
 	const le_backend_vk_api &                      backendApiI = *Registry::getApi<le_backend_vk_api>();
@@ -201,11 +197,10 @@ class Instance {
 		return instanceI.get_vk_instance( self );
 	}
 
-	operator auto () {
+	operator auto() {
 		return self;
 	}
 };
-
 
 class Device : NoCopy, NoMove {
 	const le_backend_vk_api &                    backendApiI = *Registry::getApi<le_backend_vk_api>();
@@ -213,22 +208,21 @@ class Device : NoCopy, NoMove {
 	le_backend_vk_device_o *                     self        = nullptr;
 
   public:
-
 	Device( le_backend_vk_instance_o *instance_ )
-	    : self( deviceI.create( instance_ ) ){
-		deviceI.increase_reference_count(self);
+	    : self( deviceI.create( instance_ ) ) {
+		deviceI.increase_reference_count( self );
 	}
 
 	~Device() {
-		deviceI.decrease_reference_count(self);
-		if (deviceI.get_reference_count(self) == 0){
+		deviceI.decrease_reference_count( self );
+		if ( deviceI.get_reference_count( self ) == 0 ) {
 			deviceI.destroy( self );
 		}
 	}
 
 	// copy constructor
-	Device(const Device& lhs)
-	    :self(lhs.self){
+	Device( const Device &lhs )
+	    : self( lhs.self ) {
 		deviceI.increase_reference_count( self );
 	}
 
@@ -263,15 +257,14 @@ class Device : NoCopy, NoMove {
 	}
 
 	vk::Format getDefaultDepthStencilFormat() const {
-		return deviceI.get_default_depth_stencil_format(self);
+		return deviceI.get_default_depth_stencil_format( self );
 	}
 
-	operator auto () {
+	operator auto() {
 		return self;
 	}
-
 };
 
 } // namespace le
-#endif // __cplusplus
-#endif // GUARD_PAL_BACKEND_VK_H
+#	endif // __cplusplus
+#endif     // GUARD_PAL_BACKEND_VK_H

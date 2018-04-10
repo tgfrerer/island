@@ -16,16 +16,16 @@ struct SurfaceProperties {
 };
 
 struct le_backend_swapchain_o {
-	le_swapchain_vk_settings_o      mSettings;
-	vk::PresentModeKHR              mPresentMode     = vk::PresentModeKHR::eFifo;
-	uint32_t                        mImagecount      = 0;
-	uint32_t                        mImageIndex      = uint32_t(~0); // current image index
-	vk::SwapchainKHR                mSwapchain       = nullptr;
-	vk::Extent2D                    mSwapchainExtent = {};
-	SurfaceProperties               mSurfaceProperties;
-	std::vector<vk::Image>          mImageRefs; // owned by SwapchainKHR, don't delete
-	std::vector<vk::ImageView>      mImageViews;
-	uint32_t                        referenceCount = 0;
+	le_swapchain_vk_settings_o mSettings;
+	vk::PresentModeKHR         mPresentMode     = vk::PresentModeKHR::eFifo;
+	uint32_t                   mImagecount      = 0;
+	uint32_t                   mImageIndex      = uint32_t( ~0 ); // current image index
+	vk::SwapchainKHR           mSwapchain       = nullptr;
+	vk::Extent2D               mSwapchainExtent = {};
+	SurfaceProperties          mSurfaceProperties;
+	std::vector<vk::Image>     mImageRefs; // owned by SwapchainKHR, don't delete
+	std::vector<vk::ImageView> mImageViews;
+	uint32_t                   referenceCount = 0;
 };
 
 // ----------------------------------------------------------------------
@@ -63,7 +63,6 @@ static void swapchain_query_surface_capabilities( le_backend_swapchain_o *self )
 	surfaceProperties.windowSurfaceFormat.colorSpace = surfaceProperties.availableSurfaceFormats[ 0 ].colorSpace;
 
 	// ofLog() << "Present supported: " << ( mSurfaceProperties.presentSupported ? "TRUE" : "FALSE" );
-
 }
 
 // ----------------------------------------------------------------------
@@ -102,12 +101,11 @@ static void swapchain_destroy_image_views( le_backend_swapchain_o *self ) {
 	}
 
 	self->mImageViews.clear();
-
 }
 
 // ----------------------------------------------------------------------
 
-static void swapchain_create_image_views(le_backend_swapchain_o* self){
+static void swapchain_create_image_views( le_backend_swapchain_o *self ) {
 
 	vk::Device device = self->mSettings.vk_device;
 
@@ -117,36 +115,33 @@ static void swapchain_create_image_views(le_backend_swapchain_o* self){
 
 		::vk::ImageSubresourceRange subresourceRange;
 		subresourceRange
-		    .setAspectMask     ( vk::ImageAspectFlagBits::eColor )
-		    .setBaseMipLevel   ( 0 )
-		    .setLevelCount     ( 1 )
-		    .setBaseArrayLayer ( 0 )
-		    .setLayerCount     ( 1 );
+		    .setAspectMask( vk::ImageAspectFlagBits::eColor )
+		    .setBaseMipLevel( 0 )
+		    .setLevelCount( 1 )
+		    .setBaseArrayLayer( 0 )
+		    .setLayerCount( 1 );
 
 		::vk::ImageViewCreateInfo imageViewCreateInfo;
 		imageViewCreateInfo
-		    .setImage           ( imageRef )
-		    .setViewType        ( vk::ImageViewType::e2D )
-		    .setFormat          ( self->mSurfaceProperties.windowSurfaceFormat.format )
-		    .setComponents      ( vk::ComponentMapping() )
+		    .setImage( imageRef )
+		    .setViewType( vk::ImageViewType::e2D )
+		    .setFormat( self->mSurfaceProperties.windowSurfaceFormat.format )
+		    .setComponents( vk::ComponentMapping() )
 		    .setSubresourceRange( subresourceRange );
 
 		// create image view for color image
 		self->mImageViews.emplace_back( device.createImageView( imageViewCreateInfo ) );
 	}
-
 }
 
 // ----------------------------------------------------------------------
 
-static void swapchain_attach_images(le_backend_swapchain_o *self)
-{
+static void swapchain_attach_images( le_backend_swapchain_o *self ) {
 
 	vk::Device device = self->mSettings.vk_device;
 
 	self->mImageRefs  = device.getSwapchainImagesKHR( self->mSwapchain );
 	self->mImagecount = uint32_t( self->mImageRefs.size() );
-
 }
 
 // ----------------------------------------------------------------------
@@ -222,20 +217,19 @@ static void swapchain_reset( le_backend_swapchain_o *self, const le_swapchain_vk
 	::vk::SwapchainCreateInfoKHR swapChainCreateInfo;
 
 	swapChainCreateInfo
-	    .setSurface          ( self->mSettings.vk_surface )
-	    .setMinImageCount    ( self->mImagecount )
-	    .setImageFormat      ( self->mSurfaceProperties.windowSurfaceFormat.format )
-	    .setImageColorSpace  ( self->mSurfaceProperties.windowSurfaceFormat.colorSpace )
-	    .setImageExtent      ( self->mSwapchainExtent )
-	    .setImageArrayLayers ( 1 )
-	    .setImageUsage       ( vk::ImageUsageFlagBits::eColorAttachment )
-	    .setImageSharingMode ( vk::SharingMode::eExclusive )
-	    .setPreTransform     ( preTransform )
-	    .setCompositeAlpha   ( vk::CompositeAlphaFlagBitsKHR::eOpaque )
-	    .setPresentMode      ( self->mPresentMode )
-	    .setClipped          ( VK_TRUE )
-	    .setOldSwapchain     ( oldSwapchain )
-	    ;
+	    .setSurface( self->mSettings.vk_surface )
+	    .setMinImageCount( self->mImagecount )
+	    .setImageFormat( self->mSurfaceProperties.windowSurfaceFormat.format )
+	    .setImageColorSpace( self->mSurfaceProperties.windowSurfaceFormat.colorSpace )
+	    .setImageExtent( self->mSwapchainExtent )
+	    .setImageArrayLayers( 1 )
+	    .setImageUsage( vk::ImageUsageFlagBits::eColorAttachment )
+	    .setImageSharingMode( vk::SharingMode::eExclusive )
+	    .setPreTransform( preTransform )
+	    .setCompositeAlpha( vk::CompositeAlphaFlagBitsKHR::eOpaque )
+	    .setPresentMode( self->mPresentMode )
+	    .setClipped( VK_TRUE )
+	    .setOldSwapchain( oldSwapchain );
 
 	self->mSwapchain = device.createSwapchainKHR( swapChainCreateInfo );
 
@@ -263,7 +257,7 @@ static le_backend_swapchain_o *swapchain_create( const le_swapchain_vk_settings_
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_acquire_next_image( le_backend_swapchain_o* self, VkSemaphore semaphorePresentComplete_, uint32_t& imageIndex_ ){
+static bool swapchain_acquire_next_image( le_backend_swapchain_o *self, VkSemaphore semaphorePresentComplete_, uint32_t &imageIndex_ ) {
 
 	// This method will return the next avaliable vk image index for this swapchain, possibly
 	// before this image is available for writing. Image will be ready for writing when
@@ -284,7 +278,6 @@ static bool swapchain_acquire_next_image( le_backend_swapchain_o* self, VkSemaph
 	default:
 	    return false;
 	}
-
 }
 
 // ----------------------------------------------------------------------
@@ -298,8 +291,8 @@ static VkImage swapchain_get_image( le_backend_swapchain_o *self, uint32_t index
 
 // ----------------------------------------------------------------------
 
-static VkSurfaceFormatKHR* swapchain_get_surface_format(le_backend_swapchain_o* self){
-	return (VkSurfaceFormatKHR*)&self->mSurfaceProperties.windowSurfaceFormat;
+static VkSurfaceFormatKHR *swapchain_get_surface_format( le_backend_swapchain_o *self ) {
+	return ( VkSurfaceFormatKHR * )&self->mSurfaceProperties.windowSurfaceFormat;
 }
 
 // ----------------------------------------------------------------------
@@ -313,13 +306,13 @@ static VkImageView swapchain_get_image_view( le_backend_swapchain_o *self, uint3
 
 // ----------------------------------------------------------------------
 
-static uint32_t swapchain_get_image_width(le_backend_swapchain_o*self) {
+static uint32_t swapchain_get_image_width( le_backend_swapchain_o *self ) {
 	return self->mSwapchainExtent.width;
 }
 
 // ----------------------------------------------------------------------
 
-static uint32_t swapchain_get_image_height(le_backend_swapchain_o*self) {
+static uint32_t swapchain_get_image_height( le_backend_swapchain_o *self ) {
 	return self->mSwapchainExtent.height;
 }
 
@@ -335,9 +328,9 @@ static void swapchain_destroy( le_backend_swapchain_o *self_ ) {
 
 	vk::Device device = self_->mSettings.vk_device;
 
-	swapchain_destroy_image_views(self_);
+	swapchain_destroy_image_views( self_ );
 
-	device.destroySwapchainKHR(self_->mSwapchain);
+	device.destroySwapchainKHR( self_->mSwapchain );
 	self_->mSwapchain = nullptr;
 
 	delete ( self_ );
@@ -353,15 +346,15 @@ static bool swapchain_present( le_backend_swapchain_o *self, VkQueue queue_, VkS
 
 	presentInfo
 	    .setWaitSemaphoreCount( 1 )
-	    .setPWaitSemaphores( &renderCompleteSemaphore)
+	    .setPWaitSemaphores( &renderCompleteSemaphore )
 	    .setSwapchainCount( 1 )
 	    .setPSwapchains( &self->mSwapchain )
 	    .setPImageIndices( pImageIndex )
 	    .setPResults( nullptr );
 
-	auto result = vkQueuePresentKHR(queue_,(VkPresentInfoKHR*)&presentInfo);
+	auto result = vkQueuePresentKHR( queue_, ( VkPresentInfoKHR * )&presentInfo );
 
-	if (vk::Result(result) == vk::Result::eErrorOutOfDateKHR){
+	if ( vk::Result( result ) == vk::Result::eErrorOutOfDateKHR ) {
 		// FIXME: handle swapchain resize event properly
 		return false;
 	}
@@ -393,21 +386,21 @@ void register_le_swapchain_vk_api( void *api_ ) {
 	auto  api         = static_cast<le_swapchain_vk_api *>( api_ );
 	auto &swapchain_i = api->swapchain_i;
 
-	swapchain_i.create                     = swapchain_create;
-	swapchain_i.destroy                    = swapchain_destroy;
-	swapchain_i.reset                      = swapchain_reset;
-	swapchain_i.acquire_next_image         = swapchain_acquire_next_image;
-	swapchain_i.get_image                  = swapchain_get_image;
-	swapchain_i.get_image_view             = swapchain_get_image_view;
-	swapchain_i.get_image_width            = swapchain_get_image_width;
-	swapchain_i.get_image_height           = swapchain_get_image_height;
-	swapchain_i.get_surface_format         = swapchain_get_surface_format;
-	swapchain_i.get_images_count           = swapchain_get_swapchain_images_count;
-	swapchain_i.present                    = swapchain_present;
+	swapchain_i.create             = swapchain_create;
+	swapchain_i.destroy            = swapchain_destroy;
+	swapchain_i.reset              = swapchain_reset;
+	swapchain_i.acquire_next_image = swapchain_acquire_next_image;
+	swapchain_i.get_image          = swapchain_get_image;
+	swapchain_i.get_image_view     = swapchain_get_image_view;
+	swapchain_i.get_image_width    = swapchain_get_image_width;
+	swapchain_i.get_image_height   = swapchain_get_image_height;
+	swapchain_i.get_surface_format = swapchain_get_surface_format;
+	swapchain_i.get_images_count   = swapchain_get_swapchain_images_count;
+	swapchain_i.present            = swapchain_present;
 
-	swapchain_i.increase_reference_count   = swapchain_increase_reference_count;
-	swapchain_i.decrease_reference_count   = swapchain_decrease_reference_count;
-	swapchain_i.get_reference_count        = swapchain_get_reference_count;
+	swapchain_i.increase_reference_count = swapchain_increase_reference_count;
+	swapchain_i.decrease_reference_count = swapchain_decrease_reference_count;
+	swapchain_i.get_reference_count      = swapchain_get_reference_count;
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
 }

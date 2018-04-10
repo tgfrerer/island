@@ -15,6 +15,13 @@ static le_renderpass_o *renderpass_create( const char *renderpass_name, const Le
 // ----------------------------------------------------------------------
 
 static void renderpass_destroy( le_renderpass_o *self ) {
+
+	if ( self->encoder ) {
+		static auto &rendererApiI = *Registry::getApi<le_renderer_api>();
+		static auto &encoderApi   = rendererApiI.le_command_buffer_encoder_i;
+		encoderApi.destroy( self->encoder );
+	}
+
 	delete self;
 }
 

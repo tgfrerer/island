@@ -132,7 +132,6 @@ struct le_renderer_api {
 		void ( *build_graph )( le_graph_builder_o *obj );
 		void ( *execute_graph )( le_graph_builder_o *obj, size_t frameIndex, le_backend_o *backend );
 		void ( *get_passes )( le_graph_builder_o *obj, le_renderpass_o **pPasses, size_t *pNumPasses );
-		void ( *get_encoded_data_for_pass )( le_graph_builder_o *obj, size_t passIndex, void **data, size_t *numBytes, size_t *numCommands );
 	};
 
 	struct command_buffer_encoder_interface_t {

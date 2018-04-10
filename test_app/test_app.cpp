@@ -127,11 +127,13 @@ static bool test_app_update( test_app_o *self ) {
 			// info.imageID = RESOURCE_IMAGE_ID("backbuffer");
 
 			le::ImageAttachmentInfo colorAttachmentInfo{};
-			colorAttachmentInfo.format       = vk::Format::eR8G8B8A8Unorm;
-			colorAttachmentInfo.access_flags = le::AccessFlagBits::eReadWrite;
+			colorAttachmentInfo.format       = vk::Format::eB8G8R8A8Unorm; // TODO: use swapchain image format programmatically
+			colorAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
+			colorAttachmentInfo.loadOp       = vk::AttachmentLoadOp::eClear;
+			colorAttachmentInfo.storeOp      = vk::AttachmentStoreOp::eStore;
 			rp.addImageAttachment( RESOURCE_IMAGE_ID( "backbuffer" ), &colorAttachmentInfo );
 
-			rp.useResource( RESOURCE_BUFFER_ID( "debug-buffer" ), le::AccessFlagBits::eRead );
+			//rp.useResource( RESOURCE_BUFFER_ID( "debug-buffer" ), le::AccessFlagBits::eRead );
 			rp.setIsRoot( true );
 
 			return true;

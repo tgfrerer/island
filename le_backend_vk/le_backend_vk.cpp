@@ -5,6 +5,9 @@
 #include "le_backend_vk/private/le_instance_vk.h"
 #include "le_backend_vk/private/le_allocator_linear.h"
 
+#define VULKAN_HPP_NO_SMART_HANDLE
+#include <vulkan/vulkan.hpp>
+
 #include "le_swapchain_vk/le_swapchain_vk.h"
 
 #include "pal_window/pal_window.h"
@@ -17,7 +20,7 @@
 
 #include <vector>
 #include <unordered_map>
-#include <unordered_set>
+#include <forward_list>
 #include <iostream>
 #include <iomanip>
 #include <list>
@@ -26,47 +29,49 @@
 #	define PRINT_DEBUG_MESSAGES false
 #endif
 
-#define VULKAN_HPP_NO_SMART_HANDLE
-#include <vulkan/vulkan.hpp>
-
 struct AbstractPhysicalResource {
 	enum Type : uint64_t {
 		eUndefined = 0,
 		eBuffer,
 		eImage,
-		eImageView
+		eImageView,
+		eFramebuffer,
+		eRenderPass,
 	};
 	union {
-		uint64_t    asRawData;
-		VkBuffer    asBuffer;
-		VkImage     asImage;
-		VkImageView asImageView;
+		uint64_t      asRawData;
+		VkBuffer      asBuffer;
+		VkImage       asImage;
+		VkImageView   asImageView;
+		VkFramebuffer asFramebuffer;
+		VkRenderPass  asRenderPass;
 	};
 	Type type;
 };
 
-struct ImageAttachmentInfo {
-	uint64_t              resource_id;        ///< which resource to look up for resource state
-	uint16_t              initialStateOffset; ///< state of resource before entering the renderpass
-	uint16_t              finalStateOffset;   ///< state of resource after exiting the renderpass
+struct AttachmentInfo {
+	uint64_t              resource_id;   ///< which resource to look up for resource state
+	vk::Image             physicalImage; ///< non-owning reference to physical image
 	vk::Format            format;
 	vk::AttachmentLoadOp  loadOp;
 	vk::AttachmentStoreOp storeOp;
+	uint16_t              initialStateOffset; ///< state of resource before entering the renderpass
+	uint16_t              finalStateOffset;   ///< state of resource after exiting the renderpass
 };
 
-// it's good to have passes as POD types, as such they can be hashed, and we may
-// then be able to store renderpasses and compare to hash before creating anew.
-// careful with layout though: as this is part of the renderpass though attachmentdescription
-// we must also hash that somehow.
 struct Pass {
 
-	ImageAttachmentInfo colorAttachments[ 15 ]; // maximum of 16 color output attachments
-	ImageAttachmentInfo depthStencilAttachment;
-	//	ImageAttachmentInfo inputAttachment[15];
-	uint16_t numColorAttachments;
-	uint16_t numDepthStencilAttachments;
+	AttachmentInfo attachments[ 16 ]; // maximum of 16 color output attachments
+	uint32_t       numAttachments;
 
 	LeRenderPassType type;
+
+	vk::Framebuffer framebuffer;
+	vk::RenderPass  renderPass;
+	uint32_t        width;
+	uint32_t        height;
+
+	struct le_command_buffer_encoder_o *encoder;
 };
 
 // herein goes all data which is associated with the current frame
@@ -79,7 +84,6 @@ struct BackendFrameData {
 	uint32_t                       swapchainImageIndex      = uint32_t( ~0 );
 	uint32_t                       padding                  = 0; // NOTICE: remove if needed.
 	std::vector<vk::CommandBuffer> commandBuffers;
-	std::vector<vk::Framebuffer>   debugFramebuffers;
 
 	// ResourceState keeps track of the resource stage *before* a barrier
 	struct ResourceState {
@@ -101,9 +105,12 @@ struct BackendFrameData {
 	// A: It must not: as it is used to map external resources as well.
 	std::unordered_map<uint64_t, AbstractPhysicalResource> physicalResources; // map from renderer resource id to physical resources - only contains resources this frame uses.
 
-	//std::list<AbstractPhysicalResource> ownedResources;
+	std::forward_list<AbstractPhysicalResource> ownedResources;
 
 	std::vector<Pass> passes;
+
+	uint32_t backBufferWidth;  // dimensions of swapchain backbuffer, queried on acquire backendresources.
+	uint32_t backBufferHeight; // dimensions of swapchain backbuffer, queried on acquire backendresources.
 
 	// todo: one allocator per command buffer eventually -
 	// one allocator per frame for now.
@@ -138,6 +145,12 @@ struct le_backend_o {
 	vk::DeviceMemory debugTransientVertexDeviceMemory = nullptr;
 	vk::Buffer       debugTransientVertexBuffer       = nullptr;
 };
+
+// ----------------------------------------------------------------------
+
+static inline bool is_depth_stencil_format( vk::Format format_ ) {
+	return ( format_ >= vk::Format::eD16Unorm && format_ <= vk::Format::eD32SfloatS8Uint );
+}
 
 // ----------------------------------------------------------------------
 
@@ -626,104 +639,7 @@ static void backend_setup( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
-
-	static auto &backendI   = *Registry::getApi<le_backend_vk_api>();
-	static auto &allocatorI = backendI.le_allocator_linear_i;
-
-	auto &     frame  = self->mFrames[ frameIndex ];
-	vk::Device device = self->device->getVkDevice();
-
-	auto result = device.waitForFences( {frame.frameFence}, true, 100'000'000 );
-
-	if ( result != vk::Result::eSuccess ) {
-		return false;
-	}
-
-	// -------- Invariant: fence has been crossed, all resources protected by fence
-	//          can now be claimed back.
-
-	device.resetFences( {frame.frameFence} );
-
-	for ( auto &alloc : frame.allocators ) {
-		allocatorI.reset( alloc );
-	}
-
-	for ( auto &fb : frame.debugFramebuffers ) {
-		device.destroyFramebuffer( fb );
-	}
-	frame.debugFramebuffers.clear();
-
-	device.freeCommandBuffers( frame.commandPool, frame.commandBuffers );
-	frame.commandBuffers.clear();
-
-	// todo: we should probably notify anyone who wanted to recycle these
-	// physical resources that they are not in use anymore.
-	frame.physicalResources.clear();
-	frame.syncChainTable.clear();
-	frame.passes.clear();
-
-	// frame.ownedResources.clear();
-
-	device.resetCommandPool( frame.commandPool, vk::CommandPoolResetFlagBits::eReleaseResources );
-
-	return true;
-};
-
-// ----------------------------------------------------------------------
-
-static bool backend_acquire_physical_resources( le_backend_o *self, size_t frameIndex ) {
-	auto &frame = self->mFrames[ frameIndex ];
-
-	if ( !self->swapchain->acquireNextImage( frame.semaphorePresentComplete, frame.swapchainImageIndex ) ) {
-		return false;
-	}
-
-	// ----------| invariant: swapchain acquisition successful.
-
-	frame.physicalResources[ RESOURCE_IMAGE_VIEW_ID( "backbuffer" ) ].asImageView = self->swapchain->getImageView( frame.swapchainImageIndex );
-	frame.physicalResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].asImage          = self->swapchain->getImage( frame.swapchainImageIndex );
-
-	frame.physicalResources[ RESOURCE_BUFFER_ID( "scratch" ) ].asBuffer = self->debugTransientVertexBuffer;
-
-	return true;
-};
-
-// ----------------------------------------------------------------------
-
-static inline bool is_depth_stencil_format( vk::Format format_ ) {
-	return ( format_ >= vk::Format::eD16Unorm && format_ <= vk::Format::eD32SfloatS8Uint );
-}
-
-// ----------------------------------------------------------------------
-
-// create a list of all unique resources referenced by the rendergraph
-// and store it with the current backend frame.
-static void backend_create_resource_table( le_backend_o *self, size_t frameIndex, le_renderpass_o const *passes, size_t numRenderPasses ) {
-
-	auto &frame = self->mFrames[ frameIndex ];
-
-	frame.syncChainTable.clear();
-
-	for ( le_renderpass_o const *pass = passes; pass != passes + numRenderPasses; pass++ ) {
-
-		// add all write resources to pass
-		for ( uint64_t const *resource_id = pass->readResources; resource_id != ( pass->readResources + pass->readResourceCount ); resource_id++ ) {
-			frame.syncChainTable.insert( {*resource_id, {BackendFrameData::ResourceState{}}} );
-		}
-
-		// add all read resources to pass
-		for ( uint64_t const *resource_id = pass->writeResources; resource_id != ( pass->writeResources + pass->writeResourceCount ); resource_id++ ) {
-			frame.syncChainTable.insert( {*resource_id, {BackendFrameData::ResourceState{}}} );
-		}
-
-		// create resources are a subset of write resources,
-		// so by adding write resources these are already added.
-	}
-}
-
-// ----------------------------------------------------------------------
-static void backend_track_resource_state( le_backend_o *self, size_t frameIndex, le_renderpass_o const *passes, size_t numRenderPasses ) {
+static void backend_track_resource_state( BackendFrameData &frame, le_renderpass_o *passes, size_t numRenderPasses ) {
 
 	// track resource state
 
@@ -736,8 +652,6 @@ static void backend_track_resource_state( le_backend_o *self, size_t frameIndex,
 	// An EXECUTION DEPENDENCY tells us which stage needs to be complete (srcStage) before another named stage (dstStage) may execute.
 	// A MEMORY DEPENDECY tells us which memory needs to be made available/flushed (srcAccess) after srcStage
 	// before another memory can be made visible/invalidated (dstAccess) before dstStage
-
-	auto &frame = self->mFrames[ frameIndex ];
 
 	auto &syncChainTable = frame.syncChainTable;
 
@@ -772,10 +686,14 @@ static void backend_track_resource_state( le_backend_o *self, size_t frameIndex,
 
 	frame.passes.reserve( numRenderPasses );
 
+	// TODO: move pass creation to its own method.
+
 	for ( auto pass = passes; pass != passes + numRenderPasses; pass++ ) {
 
 		Pass currentPass{};
-		currentPass.type = pass->type;
+		currentPass.type   = pass->type;
+		currentPass.width  = frame.backBufferWidth;
+		currentPass.height = frame.backBufferHeight;
 
 		for ( auto imageAttachment = pass->imageAttachments; imageAttachment != pass->imageAttachments + pass->imageAttachmentCount; imageAttachment++ ) {
 
@@ -783,19 +701,8 @@ static void backend_track_resource_state( le_backend_o *self, size_t frameIndex,
 
 			bool isDepthStencil = is_depth_stencil_format( imageAttachment->format );
 
-			ImageAttachmentInfo *currentAttachment = nullptr;
-
-			if ( isDepthStencil ) {
-				if ( currentPass.numDepthStencilAttachments == 0 ) {
-					currentAttachment = &currentPass.depthStencilAttachment;
-					currentPass.numDepthStencilAttachments++;
-				} else {
-					std::cerr << "cannot bind more than one depth stencil attachment to renderpass" << std::flush;
-				}
-			} else {
-				currentAttachment = currentPass.colorAttachments + currentPass.numColorAttachments;
-				currentPass.numColorAttachments++;
-			}
+			AttachmentInfo *currentAttachment = currentPass.attachments + currentPass.numAttachments;
+			currentPass.numAttachments++;
 
 			currentAttachment->resource_id = imageAttachment->resource_id;
 			currentAttachment->format      = imageAttachment->format;
@@ -894,6 +801,11 @@ static void backend_track_resource_state( le_backend_o *self, size_t frameIndex,
 			// print out info for this resource at this pass.
 		}
 
+		// note that we "steal" the encoder from the renderer pass -
+		// it becomes our job now to destroy it.
+		currentPass.encoder = pass->encoder;
+		pass->encoder       = nullptr;
+
 		frame.passes.emplace_back( std::move( currentPass ) );
 	}
 
@@ -924,12 +836,87 @@ static void backend_track_resource_state( le_backend_o *self, size_t frameIndex,
 
 // ----------------------------------------------------------------------
 
-static void backend_create_renderpasses( le_backend_o *self, size_t frameIndex ) {
+static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 
-	auto &frame = self->mFrames[ frameIndex ];
+	static auto &backendI   = *Registry::getApi<le_backend_vk_api>();
+	static auto &allocatorI = backendI.le_allocator_linear_i;
+
+	auto &     frame  = self->mFrames[ frameIndex ];
+	vk::Device device = self->device->getVkDevice();
+
+	auto result = device.waitForFences( {frame.frameFence}, true, 100'000'000 );
+
+	if ( result != vk::Result::eSuccess ) {
+		return false;
+	}
+
+	// -------- Invariant: fence has been crossed, all resources protected by fence
+	//          can now be claimed back.
+
+	device.resetFences( {frame.frameFence} );
+
+	for ( auto &alloc : frame.allocators ) {
+		allocatorI.reset( alloc );
+	}
+
+	{ // clear resources owned exclusively by this frame
+
+		for ( auto &r : frame.ownedResources ) {
+			switch ( r.type ) {
+			case AbstractPhysicalResource::eBuffer:
+				device.destroyBuffer( r.asBuffer );
+			    break;
+			case AbstractPhysicalResource::eFramebuffer:
+				device.destroyFramebuffer( r.asFramebuffer );
+			    break;
+			case AbstractPhysicalResource::eImage:
+				device.destroyImage( r.asImage );
+			    break;
+			case AbstractPhysicalResource::eImageView:
+				device.destroyImageView( r.asImageView );
+			    break;
+			case AbstractPhysicalResource::eRenderPass:
+				device.destroyRenderPass( r.asRenderPass );
+			    break;
+			case AbstractPhysicalResource::eUndefined:
+				std::cout << __PRETTY_FUNCTION__ << ": abstract physical resource has unknown type (" << std::hex << r.type << ") and cannot be deleted. leaking...";
+			    break;
+			}
+		}
+		frame.ownedResources.clear();
+	}
+
+	device.freeCommandBuffers( frame.commandPool, frame.commandBuffers );
+	frame.commandBuffers.clear();
+
+	// todo: we should probably notify anyone who wanted to recycle these
+	// physical resources that they are not in use anymore.
+	frame.physicalResources.clear();
+	frame.syncChainTable.clear();
+
+	static const auto &le_encoder_api = ( *Registry::getApi<le_renderer_api>() ).le_command_buffer_encoder_i;
+
+	for ( auto &f : frame.passes ) {
+		if ( f.encoder ) {
+			le_encoder_api.destroy( f.encoder );
+			f.encoder = nullptr;
+		}
+	}
+	frame.passes.clear();
+
+	// frame.ownedResources.clear();
+
+	device.resetCommandPool( frame.commandPool, vk::CommandPoolResetFlagBits::eReleaseResources );
+
+	return true;
+};
+
+// ----------------------------------------------------------------------
+
+static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &device ) {
 
 	// create renderpasses
-	auto &syncChainTable = frame.syncChainTable;
+	const auto &syncChainTable = frame.syncChainTable;
 
 	// we use this to mask out any reads in srcAccess, as it never makes sense to flush reads
 	const auto ANY_WRITE_ACCESS_FLAGS = ( vk::AccessFlagBits::eColorAttachmentWrite |
@@ -950,7 +937,7 @@ static void backend_create_renderpasses( le_backend_o *self, size_t frameIndex )
 		}
 
 		std::vector<vk::AttachmentDescription> attachments;
-		attachments.reserve( pass.numColorAttachments + pass.numDepthStencilAttachments );
+		attachments.reserve( pass.numAttachments );
 
 		std::vector<vk::AttachmentReference> colorAttachmentReferences;
 
@@ -966,7 +953,7 @@ static void backend_create_renderpasses( le_backend_o *self, size_t frameIndex )
 		vk::AccessFlags        srcAccessToExternalFlags;
 		vk::AccessFlags        dstAccessToExternalFlags;
 
-		for ( ImageAttachmentInfo const *attachment = pass.colorAttachments; attachment != pass.colorAttachments + pass.numColorAttachments; attachment++ ) {
+		for ( AttachmentInfo const *attachment = pass.attachments; attachment != pass.attachments + pass.numAttachments; attachment++ ) {
 
 			assert( attachment->resource_id != 0 ); // resource id must not be zero.
 
@@ -1086,8 +1073,190 @@ static void backend_create_renderpasses( le_backend_o *self, size_t frameIndex )
 		    .setPSubpasses( subpasses.data() )
 		    .setDependencyCount( uint32_t( dependencies.size() ) )
 		    .setPDependencies( dependencies.data() );
+
+		// TODO: create and retain actual renderpass with frame.pass
+		pass.renderPass = device.createRenderPass( renderpassCreateInfo );
+		{
+			AbstractPhysicalResource fb;
+			fb.type         = AbstractPhysicalResource::eRenderPass;
+			fb.asRenderPass = pass.renderPass;
+
+			frame.ownedResources.emplace_front( std::move( fb ) );
+		}
 	}
 }
+// ----------------------------------------------------------------------
+
+// create a list of all unique resources referenced by the rendergraph
+// and store it with the current backend frame.
+static void backend_create_resource_table( le_backend_o *self, size_t frameIndex, le_renderpass_o const *passes, size_t numRenderPasses ) {
+
+	auto &frame = self->mFrames[ frameIndex ];
+
+	frame.syncChainTable.clear();
+
+	for ( le_renderpass_o const *pass = passes; pass != passes + numRenderPasses; pass++ ) {
+
+		// add all write resources to pass
+		for ( uint64_t const *resource_id = pass->readResources; resource_id != ( pass->readResources + pass->readResourceCount ); resource_id++ ) {
+			frame.syncChainTable.insert( {*resource_id, {BackendFrameData::ResourceState{}}} );
+		}
+
+		// add all read resources to pass
+		for ( uint64_t const *resource_id = pass->writeResources; resource_id != ( pass->writeResources + pass->writeResourceCount ); resource_id++ ) {
+			frame.syncChainTable.insert( {*resource_id, {BackendFrameData::ResourceState{}}} );
+		}
+
+		// createResources are a subset of write resources,
+		// so by adding write resources these were already added.
+	}
+}
+
+// ----------------------------------------------------------------------
+
+vk::Buffer get_physical_buffer_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
+	static_assert( sizeof( AbstractPhysicalResource::asBuffer ) == sizeof( uint64_t ), "size of the union must be 64bit" );
+	assert( frame->physicalResources.at( resourceId ).type == AbstractPhysicalResource::eBuffer );
+	return frame->physicalResources.at( resourceId ).asBuffer;
+}
+
+vk::ImageView get_image_view_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
+	assert( frame->physicalResources.at( resourceId ).type == AbstractPhysicalResource::eImageView );
+	return frame->physicalResources.at( resourceId ).asImageView;
+}
+
+vk::Image get_image_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
+	assert( frame->physicalResources.at( resourceId ).type == AbstractPhysicalResource::eImage );
+	return frame->physicalResources.at( resourceId ).asImage;
+}
+
+// ----------------------------------------------------------------------
+
+static void backend_bind_and_retain_physical_resources( BackendFrameData &frame ) {
+
+	// FIXME: filter out doubles
+
+	for ( auto &pass : frame.passes ) {
+		for ( AttachmentInfo *attachment = pass.attachments; attachment != pass.attachments + pass.numAttachments; attachment++ ) {
+			attachment->physicalImage = get_image_from_resource_id( &frame, attachment->resource_id );
+			// fixme: set format from physical image.
+			//			AbstractPhysicalResource img;
+			//			img.asImage = attachment->physicalImage;
+			//			img.type    = AbstractPhysicalResource::eImage;
+			//			frame.ownedResources.emplace_front( std::move( img ) );
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
+// input: Pass
+// output: framebuffer, append newly created imageViews to retained resources list.
+static void backend_create_frame_buffers( le_backend_o *self, BackendFrameData &frame, vk::Device &device ) {
+
+	for ( auto &pass : frame.passes ) {
+
+		if ( pass.type != LE_RENDER_PASS_TYPE_DRAW ) {
+			continue;
+		}
+		std::vector<vk::ImageView> framebufferAttachments;
+		framebufferAttachments.reserve( pass.numAttachments );
+
+		for ( AttachmentInfo const *attachment = pass.attachments; attachment != pass.attachments + pass.numAttachments; attachment++ ) {
+
+			::vk::ImageSubresourceRange subresourceRange;
+			subresourceRange
+			    .setAspectMask( vk::ImageAspectFlagBits::eColor )
+			    .setBaseMipLevel( 0 )
+			    .setLevelCount( 1 )
+			    .setBaseArrayLayer( 0 )
+			    .setLayerCount( 1 );
+
+			::vk::ImageViewCreateInfo imageViewCreateInfo;
+			imageViewCreateInfo
+			    .setImage( attachment->physicalImage )
+			    .setViewType( vk::ImageViewType::e2D )
+			    .setFormat( attachment->format ) // FIXME: set correct image format based on swapchain format if need be.
+			    .setComponents( vk::ComponentMapping() )
+			    .setSubresourceRange( subresourceRange );
+
+			// TODO: retain imageviews in ownedResources -
+			// and release when appropriate.
+			auto imageView = device.createImageView( imageViewCreateInfo );
+
+			framebufferAttachments.push_back( imageView );
+
+			{
+				AbstractPhysicalResource iv;
+				iv.type        = AbstractPhysicalResource::eImageView;
+				iv.asImageView = imageView;
+
+				frame.ownedResources.emplace_front( std::move( iv ) );
+			}
+		}
+
+		vk::FramebufferCreateInfo framebufferCreateInfo;
+		framebufferCreateInfo
+		    .setFlags( {} )
+		    .setRenderPass( pass.renderPass )
+		    .setAttachmentCount( uint32_t( framebufferAttachments.size() ) )
+		    .setPAttachments( framebufferAttachments.data() )
+		    .setWidth( pass.width )
+		    .setHeight( pass.height )
+		    .setLayers( 1 );
+
+		pass.framebuffer = device.createFramebuffer( framebufferCreateInfo );
+
+		{
+			AbstractPhysicalResource fb;
+			fb.type          = AbstractPhysicalResource::eFramebuffer;
+			fb.asFramebuffer = pass.framebuffer;
+
+			frame.ownedResources.emplace_front( std::move( fb ) );
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
+// TODO: this should mark acquired resources as used by this frame -
+// so that they can only be destroyed iff this frame has been reset.
+static bool backend_acquire_physical_resources( le_backend_o *self, size_t frameIndex, le_renderpass_o *passes, size_t numRenderPasses ) {
+	auto &frame = self->mFrames[ frameIndex ];
+
+	if ( !self->swapchain->acquireNextImage( frame.semaphorePresentComplete, frame.swapchainImageIndex ) ) {
+		return false;
+	}
+
+	// ----------| invariant: swapchain acquisition successful.
+
+	frame.physicalResources[ RESOURCE_IMAGE_VIEW_ID( "backbuffer" ) ].asImageView = self->swapchain->getImageView( frame.swapchainImageIndex );
+	frame.physicalResources[ RESOURCE_IMAGE_VIEW_ID( "backbuffer" ) ].type        = AbstractPhysicalResource::eImageView;
+
+	frame.physicalResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].asImage = self->swapchain->getImage( frame.swapchainImageIndex );
+	frame.physicalResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].type    = AbstractPhysicalResource::eImage;
+
+	frame.physicalResources[ RESOURCE_BUFFER_ID( "scratch" ) ].asBuffer = self->debugTransientVertexBuffer;
+	frame.physicalResources[ RESOURCE_BUFFER_ID( "scratch" ) ].type     = AbstractPhysicalResource::eBuffer;
+
+	vk::Device device = self->device->getVkDevice();
+
+	{
+		auto &frame = self->mFrames[ frameIndex ];
+
+		frame.backBufferWidth  = self->swapchain->getImageWidth();
+		frame.backBufferHeight = self->swapchain->getImageHeight();
+
+		backend_create_resource_table( self, frameIndex, passes, numRenderPasses );
+		backend_track_resource_state( frame, passes, numRenderPasses );
+
+		backend_create_renderpasses( frame, device );
+		// patch and retain physical resources in bulk here, so that
+		// each pass may be processed independently
+		backend_bind_and_retain_physical_resources( frame );
+		backend_create_frame_buffers( self, frame, device );
+	}
+
+	return true;
+};
 
 // ----------------------------------------------------------------------
 
@@ -1104,35 +1273,13 @@ static le_allocator_linear_o *backend_get_transient_allocator( le_backend_o *sel
 
 // ----------------------------------------------------------------------
 
-vk::Buffer get_physical_buffer_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
-	static_assert( sizeof( AbstractPhysicalResource::asBuffer ) == sizeof( uint64_t ), "size of the union must match" );
-	return frame->physicalResources.at( resourceId ).asBuffer;
-}
+static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
-vk::ImageView get_image_view_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
-	return frame->physicalResources.at( resourceId ).asImageView;
-}
+	static const auto &le_encoder_api = ( *Registry::getApi<le_renderer_api>() ).le_command_buffer_encoder_i;
+	static const auto &vk_device_i    = ( *Registry::getApi<le_backend_vk_api>() ).vk_device_i;
 
-vk::Image get_image_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
-	return frame->physicalResources.at( resourceId ).asImage;
-}
+	auto &frame = self->mFrames[ frameIndex ];
 
-// ----------------------------------------------------------------------
-
-static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_graph_builder_o *graph_ ) {
-
-	static const auto &le_graph_builder_i = ( *Registry::getApi<le_renderer_api>() ).le_graph_builder_i;
-	static const auto &vk_device_i        = ( *Registry::getApi<le_backend_vk_api>() ).vk_device_i;
-
-	le_renderpass_o *passes          = nullptr;
-	size_t           numRenderPasses = 0;
-	le_graph_builder_i.get_passes( graph_, &passes, &numRenderPasses );
-
-	backend_create_resource_table( self, frameIndex, passes, numRenderPasses );
-	backend_track_resource_state( self, frameIndex, passes, numRenderPasses );
-	backend_create_renderpasses( self, frameIndex );
-
-	auto &     frame  = self->mFrames[ frameIndex ];
 	vk::Device device = self->device->getVkDevice();
 
 	static_assert( sizeof( vk::Viewport ) == sizeof( le::Viewport ), "Viewport data size must be same in vk and le" );
@@ -1142,58 +1289,37 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 
 	// TODO: (parallelize) when going wide, there needs to be a commandPool for each execution context so that
 	// command buffer generation may be free-threaded.
-	auto numCommandBuffers = uint32_t( numRenderPasses );
+	auto numCommandBuffers = uint32_t( frame.passes.size() );
 	auto cmdBufs           = device.allocateCommandBuffers( {frame.commandPool, vk::CommandBufferLevel::ePrimary, numCommandBuffers} );
 
-	assert( cmdBufs.size() == 2 ); // for debug purposes
+	// TODO: (parallel for)
+	for ( size_t passIndex = 0; passIndex != frame.passes.size(); ++passIndex ) {
 
-	// TODO: (parallelize) we can go wide here - each renderpass can be processed independently of
-	// other renderpasses.
-	for ( size_t passIndex = 0; passIndex != numRenderPasses; ++passIndex ) {
-
-		auto &pass = passes[ passIndex ];
+		auto &pass = frame.passes[ passIndex ];
 
 		auto &cmd = cmdBufs[ passIndex ];
 
-		std::vector<vk::Buffer> vertexInputBindings( maxVertexInputBindings, nullptr );
 		// create frame buffer, based on swapchain and renderpass
-
-		{
-			std::array<vk::ImageView, 1> framebufferAttachments{
-				{get_image_view_from_resource_id( &frame, RESOURCE_IMAGE_VIEW_ID( "backbuffer" ) )}};
-
-			vk::FramebufferCreateInfo framebufferCreateInfo;
-			framebufferCreateInfo
-			    .setFlags( {} )
-			    .setRenderPass( self->debugRenderPass )
-			    .setAttachmentCount( uint32_t( framebufferAttachments.size() ) )
-			    .setPAttachments( framebufferAttachments.data() )
-			    .setWidth( self->swapchain->getImageWidth() )
-			    .setHeight( self->swapchain->getImageHeight() )
-			    .setLayers( 1 );
-
-			vk::Framebuffer fb = device.createFramebuffer( framebufferCreateInfo );
-			frame.debugFramebuffers.emplace_back( std::move( fb ) );
-		}
 
 		cmd.begin( {::vk::CommandBufferUsageFlagBits::eOneTimeSubmit} );
 
-		auto renderAreaWidth  = self->swapchain->getImageWidth();
-		auto renderAreaHeight = self->swapchain->getImageHeight();
+		// FIXME: non-draw passes don't need renderpasses.
+		if ( pass.renderPass ) {
 
-		std::array<vk::ClearValue, 1> clearValues{
-			{vk::ClearColorValue( std::array<float, 4>{{0.f, 0.3f, 1.0f, 1.f}} )}};
+			std::array<vk::ClearValue, 1> clearValues{
+				{vk::ClearColorValue( std::array<float, 4>{{0.f, 0.3f, 1.0f, 1.f}} )}};
 
-		vk::RenderPassBeginInfo renderPassBeginInfo;
-		renderPassBeginInfo
-		    .setRenderPass( self->debugRenderPass )
-		    .setFramebuffer( frame.debugFramebuffers.back() )
-		    .setRenderArea( vk::Rect2D( {0, 0}, {renderAreaWidth, renderAreaHeight} ) )
-		    .setClearValueCount( uint32_t( clearValues.size() ) )
-		    .setPClearValues( clearValues.data() );
+			vk::RenderPassBeginInfo renderPassBeginInfo;
+			renderPassBeginInfo
+			    .setRenderPass( pass.renderPass )
+			    .setFramebuffer( pass.framebuffer )
+			    .setRenderArea( vk::Rect2D( {0, 0}, {frame.backBufferWidth, frame.backBufferHeight} ) )
+			    .setClearValueCount( uint32_t( clearValues.size() ) )
+			    .setPClearValues( clearValues.data() );
 
-		cmd.beginRenderPass( renderPassBeginInfo, vk::SubpassContents::eInline );
-		cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, self->debugPipeline );
+			cmd.beginRenderPass( renderPassBeginInfo, vk::SubpassContents::eInline );
+			cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, self->debugPipeline );
+		}
 
 		// Translate intermediary command stream data to api-native instructions
 
@@ -1202,11 +1328,16 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 		size_t numCommands   = 0;
 		size_t commandIndex  = 0;
 
-		le_graph_builder_i.get_encoded_data_for_pass( graph_, passIndex, &commandStream, &dataSize, &numCommands );
+		if ( pass.encoder ) {
+			le_encoder_api.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
+		} else {
+			//std::cout << "WARNING: pass does not have valid encoder.";
+		}
 
 		if ( commandStream != nullptr && numCommands > 0 ) {
 
-			void *dataIt = commandStream;
+			std::vector<vk::Buffer> vertexInputBindings( maxVertexInputBindings, nullptr );
+			void *                  dataIt = commandStream;
 
 			while ( commandIndex != numCommands ) {
 
@@ -1272,7 +1403,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex, le_gra
 			}
 		}
 
-		cmd.endRenderPass();
+		// FIXME: non-draw passes don't need renderpasses.
+		if ( pass.renderPass ) {
+			cmd.endRenderPass();
+		}
 
 		cmd.end();
 	}
@@ -1319,17 +1453,15 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.create                     = backend_create;
 	vk_backend_i.destroy                    = backend_destroy;
 	vk_backend_i.setup                      = backend_setup;
-	vk_backend_i.clear_frame                = backend_clear_frame;
-	vk_backend_i.acquire_physical_resources = backend_acquire_physical_resources;
 	vk_backend_i.create_window_surface      = backend_create_window_surface;
 	vk_backend_i.create_swapchain           = backend_create_swapchain;
-	vk_backend_i.dispatch_frame             = backend_dispatch_frame;
-	vk_backend_i.process_frame              = backend_process_frame;
 	vk_backend_i.get_num_swapchain_images   = backend_get_num_swapchain_images;
 	vk_backend_i.reset_swapchain            = backend_reset_swapchain;
 	vk_backend_i.get_transient_allocator    = backend_get_transient_allocator;
-
-	//	vk_backend_i.track_resource_state = backend_track_resource_state;
+	vk_backend_i.clear_frame                = backend_clear_frame;
+	vk_backend_i.acquire_physical_resources = backend_acquire_physical_resources;
+	vk_backend_i.process_frame              = backend_process_frame;
+	vk_backend_i.dispatch_frame             = backend_dispatch_frame;
 
 	// register/update submodules inside this plugin
 
