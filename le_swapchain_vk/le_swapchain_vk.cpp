@@ -1,4 +1,6 @@
 #include "le_swapchain_vk/le_swapchain_vk.h"
+
+#define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
 
 #include <iostream>
@@ -24,7 +26,6 @@ struct le_backend_swapchain_o {
 	vk::Extent2D               mSwapchainExtent = {};
 	SurfaceProperties          mSurfaceProperties;
 	std::vector<vk::Image>     mImageRefs; // owned by SwapchainKHR, don't delete
-	std::vector<vk::ImageView> mImageViews;
 	uint32_t                   referenceCount = 0;
 };
 
@@ -83,54 +84,6 @@ vk::PresentModeKHR get_khr_presentmode( const le::Swapchain::Presentmode &presen
 	    return vk::PresentModeKHR::eSharedDemandRefresh;
 	case ( le::Swapchain::Presentmode::eSharedContinuousRefresh ):
 	    return vk::PresentModeKHR::eSharedContinuousRefresh;
-	}
-}
-
-// ----------------------------------------------------------------------
-
-static void swapchain_destroy_image_views( le_backend_swapchain_o *self ) {
-
-	vk::Device device = self->mSettings.vk_device;
-
-	for ( auto &imageView : self->mImageViews ) {
-		// If there were any images available at all to iterate over, this means
-		// that the swapchain was re-created.
-		// This happens on window resize, for example.
-		// Therefore we have to destroy old ImageView object(s).
-		device.destroyImageView( imageView );
-	}
-
-	self->mImageViews.clear();
-}
-
-// ----------------------------------------------------------------------
-
-static void swapchain_create_image_views( le_backend_swapchain_o *self ) {
-
-	vk::Device device = self->mSettings.vk_device;
-
-	self->mImageViews.reserve( self->mImagecount );
-
-	for ( auto &imageRef : self->mImageRefs ) {
-
-		::vk::ImageSubresourceRange subresourceRange;
-		subresourceRange
-		    .setAspectMask( vk::ImageAspectFlagBits::eColor )
-		    .setBaseMipLevel( 0 )
-		    .setLevelCount( 1 )
-		    .setBaseArrayLayer( 0 )
-		    .setLayerCount( 1 );
-
-		::vk::ImageViewCreateInfo imageViewCreateInfo;
-		imageViewCreateInfo
-		    .setImage( imageRef )
-		    .setViewType( vk::ImageViewType::e2D )
-		    .setFormat( self->mSurfaceProperties.windowSurfaceFormat.format )
-		    .setComponents( vk::ComponentMapping() )
-		    .setSubresourceRange( subresourceRange );
-
-		// create image view for color image
-		self->mImageViews.emplace_back( device.createImageView( imageViewCreateInfo ) );
 	}
 }
 
@@ -240,9 +193,7 @@ static void swapchain_reset( le_backend_swapchain_o *self, const le_swapchain_vk
 		oldSwapchain = nullptr;
 	}
 
-	swapchain_destroy_image_views( self );
 	swapchain_attach_images( self );
-	swapchain_create_image_views( self );
 }
 
 // ----------------------------------------------------------------------
@@ -297,15 +248,6 @@ static VkSurfaceFormatKHR *swapchain_get_surface_format( le_backend_swapchain_o 
 
 // ----------------------------------------------------------------------
 
-static VkImageView swapchain_get_image_view( le_backend_swapchain_o *self, uint32_t index ) {
-#ifndef NDEBUG
-	assert( index < self->mImageViews.size() );
-#endif
-	return self->mImageViews[ index ];
-}
-
-// ----------------------------------------------------------------------
-
 static uint32_t swapchain_get_image_width( le_backend_swapchain_o *self ) {
 	return self->mSwapchainExtent.width;
 }
@@ -327,8 +269,6 @@ static size_t swapchain_get_swapchain_images_count( le_backend_swapchain_o *self
 static void swapchain_destroy( le_backend_swapchain_o *self_ ) {
 
 	vk::Device device = self_->mSettings.vk_device;
-
-	swapchain_destroy_image_views( self_ );
 
 	device.destroySwapchainKHR( self_->mSwapchain );
 	self_->mSwapchain = nullptr;
@@ -391,7 +331,6 @@ void register_le_swapchain_vk_api( void *api_ ) {
 	swapchain_i.reset              = swapchain_reset;
 	swapchain_i.acquire_next_image = swapchain_acquire_next_image;
 	swapchain_i.get_image          = swapchain_get_image;
-	swapchain_i.get_image_view     = swapchain_get_image_view;
 	swapchain_i.get_image_width    = swapchain_get_image_width;
 	swapchain_i.get_image_height   = swapchain_get_image_height;
 	swapchain_i.get_surface_format = swapchain_get_surface_format;

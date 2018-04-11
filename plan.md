@@ -147,8 +147,6 @@ Where should we *declare* resources?
   some unnecessary overhead, especially when running the app statically
   compiled, where reloading is impossible.
 
-+ create renderpass programmatically
-
 * minimal methods for encoder to draw into a frame: 
     * we need a buffer for vertex data
     * a simple pass-through pipleine 

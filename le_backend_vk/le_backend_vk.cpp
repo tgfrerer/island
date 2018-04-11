@@ -1226,9 +1226,6 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 
 	// ----------| invariant: swapchain acquisition successful.
 
-	frame.physicalResources[ RESOURCE_IMAGE_VIEW_ID( "backbuffer" ) ].asImageView = self->swapchain->getImageView( frame.swapchainImageIndex );
-	frame.physicalResources[ RESOURCE_IMAGE_VIEW_ID( "backbuffer" ) ].type        = AbstractPhysicalResource::eImageView;
-
 	frame.physicalResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].asImage = self->swapchain->getImage( frame.swapchainImageIndex );
 	frame.physicalResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].type    = AbstractPhysicalResource::eImage;
 

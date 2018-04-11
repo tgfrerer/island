@@ -45,26 +45,25 @@ struct le_swapchain_vk_api {
 	static constexpr auto id      = "le_swapchain_vk";
 	static constexpr auto pRegFun = register_le_swapchain_vk_api;
 
+	// clang-format off
 	struct swapchain_interface_t {
 		le_backend_swapchain_o *  ( *create                   ) ( const le_swapchain_vk_settings_o* settings_ );
-		void                      ( *destroy                  ) ( le_backend_swapchain_o* );
-		void                      ( *reset                    ) ( le_backend_swapchain_o* , const le_swapchain_vk_settings_o* settings_ );
-		bool                      ( *present                  ) ( le_backend_swapchain_o* , VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex);
-		bool                      ( *acquire_next_image       ) ( le_backend_swapchain_o* , VkSemaphore_T* semaphore_, uint32_t& imageIndex_ );
-		VkSurfaceFormatKHR*       ( *get_surface_format       ) ( le_backend_swapchain_o* );
-		VkImage_T*                ( *get_image                ) ( le_backend_swapchain_o* , uint32_t index_);
-		VkImageView_T*            ( *get_image_view           ) ( le_backend_swapchain_o* , uint32_t index_);
-		uint32_t                  ( *get_image_width          ) ( le_backend_swapchain_o* );
-		uint32_t                  ( *get_image_height         ) ( le_backend_swapchain_o* );
-		size_t                    ( *get_images_count         ) ( le_backend_swapchain_o* );
-		void                      ( *decrease_reference_count ) ( le_backend_swapchain_o* );
-		void                      ( *increase_reference_count ) ( le_backend_swapchain_o* );
-		uint32_t                  ( *get_reference_count      ) ( le_backend_swapchain_o* );
-
+		void                      ( *destroy                  ) ( le_backend_swapchain_o* self );
+		void                      ( *reset                    ) ( le_backend_swapchain_o* self, const le_swapchain_vk_settings_o* settings_ );
+		bool                      ( *present                  ) ( le_backend_swapchain_o* self, VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex);
+		bool                      ( *acquire_next_image       ) ( le_backend_swapchain_o* self, VkSemaphore_T* semaphore_, uint32_t& imageIndex_ );
+		VkSurfaceFormatKHR*       ( *get_surface_format       ) ( le_backend_swapchain_o* self );
+		VkImage_T*                ( *get_image                ) ( le_backend_swapchain_o* self, uint32_t index_);
+		uint32_t                  ( *get_image_width          ) ( le_backend_swapchain_o* self );
+		uint32_t                  ( *get_image_height         ) ( le_backend_swapchain_o* self );
+		size_t                    ( *get_images_count         ) ( le_backend_swapchain_o* self );
+		void                      ( *decrease_reference_count ) ( le_backend_swapchain_o* self );
+		void                      ( *increase_reference_count ) ( le_backend_swapchain_o* self );
+		uint32_t                  ( *get_reference_count      ) ( le_backend_swapchain_o* self );
 	};
+	// clang-format on
 
 	swapchain_interface_t swapchain_i;
-
 };
 
 #ifdef __cplusplus
@@ -121,10 +120,6 @@ class Swapchain {
 
 	VkImage_T *getImage( uint32_t index ) const {
 		return swapchainI.get_image( self, index );
-	}
-
-	VkImageView_T *getImageView( uint32_t index ) const {
-		return swapchainI.get_image_view( self, index );
 	}
 
 	uint32_t getImageWidth() const {
