@@ -33,8 +33,6 @@ struct VkPhysicalDeviceMemoryProperties;
 struct VkMemoryRequirements;
 struct VkMemoryAllocateInfo;
 
-//typedef uint32_t VkFlags;
-
 namespace vk {
 enum class Format;
 }
@@ -266,5 +264,5 @@ class Device : NoCopy, NoMove {
 };
 
 } // namespace le
-#	endif // __cplusplus
-#endif     // GUARD_PAL_BACKEND_VK_H
+#endif // __cplusplus
+#endif // GUARD_PAL_BACKEND_VK_H

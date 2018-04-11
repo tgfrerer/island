@@ -21,12 +21,6 @@ state. The internal state of an object may be hidden, and this is how you
 implement encapsulation, and abstraction (an object may decide for itself how
 it implements a certain method).
 
-* backend should not need to know about graphbuilder - just pass passes in the
-  correct order when calling backend methods
-
-    * for this to work, encoder needs to come out of the graphbuilder, and
-      needs to live with framedata. this is a better place for encoder anyway.
-
 Let's refer to all resources in the renderer using opaque `uint64_t` ids. These
 ids should be based on hashing the name - but we could decide later how we want
 to handle id generation and retrieval if we put the id generator into its own
@@ -57,7 +51,7 @@ Where should we *declare* resources?
 
 # ROADMAP
 
-    * all resources should be the of type `resource_descriptor`, so that their
+    * all resources should be the of type `AbstractResource`, so that their
       dependencies can be tracked. The interface for tracking resource
       dependencies is the same for textures and for buffers.
 
@@ -79,9 +73,6 @@ Where should we *declare* resources?
    Rendergraph is calculated based on module, which contains a list of
    pre-sorted passes. 
 
-
- * backendFrameData also has a resource table - and a type ResourceInfo - we
-   should consolidate this with our resource type.
 
 
 ## (A)
@@ -106,9 +97,6 @@ Where should we *declare* resources?
       the swapchain which uses it, so that it can be deleted at the correct
       time. 
 
-    * make sure `reset_swapchain` is clean - at the moment it complains about
-      deleting an object which is currently in use by a command buffer : the
-      view, which is owned by the swapchain.
 
 ----------------------------------------------------------------------
 

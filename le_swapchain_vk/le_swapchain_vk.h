@@ -41,11 +41,9 @@ struct le_swapchain_vk_settings_o {
 	uint32_t            vk_graphics_queue_family_index = ~uint32_t( 0 );
 };
 
-
 struct le_swapchain_vk_api {
-	static constexpr auto id       = "le_swapchain_vk";
-	static constexpr auto pRegFun  = register_le_swapchain_vk_api;
-
+	static constexpr auto id      = "le_swapchain_vk";
+	static constexpr auto pRegFun = register_le_swapchain_vk_api;
 
 	struct swapchain_interface_t {
 		le_backend_swapchain_o *  ( *create                   ) ( const le_swapchain_vk_settings_o* settings_ );
@@ -113,7 +111,7 @@ class Swapchain {
 	// deactivate move assignment operator
 	Swapchain &operator=( const Swapchain && ) = delete;
 
-	void reset( le_swapchain_vk_settings_o* settings_ ) {
+	void reset( le_swapchain_vk_settings_o *settings_ ) {
 		swapchainI.reset( self, settings_ );
 	}
 
@@ -153,10 +151,9 @@ class Swapchain {
 		return swapchainI.present( self, queue, renderCompleteSemaphore, pImageIndex );
 	}
 
-	operator le_backend_swapchain_o*(){
+	operator le_backend_swapchain_o *() {
 		return self;
 	}
-
 };
 
 } // namespace le

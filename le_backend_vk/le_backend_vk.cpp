@@ -279,23 +279,23 @@ static void backend_setup( le_backend_o *self ) {
 	vk::Device vkDevice = self->device->getVkDevice();
 
 	LE_AllocatorCreateInfo allocatorCreateInfo;
+
+	// allocate & map some memory which we may use for scratch buffers.
 	{
-		/// TODO:  allocate & map some memory which we may use for scratch buffers.
-		///
-		/// This memory will be owned by the frame, and we hand out chunks from it
-		/// via allocators, so that each allocator can only sub-allocate the chunk
-		/// it actually owns.
-		///
-		/// when the frame is transitioned to be submitted, we can either flush
-		/// that memory, or, realistically, the memory will be made automatically
-		/// available throught the implicit synchronisation guarantee that any
-		/// memory writes are made available when submission occurs. (we probably
-		/// have to look up how implicit synchronisation works with buffers which
-		/// are written to outside a regular command buffer, but which are mapped)
-		///
-		/// It's probably easiest for now to allocate the memory for scratch buffers
-		/// from COHERENT memory - so that we don't have to worry about flushes.
-		///
+		// This memory will be owned by the frame, and we hand out chunks from it
+		// via allocators, so that each allocator can only sub-allocate the chunk
+		// it actually owns.
+		//
+		// when the frame is transitioned to be submitted, we can either flush
+		// that memory, or, realistically, the memory will be made automatically
+		// available throught the implicit synchronisation guarantee that any
+		// memory writes are made available when submission occurs. (we probably
+		// have to look up how implicit synchronisation works with buffers which
+		// are written to outside a regular command buffer, but which are mapped)
+		//
+		// It's probably easiest for now to allocate the memory for scratch buffers
+		// from COHERENT memory - so that we don't have to worry about flushes.
+		//
 
 		uint64_t memSize = 4096;
 		// TODO: check which alignment we need to consider for a vertex/index buffer
@@ -364,7 +364,6 @@ static void backend_setup( le_backend_o *self ) {
 	}
 
 	// stand-in: create default renderpass.
-
 	{
 		std::array<vk::AttachmentDescription, 1> attachments;
 
@@ -442,7 +441,6 @@ static void backend_setup( le_backend_o *self ) {
 	}
 
 	// stand-in: create default pipeline
-
 	{
 		vk::PipelineCacheCreateInfo pipelineCacheInfo;
 		pipelineCacheInfo
@@ -491,7 +489,7 @@ static void backend_setup( le_backend_o *self ) {
 		    .setVertexAttributeDescriptionCount( 1 )
 		    .setPVertexAttributeDescriptions( &vertexAttributeDescription )
 		    //		    .setVertexAttributeDescriptionCount( 0 )
-		    //		    .setPVertexAttributeDescriptions( nullptr )
+		    //	    .setPVertexAttributeDescriptions( nullptr )
 		    ;
 
 		// todo: get layout from shader
@@ -516,7 +514,7 @@ static void backend_setup( le_backend_o *self ) {
 
 		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState;
 		inputAssemblyState
-		    .setTopology(::vk::PrimitiveTopology::eTriangleList )
+		    .setTopology( ::vk::PrimitiveTopology::eTriangleList )
 		    .setPrimitiveRestartEnable( VK_FALSE );
 
 		vk::PipelineTessellationStateCreateInfo tessellationState;
@@ -536,9 +534,9 @@ static void backend_setup( le_backend_o *self ) {
 		rasterizationState
 		    .setDepthClampEnable( VK_FALSE )
 		    .setRasterizerDiscardEnable( VK_FALSE )
-		    .setPolygonMode(::vk::PolygonMode::eFill )
-		    .setCullMode(::vk::CullModeFlagBits::eFront )
-		    .setFrontFace(::vk::FrontFace::eCounterClockwise )
+		    .setPolygonMode( ::vk::PolygonMode::eFill )
+		    .setCullMode( ::vk::CullModeFlagBits::eFront )
+		    .setFrontFace( ::vk::FrontFace::eCounterClockwise )
 		    .setDepthBiasEnable( VK_FALSE )
 		    .setDepthBiasConstantFactor( 0.f )
 		    .setDepthBiasClamp( 0.f )
@@ -547,7 +545,7 @@ static void backend_setup( le_backend_o *self ) {
 
 		vk::PipelineMultisampleStateCreateInfo multisampleState;
 		multisampleState
-		    .setRasterizationSamples(::vk::SampleCountFlagBits::e1 )
+		    .setRasterizationSamples( ::vk::SampleCountFlagBits::e1 )
 		    .setSampleShadingEnable( VK_FALSE )
 		    .setMinSampleShading( 0.f )
 		    .setPSampleMask( nullptr )
@@ -556,10 +554,10 @@ static void backend_setup( le_backend_o *self ) {
 
 		vk::StencilOpState stencilOpState;
 		stencilOpState
-		    .setFailOp(::vk::StencilOp::eKeep )
-		    .setPassOp(::vk::StencilOp::eKeep )
-		    .setDepthFailOp(::vk::StencilOp::eKeep )
-		    .setCompareOp(::vk::CompareOp::eNever )
+		    .setFailOp( ::vk::StencilOp::eKeep )
+		    .setPassOp( ::vk::StencilOp::eKeep )
+		    .setDepthFailOp( ::vk::StencilOp::eKeep )
+		    .setCompareOp( ::vk::CompareOp::eNever )
 		    .setCompareMask( 0 )
 		    .setWriteMask( 0 )
 		    .setReference( 0 );
@@ -568,7 +566,7 @@ static void backend_setup( le_backend_o *self ) {
 		depthStencilState
 		    .setDepthTestEnable( VK_FALSE )
 		    .setDepthWriteEnable( VK_FALSE )
-		    .setDepthCompareOp(::vk::CompareOp::eLessOrEqual )
+		    .setDepthCompareOp( ::vk::CompareOp::eLessOrEqual )
 		    .setDepthBoundsTestEnable( VK_FALSE )
 		    .setStencilTestEnable( VK_FALSE )
 		    .setFront( stencilOpState )
@@ -581,12 +579,12 @@ static void backend_setup( le_backend_o *self ) {
 
 		blendAttachmentStates[ 0 ]
 		    .setBlendEnable( VK_TRUE )
-		    .setColorBlendOp(::vk::BlendOp::eAdd )
-		    .setAlphaBlendOp(::vk::BlendOp::eAdd )
-		    .setSrcColorBlendFactor(::vk::BlendFactor::eOne ) // eOne, because we require premultiplied alpha!
-		    .setDstColorBlendFactor(::vk::BlendFactor::eOneMinusSrcAlpha )
-		    .setSrcAlphaBlendFactor(::vk::BlendFactor::eOne )
-		    .setDstAlphaBlendFactor(::vk::BlendFactor::eZero )
+		    .setColorBlendOp( ::vk::BlendOp::eAdd )
+		    .setAlphaBlendOp( ::vk::BlendOp::eAdd )
+		    .setSrcColorBlendFactor( ::vk::BlendFactor::eOne ) // eOne, because we require premultiplied alpha!
+		    .setDstColorBlendFactor( ::vk::BlendFactor::eOneMinusSrcAlpha )
+		    .setSrcAlphaBlendFactor( ::vk::BlendFactor::eOne )
+		    .setDstAlphaBlendFactor( ::vk::BlendFactor::eZero )
 		    .setColorWriteMask(
 		        ::vk::ColorComponentFlagBits::eR |
 		        ::vk::ColorComponentFlagBits::eG |
@@ -596,7 +594,7 @@ static void backend_setup( le_backend_o *self ) {
 		vk::PipelineColorBlendStateCreateInfo colorBlendState;
 		colorBlendState
 		    .setLogicOpEnable( VK_FALSE )
-		    .setLogicOp(::vk::LogicOp::eClear )
+		    .setLogicOp( ::vk::LogicOp::eClear )
 		    .setAttachmentCount( blendAttachmentStates.size() )
 		    .setPAttachments( blendAttachmentStates.data() )
 		    .setBlendConstants( {{0.f, 0.f, 0.f, 0.f}} );
@@ -666,7 +664,7 @@ static void backend_track_resource_state( BackendFrameData &frame, le_renderpass
 			backbufferState.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
 			backbufferState.visible_access = vk::AccessFlagBits( 0 );                           // semaphore took care of availability - we can assume memory is already available
 		} else {
-			std::cout << "warning: no reference to backbuffer found in rendergraph" << std::flush;
+			std::cout << "warning: no reference to backbuffer found in renderpasses" << std::flush;
 		}
 	}
 
