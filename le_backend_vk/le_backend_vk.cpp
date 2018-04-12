@@ -1134,19 +1134,11 @@ vk::Image get_image_from_resource_id( const BackendFrameData *frame, uint64_t re
 }
 
 // ----------------------------------------------------------------------
-
-static void backend_bind_and_retain_physical_resources( BackendFrameData &frame ) {
-
-	// FIXME: filter out doubles
-
+// places physical VkImage handles for all attachmentInfos in all passes
+static void backend_patch_attachment_info_images( BackendFrameData &frame ) {
 	for ( auto &pass : frame.passes ) {
 		for ( AttachmentInfo *attachment = pass.attachments; attachment != pass.attachments + pass.numAttachments; attachment++ ) {
 			attachment->physicalImage = get_image_from_resource_id( &frame, attachment->resource_id );
-			// fixme: set format from physical image.
-			//			AbstractPhysicalResource img;
-			//			img.asImage = attachment->physicalImage;
-			//			img.type    = AbstractPhysicalResource::eImage;
-			//			frame.ownedResources.emplace_front( std::move( img ) );
 		}
 	}
 }
@@ -1248,7 +1240,7 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 	backend_create_renderpasses( frame, device );
 	// patch and retain physical resources in bulk here, so that
 	// each pass may be processed independently
-	backend_bind_and_retain_physical_resources( frame );
+	backend_patch_attachment_info_images( frame );
 	backend_create_frame_buffers( frame, device );
 
 	return true;
