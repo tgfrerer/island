@@ -266,6 +266,196 @@ void backend_reset_swapchain( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 
+// stand-in: create default pipeline, and pipeline cache
+static void backend_create_debug_pipeline( le_backend_o *self ) {
+	vk::Device vkDevice = self->device->getVkDevice();
+
+	static const std::vector<uint32_t> shaderCodeVert{
+	// converted using: `glslc vertex_shader.vert fragment_shader.frag -c -mfmt=num`
+#include "vertex_shader_ext.vert.spv"
+	};
+
+	static const std::vector<uint32_t> shaderCodeFrag{
+#include "fragment_shader.frag.spv"
+	};
+
+	self->debugVertexShaderModule   = vkDevice.createShaderModule( {vk::ShaderModuleCreateFlags(), shaderCodeVert.size() * sizeof( uint32_t ), shaderCodeVert.data()} );
+	self->debugFragmentShaderModule = vkDevice.createShaderModule( {vk::ShaderModuleCreateFlags(), shaderCodeFrag.size() * sizeof( uint32_t ), shaderCodeFrag.data()} );
+
+	std::array<vk::PipelineShaderStageCreateInfo, 2> pipelineStages;
+	pipelineStages[ 0 ]
+	    .setFlags( vk::PipelineShaderStageCreateFlags() ) // must be 0 - "reserved for future use"
+	    .setStage( vk::ShaderStageFlagBits::eVertex )
+	    .setModule( self->debugVertexShaderModule )
+	    .setPName( "main" )
+	    .setPSpecializationInfo( nullptr );
+	pipelineStages[ 1 ]
+	    .setFlags( vk::PipelineShaderStageCreateFlags() ) // must be 0 - "reserved for future use"
+	    .setStage( vk::ShaderStageFlagBits::eFragment )
+	    .setModule( self->debugFragmentShaderModule )
+	    .setPName( "main" )
+	    .setPSpecializationInfo( nullptr );
+
+	vk::VertexInputBindingDescription   vertexBindingDescrition{0, sizeof( float ) * 4};
+	vk::VertexInputAttributeDescription vertexAttributeDescription{0, 0, vk::Format::eR32G32B32A32Sfloat, 0};
+
+	vk::PipelineVertexInputStateCreateInfo vertexInputStageInfo;
+	vertexInputStageInfo
+	    .setFlags( vk::PipelineVertexInputStateCreateFlags() )
+	    .setVertexBindingDescriptionCount( 1 )
+	    .setPVertexBindingDescriptions( &vertexBindingDescrition )
+	    //		    .setVertexBindingDescriptionCount( 0 )
+	    //		    .setPVertexBindingDescriptions( nullptr )
+	    .setVertexAttributeDescriptionCount( 1 )
+	    .setPVertexAttributeDescriptions( &vertexAttributeDescription )
+	    //		    .setVertexAttributeDescriptionCount( 0 )
+	    //	    .setPVertexAttributeDescriptions( nullptr )
+	    ;
+
+	// todo: get layout from shader
+
+	vk::DescriptorSetLayoutCreateInfo setLayoutInfo;
+	setLayoutInfo
+	    .setFlags( vk::DescriptorSetLayoutCreateFlags() )
+	    .setBindingCount( 0 )
+	    .setPBindings( nullptr );
+
+	self->debugDescriptorSetLayout = vkDevice.createDescriptorSetLayout( setLayoutInfo );
+
+	vk::PipelineLayoutCreateInfo layoutCreateInfo;
+	layoutCreateInfo
+	    .setFlags( vk::PipelineLayoutCreateFlags() ) // "reserved for future use"
+	    .setSetLayoutCount( 1 )
+	    .setPSetLayouts( &self->debugDescriptorSetLayout )
+	    .setPushConstantRangeCount( 0 )
+	    .setPPushConstantRanges( nullptr );
+
+	self->debugPipelineLayout = vkDevice.createPipelineLayout( layoutCreateInfo );
+
+	vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState;
+	inputAssemblyState
+	    .setTopology( ::vk::PrimitiveTopology::eTriangleList )
+	    .setPrimitiveRestartEnable( VK_FALSE );
+
+	vk::PipelineTessellationStateCreateInfo tessellationState;
+	tessellationState
+	    .setPatchControlPoints( 3 );
+
+	// viewport and scissor are tracked as dynamic states, so this object
+	// will not get used.
+	vk::PipelineViewportStateCreateInfo viewportState;
+	viewportState
+	    .setViewportCount( 1 )
+	    .setPViewports( nullptr )
+	    .setScissorCount( 1 )
+	    .setPScissors( nullptr );
+
+	vk::PipelineRasterizationStateCreateInfo rasterizationState;
+	rasterizationState
+	    .setDepthClampEnable( VK_FALSE )
+	    .setRasterizerDiscardEnable( VK_FALSE )
+	    .setPolygonMode( ::vk::PolygonMode::eFill )
+	    .setCullMode( ::vk::CullModeFlagBits::eFront )
+	    .setFrontFace( ::vk::FrontFace::eCounterClockwise )
+	    .setDepthBiasEnable( VK_FALSE )
+	    .setDepthBiasConstantFactor( 0.f )
+	    .setDepthBiasClamp( 0.f )
+	    .setDepthBiasSlopeFactor( 1.f )
+	    .setLineWidth( 1.f );
+
+	vk::PipelineMultisampleStateCreateInfo multisampleState;
+	multisampleState
+	    .setRasterizationSamples( ::vk::SampleCountFlagBits::e1 )
+	    .setSampleShadingEnable( VK_FALSE )
+	    .setMinSampleShading( 0.f )
+	    .setPSampleMask( nullptr )
+	    .setAlphaToCoverageEnable( VK_FALSE )
+	    .setAlphaToOneEnable( VK_FALSE );
+
+	vk::StencilOpState stencilOpState;
+	stencilOpState
+	    .setFailOp( ::vk::StencilOp::eKeep )
+	    .setPassOp( ::vk::StencilOp::eKeep )
+	    .setDepthFailOp( ::vk::StencilOp::eKeep )
+	    .setCompareOp( ::vk::CompareOp::eNever )
+	    .setCompareMask( 0 )
+	    .setWriteMask( 0 )
+	    .setReference( 0 );
+
+	vk::PipelineDepthStencilStateCreateInfo depthStencilState;
+	depthStencilState
+	    .setDepthTestEnable( VK_FALSE )
+	    .setDepthWriteEnable( VK_FALSE )
+	    .setDepthCompareOp( ::vk::CompareOp::eLessOrEqual )
+	    .setDepthBoundsTestEnable( VK_FALSE )
+	    .setStencilTestEnable( VK_FALSE )
+	    .setFront( stencilOpState )
+	    .setBack( stencilOpState )
+	    .setMinDepthBounds( 0.f )
+	    .setMaxDepthBounds( 0.f );
+
+	std::array<vk::PipelineColorBlendAttachmentState, 1> blendAttachmentStates;
+	blendAttachmentStates.fill( vk::PipelineColorBlendAttachmentState() );
+
+	blendAttachmentStates[ 0 ]
+	    .setBlendEnable( VK_TRUE )
+	    .setColorBlendOp( ::vk::BlendOp::eAdd )
+	    .setAlphaBlendOp( ::vk::BlendOp::eAdd )
+	    .setSrcColorBlendFactor( ::vk::BlendFactor::eOne ) // eOne, because we require premultiplied alpha!
+	    .setDstColorBlendFactor( ::vk::BlendFactor::eOneMinusSrcAlpha )
+	    .setSrcAlphaBlendFactor( ::vk::BlendFactor::eOne )
+	    .setDstAlphaBlendFactor( ::vk::BlendFactor::eZero )
+	    .setColorWriteMask(
+	        ::vk::ColorComponentFlagBits::eR |
+	        ::vk::ColorComponentFlagBits::eG |
+	        ::vk::ColorComponentFlagBits::eB |
+	        ::vk::ColorComponentFlagBits::eA );
+
+	vk::PipelineColorBlendStateCreateInfo colorBlendState;
+	colorBlendState
+	    .setLogicOpEnable( VK_FALSE )
+	    .setLogicOp( ::vk::LogicOp::eClear )
+	    .setAttachmentCount( blendAttachmentStates.size() )
+	    .setPAttachments( blendAttachmentStates.data() )
+	    .setBlendConstants( {{0.f, 0.f, 0.f, 0.f}} );
+
+	std::array<vk::DynamicState, 2> dynamicStates = {{
+	    ::vk::DynamicState::eScissor,
+	    ::vk::DynamicState::eViewport,
+	}};
+
+	vk::PipelineDynamicStateCreateInfo dynamicState;
+	dynamicState
+	    .setDynamicStateCount( dynamicStates.size() )
+	    .setPDynamicStates( dynamicStates.data() );
+
+	// setup debug pipeline
+	vk::GraphicsPipelineCreateInfo gpi;
+	gpi
+	    .setFlags( vk::PipelineCreateFlagBits::eAllowDerivatives )
+	    .setStageCount( uint32_t( pipelineStages.size() ) )
+	    .setPStages( pipelineStages.data() )
+	    .setPVertexInputState( &vertexInputStageInfo )
+	    .setPInputAssemblyState( &inputAssemblyState )
+	    .setPTessellationState( nullptr )
+	    .setPViewportState( &viewportState )
+	    .setPRasterizationState( &rasterizationState )
+	    .setPMultisampleState( &multisampleState )
+	    .setPDepthStencilState( &depthStencilState )
+	    .setPColorBlendState( &colorBlendState )
+	    .setPDynamicState( &dynamicState )
+	    .setLayout( self->debugPipelineLayout )
+	    .setRenderPass( self->debugRenderPass ) // must be a valid renderpass.
+	    .setSubpass( 0 )
+	    .setBasePipelineHandle( nullptr )
+	    .setBasePipelineIndex( 0 ) // -1 signals not to use a base pipeline index
+	    ;
+
+	self->debugPipeline = vkDevice.createGraphicsPipeline( self->debugPipelineCache, gpi );
+}
+
+// ----------------------------------------------------------------------
+
 static void backend_setup( le_backend_o *self ) {
 
 	static auto  backendVkAPi = *Registry::getApi<le_backend_vk_api>();
@@ -440,199 +630,16 @@ static void backend_setup( le_backend_o *self ) {
 		self->debugRenderPass = vkDevice.createRenderPass( renderPassCreateInfo );
 	}
 
-	// stand-in: create default pipeline
-	{
-		vk::PipelineCacheCreateInfo pipelineCacheInfo;
-		pipelineCacheInfo
-		    .setFlags( vk::PipelineCacheCreateFlags() ) // "reserved for future use"
-		    .setInitialDataSize( 0 )
-		    .setPInitialData( nullptr );
+	vk::PipelineCacheCreateInfo pipelineCacheInfo;
+	pipelineCacheInfo
+	    .setFlags( vk::PipelineCacheCreateFlags() ) // "reserved for future use"
+	    .setInitialDataSize( 0 )
+	    .setPInitialData( nullptr );
 
-		self->debugPipelineCache = vkDevice.createPipelineCache( pipelineCacheInfo );
+	self->debugPipelineCache = vkDevice.createPipelineCache( pipelineCacheInfo );
 
-		static const std::vector<uint32_t> shaderCodeVert{
-		// converted using: `glslc vertex_shader.vert fragment_shader.frag -c -mfmt=num`
-#include "vertex_shader_ext.vert.spv"
-		};
-
-		static const std::vector<uint32_t> shaderCodeFrag{
-#include "fragment_shader.frag.spv"
-		};
-
-		self->debugVertexShaderModule   = vkDevice.createShaderModule( {vk::ShaderModuleCreateFlags(), shaderCodeVert.size() * sizeof( uint32_t ), shaderCodeVert.data()} );
-		self->debugFragmentShaderModule = vkDevice.createShaderModule( {vk::ShaderModuleCreateFlags(), shaderCodeFrag.size() * sizeof( uint32_t ), shaderCodeFrag.data()} );
-
-		std::array<vk::PipelineShaderStageCreateInfo, 2> pipelineStages;
-		pipelineStages[ 0 ]
-		    .setFlags( vk::PipelineShaderStageCreateFlags() ) // must be 0 - "reserved for future use"
-		    .setStage( vk::ShaderStageFlagBits::eVertex )
-		    .setModule( self->debugVertexShaderModule )
-		    .setPName( "main" )
-		    .setPSpecializationInfo( nullptr );
-		pipelineStages[ 1 ]
-		    .setFlags( vk::PipelineShaderStageCreateFlags() ) // must be 0 - "reserved for future use"
-		    .setStage( vk::ShaderStageFlagBits::eFragment )
-		    .setModule( self->debugFragmentShaderModule )
-		    .setPName( "main" )
-		    .setPSpecializationInfo( nullptr );
-
-		vk::VertexInputBindingDescription   vertexBindingDescrition{0, sizeof( float ) * 4};
-		vk::VertexInputAttributeDescription vertexAttributeDescription{0, 0, vk::Format::eR32G32B32A32Sfloat, 0};
-
-		vk::PipelineVertexInputStateCreateInfo vertexInputStageInfo;
-		vertexInputStageInfo
-		    .setFlags( vk::PipelineVertexInputStateCreateFlags() )
-		    .setVertexBindingDescriptionCount( 1 )
-		    .setPVertexBindingDescriptions( &vertexBindingDescrition )
-		    //		    .setVertexBindingDescriptionCount( 0 )
-		    //		    .setPVertexBindingDescriptions( nullptr )
-		    .setVertexAttributeDescriptionCount( 1 )
-		    .setPVertexAttributeDescriptions( &vertexAttributeDescription )
-		    //		    .setVertexAttributeDescriptionCount( 0 )
-		    //	    .setPVertexAttributeDescriptions( nullptr )
-		    ;
-
-		// todo: get layout from shader
-
-		vk::DescriptorSetLayoutCreateInfo setLayoutInfo;
-		setLayoutInfo
-		    .setFlags( vk::DescriptorSetLayoutCreateFlags() )
-		    .setBindingCount( 0 )
-		    .setPBindings( nullptr );
-
-		self->debugDescriptorSetLayout = vkDevice.createDescriptorSetLayout( setLayoutInfo );
-
-		vk::PipelineLayoutCreateInfo layoutCreateInfo;
-		layoutCreateInfo
-		    .setFlags( vk::PipelineLayoutCreateFlags() ) // "reserved for future use"
-		    .setSetLayoutCount( 1 )
-		    .setPSetLayouts( &self->debugDescriptorSetLayout )
-		    .setPushConstantRangeCount( 0 )
-		    .setPPushConstantRanges( nullptr );
-
-		self->debugPipelineLayout = vkDevice.createPipelineLayout( layoutCreateInfo );
-
-		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState;
-		inputAssemblyState
-		    .setTopology( ::vk::PrimitiveTopology::eTriangleList )
-		    .setPrimitiveRestartEnable( VK_FALSE );
-
-		vk::PipelineTessellationStateCreateInfo tessellationState;
-		tessellationState
-		    .setPatchControlPoints( 3 );
-
-		// viewport and scissor are tracked as dynamic states, so this object
-		// will not get used.
-		vk::PipelineViewportStateCreateInfo viewportState;
-		viewportState
-		    .setViewportCount( 1 )
-		    .setPViewports( nullptr )
-		    .setScissorCount( 1 )
-		    .setPScissors( nullptr );
-
-		vk::PipelineRasterizationStateCreateInfo rasterizationState;
-		rasterizationState
-		    .setDepthClampEnable( VK_FALSE )
-		    .setRasterizerDiscardEnable( VK_FALSE )
-		    .setPolygonMode( ::vk::PolygonMode::eFill )
-		    .setCullMode( ::vk::CullModeFlagBits::eFront )
-		    .setFrontFace( ::vk::FrontFace::eCounterClockwise )
-		    .setDepthBiasEnable( VK_FALSE )
-		    .setDepthBiasConstantFactor( 0.f )
-		    .setDepthBiasClamp( 0.f )
-		    .setDepthBiasSlopeFactor( 1.f )
-		    .setLineWidth( 1.f );
-
-		vk::PipelineMultisampleStateCreateInfo multisampleState;
-		multisampleState
-		    .setRasterizationSamples( ::vk::SampleCountFlagBits::e1 )
-		    .setSampleShadingEnable( VK_FALSE )
-		    .setMinSampleShading( 0.f )
-		    .setPSampleMask( nullptr )
-		    .setAlphaToCoverageEnable( VK_FALSE )
-		    .setAlphaToOneEnable( VK_FALSE );
-
-		vk::StencilOpState stencilOpState;
-		stencilOpState
-		    .setFailOp( ::vk::StencilOp::eKeep )
-		    .setPassOp( ::vk::StencilOp::eKeep )
-		    .setDepthFailOp( ::vk::StencilOp::eKeep )
-		    .setCompareOp( ::vk::CompareOp::eNever )
-		    .setCompareMask( 0 )
-		    .setWriteMask( 0 )
-		    .setReference( 0 );
-
-		vk::PipelineDepthStencilStateCreateInfo depthStencilState;
-		depthStencilState
-		    .setDepthTestEnable( VK_FALSE )
-		    .setDepthWriteEnable( VK_FALSE )
-		    .setDepthCompareOp( ::vk::CompareOp::eLessOrEqual )
-		    .setDepthBoundsTestEnable( VK_FALSE )
-		    .setStencilTestEnable( VK_FALSE )
-		    .setFront( stencilOpState )
-		    .setBack( stencilOpState )
-		    .setMinDepthBounds( 0.f )
-		    .setMaxDepthBounds( 0.f );
-
-		std::array<vk::PipelineColorBlendAttachmentState, 1> blendAttachmentStates;
-		blendAttachmentStates.fill( vk::PipelineColorBlendAttachmentState() );
-
-		blendAttachmentStates[ 0 ]
-		    .setBlendEnable( VK_TRUE )
-		    .setColorBlendOp( ::vk::BlendOp::eAdd )
-		    .setAlphaBlendOp( ::vk::BlendOp::eAdd )
-		    .setSrcColorBlendFactor( ::vk::BlendFactor::eOne ) // eOne, because we require premultiplied alpha!
-		    .setDstColorBlendFactor( ::vk::BlendFactor::eOneMinusSrcAlpha )
-		    .setSrcAlphaBlendFactor( ::vk::BlendFactor::eOne )
-		    .setDstAlphaBlendFactor( ::vk::BlendFactor::eZero )
-		    .setColorWriteMask(
-		        ::vk::ColorComponentFlagBits::eR |
-		        ::vk::ColorComponentFlagBits::eG |
-		        ::vk::ColorComponentFlagBits::eB |
-		        ::vk::ColorComponentFlagBits::eA );
-
-		vk::PipelineColorBlendStateCreateInfo colorBlendState;
-		colorBlendState
-		    .setLogicOpEnable( VK_FALSE )
-		    .setLogicOp( ::vk::LogicOp::eClear )
-		    .setAttachmentCount( blendAttachmentStates.size() )
-		    .setPAttachments( blendAttachmentStates.data() )
-		    .setBlendConstants( {{0.f, 0.f, 0.f, 0.f}} );
-
-		std::array<vk::DynamicState, 2> dynamicStates = {{
-		    ::vk::DynamicState::eScissor,
-		    ::vk::DynamicState::eViewport,
-		}};
-
-		vk::PipelineDynamicStateCreateInfo dynamicState;
-		dynamicState
-		    .setDynamicStateCount( dynamicStates.size() )
-		    .setPDynamicStates( dynamicStates.data() );
-
-		// setup debug pipeline
-		vk::GraphicsPipelineCreateInfo gpi;
-		gpi
-		    .setFlags( vk::PipelineCreateFlagBits::eAllowDerivatives )
-		    .setStageCount( uint32_t( pipelineStages.size() ) )
-		    .setPStages( pipelineStages.data() )
-		    .setPVertexInputState( &vertexInputStageInfo )
-		    .setPInputAssemblyState( &inputAssemblyState )
-		    .setPTessellationState( nullptr )
-		    .setPViewportState( &viewportState )
-		    .setPRasterizationState( &rasterizationState )
-		    .setPMultisampleState( &multisampleState )
-		    .setPDepthStencilState( &depthStencilState )
-		    .setPColorBlendState( &colorBlendState )
-		    .setPDynamicState( &dynamicState )
-		    .setLayout( self->debugPipelineLayout )
-		    .setRenderPass( self->debugRenderPass ) // must be a valid renderpass.
-		    .setSubpass( 0 )
-		    .setBasePipelineHandle( nullptr )
-		    .setBasePipelineIndex( 0 ) // -1 signals not to use a base pipeline index
-		    ;
-
-		self->debugPipeline = vkDevice.createGraphicsPipeline( self->debugPipelineCache, gpi );
-	}
+	// TODO: remove reliance on this
+	backend_create_debug_pipeline( self );
 }
 
 // ----------------------------------------------------------------------
