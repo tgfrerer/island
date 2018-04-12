@@ -1,5 +1,64 @@
 # PLAN
 
+
+
+# ROADMAP
+
+    * all resources should be the of type `AbstractResource`, so that their
+      dependencies can be tracked. The interface for tracking resource
+      dependencies is the same for textures and for buffers.
+
+    * we should use descriptors so that resources can be instantiated when we
+      first need them.
+
+    * add sort-key to encoder, so that we can decouple calling the callbacks
+      from generating the command buffers.
+
+# TODO
+
+ * combine `resource` and `buffer`- a buffer is-a resource, as an image is-a
+   resource. We define a resource as something which has memory backing on the
+   GPU and needs synchronisation.
+ 
+ * we want three different types of passes: render, transfer, compute. Each
+   pass has a list of inputs, and a list of outputs.
+
+   Rendergraph is calculated based on module, which contains a list of
+   pre-sorted passes. 
+
+ * Better distinguish between renderpass types when creating vulkan command
+   buffers
+
+ * Rename internal structure to `Batch` instead of `Renderpass` in backend.
+
+## (A)
+
+   * Programmatically create Pipeline based on Renderpass
+
+## (B)
+
+    * simplify linear allocator: 
+
+        Currently, one leBuffer can have more than one allcator - this can turn
+        into a nightmare. allocator must own buffer exclusively. memory may be
+        handed out in chunks per buffer, but buffer must be owned exclusively
+        by allocator. 
+    
+    * think: can we use macros to generate encoder methods?
+
+    * get Renderdoc to actually work on both of your test systems.
+
+## (C)
+
+    * find a better way to store window surface- it should probably live inside
+      the backend, tagged with window name, or perhaps it should be owned by
+      the swapchain which uses it, so that it can be deleted at the correct
+      time. 
+
+----------------------------------------------------------------------
+
+# STRATEGY
+
 ## Data Flow
 
     * if two objects communicate by sharing an object, communication should be
@@ -48,56 +107,6 @@ Where should we *declare* resources?
 
     * if we declare resources upfront, this means we have one central point
       where resources are defined. 
-
-# ROADMAP
-
-    * all resources should be the of type `AbstractResource`, so that their
-      dependencies can be tracked. The interface for tracking resource
-      dependencies is the same for textures and for buffers.
-
-    * we should use descriptors so that resources can be instantiated when we
-      first need them.
-
-    * add sort-key to encoder, so that we can decouple calling the callbacks
-      from generating the command buffers.
-
-# TODO
-
- * combine `resource` and `buffer`- a buffer is-a resource, as an image is-a
-   resource. We define a resource as something which has memory backing on the
-   GPU and needs synchronisation.
- 
- * we want three different types of passes: render, transfer, compute. Each
-   pass has a list of inputs, and a list of outputs.
-
-   Rendergraph is calculated based on module, which contains a list of
-   pre-sorted passes. 
-
-
-
-## (A)
-
-    * simplify linear allocator: 
-
-        Currently, one leBuffer can have more than one allcator - this can turn
-        into a nightmare. allocator must own buffer exclusively. memory may be
-        handed out in chunks per buffer, but buffer must be owned exclusively
-        by allocator. 
-
-## (B)
-
-    * think: can we use macros to generate encoder methods?
-
-    * get Renderdoc to actually work on both of your test systems.
-
-## (C)
-
-    * find a better way to store window surface- it should probably live inside
-      the backend, tagged with window name, or perhaps it should be owned by
-      the swapchain which uses it, so that it can be deleted at the correct
-      time. 
-
-
 ----------------------------------------------------------------------
 
 # LEARNED SO FAR:
