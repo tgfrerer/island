@@ -16,44 +16,50 @@
 
 # TODO
 
- * combine `resource` and `buffer`- a buffer is-a resource, as an image is-a
-   resource. We define a resource as something which has memory backing on the
-   GPU and needs synchronisation.
+* Remove namespaces in header files - these are not compatible with other
+  programming languages.
+
+For a start, create all resources used by a frame dynamically, and *do not keep
+them alive for longer than the frame*. Once this works, we can think about
+sharing created resources across frame boundaries.
+
+* combine `resource` and `buffer`- a buffer is-a resource, as an image is-a
+  resource. We define a resource as something which has memory backing on the
+  GPU and needs synchronisation.
  
- * we want three different types of passes: render, transfer, compute. Each
-   pass has a list of inputs, and a list of outputs.
+* we want three different types of passes: render, transfer, compute. Each pass
+  has a list of inputs, and a list of outputs.
 
    Rendergraph is calculated based on module, which contains a list of
    pre-sorted passes. 
 
- * Better distinguish between renderpass types when creating vulkan command
-   buffers
+* Better distinguish between renderpass types when creating vulkan command
+  buffers
 
- * Rename internal structure to `Batch` instead of `Renderpass` in backend.
+* Rename internal structure to `Batch` instead of `Renderpass` in backend.
 
 ## (A)
 
-   * Programmatically create Pipeline based on Renderpass
+* Programmatically create Pipeline based on Renderpass
 
 ## (B)
 
-    * simplify linear allocator: 
+* simplify linear allocator: 
 
-        Currently, one leBuffer can have more than one allcator - this can turn
-        into a nightmare. allocator must own buffer exclusively. memory may be
-        handed out in chunks per buffer, but buffer must be owned exclusively
-        by allocator. 
+    Currently, one leBuffer can have more than one allcator - this can turn
+    into a nightmare. allocator must own buffer exclusively. memory may be
+    handed out in chunks per buffer, but buffer must be owned exclusively by
+    allocator. 
     
-    * think: can we use macros to generate encoder methods?
+* think: can we use macros to generate encoder methods?
 
-    * get Renderdoc to actually work on both of your test systems.
+* get Renderdoc to actually work on both of your test systems.
 
 ## (C)
 
-    * find a better way to store window surface- it should probably live inside
-      the backend, tagged with window name, or perhaps it should be owned by
-      the swapchain which uses it, so that it can be deleted at the correct
-      time. 
+* find a better way to store window surface- it should probably live inside the
+  backend, tagged with window name, or perhaps it should be owned by the
+  swapchain which uses it, so that it can be deleted at the correct time. 
 
 ----------------------------------------------------------------------
 
@@ -167,4 +173,58 @@ Where should we *declare* resources?
 
 * Create a templating script to generate class scaffold so you don't have to
   type that much boilerplate.
+
+----------------------------------------------------------------------
+
+# Let's think about descriptor layouts a bit more...
+
+```
+PipelineLayout:
+  SetLayout 1:
+     binding
+     ..
+  SetLayout 2:
+     binding
+     binding
+     binding
+     ..
+  SetLayout 3:
+     binding
+     ..
+```
+
+----------------------------------------------------------------------
+
+This means, we could build a flat array of all bindings and pass this through
+as a blob, which we then cast to an array of bindings. 
+
+We could use indices into this blob (since binding size is constant) to chop up
+this array again into descriptorsets - or we could directly point the Vulkan
+API at it so that it reads binding information from it. 
+
+```c
+
+PipelineLayout {
+	VK_HANDLE DescriptorSetLayout[8] // order of handles is important, it means the descriptor set index.
+}
+
+// DescriptorSetLayout is built from blocks of DescriptorSetLayoutBinding data,
+// where each binding describes the data type and the number of descriptors
+// with that data type. You can view DescriptorSetLayoutBindings as a variable
+// declaration, almost.                                  
+                    
+
+DescriptorSetLayout => made from an array of bindings.
+{ 
+
+    // index is possibly sparse, but must be unique, and should increase monotonically
+
+	binding {index, shaderstageFlags, type, count, immutableSamplers?} // type is probably the most important specifier here- it tells us what type the element must conform to.
+	binding {index, shaderstageFlags, type, count, immutableSamplers?}
+	binding {index, shaderstageFlags, type, count, immutableSamplers?}
+}
+	...
+
+```
+
 
