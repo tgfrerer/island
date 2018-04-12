@@ -1087,9 +1087,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 // create a list of all unique resources referenced by the rendergraph
 // and store it with the current backend frame.
-static void backend_create_resource_table( le_backend_o *self, size_t frameIndex, le_renderpass_o const *passes, size_t numRenderPasses ) {
-
-	auto &frame = self->mFrames[ frameIndex ];
+static void backend_create_resource_table( BackendFrameData &frame, le_renderpass_o const *passes, size_t numRenderPasses ) {
 
 	frame.syncChainTable.clear();
 
@@ -1149,7 +1147,7 @@ static void backend_bind_and_retain_physical_resources( BackendFrameData &frame 
 // ----------------------------------------------------------------------
 // input: Pass
 // output: framebuffer, append newly created imageViews to retained resources list.
-static void backend_create_frame_buffers( le_backend_o *self, BackendFrameData &frame, vk::Device &device ) {
+static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &device ) {
 
 	for ( auto &pass : frame.passes ) {
 
@@ -1234,21 +1232,17 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 
 	vk::Device device = self->device->getVkDevice();
 
-	{
-		auto &frame = self->mFrames[ frameIndex ];
+	frame.backBufferWidth  = self->swapchain->getImageWidth();
+	frame.backBufferHeight = self->swapchain->getImageHeight();
 
-		frame.backBufferWidth  = self->swapchain->getImageWidth();
-		frame.backBufferHeight = self->swapchain->getImageHeight();
+	backend_create_resource_table( frame, passes, numRenderPasses );
+	backend_track_resource_state( frame, passes, numRenderPasses );
 
-		backend_create_resource_table( self, frameIndex, passes, numRenderPasses );
-		backend_track_resource_state( frame, passes, numRenderPasses );
-
-		backend_create_renderpasses( frame, device );
-		// patch and retain physical resources in bulk here, so that
-		// each pass may be processed independently
-		backend_bind_and_retain_physical_resources( frame );
-		backend_create_frame_buffers( self, frame, device );
-	}
+	backend_create_renderpasses( frame, device );
+	// patch and retain physical resources in bulk here, so that
+	// each pass may be processed independently
+	backend_bind_and_retain_physical_resources( frame );
+	backend_create_frame_buffers( frame, device );
 
 	return true;
 };
@@ -1270,8 +1264,8 @@ static le_allocator_linear_o *backend_get_transient_allocator( le_backend_o *sel
 
 static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
-	static const auto &le_encoder_api = ( *Registry::getApi<le_renderer_api>() ).le_command_buffer_encoder_i;
-	static const auto &vk_device_i    = ( *Registry::getApi<le_backend_vk_api>() ).vk_device_i;
+	static auto const &le_encoder_api = ( *Registry::getApi<le_renderer_api>() ).le_command_buffer_encoder_i;
+	static auto const &vk_device_i    = ( *Registry::getApi<le_backend_vk_api>() ).vk_device_i;
 
 	auto &frame = self->mFrames[ frameIndex ];
 
