@@ -270,17 +270,17 @@ void backend_reset_swapchain( le_backend_o *self ) {
 static void backend_create_debug_pipeline( le_backend_o *self ) {
 	vk::Device vkDevice = self->device->getVkDevice();
 
-	static const std::vector<uint32_t> shaderCodeVert{
+	static const uint32_t shaderCodeVert[] = {
 	// converted using: `glslc vertex_shader.vert fragment_shader.frag -c -mfmt=num`
 #include "vertex_shader_ext.vert.spv"
 	};
 
-	static const std::vector<uint32_t> shaderCodeFrag{
+	static const uint32_t shaderCodeFrag[] = {
 #include "fragment_shader.frag.spv"
 	};
 
-	self->debugVertexShaderModule   = vkDevice.createShaderModule( {vk::ShaderModuleCreateFlags(), shaderCodeVert.size() * sizeof( uint32_t ), shaderCodeVert.data()} );
-	self->debugFragmentShaderModule = vkDevice.createShaderModule( {vk::ShaderModuleCreateFlags(), shaderCodeFrag.size() * sizeof( uint32_t ), shaderCodeFrag.data()} );
+	self->debugVertexShaderModule   = vkDevice.createShaderModule( {vk::ShaderModuleCreateFlags(), sizeof( shaderCodeVert ), shaderCodeVert} );
+	self->debugFragmentShaderModule = vkDevice.createShaderModule( {vk::ShaderModuleCreateFlags(), sizeof( shaderCodeFrag ), shaderCodeFrag} );
 
 	std::array<vk::PipelineShaderStageCreateInfo, 2> pipelineStages;
 	pipelineStages[ 0 ]
