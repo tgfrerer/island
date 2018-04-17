@@ -13,12 +13,12 @@ struct le_command_buffer_encoder_o {
 	char                   mCommandStream[ 4096 ];
 	size_t                 mCommandStreamSize = 0;
 	size_t                 mCommandCount      = 0;
-	le_allocator_linear_o *pAllocator         = nullptr; // allocator is owned externally
+	le_allocator_o *pAllocator         = nullptr; // allocator is owned externally
 };
 
 // ----------------------------------------------------------------------
 
-static le_command_buffer_encoder_o *cbe_create( le_allocator_linear_o *allocator_ ) {
+static le_command_buffer_encoder_o *cbe_create( le_allocator_o *allocator_ ) {
 	auto self        = new le_command_buffer_encoder_o;
 	self->pAllocator = allocator_;
 	//	std::cout << "encoder create : " << std::hex << self << std::endl

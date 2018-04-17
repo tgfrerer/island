@@ -43,7 +43,7 @@ struct le_renderpass_o;
 struct le_graph_builder_o;
 struct le_command_buffer_encoder_o;
 struct le_backend_o;
-struct le_allocator_linear_o;
+struct le_allocator_o;
 
 struct le_renderer_api {
 
@@ -135,7 +135,7 @@ struct le_renderer_api {
 	};
 
 	struct command_buffer_encoder_interface_t {
-		le_command_buffer_encoder_o *( *create )( le_allocator_linear_o *allocator );
+		le_command_buffer_encoder_o *( *create )( le_allocator_o *allocator );
 		void ( *destroy )( le_command_buffer_encoder_o *obj );
 
 		void ( *get_encoded_data )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
@@ -305,7 +305,7 @@ class CommandBufferEncoder : NoCopy, NoMove {
 	bool                         is_reference = false;
 
   public:
-	CommandBufferEncoder( le_allocator_linear_o *allocator )
+	CommandBufferEncoder( le_allocator_o *allocator )
 	    : self( cbEncoderI.create( allocator ) ) {
 	}
 
@@ -350,5 +350,5 @@ class CommandBufferEncoder : NoCopy, NoMove {
 };
 
 } // namespace le
-#	endif // __cplusplus
-#endif     // GUARD_LE_RENDERER_H
+#endif // __cplusplus
+#endif // GUARD_LE_RENDERER_H

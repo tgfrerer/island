@@ -3,7 +3,7 @@
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_backend_vk/private/le_device_vk.h"
 #include "le_backend_vk/private/le_instance_vk.h"
-#include "le_backend_vk/private/le_allocator_linear.h"
+#include "le_backend_vk/private/le_allocator.h"
 
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include <vulkan/vulkan.hpp>
@@ -114,7 +114,7 @@ struct BackendFrameData {
 
 	// todo: one allocator per command buffer eventually -
 	// one allocator per frame for now.
-	std::vector<le_allocator_linear_o *> allocators;
+	std::vector<le_allocator_o *> allocators;
 };
 
 // ----------------------------------------------------------------------
@@ -1248,7 +1248,7 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 
 // ----------------------------------------------------------------------
 
-static le_allocator_linear_o *backend_get_transient_allocator( le_backend_o *self, size_t frameIndex ) {
+static le_allocator_o *backend_get_transient_allocator( le_backend_o *self, size_t frameIndex ) {
 
 	auto &frame = self->mFrames[ frameIndex ];
 

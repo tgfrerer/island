@@ -1,6 +1,6 @@
 #include "pal_api_loader/ApiRegistry.hpp"
 #include "le_backend_vk/le_backend_vk.h"
-#include "le_backend_vk/private/le_allocator_linear.h"
+#include "le_backend_vk/private/le_allocator.h"
 #include "le_renderer/private/le_renderer_types.h"
 
 #define VULKAN_HPP_NO_SMART_HANDLE
@@ -20,7 +20,7 @@ Linear sub-allocator
 
 */
 
-struct le_allocator_linear_o {
+struct le_allocator_o {
 
 	uint64_t resourceId = 0;
 
@@ -35,15 +35,15 @@ struct le_allocator_linear_o {
 
 // ----------------------------------------------------------------------
 
-static void allocator_reset(le_allocator_linear_o* self){
+static void allocator_reset( le_allocator_o *self ) {
 	self->bufferOffsetInBytes = self->bufferBaseOffsetInBytes;
 	self->pData               = self->bufferBaseMemoryAddress + self->bufferBaseOffsetInBytes;
 }
 
 // ----------------------------------------------------------------------
 
-static le_allocator_linear_o* allocator_create(const LE_AllocatorCreateInfo& info){
-	auto self                     = new le_allocator_linear_o;
+static le_allocator_o *allocator_create( const LE_AllocatorCreateInfo &info ) {
+	auto self = new le_allocator_o;
 
 	self->bufferBaseMemoryAddress = info.bufferBaseMemoryAddress;
 	self->bufferBaseOffsetInBytes = info.bufferBaseOffsetInBytes;
@@ -51,28 +51,28 @@ static le_allocator_linear_o* allocator_create(const LE_AllocatorCreateInfo& inf
 	self->resourceId              = info.resourceId;
 	self->alignment               = info.alignment;
 
-	allocator_reset(self);
+	allocator_reset( self );
 
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-static void allocator_destroy(le_allocator_linear_o* self){
+static void allocator_destroy( le_allocator_o *self ) {
 	delete self;
 }
 
 // ----------------------------------------------------------------------
 
-static bool allocator_allocate(le_allocator_linear_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset){
+static bool allocator_allocate( le_allocator_o *self, uint64_t numBytes, void **pData, uint64_t *bufferOffset ) {
 
 	// Calculate allocation size as a multiple (rounded up) of alignment
 
-	auto allocationSizeInBytes  = self->alignment * (( numBytes + ( self->alignment - 1 ) ) / self->alignment);
+	auto allocationSizeInBytes = self->alignment * ( ( numBytes + ( self->alignment - 1 ) ) / self->alignment );
 
 	auto addressAfterAllocation = self->pData + allocationSizeInBytes;
 
-	if ( (addressAfterAllocation) > (self->bufferBaseMemoryAddress + self->bufferBaseOffsetInBytes + self->capacity) ) {
+	if ( ( addressAfterAllocation ) > ( self->bufferBaseMemoryAddress + self->bufferBaseOffsetInBytes + self->capacity ) ) {
 		return false;
 	}
 
@@ -90,7 +90,7 @@ static bool allocator_allocate(le_allocator_linear_o* self, uint64_t numBytes, v
 
 // ----------------------------------------------------------------------
 
-static uint64_t allocator_get_le_resource_id(le_allocator_linear_o* self){
+static uint64_t allocator_get_le_resource_id( le_allocator_o *self ) {
 	return self->resourceId;
 }
 
@@ -98,14 +98,14 @@ static uint64_t allocator_get_le_resource_id(le_allocator_linear_o* self){
 
 ISL_API_ATTR void register_le_allocator_linear_api( void *api_ ) {
 
-	auto  le_backend_vk_api_i           = static_cast<le_backend_vk_api *>( api_ );
+	auto  le_backend_vk_api_i   = static_cast<le_backend_vk_api *>( api_ );
 	auto &le_allocator_linear_i = le_backend_vk_api_i->le_allocator_linear_i;
 
-	le_allocator_linear_i.create               = allocator_create;
-	le_allocator_linear_i.destroy              = allocator_destroy;
+	le_allocator_linear_i.create             = allocator_create;
+	le_allocator_linear_i.destroy            = allocator_destroy;
 	le_allocator_linear_i.get_le_resource_id = allocator_get_le_resource_id;
-	le_allocator_linear_i.allocate             = allocator_allocate;
-	le_allocator_linear_i.reset                = allocator_reset;
+	le_allocator_linear_i.allocate           = allocator_allocate;
+	le_allocator_linear_i.reset              = allocator_reset;
 }
 
 // ----------------------------------------------------------------------

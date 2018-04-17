@@ -18,7 +18,7 @@ struct le_backend_vk_instance_o; // defined in le_instance_vk.cpp
 struct le_backend_vk_device_o;   // defined in le_device_vk.cpp
 
 struct le_buffer_o;
-struct le_allocator_linear_o;
+struct le_allocator_o;
 
 struct le_swapchain_vk_settings_o;
 struct pal_window_o;
@@ -60,7 +60,7 @@ struct le_backend_vk_api {
 		void                   ( *create_swapchain         ) ( le_backend_o *self, le_swapchain_vk_settings_o *swapchainSettings_ );
 		size_t                 ( *get_num_swapchain_images ) ( le_backend_o *self );
 		void                   ( *reset_swapchain          ) ( le_backend_o *self );
-		le_allocator_linear_o* ( *get_transient_allocator  ) ( le_backend_o* self, size_t frameIndex);
+		le_allocator_o* ( *get_transient_allocator  ) ( le_backend_o* self, size_t frameIndex);
 	};
 
 	struct instance_interface_t {
@@ -92,11 +92,11 @@ struct le_backend_vk_api {
 	};
 
 	struct allocator_linear_interface_t {
-		le_allocator_linear_o * ( *create               ) ( const struct LE_AllocatorCreateInfo& info);
-		void                    ( *destroy              ) ( le_allocator_linear_o *self );
-		bool                    ( *allocate             ) ( le_allocator_linear_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset);
-		void                    ( *reset                ) ( le_allocator_linear_o* self);
-		uint64_t                ( *get_le_resource_id ) ( le_allocator_linear_o* self);
+		le_allocator_o * ( *create               ) ( const struct LE_AllocatorCreateInfo& info);
+		void                    ( *destroy              ) ( le_allocator_o *self );
+		bool                    ( *allocate             ) ( le_allocator_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset);
+		void                    ( *reset                ) ( le_allocator_o* self);
+		uint64_t                ( *get_le_resource_id ) ( le_allocator_o* self);
 	};
 	// clang-format on
 
