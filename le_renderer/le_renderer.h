@@ -66,8 +66,8 @@ struct le_renderer_api {
 	struct ResourceInfo {
 
 		enum ResourceOwnership : uint32_t {
-			eFrameLocal    = 0, // frame owns this resource, it will be gone once frame has passed through pipeline. direct memory assignment / direct access possible
-			eFrameExternal = 1, // renderer owns this resource, it will be kept alive until the resource is destroyed. must use resourcePass to update resource
+			eFrameLocal    = 0, ///< frame owns this resource, it will be gone once frame has passed through pipeline. direct memory assignment / direct access possible
+			eFrameExternal = 1, ///< renderer owns this resource, it will be kept alive until the resource is destroyed. must use resourcePass to update resource
 		};
 
 		uint32_t usageFlags = 0;
@@ -120,7 +120,6 @@ struct le_renderer_api {
 		void ( *destroy )( le_render_module_o *obj );
 		void ( *add_renderpass )( le_render_module_o *obj, le_renderpass_o *rp );
 		void ( *setup_passes )( le_render_module_o *obj, le_graph_builder_o *gb );
-		void ( *execute_graph )( le_render_module_o *obj, le_graph_builder_o *gb );
 	};
 
 	// graph builder builds a graph for a module
