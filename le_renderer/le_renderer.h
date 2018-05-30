@@ -13,16 +13,25 @@ extern "C" {
 void register_le_renderer_api( void *api );
 
 enum LeRenderPassType : uint32_t {
-	LE_RENDER_PASS_TYPE_UNDEFINED,
-	LE_RENDER_PASS_TYPE_DRAW,
-	LE_RENDER_PASS_TYPE_TRANSFER,
-	LE_RENDER_PASS_TYPE_COMPUTE,
+	LE_RENDER_PASS_TYPE_UNDEFINED = 0,
+	LE_RENDER_PASS_TYPE_DRAW      = 1,
+	LE_RENDER_PASS_TYPE_TRANSFER  = 2,
+	LE_RENDER_PASS_TYPE_COMPUTE   = 3,
+};
+
+enum LeAttachmentStoreOp : uint32_t {
+	LE_ATTACHMENT_STORE_OP_STORE    = 0,
+	LE_ATTACHMENT_STORE_OP_DONTCARE = 1,
+};
+
+enum LeAttachmentLoadOp : uint32_t {
+	LE_ATTACHMENT_LOAD_OP_LOAD     = 0,
+	LE_ATTACHMENT_LOAD_OP_CLEAR    = 1,
+	LE_ATTACHMENT_LOAD_OP_DONTCARE = 2,
 };
 
 namespace vk {
 enum class Format; // forward declaration
-enum class AttachmentStoreOp;
-enum class AttachmentLoadOp;
 } // namespace vk
 
 namespace le {
@@ -90,12 +99,12 @@ struct le_renderer_api {
 	};
 
 	struct image_attachment_info_o {
-		uint64_t              resource_id  = 0; // hash name given to this attachment, based on name string
-		uint64_t              source_id    = 0; // hash name of writer/creator renderpass
-		uint8_t               access_flags = 0; // read, write or readwrite
-		vk::Format            format;
-		vk::AttachmentLoadOp  loadOp;
-		vk::AttachmentStoreOp storeOp;
+		uint64_t            resource_id  = 0; // hash name given to this attachment, based on name string
+		uint64_t            source_id    = 0; // hash name of writer/creator renderpass
+		uint8_t             access_flags = 0; // read, write or readwrite
+		vk::Format          format;
+		LeAttachmentLoadOp  loadOp;
+		LeAttachmentStoreOp storeOp;
 
 		void ( *onClear )( void *clear_data ) = nullptr;
 		char debugName[ 32 ];

@@ -26,7 +26,7 @@
 #include <list>
 
 #ifndef PRINT_DEBUG_MESSAGES
-#	define PRINT_DEBUG_MESSAGES false
+#define PRINT_DEBUG_MESSAGES false
 #endif
 
 struct AbstractPhysicalResource {
@@ -145,6 +145,28 @@ struct le_backend_o {
 	vk::DeviceMemory debugTransientVertexDeviceMemory = nullptr;
 	vk::Buffer       debugTransientVertexBuffer       = nullptr;
 };
+
+// ----------------------------------------------------------------------
+static inline VkAttachmentStoreOp le_to_vk( const LeAttachmentStoreOp &lhs ) {
+	switch ( lhs ) {
+	case ( LE_ATTACHMENT_STORE_OP_STORE ):
+	    return VK_ATTACHMENT_STORE_OP_STORE;
+	case ( LE_ATTACHMENT_STORE_OP_DONTCARE ):
+	    return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	}
+}
+
+// ----------------------------------------------------------------------
+static inline VkAttachmentLoadOp le_to_vk( const LeAttachmentLoadOp &lhs ) {
+	switch ( lhs ) {
+	case ( LE_ATTACHMENT_LOAD_OP_LOAD ):
+	    return VK_ATTACHMENT_LOAD_OP_LOAD;
+	case ( LE_ATTACHMENT_LOAD_OP_CLEAR ):
+	    return VK_ATTACHMENT_LOAD_OP_CLEAR;
+	case ( LE_ATTACHMENT_LOAD_OP_DONTCARE ):
+	    return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	}
+}
 
 // ----------------------------------------------------------------------
 
@@ -711,8 +733,8 @@ static void backend_track_resource_state( BackendFrameData &frame, le_renderpass
 
 			currentAttachment->resource_id = imageAttachment->resource_id;
 			currentAttachment->format      = imageAttachment->format;
-			currentAttachment->loadOp      = imageAttachment->loadOp;
-			currentAttachment->storeOp     = imageAttachment->storeOp;
+			currentAttachment->loadOp      = vk::AttachmentLoadOp( le_to_vk( imageAttachment->loadOp ) );
+			currentAttachment->storeOp     = vk::AttachmentStoreOp( le_to_vk( imageAttachment->storeOp ) );
 
 			{
 				// track resource state before entering a subpass

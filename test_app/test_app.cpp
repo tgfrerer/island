@@ -129,8 +129,8 @@ static bool test_app_update( test_app_o *self ) {
 			le::ImageAttachmentInfo colorAttachmentInfo{};
 			colorAttachmentInfo.format       = vk::Format::eB8G8R8A8Unorm; // TODO: use swapchain image format programmatically
 			colorAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
-			colorAttachmentInfo.loadOp       = vk::AttachmentLoadOp::eClear;
-			colorAttachmentInfo.storeOp      = vk::AttachmentStoreOp::eStore;
+			colorAttachmentInfo.loadOp       = LE_ATTACHMENT_LOAD_OP_CLEAR;
+			colorAttachmentInfo.storeOp      = LE_ATTACHMENT_STORE_OP_STORE;
 			rp.addImageAttachment( RESOURCE_IMAGE_ID( "backbuffer" ), &colorAttachmentInfo );
 
 			//rp.useResource( RESOURCE_BUFFER_ID( "debug-buffer" ), le::AccessFlagBits::eRead );

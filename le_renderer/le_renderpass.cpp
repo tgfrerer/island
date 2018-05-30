@@ -69,18 +69,18 @@ static void renderpass_add_image_attachment( le_renderpass_o *self, uint64_t res
 	info.resource_id = resource_id;
 
 	if ( info.access_flags == le::AccessFlagBits::eReadWrite ) {
-		info.loadOp  = vk::AttachmentLoadOp::eLoad;
-		info.storeOp = vk::AttachmentStoreOp::eStore;
+		info.loadOp  = LE_ATTACHMENT_LOAD_OP_LOAD;
+		info.storeOp = LE_ATTACHMENT_STORE_OP_STORE;
 	} else if ( info.access_flags & le::AccessFlagBits::eWrite ) {
 		// Write-only means we may be seen as the creator of this resource
 		info.source_id = self->id;
 	} else if ( info.access_flags & le::AccessFlagBits::eRead ) {
 		// TODO: we need to make sure to distinguish between image attachments and texture attachments
-		info.loadOp  = vk::AttachmentLoadOp::eLoad;
-		info.storeOp = vk::AttachmentStoreOp::eDontCare;
+		info.loadOp  = LE_ATTACHMENT_LOAD_OP_LOAD;
+		info.storeOp = LE_ATTACHMENT_STORE_OP_DONTCARE;
 	} else {
-		info.loadOp  = vk::AttachmentLoadOp::eDontCare;
-		info.storeOp = vk::AttachmentStoreOp::eDontCare;
+		info.loadOp  = LE_ATTACHMENT_LOAD_OP_DONTCARE;
+		info.storeOp = LE_ATTACHMENT_STORE_OP_DONTCARE;
 	}
 
 	renderpass_use_resource( self, resource_id, info.access_flags );
