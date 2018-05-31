@@ -10,10 +10,10 @@
 #include <iomanip>
 
 struct le_command_buffer_encoder_o {
-	char                   mCommandStream[ 4096 ];
-	size_t                 mCommandStreamSize = 0;
-	size_t                 mCommandCount      = 0;
-	le_allocator_o *pAllocator         = nullptr; // allocator is owned externally
+	char            mCommandStream[ 4096 ];
+	size_t          mCommandStreamSize = 0;
+	size_t          mCommandCount      = 0;
+	le_allocator_o *pAllocator         = nullptr; // allocator is owned by backend, externally
 };
 
 // ----------------------------------------------------------------------
@@ -52,6 +52,7 @@ static void cbe_set_line_width( le_command_buffer_encoder_o *self, float lineWid
 static void cbe_draw( le_command_buffer_encoder_o *self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance ) {
 	le::CommandDraw *cmd = new ( &self->mCommandStream[ 0 ] + self->mCommandStreamSize ) le::CommandDraw; // placement new!
 	cmd->info            = {vertexCount, instanceCount, firstVertex, firstInstance};
+
 	self->mCommandStreamSize += sizeof( le::CommandDraw );
 	self->mCommandCount++;
 }
@@ -152,6 +153,11 @@ static void cbe_get_encoded_data( le_command_buffer_encoder_o *self, void **data
 	*data        = self->mCommandStream;
 	*numBytes    = self->mCommandStreamSize;
 	*numCommands = self->mCommandCount;
+}
+
+// TODO (pipeline): implement bind_graphics_pipeline
+static void cbe_bind_graphics_pipeline( le_command_buffer_encoder_o *self, struct le_graphics_pipeline_state_descriptor_o *pipelineDescriptor ) {
+	// -- insert pipeline state descriptor pointer into command stream
 }
 
 // ----------------------------------------------------------------------

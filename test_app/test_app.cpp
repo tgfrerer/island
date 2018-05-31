@@ -14,9 +14,10 @@
 #include <memory>
 
 struct test_app_o {
-	std::unique_ptr<le::Backend>  backend;
-	std::unique_ptr<pal::Window>  window;
-	std::unique_ptr<le::Renderer> renderer;
+	std::unique_ptr<le::Backend>         backend;
+	std::unique_ptr<pal::Window>         window;
+	std::unique_ptr<le::Renderer>        renderer;
+	struct le_graphics_pipeline_state_o *testPSOHandle;
 };
 
 // ----------------------------------------------------------------------
@@ -49,17 +50,43 @@ static test_app_o *test_app_create() {
 
 	obj->backend = std::make_unique<le::Backend>( &backendCreateInfo );
 
-	// we need a valid instance at this point.
+	// We need a valid instance at this point.
 	obj->backend->createWindowSurface( *obj->window );
-	obj->backend->createSwapchain( nullptr ); // todo - make it possible to set swapchain parameters
+	obj->backend->createSwapchain( nullptr ); // TODO (swapchain) - make it possible to set swapchain parameters
 
 	obj->backend->setup();
 
 	obj->renderer = std::make_unique<le::Renderer>( *obj->backend );
 	obj->renderer->setup();
 
+	{
+		// -- Declare graphics pipeline state object
+
+		// Creating shader modules will eventually compile shader source code from glsl to spir-v
+		auto defaultVertShader = obj->renderer->createShaderModule( "default.frag.spv" );
+		auto defaultFragShader = obj->renderer->createShaderModule( "default.vert.spv" );
+
+		le_graphics_pipeline_create_info_t pi;
+		pi.shader_module_frag = defaultFragShader;
+		pi.shader_module_vert = defaultVertShader;
+
+		// The pipeline state object holds all state for the pipeline,
+		// that's links to shader modules, blend states, input assembly, etc...
+		// Everything, in short, but the renderpass, and subpass (which are added in at the last minute)
+		//
+		// The backend pipeline object is compiled on-demand, when it is first used with a renderpass, and henceforth cached.
+		auto pipelineStateHandle = obj->renderer->createGraphicsPipelineStateObject( &pi );
+
+		if ( pipelineStateHandle ) {
+			obj->testPSOHandle = pipelineStateHandle;
+		} else {
+			std::cerr << "declaring a pipeline failed miserably.";
+		}
+	}
+
 	/*
 
+	  Create resources here -
 	  resources can be:
 		transient   - this means they can be written to and used in the same frame, their lifetime is limited to frame lifetime.
 		persistent  - this means they must be staged, first their data must be written to (mapped) scratch, then copied using the queue.
@@ -112,22 +139,8 @@ static bool test_app_update( test_app_o *self ) {
 		renderPassFinal.setSetupCallback( []( auto pRp ) -> bool {
 			auto rp = le::RenderPassRef{pRp};
 
-			// colorAttachmentInfo defines the *STATE* of the resource during this renderpass.
-			struct ColorAttachmentInfo {
-				vk::Format format;
-				uint32_t   loadOp;
-				uint32_t   storeOp;
-			};
-
-			ColorAttachmentInfo info;
-
-			info.format  = vk::Format::eR8G8B8A8Unorm;
-			info.loadOp  = VK_ATTACHMENT_LOAD_OP_CLEAR;
-			info.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-			// info.imageID = RESOURCE_IMAGE_ID("backbuffer");
-
 			le::ImageAttachmentInfo colorAttachmentInfo{};
-			colorAttachmentInfo.format       = vk::Format::eB8G8R8A8Unorm; // TODO: use swapchain image format programmatically
+			colorAttachmentInfo.format       = vk::Format::eB8G8R8A8Unorm; // TODO (swapchain): use swapchain image format programmatically
 			colorAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
 			colorAttachmentInfo.loadOp       = LE_ATTACHMENT_LOAD_OP_CLEAR;
 			colorAttachmentInfo.storeOp      = LE_ATTACHMENT_STORE_OP_STORE;
@@ -162,6 +175,9 @@ static bool test_app_update( test_app_o *self ) {
 			vec4 vertData[ 3 ] = {{0, 0, 0, 0}, {2, 0, 0, 0}, {0, 2, 0, 0}};
 
 			static_assert( sizeof( vertData ) == sizeof( float ) * 4 * 3, "vertData must be tightly packed" );
+
+			// TODO (pipeline): implement binding graphics pipeline
+			// encoder.bind_graphics_pipeline( self->default_pipeline );
 
 			// This will use the scratch buffer -- and the encoded command will store the
 			// location of the data as it was laid down in the scratch buffer.

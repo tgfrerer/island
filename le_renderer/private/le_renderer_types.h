@@ -3,8 +3,8 @@
 
 #include <stdint.h>
 
-//#ifndef LE_DEFINE_HANDLE
-//    #define LE_DEFINE_HANDLE(object) typedef struct object##_o* object;
+//#ifndef LE_DECLARE_HANDLE
+//    #define LE_DECLARE_HANDLE(object) typedef struct object##_o* object;
 //#endif
 
 namespace le {
@@ -29,11 +29,11 @@ struct CommandHeader {
 };
 
 struct Viewport {
-	float data[6]; // x,y,width,height,mindepth,maxdepth
+	float data[ 6 ]; // x,y,width,height,mindepth,maxdepth
 };
 
 struct Rect2D {
-	uint32_t data[4]; // x,y,width,height
+	uint32_t data[ 4 ]; // x,y,width,height
 };
 
 struct CommandDrawIndexed {
@@ -67,31 +67,30 @@ struct CommandSetViewport {
 };
 
 struct CommandSetScissor {
-	CommandHeader header = {{{CommandType::eSetScissor, sizeof(CommandSetScissor)}}};
+	CommandHeader header = {{{CommandType::eSetScissor, sizeof( CommandSetScissor )}}};
 	struct {
 		uint32_t firstScissor;
 		uint32_t scissorCount;
 	} info;
 };
 
-struct CommandSetLineWidth{
-	CommandHeader header = {{{CommandType::eSetLineWidth, sizeof(CommandSetLineWidth)}}};
+struct CommandSetLineWidth {
+	CommandHeader header = {{{CommandType::eSetLineWidth, sizeof( CommandSetLineWidth )}}};
 	struct {
-		float width;
+		float    width;
 		uint32_t reserved; // padding
 	} info;
 };
 
-struct CommandBindVertexBuffers{
-	CommandHeader header = {{{CommandType::eBindVertexBuffers, sizeof(CommandBindVertexBuffers)}}};
+struct CommandBindVertexBuffers {
+	CommandHeader header = {{{CommandType::eBindVertexBuffers, sizeof( CommandBindVertexBuffers )}}};
 	struct {
-		uint32_t firstBinding;
-		uint32_t bindingCount;
-		uint64_t* pBuffers;  // TODO: place proper buffer_id type here
-		uint64_t* pOffsets;
-	}info;
+		uint32_t  firstBinding;
+		uint32_t  bindingCount;
+		uint64_t *pBuffers; // TODO: place proper buffer_id type here
+		uint64_t *pOffsets;
+	} info;
 };
-
 
 } // namespace le
 #endif

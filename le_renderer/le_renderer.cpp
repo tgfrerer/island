@@ -9,10 +9,12 @@
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_swapchain_vk/le_swapchain_vk.h"
 
-#define VULKAN_HPP_NO_SMART_HANDLE
-#include "vulkan/vulkan.hpp"
+#include "le_renderer/private/hash_util.h"
 
 #include <iostream>
+#include <fstream> // for reading shader source files
+#include <cstring> // for dealing with shaders
+
 #include <iomanip>
 #include <chrono>
 
@@ -68,6 +70,22 @@ struct FrameData {
 
 // ----------------------------------------------------------------------
 
+struct le_shader_module_o {
+	uint64_t              hash_id = 0; ///< hash taken from spirv code
+	std::vector<uint32_t> spirv;
+	const char *          filepath; ///< path to source file
+};
+
+struct le_graphics_pipeline_state_o {
+
+	// TODO (pipeline) : add fields to pso object
+
+	//struct le_vertex_input_binding_description *vertexInputBindingDescrition;
+	//struct le_vertex_attribute_description *    vertexAttributeDescrition;
+};
+
+// ----------------------------------------------------------------------
+
 struct le_renderer_o {
 
 	uint64_t    swapchainDirty = false;
@@ -77,23 +95,122 @@ struct le_renderer_o {
 	size_t                 numSwapchainImages = 0;
 	size_t                 currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
 
+	std::vector<le_graphics_pipeline_state_o *> PSOs;
+	std::vector<le_shader_module_o *>           shaderModules;
+
 	le_renderer_o( le_backend_o *backend )
 	    : backend( backend ) {
 	}
 };
 
 // ----------------------------------------------------------------------
+/// \brief   file loader utility method
+/// \details loads file given by filepath and returns a vector of chars if successful
+/// \note    returns an empty vector if not successful
+static std::vector<char> load_file( char const *file_path, bool *success ) {
 
-static le_renderer_o *renderer_create( le_backend_o *backend ) {
+	std::vector<char> contents;
+
+	size_t        fileSize = 0;
+	std::ifstream file( file_path, std::ios::in | std::ios::binary | std::ios::ate );
+
+	if ( !file.is_open() ) {
+		std::cerr << "Unable to open file: " << file_path << std::flush;
+		*success = false;
+		return contents;
+	}
+
+	// ----------| invariant: file is open
+
+	auto endOfFilePos = file.tellg();
+
+	if ( endOfFilePos > 0 ) {
+		fileSize = endOfFilePos;
+	} else {
+		*success = false;
+		return contents;
+	}
+
+	// ----------| invariant: file has some bytes to read
+	contents.resize( fileSize );
+
+	file.seekg( 0, std::ios::beg );
+	file.read( contents.data(), endOfFilePos );
+	file.close();
+
+	*success = true;
+	return contents;
+}
+
+// ----------------------------------------------------------------------
+
+static le_renderer_o *
+renderer_create( le_backend_o *backend ) {
 	auto obj = new le_renderer_o( backend );
 	return obj;
 }
 
 // ----------------------------------------------------------------------
 
-static void renderer_setup( le_renderer_o *self ) {
+static le_graphics_pipeline_state_o *
+renderer_create_graphics_pipeline_state_object( le_renderer_o *self, le_graphics_pipeline_create_info_t const *pipeline_info ) {
+	auto pso = new ( le_graphics_pipeline_state_o );
 
-	vk::CommandPoolCreateInfo commandPoolCreateInfo;
+	// TODO (pipeline): -- initialise pso based on pipeline info
+
+	// TODO (pipeline): -- tell backend about the new pipeline state object
+
+	self->PSOs.push_back( pso );
+	return pso;
+}
+
+// ----------------------------------------------------------------------
+/// \brief declare a shader module which can be used to create a pipeline
+/// \returns a shader module handle, or nullptr upon failure
+static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, char const *path ) {
+
+	bool loadSuccessful = false;
+	auto raw_spirv      = load_file( path, &loadSuccessful ); // returns a raw byte stream
+
+	size_t numInts = raw_spirv.size() / sizeof( uint32_t );
+
+	if ( !loadSuccessful ) {
+		return nullptr;
+	}
+
+	// ---------| invariant: load was successful
+
+	if ( ( raw_spirv.size() * sizeof( uint32_t ) != numInts ) ) {
+		return nullptr;
+	}
+
+	// ---------| invariant: source code can be expressed in uint32_t
+
+	le_shader_module_o *module = new le_shader_module_o;
+
+	module->filepath = path;
+	module->hash_id  = fnv_hash64( raw_spirv.data(), raw_spirv.size() );
+
+	module->spirv.resize( numInts );
+	std::memcpy( module->spirv.data(), raw_spirv.data(), raw_spirv.size() );
+
+	// TODO (shader): -- Create module on the backend
+
+	static auto &backendApi = *Registry::getApi<le_backend_vk_api>();
+	static auto &backendI   = backendApi.vk_backend_i;
+
+	// TODO (shader): -- Check if module is already present in renderer
+
+	// -- retain module in renderer
+	self->shaderModules.push_back( module );
+
+	return module;
+}
+
+// ----------------------------------------------------------------------
+
+static void
+renderer_setup( le_renderer_o *self ) {
 
 	self->numSwapchainImages = self->backend.getNumSwapchainImages();
 
@@ -354,7 +471,17 @@ static void renderer_destroy( le_renderer_o *self ) {
 
 	self->frames.clear();
 
-	// TODO: make sure backend gets destroyed.
+	// -- Delete any objects created dynamically
+
+	for ( auto &pPso : self->PSOs ) {
+		delete ( pPso );
+	}
+	self->PSOs.clear();
+
+	for ( auto &shaderModule : self->shaderModules ) {
+		delete ( shaderModule );
+	}
+	self->shaderModules.clear();
 
 	delete self;
 }
@@ -365,10 +492,12 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	auto  le_renderer_api_i = static_cast<le_renderer_api *>( api_ );
 	auto &le_renderer_i     = le_renderer_api_i->le_renderer_i;
 
-	le_renderer_i.create  = renderer_create;
-	le_renderer_i.destroy = renderer_destroy;
-	le_renderer_i.setup   = renderer_setup;
-	le_renderer_i.update  = renderer_update;
+	le_renderer_i.create                                = renderer_create;
+	le_renderer_i.destroy                               = renderer_destroy;
+	le_renderer_i.setup                                 = renderer_setup;
+	le_renderer_i.update                                = renderer_update;
+	le_renderer_i.create_graphics_pipeline_state_object = renderer_create_graphics_pipeline_state_object;
+	le_renderer_i.create_shader_module                  = renderer_create_shader_module;
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
 

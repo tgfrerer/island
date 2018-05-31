@@ -132,7 +132,7 @@ struct le_backend_o {
 
 	std::vector<BackendFrameData> mFrames;
 
-	// these resources are potentially in-flight, and may be used read-only
+	// These resources are potentially in-flight, and may be used read-only
 	// by more than one frame.
 	vk::RenderPass          debugRenderPass           = nullptr;
 	vk::Pipeline            debugPipeline             = nullptr;
@@ -1092,23 +1092,26 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 			dependencies.emplace_back( std::move( subpassToExternalDependency ) );
 		}
 
-		vk::RenderPassCreateInfo renderpassCreateInfo;
-		renderpassCreateInfo
-		    .setAttachmentCount( uint32_t( attachments.size() ) )
-		    .setPAttachments( attachments.data() )
-		    .setSubpassCount( uint32_t( subpasses.size() ) )
-		    .setPSubpasses( subpasses.data() )
-		    .setDependencyCount( uint32_t( dependencies.size() ) )
-		    .setPDependencies( dependencies.data() );
-
-		// TODO: create and retain actual renderpass with frame.pass
-		pass.renderPass = device.createRenderPass( renderpassCreateInfo );
 		{
-			AbstractPhysicalResource fb;
-			fb.type         = AbstractPhysicalResource::eRenderPass;
-			fb.asRenderPass = pass.renderPass;
+			vk::RenderPassCreateInfo renderpassCreateInfo;
+			renderpassCreateInfo
+			    .setAttachmentCount( uint32_t( attachments.size() ) )
+			    .setPAttachments( attachments.data() )
+			    .setSubpassCount( uint32_t( subpasses.size() ) )
+			    .setPSubpasses( subpasses.data() )
+			    .setDependencyCount( uint32_t( dependencies.size() ) )
+			    .setPDependencies( dependencies.data() );
 
-			frame.ownedResources.emplace_front( std::move( fb ) );
+			// Create vulkan renderpass object
+			pass.renderPass = device.createRenderPass( renderpassCreateInfo );
+
+			AbstractPhysicalResource rp;
+			rp.type         = AbstractPhysicalResource::eRenderPass;
+			rp.asRenderPass = pass.renderPass;
+
+			// Add vulkan renderpass object to list of owned and life-time tracked resources, so that
+			// it can be recycled when not needed anymore.
+			frame.ownedResources.emplace_front( std::move( rp ) );
 		}
 	}
 }
@@ -1139,18 +1142,18 @@ static void backend_create_resource_table( BackendFrameData &frame, le_renderpas
 
 // ----------------------------------------------------------------------
 
-vk::Buffer get_physical_buffer_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
+inline vk::Buffer get_physical_buffer_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
 	static_assert( sizeof( AbstractPhysicalResource::asBuffer ) == sizeof( uint64_t ), "size of the union must be 64bit" );
 	assert( frame->physicalResources.at( resourceId ).type == AbstractPhysicalResource::eBuffer );
 	return frame->physicalResources.at( resourceId ).asBuffer;
 }
 
-vk::ImageView get_image_view_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
+inline vk::ImageView get_image_view_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
 	assert( frame->physicalResources.at( resourceId ).type == AbstractPhysicalResource::eImageView );
 	return frame->physicalResources.at( resourceId ).asImageView;
 }
 
-vk::Image get_image_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
+inline vk::Image get_image_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
 	assert( frame->physicalResources.at( resourceId ).type == AbstractPhysicalResource::eImage );
 	return frame->physicalResources.at( resourceId ).asImage;
 }
@@ -1196,13 +1199,14 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 			    .setComponents( vk::ComponentMapping() )
 			    .setSubresourceRange( subresourceRange );
 
-			// TODO: retain imageviews in ownedResources -
-			// and release when appropriate.
 			auto imageView = device.createImageView( imageViewCreateInfo );
 
 			framebufferAttachments.push_back( imageView );
 
 			{
+				// Retain imageviews in owned resources - they will be released
+				// once not needed anymore.
+
 				AbstractPhysicalResource iv;
 				iv.type        = AbstractPhysicalResource::eImageView;
 				iv.asImageView = imageView;
@@ -1224,6 +1228,8 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 		pass.framebuffer = device.createFramebuffer( framebufferCreateInfo );
 
 		{
+			// Retain framebuffer
+
 			AbstractPhysicalResource fb;
 			fb.type          = AbstractPhysicalResource::eFramebuffer;
 			fb.asFramebuffer = pass.framebuffer;
@@ -1260,6 +1266,9 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 	backend_track_resource_state( frame, passes, numRenderPasses );
 
 	backend_create_renderpasses( frame, device );
+
+	// TODO: backend_create_pipelines(frame, device, passes, numRenderPasses);
+
 	// patch and retain physical resources in bulk here, so that
 	// each pass may be processed independently
 	backend_patch_attachment_info_images( frame );
@@ -1314,7 +1323,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		cmd.begin( {::vk::CommandBufferUsageFlagBits::eOneTimeSubmit} );
 
 		// FIXME: non-draw passes don't need renderpasses.
-		if ( pass.renderPass ) {
+		if ( pass.type == LE_RENDER_PASS_TYPE_DRAW && pass.renderPass ) {
 
 			std::array<vk::ClearValue, 1> clearValues{
 				{vk::ClearColorValue( std::array<float, 4>{{0.f, 0.3f, 1.0f, 1.f}} )}};
@@ -1328,6 +1337,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			    .setPClearValues( clearValues.data() );
 
 			cmd.beginRenderPass( renderPassBeginInfo, vk::SubpassContents::eInline );
+
+			// TODO: bind pipeline must happen on request, as pipeline program may change
+			// based on encoder data.
 			cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, self->debugPipeline );
 		}
 
@@ -1414,7 +1426,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		}
 
 		// FIXME: non-draw passes don't need renderpasses.
-		if ( pass.renderPass ) {
+		if ( pass.type == LE_RENDER_PASS_TYPE_DRAW && pass.renderPass ) {
 			cmd.endRenderPass();
 		}
 
