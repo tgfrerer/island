@@ -155,9 +155,21 @@ static void cbe_get_encoded_data( le_command_buffer_encoder_o *self, void **data
 	*numCommands = self->mCommandCount;
 }
 
+// ----------------------------------------------------------------------
+
 // TODO (pipeline): implement bind_graphics_pipeline
-static void cbe_bind_graphics_pipeline( le_command_buffer_encoder_o *self, struct le_graphics_pipeline_state_descriptor_o *pipelineDescriptor ) {
-	// -- insert pipeline state descriptor pointer into command stream
+static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, struct le_pipeline_o *pipeline ) {
+
+	// -- insert PSO pointer into command stream
+	le::CommandBindPipeline *cmd = new ( &self->mCommandStream[ 0 ] + self->mCommandStreamSize ) le::CommandBindPipeline;
+
+	cmd->info.pipeline = pipeline;
+
+	//	std::cout << "binding pipeline" << std::endl
+	//	          << std::flush;
+
+	self->mCommandStreamSize += sizeof( le::CommandBindPipeline );
+	self->mCommandCount++;
 }
 
 // ----------------------------------------------------------------------
@@ -176,4 +188,5 @@ ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 	le_command_buffer_encoder_i.set_scissor         = cbe_set_scissor;
 	le_command_buffer_encoder_i.bind_vertex_buffers = cbe_bind_vertex_buffers;
 	le_command_buffer_encoder_i.set_vertex_data     = cbe_set_vertex_data;
+	le_command_buffer_encoder_i.bind_pipeline       = cbe_bind_pipeline;
 }

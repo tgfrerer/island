@@ -16,6 +16,7 @@ enum class CommandType : uint32_t {
 	eSetViewport,
 	eSetScissor,
 	eBindVertexBuffers,
+	eBindPipeline,
 };
 
 struct CommandHeader {
@@ -89,6 +90,14 @@ struct CommandBindVertexBuffers {
 		uint32_t  bindingCount;
 		uint64_t *pBuffers; // TODO: place proper buffer_id type here
 		uint64_t *pOffsets;
+	} info;
+};
+
+struct CommandBindPipeline {
+	CommandHeader header = {{{CommandType::eBindPipeline, sizeof( CommandBindPipeline )}}};
+	struct {
+		struct le_pipeline_o *pipeline;
+		uint64_t              pipelineHash;
 	} info;
 };
 

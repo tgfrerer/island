@@ -154,6 +154,7 @@ struct le_renderer_api {
 		void                         ( *set_scissor         )( le_command_buffer_encoder_o *self, uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D *pViewports );
 		void                         ( *bind_vertex_buffers )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, uint64_t *pBuffers, uint64_t *pOffsets );
 		void                         ( *set_vertex_data     )( le_command_buffer_encoder_o *self, void *data, uint64_t numBytes, uint32_t bindingIndex );
+		void                         ( *bind_pipeline       )( le_command_buffer_encoder_o *self, struct le_pipeline_o* pipeline);
 	};
 
 	// clang-format on

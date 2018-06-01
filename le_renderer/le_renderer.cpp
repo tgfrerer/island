@@ -74,11 +74,15 @@ struct le_shader_module_o {
 	uint64_t              hash_id = 0; ///< hash taken from spirv code
 	std::vector<uint32_t> spirv;
 	const char *          filepath; ///< path to source file
+	void *                module = nullptr;
 };
 
 struct le_graphics_pipeline_state_o {
 
 	// TODO (pipeline) : add fields to pso object
+
+	le_shader_module_o *shaderModuleVert = nullptr;
+	le_shader_module_o *shaderModuleFrag = nullptr;
 
 	//struct le_vertex_input_binding_description *vertexInputBindingDescrition;
 	//struct le_vertex_attribute_description *    vertexAttributeDescrition;
@@ -157,8 +161,12 @@ renderer_create_graphics_pipeline_state_object( le_renderer_o *self, le_graphics
 	auto pso = new ( le_graphics_pipeline_state_o );
 
 	// TODO (pipeline): -- initialise pso based on pipeline info
+	pso->shaderModuleFrag = pipeline_info->shader_module_frag;
+	pso->shaderModuleVert = pipeline_info->shader_module_vert;
 
 	// TODO (pipeline): -- tell backend about the new pipeline state object
+
+	// -- calculate hash based on contents of pipeline state object
 
 	self->PSOs.push_back( pso );
 	return pso;
@@ -170,7 +178,7 @@ renderer_create_graphics_pipeline_state_object( le_renderer_o *self, le_graphics
 static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, char const *path ) {
 
 	bool loadSuccessful = false;
-	auto raw_spirv      = load_file( path, &loadSuccessful ); // returns a raw byte stream
+	auto raw_spirv      = load_file( path, &loadSuccessful ); // returns a raw byte vector
 
 	size_t numInts = raw_spirv.size() / sizeof( uint32_t );
 
@@ -198,6 +206,8 @@ static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, c
 
 	static auto &backendApi = *Registry::getApi<le_backend_vk_api>();
 	static auto &backendI   = backendApi.vk_backend_i;
+
+	module->module = backendI.create_shader_module( self->backend, module->spirv.data(), module->spirv.size() );
 
 	// TODO (shader): -- Check if module is already present in renderer
 
@@ -478,7 +488,13 @@ static void renderer_destroy( le_renderer_o *self ) {
 	}
 	self->PSOs.clear();
 
+	static auto &backendApi = *Registry::getApi<le_backend_vk_api>();
+	static auto &backendI   = backendApi.vk_backend_i;
+
 	for ( auto &shaderModule : self->shaderModules ) {
+		if ( shaderModule->module ) {
+			//backendI.destroy_shader_module( self->backend, shaderModule->module );
+		}
 		delete ( shaderModule );
 	}
 	self->shaderModules.clear();

@@ -72,7 +72,7 @@ static test_app_o *test_app_create() {
 
 		// The pipeline state object holds all state for the pipeline,
 		// that's links to shader modules, blend states, input assembly, etc...
-		// Everything, in short, but the renderpass, and subpass (which are added in at the last minute)
+		// Everything, in short, but the renderpass, and subpass (which are added at the last minute)
 		//
 		// The backend pipeline object is compiled on-demand, when it is first used with a renderpass, and henceforth cached.
 		auto pipelineStateHandle = obj->renderer->createGraphicsPipelineStateObject( &pi );
@@ -109,6 +109,11 @@ static bool test_app_update( test_app_o *self ) {
 	static_assert( const_char_hash64( "resource-image-testing" ) == RESOURCE_IMAGE_ID( "testing" ), "hashes must match" );
 	static_assert( const_char_hash64( "resource-buffer-testing" ) == RESOURCE_BUFFER_ID( "testing" ), "hashes must match" );
 	static_assert( RESOURCE_IMAGE_ID( "testing" ) != RESOURCE_BUFFER_ID( "testing" ), "buffer and image resources can't have same id based on same name" );
+
+	// grab interface for encoder so that it can be used in callbacks -
+	// making it static allows it to be visible inside the callback context,
+	// and it also ensures that the registry call only happens upon first retrieval.
+	static auto const &le_encoder = ( *Registry::getApi<le_renderer_api>() ).le_command_buffer_encoder_i;
 
 	le::RenderModule mainModule{};
 	{
@@ -152,10 +157,10 @@ static bool test_app_update( test_app_o *self ) {
 			return true;
 		} );
 
-		renderPassFinal.setExecuteCallback( self, []( auto encoder_, auto user_data_ ) {
-			auto                     self = static_cast<test_app_o *>( user_data_ );
-			le::CommandBufferEncoder encoder{encoder_};
-			le::Viewport             viewports[ 2 ] = {
+		renderPassFinal.setExecuteCallback( self, []( auto encoder, auto user_data_ ) {
+			auto self = static_cast<test_app_o *>( user_data_ );
+
+			le::Viewport viewports[ 2 ] = {
 			    {{50.f, 50.f, 100.f, 100.f, 0.f, 1.f}},
 			    {{200.f, 50.f, 200.f, 200.f, 0.f, 1.f}},
 			};
@@ -177,27 +182,27 @@ static bool test_app_update( test_app_o *self ) {
 			static_assert( sizeof( vertData ) == sizeof( float ) * 4 * 3, "vertData must be tightly packed" );
 
 			// TODO (pipeline): implement binding graphics pipeline
-			// encoder.bind_graphics_pipeline( self->default_pipeline );
+			le_encoder.bind_pipeline( encoder, nullptr );
 
 			// This will use the scratch buffer -- and the encoded command will store the
 			// location of the data as it was laid down in the scratch buffer.
-
+			//
 			// vertex data must be stored to GPU mapped memory using an allocator through encoder first,
 			// will then be available to the gpu.
-
+			//
 			// The scratch buffer is uploaded/transferred before the renderpass begins
 			// so that data from it is read-visible
-			encoder.setVertexData( vertData, sizeof( vertData ), 0 );
+			le_encoder.set_vertex_data( encoder, vertData, sizeof( vertData ), 0 );
 
-			encoder.setScissor( 0, 1, scissors );
-			encoder.setViewport( 0, 1, viewports );
+			le_encoder.set_scissor( encoder, 0, 1, scissors );
+			le_encoder.set_viewport( encoder, 0, 1, viewports );
 
-			encoder.draw( 3, 1, 0, 0 );
+			le_encoder.draw( encoder, 3, 1, 0, 0 );
 
-			encoder.setScissor( 0, 1, &scissors[ 1 ] );
-			encoder.setViewport( 0, 1, &viewports[ 1 ] );
+			le_encoder.set_scissor( encoder, 0, 1, &scissors[ 1 ] );
+			le_encoder.set_viewport( encoder, 0, 1, &viewports[ 1 ] );
 
-			encoder.draw( 3, 1, 0, 0 );
+			le_encoder.draw( encoder, 3, 1, 0, 0 );
 		} );
 
 		mainModule.addRenderPass( resourcePass );

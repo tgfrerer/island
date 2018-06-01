@@ -1340,7 +1340,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 			// TODO: bind pipeline must happen on request, as pipeline program may change
 			// based on encoder data.
-			cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, self->debugPipeline );
+			// cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, self->debugPipeline );
 		}
 
 		// Translate intermediary command stream data to api-native instructions
@@ -1366,6 +1366,14 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				auto header = static_cast<le::CommandHeader *>( dataIt );
 
 				switch ( header->info.type ) {
+
+				case le::CommandType::eBindPipeline: {
+					auto *le_cmd = static_cast<le::CommandBindPipeline *>( dataIt );
+					if ( pass.type == LE_RENDER_PASS_TYPE_DRAW ) {
+						// -- todo: potentially compile and create pipeline here, based on current pass and subpass
+						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, self->debugPipeline );
+					}
+				} break;
 
 				case le::CommandType::eDraw: {
 					auto *le_cmd = static_cast<le::CommandDraw *>( dataIt );
