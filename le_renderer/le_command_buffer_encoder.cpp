@@ -158,7 +158,7 @@ static void cbe_get_encoded_data( le_command_buffer_encoder_o *self, void **data
 // ----------------------------------------------------------------------
 
 // TODO (pipeline): implement bind_graphics_pipeline
-static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, struct le_pipeline_o *pipeline ) {
+static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, le_graphics_pipeline_state_o *pipeline ) {
 
 	// -- insert PSO pointer into command stream
 	le::CommandBindPipeline *cmd = new ( &self->mCommandStream[ 0 ] + self->mCommandStreamSize ) le::CommandBindPipeline;
@@ -179,14 +179,14 @@ ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 	auto  le_renderer_api_i           = static_cast<le_renderer_api *>( api_ );
 	auto &le_command_buffer_encoder_i = le_renderer_api_i->le_command_buffer_encoder_i;
 
-	le_command_buffer_encoder_i.create              = cbe_create;
-	le_command_buffer_encoder_i.destroy             = cbe_destroy;
-	le_command_buffer_encoder_i.set_line_width      = cbe_set_line_width;
-	le_command_buffer_encoder_i.draw                = cbe_draw;
-	le_command_buffer_encoder_i.get_encoded_data    = cbe_get_encoded_data;
-	le_command_buffer_encoder_i.set_viewport        = cbe_set_viewport;
-	le_command_buffer_encoder_i.set_scissor         = cbe_set_scissor;
-	le_command_buffer_encoder_i.bind_vertex_buffers = cbe_bind_vertex_buffers;
-	le_command_buffer_encoder_i.set_vertex_data     = cbe_set_vertex_data;
-	le_command_buffer_encoder_i.bind_pipeline       = cbe_bind_pipeline;
+	le_command_buffer_encoder_i.create                 = cbe_create;
+	le_command_buffer_encoder_i.destroy                = cbe_destroy;
+	le_command_buffer_encoder_i.set_line_width         = cbe_set_line_width;
+	le_command_buffer_encoder_i.draw                   = cbe_draw;
+	le_command_buffer_encoder_i.get_encoded_data       = cbe_get_encoded_data;
+	le_command_buffer_encoder_i.set_viewport           = cbe_set_viewport;
+	le_command_buffer_encoder_i.set_scissor            = cbe_set_scissor;
+	le_command_buffer_encoder_i.bind_vertex_buffers    = cbe_bind_vertex_buffers;
+	le_command_buffer_encoder_i.set_vertex_data        = cbe_set_vertex_data;
+	le_command_buffer_encoder_i.bind_graphics_pipeline = cbe_bind_pipeline;
 }

@@ -17,7 +17,7 @@ struct test_app_o {
 	std::unique_ptr<le::Backend>         backend;
 	std::unique_ptr<pal::Window>         window;
 	std::unique_ptr<le::Renderer>        renderer;
-	struct le_graphics_pipeline_state_o *testPSOHandle;
+	struct le_graphics_pipeline_state_o *testPSOHandle; // owned by the renderer
 };
 
 // ----------------------------------------------------------------------
@@ -63,8 +63,8 @@ static test_app_o *test_app_create() {
 		// -- Declare graphics pipeline state object
 
 		// Creating shader modules will eventually compile shader source code from glsl to spir-v
-		auto defaultVertShader = obj->renderer->createShaderModule( "default.frag.spv" );
-		auto defaultFragShader = obj->renderer->createShaderModule( "default.vert.spv" );
+		auto defaultVertShader = obj->renderer->createShaderModule( "./shaders/default.vert.spv" );
+		auto defaultFragShader = obj->renderer->createShaderModule( "./shaders/default.frag.spv" );
 
 		le_graphics_pipeline_create_info_t pi;
 		pi.shader_module_frag = defaultFragShader;
@@ -75,10 +75,10 @@ static test_app_o *test_app_create() {
 		// Everything, in short, but the renderpass, and subpass (which are added at the last minute)
 		//
 		// The backend pipeline object is compiled on-demand, when it is first used with a renderpass, and henceforth cached.
-		auto pipelineStateHandle = obj->renderer->createGraphicsPipelineStateObject( &pi );
+		auto psoHandle = obj->renderer->createGraphicsPipelineStateObject( &pi );
 
-		if ( pipelineStateHandle ) {
-			obj->testPSOHandle = pipelineStateHandle;
+		if ( psoHandle ) {
+			obj->testPSOHandle = psoHandle;
 		} else {
 			std::cerr << "declaring a pipeline failed miserably.";
 		}
@@ -182,7 +182,7 @@ static bool test_app_update( test_app_o *self ) {
 			static_assert( sizeof( vertData ) == sizeof( float ) * 4 * 3, "vertData must be tightly packed" );
 
 			// TODO (pipeline): implement binding graphics pipeline
-			le_encoder.bind_pipeline( encoder, nullptr );
+			le_encoder.bind_graphics_pipeline( encoder, self->testPSOHandle );
 
 			// This will use the scratch buffer -- and the encoded command will store the
 			// location of the data as it was laid down in the scratch buffer.

@@ -23,6 +23,8 @@ struct le_allocator_o;
 struct le_swapchain_vk_settings_o;
 struct pal_window_o;
 
+struct le_shader_module_o;
+
 struct VkInstance_T;
 struct VkDevice_T;
 struct VkPhysicalDevice_T;
@@ -60,7 +62,11 @@ struct le_backend_vk_api {
 		void                   ( *create_swapchain         ) ( le_backend_o *self, le_swapchain_vk_settings_o *swapchainSettings_ );
 		size_t                 ( *get_num_swapchain_images ) ( le_backend_o *self );
 		void                   ( *reset_swapchain          ) ( le_backend_o *self );
-		le_allocator_o* ( *get_transient_allocator  ) ( le_backend_o* self, size_t frameIndex);
+		le_allocator_o*        ( *get_transient_allocator  ) ( le_backend_o* self, size_t frameIndex);
+
+		le_shader_module_o*    (*create_shader_module     ) ( le_backend_o* self, char const * path); // TODO (shader): implement
+		void                   ( *destroy_shader_module   ) ( le_backend_o* self, le_shader_module_o* shader_module);   // TODO (shader): implement
+
 	};
 
 	struct instance_interface_t {

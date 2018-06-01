@@ -13,10 +13,14 @@
 #include "pal_window/pal_window.h"
 
 #include "le_renderer/le_renderer.h"
-#include "le_renderer/private/hash_util.h" // todo: not cool to include privates!
+#include "le_renderer/private/hash_util.h"
 #include "le_renderer/private/le_renderpass.h"
-
 #include "le_renderer/private/le_renderer_types.h"
+#include "le_renderer/private/le_pipeline_types.h"
+
+#include "experimental/filesystem" // for parsing shader source file paths
+#include <fstream>                 // for reading shader source files
+#include <cstring>                 // for memcpy
 
 #include <vector>
 #include <unordered_map>
@@ -28,6 +32,17 @@
 #ifndef PRINT_DEBUG_MESSAGES
 #define PRINT_DEBUG_MESSAGES false
 #endif
+
+namespace std {
+using namespace experimental;
+}
+
+struct le_shader_module_o {
+	uint64_t              hash_id = 0; ///< hash taken from spirv code
+	std::vector<uint32_t> spirv;
+	std::filesystem::path filepath; ///< path to source file
+	vk::ShaderModule      module = nullptr;
+};
 
 struct AbstractPhysicalResource {
 	enum Type : uint64_t {
@@ -132,6 +147,8 @@ struct le_backend_o {
 
 	std::vector<BackendFrameData> mFrames;
 
+	std::vector<le_shader_module_o *> shaderModules;
+
 	// These resources are potentially in-flight, and may be used read-only
 	// by more than one frame.
 	vk::RenderPass          debugRenderPass           = nullptr;
@@ -175,6 +192,114 @@ static inline bool is_depth_stencil_format( vk::Format format_ ) {
 }
 
 // ----------------------------------------------------------------------
+/// \brief   file loader utility method
+/// \details loads file given by filepath and returns a vector of chars if successful
+/// \note    returns an empty vector if not successful
+static std::vector<char> load_file( const std::filesystem::path &file_path, bool *success ) {
+
+	std::vector<char> contents;
+
+	size_t        fileSize = 0;
+	std::ifstream file( file_path, std::ios::in | std::ios::binary | std::ios::ate );
+
+	if ( !file.is_open() ) {
+		std::cerr << "Unable to open file: " << std::filesystem::canonical( file_path ) << std::endl
+		          << std::flush;
+		*success = false;
+		return contents;
+	}
+
+	std::cout << "OK Opened file:" << std::filesystem::canonical( file_path ) << std::endl
+	          << std::flush;
+
+	// ----------| invariant: file is open
+
+	auto endOfFilePos = file.tellg();
+
+	if ( endOfFilePos > 0 ) {
+		fileSize = endOfFilePos;
+	} else {
+		*success = false;
+		return contents;
+	}
+
+	// ----------| invariant: file has some bytes to read
+	contents.resize( fileSize );
+
+	file.seekg( 0, std::ios::beg );
+	file.read( contents.data(), endOfFilePos );
+	file.close();
+
+	*success = true;
+	return contents;
+}
+
+// ----------------------------------------------------------------------
+/// \brief create vulkan shader module based on file path
+static le_shader_module_o *backend_create_shader_module( le_backend_o *self, char const *path ) {
+	bool loadSuccessful = false;
+	auto raw_spirv      = load_file( path, &loadSuccessful ); // returns a raw byte vector
+
+	size_t numInts = raw_spirv.size() / sizeof( uint32_t );
+
+	if ( !loadSuccessful ) {
+		return nullptr;
+	}
+
+	// ---------| invariant: load was successful
+
+	if ( raw_spirv.size() != numInts * sizeof( uint32_t ) ) {
+		return nullptr;
+	}
+
+	// ---------| invariant: source code can be expressed in uint32_t
+
+	le_shader_module_o *module = new le_shader_module_o{};
+
+	module->filepath = path;
+	module->hash_id  = fnv_hash64( raw_spirv.data(), raw_spirv.size() );
+
+	module->spirv.resize( numInts );
+	std::memcpy( module->spirv.data(), raw_spirv.data(), raw_spirv.size() );
+
+	{ // print out spirv code as
+		std::cout << path << std::endl
+		          << std::flush;
+
+		std::cout << std::hex;
+
+		size_t counter = 0;
+		for ( const auto &i : module->spirv ) {
+
+			std::cout << "0x" << std::setw( 8 ) << i << ",";
+			++counter;
+
+			if ( counter % 4 == 0 ) {
+				std::cout << std::endl;
+			}
+		}
+		std::cout << std::endl
+		          << std::flush;
+	}
+
+	// TODO (shader): -- create vulkan object
+
+	vk::Device device = self->device->getVkDevice();
+	{
+		// flags must be 0 (reserved for future use), size is given in bytes
+		vk::ShaderModuleCreateInfo createInfo( vk::ShaderModuleCreateFlags(), module->spirv.size() * sizeof( uint32_t ), module->spirv.data() );
+
+		module->module = device.createShaderModule( createInfo );
+	}
+	// TODO (shader): -- Check if module is already present in renderer
+
+	// -- retain module in renderer
+	self->shaderModules.push_back( module );
+
+	return module;
+}
+
+// ----------------------------------------------------------------------
 
 static le_backend_o *backend_create( le_backend_vk_settings_t *settings ) {
 	auto self = new le_backend_o; // todo: leDevice must have been introduced here...
@@ -192,6 +317,19 @@ static le_backend_o *backend_create( le_backend_vk_settings_t *settings ) {
 static void backend_destroy( le_backend_o *self ) {
 
 	vk::Device device = self->device->getVkDevice();
+
+	// -- destroy retained shader modules
+
+	for ( auto &s : self->shaderModules ) {
+		if ( s->module ) {
+			device.destroyShaderModule( s->module );
+			s->module = nullptr;
+		}
+		delete ( s );
+	}
+	self->shaderModules.clear();
+
+	// -- destroy renderpasses
 
 	static auto allocatorInterface = ( *Registry::getApi<le_backend_vk_api>() ).le_allocator_linear_i;
 
@@ -287,34 +425,21 @@ void backend_reset_swapchain( le_backend_o *self ) {
 }
 
 // ----------------------------------------------------------------------
-
-// stand-in: create default pipeline, and pipeline cache
-static void backend_create_debug_pipeline( le_backend_o *self ) {
+// TODO (pipeline): allow us to pass in a renderpass, renderpass must have its own hash, which is a hash which includes only fields which contribute to renderpass compatibility (so that compatible renderpasses have the same hash.)
+static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pipeline_state_o *pso ) {
 	vk::Device vkDevice = self->device->getVkDevice();
-
-	static const uint32_t shaderCodeVert[] = {
-	// converted using: `glslc vertex_shader.vert fragment_shader.frag -c -mfmt=num`
-#include "vertex_shader_ext.vert.spv"
-	};
-
-	static const uint32_t shaderCodeFrag[] = {
-#include "fragment_shader.frag.spv"
-	};
-
-	self->debugVertexShaderModule   = vkDevice.createShaderModule( {vk::ShaderModuleCreateFlags(), sizeof( shaderCodeVert ), shaderCodeVert} );
-	self->debugFragmentShaderModule = vkDevice.createShaderModule( {vk::ShaderModuleCreateFlags(), sizeof( shaderCodeFrag ), shaderCodeFrag} );
 
 	std::array<vk::PipelineShaderStageCreateInfo, 2> pipelineStages;
 	pipelineStages[ 0 ]
 	    .setFlags( vk::PipelineShaderStageCreateFlags() ) // must be 0 - "reserved for future use"
 	    .setStage( vk::ShaderStageFlagBits::eVertex )
-	    .setModule( self->debugVertexShaderModule )
+	    .setModule( pso->shaderModuleVert->module )
 	    .setPName( "main" )
 	    .setPSpecializationInfo( nullptr );
 	pipelineStages[ 1 ]
 	    .setFlags( vk::PipelineShaderStageCreateFlags() ) // must be 0 - "reserved for future use"
 	    .setStage( vk::ShaderStageFlagBits::eFragment )
-	    .setModule( self->debugFragmentShaderModule )
+	    .setModule( pso->shaderModuleFrag->module )
 	    .setPName( "main" )
 	    .setPSpecializationInfo( nullptr );
 
@@ -342,6 +467,7 @@ static void backend_create_debug_pipeline( le_backend_o *self ) {
 	    .setBindingCount( 0 )
 	    .setPBindings( nullptr );
 
+	// FIXME: don't overwrite debug layout - only do this for debug pipeline
 	self->debugDescriptorSetLayout = vkDevice.createDescriptorSetLayout( setLayoutInfo );
 
 	vk::PipelineLayoutCreateInfo layoutCreateInfo;
@@ -352,6 +478,7 @@ static void backend_create_debug_pipeline( le_backend_o *self ) {
 	    .setPushConstantRangeCount( 0 )
 	    .setPPushConstantRanges( nullptr );
 
+	// FIXME: don't overwrite debug layout - only do this for debug pipeline
 	self->debugPipelineLayout = vkDevice.createPipelineLayout( layoutCreateInfo );
 
 	vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState;
@@ -473,7 +600,8 @@ static void backend_create_debug_pipeline( le_backend_o *self ) {
 	    .setBasePipelineIndex( 0 ) // -1 signals not to use a base pipeline index
 	    ;
 
-	self->debugPipeline = vkDevice.createGraphicsPipeline( self->debugPipelineCache, gpi );
+	auto pipeline = vkDevice.createGraphicsPipeline( self->debugPipelineCache, gpi );
+	return pipeline;
 }
 
 // ----------------------------------------------------------------------
@@ -660,8 +788,13 @@ static void backend_setup( le_backend_o *self ) {
 
 	self->debugPipelineCache = vkDevice.createPipelineCache( pipelineCacheInfo );
 
-	// TODO: remove reliance on this
-	backend_create_debug_pipeline( self );
+	// TODO: (shader) -- consider removing creating default shader module
+
+	le_graphics_pipeline_state_o debug_pso;
+	debug_pso.shaderModuleVert = backend_create_shader_module( self, "./shaders/default.vert.spv" );
+	debug_pso.shaderModuleFrag = backend_create_shader_module( self, "./shaders/default.frag.spv" );
+
+	self->debugPipeline = backend_create_pipeline( self, &debug_pso );
 }
 
 // ----------------------------------------------------------------------
@@ -1371,7 +1504,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto *le_cmd = static_cast<le::CommandBindPipeline *>( dataIt );
 					if ( pass.type == LE_RENDER_PASS_TYPE_DRAW ) {
 						// -- todo: potentially compile and create pipeline here, based on current pass and subpass
-						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, self->debugPipeline );
+						// FIXME (pipeline) : this creates a pipeline on every draw loop! - cache pipelines, and get pipeline from cache.
+						auto pipeline = backend_create_pipeline( self, le_cmd->info.pipeline );
+						//						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, self->debugPipeline );
+						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline );
 					}
 				} break;
 
@@ -1492,6 +1628,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.acquire_physical_resources = backend_acquire_physical_resources;
 	vk_backend_i.process_frame              = backend_process_frame;
 	vk_backend_i.dispatch_frame             = backend_dispatch_frame;
+	vk_backend_i.create_shader_module       = backend_create_shader_module;
 
 	// register/update submodules inside this plugin
 

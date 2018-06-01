@@ -10,11 +10,9 @@
 #include "le_swapchain_vk/le_swapchain_vk.h"
 
 #include "le_renderer/private/hash_util.h"
+#include "le_renderer/private/le_pipeline_types.h"
 
 #include <iostream>
-#include <fstream> // for reading shader source files
-#include <cstring> // for dealing with shaders
-
 #include <iomanip>
 #include <chrono>
 
@@ -70,26 +68,6 @@ struct FrameData {
 
 // ----------------------------------------------------------------------
 
-struct le_shader_module_o {
-	uint64_t              hash_id = 0; ///< hash taken from spirv code
-	std::vector<uint32_t> spirv;
-	const char *          filepath; ///< path to source file
-	void *                module = nullptr;
-};
-
-struct le_graphics_pipeline_state_o {
-
-	// TODO (pipeline) : add fields to pso object
-
-	le_shader_module_o *shaderModuleVert = nullptr;
-	le_shader_module_o *shaderModuleFrag = nullptr;
-
-	//struct le_vertex_input_binding_description *vertexInputBindingDescrition;
-	//struct le_vertex_attribute_description *    vertexAttributeDescrition;
-};
-
-// ----------------------------------------------------------------------
-
 struct le_renderer_o {
 
 	uint64_t    swapchainDirty = false;
@@ -100,51 +78,11 @@ struct le_renderer_o {
 	size_t                 currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
 
 	std::vector<le_graphics_pipeline_state_o *> PSOs;
-	std::vector<le_shader_module_o *>           shaderModules;
 
 	le_renderer_o( le_backend_o *backend )
 	    : backend( backend ) {
 	}
 };
-
-// ----------------------------------------------------------------------
-/// \brief   file loader utility method
-/// \details loads file given by filepath and returns a vector of chars if successful
-/// \note    returns an empty vector if not successful
-static std::vector<char> load_file( char const *file_path, bool *success ) {
-
-	std::vector<char> contents;
-
-	size_t        fileSize = 0;
-	std::ifstream file( file_path, std::ios::in | std::ios::binary | std::ios::ate );
-
-	if ( !file.is_open() ) {
-		std::cerr << "Unable to open file: " << file_path << std::flush;
-		*success = false;
-		return contents;
-	}
-
-	// ----------| invariant: file is open
-
-	auto endOfFilePos = file.tellg();
-
-	if ( endOfFilePos > 0 ) {
-		fileSize = endOfFilePos;
-	} else {
-		*success = false;
-		return contents;
-	}
-
-	// ----------| invariant: file has some bytes to read
-	contents.resize( fileSize );
-
-	file.seekg( 0, std::ios::beg );
-	file.read( contents.data(), endOfFilePos );
-	file.close();
-
-	*success = true;
-	return contents;
-}
 
 // ----------------------------------------------------------------------
 
@@ -176,45 +114,8 @@ renderer_create_graphics_pipeline_state_object( le_renderer_o *self, le_graphics
 /// \brief declare a shader module which can be used to create a pipeline
 /// \returns a shader module handle, or nullptr upon failure
 static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, char const *path ) {
-
-	bool loadSuccessful = false;
-	auto raw_spirv      = load_file( path, &loadSuccessful ); // returns a raw byte vector
-
-	size_t numInts = raw_spirv.size() / sizeof( uint32_t );
-
-	if ( !loadSuccessful ) {
-		return nullptr;
-	}
-
-	// ---------| invariant: load was successful
-
-	if ( ( raw_spirv.size() * sizeof( uint32_t ) != numInts ) ) {
-		return nullptr;
-	}
-
-	// ---------| invariant: source code can be expressed in uint32_t
-
-	le_shader_module_o *module = new le_shader_module_o;
-
-	module->filepath = path;
-	module->hash_id  = fnv_hash64( raw_spirv.data(), raw_spirv.size() );
-
-	module->spirv.resize( numInts );
-	std::memcpy( module->spirv.data(), raw_spirv.data(), raw_spirv.size() );
-
-	// TODO (shader): -- Create module on the backend
-
-	static auto &backendApi = *Registry::getApi<le_backend_vk_api>();
-	static auto &backendI   = backendApi.vk_backend_i;
-
-	module->module = backendI.create_shader_module( self->backend, module->spirv.data(), module->spirv.size() );
-
-	// TODO (shader): -- Check if module is already present in renderer
-
-	// -- retain module in renderer
-	self->shaderModules.push_back( module );
-
-	return module;
+	static auto const &backend_i = ( *Registry::getApi<le_backend_vk_api>() ).vk_backend_i;
+	return backend_i.create_shader_module( self->backend, path );
 }
 
 // ----------------------------------------------------------------------
@@ -226,8 +127,8 @@ renderer_setup( le_renderer_o *self ) {
 
 	self->frames.reserve( self->numSwapchainImages );
 
-	static auto &rendererApi   = *Registry::getApi<le_renderer_api>();
-	static auto &graphBuilderI = rendererApi.le_graph_builder_i;
+	static auto const &rendererApi   = *Registry::getApi<le_renderer_api>();
+	static auto const &graphBuilderI = rendererApi.le_graph_builder_i;
 
 	for ( size_t i = 0; i != self->numSwapchainImages; ++i ) {
 		auto frameData         = FrameData();
@@ -487,17 +388,6 @@ static void renderer_destroy( le_renderer_o *self ) {
 		delete ( pPso );
 	}
 	self->PSOs.clear();
-
-	static auto &backendApi = *Registry::getApi<le_backend_vk_api>();
-	static auto &backendI   = backendApi.vk_backend_i;
-
-	for ( auto &shaderModule : self->shaderModules ) {
-		if ( shaderModule->module ) {
-			//backendI.destroy_shader_module( self->backend, shaderModule->module );
-		}
-		delete ( shaderModule );
-	}
-	self->shaderModules.clear();
 
 	delete self;
 }
