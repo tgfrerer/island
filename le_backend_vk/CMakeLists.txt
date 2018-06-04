@@ -4,6 +4,8 @@ set (SOURCES "le_backend_vk.cpp")
 set (SOURCES ${SOURCES} "le_instance_vk.cpp")
 set (SOURCES ${SOURCES} "le_device_vk.cpp")
 set (SOURCES ${SOURCES} "le_allocator.cpp")
+set (SOURCES ${SOURCES} "util/spooky/SpookyV2.cpp")
+
 
 if (${PLUGINS_DYNAMIC})
 
