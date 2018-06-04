@@ -5,6 +5,8 @@
 #include "le_backend_vk/private/le_instance_vk.h"
 #include "le_backend_vk/private/le_allocator.h"
 
+#include "le_backend_vk/util/spooky/SpookyV2.h" // for hashing pso state
+
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include <vulkan/vulkan.hpp>
 
@@ -85,6 +87,7 @@ struct Pass {
 	vk::RenderPass  renderPass;
 	uint32_t        width;
 	uint32_t        height;
+	uint64_t        hash; ///< spooky hash of elements that could influence renderpass compatibility
 
 	struct le_command_buffer_encoder_o *encoder;
 };
@@ -120,7 +123,7 @@ struct BackendFrameData {
 	// A: It must not: as it is used to map external resources as well.
 	std::unordered_map<uint64_t, AbstractPhysicalResource> physicalResources; // map from renderer resource id to physical resources - only contains resources this frame uses.
 
-	std::forward_list<AbstractPhysicalResource> ownedResources;
+	std::forward_list<AbstractPhysicalResource> ownedResources; // vk resources retained and destroyed with BackendFrameData
 
 	std::vector<Pass> passes;
 
@@ -151,8 +154,6 @@ struct le_backend_o {
 
 	// These resources are potentially in-flight, and may be used read-only
 	// by more than one frame.
-	vk::RenderPass          debugRenderPass           = nullptr;
-	vk::Pipeline            debugPipeline             = nullptr;
 	vk::PipelineCache       debugPipelineCache        = nullptr;
 	vk::ShaderModule        debugVertexShaderModule   = nullptr;
 	vk::ShaderModule        debugFragmentShaderModule = nullptr;
@@ -262,35 +263,15 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 	module->spirv.resize( numInts );
 	std::memcpy( module->spirv.data(), raw_spirv.data(), raw_spirv.size() );
 
-	{ // print out spirv code as
-		std::cout << path << std::endl
-		          << std::flush;
-
-		std::cout << std::hex;
-
-		size_t counter = 0;
-		for ( const auto &i : module->spirv ) {
-
-			std::cout << "0x" << std::setw( 8 ) << i << ",";
-			++counter;
-
-			if ( counter % 4 == 0 ) {
-				std::cout << std::endl;
-			}
-		}
-		std::cout << std::endl
-		          << std::flush;
-	}
-
-	// TODO (shader): -- create vulkan object
-
-	vk::Device device = self->device->getVkDevice();
 	{
+		// -- create vulkan shader object
+		vk::Device device = self->device->getVkDevice();
 		// flags must be 0 (reserved for future use), size is given in bytes
 		vk::ShaderModuleCreateInfo createInfo( vk::ShaderModuleCreateFlags(), module->spirv.size() * sizeof( uint32_t ), module->spirv.data() );
 
 		module->module = device.createShaderModule( createInfo );
 	}
+
 	// TODO (shader): -- Check if module is already present in renderer
 
 	// -- retain module in renderer
@@ -333,8 +314,6 @@ static void backend_destroy( le_backend_o *self ) {
 
 	static auto allocatorInterface = ( *Registry::getApi<le_backend_vk_api>() ).le_allocator_linear_i;
 
-	device.destroyRenderPass( self->debugRenderPass );
-
 	if ( self->debugDescriptorSetLayout ) {
 		device.destroyDescriptorSetLayout( self->debugDescriptorSetLayout );
 	}
@@ -343,9 +322,10 @@ static void backend_destroy( le_backend_o *self ) {
 		device.destroyPipelineLayout( self->debugPipelineLayout );
 	}
 
-	if ( self->debugPipeline ) {
-		device.destroyPipeline( self->debugPipeline );
-	}
+	// TODO (pipeline): destroy pipelines
+	//if ( self->debugPipeline ) {
+	//	device.destroyPipeline( self->debugPipeline );
+	//}
 
 	if ( self->debugPipelineCache ) {
 		device.destroyPipelineCache( self->debugPipelineCache );
@@ -425,8 +405,10 @@ void backend_reset_swapchain( le_backend_o *self ) {
 }
 
 // ----------------------------------------------------------------------
-// TODO (pipeline): allow us to pass in a renderpass, renderpass must have its own hash, which is a hash which includes only fields which contribute to renderpass compatibility (so that compatible renderpasses have the same hash.)
-static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pipeline_state_o *pso ) {
+// TODO (pipeline): allow us to pass in a renderpass, renderpass must have its own hash,
+// which is a hash which includes only fields which contribute to renderpass compatibility
+// (so that compatible renderpasses have the same hash.)
+static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pipeline_state_o const *pso, const vk::RenderPass &renderpass, uint32_t subpass ) {
 	vk::Device vkDevice = self->device->getVkDevice();
 
 	std::array<vk::PipelineShaderStageCreateInfo, 2> pipelineStages;
@@ -468,7 +450,9 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setPBindings( nullptr );
 
 	// FIXME: don't overwrite debug layout - only do this for debug pipeline
-	self->debugDescriptorSetLayout = vkDevice.createDescriptorSetLayout( setLayoutInfo );
+	if ( !self->debugDescriptorSetLayout ) {
+		self->debugDescriptorSetLayout = vkDevice.createDescriptorSetLayout( setLayoutInfo );
+	}
 
 	vk::PipelineLayoutCreateInfo layoutCreateInfo;
 	layoutCreateInfo
@@ -479,7 +463,9 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setPPushConstantRanges( nullptr );
 
 	// FIXME: don't overwrite debug layout - only do this for debug pipeline
-	self->debugPipelineLayout = vkDevice.createPipelineLayout( layoutCreateInfo );
+	if ( !self->debugPipelineLayout ) {
+		self->debugPipelineLayout = vkDevice.createPipelineLayout( layoutCreateInfo );
+	}
 
 	vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState;
 	inputAssemblyState
@@ -578,7 +564,7 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setDynamicStateCount( dynamicStates.size() )
 	    .setPDynamicStates( dynamicStates.data() );
 
-	// setup debug pipeline
+	// setup pipeline
 	vk::GraphicsPipelineCreateInfo gpi;
 	gpi
 	    .setFlags( vk::PipelineCreateFlagBits::eAllowDerivatives )
@@ -594,14 +580,36 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setPColorBlendState( &colorBlendState )
 	    .setPDynamicState( &dynamicState )
 	    .setLayout( self->debugPipelineLayout )
-	    .setRenderPass( self->debugRenderPass ) // must be a valid renderpass.
-	    .setSubpass( 0 )
+	    .setRenderPass( renderpass ) // must be a valid renderpass.
+	    .setSubpass( subpass )
 	    .setBasePipelineHandle( nullptr )
 	    .setBasePipelineIndex( 0 ) // -1 signals not to use a base pipeline index
 	    ;
 
 	auto pipeline = vkDevice.createGraphicsPipeline( self->debugPipelineCache, gpi );
 	return pipeline;
+}
+
+/// \brief Creates - or returns a pipeline from cache based on current pipeline state
+/// \note this method does lock the pipeline cache and is therefore costly.
+static vk::Pipeline backend_fetch_pipeline( le_backend_o *self, le_graphics_pipeline_state_o const *pso, const Pass &pass, uint32_t subpass ) {
+
+	uint64_t pso_renderpass_hashes[ 2 ] = {};
+
+	//	pso_renderpass_hashes[ 0 ] = backend_pso_get_hash( pso );
+	//	pso_renderpass_hashes[ 1 ] = backend_pass_get_compatible_hash( pass ); // returns hash for compatible renderpass
+
+	// -- create combined hash for pipeline, renderpass
+
+	uint64_t pipeline_hash = SpookyHash::Hash64( pso_renderpass_hashes, sizeof( pso_renderpass_hashes ), 0 );
+
+	// -- look up if pipeline with this hash already exists
+
+	// if not, create pipeline and store it in hash map
+
+	// else return pipeline found in hash map
+
+	return backend_create_pipeline( self, pso, pass.renderPass, subpass );
 }
 
 // ----------------------------------------------------------------------
@@ -703,83 +711,6 @@ static void backend_setup( le_backend_o *self ) {
 		self->mFrames.emplace_back( std::move( frameData ) );
 	}
 
-	// stand-in: create default renderpass.
-	{
-		std::array<vk::AttachmentDescription, 1> attachments;
-
-		attachments[ 0 ] // color attachment
-		    .setFormat( vk::Format( self->swapchain->getSurfaceFormat()->format ) )
-		    .setSamples( vk::SampleCountFlagBits::e1 )
-		    .setLoadOp( vk::AttachmentLoadOp::eClear )
-		    .setStoreOp( vk::AttachmentStoreOp::eStore )
-		    .setStencilLoadOp( vk::AttachmentLoadOp::eDontCare )
-		    .setStencilStoreOp( vk::AttachmentStoreOp::eDontCare )
-		    .setInitialLayout( vk::ImageLayout::eUndefined )
-		    .setFinalLayout( vk::ImageLayout::ePresentSrcKHR );
-		//		attachments[1]		//depth stencil attachment
-		//			.setFormat          ( depthFormat_ )
-		//			.setSamples         ( vk::SampleCountFlagBits::e1 )
-		//			.setLoadOp          ( vk::AttachmentLoadOp::eClear )
-		//			.setStoreOp         ( vk::AttachmentStoreOp::eStore)
-		//			.setStencilLoadOp   ( vk::AttachmentLoadOp::eDontCare )
-		//			.setStencilStoreOp  ( vk::AttachmentStoreOp::eDontCare )
-		//			.setInitialLayout   ( vk::ImageLayout::eUndefined )
-		//			.setFinalLayout     ( vk::ImageLayout::eDepthStencilAttachmentOptimal )
-		//			;
-
-		// Define 2 attachments, and tell us what layout to use during the subpass
-		// Index references attachments from above.
-
-		vk::AttachmentReference colorReference{0, vk::ImageLayout::eColorAttachmentOptimal};
-		//vk::AttachmentReference depthReference{ 1, vk::ImageLayout::eDepthStencilAttachmentOptimal};
-
-		vk::SubpassDescription subpassDescription;
-		subpassDescription
-		    .setPipelineBindPoint( vk::PipelineBindPoint::eGraphics )
-		    .setInputAttachmentCount( 0 )
-		    .setPInputAttachments( nullptr )
-		    .setColorAttachmentCount( 1 )
-		    .setPColorAttachments( &colorReference )
-		    .setPResolveAttachments( nullptr )
-		    .setPDepthStencilAttachment( nullptr ) /* &depthReference */
-		    .setPPreserveAttachments( nullptr )
-		    .setPreserveAttachmentCount( 0 );
-
-		// Define a external dependency for subpass 0
-
-		std::array<vk::SubpassDependency, 2> dependencies;
-		dependencies[ 0 ]
-		    .setSrcSubpass( VK_SUBPASS_EXTERNAL )                                 // producer
-		    .setDstSubpass( 0 )                                                   // consumer
-		    .setSrcStageMask( vk::PipelineStageFlagBits::eColorAttachmentOutput ) // we need this because the semaphore waits on colorAttachmentOutput
-		    .setDstStageMask( vk::PipelineStageFlagBits::eColorAttachmentOutput )
-		    .setSrcAccessMask( vk::AccessFlagBits( 0 ) ) // don't flush anything - nothing needs flushing.
-		    .setDstAccessMask( vk::AccessFlagBits::eColorAttachmentWrite )
-		    .setDependencyFlags( vk::DependencyFlagBits::eByRegion );
-
-		dependencies[ 1 ]
-		    .setSrcSubpass( 0 )                   // producer (last possible subpass == subpass 1)
-		    .setDstSubpass( VK_SUBPASS_EXTERNAL ) // consumer
-		    .setSrcStageMask( vk::PipelineStageFlagBits::eColorAttachmentOutput )
-		    .setDstStageMask( vk::PipelineStageFlagBits::eBottomOfPipe )
-		    .setSrcAccessMask( vk::AccessFlagBits::eColorAttachmentWrite ) // this needs to be complete,
-		    .setDstAccessMask( vk::AccessFlagBits::eMemoryRead )           // before this can begin
-		    .setDependencyFlags( vk::DependencyFlagBits::eByRegion );
-
-		// Define 1 renderpass with 1 subpass
-
-		vk::RenderPassCreateInfo renderPassCreateInfo;
-		renderPassCreateInfo
-		    .setAttachmentCount( attachments.size() )
-		    .setPAttachments( attachments.data() )
-		    .setSubpassCount( 1 )
-		    .setPSubpasses( &subpassDescription )
-		    .setDependencyCount( dependencies.size() )
-		    .setPDependencies( dependencies.data() );
-
-		self->debugRenderPass = vkDevice.createRenderPass( renderPassCreateInfo );
-	}
-
 	vk::PipelineCacheCreateInfo pipelineCacheInfo;
 	pipelineCacheInfo
 	    .setFlags( vk::PipelineCacheCreateFlags() ) // "reserved for future use"
@@ -787,14 +718,6 @@ static void backend_setup( le_backend_o *self ) {
 	    .setPInitialData( nullptr );
 
 	self->debugPipelineCache = vkDevice.createPipelineCache( pipelineCacheInfo );
-
-	// TODO: (shader) -- consider removing creating default shader module
-
-	le_graphics_pipeline_state_o debug_pso;
-	debug_pso.shaderModuleVert = backend_create_shader_module( self, "./shaders/default.vert.spv" );
-	debug_pso.shaderModuleFrag = backend_create_shader_module( self, "./shaders/default.frag.spv" );
-
-	self->debugPipeline = backend_create_pipeline( self, &debug_pso );
 }
 
 // ----------------------------------------------------------------------
@@ -1127,9 +1050,9 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 			vk::AttachmentDescription attachmentDescription;
 			attachmentDescription
-			    .setFlags( vk::AttachmentDescriptionFlags() )
-			    .setFormat( attachment->format )
-			    .setSamples( vk::SampleCountFlagBits::e1 )
+			    .setFlags( vk::AttachmentDescriptionFlags() ) // relevant for compatibility
+			    .setFormat( attachment->format )              // relevant for compatibility
+			    .setSamples( vk::SampleCountFlagBits::e1 )    // relevant for compatibility
 			    .setLoadOp( isDepthStencil ? vk::AttachmentLoadOp::eDontCare : attachment->loadOp )
 			    .setStoreOp( isDepthStencil ? vk::AttachmentStoreOp::eDontCare : attachment->storeOp )
 			    .setStencilLoadOp( isDepthStencil ? attachment->loadOp : vk::AttachmentLoadOp::eDontCare )
@@ -1171,7 +1094,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		    .setPInputAttachments( nullptr )
 		    .setColorAttachmentCount( uint32_t( colorAttachmentReferences.size() ) )
 		    .setPColorAttachments( colorAttachmentReferences.data() )
-		    .setPResolveAttachments( nullptr )
+		    .setPResolveAttachments( nullptr ) // must be NULL or have same length as colorAttachments
 		    .setPDepthStencilAttachment( nullptr )
 		    .setPreserveAttachmentCount( 0 )
 		    .setPPreserveAttachments( nullptr );
@@ -1226,6 +1149,80 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		}
 
 		{
+			// -- Build hash for compatible renderpass
+			//
+			// We need to include all information that defines renderpass compatibility.
+			//
+			// We are not clear whether subpasses must be identical between two compatible renderpasses,
+			// therefore we don't include subpass information in calculating renderpass compatibility.
+
+			// -- 1. hash attachments
+			// -- 2. hash subpass descriptions for each subpass
+			//       subpass descriptions are structs with vectors of index references to attachments
+
+			{
+				uint64_t rp_hash = 0;
+
+				// -- hash attachments
+				for ( const auto &a : attachments ) {
+					// We use offsetof so that we can get everything from flags to the start of the
+					// attachmentdescription to (but not including) loadOp. We assume that struct is tightly packed.
+
+					static_assert( sizeof( vk::AttachmentDescription::flags ) +
+					                       sizeof( vk::AttachmentDescription::format ) +
+					                       sizeof( vk::AttachmentDescription::samples ) ==
+					                   offsetof( vk::AttachmentDescription, loadOp ),
+					               "AttachmentDescription struct must be tightly packed for efficient hashing" );
+
+					rp_hash = SpookyHash::Hash64( &a, offsetof( vk::AttachmentDescription, loadOp ), rp_hash );
+				}
+
+				// -- Hash subpasses
+				for ( const auto &s : subpasses ) {
+
+					// note: attachment references are not that straightforward to hash either, as they contain a layout
+					// field, which want to ignore, since it makes no difference for render pass compatibility.
+
+					rp_hash = SpookyHash::Hash64( &s.flags, sizeof( s.flags ), rp_hash );
+					rp_hash = SpookyHash::Hash64( &s.pipelineBindPoint, sizeof( s.pipelineBindPoint ), rp_hash );
+					rp_hash = SpookyHash::Hash64( &s.inputAttachmentCount, sizeof( s.inputAttachmentCount ), rp_hash );
+					rp_hash = SpookyHash::Hash64( &s.colorAttachmentCount, sizeof( s.colorAttachmentCount ), rp_hash );
+					rp_hash = SpookyHash::Hash64( &s.preserveAttachmentCount, sizeof( s.preserveAttachmentCount ), rp_hash );
+
+					auto calc_hash_for_attachment_references = []( vk::AttachmentReference const *pAttachmentRefs, unsigned int count, uint64_t &seed ) -> uint64_t {
+						// We define this as a pure function lambda, and hope for it to be inlined
+						if ( pAttachmentRefs == nullptr ) {
+							return seed;
+						}
+						// ----------| invariant: pAttachmentRefs is valid
+						for ( auto const *pAr = pAttachmentRefs; pAr != pAttachmentRefs + count; pAr++ ) {
+							seed = SpookyHash::Hash64( pAr, sizeof( vk::AttachmentReference::attachment ), seed );
+						}
+						return seed;
+					};
+
+					// -- for each element in attachment reference, add attachment reference index to the hash
+					//
+					rp_hash = calc_hash_for_attachment_references( s.pColorAttachments, s.colorAttachmentCount, rp_hash );
+					rp_hash = calc_hash_for_attachment_references( s.pResolveAttachments, s.colorAttachmentCount, rp_hash );
+					rp_hash = calc_hash_for_attachment_references( s.pInputAttachments, s.inputAttachmentCount, rp_hash );
+					rp_hash = calc_hash_for_attachment_references( s.pDepthStencilAttachment, 1, rp_hash );
+
+					// -- preserve attachments are special, because they are not stored as attachment references, but as plain indices
+					if ( s.pPreserveAttachments ) {
+						rp_hash = SpookyHash::Hash64( s.pPreserveAttachments, s.preserveAttachmentCount * sizeof( *s.pPreserveAttachments ), rp_hash );
+					}
+				}
+
+				// Store *hash for compatible renderpass* with pass so that pipelines can test whether they are compatible.
+				//
+				// "Compatible renderpass" means the hash is not fully representative of the renderpass,
+				// but two renderpasses with same hash should be compatible, as everything that touches
+				// renderpass compatibility has been factored into calculating the hash.
+				//
+				pass.hash = rp_hash;
+			}
+
 			vk::RenderPassCreateInfo renderpassCreateInfo;
 			renderpassCreateInfo
 			    .setAttachmentCount( uint32_t( attachments.size() ) )
@@ -1455,9 +1452,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 		cmd.begin( {::vk::CommandBufferUsageFlagBits::eOneTimeSubmit} );
 
-		// FIXME: non-draw passes don't need renderpasses.
+		// non-draw passes don't need renderpasses.
 		if ( pass.type == LE_RENDER_PASS_TYPE_DRAW && pass.renderPass ) {
 
+			// TODO: (renderpass): get clear values from renderpass info
 			std::array<vk::ClearValue, 1> clearValues{
 				{vk::ClearColorValue( std::array<float, 4>{{0.f, 0.3f, 1.0f, 1.f}} )}};
 
@@ -1470,23 +1468,20 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			    .setPClearValues( clearValues.data() );
 
 			cmd.beginRenderPass( renderPassBeginInfo, vk::SubpassContents::eInline );
-
-			// TODO: bind pipeline must happen on request, as pipeline program may change
-			// based on encoder data.
-			// cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, self->debugPipeline );
 		}
 
-		// Translate intermediary command stream data to api-native instructions
+		// -- Translate intermediary command stream data to api-native instructions
 
-		void * commandStream = nullptr;
-		size_t dataSize      = 0;
-		size_t numCommands   = 0;
-		size_t commandIndex  = 0;
+		void *   commandStream = nullptr;
+		size_t   dataSize      = 0;
+		size_t   numCommands   = 0;
+		size_t   commandIndex  = 0;
+		uint32_t subpassIndex  = 0;
 
 		if ( pass.encoder ) {
 			le_encoder_api.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
 		} else {
-			//std::cout << "WARNING: pass does not have valid encoder.";
+			// std::cout << "WARNING: pass does not have valid encoder.";
 		}
 
 		if ( commandStream != nullptr && numCommands > 0 ) {
@@ -1504,10 +1499,13 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto *le_cmd = static_cast<le::CommandBindPipeline *>( dataIt );
 					if ( pass.type == LE_RENDER_PASS_TYPE_DRAW ) {
 						// -- todo: potentially compile and create pipeline here, based on current pass and subpass
+						// at this point, a valid renderpass must be bound
+						//
 						// FIXME (pipeline) : this creates a pipeline on every draw loop! - cache pipelines, and get pipeline from cache.
-						auto pipeline = backend_create_pipeline( self, le_cmd->info.pipeline );
-						//						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, self->debugPipeline );
+						auto pipeline = backend_create_pipeline( self, le_cmd->info.pipeline, pass.renderPass, subpassIndex );
 						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline );
+					} else if ( pass.type == LE_RENDER_PASS_TYPE_COMPUTE ) {
+						// -- TODO: implement compute pass pipeline binding
 					}
 				} break;
 
@@ -1569,7 +1567,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			}
 		}
 
-		// FIXME: non-draw passes don't need renderpasses.
+		// non-draw passes don't need renderpasses.
 		if ( pass.type == LE_RENDER_PASS_TYPE_DRAW && pass.renderPass ) {
 			cmd.endRenderPass();
 		}
