@@ -87,7 +87,7 @@ struct Pass {
 	vk::RenderPass  renderPass;
 	uint32_t        width;
 	uint32_t        height;
-	uint64_t        hash; ///< spooky hash of elements that could influence renderpass compatibility
+	uint64_t        renderpassHash; ///< spooky hash of elements that could influence renderpass compatibility
 
 	struct le_command_buffer_encoder_o *encoder;
 };
@@ -154,11 +154,11 @@ struct le_backend_o {
 
 	// These resources are potentially in-flight, and may be used read-only
 	// by more than one frame.
-	vk::PipelineCache       debugPipelineCache        = nullptr;
-	vk::ShaderModule        debugVertexShaderModule   = nullptr;
-	vk::ShaderModule        debugFragmentShaderModule = nullptr;
-	vk::PipelineLayout      debugPipelineLayout       = nullptr;
-	vk::DescriptorSetLayout debugDescriptorSetLayout  = nullptr;
+	vk::PipelineCache       debugPipelineCache       = nullptr;
+	vk::PipelineLayout      debugPipelineLayout      = nullptr;
+	vk::DescriptorSetLayout debugDescriptorSetLayout = nullptr;
+
+	std::unordered_map<uint64_t, vk::Pipeline> pipelineCache;
 
 	vk::DeviceMemory debugTransientVertexDeviceMemory = nullptr;
 	vk::Buffer       debugTransientVertexBuffer       = nullptr;
@@ -218,7 +218,7 @@ static std::vector<char> load_file( const std::filesystem::path &file_path, bool
 	auto endOfFilePos = file.tellg();
 
 	if ( endOfFilePos > 0 ) {
-		fileSize = endOfFilePos;
+		fileSize = size_t( endOfFilePos );
 	} else {
 		*success = false;
 		return contents;
@@ -238,14 +238,17 @@ static std::vector<char> load_file( const std::filesystem::path &file_path, bool
 // ----------------------------------------------------------------------
 /// \brief create vulkan shader module based on file path
 static le_shader_module_o *backend_create_shader_module( le_backend_o *self, char const *path ) {
+
+	// This method gets called through the renderer.
+
 	bool loadSuccessful = false;
 	auto raw_spirv      = load_file( path, &loadSuccessful ); // returns a raw byte vector
-
-	size_t numInts = raw_spirv.size() / sizeof( uint32_t );
 
 	if ( !loadSuccessful ) {
 		return nullptr;
 	}
+
+	size_t numInts = raw_spirv.size() / sizeof( uint32_t );
 
 	// ---------| invariant: load was successful
 
@@ -253,12 +256,12 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 		return nullptr;
 	}
 
-	// ---------| invariant: source code can be expressed in uint32_t
+	// ---------| invariant: source code can be expressed as uint32_t[]
 
 	le_shader_module_o *module = new le_shader_module_o{};
 
 	module->filepath = path;
-	module->hash_id  = fnv_hash64( raw_spirv.data(), raw_spirv.size() );
+	module->hash_id  = SpookyHash::Hash64( raw_spirv.data(), raw_spirv.size(), 0x0 );
 
 	module->spirv.resize( numInts );
 	std::memcpy( module->spirv.data(), raw_spirv.data(), raw_spirv.size() );
@@ -322,21 +325,13 @@ static void backend_destroy( le_backend_o *self ) {
 		device.destroyPipelineLayout( self->debugPipelineLayout );
 	}
 
-	// TODO (pipeline): destroy pipelines
-	//if ( self->debugPipeline ) {
-	//	device.destroyPipeline( self->debugPipeline );
-	//}
+	for ( auto &p : self->pipelineCache ) {
+		device.destroyPipeline( p.second );
+	}
+	self->pipelineCache.clear();
 
 	if ( self->debugPipelineCache ) {
 		device.destroyPipelineCache( self->debugPipelineCache );
-	}
-
-	if ( self->debugVertexShaderModule ) {
-		device.destroyShaderModule( self->debugVertexShaderModule );
-	}
-
-	if ( self->debugFragmentShaderModule ) {
-		device.destroyShaderModule( self->debugFragmentShaderModule );
 	}
 
 	for ( auto &frameData : self->mFrames ) {
@@ -409,6 +404,7 @@ void backend_reset_swapchain( le_backend_o *self ) {
 // which is a hash which includes only fields which contribute to renderpass compatibility
 // (so that compatible renderpasses have the same hash.)
 static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pipeline_state_o const *pso, const vk::RenderPass &renderpass, uint32_t subpass ) {
+
 	vk::Device vkDevice = self->device->getVkDevice();
 
 	std::array<vk::PipelineShaderStageCreateInfo, 2> pipelineStages;
@@ -433,13 +429,8 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setFlags( vk::PipelineVertexInputStateCreateFlags() )
 	    .setVertexBindingDescriptionCount( 1 )
 	    .setPVertexBindingDescriptions( &vertexBindingDescrition )
-	    //		    .setVertexBindingDescriptionCount( 0 )
-	    //		    .setPVertexBindingDescriptions( nullptr )
 	    .setVertexAttributeDescriptionCount( 1 )
-	    .setPVertexAttributeDescriptions( &vertexAttributeDescription )
-	    //		    .setVertexAttributeDescriptionCount( 0 )
-	    //	    .setPVertexAttributeDescriptions( nullptr )
-	    ;
+	    .setPVertexAttributeDescriptions( &vertexAttributeDescription );
 
 	// todo: get layout from shader
 
@@ -590,26 +581,47 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	return pipeline;
 }
 
-/// \brief Creates - or returns a pipeline from cache based on current pipeline state
+/// \brief Creates - or loads a pipeline from cache based on current pipeline state
 /// \note this method does lock the pipeline cache and is therefore costly.
-static vk::Pipeline backend_fetch_pipeline( le_backend_o *self, le_graphics_pipeline_state_o const *pso, const Pass &pass, uint32_t subpass ) {
+static vk::Pipeline backend_produce_pipeline( le_backend_o *self, le_graphics_pipeline_state_o const *pso, const Pass &pass, uint32_t subpass ) {
+
+	// TODO: Ensure there are no races around this method
+	//
+	// + Only the command buffer recording slice of a frame shall be able to modify the cache
+	//   the cache must be exclusively accessed through this method
+	//
+	// + Access to this method must be sequential - no two frames may access this method
+	//   at the same time.
 
 	uint64_t pso_renderpass_hashes[ 2 ] = {};
 
-	//	pso_renderpass_hashes[ 0 ] = backend_pso_get_hash( pso );
-	//	pso_renderpass_hashes[ 1 ] = backend_pass_get_compatible_hash( pass ); // returns hash for compatible renderpass
+	pso_renderpass_hashes[ 0 ] = pso->hash;           // hash for PSO must have been updated before recording phase started
+	pso_renderpass_hashes[ 1 ] = pass.renderpassHash; // returns hash for compatible renderpass
 
 	// -- create combined hash for pipeline, renderpass
 
 	uint64_t pipeline_hash = SpookyHash::Hash64( pso_renderpass_hashes, sizeof( pso_renderpass_hashes ), 0 );
 
-	// -- look up if pipeline with this hash already exists
+	// -- look up if pipeline with this hash already exists in cache
 
-	// if not, create pipeline and store it in hash map
+	vk::Pipeline pipeline = nullptr;
 
-	// else return pipeline found in hash map
+	auto p = self->pipelineCache.find( pipeline_hash );
+	if ( p == self->pipelineCache.end() ) {
+		pipeline = backend_create_pipeline( self, pso, pass.renderPass, subpass );
+		std::cout << "New VK Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
+		          << std::flush;
+		self->pipelineCache[ pipeline_hash ] = pipeline;
+	} else {
+		// -- pipeline found in cache
+		pipeline = p->second;
+	}
 
-	return backend_create_pipeline( self, pso, pass.renderPass, subpass );
+	// -- if not, create pipeline in pipeline cache and store / retain it
+
+	// -- else return pipeline found in hash map
+
+	return pipeline;
 }
 
 // ----------------------------------------------------------------------
@@ -1189,7 +1201,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 					rp_hash = SpookyHash::Hash64( &s.colorAttachmentCount, sizeof( s.colorAttachmentCount ), rp_hash );
 					rp_hash = SpookyHash::Hash64( &s.preserveAttachmentCount, sizeof( s.preserveAttachmentCount ), rp_hash );
 
-					auto calc_hash_for_attachment_references = []( vk::AttachmentReference const *pAttachmentRefs, unsigned int count, uint64_t &seed ) -> uint64_t {
+					auto calc_hash_for_attachment_references = []( vk::AttachmentReference const *pAttachmentRefs, unsigned int count, uint64_t seed ) -> uint64_t {
 						// We define this as a pure function lambda, and hope for it to be inlined
 						if ( pAttachmentRefs == nullptr ) {
 							return seed;
@@ -1220,7 +1232,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 				// but two renderpasses with same hash should be compatible, as everything that touches
 				// renderpass compatibility has been factored into calculating the hash.
 				//
-				pass.hash = rp_hash;
+				pass.renderpassHash = rp_hash;
 			}
 
 			vk::RenderPassCreateInfo renderpassCreateInfo;
@@ -1397,6 +1409,8 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 
 	backend_create_renderpasses( frame, device );
 
+	// TODO NEXT : -- update hashes for all pso objects we keep track of
+
 	// TODO: backend_create_pipelines(frame, device, passes, numRenderPasses);
 
 	// patch and retain physical resources in bulk here, so that
@@ -1502,7 +1516,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// at this point, a valid renderpass must be bound
 						//
 						// FIXME (pipeline) : this creates a pipeline on every draw loop! - cache pipelines, and get pipeline from cache.
-						auto pipeline = backend_create_pipeline( self, le_cmd->info.pipeline, pass.renderPass, subpassIndex );
+						auto pipeline = backend_produce_pipeline( self, le_cmd->info.pipeline, pass, subpassIndex );
 						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline );
 					} else if ( pass.type == LE_RENDER_PASS_TYPE_COMPUTE ) {
 						// -- TODO: implement compute pass pipeline binding
