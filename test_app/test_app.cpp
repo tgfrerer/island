@@ -13,11 +13,14 @@
 #include <iostream>
 #include <memory>
 
+struct le_graphics_pipeline_state_o; // owned by renderer
+
 struct test_app_o {
-	std::unique_ptr<le::Backend>         backend;
-	std::unique_ptr<pal::Window>         window;
-	std::unique_ptr<le::Renderer>        renderer;
-	struct le_graphics_pipeline_state_o *testPSOHandle; // owned by the renderer
+	std::unique_ptr<le::Backend>  backend;
+	std::unique_ptr<pal::Window>  window;
+	std::unique_ptr<le::Renderer> renderer;
+	le_graphics_pipeline_state_o *psoMain; // owned by the renderer
+	le_graphics_pipeline_state_o *psoTest; // owned by the renderer
 };
 
 // ----------------------------------------------------------------------
@@ -60,11 +63,12 @@ static test_app_o *test_app_create() {
 	obj->renderer->setup();
 
 	{
-		// -- Declare graphics pipeline state object
+		// -- Declare graphics pipeline state objects
 
 		// Creating shader modules will eventually compile shader source code from glsl to spir-v
 		auto defaultVertShader = obj->renderer->createShaderModule( "./shaders/default.vert.spv" );
 		auto defaultFragShader = obj->renderer->createShaderModule( "./shaders/default.frag.spv" );
+		auto altFragShader     = obj->renderer->createShaderModule( "./shaders/alternative.frag.spv" );
 
 		le_graphics_pipeline_create_info_t pi;
 		pi.shader_module_frag = defaultFragShader;
@@ -78,9 +82,21 @@ static test_app_o *test_app_create() {
 		auto psoHandle = obj->renderer->createGraphicsPipelineStateObject( &pi );
 
 		if ( psoHandle ) {
-			obj->testPSOHandle = psoHandle;
+			obj->psoMain = psoHandle;
 		} else {
-			std::cerr << "declaring a pipeline failed miserably.";
+			std::cerr << "declaring main pipeline failed miserably.";
+		}
+
+		{
+			// create alternative pso
+			pi.shader_module_frag = altFragShader;
+			auto psoTestHandle    = obj->renderer->createGraphicsPipelineStateObject( &pi );
+
+			if ( psoTestHandle ) {
+				obj->psoTest = psoTestHandle;
+			} else {
+				std::cerr << "declaring test pipeline failed miserably.";
+			}
 		}
 	}
 
@@ -162,12 +178,12 @@ static bool test_app_update( test_app_o *self ) {
 
 			le::Viewport viewports[ 2 ] = {
 			    {{50.f, 50.f, 100.f, 100.f, 0.f, 1.f}},
-			    {{200.f, 50.f, 200.f, 200.f, 0.f, 1.f}},
+			    {{100.f, 100.f, 200.f, 200.f, 0.f, 1.f}},
 			};
 
 			le::Rect2D scissors[ 2 ] = {
 			    {{50, 50, 100, 100}},
-			    {{200, 50, 200, 200}},
+			    {{100, 100, 200, 200}},
 			};
 
 			struct vec4 {
@@ -182,7 +198,7 @@ static bool test_app_update( test_app_o *self ) {
 			static_assert( sizeof( vertData ) == sizeof( float ) * 4 * 3, "vertData must be tightly packed" );
 
 			// TODO (pipeline): implement binding graphics pipeline
-			le_encoder.bind_graphics_pipeline( encoder, self->testPSOHandle );
+			le_encoder.bind_graphics_pipeline( encoder, self->psoMain );
 
 			// This will use the scratch buffer -- and the encoded command will store the
 			// location of the data as it was laid down in the scratch buffer.
@@ -199,6 +215,7 @@ static bool test_app_update( test_app_o *self ) {
 
 			le_encoder.draw( encoder, 3, 1, 0, 0 );
 
+			le_encoder.bind_graphics_pipeline( encoder, self->psoTest );
 			le_encoder.set_scissor( encoder, 0, 1, &scissors[ 1 ] );
 			le_encoder.set_viewport( encoder, 0, 1, &viewports[ 1 ] );
 

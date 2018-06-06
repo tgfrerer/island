@@ -96,8 +96,8 @@ struct CommandBindVertexBuffers {
 struct CommandBindPipeline {
 	CommandHeader header = {{{CommandType::eBindPipeline, sizeof( CommandBindPipeline )}}};
 	struct {
-		struct le_graphics_pipeline_state_o *pipeline;
-		uint64_t                             pipelineHash;
+		struct le_graphics_pipeline_state_o *pso;
+		uint64_t                             pipelineHash; // TODO: do we need this?
 	} info;
 };
 

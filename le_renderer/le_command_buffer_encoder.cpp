@@ -158,12 +158,12 @@ static void cbe_get_encoded_data( le_command_buffer_encoder_o *self, void **data
 // ----------------------------------------------------------------------
 
 // TODO (pipeline): implement bind_graphics_pipeline
-static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, le_graphics_pipeline_state_o *pipeline ) {
+static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, le_graphics_pipeline_state_o *pso ) {
 
 	// -- insert PSO pointer into command stream
 	le::CommandBindPipeline *cmd = new ( &self->mCommandStream[ 0 ] + self->mCommandStreamSize ) le::CommandBindPipeline;
 
-	cmd->info.pipeline = pipeline;
+	cmd->info.pso = pso;
 
 	//	std::cout << "binding pipeline" << std::endl
 	//	          << std::flush;

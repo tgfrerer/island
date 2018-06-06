@@ -593,10 +593,14 @@ static vk::Pipeline backend_produce_pipeline( le_backend_o *self, le_graphics_pi
 	// + Access to this method must be sequential - no two frames may access this method
 	//   at the same time.
 
-	uint64_t pso_renderpass_hashes[ 2 ] = {};
+	// pso is a renderer object
 
-	pso_renderpass_hashes[ 0 ] = pso->hash;           // hash for PSO must have been updated before recording phase started
-	pso_renderpass_hashes[ 1 ] = pass.renderpassHash; // returns hash for compatible renderpass
+	uint64_t pso_renderpass_hashes[ 4 ] = {};
+
+	pso_renderpass_hashes[ 0 ] = pso->hash;                      // Hash for PSO state - must have been updated before recording phase started
+	pso_renderpass_hashes[ 1 ] = pso->shaderModuleVert->hash_id; // Module state - may have been recompiled, hash must be current
+	pso_renderpass_hashes[ 2 ] = pso->shaderModuleFrag->hash_id; // Module state - may have been recompiled, hash must be current
+	pso_renderpass_hashes[ 3 ] = pass.renderpassHash;            // Hash for compatible renderpass
 
 	// -- create combined hash for pipeline, renderpass
 
@@ -608,18 +612,15 @@ static vk::Pipeline backend_produce_pipeline( le_backend_o *self, le_graphics_pi
 
 	auto p = self->pipelineCache.find( pipeline_hash );
 	if ( p == self->pipelineCache.end() ) {
+		// -- if not, create pipeline in pipeline cache and store / retain it
 		pipeline = backend_create_pipeline( self, pso, pass.renderPass, subpass );
 		std::cout << "New VK Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
 		          << std::flush;
 		self->pipelineCache[ pipeline_hash ] = pipeline;
 	} else {
-		// -- pipeline found in cache
+		// -- else return pipeline found in hash map
 		pipeline = p->second;
 	}
-
-	// -- if not, create pipeline in pipeline cache and store / retain it
-
-	// -- else return pipeline found in hash map
 
 	return pipeline;
 }
@@ -1516,7 +1517,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// at this point, a valid renderpass must be bound
 						//
 						// FIXME (pipeline) : this creates a pipeline on every draw loop! - cache pipelines, and get pipeline from cache.
-						auto pipeline = backend_produce_pipeline( self, le_cmd->info.pipeline, pass, subpassIndex );
+						auto pipeline = backend_produce_pipeline( self, le_cmd->info.pso, pass, subpassIndex );
 						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline );
 					} else if ( pass.type == LE_RENDER_PASS_TYPE_COMPUTE ) {
 						// -- TODO: implement compute pass pipeline binding

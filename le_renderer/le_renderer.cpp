@@ -98,13 +98,19 @@ static le_graphics_pipeline_state_o *
 renderer_create_graphics_pipeline_state_object( le_renderer_o *self, le_graphics_pipeline_create_info_t const *pipeline_info ) {
 	auto pso = new ( le_graphics_pipeline_state_o );
 
-	// TODO (pipeline): -- initialise pso based on pipeline info
+	// -- add shader modules to pipeline
+	//
+	// (shader modules are backend objects)
 	pso->shaderModuleFrag = pipeline_info->shader_module_frag;
 	pso->shaderModuleVert = pipeline_info->shader_module_vert;
 
-	// TODO (pipeline): -- tell backend about the new pipeline state object
+	// TODO (pipeline): -- initialise pso based on pipeline info
 
+	// TODO (pipeline): -- tell backend about the new pipeline state object
+	static auto const &backend_i = ( *Registry::getApi<le_backend_vk_api>() ).vk_backend_i;
 	// -- calculate hash based on contents of pipeline state object
+
+	pso->hash = 0x0; // TODO: -- calculate hash for pipeline state based on create_info
 
 	self->PSOs.push_back( pso );
 	return pso;

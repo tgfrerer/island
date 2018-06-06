@@ -5,7 +5,7 @@
 
 struct le_shader_module_o; // defiend in le_backend_vk.cpp
 
-// Todo: implement hash calculation for PSO
+// NOTE: this should probably go to backend
 
 struct le_graphics_pipeline_state_o {
 
