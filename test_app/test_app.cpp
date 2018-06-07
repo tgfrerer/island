@@ -38,7 +38,7 @@ static void terminate() {
 // ----------------------------------------------------------------------
 
 static test_app_o *test_app_create() {
-	auto obj = new ( test_app_o );
+	auto app = new ( test_app_o );
 
 	pal::Window::Settings settings;
 	settings
@@ -46,29 +46,29 @@ static test_app_o *test_app_create() {
 	    .setHeight( 480 )
 	    .setTitle( "Hello world" );
 
-	obj->window = std::make_unique<pal::Window>( settings );
+	app->window = std::make_unique<pal::Window>( settings );
 
 	le_backend_vk_settings_t backendCreateInfo;
 	backendCreateInfo.requestedExtensions = pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
 
-	obj->backend = std::make_unique<le::Backend>( &backendCreateInfo );
+	app->backend = std::make_unique<le::Backend>( &backendCreateInfo );
 
 	// We need a valid instance at this point.
-	obj->backend->createWindowSurface( *obj->window );
-	obj->backend->createSwapchain( nullptr ); // TODO (swapchain) - make it possible to set swapchain parameters
+	app->backend->createWindowSurface( *app->window );
+	app->backend->createSwapchain( nullptr ); // TODO (swapchain) - make it possible to set swapchain parameters
 
-	obj->backend->setup();
+	app->backend->setup();
 
-	obj->renderer = std::make_unique<le::Renderer>( *obj->backend );
-	obj->renderer->setup();
+	app->renderer = std::make_unique<le::Renderer>( *app->backend );
+	app->renderer->setup();
 
 	{
 		// -- Declare graphics pipeline state objects
 
 		// Creating shader modules will eventually compile shader source code from glsl to spir-v
-		auto defaultVertShader = obj->renderer->createShaderModule( "./shaders/default.vert.spv" );
-		auto defaultFragShader = obj->renderer->createShaderModule( "./shaders/default.frag.spv" );
-		auto altFragShader     = obj->renderer->createShaderModule( "./shaders/alternative.frag.spv" );
+		auto defaultVertShader = app->renderer->createShaderModule( "./shaders/default.vert.spv" );
+		auto defaultFragShader = app->renderer->createShaderModule( "./shaders/default.frag.spv" );
+		auto altFragShader     = app->renderer->createShaderModule( "./shaders/alternative.frag.spv" );
 
 		le_graphics_pipeline_create_info_t pi;
 
@@ -80,10 +80,10 @@ static test_app_o *test_app_create() {
 		// Everything, in short, but the renderpass, and subpass (which are added at the last minute)
 		//
 		// The backend pipeline object is compiled on-demand, when it is first used with a renderpass, and henceforth cached.
-		auto psoHandle = obj->renderer->createGraphicsPipelineStateObject( &pi );
+		auto psoHandle = app->renderer->createGraphicsPipelineStateObject( &pi );
 
 		if ( psoHandle ) {
-			obj->psoMain = psoHandle;
+			app->psoMain = psoHandle;
 		} else {
 			std::cerr << "declaring main pipeline failed miserably.";
 		}
@@ -91,10 +91,10 @@ static test_app_o *test_app_create() {
 		{
 			// create alternative pso
 			pi.shader_module_frag = altFragShader;
-			auto psoTestHandle    = obj->renderer->createGraphicsPipelineStateObject( &pi );
+			auto psoTestHandle    = app->renderer->createGraphicsPipelineStateObject( &pi );
 
 			if ( psoTestHandle ) {
-				obj->psoTest = psoTestHandle;
+				app->psoTest = psoTestHandle;
 			} else {
 				std::cerr << "declaring test pipeline failed miserably.";
 			}
@@ -114,7 +114,7 @@ static test_app_o *test_app_create() {
 
 	*/
 
-	return obj;
+	return app;
 }
 
 // ----------------------------------------------------------------------
