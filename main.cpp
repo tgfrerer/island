@@ -5,6 +5,7 @@
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_swapchain_vk/le_swapchain_vk.h"
 #include "le_renderer/le_renderer.h"
+#include "le_shader_compiler/le_shader_compiler.h"
 
 // ----------------------------------------------------------------------
 
@@ -40,13 +41,19 @@ int main( int argc, char const *argv[] ) {
 	Registry::addApiDynamic<le_renderer_api>( true );
 #endif
 
+#ifdef PLUGIN_LE_SHADER_COMPILER_STATIC
+	Registry::addApiStatic<le_shader_compiler_api>();
+#else
+	Registry::addApiDynamic<le_shader_compiler_api>( true );
+#endif
+
 	TestApp::initialize();
 
 	{
-		// We instantiate TestApp in its own scope - so that 
-		// it will be destroyed before TestApp::terminate 
+		// We instantiate TestApp in its own scope - so that
+		// it will be destroyed before TestApp::terminate
 		// is called.
-		
+
 		TestApp testApp{};
 
 		for ( ;; ) {
