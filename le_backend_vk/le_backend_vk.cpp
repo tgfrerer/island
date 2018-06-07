@@ -40,8 +40,8 @@ using namespace experimental;
 }
 
 struct le_shader_module_o {
-	uint64_t              hash_id        = 0; ///< hash taken from spirv code + filepath hash
-	uint64_t              file_path_hash = 0;
+	uint64_t              hash           = 0; ///< hash taken from spirv code + filepath hash
+	uint64_t              hash_file_path = 0;
 	std::vector<uint32_t> spirv;
 	std::filesystem::path filepath; ///< path to source file
 	vk::ShaderModule      module = nullptr;
@@ -278,6 +278,23 @@ static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 }
 
 // ----------------------------------------------------------------------
+
+/// \brief translate a binary blob into spirv code if possible
+/// \details Blob may be raw spirv data, or glsl data
+std::vector<uint32_t> translate_to_spirv_code( void *raw_data, size_t numBytes ) {
+	std::vector<uint32_t> result;
+
+	if ( check_is_data_spirv( raw_data, numBytes ) ) {
+		result.resize( numBytes / 4 );
+		memcpy( result.data(), raw_data, numBytes );
+	} else {
+		// data is not spirv - is it glsl, perhaps?
+	}
+
+	return result;
+}
+
+// ----------------------------------------------------------------------
 /// \brief create vulkan shader module based on file path
 static le_shader_module_o *backend_create_shader_module( le_backend_o *self, char const *path ) {
 
@@ -306,31 +323,21 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 
 	// -- Make sure the file contains spir-v code.
 
-	if ( check_is_data_spirv( raw_file_data.data(), raw_file_data.size() ) == false ) {
-		// file may be glsl source code
-
-		// TODO : -- attempt to compile file if we detected glsl code
-	}
-
-	// -- Check that spirv code is divisible by four (it must be, as all spirv instructions are sizeof(uint32_t))
-
-	if ( 0 != raw_file_data.size() % 4 ) {
-		return nullptr;
-	}
+	auto spirv_code = translate_to_spirv_code( raw_file_data.data(), raw_file_data.size() );
 
 	// ---------| invariant: source code can be expressed as uint32_t[]
 
 	le_shader_module_o *module = new le_shader_module_o{};
 
 	module->filepath       = path;
-	module->file_path_hash = file_path_hash;
-	module->hash_id        = SpookyHash::Hash64( raw_file_data.data(), raw_file_data.size(), module->file_path_hash );
+	module->hash_file_path = file_path_hash;
+	module->hash           = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module->hash_file_path );
 
 	{
 		// -- Check if module is already present in renderer, otherwise return module from cache.
 
 		auto found_module = std::find_if( self->shaderModules.begin(), self->shaderModules.end(), [module]( const le_shader_module_o *m ) -> bool {
-			return module->hash_id == m->hash_id;
+			return module->hash == m->hash;
 		} );
 
 		if ( found_module != self->shaderModules.end() ) {
@@ -341,8 +348,7 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 
 	// ---------| invariant: no previous module with this hash exists
 
-	module->spirv.resize( raw_file_data.size() / 4 );
-	std::memcpy( module->spirv.data(), raw_file_data.data(), raw_file_data.size() );
+	module->spirv = std::move( spirv_code );
 
 	{
 		// -- create vulkan shader object
@@ -357,23 +363,6 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 	self->shaderModules.push_back( module );
 
 	return module;
-}
-
-// ----------------------------------------------------------------------
-
-/// \brief translate a binary blob into spirv code if possible
-/// \details Blob may be raw spirv data, or glsl data
-std::vector<uint32_t> translate_to_spirv_code( void *raw_data, size_t numBytes ) {
-	std::vector<uint32_t> result;
-
-	if ( check_is_data_spirv( raw_data, numBytes ) ) {
-		result.resize( numBytes / 4 );
-		memcpy( result.data(), raw_data, numBytes );
-	} else {
-		// data is not spirv - is it glsl, perhaps?
-	}
-
-	return result;
 }
 
 // ----------------------------------------------------------------------
@@ -402,9 +391,9 @@ static void shader_module_update( le_shader_module_o *module, vk::Device &device
 	}
 
 	// -- check spirv code hash against module spirv hash
-	uint64_t hash_id = SpookyHash::Hash64( spirvcode.data(), spirvcode.size() * sizeof( uint32_t ), module->file_path_hash );
+	uint64_t hash_of_module = SpookyHash::Hash64( spirvcode.data(), spirvcode.size() * sizeof( uint32_t ), module->hash_file_path );
 
-	if ( hash_id == module->hash_id ) {
+	if ( hash_of_module == module->hash ) {
 		// spirv code identical, no update needed, bail out.
 		return;
 	}
@@ -426,7 +415,7 @@ static void shader_module_update( le_shader_module_o *module, vk::Device &device
 	module->module = device.createShaderModule( createInfo );
 
 	// -- update module hash
-	module->hash_id = hash_id;
+	module->hash = hash_of_module;
 }
 
 // ----------------------------------------------------------------------
@@ -758,10 +747,10 @@ static vk::Pipeline backend_produce_pipeline( le_backend_o *self, le_graphics_pi
 
 	uint64_t pso_renderpass_hashes[ 4 ] = {};
 
-	pso_renderpass_hashes[ 0 ] = pso->hash;                      // TODO: Hash for PSO state - must have been updated before recording phase started
-	pso_renderpass_hashes[ 1 ] = pso->shaderModuleVert->hash_id; // Module state - may have been recompiled, hash must be current
-	pso_renderpass_hashes[ 2 ] = pso->shaderModuleFrag->hash_id; // Module state - may have been recompiled, hash must be current
-	pso_renderpass_hashes[ 3 ] = pass.renderpassHash;            // Hash for compatible renderpass
+	pso_renderpass_hashes[ 0 ] = pso->hash;                   // TODO: Hash for PSO state - must have been updated before recording phase started
+	pso_renderpass_hashes[ 1 ] = pso->shaderModuleVert->hash; // Module state - may have been recompiled, hash must be current
+	pso_renderpass_hashes[ 2 ] = pso->shaderModuleFrag->hash; // Module state - may have been recompiled, hash must be current
+	pso_renderpass_hashes[ 3 ] = pass.renderpassHash;         // Hash for compatible renderpass
 
 	// -- create combined hash for pipeline, renderpass
 
