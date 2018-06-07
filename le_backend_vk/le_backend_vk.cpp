@@ -241,7 +241,7 @@ static std::vector<char> load_file( const std::filesystem::path &file_path, bool
 static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 
 	struct SpirVHeader {
-		uint32_t magic; // Spirv magic number, more details: <https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#_a_id_physicallayout_a_physical_layout_of_a_spir_v_module_and_instruction>
+		uint32_t magic; // Spirv magic number
 		union {         // Spir-V version number, bytes (high to low): [0x00, major, minor, 0x00]
 			struct {
 				uint8_t padding_low;
@@ -263,14 +263,16 @@ static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 
 	// ----------| invariant: file contains enough bytes for a valid file header
 
-	static const uint32_t spirv_magic = 0x07230203; // magic number for spir-v files
+	static const uint32_t SPIRV_MAGIC = 0x07230203; // magic number for spir-v files, see: <https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#_a_id_physicallayout_a_physical_layout_of_a_spir_v_module_and_instruction>
 
 	memcpy( &file_header, raw_data, sizeof( file_header ) );
 
-	if ( file_header.magic == spirv_magic ) {
+	if ( file_header.magic == SPIRV_MAGIC ) {
 		return true;
 	} else {
 		// invalid file header for spir-v file
+		std::cerr << "ERROR: Invalid header for SPIR-V file detected." << std::endl
+		          << std::flush;
 		return false;
 	}
 }
