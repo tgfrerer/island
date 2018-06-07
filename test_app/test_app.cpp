@@ -71,6 +71,7 @@ static test_app_o *test_app_create() {
 		auto altFragShader     = obj->renderer->createShaderModule( "./shaders/alternative.frag.spv" );
 
 		le_graphics_pipeline_create_info_t pi;
+
 		pi.shader_module_frag = defaultFragShader;
 		pi.shader_module_vert = defaultVertShader;
 
@@ -100,6 +101,10 @@ static test_app_o *test_app_create() {
 		}
 	}
 
+	static_assert( const_char_hash64( "resource-image-testing" ) == RESOURCE_IMAGE_ID( "testing" ), "hashes must match" );
+	static_assert( const_char_hash64( "resource-buffer-testing" ) == RESOURCE_BUFFER_ID( "testing" ), "hashes must match" );
+	static_assert( RESOURCE_IMAGE_ID( "testing" ) != RESOURCE_BUFFER_ID( "testing" ), "buffer and image resources can't have same id based on same name" );
+
 	/*
 
 	  Create resources here -
@@ -122,14 +127,10 @@ static bool test_app_update( test_app_o *self ) {
 		return false;
 	}
 
-	static_assert( const_char_hash64( "resource-image-testing" ) == RESOURCE_IMAGE_ID( "testing" ), "hashes must match" );
-	static_assert( const_char_hash64( "resource-buffer-testing" ) == RESOURCE_BUFFER_ID( "testing" ), "hashes must match" );
-	static_assert( RESOURCE_IMAGE_ID( "testing" ) != RESOURCE_BUFFER_ID( "testing" ), "buffer and image resources can't have same id based on same name" );
-
 	// grab interface for encoder so that it can be used in callbacks -
 	// making it static allows it to be visible inside the callback context,
 	// and it also ensures that the registry call only happens upon first retrieval.
-	static auto const &le_encoder = ( *Registry::getApi<le_renderer_api>() ).le_command_buffer_encoder_i;
+	static auto const &le_encoder = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
 
 	le::RenderModule mainModule{};
 	{
@@ -230,7 +231,7 @@ static bool test_app_update( test_app_o *self ) {
 	// the RECORD phase is guaranteed to execute - all rendercallbacks will get called.
 	self->renderer->update( mainModule );
 
-	return true;
+	return true; // keep app alive
 }
 
 // ----------------------------------------------------------------------
