@@ -40,7 +40,8 @@ using namespace experimental;
 }
 
 struct le_shader_module_o {
-	uint64_t              hash_id = 0; ///< hash taken from spirv code
+	uint64_t              hash_id        = 0; ///< hash taken from spirv code + filepath hash
+	uint64_t              file_path_hash = 0;
 	std::vector<uint32_t> spirv;
 	std::filesystem::path filepath; ///< path to source file
 	vk::ShaderModule      module = nullptr;
@@ -210,8 +211,8 @@ static std::vector<char> load_file( const std::filesystem::path &file_path, bool
 		return contents;
 	}
 
-	std::cout << "OK Opened file:" << std::filesystem::canonical( file_path ) << std::endl
-	          << std::flush;
+	//	std::cout << "OK Opened file:" << std::filesystem::canonical( file_path ) << std::endl
+	//	          << std::flush;
 
 	// ----------| invariant: file is open
 
@@ -237,7 +238,7 @@ static std::vector<char> load_file( const std::filesystem::path &file_path, bool
 
 // ----------------------------------------------------------------------
 
-static bool check_is_data_spirv( const char *raw_data, size_t data_size ) {
+static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 
 	struct SpirVHeader {
 		uint32_t magic; // Spirv magic number, more details: <https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#_a_id_physicallayout_a_physical_layout_of_a_spir_v_module_and_instruction>
@@ -289,13 +290,15 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 
 	// ---------| invariant: load was successful
 
+	uint64_t file_path_hash = 0;
+
 	{
 		// -- TODO: build / add to database of source file dependencies for hot-reload/recompile
 
 		// We use the canonical path to store a fingerprint of the file
 		auto canonical_path_as_string = std::filesystem::canonical( path ).string();
 
-		uint64_t file_path_hash = SpookyHash::Hash64( canonical_path_as_string.data(), canonical_path_as_string.size(), 0x0 );
+		file_path_hash = SpookyHash::Hash64( canonical_path_as_string.data(), canonical_path_as_string.size(), 0x0 );
 		// TODO (shader recompile): Add this module to the modules affected by any changes to the file named in file_path_hash
 	}
 
@@ -317,8 +320,24 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 
 	le_shader_module_o *module = new le_shader_module_o{};
 
-	module->filepath = path;
-	module->hash_id  = SpookyHash::Hash64( raw_file_data.data(), raw_file_data.size(), 0x0 );
+	module->filepath       = path;
+	module->file_path_hash = file_path_hash;
+	module->hash_id        = SpookyHash::Hash64( raw_file_data.data(), raw_file_data.size(), module->file_path_hash );
+
+	{
+		// -- Check if module is already present in renderer, otherwise return module from cache.
+
+		auto found_module = std::find_if( self->shaderModules.begin(), self->shaderModules.end(), [module]( const le_shader_module_o *m ) -> bool {
+			return module->hash_id == m->hash_id;
+		} );
+
+		if ( found_module != self->shaderModules.end() ) {
+			delete module;
+			return *found_module;
+		}
+	}
+
+	// ---------| invariant: no previous module with this hash exists
 
 	module->spirv.resize( raw_file_data.size() / 4 );
 	std::memcpy( module->spirv.data(), raw_file_data.data(), raw_file_data.size() );
@@ -332,8 +351,6 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 		module->module = device.createShaderModule( createInfo );
 	}
 
-	// TODO (shader): -- Check if module is already present in renderer
-
 	// -- retain module in renderer
 	self->shaderModules.push_back( module );
 
@@ -342,17 +359,72 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 
 // ----------------------------------------------------------------------
 
-static void update_shader_module( le_backend_o *self, le_shader_module_o *module ) {
+/// \brief translate a binary blob into spirv code if possible
+/// \details Blob may be raw spirv data, or glsl data
+std::vector<uint32_t> translate_to_spirv_code( void *raw_data, size_t numBytes ) {
+	std::vector<uint32_t> result;
 
-	// TODO: (shader) -- implement module update
+	if ( check_is_data_spirv( raw_data, numBytes ) ) {
+		result.resize( numBytes / 4 );
+		memcpy( result.data(), raw_data, numBytes );
+	} else {
+		// data is not spirv - is it glsl, perhaps?
+	}
 
-	// shader module needs updating if shader code has changed.
+	return result;
+}
+
+// ----------------------------------------------------------------------
+
+static void shader_module_update( le_shader_module_o *module, vk::Device &device ) {
+
+	// Shader module needs updating if shader code has changed.
 	// if this happens, a new vulkan object for the module must be crated.
 
-	// the module must be locked for this, as we need exclusive access just in case the module is
+	// The module must be locked for this, as we need exclusive access just in case the module is
 	// in use by the frame recording thread, which may want to create pipelines.
+	//
+	// Vulkan Lifetimes require us only to keep module alive for as long as a pipeline is being
+	// generated from it. This means we "only" need to protect against any threads which might be
+	// creating pipelines.
 
-	// we externally synchronise this method through a mutex.
+	// -- get module spirv code
+	bool loadSuccessful = false;
+	auto raw_data       = load_file( module->filepath, &loadSuccessful );
+
+	auto spirvcode = translate_to_spirv_code( raw_data.data(), raw_data.size() );
+
+	if ( spirvcode.empty() ) {
+		// no spirv code available, bail out.
+		return;
+	}
+
+	// -- check spirv code hash against module spirv hash
+	uint64_t hash_id = SpookyHash::Hash64( spirvcode.data(), spirvcode.size() * sizeof( uint32_t ), module->file_path_hash );
+
+	if ( hash_id == module->hash_id ) {
+		// spirv code identical, no update needed, bail out.
+		return;
+	}
+
+	// ---------| Invariant: new spir-v code detected.
+
+	// -- if hash doesn't match, delete old vk module, create new vk module
+
+	// -- store new spir-v code
+	module->spirv.resize( raw_data.size() / 4 );
+	std::memcpy( module->spirv.data(), raw_data.data(), raw_data.size() );
+
+	// -- delete old vulkan shader module object
+	device.destroyShaderModule( module->module );
+	module->module = nullptr;
+
+	// -- create new vulkan shader module object
+	vk::ShaderModuleCreateInfo createInfo( vk::ShaderModuleCreateFlags(), module->spirv.size() * sizeof( uint32_t ), module->spirv.data() );
+	module->module = device.createShaderModule( createInfo );
+
+	// -- update module hash
+	module->hash_id = hash_id;
 }
 
 // ----------------------------------------------------------------------
@@ -361,10 +433,12 @@ static void backend_update_shader_modules( le_backend_o *self ) {
 
 	// -- find out which shader modules have been tainted
 
-	// -- recreate shader modules which have been tainted
+	// -- recreate shader only modules which have been tainted
+
+	vk::Device device = self->device->getVkDevice();
 
 	for ( auto &s : self->shaderModules ) {
-		update_shader_module( self, s );
+		shader_module_update( s, device );
 	}
 }
 
