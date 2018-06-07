@@ -11,10 +11,15 @@
 /// ln -sf "$PWD"/build/libshaderc/libshaderc_combined.so "${LIBDIR}"/libshaderc
 
 #include "le_shader_compiler/le_shader_compiler.h"
+
 #include "libshaderc/shaderc.h"
 
+#include <iomanip>
+#include <iostream>
+
 struct le_shader_compiler_o {
-	shaderc_compiler_t compiler;
+	shaderc_compiler_t        compiler;
+	shaderc_compile_options_t options;
 };
 
 // ---------------------------------------------------------------
@@ -22,6 +27,14 @@ struct le_shader_compiler_o {
 static le_shader_compiler_o *le_shader_compiler_create() {
 	auto obj      = new le_shader_compiler_o();
 	obj->compiler = shaderc_compiler_initialize();
+
+	{
+		auto &o = obj->options = shaderc_compile_options_initialize();
+
+		shaderc_compile_options_set_generate_debug_info( o );
+		shaderc_compile_options_set_source_language( o, shaderc_source_language::shaderc_source_language_glsl );
+	}
+
 	return obj;
 }
 
@@ -29,8 +42,10 @@ static le_shader_compiler_o *le_shader_compiler_create() {
 
 static void le_shader_compiler_destroy( le_shader_compiler_o *self ) {
 	shaderc_compiler_release( self->compiler );
+
+	std::cout << "Destroyed shader compiler" << std::endl
+	          << std::flush;
 	delete self;
-	self = nullptr;
 }
 
 // ---------------------------------------------------------------

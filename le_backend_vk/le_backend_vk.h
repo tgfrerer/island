@@ -35,6 +35,8 @@ struct VkPhysicalDeviceMemoryProperties;
 struct VkMemoryRequirements;
 struct VkMemoryAllocateInfo;
 
+enum class LeShaderType : uint64_t; // we're forward declaring this enum, for heaven's sake...
+
 namespace vk {
 enum class Format;
 }
@@ -64,7 +66,7 @@ struct le_backend_vk_api {
 		void                   ( *reset_swapchain          ) ( le_backend_o *self );
 		le_allocator_o*        ( *get_transient_allocator  ) ( le_backend_o* self, size_t frameIndex);
 
-		le_shader_module_o*    ( *create_shader_module     ) ( le_backend_o* self, char const * path);
+		le_shader_module_o*    ( *create_shader_module     ) ( le_backend_o* self, char const * path, LeShaderType moduleType);
 		void                   ( *update_shader_modules    ) ( le_backend_o* self );
 		void                   ( *destroy_shader_module    ) ( le_backend_o* self, le_shader_module_o* shader_module);
 

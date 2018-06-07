@@ -119,9 +119,9 @@ renderer_create_graphics_pipeline_state_object( le_renderer_o *self, le_graphics
 // ----------------------------------------------------------------------
 /// \brief declare a shader module which can be used to create a pipeline
 /// \returns a shader module handle, or nullptr upon failure
-static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, char const *path ) {
+static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, char const *path, LeShaderType moduleType ) {
 	static auto const &backend_i = ( *Registry::getApi<le_backend_vk_api>() ).vk_backend_i;
-	return backend_i.create_shader_module( self->backend, path );
+	return backend_i.create_shader_module( self->backend, path, moduleType );
 }
 
 // ----------------------------------------------------------------------

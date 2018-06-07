@@ -20,6 +20,8 @@
 #include "le_renderer/private/le_renderer_types.h"
 #include "le_renderer/private/le_pipeline_types.h"
 
+#include "le_shader_compiler/le_shader_compiler.h"
+
 #include "experimental/filesystem" // for parsing shader source file paths
 #include <fstream>                 // for reading shader source files
 #include <cstring>                 // for memcpy
@@ -45,6 +47,7 @@ struct le_shader_module_o {
 	std::vector<uint32_t> spirv;
 	std::filesystem::path filepath; ///< path to source file
 	vk::ShaderModule      module = nullptr;
+	LeShaderType          type   = LeShaderType::eNone;
 };
 
 struct AbstractPhysicalResource {
@@ -163,6 +166,8 @@ struct le_backend_o {
 
 	vk::DeviceMemory debugTransientVertexDeviceMemory = nullptr;
 	vk::Buffer       debugTransientVertexBuffer       = nullptr;
+
+	le_shader_compiler_o *shader_compiler;
 };
 
 // ----------------------------------------------------------------------
@@ -281,7 +286,7 @@ static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 
 /// \brief translate a binary blob into spirv code if possible
 /// \details Blob may be raw spirv data, or glsl data
-std::vector<uint32_t> translate_to_spirv_code( void *raw_data, size_t numBytes ) {
+std::vector<uint32_t> backend_translate_to_spirv_code( le_backend_o *self, void *raw_data, size_t numBytes, LeShaderType moduleType ) {
 	std::vector<uint32_t> result;
 
 	if ( check_is_data_spirv( raw_data, numBytes ) ) {
@@ -296,7 +301,7 @@ std::vector<uint32_t> translate_to_spirv_code( void *raw_data, size_t numBytes )
 
 // ----------------------------------------------------------------------
 /// \brief create vulkan shader module based on file path
-static le_shader_module_o *backend_create_shader_module( le_backend_o *self, char const *path ) {
+static le_shader_module_o *backend_create_shader_module( le_backend_o *self, char const *path, LeShaderType moduleType ) {
 
 	// This method gets called through the renderer - it is assumed during the setup stage.
 
@@ -323,7 +328,7 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 
 	// -- Make sure the file contains spir-v code.
 
-	auto spirv_code = translate_to_spirv_code( raw_file_data.data(), raw_file_data.size() );
+	auto spirv_code = backend_translate_to_spirv_code( self, raw_file_data.data(), raw_file_data.size(), moduleType );
 
 	// ---------| invariant: source code can be expressed as uint32_t[]
 
@@ -332,6 +337,7 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 	module->filepath       = path;
 	module->hash_file_path = file_path_hash;
 	module->hash           = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module->hash_file_path );
+	module->type           = moduleType;
 
 	{
 		// -- Check if module is already present in renderer, otherwise return module from cache.
@@ -367,7 +373,7 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 
 // ----------------------------------------------------------------------
 
-static void shader_module_update( le_shader_module_o *module, vk::Device &device ) {
+static void backend_shader_module_update( le_backend_o *self, le_shader_module_o *module ) {
 
 	// Shader module needs updating if shader code has changed.
 	// if this happens, a new vulkan object for the module must be crated.
@@ -383,7 +389,7 @@ static void shader_module_update( le_shader_module_o *module, vk::Device &device
 	bool loadSuccessful = false;
 	auto raw_data       = load_file( module->filepath, &loadSuccessful );
 
-	auto spirvcode = translate_to_spirv_code( raw_data.data(), raw_data.size() );
+	auto spirvcode = backend_translate_to_spirv_code( self, raw_data.data(), raw_data.size(), module->type );
 
 	if ( spirvcode.empty() ) {
 		// no spirv code available, bail out.
@@ -401,6 +407,7 @@ static void shader_module_update( le_shader_module_o *module, vk::Device &device
 	// ---------| Invariant: new spir-v code detected.
 
 	// -- if hash doesn't match, delete old vk module, create new vk module
+	vk::Device device = self->device->getVkDevice();
 
 	// -- store new spir-v code
 	module->spirv.resize( raw_data.size() / 4 );
@@ -426,10 +433,8 @@ static void backend_update_shader_modules( le_backend_o *self ) {
 
 	// -- recreate shader only modules which have been tainted
 
-	vk::Device device = self->device->getVkDevice();
-
 	for ( auto &s : self->shaderModules ) {
-		shader_module_update( s, device );
+		backend_shader_module_update( self, s );
 	}
 }
 
@@ -443,12 +448,25 @@ static le_backend_o *backend_create( le_backend_vk_settings_t *settings ) {
 	self->instance = std::make_unique<le::Instance>( self->settings.requestedExtensions, self->settings.numRequestedExtensions );
 	self->device   = std::make_unique<le::Device>( *self->instance );
 
+	// -- create shader compiler
+
+	static auto &shader_compiler_i = Registry::getApi<le_shader_compiler_api>()->compiler_i;
+	self->shader_compiler          = shader_compiler_i.create();
+
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
 static void backend_destroy( le_backend_o *self ) {
+
+	// -- destroy shader compiler
+
+	if ( self->shader_compiler ) {
+		static auto &shader_compiler_i = Registry::getApi<le_shader_compiler_api>()->compiler_i;
+		shader_compiler_i.destroy( self->shader_compiler );
+		self->shader_compiler = nullptr;
+	}
 
 	vk::Device device = self->device->getVkDevice();
 

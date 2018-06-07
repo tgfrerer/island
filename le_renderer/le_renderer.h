@@ -30,6 +30,13 @@ enum LeAttachmentLoadOp : uint32_t {
 	LE_ATTACHMENT_LOAD_OP_DONTCARE = 2,
 };
 
+enum class LeShaderType : uint64_t {
+	eNone = 0, // no default type for shader modules, you must specify a type
+	eVert,
+	eFrag,
+	// TODO: add missing shader module types
+};
+
 namespace vk {
 enum class Format; // forward declaration
 } // namespace vk
@@ -76,7 +83,7 @@ struct le_renderer_api {
 		void                           ( *setup                                 )( le_renderer_o *obj );
 		void                           ( *update                                )( le_renderer_o *obj, le_render_module_o *module );
 		le_graphics_pipeline_state_o * ( *create_graphics_pipeline_state_object )( le_renderer_o *self, le_graphics_pipeline_create_info_t const *pipeline_info );
-		le_shader_module_o*            ( *create_shader_module                  )( le_renderer_o *self, char const *path );
+		le_shader_module_o*            ( *create_shader_module                  )( le_renderer_o *self, char const *path, LeShaderType mtype );
 	};
 
 	enum AccessFlagBits : uint32_t {
@@ -201,8 +208,8 @@ class Renderer {
 		return rendererI.create_graphics_pipeline_state_object( self, info );
 	}
 
-	le_shader_module_o *createShaderModule( char const *path ) {
-		return rendererI.create_shader_module( self, path );
+	le_shader_module_o *createShaderModule( char const *path, LeShaderType moduleType ) {
+		return rendererI.create_shader_module( self, path, moduleType );
 	}
 };
 
