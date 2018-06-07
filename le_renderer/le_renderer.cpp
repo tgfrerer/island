@@ -331,8 +331,13 @@ static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex ) {
 
 static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) {
 
+	static const auto &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
+
 	const auto &index     = self->currentFrameNumber;
 	const auto &numFrames = self->numSwapchainImages;
+
+	// if necessary, recompile and reload shader modules
+	backend_i.update_shader_modules( self->backend );
 
 	// TODO: think more about interleaving - ideally, each one of these stages
 	// should be able to be executed in its own thread.

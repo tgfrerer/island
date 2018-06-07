@@ -236,23 +236,80 @@ static std::vector<char> load_file( const std::filesystem::path &file_path, bool
 }
 
 // ----------------------------------------------------------------------
+
+static bool check_is_data_spirv( const char *raw_data, size_t data_size ) {
+
+	struct SpirVHeader {
+		uint32_t magic; // Spirv magic number, more details: <https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#_a_id_physicallayout_a_physical_layout_of_a_spir_v_module_and_instruction>
+		union {         // Spir-V version number, bytes (high to low): [0x00, major, minor, 0x00]
+			struct {
+				uint8_t padding_low;
+				uint8_t version_minor;
+				uint8_t version_major;
+				uint8_t padding_hi;
+			};
+			uint32_t version_number;
+		};
+		uint32_t gen_magic; // Generator magic number
+		uint32_t bound;     //
+		uint32_t reserved;  // Reserved
+	} file_header;
+
+	if ( data_size < sizeof( SpirVHeader ) ) {
+		// Ahem, file not even contains a file header, what were you thinking?
+		return false;
+	}
+
+	// ----------| invariant: file contains enough bytes for a valid file header
+
+	static const uint32_t spirv_magic = 0x07230203; // magic number for spir-v files
+
+	memcpy( &file_header, raw_data, sizeof( file_header ) );
+
+	if ( file_header.magic == spirv_magic ) {
+		return true;
+	} else {
+		// invalid file header for spir-v file
+		return false;
+	}
+}
+
+// ----------------------------------------------------------------------
 /// \brief create vulkan shader module based on file path
 static le_shader_module_o *backend_create_shader_module( le_backend_o *self, char const *path ) {
 
-	// This method gets called through the renderer.
+	// This method gets called through the renderer - it is assumed during the setup stage.
 
 	bool loadSuccessful = false;
-	auto raw_spirv      = load_file( path, &loadSuccessful ); // returns a raw byte vector
+	auto raw_file_data  = load_file( path, &loadSuccessful ); // returns a raw byte vector
 
 	if ( !loadSuccessful ) {
 		return nullptr;
 	}
 
-	size_t numInts = raw_spirv.size() / sizeof( uint32_t );
-
 	// ---------| invariant: load was successful
 
-	if ( raw_spirv.size() != numInts * sizeof( uint32_t ) ) {
+	{
+		// -- TODO: build / add to database of source file dependencies for hot-reload/recompile
+
+		// We use the canonical path to store a fingerprint of the file
+		auto canonical_path_as_string = std::filesystem::canonical( path ).string();
+
+		uint64_t file_path_hash = SpookyHash::Hash64( canonical_path_as_string.data(), canonical_path_as_string.size(), 0x0 );
+		// TODO (shader recompile): Add this module to the modules affected by any changes to the file named in file_path_hash
+	}
+
+	// -- Make sure the file contains spir-v code.
+
+	if ( check_is_data_spirv( raw_file_data.data(), raw_file_data.size() ) == false ) {
+		// file may be glsl source code
+
+		// TODO : -- attempt to compile file if we detected glsl code
+	}
+
+	// -- Check that spirv code is divisible by four (it must be, as all spirv instructions are sizeof(uint32_t))
+
+	if ( 0 != raw_file_data.size() % 4 ) {
 		return nullptr;
 	}
 
@@ -261,10 +318,10 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 	le_shader_module_o *module = new le_shader_module_o{};
 
 	module->filepath = path;
-	module->hash_id  = SpookyHash::Hash64( raw_spirv.data(), raw_spirv.size(), 0x0 );
+	module->hash_id  = SpookyHash::Hash64( raw_file_data.data(), raw_file_data.size(), 0x0 );
 
-	module->spirv.resize( numInts );
-	std::memcpy( module->spirv.data(), raw_spirv.data(), raw_spirv.size() );
+	module->spirv.resize( raw_file_data.size() / 4 );
+	std::memcpy( module->spirv.data(), raw_file_data.data(), raw_file_data.size() );
 
 	{
 		// -- create vulkan shader object
@@ -281,6 +338,34 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 	self->shaderModules.push_back( module );
 
 	return module;
+}
+
+// ----------------------------------------------------------------------
+
+static void update_shader_module( le_backend_o *self, le_shader_module_o *module ) {
+
+	// TODO: (shader) -- implement module update
+
+	// shader module needs updating if shader code has changed.
+	// if this happens, a new vulkan object for the module must be crated.
+
+	// the module must be locked for this, as we need exclusive access just in case the module is
+	// in use by the frame recording thread, which may want to create pipelines.
+
+	// we externally synchronise this method through a mutex.
+}
+
+// ----------------------------------------------------------------------
+
+static void backend_update_shader_modules( le_backend_o *self ) {
+
+	// -- find out which shader modules have been tainted
+
+	// -- recreate shader modules which have been tainted
+
+	for ( auto &s : self->shaderModules ) {
+		update_shader_module( self, s );
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -597,7 +682,7 @@ static vk::Pipeline backend_produce_pipeline( le_backend_o *self, le_graphics_pi
 
 	uint64_t pso_renderpass_hashes[ 4 ] = {};
 
-	pso_renderpass_hashes[ 0 ] = pso->hash;                      // Hash for PSO state - must have been updated before recording phase started
+	pso_renderpass_hashes[ 0 ] = pso->hash;                      // TODO: Hash for PSO state - must have been updated before recording phase started
 	pso_renderpass_hashes[ 1 ] = pso->shaderModuleVert->hash_id; // Module state - may have been recompiled, hash must be current
 	pso_renderpass_hashes[ 2 ] = pso->shaderModuleFrag->hash_id; // Module state - may have been recompiled, hash must be current
 	pso_renderpass_hashes[ 3 ] = pass.renderpassHash;            // Hash for compatible renderpass
@@ -1642,6 +1727,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.process_frame              = backend_process_frame;
 	vk_backend_i.dispatch_frame             = backend_dispatch_frame;
 	vk_backend_i.create_shader_module       = backend_create_shader_module;
+	vk_backend_i.update_shader_modules      = backend_update_shader_modules;
 
 	// register/update submodules inside this plugin
 

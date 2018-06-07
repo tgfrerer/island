@@ -56,7 +56,7 @@ struct le_backend_vk_api {
 		void                   ( *setup                    ) ( le_backend_o *self );
 		bool                   ( *clear_frame              ) ( le_backend_o *self, size_t frameIndex );
 		void                   ( *process_frame            ) ( le_backend_o *self, size_t frameIndex );
-		bool                   ( *acquire_physical_resources  ) ( le_backend_o *self, size_t frameIndex, struct le_renderpass_o *passes, size_t numRenderPasses  );
+		bool                   ( *acquire_physical_resources ) ( le_backend_o *self, size_t frameIndex, struct le_renderpass_o *passes, size_t numRenderPasses  );
 		bool                   ( *dispatch_frame           ) ( le_backend_o *self, size_t frameIndex );
 		bool                   ( *create_window_surface    ) ( le_backend_o *self, pal_window_o *window_ );
 		void                   ( *create_swapchain         ) ( le_backend_o *self, le_swapchain_vk_settings_o *swapchainSettings_ );
@@ -64,8 +64,9 @@ struct le_backend_vk_api {
 		void                   ( *reset_swapchain          ) ( le_backend_o *self );
 		le_allocator_o*        ( *get_transient_allocator  ) ( le_backend_o* self, size_t frameIndex);
 
-		le_shader_module_o*    (*create_shader_module     ) ( le_backend_o* self, char const * path); // TODO (shader): implement
-		void                   ( *destroy_shader_module   ) ( le_backend_o* self, le_shader_module_o* shader_module);   // TODO (shader): implement
+		le_shader_module_o*    ( *create_shader_module     ) ( le_backend_o* self, char const * path);
+		void                   ( *update_shader_modules    ) ( le_backend_o* self );
+		void                   ( *destroy_shader_module    ) ( le_backend_o* self, le_shader_module_o* shader_module);
 
 	};
 
