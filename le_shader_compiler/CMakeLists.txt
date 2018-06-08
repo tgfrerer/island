@@ -1,7 +1,7 @@
 set (TARGET le_shader_compiler)
 
 set (SOURCES "le_shader_compiler.cpp")
-# set (SOURCES ${SOURCES} "le_instance_vk.cpp")
+set (SOURCES ${SOURCES} "le_shader_compiler.h")
 
 set (LIB_SHADERC_DIR $ENV{VULKAN_SDK}/lib/libshaderc/)
 
@@ -40,4 +40,7 @@ else()
 endif()
 
 set (LINKER_FLAGS -Wl,--whole-archive shaderc_shared -Wl,--no-whole-archive)
+
+set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
+
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})

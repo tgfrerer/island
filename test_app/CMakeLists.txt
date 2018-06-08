@@ -1,6 +1,7 @@
 set (TARGET test_app)
 
 set (SOURCES "test_app.cpp")
+set (SOURCES ${SOURCES} "test_app.h")
 
 if (${PLUGINS_DYNAMIC})
 
