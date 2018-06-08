@@ -295,7 +295,7 @@ std::vector<uint32_t> backend_translate_to_spirv_code( le_backend_o *self, void 
 		spirvCode.resize( numBytes / 4 );
 		memcpy( spirvCode.data(), raw_data, numBytes );
 	} else {
-		// data is not spirv - is it glsl, perhaps?
+		// Data is not spirv - is it glsl, perhaps?
 		static auto &shaderCompilerI = Registry::getApi<le_shader_compiler_api>()->compiler_i;
 
 		auto compileResult = shaderCompilerI.compile_source( self->shader_compiler, static_cast<const char *>( raw_data ), numBytes, moduleType, original_file_name );
@@ -306,12 +306,9 @@ std::vector<uint32_t> backend_translate_to_spirv_code( le_backend_o *self, void 
 			shaderCompilerI.get_result_bytes( compileResult, &addr, &res_sz );
 			spirvCode.resize( res_sz / 4 );
 			memcpy( spirvCode.data(), addr, res_sz );
-
-		} else {
-			// Houston, we have a problem!
 		}
 
-		// cleanup compile result
+		// release compile result object
 		shaderCompilerI.release_result( compileResult );
 	}
 
@@ -408,17 +405,17 @@ static void backend_shader_module_update( le_backend_o *self, le_shader_module_o
 
 	// -- get module spirv code
 	bool loadSuccessful = false;
-	auto raw_data       = load_file( module->filepath, &loadSuccessful );
+	auto source_text    = load_file( module->filepath, &loadSuccessful );
 
-	auto spirvcode = backend_translate_to_spirv_code( self, raw_data.data(), raw_data.size(), module->type, module->filepath.c_str() );
+	auto spirv_code = backend_translate_to_spirv_code( self, source_text.data(), source_text.size(), module->type, module->filepath.c_str() );
 
-	if ( spirvcode.empty() ) {
+	if ( spirv_code.empty() ) {
 		// no spirv code available, bail out.
 		return;
 	}
 
 	// -- check spirv code hash against module spirv hash
-	uint64_t hash_of_module = SpookyHash::Hash64( spirvcode.data(), spirvcode.size() * sizeof( uint32_t ), module->hash_file_path );
+	uint64_t hash_of_module = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module->hash_file_path );
 
 	if ( hash_of_module == module->hash ) {
 		// spirv code identical, no update needed, bail out.
@@ -431,7 +428,7 @@ static void backend_shader_module_update( le_backend_o *self, le_shader_module_o
 	vk::Device device = self->device->getVkDevice();
 
 	// -- store new spir-v code
-	module->spirv = std::move( spirvcode );
+	module->spirv = std::move( spirv_code );
 
 	// -- delete old vulkan shader module object
 	device.destroyShaderModule( module->module );
