@@ -11,6 +11,10 @@ extern "C" {
 struct le_shader_compiler_o;
 struct shaderc_include_result;
 
+struct le_shader_compilation_result_o;
+
+enum class LeShaderType : uint64_t; // defined in renderer.h
+
 void register_le_shader_compiler_api( void *api );
 
 // clang-format off
@@ -22,6 +26,12 @@ struct le_shader_compiler_api {
         le_shader_compiler_o* (* create  ) ( );
         void                  (* destroy ) ( le_shader_compiler_o* self );
 
+		le_shader_compilation_result_o* (*compile_source)( le_shader_compiler_o *compiler, const char *sourceText, size_t sourceTextSize, LeShaderType shaderType, const char *original_file_path );
+
+		void (*get_result_bytes)(le_shader_compilation_result_o* res, const char** pAddr, size_t* pNumBytes);
+		bool (*get_result_success)(le_shader_compilation_result_o* res);
+		void (*release_compilation_result)(le_shader_compilation_result_o* res);
+		void (*release_result)(le_shader_compilation_result_o* res);
     };
 
 	// function pointer signature for shader include callback

@@ -33,6 +33,8 @@
 #include <iomanip>
 #include <list>
 
+#include <memory>
+
 #ifndef PRINT_DEBUG_MESSAGES
 #define PRINT_DEBUG_MESSAGES false
 #endif
@@ -276,8 +278,8 @@ static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 		return true;
 	} else {
 		// invalid file header for spir-v file
-		std::cerr << "ERROR: Invalid header for SPIR-V file detected." << std::endl
-		          << std::flush;
+		//		std::cerr << "ERROR: Invalid header for SPIR-V file detected." << std::endl
+		//		          << std::flush;
 		return false;
 	}
 }
@@ -286,17 +288,34 @@ static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 
 /// \brief translate a binary blob into spirv code if possible
 /// \details Blob may be raw spirv data, or glsl data
-std::vector<uint32_t> backend_translate_to_spirv_code( le_backend_o *self, void *raw_data, size_t numBytes, LeShaderType moduleType ) {
-	std::vector<uint32_t> result;
+std::vector<uint32_t> backend_translate_to_spirv_code( le_backend_o *self, void *raw_data, size_t numBytes, LeShaderType moduleType, const char *original_file_name ) {
+	std::vector<uint32_t> spirvCode;
 
 	if ( check_is_data_spirv( raw_data, numBytes ) ) {
-		result.resize( numBytes / 4 );
-		memcpy( result.data(), raw_data, numBytes );
+		spirvCode.resize( numBytes / 4 );
+		memcpy( spirvCode.data(), raw_data, numBytes );
 	} else {
 		// data is not spirv - is it glsl, perhaps?
+		static auto &shaderCompilerI = Registry::getApi<le_shader_compiler_api>()->compiler_i;
+
+		auto compileResult = shaderCompilerI.compile_source( self->shader_compiler, static_cast<const char *>( raw_data ), numBytes, moduleType, original_file_name );
+
+		if ( shaderCompilerI.get_result_success( compileResult ) == true ) {
+			const char *addr;
+			size_t      res_sz;
+			shaderCompilerI.get_result_bytes( compileResult, &addr, &res_sz );
+			spirvCode.resize( res_sz / 4 );
+			memcpy( spirvCode.data(), addr, res_sz );
+
+		} else {
+			// Houston, we have a problem!
+		}
+
+		// cleanup compile result
+		shaderCompilerI.release_result( compileResult );
 	}
 
-	return result;
+	return spirvCode;
 }
 
 // ----------------------------------------------------------------------
@@ -328,7 +347,9 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 
 	// -- Make sure the file contains spir-v code.
 
-	auto spirv_code = backend_translate_to_spirv_code( self, raw_file_data.data(), raw_file_data.size(), moduleType );
+	auto spirv_code = backend_translate_to_spirv_code( self, raw_file_data.data(), raw_file_data.size(), moduleType, path );
+
+	// FIXME: we need to check spirv code is ok, that compilation succeeded.
 
 	// ---------| invariant: source code can be expressed as uint32_t[]
 
@@ -389,7 +410,7 @@ static void backend_shader_module_update( le_backend_o *self, le_shader_module_o
 	bool loadSuccessful = false;
 	auto raw_data       = load_file( module->filepath, &loadSuccessful );
 
-	auto spirvcode = backend_translate_to_spirv_code( self, raw_data.data(), raw_data.size(), module->type );
+	auto spirvcode = backend_translate_to_spirv_code( self, raw_data.data(), raw_data.size(), module->type, module->filepath.c_str() );
 
 	if ( spirvcode.empty() ) {
 		// no spirv code available, bail out.
@@ -410,8 +431,7 @@ static void backend_shader_module_update( le_backend_o *self, le_shader_module_o
 	vk::Device device = self->device->getVkDevice();
 
 	// -- store new spir-v code
-	module->spirv.resize( raw_data.size() / 4 );
-	std::memcpy( module->spirv.data(), raw_data.data(), raw_data.size() );
+	module->spirv = std::move( spirvcode );
 
 	// -- delete old vulkan shader module object
 	device.destroyShaderModule( module->module );

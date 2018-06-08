@@ -10,5 +10,5 @@ layout (location = 0) in vec2 inTexCoord;
 layout (location = 0) out vec4 outFragColor;
 
 void main(){
-	outFragColor = vec4(inTexCoord, 0, 0.75);
+	outFragColor = vec4(inTexCoord, 0, 1.0);
 }

@@ -67,7 +67,7 @@ static test_app_o *test_app_create() {
 
 		// Creating shader modules will eventually compile shader source code from glsl to spir-v
 		auto defaultVertShader = app->renderer->createShaderModule( "./shaders/default.vert.spv", LeShaderType::eVert );
-		auto defaultFragShader = app->renderer->createShaderModule( "./shaders/default.frag.spv", LeShaderType::eFrag );
+		auto defaultFragShader = app->renderer->createShaderModule( "./shaders/default.frag", LeShaderType::eFrag );
 		auto altFragShader     = app->renderer->createShaderModule( "./shaders/alternative.frag.spv", LeShaderType::eFrag );
 
 		le_graphics_pipeline_create_info_t pi;
