@@ -110,7 +110,7 @@ renderer_create_graphics_pipeline_state_object( le_renderer_o *self, le_graphics
 	static auto const &backend_i = ( *Registry::getApi<le_backend_vk_api>() ).vk_backend_i;
 	// -- calculate hash based on contents of pipeline state object
 
-	pso->hash = 0x0; // TODO: -- calculate hash for pipeline state based on create_info
+	pso->hash = 0x0; // TODO: -- calculate hash for pipeline state based on create_info (state that's not related to shaders)
 
 	self->PSOs.push_back( pso );
 	return pso;
@@ -339,7 +339,7 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 	// if necessary, recompile and reload shader modules
 	backend_i.update_shader_modules( self->backend );
 
-	// TODO: think more about interleaving - ideally, each one of these stages
+	// NOTE: think more about interleaving - ideally, each one of these stages
 	// should be able to be executed in its own thread.
 	//
 	// At the moment, this is not possible, as acquisition might acquire more images
