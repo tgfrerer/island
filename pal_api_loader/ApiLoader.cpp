@@ -40,8 +40,8 @@ static void *load_library( const char *lib_name ) {
 
 	std::cout << "Loading dynamic library    : '" << lib_name << "'" << std::endl;
 
-	void *handle = dlopen( lib_name, RTLD_NOW | RTLD_LOCAL );
-	// std::cout << "Open library handle: " << std::hex << handle << std::endl;
+	void *handle = dlopen( lib_name, RTLD_LAZY | RTLD_LOCAL );
+	std::cout << "Open library handle: " << std::hex << handle << std::endl;
 
 	if ( !handle ) {
 		auto loadResult = dlerror();
