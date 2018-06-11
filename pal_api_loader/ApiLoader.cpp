@@ -21,7 +21,7 @@ struct pal_api_loader_o {
 static void unload_library( void *handle_, const char *path ) {
 	if ( handle_ ) {
 		auto result = dlclose( handle_ );
-		// std::cout << "Closed library handle: " << std::hex << handle_ << std::endl;
+		std::cout << "Closed library handle: " << std::hex << handle_ << std::endl;
 		if ( result ) {
 			std::cerr << "ERROR dlclose: " << dlerror() << std::endl;
 		}
@@ -64,12 +64,10 @@ static bool load_library_persistent( const char *lib_name ) {
 	// which means they are only loaded when the library is first used by the module
 	// against which the library was linked.
 
-
-
 	// FIXME: what we expect: if a library is already loaded, we should get a valid handle
 	// what we get: always nullptr
 
-	void *lib_handle = dlopen( lib_name, RTLD_NOLOAD | RTLD_NODELETE );
+	void *lib_handle = dlopen( lib_name, RTLD_NOLOAD | RTLD_GLOBAL | RTLD_NODELETE );
 	if ( !lib_handle ) {
 		lib_handle = dlopen( lib_name, RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
 		if ( !lib_handle ) {
@@ -145,7 +143,7 @@ bool pal_register_api_loader_i( pal_api_loader_i *api ) {
 
 extern "C" unsigned int
 la_version( unsigned int version ) {
-	std::cout << "\t AUDIT: loaded autiting interface" << std::endl;
+	std::cout << "\t AUDIT: loaded auditing interface" << std::endl;
 	std::cout << std::flush;
 	return version;
 }
