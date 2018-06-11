@@ -15,19 +15,16 @@
 #include <iostream>
 #include <iomanip>
 
-#define VULKAN_HPP_NO_SMART_HANDLE
-#include "vulkan/vulkan.hpp"
-
 #include "le_renderer/private/le_renderer_types.h"
-// these are some sanity checks for le_renderer_types
 
 #ifndef PRINT_DEBUG_MESSAGES
-#	define PRINT_DEBUG_MESSAGES false
+#define PRINT_DEBUG_MESSAGES false
 #endif
 
 #define LE_GRAPH_BUILDER_RECURSION_DEPTH 20
 
-static_assert( sizeof( le::CommandHeader ) == sizeof( uint64_t ), "size must be 64bit" );
+// these are some sanity checks for le_renderer_types
+static_assert( sizeof( le::CommandHeader ) == sizeof( uint64_t ), "Size of le::CommandHeader must be 64bit" );
 
 using image_attachment_t = le_renderer_api::image_attachment_info_o;
 

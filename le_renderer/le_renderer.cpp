@@ -120,7 +120,7 @@ renderer_create_graphics_pipeline_state_object( le_renderer_o *self, le_graphics
 /// \brief declare a shader module which can be used to create a pipeline
 /// \returns a shader module handle, or nullptr upon failure
 static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, char const *path, LeShaderType moduleType ) {
-	static auto const &backend_i = ( *Registry::getApi<le_backend_vk_api>() ).vk_backend_i;
+	static auto const &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
 	return backend_i.create_shader_module( self->backend, path, moduleType );
 }
 
@@ -415,8 +415,6 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	le_renderer_i.update                                = renderer_update;
 	le_renderer_i.create_graphics_pipeline_state_object = renderer_create_graphics_pipeline_state_object;
 	le_renderer_i.create_shader_module                  = renderer_create_shader_module;
-
-	Registry::loadLibraryPersistently( "libvulkan.so" );
 
 	// register sub-components of this api
 	register_le_rendergraph_api( api_ );

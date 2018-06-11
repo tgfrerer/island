@@ -1,7 +1,8 @@
 #include "le_renderer/private/le_renderpass.h"
 #include "le_renderer/private/hash_util.h"
-#include "vulkan/vulkan.hpp"
 
+#include <assert.h>
+#include "memory.h"
 // ----------------------------------------------------------------------
 
 static le_renderpass_o *renderpass_create( const char *renderpass_name, const LeRenderPassType &type_ ) {
