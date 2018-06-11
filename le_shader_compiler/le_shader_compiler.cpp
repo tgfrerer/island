@@ -8,7 +8,7 @@
 /// For this, go to $VULKAN_SDK, edit `build_tools.sh` so that, in method `buildShaderc`,
 /// build type says: `-DCMAKE_BUILD_TYPE=Release`,
 /// then let it create an additional symlink:
-/// ln -sf "$PWD"/build/libshaderc/libshaderc_combined.so "${LIBDIR}"/libshaderc
+/// ln -sf "$PWD"/build/libshaderc/libshaderc_shared.so "${LIBDIR}"/libshaderc
 
 #include "le_shader_compiler/le_shader_compiler.h"
 
@@ -42,18 +42,19 @@ struct FileData {
 	std::vector<char>     contents; /// contents of file
 };
 
-// ---------------------------------------------------------------
-
+// We keep IncludesList as a struct, using it as an abstract handle
+// simplifies passing it to the includer callback
+//
 struct IncludesList {
-	std::set<std::string> paths;
+	std::set<std::string>           paths;                    // paths to files that this translation unit depends on
+	std::set<std::string>::iterator paths_it = paths.begin(); // iterator to current element
 };
+
+// ---------------------------------------------------------------
 
 struct le_shader_compilation_result_o {
 	shaderc_compilation_result *result = nullptr;
-	IncludesList                includesSet;
-
-	std::vector<const char *> includesListPtrs;
-	std::vector<size_t>       includesListDataSizes; // size for each include path
+	IncludesList                includes;
 };
 
 // ---------------------------------------------------------------
@@ -73,6 +74,24 @@ static shaderc_shader_kind convert_to_shaderc_shader_kind( LeShaderType type ) {
 	    break;
 	}
 	return result;
+}
+
+// ---------------------------------------------------------------
+
+static bool le_shader_compilation_result_get_next_includes_path( le_shader_compilation_result_o *self, const char **str, size_t *strSz ) {
+
+	if ( self->includes.paths_it != self->includes.paths.end() ) {
+
+		*str   = self->includes.paths_it->c_str();
+		*strSz = self->includes.paths_it->size();
+
+		self->includes.paths_it++;
+		return true;
+	}
+
+	// ---------- invariant: we are one past the last element
+
+	return false;
 }
 
 // ---------------------------------------------------------------
@@ -258,7 +277,7 @@ static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_sha
 	shaderc_compile_options_set_include_callbacks( local_options,
 	                                               le_shaderc_include_result_create,
 	                                               le_shaderc_include_result_destroy,
-	                                               &result->includesSet );
+	                                               &result->includes );
 
 	// -- First preprocess GLSL source
 	auto preprocessorResult = shaderc_compile_into_preprocessed_text(
@@ -268,6 +287,10 @@ static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_sha
 
 	// -- free local compiler options - this will also free any pointers to our callbacks.
 	shaderc_compile_options_release( local_options );
+
+	// Refresh iterator for include paths so that it points to the first element
+	// in the sorted set.
+	result->includes.paths_it = result->includes.paths.begin();
 
 	// If preprocessor step was not successful - return preprocessor result
 	// to upkeep the promise of always returning a result object.
@@ -304,12 +327,13 @@ ISL_API_ATTR void register_le_shader_compiler_api( void *api_ ) {
 	auto  le_shader_compiler_api_i = static_cast<le_shader_compiler_api *>( api_ );
 	auto &compiler_i               = le_shader_compiler_api_i->compiler_i;
 
-	compiler_i.create             = le_shader_compiler_create;
-	compiler_i.destroy            = le_shader_compiler_destroy;
-	compiler_i.compile_source     = le_shader_compiler_compile_source;
-	compiler_i.get_result_bytes   = le_shader_compilation_result_get_result_bytes;
-	compiler_i.get_result_success = le_shader_compilation_result_get_result_success;
-	compiler_i.release_result     = le_shader_compilation_result_detroy;
+	compiler_i.create              = le_shader_compiler_create;
+	compiler_i.destroy             = le_shader_compiler_destroy;
+	compiler_i.compile_source      = le_shader_compiler_compile_source;
+	compiler_i.get_result_bytes    = le_shader_compilation_result_get_result_bytes;
+	compiler_i.get_result_success  = le_shader_compilation_result_get_result_success;
+	compiler_i.get_result_includes = le_shader_compilation_result_get_next_includes_path;
+	compiler_i.release_result      = le_shader_compilation_result_detroy;
 
 	Registry::loadLibraryPersistently( "libshaderc_shared.so" );
 }

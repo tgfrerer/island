@@ -306,6 +306,20 @@ std::vector<uint32_t> backend_translate_to_spirv_code( le_backend_o *self, void 
 			shaderCompilerI.get_result_bytes( compileResult, &addr, &res_sz );
 			spirvCode.resize( res_sz / 4 );
 			memcpy( spirvCode.data(), addr, res_sz );
+
+			// -- grab a list of includes which this compilation unit depends on:
+
+			//			std::cout << " Shader includes: " << std::endl;
+
+			const char *pStr;
+			size_t      strSz = 0;
+
+			while ( shaderCompilerI.get_result_includes( compileResult, &pStr, &strSz ) ) {
+				std::string s{pStr, strSz};
+				//				std::cout << "+ '" << s << "'" << std::endl;
+			}
+
+			//			std::cout << std::flush;
 		}
 
 		// release compile result object
@@ -1657,7 +1671,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 			// TODO: (renderpass): get clear values from renderpass info
 			std::array<vk::ClearValue, 1> clearValues{
-				{vk::ClearColorValue( std::array<float, 4>{{0.f, 0.3f, 1.0f, 1.f}} )}};
+				{vk::ClearColorValue( std::array<float, 4>{{0.9f, 0.2f, 0.75f, 1.f}} )}};
 
 			vk::RenderPassBeginInfo renderPassBeginInfo;
 			renderPassBeginInfo
