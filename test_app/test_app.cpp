@@ -199,7 +199,7 @@ static bool test_app_update( test_app_o *self ) {
 			static_assert( sizeof( vertData ) == sizeof( float ) * 4 * 3, "vertData must be tightly packed" );
 
 			// TODO (pipeline): implement binding graphics pipeline
-			le_encoder.bind_graphics_pipeline( encoder, self->psoMain );
+			le_encoder.bind_graphics_pipeline( encoder, self->psoTest );
 
 			// This will use the scratch buffer -- and the encoded command will store the
 			// location of the data as it was laid down in the scratch buffer.
@@ -216,7 +216,7 @@ static bool test_app_update( test_app_o *self ) {
 
 			le_encoder.draw( encoder, 3, 1, 0, 0 );
 
-			le_encoder.bind_graphics_pipeline( encoder, self->psoTest );
+			le_encoder.bind_graphics_pipeline( encoder, self->psoMain );
 			le_encoder.set_scissor( encoder, 0, 1, &scissors[ 1 ] );
 			le_encoder.set_viewport( encoder, 0, 1, &viewports[ 1 ] );
 

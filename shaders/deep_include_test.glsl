@@ -1,3 +1,3 @@
-vec4 getColor(in vec2 t){
-	return vec4(t, 0, 1);
+float saturate(in float val){
+	return min(1,max(0,val));
 }

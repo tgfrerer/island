@@ -67,10 +67,7 @@ static void instance_destroy( pal_file_watcher_o *instance ) {
 static int add_watch( pal_file_watcher_o *instance, const pal_file_watcher_watch_settings &settings ) noexcept {
 	Watch tmp;
 
-	auto tmp_path = std::filesystem::path( settings.filePath );
-	if ( tmp_path.has_filename() ) {
-		tmp_path.remove_filename();
-	}
+	auto tmp_path = std::filesystem::canonical( settings.filePath );
 	tmp.path                 = tmp_path;
 	tmp.watcher_o            = instance;
 	tmp.callback_fun         = settings.callback_fun;
@@ -123,9 +120,9 @@ void poll_notifications( pal_file_watcher_o *instance ) {
 //					std::cout << "Found affected watch" << std::endl;
 
 					if ( ev->mask & ( IN_CLOSE_WRITE ) ) {
-//						std::cout << "File Watcher: CLOSE_WRITE on "
-//						          << "watched file: '" << foundWatch->path << ev->name << "'" << std::endl
-//						          << "Trigger CLOSE_WRITE callback." << std::endl;
+						//						std::cout << "File Watcher: CLOSE_WRITE on "
+						//						          << "watched file: '" << foundWatch->path << ", " << std::string{ev->name, ev->len} << "'" << std::endl
+						//						          << "Trigger CLOSE_WRITE callback." << std::endl;
 
 						( *foundWatch->callback_fun )( foundWatch->callback_user_data );
 					}

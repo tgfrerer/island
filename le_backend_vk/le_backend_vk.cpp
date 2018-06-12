@@ -14,6 +14,8 @@
 
 #include "pal_window/pal_window.h"
 
+#include "pal_file_watcher/pal_file_watcher.h" // for watching shader source files
+
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/hash_util.h"
 #include "le_renderer/private/le_renderpass.h"
@@ -32,6 +34,7 @@
 #include <iostream>
 #include <iomanip>
 #include <list>
+#include <set>
 
 #include <memory>
 
@@ -45,11 +48,12 @@ using namespace experimental;
 
 struct le_shader_module_o {
 	uint64_t              hash           = 0; ///< hash taken from spirv code + filepath hash
-	uint64_t              hash_file_path = 0;
-	std::vector<uint32_t> spirv;
-	std::filesystem::path filepath; ///< path to source file
+	uint64_t              hash_file_path = 0; ///< hash taken from filepath (canonical)
+	std::vector<uint32_t> spirv;              ///< spirv source code for this module
+	std::filesystem::path filepath;           ///< path to source file
 	vk::ShaderModule      module = nullptr;
 	LeShaderType          type   = LeShaderType::eNone;
+	le_backend_o *        backend; // FIXME: this is not elegant, but we need it to build a set of watched, then modified modules.
 };
 
 struct AbstractPhysicalResource {
@@ -156,7 +160,9 @@ struct le_backend_o {
 
 	std::vector<BackendFrameData> mFrames;
 
-	std::vector<le_shader_module_o *> shaderModules;
+	std::vector<le_shader_module_o *>                               shaderModules;         // OWNING. Stores all shader modules used in backend.
+	std::unordered_map<std::string, std::set<le_shader_module_o *>> moduleDependencies;    // map 'canonical shader source file path' -> [shader modules]
+	std::set<le_shader_module_o *>                                  modifiedShaderModules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
 
 	// These resources are potentially in-flight, and may be used read-only
 	// by more than one frame.
@@ -169,7 +175,8 @@ struct le_backend_o {
 	vk::DeviceMemory debugTransientVertexDeviceMemory = nullptr;
 	vk::Buffer       debugTransientVertexBuffer       = nullptr;
 
-	le_shader_compiler_o *shader_compiler;
+	le_shader_compiler_o *shader_compiler   = nullptr;
+	pal_file_watcher_o *  shaderFileWatcher = nullptr;
 };
 
 // ----------------------------------------------------------------------
@@ -288,8 +295,7 @@ static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 
 /// \brief translate a binary blob into spirv code if possible
 /// \details Blob may be raw spirv data, or glsl data
-std::vector<uint32_t> backend_translate_to_spirv_code( le_backend_o *self, void *raw_data, size_t numBytes, LeShaderType moduleType, const char *original_file_name ) {
-	std::vector<uint32_t> spirvCode;
+void backend_translate_to_spirv_code( le_backend_o *self, void *raw_data, size_t numBytes, LeShaderType moduleType, const char *original_file_name, std::vector<uint32_t> &spirvCode, std::set<std::string> &includesSet ) {
 
 	if ( check_is_data_spirv( raw_data, numBytes ) ) {
 		spirvCode.resize( numBytes / 4 );
@@ -309,24 +315,51 @@ std::vector<uint32_t> backend_translate_to_spirv_code( le_backend_o *self, void 
 
 			// -- grab a list of includes which this compilation unit depends on:
 
-			//			std::cout << " Shader includes: " << std::endl;
-
 			const char *pStr;
 			size_t      strSz = 0;
 
 			while ( shaderCompilerI.get_result_includes( compileResult, &pStr, &strSz ) ) {
-				std::string s{pStr, strSz};
-				//				std::cout << "+ '" << s << "'" << std::endl;
+				// -- update set of includes for this module
+				includesSet.emplace( pStr, strSz );
 			}
-
-			//			std::cout << std::flush;
 		}
 
 		// release compile result object
 		shaderCompilerI.release_result( compileResult );
 	}
+}
 
-	return spirvCode;
+// ----------------------------------------------------------------------
+
+static void backend_set_watched_files_for_module( le_backend_o *self, le_shader_module_o *module, std::set<std::string> &sourcePaths ) {
+
+	// To be able to tell quick which modules need to be recompiled if a source file changes,
+	// we build a table from source file -> array of modules
+
+	for ( const auto &s : sourcePaths ) {
+
+		// if no previous entry for this source path existed, we must insert a watch from this path to our module
+
+		if ( 0 == self->moduleDependencies.count( s ) ) {
+			// this is the first time this file appears on our radar. Let's create a file watcher for it.
+			static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
+
+			std::cout << std::hex << module << " : " << s << std::endl
+			          << std::flush;
+
+			pal_file_watcher_watch_settings settings;
+			settings.filePath           = s.c_str();
+			settings.callback_user_data = module;
+			settings.callback_fun       = []( void *user_data ) -> bool {
+				auto m = static_cast<le_shader_module_o *>( user_data );
+				m->backend->modifiedShaderModules.insert( m );
+				return true;
+			};
+			file_watcher_i.add_watch( self->shaderFileWatcher, settings );
+		}
+
+		self->moduleDependencies[ s ].insert( module );
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -344,39 +377,35 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 
 	// ---------| invariant: load was successful
 
-	uint64_t file_path_hash = 0;
-
-	{
-		// -- TODO: build / add to database of source file dependencies for hot-reload/recompile
-
-		// We use the canonical path to store a fingerprint of the file
-		auto canonical_path_as_string = std::filesystem::canonical( path ).string();
-
-		file_path_hash = SpookyHash::Hash64( canonical_path_as_string.data(), canonical_path_as_string.size(), 0x0 );
-		// TODO (shader recompile): Add this module to the modules affected by any changes to the file named in file_path_hash
-	}
+	// We use the canonical path to store a fingerprint of the file
+	auto     canonical_path_as_string = std::filesystem::canonical( path ).string();
+	uint64_t file_path_hash           = SpookyHash::Hash64( canonical_path_as_string.data(), canonical_path_as_string.size(), 0x0 );
 
 	// -- Make sure the file contains spir-v code.
 
-	auto spirv_code = backend_translate_to_spirv_code( self, raw_file_data.data(), raw_file_data.size(), moduleType, path );
+	std::vector<uint32_t> spirv_code;
+	std::set<std::string> includesSet = {{canonical_path_as_string}}; // let first element be the source file path
+
+	backend_translate_to_spirv_code( self, raw_file_data.data(), raw_file_data.size(), moduleType, path, spirv_code, includesSet );
 
 	// FIXME: we need to check spirv code is ok, that compilation succeeded.
 
-	// ---------| invariant: source code can be expressed as uint32_t[]
-
 	le_shader_module_o *module = new le_shader_module_o{};
 
-	module->filepath       = path;
+	module->type           = moduleType;
+	module->filepath       = canonical_path_as_string;
 	module->hash_file_path = file_path_hash;
 	module->hash           = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module->hash_file_path );
-	module->type           = moduleType;
+	module->backend        = self;
 
 	{
-		// -- Check if module is already present in renderer, otherwise return module from cache.
+		// -- Check if module is already present in render module cache.
 
 		auto found_module = std::find_if( self->shaderModules.begin(), self->shaderModules.end(), [module]( const le_shader_module_o *m ) -> bool {
 			return module->hash == m->hash;
 		} );
+
+		// -- If module found in cache, return cached module, discard local module
 
 		if ( found_module != self->shaderModules.end() ) {
 			delete module;
@@ -400,6 +429,10 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 	// -- retain module in renderer
 	self->shaderModules.push_back( module );
 
+	// -- add all surce files for this file to the list of watched
+	//    files that point back to this module
+	backend_set_watched_files_for_module( self, module, includesSet );
+
 	return module;
 }
 
@@ -421,7 +454,10 @@ static void backend_shader_module_update( le_backend_o *self, le_shader_module_o
 	bool loadSuccessful = false;
 	auto source_text    = load_file( module->filepath, &loadSuccessful );
 
-	auto spirv_code = backend_translate_to_spirv_code( self, source_text.data(), source_text.size(), module->type, module->filepath.c_str() );
+	std::vector<uint32_t> spirv_code;
+	std::set<std::string> includesSet;
+
+	backend_translate_to_spirv_code( self, source_text.data(), source_text.size(), module->type, module->filepath.c_str(), spirv_code, includesSet );
 
 	if ( spirv_code.empty() ) {
 		// no spirv code available, bail out.
@@ -461,12 +497,19 @@ static void backend_shader_module_update( le_backend_o *self, le_shader_module_o
 static void backend_update_shader_modules( le_backend_o *self ) {
 
 	// -- find out which shader modules have been tainted
+	static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
+
+	// this will call callbacks on any watched file objects as a side effect
+	// callbacks will modify le_backend->modifiedSahderModules
+	file_watcher_i.poll_notifications( self->shaderFileWatcher );
 
 	// -- recreate shader only modules which have been tainted
 
-	for ( auto &s : self->shaderModules ) {
+	for ( auto &s : self->modifiedShaderModules ) {
 		backend_shader_module_update( self, s );
 	}
+
+	self->modifiedShaderModules.clear();
 }
 
 // ----------------------------------------------------------------------
@@ -484,6 +527,10 @@ static le_backend_o *backend_create( le_backend_vk_settings_t *settings ) {
 	static auto &shader_compiler_i = Registry::getApi<le_shader_compiler_api>()->compiler_i;
 	self->shader_compiler          = shader_compiler_i.create();
 
+	// -- create file watcher for shader files so that changes can be detected
+	static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
+	self->shaderFileWatcher     = file_watcher_i.create();
+
 	return self;
 }
 
@@ -491,9 +538,15 @@ static le_backend_o *backend_create( le_backend_vk_settings_t *settings ) {
 
 static void backend_destroy( le_backend_o *self ) {
 
-	// -- destroy shader compiler
+	if ( self->shaderFileWatcher ) {
+		// -- destroy file watcher
+		static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
+		file_watcher_i.destroy( self->shaderFileWatcher );
+		self->shaderFileWatcher = nullptr;
+	}
 
 	if ( self->shader_compiler ) {
+		// -- destroy shader compiler
 		static auto &shader_compiler_i = Registry::getApi<le_shader_compiler_api>()->compiler_i;
 		shader_compiler_i.destroy( self->shader_compiler );
 		self->shader_compiler = nullptr;

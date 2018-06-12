@@ -17,9 +17,9 @@
 */
 
 #ifdef __cplusplus
-#	define ISL_API_ATTR extern "C"
+#define ISL_API_ATTR extern "C"
 #else
-#	define ISL_API_ATTR
+#define ISL_API_ATTR
 #endif
 
 struct pal_api_loader_i;
@@ -80,14 +80,14 @@ class Registry {
 	}
 
 	template <typename T>
-	static T *addApiStatic(bool force = false) {
+	static T *addApiStatic( bool force = false ) {
 		static auto api = getApi<T>();
 		// We assume failed map lookup returns a pointer which is
 		// initialised to be a nullptr.
-		if ( api == nullptr || force == true) {
+		if ( api == nullptr || force == true ) {
 			// in case the api is a sub-module, it must be forced to update
 			// as the main library from which it comes will have changed.
-			if (api != nullptr){
+			if ( api != nullptr ) {
 				delete api;
 			}
 			api = new T();
@@ -112,6 +112,7 @@ class Registry {
 		if ( api == nullptr ) {
 
 			static const std::string lib_path              = "./" + std::string{apiName} + "/lib" + std::string{apiName} + ".so";
+			static const std::string lib_dir               = "./" + std::string{apiName};
 			static const std::string lib_register_fun_name = "register_" + std::string{apiName} + "_api";
 
 			static pal_api_loader_i *loaderInterface = getLoaderInterface();
@@ -129,7 +130,7 @@ class Registry {
 				// TODO: We keep watchId static so that a watch is only created once per type T.
 				// ideally, if we ever wanted to be able to remove watches, we'd keep the watchIds in a
 				// table, similar to the apiTable.
-				static int watchId = addWatch( lib_path.c_str(), callbackParams );
+				static int watchId = addWatch( lib_dir.c_str(), callbackParams );
 			}
 
 		} else {
@@ -141,12 +142,11 @@ class Registry {
 
 	static void pollForDynamicReload();
 
-	static void loadLibraryPersistently(const char* libName_) {
+	static void loadLibraryPersistently( const char *libName_ ) {
 		static pal_api_loader_i *loader = getLoaderInterface();
-		loadLibraryPersistently(loader,libName_);
+		loadLibraryPersistently( loader, libName_ );
 	}
 };
-
 
 // ---------- utilities
 
@@ -180,4 +180,3 @@ struct NoMove {
 
 #endif // __cplusplus
 #endif // GUARD_API_REGISTRY_HPP
-
