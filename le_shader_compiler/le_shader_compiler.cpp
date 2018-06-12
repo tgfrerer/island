@@ -230,7 +230,7 @@ le_shaderc_include_result_create(
 		fileData->contents = load_file( fileData->path, &loadSuccess );
 
 	} else {
-		// empty path singals failed inclusion to shaderc
+		// Empty path is understood as a signal in shaderc: failed inclusion
 		fileData->path = "";
 	}
 
@@ -254,8 +254,8 @@ le_shaderc_include_result_create(
 // ---------------------------------------------------------------
 
 static void le_shaderc_include_result_destroy( void *user_data, shaderc_include_result *self ) {
-	// --cleanup include result
 
+	// --cleanup include result
 	auto fileData = reinterpret_cast<FileData *>( self->user_data );
 	delete fileData;
 
@@ -263,6 +263,7 @@ static void le_shaderc_include_result_destroy( void *user_data, shaderc_include_
 }
 
 // ---------------------------------------------------------------
+
 static inline bool checkForLineNumberModifier( const std::string &line, uint32_t &lineNumber, std::string &currentFilename, std::string &lastFilename ) {
 
 	if ( line.find( "#line", 0 ) != 0 )
