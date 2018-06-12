@@ -398,10 +398,13 @@ static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_sha
 	auto preprocessorTextNumBytes = shaderc_result_get_length( preprocessorResult );
 
 	// -- Compile preprocessed GLSL into SPIRV
-	result->result = shaderc_compile_into_spv(
-	    self->compiler, preprocessorText, preprocessorTextNumBytes, shaderKind,
-	    original_file_path, "main",
-	    self->options );
+	result->result = shaderc_compile_into_spv( self->compiler,
+	                                           preprocessorText,
+	                                           preprocessorTextNumBytes,
+	                                           shaderKind,
+	                                           original_file_path,
+	                                           "main",
+	                                           self->options );
 
 	// -- Print error message with context if compilation failed
 	if ( shaderc_result_get_compilation_status( result->result ) != shaderc_compilation_status_success ) {
