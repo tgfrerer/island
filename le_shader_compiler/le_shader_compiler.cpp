@@ -263,6 +263,91 @@ static void le_shaderc_include_result_destroy( void *user_data, shaderc_include_
 }
 
 // ---------------------------------------------------------------
+static inline bool checkForLineNumberModifier( const std::string &line, uint32_t &lineNumber, std::string &currentFilename, std::string &lastFilename ) {
+
+	if ( line.find( "#line", 0 ) != 0 )
+		return false;
+
+	// --------| invariant: current line is a line number marker
+
+	std::istringstream is( line );
+
+	// ignore until first whitespace, then parse linenumber, then parse filename
+	std::string quotedFileName;
+	is.ignore( std::numeric_limits<std::streamsize>::max(), ' ' ) >> lineNumber >> quotedFileName;
+	// decrease line number by one, as marker line is not counted
+	--lineNumber;
+	// store last filename when change occurs
+	std::swap( lastFilename, currentFilename );
+	// remove double quotes around filename, if any
+	currentFilename.assign( quotedFileName.begin() + quotedFileName.find_first_not_of( '"' ), quotedFileName.begin() + quotedFileName.find_last_not_of( '"' ) + 1 );
+	return true;
+};
+
+// ---------------------------------------------------------------
+
+static void le_shader_compiler_print_error_context( const char *errMsg, const std::string &shaderSource, const std::string &sourceFileName ) {
+
+	std::cerr << "ERROR: Shader compilation failed: " << std::endl
+	          << errMsg << std::flush;
+
+	std::string errorFileName( 255, '\0' ); // Will contain the name of the file which contains the error
+	uint32_t    lineNumber = 0;             // Will contain error line number after successful parse
+
+	// Error string will has the form:  "triangle.frag:28: error: '' :  syntax error"
+	auto scanResult = sscanf( errMsg, "%[^:]:%d:", errorFileName.data(), &lineNumber );
+	errorFileName.shrink_to_fit();
+
+	std::istringstream sourceCode( shaderSource );
+	std::string        currentLine;
+
+	if ( scanResult != std::char_traits<char>::eof() ) {
+
+		std::getline( sourceCode, currentLine );
+
+		uint32_t    currentLineNumber = 1; /* Line numbers start counting at 1 */
+		std::string currentFilename   = sourceFileName;
+		std::string lastFilename      = sourceFileName;
+
+		while ( sourceCode.good() ) {
+
+			// Check for lines inserted by the preprocessor which hold line numbers for included files
+			// Such lines have the pattern: '#line 21 "path/to/include.frag"' (without single quotation marks)
+			auto wasLineMarker = checkForLineNumberModifier( currentLine, currentLineNumber, currentFilename, lastFilename );
+
+			if ( 0 == strcmp( errorFileName.c_str(), currentFilename.c_str() ) ) {
+				if ( ( currentLineNumber > 0 ) && ( currentLineNumber + 3 > lineNumber ) ) {
+					std::ostringstream sourceContext;
+
+					const auto shaderSourceCodeLine = wasLineMarker ? "#include \"" + lastFilename + "\"" : currentLine;
+
+					if ( currentLineNumber == lineNumber ) {
+						//sourceContext << of::utils::setConsoleColor( of::utils::ConsoleColor::eBrightCyan );
+					}
+
+					sourceContext << std::right << std::setw( 4 ) << currentLineNumber << " | " << shaderSourceCodeLine;
+
+					if ( currentLineNumber == lineNumber ) {
+						//sourceContext << of::utils::resetConsoleColor();
+					}
+
+					std::cout << sourceContext.str() << std::endl;
+				}
+
+				if ( currentLineNumber >= lineNumber + 2 ) {
+					std::cout << std::endl; // add line break for better readability
+					break;
+				}
+			}
+			std::getline( sourceCode, currentLine );
+			++currentLineNumber;
+		}
+	}
+
+	std::cout << std::flush;
+}
+
+// ---------------------------------------------------------------
 
 static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_shader_compiler_o *self, const char *sourceFileText, size_t sourceFileNumBytes, LeShaderType shaderType, const char *original_file_path ) {
 
@@ -285,11 +370,14 @@ static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_sha
 	    original_file_path, "main",
 	    local_options );
 
-	// -- free local compiler options - this will also free any pointers to our callbacks.
+	// -- Free local compiler options - this will also free any pointers to our callbacks.
 	shaderc_compile_options_release( local_options );
 
-	// Refresh iterator for include paths so that it points to the first element
-	// in the sorted set.
+	// Setup iterator for include paths so that it points to the first element
+	// in the sorted set of inlcude paths
+	// Once the preprocessor step has completed, the set of include paths for
+	// this result object will not ever change again, and the read-out iterator
+	// can be set to the start position.
 	result->includes.paths_it = result->includes.paths.begin();
 
 	// If preprocessor step was not successful - return preprocessor result
@@ -314,6 +402,12 @@ static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_sha
 	    self->compiler, preprocessorText, preprocessorTextNumBytes, shaderKind,
 	    original_file_path, "main",
 	    self->options );
+
+	// -- Print error message with context if compilation failed
+	if ( shaderc_result_get_compilation_status( result->result ) != shaderc_compilation_status_success ) {
+		const char *err_msg = shaderc_result_get_error_message( result->result );
+		le_shader_compiler_print_error_context( err_msg, preprocessorText, original_file_path );
+	}
 
 	// -- free preprocessor compilation result
 	shaderc_result_release( preprocessorResult );
