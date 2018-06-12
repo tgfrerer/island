@@ -13,7 +13,7 @@ struct pal_api_loader_o {
 	const char *        mRegisterApiFuncName = nullptr;
 	const char *        mPath                = nullptr;
 	void *              mLibraryHandle       = nullptr;
-	Pal_File_Watcher_o *mFileWatcher         = nullptr;
+	pal_file_watcher_o *mFileWatcher         = nullptr;
 };
 
 // ----------------------------------------------------------------------

@@ -25,10 +25,11 @@ extern "C" {
 struct pal_api_loader_i;
 struct pal_api_loader_o;
 struct pal_file_watcher_i;
-struct Pal_File_Watcher_o;
+struct pal_file_watcher_o;
 
 bool pal_register_api_loader_i( pal_api_loader_i *api );
 
+// clang-format off
 struct pal_api_loader_i {
 
 	static constexpr auto id      = "pal_api_loader";
@@ -40,6 +41,7 @@ struct pal_api_loader_i {
 	bool               ( *load )                 ( pal_api_loader_o *obj );
 	bool               (* loadLibraryPersistent) (const char* libName_);
 };
+// clang-format on
 
 // ----------------------------------------------------------------------
 
