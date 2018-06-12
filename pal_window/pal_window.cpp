@@ -18,66 +18,66 @@ struct pal_window_o {
 	VkSurfaceKHR          mSurface = nullptr;
 	VkExtent2D            mSurfaceExtent;
 	pal_window_settings_o mSettings;
-	VkInstance            mInstance = nullptr;
-	size_t				  referenceCount = 0;
+	VkInstance            mInstance      = nullptr;
+	size_t                referenceCount = 0;
 };
 
-static size_t window_get_reference_count(pal_window_o* self){
+static size_t window_get_reference_count( pal_window_o *self ) {
 	return self->referenceCount;
 }
 
-static void window_increase_reference_count(pal_window_o* self){
+static void window_increase_reference_count( pal_window_o *self ) {
 	++self->referenceCount;
 }
 
-static void window_decrease_reference_count(pal_window_o* self){
+static void window_decrease_reference_count( pal_window_o *self ) {
 	--self->referenceCount;
 }
 
 // ----------------------------------------------------------------------
 
-static pal_window_settings_o* window_settings_create(){
-	pal_window_settings_o* obj = new(pal_window_settings_o);
+static pal_window_settings_o *window_settings_create() {
+	pal_window_settings_o *obj = new ( pal_window_settings_o );
 	return obj;
 }
 
 // ----------------------------------------------------------------------
 
-static void window_settings_set_title(pal_window_settings_o* self_, const char* title_){
-	self_->title = std::string(title_);
+static void window_settings_set_title( pal_window_settings_o *self_, const char *title_ ) {
+	self_->title = std::string( title_ );
 }
 
 // ----------------------------------------------------------------------
 
-static void window_settings_set_width(pal_window_settings_o* self_, int width_){
+static void window_settings_set_width( pal_window_settings_o *self_, int width_ ) {
 	self_->width = width_;
 }
 
 // ----------------------------------------------------------------------
 
-static void window_settings_set_height(pal_window_settings_o* self_, int height_){
+static void window_settings_set_height( pal_window_settings_o *self_, int height_ ) {
 	self_->height = height_;
 }
 
 // ----------------------------------------------------------------------
 
-static void window_settings_destroy(pal_window_settings_o* self_){
+static void window_settings_destroy( pal_window_settings_o *self_ ) {
 	delete self_;
 }
 
 // ----------------------------------------------------------------------
 
-static void glfw_framebuffer_resize_callback(GLFWwindow* window_, int width_px_, int height_px_){
-	auto self = static_cast<pal_window_o*> (glfwGetWindowUserPointer(window_));
+static void glfw_framebuffer_resize_callback( GLFWwindow *window_, int width_px_, int height_px_ ) {
+	auto self = static_cast<pal_window_o *>( glfwGetWindowUserPointer( window_ ) );
 	glfwGetWindowSize( window_, &self->mSettings.width, &self->mSettings.height );
-	self->mSurfaceExtent.width  = uint32_t(width_px_ );
-	self->mSurfaceExtent.height = uint32_t(height_px_);
-	std::cout << "Framebuffer resized callback: " << width_px_ << ", "  << height_px_ << std::endl;
+	self->mSurfaceExtent.width  = uint32_t( width_px_ );
+	self->mSurfaceExtent.height = uint32_t( height_px_ );
+	std::cout << "Framebuffer resized callback: " << std::dec << width_px_ << ", " << height_px_ << std::endl;
 };
 
 // ----------------------------------------------------------------------
 
-static bool window_create_surface( pal_window_o *self, VkInstance vkInstance) {
+static bool window_create_surface( pal_window_o *self, VkInstance vkInstance ) {
 	auto result = glfwCreateWindowSurface( vkInstance, self->window, nullptr, &self->mSurface );
 	if ( result == VK_SUCCESS ) {
 		int tmp_w = 0;
@@ -85,7 +85,7 @@ static bool window_create_surface( pal_window_o *self, VkInstance vkInstance) {
 		glfwGetFramebufferSize( self->window, &tmp_w, &tmp_h );
 		self->mSurfaceExtent.height = uint32_t( tmp_h );
 		self->mSurfaceExtent.width  = uint32_t( tmp_w );
-		self->mInstance = vkInstance;
+		self->mInstance             = vkInstance;
 		std::cout << "Created surface" << std::endl;
 	} else {
 		std::cerr << "Error creating surface" << std::endl;
@@ -107,8 +107,8 @@ static void window_destroy_surface( pal_window_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static uint32_t window_get_surface_width(pal_window_o* self){
-	if (self->mSurface){
+static uint32_t window_get_surface_width( pal_window_o *self ) {
+	if ( self->mSurface ) {
 		return self->mSurfaceExtent.width;
 	}
 	return 0;
@@ -116,8 +116,8 @@ static uint32_t window_get_surface_width(pal_window_o* self){
 
 // ----------------------------------------------------------------------
 
-static uint32_t window_get_surface_height(pal_window_o* self){
-	if (self->mSurface){
+static uint32_t window_get_surface_height( pal_window_o *self ) {
+	if ( self->mSurface ) {
 		return self->mSurfaceExtent.height;
 	}
 	return 0;
@@ -125,16 +125,16 @@ static uint32_t window_get_surface_height(pal_window_o* self){
 
 // ----------------------------------------------------------------------
 
-static VkSurfaceKHR window_get_vk_surface_khr(pal_window_o* self){
+static VkSurfaceKHR window_get_vk_surface_khr( pal_window_o *self ) {
 	return self->mSurface;
 }
 
 // ----------------------------------------------------------------------
 
-static pal_window_o *window_create(const pal_window_settings_o* settings_) {
+static pal_window_o *window_create( const pal_window_settings_o *settings_ ) {
 	auto obj = new pal_window_o();
 
-	if (settings_){
+	if ( settings_ ) {
 		obj->mSettings = *settings_;
 	}
 
@@ -146,7 +146,7 @@ static pal_window_o *window_create(const pal_window_settings_o* settings_) {
 	obj->window = glfwCreateWindow( obj->mSettings.width, obj->mSettings.height, obj->mSettings.title.c_str(), obj->mSettings.monitor, nullptr );
 
 	// Set the user pointer so callbacks know which window they belong to
-	glfwSetWindowUserPointer(obj->window,obj);
+	glfwSetWindowUserPointer( obj->window, obj );
 
 	// FIXME: Callback function address target may have changed after library hot-reload
 	// Problem -- the address of the callback function may have changed
@@ -203,8 +203,8 @@ static int init() {
 
 // ----------------------------------------------------------------------
 
-static const char** get_required_vk_instance_extensions(uint32_t *count){
-	return glfwGetRequiredInstanceExtensions(count);
+static const char **get_required_vk_instance_extensions( uint32_t *count ) {
+	return glfwGetRequiredInstanceExtensions( count );
 }
 
 // ----------------------------------------------------------------------
@@ -231,18 +231,18 @@ void register_pal_window_api( void *api ) {
 	windowApi->pollEvents                 = pollEvents;
 	windowApi->get_required_vk_extensions = get_required_vk_instance_extensions;
 
-	auto &window_i              = windowApi->window_i;
-	window_i.create             = window_create;
-	window_i.destroy            = window_destroy;
-	window_i.should_close       = window_should_close;
-	window_i.get_surface_width  = window_get_surface_width;
-	window_i.get_surface_height = window_get_surface_height;
-	window_i.create_surface     = window_create_surface;
-	window_i.destroy_surface    = window_destroy_surface;
-	window_i.get_vk_surface_khr = window_get_vk_surface_khr;
+	auto &window_i                    = windowApi->window_i;
+	window_i.create                   = window_create;
+	window_i.destroy                  = window_destroy;
+	window_i.should_close             = window_should_close;
+	window_i.get_surface_width        = window_get_surface_width;
+	window_i.get_surface_height       = window_get_surface_height;
+	window_i.create_surface           = window_create_surface;
+	window_i.destroy_surface          = window_destroy_surface;
+	window_i.get_vk_surface_khr       = window_get_vk_surface_khr;
 	window_i.increase_reference_count = window_increase_reference_count;
 	window_i.decrease_reference_count = window_decrease_reference_count;
-	window_i.get_reference_count = window_get_reference_count;
+	window_i.get_reference_count      = window_get_reference_count;
 
 	auto &window_settings_i      = windowApi->window_settings_i;
 	window_settings_i.create     = window_settings_create;
@@ -252,6 +252,4 @@ void register_pal_window_api( void *api ) {
 	window_settings_i.set_height = window_settings_set_height;
 
 	Registry::loadLibraryPersistently( "libglfw.so" );
-
 }
-
