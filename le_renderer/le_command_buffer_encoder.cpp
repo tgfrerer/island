@@ -232,7 +232,6 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 
-// TODO (pipeline): implement bind_graphics_pipeline
 static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, le_graphics_pipeline_state_o *pso ) {
 
 	// -- insert PSO pointer into command stream

@@ -198,7 +198,6 @@ static bool test_app_update( test_app_o *self ) {
 
 			static_assert( sizeof( vertData ) == sizeof( float ) * 4 * 3, "vertData must be tightly packed" );
 
-			// TODO (pipeline): implement binding graphics pipeline
 			le_encoder.bind_graphics_pipeline( encoder, self->psoTest );
 
 			// This will use the scratch buffer -- and the encoded command will store the
