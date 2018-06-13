@@ -71,7 +71,6 @@ static test_app_o *test_app_create() {
 		auto altFragShader     = app->renderer->createShaderModule( "./shaders/alternative.frag.spv", LeShaderType::eFrag );
 
 		le_graphics_pipeline_create_info_t pi;
-
 		pi.shader_module_frag = defaultFragShader;
 		pi.shader_module_vert = defaultVertShader;
 
@@ -212,6 +211,7 @@ static bool test_app_update( test_app_o *self ) {
 			le_encoder.set_vertex_data( encoder, vertData, sizeof( vertData ), 0 );
 
 			le_encoder.set_scissor( encoder, 0, 1, scissors );
+
 			le_encoder.set_viewport( encoder, 0, 1, viewports );
 
 			le_encoder.draw( encoder, 3, 1, 0, 0 );

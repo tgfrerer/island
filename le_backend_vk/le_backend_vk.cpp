@@ -1768,7 +1768,6 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// -- todo: potentially compile and create pipeline here, based on current pass and subpass
 						// at this point, a valid renderpass must be bound
 						//
-						// FIXME (pipeline) : this creates a pipeline on every draw loop! - cache pipelines, and get pipeline from cache.
 						auto pipeline = backend_produce_pipeline( self, le_cmd->info.pso, pass, subpassIndex );
 						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline );
 					} else if ( pass.type == LE_RENDER_PASS_TYPE_COMPUTE ) {
