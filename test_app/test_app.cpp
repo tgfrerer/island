@@ -193,7 +193,8 @@ static bool test_app_update( test_app_o *self ) {
 				float w = 0;
 			};
 
-			vec4 vertData[ 3 ] = {{0, 0, 0, 0}, {2, 0, 0, 0}, {0, 2, 0, 0}};
+			vec4     vertData[ 3 ]  = {{0, 0, 0, 0}, {2, 0, 0, 0}, {0, 2, 0, 0}};
+			uint16_t indexData[ 3 ] = {0, 1, 2};
 
 			static_assert( sizeof( vertData ) == sizeof( float ) * 4 * 3, "vertData must be tightly packed" );
 
@@ -209,6 +210,7 @@ static bool test_app_update( test_app_o *self ) {
 			// The scratch buffer is uploaded/transferred before the renderpass begins
 			// so that data from it is read-visible
 			le_encoder.set_vertex_data( encoder, vertData, sizeof( vertData ), 0 );
+			le_encoder.set_index_data( encoder, indexData, sizeof( indexData ), 0 ); // 0 for indexType means uint16_t
 
 			le_encoder.set_scissor( encoder, 0, 1, scissors );
 
@@ -220,7 +222,7 @@ static bool test_app_update( test_app_o *self ) {
 			le_encoder.set_scissor( encoder, 0, 1, &scissors[ 1 ] );
 			le_encoder.set_viewport( encoder, 0, 1, &viewports[ 1 ] );
 
-			le_encoder.draw( encoder, 3, 1, 0, 0 );
+			le_encoder.draw_indexed( encoder, 3, 1, 0, 0, 0 );
 		} );
 
 		mainModule.addRenderPass( resourcePass );

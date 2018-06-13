@@ -1804,6 +1804,12 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D *>( le_cmd + 1 ) );
 				} break;
 
+				case le::CommandType::eBindIndexBuffer: {
+					auto *le_cmd = static_cast<le::CommandBindIndexBuffer *>( dataIt );
+					auto  buffer = get_physical_buffer_from_resource_id( &frame, le_cmd->info.buffer );
+					cmd.bindIndexBuffer( buffer, le_cmd->info.offset, vk::IndexType( le_cmd->info.indexType ) );
+				} break;
+
 				case le::CommandType::eBindVertexBuffers: {
 					auto *le_cmd = static_cast<le::CommandBindVertexBuffers *>( dataIt );
 

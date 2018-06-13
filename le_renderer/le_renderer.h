@@ -70,12 +70,13 @@ struct le_graphics_pipeline_create_info_t {
 
 struct le_graphics_pipeline_state_o; ///< object declaring a pipeline, owned by renderer, destroyed with renderer
 
+// clang-format off
+
 struct le_renderer_api {
 
 	static constexpr auto id      = "le_renderer";
 	static constexpr auto pRegFun = register_le_renderer_api;
 
-	// clang-format off
 
 	struct renderer_interface_t {
 		le_renderer_o *                ( *create                                )( le_backend_o  *backend );
@@ -153,18 +154,23 @@ struct le_renderer_api {
 		le_command_buffer_encoder_o *( *create                 )( le_allocator_o *allocator );
 		void                         ( *destroy                )( le_command_buffer_encoder_o *obj );
 
-		void                         ( *get_encoded_data       )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
-
-		void                         ( *set_line_width         )( le_command_buffer_encoder_o *self, float line_width_ );
 		void                         ( *draw                   )( le_command_buffer_encoder_o *self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance );
+		void                         ( *draw_indexed           )( le_command_buffer_encoder_o *self, uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
+		void                         ( *set_line_width         )( le_command_buffer_encoder_o *self, float line_width_ );
 		void                         ( *set_viewport           )( le_command_buffer_encoder_o *self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport *pViewports );
 		void                         ( *set_scissor            )( le_command_buffer_encoder_o *self, uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D *pViewports );
-		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, uint64_t *pBuffers, uint64_t *pOffsets );
-		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void *data, uint64_t numBytes, uint32_t bindingIndex );
 		void                         ( *bind_graphics_pipeline )( le_command_buffer_encoder_o *self, le_graphics_pipeline_state_o* pipeline);
+
+		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, uint64_t bufferId, uint64_t offset, uint64_t indexType);
+		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, uint64_t *pBuffers, uint64_t *pOffsets );
+
+
+		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void *data, uint64_t numBytes, uint64_t indexType );
+		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void *data, uint64_t numBytes, uint32_t bindingIndex );
+
+		void                         ( *get_encoded_data       )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
 	};
 
-	// clang-format on
 
 	renderpass_interface_t             le_renderpass_i;
 	rendermodule_interface_t           le_render_module_i;
@@ -172,6 +178,7 @@ struct le_renderer_api {
 	renderer_interface_t               le_renderer_i;
 	command_buffer_encoder_interface_t le_command_buffer_encoder_i;
 };
+// clang-format on
 
 #ifdef __cplusplus
 } // extern "C"
