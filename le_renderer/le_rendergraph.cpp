@@ -245,11 +245,8 @@ static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameI
 
 	self->encoders.reserve( self->passes.size() );
 
-	static const auto &rendererApiI     = *Registry::getApi<le_renderer_api>();
-	static const auto &encoderInterface = rendererApiI.le_command_buffer_encoder_i;
-
-	static const auto &backendApiI      = *Registry::getApi<le_backend_vk_api>();
-	static const auto &backendInterface = backendApiI.vk_backend_i;
+	static const auto &encoderInterface = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
+	static const auto &backendInterface = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
 
 	// TODO: have one allocator per pass, so that allocator and encoder may be interleaved,
 	// and run on parallel threads.
