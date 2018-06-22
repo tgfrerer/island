@@ -684,7 +684,7 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setVertexAttributeDescriptionCount( 1 )
 	    .setPVertexAttributeDescriptions( &vertexAttributeDescription );
 
-	// todo: get layout from shader
+	// TODO: get pipeline layout from pso
 
 	vk::DescriptorSetLayoutCreateInfo setLayoutInfo;
 	setLayoutInfo
@@ -852,17 +852,17 @@ static vk::Pipeline backend_produce_pipeline( le_backend_o *self, le_graphics_pi
 	pso_renderpass_hashes[ 0 ] = pso->hash;                   // TODO: Hash for PSO state - must have been updated before recording phase started
 	pso_renderpass_hashes[ 1 ] = pso->shaderModuleVert->hash; // Module state - may have been recompiled, hash must be current
 	pso_renderpass_hashes[ 2 ] = pso->shaderModuleFrag->hash; // Module state - may have been recompiled, hash must be current
-	pso_renderpass_hashes[ 3 ] = pass.renderpassHash;         // Hash for compatible renderpass
+	pso_renderpass_hashes[ 3 ] = pass.renderpassHash;         // Hash for *compatible* renderpass
 
 	// -- create combined hash for pipeline, renderpass
 
 	uint64_t pipeline_hash = SpookyHash::Hash64( pso_renderpass_hashes, sizeof( pso_renderpass_hashes ), 0 );
 
-	// -- look up if pipeline with this hash already exists in cache
-
 	vk::Pipeline pipeline = nullptr;
 
+	// -- look up if pipeline with this hash already exists in cache
 	auto p = self->pipelineCache.find( pipeline_hash );
+
 	if ( p == self->pipelineCache.end() ) {
 		// -- if not, create pipeline in pipeline cache and store / retain it
 		pipeline = backend_create_pipeline( self, pso, pass.renderPass, subpass );
@@ -1227,7 +1227,7 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 				device.destroyRenderPass( r.asRenderPass );
 			    break;
 			case AbstractPhysicalResource::eUndefined:
-				std::cout << __PRETTY_FUNCTION__ << ": abstract physical resource has unknown type (" << std::hex << r.type << ") and cannot be deleted. leaking...";
+				std::cout << __PRETTY_FUNCTION__ << ": abstract physical resource has unknown type (" << std::hex << r.type << ") and cannot be deleted. leaking..." << std::flush;
 			    break;
 			}
 		}
@@ -1688,7 +1688,8 @@ static le_allocator_o *backend_get_transient_allocator( le_backend_o *self, size
 }
 
 // ----------------------------------------------------------------------
-
+// Decode commandStream for each pass (may happen in paralell)
+// translate into vk specific commands.
 static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 	static auto const &le_encoder_api = ( *Registry::getApi<le_renderer_api>() ).le_command_buffer_encoder_i;

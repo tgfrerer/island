@@ -1,4 +1,4 @@
-#version 420 core
+#version 450 core
 
 // This shader built after a technique introduced in:
 // http://www.saschawillems.de/?page_id=2122

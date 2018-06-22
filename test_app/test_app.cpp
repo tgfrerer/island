@@ -66,7 +66,7 @@ static test_app_o *test_app_create() {
 		// -- Declare graphics pipeline state objects
 
 		// Creating shader modules will eventually compile shader source code from glsl to spir-v
-		auto defaultVertShader = app->renderer->createShaderModule( "./shaders/default.vert.spv", LeShaderType::eVert );
+		auto defaultVertShader = app->renderer->createShaderModule( "./shaders/default.vert", LeShaderType::eVert );
 		auto defaultFragShader = app->renderer->createShaderModule( "./shaders/default.frag", LeShaderType::eFrag );
 		auto altFragShader     = app->renderer->createShaderModule( "./shaders/alternative.frag.spv", LeShaderType::eFrag );
 

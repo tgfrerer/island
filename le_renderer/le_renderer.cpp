@@ -107,10 +107,12 @@ renderer_create_graphics_pipeline_state_object( le_renderer_o *self, le_graphics
 	// TODO (pipeline): -- initialise pso based on pipeline info
 
 	// TODO (pipeline): -- tell backend about the new pipeline state object
-	static auto const &backend_i = ( *Registry::getApi<le_backend_vk_api>() ).vk_backend_i;
+	static auto const &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
 	// -- calculate hash based on contents of pipeline state object
 
-	pso->hash = 0x0; // TODO: -- calculate hash for pipeline state based on create_info (state that's not related to shaders)
+	// TODO: -- calculate hash for pipeline state based on create_info (state that's not related to shaders)
+	// create_info will contain state like blend, polygon mode, culling etc.
+	pso->hash = 0x0;
 
 	self->PSOs.push_back( pso );
 	return pso;
