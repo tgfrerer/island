@@ -164,9 +164,11 @@ struct le_renderer_api {
 		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, uint64_t bufferId, uint64_t offset, uint64_t indexType);
 		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, uint64_t *pBuffers, uint64_t *pOffsets );
 
-
 		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void *data, uint64_t numBytes, uint64_t indexType );
 		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void *data, uint64_t numBytes, uint32_t bindingIndex );
+
+		// stores ubo argument data to scratch buffer
+		void                         ( *set_argument_ubo_data  ) (le_command_buffer_encoder_o *self, size_t parameterIndex, void * data, size_t numBytes);
 
 		void                         ( *get_encoded_data       )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
 	};

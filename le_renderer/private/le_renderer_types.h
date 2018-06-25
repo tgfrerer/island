@@ -15,6 +15,7 @@ enum class CommandType : uint32_t {
 	eSetLineWidth,
 	eSetViewport,
 	eSetScissor,
+	eSetArgumentUbo,
 	eBindIndexBuffer,
 	eBindVertexBuffers,
 	eBindPipeline,
@@ -76,6 +77,15 @@ struct CommandSetScissor {
 	} info;
 };
 
+struct CommandSetArgumentUbo {
+	CommandHeader header = {{{CommandType::eSetArgumentUbo, sizeof( CommandSetArgumentUbo )}}};
+	struct {
+		uint32_t offset;
+		uint16_t range; // size of parameter data in bytes
+		uint16_t index; // descriptor index in flattened shader parameter list
+	} info;
+};
+
 struct CommandSetLineWidth {
 	CommandHeader header = {{{CommandType::eSetLineWidth, sizeof( CommandSetLineWidth )}}};
 	struct {
@@ -97,7 +107,7 @@ struct CommandBindVertexBuffers {
 struct CommandBindIndexBuffer {
 	CommandHeader header = {{{CommandType::eBindIndexBuffer, sizeof( CommandBindIndexBuffer )}}};
 	struct {
-		uint64_t buffer;
+		uint64_t buffer; // buffer id
 		uint64_t offset;
 		uint64_t indexType;
 	} info;

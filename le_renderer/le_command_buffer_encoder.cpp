@@ -230,6 +230,40 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *self,
 	}
 }
 
+static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
+                                       size_t                       argumentIndex,
+                                       void *                       data,
+                                       size_t                       numBytes ) {
+
+	static auto &allocator_i = Registry::getApi<le_backend_vk_api>()->le_allocator_linear_i;
+
+	auto cmd = EMPLACE_CMD( le::CommandSetArgumentUbo );
+
+	void *   memAddr;
+	uint64_t bufferOffset = 0;
+
+	// -- Allocate memory on scratch buffer for ubo
+	//
+	// Note that we might want to have specialised ubo memory eventually if that
+	// made a performance difference.
+	if ( allocator_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
+
+		// store ubo data to scratch allocator
+		memcpy( memAddr, data, numBytes );
+
+		cmd->info.index  = uint16_t( argumentIndex );
+		cmd->info.offset = bufferOffset;
+		cmd->info.range  = uint16_t( numBytes );
+
+	} else {
+		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << "bytes.";
+		return;
+	}
+
+	self->mCommandStreamSize += sizeof( le::CommandSetArgumentUbo );
+	self->mCommandCount++;
+}
+
 // ----------------------------------------------------------------------
 
 static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, le_graphics_pipeline_state_o *pso ) {
@@ -266,15 +300,16 @@ ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 
 	le_command_buffer_encoder_i.create                 = cbe_create;
 	le_command_buffer_encoder_i.destroy                = cbe_destroy;
-	le_command_buffer_encoder_i.set_line_width         = cbe_set_line_width;
 	le_command_buffer_encoder_i.draw                   = cbe_draw;
 	le_command_buffer_encoder_i.draw_indexed           = cbe_draw_indexed;
+	le_command_buffer_encoder_i.set_line_width         = cbe_set_line_width;
 	le_command_buffer_encoder_i.set_viewport           = cbe_set_viewport;
 	le_command_buffer_encoder_i.set_scissor            = cbe_set_scissor;
 	le_command_buffer_encoder_i.bind_vertex_buffers    = cbe_bind_vertex_buffers;
 	le_command_buffer_encoder_i.bind_index_buffer      = cbe_bind_index_buffer;
 	le_command_buffer_encoder_i.set_index_data         = cbe_set_index_data;
 	le_command_buffer_encoder_i.set_vertex_data        = cbe_set_vertex_data;
+	le_command_buffer_encoder_i.set_argument_ubo_data  = cbe_set_argument_ubo_data;
 	le_command_buffer_encoder_i.bind_graphics_pipeline = cbe_bind_pipeline;
 	le_command_buffer_encoder_i.get_encoded_data       = cbe_get_encoded_data;
 }

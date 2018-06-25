@@ -200,6 +200,24 @@ static bool test_app_update( test_app_o *self ) {
 
 			le_encoder.bind_graphics_pipeline( encoder, self->psoTest );
 
+			// TODO: implement setting shader arguments (uniform parameters)
+			struct UboDefaultMatrices {
+				float modelViewProjectionMatrix[ 16 ];
+			};
+
+			UboDefaultMatrices ubo1{};
+
+			// this means we're setting the data for the descriptor at the position
+			// set 0, binding 0, array position 0
+
+			// Encoder should keep track of currently bound pipeline, which is why we don't have to mention the pipeline.
+			// Pipeline layout has a lookup table which gives us the set and binding number for this named element.
+			// Last argument is the array index for this descriptor
+
+			// -- create descriptors
+			// -- fill dynamic descriptors
+			// -- set descriptor values
+
 			// This will use the scratch buffer -- and the encoded command will store the
 			// location of the data as it was laid down in the scratch buffer.
 			//
@@ -212,9 +230,9 @@ static bool test_app_update( test_app_o *self ) {
 			le_encoder.set_index_data( encoder, indexData, sizeof( indexData ), 0 ); // 0 for indexType means uint16_t
 
 			le_encoder.set_scissor( encoder, 0, 1, scissors );
-
 			le_encoder.set_viewport( encoder, 0, 1, viewports );
 
+			le_encoder.set_argument_ubo_data( encoder, 0, &ubo1, sizeof( UboDefaultMatrices ) ); // set a descriptor to set, binding, array_index
 			le_encoder.draw( encoder, 3, 1, 0, 0 );
 
 			le_encoder.bind_graphics_pipeline( encoder, self->psoMain );

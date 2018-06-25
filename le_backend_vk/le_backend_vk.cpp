@@ -1739,6 +1739,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 	auto numCommandBuffers = uint32_t( frame.passes.size() );
 	auto cmdBufs           = device.allocateCommandBuffers( {frame.commandPool, vk::CommandBufferLevel::ePrimary, numCommandBuffers} );
 
+	std::array<uint32_t, 256> dynamicOffsets;
+	uint32_t                  dynamicOffsetCount = 0; // TODO: set this to value of dynamic elements for current pipeline
+
 	// TODO: (parallel for)
 	for ( size_t passIndex = 0; passIndex != frame.passes.size(); ++passIndex ) {
 
@@ -1796,11 +1799,18 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				case le::CommandType::eBindPipeline: {
 					auto *le_cmd = static_cast<le::CommandBindPipeline *>( dataIt );
 					if ( pass.type == LE_RENDER_PASS_TYPE_DRAW ) {
-						// -- todo: potentially compile and create pipeline here, based on current pass and subpass
 						// at this point, a valid renderpass must be bound
-						//
+
+						// -- potentially compile and create pipeline here, based on current pass and subpass
 						auto pipeline = backend_produce_pipeline( self, le_cmd->info.pso, pass, subpassIndex );
 						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline );
+
+						// TODO: set dynamicOffsetsCount to number of dynamic argumnents in curent pipeline
+						//dynamicOffsetCount = backend_pipeline_get_num_dynamic_arguments( le_cmd->info.pso );
+						dynamicOffsetCount = 1;
+						// reset dynamic offsets
+						memset( dynamicOffsets.data(), 0, sizeof( uint32_t ) * dynamicOffsetCount );
+
 					} else if ( pass.type == LE_RENDER_PASS_TYPE_COMPUTE ) {
 						// -- TODO: implement compute pass pipeline binding
 					}
@@ -1833,6 +1843,21 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					// NOTE: since data for scissors *is stored inline*, we could also increase the typed pointer
 					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
 					cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D *>( le_cmd + 1 ) );
+				} break;
+
+				case le::CommandType::eSetArgumentUbo: {
+					// we need to store the data for the dynamic binding which was set as an argument to the ubo
+					// this alters our internal state
+					auto *le_cmd = static_cast<le::CommandSetArgumentUbo *>( dataIt );
+
+					if ( le_cmd->info.index >= dynamicOffsetCount ) {
+						std::cerr << "we're overshooting dynamic offsets for this pipeline, wrong index: " << le_cmd->info.index << std::endl
+						          << std::flush;
+						break;
+					}
+
+					dynamicOffsets[ le_cmd->info.index ] = le_cmd->info.offset;
+
 				} break;
 
 				case le::CommandType::eBindIndexBuffer: {
