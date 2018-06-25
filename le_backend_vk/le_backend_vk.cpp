@@ -429,7 +429,7 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 	// -- retain module in renderer
 	self->shaderModules.push_back( module );
 
-	// -- add all surce files for this file to the list of watched
+	// -- add all source files for this file to the list of watched
 	//    files that point back to this module
 	backend_set_watched_files_for_module( self, module, includesSet );
 
@@ -453,6 +453,11 @@ static void backend_shader_module_update( le_backend_o *self, le_shader_module_o
 	// -- get module spirv code
 	bool loadSuccessful = false;
 	auto source_text    = load_file( module->filepath, &loadSuccessful );
+
+	if ( !loadSuccessful ) {
+		// file could not be loaded. bail out.
+		return;
+	}
 
 	std::vector<uint32_t> spirv_code;
 	std::set<std::string> includesSet;
@@ -493,17 +498,17 @@ static void backend_shader_module_update( le_backend_o *self, le_shader_module_o
 }
 
 // ----------------------------------------------------------------------
-
+// this method is called via renderer::update - before frame processing.
 static void backend_update_shader_modules( le_backend_o *self ) {
 
 	// -- find out which shader modules have been tainted
 	static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
 
 	// this will call callbacks on any watched file objects as a side effect
-	// callbacks will modify le_backend->modifiedSahderModules
+	// callbacks will modify le_backend->modifiedShaderModules
 	file_watcher_i.poll_notifications( self->shaderFileWatcher );
 
-	// -- recreate shader only modules which have been tainted
+	// -- update only modules which have been tainted
 
 	for ( auto &s : self->modifiedShaderModules ) {
 		backend_shader_module_update( self, s );
@@ -652,9 +657,6 @@ void backend_reset_swapchain( le_backend_o *self ) {
 }
 
 // ----------------------------------------------------------------------
-// TODO (pipeline): allow us to pass in a renderpass, renderpass must have its own hash,
-// which is a hash which includes only fields which contribute to renderpass compatibility
-// (so that compatible renderpasses have the same hash.)
 static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pipeline_state_o const *pso, const vk::RenderPass &renderpass, uint32_t subpass ) {
 
 	vk::Device vkDevice = self->device->getVkDevice();
@@ -834,7 +836,7 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 }
 
 /// \brief Creates - or loads a pipeline from cache based on current pipeline state
-/// \note this method does lock the pipeline cache and is therefore costly.
+/// \note this method may lock the pipeline cache and is therefore costly.
 static vk::Pipeline backend_produce_pipeline( le_backend_o *self, le_graphics_pipeline_state_o const *pso, const Pass &pass, uint32_t subpass ) {
 
 	// TODO: Ensure there are no races around this method

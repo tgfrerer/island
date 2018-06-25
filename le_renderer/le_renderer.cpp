@@ -338,7 +338,9 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 	const auto &index     = self->currentFrameNumber;
 	const auto &numFrames = self->numSwapchainImages;
 
-	// if necessary, recompile and reload shader modules
+	// If necessary, recompile and reload shader modules
+	// - this must be complete before the record_frame step
+
 	backend_i.update_shader_modules( self->backend );
 
 	// NOTE: think more about interleaving - ideally, each one of these stages
