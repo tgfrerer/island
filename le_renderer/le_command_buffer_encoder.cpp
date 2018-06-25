@@ -278,6 +278,12 @@ static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, le_graphics_pi
 
 	self->mCommandStreamSize += sizeof( le::CommandBindPipeline );
 	self->mCommandCount++;
+
+	// We store a reference to the currently bound graphics pipeline
+	// as the current pipeline is part of the encoder state -
+	// The current pipeline controls which uniforms for example
+	// we may set.
+	self->currentPipeline = pso;
 }
 
 // ----------------------------------------------------------------------
