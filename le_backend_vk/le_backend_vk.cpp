@@ -656,6 +656,55 @@ void backend_reset_swapchain( le_backend_o *self ) {
 	self->swapchain->reset();
 }
 
+static vk::PipelineLayout backend_get_pipeline_layout( le_backend_o *self, le_graphics_pipeline_state_o const *pso ) {
+	// TODO: get pipeline layout from pso
+
+	// TODO: store number of dynamic bindings so that these can be retrieved when decoding command
+
+	vk::Device vkDevice = self->device->getVkDevice();
+
+	//shader_module_get_signature(pso->shaderModuleFrag);
+
+	// todo: -- get signatures from shader modules (read-only)
+	// -- build descriptorsetlayouts from shader module signatures
+	// -- build pipeline layouts from shader module signatures
+	// -- associate pipeline layout with pso (we keep a lookup table from pso->le_pipelinelayout(==PipelineLayout hash, vkPipelineLayout))
+
+	{
+		// in order to get the pipeline layout we must get descriptors for each shader stage
+
+		std::vector<vk::DescriptorSetLayoutBinding> bindings = {
+		    {0, vk::DescriptorType::eUniformBufferDynamic, 1, vk::ShaderStageFlagBits::eAllGraphics, nullptr},
+		    {1, vk::DescriptorType::eSampledImage, 1, vk::ShaderStageFlagBits::eAllGraphics, nullptr},
+		};
+
+		vk::DescriptorSetLayoutCreateInfo setLayoutInfo;
+		setLayoutInfo
+		    .setFlags( vk::DescriptorSetLayoutCreateFlags() )
+		    .setBindingCount( bindings.size() )
+		    .setPBindings( bindings.data() );
+
+		// FIXME: don't overwrite debug layout - only do this for debug pipeline
+		if ( !self->debugDescriptorSetLayout ) {
+			self->debugDescriptorSetLayout = vkDevice.createDescriptorSetLayout( setLayoutInfo );
+		}
+
+		vk::PipelineLayoutCreateInfo layoutCreateInfo;
+		layoutCreateInfo
+		    .setFlags( vk::PipelineLayoutCreateFlags() ) // "reserved for future use"
+		    .setSetLayoutCount( 1 )
+		    .setPSetLayouts( &self->debugDescriptorSetLayout )
+		    .setPushConstantRangeCount( 0 )
+		    .setPPushConstantRanges( nullptr );
+
+		// FIXME: don't overwrite debug layout - only do this for debug pipeline
+		if ( !self->debugPipelineLayout ) {
+			self->debugPipelineLayout = vkDevice.createPipelineLayout( layoutCreateInfo );
+		}
+	}
+	return self->debugPipelineLayout;
+}
+
 // ----------------------------------------------------------------------
 static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pipeline_state_o const *pso, const vk::RenderPass &renderpass, uint32_t subpass ) {
 
@@ -686,31 +735,7 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setVertexAttributeDescriptionCount( 1 )
 	    .setPVertexAttributeDescriptions( &vertexAttributeDescription );
 
-	// TODO: get pipeline layout from pso
-
-	vk::DescriptorSetLayoutCreateInfo setLayoutInfo;
-	setLayoutInfo
-	    .setFlags( vk::DescriptorSetLayoutCreateFlags() )
-	    .setBindingCount( 0 )
-	    .setPBindings( nullptr );
-
-	// FIXME: don't overwrite debug layout - only do this for debug pipeline
-	if ( !self->debugDescriptorSetLayout ) {
-		self->debugDescriptorSetLayout = vkDevice.createDescriptorSetLayout( setLayoutInfo );
-	}
-
-	vk::PipelineLayoutCreateInfo layoutCreateInfo;
-	layoutCreateInfo
-	    .setFlags( vk::PipelineLayoutCreateFlags() ) // "reserved for future use"
-	    .setSetLayoutCount( 1 )
-	    .setPSetLayouts( &self->debugDescriptorSetLayout )
-	    .setPushConstantRangeCount( 0 )
-	    .setPPushConstantRanges( nullptr );
-
-	// FIXME: don't overwrite debug layout - only do this for debug pipeline
-	if ( !self->debugPipelineLayout ) {
-		self->debugPipelineLayout = vkDevice.createPipelineLayout( layoutCreateInfo );
-	}
+	auto pipelineLayout = backend_get_pipeline_layout( self, pso );
 
 	vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState;
 	inputAssemblyState
@@ -824,7 +849,7 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setPDepthStencilState( &depthStencilState )
 	    .setPColorBlendState( &colorBlendState )
 	    .setPDynamicState( &dynamicState )
-	    .setLayout( self->debugPipelineLayout )
+	    .setLayout( pipelineLayout )
 	    .setRenderPass( renderpass ) // must be a valid renderpass.
 	    .setSubpass( subpass )
 	    .setBasePipelineHandle( nullptr )
@@ -866,10 +891,13 @@ static vk::Pipeline backend_produce_pipeline( le_backend_o *self, le_graphics_pi
 	auto p = self->pipelineCache.find( pipeline_hash );
 
 	if ( p == self->pipelineCache.end() ) {
+
 		// -- if not, create pipeline in pipeline cache and store / retain it
 		pipeline = backend_create_pipeline( self, pso, pass.renderPass, subpass );
+
 		std::cout << "New VK Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
 		          << std::flush;
+
 		self->pipelineCache[ pipeline_hash ] = pipeline;
 	} else {
 		// -- else return pipeline found in hash map
