@@ -43,7 +43,7 @@ struct le_shader_compiler_api {
 // clang-format on
 
 #ifdef __cplusplus
-}
+} // extern c
 #endif
 
 #endif

@@ -9,7 +9,7 @@ struct le_shader_module_o; // defiend in le_backend_vk.cpp
 
 struct le_graphics_pipeline_state_o {
 
-	uint64_t hash = 0; // hash must be updated at single point in code based on shader hashes, pipeline state hash
+	uint64_t hash = 0; ///< hash of pipeline state, but not including but shader modules
 
 	le_shader_module_o *shaderModuleVert = nullptr;
 	le_shader_module_o *shaderModuleFrag = nullptr;
