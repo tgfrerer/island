@@ -12,16 +12,14 @@ layout (location = 0) in vec3 pos;
 // outputs 
 layout (location = 0) out vec2 outTexCoord;
 
-layout (set =0, binding = 0) uniform TestMatrix {
-	mat4 testMatrix;
-};
-
-layout (set = 0, binding = 1) uniform DefaultMatrices 
+layout (set = 0, binding = 0) uniform DefaultMatrices 
 {
-	
 	mat4 modelViewProjectionMatrix;
 };
 
+layout (set =0, binding = 2) uniform TestMatrix {
+	mat4 testMatrix;
+};
 
 // we override the built-in fixed function outputs
 // to have more control over the SPIR-V code created.

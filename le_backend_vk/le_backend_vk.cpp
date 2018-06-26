@@ -884,10 +884,37 @@ static std::vector<le_shader_binding_info> create_bindings_list( le_graphics_pip
 			fBinding++;
 		} else if ( ( vBinding->data & sort_mask ) == ( fBinding->data & sort_mask ) ) {
 
-			// -- combine stage bits
-			vBinding->stage_bits |= fBinding->stage_bits;
+			// -- Check that bindings mentioned in both modules have same properties
 
-			combined_bindings.emplace_back( *vBinding );
+			uint64_t compare_mask = 0;
+			{
+				// switch on elements which we want to compare against
+				le_shader_binding_info info{};
+				info.count   = ~info.count;
+				info.range   = ~info.range;
+				info.type    = ~info.type;
+				compare_mask = info.data;
+			}
+
+			// elements captured by compare mask must be identical
+			if ( ( vBinding->data & compare_mask ) == ( fBinding->data & compare_mask ) ) {
+				// -- combine stage bits so that descriptor will be available for both
+				// stages.
+				vBinding->stage_bits |= fBinding->stage_bits;
+
+				// if count is not identical,that's not that bad, we adjust to larger of the two
+				vBinding->count = std::max( vBinding->count, fBinding->count );
+
+				combined_bindings.emplace_back( *vBinding );
+
+			} else {
+
+				std::cerr << "ERROR: Shader binding mismatch in set: " << vBinding->setIndex
+				          << ", binding: " << vBinding->binding << std::endl
+				          << "\t shader vert: " << pso->shaderModuleVert->filepath << std::endl
+				          << "\t shader frag: " << pso->shaderModuleFrag->filepath << std::endl
+				          << std::flush;
+			};
 
 			vBinding++;
 			fBinding++;

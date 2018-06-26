@@ -9,12 +9,7 @@ layout (location = 0) in vec2 inTexCoord;
 // outputs
 layout (location = 0) out vec4 outFragColor;
 
-layout (set = 0, binding = 0) uniform DefaultMatrices 
-{
-	mat4 modelViewProjectionMatrix;
-};
-
-layout (set = 0, binding = 2) uniform sampler2D tex_unit_0[3];
+layout (set = 0, binding = 1) uniform sampler2D tex_unit_0;
 
 #include "include_test.glsl"
 
