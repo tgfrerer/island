@@ -31,10 +31,14 @@ enum LeAttachmentLoadOp : uint32_t {
 };
 
 enum class LeShaderType : uint64_t {
-	eNone = 0, // no default type for shader modules, you must specify a type
-	eVert,
-	eFrag,
-	// TODO: add missing shader module types
+	eNone        = 0, // no default type for shader modules, you must specify a type
+	eVert        = 0x00000001,
+	eTessControl = 0x00000002,
+	eTessEval    = 0x00000004,
+	eGeom        = 0x00000008,
+	eFrag        = 0x00000010,
+	eCompute     = 0x00000020,
+	eAllGraphics = 0x0000001F, // max needed space to cover this enum is 6 bit
 };
 
 namespace vk {
@@ -167,8 +171,9 @@ struct le_renderer_api {
 		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void *data, uint64_t numBytes, uint64_t indexType );
 		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void *data, uint64_t numBytes, uint32_t bindingIndex );
 
-		// stores ubo argument data to scratch buffer
-		void                         ( *set_argument_ubo_data  ) (le_command_buffer_encoder_o *self, size_t parameterIndex, void * data, size_t numBytes);
+		// stores ubo argument data to scratch buffer - note that parameter index must be dynamic offset index
+		// FIXME: dynamic offset index is hard to guess, as shader might have optimised away elements which are not used.
+		void                         ( *set_argument_ubo_data  ) (le_command_buffer_encoder_o *self, size_t dynamicParameterIndex, void * data, size_t numBytes);
 
 		void                         ( *get_encoded_data       )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
 	};

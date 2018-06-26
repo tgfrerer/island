@@ -231,7 +231,7 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *self,
 }
 
 static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
-                                       size_t                       argumentIndex,
+                                       size_t                       dynamicArgumentIndex,
                                        void *                       data,
                                        size_t                       numBytes ) {
 
@@ -251,7 +251,7 @@ static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
 		// -- Store ubo data to scratch allocator
 		memcpy( memAddr, data, numBytes );
 
-		cmd->info.index  = uint16_t( argumentIndex );
+		cmd->info.index  = uint16_t( dynamicArgumentIndex );
 		cmd->info.offset = uint32_t( bufferOffset ); // Note: we are assuming offset is never > 4GB, which appears realistic for now
 		cmd->info.range  = uint16_t( numBytes );
 

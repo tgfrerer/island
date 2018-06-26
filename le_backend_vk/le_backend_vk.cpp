@@ -38,6 +38,8 @@
 
 #include <memory>
 
+#include "util/spirv-cross/spirv_cross.hpp"
+
 #ifndef PRINT_DEBUG_MESSAGES
 #define PRINT_DEBUG_MESSAGES false
 #endif
@@ -47,19 +49,24 @@ using namespace experimental;
 }
 
 // clang-format off
-// note: microsoft places members in bitfields low to high (LSB first)
+// FIXME: microsoft places members in bitfields low to high (LSB first)
+// and gcc appears to do the same - sorting is based on this assumption, and we must somehow test for it when compiling.
 struct le_shader_binding_info {
-	union{
-		struct {
-			uint64_t setIndex  :  3; // |/ keep together for sorting : set index
-			uint64_t binding   : 14; // |\                           : binding index within set
-			uint64_t type      :  4; // descriptor type
-			uint64_t count     :  9; // number of elements
-			uint64_t padding   : 34; //
-		} ;
+	union {
+		struct{
+		uint64_t stage_bits:  6; // vkShaderFlags : which stages this binding is used for (must be at least 6 bits wide)
+
+		uint64_t range     : 10; // only used for ubos (sizeof ubo)
+		uint64_t type      : 4; // vkDescriptorType descriptor type
+		uint64_t count     : 8; // number of elements
+		uint64_t binding   : 8; // |\                           : binding index within set
+		uint64_t setIndex  : 3; // |/ keep together for sorting : set index [0..7]
+		};
 		uint64_t data;
 	} ;
-
+	bool operator < (le_shader_binding_info const & lhs){
+		return data < lhs.data;
+	}
 };
 
 struct le_descriptor_set_layout_t {                   // matched with vk object via hash
@@ -89,7 +96,7 @@ struct le_shader_module_o {
 	std::vector<uint32_t>               spirv    = {};                  ///< spirv source code for this module
 	std::filesystem::path               filepath = {};                  ///< path to source file
 	vk::ShaderModule                    module   = nullptr;             //
-	LeShaderType                        type     = LeShaderType::eNone; //
+	LeShaderType                        stage    = LeShaderType::eNone; //
 	le_backend_o *                      backend  = nullptr;             // FIXME: this is not elegant, but we need it to build a set of watched, then modified modules.
 };
 
@@ -243,6 +250,12 @@ static inline VkAttachmentLoadOp le_to_vk( const LeAttachmentLoadOp &lhs ) {
 	    return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	}
 }
+
+// ----------------------------------------------------------------------
+template <typename T>
+static constexpr typename std::underlying_type<T>::type enumToNum( const T &enumVal ) {
+	return static_cast<typename std::underlying_type<T>::type>( enumVal );
+};
 
 // ----------------------------------------------------------------------
 
@@ -406,6 +419,99 @@ static void backend_set_watched_files_for_module( le_backend_o *self, le_shader_
 }
 
 // ----------------------------------------------------------------------
+
+static void shader_module_update_reflection( le_shader_module_o *module ) {
+	std::vector<le_shader_binding_info> bindings;
+
+	static_assert( sizeof( le_shader_binding_info ) == sizeof( uint64_t ), "shader binding info must be the same size as uint" );
+
+	spirv_cross::Compiler compiler( module->spirv );
+
+	// The SPIR-V is now parsed, and we can perform reflection on it.
+	spirv_cross::ShaderResources resources = compiler.get_shader_resources();
+
+	{ // -- find out max number of bindings
+		size_t bindingsCount = resources.storage_buffers.size() +
+		                       resources.stage_inputs.size() +
+		                       resources.stage_outputs.size() +
+		                       resources.subpass_inputs.size() +
+		                       resources.storage_images.size() +
+		                       resources.sampled_images.size() +
+		                       resources.atomic_counters.size() +
+		                       resources.push_constant_buffers.size() +
+		                       resources.separate_images.size() +
+		                       resources.separate_samplers.size();
+
+		bindings.reserve( bindingsCount );
+	}
+
+	// Get all sampled images in the shader
+	// TODO: how do we deal with arrays of images?
+	// it is well possible that spirv cross reports each image individually, giving it an index.
+	for ( auto &resource : resources.sampled_images ) {
+		le_shader_binding_info info{};
+
+		info.setIndex   = compiler.get_decoration( resource.id, spv::DecorationDescriptorSet );
+		info.binding    = compiler.get_decoration( resource.id, spv::DecorationBinding );
+		info.type       = enumToNum( vk::DescriptorType::eSampledImage );
+		info.stage_bits = enumToNum( module->stage );
+		info.count      = 1;
+
+		bindings.emplace_back( std::move( info ) );
+	}
+
+	// get all uniform buffers in shader
+	for ( auto &resource : resources.uniform_buffers ) {
+		le_shader_binding_info info{};
+
+		info.setIndex   = compiler.get_decoration( resource.id, spv::DecorationDescriptorSet );
+		info.binding    = compiler.get_decoration( resource.id, spv::DecorationBinding );
+		info.type       = enumToNum( vk::DescriptorType::eUniformBufferDynamic );
+		info.count      = 1;
+		info.stage_bits = enumToNum( module->stage );
+
+		{
+			// get the size of the buffer, which is the last offset + the last range in active ranges...
+			// This assumes ranges are sorted by offset.
+			// TODO: find a less optimistic way to calculate this.
+			auto ranges = compiler.get_active_buffer_ranges( resource.id );
+
+			if ( ranges.empty() ) {
+				info.range = 0;
+			} else {
+				auto r     = ranges.back();
+				info.range = r.offset + r.range;
+			}
+		}
+
+		bindings.emplace_back( std::move( info ) );
+	}
+
+	// get all storage buffers in shader
+	for ( auto &resource : resources.storage_buffers ) {
+		le_shader_binding_info info{};
+
+		info.setIndex   = compiler.get_decoration( resource.id, spv::DecorationDescriptorSet );
+		info.binding    = compiler.get_decoration( resource.id, spv::DecorationBinding );
+		info.type       = enumToNum( vk::DescriptorType::eStorageBufferDynamic );
+		info.count      = 1;
+		info.stage_bits = enumToNum( module->stage );
+
+		bindings.emplace_back( std::move( info ) );
+	}
+
+	// Sort bindings - this makes it easier for us to link shader stages together
+
+	std::sort( bindings.begin(), bindings.end() ); // we're sorting shader bindings by set, binding ASC
+
+	// -- calculate hash over bindings
+	module->hash_pipelinelayout = SpookyHash::Hash64( bindings.data(), sizeof( le_shader_binding_info ) * bindings.size(), 0 );
+
+	// -- store bindings with module
+	module->bindings = std::move( bindings );
+}
+
+// ----------------------------------------------------------------------
 /// \brief create vulkan shader module based on file path
 static le_shader_module_o *backend_create_shader_module( le_backend_o *self, char const *path, LeShaderType moduleType ) {
 
@@ -435,7 +541,7 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 
 	le_shader_module_o *module = new le_shader_module_o{};
 
-	module->type           = moduleType;
+	module->stage          = moduleType;
 	module->filepath       = canonical_path_as_string;
 	module->hash_file_path = file_path_hash;
 	module->hash           = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module->hash_file_path );
@@ -468,6 +574,8 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 
 		module->module = device.createShaderModule( createInfo );
 	}
+
+	shader_module_update_reflection( module );
 
 	// -- retain module in renderer
 	self->shaderModules.push_back( module );
@@ -505,7 +613,7 @@ static void backend_shader_module_update( le_backend_o *self, le_shader_module_o
 	std::vector<uint32_t> spirv_code;
 	std::set<std::string> includesSet;
 
-	backend_translate_to_spirv_code( self, source_text.data(), source_text.size(), module->type, module->filepath.c_str(), spirv_code, includesSet );
+	backend_translate_to_spirv_code( self, source_text.data(), source_text.size(), module->stage, module->filepath.c_str(), spirv_code, includesSet );
 
 	if ( spirv_code.empty() ) {
 		// no spirv code available, bail out.
@@ -528,7 +636,14 @@ static void backend_shader_module_update( le_backend_o *self, le_shader_module_o
 	// -- store new spir-v code
 	module->spirv = std::move( spirv_code );
 
+	// TODO: update bindings via spirv-cross, and update bindings hash
+	shader_module_update_reflection( module );
+
 	// -- delete old vulkan shader module object
+	// Q: Should we rather defer deletion? In case that this module is in use?
+	// A: Not really - according to spec module must only be alife while pipeline is being compiled.
+	//    If we can guarantee that no other process is using this module at the moment to compile a
+	//    Pipeline, we can safely delete it.
 	device.destroyShaderModule( module->module );
 	module->module = nullptr;
 
@@ -618,11 +733,16 @@ static void backend_destroy( le_backend_o *self ) {
 	static auto allocatorInterface = ( *Registry::getApi<le_backend_vk_api>() ).le_allocator_linear_i;
 
 	// -- destroy descriptorSetLayouts
+
+	std::cout << "Destroying " << self->descriptorSetLayoutCache.size() << " DescriptorSetLayouts" << std::endl
+	          << std::flush;
 	for ( auto &p : self->descriptorSetLayoutCache ) {
 		device.destroyDescriptorSetLayout( p.second );
 	}
 
 	// -- destroy pipelineLayouts
+	std::cout << "Destroying " << self->pipelineLayoutCache.size() << " PipelineLayouts" << std::endl
+	          << std::flush;
 	for ( auto &l : self->pipelineLayoutCache ) {
 		device.destroyPipelineLayout( l.second );
 	}
@@ -701,11 +821,6 @@ void backend_reset_swapchain( le_backend_o *self ) {
 	self->swapchain->reset();
 }
 
-template <typename T>
-static constexpr typename std::underlying_type<T>::type enumToNum( const T &enumVal ) {
-	return static_cast<typename std::underlying_type<T>::type>( enumVal );
-};
-
 // ----------------------------------------------------------------------
 
 static uint64_t get_pipeline_layout_hash( le_graphics_pipeline_state_o const *pso ) {
@@ -715,7 +830,7 @@ static uint64_t get_pipeline_layout_hash( le_graphics_pipeline_state_o const *ps
 	return SpookyHash::Hash64( pipeline_layout_hash_data, sizeof( pipeline_layout_hash_data ), 0 );
 }
 
-// returns bindings vector associated with a pso, based on the pso's combined bindings,
+// Returns bindings vector associated with a pso, based on the pso's combined bindings,
 // and the pso's hash_pipeline_layouts
 // currently, we assume bindings to be non-sparse, but it's possible that sparse bindings
 // are allowed by the standard. let's check.
@@ -729,7 +844,8 @@ static std::vector<le_shader_binding_info> create_bindings_list( le_graphics_pip
 	// TODO: optimise: we only need to re-calculate bindings when
 	// the shader pipelinelayout has changed.
 
-	size_t maxNumBindings = pso->shaderModuleVert->bindings.size() + pso->shaderModuleFrag->bindings.size() + 1;
+	size_t maxNumBindings = pso->shaderModuleVert->bindings.size() +
+	                        pso->shaderModuleFrag->bindings.size();
 
 	// -- make space for the full number of bindings
 	// note that there could be more bindings than that
@@ -738,6 +854,16 @@ static std::vector<le_shader_binding_info> create_bindings_list( le_graphics_pip
 
 	auto vBinding = pso->shaderModuleVert->bindings.begin();
 	auto fBinding = pso->shaderModuleFrag->bindings.begin();
+
+	// create a bitmask which compares only setIndex and binding number form a binding
+
+	uint64_t sort_mask = 0;
+	{
+		le_shader_binding_info info{};
+		info.binding  = ~info.binding;
+		info.setIndex = ~info.setIndex;
+		sort_mask     = info.data;
+	}
 
 	for ( size_t i = 0; i != maxNumBindings; ++i ) {
 
@@ -756,8 +882,13 @@ static std::vector<le_shader_binding_info> create_bindings_list( le_graphics_pip
 		            fBinding != pso->shaderModuleFrag->bindings.end() ) {
 			combined_bindings.emplace_back( *fBinding );
 			fBinding++;
-		} else if ( vBinding->data == fBinding->data ) {
+		} else if ( ( vBinding->data & sort_mask ) == ( fBinding->data & sort_mask ) ) {
+
+			// -- combine stage bits
+			vBinding->stage_bits |= fBinding->stage_bits;
+
 			combined_bindings.emplace_back( *vBinding );
+
 			vBinding++;
 			fBinding++;
 		} else if ( vBinding->data < fBinding->data ) {
@@ -1015,7 +1146,14 @@ static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_
 				bindings.clear();
 			}
 
-			bindings.emplace_back( vk::DescriptorSetLayoutBinding( b.binding, vk::DescriptorType( b.type ), b.count, vk::ShaderStageFlagBits::eAllGraphics, nullptr ) );
+			vk::DescriptorSetLayoutBinding binding{};
+			binding.setBinding( b.binding )
+			    .setDescriptorType( vk::DescriptorType( b.type ) )
+			    .setDescriptorCount( b.count )
+			    .setStageFlags( vk::ShaderStageFlags( b.stage_bits ) )
+			    .setPImmutableSamplers( nullptr );
+
+			bindings.emplace_back( binding );
 		}
 
 		sets.emplace_back( bindings );
@@ -1997,8 +2135,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 		if ( commandStream != nullptr && numCommands > 0 ) {
 
-			std::vector<vk::Buffer> vertexInputBindings( maxVertexInputBindings, nullptr );
-			void *                  dataIt = commandStream;
+			std::vector<vk::Buffer>       vertexInputBindings( maxVertexInputBindings, nullptr );
+			void *                        dataIt = commandStream;
+			le_pipeline_and_layout_info_t currentPipeline;
 
 			while ( commandIndex != numCommands ) {
 
@@ -2012,11 +2151,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// at this point, a valid renderpass must be bound
 
 						// -- potentially compile and create pipeline here, based on current pass and subpass
-						auto pipeline_info = backend_produce_pipeline( self, le_cmd->info.pso, pass, subpassIndex );
-						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline_info.pipeline );
+						currentPipeline = backend_produce_pipeline( self, le_cmd->info.pso, pass, subpassIndex );
+						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, currentPipeline.pipeline );
 
 						// -- set dynamicOffsetsCount to number of dynamic argumnents in current pipeline
-						dynamicOffsetCount = uint32_t( pipeline_info.layout_info.num_dynamic_bindings );
+						dynamicOffsetCount = uint32_t( currentPipeline.layout_info.num_dynamic_bindings );
 
 						// reset dynamic offsets
 						memset( dynamicOffsets.data(), 0, sizeof( uint32_t ) * dynamicOffsetCount );
