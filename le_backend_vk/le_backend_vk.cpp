@@ -46,14 +46,51 @@ namespace std {
 using namespace experimental;
 }
 
+// clang-format off
+// note: microsoft places members in bitfields low to high (LSB first)
+struct le_shader_binding_info {
+	union{
+		struct {
+			uint64_t setIndex  :  3; // |/ keep together for sorting : set index
+			uint64_t binding   : 14; // |\                           : binding index within set
+			uint64_t type      :  4; // descriptor type
+			uint64_t count     :  9; // number of elements
+			uint64_t padding   : 34; //
+		} ;
+		uint64_t data;
+	} ;
+
+};
+
+struct le_descriptor_set_layout_t {                   // matched with vk object via hash
+	std::vector<le_shader_binding_info> binding_info; // binding info for this set
+};
+
+struct le_pipeline_layout_info {
+	uint64_t pipeline_layout_key = 0; // handle to pipeline layout
+	uint64_t set_layout_keys[ 8 ] = {}; // maximum number of DescriptorSets is 8
+	uint32_t set_layout_count     = 0;  // number of actually used DescriptorSetLayouts for this layout
+	uint32_t num_dynamic_bindings = 0;  // number of dynamic bindings
+};
+
+struct le_pipeline_and_layout_info_t{
+	vk::Pipeline            pipeline;
+	le_pipeline_layout_info layout_info;
+
+};
+
+// clang-format on
+
 struct le_shader_module_o {
-	uint64_t              hash           = 0; ///< hash taken from spirv code + filepath hash
-	uint64_t              hash_file_path = 0; ///< hash taken from filepath (canonical)
-	std::vector<uint32_t> spirv;              ///< spirv source code for this module
-	std::filesystem::path filepath;           ///< path to source file
-	vk::ShaderModule      module = nullptr;
-	LeShaderType          type   = LeShaderType::eNone;
-	le_backend_o *        backend; // FIXME: this is not elegant, but we need it to build a set of watched, then modified modules.
+	uint64_t                            hash                = 0;        ///< hash taken from spirv code + filepath hash
+	uint64_t                            hash_file_path      = 0;        ///< hash taken from filepath (canonical)
+	uint64_t                            hash_pipelinelayout = 0;        ///< hash taken from descriptors over all sets
+	std::vector<le_shader_binding_info> bindings;                       ///< info for each binding, sorted asc.
+	std::vector<uint32_t>               spirv    = {};                  ///< spirv source code for this module
+	std::filesystem::path               filepath = {};                  ///< path to source file
+	vk::ShaderModule                    module   = nullptr;             //
+	LeShaderType                        type     = LeShaderType::eNone; //
+	le_backend_o *                      backend  = nullptr;             // FIXME: this is not elegant, but we need it to build a set of watched, then modified modules.
 };
 
 struct AbstractPhysicalResource {
@@ -64,14 +101,18 @@ struct AbstractPhysicalResource {
 		eImageView,
 		eFramebuffer,
 		eRenderPass,
+		eDescriptorSetLayout,
+		ePipelineLayout,
 	};
 	union {
-		uint64_t      asRawData;
-		VkBuffer      asBuffer;
-		VkImage       asImage;
-		VkImageView   asImageView;
-		VkFramebuffer asFramebuffer;
-		VkRenderPass  asRenderPass;
+		uint64_t              asRawData;
+		VkBuffer              asBuffer;
+		VkImage               asImage;
+		VkImageView           asImageView;
+		VkFramebuffer         asFramebuffer;
+		VkRenderPass          asRenderPass;
+		VkDescriptorSetLayout asDescriptorSetLayout;
+		VkPipelineLayout      asPipelineLayout;
 	};
 	Type type;
 };
@@ -166,11 +207,13 @@ struct le_backend_o {
 
 	// These resources are potentially in-flight, and may be used read-only
 	// by more than one frame.
-	vk::PipelineCache       debugPipelineCache       = nullptr;
-	vk::PipelineLayout      debugPipelineLayout      = nullptr;
-	vk::DescriptorSetLayout debugDescriptorSetLayout = nullptr;
+	vk::PipelineCache debugPipelineCache = nullptr;
 
-	std::unordered_map<uint64_t, vk::Pipeline> pipelineCache;
+	std::unordered_map<uint64_t, vk::Pipeline>            pipelineCache;
+	std::unordered_map<uint64_t, le_pipeline_layout_info> pipelineLayoutInfoCache;
+
+	std::unordered_map<uint64_t, vk::DescriptorSetLayout> descriptorSetLayoutCache; // indexed by bindings hash
+	std::unordered_map<uint64_t, vk::PipelineLayout>      pipelineLayoutCache;      // indexed by descriptorSet keys hash
 
 	vk::DeviceMemory debugTransientVertexDeviceMemory = nullptr;
 	vk::Buffer       debugTransientVertexBuffer       = nullptr;
@@ -295,7 +338,7 @@ static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 
 /// \brief translate a binary blob into spirv code if possible
 /// \details Blob may be raw spirv data, or glsl data
-void backend_translate_to_spirv_code( le_backend_o *self, void *raw_data, size_t numBytes, LeShaderType moduleType, const char *original_file_name, std::vector<uint32_t> &spirvCode, std::set<std::string> &includesSet ) {
+static void backend_translate_to_spirv_code( le_backend_o *self, void *raw_data, size_t numBytes, LeShaderType moduleType, const char *original_file_name, std::vector<uint32_t> &spirvCode, std::set<std::string> &includesSet ) {
 
 	if ( check_is_data_spirv( raw_data, numBytes ) ) {
 		spirvCode.resize( numBytes / 4 );
@@ -574,12 +617,14 @@ static void backend_destroy( le_backend_o *self ) {
 
 	static auto allocatorInterface = ( *Registry::getApi<le_backend_vk_api>() ).le_allocator_linear_i;
 
-	if ( self->debugDescriptorSetLayout ) {
-		device.destroyDescriptorSetLayout( self->debugDescriptorSetLayout );
+	// -- destroy descriptorSetLayouts
+	for ( auto &p : self->descriptorSetLayoutCache ) {
+		device.destroyDescriptorSetLayout( p.second );
 	}
 
-	if ( self->debugPipelineLayout ) {
-		device.destroyPipelineLayout( self->debugPipelineLayout );
+	// -- destroy pipelineLayouts
+	for ( auto &l : self->pipelineLayoutCache ) {
+		device.destroyPipelineLayout( l.second );
 	}
 
 	for ( auto &p : self->pipelineCache ) {
@@ -656,53 +701,93 @@ void backend_reset_swapchain( le_backend_o *self ) {
 	self->swapchain->reset();
 }
 
-static vk::PipelineLayout backend_get_pipeline_layout( le_backend_o *self, le_graphics_pipeline_state_o const *pso ) {
-	// TODO: get pipeline layout from pso
+template <typename T>
+static constexpr typename std::underlying_type<T>::type enumToNum( const T &enumVal ) {
+	return static_cast<typename std::underlying_type<T>::type>( enumVal );
+};
 
-	// TODO: store number of dynamic bindings so that these can be retrieved when decoding command
+// ----------------------------------------------------------------------
 
-	vk::Device vkDevice = self->device->getVkDevice();
+static uint64_t get_pipeline_layout_hash( le_graphics_pipeline_state_o const *pso ) {
+	uint64_t pipeline_layout_hash_data[ 2 ];
+	pipeline_layout_hash_data[ 0 ] = pso->shaderModuleVert->hash_pipelinelayout;
+	pipeline_layout_hash_data[ 1 ] = pso->shaderModuleFrag->hash_pipelinelayout;
+	return SpookyHash::Hash64( pipeline_layout_hash_data, sizeof( pipeline_layout_hash_data ), 0 );
+}
 
-	//shader_module_get_signature(pso->shaderModuleFrag);
+// returns bindings vector associated with a pso, based on the pso's combined bindings,
+// and the pso's hash_pipeline_layouts
+// currently, we assume bindings to be non-sparse, but it's possible that sparse bindings
+// are allowed by the standard. let's check.
+static std::vector<le_shader_binding_info> create_bindings_list( le_graphics_pipeline_state_o const *pso ) {
 
-	// todo: -- get signatures from shader modules (read-only)
-	// -- build descriptorsetlayouts from shader module signatures
-	// -- build pipeline layouts from shader module signatures
-	// -- associate pipeline layout with pso (we keep a lookup table from pso->le_pipelinelayout(==PipelineLayout hash, vkPipelineLayout))
+	std::vector<le_shader_binding_info> combined_bindings;
 
-	{
-		// in order to get the pipeline layout we must get descriptors for each shader stage
+	// create union of bindings from vert and frag shader
+	// we assume these bindings are sorted.
 
-		std::vector<vk::DescriptorSetLayoutBinding> bindings = {
-		    {0, vk::DescriptorType::eUniformBufferDynamic, 1, vk::ShaderStageFlagBits::eAllGraphics, nullptr},
-		    {1, vk::DescriptorType::eSampledImage, 1, vk::ShaderStageFlagBits::eAllGraphics, nullptr},
-		};
+	// TODO: optimise: we only need to re-calculate bindings when
+	// the shader pipelinelayout has changed.
 
-		vk::DescriptorSetLayoutCreateInfo setLayoutInfo;
-		setLayoutInfo
-		    .setFlags( vk::DescriptorSetLayoutCreateFlags() )
-		    .setBindingCount( bindings.size() )
-		    .setPBindings( bindings.data() );
+	size_t maxNumBindings = pso->shaderModuleVert->bindings.size() + pso->shaderModuleFrag->bindings.size() + 1;
 
-		// FIXME: don't overwrite debug layout - only do this for debug pipeline
-		if ( !self->debugDescriptorSetLayout ) {
-			self->debugDescriptorSetLayout = vkDevice.createDescriptorSetLayout( setLayoutInfo );
-		}
+	// -- make space for the full number of bindings
+	// note that there could be more bindings than that
 
-		vk::PipelineLayoutCreateInfo layoutCreateInfo;
-		layoutCreateInfo
-		    .setFlags( vk::PipelineLayoutCreateFlags() ) // "reserved for future use"
-		    .setSetLayoutCount( 1 )
-		    .setPSetLayouts( &self->debugDescriptorSetLayout )
-		    .setPushConstantRangeCount( 0 )
-		    .setPPushConstantRanges( nullptr );
+	combined_bindings.reserve( maxNumBindings );
 
-		// FIXME: don't overwrite debug layout - only do this for debug pipeline
-		if ( !self->debugPipelineLayout ) {
-			self->debugPipelineLayout = vkDevice.createPipelineLayout( layoutCreateInfo );
+	auto vBinding = pso->shaderModuleVert->bindings.begin();
+	auto fBinding = pso->shaderModuleFrag->bindings.begin();
+
+	for ( size_t i = 0; i != maxNumBindings; ++i ) {
+
+		// Find the lowest binding, and push it back to the
+		// vector of combined bindings
+
+		if ( fBinding == pso->shaderModuleFrag->bindings.end() &&
+		     vBinding == pso->shaderModuleVert->bindings.end() ) {
+			// no more bindings left to process...
+			break;
+		} else if ( fBinding == pso->shaderModuleFrag->bindings.end() &&
+		            vBinding != pso->shaderModuleVert->bindings.end() ) {
+			combined_bindings.emplace_back( *vBinding );
+			vBinding++;
+		} else if ( vBinding == pso->shaderModuleVert->bindings.end() &&
+		            fBinding != pso->shaderModuleFrag->bindings.end() ) {
+			combined_bindings.emplace_back( *fBinding );
+			fBinding++;
+		} else if ( vBinding->data == fBinding->data ) {
+			combined_bindings.emplace_back( *vBinding );
+			vBinding++;
+			fBinding++;
+		} else if ( vBinding->data < fBinding->data ) {
+			combined_bindings.emplace_back( *vBinding );
+			vBinding++;
+		} else if ( vBinding->data > fBinding->data ) {
+			combined_bindings.emplace_back( *fBinding );
+			fBinding++;
 		}
 	}
-	return self->debugPipelineLayout;
+
+	return combined_bindings;
+}
+
+// ----------------------------------------------------------------------
+// via called via decoder / produce_frame -
+static vk::PipelineLayout backend_get_pipeline_layout( le_backend_o *self, le_graphics_pipeline_state_o const *pso ) {
+
+	uint64_t pipelineLayoutHash = get_pipeline_layout_hash( pso );
+
+	auto foundLayout = self->pipelineLayoutCache.find( pipelineLayoutHash );
+
+	if ( foundLayout != self->pipelineLayoutCache.end() ) {
+		return foundLayout->second;
+	} else {
+		std::cerr << "ERROR: Could not find pipeline layout with hash: " << std::hex << pipelineLayoutHash << std::endl
+		          << std::flush;
+		assert( false );
+		return nullptr;
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -735,6 +820,7 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setVertexAttributeDescriptionCount( 1 )
 	    .setPVertexAttributeDescriptions( &vertexAttributeDescription );
 
+	// fetch vk::PipelineLayout for this pso
 	auto pipelineLayout = backend_get_pipeline_layout( self, pso );
 
 	vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState;
@@ -860,32 +946,156 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	return pipeline;
 }
 
+// ----------------------------------------------------------------------
+
+static uint64_t backend_produce_descriptor_set_layout( le_backend_o *self, std::vector<vk::DescriptorSetLayoutBinding> const &bindings, vk::DescriptorSetLayout *layout ) {
+	uint64_t set_layout_hash = SpookyHash::Hash64( bindings.data(), bindings.size() * sizeof( vk::DescriptorSetLayoutBinding ), 0 );
+
+	auto foundLayout = self->descriptorSetLayoutCache.find( set_layout_hash );
+
+	if ( foundLayout == self->descriptorSetLayoutCache.end() ) {
+		// we need to create a descriptorSetLayout.
+
+		vk::Device device = self->device->getVkDevice();
+
+		vk::DescriptorSetLayoutCreateInfo setLayoutInfo;
+		setLayoutInfo
+		    .setFlags( vk::DescriptorSetLayoutCreateFlags() )
+		    .setBindingCount( uint32_t( bindings.size() ) )
+		    .setPBindings( bindings.data() );
+
+		*layout = device.createDescriptorSetLayout( setLayoutInfo );
+
+		self->descriptorSetLayoutCache[ set_layout_hash ] = *layout;
+	} else {
+		*layout = foundLayout->second;
+	}
+
+	return set_layout_hash;
+}
+
+// ----------------------------------------------------------------------
+
+static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_o *self, le_graphics_pipeline_state_o const *pso ) {
+	le_pipeline_layout_info info{};
+
+	auto combined_bindings = create_bindings_list( pso );
+
+	{
+		// -- Count all dynamic bindings
+
+		size_t numDynamicBindings = 0;
+
+		for ( auto const &b : combined_bindings ) {
+			if ( b.type == enumToNum( vk::DescriptorType::eStorageBufferDynamic ) ||
+			     b.type == enumToNum( vk::DescriptorType::eUniformBufferDynamic ) ) {
+				assert( b.count != 0 ); // count cannot be 0
+				numDynamicBindings += b.count;
+			}
+		}
+
+		info.num_dynamic_bindings = uint32_t( numDynamicBindings );
+	}
+
+	std::array<vk::DescriptorSetLayout, 8> vkLayouts{};
+	{ // -- create one vkDescriptorSetLayout for each set in bindings
+
+		uint32_t set_id = 0; // we must enforce that setids are non-sparse!
+
+		std::vector<vk::DescriptorSetLayoutBinding>              bindings;
+		std::vector<std::vector<vk::DescriptorSetLayoutBinding>> sets;
+
+		for ( auto &b : combined_bindings ) {
+
+			if ( b.setIndex != set_id ) {
+				sets.push_back( bindings );
+				assert( set_id + 1 == b.setIndex ); // sets cannot be sparse
+				// next set
+				set_id = b.setIndex;
+				bindings.clear();
+			}
+
+			bindings.emplace_back( vk::DescriptorSetLayoutBinding( b.binding, vk::DescriptorType( b.type ), b.count, vk::ShaderStageFlagBits::eAllGraphics, nullptr ) );
+		}
+
+		sets.emplace_back( bindings );
+
+		info.set_layout_count = uint32_t( sets.size() );
+		assert( sets.size() <= 8 );
+
+		for ( size_t i = 0; i != sets.size(); ++i ) {
+			info.set_layout_keys[ i ] = backend_produce_descriptor_set_layout( self, sets[ i ], &vkLayouts[ i ] );
+		}
+	}
+
+	info.pipeline_layout_key = get_pipeline_layout_hash( pso );
+
+	// -- Attempt to find this pipelineLayout from cache, if we can't find one, we create and retain it.
+
+	auto found_pl = self->pipelineLayoutCache.find( info.pipeline_layout_key );
+
+	if ( found_pl == self->pipelineLayoutCache.end() ) {
+
+		vk::Device                   device = self->device->getVkDevice();
+		vk::PipelineLayoutCreateInfo layoutCreateInfo;
+		layoutCreateInfo
+		    .setFlags( vk::PipelineLayoutCreateFlags() ) // "reserved for future use"
+		    .setSetLayoutCount( info.set_layout_count )
+		    .setPSetLayouts( vkLayouts.data() )
+		    .setPushConstantRangeCount( 0 )
+		    .setPPushConstantRanges( nullptr );
+
+		// create vkPipelineLayout and store it in cache.
+		self->pipelineLayoutCache[ info.pipeline_layout_key ] = device.createPipelineLayout( layoutCreateInfo );
+	}
+
+	return info;
+}
+
 /// \brief Creates - or loads a pipeline from cache based on current pipeline state
 /// \note this method may lock the pipeline cache and is therefore costly.
-static vk::Pipeline backend_produce_pipeline( le_backend_o *self, le_graphics_pipeline_state_o const *pso, const Pass &pass, uint32_t subpass ) {
+// TODO: Ensure there are no races around this method
+//
+// + Only the command buffer recording slice of a frame shall be able to modify the cache
+//   the cache must be exclusively accessed through this method
+//
+// + Access to this method must be sequential - no two frames may access this method
+//   at the same time.
+static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *self, le_graphics_pipeline_state_o const *pso, const Pass &pass, uint32_t subpass ) {
 
-	// TODO: Ensure there are no races around this method
-	//
-	// + Only the command buffer recording slice of a frame shall be able to modify the cache
-	//   the cache must be exclusively accessed through this method
-	//
-	// + Access to this method must be sequential - no two frames may access this method
-	//   at the same time.
+	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
 
-	// pso is a renderer object
+	// -- 1. get pipeline layout info for a pipeline with these bindings
+	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
 
-	uint64_t pso_renderpass_hashes[ 4 ] = {};
+	uint64_t pipeline_layout_hash = get_pipeline_layout_hash( pso );
 
-	pso_renderpass_hashes[ 0 ] = pso->hash;                   // TODO: Hash for PSO state - must have been updated before recording phase started
-	pso_renderpass_hashes[ 1 ] = pso->shaderModuleVert->hash; // Module state - may have been recompiled, hash must be current
-	pso_renderpass_hashes[ 2 ] = pso->shaderModuleFrag->hash; // Module state - may have been recompiled, hash must be current
-	pso_renderpass_hashes[ 3 ] = pass.renderpassHash;         // Hash for *compatible* renderpass
+	auto pl = self->pipelineLayoutInfoCache.find( pipeline_layout_hash );
+
+	if ( pl == self->pipelineLayoutInfoCache.end() ) {
+
+		// this will also create vulkan objects for pipeline layout / descriptor set layout and cache them
+		pipeline_and_layout_info.layout_info = backend_produce_pipeline_layout_info( self, pso );
+
+		// store in cache
+		self->pipelineLayoutInfoCache[ pipeline_layout_hash ] = pipeline_and_layout_info.layout_info;
+	} else {
+		pipeline_and_layout_info.layout_info = pl->second;
+	}
+
+	// -- 2. get vk pipeline object
+	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
+
+	uint64_t pso_renderpass_hash_data[ 4 ] = {};
+
+	pso_renderpass_hash_data[ 0 ] = pso->hash;                   // TODO: Hash for PSO state - must have been updated before recording phase started
+	pso_renderpass_hash_data[ 1 ] = pso->shaderModuleVert->hash; // Module state - may have been recompiled, hash must be current
+	pso_renderpass_hash_data[ 2 ] = pso->shaderModuleFrag->hash; // Module state - may have been recompiled, hash must be current
+	pso_renderpass_hash_data[ 3 ] = pass.renderpassHash;         // Hash for *compatible* renderpass
 
 	// -- create combined hash for pipeline, renderpass
 
-	uint64_t pipeline_hash = SpookyHash::Hash64( pso_renderpass_hashes, sizeof( pso_renderpass_hashes ), 0 );
-
-	vk::Pipeline pipeline = nullptr;
+	uint64_t pipeline_hash = SpookyHash::Hash64( pso_renderpass_hash_data, sizeof( pso_renderpass_hash_data ), 0 );
 
 	// -- look up if pipeline with this hash already exists in cache
 	auto p = self->pipelineCache.find( pipeline_hash );
@@ -893,18 +1103,18 @@ static vk::Pipeline backend_produce_pipeline( le_backend_o *self, le_graphics_pi
 	if ( p == self->pipelineCache.end() ) {
 
 		// -- if not, create pipeline in pipeline cache and store / retain it
-		pipeline = backend_create_pipeline( self, pso, pass.renderPass, subpass );
+		pipeline_and_layout_info.pipeline = backend_create_pipeline( self, pso, pass.renderPass, subpass );
 
 		std::cout << "New VK Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
 		          << std::flush;
 
-		self->pipelineCache[ pipeline_hash ] = pipeline;
+		self->pipelineCache[ pipeline_hash ] = pipeline_and_layout_info.pipeline;
 	} else {
 		// -- else return pipeline found in hash map
-		pipeline = p->second;
+		pipeline_and_layout_info.pipeline = p->second;
 	}
 
-	return pipeline;
+	return pipeline_and_layout_info;
 }
 
 // ----------------------------------------------------------------------
@@ -1802,12 +2012,12 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// at this point, a valid renderpass must be bound
 
 						// -- potentially compile and create pipeline here, based on current pass and subpass
-						auto pipeline = backend_produce_pipeline( self, le_cmd->info.pso, pass, subpassIndex );
-						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline );
+						auto pipeline_info = backend_produce_pipeline( self, le_cmd->info.pso, pass, subpassIndex );
+						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, pipeline_info.pipeline );
 
-						// TODO: set dynamicOffsetsCount to number of dynamic argumnents in curent pipeline
-						//dynamicOffsetCount = backend_pipeline_get_num_dynamic_arguments( le_cmd->info.pso );
-						dynamicOffsetCount = 1;
+						// -- set dynamicOffsetsCount to number of dynamic argumnents in current pipeline
+						dynamicOffsetCount = uint32_t( pipeline_info.layout_info.num_dynamic_bindings );
+
 						// reset dynamic offsets
 						memset( dynamicOffsets.data(), 0, sizeof( uint32_t ) * dynamicOffsetCount );
 

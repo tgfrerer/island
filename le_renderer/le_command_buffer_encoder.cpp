@@ -248,11 +248,11 @@ static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
 	// made a performance difference.
 	if ( allocator_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
 
-		// store ubo data to scratch allocator
+		// -- Store ubo data to scratch allocator
 		memcpy( memAddr, data, numBytes );
 
 		cmd->info.index  = uint16_t( argumentIndex );
-		cmd->info.offset = bufferOffset;
+		cmd->info.offset = uint32_t( bufferOffset ); // Note: we are assuming offset is never > 4GB, which appears realistic for now
 		cmd->info.range  = uint16_t( numBytes );
 
 	} else {
@@ -278,12 +278,6 @@ static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, le_graphics_pi
 
 	self->mCommandStreamSize += sizeof( le::CommandBindPipeline );
 	self->mCommandCount++;
-
-	// We store a reference to the currently bound graphics pipeline
-	// as the current pipeline is part of the encoder state -
-	// The current pipeline controls which uniforms for example
-	// we may set.
-	self->currentPipeline = pso;
 }
 
 // ----------------------------------------------------------------------
