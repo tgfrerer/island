@@ -473,7 +473,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 		{
 			// get the size of the buffer, which is the last offset + the last range in active ranges...
 			// This assumes ranges are sorted by offset.
-			// TODO: find a less optimistic way to calculate this.
+			// TODO: find a less optimistic way to calculate the size of UBO resource structs from shader reflection data.
 			auto ranges = compiler.get_active_buffer_ranges( resource.id );
 
 			if ( ranges.empty() ) {
@@ -636,7 +636,7 @@ static void backend_shader_module_update( le_backend_o *self, le_shader_module_o
 	// -- store new spir-v code
 	module->spirv = std::move( spirv_code );
 
-	// TODO: update bindings via spirv-cross, and update bindings hash
+	// -- update bindings via spirv-cross, and update bindings hash
 	shader_module_update_reflection( module );
 
 	// -- delete old vulkan shader module object
@@ -2183,6 +2183,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 						// -- set dynamicOffsetsCount to number of dynamic argumnents in current pipeline
 						dynamicOffsetCount = uint32_t( currentPipeline.layout_info.num_dynamic_bindings );
+
+						// dynamic offsets count must never be larger than dynamicOffsets size
+						assert( dynamicOffsetCount <= dynamicOffsets.size() );
 
 						// reset dynamic offsets
 						memset( dynamicOffsets.data(), 0, sizeof( uint32_t ) * dynamicOffsetCount );
