@@ -8,6 +8,14 @@ set (SOURCES ${SOURCES} "le_device_vk.cpp")
 set (SOURCES ${SOURCES} "le_allocator.cpp")
 set (SOURCES ${SOURCES} "util/spooky/SpookyV2.cpp")
 
+set (SOURCES ${SOURCES} "util/spirv-cross/GLSL.std.450.h")
+set (SOURCES ${SOURCES} "util/spirv-cross/spirv_common.hpp")
+set (SOURCES ${SOURCES} "util/spirv-cross/spirv.hpp")
+set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cross.hpp")
+set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cross.cpp")
+set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cfg.hpp")
+set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cfg.cpp")
+
 
 if (${PLUGINS_DYNAMIC})
 
