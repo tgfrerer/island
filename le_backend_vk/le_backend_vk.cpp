@@ -69,8 +69,9 @@ struct le_shader_binding_info {
 	}
 };
 
-struct le_descriptor_set_layout_t {                   // matched with vk object via hash
+struct le_descriptor_set_layout_t {
 	std::vector<le_shader_binding_info> binding_info; // binding info for this set
+	vk::DescriptorSetLayout vk_descriptor_set_layout; // vk object
 };
 
 struct le_pipeline_layout_info {
@@ -219,8 +220,8 @@ struct le_backend_o {
 	std::unordered_map<uint64_t, vk::Pipeline>            pipelineCache;
 	std::unordered_map<uint64_t, le_pipeline_layout_info> pipelineLayoutInfoCache;
 
-	std::unordered_map<uint64_t, vk::DescriptorSetLayout> descriptorSetLayoutCache; // indexed by bindings hash
-	std::unordered_map<uint64_t, vk::PipelineLayout>      pipelineLayoutCache;      // indexed by descriptorSet keys hash
+	std::unordered_map<uint64_t, le_descriptor_set_layout_t> descriptorSetLayoutCache; // indexed by le_shader_bindings_info[] hash
+	std::unordered_map<uint64_t, vk::PipelineLayout>         pipelineLayoutCache;      // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
 
 	vk::DeviceMemory debugTransientVertexDeviceMemory = nullptr;
 	vk::Buffer       debugTransientVertexBuffer       = nullptr;
@@ -737,7 +738,7 @@ static void backend_destroy( le_backend_o *self ) {
 	std::cout << "Destroying " << self->descriptorSetLayoutCache.size() << " DescriptorSetLayouts" << std::endl
 	          << std::flush;
 	for ( auto &p : self->descriptorSetLayoutCache ) {
-		device.destroyDescriptorSetLayout( p.second );
+		device.destroyDescriptorSetLayout( p.second.vk_descriptor_set_layout );
 	}
 
 	// -- destroy pipelineLayouts
@@ -1105,28 +1106,49 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 }
 
 // ----------------------------------------------------------------------
+// returns hash key for given bindings, creates and retains new vkDescriptorSetLayout if necessary
+static uint64_t backend_produce_descriptor_set_layout( le_backend_o *self, std::vector<le_shader_binding_info> const &bindings, vk::DescriptorSetLayout *layout ) {
 
-static uint64_t backend_produce_descriptor_set_layout( le_backend_o *self, std::vector<vk::DescriptorSetLayoutBinding> const &bindings, vk::DescriptorSetLayout *layout ) {
-	uint64_t set_layout_hash = SpookyHash::Hash64( bindings.data(), bindings.size() * sizeof( vk::DescriptorSetLayoutBinding ), 0 );
+	// -- calculate hash based on le_shader_binding_infos for this set
+	uint64_t set_layout_hash = SpookyHash::Hash64( bindings.data(), bindings.size() * sizeof( le_shader_binding_info ), 0 );
 
 	auto foundLayout = self->descriptorSetLayoutCache.find( set_layout_hash );
 
 	if ( foundLayout == self->descriptorSetLayoutCache.end() ) {
-		// we need to create a descriptorSetLayout.
+
+		// layout was not found in cache, we must create vk objects.
 
 		vk::Device device = self->device->getVkDevice();
+
+		std::vector<vk::DescriptorSetLayoutBinding> vk_bindings;
+
+		vk_bindings.reserve( bindings.size() );
+
+		for ( const auto &b : bindings ) {
+			vk::DescriptorSetLayoutBinding binding{};
+			binding.setBinding( b.binding )
+			    .setDescriptorType( vk::DescriptorType( b.type ) )
+			    .setDescriptorCount( b.count )
+			    .setStageFlags( vk::ShaderStageFlags( b.stage_bits ) )
+			    .setPImmutableSamplers( nullptr );
+			vk_bindings.emplace_back( std::move( binding ) );
+		}
 
 		vk::DescriptorSetLayoutCreateInfo setLayoutInfo;
 		setLayoutInfo
 		    .setFlags( vk::DescriptorSetLayoutCreateFlags() )
-		    .setBindingCount( uint32_t( bindings.size() ) )
-		    .setPBindings( bindings.data() );
+		    .setBindingCount( uint32_t( vk_bindings.size() ) )
+		    .setPBindings( vk_bindings.data() );
 
 		*layout = device.createDescriptorSetLayout( setLayoutInfo );
 
-		self->descriptorSetLayoutCache[ set_layout_hash ] = *layout;
+		self->descriptorSetLayoutCache[ set_layout_hash ].vk_descriptor_set_layout = *layout;
+		self->descriptorSetLayoutCache[ set_layout_hash ].binding_info             = bindings;
 	} else {
-		*layout = foundLayout->second;
+
+		// layout was found in cache.
+
+		*layout = foundLayout->second.vk_descriptor_set_layout;
 	}
 
 	return set_layout_hash;
@@ -1137,7 +1159,7 @@ static uint64_t backend_produce_descriptor_set_layout( le_backend_o *self, std::
 static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_o *self, le_graphics_pipeline_state_o const *pso ) {
 	le_pipeline_layout_info info{};
 
-	auto combined_bindings = create_bindings_list( pso );
+	std::vector<le_shader_binding_info> combined_bindings = create_bindings_list( pso );
 
 	{
 		// -- Count all dynamic bindings
@@ -1155,35 +1177,33 @@ static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_
 		info.num_dynamic_bindings = uint32_t( numDynamicBindings );
 	}
 
+	// -- Create array of DescriptorSetLayouts
 	std::array<vk::DescriptorSetLayout, 8> vkLayouts{};
-	{ // -- create one vkDescriptorSetLayout for each set in bindings
+	{
 
-		uint32_t set_id = 0; // we must enforce that setids are non-sparse!
+		// -- create one vkDescriptorSetLayout for each set in bindings
 
-		std::vector<vk::DescriptorSetLayoutBinding>              bindings;
-		std::vector<std::vector<vk::DescriptorSetLayoutBinding>> sets;
+		std::vector<std::vector<le_shader_binding_info>> sets;
 
-		for ( auto &b : combined_bindings ) {
+		// Split combined bindings at set boundaries
+		uint32_t set_id = 0;
+		for ( auto it = combined_bindings.begin(); it != combined_bindings.end(); ) {
 
-			if ( b.setIndex != set_id ) {
-				sets.push_back( bindings );
-				assert( set_id + 1 == b.setIndex ); // sets cannot be sparse
-				// next set
-				set_id = b.setIndex;
-				bindings.clear();
+			// Find next element with different set id
+			auto itN = std::find_if( it, combined_bindings.end(), [&set_id]( const le_shader_binding_info &el ) -> bool {
+				return el.setIndex != set_id;
+			} );
+
+			sets.emplace_back( it, itN );
+
+			// If we're not at the end, get the setIndex for the next set,
+			if ( itN != combined_bindings.end() ) {
+				assert( set_id + 1 == itN->setIndex ); // we must enforce that sets are non-sparse.
+				set_id = itN->setIndex;
 			}
 
-			vk::DescriptorSetLayoutBinding binding{};
-			binding.setBinding( b.binding )
-			    .setDescriptorType( vk::DescriptorType( b.type ) )
-			    .setDescriptorCount( b.count )
-			    .setStageFlags( vk::ShaderStageFlags( b.stage_bits ) )
-			    .setPImmutableSamplers( nullptr );
-
-			bindings.emplace_back( binding );
+			it = itN;
 		}
-
-		sets.emplace_back( bindings );
 
 		info.set_layout_count = uint32_t( sets.size() );
 		assert( sets.size() <= 8 );
