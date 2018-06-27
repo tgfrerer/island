@@ -2134,9 +2134,6 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 	auto numCommandBuffers = uint32_t( frame.passes.size() );
 	auto cmdBufs           = device.allocateCommandBuffers( {frame.commandPool, vk::CommandBufferLevel::ePrimary, numCommandBuffers} );
 
-	std::array<uint32_t, 256> dynamicOffsets;
-	uint32_t                  dynamicOffsetCount = 0; // TODO: set this to value of dynamic elements for current pipeline
-
 	// TODO: (parallel for)
 	for ( size_t passIndex = 0; passIndex != frame.passes.size(); ++passIndex ) {
 
@@ -2168,11 +2165,13 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 		// -- Translate intermediary command stream data to api-native instructions
 
-		void *   commandStream = nullptr;
-		size_t   dataSize      = 0;
-		size_t   numCommands   = 0;
-		size_t   commandIndex  = 0;
-		uint32_t subpassIndex  = 0;
+		void *                    commandStream      = nullptr;
+		size_t                    dataSize           = 0;
+		size_t                    numCommands        = 0;
+		size_t                    commandIndex       = 0;
+		uint32_t                  subpassIndex       = 0;
+		uint32_t                  dynamicOffsetCount = 0; // TODO: set this to value of dynamic elements for current pipeline
+		std::array<uint32_t, 256> dynamicOffsets;
 
 		if ( pass.encoder ) {
 			le_encoder_api.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
