@@ -72,6 +72,7 @@ struct le_shader_binding_info {
 struct le_descriptor_set_layout_t {
 	std::vector<le_shader_binding_info> binding_info; // binding info for this set
 	vk::DescriptorSetLayout vk_descriptor_set_layout; // vk object
+	vk::DescriptorUpdateTemplate vk_descriptor_update_template; // template used to update such a descriptorset based on descriptor data laid out in flat DescriptorData elements
 };
 
 struct le_pipeline_layout_info {
@@ -88,6 +89,20 @@ struct le_pipeline_and_layout_info_t{
 };
 
 // clang-format on
+
+// Everything a possible descriptor binding might contain.
+// Type of descriptor decides which values will be used.
+struct DescriptorData {
+	vk::Sampler        sampler       = nullptr;                                   // |
+	vk::ImageView      imageView     = nullptr;                                   // | > keep in this order, so we can pass address for sampler as descriptorImageInfo
+	vk::ImageLayout    imageLayout   = vk::ImageLayout::eShaderReadOnlyOptimal;   // |
+	vk::DescriptorType type          = vk::DescriptorType::eUniformBufferDynamic; //
+	vk::Buffer         buffer        = nullptr;                                   // |
+	vk::DeviceSize     offset        = 0;                                         // | > keep in this order, as we can cast this to a DescriptorBufferInfo
+	vk::DeviceSize     range         = VK_WHOLE_SIZE;                             // |
+	uint32_t           bindingNumber = 0;                                         // <-- may be sparse, may repeat (for arrays of images bound to the same binding), but must increase monotonically (may only repeat or up over the series inside the samplerBindings vector).
+	uint32_t           arrayIndex    = 0;                                         // <-- must be in sequence for array elements of same binding
+};
 
 struct le_shader_module_o {
 	uint64_t                            hash                = 0;        ///< hash taken from spirv code + filepath hash
@@ -184,7 +199,8 @@ struct BackendFrameData {
 
 	std::forward_list<AbstractPhysicalResource> ownedResources; // vk resources retained and destroyed with BackendFrameData
 
-	std::vector<Pass> passes;
+	std::vector<Pass>               passes;
+	std::vector<vk::DescriptorPool> descriptorPools; // one descriptor pool per pass
 
 	uint32_t backBufferWidth;  // dimensions of swapchain backbuffer, queried on acquire backendresources.
 	uint32_t backBufferHeight; // dimensions of swapchain backbuffer, queried on acquire backendresources.
@@ -739,6 +755,7 @@ static void backend_destroy( le_backend_o *self ) {
 	          << std::flush;
 	for ( auto &p : self->descriptorSetLayoutCache ) {
 		device.destroyDescriptorSetLayout( p.second.vk_descriptor_set_layout );
+		device.destroyDescriptorUpdateTemplate( p.second.vk_descriptor_update_template );
 	}
 
 	// -- destroy pipelineLayouts
@@ -762,6 +779,10 @@ static void backend_destroy( le_backend_o *self ) {
 		device.destroySemaphore( frameData.semaphorePresentComplete );
 		device.destroySemaphore( frameData.semaphoreRenderComplete );
 		device.destroyCommandPool( frameData.commandPool );
+
+		for ( auto &d : frameData.descriptorPools ) {
+			device.destroyDescriptorPool( d );
+		}
 
 		for ( auto &a : frameData.allocators ) {
 			allocatorInterface.destroy( a );
@@ -1142,8 +1163,80 @@ static uint64_t backend_produce_descriptor_set_layout( le_backend_o *self, std::
 
 		*layout = device.createDescriptorSetLayout( setLayoutInfo );
 
-		self->descriptorSetLayoutCache[ set_layout_hash ].vk_descriptor_set_layout = *layout;
-		self->descriptorSetLayoutCache[ set_layout_hash ].binding_info             = bindings;
+		// -- Create descriptorUpdateTemplate
+		//
+		// The template needs to be created so that data for a vk::DescriptorSet
+		// can be read from a vector of tightly packed
+		// DescriptorData elements.
+		//
+
+		vk::DescriptorUpdateTemplate updateTemplate;
+		{
+			std::vector<vk::DescriptorUpdateTemplateEntry> entries;
+
+			entries.reserve( bindings.size() );
+
+			size_t base_offset = 0; // offset in bytes into DescriptorData vector, assuming vector is tightly packed.
+			for ( const auto &b : bindings ) {
+				vk::DescriptorUpdateTemplateEntry entry;
+
+				auto descriptorType = vk::DescriptorType( b.type );
+
+				entry.setDstBinding( b.binding );
+				entry.setDescriptorCount( b.count );
+				entry.setDescriptorType( descriptorType );
+				entry.setDstArrayElement( 0 ); // starting element at this binding to update - always 0
+
+				// set offset based on type of binding, so that template reads from correct data
+
+				switch ( descriptorType ) {
+				case vk::DescriptorType::eSampler:
+				case vk::DescriptorType::eCombinedImageSampler:
+				case vk::DescriptorType::eSampledImage:
+				case vk::DescriptorType::eStorageImage:
+				case vk::DescriptorType::eUniformTexelBuffer:
+				case vk::DescriptorType::eStorageTexelBuffer:
+				case vk::DescriptorType::eInputAttachment:
+
+					// TODO: find out what descriptorData an InputAttachment expects, if it is really done with an imageInfo
+					entry.setOffset( base_offset + offsetof( DescriptorData, sampler ) ); // point to first element of ImageInfo
+				    break;
+				case vk::DescriptorType::eUniformBuffer:
+				case vk::DescriptorType::eStorageBuffer:
+				case vk::DescriptorType::eUniformBufferDynamic:
+				case vk::DescriptorType::eStorageBufferDynamic:
+					entry.setOffset( base_offset + offsetof( DescriptorData, buffer ) ); // point to first element of BufferInfo
+				    break;
+				}
+
+				entry.setStride( sizeof( DescriptorData ) );
+
+				entries.emplace_back( std::move( entry ) );
+
+				base_offset += sizeof( DescriptorData );
+			}
+
+			vk::DescriptorUpdateTemplateCreateInfo info;
+			info
+			    .setFlags( {} ) // no flags for now
+			    .setDescriptorUpdateEntryCount( uint32_t( entries.size() ) )
+			    .setPDescriptorUpdateEntries( entries.data() )
+			    .setTemplateType( vk::DescriptorUpdateTemplateType::eDescriptorSet )
+			    .setDescriptorSetLayout( *layout )
+			    .setPipelineBindPoint( {} ) // ignored for this template type
+			    .setPipelineLayout( {} )    // ignored for this template type
+			    .setSet( 0 )                // ignored for this template type
+			    ;
+
+			updateTemplate = device.createDescriptorUpdateTemplate( info );
+		}
+
+		le_descriptor_set_layout_t le_layout_info;
+		le_layout_info.vk_descriptor_set_layout      = *layout;
+		le_layout_info.binding_info                  = bindings;
+		le_layout_info.vk_descriptor_update_template = updateTemplate;
+
+		self->descriptorSetLayoutCache[ set_layout_hash ] = std::move( le_layout_info );
 	} else {
 
 		// layout was found in cache.
@@ -1390,6 +1483,9 @@ static void backend_setup( le_backend_o *self ) {
 		frameData.semaphoreRenderComplete  = vkDevice.createSemaphore( {} );
 		frameData.commandPool              = vkDevice.createCommandPool( {vk::CommandPoolCreateFlagBits::eTransient, self->device->getDefaultGraphicsQueueFamilyIndex()} );
 
+		{ // create per-frame descriptorPool
+		}
+
 		LE_AllocatorCreateInfo allocInfo = allocatorCreateInfo;
 		allocInfo.capacity /= frameCount;
 		allocInfo.bufferBaseOffsetInBytes = i * allocInfo.capacity;
@@ -1630,6 +1726,10 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 
 	for ( auto &alloc : frame.allocators ) {
 		allocatorI.reset( alloc );
+	}
+
+	for ( auto &d : frame.descriptorPools ) {
+		device.resetDescriptorPool( d );
 	}
 
 	{ // clear resources owned exclusively by this frame
@@ -2059,6 +2159,44 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 	}
 }
 
+static void backend_create_descriptor_pools( BackendFrameData &frame, vk::Device &device, size_t numRenderPasses ) {
+
+	// Make sure that there is one descriptorpool for every renderpass.
+	// descriptor pools which were created previously will be re-used,
+	// if we're suddenly rendering more frames, we will add additional
+	// descriptorpools.
+
+	// at this point it would be nice to have an idea for each renderpass
+	// on how many descriptors to expect, but we cannot know that realistically
+	// without going through the command buffer... not ideal.
+
+	// this is why we're creating space for a generous amount of descriptors
+	// hoping we're not running out when assembling the command buffer.
+
+	for ( ; frame.descriptorPools.size() < numRenderPasses; ) {
+
+		vk::DescriptorPoolCreateInfo info;
+
+		std::vector<::vk::DescriptorPoolSize> descriptorPoolSizes;
+
+		descriptorPoolSizes.reserve( VK_DESCRIPTOR_TYPE_RANGE_SIZE );
+
+		for ( size_t i = VK_DESCRIPTOR_TYPE_BEGIN_RANGE; i != VK_DESCRIPTOR_TYPE_BEGIN_RANGE + VK_DESCRIPTOR_TYPE_RANGE_SIZE; ++i ) {
+			descriptorPoolSizes.emplace_back( ::vk::DescriptorType( i ), 1000 ); // 1000 descriptors of each type
+		}
+
+		::vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo;
+		descriptorPoolCreateInfo
+		    .setMaxSets( 1000 )
+		    .setPoolSizeCount( uint32_t( descriptorPoolSizes.size() ) )
+		    .setPPoolSizes( descriptorPoolSizes.data() );
+
+		vk::DescriptorPool descriptorPool = device.createDescriptorPool( descriptorPoolCreateInfo );
+
+		frame.descriptorPools.emplace_back( std::move( descriptorPool ) );
+	}
+}
+
 // ----------------------------------------------------------------------
 // TODO: this should mark acquired resources as used by this frame -
 // so that they can only be destroyed iff this frame has been reset.
@@ -2086,6 +2224,9 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 	backend_track_resource_state( frame, passes, numRenderPasses );
 
 	backend_create_renderpasses( frame, device );
+
+	// -- make sure that there is a descriptorpool for every renderpass
+	backend_create_descriptor_pools( frame, device, numRenderPasses );
 
 	// TODO NEXT : -- update hashes for all pso objects we keep track of
 
@@ -2137,9 +2278,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 	// TODO: (parallel for)
 	for ( size_t passIndex = 0; passIndex != frame.passes.size(); ++passIndex ) {
 
-		auto &pass = frame.passes[ passIndex ];
-
-		auto &cmd = cmdBufs[ passIndex ];
+		auto &pass           = frame.passes[ passIndex ];
+		auto &cmd            = cmdBufs[ passIndex ];
+		auto &descriptorPool = frame.descriptorPools[ passIndex ];
 
 		// create frame buffer, based on swapchain and renderpass
 
@@ -2173,6 +2314,12 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		uint32_t                  dynamicOffsetCount = 0; // TODO: set this to value of dynamic elements for current pipeline
 		std::array<uint32_t, 256> dynamicOffsets;
 
+		std::vector<std::vector<DescriptorData>>  pipelineData;
+		std::vector<vk::DescriptorSet>            descriptorSets;
+		vk::PipelineLayout                        currentPipelineLayout;
+		std::vector<vk::DescriptorUpdateTemplate> currentUpdateTemplates;
+		std::vector<vk::DescriptorSetLayout>      currentDescriptorSetLayouts;
+
 		if ( pass.encoder ) {
 			le_encoder_api.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
 		} else {
@@ -2198,7 +2345,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 						// -- potentially compile and create pipeline here, based on current pass and subpass
 						currentPipeline = backend_produce_pipeline( self, le_cmd->info.pso, pass, subpassIndex );
-						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, currentPipeline.pipeline );
+
+						// -- grab current pipeline layout from cache
+						currentPipelineLayout = self->pipelineLayoutCache[ currentPipeline.layout_info.pipeline_layout_key ];
 
 						// -- set dynamicOffsetsCount to number of dynamic argumnents in current pipeline
 						dynamicOffsetCount = uint32_t( currentPipeline.layout_info.num_dynamic_bindings );
@@ -2209,6 +2358,53 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// reset dynamic offsets
 						memset( dynamicOffsets.data(), 0, sizeof( uint32_t ) * dynamicOffsetCount );
 
+						{
+							// -- update pipelineData - that's the data values for all descriptors which are currently bound
+
+							auto numSets = currentPipeline.layout_info.set_layout_count;
+
+							pipelineData.resize( numSets );
+							currentDescriptorSetLayouts.resize( numSets );
+							currentUpdateTemplates.resize( numSets );
+
+							// let's create descriptorData vector based on current bindings-
+							for ( size_t setId = 0; setId != numSets; ++setId ) {
+
+								// look up set layout info via set layout key
+								auto const &set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
+								auto const &setLayoutInfo  = self->descriptorSetLayoutCache.at( set_layout_key );
+
+								auto &currentDescriptorSet           = pipelineData[ setId ];
+								currentDescriptorSetLayouts[ setId ] = setLayoutInfo.vk_descriptor_set_layout;
+								currentUpdateTemplates[ setId ]      = setLayoutInfo.vk_descriptor_update_template;
+
+								currentDescriptorSet.resize( setLayoutInfo.binding_info.size() );
+
+								for ( auto const &b : setLayoutInfo.binding_info ) {
+									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
+										DescriptorData descriptorData{};
+										descriptorData.arrayIndex    = uint32_t( arrayIndex );
+										descriptorData.bindingNumber = b.binding;
+										descriptorData.type          = vk::DescriptorType( b.type );
+										descriptorData.range         = b.range; // note this could be vk_full_size
+										currentDescriptorSet.emplace_back( std::move( descriptorData ) );
+									}
+								}
+							}
+
+							// -- write to descriptors using template
+
+							// we write directly into descriptorsetstate when we update descriptors.
+							// when we bind a pipeline, we update the descriptorsetstate based
+							// on what the pipeline requires.
+						}
+
+						{
+							// --create descriptorset update template based on descriptorset data
+						}
+
+						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, currentPipeline.pipeline );
+
 					} else if ( pass.type == LE_RENDER_PASS_TYPE_COMPUTE ) {
 						// -- TODO: implement compute pass pipeline binding
 					}
@@ -2216,11 +2412,44 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				case le::CommandType::eDraw: {
 					auto *le_cmd = static_cast<le::CommandDraw *>( dataIt );
+
+					// TODO: update descriptorsets via template if tainted
+					// TODO: bind descriptorsets
+					{
+
+						{
+							// -- allocate descriptors from descriptorpool based on set layout info
+							vk::DescriptorSetAllocateInfo allocateInfo;
+							allocateInfo.setDescriptorPool( descriptorPool )
+							    .setDescriptorSetCount( uint32_t( currentDescriptorSetLayouts.size() ) )
+							    .setPSetLayouts( currentDescriptorSetLayouts.data() );
+
+							// -- allocate some descriptorSets based on
+							descriptorSets = device.allocateDescriptorSets( allocateInfo );
+						}
+
+						for ( size_t setId = 0; setId != descriptorSets.size(); ++setId ) {
+							device.updateDescriptorSetWithTemplate( descriptorSets[ setId ], currentUpdateTemplates[ setId ], pipelineData[ setId ].data() );
+						}
+
+						cmd.bindDescriptorSets( vk::PipelineBindPoint::eGraphics,
+						                        currentPipelineLayout,
+						                        0,
+						                        uint32_t( descriptorSets.size() ),
+						                        descriptorSets.data(),
+						                        dynamicOffsetCount,
+						                        dynamicOffsets.data() );
+					}
+
 					cmd.draw( le_cmd->info.vertexCount, le_cmd->info.instanceCount, le_cmd->info.firstVertex, le_cmd->info.firstInstance );
 				} break;
 
 				case le::CommandType::eDrawIndexed: {
 					auto *le_cmd = static_cast<le::CommandDrawIndexed *>( dataIt );
+
+					// TODO: update descriptorsets via template if tainted
+					// TODO: bind descriptorsets
+
 					cmd.drawIndexed( le_cmd->info.indexCount, le_cmd->info.instanceCount, le_cmd->info.firstIndex, le_cmd->info.vertexOffset, le_cmd->info.firstInstance );
 				} break;
 
