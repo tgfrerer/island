@@ -2484,6 +2484,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						break;
 					}
 
+					argumentState.setData[ 0 ][ 0 ].buffer = get_physical_buffer_from_resource_id( &frame, le_cmd->info.buffer_id );
+					argumentState.setData[ 0 ][ 0 ].offset = 0;
+					argumentState.setData[ 0 ][ 0 ].range  = le_cmd->info.range;
+
+					// TODO: we must write to descriptorSetData and update the buffer part.
 					dynamicOffsets[ le_cmd->info.index ] = le_cmd->info.offset;
 
 				} break;

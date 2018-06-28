@@ -251,9 +251,12 @@ static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
 		// -- Store ubo data to scratch allocator
 		memcpy( memAddr, data, numBytes );
 
-		cmd->info.index  = uint16_t( dynamicArgumentIndex );
-		cmd->info.offset = uint32_t( bufferOffset ); // Note: we are assuming offset is never > 4GB, which appears realistic for now
-		cmd->info.range  = uint16_t( numBytes );
+		auto allocatorBufferId = allocator_i.get_le_resource_id( self->pAllocator );
+
+		cmd->info.index     = uint16_t( dynamicArgumentIndex );
+		cmd->info.offset    = uint32_t( bufferOffset ); // Note: we are assuming offset is never > 4GB, which appears realistic for now
+		cmd->info.range     = uint16_t( numBytes );
+		cmd->info.buffer_id = allocatorBufferId;
 
 	} else {
 		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << "bytes.";
