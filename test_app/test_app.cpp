@@ -21,6 +21,14 @@ struct test_app_o {
 	std::unique_ptr<le::Renderer> renderer;
 	le_graphics_pipeline_state_o *psoMain; // owned by the renderer
 	le_graphics_pipeline_state_o *psoTest; // owned by the renderer
+
+	// NOTE: RUNTIME-COMPILE : If you add any new things during run-time, make sure to only add at the end of the object,
+	// otherwise all pointers above will be invalidated. this might also overwrite memory which
+	// is stored after this object, which is very subtle in introducing errors. We need to think about a way of serializing
+	// and de-serializing objects which are allocated on the heap. we don't have to worry about objects which are allocated
+	// on the stack, as the stack acts like a pool allocator, and they are only alife while control visits the code section
+	// in question.
+	uint64_t frame_counter = 0;
 };
 
 // ----------------------------------------------------------------------
@@ -198,44 +206,35 @@ static bool test_app_update( test_app_o *self ) {
 
 			static_assert( sizeof( vertData ) == sizeof( float ) * 4 * 3, "vertData must be tightly packed" );
 
-			le_encoder.bind_graphics_pipeline( encoder, self->psoTest );
+			le_encoder.bind_graphics_pipeline( encoder, self->psoMain );
 
-			// TODO: implement setting shader arguments (uniform parameters)
-			struct UboDefaultMatrices {
-				float modelViewProjectionMatrix[ 16 ];
+			// data as it is laid out in the ubo for the shader
+			struct ColorUBO {
+				struct Color {
+					float r;
+					float g;
+					float b;
+					float a;
+				} color;
 			};
 
-			UboDefaultMatrices ubo1{};
+			float r_val = ( self->frame_counter % 60 ) / 60.f;
 
-			// this means we're setting the data for the descriptor at the position
-			// set 0, binding 0, array position 0
+			ColorUBO ubo1{{r_val, r_val, r_val, 1}};
+			ColorUBO ubo2{{0, 1, 0, 1}};
 
-			// Encoder should keep track of currently bound pipeline, which is why we don't have to mention the pipeline.
-			// Pipeline layout has a lookup table which gives us the set and binding number for this named element.
-			// Last argument is the array index for this descriptor
-
-			// -- create descriptors
-			// -- fill dynamic descriptors
-			// -- set descriptor values
-
-			// This will use the scratch buffer -- and the encoded command will store the
-			// location of the data as it was laid down in the scratch buffer.
-			//
-			// vertex data must be stored to GPU mapped memory using an allocator through encoder first,
-			// will then be available to the gpu.
-			//
-			// The scratch buffer is uploaded/transferred before the renderpass begins
-			// so that data from it is read-visible
 			le_encoder.set_vertex_data( encoder, vertData, sizeof( vertData ), 0 );
 			le_encoder.set_index_data( encoder, indexData, sizeof( indexData ), 0 ); // 0 for indexType means uint16_t
 
 			le_encoder.set_scissor( encoder, 0, 1, scissors );
 			le_encoder.set_viewport( encoder, 0, 1, viewports );
 
-			le_encoder.set_argument_ubo_data( encoder, 0, &ubo1, sizeof( UboDefaultMatrices ) ); // set a descriptor to set, binding, array_index
+			le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "MainColor" ), &ubo1, sizeof( ColorUBO ) );    // set a descriptor to set, binding, array_index
+			le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "AnotherColor" ), &ubo2, sizeof( ColorUBO ) ); // set a descriptor to set, binding, array_index
+
 			le_encoder.draw( encoder, 3, 1, 0, 0 );
 
-			le_encoder.bind_graphics_pipeline( encoder, self->psoMain );
+			le_encoder.bind_graphics_pipeline( encoder, self->psoTest );
 			le_encoder.set_scissor( encoder, 0, 1, &scissors[ 1 ] );
 			le_encoder.set_viewport( encoder, 0, 1, &viewports[ 1 ] );
 
@@ -249,6 +248,8 @@ static bool test_app_update( test_app_o *self ) {
 	// update will call all rendercallbacks in this module.
 	// the RECORD phase is guaranteed to execute - all rendercallbacks will get called.
 	self->renderer->update( mainModule );
+
+	self->frame_counter++;
 
 	return true; // keep app alive
 }
