@@ -2314,11 +2314,31 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		uint32_t                  dynamicOffsetCount = 0; // TODO: set this to value of dynamic elements for current pipeline
 		std::array<uint32_t, 256> dynamicOffsets;
 
-		std::vector<std::vector<DescriptorData>>  pipelineData;
-		std::vector<vk::DescriptorSet>            descriptorSets;
-		vk::PipelineLayout                        currentPipelineLayout;
-		std::vector<vk::DescriptorUpdateTemplate> currentUpdateTemplates;
-		std::vector<vk::DescriptorSetLayout>      currentDescriptorSetLayouts;
+		struct ArgumentState {
+			uint32_t                                    setCount = 0;    // current count of bound descriptorSets (max: 8)
+			std::array<std::vector<DescriptorData>, 8>  setData;         // data per-set
+			std::array<vk::DescriptorUpdateTemplate, 8> updateTemplates; // update templates for currently bound descriptor sets
+			std::array<vk::DescriptorSetLayout, 8>      layouts;         // layouts for currently bound descriptor sets
+		} argumentState;
+
+		vk::PipelineLayout             currentPipelineLayout;
+		std::vector<vk::DescriptorSet> descriptorSets; // currently bound descriptorSets
+
+		auto updateArguments = []( const vk::Device &device_, const vk::DescriptorPool &descriptorPool_, const ArgumentState &argumentState_, std::vector<vk::DescriptorSet> &descriptorSets_ ) {
+			// -- allocate descriptors from descriptorpool based on set layout info
+			vk::DescriptorSetAllocateInfo allocateInfo;
+			allocateInfo.setDescriptorPool( descriptorPool_ )
+			    .setDescriptorSetCount( uint32_t( argumentState_.setCount ) )
+			    .setPSetLayouts( argumentState_.layouts.data() );
+
+			// -- allocate some descriptorSets based on current layout
+			descriptorSets_ = device_.allocateDescriptorSets( allocateInfo );
+
+			// -- write data from descriptorSetData into freshly allocated DescriptorSets
+			for ( size_t setId = 0; setId != argumentState_.setCount; ++setId ) {
+				device_.updateDescriptorSetWithTemplate( descriptorSets_[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
+			}
+		};
 
 		if ( pass.encoder ) {
 			le_encoder_api.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
@@ -2361,22 +2381,18 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						{
 							// -- update pipelineData - that's the data values for all descriptors which are currently bound
 
-							auto numSets = currentPipeline.layout_info.set_layout_count;
-
-							pipelineData.resize( numSets );
-							currentDescriptorSetLayouts.resize( numSets );
-							currentUpdateTemplates.resize( numSets );
+							argumentState.setCount = currentPipeline.layout_info.set_layout_count;
 
 							// let's create descriptorData vector based on current bindings-
-							for ( size_t setId = 0; setId != numSets; ++setId ) {
+							for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
 
 								// look up set layout info via set layout key
 								auto const &set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
 								auto const &setLayoutInfo  = self->descriptorSetLayoutCache.at( set_layout_key );
 
-								auto &currentDescriptorSet           = pipelineData[ setId ];
-								currentDescriptorSetLayouts[ setId ] = setLayoutInfo.vk_descriptor_set_layout;
-								currentUpdateTemplates[ setId ]      = setLayoutInfo.vk_descriptor_update_template;
+								auto &currentDescriptorSet             = argumentState.setData[ setId ];
+								argumentState.layouts[ setId ]         = setLayoutInfo.vk_descriptor_set_layout;
+								argumentState.updateTemplates[ setId ] = setLayoutInfo.vk_descriptor_update_template;
 
 								currentDescriptorSet.resize( setLayoutInfo.binding_info.size() );
 
@@ -2386,21 +2402,15 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 										descriptorData.arrayIndex    = uint32_t( arrayIndex );
 										descriptorData.bindingNumber = b.binding;
 										descriptorData.type          = vk::DescriptorType( b.type );
-										descriptorData.range         = b.range; // note this could be vk_full_size
+										descriptorData.range         = VK_WHOLE_SIZE; // note this could be vk_full_size
 										currentDescriptorSet.emplace_back( std::move( descriptorData ) );
 									}
 								}
 							}
 
-							// -- write to descriptors using template
-
 							// we write directly into descriptorsetstate when we update descriptors.
 							// when we bind a pipeline, we update the descriptorsetstate based
 							// on what the pipeline requires.
-						}
-
-						{
-							// --create descriptorset update template based on descriptorset data
 						}
 
 						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, currentPipeline.pipeline );
@@ -2413,33 +2423,16 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				case le::CommandType::eDraw: {
 					auto *le_cmd = static_cast<le::CommandDraw *>( dataIt );
 
-					// TODO: update descriptorsets via template if tainted
-					// TODO: bind descriptorsets
-					{
+					// -- update descriptorsets via template if tainted
+					updateArguments( device, descriptorPool, argumentState, descriptorSets );
 
-						{
-							// -- allocate descriptors from descriptorpool based on set layout info
-							vk::DescriptorSetAllocateInfo allocateInfo;
-							allocateInfo.setDescriptorPool( descriptorPool )
-							    .setDescriptorSetCount( uint32_t( currentDescriptorSetLayouts.size() ) )
-							    .setPSetLayouts( currentDescriptorSetLayouts.data() );
-
-							// -- allocate some descriptorSets based on
-							descriptorSets = device.allocateDescriptorSets( allocateInfo );
-						}
-
-						for ( size_t setId = 0; setId != descriptorSets.size(); ++setId ) {
-							device.updateDescriptorSetWithTemplate( descriptorSets[ setId ], currentUpdateTemplates[ setId ], pipelineData[ setId ].data() );
-						}
-
-						cmd.bindDescriptorSets( vk::PipelineBindPoint::eGraphics,
-						                        currentPipelineLayout,
-						                        0,
-						                        uint32_t( descriptorSets.size() ),
-						                        descriptorSets.data(),
-						                        dynamicOffsetCount,
-						                        dynamicOffsets.data() );
-					}
+					cmd.bindDescriptorSets( vk::PipelineBindPoint::eGraphics,
+					                        currentPipelineLayout,
+					                        0,
+					                        argumentState.setCount,
+					                        descriptorSets.data(),
+					                        dynamicOffsetCount,
+					                        dynamicOffsets.data() );
 
 					cmd.draw( le_cmd->info.vertexCount, le_cmd->info.instanceCount, le_cmd->info.firstVertex, le_cmd->info.firstInstance );
 				} break;
@@ -2447,8 +2440,16 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				case le::CommandType::eDrawIndexed: {
 					auto *le_cmd = static_cast<le::CommandDrawIndexed *>( dataIt );
 
-					// TODO: update descriptorsets via template if tainted
-					// TODO: bind descriptorsets
+					// -- update descriptorsets via template if tainted
+					updateArguments( device, descriptorPool, argumentState, descriptorSets );
+
+					cmd.bindDescriptorSets( vk::PipelineBindPoint::eGraphics,
+					                        currentPipelineLayout,
+					                        0,
+					                        argumentState.setCount,
+					                        descriptorSets.data(),
+					                        dynamicOffsetCount,
+					                        dynamicOffsets.data() );
 
 					cmd.drawIndexed( le_cmd->info.indexCount, le_cmd->info.instanceCount, le_cmd->info.firstIndex, le_cmd->info.vertexOffset, le_cmd->info.firstInstance );
 				} break;
