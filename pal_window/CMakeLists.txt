@@ -1,6 +1,7 @@
 set (TARGET pal_window )
 
 set (SOURCES "pal_window.cpp")
+set (SOURCES ${SOURCES} "pal_window.h")
 
 if (${PLUGINS_DYNAMIC})
 
