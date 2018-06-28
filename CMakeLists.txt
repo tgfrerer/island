@@ -5,7 +5,7 @@ set (PROJECT_NAME "Island")
 
 project (${PROJECT_NAME})
 
-set(PLUGINS_DYNAMIC OFF CACHE BOOL "Use dynamic linking for all plugins")
+set(PLUGINS_DYNAMIC ON CACHE BOOL "Use dynamic linking for all plugins")
 
 set ( STATIC_LIBS "")
 
@@ -14,9 +14,11 @@ set ( PLUGIN_LIBS_DEPENDENCIES "")
 set ( PLUGIN_LINK_DIRS "")
 
 # Download and unpack glm at configure time ... there might be a time delay.
-configure_file(CMakeLists.txt.in ${PROJECT_SOURCE_DIR}/libs/glm/download/CMakeLists.txt)
+configure_file(CMakeLists.txt.in ${PROJECT_SOURCE_DIR}/libs/cmake/glm/download/CMakeLists.txt)
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
-    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/libs/glm/download" )
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/libs/cmake/glm/download" )
+execute_process(COMMAND "${CMAKE_COMMAND}" --build .
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/libs/cmake/glm/download" )
 
 # create a link to shared shader repository so that we're always working with the same shaders.
 execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/shaders ${CMAKE_BINARY_DIR}/shaders )

@@ -6,6 +6,7 @@ include(ExternalProject)
 ExternalProject_Add(glm
     GIT_REPOSITORY https://github.com/g-truc/glm
     GIT_TAG master
+    GIT_PROGRESS TRUE
     SOURCE_DIR "${PROJECT_SOURCE_DIR}/libs/glm"
     BINARY_DIR "${PROJECT_SOURCE_DIR}/libs/glm/build"
     CMAKE_ARGS -GLM_TEST_ENABLE_CXX_17=TRUE
@@ -14,4 +15,3 @@ ExternalProject_Add(glm
     INSTALL_COMMAND ""
     TEST_COMMAND ""
 )
-
