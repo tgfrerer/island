@@ -173,7 +173,7 @@ struct le_renderer_api {
 
 		// stores ubo argument data to scratch buffer - note that parameter index must be dynamic offset index
 		// FIXME: dynamic offset index is hard to guess, as shader might have optimised away elements which are not used.
-		void                         ( *set_argument_ubo_data  ) (le_command_buffer_encoder_o *self, size_t dynamicParameterIndex, void * data, size_t numBytes);
+		void                         ( *set_argument_ubo_data  ) (le_command_buffer_encoder_o *self, uint64_t argumentNameId, void * data, size_t numBytes);
 
 		void                         ( *get_encoded_data       )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
 	};

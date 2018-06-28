@@ -231,7 +231,7 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *self,
 }
 
 static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
-                                       size_t                       dynamicArgumentIndex,
+                                       uint64_t                     argumentNameId, // hash id of argument name
                                        void *                       data,
                                        size_t                       numBytes ) {
 
@@ -253,10 +253,10 @@ static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
 
 		auto allocatorBufferId = allocator_i.get_le_resource_id( self->pAllocator );
 
-		cmd->info.index     = uint16_t( dynamicArgumentIndex );
-		cmd->info.offset    = uint32_t( bufferOffset ); // Note: we are assuming offset is never > 4GB, which appears realistic for now
-		cmd->info.range     = uint16_t( numBytes );
-		cmd->info.buffer_id = allocatorBufferId;
+		cmd->info.argument_name_id = argumentNameId;
+		cmd->info.buffer_id        = allocatorBufferId;
+		cmd->info.offset           = uint32_t( bufferOffset ); // Note: we are assuming offset is never > 4GB, which appears realistic for now
+		cmd->info.range            = uint32_t( numBytes );
 
 	} else {
 		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << "bytes.";

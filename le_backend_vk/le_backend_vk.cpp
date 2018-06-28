@@ -54,16 +54,19 @@ using namespace experimental;
 struct le_shader_binding_info {
 	union {
 		struct{
-		uint64_t stage_bits:  6; // vkShaderFlags : which stages this binding is used for (must be at least 6 bits wide)
-
-		uint64_t range     : 10; // only used for ubos (sizeof ubo)
-		uint64_t type      : 4; // vkDescriptorType descriptor type
-		uint64_t count     : 8; // number of elements
-		uint64_t binding   : 8; // |\                           : binding index within set
-		uint64_t setIndex  : 3; // |/ keep together for sorting : set index [0..7]
+		uint64_t dynamic_offset_idx :  8; // only used when binding pipeline
+		uint64_t stage_bits         :  6; // vkShaderFlags : which stages this binding is used for (must be at least 6 bits wide)
+		uint64_t range              : 27; // only used for ubos (sizeof ubo)
+		uint64_t type               :  4; // vkDescriptorType descriptor type
+		uint64_t count              :  8; // number of elements
+		uint64_t binding            :  8; // |\                           : binding index within set
+		uint64_t setIndex           :  3; // |/ keep together for sorting : set index [0..7]
 		};
 		uint64_t data;
 	} ;
+
+	uint64_t name_hash; // const_char_hash of parameter name as given in shader
+
 	bool operator < (le_shader_binding_info const & lhs){
 		return data < lhs.data;
 	}
@@ -78,8 +81,7 @@ struct le_descriptor_set_layout_t {
 struct le_pipeline_layout_info {
 	uint64_t pipeline_layout_key = 0; // handle to pipeline layout
 	uint64_t set_layout_keys[ 8 ] = {}; // maximum number of DescriptorSets is 8
-	uint32_t set_layout_count     = 0;  // number of actually used DescriptorSetLayouts for this layout
-	uint32_t num_dynamic_bindings = 0;  // number of dynamic bindings
+	uint64_t set_layout_count     = 0;  // number of actually used DescriptorSetLayouts for this layout
 };
 
 struct le_pipeline_and_layout_info_t{
@@ -440,7 +442,7 @@ static void backend_set_watched_files_for_module( le_backend_o *self, le_shader_
 static void shader_module_update_reflection( le_shader_module_o *module ) {
 	std::vector<le_shader_binding_info> bindings;
 
-	static_assert( sizeof( le_shader_binding_info ) == sizeof( uint64_t ), "shader binding info must be the same size as uint" );
+	static_assert( sizeof( le_shader_binding_info ) == sizeof( uint64_t ) * 2, "shader binding info must be the same size as uint64_t" );
 
 	spirv_cross::Compiler compiler( module->spirv );
 
@@ -473,6 +475,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 		info.type       = enumToNum( vk::DescriptorType::eSampledImage );
 		info.stage_bits = enumToNum( module->stage );
 		info.count      = 1;
+		info.name_hash  = const_char_hash64( resource.name.c_str() );
 
 		bindings.emplace_back( std::move( info ) );
 	}
@@ -486,11 +489,12 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 		info.type       = enumToNum( vk::DescriptorType::eUniformBufferDynamic );
 		info.count      = 1;
 		info.stage_bits = enumToNum( module->stage );
+		info.name_hash  = const_char_hash64( resource.name.c_str() );
 
 		{
-			// get the size of the buffer, which is the last offset + the last range in active ranges...
-			// This assumes ranges are sorted by offset.
-			// TODO: find a less optimistic way to calculate the size of UBO resource structs from shader reflection data.
+			// -- Get the size of the UBO, which is the last offset + the last range in active ranges of this resource...
+			//    - This assumes ranges are sorted by offset.
+			// TODO: Find a less optimistic way to calculate the size of UBO resource structs from shader reflection data.
 			auto ranges = compiler.get_active_buffer_ranges( resource.id );
 
 			if ( ranges.empty() ) {
@@ -819,7 +823,7 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settin
 	le_swapchain_vk_settings_o tmpSwapchainSettings;
 
 	tmpSwapchainSettings.imagecount_hint                = 3;
-	tmpSwapchainSettings.presentmode_hint               = le::Swapchain::Presentmode::eFifo;
+	tmpSwapchainSettings.presentmode_hint               = le::Swapchain::Presentmode::eFifoRelaxed;
 	tmpSwapchainSettings.width_hint                     = self->window->getSurfaceWidth();
 	tmpSwapchainSettings.height_hint                    = self->window->getSurfaceHeight();
 	tmpSwapchainSettings.vk_device                      = self->device->getVkDevice();
@@ -906,20 +910,43 @@ static std::vector<le_shader_binding_info> create_bindings_list( le_graphics_pip
 			fBinding++;
 		} else if ( ( vBinding->data & sort_mask ) == ( fBinding->data & sort_mask ) ) {
 
-			// -- Check that bindings mentioned in both modules have same properties
+			// -- Check that bindings mentioned in both modules have same (or compatible) properties
 
 			uint64_t compare_mask = 0;
 			{
 				// switch on elements which we want to compare against
 				le_shader_binding_info info{};
-				info.count   = ~info.count;
-				info.range   = ~info.range;
-				info.type    = ~info.type;
-				compare_mask = info.data;
+				info.type     = ~info.type;
+				info.binding  = ~info.binding;
+				info.setIndex = ~info.setIndex;
+				compare_mask  = info.data;
 			}
 
+			bool bindingDataIsConsistent = ( vBinding->data & compare_mask ) == ( fBinding->data & compare_mask );
+			bool bindingNameIsConsistent = ( vBinding->name_hash == fBinding->name_hash );
+
 			// elements captured by compare mask must be identical
-			if ( ( vBinding->data & compare_mask ) == ( fBinding->data & compare_mask ) ) {
+			if ( bindingDataIsConsistent ) {
+
+				if ( !bindingNameIsConsistent ) {
+					// This is not tragic, but we need to flag up that this binding is not
+					// consistently named in case this hints at a bigger issue.
+
+					std::cout << "Warning: Inconsistent name in Set: " << vBinding->setIndex << ", for binding: " << vBinding->binding << std::endl
+					          << "\t shader vert: " << pso->shaderModuleVert->filepath << std::endl
+					          << "\t shader frag: " << pso->shaderModuleFrag->filepath << std::endl
+					          << "Using name given in VERTEX stage for this binding." << std::endl
+					          << std::flush;
+				}
+
+				if ( vBinding->type == enumToNum( vk::DescriptorType::eUniformBuffer ) ||
+				     vBinding->type == enumToNum( vk::DescriptorType::eUniformBufferDynamic ) ) {
+					// If we're dealing with a buffer type, we must check ranges
+					// TODO: if one of them has range == 0, that means this shader stage can be ignored
+					// If they have not the same range, that means we need to take the largest range of them both
+					vBinding->range = std::max( vBinding->range, fBinding->range );
+				}
+
 				// -- combine stage bits so that descriptor will be available for both
 				// stages.
 				vBinding->stage_bits |= fBinding->stage_bits;
@@ -936,6 +963,7 @@ static std::vector<le_shader_binding_info> create_bindings_list( le_graphics_pip
 				          << "\t shader vert: " << pso->shaderModuleVert->filepath << std::endl
 				          << "\t shader frag: " << pso->shaderModuleFrag->filepath << std::endl
 				          << std::flush;
+				assert( false ); // abandon all hope.
 			};
 
 			vBinding++;
@@ -1254,22 +1282,6 @@ static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_
 
 	std::vector<le_shader_binding_info> combined_bindings = create_bindings_list( pso );
 
-	{
-		// -- Count all dynamic bindings
-
-		size_t numDynamicBindings = 0;
-
-		for ( auto const &b : combined_bindings ) {
-			if ( b.type == enumToNum( vk::DescriptorType::eStorageBufferDynamic ) ||
-			     b.type == enumToNum( vk::DescriptorType::eUniformBufferDynamic ) ) {
-				assert( b.count != 0 ); // count cannot be 0
-				numDynamicBindings += b.count;
-			}
-		}
-
-		info.num_dynamic_bindings = uint32_t( numDynamicBindings );
-	}
-
 	// -- Create array of DescriptorSetLayouts
 	std::array<vk::DescriptorSetLayout, 8> vkLayouts{};
 	{
@@ -1318,7 +1330,7 @@ static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_
 		vk::PipelineLayoutCreateInfo layoutCreateInfo;
 		layoutCreateInfo
 		    .setFlags( vk::PipelineLayoutCreateFlags() ) // "reserved for future use"
-		    .setSetLayoutCount( info.set_layout_count )
+		    .setSetLayoutCount( uint32_t( info.set_layout_count ) )
 		    .setPSetLayouts( vkLayouts.data() )
 		    .setPushConstantRangeCount( 0 )
 		    .setPPushConstantRanges( nullptr );
@@ -2306,19 +2318,20 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 		// -- Translate intermediary command stream data to api-native instructions
 
-		void *                    commandStream      = nullptr;
-		size_t                    dataSize           = 0;
-		size_t                    numCommands        = 0;
-		size_t                    commandIndex       = 0;
-		uint32_t                  subpassIndex       = 0;
-		uint32_t                  dynamicOffsetCount = 0; // TODO: set this to value of dynamic elements for current pipeline
-		std::array<uint32_t, 256> dynamicOffsets;
+		void *   commandStream = nullptr;
+		size_t   dataSize      = 0;
+		size_t   numCommands   = 0;
+		size_t   commandIndex  = 0;
+		uint32_t subpassIndex  = 0;
 
 		struct ArgumentState {
-			uint32_t                                    setCount = 0;    // current count of bound descriptorSets (max: 8)
-			std::array<std::vector<DescriptorData>, 8>  setData;         // data per-set
-			std::array<vk::DescriptorUpdateTemplate, 8> updateTemplates; // update templates for currently bound descriptor sets
-			std::array<vk::DescriptorSetLayout, 8>      layouts;         // layouts for currently bound descriptor sets
+			uint32_t                                    dynamicOffsetCount = 0;  // count of dynamic elements in current pipeline
+			std::array<uint32_t, 256>                   dynamicOffsets     = {}; // offset for each dynamic element in current pipeline
+			uint32_t                                    setCount           = 0;  // current count of bound descriptorSets (max: 8)
+			std::array<std::vector<DescriptorData>, 8>  setData;                 // data per-set
+			std::array<vk::DescriptorUpdateTemplate, 8> updateTemplates;         // update templates for currently bound descriptor sets
+			std::array<vk::DescriptorSetLayout, 8>      layouts;                 // layouts for currently bound descriptor sets
+			std::vector<le_shader_binding_info>         binding_infos;
 		} argumentState;
 
 		vk::PipelineLayout             currentPipelineLayout;
@@ -2326,6 +2339,14 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 		auto updateArguments = []( const vk::Device &device_, const vk::DescriptorPool &descriptorPool_, const ArgumentState &argumentState_, std::vector<vk::DescriptorSet> &descriptorSets_ ) {
 			// -- allocate descriptors from descriptorpool based on set layout info
+
+			if ( argumentState_.setCount == 0 ) {
+				descriptorSets_.clear();
+				return;
+			}
+
+			// ----------| invariant: there are descriptorSets to allocate
+
 			vk::DescriptorSetAllocateInfo allocateInfo;
 			allocateInfo.setDescriptorPool( descriptorPool_ )
 			    .setDescriptorSetCount( uint32_t( argumentState_.setCount ) )
@@ -2336,6 +2357,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 			// -- write data from descriptorSetData into freshly allocated DescriptorSets
 			for ( size_t setId = 0; setId != argumentState_.setCount; ++setId ) {
+
+				// FIXME: If argumentState contains invalid information (for example if an uniform has not been set yet)
+				// this will lead to SEGFAULT. You must ensure that argumentState contains valid information.
+
 				device_.updateDescriptorSetWithTemplate( descriptorSets_[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
 			}
 		};
@@ -2369,19 +2394,14 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// -- grab current pipeline layout from cache
 						currentPipelineLayout = self->pipelineLayoutCache[ currentPipeline.layout_info.pipeline_layout_key ];
 
-						// -- set dynamicOffsetsCount to number of dynamic argumnents in current pipeline
-						dynamicOffsetCount = uint32_t( currentPipeline.layout_info.num_dynamic_bindings );
-
-						// dynamic offsets count must never be larger than dynamicOffsets size
-						assert( dynamicOffsetCount <= dynamicOffsets.size() );
-
-						// reset dynamic offsets
-						memset( dynamicOffsets.data(), 0, sizeof( uint32_t ) * dynamicOffsetCount );
-
 						{
 							// -- update pipelineData - that's the data values for all descriptors which are currently bound
 
 							argumentState.setCount = currentPipeline.layout_info.set_layout_count;
+							argumentState.binding_infos.clear();
+
+							// -- reset dynamic offset count
+							argumentState.dynamicOffsetCount = 0;
 
 							// let's create descriptorData vector based on current bindings-
 							for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
@@ -2390,23 +2410,44 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 								auto const &set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
 								auto const &setLayoutInfo  = self->descriptorSetLayoutCache.at( set_layout_key );
 
-								auto &currentDescriptorSet             = argumentState.setData[ setId ];
+								auto &setData = argumentState.setData[ setId ];
+
 								argumentState.layouts[ setId ]         = setLayoutInfo.vk_descriptor_set_layout;
 								argumentState.updateTemplates[ setId ] = setLayoutInfo.vk_descriptor_update_template;
 
-								currentDescriptorSet.resize( setLayoutInfo.binding_info.size() );
+								setData.clear();
+								setData.reserve( setLayoutInfo.binding_info.size() );
 
-								for ( auto const &b : setLayoutInfo.binding_info ) {
+								for ( auto b : setLayoutInfo.binding_info ) {
+
+									// add an entry for each array element with this binding to setData
 									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
 										DescriptorData descriptorData{};
 										descriptorData.arrayIndex    = uint32_t( arrayIndex );
 										descriptorData.bindingNumber = b.binding;
 										descriptorData.type          = vk::DescriptorType( b.type );
 										descriptorData.range         = VK_WHOLE_SIZE; // note this could be vk_full_size
-										currentDescriptorSet.emplace_back( std::move( descriptorData ) );
+										setData.emplace_back( std::move( descriptorData ) );
 									}
+
+									if ( b.type == enumToNum( vk::DescriptorType::eStorageBufferDynamic ) ||
+									     b.type == enumToNum( vk::DescriptorType::eUniformBufferDynamic ) ) {
+										assert( b.count != 0 ); // count cannot be 0
+
+										// store dynamic offset index for this element
+										b.dynamic_offset_idx = argumentState.dynamicOffsetCount;
+
+										// increase dynamic offset count by number of elements in this binding
+										argumentState.dynamicOffsetCount += b.count;
+									}
+
+									// add this binding to list of current bindings
+									argumentState.binding_infos.emplace_back( std::move( b ) );
 								}
 							}
+
+							// -- reset dynamic offsets
+							memset( argumentState.dynamicOffsets.data(), 0, sizeof( uint32_t ) * argumentState.dynamicOffsetCount );
 
 							// we write directly into descriptorsetstate when we update descriptors.
 							// when we bind a pipeline, we update the descriptorsetstate based
@@ -2426,13 +2467,16 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					// -- update descriptorsets via template if tainted
 					updateArguments( device, descriptorPool, argumentState, descriptorSets );
 
-					cmd.bindDescriptorSets( vk::PipelineBindPoint::eGraphics,
-					                        currentPipelineLayout,
-					                        0,
-					                        argumentState.setCount,
-					                        descriptorSets.data(),
-					                        dynamicOffsetCount,
-					                        dynamicOffsets.data() );
+					if ( argumentState.setCount > 0 ) {
+
+						cmd.bindDescriptorSets( vk::PipelineBindPoint::eGraphics,
+						                        currentPipelineLayout,
+						                        0,
+						                        argumentState.setCount,
+						                        descriptorSets.data(),
+						                        argumentState.dynamicOffsetCount,
+						                        argumentState.dynamicOffsets.data() );
+					}
 
 					cmd.draw( le_cmd->info.vertexCount, le_cmd->info.instanceCount, le_cmd->info.firstVertex, le_cmd->info.firstInstance );
 				} break;
@@ -2443,13 +2487,16 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					// -- update descriptorsets via template if tainted
 					updateArguments( device, descriptorPool, argumentState, descriptorSets );
 
-					cmd.bindDescriptorSets( vk::PipelineBindPoint::eGraphics,
-					                        currentPipelineLayout,
-					                        0,
-					                        argumentState.setCount,
-					                        descriptorSets.data(),
-					                        dynamicOffsetCount,
-					                        dynamicOffsets.data() );
+					if ( argumentState.setCount > 0 ) {
+
+						cmd.bindDescriptorSets( vk::PipelineBindPoint::eGraphics,
+						                        currentPipelineLayout,
+						                        0,
+						                        argumentState.setCount,
+						                        descriptorSets.data(),
+						                        argumentState.dynamicOffsetCount,
+						                        argumentState.dynamicOffsets.data() );
+					}
 
 					cmd.drawIndexed( le_cmd->info.indexCount, le_cmd->info.instanceCount, le_cmd->info.firstIndex, le_cmd->info.vertexOffset, le_cmd->info.firstInstance );
 				} break;
@@ -2478,18 +2525,39 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					// this alters our internal state
 					auto *le_cmd = static_cast<le::CommandSetArgumentUbo *>( dataIt );
 
-					if ( le_cmd->info.index >= dynamicOffsetCount ) {
-						std::cerr << "we're overshooting dynamic offsets for this pipeline, wrong index: " << le_cmd->info.index << std::endl
+					uint64_t argument_name_id = le_cmd->info.argument_name_id;
+
+					// find binding info with name referenced in command
+
+					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [&argument_name_id]( const le_shader_binding_info &e ) -> bool {
+						return e.name_hash == argument_name_id;
+					} );
+
+					if ( b == argumentState.binding_infos.end() ) {
+						std::cout << "Warning: Invalid argument name id: 0x" << std::hex << argument_name_id << std::endl
 						          << std::flush;
 						break;
 					}
 
-					argumentState.setData[ 0 ][ 0 ].buffer = get_physical_buffer_from_resource_id( &frame, le_cmd->info.buffer_id );
-					argumentState.setData[ 0 ][ 0 ].offset = 0;
-					argumentState.setData[ 0 ][ 0 ].range  = le_cmd->info.range;
+					// ---------| invariant: we found an argument name that matches
+					auto setIndex = b->setIndex;
+					auto binding  = b->binding;
 
-					// TODO: we must write to descriptorSetData and update the buffer part.
-					dynamicOffsets[ le_cmd->info.index ] = le_cmd->info.offset;
+					auto &bindingData = argumentState.setData[ setIndex ][ binding ];
+
+					bindingData.buffer = get_physical_buffer_from_resource_id( &frame, le_cmd->info.buffer_id );
+					bindingData.range  = le_cmd->info.range;
+
+					// if binding is in fact a dynamic binding, set the corresponding dynamic offset
+					// and set the buffer offset to 0.
+					if ( b->type == enumToNum( vk::DescriptorType::eStorageBufferDynamic ) ||
+					     b->type == enumToNum( vk::DescriptorType::eUniformBufferDynamic ) ) {
+						auto dynamicOffset                            = b->dynamic_offset_idx;
+						bindingData.offset                            = 0;
+						argumentState.dynamicOffsets[ dynamicOffset ] = le_cmd->info.offset;
+					} else {
+						bindingData.offset = le_cmd->info.offset;
+					}
 
 				} break;
 

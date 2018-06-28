@@ -80,9 +80,10 @@ struct CommandSetScissor {
 struct CommandSetArgumentUbo {
 	CommandHeader header = {{{CommandType::eSetArgumentUbo, sizeof( CommandSetArgumentUbo )}}};
 	struct {
-		uint32_t offset; // offset into scratch buffer for argument data
-		uint16_t range;  // size of argument data in bytes
-		uint16_t index;  // index in flattened shader dynamic parameter list (FIXME: dynamic parameter index is not generally known at encoder record stage...)
+		uint64_t argument_name_id; // const_char_hash id of argument name
+		uint64_t buffer_id;        // id of buffer that holds data
+		uint32_t offset;           // offset into buffer
+		uint32_t range;            // size of argument data in bytes
 	} info;
 };
 
