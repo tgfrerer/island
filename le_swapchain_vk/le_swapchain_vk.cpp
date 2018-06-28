@@ -145,7 +145,8 @@ static void swapchain_reset( le_backend_swapchain_o *self, const le_swapchain_vk
 	if ( self->mPresentMode != presentModeHint ) {
 		std::cout << "WARNING: Could not switch to selected Swapchain Present Mode ("
 		          << vk::to_string( presentModeHint ) << "), "
-		          << "falling back to: " << vk::to_string( self->mPresentMode );
+		          << "falling back to: " << vk::to_string( self->mPresentMode ) << std::endl
+		          << std::flush;
 	}
 
 	self->mImagecount = clamp( self->mSettings.imagecount_hint,
