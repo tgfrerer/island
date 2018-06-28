@@ -10,6 +10,8 @@
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
 
+#include "libs/glm/glm/glm.hpp"
+
 #include <iostream>
 #include <memory>
 
@@ -194,15 +196,8 @@ static bool test_app_update( test_app_o *self ) {
 			    {{100, 100, 200, 200}},
 			};
 
-			struct vec4 {
-				float x = 0;
-				float y = 0;
-				float z = 0;
-				float w = 0;
-			};
-
-			vec4     vertData[ 3 ]  = {{0, 0, 0, 0}, {2, 0, 0, 0}, {0, 2, 0, 0}};
-			uint16_t indexData[ 3 ] = {0, 1, 2};
+			glm::vec4 vertData[ 3 ]  = {{0, 0, 0, 0}, {2, 0, 0, 0}, {0, 2, 0, 0}};
+			uint16_t  indexData[ 3 ] = {0, 1, 2};
 
 			static_assert( sizeof( vertData ) == sizeof( float ) * 4 * 3, "vertData must be tightly packed" );
 
@@ -210,13 +205,10 @@ static bool test_app_update( test_app_o *self ) {
 
 			// data as it is laid out in the ubo for the shader
 			struct ColorUBO {
-				struct Color {
-					float r;
-					float g;
-					float b;
-					float a;
-				} color;
+				glm::vec4 color;
 			};
+
+			glm::mat4 mat;
 
 			float r_val = ( self->frame_counter % 60 ) / 60.f;
 

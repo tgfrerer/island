@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.7.2) 
+cmake_minimum_required(VERSION 3.7.2)
 set (CMAKE_CXX_STANDARD 17)
 
 set (PROJECT_NAME "Island")
@@ -12,6 +12,15 @@ set ( STATIC_LIBS "")
 set ( PLUGIN_DEFINITIONS "")
 set ( PLUGIN_LIBS_DEPENDENCIES "")
 set ( PLUGIN_LINK_DIRS "")
+
+# Download and unpack glm at configure time ... there might be a time delay.
+configure_file(CMakeLists.txt.in ${PROJECT_SOURCE_DIR}/libs/glm/download/CMakeLists.txt)
+execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/libs/glm/download" )
+
+# create a link to shared shader repository so that we're always working with the same shaders.
+execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/shaders ${CMAKE_BINARY_DIR}/shaders )
+
 
 include_directories ("${PROJECT_SOURCE_DIR}")
 
