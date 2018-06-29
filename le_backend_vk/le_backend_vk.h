@@ -104,8 +104,8 @@ struct le_backend_vk_api {
 		le_allocator_o * ( *create               ) ( const struct LE_AllocatorCreateInfo& info);
 		void                    ( *destroy              ) ( le_allocator_o *self );
 		bool                    ( *allocate             ) ( le_allocator_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset);
-		void                    ( *reset                ) ( le_allocator_o* self);
-		uint64_t                ( *get_le_resource_id ) ( le_allocator_o* self);
+		void                    ( *reset                ) ( le_allocator_o* self );
+		uint64_t                ( *get_le_resource_id   ) ( le_allocator_o* self );
 	};
 	// clang-format on
 

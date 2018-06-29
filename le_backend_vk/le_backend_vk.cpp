@@ -1017,8 +1017,10 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setPName( "main" )
 	    .setPSpecializationInfo( nullptr );
 
-	vk::VertexInputBindingDescription   vertexBindingDescrition{0, sizeof( float ) * 4};
-	vk::VertexInputAttributeDescription vertexAttributeDescription{0, 0, vk::Format::eR32G32B32A32Sfloat, 0};
+	// FIXME: vertex binding description must be in sync with what shader expects for input
+	// in terms of element count. We can't just assume that an attribute is always a 3-element vector
+	vk::VertexInputBindingDescription   vertexBindingDescrition{0, sizeof( float ) * 3};
+	vk::VertexInputAttributeDescription vertexAttributeDescription{0, 0, vk::Format::eR32G32B32Sfloat, 0};
 
 	vk::PipelineVertexInputStateCreateInfo vertexInputStageInfo;
 	vertexInputStageInfo
@@ -1054,7 +1056,7 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setDepthClampEnable( VK_FALSE )
 	    .setRasterizerDiscardEnable( VK_FALSE )
 	    .setPolygonMode( ::vk::PolygonMode::eFill )
-	    .setCullMode( ::vk::CullModeFlagBits::eFront )
+	    .setCullMode( ::vk::CullModeFlagBits::eNone )
 	    .setFrontFace( ::vk::FrontFace::eCounterClockwise )
 	    .setDepthBiasEnable( VK_FALSE )
 	    .setDepthBiasConstantFactor( 0.f )

@@ -10,7 +10,10 @@
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
 
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
+#define GLM_FORCE_LEFT_HANDED       // vulkan uses left handed coordinate system
 #include "libs/glm/glm/glm.hpp"
+#include "libs/glm/glm/gtc/matrix_transform.hpp"
 
 #include <iostream>
 #include <memory>
@@ -21,8 +24,8 @@ struct test_app_o {
 	std::unique_ptr<le::Backend>  backend;
 	std::unique_ptr<pal::Window>  window;
 	std::unique_ptr<le::Renderer> renderer;
-	le_graphics_pipeline_state_o *psoMain; // owned by the renderer
-	le_graphics_pipeline_state_o *psoTest; // owned by the renderer
+	le_graphics_pipeline_state_o *psoMain;           // owned by the renderer
+	le_graphics_pipeline_state_o *psoFullScreenQuad; // owned by the renderer
 
 	// NOTE: RUNTIME-COMPILE : If you add any new things during run-time, make sure to only add at the end of the object,
 	// otherwise all pointers above will be invalidated. this might also overwrite memory which
@@ -76,34 +79,39 @@ static test_app_o *test_app_create() {
 		// -- Declare graphics pipeline state objects
 
 		// Creating shader modules will eventually compile shader source code from glsl to spir-v
-		auto defaultVertShader = app->renderer->createShaderModule( "./shaders/default.vert", LeShaderType::eVert );
-		auto defaultFragShader = app->renderer->createShaderModule( "./shaders/default.frag", LeShaderType::eFrag );
-		auto altFragShader     = app->renderer->createShaderModule( "./shaders/alternative.frag.spv", LeShaderType::eFrag );
-
-		le_graphics_pipeline_create_info_t pi;
-		pi.shader_module_frag = defaultFragShader;
-		pi.shader_module_vert = defaultVertShader;
-
-		// The pipeline state object holds all state for the pipeline,
-		// that's links to shader modules, blend states, input assembly, etc...
-		// Everything, in short, but the renderpass, and subpass (which are added at the last minute)
-		//
-		// The backend pipeline object is compiled on-demand, when it is first used with a renderpass, and henceforth cached.
-		auto psoHandle = app->renderer->createGraphicsPipelineStateObject( &pi );
-
-		if ( psoHandle ) {
-			app->psoMain = psoHandle;
-		} else {
-			std::cerr << "declaring main pipeline failed miserably.";
-		}
+		auto defaultVertShader        = app->renderer->createShaderModule( "./shaders/default.vert", LeShaderType::eVert );
+		auto defaultFragShader        = app->renderer->createShaderModule( "./shaders/default.frag", LeShaderType::eFrag );
+		auto fullScreenQuadVertShader = app->renderer->createShaderModule( "./shaders/fullscreenQuad.vert", LeShaderType::eVert );
+		auto fullScreenQuadFragShader = app->renderer->createShaderModule( "./shaders/fullscreenQuad.frag", LeShaderType::eFrag );
 
 		{
-			// create alternative pso
-			pi.shader_module_frag = altFragShader;
-			auto psoTestHandle    = app->renderer->createGraphicsPipelineStateObject( &pi );
+			// create default pipeline
+			le_graphics_pipeline_create_info_t pi;
+			pi.shader_module_frag = defaultFragShader;
+			pi.shader_module_vert = defaultVertShader;
 
-			if ( psoTestHandle ) {
-				app->psoTest = psoTestHandle;
+			// The pipeline state object holds all state for the pipeline,
+			// that's links to shader modules, blend states, input assembly, etc...
+			// Everything, in short, but the renderpass, and subpass (which are added at the last minute)
+			//
+			// The backend pipeline object is compiled on-demand, when it is first used with a renderpass, and henceforth cached.
+			auto psoHandle = app->renderer->createGraphicsPipelineStateObject( &pi );
+
+			if ( psoHandle ) {
+				app->psoMain = psoHandle;
+			} else {
+				std::cerr << "declaring main pipeline failed miserably.";
+			}
+		}
+		{
+			le_graphics_pipeline_create_info_t pi;
+			// create full screen quad pipeline
+			pi.shader_module_vert = fullScreenQuadVertShader;
+			pi.shader_module_frag = fullScreenQuadFragShader;
+			auto psoHandle        = app->renderer->createGraphicsPipelineStateObject( &pi );
+
+			if ( psoHandle ) {
+				app->psoFullScreenQuad = psoHandle;
 			} else {
 				std::cerr << "declaring test pipeline failed miserably.";
 			}
@@ -124,6 +132,10 @@ static test_app_o *test_app_create() {
 	*/
 
 	return app;
+}
+
+static float get_image_plane_distance( const le::Viewport &viewport, float fovRadians ) {
+	return viewport.height / ( 2.0f * tanf( fovRadians * 0.5f ) );
 }
 
 // ----------------------------------------------------------------------
@@ -162,7 +174,7 @@ static bool test_app_update( test_app_o *self ) {
 
 			le::CommandBufferEncoder encoder{encoder_};
 
-			//encoder.updateResource(RESOURCE_BUFFER_ID("debug-buffer"), ptr);
+			//encoder.updateResource( RESOURCE_BUFFER_ID( "debug-buffer" ), ptr );
 		} );
 
 		le::RenderPass renderPassFinal( "root", LE_RENDER_PASS_TYPE_DRAW );
@@ -186,51 +198,74 @@ static bool test_app_update( test_app_o *self ) {
 		renderPassFinal.setExecuteCallback( self, []( auto encoder, auto user_data_ ) {
 			auto self = static_cast<test_app_o *>( user_data_ );
 
+			auto screenWidth  = self->window->getSurfaceWidth();
+			auto screenHeight = self->window->getSurfaceHeight();
+
 			le::Viewport viewports[ 2 ] = {
-			    {{50.f, 50.f, 100.f, 100.f, 0.f, 1.f}},
-			    {{100.f, 100.f, 200.f, 200.f, 0.f, 1.f}},
+			    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
+			    {10.f, 10.f, 200.f, 200.f, 0.f, 1.f},
 			};
 
 			le::Rect2D scissors[ 2 ] = {
-			    {{50, 50, 100, 100}},
-			    {{100, 100, 200, 200}},
+			    {0, 0, screenWidth, screenHeight},
+			    {10, 10, 200, 200},
 			};
 
-			glm::vec4 vertData[ 3 ]  = {{0, 0, 0, 0}, {2, 0, 0, 0}, {0, 2, 0, 0}};
-			uint16_t  indexData[ 3 ] = {0, 1, 2};
+			glm::vec3 fullScreenQuadData[ 3 ] = {
+			    {0, 0, 0},
+			    {2, 0, 0},
+			    {0, 2, 0},
+			};
 
-			static_assert( sizeof( vertData ) == sizeof( float ) * 4 * 3, "vertData must be tightly packed" );
+			glm::vec3 triangleData[ 3 ] = {
+			    {-50, -50, 0},
+			    {50, -50, 0},
+			    {0, 50, 0},
+			};
 
-			le_encoder.bind_graphics_pipeline( encoder, self->psoMain );
+			uint16_t indexData[ 3 ] = {0, 1, 2};
 
 			// data as it is laid out in the ubo for the shader
-			struct ColorUBO {
+			struct ColorUbo_t {
 				glm::vec4 color;
 			};
 
-			glm::mat4 mat;
+			struct MatrixStackUbo_t {
+				glm::mat4 modelMatrix;
+				glm::mat4 viewMatrix;
+				glm::mat4 projectionMatrix;
+			};
 
-			float r_val = ( self->frame_counter % 60 ) / 60.f;
+			float r_val = ( self->frame_counter % 120 ) / 120.f;
 
-			ColorUBO ubo1{{r_val, r_val, r_val, 1}};
-			ColorUBO ubo2{{0, 1, 0, 1}};
+			ColorUbo_t ubo1{{1, 0, 0, 1}};
 
-			le_encoder.set_vertex_data( encoder, vertData, sizeof( vertData ), 0 );
-			le_encoder.set_index_data( encoder, indexData, sizeof( indexData ), 0 ); // 0 for indexType means uint16_t
+			// Bind full main graphics pipeline
+			le_encoder.bind_graphics_pipeline( encoder, self->psoMain );
 
 			le_encoder.set_scissor( encoder, 0, 1, scissors );
 			le_encoder.set_viewport( encoder, 0, 1, viewports );
 
-			le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "MainColor" ), &ubo1, sizeof( ColorUBO ) );    // set a descriptor to set, binding, array_index
-			le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "AnotherColor" ), &ubo2, sizeof( ColorUBO ) ); // set a descriptor to set, binding, array_index
+			MatrixStackUbo_t matrixStack;
+			matrixStack.projectionMatrix = glm::perspective( glm::radians( 60.f ), float( screenWidth ) / float( screenHeight ), 0.01f, 1000.f );
+			matrixStack.modelMatrix      = glm::mat4( 1.f ); // identity matrix
+			matrixStack.modelMatrix      = glm::scale( matrixStack.modelMatrix, glm::vec3( 2 ) );
+			matrixStack.modelMatrix      = glm::rotate( matrixStack.modelMatrix, glm::radians( r_val * 360 ), glm::vec3( 0, 0, 1 ) );
+			float normDistance           = get_image_plane_distance( viewports[ 0 ], glm::radians( 60.f ) ); // calculate unit distance
+			matrixStack.viewMatrix       = glm::lookAt( glm::vec3( 0, 0, normDistance ), glm::vec3( 0 ), glm::vec3( 0, -1, 0 ) );
 
-			le_encoder.draw( encoder, 3, 1, 0, 0 );
+			le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "MatrixStack" ), &matrixStack, sizeof( MatrixStackUbo_t ) ); // set a descriptor to set, binding, array_index
+			le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "Color" ), &ubo1, sizeof( ColorUbo_t ) );                    // set a descriptor to set, binding, array_index
 
-			le_encoder.bind_graphics_pipeline( encoder, self->psoTest );
+			le_encoder.set_vertex_data( encoder, triangleData, sizeof( glm::vec3 ) * 3, 0 );
+			le_encoder.set_index_data( encoder, indexData, sizeof( indexData ), 0 ); // 0 for indexType means uint16_t
+			le_encoder.draw_indexed( encoder, 3, 1, 0, 0, 0 );
+
+			// Bind full screen quad pipeline
+			le_encoder.bind_graphics_pipeline( encoder, self->psoFullScreenQuad );
 			le_encoder.set_scissor( encoder, 0, 1, &scissors[ 1 ] );
 			le_encoder.set_viewport( encoder, 0, 1, &viewports[ 1 ] );
-
-			le_encoder.draw_indexed( encoder, 3, 1, 0, 0, 0 );
+			le_encoder.draw( encoder, 3, 1, 0, 0 );
 		} );
 
 		mainModule.addRenderPass( resourcePass );

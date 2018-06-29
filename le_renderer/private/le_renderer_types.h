@@ -32,11 +32,19 @@ struct CommandHeader {
 };
 
 struct Viewport {
-	float data[ 6 ]; // x,y,width,height,mindepth,maxdepth
+	float x;
+	float y;
+	float width;
+	float height;
+	float minDepth;
+	float maxDepth;
 };
 
 struct Rect2D {
-	uint32_t data[ 4 ]; // x,y,width,height
+	uint32_t x;
+	uint32_t y;
+	uint32_t width;
+	uint32_t height;
 };
 
 struct CommandDrawIndexed {

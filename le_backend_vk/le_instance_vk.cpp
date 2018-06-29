@@ -25,9 +25,9 @@ PFN_vkDestroyDebugReportCallbackEXT pfn_vkDestroyDebugReportCallbackEXT;
 PFN_vkDebugReportMessageEXT         pfn_vkDebugReportMessageEXT;
 
 void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
-	pfn_vkCreateDebugReportCallbackEXT  = reinterpret_cast< PFN_vkCreateDebugReportCallbackEXT  >(obj->vkInstance.getProcAddr( "vkCreateDebugReportCallbackEXT"  ));
-	pfn_vkDestroyDebugReportCallbackEXT = reinterpret_cast< PFN_vkDestroyDebugReportCallbackEXT >(obj->vkInstance.getProcAddr( "vkDestroyDebugReportCallbackEXT" ));
-	pfn_vkDebugReportMessageEXT         = reinterpret_cast< PFN_vkDebugReportMessageEXT         >(obj->vkInstance.getProcAddr( "vkDebugReportMessageEXT"         ));
+	pfn_vkCreateDebugReportCallbackEXT  = reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>( obj->vkInstance.getProcAddr( "vkCreateDebugReportCallbackEXT" ) );
+	pfn_vkDestroyDebugReportCallbackEXT = reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>( obj->vkInstance.getProcAddr( "vkDestroyDebugReportCallbackEXT" ) );
+	pfn_vkDebugReportMessageEXT         = reinterpret_cast<PFN_vkDebugReportMessageEXT>( obj->vkInstance.getProcAddr( "vkDebugReportMessageEXT" ) );
 	std::cout << "Patched proc addrs." << std::endl;
 }
 
@@ -77,8 +77,8 @@ static VkBool32 debugCallback(
 
 static void create_debug_callback( le_backend_vk_instance_o *obj ) {
 
-	if (!SHOULD_USE_DEBUG_LAYERS) {
-		return ;
+	if ( !SHOULD_USE_DEBUG_LAYERS ) {
+		return;
 	}
 
 	vk::DebugReportCallbackCreateInfoEXT debugCallbackCreateInfo;
@@ -86,7 +86,7 @@ static void create_debug_callback( le_backend_vk_instance_o *obj ) {
 	    .setPNext( nullptr )
 	    .setFlags( vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning )
 	    .setPfnCallback( debugCallback )
-	    .setPUserData( obj);
+	    .setPUserData( obj );
 
 	obj->debugCallback = obj->vkInstance.createDebugReportCallbackEXT( debugCallbackCreateInfo );
 }
@@ -95,8 +95,8 @@ static void create_debug_callback( le_backend_vk_instance_o *obj ) {
 
 static void destroy_debug_callback( le_backend_vk_instance_o *obj ) {
 
-	if (!SHOULD_USE_DEBUG_LAYERS) {
-		return ;
+	if ( !SHOULD_USE_DEBUG_LAYERS ) {
+		return;
 	}
 
 	obj->vkInstance.destroyDebugReportCallbackEXT( obj->debugCallback );
@@ -134,14 +134,13 @@ le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const c
 		instanceExtensionNames.emplace_back( e.c_str() );
 	}
 
-
 	if ( SHOULD_USE_DEBUG_LAYERS ) {
-		instanceExtensionNames.push_back( VK_EXT_DEBUG_REPORT_EXTENSION_NAME );		
+		instanceExtensionNames.push_back( VK_EXT_DEBUG_REPORT_EXTENSION_NAME );
 		instanceLayerNames.push_back( "VK_LAYER_LUNARG_standard_validation" );
 		std::cout << "Debug instance layers added." << std::endl;
 	}
 
-// seems that the latest driver won't let us do this.
+	// seems that the latest driver won't let us do this.
 	vk::DebugReportCallbackCreateInfoEXT debugCallbackCreateInfo;
 	debugCallbackCreateInfo
 	    .setPNext( nullptr )
@@ -151,7 +150,7 @@ le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const c
 
 	vk::InstanceCreateInfo info;
 	info.setFlags( {} )
-//	    .setPNext( &debugCallbackCreateInfo ) // this trick won't work when using parameter_validation layer
+	    //	    .setPNext( &debugCallbackCreateInfo ) // this trick won't work when using parameter_validation layer
 	    .setPApplicationInfo( &appInfo )
 	    .setEnabledLayerCount( uint32_t( instanceLayerNames.size() ) )
 	    .setPpEnabledLayerNames( instanceLayerNames.data() )
@@ -162,7 +161,7 @@ le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const c
 
 	api->cUniqueInstance = obj;
 
-	if ( SHOULD_USE_DEBUG_LAYERS ){
+	if ( SHOULD_USE_DEBUG_LAYERS ) {
 		patchExtProcAddrs( obj );
 		create_debug_callback( obj );
 	}
@@ -244,8 +243,8 @@ void vkDebugReportMessageEXT(
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_instance_vk_api(void * api_) {
-	auto api_i = static_cast<le_backend_vk_api*>(api_);
+ISL_API_ATTR void register_le_instance_vk_api( void *api_ ) {
+	auto  api_i      = static_cast<le_backend_vk_api *>( api_ );
 	auto &instance_i = api_i->vk_instance_i;
 
 	instance_i.create           = instance_create;

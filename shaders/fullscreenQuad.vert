@@ -6,22 +6,12 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
-// inputs 
-layout (location = 0) in vec3 pos;
+// inputs // Note: no inputs!
 
 // outputs 
 layout (location = 0) out vec2 outTexCoord;
 
-// arguments
-
-layout (set = 0, binding = 0) uniform MatrixStack 
-{
-	mat4 modelMatrix;
-	mat4 viewMatrix;
-	mat4 projectionMatrix;
-};
-
-// We override the built-in fixed function outputs
+// Override the built-in fixed function outputs
 // to have more control over the SPIR-V code created.
 out gl_PerVertex
 {
@@ -31,8 +21,5 @@ out gl_PerVertex
 void main() 
 {
 	outTexCoord = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
-	
-	vec4 position = projectionMatrix * viewMatrix * modelMatrix * vec4(pos,1);
-
-	gl_Position = position;
+	gl_Position = vec4(outTexCoord * 2.0f + -1.0f, 0.0f, 1.0f);
 }
