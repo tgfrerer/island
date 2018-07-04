@@ -11,7 +11,7 @@
 #include <string>
 
 #ifndef SHOULD_USE_DEBUG_LAYERS
-#	define SHOULD_USE_DEBUG_LAYERS true
+#define SHOULD_USE_DEBUG_LAYERS true
 #endif
 // ----------------------------------------------------------------------
 
@@ -150,7 +150,7 @@ le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const c
 
 	vk::InstanceCreateInfo info;
 	info.setFlags( {} )
-	    //	    .setPNext( &debugCallbackCreateInfo ) // this trick won't work when using parameter_validation layer
+	    .setPNext( &debugCallbackCreateInfo ) // this trick won't work when using parameter_validation layer
 	    .setPApplicationInfo( &appInfo )
 	    .setEnabledLayerCount( uint32_t( instanceLayerNames.size() ) )
 	    .setPpEnabledLayerNames( instanceLayerNames.data() )
