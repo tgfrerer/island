@@ -3,6 +3,7 @@ set (CMAKE_CXX_STANDARD 17)
 
 set (PROJECT_NAME "Island")
 
+
 project (${PROJECT_NAME})
 
 set(PLUGINS_DYNAMIC ON CACHE BOOL "Use dynamic linking for all plugins")
@@ -23,6 +24,18 @@ execute_process(COMMAND "${CMAKE_COMMAND}" --build .
 # create a link to shared shader repository so that we're always working with the same shaders.
 execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/shaders ${CMAKE_BINARY_DIR}/shaders )
 
+# Check if a local copy of the Vulkan SDK exists, and the environment VULKAN_SDK points to it.
+# If yes, use this directory for header includes, and linking
+set (VULKAN_SDK_ENV $ENV{VULKAN_SDK})
+if (EXISTS ${VULKAN_SDK_ENV})
+
+    #include vulkan from SDK installation directory
+    include_directories(${VULKAN_SDK_ENV}/include/)
+
+    # NOTE: We're linking Vulkan from this system's Vulkan SDK directory
+    link_directories(${VULKAN_SDK_ENV}/lib)
+
+endif(EXISTS ${VULKAN_SDK_ENV})
 
 include_directories ("${PROJECT_SOURCE_DIR}")
 
