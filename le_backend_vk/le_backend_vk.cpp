@@ -41,7 +41,7 @@
 #include "util/spirv-cross/spirv_cross.hpp"
 
 #ifndef PRINT_DEBUG_MESSAGES
-#define PRINT_DEBUG_MESSAGES false
+#	define PRINT_DEBUG_MESSAGES false
 #endif
 
 namespace std {

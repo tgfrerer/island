@@ -1,6 +1,7 @@
 set (TARGET le_swapchain_vk)
 
 set (SOURCES "le_swapchain_vk.cpp")
+set (SOURCES ${SOURCES} "le_swapchain_vk.h")
 
 if (${PLUGINS_DYNAMIC})
 
