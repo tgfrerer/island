@@ -126,32 +126,32 @@ struct le_renderer_api {
 	typedef void ( *pfn_renderpass_execute_t )( le_command_buffer_encoder_o *encoder, void *user_data );
 
 	struct renderpass_interface_t {
-		le_renderpass_o *( *create )( const char *renderpass_name, const LeRenderPassType &type_ );
-		void ( *destroy )( le_renderpass_o *obj );
-		void ( *set_setup_fun )( le_renderpass_o *obj, pfn_renderpass_setup_t setup_fun );
-		void ( *add_image_attachment )( le_renderpass_o *obj, uint64_t resource_id, image_attachment_info_o *info );
-		void ( *set_execute_callback )( le_renderpass_o *obj, pfn_renderpass_execute_t render_fun, void *user_data );
-		void ( *use_resource )( le_renderpass_o *obj, uint64_t resource_id, uint32_t access_flags );
-		void ( *declare_resource )( le_renderpass_o *obj, uint64_t resource_id, const ResourceInfo &info );
-		void ( *set_is_root )( le_renderpass_o *obj, bool is_root );
+		le_renderpass_o * ( *create               )( const char *renderpass_name, const LeRenderPassType &type_ );
+		void              ( *destroy              )( le_renderpass_o *obj );
+		void              ( *set_setup_fun        )( le_renderpass_o *obj, pfn_renderpass_setup_t setup_fun );
+		void              ( *add_image_attachment )( le_renderpass_o *obj, uint64_t resource_id, image_attachment_info_o *info );
+		void              ( *set_execute_callback )( le_renderpass_o *obj, pfn_renderpass_execute_t render_fun, void *user_data );
+		void              ( *use_resource         )( le_renderpass_o *obj, uint64_t resource_id, uint32_t access_flags );
+		void              ( *declare_resource     )( le_renderpass_o *obj, uint64_t resource_id, const ResourceInfo &info );
+		void              ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
 	};
 
 	struct rendermodule_interface_t {
-		le_render_module_o *( *create )();
-		void ( *destroy )( le_render_module_o *obj );
-		void ( *add_renderpass )( le_render_module_o *obj, le_renderpass_o *rp );
-		void ( *setup_passes )( le_render_module_o *obj, le_graph_builder_o *gb );
+		le_render_module_o * ( *create         )();
+		void                 ( *destroy        )( le_render_module_o *obj );
+		void                 ( *add_renderpass )( le_render_module_o *obj, le_renderpass_o *rp );
+		void                 ( *setup_passes   )( le_render_module_o *obj, le_graph_builder_o *gb );
 	};
 
 	// graph builder builds a graph for a module
 	struct graph_builder_interface_t {
-		le_graph_builder_o *( *create )();
-		void ( *destroy )( le_graph_builder_o *obj );
-		void ( *reset )( le_graph_builder_o *obj );
-		void ( *add_renderpass )( le_graph_builder_o *obj, le_renderpass_o *rp );
-		void ( *build_graph )( le_graph_builder_o *obj );
-		void ( *execute_graph )( le_graph_builder_o *obj, size_t frameIndex, le_backend_o *backend );
-		void ( *get_passes )( le_graph_builder_o *obj, le_renderpass_o **pPasses, size_t *pNumPasses );
+		le_graph_builder_o * ( *create         )();
+		void                 ( *destroy        )( le_graph_builder_o *obj );
+		void                 ( *reset          )( le_graph_builder_o *obj );
+		void                 ( *add_renderpass )( le_graph_builder_o *obj, le_renderpass_o *rp );
+		void                 ( *build_graph    )( le_graph_builder_o *obj );
+		void                 ( *execute_graph  )( le_graph_builder_o *obj, size_t frameIndex, le_backend_o *backend );
+		void                 ( *get_passes     )( le_graph_builder_o *obj, le_renderpass_o **pPasses, size_t *pNumPasses );
 	};
 
 	struct command_buffer_encoder_interface_t {
@@ -166,7 +166,7 @@ struct le_renderer_api {
 		void                         ( *bind_graphics_pipeline )( le_command_buffer_encoder_o *self, le_graphics_pipeline_state_o* pipeline);
 
 		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, uint64_t bufferId, uint64_t offset, uint64_t indexType);
-		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, uint64_t *pBuffers, uint64_t *pOffsets );
+		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, uint64_t *pBufferIds, uint64_t *pOffsets );
 
 		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void *data, uint64_t numBytes, uint64_t indexType );
 		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void *data, uint64_t numBytes, uint32_t bindingIndex );

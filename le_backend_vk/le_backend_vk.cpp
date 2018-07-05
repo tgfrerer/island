@@ -1157,7 +1157,7 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 }
 
 // ----------------------------------------------------------------------
-// returns hash key for given bindings, creates and retains new vkDescriptorSetLayout if necessary
+// returns hash key for given bindings, creates and retains new vkDescriptorSetLayout inside backend if necessary
 static uint64_t backend_produce_descriptor_set_layout( le_backend_o *self, std::vector<le_shader_binding_info> const &bindings, vk::DescriptorSetLayout *layout ) {
 
 	// -- calculate hash based on le_shader_binding_infos for this set
@@ -2241,10 +2241,6 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 
 	// -- make sure that there is a descriptorpool for every renderpass
 	backend_create_descriptor_pools( frame, device, numRenderPasses );
-
-	// TODO NEXT : -- update hashes for all pso objects we keep track of
-
-	// TODO: backend_create_pipelines(frame, device, passes, numRenderPasses);
 
 	// patch and retain physical resources in bulk here, so that
 	// each pass may be processed independently

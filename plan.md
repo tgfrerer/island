@@ -1,7 +1,5 @@
 # PLAN
 
-
-
 # ROADMAP
 
     * all resources should be the of type `AbstractResource`, so that their
@@ -40,9 +38,18 @@ sharing created resources across frame boundaries.
 
 ## (A)
 
-* Programmatically create Pipeline based on Renderpass
+* Implement texture/image binding to shader
+* Implement texture loading
+* Add ImGui
+
+* implement buffer resources as sources for vertex attribute data
+* implement image  resources as sources for image sampler data
 
 ## (B)
+
+* Programmatically create vertex bindings for Pipeline
+
+* Implement pipeline settings such as winding mode, poly mode etc.
 
 * simplify linear allocator: 
 
@@ -51,9 +58,7 @@ sharing created resources across frame boundaries.
     handed out in chunks per buffer, but buffer must be owned exclusively by
     allocator. 
     
-* think: can we use macros to generate encoder methods?
-
-* get Renderdoc to actually work on both of your test systems.
+* Write ergonomic front-end for pipeline setup
 
 ## (C)
 
@@ -144,6 +149,11 @@ Where should we *declare* resources?
       api-specific ids. this happens between command recording and command
       processing, in a method called `renderer_acquire_backend_resources`. 
 
+    * we could abstract resources further, resources are stored internally in
+      one large array, and resource handles effectively consist of a 32 bit
+      offset into this array, plus a 32 bit header (msb) which indicates the
+      type of the object, and some access information.
+
 ----------------------------------------------------------------------
 
 # WHO OWNS RESOURCES
@@ -155,76 +165,22 @@ Where should we *declare* resources?
     * The BACKEND does everything which is API specific.
 
 
-----------------------------------------------------------------------
-+ find a way to minimize calls to the api registry - once the api has been
-  registered, the pointer address will not change, only the contents of the
-  struct the pointer points to - looking up the api from the registry creates
-  some unnecessary overhead, especially when running the app statically
-  compiled, where reloading is impossible.
+---------------------------------------------------------------------- 
 
-* minimal methods for encoder to draw into a frame: 
-    * we need a buffer for vertex data
-    * a simple pass-through pipleine 
-        * pass-through shader
-        * descriptorset
-     
-
-----------------------------------------------------------------------
+# Island-framework
 
 * Create a templating script to generate class scaffold so you don't have to
   type that much boilerplate.
 
 ----------------------------------------------------------------------
 
-# Let's think about descriptor layouts a bit more...
+# Applications
 
-```
-PipelineLayout:
-  SetLayout 1:
-     binding
-     ..
-  SetLayout 2:
-     binding
-     binding
-     binding
-     ..
-  SetLayout 3:
-     binding
-     ..
-```
+* A video post-processing pipeline
 
-----------------------------------------------------------------------
+# Features
 
-This means, we could build a flat array of all bindings and pass this through
-as a blob, which we then cast to an array of bindings. 
 
-We could use indices into this blob (since binding size is constant) to chop up
-this array again into descriptorsets - or we could directly point the Vulkan
-API at it so that it reads binding information from it. 
-
-```c
-
-PipelineLayout {
-	VK_HANDLE DescriptorSetLayout[8] // order of handles is important, it means the descriptor set index.
-}
-
-// DescriptorSetLayout is built from blocks of DescriptorSetLayoutBinding data,
-// where each binding describes the data type and the number of descriptors
-// with that data type. You can view DescriptorSetLayoutBindings as a variable
-// declaration, almost.                                  
-                    
-
-DescriptorSetLayout => made from an array of bindings.
-{ 
-
-    // index is possibly sparse, but must be unique, and should increase monotonically
-
-	binding {index, shaderstageFlags, type, count, immutableSamplers?} // type is probably the most important specifier here- it tells us what type the element must conform to.
-	binding {index, shaderstageFlags, type, count, immutableSamplers?}
-	binding {index, shaderstageFlags, type, count, immutableSamplers?}
-}
-	...
-
-```
-
+* Textures - this will allow us to use ImGUI
+* Auto format detection for Renderpasses based on Swapchain surface capabilities
 
