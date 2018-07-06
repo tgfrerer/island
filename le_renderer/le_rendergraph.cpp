@@ -18,7 +18,7 @@
 #include "le_renderer/private/le_renderer_types.h"
 
 #ifndef PRINT_DEBUG_MESSAGES
-#define PRINT_DEBUG_MESSAGES false
+#	define PRINT_DEBUG_MESSAGES false
 #endif
 
 #define LE_GRAPH_BUILDER_RECURSION_DEPTH 20
@@ -121,11 +121,11 @@ static std::vector<std::vector<uint64_t>> graph_builder_resolve_resource_ids( co
 }
 
 // ----------------------------------------------------------------------
-/// \brief depth-first traversal of graph, following each input to its corresponding output
+/// \brief depth-first traversal of graph, following each input back to its corresponding output (source)
 static void graph_builder_traverse_passes( const std::vector<std::vector<uint64_t>> &passes,
                                            const uint64_t &                          currentRenderpassId,
                                            const uint32_t                            recursion_depth,
-                                           std::vector<uint32_t> &                   pass_sort_orders ) {
+                                           std::vector<uint32_t> &                   sort_order_per_pass ) {
 
 	if ( recursion_depth > LE_GRAPH_BUILDER_RECURSION_DEPTH ) {
 		std::cerr << __FUNCTION__ << " : "
@@ -135,17 +135,26 @@ static void graph_builder_traverse_passes( const std::vector<std::vector<uint64_
 
 	// TODO: how do we deal with external resources?
 
-	// as each input tells us its source renderpass,
-	// we can look up the provider pass for each source by id
-	auto &sourcePasses = passes.at( currentRenderpassId );
+	{
+		// -- Store recursion depth as sort order for this pass if it is
+		//    higher than current sort order for this pass.
+		//
+		// We want the maximum edge distance (one recursion equals one edge) from the root node
+		// for each pass, since the max distance makes sure that all resources are available,
+		// even resources which have a shorter path.
 
-	// We want the maximum edge distance (one recursion equals one edge) from the root node
-	// for each pass, since the max distance makes sure that all resources are available,
-	// even resources which have a shorter path.
-	pass_sort_orders[ currentRenderpassId ] = std::max( recursion_depth, pass_sort_orders[ currentRenderpassId ] );
+		uint32_t &currentSortOrder = sort_order_per_pass[ currentRenderpassId ];
 
+		if ( currentSortOrder < recursion_depth ) {
+			currentSortOrder = recursion_depth;
+		}
+	}
+
+	// -- Iterate over all sources
+	// As each input tells us its source renderpass, we can look up the provider pass for each source by id
+	const std::vector<uint64_t> &sourcePasses = passes.at( currentRenderpassId );
 	for ( auto &sourcePass : sourcePasses ) {
-		graph_builder_traverse_passes( passes, sourcePass, recursion_depth + 1, pass_sort_orders );
+		graph_builder_traverse_passes( passes, sourcePass, recursion_depth + 1, sort_order_per_pass );
 	}
 }
 
