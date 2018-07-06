@@ -8,6 +8,9 @@ set (SOURCES ${SOURCES} "le_device_vk.cpp")
 set (SOURCES ${SOURCES} "le_allocator.cpp")
 set (SOURCES ${SOURCES} "util/spooky/SpookyV2.cpp")
 
+set (SOURCES ${SOURCES} "util/vk_mem_alloc/vk_mem_alloc.h")
+set (SOURCES ${SOURCES} "util/vk_mem_alloc/vk_mem_alloc.cpp")
+
 set (SOURCES ${SOURCES} "util/spirv-cross/GLSL.std.450.h")
 set (SOURCES ${SOURCES} "util/spirv-cross/spirv_common.hpp")
 set (SOURCES ${SOURCES} "util/spirv-cross/spirv.hpp")
