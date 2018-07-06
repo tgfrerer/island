@@ -64,7 +64,7 @@ struct le_backend_vk_api {
 		void                   ( *create_swapchain         ) ( le_backend_o *self, le_swapchain_vk_settings_o *swapchainSettings_ );
 		size_t                 ( *get_num_swapchain_images ) ( le_backend_o *self );
 		void                   ( *reset_swapchain          ) ( le_backend_o *self );
-		le_allocator_o*        ( *get_transient_allocator  ) ( le_backend_o* self, size_t frameIndex);
+		le_allocator_o**       ( *get_transient_allocators ) ( le_backend_o* self, size_t frameIndex, size_t numAllocators);
 
 		le_shader_module_o*    ( *create_shader_module     ) ( le_backend_o* self, char const * path, LeShaderType moduleType);
 		void                   ( *update_shader_modules    ) ( le_backend_o* self );
@@ -101,7 +101,7 @@ struct le_backend_vk_api {
 	};
 
 	struct allocator_linear_interface_t {
-		le_allocator_o * ( *create               ) ( const struct LE_AllocatorCreateInfo& info);
+		le_allocator_o *        ( *create               ) ( struct VmaAllocationInfo const *info, uint16_t alignment);
 		void                    ( *destroy              ) ( le_allocator_o *self );
 		bool                    ( *allocate             ) ( le_allocator_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset);
 		void                    ( *reset                ) ( le_allocator_o* self );

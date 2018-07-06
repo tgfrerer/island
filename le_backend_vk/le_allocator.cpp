@@ -3,6 +3,8 @@
 #include "le_backend_vk/private/le_allocator.h"
 #include "le_renderer/private/le_renderer_types.h"
 
+#include "le_backend_vk/util/vk_mem_alloc/vk_mem_alloc.h"
+
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
 
@@ -42,14 +44,16 @@ static void allocator_reset( le_allocator_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static le_allocator_o *allocator_create( const LE_AllocatorCreateInfo &info ) {
-	auto self = new le_allocator_o;
+static le_allocator_o *allocator_create( VmaAllocationInfo const *info, uint16_t alignment ) {
+	auto self = new le_allocator_o{};
 
-	self->bufferBaseMemoryAddress = info.bufferBaseMemoryAddress;
-	self->bufferBaseOffsetInBytes = info.bufferBaseOffsetInBytes;
-	self->capacity                = info.capacity;
-	self->resourceId              = info.resourceId;
-	self->alignment               = info.alignment;
+	self->bufferBaseMemoryAddress = reinterpret_cast<uint8_t *>( info->pMappedData );
+
+	self->bufferBaseOffsetInBytes = info->offset;
+	self->capacity                = info->size;
+	self->alignment               = alignment;
+
+	memcpy( &self->resourceId, &info->pUserData, sizeof( void * ) ); // note we use the address of pUserData as a value, not a pointer.
 
 	allocator_reset( self );
 

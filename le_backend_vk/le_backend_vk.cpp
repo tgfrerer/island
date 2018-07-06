@@ -7,6 +7,8 @@
 
 #include "le_backend_vk/util/spooky/SpookyV2.h" // for hashing pso state
 
+#include "util/vk_mem_alloc/vk_mem_alloc.h" // for allocation
+
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include <vulkan/vulkan.hpp>
 
@@ -207,9 +209,20 @@ struct BackendFrameData {
 	uint32_t backBufferWidth;  // dimensions of swapchain backbuffer, queried on acquire backendresources.
 	uint32_t backBufferHeight; // dimensions of swapchain backbuffer, queried on acquire backendresources.
 
-	// todo: one allocator per command buffer eventually -
-	// one allocator per frame for now.
-	std::vector<le_allocator_o *> allocators;
+	/**
+	  Each Frame has one allocation Pool from which all allocations are drawn.
+	  Allocation Pool is reset (all allocations are lost) when frame is reset.
+
+	  When creating encoders, each encoder has their own allocator, taken from the
+	  frame pool. This way, encoders can work in their own thread.
+
+	 */
+
+	VmaPool                        allocationPool;   // pool from which allocatinos come from
+	std::vector<le_allocator_o *>  allocators;       // one allocator per command buffer
+	std::vector<VmaAllocation>     allocations;      // one allocation per command buffer
+	std::vector<vk::Buffer>        allocatorBuffers; // one buffer per allocator
+	std::vector<VmaAllocationInfo> allocationInfos;  // one allocation info per command buffer
 };
 
 // ----------------------------------------------------------------------
@@ -241,11 +254,19 @@ struct le_backend_o {
 	std::unordered_map<uint64_t, le_descriptor_set_layout_t> descriptorSetLayoutCache; // indexed by le_shader_bindings_info[] hash
 	std::unordered_map<uint64_t, vk::PipelineLayout>         pipelineLayoutCache;      // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
 
-	vk::DeviceMemory debugTransientVertexDeviceMemory = nullptr;
-	vk::Buffer       debugTransientVertexBuffer       = nullptr;
-
 	le_shader_compiler_o *shader_compiler   = nullptr;
 	pal_file_watcher_o *  shaderFileWatcher = nullptr;
+
+	VmaAllocator mAllocator = nullptr;
+
+	uint32_t queueFamilyIndexGraphics = 0; // set during setup
+	uint32_t queueFamilyIndexCompute  = 0; // set during setup
+
+	const vk::BufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =
+	    vk::BufferUsageFlagBits::eIndexBuffer |
+	    vk::BufferUsageFlagBits::eVertexBuffer |
+	    vk::BufferUsageFlagBits::eUniformBuffer |
+	    vk::BufferUsageFlagBits::eTransferSrc;
 };
 
 // ----------------------------------------------------------------------
@@ -751,8 +772,6 @@ static void backend_destroy( le_backend_o *self ) {
 
 	// -- destroy renderpasses
 
-	static auto allocatorInterface = ( *Registry::getApi<le_backend_vk_api>() ).le_allocator_linear_i;
-
 	// -- destroy descriptorSetLayouts
 
 	std::cout << "Destroying " << self->descriptorSetLayoutCache.size() << " DescriptorSetLayouts" << std::endl
@@ -778,7 +797,12 @@ static void backend_destroy( le_backend_o *self ) {
 		device.destroyPipelineCache( self->debugPipelineCache );
 	}
 
+	static auto &allocator_i = Registry::getApi<le_backend_vk_api>()->le_allocator_linear_i;
+
 	for ( auto &frameData : self->mFrames ) {
+
+		// -- destroy per-frame data
+
 		device.destroyFence( frameData.frameFence );
 		device.destroySemaphore( frameData.semaphorePresentComplete );
 		device.destroySemaphore( frameData.semaphoreRenderComplete );
@@ -788,18 +812,27 @@ static void backend_destroy( le_backend_o *self ) {
 			device.destroyDescriptorPool( d );
 		}
 
-		for ( auto &a : frameData.allocators ) {
-			allocatorInterface.destroy( a );
+		// destroy per-allocator buffers
+		for ( auto &b : frameData.allocatorBuffers ) {
+			device.destroyBuffer( b );
 		}
 
+		for ( auto &a : frameData.allocators ) {
+			allocator_i.destroy( a );
+		}
 		frameData.allocators.clear();
+		frameData.allocationInfos.clear();
+
+		vmaMakePoolAllocationsLost( self->mAllocator, frameData.allocationPool, nullptr );
+		vmaDestroyPool( self->mAllocator, frameData.allocationPool );
 	}
 
 	self->mFrames.clear();
 
-	// Note: teardown for transient buffer and memory.
-	device.destroyBuffer( self->debugTransientVertexBuffer );
-	device.freeMemory( self->debugTransientVertexDeviceMemory );
+	if ( self->mAllocator ) {
+		vmaDestroyAllocator( self->mAllocator );
+		self->mAllocator = nullptr;
+	}
 
 	delete self;
 }
@@ -1413,100 +1446,77 @@ static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *sel
 
 static void backend_setup( le_backend_o *self ) {
 
-	static auto  backendVkAPi = *Registry::getApi<le_backend_vk_api>();
-	static auto &allocatorI   = backendVkAPi.le_allocator_linear_i;
-	static auto &deviceI      = backendVkAPi.vk_device_i;
-
 	auto frameCount = backend_get_num_swapchain_images( self );
 
 	self->mFrames.reserve( frameCount );
 
-	vk::Device vkDevice = self->device->getVkDevice();
+	vk::Device         vkDevice         = self->device->getVkDevice();
+	vk::PhysicalDevice vkPhysicalDevice = self->device->getVkPhysicalDevice();
 
-	LE_AllocatorCreateInfo allocatorCreateInfo;
+	self->queueFamilyIndexGraphics = self->device->getDefaultGraphicsQueueFamilyIndex();
+	self->queueFamilyIndexCompute  = self->device->getDefaultComputeQueueFamilyIndex();
 
-	// allocate & map some memory which we may use for scratch buffers.
+	uint32_t memIndexScratchBufferGraphics = 0;
 	{
-		// This memory will be owned by the frame, and we hand out chunks from it
-		// via allocators, so that each allocator can only sub-allocate the chunk
-		// it actually owns.
-		//
-		// when the frame is transitioned to be submitted, we can either flush
-		// that memory, or, realistically, the memory will be made automatically
-		// available throught the implicit synchronisation guarantee that any
-		// memory writes are made available when submission occurs. (we probably
-		// have to look up how implicit synchronisation works with buffers which
-		// are written to outside a regular command buffer, but which are mapped)
-		//
-		// It's probably easiest for now to allocate the memory for scratch buffers
-		// from COHERENT memory - so that we don't have to worry about flushes.
-		//
+		// -- Create allocator for backend vulkan memory
+		{
+			VmaAllocatorCreateInfo createInfo{};
+			createInfo.flags                       = 0;
+			createInfo.device                      = vkDevice;
+			createInfo.frameInUseCount             = 0;
+			createInfo.physicalDevice              = vkPhysicalDevice;
+			createInfo.preferredLargeHeapBlockSize = 0; // set to default, currently 256 MB
 
-		uint64_t memSize = 4096;
-		// TODO: check which alignment we need to consider for a vertex/index buffer
-		uint64_t memAlignment = deviceI.get_vk_physical_device_properties( *self->device ).limits.minUniformBufferOffsetAlignment;
-		// TODO: check alignment-based memSize calculation is correct
-		memSize = frameCount * memAlignment * ( ( memSize + memAlignment - 1 ) / memAlignment );
+			vmaCreateAllocator( &createInfo, &self->mAllocator );
+		}
 
-		uint32_t graphicsQueueFamilyIndex = self->device->getDefaultGraphicsQueueFamilyIndex();
+		{
+			// find memory index for scratch buffer
 
-		vk::BufferCreateInfo bufferCreateInfo;
-		bufferCreateInfo
-		    .setSize( memSize )
-		    .setUsage( vk::BufferUsageFlagBits::eIndexBuffer | vk::BufferUsageFlagBits::eVertexBuffer ) // TODO: add missing flag bits if you want to use this buffer for uniforms, and storage, too.
-		    .setSharingMode( vk::SharingMode::eExclusive )                                              // this means only one queue may access this buffer at a time
-		    .setQueueFamilyIndexCount( 1 )
-		    .setPQueueFamilyIndices( &graphicsQueueFamilyIndex );
+			vk::BufferCreateInfo bufferInfo{};
+			bufferInfo
+			    .setFlags( {} )
+			    .setSize( 1 )
+			    .setUsage( self->LE_BUFFER_USAGE_FLAGS_SCRATCH )
+			    .setSharingMode( vk::SharingMode::eExclusive )
+			    .setQueueFamilyIndexCount( 1 )
+			    .setPQueueFamilyIndices( &self->queueFamilyIndexGraphics );
 
-		// NOTE: store buffer with the frame - needs to be deleted on teardown.
-		self->debugTransientVertexBuffer = vkDevice.createBuffer( bufferCreateInfo );
+			VmaAllocationCreateInfo allocInfo{};
+			allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+			allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 
-		vk::MemoryRequirements memReqs = vkDevice.getBufferMemoryRequirements( self->debugTransientVertexBuffer );
+			vmaFindMemoryTypeIndexForBufferInfo( self->mAllocator, ( VkBufferCreateInfo * )&bufferInfo, &allocInfo, &memIndexScratchBufferGraphics );
+		}
 
-		auto memFlags = vk::MemoryPropertyFlagBits::eHostCoherent | vk::MemoryPropertyFlagBits::eHostVisible;
-
-		// TODO: this is not elegant! we must initialise the object first, then
-		// pass it as a pointer, otherwise it will not have sane defaults.
-		vk::MemoryAllocateInfo memAllocateInfo;
-
-		deviceI.get_memory_allocation_info( *self->device, memReqs,
-		                                    reinterpret_cast<VkFlags &>( memFlags ),
-		                                    &reinterpret_cast<VkMemoryAllocateInfo &>( memAllocateInfo ) );
-
-		// store allocated memory with backend
-		// TODO: each frame may allocate their own memory
-		self->debugTransientVertexDeviceMemory = vkDevice.allocateMemory( memAllocateInfo );
-
-		vkDevice.bindBufferMemory( self->debugTransientVertexBuffer, self->debugTransientVertexDeviceMemory, 0 );
-
-		// TODO: track lifetime for bufferHandle
-
-		allocatorCreateInfo.alignment               = memAlignment;
-		allocatorCreateInfo.bufferBaseMemoryAddress = static_cast<uint8_t *>( vkDevice.mapMemory( self->debugTransientVertexDeviceMemory, 0, VK_WHOLE_SIZE ) );
-		allocatorCreateInfo.resourceId              = RESOURCE_BUFFER_ID( "scratch" );
-		allocatorCreateInfo.capacity                = memSize;
+		// let's create a pool for each Frame, so that each frame can create sub-allocators
+		// when it creates command buffers for each frame.
 	}
 
 	assert( vkDevice ); // device must come from somewhere! It must have been introduced to backend before, or backend must create device used by everyone else...
 
 	for ( size_t i = 0; i != frameCount; ++i ) {
-		auto frameData = BackendFrameData();
+
+		// -- Set up per-frame resources
+
+		BackendFrameData frameData{};
 
 		frameData.frameFence               = vkDevice.createFence( {} ); // fence starts out as "signalled"
 		frameData.semaphorePresentComplete = vkDevice.createSemaphore( {} );
 		frameData.semaphoreRenderComplete  = vkDevice.createSemaphore( {} );
 		frameData.commandPool              = vkDevice.createCommandPool( {vk::CommandPoolCreateFlagBits::eTransient, self->device->getDefaultGraphicsQueueFamilyIndex()} );
 
-		{ // create per-frame descriptorPool
+		// -- set up an allocation pool for each frame
+
+		{
+			VmaPoolCreateInfo aInfo{};
+			aInfo.blockSize       = 1u << 22; // 4MB
+			aInfo.flags           = VmaPoolCreateFlagBits::VMA_POOL_CREATE_IGNORE_BUFFER_IMAGE_GRANULARITY_BIT;
+			aInfo.memoryTypeIndex = memIndexScratchBufferGraphics;
+			aInfo.frameInUseCount = 0;
+			aInfo.minBlockCount   = 1;
+			vmaCreatePool( self->mAllocator, &aInfo, &frameData.allocationPool );
 		}
-
-		LE_AllocatorCreateInfo allocInfo = allocatorCreateInfo;
-		allocInfo.capacity /= frameCount;
-		allocInfo.bufferBaseOffsetInBytes = i * allocInfo.capacity;
-
-		auto allocator = allocatorI.create( allocInfo );
-
-		frameData.allocators.emplace_back( std::move( allocator ) );
 
 		self->mFrames.emplace_back( std::move( frameData ) );
 	}
@@ -1578,6 +1588,7 @@ static void backend_track_resource_state( BackendFrameData &frame, le_renderpass
 		currentPass.width  = frame.backBufferWidth;
 		currentPass.height = frame.backBufferHeight;
 
+		// iterate over all image attachments
 		for ( auto imageAttachment = pass->imageAttachments; imageAttachment != pass->imageAttachments + pass->imageAttachmentCount; imageAttachment++ ) {
 
 			auto &syncChain = syncChainTable[ imageAttachment->resource_id ];
@@ -1738,6 +1749,7 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 
 	device.resetFences( {frame.frameFence} );
 
+	// -- reset all frame-local sub-allocators
 	for ( auto &alloc : frame.allocators ) {
 		allocatorI.reset( alloc );
 	}
@@ -1790,8 +1802,6 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 		}
 	}
 	frame.passes.clear();
-
-	// frame.ownedResources.clear();
 
 	device.resetCommandPool( frame.commandPool, vk::CommandPoolResetFlagBits::eReleaseResources );
 
@@ -2077,9 +2087,8 @@ static void backend_create_resource_table( BackendFrameData &frame, le_renderpas
 // ----------------------------------------------------------------------
 
 inline vk::Buffer get_physical_buffer_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
-	static_assert( sizeof( AbstractPhysicalResource::asBuffer ) == sizeof( uint64_t ), "size of the union must be 64bit" );
-	assert( frame->physicalResources.at( resourceId ).type == AbstractPhysicalResource::eBuffer );
-	return frame->physicalResources.at( resourceId ).asBuffer;
+	// encoder will have stored allocator index in reourceId field.
+	return frame->allocatorBuffers[ resourceId ];
 }
 
 inline vk::ImageView get_image_view_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
@@ -2226,9 +2235,6 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 	frame.physicalResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].asImage = self->swapchain->getImage( frame.swapchainImageIndex );
 	frame.physicalResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].type    = AbstractPhysicalResource::eImage;
 
-	frame.physicalResources[ RESOURCE_BUFFER_ID( "scratch" ) ].asBuffer = self->debugTransientVertexBuffer;
-	frame.physicalResources[ RESOURCE_BUFFER_ID( "scratch" ) ].type     = AbstractPhysicalResource::eBuffer;
-
 	vk::Device device = self->device->getVkDevice();
 
 	frame.backBufferWidth  = self->swapchain->getImageWidth();
@@ -2251,16 +2257,58 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 };
 
 // ----------------------------------------------------------------------
+// We return a list of transient allocators which exist for the frame.
+// as these allocators are not deleted, but reset every frame, we only create new allocations
+// if we don't have enough to cover the demand for this frame. Otherwise we re-use existing
+// allocators and allocations.
+static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, size_t frameIndex, size_t numAllocators ) {
 
-static le_allocator_o *backend_get_transient_allocator( le_backend_o *self, size_t frameIndex ) {
+	static auto const &allocator_i = Registry::getApi<le_backend_vk_api>()->le_allocator_linear_i;
 
 	auto &frame = self->mFrames[ frameIndex ];
 
-	// TODO: (parallelize) make sure to not just return the frame-global allocator, but one allocator per commandbuffer,
-	// so that command buffer generation can happen in parallel.
-	assert( !frame.allocators.empty() ); // there must be at least one allocator present, and it must have been created in setup()
+	for ( auto i = frame.allocators.size(); i != numAllocators; ++i ) {
 
-	return frame.allocators[ 0 ];
+		VkBuffer          buffer = nullptr;
+		VmaAllocation     allocation;
+		VmaAllocationInfo allocationInfo;
+
+		VmaAllocationCreateInfo createInfo;
+		{
+			createInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+			createInfo.pool  = frame.allocationPool;
+
+			memcpy( &createInfo.pUserData, &i, sizeof( i ) ); // store value of i as pointer
+		}
+
+		VkBufferCreateInfo bufferCreateInfo;
+		{
+			// we use the cpp proxy because it's more ergonomic to fill the values.
+			vk::BufferCreateInfo bufferInfoProxy;
+			bufferInfoProxy
+			    .setFlags( {} )
+			    .setSize( 1u << 22 ) // 4MB
+			    .setUsage( self->LE_BUFFER_USAGE_FLAGS_SCRATCH )
+			    .setSharingMode( vk::SharingMode::eExclusive )
+			    .setQueueFamilyIndexCount( 1 )
+			    .setPQueueFamilyIndices( &self->queueFamilyIndexGraphics ); // TODO: use compute queue for compute passes
+			bufferCreateInfo = bufferInfoProxy;
+		}
+
+		auto result = vmaCreateBuffer( self->mAllocator, &bufferCreateInfo, &createInfo, &buffer, &allocation, &allocationInfo );
+
+		assert( result == VK_SUCCESS ); // todo: deal with failed allocation
+
+		// Create a new allocator - note that we assume an alignment of 256 bytes
+		le_allocator_o *allocator = allocator_i.create( &allocationInfo, 256 );
+
+		frame.allocators.emplace_back( allocator );
+		frame.allocatorBuffers.emplace_back( std::move( buffer ) );
+		frame.allocations.emplace_back( std::move( allocation ) );
+		frame.allocationInfos.emplace_back( std::move( allocationInfo ) );
+	}
+
+	return frame.allocators.data();
 }
 
 // ----------------------------------------------------------------------
@@ -2648,7 +2696,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.create_swapchain           = backend_create_swapchain;
 	vk_backend_i.get_num_swapchain_images   = backend_get_num_swapchain_images;
 	vk_backend_i.reset_swapchain            = backend_reset_swapchain;
-	vk_backend_i.get_transient_allocator    = backend_get_transient_allocator;
+	vk_backend_i.get_transient_allocators   = backend_get_transient_allocators;
 	vk_backend_i.clear_frame                = backend_clear_frame;
 	vk_backend_i.acquire_physical_resources = backend_acquire_physical_resources;
 	vk_backend_i.process_frame              = backend_process_frame;
