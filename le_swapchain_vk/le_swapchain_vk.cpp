@@ -19,14 +19,14 @@ struct SurfaceProperties {
 
 struct le_backend_swapchain_o {
 	le_swapchain_vk_settings_o mSettings;
-	vk::PresentModeKHR         mPresentMode     = vk::PresentModeKHR::eFifo;
 	uint32_t                   mImagecount      = 0;
 	uint32_t                   mImageIndex      = uint32_t( ~0 ); // current image index
 	vk::SwapchainKHR           mSwapchain       = nullptr;
 	vk::Extent2D               mSwapchainExtent = {};
+	vk::PresentModeKHR         mPresentMode     = vk::PresentModeKHR::eFifo;
+	uint32_t                   referenceCount   = 0;
 	SurfaceProperties          mSurfaceProperties;
 	std::vector<vk::Image>     mImageRefs; // owned by SwapchainKHR, don't delete
-	uint32_t                   referenceCount = 0;
 };
 
 // ----------------------------------------------------------------------

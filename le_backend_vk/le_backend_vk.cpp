@@ -2087,7 +2087,7 @@ static void backend_create_resource_table( BackendFrameData &frame, le_renderpas
 // ----------------------------------------------------------------------
 
 inline vk::Buffer get_physical_buffer_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
-	// encoder will have stored allocator index in reourceId field.
+	// encoder will have stored allocator buffer index in reourceId field.
 	return frame->allocatorBuffers[ resourceId ];
 }
 
@@ -2251,6 +2251,7 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 	// patch and retain physical resources in bulk here, so that
 	// each pass may be processed independently
 	backend_patch_attachment_info_images( frame );
+
 	backend_create_frame_buffers( frame, device );
 
 	return true;

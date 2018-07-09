@@ -244,7 +244,6 @@ static const FrameData::State &renderer_acquire_backend_resources( le_renderer_o
 
 	// ----------| invariant: frame is either initial, or cleared.
 
-	// TODO: update descriptor pool for this frame
 	static auto &le_graph_builder_api = ( *Registry::getApi<le_renderer_api>() ).le_graph_builder_i;
 
 	le_renderpass_o *passes          = nullptr;

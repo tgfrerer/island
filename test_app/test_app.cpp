@@ -134,6 +134,8 @@ static test_app_o *test_app_create() {
 	return app;
 }
 
+// ----------------------------------------------------------------------
+
 static float get_image_plane_distance( const le::Viewport &viewport, float fovRadians ) {
 	return viewport.height / ( 2.0f * tanf( fovRadians * 0.5f ) );
 }
@@ -163,6 +165,7 @@ static bool test_app_update( test_app_o *self ) {
 
 			le_renderer_api::ResourceInfo resourceInfo;
 			resourceInfo.ownership = le_renderer_api::ResourceInfo::eFrameLocal;
+			resourceInfo.capacity  = 1000;
 
 			rp.createResource( RESOURCE_BUFFER_ID( "debug-buffer" ), resourceInfo );
 
@@ -174,7 +177,13 @@ static bool test_app_update( test_app_o *self ) {
 
 			le::CommandBufferEncoder encoder{encoder_};
 
-			//encoder.updateResource( RESOURCE_BUFFER_ID( "debug-buffer" ), ptr );
+			// Writing is always to encoder scratch buffer memory
+			//
+			// type of resource ownership decides whether
+			// a copy is added to the queue that transfers from scratch memory
+			// to GPU local memory.
+
+			//encoder.writeToResource( RESOURCE_BUFFER_ID( "debug-buffer" ), ptrSrc, numBytes );
 		} );
 
 		le::RenderPass renderPassFinal( "root", LE_RENDER_PASS_TYPE_DRAW );
@@ -189,7 +198,7 @@ static bool test_app_update( test_app_o *self ) {
 			colorAttachmentInfo.storeOp      = LE_ATTACHMENT_STORE_OP_STORE;
 			rp.addImageAttachment( RESOURCE_IMAGE_ID( "backbuffer" ), &colorAttachmentInfo );
 
-			//rp.useResource( RESOURCE_BUFFER_ID( "debug-buffer" ), le::AccessFlagBits::eRead );
+			rp.useResource( RESOURCE_BUFFER_ID( "debug-buffer" ), le::AccessFlagBits::eRead );
 			rp.setIsRoot( true );
 
 			return true;
@@ -251,7 +260,7 @@ static bool test_app_update( test_app_o *self ) {
 			matrixStack.modelMatrix      = glm::mat4( 1.f ); // identity matrix
 			matrixStack.modelMatrix      = glm::scale( matrixStack.modelMatrix, glm::vec3( 2 ) );
 
-			//			matrixStack.modelMatrix      = glm::rotate( matrixStack.modelMatrix, glm::radians( r_val * 360 ), glm::vec3( 0, 0, 1 ) );
+			matrixStack.modelMatrix = glm::rotate( matrixStack.modelMatrix, glm::radians( r_val * 360 ), glm::vec3( 0, 0, 1 ) );
 
 			float normDistance     = get_image_plane_distance( viewports[ 0 ], glm::radians( 60.f ) ); // calculate unit distance
 			matrixStack.viewMatrix = glm::lookAt( glm::vec3( 0, 0, normDistance ), glm::vec3( 0 ), glm::vec3( 0, -1, 0 ) );

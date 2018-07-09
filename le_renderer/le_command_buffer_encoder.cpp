@@ -12,7 +12,7 @@
 #define EMPLACE_CMD( x ) new ( &self->mCommandStream[ 0 ] + self->mCommandStreamSize )( x )
 
 struct le_command_buffer_encoder_o {
-	char            mCommandStream[ 4096 ];
+	char            mCommandStream[ 4096 * 16 ]; // 16 pages of memory
 	size_t          mCommandStreamSize = 0;
 	size_t          mCommandCount      = 0;
 	le_allocator_o *pAllocator         = nullptr; // allocator is owned by backend, externally

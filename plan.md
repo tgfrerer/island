@@ -51,13 +51,6 @@ sharing created resources across frame boundaries.
 
 * Implement pipeline settings such as winding mode, poly mode etc.
 
-* simplify linear allocator: 
-
-    Currently, one leBuffer can have more than one allcator - this can turn
-    into a nightmare. allocator must own buffer exclusively. memory may be
-    handed out in chunks per buffer, but buffer must be owned exclusively by
-    allocator. 
-    
 * Write ergonomic front-end for pipeline setup
 
 ## (C)
