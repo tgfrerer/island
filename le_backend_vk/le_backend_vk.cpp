@@ -20,7 +20,6 @@
 
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/hash_util.h"
-#include "le_renderer/private/le_renderpass.h"
 #include "le_renderer/private/le_renderer_types.h"
 #include "le_renderer/private/le_pipeline_types.h"
 
@@ -1533,7 +1532,7 @@ static void backend_setup( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void backend_track_resource_state( BackendFrameData &frame, le_renderpass_o *passes, size_t numRenderPasses ) {
+static void backend_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses ) {
 
 	// track resource state
 
@@ -1578,19 +1577,25 @@ static void backend_track_resource_state( BackendFrameData &frame, le_renderpass
 	// + exit renderpass
 	// + layout transform (if final layout differs)
 
+	static auto const &renderpass_i = Registry::getApi<le_renderer_api>()->le_renderpass_i;
+
 	frame.passes.reserve( numRenderPasses );
 
 	// TODO: move pass creation to its own method.
 
-	for ( auto pass = passes; pass != passes + numRenderPasses; pass++ ) {
+	for ( auto pass = ppPasses; pass != ppPasses + numRenderPasses; pass++ ) {
 
 		Pass currentPass{};
-		currentPass.type   = pass->type;
+		currentPass.type   = renderpass_i.get_type( *pass );
 		currentPass.width  = frame.backBufferWidth;
 		currentPass.height = frame.backBufferHeight;
 
 		// iterate over all image attachments
-		for ( auto imageAttachment = pass->imageAttachments; imageAttachment != pass->imageAttachments + pass->imageAttachmentCount; imageAttachment++ ) {
+
+		le_image_attachment_info_o const *pImageAttachments   = nullptr;
+		size_t                            numImageAttachments = 0;
+		renderpass_i.get_image_attachments( *pass, &pImageAttachments, &numImageAttachments );
+		for ( auto const *imageAttachment = pImageAttachments; imageAttachment != pImageAttachments + numImageAttachments; imageAttachment++ ) {
 
 			auto &syncChain = syncChainTable[ imageAttachment->resource_id ];
 
@@ -1696,10 +1701,9 @@ static void backend_track_resource_state( BackendFrameData &frame, le_renderpass
 			// print out info for this resource at this pass.
 		}
 
-		// note that we "steal" the encoder from the renderer pass -
-		// it becomes our job now to destroy it.
-		currentPass.encoder = pass->encoder;
-		pass->encoder       = nullptr;
+		// Note that we "steal" the encoder from the renderer pass -
+		// it becomes now our (the backend's) job to destroy it.
+		currentPass.encoder = renderpass_i.steal_encoder( *pass );
 
 		frame.passes.emplace_back( std::move( currentPass ) );
 	}
@@ -2064,20 +2068,27 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 // create a list of all unique resources referenced by the rendergraph
 // and store it with the current backend frame.
-static void backend_create_resource_table( BackendFrameData &frame, le_renderpass_o const *passes, size_t numRenderPasses ) {
+static void backend_create_resource_table( BackendFrameData &frame, le_renderpass_o **passes, size_t numRenderPasses ) {
+
+	static auto const &renderpass_i = Registry::getApi<le_renderer_api>()->le_renderpass_i;
 
 	frame.syncChainTable.clear();
 
-	for ( le_renderpass_o const *pass = passes; pass != passes + numRenderPasses; pass++ ) {
+	for ( auto *pPass = passes; pPass != passes + numRenderPasses; pPass++ ) {
 
-		// add all write resources to pass
-		for ( uint64_t const *resource_id = pass->readResources; resource_id != ( pass->readResources + pass->readResourceCount ); resource_id++ ) {
-			frame.syncChainTable.insert( {*resource_id, {BackendFrameData::ResourceState{}}} );
-		}
+		uint64_t const *pResources   = nullptr;
+		size_t          numResources = 0;
 
 		// add all read resources to pass
-		for ( uint64_t const *resource_id = pass->writeResources; resource_id != ( pass->writeResources + pass->writeResourceCount ); resource_id++ ) {
-			frame.syncChainTable.insert( {*resource_id, {BackendFrameData::ResourceState{}}} );
+		renderpass_i.get_read_resources( *pPass, &pResources, &numResources );
+		for ( auto it = pResources; it != pResources + numResources; ++it ) {
+			frame.syncChainTable.insert( {*it, {BackendFrameData::ResourceState{}}} );
+		}
+
+		// add all write resources to pass
+		renderpass_i.get_write_resources( *pPass, &pResources, &numResources );
+		for ( auto it = pResources; it != pResources + numResources; ++it ) {
+			frame.syncChainTable.insert( {*it, {BackendFrameData::ResourceState{}}} );
 		}
 
 		// createResources are a subset of write resources,
@@ -2222,9 +2233,63 @@ static void backend_create_descriptor_pools( BackendFrameData &frame, vk::Device
 }
 
 // ----------------------------------------------------------------------
+
+//static void backend_allocate_resources( le_backend_o *self, BackendFrameData &frame, le_renderpass_o const **passes, size_t numRenderPasses ) {
+
+//	/*
+
+//	- Frame is only ever allowed to reference frame-local resources .
+//	- "Acquire" therefore means we create local copies of backend-wide resources.
+
+//	*/
+
+//	// -- Make a list of all images to create
+//	// -- Make a list of all buffers to create
+
+//	struct ResourceDescriptor {
+//		uint32_t             type;       // buffer (0) or image (1)
+//		vk::BufferCreateInfo bufferInfo; //	| only one of either ever in use
+//		vk::ImageCreateInfo  imgInfo;    // | only one of either ever in use
+//	};
+
+//	struct AllocatedResource {
+//		VmaAllocation allocation;
+//		union {
+//			VkBuffer asBuffer;
+//			VkImage  asImage;
+//		};
+//		ResourceDescriptor info;      // Details on resource
+//		uint64_t           name_hash; // name_hash
+//	};
+
+//	// make a list of all resources to create
+//	// - if an image appears more than once, we OR the image's flags.
+//	// - if a  buffer appears more than once, we OR all the buffer's flags.
+
+//	// Locally, in the frame, we store these in a vector,
+//	// and we could reference them by their offsets.
+
+//	for ( le_renderpass_o const *rp = passes; rp != passes + numRenderPasses; rp++ ) {
+
+//		for ( size_t i = 0; i != rp->createResourceCount; ++i ) {
+
+//			le_renderer_api::ResourceInfo const &createInfo = rp->createResourceInfos[ i ]; // resource descriptor
+//			uint64_t const &                     resourceId = rp->createResources[ i ];     // hash of resource name
+
+//			// -- check if there is an existing resource with this name in backend resources
+//			// -- if yes, check if the resource descriptor matches our requirements
+//			//
+//			// ---- if yes, set the frameIndex for this resource to our current frame index.
+//			// -- if no, this means that the resource needs to be re-allocated
+//			//    the old resource in the frame does not get their frame index updated
+//		}
+//	}
+//}
+
+// ----------------------------------------------------------------------
 // TODO: this should mark acquired resources as used by this frame -
 // so that they can only be destroyed iff this frame has been reset.
-static bool backend_acquire_physical_resources( le_backend_o *self, size_t frameIndex, le_renderpass_o *passes, size_t numRenderPasses ) {
+static bool backend_acquire_physical_resources( le_backend_o *self, size_t frameIndex, le_renderpass_o **passes, size_t numRenderPasses ) {
 	auto &frame = self->mFrames[ frameIndex ];
 
 	if ( !self->swapchain->acquireNextImage( frame.semaphorePresentComplete, frame.swapchainImageIndex ) ) {

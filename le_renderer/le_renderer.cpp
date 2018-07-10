@@ -3,7 +3,6 @@
 #include "le_renderer/le_renderer.h"
 
 #include "le_renderer/private/le_rendergraph.h"
-#include "le_renderer/private/le_renderpass.h"
 #include "le_renderer/private/le_command_buffer_encoder.h"
 
 #include "le_backend_vk/le_backend_vk.h"
@@ -246,8 +245,8 @@ static const FrameData::State &renderer_acquire_backend_resources( le_renderer_o
 
 	static auto &le_graph_builder_api = ( *Registry::getApi<le_renderer_api>() ).le_graph_builder_i;
 
-	le_renderpass_o *passes          = nullptr;
-	size_t           numRenderPasses = 0;
+	le_renderpass_o **passes          = nullptr;
+	size_t            numRenderPasses = 0;
 
 	le_graph_builder_api.get_passes( frame.graphBuilder, &passes, &numRenderPasses );
 
@@ -421,6 +420,6 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 
 	// register sub-components of this api
 	register_le_rendergraph_api( api_ );
-	register_le_renderpass_api( api_ );
+
 	register_le_command_buffer_encoder_api( api_ );
 }

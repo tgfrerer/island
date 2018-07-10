@@ -4,6 +4,9 @@
 #include <stdint.h>
 #include "pal_api_loader/ApiRegistry.hpp"
 
+// FIXME: remove this
+#define LE_RENDERPASS_MARKER_EXTERNAL "rp-external"
+
 // depends on le_backend_vk. le_backend_vk must be loaded before this class is used.
 
 #ifdef __cplusplus
@@ -76,6 +79,18 @@ struct le_graphics_pipeline_state_o; ///< object declaring a pipeline, owned by 
 
 // clang-format off
 
+struct le_image_attachment_info_o {
+	uint64_t            resource_id  = 0; // hash name given to this attachment, based on name string
+	uint64_t            source_id    = 0; // hash name of writer/creator renderpass
+	uint8_t             access_flags = 0; // read, write or readwrite
+	vk::Format          format;
+	LeAttachmentLoadOp  loadOp;
+	LeAttachmentStoreOp storeOp;
+
+	void ( *onClear )( void *clear_data ) = nullptr;
+	char debugName[ 32 ];
+};
+
 struct le_renderer_api {
 
 	static constexpr auto id      = "le_renderer";
@@ -110,30 +125,34 @@ struct le_renderer_api {
 		ResourceScope scope = eFrameLocal;
 	};
 
-	struct image_attachment_info_o {
-		uint64_t            resource_id  = 0; // hash name given to this attachment, based on name string
-		uint64_t            source_id    = 0; // hash name of writer/creator renderpass
-		uint8_t             access_flags = 0; // read, write or readwrite
-		vk::Format          format;
-		LeAttachmentLoadOp  loadOp;
-		LeAttachmentStoreOp storeOp;
-
-		void ( *onClear )( void *clear_data ) = nullptr;
-		char debugName[ 32 ];
-	};
 
 	typedef bool ( *pfn_renderpass_setup_t )( le_renderpass_o *obj );
 	typedef void ( *pfn_renderpass_execute_t )( le_command_buffer_encoder_o *encoder, void *user_data );
 
 	struct renderpass_interface_t {
-		le_renderpass_o * ( *create               )( const char *renderpass_name, const LeRenderPassType &type_ );
-		void              ( *destroy              )( le_renderpass_o *obj );
-		void              ( *set_setup_fun        )( le_renderpass_o *obj, pfn_renderpass_setup_t setup_fun );
-		void              ( *add_image_attachment )( le_renderpass_o *obj, uint64_t resource_id, image_attachment_info_o *info );
-		void              ( *set_execute_callback )( le_renderpass_o *obj, pfn_renderpass_execute_t render_fun, void *user_data );
-		void              ( *use_resource         )( le_renderpass_o *obj, uint64_t resource_id, uint32_t access_flags );
-		void              ( *create_resource      )( le_renderpass_o *obj, uint64_t resource_id, const ResourceInfo &info );
-		void              ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
+		le_renderpass_o *            ( *create               )( const char *renderpass_name, const LeRenderPassType &type_ );
+		void                         ( *destroy              )( le_renderpass_o *obj );
+		le_renderpass_o *            ( *clone                )( const le_renderpass_o *obj );
+		void                         ( *set_setup_callback   )( le_renderpass_o *obj, pfn_renderpass_setup_t setup_fun );
+		bool                         ( *has_setup_callback   )( const le_renderpass_o* obj);
+		bool                         ( *run_setup_callback   )( le_renderpass_o* obj);
+		void                         ( *add_image_attachment )( le_renderpass_o *obj, uint64_t resource_id, le_image_attachment_info_o *info );
+		void                         ( *set_execute_callback )( le_renderpass_o *obj, pfn_renderpass_execute_t render_fun, void *user_data );
+		void                         ( *run_execute_callback )( le_renderpass_o* obj, le_command_buffer_encoder_o* encoder);
+		bool                         ( *has_execute_callback )( const le_renderpass_o* obj);
+		void                         ( *use_resource         )( le_renderpass_o *obj, uint64_t resource_id, uint32_t access_flags );
+		void                         ( *create_resource      )( le_renderpass_o *obj, uint64_t resource_id, const ResourceInfo &info );
+		void                         ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
+		bool                         ( *get_is_root          )( const le_renderpass_o *obj);
+		void                         ( *set_sort_key         )( le_renderpass_o *obj, uint64_t sort_key);
+		uint64_t                     ( *get_sort_key         )( const le_renderpass_o *obj);
+		void                         ( *get_read_resources   )( const le_renderpass_o * obj, const uint64_t ** pReadResources, size_t* count );
+		void                         ( *get_write_resources  )( const le_renderpass_o * obj, const uint64_t ** pWriteResources, size_t* count );
+		const char*                  ( *get_debug_name       )( const le_renderpass_o* obj );
+		uint64_t                     ( *get_id               )( const le_renderpass_o* obj );
+		LeRenderPassType             ( *get_type             )( const le_renderpass_o* obj );
+		le_command_buffer_encoder_o* ( *steal_encoder        )( le_renderpass_o* obj );
+		void                         ( *get_image_attachments)(const le_renderpass_o* obj, const le_image_attachment_info_o** pAttachments, size_t* numAttachments);
 	};
 
 	struct rendermodule_interface_t {
@@ -148,10 +167,10 @@ struct le_renderer_api {
 		le_graph_builder_o * ( *create         )();
 		void                 ( *destroy        )( le_graph_builder_o *obj );
 		void                 ( *reset          )( le_graph_builder_o *obj );
-		void                 ( *add_renderpass )( le_graph_builder_o *obj, le_renderpass_o *rp );
+
 		void                 ( *build_graph    )( le_graph_builder_o *obj );
 		void                 ( *execute_graph  )( le_graph_builder_o *obj, size_t frameIndex, le_backend_o *backend );
-		void                 ( *get_passes     )( le_graph_builder_o *obj, le_renderpass_o **pPasses, size_t *pNumPasses );
+		void                 ( *get_passes     )( le_graph_builder_o *obj, le_renderpass_o ***pPasses, size_t *pNumPasses );
 	};
 
 	struct command_buffer_encoder_interface_t {
@@ -191,7 +210,7 @@ struct le_renderer_api {
 
 namespace le {
 
-using ImageAttachmentInfo = le_renderer_api::image_attachment_info_o;
+using ImageAttachmentInfo = le_image_attachment_info_o;
 using AccessFlagBits      = le_renderer_api::AccessFlagBits;
 
 class Renderer {
@@ -246,7 +265,7 @@ class RenderPass {
 	}
 
 	void setSetupCallback( le_renderer_api::pfn_renderpass_setup_t fun ) {
-		renderpassI.set_setup_fun( self, fun );
+		renderpassI.set_setup_callback( self, fun );
 	}
 
 	void setExecuteCallback( void *user_data_, le_renderer_api::pfn_renderpass_execute_t fun ) {
@@ -275,7 +294,7 @@ class RenderPassRef {
 		return self;
 	}
 
-	RenderPassRef &addImageAttachment( uint64_t resource_id, le_renderer_api::image_attachment_info_o *info ) {
+	RenderPassRef &addImageAttachment( uint64_t resource_id, le_image_attachment_info_o *info ) {
 		renderpassI.add_image_attachment( self, resource_id, info );
 		return *this;
 	}
