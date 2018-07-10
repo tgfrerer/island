@@ -132,7 +132,7 @@ struct le_renderer_api {
 		void              ( *add_image_attachment )( le_renderpass_o *obj, uint64_t resource_id, image_attachment_info_o *info );
 		void              ( *set_execute_callback )( le_renderpass_o *obj, pfn_renderpass_execute_t render_fun, void *user_data );
 		void              ( *use_resource         )( le_renderpass_o *obj, uint64_t resource_id, uint32_t access_flags );
-		void              ( *declare_resource     )( le_renderpass_o *obj, uint64_t resource_id, const ResourceInfo &info );
+		void              ( *create_resource      )( le_renderpass_o *obj, uint64_t resource_id, const ResourceInfo &info );
 		void              ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
 	};
 
@@ -286,7 +286,7 @@ class RenderPassRef {
 	}
 
 	RenderPassRef &createResource( uint64_t resource_id, const le_renderer_api::ResourceInfo &info ) {
-		renderpassI.declare_resource( self, resource_id, info );
+		renderpassI.create_resource( self, resource_id, info );
 		return *this;
 	}
 

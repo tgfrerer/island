@@ -90,7 +90,7 @@ static void renderpass_add_image_attachment( le_renderpass_o *self, uint64_t res
 
 // ----------------------------------------------------------------------
 
-static void renderpass_declare_resource( le_renderpass_o *self, uint64_t resource_id, const le_renderer_api::ResourceInfo &info ) {
+static void renderpass_create_resource( le_renderpass_o *self, uint64_t resource_id, const le_renderer_api::ResourceInfo &info ) {
 
 	assert( self->createResourceCount < 32 ); // todo: set this to max_create_resource_count
 
@@ -121,5 +121,5 @@ void register_le_renderpass_api( void *api_ ) {
 	le_renderpass_i.set_execute_callback = renderpass_set_execute_callback;
 	le_renderpass_i.use_resource         = renderpass_use_resource;
 	le_renderpass_i.set_is_root          = renderpass_set_is_root;
-	le_renderpass_i.declare_resource     = renderpass_declare_resource;
+	le_renderpass_i.create_resource      = renderpass_create_resource;
 }
