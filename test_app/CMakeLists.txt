@@ -2,6 +2,7 @@ set (TARGET test_app)
 
 set (SOURCES "test_app.cpp")
 set (SOURCES ${SOURCES} "test_app.h")
+set (SOURCES ${SOURCES} "horse_image.h")
 
 if (${PLUGINS_DYNAMIC})
 

@@ -18,6 +18,8 @@
 #include <iostream>
 #include <memory>
 
+#include "horse_image.h"
+
 struct le_graphics_pipeline_state_o; // owned by renderer
 
 struct test_app_o {
@@ -164,26 +166,26 @@ static bool test_app_update( test_app_o *self ) {
 			auto rp = le::RenderPassRef{pRp};
 
 			le_renderer_api::ResourceInfo resourceInfo;
-			resourceInfo.ownership = le_renderer_api::ResourceInfo::eFrameLocal;
-			resourceInfo.capacity  = 1000;
+			resourceInfo.scope    = le_renderer_api::ResourceInfo::eFrameLocal; // scope is local to frame
+			resourceInfo.capacity = sizeof( MagickImage );
+			// we should be able to tell that this resource is an image
+			// we should be able to select the image format
 
 			rp.createResource( RESOURCE_BUFFER_ID( "debug-buffer" ), resourceInfo );
 
 			return true;
 		} );
 
-		resourcePass.setExecuteCallback( self, []( auto encoder_, auto user_data_ ) {
+		resourcePass.setExecuteCallback( self, []( auto encoder, auto user_data_ ) {
 			auto self = static_cast<test_app_o *>( user_data_ );
-
-			le::CommandBufferEncoder encoder{encoder_};
 
 			// Writing is always to encoder scratch buffer memory
 			//
-			// type of resource ownership decides whether
+			// Type of resource ownership decides whether
 			// a copy is added to the queue that transfers from scratch memory
 			// to GPU local memory.
 
-			//encoder.writeToResource( RESOURCE_BUFFER_ID( "debug-buffer" ), ptrSrc, numBytes );
+			// le_encoder.write_to_resource( encoder, RESOURCE_BUFFER_ID( "debug-buffer" ), 0, MagickImage, sizeof( MagickImage ) );
 		} );
 
 		le::RenderPass renderPassFinal( "root", LE_RENDER_PASS_TYPE_DRAW );
