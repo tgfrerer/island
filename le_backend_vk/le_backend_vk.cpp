@@ -185,7 +185,7 @@ struct BackendFrameData {
 	struct ResourceState {
 		vk::AccessFlags        visible_access; // which memory access must be be visible - if any of these are WRITE accesses, these must be made available(flushed) before next access
 		vk::PipelineStageFlags write_stage;    // current or last stage at which write occurs
-		vk::ImageLayout        layout;         // current layout
+		vk::ImageLayout        layout;         // current layout (for images)
 	};
 
 	// With `syncChainTable` and image_attachment_info_o.syncState, we should
@@ -209,12 +209,13 @@ struct BackendFrameData {
 	uint32_t backBufferWidth;  // dimensions of swapchain backbuffer, queried on acquire backendresources.
 	uint32_t backBufferHeight; // dimensions of swapchain backbuffer, queried on acquire backendresources.
 
-	/**
-	  Each Frame has one allocation Pool from which all allocations are drawn.
-	  Allocation Pool is reset (all allocations are lost) when frame is reset.
+	/*
 
-	  When creating encoders, each encoder has their own allocator, taken from the
-	  frame pool. This way, encoders can work in their own thread.
+	  Each Frame has one allocation Pool from which all allocations for scratch buffers are drawn.
+
+	  When creating encoders, each encoder has their own sub-allocator, each sub-allocator owns an
+	  independent block of memory allcated from the frame pool. This way, encoders can work in their
+	  own thread.
 
 	 */
 
@@ -2234,11 +2235,16 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 
 	frame.physicalResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].asImage = self->swapchain->getImage( frame.swapchainImageIndex );
 	frame.physicalResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].type    = AbstractPhysicalResource::eImage;
+	frame.backBufferWidth                                                = self->swapchain->getImageWidth();
+	frame.backBufferHeight                                               = self->swapchain->getImageHeight();
+
+	// Note that at this point memory for scratch buffers for each pass in this frame has already been allocated,
+	// as this happens shortly before executeGraph.
+
+	// TODO: Allocate any persistent created resources
+	// TODO: Allocate any frame-local resources (such as rendertargets)
 
 	vk::Device device = self->device->getVkDevice();
-
-	frame.backBufferWidth  = self->swapchain->getImageWidth();
-	frame.backBufferHeight = self->swapchain->getImageHeight();
 
 	backend_create_resource_table( frame, passes, numRenderPasses );
 	backend_track_resource_state( frame, passes, numRenderPasses );
@@ -2268,16 +2274,20 @@ static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, si
 
 	auto &frame = self->mFrames[ frameIndex ];
 
+	// Only add another buffer to frame-allocated buffers if we don't yet have
+	// enough buffers to cover each pass (numAllocators should correspond to
+	// number of passes.)
+	//
 	for ( auto i = frame.allocators.size(); i != numAllocators; ++i ) {
 
 		VkBuffer          buffer = nullptr;
 		VmaAllocation     allocation;
 		VmaAllocationInfo allocationInfo;
 
-		VmaAllocationCreateInfo createInfo;
+		VmaAllocationCreateInfo createInfo{};
 		{
 			createInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-			createInfo.pool  = frame.allocationPool;
+			createInfo.pool  = frame.allocationPool; // Since we're allocating from a pool all fields but .flags will be taken from the pool
 
 			memcpy( &createInfo.pUserData, &i, sizeof( i ) ); // store value of i as pointer
 		}

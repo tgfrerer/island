@@ -4,7 +4,7 @@
 #include "le_renderer/le_renderer.h"
 
 // ----------------------------------------------------------------------
-// fixme: remove this
+// FIXME: remove this
 #define LE_RENDERPASS_MARKER_EXTERNAL "rp-external"
 
 #ifdef __cplusplus

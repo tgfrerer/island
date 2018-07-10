@@ -152,7 +152,7 @@ static bool test_app_update( test_app_o *self ) {
 		return false;
 	}
 
-	// grab interface for encoder so that it can be used in callbacks -
+	// Grab interface for encoder so that it can be used in callbacks -
 	// making it static allows it to be visible inside the callback context,
 	// and it also ensures that the registry call only happens upon first retrieval.
 	static auto const &le_encoder = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
@@ -192,6 +192,10 @@ static bool test_app_update( test_app_o *self ) {
 
 		renderPassFinal.setSetupCallback( []( auto pRp ) -> bool {
 			auto rp = le::RenderPassRef{pRp};
+
+			// why do we let imageAttachmentInfo specify format?
+			// because we might want to use a different format than the format the image is originally in.
+			// this is important for example, when using a depth buffer for shadow sampling later.
 
 			le::ImageAttachmentInfo colorAttachmentInfo{};
 			colorAttachmentInfo.format       = vk::Format::eB8G8R8A8Unorm; // TODO (swapchain): use swapchain image format programmatically
