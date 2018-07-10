@@ -134,12 +134,11 @@ renderer_setup( le_renderer_o *self ) {
 
 	self->frames.reserve( self->numSwapchainImages );
 
-	static auto const &rendererApi   = *Registry::getApi<le_renderer_api>();
-	static auto const &graphBuilderI = rendererApi.le_graph_builder_i;
+	static auto const &graph_builder_i = Registry::getApi<le_renderer_api>()->le_graph_builder_i;
 
 	for ( size_t i = 0; i != self->numSwapchainImages; ++i ) {
 		auto frameData         = FrameData();
-		frameData.graphBuilder = graphBuilderI.create();
+		frameData.graphBuilder = graph_builder_i.create();
 		self->frames.push_back( std::move( frameData ) );
 	}
 
@@ -388,9 +387,16 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 
 static void renderer_destroy( le_renderer_o *self ) {
 
+	static auto const &graph_builder_i = Registry::getApi<le_renderer_api>()->le_graph_builder_i;
+
 	const auto &lastIndex = self->currentFrameNumber;
+
 	for ( size_t i = 0; i != self->frames.size(); ++i ) {
-		renderer_clear_frame( self, ( lastIndex + i ) % self->frames.size() );
+		auto index = ( lastIndex + i ) % self->frames.size();
+		renderer_clear_frame( self, index );
+		// -- FIXME: delete graph builders which we added in create
+		// this is not elegant.
+		graph_builder_i.destroy( self->frames[ index ].graphBuilder );
 	}
 
 	self->frames.clear();
