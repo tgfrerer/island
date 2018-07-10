@@ -99,15 +99,15 @@ struct le_renderer_api {
 
 	struct ResourceInfo {
 
-		enum ResourceOwnership : uint32_t {
+		enum ResourceScope : uint32_t {
 			eFrameLocal    = 0, ///< frame owns this resource, it will be gone once frame has passed through pipeline. direct memory assignment / direct access possible
-			eFrameExternal = 1, ///< renderer owns this resource, it will be kept alive until the resource is destroyed. must use resourcePass to update resource
+			ePersistent    = 1, ///< renderer owns this resource, it will be kept alive until the resource is destroyed. must use resourcePass to update resource
 		};
 
-		uint32_t usageFlags = 0;
+		uint32_t usageFlags = 0; // read, or write, or read then write
 		uint32_t capacity   = 0;
 
-		ResourceOwnership ownership = eFrameLocal;
+		ResourceScope scope = eFrameLocal;
 	};
 
 	struct image_attachment_info_o {
