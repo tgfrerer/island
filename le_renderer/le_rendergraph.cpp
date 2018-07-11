@@ -32,11 +32,11 @@ struct le_renderpass_o {
 	uint64_t         id       = 0;
 	uint64_t         sort_key = 0;
 
-	std::vector<uint64_t>                      readResources;
-	std::vector<uint64_t>                      writeResources;
-	std::vector<uint64_t>                      createResources;
-	std::vector<le_renderer_api::ResourceInfo> createResourceInfos; // createResources holds ids at matching index
-	std::vector<le_image_attachment_info_o>    imageAttachments;
+	std::vector<uint64_t>                   readResources;
+	std::vector<uint64_t>                   writeResources;
+	std::vector<uint64_t>                   createResources;
+	std::vector<le_resource_info_t>         createResourceInfos; // createResources holds ids at matching index
+	std::vector<le_image_attachment_info_o> imageAttachments;
 
 	le_renderer_api::pfn_renderpass_setup_t   callbackSetup              = nullptr;
 	le_renderer_api::pfn_renderpass_execute_t callbackExecute            = nullptr;
@@ -159,7 +159,7 @@ static void renderpass_add_image_attachment( le_renderpass_o *self, uint64_t res
 
 // ----------------------------------------------------------------------
 
-static void renderpass_create_resource( le_renderpass_o *self, uint64_t resource_id, const le_renderer_api::ResourceInfo &info ) {
+static void renderpass_create_resource( le_renderpass_o *self, uint64_t resource_id, const le_resource_info_t &info ) {
 
 	self->createResourceInfos.push_back( info );
 	self->createResources.push_back( resource_id );
@@ -199,6 +199,14 @@ static void renderpass_get_read_resources( le_renderpass_o const *self, uint64_t
 static void renderpass_get_write_resources( le_renderpass_o const *self, uint64_t const **pWriteResources, size_t *count ) {
 	*pWriteResources = self->writeResources.data();
 	*count           = self->writeResources.size();
+}
+
+static void renderpass_get_create_resources( le_renderpass_o const *self, uint64_t const **pCreateResources, le_resource_info_t const **pResourceInfos, size_t *count ) {
+	assert( self->createResourceInfos.size() == self->createResources.size() );
+
+	*pCreateResources = self->createResources.data();
+	*pResourceInfos   = self->createResourceInfos.data();
+	*count            = self->createResources.size();
 }
 
 static const char *renderpass_get_debug_name( le_renderpass_o const *self ) {
@@ -595,6 +603,7 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_renderpass_i.set_sort_key          = renderpass_set_sort_key;
 	le_renderpass_i.get_read_resources    = renderpass_get_read_resources;
 	le_renderpass_i.get_write_resources   = renderpass_get_write_resources;
+	le_renderpass_i.get_create_resources  = renderpass_get_create_resources;
 	le_renderpass_i.get_id                = renderpass_get_id;
 	le_renderpass_i.get_debug_name        = renderpass_get_debug_name;
 	le_renderpass_i.get_image_attachments = renderpass_get_image_attachments;

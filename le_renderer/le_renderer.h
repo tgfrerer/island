@@ -92,6 +92,19 @@ struct le_image_attachment_info_o {
 	char debugName[ 32 ];
 };
 
+struct le_resource_info_t {
+
+	enum ResourceScope : uint32_t {
+		eFrameLocal    = 0, ///< frame owns this resource, it will be gone once frame has passed through pipeline. direct memory assignment / direct access possible
+		ePersistent    = 1, ///< renderer owns this resource, it will be kept alive until the resource is destroyed. must use resourcePass to update resource
+	};
+
+	uint32_t usageFlags = 0; // read, or write, or read then write
+	uint32_t capacity   = 0;
+
+	ResourceScope scope = eFrameLocal;
+};
+
 struct le_renderer_api {
 
 	static constexpr auto id      = "le_renderer";
@@ -113,19 +126,6 @@ struct le_renderer_api {
 		eReadWrite = eRead | eWrite,
 	};
 
-	struct ResourceInfo {
-
-		enum ResourceScope : uint32_t {
-			eFrameLocal    = 0, ///< frame owns this resource, it will be gone once frame has passed through pipeline. direct memory assignment / direct access possible
-			ePersistent    = 1, ///< renderer owns this resource, it will be kept alive until the resource is destroyed. must use resourcePass to update resource
-		};
-
-		uint32_t usageFlags = 0; // read, or write, or read then write
-		uint32_t capacity   = 0;
-
-		ResourceScope scope = eFrameLocal;
-	};
-
 
 	typedef bool ( *pfn_renderpass_setup_t )( le_renderpass_o *obj );
 	typedef void ( *pfn_renderpass_execute_t )( le_command_buffer_encoder_o *encoder, void *user_data );
@@ -142,13 +142,14 @@ struct le_renderer_api {
 		void                         ( *run_execute_callback )( le_renderpass_o* obj, le_command_buffer_encoder_o* encoder);
 		bool                         ( *has_execute_callback )( const le_renderpass_o* obj);
 		void                         ( *use_resource         )( le_renderpass_o *obj, uint64_t resource_id, uint32_t access_flags );
-		void                         ( *create_resource      )( le_renderpass_o *obj, uint64_t resource_id, const ResourceInfo &info );
+		void                         ( *create_resource      )( le_renderpass_o *obj, uint64_t resource_id, const le_resource_info_t &info );
 		void                         ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
 		bool                         ( *get_is_root          )( const le_renderpass_o *obj);
 		void                         ( *set_sort_key         )( le_renderpass_o *obj, uint64_t sort_key);
 		uint64_t                     ( *get_sort_key         )( const le_renderpass_o *obj);
 		void                         ( *get_read_resources   )( const le_renderpass_o * obj, const uint64_t ** pReadResources, size_t* count );
 		void                         ( *get_write_resources  )( const le_renderpass_o * obj, const uint64_t ** pWriteResources, size_t* count );
+		void                         ( *get_create_resources )( const le_renderpass_o *obj, uint64_t const **pCreateResources, le_resource_info_t const **pResourceInfos, size_t *count );
 		const char*                  ( *get_debug_name       )( const le_renderpass_o* obj );
 		uint64_t                     ( *get_id               )( const le_renderpass_o* obj );
 		LeRenderPassType             ( *get_type             )( const le_renderpass_o* obj );
@@ -305,7 +306,7 @@ class RenderPassRef {
 		return *this;
 	}
 
-	RenderPassRef &createResource( uint64_t resource_id, const le_renderer_api::ResourceInfo &info ) {
+	RenderPassRef &createResource( uint64_t resource_id, const le_resource_info_t &info ) {
 		renderpassI.create_resource( self, resource_id, info );
 		return *this;
 	}

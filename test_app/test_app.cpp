@@ -245,8 +245,8 @@ static bool test_app_update( test_app_o *self ) {
 		resourcePass.setSetupCallback( []( auto pRp ) -> bool {
 			auto rp = le::RenderPassRef{pRp};
 
-			le_renderer_api::ResourceInfo resourceInfo;
-			resourceInfo.scope    = le_renderer_api::ResourceInfo::eFrameLocal; // scope is local to frame
+			le_resource_info_t resourceInfo;
+			resourceInfo.scope    = le_resource_info_t::ResourceScope::eFrameLocal; // scope is local to frame
 			resourceInfo.capacity = sizeof( MagickImage );
 			// we should be able to tell that this resource is an image
 			// we should be able to select the image format

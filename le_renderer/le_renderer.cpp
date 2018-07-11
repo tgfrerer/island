@@ -57,8 +57,8 @@ struct FrameData {
 
 	le_graph_builder_o *graphBuilder = nullptr;
 
-	std::unordered_map<uint64_t, le_renderer_api::ResourceInfo> localResources;
-	std::unordered_map<uint64_t, le_renderer_api::ResourceInfo> externalResources;
+	std::unordered_map<uint64_t, le_resource_info_t> localResources;
+	std::unordered_map<uint64_t, le_resource_info_t> externalResources;
 
 	Meta meta;
 };
