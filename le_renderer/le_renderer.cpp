@@ -1,7 +1,6 @@
 #include "pal_api_loader/ApiRegistry.hpp"
 
 #include "le_renderer/le_renderer.h"
-#include "le_renderer/private/le_command_buffer_encoder.h"
 
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_swapchain_vk/le_swapchain_vk.h"
