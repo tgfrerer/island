@@ -28,18 +28,15 @@ using image_attachment_t = le_image_attachment_info_o;
 struct le_renderpass_o {
 
 	LeRenderPassType type     = LE_RENDER_PASS_TYPE_UNDEFINED;
+	uint32_t         isRoot   = false; // whether pass *must* be processed
 	uint64_t         id       = 0;
 	uint64_t         sort_key = 0;
-	bool             isRoot   = false; // whether pass *must* be processed
 
-	uint64_t                      createResources[ 32 ];
-	le_renderer_api::ResourceInfo createResourceInfos[ 32 ]; // createResources holds ids at matching index
-
-	std::vector<le_image_attachment_info_o> imageAttachments;
-	std::vector<uint64_t>                   readResources;
-	std::vector<uint64_t>                   writeResources;
-
-	uint32_t createResourceCount = 0;
+	std::vector<uint64_t>                      readResources;
+	std::vector<uint64_t>                      writeResources;
+	std::vector<uint64_t>                      createResources;
+	std::vector<le_renderer_api::ResourceInfo> createResourceInfos; // createResources holds ids at matching index
+	std::vector<le_image_attachment_info_o>    imageAttachments;
 
 	le_renderer_api::pfn_renderpass_setup_t   callbackSetup              = nullptr;
 	le_renderer_api::pfn_renderpass_execute_t callbackExecute            = nullptr;
@@ -164,14 +161,11 @@ static void renderpass_add_image_attachment( le_renderpass_o *self, uint64_t res
 
 static void renderpass_create_resource( le_renderpass_o *self, uint64_t resource_id, const le_renderer_api::ResourceInfo &info ) {
 
-	assert( self->createResourceCount < 32 ); // todo: set this to max_create_resource_count
+	self->createResourceInfos.push_back( info );
+	self->createResources.push_back( resource_id );
 
-	self->createResources[ self->createResourceCount ]     = resource_id;
-	self->createResourceInfos[ self->createResourceCount ] = info;
-	self->createResourceCount++;
-
-	// additionally, we introduce this resource to the write resource table, so that it will be considered
-	// when building the graph based on dependencies.
+	// Additionally, we introduce this resource to the write resource table,
+	// so that it will be considered when building the graph based on dependencies.
 	renderpass_use_resource( self, resource_id, le::AccessFlagBits::eWrite );
 }
 
@@ -390,8 +384,6 @@ static std::vector<uint64_t> graph_builder_find_root_passes( const std::vector<l
 // ----------------------------------------------------------------------
 
 static void graph_builder_build_graph( le_graph_builder_o *self ) {
-
-	static auto const &renderpass_i = Registry::getApi<le_renderer_api>()->le_renderpass_i;
 
 	// Find corresponding output for each input attachment,
 	// and tag input with output id, as dependencies are
