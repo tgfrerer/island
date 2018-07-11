@@ -1,7 +1,9 @@
 set ( TARGET pal_api_loader )
 
 set ( SOURCES ApiLoader.cpp )
+set ( SOURCES ${SOURCES} ApiLoader.h )
 set ( SOURCES ${SOURCES} ApiRegistry.cpp )
+set ( SOURCES ${SOURCES} ApiRegistry.hpp )
 
 if (${PLUGINS_DYNAMIC})
 

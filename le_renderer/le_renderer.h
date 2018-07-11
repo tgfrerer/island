@@ -14,6 +14,7 @@ extern "C" {
 #endif
 
 void register_le_renderer_api( void *api );
+void register_le_rendergraph_api( void *api ); // in le_rendergraph.cpp
 
 enum LeRenderPassType : uint32_t {
 	LE_RENDER_PASS_TYPE_UNDEFINED = 0,

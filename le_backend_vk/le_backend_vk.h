@@ -9,6 +9,9 @@ extern "C" {
 #endif
 
 void register_le_backend_vk_api( void *api );
+void register_le_instance_vk_api( void *api );       // for le_instance_vk.cpp
+void register_le_allocator_linear_api( void *api_ ); // for le_allocator.cpp
+void register_le_device_vk_api( void *api );         // for le_device_vk.cpp
 
 struct le_backend_vk_api;
 

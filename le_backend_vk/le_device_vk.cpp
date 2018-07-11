@@ -1,5 +1,4 @@
 #include "le_backend_vk/le_backend_vk.h"
-#include "le_backend_vk/private/le_instance_vk.h"
 
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
@@ -39,23 +38,22 @@ struct le_backend_vk_device_o {
 	uint32_t referenceCount = 0;
 };
 
-
 // ----------------------------------------------------------------------
 
-uint32_t findClosestMatchingQueueIndex( const std::vector<vk::QueueFlags>& queueFlags_, const vk::QueueFlags & flags ){
+uint32_t findClosestMatchingQueueIndex( const std::vector<vk::QueueFlags> &queueFlags_, const vk::QueueFlags &flags ) {
 
 	// Find out the queue family index for a queue best matching the given flags.
 	// We use this to find out the index of the Graphics Queue for example.
 
-	for ( uint32_t i = 0; i != queueFlags_.size(); i++ ){
-		if ( queueFlags_[i] == flags ){
+	for ( uint32_t i = 0; i != queueFlags_.size(); i++ ) {
+		if ( queueFlags_[ i ] == flags ) {
 			// First perfect match
 			return i;
 		}
 	}
 
-	for ( uint32_t i = 0; i != queueFlags_.size(); i++ ){
-		if ( queueFlags_[i] & flags ){
+	for ( uint32_t i = 0; i != queueFlags_.size(); i++ ) {
+		if ( queueFlags_[ i ] & flags ) {
 			// First multi-function queue match
 			return i;
 		}
@@ -63,7 +61,7 @@ uint32_t findClosestMatchingQueueIndex( const std::vector<vk::QueueFlags>& queue
 
 	// ---------| invariant: no queue found
 
-	if (flags & vk::QueueFlagBits::eGraphics){
+	if ( flags & vk::QueueFlagBits::eGraphics ) {
 		std::cerr << "Could not find queue family index matching: " << vk::to_string( flags );
 	}
 
@@ -77,54 +75,54 @@ uint32_t findClosestMatchingQueueIndex( const std::vector<vk::QueueFlags>& queue
 ///        1.. index within queue family
 ///        2.. index of queue from props vector (used to keep queue indices
 //             consistent between requested queues and queues you will render to)
-std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQueues( const std::vector<vk::QueueFamilyProperties>& props, const std::vector<::vk::QueueFlags>& reqProps ){
+std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQueues( const std::vector<vk::QueueFamilyProperties> &props, const std::vector<::vk::QueueFlags> &reqProps ) {
 	std::vector<std::tuple<uint32_t, uint32_t, size_t>> result;
 
-	std::vector<uint32_t> usedQueues( props.size(), ~( uint32_t(0) ) ); // last used queue, per queue family (initialised at -1)
+	std::vector<uint32_t> usedQueues( props.size(), ~( uint32_t( 0 ) ) ); // last used queue, per queue family (initialised at -1)
 
 	size_t reqIdx = 0; // original index for requested queue
-	for ( const auto & flags : reqProps ){
+	for ( const auto &flags : reqProps ) {
 
 		// best match is a queue which does exclusively what we want
-		bool foundMatch = false;
+		bool     foundMatch  = false;
 		uint32_t foundFamily = 0;
-		uint32_t foundIndex = 0;
+		uint32_t foundIndex  = 0;
 
-		for ( uint32_t familyIndex = 0; familyIndex != props.size(); familyIndex++ ){
+		for ( uint32_t familyIndex = 0; familyIndex != props.size(); familyIndex++ ) {
 
 			// 1. Is there a family that matches our requirements exactly?
 			// 2. Is a queue from this family still available?
 
-			if ( props[familyIndex].queueFlags == flags ){
+			if ( props[ familyIndex ].queueFlags == flags ) {
 				// perfect match
-				if ( usedQueues[familyIndex] + 1 < props[familyIndex].queueCount ){
-					foundMatch = true;
+				if ( usedQueues[ familyIndex ] + 1 < props[ familyIndex ].queueCount ) {
+					foundMatch  = true;
 					foundFamily = familyIndex;
-					foundIndex = usedQueues[familyIndex] + 1;
+					foundIndex  = usedQueues[ familyIndex ] + 1;
 					std::cout << "Found dedicated queue matching: " << ::vk::to_string( flags ) << std::endl;
-				} else{
+				} else {
 					std::cout << "No more dedicated queues available matching: " << ::vk::to_string( flags ) << std::endl;
 				}
 				break;
 			}
 		}
 
-		if ( foundMatch == false ){
+		if ( foundMatch == false ) {
 
 			// If we haven't found a match, we need to find a versatile queue which might
 			// be able to fulfill our requirements.
 
-			for ( uint32_t familyIndex = 0; familyIndex != props.size(); familyIndex++ ){
+			for ( uint32_t familyIndex = 0; familyIndex != props.size(); familyIndex++ ) {
 
 				// 1. Is there a family that has the ability to fulfill our requirements?
 				// 2. Is a queue from this family still available?
 
-				if ( props[familyIndex].queueFlags & flags ){
+				if ( props[ familyIndex ].queueFlags & flags ) {
 					// versatile queue match
-					if ( usedQueues[familyIndex] + 1 < props[familyIndex].queueCount ){
-						foundMatch = true;
+					if ( usedQueues[ familyIndex ] + 1 < props[ familyIndex ].queueCount ) {
+						foundMatch  = true;
 						foundFamily = familyIndex;
-						foundIndex = usedQueues[familyIndex] + 1;
+						foundIndex  = usedQueues[ familyIndex ] + 1;
 						std::cout << "Found versatile queue matching: " << ::vk::to_string( flags ) << std::endl;
 					}
 					break;
@@ -132,12 +130,11 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 			}
 		}
 
-		if ( foundMatch ){
+		if ( foundMatch ) {
 			result.emplace_back( foundFamily, foundIndex, reqIdx );
-			usedQueues[foundFamily] = foundIndex; // mark this queue as used
-		} else{
+			usedQueues[ foundFamily ] = foundIndex; // mark this queue as used
+		} else {
 			std::cerr << "No available queue matching requirement: " << ::vk::to_string( flags ) << std::endl;
-
 		}
 
 		++reqIdx;
@@ -155,8 +152,8 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 	const le_backend_vk_api &                      backendApiI = *Registry::getApi<le_backend_vk_api>();
 	const le_backend_vk_api::instance_interface_t &instanceI   = backendApiI.vk_instance_i;
 
-	vk::Instance instance   = instanceI.get_vk_instance(instance_);
-	auto  deviceList = instance.enumeratePhysicalDevices();
+	vk::Instance instance   = instanceI.get_vk_instance( instance_ );
+	auto         deviceList = instance.enumeratePhysicalDevices();
 
 	// CONSIDER: find the best appropriate GPU
 	// Select a physical device (GPU) from the above queried list of options.
@@ -166,17 +163,17 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 	// query the gpu for more info about itself
 	device->vkPhysicalDeviceProperties = device->vkPhysicalDevice.getProperties();
 
-//	ofLog() << "GPU Type: " << mPhysicalDeviceProperties.deviceName;
+	//	ofLog() << "GPU Type: " << mPhysicalDeviceProperties.deviceName;
 
-//	{
-//		of::vk::RendererSettings tmpSettings;
-//		tmpSettings.vkVersion = mPhysicalDeviceProperties.apiVersion;
-//		ofLog() << "GPU API Version: " << tmpSettings.getVkVersionMajor() << "."
-//		        << tmpSettings.getVersionMinor() << "." << tmpSettings.getVersionPatch();
+	//	{
+	//		of::vk::RendererSettings tmpSettings;
+	//		tmpSettings.vkVersion = mPhysicalDeviceProperties.apiVersion;
+	//		ofLog() << "GPU API Version: " << tmpSettings.getVkVersionMajor() << "."
+	//		        << tmpSettings.getVersionMinor() << "." << tmpSettings.getVersionPatch();
 
-//		uint32_t driverVersion = mPhysicalDeviceProperties.driverVersion;
-//		ofLog() << "GPU Driver Version: " << std::hex << driverVersion;
-//	}
+	//		uint32_t driverVersion = mPhysicalDeviceProperties.driverVersion;
+	//		ofLog() << "GPU Driver Version: " << std::hex << driverVersion;
+	//	}
 
 	// let's find out the devices' memory properties
 	device->vkPhysicalDeviceMemoryProperties = device->vkPhysicalDevice.getMemoryProperties();
@@ -231,20 +228,19 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 
 		// TODO: make this optional - get this from outside world.
 
-		std::vector<const char *> enabledDeviceExtensionNames     = {
+		std::vector<const char *> enabledDeviceExtensionNames = {
 		    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 		};
 
 		vk::DeviceCreateInfo deviceCreateInfo;
 		deviceCreateInfo
-		    .setQueueCreateInfoCount    ( uint32_t( createInfos.size() ) )
-		    .setPQueueCreateInfos       ( createInfos.data() )
-		    .setEnabledLayerCount       ( 0 )
-		    .setPpEnabledLayerNames     ( nullptr )
-		    .setEnabledExtensionCount   ( uint32_t( enabledDeviceExtensionNames.size() ) )
-		    .setPpEnabledExtensionNames ( enabledDeviceExtensionNames.data() )
-		    .setPEnabledFeatures        ( &deviceFeatures )
-		    ;
+		    .setQueueCreateInfoCount( uint32_t( createInfos.size() ) )
+		    .setPQueueCreateInfos( createInfos.data() )
+		    .setEnabledLayerCount( 0 )
+		    .setPpEnabledLayerNames( nullptr )
+		    .setEnabledExtensionCount( uint32_t( enabledDeviceExtensionNames.size() ) )
+		    .setPpEnabledExtensionNames( enabledDeviceExtensionNames.data() )
+		    .setPEnabledFeatures( &deviceFeatures );
 
 		// Create device
 		device->vkDevice = device->vkPhysicalDevice.createDevice( deviceCreateInfo );
@@ -264,7 +260,6 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 		device->queues[ requestedQueueIndex ]             = device->vkDevice.getQueue( queueFamilyIndex, queueIndex );
 		device->queueFamilyIndices[ requestedQueueIndex ] = queueFamilyIndex;
 	}
-
 
 	// Populate indices for default queues - so that default queue may be queried by queue type
 	device->defaultQueueIndices.graphics      = findClosestMatchingQueueIndex( device->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eGraphics );
@@ -298,83 +293,83 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 
 // ----------------------------------------------------------------------
 
-void device_increase_reference_count(le_backend_vk_device_o* self){
+void device_increase_reference_count( le_backend_vk_device_o *self ) {
 	++self->referenceCount;
 }
 
 // ----------------------------------------------------------------------
 
-void device_decrease_reference_count(le_backend_vk_device_o* self){
+void device_decrease_reference_count( le_backend_vk_device_o *self ) {
 	--self->referenceCount;
 }
 
 // ----------------------------------------------------------------------
 
-uint32_t device_get_reference_count(le_backend_vk_device_o* self){
+uint32_t device_get_reference_count( le_backend_vk_device_o *self ) {
 	return self->referenceCount;
 }
 
 // ----------------------------------------------------------------------
 
-VkDevice device_get_vk_device(le_backend_vk_device_o* self_){
+VkDevice device_get_vk_device( le_backend_vk_device_o *self_ ) {
 	return self_->vkDevice;
 }
 
 // ----------------------------------------------------------------------
 
-VkPhysicalDevice device_get_vk_physical_device(le_backend_vk_device_o* self_){
+VkPhysicalDevice device_get_vk_physical_device( le_backend_vk_device_o *self_ ) {
 	return self_->vkPhysicalDevice;
 }
 
 // ----------------------------------------------------------------------
 
-const VkPhysicalDeviceProperties& device_get_vk_physical_device_properties(le_backend_vk_device_o* self){
+const VkPhysicalDeviceProperties &device_get_vk_physical_device_properties( le_backend_vk_device_o *self ) {
 	return self->vkPhysicalDeviceProperties;
 }
 
 // ----------------------------------------------------------------------
 
-const VkPhysicalDeviceMemoryProperties& device_get_vk_physical_device_memory_properties(le_backend_vk_device_o* self){
+const VkPhysicalDeviceMemoryProperties &device_get_vk_physical_device_memory_properties( le_backend_vk_device_o *self ) {
 	return self->vkPhysicalDeviceMemoryProperties;
 }
 
 // ----------------------------------------------------------------------
 
-uint32_t device_get_default_graphics_queue_family_index(le_backend_vk_device_o *self_){
-	return self_->queueFamilyIndices[ self_->defaultQueueIndices.graphics];
+uint32_t device_get_default_graphics_queue_family_index( le_backend_vk_device_o *self_ ) {
+	return self_->queueFamilyIndices[ self_->defaultQueueIndices.graphics ];
 };
 
 // ----------------------------------------------------------------------
 
-uint32_t device_get_default_compute_queue_family_index(le_backend_vk_device_o *self_){
-	return self_->queueFamilyIndices[self_->defaultQueueIndices.compute];
+uint32_t device_get_default_compute_queue_family_index( le_backend_vk_device_o *self_ ) {
+	return self_->queueFamilyIndices[ self_->defaultQueueIndices.compute ];
 }
 
 // ----------------------------------------------------------------------
 
-VkQueue device_get_default_graphics_queue(le_backend_vk_device_o* self_){
-	return self_->queues[self_->defaultQueueIndices.graphics];
+VkQueue device_get_default_graphics_queue( le_backend_vk_device_o *self_ ) {
+	return self_->queues[ self_->defaultQueueIndices.graphics ];
 }
 
 // ----------------------------------------------------------------------
 
-VkQueue device_get_default_compute_queue(le_backend_vk_device_o* self_){
-	return self_->queues[self_->defaultQueueIndices.compute];
+VkQueue device_get_default_compute_queue( le_backend_vk_device_o *self_ ) {
+	return self_->queues[ self_->defaultQueueIndices.compute ];
 }
 
 // ----------------------------------------------------------------------
 
-vk::Format device_get_default_depth_stencil_format(le_backend_vk_device_o* self){
+vk::Format device_get_default_depth_stencil_format( le_backend_vk_device_o *self ) {
 	return self->defaultDepthStencilFormat;
 }
 
 // ----------------------------------------------------------------------
 
 // get memory allocation info for best matching memory type that matches any of the type bits and flags
-static bool device_get_memory_allocation_info( le_backend_vk_device_o *     self,
-                                               const VkMemoryRequirements & memReqs,
-                                               const VkFlags & memPropsRef,
-                                               VkMemoryAllocateInfo *       pMemoryAllocationInfo ) {
+static bool device_get_memory_allocation_info( le_backend_vk_device_o *    self,
+                                               const VkMemoryRequirements &memReqs,
+                                               const VkFlags &             memPropsRef,
+                                               VkMemoryAllocateInfo *      pMemoryAllocationInfo ) {
 
 	if ( !memReqs.size ) {
 		pMemoryAllocationInfo->allocationSize  = 0;
@@ -384,7 +379,7 @@ static bool device_get_memory_allocation_info( le_backend_vk_device_o *     self
 
 	const auto &physicalMemProperties = self->vkPhysicalDeviceMemoryProperties;
 
-	const vk::MemoryPropertyFlags memProps {reinterpret_cast<const vk::MemoryPropertyFlags&>(memPropsRef)};
+	const vk::MemoryPropertyFlags memProps{reinterpret_cast<const vk::MemoryPropertyFlags &>( memPropsRef )};
 
 	// Find an available memory type that satisfies the requested properties.
 	uint32_t memoryTypeIndex;
@@ -413,9 +408,9 @@ void device_destroy( le_backend_vk_device_o *self_ ) {
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_device_vk_api(void * api_){
-	auto api_i = static_cast<le_backend_vk_api*>(api_);
-	auto & device_i = api_i->vk_device_i;
+ISL_API_ATTR void register_le_device_vk_api( void *api_ ) {
+	auto  api_i    = static_cast<le_backend_vk_api *>( api_ );
+	auto &device_i = api_i->vk_device_i;
 
 	device_i.create                                   = device_create;
 	device_i.destroy                                  = device_destroy;

@@ -1,9 +1,7 @@
+#include "le_backend_vk/le_backend_vk.h"
 
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include <vulkan/vulkan.hpp>
-
-#include "le_backend_vk/le_backend_vk.h"
-#include "le_backend_vk/private/le_device_vk.h"
 
 #include <iostream>
 #include <iomanip>
@@ -11,7 +9,7 @@
 #include <string>
 
 #ifndef SHOULD_USE_DEBUG_LAYERS
-#define SHOULD_USE_DEBUG_LAYERS true
+#	define SHOULD_USE_DEBUG_LAYERS true
 #endif
 // ----------------------------------------------------------------------
 

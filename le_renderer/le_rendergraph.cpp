@@ -1,5 +1,4 @@
 #include "le_renderer.h"
-#include "le_renderer/private/le_rendergraph.h"
 #include "le_renderer/private/hash_util.h"
 
 #include "le_backend_vk/le_backend_vk.h"

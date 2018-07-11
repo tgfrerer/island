@@ -1,9 +1,6 @@
 #include "pal_api_loader/ApiRegistry.hpp"
 
 #include "le_backend_vk/le_backend_vk.h"
-#include "le_backend_vk/private/le_device_vk.h"
-#include "le_backend_vk/private/le_instance_vk.h"
-#include "le_backend_vk/private/le_allocator.h"
 
 #include "le_backend_vk/util/spooky/SpookyV2.h" // for hashing pso state
 

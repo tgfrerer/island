@@ -1,8 +1,7 @@
 #include "pal_api_loader/ApiRegistry.hpp"
 #include "le_backend_vk/le_backend_vk.h"
-#include "le_backend_vk/private/le_allocator.h"
-#include "le_renderer/private/le_renderer_types.h"
 
+#include "le_renderer/private/le_renderer_types.h"
 #include "le_backend_vk/util/vk_mem_alloc/vk_mem_alloc.h"
 
 #define VULKAN_HPP_NO_SMART_HANDLE
