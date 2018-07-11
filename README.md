@@ -40,7 +40,7 @@ we're always sourcing the current SDK.
 
 Add a library search path entry for SDK libs: 
 
-    sudo echo "/home/tim/Documents/VulkanSDK/current/x86_64/lib" >
+    sudo echo " >
     /etc/ld.so.conf.d/vk_sdk.conf
 
 Rebuild the library search cache
@@ -76,8 +76,7 @@ the dynamic version of the shaderc library. Under the line:
 
 add the line:
 
-    ln -sf "$PWD"/build/libshaderc/libshaderc_shared.so "${LIBDIR}"/libshaderc
-
+    ln -sf "$PWD"/libshaderc/libshaderc_shared.so "${LIBDIR}"/libshaderc
 
 Save & close `build_tools.sh`, then build the SDK tools:
 
