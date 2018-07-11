@@ -2231,57 +2231,68 @@ static void backend_create_descriptor_pools( BackendFrameData &frame, vk::Device
 
 // ----------------------------------------------------------------------
 
-//static void backend_allocate_resources( le_backend_o *self, BackendFrameData &frame, le_renderpass_o const **passes, size_t numRenderPasses ) {
+static void backend_allocate_resources( le_backend_o *self, BackendFrameData &frame, le_renderpass_o **passes, size_t numRenderPasses ) {
 
-//	/*
+	/*
 
-//	- Frame is only ever allowed to reference frame-local resources .
-//	- "Acquire" therefore means we create local copies of backend-wide resources.
+	- Frame is only ever allowed to reference frame-local resources .
+	- "Acquire" therefore means we create local copies of backend-wide resources.
 
-//	*/
+	*/
 
-//	// -- Make a list of all images to create
-//	// -- Make a list of all buffers to create
+	// -- Make a list of all images to create
+	// -- Make a list of all buffers to create
 
-//	struct ResourceDescriptor {
-//		uint32_t             type;       // buffer (0) or image (1)
-//		vk::BufferCreateInfo bufferInfo; //	| only one of either ever in use
-//		vk::ImageCreateInfo  imgInfo;    // | only one of either ever in use
-//	};
+	struct ResourceDescriptor {
+		uint32_t             type;       // buffer (0) or image (1)
+		vk::BufferCreateInfo bufferInfo; //	| only one of either ever in use
+		vk::ImageCreateInfo  imgInfo;    // | only one of either ever in use
+	};
 
-//	struct AllocatedResource {
-//		VmaAllocation allocation;
-//		union {
-//			VkBuffer asBuffer;
-//			VkImage  asImage;
-//		};
-//		ResourceDescriptor info;      // Details on resource
-//		uint64_t           name_hash; // name_hash
-//	};
+	struct AllocatedResource {
+		VmaAllocation allocation;
+		union {
+			VkBuffer asBuffer;
+			VkImage  asImage;
+		};
+		ResourceDescriptor info;      // Details on resource
+		uint64_t           name_hash; // name_hash
+	};
 
-//	// make a list of all resources to create
-//	// - if an image appears more than once, we OR the image's flags.
-//	// - if a  buffer appears more than once, we OR all the buffer's flags.
+	// make a list of all resources to create
+	// - if an image appears more than once, we OR the image's flags.
+	// - if a  buffer appears more than once, we OR all the buffer's flags.
 
-//	// Locally, in the frame, we store these in a vector,
-//	// and we could reference them by their offsets.
+	// Locally, in the frame, we store these in a vector,
+	// and we could reference them by their offsets.
 
-//	for ( le_renderpass_o const *rp = passes; rp != passes + numRenderPasses; rp++ ) {
+	static auto const &renderpass_i = Registry::getApi<le_renderer_api>()->le_renderpass_i;
 
-//		for ( size_t i = 0; i != rp->createResourceCount; ++i ) {
+	for ( le_renderpass_o **rp = passes; rp != passes + numRenderPasses; rp++ ) {
 
-//			le_renderer_api::ResourceInfo const &createInfo = rp->createResourceInfos[ i ]; // resource descriptor
-//			uint64_t const &                     resourceId = rp->createResources[ i ];     // hash of resource name
+		uint64_t const *          pCreateResourceIds = nullptr;
+		le_resource_info_t const *pResourceInfos     = nullptr;
+		size_t                    numCreateResources = 0;
 
-//			// -- check if there is an existing resource with this name in backend resources
-//			// -- if yes, check if the resource descriptor matches our requirements
-//			//
-//			// ---- if yes, set the frameIndex for this resource to our current frame index.
-//			// -- if no, this means that the resource needs to be re-allocated
-//			//    the old resource in the frame does not get their frame index updated
-//		}
-//	}
-//}
+		renderpass_i.get_create_resources( *rp, &pCreateResourceIds, &pResourceInfos, &numCreateResources );
+
+		for ( size_t i = 0; i != numCreateResources; ++i ) {
+
+			le_resource_info_t const &createInfo = pResourceInfos[ i ];     // resource descriptor
+			uint64_t const &          resourceId = pCreateResourceIds[ i ]; // hash of resource name
+
+			//std::cout << "creating resource with id" << std::hex << resourceId << std::endl
+			//         << std::flush;
+
+			// -- check if there is an existing resource with this name in backend resources
+			// -- if yes, check if the resource descriptor matches our requirements
+			//
+			// ---- if yes, set the frameIndex for this resource to our current frame index.
+			// -- if no, this means that the resource needs to be re-allocated
+			//    the old resource in the frame does not get their frame index updated
+		}
+	}
+}
 
 // ----------------------------------------------------------------------
 // TODO: this should mark acquired resources as used by this frame -
@@ -2305,6 +2316,8 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 
 	// TODO: Allocate any persistent created resources
 	// TODO: Allocate any frame-local resources (such as rendertargets)
+
+	backend_allocate_resources( self, frame, passes, numRenderPasses );
 
 	vk::Device device = self->device->getVkDevice();
 
