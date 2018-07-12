@@ -141,8 +141,7 @@ struct AbstractPhysicalResource {
 };
 
 struct AttachmentInfo {
-	uint64_t              resource_id;   ///< which resource to look up for resource state
-	vk::Image             physicalImage; ///< non-owning reference to physical image
+	uint64_t              resource_id; ///< which resource to look up for resource state
 	vk::Format            format;
 	vk::AttachmentLoadOp  loadOp;
 	vk::AttachmentStoreOp storeOp;
@@ -2111,16 +2110,6 @@ inline vk::Image get_image_from_resource_id( const BackendFrameData *frame, uint
 }
 
 // ----------------------------------------------------------------------
-// places physical VkImage handles for all attachmentInfos in all passes
-static void backend_patch_attachment_info_images( BackendFrameData &frame ) {
-	for ( auto &pass : frame.passes ) {
-		for ( AttachmentInfo *attachment = pass.attachments; attachment != pass.attachments + pass.numAttachments; attachment++ ) {
-			attachment->physicalImage = get_image_from_resource_id( &frame, attachment->resource_id );
-		}
-	}
-}
-
-// ----------------------------------------------------------------------
 // input: Pass
 // output: framebuffer, append newly created imageViews to retained resources list.
 static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &device ) {
@@ -2145,7 +2134,7 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 
 			::vk::ImageViewCreateInfo imageViewCreateInfo;
 			imageViewCreateInfo
-			    .setImage( attachment->physicalImage )
+			    .setImage( frame_data_get_image_from_resource_id( &frame, attachment->resource_id ) )
 			    .setViewType( vk::ImageViewType::e2D )
 			    .setFormat( attachment->format ) // FIXME: set correct image format based on swapchain format if need be.
 			    .setComponents( vk::ComponentMapping() )
@@ -2331,7 +2320,6 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 
 	// patch and retain physical resources in bulk here, so that
 	// each pass may be processed independently
-	backend_patch_attachment_info_images( frame );
 
 	backend_create_frame_buffers( frame, device );
 
