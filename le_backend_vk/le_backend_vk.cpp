@@ -2210,15 +2210,20 @@ static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const Backen
 	return frame->availableResources.at( resourceId ).asBuffer;
 }
 
+static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
+	// acquire resources will have placed the resource into availableResources
+	return frame->availableResources.at( resourceId ).asImage;
+}
+
 static inline vk::ImageView frame_data_get_image_view_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
 	assert( frame->physicalResources.at( resourceId ).type == AbstractPhysicalResource::eImageView );
 	return frame->physicalResources.at( resourceId ).asImageView;
 }
 
-static inline vk::Image frame_data_get_image_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
-	assert( frame->physicalResources.at( resourceId ).type == AbstractPhysicalResource::eImage );
-	return frame->physicalResources.at( resourceId ).asImage;
-}
+//static inline vk::Image frame_data_get_image_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
+//	assert( frame->physicalResources.at( resourceId ).type == AbstractPhysicalResource::eImage );
+//	return frame->physicalResources.at( resourceId ).asImage;
+//}
 
 // ----------------------------------------------------------------------
 // input: Pass
@@ -2245,7 +2250,7 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 
 			::vk::ImageViewCreateInfo imageViewCreateInfo;
 			imageViewCreateInfo
-			    .setImage( frame_data_get_image_from_resource_id( &frame, attachment->resource_id ) )
+			    .setImage( frame_data_get_image_from_le_resource_id( &frame, attachment->resource_id ) )
 			    .setViewType( vk::ImageViewType::e2D )
 			    .setFormat( attachment->format ) // FIXME: set correct image format based on swapchain format if need be.
 			    .setComponents( {} )             // default-constructor '{}' means identity
@@ -2414,7 +2419,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				ri.sharingMode           = VK_SHARING_MODE_EXCLUSIVE;
 				ri.queueFamilyIndexCount = 1;
 				ri.pQueueFamilyIndices   = &self->queueFamilyIndexGraphics;
-				ri.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED;
+				ri.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED; // must be either preinitialized or undefined
 
 			} break;
 			case LeResourceType::eUndefined:
@@ -2530,11 +2535,11 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 	}
 
 	// ----------| invariant: swapchain acquisition successful.
+	frame.backBufferWidth  = self->swapchain->getImageWidth();
+	frame.backBufferHeight = self->swapchain->getImageHeight();
 
-	frame.physicalResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].asImage = self->swapchain->getImage( frame.swapchainImageIndex );
-	frame.physicalResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].type    = AbstractPhysicalResource::eImage;
-	frame.backBufferWidth                                                = self->swapchain->getImageWidth();
-	frame.backBufferHeight                                               = self->swapchain->getImageHeight();
+	frame.availableResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].asImage        = self->swapchain->getImage( frame.swapchainImageIndex );
+	frame.availableResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].info.imageInfo = vk::ImageCreateInfo{};
 
 	// Note that at this point memory for scratch buffers for each pass in this frame has already been allocated,
 	// as this happens shortly before executeGraph.
@@ -2755,7 +2760,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						{
 							// -- update pipelineData - that's the data values for all descriptors which are currently bound
 
-							argumentState.setCount = currentPipeline.layout_info.set_layout_count;
+							argumentState.setCount = uint32_t( currentPipeline.layout_info.set_layout_count );
 							argumentState.binding_infos.clear();
 
 							// -- reset dynamic offset count
@@ -2957,6 +2962,81 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto dstBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.dst_buffer_id );
 
 					cmd.copyBuffer( srcBuffer, dstBuffer, 1, &region );
+
+					break;
+				}
+
+				case le::CommandType::eWriteToImage: {
+
+					// TODO: fill in write to image
+					auto *le_cmd = static_cast<le::CommandWriteToImage *>( dataIt );
+
+					vk::ImageSubresourceLayers layer;
+					layer
+					    .setAspectMask( vk::ImageAspectFlagBits::eColor )
+					    .setMipLevel( 0 )
+					    .setBaseArrayLayer( 0 )
+					    .setLayerCount( 1 );
+
+					::vk::ImageSubresourceRange subresourceRange;
+					subresourceRange
+					    .setAspectMask( ::vk::ImageAspectFlagBits::eColor )
+					    .setBaseMipLevel( 0 )
+					    .setLevelCount( 1 )
+					    .setBaseArrayLayer( 0 )
+					    .setLayerCount( 1 );
+
+					vk::Extent3D imageExtent{
+						le_cmd->info.dst_region.width,
+						le_cmd->info.dst_region.height,
+						1,
+					};
+
+					vk::BufferImageCopy region;
+					region
+					    .setBufferOffset( le_cmd->info.src_offset )
+					    .setBufferRowLength( imageExtent.width )
+					    .setBufferImageHeight( imageExtent.height )
+					    .setImageSubresource( layer )
+					    .setImageOffset( {0, 0, 0} )
+					    .setImageExtent( imageExtent );
+
+					auto srcBuffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, le_cmd->info.src_buffer_id );
+					auto dstImage  = frame_data_get_image_from_le_resource_id( &frame, le_cmd->info.dst_image_id );
+
+					// TODO: we must sync - first transform the layout
+
+					::vk::BufferMemoryBarrier bufferTransferBarrier;
+					bufferTransferBarrier
+					    .setSrcAccessMask( ::vk::AccessFlagBits::eHostWrite )    // after host write
+					    .setDstAccessMask( ::vk::AccessFlagBits::eTransferRead ) // ready buffer for transfer read
+					    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+					    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+					    .setBuffer( srcBuffer )
+					    .setOffset( le_cmd->info.src_offset )
+					    .setSize( le_cmd->info.numBytes );
+
+					::vk::ImageMemoryBarrier imageLayoutToTransferDstOptimal;
+					imageLayoutToTransferDstOptimal
+					    .setSrcAccessMask( {} )                                   // no prior access
+					    .setDstAccessMask( ::vk::AccessFlagBits::eTransferWrite ) // ready image for transferwrite
+					    .setOldLayout( ::vk::ImageLayout::eUndefined )            // from don't care
+					    .setNewLayout( ::vk::ImageLayout::eTransferDstOptimal )   // to transfer destination optimal
+					    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+					    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+					    .setImage( dstImage )
+					    .setSubresourceRange( subresourceRange );
+
+					cmd.pipelineBarrier(
+					    ::vk::PipelineStageFlagBits::eHost,
+					    ::vk::PipelineStageFlagBits::eTransfer,
+					    {},
+					    {},
+					    {bufferTransferBarrier},          // buffer: host write -> transfer read
+					    {imageLayoutToTransferDstOptimal} // image: prepare for transfer write
+					);
+
+					cmd.copyBufferToImage( srcBuffer, dstImage, ::vk::ImageLayout::eTransferDstOptimal, 1, &region );
 
 					break;
 				}

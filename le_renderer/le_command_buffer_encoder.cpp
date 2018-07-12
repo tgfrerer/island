@@ -299,7 +299,7 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, uint64_t res
 	// made a performance difference.
 	if ( allocator_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
 
-		// -- Store ubo data to scratch allocator
+		// -- Write data to scratch memory now
 		memcpy( memAddr, data, numBytes );
 
 		cmd->info.src_buffer_id = allocator_i.get_le_resource_id( self->pAllocator );
@@ -310,6 +310,36 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, uint64_t res
 	}
 
 	self->mCommandStreamSize += sizeof( le::CommandWriteToBuffer );
+	self->mCommandCount++;
+}
+
+// ----------------------------------------------------------------------
+
+static void cbe_write_to_image( le_command_buffer_encoder_o *self, uint64_t resourceId, LeBufferWriteRegion const *region, void const *data, size_t numBytes ) {
+
+	auto cmd = EMPLACE_CMD( le::CommandWriteToImage );
+
+	static auto &allocator_i = Registry::getApi<le_backend_vk_api>()->le_allocator_linear_i;
+	void *       memAddr;
+	uint64_t     bufferOffset = 0;
+
+	// -- Allocate memory on scratch buffer
+	//
+	// Note that we might want to have specialised memory if that
+	// made a performance difference.
+	if ( allocator_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
+
+		// -- Write data to scratch memory now
+		memcpy( memAddr, data, numBytes );
+
+		cmd->info.src_buffer_id = allocator_i.get_le_resource_id( self->pAllocator );
+		cmd->info.src_offset    = bufferOffset;
+		cmd->info.dst_region    = *region;
+		cmd->info.numBytes      = numBytes;
+		cmd->info.dst_image_id  = resourceId;
+	}
+
+	self->mCommandStreamSize += sizeof( le::CommandWriteToImage );
 	self->mCommandCount++;
 }
 
@@ -346,4 +376,5 @@ ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 	le_command_buffer_encoder_i.bind_graphics_pipeline = cbe_bind_pipeline;
 	le_command_buffer_encoder_i.get_encoded_data       = cbe_get_encoded_data;
 	le_command_buffer_encoder_i.write_to_buffer        = cbe_write_to_buffer;
+	le_command_buffer_encoder_i.write_to_image         = cbe_write_to_image;
 }

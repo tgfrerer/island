@@ -245,15 +245,27 @@ static bool test_app_update( test_app_o *self ) {
 		resourcePass.setSetupCallback( []( auto pRp ) -> bool {
 			auto rp = le::RenderPassRef{pRp};
 
-			le_resource_info_t bufInfo;
-			bufInfo.type               = LeResourceType::eBuffer;
-			bufInfo.buffer.size        = sizeof( MagickImage );
-			bufInfo.buffer.usage_flags = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+			le_resource_info_t imgInfo;
+			imgInfo.type = LeResourceType::eImage;
+			{
+				auto &img         = imgInfo.image;
+				img.format        = VK_FORMAT_R8G8B8A8_UNORM;
+				img.flags         = 0;
+				img.arrayLayers   = 1;
+				img.extent.depth  = 1;
+				img.extent.width  = 160;
+				img.extent.height = 106;
+				img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+				img.mipLevels     = 1;
+				img.samples       = VK_SAMPLE_COUNT_1_BIT;
+				img.imageType     = VK_IMAGE_TYPE_2D;
+				img.tiling        = VK_IMAGE_TILING_LINEAR;
+			}
 
 			// we should be able to tell that this resource is an image
 			// we should be able to select the image format
 
-			rp.createResource( RESOURCE_BUFFER_ID( "debug-buffer" ), bufInfo );
+			rp.createResource( RESOURCE_IMAGE_ID( "horse" ), imgInfo );
 
 			return true;
 		} );
@@ -268,7 +280,11 @@ static bool test_app_update( test_app_o *self ) {
 			// a copy is added to the queue that transfers from scratch memory
 			// to GPU local memory.
 
-			le_encoder.write_to_buffer( encoder, RESOURCE_IMAGE_ID( "debug-buffer" ), 0, MagickImage, sizeof( MagickImage ) );
+			LeBufferWriteRegion targetRegion;
+			targetRegion.width  = 160;
+			targetRegion.height = 106;
+
+			le_encoder.write_to_image( encoder, RESOURCE_IMAGE_ID( "horse" ), &targetRegion, MagickImage, sizeof( MagickImage ) );
 		} );
 
 		le::RenderPass renderPassFinal( "root", LE_RENDER_PASS_TYPE_DRAW );
@@ -287,7 +303,7 @@ static bool test_app_update( test_app_o *self ) {
 			colorAttachmentInfo.storeOp      = LE_ATTACHMENT_STORE_OP_STORE;
 			rp.addImageAttachment( RESOURCE_IMAGE_ID( "backbuffer" ), &colorAttachmentInfo );
 
-			rp.useResource( RESOURCE_BUFFER_ID( "debug-buffer" ), le::AccessFlagBits::eRead );
+			rp.useResource( RESOURCE_IMAGE_ID( "horse" ), le::AccessFlagBits::eRead );
 			rp.setIsRoot( true );
 
 			return true;

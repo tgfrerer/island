@@ -7,6 +7,11 @@
 //    #define LE_DECLARE_HANDLE(object) typedef struct object##_o* object;
 //#endif
 
+struct LeBufferWriteRegion {
+	uint32_t width;
+	uint32_t height;
+};
+
 namespace le {
 
 enum class CommandType : uint32_t {
@@ -20,6 +25,7 @@ enum class CommandType : uint32_t {
 	eBindVertexBuffers,
 	eBindPipeline,
 	eWriteToBuffer,
+	eWriteToImage,
 };
 
 struct CommandHeader {
@@ -123,6 +129,18 @@ struct CommandWriteToBuffer {
 		uint64_t src_offset;    // offset in scratch buffer where to find source data
 		uint64_t dst_offset;    // offset where to write to in target resource
 		uint64_t numBytes;      // number of bytes
+
+	} info;
+};
+
+struct CommandWriteToImage {
+	CommandHeader header = {{{CommandType::eWriteToImage, sizeof( CommandWriteToImage )}}};
+	struct {
+		uint64_t            src_buffer_id; // le buffer id of scratch buffer
+		uint64_t            dst_image_id;  // which resource to write to
+		uint64_t            src_offset;    // offset in scratch buffer where to find source data
+		uint64_t            numBytes;      // number of bytes
+		LeBufferWriteRegion dst_region;    // which part of the image to write to
 
 	} info;
 };
