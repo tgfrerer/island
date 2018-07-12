@@ -90,9 +90,11 @@ struct le_pipeline_and_layout_info_t{
 
 // clang-format on
 
-// Everything a possible descriptor binding might contain.
+// Everything a possible vulkan descriptor binding might contain.
 // Type of descriptor decides which values will be used.
+
 struct DescriptorData {
+	// NOTE: explore use of union of DescriptorImageInfo/DescriptorBufferInfo to tighten this up/simplify
 	vk::Sampler        sampler       = nullptr;                                   // |
 	vk::ImageView      imageView     = nullptr;                                   // | > keep in this order, so we can pass address for sampler as descriptorImageInfo
 	vk::ImageLayout    imageLayout   = vk::ImageLayout::eShaderReadOnlyOptimal;   // |
@@ -165,6 +167,70 @@ struct Pass {
 	struct le_command_buffer_encoder_o *encoder;
 };
 
+struct ResourceInfo {
+	// since this is an union, the first field will for both be VK_STRUCTURE_TYPE
+	// and its value will tell us what type the descriptor represents.
+	union {
+		VkBufferCreateInfo bufferInfo; //	| only one of either ever in use
+		VkImageCreateInfo  imageInfo;  // | only one of either ever in use
+	};
+
+	bool operator==( const ResourceInfo &rhs ) const {
+		if ( bufferInfo.sType == rhs.bufferInfo.sType ) {
+
+			if ( bufferInfo.sType == VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO ) {
+
+				return ( bufferInfo.flags == rhs.bufferInfo.flags &&
+				         bufferInfo.size == rhs.bufferInfo.size &&
+				         bufferInfo.usage == rhs.bufferInfo.usage &&
+				         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode &&
+				         bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
+				         bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices );
+
+			} else {
+
+				return ( imageInfo.flags == rhs.imageInfo.flags &&
+				         imageInfo.imageType == rhs.imageInfo.imageType &&
+				         imageInfo.format == rhs.imageInfo.format &&
+				         imageInfo.extent.width == rhs.imageInfo.extent.width &&
+				         imageInfo.extent.height == rhs.imageInfo.extent.height &&
+				         imageInfo.extent.depth == rhs.imageInfo.extent.depth &&
+				         imageInfo.mipLevels == rhs.imageInfo.mipLevels &&
+				         imageInfo.arrayLayers == rhs.imageInfo.arrayLayers &&
+				         imageInfo.samples == rhs.imageInfo.samples &&
+				         imageInfo.tiling == rhs.imageInfo.tiling &&
+				         imageInfo.usage == rhs.imageInfo.usage &&
+				         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
+				         imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
+				         imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices &&
+				         imageInfo.initialLayout == rhs.imageInfo.initialLayout );
+			}
+
+		} else {
+			// not the same type of descriptor
+			return false;
+		}
+	}
+
+	bool operator!=( const ResourceInfo &rhs ) const {
+		return !operator==( rhs );
+	}
+
+	bool isBuffer() const {
+		return bufferInfo.sType == VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	}
+};
+
+struct AllocatedResource {
+	VmaAllocation     allocation;
+	VmaAllocationInfo allocationInfo;
+	union {
+		VkBuffer asBuffer;
+		VkImage  asImage;
+	};
+	ResourceInfo info; // Details on resource
+};
+
 // herein goes all data which is associated with the current frame
 // backend keeps track of multiple frames, exactly one per renderer::FrameData frame.
 struct BackendFrameData {
@@ -214,7 +280,10 @@ struct BackendFrameData {
 
 	 */
 
-	VmaPool                        allocationPool;   // pool from which allocatinos come from
+	std::unordered_map<uint64_t, AllocatedResource> availableResources; // resources this frame may use
+	std::unordered_map<uint64_t, AllocatedResource> binnedResources;    // resources to delete when this frame comes round to clear()
+
+	VmaPool                        allocationPool;   // pool from which allocations come from
 	std::vector<le_allocator_o *>  allocators;       // one allocator per command buffer
 	std::vector<VmaAllocation>     allocations;      // one allocation per command buffer
 	std::vector<vk::Buffer>        allocatorBuffers; // one buffer per allocator
@@ -257,6 +326,10 @@ struct le_backend_o {
 
 	uint32_t queueFamilyIndexGraphics = 0; // set during setup
 	uint32_t queueFamilyIndexCompute  = 0; // set during setup
+
+	struct {
+		std::unordered_map<uint64_t, AllocatedResource> allocatedResources; // allocated resources, indexed by resource name hash
+	} only_backend_allocate_resources_may_access;                           // only acquire_physical_resources may read/write
 
 	const vk::BufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =
 	    vk::BufferUsageFlagBits::eIndexBuffer |
@@ -821,9 +894,38 @@ static void backend_destroy( le_backend_o *self ) {
 
 		vmaMakePoolAllocationsLost( self->mAllocator, frameData.allocationPool, nullptr );
 		vmaDestroyPool( self->mAllocator, frameData.allocationPool );
+
+		// remove any binned resources
+		for ( auto &a : frameData.binnedResources ) {
+
+			if ( a.second.info.isBuffer() ) {
+				device.destroyBuffer( a.second.asBuffer );
+			} else {
+				device.destroyImage( a.second.asImage );
+			}
+
+			vmaFreeMemory( self->mAllocator, a.second.allocation );
+		}
+		frameData.binnedResources.clear();
 	}
 
 	self->mFrames.clear();
+
+	// Remove any resources still alive in the backend.
+	// At this point we're running single-threaded, so we can ignore the
+	// ownership claim on allocatedResources.
+	for ( auto &a : self->only_backend_allocate_resources_may_access.allocatedResources ) {
+
+		if ( a.second.info.isBuffer() ) {
+			device.destroyBuffer( a.second.asBuffer );
+		} else {
+			device.destroyImage( a.second.asImage );
+		}
+
+		vmaFreeMemory( self->mAllocator, a.second.allocation );
+	}
+
+	self->only_backend_allocate_resources_may_access.allocatedResources.clear();
 
 	if ( self->mAllocator ) {
 		vmaDestroyAllocator( self->mAllocator );
@@ -872,24 +974,24 @@ static size_t backend_get_num_swapchain_images( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 
-void backend_reset_swapchain( le_backend_o *self ) {
+static void backend_reset_swapchain( le_backend_o *self ) {
 	self->swapchain->reset();
 }
 
 // ----------------------------------------------------------------------
 
-static uint64_t get_pipeline_layout_hash( le_graphics_pipeline_state_o const *pso ) {
+static uint64_t graphics_pso_get_pipeline_layout_hash( le_graphics_pipeline_state_o const *pso ) {
 	uint64_t pipeline_layout_hash_data[ 2 ];
 	pipeline_layout_hash_data[ 0 ] = pso->shaderModuleVert->hash_pipelinelayout;
 	pipeline_layout_hash_data[ 1 ] = pso->shaderModuleFrag->hash_pipelinelayout;
 	return SpookyHash::Hash64( pipeline_layout_hash_data, sizeof( pipeline_layout_hash_data ), 0 );
 }
-
+// ----------------------------------------------------------------------
 // Returns bindings vector associated with a pso, based on the pso's combined bindings,
 // and the pso's hash_pipeline_layouts
 // currently, we assume bindings to be non-sparse, but it's possible that sparse bindings
 // are allowed by the standard. let's check.
-static std::vector<le_shader_binding_info> create_bindings_list( le_graphics_pipeline_state_o const *pso ) {
+static std::vector<le_shader_binding_info> graphics_pso_create_bindings_list( le_graphics_pipeline_state_o const *pso ) {
 
 	std::vector<le_shader_binding_info> combined_bindings;
 
@@ -1013,7 +1115,7 @@ static std::vector<le_shader_binding_info> create_bindings_list( le_graphics_pip
 // via called via decoder / produce_frame -
 static vk::PipelineLayout backend_get_pipeline_layout( le_backend_o *self, le_graphics_pipeline_state_o const *pso ) {
 
-	uint64_t pipelineLayoutHash = get_pipeline_layout_hash( pso );
+	uint64_t pipelineLayoutHash = graphics_pso_get_pipeline_layout_hash( pso );
 
 	auto foundLayout = self->pipelineLayoutCache.find( pipelineLayoutHash );
 
@@ -1311,7 +1413,7 @@ static uint64_t backend_produce_descriptor_set_layout( le_backend_o *self, std::
 static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_o *self, le_graphics_pipeline_state_o const *pso ) {
 	le_pipeline_layout_info info{};
 
-	std::vector<le_shader_binding_info> combined_bindings = create_bindings_list( pso );
+	std::vector<le_shader_binding_info> combined_bindings = graphics_pso_create_bindings_list( pso );
 
 	// -- Create array of DescriptorSetLayouts
 	std::array<vk::DescriptorSetLayout, 8> vkLayouts{};
@@ -1349,7 +1451,7 @@ static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_
 		}
 	}
 
-	info.pipeline_layout_key = get_pipeline_layout_hash( pso );
+	info.pipeline_layout_key = graphics_pso_get_pipeline_layout_hash( pso );
 
 	// -- Attempt to find this pipelineLayout from cache, if we can't find one, we create and retain it.
 
@@ -1389,7 +1491,7 @@ static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *sel
 	// -- 1. get pipeline layout info for a pipeline with these bindings
 	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
 
-	uint64_t pipeline_layout_hash = get_pipeline_layout_hash( pso );
+	uint64_t pipeline_layout_hash = graphics_pso_get_pipeline_layout_hash( pso );
 
 	auto pl = self->pipelineLayoutInfoCache.find( pipeline_layout_hash );
 
@@ -1755,6 +1857,10 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 		allocatorI.reset( alloc );
 	}
 
+	// -- remove any frame-local copy of allocated resources
+
+	frame.availableResources.clear();
+
 	for ( auto &d : frame.descriptorPools ) {
 		device.resetDescriptorPool( d );
 	}
@@ -2094,17 +2200,22 @@ static void backend_create_resource_table( BackendFrameData &frame, le_renderpas
 
 // ----------------------------------------------------------------------
 
-inline vk::Buffer get_physical_buffer_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
+static inline vk::Buffer frame_data_get_transient_memory_buffer_from_encoder_index( const BackendFrameData *frame, uint64_t encoderIdx ) {
 	// encoder will have stored allocator buffer index in reourceId field.
-	return frame->allocatorBuffers[ resourceId ];
+	return frame->allocatorBuffers[ encoderIdx ];
 }
 
-inline vk::ImageView get_image_view_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
+static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
+	// acquire resources will have placed the resource into availableResources
+	return frame->availableResources.at( resourceId ).asBuffer;
+}
+
+static inline vk::ImageView frame_data_get_image_view_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
 	assert( frame->physicalResources.at( resourceId ).type == AbstractPhysicalResource::eImageView );
 	return frame->physicalResources.at( resourceId ).asImageView;
 }
 
-inline vk::Image get_image_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
+static inline vk::Image frame_data_get_image_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
 	assert( frame->physicalResources.at( resourceId ).type == AbstractPhysicalResource::eImage );
 	return frame->physicalResources.at( resourceId ).asImage;
 }
@@ -2137,7 +2248,7 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 			    .setImage( frame_data_get_image_from_resource_id( &frame, attachment->resource_id ) )
 			    .setViewType( vk::ImageViewType::e2D )
 			    .setFormat( attachment->format ) // FIXME: set correct image format based on swapchain format if need be.
-			    .setComponents( vk::ComponentMapping() )
+			    .setComponents( {} )             // default-constructor '{}' means identity
 			    .setSubresourceRange( subresourceRange );
 
 			auto imageView = device.createImageView( imageViewCreateInfo );
@@ -2232,53 +2343,161 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	// -- Make a list of all images to create
 	// -- Make a list of all buffers to create
 
-	struct ResourceDescriptor {
-		uint32_t             type;       // buffer (0) or image (1)
-		vk::BufferCreateInfo bufferInfo; //	| only one of either ever in use
-		vk::ImageCreateInfo  imgInfo;    // | only one of either ever in use
-	};
-
-	struct AllocatedResource {
-		VmaAllocation allocation;
-		union {
-			VkBuffer asBuffer;
-			VkImage  asImage;
-		};
-		ResourceDescriptor info;      // Details on resource
-		uint64_t           name_hash; // name_hash
-	};
-
 	// make a list of all resources to create
 	// - if an image appears more than once, we OR the image's flags.
 	// - if a  buffer appears more than once, we OR all the buffer's flags.
 
 	// Locally, in the frame, we store these in a vector,
-	// and we could reference them by their offsets.
+	// and we could reference them by their offsets, because this method must
+	// be uncontested.
+
+	{
+		// -- first it is our holy duty to drop any binned resources which were condemned the last time this frame was active.
+		// It's possible that this is more than two screen refreshes ago, depending on how many swapchain images there are.
+		vk::Device device = self->device->getVkDevice();
+
+		for ( auto &a : frame.binnedResources ) {
+
+			if ( a.second.info.isBuffer() ) {
+				device.destroyBuffer( a.second.asBuffer );
+			} else {
+				device.destroyImage( a.second.asImage );
+			}
+
+			vmaFreeMemory( self->mAllocator, a.second.allocation );
+		}
+		frame.binnedResources.clear();
+	}
 
 	static auto const &renderpass_i = Registry::getApi<le_renderer_api>()->le_renderpass_i;
 
+	std::unordered_map<uint64_t, ResourceInfo> declaredResources;
+
+	// -- iterate over all passes
 	for ( le_renderpass_o **rp = passes; rp != passes + numRenderPasses; rp++ ) {
 
 		uint64_t const *          pCreateResourceIds = nullptr;
 		le_resource_info_t const *pResourceInfos     = nullptr;
 		size_t                    numCreateResources = 0;
 
+		// -- iterate over all resource declarations in this pass
 		renderpass_i.get_create_resources( *rp, &pCreateResourceIds, &pResourceInfos, &numCreateResources );
-
 		for ( size_t i = 0; i != numCreateResources; ++i ) {
 
-			le_resource_info_t const &createInfo = pResourceInfos[ i ];     // resource descriptor
-			uint64_t const &          resourceId = pCreateResourceIds[ i ]; // hash of resource name
+			le_resource_info_t const &createInfo = pResourceInfos[ i ];     // Resource descriptor
+			uint64_t const &          resourceId = pCreateResourceIds[ i ]; // Hash of resource name
 
-			//std::cout << "creating resource with id" << std::hex << resourceId << std::endl
-			//         << std::flush;
+			ResourceInfo rd{};
 
-			// -- check if there is an existing resource with this name in backend resources
-			// -- if yes, check if the resource descriptor matches our requirements
-			//
-			// ---- if yes, set the frameIndex for this resource to our current frame index.
-			// -- if no, this means that the resource needs to be re-allocated
-			//    the old resource in the frame does not get their frame index updated
+			switch ( createInfo.type ) {
+			case LeResourceType::eBuffer: {
+				rd.bufferInfo       = vk::BufferCreateInfo{};
+				rd.bufferInfo.size  = createInfo.buffer.size;
+				rd.bufferInfo.usage = createInfo.buffer.usage_flags;
+			} break;
+			case LeResourceType::eImage: {
+				// TODO: fill in missing values, based on le_resource_info
+				rd.imageInfo               = vk::ImageCreateInfo{};
+				rd.imageInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+			} break;
+			case LeResourceType::eUndefined:
+				assert( false ); // Resource Type must be defined at this point.
+			    break;
+			}
+
+			// -- Add createInfo to set of declared resources
+
+			auto it = declaredResources.emplace( resourceId, std::move( rd ) );
+
+			if ( it.second == false ) {
+				assert( false ); // resource was re-declared, this must not happen
+			}
+
+		} // end for all create resources
+
+	} // end for all passes
+
+	auto &backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
+
+	// -- now check if all resources declared in this frame are already available in backend.
+
+	auto allocateResource = []( const VmaAllocator &alloc, const ResourceInfo &resourceInfo ) -> AllocatedResource {
+		AllocatedResource       res{};
+		VmaAllocationCreateInfo allocationCreateInfo{};
+		allocationCreateInfo.flags          = {}; // default flags
+		allocationCreateInfo.usage          = VMA_MEMORY_USAGE_GPU_ONLY;
+		allocationCreateInfo.preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+		if ( resourceInfo.isBuffer() ) {
+			vmaCreateBuffer( alloc,
+			                 &resourceInfo.bufferInfo,
+			                 &allocationCreateInfo,
+			                 &res.asBuffer,
+			                 &res.allocation,
+			                 &res.allocationInfo );
+		} else {
+			vmaCreateImage( alloc,
+			                &resourceInfo.imageInfo,
+			                &allocationCreateInfo,
+			                &res.asImage,
+			                &res.allocation,
+			                &res.allocationInfo );
+		}
+		res.info = resourceInfo;
+		return res;
+	};
+
+	for ( auto &r : declaredResources ) {
+
+		uint64_t const &    resourceId           = r.first;  // hash of resource name
+		ResourceInfo const &declaredResourceInfo = r.second; // current resourceInfo
+
+		auto foundIt = backendResources.find( resourceId ); // find an allocated resource with same name as declared resource
+
+		if ( foundIt == backendResources.end() ) {
+			// -- not found, we must allocate this resource and add it to the backend.
+			// then add a reference to it to the current frame.
+
+			auto res = allocateResource( self->mAllocator, declaredResourceInfo );
+
+			// -- add resource to list of available resources for this frame
+			frame.availableResources.emplace( resourceId, res );
+
+			// -- add resource to backend
+			backendResources.insert_or_assign( resourceId, res );
+
+		} else {
+			// check if resource descriptor matches.
+
+			auto &resourceInfo = foundIt->second.info;
+
+			if ( resourceInfo == declaredResourceInfo ) {
+				// -- descriptor matches.
+				// add a copy of this resource allocation to the current frame.
+
+				frame.availableResources.emplace( resourceId, foundIt->second );
+
+			} else {
+				// -- descriptor does not match. We must re-allocate this resource, and add the old resource to the recycling bin.
+
+				// -- allocate a new resource
+
+				auto res = allocateResource( self->mAllocator, declaredResourceInfo );
+
+				// Add a copy of old resource to recycling bin for this frame, so that
+				// these resources get freed when this frame comes round again.
+				//
+				// We don't immediately delete the resources, as in-flight frames
+				// might still be using them.
+				frame.binnedResources.try_emplace( resourceId, foundIt->second );
+
+				//
+				frame.availableResources.emplace( resourceId, res );
+
+				// remove old version of resource from backend, and
+				// add new version of resource to backend
+				backendResources.insert_or_assign( resourceId, res );
+			}
 		}
 	}
 }
@@ -2665,7 +2884,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					auto &bindingData = argumentState.setData[ setIndex ][ binding ];
 
-					bindingData.buffer = get_physical_buffer_from_resource_id( &frame, le_cmd->info.buffer_id );
+					bindingData.buffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, le_cmd->info.buffer_id );
 					bindingData.range  = le_cmd->info.range;
 
 					// if binding is in fact a dynamic binding, set the corresponding dynamic offset
@@ -2683,7 +2902,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				case le::CommandType::eBindIndexBuffer: {
 					auto *le_cmd = static_cast<le::CommandBindIndexBuffer *>( dataIt );
-					auto  buffer = get_physical_buffer_from_resource_id( &frame, le_cmd->info.buffer );
+					auto  buffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, le_cmd->info.buffer );
 					cmd.bindIndexBuffer( buffer, le_cmd->info.offset, vk::IndexType( le_cmd->info.indexType ) );
 				} break;
 
@@ -2701,12 +2920,29 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					// translate le_buffers to vk_buffers
 					for ( uint32_t b = 0; b != numBuffers; ++b ) {
-						vertexInputBindings[ b + firstBinding ] = get_physical_buffer_from_resource_id( &frame, le_cmd->info.pBuffers[ b ] );
+						vertexInputBindings[ b + firstBinding ] = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, le_cmd->info.pBuffers[ b ] );
 					}
 
 					cmd.bindVertexBuffers( le_cmd->info.firstBinding, le_cmd->info.bindingCount, &vertexInputBindings[ firstBinding ], le_cmd->info.pOffsets );
 				} break;
+
+				case le::CommandType::eWriteToResource: {
+
+					// Enqueue copy buffer command
+					// TODO: we must sync this before the next read.
+					auto *le_cmd = static_cast<le::CommandWriteToResource *>( dataIt );
+
+					vk::BufferCopy region( le_cmd->info.src_offset, le_cmd->info.dst_offset, le_cmd->info.numBytes );
+
+					auto srcBuffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, le_cmd->info.src_buffer_id );
+					auto dstBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.dst_buffer_id );
+
+					cmd.copyBuffer( srcBuffer, dstBuffer, 1, &region );
+
+					break;
 				}
+
+				} // switch header.info.type
 
 				// Move iterator by size of current le_command so that it points
 				// to the next command in the list.

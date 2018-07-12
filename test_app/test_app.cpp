@@ -245,13 +245,15 @@ static bool test_app_update( test_app_o *self ) {
 		resourcePass.setSetupCallback( []( auto pRp ) -> bool {
 			auto rp = le::RenderPassRef{pRp};
 
-			le_resource_info_t resourceInfo;
-			resourceInfo.scope    = le_resource_info_t::ResourceScope::eFrameLocal; // scope is local to frame
-			resourceInfo.capacity = sizeof( MagickImage );
+			le_resource_info_t bufInfo;
+			bufInfo.type               = LeResourceType::eBuffer;
+			bufInfo.buffer.size        = sizeof( MagickImage );
+			bufInfo.buffer.usage_flags = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT;
+
 			// we should be able to tell that this resource is an image
 			// we should be able to select the image format
 
-			rp.createResource( RESOURCE_BUFFER_ID( "debug-buffer" ), resourceInfo );
+			rp.createResource( RESOURCE_BUFFER_ID( "debug-buffer" ), bufInfo );
 
 			return true;
 		} );
@@ -259,13 +261,14 @@ static bool test_app_update( test_app_o *self ) {
 		resourcePass.setExecuteCallback( self, []( auto encoder, auto user_data_ ) {
 			auto self = static_cast<test_app_o *>( user_data_ );
 
-			// Writing is always to encoder scratch buffer memory
+			// Writing is always to encoder scratch buffer memory because that's the only memory that
+			// is HOST visible.
 			//
 			// Type of resource ownership decides whether
 			// a copy is added to the queue that transfers from scratch memory
 			// to GPU local memory.
 
-			// le_encoder.write_to_resource( encoder, RESOURCE_BUFFER_ID( "debug-buffer" ), 0, MagickImage, sizeof( MagickImage ) );
+			le_encoder.write_to_resource( encoder, RESOURCE_BUFFER_ID( "debug-buffer" ), 0, MagickImage, sizeof( MagickImage ) );
 		} );
 
 		le::RenderPass renderPassFinal( "root", LE_RENDER_PASS_TYPE_DRAW );

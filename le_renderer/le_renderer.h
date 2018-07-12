@@ -14,7 +14,8 @@ extern "C" {
 #endif
 
 void register_le_renderer_api( void *api );
-void register_le_rendergraph_api( void *api ); // in le_rendergraph.cpp
+void register_le_rendergraph_api( void *api );             // in le_rendergraph.cpp
+void register_le_command_buffer_encoder_api( void *api_ ); // in le_command_buffer_encoder.cpp
 
 enum LeRenderPassType : uint32_t {
 	LE_RENDER_PASS_TYPE_UNDEFINED = 0,
@@ -45,18 +46,37 @@ enum class LeShaderType : uint64_t {
 	eAllGraphics = 0x0000001F, // max needed space to cover this enum is 6 bit
 };
 
+enum class LeResourceType : uint32_t {
+	eUndefined = 0,
+	eBuffer,
+	eImage,
+};
+
 namespace vk {
 enum class Format; // forward declaration
+
 } // namespace vk
 
 namespace le {
-struct Viewport;
-struct Rect2D;
+struct Viewport {
+	float x;
+	float y;
+	float width;
+	float height;
+	float minDepth;
+	float maxDepth;
+};
 
-enum ResourceType : uint32_t {
-	eUndefined,
-	eBuffer,
-	eImage,
+struct Rect2D {
+	uint32_t x;
+	uint32_t y;
+	uint32_t width;
+	uint32_t height;
+};
+struct Extent3D {
+	uint32_t width;
+	uint32_t height;
+	uint32_t depth;
 };
 
 } // namespace le
@@ -78,8 +98,6 @@ struct le_graphics_pipeline_create_info_t {
 
 struct le_graphics_pipeline_state_o; ///< object declaring a pipeline, owned by renderer, destroyed with renderer
 
-// clang-format off
-
 struct le_image_attachment_info_o {
 	uint64_t            resource_id  = 0; // hash name given to this attachment, based on name string
 	uint64_t            source_id    = 0; // hash name of writer/creator renderpass
@@ -94,17 +112,29 @@ struct le_image_attachment_info_o {
 
 struct le_resource_info_t {
 
-	enum ResourceScope : uint32_t {
-		eFrameLocal    = 0, ///< frame owns this resource, it will be gone once frame has passed through pipeline. direct memory assignment / direct access possible
-		ePersistent    = 1, ///< renderer owns this resource, it will be kept alive until the resource is destroyed. must use resourcePass to update resource
+	struct Image {
+		uint32_t     imageType;        // enum vk::ImageType
+		uint32_t     format;           // enum vk::Format
+		le::Extent3D extent;           //
+		uint32_t     mipLevels;        //
+		uint32_t     arrayLayers;      //
+		uint32_t     flags;            //
+		uint32_t     sampleCountFlags; // VkSampleCountFlags
 	};
 
-	uint32_t usageFlags = 0; // read, or write, or read then write
-	uint32_t capacity   = 0;
+	struct Buffer {
+		size_t   size;
+		uint32_t usage_flags;
+	};
 
-	ResourceScope scope = eFrameLocal;
+	LeResourceType type;
+	union {
+		Buffer buffer;
+		Image  image;
+	};
 };
 
+// clang-format off
 struct le_renderer_api {
 
 	static constexpr auto id      = "le_renderer";
@@ -191,6 +221,8 @@ struct le_renderer_api {
 
 		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void *data, uint64_t numBytes, uint64_t indexType );
 		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void *data, uint64_t numBytes, uint32_t bindingIndex );
+
+		void                         ( *write_to_resource      )( le_command_buffer_encoder_o *self, uint64_t resourceId, size_t offset, void const* data, size_t numBytes);
 
 		// stores ubo argument data to scratch buffer - note that parameter index must be dynamic offset index
 		void                         ( *set_argument_ubo_data  ) (le_command_buffer_encoder_o *self, uint64_t argumentNameId, void * data, size_t numBytes);

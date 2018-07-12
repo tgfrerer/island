@@ -19,6 +19,7 @@ enum class CommandType : uint32_t {
 	eBindIndexBuffer,
 	eBindVertexBuffers,
 	eBindPipeline,
+	eWriteToResource,
 };
 
 struct CommandHeader {
@@ -29,22 +30,6 @@ struct CommandHeader {
 		};
 		uint64_t u64all;
 	} info;
-};
-
-struct Viewport {
-	float x;
-	float y;
-	float width;
-	float height;
-	float minDepth;
-	float maxDepth;
-};
-
-struct Rect2D {
-	uint32_t x;
-	uint32_t y;
-	uint32_t width;
-	uint32_t height;
 };
 
 struct CommandDrawIndexed {
@@ -127,6 +112,18 @@ struct CommandBindPipeline {
 	struct {
 		struct le_graphics_pipeline_state_o *pso;
 		uint64_t                             pipelineHash; // TODO: do we need this?
+	} info;
+};
+
+struct CommandWriteToResource {
+	CommandHeader header = {{{CommandType::eWriteToResource, sizeof( CommandWriteToResource )}}};
+	struct {
+		uint64_t src_buffer_id; // le buffer id of scratch buffer
+		uint64_t dst_buffer_id; // which resource to write to
+		uint64_t src_offset;    // offset in scratch buffer where to find source data
+		uint64_t dst_offset;    // offset where to write to in target resource
+		uint64_t numBytes;      // number of bytes
+
 	} info;
 };
 
