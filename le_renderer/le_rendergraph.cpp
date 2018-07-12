@@ -425,13 +425,24 @@ static void graph_builder_build_graph( le_graph_builder_o *self ) {
 		}
 	}
 
+	// -- Eliminate any passes with sort key 0 (they don't contribute)
+	auto end_valid_passes_range = std::remove_if( self->passes.begin(), self->passes.end(), []( le_renderpass_o *lhs ) -> bool {
+	    bool needs_removal = false;
+	    if ( lhs->sort_key == 0 ) {
+	        needs_removal = true;
+	        renderpass_destroy( lhs );
+        }
+	    return needs_removal;
+    } );
+
+	// remove any passes which were marked invalid
+	self->passes.erase( end_valid_passes_range, self->passes.end() );
+
 	// Use sort key to order passes in decending order, based on sort key.
 	// pass with lower sort key depends on pass with higher sort key.
 	std::stable_sort( self->passes.begin(), self->passes.end(), []( le_renderpass_o const *lhs, le_renderpass_o const *rhs ) {
 		return lhs->sort_key > rhs->sort_key;
 	} );
-
-	// todo: passes with sort_key 0 should be eliminated.
 }
 
 // ----------------------------------------------------------------------
@@ -499,7 +510,6 @@ static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameI
 // ----------------------------------------------------------------------
 
 static void graph_builder_get_passes( le_graph_builder_o *self, le_renderpass_o ***pPasses, size_t *pNumPasses ) {
-
 	*pPasses    = self->passes.data();
 	*pNumPasses = self->passes.size();
 }
