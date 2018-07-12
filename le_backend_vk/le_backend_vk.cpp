@@ -2560,7 +2560,9 @@ static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, si
 	// enough buffers to cover each pass (numAllocators should correspond to
 	// number of passes.)
 	//
-	for ( auto i = frame.allocators.size(); i != numAllocators; ++i ) {
+	// NOTE: We compare by '<', since numAllocators may be smaller if number
+	// of renderpasses was reduced for some reason.
+	for ( auto i = frame.allocators.size(); i < numAllocators; ++i ) {
 
 		VkBuffer          buffer = nullptr;
 		VmaAllocation     allocation;
