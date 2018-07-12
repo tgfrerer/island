@@ -268,7 +268,7 @@ static bool test_app_update( test_app_o *self ) {
 			// a copy is added to the queue that transfers from scratch memory
 			// to GPU local memory.
 
-			le_encoder.write_to_resource( encoder, RESOURCE_BUFFER_ID( "debug-buffer" ), 0, MagickImage, sizeof( MagickImage ) );
+			le_encoder.write_to_buffer( encoder, RESOURCE_IMAGE_ID( "debug-buffer" ), 0, MagickImage, sizeof( MagickImage ) );
 		} );
 
 		le::RenderPass renderPassFinal( "root", LE_RENDER_PASS_TYPE_DRAW );

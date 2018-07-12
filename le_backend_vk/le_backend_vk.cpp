@@ -2928,11 +2928,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					cmd.bindVertexBuffers( le_cmd->info.firstBinding, le_cmd->info.bindingCount, &vertexInputBindings[ firstBinding ], le_cmd->info.pOffsets );
 				} break;
 
-				case le::CommandType::eWriteToResource: {
+				case le::CommandType::eWriteToBuffer: {
 
 					// Enqueue copy buffer command
 					// TODO: we must sync this before the next read.
-					auto *le_cmd = static_cast<le::CommandWriteToResource *>( dataIt );
+					auto *le_cmd = static_cast<le::CommandWriteToBuffer *>( dataIt );
 
 					vk::BufferCopy region( le_cmd->info.src_offset, le_cmd->info.dst_offset, le_cmd->info.numBytes );
 

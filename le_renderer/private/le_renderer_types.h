@@ -19,7 +19,7 @@ enum class CommandType : uint32_t {
 	eBindIndexBuffer,
 	eBindVertexBuffers,
 	eBindPipeline,
-	eWriteToResource,
+	eWriteToBuffer,
 };
 
 struct CommandHeader {
@@ -115,8 +115,8 @@ struct CommandBindPipeline {
 	} info;
 };
 
-struct CommandWriteToResource {
-	CommandHeader header = {{{CommandType::eWriteToResource, sizeof( CommandWriteToResource )}}};
+struct CommandWriteToBuffer {
+	CommandHeader header = {{{CommandType::eWriteToBuffer, sizeof( CommandWriteToBuffer )}}};
 	struct {
 		uint64_t src_buffer_id; // le buffer id of scratch buffer
 		uint64_t dst_buffer_id; // which resource to write to

@@ -285,11 +285,9 @@ static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, le_graphics_pi
 
 // ----------------------------------------------------------------------
 
-static void cbe_write_to_resource( le_command_buffer_encoder_o *self, uint64_t resourceId, size_t offset, void const *data, size_t numBytes ) {
+static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, uint64_t resourceId, size_t offset, void const *data, size_t numBytes ) {
 
-	auto cmd = EMPLACE_CMD( le::CommandWriteToResource );
-
-	cmd->info.numBytes = numBytes;
+	auto cmd = EMPLACE_CMD( le::CommandWriteToBuffer );
 
 	static auto &allocator_i = Registry::getApi<le_backend_vk_api>()->le_allocator_linear_i;
 	void *       memAddr;
@@ -311,7 +309,7 @@ static void cbe_write_to_resource( le_command_buffer_encoder_o *self, uint64_t r
 		cmd->info.dst_buffer_id = resourceId;
 	}
 
-	self->mCommandStreamSize += sizeof( le::CommandWriteToResource );
+	self->mCommandStreamSize += sizeof( le::CommandWriteToBuffer );
 	self->mCommandCount++;
 }
 
@@ -347,5 +345,5 @@ ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 	le_command_buffer_encoder_i.set_argument_ubo_data  = cbe_set_argument_ubo_data;
 	le_command_buffer_encoder_i.bind_graphics_pipeline = cbe_bind_pipeline;
 	le_command_buffer_encoder_i.get_encoded_data       = cbe_get_encoded_data;
-	le_command_buffer_encoder_i.write_to_resource      = cbe_write_to_resource;
+	le_command_buffer_encoder_i.write_to_buffer        = cbe_write_to_buffer;
 }

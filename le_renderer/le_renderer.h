@@ -222,7 +222,7 @@ struct le_renderer_api {
 		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void *data, uint64_t numBytes, uint64_t indexType );
 		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void *data, uint64_t numBytes, uint32_t bindingIndex );
 
-		void                         ( *write_to_resource      )( le_command_buffer_encoder_o *self, uint64_t resourceId, size_t offset, void const* data, size_t numBytes);
+		void                         ( *write_to_buffer      )( le_command_buffer_encoder_o *self, uint64_t resourceId, size_t offset, void const* data, size_t numBytes);
 
 		// stores ubo argument data to scratch buffer - note that parameter index must be dynamic offset index
 		void                         ( *set_argument_ubo_data  ) (le_command_buffer_encoder_o *self, uint64_t argumentNameId, void * data, size_t numBytes);
