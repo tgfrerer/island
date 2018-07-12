@@ -2397,8 +2397,25 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			} break;
 			case LeResourceType::eImage: {
 				// TODO: fill in missing values, based on le_resource_info
-				rd.imageInfo               = vk::ImageCreateInfo{};
-				rd.imageInfo.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+				auto const &ci = createInfo.image;                     // src info data
+				auto &      ri = rd.imageInfo = vk::ImageCreateInfo{}; // dst info data
+
+				ri.flags                 = ci.flags;
+				ri.imageType             = VkImageType( ci.imageType );
+				ri.format                = VkFormat( ci.format );
+				ri.extent.width          = ci.extent.width;
+				ri.extent.height         = ci.extent.height;
+				ri.extent.depth          = ci.extent.depth;
+				ri.mipLevels             = ci.mipLevels;
+				ri.arrayLayers           = ci.arrayLayers;
+				ri.samples               = VkSampleCountFlagBits( ci.samples );
+				ri.tiling                = VkImageTiling( ci.tiling );
+				ri.usage                 = ci.usage;
+				ri.sharingMode           = VK_SHARING_MODE_EXCLUSIVE;
+				ri.queueFamilyIndexCount = 1;
+				ri.pQueueFamilyIndices   = &self->queueFamilyIndexGraphics;
+				ri.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED;
+
 			} break;
 			case LeResourceType::eUndefined:
 				assert( false ); // Resource Type must be defined at this point.

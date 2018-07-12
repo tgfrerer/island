@@ -113,13 +113,16 @@ struct le_image_attachment_info_o {
 struct le_resource_info_t {
 
 	struct Image {
-		uint32_t     imageType;        // enum vk::ImageType
-		uint32_t     format;           // enum vk::Format
-		le::Extent3D extent;           //
-		uint32_t     mipLevels;        //
-		uint32_t     arrayLayers;      //
-		uint32_t     flags;            //
-		uint32_t     sampleCountFlags; // VkSampleCountFlags
+		uint32_t     flags;       // creation flags
+		uint32_t     imageType;   // enum vk::ImageType
+		uint32_t     format;      // enum vk::Format
+		le::Extent3D extent;      //
+		uint32_t     mipLevels;   //
+		uint32_t     arrayLayers; //
+		uint32_t     samples;     // enum VkSampleCountFlagBits
+		uint32_t     tiling;      // enum VkImageTiling
+		uint32_t     usage;       // usage flags
+		uint32_t     sharingMode; // enum vkSharingMode
 	};
 
 	struct Buffer {
