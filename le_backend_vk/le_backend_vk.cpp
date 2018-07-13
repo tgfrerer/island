@@ -42,6 +42,11 @@
 #	define PRINT_DEBUG_MESSAGES false
 #endif
 
+template <typename T>
+static inline bool vector_contains( const std::vector<T> &haystack, T needle ) noexcept {
+	return haystack.end() == std::find( haystack.begin(), haystack.end(), needle );
+}
+
 namespace std {
 using namespace experimental;
 }
@@ -124,20 +129,22 @@ struct AbstractPhysicalResource {
 		eBuffer,
 		eImage,
 		eImageView,
+		eSampler,
 		eFramebuffer,
 		eRenderPass,
-		eDescriptorSetLayout,
-		ePipelineLayout,
+		//eDescriptorSetLayout,
+		//ePipelineLayout,
 	};
 	union {
-		uint64_t              asRawData;
-		VkBuffer              asBuffer;
-		VkImage               asImage;
-		VkImageView           asImageView;
-		VkFramebuffer         asFramebuffer;
-		VkRenderPass          asRenderPass;
-		VkDescriptorSetLayout asDescriptorSetLayout;
-		VkPipelineLayout      asPipelineLayout;
+		uint64_t      asRawData;
+		VkBuffer      asBuffer;
+		VkImage       asImage;
+		VkImageView   asImageView;
+		VkSampler     asSampler;
+		VkFramebuffer asFramebuffer;
+		VkRenderPass  asRenderPass;
+		//VkDescriptorSetLayout asDescriptorSetLayout;
+		//VkPipelineLayout      asPipelineLayout;
 	};
 	Type type;
 };
@@ -249,6 +256,13 @@ struct BackendFrameData {
 		vk::ImageLayout        layout;         // current layout (for images)
 	};
 
+	struct Texture {
+		vk::Sampler   sampler;
+		vk::ImageView imageView;
+	};
+
+	std::unordered_map<uint64_t, Texture> textures; // non-owning, references to frame-local textures, cleared on frame fence.
+
 	// With `syncChainTable` and image_attachment_info_o.syncState, we should
 	// be able to create renderpasses. Each resource has a sync chain, and each attachment_info
 	// has a struct which holds indices into the sync chain telling us where to look
@@ -262,7 +276,8 @@ struct BackendFrameData {
 	// A: It must not: as it is used to map external resources as well.
 	std::unordered_map<uint64_t, AbstractPhysicalResource> physicalResources; // map from renderer resource id to physical resources - only contains resources this frame uses.
 
-	std::forward_list<AbstractPhysicalResource> ownedResources; // vk resources retained and destroyed with BackendFrameData
+	/// \brief vk resources retained and destroyed with BackendFrameData
+	std::forward_list<AbstractPhysicalResource> ownedResources;
 
 	std::vector<Pass>               passes;
 	std::vector<vk::DescriptorPool> descriptorPools; // one descriptor pool per pass
@@ -562,7 +577,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 
 		info.setIndex   = compiler.get_decoration( resource.id, spv::DecorationDescriptorSet );
 		info.binding    = compiler.get_decoration( resource.id, spv::DecorationBinding );
-		info.type       = enumToNum( vk::DescriptorType::eSampledImage );
+		info.type       = enumToNum( vk::DescriptorType::eCombinedImageSampler ); // Note: we always use combined image samplers
 		info.stage_bits = enumToNum( module->stage );
 		info.count      = 1;
 		info.name_hash  = const_char_hash64( resource.name.c_str() );
@@ -1233,7 +1248,7 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setBlendEnable( VK_TRUE )
 	    .setColorBlendOp( ::vk::BlendOp::eAdd )
 	    .setAlphaBlendOp( ::vk::BlendOp::eAdd )
-	    .setSrcColorBlendFactor( ::vk::BlendFactor::eOne ) // eOne, because we require premultiplied alpha!
+	    .setSrcColorBlendFactor( ::vk::BlendFactor::eSrcAlpha )
 	    .setDstColorBlendFactor( ::vk::BlendFactor::eOneMinusSrcAlpha )
 	    .setSrcAlphaBlendFactor( ::vk::BlendFactor::eOne )
 	    .setDstAlphaBlendFactor( ::vk::BlendFactor::eZero )
@@ -1630,7 +1645,7 @@ static void backend_setup( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void backend_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses ) {
+static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses ) {
 
 	// track resource state
 
@@ -1857,8 +1872,11 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 		allocatorI.reset( alloc );
 	}
 
-	// -- remove any frame-local copy of allocated resources
+	// -- remove any texture references
 
+	frame.textures.clear();
+
+	// -- remove any frame-local copy of allocated resources
 	frame.availableResources.clear();
 
 	for ( auto &d : frame.descriptorPools ) {
@@ -1884,6 +1902,10 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 			case AbstractPhysicalResource::eRenderPass:
 				device.destroyRenderPass( r.asRenderPass );
 			    break;
+			case AbstractPhysicalResource::eSampler:
+				device.destroySampler( r.asSampler );
+			    break;
+
 			case AbstractPhysicalResource::eUndefined:
 				std::cout << __PRETTY_FUNCTION__ << ": abstract physical resource has unknown type (" << std::hex << r.type << ") and cannot be deleted. leaking..." << std::flush;
 			    break;
@@ -2170,7 +2192,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 // create a list of all unique resources referenced by the rendergraph
 // and store it with the current backend frame.
-static void backend_create_resource_table( BackendFrameData &frame, le_renderpass_o **passes, size_t numRenderPasses ) {
+static void frame_create_resource_table( BackendFrameData &frame, le_renderpass_o **passes, size_t numRenderPasses ) {
 
 	static auto const &renderpass_i = Registry::getApi<le_renderer_api>()->le_renderpass_i;
 
@@ -2213,11 +2235,6 @@ static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const Backen
 static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
 	// acquire resources will have placed the resource into availableResources
 	return frame->availableResources.at( resourceId ).asImage;
-}
-
-static inline vk::ImageView frame_data_get_image_view_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
-	assert( frame->physicalResources.at( resourceId ).type == AbstractPhysicalResource::eImageView );
-	return frame->physicalResources.at( resourceId ).asImageView;
 }
 
 //static inline vk::Image frame_data_get_image_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
@@ -2524,6 +2541,110 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	}
 }
 
+static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Device const &device, le_renderpass_o **passes, size_t numRenderPasses ) {
+
+	static auto const &renderpass_i = Registry::getApi<le_renderer_api>()->le_renderpass_i;
+
+	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
+		// get all texture names for this pass
+
+		const uint64_t *textureIds     = nullptr;
+		size_t          textureIdCount = 0;
+		renderpass_i.get_texture_ids( *p, &textureIds, &textureIdCount );
+
+		const LeTextureInfo *textureInfos     = nullptr;
+		size_t               textureInfoCount = 0;
+		renderpass_i.get_texture_infos( *p, &textureInfos, &textureInfoCount );
+
+		assert( textureIdCount == textureInfoCount ); // texture info and -id count must be identical, as there is a 1:1 relationship
+
+		for ( size_t i = 0; i != textureIdCount; i++ ) {
+
+			// -- find out if texture with this name has already been alloacted.
+			// -- if not, allocate
+
+			const uint64_t textureId = textureIds[ i ];
+
+			if ( frame.textures.find( textureId ) == frame.textures.end() ) {
+				// -- we need to allocate a new texture
+
+				auto &texInfo = textureInfos[ i ];
+
+				vk::ImageSubresourceRange subresourceRange;
+				subresourceRange
+				    .setAspectMask( vk::ImageAspectFlagBits::eColor )
+				    .setBaseMipLevel( 0 )
+				    .setLevelCount( 1 )
+				    .setBaseArrayLayer( 0 )
+				    .setLayerCount( 1 );
+
+				// TODO: fill in additional image view create info based on info from pass...
+				vk::ImageViewCreateInfo imageViewCreateInfo{};
+				imageViewCreateInfo
+				    .setFlags( {} )
+				    .setImage( frame_data_get_image_from_le_resource_id( &frame, texInfo.imageView.imageId ) )
+				    .setViewType( vk::ImageViewType::e2D )
+				    .setFormat( vk::Format( texInfo.imageView.format ) )
+				    .setComponents( {} ) // default component mapping
+				    .setSubresourceRange( subresourceRange );
+
+				// TODO: fill in additional sampler create info based on info from pass...
+				vk::SamplerCreateInfo samplerCreateInfo{};
+				samplerCreateInfo
+				    .setFlags( {} )
+				    .setMagFilter( vk::Filter( texInfo.sampler.magFilter ) )
+				    .setMinFilter( vk::Filter( texInfo.sampler.minFilter ) )
+				    .setMipmapMode( ::vk::SamplerMipmapMode::eLinear )
+				    .setAddressModeU( ::vk::SamplerAddressMode::eClampToBorder )
+				    .setAddressModeV( ::vk::SamplerAddressMode::eClampToBorder )
+				    .setAddressModeW( ::vk::SamplerAddressMode::eRepeat )
+				    .setMipLodBias( 0.f )
+				    .setAnisotropyEnable( VK_FALSE )
+				    .setMaxAnisotropy( 0.f )
+				    .setCompareEnable( VK_FALSE )
+				    .setCompareOp( ::vk::CompareOp::eLess )
+				    .setMinLod( 0.f )
+				    .setMaxLod( 1.f )
+				    .setBorderColor( ::vk::BorderColor::eFloatTransparentBlack )
+				    .setUnnormalizedCoordinates( VK_FALSE );
+
+				auto vkSampler   = device.createSampler( samplerCreateInfo );
+				auto vkImageView = device.createImageView( imageViewCreateInfo );
+
+				// -- Store Texture with frame so that decoder can find references
+
+				BackendFrameData::Texture tex;
+				tex.imageView = vkImageView;
+				tex.sampler   = vkSampler;
+
+				frame.textures[ textureId ] = tex;
+
+				{
+					// Now store vk objects with frame owned resources, so that
+					// they can be destroyed when frame crosses the fence.
+
+					AbstractPhysicalResource sampler;
+					AbstractPhysicalResource imgView;
+
+					sampler.asSampler   = vkSampler;
+					sampler.type        = AbstractPhysicalResource::Type::eSampler;
+					imgView.asImageView = vkImageView;
+					imgView.type        = AbstractPhysicalResource::Type::eImageView;
+
+					frame.ownedResources.emplace_front( std::move( sampler ) );
+					frame.ownedResources.emplace_front( std::move( imgView ) );
+				}
+			}
+		}
+	}
+
+	// we need to store texture (= sampler+imageview) in a map of textures, indexed by their id.
+	// we only need to create a new texture if it has a new name, otherwise we will use the same texture.
+	// this could lead to some stange effects, but texture names should be universal over the frame.
+
+	// store any resources in ownedResources so that they get destroyed when frame fence is passed
+}
+
 // ----------------------------------------------------------------------
 // TODO: this should mark acquired resources as used by this frame -
 // so that they can only be destroyed iff this frame has been reset.
@@ -2551,8 +2672,11 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 
 	vk::Device device = self->device->getVkDevice();
 
-	backend_create_resource_table( frame, passes, numRenderPasses );
-	backend_track_resource_state( frame, passes, numRenderPasses );
+	frame_create_resource_table( frame, passes, numRenderPasses );
+	frame_track_resource_state( frame, passes, numRenderPasses );
+
+	// -- allocate any transient vk objects such as image samplers, and image views
+	frame_allocate_per_pass_resources( frame, device, passes, numRenderPasses );
 
 	backend_create_renderpasses( frame, device );
 
@@ -2666,7 +2790,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 			// TODO: (renderpass): get clear values from renderpass info
 			std::array<vk::ClearValue, 1> clearValues{
-				{vk::ClearColorValue( std::array<float, 4>{{0.9f, 0.2f, 0.75f, 1.f}} )}};
+				{vk::ClearColorValue( std::array<float, 4>{{255.f / 255.f, 15.f / 255.f, 255.f / 255.f, 1.f}} )}};
 
 			vk::RenderPassBeginInfo renderPassBeginInfo;
 			renderPassBeginInfo
@@ -2924,6 +3048,49 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				} break;
 
+				case le::CommandType::eSetArgumentTexture: {
+					auto *   le_cmd           = static_cast<le::CommandSetArgumentTexture *>( dataIt );
+					uint64_t argument_name_id = le_cmd->info.argument_name_id;
+
+					// Find binding info with name referenced in command
+					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [&argument_name_id]( const le_shader_binding_info &e ) -> bool {
+						return e.name_hash == argument_name_id;
+					} );
+
+					if ( b == argumentState.binding_infos.end() ) {
+						std::cout << "Warning: Invalid texture argument name id: 0x" << std::hex << argument_name_id << std::endl
+						          << std::flush;
+						break;
+					}
+
+					// ---------| invariant: we found an argument name that matches
+					auto setIndex = b->setIndex;
+					auto binding  = b->binding;
+
+					auto &bindingData = argumentState.setData[ setIndex ][ binding ];
+
+					// fetch texture information based on texture id from command
+
+					auto foundTex = frame.textures.find( le_cmd->info.texture_id );
+					if ( foundTex == frame.textures.end() ) {
+						std::cerr << "Could not find requested texture. Ignoring texture binding command." << std::endl
+						          << std::flush;
+						break;
+					}
+
+					// ----------| invariant: texture has been found
+
+					// TODO: we must be able to programmatically figure out the image layout in advance
+					// perhaps through resource tracking.
+					bindingData.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+
+					bindingData.arrayIndex = uint32_t( le_cmd->info.array_index );
+					bindingData.sampler    = foundTex->second.sampler;
+					bindingData.imageView  = foundTex->second.imageView;
+					bindingData.type       = vk::DescriptorType::eCombinedImageSampler;
+
+				} break;
+
 				case le::CommandType::eBindIndexBuffer: {
 					auto *le_cmd = static_cast<le::CommandBindIndexBuffer *>( dataIt );
 					auto  buffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, le_cmd->info.buffer );
@@ -2936,11 +3103,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					uint32_t firstBinding = le_cmd->info.firstBinding;
 					uint32_t numBuffers   = le_cmd->info.bindingCount;
 
-					// TODO: here, when we match resource ids to physical resources,
-					// we can be much quicker (and safer) if we only search through the resources
-					// declared in the setup callback with useResource().
-
-					// fine - but where are these resources actually matched to physical resources?
+					// TODO: we must make sure that bindings can actually come from general pool of available buffers
+					// and not just from transient memory. Perhaps we should have a flag telling us from where to choose.
 
 					// translate le_buffers to vk_buffers
 					for ( uint32_t b = 0; b != numBuffers; ++b ) {
@@ -2968,7 +3132,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				case le::CommandType::eWriteToImage: {
 
-					// TODO: fill in write to image
+					// TODO: use sync chain to sync
 					auto *le_cmd = static_cast<le::CommandWriteToImage *>( dataIt );
 
 					vk::ImageSubresourceLayers layer;
@@ -3003,8 +3167,6 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					auto srcBuffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, le_cmd->info.src_buffer_id );
 					auto dstImage  = frame_data_get_image_from_le_resource_id( &frame, le_cmd->info.dst_image_id );
-
-					// TODO: we must sync - first transform the layout
 
 					::vk::BufferMemoryBarrier bufferTransferBarrier;
 					bufferTransferBarrier

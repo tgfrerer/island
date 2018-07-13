@@ -98,6 +98,19 @@ struct le_graphics_pipeline_create_info_t {
 
 struct le_graphics_pipeline_state_o; ///< object declaring a pipeline, owned by renderer, destroyed with renderer
 
+struct LeTextureInfo {
+	struct SamplerInfo {
+		uint32_t minFilter;
+		uint32_t magFilter;
+	};
+	struct ImageViewInfo {
+		uint64_t imageId; // le image resource id
+		uint32_t format;  // vkFormat
+	};
+	SamplerInfo   sampler;
+	ImageViewInfo imageView;
+};
+
 struct LeImageAttachmentInfo {
 	uint64_t            resource_id  = 0; // hash name given to this attachment, based on name string
 	uint64_t            source_id    = 0; // hash name of writer/creator renderpass
@@ -188,6 +201,12 @@ struct le_renderer_api {
 		LeRenderPassType             ( *get_type             )( const le_renderpass_o* obj );
 		le_command_buffer_encoder_o* ( *steal_encoder        )( le_renderpass_o* obj );
 		void                         ( *get_image_attachments)(const le_renderpass_o* obj, const LeImageAttachmentInfo** pAttachments, size_t* numAttachments);
+
+		// TODO: not too sure about the nomenclature of this
+		// Note that this method does use the resource in question for reading.
+		void                         ( *sample_texture        )(le_renderpass_o* obj, uint64_t texture_name, const LeTextureInfo* info);
+		void                         ( *get_texture_ids       )(le_renderpass_o* obj, const uint64_t ** pIds, uint64_t* count);
+		void                         ( *get_texture_infos     )(le_renderpass_o* obj, const LeTextureInfo** pInfos, uint64_t* count);
 	};
 
 	struct rendermodule_interface_t {
@@ -230,6 +249,7 @@ struct le_renderer_api {
 
 		// stores ubo argument data to scratch buffer - note that parameter index must be dynamic offset index
 		void                         ( *set_argument_ubo_data  ) (le_command_buffer_encoder_o *self, uint64_t argumentNameId, void * data, size_t numBytes);
+		void                         ( *set_argument_texture   ) (le_command_buffer_encoder_o* self, uint64_t textureId, uint64_t argumentName, uint64_t arrayIndex);
 
 		void                         ( *get_encoded_data       )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
 	};
@@ -248,7 +268,7 @@ struct le_renderer_api {
 
 namespace le {
 
-using AccessFlagBits      = le_renderer_api::AccessFlagBits;
+using AccessFlagBits = le_renderer_api::AccessFlagBits;
 
 class Renderer {
 	const le_renderer_api &                      rendererApiI = *Registry::getApi<le_renderer_api>();
@@ -348,6 +368,11 @@ class RenderPassRef {
 
 	RenderPassRef &setIsRoot( bool isRoot = true ) {
 		renderpassI.set_is_root( self, isRoot );
+		return *this;
+	}
+
+	RenderPassRef &sampleTexture( uint64_t textureName, const LeTextureInfo &texInfo ) {
+		renderpassI.sample_texture( self, textureName, &texInfo );
 		return *this;
 	}
 };

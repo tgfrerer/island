@@ -21,6 +21,7 @@ enum class CommandType : uint32_t {
 	eSetViewport,
 	eSetScissor,
 	eSetArgumentUbo,
+	eSetArgumentTexture,
 	eBindIndexBuffer,
 	eBindVertexBuffers,
 	eBindPipeline,
@@ -83,6 +84,15 @@ struct CommandSetArgumentUbo {
 		uint64_t buffer_id;        // id of buffer that holds data
 		uint32_t offset;           // offset into buffer
 		uint32_t range;            // size of argument data in bytes
+	} info;
+};
+
+struct CommandSetArgumentTexture {
+	CommandHeader header = {{{CommandType::eSetArgumentTexture, sizeof( CommandSetArgumentTexture )}}};
+	struct {
+		uint64_t argument_name_id; // const_char_hash id of argument name
+		uint64_t texture_id;       // texture id, hash of texture name
+		uint64_t array_index;      // argument array index (default is 0)
 	} info;
 };
 

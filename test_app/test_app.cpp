@@ -144,84 +144,6 @@ static float get_image_plane_distance( const le::Viewport &viewport, float fovRa
 
 // ----------------------------------------------------------------------
 
-static void execute_main_renderpass( le_command_buffer_encoder_o *encoder, void *user_data ) {
-
-	static auto const &le_encoder = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
-
-	auto self = static_cast<test_app_o *>( user_data );
-
-	auto screenWidth  = self->window->getSurfaceWidth();
-	auto screenHeight = self->window->getSurfaceHeight();
-
-	le::Viewport viewports[ 2 ] = {
-	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
-	    {10.f, 10.f, 200.f, 200.f, 0.f, 1.f},
-	};
-
-	le::Rect2D scissors[ 2 ] = {
-	    {0, 0, screenWidth, screenHeight},
-	    {10, 10, 200, 200},
-	};
-
-	glm::vec3 fullScreenQuadData[ 3 ] = {
-	    {0, 0, 0},
-	    {2, 0, 0},
-	    {0, 2, 0},
-	};
-
-	glm::vec3 triangleData[ 3 ] = {
-	    {-50, -50, 0},
-	    {50, -50, 0},
-	    {0, 50, 0},
-	};
-
-	uint16_t indexData[ 3 ] = {0, 1, 2};
-
-	// data as it is laid out in the ubo for the shader
-	struct ColorUbo_t {
-		glm::vec4 color;
-	};
-
-	struct MatrixStackUbo_t {
-		glm::mat4 modelMatrix;
-		glm::mat4 viewMatrix;
-		glm::mat4 projectionMatrix;
-	};
-
-	float r_val = ( self->frame_counter % 120 ) / 120.f;
-
-	ColorUbo_t ubo1{{1, 0, 0, 1}};
-
-	// Bind full main graphics pipeline
-	le_encoder.bind_graphics_pipeline( encoder, self->psoMain );
-
-	le_encoder.set_scissor( encoder, 0, 1, scissors );
-	le_encoder.set_viewport( encoder, 0, 1, viewports );
-
-	MatrixStackUbo_t matrixStack;
-	matrixStack.projectionMatrix = glm::perspective( glm::radians( 60.f ), float( screenWidth ) / float( screenHeight ), 0.01f, 1000.f );
-	matrixStack.modelMatrix      = glm::mat4( 1.f ); // identity matrix
-	matrixStack.modelMatrix      = glm::scale( matrixStack.modelMatrix, glm::vec3( 2 ) );
-
-	matrixStack.modelMatrix = glm::rotate( matrixStack.modelMatrix, glm::radians( r_val * 360 ), glm::vec3( 0, 0, 1 ) );
-
-	float normDistance     = get_image_plane_distance( viewports[ 0 ], glm::radians( 60.f ) ); // calculate unit distance
-	matrixStack.viewMatrix = glm::lookAt( glm::vec3( 0, 0, normDistance ), glm::vec3( 0 ), glm::vec3( 0, -1, 0 ) );
-
-	le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "MatrixStack" ), &matrixStack, sizeof( MatrixStackUbo_t ) ); // set a descriptor to set, binding, array_index
-	le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "Color" ), &ubo1, sizeof( ColorUbo_t ) );                    // set a descriptor to set, binding, array_index
-
-	le_encoder.set_vertex_data( encoder, triangleData, sizeof( glm::vec3 ) * 3, 0 );
-	le_encoder.set_index_data( encoder, indexData, sizeof( indexData ), 0 ); // 0 for indexType means uint16_t
-	le_encoder.draw_indexed( encoder, 3, 1, 0, 0, 0 );
-
-	// Bind full screen quad pipeline
-	le_encoder.bind_graphics_pipeline( encoder, self->psoFullScreenQuad );
-	le_encoder.set_scissor( encoder, 0, 1, &scissors[ 1 ] );
-	le_encoder.set_viewport( encoder, 0, 1, &viewports[ 1 ] );
-	le_encoder.draw( encoder, 3, 1, 0, 0 );
-}
-
 // ----------------------------------------------------------------------
 
 static bool test_app_update( test_app_o *self ) {
@@ -280,9 +202,7 @@ static bool test_app_update( test_app_o *self ) {
 			// a copy is added to the queue that transfers from scratch memory
 			// to GPU local memory.
 
-			LeBufferWriteRegion targetRegion;
-			targetRegion.width  = 160;
-			targetRegion.height = 106;
+			LeBufferWriteRegion targetRegion{160, 106}; // width, height
 
 			le_encoder.write_to_image( encoder, RESOURCE_IMAGE_ID( "horse" ), &targetRegion, MagickImage, sizeof( MagickImage ) );
 		} );
@@ -304,18 +224,113 @@ static bool test_app_update( test_app_o *self ) {
 			rp.addImageAttachment( RESOURCE_IMAGE_ID( "backbuffer" ), &colorAttachmentInfo );
 
 			rp.useResource( RESOURCE_IMAGE_ID( "horse" ), le::AccessFlagBits::eRead );
+
+			// this will create an imageView and a sampler in the context of this pass/encoder.
+			// this will implicitly use the resource for reading
+
+			LeTextureInfo textureInfo;
+			textureInfo.imageView.imageId = RESOURCE_IMAGE_ID( "horse" );
+			textureInfo.imageView.format  = VK_FORMAT_R8G8B8A8_UNORM;
+			textureInfo.sampler.magFilter = VK_FILTER_NEAREST;
+			textureInfo.sampler.minFilter = VK_FILTER_LINEAR;
+
+			rp.sampleTexture( RESOURCE_TEXTURE_ID( "texture1" ), textureInfo );
+
 			rp.setIsRoot( true );
 
 			return true;
 		} );
 
-		renderPassFinal.setExecuteCallback( self, execute_main_renderpass );
+		renderPassFinal.setExecuteCallback( self, []( le_command_buffer_encoder_o *encoder, void *user_data ) {
+			static auto const &le_encoder = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
+
+			auto self = static_cast<test_app_o *>( user_data );
+
+			auto screenWidth  = self->window->getSurfaceWidth();
+			auto screenHeight = self->window->getSurfaceHeight();
+
+			le::Viewport viewports[ 2 ] = {
+			    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
+			    {10.f, 10.f, 160.f * 3.f + 10.f, 106.f * 3.f + 10.f, 0.f, 1.f},
+			};
+
+			le::Rect2D scissors[ 2 ] = {
+			    {0, 0, screenWidth, screenHeight},
+			    {10, 10, 160 * 3 + 10, 106 * 3 + 10},
+			};
+
+			glm::vec3 fullScreenQuadData[ 3 ] = {
+			    {0, 0, 0},
+			    {2, 0, 0},
+			    {0, 2, 0},
+			};
+
+			glm::vec3 triangleData[ 3 ] = {
+			    {-50, -50, 0},
+			    {50, -50, 0},
+			    {0, 50, 0},
+			};
+
+			uint16_t indexData[ 3 ] = {0, 1, 2};
+
+			// data as it is laid out in the ubo for the shader
+			struct ColorUbo_t {
+				glm::vec4 color;
+			};
+
+			struct MatrixStackUbo_t {
+				glm::mat4 modelMatrix;
+				glm::mat4 viewMatrix;
+				glm::mat4 projectionMatrix;
+			};
+
+			float r_val = ( self->frame_counter % 120 ) / 120.f;
+
+			ColorUbo_t ubo1{{1, 0, 0, 1}};
+
+			// Bind full screen quad pipeline
+			{
+				le_encoder.set_vertex_data( encoder, triangleData, sizeof( glm::vec3 ) * 3, 0 );
+
+				le_encoder.bind_graphics_pipeline( encoder, self->psoFullScreenQuad );
+				le_encoder.set_argument_texture( encoder, RESOURCE_TEXTURE_ID( "texture1" ), const_char_hash64( "src_tex_unit_0" ), 0 );
+				le_encoder.set_scissor( encoder, 0, 1, &scissors[ 1 ] );
+				le_encoder.set_viewport( encoder, 0, 1, &viewports[ 1 ] );
+				le_encoder.draw( encoder, 3, 1, 0, 0 );
+			}
+
+			// Bind full main graphics pipeline
+			{
+				le_encoder.bind_graphics_pipeline( encoder, self->psoMain );
+
+				le_encoder.set_scissor( encoder, 0, 1, scissors );
+				le_encoder.set_viewport( encoder, 0, 1, viewports );
+
+				MatrixStackUbo_t matrixStack;
+				matrixStack.projectionMatrix = glm::perspective( glm::radians( 60.f ), float( screenWidth ) / float( screenHeight ), 0.01f, 1000.f );
+				matrixStack.modelMatrix      = glm::mat4( 1.f ); // identity matrix
+				matrixStack.modelMatrix      = glm::scale( matrixStack.modelMatrix, glm::vec3( 1 ) );
+				matrixStack.modelMatrix      = glm::translate( matrixStack.modelMatrix, glm::vec3( 100, 0, 0 ) );
+
+				matrixStack.modelMatrix = glm::rotate( matrixStack.modelMatrix, glm::radians( r_val * 360 ), glm::vec3( 0, 0, 1 ) );
+
+				float normDistance     = get_image_plane_distance( viewports[ 0 ], glm::radians( 60.f ) ); // calculate unit distance
+				matrixStack.viewMatrix = glm::lookAt( glm::vec3( 0, 0, normDistance ), glm::vec3( 0 ), glm::vec3( 0, -1, 0 ) );
+
+				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "MatrixStack" ), &matrixStack, sizeof( MatrixStackUbo_t ) ); // set a descriptor to set, binding, array_index
+				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "Color" ), &ubo1, sizeof( ColorUbo_t ) );                    // set a descriptor to set, binding, array_index
+
+				le_encoder.set_vertex_data( encoder, triangleData, sizeof( glm::vec3 ) * 3, 0 );
+				le_encoder.set_index_data( encoder, indexData, sizeof( indexData ), 0 ); // 0 for indexType means uint16_t
+				le_encoder.draw_indexed( encoder, 3, 1, 0, 0, 0 );
+			}
+		} );
 
 		mainModule.addRenderPass( resourcePass );
 		mainModule.addRenderPass( renderPassFinal );
 	}
 
-	// update will call all rendercallbacks in this module.
+	// Update will call all rendercallbacks in this module.
 	// the RECORD phase is guaranteed to execute - all rendercallbacks will get called.
 	self->renderer->update( mainModule );
 

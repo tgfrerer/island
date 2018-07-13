@@ -16,14 +16,6 @@
 
 * Remove namespaces in header files - these are not compatible with other
   programming languages.
-
-For a start, create all resources used by a frame dynamically, and *do not keep
-them alive for longer than the frame*. Once this works, we can think about
-sharing created resources across frame boundaries.
-
-* combine `resource` and `buffer`- a buffer is-a resource, as an image is-a
-  resource. We define a resource as something which has memory backing on the
-  GPU and needs synchronisation.
  
 * we want three different types of passes: render, transfer, compute. Each pass
   has a list of inputs, and a list of outputs.
@@ -38,8 +30,7 @@ sharing created resources across frame boundaries.
 
 ## (A)
 
-* Implement texture/image binding to shader
-* Implement texture loading
+
 * Add ImGui
 
 * implement buffer resources as sources for vertex attribute data
@@ -47,11 +38,15 @@ sharing created resources across frame boundaries.
 
 ## (B)
 
+* We need to think of another way of defining resource IDs: ideally, ids only
+  need to be 16 bit, this would leave us with some bits to signal different
+  other traits associated with a resource, like, for example, the resource
+  type.
 * Programmatically create vertex bindings for Pipeline
-
 * Implement pipeline settings such as winding mode, poly mode etc.
-
 * Write ergonomic front-end for pipeline setup
+
+
 
 ## (C)
 

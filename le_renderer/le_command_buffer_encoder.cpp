@@ -230,6 +230,8 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *self,
 	}
 }
 
+// ----------------------------------------------------------------------
+
 static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
                                        uint64_t                     argumentNameId, // hash id of argument name
                                        void *                       data,
@@ -264,6 +266,20 @@ static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
 	}
 
 	self->mCommandStreamSize += sizeof( le::CommandSetArgumentUbo );
+	self->mCommandCount++;
+}
+
+// ----------------------------------------------------------------------
+
+static void cbe_set_argument_texture( le_command_buffer_encoder_o *self, uint64_t textureId, uint64_t argumentName, uint64_t arrayIndex ) {
+
+	auto cmd = EMPLACE_CMD( le::CommandSetArgumentTexture );
+
+	cmd->info.argument_name_id = argumentName;
+	cmd->info.texture_id       = textureId;
+	cmd->info.array_index      = arrayIndex;
+
+	self->mCommandStreamSize += sizeof( le::CommandSetArgumentTexture );
 	self->mCommandCount++;
 }
 
@@ -315,7 +331,11 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, uint64_t res
 
 // ----------------------------------------------------------------------
 
-static void cbe_write_to_image( le_command_buffer_encoder_o *self, uint64_t resourceId, LeBufferWriteRegion const *region, void const *data, size_t numBytes ) {
+static void cbe_write_to_image( le_command_buffer_encoder_o *self,
+                                uint64_t                     resourceId,
+                                LeBufferWriteRegion const *  region,
+                                void const *                 data,
+                                size_t                       numBytes ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandWriteToImage );
 
@@ -359,22 +379,23 @@ static void cbe_get_encoded_data( le_command_buffer_encoder_o *self,
 
 ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 
-	auto &le_command_buffer_encoder_i = static_cast<le_renderer_api *>( api_ )->le_command_buffer_encoder_i;
+	auto &cbe_i = static_cast<le_renderer_api *>( api_ )->le_command_buffer_encoder_i;
 
-	le_command_buffer_encoder_i.create                 = cbe_create;
-	le_command_buffer_encoder_i.destroy                = cbe_destroy;
-	le_command_buffer_encoder_i.draw                   = cbe_draw;
-	le_command_buffer_encoder_i.draw_indexed           = cbe_draw_indexed;
-	le_command_buffer_encoder_i.set_line_width         = cbe_set_line_width;
-	le_command_buffer_encoder_i.set_viewport           = cbe_set_viewport;
-	le_command_buffer_encoder_i.set_scissor            = cbe_set_scissor;
-	le_command_buffer_encoder_i.bind_vertex_buffers    = cbe_bind_vertex_buffers;
-	le_command_buffer_encoder_i.bind_index_buffer      = cbe_bind_index_buffer;
-	le_command_buffer_encoder_i.set_index_data         = cbe_set_index_data;
-	le_command_buffer_encoder_i.set_vertex_data        = cbe_set_vertex_data;
-	le_command_buffer_encoder_i.set_argument_ubo_data  = cbe_set_argument_ubo_data;
-	le_command_buffer_encoder_i.bind_graphics_pipeline = cbe_bind_pipeline;
-	le_command_buffer_encoder_i.get_encoded_data       = cbe_get_encoded_data;
-	le_command_buffer_encoder_i.write_to_buffer        = cbe_write_to_buffer;
-	le_command_buffer_encoder_i.write_to_image         = cbe_write_to_image;
+	cbe_i.create                 = cbe_create;
+	cbe_i.destroy                = cbe_destroy;
+	cbe_i.draw                   = cbe_draw;
+	cbe_i.draw_indexed           = cbe_draw_indexed;
+	cbe_i.set_line_width         = cbe_set_line_width;
+	cbe_i.set_viewport           = cbe_set_viewport;
+	cbe_i.set_scissor            = cbe_set_scissor;
+	cbe_i.bind_vertex_buffers    = cbe_bind_vertex_buffers;
+	cbe_i.bind_index_buffer      = cbe_bind_index_buffer;
+	cbe_i.set_index_data         = cbe_set_index_data;
+	cbe_i.set_vertex_data        = cbe_set_vertex_data;
+	cbe_i.set_argument_ubo_data  = cbe_set_argument_ubo_data;
+	cbe_i.set_argument_texture   = cbe_set_argument_texture;
+	cbe_i.bind_graphics_pipeline = cbe_bind_pipeline;
+	cbe_i.get_encoded_data       = cbe_get_encoded_data;
+	cbe_i.write_to_buffer        = cbe_write_to_buffer;
+	cbe_i.write_to_image         = cbe_write_to_image;
 }

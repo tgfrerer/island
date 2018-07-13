@@ -23,7 +23,6 @@
 // these are some sanity checks for le_renderer_types
 static_assert( sizeof( le::CommandHeader ) == sizeof( uint64_t ), "Size of le::CommandHeader must be 64bit" );
 
-
 struct le_renderpass_o {
 
 	LeRenderPassType type     = LE_RENDER_PASS_TYPE_UNDEFINED;
@@ -31,11 +30,14 @@ struct le_renderpass_o {
 	uint64_t         id       = 0;
 	uint64_t         sort_key = 0;
 
-	std::vector<uint64_t>                   readResources;
-	std::vector<uint64_t>                   writeResources;
-	std::vector<uint64_t>                   createResources;
-	std::vector<le_resource_info_t>         createResourceInfos; // createResources holds ids at matching index
+	std::vector<uint64_t>              readResources;
+	std::vector<uint64_t>              writeResources;
+	std::vector<uint64_t>              createResources;
+	std::vector<le_resource_info_t>    createResourceInfos; // createResources holds ids at matching index
 	std::vector<LeImageAttachmentInfo> imageAttachments;
+
+	std::vector<LeTextureInfo> textureInfos;   // kept in sync
+	std::vector<uint64_t>      textureInfoIds; // kept in sync
 
 	le_renderer_api::pfn_renderpass_setup_t   callbackSetup              = nullptr;
 	le_renderer_api::pfn_renderpass_execute_t callbackExecute            = nullptr;
@@ -112,16 +114,44 @@ static bool renderpass_run_setup_callback( le_renderpass_o *self ) {
 }
 
 // ----------------------------------------------------------------------
+template <typename T>
+static inline bool vector_contains( const std::vector<T> &haystack, T needle ) noexcept {
+	return haystack.end() != std::find( haystack.begin(), haystack.end(), needle );
+}
+
+// ----------------------------------------------------------------------
 
 static void renderpass_use_resource( le_renderpass_o *self, uint64_t resource_id, uint32_t accessFlags ) {
 
-	if ( accessFlags & le::AccessFlagBits::eRead ) {
+	if ( ( accessFlags & le::AccessFlagBits::eRead ) &&
+	     !vector_contains( self->readResources, resource_id ) ) {
 		self->readResources.push_back( resource_id );
 	}
 
-	if ( accessFlags & le::AccessFlagBits::eWrite ) {
+	if ( ( accessFlags & le::AccessFlagBits::eWrite ) &&
+	     !vector_contains( self->writeResources, resource_id ) ) {
 		self->writeResources.push_back( resource_id );
 	}
+}
+
+// ----------------------------------------------------------------------
+
+static void renderpass_sample_texture( le_renderpass_o *self, uint64_t texture_name, LeTextureInfo const *textureInfo ) {
+
+	// -- store texture info so that backend can create resources
+
+	if ( vector_contains( self->textureInfoIds, texture_name ) ) {
+		return; // texture already present
+	}
+
+	// --------| invariant: texture id was not previously known
+
+	// -- Add texture info to list of texture infos for this frame
+	self->textureInfoIds.push_back( texture_name );
+	self->textureInfos.push_back( *textureInfo ); // store a copy
+
+	// -- Mark image resource referenced by texture as used for reading
+	renderpass_use_resource( self, textureInfo->imageView.imageId, le::AccessFlagBits::eRead );
 }
 
 // ----------------------------------------------------------------------
@@ -220,6 +250,16 @@ static void renderpass_get_image_attachments( const le_renderpass_o *self, const
 	*pAttachments   = self->imageAttachments.data();
 	*numAttachments = self->imageAttachments.size();
 }
+
+static void renderpass_get_texture_ids( le_renderpass_o *self, const uint64_t **ids, uint64_t *count ) {
+	*ids   = self->textureInfoIds.data();
+	*count = self->textureInfoIds.size();
+};
+
+static void renderpass_get_texture_infos( le_renderpass_o *self, const LeTextureInfo **infos, uint64_t *count ) {
+	*infos = self->textureInfos.data();
+	*count = self->textureInfos.size();
+};
 
 static bool renderpass_has_execute_callback( const le_renderpass_o *self ) {
 	return self->callbackExecute != nullptr;
@@ -466,7 +506,7 @@ static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameI
 			    << "'" << pass->debugName << "' , sort_key: " << pass->sort_key << std::endl;
 
 			LeImageAttachmentInfo const *pImageAttachments   = nullptr;
-			size_t                            numImageAttachments = 0;
+			size_t                       numImageAttachments = 0;
 			renderpass_get_image_attachments( pass, &pImageAttachments, &numImageAttachments );
 
 			for ( auto const *attachment = pImageAttachments; attachment != pImageAttachments + numImageAttachments; attachment++ ) {
@@ -619,4 +659,8 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_renderpass_i.get_type              = renderpass_get_type;
 	le_renderpass_i.steal_encoder         = renderpass_steal_encoder;
 	le_renderpass_i.create_resource       = renderpass_create_resource;
+
+	le_renderpass_i.sample_texture    = renderpass_sample_texture;
+	le_renderpass_i.get_texture_ids   = renderpass_get_texture_ids;
+	le_renderpass_i.get_texture_infos = renderpass_get_texture_infos;
 }
