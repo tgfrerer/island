@@ -1690,8 +1690,8 @@ static void backend_track_resource_state( BackendFrameData &frame, le_renderpass
 
 		// iterate over all image attachments
 
-		le_image_attachment_info_o const *pImageAttachments   = nullptr;
-		size_t                            numImageAttachments = 0;
+		LeImageAttachmentInfo const *pImageAttachments   = nullptr;
+		size_t                       numImageAttachments = 0;
 		renderpass_i.get_image_attachments( *pass, &pImageAttachments, &numImageAttachments );
 		for ( auto const *imageAttachment = pImageAttachments; imageAttachment != pImageAttachments + numImageAttachments; imageAttachment++ ) {
 

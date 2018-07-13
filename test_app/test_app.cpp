@@ -296,7 +296,7 @@ static bool test_app_update( test_app_o *self ) {
 			// because we might want to use a different format than the format the image is originally in.
 			// this is important for example, when using a depth buffer for shadow sampling later.
 
-			le::ImageAttachmentInfo colorAttachmentInfo{};
+			LeImageAttachmentInfo colorAttachmentInfo{};
 			colorAttachmentInfo.format       = vk::Format::eB8G8R8A8Unorm; // TODO (swapchain): use swapchain image format programmatically
 			colorAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
 			colorAttachmentInfo.loadOp       = LE_ATTACHMENT_LOAD_OP_CLEAR;

@@ -98,7 +98,7 @@ struct le_graphics_pipeline_create_info_t {
 
 struct le_graphics_pipeline_state_o; ///< object declaring a pipeline, owned by renderer, destroyed with renderer
 
-struct le_image_attachment_info_o {
+struct LeImageAttachmentInfo {
 	uint64_t            resource_id  = 0; // hash name given to this attachment, based on name string
 	uint64_t            source_id    = 0; // hash name of writer/creator renderpass
 	uint8_t             access_flags = 0; // read, write or readwrite
@@ -170,7 +170,7 @@ struct le_renderer_api {
 		void                         ( *set_setup_callback   )( le_renderpass_o *obj, pfn_renderpass_setup_t setup_fun );
 		bool                         ( *has_setup_callback   )( const le_renderpass_o* obj);
 		bool                         ( *run_setup_callback   )( le_renderpass_o* obj);
-		void                         ( *add_image_attachment )( le_renderpass_o *obj, uint64_t resource_id, le_image_attachment_info_o *info );
+		void                         ( *add_image_attachment )( le_renderpass_o *obj, uint64_t resource_id, LeImageAttachmentInfo *info );
 		void                         ( *set_execute_callback )( le_renderpass_o *obj, pfn_renderpass_execute_t render_fun, void *user_data );
 		void                         ( *run_execute_callback )( le_renderpass_o* obj, le_command_buffer_encoder_o* encoder);
 		bool                         ( *has_execute_callback )( const le_renderpass_o* obj);
@@ -187,7 +187,7 @@ struct le_renderer_api {
 		uint64_t                     ( *get_id               )( const le_renderpass_o* obj );
 		LeRenderPassType             ( *get_type             )( const le_renderpass_o* obj );
 		le_command_buffer_encoder_o* ( *steal_encoder        )( le_renderpass_o* obj );
-		void                         ( *get_image_attachments)(const le_renderpass_o* obj, const le_image_attachment_info_o** pAttachments, size_t* numAttachments);
+		void                         ( *get_image_attachments)(const le_renderpass_o* obj, const LeImageAttachmentInfo** pAttachments, size_t* numAttachments);
 	};
 
 	struct rendermodule_interface_t {
@@ -248,7 +248,6 @@ struct le_renderer_api {
 
 namespace le {
 
-using ImageAttachmentInfo = le_image_attachment_info_o;
 using AccessFlagBits      = le_renderer_api::AccessFlagBits;
 
 class Renderer {
@@ -332,7 +331,7 @@ class RenderPassRef {
 		return self;
 	}
 
-	RenderPassRef &addImageAttachment( uint64_t resource_id, le_image_attachment_info_o *info ) {
+	RenderPassRef &addImageAttachment( uint64_t resource_id, LeImageAttachmentInfo *info ) {
 		renderpassI.add_image_attachment( self, resource_id, info );
 		return *this;
 	}

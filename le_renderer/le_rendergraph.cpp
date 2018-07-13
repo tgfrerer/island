@@ -23,7 +23,6 @@
 // these are some sanity checks for le_renderer_types
 static_assert( sizeof( le::CommandHeader ) == sizeof( uint64_t ), "Size of le::CommandHeader must be 64bit" );
 
-using image_attachment_t = le_image_attachment_info_o;
 
 struct le_renderpass_o {
 
@@ -36,7 +35,7 @@ struct le_renderpass_o {
 	std::vector<uint64_t>                   writeResources;
 	std::vector<uint64_t>                   createResources;
 	std::vector<le_resource_info_t>         createResourceInfos; // createResources holds ids at matching index
-	std::vector<le_image_attachment_info_o> imageAttachments;
+	std::vector<LeImageAttachmentInfo> imageAttachments;
 
 	le_renderer_api::pfn_renderpass_setup_t   callbackSetup              = nullptr;
 	le_renderer_api::pfn_renderpass_execute_t callbackExecute            = nullptr;
@@ -127,7 +126,7 @@ static void renderpass_use_resource( le_renderpass_o *self, uint64_t resource_id
 
 // ----------------------------------------------------------------------
 
-static void renderpass_add_image_attachment( le_renderpass_o *self, uint64_t resource_id, le_image_attachment_info_o *info_ ) {
+static void renderpass_add_image_attachment( le_renderpass_o *self, uint64_t resource_id, LeImageAttachmentInfo *info_ ) {
 
 	self->imageAttachments.push_back( *info_ );
 	auto &info = self->imageAttachments.back();
@@ -217,7 +216,7 @@ static uint64_t renderpass_get_id( le_renderpass_o const *self ) {
 	return self->id;
 }
 
-static void renderpass_get_image_attachments( const le_renderpass_o *self, const le_image_attachment_info_o **pAttachments, size_t *numAttachments ) {
+static void renderpass_get_image_attachments( const le_renderpass_o *self, const LeImageAttachmentInfo **pAttachments, size_t *numAttachments ) {
 	*pAttachments   = self->imageAttachments.data();
 	*numAttachments = self->imageAttachments.size();
 }
@@ -466,7 +465,7 @@ static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameI
 			msg << "renderpass: " << std::setw( 15 ) << std::hex << pass->id << ", "
 			    << "'" << pass->debugName << "' , sort_key: " << pass->sort_key << std::endl;
 
-			le_image_attachment_info_o const *pImageAttachments   = nullptr;
+			LeImageAttachmentInfo const *pImageAttachments   = nullptr;
 			size_t                            numImageAttachments = 0;
 			renderpass_get_image_attachments( pass, &pImageAttachments, &numImageAttachments );
 
