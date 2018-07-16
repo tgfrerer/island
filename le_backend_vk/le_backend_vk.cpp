@@ -509,34 +509,60 @@ static void backend_translate_to_spirv_code( le_backend_o *self, void *raw_data,
 	}
 }
 
+// flags all modules which are affected by a change in shader_source_file_path,
+// and adds them to a set of shader modules wich need to be recompiled.
+static void backend_flag_affected_modules_for_source_path( le_backend_o *self, const char *shader_source_file_path ) {
+	// find all modules from dependencies set
+	// insert into list of modified modules.
+
+	if ( 0 == self->moduleDependencies.count( shader_source_file_path ) ) {
+		// -- no matching dependencies.
+		std::cout << "Shader code update detected, but no modules using shader source file: " << shader_source_file_path << std::endl
+		          << std::flush;
+		return;
+	}
+
+	// ---------| invariant: at least one module depends on this shader source file.
+
+	auto const &moduleDependencies = self->moduleDependencies[ shader_source_file_path ];
+
+	// -- add all affected modules to the set of modules which depend on this shader source file.
+
+	for ( auto const &m : moduleDependencies ) {
+		self->modifiedShaderModules.insert( m );
+	}
+};
+
 // ----------------------------------------------------------------------
 
-static void backend_set_watched_files_for_module( le_backend_o *self, le_shader_module_o *module, std::set<std::string> &sourcePaths ) {
+static void backend_set_module_dependencies_for_watched_file( le_backend_o *self, le_shader_module_o *module, std::set<std::string> &sourcePaths ) {
 
 	// To be able to tell quick which modules need to be recompiled if a source file changes,
 	// we build a table from source file -> array of modules
 
 	for ( const auto &s : sourcePaths ) {
 
-		// if no previous entry for this source path existed, we must insert a watch from this path to our module
-
+		// if no previous entry for this source path existed, we must insert a watch for this path
+		// the watch will call a backend method which figures out how many modules were affected.
 		if ( 0 == self->moduleDependencies.count( s ) ) {
 			// this is the first time this file appears on our radar. Let's create a file watcher for it.
 			static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
 
-			std::cout << std::hex << module << " : " << s << std::endl
-			          << std::flush;
-
 			pal_file_watcher_watch_settings settings;
 			settings.filePath           = s.c_str();
-			settings.callback_user_data = module;
-			settings.callback_fun       = []( void *user_data ) -> bool {
-				auto m = static_cast<le_shader_module_o *>( user_data );
-				m->backend->modifiedShaderModules.insert( m );
+			settings.callback_user_data = self;
+			settings.callback_fun       = []( const char *path, void *user_data ) -> bool {
+				auto backend = static_cast<le_backend_o *>( user_data );
+				// call a method on backend to tell it that the file path has changed.
+				// backend to figure out which modules are affected.
+				backend_flag_affected_modules_for_source_path( backend, path );
 				return true;
 			};
 			file_watcher_i.add_watch( self->shaderFileWatcher, settings );
 		}
+
+		std::cout << std::hex << module << " : " << s << std::endl
+		          << std::flush;
 
 		self->moduleDependencies[ s ].insert( module );
 	}
@@ -708,7 +734,7 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 
 	// -- add all source files for this file to the list of watched
 	//    files that point back to this module
-	backend_set_watched_files_for_module( self, module, includesSet );
+	backend_set_module_dependencies_for_watched_file( self, module, includesSet );
 
 	return module;
 }
@@ -754,6 +780,12 @@ static void backend_shader_module_update( le_backend_o *self, le_shader_module_o
 		return;
 	}
 
+	// -- update module hash
+	module->hash = hash_of_module;
+
+	// -- update additional include paths, if necessary.
+	backend_set_module_dependencies_for_watched_file( self, module, includesSet );
+
 	// ---------| Invariant: new spir-v code detected.
 
 	// -- if hash doesn't match, delete old vk module, create new vk module
@@ -776,9 +808,6 @@ static void backend_shader_module_update( le_backend_o *self, le_shader_module_o
 	// -- create new vulkan shader module object
 	vk::ShaderModuleCreateInfo createInfo( vk::ShaderModuleCreateFlags(), module->spirv.size() * sizeof( uint32_t ), module->spirv.data() );
 	module->module = device.createShaderModule( createInfo );
-
-	// -- update module hash
-	module->hash = hash_of_module;
 }
 
 // ----------------------------------------------------------------------
