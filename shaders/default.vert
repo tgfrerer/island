@@ -13,7 +13,6 @@ layout (location = 0) in vec3 pos;
 layout (location = 0) out vec2 outTexCoord;
 
 // arguments
-
 layout (set = 0, binding = 0) uniform MatrixStack 
 {
 	mat4 modelMatrix;

@@ -23,10 +23,8 @@ layout (set = 0, binding = 1) uniform Color
 	vec4 color;
 };
 
-#include "include_test.glsl"
-
 void main(){
-	// outFragColor = getColor(inTexCoord);
+	
 	outFragColor = vec4(inTexCoord, 0, 1);
 	//outFragColor = color;
 }
