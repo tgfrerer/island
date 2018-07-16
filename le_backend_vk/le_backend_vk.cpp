@@ -120,7 +120,6 @@ struct le_shader_module_o {
 	std::filesystem::path               filepath = {};                  ///< path to source file
 	vk::ShaderModule                    module   = nullptr;             //
 	LeShaderType                        stage    = LeShaderType::eNone; //
-	le_backend_o *                      backend  = nullptr;             // FIXME: this is not elegant, but we need it to build a set of watched, then modified modules.
 };
 
 struct AbstractPhysicalResource {
@@ -697,7 +696,6 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 	module->filepath       = canonical_path_as_string;
 	module->hash_file_path = file_path_hash;
 	module->hash           = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module->hash_file_path );
-	module->backend        = self;
 
 	{
 		// -- Check if module is already present in render module cache.
