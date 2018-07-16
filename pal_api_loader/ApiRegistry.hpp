@@ -44,7 +44,7 @@ class Registry {
 		return T::pRegFun;
 	}
 
-	static bool loaderCallback( void * );
+	static bool loaderCallback( const char *, void * );
 
 	struct CallbackParams {
 		pal_api_loader_i *loaderInterface;

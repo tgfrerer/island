@@ -25,31 +25,30 @@ static auto file_watcher   = file_watcher_i -> create();
 // ----------------------------------------------------------------------
 
 extern "C" void *pal_registry_get_api( const char *id ) {
-//#ifndef NDEBUG
-//	auto find_result = apiTable.find(std::string(id));
-//	if (find_result == apiTable.end()){
-//		std::cerr << "warning: could not find api: " << id << std::endl;
-//	}
-//#endif
+	//#ifndef NDEBUG
+	//	auto find_result = apiTable.find(std::string(id));
+	//	if (find_result == apiTable.end()){
+	//		std::cerr << "warning: could not find api: " << id << std::endl;
+	//	}
+	//#endif
 	return apiTable[ std::string( id ) ];
 };
 
 // ----------------------------------------------------------------------
 
 extern "C" void pal_registry_set_api( const char *id, void *api ) {
-//#ifndef NDEBUG
-//	auto find_result = apiTable.find(std::string(id));
-//	if (find_result == apiTable.end()){
-//		std::cerr << "set api warning: could not find api: " << id << std::endl;
-//	}
-//#endif
+	//#ifndef NDEBUG
+	//	auto find_result = apiTable.find(std::string(id));
+	//	if (find_result == apiTable.end()){
+	//		std::cerr << "set api warning: could not find api: " << id << std::endl;
+	//	}
+	//#endif
 	apiTable[ std::string( id ) ] = api;
 }
 
 // ----------------------------------------------------------------------
 
-bool Registry::loaderCallback( void *user_data_ ) {
-
+bool Registry::loaderCallback( const char *path, void *user_data_ ) {
 	auto params = static_cast<Registry::CallbackParams *>( user_data_ );
 	params->loaderInterface->load( params->loader );
 	return params->loaderInterface->register_api( params->loader, params->api, params->lib_register_fun_name );
@@ -58,7 +57,6 @@ bool Registry::loaderCallback( void *user_data_ ) {
 // ----------------------------------------------------------------------
 
 int Registry::addWatch( const char *watchedPath_, Registry::CallbackParams &settings_ ) {
-
 
 	pal_file_watcher_watch_settings watchSettings;
 
@@ -89,7 +87,7 @@ void Registry::loadApi( pal_api_loader_i *loaderInterface_, pal_api_loader_o *lo
 
 // ----------------------------------------------------------------------
 
-void Registry::loadLibraryPersistently( pal_api_loader_i *loaderInterface_, const char *libName_) {
+void Registry::loadLibraryPersistently( pal_api_loader_i *loaderInterface_, const char *libName_ ) {
 	loaderInterface_->loadLibraryPersistent( libName_ );
 }
 
@@ -104,4 +102,3 @@ void Registry::registerApi( pal_api_loader_i *loaderInterface, pal_api_loader_o 
 void Registry::pollForDynamicReload() {
 	file_watcher_i->poll_notifications( file_watcher );
 }
-

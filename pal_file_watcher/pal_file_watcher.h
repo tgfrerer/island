@@ -10,9 +10,9 @@ void register_file_watcher_api( void *api );
 struct pal_file_watcher_o;
 
 struct pal_file_watcher_watch_settings {
-	const char *filePath                      = nullptr;
-	bool ( *callback_fun )( void *user_data ) = nullptr;
-	void *callback_user_data                  = nullptr;
+	const char *filePath                                             = nullptr;
+	bool ( *callback_fun )( const char *file_path, void *user_data ) = nullptr;
+	void *callback_user_data                                         = nullptr;
 };
 
 // file watcher interface
@@ -25,10 +25,10 @@ struct pal_file_watcher_i {
 	void ( *destroy )( pal_file_watcher_o *obj );
 
 	// return value is unique id for the watch, -1 if unsuccessful.
-	int ( *add_watch )( pal_file_watcher_o *watcher, const pal_file_watcher_watch_settings& settings );
+	int ( *add_watch )( pal_file_watcher_o *watcher, const pal_file_watcher_watch_settings &settings );
 	bool ( *remove_watch )( pal_file_watcher_o *instance, int watch_id );
 
-	void (*poll_notifications)(pal_file_watcher_o*instance);
+	void ( *poll_notifications )( pal_file_watcher_o *instance );
 };
 
 #ifdef __cplusplus
