@@ -96,7 +96,7 @@ struct le_graphics_pipeline_create_info_t {
 	le_shader_module_o *shader_module_vert = nullptr;
 };
 
-struct le_graphics_pipeline_state_o; ///< object declaring a pipeline, owned by renderer, destroyed with renderer
+struct le_graphics_pipeline_state_o; // object containing pipeline state
 
 struct LeTextureInfo {
 	struct SamplerInfo {

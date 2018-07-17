@@ -27,6 +27,8 @@ struct le_swapchain_vk_settings_o;
 struct pal_window_o;
 
 struct le_shader_module_o;
+struct le_graphics_pipeline_state_o;
+struct le_graphics_pipeline_create_info_t;
 
 struct VkInstance_T;
 struct VkDevice_T;
@@ -68,6 +70,8 @@ struct le_backend_vk_api {
 		size_t                 ( *get_num_swapchain_images ) ( le_backend_o *self );
 		void                   ( *reset_swapchain          ) ( le_backend_o *self );
 		le_allocator_o**       ( *get_transient_allocators ) ( le_backend_o* self, size_t frameIndex, size_t numAllocators);
+
+		le_graphics_pipeline_state_o* (*create_graphics_pipeline_state_object)(le_backend_o* self, le_graphics_pipeline_create_info_t const * info);
 
 		le_shader_module_o*    ( *create_shader_module     ) ( le_backend_o* self, char const * path, LeShaderType moduleType);
 		void                   ( *update_shader_modules    ) ( le_backend_o* self );

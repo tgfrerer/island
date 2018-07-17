@@ -18,7 +18,6 @@
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/hash_util.h"
 #include "le_renderer/private/le_renderer_types.h"
-#include "le_renderer/private/le_pipeline_types.h"
 
 #include "le_shader_compiler/le_shader_compiler.h"
 
@@ -120,6 +119,16 @@ struct le_shader_module_o {
 	std::filesystem::path               filepath = {};                  ///< path to source file
 	vk::ShaderModule                    module   = nullptr;             //
 	LeShaderType                        stage    = LeShaderType::eNone; //
+struct le_graphics_pipeline_state_o {
+
+	uint64_t hash = 0; ///< hash of pipeline state, but not including but shader modules
+
+	le_shader_module_o *shaderModuleVert = nullptr;
+	le_shader_module_o *shaderModuleFrag = nullptr;
+
+	// TODO (pipeline) : -- add fields to pso object
+	struct le_vertex_input_binding_description *  vertexInputBindingDescrition = nullptr;
+	struct le_vertex_input_attribute_description *vertexAttributeDescrition    = nullptr;
 };
 
 struct AbstractPhysicalResource {
@@ -322,6 +331,8 @@ struct le_backend_o {
 	std::vector<le_shader_module_o *>                               shaderModules;         // OWNING. Stores all shader modules used in backend.
 	std::unordered_map<std::string, std::set<le_shader_module_o *>> moduleDependencies;    // map 'canonical shader source file path' -> [shader modules]
 	std::set<le_shader_module_o *>                                  modifiedShaderModules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
+
+	std::vector<le_graphics_pipeline_state_o *> PSOs;
 
 	// These resources are potentially in-flight, and may be used read-only
 	// by more than one frame.
@@ -870,6 +881,12 @@ static void backend_destroy( le_backend_o *self ) {
 
 	vk::Device device = self->device->getVkDevice();
 
+	// -- destroy any pipeline state objects
+	for ( auto &pPso : self->PSOs ) {
+		delete ( pPso );
+	}
+	self->PSOs.clear();
+
 	// -- destroy retained shader modules
 
 	for ( auto &s : self->shaderModules ) {
@@ -1151,6 +1168,27 @@ static std::vector<le_shader_binding_info> graphics_pso_create_bindings_list( le
 	}
 
 	return combined_bindings;
+}
+
+static le_graphics_pipeline_state_o *backend_create_grapics_pipeline_state_object( le_backend_o *self, le_graphics_pipeline_create_info_t const *info ) {
+	auto pso = new ( le_graphics_pipeline_state_o );
+
+	// -- add shader modules to pipeline
+	//
+	// (shader modules are backend objects)
+	pso->shaderModuleFrag = info->shader_module_frag;
+	pso->shaderModuleVert = info->shader_module_vert;
+
+	// TODO (pipeline): -- initialise pso based on pipeline info
+
+	// -- calculate hash based on contents of pipeline state object
+
+	// TODO: -- calculate hash for pipeline state based on create_info (state that's not related to shaders)
+	// create_info will contain state like blend, polygon mode, culling etc.
+	pso->hash = 0x0;
+
+	self->PSOs.push_back( pso );
+	return pso;
 }
 
 // ----------------------------------------------------------------------
@@ -3287,20 +3325,21 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	auto  le_backend_vk_api_i = static_cast<le_backend_vk_api *>( api_ );
 	auto &vk_backend_i        = le_backend_vk_api_i->vk_backend_i;
 
-	vk_backend_i.create                     = backend_create;
-	vk_backend_i.destroy                    = backend_destroy;
-	vk_backend_i.setup                      = backend_setup;
-	vk_backend_i.create_window_surface      = backend_create_window_surface;
-	vk_backend_i.create_swapchain           = backend_create_swapchain;
-	vk_backend_i.get_num_swapchain_images   = backend_get_num_swapchain_images;
-	vk_backend_i.reset_swapchain            = backend_reset_swapchain;
-	vk_backend_i.get_transient_allocators   = backend_get_transient_allocators;
-	vk_backend_i.clear_frame                = backend_clear_frame;
-	vk_backend_i.acquire_physical_resources = backend_acquire_physical_resources;
-	vk_backend_i.process_frame              = backend_process_frame;
-	vk_backend_i.dispatch_frame             = backend_dispatch_frame;
-	vk_backend_i.create_shader_module       = backend_create_shader_module;
-	vk_backend_i.update_shader_modules      = backend_update_shader_modules;
+	vk_backend_i.create                                = backend_create;
+	vk_backend_i.destroy                               = backend_destroy;
+	vk_backend_i.setup                                 = backend_setup;
+	vk_backend_i.create_window_surface                 = backend_create_window_surface;
+	vk_backend_i.create_swapchain                      = backend_create_swapchain;
+	vk_backend_i.get_num_swapchain_images              = backend_get_num_swapchain_images;
+	vk_backend_i.reset_swapchain                       = backend_reset_swapchain;
+	vk_backend_i.get_transient_allocators              = backend_get_transient_allocators;
+	vk_backend_i.clear_frame                           = backend_clear_frame;
+	vk_backend_i.acquire_physical_resources            = backend_acquire_physical_resources;
+	vk_backend_i.process_frame                         = backend_process_frame;
+	vk_backend_i.dispatch_frame                        = backend_dispatch_frame;
+	vk_backend_i.create_shader_module                  = backend_create_shader_module;
+	vk_backend_i.update_shader_modules                 = backend_update_shader_modules;
+	vk_backend_i.create_graphics_pipeline_state_object = backend_create_grapics_pipeline_state_object;
 
 	// register/update submodules inside this plugin
 

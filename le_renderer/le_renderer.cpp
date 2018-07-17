@@ -6,7 +6,6 @@
 #include "le_swapchain_vk/le_swapchain_vk.h"
 
 #include "le_renderer/private/hash_util.h"
-#include "le_renderer/private/le_pipeline_types.h"
 
 #include <iostream>
 #include <iomanip>
@@ -61,6 +60,8 @@ struct FrameData {
 
 // ----------------------------------------------------------------------
 
+// ----------------------------------------------------------------------
+
 struct le_renderer_o {
 
 	uint64_t    swapchainDirty = false;
@@ -69,8 +70,6 @@ struct le_renderer_o {
 	std::vector<FrameData> frames;
 	size_t                 numSwapchainImages = 0;
 	size_t                 currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
-
-	std::vector<le_graphics_pipeline_state_o *> PSOs;
 
 	le_renderer_o( le_backend_o *backend )
 	    : backend( backend ) {
@@ -87,28 +86,14 @@ renderer_create( le_backend_o *backend ) {
 
 // ----------------------------------------------------------------------
 
+/// \brief Creates a pipeline state object on the backend
+/// \returns an opaque handle to a pipeline state object
 static le_graphics_pipeline_state_o *
 renderer_create_graphics_pipeline_state_object( le_renderer_o *self, le_graphics_pipeline_create_info_t const *pipeline_info ) {
-	auto pso = new ( le_graphics_pipeline_state_o );
 
-	// -- add shader modules to pipeline
-	//
-	// (shader modules are backend objects)
-	pso->shaderModuleFrag = pipeline_info->shader_module_frag;
-	pso->shaderModuleVert = pipeline_info->shader_module_vert;
-
-	// TODO (pipeline): -- initialise pso based on pipeline info
-
-	// TODO (pipeline): -- tell backend about the new pipeline state object
 	static auto const &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
-	// -- calculate hash based on contents of pipeline state object
 
-	// TODO: -- calculate hash for pipeline state based on create_info (state that's not related to shaders)
-	// create_info will contain state like blend, polygon mode, culling etc.
-	pso->hash = 0x0;
-
-	self->PSOs.push_back( pso );
-	return pso;
+	return backend_i.create_graphics_pipeline_state_object( self->backend, pipeline_info );
 }
 
 // ----------------------------------------------------------------------
@@ -396,11 +381,6 @@ static void renderer_destroy( le_renderer_o *self ) {
 	self->frames.clear();
 
 	// -- Delete any objects created dynamically
-
-	for ( auto &pPso : self->PSOs ) {
-		delete ( pPso );
-	}
-	self->PSOs.clear();
 
 	delete self;
 }
