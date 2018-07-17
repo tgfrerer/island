@@ -41,11 +41,6 @@
 #	define PRINT_DEBUG_MESSAGES false
 #endif
 
-template <typename T>
-static inline bool vector_contains( const std::vector<T> &haystack, T needle ) noexcept {
-	return haystack.end() == std::find( haystack.begin(), haystack.end(), needle );
-}
-
 namespace std {
 using namespace experimental;
 }
@@ -111,14 +106,19 @@ struct DescriptorData {
 };
 
 struct le_shader_module_o {
-	uint64_t                            hash                = 0;        ///< hash taken from spirv code + filepath hash
-	uint64_t                            hash_file_path      = 0;        ///< hash taken from filepath (canonical)
-	uint64_t                            hash_pipelinelayout = 0;        ///< hash taken from descriptors over all sets
-	std::vector<le_shader_binding_info> bindings;                       ///< info for each binding, sorted asc.
-	std::vector<uint32_t>               spirv    = {};                  ///< spirv source code for this module
-	std::filesystem::path               filepath = {};                  ///< path to source file
-	vk::ShaderModule                    module   = nullptr;             //
-	LeShaderType                        stage    = LeShaderType::eNone; //
+	uint64_t                                         hash                = 0;     ///< hash taken from spirv code + filepath hash
+	uint64_t                                         hash_file_path      = 0;     ///< hash taken from filepath (canonical)
+	uint64_t                                         hash_pipelinelayout = 0;     ///< hash taken from descriptors over all sets
+	std::vector<le_shader_binding_info>              bindings;                    ///< info for each binding, sorted asc.
+	std::vector<uint32_t>                            spirv    = {};               ///< spirv source code for this module
+	std::filesystem::path                            filepath = {};               ///< path to source file
+	std::vector<std::string>                         vertexAttributeNames;        ///< (used for debug only) name for vertex attribute
+	std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions; ///< descriptions gathered from reflection if shader type is vertex
+	std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;   ///< descriptions gathered from reflection if shader type is vertex
+	vk::ShaderModule                                 module = nullptr;
+	LeShaderType                                     stage  = LeShaderType::eNone;
+};
+
 struct le_graphics_pipeline_state_o {
 
 	uint64_t hash = 0; ///< hash of pipeline state, but not including but shader modules
@@ -579,11 +579,85 @@ static void backend_set_module_dependencies_for_watched_file( le_backend_o *self
 }
 
 // ----------------------------------------------------------------------
+/// \returns stride (in Bytes) for a given spirv type object
+static uint32_t spirv_type_get_stride( const spirv_cross::SPIRType &spir_type ) {
+	// NOTE: spir_type.width is given in bits
+	return ( spir_type.width / 8 ) * spir_type.vecsize * spir_type.columns;
+}
+
+// clang-format off
+// ----------------------------------------------------------------------
+/// \returns corresponding vk::Format for a given spirv type object
+static vk::Format spirv_type_get_vk_format( const spirv_cross::SPIRType &spirv_type ) {
+
+	if ( spirv_type.columns != 1 ){
+		assert(false); // columns must be 1 for a vkFormat
+		return vk::Format::eUndefined;
+	}
+
+	// ----------| invariant: columns == 1
+
+	switch ( spirv_type.basetype ) {
+	case spirv_cross::SPIRType::Float:
+		switch ( spirv_type.vecsize ) {
+		case 4: return vk::Format::eR32G32B32A32Sfloat;
+		case 3: return vk::Format::eR32G32B32Sfloat;
+		case 2: return vk::Format::eR32G32Sfloat;
+		case 1: return vk::Format::eR32Sfloat;
+		}
+	    break;
+	case spirv_cross::SPIRType::Half:
+		switch ( spirv_type.vecsize ) {
+		case 4: return vk::Format::eR16G16B16A16Sfloat;
+		case 3: return vk::Format::eR16G16B16Sfloat;
+		case 2: return vk::Format::eR16G16Sfloat;
+		case 1: return vk::Format::eR16Sfloat;
+		}
+	    break;
+	case spirv_cross::SPIRType::Int:
+		switch ( spirv_type.vecsize ) {
+		case 4: return vk::Format::eR32G32B32A32Sint;
+		case 3: return vk::Format::eR32G32B32Sint;
+		case 2: return vk::Format::eR32G32Sint;
+		case 1: return vk::Format::eR32Sint;
+		}
+	    break;
+	case spirv_cross::SPIRType::UInt:
+		switch ( spirv_type.vecsize ) {
+		case 4: return vk::Format::eR32G32B32A32Uint;
+		case 3: return vk::Format::eR32G32B32Uint;
+		case 2: return vk::Format::eR32G32Uint;
+		case 1: return vk::Format::eR32Uint;
+		}
+	    break;
+	case spirv_cross::SPIRType::Char:
+		switch ( spirv_type.vecsize ) {
+		case 4: return vk::Format::eR8G8B8A8Unorm;
+		case 3: return vk::Format::eR8G8B8Unorm;
+		case 2: return vk::Format::eR8G8Unorm;
+		case 1: return vk::Format::eR8Unorm;
+		}
+	    break;
+	default:
+		assert(false); // format not covered by switch case.
+	break;
+	}
+
+	assert(false); // something went wrong.
+	return vk::Format::eUndefined;
+}
+// clang-format on
+
+// ----------------------------------------------------------------------
 
 static void shader_module_update_reflection( le_shader_module_o *module ) {
-	std::vector<le_shader_binding_info> bindings;
 
-	static_assert( sizeof( le_shader_binding_info ) == sizeof( uint64_t ) * 2, "shader binding info must be the same size as uint64_t" );
+	std::vector<le_shader_binding_info>              bindings;                    // <- gets stored in module at end
+	std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions; // <- gets stored in module at end
+	std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;   // <- gets stored in module at end
+	std::vector<std::string>                         vertexAttributeNames;        // <- gets stored in module at end
+
+	static_assert( sizeof( le_shader_binding_info ) == sizeof( uint64_t ) * 2, "Shader binding info must be the same size as 2 * uint64_t" );
 
 	spirv_cross::Compiler compiler( module->spirv );
 
@@ -591,29 +665,78 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 	spirv_cross::ShaderResources resources = compiler.get_shader_resources();
 
 	{ // -- find out max number of bindings
-		size_t bindingsCount = resources.storage_buffers.size() +
-		                       resources.stage_inputs.size() +
-		                       resources.stage_outputs.size() +
-		                       resources.subpass_inputs.size() +
+		size_t bindingsCount = resources.uniform_buffers.size() +
+		                       resources.storage_buffers.size() +
 		                       resources.storage_images.size() +
-		                       resources.sampled_images.size() +
-		                       resources.atomic_counters.size() +
-		                       resources.push_constant_buffers.size() +
-		                       resources.separate_images.size() +
-		                       resources.separate_samplers.size();
+		                       resources.sampled_images.size();
 
 		bindings.reserve( bindingsCount );
 	}
 
-	// Get all sampled images in the shader
-	// TODO: how do we deal with arrays of images?
-	// it is well possible that spirv cross reports each image individually, giving it an index.
-	for ( auto &resource : resources.sampled_images ) {
+	// If this shader module represents a vertex shader, get
+	// stage_inputs, as these represent vertex shader inputs.
+	if ( module->stage == LeShaderType::eVert ) {
+
+		uint32_t location = 0; // shader location qualifier mapped to binding number
+
+		// NOTE:  resources.stage_inputs means inputs to this shader stage
+		//		  resources.stage_outputs means outputs from this shader stage.
+		vertexAttributeDescriptions.reserve( resources.stage_inputs.size() );
+		vertexBindingDescriptions.reserve( resources.stage_inputs.size() );
+		vertexAttributeNames.reserve( resources.stage_inputs.size() );
+
+		// NOTE: we assume that stage_inputs are ordered ASC by location
+		for ( auto const &stageInput : resources.stage_inputs ) {
+
+			if ( compiler.get_decoration_bitset( stageInput.id ).get( spv::DecorationLocation ) ) {
+				location = compiler.get_decoration( stageInput.id, spv::DecorationLocation );
+			}
+
+			auto const &attributeType = compiler.get_type( stageInput.type_id );
+
+			// We create one binding description for each attribute description,
+			// which means that vertex input is assumed to be not interleaved.
+			//
+			// User may override reflection-generated vertex input by explicitly
+			// specifying vertex input when creating pipeline.
+
+			vk::VertexInputAttributeDescription inputAttributeDescription{};
+			vk::VertexInputBindingDescription   vertexBindingDescription{};
+
+			inputAttributeDescription
+			    .setLocation( location )                                // by default, we assume one buffer per location
+			    .setBinding( location )                                 // by default, we assume one buffer per location
+			    .setFormat( spirv_type_get_vk_format( attributeType ) ) // best guess, derived from spirv_type
+			    .setOffset( 0 );                                        // non-interleaved means offset must be 0
+
+			vertexBindingDescription
+			    .setBinding( location )
+			    .setInputRate( vk::VertexInputRate::eVertex )
+			    .setStride( spirv_type_get_stride( attributeType ) );
+
+			vertexAttributeDescriptions.emplace_back( std::move( inputAttributeDescription ) );
+			vertexBindingDescriptions.emplace_back( std::move( vertexBindingDescription ) );
+			vertexAttributeNames.emplace_back( stageInput.name );
+
+			++location;
+		}
+
+		// store vertex input info with module
+
+		module->vertexAttributeDescriptions = std::move( vertexAttributeDescriptions );
+		module->vertexBindingDescriptions   = std::move( vertexBindingDescriptions );
+		module->vertexAttributeNames        = std::move( vertexAttributeNames );
+	}
+
+	// -- Get all sampled images in the shader
+	for ( auto const &resource : resources.sampled_images ) {
+		// TODO: how do we deal with arrays of images?
+		// it is well possible that spirv cross reports each image individually, giving it an index.
 		le_shader_binding_info info{};
 
 		info.setIndex   = compiler.get_decoration( resource.id, spv::DecorationDescriptorSet );
 		info.binding    = compiler.get_decoration( resource.id, spv::DecorationBinding );
-		info.type       = enumToNum( vk::DescriptorType::eCombinedImageSampler ); // Note: we always use combined image samplers
+		info.type       = enumToNum( vk::DescriptorType::eCombinedImageSampler ); // Note: sampled_images corresponds to combinedImageSampler, separate_[image|sampler] corresponds to image, and sampler being separate
 		info.stage_bits = enumToNum( module->stage );
 		info.count      = 1;
 		info.name_hash  = const_char_hash64( resource.name.c_str() );
@@ -621,8 +744,8 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 		bindings.emplace_back( std::move( info ) );
 	}
 
-	// get all uniform buffers in shader
-	for ( auto &resource : resources.uniform_buffers ) {
+	// -- Get all uniform buffers in shader
+	for ( auto const &resource : resources.uniform_buffers ) {
 		le_shader_binding_info info{};
 
 		info.setIndex   = compiler.get_decoration( resource.id, spv::DecorationDescriptorSet );
@@ -631,25 +754,12 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 		info.count      = 1;
 		info.stage_bits = enumToNum( module->stage );
 		info.name_hash  = const_char_hash64( resource.name.c_str() );
-
-		{
-			// -- Get the size of the UBO, which is the last offset + the last range in active ranges of this resource...
-			//    - This assumes ranges are sorted by offset.
-			// TODO: Find a less optimistic way to calculate the size of UBO resource structs from shader reflection data.
-			auto ranges = compiler.get_active_buffer_ranges( resource.id );
-
-			if ( ranges.empty() ) {
-				info.range = 0;
-			} else {
-				auto r     = ranges.back();
-				info.range = r.offset + r.range;
-			}
-		}
+		info.range      = compiler.get_declared_struct_size( compiler.get_type( resource.type_id ) );
 
 		bindings.emplace_back( std::move( info ) );
 	}
 
-	// get all storage buffers in shader
+	// -- Get all storage buffers in shader
 	for ( auto &resource : resources.storage_buffers ) {
 		le_shader_binding_info info{};
 
@@ -663,7 +773,6 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 	}
 
 	// Sort bindings - this makes it easier for us to link shader stages together
-
 	std::sort( bindings.begin(), bindings.end() ); // we're sorting shader bindings by set, binding ASC
 
 	// -- calculate hash over bindings
@@ -1216,30 +1325,32 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 
 	std::array<vk::PipelineShaderStageCreateInfo, 2> pipelineStages;
 	pipelineStages[ 0 ]
-	    .setFlags( vk::PipelineShaderStageCreateFlags() ) // must be 0 - "reserved for future use"
+	    .setFlags( {} ) // must be 0 - "reserved for future use"
 	    .setStage( vk::ShaderStageFlagBits::eVertex )
 	    .setModule( pso->shaderModuleVert->module )
 	    .setPName( "main" )
 	    .setPSpecializationInfo( nullptr );
 	pipelineStages[ 1 ]
-	    .setFlags( vk::PipelineShaderStageCreateFlags() ) // must be 0 - "reserved for future use"
+	    .setFlags( {} ) // must be 0 - "reserved for future use"
 	    .setStage( vk::ShaderStageFlagBits::eFragment )
 	    .setModule( pso->shaderModuleFrag->module )
 	    .setPName( "main" )
 	    .setPSpecializationInfo( nullptr );
 
-	// FIXME: vertex binding description must be in sync with what shader expects for input
-	// in terms of element count. We can't just assume that an attribute is always a 3-element vector
-	vk::VertexInputBindingDescription   vertexBindingDescrition{0, sizeof( float ) * 3};
-	vk::VertexInputAttributeDescription vertexAttributeDescription{0, 0, vk::Format::eR32G32B32Sfloat, 0};
+	// todo: deal with pipelines that define their own vertex input
+
+	// where to get data from
+	auto const &vertexBindingDescriptions = pso->shaderModuleVert->vertexBindingDescriptions;
+	// how it feeds into the shader's vertex inputs
+	auto const &vertexInputAttributeDescriptions = pso->shaderModuleVert->vertexAttributeDescriptions;
 
 	vk::PipelineVertexInputStateCreateInfo vertexInputStageInfo;
 	vertexInputStageInfo
 	    .setFlags( vk::PipelineVertexInputStateCreateFlags() )
-	    .setVertexBindingDescriptionCount( 1 )
-	    .setPVertexBindingDescriptions( &vertexBindingDescrition )
-	    .setVertexAttributeDescriptionCount( 1 )
-	    .setPVertexAttributeDescriptions( &vertexAttributeDescription );
+	    .setVertexBindingDescriptionCount( uint32_t( vertexBindingDescriptions.size() ) )
+	    .setPVertexBindingDescriptions( vertexBindingDescriptions.data() )
+	    .setVertexAttributeDescriptionCount( uint32_t( vertexInputAttributeDescriptions.size() ) )
+	    .setPVertexAttributeDescriptions( vertexInputAttributeDescriptions.data() );
 
 	// fetch vk::PipelineLayout for this pso
 	auto pipelineLayout = backend_get_pipeline_layout( self, pso );
