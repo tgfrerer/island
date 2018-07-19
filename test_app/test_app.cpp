@@ -92,6 +92,28 @@ static test_app_o *test_app_create() {
 			pi.shader_module_frag = defaultFragShader;
 			pi.shader_module_vert = defaultVertShader;
 
+			std::array<le_vertex_input_attribute_description, 1> attrs;
+			std::array<le_vertex_input_binding_description, 1>   bindings;
+			{
+				// location 1, binding 0
+				attrs[ 0 ].location       = 0;
+				attrs[ 0 ].binding        = 0;
+				attrs[ 0 ].binding_offset = 0;
+				attrs[ 0 ].isNormalised   = false;
+				attrs[ 0 ].type           = le_vertex_input_attribute_description::eFloat;
+				attrs[ 0 ].vecsize        = 3;
+			}
+			{
+				// binding 0
+				bindings[ 0 ].binding    = 0;
+				bindings[ 0 ].input_rate = le_vertex_input_binding_description::ePerVertex;
+				bindings[ 0 ].stride     = sizeof( float ) * 3;
+			}
+			pi.vertex_input_attribute_descriptions       = attrs.data();
+			pi.vertex_input_attribute_descriptions_count = attrs.size();
+			pi.vertex_input_binding_descriptions         = bindings.data();
+			pi.vertex_input_binding_descriptions_count   = bindings.size();
+
 			// The pipeline state object holds all state for the pipeline,
 			// that's links to shader modules, blend states, input assembly, etc...
 			// Everything, in short, but the renderpass, and subpass (which are added at the last minute)

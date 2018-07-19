@@ -91,9 +91,45 @@ struct le_allocator_o;
 
 struct le_shader_module_o; ///< shader module, 1:1 relationship with a shader source file
 
+struct le_vertex_input_attribute_description {
+
+	// Note that we store the log2 of the number of Bytes needed to store values of a type in the LS nibble,
+	// so that we can say: numBytes =  1 << (type & 0x0F);
+	enum TYPE : uint8_t {
+		eChar  = ( 0 << 4 ) | 0,
+		eHalf  = ( 1 << 4 ) | 1,
+		eInt   = ( 2 << 4 ) | 2,
+		eUInt  = ( 3 << 4 ) | 2,
+		eFloat = ( 4 << 4 ) | 2,
+	};
+
+	uint64_t xxx_padding : 19;
+	bool     isNormalised : 1;    /// 0..1 (), 19 bits of unused space...
+	uint64_t vecsize : 4;         /// 0..7 (number of elements)
+	TYPE     type : 8;            /// use enum NUM_BYTES (1 << num bytes =  1|2|4|8)
+	uint64_t binding_offset : 16; /// 0..65535 offset for this location within binding
+	uint64_t binding : 8;         /// 0..255
+	uint64_t location : 8;        /// 0..255
+};
+
+struct le_vertex_input_binding_description {
+	enum INPUT_RATE : bool {
+		ePerVertex   = 0,
+		ePerInstance = 1,
+	};
+	INPUT_RATE input_rate : 1;
+	uint32_t   stride : 16;
+	uint32_t   binding : 4;
+};
+
 struct le_graphics_pipeline_create_info_t {
 	le_shader_module_o *shader_module_frag = nullptr;
 	le_shader_module_o *shader_module_vert = nullptr;
+
+	le_vertex_input_attribute_description *vertex_input_attribute_descriptions       = nullptr;
+	size_t                                 vertex_input_attribute_descriptions_count = 0;
+	le_vertex_input_binding_description *  vertex_input_binding_descriptions         = nullptr;
+	size_t                                 vertex_input_binding_descriptions_count   = 0;
 };
 
 struct le_graphics_pipeline_state_o; // object containing pipeline state

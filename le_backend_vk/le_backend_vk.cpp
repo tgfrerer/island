@@ -60,7 +60,7 @@ struct le_shader_binding_info {
 		uint64_t setIndex           :  3; // |/ keep together for sorting : set index [0..7]
 		};
 		uint64_t data;
-	} ;
+	};
 
 	uint64_t name_hash; // const_char_hash of parameter name as given in shader
 
@@ -127,8 +127,11 @@ struct le_graphics_pipeline_state_o {
 	le_shader_module_o *shaderModuleFrag = nullptr;
 
 	// TODO (pipeline) : -- add fields to pso object
-	struct le_vertex_input_binding_description *  vertexInputBindingDescrition = nullptr;
-	struct le_vertex_input_attribute_description *vertexAttributeDescrition    = nullptr;
+
+	bool useExplicitVertexInputDescriptions = false;
+
+	std::vector<vk::VertexInputBindingDescription>   explicitVertexBindingDescriptions;   // only used if explicitly told to, otherwise use from vertex shader reflection
+	std::vector<vk::VertexInputAttributeDescription> explicitVertexAttributeDescriptions; // only used if explicitly told to, otherwise use from vertex shader reflection
 };
 
 struct AbstractPhysicalResource {
@@ -1279,6 +1282,86 @@ static std::vector<le_shader_binding_info> graphics_pso_create_bindings_list( le
 	return combined_bindings;
 }
 
+// ----------------------------------------------------------------------
+
+static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_vertex_input_binding_description::INPUT_RATE &input_rate ) {
+	switch ( input_rate ) {
+	case ( le_vertex_input_binding_description::ePerInstance ):
+	    return vk::VertexInputRate::eInstance;
+	case ( le_vertex_input_binding_description::ePerVertex ):
+	    return vk::VertexInputRate::eVertex;
+	}
+}
+
+// clang-format off
+
+/// \returns corresponding vk::Format for a given le_input_attribute_description struct
+static inline vk::Format vk_format_from_le_vertex_input_attribute_description(const le_vertex_input_attribute_description* d){
+
+	if ( d->vecsize == 0 || d->vecsize > 4 ){
+		assert(false); // vecsize must be between 1 and 4
+		return vk::Format::eUndefined;
+	}
+
+	switch ( d->type ) {
+	case le_vertex_input_attribute_description::eFloat:
+		switch ( d->vecsize ) {
+		case 4: return vk::Format::eR32G32B32A32Sfloat;
+		case 3: return vk::Format::eR32G32B32Sfloat;
+		case 2: return vk::Format::eR32G32Sfloat;
+		case 1: return vk::Format::eR32Sfloat;
+		}
+	    break;
+	case le_vertex_input_attribute_description::eHalf:
+		switch ( d->vecsize ) {
+		case 4: return vk::Format::eR16G16B16A16Sfloat;
+		case 3: return vk::Format::eR16G16B16Sfloat;
+		case 2: return vk::Format::eR16G16Sfloat;
+		case 1: return vk::Format::eR16Sfloat;
+		}
+	    break;
+	case le_vertex_input_attribute_description::eInt:
+		switch ( d->vecsize ) {
+		case 4: return vk::Format::eR32G32B32A32Sint;
+		case 3: return vk::Format::eR32G32B32Sint;
+		case 2: return vk::Format::eR32G32Sint;
+		case 1: return vk::Format::eR32Sint;
+		}
+	    break;
+	case le_vertex_input_attribute_description::eUInt:
+		switch ( d->vecsize ) {
+		case 4: return vk::Format::eR32G32B32A32Uint;
+		case 3: return vk::Format::eR32G32B32Uint;
+		case 2: return vk::Format::eR32G32Uint;
+		case 1: return vk::Format::eR32Uint;
+		}
+	    break;
+	case le_vertex_input_attribute_description::eChar:
+		if (d->isNormalised){
+			switch ( d->vecsize ) {
+			case 4: return vk::Format::eR8G8B8A8Unorm;
+			case 3: return vk::Format::eR8G8B8Unorm;
+			case 2: return vk::Format::eR8G8Unorm;
+			case 1: return vk::Format::eR8Unorm;
+			}
+		} else {
+			switch ( d->vecsize ) {
+			case 4: return vk::Format::eR8G8B8A8Uint;
+			case 3: return vk::Format::eR8G8B8Uint;
+			case 2: return vk::Format::eR8G8Uint;
+			case 1: return vk::Format::eR8Uint;
+			}
+		}
+	    break;
+	}
+
+	assert(false); // abandon all hope
+	return vk::Format::eUndefined;
+}
+// clang-format on
+
+// ----------------------------------------------------------------------
+
 static le_graphics_pipeline_state_o *backend_create_grapics_pipeline_state_object( le_backend_o *self, le_graphics_pipeline_create_info_t const *info ) {
 	auto pso = new ( le_graphics_pipeline_state_o );
 
@@ -1287,6 +1370,43 @@ static le_graphics_pipeline_state_o *backend_create_grapics_pipeline_state_objec
 	// (shader modules are backend objects)
 	pso->shaderModuleFrag = info->shader_module_frag;
 	pso->shaderModuleVert = info->shader_module_vert;
+
+	if ( info->vertex_input_attribute_descriptions &&
+	     info->vertex_input_binding_descriptions &&
+	     info->vertex_input_attribute_descriptions_count &&
+	     info->vertex_input_binding_descriptions_count ) {
+
+		// create vertex input binding descriptions
+
+		for ( auto const *b = info->vertex_input_binding_descriptions;
+		      b != info->vertex_input_binding_descriptions + info->vertex_input_binding_descriptions_count;
+		      b++ ) {
+
+			vk::VertexInputBindingDescription bindingDescription;
+			bindingDescription
+			    .setBinding( b->binding )
+			    .setStride( b->stride )
+			    .setInputRate( vk_input_rate_from_le_input_rate( b->input_rate ) );
+
+			pso->explicitVertexBindingDescriptions.emplace_back( std::move( bindingDescription ) );
+		}
+
+		// create vertex input attribute descriptions
+		for ( auto const *a = info->vertex_input_attribute_descriptions;
+		      a != info->vertex_input_attribute_descriptions + info->vertex_input_attribute_descriptions_count;
+		      a++ ) {
+			vk::VertexInputAttributeDescription attributeDescription;
+			attributeDescription
+			    .setLocation( a->location )
+			    .setBinding( a->binding )
+			    .setFormat( vk_format_from_le_vertex_input_attribute_description( a ) )
+			    .setOffset( a->binding_offset );
+
+			pso->explicitVertexAttributeDescriptions.emplace_back( std::move( attributeDescription ) );
+		}
+
+		pso->useExplicitVertexInputDescriptions = true;
+	}
 
 	// TODO (pipeline): -- initialise pso based on pipeline info
 
@@ -1339,18 +1459,27 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 
 	// todo: deal with pipelines that define their own vertex input
 
-	// where to get data from
-	auto const &vertexBindingDescriptions = pso->shaderModuleVert->vertexBindingDescriptions;
-	// how it feeds into the shader's vertex inputs
-	auto const &vertexInputAttributeDescriptions = pso->shaderModuleVert->vertexAttributeDescriptions;
+	std::vector<vk::VertexInputBindingDescription> const *  vertexBindingDescriptions;        // where to get data from
+	std::vector<vk::VertexInputAttributeDescription> const *vertexInputAttributeDescriptions; // how it feeds into the shader's vertex inputs
+
+	if ( pso->useExplicitVertexInputDescriptions ) {
+		// use vertex input schema based on explicit user input
+		// which was stored in `backend_create_grapics_pipeline_state_object`
+		vertexBindingDescriptions        = &pso->explicitVertexBindingDescriptions;
+		vertexInputAttributeDescriptions = &pso->explicitVertexAttributeDescriptions;
+	} else {
+		// use vertex input schema based on shader reflection
+		vertexBindingDescriptions        = &pso->shaderModuleVert->vertexBindingDescriptions;
+		vertexInputAttributeDescriptions = &pso->shaderModuleVert->vertexAttributeDescriptions;
+	}
 
 	vk::PipelineVertexInputStateCreateInfo vertexInputStageInfo;
 	vertexInputStageInfo
 	    .setFlags( vk::PipelineVertexInputStateCreateFlags() )
-	    .setVertexBindingDescriptionCount( uint32_t( vertexBindingDescriptions.size() ) )
-	    .setPVertexBindingDescriptions( vertexBindingDescriptions.data() )
-	    .setVertexAttributeDescriptionCount( uint32_t( vertexInputAttributeDescriptions.size() ) )
-	    .setPVertexAttributeDescriptions( vertexInputAttributeDescriptions.data() );
+	    .setVertexBindingDescriptionCount( uint32_t( vertexBindingDescriptions->size() ) )
+	    .setPVertexBindingDescriptions( vertexBindingDescriptions->data() )
+	    .setVertexAttributeDescriptionCount( uint32_t( vertexInputAttributeDescriptions->size() ) )
+	    .setPVertexAttributeDescriptions( vertexInputAttributeDescriptions->data() );
 
 	// fetch vk::PipelineLayout for this pso
 	auto pipelineLayout = backend_get_pipeline_layout( self, pso );
@@ -1775,7 +1904,7 @@ static void backend_setup( le_backend_o *self ) {
 			allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 			allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 
-			vmaFindMemoryTypeIndexForBufferInfo( self->mAllocator, ( VkBufferCreateInfo * )&bufferInfo, &allocInfo, &memIndexScratchBufferGraphics );
+			vmaFindMemoryTypeIndexForBufferInfo( self->mAllocator, reinterpret_cast<VkBufferCreateInfo *>( &bufferInfo ), &allocInfo, &memIndexScratchBufferGraphics );
 		}
 
 		// let's create a pool for each Frame, so that each frame can create sub-allocators
