@@ -4,7 +4,7 @@
 #extension GL_ARB_shading_language_420pack : enable
 
 // uniforms (resources)
-layout (set = 0, binding = 0) uniform DefaultMatrices 
+layout (set = 0, binding = 0) uniform MatrixStack 
 {
 	mat4 modelViewProjectionMatrix;
 };

@@ -78,8 +78,8 @@ static test_app_o *test_app_create() {
 
 	pal::Window::Settings settings;
 	settings
-	    .setWidth( 640 )
-	    .setHeight( 480 )
+	    .setWidth( 1024 )
+	    .setHeight( 768 )
 	    .setTitle( "Hello world" );
 
 	// create a new window
@@ -206,6 +206,10 @@ static test_app_o *test_app_create() {
 	{
 		ImGuiIO &io = ImGui::GetIO();
 		io.Fonts->GetTexDataAsRGBA32( &app->imguiTexture.pixels, &app->imguiTexture.width, &app->imguiTexture.height );
+
+		io.DisplaySize  = {float( app->window->getSurfaceWidth() ),
+		                  float( app->window->getSurfaceHeight() )};
+		io.Fonts->TexID = reinterpret_cast<void *>( IMGUI_FONT_TEXTURE );
 	}
 
 	return app;
@@ -228,6 +232,21 @@ static bool test_app_update( test_app_o *self ) {
 	if ( self->window->shouldClose() ) {
 		return false;
 	}
+
+	ImGui::SetCurrentContext( self->imguiContext ); // NOTICE: that's important for reload.
+	ImGui::NewFrame();
+
+	{
+		ImGuiIO &io = ImGui::GetIO();
+
+		io.DisplaySize = {float( self->window->getSurfaceWidth() ),
+		                  float( self->window->getSurfaceHeight() )};
+	}
+
+	ImGui::ShowDemoWindow();
+	ImGui::Text( "Hello, world %d", 123 );
+	ImGui::ShowMetricsWindow();
+	ImGui::Render();
 
 	// Grab interface for encoder so that it can be used in callbacks -
 	// making it static allows it to be visible inside the callback context,
@@ -378,12 +397,6 @@ static bool test_app_update( test_app_o *self ) {
 			    {10, 10, 160 * 3 + 10, 106 * 3 + 10},
 			};
 
-			glm::vec3 fullScreenQuadData[ 3 ] = {
-			    {0, 0, 0},
-			    {2, 0, 0},
-			    {0, 2, 0},
-			};
-
 			glm::vec3 triangleData[ 3 ] = {
 			    {-50, -50, 0},
 			    {50, -50, 0},
@@ -408,7 +421,7 @@ static bool test_app_update( test_app_o *self ) {
 			ColorUbo_t ubo1{{1, 0, 0, 1}};
 
 			// Bind full screen quad pipeline
-			{
+			if ( true ) {
 				le_encoder.set_vertex_data( encoder, triangleData, sizeof( glm::vec3 ) * 3, 0 );
 
 				le_encoder.bind_graphics_pipeline( encoder, app->psoFullScreenQuad );
@@ -419,7 +432,7 @@ static bool test_app_update( test_app_o *self ) {
 			}
 
 			// Bind full main graphics pipeline
-			{
+			if ( true ) {
 				le_encoder.bind_graphics_pipeline( encoder, app->psoMain );
 
 				le_encoder.set_scissor( encoder, 0, 1, scissors );
@@ -444,20 +457,78 @@ static bool test_app_update( test_app_o *self ) {
 				le_encoder.draw_indexed( encoder, 3, 1, 0, 0, 0 );
 			}
 
-			//			{
-			//				// draw imgui
-			//				glm::mat4 ortho_projection =
-			//				{
-			//					{ 2.0f / io.DisplaySize.x, 0.0f,                    0.0f, 0.0f },
-			//					{ 0.0f,                    2.0f / io.DisplaySize.y, 0.0f, 0.0f },
-			//					{ 0.0f,                    0.0f,                    1.0f, 0.0f },
-			//					{ -1.f,                    -1.f,                    0.0f, 1.0f },
-			//				};
+			{
+				// draw imgui
+				glm::mat4 ortho_projection =
+				    {
+				        {2.0f / float( screenWidth ), 0.0f, 0.0f, 0.0f},
+				        {0.0f, 2.0f / float( screenHeight ), 0.0f, 0.0f},
+				        {0.0f, 0.0f, 1.0f, 0.0f},
+				        {-1.f, -1.f, 0.0f, 1.0f},
+				    };
 
-			//				le_encoder.bind_graphics_pipeline(encoder,self->psoImgui);
-			//				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "mvp" ), &ortho_projection, sizeof( glm::mat4 ) );
+				ImDrawData *drawData = ImGui::GetDrawData();
 
-			//			}
+				le_encoder.bind_graphics_pipeline( encoder, app->psoImgui );
+
+				le_encoder.set_viewport( encoder, 0, 1, &viewports[ 0 ] ); // TODO: make sure that viewport covers full screen
+
+				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "MatrixStack" ), &ortho_projection, sizeof( glm::mat4 ) );
+
+				le_encoder.set_argument_texture( encoder, IMGUI_FONT_TEXTURE, const_char_hash64( "tex_unit_0" ), 0 );
+
+				uint64_t currentTexture = IMGUI_FONT_TEXTURE; // we check against this so that we don't have to switch state that often.
+
+				ImVec4 currentClipRect{};
+
+				for ( ImDrawList **cmdList = drawData->CmdLists; cmdList != drawData->CmdLists + drawData->CmdListsCount; cmdList++ ) {
+					auto &im_cmd_list = *cmdList;
+
+					// upload index data
+					le_encoder.set_index_data( encoder, im_cmd_list->IdxBuffer.Data, size_t( im_cmd_list->IdxBuffer.size() * sizeof( ImDrawIdx ) ), 0 );
+					// upload vertex data
+					le_encoder.set_vertex_data( encoder, im_cmd_list->VtxBuffer.Data, size_t( im_cmd_list->VtxBuffer.size() * sizeof( ImDrawVert ) ), 0 );
+
+					uint32_t index_offset = 0;
+					for ( const auto &im_cmd : im_cmd_list->CmdBuffer ) {
+
+						if ( im_cmd.UserCallback ) {
+							// call user callback
+							continue;
+						}
+						// -----| invariant: im_cmd was not user callback
+
+						static_assert( sizeof( le::Rect2D ) == sizeof( ImVec4 ), "clip rect size must match for direct assignment" );
+
+						// -- update bound texture, but only if texture different from currently bound texture
+						const uint64_t nextTexture = reinterpret_cast<const uint64_t>( im_cmd.TextureId );
+						if ( nextTexture != currentTexture ) {
+							le_encoder.set_argument_texture( encoder, nextTexture, const_char_hash64( "tex_unit_0" ), 0 );
+							currentTexture = nextTexture;
+						}
+
+						// -- set clip rectangle as scissor
+						if ( 0 != memcmp( &im_cmd.ClipRect, &currentClipRect, sizeof( ImVec4 ) ) ) {
+							// clip rects are different
+							currentClipRect = im_cmd.ClipRect;
+							le::Rect2D scissor{
+								uint32_t( im_cmd.ClipRect.x ),
+								uint32_t( im_cmd.ClipRect.y ),
+								uint32_t( im_cmd.ClipRect.z ),
+								uint32_t( im_cmd.ClipRect.w ),
+							};
+							le_encoder.set_scissor( encoder, 0, 1, &scissor );
+						}
+
+						// uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
+						le_encoder.draw_indexed( encoder, im_cmd.ElemCount, 1, index_offset, 0, 0 );
+						index_offset += im_cmd.ElemCount;
+					}
+
+					//					std::cout << std::dec << im_cmd_list->VtxBuffer.size() << std::endl
+					//					          << std::flush;
+				}
+			}
 		} );
 
 		mainModule.addRenderPass( resourcePass );
