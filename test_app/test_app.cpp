@@ -495,4 +495,8 @@ void register_test_app_api( void *api_ ) {
 	test_app_i.create  = test_app_create;
 	test_app_i.destroy = test_app_destroy;
 	test_app_i.update  = test_app_update;
+
+#ifndef PLUGIN_TEST_APP_STATIC
+	Registry::loadLibraryPersistently( "libimgui.so" );
+#endif
 }

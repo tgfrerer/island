@@ -29,8 +29,12 @@ else()
 
     target_compile_definitions(${TARGET}  PUBLIC "PLUGIN_TEST_APP_STATIC")
 
+    # it's important not to link the library then compiling, but to load the library via
+    # the the dynamic library loader when we go dynamic. Here, when we go static, we
+    # actually want to statically link against (FIXME:implement) a static lib of imgui.
+    set (LINKER_FLAGS ${LINKER_FLAGS} -Wl,--whole-archive imgui -Wl,--no-whole-archive)
 endif()
 
 set (LINKER_FLAGS -Wl,--whole-archive vulkan -Wl,--no-whole-archive )
-set (LINKER_FLAGS ${LINKER_FLAGS} imgui)
+
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
