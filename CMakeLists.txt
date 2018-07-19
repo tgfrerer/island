@@ -15,11 +15,22 @@ set ( PLUGIN_LIBS_DEPENDENCIES "")
 set ( PLUGIN_LINK_DIRS "")
 
 # Download and unpack glm at configure time ... there might be a time delay.
-configure_file(CMakeLists.txt.in ${PROJECT_SOURCE_DIR}/libs/cmake/glm/download/CMakeLists.txt)
+configure_file(CMakeLists.txt.glm ${PROJECT_SOURCE_DIR}/libs/cmake/glm/download/CMakeLists.txt)
 execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/libs/cmake/glm/download" )
 execute_process(COMMAND "${CMAKE_COMMAND}" --build .
     WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/libs/cmake/glm/download" )
+
+
+configure_file(CMakeLists.txt.imgui.build ${PROJECT_SOURCE_DIR}/libs/cmake/imgui/src/CMakeLists.txt COPYONLY)
+configure_file(CMakeLists.txt.imgui ${PROJECT_SOURCE_DIR}/libs/cmake/imgui/download/CMakeLists.txt)
+execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" . 
+	WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/libs/cmake/imgui/download" )
+execute_process(COMMAND "${CMAKE_COMMAND}" --build .
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/libs/cmake/imgui/download" )
+link_directories(${PROJECT_SOURCE_DIR}/libs/imgui/lib)
+
+
 
 # create a link to shared shader repository so that we're always working with the same shaders.
 execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/shaders ${CMAKE_BINARY_DIR}/shaders )

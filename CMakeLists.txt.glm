@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.0.0)
 project(glm-download NONE)
 
 include(ExternalProject)
+
 ExternalProject_Add(glm
     GIT_REPOSITORY https://github.com/g-truc/glm
     GIT_TAG master
