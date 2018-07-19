@@ -42,6 +42,7 @@ struct le_renderpass_o {
 	le_renderer_api::pfn_renderpass_setup_t   callbackSetup              = nullptr;
 	le_renderer_api::pfn_renderpass_execute_t callbackExecute            = nullptr;
 	void *                                    execute_callback_user_data = nullptr;
+	void *                                    setup_callback_user_data   = nullptr;
 
 	struct le_command_buffer_encoder_o *encoder   = nullptr;
 	std::string                         debugName = "";
@@ -92,15 +93,16 @@ static void renderpass_destroy( le_renderpass_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void renderpass_set_setup_fun( le_renderpass_o *self, le_renderer_api::pfn_renderpass_setup_t fun ) {
-	self->callbackSetup = fun;
+static void renderpass_set_setup_fun( le_renderpass_o *self, le_renderer_api::pfn_renderpass_setup_t fun, void *user_data ) {
+	self->setup_callback_user_data = user_data;
+	self->callbackSetup            = fun;
 }
 
 // ----------------------------------------------------------------------
 
-static void renderpass_set_execute_callback( le_renderpass_o *self, le_renderer_api::pfn_renderpass_execute_t callback_, void *user_data_ ) {
-	self->execute_callback_user_data = user_data_;
-	self->callbackExecute            = callback_;
+static void renderpass_set_execute_callback( le_renderpass_o *self, le_renderer_api::pfn_renderpass_execute_t callback, void *user_data ) {
+	self->execute_callback_user_data = user_data;
+	self->callbackExecute            = callback;
 }
 
 // ----------------------------------------------------------------------
@@ -110,7 +112,7 @@ static void renderpass_run_execute_callback( le_renderpass_o *self, le_command_b
 }
 
 static bool renderpass_run_setup_callback( le_renderpass_o *self ) {
-	return self->callbackSetup( self );
+	return self->callbackSetup( self, self->setup_callback_user_data );
 }
 
 // ----------------------------------------------------------------------

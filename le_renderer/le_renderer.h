@@ -209,14 +209,14 @@ struct le_renderer_api {
 	};
 
 
-	typedef bool ( *pfn_renderpass_setup_t )( le_renderpass_o *obj );
+	typedef bool ( *pfn_renderpass_setup_t )( le_renderpass_o *obj, void* user_data );
 	typedef void ( *pfn_renderpass_execute_t )( le_command_buffer_encoder_o *encoder, void *user_data );
 
 	struct renderpass_interface_t {
 		le_renderpass_o *            ( *create               )( const char *renderpass_name, const LeRenderPassType &type_ );
 		void                         ( *destroy              )( le_renderpass_o *obj );
 		le_renderpass_o *            ( *clone                )( const le_renderpass_o *obj );
-		void                         ( *set_setup_callback   )( le_renderpass_o *obj, pfn_renderpass_setup_t setup_fun );
+		void                         ( *set_setup_callback   )( le_renderpass_o *obj, pfn_renderpass_setup_t setup_fun, void *user_data );
 		bool                         ( *has_setup_callback   )( const le_renderpass_o* obj);
 		bool                         ( *run_setup_callback   )( le_renderpass_o* obj);
 		void                         ( *add_image_attachment )( le_renderpass_o *obj, uint64_t resource_id, LeImageAttachmentInfo *info );
@@ -357,12 +357,12 @@ class RenderPass {
 		return self;
 	}
 
-	void setSetupCallback( le_renderer_api::pfn_renderpass_setup_t fun ) {
-		renderpassI.set_setup_callback( self, fun );
+	void setSetupCallback( void *user_data, le_renderer_api::pfn_renderpass_setup_t fun ) {
+		renderpassI.set_setup_callback( self, fun, user_data );
 	}
 
-	void setExecuteCallback( void *user_data_, le_renderer_api::pfn_renderpass_execute_t fun ) {
-		renderpassI.set_execute_callback( self, fun, user_data_ );
+	void setExecuteCallback( void *user_data, le_renderer_api::pfn_renderpass_execute_t fun ) {
+		renderpassI.set_execute_callback( self, fun, user_data );
 	}
 };
 
