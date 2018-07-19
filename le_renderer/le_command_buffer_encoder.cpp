@@ -333,7 +333,7 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, uint64_t res
 
 static void cbe_write_to_image( le_command_buffer_encoder_o *self,
                                 uint64_t                     resourceId,
-                                LeBufferWriteRegion const *  region,
+                                LeBufferWriteRegion const &  region,
                                 void const *                 data,
                                 size_t                       numBytes ) {
 
@@ -354,7 +354,7 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *self,
 
 		cmd->info.src_buffer_id = allocator_i.get_le_resource_id( self->pAllocator );
 		cmd->info.src_offset    = bufferOffset;
-		cmd->info.dst_region    = *region;
+		cmd->info.dst_region    = region;
 		cmd->info.numBytes      = numBytes;
 		cmd->info.dst_image_id  = resourceId;
 	}
