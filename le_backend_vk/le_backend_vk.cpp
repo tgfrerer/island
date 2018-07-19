@@ -3326,7 +3326,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					} );
 
 					if ( b == argumentState.binding_infos.end() ) {
-						std::cout << "Warning: Invalid argument name id: 0x" << std::hex << argument_name_id << std::endl
+						std::cout << __FUNCTION__ << "#L" << std::dec << __LINE__ << " : Warning: Invalid argument name id: 0x" << std::hex << argument_name_id << std::endl
 						          << std::flush;
 						break;
 					}
