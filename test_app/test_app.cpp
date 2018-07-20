@@ -10,6 +10,8 @@
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
 
+#include <GLFW/glfw3.h> // for key codes
+
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_LEFT_HANDED       // vulkan uses left handed coordinate system
 #include "libs/glm/glm/glm.hpp"
@@ -43,6 +45,9 @@ struct test_app_o {
 
 	FontTextureInfo imguiTexture = {};
 
+	std::array<bool, 5> mouseButtonStatus = {}; // status for each mouse button
+	glm::vec2           mousePos;               // current mouse position
+
 	// NOTE: RUNTIME-COMPILE : If you add any new things during run-time, make sure to only add at the end of the object,
 	// otherwise all pointers above will be invalidated. this might also overwrite memory which
 	// is stored after this object, which is very subtle in introducing errors. We need to think about a way of serializing
@@ -70,6 +75,113 @@ static void initialize() {
 static void terminate() {
 	pal::Window::terminate();
 };
+
+// ----------------------------------------------------------------------
+
+static void test_app_key_callback( void *user_data, int key, int scancode, int action, int mods ) {
+
+	if ( user_data == nullptr ) {
+		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
+		          << std::flush;
+		return;
+	}
+
+	// --------| invariant : user data is not null
+
+	auto app = static_cast<test_app_o *>( user_data );
+
+	ImGuiIO &io = ImGui::GetIO();
+
+	if ( action == GLFW_PRESS )
+		io.KeysDown[ key ] = true;
+	if ( action == GLFW_RELEASE )
+		io.KeysDown[ key ] = false;
+
+	( void )mods; // Modifiers are not reliable across systems
+	io.KeyCtrl  = io.KeysDown[ GLFW_KEY_LEFT_CONTROL ] || io.KeysDown[ GLFW_KEY_RIGHT_CONTROL ];
+	io.KeyShift = io.KeysDown[ GLFW_KEY_LEFT_SHIFT ] || io.KeysDown[ GLFW_KEY_RIGHT_SHIFT ];
+	io.KeyAlt   = io.KeysDown[ GLFW_KEY_LEFT_ALT ] || io.KeysDown[ GLFW_KEY_RIGHT_ALT ];
+	io.KeySuper = io.KeysDown[ GLFW_KEY_LEFT_SUPER ] || io.KeysDown[ GLFW_KEY_RIGHT_SUPER ];
+}
+
+void test_app_character_callback( void *user_data, unsigned int codepoint ) {
+
+	if ( user_data == nullptr ) {
+		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
+		          << std::flush;
+		return;
+	}
+
+	// --------| invariant : user data is not null
+
+	auto app = static_cast<test_app_o *>( user_data );
+
+	ImGuiIO &io = ImGui::GetIO();
+
+	if ( codepoint > 0 && codepoint < 0x10000 ) {
+		io.AddInputCharacter( ( unsigned short )codepoint );
+	}
+}
+
+void test_app_cursor_position_callback( void *user_data, double xpos, double ypos ) {
+
+	if ( user_data == nullptr ) {
+		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
+		          << std::flush;
+		return;
+	}
+
+	// --------| invariant : user data is not null
+
+	auto app = static_cast<test_app_o *>( user_data );
+
+	app->mousePos = {float( xpos ), float( ypos )};
+}
+void test_app_cursor_enter_callback( void *user_data, int entered ) {
+
+	if ( user_data == nullptr ) {
+		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
+		          << std::flush;
+		return;
+	}
+
+	// --------| invariant : user data is not null
+
+	auto app = static_cast<test_app_o *>( user_data );
+}
+void test_app_mouse_button_callback( void *user_data, int button, int action, int mods ) {
+
+	if ( user_data == nullptr ) {
+		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
+		          << std::flush;
+		return;
+	}
+
+	// --------| invariant : user data is not null
+
+	auto app = static_cast<test_app_o *>( user_data );
+
+	if ( button >= 0 && button < int( app->mouseButtonStatus.size() ) ) {
+		app->mouseButtonStatus[ size_t( button ) ] = ( action == GLFW_PRESS );
+	}
+}
+
+void test_app_scroll_callback( void *user_data, double xoffset, double yoffset ) {
+
+	if ( user_data == nullptr ) {
+		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
+		          << std::flush;
+		return;
+	}
+
+	// --------| invariant : user data is not null
+
+	auto app = static_cast<test_app_o *>( user_data );
+
+	ImGuiIO &io = ImGui::GetIO();
+	io.MouseWheelH += static_cast<float>( xoffset );
+	io.MouseWheel += static_cast<float>( yoffset );
+}
 
 // ----------------------------------------------------------------------
 
@@ -210,6 +322,45 @@ static test_app_o *test_app_create() {
 		io.DisplaySize  = {float( app->window->getSurfaceWidth() ),
 		                  float( app->window->getSurfaceHeight() )};
 		io.Fonts->TexID = reinterpret_cast<void *>( IMGUI_FONT_TEXTURE );
+
+		// Keyboard mapping. ImGui will use those indices to peek into the io.KeysDown[] array.
+		io.KeyMap[ ImGuiKey_Tab ]        = GLFW_KEY_TAB;
+		io.KeyMap[ ImGuiKey_LeftArrow ]  = GLFW_KEY_LEFT;
+		io.KeyMap[ ImGuiKey_RightArrow ] = GLFW_KEY_RIGHT;
+		io.KeyMap[ ImGuiKey_UpArrow ]    = GLFW_KEY_UP;
+		io.KeyMap[ ImGuiKey_DownArrow ]  = GLFW_KEY_DOWN;
+		io.KeyMap[ ImGuiKey_PageUp ]     = GLFW_KEY_PAGE_UP;
+		io.KeyMap[ ImGuiKey_PageDown ]   = GLFW_KEY_PAGE_DOWN;
+		io.KeyMap[ ImGuiKey_Home ]       = GLFW_KEY_HOME;
+		io.KeyMap[ ImGuiKey_End ]        = GLFW_KEY_END;
+		io.KeyMap[ ImGuiKey_Insert ]     = GLFW_KEY_INSERT;
+		io.KeyMap[ ImGuiKey_Delete ]     = GLFW_KEY_DELETE;
+		io.KeyMap[ ImGuiKey_Backspace ]  = GLFW_KEY_BACKSPACE;
+		io.KeyMap[ ImGuiKey_Space ]      = GLFW_KEY_SPACE;
+		io.KeyMap[ ImGuiKey_Enter ]      = GLFW_KEY_ENTER;
+		io.KeyMap[ ImGuiKey_Escape ]     = GLFW_KEY_ESCAPE;
+		io.KeyMap[ ImGuiKey_A ]          = GLFW_KEY_A;
+		io.KeyMap[ ImGuiKey_C ]          = GLFW_KEY_C;
+		io.KeyMap[ ImGuiKey_V ]          = GLFW_KEY_V;
+		io.KeyMap[ ImGuiKey_X ]          = GLFW_KEY_X;
+		io.KeyMap[ ImGuiKey_Y ]          = GLFW_KEY_Y;
+		io.KeyMap[ ImGuiKey_Z ]          = GLFW_KEY_Z;
+	}
+
+	{
+		static auto &window_i = Registry::getApi<pal_window_api>()->window_i;
+		// set the callback user data for all callbacks from window *app->window
+		// to be our app pointer.
+		window_i.set_callback_user_data( *app->window, app );
+
+		static auto &app_i = Registry::getApi<test_app_api>()->test_app_i;
+		window_i.set_key_callback( *app->window, &app_i.key_callback );
+		window_i.set_character_callback( *app->window, &app_i.character_callback );
+
+		window_i.set_cursor_position_callback( *app->window, &app_i.cursor_position_callback );
+		window_i.set_cursor_enter_callback( *app->window, &app_i.cursor_enter_callback );
+		window_i.set_mouse_button_callback( *app->window, &app_i.mouse_button_callback );
+		window_i.set_scroll_callback( *app->window, &app_i.scroll_callback );
 	}
 
 	return app;
@@ -225,7 +376,9 @@ static float get_image_plane_distance( const le::Viewport &viewport, float fovRa
 
 static bool test_app_update( test_app_o *self ) {
 
-	// polls events for all windows
+	ImGui::SetCurrentContext( self->imguiContext ); // NOTICE: that's important for reload.
+
+	// Polls events for all windows
 	// this means any window may trigger callbacks for any events they have callbacks registered.
 	pal::Window::pollEvents();
 
@@ -233,7 +386,6 @@ static bool test_app_update( test_app_o *self ) {
 		return false;
 	}
 
-	ImGui::SetCurrentContext( self->imguiContext ); // NOTICE: that's important for reload.
 	ImGui::NewFrame();
 
 	{
@@ -241,6 +393,13 @@ static bool test_app_update( test_app_o *self ) {
 
 		io.DisplaySize = {float( self->window->getSurfaceWidth() ),
 		                  float( self->window->getSurfaceHeight() )};
+
+		// update mouse pos and buttons
+		for ( size_t i = 0; i < self->mouseButtonStatus.size(); i++ ) {
+			// If a mouse press event came, always pass it as "mouse held this frame", so we don't miss click-release events that are shorter than 1 frame.
+			io.MouseDown[ i ] = self->mouseButtonStatus[ i ];
+		}
+		io.MousePos = {self->mousePos.x, self->mousePos.y};
 	}
 
 	ImGui::ShowDemoWindow();
@@ -566,6 +725,13 @@ void register_test_app_api( void *api_ ) {
 	test_app_i.create  = test_app_create;
 	test_app_i.destroy = test_app_destroy;
 	test_app_i.update  = test_app_update;
+
+	test_app_i.key_callback             = test_app_key_callback;
+	test_app_i.character_callback       = test_app_character_callback;
+	test_app_i.cursor_position_callback = test_app_cursor_position_callback;
+	test_app_i.cursor_enter_callback    = test_app_cursor_enter_callback;
+	test_app_i.mouse_button_callback    = test_app_mouse_button_callback;
+	test_app_i.scroll_callback          = test_app_scroll_callback;
 
 #ifndef PLUGIN_TEST_APP_STATIC
 	Registry::loadLibraryPersistently( "libimgui.so" );
