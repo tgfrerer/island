@@ -65,13 +65,13 @@ static shaderc_shader_kind convert_to_shaderc_shader_kind( LeShaderType type ) {
 	switch ( type ) {
 	case ( LeShaderType::eFrag ):
 		result = shaderc_shader_kind::shaderc_glsl_fragment_shader;
-	        break;
+	    break;
 	case ( LeShaderType::eNone ):
 		result = shaderc_shader_kind::shaderc_glsl_default_vertex_shader;
-	        break;
+	    break;
 	case ( LeShaderType::eVert ):
 		result = shaderc_shader_kind::shaderc_glsl_vertex_shader;
-	        break;
+	    break;
 	}
 	return result;
 }
@@ -134,7 +134,7 @@ static le_shader_compiler_o *le_shader_compiler_create() {
 	obj->compiler = shaderc_compiler_initialize();
 
 	{
-	        obj->options = shaderc_compile_options_initialize();
+		obj->options = shaderc_compile_options_initialize();
 		shaderc_compile_options_set_generate_debug_info( obj->options );
 		shaderc_compile_options_set_source_language( obj->options, shaderc_source_language::shaderc_source_language_glsl );
 	}
@@ -145,8 +145,8 @@ static le_shader_compiler_o *le_shader_compiler_create() {
 // ---------------------------------------------------------------
 
 static void le_shader_compiler_destroy( le_shader_compiler_o *self ) {
-        shaderc_compile_options_release( self->options );
-        shaderc_compiler_release( self->compiler );
+	shaderc_compile_options_release( self->options );
+	shaderc_compiler_release( self->compiler );
 
 	std::cout << "Destroyed shader compiler" << std::endl
 	          << std::flush;
