@@ -626,7 +626,8 @@ static bool test_app_update( test_app_o *self ) {
 				        {-1.f, -1.f, 0.0f, 1.0f},
 				    };
 
-				ImDrawData *drawData = ImGui::GetDrawData();
+				ImDrawData *drawData    = ImGui::GetDrawData();
+				ImVec2      display_pos = drawData->DisplayPos;
 
 				le_encoder.bind_graphics_pipeline( encoder, app->psoImgui );
 
@@ -670,12 +671,12 @@ static bool test_app_update( test_app_o *self ) {
 						if ( 0 != memcmp( &im_cmd.ClipRect, &currentClipRect, sizeof( ImVec4 ) ) ) {
 							// clip rects are different
 							currentClipRect = im_cmd.ClipRect;
-							le::Rect2D scissor{
-								uint32_t( im_cmd.ClipRect.x ),
-								uint32_t( im_cmd.ClipRect.y ),
-								uint32_t( im_cmd.ClipRect.z ),
-								uint32_t( im_cmd.ClipRect.w ),
-							};
+							le::Rect2D scissor;
+							scissor.x      = ( int32_t )( im_cmd.ClipRect.x - display_pos.x ) > 0 ? ( int32_t )( im_cmd.ClipRect.x - display_pos.x ) : 0;
+							scissor.y      = ( int32_t )( im_cmd.ClipRect.y - display_pos.y ) > 0 ? ( int32_t )( im_cmd.ClipRect.y - display_pos.y ) : 0;
+							scissor.width  = ( uint32_t )( im_cmd.ClipRect.z - im_cmd.ClipRect.x );
+							scissor.height = ( uint32_t )( im_cmd.ClipRect.w - im_cmd.ClipRect.y + 1 ); // FIXME: Why +1 here?
+
 							le_encoder.set_scissor( encoder, 0, 1, &scissor );
 						}
 
