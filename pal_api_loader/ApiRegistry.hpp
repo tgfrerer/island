@@ -91,8 +91,8 @@ class Registry {
 				delete api;
 			}
 			api = new T();
-			( *getPointerToStaticRegFun<T>() )( api );
-			pal_registry_set_api( getId<T>(), api );
+			( *getPointerToStaticRegFun<T>() )( api ); // < call registration function on api (this fills in the api's function pointers)
+			pal_registry_set_api( getId<T>(), api );   // < store api in registry lookup table
 		}
 		return api;
 	}
