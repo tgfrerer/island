@@ -16,6 +16,9 @@
 
 */
 
+#include <stdint.h>
+#include <cstddef> // for size_t
+
 #ifdef __cplusplus
 #	define ISL_API_ATTR extern "C"
 #else
@@ -34,8 +37,6 @@ ISL_API_ATTR void  pal_registry_set_api( const char *id, void *api );
 
 #ifdef __cplusplus
 } // extern "C"
-
-#	include <string>
 
 class Registry {
 
@@ -65,6 +66,12 @@ class Registry {
 	static void              loadApi( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader );
 	static void              registerApi( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader, void *api, const char *api_register_fun_name );
 	static void              loadLibraryPersistently( pal_api_loader_i *loaderInterface, const char *libName_ );
+
+	static struct dynamic_api_info_o *create_dynamic_api_info( const char *id );
+	static const char *               dynamic_api_info_get_module_path( const struct dynamic_api_info_o * );
+	static const char *               dynamic_api_info_get_modules_dir( const struct dynamic_api_info_o * );
+	static const char *               dynamic_api_info_get_register_fun_name( const struct dynamic_api_info_o * );
+	static void                       destroy_dynamic_api_info( dynamic_api_info_o * );
 
 	static int addWatch( const char *watchedPath, CallbackParams &settings );
 
@@ -111,26 +118,24 @@ class Registry {
 
 		if ( api == nullptr ) {
 
-			static const std::string lib_path              = "./" + std::string{apiName} + "/lib" + std::string{apiName} + ".so";
-			static const std::string lib_dir               = "./" + std::string{apiName};
-			static const std::string lib_register_fun_name = "register_" + std::string{apiName} + "_api";
+			static dynamic_api_info_o *info = create_dynamic_api_info( getId<T>() ); // note: we never destroy this object.
 
 			static pal_api_loader_i *loaderInterface = getLoaderInterface();
-			static pal_api_loader_o *loader          = createLoader( loaderInterface, lib_path.c_str() );
+			static pal_api_loader_o *loader          = createLoader( loaderInterface, dynamic_api_info_get_module_path( info ) );
 
 			api = new T();
 			loadApi( loaderInterface, loader );
-			registerApi( loaderInterface, loader, api, lib_register_fun_name.c_str() );
+			registerApi( loaderInterface, loader, api, dynamic_api_info_get_register_fun_name( info ) );
 
 			pal_registry_set_api( getId<T>(), api );
 
 			// ----
 			if ( shouldWatchForAutoReload ) {
-				static CallbackParams callbackParams = {loaderInterface, loader, api, lib_register_fun_name.c_str()};
+				static CallbackParams callbackParams = {loaderInterface, loader, api, dynamic_api_info_get_register_fun_name( info )};
 				// TODO: We keep watchId static so that a watch is only created once per type T.
 				// ideally, if we ever wanted to be able to remove watches, we'd keep the watchIds in a
 				// table, similar to the apiTable.
-				static int watchId = addWatch( lib_dir.c_str(), callbackParams );
+				static int watchId = addWatch( dynamic_api_info_get_modules_dir( info ), callbackParams );
 			}
 
 		} else {

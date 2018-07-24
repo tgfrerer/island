@@ -22,6 +22,12 @@ static std::unordered_map<std::string, void *> apiTable;
 static auto file_watcher_i = Registry::addApiStatic<pal_file_watcher_i>();
 static auto file_watcher   = file_watcher_i -> create();
 
+struct dynamic_api_info_o {
+	std::string module_path;
+	std::string modules_dir;
+	std::string register_fun_name;
+};
+
 // ----------------------------------------------------------------------
 
 extern "C" void *pal_registry_get_api( const char *id ) {
@@ -89,6 +95,46 @@ void Registry::loadApi( pal_api_loader_i *loaderInterface_, pal_api_loader_o *lo
 
 void Registry::loadLibraryPersistently( pal_api_loader_i *loaderInterface_, const char *libName_ ) {
 	loaderInterface_->loadLibraryPersistent( libName_ );
+}
+
+// ----------------------------------------------------------------------
+
+dynamic_api_info_o *Registry::create_dynamic_api_info( const char *id ) {
+
+	auto obj = new dynamic_api_info_o();
+
+	// NOTE: we could do some basic file system operations here, such as
+	// checking if file paths are valid.
+
+	obj->module_path       = "./modules/lib" + std::string( id ) + ".so";
+	obj->modules_dir       = "./modules";
+	obj->register_fun_name = "register_" + std::string( id ) + "_api";
+
+	return obj;
+}
+
+// ----------------------------------------------------------------------
+
+const char *Registry::dynamic_api_info_get_module_path( const dynamic_api_info_o *info ) {
+	return info->module_path.c_str();
+}
+
+// ----------------------------------------------------------------------
+
+const char *Registry::dynamic_api_info_get_modules_dir( const dynamic_api_info_o *info ) {
+	return info->modules_dir.c_str();
+}
+
+// ----------------------------------------------------------------------
+
+const char *Registry::dynamic_api_info_get_register_fun_name( const dynamic_api_info_o *info ) {
+	return info->register_fun_name.c_str();
+}
+
+// ----------------------------------------------------------------------
+
+void Registry::destroy_dynamic_api_info( dynamic_api_info_o *info ) {
+	delete info;
 }
 
 // ----------------------------------------------------------------------
