@@ -135,7 +135,7 @@ class Registry {
 				// TODO: We keep watchId static so that a watch is only created once per type T.
 				// ideally, if we ever wanted to be able to remove watches, we'd keep the watchIds in a
 				// table, similar to the apiTable.
-				static int watchId = addWatch( dynamic_api_info_get_modules_dir( info ), callbackParams );
+				static int watchId = addWatch( dynamic_api_info_get_module_path( info ), callbackParams );
 			}
 
 		} else {

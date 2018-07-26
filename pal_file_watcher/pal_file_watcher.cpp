@@ -26,6 +26,8 @@ struct Watch {
 	int                 padding              = 0;
 	pal_file_watcher_o *watcher_o;
 	std::string         path;
+	std::string         filename;
+	std::string         basename;
 	void *              callback_user_data = nullptr;
 	bool ( *callback_fun )( const char *path, void *user_data );
 };
@@ -56,7 +58,7 @@ static void instance_destroy( pal_file_watcher_o *instance ) {
 	instance->mWatches.clear();
 
 	if ( instance->inotify_socket_handle > 0 ) {
-		std::cout << "closing inotify instance file handle: " << std::hex << instance->inotify_socket_handle << std::endl;
+		std::cout << "Closing inotify instance file handle: " << std::hex << instance->inotify_socket_handle << std::endl;
 		close( instance->inotify_socket_handle );
 	}
 	delete ( instance );
@@ -67,12 +69,15 @@ static void instance_destroy( pal_file_watcher_o *instance ) {
 static int add_watch( pal_file_watcher_o *instance, const pal_file_watcher_watch_settings &settings ) noexcept {
 	Watch tmp;
 
-	auto tmp_path            = std::filesystem::canonical( settings.filePath );
+	auto tmp_path = std::filesystem::canonical( settings.filePath );
+
 	tmp.path                 = tmp_path;
+	tmp.filename             = tmp_path.filename();
+	tmp.basename             = tmp_path.remove_filename(); // note this changes the path
 	tmp.watcher_o            = instance;
 	tmp.callback_fun         = settings.callback_fun;
 	tmp.callback_user_data   = settings.callback_user_data;
-	tmp.inotify_watch_handle = inotify_add_watch( instance->inotify_socket_handle, tmp.path.c_str(), IN_CLOSE_WRITE );
+	tmp.inotify_watch_handle = inotify_add_watch( instance->inotify_socket_handle, tmp.basename.c_str(), IN_CLOSE_WRITE );
 
 	instance->mWatches.emplace_back( std::move( tmp ) );
 	return tmp.inotify_watch_handle;
@@ -80,10 +85,10 @@ static int add_watch( pal_file_watcher_o *instance, const pal_file_watcher_watch
 
 // ----------------------------------------------------------------------
 
-bool remove_watch( pal_file_watcher_o *instance, int watch_id ) {
+static bool remove_watch( pal_file_watcher_o *instance, int watch_id ) {
 	auto found_watch = std::find_if( instance->mWatches.begin(), instance->mWatches.end(), [=]( const Watch &w ) -> bool { return w.inotify_watch_handle == watch_id; } );
 	if ( found_watch != instance->mWatches.end() ) {
-		std::cout << "removing inotify watch handle: " << std::hex << found_watch->inotify_watch_handle << std::endl;
+		std::cout << "Removing inotify watch handle: " << std::hex << found_watch->inotify_watch_handle << std::endl;
 		inotify_rm_watch( instance->inotify_socket_handle, found_watch->inotify_watch_handle );
 		instance->mWatches.erase( found_watch );
 		return true;
@@ -95,7 +100,7 @@ bool remove_watch( pal_file_watcher_o *instance, int watch_id ) {
 
 // ----------------------------------------------------------------------
 
-void poll_notifications( pal_file_watcher_o *instance ) {
+static void poll_notifications( pal_file_watcher_o *instance ) {
 	static_assert( sizeof( inotify_event ) == sizeof( struct inotify_event ), "must be equal" );
 
 	for ( ;; ) {
@@ -111,18 +116,30 @@ void poll_notifications( pal_file_watcher_o *instance ) {
 
 				ev = reinterpret_cast<inotify_event *>( buffer + i );
 
+				if ( !ev->len ) {
+					// if there is no filename to compare with, there is no need to check this against
+					// our watches, as they require a filename.
+					continue;
+				}
+
 				auto foundWatch = std::find_if( instance->mWatches.begin(), instance->mWatches.end(), [&]( const Watch &w ) -> bool {
-					return w.inotify_watch_handle == ev->wd;
+					if ( ev->len == 0 ) {
+						return false;
+					}
+
+					// Since inotify watches directories, we must check for the name of the file within the directory
+
+					std::string path = std::string( ev->name );
+					return ( w.inotify_watch_handle == ev->wd ) && ( w.filename == path );
 				} );
 
 				if ( foundWatch != instance->mWatches.end() ) {
 
-					//					std::cout << "Found affected watch" << std::endl;
-
 					if ( ev->mask & ( IN_CLOSE_WRITE ) ) {
-						//						std::cout << "File Watcher: CLOSE_WRITE on "
-						//						          << "watched file: '" << foundWatch->path << ", " << std::string{ev->name, ev->len} << "'" << std::endl
-						//						          << "Trigger CLOSE_WRITE callback." << std::endl;
+
+						std::string tmpStr( ev->name );
+						std::cout << "Watch triggered for: " << tmpStr << " [" << foundWatch->basename << "]" << std::endl
+						          << std::flush;
 
 						( *foundWatch->callback_fun )( foundWatch->path.c_str(), foundWatch->callback_user_data );
 					}
@@ -132,7 +149,6 @@ void poll_notifications( pal_file_watcher_o *instance ) {
 				}
 				// std::cout << "watch descriptor: " << ev->wd << std::endl;
 			}
-			std::cout << std::flush;
 
 		} else {
 			break;
