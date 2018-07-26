@@ -51,7 +51,9 @@ struct pal_window_api {
 		uint32_t        ( *get_surface_width  ) ( pal_window_o * );
 		uint32_t        ( *get_surface_height ) ( pal_window_o * );
 		VkSurfaceKHR_T* ( *get_vk_surface_khr ) ( pal_window_o * );
-		GLFWwindow*     ( *get_glfw_window    ) (pal_window_o* self);
+		GLFWwindow*     ( *get_glfw_window    ) ( pal_window_o* self );
+
+		void            ( *toggle_fullscreen  ) ( pal_window_o* self );
 
 		void            ( *set_callback_user_data      )(pal_window_o* self, void* user_data);
 		void            ( *set_key_callback            )(pal_window_o*, key_callback_fun_t* callback_fun_ptr); // NOTE: we want a pointer to a function pointer!

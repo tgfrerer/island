@@ -90,6 +90,12 @@ static void test_app_key_callback( void *user_data, int key, int scancode, int a
 
 	auto app = static_cast<test_app_o *>( user_data );
 
+	{
+		static auto const &window_i = Registry::getApi<pal_window_api>()->window_i;
+		if ( key == GLFW_KEY_F11 && action == GLFW_RELEASE ) {
+			window_i.toggle_fullscreen( *app->window );
+		}
+	}
 	ImGuiIO &io = ImGui::GetIO();
 
 	if ( action == GLFW_PRESS )

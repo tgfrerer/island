@@ -6,6 +6,8 @@
 #define GLFW_INCLUDE_VULKAN
 #include "GLFW/glfw3.h"
 
+#include <vector>
+
 struct pal_window_settings_o {
 	int          width   = 640;
 	int          height  = 480;
@@ -13,7 +15,15 @@ struct pal_window_settings_o {
 	GLFWmonitor *monitor = nullptr;
 };
 
+struct WindowGeometry {
+	int x      = 0;
+	int y      = 0;
+	int width  = 0;
+	int height = 0;
+};
+
 struct pal_window_o {
+
 	GLFWwindow *          window   = nullptr;
 	VkSurfaceKHR          mSurface = nullptr;
 	VkExtent2D            mSurfaceExtent{};
@@ -28,6 +38,9 @@ struct pal_window_o {
 	pal_window_api::cursor_enter_callback_fun_t *   cursor_enter_callback    = nullptr;
 	pal_window_api::mouse_button_callback_fun_t *   mouse_button_callback    = nullptr;
 	pal_window_api::scroll_callback_fun_t *         scroll_callback          = nullptr;
+
+	WindowGeometry windowGeometry{};
+	bool           isFullscreen = false;
 };
 
 // ----------------------------------------------------------------------
@@ -165,6 +178,42 @@ static void window_increase_reference_count( pal_window_o *self ) {
 
 static void window_decrease_reference_count( pal_window_o *self ) {
 	--self->referenceCount;
+}
+
+// ----------------------------------------------------------------------
+
+static void window_toggle_fullscreen( pal_window_o *self ) {
+
+	if ( self->isFullscreen ) {
+		//restore previous window state
+		auto &g = self->windowGeometry;
+		glfwSetWindowMonitor( self->window, nullptr, g.x, g.y, g.width, g.height, 0 );
+		self->isFullscreen = false;
+	} else {
+		// go fullscreen
+
+		// first store current window geometry to restore state later.
+		glfwGetWindowPos( self->window, &self->windowGeometry.x, &self->windowGeometry.y );
+		glfwGetWindowSize( self->window, &self->windowGeometry.width, &self->windowGeometry.height );
+
+		GLFWmonitor * primaryMonitor    = glfwGetPrimaryMonitor();
+		GLFWmonitor * fullscreenMonitor = primaryMonitor;
+		int           monitorCount      = 0;
+		GLFWmonitor **monitors          = glfwGetMonitors( &monitorCount );
+
+		// we want to go fullscreen on the first non-primary monitor
+		for ( int i = 0; i != monitorCount; i++ ) {
+			if ( monitors[ i ] != primaryMonitor ) {
+				fullscreenMonitor = monitors[ i ];
+				break;
+			}
+		}
+
+		auto videoMode = glfwGetVideoMode( fullscreenMonitor );
+
+		glfwSetWindowMonitor( self->window, fullscreenMonitor, 0, 0, videoMode->width, videoMode->height, videoMode->refreshRate );
+		self->isFullscreen = true;
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -387,6 +436,7 @@ void register_pal_window_api( void *api ) {
 	window_i.get_reference_count      = window_get_reference_count;
 	window_i.get_glfw_window          = window_get_glfw_window;
 
+	window_i.toggle_fullscreen            = window_toggle_fullscreen;
 	window_i.set_callback_user_data       = window_set_callback_user_data;
 	window_i.set_key_callback             = window_set_key_callback;
 	window_i.set_character_callback       = window_set_character_callback;
