@@ -5,6 +5,8 @@
 
 #include <iostream>
 
+#define LOG_PREFIX_STR "[ LOADER ] "
+
 // declare function pointer type to register_fun function
 typedef void ( *register_api_fun_p_t )( void * );
 
@@ -21,13 +23,13 @@ struct pal_api_loader_o {
 static void unload_library( void *handle_, const char *path ) {
 	if ( handle_ ) {
 		auto result = dlclose( handle_ );
-		std::cout << "Closed library handle: " << std::hex << handle_ << std::endl;
+		std::cout << LOG_PREFIX_STR "Close    Module : '" << path << "', handle: " << std::hex << handle_ << std::endl;
 		if ( result ) {
-			std::cerr << "ERROR dlclose: " << dlerror() << std::endl;
+			std::cerr << LOG_PREFIX_STR "ERROR dlclose: " << dlerror() << std::endl;
 		}
 		auto handle = dlopen( path, RTLD_NOLOAD );
 		if ( handle ) {
-			std::cerr << "ERROR dlclose: "
+			std::cerr << LOG_PREFIX_STR "ERROR dlclose: '" << path << "', "
 			          << "handle " << std::hex << ( void * )handle << " staying resident.";
 		}
 		handle_ = nullptr;
@@ -38,14 +40,14 @@ static void unload_library( void *handle_, const char *path ) {
 
 static void *load_library( const char *lib_name ) {
 
-	std::cout << "Loading dynamic library    : '" << lib_name << "'" << std::endl;
-
+	std::cout << LOG_PREFIX_STR "Load     Module : '" << lib_name << "'";
 	void *handle = dlopen( lib_name, RTLD_LAZY | RTLD_LOCAL );
-	std::cout << "Open library handle: " << std::hex << handle << std::endl;
+	std::cout << ", handle: " << std::hex << handle << std::endl;
 
 	if ( !handle ) {
 		auto loadResult = dlerror();
-		std::cerr << "ERROR: " << loadResult << std::endl;
+		std::cerr << "ERROR: " << loadResult << std::endl
+		          << std::flush;
 	}
 
 	return handle;
@@ -72,9 +74,10 @@ static bool load_library_persistent( const char *lib_name ) {
 		lib_handle = dlopen( lib_name, RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
 		if ( !lib_handle ) {
 			auto loadResult = dlerror();
-			std::cerr << "ERROR: " << loadResult << std::endl;
+			std::cerr << LOG_PREFIX_STR "ERROR: " << loadResult << std::endl
+			          << std::flush;
 		} else {
-			std::cout << "Loaded dynamic library persistently: " << lib_name << ", handle:  " << std::hex << lib_handle << std::endl;
+			std::cout << LOG_PREFIX_STR "Keep     Library: " << lib_name << ", handle:  " << std::hex << lib_handle << std::endl;
 		}
 	}
 	return ( lib_handle != nullptr );
@@ -112,12 +115,12 @@ static bool register_api( pal_api_loader_o *obj, void *api_interface, const char
 	// load function pointer to initialisation method
 	fptr = reinterpret_cast<register_api_fun_p_t>( dlsym( obj->mLibraryHandle, register_api_fun_name ) );
 	if ( !fptr ) {
-		std::cerr << "ERROR: " << dlerror() << std::endl;
+		std::cerr << LOG_PREFIX_STR "ERROR: " << dlerror() << std::endl;
 		return false;
 	}
 	// Initialize the API. This means telling the API to populate function
 	// pointers inside the struct which we are passing as parameter.
-	std::cout << "Registering API via: '" << register_api_fun_name << "'" << std::endl;
+	std::cout << LOG_PREFIX_STR "Register Module : '" << register_api_fun_name << "'" << std::endl;
 	( *fptr )( api_interface );
 	return true;
 }

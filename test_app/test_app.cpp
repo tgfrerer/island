@@ -323,6 +323,7 @@ static test_app_o *test_app_create() {
 	// get imgui font texture handle
 	{
 		ImGuiIO &io = ImGui::GetIO();
+		io.Fonts->AddFontFromFileTTF( "IBMPlexSans-Regular.otf", 20.0f, nullptr, io.Fonts->GetGlyphRangesDefault() );
 		io.Fonts->GetTexDataAsRGBA32( &app->imguiTexture.pixels, &app->imguiTexture.width, &app->imguiTexture.height );
 
 		io.DisplaySize  = {float( app->window->getSurfaceWidth() ),
@@ -533,8 +534,8 @@ static bool test_app_update( test_app_o *self ) {
 				LeTextureInfo textureInfo;
 				textureInfo.imageView.imageId = IMGUI_FONT_IMAGE;
 				textureInfo.imageView.format  = VK_FORMAT_R8G8B8A8_UNORM;
-				textureInfo.sampler.magFilter = VK_FILTER_NEAREST;
-				textureInfo.sampler.minFilter = VK_FILTER_NEAREST;
+				textureInfo.sampler.magFilter = VK_FILTER_LINEAR;
+				textureInfo.sampler.minFilter = VK_FILTER_LINEAR;
 
 				rp.sampleTexture( IMGUI_FONT_TEXTURE, textureInfo );
 			}
@@ -604,10 +605,10 @@ static bool test_app_update( test_app_o *self ) {
 				le_encoder.set_viewport( encoder, 0, 1, viewports );
 
 				MatrixStackUbo_t matrixStack;
-				matrixStack.projectionMatrix = glm::perspective( glm::radians( 60.f ), float( screenWidth ) / float( screenHeight ), 0.01f, 1000.f );
+				matrixStack.projectionMatrix = glm::perspective( glm::radians( 60.f ), float( screenWidth ) / float( screenHeight ), 0.01f, 10000.f );
 				matrixStack.modelMatrix      = glm::mat4( 1.f ); // identity matrix
-				matrixStack.modelMatrix      = glm::scale( matrixStack.modelMatrix, glm::vec3( 1 ) );
-				matrixStack.modelMatrix      = glm::translate( matrixStack.modelMatrix, glm::vec3( 100, 0, 0 ) );
+				matrixStack.modelMatrix      = glm::scale( matrixStack.modelMatrix, glm::vec3( 3.5 ) );
+				matrixStack.modelMatrix      = glm::translate( matrixStack.modelMatrix, glm::vec3( 0, 0, 0 ) );
 
 				matrixStack.modelMatrix = glm::rotate( matrixStack.modelMatrix, glm::radians( r_val * 360 ), glm::vec3( 0, 0, 1 ) );
 

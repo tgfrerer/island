@@ -148,7 +148,7 @@ le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const c
 
 	vk::InstanceCreateInfo info;
 	info.setFlags( {} )
-	    .setPNext( &debugCallbackCreateInfo ) // this trick won't work when using parameter_validation layer
+	    .setPNext( &debugCallbackCreateInfo ) // we add a debugcallback object to instance creation to get creation-time debug info
 	    .setPApplicationInfo( &appInfo )
 	    .setEnabledLayerCount( uint32_t( instanceLayerNames.size() ) )
 	    .setPpEnabledLayerNames( instanceLayerNames.data() )
@@ -162,6 +162,7 @@ le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const c
 	if ( SHOULD_USE_DEBUG_LAYERS ) {
 		patchExtProcAddrs( obj );
 		create_debug_callback( obj );
+		std::cout << "DEBUG LAYERS ACTIVE." << std::endl;
 	}
 
 	std::cout << "Instance created." << std::endl;

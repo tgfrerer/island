@@ -199,7 +199,8 @@ static void cbe_set_vertex_data( le_command_buffer_encoder_o *self,
 
 		cbe_bind_vertex_buffers( self, bindingIndex, 1, &allocatorBufferId, &bufferOffset );
 	} else {
-		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << "bytes.";
+		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl
+		          << std::flush;
 	}
 }
 
@@ -226,7 +227,8 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *self,
 		// -- Bind index buffer to scratch allocator
 		cbe_bind_index_buffer( self, allocatorBufferId, bufferOffset, indexType );
 	} else {
-		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << "bytes.";
+		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl
+		          << std::flush;
 	}
 }
 
@@ -261,7 +263,8 @@ static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
 		cmd->info.range            = uint32_t( numBytes );
 
 	} else {
-		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << "bytes.";
+		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl
+		          << std::flush;
 		return;
 	}
 

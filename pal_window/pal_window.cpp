@@ -187,7 +187,9 @@ static void window_toggle_fullscreen( pal_window_o *self ) {
 	if ( self->isFullscreen ) {
 		//restore previous window state
 		auto &g = self->windowGeometry;
+
 		glfwSetWindowMonitor( self->window, nullptr, g.x, g.y, g.width, g.height, 0 );
+
 		self->isFullscreen = false;
 	} else {
 		// go fullscreen
@@ -339,7 +341,7 @@ static pal_window_o *window_create( const pal_window_settings_o *settings_ ) {
 
 	// TODO: implement GLFW window hints, based on settings.
 	// See: http://www.glfw.org/docs/latest/window_guide.html#window_hints
-
+	glfwWindowHint( GLFW_FLOATING, GLFW_TRUE ); // < window is created so that it is always on top.
 	glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
 
 	obj->window = glfwCreateWindow( obj->mSettings.width, obj->mSettings.height, obj->mSettings.title.c_str(), obj->mSettings.monitor, nullptr );
@@ -451,9 +453,6 @@ void register_pal_window_api( void *api ) {
 	window_settings_i.set_title  = window_settings_set_title;
 	window_settings_i.set_width  = window_settings_set_width;
 	window_settings_i.set_height = window_settings_set_height;
-
-	std::cout << "framebuffer resize callback addr: " << std::hex << ( void * )glfw_framebuffer_resize_callback << std::endl
-	          << std::flush;
 
 	Registry::loadLibraryPersistently( "libglfw.so" );
 }
