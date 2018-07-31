@@ -336,6 +336,10 @@ class Renderer {
 	le_shader_module_o *createShaderModule( char const *path, LeShaderType moduleType ) {
 		return rendererI.create_shader_module( self, path, moduleType );
 	}
+
+	operator auto() {
+		return self;
+	}
 };
 
 class RenderPass {

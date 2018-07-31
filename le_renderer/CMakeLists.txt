@@ -4,10 +4,15 @@ set (SOURCES "le_renderer.cpp")
 set (SOURCES ${SOURCES} "le_renderer.h")
 set (SOURCES ${SOURCES} "le_rendergraph.cpp")
 set (SOURCES ${SOURCES} "le_command_buffer_encoder.cpp")
+set (SOURCES ${SOURCES} "util/enkiTS/LockLessMultiReadPipe.h")
+set (SOURCES ${SOURCES} "util/enkiTS/TaskScheduler.cpp")
+set (SOURCES ${SOURCES} "util/enkiTS/TaskScheduler.h")
+set (SOURCES ${SOURCES} "util/enkiTS/TaskScheduler_c.cpp")
+set (SOURCES ${SOURCES} "util/enkiTS/TaskScheduler_c.h")
 
 if (${PLUGINS_DYNAMIC})
 
-    add_library(${TARGET} SHARED ${SOURCES})
+    add_library(${TARGET} MODULE ${SOURCES})
 
     # IMPORTANT: --no-gnu-unique
     #            This compiler flag is neccesary as otherwise the library may get compiled
@@ -30,6 +35,9 @@ else()
 
     target_compile_definitions(${TARGET}  PUBLIC "PLUGIN_LE_RENDERER_STATIC")
 
+    target_link_libraries(${TARGET} PRIVATE pthread)
+
 endif()
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
+

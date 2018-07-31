@@ -19,7 +19,13 @@
 #include <unordered_set>
 #include <unordered_map>
 
+#include "util/enkiTS/TaskScheduler.h"
+
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
+
+#ifndef LE_RENDERER_MULTITHREADED
+#	define LE_RENDERER_MULTITHREADED true
+#endif
 
 // ----------------------------------------------------------------------
 
@@ -60,8 +66,6 @@ struct FrameData {
 
 // ----------------------------------------------------------------------
 
-// ----------------------------------------------------------------------
-
 struct le_renderer_o {
 
 	uint64_t    swapchainDirty = false;
@@ -70,6 +74,8 @@ struct le_renderer_o {
 	std::vector<FrameData> frames;
 	size_t                 numSwapchainImages = 0;
 	size_t                 currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
+
+	enki::TaskScheduler g_TS = {};
 
 	le_renderer_o( le_backend_o *backend )
 	    : backend( backend ) {
@@ -81,6 +87,7 @@ struct le_renderer_o {
 static le_renderer_o *
 renderer_create( le_backend_o *backend ) {
 	auto obj = new le_renderer_o( backend );
+	obj->g_TS.Initialize( 4 );
 	return obj;
 }
 
@@ -130,7 +137,10 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 
 	auto &frame = self->frames[ frameIndex ];
 
-	if ( frame.state == FrameData::State::eCleared || frame.state == FrameData::State::eInitial ) {
+	static auto &rendererApi   = *Registry::getApi<le_renderer_api>();
+	static auto &graphBuilderI = rendererApi.le_graph_builder_i;
+
+	if ( frame.state == FrameData::State::eCleared ) {
 		return;
 	}
 
@@ -141,6 +151,7 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 	     frame.state == FrameData::State::eFailedDispatch ||
 	     frame.state == FrameData::State::eFailedClear ) {
 
+		// Note: this call may block until the fence has been reached.
 		bool result = self->backend.clearFrame( frameIndex );
 
 		if ( result != true ) {
@@ -149,10 +160,10 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 		}
 	}
 
-	static auto &rendererApi   = *Registry::getApi<le_renderer_api>();
-	static auto &graphBuilderI = rendererApi.le_graph_builder_i;
-
 	graphBuilderI.reset( frame.graphBuilder );
+
+	//	std::cout << "CLEAR FRAME " << frameIndex << std::endl
+	//	          << std::flush;
 
 	frame.state = FrameData::State::eCleared;
 }
@@ -202,6 +213,9 @@ static void renderer_record_frame( le_renderer_o *self, size_t frameIndex, le_re
 	frame.meta.time_record_frame_end = std::chrono::high_resolution_clock::now();
 	//std::cout << "renderer_record_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_record_frame_end-frame.meta.time_record_frame_start).count() << "ms" << std::endl;
 
+	//	std::cout << "RECORD FRAME " << frameIndex << std::endl
+	//	          << std::flush;
+
 	frame.state = FrameData::State::eRecorded;
 }
 
@@ -234,6 +248,8 @@ static const FrameData::State &renderer_acquire_backend_resources( le_renderer_o
 
 	if ( acquireSuccess ) {
 		frame.state = FrameData::State::eAcquired;
+		//		std::cout << "ACQU FRAME " << frameIndex << std::endl
+		//		          << std::flush;
 
 	} else {
 		frame.state = FrameData::State::eFailedAcquire;
@@ -266,6 +282,9 @@ static const FrameData::State &renderer_process_frame( le_renderer_o *self, size
 	frame.meta.time_process_frame_end = std::chrono::high_resolution_clock::now();
 	//std::cout << "renderer_process_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_process_frame_end-frame.meta.time_process_frame_start).count() << "ms" << std::endl;
 
+	//	std::cout << "PROCE FRAME " << frameIndex << std::endl
+	//	          << std::flush;
+
 	frame.state = FrameData::State::eProcessed;
 	return frame.state;
 }
@@ -290,6 +309,9 @@ static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex ) {
 
 	if ( dispatchSuccessful ) {
 		frame.state = FrameData::State::eDispatched;
+		//		std::cout << "DISP FRAME " << frameIndex << std::endl
+		//		          << std::flush;
+
 	} else {
 
 		std::cout << "WARNING: Could not present frame." << std::endl;
@@ -305,6 +327,45 @@ static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex ) {
 	}
 }
 
+static void render_tasks( le_renderer_o *renderer, size_t frameIndex ) {
+	// acquire external backend resources such as swapchain
+	// and create any temporary resources
+	renderer_acquire_backend_resources( renderer, frameIndex );
+
+	// generate api commands for the frame
+	renderer_process_frame( renderer, frameIndex );
+
+	renderer_dispatch_frame( renderer, frameIndex );
+}
+
+static void clear_task( le_renderer_o *renderer, size_t frameIndex ) {
+	renderer_clear_frame( renderer, frameIndex );
+}
+
+struct RenderTask : public enki::ITaskSet {
+	size_t         frameIndex;
+	le_renderer_o *renderer;
+	virtual void   ExecuteRange( enki::TaskSetPartition range, uint32_t threadnum ) override {
+		render_tasks( renderer, frameIndex );
+	}
+};
+
+struct RecordTask : public enki::ITaskSet {
+	size_t              frameIndex;
+	le_renderer_o *     renderer;
+	le_render_module_o *module;
+	virtual void        ExecuteRange( enki::TaskSetPartition range, uint32_t threadnum ) override {
+	}
+};
+
+struct ClearTask : public enki::ITaskSet {
+	size_t         frameIndex;
+	le_renderer_o *renderer;
+	virtual void   ExecuteRange( enki::TaskSetPartition range, uint32_t threadnum ) override {
+		clear_task( renderer, frameIndex );
+	}
+};
+
 // ----------------------------------------------------------------------
 
 static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) {
@@ -319,25 +380,40 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 
 	backend_i.update_shader_modules( self->backend );
 
-	// NOTE: think more about interleaving - ideally, each one of these stages
-	// should be able to be executed in its own thread.
-	//
-	// At the moment, this is not possible, as acquisition might acquire more images
-	// than available if there are more threads than swapchain images.
+	if ( LE_RENDERER_MULTITHREADED ) {
+		// use task system (experimental)
 
-	renderer_clear_frame( self, ( index + 0 ) % numFrames );
+		//		std::cout << "RENDERER UPDATE" << std::endl
+		//		          << std::endl
+		//		          << std::flush;
 
-	// generate an intermediary, api-agnostic, representation of the frame
-	renderer_record_frame( self, ( index + 0 ) % numFrames, module_ );
+		ClearTask clearTask;
+		clearTask.renderer   = self;
+		clearTask.frameIndex = ( index + 1 ) % numFrames;
+		self->g_TS.AddTaskSetToPipe( &clearTask );
 
-	// acquire external backend resources such as swapchain
-	// and create any temporary resources
-	renderer_acquire_backend_resources( self, ( index + 1 ) % numFrames );
+		RenderTask renderTask;
+		renderTask.renderer   = self;
+		renderTask.frameIndex = ( index + 2 ) % numFrames;
+		self->g_TS.AddTaskSetToPipe( &renderTask );
 
-	// generate api commands for the frame
-	renderer_process_frame( self, ( index + 1 ) % numFrames );
+		// we record on the main thread.
+		renderer_record_frame( self, ( index + 0 ) % numFrames, module_ ); // generate an intermediary, api-agnostic, representation of the frame
 
-	renderer_dispatch_frame( self, ( index + 1 ) % numFrames );
+		self->g_TS.WaitforTaskSet( &renderTask );
+		self->g_TS.WaitforTaskSet( &clearTask );
+
+	} else {
+
+		// render on the main thread
+
+		renderer_record_frame( self, ( index + 0 ) % numFrames, module_ ); // generate an intermediary, api-agnostic, representation of the frame
+		renderer_clear_frame( self, ( index + 1 ) % numFrames );           // wait for frame to come back
+
+		render_tasks( self, ( index + 2 ) % numFrames );
+	}
+
+	;
 
 	if ( self->swapchainDirty ) {
 		// we must dispatch, then clear all previous dispatchable frames,
