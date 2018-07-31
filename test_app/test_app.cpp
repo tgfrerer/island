@@ -17,14 +17,71 @@
 #include "libs/glm/glm/glm.hpp"
 #include "libs/glm/glm/gtc/matrix_transform.hpp"
 
+#define GLM_ENABLE_EXPERIMENTAL
+#include "libs/glm/glm/gtx/easing.hpp"
+
 #include <iostream>
 #include <memory>
 
 #include "horse_image.h"
 #include "libs/imgui/include/imgui.h"
 
+#include <sstream>
+
 #include <chrono> // for nanotime
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
+
+//template <typename T, size_t sz>
+//class SeriesBuffer {
+//	std::array<T, sz> data{};
+//	std::vector<T>    asVec{};
+//	size_t            pos = sz - 1;
+//	static_assert( sz > 0, "SeriesBuffer capacity must be at least 1" );
+//	bool isDirty = false;
+//	T    runningAverage{};
+
+//  public:
+//	void push( const T &value_ ) {
+//		pos            = ( ++pos ) % sz;
+//		data[ pos ]    = value_;
+//		isDirty        = true;
+//		runningAverage = ( value_ + ( runningAverage * ( sz - 1 ) ) ) / static_cast<T>( sz );
+//	}
+
+//	const T &getLastValue() const {
+//		return data[ pos ];
+//	}
+
+//	const T &getRunningAverage() const {
+//		return runningAverage;
+//	}
+
+//	// addr, numElements
+//	std::pair<T *, size_t> getHead() {
+//		std::pair<T *, size_t> ret( data.data() + pos + 1, size_t( sz - pos - 1 ) );
+//		return ret;
+//	}
+
+//	// addr, numElements
+//	std::pair<T *, size_t> getTail() {
+//		std::pair<T *, size_t> ret( data.data(), size_t( pos + 1 ) );
+//		return ret;
+//	}
+
+//	const std::vector<T> &getAsVector() {
+//		if ( isDirty ) {
+//			asVec.clear();
+//			asVec.reserve( sz );
+//			auto head = getHead();
+//			auto tail = getTail();
+//			asVec.insert( asVec.end(), head.first, head.first + head.second );
+//			asVec.insert( asVec.end(), tail.first, tail.first + tail.second );
+//			isDirty = false;
+//		}
+//		return asVec;
+//	}
+//};
+
 struct le_graphics_pipeline_state_o; // owned by renderer
 
 struct FontTextureInfo {
@@ -227,16 +284,12 @@ static test_app_o *test_app_create() {
 	{
 		// -- Declare graphics pipeline state objects
 
-		// Creating shader modules will eventually compile shader source code from glsl to spir-v
-		auto defaultVertShader        = app->renderer->createShaderModule( "./shaders/default.vert", LeShaderType::eVert );
-		auto defaultFragShader        = app->renderer->createShaderModule( "./shaders/default.frag", LeShaderType::eFrag );
-		auto fullScreenQuadVertShader = app->renderer->createShaderModule( "./shaders/fullscreenQuad.vert", LeShaderType::eVert );
-		auto fullScreenQuadFragShader = app->renderer->createShaderModule( "./shaders/fullscreenQuad.frag", LeShaderType::eFrag );
-		auto imguiVertShader          = app->renderer->createShaderModule( "./shaders/imgui.vert", LeShaderType::eVert );
-		auto imguiFragShader          = app->renderer->createShaderModule( "./shaders/imgui.frag", LeShaderType::eFrag );
-
 		{
 			// create default pipeline
+
+			auto defaultVertShader = app->renderer->createShaderModule( "./shaders/default.vert", LeShaderType::eVert );
+			auto defaultFragShader = app->renderer->createShaderModule( "./shaders/default.frag", LeShaderType::eFrag );
+
 			le_graphics_pipeline_create_info_t pi;
 			pi.shader_module_frag = defaultFragShader;
 			pi.shader_module_vert = defaultVertShader;
@@ -256,9 +309,11 @@ static test_app_o *test_app_create() {
 		}
 
 		{
-			// create pso for imgui rendering
+			// Create pso for imgui rendering
+			auto imguiVertShader = app->renderer->createShaderModule( "./shaders/imgui.vert", LeShaderType::eVert );
+			auto imguiFragShader = app->renderer->createShaderModule( "./shaders/imgui.frag", LeShaderType::eFrag );
 
-			le_graphics_pipeline_create_info_t                   pi;
+			le_graphics_pipeline_create_info_t                   imguiPipeline;
 			std::array<le_vertex_input_attribute_description, 3> attrs;
 			std::array<le_vertex_input_binding_description, 1>   bindings;
 			{
@@ -293,15 +348,15 @@ static test_app_o *test_app_create() {
 				bindings[ 0 ].stride     = sizeof( ImDrawVert );
 			}
 
-			pi.shader_module_frag = imguiFragShader;
-			pi.shader_module_vert = imguiVertShader;
+			imguiPipeline.shader_module_frag = imguiFragShader;
+			imguiPipeline.shader_module_vert = imguiVertShader;
 
-			pi.vertex_input_attribute_descriptions       = attrs.data();
-			pi.vertex_input_attribute_descriptions_count = attrs.size();
-			pi.vertex_input_binding_descriptions         = bindings.data();
-			pi.vertex_input_binding_descriptions_count   = bindings.size();
+			imguiPipeline.vertex_input_attribute_descriptions       = attrs.data();
+			imguiPipeline.vertex_input_attribute_descriptions_count = attrs.size();
+			imguiPipeline.vertex_input_binding_descriptions         = bindings.data();
+			imguiPipeline.vertex_input_binding_descriptions_count   = bindings.size();
 
-			auto psoHandle = app->renderer->createGraphicsPipelineStateObject( &pi );
+			auto psoHandle = app->renderer->createGraphicsPipelineStateObject( &imguiPipeline );
 
 			if ( psoHandle ) {
 				app->psoImgui = psoHandle;
@@ -311,8 +366,12 @@ static test_app_o *test_app_create() {
 		}
 
 		{
-			le_graphics_pipeline_create_info_t pi;
 			// create full screen quad pipeline
+
+			auto fullScreenQuadVertShader = app->renderer->createShaderModule( "./shaders/fullscreenQuad.vert", LeShaderType::eVert );
+			auto fullScreenQuadFragShader = app->renderer->createShaderModule( "./shaders/fullscreenQuad.frag", LeShaderType::eFrag );
+
+			le_graphics_pipeline_create_info_t pi;
 			pi.shader_module_vert = fullScreenQuadVertShader;
 			pi.shader_module_frag = fullScreenQuadFragShader;
 			auto psoHandle        = app->renderer->createGraphicsPipelineStateObject( &pi );
@@ -593,6 +652,12 @@ static bool test_app_update( test_app_o *self ) {
 			    {0, 50, 0},
 			};
 
+			glm::vec4 triangleColors[ 3 ] = {
+			    {1, 0, 0, 1.f},
+			    {0, 1, 0, 1.f},
+			    {0, 0, 1, 1.f},
+			};
+
 			uint16_t indexData[ 3 ] = {0, 1, 2};
 
 			// data as it is laid out in the ubo for the shader
@@ -611,6 +676,7 @@ static bool test_app_update( test_app_o *self ) {
 
 			float r_val = ( app->frame_counter % 120 ) / 120.f;
 			r_val       = t / 3.f;
+			r_val       = glm::elasticEaseOut( r_val );
 
 			ColorUbo_t ubo1{{1, 0, 0, 1}};
 
@@ -625,7 +691,7 @@ static bool test_app_update( test_app_o *self ) {
 				le_encoder.draw( encoder, 3, 1, 0, 0 );
 			}
 
-			// Bind full main graphics pipeline
+			// Bind main graphics pipeline
 			if ( true ) {
 				le_encoder.bind_graphics_pipeline( encoder, app->psoMain );
 
@@ -647,6 +713,7 @@ static bool test_app_update( test_app_o *self ) {
 				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "Color" ), &ubo1, sizeof( ColorUbo_t ) );                    // set a descriptor to set, binding, array_index
 
 				le_encoder.set_vertex_data( encoder, triangleData, sizeof( glm::vec3 ) * 3, 0 );
+				le_encoder.set_vertex_data( encoder, triangleColors, sizeof( glm::vec4 ) * 3, 1 );
 				le_encoder.set_index_data( encoder, indexData, sizeof( indexData ), 0 ); // 0 for indexType means uint16_t
 				le_encoder.draw_indexed( encoder, 3, 1, 0, 0, 0 );
 			}

@@ -1,10 +1,13 @@
-#version 420 core
+#version 450 core
 
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
 // inputs 
-layout (location = 0) in vec2 inTexCoord;
+layout (location = 0) in VertexData {
+	vec2 texCoord;
+	vec4 texColor;
+} inData;
 
 // outputs
 layout (location = 0) out vec4 outFragColor;
@@ -25,6 +28,6 @@ layout (set = 0, binding = 1) uniform Color
 
 void main(){
 	
-	outFragColor = vec4(inTexCoord, 0, 1);
-	//outFragColor = color;
+	//outFragColor = vec4(inTexCoord, 0, 1);
+	outFragColor = inData.texColor;
 }

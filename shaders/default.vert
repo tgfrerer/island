@@ -8,9 +8,14 @@
 
 // inputs 
 layout (location = 0) in vec3 pos;
+layout (location = 1) in vec4 col;
 
 // outputs 
-layout (location = 0) out vec2 outTexCoord;
+layout (location = 0) out VertexData {
+	vec2 texCoord;
+	vec4 texColor;
+} outData;
+
 
 // arguments
 layout (set = 0, binding = 0) uniform MatrixStack 
@@ -27,10 +32,12 @@ out gl_PerVertex
     vec4 gl_Position;
 };
 
+
+
 void main() 
 {
-	outTexCoord = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
-	
+	outData.texCoord = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
+	outData.texColor = col;
 	vec4 position = projectionMatrix * viewMatrix * modelMatrix * vec4(pos,1);
 
 	gl_Position = position;
