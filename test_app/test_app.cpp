@@ -23,6 +23,8 @@
 #include "horse_image.h"
 #include "libs/imgui/include/imgui.h"
 
+#include <chrono> // for nanotime
+using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 struct le_graphics_pipeline_state_o; // owned by renderer
 
 struct FontTextureInfo {
@@ -42,11 +44,14 @@ struct test_app_o {
 	le_graphics_pipeline_state_o *psoImgui;          // owned by renderer
 	ImGuiContext *                imguiContext  = nullptr;
 	uint64_t                      frame_counter = 0;
+	float                         deltaTimeSec  = 0;
 
 	FontTextureInfo imguiTexture = {};
 
 	std::array<bool, 5> mouseButtonStatus = {}; // status for each mouse button
 	glm::vec2           mousePos;               // current mouse position
+
+	NanoTime update_start_time;
 
 	// NOTE: RUNTIME-COMPILE : If you add any new things during run-time, make sure to only add at the end of the object,
 	// otherwise all pointers above will be invalidated. this might also overwrite memory which
@@ -98,10 +103,12 @@ static void test_app_key_callback( void *user_data, int key, int scancode, int a
 	}
 	ImGuiIO &io = ImGui::GetIO();
 
-	if ( action == GLFW_PRESS )
+	if ( action == GLFW_PRESS ) {
 		io.KeysDown[ key ] = true;
-	if ( action == GLFW_RELEASE )
+	}
+	if ( action == GLFW_RELEASE ) {
 		io.KeysDown[ key ] = false;
+	}
 
 	( void )mods; // Modifiers are not reliable across systems
 	io.KeyCtrl  = io.KeysDown[ GLFW_KEY_LEFT_CONTROL ] || io.KeysDown[ GLFW_KEY_RIGHT_CONTROL ];
@@ -370,6 +377,8 @@ static test_app_o *test_app_create() {
 		window_i.set_scroll_callback( *app->window, &app_i.scroll_callback );
 	}
 
+	app->update_start_time = std::chrono::high_resolution_clock::now();
+
 	return app;
 }
 
@@ -384,6 +393,20 @@ static float get_image_plane_distance( const le::Viewport &viewport, float fovRa
 static bool test_app_update( test_app_o *self ) {
 
 	ImGui::SetCurrentContext( self->imguiContext ); // NOTICE: that's important for reload.
+
+	{
+		// update frame delta time
+		auto   current_time = std::chrono::high_resolution_clock::now();
+		double millis       = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>( current_time - self->update_start_time ).count();
+		self->deltaTimeSec  = float( millis / 1000.0 );
+
+		auto &io     = ImGui::GetIO();
+		io.DeltaTime = self->deltaTimeSec;
+
+		//		self->metrics.appUpdateTimes.push( millis );
+
+		self->update_start_time = current_time;
+	}
 
 	// Polls events for all windows
 	// this means any window may trigger callbacks for any events they have callbacks registered.
@@ -409,8 +432,9 @@ static bool test_app_update( test_app_o *self ) {
 		io.MousePos = {self->mousePos.x, self->mousePos.y};
 	}
 
-	ImGui::ShowDemoWindow();
-	ImGui::Text( "Hello, world %d", 123 );
+	// ImGui::Text("Hello Island");
+
+	// ImGui::ShowDemoWindow();
 	ImGui::ShowMetricsWindow();
 	ImGui::Render();
 
@@ -525,7 +549,7 @@ static bool test_app_update( test_app_o *self ) {
 				textureInfo.imageView.imageId = RESOURCE_IMAGE_ID( "horse" );
 				textureInfo.imageView.format  = VK_FORMAT_R8G8B8A8_UNORM;
 				textureInfo.sampler.magFilter = VK_FILTER_NEAREST;
-				textureInfo.sampler.minFilter = VK_FILTER_LINEAR;
+				textureInfo.sampler.minFilter = VK_FILTER_NEAREST;
 
 				rp.sampleTexture( RESOURCE_TEXTURE_ID( "texture1" ), textureInfo );
 			}
@@ -582,7 +606,11 @@ static bool test_app_update( test_app_o *self ) {
 				glm::mat4 projectionMatrix;
 			};
 
+			static float t = 0;
+			t              = fmodf( t + app->deltaTimeSec, 3.f );
+
 			float r_val = ( app->frame_counter % 120 ) / 120.f;
+			r_val       = t / 3.f;
 
 			ColorUbo_t ubo1{{1, 0, 0, 1}};
 
@@ -623,7 +651,8 @@ static bool test_app_update( test_app_o *self ) {
 				le_encoder.draw_indexed( encoder, 3, 1, 0, 0, 0 );
 			}
 
-			{
+			ImDrawData *drawData = ImGui::GetDrawData();
+			if ( drawData ) {
 				// draw imgui
 				glm::mat4 ortho_projection =
 				    {
@@ -633,8 +662,7 @@ static bool test_app_update( test_app_o *self ) {
 				        {-1.f, -1.f, 0.0f, 1.0f},
 				    };
 
-				ImDrawData *drawData    = ImGui::GetDrawData();
-				ImVec2      display_pos = drawData->DisplayPos;
+				ImVec2 display_pos = drawData->DisplayPos;
 
 				le_encoder.bind_graphics_pipeline( encoder, app->psoImgui );
 
