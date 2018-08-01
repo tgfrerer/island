@@ -61,7 +61,8 @@ struct FrameData {
 
 	le_graph_builder_o *graphBuilder = nullptr;
 
-	Meta meta;
+	size_t frameNumber = size_t( ~0 );
+	Meta   meta;
 };
 
 // ----------------------------------------------------------------------
@@ -170,9 +171,10 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
-static void renderer_record_frame( le_renderer_o *self, size_t frameIndex, le_render_module_o *module_ ) {
+static void renderer_record_frame( le_renderer_o *self, size_t frameIndex, le_render_module_o *module_, size_t frameNumber ) {
 
-	auto &frame = self->frames[ frameIndex ];
+	auto &frame       = self->frames[ frameIndex ];
+	frame.frameNumber = frameNumber;
 
 	if ( frame.state != FrameData::State::eCleared && frame.state != FrameData::State::eInitial ) {
 		return;
@@ -314,7 +316,7 @@ static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex ) {
 
 	} else {
 
-		std::cout << "WARNING: Could not present frame." << std::endl;
+		std::cout << "WARNING: Could not present frame " << std::dec << frame.frameNumber << std::endl;
 
 		// Present was not successful -
 		//
@@ -348,6 +350,7 @@ struct RenderTask : public enki::ITaskSet {
 	virtual void   ExecuteRange( enki::TaskSetPartition range, uint32_t threadnum ) override {
 		render_tasks( renderer, frameIndex );
 	}
+	virtual ~RenderTask() = default;
 };
 
 struct RecordTask : public enki::ITaskSet {
@@ -356,6 +359,7 @@ struct RecordTask : public enki::ITaskSet {
 	le_render_module_o *module;
 	virtual void        ExecuteRange( enki::TaskSetPartition range, uint32_t threadnum ) override {
 	}
+	virtual ~RecordTask() = default;
 };
 
 struct ClearTask : public enki::ITaskSet {
@@ -364,6 +368,7 @@ struct ClearTask : public enki::ITaskSet {
 	virtual void   ExecuteRange( enki::TaskSetPartition range, uint32_t threadnum ) override {
 		clear_task( renderer, frameIndex );
 	}
+	virtual ~ClearTask() = default;
 };
 
 // ----------------------------------------------------------------------
@@ -398,7 +403,7 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 		self->g_TS.AddTaskSetToPipe( &renderTask );
 
 		// we record on the main thread.
-		renderer_record_frame( self, ( index + 0 ) % numFrames, module_ ); // generate an intermediary, api-agnostic, representation of the frame
+		renderer_record_frame( self, ( index + 0 ) % numFrames, module_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
 
 		self->g_TS.WaitforTaskSet( &renderTask );
 		self->g_TS.WaitforTaskSet( &clearTask );
@@ -407,8 +412,8 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 
 		// render on the main thread
 
-		renderer_record_frame( self, ( index + 0 ) % numFrames, module_ ); // generate an intermediary, api-agnostic, representation of the frame
-		renderer_clear_frame( self, ( index + 1 ) % numFrames );           // wait for frame to come back
+		renderer_record_frame( self, ( index + 0 ) % numFrames, module_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
+		renderer_clear_frame( self, ( index + 1 ) % numFrames );                                     // wait for frame to come back
 
 		render_tasks( self, ( index + 2 ) % numFrames );
 	}
