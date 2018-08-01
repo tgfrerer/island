@@ -838,6 +838,6 @@ void register_test_app_api( void *api_ ) {
 	test_app_i.scroll_callback          = test_app_scroll_callback;
 
 #ifndef PLUGIN_TEST_APP_STATIC
-	Registry::loadLibraryPersistently( "libimgui.so" );
+	Registry::loadLibraryPersistently( "./libs/imgui/lib/libimgui.so" );
 #endif
 }
