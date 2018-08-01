@@ -527,7 +527,7 @@ static bool test_app_update( test_app_o *self ) {
 					img.mipLevels     = 1;
 					img.samples       = VK_SAMPLE_COUNT_1_BIT;
 					img.imageType     = VK_IMAGE_TYPE_2D;
-					img.tiling        = VK_IMAGE_TILING_LINEAR;
+					img.tiling        = VK_IMAGE_TILING_OPTIMAL;
 				}
 				rp.createResource( RESOURCE_IMAGE_ID( "horse" ), imgInfo );
 			}
@@ -548,7 +548,7 @@ static bool test_app_update( test_app_o *self ) {
 					img.mipLevels     = 1;
 					img.samples       = VK_SAMPLE_COUNT_1_BIT;
 					img.imageType     = VK_IMAGE_TYPE_2D;
-					img.tiling        = VK_IMAGE_TILING_LINEAR;
+					img.tiling        = VK_IMAGE_TILING_OPTIMAL;
 				}
 				rp.createResource( IMGUI_FONT_IMAGE, imgInfo );
 			}
