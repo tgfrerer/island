@@ -533,7 +533,7 @@ static bool test_app_update( test_app_o *self ) {
 			}
 
 			{
-				// create image for the horse image
+				// create image for imgui image
 				le_resource_info_t imgInfo;
 				imgInfo.type = LeResourceType::eImage;
 				{
@@ -551,6 +551,27 @@ static bool test_app_update( test_app_o *self ) {
 					img.tiling        = VK_IMAGE_TILING_OPTIMAL;
 				}
 				rp.createResource( IMGUI_FONT_IMAGE, imgInfo );
+			}
+
+			{
+				// create image for prepass
+				le_resource_info_t imgInfo;
+				imgInfo.type = LeResourceType::eImage;
+				{
+					auto &img         = imgInfo.image;
+					img.format        = VK_FORMAT_R8G8B8A8_UNORM;
+					img.flags         = 0;
+					img.arrayLayers   = 1;
+					img.extent.depth  = 1;
+					img.extent.width  = uint32_t( 640 );
+					img.extent.height = uint32_t( 480 );
+					img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+					img.mipLevels     = 1;
+					img.samples       = VK_SAMPLE_COUNT_1_BIT;
+					img.imageType     = VK_IMAGE_TYPE_2D;
+					img.tiling        = VK_IMAGE_TILING_OPTIMAL;
+				}
+				rp.createResource( RESOURCE_IMAGE_ID( "prepass" ), imgInfo );
 			}
 
 			// create resource for imgui font texture if it does not yet exist.
@@ -581,6 +602,69 @@ static bool test_app_update( test_app_o *self ) {
 			}
 		} );
 
+		le::RenderPass renderPassPre( "prepass", LE_RENDER_PASS_TYPE_DRAW );
+		renderPassPre.setSetupCallback( self, []( auto pRp, auto user_data_ ) -> bool {
+			auto rp  = le::RenderPassRef{pRp};
+			auto app = static_cast<test_app_o *>( user_data_ );
+
+			LeImageAttachmentInfo colorAttachmentInfo{};
+			colorAttachmentInfo.format           = vk::Format( VK_FORMAT_R8G8B8A8_UNORM );
+			colorAttachmentInfo.access_flags     = le::AccessFlagBits::eWrite;
+			colorAttachmentInfo.loadOp           = LE_ATTACHMENT_LOAD_OP_CLEAR;
+			colorAttachmentInfo.storeOp          = LE_ATTACHMENT_STORE_OP_STORE;
+			colorAttachmentInfo.clearValue.color = {{1.f, 0, 0, 1.f}};
+
+			rp.addImageAttachment( RESOURCE_IMAGE_ID( "prepass" ), &colorAttachmentInfo );
+
+			rp.useResource( RESOURCE_IMAGE_ID( "horse" ), le::AccessFlagBits::eRead );
+			{
+				LeTextureInfo textureInfo;
+				textureInfo.imageView.imageId = RESOURCE_IMAGE_ID( "horse" );
+
+				textureInfo.imageView.format  = VK_FORMAT_R8G8B8A8_UNORM;
+				textureInfo.sampler.magFilter = VK_FILTER_NEAREST;
+				textureInfo.sampler.minFilter = VK_FILTER_NEAREST;
+
+				rp.sampleTexture( RESOURCE_TEXTURE_ID( "horse" ), textureInfo );
+			}
+
+			rp.setWidth( 640 );
+			rp.setHeight( 480 );
+
+			return true;
+		} );
+		renderPassPre.setExecuteCallback( self, []( le_command_buffer_encoder_o *encoder, void *user_data ) {
+			static auto const &le_encoder   = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
+			auto               app          = static_cast<test_app_o *>( user_data );
+			uint32_t           screenWidth  = 640;
+			uint32_t           screenHeight = 480;
+
+			glm::vec3 triangleData[ 3 ] = {
+			    {-50, -50, 0},
+			    {50, -50, 0},
+			    {0, 50, 0},
+			};
+			le::Viewport viewports[ 1 ] = {
+			    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
+
+			};
+
+			le::Rect2D scissors[ 1 ] = {
+			    {0, 0, screenWidth, screenHeight},
+			};
+
+			// Bind full screen quad pipeline
+			if ( true ) {
+				le_encoder.set_vertex_data( encoder, triangleData, sizeof( glm::vec3 ) * 3, 0 );
+
+				le_encoder.bind_graphics_pipeline( encoder, app->psoFullScreenQuad );
+				le_encoder.set_argument_texture( encoder, RESOURCE_TEXTURE_ID( "horse" ), const_char_hash64( "src_tex_unit_0" ), 0 );
+				le_encoder.set_scissor( encoder, 0, 1, &scissors[ 0 ] );
+				le_encoder.set_viewport( encoder, 0, 1, &viewports[ 0 ] );
+				le_encoder.draw( encoder, 3, 1, 0, 0 );
+			}
+		} );
+
 		le::RenderPass renderPassFinal( "root", LE_RENDER_PASS_TYPE_DRAW );
 
 		renderPassFinal.setSetupCallback( self, []( auto pRp, auto user_data_ ) -> bool {
@@ -599,16 +683,19 @@ static bool test_app_update( test_app_o *self ) {
 			colorAttachmentInfo.clearValue.color = {{0.1f, 0.25f, 0.4f, 1.f}};
 			rp.addImageAttachment( RESOURCE_IMAGE_ID( "backbuffer" ), &colorAttachmentInfo );
 
-			rp.useResource( RESOURCE_IMAGE_ID( "horse" ), le::AccessFlagBits::eRead );
 			rp.setWidth( app->window->getSurfaceWidth() );
 			rp.setHeight( app->window->getSurfaceHeight() );
+
+			//rp.useResource( RESOURCE_IMAGE_ID( "horse" ), le::AccessFlagBits::eRead );
+			rp.useResource( RESOURCE_IMAGE_ID( "prepass" ), le::AccessFlagBits::eRead );
 
 			// this will create an imageView and a sampler in the context of this pass/encoder.
 			// this will implicitly use the resource for reading
 
 			{
 				LeTextureInfo textureInfo;
-				textureInfo.imageView.imageId = RESOURCE_IMAGE_ID( "horse" );
+				//				textureInfo.imageView.imageId = RESOURCE_IMAGE_ID( "horse" );
+				textureInfo.imageView.imageId = RESOURCE_IMAGE_ID( "prepass" );
 				textureInfo.imageView.format  = VK_FORMAT_R8G8B8A8_UNORM;
 				textureInfo.sampler.magFilter = VK_FILTER_NEAREST;
 				textureInfo.sampler.minFilter = VK_FILTER_NEAREST;
@@ -633,8 +720,7 @@ static bool test_app_update( test_app_o *self ) {
 
 		renderPassFinal.setExecuteCallback( self, []( le_command_buffer_encoder_o *encoder, void *user_data ) {
 			static auto const &le_encoder = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
-
-			auto app = static_cast<test_app_o *>( user_data );
+			auto               app        = static_cast<test_app_o *>( user_data );
 
 			auto screenWidth  = app->window->getSurfaceWidth();
 			auto screenHeight = app->window->getSurfaceHeight();
@@ -797,6 +883,7 @@ static bool test_app_update( test_app_o *self ) {
 		} );
 
 		mainModule.addRenderPass( resourcePass );
+		mainModule.addRenderPass( renderPassPre );
 		mainModule.addRenderPass( renderPassFinal );
 	}
 
