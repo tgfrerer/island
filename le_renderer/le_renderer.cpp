@@ -373,7 +373,7 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 	static const auto &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
 
 	const auto &index     = self->currentFrameNumber;
-	const auto &numFrames = self->numSwapchainImages;
+	const auto &numFrames = self->frames.size();
 
 	// If necessary, recompile and reload shader modules
 	// - this must be complete before the record_frame step
@@ -413,8 +413,6 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 		render_tasks( self, ( index + 2 ) % numFrames );
 	}
 
-	;
-
 	if ( self->swapchainDirty ) {
 		// we must dispatch, then clear all previous dispatchable frames,
 		// before recreating swapchain. This is because this frame
@@ -427,6 +425,8 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 		for ( size_t i = 0; i != self->frames.size(); ++i ) {
 			if ( self->frames[ i ].state == FrameData::State::eProcessed ) {
 				renderer_dispatch_frame( self, i );
+				renderer_clear_frame( self, i );
+			} else if ( self->frames[ i ].state != FrameData::State::eDispatched ) {
 				renderer_clear_frame( self, i );
 			}
 		}

@@ -600,6 +600,8 @@ static bool test_app_update( test_app_o *self ) {
 			rp.addImageAttachment( RESOURCE_IMAGE_ID( "backbuffer" ), &colorAttachmentInfo );
 
 			rp.useResource( RESOURCE_IMAGE_ID( "horse" ), le::AccessFlagBits::eRead );
+			rp.setWidth( app->window->getSurfaceWidth() );
+			rp.setHeight( app->window->getSurfaceHeight() );
 
 			// this will create an imageView and a sampler in the context of this pass/encoder.
 			// this will implicitly use the resource for reading

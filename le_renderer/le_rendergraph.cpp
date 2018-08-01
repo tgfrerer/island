@@ -36,6 +36,9 @@ struct le_renderpass_o {
 	std::vector<le_resource_info_t>    createResourceInfos; // createResources holds ids at matching index
 	std::vector<LeImageAttachmentInfo> imageAttachments;
 
+	uint32_t width  = 0; ///< width in pixels, must be identical for all attachments
+	uint32_t height = 0; ///< height in pixels, must be identical for all attachments
+
 	std::vector<LeTextureInfo> textureInfos;   // kept in sync
 	std::vector<uint64_t>      textureInfoIds; // kept in sync
 
@@ -188,6 +191,22 @@ static void renderpass_add_image_attachment( le_renderpass_o *self, uint64_t res
 	//strncpy( info.debugName, name_, sizeof(info.debugName));
 }
 
+// ----------------------------------------------------------------------
+static uint32_t renderpass_get_width( le_renderpass_o *self ) {
+	return self->width;
+}
+// ----------------------------------------------------------------------
+static uint32_t renderpass_get_height( le_renderpass_o *self ) {
+	return self->height;
+}
+
+static void renderpass_set_width( le_renderpass_o *self, uint32_t width ) {
+	self->width = width;
+}
+
+static void renderpass_set_height( le_renderpass_o *self, uint32_t height ) {
+	self->height = height;
+}
 // ----------------------------------------------------------------------
 
 static void renderpass_create_resource( le_renderpass_o *self, uint64_t resource_id, const le_resource_info_t &info ) {
@@ -641,6 +660,10 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_renderpass_i.clone                 = renderpass_clone;
 	le_renderpass_i.destroy               = renderpass_destroy;
 	le_renderpass_i.add_image_attachment  = renderpass_add_image_attachment;
+	le_renderpass_i.get_width             = renderpass_get_width;
+	le_renderpass_i.get_height            = renderpass_get_height;
+	le_renderpass_i.set_width             = renderpass_set_width;
+	le_renderpass_i.set_height            = renderpass_set_height;
 	le_renderpass_i.set_setup_callback    = renderpass_set_setup_fun;
 	le_renderpass_i.has_setup_callback    = renderpass_has_setup_callback;
 	le_renderpass_i.run_setup_callback    = renderpass_run_setup_callback;

@@ -121,7 +121,7 @@ struct le_shader_module_o {
 
 struct le_graphics_pipeline_state_o {
 
-	uint64_t hash = 0; ///< hash of pipeline state, but not including but shader modules
+	uint64_t hash = 0; ///< hash of pipeline state, but not including shader modules
 
 	le_shader_module_o *shaderModuleVert = nullptr;
 	le_shader_module_o *shaderModuleFrag = nullptr;
@@ -286,16 +286,13 @@ struct BackendFrameData {
 	// Todo: clarify ownership of physical resources inside FrameData
 	// Q: Does this table actually own the resources?
 	// A: It must not: as it is used to map external resources as well.
-	std::unordered_map<uint64_t, AbstractPhysicalResource> physicalResources; // map from renderer resource id to physical resources - only contains resources this frame uses.
+	std::unordered_map<uint64_t, AbstractPhysicalResource, IdentityHash> physicalResources; // map from renderer resource id to physical resources - only contains resources this frame uses.
 
 	/// \brief vk resources retained and destroyed with BackendFrameData
 	std::forward_list<AbstractPhysicalResource> ownedResources;
 
 	std::vector<Pass>               passes;
 	std::vector<vk::DescriptorPool> descriptorPools; // one descriptor pool per pass
-
-	uint32_t backBufferWidth;  // dimensions of swapchain backbuffer, queried on acquire backendresources.
-	uint32_t backBufferHeight; // dimensions of swapchain backbuffer, queried on acquire backendresources.
 
 	/*
 
@@ -2012,9 +2009,10 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 	for ( auto pass = ppPasses; pass != ppPasses + numRenderPasses; pass++ ) {
 
 		Pass currentPass{};
-		currentPass.type   = renderpass_i.get_type( *pass );
-		currentPass.width  = frame.backBufferWidth;
-		currentPass.height = frame.backBufferHeight;
+		currentPass.type = renderpass_i.get_type( *pass );
+
+		currentPass.width  = renderpass_i.get_width( *pass );  // FIXME: this needs to be the width of the first attachment
+		currentPass.height = renderpass_i.get_height( *pass ); // FIXME: this needs to be the width of the first attachment
 
 		// iterate over all image attachments
 
@@ -2970,11 +2968,13 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 	}
 
 	// ----------| invariant: swapchain acquisition successful.
-	frame.backBufferWidth  = self->swapchain->getImageWidth();
-	frame.backBufferHeight = self->swapchain->getImageHeight();
 
-	frame.availableResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].asImage        = self->swapchain->getImage( frame.swapchainImageIndex );
-	frame.availableResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].info.imageInfo = vk::ImageCreateInfo{};
+	frame.availableResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].asImage = self->swapchain->getImage( frame.swapchainImageIndex );
+	{
+		auto &backbufferInfo  = frame.availableResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].info.imageInfo;
+		backbufferInfo        = vk::ImageCreateInfo{};
+		backbufferInfo.extent = vk::Extent3D( self->swapchain->getImageWidth(), self->swapchain->getImageHeight(), 1 );
+	}
 
 	// Note that at this point memory for scratch buffers for each pass in this frame has already been allocated,
 	// as this happens shortly before executeGraph.
@@ -3112,8 +3112,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			renderPassBeginInfo
 			    .setRenderPass( pass.renderPass )
 			    .setFramebuffer( pass.framebuffer )
-			    .setRenderArea( vk::Rect2D( {0, 0}, {frame.backBufferWidth, frame.backBufferHeight} ) )
-			    .setClearValueCount( uint32_t( clearValues.size() ) )
+			    .setRenderArea( vk::Rect2D( {0, 0}, {pass.width, pass.height} ) )
 			    .setClearValueCount( pass.numAttachments )
 			    .setPClearValues( clearValues.data() );
 

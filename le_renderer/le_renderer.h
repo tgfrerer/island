@@ -240,6 +240,10 @@ struct le_renderer_api {
 		bool                         ( *has_setup_callback   )( const le_renderpass_o* obj);
 		bool                         ( *run_setup_callback   )( le_renderpass_o* obj);
 		void                         ( *add_image_attachment )( le_renderpass_o *obj, uint64_t resource_id, LeImageAttachmentInfo *info );
+		uint32_t                     ( *get_width            )( le_renderpass_o* obj);
+		uint32_t                     ( *get_height           )( le_renderpass_o* obj);
+		void                         ( *set_width            )( le_renderpass_o* obj, uint32_t width);
+		void                         ( *set_height           )( le_renderpass_o* obj, uint32_t height);
 		void                         ( *set_execute_callback )( le_renderpass_o *obj, pfn_renderpass_execute_t render_fun, void *user_data );
 		void                         ( *run_execute_callback )( le_renderpass_o* obj, le_command_buffer_encoder_o* encoder);
 		bool                         ( *has_execute_callback )( const le_renderpass_o* obj);
@@ -433,6 +437,16 @@ class RenderPassRef {
 
 	RenderPassRef &sampleTexture( uint64_t textureName, const LeTextureInfo &texInfo ) {
 		renderpassI.sample_texture( self, textureName, &texInfo );
+		return *this;
+	}
+
+	RenderPassRef &setWidth( uint32_t width ) {
+		renderpassI.set_width( self, width );
+		return *this;
+	}
+
+	RenderPassRef &setHeight( uint32_t height ) {
+		renderpassI.set_height( self, height );
 		return *this;
 	}
 };

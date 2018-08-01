@@ -150,8 +150,11 @@ static void glfw_framebuffer_resize_callback( GLFWwindow *glfwWindow, int width_
 	auto window = static_cast<pal_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
 
 	glfwGetWindowSize( glfwWindow, &window->mSettings.width, &window->mSettings.height );
-	window->mSurfaceExtent.width  = uint32_t( width_px );
-	window->mSurfaceExtent.height = uint32_t( height_px );
+	int w = 0;
+	int h = 0;
+	glfwGetFramebufferSize( glfwWindow, &w, &h );
+	window->mSurfaceExtent.width  = uint32_t( w );
+	window->mSurfaceExtent.height = uint32_t( h );
 
 	std::cout << " Framebuffer resized callback: " << std::dec << width_px << ", " << height_px << std::endl
 	          << std::flush;
