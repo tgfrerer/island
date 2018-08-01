@@ -592,10 +592,11 @@ static bool test_app_update( test_app_o *self ) {
 			// this is important for example, when using a depth buffer for shadow sampling later.
 
 			LeImageAttachmentInfo colorAttachmentInfo{};
-			colorAttachmentInfo.format       = vk::Format::eB8G8R8A8Unorm; // TODO (swapchain): use swapchain image format programmatically
-			colorAttachmentInfo.access_flags = le::AccessFlagBits::eWrite;
-			colorAttachmentInfo.loadOp       = LE_ATTACHMENT_LOAD_OP_CLEAR;
-			colorAttachmentInfo.storeOp      = LE_ATTACHMENT_STORE_OP_STORE;
+			colorAttachmentInfo.format           = vk::Format::eB8G8R8A8Unorm; // TODO (swapchain): use swapchain image format programmatically
+			colorAttachmentInfo.access_flags     = le::AccessFlagBits::eWrite;
+			colorAttachmentInfo.loadOp           = LE_ATTACHMENT_LOAD_OP_CLEAR;
+			colorAttachmentInfo.storeOp          = LE_ATTACHMENT_STORE_OP_STORE;
+			colorAttachmentInfo.clearValue.color = {{0.1f, 0.25f, 0.4f, 1.f}};
 			rp.addImageAttachment( RESOURCE_IMAGE_ID( "backbuffer" ), &colorAttachmentInfo );
 
 			rp.useResource( RESOURCE_IMAGE_ID( "horse" ), le::AccessFlagBits::eRead );

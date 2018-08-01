@@ -165,6 +165,7 @@ struct AttachmentInfo {
 	vk::Format            format;
 	vk::AttachmentLoadOp  loadOp;
 	vk::AttachmentStoreOp storeOp;
+	vk::ClearValue        clearValue;         ///< either color or depth clear value, only used if loadOp is eClear
 	uint16_t              initialStateOffset; ///< state of resource before entering the renderpass
 	uint16_t              finalStateOffset;   ///< state of resource after exiting the renderpass
 };
@@ -386,6 +387,13 @@ static inline VkAttachmentLoadOp le_to_vk( const LeAttachmentLoadOp &lhs ) {
 	case ( LE_ATTACHMENT_LOAD_OP_DONTCARE ):
 	    return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	}
+}
+
+// ----------------------------------------------------------------------
+
+static inline const vk::ClearValue &le_to_vk( const LeClearValue &lhs ) {
+	static_assert( sizeof( vk::ClearValue ) == sizeof( LeClearValue ), "clear value must be of equal size" );
+	return reinterpret_cast<const vk::ClearValue &>( lhs );
 }
 
 // ----------------------------------------------------------------------
@@ -2026,6 +2034,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 			currentAttachment->format      = imageAttachment->format;
 			currentAttachment->loadOp      = vk::AttachmentLoadOp( le_to_vk( imageAttachment->loadOp ) );
 			currentAttachment->storeOp     = vk::AttachmentStoreOp( le_to_vk( imageAttachment->storeOp ) );
+			currentAttachment->clearValue  = le_to_vk( imageAttachment->clearValue );
 
 			{
 				// track resource state before entering a subpass
@@ -3079,6 +3088,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 	auto numCommandBuffers = uint32_t( frame.passes.size() );
 	auto cmdBufs           = device.allocateCommandBuffers( {frame.commandPool, vk::CommandBufferLevel::ePrimary, numCommandBuffers} );
 
+	std::array<vk::ClearValue, 16> clearValues{};
+
 	// TODO: (parallel for)
 	for ( size_t passIndex = 0; passIndex != frame.passes.size(); ++passIndex ) {
 
@@ -3090,12 +3101,12 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 		cmd.begin( {::vk::CommandBufferUsageFlagBits::eOneTimeSubmit} );
 
+		for ( size_t i = 0; i != pass.numAttachments; ++i ) {
+			clearValues[ i ] = pass.attachments[ i ].clearValue;
+		}
+
 		// non-draw passes don't need renderpasses.
 		if ( pass.type == LE_RENDER_PASS_TYPE_DRAW && pass.renderPass ) {
-
-			// TODO: (renderpass): get clear values from renderpass info
-			std::array<vk::ClearValue, 1> clearValues{
-				{vk::ClearColorValue( std::array<float, 4>{{255.f / 255.f, 15.f / 255.f, 255.f / 255.f, 1.f}} )}};
 
 			vk::RenderPassBeginInfo renderPassBeginInfo;
 			renderPassBeginInfo
@@ -3103,6 +3114,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			    .setFramebuffer( pass.framebuffer )
 			    .setRenderArea( vk::Rect2D( {0, 0}, {frame.backBufferWidth, frame.backBufferHeight} ) )
 			    .setClearValueCount( uint32_t( clearValues.size() ) )
+			    .setClearValueCount( pass.numAttachments )
 			    .setPClearValues( clearValues.data() );
 
 			cmd.beginRenderPass( renderPassBeginInfo, vk::SubpassContents::eInline );

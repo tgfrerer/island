@@ -147,6 +147,26 @@ struct LeTextureInfo {
 	ImageViewInfo imageView;
 };
 
+struct LeClearColorValue {
+	union {
+		float    float32[ 4 ];
+		int32_t  int32[ 4 ];
+		uint32_t uint32[ 4 ];
+	};
+};
+
+struct LeClearDepthStencilValue {
+	float    depth;
+	uint32_t stencil;
+};
+
+struct LeClearValue {
+	union {
+		LeClearColorValue        color;
+		LeClearDepthStencilValue depthStencil;
+	};
+};
+
 struct LeImageAttachmentInfo {
 	uint64_t            resource_id  = 0; // hash name given to this attachment, based on name string
 	uint64_t            source_id    = 0; // hash name of writer/creator renderpass
@@ -155,8 +175,8 @@ struct LeImageAttachmentInfo {
 	LeAttachmentLoadOp  loadOp;
 	LeAttachmentStoreOp storeOp;
 
-	void ( *onClear )( void *clear_data ) = nullptr;
-	char debugName[ 32 ];
+	LeClearValue clearValue = {}; // only used if loadOp == clear
+	char         debugName[ 32 ];
 };
 
 struct le_resource_info_t {
