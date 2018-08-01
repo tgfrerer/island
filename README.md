@@ -40,8 +40,7 @@ we're always sourcing the current SDK.
 
 Add a library search path entry for SDK libs: 
 
-    sudo echo " >
-    /etc/ld.so.conf.d/vk_sdk.conf
+    sudo echo echo "$VULKAN_SDK/lib" > /etc/ld.so.conf.d/vk_sdk.conf
 
 Rebuild the library search cache
 
