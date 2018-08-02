@@ -2158,8 +2158,24 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 	}
 }
 
-// ----------------------------------------------------------------------
+/// \brief polls frame fence, returns true if fence has been crossed, false otherwise.
+static bool backend_poll_frame_fence( le_backend_o *self, size_t frameIndex ) {
+	auto &     frame  = self->mFrames[ frameIndex ];
+	vk::Device device = self->device->getVkDevice();
 
+	auto result = device.waitForFences( {frame.frameFence}, true, 1000'000 );
+	//auto result = device.getFenceStatus( {frame.frameFence} );
+
+	if ( result != vk::Result::eSuccess ) {
+	    return false;
+	} else {
+	    return true;
+	}
+}
+
+// ----------------------------------------------------------------------
+/// \brief: Frees all frame local resources
+/// \preliminary: frame fence must have been crossed.
 static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 
 	static auto &backendI   = *Registry::getApi<le_backend_vk_api>();
@@ -2168,11 +2184,11 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 	auto &     frame  = self->mFrames[ frameIndex ];
 	vk::Device device = self->device->getVkDevice();
 
-	auto result = device.waitForFences( {frame.frameFence}, true, 100'000'000 );
+	//	auto result = device.waitForFences( {frame.frameFence}, true, 100'000'000 );
 
-	if ( result != vk::Result::eSuccess ) {
-		return false;
-	}
+	//	if ( result != vk::Result::eSuccess ) {
+	//		return false;
+	//	}
 
 	// -------- Invariant: fence has been crossed, all resources protected by fence
 	//          can now be claimed back.
@@ -3584,6 +3600,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.get_num_swapchain_images              = backend_get_num_swapchain_images;
 	vk_backend_i.reset_swapchain                       = backend_reset_swapchain;
 	vk_backend_i.get_transient_allocators              = backend_get_transient_allocators;
+	vk_backend_i.poll_frame_fence                      = backend_poll_frame_fence;
 	vk_backend_i.clear_frame                           = backend_clear_frame;
 	vk_backend_i.acquire_physical_resources            = backend_acquire_physical_resources;
 	vk_backend_i.process_frame                         = backend_process_frame;

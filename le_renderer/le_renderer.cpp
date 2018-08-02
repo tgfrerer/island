@@ -69,8 +69,8 @@ struct FrameData {
 
 struct le_renderer_o {
 
-	uint64_t    swapchainDirty = false;
-	le::Backend backend;
+	uint64_t      swapchainDirty = false;
+	le_backend_o *backend;
 
 	std::vector<FrameData> frames;
 	size_t                 numSwapchainImages = 0;
@@ -83,15 +83,42 @@ struct le_renderer_o {
 	}
 };
 
+static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ); // ffdecl
+
 // ----------------------------------------------------------------------
 
 static le_renderer_o *
 renderer_create( le_backend_o *backend ) {
 	auto obj = new le_renderer_o( backend );
-	obj->g_TS.Initialize( 4 );
+
+	if ( LE_RENDERER_MULTITHREADED ) {
+		obj->g_TS.Initialize( 4 );
+	}
 	return obj;
 }
 
+// ----------------------------------------------------------------------
+
+static void renderer_destroy( le_renderer_o *self ) {
+
+	static auto const &graph_builder_i = Registry::getApi<le_renderer_api>()->le_graph_builder_i;
+
+	const auto &lastIndex = self->currentFrameNumber;
+
+	for ( size_t i = 0; i != self->frames.size(); ++i ) {
+		auto index = ( lastIndex + i ) % self->frames.size();
+		renderer_clear_frame( self, index );
+		// -- FIXME: delete graph builders which we added in create
+		// this is not elegant.
+		graph_builder_i.destroy( self->frames[ index ].graphBuilder );
+	}
+
+	self->frames.clear();
+
+	// -- Delete any objects created dynamically
+
+	delete self;
+}
 // ----------------------------------------------------------------------
 
 /// \brief Creates a pipeline state object on the backend
@@ -117,7 +144,9 @@ static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, c
 static void
 renderer_setup( le_renderer_o *self ) {
 
-	self->numSwapchainImages = self->backend.getNumSwapchainImages();
+	static const auto &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
+
+	self->numSwapchainImages = backend_i.get_num_swapchain_images( self->backend );
 
 	self->frames.reserve( self->numSwapchainImages );
 
@@ -138,8 +167,8 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 
 	auto &frame = self->frames[ frameIndex ];
 
-	static auto &rendererApi   = *Registry::getApi<le_renderer_api>();
-	static auto &graphBuilderI = rendererApi.le_graph_builder_i;
+	static auto const &backend_i       = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
+	static auto const &graph_builder_i = Registry::getApi<le_renderer_api>()->le_graph_builder_i;
 
 	if ( frame.state == FrameData::State::eCleared ) {
 		return;
@@ -152,8 +181,11 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 	     frame.state == FrameData::State::eFailedDispatch ||
 	     frame.state == FrameData::State::eFailedClear ) {
 
-		// Note: this call may block until the fence has been reached.
-		bool result = self->backend.clearFrame( frameIndex );
+		while ( false == backend_i.poll_frame_fence( self->backend, frameIndex ) ) {
+			// Note: this call may block until the fence has been reached.
+		};
+
+		bool result = backend_i.clear_frame( self->backend, frameIndex );
 
 		if ( result != true ) {
 			frame.state = FrameData::State::eFailedClear;
@@ -161,7 +193,7 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 		}
 	}
 
-	graphBuilderI.reset( frame.graphBuilder );
+	graph_builder_i.reset( frame.graphBuilder );
 
 	//	std::cout << "CLEAR FRAME " << frameIndex << std::endl
 	//	          << std::flush;
@@ -225,6 +257,7 @@ static void renderer_record_frame( le_renderer_o *self, size_t frameIndex, le_re
 
 static const FrameData::State &renderer_acquire_backend_resources( le_renderer_o *self, size_t frameIndex ) {
 
+	static auto const &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
 	// ---------| invariant: There are frames to process.
 
 	auto &frame = self->frames[ frameIndex ];
@@ -244,7 +277,7 @@ static const FrameData::State &renderer_acquire_backend_resources( le_renderer_o
 
 	le_graph_builder_api.get_passes( frame.graphBuilder, &passes, &numRenderPasses );
 
-	auto acquireSuccess = self->backend.acquirePhysicalResources( frameIndex, passes, numRenderPasses );
+	auto acquireSuccess = backend_i.acquire_physical_resources( self->backend, frameIndex, passes, numRenderPasses );
 
 	frame.meta.time_acquire_frame_end = std::chrono::high_resolution_clock::now();
 
@@ -268,6 +301,8 @@ static const FrameData::State &renderer_acquire_backend_resources( le_renderer_o
 
 static const FrameData::State &renderer_process_frame( le_renderer_o *self, size_t frameIndex ) {
 
+	static auto const &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
+
 	auto &frame = self->frames[ frameIndex ];
 
 	if ( frame.state != FrameData::State::eAcquired ) {
@@ -279,7 +314,7 @@ static const FrameData::State &renderer_process_frame( le_renderer_o *self, size
 
 	// translate intermediate draw lists into vk command buffers, and sync primitives
 
-	self->backend.processFrame( frameIndex );
+	backend_i.process_frame( self->backend, frameIndex );
 
 	frame.meta.time_process_frame_end = std::chrono::high_resolution_clock::now();
 	//std::cout << "renderer_process_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_process_frame_end-frame.meta.time_process_frame_start).count() << "ms" << std::endl;
@@ -295,7 +330,8 @@ static const FrameData::State &renderer_process_frame( le_renderer_o *self, size
 
 static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex ) {
 
-	auto &frame = self->frames[ frameIndex ];
+	static auto const &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
+	auto &             frame     = self->frames[ frameIndex ];
 
 	if ( frame.state != FrameData::State::eProcessed ) {
 		return;
@@ -305,7 +341,7 @@ static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex ) {
 
 	frame.meta.time_dispatch_frame_start = std::chrono::high_resolution_clock::now();
 
-	bool dispatchSuccessful = self->backend.dispatchFrame( frameIndex );
+	bool dispatchSuccessful = backend_i.dispatch_frame( self->backend, frameIndex );
 
 	frame.meta.time_dispatch_frame_end = std::chrono::high_resolution_clock::now();
 
@@ -436,34 +472,11 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 			}
 		}
 
-		self->backend.resetSwapchain();
+		backend_i.reset_swapchain( self->backend );
 		self->swapchainDirty = false;
 	}
 
 	++self->currentFrameNumber;
-}
-
-// ----------------------------------------------------------------------
-
-static void renderer_destroy( le_renderer_o *self ) {
-
-	static auto const &graph_builder_i = Registry::getApi<le_renderer_api>()->le_graph_builder_i;
-
-	const auto &lastIndex = self->currentFrameNumber;
-
-	for ( size_t i = 0; i != self->frames.size(); ++i ) {
-		auto index = ( lastIndex + i ) % self->frames.size();
-		renderer_clear_frame( self, index );
-		// -- FIXME: delete graph builders which we added in create
-		// this is not elegant.
-		graph_builder_i.destroy( self->frames[ index ].graphBuilder );
-	}
-
-	self->frames.clear();
-
-	// -- Delete any objects created dynamically
-
-	delete self;
 }
 
 // ----------------------------------------------------------------------

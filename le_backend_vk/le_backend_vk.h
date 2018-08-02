@@ -61,6 +61,7 @@ struct le_backend_vk_api {
 		le_backend_o *         ( *create                   ) ( le_backend_vk_settings_t *settings );
 		void                   ( *destroy                  ) ( le_backend_o *self );
 		void                   ( *setup                    ) ( le_backend_o *self );
+		bool                   ( *poll_frame_fence         ) ( le_backend_o* self, size_t frameIndex);
 		bool                   ( *clear_frame              ) ( le_backend_o *self, size_t frameIndex );
 		void                   ( *process_frame            ) ( le_backend_o *self, size_t frameIndex );
 		bool                   ( *acquire_physical_resources ) ( le_backend_o *self, size_t frameIndex, struct le_renderpass_o **passes, size_t numRenderPasses  );
