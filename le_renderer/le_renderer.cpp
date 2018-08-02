@@ -115,6 +115,7 @@ static void renderer_destroy( le_renderer_o *self ) {
 
 	self->frames.clear();
 
+
 	// -- Delete any objects created dynamically
 
 	delete self;
@@ -449,9 +450,8 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 		// render on the main thread
 
 		renderer_record_frame( self, ( index + 0 ) % numFrames, module_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
-		renderer_clear_frame( self, ( index + 1 ) % numFrames );                                     // wait for frame to come back
-
 		render_tasks( self, ( index + 2 ) % numFrames );
+		renderer_clear_frame( self, ( index + 1 ) % numFrames ); // wait for frame to come back (important to do this last, as it may block...)
 	}
 
 	if ( self->swapchainDirty ) {
@@ -473,6 +473,7 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 		}
 
 		backend_i.reset_swapchain( self->backend );
+
 		self->swapchainDirty = false;
 	}
 
