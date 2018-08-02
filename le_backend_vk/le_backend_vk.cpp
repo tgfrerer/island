@@ -326,6 +326,7 @@ struct le_backend_o {
 
 	std::unique_ptr<pal::Window>   window; // non-owning
 	std::unique_ptr<le::Swapchain> swapchain;
+	vk::Format                     swapchainImageFormat = {}; ///< default image format used for swapchain (backbuffer image must be in this format)
 
 	std::vector<BackendFrameData> mFrames;
 
@@ -1138,7 +1139,8 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settin
 	tmpSwapchainSettings.vk_surface                     = self->window->getVkSurfaceKHR();
 	tmpSwapchainSettings.vk_graphics_queue_family_index = self->device->getDefaultGraphicsQueueFamilyIndex();
 
-	self->swapchain = std::make_unique<le::Swapchain>( &tmpSwapchainSettings );
+	self->swapchain            = std::make_unique<le::Swapchain>( &tmpSwapchainSettings );
+	self->swapchainImageFormat = vk::Format( self->swapchain->getSurfaceFormat()->format );
 }
 
 // ----------------------------------------------------------------------
@@ -1955,7 +1957,7 @@ static void backend_setup( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses ) {
+static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses, const vk::Format &swapchainImageFormat ) {
 
 	// track resource state
 
@@ -2023,13 +2025,20 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 			auto &syncChain = syncChainTable[ imageAttachment->resource_id ];
 
-			bool isDepthStencil = is_depth_stencil_format( imageAttachment->format );
+			auto const &attachmentFormat = reinterpret_cast<const vk::Format &>( imageAttachment->format );
+			bool        isDepthStencil   = is_depth_stencil_format( attachmentFormat );
 
-			AttachmentInfo *currentAttachment = currentPass.attachments + currentPass.numAttachments;
-			currentPass.numAttachments++;
+			AttachmentInfo *currentAttachment = ( currentPass.attachments + currentPass.numAttachments++ );
+
+			if ( imageAttachment->format == VK_FORMAT_UNDEFINED ) {
+				// If an attachment has not had a format defined, this means we should
+				// use the format used for the swapchain for this image attachment.
+				currentAttachment->format = swapchainImageFormat;
+			} else {
+				currentAttachment->format = attachmentFormat;
+			}
 
 			currentAttachment->resource_id = imageAttachment->resource_id;
-			currentAttachment->format      = imageAttachment->format;
 			currentAttachment->loadOp      = vk::AttachmentLoadOp( le_to_vk( imageAttachment->loadOp ) );
 			currentAttachment->storeOp     = vk::AttachmentStoreOp( le_to_vk( imageAttachment->storeOp ) );
 			currentAttachment->clearValue  = le_to_vk( imageAttachment->clearValue );
@@ -3003,7 +3012,7 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 	vk::Device device = self->device->getVkDevice();
 
 	frame_create_resource_table( frame, passes, numRenderPasses );
-	frame_track_resource_state( frame, passes, numRenderPasses );
+	frame_track_resource_state( frame, passes, numRenderPasses, self->swapchainImageFormat );
 
 	// -- allocate any transient vk objects such as image samplers, and image views
 	frame_allocate_per_pass_resources( frame, device, passes, numRenderPasses );

@@ -608,7 +608,7 @@ static bool test_app_update( test_app_o *self ) {
 			auto app = static_cast<test_app_o *>( user_data_ );
 
 			LeImageAttachmentInfo colorAttachmentInfo{};
-			colorAttachmentInfo.format           = vk::Format( VK_FORMAT_R8G8B8A8_UNORM );
+			colorAttachmentInfo.format           = VK_FORMAT_R8G8B8A8_UNORM;
 			colorAttachmentInfo.access_flags     = le::AccessFlagBits::eWrite;
 			colorAttachmentInfo.loadOp           = LE_ATTACHMENT_LOAD_OP_CLEAR;
 			colorAttachmentInfo.storeOp          = LE_ATTACHMENT_STORE_OP_STORE;
@@ -676,7 +676,7 @@ static bool test_app_update( test_app_o *self ) {
 			// this is important for example, when using a depth buffer for shadow sampling later.
 
 			LeImageAttachmentInfo colorAttachmentInfo{};
-			colorAttachmentInfo.format           = vk::Format::eB8G8R8A8Unorm; // TODO (swapchain): use swapchain image format programmatically
+			colorAttachmentInfo.format           = {}; // empty format means use swapchain image format
 			colorAttachmentInfo.access_flags     = le::AccessFlagBits::eWrite;
 			colorAttachmentInfo.loadOp           = LE_ATTACHMENT_LOAD_OP_CLEAR;
 			colorAttachmentInfo.storeOp          = LE_ATTACHMENT_STORE_OP_STORE;
