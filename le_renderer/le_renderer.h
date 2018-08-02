@@ -491,57 +491,6 @@ class RenderModule {
 
 // ----------------------------------------------------------------------
 
-class CommandBufferEncoder : NoCopy, NoMove {
-	const le_renderer_api &                                    rendererApiI = *Registry::getApi<le_renderer_api>();
-	const le_renderer_api::command_buffer_encoder_interface_t &cbEncoderI   = rendererApiI.le_command_buffer_encoder_i;
-
-	le_command_buffer_encoder_o *self;
-	bool                         is_reference = false;
-
-  public:
-	CommandBufferEncoder( le_allocator_o *allocator )
-	    : self( cbEncoderI.create( allocator ) ) {
-	}
-
-	CommandBufferEncoder( le_command_buffer_encoder_o *self_ )
-	    : self( self_ )
-	    , is_reference( true ) {
-	}
-
-	~CommandBufferEncoder() {
-		if ( !is_reference ) {
-			cbEncoderI.destroy( self );
-		}
-	}
-
-	operator auto() {
-		return self;
-	}
-
-	void setLineWidth( float lineWidth ) {
-		cbEncoderI.set_line_width( self, lineWidth );
-	}
-
-	void draw( uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance ) {
-		cbEncoderI.draw( self, vertexCount, instanceCount, firstVertex, firstInstance );
-	}
-
-	void setViewport( uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport *pViewports ) {
-		cbEncoderI.set_viewport( self, firstViewport, viewportCount, pViewports );
-	}
-
-	void setScissor( uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D *pScissors ) {
-		cbEncoderI.set_scissor( self, firstScissor, scissorCount, pScissors );
-	}
-
-	void bindVertexBuffers( uint32_t firstBinding, uint32_t bindingCount, uint64_t *pBuffers, uint64_t *pOffsets ) {
-		cbEncoderI.bind_vertex_buffers( self, firstBinding, bindingCount, pBuffers, pOffsets );
-	}
-
-	void setVertexData( void *data, uint64_t numBytes, uint32_t bindingIndex ) {
-		cbEncoderI.set_vertex_data( self, data, numBytes, bindingIndex );
-	}
-};
 
 } // namespace le
 #endif // __cplusplus
