@@ -52,10 +52,7 @@ enum class LeResourceType : uint32_t {
 	eImage,
 };
 
-namespace vk {
-enum class Format; // forward declaration
-
-} // namespace vk
+typedef int LeFormat_t; // we're declaring this as a placeholder for image format enum
 
 namespace le {
 struct Viewport {
@@ -171,7 +168,7 @@ struct LeImageAttachmentInfo {
 	uint64_t            resource_id  = 0; // hash name given to this attachment, based on name string
 	uint64_t            source_id    = 0; // hash name of writer/creator renderpass
 	uint8_t             access_flags = 0; // read, write or readwrite
-	vk::Format          format;
+	LeFormat_t          format;
 	LeAttachmentLoadOp  loadOp;
 	LeAttachmentStoreOp storeOp;
 
@@ -184,7 +181,7 @@ struct le_resource_info_t {
 	struct Image {
 		uint32_t     flags;       // creation flags
 		uint32_t     imageType;   // enum vk::ImageType
-		uint32_t     format;      // enum vk::Format
+		int32_t      format;      // enum vk::Format
 		le::Extent3D extent;      //
 		uint32_t     mipLevels;   //
 		uint32_t     arrayLayers; //
@@ -490,7 +487,6 @@ class RenderModule {
 };
 
 // ----------------------------------------------------------------------
-
 
 } // namespace le
 #endif // __cplusplus

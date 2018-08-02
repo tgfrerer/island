@@ -359,8 +359,8 @@ VkQueue device_get_default_compute_queue( le_backend_vk_device_o *self_ ) {
 
 // ----------------------------------------------------------------------
 
-vk::Format device_get_default_depth_stencil_format( le_backend_vk_device_o *self ) {
-	return self->defaultDepthStencilFormat;
+LeFormat_t device_get_default_depth_stencil_format( le_backend_vk_device_o *self ) {
+	return reinterpret_cast<LeFormat_t &>( self->defaultDepthStencilFormat );
 }
 
 // ----------------------------------------------------------------------
@@ -401,9 +401,11 @@ static bool device_get_memory_allocation_info( le_backend_vk_device_o *    self,
 	return true;
 }
 
-void device_destroy( le_backend_vk_device_o *self_ ) {
-	self_->vkDevice.destroy();
-	delete ( self_ );
+// ----------------------------------------------------------------------
+
+void device_destroy( le_backend_vk_device_o *self ) {
+	self->vkDevice.destroy();
+	delete ( self );
 };
 
 // ----------------------------------------------------------------------
