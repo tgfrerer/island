@@ -143,8 +143,6 @@ struct AbstractPhysicalResource {
 		eSampler,
 		eFramebuffer,
 		eRenderPass,
-		//eDescriptorSetLayout,
-		//ePipelineLayout,
 	};
 	union {
 		uint64_t      asRawData;
@@ -154,8 +152,6 @@ struct AbstractPhysicalResource {
 		VkSampler     asSampler;
 		VkFramebuffer asFramebuffer;
 		VkRenderPass  asRenderPass;
-		//VkDescriptorSetLayout asDescriptorSetLayout;
-		//VkPipelineLayout      asPipelineLayout;
 	};
 	Type type;
 };
@@ -1584,8 +1580,8 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setBlendConstants( {{0.f, 0.f, 0.f, 0.f}} );
 
 	std::array<vk::DynamicState, 2> dynamicStates = {{
-	    ::vk::DynamicState::eScissor,
-	    ::vk::DynamicState::eViewport,
+	    vk::DynamicState::eScissor,
+	    vk::DynamicState::eViewport,
 	}};
 
 	vk::PipelineDynamicStateCreateInfo dynamicState;
@@ -2035,6 +2031,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 			AttachmentInfo *currentAttachment = ( currentPass.attachments + currentPass.numAttachments++ );
 
+			currentAttachment->resource_id = imageAttachment->resource_id;
 			if ( imageAttachment->format == VK_FORMAT_UNDEFINED ) {
 				// If an attachment has not had a format defined, this means we should
 				// use the format used for the swapchain for this image attachment.
@@ -2042,11 +2039,9 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 			} else {
 				currentAttachment->format = attachmentFormat;
 			}
-
-			currentAttachment->resource_id = imageAttachment->resource_id;
-			currentAttachment->loadOp      = vk::AttachmentLoadOp( le_to_vk( imageAttachment->loadOp ) );
-			currentAttachment->storeOp     = vk::AttachmentStoreOp( le_to_vk( imageAttachment->storeOp ) );
-			currentAttachment->clearValue  = le_to_vk( imageAttachment->clearValue );
+			currentAttachment->loadOp     = vk::AttachmentLoadOp( le_to_vk( imageAttachment->loadOp ) );
+			currentAttachment->storeOp    = vk::AttachmentStoreOp( le_to_vk( imageAttachment->storeOp ) );
+			currentAttachment->clearValue = le_to_vk( imageAttachment->clearValue );
 
 			{
 				// track resource state before entering a subpass
