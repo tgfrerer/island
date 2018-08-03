@@ -1446,7 +1446,7 @@ static vk::PipelineLayout backend_get_pipeline_layout( le_backend_o *self, le_gr
 }
 
 // ----------------------------------------------------------------------
-static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pipeline_state_o const *pso, const vk::RenderPass &renderpass, uint32_t subpass ) {
+static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pipeline_state_o const *pso, const Pass &pass, uint32_t subpass ) {
 
 	vk::Device vkDevice = self->device->getVkDevice();
 
@@ -1553,28 +1553,33 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setMinDepthBounds( 0.f )
 	    .setMaxDepthBounds( 0.f );
 
-	std::array<vk::PipelineColorBlendAttachmentState, 1> blendAttachmentStates;
-	blendAttachmentStates.fill( vk::PipelineColorBlendAttachmentState() );
+	//
+	// We must match blend attachment states with number of attachments for
+	// the current renderpass - each attachment may have their own blend state:
+	//
+	static std::array<vk::PipelineColorBlendAttachmentState, 16> blendAttachmentStates{};
 
-	blendAttachmentStates[ 0 ]
-	    .setBlendEnable( VK_TRUE )
-	    .setColorBlendOp( ::vk::BlendOp::eAdd )
-	    .setAlphaBlendOp( ::vk::BlendOp::eAdd )
-	    .setSrcColorBlendFactor( ::vk::BlendFactor::eSrcAlpha )
-	    .setDstColorBlendFactor( ::vk::BlendFactor::eOneMinusSrcAlpha )
-	    .setSrcAlphaBlendFactor( ::vk::BlendFactor::eOne )
-	    .setDstAlphaBlendFactor( ::vk::BlendFactor::eZero )
-	    .setColorWriteMask(
-	        ::vk::ColorComponentFlagBits::eR |
-	        ::vk::ColorComponentFlagBits::eG |
-	        ::vk::ColorComponentFlagBits::eB |
-	        ::vk::ColorComponentFlagBits::eA );
+	for ( size_t i = 0; i != pass.numAttachments; ++i ) {
+		blendAttachmentStates[ i ]
+		    .setBlendEnable( VK_TRUE )
+		    .setColorBlendOp( ::vk::BlendOp::eAdd )
+		    .setAlphaBlendOp( ::vk::BlendOp::eAdd )
+		    .setSrcColorBlendFactor( ::vk::BlendFactor::eSrcAlpha )
+		    .setDstColorBlendFactor( ::vk::BlendFactor::eOneMinusSrcAlpha )
+		    .setSrcAlphaBlendFactor( ::vk::BlendFactor::eOne )
+		    .setDstAlphaBlendFactor( ::vk::BlendFactor::eZero )
+		    .setColorWriteMask(
+		        ::vk::ColorComponentFlagBits::eR |
+		        ::vk::ColorComponentFlagBits::eG |
+		        ::vk::ColorComponentFlagBits::eB |
+		        ::vk::ColorComponentFlagBits::eA );
+	}
 
 	vk::PipelineColorBlendStateCreateInfo colorBlendState;
 	colorBlendState
 	    .setLogicOpEnable( VK_FALSE )
 	    .setLogicOp( ::vk::LogicOp::eClear )
-	    .setAttachmentCount( blendAttachmentStates.size() )
+	    .setAttachmentCount( pass.numAttachments )
 	    .setPAttachments( blendAttachmentStates.data() )
 	    .setBlendConstants( {{0.f, 0.f, 0.f, 0.f}} );
 
@@ -1604,7 +1609,7 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setPColorBlendState( &colorBlendState )
 	    .setPDynamicState( &dynamicState )
 	    .setLayout( pipelineLayout )
-	    .setRenderPass( renderpass ) // must be a valid renderpass.
+	    .setRenderPass( pass.renderPass ) // must be a valid renderpass.
 	    .setSubpass( subpass )
 	    .setBasePipelineHandle( nullptr )
 	    .setBasePipelineIndex( 0 ) // -1 signals not to use a base pipeline index
@@ -1853,7 +1858,7 @@ static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *sel
 	if ( p == self->pipelineCache.end() ) {
 
 		// -- if not, create pipeline in pipeline cache and store / retain it
-		pipeline_and_layout_info.pipeline = backend_create_pipeline( self, pso, pass.renderPass, subpass );
+		pipeline_and_layout_info.pipeline = backend_create_pipeline( self, pso, pass, subpass );
 
 		std::cout << "New VK Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
 		          << std::flush;
