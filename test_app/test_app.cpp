@@ -475,8 +475,6 @@ static bool test_app_update( test_app_o *self ) {
 		return false;
 	}
 
-	ImGui::NewFrame();
-
 	{
 		ImGuiIO &io = ImGui::GetIO();
 
@@ -490,6 +488,8 @@ static bool test_app_update( test_app_o *self ) {
 		}
 		io.MousePos = {self->mousePos.x, self->mousePos.y};
 	}
+
+	ImGui::NewFrame();
 
 	// ImGui::Text("Hello Island");
 
