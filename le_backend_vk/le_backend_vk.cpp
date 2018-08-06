@@ -169,7 +169,8 @@ struct AttachmentInfo {
 struct Pass {
 
 	AttachmentInfo attachments[ 16 ]; // maximum of 16 color output attachments
-	uint32_t       numAttachments;
+	uint16_t       numColorAttachments;
+	uint16_t       numDepthStencilAttachments;
 
 	LeRenderPassType type;
 
@@ -1555,7 +1556,7 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	//
 	static std::array<vk::PipelineColorBlendAttachmentState, 16> blendAttachmentStates{};
 
-	for ( size_t i = 0; i != pass.numAttachments; ++i ) {
+	for ( size_t i = 0; i != pass.numColorAttachments; ++i ) {
 		blendAttachmentStates[ i ]
 		    .setBlendEnable( VK_TRUE )
 		    .setColorBlendOp( ::vk::BlendOp::eAdd )
@@ -1575,7 +1576,7 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	colorBlendState
 	    .setLogicOpEnable( VK_FALSE )
 	    .setLogicOp( ::vk::LogicOp::eClear )
-	    .setAttachmentCount( pass.numAttachments )
+	    .setAttachmentCount( pass.numColorAttachments )
 	    .setPAttachments( blendAttachmentStates.data() )
 	    .setBlendConstants( {{0.f, 0.f, 0.f, 0.f}} );
 
@@ -2029,7 +2030,13 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 			auto const &attachmentFormat = reinterpret_cast<const vk::Format &>( imageAttachment->format );
 			bool        isDepthStencil   = is_depth_stencil_format( attachmentFormat );
 
-			AttachmentInfo *currentAttachment = ( currentPass.attachments + currentPass.numAttachments++ );
+			AttachmentInfo *currentAttachment = ( currentPass.attachments + ( currentPass.numColorAttachments + currentPass.numDepthStencilAttachments ) );
+
+			if ( isDepthStencil ) {
+				currentPass.numDepthStencilAttachments++;
+			} else {
+				currentPass.numColorAttachments++;
+			}
 
 			currentAttachment->resource_id = imageAttachment->resource_id;
 			if ( imageAttachment->format == VK_FORMAT_UNDEFINED ) {
@@ -2300,9 +2307,10 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		}
 
 		std::vector<vk::AttachmentDescription> attachments;
-		attachments.reserve( pass.numAttachments );
+		attachments.reserve( pass.numColorAttachments + pass.numDepthStencilAttachments );
 
-		std::vector<vk::AttachmentReference> colorAttachmentReferences;
+		std::vector<vk::AttachmentReference>     colorAttachmentReferences;
+		std::unique_ptr<vk::AttachmentReference> depthAttachmentReference;
 
 		// We must accumulate these flags over all attachments - they are the
 		// union of all flags required by all attachments in a pass.
@@ -2316,7 +2324,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		vk::AccessFlags        srcAccessToExternalFlags;
 		vk::AccessFlags        dstAccessToExternalFlags;
 
-		for ( AttachmentInfo const *attachment = pass.attachments; attachment != pass.attachments + pass.numAttachments; attachment++ ) {
+		for ( AttachmentInfo const *attachment = pass.attachments; attachment != pass.attachments + ( pass.numColorAttachments + pass.numDepthStencilAttachments ); attachment++ ) {
 
 			assert( attachment->resource_id != 0 ); // resource id must not be zero.
 
@@ -2348,7 +2356,12 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 			}
 
 			attachments.emplace_back( attachmentDescription );
-			colorAttachmentReferences.emplace_back( attachments.size() - 1, syncSubpass.layout );
+
+			if ( isDepthStencil ) {
+				depthAttachmentReference = std::make_unique<vk::AttachmentReference>( attachments.size() - 1, syncSubpass.layout );
+			} else {
+				colorAttachmentReferences.emplace_back( attachments.size() - 1, syncSubpass.layout );
+			}
 
 			srcStageFromExternalFlags |= syncInitial.write_stage;
 			dstStageFromExternalFlags |= syncSubpass.write_stage;
@@ -2375,7 +2388,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		    .setColorAttachmentCount( uint32_t( colorAttachmentReferences.size() ) )
 		    .setPColorAttachments( colorAttachmentReferences.data() )
 		    .setPResolveAttachments( nullptr ) // must be NULL or have same length as colorAttachments
-		    .setPDepthStencilAttachment( nullptr )
+		    .setPDepthStencilAttachment( depthAttachmentReference.get() )
 		    .setPreserveAttachmentCount( 0 )
 		    .setPPreserveAttachments( nullptr );
 
@@ -2590,13 +2603,15 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 			continue;
 		}
 		std::vector<vk::ImageView> framebufferAttachments;
-		framebufferAttachments.reserve( pass.numAttachments );
+		framebufferAttachments.reserve( pass.numColorAttachments + pass.numDepthStencilAttachments );
 
-		for ( AttachmentInfo const *attachment = pass.attachments; attachment != pass.attachments + pass.numAttachments; attachment++ ) {
+		for ( AttachmentInfo const *attachment = pass.attachments; attachment != pass.attachments + ( pass.numColorAttachments + pass.numDepthStencilAttachments ); attachment++ ) {
+
+			bool isDepthStencilFormat = is_depth_stencil_format( attachment->format );
 
 			::vk::ImageSubresourceRange subresourceRange;
 			subresourceRange
-			    .setAspectMask( vk::ImageAspectFlagBits::eColor )
+			    .setAspectMask( isDepthStencilFormat ? ( vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil ) : vk::ImageAspectFlagBits::eColor )
 			    .setBaseMipLevel( 0 )
 			    .setLevelCount( 1 )
 			    .setBaseArrayLayer( 0 )
@@ -2606,8 +2621,8 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 			imageViewCreateInfo
 			    .setImage( frame_data_get_image_from_le_resource_id( &frame, attachment->resource_id ) )
 			    .setViewType( vk::ImageViewType::e2D )
-			    .setFormat( attachment->format ) // FIXME: set correct image format based on swapchain format if need be.
-			    .setComponents( {} )             // default-constructor '{}' means identity
+			    .setFormat( attachment->format )
+			    .setComponents( {} ) // default-constructor '{}' means identity
 			    .setSubresourceRange( subresourceRange );
 
 			auto imageView = device.createImageView( imageViewCreateInfo );
@@ -3126,7 +3141,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 		cmd.begin( {::vk::CommandBufferUsageFlagBits::eOneTimeSubmit} );
 
-		for ( size_t i = 0; i != pass.numAttachments; ++i ) {
+		for ( size_t i = 0; i != ( pass.numColorAttachments + pass.numDepthStencilAttachments ); ++i ) {
 			clearValues[ i ] = pass.attachments[ i ].clearValue;
 		}
 
@@ -3138,7 +3153,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			    .setRenderPass( pass.renderPass )
 			    .setFramebuffer( pass.framebuffer )
 			    .setRenderArea( vk::Rect2D( {0, 0}, {pass.width, pass.height} ) )
-			    .setClearValueCount( pass.numAttachments )
+			    .setClearValueCount( pass.numColorAttachments + pass.numDepthStencilAttachments )
 			    .setPClearValues( clearValues.data() );
 
 			cmd.beginRenderPass( renderPassBeginInfo, vk::SubpassContents::eInline );
