@@ -179,7 +179,7 @@ static void cbe_bind_index_buffer( le_command_buffer_encoder_o *self,
 // ----------------------------------------------------------------------
 
 static void cbe_set_vertex_data( le_command_buffer_encoder_o *self,
-                                 void *                       data,
+                                 void const *                 data,
                                  uint64_t                     numBytes,
                                  uint32_t                     bindingIndex ) {
 
@@ -207,7 +207,7 @@ static void cbe_set_vertex_data( le_command_buffer_encoder_o *self,
 // ----------------------------------------------------------------------
 
 static void cbe_set_index_data( le_command_buffer_encoder_o *self,
-                                void *                       data,
+                                void const *                 data,
                                 uint64_t                     numBytes,
                                 uint64_t                     indexType ) {
 

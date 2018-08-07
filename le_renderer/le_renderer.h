@@ -298,8 +298,8 @@ struct le_renderer_api {
 		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, uint64_t bufferId, uint64_t offset, uint64_t indexType);
 		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, uint64_t *pBufferIds, uint64_t *pOffsets );
 
-		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void *data, uint64_t numBytes, uint64_t indexType );
-		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void *data, uint64_t numBytes, uint32_t bindingIndex );
+		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint64_t indexType );
+		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint32_t bindingIndex );
 
 		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, uint64_t resourceId, size_t offset, void const* data, size_t numBytes);
 		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, uint64_t resourceId, struct LeBufferWriteRegion const &region, void const *data, size_t numBytes );
