@@ -1,0 +1,10 @@
+[submodule "3rdparty/src/imgui"]
+	ignore = all
+	path = 3rdparty/src/imgui
+	url = https://github.com/ocornut/imgui
+[submodule "3rdparty/src/glm"]
+	path = 3rdparty/src/glm
+	url = https://github.com/g-truc/glm
+[submodule "3rdparty/fx-gltf"]
+	path = 3rdparty/src/fx-gltf
+	url = https://github.com/jessey-git/fx-gltf.git

@@ -1,5 +1,6 @@
 build
 CMakeLists.txt.user
-/libs/glm/
-/libs/cmake/**
-/libs/imgui/**
+/libs/**
+/3rdparty/include/**
+/3rdparty/libs/**
+

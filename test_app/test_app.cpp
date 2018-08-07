@@ -14,17 +14,17 @@
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_LEFT_HANDED       // vulkan uses left handed coordinate system
-#include "libs/glm/glm/glm.hpp"
-#include "libs/glm/glm/gtc/matrix_transform.hpp"
+#include "glm.hpp"
+#include "gtc/matrix_transform.hpp"
 
 #define GLM_ENABLE_EXPERIMENTAL
-#include "libs/glm/glm/gtx/easing.hpp"
+#include "gtx/easing.hpp"
 
 #include <iostream>
 #include <memory>
 
 #include "horse_image.h"
-#include "libs/imgui/include/imgui.h"
+#include "imgui/imgui.h"
 
 #include <sstream>
 
@@ -389,7 +389,7 @@ static test_app_o *test_app_create() {
 	// get imgui font texture handle
 	{
 		ImGuiIO &io = ImGui::GetIO();
-		io.Fonts->AddFontFromFileTTF( "IBMPlexSans-Regular.otf", 20.0f, nullptr, io.Fonts->GetGlyphRangesDefault() );
+		io.Fonts->AddFontFromFileTTF( "fonts/IBMPlexSans-Regular.otf", 20.0f, nullptr, io.Fonts->GetGlyphRangesDefault() );
 		io.Fonts->GetTexDataAsRGBA32( &app->imguiTexture.pixels, &app->imguiTexture.width, &app->imguiTexture.height );
 
 		io.DisplaySize  = {float( app->window->getSurfaceWidth() ),
@@ -927,6 +927,6 @@ void register_test_app_api( void *api_ ) {
 	test_app_i.scroll_callback          = test_app_scroll_callback;
 
 #ifndef PLUGIN_TEST_APP_STATIC
-	Registry::loadLibraryPersistently( "./libs/imgui/lib/libimgui.so" );
+	Registry::loadLibraryPersistently( "./libs/imgui/libimgui.so" );
 #endif
 }

@@ -12,13 +12,13 @@ set (SOURCES ${SOURCES} "imgui_demo.cpp")
 set (SOURCES ${SOURCES} "imgui_draw.cpp")
 
 if (${PLUGINS_DYNAMIC})
-    add_library( ${TARGET} SHARED ${SOURCES} )
+	add_library( ${TARGET} SHARED ${SOURCES} )
 else()
-    add_library( ${TARGET} STATIC ${SOURCES} )
+	add_library( ${TARGET} STATIC ${SOURCES} )
 endif()
 
 set_target_properties( ${TARGET} 
-	PROPERTIES PUBLIC_HEADER "imconfig.h;imgui.h;stb_rect_pack.h;stb_textedit.h;stb_truetype.h"
+        PROPERTIES PUBLIC_HEADER "imconfig.h;imgui.h"
 	)
 
 # IMPORTANT: --no-gnu-unique
@@ -31,9 +31,9 @@ target_compile_options (${TARGET} PUBLIC --no-gnu-unique)
 
 install(TARGETS imgui
         ARCHIVE
-            DESTINATION lib
+            DESTINATION libs/imgui
         LIBRARY
-            DESTINATION lib
+            DESTINATION libs/imgui
 	PUBLIC_HEADER
-	    DESTINATION include
+	    DESTINATION include/imgui
 	)

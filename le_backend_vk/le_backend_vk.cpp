@@ -1128,7 +1128,7 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settin
 	le_swapchain_vk_settings_o tmpSwapchainSettings;
 
 	tmpSwapchainSettings.imagecount_hint                = 3;
-	tmpSwapchainSettings.presentmode_hint               = le::Swapchain::Presentmode::eFifoRelaxed;
+	tmpSwapchainSettings.presentmode_hint               = le::Swapchain::Presentmode::eImmediate;
 	tmpSwapchainSettings.width_hint                     = self->window->getSurfaceWidth();
 	tmpSwapchainSettings.height_hint                    = self->window->getSurfaceHeight();
 	tmpSwapchainSettings.vk_device                      = self->device->getVkDevice();

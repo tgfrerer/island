@@ -24,7 +24,7 @@
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 #ifndef LE_RENDERER_MULTITHREADED
-#	define LE_RENDERER_MULTITHREADED true
+#	define LE_RENDERER_MULTITHREADED false
 #endif
 
 // ----------------------------------------------------------------------
@@ -114,7 +114,6 @@ static void renderer_destroy( le_renderer_o *self ) {
 	}
 
 	self->frames.clear();
-
 
 	// -- Delete any objects created dynamically
 

@@ -57,7 +57,6 @@ through this hoop.
 
 ## Build Vulkan SDK Tools 
 
-
 Move to the current Vulkan SDK directory, and edit `build_tools.sh`
 
 In method `buildShaderc()` change the build type so that it says: 
@@ -82,6 +81,11 @@ Save & close `build_tools.sh`, then build the SDK tools:
     ./build_tools.sh
 
 ## Island compilation
+
+*Remember to update submodules before building*
+
+    git submodule init
+    git submodule update
 
 The CMAKE parameter `PLUGINS_DYNAMIC` lets you choose whether to compile Island
 as a static binary, or as a thin module with dynamic plugins. I recommend

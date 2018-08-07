@@ -3,7 +3,6 @@ set (CMAKE_CXX_STANDARD 17)
 
 set (PROJECT_NAME "Island")
 
-
 project (${PROJECT_NAME})
 
 set(PLUGINS_DYNAMIC ON CACHE BOOL "Use dynamic linking for all plugins")
@@ -19,24 +18,49 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/modules)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/modules)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
-# Download and unpack glm at configure time ... there might be a time delay.
-configure_file(CMakeLists.txt.glm ${PROJECT_SOURCE_DIR}/libs/cmake/glm/download/CMakeLists.txt)
-execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
-   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/libs/cmake/glm/download" )
-execute_process(COMMAND "${CMAKE_COMMAND}" --build .
-   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/libs/cmake/glm/download" )
 
-configure_file(CMakeLists.txt.imgui.build ${PROJECT_SOURCE_DIR}/libs/cmake/imgui/src/CMakeLists.txt COPYONLY)
-configure_file(CMakeLists.txt.imgui ${PROJECT_SOURCE_DIR}/libs/cmake/imgui/download/CMakeLists.txt)
-execute_process(COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" .
-        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/libs/cmake/imgui/download" )
-execute_process(COMMAND "${CMAKE_COMMAND}" --build .
-   WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/libs/cmake/imgui/download" )
-link_directories(${PROJECT_SOURCE_DIR}/libs/imgui/lib)
+configure_file(CMakeLists.txt.imgui.build ${PROJECT_SOURCE_DIR}/3rdparty/src/imgui/CMakeLists.txt COPYONLY)
+
+execute_process(
+	COMMAND mkdir -p 3rdparty/src/imgui/build
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}" 
+    )
+
+execute_process(
+	COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" -DCMAKE_INSTALL_PREFIX=${PROJECT_SOURCE_DIR}/3rdparty -DPLUGINS_DYNAMIC=${PLUGINS_DYNAMIC} ..
+    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/3rdparty/src/imgui/build" 
+    )
+
+execute_process(
+	COMMAND "${CMAKE_COMMAND}" --build . --target install 
+	WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/3rdparty/src/imgui/build"
+	)
+
+link_directories(${PROJECT_SOURCE_DIR}/3rdparty/libs/imgui)
+
+
+
+# link glm source directory into includes directory
+execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/3rdparty/src/glm/glm ${PROJECT_SOURCE_DIR}/3rdparty/include/glm )
+# add glm include directory to includes search path - this is because glm's internals require glm's include directory to be globally accessible :(
+include_directories(${PROJECT_SOURCE_DIR}/3rdparty/include/glm)
+
+# create a link to shared shader repository so that we're always working with the same shaders.
+execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/3rdparty/src/fx-gltf/include/fx ${PROJECT_SOURCE_DIR}/3rdparty/include/fx )
+
+
+# include imgui directory
+include_directories(${PROJECT_SOURCE_DIR}/3rdparty/include)
 
 
 # create a link to shared shader repository so that we're always working with the same shaders.
-execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/shaders ${CMAKE_BINARY_DIR}/shaders )
+execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/resources/shaders ${CMAKE_BINARY_DIR}/shaders )
+
+# create a link to shared fonts repository so that we're always working with the same fonts.
+execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/resources/fonts ${CMAKE_BINARY_DIR}/fonts )
+
+# create a link to 3rd party library binaries so that app can find them.
+execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/3rdparty/libs ${CMAKE_BINARY_DIR}/libs )
 
 # Check if a local copy of the Vulkan SDK exists, and the environment VULKAN_SDK points to it.
 # If yes, use this directory for header includes, and linking
