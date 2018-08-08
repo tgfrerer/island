@@ -35,11 +35,12 @@ using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 struct le_graphics_pipeline_state_o; // owned by renderer
 
 struct FontTextureInfo {
-	uint8_t *pixels;
-	int32_t  width;
-	int32_t  height;
-	uint64_t le_texture_handle;
-	uint64_t le_image_handle;
+	uint8_t *        pixels            = nullptr;
+	int32_t          width             = 0;
+	int32_t          height            = 0;
+	LeResourceHandle le_texture_handle = nullptr;
+	LeResourceHandle le_image_handle   = nullptr;
+	bool             wasUploaded       = false;
 };
 
 struct test_app_o {
@@ -60,6 +61,11 @@ struct test_app_o {
 
 	NanoTime update_start_time;
 
+	LeResourceHandle resImgPrepass;
+	LeResourceHandle resTexPrepass;
+	LeResourceHandle resImgHorse;
+	LeResourceHandle resTexHorse;
+
 	// NOTE: RUNTIME-COMPILE : If you add any new things during run-time, make sure to only add at the end of the object,
 	// otherwise all pointers above will be invalidated. this might also overwrite memory which
 	// is stored after this object, which is very subtle in introducing errors. We need to think about a way of serializing
@@ -68,16 +74,9 @@ struct test_app_o {
 	// in question.
 };
 
-constexpr auto IMGUI_FONT_IMAGE     = RESOURCE_IMAGE_ID( "imgui-font-atlas" );
-constexpr auto IMGUI_FONT_TEXTURE   = RESOURCE_TEXTURE_ID( "imgui-font-atlas" );
-
 // ----------------------------------------------------------------------
 
 static void initialize() {
-
-	static_assert( const_char_hash64( "resource-image-testing" ) == RESOURCE_IMAGE_ID( "testing" ), "hashes must match" );
-	static_assert( const_char_hash64( "resource-buffer-testing" ) == RESOURCE_BUFFER_ID( "testing" ), "hashes must match" );
-	static_assert( RESOURCE_IMAGE_ID( "testing" ) != RESOURCE_BUFFER_ID( "testing" ), "buffer and image resources can't have same id based on same name" );
 
 	pal::Window::init();
 };
@@ -142,7 +141,6 @@ void test_app_character_callback( void *user_data, unsigned int codepoint ) {
 		io.AddInputCharacter( ( unsigned short )codepoint );
 	}
 }
-
 void test_app_cursor_position_callback( void *user_data, double xpos, double ypos ) {
 
 	if ( user_data == nullptr ) {
@@ -185,7 +183,6 @@ void test_app_mouse_button_callback( void *user_data, int button, int action, in
 		app->mouseButtonStatus[ size_t( button ) ] = ( action == GLFW_PRESS );
 	}
 }
-
 void test_app_scroll_callback( void *user_data, double xoffset, double yoffset ) {
 
 	if ( user_data == nullptr ) {
@@ -342,9 +339,12 @@ static test_app_o *test_app_create() {
 		io.Fonts->AddFontFromFileTTF( "./resources/fonts/IBMPlexSans-Regular.otf", 20.0f, nullptr, io.Fonts->GetGlyphRangesDefault() );
 		io.Fonts->GetTexDataAsRGBA32( &app->imguiTexture.pixels, &app->imguiTexture.width, &app->imguiTexture.height );
 
+		app->imguiTexture.le_image_handle   = app->renderer->declareResource();
+		app->imguiTexture.le_texture_handle = app->renderer->declareResource();
+
 		io.DisplaySize  = {float( app->window->getSurfaceWidth() ),
 		                  float( app->window->getSurfaceHeight() )};
-		io.Fonts->TexID = reinterpret_cast<void *>( IMGUI_FONT_TEXTURE );
+		io.Fonts->TexID = reinterpret_cast<void *>( app->imguiTexture.le_texture_handle );
 
 		// Keyboard mapping. ImGui will use those indices to peek into the io.KeysDown[] array.
 		io.KeyMap[ ImGuiKey_Tab ]        = GLFW_KEY_TAB;
@@ -410,7 +410,6 @@ static float get_image_plane_distance( const le::Viewport &viewport, float fovRa
 static bool test_app_update( test_app_o *self ) {
 
 	ImGui::SetCurrentContext( self->imguiContext ); // NOTICE: that's important for reload.
-
 	{
 		// update frame delta time
 		auto   current_time = std::chrono::high_resolution_clock::now();
@@ -487,7 +486,7 @@ static bool test_app_update( test_app_o *self ) {
 					img.imageType     = VK_IMAGE_TYPE_2D;
 					img.tiling        = VK_IMAGE_TILING_OPTIMAL;
 				}
-				rp.createResource( RESOURCE_IMAGE_ID( "horse" ), imgInfo );
+				rp.createResource( app->resImgHorse, imgInfo );
 			}
 
 			{
@@ -508,7 +507,7 @@ static bool test_app_update( test_app_o *self ) {
 					img.imageType     = VK_IMAGE_TYPE_2D;
 					img.tiling        = VK_IMAGE_TILING_OPTIMAL;
 				}
-				rp.createResource( IMGUI_FONT_IMAGE, imgInfo );
+				rp.createResource( app->imguiTexture.le_image_handle, imgInfo );
 			}
 
 			{
@@ -529,7 +528,7 @@ static bool test_app_update( test_app_o *self ) {
 					img.imageType     = VK_IMAGE_TYPE_2D;
 					img.tiling        = VK_IMAGE_TILING_OPTIMAL;
 				}
-				rp.createResource( RESOURCE_IMAGE_ID( "prepass" ), imgInfo );
+				rp.createResource( app->resImgPrepass, imgInfo );
 			}
 
 			// create resource for imgui font texture if it does not yet exist.
@@ -547,16 +546,15 @@ static bool test_app_update( test_app_o *self ) {
 			// a copy is added to the queue that transfers from scratch memory
 			// to GPU local memory.
 
-			le_encoder.write_to_image( encoder, RESOURCE_IMAGE_ID( "horse" ), {160, 106}, MagickImage, sizeof( MagickImage ) );
+			le_encoder.write_to_image( encoder, app->resImgHorse, {160, 106}, MagickImage, sizeof( MagickImage ) );
 
-			if ( app->imguiTexture.le_image_handle == 0 ) {
+			if ( false == app->imguiTexture.wasUploaded ) {
 				// tell encoder to upload imgui image - but only once
 				// note that we use the le_image_handle field to signal that the image has been uploaded.
 				size_t              numBytes = size_t( app->imguiTexture.width ) * size_t( app->imguiTexture.height ) * 32;
 				LeBufferWriteRegion region   = {uint32_t( app->imguiTexture.width ), uint32_t( app->imguiTexture.height )};
-				le_encoder.write_to_image( encoder, IMGUI_FONT_IMAGE, region, app->imguiTexture.pixels, numBytes );
-				app->imguiTexture.le_image_handle   = IMGUI_FONT_IMAGE;
-				app->imguiTexture.le_texture_handle = IMGUI_FONT_TEXTURE;
+				le_encoder.write_to_image( encoder, app->imguiTexture.le_image_handle, region, app->imguiTexture.pixels, numBytes );
+				app->imguiTexture.wasUploaded = true;
 			}
 		} );
 
@@ -572,18 +570,18 @@ static bool test_app_update( test_app_o *self ) {
 			colorAttachmentInfo.storeOp          = LE_ATTACHMENT_STORE_OP_STORE;
 			colorAttachmentInfo.clearValue.color = {{1.f, 0, 0, 1.f}};
 
-			rp.addImageAttachment( RESOURCE_IMAGE_ID( "prepass" ), &colorAttachmentInfo );
+			rp.addImageAttachment( app->resImgPrepass, &colorAttachmentInfo );
 
-			rp.useResource( RESOURCE_IMAGE_ID( "horse" ), le::AccessFlagBits::eRead );
+			rp.useResource( app->resImgHorse, le::AccessFlagBits::eRead );
 			{
 				LeTextureInfo textureInfo;
-				textureInfo.imageView.imageId = RESOURCE_IMAGE_ID( "horse" );
+				textureInfo.imageView.imageId = app->resImgHorse;
 
 				textureInfo.imageView.format  = VK_FORMAT_R8G8B8A8_UNORM;
 				textureInfo.sampler.magFilter = VK_FILTER_NEAREST;
 				textureInfo.sampler.minFilter = VK_FILTER_NEAREST;
 
-				rp.sampleTexture( RESOURCE_TEXTURE_ID( "horse" ), textureInfo );
+				rp.sampleTexture( app->resTexHorse, textureInfo );
 			}
 
 			rp.setWidth( 640 );
@@ -616,7 +614,7 @@ static bool test_app_update( test_app_o *self ) {
 				le_encoder.set_vertex_data( encoder, triangleData, sizeof( glm::vec3 ) * 3, 0 );
 
 				le_encoder.bind_graphics_pipeline( encoder, app->psoFullScreenQuad );
-				le_encoder.set_argument_texture( encoder, RESOURCE_TEXTURE_ID( "horse" ), const_char_hash64( "src_tex_unit_0" ), 0 );
+				le_encoder.set_argument_texture( encoder, app->resTexHorse, const_char_hash64( "src_tex_unit_0" ), 0 );
 				le_encoder.set_scissor( encoder, 0, 1, &scissors[ 0 ] );
 				le_encoder.set_viewport( encoder, 0, 1, &viewports[ 0 ] );
 				le_encoder.draw( encoder, 3, 1, 0, 0 );
@@ -639,35 +637,34 @@ static bool test_app_update( test_app_o *self ) {
 			colorAttachmentInfo.loadOp           = LE_ATTACHMENT_LOAD_OP_CLEAR;
 			colorAttachmentInfo.storeOp          = LE_ATTACHMENT_STORE_OP_STORE;
 			colorAttachmentInfo.clearValue.color = {{0.1f, 0.25f, 0.4f, 1.f}};
-			rp.addImageAttachment( RESOURCE_IMAGE_ID( "backbuffer" ), &colorAttachmentInfo );
+			rp.addImageAttachment( app->renderer->getBackbufferResource(), &colorAttachmentInfo );
 
 			rp.setWidth( app->window->getSurfaceWidth() );
 			rp.setHeight( app->window->getSurfaceHeight() );
 
-			rp.useResource( RESOURCE_IMAGE_ID( "prepass" ), le::AccessFlagBits::eRead );
+			rp.useResource( app->resImgPrepass, le::AccessFlagBits::eRead );
 
 			// this will create an imageView and a sampler in the context of this pass/encoder.
 			// this will implicitly use the resource for reading
 
 			{
 				LeTextureInfo textureInfo;
-				//				textureInfo.imageView.imageId = RESOURCE_IMAGE_ID( "horse" );
-				textureInfo.imageView.imageId = RESOURCE_IMAGE_ID( "prepass" );
+				textureInfo.imageView.imageId = app->resImgPrepass;
 				textureInfo.imageView.format  = VK_FORMAT_R8G8B8A8_UNORM;
 				textureInfo.sampler.magFilter = VK_FILTER_NEAREST;
 				textureInfo.sampler.minFilter = VK_FILTER_NEAREST;
 
-				rp.sampleTexture( RESOURCE_TEXTURE_ID( "texture1" ), textureInfo );
+				rp.sampleTexture( app->resTexPrepass, textureInfo );
 			}
 			{
 				// register that we want to use the imgui texture in this renderpass
 				LeTextureInfo textureInfo;
-				textureInfo.imageView.imageId = IMGUI_FONT_IMAGE;
+				textureInfo.imageView.imageId = app->imguiTexture.le_image_handle;
 				textureInfo.imageView.format  = VK_FORMAT_R8G8B8A8_UNORM;
 				textureInfo.sampler.magFilter = VK_FILTER_LINEAR;
 				textureInfo.sampler.minFilter = VK_FILTER_LINEAR;
 
-				rp.sampleTexture( IMGUI_FONT_TEXTURE, textureInfo );
+				rp.sampleTexture( app->imguiTexture.le_texture_handle, textureInfo );
 			}
 
 			rp.setIsRoot( true );
@@ -731,7 +728,7 @@ static bool test_app_update( test_app_o *self ) {
 				le_encoder.set_vertex_data( encoder, triangleData, sizeof( glm::vec3 ) * 3, 0 );
 
 				le_encoder.bind_graphics_pipeline( encoder, app->psoFullScreenQuad );
-				le_encoder.set_argument_texture( encoder, RESOURCE_TEXTURE_ID( "texture1" ), const_char_hash64( "src_tex_unit_0" ), 0 );
+				le_encoder.set_argument_texture( encoder, app->resTexPrepass, const_char_hash64( "src_tex_unit_0" ), 0 );
 				le_encoder.set_scissor( encoder, 0, 1, &scissors[ 1 ] );
 				le_encoder.set_viewport( encoder, 0, 1, &viewports[ 1 ] );
 				le_encoder.draw( encoder, 3, 1, 0, 0 );
@@ -778,9 +775,9 @@ static bool test_app_update( test_app_o *self ) {
 
 				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "MatrixStack" ), &ortho_projection, sizeof( glm::mat4 ) );
 
-				le_encoder.set_argument_texture( encoder, IMGUI_FONT_TEXTURE, const_char_hash64( "tex_unit_0" ), 0 );
+				le_encoder.set_argument_texture( encoder, app->imguiTexture.le_texture_handle, const_char_hash64( "tex_unit_0" ), 0 );
 
-				uint64_t currentTexture = IMGUI_FONT_TEXTURE; // we check against this so that we don't have to switch state that often.
+				LeResourceHandle currentTexture = app->imguiTexture.le_texture_handle; // we check against this so that we don't have to switch state that often.
 
 				ImVec4 currentClipRect{};
 
@@ -804,7 +801,7 @@ static bool test_app_update( test_app_o *self ) {
 						static_assert( sizeof( le::Rect2D ) == sizeof( ImVec4 ), "clip rect size must match for direct assignment" );
 
 						// -- update bound texture, but only if texture different from currently bound texture
-						const uint64_t nextTexture = reinterpret_cast<const uint64_t>( im_cmd.TextureId );
+						const LeResourceHandle nextTexture = reinterpret_cast<const LeResourceHandle>( im_cmd.TextureId );
 						if ( nextTexture != currentTexture ) {
 							le_encoder.set_argument_texture( encoder, nextTexture, const_char_hash64( "tex_unit_0" ), 0 );
 							currentTexture = nextTexture;

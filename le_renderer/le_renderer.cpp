@@ -409,6 +409,21 @@ struct ClearTask : public enki::ITaskSet {
 
 // ----------------------------------------------------------------------
 
+// returns a unique resource handle for a resource
+static LeResourceHandle renderer_declare_resource( le_renderer_o *self ) {
+	static const auto &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
+	return backend_i.declare_resource( self->backend );
+}
+
+// ----------------------------------------------------------------------
+
+static LeResourceHandle renderer_get_backbuffer_resource( le_renderer_o *self ) {
+	static const auto &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
+	return backend_i.get_backbuffer_resource( self->backend );
+}
+
+// ----------------------------------------------------------------------
+
 static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) {
 
 	static const auto &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
@@ -491,6 +506,8 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	le_renderer_i.update                                = renderer_update;
 	le_renderer_i.create_graphics_pipeline_state_object = renderer_create_graphics_pipeline_state_object;
 	le_renderer_i.create_shader_module                  = renderer_create_shader_module;
+	le_renderer_i.declare_resource                      = renderer_declare_resource;
+	le_renderer_i.get_backbuffer_resource               = renderer_get_backbuffer_resource;
 
 	// register sub-components of this api
 	register_le_rendergraph_api( api_ );

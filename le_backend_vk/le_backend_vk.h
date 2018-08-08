@@ -8,6 +8,12 @@
 extern "C" {
 #endif
 
+#ifndef LE_DEFINE_HANDLE_GUARD
+#	define LE_DEFINE_HANDLE( object ) typedef struct object##_T *object;
+#	define LE_DEFINE_HANDLE_GUARD
+#endif
+LE_DEFINE_HANDLE( LeResourceHandle )
+
 void register_le_backend_vk_api( void *api );
 void register_le_instance_vk_api( void *api );       // for le_instance_vk.cpp
 void register_le_allocator_linear_api( void *api_ ); // for le_allocator.cpp
@@ -71,6 +77,9 @@ struct le_backend_vk_api {
 		le_allocator_o**       ( *get_transient_allocators ) ( le_backend_o* self, size_t frameIndex, size_t numAllocators);
 
 		le_graphics_pipeline_state_o* (*create_graphics_pipeline_state_object)(le_backend_o* self, le_graphics_pipeline_create_info_t const * info);
+
+		LeResourceHandle (*declare_resource)(le_backend_o* self);
+		LeResourceHandle (*get_backbuffer_resource)(le_backend_o* self);
 
 		le_shader_module_o*    ( *create_shader_module     ) ( le_backend_o* self, char const * path, LeShaderType moduleType);
 		void                   ( *update_shader_modules    ) ( le_backend_o* self );

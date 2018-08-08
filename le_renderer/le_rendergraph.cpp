@@ -30,17 +30,17 @@ struct le_renderpass_o {
 	uint64_t         id       = 0;
 	uint64_t         sort_key = 0;
 
-	std::vector<uint64_t>              readResources;
-	std::vector<uint64_t>              writeResources;
-	std::vector<uint64_t>              createResources;
+	std::vector<LeResourceHandle>      readResources;
+	std::vector<LeResourceHandle>      writeResources;
+	std::vector<LeResourceHandle>      createResources;
 	std::vector<le_resource_info_t>    createResourceInfos; // createResources holds ids at matching index
 	std::vector<LeImageAttachmentInfo> imageAttachments;
 
 	uint32_t width  = 0; ///< width in pixels, must be identical for all attachments
 	uint32_t height = 0; ///< height in pixels, must be identical for all attachments
 
-	std::vector<LeTextureInfo> textureInfos;   // kept in sync
-	std::vector<uint64_t>      textureInfoIds; // kept in sync
+	std::vector<LeTextureInfo>    textureInfos;   // kept in sync
+	std::vector<LeResourceHandle> textureInfoIds; // kept in sync
 
 	le_renderer_api::pfn_renderpass_setup_t   callbackSetup              = nullptr;
 	le_renderer_api::pfn_renderpass_execute_t callbackExecute            = nullptr;
@@ -126,7 +126,7 @@ static inline bool vector_contains( const std::vector<T> &haystack, T needle ) n
 
 // ----------------------------------------------------------------------
 
-static void renderpass_use_resource( le_renderpass_o *self, uint64_t resource_id, uint32_t accessFlags ) {
+static void renderpass_use_resource( le_renderpass_o *self, LeResourceHandle resource_id, uint32_t accessFlags ) {
 
 	if ( ( accessFlags & le::AccessFlagBits::eRead ) &&
 	     !vector_contains( self->readResources, resource_id ) ) {
@@ -141,18 +141,18 @@ static void renderpass_use_resource( le_renderpass_o *self, uint64_t resource_id
 
 // ----------------------------------------------------------------------
 
-static void renderpass_sample_texture( le_renderpass_o *self, uint64_t texture_name, LeTextureInfo const *textureInfo ) {
+static void renderpass_sample_texture( le_renderpass_o *self, LeResourceHandle texture, LeTextureInfo const *textureInfo ) {
 
 	// -- store texture info so that backend can create resources
 
-	if ( vector_contains( self->textureInfoIds, texture_name ) ) {
+	if ( vector_contains( self->textureInfoIds, texture ) ) {
 		return; // texture already present
 	}
 
 	// --------| invariant: texture id was not previously known
 
 	// -- Add texture info to list of texture infos for this frame
-	self->textureInfoIds.push_back( texture_name );
+	self->textureInfoIds.push_back( texture );
 	self->textureInfos.push_back( *textureInfo ); // store a copy
 
 	// -- Mark image resource referenced by texture as used for reading
@@ -161,7 +161,7 @@ static void renderpass_sample_texture( le_renderpass_o *self, uint64_t texture_n
 
 // ----------------------------------------------------------------------
 
-static void renderpass_add_image_attachment( le_renderpass_o *self, uint64_t resource_id, LeImageAttachmentInfo *info_ ) {
+static void renderpass_add_image_attachment( le_renderpass_o *self, LeResourceHandle resource_id, LeImageAttachmentInfo *info_ ) {
 
 	self->imageAttachments.push_back( *info_ );
 	auto &info = self->imageAttachments.back();
@@ -209,14 +209,14 @@ static void renderpass_set_height( le_renderpass_o *self, uint32_t height ) {
 }
 // ----------------------------------------------------------------------
 
-static void renderpass_create_resource( le_renderpass_o *self, uint64_t resource_id, const le_resource_info_t &info ) {
+static void renderpass_create_resource( le_renderpass_o *self, LeResourceHandle resource, const le_resource_info_t &info ) {
 
 	self->createResourceInfos.push_back( info );
-	self->createResources.push_back( resource_id );
+	self->createResources.push_back( resource );
 
 	// Additionally, we introduce this resource to the write resource table,
 	// so that it will be considered when building the graph based on dependencies.
-	renderpass_use_resource( self, resource_id, le::AccessFlagBits::eWrite );
+	renderpass_use_resource( self, resource, le::AccessFlagBits::eWrite );
 }
 
 // ----------------------------------------------------------------------
@@ -241,17 +241,17 @@ static LeRenderPassType renderpass_get_type( le_renderpass_o const *self ) {
 	return self->type;
 }
 
-static void renderpass_get_read_resources( le_renderpass_o const *self, uint64_t const **pReadResources, size_t *count ) {
+static void renderpass_get_read_resources( le_renderpass_o const *self, LeResourceHandle const **pReadResources, size_t *count ) {
 	*pReadResources = self->readResources.data();
 	*count          = self->readResources.size();
 }
 
-static void renderpass_get_write_resources( le_renderpass_o const *self, uint64_t const **pWriteResources, size_t *count ) {
+static void renderpass_get_write_resources( le_renderpass_o const *self, LeResourceHandle const **pWriteResources, size_t *count ) {
 	*pWriteResources = self->writeResources.data();
 	*count           = self->writeResources.size();
 }
 
-static void renderpass_get_create_resources( le_renderpass_o const *self, uint64_t const **pCreateResources, le_resource_info_t const **pResourceInfos, size_t *count ) {
+static void renderpass_get_create_resources( le_renderpass_o const *self, LeResourceHandle const **pCreateResources, le_resource_info_t const **pResourceInfos, size_t *count ) {
 	assert( self->createResourceInfos.size() == self->createResources.size() );
 
 	*pCreateResources = self->createResources.data();
@@ -272,7 +272,7 @@ static void renderpass_get_image_attachments( const le_renderpass_o *self, const
 	*numAttachments = self->imageAttachments.size();
 }
 
-static void renderpass_get_texture_ids( le_renderpass_o *self, const uint64_t **ids, uint64_t *count ) {
+static void renderpass_get_texture_ids( le_renderpass_o *self, const LeResourceHandle **ids, uint64_t *count ) {
 	*ids   = self->textureInfoIds.data();
 	*count = self->textureInfoIds.size();
 };
@@ -349,14 +349,14 @@ static std::vector<std::vector<uint64_t>> graph_builder_resolve_resource_ids( co
 	dependenciesPerPass.reserve( passes.size() );
 
 	// map from resource id -> source pass id
-	std::unordered_map<uint64_t, uint64_t, IdentityHash> writeAttachmentTable;
+	std::unordered_map<LeResourceHandle, uint64_t> writeAttachmentTable;
 
 	// We go through passes in module submission order, so that outputs will match later inputs.
 	uint64_t passIndex = 0;
 	for ( auto const &pass : passes ) {
 
-		size_t          readResourceCount = 0;
-		const uint64_t *pReadResources    = nullptr;
+		size_t                  readResourceCount = 0;
+		const LeResourceHandle *pReadResources    = nullptr;
 		renderpass_get_read_resources( pass, &pReadResources, &readResourceCount );
 
 		std::vector<uint64_t> passesThisPassDependsOn;
@@ -378,8 +378,8 @@ static std::vector<std::vector<uint64_t>> graph_builder_resolve_resource_ids( co
 		// later inputs with same name will then resolve to the latest version
 		// of an output with a particular name.
 		{
-			size_t          writeResourceCount = 0;
-			const uint64_t *pWriteResources    = nullptr;
+			size_t                  writeResourceCount = 0;
+			const LeResourceHandle *pWriteResources    = nullptr;
 			renderpass_i.get_write_resources( pass, &pWriteResources, &writeResourceCount );
 
 			for ( const auto *it = pWriteResources; it != pWriteResources + writeResourceCount; it++ ) {

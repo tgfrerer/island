@@ -35,16 +35,16 @@ struct IdentityHash {
 	}
 };
 
-#define RESOURCE_IMAGE_ID( x ) \
-	const_char_hash64( "resource-image-" x )
+//#define RESOURCE_IMAGE_ID( x ) \
+//	const_char_hash64( "resource-image-" x )
 
-#define RESOURCE_TEXTURE_ID( x ) \
-	const_char_hash64( "resource-texture-" x )
+//#define RESOURCE_TEXTURE_ID( x ) \
+//	const_char_hash64( "resource-texture-" x )
 
-#define RESOURCE_IMAGE_VIEW_ID( x ) \
-	const_char_hash64( "resource-imageview-" x )
+//#define RESOURCE_IMAGE_VIEW_ID( x ) \
+//	const_char_hash64( "resource-imageview-" x )
 
-#define RESOURCE_BUFFER_ID( x ) \
-	const_char_hash64( "resource-buffer-" x )
+//#define RESOURCE_BUFFER_ID( x ) \
+//	const_char_hash64( "resource-buffer-" x )
 
 #endif

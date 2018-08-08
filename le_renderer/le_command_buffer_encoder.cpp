@@ -137,7 +137,7 @@ static void cbe_set_scissor( le_command_buffer_encoder_o *self,
 static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self,
                                      uint32_t                     firstBinding,
                                      uint32_t                     bindingCount,
-                                     uint64_t *                   pBuffers,
+                                     LeResourceHandle *           pBuffers,
                                      uint64_t *                   pOffsets ) {
 
 	// NOTE: pBuffers will hold ids for virtual buffers, we must match these
@@ -165,7 +165,7 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self,
 // ----------------------------------------------------------------------
 
 static void cbe_bind_index_buffer( le_command_buffer_encoder_o *self,
-                                   uint64_t                     buffer,
+                                   LeResourceHandle             buffer,
                                    uint64_t                     offset,
                                    uint64_t                     indexType ) {
 
@@ -196,7 +196,7 @@ static void cbe_set_vertex_data( le_command_buffer_encoder_o *self,
 	if ( allocator_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
 		memcpy( memAddr, data, numBytes );
 
-		auto allocatorBufferId = allocator_i.get_le_resource_id( self->pAllocator );
+		LeResourceHandle allocatorBufferId = reinterpret_cast<LeResourceHandle>( allocator_i.get_le_resource_id( self->pAllocator ) );
 
 		cbe_bind_vertex_buffers( self, bindingIndex, 1, &allocatorBufferId, &bufferOffset );
 	} else {
@@ -223,7 +223,7 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *self,
 		// -- Upload data via scratch allocator
 		memcpy( memAddr, data, numBytes );
 
-		auto allocatorBufferId = allocator_i.get_le_resource_id( self->pAllocator );
+		LeResourceHandle allocatorBufferId = reinterpret_cast<LeResourceHandle>( allocator_i.get_le_resource_id( self->pAllocator ) );
 
 		// -- Bind index buffer to scratch allocator
 		cbe_bind_index_buffer( self, allocatorBufferId, bufferOffset, indexType );
@@ -256,7 +256,7 @@ static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
 		// -- Store ubo data to scratch allocator
 		memcpy( memAddr, data, numBytes );
 
-		auto allocatorBufferId = allocator_i.get_le_resource_id( self->pAllocator );
+		LeResourceHandle allocatorBufferId = reinterpret_cast<LeResourceHandle>( allocator_i.get_le_resource_id( self->pAllocator ) );
 
 		cmd->info.argument_name_id = argumentNameId;
 		cmd->info.buffer_id        = allocatorBufferId;
@@ -275,7 +275,7 @@ static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_argument_texture( le_command_buffer_encoder_o *self, uint64_t textureId, uint64_t argumentName, uint64_t arrayIndex ) {
+static void cbe_set_argument_texture( le_command_buffer_encoder_o *self, LeResourceHandle textureId, uint64_t argumentName, uint64_t arrayIndex ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandSetArgumentTexture );
 
@@ -305,7 +305,7 @@ static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, le_graphics_pi
 
 // ----------------------------------------------------------------------
 
-static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, uint64_t resourceId, size_t offset, void const *data, size_t numBytes ) {
+static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, LeResourceHandle resourceId, size_t offset, void const *data, size_t numBytes ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandWriteToBuffer );
 
@@ -322,7 +322,7 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, uint64_t res
 		// -- Write data to scratch memory now
 		memcpy( memAddr, data, numBytes );
 
-		cmd->info.src_buffer_id = allocator_i.get_le_resource_id( self->pAllocator );
+		cmd->info.src_buffer_id = reinterpret_cast<LeResourceHandle>( allocator_i.get_le_resource_id( self->pAllocator ) );
 		cmd->info.src_offset    = bufferOffset;
 		cmd->info.dst_offset    = offset;
 		cmd->info.numBytes      = numBytes;
@@ -336,7 +336,7 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, uint64_t res
 // ----------------------------------------------------------------------
 
 static void cbe_write_to_image( le_command_buffer_encoder_o *self,
-                                uint64_t                     resourceId,
+                                LeResourceHandle             resourceId,
                                 LeBufferWriteRegion const &  region,
                                 void const *                 data,
                                 size_t                       numBytes ) {
@@ -356,7 +356,7 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *self,
 		// -- Write data to scratch memory now
 		memcpy( memAddr, data, numBytes );
 
-		cmd->info.src_buffer_id = allocator_i.get_le_resource_id( self->pAllocator );
+		cmd->info.src_buffer_id = reinterpret_cast<LeResourceHandle>( allocator_i.get_le_resource_id( self->pAllocator ) );
 		cmd->info.src_offset    = bufferOffset;
 		cmd->info.dst_region    = region;
 		cmd->info.numBytes      = numBytes;

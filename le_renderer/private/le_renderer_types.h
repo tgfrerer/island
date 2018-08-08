@@ -3,14 +3,18 @@
 
 #include <stdint.h>
 
-//#ifndef LE_DECLARE_HANDLE
-//    #define LE_DECLARE_HANDLE(object) typedef struct object##_o* object;
-//#endif
+#ifndef LE_DEFINE_HANDLE_GUARD
+#	define LE_DEFINE_HANDLE( object ) typedef struct object##_T *object;
+#	define LE_DEFINE_HANDLE_GUARD
+#endif
+LE_DEFINE_HANDLE( LeResourceHandle )
 
 struct LeBufferWriteRegion {
 	uint32_t width;
 	uint32_t height;
 };
+
+struct le_graphics_pipeline_state_o;
 
 namespace le {
 
@@ -80,19 +84,19 @@ struct CommandSetScissor {
 struct CommandSetArgumentUbo {
 	CommandHeader header = {{{CommandType::eSetArgumentUbo, sizeof( CommandSetArgumentUbo )}}};
 	struct {
-		uint64_t argument_name_id; // const_char_hash id of argument name
-		uint64_t buffer_id;        // id of buffer that holds data
-		uint32_t offset;           // offset into buffer
-		uint32_t range;            // size of argument data in bytes
+		uint64_t         argument_name_id; // const_char_hash id of argument name
+		LeResourceHandle buffer_id;        // id of buffer that holds data
+		uint32_t         offset;           // offset into buffer
+		uint32_t         range;            // size of argument data in bytes
 	} info;
 };
 
 struct CommandSetArgumentTexture {
 	CommandHeader header = {{{CommandType::eSetArgumentTexture, sizeof( CommandSetArgumentTexture )}}};
 	struct {
-		uint64_t argument_name_id; // const_char_hash id of argument name
-		uint64_t texture_id;       // texture id, hash of texture name
-		uint64_t array_index;      // argument array index (default is 0)
+		uint64_t         argument_name_id; // const_char_hash id of argument name
+		LeResourceHandle texture_id;       // texture id, hash of texture name
+		uint64_t         array_index;      // argument array index (default is 0)
 	} info;
 };
 
@@ -117,28 +121,28 @@ struct CommandBindVertexBuffers {
 struct CommandBindIndexBuffer {
 	CommandHeader header = {{{CommandType::eBindIndexBuffer, sizeof( CommandBindIndexBuffer )}}};
 	struct {
-		uint64_t buffer; // buffer id
-		uint64_t offset;
-		uint64_t indexType;
+		LeResourceHandle buffer; // buffer id
+		uint64_t         offset;
+		uint64_t         indexType;
 	} info;
 };
 
 struct CommandBindPipeline {
 	CommandHeader header = {{{CommandType::eBindPipeline, sizeof( CommandBindPipeline )}}};
 	struct {
-		struct le_graphics_pipeline_state_o *pso;
-		uint64_t                             pipelineHash; // TODO: do we need this?
+		le_graphics_pipeline_state_o *pso;
+		uint64_t                      pipelineHash; // TODO: do we need this?
 	} info;
 };
 
 struct CommandWriteToBuffer {
 	CommandHeader header = {{{CommandType::eWriteToBuffer, sizeof( CommandWriteToBuffer )}}};
 	struct {
-		uint64_t src_buffer_id; // le buffer id of scratch buffer
-		uint64_t dst_buffer_id; // which resource to write to
-		uint64_t src_offset;    // offset in scratch buffer where to find source data
-		uint64_t dst_offset;    // offset where to write to in target resource
-		uint64_t numBytes;      // number of bytes
+		LeResourceHandle src_buffer_id; // le buffer id of scratch buffer
+		LeResourceHandle dst_buffer_id; // which resource to write to
+		uint64_t         src_offset;    // offset in scratch buffer where to find source data
+		uint64_t         dst_offset;    // offset where to write to in target resource
+		uint64_t         numBytes;      // number of bytes
 
 	} info;
 };
@@ -146,8 +150,8 @@ struct CommandWriteToBuffer {
 struct CommandWriteToImage {
 	CommandHeader header = {{{CommandType::eWriteToImage, sizeof( CommandWriteToImage )}}};
 	struct {
-		uint64_t            src_buffer_id; // le buffer id of scratch buffer
-		uint64_t            dst_image_id;  // which resource to write to
+		LeResourceHandle    src_buffer_id; // le buffer id of scratch buffer
+		LeResourceHandle    dst_image_id;  // which resource to write to
 		uint64_t            src_offset;    // offset in scratch buffer where to find source data
 		uint64_t            numBytes;      // number of bytes
 		LeBufferWriteRegion dst_region;    // which part of the image to write to

@@ -32,6 +32,7 @@
 #include <iomanip>
 #include <list>
 #include <set>
+#include <atomic>
 
 #include <memory>
 
@@ -157,7 +158,7 @@ struct AbstractPhysicalResource {
 };
 
 struct AttachmentInfo {
-	uint64_t              resource_id; ///< which resource to look up for resource state
+	LeResourceHandle      resource_id; ///< which resource to look up for resource state
 	vk::Format            format;
 	vk::AttachmentLoadOp  loadOp;
 	vk::AttachmentStoreOp storeOp;
@@ -270,20 +271,20 @@ struct BackendFrameData {
 		vk::ImageView imageView;
 	};
 
-	std::unordered_map<uint64_t, Texture> textures; // non-owning, references to frame-local textures, cleared on frame fence.
+	std::unordered_map<LeResourceHandle, Texture> textures; // non-owning, references to frame-local textures, cleared on frame fence.
 
 	// With `syncChainTable` and image_attachment_info_o.syncState, we should
 	// be able to create renderpasses. Each resource has a sync chain, and each attachment_info
 	// has a struct which holds indices into the sync chain telling us where to look
 	// up the sync state for a resource at different stages of renderpass construction.
-	std::unordered_map<uint64_t, std::vector<ResourceState>, IdentityHash> syncChainTable;
+	std::unordered_map<LeResourceHandle, std::vector<ResourceState>> syncChainTable;
 
 	static_assert( sizeof( VkBuffer ) == sizeof( VkImageView ) && sizeof( VkBuffer ) == sizeof( VkImage ), "size of AbstractPhysicalResource components must be identical" );
 
 	// Todo: clarify ownership of physical resources inside FrameData
 	// Q: Does this table actually own the resources?
 	// A: It must not: as it is used to map external resources as well.
-	std::unordered_map<uint64_t, AbstractPhysicalResource, IdentityHash> physicalResources; // map from renderer resource id to physical resources - only contains resources this frame uses.
+	std::unordered_map<LeResourceHandle, AbstractPhysicalResource> physicalResources; // map from renderer resource id to physical resources - only contains resources this frame uses.
 
 	/// \brief vk resources retained and destroyed with BackendFrameData
 	std::forward_list<AbstractPhysicalResource> ownedResources;
@@ -301,8 +302,8 @@ struct BackendFrameData {
 
 	 */
 
-	std::unordered_map<uint64_t, AllocatedResource> availableResources; // resources this frame may use
-	std::unordered_map<uint64_t, AllocatedResource> binnedResources;    // resources to delete when this frame comes round to clear()
+	std::unordered_map<LeResourceHandle, AllocatedResource> availableResources; // resources this frame may use
+	std::unordered_map<LeResourceHandle, AllocatedResource> binnedResources;    // resources to delete when this frame comes round to clear()
 
 	VmaPool                        allocationPool;   // pool from which allocations come from
 	std::vector<le_allocator_o *>  allocators;       // one allocator per command buffer
@@ -351,9 +352,12 @@ struct le_backend_o {
 	uint32_t queueFamilyIndexGraphics = 0; // set during setup
 	uint32_t queueFamilyIndexCompute  = 0; // set during setup
 
+	std::atomic<uint32_t> resource_counter;                // we use this to make sure that each resource created will have an unique id.
+	LeResourceHandle      backBufferImageHandle = nullptr; // opaque handle identifying the backbuffer image, initialised in setup()
+
 	struct {
-		std::unordered_map<uint64_t, AllocatedResource> allocatedResources; // allocated resources, indexed by resource name hash
-	} only_backend_allocate_resources_may_access;                           // only acquire_physical_resources may read/write
+		std::unordered_map<LeResourceHandle, AllocatedResource> allocatedResources; // allocated resources, indexed by resource name hash
+	} only_backend_allocate_resources_may_access;                                   // only acquire_physical_resources may read/write
 
 	const vk::BufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =
 	    vk::BufferUsageFlagBits::eIndexBuffer |
@@ -1128,7 +1132,7 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settin
 	le_swapchain_vk_settings_o tmpSwapchainSettings;
 
 	tmpSwapchainSettings.imagecount_hint                = 3;
-	tmpSwapchainSettings.presentmode_hint               = le::Swapchain::Presentmode::eFifo;
+	tmpSwapchainSettings.presentmode_hint               = le::Swapchain::Presentmode::eImmediate;
 	tmpSwapchainSettings.width_hint                     = self->window->getSurfaceWidth();
 	tmpSwapchainSettings.height_hint                    = self->window->getSurfaceHeight();
 	tmpSwapchainSettings.vk_device                      = self->device->getVkDevice();
@@ -1870,6 +1874,18 @@ static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *sel
 }
 
 // ----------------------------------------------------------------------
+static LeResourceHandle backend_declare_resource( le_backend_o *self ) {
+	uint64_t currentResourceNumber = self->resource_counter++; // resource counter is atomic, so no resource number will be the same.
+	uint64_t resourceId            = 0;                        // TODO: we might want to mix in some information about the resource type here
+	resourceId                     = resourceId | currentResourceNumber;
+	return reinterpret_cast<LeResourceHandle>( resourceId );
+}
+
+static LeResourceHandle backend_get_backbuffer_resource( le_backend_o *self ) {
+	return self->backBufferImageHandle;
+}
+
+// ----------------------------------------------------------------------
 
 static void backend_setup( le_backend_o *self ) {
 
@@ -1955,11 +1971,14 @@ static void backend_setup( le_backend_o *self ) {
 	    .setPInitialData( nullptr );
 
 	self->debugPipelineCache = vkDevice.createPipelineCache( pipelineCacheInfo );
+
+	self->resource_counter      = 1;                                // initialize resource counter to 1, 0 means invalid not initialised resource.
+	self->backBufferImageHandle = backend_declare_resource( self ); // initialize backbuffer image handle
 }
 
 // ----------------------------------------------------------------------
 
-static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses, const vk::Format &swapchainImageFormat ) {
+static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses, const vk::Format &swapchainImageFormat, const LeResourceHandle &backbufferImageHandle ) {
 
 	// track resource state
 
@@ -1980,7 +1999,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		// need to be correctly initialised:
 		//
 
-		auto backbufferIt = syncChainTable.find( RESOURCE_IMAGE_ID( "backbuffer" ) );
+		auto backbufferIt = syncChainTable.find( backbufferImageHandle );
 		if ( backbufferIt != syncChainTable.end() ) {
 			auto &backbufferState          = backbufferIt->second.front();
 			backbufferState.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
@@ -2159,7 +2178,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 		auto finalState{syncChain.back()};
 
-		if ( id == RESOURCE_IMAGE_ID( "backbuffer" ) ) {
+		if ( id == backbufferImageHandle ) {
 			finalState.write_stage    = vk::PipelineStageFlagBits::eBottomOfPipe;
 			finalState.visible_access = vk::AccessFlagBits::eMemoryRead;
 			finalState.layout         = vk::ImageLayout::ePresentSrcKHR;
@@ -2550,8 +2569,8 @@ static void frame_create_resource_table( BackendFrameData &frame, le_renderpass_
 
 	for ( auto *pPass = passes; pPass != passes + numRenderPasses; pPass++ ) {
 
-		uint64_t const *pResources   = nullptr;
-		size_t          numResources = 0;
+		LeResourceHandle const *pResources   = nullptr;
+		size_t                  numResources = 0;
 
 		// add all read resources to pass
 		renderpass_i.get_read_resources( *pPass, &pResources, &numResources );
@@ -2577,12 +2596,12 @@ static inline vk::Buffer frame_data_get_transient_memory_buffer_from_encoder_ind
 	return frame->allocatorBuffers[ encoderIdx ];
 }
 
-static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
+static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData *frame, LeResourceHandle resourceId ) {
 	// acquire resources will have placed the resource into availableResources
 	return frame->availableResources.at( resourceId ).asBuffer;
 }
 
-static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
+static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendFrameData *frame, LeResourceHandle resourceId ) {
 	// acquire resources will have placed the resource into availableResources
 	return frame->availableResources.at( resourceId ).asImage;
 }
@@ -2745,12 +2764,12 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 	static auto const &renderpass_i = Registry::getApi<le_renderer_api>()->le_renderpass_i;
 
-	std::unordered_map<uint64_t, ResourceInfo> declaredResources;
+	std::unordered_map<LeResourceHandle, ResourceInfo> declaredResources;
 
 	// -- iterate over all passes
 	for ( le_renderpass_o **rp = passes; rp != passes + numRenderPasses; rp++ ) {
 
-		uint64_t const *          pCreateResourceIds = nullptr;
+		LeResourceHandle const *  pCreateResourceIds = nullptr;
 		le_resource_info_t const *pResourceInfos     = nullptr;
 		size_t                    numCreateResources = 0;
 
@@ -2759,7 +2778,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		for ( size_t i = 0; i != numCreateResources; ++i ) {
 
 			le_resource_info_t const &createInfo = pResourceInfos[ i ];     // Resource descriptor
-			uint64_t const &          resourceId = pCreateResourceIds[ i ]; // Hash of resource name
+			LeResourceHandle const &  resourceId = pCreateResourceIds[ i ]; // Hash of resource name
 
 			ResourceInfo rd{};
 
@@ -2840,8 +2859,8 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 	for ( auto &r : declaredResources ) {
 
-		uint64_t const &    resourceId           = r.first;  // hash of resource name
-		ResourceInfo const &declaredResourceInfo = r.second; // current resourceInfo
+		LeResourceHandle const &resourceId           = r.first;  // hash of resource name
+		ResourceInfo const &    declaredResourceInfo = r.second; // current resourceInfo
 
 		auto foundIt = backendResources.find( resourceId ); // find an allocated resource with same name as declared resource
 
@@ -2869,7 +2888,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				frame.availableResources.emplace( resourceId, foundIt->second );
 
 			} else {
-				// -- descriptor does not match. We must re-allocate this resource, and add the old resource to the recycling bin.
+				// -- descriptor does not match. We must re-allocate this resource, and add the old version of the resource to the recycling bin.
 
 				// -- allocate a new resource
 
@@ -2900,8 +2919,8 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
 		// get all texture names for this pass
 
-		const uint64_t *textureIds     = nullptr;
-		size_t          textureIdCount = 0;
+		const LeResourceHandle *textureIds     = nullptr;
+		size_t                  textureIdCount = 0;
 		renderpass_i.get_texture_ids( *p, &textureIds, &textureIdCount );
 
 		const LeTextureInfo *textureInfos     = nullptr;
@@ -2915,7 +2934,7 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 			// -- find out if texture with this name has already been alloacted.
 			// -- if not, allocate
 
-			const uint64_t textureId = textureIds[ i ];
+			const LeResourceHandle textureId = textureIds[ i ];
 
 			if ( frame.textures.find( textureId ) == frame.textures.end() ) {
 				// -- we need to allocate a new texture
@@ -3009,9 +3028,9 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 
 	// ----------| invariant: swapchain acquisition successful.
 
-	frame.availableResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].asImage = self->swapchain->getImage( frame.swapchainImageIndex );
+	frame.availableResources[ self->backBufferImageHandle ].asImage = self->swapchain->getImage( frame.swapchainImageIndex );
 	{
-		auto &backbufferInfo  = frame.availableResources[ RESOURCE_IMAGE_ID( "backbuffer" ) ].info.imageInfo;
+		auto &backbufferInfo  = frame.availableResources[ self->backBufferImageHandle ].info.imageInfo;
 		backbufferInfo        = vk::ImageCreateInfo{};
 		backbufferInfo.extent = vk::Extent3D( self->swapchain->getImageWidth(), self->swapchain->getImageHeight(), 1 );
 	}
@@ -3027,7 +3046,7 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 	vk::Device device = self->device->getVkDevice();
 
 	frame_create_resource_table( frame, passes, numRenderPasses );
-	frame_track_resource_state( frame, passes, numRenderPasses, self->swapchainImageFormat );
+	frame_track_resource_state( frame, passes, numRenderPasses, self->swapchainImageFormat, self->backBufferImageHandle );
 
 	// -- allocate any transient vk objects such as image samplers, and image views
 	frame_allocate_per_pass_resources( frame, device, passes, numRenderPasses );
@@ -3388,7 +3407,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					auto &bindingData = argumentState.setData[ setIndex ][ binding ];
 
-					bindingData.buffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, le_cmd->info.buffer_id );
+					bindingData.buffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, reinterpret_cast<uint64_t>( le_cmd->info.buffer_id ) ); // Fixme: HANDLE: use method which can distinguish transient from frame available resources.
 					bindingData.range  = le_cmd->info.range;
 
 					// if binding is in fact a dynamic binding, set the corresponding dynamic offset
@@ -3429,7 +3448,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					auto foundTex = frame.textures.find( le_cmd->info.texture_id );
 					if ( foundTex == frame.textures.end() ) {
-						std::cerr << "Could not find requested texture. Ignoring texture binding command." << std::endl
+						std::cerr << "Could not find requested texture: " << le_cmd->info.texture_id << " Ignoring texture binding command." << std::endl
 						          << std::flush;
 						break;
 					}
@@ -3451,7 +3470,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto *le_cmd = static_cast<le::CommandBindIndexBuffer *>( dataIt );
 					// TODO: we must make sure that bindings can actually come from general pool of available buffers
 					// and not just from transient memory. Perhaps we should have a flag telling us from where to choose.
-					auto buffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, le_cmd->info.buffer );
+					auto buffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, reinterpret_cast<uint64_t>( le_cmd->info.buffer ) ); // FIXME: ( HANDLE) use method which can distinguish between transient and frame local resources
 					cmd.bindIndexBuffer( buffer, le_cmd->info.offset, vk::IndexType( le_cmd->info.indexType ) );
 				} break;
 
@@ -3483,7 +3502,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					vk::BufferCopy region( le_cmd->info.src_offset, le_cmd->info.dst_offset, le_cmd->info.numBytes );
 
-					auto srcBuffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, le_cmd->info.src_buffer_id );
+					auto srcBuffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, reinterpret_cast<uint64_t>( le_cmd->info.src_buffer_id ) ); // FIXME: (HANDLE) use method which can distinguish between transient and frame local resources.
 					auto dstBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.dst_buffer_id );
 
 					cmd.copyBuffer( srcBuffer, dstBuffer, 1, &region );
@@ -3526,7 +3545,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					    .setImageOffset( {0, 0, 0} )
 					    .setImageExtent( imageExtent );
 
-					auto srcBuffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, le_cmd->info.src_buffer_id );
+					auto srcBuffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, reinterpret_cast<uint64_t>( le_cmd->info.src_buffer_id ) ); // FIXME: (HANDLE) use method which can distinguish between transient and frame local resources.
 					auto dstImage  = frame_data_get_image_from_le_resource_id( &frame, le_cmd->info.dst_image_id );
 
 					::vk::BufferMemoryBarrier bufferTransferBarrier;
@@ -3637,6 +3656,8 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.create_shader_module                  = backend_create_shader_module;
 	vk_backend_i.update_shader_modules                 = backend_update_shader_modules;
 	vk_backend_i.create_graphics_pipeline_state_object = backend_create_grapics_pipeline_state_object;
+	vk_backend_i.declare_resource                      = backend_declare_resource;
+	vk_backend_i.get_backbuffer_resource               = backend_get_backbuffer_resource;
 
 	// register/update submodules inside this plugin
 
