@@ -1128,7 +1128,7 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settin
 	le_swapchain_vk_settings_o tmpSwapchainSettings;
 
 	tmpSwapchainSettings.imagecount_hint                = 3;
-	tmpSwapchainSettings.presentmode_hint               = le::Swapchain::Presentmode::eImmediate;
+	tmpSwapchainSettings.presentmode_hint               = le::Swapchain::Presentmode::eFifo;
 	tmpSwapchainSettings.width_hint                     = self->window->getSurfaceWidth();
 	tmpSwapchainSettings.height_hint                    = self->window->getSurfaceHeight();
 	tmpSwapchainSettings.vk_device                      = self->device->getVkDevice();
@@ -3062,7 +3062,7 @@ static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, si
 	//
 	// NOTE: We compare by '<', since numAllocators may be smaller if number
 	// of renderpasses was reduced for some reason.
-	for ( auto i = frame.allocators.size(); i < numAllocators; ++i ) {
+	for ( uint64_t i = frame.allocators.size(); i < numAllocators; ++i ) {
 
 		VkBuffer          buffer = nullptr;
 		VmaAllocation     allocation;
@@ -3073,7 +3073,7 @@ static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, si
 			createInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 			createInfo.pool  = frame.allocationPool; // Since we're allocating from a pool all fields but .flags will be taken from the pool
 
-			memcpy( &createInfo.pUserData, &i, sizeof( i ) ); // store value of i as pointer
+			memcpy( &createInfo.pUserData, &i, sizeof( i ) ); // store value of i in userData
 		}
 
 		VkBufferCreateInfo bufferCreateInfo;
@@ -3449,7 +3449,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				case le::CommandType::eBindIndexBuffer: {
 					auto *le_cmd = static_cast<le::CommandBindIndexBuffer *>( dataIt );
-					auto  buffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, le_cmd->info.buffer );
+					// TODO: we must make sure that bindings can actually come from general pool of available buffers
+					// and not just from transient memory. Perhaps we should have a flag telling us from where to choose.
+					auto buffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, le_cmd->info.buffer );
 					cmd.bindIndexBuffer( buffer, le_cmd->info.offset, vk::IndexType( le_cmd->info.indexType ) );
 				} break;
 
@@ -3464,6 +3466,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					// translate le_buffers to vk_buffers
 					for ( uint32_t b = 0; b != numBuffers; ++b ) {
+
+						// fetch vk::Buffer from encoder index if transient, otherwise, fetch from frame available resources.
+
 						vertexInputBindings[ b + firstBinding ] = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, le_cmd->info.pBuffers[ b ] );
 					}
 

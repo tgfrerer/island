@@ -23,7 +23,7 @@ Linear sub-allocator
 
 struct le_allocator_o {
 
-	uint64_t resourceId = 0;
+	uint64_t resourceId = 0; // for transient allocators, this must contain index of transient allocator
 
 	uint8_t *bufferBaseMemoryAddress = nullptr; // mapped memory address
 	uint64_t bufferBaseOffsetInBytes = 0;       // offset into buffer for first address belonging to this allocator

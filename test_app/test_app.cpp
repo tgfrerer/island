@@ -32,57 +32,6 @@
 #include <chrono> // for nanotime
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
-//template <typename T, size_t sz>
-//class SeriesBuffer {
-//	std::array<T, sz> data{};
-//	std::vector<T>    asVec{};
-//	size_t            pos = sz - 1;
-//	static_assert( sz > 0, "SeriesBuffer capacity must be at least 1" );
-//	bool isDirty = false;
-//	T    runningAverage{};
-
-//  public:
-//	void push( const T &value_ ) {
-//		pos            = ( ++pos ) % sz;
-//		data[ pos ]    = value_;
-//		isDirty        = true;
-//		runningAverage = ( value_ + ( runningAverage * ( sz - 1 ) ) ) / static_cast<T>( sz );
-//	}
-
-//	const T &getLastValue() const {
-//		return data[ pos ];
-//	}
-
-//	const T &getRunningAverage() const {
-//		return runningAverage;
-//	}
-
-//	// addr, numElements
-//	std::pair<T *, size_t> getHead() {
-//		std::pair<T *, size_t> ret( data.data() + pos + 1, size_t( sz - pos - 1 ) );
-//		return ret;
-//	}
-
-//	// addr, numElements
-//	std::pair<T *, size_t> getTail() {
-//		std::pair<T *, size_t> ret( data.data(), size_t( pos + 1 ) );
-//		return ret;
-//	}
-
-//	const std::vector<T> &getAsVector() {
-//		if ( isDirty ) {
-//			asVec.clear();
-//			asVec.reserve( sz );
-//			auto head = getHead();
-//			auto tail = getTail();
-//			asVec.insert( asVec.end(), head.first, head.first + head.second );
-//			asVec.insert( asVec.end(), tail.first, tail.first + tail.second );
-//			isDirty = false;
-//		}
-//		return asVec;
-//	}
-//};
-
 struct le_graphics_pipeline_state_o; // owned by renderer
 
 struct FontTextureInfo {
@@ -97,9 +46,9 @@ struct test_app_o {
 	std::unique_ptr<le::Backend>  backend;
 	std::unique_ptr<pal::Window>  window;
 	std::unique_ptr<le::Renderer> renderer;
-	le_graphics_pipeline_state_o *psoMain;           // owned by the renderer
-	le_graphics_pipeline_state_o *psoFullScreenQuad; // owned by the renderer
-	le_graphics_pipeline_state_o *psoImgui;          // owned by renderer
+	le_graphics_pipeline_state_o *psoMain;           // weak ref, owned by renderer
+	le_graphics_pipeline_state_o *psoFullScreenQuad; // weak ref, owned by renderer
+	le_graphics_pipeline_state_o *psoImgui;          // weak ref, owned by renderer
 	ImGuiContext *                imguiContext  = nullptr;
 	uint64_t                      frame_counter = 0;
 	float                         deltaTimeSec  = 0;
@@ -119,8 +68,8 @@ struct test_app_o {
 	// in question.
 };
 
-constexpr auto IMGUI_FONT_IMAGE   = RESOURCE_IMAGE_ID( "imgui-font-atlas" );
-constexpr auto IMGUI_FONT_TEXTURE = RESOURCE_TEXTURE_ID( "imgui-font-atlas" );
+constexpr auto IMGUI_FONT_IMAGE     = RESOURCE_IMAGE_ID( "imgui-font-atlas" );
+constexpr auto IMGUI_FONT_TEXTURE   = RESOURCE_TEXTURE_ID( "imgui-font-atlas" );
 
 // ----------------------------------------------------------------------
 
@@ -695,7 +644,6 @@ static bool test_app_update( test_app_o *self ) {
 			rp.setWidth( app->window->getSurfaceWidth() );
 			rp.setHeight( app->window->getSurfaceHeight() );
 
-			//rp.useResource( RESOURCE_IMAGE_ID( "horse" ), le::AccessFlagBits::eRead );
 			rp.useResource( RESOURCE_IMAGE_ID( "prepass" ), le::AccessFlagBits::eRead );
 
 			// this will create an imageView and a sampler in the context of this pass/encoder.
@@ -799,7 +747,7 @@ static bool test_app_update( test_app_o *self ) {
 				MatrixStackUbo_t matrixStack;
 				matrixStack.projectionMatrix = glm::perspective( glm::radians( 60.f ), float( screenWidth ) / float( screenHeight ), 0.01f, 10000.f );
 				matrixStack.modelMatrix      = glm::mat4( 1.f ); // identity matrix
-				matrixStack.modelMatrix      = glm::scale( matrixStack.modelMatrix, glm::vec3( 3.5 ) );
+				matrixStack.modelMatrix      = glm::scale( matrixStack.modelMatrix, glm::vec3( 4.5 ) );
 				matrixStack.modelMatrix      = glm::translate( matrixStack.modelMatrix, glm::vec3( 0, 0, 0 ) );
 
 				matrixStack.modelMatrix = glm::rotate( matrixStack.modelMatrix, glm::radians( r_val * 360 ), glm::vec3( 0, 0, 1 ) );
@@ -819,13 +767,8 @@ static bool test_app_update( test_app_o *self ) {
 			ImDrawData *drawData = ImGui::GetDrawData();
 			if ( drawData ) {
 				// draw imgui
-				glm::mat4 ortho_projection =
-				    {
-				        {2.0f / float( screenWidth ), 0.0f, 0.0f, 0.0f},
-				        {0.0f, 2.0f / float( screenHeight ), 0.0f, 0.0f},
-				        {0.0f, 0.0f, 1.0f, 0.0f},
-				        {-1.f, -1.f, 0.0f, 1.0f},
-				    };
+
+				auto ortho_projection = glm::ortho( 0.f, float( screenWidth ), 0.f, float( screenHeight ) );
 
 				ImVec2 display_pos = drawData->DisplayPos;
 

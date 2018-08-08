@@ -193,7 +193,7 @@ struct le_resource_info_t {
 
 	struct Buffer {
 		size_t   size;
-		uint32_t usage_flags;
+		uint32_t usage_flags; // e.g. VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
 	};
 
 	LeResourceType type;

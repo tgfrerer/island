@@ -140,8 +140,9 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self,
                                      uint64_t *                   pBuffers,
                                      uint64_t *                   pOffsets ) {
 
-	// Note: pBuffers will hold ids for virtual buffers, we must match these
+	// NOTE: pBuffers will hold ids for virtual buffers, we must match these
 	// in the backend to actual vulkan buffer ids.
+	// Buffer must be annotated whether it is transient or not
 
 	auto cmd = EMPLACE_CMD( le::CommandBindVertexBuffers ); // placement new!
 
