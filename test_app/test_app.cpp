@@ -6,6 +6,7 @@
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/le_renderer_types.h"
 #include "le_renderer/private/hash_util.h"
+#include "le_gltf_loader/le_gltf_loader.h"
 
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
@@ -13,7 +14,7 @@
 #include <GLFW/glfw3.h> // for key codes
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
-#define GLM_FORCE_LEFT_HANDED       // vulkan uses left handed coordinate system
+#define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
 #include "glm.hpp"
 #include "gtc/matrix_transform.hpp"
 
@@ -287,8 +288,8 @@ static test_app_o *test_app_create() {
 		{
 			// create default pipeline
 
-			auto defaultVertShader = app->renderer->createShaderModule( "./shaders/default.vert", LeShaderType::eVert );
-			auto defaultFragShader = app->renderer->createShaderModule( "./shaders/default.frag", LeShaderType::eFrag );
+			auto defaultVertShader = app->renderer->createShaderModule( "./resources/shaders/default.vert", LeShaderType::eVert );
+			auto defaultFragShader = app->renderer->createShaderModule( "./resources/shaders/default.frag", LeShaderType::eFrag );
 
 			le_graphics_pipeline_create_info_t pi;
 			pi.shader_module_frag = defaultFragShader;
@@ -310,8 +311,8 @@ static test_app_o *test_app_create() {
 
 		{
 			// Create pso for imgui rendering
-			auto imguiVertShader = app->renderer->createShaderModule( "./shaders/imgui.vert", LeShaderType::eVert );
-			auto imguiFragShader = app->renderer->createShaderModule( "./shaders/imgui.frag", LeShaderType::eFrag );
+			auto imguiVertShader = app->renderer->createShaderModule( "./resources/shaders/imgui.vert", LeShaderType::eVert );
+			auto imguiFragShader = app->renderer->createShaderModule( "./resources/shaders/imgui.frag", LeShaderType::eFrag );
 
 			le_graphics_pipeline_create_info_t                   imguiPipeline;
 			std::array<le_vertex_input_attribute_description, 3> attrs;
@@ -368,8 +369,8 @@ static test_app_o *test_app_create() {
 		{
 			// create full screen quad pipeline
 
-			auto fullScreenQuadVertShader = app->renderer->createShaderModule( "./shaders/fullscreenQuad.vert", LeShaderType::eVert );
-			auto fullScreenQuadFragShader = app->renderer->createShaderModule( "./shaders/fullscreenQuad.frag", LeShaderType::eFrag );
+			auto fullScreenQuadVertShader = app->renderer->createShaderModule( "./resources/shaders/fullscreenQuad.vert", LeShaderType::eVert );
+			auto fullScreenQuadFragShader = app->renderer->createShaderModule( "./resources/shaders/fullscreenQuad.frag", LeShaderType::eFrag );
 
 			le_graphics_pipeline_create_info_t pi;
 			pi.shader_module_vert = fullScreenQuadVertShader;
@@ -389,7 +390,7 @@ static test_app_o *test_app_create() {
 	// get imgui font texture handle
 	{
 		ImGuiIO &io = ImGui::GetIO();
-		io.Fonts->AddFontFromFileTTF( "fonts/IBMPlexSans-Regular.otf", 20.0f, nullptr, io.Fonts->GetGlyphRangesDefault() );
+		io.Fonts->AddFontFromFileTTF( "./resources/fonts/IBMPlexSans-Regular.otf", 20.0f, nullptr, io.Fonts->GetGlyphRangesDefault() );
 		io.Fonts->GetTexDataAsRGBA32( &app->imguiTexture.pixels, &app->imguiTexture.width, &app->imguiTexture.height );
 
 		io.DisplaySize  = {float( app->window->getSurfaceWidth() ),
@@ -437,6 +438,14 @@ static test_app_o *test_app_create() {
 	}
 
 	app->update_start_time = std::chrono::high_resolution_clock::now();
+
+	{
+		static auto const &loader_i = Registry::getApi<le_gltf_loader_api>()->loader_i;
+
+		std::unique_ptr<le_gltf_loader_o, decltype( loader_i.destroy )> loader( loader_i.create(), loader_i.destroy );
+
+		loader_i.load_from_text( loader.get(), "resources/gltf/Box.gltf" );
+	}
 
 	return app;
 }
@@ -908,7 +917,7 @@ static void test_app_destroy( test_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-void register_test_app_api( void *api_ ) {
+ISL_API_ATTR void register_test_app_api( void *api_ ) {
 	auto  test_app_api_i = static_cast<test_app_api *>( api_ );
 	auto &test_app_i     = test_app_api_i->test_app_i;
 

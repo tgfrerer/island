@@ -52,15 +52,17 @@ execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/3rdparty/src/fx-gltf/inclu
 # include imgui directory
 include_directories(${PROJECT_SOURCE_DIR}/3rdparty/include)
 
+# create a link to 3rd party library binaries so that app can find them.
+execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/3rdparty/src/json/single_include/nlohmann ${PROJECT_SOURCE_DIR}/3rdparty/include/nlohmann )
 
-# create a link to shared shader repository so that we're always working with the same shaders.
-execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/resources/shaders ${CMAKE_BINARY_DIR}/shaders )
-
-# create a link to shared fonts repository so that we're always working with the same fonts.
-execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/resources/fonts ${CMAKE_BINARY_DIR}/fonts )
+# create a link to shared resources
+execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/resources ${CMAKE_BINARY_DIR}/resources )
 
 # create a link to 3rd party library binaries so that app can find them.
 execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/3rdparty/libs ${CMAKE_BINARY_DIR}/libs )
+
+
+
 
 # Check if a local copy of the Vulkan SDK exists, and the environment VULKAN_SDK points to it.
 # If yes, use this directory for header includes, and linking
@@ -86,6 +88,8 @@ add_subdirectory (le_backend_vk)
 add_subdirectory (le_swapchain_vk)
 add_subdirectory (le_renderer)
 add_subdirectory (le_shader_compiler)
+add_subdirectory (le_gltf_loader)
+
 
 set (SOURCES main.cpp)
 

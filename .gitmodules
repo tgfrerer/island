@@ -8,3 +8,6 @@
 [submodule "3rdparty/fx-gltf"]
 	path = 3rdparty/src/fx-gltf
 	url = https://github.com/jessey-git/fx-gltf.git
+[submodule "3rdparty/src/json"]
+	path = 3rdparty/src/json
+	url = https://github.com/nlohmann/json.git

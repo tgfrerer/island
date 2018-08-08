@@ -6,6 +6,7 @@
 #include "le_swapchain_vk/le_swapchain_vk.h"
 #include "le_renderer/le_renderer.h"
 #include "le_shader_compiler/le_shader_compiler.h"
+#include "le_gltf_loader/le_gltf_loader.h"
 
 // ----------------------------------------------------------------------
 
@@ -45,6 +46,12 @@ int main( int argc, char const *argv[] ) {
 	Registry::addApiStatic<le_shader_compiler_api>();
 #else
 	Registry::addApiDynamic<le_shader_compiler_api>( true );
+#endif
+
+#ifdef PLUGIN_LE_GLTF_LOADER_STATIC
+	Registry::addApiStatic<le_gltf_loader_api>();
+#else
+	Registry::addApiDynamic<le_gltf_loader_api>( true );
 #endif
 
 	TestApp::initialize();
