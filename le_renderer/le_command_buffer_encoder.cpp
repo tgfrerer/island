@@ -149,10 +149,10 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self,
 	void *dataBuffers = ( cmd + 1 );
 	void *dataOffsets = ( static_cast<char *>( dataBuffers ) + sizeof( uint64_t ) * bindingCount );
 
-	size_t dataBuffersSize = ( sizeof( void * ) + sizeof( uint64_t ) ) * bindingCount;
+	size_t dataBuffersSize = ( sizeof( void * ) + sizeof( LeResourceHandle ) ) * bindingCount;
 	size_t dataOffsetsSize = ( sizeof( void * ) + sizeof( uint64_t ) ) * bindingCount;
 
-	cmd->info = {firstBinding, bindingCount, static_cast<uint64_t *>( dataBuffers ), static_cast<uint64_t *>( dataOffsets )};
+	cmd->info = {firstBinding, bindingCount, static_cast<LeResourceHandle *>( dataBuffers ), static_cast<uint64_t *>( dataOffsets )};
 	cmd->header.info.size += dataBuffersSize + dataOffsetsSize; // we must increase the size of this command by its payload size
 
 	memcpy( dataBuffers, pBuffers, dataBuffersSize );

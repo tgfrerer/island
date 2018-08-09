@@ -23,7 +23,7 @@ Linear sub-allocator
 
 struct le_allocator_o {
 
-	uint64_t resourceId = 0; // for transient allocators, this must contain index of transient allocator
+	LeResourceHandle resourceId = nullptr; // for transient allocators, this must contain index of transient allocator
 
 	uint8_t *bufferBaseMemoryAddress = nullptr; // mapped memory address
 	uint64_t bufferBaseOffsetInBytes = 0;       // offset into buffer for first address belonging to this allocator
@@ -46,13 +46,16 @@ static void allocator_reset( le_allocator_o *self ) {
 static le_allocator_o *allocator_create( VmaAllocationInfo const *info, uint16_t alignment ) {
 	auto self = new le_allocator_o{};
 
-	self->bufferBaseMemoryAddress = reinterpret_cast<uint8_t *>( info->pMappedData );
+	self->bufferBaseMemoryAddress = static_cast<uint8_t *>( info->pMappedData );
 
 	self->bufferBaseOffsetInBytes = info->offset;
 	self->capacity                = info->size;
 	self->alignment               = alignment;
 
-	memcpy( &self->resourceId, &info->pUserData, sizeof( void * ) ); // note we use the address of pUserData as a value, not a pointer.
+	// -- Fetch resource handle of underlying buffer from VmaAllocation info
+	memcpy( &self->resourceId, &info->pUserData, sizeof( void * ) ); // note we copy pUserData as a value
+
+	self->resourceId = static_cast<LeResourceHandle>( info->pUserData );
 
 	allocator_reset( self );
 
@@ -93,7 +96,7 @@ static bool allocator_allocate( le_allocator_o *self, uint64_t numBytes, void **
 
 // ----------------------------------------------------------------------
 
-static uint64_t allocator_get_le_resource_id( le_allocator_o *self ) {
+static LeResourceHandle allocator_get_le_resource_id( le_allocator_o *self ) {
 	return self->resourceId;
 }
 

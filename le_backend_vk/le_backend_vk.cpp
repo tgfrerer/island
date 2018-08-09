@@ -155,6 +155,33 @@ struct AbstractPhysicalResource {
 	Type type;
 };
 
+/// \brief re-interpretation of resource handle type
+/// \note we assume little-endian machine
+struct LeResourceHandleMeta {
+	enum Type : uint8_t {
+		eUndefined = 0,
+		eBuffer,
+		eImage,
+		eTexture,
+	};
+	enum FlagBits : uint8_t {
+		eIsVirtual = 1u << 0,
+	};
+
+	union {
+		struct {
+			uint32_t id; // unique identifier
+			struct {
+				Type    type;  // tells us type of resource
+				uint8_t flags; // composed of FlagBits
+				uint8_t index; // used for virtual buffers to refer to corresponding le_allocator index
+				uint8_t padding;
+			};
+		};
+		uint64_t data;
+	};
+};
+
 struct AttachmentInfo {
 	LeResourceHandle      resource_id; ///< which resource to look up for resource state
 	vk::Format            format;
@@ -1872,13 +1899,33 @@ static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *sel
 }
 
 // ----------------------------------------------------------------------
+/// \brief create a unique resource handle
+/// \details Resource handles are used as names, but they might have information associated with them
 static LeResourceHandle backend_declare_resource( le_backend_o *self ) {
-	uint64_t currentResourceNumber = self->resource_counter++; // resource counter is atomic, so no resource number will be the same.
-	uint64_t resourceId            = 0;                        // TODO: we might want to mix in some information about the resource type here
-	resourceId                     = resourceId | currentResourceNumber;
+	uint64_t resourceId   = self->resource_counter++; // Resource counter is atomic, so resource ids will be unique.
+	uint64_t resourceMeta = 0;                        // TODO: we might want to mix in some information about the resource type here
+	resourceId            = resourceMeta | resourceId;
+	static_assert( sizeof( LeResourceHandle ) == sizeof( uint64_t ), "LeResourceHandle must be 64bit of size" );
 	return reinterpret_cast<LeResourceHandle>( resourceId );
 }
 
+// ----------------------------------------------------------------------
+static LeResourceHandle backend_declare_resource_virtual_buffer( le_backend_o *self, uint8_t index ) {
+	LeResourceHandle resource{}; // virtual resources all have the same id, 0, which means they are not part of the regular roster of resources...
+
+	{
+		auto &r = reinterpret_cast<LeResourceHandleMeta &>( resource );
+
+		r.index = index;
+		r.type  = LeResourceHandleMeta::Type::eBuffer;
+		r.flags = LeResourceHandleMeta::FlagBits::eIsVirtual;
+	}
+
+	static_assert( sizeof( LeResourceHandleMeta ) == sizeof( LeResourceHandle ), "LeResourceHandle and LeResourceHandleMeta must be of equal size" );
+	return resource;
+}
+
+// ----------------------------------------------------------------------
 static LeResourceHandle backend_get_backbuffer_resource( le_backend_o *self ) {
 	return self->backBufferImageHandle;
 }
@@ -2589,25 +2636,25 @@ static void frame_create_resource_table( BackendFrameData &frame, le_renderpass_
 
 // ----------------------------------------------------------------------
 
-static inline vk::Buffer frame_data_get_transient_memory_buffer_from_encoder_index( const BackendFrameData *frame, uint64_t encoderIdx ) {
-	// encoder will have stored allocator buffer index in reourceId field.
-	return frame->allocatorBuffers[ encoderIdx ];
-}
-
-static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData *frame, LeResourceHandle resourceId ) {
+/// \brief fetch vk::Buffer from encoder index if transient, otherwise, fetch from frame available resources.
+static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData *frame, const LeResourceHandle &resourceId ) {
 	// acquire resources will have placed the resource into availableResources
-	return frame->availableResources.at( resourceId ).asBuffer;
+	auto &resourceMeta = reinterpret_cast<LeResourceHandleMeta const &>( resourceId );
+
+	assert( resourceMeta.type == LeResourceHandleMeta::eBuffer ); // resource type must be buffer
+
+	if ( resourceMeta.flags & LeResourceHandleMeta::FlagBits::eIsVirtual ) {
+		return frame->allocatorBuffers[ resourceMeta.index ];
+	} else {
+		return frame->availableResources.at( resourceId ).asBuffer;
+	}
 }
 
-static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendFrameData *frame, LeResourceHandle resourceId ) {
+// ----------------------------------------------------------------------
+static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendFrameData *frame, const LeResourceHandle &resourceId ) {
 	// acquire resources will have placed the resource into availableResources
 	return frame->availableResources.at( resourceId ).asImage;
 }
-
-//static inline vk::Image frame_data_get_image_from_resource_id( const BackendFrameData *frame, uint64_t resourceId ) {
-//	assert( frame->physicalResources.at( resourceId ).type == AbstractPhysicalResource::eImage );
-//	return frame->physicalResources.at( resourceId ).asImage;
-//}
 
 // ----------------------------------------------------------------------
 // input: Pass
@@ -3079,7 +3126,9 @@ static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, si
 	//
 	// NOTE: We compare by '<', since numAllocators may be smaller if number
 	// of renderpasses was reduced for some reason.
-	for ( uint64_t i = frame.allocators.size(); i < numAllocators; ++i ) {
+	for ( size_t i = frame.allocators.size(); i < numAllocators; ++i ) {
+
+		assert( numAllocators < 256 ); // must not have more than 255 allocators, otherwise we cannot store index in LeResourceHandleMeta.
 
 		VkBuffer          buffer = nullptr;
 		VmaAllocation     allocation;
@@ -3090,7 +3139,9 @@ static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, si
 			createInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 			createInfo.pool  = frame.allocationPool; // Since we're allocating from a pool all fields but .flags will be taken from the pool
 
-			memcpy( &createInfo.pUserData, &i, sizeof( i ) ); // store value of i in userData
+			LeResourceHandle res = backend_declare_resource_virtual_buffer( self, uint8_t( i ) );
+
+			memcpy( &createInfo.pUserData, &res, sizeof( void * ) ); // store value of i in userData
 		}
 
 		VkBufferCreateInfo bufferCreateInfo;
@@ -3405,7 +3456,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					auto &bindingData = argumentState.setData[ setIndex ][ binding ];
 
-					bindingData.buffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, reinterpret_cast<uint64_t>( le_cmd->info.buffer_id ) ); // Fixme: HANDLE: use method which can distinguish transient from frame available resources.
+					bindingData.buffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.buffer_id );
 					bindingData.range  = le_cmd->info.range;
 
 					// if binding is in fact a dynamic binding, set the corresponding dynamic offset
@@ -3466,9 +3517,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				case le::CommandType::eBindIndexBuffer: {
 					auto *le_cmd = static_cast<le::CommandBindIndexBuffer *>( dataIt );
-					// TODO: we must make sure that bindings can actually come from general pool of available buffers
-					// and not just from transient memory. Perhaps we should have a flag telling us from where to choose.
-					auto buffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, reinterpret_cast<uint64_t>( le_cmd->info.buffer ) ); // FIXME: ( HANDLE) use method which can distinguish between transient and frame local resources
+					auto  buffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.buffer );
 					cmd.bindIndexBuffer( buffer, le_cmd->info.offset, vk::IndexType( le_cmd->info.indexType ) );
 				} break;
 
@@ -3478,15 +3527,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					uint32_t firstBinding = le_cmd->info.firstBinding;
 					uint32_t numBuffers   = le_cmd->info.bindingCount;
 
-					// TODO: we must make sure that bindings can actually come from general pool of available buffers
-					// and not just from transient memory. Perhaps we should have a flag telling us from where to choose.
-
 					// translate le_buffers to vk_buffers
 					for ( uint32_t b = 0; b != numBuffers; ++b ) {
-
-						// fetch vk::Buffer from encoder index if transient, otherwise, fetch from frame available resources.
-
-						vertexInputBindings[ b + firstBinding ] = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, le_cmd->info.pBuffers[ b ] );
+						vertexInputBindings[ b + firstBinding ] = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.pBuffers[ b ] );
 					}
 
 					cmd.bindVertexBuffers( le_cmd->info.firstBinding, le_cmd->info.bindingCount, &vertexInputBindings[ firstBinding ], le_cmd->info.pOffsets );
@@ -3500,7 +3543,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					vk::BufferCopy region( le_cmd->info.src_offset, le_cmd->info.dst_offset, le_cmd->info.numBytes );
 
-					auto srcBuffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, reinterpret_cast<uint64_t>( le_cmd->info.src_buffer_id ) ); // FIXME: (HANDLE) use method which can distinguish between transient and frame local resources.
+					auto srcBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.src_buffer_id );
 					auto dstBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.dst_buffer_id );
 
 					cmd.copyBuffer( srcBuffer, dstBuffer, 1, &region );
@@ -3543,7 +3586,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					    .setImageOffset( {0, 0, 0} )
 					    .setImageExtent( imageExtent );
 
-					auto srcBuffer = frame_data_get_transient_memory_buffer_from_encoder_index( &frame, reinterpret_cast<uint64_t>( le_cmd->info.src_buffer_id ) ); // FIXME: (HANDLE) use method which can distinguish between transient and frame local resources.
+					auto srcBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.src_buffer_id );
 					auto dstImage  = frame_data_get_image_from_le_resource_id( &frame, le_cmd->info.dst_image_id );
 
 					::vk::BufferMemoryBarrier bufferTransferBarrier;
