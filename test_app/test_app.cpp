@@ -61,10 +61,13 @@ struct test_app_o {
 
 	NanoTime update_start_time;
 
-	LeResourceHandle resImgPrepass;
-	LeResourceHandle resTexPrepass;
-	LeResourceHandle resImgHorse;
-	LeResourceHandle resTexHorse;
+	// Note we use the c++ facade for resource handles as this guarantees that resource
+	// handles are initialised to nullptr, otherwise this is too easy to forget...
+	le::ResourceHandle resImgPrepass     = nullptr;
+	le::ResourceHandle resTexPrepass     = nullptr;
+	le::ResourceHandle resImgHorse       = nullptr;
+	le::ResourceHandle resTexHorse       = nullptr;
+	le::ResourceHandle resBufTrianglePos = nullptr;
 
 	// NOTE: RUNTIME-COMPILE : If you add any new things during run-time, make sure to only add at the end of the object,
 	// otherwise all pointers above will be invalidated. this might also overwrite memory which
@@ -395,6 +398,12 @@ static test_app_o *test_app_create() {
 
 		loader_i.load_from_text( loader.get(), "resources/gltf/Box.gltf" );
 	}
+
+	app->resImgPrepass     = app->renderer->declareResource();
+	app->resTexPrepass     = app->renderer->declareResource();
+	app->resImgHorse       = app->renderer->declareResource();
+	app->resTexHorse       = app->renderer->declareResource();
+	app->resBufTrianglePos = app->renderer->declareResource();
 
 	return app;
 }
