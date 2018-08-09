@@ -332,6 +332,55 @@ struct le_renderer_api {
 
 namespace le {
 
+class ResourceHandle {
+
+  public:
+	constexpr ResourceHandle()
+	    : m_resource( nullptr ) {
+	}
+
+	constexpr ResourceHandle( decltype( nullptr ) )
+	    : m_resource( nullptr ) {
+	}
+
+	ResourceHandle( LeResourceHandle buffer )
+	    : m_resource( buffer ) {
+	}
+
+	ResourceHandle &operator=( decltype( nullptr ) ) {
+		m_resource = nullptr;
+		return *this;
+	}
+
+	bool operator==( ResourceHandle const &rhs ) const {
+		return m_resource == rhs.m_resource;
+	}
+
+	bool operator!=( ResourceHandle const &rhs ) const {
+		return m_resource != rhs.m_resource;
+	}
+
+	bool operator<( ResourceHandle const &rhs ) const {
+		return m_resource < rhs.m_resource;
+	}
+
+	operator LeResourceHandle() const {
+		return m_resource;
+	}
+
+	explicit operator bool() const {
+		return m_resource != nullptr;
+	}
+
+	bool operator!() const {
+		return m_resource == nullptr;
+	}
+
+  private:
+	LeResourceHandle m_resource;
+};
+static_assert( sizeof( ResourceHandle ) == sizeof( LeResourceHandle ), "handle and wrapper have different size!" );
+
 using AccessFlagBits = le_renderer_api::AccessFlagBits;
 
 class Renderer {
@@ -365,11 +414,11 @@ class Renderer {
 		return rendererI.create_shader_module( self, path, moduleType );
 	}
 
-	LeResourceHandle declareResource() {
+	ResourceHandle declareResource() {
 		return rendererI.declare_resource( self );
 	}
 
-	LeResourceHandle getBackbufferResource() {
+	ResourceHandle getBackbufferResource() {
 		return rendererI.get_backbuffer_resource( self );
 	}
 
