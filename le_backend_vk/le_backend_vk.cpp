@@ -330,10 +330,10 @@ struct BackendFrameData {
 	std::unordered_map<LeResourceHandle, AllocatedResource> availableResources; // resources this frame may use
 	std::unordered_map<LeResourceHandle, AllocatedResource> binnedResources;    // resources to delete when this frame comes round to clear()
 
-	VmaPool                        allocationPool;   // pool from which allocations come from
-	std::vector<le_allocator_o *>  allocators;       // one allocator per command buffer
+	VmaPool                        allocationPool;   // pool from which allocations for this frame come from
+	std::vector<le_allocator_o *>  allocators;       // one linear sub-allocator per command buffer
+	std::vector<vk::Buffer>        allocatorBuffers; // one vkBuffer per command buffer
 	std::vector<VmaAllocation>     allocations;      // one allocation per command buffer
-	std::vector<vk::Buffer>        allocatorBuffers; // one buffer per allocator
 	std::vector<VmaAllocationInfo> allocationInfos;  // one allocation info per command buffer
 };
 
@@ -2823,7 +2823,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		renderpass_i.get_create_resources( *rp, &pCreateResourceIds, &pResourceInfos, &numCreateResources );
 		for ( size_t i = 0; i != numCreateResources; ++i ) {
 
-			le_resource_info_t const &createInfo = pResourceInfos[ i ];     // Resource descriptor
+			le_resource_info_t const &createInfo = pResourceInfos[ i ];     // Resource descriptor (from renderpass)
 			LeResourceHandle const &  resourceId = pCreateResourceIds[ i ]; // Hash of resource name
 
 			ResourceInfo rd{};
@@ -3084,16 +3084,12 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 	// Note that at this point memory for scratch buffers for each pass in this frame has already been allocated,
 	// as this happens shortly before executeGraph.
 
-	// TODO: Allocate any persistent created resources
-	// TODO: Allocate any frame-local resources (such as rendertargets)
-
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
-
-	vk::Device device = self->device->getVkDevice();
 
 	frame_create_resource_table( frame, passes, numRenderPasses );
 	frame_track_resource_state( frame, passes, numRenderPasses, self->swapchainImageFormat, self->backBufferImageHandle );
 
+	vk::Device device = self->device->getVkDevice();
 	// -- allocate any transient vk objects such as image samplers, and image views
 	frame_allocate_per_pass_resources( frame, device, passes, numRenderPasses );
 
