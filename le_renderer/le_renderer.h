@@ -88,7 +88,11 @@ struct le_allocator_o;
 
 struct le_shader_module_o; ///< shader module, 1:1 relationship with a shader source file
 
+/// \note This struct assumes a little endian machine for sorting
 struct le_vertex_input_attribute_description {
+
+	// FIXME: bitfield layout is implementation-defined, we must not assume that
+	// this struct is laid out in such a way as we expect.
 
 	// Note that we store the log2 of the number of Bytes needed to store values of a type in the LS nibble,
 	// so that we can say: numBytes =  1 << (type & 0x0F);

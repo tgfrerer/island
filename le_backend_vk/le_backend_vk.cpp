@@ -65,30 +65,28 @@ struct le_shader_binding_info {
 
 	uint64_t name_hash; // const_char_hash of parameter name as given in shader
 
-	bool operator < (le_shader_binding_info const & lhs){
+	bool operator < ( le_shader_binding_info const & lhs ){
 		return data < lhs.data;
 	}
 };
+// clang-format on
 
 struct le_descriptor_set_layout_t {
-	std::vector<le_shader_binding_info> binding_info; // binding info for this set
-	vk::DescriptorSetLayout vk_descriptor_set_layout; // vk object
-	vk::DescriptorUpdateTemplate vk_descriptor_update_template; // template used to update such a descriptorset based on descriptor data laid out in flat DescriptorData elements
+	std::vector<le_shader_binding_info> binding_info;                  // binding info for this set
+	vk::DescriptorSetLayout             vk_descriptor_set_layout;      // vk object
+	vk::DescriptorUpdateTemplate        vk_descriptor_update_template; // template used to update such a descriptorset based on descriptor data laid out in flat DescriptorData elements
 };
 
 struct le_pipeline_layout_info {
-	uint64_t pipeline_layout_key = 0; // handle to pipeline layout
+	uint64_t pipeline_layout_key  = 0;  // handle to pipeline layout
 	uint64_t set_layout_keys[ 8 ] = {}; // maximum number of DescriptorSets is 8
 	uint64_t set_layout_count     = 0;  // number of actually used DescriptorSetLayouts for this layout
 };
 
-struct le_pipeline_and_layout_info_t{
+struct le_pipeline_and_layout_info_t {
 	vk::Pipeline            pipeline;
 	le_pipeline_layout_info layout_info;
-
 };
-
-// clang-format on
 
 // Everything a possible vulkan descriptor binding might contain.
 // Type of descriptor decides which values will be used.
