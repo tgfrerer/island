@@ -137,12 +137,13 @@ struct le_graphics_pipeline_state_o; // object containing pipeline state
 
 struct LeTextureInfo {
 	struct SamplerInfo {
-		uint32_t minFilter;
-		uint32_t magFilter;
+		int minFilter; // enum VkFilter
+		int magFilter; // enum VkFilter
+		               // TODO: add clamp clamp modes etc.
 	};
 	struct ImageViewInfo {
 		LeResourceHandle imageId; // le image resource id
-		uint32_t         format;  // vkFormat
+		int              format;  // enum VkFormat, leave at 0 (undefined) to use format of image referenced by `imageId`
 	};
 	SamplerInfo   sampler;
 	ImageViewInfo imageView;
