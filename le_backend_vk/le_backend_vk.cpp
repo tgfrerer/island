@@ -2655,6 +2655,20 @@ static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendF
 	// acquire resources will have placed the resource into availableResources
 	return frame.availableResources.at( resourceId ).asImage;
 }
+
+// ----------------------------------------------------------------------
+static inline VkFormat frame_data_get_image_format_from_resource_id( BackendFrameData const &frame, const LeResourceHandle &resourceId ) {
+	return frame.availableResources.at( resourceId ).info.imageInfo.format;
+}
+
+// ----------------------------------------------------------------------
+// if specific format for texture was not specified, return format of referenced image
+static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFrameData const &frame, LeTextureInfo const &texInfo ) {
+	if ( texInfo.imageView.format == 0 ) {
+		return ( frame_data_get_image_format_from_resource_id( frame, texInfo.imageView.imageId ) );
+	} else {
+		return VkFormat( texInfo.imageView.format );
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -2996,12 +3010,13 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 				    .setLayerCount( 1 );
 
 				// TODO: fill in additional image view create info based on info from pass...
+
 				vk::ImageViewCreateInfo imageViewCreateInfo{};
 				imageViewCreateInfo
 				    .setFlags( {} )
 				    .setImage( frame_data_get_image_from_le_resource_id( frame, texInfo.imageView.imageId ) )
 				    .setViewType( vk::ImageViewType::e2D )
-				    .setFormat( vk::Format( texInfo.imageView.format ) )
+				    .setFormat( vk::Format( frame_data_get_image_format_from_texture_info( frame, texInfo ) ) )
 				    .setComponents( {} ) // default component mapping
 				    .setSubresourceRange( subresourceRange );
 
