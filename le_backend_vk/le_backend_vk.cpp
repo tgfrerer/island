@@ -2637,23 +2637,24 @@ static void frame_create_resource_table( BackendFrameData &frame, le_renderpass_
 // ----------------------------------------------------------------------
 
 /// \brief fetch vk::Buffer from encoder index if transient, otherwise, fetch from frame available resources.
-static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData *frame, const LeResourceHandle &resourceId ) {
+static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData &frame, const LeResourceHandle &resourceId ) {
 	// acquire resources will have placed the resource into availableResources
 	auto &resourceMeta = reinterpret_cast<LeResourceHandleMeta const &>( resourceId );
 
 	assert( resourceMeta.type == LeResourceHandleMeta::eBuffer ); // resource type must be buffer
 
 	if ( resourceMeta.flags & LeResourceHandleMeta::FlagBits::eIsVirtual ) {
-		return frame->allocatorBuffers[ resourceMeta.index ];
+		return frame.allocatorBuffers[ resourceMeta.index ];
 	} else {
-		return frame->availableResources.at( resourceId ).asBuffer;
+		return frame.availableResources.at( resourceId ).asBuffer;
 	}
 }
 
 // ----------------------------------------------------------------------
-static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendFrameData *frame, const LeResourceHandle &resourceId ) {
+static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendFrameData &frame, const LeResourceHandle &resourceId ) {
 	// acquire resources will have placed the resource into availableResources
-	return frame->availableResources.at( resourceId ).asImage;
+	return frame.availableResources.at( resourceId ).asImage;
+}
 }
 
 // ----------------------------------------------------------------------
@@ -2683,7 +2684,7 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 
 			::vk::ImageViewCreateInfo imageViewCreateInfo;
 			imageViewCreateInfo
-			    .setImage( frame_data_get_image_from_le_resource_id( &frame, attachment->resource_id ) )
+			    .setImage( frame_data_get_image_from_le_resource_id( frame, attachment->resource_id ) )
 			    .setViewType( vk::ImageViewType::e2D )
 			    .setFormat( attachment->format )
 			    .setComponents( {} ) // default-constructor '{}' means identity
@@ -2998,7 +2999,7 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 				vk::ImageViewCreateInfo imageViewCreateInfo{};
 				imageViewCreateInfo
 				    .setFlags( {} )
-				    .setImage( frame_data_get_image_from_le_resource_id( &frame, texInfo.imageView.imageId ) )
+				    .setImage( frame_data_get_image_from_le_resource_id( frame, texInfo.imageView.imageId ) )
 				    .setViewType( vk::ImageViewType::e2D )
 				    .setFormat( vk::Format( texInfo.imageView.format ) )
 				    .setComponents( {} ) // default component mapping
@@ -3456,7 +3457,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					auto &bindingData = argumentState.setData[ setIndex ][ binding ];
 
-					bindingData.buffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.buffer_id );
+					bindingData.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
 					bindingData.range  = le_cmd->info.range;
 
 					// if binding is in fact a dynamic binding, set the corresponding dynamic offset
@@ -3517,7 +3518,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				case le::CommandType::eBindIndexBuffer: {
 					auto *le_cmd = static_cast<le::CommandBindIndexBuffer *>( dataIt );
-					auto  buffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.buffer );
+					auto  buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer );
 					cmd.bindIndexBuffer( buffer, le_cmd->info.offset, vk::IndexType( le_cmd->info.indexType ) );
 				} break;
 
@@ -3529,7 +3530,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					// translate le_buffers to vk_buffers
 					for ( uint32_t b = 0; b != numBuffers; ++b ) {
-						vertexInputBindings[ b + firstBinding ] = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.pBuffers[ b ] );
+						vertexInputBindings[ b + firstBinding ] = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.pBuffers[ b ] );
 					}
 
 					cmd.bindVertexBuffers( le_cmd->info.firstBinding, le_cmd->info.bindingCount, &vertexInputBindings[ firstBinding ], le_cmd->info.pOffsets );
@@ -3543,8 +3544,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					vk::BufferCopy region( le_cmd->info.src_offset, le_cmd->info.dst_offset, le_cmd->info.numBytes );
 
-					auto srcBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.src_buffer_id );
-					auto dstBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.dst_buffer_id );
+					auto srcBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.src_buffer_id );
+					auto dstBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.dst_buffer_id );
 
 					cmd.copyBuffer( srcBuffer, dstBuffer, 1, &region );
 
@@ -3586,8 +3587,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					    .setImageOffset( {0, 0, 0} )
 					    .setImageExtent( imageExtent );
 
-					auto srcBuffer = frame_data_get_buffer_from_le_resource_id( &frame, le_cmd->info.src_buffer_id );
-					auto dstImage  = frame_data_get_image_from_le_resource_id( &frame, le_cmd->info.dst_image_id );
+					auto srcBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.src_buffer_id );
+					auto dstImage  = frame_data_get_image_from_le_resource_id( frame, le_cmd->info.dst_image_id );
 
 					::vk::BufferMemoryBarrier bufferTransferBarrier;
 					bufferTransferBarrier
