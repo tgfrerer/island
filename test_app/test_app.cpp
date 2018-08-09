@@ -564,7 +564,6 @@ static bool test_app_update( test_app_o *self ) {
 			auto app = static_cast<test_app_o *>( user_data_ );
 
 			LeImageAttachmentInfo colorAttachmentInfo{};
-			colorAttachmentInfo.format           = VK_FORMAT_R8G8B8A8_UNORM;
 			colorAttachmentInfo.access_flags     = le::AccessFlagBits::eWrite;
 			colorAttachmentInfo.loadOp           = LE_ATTACHMENT_LOAD_OP_CLEAR;
 			colorAttachmentInfo.storeOp          = LE_ATTACHMENT_STORE_OP_STORE;
@@ -574,13 +573,10 @@ static bool test_app_update( test_app_o *self ) {
 
 			rp.useResource( app->resImgHorse, le::AccessFlagBits::eRead );
 			{
-				LeTextureInfo textureInfo;
+				LeTextureInfo textureInfo{};
 				textureInfo.imageView.imageId = app->resImgHorse;
-
-				textureInfo.imageView.format  = VK_FORMAT_R8G8B8A8_UNORM;
 				textureInfo.sampler.magFilter = VK_FILTER_NEAREST;
 				textureInfo.sampler.minFilter = VK_FILTER_NEAREST;
-
 				rp.sampleTexture( app->resTexHorse, textureInfo );
 			}
 
@@ -632,7 +628,6 @@ static bool test_app_update( test_app_o *self ) {
 			// this is important for example, when using a depth buffer for shadow sampling later.
 
 			LeImageAttachmentInfo colorAttachmentInfo{};
-			colorAttachmentInfo.format           = {}; // empty format means use swapchain image format
 			colorAttachmentInfo.access_flags     = le::AccessFlagBits::eWrite;
 			colorAttachmentInfo.loadOp           = LE_ATTACHMENT_LOAD_OP_CLEAR;
 			colorAttachmentInfo.storeOp          = LE_ATTACHMENT_STORE_OP_STORE;
@@ -648,9 +643,8 @@ static bool test_app_update( test_app_o *self ) {
 			// this will implicitly use the resource for reading
 
 			{
-				LeTextureInfo textureInfo;
+				LeTextureInfo textureInfo{};
 				textureInfo.imageView.imageId = app->resImgPrepass;
-				textureInfo.imageView.format  = VK_FORMAT_R8G8B8A8_UNORM;
 				textureInfo.sampler.magFilter = VK_FILTER_NEAREST;
 				textureInfo.sampler.minFilter = VK_FILTER_NEAREST;
 
@@ -658,9 +652,8 @@ static bool test_app_update( test_app_o *self ) {
 			}
 			{
 				// register that we want to use the imgui texture in this renderpass
-				LeTextureInfo textureInfo;
+				LeTextureInfo textureInfo{};
 				textureInfo.imageView.imageId = app->imguiTexture.le_image_handle;
-				textureInfo.imageView.format  = VK_FORMAT_R8G8B8A8_UNORM;
 				textureInfo.sampler.magFilter = VK_FILTER_LINEAR;
 				textureInfo.sampler.minFilter = VK_FILTER_LINEAR;
 
@@ -725,7 +718,6 @@ static bool test_app_update( test_app_o *self ) {
 
 			// Bind full screen quad pipeline
 			if ( true ) {
-				le_encoder.set_vertex_data( encoder, triangleData, sizeof( glm::vec3 ) * 3, 0 );
 
 				le_encoder.bind_graphics_pipeline( encoder, app->psoFullScreenQuad );
 				le_encoder.set_argument_texture( encoder, app->resTexPrepass, const_char_hash64( "src_tex_unit_0" ), 0 );

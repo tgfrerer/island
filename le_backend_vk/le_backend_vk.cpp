@@ -2091,8 +2091,14 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 			auto &syncChain = syncChainTable[ imageAttachment->resource_id ];
 
-			auto const &attachmentFormat = reinterpret_cast<const vk::Format &>( imageAttachment->format );
-			bool        isDepthStencil   = is_depth_stencil_format( attachmentFormat );
+			vk::Format attachmentFormat = vk::Format( imageAttachment->format );
+
+			if ( attachmentFormat == vk::Format::eUndefined ) {
+				// If an attachment does not explicitly specify a format, use the format of the associated image resource instead.
+				attachmentFormat = vk::Format( frame.availableResources[ imageAttachment->resource_id ].info.imageInfo.format );
+			}
+
+			bool isDepthStencil = is_depth_stencil_format( attachmentFormat );
 
 			AttachmentInfo *currentAttachment = ( currentPass.attachments + ( currentPass.numColorAttachments + currentPass.numDepthStencilAttachments ) );
 
@@ -2103,16 +2109,10 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 			}
 
 			currentAttachment->resource_id = imageAttachment->resource_id;
-			if ( imageAttachment->format == VK_FORMAT_UNDEFINED ) {
-				// If an attachment has not had a format defined, this means we should
-				// use the format used for the swapchain for this image attachment.
-				currentAttachment->format = swapchainImageFormat;
-			} else {
-				currentAttachment->format = attachmentFormat;
-			}
-			currentAttachment->loadOp     = vk::AttachmentLoadOp( le_to_vk( imageAttachment->loadOp ) );
-			currentAttachment->storeOp    = vk::AttachmentStoreOp( le_to_vk( imageAttachment->storeOp ) );
-			currentAttachment->clearValue = le_to_vk( imageAttachment->clearValue );
+			currentAttachment->format      = attachmentFormat;
+			currentAttachment->loadOp      = vk::AttachmentLoadOp( le_to_vk( imageAttachment->loadOp ) );
+			currentAttachment->storeOp     = vk::AttachmentStoreOp( le_to_vk( imageAttachment->storeOp ) );
+			currentAttachment->clearValue  = le_to_vk( imageAttachment->clearValue );
 
 			{
 				// track resource state before entering a subpass
@@ -3094,6 +3094,7 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 		auto &backbufferInfo  = frame.availableResources[ self->backBufferImageHandle ].info.imageInfo;
 		backbufferInfo        = vk::ImageCreateInfo{};
 		backbufferInfo.extent = vk::Extent3D( self->swapchain->getImageWidth(), self->swapchain->getImageHeight(), 1 );
+		backbufferInfo.format = VkFormat( self->swapchainImageFormat );
 	}
 
 	// Note that at this point memory for scratch buffers for each pass in this frame has already been allocated,
