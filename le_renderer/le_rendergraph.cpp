@@ -646,11 +646,10 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_render_module_i.add_renderpass = render_module_add_renderpass;
 	le_render_module_i.setup_passes   = render_module_setup_passes;
 
-	auto &le_graph_builder_i   = le_renderer_api_i->le_graph_builder_i;
-	le_graph_builder_i.create  = graph_builder_create;
-	le_graph_builder_i.destroy = graph_builder_destroy;
-	le_graph_builder_i.reset   = graph_builder_reset;
-
+	auto &le_graph_builder_i         = le_renderer_api_i->le_graph_builder_i;
+	le_graph_builder_i.create        = graph_builder_create;
+	le_graph_builder_i.destroy       = graph_builder_destroy;
+	le_graph_builder_i.reset         = graph_builder_reset;
 	le_graph_builder_i.build_graph   = graph_builder_build_graph;
 	le_graph_builder_i.execute_graph = graph_builder_execute_graph;
 	le_graph_builder_i.get_passes    = graph_builder_get_passes;
@@ -659,33 +658,32 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_renderpass_i.create                = renderpass_create;
 	le_renderpass_i.clone                 = renderpass_clone;
 	le_renderpass_i.destroy               = renderpass_destroy;
-	le_renderpass_i.add_image_attachment  = renderpass_add_image_attachment;
+	le_renderpass_i.get_id                = renderpass_get_id;
+	le_renderpass_i.get_debug_name        = renderpass_get_debug_name;
+	le_renderpass_i.get_type              = renderpass_get_type;
 	le_renderpass_i.get_width             = renderpass_get_width;
-	le_renderpass_i.get_height            = renderpass_get_height;
 	le_renderpass_i.set_width             = renderpass_set_width;
+	le_renderpass_i.get_height            = renderpass_get_height;
 	le_renderpass_i.set_height            = renderpass_set_height;
 	le_renderpass_i.set_setup_callback    = renderpass_set_setup_fun;
 	le_renderpass_i.has_setup_callback    = renderpass_has_setup_callback;
 	le_renderpass_i.run_setup_callback    = renderpass_run_setup_callback;
 	le_renderpass_i.set_execute_callback  = renderpass_set_execute_callback;
-	le_renderpass_i.run_execute_callback  = renderpass_run_execute_callback;
 	le_renderpass_i.has_execute_callback  = renderpass_has_execute_callback;
-	le_renderpass_i.use_resource          = renderpass_use_resource;
+	le_renderpass_i.run_execute_callback  = renderpass_run_execute_callback;
 	le_renderpass_i.set_is_root           = renderpass_set_is_root;
 	le_renderpass_i.get_is_root           = renderpass_get_is_root;
 	le_renderpass_i.get_sort_key          = renderpass_get_sort_key;
 	le_renderpass_i.set_sort_key          = renderpass_set_sort_key;
+	le_renderpass_i.add_image_attachment  = renderpass_add_image_attachment;
+	le_renderpass_i.get_image_attachments = renderpass_get_image_attachments;
+	le_renderpass_i.create_resource       = renderpass_create_resource;
+	le_renderpass_i.use_resource          = renderpass_use_resource;
 	le_renderpass_i.get_read_resources    = renderpass_get_read_resources;
 	le_renderpass_i.get_write_resources   = renderpass_get_write_resources;
 	le_renderpass_i.get_create_resources  = renderpass_get_create_resources;
-	le_renderpass_i.get_id                = renderpass_get_id;
-	le_renderpass_i.get_debug_name        = renderpass_get_debug_name;
-	le_renderpass_i.get_image_attachments = renderpass_get_image_attachments;
-	le_renderpass_i.get_type              = renderpass_get_type;
 	le_renderpass_i.steal_encoder         = renderpass_steal_encoder;
-	le_renderpass_i.create_resource       = renderpass_create_resource;
-
-	le_renderpass_i.sample_texture    = renderpass_sample_texture;
-	le_renderpass_i.get_texture_ids   = renderpass_get_texture_ids;
-	le_renderpass_i.get_texture_infos = renderpass_get_texture_infos;
+	le_renderpass_i.sample_texture        = renderpass_sample_texture;
+	le_renderpass_i.get_texture_ids       = renderpass_get_texture_ids;
+	le_renderpass_i.get_texture_infos     = renderpass_get_texture_infos;
 }

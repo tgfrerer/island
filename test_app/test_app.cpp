@@ -591,11 +591,6 @@ static bool test_app_update( test_app_o *self ) {
 			uint32_t           screenWidth  = 640;
 			uint32_t           screenHeight = 480;
 
-			glm::vec3 triangleData[ 3 ] = {
-			    {-50, -50, 0},
-			    {50, -50, 0},
-			    {0, 50, 0},
-			};
 			le::Viewport viewports[ 1 ] = {
 			    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
 
@@ -607,7 +602,6 @@ static bool test_app_update( test_app_o *self ) {
 
 			// Bind full screen quad pipeline
 			if ( true ) {
-				le_encoder.set_vertex_data( encoder, triangleData, sizeof( glm::vec3 ) * 3, 0 );
 
 				le_encoder.bind_graphics_pipeline( encoder, app->psoFullScreenQuad );
 				le_encoder.set_argument_texture( encoder, app->resTexHorse, const_char_hash64( "src_tex_unit_0" ), 0 );
