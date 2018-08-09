@@ -2390,7 +2390,13 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 		for ( AttachmentInfo const *attachment = pass.attachments; attachment != pass.attachments + ( pass.numColorAttachments + pass.numDepthStencilAttachments ); attachment++ ) {
 
-			assert( attachment->resource_id != 0 ); // resource id must not be zero.
+#ifndef NDEBUG
+			if ( attachment->resource_id == nullptr ) {
+				std::cerr << "[ FATAL ] Use of undeclared resource handle. Did you forget to declare this resource handle with the renderer?" << std::endl
+				          << std::flush;
+			}
+			assert( attachment->resource_id != nullptr ); // resource id must not be zero: did you forget to declare this resource with the renderer via renderer->declareResource?
+#endif
 
 			auto &syncChain = syncChainTable.at( attachment->resource_id );
 
