@@ -410,9 +410,9 @@ struct ClearTask : public enki::ITaskSet {
 // ----------------------------------------------------------------------
 
 // returns a unique resource handle for a resource
-static LeResourceHandle renderer_declare_resource( le_renderer_o *self ) {
+static LeResourceHandle renderer_declare_resource( le_renderer_o *self, LeResourceType type ) {
 	static const auto &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
-	return backend_i.declare_resource( self->backend );
+	return backend_i.declare_resource( self->backend, type );
 }
 
 // ----------------------------------------------------------------------

@@ -342,8 +342,8 @@ static test_app_o *test_app_create() {
 		io.Fonts->AddFontFromFileTTF( "./resources/fonts/IBMPlexSans-Regular.otf", 20.0f, nullptr, io.Fonts->GetGlyphRangesDefault() );
 		io.Fonts->GetTexDataAsRGBA32( &app->imguiTexture.pixels, &app->imguiTexture.width, &app->imguiTexture.height );
 
-		app->imguiTexture.le_image_handle   = app->renderer->declareResource();
-		app->imguiTexture.le_texture_handle = app->renderer->declareResource();
+		app->imguiTexture.le_image_handle   = app->renderer->declareResource( LeResourceType::eImage );
+		app->imguiTexture.le_texture_handle = app->renderer->declareResource( LeResourceType::eTexture );
 
 		io.DisplaySize  = {float( app->window->getSurfaceWidth() ),
 		                  float( app->window->getSurfaceHeight() )};
@@ -399,11 +399,11 @@ static test_app_o *test_app_create() {
 		loader_i.load_from_text( loader.get(), "resources/gltf/Box.gltf" );
 	}
 
-	app->resImgPrepass     = app->renderer->declareResource();
-	app->resTexPrepass     = app->renderer->declareResource();
-	app->resImgHorse       = app->renderer->declareResource();
-	app->resTexHorse       = app->renderer->declareResource();
-	app->resBufTrianglePos = app->renderer->declareResource();
+	app->resImgPrepass     = app->renderer->declareResource( LeResourceType::eImage );
+	app->resTexPrepass     = app->renderer->declareResource( LeResourceType::eTexture );
+	app->resImgHorse       = app->renderer->declareResource( LeResourceType::eImage );
+	app->resTexHorse       = app->renderer->declareResource( LeResourceType::eTexture );
+	app->resBufTrianglePos = app->renderer->declareResource( LeResourceType::eBuffer );
 
 	return app;
 }
@@ -478,6 +478,7 @@ static bool test_app_update( test_app_o *self ) {
 			auto rp  = le::RenderPassRef{pRp};
 
 			{
+
 				// create image for the horse image
 				le_resource_info_t imgInfo;
 				imgInfo.type = LeResourceType::eImage;
@@ -499,6 +500,7 @@ static bool test_app_update( test_app_o *self ) {
 			}
 
 			{
+				// create resource for imgui font texture if it does not yet exist.
 				// create image for imgui image
 				le_resource_info_t imgInfo;
 				imgInfo.type = LeResourceType::eImage;
@@ -540,7 +542,14 @@ static bool test_app_update( test_app_o *self ) {
 				rp.createResource( app->resImgPrepass, imgInfo );
 			}
 
-			// create resource for imgui font texture if it does not yet exist.
+			{
+				// create resource for triangle vertex buffer
+				le_resource_info_t bufInfo;
+				bufInfo.type               = LeResourceType::eBuffer;
+				bufInfo.buffer.size        = sizeof( glm::vec3 ) * 3;
+				bufInfo.buffer.usage_flags = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+				rp.createResource( app->resBufTrianglePos, bufInfo );
+			}
 
 			return true;
 		} );
@@ -564,6 +573,17 @@ static bool test_app_update( test_app_o *self ) {
 				LeBufferWriteRegion region   = {uint32_t( app->imguiTexture.width ), uint32_t( app->imguiTexture.height )};
 				le_encoder.write_to_image( encoder, app->imguiTexture.le_image_handle, region, app->imguiTexture.pixels, numBytes );
 				app->imguiTexture.wasUploaded = true;
+			}
+
+			{
+				// upload triangle data
+				glm::vec3 trianglePositions[ 3 ] = {
+				    {-50, -50, 0},
+				    {50, -50, 0},
+				    {0, 50, 0},
+				};
+
+				le_encoder.write_to_buffer( encoder, app->resBufTrianglePos, 0, trianglePositions, sizeof( trianglePositions ) );
 			}
 		} );
 
@@ -685,12 +705,6 @@ static bool test_app_update( test_app_o *self ) {
 			    {10, 10, 160 * 3 + 10, 106 * 3 + 10},
 			};
 
-			glm::vec3 triangleData[ 3 ] = {
-			    {-50, -50, 0},
-			    {50, -50, 0},
-			    {0, 50, 0},
-			};
-
 			glm::vec4 triangleColors[ 3 ] = {
 			    {1, 0, 0, 1.f},
 			    {0, 1, 0, 1.f},
@@ -750,7 +764,11 @@ static bool test_app_update( test_app_o *self ) {
 				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "MatrixStack" ), &matrixStack, sizeof( MatrixStackUbo_t ) ); // set a descriptor to set, binding, array_index
 				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "Color" ), &ubo1, sizeof( ColorUbo_t ) );                    // set a descriptor to set, binding, array_index
 
-				le_encoder.set_vertex_data( encoder, triangleData, sizeof( glm::vec3 ) * 3, 0 );
+				LeResourceHandle buffers[] = {app->resBufTrianglePos};
+				uint64_t         offsets[] = {0};
+
+				le_encoder.bind_vertex_buffers( encoder, 0, 1, buffers, offsets );
+
 				le_encoder.set_vertex_data( encoder, triangleColors, sizeof( glm::vec4 ) * 3, 1 );
 				le_encoder.set_index_data( encoder, indexData, sizeof( indexData ), 0 ); // 0 for indexType means uint16_t
 				le_encoder.draw_indexed( encoder, 3, 1, 0, 0, 0 );

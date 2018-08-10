@@ -46,10 +46,11 @@ enum class LeShaderType : uint64_t {
 	eAllGraphics = 0x0000001F, // max needed space to cover this enum is 6 bit
 };
 
-enum class LeResourceType : uint32_t {
+enum class LeResourceType : uint8_t {
 	eUndefined = 0,
 	eBuffer,
 	eImage,
+	eTexture,
 };
 
 typedef int LeFormat_t; // we're declaring this as a placeholder for image format enum
@@ -222,7 +223,7 @@ struct le_renderer_api {
 		void                           ( *update                                )( le_renderer_o *obj, le_render_module_o *module );
 		le_graphics_pipeline_state_o * ( *create_graphics_pipeline_state_object )( le_renderer_o *self, le_graphics_pipeline_create_info_t const *pipeline_info );
 		le_shader_module_o*            ( *create_shader_module                  )( le_renderer_o *self, char const *path, LeShaderType mtype );
-		LeResourceHandle               ( *declare_resource                      )( le_renderer_o* self );
+		LeResourceHandle               ( *declare_resource                      )( le_renderer_o* self, LeResourceType type );
 		LeResourceHandle               ( *get_backbuffer_resource               )( le_renderer_o* self );
 	};
 
@@ -414,8 +415,8 @@ class Renderer {
 		return rendererI.create_shader_module( self, path, moduleType );
 	}
 
-	ResourceHandle declareResource() {
-		return rendererI.declare_resource( self );
+	ResourceHandle declareResource( LeResourceType type ) {
+		return rendererI.declare_resource( self, type );
 	}
 
 	ResourceHandle getBackbufferResource() {

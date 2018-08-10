@@ -158,12 +158,6 @@ struct AbstractPhysicalResource {
 /// \brief re-interpretation of resource handle type
 /// \note we assume little-endian machine
 struct LeResourceHandleMeta {
-	enum Type : uint8_t {
-		eUndefined = 0,
-		eBuffer,
-		eImage,
-		eTexture,
-	};
 	enum FlagBits : uint8_t {
 		eIsVirtual = 1u << 0,
 	};
@@ -172,10 +166,10 @@ struct LeResourceHandleMeta {
 		struct {
 			uint32_t id; // unique identifier
 			struct {
-				Type    type;  // tells us type of resource
-				uint8_t flags; // composed of FlagBits
-				uint8_t index; // used for virtual buffers to refer to corresponding le_allocator index
-				uint8_t padding;
+				LeResourceType type;  // tells us type of resource
+				uint8_t        flags; // composed of FlagBits
+				uint8_t        index; // used for virtual buffers to refer to corresponding le_allocator index
+				uint8_t        padding;
 			};
 		};
 		uint64_t data;
@@ -183,7 +177,7 @@ struct LeResourceHandleMeta {
 };
 
 struct AttachmentInfo {
-	LeResourceHandle      resource_id; ///< which resource to look up for resource state
+	LeResourceHandle      resource_id = nullptr; ///< which resource to look up for resource state
 	vk::Format            format;
 	vk::AttachmentLoadOp  loadOp;
 	vk::AttachmentStoreOp storeOp;
@@ -213,7 +207,7 @@ struct ResourceInfo {
 	// since this is an union, the first field will for both be VK_STRUCTURE_TYPE
 	// and its value will tell us what type the descriptor represents.
 	union {
-		VkBufferCreateInfo bufferInfo; //	| only one of either ever in use
+		VkBufferCreateInfo bufferInfo; // | only one of either ever in use
 		VkImageCreateInfo  imageInfo;  // | only one of either ever in use
 	};
 
@@ -1901,12 +1895,15 @@ static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *sel
 // ----------------------------------------------------------------------
 /// \brief create a unique resource handle
 /// \details Resource handles are used as names, but they might have information associated with them
-static LeResourceHandle backend_declare_resource( le_backend_o *self ) {
-	uint64_t resourceId   = self->resource_counter++; // Resource counter is atomic, so resource ids will be unique.
-	uint64_t resourceMeta = 0;                        // TODO: we might want to mix in some information about the resource type here
-	resourceId            = resourceMeta | resourceId;
+static LeResourceHandle backend_declare_resource( le_backend_o *self, LeResourceType type ) {
+	uint32_t             resourceId = self->resource_counter++; // Resource counter is atomic, so resource ids will be unique.
+	LeResourceHandleMeta handle{};
+	handle.id   = resourceId;
+	handle.type = type;
 	static_assert( sizeof( LeResourceHandle ) == sizeof( uint64_t ), "LeResourceHandle must be 64bit of size" );
-	return reinterpret_cast<LeResourceHandle>( resourceId );
+	static_assert( sizeof( LeResourceHandleMeta ) == sizeof( uint64_t ), "LeResourceMeta must be 64bit of size" );
+
+	return reinterpret_cast<LeResourceHandle>( handle.data );
 }
 
 // ----------------------------------------------------------------------
@@ -1917,7 +1914,7 @@ static LeResourceHandle backend_declare_resource_virtual_buffer( le_backend_o *s
 		auto &r = reinterpret_cast<LeResourceHandleMeta &>( resource );
 
 		r.index = index;
-		r.type  = LeResourceHandleMeta::Type::eBuffer;
+		r.type  = LeResourceType::eBuffer;
 		r.flags = LeResourceHandleMeta::FlagBits::eIsVirtual;
 	}
 
@@ -2017,8 +2014,8 @@ static void backend_setup( le_backend_o *self ) {
 
 	self->debugPipelineCache = vkDevice.createPipelineCache( pipelineCacheInfo );
 
-	self->resource_counter      = 1;                                // initialize resource counter to 1, 0 means invalid not initialised resource.
-	self->backBufferImageHandle = backend_declare_resource( self ); // initialize backbuffer image handle
+	self->resource_counter      = 1;                                                        // initialize resource counter to 1, 0 means invalid not initialised resource.
+	self->backBufferImageHandle = backend_declare_resource( self, LeResourceType::eImage ); // initialize backbuffer image handle
 }
 
 // ----------------------------------------------------------------------
@@ -2644,26 +2641,33 @@ static void frame_create_resource_table( BackendFrameData &frame, le_renderpass_
 
 /// \brief fetch vk::Buffer from encoder index if transient, otherwise, fetch from frame available resources.
 static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData &frame, const LeResourceHandle &resourceId ) {
-	// acquire resources will have placed the resource into availableResources
 	auto &resourceMeta = reinterpret_cast<LeResourceHandleMeta const &>( resourceId );
 
-	assert( resourceMeta.type == LeResourceHandleMeta::eBuffer ); // resource type must be buffer
+	assert( resourceMeta.type == LeResourceType::eBuffer ); // resource type must be buffer
 
 	if ( resourceMeta.flags & LeResourceHandleMeta::FlagBits::eIsVirtual ) {
 		return frame.allocatorBuffers[ resourceMeta.index ];
 	} else {
+
 		return frame.availableResources.at( resourceId ).asBuffer;
 	}
 }
 
 // ----------------------------------------------------------------------
 static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendFrameData &frame, const LeResourceHandle &resourceId ) {
-	// acquire resources will have placed the resource into availableResources
+
+	auto &resourceMeta = reinterpret_cast<LeResourceHandleMeta const &>( resourceId );
+	assert( resourceMeta.type == LeResourceType::eImage ); // resource type must be image
+
 	return frame.availableResources.at( resourceId ).asImage;
 }
 
 // ----------------------------------------------------------------------
 static inline VkFormat frame_data_get_image_format_from_resource_id( BackendFrameData const &frame, const LeResourceHandle &resourceId ) {
+
+	auto &resourceMeta = reinterpret_cast<LeResourceHandleMeta const &>( resourceId );
+	assert( resourceMeta.type == LeResourceType::eImage ); // resource type must be image
+
 	return frame.availableResources.at( resourceId ).info.imageInfo.format;
 }
 
@@ -2850,9 +2854,13 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 			switch ( createInfo.type ) {
 			case LeResourceType::eBuffer: {
-				rd.bufferInfo       = vk::BufferCreateInfo{};
-				rd.bufferInfo.size  = createInfo.buffer.size;
-				rd.bufferInfo.usage = createInfo.buffer.usage_flags;
+				rd.bufferInfo                       = vk::BufferCreateInfo{};
+				rd.bufferInfo.size                  = createInfo.buffer.size;
+				rd.bufferInfo.usage                 = createInfo.buffer.usage_flags;
+				rd.bufferInfo.sharingMode           = VK_SHARING_MODE_EXCLUSIVE;
+				rd.bufferInfo.queueFamilyIndexCount = 1;
+				rd.bufferInfo.pQueueFamilyIndices   = &self->queueFamilyIndexGraphics;
+
 			} break;
 			case LeResourceType::eImage: {
 				// TODO: fill in missing values, based on le_resource_info

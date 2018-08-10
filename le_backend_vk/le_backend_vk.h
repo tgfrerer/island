@@ -47,6 +47,7 @@ struct VkMemoryRequirements;
 struct VkMemoryAllocateInfo;
 
 enum class LeShaderType : uint64_t; // we're forward declaring this enum, for heaven's sake...
+enum class LeResourceType : uint8_t;
 
 typedef int LeFormat_t; // we're declaring this as a placeholder for image format enum
 
@@ -78,8 +79,8 @@ struct le_backend_vk_api {
 
 		le_graphics_pipeline_state_o* (*create_graphics_pipeline_state_object)(le_backend_o* self, le_graphics_pipeline_create_info_t const * info);
 
-		LeResourceHandle (*declare_resource)(le_backend_o* self);
-		LeResourceHandle (*get_backbuffer_resource)(le_backend_o* self);
+		LeResourceHandle       ( *declare_resource         ) (le_backend_o* self, LeResourceType type);
+		LeResourceHandle       ( *get_backbuffer_resource  ) (le_backend_o* self);
 
 		le_shader_module_o*    ( *create_shader_module     ) ( le_backend_o* self, char const * path, LeShaderType moduleType);
 		void                   ( *update_shader_modules    ) ( le_backend_o* self );
