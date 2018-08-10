@@ -6,6 +6,8 @@ set (PROJECT_NAME "Island")
 project (${PROJECT_NAME})
 
 set(PLUGINS_DYNAMIC ON CACHE BOOL "Use dynamic linking for all plugins")
+set(COMPILE_DEBUG_LAYERS OFF CACHE BOOL "Compile Layers as a subproject (useful to debug debug layers)")
+
 
 set ( STATIC_LIBS "")
 
@@ -109,3 +111,24 @@ target_link_libraries(${PROJECT_NAME} PUBLIC dl)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PLUGIN_LIBS_DEPENDENCIES})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${STATIC_LIBS})
 
+##################################################################################
+# OPTIONAL - Use Vulkan Debug layers compiled from source so that we may debug
+# the debug layers, too (how meta!)
+
+function(compile_layers)
+    # this allows us to debug debug layers -- how meta!!!
+    unset(CMAKE_ARCHIVE_OUTPUT_DIRECTORY )
+    unset(CMAKE_LIBRARY_OUTPUT_DIRECTORY )
+    unset(CMAKE_RUNTIME_OUTPUT_DIRECTORY )
+
+
+#    set (CMAKE_BUILD_TYPE Debug)
+    set (VulkanRegistry_DIR /usr/local/share/vulkan/registry)
+
+    add_subdirectory(3rdparty/src/Vulkan-ValidationLayers ${PROJECT_SOURCE_DIR}/3rdparty/src/Vulkan-ValidationLayers/build)
+endfunction(compile_layers)
+
+if (COMPILE_DEBUG_LAYERS)
+    set (GLSLANG_INSTALL_DIR "/usr/local" CACHE STRING "")
+    compile_layers()
+endif()
