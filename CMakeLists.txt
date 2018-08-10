@@ -18,27 +18,28 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/modules)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/modules)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
+function (build_imgui)
+    configure_file(CMakeLists.txt.imgui.build ${PROJECT_SOURCE_DIR}/3rdparty/src/imgui/CMakeLists.txt COPYONLY)
 
-configure_file(CMakeLists.txt.imgui.build ${PROJECT_SOURCE_DIR}/3rdparty/src/imgui/CMakeLists.txt COPYONLY)
+    execute_process(
+            COMMAND mkdir -p 3rdparty/src/imgui/build
+        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+        )
 
-execute_process(
-	COMMAND mkdir -p 3rdparty/src/imgui/build
-    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}" 
-    )
+    execute_process(
+            COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" -DCMAKE_INSTALL_PREFIX=${PROJECT_SOURCE_DIR}/3rdparty -DPLUGINS_DYNAMIC=${PLUGINS_DYNAMIC} ..
+        WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/3rdparty/src/imgui/build"
+        )
 
-execute_process(
-	COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" -DCMAKE_INSTALL_PREFIX=${PROJECT_SOURCE_DIR}/3rdparty -DPLUGINS_DYNAMIC=${PLUGINS_DYNAMIC} ..
-    WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/3rdparty/src/imgui/build" 
-    )
+    execute_process(
+            COMMAND "${CMAKE_COMMAND}" --build . --target install
+            WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/3rdparty/src/imgui/build"
+            )
 
-execute_process(
-	COMMAND "${CMAKE_COMMAND}" --build . --target install 
-	WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}/3rdparty/src/imgui/build"
-	)
+    link_directories(${PROJECT_SOURCE_DIR}/3rdparty/libs/imgui)
+endfunction(build_imgui)
 
-link_directories(${PROJECT_SOURCE_DIR}/3rdparty/libs/imgui)
-
-
+build_imgui()
 
 # link glm source directory into includes directory
 execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/3rdparty/src/glm/glm ${PROJECT_SOURCE_DIR}/3rdparty/include/glm )
@@ -48,11 +49,10 @@ include_directories(${PROJECT_SOURCE_DIR}/3rdparty/include/glm)
 # create a link to shared shader repository so that we're always working with the same shaders.
 execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/3rdparty/src/fx-gltf/include/fx ${PROJECT_SOURCE_DIR}/3rdparty/include/fx )
 
-
 # include imgui directory
 include_directories(${PROJECT_SOURCE_DIR}/3rdparty/include)
 
-# create a link to 3rd party library binaries so that app can find them.
+# create a link to json header-only library
 execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/3rdparty/src/json/single_include/nlohmann ${PROJECT_SOURCE_DIR}/3rdparty/include/nlohmann )
 
 # create a link to shared resources
@@ -60,7 +60,6 @@ execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/resources ${CMAKE_BINARY_D
 
 # create a link to 3rd party library binaries so that app can find them.
 execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/3rdparty/libs ${CMAKE_BINARY_DIR}/libs )
-
 
 
 
@@ -90,8 +89,8 @@ add_subdirectory (le_renderer)
 add_subdirectory (le_shader_compiler)
 add_subdirectory (le_gltf_loader)
 
-
 set (SOURCES main.cpp)
+
 
 # NOTE: provide paths for libraries which are used by plugins, but not available via system search paths
 # these were set via PARENT_SCOPE from the plugin CMake files.
