@@ -4,6 +4,7 @@
 
 #include "le_backend_vk/util/spooky/SpookyV2.h" // for hashing pso state
 
+#define VMA_USE_STL_CONTAINERS 1
 #include "util/vk_mem_alloc/vk_mem_alloc.h" // for allocation
 
 #define VULKAN_HPP_NO_SMART_HANDLE
