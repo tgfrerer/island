@@ -25,6 +25,11 @@
 #	define ISL_API_ATTR
 #endif
 
+#ifndef LE_DEFINE_HANDLE_GUARD
+#	define LE_DEFINE_HANDLE( object ) typedef struct object##_T *object;
+#	define LE_DEFINE_HANDLE_GUARD
+#endif
+
 struct pal_api_loader_i;
 struct pal_api_loader_o;
 
