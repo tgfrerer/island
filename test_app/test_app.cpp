@@ -35,6 +35,12 @@ using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 struct le_graphics_pipeline_state_o; // owned by renderer
 
+struct GltfUboMvp {
+	glm::mat4 projection;
+	glm::mat4 model;
+	glm::mat4 view;
+};
+
 struct FontTextureInfo {
 	uint8_t *        pixels            = nullptr;
 	int32_t          width             = 0;
@@ -65,10 +71,13 @@ struct test_app_o {
 	// Note we use the c++ facade for resource handles as this guarantees that resource
 	// handles are initialised to nullptr, otherwise this is too easy to forget...
 	le::ResourceHandle resImgPrepass     = nullptr;
+	le::ResourceHandle resImgDepth       = nullptr;
 	le::ResourceHandle resTexPrepass     = nullptr;
 	le::ResourceHandle resImgHorse       = nullptr;
 	le::ResourceHandle resTexHorse       = nullptr;
 	le::ResourceHandle resBufTrianglePos = nullptr;
+
+	le_gltf_document_o *gltfDoc = nullptr;
 
 	// NOTE: RUNTIME-COMPILE : If you add any new things during run-time, make sure to only add at the end of the object,
 	// otherwise all pointers above will be invalidated. this might also overwrite memory which
@@ -391,14 +400,16 @@ static test_app_o *test_app_create() {
 	app->update_start_time = std::chrono::high_resolution_clock::now();
 
 	{
-		static auto const &loader_i = Registry::getApi<le_gltf_loader_api>()->loader_i;
+		static auto const &gltf_i = Registry::getApi<le_gltf_loader_api>()->document_i;
 
-		std::unique_ptr<le_gltf_loader_o, decltype( loader_i.destroy )> loader( loader_i.create(), loader_i.destroy );
-
-		loader_i.load_from_text( loader.get(), "resources/gltf/Box.gltf" );
+		app->gltfDoc = gltf_i.create();
+		gltf_i.load_from_text( app->gltfDoc, "resources/gltf/BoomBoxWithAxes.gltf" );
+		//		        gltf_i.load_from_text( app->gltfDoc, "resources/gltf/Box.gltf" );
+		gltf_i.declare_resources( app->gltfDoc, *app->renderer );
 	}
 
 	app->resImgPrepass     = app->renderer->declareResource( LeResourceType::eImage );
+	app->resImgDepth       = app->renderer->declareResource( LeResourceType::eImage );
 	app->resTexPrepass     = app->renderer->declareResource( LeResourceType::eTexture );
 	app->resImgHorse       = app->renderer->declareResource( LeResourceType::eImage );
 	app->resTexHorse       = app->renderer->declareResource( LeResourceType::eTexture );
@@ -466,6 +477,8 @@ static bool test_app_update( test_app_o *self ) {
 	// making it static allows it to be visible inside the callback context,
 	// and it also ensures that the registry call only happens upon first retrieval.
 	static auto const &le_encoder = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
+
+	static auto const &gltf_i = Registry::getApi<le_gltf_loader_api>()->document_i;
 
 	le::RenderModule mainModule{};
 	{
@@ -542,12 +555,45 @@ static bool test_app_update( test_app_o *self ) {
 			}
 
 			{
+				// create z-buffer image for main renderpass
+				le_resource_info_t imgInfo;
+				imgInfo.type = LeResourceType::eImage;
+				{
+					auto &img         = imgInfo.image;
+					img.format        = VK_FORMAT_D32_SFLOAT_S8_UINT;
+					img.flags         = 0;
+					img.arrayLayers   = 1;
+					img.extent.depth  = 1;
+					img.extent.width  = app->window->getSurfaceWidth();
+					img.extent.height = app->window->getSurfaceHeight();
+					img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+					img.mipLevels     = 1;
+					img.samples       = VK_SAMPLE_COUNT_1_BIT;
+					img.imageType     = VK_IMAGE_TYPE_2D;
+					img.tiling        = VK_IMAGE_TILING_OPTIMAL;
+				}
+				rp.createResource( app->resImgDepth, imgInfo );
+			}
+
+			{
 				// create resource for triangle vertex buffer
 				le_resource_info_t bufInfo;
 				bufInfo.type               = LeResourceType::eBuffer;
 				bufInfo.buffer.size        = sizeof( glm::vec3 ) * 3;
 				bufInfo.buffer.usage_flags = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 				rp.createResource( app->resBufTrianglePos, bufInfo );
+			}
+
+			{
+				// create resources for gltf document
+				le_resource_info_t *    resourceInfo;
+				LeResourceHandle const *resourceHandles;
+				size_t                  numResourceInfos;
+				gltf_i.get_create_resource_infos( app->gltfDoc, &resourceInfo, &resourceHandles, &numResourceInfos );
+
+				for ( size_t i = 0; i != numResourceInfos; i++ ) {
+					rp.createResource( resourceHandles[ i ], resourceInfo[ i ] );
+				}
 			}
 
 			return true;
@@ -584,6 +630,8 @@ static bool test_app_update( test_app_o *self ) {
 
 				le_encoder.write_to_buffer( encoder, app->resBufTrianglePos, 0, trianglePositions, sizeof( trianglePositions ) );
 			}
+
+			gltf_i.upload_resource_data( app->gltfDoc, encoder );
 		} );
 
 		le::RenderPass renderPassPre( "prepass", LE_RENDER_PASS_TYPE_DRAW );
@@ -656,6 +704,13 @@ static bool test_app_update( test_app_o *self ) {
 			colorAttachmentInfo.clearValue.color = {{0.1f, 0.25f, 0.4f, 1.f}};
 			rp.addImageAttachment( app->renderer->getBackbufferResource(), &colorAttachmentInfo );
 
+			LeImageAttachmentInfo depthAttachmentInfo{};
+			depthAttachmentInfo.access_flags            = le::AccessFlagBits::eWrite;
+			depthAttachmentInfo.loadOp                  = LE_ATTACHMENT_LOAD_OP_CLEAR;
+			depthAttachmentInfo.storeOp                 = LE_ATTACHMENT_STORE_OP_STORE;
+			depthAttachmentInfo.clearValue.depthStencil = {1.f, 0};
+			rp.addImageAttachment( app->resImgDepth, &depthAttachmentInfo );
+
 			rp.setWidth( app->window->getSurfaceWidth() );
 			rp.setHeight( app->window->getSurfaceHeight() );
 
@@ -724,11 +779,12 @@ static bool test_app_update( test_app_o *self ) {
 			};
 
 			static float t = 0;
-			t              = fmodf( t + app->deltaTimeSec, 3.f );
+			t              = fmodf( t + app->deltaTimeSec, 10.f );
 
-			float r_val = ( app->frame_counter % 120 ) / 120.f;
-			r_val       = t / 3.f;
-			r_val       = glm::elasticEaseOut( r_val );
+			float r_val = t / 10.f;
+			//			        float r_val      = ( app->frame_counter % 1200 ) / 1200.f;
+
+			float r_anim_val = glm::elasticEaseOut( r_val );
 
 			ColorUbo_t ubo1{{1, 0, 0, 1}};
 
@@ -743,7 +799,7 @@ static bool test_app_update( test_app_o *self ) {
 			}
 
 			// Bind main graphics pipeline
-			if ( true ) {
+			if ( false ) {
 				le_encoder.bind_graphics_pipeline( encoder, app->psoMain );
 
 				le_encoder.set_scissor( encoder, 0, 1, scissors );
@@ -755,10 +811,10 @@ static bool test_app_update( test_app_o *self ) {
 				matrixStack.modelMatrix      = glm::scale( matrixStack.modelMatrix, glm::vec3( 4.5 ) );
 				matrixStack.modelMatrix      = glm::translate( matrixStack.modelMatrix, glm::vec3( 0, 0, 0 ) );
 
-				matrixStack.modelMatrix = glm::rotate( matrixStack.modelMatrix, glm::radians( r_val * 360 ), glm::vec3( 0, 0, 1 ) );
+				matrixStack.modelMatrix = glm::rotate( matrixStack.modelMatrix, glm::radians( r_anim_val * 360 ), glm::vec3( 0, 0, 1 ) );
 
 				float normDistance     = get_image_plane_distance( viewports[ 0 ], glm::radians( 60.f ) ); // calculate unit distance
-				matrixStack.viewMatrix = glm::lookAt( glm::vec3( 0, 0, normDistance ), glm::vec3( 0 ), glm::vec3( 0, -1, 0 ) );
+				matrixStack.viewMatrix = glm::lookAt( glm::vec3( 0, 0, normDistance ), glm::vec3( 0 ), glm::vec3( 0, 1, 0 ) );
 
 				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "MatrixStack" ), &matrixStack, sizeof( MatrixStackUbo_t ) ); // set a descriptor to set, binding, array_index
 				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "Color" ), &ubo1, sizeof( ColorUbo_t ) );                    // set a descriptor to set, binding, array_index
@@ -771,6 +827,25 @@ static bool test_app_update( test_app_o *self ) {
 				le_encoder.set_vertex_data( encoder, triangleColors, sizeof( glm::vec4 ) * 3, 1 );
 				le_encoder.set_index_data( encoder, indexData, sizeof( indexData ), 0 ); // 0 for indexType means uint16_t
 				le_encoder.draw_indexed( encoder, 3, 1, 0, 0, 0 );
+			}
+
+			if ( true ) {
+
+				le_encoder.set_scissor( encoder, 0, 1, scissors );
+				le_encoder.set_viewport( encoder, 0, 1, viewports );
+
+				GltfUboMvp ubo;
+
+				float normDistance = get_image_plane_distance( viewports[ 0 ], glm::radians( 60.f ) ); // calculate unit distance
+				ubo.projection     = glm::perspective( glm::radians( 60.f ), float( screenWidth ) / float( screenHeight ), 10.f, 10000.f );
+				ubo.model          = glm::scale( glm::mat4( 1 ), glm::vec3( 10000.f ) ); // identity matrix
+				ubo.model          = glm::rotate( ubo.model, glm::radians( r_val * 360.f ), glm::vec3( 0, 1, 0 ) );
+				glm::vec3 camPos   = glm::vec3( 0, 0, normDistance );
+				ubo.view           = glm::lookAt( camPos, glm::vec3( 0 ), glm::vec3( 0, 1, 0 ) );
+
+				// FIXME: we must first set the pipeline, before we can upload any arguments
+
+				gltf_i.draw( app->gltfDoc, encoder, &ubo );
 			}
 
 			ImDrawData *drawData = ImGui::GetDrawData();
@@ -860,6 +935,13 @@ static bool test_app_update( test_app_o *self ) {
 // ----------------------------------------------------------------------
 
 static void test_app_destroy( test_app_o *self ) {
+
+	if ( self->gltfDoc ) {
+		static auto const &gltf_i = Registry::getApi<le_gltf_loader_api>()->document_i;
+		gltf_i.destroy( self->gltfDoc );
+		self->gltfDoc = nullptr;
+	}
+
 	if ( self->imguiContext ) {
 		ImGui::DestroyContext( self->imguiContext );
 		self->imguiContext = nullptr;
