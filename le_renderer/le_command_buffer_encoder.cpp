@@ -114,7 +114,7 @@ static void cbe_set_viewport( le_command_buffer_encoder_o *self,
 static void cbe_set_scissor( le_command_buffer_encoder_o *self,
                              uint32_t                     firstScissor,
                              const uint32_t               scissorCount,
-                             const le::Rect2D *           pScissors ) {
+                             le::Rect2D const *           pScissors ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandSetScissor ); // placement new!
 
@@ -137,8 +137,8 @@ static void cbe_set_scissor( le_command_buffer_encoder_o *self,
 static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self,
                                      uint32_t                     firstBinding,
                                      uint32_t                     bindingCount,
-                                     LeResourceHandle *           pBuffers,
-                                     uint64_t *                   pOffsets ) {
+                                     LeResourceHandle const *     pBuffers,
+                                     uint64_t const *             pOffsets ) {
 
 	// NOTE: pBuffers will hold ids for virtual buffers, we must match these
 	// in the backend to actual vulkan buffer ids.
@@ -165,7 +165,7 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self,
 // ----------------------------------------------------------------------
 
 static void cbe_bind_index_buffer( le_command_buffer_encoder_o *self,
-                                   LeResourceHandle             buffer,
+                                   LeResourceHandle const       buffer,
                                    uint64_t                     offset,
                                    uint64_t                     indexType ) {
 
@@ -237,7 +237,7 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *self,
 
 static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
                                        uint64_t                     argumentNameId, // hash id of argument name
-                                       void *                       data,
+                                       void const *                 data,
                                        size_t                       numBytes ) {
 
 	static auto &allocator_i = Registry::getApi<le_backend_vk_api>()->le_allocator_linear_i;
