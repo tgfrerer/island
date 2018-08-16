@@ -2404,13 +2404,13 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 			bool isDepthStencil = is_depth_stencil_format( attachment->format );
 
-			vk::AttachmentDescription attachmentDescription;
+			vk::AttachmentDescription attachmentDescription{};
 			attachmentDescription
 			    .setFlags( vk::AttachmentDescriptionFlags() ) // relevant for compatibility
 			    .setFormat( attachment->format )              // relevant for compatibility
 			    .setSamples( vk::SampleCountFlagBits::e1 )    // relevant for compatibility
-			    .setLoadOp( isDepthStencil ? vk::AttachmentLoadOp::eDontCare : attachment->loadOp )
-			    .setStoreOp( isDepthStencil ? vk::AttachmentStoreOp::eDontCare : attachment->storeOp )
+			    .setLoadOp( attachment->loadOp )
+			    .setStoreOp( attachment->storeOp )
 			    .setStencilLoadOp( isDepthStencil ? attachment->loadOp : vk::AttachmentLoadOp::eDontCare )
 			    .setStencilStoreOp( isDepthStencil ? attachment->storeOp : vk::AttachmentStoreOp::eDontCare )
 			    .setInitialLayout( syncInitial.layout )
