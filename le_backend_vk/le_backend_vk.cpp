@@ -3293,7 +3293,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		vk::PipelineLayout             currentPipelineLayout;
 		std::vector<vk::DescriptorSet> descriptorSets; // currently bound descriptorSets
 
-		auto updateArguments = []( const vk::Device &device_, const vk::DescriptorPool &descriptorPool_, const ArgumentState &argumentState_, std::vector<vk::DescriptorSet> &descriptorSets_ ) {
+		auto updateArguments = []( const vk::Device &device, const vk::DescriptorPool &descriptorPool_, const ArgumentState &argumentState_, std::vector<vk::DescriptorSet> &descriptorSets_ ) {
 			// -- allocate descriptors from descriptorpool based on set layout info
 
 			if ( argumentState_.setCount == 0 ) {
@@ -3309,7 +3309,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			    .setPSetLayouts( argumentState_.layouts.data() );
 
 			// -- allocate some descriptorSets based on current layout
-			descriptorSets_ = device_.allocateDescriptorSets( allocateInfo );
+			descriptorSets_ = device.allocateDescriptorSets( allocateInfo );
 
 			// -- write data from descriptorSetData into freshly allocated DescriptorSets
 			for ( size_t setId = 0; setId != argumentState_.setCount; ++setId ) {
@@ -3317,7 +3317,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				// FIXME: If argumentState contains invalid information (for example if an uniform has not been set yet)
 				// this will lead to SEGFAULT. You must ensure that argumentState contains valid information.
 
-				device_.updateDescriptorSetWithTemplate( descriptorSets_[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
+				device.updateDescriptorSetWithTemplate( descriptorSets_[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
 			}
 		};
 

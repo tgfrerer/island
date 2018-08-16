@@ -81,7 +81,6 @@ struct test_app_o {
 // ----------------------------------------------------------------------
 
 static void initialize() {
-
 	pal::Window::init();
 };
 
@@ -126,8 +125,7 @@ static void test_app_key_callback( void *user_data, int key, int scancode, int a
 	io.KeyAlt   = io.KeysDown[ GLFW_KEY_LEFT_ALT ] || io.KeysDown[ GLFW_KEY_RIGHT_ALT ];
 	io.KeySuper = io.KeysDown[ GLFW_KEY_LEFT_SUPER ] || io.KeysDown[ GLFW_KEY_RIGHT_SUPER ];
 }
-
-void test_app_character_callback( void *user_data, unsigned int codepoint ) {
+static void test_app_character_callback( void *user_data, unsigned int codepoint ) {
 
 	if ( user_data == nullptr ) {
 		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
@@ -145,7 +143,7 @@ void test_app_character_callback( void *user_data, unsigned int codepoint ) {
 		io.AddInputCharacter( ( unsigned short )codepoint );
 	}
 }
-void test_app_cursor_position_callback( void *user_data, double xpos, double ypos ) {
+static void test_app_cursor_position_callback( void *user_data, double xpos, double ypos ) {
 
 	if ( user_data == nullptr ) {
 		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
@@ -159,7 +157,7 @@ void test_app_cursor_position_callback( void *user_data, double xpos, double ypo
 
 	app->mousePos = {float( xpos ), float( ypos )};
 }
-void test_app_cursor_enter_callback( void *user_data, int entered ) {
+static void test_app_cursor_enter_callback( void *user_data, int entered ) {
 
 	if ( user_data == nullptr ) {
 		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
@@ -171,7 +169,7 @@ void test_app_cursor_enter_callback( void *user_data, int entered ) {
 
 	auto app = static_cast<test_app_o *>( user_data );
 }
-void test_app_mouse_button_callback( void *user_data, int button, int action, int mods ) {
+static void test_app_mouse_button_callback( void *user_data, int button, int action, int mods ) {
 
 	if ( user_data == nullptr ) {
 		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
@@ -187,7 +185,7 @@ void test_app_mouse_button_callback( void *user_data, int button, int action, in
 		app->mouseButtonStatus[ size_t( button ) ] = ( action == GLFW_PRESS );
 	}
 }
-void test_app_scroll_callback( void *user_data, double xoffset, double yoffset ) {
+static void test_app_scroll_callback( void *user_data, double xoffset, double yoffset ) {
 
 	if ( user_data == nullptr ) {
 		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
@@ -269,8 +267,8 @@ static test_app_o *test_app_create() {
 			std::array<le_vertex_input_binding_description, 1>   bindings;
 			{
 				// location 0, binding 0
-				attrs[ 0 ].location       = 0;
-				attrs[ 0 ].binding        = 0;
+				attrs[ 0 ].location       = 0; // refers to shader parameter
+				attrs[ 0 ].binding        = 0; // refers to buffer
 				attrs[ 0 ].binding_offset = offsetof( ImDrawVert, pos );
 				attrs[ 0 ].isNormalised   = false;
 				attrs[ 0 ].type           = le_vertex_input_attribute_description::eFloat;
