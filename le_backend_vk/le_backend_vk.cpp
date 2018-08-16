@@ -1348,6 +1348,23 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description(co
 		case 1: return vk::Format::eR16Sfloat;
 		}
 	    break;
+	case le_vertex_input_attribute_description::eShort:
+		if (d->isNormalised){
+			switch ( d->vecsize ) {
+			case 4: return vk::Format::eR16G16B16A16Unorm;
+			case 3: return vk::Format::eR16G16B16Unorm;
+			case 2: return vk::Format::eR16G16Unorm;
+			case 1: return vk::Format::eR16Unorm;
+			}
+		}else{
+			switch ( d->vecsize ) {
+			case 4: return vk::Format::eR16G16B16A16Uint;
+			case 3: return vk::Format::eR16G16B16Uint;
+			case 2: return vk::Format::eR16G16Uint;
+			case 1: return vk::Format::eR16Uint;
+			}
+		}
+	    break;
 	case le_vertex_input_attribute_description::eInt:
 		switch ( d->vecsize ) {
 		case 4: return vk::Format::eR32G32B32A32Sint;

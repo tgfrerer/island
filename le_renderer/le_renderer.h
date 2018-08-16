@@ -97,19 +97,20 @@ struct le_vertex_input_attribute_description {
 
 	// Note that we store the log2 of the number of Bytes needed to store values of a type in the LS nibble,
 	// so that we can say: numBytes =  1 << (type & 0x0F);
-	enum TYPE : uint8_t {
+	enum Type : uint8_t {
 		eChar  = ( 0 << 4 ) | 0,
-		eHalf  = ( 1 << 4 ) | 1,
-		eInt   = ( 2 << 4 ) | 2,
-		eUInt  = ( 3 << 4 ) | 2,
-		eFloat = ( 4 << 4 ) | 2,
+		eShort = ( 1 << 4 ) | 1,
+		eHalf  = ( 2 << 4 ) | 1,
+		eInt   = ( 3 << 4 ) | 2,
+		eUInt  = ( 4 << 4 ) | 2,
+		eFloat = ( 5 << 4 ) | 2,
 	};
 
-	uint64_t xxx_padding : 19;
-	bool     isNormalised : 1;    /// 0..1 (), 19 bits of unused space...
+	uint64_t xxx_padding : 3;
+	bool     isNormalised : 1;    /// 0..1 (), 3 bits of unused space...
 	uint64_t vecsize : 4;         /// 0..7 (number of elements)
-	TYPE     type : 8;            /// use enum NUM_BYTES (1 << num bytes =  1|2|4|8)
-	uint64_t binding_offset : 16; /// 0..65535 offset for this location within binding
+	Type     type : 8;            /// use enum NUM_BYTES (1 << num bytes =  1|2|4|8)
+	uint64_t binding_offset : 32; /// 0..4294967295 offset for this location within binding
 	uint64_t binding : 8;         /// 0..255
 	uint64_t location : 8;        /// 0..255
 };
@@ -119,9 +120,9 @@ struct le_vertex_input_binding_description {
 		ePerVertex   = 0,
 		ePerInstance = 1,
 	};
-	INPUT_RATE input_rate : 1;
-	uint32_t   stride : 16;
-	uint32_t   binding : 4;
+	INPUT_RATE input_rate : 1; //
+	uint32_t   stride : 16;    // per-vertex or per-instance stride in bytes
+	uint32_t   binding : 4;    // binding slot 0..32(==MAX_ATTRIBUTE_BINDINGS)
 };
 
 struct le_graphics_pipeline_create_info_t {
