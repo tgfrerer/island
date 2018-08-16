@@ -370,6 +370,10 @@ class ResourceHandle {
 		return m_resource;
 	}
 
+	operator LeResourceHandle const *() const {
+		return &m_resource;
+	}
+
 	explicit operator bool() const {
 		return m_resource != nullptr;
 	}
