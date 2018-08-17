@@ -134,7 +134,12 @@ le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const c
 
 	if ( SHOULD_USE_DEBUG_LAYERS ) {
 		instanceExtensionNames.push_back( VK_EXT_DEBUG_REPORT_EXTENSION_NAME );
-		instanceLayerNames.push_back( "VK_LAYER_LUNARG_standard_validation" );
+		// instanceLayerNames.push_back( "VK_LAYER_LUNARG_standard_validation" ); // <- deactivate for now because of mem leak in unique_objects
+		instanceLayerNames.push_back( "VK_LAYER_GOOGLE_threading" );
+		instanceLayerNames.push_back( "VK_LAYER_LUNARG_parameter_validation" );
+		instanceLayerNames.push_back( "VK_LAYER_LUNARG_object_tracker" );
+		instanceLayerNames.push_back( "VK_LAYER_LUNARG_core_validation" );
+		// instanceLayerNames.push_back("VK_LAYER_GOOGLE_unique_objects"); // <- deactivate for now because memory leak
 		std::cout << "Debug instance layers added." << std::endl;
 	}
 
