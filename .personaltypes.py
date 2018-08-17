@@ -31,8 +31,9 @@ def qdump__glm__mat__col_type(d, value):
         qdump__glm__vec3(d, value)
     else:
         pass
+        
 def qdump__glm__mat4(d, value):
-    d.putValue("%s" % value.type.name)
+    d.putValue("<4 columns>")
     d.putNumChild(1)
     if d.isExpanded():
         with Children(d, value):
@@ -42,7 +43,7 @@ def qdump__glm__mat4(d, value):
             d.putSubItem("[3]",value[0][3])
 
 def qdump__glm__mat3(d, value):
-    d.putValue("%s" % value.type.name)
+    d.putValue("<3 columns>")
     d.putNumChild(1)
     if d.isExpanded():
         with Children(d, value):
