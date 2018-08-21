@@ -19,19 +19,19 @@ void register_le_command_buffer_encoder_api( void *api_ ); // in le_command_buff
 
 enum LeRenderPassType : uint32_t {
 	LE_RENDER_PASS_TYPE_UNDEFINED = 0,
-	LE_RENDER_PASS_TYPE_DRAW      = 1,
+	LE_RENDER_PASS_TYPE_DRAW      = 1, // << most common case, should be 0
 	LE_RENDER_PASS_TYPE_TRANSFER  = 2,
 	LE_RENDER_PASS_TYPE_COMPUTE   = 3,
 };
 
 enum LeAttachmentStoreOp : uint32_t {
-	LE_ATTACHMENT_STORE_OP_STORE    = 0,
+	LE_ATTACHMENT_STORE_OP_STORE    = 0, // << most common case
 	LE_ATTACHMENT_STORE_OP_DONTCARE = 1,
 };
 
 enum LeAttachmentLoadOp : uint32_t {
-	LE_ATTACHMENT_LOAD_OP_LOAD     = 0,
-	LE_ATTACHMENT_LOAD_OP_CLEAR    = 1,
+	LE_ATTACHMENT_LOAD_OP_CLEAR    = 0, // << most common case
+	LE_ATTACHMENT_LOAD_OP_LOAD     = 1,
 	LE_ATTACHMENT_LOAD_OP_DONTCARE = 2,
 };
 
@@ -238,7 +238,11 @@ struct le_renderer_api {
 		void                           ( *update                                )( le_renderer_o *obj, le_render_module_o *module );
 		le_graphics_pipeline_state_o * ( *create_graphics_pipeline_state_object )( le_renderer_o *self, le_graphics_pipeline_create_info_t const *pipeline_info );
 		le_shader_module_o*            ( *create_shader_module                  )( le_renderer_o *self, char const *path, LeShaderType mtype );
+
+		/// introduces a new resource name to the renderer, returns a handle under which the renderer will recognise this resource
 		LeResourceHandle               ( *declare_resource                      )( le_renderer_o* self, LeResourceType type );
+
+		/// returns the resource handle for the current swapchain image
 		LeResourceHandle               ( *get_backbuffer_resource               )( le_renderer_o* self );
 	};
 
