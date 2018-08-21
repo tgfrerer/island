@@ -2136,7 +2136,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 				auto  beforeFirstUse{previousSyncState};
 
 				switch ( imageAttachment->access_flags ) {
-				case le::AccessFlagBits::eReadWrite:
+				case eLeAccessFlagBitsReadWrite:
 					// resource.loadOp must be LOAD
 
 					// we must now specify which stages need to be visible for which coming memory access
@@ -2152,14 +2152,14 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 					}
 				    break;
 
-				case le::AccessFlagBits::eWrite:
+				case eLeAccessFlagBitWrite:
 					// resource.loadOp must be either CLEAR / or DONT_CARE
 					beforeFirstUse.write_stage    = isDepthStencil ? vk::PipelineStageFlagBits::eEarlyFragmentTests : vk::PipelineStageFlagBits::eColorAttachmentOutput;
 					beforeFirstUse.visible_access = vk::AccessFlagBits( 0 );
 					beforeFirstUse.layout         = vk::ImageLayout::eUndefined; // override to undefined to invalidate attachment which will be cleared.
 				    break;
 
-				case le::AccessFlagBits::eRead:
+				case eLeAccessFlagBitRead:
 				    break;
 				}
 
@@ -2174,7 +2174,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 				auto &previousSyncState = syncChain.back();
 				auto  beforeSubpass{previousSyncState};
 
-				if ( imageAttachment->access_flags == le::AccessFlagBits::eReadWrite ) {
+				if ( imageAttachment->access_flags == eLeAccessFlagBitsReadWrite ) {
 					// resource.loadOp most be LOAD
 
 					// we must now specify which stages need to be visible for which coming memory access
@@ -2190,8 +2190,8 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 						beforeSubpass.layout         = vk::ImageLayout::eColorAttachmentOptimal;
 					}
 
-				} else if ( imageAttachment->access_flags & le::AccessFlagBits::eRead ) {
-				} else if ( imageAttachment->access_flags & le::AccessFlagBits::eWrite ) {
+				} else if ( imageAttachment->access_flags & eLeAccessFlagBitRead ) {
+				} else if ( imageAttachment->access_flags & eLeAccessFlagBitWrite ) {
 
 					if ( isDepthStencil ) {
 						beforeSubpass.visible_access = vk::AccessFlagBits::eDepthStencilAttachmentWrite;

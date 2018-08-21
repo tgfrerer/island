@@ -137,6 +137,15 @@ struct le_graphics_pipeline_create_info_t {
 
 struct le_graphics_pipeline_state_o; // object containing pipeline state
 
+enum LeAccessFlagBits : uint32_t {
+	eLeAccessFlagBitUndefined  = 0x0,
+	eLeAccessFlagBitRead       = 0x1 << 0,
+	eLeAccessFlagBitWrite      = 0x1 << 1,
+	eLeAccessFlagBitsReadWrite = eLeAccessFlagBitRead | eLeAccessFlagBitWrite,
+};
+
+typedef uint32_t LeAccessFlags;
+
 struct LeTextureInfo {
 	struct SamplerInfo {
 		int minFilter; // enum VkFilter
@@ -181,6 +190,7 @@ struct LeImageAttachmentInfo {
 
 	LeClearValue clearValue = {}; // only used if loadOp == clear
 	char         debugName[ 32 ];
+	LeAccessFlags       access_flags = eLeAccessFlagBitWrite; // read, write or readwrite (default is write)
 };
 
 struct le_resource_info_t {
@@ -226,12 +236,6 @@ struct le_renderer_api {
 		le_shader_module_o*            ( *create_shader_module                  )( le_renderer_o *self, char const *path, LeShaderType mtype );
 		LeResourceHandle               ( *declare_resource                      )( le_renderer_o* self, LeResourceType type );
 		LeResourceHandle               ( *get_backbuffer_resource               )( le_renderer_o* self );
-	};
-
-	enum AccessFlagBits : uint32_t {
-		eRead      = 0x01,
-		eWrite     = 0x02,
-		eReadWrite = eRead | eWrite,
 	};
 
 
@@ -387,8 +391,6 @@ class ResourceHandle {
 };
 static_assert( sizeof( ResourceHandle ) == sizeof( LeResourceHandle ), "handle and wrapper have different size!" );
 
-using AccessFlagBits = le_renderer_api::AccessFlagBits;
-
 class Renderer {
 	const le_renderer_api &                      rendererApiI = *Registry::getApi<le_renderer_api>();
 	const le_renderer_api::renderer_interface_t &rendererI    = rendererApiI.le_renderer_i;
@@ -487,7 +489,7 @@ class RenderPassRef {
 		return *this;
 	}
 
-	RenderPassRef &useResource( LeResourceHandle resource_id, uint32_t access_flags ) {
+	RenderPassRef &useResource( LeResourceHandle resource_id, uint32_t access_flags = LeAccessFlagBits::eLeAccessFlagBitRead ) {
 		renderpassI.use_resource( self, resource_id, access_flags );
 		return *this;
 	}

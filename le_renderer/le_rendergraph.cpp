@@ -128,12 +128,12 @@ static inline bool vector_contains( const std::vector<T> &haystack, T needle ) n
 
 static void renderpass_use_resource( le_renderpass_o *self, LeResourceHandle resource_id, uint32_t accessFlags ) {
 
-	if ( ( accessFlags & le::AccessFlagBits::eRead ) &&
+	if ( ( accessFlags & eLeAccessFlagBitRead ) &&
 	     !vector_contains( self->readResources, resource_id ) ) {
 		self->readResources.push_back( resource_id );
 	}
 
-	if ( ( accessFlags & le::AccessFlagBits::eWrite ) &&
+	if ( ( accessFlags & eLeAccessFlagBitWrite ) &&
 	     !vector_contains( self->writeResources, resource_id ) ) {
 		self->writeResources.push_back( resource_id );
 	}
@@ -156,7 +156,7 @@ static void renderpass_sample_texture( le_renderpass_o *self, LeResourceHandle t
 	self->textureInfos.push_back( *textureInfo ); // store a copy
 
 	// -- Mark image resource referenced by texture as used for reading
-	renderpass_use_resource( self, textureInfo->imageView.imageId, le::AccessFlagBits::eRead );
+	renderpass_use_resource( self, textureInfo->imageView.imageId, eLeAccessFlagBitRead );
 }
 
 // ----------------------------------------------------------------------
@@ -172,13 +172,13 @@ static void renderpass_add_image_attachment( le_renderpass_o *self, LeResourceHa
 	info.source_id   = const_char_hash64( LE_RENDERPASS_MARKER_EXTERNAL );
 	info.resource_id = resource_id;
 
-	if ( info.access_flags == le::AccessFlagBits::eReadWrite ) {
+	if ( info.access_flags == eLeAccessFlagBitsReadWrite ) {
 		info.loadOp  = LE_ATTACHMENT_LOAD_OP_LOAD;
 		info.storeOp = LE_ATTACHMENT_STORE_OP_STORE;
-	} else if ( info.access_flags & le::AccessFlagBits::eWrite ) {
+	} else if ( info.access_flags & eLeAccessFlagBitWrite ) {
 		// Write-only means we may be seen as the creator of this resource
 		info.source_id = self->id;
-	} else if ( info.access_flags & le::AccessFlagBits::eRead ) {
+	} else if ( info.access_flags & eLeAccessFlagBitRead ) {
 		// TODO: we need to make sure to distinguish between image attachments and texture attachments
 		info.loadOp  = LE_ATTACHMENT_LOAD_OP_LOAD;
 		info.storeOp = LE_ATTACHMENT_STORE_OP_DONTCARE;
@@ -216,7 +216,7 @@ static void renderpass_create_resource( le_renderpass_o *self, LeResourceHandle 
 
 	// Additionally, we introduce this resource to the write resource table,
 	// so that it will be considered when building the graph based on dependencies.
-	renderpass_use_resource( self, resource, le::AccessFlagBits::eWrite );
+	renderpass_use_resource( self, resource, eLeAccessFlagBitWrite );
 }
 
 // ----------------------------------------------------------------------
@@ -531,10 +531,10 @@ static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameI
 			renderpass_get_image_attachments( pass, &pImageAttachments, &numImageAttachments );
 
 			for ( auto const *attachment = pImageAttachments; attachment != pImageAttachments + numImageAttachments; attachment++ ) {
-				if ( attachment->access_flags & le::AccessFlagBits::eRead ) {
+				if ( attachment->access_flags & eLeAccessFlagBitRead ) {
 					msg << "r";
 				}
-				if ( attachment->access_flags & le::AccessFlagBits::eWrite ) {
+				if ( attachment->access_flags & eLeAccessFlagBitWrite ) {
 					msg << "w";
 				}
 				msg << " : " << std::setw( 32 ) << std::hex << attachment->resource_id << ":" << attachment->source_id << ", '" << attachment->debugName << "'" << std::endl;
