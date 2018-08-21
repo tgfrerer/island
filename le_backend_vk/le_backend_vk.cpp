@@ -206,7 +206,7 @@ struct Pass {
 };
 
 struct ResourceInfo {
-	// since this is an union, the first field will for both be VK_STRUCTURE_TYPE
+	// since this is a union, the first field will for both be VK_STRUCTURE_TYPE
 	// and its value will tell us what type the descriptor represents.
 	union {
 		VkBufferCreateInfo bufferInfo; // | only one of either ever in use
