@@ -325,9 +325,9 @@ static bool document_load_from_text( le_gltf_document_o *self, const char *path 
 
 		for ( const auto &b : doc.buffers ) {
 			le_resource_info_t resInfo;
-			resInfo.type               = LeResourceType::eBuffer;
-			resInfo.buffer.size        = b.byteLength;
-			resInfo.buffer.usage_flags = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+			resInfo.type         = LeResourceType::eBuffer;
+			resInfo.buffer.size  = b.byteLength;
+			resInfo.buffer.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
 			self->bufferResourceInfos.emplace_back( resInfo );
 		}
 

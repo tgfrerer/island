@@ -2874,7 +2874,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			case LeResourceType::eBuffer: {
 				rd.bufferInfo                       = vk::BufferCreateInfo{};
 				rd.bufferInfo.size                  = createInfo.buffer.size;
-				rd.bufferInfo.usage                 = createInfo.buffer.usage_flags;
+				rd.bufferInfo.usage                 = createInfo.buffer.usage;
 				rd.bufferInfo.sharingMode           = VK_SHARING_MODE_EXCLUSIVE;
 				rd.bufferInfo.queueFamilyIndexCount = 1;
 				rd.bufferInfo.pQueueFamilyIndices   = &self->queueFamilyIndexGraphics;
