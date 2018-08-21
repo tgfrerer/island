@@ -42,12 +42,12 @@ struct GltfUboMvp {
 };
 
 struct FontTextureInfo {
-	uint8_t *        pixels            = nullptr;
-	int32_t          width             = 0;
-	int32_t          height            = 0;
-	LeResourceHandle le_texture_handle = nullptr;
-	LeResourceHandle le_image_handle   = nullptr;
-	bool             wasUploaded       = false;
+	uint8_t *          pixels            = nullptr;
+	int32_t            width             = 0;
+	int32_t            height            = 0;
+	le::ResourceHandle le_texture_handle = nullptr;
+	le::ResourceHandle le_image_handle   = nullptr;
+	bool               wasUploaded       = false;
 };
 
 struct test_app_o {
@@ -271,7 +271,7 @@ static test_app_o *test_app_create() {
 			auto imguiVertShader = app->renderer->createShaderModule( "./resources/shaders/imgui.vert", LeShaderType::eVert );
 			auto imguiFragShader = app->renderer->createShaderModule( "./resources/shaders/imgui.frag", LeShaderType::eFrag );
 
-			le_graphics_pipeline_create_info_t                   imguiPipeline;
+			le_graphics_pipeline_create_info_t                   imGuiPipelineInfo{};
 			std::array<le_vertex_input_attribute_description, 3> attrs;
 			std::array<le_vertex_input_binding_description, 1>   bindings;
 			{
@@ -306,15 +306,15 @@ static test_app_o *test_app_create() {
 				bindings[ 0 ].stride     = sizeof( ImDrawVert );
 			}
 
-			imguiPipeline.shader_module_frag = imguiFragShader;
-			imguiPipeline.shader_module_vert = imguiVertShader;
+			imGuiPipelineInfo.shader_module_frag = imguiFragShader;
+			imGuiPipelineInfo.shader_module_vert = imguiVertShader;
 
-			imguiPipeline.vertex_input_attribute_descriptions       = attrs.data();
-			imguiPipeline.vertex_input_attribute_descriptions_count = attrs.size();
-			imguiPipeline.vertex_input_binding_descriptions         = bindings.data();
-			imguiPipeline.vertex_input_binding_descriptions_count   = bindings.size();
+			imGuiPipelineInfo.vertex_input_attribute_descriptions       = attrs.data();
+			imGuiPipelineInfo.vertex_input_attribute_descriptions_count = attrs.size();
+			imGuiPipelineInfo.vertex_input_binding_descriptions         = bindings.data();
+			imGuiPipelineInfo.vertex_input_binding_descriptions_count   = bindings.size();
 
-			auto psoHandle = app->renderer->createGraphicsPipelineStateObject( &imguiPipeline );
+			auto psoHandle = app->renderer->createGraphicsPipelineStateObject( &imGuiPipelineInfo );
 
 			if ( psoHandle ) {
 				app->psoImgui = psoHandle;
@@ -329,10 +329,11 @@ static test_app_o *test_app_create() {
 			auto fullScreenQuadVertShader = app->renderer->createShaderModule( "./resources/shaders/fullscreenQuad.vert", LeShaderType::eVert );
 			auto fullScreenQuadFragShader = app->renderer->createShaderModule( "./resources/shaders/fullscreenQuad.frag", LeShaderType::eFrag );
 
-			le_graphics_pipeline_create_info_t pi;
+			le_graphics_pipeline_create_info_t pi{};
 			pi.shader_module_vert = fullScreenQuadVertShader;
 			pi.shader_module_frag = fullScreenQuadFragShader;
-			auto psoHandle        = app->renderer->createGraphicsPipelineStateObject( &pi );
+
+			auto psoHandle = app->renderer->createGraphicsPipelineStateObject( &pi );
 
 			if ( psoHandle ) {
 				app->psoFullScreenQuad = psoHandle;
@@ -355,7 +356,7 @@ static test_app_o *test_app_create() {
 
 		io.DisplaySize  = {float( app->window->getSurfaceWidth() ),
 		                  float( app->window->getSurfaceHeight() )};
-		io.Fonts->TexID = reinterpret_cast<void *>( app->imguiTexture.le_texture_handle );
+		io.Fonts->TexID = ( app->imguiTexture.le_texture_handle );
 
 		// Keyboard mapping. ImGui will use those indices to peek into the io.KeysDown[] array.
 		io.KeyMap[ ImGuiKey_Tab ]        = GLFW_KEY_TAB;
@@ -480,6 +481,8 @@ static bool test_app_update( test_app_o *self ) {
 
 	static auto const &gltf_i = Registry::getApi<le_gltf_loader_api>()->document_i;
 
+	static auto const &le_renderer = Registry::getApi<le_renderer_api>()->le_renderer_i;
+
 	le::RenderModule mainModule{};
 	{
 
@@ -542,9 +545,9 @@ static bool test_app_update( test_app_o *self ) {
 					img.format        = VK_FORMAT_R8G8B8A8_UNORM;
 					img.flags         = 0;
 					img.arrayLayers   = 1;
-					img.extent.depth  = 1;
 					img.extent.width  = uint32_t( 640 );
 					img.extent.height = uint32_t( 480 );
+					img.extent.depth  = 1;
 					img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 					img.mipLevels     = 1;
 					img.samples       = VK_SAMPLE_COUNT_1_BIT;
@@ -578,9 +581,9 @@ static bool test_app_update( test_app_o *self ) {
 			{
 				// create resource for triangle vertex buffer
 				le_resource_info_t bufInfo;
-				bufInfo.type               = LeResourceType::eBuffer;
-				bufInfo.buffer.size        = sizeof( glm::vec3 ) * 3;
-				bufInfo.buffer.usage_flags = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+				bufInfo.type         = LeResourceType::eBuffer;
+				bufInfo.buffer.size  = sizeof( glm::vec3 ) * 3;
+				bufInfo.buffer.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
 				rp.createResource( app->resBufTrianglePos, bufInfo );
 			}
 
@@ -639,15 +642,9 @@ static bool test_app_update( test_app_o *self ) {
 			auto rp  = le::RenderPassRef{pRp};
 			auto app = static_cast<test_app_o *>( user_data_ );
 
-			LeImageAttachmentInfo colorAttachmentInfo{};
-			colorAttachmentInfo.access_flags     = le::AccessFlagBits::eWrite;
-			colorAttachmentInfo.loadOp           = LE_ATTACHMENT_LOAD_OP_CLEAR;
-			colorAttachmentInfo.storeOp          = LE_ATTACHMENT_STORE_OP_STORE;
-			colorAttachmentInfo.clearValue.color = {{1.f, 0, 0, 1.f}};
+			rp.addImageAttachment( app->resImgPrepass );
 
-			rp.addImageAttachment( app->resImgPrepass, &colorAttachmentInfo );
-
-			rp.useResource( app->resImgHorse, le::AccessFlagBits::eRead );
+			rp.useResource( app->resImgHorse, eLeAccessFlagBitRead );
 			{
 				LeTextureInfo textureInfo{};
 				textureInfo.imageView.imageId = app->resImgHorse;
@@ -661,6 +658,7 @@ static bool test_app_update( test_app_o *self ) {
 
 			return true;
 		} );
+
 		renderPassPre.setExecuteCallback( self, []( le_command_buffer_encoder_o *encoder, void *user_data ) {
 			static auto const &le_encoder   = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
 			auto               app          = static_cast<test_app_o *>( user_data );
@@ -693,28 +691,15 @@ static bool test_app_update( test_app_o *self ) {
 			auto rp  = le::RenderPassRef{pRp};
 			auto app = static_cast<test_app_o *>( user_data_ );
 
-			// why do we let imageAttachmentInfo specify format?
-			// because we might want to use a different format than the format the image is originally in.
-			// this is important for example, when using a depth buffer for shadow sampling later.
+			rp.addImageAttachment( app->renderer->getBackbufferResource() );
 
-			LeImageAttachmentInfo colorAttachmentInfo{};
-			colorAttachmentInfo.access_flags     = le::AccessFlagBits::eWrite;
-			colorAttachmentInfo.loadOp           = LE_ATTACHMENT_LOAD_OP_CLEAR;
-			colorAttachmentInfo.storeOp          = LE_ATTACHMENT_STORE_OP_STORE;
-			colorAttachmentInfo.clearValue.color = {{0.1f, 0.25f, 0.4f, 1.f}};
-			rp.addImageAttachment( app->renderer->getBackbufferResource(), &colorAttachmentInfo );
-
-			LeImageAttachmentInfo depthAttachmentInfo{};
-			depthAttachmentInfo.access_flags            = le::AccessFlagBits::eWrite;
-			depthAttachmentInfo.loadOp                  = LE_ATTACHMENT_LOAD_OP_CLEAR;
-			depthAttachmentInfo.storeOp                 = LE_ATTACHMENT_STORE_OP_STORE;
-			depthAttachmentInfo.clearValue.depthStencil = {1.f, 0};
-			rp.addImageAttachment( app->resImgDepth, &depthAttachmentInfo );
+			LeImageAttachmentInfo depthAttachmentInfo;
+			depthAttachmentInfo.clearValue = LeImageAttachmentInfo::DefaultClearValueDepthStencil;
+			rp.addImageAttachment( app->resImgDepth, depthAttachmentInfo );
 
 			rp.setWidth( app->window->getSurfaceWidth() );
 			rp.setHeight( app->window->getSurfaceHeight() );
-
-			rp.useResource( app->resImgPrepass, le::AccessFlagBits::eRead );
+			rp.useResource( app->resImgPrepass );
 
 			// this will create an imageView and a sampler in the context of this pass/encoder.
 			// this will implicitly use the resource for reading
@@ -799,7 +784,7 @@ static bool test_app_update( test_app_o *self ) {
 			}
 
 			// Bind main graphics pipeline
-			if ( false ) {
+			if ( true ) {
 				le_encoder.bind_graphics_pipeline( encoder, app->psoMain );
 
 				le_encoder.set_scissor( encoder, 0, 1, scissors );
@@ -809,7 +794,6 @@ static bool test_app_update( test_app_o *self ) {
 				matrixStack.projectionMatrix = glm::perspective( glm::radians( 60.f ), float( screenWidth ) / float( screenHeight ), 0.01f, 10000.f );
 				matrixStack.modelMatrix      = glm::mat4( 1.f ); // identity matrix
 				matrixStack.modelMatrix      = glm::scale( matrixStack.modelMatrix, glm::vec3( 4.5 ) );
-				matrixStack.modelMatrix      = glm::translate( matrixStack.modelMatrix, glm::vec3( 0, 0, 0 ) );
 
 				matrixStack.modelMatrix = glm::rotate( matrixStack.modelMatrix, glm::radians( r_anim_val * 360 ), glm::vec3( 0, 0, 1 ) );
 
