@@ -181,16 +181,20 @@ struct LeClearValue {
 };
 
 struct LeImageAttachmentInfo {
-	LeResourceHandle    resource_id  = nullptr; // hash name given to this attachment, based on name string
-	uint64_t            source_id    = 0;       // hash name of writer/creator renderpass
-	uint8_t             access_flags = 0;       // read, write or readwrite
-	LeFormat_t          format;
-	LeAttachmentLoadOp  loadOp;
-	LeAttachmentStoreOp storeOp;
 
-	LeClearValue clearValue = {}; // only used if loadOp == clear
-	char         debugName[ 32 ];
+	static constexpr LeClearValue DefaultClearValueColor        = {{{{{0.f, 0.f, 0.f, 0.f}}}}};
+	static constexpr LeClearValue DefaultClearValueDepthStencil = {{{{{1.f, 0}}}}};
+
 	LeAccessFlags       access_flags = eLeAccessFlagBitWrite; // read, write or readwrite (default is write)
+	LeAttachmentLoadOp  loadOp       = LE_ATTACHMENT_LOAD_OP_CLEAR;
+	LeAttachmentStoreOp storeOp      = LE_ATTACHMENT_STORE_OP_STORE;
+	LeClearValue        clearValue   = DefaultClearValueColor; // only used if loadOp == clear
+
+	LeFormat_t       format      = 0;       // if format is not given it will be automatically derived from attached image format
+	LeResourceHandle resource_id = nullptr; // hash name given to this attachment, based on name string
+	uint64_t         source_id   = 0;       // hash name of writer/creator renderpass
+
+	char debugName[ 32 ];
 };
 
 struct le_resource_info_t {
@@ -249,7 +253,7 @@ struct le_renderer_api {
 		void                         ( *set_setup_callback   )( le_renderpass_o *obj, pfn_renderpass_setup_t setup_fun, void *user_data );
 		bool                         ( *has_setup_callback   )( const le_renderpass_o* obj);
 		bool                         ( *run_setup_callback   )( le_renderpass_o* obj);
-		void                         ( *add_image_attachment )( le_renderpass_o *obj, LeResourceHandle resource_id, LeImageAttachmentInfo *info );
+		void                         ( *add_image_attachment )( le_renderpass_o *obj, LeResourceHandle resource_id, LeImageAttachmentInfo const *info );
 		uint32_t                     ( *get_width            )( le_renderpass_o* obj);
 		uint32_t                     ( *get_height           )( le_renderpass_o* obj);
 		void                         ( *set_width            )( le_renderpass_o* obj, uint32_t width);
@@ -484,8 +488,8 @@ class RenderPassRef {
 		return self;
 	}
 
-	RenderPassRef &addImageAttachment( LeResourceHandle resource_id, LeImageAttachmentInfo *info ) {
-		renderpassI.add_image_attachment( self, resource_id, info );
+	RenderPassRef &addImageAttachment( LeResourceHandle resource_id, const LeImageAttachmentInfo &info = LeImageAttachmentInfo() ) {
+		renderpassI.add_image_attachment( self, resource_id, &info );
 		return *this;
 	}
 

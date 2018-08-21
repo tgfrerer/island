@@ -161,7 +161,7 @@ static void renderpass_sample_texture( le_renderpass_o *self, LeResourceHandle t
 
 // ----------------------------------------------------------------------
 
-static void renderpass_add_image_attachment( le_renderpass_o *self, LeResourceHandle resource_id, LeImageAttachmentInfo *info_ ) {
+static void renderpass_add_image_attachment( le_renderpass_o *self, LeResourceHandle resource_id, LeImageAttachmentInfo const *info_ ) {
 
 	self->imageAttachments.push_back( *info_ );
 	auto &info = self->imageAttachments.back();
