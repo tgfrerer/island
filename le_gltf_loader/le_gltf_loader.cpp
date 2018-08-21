@@ -349,6 +349,19 @@ static void document_declare_resources( le_gltf_document_o *self, le_renderer_o 
 		self->bufferResources[ i ] = renderer_i.declare_resource( renderer, LeResourceType::eBuffer );
 	}
 
+	vk::PipelineRasterizationStateCreateInfo rasterizationState{};
+	rasterizationState
+	    .setDepthClampEnable( VK_FALSE )
+	    .setRasterizerDiscardEnable( VK_FALSE )
+	    .setPolygonMode( ::vk::PolygonMode::eFill )
+	    .setCullMode( ::vk::CullModeFlagBits::eBack )
+	    .setFrontFace( ::vk::FrontFace::eCounterClockwise )
+	    .setDepthBiasEnable( VK_FALSE )
+	    .setDepthBiasConstantFactor( 0.f )
+	    .setDepthBiasClamp( 0.f )
+	    .setDepthBiasSlopeFactor( 1.f )
+	    .setLineWidth( 1.f );
+
 	for ( auto &m : self->meshes ) {
 
 		for ( auto &p : m.primitives ) {
@@ -371,6 +384,8 @@ static void document_declare_resources( le_gltf_document_o *self, le_renderer_o 
 				le_graphics_pipeline_create_info_t pipelineInfo;
 				pipelineInfo.shader_module_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.vert", LeShaderType::eVert );
 				pipelineInfo.shader_module_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.frag", LeShaderType::eFrag );
+
+				pipelineInfo.rasterizationState = reinterpret_cast<VkPipelineRasterizationStateCreateInfo *>( &rasterizationState );
 
 				pipelineInfo.vertex_input_attribute_descriptions       = p.attribute_descriptions.data();
 				pipelineInfo.vertex_input_attribute_descriptions_count = p.attribute_descriptions.size();

@@ -89,6 +89,11 @@ struct le_allocator_o;
 
 struct le_shader_module_o; ///< shader module, 1:1 relationship with a shader source file
 
+// forward declaration of Vk Types -- not sure if we don't want to wrap these eventually
+#define DECLARE_VK_TO_LE_HANDLE( object ) typedef struct Vk##object *Le##object##Handle;
+
+DECLARE_VK_TO_LE_HANDLE( PipelineRasterizationStateCreateInfo )
+
 /// \note This struct assumes a little endian machine for sorting
 struct le_vertex_input_attribute_description {
 
@@ -129,10 +134,11 @@ struct le_graphics_pipeline_create_info_t {
 	le_shader_module_o *shader_module_frag = nullptr;
 	le_shader_module_o *shader_module_vert = nullptr;
 
-	le_vertex_input_attribute_description *vertex_input_attribute_descriptions       = nullptr;
-	size_t                                 vertex_input_attribute_descriptions_count = 0;
-	le_vertex_input_binding_description *  vertex_input_binding_descriptions         = nullptr;
-	size_t                                 vertex_input_binding_descriptions_count   = 0;
+	le_vertex_input_attribute_description *      vertex_input_attribute_descriptions       = nullptr;
+	size_t                                       vertex_input_attribute_descriptions_count = 0;
+	le_vertex_input_binding_description *        vertex_input_binding_descriptions         = nullptr;
+	size_t                                       vertex_input_binding_descriptions_count   = 0;
+	LePipelineRasterizationStateCreateInfoHandle rasterizationState                        = nullptr;
 };
 
 struct le_graphics_pipeline_state_o; // object containing pipeline state

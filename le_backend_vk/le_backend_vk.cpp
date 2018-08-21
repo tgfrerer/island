@@ -127,6 +127,7 @@ struct le_graphics_pipeline_state_o {
 	le_shader_module_o *shaderModuleFrag = nullptr;
 
 	// TODO (pipeline) : -- add fields to pso object
+	vk::PipelineRasterizationStateCreateInfo rasterizationInfo{}; // TODO: this needs to be hashed.
 
 	bool useExplicitVertexInputDescriptions = false;
 
@@ -1455,6 +1456,25 @@ static le_graphics_pipeline_state_o *backend_create_grapics_pipeline_state_objec
 
 	// TODO (pipeline): -- initialise pso based on pipeline info
 
+	if ( info->rasterizationState ) {
+		// copy rasterisation state if available, otherwise use our own
+		pso->rasterizationInfo = *info->rasterizationState;
+	} else {
+		vk::PipelineRasterizationStateCreateInfo defaultRasterizationState;
+		defaultRasterizationState
+		    .setDepthClampEnable( VK_FALSE )
+		    .setRasterizerDiscardEnable( VK_FALSE )
+		    .setPolygonMode( ::vk::PolygonMode::eFill )
+		    .setCullMode( ::vk::CullModeFlagBits::eNone )
+		    .setFrontFace( ::vk::FrontFace::eCounterClockwise )
+		    .setDepthBiasEnable( VK_FALSE )
+		    .setDepthBiasConstantFactor( 0.f )
+		    .setDepthBiasClamp( 0.f )
+		    .setDepthBiasSlopeFactor( 1.f )
+		    .setLineWidth( 1.f );
+		pso->rasterizationInfo = std::move( defaultRasterizationState );
+	}
+
 	// -- calculate hash based on contents of pipeline state object
 
 	// TODO: -- calculate hash for pipeline state based on create_info (state that's not related to shaders)
@@ -1547,19 +1567,6 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setScissorCount( 1 )
 	    .setPScissors( nullptr );
 
-	vk::PipelineRasterizationStateCreateInfo rasterizationState;
-	rasterizationState
-	    .setDepthClampEnable( VK_FALSE )
-	    .setRasterizerDiscardEnable( VK_FALSE )
-	    .setPolygonMode( ::vk::PolygonMode::eFill )
-	    .setCullMode( ::vk::CullModeFlagBits::eNone )
-	    .setFrontFace( ::vk::FrontFace::eCounterClockwise )
-	    .setDepthBiasEnable( VK_FALSE )
-	    .setDepthBiasConstantFactor( 0.f )
-	    .setDepthBiasClamp( 0.f )
-	    .setDepthBiasSlopeFactor( 1.f )
-	    .setLineWidth( 1.f );
-
 	vk::PipelineMultisampleStateCreateInfo multisampleState;
 	multisampleState
 	    .setRasterizationSamples( ::vk::SampleCountFlagBits::e1 )
@@ -1641,7 +1648,7 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setPInputAssemblyState( &inputAssemblyState )
 	    .setPTessellationState( nullptr )
 	    .setPViewportState( &viewportState )
-	    .setPRasterizationState( &rasterizationState )
+	    .setPRasterizationState( &pso->rasterizationInfo )
 	    .setPMultisampleState( &multisampleState )
 	    .setPDepthStencilState( &depthStencilState )
 	    .setPColorBlendState( &colorBlendState )
