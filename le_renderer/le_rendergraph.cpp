@@ -5,7 +5,6 @@
 
 #include <vector>
 #include <string>
-#include <list>
 #include <assert.h>
 #include <algorithm>
 #include <unordered_map>
