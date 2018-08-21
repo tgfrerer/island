@@ -1581,8 +1581,8 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 
 	vk::PipelineDepthStencilStateCreateInfo depthStencilState;
 	depthStencilState
-	    .setDepthTestEnable( VK_FALSE )
-	    .setDepthWriteEnable( VK_FALSE )
+	    .setDepthTestEnable( VK_TRUE )
+	    .setDepthWriteEnable( VK_TRUE )
 	    .setDepthCompareOp( ::vk::CompareOp::eLessOrEqual )
 	    .setDepthBoundsTestEnable( VK_FALSE )
 	    .setStencilTestEnable( VK_FALSE )
