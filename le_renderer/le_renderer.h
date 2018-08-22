@@ -505,6 +505,19 @@ class RenderPassRef {
 		return *this;
 	}
 
+	RenderPassRef &addDepthImageAttachment( const LeResourceHandle &resource_id, const LeImageAttachmentInfo &info = {
+	                                                                                 eLeAccessFlagBitWrite,
+	                                                                                 LE_ATTACHMENT_LOAD_OP_CLEAR,
+	                                                                                 LE_ATTACHMENT_STORE_OP_STORE,
+	                                                                                 LeImageAttachmentInfo::DefaultClearValueDepthStencil,
+	                                                                                 0,
+	                                                                                 nullptr,
+	                                                                                 0,
+	                                                                                 {},
+                                                                                 } ) {
+		return addImageAttachment( resource_id, info );
+	}
+
 	/// \brief register resource with this renderpass, access Read unless otherwise specified
 	RenderPassRef &useResource( LeResourceHandle resource_id, uint32_t access_flags = LeAccessFlagBits::eLeAccessFlagBitRead ) {
 		renderpassI.use_resource( self, resource_id, access_flags );
