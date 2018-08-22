@@ -327,6 +327,10 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, LeResourceHa
 		cmd->info.dst_offset    = offset;
 		cmd->info.numBytes      = numBytes;
 		cmd->info.dst_buffer_id = resourceId;
+	} else {
+		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl
+		          << std::flush;
+		return;
 	}
 
 	self->mCommandStreamSize += sizeof( le::CommandWriteToBuffer );
