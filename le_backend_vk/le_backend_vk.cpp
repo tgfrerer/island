@@ -2020,7 +2020,7 @@ static void backend_setup( le_backend_o *self ) {
 
 		{
 			VmaPoolCreateInfo aInfo{};
-			aInfo.blockSize       = 1u << 22; // 4MB
+			aInfo.blockSize       = 1u << 24; // 16.77MB
 			aInfo.flags           = VmaPoolCreateFlagBits::VMA_POOL_CREATE_IGNORE_BUFFER_IMAGE_GRANULARITY_BIT;
 			aInfo.memoryTypeIndex = memIndexScratchBufferGraphics;
 			aInfo.frameInUseCount = 0;
@@ -3202,7 +3202,7 @@ static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, si
 			vk::BufferCreateInfo bufferInfoProxy;
 			bufferInfoProxy
 			    .setFlags( {} )
-			    .setSize( 1u << 22 ) // 4MB
+			    .setSize( 1u << 24 ) // 16.77MB
 			    .setUsage( self->LE_BUFFER_USAGE_FLAGS_SCRATCH )
 			    .setSharingMode( vk::SharingMode::eExclusive )
 			    .setQueueFamilyIndexCount( 1 )

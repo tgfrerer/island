@@ -191,14 +191,14 @@ struct LeImageAttachmentInfo {
 	static constexpr LeClearValue DefaultClearValueColor        = {{{{{0.f, 0.f, 0.f, 0.f}}}}};
 	static constexpr LeClearValue DefaultClearValueDepthStencil = {{{{{1.f, 0}}}}};
 
-	LeAccessFlags       access_flags = eLeAccessFlagBitWrite; // read, write or readwrite (default is write)
-	LeAttachmentLoadOp  loadOp       = LE_ATTACHMENT_LOAD_OP_CLEAR;
-	LeAttachmentStoreOp storeOp      = LE_ATTACHMENT_STORE_OP_STORE;
-	LeClearValue        clearValue   = DefaultClearValueColor; // only used if loadOp == clear
+	LeAccessFlags       access_flags = eLeAccessFlagBitWrite;        // read, write or readwrite (default is write)
+	LeAttachmentLoadOp  loadOp       = LE_ATTACHMENT_LOAD_OP_CLEAR;  //
+	LeAttachmentStoreOp storeOp      = LE_ATTACHMENT_STORE_OP_STORE; //
+	LeClearValue        clearValue   = DefaultClearValueColor;       // only used if loadOp == clear
 
 	LeFormat_t       format      = 0;       // if format is not given it will be automatically derived from attached image format
-	LeResourceHandle resource_id = nullptr; // hash name given to this attachment, based on name string
-	uint64_t         source_id   = 0;       // hash name of writer/creator renderpass
+	LeResourceHandle resource_id = nullptr; // (private - do not set) handle given to this attachment
+	uint64_t         source_id   = 0;       // (private - do not set) hash name of writer/creator renderpass
 
 	char debugName[ 32 ];
 };
@@ -287,7 +287,7 @@ struct le_renderer_api {
 		void                         ( *get_image_attachments)(const le_renderpass_o* obj, const LeImageAttachmentInfo** pAttachments, size_t* numAttachments);
 
 		// TODO: not too sure about the nomenclature of this
-		// Note that this method does use the resource in question for reading.
+		// Note that this method implicitly marks the image resource referenced in LeTextureInfo for read access.
 		void                         ( *sample_texture        )(le_renderpass_o* obj, LeResourceHandle texture_name, const LeTextureInfo* info);
 		void                         ( *get_texture_ids       )(le_renderpass_o* obj, const LeResourceHandle ** pIds, uint64_t* count);
 		void                         ( *get_texture_infos     )(le_renderpass_o* obj, const LeTextureInfo** pInfos, uint64_t* count);
@@ -323,7 +323,7 @@ struct le_renderer_api {
 		void                         ( *bind_graphics_pipeline )( le_command_buffer_encoder_o *self, le_graphics_pipeline_state_o* pipeline);
 
 		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, LeResourceHandle const bufferId, uint64_t offset, uint64_t const indexType);
-		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, LeResourceHandle const *pBufferIds, uint64_t const *pOffsets );
+		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, LeResourceHandle const * pBufferId, uint64_t const * pOffsets );
 
 		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint64_t indexType );
 		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint32_t bindingIndex );
@@ -498,11 +498,14 @@ class RenderPassRef {
 		return self;
 	}
 
-	RenderPassRef &addImageAttachment( LeResourceHandle resource_id, const LeImageAttachmentInfo &info = LeImageAttachmentInfo() ) {
+	/// \brief adds a resource as an image attachment to the renderpass, resource is used for ColorAttachment and Write access, unless otherwise specified
+	/// \details use an LeImageAttachmentInfo struct to specialise parameters, such as LOAD_OP, CLEAR_OP, and Clear/Load Color.
+	RenderPassRef &addImageAttachment( const LeResourceHandle &resource_id, const LeImageAttachmentInfo &info = LeImageAttachmentInfo() ) {
 		renderpassI.add_image_attachment( self, resource_id, &info );
 		return *this;
 	}
 
+	/// \brief register resource with this renderpass, access Read unless otherwise specified
 	RenderPassRef &useResource( LeResourceHandle resource_id, uint32_t access_flags = LeAccessFlagBits::eLeAccessFlagBitRead ) {
 		renderpassI.use_resource( self, resource_id, access_flags );
 		return *this;

@@ -39,8 +39,8 @@ struct Primitive {
 		size_t             numIndices = 0;
 	};
 
-	std::vector<le_vertex_input_attribute_description> attribute_descriptions; // location->
-	std::vector<le_vertex_input_binding_description>   binding_descriptions;   // binding->
+	std::vector<le_vertex_input_attribute_description> attribute_descriptions; // indexed by location->
+	std::vector<le_vertex_input_binding_description>   binding_descriptions;   // indexed by binding->
 	std::vector<int32_t>                               boundBufferViews;       // gltf document indices of bound bufferViews
 
 	std::optional<IndexData> indexData;
@@ -50,8 +50,8 @@ struct Primitive {
 
 	struct PbrProperties *materialProperties = nullptr; // material properties
 
-	std::vector<le::ResourceHandle> cachedBuffers;
-	std::vector<uint64_t>           cachedOffsets;
+	std::vector<le::ResourceHandle> cachedBuffers; // vertex (=attribute) data source via buffer-offset pair for binding
+	std::vector<uint64_t>           cachedOffsets; // vertex (=attribute) data source via buffer-offset pair for binding
 };
 
 struct Mesh {
@@ -200,6 +200,21 @@ static bool document_load_from_text( le_gltf_document_o *self, const char *path 
 		self->meshes.clear();
 		self->bufferResourceInfos.clear();
 		self->imageResourceInfos.clear();
+
+		/*
+		 * Note that we must account for pathological gltf documents which have accessors with byte offsets which
+		 * are larger than what our GPU may allow us to set for vertex inputs - 2047 is probably a sensible value
+		 *
+		 * In such a case, we need to reformat the document, and add some bufferviews so that accessors really
+		 * only define an offset if input is interleaved.
+		 *
+		 * We probably have to generalize this so that we always do the correct thing, meaning
+		 * we don't want to first find out if the document is pathological and go down two paths.
+		 *
+		 * Better, we first build up an optimal internal representation, and use this for uploading data,
+		 * and drawing.
+		 *
+		*/
 
 		// we must find out what kind of pipelines this document requires.
 		// for this, we must iterate over all meshes
