@@ -382,8 +382,13 @@ static void document_declare_resources( le_gltf_document_o *self, le_renderer_o 
 		for ( auto &p : m.primitives ) {
 
 			// Cache buffer lookups for primitives
+
 			p.cachedBuffers.clear();
 			p.cachedOffsets.clear();
+
+			size_t numBufferOffsets = p.boundBufferViews.size();
+			p.cachedBuffers.reserve( numBufferOffsets );
+			p.cachedOffsets.reserve( numBufferOffsets );
 
 			for ( const auto &view : p.boundBufferViews ) {
 				p.cachedOffsets.emplace_back( self->document.bufferViews[ view ].byteOffset );
