@@ -468,9 +468,9 @@ static bool test_app_update( test_app_o *self ) {
 
 	ImGui::NewFrame();
 
-	// ImGui::Text("Hello Island");
+	// ImGui::Text( "Hello Island" );
 
-	// ImGui::ShowDemoWindow();
+	//	ImGui::ShowDemoWindow();
 	ImGui::ShowMetricsWindow();
 	ImGui::Render();
 
@@ -493,7 +493,6 @@ static bool test_app_update( test_app_o *self ) {
 			auto rp  = le::RenderPassRef{pRp};
 
 			{
-
 				// create image for the horse image
 				le_resource_info_t imgInfo;
 				imgInfo.type = LeResourceType::eImage;
@@ -644,14 +643,13 @@ static bool test_app_update( test_app_o *self ) {
 
 			rp.addImageAttachment( app->resImgPrepass );
 
-			rp.useResource( app->resImgHorse, eLeAccessFlagBitRead );
-			{
-				LeTextureInfo textureInfo{};
-				textureInfo.imageView.imageId = app->resImgHorse;
-				textureInfo.sampler.magFilter = VK_FILTER_NEAREST;
-				textureInfo.sampler.minFilter = VK_FILTER_NEAREST;
-				rp.sampleTexture( app->resTexHorse, textureInfo );
-			}
+			rp.useResource( app->resImgHorse );
+
+			LeTextureInfo textureInfo{};
+			textureInfo.imageView.imageId = app->resImgHorse;
+			textureInfo.sampler.magFilter = VK_FILTER_NEAREST;
+			textureInfo.sampler.minFilter = VK_FILTER_NEAREST;
+			rp.sampleTexture( app->resTexHorse, textureInfo );
 
 			rp.setWidth( 640 );
 			rp.setHeight( 480 );
@@ -691,38 +689,18 @@ static bool test_app_update( test_app_o *self ) {
 			auto rp  = le::RenderPassRef{pRp};
 			auto app = static_cast<test_app_o *>( user_data_ );
 
-			rp.addImageAttachment( app->renderer->getBackbufferResource() );
+			LeImageAttachmentInfo info{};
 
-			LeImageAttachmentInfo depthAttachmentInfo;
-			depthAttachmentInfo.clearValue = LeImageAttachmentInfo::DefaultClearValueDepthStencil;
-			rp.addImageAttachment( app->resImgDepth, depthAttachmentInfo );
+			rp
+			    .setWidth( app->window->getSurfaceWidth() )
+			    .setHeight( app->window->getSurfaceHeight() )
+			    .addImageAttachment( app->renderer->getBackbufferResource() ) // color attachment
+			    .addDepthImageAttachment( app->resImgDepth )                  // depth attachment
+			    .setIsRoot( true );
 
-			rp.setWidth( app->window->getSurfaceWidth() );
-			rp.setHeight( app->window->getSurfaceHeight() );
-			rp.useResource( app->resImgPrepass );
-
-			// this will create an imageView and a sampler in the context of this pass/encoder.
-			// this will implicitly use the resource for reading
-
-			{
-				LeTextureInfo textureInfo{};
-				textureInfo.imageView.imageId = app->resImgPrepass;
-				textureInfo.sampler.magFilter = VK_FILTER_NEAREST;
-				textureInfo.sampler.minFilter = VK_FILTER_NEAREST;
-
-				rp.sampleTexture( app->resTexPrepass, textureInfo );
-			}
-			{
-				// register that we want to use the imgui texture in this renderpass
-				LeTextureInfo textureInfo{};
-				textureInfo.imageView.imageId = app->imguiTexture.le_image_handle;
-				textureInfo.sampler.magFilter = VK_FILTER_LINEAR;
-				textureInfo.sampler.minFilter = VK_FILTER_LINEAR;
-
-				rp.sampleTexture( app->imguiTexture.le_texture_handle, textureInfo );
-			}
-
-			rp.setIsRoot( true );
+			rp
+			    .sampleTexture( app->resTexPrepass, {VK_FILTER_NEAREST, VK_FILTER_NEAREST, app->resImgPrepass, 0} )
+			    .sampleTexture( app->imguiTexture.le_texture_handle, {VK_FILTER_LINEAR, VK_FILTER_LINEAR, app->imguiTexture.le_image_handle, 0} );
 
 			return true;
 		} );
@@ -774,7 +752,7 @@ static bool test_app_update( test_app_o *self ) {
 			ColorUbo_t ubo1{{1, 0, 0, 1}};
 
 			// Bind full screen quad pipeline
-			if ( true ) {
+			if ( false ) {
 
 				le_encoder.bind_graphics_pipeline( encoder, app->psoFullScreenQuad );
 				le_encoder.set_argument_texture( encoder, app->resTexPrepass, const_char_hash64( "src_tex_unit_0" ), 0 );
