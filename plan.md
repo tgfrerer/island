@@ -30,19 +30,8 @@
 
 ## (A)
 
-
-* Add ImGui
-
-* implement buffer resources as sources for vertex attribute data
-* implement image  resources as sources for image sampler data
-
 ## (B)
 
-* We need to think of another way of defining resource IDs: ideally, ids only
-  need to be 16 bit, this would leave us with some bits to signal different
-  other traits associated with a resource, like, for example, the resource
-  type.
-* Programmatically create vertex bindings for Pipeline
 * Implement pipeline settings such as winding mode, poly mode etc.
 * Write ergonomic front-end for pipeline setup
 
@@ -152,7 +141,6 @@ Where should we *declare* resources?
 
     * The BACKEND does everything which is API specific.
 
-
 ---------------------------------------------------------------------- 
 
 # Island-framework
@@ -168,7 +156,17 @@ Where should we *declare* resources?
 
 # Features
 
+# resource lookup in command_buffer_encoder_interface
 
-* Textures - this will allow us to use ImGUI
-* Auto format detection for Renderpasses based on Swapchain surface capabilities
+when setup command buffers, we declare all resources - this means all resource handles can be put into a vector, where each resource is only referenced once. 
+  - this becomes the vector of frame-available resources
 
+when we acquire resources, we create a parallel vector which has the vulkan object id for each resource - indices match frame available resources vector.
+
+when we record command buffers, we store index into the frame resource list - that way we can be much faster at assigning resources
+
+# GLTF loader TODO
+
+  + some pathological gltf files abuse accessors as bufferviews, meaning accessors have byteoffsets larger than 2048 bytes (the maximum Vulkan allows for attribute offsets) and use accessors such as you would expect bufferviews to be used. These files often have only one or two bufferviews, and heaps of accessors pointing into the same bufferviews. that's not cool, and internally, we must rearrange the data for these files before we build a representation which we can actually draw.
+
+  + we probably need to do this in a more general way, meaning we must build an internal representation of the data in the file before uploading and drawing, an internal representation which totally conforms to what is optimal using Vulkan.
