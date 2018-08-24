@@ -97,37 +97,46 @@ DECLARE_VK_TO_LE_HANDLE( PipelineRasterizationStateCreateInfo )
 /// \note This struct assumes a little endian machine for sorting
 struct le_vertex_input_attribute_description {
 
-	// FIXME: bitfield layout is implementation-defined, we must not assume that
-	// this struct is laid out in such a way as we expect.
-
-	// Note that we store the log2 of the number of Bytes needed to store values of a type in the LS nibble,
-	// so that we can say: numBytes =  1 << (type & 0x0F);
+	// Note that we store the log2 of the number of Bytes needed to store values of a type
+	// in the least significant two bits, so that we can say: numBytes =  1 << (type & 0x03);
 	enum Type : uint8_t {
-		eChar  = ( 0 << 4 ) | 0,
-		eShort = ( 1 << 4 ) | 1,
-		eHalf  = ( 2 << 4 ) | 1,
-		eInt   = ( 3 << 4 ) | 2,
-		eUInt  = ( 4 << 4 ) | 2,
-		eFloat = ( 5 << 4 ) | 2,
+		eChar   = ( 0 << 2 ) | 0,
+		eUChar  = ( 1 << 2 ) | 0,
+		eShort  = ( 2 << 2 ) | 1,
+		eUShort = ( 3 << 2 ) | 1,
+		eInt    = ( 4 << 2 ) | 2,
+		eUInt   = ( 5 << 2 ) | 2,
+		eHalf   = ( 6 << 2 ) | 1, // 16 bit float type
+		eFloat  = ( 7 << 2 ) | 2, // 32 bit float type
 	};
 
-	uint64_t xxx_padding : 3;
-	bool     isNormalised : 1;    /// 0..1 (), 3 bits of unused space...
-	uint64_t vecsize : 4;         /// 0..7 (number of elements)
-	Type     type : 8;            /// use enum NUM_BYTES (1 << num bytes =  1|2|4|8)
-	uint64_t binding_offset : 32; /// 0..4294967295 offset for this location within binding
-	uint64_t binding : 8;         /// 0..255
-	uint64_t location : 8;        /// 0..255
+	union {
+		struct {
+			uint8_t  location;       /// 0..32 shader attribute location
+			uint8_t  binding;        /// 0..32 binding slot
+			uint16_t binding_offset; /// 0..65565 offset for this location within binding (careful: must not be larget than maxVertexInputAttributeOffset [0.0x7ff])
+			Type     type;           /// base type for attribute
+			uint8_t  vecsize;        /// 0..7 number of elements of base type
+			uint8_t  isNormalised;   /// whether this input comes pre-normalized
+		};
+		uint64_t raw_data = 0;
+	};
 };
 
 struct le_vertex_input_binding_description {
-	enum INPUT_RATE : bool {
+	enum INPUT_RATE : uint8_t {
 		ePerVertex   = 0,
 		ePerInstance = 1,
 	};
-	INPUT_RATE input_rate : 1; //
-	uint32_t   stride : 16;    // per-vertex or per-instance stride in bytes
-	uint32_t   binding : 4;    // binding slot 0..32(==MAX_ATTRIBUTE_BINDINGS)
+
+	union {
+		struct {
+			uint8_t    binding;    /// binding slot 0..32(==MAX_ATTRIBUTE_BINDINGS)
+			INPUT_RATE input_rate; /// per-vertex (0) or per-instance (1)
+			uint16_t   stride;     /// per-vertex or per-instance stride in bytes (must be smaller than maxVertexInputBindingStride = [0x800])
+		};
+		uint32_t raw_data;
+	};
 };
 
 struct le_graphics_pipeline_create_info_t {
@@ -384,13 +393,11 @@ class ResourceHandle {
 		return m_resource < rhs.m_resource;
 	}
 
-	operator LeResourceHandle() const {
+
+	operator LeResourceHandle const &() const {
 		return m_resource;
 	}
 
-	operator LeResourceHandle const *() const {
-		return &m_resource;
-	}
 
 	explicit operator bool() const {
 		return m_resource != nullptr;
