@@ -19,6 +19,7 @@
 #include "glm.hpp"
 #include "gtc/matrix_transform.hpp"
 #include "gtx/quaternion.hpp"
+#include "glm/gtx/matrix_decompose.hpp"
 
 struct GltfUboMvp {
 	glm::mat4 projection;
@@ -30,46 +31,56 @@ using namespace fx;
 
 // ----------------------------------------------------------------------
 
+struct Node {
+	enum Flags : uint16_t {
+		eHasCamera = 0x1 << 0,
+		eHasMesh   = 0x1 << 1,
+	};
+	uint16_t  numChildren;       //
+	uint16_t  flags;             //
+	uint32_t  meshOrCameraIndex; // may also be zero for a pure node
+	glm::vec3 localTranslation;
+	glm::vec3 localScale;
+	glm::quat localRotation;
+	glm::mat4 globalTransform;
+};
+
 struct Primitive {
 
-	struct IndexData {
-		gltf::BufferView   indexBuffer; // maybe document index buffer
-		le::ResourceHandle cachedIndexBuffer = nullptr;
-		uint64_t           cachedIndexOffset;
-		size_t             numIndices = 0;
-	};
+	std::vector<le_vertex_input_attribute_description> attributeDescriptions;
+	std::vector<le_vertex_input_binding_description>   bindingDescriptions;
 
-	std::vector<le_vertex_input_attribute_description> attribute_descriptions; // indexed by location->
-	std::vector<le_vertex_input_binding_description>   binding_descriptions;   // indexed by binding->
-	std::vector<int32_t>                               boundBufferViews;       // gltf document indices of bound bufferViews
+	std::vector<size_t> attributeDataOffs; // offset into main buffer per attriute, sorted by location, which ensures at the same time sorting by binding number, as both are linked
+	uint32_t            indexDataOffs = 0; // (optional) offset info main buffer to get to index data
 
-	std::optional<IndexData> indexData;
+	uint32_t numElements = 0;     //either number of indices (if hasIndices) or number of vertices to draw
+	int32_t  material    = -1;    // material index based on doc, -1 means default material
+	uint8_t  mode        = 0;     // triangles,lines,points TODO: use a mode that makes sense
+	bool     hasIndices  = false; // wether to render using indices or
 
-	size_t                        numVertices   = 0;       //
-	le_graphics_pipeline_state_o *pipelineState = nullptr; // pipelineState
-
-	struct PbrProperties *materialProperties = nullptr; // material properties
-
-	std::vector<le::ResourceHandle> cachedBuffers; // vertex (=attribute) data source via buffer-offset pair for binding
-	std::vector<uint64_t>           cachedOffsets; // vertex (=attribute) data source via buffer-offset pair for binding
+	le_graphics_pipeline_state_o *pso;
 };
 
 struct Mesh {
-	std::vector<Primitive> primitives;
+	std::vector<uint32_t> primitives;
 };
 
-// ----------------------------------------------------------------------
-
 struct le_gltf_document_o {
-	gltf::Document document;
+
+	std::vector<uint8_t> data; // raw geometry data
 
 	std::vector<le::ResourceHandle> bufferResources;
-	std::vector<le_resource_info_t> bufferResourceInfos; // populated via loadDocument
+	std::vector<le_resource_info_t> bufferResourceInfos;
 
 	std::vector<le::ResourceHandle> imageResources;
 	std::vector<le_resource_info_t> imageResourceInfos;
 
-	std::vector<Mesh> meshes;
+	std::vector<Primitive> primitives;
+	std::vector<Mesh>      meshes;
+
+	std::vector<Node> nodeGraph;
+
+	le_graphics_pipeline_state_o *pso = nullptr; // one pso for all elements for now.
 
 	bool isDirty = true; // true means data on gpu is not up to date, and needs upload
 };
@@ -89,7 +100,7 @@ static void document_destroy( le_gltf_document_o *self ) {
 
 // ----------------------------------------------------------------------
 
-enum class AttributeType : uint32_t {
+enum class AttributeType : uint8_t {
 	ePosition   = 0,
 	eNormal     = 1,
 	eTangent    = 2,
@@ -127,7 +138,7 @@ static uint8_t vec_size_from_gltf_type( const gltf::Accessor::Type &t ) {
 };
 
 // ----------------------------------------------------------------------
-
+/// \brief sets attribute location, isNormalised and type
 static void getAttrInfo( const std::string &attrName, const gltf::Accessor &acc, le_vertex_input_attribute_description &attr ) {
 	// see: https://github.com/KhronosGroup/glTF/blob/master/specification/2.0/README.md#meshes
 
@@ -162,16 +173,19 @@ static void getAttrInfo( const std::string &attrName, const gltf::Accessor &acc,
 		// invalid component type
 	    break;
 	case ( gltf::Accessor::ComponentType::Byte ):
-	    break;
-	case ( gltf::Accessor::ComponentType::UnsignedByte ):
 		attr.type = le_vertex_input_attribute_description::Type::eChar;
 	    break;
-	case ( gltf::Accessor::ComponentType::Short ):
+	case ( gltf::Accessor::ComponentType::UnsignedByte ):
+		attr.type = le_vertex_input_attribute_description::Type::eUChar;
 	    break;
-	case ( gltf::Accessor::ComponentType::UnsignedShort ):
+	case ( gltf::Accessor::ComponentType::Short ):
 		attr.type = le_vertex_input_attribute_description::Type::eShort;
 	    break;
+	case ( gltf::Accessor::ComponentType::UnsignedShort ):
+		attr.type = le_vertex_input_attribute_description::Type::eUShort;
+	    break;
 	case ( gltf::Accessor::ComponentType::UnsignedInt ):
+		attr.type = le_vertex_input_attribute_description::Type::eUInt;
 	    break;
 	case ( gltf::Accessor::ComponentType::Float ):
 		attr.type         = le_vertex_input_attribute_description::Type::eFloat;
@@ -180,173 +194,525 @@ static void getAttrInfo( const std::string &attrName, const gltf::Accessor &acc,
 	}
 };
 
+static inline uint32_t get_num_bytes_per_element( const gltf::Accessor::Type &t, const gltf::Accessor::ComponentType &cT ) {
+
+	uint32_t componentSz = 0;
+	uint32_t vecSz       = vec_size_from_gltf_type( t );
+
+	switch ( cT ) {
+	case ( gltf::Accessor::ComponentType::None ):
+		componentSz = 0;
+	    break;
+	case ( gltf::Accessor::ComponentType::Byte ):
+	case ( gltf::Accessor::ComponentType::UnsignedByte ):
+		componentSz = 1;
+	    break;
+	case ( gltf::Accessor::ComponentType::Short ):
+	case ( gltf::Accessor::ComponentType::UnsignedShort ):
+		componentSz = 2;
+	    break;
+	case ( gltf::Accessor::ComponentType::UnsignedInt ):
+	case ( gltf::Accessor::ComponentType::Float ):
+		componentSz = 4;
+	    break;
+	}
+
+	return vecSz * componentSz;
+}
+
+// Unify gltf document structure so that all attribute data is non-interleaved.
+// This also enforces a strict 1:1 relationship between bufferViews and Accessors,
+// and also enforces a single data buffer per document.
+static gltf::Document gltf_document_unify_structure( const gltf::Document &docInput ) {
+
+	gltf::Document docOutput = docInput; // clone document
+
+	struct DeepAccessor {
+		uint8_t const *               src = nullptr; // source address; buffer.data() + bufferView.byteOffset+accessor.byteOffset
+		size_t                        byteStride;
+		gltf::Accessor::ComponentType componentType;
+		gltf::Accessor::Type          type;
+		uint8_t                       normalized;
+		uint32_t                      numElements;
+		uint64_t                      numBytesPerElement;
+		std::vector<float>            min;
+		std::vector<float>            max;
+		std::string                   name;
+	};
+
+	// we want to copy all attribute data into bufferviews so that each attribute has its own bufferview.
+	// any vertex data which is stored interleaved is de-interleaved.
+
+	// bufferviews with byteStride are a red flag that data is interleaved.
+	// accessors with byteOffset are a red flag that data is interleaved.
+
+	// steps
+	// 1) we "deepen the accessor" - place bufferview, and buffer info info into accessor
+	// 2) we "render the accessor" - write out data for all accessors back to buffer, and create a bufferview for each accessor
+
+	std::vector<DeepAccessor> deepAccessors;
+	deepAccessors.reserve( docInput.accessors.size() );
+
+	for ( const auto &a : docInput.accessors ) {
+		DeepAccessor da{};
+
+		const auto &bufferView = docInput.bufferViews[ size_t( a.bufferView ) ];
+		const auto &buffer     = docInput.buffers[ size_t( bufferView.buffer ) ];
+
+		da.src                = buffer.data.data() + bufferView.byteOffset + a.byteOffset;
+		da.byteStride         = bufferView.byteStride;
+		da.componentType      = a.componentType;
+		da.type               = a.type;
+		da.normalized         = a.normalized;
+		da.numElements        = a.count;
+		da.numBytesPerElement = get_num_bytes_per_element( a.type, a.componentType ); // gets e.g. the number of bytes needed to represent a vec4f == 4*4 == 16
+		da.min                = a.min;
+		da.max                = a.max;
+		da.name               = a.name;
+
+		deepAccessors.emplace_back( da );
+	}
+
+	// now we must re-create bufferviews and buffer based on
+	// the data which we have collected in our deep accessors
+
+	std::vector<uint8_t> exportBuffer;
+
+	{ // get sum size of data in all buffer from the input document.
+		size_t totalSize = 0;
+		for ( auto const &b : docInput.buffers ) {
+			totalSize += b.byteLength;
+		}
+		exportBuffer.resize( totalSize );
+	}
+
+	uint8_t *      buffer_end   = exportBuffer.data(); // Initialise our write stream iterator
+	uint8_t *const buffer_start = exportBuffer.data(); // We keep this at start pos so we can calculate offsets
+
+	// For each accessor, we create a corresponding bufferview, and then we
+	// serialize the data referenced by the accessor by copying it back
+	// into exportBuffer
+
+	std::vector<gltf::BufferView> bufferViews;
+	bufferViews.reserve( deepAccessors.size() );
+
+	for ( auto const &da : deepAccessors ) {
+		gltf::BufferView bufferView{};
+
+		bufferView.buffer     = 0;                                                  // Must be buffer 0, all views use same buffer in the export document.
+		bufferView.byteOffset = uint32_t( buffer_end - buffer_start );              // store current buffer offset as bufferView byteOffset
+		bufferView.byteStride = 0;                                                  // Must be zero, zero means tightly packed, not interleaved.
+		bufferView.byteLength = uint32_t( da.numBytesPerElement * da.numElements ); // byte length is always that of a tightly packed buffer
+
+		// -- Copy data into buffer
+
+		if ( da.byteStride == 0 || da.byteStride == da.numBytesPerElement ) {
+			// -- Data is not interleaved to begin with - copy all in one go.
+
+			size_t byteLength = da.numBytesPerElement * da.numElements;
+
+			memcpy( buffer_end, da.src, byteLength );
+
+			// TODO: Check if we must insure that byteLength is multiple of two
+			// if so, here would be the correct place to fix this.
+
+			buffer_end += byteLength; // update source data pointer.
+
+		} else {
+			// -- Data is interleaved - we first have to de-interleave
+
+			// De-interleave data by "pasting together" interleaved chunks
+			auto src_data = da.src;
+			for ( size_t i = 0; i != da.numElements; i++ ) {
+
+				const size_t copyBytesCount = da.numBytesPerElement;
+				memcpy( buffer_end, src_data, copyBytesCount );
+
+				src_data += da.byteStride;
+				buffer_end += da.numBytesPerElement;
+			}
+		}
+
+		assert( buffer_end <= exportBuffer.data() + exportBuffer.size() ); // We must not write past the end of the buffer
+
+		bufferViews.emplace_back( bufferView );
+	}
+
+	// ------------| invariant: there is now a 1:1 relationship between bufferviews and accessors
+
+	// Let's re-assemble the document.
+	// we only have to update buffer, bufferviews, and accessors. everything else should stay the same after remapping,
+	// as the accessor indices have not changed, and any data acceess must happen via accessors.
+
+	{
+		docOutput.buffers.clear(); // FIXME, this is not optimal, as it means to first copy, then delete the buffer anyway.
+
+		std::string bufferUri = docInput.buffers.front().uri;
+		{
+			// Remove ".bin" extension from filename uri, if found
+			auto extPos = bufferUri.find_last_of( ".bin" );
+			if ( extPos != std::string::npos ) {
+				bufferUri = bufferUri.substr( 0, extPos - 3 );
+			}
+		}
+
+		gltf::Buffer docBuffer;
+		docBuffer.name = bufferUri.empty() ? "buffer-0" : bufferUri;
+		docBuffer.uri  = docBuffer.name + "-unified.bin";
+
+		docBuffer.byteLength = uint32_t( exportBuffer.size() );
+		docBuffer.data       = std::move( exportBuffer );
+
+		docOutput.buffers.emplace_back( std::move( docBuffer ) );
+
+		std::vector<gltf::Accessor> accessors;
+		accessors.reserve( deepAccessors.size() );
+
+		int32_t bufferViewIndex = 0;
+		for ( auto const &da : deepAccessors ) {
+			gltf::Accessor a{};
+			a.bufferView    = bufferViewIndex;
+			a.byteOffset    = 0; // must be 0
+			a.componentType = da.componentType;
+			a.type          = da.type;
+			a.count         = da.numElements;
+			a.normalized    = da.normalized;
+			a.min           = da.min;
+			a.max           = da.max;
+			a.name          = da.name;
+			accessors.emplace_back( a );
+			bufferViewIndex++;
+		}
+
+		// Copy over all accessors
+		docOutput.accessors = std::move( accessors );
+
+		// Copy over all bufferviews
+		docOutput.bufferViews = std::move( bufferViews );
+	}
+
+	return docOutput;
+}
+
+// ----------------------------------------------------------------------
+/// \brief flattens a node hierarchy into a topologically sorted array
+/// \details each parent is placed before all its decendents, and each
+/// parent's numChildren value means the total number of children and children's children
+size_t node_graph_append_children_from_gltf_nodes( std::vector<Node> &nodegraph, std::vector<gltf::Node> const &gltf_nodes, size_t index ) {
+
+	const auto &gltfNode = gltf_nodes[ index ];
+
+	nodegraph.push_back( {} );
+	auto &node = nodegraph.back();
+
+	const size_t numDirectChildren = gltfNode.children.size();
+	size_t       totalChildren     = numDirectChildren;
+
+	for ( size_t i = 0; i != numDirectChildren; ++i ) {
+		totalChildren += node_graph_append_children_from_gltf_nodes( nodegraph, gltf_nodes, size_t( gltfNode.children[ i ] ) );
+	}
+
+	node.numChildren     = uint16_t( totalChildren );
+	node.globalTransform = glm::mat4( 1 );
+
+	{
+		// Calculate local translation, rotation, and scale.
+		// we don't know whether matrix or TRS have been set.
+		// which is why we must first build a matrix representing it all.
+		// we assume that our importer will have set unused elements to identity.
+		glm::mat4x4 localTransform = reinterpret_cast<glm::mat4 const &>( gltfNode.matrix ); // TODO: apply TRS if available
+
+		localTransform =
+		    glm::translate( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( gltfNode.translation ) ) *
+		    glm::toMat4( reinterpret_cast<const glm::quat &>( gltfNode.rotation ) ) *
+		    glm::scale( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( gltfNode.scale ) ) * localTransform;
+
+		glm::vec3 skew{0};
+		glm::vec4 perspective{0};
+		glm::decompose( localTransform, node.localScale, node.localRotation, node.localTranslation, skew, perspective );
+
+		// TEST: localTransformNew must be the same again as localTransform
+		glm::mat4 localTransformNew =
+		    glm::translate( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( node.localTranslation ) ) *
+		    glm::toMat4( reinterpret_cast<const glm::quat &>( node.localRotation ) ) *
+		    glm::scale( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( node.localScale ) );
+
+		float const *a        = &localTransform[ 0 ][ 0 ];
+		float const *b        = &localTransformNew[ 0 ][ 0 ];
+		float *const endRange = &localTransform[ 3 ][ 3 ];
+		for ( ; a != endRange; a++, b++ ) {
+			float difference = std::fabs( *a - *b );
+			if ( difference > std::numeric_limits<float>::epsilon() ) {
+				std::cout << "Warning: Rounding error when importing nodes : " << difference << std::endl
+				          << std::flush;
+			}
+		}
+	}
+
+	if ( gltfNode.mesh != -1 ) {
+		node.flags |= Node::Flags::eHasMesh;
+		node.meshOrCameraIndex = uint32_t( gltfNode.mesh );
+	} else if ( gltfNode.camera != -1 ) {
+		node.flags |= Node::Flags::eHasCamera;
+		node.meshOrCameraIndex = uint32_t( gltfNode.camera );
+	}
+
+	return totalChildren;
+};
+
+// ----------------------------------------------------------------------
+void updateNodeGraph( std::vector<Node> &nodes ) {
+
+	// We don't want to do this recursively.
+	// We want to do this linearly. Therefore, we iterate over nodes held in a vector.
+
+	/* This Node structure:
+	 *
+	 * A
+	 *  B   C
+	 *   DE
+	 *     F
+	 *
+	 * Results in:
+	 *
+	 *  Global Transform , (num Children)
+	 *  A                , (5) = A
+	 *	A                , (3)
+	 *	A                , (0)
+	 *	A                , (1)
+	 *	A                , (0)
+	 *	A                , (0)
+	 *	A*B              , (3) = B
+	 *	A*B              , (0)
+	 *	A*B              , (1)
+	 *	A*B              , (0)
+	 *	A*B*D            , (0) = D
+	 *	A*B*E            , (1) = E
+	 *	A*B*E            , (0)
+	 *	A*B*E*F          , (0) = F
+	 *	A*C              , (0) = C
+	 */
+
+	Node *          parent            = nodes.data();
+	size_t          numChildren       = parent->numChildren;
+	Node *const     endNodeRange      = parent + nodes.size();
+	const glm::mat4 identityTransform = glm::mat4( 1 );
+	size_t          numOps            = 0;
+
+	glm::mat4 parentMatrix =
+	    glm::translate( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( parent->localTranslation ) ) *
+	    glm::toMat4( reinterpret_cast<const glm::quat &>( parent->localRotation ) ) *
+	    glm::scale( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( parent->localScale ) );
+
+	// initialise all global transforms to identity
+	for ( Node *child = parent; child != endNodeRange; child++ ) {
+		child->globalTransform = identityTransform;
+	}
+
+	for ( Node *child = parent; child != endNodeRange; numOps++ ) {
+
+		// Apply current matrix to all children.
+		//
+		// If this is the first time we're iterating over children,
+		// global Transforms are first reset to parent Transform, as
+		// child->globalMatrix would then be the identity.
+		//
+		child->globalTransform = child->globalTransform * parentMatrix; // pre-multiply
+
+		//		std::cout << glm::to_string( child->globalTransform ) << ", (" << child->numChildren << ")" << std::endl
+		//		          << std::flush;
+
+		if ( child == parent + numChildren ) {
+
+			parent++;
+			child = parent;
+
+			if ( parent != endNodeRange ) {
+				numChildren = parent->numChildren;
+				// calculate local transform matrix for parent.
+				parentMatrix =
+				    glm::translate( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( parent->localTranslation ) ) *
+				    glm::toMat4( reinterpret_cast<const glm::quat &>( parent->localRotation ) ) *
+				    glm::scale( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( parent->localScale ) );
+			}
+
+		} else {
+			child++;
+		}
+	}
+	//	std::cout << "TRANSFORMED NODE GRAPH IN " << std::dec << numOps << " OPS" << std::endl
+	//	          << std::flush;
+}
+
 // ----------------------------------------------------------------------
 
 static bool document_load_from_text( le_gltf_document_o *self, const char *path ) {
 	bool           result = true;
-	gltf::Document doc;
+	gltf::Document importDoc;
 
 	try {
-		doc = gltf::LoadFromText( path );
+		importDoc = gltf::LoadFromText( path );
 	} catch ( std::runtime_error e ) {
 		std::cerr << __FILE__ " [ ERROR ] Could not load file: '" << path << "'"
 		          << ", received error: " << e.what() << std::endl
 		          << std::flush;
-		result = false;
+		return false;
 	}
 
-	if ( result == true ) {
+	// ---------| invariant: file was loaded successfully
 
-		self->meshes.clear();
-		self->bufferResourceInfos.clear();
-		self->imageResourceInfos.clear();
+	/*
+	 * Ingest geometry:
+	 *
+	 * We want geometry data to be of uniform structure.
+	 * We dont want vertex data to be interleaved, because this makes it less performant when rendering sub-passes (e.g. z-prepass, where we only need positions)
+	 *
+	 * Mesh
+	 * \-- indices[]
+	 * \-- positions[]
+	 * \-- normals[]
+	 * \-- tangents[]
+	 *
+	 * This means we must rewrite the data so that each attribute of the mesh has its own
+	 * bufferview, and that each bufferview has a stride of 0 (tightly packed)
+	 *
+	 *   */
 
-		/*
-		 * Note that we must account for pathological gltf documents which have accessors with byte offsets which
-		 * are larger than what our GPU may allow us to set for vertex inputs - 2047 is probably a sensible value
-		 *
-		 * In such a case, we need to reformat the document, and add some bufferviews so that accessors really
-		 * only define an offset if input is interleaved.
-		 *
-		 * We probably have to generalize this so that we always do the correct thing, meaning
-		 * we don't want to first find out if the document is pathological and go down two paths.
-		 *
-		 * Better, we first build up an optimal internal representation, and use this for uploading data,
-		 * and drawing.
-		 *
-		*/
+	importDoc = gltf_document_unify_structure( importDoc );
 
-		// we must find out what kind of pipelines this document requires.
-		// for this, we must iterate over all meshes
-		// - for each mesh, calculate attribute bindings
-		// - for each mesh, gather materials
+	size_t geometryDataSize = 0;
+	{
+		for ( const auto &b : importDoc.buffers ) {
+			geometryDataSize += b.byteLength;
+		}
+	}
 
-		for ( const auto &mesh : doc.meshes ) {
+	{
+		le::ResourceHandle bufferResource;
+		self->bufferResources.emplace_back( bufferResource );
+		le_resource_info_t resourceInfo;
+		resourceInfo.type         = LeResourceType::eBuffer;
+		resourceInfo.buffer.size  = uint32_t( geometryDataSize );
+		resourceInfo.buffer.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
+		                            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+		                            VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		self->bufferResourceInfos.emplace_back( resourceInfo );
+	}
 
-			Mesh m;
+	{ // traverse document and store vertex data in a format best suited for rendering.
 
-			for ( const auto &primitive : mesh.primitives ) {
+		auto const &doc            = importDoc;
+		auto &      accessors      = doc.accessors;
+		auto &      docBufferViews = doc.bufferViews;
 
-				Primitive p;
+		// Steal data buffer from gltf document
+		std::swap( self->data, importDoc.buffers.front().data );
 
-				std::map<uint32_t, le_vertex_input_attribute_description> tmpAttributeDescriptions; // location->
-				std::map<uint32_t, le_vertex_input_binding_description>   tmpBindingDescriptions;   // binding->
+		self->meshes.reserve( doc.meshes.size() );
 
-				for ( const auto &attribute : primitive.attributes ) {
+		for ( const auto &m : doc.meshes ) {
 
-					auto &accessor = doc.accessors[ attribute.second ];
+			Mesh msh;
 
-					le_vertex_input_attribute_description attr{};
-					le_vertex_input_binding_description   binding{};
+			for ( const auto &p : m.primitives ) {
 
-					// Try to find buffer for this buffer view in bound buffers
-					// - if we can find it, store found index in binding
-					// - otherwise add buffer to bound buffers, and store new index in binding
-					//
-					uint32_t bufferViewIndex = 0;
-					{
-						const auto bufferView = accessor.bufferView;
-						for ( ; bufferViewIndex < p.boundBufferViews.size(); ++bufferViewIndex ) {
-							if ( p.boundBufferViews[ bufferViewIndex ] == bufferView ) {
-								break;
-							}
+				Primitive prim{};
+
+				if ( p.indices != -1 ) {
+					//mesh has indices
+					auto const &acc        = accessors[ size_t( p.indices ) ];
+					auto const &bufferView = docBufferViews[ size_t( acc.bufferView ) ];
+					prim.indexDataOffs     = bufferView.byteOffset;
+					prim.numElements       = acc.count;
+					prim.hasIndices        = true;
+				}
+
+				{
+					struct AttributeInfo {
+						le_vertex_input_attribute_description attr;
+						uint32_t                              bufferViewOffs;
+					};
+
+					std::vector<AttributeInfo> tmpAttrInfos;
+					tmpAttrInfos.reserve( p.attributes.size() );
+
+					for ( auto &a : p.attributes ) {
+						AttributeInfo attrInfo;
+						auto const &  acc = accessors[ a.second ];
+
+						getAttrInfo( a.first, acc, attrInfo.attr );            // fills in location, isNormalized and type
+						attrInfo.attr.binding        = attrInfo.attr.location; // binding shall be identical with location - 1:1 relationship since we're de-interleaved.
+						attrInfo.attr.binding_offset = 0;                      // offset must be 0, as we're not interleaved.
+						attrInfo.attr.vecsize        = vec_size_from_gltf_type( acc.type );
+						auto const &bufferView       = docBufferViews[ size_t( acc.bufferView ) ];
+						attrInfo.bufferViewOffs      = bufferView.byteOffset; // buffer is always 0, offset is offset of the bufferView
+
+						if ( prim.numElements == 0 ) {
+							prim.numElements = acc.count; // numElements was not set via index count, this means non-indexed draw, numElements must be vertexCount
+						} else if ( !prim.hasIndices ) {
+							assert( prim.numElements == acc.count ); // count must be identical over all attributes, if we have not got indices!
 						}
-						if ( bufferViewIndex == p.boundBufferViews.size() ) {
-							// bufferIndex was not found in list of bound buffers, we need to add it.
-							p.boundBufferViews.push_back( bufferView );
-						}
+
+						tmpAttrInfos.push_back( attrInfo );
+						// first find out what kind of attribute that is
 					}
 
-					// Number of vertices must be the same for every accessor
-					// we're repeatedly writing this value to the primitive, but
-					// as it must be the same for each vertex which is part of the
-					// same primitive this should not matter.
-					p.numVertices = accessor.count;
+					// now sort AttributeInfos by location
 
-					attr.binding        = bufferViewIndex;
-					attr.binding_offset = accessor.byteOffset;
+					std::sort( tmpAttrInfos.begin(), tmpAttrInfos.end(),
+					           []( const AttributeInfo &lhs, const AttributeInfo &rhs ) { return lhs.attr.location < rhs.attr.location; } );
 
-					getAttrInfo( attribute.first, accessor, attr );
-
-					tmpAttributeDescriptions[ attr.location ] = attr;
-
-					// which binding slot to use - we must then store somewhere that we need this particular buffer
-					// be bound at the slot.
-					binding.binding = bufferViewIndex;
-
-					{
-						// calculate byte stride
-						uint32_t bufferViewStride = doc.bufferViews[ size_t( accessor.bufferView ) ].byteStride;
-
-						if ( bufferViewStride ) {
-							binding.stride = bufferViewStride;
-						} else {
-							// this means the accessor has the bufferview exclusively. this means data is tightly packed,
-							// and we can calculate the stride by dividing buffer view length/accessor count
-							auto const &bufView = doc.bufferViews[ size_t( accessor.bufferView ) ];
-							binding.stride      = bufView.byteLength / accessor.count;
-						}
+					// now make sure that bindings are not sparse (locations may well be...)
+					// TODO: look up whether bindings *must* be contiguous or may be sparse.
+					const size_t numTmpAttributes = tmpAttrInfos.size();
+					for ( size_t i = 0; i != numTmpAttributes; ++i ) {
+						assert( i < 32 ); // you can't have more than 32 bindings!
+						tmpAttrInfos[ i ].attr.binding = uint8_t( i );
 					}
-					binding.input_rate = le_vertex_input_binding_description::ePerVertex;
 
-					// TODO: check  - if stride is identical
+					// Store data in Primitive, where it is saved as structure-of-arrays
+					prim.attributeDescriptions.reserve( numTmpAttributes );
+					prim.attributeDataOffs.reserve( numTmpAttributes );
+					prim.bindingDescriptions.reserve( numTmpAttributes ); // One binding description per attribute descrition because de-interleaved.
 
-					auto it = tmpBindingDescriptions.emplace( uint32_t( attr.binding ), binding );
-					if ( it.second == false ) {
-						// element was already present .. make sure stride is identical
-						assert( it.first->second.stride == binding.stride );   // stride must be identical for all attributes of the same primitive
-						assert( it.first->second.binding == binding.binding ); // binding must be identical for all attributes of the same primitive
+					for ( const auto &attrInfo : tmpAttrInfos ) {
+						le_vertex_input_binding_description bindingDescr;
+						bindingDescr.binding = attrInfo.attr.binding;
+						bindingDescr.stride  = attrInfo.attr.vecsize * ( 1 << ( attrInfo.attr.type & 0x03 ) ); // FIXME: stride cannot be 0, it must be the size in bytes of this attribute!
+						prim.bindingDescriptions.emplace_back( bindingDescr );
+						prim.attributeDescriptions.push_back( attrInfo.attr );
+						prim.attributeDataOffs.push_back( ( attrInfo.bufferViewOffs ) );
 					}
 				}
 
-				// Now check if primitive has indices.
+				prim.mode     = enum_to_num( p.mode );
+				prim.material = p.material;
+				msh.primitives.push_back( uint32_t( self->primitives.size() ) );
+				self->primitives.push_back( prim );
+			} // end for all primitives
+			self->meshes.push_back( msh );
+		}
 
-				if ( primitive.indices != -1 ) {
+		{ // translate the node hierarchy
 
-					auto &           indexAcc        = doc.accessors[ primitive.indices ];
-					gltf::BufferView indexBufferView = doc.bufferViews[ indexAcc.bufferView ];
+			std::vector<gltf::Node> const &gltfNodes = importDoc.nodes;
 
-					// Although it is unlikely that the accessor for index data has an offset,
-					// we must account for this.
-					indexBufferView.byteOffset += indexAcc.byteOffset;
+			self->nodeGraph.reserve( gltfNodes.size() );
 
-					p.indexData              = std::make_optional<Primitive::IndexData>();
-					p.indexData->indexBuffer = indexBufferView;
-					p.indexData->numIndices  = indexAcc.count; // number of indices in this case
+			auto rootScene = importDoc.scene != -1 ? importDoc.scenes[ size_t( importDoc.scene ) ] : importDoc.scenes.front();
 
-				} else {
-					// we must use the count of vertices to draw vertices
-				}
-
-				// Flatten vertex binding, and vertex attribute info
-
-				for ( auto &a : tmpAttributeDescriptions ) {
-					p.attribute_descriptions.emplace_back( a.second );
-				}
-
-				for ( auto &b : tmpBindingDescriptions ) {
-					p.binding_descriptions.emplace_back( b.second );
-				}
-
-				// Store primitive in mesh
-
-				m.primitives.emplace_back( p );
+			for ( auto &rootNode : rootScene.nodes ) {
+				// we append all nodes connected to each root node to our scene graph.
+				// this will first (recursively) add all nodes attached to the first root node,
+				// then add (recursively) all nodes attached to the next root node, etc.
+				node_graph_append_children_from_gltf_nodes( self->nodeGraph, gltfNodes, rootNode );
 			}
 
-			// store mesh in document mesh array
+			std::cout << "imported " << self->nodeGraph.size() << "nodes." << std::endl
+			          << std::flush;
 
-			self->meshes.emplace_back( m );
+			updateNodeGraph( self->nodeGraph );
 		}
-
-		for ( const auto &b : doc.buffers ) {
-			le_resource_info_t resInfo;
-			resInfo.type         = LeResourceType::eBuffer;
-			resInfo.buffer.size  = b.byteLength;
-			resInfo.buffer.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-			self->bufferResourceInfos.emplace_back( resInfo );
-		}
-
-		std::swap( self->document, doc );
 	}
 
 	return result;
@@ -354,14 +720,23 @@ static bool document_load_from_text( le_gltf_document_o *self, const char *path 
 
 // ----------------------------------------------------------------------
 
-static void document_declare_resources( le_gltf_document_o *self, le_renderer_o *renderer ) {
-
+static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *renderer ) {
 	static const auto &renderer_i = Registry::getApi<le_renderer_api>()->le_renderer_i;
 
-	self->bufferResources.resize( self->bufferResourceInfos.size(), nullptr );
+	for ( auto &r : self->bufferResources ) {
+		if ( !r ) {
+			r = renderer_i.declare_resource( renderer, LeResourceType::eBuffer );
+		} else {
+			std::cout << __FUNCTION__ << " in " << __FILE__ << "#L" << __LINE__ << "WARNING: resource has already been declared.";
+		}
+	}
 
-	for ( size_t i = 0; i != self->bufferResourceInfos.size(); ++i ) {
-		self->bufferResources[ i ] = renderer_i.declare_resource( renderer, LeResourceType::eBuffer );
+	for ( auto &r : self->imageResources ) {
+		if ( !r ) {
+			r = renderer_i.declare_resource( renderer, LeResourceType::eImage );
+		} else {
+			std::cout << __FUNCTION__ << " in " << __FILE__ << "#L" << __LINE__ << "WARNING: resource has already been declared.";
+		}
 	}
 
 	vk::PipelineRasterizationStateCreateInfo rasterizationState{};
@@ -377,55 +752,35 @@ static void document_declare_resources( le_gltf_document_o *self, le_renderer_o 
 	    .setDepthBiasSlopeFactor( 1.f )
 	    .setLineWidth( 1.f );
 
-	for ( auto &m : self->meshes ) {
+	for ( auto &p : self->primitives ) {
 
-		for ( auto &p : m.primitives ) {
+		// Cache buffer lookups for primitives
 
-			// Cache buffer lookups for primitives
+		{
+			le_graphics_pipeline_create_info_t pipelineInfo;
+			pipelineInfo.shader_module_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.vert", LeShaderType::eVert );
+			pipelineInfo.shader_module_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.frag", LeShaderType::eFrag );
 
-			p.cachedBuffers.clear();
-			p.cachedOffsets.clear();
+			pipelineInfo.rasterizationState = reinterpret_cast<VkPipelineRasterizationStateCreateInfo *>( &rasterizationState );
 
-			size_t numBufferOffsets = p.boundBufferViews.size();
-			p.cachedBuffers.reserve( numBufferOffsets );
-			p.cachedOffsets.reserve( numBufferOffsets );
+			pipelineInfo.vertex_input_attribute_descriptions       = p.attributeDescriptions.data();
+			pipelineInfo.vertex_input_attribute_descriptions_count = p.attributeDescriptions.size();
+			pipelineInfo.vertex_input_binding_descriptions         = p.bindingDescriptions.data();
+			pipelineInfo.vertex_input_binding_descriptions_count   = p.bindingDescriptions.size();
 
-			for ( const auto &view : p.boundBufferViews ) {
-				p.cachedOffsets.emplace_back( self->document.bufferViews[ view ].byteOffset );
-				p.cachedBuffers.emplace_back( self->bufferResources[ self->document.bufferViews[ view ].buffer ] );
-			}
+			p.pso = renderer_i.create_graphics_pipeline_state_object( renderer, &pipelineInfo );
+		}
 
-			if ( p.indexData ) {
-				p.indexData->cachedIndexBuffer = self->bufferResources[ p.indexData->indexBuffer.buffer ];
-				p.indexData->cachedIndexOffset = p.indexData->indexBuffer.byteOffset;
-			}
-
-			{
-				le_graphics_pipeline_create_info_t pipelineInfo;
-				pipelineInfo.shader_module_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.vert", LeShaderType::eVert );
-				pipelineInfo.shader_module_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.frag", LeShaderType::eFrag );
-
-				pipelineInfo.rasterizationState = reinterpret_cast<VkPipelineRasterizationStateCreateInfo *>( &rasterizationState );
-
-				pipelineInfo.vertex_input_attribute_descriptions       = p.attribute_descriptions.data();
-				pipelineInfo.vertex_input_attribute_descriptions_count = p.attribute_descriptions.size();
-				pipelineInfo.vertex_input_binding_descriptions         = p.binding_descriptions.data();
-				pipelineInfo.vertex_input_binding_descriptions_count   = p.binding_descriptions.size();
-
-				p.pipelineState = renderer_i.create_graphics_pipeline_state_object( renderer, &pipelineInfo );
-			}
-
-		} // end for:primitives
-	}     // end for:meshes
+	} // end for:primitives
 }
 
 // ----------------------------------------------------------------------
-// you have to get these resource infos from a transfer renderpass,
-// to declare resources for the rendergraph
-static void document_get_create_resource_infos( le_gltf_document_o *self, le_resource_info_t **infos, LeResourceHandle const **handles, size_t *numResources ) {
+// You have to get these resource infos from a transfer renderpass,
+// to make resources accessible to the rendergraph
+static void document_get_resource_infos( le_gltf_document_o *self, le_resource_info_t **infos, LeResourceHandle const **handles, size_t *numResources ) {
 	*infos        = self->bufferResourceInfos.data();
-	*handles      = reinterpret_cast<LeResourceHandle const *>( self->bufferResources.data() );
-	*numResources = self->bufferResourceInfos.size();
+	*handles      = reinterpret_cast<LeResourceHandle *>( self->bufferResources.data() );
+	*numResources = self->bufferResources.size(); //FIXME: return 1 once this is fixed.
 }
 
 // ----------------------------------------------------------------------
@@ -439,11 +794,8 @@ static void document_upload_resource_data( le_gltf_document_o *self, le_command_
 	// ---------| invariant: data needs to be uploaded to GPU
 
 	static const auto &encoder_i = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
-
-	// upload data for all resources
-	for ( size_t i = 0; i != self->document.buffers.size(); ++i ) {
-		assert( self->bufferResources[ i ] != le::ResourceHandle{} );
-		encoder_i.write_to_buffer( encoder, self->bufferResources[ i ], 0, self->document.buffers[ i ].data.data(), self->document.buffers[ i ].data.size() );
+	if ( self->bufferResources.size() == 1 ) {
+		encoder_i.write_to_buffer( encoder, self->bufferResources[ 0 ], 0, self->data.data(), self->data.size() );
 	}
 
 	self->isDirty = false;
@@ -451,71 +803,54 @@ static void document_upload_resource_data( le_gltf_document_o *self, le_command_
 
 // ----------------------------------------------------------------------
 
-static void document_draw_node( le_gltf_document_o const *   doc,
-                                const size_t                 nodeIndex,
-                                glm::mat4 const &            matrix,
-                                le_command_buffer_encoder_o *encoder,
-                                GltfUboMvp const *           mvp ) {
+static void document_draw( le_gltf_document_o *self, le_command_buffer_encoder_o *encoder, GltfUboMvp const *mvp ) {
 
 	static const auto &encoder_i = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
 
-	const auto &node = doc->document.nodes[ nodeIndex ];
+	updateNodeGraph( self->nodeGraph );
 
-	glm::mat4 localMatrix = matrix *
-	                        glm::translate( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( node.translation ) ) *
-	                        glm::toMat4( reinterpret_cast<const glm::quat &>( node.rotation ) ) *
-	                        glm::scale( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( node.scale ) ) *
-	                        reinterpret_cast<const glm::mat4 &>( node.matrix );
+	const auto &nodeGraph = self->nodeGraph;
 
-	if ( node.mesh != -1 ) {
-		// draw all primitives from this mesh
+	// What a bloody mess! we should be able to sort nodes by material,
+	// that way we can make sure to minimize binding changes.
+	// And all that crap is running on the front thread. Aaaargh.
 
-		auto &m = doc->meshes[ size_t( node.mesh ) ];
+	auto &                           documentBufferHandle = self->bufferResources[ 0 ];
+	std::array<LeResourceHandle, 32> bufferHandles;
+	bufferHandles.fill( documentBufferHandle );
 
-		struct GltfUboNode {
-			glm::mat4 matrix;
-		} uboNode;
+	encoder_i.bind_graphics_pipeline( encoder, self->primitives[ 0 ].pso );
 
-		uboNode.matrix = localMatrix;
+	struct GltfUboNode {
+		glm::mat4 matrix;
+	} uboNode;
 
-		for ( auto const &p : m.primitives ) {
+	for ( auto &n : nodeGraph ) {
 
-			assert( p.pipelineState != nullptr ); // pipeline state must exist
-			encoder_i.bind_graphics_pipeline( encoder, p.pipelineState );
+		if ( n.flags & Node::Flags::eHasMesh ) {
 
+			uboNode.matrix = n.globalTransform;
 			encoder_i.set_argument_ubo_data( encoder, const_char_hash64( "UBO" ), mvp, sizeof( GltfUboMvp ) );
 			encoder_i.set_argument_ubo_data( encoder, const_char_hash64( "UBONode" ), &uboNode, sizeof( GltfUboNode ) );
 
-			encoder_i.bind_vertex_buffers( encoder, 0, uint32_t( p.cachedBuffers.size() ), reinterpret_cast<LeResourceHandle const *>( p.cachedBuffers.data() ), p.cachedOffsets.data() );
+			// this node has a mesh, let's draw it.
 
-			if ( p.indexData ) {
-				encoder_i.bind_index_buffer( encoder, p.indexData->cachedIndexBuffer, p.indexData->cachedIndexOffset, 0 );
-				encoder_i.draw_indexed( encoder, uint32_t( p.indexData->numIndices ), 1, 0, 0, 0 );
-			} else {
-				encoder_i.draw( encoder, uint32_t( p.numVertices ), 1, 0, 0 );
+			auto &primitives = self->meshes[ n.meshOrCameraIndex ].primitives;
+
+			for ( auto &pIdx : primitives ) {
+				auto &p = self->primitives[ pIdx ];
+
+				encoder_i.bind_vertex_buffers( encoder, 0, p.attributeDataOffs.size(), bufferHandles.data(), p.attributeDataOffs.data() );
+
+				if ( p.hasIndices ) {
+					// bind indices
+					encoder_i.bind_index_buffer( encoder, documentBufferHandle, p.indexDataOffs, 0 ); // TODO: check if indextype really is 0==uint16_t
+					encoder_i.draw_indexed( encoder, p.numElements, 1, 0, 0, 0 );
+				} else {
+					encoder_i.draw( encoder, p.numElements, 1, 0, 0 );
+				}
 			}
 		}
-	}
-	for ( auto nI : node.children ) {
-		document_draw_node( doc, size_t( nI ), localMatrix, encoder, mvp );
-	}
-}
-
-// ----------------------------------------------------------------------
-
-static void document_draw( le_gltf_document_o *self, le_command_buffer_encoder_o *encoder, GltfUboMvp const *mvp ) {
-
-	gltf::Scene *scene;
-	if ( self->document.scene != -1 ) {
-		scene = &self->document.scenes[ self->document.scene ];
-	} else if ( !self->document.scenes.empty() ) {
-		scene = &self->document.scenes.front();
-	} else {
-		return;
-	}
-
-	for ( auto const &nI : scene->nodes ) {
-		document_draw_node( self, nI, glm::mat4( 1 ), encoder, mvp );
 	}
 }
 
@@ -524,11 +859,11 @@ static void document_draw( le_gltf_document_o *self, le_command_buffer_encoder_o
 ISL_API_ATTR void register_le_gltf_loader_api( void *api ) {
 	auto &document_i = static_cast<le_gltf_loader_api *>( api )->document_i;
 
-	document_i.create                    = document_create;
-	document_i.destroy                   = document_destroy;
-	document_i.load_from_text            = document_load_from_text;
-	document_i.declare_resources         = document_declare_resources;
-	document_i.get_create_resource_infos = document_get_create_resource_infos;
-	document_i.upload_resource_data      = document_upload_resource_data;
-	document_i.draw                      = document_draw;
+	document_i.create               = document_create;
+	document_i.destroy              = document_destroy;
+	document_i.load_from_text       = document_load_from_text;
+	document_i.setup_resources      = document_setup_resources;
+	document_i.get_resource_infos   = document_get_resource_infos;
+	document_i.upload_resource_data = document_upload_resource_data;
+	document_i.draw                 = document_draw;
 }

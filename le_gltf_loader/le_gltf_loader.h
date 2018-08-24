@@ -26,14 +26,14 @@ struct le_gltf_loader_api {
 
 	struct gltf_document_interface_t {
 
-		le_gltf_document_o *           (* create                ) ( );
-		void                           (* destroy               ) ( le_gltf_document_o* self );
+		le_gltf_document_o * ( * create                   ) ( );
+		void                 ( * destroy                  ) ( le_gltf_document_o* self );
 
-		bool (*load_from_text)(le_gltf_document_o* self, char const * path);
-		void (*declare_resources)( le_gltf_document_o *self, le_renderer_o *renderer );
-		void (*get_create_resource_infos)( le_gltf_document_o *self, le_resource_info_t **infos, LeResourceHandle const **handles, size_t *numResources );
-		void (*upload_resource_data)( le_gltf_document_o *self, le_command_buffer_encoder_o *encoder );
-		void (*draw)( le_gltf_document_o *self, le_command_buffer_encoder_o *encoder,  GltfUboMvp const * mvp );
+		bool                 ( *load_from_text            ) ( le_gltf_document_o* self, char const * path);
+		void                 ( *setup_resources           ) ( le_gltf_document_o *self, le_renderer_o *renderer );
+		void                 ( *get_resource_infos        ) ( le_gltf_document_o *self, le_resource_info_t **infos, LeResourceHandle const **handles, size_t *numResources );
+		void                 ( *upload_resource_data      ) ( le_gltf_document_o *self, le_command_buffer_encoder_o *encoder );
+		void                 ( *draw                      ) ( le_gltf_document_o *self, le_command_buffer_encoder_o *encoder,  GltfUboMvp const * mvp );
 	};
 
 	gltf_document_interface_t       document_i;
