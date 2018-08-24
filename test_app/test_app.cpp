@@ -404,9 +404,11 @@ static test_app_o *test_app_create() {
 		static auto const &gltf_i = Registry::getApi<le_gltf_loader_api>()->document_i;
 
 		app->gltfDoc = gltf_i.create();
-		gltf_i.load_from_text( app->gltfDoc, "resources/gltf/BoomBoxWithAxes.gltf" );
-		//		        gltf_i.load_from_text( app->gltfDoc, "resources/gltf/Box.gltf" );
-		gltf_i.declare_resources( app->gltfDoc, *app->renderer );
+		// gltf_i.load_from_text( app->gltfDoc, "resources/gltf/BoomBoxWithAxes.gltf" );
+		gltf_i.load_from_text( app->gltfDoc, "resources/gltf/GearboxAssy.gltf" );
+		//gltf_i.load_from_text( app->gltfDoc, "resources/gltf/Box.gltf" );
+		//gltf_i.load_from_text( app->gltfDoc, "resources/gltf/exportFile.gltf" );
+		gltf_i.setup_resources( app->gltfDoc, *app->renderer );
 	}
 
 	app->resImgPrepass     = app->renderer->declareResource( LeResourceType::eImage );
@@ -591,7 +593,7 @@ static bool test_app_update( test_app_o *self ) {
 				le_resource_info_t *    resourceInfo;
 				LeResourceHandle const *resourceHandles;
 				size_t                  numResourceInfos;
-				gltf_i.get_create_resource_infos( app->gltfDoc, &resourceInfo, &resourceHandles, &numResourceInfos );
+				gltf_i.get_resource_infos( app->gltfDoc, &resourceInfo, &resourceHandles, &numResourceInfos );
 
 				for ( size_t i = 0; i != numResourceInfos; i++ ) {
 					rp.createResource( resourceHandles[ i ], resourceInfo[ i ] );
@@ -800,10 +802,13 @@ static bool test_app_update( test_app_o *self ) {
 
 				float normDistance = get_image_plane_distance( viewports[ 0 ], glm::radians( 60.f ) ); // calculate unit distance
 				ubo.projection     = glm::perspective( glm::radians( 60.f ), float( screenWidth ) / float( screenHeight ), 10.f, 10000.f );
-				ubo.model          = glm::scale( glm::mat4( 1 ), glm::vec3( 10000.f ) ); // identity matrix
-				ubo.model          = glm::rotate( ubo.model, glm::radians( r_val * 360.f ), glm::vec3( 0, 1, 0 ) );
-				glm::vec3 camPos   = glm::vec3( 0, 0, normDistance );
-				ubo.view           = glm::lookAt( camPos, glm::vec3( 0 ), glm::vec3( 0, 1, 0 ) );
+				ubo.model          = glm::mat4( 1 );
+				ubo.model          = glm::translate( ubo.model, glm::vec3( -50, -50, 100 ) ); // identity matrix
+
+				ubo.model        = glm::rotate( ubo.model, glm::radians( r_val * 360.f ), glm::vec3( 0, 1, 0 ) );
+				ubo.model        = glm::scale( ubo.model, glm::vec3( 10.f ) ); // identity matrix
+				glm::vec3 camPos = glm::vec3( 0, 0, normDistance );
+				ubo.view         = glm::lookAt( camPos, glm::vec3( ubo.model * glm::vec4( 0, 0, 0, 1.f ) ), glm::vec3( 0, 1, 0 ) );
 
 				// FIXME: we must first set the pipeline, before we can upload any arguments
 
