@@ -163,7 +163,6 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self,
 }
 
 // ----------------------------------------------------------------------
-
 static void cbe_bind_index_buffer( le_command_buffer_encoder_o *self,
                                    LeResourceHandle const       buffer,
                                    uint64_t                     offset,
@@ -171,6 +170,7 @@ static void cbe_bind_index_buffer( le_command_buffer_encoder_o *self,
 
 	auto cmd = EMPLACE_CMD( le::CommandBindIndexBuffer );
 
+	// Note: indexType==0 means uint16, indexType==1 means uint32
 	cmd->info = {buffer, offset, indexType};
 
 	self->mCommandStreamSize += cmd->header.info.size;
