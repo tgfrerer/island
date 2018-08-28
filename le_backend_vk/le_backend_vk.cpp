@@ -277,6 +277,8 @@ struct BackendFrameData {
 	vk::Semaphore                  semaphorePresentComplete = nullptr;
 	vk::CommandPool                commandPool              = nullptr;
 	uint32_t                       swapchainImageIndex      = uint32_t( ~0 );
+	uint32_t                       swapchainWidth           = 0; // swapchain may be resized, therefore it needs to be stored with frame
+	uint32_t                       swapchainHeight          = 0; // swapchain may be resized, therefore it needs to be stored with frame
 	uint32_t                       padding                  = 0; // NOTICE: remove if needed.
 	std::vector<vk::CommandBuffer> commandBuffers;
 
@@ -2101,8 +2103,19 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		Pass currentPass{};
 		currentPass.type = renderpass_i.get_type( *pass );
 
-		currentPass.width  = renderpass_i.get_width( *pass );  // FIXME: this needs to be the width of the first attachment
-		currentPass.height = renderpass_i.get_height( *pass ); // FIXME: this needs to be the width of the first attachment
+		currentPass.width = renderpass_i.get_width( *pass );
+		if ( currentPass.width == 0 ) {
+			// if zero was chosen this means to use the default extents values for a
+			// renderpass, which is to use the frame's current swapchain extents.
+			currentPass.width = frame.swapchainWidth;
+		}
+
+		currentPass.height = renderpass_i.get_height( *pass );
+		if ( currentPass.height == 0 ) {
+			// if zero was chosen this means to use the default extents values for a
+			// renderpass, which is to use the frame's current swapchain extents.
+			currentPass.height = frame.swapchainHeight;
+		}
 
 		// iterate over all image attachments
 
@@ -3128,11 +3141,14 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 
 	// ----------| invariant: swapchain acquisition successful.
 
+	frame.swapchainWidth  = self->swapchain->getImageWidth();
+	frame.swapchainHeight = self->swapchain->getImageHeight();
+
 	frame.availableResources[ self->backBufferImageHandle ].asImage = self->swapchain->getImage( frame.swapchainImageIndex );
 	{
 		auto &backbufferInfo  = frame.availableResources[ self->backBufferImageHandle ].info.imageInfo;
 		backbufferInfo        = vk::ImageCreateInfo{};
-		backbufferInfo.extent = vk::Extent3D( self->swapchain->getImageWidth(), self->swapchain->getImageHeight(), 1 );
+		backbufferInfo.extent = vk::Extent3D( frame.swapchainWidth, frame.swapchainHeight, 1 );
 		backbufferInfo.format = VkFormat( self->swapchainImageFormat );
 	}
 
