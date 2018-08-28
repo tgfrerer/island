@@ -352,7 +352,8 @@ static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex ) {
 
 	} else {
 
-		std::cout << "WARNING: Could not present frame " << std::dec << frame.frameNumber << std::endl;
+		std::cout << "NOTICE: Present failed on frame: " << std::dec << frame.frameNumber << std::endl
+		          << std::flush;
 
 		// Present was not successful -
 		//
