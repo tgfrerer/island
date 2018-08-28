@@ -496,7 +496,7 @@ static bool test_app_update( test_app_o *self ) {
 
 			{
 				// create image for the horse image
-				le_resource_info_t imgInfo;
+				le_resource_info_t imgInfo{};
 				imgInfo.type = LeResourceType::eImage;
 				{
 					auto &img         = imgInfo.image;
@@ -518,7 +518,7 @@ static bool test_app_update( test_app_o *self ) {
 			{
 				// create resource for imgui font texture if it does not yet exist.
 				// create image for imgui image
-				le_resource_info_t imgInfo;
+				le_resource_info_t imgInfo{};
 				imgInfo.type = LeResourceType::eImage;
 				{
 					auto &img         = imgInfo.image;
@@ -539,7 +539,7 @@ static bool test_app_update( test_app_o *self ) {
 
 			{
 				// create image for prepass
-				le_resource_info_t imgInfo;
+				le_resource_info_t imgInfo{};
 				imgInfo.type = LeResourceType::eImage;
 				{
 					auto &img         = imgInfo.image;
@@ -560,7 +560,7 @@ static bool test_app_update( test_app_o *self ) {
 
 			{
 				// create z-buffer image for main renderpass
-				le_resource_info_t imgInfo;
+				le_resource_info_t imgInfo{};
 				imgInfo.type = LeResourceType::eImage;
 				{
 					auto &img         = imgInfo.image;
@@ -568,8 +568,8 @@ static bool test_app_update( test_app_o *self ) {
 					img.flags         = 0;
 					img.arrayLayers   = 1;
 					img.extent.depth  = 1;
-					img.extent.width  = app->window->getSurfaceWidth();
-					img.extent.height = app->window->getSurfaceHeight();
+					img.extent.width  = 0; // zero means size of backbuffer.
+					img.extent.height = 0; // zero means size of backbuffer.
 					img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 					img.mipLevels     = 1;
 					img.samples       = VK_SAMPLE_COUNT_1_BIT;
@@ -581,7 +581,7 @@ static bool test_app_update( test_app_o *self ) {
 
 			{
 				// create resource for triangle vertex buffer
-				le_resource_info_t bufInfo;
+				le_resource_info_t bufInfo{};
 				bufInfo.type         = LeResourceType::eBuffer;
 				bufInfo.buffer.size  = sizeof( glm::vec3 ) * 3;
 				bufInfo.buffer.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
@@ -694,8 +694,6 @@ static bool test_app_update( test_app_o *self ) {
 			LeImageAttachmentInfo info{};
 
 			rp
-			    .setWidth( app->window->getSurfaceWidth() )
-			    .setHeight( app->window->getSurfaceHeight() )
 			    .addImageAttachment( app->renderer->getBackbufferResource() ) // color attachment
 			    .addDepthImageAttachment( app->resImgDepth )                  // depth attachment
 			    .setIsRoot( true );
