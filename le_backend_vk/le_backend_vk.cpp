@@ -2883,43 +2883,50 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 		// -- iterate over all resource declarations in this pass
 		renderpass_i.get_create_resources( *rp, &pCreateResourceIds, &pResourceInfos, &numCreateResources );
+
 		for ( size_t i = 0; i != numCreateResources; ++i ) {
 
 			le_resource_info_t const &createInfo = pResourceInfos[ i ];     // Resource descriptor (from renderpass)
 			LeResourceHandle const &  resourceId = pCreateResourceIds[ i ]; // Hash of resource name
 
-			ResourceInfo rd{};
+			ResourceInfo resourceCreateInfo{};
 
 			switch ( createInfo.type ) {
 			case LeResourceType::eBuffer: {
-				rd.bufferInfo                       = vk::BufferCreateInfo{};
-				rd.bufferInfo.size                  = createInfo.buffer.size;
-				rd.bufferInfo.usage                 = createInfo.buffer.usage;
-				rd.bufferInfo.sharingMode           = VK_SHARING_MODE_EXCLUSIVE;
-				rd.bufferInfo.queueFamilyIndexCount = 1;
-				rd.bufferInfo.pQueueFamilyIndices   = &self->queueFamilyIndexGraphics;
+				resourceCreateInfo.bufferInfo                       = vk::BufferCreateInfo{};
+				resourceCreateInfo.bufferInfo.size                  = createInfo.buffer.size;
+				resourceCreateInfo.bufferInfo.usage                 = createInfo.buffer.usage;
+				resourceCreateInfo.bufferInfo.sharingMode           = VK_SHARING_MODE_EXCLUSIVE;
+				resourceCreateInfo.bufferInfo.queueFamilyIndexCount = 1;
+				resourceCreateInfo.bufferInfo.pQueueFamilyIndices   = &self->queueFamilyIndexGraphics;
 
 			} break;
 			case LeResourceType::eImage: {
-				// TODO: fill in missing values, based on le_resource_info
-				auto const &ci = createInfo.image;                     // src info data
-				auto &      ri = rd.imageInfo = vk::ImageCreateInfo{}; // dst info data
 
-				ri.flags                 = ci.flags;
-				ri.imageType             = VkImageType( ci.imageType );
-				ri.format                = VkFormat( ci.format );
-				ri.extent.width          = ci.extent.width;
-				ri.extent.height         = ci.extent.height;
-				ri.extent.depth          = ci.extent.depth;
-				ri.mipLevels             = ci.mipLevels;
-				ri.arrayLayers           = ci.arrayLayers;
-				ri.samples               = VkSampleCountFlagBits( ci.samples );
-				ri.tiling                = VkImageTiling( ci.tiling );
-				ri.usage                 = ci.usage;
-				ri.sharingMode           = VK_SHARING_MODE_EXCLUSIVE;
-				ri.queueFamilyIndexCount = 1;
-				ri.pQueueFamilyIndices   = &self->queueFamilyIndexGraphics;
-				ri.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED; // must be either preinitialized or undefined
+				// For width and height, we place the current swapchain width and height if
+				// given as initially 0.
+				// This allows us to express that we want to allocate images by default at
+				// the same size as the swapchain, which is especially useful with images
+				// which are created as rendertargets.
+
+				auto const &ci         = createInfo.image;                                     // src info data
+				auto &      imgInfoRef = resourceCreateInfo.imageInfo = vk::ImageCreateInfo{}; // dst info data
+
+				imgInfoRef.flags                 = ci.flags;
+				imgInfoRef.imageType             = VkImageType( ci.imageType );
+				imgInfoRef.format                = VkFormat( ci.format );
+				imgInfoRef.extent.width          = ci.extent.width != 0 ? ci.extent.width : frame.swapchainWidth;
+				imgInfoRef.extent.height         = ci.extent.height != 0 ? ci.extent.height : frame.swapchainHeight;
+				imgInfoRef.extent.depth          = ci.extent.depth != 0 ? ci.extent.depth : 1;
+				imgInfoRef.mipLevels             = ci.mipLevels;
+				imgInfoRef.arrayLayers           = ci.arrayLayers != 0 ? ci.arrayLayers : 1;
+				imgInfoRef.samples               = VkSampleCountFlagBits( ci.samples );
+				imgInfoRef.tiling                = VkImageTiling( ci.tiling );
+				imgInfoRef.usage                 = ci.usage;
+				imgInfoRef.sharingMode           = VK_SHARING_MODE_EXCLUSIVE;
+				imgInfoRef.queueFamilyIndexCount = 1;
+				imgInfoRef.pQueueFamilyIndices   = &self->queueFamilyIndexGraphics;
+				imgInfoRef.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED; // must be either preinitialized or undefined
 
 			} break;
 			case LeResourceType::eUndefined:
@@ -2929,7 +2936,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 			// -- Add createInfo to set of declared resources
 
-			auto it = declaredResources.emplace( resourceId, std::move( rd ) );
+			auto it = declaredResources.emplace( resourceId, std::move( resourceCreateInfo ) );
 
 			if ( it.second == false ) {
 				assert( false ); // resource was re-declared, this must not happen
@@ -3152,7 +3159,8 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 		backbufferInfo.format = VkFormat( self->swapchainImageFormat );
 	}
 
-	// Note that at this point memory for scratch buffers for each pass in this frame has already been allocated,
+	// Note that at this point memory for scratch buffers for each pass
+	// in this frame has already been allocated,
 	// as this happens shortly before executeGraph.
 
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
