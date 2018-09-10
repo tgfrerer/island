@@ -405,7 +405,7 @@ static test_app_o *test_app_create() {
 
 		app->gltfDoc = gltf_i.create();
 		// gltf_i.load_from_text( app->gltfDoc, "resources/gltf/BoomBoxWithAxes.gltf" );
-		gltf_i.load_from_text( app->gltfDoc, "resources/gltf/GearboxAssy.gltf" );
+		gltf_i.load_from_text( app->gltfDoc, "resources/gltf/FlightHelmet.gltf" );
 		//gltf_i.load_from_text( app->gltfDoc, "resources/gltf/Box.gltf" );
 		//gltf_i.load_from_text( app->gltfDoc, "resources/gltf/exportFile.gltf" );
 		gltf_i.setup_resources( app->gltfDoc, *app->renderer );
@@ -741,12 +741,9 @@ static bool test_app_update( test_app_o *self ) {
 				glm::mat4 projectionMatrix;
 			};
 
-			static float t = 0;
-			t              = fmodf( t + app->deltaTimeSec, 10.f );
-
-			float r_val = t / 10.f;
-			//			        float r_val      = ( app->frame_counter % 1200 ) / 1200.f;
-
+			static float t   = 0;
+			t                = fmodf( t + app->deltaTimeSec, 10.f );
+			float r_val      = t / 10.f;
 			float r_anim_val = glm::elasticEaseOut( r_val );
 
 			ColorUbo_t ubo1{{1, 0, 0, 1}};
@@ -769,17 +766,18 @@ static bool test_app_update( test_app_o *self ) {
 				le_encoder.set_viewport( encoder, 0, 1, viewports );
 
 				MatrixStackUbo_t matrixStack;
-				matrixStack.projectionMatrix = glm::perspective( glm::radians( 60.f ), float( screenWidth ) / float( screenHeight ), 0.01f, 10000.f );
+				matrixStack.projectionMatrix = glm::perspective( glm::radians( 60.f ), float( screenWidth ) / float( screenHeight ), 10.f, 10000.f );
 				matrixStack.modelMatrix      = glm::mat4( 1.f ); // identity matrix
-				matrixStack.modelMatrix      = glm::scale( matrixStack.modelMatrix, glm::vec3( 4.5 ) );
 
+				matrixStack.modelMatrix = glm::translate( matrixStack.modelMatrix, glm::vec3( 0, 0, -100 ) );
 				matrixStack.modelMatrix = glm::rotate( matrixStack.modelMatrix, glm::radians( r_anim_val * 360 ), glm::vec3( 0, 0, 1 ) );
+				matrixStack.modelMatrix = glm::scale( matrixStack.modelMatrix, glm::vec3( 4.5 ) );
 
 				float normDistance     = get_image_plane_distance( viewports[ 0 ], glm::radians( 60.f ) ); // calculate unit distance
 				matrixStack.viewMatrix = glm::lookAt( glm::vec3( 0, 0, normDistance ), glm::vec3( 0 ), glm::vec3( 0, 1, 0 ) );
 
-				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "MatrixStack" ), &matrixStack, sizeof( MatrixStackUbo_t ) ); // set a descriptor to set, binding, array_index
-				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "Color" ), &ubo1, sizeof( ColorUbo_t ) );                    // set a descriptor to set, binding, array_index
+				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "MatrixStack" ), &matrixStack, sizeof( MatrixStackUbo_t ) );
+				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "Color" ), &ubo1, sizeof( ColorUbo_t ) );
 
 				LeResourceHandle buffers[] = {app->resBufTrianglePos};
 				uint64_t         offsets[] = {0};
@@ -801,10 +799,10 @@ static bool test_app_update( test_app_o *self ) {
 				float normDistance = get_image_plane_distance( viewports[ 0 ], glm::radians( 60.f ) ); // calculate unit distance
 				ubo.projection     = glm::perspective( glm::radians( 60.f ), float( screenWidth ) / float( screenHeight ), 10.f, 10000.f );
 				ubo.model          = glm::mat4( 1 );
-				ubo.model          = glm::translate( ubo.model, glm::vec3( -50, -50, 100 ) ); // identity matrix
+				ubo.model          = glm::translate( ubo.model, glm::vec3( 0, 20, 0 ) );
 
 				ubo.model        = glm::rotate( ubo.model, glm::radians( r_val * 360.f ), glm::vec3( 0, 1, 0 ) );
-				ubo.model        = glm::scale( ubo.model, glm::vec3( 10.f ) ); // identity matrix
+				ubo.model        = glm::scale( ubo.model, glm::vec3( 400.f ) ); // identity matrix
 				glm::vec3 camPos = glm::vec3( 0, 0, normDistance );
 				ubo.view         = glm::lookAt( camPos, glm::vec3( ubo.model * glm::vec4( 0, 0, 0, 1.f ) ), glm::vec3( 0, 1, 0 ) );
 
@@ -822,11 +820,8 @@ static bool test_app_update( test_app_o *self ) {
 				ImVec2 display_pos = drawData->DisplayPos;
 
 				le_encoder.bind_graphics_pipeline( encoder, app->psoImgui );
-
 				le_encoder.set_viewport( encoder, 0, 1, &viewports[ 0 ] ); // TODO: make sure that viewport covers full screen
-
 				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "MatrixStack" ), &ortho_projection, sizeof( glm::mat4 ) );
-
 				le_encoder.set_argument_texture( encoder, app->imguiTexture.le_texture_handle, const_char_hash64( "tex_unit_0" ), 0 );
 
 				LeResourceHandle currentTexture = app->imguiTexture.le_texture_handle; // we check against this so that we don't have to switch state that often.
