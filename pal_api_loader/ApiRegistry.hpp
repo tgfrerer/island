@@ -25,11 +25,6 @@
 #	define ISL_API_ATTR
 #endif
 
-#ifndef LE_DEFINE_HANDLE_GUARD
-#	define LE_DEFINE_HANDLE( object ) typedef struct object##_T *object;
-#	define LE_DEFINE_HANDLE_GUARD
-#endif
-
 struct pal_api_loader_i;
 struct pal_api_loader_o;
 
@@ -80,12 +75,12 @@ class Registry {
 
 	static int addWatch( const char *watchedPath, CallbackParams &settings );
 
-  public:
 	template <typename T>
 	inline static constexpr auto getId() noexcept {
 		return T::id;
 	}
 
+  public:
 	template <typename T>
 	static T *getApi() {
 		return static_cast<T *>( pal_registry_get_api( getId<T>() ) );
@@ -118,8 +113,8 @@ class Registry {
 		// We want this, as we use the addresses of these static variables
 		// for the life-time of the application.
 
-		static auto apiName = getId<T>();
-		static auto api     = getApi<T>();
+		constexpr static auto apiName = getId<T>();
+		static auto           api     = getApi<T>();
 
 		if ( api == nullptr ) {
 
@@ -189,4 +184,10 @@ struct NoMove {
 };
 
 #endif // __cplusplus
+
+#ifndef LE_DEFINE_HANDLE_GUARD
+#	define LE_DEFINE_HANDLE( object ) typedef struct object##_T *object;
+#	define LE_DEFINE_HANDLE_GUARD
+#endif
+
 #endif // GUARD_API_REGISTRY_HPP
