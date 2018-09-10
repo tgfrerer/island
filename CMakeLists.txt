@@ -104,18 +104,16 @@ add_executable (${PROJECT_NAME} ${SOURCES})
 # statically or dynamically
 target_compile_definitions(${PROJECT_NAME} PUBLIC ${PLUGIN_DEFINITIONS})
 
-
-
 # we need to link in the dynamic linking library so we can use dynamic linking
 target_link_libraries(${PROJECT_NAME} PUBLIC dl)
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PLUGIN_LIBS_DEPENDENCIES})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${STATIC_LIBS})
 
 ##################################################################################
-# OPTIONAL - Use Vulkan Debug layers compiled from source so that we may debug
-# the debug layers, too (how meta!)
+# OPTIONAL - Use Vulkan Validation Layers compiled from source -
+# so that we may debug the validation layers, too (how meta!)
 
-function(compile_layers)
+function(compile_validation_layers)
     # this allows us to debug debug layers -- how meta!!!
     unset( CMAKE_ARCHIVE_OUTPUT_DIRECTORY )
     unset( CMAKE_LIBRARY_OUTPUT_DIRECTORY )
@@ -126,9 +124,9 @@ function(compile_layers)
     set (VulkanRegistry_DIR /usr/local/share/vulkan/registry)
 
     add_subdirectory(3rdparty/src/Vulkan-ValidationLayers ${PROJECT_SOURCE_DIR}/3rdparty/src/Vulkan-ValidationLayers/build)
-endfunction(compile_layers)
+endfunction(compile_validation_layers)
 
 if (COMPILE_VALIDATION_LAYERS)
     set (GLSLANG_INSTALL_DIR "/usr/local" CACHE STRING "")
-    compile_layers()
+    compile_validation_layers()
 endif()
