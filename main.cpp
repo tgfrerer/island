@@ -12,46 +12,22 @@
 
 int main( int argc, char const *argv[] ) {
 
-#ifdef PLUGIN_TEST_APP_STATIC
+#ifdef PLUGINS_DYNAMIC
+	Registry::addApiStatic<pal_window_api>();
+	Registry::addApiStatic<le_backend_vk_api>();
+	Registry::addApiStatic<le_swapchain_vk_api>();
+	Registry::addApiStatic<le_renderer_api>();
+	Registry::addApiStatic<le_shader_compiler_api>();
+	Registry::addApiStatic<le_gltf_loader_api>();
 	Registry::addApiStatic<test_app_api>();
 #else
-	Registry::addApiDynamic<test_app_api>( true );
-#endif
-
-#ifdef PLUGIN_PAL_WINDOW_STATIC
-	Registry::addApiStatic<pal_window_api>();
-#else
 	Registry::addApiDynamic<pal_window_api>( true );
-#endif
-
-#ifdef PLUGIN_LE_BACKEND_VK_STATIC
-	Registry::addApiStatic<le_backend_vk_api>();
-#else
 	Registry::addApiDynamic<le_backend_vk_api>( true );
-#endif
-
-#ifdef PLUGIN_LE_SWAPCHAIN_VK_STATIC
-	Registry::addApiStatic<le_swapchain_vk_api>();
-#else
 	Registry::addApiDynamic<le_swapchain_vk_api>( true );
-#endif
-
-#ifdef PLUGIN_LE_RENDERER_STATIC
-	Registry::addApiStatic<le_renderer_api>();
-#else
 	Registry::addApiDynamic<le_renderer_api>( true );
-#endif
-
-#ifdef PLUGIN_LE_SHADER_COMPILER_STATIC
-	Registry::addApiStatic<le_shader_compiler_api>();
-#else
 	Registry::addApiDynamic<le_shader_compiler_api>( true );
-#endif
-
-#ifdef PLUGIN_LE_GLTF_LOADER_STATIC
-	Registry::addApiStatic<le_gltf_loader_api>();
-#else
 	Registry::addApiDynamic<le_gltf_loader_api>( true );
+	Registry::addApiDynamic<test_app_api>( true );
 #endif
 
 	TestApp::initialize();
