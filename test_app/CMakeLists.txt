@@ -32,7 +32,7 @@ else()
     target_compile_definitions(${TARGET}  PUBLIC "PLUGIN_TEST_APP_STATIC")
 
     # it's important not to link the library then compiling, but to load the library via
-    # the the dynamic library loader when we go dynamic. Here, when we go static, we
+    # the dynamic library loader when we go dynamic. Here, when we go static, we
     # actually want to statically link against (FIXME:implement) a static lib of imgui.
 
 endif()
