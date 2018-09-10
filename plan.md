@@ -156,7 +156,7 @@ Where should we *declare* resources?
 
 # Features
 
-# resource lookup in command_buffer_encoder_interface
+# resource lookup in `command_buffer_encoder_interface`
 
 when setup command buffers, we declare all resources - this means all resource handles can be put into a vector, where each resource is only referenced once. 
   - this becomes the vector of frame-available resources
@@ -165,8 +165,14 @@ when we acquire resources, we create a parallel vector which has the vulkan obje
 
 when we record command buffers, we store index into the frame resource list - that way we can be much faster at assigning resources
 
-# GLTF loader TODO
+# Next Step Features
 
-  + some pathological gltf files abuse accessors as bufferviews, meaning accessors have byteoffsets larger than 2048 bytes (the maximum Vulkan allows for attribute offsets) and use accessors such as you would expect bufferviews to be used. These files often have only one or two bufferviews, and heaps of accessors pointing into the same bufferviews. that's not cool, and internally, we must rearrange the data for these files before we build a representation which we can actually draw.
-
-  + we probably need to do this in a more general way, meaning we must build an internal representation of the data in the file before uploading and drawing, an internal representation which totally conforms to what is optimal using Vulkan.
+* implement camera
+* improve ergonomics, reduce lines to type
+* improve file structure - allow you to create more than one application
+* create a project generator
+* entity-component system for nodes
+* add materials for renderer
+* add image loading via `stb_image`
+* reduce compile times with glm: template specialisations
+* use the Builder pattern to simplify code where appropriate
