@@ -5,9 +5,9 @@ set (PROJECT_NAME "Island")
 
 project (${PROJECT_NAME})
 
-set(PLUGINS_DYNAMIC ON CACHE BOOL "Use dynamic linking for all plugins")
 set(COMPILE_VALIDATION_LAYERS OFF CACHE BOOL "Compile Validation Layers as a subproject (useful to debug validation layers)")
 
+set(PLUGINS_DYNAMIC ON CACHE BOOL "Use dynamic linking for all plugins")
 
 set ( STATIC_LIBS "")
 
@@ -93,7 +93,6 @@ add_subdirectory (le_gltf_loader)
 
 set (SOURCES main.cpp)
 
-
 # NOTE: provide paths for libraries which are used by plugins, but not available via system search paths
 # these were set via PARENT_SCOPE from the plugin CMake files.
 link_directories(${PLUGIN_LINK_DIRS})
@@ -103,6 +102,10 @@ add_executable (${PROJECT_NAME} ${SOURCES})
 # add -D definitions so that source code will know whether plugins are linked
 # statically or dynamically
 target_compile_definitions(${PROJECT_NAME} PUBLIC ${PLUGIN_DEFINITIONS})
+
+if (PLUGINS_DYNAMIC)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC "PLUGINS_DYNAMIC=1")
+endif()
 
 # we need to link in the dynamic linking library so we can use dynamic linking
 target_link_libraries(${PROJECT_NAME} PUBLIC dl)
