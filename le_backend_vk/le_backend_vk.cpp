@@ -1524,8 +1524,6 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setPName( "main" )
 	    .setPSpecializationInfo( nullptr );
 
-	// todo: deal with pipelines that define their own vertex input
-
 	std::vector<vk::VertexInputBindingDescription> const *  vertexBindingDescriptions;        // where to get data from
 	std::vector<vk::VertexInputAttributeDescription> const *vertexInputAttributeDescriptions; // how it feeds into the shader's vertex inputs
 
@@ -1535,7 +1533,7 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 		vertexBindingDescriptions        = &pso->explicitVertexBindingDescriptions;
 		vertexInputAttributeDescriptions = &pso->explicitVertexAttributeDescriptions;
 	} else {
-		// use vertex input schema based on shader reflection
+		// Default: use vertex input schema based on shader reflection
 		vertexBindingDescriptions        = &pso->shaderModuleVert->vertexBindingDescriptions;
 		vertexInputAttributeDescriptions = &pso->shaderModuleVert->vertexAttributeDescriptions;
 	}
@@ -1606,6 +1604,10 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	//
 	static std::array<vk::PipelineColorBlendAttachmentState, 16> blendAttachmentStates{};
 
+	// NOTE: Blend modes should be an attribute of the current renderpass rather than the pipeline.
+	// this because the blend mode is dependent on the number of attachments.
+	// - but blend mode may change within a renderpass...
+
 	for ( size_t i = 0; i != pass.numColorAttachments; ++i ) {
 		blendAttachmentStates[ i ]
 		    .setBlendEnable( VK_TRUE )
@@ -1630,9 +1632,10 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setPAttachments( blendAttachmentStates.data() )
 	    .setBlendConstants( {{0.f, 0.f, 0.f, 0.f}} );
 
-	std::array<vk::DynamicState, 2> dynamicStates = {{
+	std::array<vk::DynamicState, 3> dynamicStates = {{
 	    vk::DynamicState::eScissor,
 	    vk::DynamicState::eViewport,
+	    vk::DynamicState::eLineWidth,
 	}};
 
 	vk::PipelineDynamicStateCreateInfo dynamicState;

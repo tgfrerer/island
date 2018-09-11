@@ -743,9 +743,9 @@ static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *r
 	rasterizationState
 	    .setDepthClampEnable( VK_FALSE )
 	    .setRasterizerDiscardEnable( VK_FALSE )
-	    .setPolygonMode( ::vk::PolygonMode::eFill )
-	    .setCullMode( ::vk::CullModeFlagBits::eBack )
-	    .setFrontFace( ::vk::FrontFace::eCounterClockwise )
+	    .setPolygonMode( vk::PolygonMode::eFill )
+	    .setCullMode( vk::CullModeFlagBits::eBack )
+	    .setFrontFace( vk::FrontFace::eCounterClockwise )
 	    .setDepthBiasEnable( VK_FALSE )
 	    .setDepthBiasConstantFactor( 0.f )
 	    .setDepthBiasClamp( 0.f )
