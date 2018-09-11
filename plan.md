@@ -148,6 +148,8 @@ Where should we *declare* resources?
 * Create a templating script to generate class scaffold so you don't have to
   type that much boilerplate.
 
+* structure framework so that you may have multiple test applications using it
+
 ----------------------------------------------------------------------
 
 # Applications
@@ -176,3 +178,8 @@ when we record command buffers, we store index into the frame resource list - th
 * add image loading via `stb_image`
 * reduce compile times with glm: template specialisations
 * use the Builder pattern to simplify code where appropriate
+
+# Today (2018-09-11) 
+
+    - Update Pipeline using builder pattern
+    - Check if static compilation still works
