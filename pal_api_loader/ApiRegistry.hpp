@@ -32,12 +32,12 @@ struct pal_api_loader_o;
 extern "C" {
 #endif
 
-ISL_API_ATTR void *pal_registry_get_api( const char *id );
-ISL_API_ATTR void  pal_registry_set_api( const char *id, void *api );
 inline uint64_t constexpr const_char_hash64( const char *input ) noexcept {
 	return *input ? ( 0x100000001b3 * const_char_hash64( input + 1 ) ) ^ static_cast<uint64_t>( *input ) : 0xcbf29ce484222325;
 }
 
+ISL_API_ATTR void *pal_registry_get_api( uint64_t id, const char *debug_name );
+ISL_API_ATTR void  pal_registry_set_api( uint64_t id, void *api, const char *debug_name );
 
 #ifdef __cplusplus
 } // extern "C"
@@ -86,8 +86,8 @@ class Registry {
 
   public:
 	template <typename T>
-	static T *getApi() {
-		return static_cast<T *>( pal_registry_get_api( getId<T>() ) );
+	static constexpr T *getApi() noexcept {
+		return static_cast<T *>( pal_registry_get_api( const_char_hash64( getId<T>() ), getId<T>() ) );
 	}
 
 	template <typename T>
@@ -102,8 +102,8 @@ class Registry {
 				delete api;
 			}
 			api = new T();
-			( *getPointerToStaticRegFun<T>() )( api ); // < call registration function on api (this fills in the api's function pointers)
-			pal_registry_set_api( getId<T>(), api );   // < store api in registry lookup table
+			( *getPointerToStaticRegFun<T>() )( api );                                // < call registration function on api (this fills in the api's function pointers)
+			pal_registry_set_api( const_char_hash64( getId<T>() ), api, getId<T>() ); // < store api in registry lookup table
 		}
 		return api;
 	}
@@ -117,8 +117,10 @@ class Registry {
 		// We want this, as we use the addresses of these static variables
 		// for the life-time of the application.
 
-		constexpr static auto apiName = getId<T>();
-		static auto           api     = getApi<T>();
+		// Get pointer to api
+		// - returns nullptr if pointer was not yet not set
+		//
+		T *api = getApi<T>();
 
 		if ( api == nullptr ) {
 
@@ -127,11 +129,15 @@ class Registry {
 			static pal_api_loader_i *loaderInterface = getLoaderInterface();
 			static pal_api_loader_o *loader          = createLoader( loaderInterface, dynamic_api_info_get_module_path( info ) );
 
-			api = new T();
+			api = new T(); // Allocate memory for api interface object. NOTE: we "leak" this on purpose - this is where the api interface lives.
+
+			// Important to store api back to table here *before* calling loadApi, as loadApi might recursively add other apis
+			// which would have the effect of allocating more than one copy of the api
+			//
+			pal_registry_set_api( const_char_hash64( getId<T>() ), api, getId<T>() );
+
 			loadApi( loaderInterface, loader );
 			registerApi( loaderInterface, loader, api, dynamic_api_info_get_register_fun_name( info ) );
-
-			pal_registry_set_api( getId<T>(), api );
 
 			// ----
 			if ( shouldWatchForAutoReload ) {
