@@ -1,0 +1,35 @@
+#ifndef GUARD_@module_name@_H
+#define GUARD_@module_name@_H
+
+#include <stdint.h>
+#include "pal_api_loader/ApiRegistry.hpp"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+struct @module_name@_o;
+
+void register_@module_name@_api( void *api );
+
+// clang-format off
+struct @module_name@_api {
+	static constexpr auto id      = "@module_name@";
+	static constexpr auto pRegFun = register_@module_name@_api;
+
+	struct @module_name@_interface_t {
+
+		@module_name@_o * ( * create                   ) ( );
+		void                 ( * destroy                  ) ( @module_name@_o* self );
+
+	};
+
+	@module_name@_interface_t       @module_name@_i;
+};
+// clang-format on
+
+#ifdef __cplusplus
+} // extern c
+#endif
+
+#endif

@@ -1,0 +1,29 @@
+#include "@module_name@.h"
+#include "pal_api_loader/ApiRegistry.hpp"
+
+
+struct @module_name@_o {
+	// members
+};
+
+// ----------------------------------------------------------------------
+
+static @module_name@_o * @module_name@_create() {
+	auto self = new @module_name@_o();
+	return self;
+}
+
+// ----------------------------------------------------------------------
+
+static void @module_name@_destroy( @module_name@_o *self ) {
+	delete self;
+}
+
+// ----------------------------------------------------------------------
+
+ISL_API_ATTR void register_@module_name@_api( void *api ) {
+	auto &@module_name@_i = static_cast<@module_name@_api *>( api )->@module_name@_i;
+
+	@module_name@_i.create               = @module_name@_create;
+	@module_name@_i.destroy              = @module_name@_destroy;
+}
