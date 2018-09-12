@@ -40,13 +40,15 @@ static void unload_library( void *handle_, const char *path ) {
 
 static void *load_library( const char *lib_name ) {
 
-	std::cout << LOG_PREFIX_STR "Load     Module : '" << lib_name << "'";
+	std::cout << LOG_PREFIX_STR "Load     Module : '" << lib_name << "'" << std::endl;
 	void *handle = dlopen( lib_name, RTLD_LAZY | RTLD_LOCAL );
-	std::cout << ", handle: " << std::hex << handle << std::endl;
 
 	if ( !handle ) {
 		auto loadResult = dlerror();
 		std::cerr << "ERROR: " << loadResult << std::endl
+		          << std::flush;
+	} else {
+		std::cout << LOG_PREFIX_STR "OK Loaded Module: '" << lib_name << "', Handle: " << std::hex << handle << std::endl
 		          << std::flush;
 	}
 
@@ -142,7 +144,7 @@ bool pal_register_api_loader_i( pal_api_loader_i *api ) {
 // To enable, start app with environment variable `LD_AUDIT` set to path of
 // libpal_api_loader.so:
 //
-//		EXPORT LD_AUDIT=./pal_api_loader/libpal_api_loader.so
+//		EXPORT LD_AUDIT=./modules/libpal_api_loader.so
 
 extern "C" unsigned int
 la_version( unsigned int version ) {
