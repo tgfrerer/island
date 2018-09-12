@@ -36,8 +36,10 @@ inline uint64_t constexpr const_char_hash64( const char *input ) noexcept {
 	return *input ? ( 0x100000001b3 * const_char_hash64( input + 1 ) ) ^ static_cast<uint64_t>( *input ) : 0xcbf29ce484222325;
 }
 
-ISL_API_ATTR void *pal_registry_get_api( uint64_t id, const char *debug_name );
-ISL_API_ATTR void  pal_registry_set_api( uint64_t id, void *api, const char *debug_name );
+ISL_API_ATTR void *pal_registry_get_api( uint64_t id, const char *debugName );
+
+// creates
+ISL_API_ATTR void *pal_registry_create_api( uint64_t id, size_t apiStructSize, const char *debugName );
 
 #ifdef __cplusplus
 } // extern "C"
@@ -51,12 +53,7 @@ class Registry {
 
 	static bool loaderCallback( const char *, void * );
 
-	struct CallbackParams {
-		pal_api_loader_i *loaderInterface;
-		pal_api_loader_o *loader;
-		void *            api;
-		const char *      lib_register_fun_name;
-	};
+	struct callback_params_o; //ffdecl.
 
 	// We need these loader-related methods so we can keep this header file opaque,
 	// i.e. we don't want to include ApiLoader.h in this header file - as this header
@@ -71,13 +68,15 @@ class Registry {
 	static void              registerApi( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader, void *api, const char *api_register_fun_name );
 	static void              loadLibraryPersistently( pal_api_loader_i *loaderInterface, const char *libName_ );
 
+	static callback_params_o *        create_callback_params( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader, void *api, const char *lib_register_fun_name );
 	static struct dynamic_api_info_o *create_dynamic_api_info( const char *id );
-	static const char *               dynamic_api_info_get_module_path( const struct dynamic_api_info_o * );
-	static const char *               dynamic_api_info_get_modules_dir( const struct dynamic_api_info_o * );
-	static const char *               dynamic_api_info_get_register_fun_name( const struct dynamic_api_info_o * );
-	static void                       destroy_dynamic_api_info( dynamic_api_info_o * );
 
-	static int addWatch( const char *watchedPath, CallbackParams &settings );
+	static const char *dynamic_api_info_get_module_path( const struct dynamic_api_info_o * );
+	static const char *dynamic_api_info_get_modules_dir( const struct dynamic_api_info_o * );
+	static const char *dynamic_api_info_get_register_fun_name( const struct dynamic_api_info_o * );
+	static void        destroy_dynamic_api_info( dynamic_api_info_o * );
+
+	static int addWatch( const char *watchedPath, callback_params_o *settings );
 
 	template <typename T>
 	inline static constexpr auto getId() noexcept {
@@ -101,9 +100,8 @@ class Registry {
 			if ( api != nullptr ) {
 				delete api;
 			}
-			api = new T();
-			( *getPointerToStaticRegFun<T>() )( api );                                // < call registration function on api (this fills in the api's function pointers)
-			pal_registry_set_api( const_char_hash64( getId<T>() ), api, getId<T>() ); // < store api in registry lookup table
+			api = ( T * )pal_registry_create_api( const_char_hash64( getId<T>() ), sizeof( T ), getId<T>() ); // < store api in registry lookup table
+			( *getPointerToStaticRegFun<T>() )( api );                                                        // < call registration function on api (this fills in the api's function pointers)
 		}
 		return api;
 	}
@@ -124,28 +122,27 @@ class Registry {
 
 		if ( api == nullptr ) {
 
-			static dynamic_api_info_o *info = create_dynamic_api_info( getId<T>() ); // note: we never destroy this object.
+			dynamic_api_info_o *info                  = create_dynamic_api_info( getId<T>() );
+			auto                api_module_path       = dynamic_api_info_get_module_path( info );
+			auto                api_register_fun_name = dynamic_api_info_get_register_fun_name( info );
 
-			static pal_api_loader_i *loaderInterface = getLoaderInterface();
-			static pal_api_loader_o *loader          = createLoader( loaderInterface, dynamic_api_info_get_module_path( info ) );
+			pal_api_loader_i *loaderInterface = getLoaderInterface();
+			pal_api_loader_o *loader          = createLoader( loaderInterface, api_module_path );
 
-			api = new T(); // Allocate memory for api interface object. NOTE: we "leak" this on purpose - this is where the api interface lives.
+			//api = new T(); // Allocate memory for api interface object. NOTE: we "leak" this on purpose - this is where the api interface lives.
 
 			// Important to store api back to table here *before* calling loadApi, as loadApi might recursively add other apis
 			// which would have the effect of allocating more than one copy of the api
 			//
-			pal_registry_set_api( const_char_hash64( getId<T>() ), api, getId<T>() );
+			api = static_cast<T *>( pal_registry_create_api( const_char_hash64( getId<T>() ), sizeof( T ), getId<T>() ) );
 
 			loadApi( loaderInterface, loader );
-			registerApi( loaderInterface, loader, api, dynamic_api_info_get_register_fun_name( info ) );
+			registerApi( loaderInterface, loader, api, api_register_fun_name );
 
 			// ----
 			if ( shouldWatchForAutoReload ) {
-				static CallbackParams callbackParams = {loaderInterface, loader, api, dynamic_api_info_get_register_fun_name( info )};
-				// TODO: We keep watchId static so that a watch is only created once per type T.
-				// ideally, if we ever wanted to be able to remove watches, we'd keep the watchIds in a
-				// table, similar to the apiTable.
-				static int watchId = addWatch( dynamic_api_info_get_module_path( info ), callbackParams );
+				callback_params_o *callbackParams = create_callback_params( loaderInterface, loader, api, api_register_fun_name );
+				auto               watchId        = addWatch( api_module_path, callbackParams );
 			}
 
 		} else {

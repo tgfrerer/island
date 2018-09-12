@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <iomanip>
+#include <array>
 
 /*
 
@@ -18,6 +19,9 @@
 */
 
 struct ApiStore {
+	static constexpr size_t        fp_num_bytes = 4096 * 10; // 10 pages of function pointers should be enough
+	std::array<char, fp_num_bytes> fp_storage{};
+	size_t                         fp_used_bytes = 0; // number of bytes in use for function pointer usage
 
 	std::vector<std::string> names;
 	std::vector<uint64_t>    nameHashes;
@@ -67,7 +71,7 @@ extern "C" void *pal_registry_get_api( uint64_t id, const char *debug_id ) {
 
 // ----------------------------------------------------------------------
 
-extern "C" void pal_registry_set_api( uint64_t id, void *api, const char *debug_id ) {
+extern "C" void *pal_registry_create_api( uint64_t id, size_t apiStructSize, const char *debugName ) {
 	//#ifndef NDEBUG
 	//	auto find_result = apiTable.find(std::string(id));
 	//	if (find_result == apiTable.end()){
@@ -85,32 +89,66 @@ extern "C" void pal_registry_set_api( uint64_t id, void *api, const char *debug_
 
 	if ( foundElement == apiStore.nameHashes.size() ) {
 
-		// element with this name not found - we must insert it.
+		// Element with this name not found - we must insert it.
 
 		apiStore.nameHashes.emplace_back( id );
-		apiStore.ptrs.emplace_back( nullptr );   // initialise to nullptr
-		apiStore.names.emplace_back( debug_id ); // implicitly creates a string
+		apiStore.ptrs.emplace_back( nullptr );    // initialise to nullptr
+		apiStore.names.emplace_back( debugName ); // implicitly creates a string
 	}
 
-	apiStore.ptrs[ foundElement ] = api;
+	auto &apiPtr = apiStore.ptrs[ foundElement ];
+
+	if ( apiPtr == nullptr ) {
+
+		// api struct has not yet been allocated, we must do so now.
+
+		void *apiMemory = ( apiStore.fp_storage.data() + apiStore.fp_used_bytes ); // point to next free space in api store
+		apiStore.fp_used_bytes += apiStructSize;                                   // increase number of used bytes in api store
+
+		apiPtr = apiMemory; // Store updated address for api - this address won't change for the
+		                    // duration of the program.
+	}
+
+	return apiPtr;
+}
+
+// ----------------------------------------------------------------------
+
+struct Registry::callback_params_o {
+	pal_api_loader_i *loaderInterface;
+	pal_api_loader_o *loader;
+	void *            api;
+	const char *      lib_register_fun_name;
+};
+
+// ----------------------------------------------------------------------
+
+Registry::callback_params_o *Registry::create_callback_params( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader, void *api, const char *lib_register_fun_name ) {
+	// We create the callback_params object here so that it is not created in the header file.
+	// Creating it here means we force the object to be allocated in this translation unit,
+	// which is the only translation unit in a plugin-based program which is guaranteed not
+	// to be reloaded. Therefore we can assume that any static data in here is persistent,
+	// and that pointers to it remain valid for the duration of the program.
+	auto obj = new callback_params_o{loaderInterface, loader, api, lib_register_fun_name};
+	return obj;
 }
 
 // ----------------------------------------------------------------------
 
 bool Registry::loaderCallback( const char *path, void *user_data_ ) {
-	auto params = static_cast<Registry::CallbackParams *>( user_data_ );
+	auto params = static_cast<Registry::callback_params_o *>( user_data_ );
 	params->loaderInterface->load( params->loader );
 	return params->loaderInterface->register_api( params->loader, params->api, params->lib_register_fun_name );
 }
 
 // ----------------------------------------------------------------------
 
-int Registry::addWatch( const char *watchedPath_, Registry::CallbackParams &settings_ ) {
+int Registry::addWatch( const char *watchedPath_, Registry::callback_params_o *settings_ ) {
 
 	pal_file_watcher_watch_settings watchSettings;
 
 	watchSettings.callback_fun       = loaderCallback;
-	watchSettings.callback_user_data = &settings_;
+	watchSettings.callback_user_data = reinterpret_cast<void *>( settings_ );
 	watchSettings.filePath           = watchedPath_;
 
 	return file_watcher_i->add_watch( file_watcher, watchSettings );
