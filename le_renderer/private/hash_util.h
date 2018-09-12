@@ -9,9 +9,9 @@
 
 // ----------------------------------------------------------------------
 // FNV hash using constexpr recursion over char string length (may execute at compile time)
-inline uint64_t constexpr const_char_hash64( const char *input ) noexcept {
-	return *input ? ( 0x100000001b3 * const_char_hash64( input + 1 ) ) ^ static_cast<uint64_t>( *input ) : 0xcbf29ce484222325;
-}
+//inline uint64_t constexpr const_char_hash64( const char *input ) noexcept {
+//	return *input ? ( 0x100000001b3 * const_char_hash64( input + 1 ) ) ^ static_cast<uint64_t>( *input ) : 0xcbf29ce484222325;
+//}
 
 //template <typename T>
 //inline uint64_t fnv_hash64( const T &input_, uint64_t num_bytes_ ) noexcept {

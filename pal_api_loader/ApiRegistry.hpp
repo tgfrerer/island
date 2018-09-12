@@ -34,6 +34,10 @@ extern "C" {
 
 ISL_API_ATTR void *pal_registry_get_api( const char *id );
 ISL_API_ATTR void  pal_registry_set_api( const char *id, void *api );
+inline uint64_t constexpr const_char_hash64( const char *input ) noexcept {
+	return *input ? ( 0x100000001b3 * const_char_hash64( input + 1 ) ) ^ static_cast<uint64_t>( *input ) : 0xcbf29ce484222325;
+}
+
 
 #ifdef __cplusplus
 } // extern "C"
