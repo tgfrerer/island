@@ -1,7 +1,7 @@
 #include "ApiRegistry.hpp"
 #include "pal_api_loader/ApiLoader.h"
 #include "pal_file_watcher/pal_file_watcher.h"
-#include <unordered_map>
+#include <vector>
 #include <string>
 #include <stdio.h>
 #include <iostream>
@@ -17,7 +17,14 @@
 
 */
 
-static std::unordered_map<std::string, void *> apiTable;
+struct ApiStore {
+
+	std::vector<std::string> names;
+	std::vector<uint64_t>    nameHashes;
+	std::vector<void *>      ptrs;
+};
+
+static ApiStore apiStore;
 
 static auto file_watcher_i = Registry::addApiStatic<pal_file_watcher_i>();
 static auto file_watcher   = file_watcher_i -> create();
@@ -30,26 +37,62 @@ struct dynamic_api_info_o {
 
 // ----------------------------------------------------------------------
 
-extern "C" void *pal_registry_get_api( const char *id ) {
+extern "C" void *pal_registry_get_api( uint64_t id, const char *debug_id ) {
 	//#ifndef NDEBUG
 	//	auto find_result = apiTable.find(std::string(id));
 	//	if (find_result == apiTable.end()){
 	//		std::cerr << "warning: could not find api: " << id << std::endl;
 	//	}
 	//#endif
-	return apiTable[ std::string( id ) ];
+
+	size_t foundElement = 0;
+	for ( const auto &n : apiStore.nameHashes ) {
+		if ( n == id ) {
+			break;
+		}
+		++foundElement;
+	}
+
+	if ( foundElement == apiStore.nameHashes.size() ) {
+		// no element found, we need to add an element
+		apiStore.nameHashes.emplace_back( id );
+		apiStore.ptrs.emplace_back( nullptr );   // initialise to nullptr
+		apiStore.names.emplace_back( debug_id ); // implicitly creates a string
+	}
+
+	// invariant: foundElement points to correct element
+
+	return apiStore.ptrs[ foundElement ];
 };
 
 // ----------------------------------------------------------------------
 
-extern "C" void pal_registry_set_api( const char *id, void *api ) {
+extern "C" void pal_registry_set_api( uint64_t id, void *api, const char *debug_id ) {
 	//#ifndef NDEBUG
 	//	auto find_result = apiTable.find(std::string(id));
 	//	if (find_result == apiTable.end()){
 	//		std::cerr << "set api warning: could not find api: " << id << std::endl;
 	//	}
 	//#endif
-	apiTable[ std::string( id ) ] = api;
+
+	size_t foundElement = 0;
+	for ( const auto &n : apiStore.nameHashes ) {
+		if ( n == id ) {
+			break;
+		}
+		++foundElement;
+	}
+
+	if ( foundElement == apiStore.nameHashes.size() ) {
+
+		// element with this name not found - we must insert it.
+
+		apiStore.nameHashes.emplace_back( id );
+		apiStore.ptrs.emplace_back( nullptr );   // initialise to nullptr
+		apiStore.names.emplace_back( debug_id ); // implicitly creates a string
+	}
+
+	apiStore.ptrs[ foundElement ] = api;
 }
 
 // ----------------------------------------------------------------------
