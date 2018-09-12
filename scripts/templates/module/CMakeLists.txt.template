@@ -14,6 +14,8 @@ if (${PLUGINS_DYNAMIC})
     #            loaded, will have no effect, and autoreload for this library will not work
     #            as the first version of the library will remain resident.
     target_compile_options (${TARGET} PUBLIC --no-gnu-unique)
+    
+    target_compile_definitions(${TARGET}  PUBLIC "PLUGINS_DYNAMIC")
 
 else()
 

@@ -13,9 +13,19 @@ parser.add_argument( dest="module_name", metavar='MODULE_NAME', type=str,
 
 args = parser.parse_args()
 
+def to_camel_case(snake_str):
+    components = snake_str.split('_')
+    # We capitalize the first letter of each component except the first one
+    # with the 'title' method and join them together.
+    return components[0] + ''.join(x.title() for x in components[1:])
 
+def to_titled_camel_case(snake_str):
+    components = snake_str.split('_')
+    # We capitalize the first letter of each component.
+    return ''.join(x.title() for x in components)
 
 module_name = args.module_name[0]
+module_name_camelcase_capitalised = to_titled_camel_case(module_name)
 module_dir = ("./%s" % module_name)
 script_dir = path.split(path.realpath(__file__))[0] # directory where this script lives
 
@@ -45,7 +55,8 @@ else:
 	# create directory for storing the module
 	makedirs(module_dir)
 	source_dir = ("%s/templates/module/" %  script_dir)
-	replacements = {'@module_name@': module_name}
+	replacements = {'@module_name@': module_name, 
+				    '@module_name_camelcase_capitalised@': module_name_camelcase_capitalised}
 	# process files from the template 
 	process_file("%s/CMakeLists.txt.template" % source_dir    , "%s/CMakeLists.txt" % (module_dir             ), replacements)
 	process_file("%s/implementation.cpp.template" % source_dir, "%s/%s.cpp"         % (module_dir, module_name), replacements)
