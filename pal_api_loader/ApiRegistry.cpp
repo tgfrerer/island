@@ -7,6 +7,7 @@
 #include <iostream>
 #include <iomanip>
 #include <array>
+#include <assert.h>
 
 /*
 
@@ -19,8 +20,8 @@
 */
 
 struct ApiStore {
-	static constexpr size_t        fp_num_bytes = 4096 * 10; // 10 pages of function pointers should be enough
-	std::array<char, fp_num_bytes> fp_storage{};
+	static constexpr size_t        fp_max_bytes = 4096 * 10; // 10 pages of function pointers should be enough
+	std::array<char, fp_max_bytes> fp_storage{};
 	size_t                         fp_used_bytes = 0; // number of bytes in use for function pointer usage
 
 	std::vector<std::string> names;
@@ -101,6 +102,13 @@ extern "C" void *pal_registry_create_api( uint64_t id, size_t apiStructSize, con
 	if ( apiPtr == nullptr ) {
 
 		// api struct has not yet been allocated, we must do so now.
+
+		if ( apiStore.fp_used_bytes + apiStructSize > ApiStore::fp_max_bytes ) {
+			std::cerr << __PRETTY_FUNCTION__ << " FATAL ERROR: Out of function pointer memory" << std::endl
+			          << std::flush;
+			assert( false ); // out of function pointer memory
+			exit( -1 );
+		}
 
 		void *apiMemory = ( apiStore.fp_storage.data() + apiStore.fp_used_bytes ); // point to next free space in api store
 		apiStore.fp_used_bytes += apiStructSize;                                   // increase number of used bytes in api store
