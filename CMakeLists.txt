@@ -48,7 +48,7 @@ execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/3rdparty/src/glm/glm ${PRO
 # add glm include directory to includes search path - this is because glm's internals require glm's include directory to be globally accessible :(
 include_directories(${PROJECT_SOURCE_DIR}/3rdparty/include/glm)
 
-# create a link to shared shader repository so that we're always working with the same shaders.
+# add gltf include directory to search path
 execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/3rdparty/src/fx-gltf/include/fx ${PROJECT_SOURCE_DIR}/3rdparty/include/fx )
 
 # include imgui directory

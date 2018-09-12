@@ -16,6 +16,8 @@ if (${PLUGINS_DYNAMIC})
     #            as the first version of the library will remain resident.
     target_compile_options (${TARGET} PUBLIC --no-gnu-unique)
 
+    target_compile_definitions(${TARGET}  PUBLIC "PLUGINS_DYNAMIC")
+
 else()
 
     # We also set a compiler flag so that our main source file can use the correct
@@ -27,13 +29,12 @@ else()
 
     add_library(${TARGET} STATIC ${SOURCES})
 
-    target_link_libraries(${TARGET} PRIVATE imgui)
-
-    target_compile_definitions(${TARGET}  PUBLIC "PLUGIN_TEST_APP_STATIC")
 
     # it's important not to link the library then compiling, but to load the library via
     # the dynamic library loader when we go dynamic. Here, when we go static, we
     # actually want to statically link against (FIXME:implement) a static lib of imgui.
+
+    target_link_libraries(${TARGET} PRIVATE imgui)
 
 endif()
 

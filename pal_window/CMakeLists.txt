@@ -15,6 +15,8 @@ if (${PLUGINS_DYNAMIC})
     #            as the first version of the library will remain resident.
     target_compile_options (${TARGET} PUBLIC --no-gnu-unique)
 
+    target_compile_definitions(${TARGET} PUBLIC "PLUGINS_DYNAMIC=1")
+
 else()
 
     # We also set a compiler flag so that our main source file can use the correct
@@ -27,8 +29,6 @@ else()
     set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
 
     add_library(${TARGET} STATIC ${SOURCES})
-
-    target_compile_definitions(${TARGET} PUBLIC "PLUGIN_PAL_WINDOW_STATIC")
 
 endif()
 
