@@ -386,6 +386,8 @@ static test_app_o *test_app_create() {
 	}
 
 	{
+		// -- Set window event callbacks
+
 		using namespace pal_window;
 		// set the callback user data for all callbacks from window *app->window
 		// to be our app pointer.

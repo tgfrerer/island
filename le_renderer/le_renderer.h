@@ -298,6 +298,7 @@ struct le_renderer_api {
 		// TODO: not too sure about the nomenclature of this
 		// Note that this method implicitly marks the image resource referenced in LeTextureInfo for read access.
 		void                         ( *sample_texture        )(le_renderpass_o* obj, LeResourceHandle texture_name, const LeTextureInfo* info);
+
 		void                         ( *get_texture_ids       )(le_renderpass_o* obj, const LeResourceHandle ** pIds, uint64_t* count);
 		void                         ( *get_texture_infos     )(le_renderpass_o* obj, const LeTextureInfo** pInfos, uint64_t* count);
 	};

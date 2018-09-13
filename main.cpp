@@ -14,8 +14,10 @@ int main( int argc, char const *argv[] ) {
 		TestApp testApp{};
 
 		for ( ;; ) {
-			Registry::pollForDynamicReload();
 
+#ifdef PLUGINS_DYNAMIC
+			Registry::pollForDynamicReload();
+#endif
 			auto result = testApp.update();
 
 			if ( !result ) {
