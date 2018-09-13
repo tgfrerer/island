@@ -90,6 +90,7 @@ add_subdirectory (le_swapchain_vk)
 add_subdirectory (le_renderer)
 add_subdirectory (le_shader_compiler)
 add_subdirectory (le_gltf_loader)
+add_subdirectory (simple_module)
 
 set (SOURCES main.cpp)
 

@@ -42,6 +42,18 @@ struct le_gltf_loader_api {
 
 #ifdef __cplusplus
 } // extern c
+
+namespace le_gltf_loader {
+#	ifdef PLUGINS_DYNAMIC
+const auto api = Registry::addApiDynamic<le_gltf_loader_api>( true );
+#	else
+const auto api = Registry::addApiStatic<le_gltf_loader_api>();
+#	endif
+
+static const auto &gltf_document_i = api -> document_i;
+
+} // namespace le_gltf_loader
+
 #endif
 
 #endif

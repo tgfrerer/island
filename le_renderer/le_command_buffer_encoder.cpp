@@ -188,15 +188,15 @@ static void cbe_set_vertex_data( le_command_buffer_encoder_o *self,
 	// -- Upload data via scratch allocator
 	// -- Bind vertex buffers to scratch allocator
 
-	static auto &allocator_i = Registry::getApi<le_backend_vk_api>()->le_allocator_linear_i;
+	using namespace le_backend_vk; // for le_allocator_linear_i
 
 	void *   memAddr;
 	uint64_t bufferOffset = 0;
 
-	if ( allocator_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
+	if ( le_allocator_linear_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
 		memcpy( memAddr, data, numBytes );
 
-		LeResourceHandle allocatorBufferId = reinterpret_cast<LeResourceHandle>( allocator_i.get_le_resource_id( self->pAllocator ) );
+		LeResourceHandle allocatorBufferId = reinterpret_cast<LeResourceHandle>( le_allocator_linear_i.get_le_resource_id( self->pAllocator ) );
 
 		cbe_bind_vertex_buffers( self, bindingIndex, 1, &allocatorBufferId, &bufferOffset );
 	} else {
@@ -212,18 +212,18 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *self,
                                 uint64_t                     numBytes,
                                 uint64_t                     indexType ) {
 
-	static auto &allocator_i = Registry::getApi<le_backend_vk_api>()->le_allocator_linear_i;
+	using namespace le_backend_vk; // for le_allocator_linear_i
 
 	void *   memAddr;
 	uint64_t bufferOffset = 0;
 
 	// -- Allocate data on scratch buffer
-	if ( allocator_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
+	if ( le_allocator_linear_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
 
 		// -- Upload data via scratch allocator
 		memcpy( memAddr, data, numBytes );
 
-		LeResourceHandle allocatorBufferId = reinterpret_cast<LeResourceHandle>( allocator_i.get_le_resource_id( self->pAllocator ) );
+		LeResourceHandle allocatorBufferId = reinterpret_cast<LeResourceHandle>( le_allocator_linear_i.get_le_resource_id( self->pAllocator ) );
 
 		// -- Bind index buffer to scratch allocator
 		cbe_bind_index_buffer( self, allocatorBufferId, bufferOffset, indexType );
@@ -240,7 +240,7 @@ static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
                                        void const *                 data,
                                        size_t                       numBytes ) {
 
-	static auto &allocator_i = Registry::getApi<le_backend_vk_api>()->le_allocator_linear_i;
+	using namespace le_backend_vk; // for le_allocator_linear_i
 
 	auto cmd = EMPLACE_CMD( le::CommandSetArgumentUbo );
 
@@ -251,12 +251,12 @@ static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
 	//
 	// Note that we might want to have specialised ubo memory eventually if that
 	// made a performance difference.
-	if ( allocator_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
+	if ( le_allocator_linear_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
 
 		// -- Store ubo data to scratch allocator
 		memcpy( memAddr, data, numBytes );
 
-		LeResourceHandle allocatorBufferId = reinterpret_cast<LeResourceHandle>( allocator_i.get_le_resource_id( self->pAllocator ) );
+		LeResourceHandle allocatorBufferId = reinterpret_cast<LeResourceHandle>( le_allocator_linear_i.get_le_resource_id( self->pAllocator ) );
 
 		cmd->info.argument_name_id = argumentNameId;
 		cmd->info.buffer_id        = allocatorBufferId;
@@ -309,20 +309,20 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, LeResourceHa
 
 	auto cmd = EMPLACE_CMD( le::CommandWriteToBuffer );
 
-	static auto &allocator_i = Registry::getApi<le_backend_vk_api>()->le_allocator_linear_i;
-	void *       memAddr;
-	uint64_t     bufferOffset = 0;
+	using namespace le_backend_vk; // for le_allocator_linear_i
+	void *   memAddr;
+	uint64_t bufferOffset = 0;
 
 	// -- Allocate memory on scratch buffer
 	//
 	// Note that we might want to have specialised memory if that
 	// made a performance difference.
-	if ( allocator_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
+	if ( le_allocator_linear_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
 
 		// -- Write data to scratch memory now
 		memcpy( memAddr, data, numBytes );
 
-		cmd->info.src_buffer_id = reinterpret_cast<LeResourceHandle>( allocator_i.get_le_resource_id( self->pAllocator ) );
+		cmd->info.src_buffer_id = reinterpret_cast<LeResourceHandle>( le_allocator_linear_i.get_le_resource_id( self->pAllocator ) );
 		cmd->info.src_offset    = bufferOffset;
 		cmd->info.dst_offset    = offset;
 		cmd->info.numBytes      = numBytes;
@@ -347,20 +347,20 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *self,
 
 	auto cmd = EMPLACE_CMD( le::CommandWriteToImage );
 
-	static auto &allocator_i = Registry::getApi<le_backend_vk_api>()->le_allocator_linear_i;
-	void *       memAddr;
-	uint64_t     bufferOffset = 0;
+	using namespace le_backend_vk; // for le_allocator_linear_i
+	void *   memAddr;
+	uint64_t bufferOffset = 0;
 
 	// -- Allocate memory on scratch buffer
 	//
 	// Note that we might want to have specialised memory if that
 	// made a performance difference.
-	if ( allocator_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
+	if ( le_allocator_linear_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
 
 		// -- Write data to scratch memory now
 		memcpy( memAddr, data, numBytes );
 
-		cmd->info.src_buffer_id = reinterpret_cast<LeResourceHandle>( allocator_i.get_le_resource_id( self->pAllocator ) );
+		cmd->info.src_buffer_id = reinterpret_cast<LeResourceHandle>( le_allocator_linear_i.get_le_resource_id( self->pAllocator ) );
 		cmd->info.src_offset    = bufferOffset;
 		cmd->info.dst_region    = region;
 		cmd->info.numBytes      = numBytes;

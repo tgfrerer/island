@@ -89,7 +89,7 @@ struct le_backend_vk_api {
 	};
 
 	struct instance_interface_t {
-		le_backend_vk_instance_o *  ( *create           ) ( const le_backend_vk_api * , const char** requestedExtensionNames_, uint32_t requestedExtensionNamesCount_ );
+		le_backend_vk_instance_o *  ( *create           ) ( const char** requestedExtensionNames_, uint32_t requestedExtensionNamesCount_ );
 		void                        ( *destroy          ) ( le_backend_vk_instance_o* self_ );
 		void                        ( *post_reload_hook ) ( le_backend_vk_instance_o* self_ );
 		VkInstance_T*               ( *get_vk_instance  ) ( le_backend_vk_instance_o* self_ );
@@ -136,13 +136,25 @@ struct le_backend_vk_api {
 #ifdef __cplusplus
 } // extern "C"
 
+namespace le_backend_vk {
+#	ifdef PLUGINS_DYNAMIC
+const auto api = Registry::addApiDynamic<le_backend_vk_api>( true );
+#	else
+const auto api = Registry::addApiStatic<le_backend_vk_api>();
+#	endif
+
+static const auto &vk_backend_i          = api -> vk_backend_i;
+static const auto &le_allocator_linear_i = api -> le_allocator_linear_i;
+static const auto &vk_instance_i         = api -> vk_instance_i;
+static const auto &vk_device_i           = api -> vk_device_i;
+
+} // namespace le_backend_vk
+
 namespace le {
 
 class Backend : NoCopy, NoMove {
-	const le_backend_vk_api &                        backendApiI  = *Registry::getApi<le_backend_vk_api>();
-	const le_backend_vk_api::backend_vk_interface_t &backendI     = backendApiI.vk_backend_i;
-	le_backend_o *                                   self         = nullptr;
-	bool                                             is_reference = false;
+	le_backend_o *self         = nullptr;
+	bool          is_reference = false;
 
   public:
 	operator auto() {
@@ -150,7 +162,7 @@ class Backend : NoCopy, NoMove {
 	}
 
 	Backend( le_backend_vk_settings_t *settings )
-	    : self( backendI.create( settings ) )
+	    : self( le_backend_vk::vk_backend_i.create( settings ) )
 	    , is_reference( false ) {
 	}
 
@@ -161,63 +173,61 @@ class Backend : NoCopy, NoMove {
 
 	~Backend() {
 		if ( !is_reference ) {
-			backendI.destroy( self );
+			le_backend_vk::vk_backend_i.destroy( self );
 		}
 	}
 
 	void setup() {
-		backendI.setup( self );
+		le_backend_vk::vk_backend_i.setup( self );
 	}
 
 	bool clearFrame( size_t frameIndex ) {
-		return backendI.clear_frame( self, frameIndex );
+		return le_backend_vk::vk_backend_i.clear_frame( self, frameIndex );
 	}
 
 	void processFrame( size_t frameIndex ) {
-		backendI.process_frame( self, frameIndex );
+		le_backend_vk::vk_backend_i.process_frame( self, frameIndex );
 	}
 
 	bool createWindowSurface( pal_window_o *window ) {
-		return backendI.create_window_surface( self, window );
+		return le_backend_vk::vk_backend_i.create_window_surface( self, window );
 	}
 
 	void createSwapchain( le_swapchain_vk_settings_o *swapchainSettings ) {
-		backendI.create_swapchain( self, swapchainSettings );
+		le_backend_vk::vk_backend_i.create_swapchain( self, swapchainSettings );
 	}
 
 	size_t getNumSwapchainImages() {
-		return backendI.get_num_swapchain_images( self );
+		return le_backend_vk::vk_backend_i.get_num_swapchain_images( self );
 	}
 
 	bool acquirePhysicalResources( size_t frameIndex, struct le_renderpass_o **passes, size_t numRenderPasses ) {
-		return backendI.acquire_physical_resources( self, frameIndex, passes, numRenderPasses );
+		return le_backend_vk::vk_backend_i.acquire_physical_resources( self, frameIndex, passes, numRenderPasses );
 	}
 
 	bool dispatchFrame( size_t frameIndex ) {
-		return backendI.dispatch_frame( self, frameIndex );
+		return le_backend_vk::vk_backend_i.dispatch_frame( self, frameIndex );
 	}
 
 	void resetSwapchain() {
-		backendI.reset_swapchain( self );
+		le_backend_vk::vk_backend_i.reset_swapchain( self );
 	}
 };
 
 class Instance {
-	const le_backend_vk_api &                      backendApiI = *Registry::getApi<le_backend_vk_api>();
-	const le_backend_vk_api::instance_interface_t &instanceI   = backendApiI.vk_instance_i;
-	le_backend_vk_instance_o *                     self        = nullptr;
+	le_backend_vk_instance_o *self = nullptr;
 
   public:
 	Instance( const char **extensionsArray_ = nullptr, uint32_t numExtensions_ = 0 )
-	    : self( instanceI.create( &backendApiI, extensionsArray_, numExtensions_ ) ) {
+	    : self( le_backend_vk::vk_instance_i.create( extensionsArray_, numExtensions_ ) ) {
 	}
 
 	~Instance() {
-		instanceI.destroy( self );
+		le_backend_vk::vk_instance_i.destroy( self );
 	}
 
 	VkInstance_T *getVkInstance() {
-		return instanceI.get_vk_instance( self );
+		return le_backend_vk::vk_instance_i.get_vk_instance( self );
 	}
 
 	operator auto() {
@@ -226,61 +236,59 @@ class Instance {
 };
 
 class Device : NoCopy, NoMove {
-	const le_backend_vk_api &                    backendApiI = *Registry::getApi<le_backend_vk_api>();
-	const le_backend_vk_api::device_interface_t &deviceI     = backendApiI.vk_device_i;
-	le_backend_vk_device_o *                     self        = nullptr;
+	le_backend_vk_device_o *self = nullptr;
 
   public:
 	Device( le_backend_vk_instance_o *instance_ )
-	    : self( deviceI.create( instance_ ) ) {
-		deviceI.increase_reference_count( self );
+	    : self( le_backend_vk::vk_device_i.create( instance_ ) ) {
+		le_backend_vk::vk_device_i.increase_reference_count( self );
 	}
 
 	~Device() {
-		deviceI.decrease_reference_count( self );
-		if ( deviceI.get_reference_count( self ) == 0 ) {
-			deviceI.destroy( self );
+		le_backend_vk::vk_device_i.decrease_reference_count( self );
+		if ( le_backend_vk::vk_device_i.get_reference_count( self ) == 0 ) {
+			le_backend_vk::vk_device_i.destroy( self );
 		}
 	}
 
 	// copy constructor
 	Device( const Device &lhs )
 	    : self( lhs.self ) {
-		deviceI.increase_reference_count( self );
+		le_backend_vk::vk_device_i.increase_reference_count( self );
 	}
 
 	// reference from data constructor
 	Device( le_backend_vk_device_o *device_ )
 	    : self( device_ ) {
-		deviceI.increase_reference_count( self );
+		le_backend_vk::vk_device_i.increase_reference_count( self );
 	}
 
 	VkDevice_T *getVkDevice() const {
-		return deviceI.get_vk_device( self );
+		return le_backend_vk::vk_device_i.get_vk_device( self );
 	}
 
 	VkPhysicalDevice_T *getVkPhysicalDevice() const {
-		return deviceI.get_vk_physical_device( self );
+		return le_backend_vk::vk_device_i.get_vk_physical_device( self );
 	}
 
 	uint32_t getDefaultGraphicsQueueFamilyIndex() const {
-		return deviceI.get_default_graphics_queue_family_index( self );
+		return le_backend_vk::vk_device_i.get_default_graphics_queue_family_index( self );
 	}
 
 	uint32_t getDefaultComputeQueueFamilyIndex() const {
-		return deviceI.get_default_compute_queue_family_index( self );
+		return le_backend_vk::vk_device_i.get_default_compute_queue_family_index( self );
 	}
 
 	VkQueue_T *getDefaultGraphicsQueue() const {
-		return deviceI.get_default_graphics_queue( self );
+		return le_backend_vk::vk_device_i.get_default_graphics_queue( self );
 	}
 
 	VkQueue_T *getDefaultComputeQueue() const {
-		return deviceI.get_default_compute_queue( self );
+		return le_backend_vk::vk_device_i.get_default_compute_queue( self );
 	}
 
 	LeFormat_t getDefaultDepthStencilFormat() const {
-		return deviceI.get_default_depth_stencil_format( self );
+		return le_backend_vk::vk_device_i.get_default_depth_stencil_format( self );
 	}
 
 	operator auto() {

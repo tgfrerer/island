@@ -525,14 +525,15 @@ static void backend_translate_to_spirv_code( le_backend_o *self, void *raw_data,
 		memcpy( spirvCode.data(), raw_data, numBytes );
 	} else {
 		// Data is not spirv - is it glsl, perhaps?
-		static auto &shaderCompilerI = Registry::getApi<le_shader_compiler_api>()->compiler_i;
 
-		auto compileResult = shaderCompilerI.compile_source( self->shader_compiler, static_cast<const char *>( raw_data ), numBytes, moduleType, original_file_name );
+		using namespace le_shader_compiler; // for compiler_i
 
-		if ( shaderCompilerI.get_result_success( compileResult ) == true ) {
+		auto compileResult = compiler_i.compile_source( self->shader_compiler, static_cast<const char *>( raw_data ), numBytes, moduleType, original_file_name );
+
+		if ( compiler_i.get_result_success( compileResult ) == true ) {
 			const char *addr;
 			size_t      res_sz;
-			shaderCompilerI.get_result_bytes( compileResult, &addr, &res_sz );
+			compiler_i.get_result_bytes( compileResult, &addr, &res_sz );
 			spirvCode.resize( res_sz / 4 );
 			memcpy( spirvCode.data(), addr, res_sz );
 
@@ -541,14 +542,14 @@ static void backend_translate_to_spirv_code( le_backend_o *self, void *raw_data,
 			const char *pStr;
 			size_t      strSz = 0;
 
-			while ( shaderCompilerI.get_result_includes( compileResult, &pStr, &strSz ) ) {
+			while ( compiler_i.get_result_includes( compileResult, &pStr, &strSz ) ) {
 				// -- update set of includes for this module
 				includesSet.emplace( pStr, strSz );
 			}
 		}
 
 		// release compile result object
-		shaderCompilerI.release_result( compileResult );
+		compiler_i.release_result( compileResult );
 	}
 }
 
@@ -1007,6 +1008,8 @@ static le_backend_o *backend_create( le_backend_vk_settings_t *settings ) {
 
 static void backend_destroy( le_backend_o *self ) {
 
+	using namespace le_shader_compiler;
+
 	if ( self->shaderFileWatcher ) {
 		// -- destroy file watcher
 		static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
@@ -1016,8 +1019,7 @@ static void backend_destroy( le_backend_o *self ) {
 
 	if ( self->shader_compiler ) {
 		// -- destroy shader compiler
-		static auto &shader_compiler_i = Registry::getApi<le_shader_compiler_api>()->compiler_i;
-		shader_compiler_i.destroy( self->shader_compiler );
+		compiler_i.destroy( self->shader_compiler );
 		self->shader_compiler = nullptr;
 	}
 
@@ -1067,9 +1069,9 @@ static void backend_destroy( le_backend_o *self ) {
 		device.destroyPipelineCache( self->debugPipelineCache );
 	}
 
-	static auto &allocator_i = Registry::getApi<le_backend_vk_api>()->le_allocator_linear_i;
-
 	for ( auto &frameData : self->mFrames ) {
+
+		using namespace le_backend_vk;
 
 		// -- destroy per-frame data
 
@@ -1088,7 +1090,7 @@ static void backend_destroy( le_backend_o *self ) {
 		}
 
 		for ( auto &a : frameData.allocators ) {
-			allocator_i.destroy( a );
+			le_allocator_linear_i.destroy( a );
 		}
 		frameData.allocators.clear();
 		frameData.allocationInfos.clear();

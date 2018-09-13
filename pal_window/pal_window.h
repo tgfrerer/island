@@ -56,12 +56,12 @@ struct pal_window_api {
 		void            ( *toggle_fullscreen  ) ( pal_window_o* self );
 
 		void            ( *set_callback_user_data      )(pal_window_o* self, void* user_data);
-		void            ( *set_key_callback            )(pal_window_o*, key_callback_fun_t* callback_fun_ptr); // NOTE: we want a pointer to a function pointer!
-		void 		    ( *set_character_callback      )(pal_window_o*, character_callback_fun_t* callback_fun_ptr);
-		void            ( *set_cursor_position_callback)(pal_window_o*, cursor_position_callback_fun_t* callback_fun_ptr);
-		void            ( *set_cursor_enter_callback   )(pal_window_o*, cursor_enter_callback_fun_t* callback_fun_ptr);
-		void            ( *set_mouse_button_callback   )(pal_window_o*, mouse_button_callback_fun_t* callback_fun_ptr);
-		void            ( *set_scroll_callback         )(pal_window_o*, scroll_callback_fun_t* callback_fun_ptr);
+		void            ( *set_key_callback            )(pal_window_o*, key_callback_fun_t const * callback_fun_ptr); // NOTE: we want a pointer to a function pointer!
+		void 		    ( *set_character_callback      )(pal_window_o*, character_callback_fun_t const * callback_fun_ptr);
+		void            ( *set_cursor_position_callback)(pal_window_o*, cursor_position_callback_fun_t const * callback_fun_ptr);
+		void            ( *set_cursor_enter_callback   )(pal_window_o*, cursor_enter_callback_fun_t const * callback_fun_ptr);
+		void            ( *set_mouse_button_callback   )(pal_window_o*, mouse_button_callback_fun_t const *  callback_fun_ptr);
+		void            ( *set_scroll_callback         )(pal_window_o*, scroll_callback_fun_t const * callback_fun_ptr);
 	};
 
 	int           ( *init                       ) ();
@@ -78,34 +78,44 @@ struct pal_window_api {
 #ifdef __cplusplus
 } // extern "C"
 
+namespace pal_window {
+#	ifdef PLUGINS_DYNAMIC
+const auto api = Registry::addApiDynamic<pal_window_api>( true );
+#	else
+const auto api = Registry::addApiStatic<pal_window_api>();
+#	endif
+
+static const auto &window_i   = api -> window_i;
+static const auto &settings_i = api -> window_settings_i;
+
+} // namespace pal_window
+
 namespace pal {
 
 class Window : NoMove, NoCopy {
-	const pal_window_api::window_interface_t &mWindow = Registry::getApi<pal_window_api>()->window_i;
-	pal_window_o *                            self    = mWindow.create( nullptr );
+	pal_window_o *self = pal_window::window_i.create( nullptr );
 
   public:
 	class Settings {
-		const pal_window_api::window_settings_interface_t &windowSettingsI = Registry::getApi<pal_window_api>()->window_settings_i;
-		pal_window_settings_o *                            self            = windowSettingsI.create();
+		pal_window_settings_o *self = pal_window::settings_i.create();
 
 	  public:
 		Settings() = default;
 
 		~Settings() {
-			windowSettingsI.destroy( self );
+			pal_window::settings_i.destroy( self );
 		}
 
 		Settings &setWidth( int width_ ) {
-			windowSettingsI.set_width( self, width_ );
+			pal_window::settings_i.set_width( self, width_ );
 			return *this;
 		}
 		Settings &setHeight( int height_ ) {
-			windowSettingsI.set_height( self, height_ );
+			pal_window::settings_i.set_height( self, height_ );
 			return *this;
 		}
 		Settings &setTitle( const char *title_ ) {
-			windowSettingsI.set_title( self, title_ );
+			pal_window::settings_i.set_title( self, title_ );
 			return *this;
 		}
 
@@ -120,45 +130,45 @@ class Window : NoMove, NoCopy {
 
   public:
 	Window( const Settings &settings_ )
-	    : self( mWindow.create( settings_ ) ) {
-		mWindow.increase_reference_count( self );
+	    : self( pal_window::window_i.create( settings_ ) ) {
+		pal_window::window_i.increase_reference_count( self );
 	}
 
 	Window( pal_window_o *ref )
 	    : self( ref ) {
-		mWindow.increase_reference_count( self );
+		pal_window::window_i.increase_reference_count( self );
 	}
 
 	~Window() {
-		mWindow.decrease_reference_count( self );
-		if ( mWindow.get_reference_count( self ) == 0 ) {
-			mWindow.destroy( self );
+		pal_window::window_i.decrease_reference_count( self );
+		if ( pal_window::window_i.get_reference_count( self ) == 0 ) {
+			pal_window::window_i.destroy( self );
 		}
 	}
 
 	bool shouldClose() {
-		return mWindow.should_close( self );
+		return pal_window::window_i.should_close( self );
 	}
 
 	/// \brief create and store a vk surface in the current window object
 	bool createSurface( VkInstance_T *instance ) {
-		return mWindow.create_surface( self, instance );
+		return pal_window::window_i.create_surface( self, instance );
 	}
 
 	uint32_t getSurfaceWidth() {
-		return mWindow.get_surface_width( self );
+		return pal_window::window_i.get_surface_width( self );
 	}
 
 	uint32_t getSurfaceHeight() {
-		return mWindow.get_surface_height( self );
+		return pal_window::window_i.get_surface_height( self );
 	}
 
 	VkSurfaceKHR_T *getVkSurfaceKHR() {
-		return mWindow.get_vk_surface_khr( self );
+		return pal_window::window_i.get_vk_surface_khr( self );
 	}
 
 	void destroySurface() {
-		mWindow.destroy_surface( self );
+		pal_window::window_i.destroy_surface( self );
 	}
 
 	operator auto() {
@@ -166,23 +176,19 @@ class Window : NoMove, NoCopy {
 	}
 
 	static int init() {
-		static auto pApi = Registry::getApi<pal_window_api>();
-		return pApi->init();
+		return pal_window::api->init();
 	}
 
 	static void terminate() {
-		static auto pApi = Registry::getApi<pal_window_api>();
-		pApi->terminate();
+		pal_window::api->terminate();
 	}
 
 	static void pollEvents() {
-		static auto pApi = Registry::getApi<pal_window_api>();
-		pApi->pollEvents();
+		pal_window::api->pollEvents();
 	}
 
 	static const char **getRequiredVkExtensions( uint32_t *count ) {
-		static auto pApi = Registry::getApi<pal_window_api>();
-		return pApi->get_required_vk_extensions( count );
+		return pal_window::api->get_required_vk_extensions( count );
 	}
 };
 

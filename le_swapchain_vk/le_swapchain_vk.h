@@ -69,39 +69,49 @@ struct le_swapchain_vk_api {
 #ifdef __cplusplus
 } // extern "C"
 
+namespace le_swapchain_vk {
+#	ifdef PLUGINS_DYNAMIC
+const auto api = Registry::addApiDynamic<le_swapchain_vk_api>( true );
+#	else
+const auto api = Registry::addApiStatic<le_swapchain_vk_api>();
+#	endif
+
+static const auto &swapchain_i = api -> swapchain_i;
+
+} // namespace le_swapchain_vk
+
 namespace le {
 
 class Swapchain {
 
-	const le_swapchain_vk_api::swapchain_interface_t &swapchainI = Registry::getApi<le_swapchain_vk_api>()->swapchain_i;
-	le_backend_swapchain_o *                          self       = swapchainI.create( nullptr );
+	le_backend_swapchain_o *self = le_swapchain_vk::swapchain_i.create( nullptr );
 
   public:
 	using Presentmode = le_swapchain_vk_settings_o::Presentmode;
 
   public:
 	Swapchain( le_swapchain_vk_settings_o *settings_ )
-	    : self( swapchainI.create( settings_ ) ) {
-		swapchainI.increase_reference_count( self );
+	    : self( le_swapchain_vk::swapchain_i.create( settings_ ) ) {
+		le_swapchain_vk::swapchain_i.increase_reference_count( self );
 	}
 
 	~Swapchain() {
-		swapchainI.decrease_reference_count( self );
-		if ( 0 == swapchainI.get_reference_count( self ) ) {
-			swapchainI.destroy( self );
+		le_swapchain_vk::swapchain_i.decrease_reference_count( self );
+		if ( 0 == le_swapchain_vk::swapchain_i.get_reference_count( self ) ) {
+			le_swapchain_vk::swapchain_i.destroy( self );
 		}
 	}
 
 	// copy constructor
 	Swapchain( const Swapchain &lhs )
 	    : self( lhs.self ) {
-		swapchainI.increase_reference_count( self );
+		le_swapchain_vk::swapchain_i.increase_reference_count( self );
 	}
 
 	// reference from data constructor
 	Swapchain( le_backend_swapchain_o *swapchain_ )
 	    : self( swapchain_ ) {
-		swapchainI.increase_reference_count( self );
+		le_swapchain_vk::swapchain_i.increase_reference_count( self );
 	}
 
 	// deactivate copy assignment operator
@@ -111,39 +121,39 @@ class Swapchain {
 	Swapchain &operator=( const Swapchain && ) = delete;
 
 	void reset( le_swapchain_vk_settings_o *settings_ ) {
-		swapchainI.reset( self, settings_ );
+		le_swapchain_vk::swapchain_i.reset( self, settings_ );
 	}
 
 	void reset() {
-		swapchainI.reset( self, nullptr );
+		le_swapchain_vk::swapchain_i.reset( self, nullptr );
 	}
 
 	VkImage_T *getImage( uint32_t index ) const {
-		return swapchainI.get_image( self, index );
+		return le_swapchain_vk::swapchain_i.get_image( self, index );
 	}
 
 	uint32_t getImageWidth() const {
-		return swapchainI.get_image_width( self );
+		return le_swapchain_vk::swapchain_i.get_image_width( self );
 	}
 
 	uint32_t getImageHeight() const {
-		return swapchainI.get_image_height( self );
+		return le_swapchain_vk::swapchain_i.get_image_height( self );
 	}
 
 	const VkSurfaceFormatKHR *getSurfaceFormat() const {
-		return swapchainI.get_surface_format( self );
+		return le_swapchain_vk::swapchain_i.get_surface_format( self );
 	}
 
 	size_t getImagesCount() const {
-		return swapchainI.get_images_count( self );
+		return le_swapchain_vk::swapchain_i.get_images_count( self );
 	}
 
 	bool acquireNextImage( VkSemaphore_T *semaphore, uint32_t &imageIndex ) {
-		return swapchainI.acquire_next_image( self, semaphore, imageIndex );
+		return le_swapchain_vk::swapchain_i.acquire_next_image( self, semaphore, imageIndex );
 	}
 
 	bool present( VkQueue_T *queue, VkSemaphore_T *renderCompleteSemaphore, uint32_t *pImageIndex ) {
-		return swapchainI.present( self, queue, renderCompleteSemaphore, pImageIndex );
+		return le_swapchain_vk::swapchain_i.present( self, queue, renderCompleteSemaphore, pImageIndex );
 	}
 
 	operator le_backend_swapchain_o *() {

@@ -8,6 +8,8 @@
 #include "le_renderer/private/hash_util.h"
 #include "le_gltf_loader/le_gltf_loader.h"
 
+#include "simple_module/simple_module.h"
+
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
 
@@ -85,6 +87,7 @@ struct test_app_o {
 	// and de-serializing objects which are allocated on the heap. we don't have to worry about objects which are allocated
 	// on the stack, as the stack acts like a pool allocator, and they are only alife while control visits the code section
 	// in question.
+	SimpleModule testSimpleModule;
 };
 
 // ----------------------------------------------------------------------
@@ -257,10 +260,10 @@ static test_app_o *test_app_create() {
 			// Everything, in short, but the renderpass, and subpass (which are added at the last minute)
 			//
 			// The backend pipeline object is compiled on-demand, when it is first used with a renderpass, and henceforth cached.
-			auto psoHandle = app->renderer->createGraphicsPipelineStateObject( &pi );
+			auto pso = app->renderer->createGraphicsPipelineStateObject( &pi );
 
-			if ( psoHandle ) {
-				app->psoMain = psoHandle;
+			if ( pso ) {
+				app->psoMain = pso;
 			} else {
 				std::cerr << "declaring main pipeline failed miserably.";
 			}
@@ -272,13 +275,13 @@ static test_app_o *test_app_create() {
 			auto imguiFragShader = app->renderer->createShaderModule( "./resources/shaders/imgui.frag", LeShaderType::eFrag );
 
 			le_graphics_pipeline_create_info_t                   imGuiPipelineInfo{};
-			std::array<le_vertex_input_attribute_description, 3> attrs;
-			std::array<le_vertex_input_binding_description, 1>   bindings;
+			std::array<le_vertex_input_attribute_description, 3> attrs    = {};
+			std::array<le_vertex_input_binding_description, 1>   bindings = {};
 			{
 				// location 0, binding 0
-				attrs[ 0 ].location       = 0; // refers to shader parameter
-				attrs[ 0 ].binding        = 0; // refers to buffer
-				attrs[ 0 ].binding_offset = offsetof( ImDrawVert, pos );
+				attrs[ 0 ].location       = 0;                           // refers to shader parameter location
+				attrs[ 0 ].binding        = 0;                           // refers to bound buffer index
+				attrs[ 0 ].binding_offset = offsetof( ImDrawVert, pos ); // offset into bound buffer
 				attrs[ 0 ].isNormalised   = false;
 				attrs[ 0 ].type           = le_vertex_input_attribute_description::eFloat;
 				attrs[ 0 ].vecsize        = 2;
@@ -383,32 +386,33 @@ static test_app_o *test_app_create() {
 	}
 
 	{
-		static auto &window_i = Registry::getApi<pal_window_api>()->window_i;
+		using namespace pal_window;
 		// set the callback user data for all callbacks from window *app->window
 		// to be our app pointer.
 		window_i.set_callback_user_data( *app->window, app );
 
-		static auto &app_i = Registry::getApi<test_app_api>()->test_app_i;
-		window_i.set_key_callback( *app->window, &app_i.key_callback );
-		window_i.set_character_callback( *app->window, &app_i.character_callback );
+		using test_app::test_app_i;
 
-		window_i.set_cursor_position_callback( *app->window, &app_i.cursor_position_callback );
-		window_i.set_cursor_enter_callback( *app->window, &app_i.cursor_enter_callback );
-		window_i.set_mouse_button_callback( *app->window, &app_i.mouse_button_callback );
-		window_i.set_scroll_callback( *app->window, &app_i.scroll_callback );
+		window_i.set_key_callback( *app->window, &test_app_i.key_callback );
+		window_i.set_character_callback( *app->window, &test_app_i.character_callback );
+
+		window_i.set_cursor_position_callback( *app->window, &test_app_i.cursor_position_callback );
+		window_i.set_cursor_enter_callback( *app->window, &test_app_i.cursor_enter_callback );
+		window_i.set_mouse_button_callback( *app->window, &test_app_i.mouse_button_callback );
+		window_i.set_scroll_callback( *app->window, &test_app_i.scroll_callback );
 	}
 
 	app->update_start_time = std::chrono::high_resolution_clock::now();
 
 	{
-		static auto const &gltf_i = Registry::getApi<le_gltf_loader_api>()->document_i;
+		using le_gltf_loader::gltf_document_i;
 
-		app->gltfDoc = gltf_i.create();
+		app->gltfDoc = gltf_document_i.create();
 		// gltf_i.load_from_text( app->gltfDoc, "resources/gltf/BoomBoxWithAxes.gltf" );
-		gltf_i.load_from_text( app->gltfDoc, "resources/gltf/FlightHelmet.gltf" );
+		gltf_document_i.load_from_text( app->gltfDoc, "resources/gltf/FlightHelmet.gltf" );
 		//gltf_i.load_from_text( app->gltfDoc, "resources/gltf/Box.gltf" );
 		//gltf_i.load_from_text( app->gltfDoc, "resources/gltf/exportFile.gltf" );
-		gltf_i.setup_resources( app->gltfDoc, *app->renderer );
+		gltf_document_i.setup_resources( app->gltfDoc, *app->renderer );
 	}
 
 	app->resImgPrepass     = app->renderer->declareResource( LeResourceType::eImage );
@@ -479,11 +483,10 @@ static bool test_app_update( test_app_o *self ) {
 	// Grab interface for encoder so that it can be used in callbacks -
 	// making it static allows it to be visible inside the callback context,
 	// and it also ensures that the registry call only happens upon first retrieval.
-	static auto const &le_encoder = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
+
+	using namespace le_renderer;
 
 	static auto const &gltf_i = Registry::getApi<le_gltf_loader_api>()->document_i;
-
-	static auto const &le_renderer = Registry::getApi<le_renderer_api>()->le_renderer_i;
 
 	le::RenderModule mainModule{};
 	{
@@ -613,14 +616,14 @@ static bool test_app_update( test_app_o *self ) {
 			// a copy is added to the queue that transfers from scratch memory
 			// to GPU local memory.
 
-			le_encoder.write_to_image( encoder, app->resImgHorse, {160, 106}, MagickImage, sizeof( MagickImage ) );
+			encoder_i.write_to_image( encoder, app->resImgHorse, {160, 106}, MagickImage, sizeof( MagickImage ) );
 
 			if ( false == app->imguiTexture.wasUploaded ) {
 				// tell encoder to upload imgui image - but only once
 				// note that we use the le_image_handle field to signal that the image has been uploaded.
 				size_t              numBytes = size_t( app->imguiTexture.width ) * size_t( app->imguiTexture.height ) * 32;
 				LeBufferWriteRegion region   = {uint32_t( app->imguiTexture.width ), uint32_t( app->imguiTexture.height )};
-				le_encoder.write_to_image( encoder, app->imguiTexture.le_image_handle, region, app->imguiTexture.pixels, numBytes );
+				encoder_i.write_to_image( encoder, app->imguiTexture.le_image_handle, region, app->imguiTexture.pixels, numBytes );
 				app->imguiTexture.wasUploaded = true;
 			}
 
@@ -632,7 +635,7 @@ static bool test_app_update( test_app_o *self ) {
 				    {0, 50, 0},
 				};
 
-				le_encoder.write_to_buffer( encoder, app->resBufTrianglePos, 0, trianglePositions, sizeof( trianglePositions ) );
+				encoder_i.write_to_buffer( encoder, app->resBufTrianglePos, 0, trianglePositions, sizeof( trianglePositions ) );
 			}
 
 			gltf_i.upload_resource_data( app->gltfDoc, encoder );
@@ -706,8 +709,7 @@ static bool test_app_update( test_app_o *self ) {
 		} );
 
 		renderPassFinal.setExecuteCallback( self, []( le_command_buffer_encoder_o *encoder, void *user_data ) {
-			static auto const &le_encoder = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
-			auto               app        = static_cast<test_app_o *>( user_data );
+			auto app = static_cast<test_app_o *>( user_data );
 
 			auto screenWidth  = app->window->getSurfaceWidth();
 			auto screenHeight = app->window->getSurfaceHeight();
@@ -751,19 +753,19 @@ static bool test_app_update( test_app_o *self ) {
 			// Bind full screen quad pipeline
 			if ( false ) {
 
-				le_encoder.bind_graphics_pipeline( encoder, app->psoFullScreenQuad );
-				le_encoder.set_argument_texture( encoder, app->resTexPrepass, const_char_hash64( "src_tex_unit_0" ), 0 );
-				le_encoder.set_scissor( encoder, 0, 1, &scissors[ 1 ] );
-				le_encoder.set_viewport( encoder, 0, 1, &viewports[ 1 ] );
-				le_encoder.draw( encoder, 3, 1, 0, 0 );
+				encoder_i.bind_graphics_pipeline( encoder, app->psoFullScreenQuad );
+				encoder_i.set_argument_texture( encoder, app->resTexPrepass, const_char_hash64( "src_tex_unit_0" ), 0 );
+				encoder_i.set_scissor( encoder, 0, 1, &scissors[ 1 ] );
+				encoder_i.set_viewport( encoder, 0, 1, &viewports[ 1 ] );
+				encoder_i.draw( encoder, 3, 1, 0, 0 );
 			}
 
 			// Bind main graphics pipeline
 			if ( true ) {
-				le_encoder.bind_graphics_pipeline( encoder, app->psoMain );
+				encoder_i.bind_graphics_pipeline( encoder, app->psoMain );
 
-				le_encoder.set_scissor( encoder, 0, 1, scissors );
-				le_encoder.set_viewport( encoder, 0, 1, viewports );
+				encoder_i.set_scissor( encoder, 0, 1, scissors );
+				encoder_i.set_viewport( encoder, 0, 1, viewports );
 
 				MatrixStackUbo_t matrixStack;
 				matrixStack.projectionMatrix = glm::perspective( glm::radians( 60.f ), float( screenWidth ) / float( screenHeight ), 10.f, 10000.f );
@@ -776,23 +778,23 @@ static bool test_app_update( test_app_o *self ) {
 				float normDistance     = get_image_plane_distance( viewports[ 0 ], glm::radians( 60.f ) ); // calculate unit distance
 				matrixStack.viewMatrix = glm::lookAt( glm::vec3( 0, 0, normDistance ), glm::vec3( 0 ), glm::vec3( 0, 1, 0 ) );
 
-				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "MatrixStack" ), &matrixStack, sizeof( MatrixStackUbo_t ) );
-				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "Color" ), &ubo1, sizeof( ColorUbo_t ) );
+				encoder_i.set_argument_ubo_data( encoder, const_char_hash64( "MatrixStack" ), &matrixStack, sizeof( MatrixStackUbo_t ) );
+				encoder_i.set_argument_ubo_data( encoder, const_char_hash64( "Color" ), &ubo1, sizeof( ColorUbo_t ) );
 
 				LeResourceHandle buffers[] = {app->resBufTrianglePos};
 				uint64_t         offsets[] = {0};
 
-				le_encoder.bind_vertex_buffers( encoder, 0, 1, buffers, offsets );
+				encoder_i.bind_vertex_buffers( encoder, 0, 1, buffers, offsets );
 
-				le_encoder.set_vertex_data( encoder, triangleColors, sizeof( glm::vec4 ) * 3, 1 );
-				le_encoder.set_index_data( encoder, indexData, sizeof( indexData ), 0 ); // 0 for indexType means uint16_t
-				le_encoder.draw_indexed( encoder, 3, 1, 0, 0, 0 );
+				encoder_i.set_vertex_data( encoder, triangleColors, sizeof( glm::vec4 ) * 3, 1 );
+				encoder_i.set_index_data( encoder, indexData, sizeof( indexData ), 0 ); // 0 for indexType means uint16_t
+				encoder_i.draw_indexed( encoder, 3, 1, 0, 0, 0 );
 			}
 
 			if ( true ) {
 
-				le_encoder.set_scissor( encoder, 0, 1, scissors );
-				le_encoder.set_viewport( encoder, 0, 1, viewports );
+				encoder_i.set_scissor( encoder, 0, 1, scissors );
+				encoder_i.set_viewport( encoder, 0, 1, viewports );
 
 				GltfUboMvp ubo;
 
@@ -819,10 +821,10 @@ static bool test_app_update( test_app_o *self ) {
 
 				ImVec2 display_pos = drawData->DisplayPos;
 
-				le_encoder.bind_graphics_pipeline( encoder, app->psoImgui );
-				le_encoder.set_viewport( encoder, 0, 1, &viewports[ 0 ] ); // TODO: make sure that viewport covers full screen
-				le_encoder.set_argument_ubo_data( encoder, const_char_hash64( "MatrixStack" ), &ortho_projection, sizeof( glm::mat4 ) );
-				le_encoder.set_argument_texture( encoder, app->imguiTexture.le_texture_handle, const_char_hash64( "tex_unit_0" ), 0 );
+				encoder_i.bind_graphics_pipeline( encoder, app->psoImgui );
+				encoder_i.set_viewport( encoder, 0, 1, &viewports[ 0 ] ); // TODO: make sure that viewport covers full screen
+				encoder_i.set_argument_ubo_data( encoder, const_char_hash64( "MatrixStack" ), &ortho_projection, sizeof( glm::mat4 ) );
+				encoder_i.set_argument_texture( encoder, app->imguiTexture.le_texture_handle, const_char_hash64( "tex_unit_0" ), 0 );
 
 				LeResourceHandle currentTexture = app->imguiTexture.le_texture_handle; // we check against this so that we don't have to switch state that often.
 
@@ -832,9 +834,9 @@ static bool test_app_update( test_app_o *self ) {
 					auto &im_cmd_list = *cmdList;
 
 					// upload index data
-					le_encoder.set_index_data( encoder, im_cmd_list->IdxBuffer.Data, size_t( im_cmd_list->IdxBuffer.size() * sizeof( ImDrawIdx ) ), 0 );
+					encoder_i.set_index_data( encoder, im_cmd_list->IdxBuffer.Data, size_t( im_cmd_list->IdxBuffer.size() * sizeof( ImDrawIdx ) ), 0 );
 					// upload vertex data
-					le_encoder.set_vertex_data( encoder, im_cmd_list->VtxBuffer.Data, size_t( im_cmd_list->VtxBuffer.size() * sizeof( ImDrawVert ) ), 0 );
+					encoder_i.set_vertex_data( encoder, im_cmd_list->VtxBuffer.Data, size_t( im_cmd_list->VtxBuffer.size() * sizeof( ImDrawVert ) ), 0 );
 
 					uint32_t index_offset = 0;
 					for ( const auto &im_cmd : im_cmd_list->CmdBuffer ) {
@@ -850,7 +852,7 @@ static bool test_app_update( test_app_o *self ) {
 						// -- update bound texture, but only if texture different from currently bound texture
 						const LeResourceHandle nextTexture = reinterpret_cast<const LeResourceHandle>( im_cmd.TextureId );
 						if ( nextTexture != currentTexture ) {
-							le_encoder.set_argument_texture( encoder, nextTexture, const_char_hash64( "tex_unit_0" ), 0 );
+							encoder_i.set_argument_texture( encoder, nextTexture, const_char_hash64( "tex_unit_0" ), 0 );
 							currentTexture = nextTexture;
 						}
 
@@ -864,11 +866,11 @@ static bool test_app_update( test_app_o *self ) {
 							scissor.width  = ( uint32_t )( im_cmd.ClipRect.z - im_cmd.ClipRect.x );
 							scissor.height = ( uint32_t )( im_cmd.ClipRect.w - im_cmd.ClipRect.y + 1 ); // FIXME: Why +1 here?
 
-							le_encoder.set_scissor( encoder, 0, 1, &scissor );
+							encoder_i.set_scissor( encoder, 0, 1, &scissor );
 						}
 
 						// uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
-						le_encoder.draw_indexed( encoder, im_cmd.ElemCount, 1, index_offset, 0, 0 );
+						encoder_i.draw_indexed( encoder, im_cmd.ElemCount, 1, index_offset, 0, 0 );
 						index_offset += im_cmd.ElemCount;
 					}
 
@@ -888,6 +890,8 @@ static bool test_app_update( test_app_o *self ) {
 	self->renderer->update( mainModule );
 
 	self->frame_counter++;
+
+	self->testSimpleModule.update();
 
 	return true; // keep app alive
 }
@@ -911,8 +915,8 @@ static void test_app_destroy( test_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_test_app_api( void *api_ ) {
-	auto  test_app_api_i = static_cast<test_app_api *>( api_ );
+ISL_API_ATTR void register_test_app_api( void *api ) {
+	auto  test_app_api_i = static_cast<test_app_api *>( api );
 	auto &test_app_i     = test_app_api_i->test_app_i;
 
 	test_app_i.initialize = initialize;
@@ -929,7 +933,7 @@ ISL_API_ATTR void register_test_app_api( void *api_ ) {
 	test_app_i.mouse_button_callback    = test_app_mouse_button_callback;
 	test_app_i.scroll_callback          = test_app_scroll_callback;
 
-#ifndef PLUGIN_TEST_APP_STATIC
+#ifdef PLUGINS_DYNAMIC
 	Registry::loadLibraryPersistently( "./libs/imgui/libimgui.so" );
 #endif
 }

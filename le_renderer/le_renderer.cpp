@@ -101,7 +101,7 @@ renderer_create( le_backend_o *backend ) {
 
 static void renderer_destroy( le_renderer_o *self ) {
 
-	static auto const &graph_builder_i = Registry::getApi<le_renderer_api>()->le_graph_builder_i;
+	using namespace le_renderer; // for graph_builder_i
 
 	const auto &lastIndex = self->currentFrameNumber;
 
@@ -125,18 +125,16 @@ static void renderer_destroy( le_renderer_o *self ) {
 /// \returns an opaque handle to a pipeline state object
 static le_graphics_pipeline_state_o *
 renderer_create_graphics_pipeline_state_object( le_renderer_o *self, le_graphics_pipeline_create_info_t const *pipeline_info ) {
-
-	static auto const &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
-
-	return backend_i.create_graphics_pipeline_state_object( self->backend, pipeline_info );
+	using namespace le_backend_vk;
+	return vk_backend_i.create_graphics_pipeline_state_object( self->backend, pipeline_info );
 }
 
 // ----------------------------------------------------------------------
 /// \brief declare a shader module which can be used to create a pipeline
 /// \returns a shader module handle, or nullptr upon failure
 static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, char const *path, LeShaderType moduleType ) {
-	static auto const &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
-	return backend_i.create_shader_module( self->backend, path, moduleType );
+	using namespace le_backend_vk;
+	return vk_backend_i.create_shader_module( self->backend, path, moduleType );
 }
 
 // ----------------------------------------------------------------------

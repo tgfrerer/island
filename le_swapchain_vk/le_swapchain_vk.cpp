@@ -154,8 +154,8 @@ static void swapchain_reset( le_backend_swapchain_o *self, const le_swapchain_vk
 	                           surfaceCapabilities.maxImageCount );
 
 	if ( self->mImagecount != self->mSettings.imagecount_hint ) {
-		std::cout << " WARNING: Swapchain: Number of swapchain images was adjusted to: " << self->mImagecount << std::endl 
-                  << std::flush;
+		std::cout << " WARNING: Swapchain: Number of swapchain images was adjusted to: " << self->mImagecount << std::endl
+		          << std::flush;
 	}
 
 	::vk::SurfaceTransformFlagBitsKHR preTransform;
@@ -298,6 +298,8 @@ static bool swapchain_present( le_backend_swapchain_o *self, VkQueue queue_, VkS
 
 	if ( vk::Result( result ) == vk::Result::eErrorOutOfDateKHR ) {
 		// FIXME: handle swapchain resize event properly
+		std::cout << "Out of date detected - this most commonly indicates surface resize." << std::endl
+		          << std::flush;
 		return false;
 	}
 

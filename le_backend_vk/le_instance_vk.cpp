@@ -103,7 +103,7 @@ static void destroy_debug_callback( le_backend_vk_instance_o *obj ) {
 
 // ----------------------------------------------------------------------
 
-le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const char **extensionNamesArray_, uint32_t numExtensionNames_ ) {
+le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, uint32_t numExtensionNames_ ) {
 
 	// TODO: make debug layers optional
 
@@ -162,7 +162,7 @@ le_backend_vk_instance_o *instance_create( const le_backend_vk_api *api, const c
 
 	obj->vkInstance = vk::createInstance( info );
 
-	api->cUniqueInstance = obj;
+	le_backend_vk::api->cUniqueInstance = obj;
 
 	if ( SHOULD_USE_DEBUG_LAYERS ) {
 		patchExtProcAddrs( obj );

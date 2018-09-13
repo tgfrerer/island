@@ -44,6 +44,18 @@ struct le_shader_compiler_api {
 
 #ifdef __cplusplus
 } // extern c
+
+namespace le_shader_compiler {
+#	ifdef PLUGINS_DYNAMIC
+const auto api = Registry::addApiDynamic<le_shader_compiler_api>( true );
+#	else
+const auto api = Registry::addApiStatic<le_shader_compiler_api>();
+#	endif
+
+static const auto &compiler_i = api -> compiler_i;
+
+} // namespace le_shader_compiler
+
 #endif
 
 #endif

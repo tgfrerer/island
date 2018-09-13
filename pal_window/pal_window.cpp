@@ -32,12 +32,12 @@ struct pal_window_o {
 	size_t                referenceCount = 0;
 	void *                user_data      = nullptr;
 
-	pal_window_api::key_callback_fun_t *            key_callback             = nullptr;
-	pal_window_api::character_callback_fun_t *      character_callback       = nullptr;
-	pal_window_api::cursor_position_callback_fun_t *cursor_position_callback = nullptr;
-	pal_window_api::cursor_enter_callback_fun_t *   cursor_enter_callback    = nullptr;
-	pal_window_api::mouse_button_callback_fun_t *   mouse_button_callback    = nullptr;
-	pal_window_api::scroll_callback_fun_t *         scroll_callback          = nullptr;
+	pal_window_api::key_callback_fun_t const *            key_callback             = nullptr;
+	pal_window_api::character_callback_fun_t const *      character_callback       = nullptr;
+	pal_window_api::cursor_position_callback_fun_t const *cursor_position_callback = nullptr;
+	pal_window_api::cursor_enter_callback_fun_t const *   cursor_enter_callback    = nullptr;
+	pal_window_api::mouse_button_callback_fun_t const *   mouse_button_callback    = nullptr;
+	pal_window_api::scroll_callback_fun_t const *         scroll_callback          = nullptr;
 
 	WindowGeometry windowGeometry{};
 	bool           isFullscreen = false;
@@ -116,32 +116,32 @@ static void glfw_window_scroll_callback( GLFWwindow *glfwWindow, double xoffset,
 }
 
 // ----------------------------------------------------------------------
-static void window_set_key_callback( pal_window_o *self, pal_window_api::key_callback_fun_t *callback ) {
+static void window_set_key_callback( pal_window_o *self, pal_window_api::key_callback_fun_t const *callback ) {
 	self->key_callback = callback;
 }
 
 // ----------------------------------------------------------------------
-static void window_set_character_callback( pal_window_o *self, pal_window_api::character_callback_fun_t *callback ) {
+static void window_set_character_callback( pal_window_o *self, pal_window_api::character_callback_fun_t const *callback ) {
 	self->character_callback = callback;
 }
 
 // ----------------------------------------------------------------------
-static void window_set_cursor_position_callback( pal_window_o *self, pal_window_api::cursor_position_callback_fun_t *callback ) {
+static void window_set_cursor_position_callback( pal_window_o *self, pal_window_api::cursor_position_callback_fun_t const *callback ) {
 	self->cursor_position_callback = callback;
 }
 
 // ----------------------------------------------------------------------
-static void window_set_cursor_enter_callback( pal_window_o *self, pal_window_api::cursor_enter_callback_fun_t *callback ) {
+static void window_set_cursor_enter_callback( pal_window_o *self, pal_window_api::cursor_enter_callback_fun_t const *callback ) {
 	self->cursor_enter_callback = callback;
 }
 
 // ----------------------------------------------------------------------
-static void window_set_mouse_button_callback( pal_window_o *self, pal_window_api::mouse_button_callback_fun_t *callback ) {
+static void window_set_mouse_button_callback( pal_window_o *self, pal_window_api::mouse_button_callback_fun_t const *callback ) {
 	self->mouse_button_callback = callback;
 }
 
 // ----------------------------------------------------------------------
-static void window_set_scroll_callback( pal_window_o *self, pal_window_api::scroll_callback_fun_t *callback ) {
+static void window_set_scroll_callback( pal_window_o *self, pal_window_api::scroll_callback_fun_t const *callback ) {
 	self->scroll_callback = callback;
 }
 // ----------------------------------------------------------------------

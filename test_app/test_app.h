@@ -42,36 +42,43 @@ struct test_app_api {
 // clang-format on
 
 #ifdef __cplusplus
+} // extern "C"
+
+namespace test_app {
+#ifdef PLUGINS_DYNAMIC
+const auto api = Registry::addApiDynamic<test_app_api>( true );
+#else
+const auto api = Registry::addApiStatic<test_app_api>();
+#endif
+
+static const auto &test_app_i = api -> test_app_i;
+
+} // namespace test_app
 
 class TestApp : NoCopy, NoMove {
-	const test_app_api &                      testAppApiI = *Registry::getApi<test_app_api>();
-	const test_app_api::test_app_interface_t &testAppI    = testAppApiI.test_app_i;
 
 	test_app_o *self;
 
   public:
 	TestApp()
-	    : self( testAppI.create() ) {
+	    : self( test_app::test_app_i.create() ) {
 	}
 
 	bool update() {
-		return testAppI.update( self );
+		return test_app::test_app_i.update( self );
 	}
 
 	~TestApp() {
-		testAppI.destroy( self );
+		test_app::test_app_i.destroy( self );
 	}
 
 	static void initialize() {
-		static auto api = Registry::getApi<test_app_api>()->test_app_i;
-		api.initialize();
+		test_app::test_app_i.initialize();
 	}
 
 	static void terminate() {
-		static auto api = Registry::getApi<test_app_api>()->test_app_i;
-		api.terminate();
+		test_app::test_app_i.terminate();
 	}
 };
 
-} // extern "C"
 #endif

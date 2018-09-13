@@ -348,16 +348,31 @@ struct le_renderer_api {
 	};
 
 
+	renderer_interface_t               le_renderer_i;
 	renderpass_interface_t             le_renderpass_i;
 	rendermodule_interface_t           le_render_module_i;
 	graph_builder_interface_t          le_graph_builder_i;
-	renderer_interface_t               le_renderer_i;
 	command_buffer_encoder_interface_t le_command_buffer_encoder_i;
 };
 // clang-format on
 
 #ifdef __cplusplus
 } // extern "C"
+
+namespace le_renderer {
+#	ifdef PLUGINS_DYNAMIC
+const auto api = Registry::addApiDynamic<le_renderer_api>( true );
+#	else
+const auto api = Registry::addApiStatic<le_renderer_api>();
+#	endif
+
+static const auto &renderer_i      = api -> le_renderer_i;
+static const auto &renderpass_i    = api -> le_renderpass_i;
+static const auto &render_module_i = api -> le_render_module_i;
+static const auto &graph_builder_i = api -> le_graph_builder_i;
+static const auto &encoder_i       = api -> le_command_buffer_encoder_i;
+
+} // namespace le_renderer
 
 namespace le {
 
@@ -393,11 +408,9 @@ class ResourceHandle {
 		return m_resource < rhs.m_resource;
 	}
 
-
 	operator LeResourceHandle const &() const {
 		return m_resource;
 	}
-
 
 	explicit operator bool() const {
 		return m_resource != nullptr;
@@ -413,42 +426,40 @@ class ResourceHandle {
 static_assert( sizeof( ResourceHandle ) == sizeof( LeResourceHandle ), "handle and wrapper have different size!" );
 
 class Renderer {
-	const le_renderer_api &                      rendererApiI = *Registry::getApi<le_renderer_api>();
-	const le_renderer_api::renderer_interface_t &rendererI    = rendererApiI.le_renderer_i;
 
 	le_renderer_o *self;
 
   public:
 	Renderer( le_backend_o *backend )
-	    : self( rendererI.create( backend ) ) {
+	    : self( le_renderer::renderer_i.create( backend ) ) {
 	}
 
 	~Renderer() {
-		rendererI.destroy( self );
+		le_renderer::renderer_i.destroy( self );
 	}
 
 	void setup() {
-		rendererI.setup( self );
+		le_renderer::renderer_i.setup( self );
 	}
 
 	void update( le_render_module_o *module ) {
-		rendererI.update( self, module );
+		le_renderer::renderer_i.update( self, module );
 	}
 
 	le_graphics_pipeline_state_o *createGraphicsPipelineStateObject( le_graphics_pipeline_create_info_t const *info ) {
-		return rendererI.create_graphics_pipeline_state_object( self, info );
+		return le_renderer::renderer_i.create_graphics_pipeline_state_object( self, info );
 	}
 
 	le_shader_module_o *createShaderModule( char const *path, LeShaderType moduleType ) {
-		return rendererI.create_shader_module( self, path, moduleType );
+		return le_renderer::renderer_i.create_shader_module( self, path, moduleType );
 	}
 
 	ResourceHandle declareResource( LeResourceType type ) {
-		return rendererI.declare_resource( self, type );
+		return le_renderer::renderer_i.declare_resource( self, type );
 	}
 
 	ResourceHandle getBackbufferResource() {
-		return rendererI.get_backbuffer_resource( self );
+		return le_renderer::renderer_i.get_backbuffer_resource( self );
 	}
 
 	operator auto() {
@@ -457,18 +468,16 @@ class Renderer {
 };
 
 class RenderPass {
-	const le_renderer_api &                        rendererApiI = *Registry::getApi<le_renderer_api>();
-	const le_renderer_api::renderpass_interface_t &renderpassI  = rendererApiI.le_renderpass_i;
 
 	le_renderpass_o *self;
 
   public:
 	RenderPass( const char *name_, const LeRenderPassType &type_ )
-	    : self( renderpassI.create( name_, type_ ) ) {
+	    : self( le_renderer::renderpass_i.create( name_, type_ ) ) {
 	}
 
 	~RenderPass() {
-		renderpassI.destroy( self );
+		le_renderer::renderpass_i.destroy( self );
 	}
 
 	operator auto() {
@@ -476,11 +485,11 @@ class RenderPass {
 	}
 
 	void setSetupCallback( void *user_data, le_renderer_api::pfn_renderpass_setup_t fun ) {
-		renderpassI.set_setup_callback( self, fun, user_data );
+		le_renderer::renderpass_i.set_setup_callback( self, fun, user_data );
 	}
 
 	void setExecuteCallback( void *user_data, le_renderer_api::pfn_renderpass_execute_t fun ) {
-		renderpassI.set_execute_callback( self, fun, user_data );
+		le_renderer::renderpass_i.set_execute_callback( self, fun, user_data );
 	}
 };
 
@@ -488,8 +497,6 @@ class RenderPass {
 
 class RenderPassRef {
 	// non-owning version of RenderPass, but with more public methods
-	const le_renderer_api &                        rendererApiI = *Registry::getApi<le_renderer_api>();
-	const le_renderer_api::renderpass_interface_t &renderpassI  = rendererApiI.le_renderpass_i;
 
 	le_renderpass_o *self = nullptr;
 
@@ -508,7 +515,7 @@ class RenderPassRef {
 	/// \brief adds a resource as an image attachment to the renderpass, resource is used for ColorAttachment and Write access, unless otherwise specified
 	/// \details use an LeImageAttachmentInfo struct to specialise parameters, such as LOAD_OP, CLEAR_OP, and Clear/Load Color.
 	RenderPassRef &addImageAttachment( const LeResourceHandle &resource_id, const LeImageAttachmentInfo &info = LeImageAttachmentInfo() ) {
-		renderpassI.add_image_attachment( self, resource_id, &info );
+		le_renderer::renderpass_i.add_image_attachment( self, resource_id, &info );
 		return *this;
 	}
 
@@ -527,32 +534,32 @@ class RenderPassRef {
 
 	/// \brief register resource with this renderpass, access Read unless otherwise specified
 	RenderPassRef &useResource( LeResourceHandle resource_id, uint32_t access_flags = LeAccessFlagBits::eLeAccessFlagBitRead ) {
-		renderpassI.use_resource( self, resource_id, access_flags );
+		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags );
 		return *this;
 	}
 
 	RenderPassRef &createResource( LeResourceHandle resource_id, const le_resource_info_t &info ) {
-		renderpassI.create_resource( self, resource_id, info );
+		le_renderer::renderpass_i.create_resource( self, resource_id, info );
 		return *this;
 	}
 
 	RenderPassRef &setIsRoot( bool isRoot = true ) {
-		renderpassI.set_is_root( self, isRoot );
+		le_renderer::renderpass_i.set_is_root( self, isRoot );
 		return *this;
 	}
 
 	RenderPassRef &sampleTexture( LeResourceHandle textureName, const LeTextureInfo &texInfo ) {
-		renderpassI.sample_texture( self, textureName, &texInfo );
+		le_renderer::renderpass_i.sample_texture( self, textureName, &texInfo );
 		return *this;
 	}
 
 	RenderPassRef &setWidth( uint32_t width ) {
-		renderpassI.set_width( self, width );
+		le_renderer::renderpass_i.set_width( self, width );
 		return *this;
 	}
 
 	RenderPassRef &setHeight( uint32_t height ) {
-		renderpassI.set_height( self, height );
+		le_renderer::renderpass_i.set_height( self, height );
 		return *this;
 	}
 };
@@ -560,15 +567,13 @@ class RenderPassRef {
 // ----------------------------------------------------------------------
 
 class RenderModule {
-	const le_renderer_api &                          rendererApiI  = *Registry::getApi<le_renderer_api>();
-	const le_renderer_api::rendermodule_interface_t &rendermoduleI = rendererApiI.le_render_module_i;
 
 	le_render_module_o *self;
 	bool                is_reference = false;
 
   public:
 	RenderModule()
-	    : self( rendermoduleI.create() ) {
+	    : self( le_renderer::render_module_i.create() ) {
 	}
 
 	RenderModule( le_render_module_o *self_ )
@@ -578,7 +583,7 @@ class RenderModule {
 
 	~RenderModule() {
 		if ( !is_reference ) {
-			rendermoduleI.destroy( self );
+			le_renderer::render_module_i.destroy( self );
 		}
 	}
 
@@ -587,11 +592,11 @@ class RenderModule {
 	}
 
 	void addRenderPass( le_renderpass_o *renderpass ) {
-		rendermoduleI.add_renderpass( self, renderpass );
+		le_renderer::render_module_i.add_renderpass( self, renderpass );
 	}
 
 	void setupPasses( le_graph_builder_o *gb_ ) {
-		rendermoduleI.setup_passes( self, gb_ );
+		le_renderer::render_module_i.setup_passes( self, gb_ );
 	}
 };
 
