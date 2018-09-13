@@ -33,14 +33,14 @@ struct @module_name@_api {
 #ifdef __cplusplus
 } // extern c
 
-namespace {
+namespace @module_name@ {
 #	ifdef PLUGINS_DYNAMIC
-const auto @module_name_camelcase_capitalised@Api = Registry::addApiDynamic<@module_name@_api>( true );
+const auto api = Registry::addApiDynamic<@module_name@_api>( true );
 #	else
-const auto @module_name_camelcase_capitalised@Api = Registry::addApiStatic<@module_name@_api>();
+const auto api = Registry::addApiStatic<@module_name@_api>();
 #	endif
 
-const @module_name@_api::@module_name@_interface_t &@module_name_camelcase_capitalised@I = @module_name_camelcase_capitalised@Api->@module_name@_i;
+static const auto &@module_name@_i = api -> @module_name@_i;
 
 } // namespace
 
@@ -50,15 +50,15 @@ class @module_name_camelcase_capitalised@ : NoCopy, NoMove {
 
   public:
 	@module_name_camelcase_capitalised@()
-	    : self( @module_name_camelcase_capitalised@I.create() ) {
+	    : self( @module_name@_i.create() ) {
 	}
 
 	~@module_name_camelcase_capitalised@() {
-		@module_name_camelcase_capitalised@I.destroy( self );
+		@module_name@_i.destroy( self );
 	}
 
 	void update() {
-		@module_name_camelcase_capitalised@I.update( self );
+		@module_name@_i.update( self );
 	}
 };
 
