@@ -26,8 +26,8 @@ else()
 
 endif()
 
-target_link_libraries(${TARGET} PUBLIC dl)
 target_link_libraries(${TARGET} PRIVATE pal_file_watcher)
+target_link_libraries(${TARGET} PUBLIC dl)
 
 set (PLUGIN_LIBS_DEPENDENCIES ${PLUGIN_LIBS_DEPENDENCIES} pal_file_watcher PARENT_SCOPE)
 set (PLUGIN_LIBS_DEPENDENCIES ${PLUGIN_LIBS_DEPENDENCIES} pal_api_loader PARENT_SCOPE)

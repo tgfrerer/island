@@ -1,6 +1,6 @@
 #include "ApiRegistry.hpp"
-#include "pal_api_loader/ApiLoader.h"
 #include "pal_file_watcher/pal_file_watcher.h"
+#include "pal_api_loader/ApiLoader.h"
 #include <vector>
 #include <string>
 #include <stdio.h>
@@ -21,15 +21,19 @@
 
 struct ApiStore {
 	static constexpr size_t        fp_max_bytes = 4096 * 10; // 10 pages of function pointers should be enough
-	std::array<char, fp_max_bytes> fp_storage{};
-	size_t                         fp_used_bytes = 0; // number of bytes in use for function pointer usage
+	std::array<char, fp_max_bytes> fp_storage{};             // byte storage space for function pointers
+	size_t                         fp_used_bytes{};          // number of bytes in use for function pointer usage
 
-	std::vector<std::string> names;
-	std::vector<uint64_t>    nameHashes;
-	std::vector<void *>      ptrs;
+	std::vector<std::string> names{};      // debug api names
+	std::vector<uint64_t>    nameHashes{}; // hashed api names (used for lookup)
+	std::vector<void *>      ptrs{};       // pointer to struct holding api for each api name
 };
 
-static ApiStore apiStore;
+// FIXME: there is a vexing bug with initialisation order when compiling a static version of this app
+// -- ApiStore is first written to and then initialised again - no idea why this happens. Because fp_used_bytes
+// is not reset this is mitigated, as apis registered after the very first won't overwrite the very first, but the
+// names and namehashes, and prts get reset...
+static ApiStore apiStore{};
 
 static auto file_watcher_i = Registry::addApiStatic<pal_file_watcher_i>();
 static auto file_watcher   = file_watcher_i -> create();
@@ -103,7 +107,7 @@ extern "C" void *pal_registry_create_api( uint64_t id, size_t apiStructSize, con
 
 		// api struct has not yet been allocated, we must do so now.
 
-		if ( apiStore.fp_used_bytes + apiStructSize > ApiStore::fp_max_bytes ) {
+		if ( apiStore.fp_used_bytes + apiStructSize > apiStore.fp_max_bytes ) {
 			std::cerr << __PRETTY_FUNCTION__ << " FATAL ERROR: Out of function pointer memory" << std::endl
 			          << std::flush;
 			assert( false ); // out of function pointer memory

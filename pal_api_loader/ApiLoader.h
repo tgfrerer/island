@@ -39,7 +39,7 @@ struct pal_api_loader_i {
 	void               ( *destroy )              ( pal_api_loader_o *obj );
 	bool               ( *register_api )         ( pal_api_loader_o *obj, void *api_interface, const char *api_registry_name );
 	bool               ( *load )                 ( pal_api_loader_o *obj );
-	bool               (* loadLibraryPersistent) (const char* libName_);
+	bool               ( *loadLibraryPersistent) (const char* libName_);
 };
 // clang-format on
 

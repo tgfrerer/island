@@ -95,13 +95,8 @@ class Registry {
 		// We assume failed map lookup returns a pointer which is
 		// initialised to be a nullptr.
 		if ( api == nullptr || force == true ) {
-			// in case the api is a sub-module, it must be forced to update
-			// as the main library from which it comes will have changed.
-			if ( api != nullptr ) {
-				delete api;
-			}
-			api = ( T * )pal_registry_create_api( const_char_hash64( getId<T>() ), sizeof( T ), getId<T>() ); // < store api in registry lookup table
-			( *getPointerToStaticRegFun<T>() )( api );                                                        // < call registration function on api (this fills in the api's function pointers)
+			api = static_cast<T *>( pal_registry_create_api( const_char_hash64( getId<T>() ), sizeof( T ), getId<T>() ) ); // < store api in registry lookup table
+			( *getPointerToStaticRegFun<T>() )( api );                                                                     // < call registration function on api (this fills in the api's function pointers)
 		}
 		return api;
 	}
