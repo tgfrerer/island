@@ -9,7 +9,6 @@ set(PLUGINS_DYNAMIC ON CACHE BOOL "Use dynamic linking for all plugins")
 
 set ( STATIC_LIBS "")
 
-set ( PLUGIN_DEFINITIONS "")
 set ( PLUGIN_LIBS_DEPENDENCIES "")
 set ( PLUGIN_LINK_DIRS "")
 
@@ -62,7 +61,6 @@ execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/resources ${CMAKE_BINARY_D
 execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/3rdparty/libs ${CMAKE_BINARY_DIR}/libs )
 
 
-
 # Check if a local copy of the Vulkan SDK exists, and the environment VULKAN_SDK points to it.
 # If yes, use this directory for header includes, and linking
 set (VULKAN_SDK_ENV $ENV{VULKAN_SDK})
@@ -100,8 +98,6 @@ add_executable (${PROJECT_NAME} ${SOURCES})
 
 # add -D definitions so that source code will know whether plugins are linked
 # statically or dynamically
-target_compile_definitions(${PROJECT_NAME} PUBLIC ${PLUGIN_DEFINITIONS})
-
 if (PLUGINS_DYNAMIC)
     target_compile_definitions(${PROJECT_NAME} PUBLIC "PLUGINS_DYNAMIC=1")
 endif()

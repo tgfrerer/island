@@ -21,8 +21,6 @@ else()
 
     # We also set a compiler flag so that our main source file can use the correct
     # static code path to statically load the library function pointers.
-    # set (PLUGIN_DEFINITIONS ${PLUGIN_DEFINITIONS} "PLUGIN_PAL_WINDOW_STATIC" PARENT_SCOPE)
-
 
     # Adding a static library means to also add a linker dependency for our target
     # to the library.
@@ -44,4 +42,3 @@ set (LINKER_FLAGS -Wl,--whole-archive glfw -Wl,--no-whole-archive)
 set (LINKER_FLAGS ${LINKER_FLAGS} vulkan)
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
-#include_directories("/usr/local/include")
