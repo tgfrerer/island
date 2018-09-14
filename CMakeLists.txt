@@ -5,8 +5,6 @@ set (PROJECT_NAME "Island")
 
 project (${PROJECT_NAME})
 
-set(COMPILE_VALIDATION_LAYERS OFF CACHE BOOL "Compile Validation Layers as a subproject (useful to debug validation layers)")
-
 set(PLUGINS_DYNAMIC ON CACHE BOOL "Use dynamic linking for all plugins")
 
 set ( STATIC_LIBS "")
@@ -116,6 +114,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${STATIC_LIBS})
 ##################################################################################
 # OPTIONAL - Use Vulkan Validation Layers compiled from source -
 # so that we may debug the validation layers, too (how meta!)
+
+set(COMPILE_VALIDATION_LAYERS OFF CACHE BOOL "Compile Validation Layers as a subproject (useful to debug validation layers)")
 
 function(compile_validation_layers)
     # this allows us to debug debug layers -- how meta!!!
