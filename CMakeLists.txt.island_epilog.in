@@ -1,0 +1,57 @@
+
+# Load Island default modules if so requested
+
+if (REQUIRES_ISLAND_LOADER)
+    add_subdirectory ("${ISLAND_BASE_DIR}pal_api_loader" pal_api_loader)
+    add_subdirectory ("${ISLAND_BASE_DIR}pal_file_watcher" pal_file_watcher)
+endif()
+
+if (REQUIRES_ISLAND_CORE)
+    add_subdirectory ("${ISLAND_BASE_DIR}pal_window" pal_window)
+    add_subdirectory ("${ISLAND_BASE_DIR}le_backend_vk" le_backend_vk)
+    add_subdirectory ("${ISLAND_BASE_DIR}le_swapchain_vk" le_swapchain_vk)
+    add_subdirectory ("${ISLAND_BASE_DIR}le_renderer" le_renderer)
+    add_subdirectory ("${ISLAND_BASE_DIR}le_shader_compiler" le_shader_compiler)
+    add_subdirectory ("${ISLAND_BASE_DIR}le_gltf_loader" le_gltf_loader)
+endif()
+
+# NOTE: provide paths for libraries which are used by plugins, but not available via system search paths
+# these were set via PARENT_SCOPE from the plugin CMake files.
+link_directories(${PLUGIN_LINK_DIRS})
+
+add_executable (${PROJECT_NAME} ${SOURCES})
+
+# add -D definitions so that source code will know whether plugins are linked
+# statically or dynamically
+if (PLUGINS_DYNAMIC)
+    target_compile_definitions(${PROJECT_NAME} PUBLIC "PLUGINS_DYNAMIC=1")
+endif()
+
+# we need to link in the dynamic linking library so we can use dynamic linking
+target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
+
+target_link_libraries(${PROJECT_NAME} PRIVATE ${PLUGIN_LIBS_DEPENDENCIES})
+target_link_libraries(${PROJECT_NAME} PRIVATE ${STATIC_LIBS})
+
+message(STATUS "Static libs are: ${STATIC_LIBS}")
+
+##################################################################################
+# OPTIONAL - Use Vulkan Validation Layers compiled from source -
+# so that we may debug the validation layers, too (how meta!)
+
+set(COMPILE_VALIDATION_LAYERS OFF CACHE BOOL "Compile Validation Layers as a subproject (useful to debug validation layers)")
+
+function(compile_validation_layers)
+    # this allows us to debug debug layers -- how meta!!!
+    unset( CMAKE_ARCHIVE_OUTPUT_DIRECTORY )
+    unset( CMAKE_LIBRARY_OUTPUT_DIRECTORY )
+    unset( CMAKE_RUNTIME_OUTPUT_DIRECTORY )
+	# set (CMAKE_BUILD_TYPE Debug)
+    set (VulkanRegistry_DIR /usr/local/share/vulkan/registry)
+    add_subdirectory(3rdparty/src/Vulkan-ValidationLayers ${ISLAND_BASE_DIR}/3rdparty/src/Vulkan-ValidationLayers/build)
+endfunction(compile_validation_layers)
+
+if (COMPILE_VALIDATION_LAYERS)
+    set (GLSLANG_INSTALL_DIR "/usr/local" CACHE STRING "")
+    compile_validation_layers()
+endif()

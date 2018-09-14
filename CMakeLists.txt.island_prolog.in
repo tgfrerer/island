@@ -1,0 +1,84 @@
+set(PLUGINS_DYNAMIC ON CACHE BOOL "Use dynamic linking for all plugins")
+
+set ( STATIC_LIBS "")
+
+set ( PLUGIN_LIBS_DEPENDENCIES "")
+set ( PLUGIN_LINK_DIRS "")
+
+# specify output directory
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/modules)
+set(CMAKE_MODULE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/modules)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/modules)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
+
+function (build_imgui)
+    # n.b. configure_file will replace any cmake variables it finds in the file with their values.
+    configure_file("${ISLAND_BASE_DIR}CMakeLists.txt.imgui.in" ${ISLAND_BASE_DIR}/3rdparty/src/imgui/CMakeLists.txt @ONLY)
+
+    execute_process(
+        COMMAND mkdir -p 3rdparty/src/imgui/build
+        WORKING_DIRECTORY "${ISLAND_BASE_DIR}"
+        )
+
+    execute_process(
+        COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" -DCMAKE_INSTALL_PREFIX=${ISLAND_BASE_DIR}/3rdparty ..
+        WORKING_DIRECTORY "${ISLAND_BASE_DIR}/3rdparty/src/imgui/build"
+        )
+
+    execute_process(
+            COMMAND "${CMAKE_COMMAND}" --build . --target install
+            WORKING_DIRECTORY "${ISLAND_BASE_DIR}/3rdparty/src/imgui/build"
+            )
+
+    link_directories(${ISLAND_BASE_DIR}/3rdparty/libs/imgui)
+endfunction(build_imgui)
+
+if (REQUIRES_ISLAND_CORE)
+
+    build_imgui()
+
+    # link glm source directory into includes directory
+    execute_process(COMMAND ln -sfn ${ISLAND_BASE_DIR}/3rdparty/src/glm/glm ${ISLAND_BASE_DIR}/3rdparty/include/glm )
+    # add glm include directory to includes search path - this is because glm's internals require glm's include directory to be globally accessible :(
+    include_directories(${ISLAND_BASE_DIR}/3rdparty/include/glm)
+
+    # add gltf include directory to search path
+    execute_process(COMMAND ln -sfn ${ISLAND_BASE_DIR}/3rdparty/src/fx-gltf/include/fx ${ISLAND_BASE_DIR}/3rdparty/include/fx )
+
+    # include imgui directory
+    include_directories(${ISLAND_BASE_DIR}/3rdparty/include)
+
+    # create a link to json header-only library
+    execute_process(COMMAND ln -sfn ${ISLAND_BASE_DIR}/3rdparty/src/json/single_include/nlohmann ${ISLAND_BASE_DIR}/3rdparty/include/nlohmann )
+
+    # create a link to shared resources
+    execute_process(COMMAND ln -sfn ${ISLAND_BASE_DIR}/resources ${CMAKE_BINARY_DIR}/resources )
+
+    # create a link to 3rd party library binaries so that app can find them.
+    execute_process(COMMAND ln -sfn ${ISLAND_BASE_DIR}/3rdparty/libs ${CMAKE_BINARY_DIR}/libs )
+
+
+    # Check if a local copy of the Vulkan SDK exists, and the environment VULKAN_SDK points to it.
+    # If yes, use this directory for header includes, and linking
+    set (VULKAN_SDK_ENV $ENV{VULKAN_SDK})
+    if (EXISTS ${VULKAN_SDK_ENV})
+
+        #include vulkan from SDK installation directory
+        include_directories(${VULKAN_SDK_ENV}/include/)
+
+        # NOTE: We're linking Vulkan from this system's Vulkan SDK directory
+        link_directories(${VULKAN_SDK_ENV}/lib)
+
+    endif(EXISTS ${VULKAN_SDK_ENV})
+
+endif()
+
+include_directories ("${ISLAND_BASE_DIR}")
+
+
+function(add_island_module MODULE_NAME)
+    message(STATUS "Requesting optional island module: ${MODULE_NAME}")
+    add_subdirectory ("${ISLAND_BASE_DIR}${MODULE_NAME}" ${MODULE_NAME})
+    # propagate static libs from sub_directory to global scope
+    set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
+endfunction(add_island_module)

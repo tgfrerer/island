@@ -1,0 +1,42 @@
+cmake_minimum_required(VERSION 3.7.2)
+set (CMAKE_CXX_STANDARD 17)
+
+# This file will be processed with CMake's configure_file command.
+#
+# Only variables tagged with @VARIABLE@ will be substituted, as the
+# configure_file command is called with the `@ONLY` option.
+#
+# We use this to substitute PLUGINS_DYNAMIC, so that the correct 
+# version of the library (static/shared) will be built.
+
+set (TARGET imgui)
+set (SOURCES "imgui.cpp" "imgui_demo.cpp" "imgui_draw.cpp" "imgui_widgets.cpp")
+
+message("Imgui Build: generator is set to ${CMAKE_GENERATOR}")
+
+if (@PLUGINS_DYNAMIC@)
+	add_library( imgui SHARED ${SOURCES})
+else()
+	add_library( imgui STATIC ${SOURCES})
+endif()
+
+set_target_properties( ${TARGET}
+        PROPERTIES PUBLIC_HEADER "imconfig.h;imgui.h"
+	)
+
+# IMPORTANT: --no-gnu-unique
+#            This compiler flag is neccesary as otherwise the library may get compiled
+#            with some symbols exported as UNIQUE, which implicitly makes this library
+#            un-closeable. This means, any calls to `dlclose` on this library, once
+#            loaded, will have no effect, and autoreload for this library will not work
+#            as the first version of the library will remain resident.
+target_compile_options (${TARGET} PUBLIC --no-gnu-unique)
+
+install(TARGETS ${TARGET}
+        ARCHIVE
+            DESTINATION libs/${TARGET}
+        LIBRARY
+            DESTINATION libs/${TARGET}
+	PUBLIC_HEADER
+	    DESTINATION include/${TARGET}
+	)

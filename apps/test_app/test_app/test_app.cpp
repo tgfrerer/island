@@ -1,4 +1,4 @@
-#include "test_app/test_app.h"
+#include "test_app.h"
 
 #include "pal_window/pal_window.h"
 #include "le_backend_vk/le_backend_vk.h"
