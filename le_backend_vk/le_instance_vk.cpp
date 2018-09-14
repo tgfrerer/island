@@ -8,8 +8,13 @@
 #include <set>
 #include <string>
 
-#ifndef SHOULD_USE_DEBUG_LAYERS
-#	define SHOULD_USE_DEBUG_LAYERS true
+// Automatically disable Validation Layers for Release Builds
+#ifdef NDEBUG
+#	define SHOULD_USE_VALIDATION_LAYERS false
+#endif
+
+#ifndef SHOULD_USE_VALIDATION_LAYERS
+#	define SHOULD_USE_VALIDATION_LAYERS true
 #endif
 // ----------------------------------------------------------------------
 
@@ -75,7 +80,7 @@ static VkBool32 debugCallback(
 
 static void create_debug_callback( le_backend_vk_instance_o *obj ) {
 
-	if ( !SHOULD_USE_DEBUG_LAYERS ) {
+	if ( !SHOULD_USE_VALIDATION_LAYERS ) {
 		return;
 	}
 
@@ -93,7 +98,7 @@ static void create_debug_callback( le_backend_vk_instance_o *obj ) {
 
 static void destroy_debug_callback( le_backend_vk_instance_o *obj ) {
 
-	if ( !SHOULD_USE_DEBUG_LAYERS ) {
+	if ( !SHOULD_USE_VALIDATION_LAYERS ) {
 		return;
 	}
 
@@ -132,7 +137,7 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 		instanceExtensionNames.emplace_back( e.c_str() );
 	}
 
-	if ( SHOULD_USE_DEBUG_LAYERS ) {
+	if ( SHOULD_USE_VALIDATION_LAYERS ) {
 		instanceExtensionNames.push_back( VK_EXT_DEBUG_REPORT_EXTENSION_NAME );
 		// instanceLayerNames.push_back( "VK_LAYER_LUNARG_standard_validation" ); // <- deactivate for now because of mem leak in unique_objects
 		instanceLayerNames.push_back( "VK_LAYER_GOOGLE_threading" );
@@ -164,10 +169,10 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 
 	le_backend_vk::api->cUniqueInstance = obj;
 
-	if ( SHOULD_USE_DEBUG_LAYERS ) {
+	if ( SHOULD_USE_VALIDATION_LAYERS ) {
 		patchExtProcAddrs( obj );
 		create_debug_callback( obj );
-		std::cout << "DEBUG LAYERS ACTIVE." << std::endl;
+		std::cout << "VULKAN VALIDATION LAYERS ACTIVE." << std::endl;
 	}
 
 	std::cout << "Instance created." << std::endl;
