@@ -9,16 +9,6 @@
 #include <array>
 #include <assert.h>
 
-/*
-
-  Note that we're using string as hash input for our unordered map
-  - as using const char * is not reliable. Object ids might have more
-  than one location - this is probably due to templating in ApiRegistry.
-
-  It's better to compare by value.
-
-*/
-
 struct ApiStore {
 	static constexpr size_t        fp_max_bytes = 4096 * 10; // 10 pages of function pointers should be enough
 	std::array<char, fp_max_bytes> fp_storage{};             // byte storage space for function pointers
@@ -45,16 +35,14 @@ struct dynamic_api_info_o {
 };
 
 // ----------------------------------------------------------------------
-
-extern "C" void *pal_registry_get_api( uint64_t id, const char *debug_id ) {
-	//#ifndef NDEBUG
-	//	auto find_result = apiTable.find(std::string(id));
-	//	if (find_result == apiTable.end()){
-	//		std::cerr << "warning: could not find api: " << id << std::endl;
-	//	}
-	//#endif
+/// \returns index into apiStore entry for api with given id
+/// \param id        Hashed api name string
+/// \param debugName Api name string for debug purposes
+/// \note  In case a given id is not found in apiStore, a new entry is appended to apiStore
+static size_t produce_api_index( uint64_t id, const char *debugName ) {
 
 	size_t foundElement = 0;
+
 	for ( const auto &n : apiStore.nameHashes ) {
 		if ( n == id ) {
 			break;
@@ -65,41 +53,28 @@ extern "C" void *pal_registry_get_api( uint64_t id, const char *debug_id ) {
 	if ( foundElement == apiStore.nameHashes.size() ) {
 		// no element found, we need to add an element
 		apiStore.nameHashes.emplace_back( id );
-		apiStore.ptrs.emplace_back( nullptr );   // initialise to nullptr
-		apiStore.names.emplace_back( debug_id ); // implicitly creates a string
+		apiStore.ptrs.emplace_back( nullptr );    // initialise to nullptr
+		apiStore.names.emplace_back( debugName ); // implicitly creates a string
 	}
 
-	// invariant: foundElement points to correct element
+	// --------| invariant: foundElement points to correct element
 
+	return foundElement;
+}
+
+// ----------------------------------------------------------------------
+
+extern "C" void *pal_registry_get_api( uint64_t id, const char *debugName ) {
+
+	size_t foundElement = produce_api_index( id, debugName );
 	return apiStore.ptrs[ foundElement ];
-};
+}
 
 // ----------------------------------------------------------------------
 
 extern "C" void *pal_registry_create_api( uint64_t id, size_t apiStructSize, const char *debugName ) {
-	//#ifndef NDEBUG
-	//	auto find_result = apiTable.find(std::string(id));
-	//	if (find_result == apiTable.end()){
-	//		std::cerr << "set api warning: could not find api: " << id << std::endl;
-	//	}
-	//#endif
 
-	size_t foundElement = 0;
-	for ( const auto &n : apiStore.nameHashes ) {
-		if ( n == id ) {
-			break;
-		}
-		++foundElement;
-	}
-
-	if ( foundElement == apiStore.nameHashes.size() ) {
-
-		// Element with this name not found - we must insert it.
-
-		apiStore.nameHashes.emplace_back( id );
-		apiStore.ptrs.emplace_back( nullptr );    // initialise to nullptr
-		apiStore.names.emplace_back( debugName ); // implicitly creates a string
-	}
+	size_t foundElement = produce_api_index( id, debugName );
 
 	auto &apiPtr = apiStore.ptrs[ foundElement ];
 
