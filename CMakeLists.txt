@@ -107,7 +107,8 @@ if (PLUGINS_DYNAMIC)
 endif()
 
 # we need to link in the dynamic linking library so we can use dynamic linking
-target_link_libraries(${PROJECT_NAME} PUBLIC dl)
+target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
+
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PLUGIN_LIBS_DEPENDENCIES})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${STATIC_LIBS})
 
