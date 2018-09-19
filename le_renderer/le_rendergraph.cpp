@@ -118,7 +118,7 @@ static bool renderpass_run_setup_callback( le_renderpass_o *self ) {
 
 // ----------------------------------------------------------------------
 template <typename T>
-static inline bool vector_contains( const std::vector<T> &haystack, T needle ) noexcept {
+static inline bool vector_contains( const std::vector<T> &haystack, const T &needle ) noexcept {
 	return haystack.end() != std::find( haystack.begin(), haystack.end(), needle );
 }
 
