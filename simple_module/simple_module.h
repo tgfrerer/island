@@ -60,6 +60,10 @@ class SimpleModule : NoCopy, NoMove {
 	void update() {
 		simple_module::simple_module_i.update( self );
 	}
+
+	operator auto &&() {
+	        return self;
+	}
 };
 
 #endif // #ifdef __cplusplus
