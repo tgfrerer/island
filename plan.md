@@ -171,25 +171,22 @@ when we record command buffers, we store index into the frame resource list - th
 
 * implement camera
 * improve ergonomics, reduce lines to type
-* improve file structure - allow you to create more than one application
 * create a project generator
 * entity-component system for nodes
 * add materials for renderer
 * add image loading via `stb_image`
 * reduce compile times with glm: template specialisations
-* use the Builder pattern to simplify code where appropriate
 
-# Today (2018-09-11) 
+# Today (2018-09-17) 
 
-    - Update Pipeline using builder pattern
-    - Check if static compilation still works
+- project generator for simple apps
+- Update Pipeline using builder pattern 
+- simplify constexpr hash calculation
+- project generator for apps
 
-The builder pattern works not very well in a c-with-classes approach
-    - we have to write a ton of boilerplate
-    
 # What I'm unhappy with
 
 - tons of boilerplate when adding c++ facades
 - poor discoverability when no c++ facades
-- build system currently does not allow more than one app using the framework
+- The builder pattern works not very well in a c-with-classes approach
 
