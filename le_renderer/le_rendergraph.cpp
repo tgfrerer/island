@@ -1,5 +1,4 @@
 #include "le_renderer.h"
-#include "le_renderer/private/hash_util.h"
 
 #include "le_backend_vk/le_backend_vk.h"
 
@@ -67,7 +66,7 @@ struct le_graph_builder_o : NoCopy, NoMove {
 
 static le_renderpass_o *renderpass_create( const char *renderpass_name, const LeRenderPassType &type_ ) {
 	auto self       = new le_renderpass_o();
-	self->id        = const_char_hash64( renderpass_name );
+	self->id        = hash_64_fnv1a( renderpass_name );
 	self->type      = type_;
 	self->debugName = renderpass_name;
 	return self;
@@ -168,7 +167,7 @@ static void renderpass_add_image_attachment( le_renderpass_o *self, LeResourceHa
 	// By default, flag attachment source as being external, if attachment was previously written in this pass,
 	// source will be substituted by id of pass which writes to attachment, otherwise the flag will persist and
 	// tell us that this attachment must be externally resolved.
-	info.source_id   = const_char_hash64( LE_RENDERPASS_MARKER_EXTERNAL );
+	info.source_id   = hash_64_fnv1a_const( LE_RENDERPASS_MARKER_EXTERNAL );
 	info.resource_id = resource_id;
 
 	if ( info.access_flags == eLeAccessFlagBitsReadWrite ) {

@@ -11,7 +11,6 @@
 #include <map>
 
 #include "le_renderer/le_renderer.h"
-#include "le_renderer/private/hash_util.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -830,8 +829,8 @@ static void document_draw( le_gltf_document_o *self, le_command_buffer_encoder_o
 		if ( n.flags & Node::Flags::eHasMesh ) {
 
 			uboNode.matrix = n.globalTransform;
-			encoder_i.set_argument_ubo_data( encoder, const_char_hash64( "UBO" ), mvp, sizeof( GltfUboMvp ) );
-			encoder_i.set_argument_ubo_data( encoder, const_char_hash64( "UBONode" ), &uboNode, sizeof( GltfUboNode ) );
+			encoder_i.set_argument_ubo_data( encoder, hash_64_fnv1a_const( "UBO" ), mvp, sizeof( GltfUboMvp ) );
+			encoder_i.set_argument_ubo_data( encoder, hash_64_fnv1a_const( "UBONode" ), &uboNode, sizeof( GltfUboNode ) );
 
 			// this node has a mesh, let's draw it.
 

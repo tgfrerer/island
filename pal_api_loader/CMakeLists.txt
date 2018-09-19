@@ -4,6 +4,7 @@ set ( SOURCES ApiLoader.cpp )
 set ( SOURCES ${SOURCES} ApiLoader.h )
 set ( SOURCES ${SOURCES} ApiRegistry.cpp )
 set ( SOURCES ${SOURCES} ApiRegistry.hpp )
+set ( SOURCES ${SOURCES} hash_util.h )
 
 if (${PLUGINS_DYNAMIC})
 

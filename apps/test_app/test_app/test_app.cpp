@@ -5,7 +5,6 @@
 #include "le_swapchain_vk/le_swapchain_vk.h"
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/le_renderer_types.h"
-#include "le_renderer/private/hash_util.h"
 #include "le_gltf_loader/le_gltf_loader.h"
 
 #include "simple_module/simple_module.h"
@@ -683,7 +682,7 @@ static bool test_app_update( test_app_o *self ) {
 			if ( true ) {
 
 				le_encoder.bind_graphics_pipeline( encoder, app->psoFullScreenQuad );
-				le_encoder.set_argument_texture( encoder, app->resTexHorse, const_char_hash64( "src_tex_unit_0" ), 0 );
+				le_encoder.set_argument_texture( encoder, app->resTexHorse, hash_64_fnv1a_const( "src_tex_unit_0" ), 0 );
 				le_encoder.set_scissor( encoder, 0, 1, &scissors[ 0 ] );
 				le_encoder.set_viewport( encoder, 0, 1, &viewports[ 0 ] );
 				le_encoder.draw( encoder, 3, 1, 0, 0 );
@@ -756,7 +755,7 @@ static bool test_app_update( test_app_o *self ) {
 			if ( false ) {
 
 				encoder_i.bind_graphics_pipeline( encoder, app->psoFullScreenQuad );
-				encoder_i.set_argument_texture( encoder, app->resTexPrepass, const_char_hash64( "src_tex_unit_0" ), 0 );
+				encoder_i.set_argument_texture( encoder, app->resTexPrepass, hash_64_fnv1a_const( "src_tex_unit_0" ), 0 );
 				encoder_i.set_scissor( encoder, 0, 1, &scissors[ 1 ] );
 				encoder_i.set_viewport( encoder, 0, 1, &viewports[ 1 ] );
 				encoder_i.draw( encoder, 3, 1, 0, 0 );
@@ -780,8 +779,8 @@ static bool test_app_update( test_app_o *self ) {
 				float normDistance     = get_image_plane_distance( viewports[ 0 ], glm::radians( 60.f ) ); // calculate unit distance
 				matrixStack.viewMatrix = glm::lookAt( glm::vec3( 0, 0, normDistance ), glm::vec3( 0 ), glm::vec3( 0, 1, 0 ) );
 
-				encoder_i.set_argument_ubo_data( encoder, const_char_hash64( "MatrixStack" ), &matrixStack, sizeof( MatrixStackUbo_t ) );
-				encoder_i.set_argument_ubo_data( encoder, const_char_hash64( "Color" ), &ubo1, sizeof( ColorUbo_t ) );
+				encoder_i.set_argument_ubo_data( encoder, hash_64_fnv1a_const( "MatrixStack" ), &matrixStack, sizeof( MatrixStackUbo_t ) );
+				encoder_i.set_argument_ubo_data( encoder, hash_64_fnv1a_const( "Color" ), &ubo1, sizeof( ColorUbo_t ) );
 
 				LeResourceHandle buffers[] = {app->resBufTrianglePos};
 				uint64_t         offsets[] = {0};
@@ -825,8 +824,8 @@ static bool test_app_update( test_app_o *self ) {
 
 				encoder_i.bind_graphics_pipeline( encoder, app->psoImgui );
 				encoder_i.set_viewport( encoder, 0, 1, &viewports[ 0 ] ); // TODO: make sure that viewport covers full screen
-				encoder_i.set_argument_ubo_data( encoder, const_char_hash64( "MatrixStack" ), &ortho_projection, sizeof( glm::mat4 ) );
-				encoder_i.set_argument_texture( encoder, app->imguiTexture.le_texture_handle, const_char_hash64( "tex_unit_0" ), 0 );
+				encoder_i.set_argument_ubo_data( encoder, hash_64_fnv1a_const( "MatrixStack" ), &ortho_projection, sizeof( glm::mat4 ) );
+				encoder_i.set_argument_texture( encoder, app->imguiTexture.le_texture_handle, hash_64_fnv1a_const( "tex_unit_0" ), 0 );
 
 				LeResourceHandle currentTexture = app->imguiTexture.le_texture_handle; // we check against this so that we don't have to switch state that often.
 
@@ -854,7 +853,7 @@ static bool test_app_update( test_app_o *self ) {
 						// -- update bound texture, but only if texture different from currently bound texture
 						const LeResourceHandle nextTexture = reinterpret_cast<const LeResourceHandle>( im_cmd.TextureId );
 						if ( nextTexture != currentTexture ) {
-							encoder_i.set_argument_texture( encoder, nextTexture, const_char_hash64( "tex_unit_0" ), 0 );
+							encoder_i.set_argument_texture( encoder, nextTexture, hash_64_fnv1a_const( "tex_unit_0" ), 0 );
 							currentTexture = nextTexture;
 						}
 

@@ -5,8 +5,6 @@
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_swapchain_vk/le_swapchain_vk.h"
 
-#include "le_renderer/private/hash_util.h"
-
 #include <iostream>
 #include <iomanip>
 #include <chrono>

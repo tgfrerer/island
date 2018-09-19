@@ -269,58 +269,6 @@ static bool test_sorting() {
 
 // ----------------------------------------------------------------------
 
-constexpr uint32_t fnv1a_val_32_const   = 0x811c9dc5;
-constexpr uint32_t fnv1a_prime_32_const = 0x1000193;
-constexpr uint64_t fnv1a_val_64_const   = 0xcbf29ce484222325;
-constexpr uint64_t fnv1a_prime_64_const = 0x100000001b3;
-
-// adapted from: https://notes.underscorediscovery.com/constexpr-fnv1a/
-inline constexpr uint64_t hash_64_fnv1a_const( const char *const str, const uint64_t value = fnv1a_val_64_const ) noexcept {
-	return ( *str ) ? hash_64_fnv1a_const( str + 1, ( value ^ uint64_t( *str ) ) * fnv1a_prime_64_const ) : value;
-}
-
-// adapted from: https://notes.underscorediscovery.com/constexpr-fnv1a/
-inline constexpr uint32_t hash_32_fnv1a_const( const char *const str, const uint32_t value = fnv1a_val_32_const ) noexcept {
-	return ( *str ) ? hash_32_fnv1a_const( str + 1, ( value ^ uint32_t( *str ) ) * fnv1a_prime_32_const ) : value;
-}
-
-// ----------------------------------------------------------------------
-
-// adapted from: https://notes.underscorediscovery.com/constexpr-fnv1a/
-inline uint64_t hash_64_fnv1a( char const *const input ) noexcept {
-
-	uint64_t           hash  = fnv1a_val_64_const;
-	constexpr uint64_t prime = fnv1a_prime_64_const;
-
-	for ( char const *i = input; *i != 0; ++i ) {
-		uint8_t value = static_cast<const uint8_t &>( *i );
-		hash          = hash ^ value;
-		hash          = hash * prime;
-	}
-
-	return hash;
-
-} //hash_64_fnv1a
-
-// ----------------------------------------------------------------------
-
-inline uint32_t hash_32_fnv1a( char const *const input ) noexcept {
-
-	uint32_t           hash  = fnv1a_val_32_const;
-	constexpr uint32_t prime = fnv1a_prime_32_const;
-
-	for ( char const *i = input; *i != 0; ++i ) {
-		uint8_t value = static_cast<const uint8_t &>( *i );
-		hash          = hash ^ value;
-		hash          = hash * prime;
-	}
-
-	return hash;
-
-} //hash_32_fnv1a
-
-// ----------------------------------------------------------------------
-
 static bool run_tests() {
 	bool                       result = true;
 	std::array<std::string, 4> test{"Hello world", "", " and another string ...", "weird string\0"};

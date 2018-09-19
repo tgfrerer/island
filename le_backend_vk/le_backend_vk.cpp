@@ -17,7 +17,6 @@
 #include "pal_file_watcher/pal_file_watcher.h" // for watching shader source files
 
 #include "le_renderer/le_renderer.h"
-#include "le_renderer/private/hash_util.h"
 #include "le_renderer/private/le_renderer_types.h"
 
 #include "le_shader_compiler/le_shader_compiler.h"
@@ -773,7 +772,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 		info.type       = enumToNum( vk::DescriptorType::eCombinedImageSampler ); // Note: sampled_images corresponds to combinedImageSampler, separate_[image|sampler] corresponds to image, and sampler being separate
 		info.stage_bits = enumToNum( module->stage );
 		info.count      = 1;
-		info.name_hash  = const_char_hash64( resource.name.c_str() );
+		info.name_hash  = hash_64_fnv1a( resource.name.c_str() );
 
 		bindings.emplace_back( std::move( info ) );
 	}
@@ -787,7 +786,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 		info.type       = enumToNum( vk::DescriptorType::eUniformBufferDynamic );
 		info.count      = 1;
 		info.stage_bits = enumToNum( module->stage );
-		info.name_hash  = const_char_hash64( resource.name.c_str() );
+		info.name_hash  = hash_64_fnv1a( resource.name.c_str() );
 		info.range      = compiler.get_declared_struct_size( compiler.get_type( resource.type_id ) );
 
 		bindings.emplace_back( std::move( info ) );
