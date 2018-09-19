@@ -42,7 +42,7 @@ static void simple_module_destroy( simple_module_o *self ) {
 // ----------------------------------------------------------------------
 
 /// Note: `sortIndices` must point to an array of `numLayers` elements of type uint32_t
-static void layers_resolve_dependencies( Layer const *const layers, const size_t numLayers, uint32_t *sortIndices ) {
+static void layers_calculate_sort_indices( Layer const *const layers, const size_t numLayers, uint32_t *sortIndices ) {
 
 	BitField read_accum{};
 	BitField write_accum{};
@@ -202,7 +202,7 @@ static void dependency_manager_resolve_dependencies( dependency_manager_o *self 
 
 	self->layers_sort_order.resize( self->layers.size(), 0 );
 
-	layers_resolve_dependencies( self->layers.data(), self->layers.size(), self->layers_sort_order.data() );
+	layers_calculate_sort_indices( self->layers.data(), self->layers.size(), self->layers_sort_order.data() );
 }
 
 // ----------------------------------------------------------------------
@@ -257,7 +257,7 @@ static bool test_sorting() {
 
 	std::vector<uint32_t> layerOrders( layers.size() ); // Holds one sort index for each layer
 
-	layers_resolve_dependencies( layers.data(), layers.size(), layerOrders.data() );
+	layers_calculate_sort_indices( layers.data(), layers.size(), layerOrders.data() );
 
 	for ( size_t i = 0; i != layerOrders.size(); ++i ) {
 		std::cout << "Layer " << std::dec << i << ", sort order : " << layerOrders[ i ] << std::endl
@@ -266,6 +266,35 @@ static bool test_sorting() {
 
 	return true;
 }
+
+/*
+ * I think - it should be possible to get any dependent layers by up-walking the layers array
+ * and looking for writes where we have reads in a later layer.
+ *
+ * Our goal is to discard any layers which have no contribution to the final product.
+ *
+ * 1. First eliminate any layers which have no effect on any root nodes
+ * -- we go from last root layer to first layer .
+ * -- we accumulate reads
+ * -- if there is a write in l(n-1) where we have a read in l(accum) then l(n-1) is a provider.
+ * -- null out all positions in accum where there was a write in l(n-1), unless there was a read-write, in which case we keep the read
+ *
+ * 2. Calculate sort indices for layers.
+ *
+ 0 00
+ * 01 (used by 2)
+ *
+ 1 00 (can be discarded)
+ * 00
+ *
+ 2 01
+ * 01 (used by 2, 3)
+ *
+ 3 01
+ * 10
+ *
+ *
+ * */
 
 // ----------------------------------------------------------------------
 
@@ -310,7 +339,7 @@ static void simple_module_update( simple_module_o *self ) {
 		firstRun = false;
 	} else {
 		using std::chrono_literals::operator""ms;
-		// std::this_thread::sleep_for( 100ms );
+		std::this_thread::sleep_for( 100ms );
 	}
 }
 
