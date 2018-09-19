@@ -34,6 +34,4 @@ else()
 
 endif()
 
-set (LINKER_FLAGS -Wl,--whole-archive vulkan -Wl,--no-whole-archive )
-
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
