@@ -11,6 +11,10 @@ constexpr size_t MAX_NUM_LAYER_RESOURCES                = 64;
 using BitField                                          = std::bitset<MAX_NUM_LAYER_RESOURCES>;
 constexpr uint64_t le_dependency_manager_ROOT_LAYER_TAG = hash_32_fnv1a_const( "DEPENDENCY_MANAGER_ROOT_LAYER_TAG" );
 
+#ifndef NDEBUG
+#	define LE_DEPENDENCY_MANAGER_USE_DEBUG_NAMES
+#endif
+
 enum AccessType : int {
 	eAccessTypeRead      = 0b01,
 	eAccessTypeWrite     = 0b10,
@@ -34,10 +38,12 @@ struct Layer {
 struct le_dependency_manager_o {
 	std::array<uint64_t, MAX_NUM_LAYER_RESOURCES> knownResources; // Stores all known resources over all layers, provides us with canonical indices for each known resource
 	size_t                                        knownResourcesCount = 0;
-	std::vector<Layer>                            layers;             // r/w information for each layer. `Layer::reads` and `Layer::writes` bitfield indices correspond to `knownResources` indices
-	std::vector<uint32_t>                         layers_sort_order;  // Sort order for layers
-	std::vector<std::string>                      layers_debug_names; // debug name for each layer(optional), but must be same element count as layers.
-	std::vector<uint8_t>                          layers_flags;       // bitmask representing whether a layer is a root layer (root layers and their contributors must always be processed), and whether a layer must be processed as it does contribute.
+	std::vector<Layer>                            layers;            // r/w information for each layer. `Layer::reads` and `Layer::writes` bitfield indices correspond to `knownResources` indices
+	std::vector<uint32_t>                         layers_sort_order; // Sort order for layers
+	std::vector<uint8_t>                          layers_flags;      // bitmask representing whether a layer is a root layer (root layers and their contributors must always be processed), and whether a layer must be processed as it does contribute.
+#ifdef LE_DEPENDENCY_MANAGER_USE_DEBUG_NAMES
+	std::vector<std::string> layers_debug_names; // debug name for each layer(optional), but must be same element count as layers.
+#endif
 };
 
 /*
@@ -183,7 +189,9 @@ static void le_dependency_manager_reset( le_dependency_manager_o *self ) {
 
 	self->layers.clear();
 	self->layers_sort_order.clear();
+#ifdef LE_DEPENDENCY_MANAGER_USE_DEBUG_NAMES
 	self->layers_debug_names.clear();
+#endif
 }
 
 // ----------------------------------------------------------------------
@@ -216,7 +224,9 @@ static void le_dependency_manager_add_resource( le_dependency_manager_o *self, u
 
 	if ( self->layers.empty() ) {
 		self->layers.emplace_back(); // add an empty layer
+#ifdef LE_DEPENDENCY_MANAGER_USE_DEBUG_NAMES
 		self->layers_debug_names.emplace_back( "default" );
+#endif
 	}
 
 	// -- fetch current layer
@@ -237,7 +247,9 @@ static void le_dependency_manager_add_resource( le_dependency_manager_o *self, u
 
 static void le_dependency_manager_next_layer( le_dependency_manager_o *self, char const *debug_name = nullptr ) {
 	self->layers.emplace_back();
+#ifdef LE_DEPENDENCY_MANAGER_USE_DEBUG_NAMES
 	self->layers_debug_names.emplace_back( debug_name );
+#endif
 }
 
 // ----------------------------------------------------------------------
@@ -245,14 +257,21 @@ static void le_dependency_manager_next_layer( le_dependency_manager_o *self, cha
 static void le_dependency_manager_next_root_layer( le_dependency_manager_o *self, char const *debug_name = nullptr ) {
 	self->layers.emplace_back();
 	le_dependency_manager_add_resource( self, le_dependency_manager_ROOT_LAYER_TAG, eAccessTypeRead );
+#ifdef LE_DEPENDENCY_MANAGER_USE_DEBUG_NAMES
 	self->layers_debug_names.emplace_back( debug_name );
+#endif
 }
 
 // ----------------------------------------------------------------------
 
 static void le_dependency_manager_print_sort_order( le_dependency_manager_o *self ) {
 	for ( size_t i = 0; i != self->layers_sort_order.size(); ++i ) {
-		std::cout << "Layer " << std::dec << std::setw( 3 ) << i << " sort order : " << std::setw( 3 ) << self->layers_sort_order[ i ] << " - (`" << self->layers_debug_names[ i ] << "`)" << std::endl
+
+		std::cout << "Layer " << std::dec << std::setw( 3 ) << i << " sort order : " << std::setw( 3 ) << self->layers_sort_order[ i ]
+#ifdef LE_DEPENDENCY_MANAGER_USE_DEBUG_NAMES
+		          << " - (`" << self->layers_debug_names[ i ] << "`)"
+#endif
+		          << std::endl
 		          << std::flush;
 	}
 }
