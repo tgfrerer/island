@@ -176,12 +176,13 @@ when we record command buffers, we store index into the frame resource list - th
 * add materials for renderer
 * add image loading via `stb_image`
 * reduce compile times with glm: template specialisations
+* add a geometry generator module - something for us to experiment with
+* implement a post processing effects pipeline
 
 # Today (2018-09-17) 
 
 - project generator for simple apps
 - Update Pipeline using builder pattern 
-- simplify constexpr hash calculation
 - project generator for apps
 
 # What I'm unhappy with
