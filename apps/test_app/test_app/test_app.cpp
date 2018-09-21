@@ -64,8 +64,8 @@ struct test_app_o {
 
 	FontTextureInfo imguiTexture = {};
 
-	std::array<bool, 5> mouseButtonStatus = {}; // status for each mouse button
-	glm::vec2           mousePos;               // current mouse position
+	std::array<bool, 5> mouseButtonStatus{}; // status for each mouse button
+	glm::vec2           mousePos{};          // current mouse position
 
 	NanoTime update_start_time;
 
@@ -78,7 +78,8 @@ struct test_app_o {
 	le::ResourceHandle resTexHorse       = nullptr;
 	le::ResourceHandle resBufTrianglePos = nullptr;
 
-	le_gltf_document_o *gltfDoc = nullptr;
+	bool                imgHorseWasUploaded = false;
+	le_gltf_document_o *gltfDoc             = nullptr;
 
 	// NOTE: RUNTIME-COMPILE : If you add any new things during run-time, make sure to only add at the end of the object,
 	// otherwise all pointers above will be invalidated. this might also overwrite memory which
@@ -617,7 +618,11 @@ static bool test_app_update( test_app_o *self ) {
 			// a copy is added to the queue that transfers from scratch memory
 			// to GPU local memory.
 
-			encoder_i.write_to_image( encoder, app->resImgHorse, {160, 106}, MagickImage, sizeof( MagickImage ) );
+			if ( app->imgHorseWasUploaded == false ) {
+
+				encoder_i.write_to_image( encoder, app->resImgHorse, {160, 106}, MagickImage, sizeof( MagickImage ) );
+				app->imgHorseWasUploaded = true;
+			}
 
 			if ( false == app->imguiTexture.wasUploaded ) {
 				// tell encoder to upload imgui image - but only once
