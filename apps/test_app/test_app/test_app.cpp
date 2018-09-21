@@ -668,11 +668,11 @@ static bool test_app_update( test_app_o *self ) {
 			return true;
 		} );
 
-		renderPassPre.setExecuteCallback( self, []( le_command_buffer_encoder_o *encoder, void *user_data ) {
-			static auto const &le_encoder   = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
-			auto               app          = static_cast<test_app_o *>( user_data );
-			uint32_t           screenWidth  = 640;
-			uint32_t           screenHeight = 480;
+		renderPassPre.setExecuteCallback( self, []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+			auto     encoder      = le::Encoder( encoder_ ); // use c++ facade for less typing ;)
+			auto     app          = static_cast<test_app_o *>( user_data );
+			uint32_t screenWidth  = 640;
+			uint32_t screenHeight = 480;
 
 			le::Viewport viewports[ 1 ] = {
 			    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
@@ -686,11 +686,12 @@ static bool test_app_update( test_app_o *self ) {
 			// Bind full screen quad pipeline
 			if ( true ) {
 
-				le_encoder.bind_graphics_pipeline( encoder, app->psoFullScreenQuad );
-				le_encoder.set_argument_texture( encoder, app->resTexHorse, hash_64_fnv1a_const( "src_tex_unit_0" ), 0 );
-				le_encoder.set_scissor( encoder, 0, 1, &scissors[ 0 ] );
-				le_encoder.set_viewport( encoder, 0, 1, &viewports[ 0 ] );
-				le_encoder.draw( encoder, 3, 1, 0, 0 );
+				encoder
+				    .bindGraphicsPipeline( app->psoFullScreenQuad )
+				    .setArgumentTexture( app->resTexHorse, hash_64_fnv1a_const( "src_tex_unit_0" ), 0 )
+				    .setScissors( 0, 1, &scissors[ 0 ] )
+				    .setViewports( 0, 1, &viewports[ 0 ] )
+				    .draw( 3, 1, 0, 0 );
 			}
 		} );
 

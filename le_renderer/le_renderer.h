@@ -601,6 +601,93 @@ class RenderModule {
 	}
 };
 
+class Encoder {
+	// non-owning version of RenderPass, but with more public methods
+
+	le_command_buffer_encoder_o *self = nullptr;
+
+  public:
+	Encoder()  = delete;
+	~Encoder() = default;
+
+	Encoder( le_command_buffer_encoder_o *self_ )
+	    : self( self_ ) {
+	}
+
+	operator auto() {
+		return self;
+	}
+
+	Encoder &draw( const uint32_t &vertexCount, const uint32_t &instanceCount, const uint32_t &firstVertex, const uint32_t &firstInstance ) {
+		le_renderer::encoder_i.draw( self, vertexCount, instanceCount, firstVertex, firstInstance );
+		return *this;
+	}
+
+	Encoder &drawIndexed( uint32_t const &indexCount, uint32_t const &instanceCount, uint32_t const &firstIndex, int32_t const &vertexOffset, uint32_t const &firstInstance ) {
+		le_renderer::encoder_i.draw_indexed( self, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance );
+		return *this;
+	}
+
+	Encoder &setLineWidth( float const &lineWidth ) {
+		le_renderer::encoder_i.set_line_width( self, lineWidth );
+		return *this;
+	}
+
+	Encoder &setViewports( uint32_t firstViewport, const uint32_t &viewportCount, const le::Viewport *pViewports ) {
+		le_renderer::encoder_i.set_viewport( self, firstViewport, viewportCount, pViewports );
+		return *this;
+	}
+
+	Encoder &setScissors( uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D *pViewports ) {
+		le_renderer::encoder_i.set_scissor( self, firstScissor, scissorCount, pViewports );
+		return *this;
+	}
+
+	Encoder &bindGraphicsPipeline( le_graphics_pipeline_state_o *pipeline ) {
+		le_renderer::encoder_i.bind_graphics_pipeline( self, pipeline );
+		return *this;
+	}
+
+	Encoder &bindIndexBuffer( le::ResourceHandle const &bufferId, uint64_t const &offset, uint64_t const &indexType = 0 ) {
+		le_renderer::encoder_i.bind_index_buffer( self, bufferId, offset, indexType );
+		return *this;
+	}
+
+	Encoder &bindVertexBuffer( uint32_t const &firstBinding, uint32_t const &bindingCount, LeResourceHandle const *pBufferId, uint64_t const *pOffsets ) {
+		le_renderer::encoder_i.bind_vertex_buffers( self, firstBinding, bindingCount, pBufferId, pOffsets );
+		return *this;
+	}
+
+	Encoder &setIndexData( void const *data, uint64_t const &numBytes, uint64_t const &indexType ) {
+		le_renderer::encoder_i.set_index_data( self, data, numBytes, indexType );
+		return *this;
+	}
+
+	Encoder &setVertexData( void const *data, uint64_t const &numBytes, uint32_t const &bindingIndex ) {
+		le_renderer::encoder_i.set_vertex_data( self, data, numBytes, bindingIndex );
+		return *this;
+	}
+
+	Encoder &writeToBuffer( le::ResourceHandle const &resourceId, size_t const &offset, void const *data, size_t const &numBytes ) {
+		le_renderer::encoder_i.write_to_buffer( self, resourceId, offset, data, numBytes );
+		return *this;
+	}
+
+	Encoder &writeToImage( le::ResourceHandle const resourceId, struct LeBufferWriteRegion const &region, void const *data, size_t const &numBytes ) {
+		le_renderer::encoder_i.write_to_image( self, resourceId, region, data, numBytes );
+		return *this;
+	}
+
+	Encoder &setArgumentData( uint64_t const &argumentNameId, void const *data, size_t const &numBytes ) {
+		le_renderer::encoder_i.set_argument_ubo_data( self, argumentNameId, data, numBytes );
+		return *this;
+	}
+
+	Encoder &setArgumentTexture( LeResourceHandle const &textureId, uint64_t const &argumentName, uint64_t const &arrayIndex ) {
+		le_renderer::encoder_i.set_argument_texture( self, textureId, argumentName, arrayIndex );
+		return *this;
+	}
+};
 // ----------------------------------------------------------------------
 
 } // namespace le
