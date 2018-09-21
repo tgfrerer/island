@@ -275,7 +275,7 @@ static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_argument_texture( le_command_buffer_encoder_o *self, LeResourceHandle textureId, uint64_t argumentName, uint64_t arrayIndex ) {
+static void cbe_set_argument_texture( le_command_buffer_encoder_o *self, LeResourceHandle const textureId, uint64_t argumentName, uint64_t arrayIndex ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandSetArgumentTexture );
 
@@ -305,7 +305,7 @@ static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, le_graphics_pi
 
 // ----------------------------------------------------------------------
 
-static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, LeResourceHandle resourceId, size_t offset, void const *data, size_t numBytes ) {
+static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, LeResourceHandle const resourceId, size_t offset, void const *data, size_t numBytes ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandWriteToBuffer );
 

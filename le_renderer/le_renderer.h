@@ -338,12 +338,12 @@ struct le_renderer_api {
 		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint64_t indexType );
 		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint32_t bindingIndex );
 
-		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, LeResourceHandle resourceId, size_t offset, void const* data, size_t numBytes);
-		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, LeResourceHandle resourceId, struct LeBufferWriteRegion const &region, void const *data, size_t numBytes );
+		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, LeResourceHandle const resourceId, size_t offset, void const* data, size_t numBytes);
+		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, LeResourceHandle const resourceId, struct LeBufferWriteRegion const &region, void const *data, size_t numBytes );
 
 		// stores ubo argument data to scratch buffer - note that parameter index must be dynamic offset index
 		void                         ( *set_argument_ubo_data  ) (le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
-		void                         ( *set_argument_texture   ) (le_command_buffer_encoder_o* self, LeResourceHandle textureId, uint64_t argumentName, uint64_t arrayIndex);
+		void                         ( *set_argument_texture   ) (le_command_buffer_encoder_o* self, LeResourceHandle const textureId, uint64_t argumentName, uint64_t arrayIndex);
 
 		void                         ( *get_encoded_data       )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
 	};
