@@ -140,13 +140,12 @@ static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, c
 static void
 renderer_setup( le_renderer_o *self ) {
 
-	static const auto &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
+	using namespace le_backend_vk; // for vk_bakend_i
+	using namespace le_renderer;   // for graph_builder_i
 
-	self->numSwapchainImages = backend_i.get_num_swapchain_images( self->backend );
+	self->numSwapchainImages = vk_backend_i.get_num_swapchain_images( self->backend );
 
 	self->frames.reserve( self->numSwapchainImages );
-
-	static auto const &graph_builder_i = Registry::getApi<le_renderer_api>()->le_graph_builder_i;
 
 	for ( size_t i = 0; i != self->numSwapchainImages; ++i ) {
 		auto frameData         = FrameData();
@@ -163,8 +162,8 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 
 	auto &frame = self->frames[ frameIndex ];
 
-	static auto const &backend_i       = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
-	static auto const &graph_builder_i = Registry::getApi<le_renderer_api>()->le_graph_builder_i;
+	using namespace le_backend_vk; // for vk_bakend_i
+	using namespace le_renderer;   // for graph_builder_i
 
 	if ( frame.state == FrameData::State::eCleared ) {
 		return;
@@ -177,11 +176,11 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 	     frame.state == FrameData::State::eFailedDispatch ||
 	     frame.state == FrameData::State::eFailedClear ) {
 
-		while ( false == backend_i.poll_frame_fence( self->backend, frameIndex ) ) {
+		while ( false == vk_backend_i.poll_frame_fence( self->backend, frameIndex ) ) {
 			// Note: this call may block until the fence has been reached.
 		};
 
-		bool result = backend_i.clear_frame( self->backend, frameIndex );
+		bool result = vk_backend_i.clear_frame( self->backend, frameIndex );
 
 		if ( result != true ) {
 			frame.state = FrameData::State::eFailedClear;
@@ -219,17 +218,15 @@ static void renderer_record_frame( le_renderer_o *self, size_t frameIndex, le_re
 	// For each render pass, call renderpass' render method, build intermediary command lists
 	//
 
-	static auto &rendererApi   = *Registry::getApi<le_renderer_api>();
-	static auto &renderModuleI = rendererApi.le_render_module_i;
-	static auto &graphBuilderI = rendererApi.le_graph_builder_i;
+	using namespace le_renderer; // for render_module_i, graph_builder_i
 
 	// - build up dependencies for graph, create table of unique resources for graph
 
 	// setup passes calls setup for all passes - this initalises virtual resources,
 	// and stores their descriptors (information needed to allocate physical resources)
-	renderModuleI.setup_passes( module_, frame.graphBuilder );
+	render_module_i.setup_passes( module_, frame.graphBuilder );
 
-	graphBuilderI.build_graph( frame.graphBuilder );
+	graph_builder_i.build_graph( frame.graphBuilder );
 
 	// TODO: allocate physical resources for frame-local data
 
@@ -238,7 +235,7 @@ static void renderer_record_frame( le_renderer_o *self, size_t frameIndex, le_re
 	// Execute callbacks into main application for each renderpass,
 	// build command lists per renderpass in intermediate, api-agnostic representation
 	//
-	graphBuilderI.execute_graph( frame.graphBuilder, frameIndex, self->backend );
+	graph_builder_i.execute_graph( frame.graphBuilder, frameIndex, self->backend );
 
 	frame.meta.time_record_frame_end = std::chrono::high_resolution_clock::now();
 	//std::cout << "renderer_record_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_record_frame_end-frame.meta.time_record_frame_start).count() << "ms" << std::endl;
@@ -253,7 +250,9 @@ static void renderer_record_frame( le_renderer_o *self, size_t frameIndex, le_re
 
 static const FrameData::State &renderer_acquire_backend_resources( le_renderer_o *self, size_t frameIndex ) {
 
-	static auto const &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
+	using namespace le_backend_vk; // for vk_bakend_i
+	using namespace le_renderer;   // for graph_builder_i
+
 	// ---------| invariant: There are frames to process.
 
 	auto &frame = self->frames[ frameIndex ];
@@ -266,14 +265,12 @@ static const FrameData::State &renderer_acquire_backend_resources( le_renderer_o
 
 	// ----------| invariant: frame is either initial, or cleared.
 
-	static auto &le_graph_builder_api = ( *Registry::getApi<le_renderer_api>() ).le_graph_builder_i;
-
 	le_renderpass_o **passes          = nullptr;
 	size_t            numRenderPasses = 0;
 
-	le_graph_builder_api.get_passes( frame.graphBuilder, &passes, &numRenderPasses );
+	graph_builder_i.get_passes( frame.graphBuilder, &passes, &numRenderPasses );
 
-	auto acquireSuccess = backend_i.acquire_physical_resources( self->backend, frameIndex, passes, numRenderPasses );
+	auto acquireSuccess = vk_backend_i.acquire_physical_resources( self->backend, frameIndex, passes, numRenderPasses );
 
 	frame.meta.time_acquire_frame_end = std::chrono::high_resolution_clock::now();
 
@@ -297,7 +294,7 @@ static const FrameData::State &renderer_acquire_backend_resources( le_renderer_o
 
 static const FrameData::State &renderer_process_frame( le_renderer_o *self, size_t frameIndex ) {
 
-	static auto const &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
+	using namespace le_backend_vk; // for vk_bakend_i
 
 	auto &frame = self->frames[ frameIndex ];
 
@@ -310,7 +307,7 @@ static const FrameData::State &renderer_process_frame( le_renderer_o *self, size
 
 	// translate intermediate draw lists into vk command buffers, and sync primitives
 
-	backend_i.process_frame( self->backend, frameIndex );
+	vk_backend_i.process_frame( self->backend, frameIndex );
 
 	frame.meta.time_process_frame_end = std::chrono::high_resolution_clock::now();
 	//std::cout << "renderer_process_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_process_frame_end-frame.meta.time_process_frame_start).count() << "ms" << std::endl;
@@ -326,8 +323,8 @@ static const FrameData::State &renderer_process_frame( le_renderer_o *self, size
 
 static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex ) {
 
-	static auto const &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
-	auto &             frame     = self->frames[ frameIndex ];
+	using namespace le_backend_vk; // for vk_backend_i
+	auto &frame = self->frames[ frameIndex ];
 
 	if ( frame.state != FrameData::State::eProcessed ) {
 		return;
@@ -337,7 +334,7 @@ static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex ) {
 
 	frame.meta.time_dispatch_frame_start = std::chrono::high_resolution_clock::now();
 
-	bool dispatchSuccessful = backend_i.dispatch_frame( self->backend, frameIndex );
+	bool dispatchSuccessful = vk_backend_i.dispatch_frame( self->backend, frameIndex );
 
 	frame.meta.time_dispatch_frame_end = std::chrono::high_resolution_clock::now();
 
@@ -408,22 +405,22 @@ struct ClearTask : public enki::ITaskSet {
 
 // returns a unique resource handle for a resource
 static LeResourceHandle renderer_declare_resource( le_renderer_o *self, LeResourceType type ) {
-	static const auto &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
-	return backend_i.declare_resource( self->backend, type );
+	using namespace le_backend_vk; // for graph_builder_i
+	return vk_backend_i.declare_resource( self->backend, type );
 }
 
 // ----------------------------------------------------------------------
 
 static LeResourceHandle renderer_get_backbuffer_resource( le_renderer_o *self ) {
-	static const auto &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
-	return backend_i.get_backbuffer_resource( self->backend );
+	using namespace le_backend_vk; // for graph_builder_i
+	return vk_backend_i.get_backbuffer_resource( self->backend );
 }
 
 // ----------------------------------------------------------------------
 
 static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) {
 
-	static const auto &backend_i = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
+	using namespace le_backend_vk; // for vk_backend_i
 
 	const auto &index     = self->currentFrameNumber;
 	const auto &numFrames = self->frames.size();
@@ -431,7 +428,7 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 	// If necessary, recompile and reload shader modules
 	// - this must be complete before the record_frame step
 
-	backend_i.update_shader_modules( self->backend );
+	vk_backend_i.update_shader_modules( self->backend );
 
 	if ( LE_RENDERER_MULTITHREADED ) {
 		// use task system (experimental)
@@ -483,7 +480,7 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 			}
 		}
 
-		backend_i.reset_swapchain( self->backend );
+		vk_backend_i.reset_swapchain( self->backend );
 
 		self->swapchainDirty = false;
 	}
