@@ -179,15 +179,17 @@ when we record command buffers, we store index into the frame resource list - th
 * add a geometry generator module - something for us to experiment with
 * implement a post processing effects pipeline
 
-# Today (2018-09-17) 
+# Todo
 
 - project generator for simple apps
 - Update Pipeline using builder pattern 
 - project generator for apps
+- add image loader module based on stb::image or similar
 
 # What I'm unhappy with
 
 - tons of boilerplate when adding c++ facades
 - poor discoverability when no c++ facades
 - The builder pattern works not very well in a c-with-classes approach
+
 
