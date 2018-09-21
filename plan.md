@@ -59,7 +59,7 @@
 ## Structs as Data
 
 Think of *structs as data* - your main interaction should be with data,
-sequences of functions acting collaboratively on data. 
+sequences of functions acting collaboratively on data. There is **no inheritance** whatsoever. 
 
 ## Objects as abstract *state* machines
 
@@ -185,11 +185,12 @@ when we record command buffers, we store index into the frame resource list - th
 - Update Pipeline using builder pattern 
 - project generator for apps
 - add image loader module based on stb::image or similar
+- write c++ facades for encoder
 
 # What I'm unhappy with
 
 - tons of boilerplate when adding c++ facades
-- poor discoverability when no c++ facades
+- poor discoverability when no c++ facades inside the IDE
 - The builder pattern works not very well in a c-with-classes approach
 
 
