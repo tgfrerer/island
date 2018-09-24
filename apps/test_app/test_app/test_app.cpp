@@ -9,6 +9,8 @@
 
 #include "simple_module/simple_module.h"
 
+#include "le_camera/le_camera.h"
+
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
 
@@ -22,6 +24,7 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include "gtx/matrix_decompose.hpp"
 #include "gtx/quaternion.hpp"
+#include "gtx/string_cast.hpp"
 
 #include "gtx/easing.hpp"
 
@@ -54,26 +57,18 @@ struct FontTextureInfo {
 	bool               wasUploaded       = false;
 };
 
-struct mouse_event_data_o {
+struct le_mouse_event_data_o {
 	uint8_t   buttonState{};
 	glm::vec2 cursor_pos;
 };
 
 struct camera_o {
-
-	glm::mat4 matrix; // camera position in world space
-
-	//	glm::vec3 position{};    // position in world space
-	//	glm::quat orientation{}; // orientation in world space
-
+	glm::mat4    matrix;       // camera position in world space
 	float        fovRadians{}; // field of view angle (in radians)
 	le::Viewport viewport;     // current camera viewport
-	                           //float        unitDistance{}; // distance to pivot point -- this will always be the norm distance
 };
 
 struct camera_controller_o {
-	// glm::vec3 position;    // initial position of camera
-	// glm::quat orientation; // initial position of camera
 
 	glm::mat4 matrix; // initial transform
 
@@ -104,9 +99,9 @@ struct test_app_o {
 
 	FontTextureInfo imguiTexture = {};
 
-	std::array<bool, 5> mouseButtonStatus{}; // status for each mouse button
-	glm::vec2           mousePos{};          // current mouse position
-	mouse_event_data_o  mouseData;
+	std::array<bool, 5>   mouseButtonStatus{}; // status for each mouse button
+	glm::vec2             mousePos{};          // current mouse position
+	le_mouse_event_data_o mouseData;
 
 	NanoTime update_start_time;
 
@@ -130,190 +125,9 @@ struct test_app_o {
 	// in question.
 	SimpleModule testSimpleModule;
 
-	camera_o            cam;
-	camera_controller_o cam_controller;
+	LeCamera           camera;
+	LeCameraController cameraController;
 };
-
-// ----------------------------------------------------------------------
-
-glm::mat4 camera_get_view_matrix( camera_o *self ) {
-	return self->matrix;
-}
-
-glm::mat4 camera_get_projection_matrix( camera_o *self ) {
-	return glm::perspective( self->fovRadians, float( self->viewport.width ) / float( self->viewport.height ), 10.f, 10000.f );
-}
-
-// ----------------------------------------------------------------------
-
-float camera_get_unit_distance( camera_o *self ) {
-	return self->viewport.height / ( 2.f * tanf( self->fovRadians * 0.5f ) );
-}
-
-// ----------------------------------------------------------------------
-
-/// rect is defined as x,y,w,h
-bool is_inside_rect( const glm::vec2 &pt, std::array<float, 4> const &rect ) {
-	return ( pt.x >= rect[ 0 ] && pt.x <= ( rect[ 0 ] + rect[ 2 ] ) && pt.y >= rect[ 1 ] && pt.y <= ( rect[ 1 ] + rect[ 3 ] ) );
-}
-
-// ----------------------------------------------------------------------
-
-void camera_controller_update_camera( camera_controller_o *controller, camera_o *camera, mouse_event_data_o *mouse_event ) {
-
-	// centre point of the mouse control rectangle
-	glm::vec2 controlRectCentre{0.5f * ( controller->controlRect[ 0 ] + controller->controlRect[ 2 ] ),
-		                        0.5f * ( controller->controlRect[ 1 ] + controller->controlRect[ 3 ] )};
-
-	// distance 1/3 of small edge of control rectangle
-	float controlCircleRadius = std::min( controller->controlRect[ 2 ], controller->controlRect[ 3 ] ) / 3.f;
-
-	switch ( controller->mode ) {
-	case camera_controller_o::eNeutral: {
-
-		if ( false == is_inside_rect( mouse_event->cursor_pos, controller->controlRect ) ) {
-			// if camera is outside the control rect, we don't care.
-			return;
-		};
-
-		if ( mouse_event->buttonState & ( 0b111 ) ) {
-			// A relevant mouse button has been pressed.
-			// we must store the initial state of the camera.
-			controller->matrix            = camera->matrix;
-			controller->mouse_pos_initial = mouse_event->cursor_pos;
-		}
-
-		if ( mouse_event->buttonState & ( 1 << 0 ) ) {
-			// -- change controller mode to either xy or z
-
-			if ( glm::distance( mouse_event->cursor_pos, controlRectCentre ) < controlCircleRadius ) {
-				// -- if mouse inside inner circle, control rotation XY
-				controller->mode = camera_controller_o::eRotXY;
-			} else {
-				// -- if mouse outside inner circle, control rotation Z
-				controller->mode = camera_controller_o::eRotZ;
-			}
-
-		} else if ( mouse_event->buttonState & ( 1 << 1 ) ) {
-			// -- change mode to translate z
-			controller->mode = camera_controller_o::eTranslateZ;
-		} else if ( mouse_event->buttonState & ( 1 << 2 ) ) {
-			// -- change mode ot translate xy
-			controller->mode = camera_controller_o::eTranslateXY;
-		}
-
-	} break;
-	case camera_controller_o::eRotXY: {
-		if ( 0 == ( mouse_event->buttonState & ( 1 << 0 ) ) ) {
-			// apply transforms, exit mode
-			controller->mode = camera_controller_o::eNeutral;
-		}
-
-		//		// process normal logic for cursor position
-		//		// TODO: check: This needs to be a *relative* movement, not an absolute movement.
-		//		// I have an inkling that it is, though.
-		float normalised_distance_x = -( mouse_event->cursor_pos.x - controller->mouse_pos_initial.x ) / ( controlCircleRadius * 3.f ); // map to -1..1
-		float normalised_distance_y = ( mouse_event->cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 3.f );  // map to -1..1
-
-		// build a quaternion based on rotation around x, rotation around y
-
-		// first we must transform into the pivot point
-		// the pivot point is a point which is at normdistance from the camera in negative z
-
-		auto const &cam_to_world = controller->matrix;
-		auto        world_to_cam = glm::inverse( cam_to_world );
-
-		float normDistance = camera_get_unit_distance( camera );
-
-		auto pivot   = glm::translate( world_to_cam, glm::vec3{0, 0, -normDistance} );
-		pivot        = glm::rotate( pivot, glm::two_pi<float>() * normalised_distance_x, glm::vec3{0, 1, 0} );
-		pivot        = glm::rotate( pivot, glm::two_pi<float>() * normalised_distance_y, glm::vec3{1, 0, 0} );
-		world_to_cam = glm::translate( pivot, glm::vec3{0, 0, normDistance} );
-
-		camera->matrix = glm::inverse( world_to_cam );
-
-		// then we must transform back to world space
-
-		// TODO: check: We rotate around a PIVOT - this means that the camera position
-		// will change because of orientation change.
-		// we must re-calculate the camera position based on the change in orientation.
-		// camera->position = camera->orientation * ( -controller->position ) * glm::inverse( camera->orientation ) * controller->position;
-
-	} break;
-	case camera_controller_o::eRotZ: {
-		if ( 0 == ( mouse_event->buttonState & ( 1 << 0 ) ) ) {
-			// -- apply transforms, exit mode
-			controller->mode = camera_controller_o::eNeutral;
-		}
-
-		auto  mouseInitial      = controller->mouse_pos_initial - controlRectCentre;
-		float mouseInitialAngle = glm::two_pi<float>() - fmodf( glm::two_pi<float>() + atan2f( mouseInitial.y, mouseInitial.x ), glm::two_pi<float>() ); // Range is expected to be 0..2pi, ccw
-
-		auto mouseDelta = mouse_event->cursor_pos - controlRectCentre;
-
-		float cameraAngle = glm::two_pi<float>() - fmodf( mouseInitialAngle + glm::two_pi<float>() + atan2f( mouseDelta.y, mouseDelta.x ), glm::two_pi<float>() ); // Range is expected to 0..2pi, ccw
-
-		// first we must transform into the pivot point
-		// the pivot point is a point which is at normdistance from the camera in negative z
-
-		auto const &cam_to_world = controller->matrix;
-		auto        world_to_cam = glm::inverse( cam_to_world );
-
-		float normDistance = camera_get_unit_distance( camera );
-
-		auto pivot = glm::translate( world_to_cam, glm::vec3{0, 0, -normDistance} );
-
-		pivot        = glm::rotate( pivot, cameraAngle, glm::vec3{0, 0, 1} );
-		world_to_cam = glm::translate( pivot, glm::vec3{0, 0, normDistance} );
-
-		camera->matrix = glm::inverse( world_to_cam );
-
-	} break;
-	case camera_controller_o::eTranslateXY: {
-		if ( 0 == ( mouse_event->buttonState & ( 1 << 1 ) ) ) {
-			// -- apply transforms, exit mode
-			controller->mode = camera_controller_o::eNeutral;
-		}
-
-		float normalised_distance_x = -( mouse_event->cursor_pos.x - controller->mouse_pos_initial.x ) / ( controlCircleRadius * 1.f ); // map to -1..1
-		float normalised_distance_y = -( mouse_event->cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 1.f ); // map to -1..1
-
-		float movement_speed = 100;
-
-		auto const &cam_to_world = controller->matrix;
-		auto        world_to_cam = glm::inverse( cam_to_world );
-
-		float normDistance = camera_get_unit_distance( camera );
-
-		auto pivot     = glm::translate( world_to_cam, glm::vec3{0, 0, -normDistance} );
-		pivot          = glm::translate( pivot, movement_speed * glm::vec3{normalised_distance_x, normalised_distance_y, 0} );
-		world_to_cam   = glm::translate( pivot, glm::vec3{0, 0, normDistance} );
-		camera->matrix = glm::inverse( world_to_cam );
-
-	} break;
-	case camera_controller_o::eTranslateZ: {
-		if ( 0 == ( mouse_event->buttonState & ( 1 << 2 ) ) ) {
-			// -- apply transforms, exit mode
-			controller->mode = camera_controller_o::eNeutral;
-		}
-
-		float normalised_distance_y = ( mouse_event->cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 1.f ); // map to -1..1
-
-		float movement_speed = 100;
-
-		auto const &cam_to_world = controller->matrix;
-		auto        world_to_cam = glm::inverse( cam_to_world );
-
-		float normDistance = camera_get_unit_distance( camera );
-
-		auto pivot     = glm::translate( world_to_cam, glm::vec3{0, 0, -normDistance} );
-		pivot          = glm::translate( pivot, movement_speed * glm::vec3{0, 0, normalised_distance_y} );
-		world_to_cam   = glm::translate( pivot, glm::vec3{0, 0, normDistance} );
-		camera->matrix = glm::inverse( world_to_cam );
-
-	} break;
-	} // end switch controller->mode
-}
 
 // ----------------------------------------------------------------------
 
@@ -662,11 +476,11 @@ static test_app_o *test_app_create() {
 	app->resTexHorse       = app->renderer->declareResource( LeResourceType::eTexture );
 	app->resBufTrianglePos = app->renderer->declareResource( LeResourceType::eBuffer );
 
-	app->cam.fovRadians = glm::radians( 60.f );
-	app->cam.viewport   = {0, 0, 1024, 768, 0.f, 1.f};
+	app->camera.setViewport( {0, 0, 1024, 768, 0.f, 1.f} );
+	app->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
+	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, app->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 
-	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, camera_get_unit_distance( &app->cam )}, glm::vec3{0}, glm::vec3{0, 1, 0} );
-	app->cam.matrix     = camMatrix;
+	app->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
 
 	return app;
 }
@@ -703,12 +517,14 @@ static bool test_app_update( test_app_o *self ) {
 	//	std::cout << "mouse button status: " << std::bitset<8>( self->mouseData.buttonState ) << std::endl
 	//	          << std::flush;
 
-	self->cam_controller.controlRect = {0, 0, float( self->window->getSurfaceWidth() ),
-	                                    float( self->window->getSurfaceHeight() )};
-	camera_controller_update_camera( &self->cam_controller, &self->cam, &self->mouseData );
-
 	if ( self->window->shouldClose() ) {
 		return false;
+	}
+
+	{
+		// update interactive camera using mouse data
+		self->cameraController.setControlRect( 0, 0, float( self->window->getSurfaceWidth() ), float( self->window->getSurfaceHeight() ) );
+		self->cameraController.updateCamera( self->camera, &self->mouseData );
 	}
 
 	{
@@ -743,7 +559,6 @@ static bool test_app_update( test_app_o *self ) {
 
 	le::RenderModule mainModule{};
 	{
-
 		le::RenderPass resourcePass( "resource copy", LE_RENDER_PASS_TYPE_TRANSFER );
 
 		resourcePass.setSetupCallback( self, []( auto pRp, auto user_data_ ) -> bool {
@@ -977,7 +792,7 @@ static bool test_app_update( test_app_o *self ) {
 			    {10.f, 10.f, 160.f * 3.f + 10.f, 106.f * 3.f + 10.f, 0.f, 1.f},
 			};
 
-			app->cam.viewport = viewports[ 0 ];
+			app->camera.setViewport( viewports[ 0 ] );
 
 			le::Rect2D scissors[ 2 ] = {
 			    {0, 0, screenWidth, screenHeight},
@@ -1020,7 +835,7 @@ static bool test_app_update( test_app_o *self ) {
 				encoder_i.draw( encoder, 3, 1, 0, 0 );
 			}
 
-			// Bind main graphics pipeline
+			// Draw RGB triangle
 			if ( true ) {
 				encoder_i.bind_graphics_pipeline( encoder, app->psoMain );
 
@@ -1028,7 +843,8 @@ static bool test_app_update( test_app_o *self ) {
 				encoder_i.set_viewport( encoder, 0, 1, viewports );
 
 				MatrixStackUbo_t matrixStack;
-				matrixStack.projectionMatrix = camera_get_projection_matrix( &app->cam );
+
+				matrixStack.projectionMatrix = *reinterpret_cast<glm::mat4 const *>( app->camera.getProjectionMatrix() );
 
 				matrixStack.modelMatrix = glm::mat4( 1.f ); // identity matrix
 
@@ -1036,7 +852,7 @@ static bool test_app_update( test_app_o *self ) {
 				matrixStack.modelMatrix = glm::rotate( matrixStack.modelMatrix, glm::radians( r_anim_val * 360 ), glm::vec3( 0, 0, 1 ) );
 				matrixStack.modelMatrix = glm::scale( matrixStack.modelMatrix, glm::vec3( 4.5 ) );
 
-				matrixStack.viewMatrix = camera_get_view_matrix( &app->cam );
+				matrixStack.viewMatrix = *reinterpret_cast<glm::mat4 const *>( app->camera.getViewMatrix() );
 
 				encoder_i.set_argument_ubo_data( encoder, hash_64_fnv1a_const( "MatrixStack" ), &matrixStack, sizeof( MatrixStackUbo_t ) );
 				encoder_i.set_argument_ubo_data( encoder, hash_64_fnv1a_const( "Color" ), &ubo1, sizeof( ColorUbo_t ) );
@@ -1051,6 +867,7 @@ static bool test_app_update( test_app_o *self ) {
 				encoder_i.draw_indexed( encoder, 3, 1, 0, 0, 0 );
 			}
 
+			// Draw GLTF file
 			if ( true ) {
 
 				encoder_i.set_scissor( encoder, 0, 1, scissors );
@@ -1058,14 +875,15 @@ static bool test_app_update( test_app_o *self ) {
 
 				GltfUboMvp ubo;
 
-				ubo.projection = camera_get_projection_matrix( &app->cam );
+				ubo.projection = *reinterpret_cast<glm::mat4 const *>( app->camera.getProjectionMatrix() );
 				ubo.model      = glm::mat4( 1 );
 				ubo.model      = glm::translate( ubo.model, glm::vec3( 0, 0, 0 ) );
 
 				ubo.model = glm::rotate( ubo.model, glm::radians( r_val * 360.f ), glm::vec3( 0, 1, 0 ) );
 				ubo.model = glm::scale( ubo.model, glm::vec3( 400.f ) ); // identity matrix
 
-				ubo.view = camera_get_view_matrix( &app->cam );
+				ubo.view = *reinterpret_cast<glm::mat4 const *>( app->camera.getViewMatrix() );
+
 				// FIXME: we must first set the pipeline, before we can upload any arguments
 
 				gltf_i.draw( app->gltfDoc, encoder, &ubo );
