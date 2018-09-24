@@ -50,15 +50,15 @@ class @module_name_camelcase_capitalised@ : NoCopy, NoMove {
 
   public:
 	@module_name_camelcase_capitalised@()
-	    : self( @module_name@_i.create() ) {
+	    : self( @module_name@::@module_name@_i.create() ) {
 	}
 
 	~@module_name_camelcase_capitalised@() {
-		@module_name@_i.destroy( self );
+		@module_name@::@module_name@_i.destroy( self );
 	}
 
 	void update() {
-		@module_name@_i.update( self );
+		@module_name@::@module_name@_i.update( self );
 	}
 };
 
