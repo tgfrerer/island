@@ -169,7 +169,6 @@ when we record command buffers, we store index into the frame resource list - th
 
 # Next Step Features
 
-* implement camera
 * improve ergonomics, reduce lines to type
 * create a project generator
 * entity-component system for nodes
@@ -185,7 +184,6 @@ when we record command buffers, we store index into the frame resource list - th
 - Update Pipeline using builder pattern 
 - project generator for apps
 - add image loader module based on stb::image or similar
-- write c++ facades for encoder
 
 # What I'm unhappy with
 
