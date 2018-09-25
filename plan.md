@@ -158,14 +158,19 @@ Where should we *declare* resources?
 
 # Features
 
-# resource lookup in `command_buffer_encoder_interface`
+- resource lookup in `command_buffer_encoder_interface`
 
-when setup command buffers, we declare all resources - this means all resource handles can be put into a vector, where each resource is only referenced once. 
+when we setup command buffers, we declare all resources - this means all
+resource handles can be put into a vector, where each resource is only
+referenced once. 
   - this becomes the vector of frame-available resources
 
-when we acquire resources, we create a parallel vector which has the vulkan object id for each resource - indices match frame available resources vector.
+when we acquire resources, we create a matching vector which has the
+vulkan object id for each resource - indices match frame available
+resources vector.
 
-when we record command buffers, we store index into the frame resource list - that way we can be much faster at assigning resources
+when we record command buffers, we store index into the frame resource
+list - that way we can be much faster at assigning resources
 
 # Next Step Features
 
