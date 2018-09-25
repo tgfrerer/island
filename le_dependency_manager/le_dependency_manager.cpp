@@ -9,7 +9,7 @@
 
 constexpr size_t MAX_NUM_LAYER_RESOURCES                = 64;
 using BitField                                          = std::bitset<MAX_NUM_LAYER_RESOURCES>;
-constexpr uint64_t le_dependency_manager_ROOT_LAYER_TAG = hash_32_fnv1a_const( "DEPENDENCY_MANAGER_ROOT_LAYER_TAG" );
+constexpr uint64_t le_dependency_manager_ROOT_LAYER_TAG = hash_64_fnv1a_const( "DEPENDENCY_MANAGER_ROOT_LAYER_TAG" );
 
 #ifndef NDEBUG
 #	define LE_DEPENDENCY_MANAGER_USE_DEBUG_NAMES
@@ -77,7 +77,9 @@ struct le_dependency_manager_o {
  *
  * */
 
-/// tag any layers which are not root - or which provably don't contribute to any root layer
+/// \brief Tag any layers which contribute to any root layer
+/// \details We do this so that we can weed out any layers which are provably
+///          not contributing - these don't need to be executed at all.
 static void layers_tag_contributing( Layer *const layers, const size_t numLayers ) {
 
 	// we must iterate backwards from last layer to first layer
@@ -281,8 +283,10 @@ static void le_dependency_manager_resolve_dependencies( le_dependency_manager_o 
 
 	self->layers_sort_order.resize( self->layers.size(), 0 );
 
+	// Find out which layers contribute to any root layer
 	layers_tag_contributing( self->layers.data(), self->layers.size() );
 
+	// Calculate sort indices (layers which were tagged as non-contributing will receive sort index ~(0u) )
 	layers_calculate_sort_indices( self->layers.data(), self->layers.size(), self->layers_sort_order.data() );
 }
 
