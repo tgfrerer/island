@@ -67,8 +67,8 @@ This is so that the build does not create a 400MB leviathan of a debug
 symbol laden library, but a lean, 12MB release version. Note that
 building SDK tools creates both static and dynamic version of the
 shaderC library, but only adds a link to the static version of the
-library to the artifacts folder. To let this build create a symlink to
-the dynamic version of the shaderc library. Under the line:
+library to the artifacts folder. Let this build create a symlink to
+the dynamic version of the shaderc library. For this, below the line:
     
     ln -sf "$PWD"/libshaderc/libshaderc_combined.a "${LIBDIR}"/libshaderc
 
