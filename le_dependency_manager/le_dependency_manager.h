@@ -25,7 +25,7 @@ struct le_dependency_manager_api {
 		void                      ( * destroy                  ) ( le_dependency_manager_o* self );
 		void                      ( * next_root_layer          ) ( le_dependency_manager_o *self, char const *debug_name );
 		void                      ( * next_layer               ) ( le_dependency_manager_o *self, char const *debug_name );
-		void                      ( * add_resource             ) ( le_dependency_manager_o *self, uint64_t resourceID, uint8_t access_type ) ;
+		void                      ( * add_resource             ) ( le_dependency_manager_o *self, uint64_t resourceID, int access_type ) ;
 		void                      ( * resolve_dependencies     ) ( le_dependency_manager_o *self );
 		void                      ( * get_layer_sort_indices   ) ( le_dependency_manager_o* self, uint32_t** pIndices, size_t* pIndicesCount);
 		void                      ( * print_sort_order         ) ( le_dependency_manager_o* self);
@@ -47,7 +47,7 @@ const auto api = Registry::addApiStatic<le_dependency_manager_api>();
 
 static const auto &manager_i = api -> le_dependency_manager_i;
 
-enum AccessType : uint8_t {
+enum AccessType : int {
 	eAccessTypeRead      = 1 << 0,
 	eAccessTypeWrite     = 1 << 1,
 	eAccessTypeReadWrite = eAccessTypeRead | eAccessTypeWrite,

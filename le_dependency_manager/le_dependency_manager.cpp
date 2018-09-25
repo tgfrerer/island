@@ -15,11 +15,7 @@ constexpr uint64_t le_dependency_manager_ROOT_LAYER_TAG = hash_32_fnv1a_const( "
 #	define LE_DEPENDENCY_MANAGER_USE_DEBUG_NAMES
 #endif
 
-enum AccessType : int {
-	eAccessTypeRead      = 0b01,
-	eAccessTypeWrite     = 0b10,
-	eAccessTypeReadWrite = eAccessTypeRead | eAccessTypeWrite,
-};
+using namespace le_dependency_manager;
 
 struct Layer {
 	BitField reads;
@@ -36,11 +32,11 @@ struct Layer {
 /// This means there is a lookup into a vector of resources for every resource which we add to the layer - this vector may grow, so we always just store indices.
 ///
 struct le_dependency_manager_o {
-	std::array<uint64_t, MAX_NUM_LAYER_RESOURCES> knownResources; // Stores all known resources over all layers, provides us with canonical indices for each known resource
-	size_t                                        knownResourcesCount = 0;
-	std::vector<Layer>                            layers;            // r/w information for each layer. `Layer::reads` and `Layer::writes` bitfield indices correspond to `knownResources` indices
-	std::vector<uint32_t>                         layers_sort_order; // Sort order for layers
-	std::vector<uint8_t>                          layers_flags;      // bitmask representing whether a layer is a root layer (root layers and their contributors must always be processed), and whether a layer must be processed as it does contribute.
+	std::array<uint64_t, MAX_NUM_LAYER_RESOURCES> knownResources;          // Stores all known resources over all layers, provides us with canonical indices for each known resource
+	size_t                                        knownResourcesCount = 0; // count of used elements in knownResources
+	std::vector<Layer>                            layers;                  // r/w information for each layer. `Layer::reads` and `Layer::writes` bitfield indices correspond to `knownResources` indices
+	std::vector<uint32_t>                         layers_sort_order;       // Sort order for layers
+	std::vector<uint8_t>                          layers_flags;            // bitmask representing whether a layer is a root layer (root layers and their contributors must always be processed), and whether a layer must be processed as it does contribute.
 #ifdef LE_DEPENDENCY_MANAGER_USE_DEBUG_NAMES
 	std::vector<std::string> layers_debug_names; // debug name for each layer(optional), but must be same element count as layers.
 #endif
@@ -52,7 +48,13 @@ struct le_dependency_manager_o {
  *
  * Our goal is to discard any layers which have no contribution to the final product.
  *
- * 1. First eliminate any layers which have no effect on any root nodes
+ * 0. Root layers are layers which have been tagged manually as "must use" -
+ *    These layers - and their dependencies must always be seen as contributing
+ *
+ *    By default, the last layer in the ordered list of layers should be tagged as a
+ *    root layer.
+ *
+ * 1. First eliminate any layers which have no effect on any root layers
  * -- we go from last root layer to first layer .
  * -- we accumulate reads
  * -- if there is a write in l(n-1) where we have a read in l(accum) then l(n-1) is a provider.
@@ -60,18 +62,18 @@ struct le_dependency_manager_o {
  *
  * 2. Calculate sort indices for layers.
  *
- 0 00
- * 01 (used by 2)
- *
- 1 00 (can be discarded)
- * 00
- *
- 2 01
- * 01 (used by 2, 3)
- *
- 3 01
- * 10
- *
+ 0 R: 00
+ * W: 01 (used by 2)
+ * -----
+ 1 R: 00 (can be discarded)
+ * W: 00
+ * -----
+ 2 R: 01
+ * W: 01 (used by 2, 3)
+ * -----
+ 3 R: 01
+ * W: 10
+ * -----
  *
  * */
 
@@ -92,8 +94,8 @@ static void layers_tag_contributing( Layer *const layers, const size_t numLayers
 
 		bool isRoot = layer->reads[ 0 ]; // any layer which has the root signal set in the first read channel is considered a root layer
 
-		// If it's a root layer, get all reads from this layer
-		// If it's not a root layer, see first if there are any writes to currently monitored reads
+		// If it's a root layer, get all reads from (= providers to) this layer
+		// If it's not a root layer, first see if there are any writes to currently monitored reads
 		//    if yes, add all reads to monitored reads
 
 		if ( isRoot || ( layer->writes & read_accum ).any() ) {
@@ -133,7 +135,7 @@ static void layers_calculate_sort_indices( Layer const *const layers, const size
 			// Weed out any layers which are marked as non-contributing
 
 			if ( layer->reads[ 0 ] == false ) {
-				*layerO = -1; // tag layer as not contributing
+				*layerO = ~( 0u ); // tag layer as not contributing by flipping all bits
 				continue;
 			}
 
@@ -165,9 +167,6 @@ static void layers_calculate_sort_indices( Layer const *const layers, const size
 	}
 
 	// print out debug information
-	//	std::cout << "Needs barrier: " << ( needs_barrier ? "true" : "false" ) << std::endl
-	//	          << std::flush;
-
 	//	std::cout << layer->reads << " reads" << std::endl
 	//	          << std::flush;
 	//	std::cout << read_accum << " read accum" << std::endl
@@ -196,7 +195,7 @@ static void le_dependency_manager_reset( le_dependency_manager_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_dependency_manager_add_resource( le_dependency_manager_o *self, uint64_t resourceID, uint8_t access_type ) {
+static void le_dependency_manager_add_resource( le_dependency_manager_o *self, uint64_t resourceID, int access_type ) {
 	// - Check if resource is in known resources
 	// - If not, add to known resources
 
