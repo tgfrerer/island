@@ -1901,7 +1901,7 @@ static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *sel
 
 	// -- create combined hash for pipeline, renderpass
 
-	uint64_t pipeline_hash = SpookyHash::Hash64( pso_renderpass_hash_data, sizeof( pso_renderpass_hash_data ), 0 );
+	uint64_t pipeline_hash = SpookyHash::Hash64( pso_renderpass_hash_data, sizeof( pso_renderpass_hash_data ), pipeline_layout_hash );
 
 	// -- look up if pipeline with this hash already exists in cache
 	auto p = self->pipelineCache.find( pipeline_hash );
