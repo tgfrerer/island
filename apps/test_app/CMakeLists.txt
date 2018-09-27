@@ -20,7 +20,6 @@ include ("${ISLAND_BASE_DIR}CMakeLists.txt.island_prolog.in")
 add_subdirectory (test_app)
 
 # Specify any optional modules from the standard framework here
-add_island_module(simple_module)
 add_island_module(le_dependency_manager)
 add_island_module(le_camera)
 add_island_module(le_pipeline_builder)
