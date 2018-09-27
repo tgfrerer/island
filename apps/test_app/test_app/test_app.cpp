@@ -7,8 +7,6 @@
 #include "le_renderer/private/le_renderer_types.h"
 #include "le_gltf_loader/le_gltf_loader.h"
 
-#include "simple_module/simple_module.h"
-
 #include "le_camera/le_camera.h"
 
 #define VULKAN_HPP_NO_SMART_HANDLE
@@ -119,7 +117,6 @@ struct test_app_o {
 	// and de-serializing objects which are allocated on the heap. we don't have to worry about objects which are allocated
 	// on the stack, as the stack acts like a pool allocator, and they are only alife while control visits the code section
 	// in question.
-	SimpleModule testSimpleModule;
 
 	LeCamera           camera;
 	LeCameraController cameraController;
@@ -962,8 +959,6 @@ static bool test_app_update( test_app_o *self ) {
 	self->renderer->update( mainModule );
 
 	self->frame_counter++;
-
-	self->testSimpleModule.update();
 
 	return true; // keep app alive
 }
