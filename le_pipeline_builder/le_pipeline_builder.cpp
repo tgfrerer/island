@@ -52,7 +52,7 @@ constexpr uint8_t MAX_VULKAN_COLOR_ATTACHMENTS = 16; // maximum number of color 
 
 */
 
-struct le_pipeline_builder_data {
+struct le_graphics_pipeline_builder_data {
 
 	vk::PipelineRasterizationStateCreateInfo rasterizationInfo{};
 	vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState{};
@@ -64,9 +64,9 @@ struct le_pipeline_builder_data {
 };
 
 // contains everything (except renderpass/subpass) needed to create a pipeline in the backend
-struct le_pipeline_builder_o {
+struct le_graphics_pipeline_builder_o {
 
-	le_pipeline_builder_data data{};
+	le_graphics_pipeline_builder_data data{};
 
 	struct le_shader_module_o *vertexShader   = nullptr; // refers opaquely to a shader module (or not)
 	struct le_shader_module_o *fragmentShader = nullptr; // refers opaquely to a shader module (or not)
@@ -75,17 +75,10 @@ struct le_pipeline_builder_o {
 	std::vector<VkVertexInputBindingDescription>   explicitVertexInputBindingDescriptions; // only used if contains values, otherwise use from vertex shader reflection
 };
 
-// we need to store pipelineInfo objects in here- protected by a mutex.
-struct pipeline_data_cache_o {
-	std::mutex                            mtx;       // mutex protecting read/write access to this struct (we must protect read unfortunately)
-	std::vector<uint64_t>                 data_hash; // hash for each info, indices match info
-	std::vector<le_pipeline_builder_data> data;      // data where info may point into
-};
-
 // ----------------------------------------------------------------------
 
-static le_pipeline_builder_o *le_pipeline_builder_create() {
-	auto self = new le_pipeline_builder_o();
+static le_graphics_pipeline_builder_o *le_graphics_pipeline_builder_create() {
+	auto self = new le_graphics_pipeline_builder_o();
 
 	// set default values
 
@@ -164,7 +157,7 @@ static le_pipeline_builder_o *le_pipeline_builder_create() {
 
 // ----------------------------------------------------------------------
 
-static void le_pipeline_builder_set_vertex_input_attribute_descriptions( le_pipeline_builder_o *self, VkVertexInputAttributeDescription *p_input_attribute_descriptions, size_t count ) {
+static void le_graphics_pipeline_builder_set_vertex_input_attribute_descriptions( le_graphics_pipeline_builder_o *self, VkVertexInputAttributeDescription *p_input_attribute_descriptions, size_t count ) {
 	self->explicitVertexAttributeDescriptions =
 	    {p_input_attribute_descriptions,
 	     p_input_attribute_descriptions + count};
@@ -172,7 +165,7 @@ static void le_pipeline_builder_set_vertex_input_attribute_descriptions( le_pipe
 
 // ----------------------------------------------------------------------
 
-static void le_pipeline_builder_set_vertex_input_binding_descriptions( le_pipeline_builder_o *self, VkVertexInputBindingDescription *p_input_binding_descriptions, size_t count ) {
+static void le_graphics_pipeline_builder_set_vertex_input_binding_descriptions( le_graphics_pipeline_builder_o *self, VkVertexInputBindingDescription *p_input_binding_descriptions, size_t count ) {
 	self->explicitVertexInputBindingDescriptions =
 	    {p_input_binding_descriptions,
 	     p_input_binding_descriptions + count};
@@ -180,7 +173,7 @@ static void le_pipeline_builder_set_vertex_input_binding_descriptions( le_pipeli
 
 // ----------------------------------------------------------------------
 
-static void le_pipeline_builder_destroy( le_pipeline_builder_o *self ) {
+static void le_graphics_pipeline_builder_destroy( le_graphics_pipeline_builder_o *self ) {
 	delete self;
 }
 
@@ -188,11 +181,11 @@ static void le_pipeline_builder_destroy( le_pipeline_builder_o *self ) {
 
 // Calculate pipeline info hash, and add pipeline info to shared store if not yet seen.
 // Return pipeline hash
-static uint64_t le_pipeline_builder_build( le_pipeline_builder_o *self ) {
+static uint64_t le_graphics_pipeline_builder_build( le_graphics_pipeline_builder_o *self ) {
 	uint64_t hash_value{}; // hash will get updated based on values from info_objects
 
 	constexpr size_t
-	    hash_msg_size = sizeof( le_pipeline_builder_data );
+	    hash_msg_size = sizeof( le_graphics_pipeline_builder_data );
 
 	hash_value = SpookyHash::Hash64( &self->data, hash_msg_size, 0 );
 
@@ -212,24 +205,24 @@ static uint64_t le_pipeline_builder_build( le_pipeline_builder_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_pipeline_builder_set_vertex_shader( le_pipeline_builder_o *self, struct le_shader_module_o *vertexShader ) {
+static void le_graphics_pipeline_builder_set_vertex_shader( le_graphics_pipeline_builder_o *self, struct le_shader_module_o *vertexShader ) {
 	self->vertexShader = vertexShader;
 }
 
-static void le_pipeline_builder_set_fragment_shader( le_pipeline_builder_o *self, struct le_shader_module_o *fragmentShader ) {
+static void le_graphics_pipeline_builder_set_fragment_shader( le_graphics_pipeline_builder_o *self, struct le_shader_module_o *fragmentShader ) {
 	self->fragmentShader = fragmentShader;
 }
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
-	auto &i = static_cast<le_pipeline_builder_api *>( api )->le_pipeline_builder_i;
+ISL_API_ATTR void register_le_graphics_pipeline_builder_api( void *api ) {
+	auto &i = static_cast<le_graphics_pipeline_builder_api *>( api )->le_graphics_pipeline_builder_i;
 
-	i.create                                  = le_pipeline_builder_create;
-	i.destroy                                 = le_pipeline_builder_destroy;
-	i.build                                   = le_pipeline_builder_build;
-	i.set_fragment_shader                     = le_pipeline_builder_set_fragment_shader;
-	i.set_vertex_shader                       = le_pipeline_builder_set_vertex_shader;
-	i.set_vertex_input_attribute_descriptions = le_pipeline_builder_set_vertex_input_attribute_descriptions;
-	i.set_vertex_input_binding_descriptions   = le_pipeline_builder_set_vertex_input_binding_descriptions;
+	i.create                                  = le_graphics_pipeline_builder_create;
+	i.destroy                                 = le_graphics_pipeline_builder_destroy;
+	i.build                                   = le_graphics_pipeline_builder_build;
+	i.set_fragment_shader                     = le_graphics_pipeline_builder_set_fragment_shader;
+	i.set_vertex_shader                       = le_graphics_pipeline_builder_set_vertex_shader;
+	i.set_vertex_input_attribute_descriptions = le_graphics_pipeline_builder_set_vertex_input_attribute_descriptions;
+	i.set_vertex_input_binding_descriptions   = le_graphics_pipeline_builder_set_vertex_input_binding_descriptions;
 }
