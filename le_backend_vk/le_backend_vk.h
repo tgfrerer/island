@@ -25,7 +25,7 @@ struct le_backend_o;
 
 struct le_backend_vk_instance_o; // defined in le_instance_vk.cpp
 struct le_backend_vk_device_o;   // defined in le_device_vk.cpp
-
+struct le_renderpass_o;
 struct le_buffer_o;
 struct le_allocator_o;
 
@@ -45,6 +45,8 @@ struct VkPhysicalDeviceMemoryProperties;
 
 struct VkMemoryRequirements;
 struct VkMemoryAllocateInfo;
+
+struct VmaAllocationInfo;
 
 enum class LeShaderType : uint64_t; // we're forward declaring this enum, for heaven's sake...
 enum class LeResourceType : uint8_t;
@@ -69,7 +71,7 @@ struct le_backend_vk_api {
 		bool                   ( *poll_frame_fence         ) ( le_backend_o* self, size_t frameIndex);
 		bool                   ( *clear_frame              ) ( le_backend_o *self, size_t frameIndex );
 		void                   ( *process_frame            ) ( le_backend_o *self, size_t frameIndex );
-		bool                   ( *acquire_physical_resources ) ( le_backend_o *self, size_t frameIndex, struct le_renderpass_o **passes, size_t numRenderPasses  );
+		bool                   ( *acquire_physical_resources ) ( le_backend_o *self, size_t frameIndex, le_renderpass_o **passes, size_t numRenderPasses  );
 		bool                   ( *dispatch_frame           ) ( le_backend_o *self, size_t frameIndex );
 		bool                   ( *create_window_surface    ) ( le_backend_o *self, pal_window_o *window_ );
 		void                   ( *create_swapchain         ) ( le_backend_o *self, le_swapchain_vk_settings_o *swapchainSettings_ );
@@ -117,7 +119,7 @@ struct le_backend_vk_api {
 	};
 
 	struct allocator_linear_interface_t {
-		le_allocator_o *        ( *create               ) ( struct VmaAllocationInfo const *info, uint16_t alignment);
+		le_allocator_o *        ( *create               ) ( VmaAllocationInfo const *info, uint16_t alignment);
 		void                    ( *destroy              ) ( le_allocator_o *self );
 		bool                    ( *allocate             ) ( le_allocator_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset);
 		void                    ( *reset                ) ( le_allocator_o* self );

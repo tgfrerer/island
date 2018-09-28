@@ -23,7 +23,7 @@ struct le_pipeline_builder_api {
 
 	struct le_pipeline_builder_interface_t {
 
-		le_pipeline_builder_o *    ( * create                   ) ( );
+		le_pipeline_builder_o *    ( * create                   ) ( ); // TODO: needs to be created for a backend.
 		void                       ( * destroy                  ) ( le_pipeline_builder_o* self );
 
 		void                       ( * set_vertex_shader   ) ( le_pipeline_builder_o* self,  le_shader_module_o* vertex_shader);

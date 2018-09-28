@@ -33,6 +33,7 @@
 #include <list>
 #include <set>
 #include <atomic>
+#include <mutex>
 
 #include <memory>
 
@@ -70,23 +71,6 @@ struct le_shader_binding_info {
 	}
 };
 // clang-format on
-
-struct le_descriptor_set_layout_t {
-	std::vector<le_shader_binding_info> binding_info;                  // binding info for this set
-	vk::DescriptorSetLayout             vk_descriptor_set_layout;      // vk object
-	vk::DescriptorUpdateTemplate        vk_descriptor_update_template; // template used to update such a descriptorset based on descriptor data laid out in flat DescriptorData elements
-};
-
-struct le_pipeline_layout_info {
-	uint64_t pipeline_layout_key  = 0;  // handle to pipeline layout
-	uint64_t set_layout_keys[ 8 ] = {}; // maximum number of DescriptorSets is 8
-	uint64_t set_layout_count     = 0;  // number of actually used DescriptorSetLayouts for this layout
-};
-
-struct le_pipeline_and_layout_info_t {
-	vk::Pipeline            pipeline;
-	le_pipeline_layout_info layout_info;
-};
 
 // Everything a possible vulkan descriptor binding might contain.
 // Type of descriptor decides which values will be used.
@@ -335,6 +319,59 @@ struct BackendFrameData {
 };
 
 // ----------------------------------------------------------------------
+struct le_descriptor_set_layout_t {
+	std::vector<le_shader_binding_info> binding_info;                  // binding info for this set
+	vk::DescriptorSetLayout             vk_descriptor_set_layout;      // vk object
+	vk::DescriptorUpdateTemplate        vk_descriptor_update_template; // template used to update such a descriptorset based on descriptor data laid out in flat DescriptorData elements
+};
+
+struct le_pipeline_layout_info {
+	uint64_t pipeline_layout_key  = 0;  // handle to pipeline layout
+	uint64_t set_layout_keys[ 8 ] = {}; // maximum number of DescriptorSets is 8
+	uint64_t set_layout_count     = 0;  // number of actually used DescriptorSetLayouts for this layout
+};
+
+struct le_pipeline_and_layout_info_t {
+	vk::Pipeline            pipeline;
+	le_pipeline_layout_info layout_info;
+};
+
+struct pipeline_cache_o {
+	// TODO: These resources are potentially in-flight, and may be used read-only
+	// by more than one frame - but they can only be written to one thread at a time.
+
+	vk::PipelineCache vulkanCache = nullptr;
+
+	// written by: `backend_create_grapics_pipeline_state_object`,
+	std::vector<le_graphics_pipeline_state_o *> PSOs;
+
+	// read    by: `backend_get_pipeline_layout`
+	//             `backend_process_frame`
+	//             `backend_produce_pipeline_layout_info`
+	//
+	// written by: `backend_produce_pipeline_layout_info`
+	std::unordered_map<uint64_t, vk::Pipeline, IdentityHash> pipelines;
+
+	// read    by: `backend_produce_pipeline`
+	//
+	// written by: `backend_produce_pipeline`
+	std::unordered_map<uint64_t, le_pipeline_layout_info, IdentityHash> pipelineLayoutInfos;
+
+	// read by   : `backend_process_frame`,
+	//             `backend_produce_descriptor_set_layout`
+	//
+	// written by: `backend_produce_descriptor_set_layout`
+	std::unordered_map<uint64_t, le_descriptor_set_layout_t, IdentityHash> descriptorSetLayouts; // indexed by le_shader_bindings_info[] hash
+
+	// read by   : `backend_get_pipeline_layout`
+	//             `backend_process_frame`
+	//             `backend_produce_pipeline_layout_info`
+	//
+	// written by: `backend_produce_pipeline_layout_info`
+	std::unordered_map<uint64_t, vk::PipelineLayout, IdentityHash> pipelineLayouts; // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
+};
+
+// ----------------------------------------------------------------------
 
 /// \brief backend data object
 struct le_backend_o {
@@ -353,18 +390,10 @@ struct le_backend_o {
 	std::vector<le_shader_module_o *>                               shaderModules;         // OWNING. Stores all shader modules used in backend.
 	std::unordered_map<std::string, std::set<le_shader_module_o *>> moduleDependencies;    // map 'canonical shader source file path' -> [shader modules]
 	std::set<le_shader_module_o *>                                  modifiedShaderModules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
+	le_shader_compiler_o *                                          shader_compiler   = nullptr;
+	pal_file_watcher_o *                                            shaderFileWatcher = nullptr;
 
-	le_shader_compiler_o *shader_compiler   = nullptr;
-	pal_file_watcher_o *  shaderFileWatcher = nullptr;
-
-	// These resources are potentially in-flight, and may be used read-only
-	// by more than one frame.
-	std::vector<le_graphics_pipeline_state_o *>              PSOs;
-	vk::PipelineCache                                        debugPipelineCache = nullptr;
-	std::unordered_map<uint64_t, vk::Pipeline>               pipelineCache;
-	std::unordered_map<uint64_t, le_pipeline_layout_info>    pipelineLayoutInfoCache;
-	std::unordered_map<uint64_t, le_descriptor_set_layout_t> descriptorSetLayoutCache; // indexed by le_shader_bindings_info[] hash
-	std::unordered_map<uint64_t, vk::PipelineLayout>         pipelineLayoutCache;      // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
+	pipeline_cache_o pipelineCache{};
 
 	VmaAllocator mAllocator = nullptr;
 
@@ -1022,10 +1051,10 @@ static void backend_destroy( le_backend_o *self ) {
 	vk::Device device = self->device->getVkDevice();
 
 	// -- destroy any pipeline state objects
-	for ( auto &pPso : self->PSOs ) {
+	for ( auto &pPso : self->pipelineCache.PSOs ) {
 		delete ( pPso );
 	}
-	self->PSOs.clear();
+	self->pipelineCache.PSOs.clear();
 
 	// -- destroy retained shader modules
 
@@ -1042,27 +1071,27 @@ static void backend_destroy( le_backend_o *self ) {
 
 	// -- destroy descriptorSetLayouts
 
-	std::cout << "Destroying " << self->descriptorSetLayoutCache.size() << " DescriptorSetLayouts" << std::endl
+	std::cout << "Destroying " << self->pipelineCache.descriptorSetLayouts.size() << " DescriptorSetLayouts" << std::endl
 	          << std::flush;
-	for ( auto &p : self->descriptorSetLayoutCache ) {
+	for ( auto &p : self->pipelineCache.descriptorSetLayouts ) {
 		device.destroyDescriptorSetLayout( p.second.vk_descriptor_set_layout );
 		device.destroyDescriptorUpdateTemplate( p.second.vk_descriptor_update_template );
 	}
 
 	// -- destroy pipelineLayouts
-	std::cout << "Destroying " << self->pipelineLayoutCache.size() << " PipelineLayouts" << std::endl
+	std::cout << "Destroying " << self->pipelineCache.pipelineLayouts.size() << " PipelineLayouts" << std::endl
 	          << std::flush;
-	for ( auto &l : self->pipelineLayoutCache ) {
+	for ( auto &l : self->pipelineCache.pipelineLayouts ) {
 		device.destroyPipelineLayout( l.second );
 	}
 
-	for ( auto &p : self->pipelineCache ) {
+	for ( auto &p : self->pipelineCache.pipelines ) {
 		device.destroyPipeline( p.second );
 	}
-	self->pipelineCache.clear();
+	self->pipelineCache.pipelines.clear();
 
-	if ( self->debugPipelineCache ) {
-		device.destroyPipelineCache( self->debugPipelineCache );
+	if ( self->pipelineCache.vulkanCache ) {
+		device.destroyPipelineCache( self->pipelineCache.vulkanCache );
 	}
 
 	for ( auto &frameData : self->mFrames ) {
@@ -1407,7 +1436,7 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description(co
 
 // ----------------------------------------------------------------------
 
-static le_graphics_pipeline_state_o *backend_create_grapics_pipeline_state_object( le_backend_o *self, le_graphics_pipeline_create_info_t const *info ) {
+static le_graphics_pipeline_state_o *backend_create_graphics_pipeline_state_object( le_backend_o *self, le_graphics_pipeline_create_info_t const *info ) {
 	auto pso = new ( le_graphics_pipeline_state_o );
 
 	// -- add shader modules to pipeline
@@ -1480,19 +1509,19 @@ static le_graphics_pipeline_state_o *backend_create_grapics_pipeline_state_objec
 	// create_info will contain state like blend, polygon mode, culling etc.
 	pso->hash = 0x0;
 
-	self->PSOs.push_back( pso );
+	self->pipelineCache.PSOs.push_back( pso );
 	return pso;
 }
 
 // ----------------------------------------------------------------------
-// via called via decoder / produce_frame -
+// called via decoder / produce_frame -
 static vk::PipelineLayout backend_get_pipeline_layout( le_backend_o *self, le_graphics_pipeline_state_o const *pso ) {
 
 	uint64_t pipelineLayoutHash = graphics_pso_get_pipeline_layout_hash( pso );
 
-	auto foundLayout = self->pipelineLayoutCache.find( pipelineLayoutHash );
+	auto foundLayout = self->pipelineCache.pipelineLayouts.find( pipelineLayoutHash );
 
-	if ( foundLayout != self->pipelineLayoutCache.end() ) {
+	if ( foundLayout != self->pipelineCache.pipelineLayouts.end() ) {
 		return foundLayout->second;
 	} else {
 		std::cerr << "ERROR: Could not find pipeline layout with hash: " << std::hex << pipelineLayoutHash << std::endl
@@ -1501,6 +1530,9 @@ static vk::PipelineLayout backend_get_pipeline_layout( le_backend_o *self, le_gr
 		return nullptr;
 	}
 }
+
+// ----------------------------------------------------------------------
+// NEXT: gpso builder methods
 
 // ----------------------------------------------------------------------
 static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pipeline_state_o const *pso, const Pass &pass, uint32_t subpass ) {
@@ -1662,7 +1694,7 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setBasePipelineIndex( 0 ) // -1 signals not to use a base pipeline index
 	    ;
 
-	auto pipeline = vkDevice.createGraphicsPipeline( self->debugPipelineCache, gpi );
+	auto pipeline = vkDevice.createGraphicsPipeline( self->pipelineCache.vulkanCache, gpi );
 	return pipeline;
 }
 
@@ -1673,9 +1705,9 @@ static uint64_t backend_produce_descriptor_set_layout( le_backend_o *self, std::
 	// -- calculate hash based on le_shader_binding_infos for this set
 	uint64_t set_layout_hash = SpookyHash::Hash64( bindings.data(), bindings.size() * sizeof( le_shader_binding_info ), 0 );
 
-	auto foundLayout = self->descriptorSetLayoutCache.find( set_layout_hash );
+	auto foundLayout = self->pipelineCache.descriptorSetLayouts.find( set_layout_hash );
 
-	if ( foundLayout == self->descriptorSetLayoutCache.end() ) {
+	if ( foundLayout == self->pipelineCache.descriptorSetLayouts.end() ) {
 
 		// layout was not found in cache, we must create vk objects.
 
@@ -1776,7 +1808,7 @@ static uint64_t backend_produce_descriptor_set_layout( le_backend_o *self, std::
 		le_layout_info.binding_info                  = bindings;
 		le_layout_info.vk_descriptor_update_template = updateTemplate;
 
-		self->descriptorSetLayoutCache[ set_layout_hash ] = std::move( le_layout_info );
+		self->pipelineCache.descriptorSetLayouts[ set_layout_hash ] = std::move( le_layout_info );
 	} else {
 
 		// layout was found in cache.
@@ -1834,9 +1866,9 @@ static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_
 
 	// -- Attempt to find this pipelineLayout from cache, if we can't find one, we create and retain it.
 
-	auto found_pl = self->pipelineLayoutCache.find( info.pipeline_layout_key );
+	auto found_pl = self->pipelineCache.pipelineLayouts.find( info.pipeline_layout_key );
 
-	if ( found_pl == self->pipelineLayoutCache.end() ) {
+	if ( found_pl == self->pipelineCache.pipelineLayouts.end() ) {
 
 		vk::Device                   device = self->device->getVkDevice();
 		vk::PipelineLayoutCreateInfo layoutCreateInfo;
@@ -1848,7 +1880,7 @@ static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_
 		    .setPPushConstantRanges( nullptr );
 
 		// create vkPipelineLayout and store it in cache.
-		self->pipelineLayoutCache[ info.pipeline_layout_key ] = device.createPipelineLayout( layoutCreateInfo );
+		self->pipelineCache.pipelineLayouts[ info.pipeline_layout_key ] = device.createPipelineLayout( layoutCreateInfo );
 	}
 
 	return info;
@@ -1872,15 +1904,15 @@ static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *sel
 
 	uint64_t pipeline_layout_hash = graphics_pso_get_pipeline_layout_hash( pso );
 
-	auto pl = self->pipelineLayoutInfoCache.find( pipeline_layout_hash );
+	auto pl = self->pipelineCache.pipelineLayoutInfos.find( pipeline_layout_hash );
 
-	if ( pl == self->pipelineLayoutInfoCache.end() ) {
+	if ( pl == self->pipelineCache.pipelineLayoutInfos.end() ) {
 
 		// this will also create vulkan objects for pipeline layout / descriptor set layout and cache them
 		pipeline_and_layout_info.layout_info = backend_produce_pipeline_layout_info( self, pso );
 
 		// store in cache
-		self->pipelineLayoutInfoCache[ pipeline_layout_hash ] = pipeline_and_layout_info.layout_info;
+		self->pipelineCache.pipelineLayoutInfos[ pipeline_layout_hash ] = pipeline_and_layout_info.layout_info;
 	} else {
 		pipeline_and_layout_info.layout_info = pl->second;
 	}
@@ -1900,9 +1932,9 @@ static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *sel
 	uint64_t pipeline_hash = SpookyHash::Hash64( pso_renderpass_hash_data, sizeof( pso_renderpass_hash_data ), pipeline_layout_hash );
 
 	// -- look up if pipeline with this hash already exists in cache
-	auto p = self->pipelineCache.find( pipeline_hash );
+	auto p = self->pipelineCache.pipelines.find( pipeline_hash );
 
-	if ( p == self->pipelineCache.end() ) {
+	if ( p == self->pipelineCache.pipelines.end() ) {
 
 		// -- if not, create pipeline in pipeline cache and store / retain it
 		pipeline_and_layout_info.pipeline = backend_create_pipeline( self, pso, pass, subpass );
@@ -1910,7 +1942,7 @@ static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *sel
 		std::cout << "New VK Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
 		          << std::flush;
 
-		self->pipelineCache[ pipeline_hash ] = pipeline_and_layout_info.pipeline;
+		self->pipelineCache.pipelines[ pipeline_hash ] = pipeline_and_layout_info.pipeline;
 	} else {
 		// -- else return pipeline found in hash map
 		pipeline_and_layout_info.pipeline = p->second;
@@ -2039,7 +2071,7 @@ static void backend_setup( le_backend_o *self ) {
 	    .setInitialDataSize( 0 )
 	    .setPInitialData( nullptr );
 
-	self->debugPipelineCache = vkDevice.createPipelineCache( pipelineCacheInfo );
+	self->pipelineCache.vulkanCache = vkDevice.createPipelineCache( pipelineCacheInfo );
 
 	self->resource_counter      = 1;                                                        // initialize resource counter to 1, 0 means invalid not initialised resource.
 	self->backBufferImageHandle = backend_declare_resource( self, LeResourceType::eImage ); // initialize backbuffer image handle
@@ -3381,7 +3413,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						currentPipeline = backend_produce_pipeline( self, le_cmd->info.pso, pass, subpassIndex );
 
 						// -- grab current pipeline layout from cache
-						currentPipelineLayout = self->pipelineLayoutCache[ currentPipeline.layout_info.pipeline_layout_key ];
+						currentPipelineLayout = self->pipelineCache.pipelineLayouts[ currentPipeline.layout_info.pipeline_layout_key ];
 
 						{
 							// -- update pipelineData - that's the data values for all descriptors which are currently bound
@@ -3397,7 +3429,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 								// look up set layout info via set layout key
 								auto const &set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
-								auto const &setLayoutInfo  = self->descriptorSetLayoutCache.at( set_layout_key );
+								auto const &setLayoutInfo  = self->pipelineCache.descriptorSetLayouts.at( set_layout_key );
 
 								auto &setData = argumentState.setData[ setId ];
 
@@ -3774,7 +3806,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.dispatch_frame                        = backend_dispatch_frame;
 	vk_backend_i.create_shader_module                  = backend_create_shader_module;
 	vk_backend_i.update_shader_modules                 = backend_update_shader_modules;
-	vk_backend_i.create_graphics_pipeline_state_object = backend_create_grapics_pipeline_state_object;
+	vk_backend_i.create_graphics_pipeline_state_object = backend_create_graphics_pipeline_state_object;
 	vk_backend_i.declare_resource                      = backend_declare_resource;
 	vk_backend_i.get_backbuffer_resource               = backend_get_backbuffer_resource;
 
