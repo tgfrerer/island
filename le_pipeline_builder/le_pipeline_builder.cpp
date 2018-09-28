@@ -17,34 +17,38 @@ constexpr uint8_t MAX_VULKAN_COLOR_ATTACHMENTS = 16; // maximum number of color 
 
 /*
 
-  These are the fields that must be set to create a Pipeline:
+  where do we store pipeline state objects? the best place is probably the backend.
+  the backend then is also responsible for synchronising access.
 
-		.setStageCount( uint32_t( pipelineStages.size() ) ) // held outside
-		.setPStages( pipelineStages.data() )				// held outside
-		.setPVertexInputState( &vertexInputStageInfo )		// held outside
+  When a pipeline state object is built, the hash for the pipeline state object is calculated.
+  - if this hash already exists in the cache, we return the hash
+  - if this hash does not exist in the cache, we must store the pipeline object in the cache,
+	then return the hash.
 
-		.setPInputAssemblyState( &inputAssemblyState )
+  Where does the cache live? It must be accessible to the backend, since the backend compiles pipelines
+  based on the pipeline state objects.
 
-		.setPTessellationState( nullptr )
+  A pipeline builder therefore must be created from a backend, so that it can access the backend, and update
+  the pipeline state object cache if necessary.
 
-		.setPViewportState( &viewportState )
+  Thread safety:
 
-		.setPRasterizationState( &pso->rasterizationInfo )
+  - multiple renderpasses may write to or read from pso cache (read mostly happens to hash_ids)
+	- access here is looking whether pso with hash is already in cache
+	- if not, write to the cache
+  - multiple frames may access pso cache: when processing commandbuffers
+	- lookup pso hashes for index
+	- read from pso state based on found hash index
+  - Write access is therefore only if there is a new pso and it must be added to the cache.
 
-		.setPMultisampleState( &multisampleState )
+  - we need to protect access to pso cache so that its thread safe
+	- consider using a shared_mutex - either: multiple readers - or one single writer
 
-		.setPDepthStencilState( &depthStencilState )
+	a pipeline builder *must* be associated with a backend, so that we can
+	write pso data back to the backend's cache.
 
-		.setPColorBlendState( &colorBlendState ) // count and number ot attachments, plus blend constants
-
-		.setPDynamicState( &dynamicState ) // count and pointer to dynamic states
-
-		.setLayout( pipelineLayout )
-		.setRenderPass( pass.renderPass ) // must be a valid renderpass.
-		.setSubpass( subpass )
-		.setBasePipelineHandle( nullptr )
-		.setBasePipelineIndex( 0 ) // -1 signals not to use a base pipeline index
-
+	does this mean that the pipeline builder is an object inside the backend api?
+	it is strongly suggested.
 
 */
 
@@ -59,6 +63,7 @@ struct le_pipeline_builder_data {
 	std::array<vk::PipelineColorBlendAttachmentState, MAX_VULKAN_COLOR_ATTACHMENTS> blendAttachmentStates{};
 };
 
+// contains everything (except renderpass/subpass) needed to create a pipeline in the backend
 struct le_pipeline_builder_o {
 
 	le_pipeline_builder_data data{};
@@ -66,10 +71,8 @@ struct le_pipeline_builder_o {
 	struct le_shader_module_o *vertexShader   = nullptr; // refers opaquely to a shader module (or not)
 	struct le_shader_module_o *fragmentShader = nullptr; // refers opaquely to a shader module (or not)
 
-	std::vector<le_vertex_input_attribute_description> explicitVertexAttributeDescriptions; // only used if explicitly told to, otherwise use from vertex shader reflection
-	std::vector<le_vertex_input_binding_description>   explicitVertexBindingDescriptions;   // only used if explicitly told to, otherwise use from vertex shader reflection
-
-	bool useExplicitVertexInputDescriptions = false;
+	std::vector<VkVertexInputAttributeDescription> explicitVertexAttributeDescriptions;    // only used if contains values, otherwise use from vertex shader reflection
+	std::vector<VkVertexInputBindingDescription>   explicitVertexInputBindingDescriptions; // only used if contains values, otherwise use from vertex shader reflection
 };
 
 // we need to store pipelineInfo objects in here- protected by a mutex.
@@ -161,7 +164,7 @@ static le_pipeline_builder_o *le_pipeline_builder_create() {
 
 // ----------------------------------------------------------------------
 
-static void le_pipeline_builder_set_vertex_input_attribute_descriptions( le_pipeline_builder_o *self, le_vertex_input_attribute_description *p_input_attribute_descriptions, size_t count ) {
+static void le_pipeline_builder_set_vertex_input_attribute_descriptions( le_pipeline_builder_o *self, VkVertexInputAttributeDescription *p_input_attribute_descriptions, size_t count ) {
 	self->explicitVertexAttributeDescriptions =
 	    {p_input_attribute_descriptions,
 	     p_input_attribute_descriptions + count};
@@ -169,8 +172,8 @@ static void le_pipeline_builder_set_vertex_input_attribute_descriptions( le_pipe
 
 // ----------------------------------------------------------------------
 
-static void le_pipeline_builder_set_vertex_input_binding_descriptions( le_pipeline_builder_o *self, le_vertex_input_binding_description *p_input_binding_descriptions, size_t count ) {
-	self->explicitVertexBindingDescriptions =
+static void le_pipeline_builder_set_vertex_input_binding_descriptions( le_pipeline_builder_o *self, VkVertexInputBindingDescription *p_input_binding_descriptions, size_t count ) {
+	self->explicitVertexInputBindingDescriptions =
 	    {p_input_binding_descriptions,
 	     p_input_binding_descriptions + count};
 }

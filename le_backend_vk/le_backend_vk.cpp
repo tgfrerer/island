@@ -354,20 +354,17 @@ struct le_backend_o {
 	std::unordered_map<std::string, std::set<le_shader_module_o *>> moduleDependencies;    // map 'canonical shader source file path' -> [shader modules]
 	std::set<le_shader_module_o *>                                  modifiedShaderModules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
 
-	std::vector<le_graphics_pipeline_state_o *> PSOs;
+	le_shader_compiler_o *shader_compiler   = nullptr;
+	pal_file_watcher_o *  shaderFileWatcher = nullptr;
 
 	// These resources are potentially in-flight, and may be used read-only
 	// by more than one frame.
-	vk::PipelineCache debugPipelineCache = nullptr;
-
-	std::unordered_map<uint64_t, vk::Pipeline>            pipelineCache;
-	std::unordered_map<uint64_t, le_pipeline_layout_info> pipelineLayoutInfoCache;
-
+	std::vector<le_graphics_pipeline_state_o *>              PSOs;
+	vk::PipelineCache                                        debugPipelineCache = nullptr;
+	std::unordered_map<uint64_t, vk::Pipeline>               pipelineCache;
+	std::unordered_map<uint64_t, le_pipeline_layout_info>    pipelineLayoutInfoCache;
 	std::unordered_map<uint64_t, le_descriptor_set_layout_t> descriptorSetLayoutCache; // indexed by le_shader_bindings_info[] hash
 	std::unordered_map<uint64_t, vk::PipelineLayout>         pipelineLayoutCache;      // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
-
-	le_shader_compiler_o *shader_compiler   = nullptr;
-	pal_file_watcher_o *  shaderFileWatcher = nullptr;
 
 	VmaAllocator mAllocator = nullptr;
 
@@ -1326,7 +1323,6 @@ static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_ver
 }
 
 // clang-format off
-
 /// \returns corresponding vk::Format for a given le_input_attribute_description struct
 static inline vk::Format vk_format_from_le_vertex_input_attribute_description(const le_vertex_input_attribute_description* d){
 
@@ -3255,7 +3251,7 @@ static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, si
 }
 
 // ----------------------------------------------------------------------
-// Decode commandStream for each pass (may happen in paralell)
+// Decode commandStream for each pass (may happen in parallel)
 // translate into vk specific commands.
 static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
@@ -3279,6 +3275,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 	std::array<vk::ClearValue, 16> clearValues{};
 
 	// TODO: (parallel for)
+	// note that access to any caches when creating pipelines and layouts and descriptorsets must be
+	// mutex-controlled when processing happens concurrently.
 	for ( size_t passIndex = 0; passIndex != frame.passes.size(); ++passIndex ) {
 
 		auto &pass           = frame.passes[ passIndex ];

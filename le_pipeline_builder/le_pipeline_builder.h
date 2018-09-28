@@ -11,8 +11,8 @@ extern "C" {
 struct le_pipeline_builder_o;
 struct le_shader_module_o;
 
-struct le_vertex_input_attribute_description;
-struct le_vertex_input_binding_description;
+struct VkVertexInputAttributeDescription;
+struct VkVertexInputBindingDescription;
 
 void register_le_pipeline_builder_api( void *api );
 
@@ -29,13 +29,13 @@ struct le_pipeline_builder_api {
 		void                       ( * set_vertex_shader   ) ( le_pipeline_builder_o* self,  le_shader_module_o* vertex_shader);
 		void                       ( * set_fragment_shader ) ( le_pipeline_builder_o* self,  le_shader_module_o* fragment_shader);
 
-		void                       ( * set_vertex_input_attribute_descriptions )(le_pipeline_builder_o* self, le_vertex_input_attribute_description* p_input_attribute_descriptions, size_t count);
-		void                       ( * set_vertex_input_binding_descriptions   )(le_pipeline_builder_o* self, le_vertex_input_binding_description* p_input_binding_descriptions, size_t count);
+		void                       ( * set_vertex_input_attribute_descriptions )(le_pipeline_builder_o* self, VkVertexInputAttributeDescription* p_input_attribute_descriptions, size_t count);
+		void                       ( * set_vertex_input_binding_descriptions   )(le_pipeline_builder_o* self, VkVertexInputBindingDescription* p_input_binding_descriptions, size_t count);
 
 		uint64_t                   ( * build )(le_pipeline_builder_o* self );
 	};
 
-	le_pipeline_builder_interface_t       le_pipeline_builder_i;
+	le_pipeline_builder_interface_t le_pipeline_builder_i;
 };
 // clang-format on
 
@@ -80,12 +80,12 @@ class LePipelineBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	LePipelineBuilder &setVertexInputAttributeDescriptions( le_vertex_input_attribute_description *pDescr, size_t count ) {
+	LePipelineBuilder &setVertexInputAttributeDescriptions( VkVertexInputAttributeDescription *pDescr, size_t count ) {
 		le_pipeline_builder::le_pipeline_builder_i.set_vertex_input_attribute_descriptions( self, pDescr, count );
 		return *this;
 	}
 
-	LePipelineBuilder &setVertexInputBindingDescriptions( le_vertex_input_binding_description *pDescr, size_t count ) {
+	LePipelineBuilder &setVertexInputBindingDescriptions( VkVertexInputBindingDescription *pDescr, size_t count ) {
 		le_pipeline_builder::le_pipeline_builder_i.set_vertex_input_binding_descriptions( self, pDescr, count );
 		return *this;
 	}

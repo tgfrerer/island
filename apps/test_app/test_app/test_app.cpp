@@ -8,6 +8,7 @@
 #include "le_gltf_loader/le_gltf_loader.h"
 
 #include "le_camera/le_camera.h"
+#include "le_pipeline_builder/le_pipeline_builder.h"
 
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
@@ -352,6 +353,43 @@ static test_app_o *test_app_create() {
 				bindings[ 0 ].binding    = 0;
 				bindings[ 0 ].input_rate = le_vertex_input_binding_description::ePerVertex;
 				bindings[ 0 ].stride     = sizeof( ImDrawVert );
+			}
+
+			{
+				std::array<VkVertexInputAttributeDescription, 3> attrs    = {};
+				std::array<VkVertexInputBindingDescription, 1>   bindings = {};
+				{
+					// location 0, binding 0
+					attrs[ 0 ].location = 0;                           // refers to shader parameter location
+					attrs[ 0 ].binding  = 0;                           // refers to bound buffer index
+					attrs[ 0 ].offset   = offsetof( ImDrawVert, pos ); // offset into bound buffer
+					attrs[ 1 ].format   = VK_FORMAT_R32G32_SFLOAT;
+
+					// location 1, binding 0
+					attrs[ 1 ].location = 1;
+					attrs[ 1 ].binding  = 0;
+					attrs[ 1 ].offset   = offsetof( ImDrawVert, uv );
+					attrs[ 1 ].format   = VK_FORMAT_R32G32_SFLOAT;
+
+					// location 2, binding 0
+					attrs[ 2 ].location = 2;
+					attrs[ 2 ].binding  = 0;
+					attrs[ 2 ].offset   = offsetof( ImDrawVert, col );
+					attrs[ 2 ].format   = VK_FORMAT_R8G8B8A8_UNORM;
+				}
+				{
+					// binding 0
+					bindings[ 0 ].binding   = 0;
+					bindings[ 0 ].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+					bindings[ 0 ].stride    = sizeof( ImDrawVert );
+				}
+
+				uint64_t pipeline_hash = LePipelineBuilder()
+				                             .setFragmentShader( imguiFragShader )
+				                             .setVertexShader( imguiVertShader )
+				                             .setVertexInputAttributeDescriptions( attrs.data(), attrs.size() )
+				                             .setVertexInputBindingDescriptions( bindings.data(), bindings.size() )
+				                             .build();
 			}
 
 			imGuiPipelineInfo.shader_module_frag = imguiFragShader;
@@ -845,7 +883,7 @@ static bool test_app_update( test_app_o *self ) {
 				matrixStack.modelMatrix = glm::rotate( matrixStack.modelMatrix, glm::radians( r_anim_val * 360 ), glm::vec3( 0, 0, 1 ) );
 				matrixStack.modelMatrix = glm::scale( matrixStack.modelMatrix, glm::vec3( 4.5 ) );
 
-				matrixStack.viewMatrix = *reinterpret_cast<glm::mat4 const *>( app->camera.getViewMatrix() );
+				matrixStack.viewMatrix = reinterpret_cast<glm::mat4 const &>( *app->camera.getViewMatrix() );
 
 				encoder_i.set_argument_ubo_data( encoder, hash_64_fnv1a_const( "MatrixStack" ), &matrixStack, sizeof( MatrixStackUbo_t ) );
 				encoder_i.set_argument_ubo_data( encoder, hash_64_fnv1a_const( "Color" ), &ubo1, sizeof( ColorUbo_t ) );
