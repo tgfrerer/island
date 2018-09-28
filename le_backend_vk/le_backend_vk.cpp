@@ -1220,7 +1220,8 @@ static uint64_t graphics_pso_get_pipeline_layout_hash( le_graphics_pipeline_stat
 // and the pso's hash_pipeline_layouts
 // currently, we assume bindings to be non-sparse, but it's possible that sparse bindings
 // are allowed by the standard. let's check.
-static std::vector<le_shader_binding_info> graphics_pso_create_bindings_list( le_graphics_pipeline_state_o const *pso ) {
+// TODO: extend this to allow more than just vert/frag shaders.
+static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( le_shader_module_o const *vert, le_shader_module_o const *const frag ) {
 
 	std::vector<le_shader_binding_info> combined_bindings;
 
@@ -1230,16 +1231,16 @@ static std::vector<le_shader_binding_info> graphics_pso_create_bindings_list( le
 	// TODO: optimise: we only need to re-calculate bindings when
 	// the shader pipelinelayout has changed.
 
-	size_t maxNumBindings = pso->shaderModuleVert->bindings.size() +
-	                        pso->shaderModuleFrag->bindings.size();
+	size_t maxNumBindings = vert->bindings.size() +
+	                        frag->bindings.size();
 
 	// -- make space for the full number of bindings
 	// note that there could be more bindings than that
 
 	combined_bindings.reserve( maxNumBindings );
 
-	auto vBinding = pso->shaderModuleVert->bindings.begin();
-	auto fBinding = pso->shaderModuleFrag->bindings.begin();
+	auto vBinding = vert->bindings.begin();
+	auto fBinding = frag->bindings.begin();
 
 	// create a bitmask which compares only setIndex and binding number form a binding
 
@@ -1256,16 +1257,16 @@ static std::vector<le_shader_binding_info> graphics_pso_create_bindings_list( le
 		// Find the lowest binding, and push it back to the
 		// vector of combined bindings
 
-		if ( fBinding == pso->shaderModuleFrag->bindings.end() &&
-		     vBinding == pso->shaderModuleVert->bindings.end() ) {
+		if ( fBinding == frag->bindings.end() &&
+		     vBinding == vert->bindings.end() ) {
 			// no more bindings left to process...
 			break;
-		} else if ( fBinding == pso->shaderModuleFrag->bindings.end() &&
-		            vBinding != pso->shaderModuleVert->bindings.end() ) {
+		} else if ( fBinding == frag->bindings.end() &&
+		            vBinding != vert->bindings.end() ) {
 			combined_bindings.emplace_back( *vBinding );
 			vBinding++;
-		} else if ( vBinding == pso->shaderModuleVert->bindings.end() &&
-		            fBinding != pso->shaderModuleFrag->bindings.end() ) {
+		} else if ( vBinding == vert->bindings.end() &&
+		            fBinding != frag->bindings.end() ) {
 			combined_bindings.emplace_back( *fBinding );
 			fBinding++;
 		} else if ( ( vBinding->data & sort_mask ) == ( fBinding->data & sort_mask ) ) {
@@ -1288,13 +1289,15 @@ static std::vector<le_shader_binding_info> graphics_pso_create_bindings_list( le
 			// elements captured by compare mask must be identical
 			if ( bindingDataIsConsistent ) {
 
+				le_shader_binding_info combinedBinding = *vBinding;
+
 				if ( !bindingNameIsConsistent ) {
 					// This is not tragic, but we need to flag up that this binding is not
 					// consistently named in case this hints at a bigger issue.
 
 					std::cout << "Warning: Inconsistent name in Set: " << vBinding->setIndex << ", for binding: " << vBinding->binding << std::endl
-					          << "\t shader vert: " << pso->shaderModuleVert->filepath << std::endl
-					          << "\t shader frag: " << pso->shaderModuleFrag->filepath << std::endl
+					          << "\t shader vert: " << vert->filepath << std::endl
+					          << "\t shader frag: " << frag->filepath << std::endl
 					          << "Using name given in VERTEX stage for this binding." << std::endl
 					          << std::flush;
 				}
@@ -1304,24 +1307,24 @@ static std::vector<le_shader_binding_info> graphics_pso_create_bindings_list( le
 					// If we're dealing with a buffer type, we must check ranges
 					// TODO: if one of them has range == 0, that means this shader stage can be ignored
 					// If they have not the same range, that means we need to take the largest range of them both
-					vBinding->range = std::max( vBinding->range, fBinding->range );
+					combinedBinding.range = std::max( vBinding->range, fBinding->range );
 				}
 
 				// -- combine stage bits so that descriptor will be available for both
 				// stages.
-				vBinding->stage_bits |= fBinding->stage_bits;
+				combinedBinding.stage_bits = vBinding->stage_bits | fBinding->stage_bits;
 
 				// if count is not identical,that's not that bad, we adjust to larger of the two
-				vBinding->count = std::max( vBinding->count, fBinding->count );
+				combinedBinding.count = std::max( vBinding->count, fBinding->count );
 
-				combined_bindings.emplace_back( *vBinding );
+				combined_bindings.emplace_back( combinedBinding );
 
 			} else {
 
 				std::cerr << "ERROR: Shader binding mismatch in set: " << vBinding->setIndex
 				          << ", binding: " << vBinding->binding << std::endl
-				          << "\t shader vert: " << pso->shaderModuleVert->filepath << std::endl
-				          << "\t shader frag: " << pso->shaderModuleFrag->filepath << std::endl
+				          << "\t shader vert: " << vert->filepath << std::endl
+				          << "\t shader frag: " << frag->filepath << std::endl
 				          << std::flush;
 				assert( false ); // abandon all hope.
 			};
@@ -1824,7 +1827,7 @@ static uint64_t backend_produce_descriptor_set_layout( le_backend_o *self, std::
 static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_o *self, le_graphics_pipeline_state_o const *pso ) {
 	le_pipeline_layout_info info{};
 
-	std::vector<le_shader_binding_info> combined_bindings = graphics_pso_create_bindings_list( pso );
+	std::vector<le_shader_binding_info> combined_bindings = shader_modules_get_bindings_list( pso->shaderModuleVert, pso->shaderModuleFrag );
 
 	// -- Create array of DescriptorSetLayouts
 	std::array<vk::DescriptorSetLayout, 8> vkLayouts{};
