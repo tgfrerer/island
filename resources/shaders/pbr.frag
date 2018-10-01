@@ -10,6 +10,5 @@ layout (location = 0) out vec4 outColor;
 void main()
 {
 	vec4 normalColor = vec4(inNormal*0.5 + vec3(0.5),1);
-	outColor =vec4(1);
 	outColor = normalColor;
 }

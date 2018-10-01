@@ -114,7 +114,7 @@ struct le_vertex_input_attribute_description {
 		struct {
 			uint8_t  location;       /// 0..32 shader attribute location
 			uint8_t  binding;        /// 0..32 binding slot
-			uint16_t binding_offset; /// 0..65565 offset for this location within binding (careful: must not be larget than maxVertexInputAttributeOffset [0.0x7ff])
+			uint16_t binding_offset; /// 0..65565 offset for this location within binding (careful: must not be larger than maxVertexInputAttributeOffset [0.0x7ff])
 			Type     type;           /// base type for attribute
 			uint8_t  vecsize;        /// 0..7 number of elements of base type
 			uint8_t  isNormalised;   /// whether this input comes pre-normalized
@@ -523,7 +523,7 @@ class RenderPassRef {
 	                                                                                 nullptr,
 	                                                                                 0,
 	                                                                                 {},
-                                                                                 } ) {
+                                                                                     } ) {
 		return addImageAttachment( resource_id, info );
 	}
 

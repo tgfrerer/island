@@ -57,30 +57,6 @@ struct le_mouse_event_data_o {
 	glm::vec2 cursor_pos;
 };
 
-struct camera_o {
-	glm::mat4    matrix;       // camera position in world space
-	float        fovRadians{}; // field of view angle (in radians)
-	le::Viewport viewport;     // current camera viewport
-};
-
-struct camera_controller_o {
-
-	glm::mat4 matrix; // initial transform
-
-	enum Mode {
-		eNeutral = 0,
-		eRotXY   = 1,
-		eRotZ,
-		eTranslateXY,
-		eTranslateZ,
-	};
-
-	Mode                 mode{};
-	std::array<float, 4> controlRect = {}; // active rectangle for mouse inputs
-
-	glm::vec2 mouse_pos_initial; // initial position of mouse on mouse_down
-};
-
 struct test_app_o {
 	std::unique_ptr<le::Backend>  backend;
 	std::unique_ptr<pal::Window>  window;
