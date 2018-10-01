@@ -301,32 +301,36 @@ static test_app_o *test_app_create() {
 			auto imguiVertShader = app->renderer->createShaderModule( "./resources/shaders/imgui.vert", LeShaderType::eVert );
 			auto imguiFragShader = app->renderer->createShaderModule( "./resources/shaders/imgui.frag", LeShaderType::eFrag );
 
-			std::array<VkVertexInputAttributeDescription, 3> attrs    = {};
-			std::array<VkVertexInputBindingDescription, 1>   bindings = {};
+			std::array<le_vertex_input_attribute_description, 3> attrs    = {};
+			std::array<le_vertex_input_binding_description, 1>   bindings = {};
 			{
 				// location 0, binding 0
-				attrs[ 0 ].location = 0;                           // refers to shader parameter location
-				attrs[ 0 ].binding  = 0;                           // refers to bound buffer index
-				attrs[ 0 ].offset   = offsetof( ImDrawVert, pos ); // offset into bound buffer
-				attrs[ 0 ].format   = VK_FORMAT_R32G32_SFLOAT;
+				attrs[ 0 ].location       = 0;                           // refers to shader parameter location
+				attrs[ 0 ].binding        = 0;                           // refers to bound buffer index
+				attrs[ 0 ].binding_offset = offsetof( ImDrawVert, pos ); // offset into bound buffer
+				attrs[ 0 ].type           = le_vertex_input_attribute_description::eFloat;
+				attrs[ 0 ].vecsize        = 2;
 
 				// location 1, binding 0
-				attrs[ 1 ].location = 1;
-				attrs[ 1 ].binding  = 0;
-				attrs[ 1 ].offset   = offsetof( ImDrawVert, uv );
-				attrs[ 1 ].format   = VK_FORMAT_R32G32_SFLOAT;
+				attrs[ 1 ].location       = 1;
+				attrs[ 1 ].binding        = 0;
+				attrs[ 1 ].binding_offset = offsetof( ImDrawVert, uv );
+				attrs[ 1 ].type           = le_vertex_input_attribute_description::eFloat;
+				attrs[ 1 ].vecsize        = 2;
 
 				// location 2, binding 0
-				attrs[ 2 ].location = 2;
-				attrs[ 2 ].binding  = 0;
-				attrs[ 2 ].offset   = offsetof( ImDrawVert, col );
-				attrs[ 2 ].format   = VK_FORMAT_R8G8B8A8_UNORM;
+				attrs[ 2 ].location       = 2;
+				attrs[ 2 ].binding        = 0;
+				attrs[ 2 ].binding_offset = offsetof( ImDrawVert, col );
+				attrs[ 2 ].type           = le_vertex_input_attribute_description::eChar;
+				attrs[ 2 ].vecsize        = 4;
+				attrs[ 2 ].isNormalised   = true;
 			}
 			{
 				// binding 0
-				bindings[ 0 ].binding   = 0;
-				bindings[ 0 ].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-				bindings[ 0 ].stride    = sizeof( ImDrawVert );
+				bindings[ 0 ].binding    = 0;
+				bindings[ 0 ].input_rate = le_vertex_input_binding_description::INPUT_RATE::ePerVertex;
+				bindings[ 0 ].stride     = sizeof( ImDrawVert );
 			}
 
 			// NICE: Setting this static means that the builder only runs for the very first time.
@@ -812,8 +816,8 @@ static bool test_app_update( test_app_o *self ) {
 				    .setDepthClampEnable( VK_FALSE )
 				    .setRasterizerDiscardEnable( VK_FALSE )
 				    .setPolygonMode( vk::PolygonMode::eFill )
-				    .setCullMode( vk::CullModeFlagBits::eBack )
-				    .setFrontFace( vk::FrontFace::eCounterClockwise )
+				    //				    .setCullMode( vk::CullModeFlagBits::eBack )
+				    //				    .setFrontFace( vk::FrontFace::eCounterClockwise )
 				    .setDepthBiasEnable( VK_FALSE )
 				    .setDepthBiasConstantFactor( 0.f )
 				    .setDepthBiasClamp( 0.f )

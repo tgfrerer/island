@@ -7,11 +7,207 @@
 #	define LE_DEFINE_HANDLE( object ) typedef struct object##_T *object;
 #	define LE_DEFINE_HANDLE_GUARD
 #endif
+
 LE_DEFINE_HANDLE( LeResourceHandle )
+
 
 struct LeBufferWriteRegion {
 	uint32_t width;
 	uint32_t height;
+};
+
+enum LeRenderPassType : uint32_t {
+        LE_RENDER_PASS_TYPE_UNDEFINED = 0,
+        LE_RENDER_PASS_TYPE_DRAW      = 1, // << most common case, should be 0
+        LE_RENDER_PASS_TYPE_TRANSFER  = 2,
+        LE_RENDER_PASS_TYPE_COMPUTE   = 3,
+};
+
+enum LeAttachmentStoreOp : uint32_t {
+        LE_ATTACHMENT_STORE_OP_STORE    = 0, // << most common case
+        LE_ATTACHMENT_STORE_OP_DONTCARE = 1,
+};
+
+enum LeAttachmentLoadOp : uint32_t {
+        LE_ATTACHMENT_LOAD_OP_CLEAR    = 0, // << most common case
+        LE_ATTACHMENT_LOAD_OP_LOAD     = 1,
+        LE_ATTACHMENT_LOAD_OP_DONTCARE = 2,
+};
+
+enum class LeShaderType : uint64_t {
+        eNone        = 0, // no default type for shader modules, you must specify a type
+        eVert        = 0x00000001,
+        eTessControl = 0x00000002,
+        eTessEval    = 0x00000004,
+        eGeom        = 0x00000008,
+        eFrag        = 0x00000010,
+        eCompute     = 0x00000020,
+        eAllGraphics = 0x0000001F, // max needed space to cover this enum is 6 bit
+};
+
+enum class LeResourceType : uint8_t {
+        eUndefined = 0,
+        eBuffer,
+        eImage,
+        eTexture,
+};
+
+typedef int LeFormat_t; // we're declaring this as a placeholder for image format enum
+
+namespace le {
+struct Viewport {
+        float x;
+        float y;
+        float width;
+        float height;
+        float minDepth;
+        float maxDepth;
+};
+
+struct Rect2D {
+        uint32_t x;
+        uint32_t y;
+        uint32_t width;
+        uint32_t height;
+};
+struct Extent3D {
+        uint32_t width;
+        uint32_t height;
+        uint32_t depth;
+};
+
+} // namespace le
+
+enum LeAccessFlagBits : uint32_t {
+        eLeAccessFlagBitUndefined  = 0x0,
+        eLeAccessFlagBitRead       = 0x1 << 0,
+        eLeAccessFlagBitWrite      = 0x1 << 1,
+        eLeAccessFlagBitsReadWrite = eLeAccessFlagBitRead | eLeAccessFlagBitWrite,
+};
+
+typedef uint32_t LeAccessFlags;
+
+struct LeTextureInfo {
+        struct SamplerInfo {
+                int minFilter; // enum VkFilter
+                int magFilter; // enum VkFilter
+                               // TODO: add clamp clamp modes etc.
+        };
+        struct ImageViewInfo {
+                LeResourceHandle imageId; // le image resource id
+                int              format;  // enum VkFormat, leave at 0 (undefined) to use format of image referenced by `imageId`
+        };
+        SamplerInfo   sampler;
+        ImageViewInfo imageView;
+};
+
+struct LeClearColorValue {
+        union {
+                float    float32[ 4 ];
+                int32_t  int32[ 4 ];
+                uint32_t uint32[ 4 ];
+        };
+};
+
+struct LeClearDepthStencilValue {
+        float    depth;
+        uint32_t stencil;
+};
+
+struct LeClearValue {
+        union {
+                LeClearColorValue        color;
+                LeClearDepthStencilValue depthStencil;
+        };
+};
+
+struct LeImageAttachmentInfo {
+
+        static constexpr LeClearValue DefaultClearValueColor        = {{{{{0.f, 0.f, 0.f, 0.f}}}}};
+        static constexpr LeClearValue DefaultClearValueDepthStencil = {{{{{1.f, 0}}}}};
+
+	LeAccessFlags       access_flags = eLeAccessFlagBitWrite;        // read, write or readwrite (default is write)
+	LeAttachmentLoadOp  loadOp       = LE_ATTACHMENT_LOAD_OP_CLEAR;  //
+	LeAttachmentStoreOp storeOp      = LE_ATTACHMENT_STORE_OP_STORE; //
+	LeClearValue        clearValue   = DefaultClearValueColor;       // only used if loadOp == clear
+
+	LeFormat_t       format      = 0;       // if format is not given it will be automatically derived from attached image format
+	LeResourceHandle resource_id = nullptr; // (private - do not set) handle given to this attachment
+	uint64_t         source_id   = 0;       // (private - do not set) hash name of writer/creator renderpass
+
+	char debugName[ 32 ];
+};
+
+struct le_resource_info_t {
+
+        struct Image {
+                uint32_t     flags;       // creation flags
+                uint32_t     imageType;   // enum vk::ImageType
+                int32_t      format;      // enum vk::Format
+                le::Extent3D extent;      //
+                uint32_t     mipLevels;   //
+                uint32_t     arrayLayers; //
+                uint32_t     samples;     // enum VkSampleCountFlagBits
+                uint32_t     tiling;      // enum VkImageTiling
+                uint32_t     usage;       // usage flags
+                uint32_t     sharingMode; // enum vkSharingMode
+        };
+
+	struct Buffer {
+	        uint32_t size;
+		uint32_t usage; // e.g. VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
+	};
+
+	LeResourceType type;
+	union {
+	        Buffer buffer;
+		Image  image;
+	};
+};
+
+/// \note This struct assumes a little endian machine for sorting
+struct le_vertex_input_attribute_description {
+
+        // Note that we store the log2 of the number of Bytes needed to store values of a type
+        // in the least significant two bits, so that we can say: numBytes =  1 << (type & 0x03);
+        enum Type : uint8_t {
+                eChar   = ( 0 << 2 ) | 0,
+                eUChar  = ( 1 << 2 ) | 0,
+                eShort  = ( 2 << 2 ) | 1,
+                eUShort = ( 3 << 2 ) | 1,
+                eInt    = ( 4 << 2 ) | 2,
+                eUInt   = ( 5 << 2 ) | 2,
+                eHalf   = ( 6 << 2 ) | 1, // 16 bit float type
+                eFloat  = ( 7 << 2 ) | 2, // 32 bit float type
+        };
+
+	union {
+	        struct {
+		        uint8_t  location;       /// 0..32 shader attribute location
+			uint8_t  binding;        /// 0..32 binding slot
+			uint16_t binding_offset; /// 0..65565 offset for this location within binding (careful: must not be larger than maxVertexInputAttributeOffset [0.0x7ff])
+			Type     type;           /// base type for attribute
+			uint8_t  vecsize;        /// 0..7 number of elements of base type
+			uint8_t  isNormalised;   /// whether this input comes pre-normalized
+		};
+		uint64_t raw_data = 0;
+	};
+};
+
+struct le_vertex_input_binding_description {
+        enum INPUT_RATE : uint8_t {
+                ePerVertex   = 0,
+                ePerInstance = 1,
+        };
+
+	union {
+	        struct {
+		        uint8_t    binding;    /// binding slot 0..32(==MAX_ATTRIBUTE_BINDINGS)
+			INPUT_RATE input_rate; /// per-vertex (0) or per-instance (1)
+			uint16_t   stride;     /// per-vertex or per-instance stride in bytes (must be smaller than maxVertexInputBindingStride = [0x800])
+		};
+		uint32_t raw_data;
+	};
 };
 
 namespace le {

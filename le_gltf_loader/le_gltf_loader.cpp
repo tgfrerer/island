@@ -752,6 +752,9 @@ static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *r
 	    .setDepthBiasSlopeFactor( 1.f )
 	    .setLineWidth( 1.f );
 
+	using namespace le_renderer;
+	auto backend = le_renderer::renderer_i.get_backend( renderer );
+
 	for ( auto &p : self->primitives ) {
 
 		// Cache buffer lookups for primitives
@@ -760,21 +763,12 @@ static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *r
 			auto shader_module_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.vert", LeShaderType::eVert );
 			auto shader_module_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.frag", LeShaderType::eFrag );
 
-			// FIXME: add rasterization state back in.
-			//			pipelineInfo.rasterizationState = reinterpret_cast<VkPipelineRasterizationStateCreateInfo *>( &rasterizationState );
-
-			//			pipelineInfo.vertex_input_attribute_descriptions       = p.attributeDescriptions.data();
-			//			pipelineInfo.vertex_input_attribute_descriptions_count = p.attributeDescriptions.size();
-			//			pipelineInfo.vertex_input_binding_descriptions         = p.bindingDescriptions.data();
-			//			pipelineInfo.vertex_input_binding_descriptions_count   = p.bindingDescriptions.size();
-
-			using namespace le_renderer;
-			auto backend = le_renderer::renderer_i.get_backend( renderer );
-
 			p.pso = LeGraphicsPipelineBuilder( backend )
 			            .setFragmentShader( shader_module_frag )
 			            .setVertexShader( shader_module_vert )
 			            .setRasterizationInfo( rasterizationState )
+			            .setVertexInputAttributeDescriptions( p.attributeDescriptions.data(), p.attributeDescriptions.size() )
+			            .setVertexInputBindingDescriptions( p.bindingDescriptions.data(), p.bindingDescriptions.size() )
 			            .build();
 		}
 

@@ -12,8 +12,8 @@ struct le_graphics_pipeline_builder_o;
 struct le_shader_module_o;
 struct le_backend_o;
 
-struct VkVertexInputAttributeDescription;
-struct VkVertexInputBindingDescription;
+struct le_vertex_input_binding_description;
+struct le_vertex_input_attribute_description;
 struct VkPipelineRasterizationStateCreateInfo;
 struct VkPipelineInputAssemblyStateCreateInfo;
 struct VkPipelineTessellationStateCreateInfo;
@@ -35,8 +35,8 @@ struct le_graphics_pipeline_builder_api {
 		void     ( * set_vertex_shader                       ) ( le_graphics_pipeline_builder_o* self,  le_shader_module_o* vertex_shader);
 		void     ( * set_fragment_shader                     ) ( le_graphics_pipeline_builder_o* self,  le_shader_module_o* fragment_shader);
 
-		void     ( * set_vertex_input_attribute_descriptions ) ( le_graphics_pipeline_builder_o* self, VkVertexInputAttributeDescription* p_input_attribute_descriptions, size_t count);
-		void     ( * set_vertex_input_binding_descriptions   ) ( le_graphics_pipeline_builder_o* self, VkVertexInputBindingDescription* p_input_binding_descriptions, size_t count);
+		void     ( * set_vertex_input_attribute_descriptions ) ( le_graphics_pipeline_builder_o* self, le_vertex_input_attribute_description* p_input_attribute_descriptions, size_t count);
+		void     ( * set_vertex_input_binding_descriptions   ) ( le_graphics_pipeline_builder_o* self, le_vertex_input_binding_description* p_input_binding_descriptions, size_t count);
 
 		void     ( * set_rasterization_info                  ) ( le_graphics_pipeline_builder_o* self, const VkPipelineRasterizationStateCreateInfo& rasterizationState);
 		void     ( * set_input_assembly_info                 ) ( le_graphics_pipeline_builder_o *self, const VkPipelineInputAssemblyStateCreateInfo &inputAssemblyInfo ) ;
@@ -92,12 +92,12 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	LeGraphicsPipelineBuilder &setVertexInputAttributeDescriptions( VkVertexInputAttributeDescription *pDescr, size_t count ) {
+	LeGraphicsPipelineBuilder &setVertexInputAttributeDescriptions( le_vertex_input_attribute_description *pDescr, size_t count ) {
 		le_pipeline_builder::le_graphics_pipeline_builder_i.set_vertex_input_attribute_descriptions( self, pDescr, count );
 		return *this;
 	}
 
-	LeGraphicsPipelineBuilder &setVertexInputBindingDescriptions( VkVertexInputBindingDescription *pDescr, size_t count ) {
+	LeGraphicsPipelineBuilder &setVertexInputBindingDescriptions( le_vertex_input_binding_description *pDescr, size_t count ) {
 		le_pipeline_builder::le_graphics_pipeline_builder_i.set_vertex_input_binding_descriptions( self, pDescr, count );
 		return *this;
 	}

@@ -171,6 +171,9 @@ list - that way we can be much faster at assigning resources
 
 # Next Step Features
 
+* re-implement `le_vertex_input_attributes` instead of using vk attributes
+  directly - our own take on attributes is more expressive, and fits
+  better with gltf for example.
 * improve ergonomics, reduce lines to type
 * create a project generator
 * entity-component system for nodes
@@ -179,17 +182,16 @@ list - that way we can be much faster at assigning resources
 * reduce compile times with glm: template specialisations
 * add a geometry generator module - something for us to experiment with
 * implement a post processing effects pipeline
+* implement pbrt materials based on gltf reference implementation
+* investigate intel performance primitives for multithreading
+* image writer swapchain (for post processing)
 
 # Todo
 
 - project generator for simple apps
-- Update Pipeline using builder pattern 
 - project generator for apps
 - add image loader module based on stb::image or similar
 
 # What I'm unhappy with
 
-- tons of boilerplate when adding c++ facades
-- poor discoverability when no c++ facades inside the IDE
-- The builder pattern works not very well in a c-with-classes approach
 

@@ -1342,16 +1342,16 @@ static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_ver
 
 // clang-format off
 /// \returns corresponding vk::Format for a given le_input_attribute_description struct
-static inline vk::Format vk_format_from_le_vertex_input_attribute_description(const le_vertex_input_attribute_description* d){
+static inline vk::Format vk_format_from_le_vertex_input_attribute_description( le_vertex_input_attribute_description const & d){
 
-	if ( d->vecsize == 0 || d->vecsize > 4 ){
+	if ( d.vecsize == 0 || d.vecsize > 4 ){
 		assert(false); // vecsize must be between 1 and 4
 		return vk::Format::eUndefined;
 	}
 
-	switch ( d->type ) {
+	switch ( d.type ) {
 	case le_vertex_input_attribute_description::eFloat:
-		switch ( d->vecsize ) {
+		switch ( d.vecsize ) {
 		case 4: return vk::Format::eR32G32B32A32Sfloat;
 		case 3: return vk::Format::eR32G32B32Sfloat;
 		case 2: return vk::Format::eR32G32Sfloat;
@@ -1359,7 +1359,7 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description(co
 		}
 	    break;
 	case le_vertex_input_attribute_description::eHalf:
-		switch ( d->vecsize ) {
+		switch ( d.vecsize ) {
 		case 4: return vk::Format::eR16G16B16A16Sfloat;
 		case 3: return vk::Format::eR16G16B16Sfloat;
 		case 2: return vk::Format::eR16G16Sfloat;
@@ -1367,15 +1367,15 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description(co
 		}
 	    break;
 	case le_vertex_input_attribute_description::eShort:
-		if (d->isNormalised){
-			switch ( d->vecsize ) {
+		if (d.isNormalised){
+			switch ( d.vecsize ) {
 			case 4: return vk::Format::eR16G16B16A16Unorm;
 			case 3: return vk::Format::eR16G16B16Unorm;
 			case 2: return vk::Format::eR16G16Unorm;
 			case 1: return vk::Format::eR16Unorm;
 			}
 		}else{
-			switch ( d->vecsize ) {
+			switch ( d.vecsize ) {
 			case 4: return vk::Format::eR16G16B16A16Uint;
 			case 3: return vk::Format::eR16G16B16Uint;
 			case 2: return vk::Format::eR16G16Uint;
@@ -1384,7 +1384,7 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description(co
 		}
 	    break;
 	case le_vertex_input_attribute_description::eInt:
-		switch ( d->vecsize ) {
+		switch ( d.vecsize ) {
 		case 4: return vk::Format::eR32G32B32A32Sint;
 		case 3: return vk::Format::eR32G32B32Sint;
 		case 2: return vk::Format::eR32G32Sint;
@@ -1392,23 +1392,24 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description(co
 		}
 	    break;
 	case le_vertex_input_attribute_description::eUInt:
-		switch ( d->vecsize ) {
+		switch ( d.vecsize ) {
 		case 4: return vk::Format::eR32G32B32A32Uint;
 		case 3: return vk::Format::eR32G32B32Uint;
 		case 2: return vk::Format::eR32G32Uint;
 		case 1: return vk::Format::eR32Uint;
 		}
 	    break;
-	case le_vertex_input_attribute_description::eChar:
-		if (d->isNormalised){
-			switch ( d->vecsize ) {
+	case le_vertex_input_attribute_description::eChar:  // fall through to uChar
+	case le_vertex_input_attribute_description::eUChar:
+		if (d.isNormalised){
+			switch ( d.vecsize ) {
 			case 4: return vk::Format::eR8G8B8A8Unorm;
 			case 3: return vk::Format::eR8G8B8Unorm;
 			case 2: return vk::Format::eR8G8Unorm;
 			case 1: return vk::Format::eR8Unorm;
 			}
 		} else {
-			switch ( d->vecsize ) {
+			switch ( d.vecsize ) {
 			case 4: return vk::Format::eR8G8B8A8Uint;
 			case 3: return vk::Format::eR8G8B8Uint;
 			case 2: return vk::Format::eR8G8Uint;
@@ -1542,113 +1543,75 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, graphics_pipeli
 	    .setPName( "main" )
 	    .setPSpecializationInfo( nullptr );
 
-	std::vector<vk::VertexInputBindingDescription> const *  vertexBindingDescriptions;        // where to get data from
-	std::vector<vk::VertexInputAttributeDescription> const *vertexInputAttributeDescriptions; // how it feeds into the shader's vertex inputs
+	std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;        // where to get data from
+	std::vector<vk::VertexInputAttributeDescription> vertexInputAttributeDescriptions; // how it feeds into the shader's vertex inputs
 
 	if ( pso->explicitVertexInputBindingDescriptions.empty() ) {
 		// Default: use vertex input schema based on shader reflection
-		vertexBindingDescriptions        = &pso->shaderModuleVert->vertexBindingDescriptions;
-		vertexInputAttributeDescriptions = &pso->shaderModuleVert->vertexAttributeDescriptions;
+		vertexBindingDescriptions        = pso->shaderModuleVert->vertexBindingDescriptions;
+		vertexInputAttributeDescriptions = pso->shaderModuleVert->vertexAttributeDescriptions;
 	} else {
 		// use vertex input schema based on explicit user input
 		// which was stored in `backend_create_grapics_pipeline_state_object`
-		vertexBindingDescriptions        = &pso->explicitVertexInputBindingDescriptions;
-		vertexInputAttributeDescriptions = &pso->explicitVertexAttributeDescriptions;
+		vertexBindingDescriptions.reserve( pso->explicitVertexInputBindingDescriptions.size() );
+		vertexInputAttributeDescriptions.reserve( pso->explicitVertexAttributeDescriptions.size() );
+
+		// create vertex input binding descriptions
+		for ( auto const &b : pso->explicitVertexInputBindingDescriptions ) {
+
+			vk::VertexInputBindingDescription bindingDescription;
+			bindingDescription
+			    .setBinding( b.binding )
+			    .setStride( b.stride )
+			    .setInputRate( vk_input_rate_from_le_input_rate( b.input_rate ) );
+
+			vertexBindingDescriptions.emplace_back( std::move( bindingDescription ) );
+		}
+
+		for ( auto const &a : pso->explicitVertexAttributeDescriptions ) {
+			vk::VertexInputAttributeDescription attributeDescription;
+			attributeDescription
+			    .setLocation( a.location )
+			    .setBinding( a.binding )
+			    .setOffset( a.binding_offset )
+			    .setFormat( vk_format_from_le_vertex_input_attribute_description( a ) );
+
+			vertexInputAttributeDescriptions.emplace_back( std::move( attributeDescription ) );
+		}
 	}
 
+	// Combine vertex input `binding` state and vertex input `attribute` state into
+	// something that vk will accept
 	vk::PipelineVertexInputStateCreateInfo vertexInputStageInfo;
 	vertexInputStageInfo
 	    .setFlags( vk::PipelineVertexInputStateCreateFlags() )
-	    .setVertexBindingDescriptionCount( uint32_t( vertexBindingDescriptions->size() ) )
-	    .setPVertexBindingDescriptions( vertexBindingDescriptions->data() )
-	    .setVertexAttributeDescriptionCount( uint32_t( vertexInputAttributeDescriptions->size() ) )
-	    .setPVertexAttributeDescriptions( vertexInputAttributeDescriptions->data() );
+	    .setVertexBindingDescriptionCount( uint32_t( vertexBindingDescriptions.size() ) )
+	    .setPVertexBindingDescriptions( vertexBindingDescriptions.data() )
+	    .setVertexAttributeDescriptionCount( uint32_t( vertexInputAttributeDescriptions.size() ) )
+	    .setPVertexAttributeDescriptions( vertexInputAttributeDescriptions.data() );
 
-	// fetch vk::PipelineLayout for this pso
+	// Fetch vk::PipelineLayout for this pso
 	auto pipelineLayout = backend_get_pipeline_layout( self, pso );
-
-	vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState;
-	inputAssemblyState
-	    .setTopology( ::vk::PrimitiveTopology::eTriangleList )
-	    .setPrimitiveRestartEnable( VK_FALSE );
-
-	vk::PipelineTessellationStateCreateInfo tessellationState;
-	tessellationState
-	    .setPatchControlPoints( 3 );
-
-	// viewport and scissor are tracked as dynamic states, so this object
-	// will not get used.
-	vk::PipelineViewportStateCreateInfo viewportState;
-	viewportState
-	    .setViewportCount( 1 )
-	    .setPViewports( nullptr )
-	    .setScissorCount( 1 )
-	    .setPScissors( nullptr );
-
-	vk::PipelineMultisampleStateCreateInfo multisampleState;
-	multisampleState
-	    .setRasterizationSamples( ::vk::SampleCountFlagBits::e1 )
-	    .setSampleShadingEnable( VK_FALSE )
-	    .setMinSampleShading( 0.f )
-	    .setPSampleMask( nullptr )
-	    .setAlphaToCoverageEnable( VK_FALSE )
-	    .setAlphaToOneEnable( VK_FALSE );
-
-	vk::StencilOpState stencilOpState;
-	stencilOpState
-	    .setFailOp( ::vk::StencilOp::eKeep )
-	    .setPassOp( ::vk::StencilOp::eKeep )
-	    .setDepthFailOp( ::vk::StencilOp::eKeep )
-	    .setCompareOp( ::vk::CompareOp::eNever )
-	    .setCompareMask( 0 )
-	    .setWriteMask( 0 )
-	    .setReference( 0 );
-
-	vk::PipelineDepthStencilStateCreateInfo depthStencilState;
-	depthStencilState
-	    .setDepthTestEnable( VK_TRUE )
-	    .setDepthWriteEnable( VK_TRUE )
-	    .setDepthCompareOp( ::vk::CompareOp::eLessOrEqual )
-	    .setDepthBoundsTestEnable( VK_FALSE )
-	    .setStencilTestEnable( VK_FALSE )
-	    .setFront( stencilOpState )
-	    .setBack( stencilOpState )
-	    .setMinDepthBounds( 0.f )
-	    .setMaxDepthBounds( 0.f );
 
 	//
 	// We must match blend attachment states with number of attachments for
-	// the current renderpass - each attachment may have their own blend state:
+	// the current renderpass - each attachment may have their own blend state.
+	// Our pipeline objects will have 16 stages which are readable.
 	//
-	static std::array<vk::PipelineColorBlendAttachmentState, 16> blendAttachmentStates{};
-
-	// NOTE: Blend modes should be an attribute of the current renderpass rather than the pipeline.
-	// this because the blend mode is dependent on the number of attachments.
-	// - but blend mode may change within a renderpass...
-
-	for ( size_t i = 0; i != pass.numColorAttachments; ++i ) {
-		blendAttachmentStates[ i ]
-		    .setBlendEnable( VK_TRUE )
-		    .setColorBlendOp( ::vk::BlendOp::eAdd )
-		    .setAlphaBlendOp( ::vk::BlendOp::eAdd )
-		    .setSrcColorBlendFactor( ::vk::BlendFactor::eSrcAlpha )
-		    .setDstColorBlendFactor( ::vk::BlendFactor::eOneMinusSrcAlpha )
-		    .setSrcAlphaBlendFactor( ::vk::BlendFactor::eOne )
-		    .setDstAlphaBlendFactor( ::vk::BlendFactor::eZero )
-		    .setColorWriteMask(
-		        ::vk::ColorComponentFlagBits::eR |
-		        ::vk::ColorComponentFlagBits::eG |
-		        ::vk::ColorComponentFlagBits::eB |
-		        ::vk::ColorComponentFlagBits::eA );
-	}
-
+	assert( pass.numColorAttachments <= MAX_VULKAN_COLOR_ATTACHMENTS );
+	//
 	vk::PipelineColorBlendStateCreateInfo colorBlendState;
 	colorBlendState
 	    .setLogicOpEnable( VK_FALSE )
 	    .setLogicOp( ::vk::LogicOp::eClear )
 	    .setAttachmentCount( pass.numColorAttachments )
-	    .setPAttachments( blendAttachmentStates.data() )
+	    .setPAttachments( pso->data.blendAttachmentStates.data() )
 	    .setBlendConstants( {{0.f, 0.f, 0.f, 0.f}} );
+
+	// Viewport and Scissor are tracked as dynamic states, and although this object will not
+	// get used, we must still fulfill the contract of providing a valid object to vk.
+	//
+	static vk::PipelineViewportStateCreateInfo defaultViewportState{vk::PipelineViewportStateCreateFlags(), 1, nullptr, 1, nullptr};
 
 	std::array<vk::DynamicState, 3> dynamicStates = {{
 	    vk::DynamicState::eScissor,
@@ -1668,12 +1631,12 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, graphics_pipeli
 	    .setStageCount( uint32_t( pipelineStages.size() ) )
 	    .setPStages( pipelineStages.data() )
 	    .setPVertexInputState( &vertexInputStageInfo )
-	    .setPInputAssemblyState( &inputAssemblyState )
-	    .setPTessellationState( nullptr )
-	    .setPViewportState( &viewportState )
+	    .setPInputAssemblyState( &pso->data.inputAssemblyState )
+	    .setPTessellationState( &pso->data.tessellationState )
+	    .setPViewportState( &defaultViewportState )
 	    .setPRasterizationState( &pso->data.rasterizationInfo )
-	    .setPMultisampleState( &multisampleState )
-	    .setPDepthStencilState( &depthStencilState )
+	    .setPMultisampleState( &pso->data.multisampleState )
+	    .setPDepthStencilState( &pso->data.depthStencilState )
 	    .setPColorBlendState( &colorBlendState )
 	    .setPDynamicState( &dynamicState )
 	    .setLayout( pipelineLayout )
