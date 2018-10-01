@@ -85,6 +85,8 @@ struct test_app_o {
 	le::ResourceHandle resTexHorse       = nullptr;
 	le::ResourceHandle resBufTrianglePos = nullptr;
 
+	le_shader_module_o *shaderTriangle[ 2 ];
+
 	bool                imgHorseWasUploaded = false;
 	le_gltf_document_o *gltfDoc             = nullptr;
 
@@ -273,14 +275,16 @@ static test_app_o *test_app_create() {
 			auto defaultVertShader = app->renderer->createShaderModule( "./resources/shaders/default.vert", LeShaderType::eVert );
 			auto defaultFragShader = app->renderer->createShaderModule( "./resources/shaders/default.frag", LeShaderType::eFrag );
 
+			app->shaderTriangle[ 0 ] = defaultVertShader;
+			app->shaderTriangle[ 1 ] = defaultFragShader;
+
 			// The pipeline state object holds all state for the pipeline,
 			// that's links to shader modules, blend states, input assembly, etc...
 			// Everything, in short, but the renderpass, and subpass (which are added at the last minute)
 			//
 			// The backend pipeline object is compiled on-demand, when it is first used with a renderpass, and henceforth cached.
 
-			le_backend_o *backend = *app->backend;
-			auto          pso     = LeGraphicsPipelineBuilder( backend )
+			auto pso = LeGraphicsPipelineBuilder( *app->backend )
 			               .setFragmentShader( defaultFragShader )
 			               .setVertexShader( defaultVertShader )
 			               .build();
@@ -802,7 +806,27 @@ static bool test_app_update( test_app_o *self ) {
 
 			// Draw RGB triangle
 			if ( true ) {
-				encoder_i.bind_graphics_pipeline( encoder, app->psoMain );
+
+				vk::PipelineRasterizationStateCreateInfo rasterizationState{};
+				rasterizationState
+				    .setDepthClampEnable( VK_FALSE )
+				    .setRasterizerDiscardEnable( VK_FALSE )
+				    .setPolygonMode( vk::PolygonMode::eFill )
+				    .setCullMode( vk::CullModeFlagBits::eBack )
+				    .setFrontFace( vk::FrontFace::eCounterClockwise )
+				    .setDepthBiasEnable( VK_FALSE )
+				    .setDepthBiasConstantFactor( 0.f )
+				    .setDepthBiasClamp( 0.f )
+				    .setDepthBiasSlopeFactor( 1.f )
+				    .setLineWidth( 1.f );
+
+				static auto psoTriangle = LeGraphicsPipelineBuilder( *app->backend )
+				                              .setVertexShader( app->shaderTriangle[ 0 ] )
+				                              .setFragmentShader( app->shaderTriangle[ 1 ] )
+				                              .setRasterizationInfo( rasterizationState )
+				                              .build();
+
+				encoder_i.bind_graphics_pipeline( encoder, psoTriangle );
 
 				encoder_i.set_scissor( encoder, 0, 1, scissors );
 				encoder_i.set_viewport( encoder, 0, 1, viewports );

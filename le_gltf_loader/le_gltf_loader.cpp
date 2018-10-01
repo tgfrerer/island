@@ -774,6 +774,7 @@ static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *r
 			p.pso = LeGraphicsPipelineBuilder( backend )
 			            .setFragmentShader( shader_module_frag )
 			            .setVertexShader( shader_module_vert )
+			            .setRasterizationInfo( rasterizationState )
 			            .build();
 		}
 
