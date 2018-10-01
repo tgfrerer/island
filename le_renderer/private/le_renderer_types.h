@@ -14,8 +14,6 @@ struct LeBufferWriteRegion {
 	uint32_t height;
 };
 
-struct le_graphics_pipeline_state_o;
-
 namespace le {
 
 enum class CommandType : uint32_t {
@@ -130,8 +128,7 @@ struct CommandBindIndexBuffer {
 struct CommandBindPipeline {
 	CommandHeader header = {{{CommandType::eBindPipeline, sizeof( CommandBindPipeline )}}};
 	struct {
-		le_graphics_pipeline_state_o *pso;
-		uint64_t                      pipelineHash; // TODO: do we need this?
+	        uint64_t psoHash;
 	} info;
 };
 

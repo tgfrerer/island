@@ -10,6 +10,8 @@
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include <vulkan/vulkan.hpp>
 
+#include "le_backend_vk/le_backend_types_internal.h"
+
 #include "le_swapchain_vk/le_swapchain_vk.h"
 
 #include "pal_window/pal_window.h"
@@ -100,22 +102,6 @@ struct le_shader_module_o {
 	std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;   ///< descriptions gathered from reflection if shader type is vertex
 	vk::ShaderModule                                 module = nullptr;
 	LeShaderType                                     stage  = LeShaderType::eNone;
-};
-
-struct le_graphics_pipeline_state_o {
-
-	uint64_t hash = 0; ///< hash of pipeline state, but not including shader modules
-
-	le_shader_module_o *shaderModuleVert = nullptr;
-	le_shader_module_o *shaderModuleFrag = nullptr;
-
-	// TODO (pipeline) : -- add fields to pso object
-	vk::PipelineRasterizationStateCreateInfo rasterizationInfo{}; // TODO: this needs to be hashed.
-
-	bool useExplicitVertexInputDescriptions = false;
-
-	std::vector<vk::VertexInputBindingDescription>   explicitVertexBindingDescriptions;   // only used if explicitly told to, otherwise use from vertex shader reflection
-	std::vector<vk::VertexInputAttributeDescription> explicitVertexAttributeDescriptions; // only used if explicitly told to, otherwise use from vertex shader reflection
 };
 
 struct AbstractPhysicalResource {
@@ -343,7 +329,7 @@ struct pipeline_cache_o {
 	vk::PipelineCache vulkanCache = nullptr;
 
 	// written by: `backend_create_grapics_pipeline_state_object`,
-	std::vector<le_graphics_pipeline_state_o *> PSOs;
+	std::unordered_map<uint64_t, graphics_pipeline_state_o *> PSOs; // indexed by gpso hash
 
 	// read    by: `backend_get_pipeline_layout`
 	//             `backend_process_frame`
@@ -1052,7 +1038,7 @@ static void backend_destroy( le_backend_o *self ) {
 
 	// -- destroy any pipeline state objects
 	for ( auto &pPso : self->pipelineCache.PSOs ) {
-		delete ( pPso );
+		delete ( pPso.second );
 	}
 	self->pipelineCache.PSOs.clear();
 
@@ -1209,7 +1195,7 @@ static void backend_reset_swapchain( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static uint64_t graphics_pso_get_pipeline_layout_hash( le_graphics_pipeline_state_o const *pso ) {
+static uint64_t graphics_pso_get_pipeline_layout_hash( graphics_pipeline_state_o const *pso ) {
 	uint64_t pipeline_layout_hash_data[ 2 ];
 	pipeline_layout_hash_data[ 0 ] = pso->shaderModuleVert->hash_pipelinelayout;
 	pipeline_layout_hash_data[ 1 ] = pso->shaderModuleFrag->hash_pipelinelayout;
@@ -1439,86 +1425,86 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description(co
 
 // ----------------------------------------------------------------------
 
-static le_graphics_pipeline_state_o *backend_create_graphics_pipeline_state_object( le_backend_o *self, le_graphics_pipeline_create_info_t const *info ) {
-	auto pso = new ( le_graphics_pipeline_state_o );
+//static le_graphics_pipeline_state_o *backend_create_graphics_pipeline_state_object( le_backend_o *self, le_graphics_pipeline_create_info_t const *info ) {
+//	auto pso = new ( le_graphics_pipeline_state_o );
 
-	// -- add shader modules to pipeline
-	//
-	// (shader modules are backend objects)
-	pso->shaderModuleFrag = info->shader_module_frag;
-	pso->shaderModuleVert = info->shader_module_vert;
+//	// -- add shader modules to pipeline
+//	//
+//	// (shader modules are backend objects)
+//	pso->shaderModuleFrag = info->shader_module_frag;
+//	pso->shaderModuleVert = info->shader_module_vert;
 
-	if ( info->vertex_input_attribute_descriptions &&
-	     info->vertex_input_binding_descriptions &&
-	     info->vertex_input_attribute_descriptions_count &&
-	     info->vertex_input_binding_descriptions_count ) {
+//	if ( info->vertex_input_attribute_descriptions &&
+//	     info->vertex_input_binding_descriptions &&
+//	     info->vertex_input_attribute_descriptions_count &&
+//	     info->vertex_input_binding_descriptions_count ) {
 
-		// create vertex input binding descriptions
+//		// create vertex input binding descriptions
 
-		for ( auto const *b = info->vertex_input_binding_descriptions;
-		      b != info->vertex_input_binding_descriptions + info->vertex_input_binding_descriptions_count;
-		      b++ ) {
+//		for ( auto const *b = info->vertex_input_binding_descriptions;
+//		      b != info->vertex_input_binding_descriptions + info->vertex_input_binding_descriptions_count;
+//		      b++ ) {
 
-			vk::VertexInputBindingDescription bindingDescription;
-			bindingDescription
-			    .setBinding( b->binding )
-			    .setStride( b->stride )
-			    .setInputRate( vk_input_rate_from_le_input_rate( b->input_rate ) );
+//			vk::VertexInputBindingDescription bindingDescription;
+//			bindingDescription
+//			    .setBinding( b->binding )
+//			    .setStride( b->stride )
+//			    .setInputRate( vk_input_rate_from_le_input_rate( b->input_rate ) );
 
-			pso->explicitVertexBindingDescriptions.emplace_back( std::move( bindingDescription ) );
-		}
+//			pso->explicitVertexBindingDescriptions.emplace_back( std::move( bindingDescription ) );
+//		}
 
-		// create vertex input attribute descriptions
-		for ( auto const *a = info->vertex_input_attribute_descriptions;
-		      a != info->vertex_input_attribute_descriptions + info->vertex_input_attribute_descriptions_count;
-		      a++ ) {
-			vk::VertexInputAttributeDescription attributeDescription;
-			attributeDescription
-			    .setLocation( a->location )
-			    .setBinding( a->binding )
-			    .setFormat( vk_format_from_le_vertex_input_attribute_description( a ) )
-			    .setOffset( a->binding_offset );
+//		// create vertex input attribute descriptions
+//		for ( auto const *a = info->vertex_input_attribute_descriptions;
+//		      a != info->vertex_input_attribute_descriptions + info->vertex_input_attribute_descriptions_count;
+//		      a++ ) {
+//			vk::VertexInputAttributeDescription attributeDescription;
+//			attributeDescription
+//			    .setLocation( a->location )
+//			    .setBinding( a->binding )
+//			    .setFormat( vk_format_from_le_vertex_input_attribute_description( a ) )
+//			    .setOffset( a->binding_offset );
 
-			pso->explicitVertexAttributeDescriptions.emplace_back( std::move( attributeDescription ) );
-		}
+//			pso->explicitVertexAttributeDescriptions.emplace_back( std::move( attributeDescription ) );
+//		}
 
-		pso->useExplicitVertexInputDescriptions = true;
-	}
+//		pso->useExplicitVertexInputDescriptions = true;
+//	}
 
-	// TODO (pipeline): -- initialise pso based on pipeline info
+//	// TODO (pipeline): -- initialise pso based on pipeline info
 
-	if ( info->rasterizationState ) {
-		// copy rasterisation state if available, otherwise use our own
-		pso->rasterizationInfo = *info->rasterizationState;
-	} else {
-		vk::PipelineRasterizationStateCreateInfo defaultRasterizationState;
-		defaultRasterizationState
-		    .setDepthClampEnable( VK_FALSE )
-		    .setRasterizerDiscardEnable( VK_FALSE )
-		    .setPolygonMode( ::vk::PolygonMode::eFill )
-		    .setCullMode( ::vk::CullModeFlagBits::eNone )
-		    .setFrontFace( ::vk::FrontFace::eCounterClockwise )
-		    .setDepthBiasEnable( VK_FALSE )
-		    .setDepthBiasConstantFactor( 0.f )
-		    .setDepthBiasClamp( 0.f )
-		    .setDepthBiasSlopeFactor( 1.f )
-		    .setLineWidth( 1.f );
-		pso->rasterizationInfo = std::move( defaultRasterizationState );
-	}
+//	if ( info->rasterizationState ) {
+//		// copy rasterisation state if available, otherwise use our own
+//		pso->rasterizationInfo = *info->rasterizationState;
+//	} else {
+//		vk::PipelineRasterizationStateCreateInfo defaultRasterizationState;
+//		defaultRasterizationState
+//		    .setDepthClampEnable( VK_FALSE )
+//		    .setRasterizerDiscardEnable( VK_FALSE )
+//		    .setPolygonMode( ::vk::PolygonMode::eFill )
+//		    .setCullMode( ::vk::CullModeFlagBits::eNone )
+//		    .setFrontFace( ::vk::FrontFace::eCounterClockwise )
+//		    .setDepthBiasEnable( VK_FALSE )
+//		    .setDepthBiasConstantFactor( 0.f )
+//		    .setDepthBiasClamp( 0.f )
+//		    .setDepthBiasSlopeFactor( 1.f )
+//		    .setLineWidth( 1.f );
+//		pso->rasterizationInfo = std::move( defaultRasterizationState );
+//	}
 
-	// -- calculate hash based on contents of pipeline state object
+//	// -- calculate hash based on contents of pipeline state object
 
-	// TODO: -- calculate hash for pipeline state based on create_info (state that's not related to shaders)
-	// create_info will contain state like blend, polygon mode, culling etc.
-	pso->hash = 0x0;
+//	// TODO: -- calculate hash for pipeline state based on create_info (state that's not related to shaders)
+//	// create_info will contain state like blend, polygon mode, culling etc.
+//	pso->hash = 0x0;
 
-	self->pipelineCache.PSOs.push_back( pso );
-	return pso;
-}
+//	self->pipelineCache.PSOs.push_back( pso );
+//	return pso;
+//}
 
 // ----------------------------------------------------------------------
 // called via decoder / produce_frame -
-static vk::PipelineLayout backend_get_pipeline_layout( le_backend_o *self, le_graphics_pipeline_state_o const *pso ) {
+static vk::PipelineLayout backend_get_pipeline_layout( le_backend_o *self, graphics_pipeline_state_o const *pso ) {
 
 	uint64_t pipelineLayoutHash = graphics_pso_get_pipeline_layout_hash( pso );
 
@@ -1538,7 +1524,7 @@ static vk::PipelineLayout backend_get_pipeline_layout( le_backend_o *self, le_gr
 // NEXT: gpso builder methods
 
 // ----------------------------------------------------------------------
-static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pipeline_state_o const *pso, const Pass &pass, uint32_t subpass ) {
+static vk::Pipeline backend_create_pipeline( le_backend_o *self, graphics_pipeline_state_o const *pso, const Pass &pass, uint32_t subpass ) {
 
 	vk::Device vkDevice = self->device->getVkDevice();
 
@@ -1559,15 +1545,15 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	std::vector<vk::VertexInputBindingDescription> const *  vertexBindingDescriptions;        // where to get data from
 	std::vector<vk::VertexInputAttributeDescription> const *vertexInputAttributeDescriptions; // how it feeds into the shader's vertex inputs
 
-	if ( pso->useExplicitVertexInputDescriptions ) {
-		// use vertex input schema based on explicit user input
-		// which was stored in `backend_create_grapics_pipeline_state_object`
-		vertexBindingDescriptions        = &pso->explicitVertexBindingDescriptions;
-		vertexInputAttributeDescriptions = &pso->explicitVertexAttributeDescriptions;
-	} else {
+	if ( pso->explicitVertexInputBindingDescriptions.empty() ) {
 		// Default: use vertex input schema based on shader reflection
 		vertexBindingDescriptions        = &pso->shaderModuleVert->vertexBindingDescriptions;
 		vertexInputAttributeDescriptions = &pso->shaderModuleVert->vertexAttributeDescriptions;
+	} else {
+		// use vertex input schema based on explicit user input
+		// which was stored in `backend_create_grapics_pipeline_state_object`
+		vertexBindingDescriptions        = &pso->explicitVertexInputBindingDescriptions;
+		vertexInputAttributeDescriptions = &pso->explicitVertexAttributeDescriptions;
 	}
 
 	vk::PipelineVertexInputStateCreateInfo vertexInputStageInfo;
@@ -1685,7 +1671,7 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, le_graphics_pip
 	    .setPInputAssemblyState( &inputAssemblyState )
 	    .setPTessellationState( nullptr )
 	    .setPViewportState( &viewportState )
-	    .setPRasterizationState( &pso->rasterizationInfo )
+	    .setPRasterizationState( &pso->data.rasterizationInfo )
 	    .setPMultisampleState( &multisampleState )
 	    .setPDepthStencilState( &depthStencilState )
 	    .setPColorBlendState( &colorBlendState )
@@ -1824,7 +1810,7 @@ static uint64_t backend_produce_descriptor_set_layout( le_backend_o *self, std::
 
 // ----------------------------------------------------------------------
 
-static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_o *self, le_graphics_pipeline_state_o const *pso ) {
+static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_o *self, graphics_pipeline_state_o const *pso ) {
 	le_pipeline_layout_info info{};
 
 	std::vector<le_shader_binding_info> combined_bindings = shader_modules_get_bindings_list( pso->shaderModuleVert, pso->shaderModuleFrag );
@@ -1889,6 +1875,11 @@ static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_
 	return info;
 }
 
+graphics_pipeline_state_o *backend_get_pso_from_cache( le_backend_o *self, const uint64_t &gpso_hash ) {
+	// FIXME: (PIPELINE) THIS NEEDS TO BE MUTEXED, AND ACCESS CONTROLLED
+	return self->pipelineCache.PSOs[ gpso_hash ];
+}
+
 /// \brief Creates - or loads a pipeline from cache based on current pipeline state
 /// \note this method may lock the pipeline cache and is therefore costly.
 // TODO: Ensure there are no races around this method
@@ -1898,7 +1889,9 @@ static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_
 //
 // + Access to this method must be sequential - no two frames may access this method
 //   at the same time.
-static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *self, le_graphics_pipeline_state_o const *pso, const Pass &pass, uint32_t subpass ) {
+static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *self, uint64_t gpso_hash, const Pass &pass, uint32_t subpass ) {
+
+	graphics_pipeline_state_o const *pso = backend_get_pso_from_cache( self, gpso_hash );
 
 	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
 
@@ -1925,7 +1918,7 @@ static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *sel
 
 	uint64_t pso_renderpass_hash_data[ 4 ] = {};
 
-	pso_renderpass_hash_data[ 0 ] = pso->hash;                   // TODO: Hash for PSO state - must have been updated before recording phase started
+	pso_renderpass_hash_data[ 0 ] = gpso_hash;                   // TODO: Hash for PSO state - must have been updated before recording phase started
 	pso_renderpass_hash_data[ 1 ] = pso->shaderModuleVert->hash; // Module state - may have been recompiled, hash must be current
 	pso_renderpass_hash_data[ 2 ] = pso->shaderModuleFrag->hash; // Module state - may have been recompiled, hash must be current
 	pso_renderpass_hash_data[ 3 ] = pass.renderpassHash;         // Hash for *compatible* renderpass
@@ -1953,6 +1946,11 @@ static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *sel
 
 	return pipeline_and_layout_info;
 }
+
+void backend_introduce_graphics_pipeline_state( le_backend_o *self, graphics_pipeline_state_o *gpso, uint64_t gpsoHash ) {
+	// we must copy!
+	self->pipelineCache.PSOs[ gpsoHash ] = new graphics_pipeline_state_o( *gpso );
+};
 
 // ----------------------------------------------------------------------
 /// \brief create a unique resource handle
@@ -3413,7 +3411,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// at this point, a valid renderpass must be bound
 
 						// -- potentially compile and create pipeline here, based on current pass and subpass
-						currentPipeline = backend_produce_pipeline( self, le_cmd->info.pso, pass, subpassIndex );
+						currentPipeline = backend_produce_pipeline( self, le_cmd->info.psoHash, pass, subpassIndex );
 
 						// -- grab current pipeline layout from cache
 						currentPipelineLayout = self->pipelineCache.pipelineLayouts[ currentPipeline.layout_info.pipeline_layout_key ];
@@ -3794,24 +3792,24 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	auto  le_backend_vk_api_i = static_cast<le_backend_vk_api *>( api_ );
 	auto &vk_backend_i        = le_backend_vk_api_i->vk_backend_i;
 
-	vk_backend_i.create                                = backend_create;
-	vk_backend_i.destroy                               = backend_destroy;
-	vk_backend_i.setup                                 = backend_setup;
-	vk_backend_i.create_window_surface                 = backend_create_window_surface;
-	vk_backend_i.create_swapchain                      = backend_create_swapchain;
-	vk_backend_i.get_num_swapchain_images              = backend_get_num_swapchain_images;
-	vk_backend_i.reset_swapchain                       = backend_reset_swapchain;
-	vk_backend_i.get_transient_allocators              = backend_get_transient_allocators;
-	vk_backend_i.poll_frame_fence                      = backend_poll_frame_fence;
-	vk_backend_i.clear_frame                           = backend_clear_frame;
-	vk_backend_i.acquire_physical_resources            = backend_acquire_physical_resources;
-	vk_backend_i.process_frame                         = backend_process_frame;
-	vk_backend_i.dispatch_frame                        = backend_dispatch_frame;
-	vk_backend_i.create_shader_module                  = backend_create_shader_module;
-	vk_backend_i.update_shader_modules                 = backend_update_shader_modules;
-	vk_backend_i.create_graphics_pipeline_state_object = backend_create_graphics_pipeline_state_object;
-	vk_backend_i.declare_resource                      = backend_declare_resource;
-	vk_backend_i.get_backbuffer_resource               = backend_get_backbuffer_resource;
+	vk_backend_i.create                            = backend_create;
+	vk_backend_i.destroy                           = backend_destroy;
+	vk_backend_i.setup                             = backend_setup;
+	vk_backend_i.create_window_surface             = backend_create_window_surface;
+	vk_backend_i.create_swapchain                  = backend_create_swapchain;
+	vk_backend_i.get_num_swapchain_images          = backend_get_num_swapchain_images;
+	vk_backend_i.reset_swapchain                   = backend_reset_swapchain;
+	vk_backend_i.get_transient_allocators          = backend_get_transient_allocators;
+	vk_backend_i.poll_frame_fence                  = backend_poll_frame_fence;
+	vk_backend_i.clear_frame                       = backend_clear_frame;
+	vk_backend_i.acquire_physical_resources        = backend_acquire_physical_resources;
+	vk_backend_i.process_frame                     = backend_process_frame;
+	vk_backend_i.dispatch_frame                    = backend_dispatch_frame;
+	vk_backend_i.create_shader_module              = backend_create_shader_module;
+	vk_backend_i.update_shader_modules             = backend_update_shader_modules;
+	vk_backend_i.declare_resource                  = backend_declare_resource;
+	vk_backend_i.get_backbuffer_resource           = backend_get_backbuffer_resource;
+	vk_backend_i.introduce_graphics_pipeline_state = backend_introduce_graphics_pipeline_state;
 
 	// register/update submodules inside this plugin
 

@@ -14,6 +14,8 @@ extern "C" {
 #endif
 LE_DEFINE_HANDLE( LeResourceHandle )
 
+constexpr uint8_t MAX_VULKAN_COLOR_ATTACHMENTS = 16; // maximum number of color attachments to a renderpass
+
 void register_le_backend_vk_api( void *api );
 void register_le_instance_vk_api( void *api );       // for le_instance_vk.cpp
 void register_le_allocator_linear_api( void *api_ ); // for le_allocator.cpp
@@ -29,12 +31,12 @@ struct le_renderpass_o;
 struct le_buffer_o;
 struct le_allocator_o;
 
+struct graphics_pipeline_state_o; // for le_pipeline_builder
+
 struct le_swapchain_vk_settings_o;
 struct pal_window_o;
 
 struct le_shader_module_o;
-struct le_graphics_pipeline_state_o;
-struct le_graphics_pipeline_create_info_t;
 
 struct VkInstance_T;
 struct VkDevice_T;
@@ -79,7 +81,7 @@ struct le_backend_vk_api {
 		void                   ( *reset_swapchain          ) ( le_backend_o *self );
 		le_allocator_o**       ( *get_transient_allocators ) ( le_backend_o* self, size_t frameIndex, size_t numAllocators);
 
-		le_graphics_pipeline_state_o* (*create_graphics_pipeline_state_object)(le_backend_o* self, le_graphics_pipeline_create_info_t const * info);
+		void                   (*introduce_graphics_pipeline_state)(le_backend_o*self, graphics_pipeline_state_o* gpso, uint64_t gpoHash);
 
 		LeResourceHandle       ( *declare_resource         ) (le_backend_o* self, LeResourceType type);
 		LeResourceHandle       ( *get_backbuffer_resource  ) (le_backend_o* self);

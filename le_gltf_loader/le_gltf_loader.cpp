@@ -11,6 +11,7 @@
 #include <map>
 
 #include "le_renderer/le_renderer.h"
+#include "le_pipeline_builder/le_pipeline_builder.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -57,7 +58,7 @@ struct Primitive {
 	uint8_t  mode        = 0;     // triangles,lines,points TODO: use a mode that makes sense
 	bool     hasIndices  = false; // wether to render using indices or
 
-	le_graphics_pipeline_state_o *pso;
+	uint64_t pso{};
 };
 
 struct Mesh {
@@ -79,7 +80,7 @@ struct le_gltf_document_o {
 
 	std::vector<Node> nodeGraph;
 
-	le_graphics_pipeline_state_o *pso = nullptr; // one pso for all elements for now.
+	uint64_t pso{}; // one pso for all elements for now.
 
 	bool isDirty = true; // true means data on gpu is not up to date, and needs upload
 };
@@ -756,18 +757,24 @@ static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *r
 		// Cache buffer lookups for primitives
 
 		{
-			le_graphics_pipeline_create_info_t pipelineInfo;
-			pipelineInfo.shader_module_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.vert", LeShaderType::eVert );
-			pipelineInfo.shader_module_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.frag", LeShaderType::eFrag );
+			auto shader_module_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.vert", LeShaderType::eVert );
+			auto shader_module_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.frag", LeShaderType::eFrag );
 
-			pipelineInfo.rasterizationState = reinterpret_cast<VkPipelineRasterizationStateCreateInfo *>( &rasterizationState );
+			// FIXME: add rasterization state back in.
+			//			pipelineInfo.rasterizationState = reinterpret_cast<VkPipelineRasterizationStateCreateInfo *>( &rasterizationState );
 
-			pipelineInfo.vertex_input_attribute_descriptions       = p.attributeDescriptions.data();
-			pipelineInfo.vertex_input_attribute_descriptions_count = p.attributeDescriptions.size();
-			pipelineInfo.vertex_input_binding_descriptions         = p.bindingDescriptions.data();
-			pipelineInfo.vertex_input_binding_descriptions_count   = p.bindingDescriptions.size();
+			//			pipelineInfo.vertex_input_attribute_descriptions       = p.attributeDescriptions.data();
+			//			pipelineInfo.vertex_input_attribute_descriptions_count = p.attributeDescriptions.size();
+			//			pipelineInfo.vertex_input_binding_descriptions         = p.bindingDescriptions.data();
+			//			pipelineInfo.vertex_input_binding_descriptions_count   = p.bindingDescriptions.size();
 
-			p.pso = renderer_i.create_graphics_pipeline_state_object( renderer, &pipelineInfo );
+			using namespace le_renderer;
+			auto backend = le_renderer::renderer_i.get_backend( renderer );
+
+			p.pso = LeGraphicsPipelineBuilder( backend )
+			            .setFragmentShader( shader_module_frag )
+			            .setVertexShader( shader_module_vert )
+			            .build();
 		}
 
 	} // end for:primitives

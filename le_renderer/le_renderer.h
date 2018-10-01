@@ -150,8 +150,6 @@ struct le_graphics_pipeline_create_info_t {
 	LePipelineRasterizationStateCreateInfoHandle rasterizationState                        = nullptr;
 };
 
-struct le_graphics_pipeline_state_o; // object containing pipeline state
-
 enum LeAccessFlagBits : uint32_t {
 	eLeAccessFlagBitUndefined  = 0x0,
 	eLeAccessFlagBitRead       = 0x1 << 0,
@@ -251,7 +249,6 @@ struct le_renderer_api {
 		void                           ( *destroy                               )( le_renderer_o *obj );
 		void                           ( *setup                                 )( le_renderer_o *obj );
 		void                           ( *update                                )( le_renderer_o *obj, le_render_module_o *module );
-		le_graphics_pipeline_state_o * ( *create_graphics_pipeline_state_object )( le_renderer_o *self, le_graphics_pipeline_create_info_t const *pipeline_info );
 		le_shader_module_o*            ( *create_shader_module                  )( le_renderer_o *self, char const *path, LeShaderType mtype );
 
 		/// introduces a new resource name to the renderer, returns a handle under which the renderer will recognise this resource
@@ -259,6 +256,7 @@ struct le_renderer_api {
 
 		/// returns the resource handle for the current swapchain image
 		LeResourceHandle               ( *get_backbuffer_resource               )( le_renderer_o* self );
+		le_backend_o*                  ( *get_backend)(le_renderer_o* self);
 	};
 
 
@@ -330,7 +328,7 @@ struct le_renderer_api {
 		void                         ( *set_line_width         )( le_command_buffer_encoder_o *self, float line_width_ );
 		void                         ( *set_viewport           )( le_command_buffer_encoder_o *self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport *pViewports );
 		void                         ( *set_scissor            )( le_command_buffer_encoder_o *self, uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D *pViewports );
-		void                         ( *bind_graphics_pipeline )( le_command_buffer_encoder_o *self, le_graphics_pipeline_state_o* pipeline);
+		void                         ( *bind_graphics_pipeline )( le_command_buffer_encoder_o *self, uint64_t gpsoHash);
 
 		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, LeResourceHandle const bufferId, uint64_t offset, uint64_t const indexType);
 		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, LeResourceHandle const * pBufferId, uint64_t const * pOffsets );
@@ -445,10 +443,6 @@ class Renderer {
 
 	void update( le_render_module_o *module ) {
 		le_renderer::renderer_i.update( self, module );
-	}
-
-	le_graphics_pipeline_state_o *createGraphicsPipelineStateObject( le_graphics_pipeline_create_info_t const *info ) {
-		return le_renderer::renderer_i.create_graphics_pipeline_state_object( self, info );
 	}
 
 	le_shader_module_o *createShaderModule( char const *path, LeShaderType moduleType ) {
@@ -643,8 +637,8 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &bindGraphicsPipeline( le_graphics_pipeline_state_o *pipeline ) {
-		le_renderer::encoder_i.bind_graphics_pipeline( self, pipeline );
+	Encoder &bindGraphicsPipeline( uint64_t gpsoHash ) {
+		le_renderer::encoder_i.bind_graphics_pipeline( self, gpsoHash );
 		return *this;
 	}
 

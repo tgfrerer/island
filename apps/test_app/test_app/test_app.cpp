@@ -85,9 +85,9 @@ struct test_app_o {
 	std::unique_ptr<le::Backend>  backend;
 	std::unique_ptr<pal::Window>  window;
 	std::unique_ptr<le::Renderer> renderer;
-	le_graphics_pipeline_state_o *psoMain;           // weak ref, owned by renderer
-	le_graphics_pipeline_state_o *psoFullScreenQuad; // weak ref, owned by renderer
-	le_graphics_pipeline_state_o *psoImgui;          // weak ref, owned by renderer
+	uint64_t                      psoMain;           // weak ref, owned by renderer
+	uint64_t                      psoFullScreenQuad; // weak ref, owned by renderer
+	uint64_t                      psoImgui;          // weak ref, owned by renderer
 	ImGuiContext *                imguiContext  = nullptr;
 	uint64_t                      frame_counter = 0;
 	float                         deltaTimeSec  = 0;
@@ -297,16 +297,17 @@ static test_app_o *test_app_create() {
 			auto defaultVertShader = app->renderer->createShaderModule( "./resources/shaders/default.vert", LeShaderType::eVert );
 			auto defaultFragShader = app->renderer->createShaderModule( "./resources/shaders/default.frag", LeShaderType::eFrag );
 
-			le_graphics_pipeline_create_info_t pi;
-			pi.shader_module_frag = defaultFragShader;
-			pi.shader_module_vert = defaultVertShader;
-
 			// The pipeline state object holds all state for the pipeline,
 			// that's links to shader modules, blend states, input assembly, etc...
 			// Everything, in short, but the renderpass, and subpass (which are added at the last minute)
 			//
 			// The backend pipeline object is compiled on-demand, when it is first used with a renderpass, and henceforth cached.
-			auto pso = app->renderer->createGraphicsPipelineStateObject( &pi );
+
+			le_backend_o *backend = *app->backend;
+			auto          pso     = LeGraphicsPipelineBuilder( backend )
+			               .setFragmentShader( defaultFragShader )
+			               .setVertexShader( defaultVertShader )
+			               .build();
 
 			if ( pso ) {
 				app->psoMain = pso;
@@ -320,87 +321,45 @@ static test_app_o *test_app_create() {
 			auto imguiVertShader = app->renderer->createShaderModule( "./resources/shaders/imgui.vert", LeShaderType::eVert );
 			auto imguiFragShader = app->renderer->createShaderModule( "./resources/shaders/imgui.frag", LeShaderType::eFrag );
 
-			le_graphics_pipeline_create_info_t                   imGuiPipelineInfo{};
-			std::array<le_vertex_input_attribute_description, 3> attrs    = {};
-			std::array<le_vertex_input_binding_description, 1>   bindings = {};
+			std::array<VkVertexInputAttributeDescription, 3> attrs    = {};
+			std::array<VkVertexInputBindingDescription, 1>   bindings = {};
 			{
 				// location 0, binding 0
-				attrs[ 0 ].location       = 0;                           // refers to shader parameter location
-				attrs[ 0 ].binding        = 0;                           // refers to bound buffer index
-				attrs[ 0 ].binding_offset = offsetof( ImDrawVert, pos ); // offset into bound buffer
-				attrs[ 0 ].isNormalised   = false;
-				attrs[ 0 ].type           = le_vertex_input_attribute_description::eFloat;
-				attrs[ 0 ].vecsize        = 2;
+				attrs[ 0 ].location = 0;                           // refers to shader parameter location
+				attrs[ 0 ].binding  = 0;                           // refers to bound buffer index
+				attrs[ 0 ].offset   = offsetof( ImDrawVert, pos ); // offset into bound buffer
+				attrs[ 0 ].format   = VK_FORMAT_R32G32_SFLOAT;
 
 				// location 1, binding 0
-				attrs[ 1 ].location       = 1;
-				attrs[ 1 ].binding        = 0;
-				attrs[ 1 ].binding_offset = offsetof( ImDrawVert, uv );
-				attrs[ 1 ].isNormalised   = false;
-				attrs[ 1 ].type           = le_vertex_input_attribute_description::eFloat;
-				attrs[ 1 ].vecsize        = 2;
+				attrs[ 1 ].location = 1;
+				attrs[ 1 ].binding  = 0;
+				attrs[ 1 ].offset   = offsetof( ImDrawVert, uv );
+				attrs[ 1 ].format   = VK_FORMAT_R32G32_SFLOAT;
 
 				// location 2, binding 0
-				attrs[ 2 ].location       = 2;
-				attrs[ 2 ].binding        = 0;
-				attrs[ 2 ].binding_offset = offsetof( ImDrawVert, col );
-				attrs[ 2 ].isNormalised   = true;
-				attrs[ 2 ].type           = le_vertex_input_attribute_description::eChar;
-				attrs[ 2 ].vecsize        = 4;
+				attrs[ 2 ].location = 2;
+				attrs[ 2 ].binding  = 0;
+				attrs[ 2 ].offset   = offsetof( ImDrawVert, col );
+				attrs[ 2 ].format   = VK_FORMAT_R8G8B8A8_UNORM;
 			}
 			{
 				// binding 0
-				bindings[ 0 ].binding    = 0;
-				bindings[ 0 ].input_rate = le_vertex_input_binding_description::ePerVertex;
-				bindings[ 0 ].stride     = sizeof( ImDrawVert );
+				bindings[ 0 ].binding   = 0;
+				bindings[ 0 ].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+				bindings[ 0 ].stride    = sizeof( ImDrawVert );
 			}
 
-			{
-				std::array<VkVertexInputAttributeDescription, 3> attrs    = {};
-				std::array<VkVertexInputBindingDescription, 1>   bindings = {};
-				{
-					// location 0, binding 0
-					attrs[ 0 ].location = 0;                           // refers to shader parameter location
-					attrs[ 0 ].binding  = 0;                           // refers to bound buffer index
-					attrs[ 0 ].offset   = offsetof( ImDrawVert, pos ); // offset into bound buffer
-					attrs[ 1 ].format   = VK_FORMAT_R32G32_SFLOAT;
-
-					// location 1, binding 0
-					attrs[ 1 ].location = 1;
-					attrs[ 1 ].binding  = 0;
-					attrs[ 1 ].offset   = offsetof( ImDrawVert, uv );
-					attrs[ 1 ].format   = VK_FORMAT_R32G32_SFLOAT;
-
-					// location 2, binding 0
-					attrs[ 2 ].location = 2;
-					attrs[ 2 ].binding  = 0;
-					attrs[ 2 ].offset   = offsetof( ImDrawVert, col );
-					attrs[ 2 ].format   = VK_FORMAT_R8G8B8A8_UNORM;
-				}
-				{
-					// binding 0
-					bindings[ 0 ].binding   = 0;
-					bindings[ 0 ].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-					bindings[ 0 ].stride    = sizeof( ImDrawVert );
-				}
-
-				uint64_t pipeline_hash = LePipelineBuilder()
-				                             .setFragmentShader( imguiFragShader )
-				                             .setVertexShader( imguiVertShader )
-				                             .setVertexInputAttributeDescriptions( attrs.data(), attrs.size() )
-				                             .setVertexInputBindingDescriptions( bindings.data(), bindings.size() )
-				                             .build();
-			}
-
-			imGuiPipelineInfo.shader_module_frag = imguiFragShader;
-			imGuiPipelineInfo.shader_module_vert = imguiVertShader;
-
-			imGuiPipelineInfo.vertex_input_attribute_descriptions       = attrs.data();
-			imGuiPipelineInfo.vertex_input_attribute_descriptions_count = attrs.size();
-			imGuiPipelineInfo.vertex_input_binding_descriptions         = bindings.data();
-			imGuiPipelineInfo.vertex_input_binding_descriptions_count   = bindings.size();
-
-			auto psoHandle = app->renderer->createGraphicsPipelineStateObject( &imGuiPipelineInfo );
+			// NICE: Setting this static means that the builder only runs for the very first time.
+			//
+			// Which makes sense since every other time it will return the same hash value for
+			// given data.
+			// and all calculations will be in vain, and write access to the cache is expensive.
+			static uint64_t psoHandle = LeGraphicsPipelineBuilder( *app->backend )
+			                                .setFragmentShader( imguiFragShader )
+			                                .setVertexShader( imguiVertShader )
+			                                .setVertexInputAttributeDescriptions( attrs.data(), attrs.size() )
+			                                .setVertexInputBindingDescriptions( bindings.data(), bindings.size() )
+			                                .build();
 
 			if ( psoHandle ) {
 				app->psoImgui = psoHandle;
@@ -415,11 +374,10 @@ static test_app_o *test_app_create() {
 			auto fullScreenQuadVertShader = app->renderer->createShaderModule( "./resources/shaders/fullscreenQuad.vert", LeShaderType::eVert );
 			auto fullScreenQuadFragShader = app->renderer->createShaderModule( "./resources/shaders/fullscreenQuad.frag", LeShaderType::eFrag );
 
-			le_graphics_pipeline_create_info_t pi{};
-			pi.shader_module_vert = fullScreenQuadVertShader;
-			pi.shader_module_frag = fullScreenQuadFragShader;
-
-			auto psoHandle = app->renderer->createGraphicsPipelineStateObject( &pi );
+			auto psoHandle = LeGraphicsPipelineBuilder( *app->backend )
+			                     .setFragmentShader( fullScreenQuadFragShader )
+			                     .setVertexShader( fullScreenQuadVertShader )
+			                     .build();
 
 			if ( psoHandle ) {
 				app->psoFullScreenQuad = psoHandle;

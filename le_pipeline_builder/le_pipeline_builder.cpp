@@ -8,12 +8,13 @@
 
 #include "le_renderer/le_renderer.h" // for le_vertex_input_attribute_description le_vertex_input_binding_description
 
+#include "le_backend_vk/le_backend_vk.h" // for access to pipeline state object cache
+#include "le_backend_vk/le_backend_types_internal.h"
+
 #include <array>
 #include <vector>
 #include <mutex>
 #include <shared_mutex>
-
-constexpr uint8_t MAX_VULKAN_COLOR_ATTACHMENTS = 16; // maximum number of color attachments to a renderpass
 
 /*
 
@@ -52,41 +53,26 @@ constexpr uint8_t MAX_VULKAN_COLOR_ATTACHMENTS = 16; // maximum number of color 
 
 */
 
-struct le_graphics_pipeline_builder_data {
-
-	vk::PipelineRasterizationStateCreateInfo rasterizationInfo{};
-	vk::PipelineInputAssemblyStateCreateInfo inputAssemblyState{};
-	vk::PipelineTessellationStateCreateInfo  tessellationState{};
-	vk::PipelineMultisampleStateCreateInfo   multisampleState{};
-	vk::PipelineDepthStencilStateCreateInfo  depthStencilState{};
-
-	std::array<vk::PipelineColorBlendAttachmentState, MAX_VULKAN_COLOR_ATTACHMENTS> blendAttachmentStates{};
-};
-
 // contains everything (except renderpass/subpass) needed to create a pipeline in the backend
 struct le_graphics_pipeline_builder_o {
-
-	le_graphics_pipeline_builder_data data{};
-
-	struct le_shader_module_o *vertexShader   = nullptr; // refers opaquely to a shader module (or not)
-	struct le_shader_module_o *fragmentShader = nullptr; // refers opaquely to a shader module (or not)
-
-	std::vector<VkVertexInputAttributeDescription> explicitVertexAttributeDescriptions;    // only used if contains values, otherwise use from vertex shader reflection
-	std::vector<VkVertexInputBindingDescription>   explicitVertexInputBindingDescriptions; // only used if contains values, otherwise use from vertex shader reflection
+	graphics_pipeline_state_o *obj     = nullptr;
+	le_backend_o *             backend = nullptr;
 };
 
 // ----------------------------------------------------------------------
 
-static le_graphics_pipeline_builder_o *le_graphics_pipeline_builder_create() {
+static le_graphics_pipeline_builder_o *le_graphics_pipeline_builder_create( le_backend_o *backend ) {
 	auto self = new le_graphics_pipeline_builder_o();
 
+	self->backend = backend;
+	self->obj     = new graphics_pipeline_state_o();
 	// set default values
 
-	self->data.inputAssemblyState
+	self->obj->data.inputAssemblyState
 	    .setTopology( ::vk::PrimitiveTopology::eTriangleList )
 	    .setPrimitiveRestartEnable( VK_FALSE );
 
-	self->data.tessellationState
+	self->obj->data.tessellationState
 	    .setPatchControlPoints( 3 );
 
 	// Viewport and scissor are tracked as dynamic states,
@@ -94,7 +80,7 @@ static le_graphics_pipeline_builder_o *le_graphics_pipeline_builder_create() {
 	// but we need to give it some default values to match requirements.
 	//
 
-	self->data.rasterizationInfo
+	self->obj->data.rasterizationInfo
 	    .setDepthClampEnable( VK_FALSE )
 	    .setRasterizerDiscardEnable( VK_FALSE )
 	    .setPolygonMode( ::vk::PolygonMode::eFill )
@@ -106,7 +92,7 @@ static le_graphics_pipeline_builder_o *le_graphics_pipeline_builder_create() {
 	    .setDepthBiasSlopeFactor( 1.f )
 	    .setLineWidth( 1.f );
 
-	self->data.multisampleState
+	self->obj->data.multisampleState
 	    .setRasterizationSamples( ::vk::SampleCountFlagBits::e1 )
 	    .setSampleShadingEnable( VK_FALSE )
 	    .setMinSampleShading( 0.f )
@@ -124,7 +110,7 @@ static le_graphics_pipeline_builder_o *le_graphics_pipeline_builder_create() {
 	    .setWriteMask( 0 )
 	    .setReference( 0 );
 
-	self->data.depthStencilState
+	self->obj->data.depthStencilState
 	    .setDepthTestEnable( VK_TRUE )
 	    .setDepthWriteEnable( VK_TRUE )
 	    .setDepthCompareOp( ::vk::CompareOp::eLessOrEqual )
@@ -136,7 +122,7 @@ static le_graphics_pipeline_builder_o *le_graphics_pipeline_builder_create() {
 	    .setMaxDepthBounds( 0.f );
 
 	// Default values for color blend state
-	for ( auto &blendAttachmentState : self->data.blendAttachmentStates ) {
+	for ( auto &blendAttachmentState : self->obj->data.blendAttachmentStates ) {
 		blendAttachmentState
 		    .setBlendEnable( VK_TRUE )
 		    .setColorBlendOp( ::vk::BlendOp::eAdd )
@@ -158,7 +144,7 @@ static le_graphics_pipeline_builder_o *le_graphics_pipeline_builder_create() {
 // ----------------------------------------------------------------------
 
 static void le_graphics_pipeline_builder_set_vertex_input_attribute_descriptions( le_graphics_pipeline_builder_o *self, VkVertexInputAttributeDescription *p_input_attribute_descriptions, size_t count ) {
-	self->explicitVertexAttributeDescriptions =
+	self->obj->explicitVertexAttributeDescriptions =
 	    {p_input_attribute_descriptions,
 	     p_input_attribute_descriptions + count};
 }
@@ -166,7 +152,7 @@ static void le_graphics_pipeline_builder_set_vertex_input_attribute_descriptions
 // ----------------------------------------------------------------------
 
 static void le_graphics_pipeline_builder_set_vertex_input_binding_descriptions( le_graphics_pipeline_builder_o *self, VkVertexInputBindingDescription *p_input_binding_descriptions, size_t count ) {
-	self->explicitVertexInputBindingDescriptions =
+	self->obj->explicitVertexInputBindingDescriptions =
 	    {p_input_binding_descriptions,
 	     p_input_binding_descriptions + count};
 }
@@ -174,6 +160,9 @@ static void le_graphics_pipeline_builder_set_vertex_input_binding_descriptions( 
 // ----------------------------------------------------------------------
 
 static void le_graphics_pipeline_builder_destroy( le_graphics_pipeline_builder_o *self ) {
+	if ( self->obj ) {
+		delete self->obj;
+	}
 	delete self;
 }
 
@@ -187,7 +176,11 @@ static uint64_t le_graphics_pipeline_builder_build( le_graphics_pipeline_builder
 	constexpr size_t
 	    hash_msg_size = sizeof( le_graphics_pipeline_builder_data );
 
-	hash_value = SpookyHash::Hash64( &self->data, hash_msg_size, 0 );
+	hash_value = SpookyHash::Hash64( &self->obj->data, hash_msg_size, 0 );
+
+	// FIXME: THIS IS NOT NICE!!!
+	hash_value = SpookyHash::Hash64( &self->obj->shaderModuleFrag, 8, hash_value );
+	hash_value = SpookyHash::Hash64( &self->obj->shaderModuleVert, 8, hash_value );
 
 	// Check if this hash_value is already in the cold store.
 	// - if not, add info to cold store, and index it with hash_value
@@ -200,22 +193,27 @@ static uint64_t le_graphics_pipeline_builder_build( le_graphics_pipeline_builder
 	// the pipeline object needs to take into account the renderpass
 	// and subpass.
 
+	// note that object will be copied.
+
+	using namespace le_backend_vk;
+	le_backend_vk::vk_backend_i.introduce_graphics_pipeline_state( self->backend, self->obj, hash_value );
+
 	return hash_value;
 }
 
 // ----------------------------------------------------------------------
 
 static void le_graphics_pipeline_builder_set_vertex_shader( le_graphics_pipeline_builder_o *self, struct le_shader_module_o *vertexShader ) {
-	self->vertexShader = vertexShader;
+	self->obj->shaderModuleVert = vertexShader;
 }
 
 static void le_graphics_pipeline_builder_set_fragment_shader( le_graphics_pipeline_builder_o *self, struct le_shader_module_o *fragmentShader ) {
-	self->fragmentShader = fragmentShader;
+	self->obj->shaderModuleFrag = fragmentShader;
 }
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_graphics_pipeline_builder_api( void *api ) {
+ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
 	auto &i = static_cast<le_graphics_pipeline_builder_api *>( api )->le_graphics_pipeline_builder_i;
 
 	i.create                                  = le_graphics_pipeline_builder_create;

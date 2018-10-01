@@ -10,20 +10,21 @@ extern "C" {
 
 struct le_graphics_pipeline_builder_o;
 struct le_shader_module_o;
+struct le_backend_o;
 
 struct VkVertexInputAttributeDescription;
 struct VkVertexInputBindingDescription;
 
-void register_le_graphics_pipeline_builder_api( void *api );
+void register_le_pipeline_builder_api( void *api );
 
 // clang-format off
 struct le_graphics_pipeline_builder_api {
 	static constexpr auto id      = "le_pipeline_builder";
-	static constexpr auto pRegFun = register_le_graphics_pipeline_builder_api;
+	static constexpr auto pRegFun = register_le_pipeline_builder_api;
 
 	struct le_graphics_pipeline_builder_interface_t {
 
-		le_graphics_pipeline_builder_o * ( * create                   ) ( ); // TODO: needs to be created for a backend.
+		le_graphics_pipeline_builder_o * ( * create                   ) ( le_backend_o *backend ); // TODO: needs to be created for a backend.
 		void                             ( * destroy                  ) ( le_graphics_pipeline_builder_o* self );
 
 		void                             ( * set_vertex_shader   ) ( le_graphics_pipeline_builder_o* self,  le_shader_module_o* vertex_shader);
@@ -58,8 +59,8 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	le_graphics_pipeline_builder_o *self;
 
   public:
-	LeGraphicsPipelineBuilder()
-	    : self( le_pipeline_builder::le_graphics_pipeline_builder_i.create() ) {
+	LeGraphicsPipelineBuilder( le_backend_o *backend )
+	    : self( le_pipeline_builder::le_graphics_pipeline_builder_i.create( backend ) ) {
 	}
 
 	~LeGraphicsPipelineBuilder() {

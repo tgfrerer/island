@@ -117,15 +117,6 @@ static void renderer_destroy( le_renderer_o *self ) {
 
 	delete self;
 }
-// ----------------------------------------------------------------------
-
-/// \brief Creates a pipeline state object on the backend
-/// \returns an opaque handle to a pipeline state object
-static le_graphics_pipeline_state_o *
-renderer_create_graphics_pipeline_state_object( le_renderer_o *self, le_graphics_pipeline_create_info_t const *pipeline_info ) {
-	using namespace le_backend_vk;
-	return vk_backend_i.create_graphics_pipeline_state_object( self->backend, pipeline_info );
-}
 
 // ----------------------------------------------------------------------
 /// \brief declare a shader module which can be used to create a pipeline
@@ -133,6 +124,10 @@ renderer_create_graphics_pipeline_state_object( le_renderer_o *self, le_graphics
 static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, char const *path, LeShaderType moduleType ) {
 	using namespace le_backend_vk;
 	return vk_backend_i.create_shader_module( self->backend, path, moduleType );
+}
+
+static le_backend_o *renderer_get_backend( le_renderer_o *self ) {
+	return self->backend;
 }
 
 // ----------------------------------------------------------------------
@@ -494,14 +489,14 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	auto  le_renderer_api_i = static_cast<le_renderer_api *>( api_ );
 	auto &le_renderer_i     = le_renderer_api_i->le_renderer_i;
 
-	le_renderer_i.create                                = renderer_create;
-	le_renderer_i.destroy                               = renderer_destroy;
-	le_renderer_i.setup                                 = renderer_setup;
-	le_renderer_i.update                                = renderer_update;
-	le_renderer_i.create_graphics_pipeline_state_object = renderer_create_graphics_pipeline_state_object;
-	le_renderer_i.create_shader_module                  = renderer_create_shader_module;
-	le_renderer_i.declare_resource                      = renderer_declare_resource;
-	le_renderer_i.get_backbuffer_resource               = renderer_get_backbuffer_resource;
+	le_renderer_i.create                  = renderer_create;
+	le_renderer_i.destroy                 = renderer_destroy;
+	le_renderer_i.setup                   = renderer_setup;
+	le_renderer_i.update                  = renderer_update;
+	le_renderer_i.create_shader_module    = renderer_create_shader_module;
+	le_renderer_i.declare_resource        = renderer_declare_resource;
+	le_renderer_i.get_backbuffer_resource = renderer_get_backbuffer_resource;
+	le_renderer_i.get_backend             = renderer_get_backend;
 
 	// register sub-components of this api
 	register_le_rendergraph_api( api_ );
