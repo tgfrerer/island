@@ -14,6 +14,11 @@ struct le_backend_o;
 
 struct VkVertexInputAttributeDescription;
 struct VkVertexInputBindingDescription;
+struct VkPipelineRasterizationStateCreateInfo;
+struct VkPipelineInputAssemblyStateCreateInfo;
+struct VkPipelineTessellationStateCreateInfo;
+struct VkPipelineMultisampleStateCreateInfo;
+struct VkPipelineDepthStencilStateCreateInfo;
 
 void register_le_pipeline_builder_api( void *api );
 
@@ -24,16 +29,22 @@ struct le_graphics_pipeline_builder_api {
 
 	struct le_graphics_pipeline_builder_interface_t {
 
-		le_graphics_pipeline_builder_o * ( * create                   ) ( le_backend_o *backend ); // TODO: needs to be created for a backend.
-		void                             ( * destroy                  ) ( le_graphics_pipeline_builder_o* self );
+		le_graphics_pipeline_builder_o * ( * create          ) ( le_backend_o *backend ); // TODO: needs to be created for a backend.
+		void                             ( * destroy         ) ( le_graphics_pipeline_builder_o* self );
 
-		void                             ( * set_vertex_shader   ) ( le_graphics_pipeline_builder_o* self,  le_shader_module_o* vertex_shader);
-		void                             ( * set_fragment_shader ) ( le_graphics_pipeline_builder_o* self,  le_shader_module_o* fragment_shader);
+		void     ( * set_vertex_shader                       ) ( le_graphics_pipeline_builder_o* self,  le_shader_module_o* vertex_shader);
+		void     ( * set_fragment_shader                     ) ( le_graphics_pipeline_builder_o* self,  le_shader_module_o* fragment_shader);
 
-		void                             ( * set_vertex_input_attribute_descriptions )(le_graphics_pipeline_builder_o* self, VkVertexInputAttributeDescription* p_input_attribute_descriptions, size_t count);
-		void                             ( * set_vertex_input_binding_descriptions   )(le_graphics_pipeline_builder_o* self, VkVertexInputBindingDescription* p_input_binding_descriptions, size_t count);
+		void     ( * set_vertex_input_attribute_descriptions ) ( le_graphics_pipeline_builder_o* self, VkVertexInputAttributeDescription* p_input_attribute_descriptions, size_t count);
+		void     ( * set_vertex_input_binding_descriptions   ) ( le_graphics_pipeline_builder_o* self, VkVertexInputBindingDescription* p_input_binding_descriptions, size_t count);
 
-		uint64_t                         ( * build )(le_graphics_pipeline_builder_o* self );
+		void     ( * set_rasterization_info                  ) ( le_graphics_pipeline_builder_o* self, const VkPipelineRasterizationStateCreateInfo& rasterizationState);
+		void     ( * set_input_assembly_info                 ) ( le_graphics_pipeline_builder_o *self, const VkPipelineInputAssemblyStateCreateInfo &inputAssemblyInfo ) ;
+		void     ( * set_tessellation_info                   ) ( le_graphics_pipeline_builder_o *self, const VkPipelineTessellationStateCreateInfo &tessellationInfo );
+		void     ( * set_multisample_info                    ) ( le_graphics_pipeline_builder_o *self, const VkPipelineMultisampleStateCreateInfo &multisampleInfo );
+		void     ( * set_depth_stencil_info                  ) ( le_graphics_pipeline_builder_o *self, const VkPipelineDepthStencilStateCreateInfo &depthStencilInfo );
+
+		uint64_t ( * build                                   )(le_graphics_pipeline_builder_o* self );
 	};
 
 	le_graphics_pipeline_builder_interface_t le_graphics_pipeline_builder_i;
@@ -88,6 +99,31 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 
 	LeGraphicsPipelineBuilder &setVertexInputBindingDescriptions( VkVertexInputBindingDescription *pDescr, size_t count ) {
 		le_pipeline_builder::le_graphics_pipeline_builder_i.set_vertex_input_binding_descriptions( self, pDescr, count );
+		return *this;
+	}
+
+	LeGraphicsPipelineBuilder &setRasterizationInfo( const VkPipelineRasterizationStateCreateInfo &info ) {
+		le_pipeline_builder::le_graphics_pipeline_builder_i.set_rasterization_info( self, info );
+		return *this;
+	}
+
+	LeGraphicsPipelineBuilder &setInputAssemblyInfo( const VkPipelineInputAssemblyStateCreateInfo &info ) {
+		le_pipeline_builder::le_graphics_pipeline_builder_i.set_input_assembly_info( self, info );
+		return *this;
+	}
+
+	LeGraphicsPipelineBuilder &setTessellationInfo( const VkPipelineTessellationStateCreateInfo &info ) {
+		le_pipeline_builder::le_graphics_pipeline_builder_i.set_tessellation_info( self, info );
+		return *this;
+	}
+
+	LeGraphicsPipelineBuilder &setMultisampleInfo( const VkPipelineMultisampleStateCreateInfo &info ) {
+		le_pipeline_builder::le_graphics_pipeline_builder_i.set_multisample_info( self, info );
+		return *this;
+	}
+
+	LeGraphicsPipelineBuilder &setDepthStencilInfo( const VkPipelineDepthStencilStateCreateInfo &info ) {
+		le_pipeline_builder::le_graphics_pipeline_builder_i.set_depth_stencil_info( self, info );
 		return *this;
 	}
 };
