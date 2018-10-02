@@ -35,8 +35,6 @@
 #include <chrono> // for nanotime
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
-struct le_graphics_pipeline_state_o; // owned by renderer
-
 struct GltfUboMvp {
 	glm::mat4 projection;
 	glm::mat4 model;
@@ -53,7 +51,7 @@ struct FontTextureInfo {
 };
 
 struct le_mouse_event_data_o {
-	uint8_t   buttonState{};
+	uint32_t  buttonState{};
 	glm::vec2 cursor_pos;
 };
 
@@ -112,131 +110,6 @@ static void initialize() {
 static void terminate() {
 	pal::Window::terminate();
 };
-
-// ----------------------------------------------------------------------
-
-static void test_app_key_callback( void *user_data, int key, int scancode, int action, int mods ) {
-
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
-
-	// --------| invariant : user data is not null
-
-	auto app = static_cast<test_app_o *>( user_data );
-
-	{
-		static auto const &window_i = Registry::getApi<pal_window_api>()->window_i;
-		if ( key == GLFW_KEY_F11 && action == GLFW_RELEASE ) {
-			window_i.toggle_fullscreen( *app->window );
-		}
-	}
-	ImGuiIO &io = ImGui::GetIO();
-
-	if ( action == GLFW_PRESS ) {
-		io.KeysDown[ key ] = true;
-	}
-	if ( action == GLFW_RELEASE ) {
-		io.KeysDown[ key ] = false;
-	}
-
-	( void )mods; // Modifiers are not reliable across systems
-	io.KeyCtrl  = io.KeysDown[ GLFW_KEY_LEFT_CONTROL ] || io.KeysDown[ GLFW_KEY_RIGHT_CONTROL ];
-	io.KeyShift = io.KeysDown[ GLFW_KEY_LEFT_SHIFT ] || io.KeysDown[ GLFW_KEY_RIGHT_SHIFT ];
-	io.KeyAlt   = io.KeysDown[ GLFW_KEY_LEFT_ALT ] || io.KeysDown[ GLFW_KEY_RIGHT_ALT ];
-	io.KeySuper = io.KeysDown[ GLFW_KEY_LEFT_SUPER ] || io.KeysDown[ GLFW_KEY_RIGHT_SUPER ];
-}
-static void test_app_character_callback( void *user_data, unsigned int codepoint ) {
-
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
-
-	// --------| invariant : user data is not null
-
-	auto app = static_cast<test_app_o *>( user_data );
-
-	ImGuiIO &io = ImGui::GetIO();
-
-	if ( codepoint > 0 && codepoint < 0x10000 ) {
-		io.AddInputCharacter( ( unsigned short )codepoint );
-	}
-}
-static void test_app_cursor_position_callback( void *user_data, double xpos, double ypos ) {
-
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
-
-	// --------| invariant : user data is not null
-
-	auto app = static_cast<test_app_o *>( user_data );
-
-	//	std::cout << "mx: " << xpos << ", my: " << ypos << std::endl
-	//	          << std::flush;
-
-	//	std::cout << "inside rect: " << ( is_inside_rect( {float( xpos ), float( ypos )}, {100, 50, 50, 100} ) ? "INSIDE" : "OUTSIDE" ) << std::endl
-	//	          << std::flush;
-
-	app->mouseData.cursor_pos = {float( xpos ), float( ypos )};
-	app->mousePos             = {float( xpos ), float( ypos )};
-}
-static void test_app_cursor_enter_callback( void *user_data, int entered ) {
-
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
-
-	// --------| invariant : user data is not null
-
-	auto app = static_cast<test_app_o *>( user_data );
-}
-static void test_app_mouse_button_callback( void *user_data, int button, int action, int mods ) {
-
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
-
-	// --------| invariant : user data is not null
-
-	auto app = static_cast<test_app_o *>( user_data );
-
-	if ( button >= 0 && button < int( app->mouseButtonStatus.size() ) ) {
-		app->mouseButtonStatus[ size_t( button ) ] = ( action == GLFW_PRESS );
-
-		if ( action == GLFW_PRESS ) {
-			app->mouseData.buttonState |= uint8_t( 1 << size_t( button ) );
-		} else if ( action == GLFW_RELEASE ) {
-			app->mouseData.buttonState &= uint8_t( 0 << size_t( button ) );
-		}
-	}
-}
-static void test_app_scroll_callback( void *user_data, double xoffset, double yoffset ) {
-
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
-
-	// --------| invariant : user data is not null
-
-	auto app = static_cast<test_app_o *>( user_data );
-
-	ImGuiIO &io = ImGui::GetIO();
-	io.MouseWheelH += static_cast<float>( xoffset );
-	io.MouseWheel += static_cast<float>( yoffset );
-}
 
 // ----------------------------------------------------------------------
 
@@ -456,12 +329,6 @@ static test_app_o *test_app_create() {
 	app->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
 
 	return app;
-}
-
-// ----------------------------------------------------------------------
-
-static float get_image_plane_distance( const le::Viewport &viewport, float fovRadians ) {
-	return viewport.height / ( 2.0f * tanf( fovRadians * 0.5f ) );
 }
 
 // ----------------------------------------------------------------------
@@ -978,6 +845,119 @@ static void test_app_destroy( test_app_o *self ) {
 		self->imguiContext = nullptr;
 	}
 	delete ( self );
+}
+
+static void test_app_key_callback( void *user_data, int key, int scancode, int action, int mods ) {
+
+	if ( user_data == nullptr ) {
+		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
+		          << std::flush;
+		return;
+	}
+
+	// --------| invariant : user data is not null
+
+	auto app = static_cast<test_app_o *>( user_data );
+
+	{
+		static auto const &window_i = Registry::getApi<pal_window_api>()->window_i;
+		if ( key == GLFW_KEY_F11 && action == GLFW_RELEASE ) {
+			window_i.toggle_fullscreen( *app->window );
+		}
+	}
+	ImGuiIO &io = ImGui::GetIO();
+
+	if ( action == GLFW_PRESS ) {
+		io.KeysDown[ key ] = true;
+	}
+	if ( action == GLFW_RELEASE ) {
+		io.KeysDown[ key ] = false;
+	}
+
+	( void )mods; // Modifiers are not reliable across systems
+	io.KeyCtrl  = io.KeysDown[ GLFW_KEY_LEFT_CONTROL ] || io.KeysDown[ GLFW_KEY_RIGHT_CONTROL ];
+	io.KeyShift = io.KeysDown[ GLFW_KEY_LEFT_SHIFT ] || io.KeysDown[ GLFW_KEY_RIGHT_SHIFT ];
+	io.KeyAlt   = io.KeysDown[ GLFW_KEY_LEFT_ALT ] || io.KeysDown[ GLFW_KEY_RIGHT_ALT ];
+	io.KeySuper = io.KeysDown[ GLFW_KEY_LEFT_SUPER ] || io.KeysDown[ GLFW_KEY_RIGHT_SUPER ];
+}
+static void test_app_character_callback( void *user_data, unsigned int codepoint ) {
+
+	if ( user_data == nullptr ) {
+		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
+		          << std::flush;
+		return;
+	}
+
+	// --------| invariant : user data is not null
+
+	auto app = static_cast<test_app_o *>( user_data );
+
+	ImGuiIO &io = ImGui::GetIO();
+
+	if ( codepoint > 0 && codepoint < 0x10000 ) {
+		io.AddInputCharacter( ( unsigned short )codepoint );
+	}
+}
+static void test_app_cursor_position_callback( void *user_data, double xpos, double ypos ) {
+
+	if ( user_data == nullptr ) {
+		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
+		          << std::flush;
+		return;
+	}
+
+	// --------| invariant : user data is not null
+
+	auto app = static_cast<test_app_o *>( user_data );
+
+	app->mouseData.cursor_pos = {float( xpos ), float( ypos )};
+	app->mousePos             = {float( xpos ), float( ypos )};
+}
+static void test_app_cursor_enter_callback( void *user_data, int entered ) {
+
+	if ( user_data == nullptr ) {
+		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
+		          << std::flush;
+		return;
+	}
+
+	// --------| invariant : user data is not null
+}
+static void test_app_mouse_button_callback( void *user_data, int button, int action, int mods ) {
+
+	if ( user_data == nullptr ) {
+		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
+		          << std::flush;
+		return;
+	}
+
+	// --------| invariant : user data is not null
+
+	auto app = static_cast<test_app_o *>( user_data );
+
+	if ( button >= 0 && button < int( app->mouseButtonStatus.size() ) ) {
+		app->mouseButtonStatus[ size_t( button ) ] = ( action == GLFW_PRESS );
+
+		if ( action == GLFW_PRESS ) {
+			app->mouseData.buttonState |= uint8_t( 1 << size_t( button ) );
+		} else if ( action == GLFW_RELEASE ) {
+			app->mouseData.buttonState &= uint8_t( 0 << size_t( button ) );
+		}
+	}
+}
+static void test_app_scroll_callback( void *user_data, double xoffset, double yoffset ) {
+
+	if ( user_data == nullptr ) {
+		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
+		          << std::flush;
+		return;
+	}
+
+	// --------| invariant : user data is not null
+
+	ImGuiIO &io = ImGui::GetIO();
+	io.MouseWheelH += static_cast<float>( xoffset );
+	io.MouseWheel += static_cast<float>( yoffset );
 }
 
 // ----------------------------------------------------------------------
