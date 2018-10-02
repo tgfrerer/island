@@ -1,7 +1,9 @@
-set (TARGET test_app)
+set (TARGET le_pixels)
 
-set (SOURCES "test_app.cpp")
-set (SOURCES ${SOURCES} "test_app.h")
+set (SOURCES "le_pixels.cpp")
+set (SOURCES ${SOURCES} "le_pixels.h")
+set (SOURCES ${SOURCES} "3rdparty/stb_image.h")
+set (SOURCES ${SOURCES} "3rdparty/stb_image_implementation.cpp")
 
 if (${PLUGINS_DYNAMIC})
 
@@ -14,23 +16,17 @@ if (${PLUGINS_DYNAMIC})
     #            loaded, will have no effect, and autoreload for this library will not work
     #            as the first version of the library will remain resident.
     target_compile_options (${TARGET} PUBLIC --no-gnu-unique)
-
+    
     target_compile_definitions(${TARGET}  PUBLIC "PLUGINS_DYNAMIC")
 
 else()
 
-    # We also set a compiler flag so that our main source file can use the correct
-    # static code path to statically load the library function pointers.
-
-    # Adding a static library means to also add a linker dependency for our target
-    # to the library.
-    set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
-
     add_library(${TARGET} STATIC ${SOURCES})
 
-    # link against static version of imgui library
-    target_link_libraries(${TARGET} PRIVATE imgui)
+    set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
 
 endif()
+
+# set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})

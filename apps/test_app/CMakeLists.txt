@@ -23,6 +23,7 @@ add_subdirectory (test_app)
 add_island_module(le_dependency_manager)
 add_island_module(le_camera)
 add_island_module(le_pipeline_builder)
+add_island_module(le_pixels)
 
 # Main application c++ file. Not much to see there,
 set (SOURCES main.cpp)

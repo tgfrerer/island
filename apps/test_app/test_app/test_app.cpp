@@ -9,6 +9,7 @@
 
 #include "le_camera/le_camera.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
+#include "le_pixels/le_pixels.h"
 
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
@@ -26,7 +27,6 @@
 #include <iostream>
 #include <memory>
 
-#include "horse_image.h"
 #include "imgui/imgui.h"
 
 #include <sstream>
@@ -548,8 +548,8 @@ static bool test_app_update( test_app_o *self ) {
 					img.flags         = 0;
 					img.arrayLayers   = 1;
 					img.extent.depth  = 1;
-					img.extent.width  = 160;
-					img.extent.height = 106;
+					img.extent.width  = 640;
+					img.extent.height = 425;
 					img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 					img.mipLevels     = 1;
 					img.samples       = VK_SAMPLE_COUNT_1_BIT;
@@ -591,7 +591,7 @@ static bool test_app_update( test_app_o *self ) {
 					img.flags         = 0;
 					img.arrayLayers   = 1;
 					img.extent.width  = uint32_t( 640 );
-					img.extent.height = uint32_t( 480 );
+					img.extent.height = uint32_t( 425 );
 					img.extent.depth  = 1;
 					img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 					img.mipLevels     = 1;
@@ -658,8 +658,10 @@ static bool test_app_update( test_app_o *self ) {
 			// to GPU local memory.
 
 			if ( app->imgHorseWasUploaded == false ) {
-
-				encoder_i.write_to_image( encoder, app->resImgHorse, {160, 106}, MagickImage, sizeof( MagickImage ) );
+				auto pix      = LePixels( "./resources/images/horse-1330690_640.jpg", 4 );
+				auto pix_info = pix.getInfo();
+				auto pix_data = pix.getData();
+				encoder_i.write_to_image( encoder, app->resImgHorse, {pix_info.width, pix_info.height}, pix_data, pix_info.byte_count );
 				app->imgHorseWasUploaded = true;
 			}
 
@@ -697,12 +699,12 @@ static bool test_app_update( test_app_o *self ) {
 
 			LeTextureInfo textureInfo{};
 			textureInfo.imageView.imageId = app->resImgHorse;
-			textureInfo.sampler.magFilter = VK_FILTER_NEAREST;
-			textureInfo.sampler.minFilter = VK_FILTER_NEAREST;
+			textureInfo.sampler.magFilter = VK_FILTER_LINEAR;
+			textureInfo.sampler.minFilter = VK_FILTER_LINEAR;
 			rp.sampleTexture( app->resTexHorse, textureInfo );
 
 			rp.setWidth( 640 );
-			rp.setHeight( 480 );
+			rp.setHeight( 425 );
 
 			return true;
 		} );
@@ -711,7 +713,7 @@ static bool test_app_update( test_app_o *self ) {
 			auto     encoder      = le::Encoder( encoder_ ); // use c++ facade for less typing ;)
 			auto     app          = static_cast<test_app_o *>( user_data );
 			uint32_t screenWidth  = 640;
-			uint32_t screenHeight = 480;
+			uint32_t screenHeight = 425;
 
 			le::Viewport viewports[ 1 ] = {
 			    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
@@ -740,16 +742,12 @@ static bool test_app_update( test_app_o *self ) {
 			auto rp  = le::RenderPassRef{pRp};
 			auto app = static_cast<test_app_o *>( user_data_ );
 
-			LeImageAttachmentInfo info{};
-
 			rp
 			    .addImageAttachment( app->renderer->getBackbufferResource() ) // color attachment
 			    .addDepthImageAttachment( app->resImgDepth )                  // depth attachment
+			    .sampleTexture( app->resTexPrepass, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {app->resImgPrepass, 0}} )
+			    .sampleTexture( app->imguiTexture.le_texture_handle, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {app->imguiTexture.le_image_handle, 0}} )
 			    .setIsRoot( true );
-
-			rp
-			    .sampleTexture( app->resTexPrepass, {VK_FILTER_NEAREST, VK_FILTER_NEAREST, app->resImgPrepass, 0} )
-			    .sampleTexture( app->imguiTexture.le_texture_handle, {VK_FILTER_LINEAR, VK_FILTER_LINEAR, app->imguiTexture.le_image_handle, 0} );
 
 			return true;
 		} );
@@ -760,16 +758,18 @@ static bool test_app_update( test_app_o *self ) {
 			auto screenWidth  = app->window->getSurfaceWidth();
 			auto screenHeight = app->window->getSurfaceHeight();
 
-			le::Viewport viewports[ 2 ] = {
+			le::Viewport viewports[ 3 ] = {
 			    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
 			    {10.f, 10.f, 160.f * 3.f + 10.f, 106.f * 3.f + 10.f, 0.f, 1.f},
+			    {10.f, 10.f, 640 / 5, 425 / 5, 0.f, 1.f},
 			};
 
 			app->camera.setViewport( viewports[ 0 ] );
 
-			le::Rect2D scissors[ 2 ] = {
+			le::Rect2D scissors[ 3 ] = {
 			    {0, 0, screenWidth, screenHeight},
 			    {10, 10, 160 * 3 + 10, 106 * 3 + 10},
+			    {10, 10, 640 / 5, 425 / 5},
 			};
 
 			glm::vec4 triangleColors[ 3 ] = {
@@ -798,13 +798,13 @@ static bool test_app_update( test_app_o *self ) {
 
 			ColorUbo_t ubo1{{1, 0, 0, 1}};
 
-			// Bind full screen quad pipeline
-			if ( false ) {
+			// Draw result of prepass
+			if ( true ) {
 
 				encoder_i.bind_graphics_pipeline( encoder, app->psoFullScreenQuad );
 				encoder_i.set_argument_texture( encoder, app->resTexPrepass, hash_64_fnv1a_const( "src_tex_unit_0" ), 0 );
-				encoder_i.set_scissor( encoder, 0, 1, &scissors[ 1 ] );
-				encoder_i.set_viewport( encoder, 0, 1, &viewports[ 1 ] );
+				encoder_i.set_scissor( encoder, 0, 1, &scissors[ 2 ] );
+				encoder_i.set_viewport( encoder, 0, 1, &viewports[ 2 ] );
 				encoder_i.draw( encoder, 3, 1, 0, 0 );
 			}
 

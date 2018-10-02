@@ -170,27 +170,25 @@ when we record command buffers, we store index into the frame resource
 list - that way we can be much faster at assigning resources
 
 # Next Step Features
+- create a project generator
+- entity-component system for nodes
+- add materials for renderer
+- add a geometry generator module - something for us to experiment with
+- implement a post processing effects pipeline
+- implement pbrt materials based on gltf reference implementation
+- investigate intel performance primitives for multithreading
+- image writer swapchain (for post processing)
 
-* re-implement `le_vertex_input_attributes` instead of using vk attributes
-  directly - our own take on attributes is more expressive, and fits
-  better with gltf for example.
-* improve ergonomics, reduce lines to type
-* create a project generator
-* entity-component system for nodes
-* add materials for renderer
-* add image loading via `stb_image`
-* reduce compile times with glm: template specialisations
-* add a geometry generator module - something for us to experiment with
-* implement a post processing effects pipeline
-* implement pbrt materials based on gltf reference implementation
-* investigate intel performance primitives for multithreading
-* image writer swapchain (for post processing)
-
-# Todo
-
+# Long-Term aspirations
+- reduce compile times with glm: template specialisations
+- improve ergonomics, reduce lines to type
 - project generator for simple apps
 - project generator for apps
+
+# Todo
+- add image loading via `stb_image`
 - add image loader module based on stb::image or similar
+- use opaque handle to reference pso instead of bare `uint64_t`
 
 # What I'm unhappy with
 
