@@ -255,9 +255,10 @@ static test_app_o *test_app_create() {
 		app->imguiTexture.le_image_handle   = app->renderer->declareResource( LeResourceType::eImage );
 		app->imguiTexture.le_texture_handle = app->renderer->declareResource( LeResourceType::eTexture );
 
-		io.DisplaySize  = {float( app->window->getSurfaceWidth() ),
+		io.DisplaySize = {float( app->window->getSurfaceWidth() ),
 		                  float( app->window->getSurfaceHeight() )};
-		io.Fonts->TexID = ( app->imguiTexture.le_texture_handle );
+
+		io.Fonts->TexID = app->imguiTexture.le_texture_handle;
 
 		// Keyboard mapping. ImGui will use those indices to peek into the io.KeysDown[] array.
 		io.KeyMap[ ImGuiKey_Tab ]        = GLFW_KEY_TAB;
@@ -315,19 +316,24 @@ static test_app_o *test_app_create() {
 		gltf_document_i.setup_resources( app->gltfDoc, *app->renderer );
 	}
 
-	app->resImgPrepass     = app->renderer->declareResource( LeResourceType::eImage );
-	app->resImgDepth       = app->renderer->declareResource( LeResourceType::eImage );
-	app->resTexPrepass     = app->renderer->declareResource( LeResourceType::eTexture );
-	app->resImgHorse       = app->renderer->declareResource( LeResourceType::eImage );
-	app->resTexHorse       = app->renderer->declareResource( LeResourceType::eTexture );
-	app->resBufTrianglePos = app->renderer->declareResource( LeResourceType::eBuffer );
+	{
+		// Declare resources which we will need for our scene
 
-	app->camera.setViewport( {0, 0, 1024, 768, 0.f, 1.f} );
-	app->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
-	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, app->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
+		app->resImgPrepass     = app->renderer->declareResource( LeResourceType::eImage );
+		app->resImgDepth       = app->renderer->declareResource( LeResourceType::eImage );
+		app->resTexPrepass     = app->renderer->declareResource( LeResourceType::eTexture );
+		app->resImgHorse       = app->renderer->declareResource( LeResourceType::eImage );
+		app->resTexHorse       = app->renderer->declareResource( LeResourceType::eTexture );
+		app->resBufTrianglePos = app->renderer->declareResource( LeResourceType::eBuffer );
+	}
+	{
+		// Set up a camera
+		app->camera.setViewport( {0, 0, 1024, 768, 0.f, 1.f} );
+		app->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
+		glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, app->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 
-	app->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
-
+		app->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
+	}
 	return app;
 }
 
@@ -345,17 +351,12 @@ static bool test_app_update( test_app_o *self ) {
 		auto &io     = ImGui::GetIO();
 		io.DeltaTime = self->deltaTimeSec;
 
-		//		self->metrics.appUpdateTimes.push( millis );
-
 		self->update_start_time = current_time;
 	}
 
-	// Polls events for all windows
-	// this means any window may trigger callbacks for any events they have callbacks registered.
+	// Polls events for all windows -
+	// This means any window may trigger callbacks for any events they have callbacks registered.
 	pal::Window::pollEvents();
-
-	//	std::cout << "mouse button status: " << std::bitset<8>( self->mouseData.buttonState ) << std::endl
-	//	          << std::flush;
 
 	if ( self->window->shouldClose() ) {
 		return false;
@@ -846,6 +847,8 @@ static void test_app_destroy( test_app_o *self ) {
 	}
 	delete ( self );
 }
+
+// ----------------------------------------------------------------------
 
 static void test_app_key_callback( void *user_data, int key, int scancode, int action, int mods ) {
 
