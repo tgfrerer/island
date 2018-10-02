@@ -169,6 +169,13 @@ resources vector.
 when we record command buffers, we store index into the frame resource
 list - that way we can be much faster at assigning resources
 
+- Something like an allocator which comes with the frame context - an
+  arena allocator which provides you with storage for any temporary
+  objects that different libraries want to create, and which have
+  a frame-bound lifespan; this will need to be thread-safe but should be
+  quite trivial to attain, if the `used_mem` index is an atomic `uint32_t`
+  value, for example.
+
 # Next Step Features
 - create a project generator
 - entity-component system for nodes
@@ -178,6 +185,7 @@ list - that way we can be much faster at assigning resources
 - implement pbrt materials based on gltf reference implementation
 - investigate intel performance primitives for multithreading
 - image writer swapchain (for post processing)
+- implement compute pipeline - and compute passes
 
 # Long-Term aspirations
 - reduce compile times with glm: template specialisations
@@ -186,10 +194,8 @@ list - that way we can be much faster at assigning resources
 - project generator for apps
 
 # Todo
-- add image loading via `stb_image`
-- add image loader module based on stb::image or similar
 - use opaque handle to reference pso instead of bare `uint64_t`
 
 # What I'm unhappy with
 
-
+- c++ template compile times (yikes)
