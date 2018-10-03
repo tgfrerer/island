@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.7.2)
 set (CMAKE_CXX_STANDARD 17)
 
-set (PROJECT_NAME "Island")
+set (PROJECT_NAME "Island-TestApp")
 
 project (${PROJECT_NAME})
 
@@ -20,6 +20,7 @@ include ("${ISLAND_BASE_DIR}CMakeLists.txt.island_prolog.in")
 add_subdirectory (test_app)
 
 # Specify any optional modules from the standard framework here
+add_island_module(le_gltf_loader)
 add_island_module(le_dependency_manager)
 add_island_module(le_camera)
 add_island_module(le_pipeline_builder)

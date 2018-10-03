@@ -12,7 +12,6 @@ if (REQUIRES_ISLAND_CORE)
     add_subdirectory ("${ISLAND_BASE_DIR}le_swapchain_vk" le_swapchain_vk)
     add_subdirectory ("${ISLAND_BASE_DIR}le_renderer" le_renderer)
     add_subdirectory ("${ISLAND_BASE_DIR}le_shader_compiler" le_shader_compiler)
-    add_subdirectory ("${ISLAND_BASE_DIR}le_gltf_loader" le_gltf_loader)
 endif()
 
 # NOTE: provide paths for libraries which are used by plugins, but not available via system search paths
