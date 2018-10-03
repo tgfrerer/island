@@ -85,7 +85,7 @@ static le_renderpass_o *renderpass_clone( le_renderpass_o const *rhs ) {
 static void renderpass_destroy( le_renderpass_o *self ) {
 
 	if ( self->encoder ) {
-		static auto const &encoder_i = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
+		using namespace le_renderer;
 		encoder_i.destroy( self->encoder );
 	}
 
@@ -333,7 +333,7 @@ static void graph_builder_add_renderpass( le_graph_builder_o *self, le_renderpas
 /// \brief find corresponding output for each input resource
 static std::vector<std::vector<uint64_t>> graph_builder_resolve_resource_ids( const std::vector<le_renderpass_o *> &passes ) {
 
-	static auto const &                renderpass_i = Registry::getApi<le_renderer_api>()->le_renderpass_i;
+	using namespace le_renderer;
 	std::vector<std::vector<uint64_t>> dependenciesPerPass;
 
 	// Rendermodule gives us a pre-sorted list of renderpasses,
@@ -543,11 +543,11 @@ static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameI
 
 	self->encoders.reserve( self->passes.size() );
 
-	static const auto &encoderInterface = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
-	static const auto &backendInterface = Registry::getApi<le_backend_vk_api>()->vk_backend_i;
+	using namespace le_renderer;
+	using namespace le_backend_vk;
 
 	// Receive one allocator per pass
-	auto const       ppAllocators = backendInterface.get_transient_allocators( backend, frameIndex, self->passes.size() );
+	auto const       ppAllocators = vk_backend_i.get_transient_allocators( backend, frameIndex, self->passes.size() );
 	le_allocator_o **allocIt      = ppAllocators; // iterator over allocators - note that number of allocators must be identical with number of passes
 
 	for ( auto &pass : self->passes ) {
@@ -556,7 +556,7 @@ static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameI
 
 		if ( pass->callbackExecute && pass->sort_key != 0 ) {
 
-			auto encoder = encoderInterface.create( *allocIt ); // NOTE: we must manually track the lifetime of encoder!
+			auto encoder = encoder_i.create( *allocIt ); // NOTE: we must manually track the lifetime of encoder!
 
 			renderpass_run_execute_callback( pass, encoder ); // record draw commands into encoder
 

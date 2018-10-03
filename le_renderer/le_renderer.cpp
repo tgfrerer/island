@@ -195,50 +195,46 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 
 static void renderer_record_frame( le_renderer_o *self, size_t frameIndex, le_render_module_o *module_, size_t frameNumber ) {
 
+	// High-level
+	// - resolve rendergraph: which render passes do contribute?
+	// - consolidate resources, synchronisation for resources
+	// - For each render pass, call renderpass' render method, build intermediary command lists
+
 	auto &frame       = self->frames[ frameIndex ];
 	frame.frameNumber = frameNumber;
 
 	if ( frame.state != FrameData::State::eCleared && frame.state != FrameData::State::eInitial ) {
 		return;
 	}
+
 	// ---------| invariant: Frame was previously acquired successfully.
 
-	// record api-agnostic intermediate draw lists
 	frame.meta.time_record_frame_start = std::chrono::high_resolution_clock::now();
-
-	// TODO: implement record_frame
-	// - resolve rendergraph: which passes do contribute?
-	// - consolidate resources, synchronisation for resources
-	//
-	// For each render pass, call renderpass' render method, build intermediary command lists
-	//
-
-	using namespace le_renderer; // for render_module_i, graph_builder_i
 
 	// - build up dependencies for graph, create table of unique resources for graph
 
-	// setup passes calls setup for all passes - this initalises virtual resources,
+	// setup passes calls `setup` callback on all passes - this initalises virtual resources,
 	// and stores their descriptors (information needed to allocate physical resources)
+	//
+	using namespace le_renderer; // for render_module_i, graph_builder_i
 	render_module_i.setup_passes( module_, frame.graphBuilder );
 
+	// find out which renderpasses contribute, only add contributing render passes to
+	// frameBuilder
 	graph_builder_i.build_graph( frame.graphBuilder );
 
-	// TODO: allocate physical resources for frame-local data
-
-	// at this point we know the resources which must be created for the frame.
-
-	// Execute callbacks into main application for each renderpass,
-	// build command lists per renderpass in intermediate, api-agnostic representation
+	// Execute callbacks into main application for each render pass,
+	// build command lists per render pass in intermediate, api-agnostic representation
 	//
 	graph_builder_i.execute_graph( frame.graphBuilder, frameIndex, self->backend );
 
 	frame.meta.time_record_frame_end = std::chrono::high_resolution_clock::now();
+
+	frame.state = FrameData::State::eRecorded;
 	//std::cout << "renderer_record_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_record_frame_end-frame.meta.time_record_frame_start).count() << "ms" << std::endl;
 
 	//	std::cout << "RECORD FRAME " << frameIndex << std::endl
 	//	          << std::flush;
-
-	frame.state = FrameData::State::eRecorded;
 }
 
 // ----------------------------------------------------------------------
