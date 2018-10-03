@@ -1721,7 +1721,6 @@ static uint64_t backend_produce_descriptor_set_layout( le_backend_o *self, std::
 				case vk::DescriptorType::eUniformTexelBuffer:
 				case vk::DescriptorType::eStorageTexelBuffer:
 				case vk::DescriptorType::eInputAttachment:
-
 					// TODO: find out what descriptorData an InputAttachment expects, if it is really done with an imageInfo
 					entry.setOffset( base_offset + offsetof( DescriptorData, sampler ) ); // point to first element of ImageInfo
 				    break;
@@ -2682,7 +2681,6 @@ static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const Backen
 	if ( resourceMeta.flags & LeResourceHandleMeta::FlagBits::eIsVirtual ) {
 		return frame.allocatorBuffers[ resourceMeta.index ];
 	} else {
-
 		return frame.availableResources.at( resourceId ).asBuffer;
 	}
 }
@@ -3343,10 +3341,24 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			// -- write data from descriptorSetData into freshly allocated DescriptorSets
 			for ( size_t setId = 0; setId != argumentState_.setCount; ++setId ) {
 
-				// FIXME: If argumentState contains invalid information (for example if an uniform has not been set yet)
+				// If argumentState contains invalid information (for example if an uniform has not been set yet)
 				// this will lead to SEGFAULT. You must ensure that argumentState contains valid information.
+				//
+				// The most common case for this bug is not providing any data for a uniform used in the shader,
+				// we check for this and skip any argumentStates which have invalid data...
 
-				device.updateDescriptorSetWithTemplate( descriptorSets_[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
+				bool argumentsOk = true;
+
+				for ( auto &a : argumentState_.setData[ setId ] ) {
+					if ( nullptr == a.buffer ) {
+						argumentsOk = false;
+						break;
+					}
+				}
+
+				if ( argumentsOk ) {
+					device.updateDescriptorSetWithTemplate( descriptorSets_[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
+				}
 			}
 		};
 
