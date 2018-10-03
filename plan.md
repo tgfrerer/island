@@ -32,9 +32,6 @@
 
 ## (B)
 
-* Implement pipeline settings such as winding mode, poly mode etc.
-* Write ergonomic front-end for pipeline setup
-
 ## (C)
 
 * find a better way to store window surface- it should probably live inside the
@@ -57,32 +54,34 @@
 ## Structs as Data
 
 Think of *structs as data* - your main interaction should be with data,
-sequences of functions acting collaboratively on data. There is **no inheritance** whatsoever. 
+sequences of functions acting collaboratively on data. There is **no
+inheritance** whatsoever. 
 
 ## Objects as abstract *state* machines
 
-You use objects and object methods if you want objects to update their internal
-state. The internal state of an object may be hidden, and this is how you
-implement encapsulation, and abstraction (an object may decide for itself how
-it implements a certain method).
+You use objects and object methods if you want objects to update their
+internal state. The internal state of an object may be hidden, and this is
+how you implement encapsulation, and abstraction (an object may decide for
+itself how it implements a certain method).
 
-Let's refer to all resources in the renderer using opaque `uint64_t` ids. These
-ids should be based on hashing the name - but we could decide later how we want
-to handle id generation and retrieval if we put the id generator into its own
-method. 
+Let's refer to all resources in the renderer using opaque `uint64_t` ids.
+These ids should be based on hashing the name - but we could decide later
+how we want to handle id generation and retrieval if we put the id
+generator into its own method. 
 
-Hashing the name has the benefit that this can be done independently and that
-no locking has to occur, and everyone who hashes a name should get the same
-result. Also, hashing is potentially executable as a constexpr, so the id will
-not have to be calculated at runtime at all.
+Hashing the name has the benefit that this can be done independently and
+that no locking has to occur, and everyone who hashes a name should get
+the same result. Also, hashing is potentially executable as a constexpr,
+so the id will not have to be calculated at runtime at all.
 
-Resources are introduced in passes during their setup stage - if a resource is
-permanent, the backend will remember the reource id, this also means that if a
-permanent resource gets dropped during a resource pass, the backend will mark
-that physical resource for recycling once no frame which is in-flight still
-uses it.  
+Resources are introduced in passes during their setup stage - if
+a resource is permanent, the backend will remember the reource id, this
+also means that if a permanent resource gets dropped during a resource
+pass, the backend will mark that physical resource for recycling once no
+frame which is in-flight still uses it.  
 
-    > does this mean we could also introduce shader resources in setup stage?
+    > does this mean we could also introduce shader resources in setup
+    > stage?
 
 Where should we *declare* resources? 
 
@@ -143,10 +142,11 @@ Where should we *declare* resources?
 
 # Island-framework
 
-* Create a templating script to generate class scaffold so you don't have to
-  type that much boilerplate.
+* Create a templating script to generate class scaffold so you don't have
+  to type that much boilerplate.
 
-* structure framework so that you may have multiple test applications using it
+* structure framework so that you may have multiple test applications
+  using it
 
 ----------------------------------------------------------------------
 
@@ -195,7 +195,13 @@ list - that way we can be much faster at assigning resources
 
 # Todo
 - use opaque handle to reference pso instead of bare `uint64_t`
+- create a minimal test app which draws a triangle
+
 
 # What I'm unhappy with
-
+- the way a lower sytem calls into a higher level system when executing
+  renderpass callbacks is too complicated - 
+- i can see no benefit in having renderpass setup being a callback 
+- the api for declaring resources is too convoluted, and too noisy, I feel
+  there is a lot of double bookkeeping going on.
 - c++ template compile times (yikes)

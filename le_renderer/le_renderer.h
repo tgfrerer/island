@@ -420,8 +420,8 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &setScissors( uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D *pViewports ) {
-		le_renderer::encoder_i.set_scissor( self, firstScissor, scissorCount, pViewports );
+	Encoder &setScissors( uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D *pScissors ) {
+		le_renderer::encoder_i.set_scissor( self, firstScissor, scissorCount, pScissors );
 		return *this;
 	}
 
@@ -435,7 +435,7 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &bindVertexBuffer( uint32_t const &firstBinding, uint32_t const &bindingCount, LeResourceHandle const *pBufferId, uint64_t const *pOffsets ) {
+	Encoder &bindVertexBuffers( uint32_t const &firstBinding, uint32_t const &bindingCount, LeResourceHandle const *pBufferId, uint64_t const *pOffsets ) {
 		le_renderer::encoder_i.bind_vertex_buffers( self, firstBinding, bindingCount, pBufferId, pOffsets );
 		return *this;
 	}

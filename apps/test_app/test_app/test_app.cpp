@@ -396,8 +396,6 @@ static bool test_app_update( test_app_o *self ) {
 
 	using namespace le_renderer;
 
-	static auto const &gltf_i = Registry::getApi<le_gltf_loader_api>()->document_i;
-
 	le::RenderModule mainModule{};
 	{
 		le::RenderPass resourcePass( "resource copy", LE_RENDER_PASS_TYPE_TRANSFER );
@@ -411,18 +409,16 @@ static bool test_app_update( test_app_o *self ) {
 				le_resource_info_t imgInfo{};
 				imgInfo.type = LeResourceType::eImage;
 				{
-					auto &img         = imgInfo.image;
-					img.format        = VK_FORMAT_R8G8B8A8_UNORM;
-					img.flags         = 0;
-					img.arrayLayers   = 1;
-					img.extent.depth  = 1;
-					img.extent.width  = 640;
-					img.extent.height = 425;
-					img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-					img.mipLevels     = 1;
-					img.samples       = VK_SAMPLE_COUNT_1_BIT;
-					img.imageType     = VK_IMAGE_TYPE_2D;
-					img.tiling        = VK_IMAGE_TILING_OPTIMAL;
+					auto &img       = imgInfo.image;
+					img.format      = VK_FORMAT_R8G8B8A8_UNORM;
+					img.flags       = 0;
+					img.arrayLayers = 1;
+					img.extent      = {640, 425, 1};
+					img.usage       = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+					img.mipLevels   = 1;
+					img.samples     = VK_SAMPLE_COUNT_1_BIT;
+					img.imageType   = VK_IMAGE_TYPE_2D;
+					img.tiling      = VK_IMAGE_TILING_OPTIMAL;
 				}
 				rp.createResource( app->resImgHorse, imgInfo );
 			}
@@ -437,9 +433,9 @@ static bool test_app_update( test_app_o *self ) {
 					img.format        = VK_FORMAT_R8G8B8A8_UNORM;
 					img.flags         = 0;
 					img.arrayLayers   = 1;
-					img.extent.depth  = 1;
 					img.extent.width  = uint32_t( app->imguiTexture.width );
 					img.extent.height = uint32_t( app->imguiTexture.height );
+					img.extent.depth  = 1;
 					img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 					img.mipLevels     = 1;
 					img.samples       = VK_SAMPLE_COUNT_1_BIT;
@@ -454,18 +450,16 @@ static bool test_app_update( test_app_o *self ) {
 				le_resource_info_t imgInfo{};
 				imgInfo.type = LeResourceType::eImage;
 				{
-					auto &img         = imgInfo.image;
-					img.format        = VK_FORMAT_R8G8B8A8_UNORM;
-					img.flags         = 0;
-					img.arrayLayers   = 1;
-					img.extent.width  = uint32_t( 640 );
-					img.extent.height = uint32_t( 425 );
-					img.extent.depth  = 1;
-					img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-					img.mipLevels     = 1;
-					img.samples       = VK_SAMPLE_COUNT_1_BIT;
-					img.imageType     = VK_IMAGE_TYPE_2D;
-					img.tiling        = VK_IMAGE_TILING_OPTIMAL;
+					auto &img       = imgInfo.image;
+					img.format      = VK_FORMAT_R8G8B8A8_UNORM;
+					img.flags       = 0;
+					img.arrayLayers = 1;
+					img.extent      = {640, 425, 1};
+					img.usage       = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+					img.mipLevels   = 1;
+					img.samples     = VK_SAMPLE_COUNT_1_BIT;
+					img.imageType   = VK_IMAGE_TYPE_2D;
+					img.tiling      = VK_IMAGE_TILING_OPTIMAL;
 				}
 				rp.createResource( app->resImgPrepass, imgInfo );
 			}
@@ -479,9 +473,9 @@ static bool test_app_update( test_app_o *self ) {
 					img.format        = VK_FORMAT_D32_SFLOAT_S8_UINT;
 					img.flags         = 0;
 					img.arrayLayers   = 1;
-					img.extent.depth  = 1;
 					img.extent.width  = 0; // zero means size of backbuffer.
 					img.extent.height = 0; // zero means size of backbuffer.
+					img.extent.depth  = 1;
 					img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 					img.mipLevels     = 1;
 					img.samples       = VK_SAMPLE_COUNT_1_BIT;
@@ -501,11 +495,12 @@ static bool test_app_update( test_app_o *self ) {
 			}
 
 			{
+				using namespace le_gltf_loader;
 				// create resources for gltf document
 				le_resource_info_t *    resourceInfo;
 				LeResourceHandle const *resourceHandles;
 				size_t                  numResourceInfos;
-				gltf_i.get_resource_infos( app->gltfDoc, &resourceInfo, &resourceHandles, &numResourceInfos );
+				gltf_document_i.get_resource_infos( app->gltfDoc, &resourceInfo, &resourceHandles, &numResourceInfos );
 
 				for ( size_t i = 0; i != numResourceInfos; i++ ) {
 					rp.createResource( resourceHandles[ i ], resourceInfo[ i ] );
@@ -553,7 +548,8 @@ static bool test_app_update( test_app_o *self ) {
 				encoder_i.write_to_buffer( encoder, app->resBufTrianglePos, 0, trianglePositions, sizeof( trianglePositions ) );
 			}
 
-			gltf_i.upload_resource_data( app->gltfDoc, encoder );
+			using namespace le_gltf_loader;
+			gltf_document_i.upload_resource_data( app->gltfDoc, encoder );
 		} );
 
 		le::RenderPass renderPassPre( "prepass", LE_RENDER_PASS_TYPE_DRAW );
@@ -746,8 +742,8 @@ static bool test_app_update( test_app_o *self ) {
 				ubo.view = *reinterpret_cast<glm::mat4 const *>( app->camera.getViewMatrix() );
 
 				// FIXME: we must first set the pipeline, before we can upload any arguments
-
-				gltf_i.draw( app->gltfDoc, encoder, &ubo );
+				using namespace le_gltf_loader;
+				gltf_document_i.draw( app->gltfDoc, encoder, &ubo );
 			}
 
 			ImDrawData *drawData = ImGui::GetDrawData();
