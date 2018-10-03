@@ -23,7 +23,13 @@ static void le_pixels_destroy( le_pixels_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static le_pixels_o *le_pixels_create( char const *file_path, int num_channels_requested = 0 ) {
+static inline uint32_t get_num_bytes_for_type( le_pixels_info::TYPE const &type ) {
+	return ( 1 << ( type & 0b11 ) );
+}
+
+// ----------------------------------------------------------------------
+
+static le_pixels_o *le_pixels_create( char const *file_path, int num_channels_requested = 0, le_pixels_info::TYPE type = le_pixels_info::TYPE::eUInt8 ) {
 	auto self = new le_pixels_o{};
 
 	int width;
@@ -31,7 +37,17 @@ static le_pixels_o *le_pixels_create( char const *file_path, int num_channels_re
 	int num_channels = 0;
 	int num_channels_in_file;
 
-	self->image_data = stbi_load( file_path, &width, &height, &num_channels_in_file, num_channels_requested );
+	switch ( type ) {
+	case le_pixels_info::TYPE::eUInt8:
+		self->image_data = stbi_load( file_path, &width, &height, &num_channels_in_file, num_channels_requested );
+	    break;
+	case le_pixels_info::TYPE::eUInt16:
+		self->image_data = stbi_load_16( file_path, &width, &height, &num_channels_in_file, num_channels_requested );
+	    break;
+	case le_pixels_info::TYPE::eFloat32:
+		self->image_data = stbi_loadf( file_path, &width, &height, &num_channels_in_file, num_channels_requested );
+	    break;
+	}
 
 	if ( num_channels_requested == 0 ) {
 		num_channels = num_channels_in_file;
@@ -53,7 +69,7 @@ static le_pixels_o *le_pixels_create( char const *file_path, int num_channels_re
 
 	// ----------| invariant: load was successful
 
-	self->info.bpp          = 8 * uint32_t( num_channels ); // must be, since we didnt load the file using 16 or float
+	self->info.bpp          = 8 * get_num_bytes_for_type( type ) * uint32_t( num_channels ); // note * 8, since we're returning bytes per pixels!
 	self->info.width        = uint32_t( width );
 	self->info.height       = uint32_t( height );
 	self->info.depth        = 1;
