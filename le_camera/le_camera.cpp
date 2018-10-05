@@ -19,7 +19,9 @@ struct le_camera_o {
 	glm::mat4    projectionMatrix{};
 	float        fovRadians{glm::radians( 60.f )}; // field of view angle (in radians)
 	le::Viewport viewport{};                       // current camera viewport
-	bool         projectionMatrixDirty = true;     // whenever fovRadians changes, or viewport changes, this means that the projection matrix needs to be recalculated.
+	float        nearClip              = 10.f;
+	float        farClip               = 10000.f;
+	bool         projectionMatrixDirty = true; // whenever fovRadians changes, or viewport changes, this means that the projection matrix needs to be recalculated.
 };
 
 struct le_camera_controller_o {
@@ -46,8 +48,25 @@ static float const *camera_get_view_matrix( le_camera_o *self ) {
 	return reinterpret_cast<float const *>( &self->matrix );
 }
 
+// ----------------------------------------------------------------------
+
 static void camera_set_view_matrix( le_camera_o *self, float const *viewMatrix ) {
 	self->matrix = *reinterpret_cast<glm::mat4 const *>( viewMatrix );
+}
+
+// ----------------------------------------------------------------------
+
+static void camera_get_clip_distances( le_camera_o *self, float *nearClip, float *farClip ) {
+	*nearClip = self->nearClip;
+	*farClip  = self->farClip;
+}
+
+// ----------------------------------------------------------------------
+
+static void camera_set_clip_distances( le_camera_o *self, float nearClip, float farClip ) {
+	self->nearClip              = nearClip;
+	self->farClip               = farClip;
+	self->projectionMatrixDirty = true;
 }
 
 // ----------------------------------------------------------------------
@@ -55,7 +74,7 @@ static void camera_set_view_matrix( le_camera_o *self, float const *viewMatrix )
 static float const *camera_get_projection_matrix( le_camera_o *self ) {
 	if ( self->projectionMatrixDirty ) {
 		// cache projection matrix calculation
-		self->projectionMatrix      = glm::perspective( self->fovRadians, float( self->viewport.width ) / float( self->viewport.height ), 10.f, 10000.f );
+		self->projectionMatrix      = glm::perspective( self->fovRadians, float( self->viewport.width ) / float( self->viewport.height ), self->nearClip, self->farClip );
 		self->projectionMatrixDirty = false;
 	}
 	return reinterpret_cast<float const *>( &self->projectionMatrix );
@@ -77,10 +96,8 @@ static bool is_inside_rect( const glm::vec2 &pt, std::array<float, 4> const &rec
 // ----------------------------------------------------------------------
 
 static void camera_set_viewport( le_camera_o *self, le::Viewport const &viewport ) {
-
+	self->viewport              = viewport;
 	self->projectionMatrixDirty = true;
-
-	self->viewport = viewport;
 }
 
 // ----------------------------------------------------------------------
@@ -156,9 +173,7 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 			controller->mode = le_camera_controller_o::eNeutral;
 		}
 
-		//		// process normal logic for cursor position
-		//		// TODO: check: This needs to be a *relative* movement, not an absolute movement.
-		//		// I have an inkling that it is, though.
+		// process normal logic for cursor position
 		float normalised_distance_x = -( mouse_event->cursor_pos.x - controller->mouse_pos_initial.x ) / ( controlCircleRadius * 3.f ); // map to -1..1
 		float normalised_distance_y = ( mouse_event->cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 3.f );  // map to -1..1
 
@@ -178,13 +193,6 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 		world_to_cam = glm::translate( pivot, glm::vec3{0, 0, normDistance} );
 
 		camera->matrix = glm::inverse( world_to_cam );
-
-		// then we must transform back to world space
-
-		// TODO: check: We rotate around a PIVOT - this means that the camera position
-		// will change because of orientation change.
-		// we must re-calculate the camera position based on the change in orientation.
-		// camera->position = camera->orientation * ( -controller->position ) * glm::inverse( camera->orientation ) * controller->position;
 
 	} break;
 	case le_camera_controller_o::eRotZ: {
@@ -303,6 +311,8 @@ ISL_API_ATTR void register_le_camera_api( void *api ) {
 	le_camera_i.set_view_matrix       = camera_set_view_matrix;
 	le_camera_i.set_fov_radians       = camera_set_fov_radians;
 	le_camera_i.get_fov_radians       = camera_get_fov_radians;
+	le_camera_i.get_clip_distances    = camera_get_clip_distances;
+	le_camera_i.set_clip_distances    = camera_set_clip_distances;
 
 	auto &le_camera_controller_i = static_cast<le_camera_api *>( api )->le_camera_controller_i;
 

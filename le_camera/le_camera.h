@@ -35,6 +35,8 @@ struct le_camera_api {
 		float const *    ( * get_view_matrix          ) ( le_camera_o* self);
 		float const *    ( * get_projection_matrix    ) ( le_camera_o* self );
 		float            ( * get_unit_distance        ) ( le_camera_o* self );
+		void             ( * set_clip_distances       ) ( le_camera_o* self, float nearClip, float farClip);
+		void             ( * get_clip_distances       ) ( le_camera_o* self, float *nearClip, float *farClip);
 	};
 
 	struct le_camera_controller_interface_t {
@@ -103,7 +105,15 @@ class LeCamera : NoCopy, NoMove {
 	}
 
 	float getFovRadians() {
-		le_camera::le_camera_i.get_fov_radians( self );
+	        return le_camera::le_camera_i.get_fov_radians( self );
+	}
+
+	void getClipDistances( float *nearClip, float *farClip ) {
+	        le_camera::le_camera_i.get_clip_distances( self, nearClip, farClip );
+	}
+
+	void setClipDistances( float nearClip, float farClip ) {
+	        le_camera::le_camera_i.set_clip_distances( self, nearClip, farClip );
 	}
 
 	operator auto() {
