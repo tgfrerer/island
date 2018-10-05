@@ -28,7 +28,7 @@ struct le_allocator_o {
 	uint8_t *bufferBaseMemoryAddress = nullptr; // mapped memory address
 	uint64_t bufferBaseOffsetInBytes = 0;       // offset into buffer for first address belonging to this allocator
 	uint64_t capacity                = 0;
-	uint64_t alignment               = 1 << 8; // 1<<8== 256, minimum allocation chunk size (should proabbly be VkPhysicalDeviceLimits::minTexelBufferOffsetAlignment - see bufferView offset "valid use" in Spec: 11.2 )
+	uint64_t alignment               = 256; // 1<<8== 256, minimum allocation chunk size (should proabbly be VkPhysicalDeviceLimits::minTexelBufferOffsetAlignment - see bufferView offset "valid use" in Spec: 11.2 )
 
 	uint8_t *pData               = bufferBaseMemoryAddress; // address of last allocation, initially: (bufferBaseMemoryAddress + bufferBaseOffsetInBytes)
 	uint64_t bufferOffsetInBytes = bufferBaseOffsetInBytes;
