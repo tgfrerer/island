@@ -1983,7 +1983,8 @@ static void backend_setup( le_backend_o *self ) {
 		}
 
 		{
-			// find memory index for scratch buffer
+			// Find memory index for scratch buffer - we do this by pretending to create
+			// an allocation.
 
 			vk::BufferCreateInfo bufferInfo{};
 			bufferInfo
@@ -2000,9 +2001,6 @@ static void backend_setup( le_backend_o *self ) {
 
 			vmaFindMemoryTypeIndexForBufferInfo( self->mAllocator, reinterpret_cast<VkBufferCreateInfo *>( &bufferInfo ), &allocInfo, &memIndexScratchBufferGraphics );
 		}
-
-		// let's create a pool for each Frame, so that each frame can create sub-allocators
-		// when it creates command buffers for each frame.
 	}
 
 	assert( vkDevice ); // device must come from somewhere! It must have been introduced to backend before, or backend must create device used by everyone else...
@@ -2018,9 +2016,11 @@ static void backend_setup( le_backend_o *self ) {
 		frameData.semaphoreRenderComplete  = vkDevice.createSemaphore( {} );
 		frameData.commandPool              = vkDevice.createCommandPool( {vk::CommandPoolCreateFlagBits::eTransient, self->device->getDefaultGraphicsQueueFamilyIndex()} );
 
-		// -- set up an allocation pool for each frame
-
 		{
+			// -- set up an allocation pool for each frame
+			// so that each frame can create sub-allocators
+			// when it creates command buffers for each frame.
+
 			VmaPoolCreateInfo aInfo{};
 			aInfo.blockSize       = 1u << 24; // 16.77MB
 			aInfo.flags           = VmaPoolCreateFlagBits::VMA_POOL_CREATE_IGNORE_BUFFER_IMAGE_GRANULARITY_BIT;
