@@ -1531,20 +1531,22 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, graphics_pipeli
 
 	std::array<vk::PipelineShaderStageCreateInfo, 2> pipelineStages;
 	pipelineStages[ 0 ]
-	    .setFlags( {} ) // must be 0 - "reserved for future use"
-	    .setStage( vk::ShaderStageFlagBits::eVertex )
-	    .setModule( pso->shaderModuleVert->module )
-	    .setPName( "main" )
-	    .setPSpecializationInfo( nullptr );
+	    .setFlags( {} )                               // must be 0 - "reserved for future use"
+	    .setStage( vk::ShaderStageFlagBits::eVertex ) //
+	    .setModule( pso->shaderModuleVert->module )   //
+	    .setPName( "main" )                           //
+	    .setPSpecializationInfo( nullptr )            //
+	    ;
 	pipelineStages[ 1 ]
-	    .setFlags( {} ) // must be 0 - "reserved for future use"
-	    .setStage( vk::ShaderStageFlagBits::eFragment )
-	    .setModule( pso->shaderModuleFrag->module )
-	    .setPName( "main" )
-	    .setPSpecializationInfo( nullptr );
+	    .setFlags( {} )                                 // must be 0 - "reserved for future use"
+	    .setStage( vk::ShaderStageFlagBits::eFragment ) //
+	    .setModule( pso->shaderModuleFrag->module )     //
+	    .setPName( "main" )                             //
+	    .setPSpecializationInfo( nullptr )              //
+	    ;
 
-	std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;        // where to get data from
-	std::vector<vk::VertexInputAttributeDescription> vertexInputAttributeDescriptions; // how it feeds into the shader's vertex inputs
+	std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;        // Where to get data from
+	std::vector<vk::VertexInputAttributeDescription> vertexInputAttributeDescriptions; // How it feeds into the shader's vertex inputs
 
 	if ( pso->explicitVertexInputBindingDescriptions.empty() ) {
 		// Default: use vertex input schema based on shader reflection
@@ -1588,7 +1590,8 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, graphics_pipeli
 	    .setVertexBindingDescriptionCount( uint32_t( vertexBindingDescriptions.size() ) )
 	    .setPVertexBindingDescriptions( vertexBindingDescriptions.data() )
 	    .setVertexAttributeDescriptionCount( uint32_t( vertexInputAttributeDescriptions.size() ) )
-	    .setPVertexAttributeDescriptions( vertexInputAttributeDescriptions.data() );
+	    .setPVertexAttributeDescriptions( vertexInputAttributeDescriptions.data() ) //
+	    ;
 
 	// Fetch vk::PipelineLayout for this pso
 	auto pipelineLayout = backend_get_pipeline_layout( self, pso );
@@ -1613,6 +1616,8 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, graphics_pipeli
 	//
 	static vk::PipelineViewportStateCreateInfo defaultViewportState{vk::PipelineViewportStateCreateFlags(), 1, nullptr, 1, nullptr};
 
+	// We will allways keep Scissor, Viewport and LineWidth as dynamic states,
+	// otherwise we might have way too many pipelines flying around.
 	std::array<vk::DynamicState, 3> dynamicStates = {{
 	    vk::DynamicState::eScissor,
 	    vk::DynamicState::eViewport,
@@ -1627,23 +1632,23 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, graphics_pipeli
 	// setup pipeline
 	vk::GraphicsPipelineCreateInfo gpi;
 	gpi
-	    .setFlags( vk::PipelineCreateFlagBits::eAllowDerivatives )
-	    .setStageCount( uint32_t( pipelineStages.size() ) )
-	    .setPStages( pipelineStages.data() )
-	    .setPVertexInputState( &vertexInputStageInfo )
-	    .setPInputAssemblyState( &pso->data.inputAssemblyState )
-	    .setPTessellationState( &pso->data.tessellationState )
-	    .setPViewportState( &defaultViewportState )
-	    .setPRasterizationState( &pso->data.rasterizationInfo )
-	    .setPMultisampleState( &pso->data.multisampleState )
-	    .setPDepthStencilState( &pso->data.depthStencilState )
-	    .setPColorBlendState( &colorBlendState )
-	    .setPDynamicState( &dynamicState )
-	    .setLayout( pipelineLayout )
-	    .setRenderPass( pass.renderPass ) // must be a valid renderpass.
-	    .setSubpass( subpass )
-	    .setBasePipelineHandle( nullptr )
-	    .setBasePipelineIndex( 0 ) // -1 signals not to use a base pipeline index
+	    .setFlags( vk::PipelineCreateFlagBits::eAllowDerivatives ) //
+	    .setStageCount( uint32_t( pipelineStages.size() ) )        // set shaders
+	    .setPStages( pipelineStages.data() )                       // set shaders
+	    .setPVertexInputState( &vertexInputStageInfo )             //
+	    .setPInputAssemblyState( &pso->data.inputAssemblyState )   //
+	    .setPTessellationState( &pso->data.tessellationState )     //
+	    .setPViewportState( &defaultViewportState )                // not used as these states are dynamic, defaultState is a dummy value to pacify driver
+	    .setPRasterizationState( &pso->data.rasterizationInfo )    //
+	    .setPMultisampleState( &pso->data.multisampleState )       //
+	    .setPDepthStencilState( &pso->data.depthStencilState )     //
+	    .setPColorBlendState( &colorBlendState )                   //
+	    .setPDynamicState( &dynamicState )                         //
+	    .setLayout( pipelineLayout )                               //
+	    .setRenderPass( pass.renderPass )                          // must be a valid renderpass.
+	    .setSubpass( subpass )                                     //
+	    .setBasePipelineHandle( nullptr )                          //
+	    .setBasePipelineIndex( 0 )                                 // -1 signals not to use a base pipeline index
 	    ;
 
 	auto pipeline = vkDevice.createGraphicsPipeline( self->pipelineCache.vulkanCache, gpi );
@@ -3186,9 +3191,13 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 // allocators and allocations.
 static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, size_t frameIndex, size_t numAllocators ) {
 
-	static auto const &allocator_i = Registry::getApi<le_backend_vk_api>()->le_allocator_linear_i;
+	using namespace le_backend_vk;
 
 	auto &frame = self->mFrames[ frameIndex ];
+
+	// IMPROVEMENT: if we're dealing with a transfer pass, we might want to use an allocator
+	// which allows for variable size - this will allow us to upload large images in one go
+	// for example.
 
 	// Only add another buffer to frame-allocated buffers if we don't yet have
 	// enough buffers to cover each pass (numAllocators should correspond to
@@ -3224,7 +3233,7 @@ static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, si
 			    .setUsage( self->LE_BUFFER_USAGE_FLAGS_SCRATCH )
 			    .setSharingMode( vk::SharingMode::eExclusive )
 			    .setQueueFamilyIndexCount( 1 )
-			    .setPQueueFamilyIndices( &self->queueFamilyIndexGraphics ); // TODO: use compute queue for compute passes
+			    .setPQueueFamilyIndices( &self->queueFamilyIndexGraphics ); // TODO: use compute queue for compute passes, or transfer for transfer passes
 			bufferCreateInfo = bufferInfoProxy;
 		}
 
@@ -3233,7 +3242,7 @@ static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, si
 		assert( result == VK_SUCCESS ); // todo: deal with failed allocation
 
 		// Create a new allocator - note that we assume an alignment of 256 bytes
-		le_allocator_o *allocator = allocator_i.create( &allocationInfo, 256 );
+		le_allocator_o *allocator = le_allocator_linear_i.create( &allocationInfo, 256 );
 
 		frame.allocators.emplace_back( allocator );
 		frame.allocatorBuffers.emplace_back( std::move( buffer ) );
