@@ -1165,18 +1165,32 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settin
 
 	assert( self->window );
 
-	le_swapchain_vk_settings_o tmpSwapchainSettings;
+	le_swapchain_vk_settings_o settings{};
 
-	tmpSwapchainSettings.imagecount_hint                = 3;
-	tmpSwapchainSettings.presentmode_hint               = le::Swapchain::Presentmode::eImmediate;
-	tmpSwapchainSettings.width_hint                     = self->window->getSurfaceWidth();
-	tmpSwapchainSettings.height_hint                    = self->window->getSurfaceHeight();
-	tmpSwapchainSettings.vk_device                      = self->device->getVkDevice();
-	tmpSwapchainSettings.vk_physical_device             = self->device->getVkPhysicalDevice();
-	tmpSwapchainSettings.vk_surface                     = self->window->getVkSurfaceKHR();
-	tmpSwapchainSettings.vk_graphics_queue_family_index = self->device->getDefaultGraphicsQueueFamilyIndex();
+	if ( swapchainSettings_ ) {
+		settings = *swapchainSettings_;
+	}
 
-	self->swapchain            = std::make_unique<le::Swapchain>( &tmpSwapchainSettings );
+	// Set default settings if not user specified for certain swapchain settings
+
+	if ( settings.imagecount_hint == 0 ) {
+		settings.imagecount_hint = 3;
+	}
+
+	if ( settings.presentmode_hint == le::Swapchain::Presentmode::eDefault ) {
+		settings.presentmode_hint = le::Swapchain::Presentmode::eFifo;
+	}
+
+	// The following settings are not user-hintable, and will get overridden by default
+
+	settings.width_hint                     = self->window->getSurfaceWidth();
+	settings.height_hint                    = self->window->getSurfaceHeight();
+	settings.vk_device                      = self->device->getVkDevice();
+	settings.vk_physical_device             = self->device->getVkPhysicalDevice();
+	settings.vk_surface                     = self->window->getVkSurfaceKHR();
+	settings.vk_graphics_queue_family_index = self->device->getDefaultGraphicsQueueFamilyIndex();
+
+	self->swapchain            = std::make_unique<le::Swapchain>( &settings );
 	self->swapchainImageFormat = vk::Format( self->swapchain->getSurfaceFormat()->format );
 }
 

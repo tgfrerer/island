@@ -197,7 +197,7 @@ class Backend : NoCopy, NoMove {
 		return le_backend_vk::vk_backend_i.create_window_surface( self, window );
 	}
 
-	void createSwapchain( le_swapchain_vk_settings_o *swapchainSettings ) {
+	void createSwapchain( le_swapchain_vk_settings_o *swapchainSettings = nullptr ) {
 		le_backend_vk::vk_backend_i.create_swapchain( self, swapchainSettings );
 	}
 
