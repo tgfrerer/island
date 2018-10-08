@@ -1203,9 +1203,10 @@ static uint64_t graphics_pso_get_pipeline_layout_hash( graphics_pipeline_state_o
 }
 // ----------------------------------------------------------------------
 // Returns bindings vector associated with a pso, based on the pso's combined bindings,
-// and the pso's hash_pipeline_layouts
-// currently, we assume bindings to be non-sparse, but it's possible that sparse bindings
+// and the pso's hash_pipeline_layouts.
+// Currently, we assume bindings to be non-sparse, but it's possible that sparse bindings
 // are allowed by the standard. let's check.
+//
 // TODO: extend this to allow more than just vert/frag shaders.
 static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( le_shader_module_o const *vert, le_shader_module_o const *const frag ) {
 
