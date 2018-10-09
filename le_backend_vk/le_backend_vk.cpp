@@ -505,7 +505,7 @@ static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 	} file_header;
 
 	if ( data_size < sizeof( SpirVHeader ) ) {
-		// Ahem, file not even contains a file header, what were you thinking?
+		// Ahem, file does not even contain a header, what were you thinking?
 		return false;
 	}
 
@@ -518,7 +518,7 @@ static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 	if ( file_header.magic == SPIRV_MAGIC ) {
 		return true;
 	} else {
-		// invalid file header for spir-v file
+		// Invalid file header for spir-v file.
 		//		std::cerr << "ERROR: Invalid header for SPIR-V file detected." << std::endl
 		//		          << std::flush;
 		return false;
@@ -564,7 +564,9 @@ static void backend_translate_to_spirv_code( le_backend_o *self, void *raw_data,
 	}
 }
 
-// flags all modules which are affected by a change in shader_source_file_path,
+// ----------------------------------------------------------------------
+
+// Flags all modules which are affected by a change in shader_source_file_path,
 // and adds them to a set of shader modules wich need to be recompiled.
 static void backend_flag_affected_modules_for_source_path( le_backend_o *self, const char *shader_source_file_path ) {
 	// find all modules from dependencies set
@@ -597,9 +599,10 @@ static void backend_set_module_dependencies_for_watched_file( le_backend_o *self
 
 	for ( const auto &s : sourcePaths ) {
 
-		// if no previous entry for this source path existed, we must insert a watch for this path
+		// If no previous entry for this source path existed, we must insert a watch for this path
 		// the watch will call a backend method which figures out how many modules were affected.
 		if ( 0 == self->moduleDependencies.count( s ) ) {
+
 			// this is the first time this file appears on our radar. Let's create a file watcher for it.
 			static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
 
@@ -1355,6 +1358,8 @@ static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_ver
 	}
 }
 
+// ----------------------------------------------------------------------
+
 // clang-format off
 /// \returns corresponding vk::Format for a given le_input_attribute_description struct
 static inline vk::Format vk_format_from_le_vertex_input_attribute_description( le_vertex_input_attribute_description const & d){
@@ -1438,85 +1443,6 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description( l
 	return vk::Format::eUndefined;
 }
 // clang-format on
-
-// ----------------------------------------------------------------------
-
-//static le_graphics_pipeline_state_o *backend_create_graphics_pipeline_state_object( le_backend_o *self, le_graphics_pipeline_create_info_t const *info ) {
-//	auto pso = new ( le_graphics_pipeline_state_o );
-
-//	// -- add shader modules to pipeline
-//	//
-//	// (shader modules are backend objects)
-//	pso->shaderModuleFrag = info->shader_module_frag;
-//	pso->shaderModuleVert = info->shader_module_vert;
-
-//	if ( info->vertex_input_attribute_descriptions &&
-//	     info->vertex_input_binding_descriptions &&
-//	     info->vertex_input_attribute_descriptions_count &&
-//	     info->vertex_input_binding_descriptions_count ) {
-
-//		// create vertex input binding descriptions
-
-//		for ( auto const *b = info->vertex_input_binding_descriptions;
-//		      b != info->vertex_input_binding_descriptions + info->vertex_input_binding_descriptions_count;
-//		      b++ ) {
-
-//			vk::VertexInputBindingDescription bindingDescription;
-//			bindingDescription
-//			    .setBinding( b->binding )
-//			    .setStride( b->stride )
-//			    .setInputRate( vk_input_rate_from_le_input_rate( b->input_rate ) );
-
-//			pso->explicitVertexBindingDescriptions.emplace_back( std::move( bindingDescription ) );
-//		}
-
-//		// create vertex input attribute descriptions
-//		for ( auto const *a = info->vertex_input_attribute_descriptions;
-//		      a != info->vertex_input_attribute_descriptions + info->vertex_input_attribute_descriptions_count;
-//		      a++ ) {
-//			vk::VertexInputAttributeDescription attributeDescription;
-//			attributeDescription
-//			    .setLocation( a->location )
-//			    .setBinding( a->binding )
-//			    .setFormat( vk_format_from_le_vertex_input_attribute_description( a ) )
-//			    .setOffset( a->binding_offset );
-
-//			pso->explicitVertexAttributeDescriptions.emplace_back( std::move( attributeDescription ) );
-//		}
-
-//		pso->useExplicitVertexInputDescriptions = true;
-//	}
-
-//	// TODO (pipeline): -- initialise pso based on pipeline info
-
-//	if ( info->rasterizationState ) {
-//		// copy rasterisation state if available, otherwise use our own
-//		pso->rasterizationInfo = *info->rasterizationState;
-//	} else {
-//		vk::PipelineRasterizationStateCreateInfo defaultRasterizationState;
-//		defaultRasterizationState
-//		    .setDepthClampEnable( VK_FALSE )
-//		    .setRasterizerDiscardEnable( VK_FALSE )
-//		    .setPolygonMode( ::vk::PolygonMode::eFill )
-//		    .setCullMode( ::vk::CullModeFlagBits::eNone )
-//		    .setFrontFace( ::vk::FrontFace::eCounterClockwise )
-//		    .setDepthBiasEnable( VK_FALSE )
-//		    .setDepthBiasConstantFactor( 0.f )
-//		    .setDepthBiasClamp( 0.f )
-//		    .setDepthBiasSlopeFactor( 1.f )
-//		    .setLineWidth( 1.f );
-//		pso->rasterizationInfo = std::move( defaultRasterizationState );
-//	}
-
-//	// -- calculate hash based on contents of pipeline state object
-
-//	// TODO: -- calculate hash for pipeline state based on create_info (state that's not related to shaders)
-//	// create_info will contain state like blend, polygon mode, culling etc.
-//	pso->hash = 0x0;
-
-//	self->pipelineCache.PSOs.push_back( pso );
-//	return pso;
-//}
 
 // ----------------------------------------------------------------------
 // called via decoder / produce_frame -
@@ -1671,17 +1597,22 @@ static vk::Pipeline backend_create_pipeline( le_backend_o *self, graphics_pipeli
 }
 
 // ----------------------------------------------------------------------
-// returns hash key for given bindings, creates and retains new vkDescriptorSetLayout inside backend if necessary
+/// \brief returns hash key for given bindings, creates and retains new vkDescriptorSetLayout inside backend if necessary
 static uint64_t backend_produce_descriptor_set_layout( le_backend_o *self, std::vector<le_shader_binding_info> const &bindings, vk::DescriptorSetLayout *layout ) {
 
-	// -- calculate hash based on le_shader_binding_infos for this set
+	// -- Calculate hash based on le_shader_binding_infos for this set
 	uint64_t set_layout_hash = SpookyHash::Hash64( bindings.data(), bindings.size() * sizeof( le_shader_binding_info ), 0 );
 
 	auto foundLayout = self->pipelineCache.descriptorSetLayouts.find( set_layout_hash );
 
-	if ( foundLayout == self->pipelineCache.descriptorSetLayouts.end() ) {
+	if ( foundLayout != self->pipelineCache.descriptorSetLayouts.end() ) {
 
-		// layout was not found in cache, we must create vk objects.
+		// -- Layout was found in cache, reuse it.
+		*layout = foundLayout->second.vk_descriptor_set_layout;
+
+	} else {
+
+		// -- Layout was not found in cache, we must create vk objects.
 
 		vk::Device device = self->device->getVkDevice();
 
@@ -1741,8 +1672,8 @@ static uint64_t backend_produce_descriptor_set_layout( le_backend_o *self, std::
 				case vk::DescriptorType::eUniformTexelBuffer:
 				case vk::DescriptorType::eStorageTexelBuffer:
 				case vk::DescriptorType::eInputAttachment:
-					// TODO: find out what descriptorData an InputAttachment expects, if it is really done with an imageInfo
-					entry.setOffset( base_offset + offsetof( DescriptorData, sampler ) ); // point to first element of ImageInfo
+					// TODO: Find out what descriptorData an InputAttachment expects, if it is really done with an imageInfo
+					entry.setOffset( base_offset + offsetof( DescriptorData, sampler ) ); // point to first field of ImageInfo
 				    break;
 				case vk::DescriptorType::eUniformBuffer:
 				case vk::DescriptorType::eStorageBuffer:
@@ -1780,11 +1711,6 @@ static uint64_t backend_produce_descriptor_set_layout( le_backend_o *self, std::
 		le_layout_info.vk_descriptor_update_template = updateTemplate;
 
 		self->pipelineCache.descriptorSetLayouts[ set_layout_hash ] = std::move( le_layout_info );
-	} else {
-
-		// layout was found in cache.
-
-		*layout = foundLayout->second.vk_descriptor_set_layout;
 	}
 
 	return set_layout_hash;
@@ -1801,7 +1727,7 @@ static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_
 	std::array<vk::DescriptorSetLayout, 8> vkLayouts{};
 	{
 
-		// -- create one vkDescriptorSetLayout for each set in bindings
+		// -- Create one vkDescriptorSetLayout for each set in bindings
 
 		std::vector<std::vector<le_shader_binding_info>> sets;
 
@@ -1850,20 +1776,24 @@ static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_
 		    .setPushConstantRangeCount( 0 )
 		    .setPPushConstantRanges( nullptr );
 
-		// create vkPipelineLayout and store it in cache.
+		// Create vkPipelineLayout and store it in cache.
 		self->pipelineCache.pipelineLayouts[ info.pipeline_layout_key ] = device.createPipelineLayout( layoutCreateInfo );
 	}
 
 	return info;
 }
 
+// ----------------------------------------------------------------------
+
 graphics_pipeline_state_o *backend_get_pso_from_cache( le_backend_o *self, const uint64_t &gpso_hash ) {
 	// FIXME: (PIPELINE) THIS NEEDS TO BE MUTEXED, AND ACCESS CONTROLLED
 	return self->pipelineCache.PSOs[ gpso_hash ];
 }
 
-/// \brief Creates - or loads a pipeline from cache based on current pipeline state
-/// \note this method may lock the pipeline cache and is therefore costly.
+// ----------------------------------------------------------------------
+
+/// \brief Creates - or loads a pipeline from cache - based on current pipeline state
+/// \note This method may lock the pipeline cache and is therefore costly.
 // TODO: Ensure there are no races around this method
 //
 // + Only the command buffer recording slice of a frame shall be able to modify the cache
@@ -1929,6 +1859,8 @@ static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *sel
 	return pipeline_and_layout_info;
 }
 
+// ----------------------------------------------------------------------
+
 void backend_introduce_graphics_pipeline_state( le_backend_o *self, graphics_pipeline_state_o *gpso, uint64_t gpsoHash ) {
 	// we must copy!
 	self->pipelineCache.PSOs[ gpsoHash ] = new graphics_pipeline_state_o( *gpso );
@@ -1949,6 +1881,11 @@ static LeResourceHandle backend_declare_resource( le_backend_o *self, LeResource
 }
 
 // ----------------------------------------------------------------------
+/// \brief Declare a resource as a virtual buffer
+/// \details This is an internal method. Virtual buffers are buffers which don't have individual
+/// Vulkan buffer backing. Instead, they use their Frame's buffer for storage. Virtual buffers
+/// are used to store Frame-local transient data such as values for shader parameters.
+/// Each Encoder uses its own virtual buffer for such purposes.
 static LeResourceHandle backend_declare_resource_virtual_buffer( le_backend_o *self, uint8_t index ) {
 	LeResourceHandle resource{}; // virtual resources all have the same id, 0, which means they are not part of the regular roster of resources...
 
@@ -1965,6 +1902,7 @@ static LeResourceHandle backend_declare_resource_virtual_buffer( le_backend_o *s
 }
 
 // ----------------------------------------------------------------------
+
 static LeResourceHandle backend_get_backbuffer_resource( le_backend_o *self ) {
 	return self->backBufferImageHandle;
 }
@@ -2056,7 +1994,7 @@ static void backend_setup( le_backend_o *self ) {
 
 	self->pipelineCache.vulkanCache = vkDevice.createPipelineCache( pipelineCacheInfo );
 
-	self->resource_counter      = 1;                                                        // initialize resource counter to 1, 0 means invalid not initialised resource.
+	self->resource_counter      = 1;                                                        // initialize resource counter to 1, 0 means invalid, not initialised resource.
 	self->backBufferImageHandle = backend_declare_resource( self, LeResourceType::eImage ); // initialize backbuffer image handle
 }
 
@@ -2064,17 +2002,17 @@ static void backend_setup( le_backend_o *self ) {
 
 static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses, const vk::Format &swapchainImageFormat, const LeResourceHandle &backbufferImageHandle ) {
 
-	// track resource state
+	// Track resource state
 
 	// we should mark persistent resources which are not frame-local with special flags, so that they
 	// come with an initial element in their sync chain, this element signals their last (frame-crossing) state
 	// this naturally applies to "backbuffer", for example.
 
-	// a pipeline barrier is defined as a combination of execution dependency and
-	// memory dependency.
-	// An EXECUTION DEPENDENCY tells us which stage needs to be complete (srcStage) before another named stage (dstStage) may execute.
-	// A MEMORY DEPENDECY tells us which memory needs to be made available/flushed (srcAccess) after srcStage
-	// before another memory can be made visible/invalidated (dstAccess) before dstStage
+	// A pipeline barrier is defined as a combination of EXECUTION dependency and MEMORY dependency:
+	//
+	// * An EXECUTION DEPENDENCY tells us which stage needs to be complete (srcStage) before another named stage (dstStage) may execute.
+	// * A  MEMORY DEPENDECY     tells us which memory needs to be made available/flushed (srcAccess) after srcStage,
+	//   before another memory can be made visible/invalidated (dstAccess) before dstStage
 
 	auto &syncChainTable = frame.syncChainTable;
 
@@ -2089,23 +2027,25 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 			backbufferState.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
 			backbufferState.visible_access = vk::AccessFlagBits( 0 );                           // semaphore took care of availability - we can assume memory is already available
 		} else {
-			std::cout << "warning: no reference to backbuffer found in renderpasses" << std::flush;
+			std::cout << "WARNING: no reference to backbuffer found in renderpasses" << std::endl
+			          << std::flush;
 		}
 	}
 
-	// * sync state: ready to enter renderpass: colorattachmentOutput=visible *
-
-	// Renderpass implicit sync (per resource):
-	// + enter renderpass : INITIAL LAYOUT (layout must match)
-	// + layout transition if initial layout and attachment reference layout differ for subpass [ attachment memory is automatically made AVAILABLE | see Spec 6.1.1]
-	//   [layout transition happens-before any LOAD OPs: source: amd open source driver | https://github.com/GPUOpen-Drivers/xgl/blob/aa330d8e9acffb578c88193e4abe017c8fe15426/icd/api/renderpass/renderpass_builder.cpp#L819]
-	// + load/clear op (executed using INITIAL LAYOUT once before first use per-resource) [ attachment memory must be AVAILABLE ]
-	// + enter subpass
-	// + command execution [attachment memory must be VISIBLE ]
-	// + store op
-	// + exit subpass : final layout
-	// + exit renderpass
-	// + layout transform (if final layout differs)
+	// Renderpass implicit sync (per image resource):
+	//
+	// + Enter renderpass : INITIAL LAYOUT (layout must match)
+	// + Layout transition if initial layout and attachment reference layout differ for subpass
+	//   [ attachment memory is automatically made AVAILABLE | see Spec 6.1.1]
+	//   [layout transition happens-before any LOAD OPs: (Source: amd open source driver <https://github.com/GPUOpen-Drivers/xgl/blob/aa330d8e9acffb578c88193e4abe017c8fe15426/icd/api/renderpass/renderpass_builder.cpp#L819>)]
+	// + Load/clear op (executed using INITIAL LAYOUT once before first use per-resource)
+	//   [ attachment memory must be AVAILABLE ]
+	// + Enter subpass
+	// + Command execution [attachment memory must be VISIBLE ]
+	// + Store op
+	// + Exit subpass : final layout
+	// + Exit renderpass
+	// + Layout transform (if final layout differs)
 
 	static auto const &renderpass_i = Registry::getApi<le_renderer_api>()->le_renderpass_i;
 
@@ -2287,6 +2227,8 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		syncChain.emplace_back( std::move( finalState ) );
 	}
 }
+
+// ----------------------------------------------------------------------
 
 /// \brief polls frame fence, returns true if fence has been crossed, false otherwise.
 static bool backend_poll_frame_fence( le_backend_o *self, size_t frameIndex ) {
