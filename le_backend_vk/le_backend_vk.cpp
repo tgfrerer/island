@@ -3316,8 +3316,26 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				bool argumentsOk = true;
 
 				for ( auto &a : argumentState_.setData[ setId ] ) {
-					if ( nullptr == a.buffer ) {
-						argumentsOk = false;
+
+					switch ( a.type ) {
+					case vk::DescriptorType::eStorageBufferDynamic: //
+					case vk::DescriptorType::eUniformBuffer:        //
+					case vk::DescriptorType::eUniformBufferDynamic: //
+					case vk::DescriptorType::eStorageBuffer:        // fall-through
+						// if buffer must have valid buffer bound
+						argumentsOk = ( nullptr != a.buffer );
+					    break;
+					case vk::DescriptorType::eCombinedImageSampler:
+					case vk::DescriptorType::eSampledImage:
+						argumentsOk = ( nullptr != a.imageView ); // if sampler, must have image view
+					    break;
+					default:
+						// TODO: check arguments for other types of descriptors
+						argumentsOk = true;
+					    break;
+					}
+
+					if ( false == argumentsOk ) {
 						break;
 					}
 				}
