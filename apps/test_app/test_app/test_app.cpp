@@ -132,7 +132,10 @@ static test_app_o *test_app_create() {
 
 	// We need a valid instance at this point.
 	app->backend->createWindowSurface( *app->window );
-	app->backend->createSwapchain( nullptr ); // TODO (swapchain) - make it possible to set swapchain parameters
+
+	le_swapchain_vk_settings_o swapchainSettings{};
+	swapchainSettings.presentmode_hint = le_swapchain_vk_settings_o::Presentmode::eImmediate;
+	app->backend->createSwapchain( &swapchainSettings ); // TODO (swapchain) - make it possible to set swapchain parameters
 
 	app->backend->setup();
 
