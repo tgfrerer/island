@@ -267,12 +267,14 @@ class RenderPass {
 		return self;
 	}
 
-	void setSetupCallback( void *user_data, le_renderer_api::pfn_renderpass_setup_t fun ) {
+	RenderPass &setSetupCallback( void *user_data, le_renderer_api::pfn_renderpass_setup_t fun ) {
 		le_renderer::renderpass_i.set_setup_callback( self, fun, user_data );
+		return *this;
 	}
 
-	void setExecuteCallback( void *user_data, le_renderer_api::pfn_renderpass_execute_t fun ) {
+	RenderPass &setExecuteCallback( void *user_data, le_renderer_api::pfn_renderpass_execute_t fun ) {
 		le_renderer::renderpass_i.set_execute_callback( self, fun, user_data );
+		return *this;
 	}
 };
 
