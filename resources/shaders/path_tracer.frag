@@ -138,7 +138,7 @@ void main(){
 		// capped if it hits terrain on its way.
 		float t_far = min(zDepth, t.y);
 		float t_near = max(t.x, 0);
-		float raydistance = (t_far - t_near);// * noise3( ((dir*t_far) * (dir*t_near)) * 0.00003 );
+		float raydistance = (t_far - t_near) * noise3( ((dir*t_far) * (dir*t_near)) * 0.00003 );
 
 		// distance the ray travels along the eye ray through the box * the avereage density along the ray
 		
@@ -159,13 +159,13 @@ void main(){
 
 	vec3 hdrColor;
 	{
-		const vec3 gamma = vec3(1.3);
-		const vec3 shift = vec3(9);
-		const vec3 scale = vec3(8);
+		const vec3 gamma = vec3(1.9);
+		const vec3 shift = vec3(7);
+		const vec3 scale = vec3(6);
 
 		hdrColor = vec3(1) / (vec3(1) + pow(gamma, shift - scale * sampleColor ));
 	} 
-	outFragColor = vec4(hdrColor, alpha_density );
+	outFragColor = vec4(hdrColor, 1 );
 	// outFragColor = vec4(rayTR*0.5+vec3(0.5),  1.0);
 	//outFragColor = vec4(dir.xyz * 0.5 + vec3(0.5),  1.0);
 	// outFragColor = vec4(ray.color,1);
