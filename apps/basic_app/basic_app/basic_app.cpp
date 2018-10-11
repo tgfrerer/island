@@ -1,6 +1,6 @@
 #include "basic_app.h"
 
-#include "simple_module/simple_module.h"
+#include "le_font/le_font.h"
 
 #include <iostream>
 #include <memory>
@@ -11,9 +11,8 @@
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 struct basic_app_o {
-	float        deltaTimeSec = 0;
-	NanoTime     update_start_time;
-	SimpleModule testSimpleModule;
+	float    deltaTimeSec = 0;
+	NanoTime update_start_time;
 };
 
 // ----------------------------------------------------------------------
@@ -45,7 +44,7 @@ static bool basic_app_update( basic_app_o *self ) {
 		self->update_start_time = current_time;
 	}
 
-	self->testSimpleModule.update();
+	LeFont a;
 
 	return true; // keep app alive
 }

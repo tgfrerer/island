@@ -19,8 +19,7 @@ include ("${ISLAND_BASE_DIR}CMakeLists.txt.island_prolog.in")
 add_subdirectory (basic_app)
 
 # Specify any optional modules from the standard framework here
-add_island_module(simple_module)
-add_island_module(le_dependency_manager)
+add_island_module(le_font)
 
 # Main application c++ file. Not much to see there,
 set (SOURCES main.cpp)

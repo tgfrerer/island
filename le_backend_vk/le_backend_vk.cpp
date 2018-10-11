@@ -251,19 +251,19 @@ struct BackendFrameData {
 	uint32_t                       padding                  = 0; // NOTICE: remove if needed.
 	std::vector<vk::CommandBuffer> commandBuffers;
 
-	// ResourceState keeps track of the resource stage *before* a barrier
-	struct ResourceState {
-		vk::AccessFlags        visible_access; // which memory access must be be visible - if any of these are WRITE accesses, these must be made available(flushed) before next access
-		vk::PipelineStageFlags write_stage;    // current or last stage at which write occurs
-		vk::ImageLayout        layout;         // current layout (for images)
-	};
-
 	struct Texture {
 		vk::Sampler   sampler;
 		vk::ImageView imageView;
 	};
 
 	std::unordered_map<LeResourceHandle, Texture> textures; // non-owning, references to frame-local textures, cleared on frame fence.
+
+	// ResourceState keeps track of the resource stage *before* a barrier
+	struct ResourceState {
+		vk::AccessFlags        visible_access; // which memory access must be be visible - if any of these are WRITE accesses, these must be made available(flushed) before next access
+		vk::PipelineStageFlags write_stage;    // current or last stage at which write occurs
+		vk::ImageLayout        layout;         // current layout (for images)
+	};
 
 	// With `syncChainTable` and image_attachment_info_o.syncState, we should
 	// be able to create renderpasses. Each resource has a sync chain, and each attachment_info

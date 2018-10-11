@@ -497,7 +497,10 @@ static void graph_builder_build_graph( le_graph_builder_o *self ) {
 	self->passes.erase( end_valid_passes_range, self->passes.end() );
 
 	// Use sort key to order passes in decending order, based on sort key.
-	// pass with lower sort key depends on pass with higher sort key.
+	// pass with lower sort key depends on pass with higher sort key
+	//
+	// We use stable_sort because this respects the original submission order when
+	// two passes share the same priority.
 	std::stable_sort( self->passes.begin(), self->passes.end(), []( le_renderpass_o const *lhs, le_renderpass_o const *rhs ) {
 		return lhs->sort_key > rhs->sort_key;
 	} );
@@ -551,8 +554,6 @@ static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameI
 	le_allocator_o **allocIt      = ppAllocators; // iterator over allocators - note that number of allocators must be identical with number of passes
 
 	for ( auto &pass : self->passes ) {
-
-		//assert( pass.sort_key != 0 ); // passes with sort key 0 must have been removed by now.
 
 		if ( pass->callbackExecute && pass->sort_key != 0 ) {
 
