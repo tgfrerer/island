@@ -30,7 +30,6 @@
 #include "imgui/imgui.h"
 
 #include <sstream>
-#include <bitset>
 
 #include <chrono> // for nanotime
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
@@ -110,6 +109,8 @@ static void initialize() {
 static void terminate() {
 	pal::Window::terminate();
 };
+
+static void reset_camera( test_app_o *self ); // ffdecl.
 
 // ----------------------------------------------------------------------
 
@@ -330,19 +331,455 @@ static test_app_o *test_app_create() {
 		app->resBufTrianglePos = app->renderer->declareResource( LeResourceType::eBuffer );
 	}
 	{
-		// Set up a camera
-		app->camera.setViewport( {0, 0, 1024, 768, 0.f, 1.f} );
-		app->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
-		glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, app->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
-
-		app->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
+		reset_camera( app );
 	}
 	return app;
 }
 
 // ----------------------------------------------------------------------
 
+static void reset_camera( test_app_o *self ) {
+	self->camera.setViewport( {0, 0, float( self->window->getSurfaceWidth() ), float( self->window->getSurfaceHeight() ), 0.f, 1.f} );
+	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
+	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
+	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
+}
+
+// ----------------------------------------------------------------------
+
+static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data_ ) {
+	auto app = static_cast<test_app_o *>( user_data_ );
+	auto rp  = le::RenderPassRef{pRp};
+
+	{
+		// create image for the horse image
+		le_resource_info_t imgInfo{};
+		imgInfo.type = LeResourceType::eImage;
+		{
+			auto &img       = imgInfo.image;
+			img.format      = VK_FORMAT_R8G8B8A8_UNORM;
+			img.flags       = 0;
+			img.arrayLayers = 1;
+			img.extent      = {640, 425, 1};
+			img.usage       = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+			img.mipLevels   = 1;
+			img.samples     = VK_SAMPLE_COUNT_1_BIT;
+			img.imageType   = VK_IMAGE_TYPE_2D;
+			img.tiling      = VK_IMAGE_TILING_OPTIMAL;
+		}
+		rp.createResource( app->resImgHorse, imgInfo );
+	}
+
+	{
+		// create resource for imgui font texture if it does not yet exist.
+		// create image for imgui image
+		le_resource_info_t imgInfo{};
+		imgInfo.type = LeResourceType::eImage;
+		{
+			auto &img         = imgInfo.image;
+			img.format        = VK_FORMAT_R8G8B8A8_UNORM;
+			img.flags         = 0;
+			img.arrayLayers   = 1;
+			img.extent.width  = uint32_t( app->imguiTexture.width );
+			img.extent.height = uint32_t( app->imguiTexture.height );
+			img.extent.depth  = 1;
+			img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+			img.mipLevels     = 1;
+			img.samples       = VK_SAMPLE_COUNT_1_BIT;
+			img.imageType     = VK_IMAGE_TYPE_2D;
+			img.tiling        = VK_IMAGE_TILING_OPTIMAL;
+		}
+		rp.createResource( app->imguiTexture.le_image_handle, imgInfo );
+	}
+
+	{
+		// create image for prepass
+		le_resource_info_t imgInfo{};
+		imgInfo.type = LeResourceType::eImage;
+		{
+			auto &img       = imgInfo.image;
+			img.format      = VK_FORMAT_R8G8B8A8_UNORM;
+			img.flags       = 0;
+			img.arrayLayers = 1;
+			img.extent      = {640, 425, 1};
+			img.usage       = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+			img.mipLevels   = 1;
+			img.samples     = VK_SAMPLE_COUNT_1_BIT;
+			img.imageType   = VK_IMAGE_TYPE_2D;
+			img.tiling      = VK_IMAGE_TILING_OPTIMAL;
+		}
+		rp.createResource( app->resImgPrepass, imgInfo );
+	}
+
+	{
+		// create z-buffer image for main renderpass
+		le_resource_info_t imgInfo{};
+		imgInfo.type = LeResourceType::eImage;
+		{
+			auto &img         = imgInfo.image;
+			img.format        = VK_FORMAT_D32_SFLOAT_S8_UINT;
+			img.flags         = 0;
+			img.arrayLayers   = 1;
+			img.extent.width  = 0; // zero means size of backbuffer.
+			img.extent.height = 0; // zero means size of backbuffer.
+			img.extent.depth  = 1;
+			img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+			img.mipLevels     = 1;
+			img.samples       = VK_SAMPLE_COUNT_1_BIT;
+			img.imageType     = VK_IMAGE_TYPE_2D;
+			img.tiling        = VK_IMAGE_TILING_OPTIMAL;
+		}
+		rp.createResource( app->resImgDepth, imgInfo );
+	}
+
+	{
+		// create resource for triangle vertex buffer
+		le_resource_info_t bufInfo{};
+		bufInfo.type         = LeResourceType::eBuffer;
+		bufInfo.buffer.size  = sizeof( glm::vec3 ) * 3;
+		bufInfo.buffer.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+		rp.createResource( app->resBufTrianglePos, bufInfo );
+	}
+
+	{
+		using namespace le_gltf_loader;
+		// create resources for gltf document
+		le_resource_info_t *    resourceInfo;
+		LeResourceHandle const *resourceHandles;
+		size_t                  numResourceInfos;
+		gltf_document_i.get_resource_infos( app->gltfDoc, &resourceInfo, &resourceHandles, &numResourceInfos );
+
+		for ( size_t i = 0; i != numResourceInfos; i++ ) {
+			rp.createResource( resourceHandles[ i ], resourceInfo[ i ] );
+		}
+	}
+
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
+static void pass_resource_exec( le_command_buffer_encoder_o *encoder, void *user_data_ ) {
+
+	using namespace le_renderer;
+
+	auto app = static_cast<test_app_o *>( user_data_ );
+
+	// Writing is always to encoder scratch buffer memory because that's the only memory that
+	// is HOST visible.
+	//
+	// Type of resource ownership decides whether
+	// a copy is added to the queue that transfers from scratch memory
+	// to GPU local memory.
+
+	if ( false == app->imgHorseWasUploaded ) {
+		auto pix      = LePixels( "./resources/images/horse-1330690_640.jpg", 4 );
+		auto pix_info = pix.getInfo();
+		auto pix_data = pix.getData();
+		encoder_i.write_to_image( encoder, app->resImgHorse, {pix_info.width, pix_info.height}, pix_data, pix_info.byte_count );
+		app->imgHorseWasUploaded = true;
+	}
+
+	if ( false == app->imguiTexture.wasUploaded ) {
+		// tell encoder to upload imgui image - but only once
+		// note that we use the le_image_handle field to signal that the image has been uploaded.
+		size_t              numBytes = size_t( app->imguiTexture.width ) * size_t( app->imguiTexture.height ) * 32;
+		LeBufferWriteRegion region   = {uint32_t( app->imguiTexture.width ), uint32_t( app->imguiTexture.height )};
+		encoder_i.write_to_image( encoder, app->imguiTexture.le_image_handle, region, app->imguiTexture.pixels, numBytes );
+		app->imguiTexture.wasUploaded = true;
+	}
+
+	{
+		// upload triangle data
+		glm::vec3 trianglePositions[ 3 ] = {
+		    {-50, -50, 0},
+		    {50, -50, 0},
+		    {0, 50, 0},
+		};
+
+		encoder_i.write_to_buffer( encoder, app->resBufTrianglePos, 0, trianglePositions, sizeof( trianglePositions ) );
+	}
+
+	using namespace le_gltf_loader;
+	gltf_document_i.upload_resource_data( app->gltfDoc, encoder );
+}
+
+// ----------------------------------------------------------------------
+
+static bool pass_pre_setup( le_renderpass_o *pRp, void *user_data_ ) {
+	auto rp  = le::RenderPassRef{pRp};
+	auto app = static_cast<test_app_o *>( user_data_ );
+
+	rp.addImageAttachment( app->resImgPrepass );
+
+	rp.useResource( app->resImgHorse );
+
+	LeTextureInfo textureInfo{};
+	textureInfo.imageView.imageId = app->resImgHorse;
+	textureInfo.sampler.magFilter = VK_FILTER_LINEAR;
+	textureInfo.sampler.minFilter = VK_FILTER_LINEAR;
+
+	rp.sampleTexture( app->resTexHorse, textureInfo );
+
+	rp.setWidth( 640 );
+	rp.setHeight( 425 );
+
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
+static void pass_pre_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+
+	auto     encoder      = le::Encoder( encoder_ ); // use c++ facade for less typing ;)
+	auto     app          = static_cast<test_app_o *>( user_data );
+	uint32_t screenWidth  = 640;
+	uint32_t screenHeight = 425;
+
+	le::Viewport viewports[ 1 ] = {
+	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
+
+	};
+
+	le::Rect2D scissors[ 1 ] = {
+	    {0, 0, screenWidth, screenHeight},
+	};
+
+	// Bind full screen quad pipeline
+	if ( true ) {
+
+		encoder
+		    .bindGraphicsPipeline( app->psoFullScreenQuad )
+		    .setArgumentTexture( app->resTexHorse, hash_64_fnv1a_const( "src_tex_unit_0" ), 0 )
+		    .setScissors( 0, 1, &scissors[ 0 ] )
+		    .setViewports( 0, 1, &viewports[ 0 ] )
+		    .draw( 3, 1, 0, 0 );
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static bool pass_final_setup( le_renderpass_o *pRp, void *user_data_ ) {
+	auto rp  = le::RenderPassRef{pRp};
+	auto app = static_cast<test_app_o *>( user_data_ );
+
+	rp
+	    .addImageAttachment( app->renderer->getBackbufferResource() ) // color attachment
+	    .addDepthImageAttachment( app->resImgDepth )                  // depth attachment
+	    .sampleTexture( app->resTexPrepass, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {app->resImgPrepass, 0}} )
+	    .sampleTexture( app->imguiTexture.le_texture_handle, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {app->imguiTexture.le_image_handle, 0}} )
+	    .setIsRoot( true );
+
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
+static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+
+	using namespace le_renderer;
+	auto app = static_cast<test_app_o *>( user_data );
+
+	auto screenWidth  = app->window->getSurfaceWidth();
+	auto screenHeight = app->window->getSurfaceHeight();
+
+	auto encoder = le::Encoder( encoder_ );
+
+	le::Viewport viewports[ 3 ] = {
+	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
+	    {10.f, 10.f, 160.f * 3.f + 10.f, 106.f * 3.f + 10.f, 0.f, 1.f},
+	    {10.f, 10.f, 640 / 5, 425 / 5, 0.f, 1.f},
+	};
+
+	app->camera.setViewport( viewports[ 0 ] );
+
+	le::Rect2D scissors[ 3 ] = {
+	    {0, 0, screenWidth, screenHeight},
+	    {10, 10, 160 * 3 + 10, 106 * 3 + 10},
+	    {10, 10, 640 / 5, 425 / 5},
+	};
+
+	// data as it is laid out in the ubo for the shader
+	struct ColorUbo_t {
+		glm::vec4 color;
+	};
+
+	struct MvpUbo_t {
+		glm::mat4 modelMatrix;
+		glm::mat4 viewMatrix;
+		glm::mat4 projectionMatrix;
+	};
+
+	static float t   = 0;
+	t                = fmodf( t + app->deltaTimeSec, 10.f );
+	float r_val      = t / 10.f;
+	float r_anim_val = glm::elasticEaseOut( r_val );
+
+	ColorUbo_t ubo1{{1, 0, 0, 1}};
+
+	// Draw RGB triangle
+	if ( true ) {
+
+		vk::PipelineRasterizationStateCreateInfo rasterizationState{};
+		rasterizationState
+		    .setDepthClampEnable( VK_FALSE )
+		    .setRasterizerDiscardEnable( VK_FALSE )
+		    .setPolygonMode( vk::PolygonMode::eFill )
+		    // .setCullMode( vk::CullModeFlagBits::eBack )
+		    // .setFrontFace( vk::FrontFace::eCounterClockwise )
+		    .setDepthBiasEnable( VK_FALSE )
+		    .setDepthBiasConstantFactor( 0.f )
+		    .setDepthBiasClamp( 0.f )
+		    .setDepthBiasSlopeFactor( 1.f )
+		    .setLineWidth( 1.f );
+
+		static auto psoTriangle = LeGraphicsPipelineBuilder( *app->backend )
+		                              .setVertexShader( app->shaderTriangle[ 0 ] )
+		                              .setFragmentShader( app->shaderTriangle[ 1 ] )
+		                              .setRasterizationInfo( rasterizationState )
+		                              .build();
+
+		MvpUbo_t matrixStack;
+
+		matrixStack.projectionMatrix = *reinterpret_cast<glm::mat4 const *>( app->camera.getProjectionMatrix() );
+
+		matrixStack.modelMatrix = glm::mat4( 1.f ); // identity matrix
+		matrixStack.modelMatrix = glm::translate( matrixStack.modelMatrix, glm::vec3( 0, 0, -100 ) );
+		matrixStack.modelMatrix = glm::rotate( matrixStack.modelMatrix, glm::radians( r_anim_val * 360 ), glm::vec3( 0, 0, 1 ) );
+		matrixStack.modelMatrix = glm::scale( matrixStack.modelMatrix, glm::vec3( 4.5 ) );
+
+		matrixStack.viewMatrix = reinterpret_cast<glm::mat4 const &>( *app->camera.getViewMatrix() );
+
+		LeResourceHandle buffers[] = {app->resBufTrianglePos};
+		uint64_t         offsets[] = {0};
+
+		glm::vec4 triangleColors[ 3 ] = {
+		    {1, 0, 0, 1.f},
+		    {0, 1, 0, 1.f},
+		    {0, 0, 1, 1.f},
+		};
+
+		uint16_t indexData[ 3 ] = {0, 1, 2};
+
+		encoder
+		    .bindGraphicsPipeline( psoTriangle )
+		    .setScissors( 0, 1, scissors )
+		    .setViewports( 0, 1, viewports )
+		    .setArgumentData( hash_64_fnv1a_const( "MatrixStack" ), &matrixStack, sizeof( MvpUbo_t ) )
+		    .setArgumentData( hash_64_fnv1a_const( "Color" ), &ubo1, sizeof( ColorUbo_t ) )
+		    .bindVertexBuffers( 0, 1, buffers, offsets )
+		    .setVertexData( triangleColors, sizeof( glm::vec4 ) * 3, 1 )
+		    .setIndexData( indexData, sizeof( indexData ), 0 ) // 0 for indexType means uint16_t
+		    .drawIndexed( 3 )                                  //
+		    ;
+	}
+
+	// Draw GLTF file
+	if ( true ) {
+
+		encoder_i.set_scissor( encoder, 0, 1, scissors );
+		encoder_i.set_viewport( encoder, 0, 1, viewports );
+
+		GltfUboMvp ubo;
+
+		ubo.projection = *reinterpret_cast<glm::mat4 const *>( app->camera.getProjectionMatrix() );
+		ubo.model      = glm::mat4( 1 );
+		ubo.model      = glm::translate( ubo.model, glm::vec3( 0, 0, 0 ) );
+
+		ubo.model = glm::rotate( ubo.model, glm::radians( r_val * 360.f ), glm::vec3( 0, 1, 0 ) );
+		ubo.model = glm::scale( ubo.model, glm::vec3( 400.f ) ); // identity matrix
+
+		ubo.view = *reinterpret_cast<glm::mat4 const *>( app->camera.getViewMatrix() );
+
+		// FIXME: we must first set the pipeline, before we can upload any arguments
+		using namespace le_gltf_loader;
+		gltf_document_i.draw( app->gltfDoc, encoder, &ubo );
+	}
+
+	// Draw result of prepass
+	if ( true ) {
+
+		encoder
+		    .bindGraphicsPipeline( app->psoFullScreenQuad )
+		    .setArgumentTexture( app->resTexPrepass, hash_64_fnv1a_const( "src_tex_unit_0" ), 0 )
+		    .setScissors( 0, 1, &scissors[ 2 ] )
+		    .setViewports( 0, 1, &viewports[ 2 ] )
+		    .draw( 3 ) //
+		    ;
+	}
+
+	ImDrawData *drawData = ImGui::GetDrawData();
+	if ( drawData ) {
+		// draw imgui
+
+		auto ortho_projection = glm::ortho( 0.f, float( screenWidth ), 0.f, float( screenHeight ) );
+
+		ImVec2 display_pos = drawData->DisplayPos;
+
+		encoder
+		    .bindGraphicsPipeline( app->psoImgui )
+		    .setViewports( 0, 1, &viewports[ 0 ] )
+		    .setArgumentData( hash_64_fnv1a_const( "MatrixStack" ), &ortho_projection, sizeof( glm::mat4 ) )
+		    .setArgumentTexture( app->imguiTexture.le_texture_handle, hash_64_fnv1a_const( "tex_unit_0" ), 0 ) //
+		    ;
+
+		LeResourceHandle currentTexture = app->imguiTexture.le_texture_handle; // we check this for changes so that we don't have to switch state that often.
+
+		ImVec4 currentClipRect{};
+
+		for ( ImDrawList **cmdList = drawData->CmdLists; cmdList != drawData->CmdLists + drawData->CmdListsCount; cmdList++ ) {
+			auto &im_cmd_list = *cmdList;
+
+			// upload index data
+			encoder_i.set_index_data( encoder, im_cmd_list->IdxBuffer.Data, size_t( im_cmd_list->IdxBuffer.size() * sizeof( ImDrawIdx ) ), 0 );
+			// upload vertex data
+			encoder_i.set_vertex_data( encoder, im_cmd_list->VtxBuffer.Data, size_t( im_cmd_list->VtxBuffer.size() * sizeof( ImDrawVert ) ), 0 );
+
+			uint32_t index_offset = 0;
+			for ( const auto &im_cmd : im_cmd_list->CmdBuffer ) {
+
+				if ( im_cmd.UserCallback ) {
+					// call user callback
+					continue;
+				}
+				// -----| invariant: im_cmd was not user callback
+
+				static_assert( sizeof( le::Rect2D ) == sizeof( ImVec4 ), "clip rect size must match for direct assignment" );
+
+				// -- update bound texture, but only if texture different from currently bound texture
+				const LeResourceHandle nextTexture = reinterpret_cast<const LeResourceHandle>( im_cmd.TextureId );
+				if ( nextTexture != currentTexture ) {
+					encoder_i.set_argument_texture( encoder, nextTexture, hash_64_fnv1a_const( "tex_unit_0" ), 0 );
+					currentTexture = nextTexture;
+				}
+
+				// -- set clip rectangle as scissor
+				if ( 0 != memcmp( &im_cmd.ClipRect, &currentClipRect, sizeof( ImVec4 ) ) ) {
+					// clip rects are different
+					currentClipRect = im_cmd.ClipRect;
+					le::Rect2D scissor;
+					scissor.x      = ( int32_t )( im_cmd.ClipRect.x - display_pos.x ) > 0 ? ( int32_t )( im_cmd.ClipRect.x - display_pos.x ) : 0;
+					scissor.y      = ( int32_t )( im_cmd.ClipRect.y - display_pos.y ) > 0 ? ( int32_t )( im_cmd.ClipRect.y - display_pos.y ) : 0;
+					scissor.width  = ( uint32_t )( im_cmd.ClipRect.z - im_cmd.ClipRect.x );
+					scissor.height = ( uint32_t )( im_cmd.ClipRect.w - im_cmd.ClipRect.y + 1 ); // FIXME: Why +1 here?
+
+					encoder_i.set_scissor( encoder, 0, 1, &scissor );
+				}
+
+				// uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
+				encoder_i.draw_indexed( encoder, im_cmd.ElemCount, 1, index_offset, 0, 0 );
+				index_offset += im_cmd.ElemCount;
+			}
+
+		} // end for ImDrawList
+	}     // end if DrawData
+}
+
+// ----------------------------------------------------------------------
+
 static bool test_app_update( test_app_o *self ) {
+
+	static bool resetCameraOnReload = false; // reload meand module reload
 
 	ImGui::SetCurrentContext( self->imguiContext ); // NOTICE: that's important for reload.
 	{
@@ -371,6 +808,13 @@ static bool test_app_update( test_app_o *self ) {
 		self->cameraController.updateCamera( self->camera, &self->mouseData );
 	}
 
+	if ( resetCameraOnReload ) {
+		// Reset camera
+		reset_camera( self );
+		resetCameraOnReload = false;
+	}
+
+	ImGui::NewFrame();
 	{
 		ImGuiIO &io = ImGui::GetIO();
 
@@ -385,8 +829,6 @@ static bool test_app_update( test_app_o *self ) {
 		io.MousePos = {self->mousePos.x, self->mousePos.y};
 	}
 
-	ImGui::NewFrame();
-
 	// ImGui::Text( "Hello Island" );
 
 	//	ImGui::ShowDemoWindow();
@@ -397,424 +839,25 @@ static bool test_app_update( test_app_o *self ) {
 	// making it static allows it to be visible inside the callback context,
 	// and it also ensures that the registry call only happens upon first retrieval.
 
-	using namespace le_renderer;
-
 	le::RenderModule mainModule{};
 	{
 		le::RenderPass resourcePass( "resource copy", LE_RENDER_PASS_TYPE_TRANSFER );
-
-		resourcePass.setSetupCallback( self, []( auto pRp, auto user_data_ ) -> bool {
-			auto app = static_cast<test_app_o *>( user_data_ );
-			auto rp  = le::RenderPassRef{pRp};
-
-			{
-				// create image for the horse image
-				le_resource_info_t imgInfo{};
-				imgInfo.type = LeResourceType::eImage;
-				{
-					auto &img       = imgInfo.image;
-					img.format      = VK_FORMAT_R8G8B8A8_UNORM;
-					img.flags       = 0;
-					img.arrayLayers = 1;
-					img.extent      = {640, 425, 1};
-					img.usage       = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-					img.mipLevels   = 1;
-					img.samples     = VK_SAMPLE_COUNT_1_BIT;
-					img.imageType   = VK_IMAGE_TYPE_2D;
-					img.tiling      = VK_IMAGE_TILING_OPTIMAL;
-				}
-				rp.createResource( app->resImgHorse, imgInfo );
-			}
-
-			{
-				// create resource for imgui font texture if it does not yet exist.
-				// create image for imgui image
-				le_resource_info_t imgInfo{};
-				imgInfo.type = LeResourceType::eImage;
-				{
-					auto &img         = imgInfo.image;
-					img.format        = VK_FORMAT_R8G8B8A8_UNORM;
-					img.flags         = 0;
-					img.arrayLayers   = 1;
-					img.extent.width  = uint32_t( app->imguiTexture.width );
-					img.extent.height = uint32_t( app->imguiTexture.height );
-					img.extent.depth  = 1;
-					img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-					img.mipLevels     = 1;
-					img.samples       = VK_SAMPLE_COUNT_1_BIT;
-					img.imageType     = VK_IMAGE_TYPE_2D;
-					img.tiling        = VK_IMAGE_TILING_OPTIMAL;
-				}
-				rp.createResource( app->imguiTexture.le_image_handle, imgInfo );
-			}
-
-			{
-				// create image for prepass
-				le_resource_info_t imgInfo{};
-				imgInfo.type = LeResourceType::eImage;
-				{
-					auto &img       = imgInfo.image;
-					img.format      = VK_FORMAT_R8G8B8A8_UNORM;
-					img.flags       = 0;
-					img.arrayLayers = 1;
-					img.extent      = {640, 425, 1};
-					img.usage       = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-					img.mipLevels   = 1;
-					img.samples     = VK_SAMPLE_COUNT_1_BIT;
-					img.imageType   = VK_IMAGE_TYPE_2D;
-					img.tiling      = VK_IMAGE_TILING_OPTIMAL;
-				}
-				rp.createResource( app->resImgPrepass, imgInfo );
-			}
-
-			{
-				// create z-buffer image for main renderpass
-				le_resource_info_t imgInfo{};
-				imgInfo.type = LeResourceType::eImage;
-				{
-					auto &img         = imgInfo.image;
-					img.format        = VK_FORMAT_D32_SFLOAT_S8_UINT;
-					img.flags         = 0;
-					img.arrayLayers   = 1;
-					img.extent.width  = 0; // zero means size of backbuffer.
-					img.extent.height = 0; // zero means size of backbuffer.
-					img.extent.depth  = 1;
-					img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-					img.mipLevels     = 1;
-					img.samples       = VK_SAMPLE_COUNT_1_BIT;
-					img.imageType     = VK_IMAGE_TYPE_2D;
-					img.tiling        = VK_IMAGE_TILING_OPTIMAL;
-				}
-				rp.createResource( app->resImgDepth, imgInfo );
-			}
-
-			{
-				// create resource for triangle vertex buffer
-				le_resource_info_t bufInfo{};
-				bufInfo.type         = LeResourceType::eBuffer;
-				bufInfo.buffer.size  = sizeof( glm::vec3 ) * 3;
-				bufInfo.buffer.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-				rp.createResource( app->resBufTrianglePos, bufInfo );
-			}
-
-			{
-				using namespace le_gltf_loader;
-				// create resources for gltf document
-				le_resource_info_t *    resourceInfo;
-				LeResourceHandle const *resourceHandles;
-				size_t                  numResourceInfos;
-				gltf_document_i.get_resource_infos( app->gltfDoc, &resourceInfo, &resourceHandles, &numResourceInfos );
-
-				for ( size_t i = 0; i != numResourceInfos; i++ ) {
-					rp.createResource( resourceHandles[ i ], resourceInfo[ i ] );
-				}
-			}
-
-			return true;
-		} );
-
-		resourcePass.setExecuteCallback( self, []( auto encoder, auto user_data_ ) {
-			auto app = static_cast<test_app_o *>( user_data_ );
-
-			// Writing is always to encoder scratch buffer memory because that's the only memory that
-			// is HOST visible.
-			//
-			// Type of resource ownership decides whether
-			// a copy is added to the queue that transfers from scratch memory
-			// to GPU local memory.
-
-			if ( app->imgHorseWasUploaded == false ) {
-				auto pix      = LePixels( "./resources/images/horse-1330690_640.jpg", 4 );
-				auto pix_info = pix.getInfo();
-				auto pix_data = pix.getData();
-				encoder_i.write_to_image( encoder, app->resImgHorse, {pix_info.width, pix_info.height}, pix_data, pix_info.byte_count );
-				app->imgHorseWasUploaded = true;
-			}
-
-			if ( false == app->imguiTexture.wasUploaded ) {
-				// tell encoder to upload imgui image - but only once
-				// note that we use the le_image_handle field to signal that the image has been uploaded.
-				size_t              numBytes = size_t( app->imguiTexture.width ) * size_t( app->imguiTexture.height ) * 32;
-				LeBufferWriteRegion region   = {uint32_t( app->imguiTexture.width ), uint32_t( app->imguiTexture.height )};
-				encoder_i.write_to_image( encoder, app->imguiTexture.le_image_handle, region, app->imguiTexture.pixels, numBytes );
-				app->imguiTexture.wasUploaded = true;
-			}
-
-			{
-				// upload triangle data
-				glm::vec3 trianglePositions[ 3 ] = {
-				    {-50, -50, 0},
-				    {50, -50, 0},
-				    {0, 50, 0},
-				};
-
-				encoder_i.write_to_buffer( encoder, app->resBufTrianglePos, 0, trianglePositions, sizeof( trianglePositions ) );
-			}
-
-			using namespace le_gltf_loader;
-			gltf_document_i.upload_resource_data( app->gltfDoc, encoder );
-		} );
+		resourcePass
+		    .setSetupCallback( self, pass_resource_setup )
+		    .setExecuteCallback( self, pass_resource_exec ) //
+		    ;
 
 		le::RenderPass renderPassPre( "prepass", LE_RENDER_PASS_TYPE_DRAW );
-		renderPassPre.setSetupCallback( self, []( auto pRp, auto user_data_ ) -> bool {
-			auto rp  = le::RenderPassRef{pRp};
-			auto app = static_cast<test_app_o *>( user_data_ );
-
-			rp.addImageAttachment( app->resImgPrepass );
-
-			rp.useResource( app->resImgHorse );
-
-			LeTextureInfo textureInfo{};
-			textureInfo.imageView.imageId = app->resImgHorse;
-			textureInfo.sampler.magFilter = VK_FILTER_LINEAR;
-			textureInfo.sampler.minFilter = VK_FILTER_LINEAR;
-			rp.sampleTexture( app->resTexHorse, textureInfo );
-
-			rp.setWidth( 640 );
-			rp.setHeight( 425 );
-
-			return true;
-		} );
-
-		renderPassPre.setExecuteCallback( self, []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-			auto     encoder      = le::Encoder( encoder_ ); // use c++ facade for less typing ;)
-			auto     app          = static_cast<test_app_o *>( user_data );
-			uint32_t screenWidth  = 640;
-			uint32_t screenHeight = 425;
-
-			le::Viewport viewports[ 1 ] = {
-			    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
-
-			};
-
-			le::Rect2D scissors[ 1 ] = {
-			    {0, 0, screenWidth, screenHeight},
-			};
-
-			// Bind full screen quad pipeline
-			if ( true ) {
-
-				encoder
-				    .bindGraphicsPipeline( app->psoFullScreenQuad )
-				    .setArgumentTexture( app->resTexHorse, hash_64_fnv1a_const( "src_tex_unit_0" ), 0 )
-				    .setScissors( 0, 1, &scissors[ 0 ] )
-				    .setViewports( 0, 1, &viewports[ 0 ] )
-				    .draw( 3, 1, 0, 0 );
-			}
-		} );
+		renderPassPre
+		    .setSetupCallback( self, pass_pre_setup )
+		    .setExecuteCallback( self, pass_pre_exec ) //
+		    ;
 
 		le::RenderPass renderPassFinal( "root", LE_RENDER_PASS_TYPE_DRAW );
-
-		renderPassFinal.setSetupCallback( self, []( auto pRp, auto user_data_ ) -> bool {
-			auto rp  = le::RenderPassRef{pRp};
-			auto app = static_cast<test_app_o *>( user_data_ );
-
-			rp
-			    .addImageAttachment( app->renderer->getBackbufferResource() ) // color attachment
-			    .addDepthImageAttachment( app->resImgDepth )                  // depth attachment
-			    .sampleTexture( app->resTexPrepass, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {app->resImgPrepass, 0}} )
-			    .sampleTexture( app->imguiTexture.le_texture_handle, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {app->imguiTexture.le_image_handle, 0}} )
-			    .setIsRoot( true );
-
-			return true;
-		} );
-
-		renderPassFinal.setExecuteCallback( self, []( le_command_buffer_encoder_o *encoder, void *user_data ) {
-			auto app = static_cast<test_app_o *>( user_data );
-
-			auto screenWidth  = app->window->getSurfaceWidth();
-			auto screenHeight = app->window->getSurfaceHeight();
-
-			le::Viewport viewports[ 3 ] = {
-			    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
-			    {10.f, 10.f, 160.f * 3.f + 10.f, 106.f * 3.f + 10.f, 0.f, 1.f},
-			    {10.f, 10.f, 640 / 5, 425 / 5, 0.f, 1.f},
-			};
-
-			app->camera.setViewport( viewports[ 0 ] );
-
-			le::Rect2D scissors[ 3 ] = {
-			    {0, 0, screenWidth, screenHeight},
-			    {10, 10, 160 * 3 + 10, 106 * 3 + 10},
-			    {10, 10, 640 / 5, 425 / 5},
-			};
-
-			glm::vec4 triangleColors[ 3 ] = {
-			    {1, 0, 0, 1.f},
-			    {0, 1, 0, 1.f},
-			    {0, 0, 1, 1.f},
-			};
-
-			uint16_t indexData[ 3 ] = {0, 1, 2};
-
-			// data as it is laid out in the ubo for the shader
-			struct ColorUbo_t {
-				glm::vec4 color;
-			};
-
-			struct MatrixStackUbo_t {
-				glm::mat4 modelMatrix;
-				glm::mat4 viewMatrix;
-				glm::mat4 projectionMatrix;
-			};
-
-			static float t   = 0;
-			t                = fmodf( t + app->deltaTimeSec, 10.f );
-			float r_val      = t / 10.f;
-			float r_anim_val = glm::elasticEaseOut( r_val );
-
-			ColorUbo_t ubo1{{1, 0, 0, 1}};
-
-			// Draw result of prepass
-			if ( true ) {
-
-				encoder_i.bind_graphics_pipeline( encoder, app->psoFullScreenQuad );
-				encoder_i.set_argument_texture( encoder, app->resTexPrepass, hash_64_fnv1a_const( "src_tex_unit_0" ), 0 );
-				encoder_i.set_scissor( encoder, 0, 1, &scissors[ 2 ] );
-				encoder_i.set_viewport( encoder, 0, 1, &viewports[ 2 ] );
-				encoder_i.draw( encoder, 3, 1, 0, 0 );
-			}
-
-			// Draw RGB triangle
-			if ( true ) {
-
-				vk::PipelineRasterizationStateCreateInfo rasterizationState{};
-				rasterizationState
-				    .setDepthClampEnable( VK_FALSE )
-				    .setRasterizerDiscardEnable( VK_FALSE )
-				    .setPolygonMode( vk::PolygonMode::eFill )
-				    //				    .setCullMode( vk::CullModeFlagBits::eBack )
-				    //				    .setFrontFace( vk::FrontFace::eCounterClockwise )
-				    .setDepthBiasEnable( VK_FALSE )
-				    .setDepthBiasConstantFactor( 0.f )
-				    .setDepthBiasClamp( 0.f )
-				    .setDepthBiasSlopeFactor( 1.f )
-				    .setLineWidth( 1.f );
-
-				static auto psoTriangle = LeGraphicsPipelineBuilder( *app->backend )
-				                              .setVertexShader( app->shaderTriangle[ 0 ] )
-				                              .setFragmentShader( app->shaderTriangle[ 1 ] )
-				                              .setRasterizationInfo( rasterizationState )
-				                              .build();
-
-				encoder_i.bind_graphics_pipeline( encoder, psoTriangle );
-
-				encoder_i.set_scissor( encoder, 0, 1, scissors );
-				encoder_i.set_viewport( encoder, 0, 1, viewports );
-
-				MatrixStackUbo_t matrixStack;
-
-				matrixStack.projectionMatrix = *reinterpret_cast<glm::mat4 const *>( app->camera.getProjectionMatrix() );
-
-				matrixStack.modelMatrix = glm::mat4( 1.f ); // identity matrix
-
-				matrixStack.modelMatrix = glm::translate( matrixStack.modelMatrix, glm::vec3( 0, 0, -100 ) );
-				matrixStack.modelMatrix = glm::rotate( matrixStack.modelMatrix, glm::radians( r_anim_val * 360 ), glm::vec3( 0, 0, 1 ) );
-				matrixStack.modelMatrix = glm::scale( matrixStack.modelMatrix, glm::vec3( 4.5 ) );
-
-				matrixStack.viewMatrix = reinterpret_cast<glm::mat4 const &>( *app->camera.getViewMatrix() );
-
-				encoder_i.set_argument_ubo_data( encoder, hash_64_fnv1a_const( "MatrixStack" ), &matrixStack, sizeof( MatrixStackUbo_t ) );
-				encoder_i.set_argument_ubo_data( encoder, hash_64_fnv1a_const( "Color" ), &ubo1, sizeof( ColorUbo_t ) );
-
-				LeResourceHandle buffers[] = {app->resBufTrianglePos};
-				uint64_t         offsets[] = {0};
-
-				encoder_i.bind_vertex_buffers( encoder, 0, 1, buffers, offsets );
-
-				encoder_i.set_vertex_data( encoder, triangleColors, sizeof( glm::vec4 ) * 3, 1 );
-				encoder_i.set_index_data( encoder, indexData, sizeof( indexData ), 0 ); // 0 for indexType means uint16_t
-				encoder_i.draw_indexed( encoder, 3, 1, 0, 0, 0 );
-			}
-
-			// Draw GLTF file
-			if ( true ) {
-
-				encoder_i.set_scissor( encoder, 0, 1, scissors );
-				encoder_i.set_viewport( encoder, 0, 1, viewports );
-
-				GltfUboMvp ubo;
-
-				ubo.projection = *reinterpret_cast<glm::mat4 const *>( app->camera.getProjectionMatrix() );
-				ubo.model      = glm::mat4( 1 );
-				ubo.model      = glm::translate( ubo.model, glm::vec3( 0, 0, 0 ) );
-
-				ubo.model = glm::rotate( ubo.model, glm::radians( r_val * 360.f ), glm::vec3( 0, 1, 0 ) );
-				ubo.model = glm::scale( ubo.model, glm::vec3( 400.f ) ); // identity matrix
-
-				ubo.view = *reinterpret_cast<glm::mat4 const *>( app->camera.getViewMatrix() );
-
-				// FIXME: we must first set the pipeline, before we can upload any arguments
-				using namespace le_gltf_loader;
-				gltf_document_i.draw( app->gltfDoc, encoder, &ubo );
-			}
-
-			ImDrawData *drawData = ImGui::GetDrawData();
-			if ( drawData ) {
-				// draw imgui
-
-				auto ortho_projection = glm::ortho( 0.f, float( screenWidth ), 0.f, float( screenHeight ) );
-
-				ImVec2 display_pos = drawData->DisplayPos;
-
-				encoder_i.bind_graphics_pipeline( encoder, app->psoImgui );
-				encoder_i.set_viewport( encoder, 0, 1, &viewports[ 0 ] ); // TODO: make sure that viewport covers full screen
-				encoder_i.set_argument_ubo_data( encoder, hash_64_fnv1a_const( "MatrixStack" ), &ortho_projection, sizeof( glm::mat4 ) );
-				encoder_i.set_argument_texture( encoder, app->imguiTexture.le_texture_handle, hash_64_fnv1a_const( "tex_unit_0" ), 0 );
-
-				LeResourceHandle currentTexture = app->imguiTexture.le_texture_handle; // we check against this so that we don't have to switch state that often.
-
-				ImVec4 currentClipRect{};
-
-				for ( ImDrawList **cmdList = drawData->CmdLists; cmdList != drawData->CmdLists + drawData->CmdListsCount; cmdList++ ) {
-					auto &im_cmd_list = *cmdList;
-
-					// upload index data
-					encoder_i.set_index_data( encoder, im_cmd_list->IdxBuffer.Data, size_t( im_cmd_list->IdxBuffer.size() * sizeof( ImDrawIdx ) ), 0 );
-					// upload vertex data
-					encoder_i.set_vertex_data( encoder, im_cmd_list->VtxBuffer.Data, size_t( im_cmd_list->VtxBuffer.size() * sizeof( ImDrawVert ) ), 0 );
-
-					uint32_t index_offset = 0;
-					for ( const auto &im_cmd : im_cmd_list->CmdBuffer ) {
-
-						if ( im_cmd.UserCallback ) {
-							// call user callback
-							continue;
-						}
-						// -----| invariant: im_cmd was not user callback
-
-						static_assert( sizeof( le::Rect2D ) == sizeof( ImVec4 ), "clip rect size must match for direct assignment" );
-
-						// -- update bound texture, but only if texture different from currently bound texture
-						const LeResourceHandle nextTexture = reinterpret_cast<const LeResourceHandle>( im_cmd.TextureId );
-						if ( nextTexture != currentTexture ) {
-							encoder_i.set_argument_texture( encoder, nextTexture, hash_64_fnv1a_const( "tex_unit_0" ), 0 );
-							currentTexture = nextTexture;
-						}
-
-						// -- set clip rectangle as scissor
-						if ( 0 != memcmp( &im_cmd.ClipRect, &currentClipRect, sizeof( ImVec4 ) ) ) {
-							// clip rects are different
-							currentClipRect = im_cmd.ClipRect;
-							le::Rect2D scissor;
-							scissor.x      = ( int32_t )( im_cmd.ClipRect.x - display_pos.x ) > 0 ? ( int32_t )( im_cmd.ClipRect.x - display_pos.x ) : 0;
-							scissor.y      = ( int32_t )( im_cmd.ClipRect.y - display_pos.y ) > 0 ? ( int32_t )( im_cmd.ClipRect.y - display_pos.y ) : 0;
-							scissor.width  = ( uint32_t )( im_cmd.ClipRect.z - im_cmd.ClipRect.x );
-							scissor.height = ( uint32_t )( im_cmd.ClipRect.w - im_cmd.ClipRect.y + 1 ); // FIXME: Why +1 here?
-
-							encoder_i.set_scissor( encoder, 0, 1, &scissor );
-						}
-
-						// uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
-						encoder_i.draw_indexed( encoder, im_cmd.ElemCount, 1, index_offset, 0, 0 );
-						index_offset += im_cmd.ElemCount;
-					}
-
-					//					std::cout << std::dec << im_cmd_list->VtxBuffer.size() << std::endl
-					//					          << std::flush;
-				}
-			}
-		} );
+		renderPassFinal
+		    .setSetupCallback( self, pass_final_setup )
+		    .setExecuteCallback( self, pass_final_exec ) //
+		    ;
 
 		mainModule.addRenderPass( resourcePass );
 		mainModule.addRenderPass( renderPassPre );
@@ -882,6 +925,9 @@ static void test_app_key_callback( void *user_data, int key, int scancode, int a
 	io.KeyAlt   = io.KeysDown[ GLFW_KEY_LEFT_ALT ] || io.KeysDown[ GLFW_KEY_RIGHT_ALT ];
 	io.KeySuper = io.KeysDown[ GLFW_KEY_LEFT_SUPER ] || io.KeysDown[ GLFW_KEY_RIGHT_SUPER ];
 }
+
+// ----------------------------------------------------------------------
+
 static void test_app_character_callback( void *user_data, unsigned int codepoint ) {
 
 	if ( user_data == nullptr ) {
@@ -900,6 +946,9 @@ static void test_app_character_callback( void *user_data, unsigned int codepoint
 		io.AddInputCharacter( ( unsigned short )codepoint );
 	}
 }
+
+// ----------------------------------------------------------------------
+
 static void test_app_cursor_position_callback( void *user_data, double xpos, double ypos ) {
 
 	if ( user_data == nullptr ) {
@@ -915,6 +964,9 @@ static void test_app_cursor_position_callback( void *user_data, double xpos, dou
 	app->mouseData.cursor_pos = {float( xpos ), float( ypos )};
 	app->mousePos             = {float( xpos ), float( ypos )};
 }
+
+// ----------------------------------------------------------------------
+
 static void test_app_cursor_enter_callback( void *user_data, int entered ) {
 
 	if ( user_data == nullptr ) {
@@ -925,6 +977,9 @@ static void test_app_cursor_enter_callback( void *user_data, int entered ) {
 
 	// --------| invariant : user data is not null
 }
+
+// ----------------------------------------------------------------------
+
 static void test_app_mouse_button_callback( void *user_data, int button, int action, int mods ) {
 
 	if ( user_data == nullptr ) {
@@ -947,6 +1002,9 @@ static void test_app_mouse_button_callback( void *user_data, int button, int act
 		}
 	}
 }
+
+// ----------------------------------------------------------------------
+
 static void test_app_scroll_callback( void *user_data, double xoffset, double yoffset ) {
 
 	if ( user_data == nullptr ) {
