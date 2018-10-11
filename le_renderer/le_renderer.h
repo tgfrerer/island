@@ -400,12 +400,12 @@ class Encoder {
 		return self;
 	}
 
-	Encoder &draw( const uint32_t &vertexCount, const uint32_t &instanceCount, const uint32_t &firstVertex, const uint32_t &firstInstance ) {
+	Encoder &draw( const uint32_t &vertexCount, const uint32_t &instanceCount = 1, const uint32_t &firstVertex = 0, const uint32_t &firstInstance = 0 ) {
 		le_renderer::encoder_i.draw( self, vertexCount, instanceCount, firstVertex, firstInstance );
 		return *this;
 	}
 
-	Encoder &drawIndexed( uint32_t const &indexCount, uint32_t const &instanceCount, uint32_t const &firstIndex, int32_t const &vertexOffset, uint32_t const &firstInstance ) {
+	Encoder &drawIndexed( uint32_t const &indexCount, uint32_t const &instanceCount = 1, uint32_t const &firstIndex = 0, int32_t const &vertexOffset = 0, uint32_t const &firstInstance = 0 ) {
 		le_renderer::encoder_i.draw_indexed( self, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance );
 		return *this;
 	}
@@ -440,7 +440,7 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &setIndexData( void const *data, uint64_t const &numBytes, uint64_t const &indexType ) {
+	Encoder &setIndexData( void const *data, uint64_t const &numBytes, uint64_t const &indexType = 0 ) {
 		le_renderer::encoder_i.set_index_data( self, data, numBytes, indexType );
 		return *this;
 	}
