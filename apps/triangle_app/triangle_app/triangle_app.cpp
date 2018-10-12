@@ -28,6 +28,8 @@
 #include <sstream>
 #include <bitset>
 
+#define LE_ARGUMENT_NAME( x ) hash_64_fnv1a_const( #x )
+
 #include <chrono> // for nanotime
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
@@ -42,6 +44,7 @@ struct triangle_app_o {
 	std::unique_ptr<le::Renderer> renderer;
 	uint64_t                      frame_counter = 0;
 	float                         deltaTimeSec  = 0;
+	float                         animT         = 0;
 
 	std::array<bool, 5>   mouseButtonStatus{}; // status for each mouse button
 	glm::vec2             mousePos{};          // current mouse position
@@ -80,6 +83,7 @@ static void terminate() {
 	pal::Window::terminate();
 };
 
+static void reset_camera( triangle_app_o *self ); // ffdecl.
 // ----------------------------------------------------------------------
 
 static triangle_app_o *triangle_app_create() {
@@ -153,17 +157,24 @@ static triangle_app_o *triangle_app_create() {
 		app->resBufTrianglePos = app->renderer->declareResource( LeResourceType::eBuffer );
 	}
 	{
-		// Set up a camera
-		app->camera.setViewport( {0, 0, float( app->window->getSurfaceWidth() ), float( app->window->getSurfaceHeight() ), 0.f, 1.f} );
-		app->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
-		glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, app->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
-
-		app->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
+		// set up the camera
+		reset_camera( app );
 	}
 	return app;
 }
 
-static bool resourcePassSetup( le_renderpass_o *pRp, void *user_data ) {
+// ----------------------------------------------------------------------
+
+static void reset_camera( triangle_app_o *self ) {
+	self->camera.setViewport( {0, 0, float( self->window->getSurfaceWidth() ), float( self->window->getSurfaceHeight() ), 0.f, 1.f} );
+	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
+	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
+	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
+}
+
+// ----------------------------------------------------------------------
+
+static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto app = static_cast<triangle_app_o *>( user_data );
 	auto rp  = le::RenderPassRef{pRp};
 
@@ -203,7 +214,9 @@ static bool resourcePassSetup( le_renderpass_o *pRp, void *user_data ) {
 	return true;
 }
 
-static void resourcePassExecute( le_command_buffer_encoder_o *encoder, void *user_data ) {
+// ----------------------------------------------------------------------
+
+static void pass_resource_exec( le_command_buffer_encoder_o *encoder, void *user_data ) {
 	using namespace le_renderer;
 	auto app = static_cast<triangle_app_o *>( user_data );
 
@@ -230,7 +243,9 @@ static void resourcePassExecute( le_command_buffer_encoder_o *encoder, void *use
 	encoder_i.write_to_buffer( encoder, app->resBufTrianglePos, 0, trianglePositions, sizeof( trianglePositions ) );
 }
 
-static bool mainPassSetup( le_renderpass_o *pRp, void *user_data ) {
+// ----------------------------------------------------------------------
+
+static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto rp  = le::RenderPassRef{pRp};
 	auto app = static_cast<triangle_app_o *>( user_data );
 
@@ -243,7 +258,9 @@ static bool mainPassSetup( le_renderpass_o *pRp, void *user_data ) {
 	return true;
 }
 
-static void mainPassExecute( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+// ----------------------------------------------------------------------
+
+static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
 	auto        app = static_cast<triangle_app_o *>( user_data );
 	le::Encoder encoder{encoder_};
 
@@ -288,12 +305,11 @@ static void mainPassExecute( le_command_buffer_encoder_o *encoder_, void *user_d
 		__attribute__( ( aligned( 16 ) ) ) glm::vec2 clipNearFar;
 	};
 
-	static float t   = 0;
-	t                = fmodf( t + app->deltaTimeSec, 10.f );
-	float r_val      = t / 10.f;
+	app->animT       = fmodf( app->animT + app->deltaTimeSec, 10.f );
+	float r_val      = app->animT / 10.f;
 	float r_anim_val = glm::elasticEaseOut( r_val );
 
-	// Draw RGB triangle
+	// Draw main scene
 	if ( true ) {
 
 		vk::PipelineRasterizationStateCreateInfo rasterizationState{};
@@ -391,27 +407,27 @@ static void mainPassExecute( le_command_buffer_encoder_o *encoder_, void *user_d
 
 		uint16_t indexData[] = {0, 1, 2, 3, 4, 5};
 
-        if ( true ) {
-            encoder
-                .bindGraphicsPipeline( pipelineTriangle )
-                .setScissors( 0, 1, scissors )
-                .setViewports( 0, 1, viewports )
-                .setArgumentData( hash_64_fnv1a_const( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
-                .setArgumentData( hash_64_fnv1a_const( "Color" ), &color, sizeof( ColorUbo_t ) )
-                .bindVertexBuffers( 0, 1, buffers, offsets )
-                .setVertexData( triangleColors, sizeof( triangleColors ), 1 )
-                .setIndexData( indexData, sizeof( indexData ) )
-                .drawIndexed( 6, 100 );
-        }
+		if ( true ) {
+			encoder
+			    .bindGraphicsPipeline( pipelineTriangle )
+			    .setScissors( 0, 1, scissors )
+			    .setViewports( 0, 1, viewports )
+			    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &mvp, sizeof( MatrixStackUbo_t ) )
+			    .setArgumentData( LE_ARGUMENT_NAME( Color ), &color, sizeof( ColorUbo_t ) )
+			    .bindVertexBuffers( 0, 1, buffers, offsets )
+			    .setVertexData( triangleColors, sizeof( triangleColors ), 1 )
+			    .setIndexData( indexData, sizeof( indexData ) )
+			    .drawIndexed( 6, 100 );
+		}
 
-        if ( false ) {
+		if ( false ) {
 			// note that this draws a full screen quad.
 			encoder
 			    .bindGraphicsPipeline( pipelinePathTracer )
 			    .setScissors( 0, 1, scissors )
 			    .setViewports( 0, 1, viewports )
-			    .setArgumentData( hash_64_fnv1a_const( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
-			    .setArgumentData( hash_64_fnv1a_const( "RayInfo" ), &rayInfo, sizeof( RayInfo_t ) )
+			    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &mvp, sizeof( MatrixStackUbo_t ) )
+			    .setArgumentData( LE_ARGUMENT_NAME( RayInfo ), &rayInfo, sizeof( RayInfo_t ) )
 			    .draw( 3 );
 		}
 	}
@@ -420,6 +436,8 @@ static void mainPassExecute( le_command_buffer_encoder_o *encoder_, void *user_d
 // ----------------------------------------------------------------------
 
 static bool triangle_app_update( triangle_app_o *self ) {
+
+	static bool resetCameraOnReload = true;
 
 	{
 		// update frame delta time
@@ -443,17 +461,23 @@ static bool triangle_app_update( triangle_app_o *self ) {
 		self->cameraController.updateCamera( self->camera, &self->mouseData );
 	}
 
+	if ( resetCameraOnReload ) {
+		// Reset camera
+		reset_camera( self );
+		resetCameraOnReload = false;
+	}
+
 	using namespace le_renderer;
 
 	le::RenderModule mainModule{};
 	{
 		le::RenderPass resourcePass( "resource copy", LE_RENDER_PASS_TYPE_TRANSFER );
-		resourcePass.setSetupCallback( self, resourcePassSetup );
-		resourcePass.setExecuteCallback( self, resourcePassExecute );
+		resourcePass.setSetupCallback( self, pass_resource_setup );
+		resourcePass.setExecuteCallback( self, pass_resource_exec );
 
 		le::RenderPass renderPassFinal( "root", LE_RENDER_PASS_TYPE_DRAW );
-		renderPassFinal.setSetupCallback( self, mainPassSetup );
-		renderPassFinal.setExecuteCallback( self, mainPassExecute );
+		renderPassFinal.setSetupCallback( self, pass_main_setup );
+		renderPassFinal.setExecuteCallback( self, pass_main_exec );
 
 		mainModule.addRenderPass( resourcePass );
 		mainModule.addRenderPass( renderPassFinal );
