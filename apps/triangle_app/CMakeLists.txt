@@ -22,6 +22,7 @@ add_subdirectory (triangle_app)
 # Specify any optional modules from the standard framework here
 add_island_module(le_camera)
 add_island_module(le_pipeline_builder)
+add_island_module(le_pixels)
 
 # Main application c++ file. Not much to see there,
 set (SOURCES main.cpp)

@@ -391,18 +391,20 @@ static void mainPassExecute( le_command_buffer_encoder_o *encoder_, void *user_d
 
 		uint16_t indexData[] = {0, 1, 2, 3, 4, 5};
 
-		encoder
-		    .bindGraphicsPipeline( pipelineTriangle )
-		    .setScissors( 0, 1, scissors )
-		    .setViewports( 0, 1, viewports )
-		    .setArgumentData( hash_64_fnv1a_const( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
-		    .setArgumentData( hash_64_fnv1a_const( "Color" ), &color, sizeof( ColorUbo_t ) )
-		    .bindVertexBuffers( 0, 1, buffers, offsets )
-		    .setVertexData( triangleColors, sizeof( triangleColors ), 1 )
-		    .setIndexData( indexData, sizeof( indexData ) )
-		    .drawIndexed( 6, 100 );
+        if ( true ) {
+            encoder
+                .bindGraphicsPipeline( pipelineTriangle )
+                .setScissors( 0, 1, scissors )
+                .setViewports( 0, 1, viewports )
+                .setArgumentData( hash_64_fnv1a_const( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
+                .setArgumentData( hash_64_fnv1a_const( "Color" ), &color, sizeof( ColorUbo_t ) )
+                .bindVertexBuffers( 0, 1, buffers, offsets )
+                .setVertexData( triangleColors, sizeof( triangleColors ), 1 )
+                .setIndexData( indexData, sizeof( indexData ) )
+                .drawIndexed( 6, 100 );
+        }
 
-		if ( false ) {
+        if ( false ) {
 			// note that this draws a full screen quad.
 			encoder
 			    .bindGraphicsPipeline( pipelinePathTracer )

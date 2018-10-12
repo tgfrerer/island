@@ -97,6 +97,8 @@ static void simple_module_update( simple_module_o *self ) {
 	static int firstRun = true;
 
 	if ( firstRun ) {
+		
+        std::cout << "Test results:" << std::endl << std::flush;
 
 		if ( run_tests() ) {
 			std::cout << "All Tests passed." << std::flush;
@@ -104,10 +106,12 @@ static void simple_module_update( simple_module_o *self ) {
 			std::cout << "Some Tests failed." << std::flush;
 		};
 
+        std::cout << std::endl << std::flush;
+
 		firstRun = false;
 	} else {
 		using std::chrono_literals::operator""ms;
-		// std::this_thread::sleep_for( 100ms );
+		std::this_thread::sleep_for( 100ms );
 	}
 }
 
