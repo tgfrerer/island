@@ -40,6 +40,8 @@ struct GltfUboMvp {
 	glm::mat4 view;
 };
 
+#define LE_ARGUMENT_NAME( x ) hash_64_fnv1a_const( #x )
+
 struct FontTextureInfo {
 	uint8_t *          pixels            = nullptr;
 	int32_t            width             = 0;
@@ -82,7 +84,8 @@ struct test_app_o {
 	le::ResourceHandle resTexHorse       = nullptr;
 	le::ResourceHandle resBufTrianglePos = nullptr;
 
-	le_shader_module_o *shaderTriangle[ 2 ];
+	le_shader_module_o *shaderTriangle[ 2 ]{};
+	le_shader_module_o *shaderPrepass[ 2 ]{};
 
 	bool                imgHorseWasUploaded = false;
 	le_gltf_document_o *gltfDoc             = nullptr;
@@ -228,6 +231,11 @@ static test_app_o *test_app_create() {
 				std::cerr << "declaring pso for imgui failed miserably.";
 			}
 		}
+
+		// load shaders for prepass
+
+		app->shaderPrepass[ 0 ] = app->renderer->createShaderModule( "./resources/shaders/prepass.vert", LeShaderType::eVert );
+		app->shaderPrepass[ 1 ] = app->renderer->createShaderModule( "./resources/shaders/prepass.frag", LeShaderType::eFrag );
 
 		{
 			// create full screen quad pipeline
@@ -548,12 +556,24 @@ static void pass_pre_exec( le_command_buffer_encoder_o *encoder_, void *user_dat
 	// Bind full screen quad pipeline
 	if ( true ) {
 
+		static float t_start = 0;
+		float        info    = fmodf( t_start + app->deltaTimeSec, 3.f );
+		info /= 3.f;
+		info = fabs( ( glm::sineEaseInOut( info ) - 0.5 ) * 2.f );
+		t_start += app->deltaTimeSec;
+
+		static auto psoPrepass = LeGraphicsPipelineBuilder( *app->backend )
+		                             .setVertexShader( app->shaderPrepass[ 0 ] )
+		                             .setFragmentShader( app->shaderPrepass[ 1 ] )
+		                             .build();
+
 		encoder
-		    .bindGraphicsPipeline( app->psoFullScreenQuad )
-		    .setArgumentTexture( app->resTexHorse, hash_64_fnv1a_const( "src_tex_unit_0" ), 0 )
+		    .bindGraphicsPipeline( psoPrepass )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( src_tex_unit_0 ), app->resTexHorse, 0 )
+		    .setArgumentData( LE_ARGUMENT_NAME( TimeInfo ), &info, sizeof( info ) )
 		    .setScissors( 0, 1, &scissors[ 0 ] )
 		    .setViewports( 0, 1, &viewports[ 0 ] )
-		    .draw( 3, 1, 0, 0 );
+		    .draw( 3 );
 	}
 }
 
@@ -665,8 +685,8 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 		    .bindGraphicsPipeline( psoTriangle )
 		    .setScissors( 0, 1, scissors )
 		    .setViewports( 0, 1, viewports )
-		    .setArgumentData( hash_64_fnv1a_const( "MatrixStack" ), &matrixStack, sizeof( MvpUbo_t ) )
-		    .setArgumentData( hash_64_fnv1a_const( "Color" ), &ubo1, sizeof( ColorUbo_t ) )
+		    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &matrixStack, sizeof( MvpUbo_t ) )
+		    .setArgumentData( LE_ARGUMENT_NAME( Color ), &ubo1, sizeof( ColorUbo_t ) )
 		    .bindVertexBuffers( 0, 1, buffers, offsets )
 		    .setVertexData( triangleColors, sizeof( glm::vec4 ) * 3, 1 )
 		    .setIndexData( indexData, sizeof( indexData ), 0 ) // 0 for indexType means uint16_t
@@ -701,7 +721,7 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 
 		encoder
 		    .bindGraphicsPipeline( app->psoFullScreenQuad )
-		    .setArgumentTexture( app->resTexPrepass, hash_64_fnv1a_const( "src_tex_unit_0" ), 0 )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( src_tex_unit_0 ), app->resTexPrepass, 0 )
 		    .setScissors( 0, 1, &scissors[ 2 ] )
 		    .setViewports( 0, 1, &viewports[ 2 ] )
 		    .draw( 3 ) //
@@ -719,8 +739,8 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 		encoder
 		    .bindGraphicsPipeline( app->psoImgui )
 		    .setViewports( 0, 1, &viewports[ 0 ] )
-		    .setArgumentData( hash_64_fnv1a_const( "MatrixStack" ), &ortho_projection, sizeof( glm::mat4 ) )
-		    .setArgumentTexture( app->imguiTexture.le_texture_handle, hash_64_fnv1a_const( "tex_unit_0" ), 0 ) //
+		    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &ortho_projection, sizeof( glm::mat4 ) )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( tex_unit_0 ), app->imguiTexture.le_texture_handle, 0 ) //
 		    ;
 
 		LeResourceHandle currentTexture = app->imguiTexture.le_texture_handle; // we check this for changes so that we don't have to switch state that often.

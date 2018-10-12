@@ -313,7 +313,7 @@ class RenderPassRef {
 	                                                                                 nullptr,
 	                                                                                 0,
 	                                                                                 {},
-                                                                                 } ) {
+                                                                                     } ) {
 		return addImageAttachment( resource_id, info );
 	}
 
@@ -467,7 +467,7 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &setArgumentTexture( LeResourceHandle const &textureId, uint64_t const &argumentName, uint64_t const &arrayIndex ) {
+	Encoder &setArgumentTexture( uint64_t const &argumentName, LeResourceHandle const &textureId, uint64_t const &arrayIndex ) {
 		le_renderer::encoder_i.set_argument_texture( self, textureId, argumentName, arrayIndex );
 		return *this;
 	}
