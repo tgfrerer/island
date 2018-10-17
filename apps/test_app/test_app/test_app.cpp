@@ -619,11 +619,6 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 	    {10, 10, 640 / 5, 425 / 5},
 	};
 
-	// data as it is laid out in the ubo for the shader
-	struct ColorUbo_t {
-		glm::vec4 color;
-	};
-
 	struct MvpUbo_t {
 		glm::mat4 modelMatrix;
 		glm::mat4 viewMatrix;
@@ -634,8 +629,6 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 	t                = fmodf( t + app->deltaTimeSec, 10.f );
 	float r_val      = t / 10.f;
 	float r_anim_val = glm::elasticEaseOut( r_val );
-
-	ColorUbo_t ubo1{{1, 0, 0, 1}};
 
 	// Draw RGB triangle
 	if ( true ) {
@@ -686,7 +679,6 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 		    .setScissors( 0, 1, scissors )
 		    .setViewports( 0, 1, viewports )
 		    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &matrixStack, sizeof( MvpUbo_t ) )
-		    .setArgumentData( LE_ARGUMENT_NAME( Color ), &ubo1, sizeof( ColorUbo_t ) )
 		    .bindVertexBuffers( 0, 1, buffers, offsets )
 		    .setVertexData( triangleColors, sizeof( glm::vec4 ) * 3, 1 )
 		    .setIndexData( indexData, sizeof( indexData ), 0 ) // 0 for indexType means uint16_t
