@@ -529,7 +529,7 @@ static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 
 /// \brief translate a binary blob into spirv code if possible
 /// \details Blob may be raw spirv data, or glsl data
-static void backend_translate_to_spirv_code( le_backend_o *self, void *raw_data, size_t numBytes, LeShaderType moduleType, const char *original_file_name, std::vector<uint32_t> &spirvCode, std::set<std::string> &includesSet ) {
+static void backend_translate_to_spirv_code( le_shader_compiler_o *shader_compiler, void *raw_data, size_t numBytes, LeShaderType moduleType, const char *original_file_name, std::vector<uint32_t> &spirvCode, std::set<std::string> &includesSet ) {
 
 	if ( check_is_data_spirv( raw_data, numBytes ) ) {
 		spirvCode.resize( numBytes / 4 );
@@ -539,7 +539,7 @@ static void backend_translate_to_spirv_code( le_backend_o *self, void *raw_data,
 
 		using namespace le_shader_compiler; // for compiler_i
 
-		auto compileResult = compiler_i.compile_source( self->shader_compiler, static_cast<const char *>( raw_data ), numBytes, moduleType, original_file_name );
+		auto compileResult = compiler_i.compile_source( shader_compiler, static_cast<const char *>( raw_data ), numBytes, moduleType, original_file_name );
 
 		if ( compiler_i.get_result_success( compileResult ) == true ) {
 			const char *addr;
@@ -854,7 +854,7 @@ static le_shader_module_o *backend_create_shader_module( le_backend_o *self, cha
 	std::vector<uint32_t> spirv_code;
 	std::set<std::string> includesSet = {{canonical_path_as_string}}; // let first element be the source file path
 
-	backend_translate_to_spirv_code( self, raw_file_data.data(), raw_file_data.size(), moduleType, path, spirv_code, includesSet );
+	backend_translate_to_spirv_code( self->shader_compiler, raw_file_data.data(), raw_file_data.size(), moduleType, path, spirv_code, includesSet );
 
 	// FIXME: we need to check spirv code is ok, that compilation succeeded.
 
@@ -931,7 +931,7 @@ static void backend_shader_module_update( le_backend_o *self, le_shader_module_o
 	std::vector<uint32_t> spirv_code;
 	std::set<std::string> includesSet;
 
-	backend_translate_to_spirv_code( self, source_text.data(), source_text.size(), module->stage, module->filepath.c_str(), spirv_code, includesSet );
+	backend_translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), module->stage, module->filepath.c_str(), spirv_code, includesSet );
 
 	if ( spirv_code.empty() ) {
 		// no spirv code available, bail out.
