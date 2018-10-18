@@ -20,6 +20,7 @@ void register_le_backend_vk_api( void *api );
 void register_le_instance_vk_api( void *api );       // for le_instance_vk.cpp
 void register_le_allocator_linear_api( void *api_ ); // for le_allocator.cpp
 void register_le_device_vk_api( void *api );         // for le_device_vk.cpp
+void register_le_pipeline_vk_api( void *api );       // for le_pipeline_vk.cpp
 
 struct le_backend_vk_api;
 
@@ -32,6 +33,7 @@ struct le_buffer_o;
 struct le_allocator_o;
 
 struct graphics_pipeline_state_o; // for le_pipeline_builder
+struct le_pipeline_cache_o;
 
 struct le_swapchain_vk_settings_o;
 struct pal_window_o;
@@ -61,35 +63,47 @@ struct le_backend_vk_settings_t {
 	le_swapchain_vk_settings_o *swapchain_settings     = nullptr;
 };
 
+struct le_pipeline_layout_info {
+	uint64_t pipeline_layout_key  = 0;  // handle to pipeline layout
+	uint64_t set_layout_keys[ 8 ] = {}; // maximum number of DescriptorSets is 8
+	uint64_t set_layout_count     = 0;  // number of actually used DescriptorSetLayouts for this layout
+};
+
+struct le_pipeline_and_layout_info_t {
+	struct VkPipeline_T *   pipeline;
+	le_pipeline_layout_info layout_info;
+};
+
 struct le_backend_vk_api {
 	static constexpr auto id      = "le_backend_vk";
 	static constexpr auto pRegFun = register_le_backend_vk_api;
 
 	// clang-format off
 	struct backend_vk_interface_t {
-		le_backend_o *         ( *create                   ) ( le_backend_vk_settings_t *settings );
-		void                   ( *destroy                  ) ( le_backend_o *self );
-		void                   ( *setup                    ) ( le_backend_o *self );
-		bool                   ( *poll_frame_fence         ) ( le_backend_o* self, size_t frameIndex);
-		bool                   ( *clear_frame              ) ( le_backend_o *self, size_t frameIndex );
-		void                   ( *process_frame            ) ( le_backend_o *self, size_t frameIndex );
+		le_backend_o *         ( *create                     ) ( le_backend_vk_settings_t *settings );
+		void                   ( *destroy                    ) ( le_backend_o *self );
+
+		void                   ( *setup                      ) ( le_backend_o *self );
+
+		bool                   ( *poll_frame_fence           ) ( le_backend_o* self, size_t frameIndex);
+		bool                   ( *clear_frame                ) ( le_backend_o *self, size_t frameIndex );
+		void                   ( *process_frame              ) ( le_backend_o *self, size_t frameIndex );
 		bool                   ( *acquire_physical_resources ) ( le_backend_o *self, size_t frameIndex, le_renderpass_o **passes, size_t numRenderPasses  );
-		bool                   ( *dispatch_frame           ) ( le_backend_o *self, size_t frameIndex );
-		bool                   ( *create_window_surface    ) ( le_backend_o *self, pal_window_o *window_ );
-		void                   ( *create_swapchain         ) ( le_backend_o *self, le_swapchain_vk_settings_o *swapchainSettings_ );
-		size_t                 ( *get_num_swapchain_images ) ( le_backend_o *self );
-		void                   ( *reset_swapchain          ) ( le_backend_o *self );
-		le_allocator_o**       ( *get_transient_allocators ) ( le_backend_o* self, size_t frameIndex, size_t numAllocators);
+		bool                   ( *dispatch_frame             ) ( le_backend_o *self, size_t frameIndex );
 
-		void                   (*introduce_graphics_pipeline_state)(le_backend_o*self, graphics_pipeline_state_o* gpso, uint64_t gpoHash);
+		bool                   ( *create_window_surface      ) ( le_backend_o *self, pal_window_o *window_ );
+		void                   ( *create_swapchain           ) ( le_backend_o *self, le_swapchain_vk_settings_o *swapchainSettings_ );
+		size_t                 ( *get_num_swapchain_images   ) ( le_backend_o *self );
+		void                   ( *reset_swapchain            ) ( le_backend_o *self );
+		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex, size_t numAllocators);
 
-		LeResourceHandle       ( *declare_resource         ) (le_backend_o* self, LeResourceType type);
-		LeResourceHandle       ( *get_backbuffer_resource  ) (le_backend_o* self);
+		le_shader_module_o*    ( *create_shader_module              ) ( le_backend_o* self, char const * path, LeShaderType moduleType);
+		void                   ( *update_shader_modules             ) ( le_backend_o* self );
 
-		le_shader_module_o*    ( *create_shader_module     ) ( le_backend_o* self, char const * path, LeShaderType moduleType);
-		void                   ( *update_shader_modules    ) ( le_backend_o* self );
-		void                   ( *destroy_shader_module    ) ( le_backend_o* self, le_shader_module_o* shader_module);
+		le_pipeline_cache_o* (*get_pipeline_cache)(le_backend_o* self);
 
+		LeResourceHandle       ( *declare_resource           ) (le_backend_o* self, LeResourceType type);
+		LeResourceHandle       ( *get_backbuffer_resource    ) (le_backend_o* self);
 	};
 
 	struct instance_interface_t {
@@ -120,6 +134,21 @@ struct le_backend_vk_api {
 		bool                                    ( *get_memory_allocation_info               ) ( le_backend_vk_device_o *self, const VkMemoryRequirements &memReqs, const uint32_t &memPropsRef, VkMemoryAllocateInfo *pMemoryAllocationInfo );
 	};
 
+	struct le_pipeline_cache_interface_t {
+		le_pipeline_cache_o*   ( *create                            ) ( VkDevice_T* device        );
+		void                   ( *destroy                           ) ( le_pipeline_cache_o* self );
+
+		void                   ( *introduce_graphics_pipeline_state ) ( le_pipeline_cache_o*self, graphics_pipeline_state_o* gpso, uint64_t gpoHash);
+
+		 le_pipeline_and_layout_info_t (*produce_pipeline)( le_pipeline_cache_o *self, uint64_t gpso_hash, const struct Pass &pass, uint32_t subpass ) ;
+
+		le_shader_module_o*    ( *create_shader_module              ) ( le_pipeline_cache_o* self, char const * path, LeShaderType moduleType);
+		void                   ( *update_shader_modules             ) ( le_pipeline_cache_o* self );
+
+		struct VkPipelineLayout_T* (*get_pipeline_layout)(le_pipeline_cache_o* self, uint64_t pipeline_layout_key);
+		const struct le_descriptor_set_layout_t& (*get_descriptor_set_layout)(le_pipeline_cache_o* self, uint64_t setlayout_key);
+	};
+
 	struct allocator_linear_interface_t {
 		le_allocator_o *        ( *create               ) ( VmaAllocationInfo const *info, uint16_t alignment);
 		void                    ( *destroy              ) ( le_allocator_o *self );
@@ -129,10 +158,11 @@ struct le_backend_vk_api {
 	};
 	// clang-format on
 
-	allocator_linear_interface_t le_allocator_linear_i;
-	instance_interface_t         vk_instance_i;
-	device_interface_t           vk_device_i;
-	backend_vk_interface_t       vk_backend_i;
+	allocator_linear_interface_t  le_allocator_linear_i;
+	instance_interface_t          vk_instance_i;
+	device_interface_t            vk_device_i;
+	backend_vk_interface_t        vk_backend_i;
+	le_pipeline_cache_interface_t le_pipeline_chache_i;
 
 	mutable le_backend_vk_instance_o *cUniqueInstance = nullptr;
 };
@@ -151,6 +181,7 @@ static const auto &vk_backend_i          = api -> vk_backend_i;
 static const auto &le_allocator_linear_i = api -> le_allocator_linear_i;
 static const auto &vk_instance_i         = api -> vk_instance_i;
 static const auto &vk_device_i           = api -> vk_device_i;
+static const auto &le_pipeline_cache_i   = api -> le_pipeline_chache_i;
 
 } // namespace le_backend_vk
 

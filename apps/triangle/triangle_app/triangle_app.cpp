@@ -159,7 +159,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		static auto shaderFrag = app->renderer->createShaderModule( "./resources/shaders/default.frag", LeShaderType::eFrag );
 
 		static auto pipelineTriangle =
-		    LeGraphicsPipelineBuilder( *app->backend )
+		    LeGraphicsPipelineBuilder( encoder.getPipelineCache() )
 		        .setVertexShader( shaderVert )
 		        .setFragmentShader( shaderFrag )
 		        .build();

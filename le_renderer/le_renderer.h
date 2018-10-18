@@ -108,7 +108,7 @@ struct le_renderer_api {
 	};
 
 	struct command_buffer_encoder_interface_t {
-		le_command_buffer_encoder_o *( *create                 )( le_allocator_o *allocator );
+		le_command_buffer_encoder_o *( *create                 )( le_allocator_o *allocator, struct le_pipeline_cache_o* pipeline_cache );
 		void                         ( *destroy                )( le_command_buffer_encoder_o *obj );
 
 		void                         ( *draw                   )( le_command_buffer_encoder_o *self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance );
@@ -131,6 +131,7 @@ struct le_renderer_api {
 		void                         ( *set_argument_ubo_data  ) (le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
 		void                         ( *set_argument_texture   ) (le_command_buffer_encoder_o* self, LeResourceHandle const textureId, uint64_t argumentName, uint64_t arrayIndex);
 
+		le_pipeline_cache_o* (*get_pipeline_cache)(le_command_buffer_encoder_o* self);
 		void                         ( *get_encoded_data       )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
 	};
 
@@ -313,7 +314,7 @@ class RenderPassRef {
 	                                                                                 nullptr,
 	                                                                                 0,
 	                                                                                 {},
-                                                                                     } ) {
+                                                                                 } ) {
 		return addImageAttachment( resource_id, info );
 	}
 
@@ -470,6 +471,10 @@ class Encoder {
 	Encoder &setArgumentTexture( uint64_t const &argumentName, LeResourceHandle const &textureId, uint64_t const &arrayIndex ) {
 		le_renderer::encoder_i.set_argument_texture( self, textureId, argumentName, arrayIndex );
 		return *this;
+	}
+
+	le_pipeline_cache_o *getPipelineCache() {
+		return le_renderer::encoder_i.get_pipeline_cache( self );
 	}
 };
 // ----------------------------------------------------------------------

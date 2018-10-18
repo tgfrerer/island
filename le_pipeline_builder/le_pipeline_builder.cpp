@@ -55,17 +55,17 @@
 
 // contains everything (except renderpass/subpass) needed to create a pipeline in the backend
 struct le_graphics_pipeline_builder_o {
-	graphics_pipeline_state_o *obj     = nullptr;
-	le_backend_o *             backend = nullptr;
+	graphics_pipeline_state_o *obj           = nullptr;
+	le_pipeline_cache_o *      pipelineCache = nullptr;
 };
 
 // ----------------------------------------------------------------------
 
-static le_graphics_pipeline_builder_o *le_graphics_pipeline_builder_create( le_backend_o *backend ) {
+static le_graphics_pipeline_builder_o *le_graphics_pipeline_builder_create( le_pipeline_cache_o *pipelineCache ) {
 	auto self = new le_graphics_pipeline_builder_o();
 
-	self->backend = backend;
-	self->obj     = new graphics_pipeline_state_o();
+	self->pipelineCache = pipelineCache;
+	self->obj           = new graphics_pipeline_state_o();
 	// set default values
 
 	self->obj->data.inputAssemblyState
@@ -217,7 +217,7 @@ static uint64_t le_graphics_pipeline_builder_build( le_graphics_pipeline_builder
 	// note that object will be copied.
 
 	using namespace le_backend_vk;
-	le_backend_vk::vk_backend_i.introduce_graphics_pipeline_state( self->backend, self->obj, hash_value );
+	le_pipeline_cache_i.introduce_graphics_pipeline_state( self->pipelineCache, self->obj, hash_value );
 
 	return hash_value;
 }

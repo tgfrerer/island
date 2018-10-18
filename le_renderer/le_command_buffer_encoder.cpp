@@ -12,17 +12,19 @@
 #define EMPLACE_CMD( x ) new ( &self->mCommandStream[ 0 ] + self->mCommandStreamSize )( x )
 
 struct le_command_buffer_encoder_o {
-	char            mCommandStream[ 4096 * 16 ]; // 16 pages of memory
-	size_t          mCommandStreamSize = 0;
-	size_t          mCommandCount      = 0;
-	le_allocator_o *pAllocator         = nullptr; // allocator is owned by backend, externally
+	char                 mCommandStream[ 4096 * 16 ]; // 16 pages of memory
+	size_t               mCommandStreamSize = 0;
+	size_t               mCommandCount      = 0;
+	le_allocator_o *     pAllocator         = nullptr; // allocator is owned by backend, externally
+	le_pipeline_cache_o *pipelineCache      = nullptr;
 };
 
 // ----------------------------------------------------------------------
 
-static le_command_buffer_encoder_o *cbe_create( le_allocator_o *allocator_ ) {
-	auto self        = new le_command_buffer_encoder_o;
-	self->pAllocator = allocator_;
+static le_command_buffer_encoder_o *cbe_create( le_allocator_o *allocator, le_pipeline_cache_o *pipelineCache ) {
+	auto self           = new le_command_buffer_encoder_o;
+	self->pAllocator    = allocator;
+	self->pipelineCache = pipelineCache;
 
 	//	std::cout << "encoder create : " << std::hex << self << std::endl
 	//	          << std::flush;
@@ -385,6 +387,12 @@ static void cbe_get_encoded_data( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 
+static le_pipeline_cache_o *cbe_get_pipeline_cache( le_command_buffer_encoder_o *self ) {
+	return self->pipelineCache;
+}
+
+// ----------------------------------------------------------------------
+
 ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 
 	auto &cbe_i = static_cast<le_renderer_api *>( api_ )->le_command_buffer_encoder_i;
@@ -406,4 +414,5 @@ ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 	cbe_i.get_encoded_data       = cbe_get_encoded_data;
 	cbe_i.write_to_buffer        = cbe_write_to_buffer;
 	cbe_i.write_to_image         = cbe_write_to_image;
+	cbe_i.get_pipeline_cache     = cbe_get_pipeline_cache;
 }

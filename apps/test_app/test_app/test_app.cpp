@@ -146,6 +146,12 @@ static test_app_o *test_app_create() {
 	app->renderer = std::make_unique<le::Renderer>( *app->backend );
 	app->renderer->setup();
 
+	le_pipeline_cache_o *pipelineCache = nullptr;
+	{
+		using namespace le_backend_vk;
+		pipelineCache = vk_backend_i.get_pipeline_cache( *app->backend );
+	}
+
 	{
 		// -- Declare graphics pipeline state objects
 
@@ -164,7 +170,7 @@ static test_app_o *test_app_create() {
 			//
 			// The backend pipeline object is compiled on-demand, when it is first used with a renderpass, and henceforth cached.
 
-			auto pso = LeGraphicsPipelineBuilder( *app->backend )
+			auto pso = LeGraphicsPipelineBuilder( pipelineCache )
 			               .setFragmentShader( defaultFragShader )
 			               .setVertexShader( defaultVertShader )
 			               .build();
@@ -218,7 +224,7 @@ static test_app_o *test_app_create() {
 			// Which makes sense since every other time it will return the same hash value for
 			// given data.
 			// and all calculations will be in vain, and write access to the cache is expensive.
-			static uint64_t psoHandle = LeGraphicsPipelineBuilder( *app->backend )
+			static uint64_t psoHandle = LeGraphicsPipelineBuilder( pipelineCache )
 			                                .setFragmentShader( imguiFragShader )
 			                                .setVertexShader( imguiVertShader )
 			                                .setVertexInputAttributeDescriptions( attrs.data(), attrs.size() )
@@ -243,7 +249,7 @@ static test_app_o *test_app_create() {
 			auto fullScreenQuadVertShader = app->renderer->createShaderModule( "./resources/shaders/fullscreenQuad.vert", LeShaderType::eVert );
 			auto fullScreenQuadFragShader = app->renderer->createShaderModule( "./resources/shaders/fullscreenQuad.frag", LeShaderType::eFrag );
 
-			auto psoHandle = LeGraphicsPipelineBuilder( *app->backend )
+			auto psoHandle = LeGraphicsPipelineBuilder( pipelineCache )
 			                     .setFragmentShader( fullScreenQuadFragShader )
 			                     .setVertexShader( fullScreenQuadVertShader )
 			                     .build();
@@ -562,7 +568,7 @@ static void pass_pre_exec( le_command_buffer_encoder_o *encoder_, void *user_dat
 		info = fabs( ( glm::sineEaseInOut( info ) - 0.5 ) * 2.f );
 		t_start += app->deltaTimeSec;
 
-		static auto psoPrepass = LeGraphicsPipelineBuilder( *app->backend )
+		static auto psoPrepass = LeGraphicsPipelineBuilder( encoder.getPipelineCache() )
 		                             .setVertexShader( app->shaderPrepass[ 0 ] )
 		                             .setFragmentShader( app->shaderPrepass[ 1 ] )
 		                             .build();
@@ -646,7 +652,7 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 		    .setDepthBiasSlopeFactor( 1.f )
 		    .setLineWidth( 1.f );
 
-		static auto psoTriangle = LeGraphicsPipelineBuilder( *app->backend )
+		static auto psoTriangle = LeGraphicsPipelineBuilder( encoder.getPipelineCache() )
 		                              .setVertexShader( app->shaderTriangle[ 0 ] )
 		                              .setFragmentShader( app->shaderTriangle[ 1 ] )
 		                              .setRasterizationInfo( rasterizationState )

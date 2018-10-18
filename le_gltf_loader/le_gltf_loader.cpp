@@ -13,6 +13,8 @@
 #include "le_renderer/le_renderer.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
 
+#include "le_backend_vk/le_backend_vk.h" // for get_pipeline_cache (FIXME: get rid of this)
+
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
 #define GLM_ENABLE_EXPERIMENTAL
@@ -753,7 +755,13 @@ static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *r
 	    .setLineWidth( 1.f );
 
 	using namespace le_renderer;
-	auto backend = le_renderer::renderer_i.get_backend( renderer );
+	auto backend = renderer_i.get_backend( renderer );
+
+	le_pipeline_cache_o *pipelineCache = nullptr;
+	{
+		using namespace le_backend_vk;
+		pipelineCache = vk_backend_i.get_pipeline_cache( backend );
+	}
 
 	for ( auto &p : self->primitives ) {
 
@@ -763,7 +771,7 @@ static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *r
 			auto shader_module_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.vert", LeShaderType::eVert );
 			auto shader_module_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.frag", LeShaderType::eFrag );
 
-			p.pso = LeGraphicsPipelineBuilder( backend )
+			p.pso = LeGraphicsPipelineBuilder( pipelineCache )
 			            .setFragmentShader( shader_module_frag )
 			            .setVertexShader( shader_module_vert )
 			            .setRasterizationInfo( rasterizationState )

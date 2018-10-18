@@ -329,7 +329,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		inputAssemblyInfo.setTopology( vk::PrimitiveTopology::eTriangleList );
 
 		static auto pipelineTriangle =
-		    LeGraphicsPipelineBuilder( *app->backend )
+		    LeGraphicsPipelineBuilder( encoder.getPipelineCache() )
 		        .setVertexShader( app->shaderTriangle[ 0 ] )
 		        .setFragmentShader( app->shaderTriangle[ 1 ] )
 		        .setRasterizationInfo( rasterizationState )
@@ -337,7 +337,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		        .build();
 
 		static auto pipelinePathTracer =
-		    LeGraphicsPipelineBuilder( *app->backend )
+		    LeGraphicsPipelineBuilder( encoder.getPipelineCache() )
 		        .setVertexShader( app->shaderPathTracer[ 0 ] )
 		        .setFragmentShader( app->shaderPathTracer[ 1 ] )
 		        .setRasterizationInfo( rasterizationState )
@@ -437,7 +437,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 static bool triangle_app_update( triangle_app_o *self ) {
 
-	static bool resetCameraOnReload = true;
+	static bool resetCameraOnReload = false;
 
 	{
 		// update frame delta time
