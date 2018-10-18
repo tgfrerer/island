@@ -1006,11 +1006,11 @@ static le_backend_o *backend_create( le_backend_vk_settings_t *settings ) {
 	self->instance = std::make_unique<le::Instance>( self->settings.requestedExtensions, self->settings.numRequestedExtensions );
 	self->device   = std::make_unique<le::Device>( *self->instance );
 
-	// -- create shader compiler
-
-	static auto &shader_compiler_i = Registry::getApi<le_shader_compiler_api>()->compiler_i;
-	self->shader_compiler          = shader_compiler_i.create();
-
+	{
+		// -- create shader compiler
+		using namespace le_shader_compiler;
+		self->shader_compiler = compiler_i.create();
+	}
 	// -- create file watcher for shader files so that changes can be detected
 	static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
 	self->shaderFileWatcher     = file_watcher_i.create();
