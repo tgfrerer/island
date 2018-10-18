@@ -100,7 +100,7 @@ struct le_shader_module_o {
 	std::vector<std::string>                         vertexAttributeNames;        ///< (used for debug only) name for vertex attribute
 	std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions; ///< descriptions gathered from reflection if shader type is vertex
 	std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;   ///< descriptions gathered from reflection if shader type is vertex
-	vk::ShaderModule                                 module = nullptr;
+	VkShaderModule                                   module = nullptr;
 	LeShaderType                                     stage  = LeShaderType::eNone;
 };
 
