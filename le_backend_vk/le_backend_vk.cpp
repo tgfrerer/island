@@ -5,19 +5,14 @@
 #define VMA_USE_STL_CONTAINERS 1
 #include "util/vk_mem_alloc/vk_mem_alloc.h" // for allocation
 
-#define VULKAN_HPP_NO_SMART_HANDLE
-#include <vulkan/vulkan.hpp>
-
 #include "le_backend_vk/le_backend_types_internal.h"
 
 #include "le_swapchain_vk/le_swapchain_vk.h"
-
 #include "pal_window/pal_window.h"
-
-#include "le_backend_vk/util/spooky/SpookyV2.h" // for hashing renderpass gestalt
-
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/le_renderer_types.h"
+
+#include "le_backend_vk/util/spooky/SpookyV2.h" // for hashing renderpass gestalt
 
 #include <vector>
 #include <unordered_map>
@@ -88,7 +83,7 @@ struct BackendFrameData {
 	/// \brief vk resources retained and destroyed with BackendFrameData
 	std::forward_list<AbstractPhysicalResource> ownedResources;
 
-	std::vector<Pass>               passes;
+	std::vector<LeRenderPass>       passes;
 	std::vector<vk::DescriptorPool> descriptorPools; // one descriptor pool per pass
 
 	/*
@@ -127,7 +122,7 @@ struct le_backend_o {
 
 	std::vector<BackendFrameData> mFrames;
 
-	le_pipeline_cache_o *pipelineCache = nullptr;
+	le_pipeline_manager_o *pipelineCache = nullptr;
 
 	VmaAllocator mAllocator = nullptr;
 
@@ -195,7 +190,7 @@ static le_backend_o *backend_create( le_backend_vk_settings_t *settings ) {
 
 	{
 		using namespace le_backend_vk;
-		self->pipelineCache = le_pipeline_cache_i.create( self->device->getVkDevice() );
+		self->pipelineCache = le_pipeline_manager_i.create( self->device->getVkDevice() );
 	}
 
 	return self;
@@ -209,7 +204,7 @@ static void backend_destroy( le_backend_o *self ) {
 
 	{
 		using namespace le_backend_vk;
-		le_pipeline_cache_i.destroy( self->pipelineCache );
+		le_pipeline_manager_i.destroy( self->pipelineCache );
 		self->pipelineCache = nullptr;
 	}
 
@@ -525,7 +520,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 	for ( auto pass = ppPasses; pass != ppPasses + numRenderPasses; pass++ ) {
 
-		Pass currentPass{};
+		LeRenderPass currentPass{};
 		currentPass.type = renderpass_i.get_type( *pass );
 
 		currentPass.width = renderpass_i.get_width( *pass );
@@ -1841,10 +1836,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 						using namespace le_backend_vk;
 						// -- potentially compile and create pipeline here, based on current pass and subpass
-						currentPipeline = le_pipeline_cache_i.produce_pipeline( self->pipelineCache, le_cmd->info.psoHash, pass, subpassIndex );
+						currentPipeline = le_pipeline_manager_i.produce_pipeline( self->pipelineCache, le_cmd->info.psoHash, pass, subpassIndex );
 
 						// -- grab current pipeline layout from cache
-						currentPipelineLayout = le_pipeline_cache_i.get_pipeline_layout( self->pipelineCache, currentPipeline.layout_info.pipeline_layout_key );
+						currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( self->pipelineCache, currentPipeline.layout_info.pipeline_layout_key );
 
 						{
 							// -- update pipelineData - that's the data values for all descriptors which are currently bound
@@ -1861,7 +1856,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 								// look up set layout info via set layout key
 								auto const &set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
 
-								auto const &setLayoutInfo = le_pipeline_cache_i.get_descriptor_set_layout( self->pipelineCache, set_layout_key );
+								auto const &setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( self->pipelineCache, set_layout_key );
 
 								auto &setData = argumentState.setData[ setId ];
 
@@ -2194,16 +2189,16 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 // FIXME: remove forwarding via renderer to here
 static void backend_update_shader_modules( le_backend_o *self ) {
 	using namespace le_backend_vk;
-	le_pipeline_cache_i.update_shader_modules( self->pipelineCache );
+	le_pipeline_manager_i.update_shader_modules( self->pipelineCache );
 }
 
 // FIXME: remove forwarding via renderer to here
 static le_shader_module_o *backend_create_shader_module( le_backend_o *self, char const *path, LeShaderType moduleType ) {
 	using namespace le_backend_vk;
-	return le_pipeline_cache_i.create_shader_module( self->pipelineCache, path, moduleType );
+	return le_pipeline_manager_i.create_shader_module( self->pipelineCache, path, moduleType );
 }
 
-static le_pipeline_cache_o *backend_get_pipeline_cache( le_backend_o *self ) {
+static le_pipeline_manager_o *backend_get_pipeline_cache( le_backend_o *self ) {
 	return self->pipelineCache;
 }
 

@@ -1,13 +1,9 @@
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_backend_vk/le_backend_types_internal.h"
 
-#define VULKAN_HPP_NO_SMART_HANDLE
-#include "vulkan/vulkan.hpp"
-
 #include <iostream>
 #include <iomanip>
 #include <string>
-#include <vector>
 #include <set>
 #include <unordered_map>
 
@@ -15,17 +11,13 @@
 #include <fstream>                 // for reading shader source files
 #include <cstring>                 // for memcpy
 
-#include "le_renderer/private/le_renderer_types.h"
 #include "le_shader_compiler/le_shader_compiler.h"
-
 #include "util/spirv-cross/spirv_cross.hpp"
-
-#include "pal_file_watcher/pal_file_watcher.h" // for watching shader source files
-
-#include "le_backend_vk/util/spooky/SpookyV2.h" // for hashing pso state
+#include "pal_file_watcher/pal_file_watcher.h"  // for watching shader source files
+#include "le_backend_vk/util/spooky/SpookyV2.h" // for hashing renderpass gestalt, so that we can test for *compatible* renderpasses
 
 namespace std {
-using namespace experimental;
+using namespace experimental; // so that we can use std::filesystem as such
 }
 
 struct le_shader_module_o {
@@ -42,7 +34,7 @@ struct le_shader_module_o {
 	LeShaderType                                     stage  = LeShaderType::eNone;
 };
 
-struct le_pipeline_cache_o {
+struct le_pipeline_manager_o {
 	// TODO: These resources are potentially in-flight, and may be used read-only
 	// by more than one frame - but they can only be written to one thread at a time.
 
@@ -56,33 +48,11 @@ struct le_pipeline_cache_o {
 	le_shader_compiler_o *                                          shader_compiler   = nullptr;
 	pal_file_watcher_o *                                            shaderFileWatcher = nullptr;
 
-	// written by: `backend_create_grapics_pipeline_state_object`,
-	std::unordered_map<uint64_t, graphics_pipeline_state_o *> PSOs; // indexed by gpso hash
-
-	// read    by: `backend_get_pipeline_layout`
-	//             `backend_process_frame`
-	//             `backend_produce_pipeline_layout_info`
-	//
-	// written by: `backend_produce_pipeline_layout_info`
-	std::unordered_map<uint64_t, vk::Pipeline, IdentityHash> pipelines;
-
-	// read    by: `backend_produce_pipeline`
-	//
-	// written by: `backend_produce_pipeline`
-	std::unordered_map<uint64_t, le_pipeline_layout_info, IdentityHash> pipelineLayoutInfos;
-
-	// read by   : `backend_process_frame`,
-	//             `backend_produce_descriptor_set_layout`
-	//
-	// written by: `backend_produce_descriptor_set_layout`
+	std::unordered_map<uint64_t, graphics_pipeline_state_o *>              PSOs; // indexed by gpso hash
+	std::unordered_map<uint64_t, vk::Pipeline, IdentityHash>               pipelines;
+	std::unordered_map<uint64_t, le_pipeline_layout_info, IdentityHash>    pipelineLayoutInfos;
 	std::unordered_map<uint64_t, le_descriptor_set_layout_t, IdentityHash> descriptorSetLayouts; // indexed by le_shader_bindings_info[] hash
-
-	// read by   : `backend_get_pipeline_layout`
-	//             `backend_process_frame`
-	//             `backend_produce_pipeline_layout_info`
-	//
-	// written by: `backend_produce_pipeline_layout_info`
-	std::unordered_map<uint64_t, vk::PipelineLayout, IdentityHash> pipelineLayouts; // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
+	std::unordered_map<uint64_t, vk::PipelineLayout, IdentityHash>         pipelineLayouts;      // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
 };
 
 // ----------------------------------------------------------------------
@@ -212,7 +182,7 @@ static void le_pipeline_cache_translate_to_spirv_code( le_shader_compiler_o *sha
 
 // Flags all modules which are affected by a change in shader_source_file_path,
 // and adds them to a set of shader modules wich need to be recompiled.
-static void le_pipeline_cache_flag_affected_modules_for_source_path( le_pipeline_cache_o *self, const char *shader_source_file_path ) {
+static void le_pipeline_cache_flag_affected_modules_for_source_path( le_pipeline_manager_o *self, const char *shader_source_file_path ) {
 	// find all modules from dependencies set
 	// insert into list of modified modules.
 
@@ -236,7 +206,7 @@ static void le_pipeline_cache_flag_affected_modules_for_source_path( le_pipeline
 
 // ----------------------------------------------------------------------
 
-static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_pipeline_cache_o *self, le_shader_module_o *module, std::set<std::string> &sourcePaths ) {
+static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_pipeline_manager_o *self, le_shader_module_o *module, std::set<std::string> &sourcePaths ) {
 
 	// To be able to tell quick which modules need to be recompiled if a source file changes,
 	// we build a table from source file -> array of modules
@@ -254,7 +224,7 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_pipel
 			settings.filePath           = s.c_str();
 			settings.callback_user_data = self;
 			settings.callback_fun       = []( const char *path, void *user_data ) -> bool {
-				auto backend = static_cast<le_pipeline_cache_o *>( user_data );
+				auto backend = static_cast<le_pipeline_manager_o *>( user_data );
 				// call a method on backend to tell it that the file path has changed.
 				// backend to figure out which modules are affected.
 				le_pipeline_cache_flag_affected_modules_for_source_path( backend, path );
@@ -475,7 +445,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 
 // ----------------------------------------------------------------------
 
-static void le_pipeline_cache_shader_module_update( le_pipeline_cache_o *self, le_shader_module_o *module ) {
+static void le_pipeline_cache_shader_module_update( le_pipeline_manager_o *self, le_shader_module_o *module ) {
 
 	// Shader module needs updating if shader code has changed.
 	// if this happens, a new vulkan object for the module must be crated.
@@ -545,7 +515,7 @@ static void le_pipeline_cache_shader_module_update( le_pipeline_cache_o *self, l
 
 // ----------------------------------------------------------------------
 // this method is called via renderer::update - before frame processing.
-static void le_pipeline_cache_update_shader_modules( le_pipeline_cache_o *self ) {
+static void le_pipeline_manager_update_shader_modules( le_pipeline_manager_o *self ) {
 
 	// -- find out which shader modules have been tainted
 	static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
@@ -705,7 +675,7 @@ static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( le_
 /// \brief create vulkan shader module based on file path
 /// \details FIXME: this method can get called nearly anywhere - it should not be publicly accessible.
 /// ideally, this method is only allowed to be called in the setup phase.
-static le_shader_module_o *le_pipeline_cache_create_shader_module( le_pipeline_cache_o *self, char const *path, LeShaderType moduleType ) {
+static le_shader_module_o *le_pipeline_manager_create_shader_module( le_pipeline_manager_o *self, char const *path, LeShaderType moduleType ) {
 
 	// This method gets called through the renderer - it is assumed during the setup stage.
 
@@ -779,7 +749,7 @@ static le_shader_module_o *le_pipeline_cache_create_shader_module( le_pipeline_c
 
 // ----------------------------------------------------------------------
 // called via decoder / produce_frame -
-static vk::PipelineLayout le_pipeline_cache_get_pipeline_layout( le_pipeline_cache_o *self, graphics_pipeline_state_o const *pso ) {
+static vk::PipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_manager_o *self, graphics_pipeline_state_o const *pso ) {
 
 	uint64_t pipelineLayoutHash = graphics_pso_get_pipeline_layout_hash( pso );
 
@@ -895,7 +865,7 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description( l
 }
 // clang-format on
 // ----------------------------------------------------------------------
-static vk::Pipeline le_pipeline_cache_create_pipeline( le_pipeline_cache_o *self, graphics_pipeline_state_o const *pso, const Pass &pass, uint32_t subpass ) {
+static vk::Pipeline le_pipeline_cache_create_pipeline( le_pipeline_manager_o *self, graphics_pipeline_state_o const *pso, const LeRenderPass &pass, uint32_t subpass ) {
 
 	std::array<vk::PipelineShaderStageCreateInfo, 2> pipelineStages;
 	pipelineStages[ 0 ]
@@ -962,7 +932,7 @@ static vk::Pipeline le_pipeline_cache_create_pipeline( le_pipeline_cache_o *self
 	    ;
 
 	// Fetch vk::PipelineLayout for this pso
-	auto pipelineLayout = le_pipeline_cache_get_pipeline_layout( self, pso );
+	auto pipelineLayout = le_pipeline_manager_get_pipeline_layout( self, pso );
 
 	//
 	// We must match blend attachment states with number of attachments for
@@ -1026,7 +996,7 @@ static vk::Pipeline le_pipeline_cache_create_pipeline( le_pipeline_cache_o *self
 // ----------------------------------------------------------------------
 
 /// \brief returns hash key for given bindings, creates and retains new vkDescriptorSetLayout inside backend if necessary
-static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_cache_o *self, std::vector<le_shader_binding_info> const &bindings, vk::DescriptorSetLayout *layout ) {
+static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_manager_o *self, std::vector<le_shader_binding_info> const &bindings, vk::DescriptorSetLayout *layout ) {
 
 	auto &descriptorSetLayouts = self->descriptorSetLayouts; // FIXME: this method only needs rw access to this, and the device
 
@@ -1146,7 +1116,7 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_cac
 
 // ----------------------------------------------------------------------
 
-static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( le_pipeline_cache_o *self, graphics_pipeline_state_o const *pso ) {
+static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( le_pipeline_manager_o *self, graphics_pipeline_state_o const *pso ) {
 	le_pipeline_layout_info info{};
 
 	std::vector<le_shader_binding_info> combined_bindings = shader_modules_get_bindings_list( pso->shaderModuleVert, pso->shaderModuleFrag );
@@ -1213,7 +1183,7 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 
 // ----------------------------------------------------------------------
 
-graphics_pipeline_state_o *le_pipeline_cache_get_pso_from_cache( le_pipeline_cache_o *self, const uint64_t &gpso_hash ) {
+graphics_pipeline_state_o *le_pipeline_cache_get_pso_from_cache( le_pipeline_manager_o *self, const uint64_t &gpso_hash ) {
 	// FIXME: (PIPELINE) THIS NEEDS TO BE MUTEXED, AND ACCESS CONTROLLED
 	return self->PSOs[ gpso_hash ];
 }
@@ -1229,7 +1199,7 @@ graphics_pipeline_state_o *le_pipeline_cache_get_pso_from_cache( le_pipeline_cac
 //
 // + Access to this method must be sequential - no two frames may access this method
 //   at the same time.
-static le_pipeline_and_layout_info_t le_pipeline_cache_produce_pipeline( le_pipeline_cache_o *self, uint64_t gpso_hash, const Pass &pass, uint32_t subpass ) {
+static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pipeline_manager_o *self, uint64_t gpso_hash, const LeRenderPass &pass, uint32_t subpass ) {
 
 	graphics_pipeline_state_o const *pso = le_pipeline_cache_get_pso_from_cache( self, gpso_hash );
 
@@ -1292,27 +1262,27 @@ static le_pipeline_and_layout_info_t le_pipeline_cache_produce_pipeline( le_pipe
 //
 // via RECORD in command buffer recording state
 // in SETUP
-void le_pipeline_cache_introduce_graphics_pipeline_state( le_pipeline_cache_o *self, graphics_pipeline_state_o *gpso, uint64_t gpsoHash ) {
+void le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_o *self, graphics_pipeline_state_o *gpso, uint64_t gpsoHash ) {
 	// we must copy!
 	self->PSOs[ gpsoHash ] = new graphics_pipeline_state_o( *gpso );
 };
 
 // ----------------------------------------------------------------------
 
-static VkPipelineLayout le_pipeline_cache_get_pipeline_layout( le_pipeline_cache_o *self, uint64_t key ) {
+static VkPipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_manager_o *self, uint64_t key ) {
 	return self->pipelineLayouts[ key ];
 }
 
 // ----------------------------------------------------------------------
 
-static const le_descriptor_set_layout_t &le_pipeline_cache_get_descriptor_set_layout( le_pipeline_cache_o *self, uint64_t setlayout_key ) {
+static const le_descriptor_set_layout_t &le_pipeline_manager_get_descriptor_set_layout( le_pipeline_manager_o *self, uint64_t setlayout_key ) {
 	return self->descriptorSetLayouts[ setlayout_key ];
 };
 
 // ----------------------------------------------------------------------
 
-static le_pipeline_cache_o *le_pipeline_cache_create( VkDevice_T *device ) {
-	auto self    = new le_pipeline_cache_o();
+static le_pipeline_manager_o *le_pipeline_manager_create( VkDevice_T *device ) {
+	auto self    = new le_pipeline_manager_o();
 	self->device = device;
 
 	vk::PipelineCacheCreateInfo pipelineCacheInfo;
@@ -1337,7 +1307,7 @@ static le_pipeline_cache_o *le_pipeline_cache_create( VkDevice_T *device ) {
 
 // ----------------------------------------------------------------------
 
-static void le_pipeline_cache_destroy( le_pipeline_cache_o *self ) {
+static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 
 	using namespace le_shader_compiler;
 
@@ -1406,15 +1376,15 @@ static void le_pipeline_cache_destroy( le_pipeline_cache_o *self ) {
 ISL_API_ATTR void register_le_pipeline_vk_api( void *api_ ) {
 
 	auto  le_backend_vk_api_i = static_cast<le_backend_vk_api *>( api_ );
-	auto &i                   = le_backend_vk_api_i->le_pipeline_chache_i;
+	auto &i                   = le_backend_vk_api_i->le_pipeline_manager_i;
 
-	i.create  = le_pipeline_cache_create;
-	i.destroy = le_pipeline_cache_destroy;
+	i.create  = le_pipeline_manager_create;
+	i.destroy = le_pipeline_manager_destroy;
 
-	i.create_shader_module              = le_pipeline_cache_create_shader_module;
-	i.update_shader_modules             = le_pipeline_cache_update_shader_modules;
-	i.introduce_graphics_pipeline_state = le_pipeline_cache_introduce_graphics_pipeline_state;
-	i.get_pipeline_layout               = le_pipeline_cache_get_pipeline_layout;
-	i.get_descriptor_set_layout         = le_pipeline_cache_get_descriptor_set_layout;
-	i.produce_pipeline                  = le_pipeline_cache_produce_pipeline;
+	i.create_shader_module              = le_pipeline_manager_create_shader_module;
+	i.update_shader_modules             = le_pipeline_manager_update_shader_modules;
+	i.introduce_graphics_pipeline_state = le_pipeline_manager_introduce_graphics_pipeline_state;
+	i.get_pipeline_layout               = le_pipeline_manager_get_pipeline_layout;
+	i.get_descriptor_set_layout         = le_pipeline_manager_get_descriptor_set_layout;
+	i.produce_pipeline                  = le_pipeline_manager_produce_pipeline;
 }

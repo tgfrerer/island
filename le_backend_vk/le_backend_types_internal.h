@@ -8,7 +8,6 @@
 #include <vulkan/vulkan.hpp>
 
 #include <vector>
-
 #include "le_renderer/private/le_renderer_types.h" // for `le_vertex_input_attribute_description`, `le_vertex_input_binding_description`
 
 struct le_graphics_pipeline_builder_data {
@@ -133,7 +132,7 @@ struct AttachmentInfo {
 	uint16_t              finalStateOffset;   ///< state of resource after exiting the renderpass
 };
 
-struct Pass {
+struct LeRenderPass {
 
 	AttachmentInfo attachments[ 16 ]; // maximum of 16 color output attachments
 	uint16_t       numColorAttachments;

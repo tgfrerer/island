@@ -98,13 +98,14 @@ Where should we *declare* resources?
   organise our code to follow a "pipeline" or "production line" approach,
   where data is "owned" by the algorithm that works on it, and only one
   algorithm at a time interacts with a strictly defined subset of the
-  data. 
+  data. Access to data by algorithms is sequential, meaning only one
+  algorithm at a time has access to the data. 
   
 + I believe rust for example enforces this through the borrow-checker.
   
 + For performance reasons, however, we don't necessarily want the
   granularity of rust, we only want to make sure that each execution
-  context owns their memory resources (because that's the only reason for
+  context owns their memory resources (because that's the main reason for
   contention/race conditions)
 
   This means that algorithms can run, as long as their data is available,
@@ -115,7 +116,7 @@ Where should we *declare* resources?
 
     1. Highly Complex 
     2. Interactive 
-    3. potentially catastrophic
+    3. Brittle 
 
 + We define "catastrophic" in this context as a fatal error
 + The book of the same name is worth reading

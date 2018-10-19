@@ -146,7 +146,7 @@ static test_app_o *test_app_create() {
 	app->renderer = std::make_unique<le::Renderer>( *app->backend );
 	app->renderer->setup();
 
-	le_pipeline_cache_o *pipelineCache = nullptr;
+	le_pipeline_manager_o *pipelineCache = nullptr;
 	{
 		using namespace le_backend_vk;
 		pipelineCache = vk_backend_i.get_pipeline_cache( *app->backend );
@@ -568,7 +568,7 @@ static void pass_pre_exec( le_command_buffer_encoder_o *encoder_, void *user_dat
 		info = fabs( ( glm::sineEaseInOut( info ) - 0.5 ) * 2.f );
 		t_start += app->deltaTimeSec;
 
-		static auto psoPrepass = LeGraphicsPipelineBuilder( encoder.getPipelineCache() )
+		static auto psoPrepass = LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 		                             .setVertexShader( app->shaderPrepass[ 0 ] )
 		                             .setFragmentShader( app->shaderPrepass[ 1 ] )
 		                             .build();
@@ -652,7 +652,7 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 		    .setDepthBiasSlopeFactor( 1.f )
 		    .setLineWidth( 1.f );
 
-		static auto psoTriangle = LeGraphicsPipelineBuilder( encoder.getPipelineCache() )
+		static auto psoTriangle = LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 		                              .setVertexShader( app->shaderTriangle[ 0 ] )
 		                              .setFragmentShader( app->shaderTriangle[ 1 ] )
 		                              .setRasterizationInfo( rasterizationState )

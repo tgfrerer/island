@@ -757,7 +757,7 @@ static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *r
 	using namespace le_renderer;
 	auto backend = renderer_i.get_backend( renderer );
 
-	le_pipeline_cache_o *pipelineCache = nullptr;
+	le_pipeline_manager_o *pipelineCache = nullptr;
 	{
 		using namespace le_backend_vk;
 		pipelineCache = vk_backend_i.get_pipeline_cache( backend );

@@ -24,6 +24,7 @@ struct le_command_buffer_encoder_o;
 struct le_backend_o;
 struct le_allocator_o;
 struct le_shader_module_o; ///< shader module, 1:1 relationship with a shader source file
+struct le_pipeline_manager_o;
 
 // clang-format off
 struct le_renderer_api {
@@ -108,7 +109,7 @@ struct le_renderer_api {
 	};
 
 	struct command_buffer_encoder_interface_t {
-		le_command_buffer_encoder_o *( *create                 )( le_allocator_o *allocator, struct le_pipeline_cache_o* pipeline_cache );
+		le_command_buffer_encoder_o *( *create                 )( le_allocator_o *allocator, le_pipeline_manager_o* pipeline_cache );
 		void                         ( *destroy                )( le_command_buffer_encoder_o *obj );
 
 		void                         ( *draw                   )( le_command_buffer_encoder_o *self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance );
@@ -128,13 +129,12 @@ struct le_renderer_api {
 		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, LeResourceHandle const resourceId, struct LeBufferWriteRegion const &region, void const *data, size_t numBytes );
 
 		// stores ubo argument data to scratch buffer - note that parameter index must be dynamic offset index
-		void                         ( *set_argument_ubo_data  ) (le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
-		void                         ( *set_argument_texture   ) (le_command_buffer_encoder_o* self, LeResourceHandle const textureId, uint64_t argumentName, uint64_t arrayIndex);
+		void                         ( *set_argument_ubo_data  )( le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
+		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, LeResourceHandle const textureId, uint64_t argumentName, uint64_t arrayIndex);
 
-		le_pipeline_cache_o* (*get_pipeline_cache)(le_command_buffer_encoder_o* self);
+		le_pipeline_manager_o*       ( *get_pipeline_manager   )( le_command_buffer_encoder_o *self);
 		void                         ( *get_encoded_data       )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
 	};
-
 
 	renderer_interface_t               le_renderer_i;
 	renderpass_interface_t             le_renderpass_i;
@@ -473,8 +473,8 @@ class Encoder {
 		return *this;
 	}
 
-	le_pipeline_cache_o *getPipelineCache() {
-		return le_renderer::encoder_i.get_pipeline_cache( self );
+	le_pipeline_manager_o *getPipelineManager() {
+		return le_renderer::encoder_i.get_pipeline_manager( self );
 	}
 };
 // ----------------------------------------------------------------------
