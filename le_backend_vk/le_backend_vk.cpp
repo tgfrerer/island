@@ -1959,14 +1959,14 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				case le::CommandType::eSetViewport: {
 					auto *le_cmd = static_cast<le::CommandSetViewport *>( dataIt );
-					// NOTE: since data for viewports *is stored inline*, we could also increase the typed pointer
+					// Since data for viewports *is stored inline*, we increment the typed pointer
 					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
 					cmd.setViewport( le_cmd->info.firstViewport, le_cmd->info.viewportCount, reinterpret_cast<vk::Viewport *>( le_cmd + 1 ) );
 				} break;
 
 				case le::CommandType::eSetScissor: {
 					auto *le_cmd = static_cast<le::CommandSetScissor *>( dataIt );
-					// NOTE: since data for scissors *is stored inline*, we could also increase the typed pointer
+					// Since data for scissors *is stored inline*, we increment the typed pointer
 					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
 					cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D *>( le_cmd + 1 ) );
 				} break;
@@ -1999,7 +1999,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					bindingData.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
 					bindingData.range  = std::min<uint32_t>( le_cmd->info.range, b->range ); // CHECK: use range from binding to limit range...
 
-					// if binding is in fact a dynamic binding, set the corresponding dynamic offset
+					// If binding is in fact a dynamic binding, set the corresponding dynamic offset
 					// and set the buffer offset to 0.
 					if ( b->type == enumToNum( vk::DescriptorType::eStorageBufferDynamic ) ||
 					     b->type == enumToNum( vk::DescriptorType::eUniformBufferDynamic ) ) {
