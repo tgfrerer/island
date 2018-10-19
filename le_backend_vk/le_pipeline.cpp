@@ -48,7 +48,9 @@ struct le_pipeline_manager_o {
 	le_shader_compiler_o *                                          shader_compiler   = nullptr;
 	pal_file_watcher_o *                                            shaderFileWatcher = nullptr;
 
-	std::unordered_map<uint64_t, graphics_pipeline_state_o *>              PSOs; // indexed by gpso hash
+	std::vector<graphics_pipeline_state_o *> graphicsPSO_list; // indexed by PSOs_hashes
+	std::vector<uint64_t>                    graphicsPSO_hashes;
+
 	std::unordered_map<uint64_t, vk::Pipeline, IdentityHash>               pipelines;
 	std::unordered_map<uint64_t, le_pipeline_layout_info, IdentityHash>    pipelineLayoutInfos;
 	std::unordered_map<uint64_t, le_descriptor_set_layout_t, IdentityHash> descriptorSetLayouts; // indexed by le_shader_bindings_info[] hash
@@ -445,7 +447,33 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 
 // ----------------------------------------------------------------------
 
-static void le_pipeline_cache_shader_module_update( le_pipeline_manager_o *self, le_shader_module_o *module ) {
+static bool shader_module_check_bindings_valid( le_shader_binding_info const *bindings, size_t numBindings ) {
+	// -- perform sanity check on bindings - bindings must be unique (location+binding cannot be shared between shader uniforms)
+	auto b_start = bindings;
+	auto b_end   = b_start + numBindings;
+
+	// compare sorted bindings and raise the alarm if two successive bindings alias locations
+
+	for ( auto b = b_start, b_prev = b_start; b != b_end; b++ ) {
+
+		if ( b == b_prev ) {
+			// first iteration
+			continue;
+		}
+
+		if ( b->setIndex == b_prev->setIndex &&
+		     b->binding == b_prev->binding ) {
+			std::cerr << "ERROR: Illegal shader bindings detected, rejecting shader.\n\tDuplicate bindings for set: " << b->setIndex << ", binding: " << b->binding;
+			return false;
+		}
+
+		b_prev = b;
+	}
+
+	return true;
+}
+
+static void le_pipeline_manager_shader_module_update( le_pipeline_manager_o *self, le_shader_module_o *module ) {
 
 	// Shader module needs updating if shader code has changed.
 	// if this happens, a new vulkan object for the module must be crated.
@@ -484,6 +512,8 @@ static void le_pipeline_cache_shader_module_update( le_pipeline_manager_o *self,
 		return;
 	}
 
+	le_shader_module_o previous_module = *module; // create backup copy
+
 	// -- update module hash
 	module->hash = hash_of_module;
 
@@ -499,6 +529,12 @@ static void le_pipeline_cache_shader_module_update( le_pipeline_manager_o *self,
 
 	// -- update bindings via spirv-cross, and update bindings hash
 	shader_module_update_reflection( module );
+
+	if ( false == shader_module_check_bindings_valid( module->bindings.data(), module->bindings.size() ) ) {
+		// we must clean up, and report an error
+		*module = previous_module;
+		return;
+	}
 
 	// -- delete old vulkan shader module object
 	// Q: Should we rather defer deletion? In case that this module is in use?
@@ -527,7 +563,7 @@ static void le_pipeline_manager_update_shader_modules( le_pipeline_manager_o *se
 	// -- update only modules which have been tainted
 
 	for ( auto &s : self->modifiedShaderModules ) {
-		le_pipeline_cache_shader_module_update( self, s );
+		le_pipeline_manager_shader_module_update( self, s );
 	}
 
 	self->modifiedShaderModules.clear();
@@ -727,6 +763,16 @@ static le_shader_module_o *le_pipeline_manager_create_shader_module( le_pipeline
 
 	module->spirv = std::move( spirv_code );
 
+	shader_module_update_reflection( module );
+
+	if ( false == shader_module_check_bindings_valid( module->bindings.data(), module->bindings.size() ) ) {
+		// we must clean up, and report an error
+		delete module;
+		return nullptr;
+	}
+
+	// ----------| invariant: bindings sanity check passed
+
 	{
 		// -- create vulkan shader object
 		// flags must be 0 (reserved for future use), size is given in bytes
@@ -734,8 +780,6 @@ static le_shader_module_o *le_pipeline_manager_create_shader_module( le_pipeline
 
 		module->module = self->device.createShaderModule( createInfo );
 	}
-
-	shader_module_update_reflection( module );
 
 	// -- retain module in renderer
 	self->shaderModules.push_back( module );
@@ -1182,10 +1226,28 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 }
 
 // ----------------------------------------------------------------------
-
-graphics_pipeline_state_o *le_pipeline_cache_get_pso_from_cache( le_pipeline_manager_o *self, const uint64_t &gpso_hash ) {
+/// \returns pointer to a graphicsPSO which matches gpsoHash, or `nullptr` if no match
+graphics_pipeline_state_o *le_pipeline_manager_get_pso_from_cache( le_pipeline_manager_o *self, const uint64_t &gpso_hash ) {
 	// FIXME: (PIPELINE) THIS NEEDS TO BE MUTEXED, AND ACCESS CONTROLLED
-	return self->PSOs[ gpso_hash ];
+
+	auto       pso              = self->graphicsPSO_list.data();
+	const auto pso_hashes_begin = self->graphicsPSO_hashes.data();
+	auto       pso_hash         = pso_hashes_begin;
+	const auto pso_hashes_end   = pso_hashes_begin + self->graphicsPSO_hashes.size();
+
+	for ( ; pso_hash != pso_hashes_end; pso_hash++, pso++ ) {
+		if ( gpso_hash == *pso_hash )
+			break;
+	}
+
+	if ( pso_hash == pso_hashes_end ) {
+		// not found
+		return nullptr; // could not find pso with given hash
+	}
+
+	// ---------| invariant: element found
+
+	return *pso;
 }
 
 // ----------------------------------------------------------------------
@@ -1201,7 +1263,9 @@ graphics_pipeline_state_o *le_pipeline_cache_get_pso_from_cache( le_pipeline_man
 //   at the same time.
 static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pipeline_manager_o *self, uint64_t gpso_hash, const LeRenderPass &pass, uint32_t subpass ) {
 
-	graphics_pipeline_state_o const *pso = le_pipeline_cache_get_pso_from_cache( self, gpso_hash );
+	graphics_pipeline_state_o const *pso = le_pipeline_manager_get_pso_from_cache( self, gpso_hash );
+
+	assert( pso );
 
 	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
 
@@ -1263,8 +1327,19 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pi
 // via RECORD in command buffer recording state
 // in SETUP
 void le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_o *self, graphics_pipeline_state_o *gpso, uint64_t gpsoHash ) {
+
 	// we must copy!
-	self->PSOs[ gpsoHash ] = new graphics_pipeline_state_o( *gpso );
+
+	// check if pso is already in cache
+	auto pso = le_pipeline_manager_get_pso_from_cache( self, gpsoHash );
+
+	if ( pso == nullptr ) {
+		// not found in cache - add to cache
+		self->graphicsPSO_hashes.emplace_back( gpsoHash );
+		self->graphicsPSO_list.emplace_back( new graphics_pipeline_state_o( *gpso ) ); // note that we copy
+	} else {
+		// assert( false ); // pso was already found in cache, this is strange
+	}
 };
 
 // ----------------------------------------------------------------------
@@ -1336,10 +1411,11 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 	self->shaderModules.clear();
 
 	// -- destroy any pipeline state objects
-	for ( auto &pPso : self->PSOs ) {
-		delete ( pPso.second );
+	self->graphicsPSO_hashes.clear();
+	for ( auto &pPso : self->graphicsPSO_list ) {
+		delete ( pPso );
 	}
-	self->PSOs.clear();
+	self->graphicsPSO_list.clear();
 
 	// -- destroy renderpasses
 
