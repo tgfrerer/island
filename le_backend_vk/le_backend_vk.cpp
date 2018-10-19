@@ -1680,8 +1680,8 @@ static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, si
 // translate into vk specific commands.
 static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
-	static auto const &le_encoder_api = ( *Registry::getApi<le_renderer_api>() ).le_command_buffer_encoder_i;
-	static auto const &vk_device_i    = ( *Registry::getApi<le_backend_vk_api>() ).vk_device_i;
+	using namespace le_renderer;   // for encoder
+	using namespace le_backend_vk; // for device
 
 	auto &frame = self->mFrames[ frameIndex ];
 
@@ -1812,10 +1812,13 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		};
 
 		if ( pass.encoder ) {
-			le_encoder_api.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
+			encoder_i.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
 		} else {
-			// std::cout << "WARNING: pass does not have valid encoder.";
+			assert( false );
+			std::cout << "ERROR: pass does not have valid encoder.";
 		}
+
+		le_pipeline_manager_o *pipelineManager = encoder_i.get_pipeline_manager( pass.encoder );
 
 		if ( commandStream != nullptr && numCommands > 0 ) {
 
@@ -1836,10 +1839,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 						using namespace le_backend_vk;
 						// -- potentially compile and create pipeline here, based on current pass and subpass
-						currentPipeline = le_pipeline_manager_i.produce_pipeline( self->pipelineCache, le_cmd->info.psoHash, pass, subpassIndex );
+						currentPipeline = le_pipeline_manager_i.produce_pipeline( pipelineManager, le_cmd->info.psoHash, pass, subpassIndex );
 
 						// -- grab current pipeline layout from cache
-						currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( self->pipelineCache, currentPipeline.layout_info.pipeline_layout_key );
+						currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );
 
 						{
 							// -- update pipelineData - that's the data values for all descriptors which are currently bound
@@ -1856,7 +1859,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 								// look up set layout info via set layout key
 								auto const &set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
 
-								auto const &setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( self->pipelineCache, set_layout_key );
+								auto const &setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
 
 								auto &setData = argumentState.setData[ setId ];
 
@@ -2161,7 +2164,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					break;
 				}
 
-				} // switch header.info.type
+				} // end switch header.info.type
 
 				// Move iterator by size of current le_command so that it points
 				// to the next command in the list.
