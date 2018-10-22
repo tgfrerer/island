@@ -34,6 +34,17 @@ struct le_shader_module_o {
 	LeShaderType                                     stage  = LeShaderType::eNone;
 };
 
+struct le_shader_manager_o {
+	vk::Device device = nullptr;
+
+	std::vector<le_shader_module_o *>                               shaderModules;         // OWNING. Stores all shader modules used in backend.
+	std::unordered_map<std::string, std::set<le_shader_module_o *>> moduleDependencies;    // map 'canonical shader source file path' -> [shader modules]
+	std::set<le_shader_module_o *>                                  modifiedShaderModules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
+
+	le_shader_compiler_o *shader_compiler   = nullptr;
+	pal_file_watcher_o *  shaderFileWatcher = nullptr;
+};
+
 struct le_pipeline_manager_o {
 	// TODO: These resources are potentially in-flight, and may be used read-only
 	// by more than one frame - but they can only be written to one thread at a time.
@@ -42,17 +53,14 @@ struct le_pipeline_manager_o {
 
 	vk::PipelineCache vulkanCache = nullptr;
 
-	std::vector<le_shader_module_o *>                               shaderModules;         // OWNING. Stores all shader modules used in backend.
-	std::unordered_map<std::string, std::set<le_shader_module_o *>> moduleDependencies;    // map 'canonical shader source file path' -> [shader modules]
-	std::set<le_shader_module_o *>                                  modifiedShaderModules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
-	le_shader_compiler_o *                                          shader_compiler   = nullptr;
-	pal_file_watcher_o *                                            shaderFileWatcher = nullptr;
+	le_shader_manager_o *shaderManager;
 
 	std::vector<graphics_pipeline_state_o *> graphicsPSO_list; // indexed by PSOs_hashes
 	std::vector<uint64_t>                    graphicsPSO_hashes;
 
-	std::unordered_map<uint64_t, vk::Pipeline, IdentityHash>               pipelines;
-	std::unordered_map<uint64_t, le_pipeline_layout_info, IdentityHash>    pipelineLayoutInfos;
+	std::unordered_map<uint64_t, vk::Pipeline, IdentityHash>            pipelines;
+	std::unordered_map<uint64_t, le_pipeline_layout_info, IdentityHash> pipelineLayoutInfos;
+
 	std::unordered_map<uint64_t, le_descriptor_set_layout_t, IdentityHash> descriptorSetLayouts; // indexed by le_shader_bindings_info[] hash
 	std::unordered_map<uint64_t, vk::PipelineLayout, IdentityHash>         pipelineLayouts;      // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
 };
@@ -184,7 +192,8 @@ static void le_pipeline_cache_translate_to_spirv_code( le_shader_compiler_o *sha
 
 // Flags all modules which are affected by a change in shader_source_file_path,
 // and adds them to a set of shader modules wich need to be recompiled.
-static void le_pipeline_cache_flag_affected_modules_for_source_path( le_pipeline_manager_o *self, const char *shader_source_file_path ) {
+// Note: This method is called via a file changed callback.
+static void le_pipeline_cache_flag_affected_modules_for_source_path( le_shader_manager_o *self, const char *shader_source_file_path ) {
 	// find all modules from dependencies set
 	// insert into list of modified modules.
 
@@ -208,7 +217,7 @@ static void le_pipeline_cache_flag_affected_modules_for_source_path( le_pipeline
 
 // ----------------------------------------------------------------------
 
-static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_pipeline_manager_o *self, le_shader_module_o *module, std::set<std::string> &sourcePaths ) {
+static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shader_manager_o *self, le_shader_module_o *module, std::set<std::string> &sourcePaths ) {
 
 	// To be able to tell quick which modules need to be recompiled if a source file changes,
 	// we build a table from source file -> array of modules
@@ -226,10 +235,10 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_pipel
 			settings.filePath           = s.c_str();
 			settings.callback_user_data = self;
 			settings.callback_fun       = []( const char *path, void *user_data ) -> bool {
-				auto backend = static_cast<le_pipeline_manager_o *>( user_data );
+				auto shader_manager = static_cast<le_shader_manager_o *>( user_data );
 				// call a method on backend to tell it that the file path has changed.
 				// backend to figure out which modules are affected.
-				le_pipeline_cache_flag_affected_modules_for_source_path( backend, path );
+				le_pipeline_cache_flag_affected_modules_for_source_path( shader_manager, path );
 				return true;
 			};
 			file_watcher_i.add_watch( self->shaderFileWatcher, settings );
@@ -240,6 +249,15 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_pipel
 
 		self->moduleDependencies[ s ].insert( module );
 	}
+}
+
+// ----------------------------------------------------------------------
+
+static uint64_t graphics_pso_get_pipeline_layout_hash( graphics_pipeline_state_o const *pso ) {
+	uint64_t pipeline_layout_hash_data[ 2 ];
+	pipeline_layout_hash_data[ 0 ] = pso->shaderModuleVert->hash_pipelinelayout;
+	pipeline_layout_hash_data[ 1 ] = pso->shaderModuleFrag->hash_pipelinelayout;
+	return SpookyHash::Hash64( pipeline_layout_hash_data, sizeof( pipeline_layout_hash_data ), 0 );
 }
 
 // ----------------------------------------------------------------------
@@ -473,112 +491,8 @@ static bool shader_module_check_bindings_valid( le_shader_binding_info const *bi
 	return true;
 }
 
-static void le_pipeline_manager_shader_module_update( le_pipeline_manager_o *self, le_shader_module_o *module ) {
-
-	// Shader module needs updating if shader code has changed.
-	// if this happens, a new vulkan object for the module must be crated.
-
-	// The module must be locked for this, as we need exclusive access just in case the module is
-	// in use by the frame recording thread, which may want to create pipelines.
-	//
-	// Vulkan Lifetimes require us only to keep module alive for as long as a pipeline is being
-	// generated from it. This means we "only" need to protect against any threads which might be
-	// creating pipelines.
-
-	// -- get module spirv code
-	bool loadSuccessful = false;
-	auto source_text    = load_file( module->filepath, &loadSuccessful );
-
-	if ( !loadSuccessful ) {
-		// file could not be loaded. bail out.
-		return;
-	}
-
-	std::vector<uint32_t> spirv_code;
-	std::set<std::string> includesSet;
-
-	le_pipeline_cache_translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), module->stage, module->filepath.c_str(), spirv_code, includesSet );
-
-	if ( spirv_code.empty() ) {
-		// no spirv code available, bail out.
-		return;
-	}
-
-	// -- check spirv code hash against module spirv hash
-	uint64_t hash_of_module = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module->hash_file_path );
-
-	if ( hash_of_module == module->hash ) {
-		// spirv code identical, no update needed, bail out.
-		return;
-	}
-
-	le_shader_module_o previous_module = *module; // create backup copy
-
-	// -- update module hash
-	module->hash = hash_of_module;
-
-	// -- update additional include paths, if necessary.
-	le_pipeline_cache_set_module_dependencies_for_watched_file( self, module, includesSet );
-
-	// ---------| Invariant: new spir-v code detected.
-
-	// -- if hash doesn't match, delete old vk module, create new vk module
-
-	// -- store new spir-v code
-	module->spirv = std::move( spirv_code );
-
-	// -- update bindings via spirv-cross, and update bindings hash
-	shader_module_update_reflection( module );
-
-	if ( false == shader_module_check_bindings_valid( module->bindings.data(), module->bindings.size() ) ) {
-		// we must clean up, and report an error
-		*module = previous_module;
-		return;
-	}
-
-	// -- delete old vulkan shader module object
-	// Q: Should we rather defer deletion? In case that this module is in use?
-	// A: Not really - according to spec module must only be alife while pipeline is being compiled.
-	//    If we can guarantee that no other process is using this module at the moment to compile a
-	//    Pipeline, we can safely delete it.
-	self->device.destroyShaderModule( module->module );
-	module->module = nullptr;
-
-	// -- create new vulkan shader module object
-	vk::ShaderModuleCreateInfo createInfo( vk::ShaderModuleCreateFlags(), module->spirv.size() * sizeof( uint32_t ), module->spirv.data() );
-	module->module = self->device.createShaderModule( createInfo );
-}
-
-// ----------------------------------------------------------------------
-// this method is called via renderer::update - before frame processing.
-static void le_pipeline_manager_update_shader_modules( le_pipeline_manager_o *self ) {
-
-	// -- find out which shader modules have been tainted
-	static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
-
-	// this will call callbacks on any watched file objects as a side effect
-	// callbacks will modify le_backend->modifiedShaderModules
-	file_watcher_i.poll_notifications( self->shaderFileWatcher );
-
-	// -- update only modules which have been tainted
-
-	for ( auto &s : self->modifiedShaderModules ) {
-		le_pipeline_manager_shader_module_update( self, s );
-	}
-
-	self->modifiedShaderModules.clear();
-}
-
 // ----------------------------------------------------------------------
 
-static uint64_t graphics_pso_get_pipeline_layout_hash( graphics_pipeline_state_o const *pso ) {
-	uint64_t pipeline_layout_hash_data[ 2 ];
-	pipeline_layout_hash_data[ 0 ] = pso->shaderModuleVert->hash_pipelinelayout;
-	pipeline_layout_hash_data[ 1 ] = pso->shaderModuleFrag->hash_pipelinelayout;
-	return SpookyHash::Hash64( pipeline_layout_hash_data, sizeof( pipeline_layout_hash_data ), 0 );
-}
-
-// ----------------------------------------------------------------------
 // Returns bindings vector associated with a pso, based on the pso's combined bindings,
 // and the pso's hash_pipeline_layouts.
 // Currently, we assume bindings to be non-sparse, but it's possible that sparse bindings
@@ -708,10 +622,158 @@ static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( le_
 }
 
 // ----------------------------------------------------------------------
+
+static void le_shader_manager_shader_module_update( le_shader_manager_o *self, le_shader_module_o *module ) {
+
+	// Shader module needs updating if shader code has changed.
+	// if this happens, a new vulkan object for the module must be crated.
+
+	// The module must be locked for this, as we need exclusive access just in case the module is
+	// in use by the frame recording thread, which may want to create pipelines.
+	//
+	// Vulkan Lifetimes require us only to keep module alive for as long as a pipeline is being
+	// generated from it. This means we "only" need to protect against any threads which might be
+	// creating pipelines.
+
+	// -- get module spirv code
+	bool loadSuccessful = false;
+	auto source_text    = load_file( module->filepath, &loadSuccessful );
+
+	if ( !loadSuccessful ) {
+		// file could not be loaded. bail out.
+		return;
+	}
+
+	std::vector<uint32_t> spirv_code;
+	std::set<std::string> includesSet;
+
+	le_pipeline_cache_translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), module->stage, module->filepath.c_str(), spirv_code, includesSet );
+
+	if ( spirv_code.empty() ) {
+		// no spirv code available, bail out.
+		return;
+	}
+
+	// -- check spirv code hash against module spirv hash
+	uint64_t hash_of_module = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module->hash_file_path );
+
+	if ( hash_of_module == module->hash ) {
+		// spirv code identical, no update needed, bail out.
+		return;
+	}
+
+	le_shader_module_o previous_module = *module; // create backup copy
+
+	// -- update module hash
+	module->hash = hash_of_module;
+
+	// -- update additional include paths, if necessary.
+	le_pipeline_cache_set_module_dependencies_for_watched_file( self, module, includesSet );
+
+	// ---------| Invariant: new spir-v code detected.
+
+	// -- if hash doesn't match, delete old vk module, create new vk module
+
+	// -- store new spir-v code
+	module->spirv = std::move( spirv_code );
+
+	// -- update bindings via spirv-cross, and update bindings hash
+	shader_module_update_reflection( module );
+
+	if ( false == shader_module_check_bindings_valid( module->bindings.data(), module->bindings.size() ) ) {
+		// we must clean up, and report an error
+		*module = previous_module;
+		return;
+	}
+
+	// -- delete old vulkan shader module object
+	// Q: Should we rather defer deletion? In case that this module is in use?
+	// A: Not really - according to spec module must only be alife while pipeline is being compiled.
+	//    If we can guarantee that no other process is using this module at the moment to compile a
+	//    Pipeline, we can safely delete it.
+	self->device.destroyShaderModule( module->module );
+	module->module = nullptr;
+
+	// -- create new vulkan shader module object
+	vk::ShaderModuleCreateInfo createInfo( vk::ShaderModuleCreateFlags(), module->spirv.size() * sizeof( uint32_t ), module->spirv.data() );
+	module->module = self->device.createShaderModule( createInfo );
+}
+
+// ----------------------------------------------------------------------
+// this method is called via renderer::update - before frame processing.
+static void le_shader_manager_update_shader_modules( le_shader_manager_o *self ) {
+
+	// -- find out which shader modules have been tainted
+	static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
+
+	// this will call callbacks on any watched file objects as a side effect
+	// callbacks will modify le_backend->modifiedShaderModules
+	file_watcher_i.poll_notifications( self->shaderFileWatcher );
+
+	// -- update only modules which have been tainted
+
+	for ( auto &s : self->modifiedShaderModules ) {
+		le_shader_manager_shader_module_update( self, s );
+	}
+
+	self->modifiedShaderModules.clear();
+}
+
+// ----------------------------------------------------------------------
+
+le_shader_manager_o *le_shader_manager_create( VkDevice_T *device ) {
+	auto self = new le_shader_manager_o();
+
+	self->device = device;
+
+	// -- create shader compiler
+	using namespace le_shader_compiler;
+	self->shader_compiler = compiler_i.create();
+
+	// -- create file watcher for shader files so that changes can be detected
+	static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
+	self->shaderFileWatcher     = file_watcher_i.create();
+
+	return self;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_shader_manager_destroy( le_shader_manager_o *self ) {
+
+	using namespace le_shader_compiler;
+
+	if ( self->shaderFileWatcher ) {
+		// -- destroy file watcher
+		static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
+		file_watcher_i.destroy( self->shaderFileWatcher );
+		self->shaderFileWatcher = nullptr;
+	}
+
+	if ( self->shader_compiler ) {
+		// -- destroy shader compiler
+		compiler_i.destroy( self->shader_compiler );
+		self->shader_compiler = nullptr;
+	}
+
+	// -- destroy retained shader modules
+
+	for ( auto &s : self->shaderModules ) {
+		if ( s->module ) {
+			self->device.destroyShaderModule( s->module );
+			s->module = nullptr;
+		}
+		delete ( s );
+	}
+	self->shaderModules.clear();
+	delete self;
+}
+
+// ----------------------------------------------------------------------
 /// \brief create vulkan shader module based on file path
 /// \details FIXME: this method can get called nearly anywhere - it should not be publicly accessible.
 /// ideally, this method is only allowed to be called in the setup phase.
-static le_shader_module_o *le_pipeline_manager_create_shader_module( le_pipeline_manager_o *self, char const *path, LeShaderType moduleType ) {
+static le_shader_module_o *le_shader_manager_create_shader_module( le_shader_manager_o *self, char const *path, LeShaderType moduleType ) {
 
 	// This method gets called through the renderer - it is assumed during the setup stage.
 
@@ -851,6 +913,7 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description( l
 		case 1: return vk::Format::eR16Sfloat;
 		}
 	    break;
+	case le_vertex_input_attribute_description::eUShort: // fall through to eShort
 	case le_vertex_input_attribute_description::eShort:
 		if (d.isNormalised){
 			switch ( d.vecsize ) {
@@ -1260,8 +1323,10 @@ graphics_pipeline_state_o *le_pipeline_manager_get_pso_from_cache( le_pipeline_m
 //   the cache must be exclusively accessed through this method
 //
 // + Access to this method must be sequential - no two frames may access this method
-//   at the same time.
+//   at the same time - and no two renderpasses may access this method at the same time.
 static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pipeline_manager_o *self, uint64_t gpso_hash, const LeRenderPass &pass, uint32_t subpass ) {
+
+	// -- 0. Fetch pso from cache using its hash key
 
 	graphics_pipeline_state_o const *pso = le_pipeline_manager_get_pso_from_cache( self, gpso_hash );
 
@@ -1292,7 +1357,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pi
 
 	uint64_t pso_renderpass_hash_data[ 4 ] = {};
 
-	pso_renderpass_hash_data[ 0 ] = gpso_hash;                   // TODO: Hash for PSO state - must have been updated before recording phase started
+	pso_renderpass_hash_data[ 0 ] = gpso_hash;                   // Hash associated with `pso`
 	pso_renderpass_hash_data[ 1 ] = pso->shaderModuleVert->hash; // Module state - may have been recompiled, hash must be current
 	pso_renderpass_hash_data[ 2 ] = pso->shaderModuleFrag->hash; // Module state - may have been recompiled, hash must be current
 	pso_renderpass_hash_data[ 3 ] = pass.renderpassHash;         // Hash for *compatible* renderpass
@@ -1356,6 +1421,18 @@ static const le_descriptor_set_layout_t &le_pipeline_manager_get_descriptor_set_
 
 // ----------------------------------------------------------------------
 
+static le_shader_module_o *le_pipeline_manager_create_shader_module( le_pipeline_manager_o *self, char const *path, LeShaderType moduleType ) {
+	return le_shader_manager_create_shader_module( self->shaderManager, path, moduleType );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_pipeline_manager_update_shader_modules( le_pipeline_manager_o *self ) {
+	le_shader_manager_update_shader_modules( self->shaderManager );
+}
+
+// ----------------------------------------------------------------------
+
 static le_pipeline_manager_o *le_pipeline_manager_create( VkDevice_T *device ) {
 	auto self    = new le_pipeline_manager_o();
 	self->device = device;
@@ -1368,14 +1445,7 @@ static le_pipeline_manager_o *le_pipeline_manager_create( VkDevice_T *device ) {
 
 	self->vulkanCache = self->device.createPipelineCache( pipelineCacheInfo );
 
-	{
-		// -- create shader compiler
-		using namespace le_shader_compiler;
-		self->shader_compiler = compiler_i.create();
-	}
-	// -- create file watcher for shader files so that changes can be detected
-	static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
-	self->shaderFileWatcher     = file_watcher_i.create();
+	self->shaderManager = le_shader_manager_create( device );
 
 	return self;
 }
@@ -1384,31 +1454,8 @@ static le_pipeline_manager_o *le_pipeline_manager_create( VkDevice_T *device ) {
 
 static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 
-	using namespace le_shader_compiler;
-
-	if ( self->shaderFileWatcher ) {
-		// -- destroy file watcher
-		static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
-		file_watcher_i.destroy( self->shaderFileWatcher );
-		self->shaderFileWatcher = nullptr;
-	}
-
-	if ( self->shader_compiler ) {
-		// -- destroy shader compiler
-		compiler_i.destroy( self->shader_compiler );
-		self->shader_compiler = nullptr;
-	}
-
-	// -- destroy retained shader modules
-
-	for ( auto &s : self->shaderModules ) {
-		if ( s->module ) {
-			self->device.destroyShaderModule( s->module );
-			s->module = nullptr;
-		}
-		delete ( s );
-	}
-	self->shaderModules.clear();
+	le_shader_manager_destroy( self->shaderManager );
+	self->shaderManager = nullptr;
 
 	// -- destroy any pipeline state objects
 	self->graphicsPSO_hashes.clear();
