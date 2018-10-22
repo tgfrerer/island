@@ -327,7 +327,7 @@ static test_app_o *test_app_create() {
 		using le_gltf_loader::gltf_document_i;
 
 		app->gltfDoc = gltf_document_i.create();
-		//gltf_document_i.load_from_text( app->gltfDoc, "resources/gltf/BoomBoxWithAxes.gltf" );
+		// gltf_document_i.load_from_text( app->gltfDoc, "resources/gltf/BoomBoxWithAxes.gltf" );
 		gltf_document_i.load_from_text( app->gltfDoc, "resources/gltf/FlightHelmet.gltf" );
 		//gltf_document_i.load_from_text( app->gltfDoc, "resources/gltf/Box.gltf" );
 		//gltf_document_i.load_from_text( app->gltfDoc, "resources/gltf/exportFile.gltf" );
@@ -799,16 +799,15 @@ static bool test_app_update( test_app_o *self ) {
 
 	static bool resetCameraOnReload = false; // reload meand module reload
 
+	// update frame delta time
+	auto   current_time = std::chrono::high_resolution_clock::now();
+	double millis       = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>( current_time - self->update_start_time ).count();
+	self->deltaTimeSec  = float( millis / 1000.0 );
+
 	ImGui::SetCurrentContext( self->imguiContext ); // NOTICE: that's important for reload.
 	{
-		// update frame delta time
-		auto   current_time = std::chrono::high_resolution_clock::now();
-		double millis       = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>( current_time - self->update_start_time ).count();
-		self->deltaTimeSec  = float( millis / 1000.0 );
-
-		auto &io     = ImGui::GetIO();
-		io.DeltaTime = self->deltaTimeSec;
-
+		auto &io                = ImGui::GetIO();
+		io.DeltaTime            = self->deltaTimeSec;
 		self->update_start_time = current_time;
 	}
 
