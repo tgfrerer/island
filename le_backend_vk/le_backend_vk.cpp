@@ -1748,15 +1748,14 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			std::vector<le_shader_binding_info>         binding_infos;
 		} argumentState;
 
-		vk::PipelineLayout             currentPipelineLayout;
-		std::vector<vk::DescriptorSet> descriptorSets; // currently bound descriptorSets
+		vk::PipelineLayout currentPipelineLayout;
+		vk::DescriptorSet  descriptorSets[ VK_MAX_BOUND_DESCRIPTOR_SETS ] = {}; // currently bound descriptorSets (allocated from pool, therefore we must not worry about freeing, and may re-use freely)
 
-		auto updateArguments = []( const vk::Device &device, const vk::DescriptorPool &descriptorPool_, const ArgumentState &argumentState_, std::vector<vk::DescriptorSet> &descriptorSets_ ) {
+		auto updateArguments = []( const vk::Device &device, const vk::DescriptorPool &descriptorPool_, const ArgumentState &argumentState_, vk::DescriptorSet *descriptorSets ) -> bool {
 			// -- allocate descriptors from descriptorpool based on set layout info
 
 			if ( argumentState_.setCount == 0 ) {
-				descriptorSets_.clear();
-				return;
+				return true;
 			}
 
 			// ----------| invariant: there are descriptorSets to allocate
@@ -1767,7 +1766,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			    .setPSetLayouts( argumentState_.layouts.data() );
 
 			// -- allocate some descriptorSets based on current layout
-			descriptorSets_ = device.allocateDescriptorSets( allocateInfo );
+			device.allocateDescriptorSets( &allocateInfo, descriptorSets );
+
+			bool argumentsOk = true;
 
 			// -- write data from descriptorSetData into freshly allocated DescriptorSets
 			for ( size_t setId = 0; setId != argumentState_.setCount; ++setId ) {
@@ -1778,8 +1779,6 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				// The most common case for this bug is not providing any data for a uniform used in the shader,
 				// we check for this and skip any argumentStates which have invalid data...
 
-				bool argumentsOk = true;
-
 				for ( auto &a : argumentState_.setData[ setId ] ) {
 
 					switch ( a.type ) {
@@ -1788,27 +1787,32 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					case vk::DescriptorType::eUniformBufferDynamic: //
 					case vk::DescriptorType::eStorageBuffer:        // fall-through
 						// if buffer must have valid buffer bound
-						argumentsOk = ( nullptr != a.buffer );
+						argumentsOk &= ( nullptr != a.buffer );
 					    break;
 					case vk::DescriptorType::eCombinedImageSampler:
 					case vk::DescriptorType::eSampledImage:
-						argumentsOk = ( nullptr != a.imageView ); // if sampler, must have image view
+						argumentsOk &= ( nullptr != a.imageView ); // if sampler, must have image view
 					    break;
 					default:
 						// TODO: check arguments for other types of descriptors
-						argumentsOk = true;
+						argumentsOk &= true;
 					    break;
 					}
 
 					if ( false == argumentsOk ) {
+						// TODO: notify that an argument is not OKAY
 						break;
 					}
 				}
 
 				if ( argumentsOk ) {
-					device.updateDescriptorSetWithTemplate( descriptorSets_[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
+					device.updateDescriptorSetWithTemplate( descriptorSets[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
+				} else {
+					return false;
 				}
 			}
+
+			return argumentsOk;
 		};
 
 		if ( pass.encoder ) {
@@ -1916,7 +1920,13 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto *le_cmd = static_cast<le::CommandDraw *>( dataIt );
 
 					// -- update descriptorsets via template if tainted
-					updateArguments( device, descriptorPool, argumentState, descriptorSets );
+					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, descriptorSets );
+
+					if ( false == argumentsOk ) {
+						break;
+					}
+
+					// --------| invariant: arguments were updated successfully
 
 					if ( argumentState.setCount > 0 ) {
 
@@ -1924,7 +1934,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						                        currentPipelineLayout,
 						                        0,
 						                        argumentState.setCount,
-						                        descriptorSets.data(),
+						                        descriptorSets,
 						                        argumentState.dynamicOffsetCount,
 						                        argumentState.dynamicOffsets.data() );
 					}
@@ -1936,7 +1946,13 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto *le_cmd = static_cast<le::CommandDrawIndexed *>( dataIt );
 
 					// -- update descriptorsets via template if tainted
-					updateArguments( device, descriptorPool, argumentState, descriptorSets );
+					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, descriptorSets );
+
+					if ( false == argumentsOk ) {
+						break;
+					}
+
+					// --------| invariant: arguments were updated successfully
 
 					if ( argumentState.setCount > 0 ) {
 
@@ -1944,7 +1960,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						                        currentPipelineLayout,
 						                        0,
 						                        argumentState.setCount,
-						                        descriptorSets.data(),
+						                        descriptorSets,
 						                        argumentState.dynamicOffsetCount,
 						                        argumentState.dynamicOffsets.data() );
 					}
