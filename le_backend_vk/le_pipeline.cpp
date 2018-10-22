@@ -1237,20 +1237,20 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 		std::vector<std::vector<le_shader_binding_info>> sets;
 
 		// Split combined bindings at set boundaries
-		uint32_t set_id = 0;
+		uint32_t set_idx = 0;
 		for ( auto it = combined_bindings.begin(); it != combined_bindings.end(); ) {
 
 			// Find next element with different set id
-			auto itN = std::find_if( it, combined_bindings.end(), [&set_id]( const le_shader_binding_info &el ) -> bool {
-				return el.setIndex != set_id;
+			auto itN = std::find_if( it, combined_bindings.end(), [&set_idx]( const le_shader_binding_info &el ) -> bool {
+				return el.setIndex != set_idx;
 			} );
 
 			sets.emplace_back( it, itN );
 
 			// If we're not at the end, get the setIndex for the next set,
 			if ( itN != combined_bindings.end() ) {
-				assert( set_id + 1 == itN->setIndex ); // we must enforce that sets are non-sparse.
-				set_id = itN->setIndex;
+				assert( set_idx + 1 == itN->setIndex ); // we must enforce that sets are non-sparse.
+				set_idx = itN->setIndex;
 			}
 
 			it = itN;
@@ -1258,6 +1258,22 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 
 		info.set_layout_count = uint32_t( sets.size() );
 		assert( sets.size() <= VK_MAX_BOUND_DESCRIPTOR_SETS ); // must be less or equal to maximum bound descriptor sets (currently 8 on NV)
+
+		{
+			// Assert that sets and bindings are sparse (you must not have "holes" in sets, bindings.)
+			// FIXME: (check-shader-bindings) we must find a way to recover from this, but it might be difficult without a "linking" stage
+			// which combines various shader stages.
+			set_idx = 0;
+			for ( auto const &s : sets ) {
+				uint32_t binding = 0;
+				for ( auto const &b : s ) {
+					assert( b.binding == binding );
+					assert( b.setIndex == set_idx );
+					binding++;
+				}
+				set_idx++;
+			}
+		}
 
 		for ( size_t i = 0; i != sets.size(); ++i ) {
 			info.set_layout_keys[ i ] = le_pipeline_cache_produce_descriptor_set_layout( self, sets[ i ], &vkLayouts[ i ] );
