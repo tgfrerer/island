@@ -566,6 +566,8 @@ static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameI
 			allocIt++; // Move to next unused allocator
 		}
 	}
+
+	// TODO: consolidate pipeline caches
 }
 
 // ----------------------------------------------------------------------
