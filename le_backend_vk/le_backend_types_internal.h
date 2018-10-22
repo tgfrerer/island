@@ -10,6 +10,9 @@
 #include <vector>
 #include "le_renderer/private/le_renderer_types.h" // for `le_vertex_input_attribute_description`, `le_vertex_input_binding_description`
 
+constexpr uint8_t VK_MAX_BOUND_DESCRIPTOR_SETS = 8;
+constexpr uint8_t VK_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color attachments to a renderpass
+
 struct le_graphics_pipeline_builder_data {
 
 	vk::PipelineRasterizationStateCreateInfo rasterizationInfo{};
@@ -18,7 +21,7 @@ struct le_graphics_pipeline_builder_data {
 	vk::PipelineMultisampleStateCreateInfo   multisampleState{};
 	vk::PipelineDepthStencilStateCreateInfo  depthStencilState{};
 
-	std::array<vk::PipelineColorBlendAttachmentState, MAX_VULKAN_COLOR_ATTACHMENTS> blendAttachmentStates{};
+	std::array<vk::PipelineColorBlendAttachmentState, VK_MAX_COLOR_ATTACHMENTS> blendAttachmentStates{};
 };
 
 struct graphics_pipeline_state_o {

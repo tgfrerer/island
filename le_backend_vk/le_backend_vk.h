@@ -14,8 +14,6 @@ extern "C" {
 #endif
 LE_DEFINE_HANDLE( LeResourceHandle )
 
-constexpr uint8_t MAX_VULKAN_COLOR_ATTACHMENTS = 16; // maximum number of color attachments to a renderpass
-
 void register_le_backend_vk_api( void *api );
 void register_le_instance_vk_api( void *api );       // for le_instance_vk.cpp
 void register_le_allocator_linear_api( void *api_ ); // for le_allocator.cpp

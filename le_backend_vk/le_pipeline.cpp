@@ -1046,7 +1046,7 @@ static vk::Pipeline le_pipeline_cache_create_pipeline( le_pipeline_manager_o *se
 	// the current renderpass - each attachment may have their own blend state.
 	// Our pipeline objects will have 16 stages which are readable.
 	//
-	assert( pass.numColorAttachments <= MAX_VULKAN_COLOR_ATTACHMENTS );
+	assert( pass.numColorAttachments <= VK_MAX_COLOR_ATTACHMENTS );
 	//
 	vk::PipelineColorBlendStateCreateInfo colorBlendState;
 	colorBlendState
@@ -1257,7 +1257,7 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 		}
 
 		info.set_layout_count = uint32_t( sets.size() );
-		assert( sets.size() <= 8 );
+		assert( sets.size() <= VK_MAX_BOUND_DESCRIPTOR_SETS ); // must be less or equal to maximum bound descriptor sets (currently 8 on NV)
 
 		for ( size_t i = 0; i != sets.size(); ++i ) {
 			info.set_layout_keys[ i ] = le_pipeline_cache_produce_descriptor_set_layout( self, sets[ i ], &vkLayouts[ i ] );
