@@ -380,10 +380,6 @@ class RenderModule {
 	void addRenderPass( le_renderpass_o *renderpass ) {
 		le_renderer::render_module_i.add_renderpass( self, renderpass );
 	}
-
-	void setupPasses( le_graph_builder_o *gb_ ) {
-		le_renderer::render_module_i.setup_passes( self, gb_ );
-	}
 };
 
 class Encoder {

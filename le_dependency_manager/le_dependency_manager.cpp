@@ -9,7 +9,7 @@
 
 constexpr size_t MAX_NUM_LAYER_RESOURCES                = 64;
 using BitField                                          = std::bitset<MAX_NUM_LAYER_RESOURCES>;
-constexpr uint64_t le_dependency_manager_ROOT_LAYER_TAG = hash_64_fnv1a_const( "DEPENDENCY_MANAGER_ROOT_LAYER_TAG" );
+constexpr uint64_t LE_DEPENDENCY_MANAGER_ROOT_LAYER_TAG = hash_64_fnv1a_const( "DEPENDENCY_MANAGER_ROOT_LAYER_TAG" );
 
 #ifndef NDEBUG
 #	define LE_DEPENDENCY_MANAGER_USE_DEBUG_NAMES
@@ -186,7 +186,7 @@ static void le_dependency_manager_reset( le_dependency_manager_o *self ) {
 	// knownResources is a special tag which we use to tag a layer as a root (i.e. a layer which always contributes)
 	// layer.
 	self->knownResourcesCount = 1;
-	self->knownResources[ 0 ] = le_dependency_manager_ROOT_LAYER_TAG;
+	self->knownResources[ 0 ] = LE_DEPENDENCY_MANAGER_ROOT_LAYER_TAG;
 
 	self->layers.clear();
 	self->layers_sort_order.clear();
@@ -257,7 +257,7 @@ static void le_dependency_manager_next_layer( le_dependency_manager_o *self, cha
 
 static void le_dependency_manager_next_root_layer( le_dependency_manager_o *self, char const *debug_name = nullptr ) {
 	self->layers.emplace_back();
-	le_dependency_manager_add_resource( self, le_dependency_manager_ROOT_LAYER_TAG, eAccessTypeRead );
+	le_dependency_manager_add_resource( self, LE_DEPENDENCY_MANAGER_ROOT_LAYER_TAG, eAccessTypeRead );
 #ifdef LE_DEPENDENCY_MANAGER_USE_DEBUG_NAMES
 	self->layers_debug_names.emplace_back( debug_name );
 #endif
