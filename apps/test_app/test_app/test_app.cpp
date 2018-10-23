@@ -57,15 +57,15 @@ struct le_mouse_event_data_o {
 };
 
 struct test_app_o {
-	std::unique_ptr<le::Backend>  backend;
-	std::unique_ptr<pal::Window>  window;
-	std::unique_ptr<le::Renderer> renderer;
-	uint64_t                      psoMain;           // weak ref, owned by renderer
-	uint64_t                      psoFullScreenQuad; // weak ref, owned by renderer
-	uint64_t                      psoImgui;          // weak ref, owned by renderer
-	ImGuiContext *                imguiContext  = nullptr;
-	uint64_t                      frame_counter = 0;
-	float                         deltaTimeSec  = 0;
+	le::Backend   backend;
+	pal::Window   window;
+	le::Renderer  renderer;
+	uint64_t      psoMain;           // weak ref, owned by renderer
+	uint64_t      psoFullScreenQuad; // weak ref, owned by renderer
+	uint64_t      psoImgui;          // weak ref, owned by renderer
+	ImGuiContext *imguiContext  = nullptr;
+	uint64_t      frame_counter = 0;
+	float         deltaTimeSec  = 0;
 
 	FontTextureInfo imguiTexture = {};
 
@@ -127,29 +127,25 @@ static test_app_o *test_app_create() {
 	    .setTitle( "Hello world" );
 
 	// create a new window
-	app->window = std::make_unique<pal::Window>( settings );
-
-	le_backend_vk_settings_t backendCreateInfo;
-	backendCreateInfo.requestedExtensions = pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
-
-	app->backend = std::make_unique<le::Backend>( &backendCreateInfo );
-
-	// We need a valid instance at this point.
-	app->backend->createWindowSurface( *app->window );
+	app->window.setup( settings );
 
 	le_swapchain_vk_settings_o swapchainSettings{};
-	swapchainSettings.presentmode_hint = le_swapchain_vk_settings_o::Presentmode::eImmediate;
-	app->backend->createSwapchain( &swapchainSettings ); // TODO (swapchain) - make it possible to set swapchain parameters
+	{
+		swapchainSettings.presentmode_hint = le_swapchain_vk_settings_o::Presentmode::eImmediate;
+	}
 
-	app->backend->setup();
-
-	app->renderer = std::make_unique<le::Renderer>( *app->backend );
-	app->renderer->setup();
+	le_backend_vk_settings_t backendSettings;
+	{
+		backendSettings.pWindow            = app->window;
+		backendSettings.swapchain_settings = &swapchainSettings;
+	}
+	app->backend.setup( &backendSettings );
+	app->renderer.setup( app->backend );
 
 	le_pipeline_manager_o *pipelineCache = nullptr;
 	{
 		using namespace le_backend_vk;
-		pipelineCache = vk_backend_i.get_pipeline_cache( *app->backend );
+		pipelineCache = vk_backend_i.get_pipeline_cache( app->backend );
 	}
 
 	{
@@ -158,8 +154,8 @@ static test_app_o *test_app_create() {
 		{
 			// create default pipeline
 
-			auto defaultVertShader = app->renderer->createShaderModule( "./resources/shaders/default.vert", LeShaderType::eVert );
-			auto defaultFragShader = app->renderer->createShaderModule( "./resources/shaders/default.frag", LeShaderType::eFrag );
+			auto defaultVertShader = app->renderer.createShaderModule( "./resources/shaders/default.vert", LeShaderType::eVert );
+			auto defaultFragShader = app->renderer.createShaderModule( "./resources/shaders/default.frag", LeShaderType::eFrag );
 
 			app->shaderTriangle[ 0 ] = defaultVertShader;
 			app->shaderTriangle[ 1 ] = defaultFragShader;
@@ -184,8 +180,8 @@ static test_app_o *test_app_create() {
 
 		{
 			// Create pso for imgui rendering
-			auto imguiVertShader = app->renderer->createShaderModule( "./resources/shaders/imgui.vert", LeShaderType::eVert );
-			auto imguiFragShader = app->renderer->createShaderModule( "./resources/shaders/imgui.frag", LeShaderType::eFrag );
+			auto imguiVertShader = app->renderer.createShaderModule( "./resources/shaders/imgui.vert", LeShaderType::eVert );
+			auto imguiFragShader = app->renderer.createShaderModule( "./resources/shaders/imgui.frag", LeShaderType::eFrag );
 
 			std::array<le_vertex_input_attribute_description, 3> attrs    = {};
 			std::array<le_vertex_input_binding_description, 1>   bindings = {};
@@ -240,14 +236,14 @@ static test_app_o *test_app_create() {
 
 		// load shaders for prepass
 
-		app->shaderPrepass[ 0 ] = app->renderer->createShaderModule( "./resources/shaders/prepass.vert", LeShaderType::eVert );
-		app->shaderPrepass[ 1 ] = app->renderer->createShaderModule( "./resources/shaders/prepass.frag", LeShaderType::eFrag );
+		app->shaderPrepass[ 0 ] = app->renderer.createShaderModule( "./resources/shaders/prepass.vert", LeShaderType::eVert );
+		app->shaderPrepass[ 1 ] = app->renderer.createShaderModule( "./resources/shaders/prepass.frag", LeShaderType::eFrag );
 
 		{
 			// create full screen quad pipeline
 
-			auto fullScreenQuadVertShader = app->renderer->createShaderModule( "./resources/shaders/fullscreenQuad.vert", LeShaderType::eVert );
-			auto fullScreenQuadFragShader = app->renderer->createShaderModule( "./resources/shaders/fullscreenQuad.frag", LeShaderType::eFrag );
+			auto fullScreenQuadVertShader = app->renderer.createShaderModule( "./resources/shaders/fullscreenQuad.vert", LeShaderType::eVert );
+			auto fullScreenQuadFragShader = app->renderer.createShaderModule( "./resources/shaders/fullscreenQuad.frag", LeShaderType::eFrag );
 
 			auto psoHandle = LeGraphicsPipelineBuilder( pipelineCache )
 			                     .setFragmentShader( fullScreenQuadFragShader )
@@ -270,11 +266,11 @@ static test_app_o *test_app_create() {
 		io.Fonts->AddFontFromFileTTF( "./resources/fonts/IBMPlexSans-Regular.otf", 20.0f, nullptr, io.Fonts->GetGlyphRangesDefault() );
 		io.Fonts->GetTexDataAsRGBA32( &app->imguiTexture.pixels, &app->imguiTexture.width, &app->imguiTexture.height );
 
-		app->imguiTexture.le_image_handle   = app->renderer->declareResource( LeResourceType::eImage );
-		app->imguiTexture.le_texture_handle = app->renderer->declareResource( LeResourceType::eTexture );
+		app->imguiTexture.le_image_handle   = app->renderer.declareResource( LeResourceType::eImage );
+		app->imguiTexture.le_texture_handle = app->renderer.declareResource( LeResourceType::eTexture );
 
-		io.DisplaySize = {float( app->window->getSurfaceWidth() ),
-		                  float( app->window->getSurfaceHeight() )};
+		io.DisplaySize = {float( app->window.getSurfaceWidth() ),
+		                  float( app->window.getSurfaceHeight() )};
 
 		io.Fonts->TexID = app->imguiTexture.le_texture_handle;
 
@@ -308,17 +304,17 @@ static test_app_o *test_app_create() {
 		using namespace pal_window;
 		// set the callback user data for all callbacks from window *app->window
 		// to be our app pointer.
-		window_i.set_callback_user_data( *app->window, app );
+		window_i.set_callback_user_data( app->window, app );
 
 		using test_app::test_app_i;
 
-		window_i.set_key_callback( *app->window, &test_app_i.key_callback );
-		window_i.set_character_callback( *app->window, &test_app_i.character_callback );
+		window_i.set_key_callback( app->window, &test_app_i.key_callback );
+		window_i.set_character_callback( app->window, &test_app_i.character_callback );
 
-		window_i.set_cursor_position_callback( *app->window, &test_app_i.cursor_position_callback );
-		window_i.set_cursor_enter_callback( *app->window, &test_app_i.cursor_enter_callback );
-		window_i.set_mouse_button_callback( *app->window, &test_app_i.mouse_button_callback );
-		window_i.set_scroll_callback( *app->window, &test_app_i.scroll_callback );
+		window_i.set_cursor_position_callback( app->window, &test_app_i.cursor_position_callback );
+		window_i.set_cursor_enter_callback( app->window, &test_app_i.cursor_enter_callback );
+		window_i.set_mouse_button_callback( app->window, &test_app_i.mouse_button_callback );
+		window_i.set_scroll_callback( app->window, &test_app_i.scroll_callback );
 	}
 
 	app->update_start_time = std::chrono::high_resolution_clock::now();
@@ -331,18 +327,18 @@ static test_app_o *test_app_create() {
 		gltf_document_i.load_from_text( app->gltfDoc, "resources/gltf/FlightHelmet.gltf" );
 		//gltf_document_i.load_from_text( app->gltfDoc, "resources/gltf/Box.gltf" );
 		//gltf_document_i.load_from_text( app->gltfDoc, "resources/gltf/exportFile.gltf" );
-		gltf_document_i.setup_resources( app->gltfDoc, *app->renderer );
+		gltf_document_i.setup_resources( app->gltfDoc, app->renderer );
 	}
 
 	{
 		// Declare resources which we will need for our scene
 
-		app->resImgPrepass     = app->renderer->declareResource( LeResourceType::eImage );
-		app->resImgDepth       = app->renderer->declareResource( LeResourceType::eImage );
-		app->resTexPrepass     = app->renderer->declareResource( LeResourceType::eTexture );
-		app->resImgHorse       = app->renderer->declareResource( LeResourceType::eImage );
-		app->resTexHorse       = app->renderer->declareResource( LeResourceType::eTexture );
-		app->resBufTrianglePos = app->renderer->declareResource( LeResourceType::eBuffer );
+		app->resImgPrepass     = app->renderer.declareResource( LeResourceType::eImage );
+		app->resImgDepth       = app->renderer.declareResource( LeResourceType::eImage );
+		app->resTexPrepass     = app->renderer.declareResource( LeResourceType::eTexture );
+		app->resImgHorse       = app->renderer.declareResource( LeResourceType::eImage );
+		app->resTexHorse       = app->renderer.declareResource( LeResourceType::eTexture );
+		app->resBufTrianglePos = app->renderer.declareResource( LeResourceType::eBuffer );
 	}
 	{
 		reset_camera( app );
@@ -353,7 +349,7 @@ static test_app_o *test_app_create() {
 // ----------------------------------------------------------------------
 
 static void reset_camera( test_app_o *self ) {
-	self->camera.setViewport( {0, 0, float( self->window->getSurfaceWidth() ), float( self->window->getSurfaceHeight() ), 0.f, 1.f} );
+	self->camera.setViewport( {0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ), 0.f, 1.f} );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
@@ -590,8 +586,8 @@ static bool pass_final_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	auto app = static_cast<test_app_o *>( user_data_ );
 
 	rp
-	    .addImageAttachment( app->renderer->getBackbufferResource() ) // color attachment
-	    .addDepthImageAttachment( app->resImgDepth )                  // depth attachment
+	    .addImageAttachment( app->renderer.getBackbufferResource() ) // color attachment
+	    .addDepthImageAttachment( app->resImgDepth )                 // depth attachment
 	    .sampleTexture( app->resTexPrepass, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {app->resImgPrepass, 0}} )
 	    .sampleTexture( app->imguiTexture.le_texture_handle, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {app->imguiTexture.le_image_handle, 0}} )
 	    .setIsRoot( true );
@@ -606,8 +602,8 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 	using namespace le_renderer;
 	auto app = static_cast<test_app_o *>( user_data );
 
-	auto screenWidth  = app->window->getSurfaceWidth();
-	auto screenHeight = app->window->getSurfaceHeight();
+	auto screenWidth  = app->window.getSurfaceWidth();
+	auto screenHeight = app->window.getSurfaceHeight();
 
 	auto encoder = le::Encoder( encoder_ );
 
@@ -815,13 +811,13 @@ static bool test_app_update( test_app_o *self ) {
 	// This means any window may trigger callbacks for any events they have callbacks registered.
 	pal::Window::pollEvents();
 
-	if ( self->window->shouldClose() ) {
+	if ( self->window.shouldClose() ) {
 		return false;
 	}
 
 	{
 		// update interactive camera using mouse data
-		self->cameraController.setControlRect( 0, 0, float( self->window->getSurfaceWidth() ), float( self->window->getSurfaceHeight() ) );
+		self->cameraController.setControlRect( 0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ) );
 		self->cameraController.updateCamera( self->camera, &self->mouseData );
 	}
 
@@ -835,8 +831,8 @@ static bool test_app_update( test_app_o *self ) {
 	{
 		ImGuiIO &io = ImGui::GetIO();
 
-		io.DisplaySize = {float( self->window->getSurfaceWidth() ),
-		                  float( self->window->getSurfaceHeight() )};
+		io.DisplaySize = {float( self->window.getSurfaceWidth() ),
+		                  float( self->window.getSurfaceHeight() )};
 
 		// update mouse pos and buttons
 		for ( size_t i = 0; i < self->mouseButtonStatus.size(); i++ ) {
@@ -883,7 +879,7 @@ static bool test_app_update( test_app_o *self ) {
 
 	// Update will call all rendercallbacks in this module.
 	// the RECORD phase is guaranteed to execute - all rendercallbacks will get called.
-	self->renderer->update( mainModule );
+	self->renderer.update( mainModule );
 
 	self->frame_counter++;
 
@@ -924,7 +920,7 @@ static void test_app_key_callback( void *user_data, int key, int scancode, int a
 	{
 		static auto const &window_i = Registry::getApi<pal_window_api>()->window_i;
 		if ( key == GLFW_KEY_F11 && action == GLFW_RELEASE ) {
-			window_i.toggle_fullscreen( *app->window );
+			window_i.toggle_fullscreen( app->window );
 		}
 	}
 	ImGuiIO &io = ImGui::GetIO();

@@ -151,6 +151,8 @@ static inline VkAttachmentStoreOp le_to_vk( const LeAttachmentStoreOp &lhs ) {
 	case ( LE_ATTACHMENT_STORE_OP_DONTCARE ):
 	    return VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	}
+	assert( false ); // if control ends here, something is wrong, as switch must cover all cases
+	return VK_ATTACHMENT_STORE_OP_DONT_CARE;
 }
 
 // ----------------------------------------------------------------------
@@ -163,6 +165,8 @@ static inline VkAttachmentLoadOp le_to_vk( const LeAttachmentLoadOp &lhs ) {
 	case ( LE_ATTACHMENT_LOAD_OP_DONTCARE ):
 	    return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	}
+	assert( false ); // if control ends here, something is wrong, as switch must cover all cases
+	return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 }
 
 // ----------------------------------------------------------------------
@@ -180,19 +184,8 @@ static inline bool is_depth_stencil_format( vk::Format format_ ) {
 
 // ----------------------------------------------------------------------
 
-static le_backend_o *backend_create( le_backend_vk_settings_t *settings ) {
-	auto self = new le_backend_o; // todo: leDevice must have been introduced here...
-
-	self->settings = *settings;
-
-	self->instance = std::make_unique<le::Instance>( self->settings.requestedExtensions, self->settings.numRequestedExtensions );
-	self->device   = std::make_unique<le::Device>( *self->instance );
-
-	{
-		using namespace le_backend_vk;
-		self->pipelineCache = le_pipeline_manager_i.create( self->device->getVkDevice() );
-	}
-
+static le_backend_o *backend_create() {
+	auto self = new le_backend_o;
 	return self;
 }
 
@@ -200,13 +193,13 @@ static le_backend_o *backend_create( le_backend_vk_settings_t *settings ) {
 
 static void backend_destroy( le_backend_o *self ) {
 
-	vk::Device device = self->device->getVkDevice();
-
-	{
+	if ( self->pipelineCache ) {
 		using namespace le_backend_vk;
 		le_pipeline_manager_i.destroy( self->pipelineCache );
 		self->pipelineCache = nullptr;
 	}
+
+	vk::Device device = self->device->getVkDevice(); // may be nullptr if device was not created
 
 	for ( auto &frameData : self->mFrames ) {
 
@@ -380,7 +373,52 @@ static LeResourceHandle backend_get_backbuffer_resource( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void backend_setup( le_backend_o *self ) {
+static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *settings ) {
+
+	self->settings = *settings;
+
+	// -- if window surface, query required vk extensions from glfw
+
+	std::vector<char const *> requestedInstanceExtensions;
+	{
+		if ( self->settings.pWindow ) {
+
+			// -- insert extensions necessary for glfw window
+
+			uint32_t extensionCount         = 0;
+			auto     glfwRequiredExtensions = pal::Window( self->settings.pWindow ).getRequiredVkExtensions( &extensionCount );
+
+			requestedInstanceExtensions.insert( requestedInstanceExtensions.end(),
+			                                    glfwRequiredExtensions,
+			                                    glfwRequiredExtensions + extensionCount );
+		}
+
+		// -- insert any additionally requested extensions
+		requestedInstanceExtensions.insert( requestedInstanceExtensions.end(),
+		                                    settings->requestedExtensions,
+		                                    settings->requestedExtensions + settings->numRequestedExtensions );
+	}
+	// -- initialise backend
+
+	self->instance = std::make_unique<le::Instance>( requestedInstanceExtensions.data(), requestedInstanceExtensions.size() );
+	self->device   = std::make_unique<le::Device>( *self->instance );
+
+	{
+		using namespace le_backend_vk;
+		self->pipelineCache = le_pipeline_manager_i.create( self->device->getVkDevice() );
+	}
+
+	// -- create window surface if requested
+
+	if ( self->settings.pWindow ) {
+		backend_create_window_surface( self, self->settings.pWindow );
+	}
+
+	// -- create swapchain if requested
+
+	backend_create_swapchain( self, self->settings.swapchain_settings );
+
+	// -- setup backend memory objects
 
 	auto frameCount = backend_get_num_swapchain_images( self );
 
@@ -2259,8 +2297,6 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.create                     = backend_create;
 	vk_backend_i.destroy                    = backend_destroy;
 	vk_backend_i.setup                      = backend_setup;
-	vk_backend_i.create_window_surface      = backend_create_window_surface;
-	vk_backend_i.create_swapchain           = backend_create_swapchain;
 	vk_backend_i.get_num_swapchain_images   = backend_get_num_swapchain_images;
 	vk_backend_i.reset_swapchain            = backend_reset_swapchain;
 	vk_backend_i.get_transient_allocators   = backend_get_transient_allocators;

@@ -16,18 +16,18 @@ struct pal_window_settings_o;
 struct VkSurfaceKHR_T;
 struct GLFWwindow;
 
+// clang-format off
 struct pal_window_api {
 	static constexpr auto id      = "pal_window";
 	static constexpr auto pRegFun = register_pal_window_api;
 
-	typedef void ( *key_callback_fun_t )( void *user_data, int key, int scancode, int action, int mods );
-	typedef void ( *character_callback_fun_t )( void *user_data, unsigned int codepoint );
+	typedef void ( *key_callback_fun_t             )( void *user_data, int key, int scancode, int action, int mods );
+	typedef void ( *character_callback_fun_t       )( void *user_data, unsigned int codepoint );
 	typedef void ( *cursor_position_callback_fun_t )( void *user_data, double xpos, double ypos );
-	typedef void ( *cursor_enter_callback_fun_t )( void *user_data, int entered );
-	typedef void ( *mouse_button_callback_fun_t )( void *user_data, int button, int action, int mods );
-	typedef void ( *scroll_callback_fun_t )( void *user_data, double xoffset, double yoffset );
+	typedef void ( *cursor_enter_callback_fun_t    )( void *user_data, int entered );
+	typedef void ( *mouse_button_callback_fun_t    )( void *user_data, int button, int action, int mods );
+	typedef void ( *scroll_callback_fun_t          )( void *user_data, double xoffset, double yoffset );
 
-	// clang-format off
 
 	struct window_settings_interface_t {
 		pal_window_settings_o * ( *create     ) ();
@@ -38,8 +38,9 @@ struct pal_window_api {
 	};
 
 	struct window_interface_t {
-		pal_window_o *  ( *create             ) ( const pal_window_settings_o* );
-		void            ( *destroy            ) ( pal_window_o * );
+		pal_window_o *  ( *create             ) ( );
+		void            ( *setup              ) ( pal_window_o * self, const pal_window_settings_o* );
+		void            ( *destroy            ) ( pal_window_o * self);
 
 		void            ( *increase_reference_count )( pal_window_o* self );
 		void            ( *decrease_reference_count )( pal_window_o* self );
@@ -69,11 +70,11 @@ struct pal_window_api {
 	void          ( *pollEvents                 ) ();
 	const char ** ( *get_required_vk_extensions ) ( uint32_t *count );
 
-	// clang-format on
 
 	window_interface_t          window_i;
 	window_settings_interface_t window_settings_i;
 };
+// clang-format on
 
 #ifdef __cplusplus
 } // extern "C"
@@ -93,14 +94,14 @@ static const auto &settings_i = api -> window_settings_i;
 namespace pal {
 
 class Window : NoMove, NoCopy {
-	pal_window_o *self = pal_window::window_i.create( nullptr );
-
   public:
 	class Settings {
-		pal_window_settings_o *self = pal_window::settings_i.create();
+		pal_window_settings_o *self = nullptr;
 
 	  public:
-		Settings() = default;
+		Settings()
+		    : self( pal_window::settings_i.create() ) {
+		}
 
 		~Settings() {
 			pal_window::settings_i.destroy( self );
@@ -124,13 +125,11 @@ class Window : NoMove, NoCopy {
 		}
 	};
 
-  private:
-	// deactivate default constructor
-	Window() = delete;
-
   public:
-	Window( const Settings &settings_ )
-	    : self( pal_window::window_i.create( settings_ ) ) {
+	pal_window_o *self = nullptr;
+
+	Window()
+	    : self( pal_window::window_i.create() ) {
 		pal_window::window_i.increase_reference_count( self );
 	}
 
@@ -144,6 +143,10 @@ class Window : NoMove, NoCopy {
 		if ( pal_window::window_i.get_reference_count( self ) == 0 ) {
 			pal_window::window_i.destroy( self );
 		}
+	}
+
+	void setup( const Settings &settings = {} ) {
+		pal_window::window_i.setup( self, settings );
 	}
 
 	bool shouldClose() {

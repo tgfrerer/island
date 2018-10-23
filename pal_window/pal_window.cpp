@@ -11,7 +11,7 @@
 struct pal_window_settings_o {
 	int          width   = 640;
 	int          height  = 480;
-	std::string  title   = "default window title";
+	std::string  title   = "Island default window title";
 	GLFWmonitor *monitor = nullptr;
 };
 
@@ -149,9 +149,11 @@ static void glfw_framebuffer_resize_callback( GLFWwindow *glfwWindow, int width_
 
 	auto window = static_cast<pal_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
 
-	int w = 0;
-	int h = 0;
+	int w = width_px;
+	int h = height_px;
+
 	glfwGetFramebufferSize( glfwWindow, &w, &h );
+
 	window->mSurfaceExtent.width  = uint32_t( w );
 	window->mSurfaceExtent.height = uint32_t( h );
 
@@ -305,6 +307,8 @@ static VkSurfaceKHR window_get_vk_surface_khr( pal_window_o *self ) {
 	return self->mSurface;
 }
 
+// ----------------------------------------------------------------------
+
 static void window_set_callbacks( pal_window_o *self ) {
 
 	// FIXME: Callback function address target may have changed after library hot-reload
@@ -334,11 +338,44 @@ static void window_set_callbacks( pal_window_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static pal_window_o *window_create( const pal_window_settings_o *settings_ ) {
-	auto obj = new pal_window_o();
+static void window_remove_callbacks( pal_window_o *self ) {
 
-	if ( settings_ ) {
-		obj->mSettings = *settings_;
+	// FIXME: Callback function address target may have changed after library hot-reload
+	// Problem -- the address of the callback function may have changed
+	// after the library was reloaded, and we would have to go through
+	// all windows to patch the callback function.
+	//
+	// We could make sure that there is a forwarder which has a constant
+	// address, and which calls, in turn, a method which we can patch during
+	// reload.
+	//
+	// The forwarder function would have to live somewhere permanent.
+	// Could this be a function object inside registry?
+	//
+	// This problem arises mostly because each window within GLFW may have its own
+	// callbacks - which means, each GLFW window would have to be patched after hot-reloading.
+
+	glfwSetKeyCallback( self->window, nullptr );
+	glfwSetCharCallback( self->window, nullptr );
+	glfwSetCursorPosCallback( self->window, nullptr );
+	glfwSetCursorEnterCallback( self->window, nullptr );
+	glfwSetMouseButtonCallback( self->window, nullptr );
+	glfwSetScrollCallback( self->window, nullptr );
+	glfwSetFramebufferSizeCallback( self->window, nullptr );
+}
+
+// ----------------------------------------------------------------------
+
+static pal_window_o *window_create() {
+	auto obj = new pal_window_o();
+	return obj;
+}
+
+// ----------------------------------------------------------------------
+
+static void window_setup( pal_window_o *self, const pal_window_settings_o *settings ) {
+	if ( settings ) {
+		self->mSettings = *settings;
 	}
 
 	// TODO: implement GLFW window hints, based on settings.
@@ -347,7 +384,7 @@ static pal_window_o *window_create( const pal_window_settings_o *settings_ ) {
 	glfwWindowHint( GLFW_VISIBLE, GLFW_FALSE ); // < window is initially not visible
 	glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
 
-	obj->window = glfwCreateWindow( obj->mSettings.width, obj->mSettings.height, obj->mSettings.title.c_str(), obj->mSettings.monitor, nullptr );
+	self->window = glfwCreateWindow( self->mSettings.width, self->mSettings.height, self->mSettings.title.c_str(), self->mSettings.monitor, nullptr );
 
 #ifndef NDEBUG
 
@@ -362,29 +399,33 @@ static pal_window_o *window_create( const pal_window_settings_o *settings_ ) {
 		glfwGetMonitorPos( monitors[ 1 ], &windowX, &windowY );
 	}
 
-	glfwSetWindowPos( obj->window, windowX, windowY );
+	glfwSetWindowPos( self->window, windowX, windowY );
 
 #endif
 
-	glfwShowWindow( obj->window );
+	glfwShowWindow( self->window );
 
 	// Set the user pointer so callbacks know which window they belong to
-	glfwSetWindowUserPointer( obj->window, obj );
+	glfwSetWindowUserPointer( self->window, self );
 
-	window_set_callbacks( obj );
-
-	return obj;
+	window_set_callbacks( self );
 }
 
 // ----------------------------------------------------------------------
 
 static void window_destroy( pal_window_o *self ) {
 
+	if ( self->window ) {
+		window_remove_callbacks( self );
+	}
+
 	if ( self->mSurface ) {
 		window_destroy_surface( self );
 	}
 
-	glfwDestroyWindow( self->window );
+	if ( self->window ) {
+		glfwDestroyWindow( self->window );
+	}
 
 	delete self;
 }
@@ -449,6 +490,7 @@ void register_pal_window_api( void *api ) {
 	auto &window_i                    = windowApi->window_i;
 	window_i.create                   = window_create;
 	window_i.destroy                  = window_destroy;
+	window_i.setup                    = window_setup;
 	window_i.should_close             = window_should_close;
 	window_i.get_surface_width        = window_get_surface_width;
 	window_i.get_surface_height       = window_get_surface_height;

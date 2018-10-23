@@ -34,9 +34,9 @@ struct le_renderer_api {
 
 
 	struct renderer_interface_t {
-		le_renderer_o *                ( *create                                )( le_backend_o  *backend );
+		le_renderer_o *                ( *create                                )( );
 		void                           ( *destroy                               )( le_renderer_o *obj );
-		void                           ( *setup                                 )( le_renderer_o *obj );
+		void                           ( *setup                                 )( le_renderer_o *obj, le_backend_o  *backend );
 		void                           ( *update                                )( le_renderer_o *obj, le_render_module_o *module );
 		le_shader_module_o*            ( *create_shader_module                  )( le_renderer_o *self, char const *path, LeShaderType mtype );
 
@@ -218,16 +218,16 @@ class Renderer {
 	le_renderer_o *self;
 
   public:
-	Renderer( le_backend_o *backend )
-	    : self( le_renderer::renderer_i.create( backend ) ) {
+	Renderer()
+	    : self( le_renderer::renderer_i.create() ) {
 	}
 
 	~Renderer() {
 		le_renderer::renderer_i.destroy( self );
 	}
 
-	void setup() {
-		le_renderer::renderer_i.setup( self );
+	void setup( le_backend_o *backend ) {
+		le_renderer::renderer_i.setup( self, backend );
 	}
 
 	void update( le_render_module_o *module ) {

@@ -60,6 +60,7 @@ typedef int LeFormat_t; // we're declaring this as a placeholder for image forma
 struct le_backend_vk_settings_t {
 	const char **               requestedExtensions    = nullptr;
 	uint32_t                    numRequestedExtensions = 0;
+	pal_window_o *              pWindow                = nullptr;
 	le_swapchain_vk_settings_o *swapchain_settings     = nullptr;
 };
 
@@ -80,10 +81,10 @@ struct le_backend_vk_api {
 
 	// clang-format off
 	struct backend_vk_interface_t {
-		le_backend_o *         ( *create                     ) ( le_backend_vk_settings_t *settings );
+		le_backend_o *         ( *create                     ) ( );
 		void                   ( *destroy                    ) ( le_backend_o *self );
 
-		void                   ( *setup                      ) ( le_backend_o *self );
+		void                   ( *setup                      ) ( le_backend_o *self, le_backend_vk_settings_t *settings );
 
 		bool                   ( *poll_frame_fence           ) ( le_backend_o* self, size_t frameIndex);
 		bool                   ( *clear_frame                ) ( le_backend_o *self, size_t frameIndex );
@@ -91,8 +92,6 @@ struct le_backend_vk_api {
 		bool                   ( *acquire_physical_resources ) ( le_backend_o *self, size_t frameIndex, le_renderpass_o **passes, size_t numRenderPasses  );
 		bool                   ( *dispatch_frame             ) ( le_backend_o *self, size_t frameIndex );
 
-		bool                   ( *create_window_surface      ) ( le_backend_o *self, pal_window_o *window_ );
-		void                   ( *create_swapchain           ) ( le_backend_o *self, le_swapchain_vk_settings_o *swapchainSettings_ );
 		size_t                 ( *get_num_swapchain_images   ) ( le_backend_o *self );
 		void                   ( *reset_swapchain            ) ( le_backend_o *self );
 		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex, size_t numAllocators);
@@ -193,8 +192,8 @@ class Backend : NoCopy, NoMove {
 		return self;
 	}
 
-	Backend( le_backend_vk_settings_t *settings )
-	    : self( le_backend_vk::vk_backend_i.create( settings ) )
+	Backend()
+	    : self( le_backend_vk::vk_backend_i.create() )
 	    , is_reference( false ) {
 	}
 
@@ -209,8 +208,8 @@ class Backend : NoCopy, NoMove {
 		}
 	}
 
-	void setup() {
-		le_backend_vk::vk_backend_i.setup( self );
+	void setup( le_backend_vk_settings_t *settings ) {
+		le_backend_vk::vk_backend_i.setup( self, settings );
 	}
 
 	bool clearFrame( size_t frameIndex ) {
@@ -219,14 +218,6 @@ class Backend : NoCopy, NoMove {
 
 	void processFrame( size_t frameIndex ) {
 		le_backend_vk::vk_backend_i.process_frame( self, frameIndex );
-	}
-
-	bool createWindowSurface( pal_window_o *window ) {
-		return le_backend_vk::vk_backend_i.create_window_surface( self, window );
-	}
-
-	void createSwapchain( le_swapchain_vk_settings_o *swapchainSettings = nullptr ) {
-		le_backend_vk::vk_backend_i.create_swapchain( self, swapchainSettings );
 	}
 
 	size_t getNumSwapchainImages() {
@@ -239,10 +230,6 @@ class Backend : NoCopy, NoMove {
 
 	bool dispatchFrame( size_t frameIndex ) {
 		return le_backend_vk::vk_backend_i.dispatch_frame( self, frameIndex );
-	}
-
-	void resetSwapchain() {
-		le_backend_vk::vk_backend_i.reset_swapchain( self );
 	}
 };
 
