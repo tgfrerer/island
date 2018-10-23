@@ -22,7 +22,7 @@ struct ApiStore {
 // FIXME: there is a vexing bug with initialisation order when compiling a static version of this app
 // -- ApiStore is first written to and then initialised again - no idea why this happens. Because fp_used_bytes
 // is not reset this is mitigated, as apis registered after the very first won't overwrite the very first, but the
-// names and namehashes, and prts get reset...
+// names and namehashes, and ptrs get reset...
 static ApiStore apiStore{};
 
 static auto file_watcher_i = Registry::addApiStatic<pal_file_watcher_i>();

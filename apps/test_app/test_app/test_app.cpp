@@ -565,7 +565,7 @@ static void pass_pre_exec( le_command_buffer_encoder_o *encoder_, void *user_dat
 		static float t_start = 0;
 		float        info    = fmodf( t_start + app->deltaTimeSec, 3.f );
 		info /= 3.f;
-		info = fabs( ( glm::sineEaseInOut( info ) - 0.5 ) * 2.f );
+		info = fabs( ( glm::sineEaseInOut( info ) - 0.5f ) * 2.f );
 		t_start += app->deltaTimeSec;
 
 		static auto psoPrepass = LeGraphicsPipelineBuilder( encoder.getPipelineManager() )

@@ -132,7 +132,7 @@ struct le_renderer_api {
 		void                         ( *set_argument_ubo_data  )( le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
 		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, LeResourceHandle const textureId, uint64_t argumentName, uint64_t arrayIndex);
 
-		le_pipeline_manager_o*       ( *get_pipeline_manager   )( le_command_buffer_encoder_o *self);
+		le_pipeline_manager_o*       ( *get_pipeline_manager   )( le_command_buffer_encoder_o *self );
 		void                         ( *get_encoded_data       )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
 	};
 

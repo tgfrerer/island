@@ -34,8 +34,8 @@ struct le_renderpass_o {
 	std::vector<le_resource_info_t>    createResourceInfos; // createResources holds ids at matching index
 	std::vector<LeImageAttachmentInfo> imageAttachments;
 
-	uint32_t width  = 0; ///< width in pixels, must be identical for all attachments
-	uint32_t height = 0; ///< height in pixels, must be identical for all attachments
+	uint32_t width  = 0; ///< width in pixels, must be identical for all attachments  , default:0 means current frame.swapchainWidth
+	uint32_t height = 0; ///< height in pixels, must be identical for all attachments , default:0 means current frame.swapchainHeight
 
 	std::vector<LeTextureInfo>    textureInfos;   // kept in sync
 	std::vector<LeResourceHandle> textureInfoIds; // kept in sync
@@ -58,8 +58,7 @@ struct le_render_module_o : NoCopy, NoMove {
 // ----------------------------------------------------------------------
 
 struct le_graph_builder_o : NoCopy, NoMove {
-	std::vector<le_renderpass_o *>             passes;
-	std::vector<le_command_buffer_encoder_o *> encoders;
+	std::vector<le_renderpass_o *> passes;
 };
 
 // ----------------------------------------------------------------------
@@ -543,8 +542,6 @@ static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameI
 		}
 		std::cout << msg.str();
 	}
-
-	self->encoders.reserve( self->passes.size() );
 
 	using namespace le_renderer;
 	using namespace le_backend_vk;

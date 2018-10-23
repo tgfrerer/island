@@ -787,11 +787,10 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 	frame.physicalResources.clear();
 	frame.syncChainTable.clear();
 
-	static const auto &le_encoder_api = ( *Registry::getApi<le_renderer_api>() ).le_command_buffer_encoder_i;
-
 	for ( auto &f : frame.passes ) {
 		if ( f.encoder ) {
-			le_encoder_api.destroy( f.encoder );
+			using namespace le_renderer;
+			encoder_i.destroy( f.encoder );
 			f.encoder = nullptr;
 		}
 	}
@@ -2211,11 +2210,14 @@ static void backend_update_shader_modules( le_backend_o *self ) {
 	le_pipeline_manager_i.update_shader_modules( self->pipelineCache );
 }
 
+// ----------------------------------------------------------------------
 // FIXME: remove forwarding via renderer to here
 static le_shader_module_o *backend_create_shader_module( le_backend_o *self, char const *path, LeShaderType moduleType ) {
 	using namespace le_backend_vk;
 	return le_pipeline_manager_i.create_shader_module( self->pipelineCache, path, moduleType );
 }
+
+// ----------------------------------------------------------------------
 
 static le_pipeline_manager_o *backend_get_pipeline_cache( le_backend_o *self ) {
 	return self->pipelineCache;

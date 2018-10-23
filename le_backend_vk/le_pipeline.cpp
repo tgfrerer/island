@@ -41,8 +41,8 @@ struct le_shader_manager_o {
 	std::unordered_map<std::string, std::set<le_shader_module_o *>> moduleDependencies;    // map 'canonical shader source file path' -> [shader modules]
 	std::set<le_shader_module_o *>                                  modifiedShaderModules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
 
-	le_shader_compiler_o *shader_compiler   = nullptr;
-	pal_file_watcher_o *  shaderFileWatcher = nullptr;
+	le_shader_compiler_o *shader_compiler   = nullptr; // owning
+	pal_file_watcher_o *  shaderFileWatcher = nullptr; // owning
 };
 
 struct le_pipeline_manager_o {
@@ -53,7 +53,7 @@ struct le_pipeline_manager_o {
 
 	vk::PipelineCache vulkanCache = nullptr;
 
-	le_shader_manager_o *shaderManager;
+	le_shader_manager_o *shaderManager = nullptr; // owning
 
 	std::vector<graphics_pipeline_state_o *> graphicsPSO_list; // indexed by PSOs_hashes
 	std::vector<uint64_t>                    graphicsPSO_hashes;

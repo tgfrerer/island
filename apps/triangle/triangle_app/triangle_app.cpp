@@ -4,16 +4,12 @@
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_swapchain_vk/le_swapchain_vk.h"
 #include "le_renderer/le_renderer.h"
-#include "le_renderer/private/le_renderer_types.h"
 
 #include "le_camera/le_camera.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
 
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
-
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h> // for key codes
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -26,19 +22,13 @@
 
 #define LE_ARGUMENT_NAME( x ) hash_64_fnv1a_const( #x )
 
-struct le_mouse_event_data_o {
-	uint32_t  buttonState{};
-	glm::vec2 cursor_pos;
-};
-
 struct triangle_app_o {
-	std::unique_ptr<le::Backend>  backend;
-	std::unique_ptr<pal::Window>  window;
-	std::unique_ptr<le::Renderer> renderer;
-	uint64_t                      frame_counter = 0;
+	le::Backend * backend;
+	pal::Window * window;
+	le::Renderer *renderer;
+	uint64_t      frame_counter = 0;
 
-	LeCamera           camera;
-	LeCameraController cameraController;
+	LeCamera camera;
 };
 
 // ----------------------------------------------------------------------
@@ -67,25 +57,25 @@ static triangle_app_o *triangle_app_create() {
 	    .setTitle( "Hello world" );
 
 	// create a new window
-	app->window = std::make_unique<pal::Window>( settings );
+	app->window = new pal::Window( settings );
 
 	le_backend_vk_settings_t backendCreateInfo;
 	backendCreateInfo.requestedExtensions = pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
 
-	app->backend = std::make_unique<le::Backend>( &backendCreateInfo );
+	app->backend = new le::Backend( &backendCreateInfo );
 
 	// We need a valid instance at this point.
 	app->backend->createWindowSurface( *app->window );
 
 	le_swapchain_vk_settings_o swapchainSettings;
 	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eImmediate;
-	swapchainSettings.imagecount_hint  = 2;
+	swapchainSettings.imagecount_hint  = 3;
 
-	app->backend->createSwapchain( &swapchainSettings ); // TODO (swapchain) - make it possible to set swapchain parameters
+	app->backend->createSwapchain( &swapchainSettings );
 
 	app->backend->setup();
 
-	app->renderer = std::make_unique<le::Renderer>( *app->backend );
+	app->renderer = new le::Renderer( *app->backend );
 	app->renderer->setup();
 
 	// -- Declare graphics pipeline state objects
@@ -159,7 +149,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		static auto shaderFrag = app->renderer->createShaderModule( "./resources/shaders/default.frag", LeShaderType::eFrag );
 
 		static auto pipelineTriangle =
-		    LeGraphicsPipelineBuilder( encoder.getPipelineCache() )
+		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 		        .setVertexShader( shaderVert )
 		        .setFragmentShader( shaderFrag )
 		        .build();
@@ -168,7 +158,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		mvp.model      = glm::mat4( 1.f ); // identity matrix
 		mvp.model      = glm::scale( mvp.model, glm::vec3( 4.5 ) );
 		mvp.view       = reinterpret_cast<glm::mat4 const &>( *app->camera.getViewMatrix() );
-		mvp.projection = *reinterpret_cast<glm::mat4 const *>( app->camera.getProjectionMatrix() );
+		mvp.projection = reinterpret_cast<glm::mat4 const &>( *app->camera.getProjectionMatrix() );
 
 		glm::vec3 trianglePositions[] = {
 		    {-50, -50, 0},
@@ -196,8 +186,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 // ----------------------------------------------------------------------
 
 static bool triangle_app_update( triangle_app_o *self ) {
-
-	static bool resetCameraOnReload = true;
 
 	// Polls events for all windows -
 	// This means any window may trigger callbacks for any events they have callbacks registered.
@@ -231,7 +219,12 @@ static bool triangle_app_update( triangle_app_o *self ) {
 // ----------------------------------------------------------------------
 
 static void triangle_app_destroy( triangle_app_o *self ) {
-	delete ( self );
+
+	delete self->renderer;
+	delete self->window;
+	delete self->backend;
+
+	delete ( self ); // deletes camera
 }
 
 // ----------------------------------------------------------------------
