@@ -23,10 +23,10 @@
 #define LE_ARGUMENT_NAME( x ) hash_64_fnv1a_const( #x )
 
 struct triangle_app_o {
-	le::Backend * backend;
-	pal::Window * window;
-	le::Renderer *renderer;
-	uint64_t      frame_counter = 0;
+	le::Backend  backend;
+	pal::Window  window;
+	le::Renderer renderer;
+	uint64_t     frame_counter = 0;
 
 	LeCamera camera;
 };
@@ -57,26 +57,20 @@ static triangle_app_o *triangle_app_create() {
 	    .setTitle( "Hello world" );
 
 	// create a new window
-	app->window = new pal::Window( settings );
+	app->window.setup( settings );
 
-	le_backend_vk_settings_t backendCreateInfo;
-	backendCreateInfo.requestedExtensions = pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
-
-	app->backend = new le::Backend( &backendCreateInfo );
-
-	// We need a valid instance at this point.
-	app->backend->createWindowSurface( *app->window );
-
-	le_swapchain_vk_settings_o swapchainSettings;
+	le_swapchain_vk_settings_t swapchainSettings;
 	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eImmediate;
 	swapchainSettings.imagecount_hint  = 3;
 
-	app->backend->createSwapchain( &swapchainSettings );
+	le_backend_vk_settings_t backendCreateInfo;
+	backendCreateInfo.requestedExtensions = pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
+	backendCreateInfo.swapchain_settings  = &swapchainSettings;
+	backendCreateInfo.pWindow             = app->window;
 
-	app->backend->setup();
+	app->backend.setup( &backendCreateInfo );
 
-	app->renderer = new le::Renderer( *app->backend );
-	app->renderer->setup();
+	app->renderer.setup( app->backend );
 
 	// -- Declare graphics pipeline state objects
 
@@ -91,7 +85,7 @@ static triangle_app_o *triangle_app_create() {
 // ----------------------------------------------------------------------
 
 static void reset_camera( triangle_app_o *self ) {
-	self->camera.setViewport( {0, 0, float( self->window->getSurfaceWidth() ), float( self->window->getSurfaceHeight() ), 0.f, 1.f} );
+	self->camera.setViewport( {0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ), 0.f, 1.f} );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
@@ -106,7 +100,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto app = static_cast<triangle_app_o *>( user_data );
 
 	rp
-	    .addImageAttachment( app->renderer->getBackbufferResource() ) // color attachment
+	    .addImageAttachment( app->renderer.getBackbufferResource() ) // color attachment
 	    .setIsRoot( true );
 
 	return true;
@@ -118,8 +112,8 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	auto        app = static_cast<triangle_app_o *>( user_data );
 	le::Encoder encoder{encoder_};
 
-	auto screenWidth  = app->window->getSurfaceWidth();
-	auto screenHeight = app->window->getSurfaceHeight();
+	auto screenWidth  = app->window.getSurfaceWidth();
+	auto screenHeight = app->window.getSurfaceHeight();
 
 	le::Viewport viewports[ 1 ] = {
 	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
@@ -145,8 +139,8 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	// Draw main scene
 	if ( true ) {
 
-		static auto shaderVert = app->renderer->createShaderModule( "./resources/shaders/default.vert", LeShaderType::eVert );
-		static auto shaderFrag = app->renderer->createShaderModule( "./resources/shaders/default.frag", LeShaderType::eFrag );
+		static auto shaderVert = app->renderer.createShaderModule( "./resources/shaders/default.vert", LeShaderType::eVert );
+		static auto shaderFrag = app->renderer.createShaderModule( "./resources/shaders/default.frag", LeShaderType::eFrag );
 
 		static auto pipelineTriangle =
 		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
@@ -191,7 +185,7 @@ static bool triangle_app_update( triangle_app_o *self ) {
 	// This means any window may trigger callbacks for any events they have callbacks registered.
 	pal::Window::pollEvents();
 
-	if ( self->window->shouldClose() ) {
+	if ( self->window.shouldClose() ) {
 		return false;
 	}
 
@@ -209,7 +203,7 @@ static bool triangle_app_update( triangle_app_o *self ) {
 
 	// Update will call all rendercallbacks in this module.
 	// the RECORD phase is guaranteed to execute - all rendercallbacks will get called.
-	self->renderer->update( mainModule );
+	self->renderer.update( mainModule );
 
 	self->frame_counter++;
 
@@ -219,10 +213,6 @@ static bool triangle_app_update( triangle_app_o *self ) {
 // ----------------------------------------------------------------------
 
 static void triangle_app_destroy( triangle_app_o *self ) {
-
-	delete self->renderer;
-	delete self->window;
-	delete self->backend;
 
 	delete ( self ); // deletes camera
 }

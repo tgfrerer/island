@@ -18,7 +18,7 @@ struct SurfaceProperties {
 };
 
 struct le_backend_swapchain_o {
-	le_swapchain_vk_settings_o mSettings;
+	le_swapchain_vk_settings_t mSettings;
 	uint32_t                   mImagecount      = 0;
 	uint32_t                   mImageIndex      = uint32_t( ~0 ); // current image index
 	vk::SwapchainKHR           mSwapchain       = nullptr;
@@ -85,6 +85,8 @@ vk::PresentModeKHR get_khr_presentmode( const le::Swapchain::Presentmode &presen
 	case ( le::Swapchain::Presentmode::eSharedContinuousRefresh ):
 	    return vk::PresentModeKHR::eSharedContinuousRefresh;
 	}
+	assert( false ); // something's wrong: control should never come here, switch needs to cover all cases.
+	return vk::PresentModeKHR::eFifo;
 }
 
 // ----------------------------------------------------------------------
@@ -106,7 +108,7 @@ static inline auto clamp( const T &val_, const T &min_, const T &max_ ) {
 
 // ----------------------------------------------------------------------
 
-static void swapchain_reset( le_backend_swapchain_o *self, const le_swapchain_vk_settings_o *settings_ ) {
+static void swapchain_reset( le_backend_swapchain_o *self, const le_swapchain_vk_settings_t *settings_ ) {
 
 	if ( settings_ ) {
 		self->mSettings = *settings_;
@@ -200,7 +202,7 @@ static void swapchain_reset( le_backend_swapchain_o *self, const le_swapchain_vk
 
 // ----------------------------------------------------------------------
 
-static le_backend_swapchain_o *swapchain_create( const le_swapchain_vk_settings_o *settings_ ) {
+static le_backend_swapchain_o *swapchain_create( const le_swapchain_vk_settings_t *settings_ ) {
 	auto self = new ( le_backend_swapchain_o );
 
 	swapchain_reset( self, settings_ );

@@ -129,9 +129,9 @@ static test_app_o *test_app_create() {
 	// create a new window
 	app->window.setup( settings );
 
-	le_swapchain_vk_settings_o swapchainSettings{};
+	le_swapchain_vk_settings_t swapchainSettings{};
 	{
-		swapchainSettings.presentmode_hint = le_swapchain_vk_settings_o::Presentmode::eImmediate;
+		swapchainSettings.presentmode_hint = le_swapchain_vk_settings_t::Presentmode::eImmediate;
 	}
 
 	le_backend_vk_settings_t backendSettings;

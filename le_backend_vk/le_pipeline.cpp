@@ -883,6 +883,8 @@ static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_ver
 	case ( le_vertex_input_binding_description::ePerVertex ):
 	    return vk::VertexInputRate::eVertex;
 	}
+	assert( false ); // something's wrong: control should never come here, switch needs to cover all cases.
+	return vk::VertexInputRate::eVertex;
 }
 
 // ----------------------------------------------------------------------

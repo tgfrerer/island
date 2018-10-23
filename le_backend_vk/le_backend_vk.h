@@ -33,7 +33,7 @@ struct le_allocator_o;
 struct graphics_pipeline_state_o; // for le_pipeline_builder
 struct le_pipeline_manager_o;
 
-struct le_swapchain_vk_settings_o;
+struct le_swapchain_vk_settings_t;
 struct pal_window_o;
 
 struct le_shader_module_o;
@@ -61,7 +61,7 @@ struct le_backend_vk_settings_t {
 	const char **               requestedExtensions    = nullptr;
 	uint32_t                    numRequestedExtensions = 0;
 	pal_window_o *              pWindow                = nullptr;
-	le_swapchain_vk_settings_o *swapchain_settings     = nullptr;
+	le_swapchain_vk_settings_t *swapchain_settings     = nullptr;
 };
 
 struct le_pipeline_layout_info {

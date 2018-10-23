@@ -282,11 +282,11 @@ static bool backend_create_window_surface( le_backend_o *self, pal_window_o *win
 
 // ----------------------------------------------------------------------
 
-static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settings_o *swapchainSettings_ ) {
+static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settings_t *swapchainSettings_ ) {
 
 	assert( self->window );
 
-	le_swapchain_vk_settings_o settings{};
+	le_swapchain_vk_settings_t settings{};
 
 	if ( swapchainSettings_ ) {
 		settings = *swapchainSettings_;

@@ -21,7 +21,7 @@ struct VkImageView_T;
 struct VkQueue_T;
 struct VkSurfaceFormatKHR;
 
-struct le_swapchain_vk_settings_o {
+struct le_swapchain_vk_settings_t {
 	enum class Presentmode : uint32_t {
 		eDefault = 0,
 		eImmediate,
@@ -47,9 +47,9 @@ struct le_swapchain_vk_api {
 
 	// clang-format off
 	struct swapchain_interface_t {
-		le_backend_swapchain_o *  ( *create                   ) ( const le_swapchain_vk_settings_o* settings_ );
+		le_backend_swapchain_o *  ( *create                   ) ( const le_swapchain_vk_settings_t* settings_ );
 		void                      ( *destroy                  ) ( le_backend_swapchain_o* self );
-		void                      ( *reset                    ) ( le_backend_swapchain_o* self, const le_swapchain_vk_settings_o* settings_ );
+		void                      ( *reset                    ) ( le_backend_swapchain_o* self, const le_swapchain_vk_settings_t* settings_ );
 		bool                      ( *present                  ) ( le_backend_swapchain_o* self, VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex);
 		bool                      ( *acquire_next_image       ) ( le_backend_swapchain_o* self, VkSemaphore_T* semaphore_, uint32_t& imageIndex_ );
 		VkSurfaceFormatKHR*       ( *get_surface_format       ) ( le_backend_swapchain_o* self );
@@ -87,10 +87,10 @@ class Swapchain {
 	le_backend_swapchain_o *self = le_swapchain_vk::swapchain_i.create( nullptr );
 
   public:
-	using Presentmode = le_swapchain_vk_settings_o::Presentmode;
+	using Presentmode = le_swapchain_vk_settings_t::Presentmode;
 
   public:
-	Swapchain( le_swapchain_vk_settings_o *settings_ )
+	Swapchain( le_swapchain_vk_settings_t *settings_ )
 	    : self( le_swapchain_vk::swapchain_i.create( settings_ ) ) {
 		le_swapchain_vk::swapchain_i.increase_reference_count( self );
 	}
@@ -120,7 +120,7 @@ class Swapchain {
 	// deactivate move assignment operator
 	Swapchain &operator=( const Swapchain && ) = delete;
 
-	void reset( le_swapchain_vk_settings_o *settings_ ) {
+	void reset( le_swapchain_vk_settings_t *settings_ ) {
 		le_swapchain_vk::swapchain_i.reset( self, settings_ );
 	}
 
