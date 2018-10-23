@@ -92,7 +92,35 @@ Where should we *declare* resources?
 
 * if we declare resources upfront, this means we have one central point
   where resources are defined.
+
+# Data + Algorithms
++ Data and algorithms ideally are orthogonal, which means that we can
+  organise our code to follow a "pipeline" or "production line" approach,
+  where data is "owned" by the algorithm that works on it, and only one
+  algorithm at a time interacts with a strictly defined subset of the
+  data. Access to data by algorithms is sequential, meaning only one
+  algorithm at a time has access to the data. 
   
++ I believe rust for example enforces this through the borrow-checker.
+  
++ For performance reasons, however, we don't necessarily want the
+  granularity of rust, we only want to make sure that each execution
+  context owns their memory resources (because that's the main reason for
+  contention/race conditions)
+
+  This means that algorithms can run, as long as their data is available,
+  in parallel, without risk of race conditions or contention.
+
+# Normal Accidents
++ Happen if systems are: 
+
+    1. Highly Complex 
+    2. Interactive 
+    3. Brittle 
+
++ We define "catastrophic" in this context as a fatal error
++ The book of the same name is worth reading
+
 ----------------------------------------------------------------------
 
 # LEARNED SO FAR:
@@ -186,6 +214,11 @@ list - that way we can be much faster at assigning resources
 - investigate intel performance primitives for multithreading
 - image writer swapchain (for post processing)
 - implement compute pipeline - and compute passes
+- refactor shader related methods/pipeline state object elements to their
+  own translation unit within backend
+- implement pipeline generation as a channeled op - per encoder first,
+  then consolidate those elements generated within a frame
+- use opaque pointer for pso object handle
 
 # Long-Term aspirations
 - reduce compile times with glm: template specialisations
@@ -200,8 +233,9 @@ list - that way we can be much faster at assigning resources
 
 # What I'm unhappy with
 - the way a lower sytem calls into a higher level system when executing
-  renderpass callbacks is too complicated - 
-- i can see no benefit in having renderpass setup being a callback 
+  renderpass callbacks is too complicated - it also appears to be a case
+  of the tail wagging the dog.
+- i can see no benefit in having renderpass setup being a callback
 - the api for declaring resources is too convoluted, and too noisy, I feel
   there is a lot of double bookkeeping going on.
 - c++ template compile times (yikes)

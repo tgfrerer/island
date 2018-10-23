@@ -24,6 +24,7 @@ struct le_command_buffer_encoder_o;
 struct le_backend_o;
 struct le_allocator_o;
 struct le_shader_module_o; ///< shader module, 1:1 relationship with a shader source file
+struct le_pipeline_manager_o;
 
 // clang-format off
 struct le_renderer_api {
@@ -33,9 +34,9 @@ struct le_renderer_api {
 
 
 	struct renderer_interface_t {
-		le_renderer_o *                ( *create                                )( le_backend_o  *backend );
+		le_renderer_o *                ( *create                                )( );
 		void                           ( *destroy                               )( le_renderer_o *obj );
-		void                           ( *setup                                 )( le_renderer_o *obj );
+		void                           ( *setup                                 )( le_renderer_o *obj, le_backend_o  *backend );
 		void                           ( *update                                )( le_renderer_o *obj, le_render_module_o *module );
 		le_shader_module_o*            ( *create_shader_module                  )( le_renderer_o *self, char const *path, LeShaderType mtype );
 
@@ -108,7 +109,7 @@ struct le_renderer_api {
 	};
 
 	struct command_buffer_encoder_interface_t {
-		le_command_buffer_encoder_o *( *create                 )( le_allocator_o *allocator );
+		le_command_buffer_encoder_o *( *create                 )( le_allocator_o *allocator, le_pipeline_manager_o* pipeline_cache );
 		void                         ( *destroy                )( le_command_buffer_encoder_o *obj );
 
 		void                         ( *draw                   )( le_command_buffer_encoder_o *self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance );
@@ -128,12 +129,12 @@ struct le_renderer_api {
 		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, LeResourceHandle const resourceId, struct LeBufferWriteRegion const &region, void const *data, size_t numBytes );
 
 		// stores ubo argument data to scratch buffer - note that parameter index must be dynamic offset index
-		void                         ( *set_argument_ubo_data  ) (le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
-		void                         ( *set_argument_texture   ) (le_command_buffer_encoder_o* self, LeResourceHandle const textureId, uint64_t argumentName, uint64_t arrayIndex);
+		void                         ( *set_argument_ubo_data  )( le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
+		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, LeResourceHandle const textureId, uint64_t argumentName, uint64_t arrayIndex);
 
+		le_pipeline_manager_o*       ( *get_pipeline_manager   )( le_command_buffer_encoder_o *self );
 		void                         ( *get_encoded_data       )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
 	};
-
 
 	renderer_interface_t               le_renderer_i;
 	renderpass_interface_t             le_renderpass_i;
@@ -217,16 +218,16 @@ class Renderer {
 	le_renderer_o *self;
 
   public:
-	Renderer( le_backend_o *backend )
-	    : self( le_renderer::renderer_i.create( backend ) ) {
+	Renderer()
+	    : self( le_renderer::renderer_i.create() ) {
 	}
 
 	~Renderer() {
 		le_renderer::renderer_i.destroy( self );
 	}
 
-	void setup() {
-		le_renderer::renderer_i.setup( self );
+	void setup( le_backend_o *backend ) {
+		le_renderer::renderer_i.setup( self, backend );
 	}
 
 	void update( le_render_module_o *module ) {
@@ -313,7 +314,7 @@ class RenderPassRef {
 	                                                                                 nullptr,
 	                                                                                 0,
 	                                                                                 {},
-                                                                                     } ) {
+                                                                                 } ) {
 		return addImageAttachment( resource_id, info );
 	}
 
@@ -378,10 +379,6 @@ class RenderModule {
 
 	void addRenderPass( le_renderpass_o *renderpass ) {
 		le_renderer::render_module_i.add_renderpass( self, renderpass );
-	}
-
-	void setupPasses( le_graph_builder_o *gb_ ) {
-		le_renderer::render_module_i.setup_passes( self, gb_ );
 	}
 };
 
@@ -470,6 +467,10 @@ class Encoder {
 	Encoder &setArgumentTexture( uint64_t const &argumentName, LeResourceHandle const &textureId, uint64_t const &arrayIndex ) {
 		le_renderer::encoder_i.set_argument_texture( self, textureId, argumentName, arrayIndex );
 		return *this;
+	}
+
+	le_pipeline_manager_o *getPipelineManager() {
+		return le_renderer::encoder_i.get_pipeline_manager( self );
 	}
 };
 // ----------------------------------------------------------------------

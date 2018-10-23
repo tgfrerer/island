@@ -39,12 +39,12 @@ struct le_mouse_event_data_o {
 };
 
 struct triangle_app_o {
-	std::unique_ptr<le::Backend>  backend;
-	std::unique_ptr<pal::Window>  window;
-	std::unique_ptr<le::Renderer> renderer;
-	uint64_t                      frame_counter = 0;
-	float                         deltaTimeSec  = 0;
-	float                         animT         = 0;
+	le::Backend  backend;
+	pal::Window  window;
+	le::Renderer renderer;
+	uint64_t     frame_counter = 0;
+	float        deltaTimeSec  = 0;
+	float        animT         = 0;
 
 	std::array<bool, 5>   mouseButtonStatus{}; // status for each mouse button
 	glm::vec2             mousePos{};          // current mouse position
@@ -96,37 +96,30 @@ static triangle_app_o *triangle_app_create() {
 	    .setTitle( "Hello world" );
 
 	// create a new window
-	app->window = std::make_unique<pal::Window>( settings );
+	app->window.setup( settings );
+
+	le_swapchain_vk_settings_t swapchainSettings;
+	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eImmediate;
 
 	le_backend_vk_settings_t backendCreateInfo;
 	backendCreateInfo.requestedExtensions = pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
+	backendCreateInfo.pWindow             = app->window;
+	backendCreateInfo.swapchain_settings  = &swapchainSettings;
 
-	app->backend = std::make_unique<le::Backend>( &backendCreateInfo );
+	app->backend.setup( &backendCreateInfo );
 
-	// We need a valid instance at this point.
-	app->backend->createWindowSurface( *app->window );
-
-	le_swapchain_vk_settings_o swapchainSettings;
-	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eImmediate;
-	swapchainSettings.imagecount_hint  = 2;
-
-	app->backend->createSwapchain( &swapchainSettings ); // TODO (swapchain) - make it possible to set swapchain parameters
-
-	app->backend->setup();
-
-	app->renderer = std::make_unique<le::Renderer>( *app->backend );
-	app->renderer->setup();
+	app->renderer.setup( app->backend );
 
 	// -- Declare graphics pipeline state objects
 
 	{
 		// create shader objects
 
-		app->shaderTriangle[ 0 ] = app->renderer->createShaderModule( "./resources/shaders/quad_bezier.vert", LeShaderType::eVert );
-		app->shaderTriangle[ 1 ] = app->renderer->createShaderModule( "./resources/shaders/quad_bezier.frag", LeShaderType::eFrag );
+		app->shaderTriangle[ 0 ] = app->renderer.createShaderModule( "./resources/shaders/quad_bezier.vert", LeShaderType::eVert );
+		app->shaderTriangle[ 1 ] = app->renderer.createShaderModule( "./resources/shaders/quad_bezier.frag", LeShaderType::eFrag );
 
-		app->shaderPathTracer[ 0 ] = app->renderer->createShaderModule( "./resources/shaders/path_tracer.vert", LeShaderType::eVert );
-		app->shaderPathTracer[ 1 ] = app->renderer->createShaderModule( "./resources/shaders/path_tracer.frag", LeShaderType::eFrag );
+		app->shaderPathTracer[ 0 ] = app->renderer.createShaderModule( "./resources/shaders/path_tracer.vert", LeShaderType::eVert );
+		app->shaderPathTracer[ 1 ] = app->renderer.createShaderModule( "./resources/shaders/path_tracer.frag", LeShaderType::eFrag );
 	}
 
 	{
@@ -135,17 +128,17 @@ static triangle_app_o *triangle_app_create() {
 		using namespace pal_window;
 		// set the callback user data for all callbacks from window *app->window
 		// to be our app pointer.
-		window_i.set_callback_user_data( *app->window, app );
+		window_i.set_callback_user_data( app->window, app );
 
 		using triangle_app::triangle_app_i;
 
-		window_i.set_key_callback( *app->window, &triangle_app_i.key_callback );
-		window_i.set_character_callback( *app->window, &triangle_app_i.character_callback );
+		window_i.set_key_callback( app->window, &triangle_app_i.key_callback );
+		window_i.set_character_callback( app->window, &triangle_app_i.character_callback );
 
-		window_i.set_cursor_position_callback( *app->window, &triangle_app_i.cursor_position_callback );
-		window_i.set_cursor_enter_callback( *app->window, &triangle_app_i.cursor_enter_callback );
-		window_i.set_mouse_button_callback( *app->window, &triangle_app_i.mouse_button_callback );
-		window_i.set_scroll_callback( *app->window, &triangle_app_i.scroll_callback );
+		window_i.set_cursor_position_callback( app->window, &triangle_app_i.cursor_position_callback );
+		window_i.set_cursor_enter_callback( app->window, &triangle_app_i.cursor_enter_callback );
+		window_i.set_mouse_button_callback( app->window, &triangle_app_i.mouse_button_callback );
+		window_i.set_scroll_callback( app->window, &triangle_app_i.scroll_callback );
 	}
 
 	app->update_start_time = std::chrono::high_resolution_clock::now();
@@ -153,8 +146,8 @@ static triangle_app_o *triangle_app_create() {
 	{
 		// Declare resources which we will need for our scene
 
-		app->resImgDepth       = app->renderer->declareResource( LeResourceType::eImage );
-		app->resBufTrianglePos = app->renderer->declareResource( LeResourceType::eBuffer );
+		app->resImgDepth       = app->renderer.declareResource( LeResourceType::eImage );
+		app->resBufTrianglePos = app->renderer.declareResource( LeResourceType::eBuffer );
 	}
 	{
 		// set up the camera
@@ -166,7 +159,7 @@ static triangle_app_o *triangle_app_create() {
 // ----------------------------------------------------------------------
 
 static void reset_camera( triangle_app_o *self ) {
-	self->camera.setViewport( {0, 0, float( self->window->getSurfaceWidth() ), float( self->window->getSurfaceHeight() ), 0.f, 1.f} );
+	self->camera.setViewport( {0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ), 0.f, 1.f} );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
@@ -250,8 +243,8 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto app = static_cast<triangle_app_o *>( user_data );
 
 	rp
-	    .addImageAttachment( app->renderer->getBackbufferResource() ) // color attachment
-	    .addDepthImageAttachment( app->resImgDepth )                  // depth attachment
+	    .addImageAttachment( app->renderer.getBackbufferResource() ) // color attachment
+	    .addDepthImageAttachment( app->resImgDepth )                 // depth attachment
 	    .useResource( app->resBufTrianglePos, LeAccessFlagBits::eLeAccessFlagBitRead )
 	    .setIsRoot( true );
 
@@ -264,8 +257,8 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	auto        app = static_cast<triangle_app_o *>( user_data );
 	le::Encoder encoder{encoder_};
 
-	auto screenWidth  = app->window->getSurfaceWidth();
-	auto screenHeight = app->window->getSurfaceHeight();
+	auto screenWidth  = app->window.getSurfaceWidth();
+	auto screenHeight = app->window.getSurfaceHeight();
 
 	le::Viewport viewports[ 3 ] = {
 	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
@@ -329,7 +322,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		inputAssemblyInfo.setTopology( vk::PrimitiveTopology::eTriangleList );
 
 		static auto pipelineTriangle =
-		    LeGraphicsPipelineBuilder( *app->backend )
+		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 		        .setVertexShader( app->shaderTriangle[ 0 ] )
 		        .setFragmentShader( app->shaderTriangle[ 1 ] )
 		        .setRasterizationInfo( rasterizationState )
@@ -337,7 +330,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		        .build();
 
 		static auto pipelinePathTracer =
-		    LeGraphicsPipelineBuilder( *app->backend )
+		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 		        .setVertexShader( app->shaderPathTracer[ 0 ] )
 		        .setFragmentShader( app->shaderPathTracer[ 1 ] )
 		        .setRasterizationInfo( rasterizationState )
@@ -437,7 +430,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 static bool triangle_app_update( triangle_app_o *self ) {
 
-	static bool resetCameraOnReload = true;
+	static bool resetCameraOnReload = false;
 
 	{
 		// update frame delta time
@@ -451,13 +444,13 @@ static bool triangle_app_update( triangle_app_o *self ) {
 	// This means any window may trigger callbacks for any events they have callbacks registered.
 	pal::Window::pollEvents();
 
-	if ( self->window->shouldClose() ) {
+	if ( self->window.shouldClose() ) {
 		return false;
 	}
 
 	{
 		// update interactive camera using mouse data
-		self->cameraController.setControlRect( 0, 0, float( self->window->getSurfaceWidth() ), float( self->window->getSurfaceHeight() ) );
+		self->cameraController.setControlRect( 0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ) );
 		self->cameraController.updateCamera( self->camera, &self->mouseData );
 	}
 
@@ -485,7 +478,7 @@ static bool triangle_app_update( triangle_app_o *self ) {
 
 	// Update will call all rendercallbacks in this module.
 	// the RECORD phase is guaranteed to execute - all rendercallbacks will get called.
-	self->renderer->update( mainModule );
+	self->renderer.update( mainModule );
 
 	self->frame_counter++;
 
@@ -514,7 +507,7 @@ static void triangle_app_key_callback( void *user_data, int key, int scancode, i
 
 	using namespace pal_window;
 	if ( key == GLFW_KEY_F11 && action == GLFW_RELEASE ) {
-		window_i.toggle_fullscreen( *app->window );
+		window_i.toggle_fullscreen( app->window );
 	}
 }
 static void triangle_app_character_callback( void *user_data, unsigned int codepoint ) {

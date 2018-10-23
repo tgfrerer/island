@@ -2,30 +2,17 @@
 
 #include "le_backend_vk/le_backend_vk.h"
 
-#include "le_backend_vk/util/spooky/SpookyV2.h" // for hashing pso state
-
 #define VMA_USE_STL_CONTAINERS 1
 #include "util/vk_mem_alloc/vk_mem_alloc.h" // for allocation
-
-#define VULKAN_HPP_NO_SMART_HANDLE
-#include <vulkan/vulkan.hpp>
 
 #include "le_backend_vk/le_backend_types_internal.h"
 
 #include "le_swapchain_vk/le_swapchain_vk.h"
-
 #include "pal_window/pal_window.h"
-
-#include "pal_file_watcher/pal_file_watcher.h" // for watching shader source files
-
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/le_renderer_types.h"
 
-#include "le_shader_compiler/le_shader_compiler.h"
-
-#include "experimental/filesystem" // for parsing shader source file paths
-#include <fstream>                 // for reading shader source files
-#include <cstring>                 // for memcpy
+#include "le_backend_vk/util/spooky/SpookyV2.h" // for hashing renderpass gestalt
 
 #include <vector>
 #include <unordered_map>
@@ -39,194 +26,9 @@
 
 #include <memory>
 
-#include "util/spirv-cross/spirv_cross.hpp"
-
 #ifndef PRINT_DEBUG_MESSAGES
 #	define PRINT_DEBUG_MESSAGES false
 #endif
-
-namespace std {
-using namespace experimental;
-}
-
-// clang-format off
-// FIXME: microsoft places members in bitfields low to high (LSB first)
-// and gcc appears to do the same - sorting is based on this assumption, and we must somehow test for it when compiling.
-struct le_shader_binding_info {
-	union {
-		struct{
-		uint64_t dynamic_offset_idx :  8; // only used when binding pipeline
-		uint64_t stage_bits         :  6; // vkShaderFlags : which stages this binding is used for (must be at least 6 bits wide)
-		uint64_t range              : 27; // only used for ubos (sizeof ubo)
-		uint64_t type               :  4; // vkDescriptorType descriptor type
-		uint64_t count              :  8; // number of elements
-		uint64_t binding            :  8; // |\                           : binding index within set
-		uint64_t setIndex           :  3; // |/ keep together for sorting : set index [0..7]
-		};
-		uint64_t data;
-	};
-
-	uint64_t name_hash; // const_char_hash of parameter name as given in shader
-
-	bool operator < ( le_shader_binding_info const & lhs ){
-		return data < lhs.data;
-	}
-};
-// clang-format on
-
-// Everything a possible vulkan descriptor binding might contain.
-// Type of descriptor decides which values will be used.
-
-struct DescriptorData {
-	// NOTE: explore use of union of DescriptorImageInfo/DescriptorBufferInfo to tighten this up/simplify
-	vk::Sampler        sampler       = nullptr;                                   // |
-	vk::ImageView      imageView     = nullptr;                                   // | > keep in this order, so we can pass address for sampler as descriptorImageInfo
-	vk::ImageLayout    imageLayout   = vk::ImageLayout::eShaderReadOnlyOptimal;   // |
-	vk::DescriptorType type          = vk::DescriptorType::eUniformBufferDynamic; //
-	vk::Buffer         buffer        = nullptr;                                   // |
-	vk::DeviceSize     offset        = 0;                                         // | > keep in this order, as we can cast this to a DescriptorBufferInfo
-	vk::DeviceSize     range         = VK_WHOLE_SIZE;                             // |
-	uint32_t           bindingNumber = 0;                                         // <-- may be sparse, may repeat (for arrays of images bound to the same binding), but must increase monotonically (may only repeat or up over the series inside the samplerBindings vector).
-	uint32_t           arrayIndex    = 0;                                         // <-- must be in sequence for array elements of same binding
-};
-
-struct le_shader_module_o {
-	uint64_t                                         hash                = 0;     ///< hash taken from spirv code + filepath hash
-	uint64_t                                         hash_file_path      = 0;     ///< hash taken from filepath (canonical)
-	uint64_t                                         hash_pipelinelayout = 0;     ///< hash taken from descriptors over all sets
-	std::vector<le_shader_binding_info>              bindings;                    ///< info for each binding, sorted asc.
-	std::vector<uint32_t>                            spirv    = {};               ///< spirv source code for this module
-	std::filesystem::path                            filepath = {};               ///< path to source file
-	std::vector<std::string>                         vertexAttributeNames;        ///< (used for debug only) name for vertex attribute
-	std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions; ///< descriptions gathered from reflection if shader type is vertex
-	std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;   ///< descriptions gathered from reflection if shader type is vertex
-	vk::ShaderModule                                 module = nullptr;
-	LeShaderType                                     stage  = LeShaderType::eNone;
-};
-
-struct AbstractPhysicalResource {
-	enum Type : uint64_t {
-		eUndefined = 0,
-		eBuffer,
-		eImage,
-		eImageView,
-		eSampler,
-		eFramebuffer,
-		eRenderPass,
-	};
-	union {
-		uint64_t      asRawData;
-		VkBuffer      asBuffer;
-		VkImage       asImage;
-		VkImageView   asImageView;
-		VkSampler     asSampler;
-		VkFramebuffer asFramebuffer;
-		VkRenderPass  asRenderPass;
-	};
-	Type type;
-};
-
-/// \brief re-interpretation of resource handle type
-/// \note we assume little-endian machine
-struct LeResourceHandleMeta {
-	enum FlagBits : uint8_t {
-		eIsVirtual = 1u << 0,
-	};
-
-	union {
-		struct {
-			uint32_t id; // unique identifier
-			struct {
-				LeResourceType type;  // tells us type of resource
-				uint8_t        flags; // composed of FlagBits
-				uint8_t        index; // used for virtual buffers to refer to corresponding le_allocator index
-				uint8_t        padding;
-			};
-		};
-		uint64_t data;
-	};
-};
-
-struct AttachmentInfo {
-	LeResourceHandle      resource_id = nullptr; ///< which resource to look up for resource state
-	vk::Format            format;
-	vk::AttachmentLoadOp  loadOp;
-	vk::AttachmentStoreOp storeOp;
-	vk::ClearValue        clearValue;         ///< either color or depth clear value, only used if loadOp is eClear
-	uint16_t              initialStateOffset; ///< state of resource before entering the renderpass
-	uint16_t              finalStateOffset;   ///< state of resource after exiting the renderpass
-};
-
-struct Pass {
-
-	AttachmentInfo attachments[ 16 ]; // maximum of 16 color output attachments
-	uint16_t       numColorAttachments;
-	uint16_t       numDepthStencilAttachments;
-
-	LeRenderPassType type;
-
-	vk::Framebuffer framebuffer;
-	vk::RenderPass  renderPass;
-	uint32_t        width;
-	uint32_t        height;
-	uint64_t        renderpassHash; ///< spooky hash of elements that could influence renderpass compatibility
-
-	struct le_command_buffer_encoder_o *encoder;
-};
-
-struct ResourceInfo {
-	// since this is a union, the first field will for both be VK_STRUCTURE_TYPE
-	// and its value will tell us what type the descriptor represents.
-	union {
-		VkBufferCreateInfo bufferInfo; // | only one of either ever in use
-		VkImageCreateInfo  imageInfo;  // | only one of either ever in use
-	};
-
-	bool operator==( const ResourceInfo &rhs ) const {
-		if ( bufferInfo.sType == rhs.bufferInfo.sType ) {
-
-			if ( bufferInfo.sType == VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO ) {
-
-				return ( bufferInfo.flags == rhs.bufferInfo.flags &&
-				         bufferInfo.size == rhs.bufferInfo.size &&
-				         bufferInfo.usage == rhs.bufferInfo.usage &&
-				         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode &&
-				         bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
-				         bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices );
-
-			} else {
-
-				return ( imageInfo.flags == rhs.imageInfo.flags &&
-				         imageInfo.imageType == rhs.imageInfo.imageType &&
-				         imageInfo.format == rhs.imageInfo.format &&
-				         imageInfo.extent.width == rhs.imageInfo.extent.width &&
-				         imageInfo.extent.height == rhs.imageInfo.extent.height &&
-				         imageInfo.extent.depth == rhs.imageInfo.extent.depth &&
-				         imageInfo.mipLevels == rhs.imageInfo.mipLevels &&
-				         imageInfo.arrayLayers == rhs.imageInfo.arrayLayers &&
-				         imageInfo.samples == rhs.imageInfo.samples &&
-				         imageInfo.tiling == rhs.imageInfo.tiling &&
-				         imageInfo.usage == rhs.imageInfo.usage &&
-				         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
-				         imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
-				         imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices &&
-				         imageInfo.initialLayout == rhs.imageInfo.initialLayout );
-			}
-
-		} else {
-			// not the same type of descriptor
-			return false;
-		}
-	}
-
-	bool operator!=( const ResourceInfo &rhs ) const {
-		return !operator==( rhs );
-	}
-
-	bool isBuffer() const {
-		return bufferInfo.sType == VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	}
-};
 
 struct AllocatedResource {
 	VmaAllocation     allocation;
@@ -281,7 +83,7 @@ struct BackendFrameData {
 	/// \brief vk resources retained and destroyed with BackendFrameData
 	std::forward_list<AbstractPhysicalResource> ownedResources;
 
-	std::vector<Pass>               passes;
+	std::vector<LeRenderPass>       passes;
 	std::vector<vk::DescriptorPool> descriptorPools; // one descriptor pool per pass
 
 	/*
@@ -305,59 +107,6 @@ struct BackendFrameData {
 };
 
 // ----------------------------------------------------------------------
-struct le_descriptor_set_layout_t {
-	std::vector<le_shader_binding_info> binding_info;                  // binding info for this set
-	vk::DescriptorSetLayout             vk_descriptor_set_layout;      // vk object
-	vk::DescriptorUpdateTemplate        vk_descriptor_update_template; // template used to update such a descriptorset based on descriptor data laid out in flat DescriptorData elements
-};
-
-struct le_pipeline_layout_info {
-	uint64_t pipeline_layout_key  = 0;  // handle to pipeline layout
-	uint64_t set_layout_keys[ 8 ] = {}; // maximum number of DescriptorSets is 8
-	uint64_t set_layout_count     = 0;  // number of actually used DescriptorSetLayouts for this layout
-};
-
-struct le_pipeline_and_layout_info_t {
-	vk::Pipeline            pipeline;
-	le_pipeline_layout_info layout_info;
-};
-
-struct pipeline_cache_o {
-	// TODO: These resources are potentially in-flight, and may be used read-only
-	// by more than one frame - but they can only be written to one thread at a time.
-
-	vk::PipelineCache vulkanCache = nullptr;
-
-	// written by: `backend_create_grapics_pipeline_state_object`,
-	std::unordered_map<uint64_t, graphics_pipeline_state_o *> PSOs; // indexed by gpso hash
-
-	// read    by: `backend_get_pipeline_layout`
-	//             `backend_process_frame`
-	//             `backend_produce_pipeline_layout_info`
-	//
-	// written by: `backend_produce_pipeline_layout_info`
-	std::unordered_map<uint64_t, vk::Pipeline, IdentityHash> pipelines;
-
-	// read    by: `backend_produce_pipeline`
-	//
-	// written by: `backend_produce_pipeline`
-	std::unordered_map<uint64_t, le_pipeline_layout_info, IdentityHash> pipelineLayoutInfos;
-
-	// read by   : `backend_process_frame`,
-	//             `backend_produce_descriptor_set_layout`
-	//
-	// written by: `backend_produce_descriptor_set_layout`
-	std::unordered_map<uint64_t, le_descriptor_set_layout_t, IdentityHash> descriptorSetLayouts; // indexed by le_shader_bindings_info[] hash
-
-	// read by   : `backend_get_pipeline_layout`
-	//             `backend_process_frame`
-	//             `backend_produce_pipeline_layout_info`
-	//
-	// written by: `backend_produce_pipeline_layout_info`
-	std::unordered_map<uint64_t, vk::PipelineLayout, IdentityHash> pipelineLayouts; // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
-};
-
-// ----------------------------------------------------------------------
 
 /// \brief backend data object
 struct le_backend_o {
@@ -373,13 +122,7 @@ struct le_backend_o {
 
 	std::vector<BackendFrameData> mFrames;
 
-	std::vector<le_shader_module_o *>                               shaderModules;         // OWNING. Stores all shader modules used in backend.
-	std::unordered_map<std::string, std::set<le_shader_module_o *>> moduleDependencies;    // map 'canonical shader source file path' -> [shader modules]
-	std::set<le_shader_module_o *>                                  modifiedShaderModules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
-	le_shader_compiler_o *                                          shader_compiler   = nullptr;
-	pal_file_watcher_o *                                            shaderFileWatcher = nullptr;
-
-	pipeline_cache_o pipelineCache{};
+	le_pipeline_manager_o *pipelineCache = nullptr;
 
 	VmaAllocator mAllocator = nullptr;
 
@@ -408,6 +151,8 @@ static inline VkAttachmentStoreOp le_to_vk( const LeAttachmentStoreOp &lhs ) {
 	case ( LE_ATTACHMENT_STORE_OP_DONTCARE ):
 	    return VK_ATTACHMENT_STORE_OP_DONT_CARE;
 	}
+	assert( false ); // if control ends here, something is wrong, as switch must cover all cases
+	return VK_ATTACHMENT_STORE_OP_DONT_CARE;
 }
 
 // ----------------------------------------------------------------------
@@ -420,6 +165,8 @@ static inline VkAttachmentLoadOp le_to_vk( const LeAttachmentLoadOp &lhs ) {
 	case ( LE_ATTACHMENT_LOAD_OP_DONTCARE ):
 	    return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 	}
+	assert( false ); // if control ends here, something is wrong, as switch must cover all cases
+	return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
 }
 
 // ----------------------------------------------------------------------
@@ -430,591 +177,15 @@ static inline const vk::ClearValue &le_to_vk( const LeClearValue &lhs ) {
 }
 
 // ----------------------------------------------------------------------
-template <typename T>
-static constexpr typename std::underlying_type<T>::type enumToNum( const T &enumVal ) {
-	return static_cast<typename std::underlying_type<T>::type>( enumVal );
-};
-
-// ----------------------------------------------------------------------
 
 static inline bool is_depth_stencil_format( vk::Format format_ ) {
 	return ( format_ >= vk::Format::eD16Unorm && format_ <= vk::Format::eD32SfloatS8Uint );
 }
 
 // ----------------------------------------------------------------------
-/// \brief   file loader utility method
-/// \details loads file given by filepath and returns a vector of chars if successful
-/// \note    returns an empty vector if not successful
-static std::vector<char> load_file( const std::filesystem::path &file_path, bool *success ) {
 
-	std::vector<char> contents;
-
-	size_t        fileSize = 0;
-	std::ifstream file( file_path, std::ios::in | std::ios::binary | std::ios::ate );
-
-	if ( !file.is_open() ) {
-		std::cerr << "Unable to open file: " << std::filesystem::canonical( file_path ) << std::endl
-		          << std::flush;
-		*success = false;
-		return contents;
-	}
-
-	//	std::cout << "OK Opened file:" << std::filesystem::canonical( file_path ) << std::endl
-	//	          << std::flush;
-
-	// ----------| invariant: file is open
-
-	auto endOfFilePos = file.tellg();
-
-	if ( endOfFilePos > 0 ) {
-		fileSize = size_t( endOfFilePos );
-	} else {
-		*success = false;
-		return contents;
-	}
-
-	// ----------| invariant: file has some bytes to read
-	contents.resize( fileSize );
-
-	file.seekg( 0, std::ios::beg );
-	file.read( contents.data(), endOfFilePos );
-	file.close();
-
-	*success = true;
-	return contents;
-}
-
-// ----------------------------------------------------------------------
-
-static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
-
-	struct SpirVHeader {
-		uint32_t magic; // Spirv magic number
-		union {         // Spir-V version number, bytes (high to low): [0x00, major, minor, 0x00]
-			struct {
-				uint8_t padding_low;
-				uint8_t version_minor;
-				uint8_t version_major;
-				uint8_t padding_hi;
-			};
-			uint32_t version_number;
-		};
-		uint32_t gen_magic; // Generator magic number
-		uint32_t bound;     //
-		uint32_t reserved;  // Reserved
-	} file_header;
-
-	if ( data_size < sizeof( SpirVHeader ) ) {
-		// Ahem, file does not even contain a header, what were you thinking?
-		return false;
-	}
-
-	// ----------| invariant: file contains enough bytes for a valid file header
-
-	static const uint32_t SPIRV_MAGIC = 0x07230203; // magic number for spir-v files, see: <https://www.khronos.org/registry/spir-v/specs/unified1/SPIRV.html#_a_id_physicallayout_a_physical_layout_of_a_spir_v_module_and_instruction>
-
-	memcpy( &file_header, raw_data, sizeof( file_header ) );
-
-	if ( file_header.magic == SPIRV_MAGIC ) {
-		return true;
-	} else {
-		// Invalid file header for spir-v file.
-		//		std::cerr << "ERROR: Invalid header for SPIR-V file detected." << std::endl
-		//		          << std::flush;
-		return false;
-	}
-}
-
-// ----------------------------------------------------------------------
-
-/// \brief translate a binary blob into spirv code if possible
-/// \details Blob may be raw spirv data, or glsl data
-static void backend_translate_to_spirv_code( le_backend_o *self, void *raw_data, size_t numBytes, LeShaderType moduleType, const char *original_file_name, std::vector<uint32_t> &spirvCode, std::set<std::string> &includesSet ) {
-
-	if ( check_is_data_spirv( raw_data, numBytes ) ) {
-		spirvCode.resize( numBytes / 4 );
-		memcpy( spirvCode.data(), raw_data, numBytes );
-	} else {
-		// Data is not spirv - is it glsl, perhaps?
-
-		using namespace le_shader_compiler; // for compiler_i
-
-		auto compileResult = compiler_i.compile_source( self->shader_compiler, static_cast<const char *>( raw_data ), numBytes, moduleType, original_file_name );
-
-		if ( compiler_i.get_result_success( compileResult ) == true ) {
-			const char *addr;
-			size_t      res_sz;
-			compiler_i.get_result_bytes( compileResult, &addr, &res_sz );
-			spirvCode.resize( res_sz / 4 );
-			memcpy( spirvCode.data(), addr, res_sz );
-
-			// -- grab a list of includes which this compilation unit depends on:
-
-			const char *pStr;
-			size_t      strSz = 0;
-
-			while ( compiler_i.get_result_includes( compileResult, &pStr, &strSz ) ) {
-				// -- update set of includes for this module
-				includesSet.emplace( pStr, strSz );
-			}
-		}
-
-		// release compile result object
-		compiler_i.release_result( compileResult );
-	}
-}
-
-// ----------------------------------------------------------------------
-
-// Flags all modules which are affected by a change in shader_source_file_path,
-// and adds them to a set of shader modules wich need to be recompiled.
-static void backend_flag_affected_modules_for_source_path( le_backend_o *self, const char *shader_source_file_path ) {
-	// find all modules from dependencies set
-	// insert into list of modified modules.
-
-	if ( 0 == self->moduleDependencies.count( shader_source_file_path ) ) {
-		// -- no matching dependencies.
-		std::cout << "Shader code update detected, but no modules using shader source file: " << shader_source_file_path << std::endl
-		          << std::flush;
-		return;
-	}
-
-	// ---------| invariant: at least one module depends on this shader source file.
-
-	auto const &moduleDependencies = self->moduleDependencies[ shader_source_file_path ];
-
-	// -- add all affected modules to the set of modules which depend on this shader source file.
-
-	for ( auto const &m : moduleDependencies ) {
-		self->modifiedShaderModules.insert( m );
-	}
-};
-
-// ----------------------------------------------------------------------
-
-static void backend_set_module_dependencies_for_watched_file( le_backend_o *self, le_shader_module_o *module, std::set<std::string> &sourcePaths ) {
-
-	// To be able to tell quick which modules need to be recompiled if a source file changes,
-	// we build a table from source file -> array of modules
-
-	for ( const auto &s : sourcePaths ) {
-
-		// If no previous entry for this source path existed, we must insert a watch for this path
-		// the watch will call a backend method which figures out how many modules were affected.
-		if ( 0 == self->moduleDependencies.count( s ) ) {
-
-			// this is the first time this file appears on our radar. Let's create a file watcher for it.
-			static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
-
-			pal_file_watcher_watch_settings settings;
-			settings.filePath           = s.c_str();
-			settings.callback_user_data = self;
-			settings.callback_fun       = []( const char *path, void *user_data ) -> bool {
-				auto backend = static_cast<le_backend_o *>( user_data );
-				// call a method on backend to tell it that the file path has changed.
-				// backend to figure out which modules are affected.
-				backend_flag_affected_modules_for_source_path( backend, path );
-				return true;
-			};
-			file_watcher_i.add_watch( self->shaderFileWatcher, settings );
-		}
-
-		std::cout << std::hex << module << " : " << s << std::endl
-		          << std::flush;
-
-		self->moduleDependencies[ s ].insert( module );
-	}
-}
-
-// ----------------------------------------------------------------------
-/// \returns stride (in Bytes) for a given spirv type object
-static uint32_t spirv_type_get_stride( const spirv_cross::SPIRType &spir_type ) {
-	// NOTE: spir_type.width is given in bits
-	return ( spir_type.width / 8 ) * spir_type.vecsize * spir_type.columns;
-}
-
-// clang-format off
-// ----------------------------------------------------------------------
-/// \returns corresponding vk::Format for a given spirv type object
-static vk::Format spirv_type_get_vk_format( const spirv_cross::SPIRType &spirv_type ) {
-
-	if ( spirv_type.columns != 1 ){
-		assert(false); // columns must be 1 for a vkFormat
-		return vk::Format::eUndefined;
-	}
-
-	// ----------| invariant: columns == 1
-
-	switch ( spirv_type.basetype ) {
-	case spirv_cross::SPIRType::Float:
-		switch ( spirv_type.vecsize ) {
-		case 4: return vk::Format::eR32G32B32A32Sfloat;
-		case 3: return vk::Format::eR32G32B32Sfloat;
-		case 2: return vk::Format::eR32G32Sfloat;
-		case 1: return vk::Format::eR32Sfloat;
-		}
-	    break;
-	case spirv_cross::SPIRType::Half:
-		switch ( spirv_type.vecsize ) {
-		case 4: return vk::Format::eR16G16B16A16Sfloat;
-		case 3: return vk::Format::eR16G16B16Sfloat;
-		case 2: return vk::Format::eR16G16Sfloat;
-		case 1: return vk::Format::eR16Sfloat;
-		}
-	    break;
-	case spirv_cross::SPIRType::Int:
-		switch ( spirv_type.vecsize ) {
-		case 4: return vk::Format::eR32G32B32A32Sint;
-		case 3: return vk::Format::eR32G32B32Sint;
-		case 2: return vk::Format::eR32G32Sint;
-		case 1: return vk::Format::eR32Sint;
-		}
-	    break;
-	case spirv_cross::SPIRType::UInt:
-		switch ( spirv_type.vecsize ) {
-		case 4: return vk::Format::eR32G32B32A32Uint;
-		case 3: return vk::Format::eR32G32B32Uint;
-		case 2: return vk::Format::eR32G32Uint;
-		case 1: return vk::Format::eR32Uint;
-		}
-	    break;
-	case spirv_cross::SPIRType::Char:
-		switch ( spirv_type.vecsize ) {
-		case 4: return vk::Format::eR8G8B8A8Unorm;
-		case 3: return vk::Format::eR8G8B8Unorm;
-		case 2: return vk::Format::eR8G8Unorm;
-		case 1: return vk::Format::eR8Unorm;
-		}
-	    break;
-	default:
-		assert(false); // format not covered by switch case.
-	break;
-	}
-
-	assert(false); // something went wrong.
-	return vk::Format::eUndefined;
-}
-// clang-format on
-
-// ----------------------------------------------------------------------
-
-static void shader_module_update_reflection( le_shader_module_o *module ) {
-
-	std::vector<le_shader_binding_info>              bindings;                    // <- gets stored in module at end
-	std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions; // <- gets stored in module at end
-	std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;   // <- gets stored in module at end
-	std::vector<std::string>                         vertexAttributeNames;        // <- gets stored in module at end
-
-	static_assert( sizeof( le_shader_binding_info ) == sizeof( uint64_t ) * 2, "Shader binding info must be the same size as 2 * uint64_t" );
-
-	spirv_cross::Compiler compiler( module->spirv );
-
-	// The SPIR-V is now parsed, and we can perform reflection on it.
-	spirv_cross::ShaderResources resources = compiler.get_shader_resources();
-
-	{ // -- find out max number of bindings
-		size_t bindingsCount = resources.uniform_buffers.size() +
-		                       resources.storage_buffers.size() +
-		                       resources.storage_images.size() +
-		                       resources.sampled_images.size();
-
-		bindings.reserve( bindingsCount );
-	}
-
-	// If this shader module represents a vertex shader, get
-	// stage_inputs, as these represent vertex shader inputs.
-	if ( module->stage == LeShaderType::eVert ) {
-
-		uint32_t location = 0; // shader location qualifier mapped to binding number
-
-		// NOTE:  resources.stage_inputs means inputs to this shader stage
-		//		  resources.stage_outputs means outputs from this shader stage.
-		vertexAttributeDescriptions.reserve( resources.stage_inputs.size() );
-		vertexBindingDescriptions.reserve( resources.stage_inputs.size() );
-		vertexAttributeNames.reserve( resources.stage_inputs.size() );
-
-		// NOTE: we assume that stage_inputs are ordered ASC by location
-		for ( auto const &stageInput : resources.stage_inputs ) {
-
-			if ( compiler.get_decoration_bitset( stageInput.id ).get( spv::DecorationLocation ) ) {
-				location = compiler.get_decoration( stageInput.id, spv::DecorationLocation );
-			}
-
-			auto const &attributeType = compiler.get_type( stageInput.type_id );
-
-			// We create one binding description for each attribute description,
-			// which means that vertex input is assumed to be not interleaved.
-			//
-			// User may override reflection-generated vertex input by explicitly
-			// specifying vertex input when creating pipeline.
-
-			vk::VertexInputAttributeDescription inputAttributeDescription{};
-			vk::VertexInputBindingDescription   vertexBindingDescription{};
-
-			inputAttributeDescription
-			    .setLocation( location )                                // by default, we assume one buffer per location
-			    .setBinding( location )                                 // by default, we assume one buffer per location
-			    .setFormat( spirv_type_get_vk_format( attributeType ) ) // best guess, derived from spirv_type
-			    .setOffset( 0 );                                        // non-interleaved means offset must be 0
-
-			vertexBindingDescription
-			    .setBinding( location )
-			    .setInputRate( vk::VertexInputRate::eVertex )
-			    .setStride( spirv_type_get_stride( attributeType ) );
-
-			vertexAttributeDescriptions.emplace_back( std::move( inputAttributeDescription ) );
-			vertexBindingDescriptions.emplace_back( std::move( vertexBindingDescription ) );
-			vertexAttributeNames.emplace_back( stageInput.name );
-
-			++location;
-		}
-
-		// store vertex input info with module
-
-		module->vertexAttributeDescriptions = std::move( vertexAttributeDescriptions );
-		module->vertexBindingDescriptions   = std::move( vertexBindingDescriptions );
-		module->vertexAttributeNames        = std::move( vertexAttributeNames );
-	}
-
-	// -- Get all sampled images in the shader
-	for ( auto const &resource : resources.sampled_images ) {
-		// TODO: how do we deal with arrays of images?
-		// it is well possible that spirv cross reports each image individually, giving it an index.
-		le_shader_binding_info info{};
-
-		info.setIndex   = compiler.get_decoration( resource.id, spv::DecorationDescriptorSet );
-		info.binding    = compiler.get_decoration( resource.id, spv::DecorationBinding );
-		info.type       = enumToNum( vk::DescriptorType::eCombinedImageSampler ); // Note: sampled_images corresponds to combinedImageSampler, separate_[image|sampler] corresponds to image, and sampler being separate
-		info.stage_bits = enumToNum( module->stage );
-		info.count      = 1;
-		info.name_hash  = hash_64_fnv1a( resource.name.c_str() );
-
-		bindings.emplace_back( std::move( info ) );
-	}
-
-	// -- Get all uniform buffers in shader
-	for ( auto const &resource : resources.uniform_buffers ) {
-		le_shader_binding_info info{};
-
-		info.setIndex   = compiler.get_decoration( resource.id, spv::DecorationDescriptorSet );
-		info.binding    = compiler.get_decoration( resource.id, spv::DecorationBinding );
-		info.type       = enumToNum( vk::DescriptorType::eUniformBufferDynamic );
-		info.count      = 1;
-		info.stage_bits = enumToNum( module->stage );
-		info.name_hash  = hash_64_fnv1a( resource.name.c_str() );
-		info.range      = compiler.get_declared_struct_size( compiler.get_type( resource.type_id ) );
-
-		bindings.emplace_back( std::move( info ) );
-	}
-
-	// -- Get all storage buffers in shader
-	for ( auto &resource : resources.storage_buffers ) {
-		le_shader_binding_info info{};
-
-		info.setIndex   = compiler.get_decoration( resource.id, spv::DecorationDescriptorSet );
-		info.binding    = compiler.get_decoration( resource.id, spv::DecorationBinding );
-		info.type       = enumToNum( vk::DescriptorType::eStorageBufferDynamic );
-		info.count      = 1;
-		info.stage_bits = enumToNum( module->stage );
-
-		bindings.emplace_back( std::move( info ) );
-	}
-
-	// Sort bindings - this makes it easier for us to link shader stages together
-	std::sort( bindings.begin(), bindings.end() ); // we're sorting shader bindings by set, binding ASC
-
-	// -- calculate hash over bindings
-	module->hash_pipelinelayout = SpookyHash::Hash64( bindings.data(), sizeof( le_shader_binding_info ) * bindings.size(), 0 );
-
-	// -- store bindings with module
-	module->bindings = std::move( bindings );
-}
-
-// ----------------------------------------------------------------------
-/// \brief create vulkan shader module based on file path
-static le_shader_module_o *backend_create_shader_module( le_backend_o *self, char const *path, LeShaderType moduleType ) {
-
-	// This method gets called through the renderer - it is assumed during the setup stage.
-
-	bool loadSuccessful = false;
-	auto raw_file_data  = load_file( path, &loadSuccessful ); // returns a raw byte vector
-
-	if ( !loadSuccessful ) {
-		return nullptr;
-	}
-
-	// ---------| invariant: load was successful
-
-	// We use the canonical path to store a fingerprint of the file
-	auto     canonical_path_as_string = std::filesystem::canonical( path ).string();
-	uint64_t file_path_hash           = SpookyHash::Hash64( canonical_path_as_string.data(), canonical_path_as_string.size(), 0x0 );
-
-	// -- Make sure the file contains spir-v code.
-
-	std::vector<uint32_t> spirv_code;
-	std::set<std::string> includesSet = {{canonical_path_as_string}}; // let first element be the source file path
-
-	backend_translate_to_spirv_code( self, raw_file_data.data(), raw_file_data.size(), moduleType, path, spirv_code, includesSet );
-
-	// FIXME: we need to check spirv code is ok, that compilation succeeded.
-
-	le_shader_module_o *module = new le_shader_module_o{};
-
-	module->stage          = moduleType;
-	module->filepath       = canonical_path_as_string;
-	module->hash_file_path = file_path_hash;
-	module->hash           = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module->hash_file_path );
-
-	{
-		// -- Check if module is already present in render module cache.
-
-		auto found_module = std::find_if( self->shaderModules.begin(), self->shaderModules.end(), [module]( const le_shader_module_o *m ) -> bool {
-			return module->hash == m->hash;
-		} );
-
-		// -- If module found in cache, return cached module, discard local module
-
-		if ( found_module != self->shaderModules.end() ) {
-			delete module;
-			return *found_module;
-		}
-	}
-
-	// ---------| invariant: no previous module with this hash exists
-
-	module->spirv = std::move( spirv_code );
-
-	{
-		// -- create vulkan shader object
-		vk::Device device = self->device->getVkDevice();
-		// flags must be 0 (reserved for future use), size is given in bytes
-		vk::ShaderModuleCreateInfo createInfo( vk::ShaderModuleCreateFlags(), module->spirv.size() * sizeof( uint32_t ), module->spirv.data() );
-
-		module->module = device.createShaderModule( createInfo );
-	}
-
-	shader_module_update_reflection( module );
-
-	// -- retain module in renderer
-	self->shaderModules.push_back( module );
-
-	// -- add all source files for this file to the list of watched
-	//    files that point back to this module
-	backend_set_module_dependencies_for_watched_file( self, module, includesSet );
-
-	return module;
-}
-
-// ----------------------------------------------------------------------
-
-static void backend_shader_module_update( le_backend_o *self, le_shader_module_o *module ) {
-
-	// Shader module needs updating if shader code has changed.
-	// if this happens, a new vulkan object for the module must be crated.
-
-	// The module must be locked for this, as we need exclusive access just in case the module is
-	// in use by the frame recording thread, which may want to create pipelines.
-	//
-	// Vulkan Lifetimes require us only to keep module alive for as long as a pipeline is being
-	// generated from it. This means we "only" need to protect against any threads which might be
-	// creating pipelines.
-
-	// -- get module spirv code
-	bool loadSuccessful = false;
-	auto source_text    = load_file( module->filepath, &loadSuccessful );
-
-	if ( !loadSuccessful ) {
-		// file could not be loaded. bail out.
-		return;
-	}
-
-	std::vector<uint32_t> spirv_code;
-	std::set<std::string> includesSet;
-
-	backend_translate_to_spirv_code( self, source_text.data(), source_text.size(), module->stage, module->filepath.c_str(), spirv_code, includesSet );
-
-	if ( spirv_code.empty() ) {
-		// no spirv code available, bail out.
-		return;
-	}
-
-	// -- check spirv code hash against module spirv hash
-	uint64_t hash_of_module = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module->hash_file_path );
-
-	if ( hash_of_module == module->hash ) {
-		// spirv code identical, no update needed, bail out.
-		return;
-	}
-
-	// -- update module hash
-	module->hash = hash_of_module;
-
-	// -- update additional include paths, if necessary.
-	backend_set_module_dependencies_for_watched_file( self, module, includesSet );
-
-	// ---------| Invariant: new spir-v code detected.
-
-	// -- if hash doesn't match, delete old vk module, create new vk module
-	vk::Device device = self->device->getVkDevice();
-
-	// -- store new spir-v code
-	module->spirv = std::move( spirv_code );
-
-	// -- update bindings via spirv-cross, and update bindings hash
-	shader_module_update_reflection( module );
-
-	// -- delete old vulkan shader module object
-	// Q: Should we rather defer deletion? In case that this module is in use?
-	// A: Not really - according to spec module must only be alife while pipeline is being compiled.
-	//    If we can guarantee that no other process is using this module at the moment to compile a
-	//    Pipeline, we can safely delete it.
-	device.destroyShaderModule( module->module );
-	module->module = nullptr;
-
-	// -- create new vulkan shader module object
-	vk::ShaderModuleCreateInfo createInfo( vk::ShaderModuleCreateFlags(), module->spirv.size() * sizeof( uint32_t ), module->spirv.data() );
-	module->module = device.createShaderModule( createInfo );
-}
-
-// ----------------------------------------------------------------------
-// this method is called via renderer::update - before frame processing.
-static void backend_update_shader_modules( le_backend_o *self ) {
-
-	// -- find out which shader modules have been tainted
-	static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
-
-	// this will call callbacks on any watched file objects as a side effect
-	// callbacks will modify le_backend->modifiedShaderModules
-	file_watcher_i.poll_notifications( self->shaderFileWatcher );
-
-	// -- update only modules which have been tainted
-
-	for ( auto &s : self->modifiedShaderModules ) {
-		backend_shader_module_update( self, s );
-	}
-
-	self->modifiedShaderModules.clear();
-}
-
-// ----------------------------------------------------------------------
-
-static le_backend_o *backend_create( le_backend_vk_settings_t *settings ) {
-	auto self = new le_backend_o; // todo: leDevice must have been introduced here...
-
-	self->settings = *settings;
-
-	self->instance = std::make_unique<le::Instance>( self->settings.requestedExtensions, self->settings.numRequestedExtensions );
-	self->device   = std::make_unique<le::Device>( *self->instance );
-
-	// -- create shader compiler
-
-	static auto &shader_compiler_i = Registry::getApi<le_shader_compiler_api>()->compiler_i;
-	self->shader_compiler          = shader_compiler_i.create();
-
-	// -- create file watcher for shader files so that changes can be detected
-	static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
-	self->shaderFileWatcher     = file_watcher_i.create();
-
+static le_backend_o *backend_create() {
+	auto self = new le_backend_o;
 	return self;
 }
 
@@ -1022,66 +193,13 @@ static le_backend_o *backend_create( le_backend_vk_settings_t *settings ) {
 
 static void backend_destroy( le_backend_o *self ) {
 
-	using namespace le_shader_compiler;
-
-	if ( self->shaderFileWatcher ) {
-		// -- destroy file watcher
-		static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
-		file_watcher_i.destroy( self->shaderFileWatcher );
-		self->shaderFileWatcher = nullptr;
+	if ( self->pipelineCache ) {
+		using namespace le_backend_vk;
+		le_pipeline_manager_i.destroy( self->pipelineCache );
+		self->pipelineCache = nullptr;
 	}
 
-	if ( self->shader_compiler ) {
-		// -- destroy shader compiler
-		compiler_i.destroy( self->shader_compiler );
-		self->shader_compiler = nullptr;
-	}
-
-	vk::Device device = self->device->getVkDevice();
-
-	// -- destroy any pipeline state objects
-	for ( auto &pPso : self->pipelineCache.PSOs ) {
-		delete ( pPso.second );
-	}
-	self->pipelineCache.PSOs.clear();
-
-	// -- destroy retained shader modules
-
-	for ( auto &s : self->shaderModules ) {
-		if ( s->module ) {
-			device.destroyShaderModule( s->module );
-			s->module = nullptr;
-		}
-		delete ( s );
-	}
-	self->shaderModules.clear();
-
-	// -- destroy renderpasses
-
-	// -- destroy descriptorSetLayouts
-
-	std::cout << "Destroying " << self->pipelineCache.descriptorSetLayouts.size() << " DescriptorSetLayouts" << std::endl
-	          << std::flush;
-	for ( auto &p : self->pipelineCache.descriptorSetLayouts ) {
-		device.destroyDescriptorSetLayout( p.second.vk_descriptor_set_layout );
-		device.destroyDescriptorUpdateTemplate( p.second.vk_descriptor_update_template );
-	}
-
-	// -- destroy pipelineLayouts
-	std::cout << "Destroying " << self->pipelineCache.pipelineLayouts.size() << " PipelineLayouts" << std::endl
-	          << std::flush;
-	for ( auto &l : self->pipelineCache.pipelineLayouts ) {
-		device.destroyPipelineLayout( l.second );
-	}
-
-	for ( auto &p : self->pipelineCache.pipelines ) {
-		device.destroyPipeline( p.second );
-	}
-	self->pipelineCache.pipelines.clear();
-
-	if ( self->pipelineCache.vulkanCache ) {
-		device.destroyPipelineCache( self->pipelineCache.vulkanCache );
-	}
+	vk::Device device = self->device->getVkDevice(); // may be nullptr if device was not created
 
 	for ( auto &frameData : self->mFrames ) {
 
@@ -1164,11 +282,11 @@ static bool backend_create_window_surface( le_backend_o *self, pal_window_o *win
 
 // ----------------------------------------------------------------------
 
-static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settings_o *swapchainSettings_ ) {
+static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settings_t *swapchainSettings_ ) {
 
 	assert( self->window );
 
-	le_swapchain_vk_settings_o settings{};
+	le_swapchain_vk_settings_t settings{};
 
 	if ( swapchainSettings_ ) {
 		settings = *swapchainSettings_;
@@ -1211,660 +329,6 @@ static void backend_reset_swapchain( le_backend_o *self ) {
 }
 
 // ----------------------------------------------------------------------
-
-static uint64_t graphics_pso_get_pipeline_layout_hash( graphics_pipeline_state_o const *pso ) {
-	uint64_t pipeline_layout_hash_data[ 2 ];
-	pipeline_layout_hash_data[ 0 ] = pso->shaderModuleVert->hash_pipelinelayout;
-	pipeline_layout_hash_data[ 1 ] = pso->shaderModuleFrag->hash_pipelinelayout;
-	return SpookyHash::Hash64( pipeline_layout_hash_data, sizeof( pipeline_layout_hash_data ), 0 );
-}
-// ----------------------------------------------------------------------
-// Returns bindings vector associated with a pso, based on the pso's combined bindings,
-// and the pso's hash_pipeline_layouts.
-// Currently, we assume bindings to be non-sparse, but it's possible that sparse bindings
-// are allowed by the standard. let's check.
-//
-// TODO: extend this to allow more than just vert/frag shaders.
-static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( le_shader_module_o const *vert, le_shader_module_o const *const frag ) {
-
-	std::vector<le_shader_binding_info> combined_bindings;
-
-	// create union of bindings from vert and frag shader
-	// we assume these bindings are sorted.
-
-	// TODO: optimise: we only need to re-calculate bindings when
-	// the shader pipelinelayout has changed.
-
-	size_t maxNumBindings = vert->bindings.size() +
-	                        frag->bindings.size();
-
-	// -- make space for the full number of bindings
-	// note that there could be more bindings than that
-
-	combined_bindings.reserve( maxNumBindings );
-
-	auto vBinding = vert->bindings.begin();
-	auto fBinding = frag->bindings.begin();
-
-	// create a bitmask which compares only setIndex and binding number form a binding
-
-	uint64_t sort_mask = 0;
-	{
-		le_shader_binding_info info{};
-		info.binding  = ~info.binding;
-		info.setIndex = ~info.setIndex;
-		sort_mask     = info.data;
-	}
-
-	for ( size_t i = 0; i != maxNumBindings; ++i ) {
-
-		// Find the lowest binding, and push it back to the
-		// vector of combined bindings
-
-		if ( fBinding == frag->bindings.end() &&
-		     vBinding == vert->bindings.end() ) {
-			// no more bindings left to process...
-			break;
-		} else if ( fBinding == frag->bindings.end() &&
-		            vBinding != vert->bindings.end() ) {
-			combined_bindings.emplace_back( *vBinding );
-			vBinding++;
-		} else if ( vBinding == vert->bindings.end() &&
-		            fBinding != frag->bindings.end() ) {
-			combined_bindings.emplace_back( *fBinding );
-			fBinding++;
-		} else if ( ( vBinding->data & sort_mask ) == ( fBinding->data & sort_mask ) ) {
-
-			// -- Check that bindings mentioned in both modules have same (or compatible) properties
-
-			uint64_t compare_mask = 0;
-			{
-				// switch on elements which we want to compare against
-				le_shader_binding_info info{};
-				info.type     = ~info.type;
-				info.binding  = ~info.binding;
-				info.setIndex = ~info.setIndex;
-				compare_mask  = info.data;
-			}
-
-			bool bindingDataIsConsistent = ( vBinding->data & compare_mask ) == ( fBinding->data & compare_mask );
-			bool bindingNameIsConsistent = ( vBinding->name_hash == fBinding->name_hash );
-
-			// elements captured by compare mask must be identical
-			if ( bindingDataIsConsistent ) {
-
-				le_shader_binding_info combinedBinding = *vBinding;
-
-				if ( !bindingNameIsConsistent ) {
-					// This is not tragic, but we need to flag up that this binding is not
-					// consistently named in case this hints at a bigger issue.
-
-					std::cout << "Warning: Inconsistent name in Set: " << vBinding->setIndex << ", for binding: " << vBinding->binding << std::endl
-					          << "\t shader vert: " << vert->filepath << std::endl
-					          << "\t shader frag: " << frag->filepath << std::endl
-					          << "Using name given in VERTEX stage for this binding." << std::endl
-					          << std::flush;
-				}
-
-				if ( vBinding->type == enumToNum( vk::DescriptorType::eUniformBuffer ) ||
-				     vBinding->type == enumToNum( vk::DescriptorType::eUniformBufferDynamic ) ) {
-					// If we're dealing with a buffer type, we must check ranges
-					// TODO: if one of them has range == 0, that means this shader stage can be ignored
-					// If they have not the same range, that means we need to take the largest range of them both
-					combinedBinding.range = std::max( vBinding->range, fBinding->range );
-				}
-
-				// -- combine stage bits so that descriptor will be available for both
-				// stages.
-				combinedBinding.stage_bits = vBinding->stage_bits | fBinding->stage_bits;
-
-				// if count is not identical,that's not that bad, we adjust to larger of the two
-				combinedBinding.count = std::max( vBinding->count, fBinding->count );
-
-				combined_bindings.emplace_back( combinedBinding );
-
-			} else {
-
-				std::cerr << "ERROR: Shader binding mismatch in set: " << vBinding->setIndex
-				          << ", binding: " << vBinding->binding << std::endl
-				          << "\t shader vert: " << vert->filepath << std::endl
-				          << "\t shader frag: " << frag->filepath << std::endl
-				          << std::flush;
-				assert( false ); // abandon all hope.
-			};
-
-			vBinding++;
-			fBinding++;
-		} else if ( vBinding->data < fBinding->data ) {
-			combined_bindings.emplace_back( *vBinding );
-			vBinding++;
-		} else if ( vBinding->data > fBinding->data ) {
-			combined_bindings.emplace_back( *fBinding );
-			fBinding++;
-		}
-	}
-
-	return combined_bindings;
-}
-
-// ----------------------------------------------------------------------
-
-static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_vertex_input_binding_description::INPUT_RATE &input_rate ) {
-	switch ( input_rate ) {
-	case ( le_vertex_input_binding_description::ePerInstance ):
-	    return vk::VertexInputRate::eInstance;
-	case ( le_vertex_input_binding_description::ePerVertex ):
-	    return vk::VertexInputRate::eVertex;
-	}
-}
-
-// ----------------------------------------------------------------------
-
-// clang-format off
-/// \returns corresponding vk::Format for a given le_input_attribute_description struct
-static inline vk::Format vk_format_from_le_vertex_input_attribute_description( le_vertex_input_attribute_description const & d){
-
-	if ( d.vecsize == 0 || d.vecsize > 4 ){
-		assert(false); // vecsize must be between 1 and 4
-		return vk::Format::eUndefined;
-	}
-
-	switch ( d.type ) {
-	case le_vertex_input_attribute_description::eFloat:
-		switch ( d.vecsize ) {
-		case 4: return vk::Format::eR32G32B32A32Sfloat;
-		case 3: return vk::Format::eR32G32B32Sfloat;
-		case 2: return vk::Format::eR32G32Sfloat;
-		case 1: return vk::Format::eR32Sfloat;
-		}
-	    break;
-	case le_vertex_input_attribute_description::eHalf:
-		switch ( d.vecsize ) {
-		case 4: return vk::Format::eR16G16B16A16Sfloat;
-		case 3: return vk::Format::eR16G16B16Sfloat;
-		case 2: return vk::Format::eR16G16Sfloat;
-		case 1: return vk::Format::eR16Sfloat;
-		}
-	    break;
-	case le_vertex_input_attribute_description::eShort:
-		if (d.isNormalised){
-			switch ( d.vecsize ) {
-			case 4: return vk::Format::eR16G16B16A16Unorm;
-			case 3: return vk::Format::eR16G16B16Unorm;
-			case 2: return vk::Format::eR16G16Unorm;
-			case 1: return vk::Format::eR16Unorm;
-			}
-		}else{
-			switch ( d.vecsize ) {
-			case 4: return vk::Format::eR16G16B16A16Uint;
-			case 3: return vk::Format::eR16G16B16Uint;
-			case 2: return vk::Format::eR16G16Uint;
-			case 1: return vk::Format::eR16Uint;
-			}
-		}
-	    break;
-	case le_vertex_input_attribute_description::eInt:
-		switch ( d.vecsize ) {
-		case 4: return vk::Format::eR32G32B32A32Sint;
-		case 3: return vk::Format::eR32G32B32Sint;
-		case 2: return vk::Format::eR32G32Sint;
-		case 1: return vk::Format::eR32Sint;
-		}
-	    break;
-	case le_vertex_input_attribute_description::eUInt:
-		switch ( d.vecsize ) {
-		case 4: return vk::Format::eR32G32B32A32Uint;
-		case 3: return vk::Format::eR32G32B32Uint;
-		case 2: return vk::Format::eR32G32Uint;
-		case 1: return vk::Format::eR32Uint;
-		}
-	    break;
-	case le_vertex_input_attribute_description::eChar:  // fall through to uChar
-	case le_vertex_input_attribute_description::eUChar:
-		if (d.isNormalised){
-			switch ( d.vecsize ) {
-			case 4: return vk::Format::eR8G8B8A8Unorm;
-			case 3: return vk::Format::eR8G8B8Unorm;
-			case 2: return vk::Format::eR8G8Unorm;
-			case 1: return vk::Format::eR8Unorm;
-			}
-		} else {
-			switch ( d.vecsize ) {
-			case 4: return vk::Format::eR8G8B8A8Uint;
-			case 3: return vk::Format::eR8G8B8Uint;
-			case 2: return vk::Format::eR8G8Uint;
-			case 1: return vk::Format::eR8Uint;
-			}
-		}
-	    break;
-	}
-
-	assert(false); // abandon all hope
-	return vk::Format::eUndefined;
-}
-// clang-format on
-
-// ----------------------------------------------------------------------
-// called via decoder / produce_frame -
-static vk::PipelineLayout backend_get_pipeline_layout( le_backend_o *self, graphics_pipeline_state_o const *pso ) {
-
-	uint64_t pipelineLayoutHash = graphics_pso_get_pipeline_layout_hash( pso );
-
-	auto foundLayout = self->pipelineCache.pipelineLayouts.find( pipelineLayoutHash );
-
-	if ( foundLayout != self->pipelineCache.pipelineLayouts.end() ) {
-		return foundLayout->second;
-	} else {
-		std::cerr << "ERROR: Could not find pipeline layout with hash: " << std::hex << pipelineLayoutHash << std::endl
-		          << std::flush;
-		assert( false );
-		return nullptr;
-	}
-}
-
-// ----------------------------------------------------------------------
-// NEXT: gpso builder methods
-
-// ----------------------------------------------------------------------
-static vk::Pipeline backend_create_pipeline( le_backend_o *self, graphics_pipeline_state_o const *pso, const Pass &pass, uint32_t subpass ) {
-
-	vk::Device vkDevice = self->device->getVkDevice();
-
-	std::array<vk::PipelineShaderStageCreateInfo, 2> pipelineStages;
-	pipelineStages[ 0 ]
-	    .setFlags( {} )                               // must be 0 - "reserved for future use"
-	    .setStage( vk::ShaderStageFlagBits::eVertex ) //
-	    .setModule( pso->shaderModuleVert->module )   //
-	    .setPName( "main" )                           //
-	    .setPSpecializationInfo( nullptr )            //
-	    ;
-	pipelineStages[ 1 ]
-	    .setFlags( {} )                                 // must be 0 - "reserved for future use"
-	    .setStage( vk::ShaderStageFlagBits::eFragment ) //
-	    .setModule( pso->shaderModuleFrag->module )     //
-	    .setPName( "main" )                             //
-	    .setPSpecializationInfo( nullptr )              //
-	    ;
-
-	std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;        // Where to get data from
-	std::vector<vk::VertexInputAttributeDescription> vertexInputAttributeDescriptions; // How it feeds into the shader's vertex inputs
-
-	if ( pso->explicitVertexInputBindingDescriptions.empty() ) {
-		// Default: use vertex input schema based on shader reflection
-		vertexBindingDescriptions        = pso->shaderModuleVert->vertexBindingDescriptions;
-		vertexInputAttributeDescriptions = pso->shaderModuleVert->vertexAttributeDescriptions;
-	} else {
-		// use vertex input schema based on explicit user input
-		// which was stored in `backend_create_grapics_pipeline_state_object`
-		vertexBindingDescriptions.reserve( pso->explicitVertexInputBindingDescriptions.size() );
-		vertexInputAttributeDescriptions.reserve( pso->explicitVertexAttributeDescriptions.size() );
-
-		// create vertex input binding descriptions
-		for ( auto const &b : pso->explicitVertexInputBindingDescriptions ) {
-
-			vk::VertexInputBindingDescription bindingDescription;
-			bindingDescription
-			    .setBinding( b.binding )
-			    .setStride( b.stride )
-			    .setInputRate( vk_input_rate_from_le_input_rate( b.input_rate ) );
-
-			vertexBindingDescriptions.emplace_back( std::move( bindingDescription ) );
-		}
-
-		for ( auto const &a : pso->explicitVertexAttributeDescriptions ) {
-			vk::VertexInputAttributeDescription attributeDescription;
-			attributeDescription
-			    .setLocation( a.location )
-			    .setBinding( a.binding )
-			    .setOffset( a.binding_offset )
-			    .setFormat( vk_format_from_le_vertex_input_attribute_description( a ) );
-
-			vertexInputAttributeDescriptions.emplace_back( std::move( attributeDescription ) );
-		}
-	}
-
-	// Combine vertex input `binding` state and vertex input `attribute` state into
-	// something that vk will accept
-	vk::PipelineVertexInputStateCreateInfo vertexInputStageInfo;
-	vertexInputStageInfo
-	    .setFlags( vk::PipelineVertexInputStateCreateFlags() )
-	    .setVertexBindingDescriptionCount( uint32_t( vertexBindingDescriptions.size() ) )
-	    .setPVertexBindingDescriptions( vertexBindingDescriptions.data() )
-	    .setVertexAttributeDescriptionCount( uint32_t( vertexInputAttributeDescriptions.size() ) )
-	    .setPVertexAttributeDescriptions( vertexInputAttributeDescriptions.data() ) //
-	    ;
-
-	// Fetch vk::PipelineLayout for this pso
-	auto pipelineLayout = backend_get_pipeline_layout( self, pso );
-
-	//
-	// We must match blend attachment states with number of attachments for
-	// the current renderpass - each attachment may have their own blend state.
-	// Our pipeline objects will have 16 stages which are readable.
-	//
-	assert( pass.numColorAttachments <= MAX_VULKAN_COLOR_ATTACHMENTS );
-	//
-	vk::PipelineColorBlendStateCreateInfo colorBlendState;
-	colorBlendState
-	    .setLogicOpEnable( VK_FALSE )
-	    .setLogicOp( ::vk::LogicOp::eClear )
-	    .setAttachmentCount( pass.numColorAttachments )
-	    .setPAttachments( pso->data.blendAttachmentStates.data() )
-	    .setBlendConstants( {{0.f, 0.f, 0.f, 0.f}} );
-
-	// Viewport and Scissor are tracked as dynamic states, and although this object will not
-	// get used, we must still fulfill the contract of providing a valid object to vk.
-	//
-	static vk::PipelineViewportStateCreateInfo defaultViewportState{vk::PipelineViewportStateCreateFlags(), 1, nullptr, 1, nullptr};
-
-	// We will allways keep Scissor, Viewport and LineWidth as dynamic states,
-	// otherwise we might have way too many pipelines flying around.
-	std::array<vk::DynamicState, 3> dynamicStates = {{
-	    vk::DynamicState::eScissor,
-	    vk::DynamicState::eViewport,
-	    vk::DynamicState::eLineWidth,
-	}};
-
-	vk::PipelineDynamicStateCreateInfo dynamicState;
-	dynamicState
-	    .setDynamicStateCount( dynamicStates.size() )
-	    .setPDynamicStates( dynamicStates.data() );
-
-	// setup pipeline
-	vk::GraphicsPipelineCreateInfo gpi;
-	gpi
-	    .setFlags( vk::PipelineCreateFlagBits::eAllowDerivatives ) //
-	    .setStageCount( uint32_t( pipelineStages.size() ) )        // set shaders
-	    .setPStages( pipelineStages.data() )                       // set shaders
-	    .setPVertexInputState( &vertexInputStageInfo )             //
-	    .setPInputAssemblyState( &pso->data.inputAssemblyState )   //
-	    .setPTessellationState( &pso->data.tessellationState )     //
-	    .setPViewportState( &defaultViewportState )                // not used as these states are dynamic, defaultState is a dummy value to pacify driver
-	    .setPRasterizationState( &pso->data.rasterizationInfo )    //
-	    .setPMultisampleState( &pso->data.multisampleState )       //
-	    .setPDepthStencilState( &pso->data.depthStencilState )     //
-	    .setPColorBlendState( &colorBlendState )                   //
-	    .setPDynamicState( &dynamicState )                         //
-	    .setLayout( pipelineLayout )                               //
-	    .setRenderPass( pass.renderPass )                          // must be a valid renderpass.
-	    .setSubpass( subpass )                                     //
-	    .setBasePipelineHandle( nullptr )                          //
-	    .setBasePipelineIndex( 0 )                                 // -1 signals not to use a base pipeline index
-	    ;
-
-	auto pipeline = vkDevice.createGraphicsPipeline( self->pipelineCache.vulkanCache, gpi );
-	return pipeline;
-}
-
-// ----------------------------------------------------------------------
-/// \brief returns hash key for given bindings, creates and retains new vkDescriptorSetLayout inside backend if necessary
-static uint64_t backend_produce_descriptor_set_layout( le_backend_o *self, std::vector<le_shader_binding_info> const &bindings, vk::DescriptorSetLayout *layout ) {
-
-	// -- Calculate hash based on le_shader_binding_infos for this set
-	uint64_t set_layout_hash = SpookyHash::Hash64( bindings.data(), bindings.size() * sizeof( le_shader_binding_info ), 0 );
-
-	auto foundLayout = self->pipelineCache.descriptorSetLayouts.find( set_layout_hash );
-
-	if ( foundLayout != self->pipelineCache.descriptorSetLayouts.end() ) {
-
-		// -- Layout was found in cache, reuse it.
-		*layout = foundLayout->second.vk_descriptor_set_layout;
-
-	} else {
-
-		// -- Layout was not found in cache, we must create vk objects.
-
-		vk::Device device = self->device->getVkDevice();
-
-		std::vector<vk::DescriptorSetLayoutBinding> vk_bindings;
-
-		vk_bindings.reserve( bindings.size() );
-
-		for ( const auto &b : bindings ) {
-			vk::DescriptorSetLayoutBinding binding{};
-			binding.setBinding( b.binding )
-			    .setDescriptorType( vk::DescriptorType( b.type ) )
-			    .setDescriptorCount( b.count )
-			    .setStageFlags( vk::ShaderStageFlags( b.stage_bits ) )
-			    .setPImmutableSamplers( nullptr );
-			vk_bindings.emplace_back( std::move( binding ) );
-		}
-
-		vk::DescriptorSetLayoutCreateInfo setLayoutInfo;
-		setLayoutInfo
-		    .setFlags( vk::DescriptorSetLayoutCreateFlags() )
-		    .setBindingCount( uint32_t( vk_bindings.size() ) )
-		    .setPBindings( vk_bindings.data() );
-
-		*layout = device.createDescriptorSetLayout( setLayoutInfo );
-
-		// -- Create descriptorUpdateTemplate
-		//
-		// The template needs to be created so that data for a vk::DescriptorSet
-		// can be read from a vector of tightly packed
-		// DescriptorData elements.
-		//
-
-		vk::DescriptorUpdateTemplate updateTemplate;
-		{
-			std::vector<vk::DescriptorUpdateTemplateEntry> entries;
-
-			entries.reserve( bindings.size() );
-
-			size_t base_offset = 0; // offset in bytes into DescriptorData vector, assuming vector is tightly packed.
-			for ( const auto &b : bindings ) {
-				vk::DescriptorUpdateTemplateEntry entry;
-
-				auto descriptorType = vk::DescriptorType( b.type );
-
-				entry.setDstBinding( b.binding );
-				entry.setDescriptorCount( b.count );
-				entry.setDescriptorType( descriptorType );
-				entry.setDstArrayElement( 0 ); // starting element at this binding to update - always 0
-
-				// set offset based on type of binding, so that template reads from correct data
-
-				switch ( descriptorType ) {
-				case vk::DescriptorType::eSampler:
-				case vk::DescriptorType::eCombinedImageSampler:
-				case vk::DescriptorType::eSampledImage:
-				case vk::DescriptorType::eStorageImage:
-				case vk::DescriptorType::eUniformTexelBuffer:
-				case vk::DescriptorType::eStorageTexelBuffer:
-				case vk::DescriptorType::eInputAttachment:
-					// TODO: Find out what descriptorData an InputAttachment expects, if it is really done with an imageInfo
-					entry.setOffset( base_offset + offsetof( DescriptorData, sampler ) ); // point to first field of ImageInfo
-				    break;
-				case vk::DescriptorType::eUniformBuffer:
-				case vk::DescriptorType::eStorageBuffer:
-				case vk::DescriptorType::eUniformBufferDynamic:
-				case vk::DescriptorType::eStorageBufferDynamic:
-					entry.setOffset( base_offset + offsetof( DescriptorData, buffer ) ); // point to first element of BufferInfo
-				    break;
-				}
-
-				entry.setStride( sizeof( DescriptorData ) );
-
-				entries.emplace_back( std::move( entry ) );
-
-				base_offset += sizeof( DescriptorData );
-			}
-
-			vk::DescriptorUpdateTemplateCreateInfo info;
-			info
-			    .setFlags( {} ) // no flags for now
-			    .setDescriptorUpdateEntryCount( uint32_t( entries.size() ) )
-			    .setPDescriptorUpdateEntries( entries.data() )
-			    .setTemplateType( vk::DescriptorUpdateTemplateType::eDescriptorSet )
-			    .setDescriptorSetLayout( *layout )
-			    .setPipelineBindPoint( {} ) // ignored for this template type
-			    .setPipelineLayout( {} )    // ignored for this template type
-			    .setSet( 0 )                // ignored for this template type
-			    ;
-
-			updateTemplate = device.createDescriptorUpdateTemplate( info );
-		}
-
-		le_descriptor_set_layout_t le_layout_info;
-		le_layout_info.vk_descriptor_set_layout      = *layout;
-		le_layout_info.binding_info                  = bindings;
-		le_layout_info.vk_descriptor_update_template = updateTemplate;
-
-		self->pipelineCache.descriptorSetLayouts[ set_layout_hash ] = std::move( le_layout_info );
-	}
-
-	return set_layout_hash;
-}
-
-// ----------------------------------------------------------------------
-
-static le_pipeline_layout_info backend_produce_pipeline_layout_info( le_backend_o *self, graphics_pipeline_state_o const *pso ) {
-	le_pipeline_layout_info info{};
-
-	std::vector<le_shader_binding_info> combined_bindings = shader_modules_get_bindings_list( pso->shaderModuleVert, pso->shaderModuleFrag );
-
-	// -- Create array of DescriptorSetLayouts
-	std::array<vk::DescriptorSetLayout, 8> vkLayouts{};
-	{
-
-		// -- Create one vkDescriptorSetLayout for each set in bindings
-
-		std::vector<std::vector<le_shader_binding_info>> sets;
-
-		// Split combined bindings at set boundaries
-		uint32_t set_id = 0;
-		for ( auto it = combined_bindings.begin(); it != combined_bindings.end(); ) {
-
-			// Find next element with different set id
-			auto itN = std::find_if( it, combined_bindings.end(), [&set_id]( const le_shader_binding_info &el ) -> bool {
-				return el.setIndex != set_id;
-			} );
-
-			sets.emplace_back( it, itN );
-
-			// If we're not at the end, get the setIndex for the next set,
-			if ( itN != combined_bindings.end() ) {
-				assert( set_id + 1 == itN->setIndex ); // we must enforce that sets are non-sparse.
-				set_id = itN->setIndex;
-			}
-
-			it = itN;
-		}
-
-		info.set_layout_count = uint32_t( sets.size() );
-		assert( sets.size() <= 8 );
-
-		for ( size_t i = 0; i != sets.size(); ++i ) {
-			info.set_layout_keys[ i ] = backend_produce_descriptor_set_layout( self, sets[ i ], &vkLayouts[ i ] );
-		}
-	}
-
-	info.pipeline_layout_key = graphics_pso_get_pipeline_layout_hash( pso );
-
-	// -- Attempt to find this pipelineLayout from cache, if we can't find one, we create and retain it.
-
-	auto found_pl = self->pipelineCache.pipelineLayouts.find( info.pipeline_layout_key );
-
-	if ( found_pl == self->pipelineCache.pipelineLayouts.end() ) {
-
-		vk::Device                   device = self->device->getVkDevice();
-		vk::PipelineLayoutCreateInfo layoutCreateInfo;
-		layoutCreateInfo
-		    .setFlags( vk::PipelineLayoutCreateFlags() ) // "reserved for future use"
-		    .setSetLayoutCount( uint32_t( info.set_layout_count ) )
-		    .setPSetLayouts( vkLayouts.data() )
-		    .setPushConstantRangeCount( 0 )
-		    .setPPushConstantRanges( nullptr );
-
-		// Create vkPipelineLayout and store it in cache.
-		self->pipelineCache.pipelineLayouts[ info.pipeline_layout_key ] = device.createPipelineLayout( layoutCreateInfo );
-	}
-
-	return info;
-}
-
-// ----------------------------------------------------------------------
-
-graphics_pipeline_state_o *backend_get_pso_from_cache( le_backend_o *self, const uint64_t &gpso_hash ) {
-	// FIXME: (PIPELINE) THIS NEEDS TO BE MUTEXED, AND ACCESS CONTROLLED
-	return self->pipelineCache.PSOs[ gpso_hash ];
-}
-
-// ----------------------------------------------------------------------
-
-/// \brief Creates - or loads a pipeline from cache - based on current pipeline state
-/// \note This method may lock the pipeline cache and is therefore costly.
-// TODO: Ensure there are no races around this method
-//
-// + Only the command buffer recording slice of a frame shall be able to modify the cache
-//   the cache must be exclusively accessed through this method
-//
-// + Access to this method must be sequential - no two frames may access this method
-//   at the same time.
-static le_pipeline_and_layout_info_t backend_produce_pipeline( le_backend_o *self, uint64_t gpso_hash, const Pass &pass, uint32_t subpass ) {
-
-	graphics_pipeline_state_o const *pso = backend_get_pso_from_cache( self, gpso_hash );
-
-	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
-
-	// -- 1. get pipeline layout info for a pipeline with these bindings
-	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
-
-	uint64_t pipeline_layout_hash = graphics_pso_get_pipeline_layout_hash( pso );
-
-	auto pl = self->pipelineCache.pipelineLayoutInfos.find( pipeline_layout_hash );
-
-	if ( pl == self->pipelineCache.pipelineLayoutInfos.end() ) {
-
-		// this will also create vulkan objects for pipeline layout / descriptor set layout and cache them
-		pipeline_and_layout_info.layout_info = backend_produce_pipeline_layout_info( self, pso );
-
-		// store in cache
-		self->pipelineCache.pipelineLayoutInfos[ pipeline_layout_hash ] = pipeline_and_layout_info.layout_info;
-	} else {
-		pipeline_and_layout_info.layout_info = pl->second;
-	}
-
-	// -- 2. get vk pipeline object
-	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
-
-	uint64_t pso_renderpass_hash_data[ 4 ] = {};
-
-	pso_renderpass_hash_data[ 0 ] = gpso_hash;                   // TODO: Hash for PSO state - must have been updated before recording phase started
-	pso_renderpass_hash_data[ 1 ] = pso->shaderModuleVert->hash; // Module state - may have been recompiled, hash must be current
-	pso_renderpass_hash_data[ 2 ] = pso->shaderModuleFrag->hash; // Module state - may have been recompiled, hash must be current
-	pso_renderpass_hash_data[ 3 ] = pass.renderpassHash;         // Hash for *compatible* renderpass
-
-	// -- create combined hash for pipeline, renderpass
-
-	uint64_t pipeline_hash = SpookyHash::Hash64( pso_renderpass_hash_data, sizeof( pso_renderpass_hash_data ), pipeline_layout_hash );
-
-	// -- look up if pipeline with this hash already exists in cache
-	auto p = self->pipelineCache.pipelines.find( pipeline_hash );
-
-	if ( p == self->pipelineCache.pipelines.end() ) {
-
-		// -- if not, create pipeline in pipeline cache and store / retain it
-		pipeline_and_layout_info.pipeline = backend_create_pipeline( self, pso, pass, subpass );
-
-		std::cout << "New VK Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
-		          << std::flush;
-
-		self->pipelineCache.pipelines[ pipeline_hash ] = pipeline_and_layout_info.pipeline;
-	} else {
-		// -- else return pipeline found in hash map
-		pipeline_and_layout_info.pipeline = p->second;
-	}
-
-	return pipeline_and_layout_info;
-}
-
-// ----------------------------------------------------------------------
-
-void backend_introduce_graphics_pipeline_state( le_backend_o *self, graphics_pipeline_state_o *gpso, uint64_t gpsoHash ) {
-	// we must copy!
-	self->pipelineCache.PSOs[ gpsoHash ] = new graphics_pipeline_state_o( *gpso );
-};
 
 // ----------------------------------------------------------------------
 /// \brief create a unique resource handle
@@ -1909,7 +373,52 @@ static LeResourceHandle backend_get_backbuffer_resource( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void backend_setup( le_backend_o *self ) {
+static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *settings ) {
+
+	self->settings = *settings;
+
+	// -- if window surface, query required vk extensions from glfw
+
+	std::vector<char const *> requestedInstanceExtensions;
+	{
+		if ( self->settings.pWindow ) {
+
+			// -- insert extensions necessary for glfw window
+
+			uint32_t extensionCount         = 0;
+			auto     glfwRequiredExtensions = pal::Window( self->settings.pWindow ).getRequiredVkExtensions( &extensionCount );
+
+			requestedInstanceExtensions.insert( requestedInstanceExtensions.end(),
+			                                    glfwRequiredExtensions,
+			                                    glfwRequiredExtensions + extensionCount );
+		}
+
+		// -- insert any additionally requested extensions
+		requestedInstanceExtensions.insert( requestedInstanceExtensions.end(),
+		                                    settings->requestedExtensions,
+		                                    settings->requestedExtensions + settings->numRequestedExtensions );
+	}
+	// -- initialise backend
+
+	self->instance = std::make_unique<le::Instance>( requestedInstanceExtensions.data(), requestedInstanceExtensions.size() );
+	self->device   = std::make_unique<le::Device>( *self->instance );
+
+	{
+		using namespace le_backend_vk;
+		self->pipelineCache = le_pipeline_manager_i.create( self->device->getVkDevice() );
+	}
+
+	// -- create window surface if requested
+
+	if ( self->settings.pWindow ) {
+		backend_create_window_surface( self, self->settings.pWindow );
+	}
+
+	// -- create swapchain if requested
+
+	backend_create_swapchain( self, self->settings.swapchain_settings );
+
+	// -- setup backend memory objects
 
 	auto frameCount = backend_get_num_swapchain_images( self );
 
@@ -1986,13 +495,7 @@ static void backend_setup( le_backend_o *self ) {
 		self->mFrames.emplace_back( std::move( frameData ) );
 	}
 
-	vk::PipelineCacheCreateInfo pipelineCacheInfo;
-	pipelineCacheInfo
-	    .setFlags( vk::PipelineCacheCreateFlags() ) // "reserved for future use"
-	    .setInitialDataSize( 0 )
-	    .setPInitialData( nullptr );
-
-	self->pipelineCache.vulkanCache = vkDevice.createPipelineCache( pipelineCacheInfo );
+	// CHECK: this is where we used to create the vulkan pipeline cache object
 
 	self->resource_counter      = 1;                                                        // initialize resource counter to 1, 0 means invalid, not initialised resource.
 	self->backBufferImageHandle = backend_declare_resource( self, LeResourceType::eImage ); // initialize backbuffer image handle
@@ -2055,7 +558,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 	for ( auto pass = ppPasses; pass != ppPasses + numRenderPasses; pass++ ) {
 
-		Pass currentPass{};
+		LeRenderPass currentPass{};
 		currentPass.type = renderpass_i.get_type( *pass );
 
 		currentPass.width = renderpass_i.get_width( *pass );
@@ -2322,11 +825,10 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 	frame.physicalResources.clear();
 	frame.syncChainTable.clear();
 
-	static const auto &le_encoder_api = ( *Registry::getApi<le_renderer_api>() ).le_command_buffer_encoder_i;
-
 	for ( auto &f : frame.passes ) {
 		if ( f.encoder ) {
-			le_encoder_api.destroy( f.encoder );
+			using namespace le_renderer;
+			encoder_i.destroy( f.encoder );
 			f.encoder = nullptr;
 		}
 	}
@@ -3215,8 +1717,8 @@ static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, si
 // translate into vk specific commands.
 static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
-	static auto const &le_encoder_api = ( *Registry::getApi<le_renderer_api>() ).le_command_buffer_encoder_i;
-	static auto const &vk_device_i    = ( *Registry::getApi<le_backend_vk_api>() ).vk_device_i;
+	using namespace le_renderer;   // for encoder
+	using namespace le_backend_vk; // for device
 
 	auto &frame = self->mFrames[ frameIndex ];
 
@@ -3283,15 +1785,14 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			std::vector<le_shader_binding_info>         binding_infos;
 		} argumentState;
 
-		vk::PipelineLayout             currentPipelineLayout;
-		std::vector<vk::DescriptorSet> descriptorSets; // currently bound descriptorSets
+		vk::PipelineLayout currentPipelineLayout;
+		vk::DescriptorSet  descriptorSets[ VK_MAX_BOUND_DESCRIPTOR_SETS ] = {}; // currently bound descriptorSets (allocated from pool, therefore we must not worry about freeing, and may re-use freely)
 
-		auto updateArguments = []( const vk::Device &device, const vk::DescriptorPool &descriptorPool_, const ArgumentState &argumentState_, std::vector<vk::DescriptorSet> &descriptorSets_ ) {
+		auto updateArguments = []( const vk::Device &device, const vk::DescriptorPool &descriptorPool_, const ArgumentState &argumentState_, vk::DescriptorSet *descriptorSets ) -> bool {
 			// -- allocate descriptors from descriptorpool based on set layout info
 
 			if ( argumentState_.setCount == 0 ) {
-				descriptorSets_.clear();
-				return;
+				return true;
 			}
 
 			// ----------| invariant: there are descriptorSets to allocate
@@ -3302,7 +1803,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			    .setPSetLayouts( argumentState_.layouts.data() );
 
 			// -- allocate some descriptorSets based on current layout
-			descriptorSets_ = device.allocateDescriptorSets( allocateInfo );
+			device.allocateDescriptorSets( &allocateInfo, descriptorSets );
+
+			bool argumentsOk = true;
 
 			// -- write data from descriptorSetData into freshly allocated DescriptorSets
 			for ( size_t setId = 0; setId != argumentState_.setCount; ++setId ) {
@@ -3313,8 +1816,6 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				// The most common case for this bug is not providing any data for a uniform used in the shader,
 				// we check for this and skip any argumentStates which have invalid data...
 
-				bool argumentsOk = true;
-
 				for ( auto &a : argumentState_.setData[ setId ] ) {
 
 					switch ( a.type ) {
@@ -3323,34 +1824,42 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					case vk::DescriptorType::eUniformBufferDynamic: //
 					case vk::DescriptorType::eStorageBuffer:        // fall-through
 						// if buffer must have valid buffer bound
-						argumentsOk = ( nullptr != a.buffer );
+						argumentsOk &= ( nullptr != a.buffer );
 					    break;
 					case vk::DescriptorType::eCombinedImageSampler:
 					case vk::DescriptorType::eSampledImage:
-						argumentsOk = ( nullptr != a.imageView ); // if sampler, must have image view
+						argumentsOk &= ( nullptr != a.imageView ); // if sampler, must have image view
 					    break;
 					default:
 						// TODO: check arguments for other types of descriptors
-						argumentsOk = true;
+						argumentsOk &= true;
 					    break;
 					}
 
 					if ( false == argumentsOk ) {
+						// TODO: notify that an argument is not OKAY
 						break;
 					}
 				}
 
 				if ( argumentsOk ) {
-					device.updateDescriptorSetWithTemplate( descriptorSets_[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
+					device.updateDescriptorSetWithTemplate( descriptorSets[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
+				} else {
+					return false;
 				}
 			}
+
+			return argumentsOk;
 		};
 
 		if ( pass.encoder ) {
-			le_encoder_api.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
+			encoder_i.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
 		} else {
-			// std::cout << "WARNING: pass does not have valid encoder.";
+			assert( false );
+			std::cout << "ERROR: pass does not have valid encoder.";
 		}
+
+		le_pipeline_manager_o *pipelineManager = encoder_i.get_pipeline_manager( pass.encoder );
 
 		if ( commandStream != nullptr && numCommands > 0 ) {
 
@@ -3369,11 +1878,12 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					if ( pass.type == LE_RENDER_PASS_TYPE_DRAW ) {
 						// at this point, a valid renderpass must be bound
 
+						using namespace le_backend_vk;
 						// -- potentially compile and create pipeline here, based on current pass and subpass
-						currentPipeline = backend_produce_pipeline( self, le_cmd->info.psoHash, pass, subpassIndex );
+						currentPipeline = le_pipeline_manager_i.produce_pipeline( pipelineManager, le_cmd->info.psoHash, pass, subpassIndex );
 
 						// -- grab current pipeline layout from cache
-						currentPipelineLayout = self->pipelineCache.pipelineLayouts[ currentPipeline.layout_info.pipeline_layout_key ];
+						currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );
 
 						{
 							// -- update pipelineData - that's the data values for all descriptors which are currently bound
@@ -3389,7 +1899,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 								// look up set layout info via set layout key
 								auto const &set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
-								auto const &setLayoutInfo  = self->pipelineCache.descriptorSetLayouts.at( set_layout_key );
+
+								auto const &setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
 
 								auto &setData = argumentState.setData[ setId ];
 
@@ -3446,7 +1957,13 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto *le_cmd = static_cast<le::CommandDraw *>( dataIt );
 
 					// -- update descriptorsets via template if tainted
-					updateArguments( device, descriptorPool, argumentState, descriptorSets );
+					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, descriptorSets );
+
+					if ( false == argumentsOk ) {
+						break;
+					}
+
+					// --------| invariant: arguments were updated successfully
 
 					if ( argumentState.setCount > 0 ) {
 
@@ -3454,7 +1971,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						                        currentPipelineLayout,
 						                        0,
 						                        argumentState.setCount,
-						                        descriptorSets.data(),
+						                        descriptorSets,
 						                        argumentState.dynamicOffsetCount,
 						                        argumentState.dynamicOffsets.data() );
 					}
@@ -3466,7 +1983,13 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto *le_cmd = static_cast<le::CommandDrawIndexed *>( dataIt );
 
 					// -- update descriptorsets via template if tainted
-					updateArguments( device, descriptorPool, argumentState, descriptorSets );
+					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, descriptorSets );
+
+					if ( false == argumentsOk ) {
+						break;
+					}
+
+					// --------| invariant: arguments were updated successfully
 
 					if ( argumentState.setCount > 0 ) {
 
@@ -3474,7 +1997,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						                        currentPipelineLayout,
 						                        0,
 						                        argumentState.setCount,
-						                        descriptorSets.data(),
+						                        descriptorSets,
 						                        argumentState.dynamicOffsetCount,
 						                        argumentState.dynamicOffsets.data() );
 					}
@@ -3489,14 +2012,14 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				case le::CommandType::eSetViewport: {
 					auto *le_cmd = static_cast<le::CommandSetViewport *>( dataIt );
-					// NOTE: since data for viewports *is stored inline*, we could also increase the typed pointer
+					// Since data for viewports *is stored inline*, we increment the typed pointer
 					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
 					cmd.setViewport( le_cmd->info.firstViewport, le_cmd->info.viewportCount, reinterpret_cast<vk::Viewport *>( le_cmd + 1 ) );
 				} break;
 
 				case le::CommandType::eSetScissor: {
 					auto *le_cmd = static_cast<le::CommandSetScissor *>( dataIt );
-					// NOTE: since data for scissors *is stored inline*, we could also increase the typed pointer
+					// Since data for scissors *is stored inline*, we increment the typed pointer
 					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
 					cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D *>( le_cmd + 1 ) );
 				} break;
@@ -3529,7 +2052,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					bindingData.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
 					bindingData.range  = std::min<uint32_t>( le_cmd->info.range, b->range ); // CHECK: use range from binding to limit range...
 
-					// if binding is in fact a dynamic binding, set the corresponding dynamic offset
+					// If binding is in fact a dynamic binding, set the corresponding dynamic offset
 					// and set the buffer offset to 0.
 					if ( b->type == enumToNum( vk::DescriptorType::eStorageBufferDynamic ) ||
 					     b->type == enumToNum( vk::DescriptorType::eUniformBufferDynamic ) ) {
@@ -3694,7 +2217,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					break;
 				}
 
-				} // switch header.info.type
+				} // end switch header.info.type
 
 				// Move iterator by size of current le_command so that it points
 				// to the next command in the list.
@@ -3716,6 +2239,26 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 	for ( auto &&c : cmdBufs ) {
 		frame.commandBuffers.emplace_back( c );
 	}
+}
+
+// ----------------------------------------------------------------------
+// FIXME: remove forwarding via renderer to here
+static void backend_update_shader_modules( le_backend_o *self ) {
+	using namespace le_backend_vk;
+	le_pipeline_manager_i.update_shader_modules( self->pipelineCache );
+}
+
+// ----------------------------------------------------------------------
+// FIXME: remove forwarding via renderer to here
+static le_shader_module_o *backend_create_shader_module( le_backend_o *self, char const *path, LeShaderType moduleType ) {
+	using namespace le_backend_vk;
+	return le_pipeline_manager_i.create_shader_module( self->pipelineCache, path, moduleType );
+}
+
+// ----------------------------------------------------------------------
+
+static le_pipeline_manager_o *backend_get_pipeline_cache( le_backend_o *self ) {
+	return self->pipelineCache;
 }
 
 // ----------------------------------------------------------------------
@@ -3751,30 +2294,31 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	auto  le_backend_vk_api_i = static_cast<le_backend_vk_api *>( api_ );
 	auto &vk_backend_i        = le_backend_vk_api_i->vk_backend_i;
 
-	vk_backend_i.create                            = backend_create;
-	vk_backend_i.destroy                           = backend_destroy;
-	vk_backend_i.setup                             = backend_setup;
-	vk_backend_i.create_window_surface             = backend_create_window_surface;
-	vk_backend_i.create_swapchain                  = backend_create_swapchain;
-	vk_backend_i.get_num_swapchain_images          = backend_get_num_swapchain_images;
-	vk_backend_i.reset_swapchain                   = backend_reset_swapchain;
-	vk_backend_i.get_transient_allocators          = backend_get_transient_allocators;
-	vk_backend_i.poll_frame_fence                  = backend_poll_frame_fence;
-	vk_backend_i.clear_frame                       = backend_clear_frame;
-	vk_backend_i.acquire_physical_resources        = backend_acquire_physical_resources;
-	vk_backend_i.process_frame                     = backend_process_frame;
-	vk_backend_i.dispatch_frame                    = backend_dispatch_frame;
-	vk_backend_i.create_shader_module              = backend_create_shader_module;
-	vk_backend_i.update_shader_modules             = backend_update_shader_modules;
-	vk_backend_i.declare_resource                  = backend_declare_resource;
-	vk_backend_i.get_backbuffer_resource           = backend_get_backbuffer_resource;
-	vk_backend_i.introduce_graphics_pipeline_state = backend_introduce_graphics_pipeline_state;
+	vk_backend_i.create                     = backend_create;
+	vk_backend_i.destroy                    = backend_destroy;
+	vk_backend_i.setup                      = backend_setup;
+	vk_backend_i.get_num_swapchain_images   = backend_get_num_swapchain_images;
+	vk_backend_i.reset_swapchain            = backend_reset_swapchain;
+	vk_backend_i.get_transient_allocators   = backend_get_transient_allocators;
+	vk_backend_i.poll_frame_fence           = backend_poll_frame_fence;
+	vk_backend_i.clear_frame                = backend_clear_frame;
+	vk_backend_i.acquire_physical_resources = backend_acquire_physical_resources;
+	vk_backend_i.process_frame              = backend_process_frame;
+	vk_backend_i.dispatch_frame             = backend_dispatch_frame;
+
+	vk_backend_i.get_pipeline_cache    = backend_get_pipeline_cache;
+	vk_backend_i.update_shader_modules = backend_update_shader_modules;
+	vk_backend_i.create_shader_module  = backend_create_shader_module;
+
+	vk_backend_i.declare_resource        = backend_declare_resource;
+	vk_backend_i.get_backbuffer_resource = backend_get_backbuffer_resource;
 
 	// register/update submodules inside this plugin
 
 	register_le_device_vk_api( api_ );
 	register_le_instance_vk_api( api_ );
 	register_le_allocator_linear_api( api_ );
+	register_le_pipeline_vk_api( api_ );
 
 	auto &le_instance_vk_i = le_backend_vk_api_i->vk_instance_i;
 

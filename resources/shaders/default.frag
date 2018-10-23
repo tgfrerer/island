@@ -21,11 +21,6 @@ layout (set = 0, binding = 0) uniform MatrixStack
 	mat4 projectionMatrix;
 };
 
-layout (set = 0, binding = 1) uniform Color 
-{
-	vec4 color;
-};
-
 void main(){
 	
 	//outFragColor = vec4(inTexCoord, 0, 1);

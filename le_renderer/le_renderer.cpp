@@ -68,17 +68,13 @@ struct FrameData {
 struct le_renderer_o {
 
 	uint64_t      swapchainDirty = false;
-	le_backend_o *backend;
+	le_backend_o *backend        = nullptr;
 
 	std::vector<FrameData> frames;
 	size_t                 numSwapchainImages = 0;
 	size_t                 currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
 
 	enki::TaskScheduler g_TS = {};
-
-	le_renderer_o( le_backend_o *backend )
-	    : backend( backend ) {
-	}
 };
 
 static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ); // ffdecl
@@ -86,8 +82,8 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ); // f
 // ----------------------------------------------------------------------
 
 static le_renderer_o *
-renderer_create( le_backend_o *backend ) {
-	auto obj = new le_renderer_o( backend );
+renderer_create() {
+	auto obj = new le_renderer_o();
 
 	if ( LE_RENDERER_MULTITHREADED ) {
 		obj->g_TS.Initialize( 4 );
@@ -132,8 +128,9 @@ static le_backend_o *renderer_get_backend( le_renderer_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void
-renderer_setup( le_renderer_o *self ) {
+static void renderer_setup( le_renderer_o *self, le_backend_o *backend ) {
+
+	self->backend = backend;
 
 	using namespace le_backend_vk; // for vk_bakend_i
 	using namespace le_renderer;   // for graph_builder_i

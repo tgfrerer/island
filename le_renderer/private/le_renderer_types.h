@@ -41,8 +41,8 @@ enum class LeShaderType : uint64_t {
         eTessEval    = 0x00000004,
         eGeom        = 0x00000008,
         eFrag        = 0x00000010,
-        eCompute     = 0x00000020,
-        eAllGraphics = 0x0000001F, // max needed space to cover this enum is 6 bit
+        eAllGraphics = 0x0000001F,
+        eCompute     = 0x00000020, // max needed space to cover this enum is 6 bit
 };
 
 enum class LeResourceType : uint8_t {
@@ -169,7 +169,7 @@ struct le_resource_info_t {
 struct le_vertex_input_attribute_description {
 
         // Note that we store the log2 of the number of Bytes needed to store values of a type
-        // in the least significant two bits, so that we can say: numBytes =  1 << (type & 0x03);
+        // in the least significant two bits, so that we can say: numBytes =  1 << (type & 0b11);
         enum Type : uint8_t {
                 eChar   = ( 0 << 2 ) | 0,
                 eUChar  = ( 1 << 2 ) | 0,

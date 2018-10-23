@@ -34,8 +34,8 @@ struct le_renderpass_o {
 	std::vector<le_resource_info_t>    createResourceInfos; // createResources holds ids at matching index
 	std::vector<LeImageAttachmentInfo> imageAttachments;
 
-	uint32_t width  = 0; ///< width in pixels, must be identical for all attachments
-	uint32_t height = 0; ///< height in pixels, must be identical for all attachments
+	uint32_t width  = 0; ///< width in pixels, must be identical for all attachments  , default:0 means current frame.swapchainWidth
+	uint32_t height = 0; ///< height in pixels, must be identical for all attachments , default:0 means current frame.swapchainHeight
 
 	std::vector<LeTextureInfo>    textureInfos;   // kept in sync
 	std::vector<LeResourceHandle> textureInfoIds; // kept in sync
@@ -58,8 +58,7 @@ struct le_render_module_o : NoCopy, NoMove {
 // ----------------------------------------------------------------------
 
 struct le_graph_builder_o : NoCopy, NoMove {
-	std::vector<le_renderpass_o *>             passes;
-	std::vector<le_command_buffer_encoder_o *> encoders;
+	std::vector<le_renderpass_o *> passes;
 };
 
 // ----------------------------------------------------------------------
@@ -544,8 +543,6 @@ static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameI
 		std::cout << msg.str();
 	}
 
-	self->encoders.reserve( self->passes.size() );
-
 	using namespace le_renderer;
 	using namespace le_backend_vk;
 
@@ -553,17 +550,21 @@ static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameI
 	auto const       ppAllocators = vk_backend_i.get_transient_allocators( backend, frameIndex, self->passes.size() );
 	le_allocator_o **allocIt      = ppAllocators; // iterator over allocators - note that number of allocators must be identical with number of passes
 
+	le_pipeline_manager_o *pipelineCache = vk_backend_i.get_pipeline_cache( backend ); // TODO: one pipeline cache per pass
+
 	for ( auto &pass : self->passes ) {
 
 		if ( pass->callbackExecute && pass->sort_key != 0 ) {
 
-			auto encoder = encoder_i.create( *allocIt ); // NOTE: we must manually track the lifetime of encoder!
+			auto encoder = encoder_i.create( *allocIt, pipelineCache ); // NOTE: we must manually track the lifetime of encoder!
 
 			renderpass_run_execute_callback( pass, encoder ); // record draw commands into encoder
 
 			allocIt++; // Move to next unused allocator
 		}
 	}
+
+	// TODO: consolidate pipeline caches
 }
 
 // ----------------------------------------------------------------------

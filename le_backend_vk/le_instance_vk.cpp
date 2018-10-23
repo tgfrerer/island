@@ -118,9 +118,12 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 	    .setApplicationVersion( VK_MAKE_VERSION( 0, 0, 0 ) )
 	    .setPEngineName( "light engine" )
 	    .setEngineVersion( VK_MAKE_VERSION( 0, 1, 0 ) )
-	    .setApiVersion( VK_MAKE_VERSION( 1, 1, 70 ) );
+	    .setApiVersion( VK_MAKE_VERSION( 1, 1, 85 ) );
 
-	std::set<std::string> instanceExtensionSet;
+	// -- create a vector of unique requested instance extension names
+
+	std::vector<const char *> instanceExtensionNames = {};
+	std::set<std::string>     instanceExtensionSet;
 
 	instanceExtensionSet.emplace( "VK_KHR_surface" );
 
@@ -128,12 +131,13 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 		instanceExtensionSet.emplace( extensionNamesArray_[ i ] );
 	}
 
-	std::vector<const char *> instanceLayerNames     = {};
-	std::vector<const char *> instanceExtensionNames = {};
-
 	for ( auto &e : instanceExtensionSet ) {
 		instanceExtensionNames.emplace_back( e.c_str() );
 	}
+
+	// -- create a vector of requested instance layers
+
+	std::vector<const char *> instanceLayerNames = {};
 
 	if ( SHOULD_USE_VALIDATION_LAYERS ) {
 		instanceExtensionNames.push_back( VK_EXT_DEBUG_REPORT_EXTENSION_NAME );
