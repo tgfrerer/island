@@ -890,7 +890,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 			    .setFinalLayout( syncFinal.layout );
 
 			if ( PRINT_DEBUG_MESSAGES ) {
-				//std::cout << "attachment: " << std::hex << attachment->resource_id << std::endl;
+				std::cout << "attachment: " << std::hex << attachment->resource_id.debug_name << std::endl;
 				std::cout << "layout initial: " << vk::to_string( syncInitial.layout ) << std::endl;
 				std::cout << "layout subpass: " << vk::to_string( syncSubpass.layout ) << std::endl;
 				std::cout << "layout   final: " << vk::to_string( syncFinal.layout ) << std::endl;

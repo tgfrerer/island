@@ -537,7 +537,7 @@ static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameI
 				if ( attachment->access_flags & eLeAccessFlagBitWrite ) {
 					msg << "w";
 				}
-				msg << " : " << std::setw( 32 ) << std::hex << attachment->resource_id.raw_data << ":" << attachment->source_id << ", '" << attachment->debugName << "'" << std::endl;
+				msg << " : " << std::setw( 32 ) << std::hex << attachment->resource_id.handle_data << ":" << attachment->source_id << ", '" << attachment->debugName << "'" << std::endl;
 			}
 		}
 		std::cout << msg.str();

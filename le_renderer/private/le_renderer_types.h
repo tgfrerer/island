@@ -24,26 +24,26 @@ struct le_resource_handle_t {
                 uint8_t flags;
                 uint8_t padding;
             };
-            uint32_t data;
+            uint32_t meta_data;
         };
 
         union{
-
-        struct{
-            uint32_t name_hash;
-            Meta meta;
-        };
-        uint64_t raw_data;
+            struct{
+                uint32_t name_hash;
+                Meta meta;
+            };
+            uint64_t handle_data;
         };
 
         inline operator uint64_t(){
-            return raw_data;
+            return handle_data;
         }
 
+        char const * debug_name; // FIXME: this is unsafe for reload, we cannot assume that string constants will be stored at the same location after reload...
 };
 
 static inline bool operator == (le_resource_handle_t const & lhs, le_resource_handle_t const& rhs) noexcept{
-    return lhs.raw_data == rhs.raw_data;
+    return lhs.handle_data == rhs.handle_data;
 }
 
 static inline bool operator != (le_resource_handle_t const & lhs, le_resource_handle_t const& rhs) noexcept{
@@ -53,7 +53,7 @@ static inline bool operator != (le_resource_handle_t const & lhs, le_resource_ha
 
 struct LeResourceHandleIdentity {
        inline auto operator()( const le_resource_handle_t &key_ ) const noexcept {
-                return key_.raw_data;
+                return key_.handle_data;
        }
 };
 
@@ -61,6 +61,7 @@ constexpr le_resource_handle_t LE_RESOURCE( const char *const str, const LeResou
         le_resource_handle_t handle{};
         handle.name_hash = hash_32_fnv1a_const( str );
         handle.meta.type = tp;
+        handle.debug_name = str;
         return handle;
 }
 
@@ -338,7 +339,7 @@ struct CommandSetArgumentUbo {
 	CommandHeader header = {{{CommandType::eSetArgumentUbo, sizeof( CommandSetArgumentUbo )}}};
 	struct {
 		uint64_t         argument_name_id; // const_char_hash id of argument name
-		le_resource_handle_t buffer_id;        // id of buffer that holds data
+		le_resource_handle_t buffer_id;    // id of buffer that holds data
 		uint32_t         offset;           // offset into buffer
 		uint32_t         range;            // size of argument data in bytes
 	} info;
@@ -348,7 +349,7 @@ struct CommandSetArgumentTexture {
 	CommandHeader header = {{{CommandType::eSetArgumentTexture, sizeof( CommandSetArgumentTexture )}}};
 	struct {
 		uint64_t         argument_name_id; // const_char_hash id of argument name
-		le_resource_handle_t texture_id;       // texture id, hash of texture name
+		le_resource_handle_t texture_id;   // texture id, hash of texture name
 		uint64_t         array_index;      // argument array index (default is 0)
 	} info;
 };
@@ -366,7 +367,7 @@ struct CommandBindVertexBuffers {
 	struct {
 		uint32_t          firstBinding;
 		uint32_t          bindingCount;
-		le_resource_handle_t *pBuffers; // TODO: place proper buffer_id type here
+		le_resource_handle_t *pBuffers;
 		uint64_t *        pOffsets;
 	} info;
 };
@@ -392,9 +393,9 @@ struct CommandWriteToBuffer {
 	struct {
 	        le_resource_handle_t src_buffer_id; // le buffer id of scratch buffer
 		le_resource_handle_t dst_buffer_id; // which resource to write to
-		uint64_t         src_offset;    // offset in scratch buffer where to find source data
-		uint64_t         dst_offset;    // offset where to write to in target resource
-		uint64_t         numBytes;      // number of bytes
+		uint64_t         src_offset;        // offset in scratch buffer where to find source data
+		uint64_t         dst_offset;        // offset where to write to in target resource
+		uint64_t         numBytes;          // number of bytes
 
 	} info;
 };
@@ -404,9 +405,9 @@ struct CommandWriteToImage {
 	struct {
 	        le_resource_handle_t    src_buffer_id; // le buffer id of scratch buffer
 		le_resource_handle_t    dst_image_id;  // which resource to write to
-		uint64_t            src_offset;    // offset in scratch buffer where to find source data
-		uint64_t            numBytes;      // number of bytes
-		LeBufferWriteRegion dst_region;    // which part of the image to write to
+		uint64_t            src_offset;        // offset in scratch buffer where to find source data
+		uint64_t            numBytes;          // number of bytes
+		LeBufferWriteRegion dst_region;        // which part of the image to write to
 
 	} info;
 };
