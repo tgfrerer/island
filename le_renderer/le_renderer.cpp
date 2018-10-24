@@ -391,15 +391,7 @@ struct ClearTask : public enki::ITaskSet {
 
 // ----------------------------------------------------------------------
 
-// returns a unique resource handle for a resource
-static LeResourceHandle renderer_declare_resource( le_renderer_o *self, LeResourceType type ) {
-	using namespace le_backend_vk; // for graph_builder_i
-	return vk_backend_i.declare_resource( self->backend, type );
-}
-
-// ----------------------------------------------------------------------
-
-static LeResourceHandle renderer_get_backbuffer_resource( le_renderer_o *self ) {
+static le_resource_handle_t renderer_get_backbuffer_resource( le_renderer_o *self ) {
 	using namespace le_backend_vk; // for graph_builder_i
 	return vk_backend_i.get_backbuffer_resource( self->backend );
 }
@@ -487,7 +479,6 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	le_renderer_i.setup                   = renderer_setup;
 	le_renderer_i.update                  = renderer_update;
 	le_renderer_i.create_shader_module    = renderer_create_shader_module;
-	le_renderer_i.declare_resource        = renderer_declare_resource;
 	le_renderer_i.get_backbuffer_resource = renderer_get_backbuffer_resource;
 	le_renderer_i.get_backend             = renderer_get_backend;
 

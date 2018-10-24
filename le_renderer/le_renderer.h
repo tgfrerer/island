@@ -40,11 +40,9 @@ struct le_renderer_api {
 		void                           ( *update                                )( le_renderer_o *obj, le_render_module_o *module );
 		le_shader_module_o*            ( *create_shader_module                  )( le_renderer_o *self, char const *path, LeShaderType mtype );
 
-		/// introduces a new resource name to the renderer, returns a handle under which the renderer will recognise this resource
-		LeResourceHandle               ( *declare_resource                      )( le_renderer_o* self, LeResourceType type );
 
 		/// returns the resource handle for the current swapchain image
-		LeResourceHandle               ( *get_backbuffer_resource               )( le_renderer_o* self );
+		le_resource_handle_t           ( *get_backbuffer_resource               )( le_renderer_o* self );
 		le_backend_o*                  ( *get_backend)(le_renderer_o* self);
 	};
 
@@ -59,7 +57,7 @@ struct le_renderer_api {
 		void                         ( *set_setup_callback   )( le_renderpass_o *obj, pfn_renderpass_setup_t setup_fun, void *user_data );
 		bool                         ( *has_setup_callback   )( const le_renderpass_o* obj);
 		bool                         ( *run_setup_callback   )( le_renderpass_o* obj);
-		void                         ( *add_image_attachment )( le_renderpass_o *obj, LeResourceHandle resource_id, LeImageAttachmentInfo const *info );
+		void                         ( *add_image_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, LeImageAttachmentInfo const *info );
 		uint32_t                     ( *get_width            )( le_renderpass_o* obj);
 		uint32_t                     ( *get_height           )( le_renderpass_o* obj);
 		void                         ( *set_width            )( le_renderpass_o* obj, uint32_t width);
@@ -67,15 +65,15 @@ struct le_renderer_api {
 		void                         ( *set_execute_callback )( le_renderpass_o *obj, pfn_renderpass_execute_t render_fun, void *user_data );
 		void                         ( *run_execute_callback )( le_renderpass_o* obj, le_command_buffer_encoder_o* encoder);
 		bool                         ( *has_execute_callback )( const le_renderpass_o* obj);
-		void                         ( *use_resource         )( le_renderpass_o *obj, LeResourceHandle resource_id, uint32_t access_flags );
-		void                         ( *create_resource      )( le_renderpass_o *obj, LeResourceHandle resource_id, const le_resource_info_t &info );
+		void                         ( *use_resource         )( le_renderpass_o *obj, le_resource_handle_t resource_id, uint32_t access_flags );
+		void                         ( *create_resource      )( le_renderpass_o *obj, le_resource_handle_t resource_id, const le_resource_info_t &info );
 		void                         ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
 		bool                         ( *get_is_root          )( const le_renderpass_o *obj);
 		void                         ( *set_sort_key         )( le_renderpass_o *obj, uint64_t sort_key);
 		uint64_t                     ( *get_sort_key         )( const le_renderpass_o *obj);
-		void                         ( *get_read_resources   )( const le_renderpass_o * obj, LeResourceHandle const ** pReadResources, size_t* count );
-		void                         ( *get_write_resources  )( const le_renderpass_o * obj, LeResourceHandle const ** pWriteResources, size_t* count );
-		void                         ( *get_create_resources )( const le_renderpass_o *obj, LeResourceHandle const **pCreateResources, le_resource_info_t const **pResourceInfos, size_t *count );
+		void                         ( *get_read_resources   )( const le_renderpass_o * obj, le_resource_handle_t const ** pReadResources, size_t* count );
+		void                         ( *get_write_resources  )( const le_renderpass_o * obj, le_resource_handle_t const ** pWriteResources, size_t* count );
+		void                         ( *get_create_resources )( const le_renderpass_o *obj, le_resource_handle_t const **pCreateResources, le_resource_info_t const **pResourceInfos, size_t *count );
 		const char*                  ( *get_debug_name       )( const le_renderpass_o* obj );
 		uint64_t                     ( *get_id               )( const le_renderpass_o* obj );
 		LeRenderPassType             ( *get_type             )( const le_renderpass_o* obj );
@@ -84,9 +82,9 @@ struct le_renderer_api {
 
 		// TODO: not too sure about the nomenclature of this
 		// Note that this method implicitly marks the image resource referenced in LeTextureInfo for read access.
-		void                         ( *sample_texture        )(le_renderpass_o* obj, LeResourceHandle texture_name, const LeTextureInfo* info);
+		void                         ( *sample_texture        )(le_renderpass_o* obj, le_resource_handle_t texture_name, const LeTextureInfo* info);
 
-		void                         ( *get_texture_ids       )(le_renderpass_o* obj, const LeResourceHandle ** pIds, uint64_t* count);
+		void                         ( *get_texture_ids       )(le_renderpass_o* obj, const le_resource_handle_t ** pIds, uint64_t* count);
 		void                         ( *get_texture_infos     )(le_renderpass_o* obj, const LeTextureInfo** pInfos, uint64_t* count);
 	};
 
@@ -119,18 +117,18 @@ struct le_renderer_api {
 		void                         ( *set_scissor            )( le_command_buffer_encoder_o *self, uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D *pViewports );
 		void                         ( *bind_graphics_pipeline )( le_command_buffer_encoder_o *self, uint64_t gpsoHash);
 
-		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, LeResourceHandle const bufferId, uint64_t offset, uint64_t const indexType);
-		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, LeResourceHandle const * pBufferId, uint64_t const * pOffsets );
+		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, le_resource_handle_t const bufferId, uint64_t offset, uint64_t const indexType);
+		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, le_resource_handle_t const * pBufferId, uint64_t const * pOffsets );
 
 		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint64_t indexType );
 		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint32_t bindingIndex );
 
-		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, LeResourceHandle const resourceId, size_t offset, void const* data, size_t numBytes);
-		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, LeResourceHandle const resourceId, struct LeBufferWriteRegion const &region, void const *data, size_t numBytes );
+		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_resource_handle_t const resourceId, size_t offset, void const* data, size_t numBytes);
+		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_resource_handle_t const resourceId, struct LeBufferWriteRegion const &region, void const *data, size_t numBytes );
 
 		// stores ubo argument data to scratch buffer - note that parameter index must be dynamic offset index
 		void                         ( *set_argument_ubo_data  )( le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
-		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, LeResourceHandle const textureId, uint64_t argumentName, uint64_t arrayIndex);
+		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, le_resource_handle_t const textureId, uint64_t argumentName, uint64_t arrayIndex);
 
 		le_pipeline_manager_o*       ( *get_pipeline_manager   )( le_command_buffer_encoder_o *self );
 		void                         ( *get_encoded_data       )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
@@ -164,55 +162,6 @@ static const auto &encoder_i       = api -> le_command_buffer_encoder_i;
 
 namespace le {
 
-class ResourceHandle {
-
-  public:
-	constexpr ResourceHandle()
-	    : m_resource( nullptr ) {
-	}
-
-	constexpr ResourceHandle( decltype( nullptr ) )
-	    : m_resource( nullptr ) {
-	}
-
-	ResourceHandle( LeResourceHandle buffer )
-	    : m_resource( buffer ) {
-	}
-
-	ResourceHandle &operator=( decltype( nullptr ) ) {
-		m_resource = nullptr;
-		return *this;
-	}
-
-	bool operator==( ResourceHandle const &rhs ) const {
-		return m_resource == rhs.m_resource;
-	}
-
-	bool operator!=( ResourceHandle const &rhs ) const {
-		return m_resource != rhs.m_resource;
-	}
-
-	bool operator<( ResourceHandle const &rhs ) const {
-		return m_resource < rhs.m_resource;
-	}
-
-	operator LeResourceHandle const &() const {
-		return m_resource;
-	}
-
-	explicit operator bool() const {
-		return m_resource != nullptr;
-	}
-
-	bool operator!() const {
-		return m_resource == nullptr;
-	}
-
-  private:
-	LeResourceHandle m_resource;
-};
-static_assert( sizeof( ResourceHandle ) == sizeof( LeResourceHandle ), "handle and wrapper have different size!" );
-
 class Renderer {
 
 	le_renderer_o *self;
@@ -238,11 +187,7 @@ class Renderer {
 		return le_renderer::renderer_i.create_shader_module( self, path, moduleType );
 	}
 
-	ResourceHandle declareResource( LeResourceType type ) {
-		return le_renderer::renderer_i.declare_resource( self, type );
-	}
-
-	ResourceHandle getBackbufferResource() {
+	le_resource_handle_t getBackbufferResource() {
 		return le_renderer::renderer_i.get_backbuffer_resource( self );
 	}
 
@@ -300,31 +245,31 @@ class RenderPassRef {
 
 	/// \brief adds a resource as an image attachment to the renderpass, resource is used for ColorAttachment and Write access, unless otherwise specified
 	/// \details use an LeImageAttachmentInfo struct to specialise parameters, such as LOAD_OP, CLEAR_OP, and Clear/Load Color.
-	RenderPassRef &addImageAttachment( const LeResourceHandle &resource_id, const LeImageAttachmentInfo &info = LeImageAttachmentInfo() ) {
+	RenderPassRef &addImageAttachment( const le_resource_handle_t &resource_id, const LeImageAttachmentInfo &info = LeImageAttachmentInfo() ) {
 		le_renderer::renderpass_i.add_image_attachment( self, resource_id, &info );
 		return *this;
 	}
 
-	RenderPassRef &addDepthImageAttachment( const LeResourceHandle &resource_id, const LeImageAttachmentInfo &info = {
-	                                                                                 eLeAccessFlagBitWrite,
-	                                                                                 LE_ATTACHMENT_LOAD_OP_CLEAR,
-	                                                                                 LE_ATTACHMENT_STORE_OP_STORE,
-	                                                                                 LeImageAttachmentInfo::DefaultClearValueDepthStencil,
-	                                                                                 0,
-	                                                                                 nullptr,
-	                                                                                 0,
-	                                                                                 {},
-                                                                                 } ) {
+	RenderPassRef &addDepthImageAttachment( const le_resource_handle_t &resource_id, const LeImageAttachmentInfo &info = {
+	                                                                                     eLeAccessFlagBitWrite,
+	                                                                                     LE_ATTACHMENT_LOAD_OP_CLEAR,
+	                                                                                     LE_ATTACHMENT_STORE_OP_STORE,
+	                                                                                     LeImageAttachmentInfo::DefaultClearValueDepthStencil,
+	                                                                                     0,
+	                                                                                     {}, // empty resource handle
+	                                                                                     0,
+	                                                                                     {},
+                                                                                     } ) {
 		return addImageAttachment( resource_id, info );
 	}
 
 	/// \brief register resource with this renderpass, access Read unless otherwise specified
-	RenderPassRef &useResource( LeResourceHandle resource_id, uint32_t access_flags = LeAccessFlagBits::eLeAccessFlagBitRead ) {
+	RenderPassRef &useResource( le_resource_handle_t resource_id, uint32_t access_flags = LeAccessFlagBits::eLeAccessFlagBitRead ) {
 		le_renderer::renderpass_i.use_resource( self, resource_id, access_flags );
 		return *this;
 	}
 
-	RenderPassRef &createResource( LeResourceHandle resource_id, const le_resource_info_t &info ) {
+	RenderPassRef &createResource( le_resource_handle_t resource_id, const le_resource_info_t &info ) {
 		le_renderer::renderpass_i.create_resource( self, resource_id, info );
 		return *this;
 	}
@@ -334,7 +279,7 @@ class RenderPassRef {
 		return *this;
 	}
 
-	RenderPassRef &sampleTexture( LeResourceHandle textureName, const LeTextureInfo &texInfo ) {
+	RenderPassRef &sampleTexture( le_resource_handle_t textureName, const LeTextureInfo &texInfo ) {
 		le_renderer::renderpass_i.sample_texture( self, textureName, &texInfo );
 		return *this;
 	}
@@ -429,12 +374,12 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &bindIndexBuffer( le::ResourceHandle const &bufferId, uint64_t const &offset, uint64_t const &indexType = 0 ) {
+	Encoder &bindIndexBuffer( le_resource_handle_t const &bufferId, uint64_t const &offset, uint64_t const &indexType = 0 ) {
 		le_renderer::encoder_i.bind_index_buffer( self, bufferId, offset, indexType );
 		return *this;
 	}
 
-	Encoder &bindVertexBuffers( uint32_t const &firstBinding, uint32_t const &bindingCount, LeResourceHandle const *pBufferId, uint64_t const *pOffsets ) {
+	Encoder &bindVertexBuffers( uint32_t const &firstBinding, uint32_t const &bindingCount, le_resource_handle_t const *pBufferId, uint64_t const *pOffsets ) {
 		le_renderer::encoder_i.bind_vertex_buffers( self, firstBinding, bindingCount, pBufferId, pOffsets );
 		return *this;
 	}
@@ -449,12 +394,12 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &writeToBuffer( le::ResourceHandle const &resourceId, size_t const &offset, void const *data, size_t const &numBytes ) {
+	Encoder &writeToBuffer( le_resource_handle_t const &resourceId, size_t const &offset, void const *data, size_t const &numBytes ) {
 		le_renderer::encoder_i.write_to_buffer( self, resourceId, offset, data, numBytes );
 		return *this;
 	}
 
-	Encoder &writeToImage( le::ResourceHandle const resourceId, struct LeBufferWriteRegion const &region, void const *data, size_t const &numBytes ) {
+	Encoder &writeToImage( le_resource_handle_t const resourceId, struct LeBufferWriteRegion const &region, void const *data, size_t const &numBytes ) {
 		le_renderer::encoder_i.write_to_image( self, resourceId, region, data, numBytes );
 		return *this;
 	}
@@ -464,7 +409,7 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &setArgumentTexture( uint64_t const &argumentName, LeResourceHandle const &textureId, uint64_t const &arrayIndex ) {
+	Encoder &setArgumentTexture( uint64_t const &argumentName, le_resource_handle_t const &textureId, uint64_t const &arrayIndex ) {
 		le_renderer::encoder_i.set_argument_texture( self, textureId, argumentName, arrayIndex );
 		return *this;
 	}

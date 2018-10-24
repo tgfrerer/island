@@ -71,11 +71,11 @@ struct le_gltf_document_o {
 
 	std::vector<uint8_t> data; // raw geometry data
 
-	std::vector<le::ResourceHandle> bufferResources;
-	std::vector<le_resource_info_t> bufferResourceInfos;
+	std::vector<le_resource_handle_t> bufferResources;
+	std::vector<le_resource_info_t>   bufferResourceInfos;
 
-	std::vector<le::ResourceHandle> imageResources;
-	std::vector<le_resource_info_t> imageResourceInfos;
+	std::vector<le_resource_handle_t> imageResources;
+	std::vector<le_resource_info_t>   imageResourceInfos;
 
 	std::vector<Primitive> primitives;
 	std::vector<Mesh>      meshes;
@@ -590,7 +590,7 @@ static bool document_load_from_text( le_gltf_document_o *self, const char *path 
 	}
 
 	{
-		le::ResourceHandle bufferResource;
+		le_resource_handle_t bufferResource = LE_RESOURCE( "gltf-buffer-1", LeResourceType::eBuffer );
 		self->bufferResources.emplace_back( bufferResource );
 		le_resource_info_t resourceInfo;
 		resourceInfo.type         = LeResourceType::eBuffer;
@@ -725,22 +725,6 @@ static bool document_load_from_text( le_gltf_document_o *self, const char *path 
 static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *renderer ) {
 	static const auto &renderer_i = Registry::getApi<le_renderer_api>()->le_renderer_i;
 
-	for ( auto &r : self->bufferResources ) {
-		if ( !r ) {
-			r = renderer_i.declare_resource( renderer, LeResourceType::eBuffer );
-		} else {
-			std::cout << __FUNCTION__ << " in " << __FILE__ << "#L" << __LINE__ << "WARNING: resource has already been declared.";
-		}
-	}
-
-	for ( auto &r : self->imageResources ) {
-		if ( !r ) {
-			r = renderer_i.declare_resource( renderer, LeResourceType::eImage );
-		} else {
-			std::cout << __FUNCTION__ << " in " << __FILE__ << "#L" << __LINE__ << "WARNING: resource has already been declared.";
-		}
-	}
-
 	vk::PipelineRasterizationStateCreateInfo rasterizationState{};
 	rasterizationState
 	    .setDepthClampEnable( VK_FALSE )
@@ -786,9 +770,9 @@ static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *r
 // ----------------------------------------------------------------------
 // You have to get these resource infos from a transfer renderpass,
 // to make resources accessible to the rendergraph
-static void document_get_resource_infos( le_gltf_document_o *self, le_resource_info_t **infos, LeResourceHandle const **handles, size_t *numResources ) {
+static void document_get_resource_infos( le_gltf_document_o *self, le_resource_info_t **infos, le_resource_handle_t const **handles, size_t *numResources ) {
 	*infos        = self->bufferResourceInfos.data();
-	*handles      = reinterpret_cast<LeResourceHandle *>( self->bufferResources.data() );
+	*handles      = self->bufferResources.data();
 	*numResources = self->bufferResources.size(); //FIXME: return 1 once this is fixed.
 }
 
@@ -824,8 +808,8 @@ static void document_draw( le_gltf_document_o *self, le_command_buffer_encoder_o
 	// that way we can make sure to minimize binding changes.
 	// And all that crap is running on the front thread. Aaaargh.
 
-	auto &                           documentBufferHandle = self->bufferResources[ 0 ];
-	std::array<LeResourceHandle, 32> bufferHandles;
+	auto &                               documentBufferHandle = self->bufferResources[ 0 ];
+	std::array<le_resource_handle_t, 32> bufferHandles;
 	bufferHandles.fill( documentBufferHandle );
 
 	encoder_i.bind_graphics_pipeline( encoder, self->primitives[ 0 ].pso );

@@ -8,11 +8,6 @@
 extern "C" {
 #endif
 
-#ifndef LE_DEFINE_HANDLE_GUARD
-#	define LE_DEFINE_HANDLE( object ) typedef struct object##_T *object;
-#	define LE_DEFINE_HANDLE_GUARD
-#endif
-LE_DEFINE_HANDLE( LeResourceHandle )
 
 void register_le_backend_vk_api( void *api );
 void register_le_instance_vk_api( void *api );       // for le_instance_vk.cpp
@@ -37,6 +32,7 @@ struct le_swapchain_vk_settings_t;
 struct pal_window_o;
 
 struct le_shader_module_o;
+struct le_resource_handle_t; // defined in renderer_types
 
 struct VkInstance_T;
 struct VkDevice_T;
@@ -101,8 +97,7 @@ struct le_backend_vk_api {
 
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
 
-		LeResourceHandle       ( *declare_resource           ) ( le_backend_o* self, LeResourceType type);
-		LeResourceHandle       ( *get_backbuffer_resource    ) ( le_backend_o* self);
+		le_resource_handle_t       ( *get_backbuffer_resource    ) ( le_backend_o* self);
 	};
 
 	struct instance_interface_t {
@@ -150,7 +145,7 @@ struct le_backend_vk_api {
 		void                    ( *destroy              ) ( le_allocator_o *self );
 		bool                    ( *allocate             ) ( le_allocator_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset);
 		void                    ( *reset                ) ( le_allocator_o* self );
-		LeResourceHandle        ( *get_le_resource_id   ) ( le_allocator_o* self );
+		le_resource_handle_t    ( *get_le_resource_id   ) ( le_allocator_o* self );
 	};
 	// clang-format on
 

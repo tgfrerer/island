@@ -43,18 +43,25 @@ struct GltfUboMvp {
 #define LE_ARGUMENT_NAME( x ) hash_64_fnv1a_const( #x )
 
 struct FontTextureInfo {
-	uint8_t *          pixels            = nullptr;
-	int32_t            width             = 0;
-	int32_t            height            = 0;
-	le::ResourceHandle le_texture_handle = nullptr;
-	le::ResourceHandle le_image_handle   = nullptr;
-	bool               wasUploaded       = false;
+	uint8_t *                  pixels            = nullptr;
+	int32_t                    width             = 0;
+	int32_t                    height            = 0;
+	const le_resource_handle_t le_texture_handle = LE_RESOURCE( "ImguiFontTexture", LeResourceType::eTexture );
+	const le_resource_handle_t le_image_handle   = LE_RESOURCE( "ImguiFontImage", LeResourceType::eImage );
+	bool                       wasUploaded       = false;
 };
 
 struct le_mouse_event_data_o {
 	uint32_t  buttonState{};
 	glm::vec2 cursor_pos;
 };
+
+constexpr le_resource_handle_t resImgPrepass     = LE_RESOURCE( "ImgPrepass", LeResourceType::eImage );
+constexpr le_resource_handle_t resImgDepth       = LE_RESOURCE( "ImgDepth", LeResourceType::eImage );
+constexpr le_resource_handle_t resTexPrepass     = LE_RESOURCE( "TexPrepass", LeResourceType::eTexture );
+constexpr le_resource_handle_t resImgHorse       = LE_RESOURCE( "ImgHorse", LeResourceType::eImage );
+constexpr le_resource_handle_t resTexHorse       = LE_RESOURCE( "TexHorse", LeResourceType::eTexture );
+constexpr le_resource_handle_t resBufTrianglePos = LE_RESOURCE( "BufTrianglePos", LeResourceType::eBuffer );
 
 struct test_app_o {
 	le::Backend   backend;
@@ -77,12 +84,6 @@ struct test_app_o {
 
 	// Note we use the c++ facade for resource handles as this guarantees that resource
 	// handles are initialised to nullptr, otherwise this is too easy to forget...
-	le::ResourceHandle resImgPrepass     = nullptr;
-	le::ResourceHandle resImgDepth       = nullptr;
-	le::ResourceHandle resTexPrepass     = nullptr;
-	le::ResourceHandle resImgHorse       = nullptr;
-	le::ResourceHandle resTexHorse       = nullptr;
-	le::ResourceHandle resBufTrianglePos = nullptr;
 
 	le_shader_module_o *shaderTriangle[ 2 ]{};
 	le_shader_module_o *shaderPrepass[ 2 ]{};
@@ -266,13 +267,13 @@ static test_app_o *test_app_create() {
 		io.Fonts->AddFontFromFileTTF( "./resources/fonts/IBMPlexSans-Regular.otf", 20.0f, nullptr, io.Fonts->GetGlyphRangesDefault() );
 		io.Fonts->GetTexDataAsRGBA32( &app->imguiTexture.pixels, &app->imguiTexture.width, &app->imguiTexture.height );
 
-		app->imguiTexture.le_image_handle   = app->renderer.declareResource( LeResourceType::eImage );
-		app->imguiTexture.le_texture_handle = app->renderer.declareResource( LeResourceType::eTexture );
-
 		io.DisplaySize = {float( app->window.getSurfaceWidth() ),
 		                  float( app->window.getSurfaceHeight() )};
 
-		io.Fonts->TexID = app->imguiTexture.le_texture_handle;
+		// we want to save the raw value in the pointer, because if we passed in a
+		// pointer to the name of the texture, the texture may have changed.
+		// for this to work, we first cast to uint64_t, then cast to void*
+		io.Fonts->TexID = ( void * )( uint64_t const & )app->imguiTexture.le_texture_handle;
 
 		// Keyboard mapping. ImGui will use those indices to peek into the io.KeysDown[] array.
 		io.KeyMap[ ImGuiKey_Tab ]        = GLFW_KEY_TAB;
@@ -331,16 +332,6 @@ static test_app_o *test_app_create() {
 	}
 
 	{
-		// Declare resources which we will need for our scene
-
-		app->resImgPrepass     = app->renderer.declareResource( LeResourceType::eImage );
-		app->resImgDepth       = app->renderer.declareResource( LeResourceType::eImage );
-		app->resTexPrepass     = app->renderer.declareResource( LeResourceType::eTexture );
-		app->resImgHorse       = app->renderer.declareResource( LeResourceType::eImage );
-		app->resTexHorse       = app->renderer.declareResource( LeResourceType::eTexture );
-		app->resBufTrianglePos = app->renderer.declareResource( LeResourceType::eBuffer );
-	}
-	{
 		reset_camera( app );
 	}
 	return app;
@@ -377,7 +368,7 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data_ ) {
 			img.imageType   = VK_IMAGE_TYPE_2D;
 			img.tiling      = VK_IMAGE_TILING_OPTIMAL;
 		}
-		rp.createResource( app->resImgHorse, imgInfo );
+		rp.createResource( resImgHorse, imgInfo );
 	}
 
 	{
@@ -418,7 +409,7 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data_ ) {
 			img.imageType   = VK_IMAGE_TYPE_2D;
 			img.tiling      = VK_IMAGE_TILING_OPTIMAL;
 		}
-		rp.createResource( app->resImgPrepass, imgInfo );
+		rp.createResource( resImgPrepass, imgInfo );
 	}
 
 	{
@@ -439,7 +430,7 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data_ ) {
 			img.imageType     = VK_IMAGE_TYPE_2D;
 			img.tiling        = VK_IMAGE_TILING_OPTIMAL;
 		}
-		rp.createResource( app->resImgDepth, imgInfo );
+		rp.createResource( resImgDepth, imgInfo );
 	}
 
 	{
@@ -448,15 +439,15 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data_ ) {
 		bufInfo.type         = LeResourceType::eBuffer;
 		bufInfo.buffer.size  = sizeof( glm::vec3 ) * 3;
 		bufInfo.buffer.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-		rp.createResource( app->resBufTrianglePos, bufInfo );
+		rp.createResource( resBufTrianglePos, bufInfo );
 	}
 
 	{
 		using namespace le_gltf_loader;
 		// create resources for gltf document
-		le_resource_info_t *    resourceInfo;
-		LeResourceHandle const *resourceHandles;
-		size_t                  numResourceInfos;
+		le_resource_info_t *        resourceInfo;
+		le_resource_handle_t const *resourceHandles;
+		size_t                      numResourceInfos;
 		gltf_document_i.get_resource_infos( app->gltfDoc, &resourceInfo, &resourceHandles, &numResourceInfos );
 
 		for ( size_t i = 0; i != numResourceInfos; i++ ) {
@@ -486,7 +477,7 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder, void *user
 		auto pix      = LePixels( "./resources/images/horse-1330690_640.jpg", 4 );
 		auto pix_info = pix.getInfo();
 		auto pix_data = pix.getData();
-		encoder_i.write_to_image( encoder, app->resImgHorse, {pix_info.width, pix_info.height}, pix_data, pix_info.byte_count );
+		encoder_i.write_to_image( encoder, resImgHorse, {pix_info.width, pix_info.height}, pix_data, pix_info.byte_count );
 		app->imgHorseWasUploaded = true;
 	}
 
@@ -507,7 +498,7 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder, void *user
 		    {0, 50, 0},
 		};
 
-		encoder_i.write_to_buffer( encoder, app->resBufTrianglePos, 0, trianglePositions, sizeof( trianglePositions ) );
+		encoder_i.write_to_buffer( encoder, resBufTrianglePos, 0, trianglePositions, sizeof( trianglePositions ) );
 	}
 
 	using namespace le_gltf_loader;
@@ -520,16 +511,16 @@ static bool pass_pre_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	auto rp  = le::RenderPassRef{pRp};
 	auto app = static_cast<test_app_o *>( user_data_ );
 
-	rp.addImageAttachment( app->resImgPrepass );
+	rp.addImageAttachment( resImgPrepass );
 
-	rp.useResource( app->resImgHorse );
+	rp.useResource( resImgHorse );
 
 	LeTextureInfo textureInfo{};
-	textureInfo.imageView.imageId = app->resImgHorse;
+	textureInfo.imageView.imageId = resImgHorse;
 	textureInfo.sampler.magFilter = VK_FILTER_LINEAR;
 	textureInfo.sampler.minFilter = VK_FILTER_LINEAR;
 
-	rp.sampleTexture( app->resTexHorse, textureInfo );
+	rp.sampleTexture( resTexHorse, textureInfo );
 
 	rp.setWidth( 640 );
 	rp.setHeight( 425 );
@@ -571,7 +562,7 @@ static void pass_pre_exec( le_command_buffer_encoder_o *encoder_, void *user_dat
 
 		encoder
 		    .bindGraphicsPipeline( psoPrepass )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( src_tex_unit_0 ), app->resTexHorse, 0 )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( src_tex_unit_0 ), resTexHorse, 0 )
 		    .setArgumentData( LE_ARGUMENT_NAME( TimeInfo ), &info, sizeof( info ) )
 		    .setScissors( 0, 1, &scissors[ 0 ] )
 		    .setViewports( 0, 1, &viewports[ 0 ] )
@@ -587,8 +578,8 @@ static bool pass_final_setup( le_renderpass_o *pRp, void *user_data_ ) {
 
 	rp
 	    .addImageAttachment( app->renderer.getBackbufferResource() ) // color attachment
-	    .addDepthImageAttachment( app->resImgDepth )                 // depth attachment
-	    .sampleTexture( app->resTexPrepass, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {app->resImgPrepass, 0}} )
+	    .addDepthImageAttachment( resImgDepth )                      // depth attachment
+	    .sampleTexture( resTexPrepass, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {resImgPrepass, 0}} )
 	    .sampleTexture( app->imguiTexture.le_texture_handle, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {app->imguiTexture.le_image_handle, 0}} )
 	    .setIsRoot( true );
 
@@ -640,8 +631,8 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 		    .setDepthClampEnable( VK_FALSE )
 		    .setRasterizerDiscardEnable( VK_FALSE )
 		    .setPolygonMode( vk::PolygonMode::eFill )
-		    // .setCullMode( vk::CullModeFlagBits::eBack )
-		    // .setFrontFace( vk::FrontFace::eCounterClockwise )
+		    //		    .setCullMode( vk::CullModeFlagBits::eBack )
+		    //		    .setFrontFace( vk::FrontFace::eCounterClockwise )
 		    .setDepthBiasEnable( VK_FALSE )
 		    .setDepthBiasConstantFactor( 0.f )
 		    .setDepthBiasClamp( 0.f )
@@ -665,8 +656,8 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 
 		matrixStack.viewMatrix = reinterpret_cast<glm::mat4 const &>( *app->camera.getViewMatrix() );
 
-		LeResourceHandle buffers[] = {app->resBufTrianglePos};
-		uint64_t         offsets[] = {0};
+		le_resource_handle_t buffers[] = {resBufTrianglePos};
+		uint64_t             offsets[] = {0};
 
 		glm::vec4 triangleColors[ 3 ] = {
 		    {1, 0, 0, 1.f},
@@ -715,7 +706,7 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 
 		encoder
 		    .bindGraphicsPipeline( app->psoFullScreenQuad )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( src_tex_unit_0 ), app->resTexPrepass, 0 )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( src_tex_unit_0 ), resTexPrepass, 0 )
 		    .setScissors( 0, 1, &scissors[ 2 ] )
 		    .setViewports( 0, 1, &viewports[ 2 ] )
 		    .draw( 3 ) //
@@ -737,7 +728,7 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 		    .setArgumentTexture( LE_ARGUMENT_NAME( tex_unit_0 ), app->imguiTexture.le_texture_handle, 0 ) //
 		    ;
 
-		LeResourceHandle currentTexture = app->imguiTexture.le_texture_handle; // we check this for changes so that we don't have to switch state that often.
+		le_resource_handle_t currentTexture = app->imguiTexture.le_texture_handle; // we check this for changes so that we don't have to switch state that often.
 
 		ImVec4 currentClipRect{};
 
@@ -761,7 +752,7 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 				static_assert( sizeof( le::Rect2D ) == sizeof( ImVec4 ), "clip rect size must match for direct assignment" );
 
 				// -- update bound texture, but only if texture different from currently bound texture
-				const LeResourceHandle nextTexture = reinterpret_cast<const LeResourceHandle>( im_cmd.TextureId );
+				const le_resource_handle_t nextTexture = reinterpret_cast<const le_resource_handle_t &>( im_cmd.TextureId );
 				if ( nextTexture != currentTexture ) {
 					encoder_i.set_argument_texture( encoder, nextTexture, hash_64_fnv1a_const( "tex_unit_0" ), 0 );
 					currentTexture = nextTexture;

@@ -24,5 +24,5 @@ void main(){
 
 	outFragColor = texture(src_tex_unit_0, inTexCoord.xy ) ;
 	// outFragColor = vec4(inTexCoord.xy, 0, 1);
-	 // outFragColor *= getCircle(inTexCoord.xy*vec2(aspectX,1)-vec2(aspectX*0.25,0));
+	outFragColor *= getCircle(inTexCoord.xy*vec2(aspectX,1)-vec2(aspectX*0.5*pulse,0));
 }

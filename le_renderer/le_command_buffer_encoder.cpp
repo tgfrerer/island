@@ -139,7 +139,7 @@ static void cbe_set_scissor( le_command_buffer_encoder_o *self,
 static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self,
                                      uint32_t                     firstBinding,
                                      uint32_t                     bindingCount,
-                                     LeResourceHandle const *     pBuffers,
+                                     le_resource_handle_t const * pBuffers,
                                      uint64_t const *             pOffsets ) {
 
 	// NOTE: pBuffers will hold ids for virtual buffers, we must match these
@@ -151,10 +151,10 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self,
 	void *dataBuffers = ( cmd + 1 );
 	void *dataOffsets = ( static_cast<char *>( dataBuffers ) + sizeof( uint64_t ) * bindingCount );
 
-	size_t dataBuffersSize = ( sizeof( void * ) + sizeof( LeResourceHandle ) ) * bindingCount;
+	size_t dataBuffersSize = ( sizeof( void * ) + sizeof( le_resource_handle_t ) ) * bindingCount;
 	size_t dataOffsetsSize = ( sizeof( void * ) + sizeof( uint64_t ) ) * bindingCount;
 
-	cmd->info = {firstBinding, bindingCount, static_cast<LeResourceHandle *>( dataBuffers ), static_cast<uint64_t *>( dataOffsets )};
+	cmd->info = {firstBinding, bindingCount, static_cast<le_resource_handle_t *>( dataBuffers ), static_cast<uint64_t *>( dataOffsets )};
 	cmd->header.info.size += dataBuffersSize + dataOffsetsSize; // we must increase the size of this command by its payload size
 
 	memcpy( dataBuffers, pBuffers, dataBuffersSize );
@@ -166,7 +166,7 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 static void cbe_bind_index_buffer( le_command_buffer_encoder_o *self,
-                                   LeResourceHandle const       buffer,
+                                   le_resource_handle_t const   buffer,
                                    uint64_t                     offset,
                                    uint64_t                     indexType ) {
 
@@ -198,7 +198,7 @@ static void cbe_set_vertex_data( le_command_buffer_encoder_o *self,
 	if ( le_allocator_linear_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
 		memcpy( memAddr, data, numBytes );
 
-		LeResourceHandle allocatorBufferId = reinterpret_cast<LeResourceHandle>( le_allocator_linear_i.get_le_resource_id( self->pAllocator ) );
+		le_resource_handle_t allocatorBufferId = le_allocator_linear_i.get_le_resource_id( self->pAllocator );
 
 		cbe_bind_vertex_buffers( self, bindingIndex, 1, &allocatorBufferId, &bufferOffset );
 	} else {
@@ -225,7 +225,7 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *self,
 		// -- Upload data via scratch allocator
 		memcpy( memAddr, data, numBytes );
 
-		LeResourceHandle allocatorBufferId = reinterpret_cast<LeResourceHandle>( le_allocator_linear_i.get_le_resource_id( self->pAllocator ) );
+		le_resource_handle_t allocatorBufferId = le_allocator_linear_i.get_le_resource_id( self->pAllocator );
 
 		// -- Bind index buffer to scratch allocator
 		cbe_bind_index_buffer( self, allocatorBufferId, bufferOffset, indexType );
@@ -258,7 +258,7 @@ static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
 		// -- Store ubo data to scratch allocator
 		memcpy( memAddr, data, numBytes );
 
-		LeResourceHandle allocatorBufferId = reinterpret_cast<LeResourceHandle>( le_allocator_linear_i.get_le_resource_id( self->pAllocator ) );
+		le_resource_handle_t allocatorBufferId = le_allocator_linear_i.get_le_resource_id( self->pAllocator );
 
 		cmd->info.argument_name_id = argumentNameId;
 		cmd->info.buffer_id        = allocatorBufferId;
@@ -277,7 +277,7 @@ static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_argument_texture( le_command_buffer_encoder_o *self, LeResourceHandle const textureId, uint64_t argumentName, uint64_t arrayIndex ) {
+static void cbe_set_argument_texture( le_command_buffer_encoder_o *self, le_resource_handle_t const textureId, uint64_t argumentName, uint64_t arrayIndex ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandSetArgumentTexture );
 
@@ -307,7 +307,7 @@ static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, uint64_t psoHa
 
 // ----------------------------------------------------------------------
 
-static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, LeResourceHandle const resourceId, size_t offset, void const *data, size_t numBytes ) {
+static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_resource_handle_t const resourceId, size_t offset, void const *data, size_t numBytes ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandWriteToBuffer );
 
@@ -324,7 +324,7 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, LeResourceHa
 		// -- Write data to scratch memory now
 		memcpy( memAddr, data, numBytes );
 
-		cmd->info.src_buffer_id = reinterpret_cast<LeResourceHandle>( le_allocator_linear_i.get_le_resource_id( self->pAllocator ) );
+		cmd->info.src_buffer_id = le_allocator_linear_i.get_le_resource_id( self->pAllocator );
 		cmd->info.src_offset    = bufferOffset;
 		cmd->info.dst_offset    = offset;
 		cmd->info.numBytes      = numBytes;
@@ -342,7 +342,7 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, LeResourceHa
 // ----------------------------------------------------------------------
 
 static void cbe_write_to_image( le_command_buffer_encoder_o *self,
-                                LeResourceHandle             resourceId,
+                                le_resource_handle_t         resourceId,
                                 LeBufferWriteRegion const &  region,
                                 void const *                 data,
                                 size_t                       numBytes ) {
@@ -362,7 +362,7 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *self,
 		// -- Write data to scratch memory now
 		memcpy( memAddr, data, numBytes );
 
-		cmd->info.src_buffer_id = reinterpret_cast<LeResourceHandle>( le_allocator_linear_i.get_le_resource_id( self->pAllocator ) );
+		cmd->info.src_buffer_id = le_allocator_linear_i.get_le_resource_id( self->pAllocator );
 		cmd->info.src_offset    = bufferOffset;
 		cmd->info.dst_region    = region;
 		cmd->info.numBytes      = numBytes;

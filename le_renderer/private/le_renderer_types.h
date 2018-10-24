@@ -3,13 +3,66 @@
 
 #include <stdint.h>
 
-#ifndef LE_DEFINE_HANDLE_GUARD
-#	define LE_DEFINE_HANDLE( object ) typedef struct object##_T *object;
-#	define LE_DEFINE_HANDLE_GUARD
-#endif
+#include "pal_api_loader/hash_util.h"
 
-LE_DEFINE_HANDLE( LeResourceHandle )
+enum class LeResourceType : uint8_t {
+        eUndefined = 0,
+        eBuffer,
+        eImage,
+        eTexture,
+};
 
+struct le_resource_handle_t {
+
+        enum FlagBits : uint8_t {
+                eIsVirtual = 1u << 0,
+        };
+        union Meta {
+            struct {
+                LeResourceType     type;
+                uint8_t index;
+                uint8_t flags;
+                uint8_t padding;
+            };
+            uint32_t data;
+        };
+
+        union{
+
+        struct{
+            uint32_t name_hash;
+            Meta meta;
+        };
+        uint64_t raw_data;
+        };
+
+        inline operator uint64_t(){
+            return raw_data;
+        }
+
+};
+
+static inline bool operator == (le_resource_handle_t const & lhs, le_resource_handle_t const& rhs) noexcept{
+    return lhs.raw_data == rhs.raw_data;
+}
+
+static inline bool operator != (le_resource_handle_t const & lhs, le_resource_handle_t const& rhs) noexcept{
+    return !(lhs==rhs);
+}
+
+
+struct LeResourceHandleIdentity {
+       inline auto operator()( const le_resource_handle_t &key_ ) const noexcept {
+                return key_.raw_data;
+       }
+};
+
+constexpr le_resource_handle_t LE_RESOURCE( const char *const str, const LeResourceType tp ) noexcept {
+        le_resource_handle_t handle{};
+        handle.name_hash = hash_32_fnv1a_const( str );
+        handle.meta.type = tp;
+        return handle;
+}
 
 struct LeBufferWriteRegion {
 	uint32_t width;
@@ -43,13 +96,6 @@ enum class LeShaderType : uint64_t {
         eFrag        = 0x00000010,
         eAllGraphics = 0x0000001F,
         eCompute     = 0x00000020, // max needed space to cover this enum is 6 bit
-};
-
-enum class LeResourceType : uint8_t {
-        eUndefined = 0,
-        eBuffer,
-        eImage,
-        eTexture,
 };
 
 typedef int LeFormat_t; // we're declaring this as a placeholder for image format enum
@@ -94,7 +140,7 @@ struct LeTextureInfo {
                                // TODO: add clamp clamp modes etc.
         };
         struct ImageViewInfo {
-                LeResourceHandle imageId; // le image resource id
+                le_resource_handle_t imageId; // le image resource id
                 int              format;  // enum VkFormat, leave at 0 (undefined) to use format of image referenced by `imageId`
         };
         SamplerInfo   sampler;
@@ -131,9 +177,9 @@ struct LeImageAttachmentInfo {
 	LeAttachmentStoreOp storeOp      = LE_ATTACHMENT_STORE_OP_STORE; //
 	LeClearValue        clearValue   = DefaultClearValueColor;       // only used if loadOp == clear
 
-	LeFormat_t       format      = 0;       // if format is not given it will be automatically derived from attached image format
-	LeResourceHandle resource_id = nullptr; // (private - do not set) handle given to this attachment
-	uint64_t         source_id   = 0;       // (private - do not set) hash name of writer/creator renderpass
+	LeFormat_t       format      {};       // if format is not given it will be automatically derived from attached image format
+	le_resource_handle_t resource_id {}; // (private - do not set) handle given to this attachment
+	uint64_t         source_id   {};       // (private - do not set) hash name of writer/creator renderpass
 
 	char debugName[ 32 ];
 };
@@ -279,7 +325,7 @@ struct CommandSetArgumentUbo {
 	CommandHeader header = {{{CommandType::eSetArgumentUbo, sizeof( CommandSetArgumentUbo )}}};
 	struct {
 		uint64_t         argument_name_id; // const_char_hash id of argument name
-		LeResourceHandle buffer_id;        // id of buffer that holds data
+		le_resource_handle_t buffer_id;        // id of buffer that holds data
 		uint32_t         offset;           // offset into buffer
 		uint32_t         range;            // size of argument data in bytes
 	} info;
@@ -289,7 +335,7 @@ struct CommandSetArgumentTexture {
 	CommandHeader header = {{{CommandType::eSetArgumentTexture, sizeof( CommandSetArgumentTexture )}}};
 	struct {
 		uint64_t         argument_name_id; // const_char_hash id of argument name
-		LeResourceHandle texture_id;       // texture id, hash of texture name
+		le_resource_handle_t texture_id;       // texture id, hash of texture name
 		uint64_t         array_index;      // argument array index (default is 0)
 	} info;
 };
@@ -307,7 +353,7 @@ struct CommandBindVertexBuffers {
 	struct {
 		uint32_t          firstBinding;
 		uint32_t          bindingCount;
-		LeResourceHandle *pBuffers; // TODO: place proper buffer_id type here
+		le_resource_handle_t *pBuffers; // TODO: place proper buffer_id type here
 		uint64_t *        pOffsets;
 	} info;
 };
@@ -315,7 +361,7 @@ struct CommandBindVertexBuffers {
 struct CommandBindIndexBuffer {
 	CommandHeader header = {{{CommandType::eBindIndexBuffer, sizeof( CommandBindIndexBuffer )}}};
 	struct {
-		LeResourceHandle buffer; // buffer id
+	        le_resource_handle_t buffer; // buffer id
 		uint64_t         offset;
 		uint64_t         indexType;
 	} info;
@@ -331,8 +377,8 @@ struct CommandBindPipeline {
 struct CommandWriteToBuffer {
 	CommandHeader header = {{{CommandType::eWriteToBuffer, sizeof( CommandWriteToBuffer )}}};
 	struct {
-		LeResourceHandle src_buffer_id; // le buffer id of scratch buffer
-		LeResourceHandle dst_buffer_id; // which resource to write to
+	        le_resource_handle_t src_buffer_id; // le buffer id of scratch buffer
+		le_resource_handle_t dst_buffer_id; // which resource to write to
 		uint64_t         src_offset;    // offset in scratch buffer where to find source data
 		uint64_t         dst_offset;    // offset where to write to in target resource
 		uint64_t         numBytes;      // number of bytes
@@ -343,8 +389,8 @@ struct CommandWriteToBuffer {
 struct CommandWriteToImage {
 	CommandHeader header = {{{CommandType::eWriteToImage, sizeof( CommandWriteToImage )}}};
 	struct {
-		LeResourceHandle    src_buffer_id; // le buffer id of scratch buffer
-		LeResourceHandle    dst_image_id;  // which resource to write to
+	        le_resource_handle_t    src_buffer_id; // le buffer id of scratch buffer
+		le_resource_handle_t    dst_image_id;  // which resource to write to
 		uint64_t            src_offset;    // offset in scratch buffer where to find source data
 		uint64_t            numBytes;      // number of bytes
 		LeBufferWriteRegion dst_region;    // which part of the image to write to

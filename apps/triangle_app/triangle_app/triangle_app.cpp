@@ -54,8 +54,6 @@ struct triangle_app_o {
 
 	// Note we use the c++ facade for resource handles as this guarantees that resource
 	// handles are initialised to nullptr, otherwise this is too easy to forget...
-	le::ResourceHandle resImgDepth       = nullptr;
-	le::ResourceHandle resBufTrianglePos = nullptr;
 
 	le_shader_module_o *shaderTriangle[ 2 ]{};
 	le_shader_module_o *shaderPathTracer[ 2 ]{};
@@ -146,12 +144,7 @@ static triangle_app_o *triangle_app_create() {
 	app->update_start_time = std::chrono::high_resolution_clock::now();
 
 	{
-		// Declare resources which we will need for our scene
 
-		app->resImgDepth       = app->renderer.declareResource( LeResourceType::eImage );
-		app->resBufTrianglePos = app->renderer.declareResource( LeResourceType::eBuffer );
-	}
-	{
 		// set up the camera
 		reset_camera( app );
 	}
@@ -161,6 +154,7 @@ static triangle_app_o *triangle_app_create() {
 // ----------------------------------------------------------------------
 
 static void reset_camera( triangle_app_o *self ) {
+
 	self->camera.setViewport( {0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ), 0.f, 1.f} );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
@@ -191,7 +185,7 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data ) {
 			img.imageType     = VK_IMAGE_TYPE_2D;
 			img.tiling        = VK_IMAGE_TILING_OPTIMAL;
 		}
-		rp.createResource( app->resImgDepth, imgInfo );
+		rp.createResource( LE_RESOURCE( "ImgDepth", LeResourceType::eImage ), imgInfo );
 	}
 
 	{
@@ -200,8 +194,8 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data ) {
 		bufInfo.type         = LeResourceType::eBuffer;
 		bufInfo.buffer.size  = sizeof( glm::vec3 ) * 6;
 		bufInfo.buffer.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-		rp.createResource( app->resBufTrianglePos, bufInfo );
-		rp.useResource( app->resBufTrianglePos, LeAccessFlagBits::eLeAccessFlagBitWrite );
+		rp.createResource( LE_RESOURCE( "TriangleBuffer", LeResourceType::eBuffer ), bufInfo );
+		rp.useResource( LE_RESOURCE( "TriangleBuffer", LeResourceType::eBuffer ), LeAccessFlagBits::eLeAccessFlagBitWrite );
 	}
 
 	rp.setIsRoot( true );
@@ -224,9 +218,6 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder, void *user
 
 	// upload triangle data
 	glm::vec3 trianglePositions[ 6 ] = {
-	    //	    	    {-50, -50, 0},
-	    //	    	    {50, -50, 0},
-	    //	    	    {0, 50, 0},
 	    {0, -50, 0},
 	    {0, 25, 0},
 	    {100, 50, 0},
@@ -235,7 +226,7 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder, void *user
 	    {-100, 50, 0},
 	};
 
-	encoder_i.write_to_buffer( encoder, app->resBufTrianglePos, 0, trianglePositions, sizeof( trianglePositions ) );
+	encoder_i.write_to_buffer( encoder, LE_RESOURCE( "TriangleBuffer", LeResourceType::eBuffer ), 0, trianglePositions, sizeof( trianglePositions ) );
 }
 
 // ----------------------------------------------------------------------
@@ -245,9 +236,9 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto app = static_cast<triangle_app_o *>( user_data );
 
 	rp
-	    .addImageAttachment( app->renderer.getBackbufferResource() ) // color attachment
-	    .addDepthImageAttachment( app->resImgDepth )                 // depth attachment
-	    .useResource( app->resBufTrianglePos, LeAccessFlagBits::eLeAccessFlagBitRead )
+	    .addImageAttachment( app->renderer.getBackbufferResource() )                  // color attachment
+	    .addDepthImageAttachment( LE_RESOURCE( "ImgDepth", LeResourceType::eImage ) ) // depth attachment
+	    .useResource( LE_RESOURCE( "TriangleBuffer", LeResourceType::eBuffer ), LeAccessFlagBits::eLeAccessFlagBitRead )
 	    .setIsRoot( true );
 
 	return true;
@@ -386,8 +377,8 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 			rayInfo.rayBR = nearPlane[ 3 ];
 		}
 
-		LeResourceHandle buffers[] = {app->resBufTrianglePos};
-		uint64_t         offsets[] = {0};
+		le_resource_handle_t buffers[] = {LE_RESOURCE( "TriangleBuffer", LeResourceType::eBuffer )};
+		uint64_t             offsets[] = {0};
 
 		ColorUbo_t color{{1, 1, 1, 1}};
 

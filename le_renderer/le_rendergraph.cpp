@@ -28,17 +28,17 @@ struct le_renderpass_o {
 	uint64_t         id       = 0;
 	uint64_t         sort_key = 0;
 
-	std::vector<LeResourceHandle>      readResources;
-	std::vector<LeResourceHandle>      writeResources;
-	std::vector<LeResourceHandle>      createResources;
+	std::vector<le_resource_handle_t>  readResources;
+	std::vector<le_resource_handle_t>  writeResources;
+	std::vector<le_resource_handle_t>  createResources;
 	std::vector<le_resource_info_t>    createResourceInfos; // createResources holds ids at matching index
 	std::vector<LeImageAttachmentInfo> imageAttachments;
 
 	uint32_t width  = 0; ///< width in pixels, must be identical for all attachments  , default:0 means current frame.swapchainWidth
 	uint32_t height = 0; ///< height in pixels, must be identical for all attachments , default:0 means current frame.swapchainHeight
 
-	std::vector<LeTextureInfo>    textureInfos;   // kept in sync
-	std::vector<LeResourceHandle> textureInfoIds; // kept in sync
+	std::vector<LeTextureInfo>        textureInfos;   // kept in sync
+	std::vector<le_resource_handle_t> textureInfoIds; // kept in sync
 
 	le_renderer_api::pfn_renderpass_setup_t   callbackSetup              = nullptr;
 	le_renderer_api::pfn_renderpass_execute_t callbackExecute            = nullptr;
@@ -123,7 +123,7 @@ static inline bool vector_contains( const std::vector<T> &haystack, const T &nee
 
 // ----------------------------------------------------------------------
 
-static void renderpass_use_resource( le_renderpass_o *self, LeResourceHandle resource_id, uint32_t accessFlags ) {
+static void renderpass_use_resource( le_renderpass_o *self, le_resource_handle_t resource_id, uint32_t accessFlags ) {
 
 	if ( ( accessFlags & eLeAccessFlagBitRead ) &&
 	     !vector_contains( self->readResources, resource_id ) ) {
@@ -138,7 +138,7 @@ static void renderpass_use_resource( le_renderpass_o *self, LeResourceHandle res
 
 // ----------------------------------------------------------------------
 
-static void renderpass_sample_texture( le_renderpass_o *self, LeResourceHandle texture, LeTextureInfo const *textureInfo ) {
+static void renderpass_sample_texture( le_renderpass_o *self, le_resource_handle_t texture, LeTextureInfo const *textureInfo ) {
 
 	// -- store texture info so that backend can create resources
 
@@ -158,7 +158,7 @@ static void renderpass_sample_texture( le_renderpass_o *self, LeResourceHandle t
 
 // ----------------------------------------------------------------------
 
-static void renderpass_add_image_attachment( le_renderpass_o *self, LeResourceHandle resource_id, LeImageAttachmentInfo const *info_ ) {
+static void renderpass_add_image_attachment( le_renderpass_o *self, le_resource_handle_t resource_id, LeImageAttachmentInfo const *info_ ) {
 
 	self->imageAttachments.push_back( *info_ );
 	auto &info = self->imageAttachments.back();
@@ -206,7 +206,7 @@ static void renderpass_set_height( le_renderpass_o *self, uint32_t height ) {
 }
 // ----------------------------------------------------------------------
 
-static void renderpass_create_resource( le_renderpass_o *self, LeResourceHandle resource, const le_resource_info_t &info ) {
+static void renderpass_create_resource( le_renderpass_o *self, le_resource_handle_t resource, const le_resource_info_t &info ) {
 
 	self->createResourceInfos.push_back( info );
 	self->createResources.push_back( resource );
@@ -238,17 +238,17 @@ static LeRenderPassType renderpass_get_type( le_renderpass_o const *self ) {
 	return self->type;
 }
 
-static void renderpass_get_read_resources( le_renderpass_o const *self, LeResourceHandle const **pReadResources, size_t *count ) {
+static void renderpass_get_read_resources( le_renderpass_o const *self, le_resource_handle_t const **pReadResources, size_t *count ) {
 	*pReadResources = self->readResources.data();
 	*count          = self->readResources.size();
 }
 
-static void renderpass_get_write_resources( le_renderpass_o const *self, LeResourceHandle const **pWriteResources, size_t *count ) {
+static void renderpass_get_write_resources( le_renderpass_o const *self, le_resource_handle_t const **pWriteResources, size_t *count ) {
 	*pWriteResources = self->writeResources.data();
 	*count           = self->writeResources.size();
 }
 
-static void renderpass_get_create_resources( le_renderpass_o const *self, LeResourceHandle const **pCreateResources, le_resource_info_t const **pResourceInfos, size_t *count ) {
+static void renderpass_get_create_resources( le_renderpass_o const *self, le_resource_handle_t const **pCreateResources, le_resource_info_t const **pResourceInfos, size_t *count ) {
 	assert( self->createResourceInfos.size() == self->createResources.size() );
 
 	*pCreateResources = self->createResources.data();
@@ -269,7 +269,7 @@ static void renderpass_get_image_attachments( const le_renderpass_o *self, const
 	*numAttachments = self->imageAttachments.size();
 }
 
-static void renderpass_get_texture_ids( le_renderpass_o *self, const LeResourceHandle **ids, uint64_t *count ) {
+static void renderpass_get_texture_ids( le_renderpass_o *self, const le_resource_handle_t **ids, uint64_t *count ) {
 	*ids   = self->textureInfoIds.data();
 	*count = self->textureInfoIds.size();
 };
@@ -346,14 +346,14 @@ static std::vector<std::vector<uint64_t>> graph_builder_resolve_resource_ids( co
 	dependenciesPerPass.reserve( passes.size() );
 
 	// map from resource id -> source pass id
-	std::unordered_map<LeResourceHandle, uint64_t> writeAttachmentTable;
+	std::unordered_map<le_resource_handle_t, uint64_t, LeResourceHandleIdentity> writeAttachmentTable;
 
 	// We go through passes in module submission order, so that outputs will match later inputs.
 	uint64_t passIndex = 0;
 	for ( auto const &pass : passes ) {
 
-		size_t                  readResourceCount = 0;
-		const LeResourceHandle *pReadResources    = nullptr;
+		size_t                      readResourceCount = 0;
+		const le_resource_handle_t *pReadResources    = nullptr;
 		renderpass_get_read_resources( pass, &pReadResources, &readResourceCount );
 
 		std::vector<uint64_t> passesThisPassDependsOn;
@@ -375,8 +375,8 @@ static std::vector<std::vector<uint64_t>> graph_builder_resolve_resource_ids( co
 		// later inputs with same name will then resolve to the latest version
 		// of an output with a particular name.
 		{
-			size_t                  writeResourceCount = 0;
-			const LeResourceHandle *pWriteResources    = nullptr;
+			size_t                      writeResourceCount = 0;
+			const le_resource_handle_t *pWriteResources    = nullptr;
 			renderpass_i.get_write_resources( pass, &pWriteResources, &writeResourceCount );
 
 			for ( const auto *it = pWriteResources; it != pWriteResources + writeResourceCount; it++ ) {
@@ -537,7 +537,7 @@ static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameI
 				if ( attachment->access_flags & eLeAccessFlagBitWrite ) {
 					msg << "w";
 				}
-				msg << " : " << std::setw( 32 ) << std::hex << attachment->resource_id << ":" << attachment->source_id << ", '" << attachment->debugName << "'" << std::endl;
+				msg << " : " << std::setw( 32 ) << std::hex << attachment->resource_id.raw_data << ":" << attachment->source_id << ", '" << attachment->debugName << "'" << std::endl;
 			}
 		}
 		std::cout << msg.str();

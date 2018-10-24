@@ -104,29 +104,10 @@ struct AbstractPhysicalResource {
 	Type type;
 };
 
-/// \brief re-interpretation of resource handle type
-/// \note we assume little-endian machine
-struct LeResourceHandleMeta {
-	enum FlagBits : uint8_t {
-		eIsVirtual = 1u << 0,
-	};
 
-	union {
-		struct {
-			uint32_t id; // unique identifier
-			struct {
-				LeResourceType type;  // tells us type of resource
-				uint8_t        flags; // composed of FlagBits
-				uint8_t        index; // used for virtual buffers to refer to corresponding le_allocator index
-				uint8_t        padding;
-			};
-		};
-		uint64_t data;
-	};
-};
 
 struct AttachmentInfo {
-	LeResourceHandle      resource_id = nullptr; ///< which resource to look up for resource state
+	le_resource_handle_t  resource_id{}; ///< which resource to look up for resource state
 	vk::Format            format;
 	vk::AttachmentLoadOp  loadOp;
 	vk::AttachmentStoreOp storeOp;
