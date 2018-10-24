@@ -46,8 +46,8 @@ struct FontTextureInfo {
 	uint8_t *                  pixels            = nullptr;
 	int32_t                    width             = 0;
 	int32_t                    height            = 0;
-	const le_resource_handle_t le_texture_handle = LE_RESOURCE( "ImguiFontTexture", LeResourceType::eTexture );
-	const le_resource_handle_t le_image_handle   = LE_RESOURCE( "ImguiFontImage", LeResourceType::eImage );
+	const le_resource_handle_t le_texture_handle = LE_TEX_RESOURCE( "ImguiFontTexture" );
+	const le_resource_handle_t le_image_handle   = LE_IMG_RESOURCE( "ImguiFontImage" );
 	bool                       wasUploaded       = false;
 };
 
@@ -56,12 +56,12 @@ struct le_mouse_event_data_o {
 	glm::vec2 cursor_pos;
 };
 
-constexpr le_resource_handle_t resImgPrepass     = LE_RESOURCE( "ImgPrepass", LeResourceType::eImage );
-constexpr le_resource_handle_t resImgDepth       = LE_RESOURCE( "ImgDepth", LeResourceType::eImage );
-constexpr le_resource_handle_t resTexPrepass     = LE_RESOURCE( "TexPrepass", LeResourceType::eTexture );
-constexpr le_resource_handle_t resImgHorse       = LE_RESOURCE( "ImgHorse", LeResourceType::eImage );
-constexpr le_resource_handle_t resTexHorse       = LE_RESOURCE( "TexHorse", LeResourceType::eTexture );
-constexpr le_resource_handle_t resBufTrianglePos = LE_RESOURCE( "BufTrianglePos", LeResourceType::eBuffer );
+static constexpr le_resource_handle_t resImgDepth       = LE_IMG_RESOURCE( "ImgDepth" );
+static constexpr le_resource_handle_t resImgPrepass     = LE_IMG_RESOURCE( "ImgPrepass" );
+static constexpr le_resource_handle_t resTexPrepass     = LE_TEX_RESOURCE( "TexPrepass" );
+static constexpr le_resource_handle_t resImgHorse       = LE_IMG_RESOURCE( "ImgHorse" );
+static constexpr le_resource_handle_t resTexHorse       = LE_TEX_RESOURCE( "TexHorse" );
+static constexpr le_resource_handle_t resBufTrianglePos = LE_BUF_RESOURCE( "BufTrianglePos" );
 
 struct test_app_o {
 	le::Backend   backend;

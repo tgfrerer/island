@@ -64,6 +64,19 @@ constexpr le_resource_handle_t LE_RESOURCE( const char *const str, const LeResou
         return handle;
 }
 
+constexpr  le_resource_handle_t LE_IMG_RESOURCE(const char *const str) noexcept{
+    return LE_RESOURCE(str, LeResourceType::eImage);
+}
+
+constexpr  le_resource_handle_t LE_TEX_RESOURCE(const char *const str) noexcept{
+    return LE_RESOURCE(str, LeResourceType::eTexture);
+}
+
+constexpr  le_resource_handle_t LE_BUF_RESOURCE(const char *const str) noexcept{
+    return LE_RESOURCE(str, LeResourceType::eBuffer);
+}
+
+
 struct LeBufferWriteRegion {
 	uint32_t width;
 	uint32_t height;

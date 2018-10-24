@@ -129,7 +129,7 @@ struct le_backend_o {
 	uint32_t queueFamilyIndexGraphics = 0; // set during setup
 	uint32_t queueFamilyIndexCompute  = 0; // set during setup
 
-	const le_resource_handle_t backBufferImageHandle = LE_RESOURCE( "Backbuffer-Image", LeResourceType::eImage ); // opaque handle identifying the backbuffer image, initialised in setup()
+	const le_resource_handle_t backBufferImageHandle = LE_IMG_RESOURCE( "Backbuffer-Image" ); // opaque handle identifying the backbuffer image, initialised in setup()
 
 	struct {
 		std::unordered_map<le_resource_handle_t, AllocatedResource, LeResourceHandleIdentity> allocatedResources; // allocated resources, indexed by resource name hash
