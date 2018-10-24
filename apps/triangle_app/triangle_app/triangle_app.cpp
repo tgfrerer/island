@@ -106,8 +106,10 @@ static triangle_app_o *triangle_app_create() {
 	backendCreateInfo.pWindow             = app->window;
 	backendCreateInfo.swapchain_settings  = &swapchainSettings;
 
+	// initialise the backend
 	app->backend.setup( &backendCreateInfo );
 
+	// initialise the renderer
 	app->renderer.setup( app->backend );
 
 	// -- Declare graphics pipeline state objects
@@ -338,7 +340,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 		MatrixStackUbo_t mvp;
 		mvp.model = glm::mat4( 1.f ); // identity matrix
-		                              //mvp.model = glm::translate( mvp.model, glm::vec3( 0, 0, -100 ) );
+
 		mvp.model      = glm::rotate( mvp.model, glm::radians( r_anim_val * 360 ), glm::vec3( 0, 1, 0 ) );
 		mvp.model      = glm::scale( mvp.model, glm::vec3( 4.5 ) );
 		mvp.view       = reinterpret_cast<glm::mat4 const &>( *app->camera.getViewMatrix() );
