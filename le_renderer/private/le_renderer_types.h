@@ -31,7 +31,6 @@ struct le_resource_handle_t {
 	};
 
 	union {
-	        uint64_t handle_data;
 		struct {
 		        uint32_t name_hash;
 			Meta     meta;
@@ -45,6 +44,7 @@ struct le_resource_handle_t {
 			Meta     debug_meta;
 		};
 #endif
+		uint64_t handle_data;
 
 	}; // end union handle_data
 
