@@ -366,13 +366,6 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	                       .build() // create resource for imgui font texture if it does not yet exist.
 	);
 
-	rp.createResource( resImgPrepass,
-	                   le::ImageResourceBuilder()
-	                       .setExtent( 640, 425 )
-	                       .addUsageFlags( VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT )
-	                       .build() // create resoruce for prepass attachment
-	);
-
 	rp.createResource( resBufTrianglePos,
 	                   le::BufferResourceBuilder()
 	                       .setSize( sizeof( glm::vec3 ) * 3 )
@@ -448,6 +441,12 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder, void *user
 static bool pass_pre_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	auto rp  = le::RenderPassRef{pRp};
 	auto app = static_cast<test_app_o *>( user_data_ );
+
+	rp.createResource( resImgPrepass,
+	                   le::ImageResourceBuilder()
+	                       .addUsageFlags( VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT )
+	                       .build() // create resoruce for prepass attachment
+	);
 
 	rp.addImageAttachment( resImgPrepass );
 
