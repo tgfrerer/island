@@ -104,8 +104,6 @@ struct AbstractPhysicalResource {
 	Type type;
 };
 
-
-
 struct AttachmentInfo {
 	le_resource_handle_t  resource_id{}; ///< which resource to look up for resource state
 	vk::Format            format;

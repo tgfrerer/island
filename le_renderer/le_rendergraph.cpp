@@ -34,8 +34,8 @@ struct le_renderpass_o {
 	std::vector<le_resource_info_t>    createResourceInfos; // createResources holds ids at matching index
 	std::vector<LeImageAttachmentInfo> imageAttachments;
 
-	uint32_t width  = 0; ///< width in pixels, must be identical for all attachments  , default:0 means current frame.swapchainWidth
-	uint32_t height = 0; ///< height in pixels, must be identical for all attachments , default:0 means current frame.swapchainHeight
+	uint32_t width  = 0; ///< width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
+	uint32_t height = 0; ///< height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
 
 	std::vector<LeTextureInfo>        textureInfos;   // kept in sync
 	std::vector<le_resource_handle_t> textureInfoIds; // kept in sync
