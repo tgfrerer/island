@@ -538,19 +538,8 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		LeRenderPass currentPass{};
 		currentPass.type = renderpass_i.get_type( *pass );
 
-		currentPass.width = renderpass_i.get_width( *pass );
-		if ( currentPass.width == 0 ) {
-			// if zero was chosen this means to use the default extents values for a
-			// renderpass, which is to use the frame's current swapchain extents.
-			currentPass.width = frame.swapchainWidth;
-		}
-
+		currentPass.width  = renderpass_i.get_width( *pass );
 		currentPass.height = renderpass_i.get_height( *pass );
-		if ( currentPass.height == 0 ) {
-			// if zero was chosen this means to use the default extents values for a
-			// renderpass, which is to use the frame's current swapchain extents.
-			currentPass.height = frame.swapchainHeight;
-		}
 
 		// iterate over all image attachments
 
@@ -1316,6 +1305,23 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		// -- iterate over all resource declarations in this pass
 		renderpass_i.get_create_resources( *rp, &pCreateResourceIds, &pResourceInfos, &numCreateResources );
 
+		auto pass_width  = renderpass_i.get_width( *rp );
+		auto pass_height = renderpass_i.get_height( *rp );
+
+		if ( pass_width == 0 ) {
+			// if zero was chosen this means to use the default extents values for a
+			// renderpass, which is to use the frame's current swapchain extents.
+			pass_width = frame.swapchainWidth;
+			renderpass_i.set_width( *rp, pass_width );
+		}
+
+		if ( pass_height == 0 ) {
+			// if zero was chosen this means to use the default extents values for a
+			// renderpass, which is to use the frame's current swapchain extents.
+			pass_height = frame.swapchainHeight;
+			renderpass_i.set_height( *rp, pass_height );
+		}
+
 		for ( size_t i = 0; i != numCreateResources; ++i ) {
 
 			le_resource_info_t const &  createInfo = pResourceInfos[ i ];     // Resource descriptor (from renderpass)
@@ -1347,8 +1353,8 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				imgInfoRef.flags                 = ci.flags;
 				imgInfoRef.imageType             = VkImageType( ci.imageType );
 				imgInfoRef.format                = VkFormat( ci.format );
-				imgInfoRef.extent.width          = ci.extent.width != 0 ? ci.extent.width : frame.swapchainWidth;
-				imgInfoRef.extent.height         = ci.extent.height != 0 ? ci.extent.height : frame.swapchainHeight;
+				imgInfoRef.extent.width          = ci.extent.width != 0 ? ci.extent.width : pass_width;
+				imgInfoRef.extent.height         = ci.extent.height != 0 ? ci.extent.height : pass_height;
 				imgInfoRef.extent.depth          = ci.extent.depth != 0 ? ci.extent.depth : 1;
 				imgInfoRef.mipLevels             = ci.mipLevels;
 				imgInfoRef.arrayLayers           = ci.arrayLayers != 0 ? ci.arrayLayers : 1;
