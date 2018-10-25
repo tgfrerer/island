@@ -132,7 +132,7 @@ static test_app_o *test_app_create() {
 
 	le_swapchain_vk_settings_t swapchainSettings{};
 	{
-		swapchainSettings.presentmode_hint = le_swapchain_vk_settings_t::Presentmode::eImmediate;
+		swapchainSettings.presentmode_hint = le_swapchain_vk_settings_t::Presentmode::eFifo;
 	}
 
 	le_backend_vk_settings_t backendSettings;
@@ -373,13 +373,6 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	                       .build() // create resoruce for prepass attachment
 	);
 
-	rp.createResource( resImgDepth,
-	                   le::ImageResourceBuilder()
-	                       .setFormat( VK_FORMAT_D32_SFLOAT_S8_UINT )
-	                       .setUsageFlags( VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT )
-	                       .build() // create resource image for main renderpass z-buffer image
-	);
-
 	rp.createResource( resBufTrianglePos,
 	                   le::BufferResourceBuilder()
 	                       .setSize( sizeof( glm::vec3 ) * 3 )
@@ -520,6 +513,13 @@ static void pass_pre_exec( le_command_buffer_encoder_o *encoder_, void *user_dat
 static bool pass_final_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	auto rp  = le::RenderPassRef{pRp};
 	auto app = static_cast<test_app_o *>( user_data_ );
+
+	rp.createResource( resImgDepth,
+	                   le::ImageResourceBuilder()
+	                       .setFormat( VK_FORMAT_D32_SFLOAT_S8_UINT )
+	                       .setUsageFlags( VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT )
+	                       .build() // create resource image for main renderpass z-buffer image
+	);
 
 	rp
 	    .addImageAttachment( app->renderer.getBackbufferResource() ) // color attachment
