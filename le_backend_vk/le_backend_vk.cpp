@@ -2264,9 +2264,43 @@ static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
+static le_resource_info_t get_default_resource_info_for_image() {
+	le_resource_info_t res;
+
+	res.type = LeResourceType::eImage;
+	{
+		auto &img         = res.image;
+		img.format        = VK_FORMAT_R8G8B8A8_UNORM;
+		img.flags         = 0;
+		img.arrayLayers   = 1;
+		img.extent.width  = 0;
+		img.extent.height = 0;
+		img.extent.depth  = 1;
+		img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT;
+		img.mipLevels     = 1;
+		img.samples       = VK_SAMPLE_COUNT_1_BIT;
+		img.imageType     = VK_IMAGE_TYPE_2D;
+		img.tiling        = VK_IMAGE_TILING_OPTIMAL;
+	}
+
+	return res;
+}
+
+// ----------------------------------------------------------------------
+
+static le_resource_info_t get_default_resource_info_for_buffer() {
+	le_resource_info_t res;
+	res.type         = LeResourceType::eBuffer;
+	res.buffer.size  = 0;
+	res.buffer.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	return res;
+}
+
+// ----------------------------------------------------------------------
+
 ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
-	auto  le_backend_vk_api_i = static_cast<le_backend_vk_api *>( api_ );
-	auto &vk_backend_i        = le_backend_vk_api_i->vk_backend_i;
+	auto  api_i        = static_cast<le_backend_vk_api *>( api_ );
+	auto &vk_backend_i = api_i->vk_backend_i;
 
 	vk_backend_i.create                     = backend_create;
 	vk_backend_i.destroy                    = backend_destroy;
@@ -2286,6 +2320,11 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 
 	vk_backend_i.get_backbuffer_resource = backend_get_backbuffer_resource;
 
+	auto &helpers_i = api_i->helpers_i;
+
+	helpers_i.get_default_resource_info_for_buffer = get_default_resource_info_for_buffer;
+	helpers_i.get_default_resource_info_for_image  = get_default_resource_info_for_image;
+
 	// register/update submodules inside this plugin
 
 	register_le_device_vk_api( api_ );
@@ -2293,10 +2332,10 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	register_le_allocator_linear_api( api_ );
 	register_le_pipeline_vk_api( api_ );
 
-	auto &le_instance_vk_i = le_backend_vk_api_i->vk_instance_i;
+	auto &le_instance_vk_i = api_i->vk_instance_i;
 
-	if ( le_backend_vk_api_i->cUniqueInstance != nullptr ) {
-		le_instance_vk_i.post_reload_hook( le_backend_vk_api_i->cUniqueInstance );
+	if ( api_i->cUniqueInstance != nullptr ) {
+		le_instance_vk_i.post_reload_hook( api_i->cUniqueInstance );
 	}
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );

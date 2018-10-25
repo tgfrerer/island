@@ -46,8 +46,8 @@ struct FontTextureInfo {
 	uint8_t *                  pixels            = nullptr;
 	int32_t                    width             = 0;
 	int32_t                    height            = 0;
-	const le_resource_handle_t le_texture_handle = LE_TEX_RESOURCE( "ImguiFontTexture" );
-	const le_resource_handle_t le_image_handle   = LE_IMG_RESOURCE( "ImguiFontImage" );
+	const le_resource_handle_t le_texture_handle = LE_TEX_RESOURCE( "ImguiDefaultFontTexture" );
+	const le_resource_handle_t le_image_handle   = LE_IMG_RESOURCE( "ImguiDefaultFontImage" );
 	bool                       wasUploaded       = false;
 };
 
@@ -352,95 +352,40 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	auto app = static_cast<test_app_o *>( user_data_ );
 	auto rp  = le::RenderPassRef{pRp};
 
-	{
-		// create image for the horse image
-		le_resource_info_t imgInfo{};
-		imgInfo.type = LeResourceType::eImage;
-		{
-			auto &img       = imgInfo.image;
-			img.format      = VK_FORMAT_R8G8B8A8_UNORM;
-			img.flags       = 0;
-			img.arrayLayers = 1;
-			img.extent      = {640, 425, 1};
-			img.usage       = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-			img.mipLevels   = 1;
-			img.samples     = VK_SAMPLE_COUNT_1_BIT;
-			img.imageType   = VK_IMAGE_TYPE_2D;
-			img.tiling      = VK_IMAGE_TILING_OPTIMAL;
-		}
-		rp.createResource( resImgHorse, imgInfo );
-	}
+	rp.createResource( resImgHorse,
+	                   le::ImageResourceBuilder()
+	                       .setExtent( 640, 425 )
+	                       .addUsageFlags( VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT )
+	                       .build() // create resource for horse image
+	);
 
-	{
-		// create resource for imgui font texture if it does not yet exist.
-		// create image for imgui image
-		le_resource_info_t imgInfo{};
-		imgInfo.type = LeResourceType::eImage;
-		{
-			auto &img         = imgInfo.image;
-			img.format        = VK_FORMAT_R8G8B8A8_UNORM;
-			img.flags         = 0;
-			img.arrayLayers   = 1;
-			img.extent.width  = uint32_t( app->imguiTexture.width );
-			img.extent.height = uint32_t( app->imguiTexture.height );
-			img.extent.depth  = 1;
-			img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-			img.mipLevels     = 1;
-			img.samples       = VK_SAMPLE_COUNT_1_BIT;
-			img.imageType     = VK_IMAGE_TYPE_2D;
-			img.tiling        = VK_IMAGE_TILING_OPTIMAL;
-		}
-		rp.createResource( app->imguiTexture.le_image_handle, imgInfo );
-	}
+	rp.createResource( app->imguiTexture.le_image_handle,
+	                   le::ImageResourceBuilder()
+	                       .setExtent( uint32_t( app->imguiTexture.width ), uint32_t( app->imguiTexture.height ) )
+	                       .setUsageFlags( VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT )
+	                       .build() // create resource for imgui font texture if it does not yet exist.
+	);
 
-	{
-		// create image for prepass
-		le_resource_info_t imgInfo{};
-		imgInfo.type = LeResourceType::eImage;
-		{
-			auto &img       = imgInfo.image;
-			img.format      = VK_FORMAT_R8G8B8A8_UNORM;
-			img.flags       = 0;
-			img.arrayLayers = 1;
-			img.extent      = {640, 425, 1};
-			img.usage       = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-			img.mipLevels   = 1;
-			img.samples     = VK_SAMPLE_COUNT_1_BIT;
-			img.imageType   = VK_IMAGE_TYPE_2D;
-			img.tiling      = VK_IMAGE_TILING_OPTIMAL;
-		}
-		rp.createResource( resImgPrepass, imgInfo );
-	}
+	rp.createResource( resImgPrepass,
+	                   le::ImageResourceBuilder()
+	                       .setExtent( 640, 425 )
+	                       .addUsageFlags( VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT )
+	                       .build() // create resoruce for prepass attachment
+	);
 
-	{
-		// create z-buffer image for main renderpass
-		le_resource_info_t imgInfo{};
-		imgInfo.type = LeResourceType::eImage;
-		{
-			auto &img         = imgInfo.image;
-			img.format        = VK_FORMAT_D32_SFLOAT_S8_UINT;
-			img.flags         = 0;
-			img.arrayLayers   = 1;
-			img.extent.width  = 0; // zero means size of backbuffer.
-			img.extent.height = 0; // zero means size of backbuffer.
-			img.extent.depth  = 1;
-			img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-			img.mipLevels     = 1;
-			img.samples       = VK_SAMPLE_COUNT_1_BIT;
-			img.imageType     = VK_IMAGE_TYPE_2D;
-			img.tiling        = VK_IMAGE_TILING_OPTIMAL;
-		}
-		rp.createResource( resImgDepth, imgInfo );
-	}
+	rp.createResource( resImgDepth,
+	                   le::ImageResourceBuilder()
+	                       .setFormat( VK_FORMAT_D32_SFLOAT_S8_UINT )
+	                       .setUsageFlags( VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT )
+	                       .build() // create resource image for main renderpass z-buffer image
+	);
 
-	{
-		// create resource for triangle vertex buffer
-		le_resource_info_t bufInfo{};
-		bufInfo.type         = LeResourceType::eBuffer;
-		bufInfo.buffer.size  = sizeof( glm::vec3 ) * 3;
-		bufInfo.buffer.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-		rp.createResource( resBufTrianglePos, bufInfo );
-	}
+	rp.createResource( resBufTrianglePos,
+	                   le::BufferResourceBuilder()
+	                       .setSize( sizeof( glm::vec3 ) * 3 )
+	                       .addUsageFlags( VK_BUFFER_USAGE_VERTEX_BUFFER_BIT )
+	                       .build() // create resource for triangle vertex buffer
+	);
 
 	{
 		using namespace le_gltf_loader;

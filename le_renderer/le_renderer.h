@@ -46,6 +46,10 @@ struct le_renderer_api {
 		le_backend_o*                  ( *get_backend)(le_renderer_o* self);
 	};
 
+	struct helpers_interface_t {
+		le_resource_info_t (*get_default_resource_info_for_image)();
+		le_resource_info_t (*get_default_resource_info_for_buffer)();
+	};
 
 	typedef bool ( *pfn_renderpass_setup_t )( le_renderpass_o *obj, void* user_data );
 	typedef void ( *pfn_renderpass_execute_t )( le_command_buffer_encoder_o *encoder, void *user_data );
@@ -139,6 +143,7 @@ struct le_renderer_api {
 	rendermodule_interface_t           le_render_module_i;
 	graph_builder_interface_t          le_graph_builder_i;
 	command_buffer_encoder_interface_t le_command_buffer_encoder_i;
+	helpers_interface_t                helpers_i;
 };
 // clang-format on
 
@@ -157,6 +162,7 @@ static const auto &renderpass_i    = api -> le_renderpass_i;
 static const auto &render_module_i = api -> le_render_module_i;
 static const auto &graph_builder_i = api -> le_graph_builder_i;
 static const auto &encoder_i       = api -> le_command_buffer_encoder_i;
+static const auto &helpers_i       = api -> helpers_i;
 
 } // namespace le_renderer
 
@@ -292,6 +298,93 @@ class RenderPassRef {
 	RenderPassRef &setHeight( uint32_t height ) {
 		le_renderer::renderpass_i.set_height( self, height );
 		return *this;
+	}
+};
+
+class ImageResourceBuilder {
+	le_resource_info_t         res = le_renderer::helpers_i.get_default_resource_info_for_image();
+	le_resource_info_t::Image &img = res.image;
+
+  public:
+	ImageResourceBuilder &setFormat( int format ) {
+		img.format = format;
+		return *this;
+	}
+
+	ImageResourceBuilder &setFlags( uint32_t flags = 0 ) {
+		img.flags = flags;
+		return *this;
+	}
+
+	ImageResourceBuilder &setArrayLayers( uint32_t arrayLayers = 1 ) {
+		img.arrayLayers = arrayLayers;
+		return *this;
+	}
+
+	ImageResourceBuilder &setExtent( uint32_t width, uint32_t height, uint32_t depth = 1 ) {
+		img.extent.width  = width;
+		img.extent.height = height;
+		img.extent.depth  = depth;
+		return *this;
+	}
+
+	ImageResourceBuilder &setUsageFlags( uint32_t usageFlagBits ) {
+		img.usage = usageFlagBits;
+		return *this;
+	}
+
+	ImageResourceBuilder &addUsageFlags( uint32_t usageFlagBits ) {
+		img.usage |= usageFlagBits;
+		return *this;
+	}
+
+	ImageResourceBuilder &setMipLevels( uint32_t mipLevels = 1 ) {
+		img.mipLevels = mipLevels;
+		return *this;
+	}
+
+	ImageResourceBuilder &setSamples( uint32_t sampleFlagBits = 1 ) {
+		img.samples = sampleFlagBits;
+		return *this;
+	}
+
+	ImageResourceBuilder &setImageType( uint32_t imageType = 1 ) {
+		img.imageType = imageType;
+		return *this;
+	}
+
+	ImageResourceBuilder &setImageTiling( uint32_t imageTiling = 0 ) {
+		img.tiling = imageTiling;
+		return *this;
+	}
+
+	const le_resource_info_t &build() {
+		return res;
+	}
+};
+
+class BufferResourceBuilder {
+	le_resource_info_t          res = le_renderer::helpers_i.get_default_resource_info_for_buffer();
+	le_resource_info_t::Buffer &buf = res.buffer;
+
+  public:
+	BufferResourceBuilder &setSize( uint32_t size ) {
+		buf.size = size;
+		return *this;
+	}
+
+	BufferResourceBuilder &setUsageFlags( uint32_t usageFlagBits ) {
+		buf.usage = usageFlagBits;
+		return *this;
+	}
+
+	BufferResourceBuilder &addUsageFlags( uint32_t usageFlagBits ) {
+		buf.usage |= usageFlagBits;
+		return *this;
+	}
+
+	const le_resource_info_t &build() {
+		return res;
 	}
 };
 

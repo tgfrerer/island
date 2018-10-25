@@ -468,6 +468,16 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 	++self->currentFrameNumber;
 }
 
+static le_resource_info_t get_default_resource_info_for_image() {
+	using namespace le_backend_vk;
+	return helpers_i.get_default_resource_info_for_image();
+}
+
+static le_resource_info_t get_default_resource_info_for_buffer() {
+	using namespace le_backend_vk;
+	return helpers_i.get_default_resource_info_for_buffer();
+}
+
 // ----------------------------------------------------------------------
 
 ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
@@ -481,6 +491,11 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	le_renderer_i.create_shader_module    = renderer_create_shader_module;
 	le_renderer_i.get_backbuffer_resource = renderer_get_backbuffer_resource;
 	le_renderer_i.get_backend             = renderer_get_backend;
+
+	auto &helpers_i = le_renderer_api_i->helpers_i;
+
+	helpers_i.get_default_resource_info_for_buffer = get_default_resource_info_for_buffer;
+	helpers_i.get_default_resource_info_for_image  = get_default_resource_info_for_image;
 
 	// register sub-components of this api
 	register_le_rendergraph_api( api_ );

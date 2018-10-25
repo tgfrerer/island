@@ -50,7 +50,6 @@ static inline bool operator != (le_resource_handle_t const & lhs, le_resource_ha
     return !(lhs==rhs);
 }
 
-
 struct LeResourceHandleIdentity {
        inline auto operator()( const le_resource_handle_t &key_ ) const noexcept {
                 return key_.handle_data;

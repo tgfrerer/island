@@ -8,7 +8,6 @@
 extern "C" {
 #endif
 
-
 void register_le_backend_vk_api( void *api );
 void register_le_instance_vk_api( void *api );       // for le_instance_vk.cpp
 void register_le_allocator_linear_api( void *api_ ); // for le_allocator.cpp
@@ -52,6 +51,8 @@ enum class LeShaderType : uint64_t; // we're forward declaring this enum, for he
 enum class LeResourceType : uint8_t;
 
 typedef int LeFormat_t; // we're declaring this as a placeholder for image format enum
+
+struct le_resource_info_t;
 
 struct le_backend_vk_settings_t {
 	const char **               requestedExtensions    = nullptr;
@@ -98,6 +99,11 @@ struct le_backend_vk_api {
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
 
 		le_resource_handle_t       ( *get_backbuffer_resource    ) ( le_backend_o* self);
+	};
+
+	struct helpers_interface_t {
+		le_resource_info_t (*get_default_resource_info_for_image)();
+		le_resource_info_t (*get_default_resource_info_for_buffer)();
 	};
 
 	struct instance_interface_t {
@@ -155,6 +161,8 @@ struct le_backend_vk_api {
 	backend_vk_interface_t          vk_backend_i;
 	le_pipeline_manager_interface_t le_pipeline_manager_i;
 
+	helpers_interface_t helpers_i;
+
 	mutable le_backend_vk_instance_o *cUniqueInstance = nullptr;
 };
 
@@ -173,7 +181,7 @@ static const auto &le_allocator_linear_i = api -> le_allocator_linear_i;
 static const auto &vk_instance_i         = api -> vk_instance_i;
 static const auto &vk_device_i           = api -> vk_device_i;
 static const auto &le_pipeline_manager_i = api -> le_pipeline_manager_i;
-
+static const auto &helpers_i             = api -> helpers_i;
 } // namespace le_backend_vk
 
 namespace le {
