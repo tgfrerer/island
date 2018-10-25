@@ -44,6 +44,9 @@
 
 ## Data Flow
 
+* We strive for the simplest method of implementation - which is the
+  pipeline.
+
 * if two objects communicate by sharing an object, communication should be
   strictly pipeline-style, i.e. the consumer is not allowed to write back
   to the object borrowed from the provider. This makes it easier to reason
@@ -64,15 +67,15 @@ internal state. The internal state of an object may be hidden, and this is
 how you implement encapsulation, and abstraction (an object may decide for
 itself how it implements a certain method).
 
-Let's refer to all resources in the renderer using opaque `uint64_t` ids.
-These ids should be based on hashing the name - but we could decide later
-how we want to handle id generation and retrieval if we put the id
-generator into its own method. 
+Let's refer to all resources in the renderer using opaque `uint64_t`
+handles. These ids should be based on hashing the name to 32 bits, which
+allows us to store 32bits of metadata with each handle. Metadata includes:
+resourcetype, resource flags.
 
 Hashing the name has the benefit that this can be done independently and
 that no locking has to occur, and everyone who hashes a name should get
-the same result. Also, hashing is potentially executable as a constexpr,
-so the id will not have to be calculated at runtime at all.
+the same result. Also, hashing is ecutable as a constexpr, so the id will
+not have to be calculated at runtime at all.
 
 Resources are introduced in passes during their setup stage - if
 a resource is permanent, the backend will remember the reource id, this
@@ -89,9 +92,6 @@ Where should we *declare* resources?
   resources always need to be declared using their full resource
   descriptor, which means all callbacks need to have access to the same
   version of the resource descriptor. 
-
-* if we declare resources upfront, this means we have one central point
-  where resources are defined.
 
 # Data + Algorithms
 + Data and algorithms ideally are orthogonal, which means that we can
@@ -190,6 +190,10 @@ when we setup command buffers, we declare all resources - this means all
 resource handles can be put into a vector, where each resource is only
 referenced once. -> This becomes the vector of frame-available resources
 
+> when we consolidate `resource_infos_t` for a frame, we should *OR* all
+> their usage flags, so that the resource has the correct usage flags for
+> the complete lifetime of the frame.
+
 when we acquire resources, we create a matching vector which has the
 vulkan object id for each resource - indices match frame available
 resources vector.
@@ -218,7 +222,6 @@ list - that way we can be much faster at assigning resources
   own translation unit within backend
 - implement pipeline generation as a channeled op - per encoder first,
   then consolidate those elements generated within a frame
-- use opaque pointer for pso object handle
 
 # Long-Term aspirations
 - reduce compile times with glm: template specialisations
@@ -228,14 +231,19 @@ list - that way we can be much faster at assigning resources
 
 # Todo
 - use opaque handle to reference pso instead of bare `uint64_t`
-- create a minimal test app which draws a triangle
-
+- remove requirement for resources to specify usage - we should be able to
+  infer this from how we actually use the resources in our renderpasses.
+  
+## Todo: Extents
+- add default scissors, viewports to encoder matching current renderpass
+  extents
+- provide current pass extents in encoders
+- clean up swapchain extents gathering (we currently record before we have
+  an image acquied, right?)
 
 # What I'm unhappy with
 - the way a lower sytem calls into a higher level system when executing
   renderpass callbacks is too complicated - it also appears to be a case
   of the tail wagging the dog.
 - i can see no benefit in having renderpass setup being a callback
-- the api for declaring resources is too convoluted, and too noisy, I feel
-  there is a lot of double bookkeeping going on.
-- c++ template compile times (yikes)
+
