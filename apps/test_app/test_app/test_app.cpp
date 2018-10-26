@@ -353,21 +353,21 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	auto rp  = le::RenderPassRef{pRp};
 
 	rp.createResource( resImgHorse,
-	                   le::ImageResourceBuilder()
+	                   le::ImageInfoBuilder()
 	                       .setExtent( 640, 425 )
 	                       .addUsageFlags( VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT )
 	                       .build() // create resource for horse image
 	);
 
 	rp.createResource( app->imguiTexture.le_image_handle,
-	                   le::ImageResourceBuilder()
+	                   le::ImageInfoBuilder()
 	                       .setExtent( uint32_t( app->imguiTexture.width ), uint32_t( app->imguiTexture.height ) )
 	                       .setUsageFlags( VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT )
 	                       .build() // create resource for imgui font texture if it does not yet exist.
 	);
 
 	rp.createResource( resBufTrianglePos,
-	                   le::BufferResourceBuilder()
+	                   le::BufferInfoBuilder()
 	                       .setSize( sizeof( glm::vec3 ) * 3 )
 	                       .addUsageFlags( VK_BUFFER_USAGE_VERTEX_BUFFER_BIT )
 	                       .build() // create resource for triangle vertex buffer
@@ -443,7 +443,7 @@ static bool pass_pre_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	auto app = static_cast<test_app_o *>( user_data_ );
 
 	rp.createResource( resImgPrepass,
-	                   le::ImageResourceBuilder()
+	                   le::ImageInfoBuilder()
 	                       .addUsageFlags( VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT )
 	                       .build() // create resoruce for prepass attachment
 	);
@@ -514,7 +514,7 @@ static bool pass_final_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	auto app = static_cast<test_app_o *>( user_data_ );
 
 	rp.createResource( resImgDepth,
-	                   le::ImageResourceBuilder()
+	                   le::ImageInfoBuilder()
 	                       .setFormat( VK_FORMAT_D32_SFLOAT_S8_UINT )
 	                       .setUsageFlags( VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT )
 	                       .build() // create resource image for main renderpass z-buffer image

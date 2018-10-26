@@ -230,6 +230,92 @@ class RenderPass {
 	}
 };
 
+class ImageInfoBuilder {
+        le_resource_info_t         res = le_renderer::helpers_i.get_default_resource_info_for_image();
+        le_resource_info_t::Image &img = res.image;
+
+  public:
+        ImageInfoBuilder &setFormat( int format ) {
+                img.format = format;
+                return *this;
+        }
+
+	ImageInfoBuilder &setFlags( uint32_t flags = 0 ) {
+	        img.flags = flags;
+		return *this;
+	}
+
+	ImageInfoBuilder &setArrayLayers( uint32_t arrayLayers = 1 ) {
+	        img.arrayLayers = arrayLayers;
+		return *this;
+	}
+
+	ImageInfoBuilder &setExtent( uint32_t width, uint32_t height, uint32_t depth = 1 ) {
+	        img.extent.width  = width;
+		img.extent.height = height;
+		img.extent.depth  = depth;
+		return *this;
+	}
+
+	ImageInfoBuilder &setUsageFlags( uint32_t usageFlagBits ) {
+	        img.usage = usageFlagBits;
+		return *this;
+	}
+
+	ImageInfoBuilder &addUsageFlags( uint32_t usageFlagBits ) {
+	        img.usage |= usageFlagBits;
+		return *this;
+	}
+
+	ImageInfoBuilder &setMipLevels( uint32_t mipLevels = 1 ) {
+	        img.mipLevels = mipLevels;
+		return *this;
+	}
+
+	ImageInfoBuilder &setSamples( uint32_t sampleFlagBits = 1 ) {
+	        img.samples = sampleFlagBits;
+		return *this;
+	}
+
+	ImageInfoBuilder &setImageType( uint32_t imageType = 1 ) {
+	        img.imageType = imageType;
+		return *this;
+	}
+
+	ImageInfoBuilder &setImageTiling( uint32_t imageTiling = 0 ) {
+	        img.tiling = imageTiling;
+		return *this;
+	}
+
+	const le_resource_info_t &build() {
+	        return res;
+	}
+};
+
+class BufferInfoBuilder {
+        le_resource_info_t          res = le_renderer::helpers_i.get_default_resource_info_for_buffer();
+        le_resource_info_t::Buffer &buf = res.buffer;
+
+  public:
+        BufferInfoBuilder &setSize( uint32_t size ) {
+                buf.size = size;
+                return *this;
+        }
+
+	BufferInfoBuilder &setUsageFlags( uint32_t usageFlagBits ) {
+	        buf.usage = usageFlagBits;
+		return *this;
+	}
+
+	BufferInfoBuilder &addUsageFlags( uint32_t usageFlagBits ) {
+	        buf.usage |= usageFlagBits;
+		return *this;
+	}
+
+	const le_resource_info_t &build() {
+	        return res;
+	}
+};
 // ----------------------------------------------------------------------
 
 class RenderPassRef {
@@ -265,7 +351,7 @@ class RenderPassRef {
 	                                                                                     {}, // empty resource handle
 	                                                                                     0,
 	                                                                                     {},
-                                                                                     } ) {
+                                                                                         } ) {
 		return addImageAttachment( resource_id, info );
 	}
 
@@ -298,93 +384,6 @@ class RenderPassRef {
 	RenderPassRef &setHeight( uint32_t height ) {
 		le_renderer::renderpass_i.set_height( self, height );
 		return *this;
-	}
-};
-
-class ImageResourceBuilder {
-	le_resource_info_t         res = le_renderer::helpers_i.get_default_resource_info_for_image();
-	le_resource_info_t::Image &img = res.image;
-
-  public:
-	ImageResourceBuilder &setFormat( int format ) {
-		img.format = format;
-		return *this;
-	}
-
-	ImageResourceBuilder &setFlags( uint32_t flags = 0 ) {
-		img.flags = flags;
-		return *this;
-	}
-
-	ImageResourceBuilder &setArrayLayers( uint32_t arrayLayers = 1 ) {
-		img.arrayLayers = arrayLayers;
-		return *this;
-	}
-
-	ImageResourceBuilder &setExtent( uint32_t width, uint32_t height, uint32_t depth = 1 ) {
-		img.extent.width  = width;
-		img.extent.height = height;
-		img.extent.depth  = depth;
-		return *this;
-	}
-
-	ImageResourceBuilder &setUsageFlags( uint32_t usageFlagBits ) {
-		img.usage = usageFlagBits;
-		return *this;
-	}
-
-	ImageResourceBuilder &addUsageFlags( uint32_t usageFlagBits ) {
-		img.usage |= usageFlagBits;
-		return *this;
-	}
-
-	ImageResourceBuilder &setMipLevels( uint32_t mipLevels = 1 ) {
-		img.mipLevels = mipLevels;
-		return *this;
-	}
-
-	ImageResourceBuilder &setSamples( uint32_t sampleFlagBits = 1 ) {
-		img.samples = sampleFlagBits;
-		return *this;
-	}
-
-	ImageResourceBuilder &setImageType( uint32_t imageType = 1 ) {
-		img.imageType = imageType;
-		return *this;
-	}
-
-	ImageResourceBuilder &setImageTiling( uint32_t imageTiling = 0 ) {
-		img.tiling = imageTiling;
-		return *this;
-	}
-
-	const le_resource_info_t &build() {
-		return res;
-	}
-};
-
-class BufferResourceBuilder {
-	le_resource_info_t          res = le_renderer::helpers_i.get_default_resource_info_for_buffer();
-	le_resource_info_t::Buffer &buf = res.buffer;
-
-  public:
-	BufferResourceBuilder &setSize( uint32_t size ) {
-		buf.size = size;
-		return *this;
-	}
-
-	BufferResourceBuilder &setUsageFlags( uint32_t usageFlagBits ) {
-		buf.usage = usageFlagBits;
-		return *this;
-	}
-
-	BufferResourceBuilder &addUsageFlags( uint32_t usageFlagBits ) {
-		buf.usage |= usageFlagBits;
-		return *this;
-	}
-
-	const le_resource_info_t &build() {
-		return res;
 	}
 };
 
