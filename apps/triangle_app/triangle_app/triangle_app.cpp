@@ -154,7 +154,6 @@ static triangle_app_o *triangle_app_create() {
 // ----------------------------------------------------------------------
 
 static void reset_camera( triangle_app_o *self ) {
-
 	self->camera.setViewport( {0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ), 0.f, 1.f} );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
@@ -164,39 +163,15 @@ static void reset_camera( triangle_app_o *self ) {
 // ----------------------------------------------------------------------
 
 static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data ) {
-	auto app = static_cast<triangle_app_o *>( user_data );
-	auto rp  = le::RenderPassRef{pRp};
+	auto rp = le::RenderPassRef{pRp};
 
-	{
-		// create z-buffer image for main renderpass
-		le_resource_info_t imgInfo{};
-		imgInfo.type = LeResourceType::eImage;
-		{
-			auto &img         = imgInfo.image;
-			img.format        = VK_FORMAT_D32_SFLOAT_S8_UINT;
-			img.flags         = 0;
-			img.arrayLayers   = 1;
-			img.extent.width  = 0; // zero means size of backbuffer.
-			img.extent.height = 0; // zero means size of backbuffer.
-			img.extent.depth  = 1;
-			img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-			img.mipLevels     = 1;
-			img.samples       = VK_SAMPLE_COUNT_1_BIT;
-			img.imageType     = VK_IMAGE_TYPE_2D;
-			img.tiling        = VK_IMAGE_TILING_OPTIMAL;
-		}
-		rp.createResource( LE_RESOURCE( "ImgDepth", LeResourceType::eImage ), imgInfo );
-	}
-
-	{
-		// create resource for triangle vertex buffer
-		le_resource_info_t bufInfo{};
-		bufInfo.type         = LeResourceType::eBuffer;
-		bufInfo.buffer.size  = sizeof( glm::vec3 ) * 6;
-		bufInfo.buffer.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-		rp.createResource( LE_RESOURCE( "TriangleBuffer", LeResourceType::eBuffer ), bufInfo );
-		rp.useResource( LE_RESOURCE( "TriangleBuffer", LeResourceType::eBuffer ), LeAccessFlagBits::eLeAccessFlagBitWrite );
-	}
+	rp.createResource( LE_BUF_RESOURCE( "TriangleBuffer" ),
+	                   le::BufferResourceBuilder()
+	                       .setSize( sizeof( glm::vec3 ) * 6 )
+	                       .setUsageFlags( VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT )
+	                       .build() // create resource for triangle vertex buffer
+	);
+	rp.useResource( LE_BUF_RESOURCE( "TriangleBuffer" ), LeAccessFlagBits::eLeAccessFlagBitWrite );
 
 	rp.setIsRoot( true );
 
@@ -207,14 +182,6 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data ) {
 
 static void pass_resource_exec( le_command_buffer_encoder_o *encoder, void *user_data ) {
 	using namespace le_renderer;
-	auto app = static_cast<triangle_app_o *>( user_data );
-
-	// Writing is always to encoder scratch buffer memory because that's the only memory that
-	// is HOST visible.
-	//
-	// Type of resource ownership decides whether
-	// a copy is added to the queue that transfers from scratch memory
-	// to GPU local memory.
 
 	// upload triangle data
 	glm::vec3 trianglePositions[ 6 ] = {
@@ -226,7 +193,7 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder, void *user
 	    {-100, 50, 0},
 	};
 
-	encoder_i.write_to_buffer( encoder, LE_RESOURCE( "TriangleBuffer", LeResourceType::eBuffer ), 0, trianglePositions, sizeof( trianglePositions ) );
+	encoder_i.write_to_buffer( encoder, LE_BUF_RESOURCE( "TriangleBuffer" ), 0, trianglePositions, sizeof( trianglePositions ) );
 }
 
 // ----------------------------------------------------------------------
@@ -235,10 +202,17 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto rp  = le::RenderPassRef{pRp};
 	auto app = static_cast<triangle_app_o *>( user_data );
 
+	rp.createResource( LE_IMG_RESOURCE( "ImgDepth" ),
+	                   le::ImageResourceBuilder()
+	                       .setUsageFlags( VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT )
+	                       .setFormat( VK_FORMAT_D32_SFLOAT_S8_UINT )
+	                       .build() // create z-buffer image for main renderpass
+	);
+
 	rp
-	    .addImageAttachment( app->renderer.getBackbufferResource() )                  // color attachment
-	    .addDepthImageAttachment( LE_RESOURCE( "ImgDepth", LeResourceType::eImage ) ) // depth attachment
-	    .useResource( LE_RESOURCE( "TriangleBuffer", LeResourceType::eBuffer ), LeAccessFlagBits::eLeAccessFlagBitRead )
+	    .addImageAttachment( app->renderer.getBackbufferResource() ) // color attachment
+	    .addDepthImageAttachment( LE_IMG_RESOURCE( "ImgDepth" ) )    // depth attachment
+	    .useResource( LE_BUF_RESOURCE( "TriangleBuffer" ), LeAccessFlagBits::eLeAccessFlagBitRead )
 	    .setIsRoot( true );
 
 	return true;
@@ -377,7 +351,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 			rayInfo.rayBR = nearPlane[ 3 ];
 		}
 
-		le_resource_handle_t buffers[] = {LE_RESOURCE( "TriangleBuffer", LeResourceType::eBuffer )};
+		le_resource_handle_t buffers[] = {LE_BUF_RESOURCE( "TriangleBuffer" )};
 		uint64_t             offsets[] = {0};
 
 		ColorUbo_t color{{1, 1, 1, 1}};
