@@ -222,6 +222,15 @@ struct LeImageAttachmentInfo {
 	char debugName[ 32 ]{};
 };
 
+static constexpr LeImageAttachmentInfo LeDepthAttachmentInfo(){
+    auto res = LeImageAttachmentInfo();
+    res.access_flags = eLeAccessFlagBitWrite;
+    res.loadOp = LE_ATTACHMENT_LOAD_OP_CLEAR;
+    res.storeOp = LE_ATTACHMENT_STORE_OP_STORE;
+    res.clearValue = LeImageAttachmentInfo::DefaultClearValueDepthStencil;
+    return res;
+}
+
 struct le_resource_info_t {
 
         struct Image {
