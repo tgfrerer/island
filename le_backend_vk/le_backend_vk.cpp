@@ -1291,7 +1291,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		frame.binnedResources.clear();
 	}
 
-	static auto const &renderpass_i = Registry::getApi<le_renderer_api>()->le_renderpass_i;
+	using namespace le_renderer;
 
 	std::unordered_map<le_resource_handle_t, ResourceInfo, LeResourceHandleIdentity> declaredResources;
 
