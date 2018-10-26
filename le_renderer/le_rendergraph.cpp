@@ -28,10 +28,11 @@ struct le_renderpass_o {
 	uint64_t         id       = 0;
 	uint64_t         sort_key = 0;
 
+	std::vector<le_resource_handle_t> resources;     // all resources used in this pass
+	std::vector<le_resource_info_t>   resourceInfos; // `resources` holds ids at matching index
+
 	std::vector<le_resource_handle_t>  readResources;
 	std::vector<le_resource_handle_t>  writeResources;
-	std::vector<le_resource_handle_t>  createResources;
-	std::vector<le_resource_info_t>    createResourceInfos; // createResources holds ids at matching index
 	std::vector<LeImageAttachmentInfo> imageAttachments;
 
 	uint32_t width  = 0; ///< width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
@@ -123,14 +124,119 @@ static inline bool vector_contains( const std::vector<T> &haystack, const T &nee
 
 // ----------------------------------------------------------------------
 
-static void renderpass_use_resource( le_renderpass_o *self, le_resource_handle_t resource_id, uint32_t accessFlags ) {
+static void renderpass_use_resource( le_renderpass_o *self, const le_resource_handle_t &resource_id, const le_resource_info_t &resource_info ) {
 
-	if ( ( accessFlags & eLeAccessFlagBitRead ) &&
+	// check if resource is already known to this renderpass
+	// if yes, consolidate info (to largest common denominator), otherwise, push resource to resources list, and add a debug resource info
+	// TODO: self->usedResourceInfos.push_back( info );
+	// TODO: self->usedResources.push_back( resource );
+
+	assert( resource_info.type == LeResourceType::eBuffer || resource_info.type == LeResourceType::eImage );
+
+	// invariant: only check images
+
+	auto found_res = std::find( self->resources.begin(), self->resources.end(), resource_id );
+
+	le_resource_info_t *consolidated_info = nullptr;
+
+	if ( self->resources.end() == found_res ) {
+		// not found, add resource and resource info
+		self->resources.push_back( resource_id );
+		self->resourceInfos.push_back( resource_info );
+		consolidated_info = &self->resourceInfos.back();
+	} else {
+
+		// resource already exists. we must consolidate the corresponding `resource_info`, so that it covers both cases.
+
+		auto &stored_resource_info = *( self->resourceInfos.begin() + ( found_res - self->resources.begin() ) );
+
+		assert( stored_resource_info.type == resource_info.type );
+
+		// consolidate resource_info
+		switch ( resource_info.type ) {
+		case LeResourceType::eBuffer: {
+			stored_resource_info.buffer.size = std::max<uint32_t>( stored_resource_info.buffer.size, resource_info.buffer.size );
+			stored_resource_info.buffer.usage |= resource_info.buffer.usage;
+		} break;
+		case LeResourceType::eImage: {
+			stored_resource_info.image.usage |= resource_info.image.usage;
+
+			// todo: find out how best to consolidate these values...
+			assert( stored_resource_info.image.flags == resource_info.image.flags );             // creation flags
+			assert( stored_resource_info.image.imageType == resource_info.image.imageType );     // enum vk::ImageType
+			assert( stored_resource_info.image.format == resource_info.image.format );           // enum vk::Format
+			assert( stored_resource_info.image.extent == resource_info.image.extent );           //
+			assert( stored_resource_info.image.mipLevels == resource_info.image.mipLevels );     //
+			assert( stored_resource_info.image.arrayLayers == resource_info.image.arrayLayers ); //
+			assert( stored_resource_info.image.samples == resource_info.image.samples );         // enum VkSampleCountFlagBits
+			assert( stored_resource_info.image.tiling == resource_info.image.tiling );           // enum VkImageTiling
+			assert( stored_resource_info.image.sharingMode == resource_info.image.sharingMode ); // enum vkSharingMode
+		} break;
+		default:
+		    break;
+		}
+
+		consolidated_info = &stored_resource_info;
+	}
+
+	// now we check whether there is a read and/or a write operation on
+	// the resource
+	static constexpr uint32_t ALL_IMAGE_WRITE_FLAGS =
+	    LE_IMAGE_USAGE_TRANSFER_DST_BIT |             //
+	    LE_IMAGE_USAGE_STORAGE_BIT |                  //
+	    LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |         //
+	    LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | //
+	    LE_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT       //
+	    ;
+
+	static constexpr uint32_t ALL_IMAGE_READ_FLAGS =
+	    LE_IMAGE_USAGE_TRANSFER_SRC_BIT |             //
+	    LE_IMAGE_USAGE_SAMPLED_BIT |                  //
+	    LE_IMAGE_USAGE_STORAGE_BIT |                  // load, store, atomic
+	    LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |         //
+	    LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | //
+	    LE_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |     //
+	    LE_IMAGE_USAGE_INPUT_ATTACHMENT_BIT           //
+	    ;
+
+	static constexpr auto ALL_BUFFER_WRITE_FLAGS =
+	    LE_BUFFER_USAGE_TRANSFER_DST_BIT |         //
+	    LE_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT | //
+	    LE_BUFFER_USAGE_STORAGE_BUFFER_BIT         //
+	    ;
+
+	static constexpr auto ALL_BUFFER_READ_FLAGS =
+	    LE_BUFFER_USAGE_TRANSFER_SRC_BIT |            //
+	    LE_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT |    //
+	    LE_BUFFER_USAGE_UNIFORM_BUFFER_BIT |          //
+	    LE_BUFFER_USAGE_INDEX_BUFFER_BIT |            //
+	    LE_BUFFER_USAGE_VERTEX_BUFFER_BIT |           //
+	    LE_BUFFER_USAGE_INDIRECT_BUFFER_BIT |         //
+	    LE_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT //
+	    ;
+
+	bool resourceWillBeWrittenTo = false;
+	bool resourceWillBeReadFrom  = false;
+
+	switch ( consolidated_info->type ) {
+	case LeResourceType::eBuffer: {
+		resourceWillBeReadFrom  = consolidated_info->buffer.usage & ALL_BUFFER_READ_FLAGS;
+		resourceWillBeWrittenTo = consolidated_info->buffer.usage & ALL_BUFFER_WRITE_FLAGS;
+	} break;
+	case LeResourceType::eImage: {
+		resourceWillBeReadFrom  = consolidated_info->image.usage & ALL_IMAGE_READ_FLAGS;
+		resourceWillBeWrittenTo = consolidated_info->image.usage & ALL_IMAGE_WRITE_FLAGS;
+	} break;
+	default:
+	    break;
+	}
+
+	if ( ( resourceWillBeReadFrom ) &&
 	     !vector_contains( self->readResources, resource_id ) ) {
 		self->readResources.push_back( resource_id );
 	}
 
-	if ( ( accessFlags & eLeAccessFlagBitWrite ) &&
+	if ( ( resourceWillBeWrittenTo ) &&
 	     !vector_contains( self->writeResources, resource_id ) ) {
 		self->writeResources.push_back( resource_id );
 	}
@@ -152,40 +258,57 @@ static void renderpass_sample_texture( le_renderpass_o *self, le_resource_handle
 	self->textureInfoIds.push_back( texture );
 	self->textureInfos.push_back( *textureInfo ); // store a copy
 
+	static const auto required_flags = le::ImageInfoBuilder()
+	                                       .addUsageFlags( LE_IMAGE_USAGE_SAMPLED_BIT )
+	                                       .build();
+
 	// -- Mark image resource referenced by texture as used for reading
-	renderpass_use_resource( self, textureInfo->imageView.imageId, eLeAccessFlagBitRead );
+	renderpass_use_resource( self, textureInfo->imageView.imageId, required_flags );
 }
 
 // ----------------------------------------------------------------------
 
-static void renderpass_add_image_attachment( le_renderpass_o *self, le_resource_handle_t resource_id, LeImageAttachmentInfo const *info_ ) {
+static void renderpass_add_image_attachment( le_renderpass_o *self, le_resource_handle_t image_id, const le_resource_info_t &resource_info, LeImageAttachmentInfo const *attachmentInfo ) {
 
-	self->imageAttachments.push_back( *info_ );
-	auto &info = self->imageAttachments.back();
+	self->imageAttachments.push_back( *attachmentInfo );
+	auto &imageAttachmentInfo = self->imageAttachments.back();
 
 	// By default, flag attachment source as being external, if attachment was previously written in this pass,
 	// source will be substituted by id of pass which writes to attachment, otherwise the flag will persist and
 	// tell us that this attachment must be externally resolved.
-	info.source_id   = LE_RENDERPASS_MARKER_EXTERNAL;
-	info.resource_id = resource_id;
+	imageAttachmentInfo.source_id   = LE_RENDERPASS_MARKER_EXTERNAL;
+	imageAttachmentInfo.resource_id = image_id;
 
-	if ( info.access_flags == eLeAccessFlagBitsReadWrite ) {
-		info.loadOp  = LE_ATTACHMENT_LOAD_OP_LOAD;
-		info.storeOp = LE_ATTACHMENT_STORE_OP_STORE;
-	} else if ( info.access_flags & eLeAccessFlagBitWrite ) {
+	if ( imageAttachmentInfo.access_flags == eLeAccessFlagBitsReadWrite ) {
+		imageAttachmentInfo.loadOp  = LE_ATTACHMENT_LOAD_OP_LOAD;
+		imageAttachmentInfo.storeOp = LE_ATTACHMENT_STORE_OP_STORE;
+	} else if ( imageAttachmentInfo.access_flags & eLeAccessFlagBitWrite ) {
 		// Write-only means we may be seen as the creator of this resource
-		info.source_id = self->id;
-	} else if ( info.access_flags & eLeAccessFlagBitRead ) {
+		imageAttachmentInfo.source_id = self->id;
+	} else if ( imageAttachmentInfo.access_flags & eLeAccessFlagBitRead ) {
 		// TODO: we need to make sure to distinguish between image attachments and texture attachments
-		info.loadOp  = LE_ATTACHMENT_LOAD_OP_LOAD;
-		info.storeOp = LE_ATTACHMENT_STORE_OP_DONTCARE;
+		imageAttachmentInfo.loadOp  = LE_ATTACHMENT_LOAD_OP_LOAD;
+		imageAttachmentInfo.storeOp = LE_ATTACHMENT_STORE_OP_DONTCARE;
 	} else {
-		info.loadOp  = LE_ATTACHMENT_LOAD_OP_DONTCARE;
-		info.storeOp = LE_ATTACHMENT_STORE_OP_DONTCARE;
+		imageAttachmentInfo.loadOp  = LE_ATTACHMENT_LOAD_OP_DONTCARE;
+		imageAttachmentInfo.storeOp = LE_ATTACHMENT_STORE_OP_DONTCARE;
 	}
 
-	renderpass_use_resource( self, resource_id, info.access_flags );
-	//strncpy( info.debugName, name_, sizeof(info.debugName));
+	le_resource_info_t updated_resource_info = resource_info;
+
+	if ( attachmentInfo->isDepthAttachment ) {
+		updated_resource_info.image.usage |= LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	} else {
+		updated_resource_info.image.usage |= LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	}
+
+	renderpass_use_resource( self, image_id, resource_info );
+}
+
+// ----------------------------------------------------------------------
+
+static void renderpass_create_resource( le_renderpass_o *self, le_resource_handle_t resource, const le_resource_info_t &info ) {
+	renderpass_use_resource( self, resource, info );
 }
 
 // ----------------------------------------------------------------------
@@ -203,17 +326,6 @@ static void renderpass_set_width( le_renderpass_o *self, uint32_t width ) {
 
 static void renderpass_set_height( le_renderpass_o *self, uint32_t height ) {
 	self->height = height;
-}
-// ----------------------------------------------------------------------
-
-static void renderpass_create_resource( le_renderpass_o *self, le_resource_handle_t resource, const le_resource_info_t &info ) {
-
-	self->createResourceInfos.push_back( info );
-	self->createResources.push_back( resource );
-
-	// Additionally, we introduce this resource to the write resource table,
-	// so that it will be considered when building the graph based on dependencies.
-	renderpass_use_resource( self, resource, eLeAccessFlagBitWrite );
 }
 
 // ----------------------------------------------------------------------
@@ -238,22 +350,12 @@ static LeRenderPassType renderpass_get_type( le_renderpass_o const *self ) {
 	return self->type;
 }
 
-static void renderpass_get_read_resources( le_renderpass_o const *self, le_resource_handle_t const **pReadResources, size_t *count ) {
-	*pReadResources = self->readResources.data();
-	*count          = self->readResources.size();
-}
+static void renderpass_get_used_resources( le_renderpass_o const *self, le_resource_handle_t const **pCreateResources, le_resource_info_t const **pResourceInfos, size_t *count ) {
+	assert( self->resourceInfos.size() == self->resources.size() );
 
-static void renderpass_get_write_resources( le_renderpass_o const *self, le_resource_handle_t const **pWriteResources, size_t *count ) {
-	*pWriteResources = self->writeResources.data();
-	*count           = self->writeResources.size();
-}
-
-static void renderpass_get_create_resources( le_renderpass_o const *self, le_resource_handle_t const **pCreateResources, le_resource_info_t const **pResourceInfos, size_t *count ) {
-	assert( self->createResourceInfos.size() == self->createResources.size() );
-
-	*pCreateResources = self->createResources.data();
-	*pResourceInfos   = self->createResourceInfos.data();
-	*count            = self->createResources.size();
+	*pCreateResources = self->resources.data();
+	*pResourceInfos   = self->resourceInfos.data();
+	*count            = self->resources.size();
 }
 
 static const char *renderpass_get_debug_name( le_renderpass_o const *self ) {
@@ -352,18 +454,16 @@ static std::vector<std::vector<uint64_t>> rendergraph_resolve_resource_ids( cons
 	uint64_t passIndex = 0;
 	for ( auto const &pass : passes ) {
 
-		size_t                      readResourceCount = 0;
-		const le_resource_handle_t *pReadResources    = nullptr;
-		renderpass_get_read_resources( pass, &pReadResources, &readResourceCount );
+		size_t readResourceCount = pass->readResources.size();
 
 		std::vector<uint64_t> passesThisPassDependsOn;
 		passesThisPassDependsOn.reserve( readResourceCount );
 
 		// We must first look if any of our READ attachments are already present in the attachment table.
 		// If so, we update source ids (from table) for each attachment we found.
-		for ( auto *resource = pReadResources; resource != pReadResources + readResourceCount; resource++ ) {
+		for ( auto const &resource : pass->readResources ) {
 
-			auto foundOutputIt = writeAttachmentTable.find( *resource );
+			auto foundOutputIt = writeAttachmentTable.find( resource );
 			if ( foundOutputIt != writeAttachmentTable.end() ) {
 				passesThisPassDependsOn.emplace_back( foundOutputIt->second );
 			}
@@ -374,14 +474,9 @@ static std::vector<std::vector<uint64_t>> rendergraph_resolve_resource_ids( cons
 		// Outputs from current pass overwrite any cached outputs with same name:
 		// later inputs with same name will then resolve to the latest version
 		// of an output with a particular name.
-		{
-			size_t                      writeResourceCount = 0;
-			const le_resource_handle_t *pWriteResources    = nullptr;
-			renderpass_i.get_write_resources( pass, &pWriteResources, &writeResourceCount );
 
-			for ( const auto *it = pWriteResources; it != pWriteResources + writeResourceCount; it++ ) {
-				writeAttachmentTable[ *it ] = passIndex;
-			}
+		for ( auto const &resource : pass->writeResources ) {
+			writeAttachmentTable[ resource ] = passIndex;
 		}
 
 		++passIndex;
@@ -537,7 +632,8 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 				if ( attachment->access_flags & eLeAccessFlagBitWrite ) {
 					msg << "w";
 				}
-				msg << " : " << std::setw( 32 ) << std::hex << attachment->resource_id.handle_data << ":" << attachment->source_id << ", '" << attachment->debugName << "'" << std::endl;
+				msg << " : " << std::setw( 32 ) << std::hex << attachment->resource_id.handle_data << ":" << attachment->source_id << ", 'FIXME: ADD DEBUG NAME FOR ATTACHMENT"
+				    << "'" << std::endl;
 			}
 		}
 		std::cout << msg.str();
@@ -666,11 +762,8 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_renderpass_i.set_sort_key          = renderpass_set_sort_key;
 	le_renderpass_i.add_image_attachment  = renderpass_add_image_attachment;
 	le_renderpass_i.get_image_attachments = renderpass_get_image_attachments;
-	le_renderpass_i.create_resource       = renderpass_create_resource;
 	le_renderpass_i.use_resource          = renderpass_use_resource;
-	le_renderpass_i.get_read_resources    = renderpass_get_read_resources;
-	le_renderpass_i.get_write_resources   = renderpass_get_write_resources;
-	le_renderpass_i.get_create_resources  = renderpass_get_create_resources;
+	le_renderpass_i.get_used_resources    = renderpass_get_used_resources;
 	le_renderpass_i.steal_encoder         = renderpass_steal_encoder;
 	le_renderpass_i.sample_texture        = renderpass_sample_texture;
 	le_renderpass_i.get_texture_ids       = renderpass_get_texture_ids;

@@ -5,7 +5,7 @@
 
 #include "pal_api_loader/hash_util.h"
 
-#define LE_RESOURCE_LABEL_LENGTH 0 // (no-hotreload) set to zero to disable storing name (for debug printouts) with resource handles
+#define LE_RESOURCE_LABEL_LENGTH 32 // (no-hotreload) set to zero to disable storing name (for debug printouts) with resource handles
 
 enum class LeResourceType : uint8_t {
         eUndefined = 0,
@@ -125,6 +125,36 @@ enum LeAttachmentLoadOp : uint32_t {
         LE_ATTACHMENT_LOAD_OP_DONTCARE = 2,
 };
 
+enum LeImageUsageFlagBits {
+    LE_IMAGE_USAGE_TRANSFER_SRC_BIT = 0x00000001,
+    LE_IMAGE_USAGE_TRANSFER_DST_BIT = 0x00000002,
+    LE_IMAGE_USAGE_SAMPLED_BIT = 0x00000004,
+    LE_IMAGE_USAGE_STORAGE_BIT = 0x00000008,                 // load, store, atomic
+    LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT = 0x00000010,
+    LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT = 0x00000020,
+    LE_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT = 0x00000040,
+    LE_IMAGE_USAGE_INPUT_ATTACHMENT_BIT = 0x00000080,
+    LE_IMAGE_USAGE_SHADING_RATE_IMAGE_BIT_NV = 0x00000100,
+    LE_IMAGE_USAGE_FLAG_BITS_MAX_ENUM = 0x7FFFFFFF
+};
+typedef uint32_t LeImageUsageFlags;
+
+enum LeBufferUsageFlagBits {
+    LE_BUFFER_USAGE_TRANSFER_SRC_BIT = 0x00000001,
+    LE_BUFFER_USAGE_TRANSFER_DST_BIT = 0x00000002,
+    LE_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT = 0x00000004,
+    LE_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT = 0x00000008,
+    LE_BUFFER_USAGE_UNIFORM_BUFFER_BIT = 0x00000010,
+    LE_BUFFER_USAGE_STORAGE_BUFFER_BIT = 0x00000020,
+    LE_BUFFER_USAGE_INDEX_BUFFER_BIT = 0x00000040,
+    LE_BUFFER_USAGE_VERTEX_BUFFER_BIT = 0x00000080,
+    LE_BUFFER_USAGE_INDIRECT_BUFFER_BIT = 0x00000100,
+    LE_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT = 0x00000200,
+    LE_BUFFER_USAGE_RAYTRACING_BIT_NVX = 0x00000400,
+    LE_BUFFER_USAGE_FLAG_BITS_MAX_ENUM = 0x7FFFFFFF
+};
+typedef uint32_t LeBufferUsageFlags;
+
 enum class LeShaderType : uint64_t {
         eNone        = 0, // no default type for shader modules, you must specify a type
         eVert        = 0x00000001,
@@ -159,6 +189,14 @@ struct Extent3D {
         uint32_t height;
         uint32_t depth;
 };
+
+static inline constexpr bool operator == (const Extent3D& lhs, const Extent3D& rhs) noexcept {
+    return ( lhs.width == rhs.width && lhs.height == rhs.height && lhs.depth == rhs.depth);
+}
+
+static inline constexpr bool operator != (const Extent3D& lhs, const Extent3D& rhs) noexcept {
+    return !( lhs == rhs);
+}
 
 } // namespace le
 
@@ -218,12 +256,12 @@ struct LeImageAttachmentInfo {
 	LeFormat_t           format{};      // if format is not given it will be automatically derived from attached image format
 	le_resource_handle_t resource_id{}; // (private - do not set) handle given to this attachment
 	uint64_t             source_id{};   // (private - do not set) hash name of writer/creator renderpass
-
-	char debugName[ 32 ]{};
+	uint32_t isDepthAttachment = false; // whether this attachment is a depth attachment - otherwise it must be a color attachment
 };
 
 static constexpr LeImageAttachmentInfo LeDepthAttachmentInfo(){
     auto res = LeImageAttachmentInfo();
+    res.isDepthAttachment = true;
     res.access_flags = eLeAccessFlagBitWrite;
     res.loadOp = LE_ATTACHMENT_LOAD_OP_CLEAR;
     res.storeOp = LE_ATTACHMENT_STORE_OP_STORE;
@@ -233,29 +271,29 @@ static constexpr LeImageAttachmentInfo LeDepthAttachmentInfo(){
 
 struct le_resource_info_t {
 
-        struct Image {
-                uint32_t     flags;       // creation flags
-                uint32_t     imageType;   // enum vk::ImageType
-                int32_t      format;      // enum vk::Format
-                le::Extent3D extent;      //
-                uint32_t     mipLevels;   //
-                uint32_t     arrayLayers; //
-                uint32_t     samples;     // enum VkSampleCountFlagBits
-                uint32_t     tiling;      // enum VkImageTiling
-                uint32_t     usage;       // usage flags
-                uint32_t     sharingMode; // enum vkSharingMode
-        };
+    struct Image {
+            uint32_t     flags;       // creation flags
+            uint32_t     imageType;   // enum vk::ImageType
+            int32_t      format;      // enum vk::Format
+            le::Extent3D extent;      //
+            uint32_t     mipLevels;   //
+            uint32_t     arrayLayers; //
+            uint32_t     samples;     // enum VkSampleCountFlagBits
+            uint32_t     tiling;      // enum VkImageTiling
+            uint32_t     usage;       // usage flags
+            uint32_t     sharingMode; // enum vkSharingMode
+    };
 
-	struct Buffer {
-	        uint32_t size;
-		uint32_t usage; // e.g. VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
-	};
+    struct Buffer {
+            uint32_t size;
+            uint32_t usage; // e.g. VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
+    };
 
-	LeResourceType type;
-	union {
-	        Buffer buffer;
-		Image  image;
-	};
+    LeResourceType type;
+    union {
+            Buffer buffer;
+            Image  image;
+    };
 };
 
 /// \note This struct assumes a little endian machine for sorting

@@ -73,6 +73,7 @@ struct test_app_o {
 	ImGuiContext *imguiContext  = nullptr;
 	uint64_t      frame_counter = 0;
 	float         deltaTimeSec  = 0;
+	float         animT         = 0;
 
 	FontTextureInfo imguiTexture = {};
 
@@ -132,7 +133,7 @@ static test_app_o *test_app_create() {
 
 	le_swapchain_vk_settings_t swapchainSettings{};
 	{
-		swapchainSettings.presentmode_hint = le_swapchain_vk_settings_t::Presentmode::eFifo;
+		swapchainSettings.presentmode_hint = le_swapchain_vk_settings_t::Presentmode::eImmediate;
 	}
 
 	le_backend_vk_settings_t backendSettings;
@@ -355,21 +356,21 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	rp.createResource( resImgHorse,
 	                   le::ImageInfoBuilder()
 	                       .setExtent( 640, 425 )
-	                       .addUsageFlags( VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT )
+	                       .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
 	                       .build() // create resource for horse image
 	);
 
 	rp.createResource( app->imguiTexture.le_image_handle,
 	                   le::ImageInfoBuilder()
 	                       .setExtent( uint32_t( app->imguiTexture.width ), uint32_t( app->imguiTexture.height ) )
-	                       .setUsageFlags( VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT )
+	                       .setUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
 	                       .build() // create resource for imgui font texture if it does not yet exist.
 	);
 
 	rp.createResource( resBufTrianglePos,
 	                   le::BufferInfoBuilder()
 	                       .setSize( sizeof( glm::vec3 ) * 3 )
-	                       .addUsageFlags( VK_BUFFER_USAGE_VERTEX_BUFFER_BIT )
+	                       .addUsageFlags( LE_BUFFER_USAGE_VERTEX_BUFFER_BIT )
 	                       .build() // create resource for triangle vertex buffer
 	);
 
@@ -442,15 +443,7 @@ static bool pass_pre_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	auto rp  = le::RenderPassRef{pRp};
 	auto app = static_cast<test_app_o *>( user_data_ );
 
-	rp.createResource( resImgPrepass,
-	                   le::ImageInfoBuilder()
-	                       .addUsageFlags( VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT )
-	                       .build() // create resoruce for prepass attachment
-	);
-
 	rp.addImageAttachment( resImgPrepass );
-
-	rp.useResource( resImgHorse );
 
 	LeTextureInfo textureInfo{};
 	textureInfo.imageView.imageId = resImgHorse;
@@ -513,16 +506,9 @@ static bool pass_final_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	auto rp  = le::RenderPassRef{pRp};
 	auto app = static_cast<test_app_o *>( user_data_ );
 
-	rp.createResource( resImgDepth,
-	                   le::ImageInfoBuilder()
-	                       .setFormat( VK_FORMAT_D32_SFLOAT_S8_UINT )
-	                       .setUsageFlags( VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT )
-	                       .build() // create resource image for main renderpass z-buffer image
-	);
-
 	rp
 	    .addImageAttachment( app->renderer.getBackbufferResource() ) // color attachment
-	    .addDepthImageAttachment( resImgDepth )                      // depth attachment
+	    .addDepthImageAttachment( LE_IMG_RESOURCE( "ImgDepth" ) )    // depth attachment
 	    .sampleTexture( resTexPrepass, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {resImgPrepass, 0}} )
 	    .sampleTexture( app->imguiTexture.le_texture_handle, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {app->imguiTexture.le_image_handle, 0}} )
 	    .setIsRoot( true );
@@ -562,9 +548,8 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 		glm::mat4 projectionMatrix;
 	};
 
-	static float t   = 0;
-	t                = fmodf( t + app->deltaTimeSec, 10.f );
-	float r_val      = t / 10.f;
+	app->animT       = fmodf( app->animT + app->deltaTimeSec, 10.f );
+	float r_val      = app->animT / 10.f;
 	float r_anim_val = glm::elasticEaseOut( r_val );
 
 	// Draw RGB triangle

@@ -30,6 +30,90 @@
 #	define PRINT_DEBUG_MESSAGES false
 #endif
 
+struct ResourceInfo {
+	// since this is a union, the first field will for both be VK_STRUCTURE_TYPE
+	// and its value will tell us what type the descriptor represents.
+	union {
+		VkBufferCreateInfo bufferInfo; // | only one of either ever in use
+		VkImageCreateInfo  imageInfo;  // | only one of either ever in use
+	};
+
+	bool operator==( const ResourceInfo &rhs ) const {
+		if ( bufferInfo.sType == rhs.bufferInfo.sType ) {
+
+			if ( bufferInfo.sType == VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO ) {
+
+				return ( bufferInfo.flags == rhs.bufferInfo.flags &&
+				         bufferInfo.size == rhs.bufferInfo.size &&
+				         bufferInfo.usage == rhs.bufferInfo.usage &&
+				         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode &&
+				         bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
+				         bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices );
+
+			} else {
+
+				return ( imageInfo.flags == rhs.imageInfo.flags &&
+				         imageInfo.imageType == rhs.imageInfo.imageType &&
+				         imageInfo.format == rhs.imageInfo.format &&
+				         imageInfo.extent.width == rhs.imageInfo.extent.width &&
+				         imageInfo.extent.height == rhs.imageInfo.extent.height &&
+				         imageInfo.extent.depth == rhs.imageInfo.extent.depth &&
+				         imageInfo.mipLevels == rhs.imageInfo.mipLevels &&
+				         imageInfo.arrayLayers == rhs.imageInfo.arrayLayers &&
+				         imageInfo.samples == rhs.imageInfo.samples &&
+				         imageInfo.tiling == rhs.imageInfo.tiling &&
+				         imageInfo.usage == rhs.imageInfo.usage &&
+				         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
+				         imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
+				         imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices &&
+				         imageInfo.initialLayout == rhs.imageInfo.initialLayout );
+			}
+
+		} else {
+			// not the same type of descriptor
+			return false;
+		}
+	}
+
+	bool operator!=( const ResourceInfo &rhs ) const {
+		return !operator==( rhs );
+	}
+
+	bool isBuffer() const {
+		return bufferInfo.sType == VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	}
+
+	enum class ConsolidationResult : uint8_t {
+		eOk = 0,
+		eIncompatibleTypes, // can't consolidate two resources of non-matching resource type
+	};
+
+	// combines usage flags for image and buffer resources, returns false if
+	// there was an error, otherwise, modifies first resource in-place
+	static ResourceInfo consolidate( const ResourceInfo &lhs, const ResourceInfo &rhs, ResourceInfo::ConsolidationResult *errNo ) {
+		auto result = lhs;
+
+		if ( lhs.bufferInfo.sType != rhs.bufferInfo.sType ) {
+			*errNo = ConsolidationResult::eIncompatibleTypes;
+			return result;
+		}
+
+		// --------| invariant: types are identical
+
+		if ( lhs.isBuffer() ) {
+			// buffer resources
+			result.bufferInfo.usage |= rhs.bufferInfo.usage;
+		} else {
+			// image resources
+			result.imageInfo.usage |= rhs.imageInfo.usage;
+		}
+
+		return result;
+	};
+};
+
+// ------------------------------------------------------------
+
 struct AllocatedResource {
 	VmaAllocation     allocation;
 	VmaAllocationInfo allocationInfo;
@@ -1074,29 +1158,20 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 // and store it with the current backend frame.
 static void frame_create_resource_table( BackendFrameData &frame, le_renderpass_o **passes, size_t numRenderPasses ) {
 
-	static auto const &renderpass_i = Registry::getApi<le_renderer_api>()->le_renderpass_i;
+	using namespace le_renderer;
 
 	frame.syncChainTable.clear();
 
 	for ( auto *pPass = passes; pPass != passes + numRenderPasses; pPass++ ) {
 
-		le_resource_handle_t const *pResources   = nullptr;
-		size_t                      numResources = 0;
+		le_resource_handle_t const *pResources     = nullptr;
+		le_resource_info_t const *  pResourceInfos = nullptr;
+		size_t                      numResources   = 0;
 
-		// add all read resources to pass
-		renderpass_i.get_read_resources( *pPass, &pResources, &numResources );
+		renderpass_i.get_used_resources( *pPass, &pResources, &pResourceInfos, &numResources );
 		for ( auto it = pResources; it != pResources + numResources; ++it ) {
 			frame.syncChainTable.insert( {*it, {BackendFrameData::ResourceState{}}} );
 		}
-
-		// add all write resources to pass
-		renderpass_i.get_write_resources( *pPass, &pResources, &numResources );
-		for ( auto it = pResources; it != pResources + numResources; ++it ) {
-			frame.syncChainTable.insert( {*it, {BackendFrameData::ResourceState{}}} );
-		}
-
-		// createResources are a subset of write resources,
-		// so by adding write resources these were already added.
 	}
 }
 
@@ -1303,7 +1378,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		size_t                      numCreateResources = 0;
 
 		// -- iterate over all resource declarations in this pass
-		renderpass_i.get_create_resources( *rp, &pCreateResourceIds, &pResourceInfos, &numCreateResources );
+		renderpass_i.get_used_resources( *rp, &pCreateResourceIds, &pResourceInfos, &numCreateResources );
 
 		auto pass_width  = renderpass_i.get_width( *rp );
 		auto pass_height = renderpass_i.get_height( *rp );
@@ -1374,10 +1449,19 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 			// -- Add createInfo to set of declared resources
 
-			auto it = declaredResources.emplace( resourceId, std::move( resourceCreateInfo ) );
+			auto it = declaredResources.insert( {resourceId, resourceCreateInfo} );
 
 			if ( it.second == false ) {
-				assert( false ); // resource was re-declared, this must not happen
+				auto &storedResource = it.first->second;
+				if ( storedResource == resourceCreateInfo ) {
+					continue; // resource is identical
+				} else {
+
+					ResourceInfo::ConsolidationResult consolidationResult{};
+					storedResource = ResourceInfo::consolidate( storedResource, resourceCreateInfo, &consolidationResult );
+
+					assert( consolidationResult == ResourceInfo::ConsolidationResult::eOk ); // resource was re-declared, we must consolidate the resource before it can be allocated.
+				}
 			}
 
 		} // end for all create resources
@@ -2276,13 +2360,57 @@ static le_resource_info_t get_default_resource_info_for_image() {
 	res.type = LeResourceType::eImage;
 	{
 		auto &img         = res.image;
-		img.format        = VK_FORMAT_R8G8B8A8_UNORM;
+		img.format        = VK_FORMAT_R8G8B8A8_UNORM; // TODO: query this via device
 		img.flags         = 0;
 		img.arrayLayers   = 1;
 		img.extent.width  = 0;
 		img.extent.height = 0;
 		img.extent.depth  = 1;
 		img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT;
+		img.mipLevels     = 1;
+		img.samples       = VK_SAMPLE_COUNT_1_BIT;
+		img.imageType     = VK_IMAGE_TYPE_2D;
+		img.tiling        = VK_IMAGE_TILING_OPTIMAL;
+	}
+
+	return res;
+}
+
+static le_resource_info_t get_default_resource_info_for_image_attachment() {
+	le_resource_info_t res;
+
+	res.type = LeResourceType::eImage;
+	{
+		auto &img         = res.image;
+		img.format        = VK_FORMAT_R8G8B8A8_UNORM; // TODO: query this via device
+		img.flags         = 0;
+		img.arrayLayers   = 1;
+		img.extent.width  = 0;
+		img.extent.height = 0;
+		img.extent.depth  = 1;
+		img.usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		img.mipLevels     = 1;
+		img.samples       = VK_SAMPLE_COUNT_1_BIT;
+		img.imageType     = VK_IMAGE_TYPE_2D;
+		img.tiling        = VK_IMAGE_TILING_OPTIMAL;
+	}
+
+	return res;
+}
+
+static le_resource_info_t get_default_resource_info_for_depth_stencil_attachment() {
+	le_resource_info_t res;
+
+	res.type = LeResourceType::eImage;
+	{
+		auto &img         = res.image;
+		img.format        = VK_FORMAT_D32_SFLOAT_S8_UINT; // TODO: query this via device
+		img.flags         = 0;
+		img.arrayLayers   = 1;
+		img.extent.width  = 0;
+		img.extent.height = 0;
+		img.extent.depth  = 1;
+		img.usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 		img.mipLevels     = 1;
 		img.samples       = VK_SAMPLE_COUNT_1_BIT;
 		img.imageType     = VK_IMAGE_TYPE_2D;
@@ -2328,8 +2456,10 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 
 	auto &helpers_i = api_i->helpers_i;
 
-	helpers_i.get_default_resource_info_for_buffer = get_default_resource_info_for_buffer;
-	helpers_i.get_default_resource_info_for_image  = get_default_resource_info_for_image;
+	helpers_i.get_default_resource_info_for_buffer                   = get_default_resource_info_for_buffer;
+	helpers_i.get_default_resource_info_for_image                    = get_default_resource_info_for_image;
+	helpers_i.get_default_resource_info_for_image_attachment         = get_default_resource_info_for_image_attachment;
+	helpers_i.get_default_resource_info_for_depth_stencil_attachment = get_default_resource_info_for_depth_stencil_attachment;
 
 	// register/update submodules inside this plugin
 

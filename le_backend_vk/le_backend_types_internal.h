@@ -131,60 +131,6 @@ struct LeRenderPass {
 	struct le_command_buffer_encoder_o *encoder;
 };
 
-struct ResourceInfo {
-	// since this is a union, the first field will for both be VK_STRUCTURE_TYPE
-	// and its value will tell us what type the descriptor represents.
-	union {
-		VkBufferCreateInfo bufferInfo; // | only one of either ever in use
-		VkImageCreateInfo  imageInfo;  // | only one of either ever in use
-	};
-
-	bool operator==( const ResourceInfo &rhs ) const {
-		if ( bufferInfo.sType == rhs.bufferInfo.sType ) {
-
-			if ( bufferInfo.sType == VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO ) {
-
-				return ( bufferInfo.flags == rhs.bufferInfo.flags &&
-				         bufferInfo.size == rhs.bufferInfo.size &&
-				         bufferInfo.usage == rhs.bufferInfo.usage &&
-				         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode &&
-				         bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
-				         bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices );
-
-			} else {
-
-				return ( imageInfo.flags == rhs.imageInfo.flags &&
-				         imageInfo.imageType == rhs.imageInfo.imageType &&
-				         imageInfo.format == rhs.imageInfo.format &&
-				         imageInfo.extent.width == rhs.imageInfo.extent.width &&
-				         imageInfo.extent.height == rhs.imageInfo.extent.height &&
-				         imageInfo.extent.depth == rhs.imageInfo.extent.depth &&
-				         imageInfo.mipLevels == rhs.imageInfo.mipLevels &&
-				         imageInfo.arrayLayers == rhs.imageInfo.arrayLayers &&
-				         imageInfo.samples == rhs.imageInfo.samples &&
-				         imageInfo.tiling == rhs.imageInfo.tiling &&
-				         imageInfo.usage == rhs.imageInfo.usage &&
-				         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
-				         imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
-				         imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices &&
-				         imageInfo.initialLayout == rhs.imageInfo.initialLayout );
-			}
-
-		} else {
-			// not the same type of descriptor
-			return false;
-		}
-	}
-
-	bool operator!=( const ResourceInfo &rhs ) const {
-		return !operator==( rhs );
-	}
-
-	bool isBuffer() const {
-		return bufferInfo.sType == VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	}
-};
-
 // ----------------------------------------------------------------------
 template <typename T>
 static constexpr typename std::underlying_type<T>::type enumToNum( const T &enumVal ) {
