@@ -19,7 +19,7 @@ void register_le_command_buffer_encoder_api( void *api ); // in le_command_buffe
 struct le_renderer_o;
 struct le_render_module_o;
 struct le_renderpass_o;
-struct le_graph_builder_o;
+struct le_rendergraph_o;
 struct le_command_buffer_encoder_o;
 struct le_backend_o;
 struct le_allocator_o;
@@ -96,18 +96,18 @@ struct le_renderer_api {
 		le_render_module_o * ( *create         )();
 		void                 ( *destroy        )( le_render_module_o *obj );
 		void                 ( *add_renderpass )( le_render_module_o *obj, le_renderpass_o *rp );
-		void                 ( *setup_passes   )( le_render_module_o *obj, le_graph_builder_o *gb );
+		void                 ( *setup_passes   )( le_render_module_o *obj, le_rendergraph_o *gb );
 	};
 
 	// graph builder builds a graph for a module
-	struct graph_builder_interface_t {
-		le_graph_builder_o * ( *create         )();
-		void                 ( *destroy        )( le_graph_builder_o *obj );
-		void                 ( *reset          )( le_graph_builder_o *obj );
+	struct rendergraph_interface_t {
+		le_rendergraph_o *   ( *create         )();
+		void                 ( *destroy        )( le_rendergraph_o *obj );
+		void                 ( *reset          )( le_rendergraph_o *obj );
 
-		void                 ( *build_graph    )( le_graph_builder_o *obj );
-		void                 ( *execute_graph  )( le_graph_builder_o *obj, size_t frameIndex, le_backend_o *backend );
-		void                 ( *get_passes     )( le_graph_builder_o *obj, le_renderpass_o ***pPasses, size_t *pNumPasses );
+		void                 ( *build          )( le_rendergraph_o *obj );
+		void                 ( *execute        )( le_rendergraph_o *obj, size_t frameIndex, le_backend_o *backend );
+		void                 ( *get_passes     )( le_rendergraph_o *obj, le_renderpass_o ***pPasses, size_t *pNumPasses );
 	};
 
 	struct command_buffer_encoder_interface_t {
@@ -141,7 +141,7 @@ struct le_renderer_api {
 	renderer_interface_t               le_renderer_i;
 	renderpass_interface_t             le_renderpass_i;
 	rendermodule_interface_t           le_render_module_i;
-	graph_builder_interface_t          le_graph_builder_i;
+	rendergraph_interface_t          le_rendergraph_i;
 	command_buffer_encoder_interface_t le_command_buffer_encoder_i;
 	helpers_interface_t                helpers_i;
 };
@@ -160,7 +160,7 @@ const auto api = Registry::addApiStatic<le_renderer_api>();
 static const auto &renderer_i      = api -> le_renderer_i;
 static const auto &renderpass_i    = api -> le_renderpass_i;
 static const auto &render_module_i = api -> le_render_module_i;
-static const auto &graph_builder_i = api -> le_graph_builder_i;
+static const auto &rendergraph_i   = api -> le_rendergraph_i;
 static const auto &encoder_i       = api -> le_command_buffer_encoder_i;
 static const auto &helpers_i       = api -> helpers_i;
 

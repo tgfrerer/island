@@ -16,7 +16,7 @@
 #	define PRINT_DEBUG_MESSAGES false
 #endif
 
-#define LE_GRAPH_BUILDER_RECURSION_DEPTH 20
+#define LE_rendergraph_RECURSION_DEPTH 20
 
 // these are some sanity checks for le_renderer_types
 static_assert( sizeof( le::CommandHeader ) == sizeof( uint64_t ), "Size of le::CommandHeader must be 64bit" );
@@ -57,7 +57,7 @@ struct le_render_module_o : NoCopy, NoMove {
 
 // ----------------------------------------------------------------------
 
-struct le_graph_builder_o : NoCopy, NoMove {
+struct le_rendergraph_o : NoCopy, NoMove {
 	std::vector<le_renderpass_o *> passes;
 };
 
@@ -297,14 +297,14 @@ le_command_buffer_encoder_o *renderpass_steal_encoder( le_renderpass_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static le_graph_builder_o *graph_builder_create() {
-	auto obj = new le_graph_builder_o();
+static le_rendergraph_o *rendergraph_create() {
+	auto obj = new le_rendergraph_o();
 	return obj;
 }
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_reset( le_graph_builder_o *self ) {
+static void rendergraph_reset( le_rendergraph_o *self ) {
 
 	// we must destroy passes as we have ownership over them.
 	for ( auto rp : self->passes ) {
@@ -316,21 +316,21 @@ static void graph_builder_reset( le_graph_builder_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_destroy( le_graph_builder_o *self ) {
-	graph_builder_reset( self );
+static void rendergraph_destroy( le_rendergraph_o *self ) {
+	rendergraph_reset( self );
 	delete self;
 }
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_add_renderpass( le_graph_builder_o *self, le_renderpass_o *renderpass ) {
+static void rendergraph_add_renderpass( le_rendergraph_o *self, le_renderpass_o *renderpass ) {
 
 	self->passes.push_back( renderpass ); // Note: We receive ownership of the pass here. We must destroy it.
 }
 
 // ----------------------------------------------------------------------
 /// \brief find corresponding output for each input resource
-static std::vector<std::vector<uint64_t>> graph_builder_resolve_resource_ids( const std::vector<le_renderpass_o *> &passes ) {
+static std::vector<std::vector<uint64_t>> rendergraph_resolve_resource_ids( const std::vector<le_renderpass_o *> &passes ) {
 
 	using namespace le_renderer;
 	std::vector<std::vector<uint64_t>> dependenciesPerPass;
@@ -392,12 +392,12 @@ static std::vector<std::vector<uint64_t>> graph_builder_resolve_resource_ids( co
 
 // ----------------------------------------------------------------------
 /// \brief depth-first traversal of graph, following each input back to its corresponding output (source)
-static void graph_builder_traverse_passes( const std::vector<std::vector<uint64_t>> &passes,
-                                           const uint64_t &                          currentRenderpassId,
-                                           const uint32_t                            recursion_depth,
-                                           std::vector<uint32_t> &                   sort_order_per_pass ) {
+static void rendergraph_traverse_passes( const std::vector<std::vector<uint64_t>> &passes,
+                                         const uint64_t &                          currentRenderpassId,
+                                         const uint32_t                            recursion_depth,
+                                         std::vector<uint32_t> &                   sort_order_per_pass ) {
 
-	if ( recursion_depth > LE_GRAPH_BUILDER_RECURSION_DEPTH ) {
+	if ( recursion_depth > LE_rendergraph_RECURSION_DEPTH ) {
 		std::cerr << __FUNCTION__ << " : "
 		          << "max recursion level reached. check for cycles in render graph" << std::endl;
 		return;
@@ -424,13 +424,13 @@ static void graph_builder_traverse_passes( const std::vector<std::vector<uint64_
 	// As each input tells us its source renderpass, we can look up the provider pass for each source by id
 	const std::vector<uint64_t> &sourcePasses = passes.at( currentRenderpassId );
 	for ( auto &sourcePass : sourcePasses ) {
-		graph_builder_traverse_passes( passes, sourcePass, recursion_depth + 1, sort_order_per_pass );
+		rendergraph_traverse_passes( passes, sourcePass, recursion_depth + 1, sort_order_per_pass );
 	}
 }
 
 // ----------------------------------------------------------------------
 
-static std::vector<uint64_t> graph_builder_find_root_passes( const std::vector<le_renderpass_o *> &passes ) {
+static std::vector<uint64_t> rendergraph_find_root_passes( const std::vector<le_renderpass_o *> &passes ) {
 
 	std::vector<uint64_t> roots;
 	roots.reserve( passes.size() );
@@ -448,19 +448,19 @@ static std::vector<uint64_t> graph_builder_find_root_passes( const std::vector<l
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_build_graph( le_graph_builder_o *self ) {
+static void rendergraph_build( le_rendergraph_o *self ) {
 
 	// Find corresponding output for each input attachment,
 	// and tag input with output id, as dependencies are
 	// declared using names rather than linked in code.
-	auto pass_dependencies = graph_builder_resolve_resource_ids( self->passes );
+	auto pass_dependencies = rendergraph_resolve_resource_ids( self->passes );
 
 	{
 		// Establish a toplogical sorting order
 		// so that passes which produce resources for other
 		// passes are executed *before* their dependencies
 		//
-		auto root_passes = graph_builder_find_root_passes( self->passes );
+		auto root_passes = rendergraph_find_root_passes( self->passes );
 
 		std::vector<uint32_t> pass_sort_orders; // sort order for each pass in self->passes
 		pass_sort_orders.resize( self->passes.size(), 0 );
@@ -469,7 +469,7 @@ static void graph_builder_build_graph( le_graph_builder_o *self ) {
 			// note that we begin with sort order 1, so that any passes which have
 			// sort order 0 still after this loop is complete can be seen as
 			// marked for deletion / or can be ignored.
-			graph_builder_traverse_passes( pass_dependencies, root, 1, pass_sort_orders );
+			rendergraph_traverse_passes( pass_dependencies, root, 1, pass_sort_orders );
 		}
 
 		// We use the passes' sort order as a field in the
@@ -507,7 +507,7 @@ static void graph_builder_build_graph( le_graph_builder_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameIndex, le_backend_o *backend ) {
+static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_backend_o *backend ) {
 
 	/// Record render commands by calling rendercallbacks for each renderpass.
 	///
@@ -569,7 +569,7 @@ static void graph_builder_execute_graph( le_graph_builder_o *self, size_t frameI
 
 // ----------------------------------------------------------------------
 
-static void graph_builder_get_passes( le_graph_builder_o *self, le_renderpass_o ***pPasses, size_t *pNumPasses ) {
+static void rendergraph_get_passes( le_rendergraph_o *self, le_renderpass_o ***pPasses, size_t *pNumPasses ) {
 	*pPasses    = self->passes.data();
 	*pNumPasses = self->passes.size();
 }
@@ -598,7 +598,7 @@ static void render_module_add_renderpass( le_render_module_o *self, le_renderpas
 
 // ----------------------------------------------------------------------
 
-static void render_module_setup_passes( le_render_module_o *self, le_graph_builder_o *graph_builder_ ) {
+static void render_module_setup_passes( le_render_module_o *self, le_rendergraph_o *rendergraph_ ) {
 
 	for ( auto &pass : self->passes ) {
 		// Call setup function on all passes, in order of addition to module
@@ -612,7 +612,7 @@ static void render_module_setup_passes( le_render_module_o *self, le_graph_build
 		if ( renderpass_run_setup_callback( pass ) ) {
 			// if pass.setup() returns true, this means we shall add this pass to the graph
 			// This means a transfer of ownership for pass: pass moves from module into graph_builder
-			graph_builder_add_renderpass( graph_builder_, pass );
+			rendergraph_add_renderpass( rendergraph_, pass );
 			pass = nullptr;
 		} else {
 			renderpass_destroy( pass );
@@ -621,17 +621,6 @@ static void render_module_setup_passes( le_render_module_o *self, le_graph_build
 	}
 
 	self->passes.clear();
-
-	// Now, renderpasses should have their attachments properly set.
-	// Further, user will have added all renderpasses they wanted included in the module
-	// to the graph builder.
-
-	// The graph builder now has a list of all passes which contribute to the current module.
-
-	// Step 1: Validate
-	// - find any name clashes: inputs and outputs for each renderpass must be unique.
-	// Step 2: sort passes in dependency order (by adding an execution order index to each pass)
-	// Step 3: add  markers to each attachment for each pass, depending on their read/write status
 };
 
 // ----------------------------------------------------------------------
@@ -646,13 +635,13 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_render_module_i.add_renderpass = render_module_add_renderpass;
 	le_render_module_i.setup_passes   = render_module_setup_passes;
 
-	auto &le_graph_builder_i         = le_renderer_api_i->le_graph_builder_i;
-	le_graph_builder_i.create        = graph_builder_create;
-	le_graph_builder_i.destroy       = graph_builder_destroy;
-	le_graph_builder_i.reset         = graph_builder_reset;
-	le_graph_builder_i.build_graph   = graph_builder_build_graph;
-	le_graph_builder_i.execute_graph = graph_builder_execute_graph;
-	le_graph_builder_i.get_passes    = graph_builder_get_passes;
+	auto &le_rendergraph_i      = le_renderer_api_i->le_rendergraph_i;
+	le_rendergraph_i.create     = rendergraph_create;
+	le_rendergraph_i.destroy    = rendergraph_destroy;
+	le_rendergraph_i.reset      = rendergraph_reset;
+	le_rendergraph_i.build      = rendergraph_build;
+	le_rendergraph_i.execute    = rendergraph_execute;
+	le_rendergraph_i.get_passes = rendergraph_get_passes;
 
 	auto &le_renderpass_i                 = le_renderer_api_i->le_renderpass_i;
 	le_renderpass_i.create                = renderpass_create;

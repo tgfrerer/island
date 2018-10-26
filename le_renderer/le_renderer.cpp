@@ -9,7 +9,6 @@
 #include <iomanip>
 #include <chrono>
 
-
 #include "util/enkiTS/TaskScheduler.h"
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
@@ -50,7 +49,7 @@ struct FrameData {
 
 	State state = State::eInitial;
 
-	le_graph_builder_o *graphBuilder = nullptr;
+	le_rendergraph_o *rendergraph = nullptr;
 
 	size_t frameNumber = size_t( ~0 );
 	Meta   meta;
@@ -88,7 +87,7 @@ renderer_create() {
 
 static void renderer_destroy( le_renderer_o *self ) {
 
-	using namespace le_renderer; // for graph_builder_i
+	using namespace le_renderer; // for rendergraph_i
 
 	const auto &lastIndex = self->currentFrameNumber;
 
@@ -97,7 +96,7 @@ static void renderer_destroy( le_renderer_o *self ) {
 		renderer_clear_frame( self, index );
 		// -- FIXME: delete graph builders which we added in create
 		// this is not elegant.
-		graph_builder_i.destroy( self->frames[ index ].graphBuilder );
+		rendergraph_i.destroy( self->frames[ index ].rendergraph );
 	}
 
 	self->frames.clear();
@@ -126,15 +125,15 @@ static void renderer_setup( le_renderer_o *self, le_backend_o *backend ) {
 	self->backend = backend;
 
 	using namespace le_backend_vk; // for vk_bakend_i
-	using namespace le_renderer;   // for graph_builder_i
+	using namespace le_renderer;   // for rendergraph_i
 
 	self->numSwapchainImages = vk_backend_i.get_num_swapchain_images( self->backend );
 
 	self->frames.reserve( self->numSwapchainImages );
 
 	for ( size_t i = 0; i != self->numSwapchainImages; ++i ) {
-		auto frameData         = FrameData();
-		frameData.graphBuilder = graph_builder_i.create();
+		auto frameData        = FrameData();
+		frameData.rendergraph = rendergraph_i.create();
 		self->frames.push_back( std::move( frameData ) );
 	}
 
@@ -148,7 +147,7 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 	auto &frame = self->frames[ frameIndex ];
 
 	using namespace le_backend_vk; // for vk_bakend_i
-	using namespace le_renderer;   // for graph_builder_i
+	using namespace le_renderer;   // for rendergraph_i
 
 	if ( frame.state == FrameData::State::eCleared ) {
 		return;
@@ -173,7 +172,7 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 		}
 	}
 
-	graph_builder_i.reset( frame.graphBuilder );
+	rendergraph_i.reset( frame.rendergraph );
 
 	//	std::cout << "CLEAR FRAME " << frameIndex << std::endl
 	//	          << std::flush;
@@ -206,17 +205,17 @@ static void renderer_record_frame( le_renderer_o *self, size_t frameIndex, le_re
 	// setup passes calls `setup` callback on all passes - this initalises virtual resources,
 	// and stores their descriptors (information needed to allocate physical resources)
 	//
-	using namespace le_renderer; // for render_module_i, graph_builder_i
-	render_module_i.setup_passes( module_, frame.graphBuilder );
+	using namespace le_renderer; // for render_module_i, rendergraph_i
+	render_module_i.setup_passes( module_, frame.rendergraph );
 
 	// find out which renderpasses contribute, only add contributing render passes to
 	// frameBuilder
-	graph_builder_i.build_graph( frame.graphBuilder );
+	rendergraph_i.build( frame.rendergraph );
 
 	// Execute callbacks into main application for each render pass,
 	// build command lists per render pass in intermediate, api-agnostic representation
 	//
-	graph_builder_i.execute_graph( frame.graphBuilder, frameIndex, self->backend );
+	rendergraph_i.execute( frame.rendergraph, frameIndex, self->backend );
 
 	frame.meta.time_record_frame_end = std::chrono::high_resolution_clock::now();
 
@@ -232,7 +231,7 @@ static void renderer_record_frame( le_renderer_o *self, size_t frameIndex, le_re
 static const FrameData::State &renderer_acquire_backend_resources( le_renderer_o *self, size_t frameIndex ) {
 
 	using namespace le_backend_vk; // for vk_bakend_i
-	using namespace le_renderer;   // for graph_builder_i
+	using namespace le_renderer;   // for rendergraph_i
 
 	// ---------| invariant: There are frames to process.
 
@@ -249,7 +248,7 @@ static const FrameData::State &renderer_acquire_backend_resources( le_renderer_o
 	le_renderpass_o **passes          = nullptr;
 	size_t            numRenderPasses = 0;
 
-	graph_builder_i.get_passes( frame.graphBuilder, &passes, &numRenderPasses );
+	rendergraph_i.get_passes( frame.rendergraph, &passes, &numRenderPasses );
 
 	auto acquireSuccess = vk_backend_i.acquire_physical_resources( self->backend, frameIndex, passes, numRenderPasses );
 
@@ -385,7 +384,7 @@ struct ClearTask : public enki::ITaskSet {
 // ----------------------------------------------------------------------
 
 static le_resource_handle_t renderer_get_backbuffer_resource( le_renderer_o *self ) {
-	using namespace le_backend_vk; // for graph_builder_i
+	using namespace le_backend_vk; // for rendergraph_i
 	return vk_backend_i.get_backbuffer_resource( self->backend );
 }
 
