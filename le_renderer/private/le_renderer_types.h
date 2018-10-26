@@ -57,10 +57,6 @@ struct le_resource_handle_t {
 	}
 };
 
-#ifdef LE_RESOURCE_LABEL_LENGTH
-#	undef LE_RESOURCE_LABEL_LENGTH
-#endif
-
 static inline bool operator==( le_resource_handle_t const &lhs, le_resource_handle_t const &rhs ) noexcept {
         return lhs.handle_data == rhs.handle_data;
 }
@@ -82,13 +78,17 @@ constexpr le_resource_handle_t LE_RESOURCE( const char *const str, const LeResou
 
 #if ( LE_RESOURCE_LABEL_LENGTH > 0 )
 	auto   c = str;
-	size_t i = 0;
+	int i = 0;
 	while ( *c != '\0' && i < LE_RESOURCE_LABEL_LENGTH ) {
 	        handle.debug_name[ i++ ] = *c++;
 	}
 #endif
 	return handle;
 }
+
+#ifdef LE_RESOURCE_LABEL_LENGTH
+#	undef LE_RESOURCE_LABEL_LENGTH
+#endif
 
 constexpr le_resource_handle_t LE_IMG_RESOURCE( const char *const str ) noexcept {
         return LE_RESOURCE( str, LeResourceType::eImage );
