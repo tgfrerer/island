@@ -17,12 +17,6 @@
 * Remove namespaces in header files - these are not compatible with other
   programming languages.
  
-* we want three different types of passes: render, transfer, compute. Each pass
-  has a list of inputs, and a list of outputs.
-
-  Rendergraph is calculated based on module, which contains a list of
-  pre-sorted passes. 
-
 * Better distinguish between renderpass types when creating vulkan command
   buffers
 
@@ -30,13 +24,30 @@
 
 ## (A)
 
+
 ## (B)
 
-## (C)
+- look into LeImageAttachmentInfo: do we still need res.accessflags?
 
-* find a better way to store window surface- it should probably live inside the
-  backend, tagged with window name, or perhaps it should be owned by the
-  swapchain which uses it, so that it can be deleted at the correct time. 
+- what should we do with "orphaned" resources? that's resources which were
+  not provided by previous passes, but are used by following passes...
+  currently, these get re-allocated to default values - which means that
+  images eventually get the backbuffer extent in memory, even if they are
+  not used. this is nice, because it doesn't crash, but i can imagine that
+  we might want to have a better way for dealing with this.
+
+- provide current pass extents in encoders
+- add default scissors, viewports to encoder matching current renderpass
+  extents
+- clean up swapchain extents gathering (we currently record before we have
+  an image acquied, right?)
+
+## (C)
+- use opaque handle to reference pso instead of bare `uint64_t`
+- find a better way to store window surface- it should probably live
+  inside the backend, tagged with window name, or perhaps it should be
+  owned by the swapchain which uses it, so that it can be deleted at the
+  correct time. 
 
 ----------------------------------------------------------------------
 
@@ -94,6 +105,7 @@ Where should we *declare* resources?
   version of the resource descriptor. 
 
 # Data + Algorithms
+
 + Data and algorithms ideally are orthogonal, which means that we can
   organise our code to follow a "pipeline" or "production line" approach,
   where data is "owned" by the algorithm that works on it, and only one
@@ -116,7 +128,7 @@ Where should we *declare* resources?
 
     1. Highly Complex 
     2. Interactive 
-    3. Brittle 
+    3. Interlinked
 
 + We define "catastrophic" in this context as a fatal error
 + The book of the same name is worth reading
@@ -230,16 +242,6 @@ list - that way we can be much faster at assigning resources
 - project generator for apps
 
 # Todo
-- use opaque handle to reference pso instead of bare `uint64_t`
-- remove requirement for resources to specify usage - we should be able to
-  infer this from how we actually use the resources in our renderpasses.
-  
-## Todo: Extents
-- add default scissors, viewports to encoder matching current renderpass
-  extents
-- provide current pass extents in encoders
-- clean up swapchain extents gathering (we currently record before we have
-  an image acquied, right?)
 
 # What I'm unhappy with
 - the way a lower sytem calls into a higher level system when executing
