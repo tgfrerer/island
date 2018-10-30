@@ -13,7 +13,7 @@
 #include "le_renderer/private/le_renderer_types.h"
 
 #ifndef PRINT_DEBUG_MESSAGES
-#	define PRINT_DEBUG_MESSAGES false
+#	define PRINT_DEBUG_MESSAGES true
 #endif
 
 #define LE_rendergraph_RECURSION_DEPTH 20
@@ -607,9 +607,11 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 	///
 	/// We could possibly go wide when recording renderpasses, with one context per renderpass.
 
-	if ( PRINT_DEBUG_MESSAGES || true ) {
+	if ( PRINT_DEBUG_MESSAGES ) {
 		std::ostringstream msg;
-		msg << "render graph: " << std::endl;
+		msg << std::endl
+		    << std::endl;
+		msg << "Render graph: " << std::endl;
 
 		std::unordered_map<uint64_t, std::string> pass_id_to_handle;
 		pass_id_to_handle.emplace( LE_RENDERPASS_MARKER_EXTERNAL, "RP_EXTERNAL" );
@@ -626,9 +628,9 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 			renderpass_get_image_attachments( pass, &pImageAttachments, &numImageAttachments );
 
 			for ( auto const *attachment = pImageAttachments; attachment != pImageAttachments + numImageAttachments; attachment++ ) {
-				msg << "load  : " << attachment->loadOp << std::endl;
-				msg << "store: " << attachment->storeOp << std::endl;
-				msg << " : " << std::setw( 32 ) << attachment->resource_id.debug_name << ": '" << pass_id_to_handle[ attachment->source_id ] << "'"
+				msg << "\t Attachment: '" << attachment->resource_id.debug_name << "', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'" << std::endl;
+				msg << "\t load  : " << attachment->loadOp << std::endl;
+				msg << "\t store: " << attachment->storeOp << std::endl
 				    << std::endl;
 			}
 		}
