@@ -211,6 +211,12 @@ class RenderPass {
 	    : self( le_renderer::renderpass_i.create( name_, type_ ) ) {
 	}
 
+	RenderPass( const char *name_, const LeRenderPassType &type_, le_renderer_api::pfn_renderpass_setup_t fun_setup, le_renderer_api::pfn_renderpass_execute_t fun_exec, void *user_data )
+	    : self( le_renderer::renderpass_i.create( name_, type_ ) ) {
+	        le_renderer::renderpass_i.set_setup_callback( self, fun_setup, user_data );
+		le_renderer::renderpass_i.set_execute_callback( self, fun_exec, user_data );
+	}
+
 	~RenderPass() {
 		le_renderer::renderpass_i.destroy( self );
 	}
