@@ -44,7 +44,7 @@ struct le_dependency_manager_o {
 
 /*
  * I think - it should be possible to get any dependent layers by up-walking the layers array
- * and looking for writes where we have reads in a later layer.
+ * and looking for writes where we have reads in a layer above.
  *
  * Our goal is to discard any layers which have no contribution to the final product.
  *
@@ -137,7 +137,7 @@ static void layers_calculate_sort_indices( Layer const *const layers, const size
 			// Weed out any layers which are marked as non-contributing
 
 			if ( layer->reads[ 0 ] == false ) {
-				*layerO = ~( 0u ); // tag layer as not contributing by flipping all bits
+				*layerO = ~( 0u ); // tag layer as not contributing by marking it with the maximum sort index
 				continue;
 			}
 
@@ -164,7 +164,7 @@ static void layers_calculate_sort_indices( Layer const *const layers, const size
 			write_accum |= layer->writes;
 			read_accum |= layer->reads;
 
-			*layerO = sortIndex;
+			*layerO = sortIndex; // store current sortIndex value with layer
 		}
 	}
 
