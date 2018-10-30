@@ -1579,9 +1579,11 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 
 				auto &texInfo = textureInfos[ i ];
 
+				auto imageFormat = vk::Format( frame_data_get_image_format_from_texture_info( frame, texInfo ) );
+
 				vk::ImageSubresourceRange subresourceRange;
 				subresourceRange
-				    .setAspectMask( vk::ImageAspectFlagBits::eColor )
+				    .setAspectMask( is_depth_stencil_format( imageFormat ) ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor )
 				    .setBaseMipLevel( 0 )
 				    .setLevelCount( 1 )
 				    .setBaseArrayLayer( 0 )
@@ -1594,7 +1596,7 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 				    .setFlags( {} )
 				    .setImage( frame_data_get_image_from_le_resource_id( frame, texInfo.imageView.imageId ) )
 				    .setViewType( vk::ImageViewType::e2D )
-				    .setFormat( vk::Format( frame_data_get_image_format_from_texture_info( frame, texInfo ) ) )
+				    .setFormat( imageFormat )
 				    .setComponents( {} ) // default component mapping
 				    .setSubresourceRange( subresourceRange );
 
