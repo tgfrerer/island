@@ -2373,7 +2373,7 @@ static le_resource_info_t get_default_resource_info_for_image() {
 	return res;
 }
 
-static le_resource_info_t get_default_resource_info_for_image_attachment() {
+static le_resource_info_t get_default_resource_info_for_color_attachment() {
 	le_resource_info_t res;
 
 	res.type = LeResourceType::eImage;
@@ -2455,7 +2455,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 
 	helpers_i.get_default_resource_info_for_buffer                   = get_default_resource_info_for_buffer;
 	helpers_i.get_default_resource_info_for_image                    = get_default_resource_info_for_image;
-	helpers_i.get_default_resource_info_for_image_attachment         = get_default_resource_info_for_image_attachment;
+	helpers_i.get_default_resource_info_for_color_attachment         = get_default_resource_info_for_color_attachment;
 	helpers_i.get_default_resource_info_for_depth_stencil_attachment = get_default_resource_info_for_depth_stencil_attachment;
 
 	// register/update submodules inside this plugin

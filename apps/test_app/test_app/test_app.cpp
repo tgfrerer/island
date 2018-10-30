@@ -443,7 +443,7 @@ static bool pass_pre_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	auto rp  = le::RenderPassRef{pRp};
 	auto app = static_cast<test_app_o *>( user_data_ );
 
-	rp.addImageAttachment( resImgPrepass );
+	rp.addColorAttachment( resImgPrepass );
 
 	LeTextureInfo textureInfo{};
 	textureInfo.imageView.imageId = resImgHorse;
@@ -507,8 +507,8 @@ static bool pass_final_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	auto app = static_cast<test_app_o *>( user_data_ );
 
 	rp
-	    .addImageAttachment( app->renderer.getBackbufferResource() ) // color attachment
-	    .addDepthImageAttachment( LE_IMG_RESOURCE( "ImgDepth" ) )    // depth attachment
+	    .addColorAttachment( app->renderer.getBackbufferResource() ) // color attachment
+	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "ImgDepth" ) )  // depth attachment
 	    .sampleTexture( resTexPrepass, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {resImgPrepass, 0}} )
 	    .sampleTexture( app->imguiTexture.le_texture_handle, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {app->imguiTexture.le_image_handle, 0}} )
 	    .setIsRoot( true );

@@ -268,38 +268,36 @@ static void renderpass_sample_texture( le_renderpass_o *self, le_resource_handle
 
 // ----------------------------------------------------------------------
 
-static void renderpass_add_image_attachment( le_renderpass_o *self, le_resource_handle_t image_id, const le_resource_info_t &resource_info, LeImageAttachmentInfo const *attachmentInfo ) {
+static void renderpass_add_color_attachment( le_renderpass_o *self, le_resource_handle_t image_id, const le_resource_info_t &resource_info, LeImageAttachmentInfo const *attachmentInfo ) {
 
 	self->imageAttachments.push_back( *attachmentInfo );
 	auto &imageAttachmentInfo = self->imageAttachments.back();
 
-	// By default, flag attachment source as being external, if attachment was previously written in this pass,
-	// source will be substituted by id of pass which writes to attachment, otherwise the flag will persist and
-	// tell us that this attachment must be externally resolved.
-	imageAttachmentInfo.source_id   = LE_RENDERPASS_MARKER_EXTERNAL;
 	imageAttachmentInfo.resource_id = image_id;
-
-	//	if ( imageAttachmentInfo.access_flags == eLeAccessFlagBitsReadWrite ) {
-	//		imageAttachmentInfo.loadOp  = LE_ATTACHMENT_LOAD_OP_LOAD;
-	//		imageAttachmentInfo.storeOp = LE_ATTACHMENT_STORE_OP_STORE;
-	//	} else if ( imageAttachmentInfo.access_flags & eLeAccessFlagBitWrite ) {
-	//		// Write-only means we may be seen as the creator of this resource
-	imageAttachmentInfo.source_id = self->id;
-	//	} else if ( imageAttachmentInfo.access_flags & eLeAccessFlagBitRead ) {
-	//		imageAttachmentInfo.loadOp  = LE_ATTACHMENT_LOAD_OP_LOAD;
-	//		imageAttachmentInfo.storeOp = LE_ATTACHMENT_STORE_OP_DONTCARE;
-	//	} else {
-	//		imageAttachmentInfo.loadOp  = LE_ATTACHMENT_LOAD_OP_DONTCARE;
-	//		imageAttachmentInfo.storeOp = LE_ATTACHMENT_STORE_OP_DONTCARE;
-	//	}
 
 	le_resource_info_t updated_resource_info = resource_info;
 
-	if ( attachmentInfo->isDepthAttachment ) {
-		updated_resource_info.image.usage |= LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-	} else {
-		updated_resource_info.image.usage |= LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-	}
+	// Make sure that this imgage can be used as a color attachment,
+	// even if user forgot to specify the flag.
+	updated_resource_info.image.usage |= LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+	renderpass_use_resource( self, image_id, updated_resource_info );
+}
+
+// ----------------------------------------------------------------------
+
+static void renderpass_add_depth_stencil_attachment( le_renderpass_o *self, le_resource_handle_t image_id, const le_resource_info_t &resource_info, LeImageAttachmentInfo const *attachmentInfo ) {
+
+	self->imageAttachments.push_back( *attachmentInfo );
+	auto &imageAttachmentInfo = self->imageAttachments.back();
+
+	imageAttachmentInfo.resource_id = image_id;
+
+	le_resource_info_t updated_resource_info = resource_info;
+
+	// Make sure that this image can be used as a depth stencil attachment,
+	// even if user forgot to specify the flag.
+	updated_resource_info.image.usage |= LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
 
 	renderpass_use_resource( self, image_id, updated_resource_info );
 }
@@ -737,33 +735,34 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_rendergraph_i.execute    = rendergraph_execute;
 	le_rendergraph_i.get_passes = rendergraph_get_passes;
 
-	auto &le_renderpass_i                 = le_renderer_api_i->le_renderpass_i;
-	le_renderpass_i.create                = renderpass_create;
-	le_renderpass_i.clone                 = renderpass_clone;
-	le_renderpass_i.destroy               = renderpass_destroy;
-	le_renderpass_i.get_id                = renderpass_get_id;
-	le_renderpass_i.get_debug_name        = renderpass_get_debug_name;
-	le_renderpass_i.get_type              = renderpass_get_type;
-	le_renderpass_i.get_width             = renderpass_get_width;
-	le_renderpass_i.set_width             = renderpass_set_width;
-	le_renderpass_i.get_height            = renderpass_get_height;
-	le_renderpass_i.set_height            = renderpass_set_height;
-	le_renderpass_i.set_setup_callback    = renderpass_set_setup_fun;
-	le_renderpass_i.has_setup_callback    = renderpass_has_setup_callback;
-	le_renderpass_i.run_setup_callback    = renderpass_run_setup_callback;
-	le_renderpass_i.set_execute_callback  = renderpass_set_execute_callback;
-	le_renderpass_i.has_execute_callback  = renderpass_has_execute_callback;
-	le_renderpass_i.run_execute_callback  = renderpass_run_execute_callback;
-	le_renderpass_i.set_is_root           = renderpass_set_is_root;
-	le_renderpass_i.get_is_root           = renderpass_get_is_root;
-	le_renderpass_i.get_sort_key          = renderpass_get_sort_key;
-	le_renderpass_i.set_sort_key          = renderpass_set_sort_key;
-	le_renderpass_i.add_image_attachment  = renderpass_add_image_attachment;
-	le_renderpass_i.get_image_attachments = renderpass_get_image_attachments;
-	le_renderpass_i.use_resource          = renderpass_use_resource;
-	le_renderpass_i.get_used_resources    = renderpass_get_used_resources;
-	le_renderpass_i.steal_encoder         = renderpass_steal_encoder;
-	le_renderpass_i.sample_texture        = renderpass_sample_texture;
-	le_renderpass_i.get_texture_ids       = renderpass_get_texture_ids;
-	le_renderpass_i.get_texture_infos     = renderpass_get_texture_infos;
+	auto &le_renderpass_i                        = le_renderer_api_i->le_renderpass_i;
+	le_renderpass_i.create                       = renderpass_create;
+	le_renderpass_i.clone                        = renderpass_clone;
+	le_renderpass_i.destroy                      = renderpass_destroy;
+	le_renderpass_i.get_id                       = renderpass_get_id;
+	le_renderpass_i.get_debug_name               = renderpass_get_debug_name;
+	le_renderpass_i.get_type                     = renderpass_get_type;
+	le_renderpass_i.get_width                    = renderpass_get_width;
+	le_renderpass_i.set_width                    = renderpass_set_width;
+	le_renderpass_i.get_height                   = renderpass_get_height;
+	le_renderpass_i.set_height                   = renderpass_set_height;
+	le_renderpass_i.set_setup_callback           = renderpass_set_setup_fun;
+	le_renderpass_i.has_setup_callback           = renderpass_has_setup_callback;
+	le_renderpass_i.run_setup_callback           = renderpass_run_setup_callback;
+	le_renderpass_i.set_execute_callback         = renderpass_set_execute_callback;
+	le_renderpass_i.has_execute_callback         = renderpass_has_execute_callback;
+	le_renderpass_i.run_execute_callback         = renderpass_run_execute_callback;
+	le_renderpass_i.set_is_root                  = renderpass_set_is_root;
+	le_renderpass_i.get_is_root                  = renderpass_get_is_root;
+	le_renderpass_i.get_sort_key                 = renderpass_get_sort_key;
+	le_renderpass_i.set_sort_key                 = renderpass_set_sort_key;
+	le_renderpass_i.add_color_attachment         = renderpass_add_color_attachment;
+	le_renderpass_i.add_depth_stencil_attachment = renderpass_add_depth_stencil_attachment;
+	le_renderpass_i.get_image_attachments        = renderpass_get_image_attachments;
+	le_renderpass_i.use_resource                 = renderpass_use_resource;
+	le_renderpass_i.get_used_resources           = renderpass_get_used_resources;
+	le_renderpass_i.steal_encoder                = renderpass_steal_encoder;
+	le_renderpass_i.sample_texture               = renderpass_sample_texture;
+	le_renderpass_i.get_texture_ids              = renderpass_get_texture_ids;
+	le_renderpass_i.get_texture_infos            = renderpass_get_texture_infos;
 }

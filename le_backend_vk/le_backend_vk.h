@@ -103,7 +103,7 @@ struct le_backend_vk_api {
 
 	struct helpers_interface_t {
 		le_resource_info_t (*get_default_resource_info_for_image)();
-		le_resource_info_t (*get_default_resource_info_for_image_attachment)();
+		le_resource_info_t (*get_default_resource_info_for_color_attachment)();
 		le_resource_info_t (*get_default_resource_info_for_depth_stencil_attachment)();
 		le_resource_info_t (*get_default_resource_info_for_buffer)();
 	};

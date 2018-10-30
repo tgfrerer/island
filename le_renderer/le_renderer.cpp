@@ -465,9 +465,9 @@ static le_resource_info_t get_default_resource_info_for_image() {
 	return helpers_i.get_default_resource_info_for_image();
 }
 
-static le_resource_info_t get_default_resource_info_for_image_attachment() {
+static le_resource_info_t get_default_resource_info_for_color_attachment() {
 	using namespace le_backend_vk;
-	return helpers_i.get_default_resource_info_for_image_attachment();
+	return helpers_i.get_default_resource_info_for_color_attachment();
 }
 
 static le_resource_info_t get_default_resource_info_for_depth_stencil_attachment() {
@@ -499,7 +499,7 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	helpers_i.get_default_resource_info_for_buffer                   = get_default_resource_info_for_buffer;
 	helpers_i.get_default_resource_info_for_image                    = get_default_resource_info_for_image;
 	helpers_i.get_default_resource_info_for_depth_stencil_attachment = get_default_resource_info_for_depth_stencil_attachment;
-	helpers_i.get_default_resource_info_for_image_attachment         = get_default_resource_info_for_image_attachment;
+	helpers_i.get_default_resource_info_for_color_attachment         = get_default_resource_info_for_color_attachment;
 
 	// register sub-components of this api
 	register_le_rendergraph_api( api_ );
