@@ -893,6 +893,10 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 
 static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &device ) {
 
+	// NOTE: we might be able to simplify this along the lines of
+	// <https://github.com/Tobski/simple_vulkan_synchronization>
+	// <https://github.com/gwihlidal/vk-sync-rs>
+
 	// create renderpasses
 	const auto &syncChainTable = frame.syncChainTable;
 
@@ -988,6 +992,11 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 			dstStageToExternalFlags |= syncFinal.write_stage;
 			srcAccessToExternalFlags |= ( syncChain.at( attachment->finalStateOffset - 1 ).visible_access & ANY_WRITE_ACCESS_FLAGS );
 			dstAccessToExternalFlags |= syncFinal.visible_access;
+
+			if ( 0 == static_cast<unsigned int>( srcStageFromExternalFlags ) ) {
+				// Ensure that the stage mask is valid if no stages were specified.
+				srcStageFromExternalFlags = vk::PipelineStageFlagBits::eTopOfPipe;
+			}
 		}
 
 		std::vector<vk::SubpassDescription> subpasses;
