@@ -663,10 +663,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 				auto &previousSyncState = syncChain.back();
 				auto  beforeFirstUse{previousSyncState};
 
-				switch ( imageAttachment->access_flags ) {
-				case eLeAccessFlagBitsReadWrite:
-					// resource.loadOp must be LOAD
-
+				if ( currentAttachment->loadOp == vk::AttachmentLoadOp::eLoad ) {
 					// we must now specify which stages need to be visible for which coming memory access
 					if ( isDepthStencil ) {
 						beforeFirstUse.visible_access = vk::AccessFlagBits::eDepthStencilAttachmentRead;
@@ -678,17 +675,10 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 						beforeFirstUse.visible_access = vk::AccessFlagBits::eColorAttachmentRead;
 						beforeFirstUse.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput;
 					}
-				    break;
-
-				case eLeAccessFlagBitWrite:
+				} else if ( currentAttachment->loadOp == vk::AttachmentLoadOp::eClear ) {
 					// resource.loadOp must be either CLEAR / or DONT_CARE
 					beforeFirstUse.write_stage    = isDepthStencil ? vk::PipelineStageFlagBits::eEarlyFragmentTests : vk::PipelineStageFlagBits::eColorAttachmentOutput;
 					beforeFirstUse.visible_access = vk::AccessFlagBits( 0 );
-					beforeFirstUse.layout         = vk::ImageLayout::eUndefined; // override to undefined to invalidate attachment which will be cleared.
-				    break;
-
-				case eLeAccessFlagBitRead:
-				    break;
 				}
 
 				currentAttachment->initialStateOffset = uint16_t( syncChain.size() );
@@ -702,7 +692,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 				auto &previousSyncState = syncChain.back();
 				auto  beforeSubpass{previousSyncState};
 
-				if ( imageAttachment->access_flags == eLeAccessFlagBitsReadWrite ) {
+				if ( imageAttachment->loadOp == LE_ATTACHMENT_LOAD_OP_LOAD ) {
 					// resource.loadOp most be LOAD
 
 					// we must now specify which stages need to be visible for which coming memory access
@@ -718,8 +708,9 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 						beforeSubpass.layout         = vk::ImageLayout::eColorAttachmentOptimal;
 					}
 
-				} else if ( imageAttachment->access_flags & eLeAccessFlagBitRead ) {
-				} else if ( imageAttachment->access_flags & eLeAccessFlagBitWrite ) {
+				} else {
+
+					// load op is either CLEAR, or DONT_CARE
 
 					if ( isDepthStencil ) {
 						beforeSubpass.visible_access = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
@@ -1097,7 +1088,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 				for ( const auto &s : subpasses ) {
 
 					// note: attachment references are not that straightforward to hash either, as they contain a layout
-					// field, which want to ignore, since it makes no difference for render pass compatibility.
+					// field, which we want to ignore, since it makes no difference for render pass compatibility.
 
 					rp_hash = SpookyHash::Hash64( &s.flags, sizeof( s.flags ), rp_hash );
 					rp_hash = SpookyHash::Hash64( &s.pipelineBindPoint, sizeof( s.pipelineBindPoint ), rp_hash );
@@ -1178,6 +1169,8 @@ static void frame_create_resource_table( BackendFrameData &frame, le_renderpass_
 		size_t                      numResources   = 0;
 
 		renderpass_i.get_used_resources( *pPass, &pResources, &pResourceInfos, &numResources );
+
+		// CHECK: make sure not to append to resources which already exist.
 		for ( auto it = pResources; it != pResources + numResources; ++it ) {
 			frame.syncChainTable.insert( {*it, {BackendFrameData::ResourceState{}}} );
 		}

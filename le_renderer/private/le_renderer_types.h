@@ -243,12 +243,12 @@ struct LeClearValue {
         };
 };
 
+// FIXME: this struct is over-specified and pierces abstraction boundaries.
 struct LeImageAttachmentInfo {
 
         static constexpr LeClearValue DefaultClearValueColor        = {{{{{0.f, 0.f, 0.f, 0.f}}}}};
         static constexpr LeClearValue DefaultClearValueDepthStencil = {{{{{1.f, 0}}}}};
 
-	LeAccessFlags       access_flags = eLeAccessFlagBitWrite;        // read, write or readwrite (default is write)
 	LeAttachmentLoadOp  loadOp       = LE_ATTACHMENT_LOAD_OP_CLEAR;  //
 	LeAttachmentStoreOp storeOp      = LE_ATTACHMENT_STORE_OP_STORE; //
 	LeClearValue        clearValue   = DefaultClearValueColor;       // only used if loadOp == clear
@@ -262,7 +262,6 @@ struct LeImageAttachmentInfo {
 static constexpr LeImageAttachmentInfo LeDepthAttachmentInfo(){
     auto res = LeImageAttachmentInfo();
     res.isDepthAttachment = true;
-    res.access_flags = eLeAccessFlagBitWrite;
     res.loadOp = LE_ATTACHMENT_LOAD_OP_CLEAR;
     res.storeOp = LE_ATTACHMENT_STORE_OP_STORE;
     res.clearValue = LeImageAttachmentInfo::DefaultClearValueDepthStencil;
@@ -272,21 +271,21 @@ static constexpr LeImageAttachmentInfo LeDepthAttachmentInfo(){
 struct le_resource_info_t {
 
     struct Image {
-            uint32_t     flags;       // creation flags
-            uint32_t     imageType;   // enum vk::ImageType
-            int32_t      format;      // enum vk::Format
-            le::Extent3D extent;      //
-            uint32_t     mipLevels;   //
-            uint32_t     arrayLayers; //
-            uint32_t     samples;     // enum VkSampleCountFlagBits
-            uint32_t     tiling;      // enum VkImageTiling
-            uint32_t     usage;       // usage flags
-            uint32_t     sharingMode; // enum vkSharingMode
+            uint32_t           flags;       // creation flags
+            uint32_t           imageType;   // enum vk::ImageType
+            int32_t            format;      // enum vk::Format
+            le::Extent3D       extent;      //
+            uint32_t           mipLevels;   //
+            uint32_t           arrayLayers; //
+            uint32_t           samples;     // enum VkSampleCountFlagBits
+            uint32_t           tiling;      // enum VkImageTiling
+            LeImageUsageFlags  usage;       // usage flags (LeImageUsageFlags : uint32_t)
+            uint32_t           sharingMode; // enum vkSharingMode
     };
 
     struct Buffer {
             uint32_t size;
-            uint32_t usage; // e.g. VK_BUFFER_USAGE_VERTEX_BUFFER_BIT
+            LeBufferUsageFlags usage; // usage flags (LeBufferUsageFlags : uint32_t)
     };
 
     LeResourceType type;
