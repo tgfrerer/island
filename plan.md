@@ -27,6 +27,15 @@
 
 ## (B)
 
+
+- the way we use LeImageAttachmentInfo is over-specified - it would be
+  great to find a more terse method to express the use of image handles as
+  attachments.
+
+- currently, the dependency checking mechanism for attachments appears
+  broken, source and sink determination for resources probably does not
+  work as intended.
+
 - look into LeImageAttachmentInfo: do we still need res.accessflags?
 
 - what should we do with "orphaned" resources? that's resources which were
@@ -127,8 +136,8 @@ Where should we *declare* resources?
 + Happen if systems are: 
 
     1. Highly Complex 
-    2. Interactive 
-    3. Interlinked
+    2. Interactive (tightly coupled) 
+    3. Incomprehensible (cause and effect are obscured)
 
 + We define "catastrophic" in this context as a fatal error
 + The book of the same name is worth reading
