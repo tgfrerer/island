@@ -355,8 +355,9 @@ class RenderPassRef {
 		return self;
 	}
 
-	/// \brief adds a resource as an image attachment to the renderpass, resource is used for ColorAttachment and Write access, unless otherwise specified
-	/// \details use an LeImageAttachmentInfo struct to specialise parameters, such as LOAD_OP, CLEAR_OP, and Clear/Load Color.
+	/// \brief Adds a resource as an image attachment to the renderpass.
+	/// \details resource is used for ColorAttachment and Write access, unless otherwise specified.
+	///          Use an LeImageAttachmentInfo struct to specialise parameters, such as LOAD_OP, CLEAR_OP, and Clear/Load Color.
 	RenderPassRef &addImageAttachment( const le_resource_handle_t &resource_id,
 
 	                                   const LeImageAttachmentInfo &attachmentInfo = LeImageAttachmentInfo(),
