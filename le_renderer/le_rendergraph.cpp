@@ -133,7 +133,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 
 	assert( resource_info.type == LeResourceType::eBuffer || resource_info.type == LeResourceType::eImage );
 
-	// invariant: only check images
+	// invariant: only check images or buffers
 
 	auto found_res = std::find( self->resources.begin(), self->resources.end(), resource_id );
 
@@ -279,20 +279,19 @@ static void renderpass_add_image_attachment( le_renderpass_o *self, le_resource_
 	imageAttachmentInfo.source_id   = LE_RENDERPASS_MARKER_EXTERNAL;
 	imageAttachmentInfo.resource_id = image_id;
 
-	if ( imageAttachmentInfo.access_flags == eLeAccessFlagBitsReadWrite ) {
-		imageAttachmentInfo.loadOp  = LE_ATTACHMENT_LOAD_OP_LOAD;
-		imageAttachmentInfo.storeOp = LE_ATTACHMENT_STORE_OP_STORE;
-	} else if ( imageAttachmentInfo.access_flags & eLeAccessFlagBitWrite ) {
-		// Write-only means we may be seen as the creator of this resource
-		imageAttachmentInfo.source_id = self->id;
-	} else if ( imageAttachmentInfo.access_flags & eLeAccessFlagBitRead ) {
-		// TODO: we need to make sure to distinguish between image attachments and texture attachments
-		imageAttachmentInfo.loadOp  = LE_ATTACHMENT_LOAD_OP_LOAD;
-		imageAttachmentInfo.storeOp = LE_ATTACHMENT_STORE_OP_DONTCARE;
-	} else {
-		imageAttachmentInfo.loadOp  = LE_ATTACHMENT_LOAD_OP_DONTCARE;
-		imageAttachmentInfo.storeOp = LE_ATTACHMENT_STORE_OP_DONTCARE;
-	}
+	//	if ( imageAttachmentInfo.access_flags == eLeAccessFlagBitsReadWrite ) {
+	//		imageAttachmentInfo.loadOp  = LE_ATTACHMENT_LOAD_OP_LOAD;
+	//		imageAttachmentInfo.storeOp = LE_ATTACHMENT_STORE_OP_STORE;
+	//	} else if ( imageAttachmentInfo.access_flags & eLeAccessFlagBitWrite ) {
+	//		// Write-only means we may be seen as the creator of this resource
+	imageAttachmentInfo.source_id = self->id;
+	//	} else if ( imageAttachmentInfo.access_flags & eLeAccessFlagBitRead ) {
+	//		imageAttachmentInfo.loadOp  = LE_ATTACHMENT_LOAD_OP_LOAD;
+	//		imageAttachmentInfo.storeOp = LE_ATTACHMENT_STORE_OP_DONTCARE;
+	//	} else {
+	//		imageAttachmentInfo.loadOp  = LE_ATTACHMENT_LOAD_OP_DONTCARE;
+	//		imageAttachmentInfo.storeOp = LE_ATTACHMENT_STORE_OP_DONTCARE;
+	//	}
 
 	le_resource_info_t updated_resource_info = resource_info;
 
@@ -302,16 +301,11 @@ static void renderpass_add_image_attachment( le_renderpass_o *self, le_resource_
 		updated_resource_info.image.usage |= LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
 	}
 
-	renderpass_use_resource( self, image_id, resource_info );
+	renderpass_use_resource( self, image_id, updated_resource_info );
 }
 
 // ----------------------------------------------------------------------
 
-static void renderpass_create_resource( le_renderpass_o *self, le_resource_handle_t resource, const le_resource_info_t &info ) {
-	renderpass_use_resource( self, resource, info );
-}
-
-// ----------------------------------------------------------------------
 static uint32_t renderpass_get_width( le_renderpass_o *self ) {
 	return self->width;
 }
@@ -601,7 +595,6 @@ static void rendergraph_build( le_rendergraph_o *self ) {
 }
 
 // ----------------------------------------------------------------------
-
 static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_backend_o *backend ) {
 
 	/// Record render commands by calling rendercallbacks for each renderpass.
@@ -614,26 +607,29 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 	///
 	/// We could possibly go wide when recording renderpasses, with one context per renderpass.
 
-	if ( PRINT_DEBUG_MESSAGES ) {
+	if ( PRINT_DEBUG_MESSAGES || true ) {
 		std::ostringstream msg;
 		msg << "render graph: " << std::endl;
+
+		std::unordered_map<uint64_t, std::string> pass_id_to_handle;
+		pass_id_to_handle.emplace( LE_RENDERPASS_MARKER_EXTERNAL, "RP_EXTERNAL" );
+
 		for ( const auto &pass : self->passes ) {
-			msg << "renderpass: " << std::setw( 15 ) << std::hex << pass->id << ", "
-			    << "'" << pass->debugName << "' , sort_key: " << pass->sort_key << std::endl;
+			pass_id_to_handle.emplace( pass->id, pass->debugName );
+		}
+
+		for ( const auto &pass : self->passes ) {
+			msg << "renderpass: '" << pass->debugName << "' , sort_key: " << pass->sort_key << std::endl;
 
 			LeImageAttachmentInfo const *pImageAttachments   = nullptr;
 			size_t                       numImageAttachments = 0;
 			renderpass_get_image_attachments( pass, &pImageAttachments, &numImageAttachments );
 
 			for ( auto const *attachment = pImageAttachments; attachment != pImageAttachments + numImageAttachments; attachment++ ) {
-				if ( attachment->access_flags & eLeAccessFlagBitRead ) {
-					msg << "r";
-				}
-				if ( attachment->access_flags & eLeAccessFlagBitWrite ) {
-					msg << "w";
-				}
-				msg << " : " << std::setw( 32 ) << std::hex << attachment->resource_id.handle_data << ":" << attachment->source_id << ", 'FIXME: ADD DEBUG NAME FOR ATTACHMENT"
-				    << "'" << std::endl;
+				msg << "load  : " << attachment->loadOp << std::endl;
+				msg << "store: " << attachment->storeOp << std::endl;
+				msg << " : " << std::setw( 32 ) << attachment->resource_id.debug_name << ": '" << pass_id_to_handle[ attachment->source_id ] << "'"
+				    << std::endl;
 			}
 		}
 		std::cout << msg.str();
