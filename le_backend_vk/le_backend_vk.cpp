@@ -564,7 +564,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 
 // ----------------------------------------------------------------------
 
-static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses, const vk::Format &swapchainImageFormat, const le_resource_handle_t &backbufferImageHandle ) {
+static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses, const le_resource_handle_t &backbufferImageHandle ) {
 
 	// Track resource state
 
@@ -1685,7 +1685,7 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
 
 	frame_create_resource_table( frame, passes, numRenderPasses );
-	frame_track_resource_state( frame, passes, numRenderPasses, self->swapchainImageFormat, self->backBufferImageHandle );
+	frame_track_resource_state( frame, passes, numRenderPasses, self->backBufferImageHandle );
 
 	vk::Device device = self->device->getVkDevice();
 	// -- allocate any transient vk objects such as image samplers, and image views
