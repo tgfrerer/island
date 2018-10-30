@@ -611,12 +611,12 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 		    << std::endl;
 		msg << "Render graph: " << std::endl;
 
-		std::unordered_map<uint64_t, std::string> pass_id_to_handle;
-		pass_id_to_handle.emplace( LE_RENDERPASS_MARKER_EXTERNAL, "RP_EXTERNAL" );
+		//		std::unordered_map<uint64_t, std::string> pass_id_to_handle;
+		//		pass_id_to_handle.emplace( LE_RENDERPASS_MARKER_EXTERNAL, "RP_EXTERNAL" );
 
-		for ( const auto &pass : self->passes ) {
-			pass_id_to_handle.emplace( pass->id, pass->debugName );
-		}
+		//		for ( const auto &pass : self->passes ) {
+		//			pass_id_to_handle.emplace( pass->id, pass->debugName );
+		//		}
 
 		for ( const auto &pass : self->passes ) {
 			msg << "renderpass: '" << pass->debugName << "' , sort_key: " << pass->sort_key << std::endl;
@@ -626,7 +626,7 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 			renderpass_get_image_attachments( pass, &pImageAttachments, &numImageAttachments );
 
 			for ( auto const *attachment = pImageAttachments; attachment != pImageAttachments + numImageAttachments; attachment++ ) {
-				msg << "\t Attachment: '" << attachment->resource_id.debug_name << "', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'" << std::endl;
+				msg << "\t Attachment: '" << attachment->resource_id.debug_name << std::endl; //"', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'" << std::endl;
 				msg << "\t load  : " << attachment->loadOp << std::endl;
 				msg << "\t store: " << attachment->storeOp << std::endl
 				    << std::endl;

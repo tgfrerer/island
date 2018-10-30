@@ -90,7 +90,6 @@ struct LeResourceHandleIdentity {
         }
 };
 
-
 constexpr le_resource_handle_t LE_IMG_RESOURCE( const char *const str ) noexcept {
         return LE_RESOURCE( str, LeResourceType::eImage );
 }
@@ -255,17 +254,15 @@ struct LeImageAttachmentInfo {
 	LeClearValue        clearValue   = DefaultClearValueColor;       // only used if loadOp == clear
 
 	le_resource_handle_t resource_id{}; // (private - do not set) handle given to this attachment
-	uint64_t             source_id{};   // (private - do not set) hash name of writer/creator renderpass
-	uint32_t isDepthAttachment = false; // whether this attachment is a depth attachment - otherwise it must be a color attachment
+
 };
 
 static constexpr LeImageAttachmentInfo LeDepthAttachmentInfo(){
-    auto res = LeImageAttachmentInfo();
-    res.isDepthAttachment = true;
-    res.loadOp = LE_ATTACHMENT_LOAD_OP_CLEAR;
-    res.storeOp = LE_ATTACHMENT_STORE_OP_STORE;
-    res.clearValue = LeImageAttachmentInfo::DefaultClearValueDepthStencil;
-    return res;
+    auto info       = LeImageAttachmentInfo();
+    info.loadOp     = LE_ATTACHMENT_LOAD_OP_CLEAR;
+    info.storeOp    = LE_ATTACHMENT_STORE_OP_STORE;
+    info.clearValue = LeImageAttachmentInfo::DefaultClearValueDepthStencil;
+    return info;
 }
 
 /// \brief Use ImageInfoBuilder, and BufferInfoBuilder to build `resource_info_t`
