@@ -634,12 +634,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 			auto &syncChain = syncChainTable[ imageAttachment->resource_id ];
 
-			vk::Format attachmentFormat = vk::Format( imageAttachment->format );
-
-			if ( attachmentFormat == vk::Format::eUndefined ) {
-				// If an attachment does not explicitly specify a format, use the format of the associated image resource instead.
-				attachmentFormat = vk::Format( frame.availableResources[ imageAttachment->resource_id ].info.imageInfo.format );
-			}
+			vk::Format attachmentFormat = vk::Format( frame.availableResources[ imageAttachment->resource_id ].info.imageInfo.format );
 
 			bool isDepthStencil = is_depth_stencil_format( attachmentFormat );
 
@@ -985,7 +980,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 			dstAccessToExternalFlags |= syncFinal.visible_access;
 
 			if ( 0 == static_cast<unsigned int>( srcStageFromExternalFlags ) ) {
-				// Ensure that the stage mask is valid if no stages were specified.
+				// Ensure that the stage mask is valid if no src stage was specified.
 				srcStageFromExternalFlags = vk::PipelineStageFlagBits::eTopOfPipe;
 			}
 		}

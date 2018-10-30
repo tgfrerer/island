@@ -254,7 +254,6 @@ struct LeImageAttachmentInfo {
 	LeAttachmentStoreOp storeOp      = LE_ATTACHMENT_STORE_OP_STORE; //
 	LeClearValue        clearValue   = DefaultClearValueColor;       // only used if loadOp == clear
 
-	LeFormat_t           format{};      // if format is not given it will be automatically derived from attached image format
 	le_resource_handle_t resource_id{}; // (private - do not set) handle given to this attachment
 	uint64_t             source_id{};   // (private - do not set) hash name of writer/creator renderpass
 	uint32_t isDepthAttachment = false; // whether this attachment is a depth attachment - otherwise it must be a color attachment
