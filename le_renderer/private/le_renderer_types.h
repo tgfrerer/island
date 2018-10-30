@@ -65,12 +65,6 @@ static inline bool operator!=( le_resource_handle_t const &lhs, le_resource_hand
         return !( lhs == rhs );
 }
 
-struct LeResourceHandleIdentity {
-        inline auto operator()( const le_resource_handle_t &key_ ) const noexcept {
-                return key_.handle_data;
-        }
-};
-
 constexpr le_resource_handle_t LE_RESOURCE( const char *const str, const LeResourceType tp ) noexcept {
         le_resource_handle_t handle{};
         handle.name_hash = hash_32_fnv1a_const( str );
@@ -89,6 +83,13 @@ constexpr le_resource_handle_t LE_RESOURCE( const char *const str, const LeResou
 #ifdef LE_RESOURCE_LABEL_LENGTH
 #	undef LE_RESOURCE_LABEL_LENGTH
 #endif
+
+struct LeResourceHandleIdentity {
+        inline uint64_t operator()( const le_resource_handle_t &key_ ) const noexcept {
+                return key_.handle_data;
+        }
+};
+
 
 constexpr le_resource_handle_t LE_IMG_RESOURCE( const char *const str ) noexcept {
         return LE_RESOURCE( str, LeResourceType::eImage );
@@ -268,6 +269,7 @@ static constexpr LeImageAttachmentInfo LeDepthAttachmentInfo(){
     return res;
 }
 
+/// \brief Use ImageInfoBuilder, and BufferInfoBuilder to build `resource_info_t`
 struct le_resource_info_t {
 
     struct Image {
