@@ -357,17 +357,18 @@ class RenderPassRef {
 
 	/// \brief adds a resource as an image attachment to the renderpass, resource is used for ColorAttachment and Write access, unless otherwise specified
 	/// \details use an LeImageAttachmentInfo struct to specialise parameters, such as LOAD_OP, CLEAR_OP, and Clear/Load Color.
-	RenderPassRef &addImageAttachment( const le_resource_handle_t & resource_id,
-	                                   const le_resource_info_t &   resource_info  = le_renderer::helpers_i.get_default_resource_info_for_image_attachment(),
-	                                   const LeImageAttachmentInfo &attachmentInfo = LeImageAttachmentInfo() ) {
+	RenderPassRef &addImageAttachment( const le_resource_handle_t &resource_id,
+
+	                                   const LeImageAttachmentInfo &attachmentInfo = LeImageAttachmentInfo(),
+	                                   const le_resource_info_t &   resource_info  = le_renderer::helpers_i.get_default_resource_info_for_image_attachment() ) {
 		le_renderer::renderpass_i.add_image_attachment( self, resource_id, resource_info, &attachmentInfo );
 		return *this;
 	}
 
 	RenderPassRef &addDepthImageAttachment( const le_resource_handle_t & resource_id,
-	                                        const le_resource_info_t &   resource_info  = le_renderer::helpers_i.get_default_resource_info_for_depth_stencil_attachment(),
-	                                        const LeImageAttachmentInfo &attachmentInfo = LeDepthAttachmentInfo() ) {
-		return addImageAttachment( resource_id, resource_info, attachmentInfo );
+	                                        const LeImageAttachmentInfo &attachmentInfo = LeDepthAttachmentInfo(),
+	                                        const le_resource_info_t &   resource_info  = le_renderer::helpers_i.get_default_resource_info_for_depth_stencil_attachment() ) {
+		return addImageAttachment( resource_id, attachmentInfo, resource_info );
 	}
 
 	RenderPassRef &createResource( le_resource_handle_t resource_id, const le_resource_info_t &info ) {
