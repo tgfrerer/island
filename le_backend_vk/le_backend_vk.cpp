@@ -1447,6 +1447,23 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				imgInfoRef.flags     = ci.flags;
 				imgInfoRef.imageType = VkImageType( ci.imageType );
 				imgInfoRef.format    = VkFormat( ci.format );
+
+				// check for undefined format
+				if ( 0 == ci.format ) {
+					assert( ci.le_format_flags ); // default format flags must be set, otherwise we're clueless...
+
+					if ( ci.le_format_flags & le_resource_info_t::LE_RESOURCE_FORMAT_FLAG_IS_COLOR ) {
+						// set to default color format
+						imgInfoRef.format = VK_FORMAT_R8G8B8A8_UNORM;
+					} else {
+						// set to default depth stencil format
+						imgInfoRef.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+					}
+
+				} else {
+					imgInfoRef.format = VkFormat( ci.format );
+				}
+
 				imgInfoRef.extent.width          = ci.extent.width != 0 ? ci.extent.width : pass_width;
 				imgInfoRef.extent.height         = ci.extent.height != 0 ? ci.extent.height : pass_height;
 				imgInfoRef.extent.depth          = ci.extent.depth != 0 ? ci.extent.depth : 1;
@@ -2380,18 +2397,19 @@ static le_resource_info_t get_default_resource_info_for_image() {
 
 	res.type = LeResourceType::eImage;
 	{
-		auto &img         = res.image;
-		img.format        = VK_FORMAT_R8G8B8A8_UNORM; // TODO: query this via device
-		img.flags         = 0;
-		img.arrayLayers   = 1;
-		img.extent.width  = 0;
-		img.extent.height = 0;
-		img.extent.depth  = 1;
-		img.usage         = VK_IMAGE_USAGE_SAMPLED_BIT;
-		img.mipLevels     = 1;
-		img.samples       = VK_SAMPLE_COUNT_1_BIT;
-		img.imageType     = VK_IMAGE_TYPE_2D;
-		img.tiling        = VK_IMAGE_TILING_OPTIMAL;
+		auto &img           = res.image;
+		img.flags           = 0;
+		img.format          = VK_FORMAT_UNDEFINED; // TODO: query this via device
+		img.arrayLayers     = 1;
+		img.extent.width    = 0;
+		img.extent.height   = 0;
+		img.extent.depth    = 1;
+		img.usage           = LE_IMAGE_USAGE_SAMPLED_BIT;
+		img.mipLevels       = 1;
+		img.samples         = VK_SAMPLE_COUNT_1_BIT;
+		img.imageType       = VK_IMAGE_TYPE_2D;
+		img.tiling          = VK_IMAGE_TILING_OPTIMAL;
+		img.le_format_flags = le_resource_info_t::LE_RESOURCE_FORMAT_FLAG_IS_COLOR;
 	}
 
 	return res;
@@ -2402,18 +2420,19 @@ static le_resource_info_t get_default_resource_info_for_color_attachment() {
 
 	res.type = LeResourceType::eImage;
 	{
-		auto &img         = res.image;
-		img.format        = VK_FORMAT_R8G8B8A8_UNORM; // TODO: query this via device
-		img.flags         = 0;
-		img.arrayLayers   = 1;
-		img.extent.width  = 0;
-		img.extent.height = 0;
-		img.extent.depth  = 1;
-		img.usage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		img.mipLevels     = 1;
-		img.samples       = VK_SAMPLE_COUNT_1_BIT;
-		img.imageType     = VK_IMAGE_TYPE_2D;
-		img.tiling        = VK_IMAGE_TILING_OPTIMAL;
+		auto &img           = res.image;
+		img.flags           = 0;
+		img.format          = VK_FORMAT_UNDEFINED; // TODO: query this via device
+		img.arrayLayers     = 1;
+		img.extent.width    = 0;
+		img.extent.height   = 0;
+		img.extent.depth    = 1;
+		img.usage           = LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		img.mipLevels       = 1;
+		img.samples         = VK_SAMPLE_COUNT_1_BIT;
+		img.imageType       = VK_IMAGE_TYPE_2D;
+		img.tiling          = VK_IMAGE_TILING_OPTIMAL;
+		img.le_format_flags = le_resource_info_t::LE_RESOURCE_FORMAT_FLAG_IS_COLOR;
 	}
 
 	return res;
@@ -2424,18 +2443,19 @@ static le_resource_info_t get_default_resource_info_for_depth_stencil_attachment
 
 	res.type = LeResourceType::eImage;
 	{
-		auto &img         = res.image;
-		img.format        = VK_FORMAT_D32_SFLOAT_S8_UINT; // TODO: query this via device
-		img.flags         = 0;
-		img.arrayLayers   = 1;
-		img.extent.width  = 0;
-		img.extent.height = 0;
-		img.extent.depth  = 1;
-		img.usage         = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-		img.mipLevels     = 1;
-		img.samples       = VK_SAMPLE_COUNT_1_BIT;
-		img.imageType     = VK_IMAGE_TYPE_2D;
-		img.tiling        = VK_IMAGE_TILING_OPTIMAL;
+		auto &img           = res.image;
+		img.flags           = 0;
+		img.format          = VK_FORMAT_UNDEFINED; // TODO: query this via device
+		img.arrayLayers     = 1;
+		img.extent.width    = 0;
+		img.extent.height   = 0;
+		img.extent.depth    = 1;
+		img.usage           = LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		img.mipLevels       = 1;
+		img.samples         = VK_SAMPLE_COUNT_1_BIT;
+		img.imageType       = VK_IMAGE_TYPE_2D;
+		img.tiling          = VK_IMAGE_TILING_OPTIMAL;
+		img.le_format_flags = le_resource_info_t::LE_RESOURCE_FORMAT_FLAG_IS_DEPTH;
 	}
 
 	return res;

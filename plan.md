@@ -24,13 +24,23 @@
 
 ## (A)
 
+- format detection for image resources: we need to find a way to insert
+  defaults in a sane way, and to reduce complexity. currently, default
+  formats are set implicitly, but it would be better to note down if
+  a default was used, so that we can reason on consolidatation what kind
+  of format makes the most sense. 
 
 ## (B)
 
 
 - the way we use LeImageAttachmentInfo is over-specified - it would be
-  great to find a more terse method to express the use of image handles as
-  attachments.
+  great to find a more terse struct, which does not cross the abstraction
+  barrier. The intent of `ImageAttachmentInfo` is to provide just enough
+  information to specify an attachment on the public side which means:
+  - clearColor/clearDepthStencil
+  - loadOp
+  - storeOp
+  - is it depth or color attachment
 
 - currently, the dependency checking mechanism for attachments appears
   broken, source and sink determination for resources probably does not

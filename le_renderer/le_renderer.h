@@ -256,8 +256,18 @@ class ImageInfoBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	ImageInfoBuilder &setFlags( uint32_t flags = 0 ) {
+	ImageInfoBuilder &setCreateFlags( uint32_t flags = 0 ) {
 		img.flags = flags;
+		return *this;
+	}
+
+	ImageInfoBuilder &setDefaultFormatIsDepth() {
+		img.le_format_flags = le_resource_info_t::LE_RESOURCE_FORMAT_FLAG_IS_DEPTH;
+		return *this;
+	}
+
+	ImageInfoBuilder &setDefaultFormatIsColor() {
+		img.le_format_flags = le_resource_info_t::LE_RESOURCE_FORMAT_FLAG_IS_COLOR;
 		return *this;
 	}
 
@@ -365,8 +375,7 @@ class RenderPassRef {
 	/// \brief Adds a resource as an image attachment to the renderpass.
 	/// \details resource is used for ColorAttachment and Write access, unless otherwise specified.
 	///          Use an LeImageAttachmentInfo struct to specialise parameters, such as LOAD_OP, CLEAR_OP, and Clear/Load Color.
-	RenderPassRef &addColorAttachment( const le_resource_handle_t &resource_id,
-
+	RenderPassRef &addColorAttachment( const le_resource_handle_t & resource_id,
 	                                   const LeImageAttachmentInfo &attachmentInfo = LeImageAttachmentInfo(),
 	                                   const le_resource_info_t &   resource_info  = le_renderer::helpers_i.get_default_resource_info_for_color_attachment() ) {
 		le_renderer::renderpass_i.add_color_attachment( self, resource_id, resource_info, &attachmentInfo );

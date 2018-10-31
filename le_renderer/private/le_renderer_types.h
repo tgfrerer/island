@@ -268,17 +268,25 @@ static constexpr LeImageAttachmentInfo LeDepthAttachmentInfo(){
 /// \brief Use ImageInfoBuilder, and BufferInfoBuilder to build `resource_info_t`
 struct le_resource_info_t {
 
+    enum le_resource_format_flag_bits : uint32_t {
+        LE_RESOURCE_FORMAT_FLAG_IS_COLOR = 0x01 << 0,
+        LE_RESOURCE_FORMAT_FLAG_IS_DEPTH = 0x01 << 1,
+    };
+
+    typedef uint32_t LeResourceFormatFlags;
+
     struct Image {
             uint32_t           flags;       // creation flags
-            uint32_t           imageType;   // enum vk::ImageType
-            int32_t            format;      // enum vk::Format
-            le::Extent3D       extent;      //
-            uint32_t           mipLevels;   //
-            uint32_t           arrayLayers; //
-            uint32_t           samples;     // enum VkSampleCountFlagBits
-            uint32_t           tiling;      // enum VkImageTiling
-            LeImageUsageFlags  usage;       // usage flags (LeImageUsageFlags : uint32_t)
-            uint32_t           sharingMode; // enum vkSharingMode
+            uint32_t                imageType;       // enum vk::ImageType
+            int32_t                 format;          // enum vk::Format
+            le::Extent3D            extent;          //
+            uint32_t                mipLevels;       //
+            uint32_t                arrayLayers;     //
+            uint32_t                samples;         // enum VkSampleCountFlagBits
+            uint32_t                tiling;          // enum VkImageTiling
+            LeImageUsageFlags       usage;           // usage flags (LeImageUsageFlags : uint32_t)
+            uint32_t                sharingMode;     // enum vkSharingMode
+            LeResourceFormatFlags   le_format_flags; //
     };
 
     struct Buffer {

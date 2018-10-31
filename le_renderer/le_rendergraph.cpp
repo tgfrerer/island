@@ -243,7 +243,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 }
 
 // ----------------------------------------------------------------------
-
+// FIXME: this does not properly preserve the format for images.
 static void renderpass_sample_texture( le_renderpass_o *self, le_resource_handle_t texture, LeTextureInfo const *textureInfo ) {
 
 	// -- store texture info so that backend can create resources
@@ -260,6 +260,7 @@ static void renderpass_sample_texture( le_renderpass_o *self, le_resource_handle
 
 	static const auto required_flags = le::ImageInfoBuilder()
 	                                       .addUsageFlags( LE_IMAGE_USAGE_SAMPLED_BIT )
+	                                       .setFormat( textureInfo->imageView.format )
 	                                       .build();
 
 	// -- Mark image resource referenced by texture as used for reading
