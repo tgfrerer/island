@@ -30,15 +30,23 @@
 #	define PRINT_DEBUG_MESSAGES false
 #endif
 
-struct ResourceInfo {
-	// since this is a union, the first field will for both be VK_STRUCTURE_TYPE
+// ----------------------------------------------------------------------
+// ResourceCreateInfo is used internally in to translate Renderer-specific structures
+// into Vulkan CreateInfos for buffers and images.
+//
+// It is then stored with the allocation, so that subsequent requests for resources
+// may check if a requested resource is already available to the backend.
+//
+struct ResourceCreateInfo {
+
+	// Since this is a union, the first field will for both be VK_STRUCTURE_TYPE
 	// and its value will tell us what type the descriptor represents.
 	union {
 		VkBufferCreateInfo bufferInfo; // | only one of either ever in use
 		VkImageCreateInfo  imageInfo;  // | only one of either ever in use
 	};
 
-	bool operator==( const ResourceInfo &rhs ) const {
+	bool operator==( const ResourceCreateInfo &rhs ) const {
 		if ( bufferInfo.sType == rhs.bufferInfo.sType ) {
 
 			if ( bufferInfo.sType == VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO ) {
@@ -75,7 +83,7 @@ struct ResourceInfo {
 		}
 	}
 
-	bool operator!=( const ResourceInfo &rhs ) const {
+	bool operator!=( const ResourceCreateInfo &rhs ) const {
 		return !operator==( rhs );
 	}
 
@@ -88,9 +96,17 @@ struct ResourceInfo {
 		eIncompatibleTypes, // can't consolidate two resources of non-matching resource type
 	};
 
-	// combines usage flags for image and buffer resources, returns false if
-	// there was an error, otherwise, modifies first resource in-place
-	static ResourceInfo consolidate( const ResourceInfo &lhs, const ResourceInfo &rhs, ResourceInfo::ConsolidationResult *errNo ) {
+	// ----------------------------------------------------------------------
+	// Combines usage flags for image and buffer resources, sets a ConsolidationResult enum
+	// indicating result of operation.
+	//
+	// If operation was successful, returns a consolidated ResourceCreateInfo,
+	// otherwise returns a copy of the first parameter.
+	//
+	// We do this because multiple passes may want to use a resource using different flags.
+	// In order for the resource to be useable for all these passes, a resource's usage flags
+	// need to cover *all* intended uses.
+	static ResourceCreateInfo consolidate( const ResourceCreateInfo &lhs, const ResourceCreateInfo &rhs, ConsolidationResult *errNo ) {
 		auto result = lhs;
 
 		if ( lhs.bufferInfo.sType != rhs.bufferInfo.sType ) {
@@ -106,10 +122,16 @@ struct ResourceInfo {
 		} else {
 			// image resources
 			result.imageInfo.usage |= rhs.imageInfo.usage;
+
+			// note: if format is different, we must check that it uses the same number of bits per pixel,
+			// otherwise the resource cannot be used with both formats - this is problematic, as the format
+			// for textures should be 0 (undefined) by default, and the format for
+			//
+			assert( result.imageInfo.format == rhs.imageInfo.format );
 		}
 
 		return result;
-	};
+	}
 };
 
 // ------------------------------------------------------------
@@ -121,7 +143,7 @@ struct AllocatedResource {
 		VkBuffer asBuffer;
 		VkImage  asImage;
 	};
-	ResourceInfo info; // Details on resource
+	ResourceCreateInfo info; // Details on resource
 };
 
 // herein goes all data which is associated with the current frame
@@ -1365,7 +1387,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 	using namespace le_renderer;
 
-	std::unordered_map<le_resource_handle_t, ResourceInfo, LeResourceHandleIdentity> declaredResources;
+	std::unordered_map<le_resource_handle_t, ResourceCreateInfo, LeResourceHandleIdentity> declaredResources;
 
 	// -- iterate over all passes
 	for ( le_renderpass_o **rp = passes; rp != passes + numRenderPasses; rp++ ) {
@@ -1399,7 +1421,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			le_resource_info_t const &  createInfo = pResourceInfos[ i ];     // Resource descriptor (from renderpass)
 			le_resource_handle_t const &resourceId = pCreateResourceIds[ i ]; // Hash of resource name
 
-			ResourceInfo resourceCreateInfo{};
+			ResourceCreateInfo resourceCreateInfo{};
 
 			switch ( createInfo.type ) {
 			case LeResourceType::eBuffer: {
@@ -1422,9 +1444,9 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				auto const &ci         = createInfo.image;                                     // src info data
 				auto &      imgInfoRef = resourceCreateInfo.imageInfo = vk::ImageCreateInfo{}; // dst info data
 
-				imgInfoRef.flags                 = ci.flags;
-				imgInfoRef.imageType             = VkImageType( ci.imageType );
-				imgInfoRef.format                = VkFormat( ci.format );
+				imgInfoRef.flags     = ci.flags;
+				imgInfoRef.imageType = VkImageType( ci.imageType );
+				imgInfoRef.format    = VkFormat( ci.format );
 				imgInfoRef.extent.width          = ci.extent.width != 0 ? ci.extent.width : pass_width;
 				imgInfoRef.extent.height         = ci.extent.height != 0 ? ci.extent.height : pass_height;
 				imgInfoRef.extent.depth          = ci.extent.depth != 0 ? ci.extent.depth : 1;
@@ -1454,10 +1476,10 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 					continue; // resource is identical
 				} else {
 
-					ResourceInfo::ConsolidationResult consolidationResult{};
-					storedResource = ResourceInfo::consolidate( storedResource, resourceCreateInfo, &consolidationResult );
+					ResourceCreateInfo::ConsolidationResult consolidationResult{};
+					storedResource = ResourceCreateInfo::consolidate( storedResource, resourceCreateInfo, &consolidationResult );
 
-					assert( consolidationResult == ResourceInfo::ConsolidationResult::eOk ); // resource was re-declared, we must consolidate the resource before it can be allocated.
+					assert( consolidationResult == ResourceCreateInfo::ConsolidationResult::eOk ); // resource was re-declared, we must consolidate the resource before it can be allocated.
 				}
 			}
 
@@ -1469,7 +1491,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 	// -- now check if all resources declared in this frame are already available in backend.
 
-	auto allocateResource = []( const VmaAllocator &alloc, const ResourceInfo &resourceInfo ) -> AllocatedResource {
+	auto allocateResource = []( const VmaAllocator &alloc, const ResourceCreateInfo &resourceInfo ) -> AllocatedResource {
 		AllocatedResource       res{};
 		VmaAllocationCreateInfo allocationCreateInfo{};
 		allocationCreateInfo.flags          = {}; // default flags
@@ -1498,7 +1520,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	for ( auto &r : declaredResources ) {
 
 		le_resource_handle_t const &resourceId           = r.first;  // hash of resource name
-		ResourceInfo const &        declaredResourceInfo = r.second; // current resourceInfo
+		ResourceCreateInfo const &  declaredResourceInfo = r.second; // current resourceInfo
 
 		auto foundIt = backendResources.find( resourceId ); // find an allocated resource with same name as declared resource
 
@@ -1515,7 +1537,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			backendResources.insert_or_assign( resourceId, res );
 
 		} else {
-			// check if resource descriptor matches.
+			// check if resource create info matches.
 
 			auto &resourceInfo = foundIt->second.info;
 
