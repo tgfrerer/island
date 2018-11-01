@@ -185,6 +185,40 @@ enum class ImageType : uint32_t {
         e3D = 2,
 };
 
+static const char *to_str( const AttachmentStoreOp &lhs ) {
+        switch ( lhs ) {
+        case AttachmentStoreOp::eStore:
+                return "Store";
+        case AttachmentStoreOp::eDontCare:
+                return "DontCare";
+        }
+        return "";
+}
+
+static const char *to_str( const AttachmentLoadOp &lhs ) {
+        switch ( lhs ) {
+        case AttachmentLoadOp::eLoad:
+                return "Load";
+        case AttachmentLoadOp::eClear:
+                return "Clear";
+        case AttachmentLoadOp::eDontCare:
+                return "DontCare";
+        }
+        return "";
+}
+
+static const char *to_str( const ImageType &lhs ) {
+        switch ( lhs ) {
+        case ImageType::e1D:
+                return "1D";
+        case ImageType::e2D:
+                return "2D";
+        case ImageType::e3D:
+                return "3D";
+        }
+        return "";
+}
+
 enum class ImageTiling : uint32_t {
         eOptimal = 0,
         eLinear  = 1,

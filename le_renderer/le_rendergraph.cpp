@@ -626,9 +626,9 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 			renderpass_get_image_attachments( pass, &pImageAttachments, &numImageAttachments );
 
 			for ( auto const *attachment = pImageAttachments; attachment != pImageAttachments + numImageAttachments; attachment++ ) {
-				msg << "\t Attachment: '" << attachment->resource_id.debug_name << std::endl //"', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'" << std::endl;
-				                                                                             //				msg << "\t load  : " << attachment->loadOp << std::endl;
-				                                                                             //				msg << "\t store: " << attachment->storeOp << std::endl
+				msg << "\t Attachment: '" << attachment->resource_id.debug_name << std::endl; //"', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'" << std::endl;
+				msg << "\t load : " << std::setw( 10 ) << to_str( attachment->loadOp ) << std::endl;
+				msg << "\t store: " << std::setw( 10 ) << to_str( attachment->storeOp ) << std::endl
 				    << std::endl;
 			}
 		}
