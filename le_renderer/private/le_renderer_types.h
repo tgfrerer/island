@@ -71,8 +71,8 @@ constexpr le_resource_handle_t LE_RESOURCE( const char *const str, const LeResou
         handle.meta.type = tp;
 
 #if ( LE_RESOURCE_LABEL_LENGTH > 0 )
-	auto   c = str;
-	int i = 0;
+	auto c = str;
+	int  i = 0;
 	while ( *c != '\0' && i < LE_RESOURCE_LABEL_LENGTH ) {
 	        handle.debug_name[ i++ ] = *c++;
 	}
@@ -114,37 +114,34 @@ enum LeRenderPassType : uint32_t {
         LE_RENDER_PASS_TYPE_COMPUTE   = 3,
 };
 
-
-
-
 typedef uint32_t LeImageUsageFlags;
-enum  LeImageUsageFlagBits : LeImageUsageFlags {
-    LE_IMAGE_USAGE_TRANSFER_SRC_BIT = 0x00000001,
-    LE_IMAGE_USAGE_TRANSFER_DST_BIT = 0x00000002,
-    LE_IMAGE_USAGE_SAMPLED_BIT = 0x00000004,
-    LE_IMAGE_USAGE_STORAGE_BIT = 0x00000008,                 // load, store, atomic
-    LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT = 0x00000010,
-    LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT = 0x00000020,
-    LE_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT = 0x00000040,
-    LE_IMAGE_USAGE_INPUT_ATTACHMENT_BIT = 0x00000080,
-    LE_IMAGE_USAGE_SHADING_RATE_IMAGE_BIT_NV = 0x00000100,
-    LE_IMAGE_USAGE_FLAG_BITS_MAX_ENUM = 0x7FFFFFFF
+enum LeImageUsageFlagBits : LeImageUsageFlags {
+        LE_IMAGE_USAGE_TRANSFER_SRC_BIT             = 0x00000001,
+        LE_IMAGE_USAGE_TRANSFER_DST_BIT             = 0x00000002,
+        LE_IMAGE_USAGE_SAMPLED_BIT                  = 0x00000004,
+        LE_IMAGE_USAGE_STORAGE_BIT                  = 0x00000008, // load, store, atomic
+        LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT         = 0x00000010,
+        LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT = 0x00000020,
+        LE_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT     = 0x00000040,
+        LE_IMAGE_USAGE_INPUT_ATTACHMENT_BIT         = 0x00000080,
+        LE_IMAGE_USAGE_SHADING_RATE_IMAGE_BIT_NV    = 0x00000100,
+        LE_IMAGE_USAGE_FLAG_BITS_MAX_ENUM           = 0x7FFFFFFF
 };
 
 typedef uint32_t LeBufferUsageFlags;
 enum LeBufferUsageFlagBits : LeBufferUsageFlags {
-    LE_BUFFER_USAGE_TRANSFER_SRC_BIT = 0x00000001,
-    LE_BUFFER_USAGE_TRANSFER_DST_BIT = 0x00000002,
-    LE_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT = 0x00000004,
-    LE_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT = 0x00000008,
-    LE_BUFFER_USAGE_UNIFORM_BUFFER_BIT = 0x00000010,
-    LE_BUFFER_USAGE_STORAGE_BUFFER_BIT = 0x00000020,
-    LE_BUFFER_USAGE_INDEX_BUFFER_BIT = 0x00000040,
-    LE_BUFFER_USAGE_VERTEX_BUFFER_BIT = 0x00000080,
-    LE_BUFFER_USAGE_INDIRECT_BUFFER_BIT = 0x00000100,
-    LE_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT = 0x00000200,
-    LE_BUFFER_USAGE_RAYTRACING_BIT_NVX = 0x00000400,
-    LE_BUFFER_USAGE_FLAG_BITS_MAX_ENUM = 0x7FFFFFFF
+        LE_BUFFER_USAGE_TRANSFER_SRC_BIT              = 0x00000001,
+        LE_BUFFER_USAGE_TRANSFER_DST_BIT              = 0x00000002,
+        LE_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT      = 0x00000004,
+        LE_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT      = 0x00000008,
+        LE_BUFFER_USAGE_UNIFORM_BUFFER_BIT            = 0x00000010,
+        LE_BUFFER_USAGE_STORAGE_BUFFER_BIT            = 0x00000020,
+        LE_BUFFER_USAGE_INDEX_BUFFER_BIT              = 0x00000040,
+        LE_BUFFER_USAGE_VERTEX_BUFFER_BIT             = 0x00000080,
+        LE_BUFFER_USAGE_INDIRECT_BUFFER_BIT           = 0x00000100,
+        LE_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT = 0x00000200,
+        LE_BUFFER_USAGE_RAYTRACING_BIT_NVX            = 0x00000400,
+        LE_BUFFER_USAGE_FLAG_BITS_MAX_ENUM            = 0x7FFFFFFF
 };
 
 namespace le {
@@ -159,320 +156,315 @@ enum class ShaderType : uint32_t {
         eCompute     = 0x00000020, // max needed space to cover this enum is 6 bit
 };
 }
-struct LeShaderTypeEnum{
-    le::ShaderType data;
-    operator const le::ShaderType&() const{
-        return data;
-    }
-    operator le::ShaderType&() {
-        return data;
-    }
+struct LeShaderTypeEnum {
+        le::ShaderType data;
+        operator const le::ShaderType &() const {
+                return data;
+        }
+        operator le::ShaderType &() {
+                return data;
+        }
 };
 
-
-namespace le{
+namespace le {
 
 enum class AttachmentStoreOp : uint32_t {
-        eStore= 0, // << most common case
+        eStore    = 0, // << most common case
         eDontCare = 1,
 };
 
 enum AttachmentLoadOp : uint32_t {
         eLoad     = 0,
-        eClear = 1, // << most common case
+        eClear    = 1, // << most common case
         eDontCare = 2,
 };
 
-
 enum class ImageType : uint32_t {
-    e1D = 0,
-    e2D = 1,
-    e3D = 2,
+        e1D = 0,
+        e2D = 1,
+        e3D = 2,
 };
 
 enum class ImageTiling : uint32_t {
-    eOptimal = 0,
-    eLinear = 1,
+        eOptimal = 0,
+        eLinear  = 1,
 };
 
-enum class SampleCountFlagBits
-{
-    // Codegen start <vk::SampleCountFlagBits,VkSampleCountFlagBits>
-  e1 =  0x00000001,
-  e2 =  0x00000002,
-  e4 =  0x00000004,
-  e8 =  0x00000008,
-  e16 =  0x00000010,
-  e32 =  0x00000020,
-  e64 =  0x00000040,
-    // Codegen end <vk::SampleCountFlagBits,VkSampleCountFlagBits>
+enum class SampleCountFlagBits {
+        // Codegen start <vk::SampleCountFlagBits,VkSampleCountFlagBits>
+        e1  = 0x00000001,
+        e2  = 0x00000002,
+        e4  = 0x00000004,
+        e8  = 0x00000008,
+        e16 = 0x00000010,
+        e32 = 0x00000020,
+        e64 = 0x00000040,
+        // Codegen end <vk::SampleCountFlagBits,VkSampleCountFlagBits>
 };
 
-
-enum class Format : uint32_t{
-    eUndefined,
-    eR4G4UnormPack8,
-    eR4G4B4A4UnormPack16,
-    eB4G4R4A4UnormPack16,
-    eR5G6B5UnormPack16,
-    eB5G6R5UnormPack16,
-    eR5G5B5A1UnormPack16,
-    eB5G5R5A1UnormPack16,
-    eA1R5G5B5UnormPack16,
-    eR8Unorm,
-    eR8Snorm,
-    eR8Uscaled,
-    eR8Sscaled,
-    eR8Uint,
-    eR8Sint,
-    eR8Srgb,
-    eR8G8Unorm,
-    eR8G8Snorm,
-    eR8G8Uscaled,
-    eR8G8Sscaled,
-    eR8G8Uint,
-    eR8G8Sint,
-    eR8G8Srgb,
-    eR8G8B8Unorm,
-    eR8G8B8Snorm,
-    eR8G8B8Uscaled,
-    eR8G8B8Sscaled,
-    eR8G8B8Uint,
-    eR8G8B8Sint,
-    eR8G8B8Srgb,
-    eB8G8R8Unorm,
-    eB8G8R8Snorm,
-    eB8G8R8Uscaled,
-    eB8G8R8Sscaled,
-    eB8G8R8Uint,
-    eB8G8R8Sint,
-    eB8G8R8Srgb,
-    eR8G8B8A8Unorm,
-    eR8G8B8A8Snorm,
-    eR8G8B8A8Uscaled,
-    eR8G8B8A8Sscaled,
-    eR8G8B8A8Uint,
-    eR8G8B8A8Sint,
-    eR8G8B8A8Srgb,
-    eB8G8R8A8Unorm,
-    eB8G8R8A8Snorm,
-    eB8G8R8A8Uscaled,
-    eB8G8R8A8Sscaled,
-    eB8G8R8A8Uint,
-    eB8G8R8A8Sint,
-    eB8G8R8A8Srgb,
-    eA8B8G8R8UnormPack32,
-    eA8B8G8R8SnormPack32,
-    eA8B8G8R8UscaledPack32,
-    eA8B8G8R8SscaledPack32,
-    eA8B8G8R8UintPack32,
-    eA8B8G8R8SintPack32,
-    eA8B8G8R8SrgbPack32,
-    eA2R10G10B10UnormPack32,
-    eA2R10G10B10SnormPack32,
-    eA2R10G10B10UscaledPack32,
-    eA2R10G10B10SscaledPack32,
-    eA2R10G10B10UintPack32,
-    eA2R10G10B10SintPack32,
-    eA2B10G10R10UnormPack32,
-    eA2B10G10R10SnormPack32,
-    eA2B10G10R10UscaledPack32,
-    eA2B10G10R10SscaledPack32,
-    eA2B10G10R10UintPack32,
-    eA2B10G10R10SintPack32,
-    eR16Unorm,
-    eR16Snorm,
-    eR16Uscaled,
-    eR16Sscaled,
-    eR16Uint,
-    eR16Sint,
-    eR16Sfloat,
-    eR16G16Unorm,
-    eR16G16Snorm,
-    eR16G16Uscaled,
-    eR16G16Sscaled,
-    eR16G16Uint,
-    eR16G16Sint,
-    eR16G16Sfloat,
-    eR16G16B16Unorm,
-    eR16G16B16Snorm,
-    eR16G16B16Uscaled,
-    eR16G16B16Sscaled,
-    eR16G16B16Uint,
-    eR16G16B16Sint,
-    eR16G16B16Sfloat,
-    eR16G16B16A16Unorm,
-    eR16G16B16A16Snorm,
-    eR16G16B16A16Uscaled,
-    eR16G16B16A16Sscaled,
-    eR16G16B16A16Uint,
-    eR16G16B16A16Sint,
-    eR16G16B16A16Sfloat,
-    eR32Uint,
-    eR32Sint,
-    eR32Sfloat,
-    eR32G32Uint,
-    eR32G32Sint,
-    eR32G32Sfloat,
-    eR32G32B32Uint,
-    eR32G32B32Sint,
-    eR32G32B32Sfloat,
-    eR32G32B32A32Uint,
-    eR32G32B32A32Sint,
-    eR32G32B32A32Sfloat,
-    eR64Uint,
-    eR64Sint,
-    eR64Sfloat,
-    eR64G64Uint,
-    eR64G64Sint,
-    eR64G64Sfloat,
-    eR64G64B64Uint,
-    eR64G64B64Sint,
-    eR64G64B64Sfloat,
-    eR64G64B64A64Uint,
-    eR64G64B64A64Sint,
-    eR64G64B64A64Sfloat,
-    eB10G11R11UfloatPack32,
-    eE5B9G9R9UfloatPack32,
-    eD16Unorm,
-    eX8D24UnormPack32,
-    eD32Sfloat,
-    eS8Uint,
-    eD16UnormS8Uint,
-    eD24UnormS8Uint,
-    eD32SfloatS8Uint,
-    eBc1RgbUnormBlock,
-    eBc1RgbSrgbBlock,
-    eBc1RgbaUnormBlock,
-    eBc1RgbaSrgbBlock,
-    eBc2UnormBlock,
-    eBc2SrgbBlock,
-    eBc3UnormBlock,
-    eBc3SrgbBlock,
-    eBc4UnormBlock,
-    eBc4SnormBlock,
-    eBc5UnormBlock,
-    eBc5SnormBlock,
-    eBc6HUfloatBlock,
-    eBc6HSfloatBlock,
-    eBc7UnormBlock,
-    eBc7SrgbBlock,
-    eEtc2R8G8B8UnormBlock,
-    eEtc2R8G8B8SrgbBlock,
-    eEtc2R8G8B8A1UnormBlock,
-    eEtc2R8G8B8A1SrgbBlock,
-    eEtc2R8G8B8A8UnormBlock,
-    eEtc2R8G8B8A8SrgbBlock,
-    eEacR11UnormBlock,
-    eEacR11SnormBlock,
-    eEacR11G11UnormBlock,
-    eEacR11G11SnormBlock,
-    eAstc4x4UnormBlock,
-    eAstc4x4SrgbBlock,
-    eAstc5x4UnormBlock,
-    eAstc5x4SrgbBlock,
-    eAstc5x5UnormBlock,
-    eAstc5x5SrgbBlock,
-    eAstc6x5UnormBlock,
-    eAstc6x5SrgbBlock,
-    eAstc6x6UnormBlock,
-    eAstc6x6SrgbBlock,
-    eAstc8x5UnormBlock,
-    eAstc8x5SrgbBlock,
-    eAstc8x6UnormBlock,
-    eAstc8x6SrgbBlock,
-    eAstc8x8UnormBlock,
-    eAstc8x8SrgbBlock,
-    eAstc10x5UnormBlock,
-    eAstc10x5SrgbBlock,
-    eAstc10x6UnormBlock,
-    eAstc10x6SrgbBlock,
-    eAstc10x8UnormBlock,
-    eAstc10x8SrgbBlock,
-    eAstc10x10UnormBlock,
-    eAstc10x10SrgbBlock,
-    eAstc12x10UnormBlock,
-    eAstc12x10SrgbBlock,
-    eAstc12x12UnormBlock,
-    eAstc12x12SrgbBlock,
-    eG8B8G8R8422Unorm,
-    eG8B8G8R8422UnormKHR,
-    eB8G8R8G8422Unorm,
-    eB8G8R8G8422UnormKHR,
-    eG8B8R83Plane420Unorm,
-    eG8B8R83Plane420UnormKHR,
-    eG8B8R82Plane420Unorm,
-    eG8B8R82Plane420UnormKHR,
-    eG8B8R83Plane422Unorm,
-    eG8B8R83Plane422UnormKHR,
-    eG8B8R82Plane422Unorm,
-    eG8B8R82Plane422UnormKHR,
-    eG8B8R83Plane444Unorm,
-    eG8B8R83Plane444UnormKHR,
-    eR10X6UnormPack16,
-    eR10X6UnormPack16KHR,
-    eR10X6G10X6Unorm2Pack16,
-    eR10X6G10X6Unorm2Pack16KHR,
-    eR10X6G10X6B10X6A10X6Unorm4Pack16,
-    eR10X6G10X6B10X6A10X6Unorm4Pack16KHR,
-    eG10X6B10X6G10X6R10X6422Unorm4Pack16,
-    eG10X6B10X6G10X6R10X6422Unorm4Pack16KHR,
-    eB10X6G10X6R10X6G10X6422Unorm4Pack16,
-    eB10X6G10X6R10X6G10X6422Unorm4Pack16KHR,
-    eG10X6B10X6R10X63Plane420Unorm3Pack16,
-    eG10X6B10X6R10X63Plane420Unorm3Pack16KHR,
-    eG10X6B10X6R10X62Plane420Unorm3Pack16,
-    eG10X6B10X6R10X62Plane420Unorm3Pack16KHR,
-    eG10X6B10X6R10X63Plane422Unorm3Pack16,
-    eG10X6B10X6R10X63Plane422Unorm3Pack16KHR,
-    eG10X6B10X6R10X62Plane422Unorm3Pack16,
-    eG10X6B10X6R10X62Plane422Unorm3Pack16KHR,
-    eG10X6B10X6R10X63Plane444Unorm3Pack16,
-    eG10X6B10X6R10X63Plane444Unorm3Pack16KHR,
-    eR12X4UnormPack16,
-    eR12X4UnormPack16KHR,
-    eR12X4G12X4Unorm2Pack16,
-    eR12X4G12X4Unorm2Pack16KHR,
-    eR12X4G12X4B12X4A12X4Unorm4Pack16,
-    eR12X4G12X4B12X4A12X4Unorm4Pack16KHR,
-    eG12X4B12X4G12X4R12X4422Unorm4Pack16,
-    eG12X4B12X4G12X4R12X4422Unorm4Pack16KHR,
-    eB12X4G12X4R12X4G12X4422Unorm4Pack16,
-    eB12X4G12X4R12X4G12X4422Unorm4Pack16KHR,
-    eG12X4B12X4R12X43Plane420Unorm3Pack16,
-    eG12X4B12X4R12X43Plane420Unorm3Pack16KHR,
-    eG12X4B12X4R12X42Plane420Unorm3Pack16,
-    eG12X4B12X4R12X42Plane420Unorm3Pack16KHR,
-    eG12X4B12X4R12X43Plane422Unorm3Pack16,
-    eG12X4B12X4R12X43Plane422Unorm3Pack16KHR,
-    eG12X4B12X4R12X42Plane422Unorm3Pack16,
-    eG12X4B12X4R12X42Plane422Unorm3Pack16KHR,
-    eG12X4B12X4R12X43Plane444Unorm3Pack16,
-    eG12X4B12X4R12X43Plane444Unorm3Pack16KHR,
-    eG16B16G16R16422Unorm,
-    eG16B16G16R16422UnormKHR,
-    eB16G16R16G16422Unorm,
-    eB16G16R16G16422UnormKHR,
-    eG16B16R163Plane420Unorm,
-    eG16B16R163Plane420UnormKHR,
-    eG16B16R162Plane420Unorm,
-    eG16B16R162Plane420UnormKHR,
-    eG16B16R163Plane422Unorm,
-    eG16B16R163Plane422UnormKHR,
-    eG16B16R162Plane422Unorm,
-    eG16B16R162Plane422UnormKHR,
-    eG16B16R163Plane444Unorm,
-    eG16B16R163Plane444UnormKHR,
-    ePvrtc12BppUnormBlockIMG,
-    ePvrtc14BppUnormBlockIMG,
-    ePvrtc22BppUnormBlockIMG,
-    ePvrtc24BppUnormBlockIMG,
-    ePvrtc12BppSrgbBlockIMG,
-    ePvrtc14BppSrgbBlockIMG,
-    ePvrtc22BppSrgbBlockIMG,
-    ePvrtc24BppSrgbBlockIMG,
+enum class Format : uint32_t {
+        eUndefined,
+        eR4G4UnormPack8,
+        eR4G4B4A4UnormPack16,
+        eB4G4R4A4UnormPack16,
+        eR5G6B5UnormPack16,
+        eB5G6R5UnormPack16,
+        eR5G5B5A1UnormPack16,
+        eB5G5R5A1UnormPack16,
+        eA1R5G5B5UnormPack16,
+        eR8Unorm,
+        eR8Snorm,
+        eR8Uscaled,
+        eR8Sscaled,
+        eR8Uint,
+        eR8Sint,
+        eR8Srgb,
+        eR8G8Unorm,
+        eR8G8Snorm,
+        eR8G8Uscaled,
+        eR8G8Sscaled,
+        eR8G8Uint,
+        eR8G8Sint,
+        eR8G8Srgb,
+        eR8G8B8Unorm,
+        eR8G8B8Snorm,
+        eR8G8B8Uscaled,
+        eR8G8B8Sscaled,
+        eR8G8B8Uint,
+        eR8G8B8Sint,
+        eR8G8B8Srgb,
+        eB8G8R8Unorm,
+        eB8G8R8Snorm,
+        eB8G8R8Uscaled,
+        eB8G8R8Sscaled,
+        eB8G8R8Uint,
+        eB8G8R8Sint,
+        eB8G8R8Srgb,
+        eR8G8B8A8Unorm,
+        eR8G8B8A8Snorm,
+        eR8G8B8A8Uscaled,
+        eR8G8B8A8Sscaled,
+        eR8G8B8A8Uint,
+        eR8G8B8A8Sint,
+        eR8G8B8A8Srgb,
+        eB8G8R8A8Unorm,
+        eB8G8R8A8Snorm,
+        eB8G8R8A8Uscaled,
+        eB8G8R8A8Sscaled,
+        eB8G8R8A8Uint,
+        eB8G8R8A8Sint,
+        eB8G8R8A8Srgb,
+        eA8B8G8R8UnormPack32,
+        eA8B8G8R8SnormPack32,
+        eA8B8G8R8UscaledPack32,
+        eA8B8G8R8SscaledPack32,
+        eA8B8G8R8UintPack32,
+        eA8B8G8R8SintPack32,
+        eA8B8G8R8SrgbPack32,
+        eA2R10G10B10UnormPack32,
+        eA2R10G10B10SnormPack32,
+        eA2R10G10B10UscaledPack32,
+        eA2R10G10B10SscaledPack32,
+        eA2R10G10B10UintPack32,
+        eA2R10G10B10SintPack32,
+        eA2B10G10R10UnormPack32,
+        eA2B10G10R10SnormPack32,
+        eA2B10G10R10UscaledPack32,
+        eA2B10G10R10SscaledPack32,
+        eA2B10G10R10UintPack32,
+        eA2B10G10R10SintPack32,
+        eR16Unorm,
+        eR16Snorm,
+        eR16Uscaled,
+        eR16Sscaled,
+        eR16Uint,
+        eR16Sint,
+        eR16Sfloat,
+        eR16G16Unorm,
+        eR16G16Snorm,
+        eR16G16Uscaled,
+        eR16G16Sscaled,
+        eR16G16Uint,
+        eR16G16Sint,
+        eR16G16Sfloat,
+        eR16G16B16Unorm,
+        eR16G16B16Snorm,
+        eR16G16B16Uscaled,
+        eR16G16B16Sscaled,
+        eR16G16B16Uint,
+        eR16G16B16Sint,
+        eR16G16B16Sfloat,
+        eR16G16B16A16Unorm,
+        eR16G16B16A16Snorm,
+        eR16G16B16A16Uscaled,
+        eR16G16B16A16Sscaled,
+        eR16G16B16A16Uint,
+        eR16G16B16A16Sint,
+        eR16G16B16A16Sfloat,
+        eR32Uint,
+        eR32Sint,
+        eR32Sfloat,
+        eR32G32Uint,
+        eR32G32Sint,
+        eR32G32Sfloat,
+        eR32G32B32Uint,
+        eR32G32B32Sint,
+        eR32G32B32Sfloat,
+        eR32G32B32A32Uint,
+        eR32G32B32A32Sint,
+        eR32G32B32A32Sfloat,
+        eR64Uint,
+        eR64Sint,
+        eR64Sfloat,
+        eR64G64Uint,
+        eR64G64Sint,
+        eR64G64Sfloat,
+        eR64G64B64Uint,
+        eR64G64B64Sint,
+        eR64G64B64Sfloat,
+        eR64G64B64A64Uint,
+        eR64G64B64A64Sint,
+        eR64G64B64A64Sfloat,
+        eB10G11R11UfloatPack32,
+        eE5B9G9R9UfloatPack32,
+        eD16Unorm,
+        eX8D24UnormPack32,
+        eD32Sfloat,
+        eS8Uint,
+        eD16UnormS8Uint,
+        eD24UnormS8Uint,
+        eD32SfloatS8Uint,
+        eBc1RgbUnormBlock,
+        eBc1RgbSrgbBlock,
+        eBc1RgbaUnormBlock,
+        eBc1RgbaSrgbBlock,
+        eBc2UnormBlock,
+        eBc2SrgbBlock,
+        eBc3UnormBlock,
+        eBc3SrgbBlock,
+        eBc4UnormBlock,
+        eBc4SnormBlock,
+        eBc5UnormBlock,
+        eBc5SnormBlock,
+        eBc6HUfloatBlock,
+        eBc6HSfloatBlock,
+        eBc7UnormBlock,
+        eBc7SrgbBlock,
+        eEtc2R8G8B8UnormBlock,
+        eEtc2R8G8B8SrgbBlock,
+        eEtc2R8G8B8A1UnormBlock,
+        eEtc2R8G8B8A1SrgbBlock,
+        eEtc2R8G8B8A8UnormBlock,
+        eEtc2R8G8B8A8SrgbBlock,
+        eEacR11UnormBlock,
+        eEacR11SnormBlock,
+        eEacR11G11UnormBlock,
+        eEacR11G11SnormBlock,
+        eAstc4x4UnormBlock,
+        eAstc4x4SrgbBlock,
+        eAstc5x4UnormBlock,
+        eAstc5x4SrgbBlock,
+        eAstc5x5UnormBlock,
+        eAstc5x5SrgbBlock,
+        eAstc6x5UnormBlock,
+        eAstc6x5SrgbBlock,
+        eAstc6x6UnormBlock,
+        eAstc6x6SrgbBlock,
+        eAstc8x5UnormBlock,
+        eAstc8x5SrgbBlock,
+        eAstc8x6UnormBlock,
+        eAstc8x6SrgbBlock,
+        eAstc8x8UnormBlock,
+        eAstc8x8SrgbBlock,
+        eAstc10x5UnormBlock,
+        eAstc10x5SrgbBlock,
+        eAstc10x6UnormBlock,
+        eAstc10x6SrgbBlock,
+        eAstc10x8UnormBlock,
+        eAstc10x8SrgbBlock,
+        eAstc10x10UnormBlock,
+        eAstc10x10SrgbBlock,
+        eAstc12x10UnormBlock,
+        eAstc12x10SrgbBlock,
+        eAstc12x12UnormBlock,
+        eAstc12x12SrgbBlock,
+        eG8B8G8R8422Unorm,
+        eG8B8G8R8422UnormKHR,
+        eB8G8R8G8422Unorm,
+        eB8G8R8G8422UnormKHR,
+        eG8B8R83Plane420Unorm,
+        eG8B8R83Plane420UnormKHR,
+        eG8B8R82Plane420Unorm,
+        eG8B8R82Plane420UnormKHR,
+        eG8B8R83Plane422Unorm,
+        eG8B8R83Plane422UnormKHR,
+        eG8B8R82Plane422Unorm,
+        eG8B8R82Plane422UnormKHR,
+        eG8B8R83Plane444Unorm,
+        eG8B8R83Plane444UnormKHR,
+        eR10X6UnormPack16,
+        eR10X6UnormPack16KHR,
+        eR10X6G10X6Unorm2Pack16,
+        eR10X6G10X6Unorm2Pack16KHR,
+        eR10X6G10X6B10X6A10X6Unorm4Pack16,
+        eR10X6G10X6B10X6A10X6Unorm4Pack16KHR,
+        eG10X6B10X6G10X6R10X6422Unorm4Pack16,
+        eG10X6B10X6G10X6R10X6422Unorm4Pack16KHR,
+        eB10X6G10X6R10X6G10X6422Unorm4Pack16,
+        eB10X6G10X6R10X6G10X6422Unorm4Pack16KHR,
+        eG10X6B10X6R10X63Plane420Unorm3Pack16,
+        eG10X6B10X6R10X63Plane420Unorm3Pack16KHR,
+        eG10X6B10X6R10X62Plane420Unorm3Pack16,
+        eG10X6B10X6R10X62Plane420Unorm3Pack16KHR,
+        eG10X6B10X6R10X63Plane422Unorm3Pack16,
+        eG10X6B10X6R10X63Plane422Unorm3Pack16KHR,
+        eG10X6B10X6R10X62Plane422Unorm3Pack16,
+        eG10X6B10X6R10X62Plane422Unorm3Pack16KHR,
+        eG10X6B10X6R10X63Plane444Unorm3Pack16,
+        eG10X6B10X6R10X63Plane444Unorm3Pack16KHR,
+        eR12X4UnormPack16,
+        eR12X4UnormPack16KHR,
+        eR12X4G12X4Unorm2Pack16,
+        eR12X4G12X4Unorm2Pack16KHR,
+        eR12X4G12X4B12X4A12X4Unorm4Pack16,
+        eR12X4G12X4B12X4A12X4Unorm4Pack16KHR,
+        eG12X4B12X4G12X4R12X4422Unorm4Pack16,
+        eG12X4B12X4G12X4R12X4422Unorm4Pack16KHR,
+        eB12X4G12X4R12X4G12X4422Unorm4Pack16,
+        eB12X4G12X4R12X4G12X4422Unorm4Pack16KHR,
+        eG12X4B12X4R12X43Plane420Unorm3Pack16,
+        eG12X4B12X4R12X43Plane420Unorm3Pack16KHR,
+        eG12X4B12X4R12X42Plane420Unorm3Pack16,
+        eG12X4B12X4R12X42Plane420Unorm3Pack16KHR,
+        eG12X4B12X4R12X43Plane422Unorm3Pack16,
+        eG12X4B12X4R12X43Plane422Unorm3Pack16KHR,
+        eG12X4B12X4R12X42Plane422Unorm3Pack16,
+        eG12X4B12X4R12X42Plane422Unorm3Pack16KHR,
+        eG12X4B12X4R12X43Plane444Unorm3Pack16,
+        eG12X4B12X4R12X43Plane444Unorm3Pack16KHR,
+        eG16B16G16R16422Unorm,
+        eG16B16G16R16422UnormKHR,
+        eB16G16R16G16422Unorm,
+        eB16G16R16G16422UnormKHR,
+        eG16B16R163Plane420Unorm,
+        eG16B16R163Plane420UnormKHR,
+        eG16B16R162Plane420Unorm,
+        eG16B16R162Plane420UnormKHR,
+        eG16B16R163Plane422Unorm,
+        eG16B16R163Plane422UnormKHR,
+        eG16B16R162Plane422Unorm,
+        eG16B16R162Plane422UnormKHR,
+        eG16B16R163Plane444Unorm,
+        eG16B16R163Plane444UnormKHR,
+        ePvrtc12BppUnormBlockIMG,
+        ePvrtc14BppUnormBlockIMG,
+        ePvrtc22BppUnormBlockIMG,
+        ePvrtc24BppUnormBlockIMG,
+        ePvrtc12BppSrgbBlockIMG,
+        ePvrtc14BppSrgbBlockIMG,
+        ePvrtc22BppSrgbBlockIMG,
+        ePvrtc24BppSrgbBlockIMG,
 };
-
 
 struct Viewport {
         float x;
@@ -490,17 +482,17 @@ struct Rect2D {
         uint32_t height;
 };
 struct Extent3D {
-        uint32_t width ;
+        uint32_t width;
         uint32_t height;
-        uint32_t depth ;
+        uint32_t depth;
 };
 
-static inline constexpr bool operator == (const Extent3D& lhs, const Extent3D& rhs) noexcept {
-    return ( lhs.width == rhs.width && lhs.height == rhs.height && lhs.depth == rhs.depth);
+static inline constexpr bool operator==( const Extent3D &lhs, const Extent3D &rhs ) noexcept {
+        return ( lhs.width == rhs.width && lhs.height == rhs.height && lhs.depth == rhs.depth );
 }
 
-static inline constexpr bool operator != (const Extent3D& lhs, const Extent3D& rhs) noexcept {
-    return !( lhs == rhs);
+static inline constexpr bool operator!=( const Extent3D &lhs, const Extent3D &rhs ) noexcept {
+        return !( lhs == rhs );
 }
 
 } // namespace le
@@ -554,18 +546,17 @@ struct LeImageAttachmentInfo {
         static constexpr LeClearValue DefaultClearValueColor        = {{{{{0.f, 0.f, 0.f, 0.f}}}}};
         static constexpr LeClearValue DefaultClearValueDepthStencil = {{{{{1.f, 0}}}}};
 
-	    le::AttachmentLoadOp  loadOp       = le::AttachmentLoadOp::eClear;  //
-	    le::AttachmentStoreOp storeOp      = le::AttachmentStoreOp::eStore; //
-	LeClearValue        clearValue   = DefaultClearValueColor;       // only used if loadOp == clear
+	le::AttachmentLoadOp  loadOp     = le::AttachmentLoadOp::eClear;  //
+	le::AttachmentStoreOp storeOp    = le::AttachmentStoreOp::eStore; //
+	LeClearValue          clearValue = DefaultClearValueColor;        // only used if loadOp == clear
 
 	le_resource_handle_t resource_id{}; // (private - do not set) handle given to this attachment
-
 };
 
-static constexpr LeImageAttachmentInfo LeDepthAttachmentInfo(){
-    auto info       = LeImageAttachmentInfo{};
-    info.clearValue = LeImageAttachmentInfo::DefaultClearValueDepthStencil;
-    return info;
+static constexpr LeImageAttachmentInfo LeDepthAttachmentInfo() {
+        auto info       = LeImageAttachmentInfo{};
+        info.clearValue = LeImageAttachmentInfo::DefaultClearValueDepthStencil;
+        return info;
 }
 
 // ----------------------------------------------------------------------
@@ -577,28 +568,28 @@ static constexpr LeImageAttachmentInfo LeDepthAttachmentInfo(){
 /// \brief Use ImageInfoBuilder, and BufferInfoBuilder to build `resource_info_t`
 struct le_resource_info_t {
 
-    struct Image {
-            uint32_t                 flags;                    // creation flags
-            le::ImageType            imageType;                // enum vk::ImageType
-            le::Format               format;                   // enum vk::Format
-            le::Extent3D             extent;                   //
-            uint32_t                 mipLevels;                //
-            uint32_t                 arrayLayers;              //
-            le::SampleCountFlagBits  samples;                  // enum VkSampleCountFlagBits (NOT bitfield)
-            le::ImageTiling          tiling;                   // enum VkImageTiling
-            LeImageUsageFlags        usage;                    // usage flags (LeImageUsageFlags : uint32_t)
-    };
+        struct Image {
+                uint32_t                flags;       // creation flags
+                le::ImageType           imageType;   // enum vk::ImageType
+                le::Format              format;      // enum vk::Format
+                le::Extent3D            extent;      //
+                uint32_t                mipLevels;   //
+                uint32_t                arrayLayers; //
+                le::SampleCountFlagBits samples;     // enum VkSampleCountFlagBits (NOT bitfield)
+                le::ImageTiling         tiling;      // enum VkImageTiling
+                LeImageUsageFlags       usage;       // usage flags (LeImageUsageFlags : uint32_t)
+        };
 
-    struct Buffer {
-            uint32_t size;
-            LeBufferUsageFlags usage; // usage flags (LeBufferUsageFlags : uint32_t)
-    };
+	struct Buffer {
+	        uint32_t           size;
+		LeBufferUsageFlags usage; // usage flags (LeBufferUsageFlags : uint32_t)
+	};
 
-    LeResourceType type;
-    union {
-            Buffer buffer;
-            Image  image;
-    };
+	LeResourceType type;
+	union {
+	        Buffer buffer;
+		Image  image;
+	};
 };
 
 /// \note This struct assumes a little endian machine for sorting

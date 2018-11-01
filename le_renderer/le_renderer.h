@@ -190,7 +190,7 @@ class Renderer {
 	}
 
 	le_shader_module_o *createShaderModule( char const *path, const le::ShaderType &moduleType ) {
-	        return le_renderer::renderer_i.create_shader_module( self, path, {moduleType} );
+		return le_renderer::renderer_i.create_shader_module( self, path, {moduleType} );
 	}
 
 	le_resource_handle_t getBackbufferResource() {
