@@ -125,6 +125,8 @@ enum LeAttachmentLoadOp : uint32_t {
         LE_ATTACHMENT_LOAD_OP_DONTCARE = 2,
 };
 
+
+
 typedef uint32_t LeImageUsageFlags;
 enum  LeImageUsageFlagBits : LeImageUsageFlags {
     LE_IMAGE_USAGE_TRANSFER_SRC_BIT = 0x00000001,
@@ -155,9 +157,9 @@ enum LeBufferUsageFlagBits : LeBufferUsageFlags {
     LE_BUFFER_USAGE_FLAG_BITS_MAX_ENUM = 0x7FFFFFFF
 };
 
-
-enum class LeShaderType : uint64_t {
-        eNone        = 0, // no default type for shader modules, you must specify a type
+namespace le {
+enum class ShaderType : uint32_t {
+        // no default type for shader modules, you must specify a type
         eVert        = 0x00000001,
         eTessControl = 0x00000002,
         eTessEval    = 0x00000004,
@@ -166,9 +168,44 @@ enum class LeShaderType : uint64_t {
         eAllGraphics = 0x0000001F,
         eCompute     = 0x00000020, // max needed space to cover this enum is 6 bit
 };
+}
+struct LeShaderTypeEnum{
+    le::ShaderType data;
+    operator const le::ShaderType&() const{
+        return data;
+    }
+    operator le::ShaderType&() {
+        return data;
+    }
+};
 
 
-namespace le {
+namespace le{
+
+enum class ImageType : uint32_t {
+    e1D = 0,
+    e2D = 1,
+    e3D = 2,
+};
+
+enum class ImageTiling : uint32_t {
+    eOptimal = 0,
+    eLinear = 1,
+};
+
+enum class SampleCountFlagBits
+{
+    // Codegen start <vk::SampleCountFlagBits,VkSampleCountFlagBits>
+  e1 =  0x00000001,
+  e2 =  0x00000002,
+  e4 =  0x00000004,
+  e8 =  0x00000008,
+  e16 =  0x00000010,
+  e32 =  0x00000020,
+  e64 =  0x00000040,
+    // Codegen end <vk::SampleCountFlagBits,VkSampleCountFlagBits>
+};
+
 
 enum class Format : uint32_t{
     eUndefined,
@@ -542,13 +579,13 @@ struct le_resource_info_t {
 
     struct Image {
             uint32_t                 flags;                    // creation flags
-            uint32_t                 imageType;                // enum vk::ImageType
+            le::ImageType            imageType;                // enum vk::ImageType
             le::Format               format;                   // enum vk::Format
             le::Extent3D             extent;                   //
             uint32_t                 mipLevels;                //
             uint32_t                 arrayLayers;              //
-            uint32_t                 samples;                  // enum VkSampleCountFlagBits (NOT bitfield)
-            uint32_t                 tiling;                   // enum VkImageTiling
+            le::SampleCountFlagBits  samples;                  // enum VkSampleCountFlagBits (NOT bitfield)
+            le::ImageTiling          tiling;                   // enum VkImageTiling
             LeImageUsageFlags        usage;                    // usage flags (LeImageUsageFlags : uint32_t)
     };
 

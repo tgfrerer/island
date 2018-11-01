@@ -47,7 +47,7 @@ struct LeRenderPass;
 
 struct VmaAllocationInfo;
 
-enum class LeShaderType : uint64_t; // we're forward declaring this enum, for heaven's sake...
+struct LeShaderTypeEnum;
 enum class LeResourceType : uint8_t;
 
 struct VkFormatWrapper; // wrapper around VkFormatEnum
@@ -93,19 +93,12 @@ struct le_backend_vk_api {
 		void                   ( *reset_swapchain            ) ( le_backend_o *self );
 		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex, size_t numAllocators);
 
-		le_shader_module_o*    ( *create_shader_module       ) ( le_backend_o* self, char const * path, LeShaderType moduleType);
+		le_shader_module_o*    ( *create_shader_module       ) ( le_backend_o* self, char const * path, const LeShaderTypeEnum& moduleType);
 		void                   ( *update_shader_modules      ) ( le_backend_o* self );
 
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
 
 		le_resource_handle_t       ( *get_backbuffer_resource    ) ( le_backend_o* self);
-	};
-
-	struct helpers_interface_t {
-		le_resource_info_t (*get_default_resource_info_for_image)();
-		le_resource_info_t (*get_default_resource_info_for_color_attachment)();
-		le_resource_info_t (*get_default_resource_info_for_depth_stencil_attachment)();
-		le_resource_info_t (*get_default_resource_info_for_buffer)();
 	};
 
 	struct instance_interface_t {
@@ -142,7 +135,7 @@ struct le_backend_vk_api {
 
 		void                                     ( *introduce_graphics_pipeline_state ) ( le_pipeline_manager_o *self, graphics_pipeline_state_o* gpso, uint64_t gpoHash);
 		le_pipeline_and_layout_info_t            ( *produce_pipeline                  ) ( le_pipeline_manager_o *self, uint64_t gpso_hash, const LeRenderPass &pass, uint32_t subpass ) ;
-		le_shader_module_o*                      ( *create_shader_module              ) ( le_pipeline_manager_o* self, char const * path, LeShaderType moduleType);
+		le_shader_module_o*                      ( *create_shader_module              ) ( le_pipeline_manager_o* self, char const * path, const LeShaderTypeEnum& moduleType);
 		void                                     ( *update_shader_modules             ) ( le_pipeline_manager_o* self );
 		struct VkPipelineLayout_T*               ( *get_pipeline_layout               ) ( le_pipeline_manager_o* self, uint64_t pipeline_layout_key);
 		const struct le_descriptor_set_layout_t& ( *get_descriptor_set_layout         ) ( le_pipeline_manager_o* self, uint64_t setlayout_key);
@@ -163,8 +156,6 @@ struct le_backend_vk_api {
 	backend_vk_interface_t          vk_backend_i;
 	le_pipeline_manager_interface_t le_pipeline_manager_i;
 
-	helpers_interface_t helpers_i;
-
 	mutable le_backend_vk_instance_o *cUniqueInstance = nullptr;
 };
 
@@ -183,7 +174,7 @@ static const auto &le_allocator_linear_i = api -> le_allocator_linear_i;
 static const auto &vk_instance_i         = api -> vk_instance_i;
 static const auto &vk_device_i           = api -> vk_device_i;
 static const auto &le_pipeline_manager_i = api -> le_pipeline_manager_i;
-static const auto &helpers_i             = api -> helpers_i;
+
 } // namespace le_backend_vk
 
 namespace le {

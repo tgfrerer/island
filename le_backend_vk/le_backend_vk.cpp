@@ -2470,7 +2470,7 @@ static void backend_update_shader_modules( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 // FIXME: remove forwarding via renderer to here
-static le_shader_module_o *backend_create_shader_module( le_backend_o *self, char const *path, LeShaderType moduleType ) {
+static le_shader_module_o *backend_create_shader_module( le_backend_o *self, char const *path, const LeShaderTypeEnum &moduleType ) {
 	using namespace le_backend_vk;
 	return le_pipeline_manager_i.create_shader_module( self->pipelineCache, path, moduleType );
 }
@@ -2510,84 +2510,6 @@ static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
-static le_resource_info_t get_default_resource_info_for_image() {
-	le_resource_info_t res;
-
-	res.type = LeResourceType::eImage;
-	{
-		auto &img         = res.image;
-		img.flags         = 0;
-		img.format        = le::Format::eUndefined;
-		img.arrayLayers   = 1;
-		img.extent.width  = 0;
-		img.extent.height = 0;
-		img.extent.depth  = 1;
-		img.usage         = LE_IMAGE_USAGE_SAMPLED_BIT;
-		img.mipLevels     = 1;
-		img.samples       = VK_SAMPLE_COUNT_1_BIT;
-		img.imageType     = VK_IMAGE_TYPE_2D;
-		img.tiling        = VK_IMAGE_TILING_OPTIMAL;
-	}
-
-	return res;
-}
-
-static le_resource_info_t get_default_resource_info_for_color_attachment() {
-	le_resource_info_t res;
-
-	res.type = LeResourceType::eImage;
-	{
-		auto &img         = res.image;
-		img.flags         = 0;
-		img.format        = le::Format::eUndefined;
-		img.arrayLayers   = 1;
-		img.extent.width  = 0;
-		img.extent.height = 0;
-		img.extent.depth  = 1;
-		img.usage         = LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		img.mipLevels     = 1;
-		img.samples       = VK_SAMPLE_COUNT_1_BIT;
-		img.imageType     = VK_IMAGE_TYPE_2D;
-		img.tiling        = VK_IMAGE_TILING_OPTIMAL;
-	}
-
-	return res;
-}
-
-static le_resource_info_t get_default_resource_info_for_depth_stencil_attachment() {
-	le_resource_info_t res;
-
-	res.type = LeResourceType::eImage;
-	{
-		auto &img         = res.image;
-		img.flags         = 0;
-		img.format        = le::Format::eUndefined;
-		img.arrayLayers   = 1;
-		img.extent.width  = 0;
-		img.extent.height = 0;
-		img.extent.depth  = 1;
-		img.usage         = LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-		img.mipLevels     = 1;
-		img.samples       = VK_SAMPLE_COUNT_1_BIT;
-		img.imageType     = VK_IMAGE_TYPE_2D;
-		img.tiling        = VK_IMAGE_TILING_OPTIMAL;
-	}
-
-	return res;
-}
-
-// ----------------------------------------------------------------------
-
-static le_resource_info_t get_default_resource_info_for_buffer() {
-	le_resource_info_t res;
-	res.type         = LeResourceType::eBuffer;
-	res.buffer.size  = 0;
-	res.buffer.usage = LE_BUFFER_USAGE_TRANSFER_DST_BIT;
-	return res;
-}
-
-// ----------------------------------------------------------------------
-
 ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	auto  api_i        = static_cast<le_backend_vk_api *>( api_ );
 	auto &vk_backend_i = api_i->vk_backend_i;
@@ -2609,13 +2531,6 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.create_shader_module  = backend_create_shader_module;
 
 	vk_backend_i.get_backbuffer_resource = backend_get_backbuffer_resource;
-
-	auto &helpers_i = api_i->helpers_i;
-
-	helpers_i.get_default_resource_info_for_buffer                   = get_default_resource_info_for_buffer;
-	helpers_i.get_default_resource_info_for_image                    = get_default_resource_info_for_image;
-	helpers_i.get_default_resource_info_for_color_attachment         = get_default_resource_info_for_color_attachment;
-	helpers_i.get_default_resource_info_for_depth_stencil_attachment = get_default_resource_info_for_depth_stencil_attachment;
 
 	// register/update submodules inside this plugin
 

@@ -59,17 +59,14 @@ struct le_shader_compilation_result_o {
 
 // ---------------------------------------------------------------
 
-static shaderc_shader_kind convert_to_shaderc_shader_kind( LeShaderType type ) {
+static shaderc_shader_kind convert_to_shaderc_shader_kind( const le::ShaderType &type ) {
 	shaderc_shader_kind result;
 
 	switch ( type ) {
-	case ( LeShaderType::eFrag ):
+	case ( le::ShaderType::eFrag ):
 		result = shaderc_shader_kind::shaderc_glsl_fragment_shader;
 	    break;
-	case ( LeShaderType::eNone ):
-		result = shaderc_shader_kind::shaderc_glsl_default_vertex_shader;
-	    break;
-	case ( LeShaderType::eVert ):
+	case ( le::ShaderType::eVert ):
 		result = shaderc_shader_kind::shaderc_glsl_vertex_shader;
 	    break;
 	}
@@ -351,7 +348,7 @@ static void le_shader_compiler_print_error_context( const char *errMsg, const st
 
 // ---------------------------------------------------------------
 
-static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_shader_compiler_o *self, const char *sourceFileText, size_t sourceFileNumBytes, LeShaderType shaderType, const char *original_file_path ) {
+static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_shader_compiler_o *self, const char *sourceFileText, size_t sourceFileNumBytes, const LeShaderTypeEnum &shaderType, const char *original_file_path ) {
 
 	auto shaderKind = convert_to_shaderc_shader_kind( shaderType );
 

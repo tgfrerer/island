@@ -31,7 +31,7 @@ struct le_shader_module_o {
 	std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions; ///< descriptions gathered from reflection if shader type is vertex
 	std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;   ///< descriptions gathered from reflection if shader type is vertex
 	VkShaderModule                                   module = nullptr;
-	LeShaderType                                     stage  = LeShaderType::eNone;
+	le::ShaderType                                   stage  = {};
 };
 
 struct le_shader_manager_o {
@@ -153,7 +153,7 @@ static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 
 /// \brief translate a binary blob into spirv code if possible
 /// \details Blob may be raw spirv data, or glsl data
-static void le_pipeline_cache_translate_to_spirv_code( le_shader_compiler_o *shader_compiler, void *raw_data, size_t numBytes, LeShaderType moduleType, const char *original_file_name, std::vector<uint32_t> &spirvCode, std::set<std::string> &includesSet ) {
+static void le_pipeline_cache_translate_to_spirv_code( le_shader_compiler_o *shader_compiler, void *raw_data, size_t numBytes, LeShaderTypeEnum moduleType, const char *original_file_name, std::vector<uint32_t> &spirvCode, std::set<std::string> &includesSet ) {
 
 	if ( check_is_data_spirv( raw_data, numBytes ) ) {
 		spirvCode.resize( numBytes / 4 );
@@ -356,7 +356,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 
 	// If this shader module represents a vertex shader, get
 	// stage_inputs, as these represent vertex shader inputs.
-	if ( module->stage == LeShaderType::eVert ) {
+	if ( module->stage == le::ShaderType::eVert ) {
 
 		uint32_t location = 0; // shader location qualifier mapped to binding number
 
@@ -647,7 +647,7 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o *self, l
 	std::vector<uint32_t> spirv_code;
 	std::set<std::string> includesSet;
 
-	le_pipeline_cache_translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), module->stage, module->filepath.c_str(), spirv_code, includesSet );
+	le_pipeline_cache_translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), {module->stage}, module->filepath.c_str(), spirv_code, includesSet );
 
 	if ( spirv_code.empty() ) {
 		// no spirv code available, bail out.
@@ -773,7 +773,7 @@ static void le_shader_manager_destroy( le_shader_manager_o *self ) {
 /// \brief create vulkan shader module based on file path
 /// \details FIXME: this method can get called nearly anywhere - it should not be publicly accessible.
 /// ideally, this method is only allowed to be called in the setup phase.
-static le_shader_module_o *le_shader_manager_create_shader_module( le_shader_manager_o *self, char const *path, LeShaderType moduleType ) {
+static le_shader_module_o *le_shader_manager_create_shader_module( le_shader_manager_o *self, char const *path, const LeShaderTypeEnum &moduleType ) {
 
 	// This method gets called through the renderer - it is assumed during the setup stage.
 
@@ -1439,7 +1439,7 @@ static const le_descriptor_set_layout_t &le_pipeline_manager_get_descriptor_set_
 
 // ----------------------------------------------------------------------
 
-static le_shader_module_o *le_pipeline_manager_create_shader_module( le_pipeline_manager_o *self, char const *path, LeShaderType moduleType ) {
+static le_shader_module_o *le_pipeline_manager_create_shader_module( le_pipeline_manager_o *self, char const *path, const LeShaderTypeEnum &moduleType ) {
 	return le_shader_manager_create_shader_module( self->shaderManager, path, moduleType );
 }
 

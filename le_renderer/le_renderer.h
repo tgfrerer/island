@@ -38,8 +38,7 @@ struct le_renderer_api {
 		void                           ( *destroy                               )( le_renderer_o *obj );
 		void                           ( *setup                                 )( le_renderer_o *obj, le_backend_o  *backend );
 		void                           ( *update                                )( le_renderer_o *obj, le_render_module_o *module );
-		le_shader_module_o*            ( *create_shader_module                  )( le_renderer_o *self, char const *path, LeShaderType mtype );
-
+		le_shader_module_o*            ( *create_shader_module                  )( le_renderer_o *self, char const *path, const LeShaderTypeEnum& mtype );
 
 		/// returns the resource handle for the current swapchain image
 		le_resource_handle_t           ( *get_backbuffer_resource               )( le_renderer_o* self );
@@ -190,8 +189,8 @@ class Renderer {
 		le_renderer::renderer_i.update( self, module );
 	}
 
-	le_shader_module_o *createShaderModule( char const *path, LeShaderType moduleType ) {
-		return le_renderer::renderer_i.create_shader_module( self, path, moduleType );
+	le_shader_module_o *createShaderModule( char const *path, const le::ShaderType &moduleType ) {
+	        return le_renderer::renderer_i.create_shader_module( self, path, {moduleType} );
 	}
 
 	le_resource_handle_t getBackbufferResource() {
@@ -288,17 +287,17 @@ class ImageInfoBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	ImageInfoBuilder &setSamples( uint32_t sampleFlagBits = 1 ) {
+	ImageInfoBuilder &setSamples( const le::SampleCountFlagBits &sampleFlagBits = le::SampleCountFlagBits::e1 ) {
 		img.samples = sampleFlagBits;
 		return *this;
 	}
 
-	ImageInfoBuilder &setImageType( uint32_t imageType = 1 ) {
+	ImageInfoBuilder &setImageType( const le::ImageType &imageType = le::ImageType::e2D ) {
 		img.imageType = imageType;
 		return *this;
 	}
 
-	ImageInfoBuilder &setImageTiling( uint32_t imageTiling = 0 ) {
+	ImageInfoBuilder &setImageTiling( const le::ImageTiling &imageTiling = le::ImageTiling::eOptimal ) {
 		img.tiling = imageTiling;
 		return *this;
 	}
@@ -379,7 +378,7 @@ class RenderPassRef {
 		return *this;
 	}
 
-	RenderPassRef &createResource( le_resource_handle_t resource_id, const le_resource_info_t &info ) {
+	RenderPassRef &useResource( le_resource_handle_t resource_id, const le_resource_info_t &info ) {
 		le_renderer::renderpass_i.use_resource( self, resource_id, info );
 		return *this;
 	}

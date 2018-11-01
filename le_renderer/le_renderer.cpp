@@ -109,7 +109,7 @@ static void renderer_destroy( le_renderer_o *self ) {
 // ----------------------------------------------------------------------
 /// \brief declare a shader module which can be used to create a pipeline
 /// \returns a shader module handle, or nullptr upon failure
-static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, char const *path, LeShaderType moduleType ) {
+static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, char const *path, const LeShaderTypeEnum &moduleType ) {
 	using namespace le_backend_vk;
 	return vk_backend_i.create_shader_module( self->backend, path, moduleType );
 }
@@ -460,24 +460,82 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 	++self->currentFrameNumber;
 }
 
+// ----------------------------------------------------------------------
+
 static le_resource_info_t get_default_resource_info_for_image() {
-	using namespace le_backend_vk;
-	return helpers_i.get_default_resource_info_for_image();
+	le_resource_info_t res;
+
+	res.type = LeResourceType::eImage;
+	{
+		auto &img         = res.image;
+		img.flags         = 0;
+		img.format        = le::Format::eUndefined;
+		img.arrayLayers   = 1;
+		img.extent.width  = 0;
+		img.extent.height = 0;
+		img.extent.depth  = 1;
+		img.usage         = LE_IMAGE_USAGE_SAMPLED_BIT;
+		img.mipLevels     = 1;
+		img.samples       = le::SampleCountFlagBits::e1;
+		img.imageType     = le::ImageType::e2D;
+		img.tiling        = le::ImageTiling::eOptimal;
+	}
+
+	return res;
 }
 
 static le_resource_info_t get_default_resource_info_for_color_attachment() {
-	using namespace le_backend_vk;
-	return helpers_i.get_default_resource_info_for_color_attachment();
+	le_resource_info_t res;
+
+	res.type = LeResourceType::eImage;
+	{
+		auto &img         = res.image;
+		img.flags         = 0;
+		img.format        = le::Format::eUndefined;
+		img.arrayLayers   = 1;
+		img.extent.width  = 0;
+		img.extent.height = 0;
+		img.extent.depth  = 1;
+		img.usage         = LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		img.mipLevels     = 1;
+		img.samples       = le::SampleCountFlagBits::e1;
+		img.imageType     = le::ImageType::e2D;
+		img.tiling        = le::ImageTiling::eOptimal;
+	}
+
+	return res;
 }
 
 static le_resource_info_t get_default_resource_info_for_depth_stencil_attachment() {
-	using namespace le_backend_vk;
-	return helpers_i.get_default_resource_info_for_depth_stencil_attachment();
+	le_resource_info_t res;
+
+	res.type = LeResourceType::eImage;
+	{
+		auto &img         = res.image;
+		img.flags         = 0;
+		img.format        = le::Format::eUndefined;
+		img.arrayLayers   = 1;
+		img.extent.width  = 0;
+		img.extent.height = 0;
+		img.extent.depth  = 1;
+		img.usage         = LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		img.mipLevels     = 1;
+		img.samples       = le::SampleCountFlagBits::e1;
+		img.imageType     = le::ImageType::e2D;
+		img.tiling        = le::ImageTiling::eOptimal;
+	}
+
+	return res;
 }
 
+// ----------------------------------------------------------------------
+
 static le_resource_info_t get_default_resource_info_for_buffer() {
-	using namespace le_backend_vk;
-	return helpers_i.get_default_resource_info_for_buffer();
+	le_resource_info_t res;
+	res.type         = LeResourceType::eBuffer;
+	res.buffer.size  = 0;
+	res.buffer.usage = LE_BUFFER_USAGE_TRANSFER_DST_BIT;
+	return res;
 }
 
 // ----------------------------------------------------------------------
