@@ -60,6 +60,11 @@ class @module_name_camelcase_capitalised@ : NoCopy, NoMove {
 	void update() {
 		@module_name@::@module_name@_i.update( self );
 	}
+
+	operator auto () {
+		return self;
+	}
+
 };
 
 
