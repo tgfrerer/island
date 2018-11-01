@@ -2,21 +2,11 @@
 
 # ROADMAP
 
-* all resources should be the of type `AbstractResource`, so that their
-  dependencies can be tracked. The interface for tracking resource
-  dependencies is the same for textures and for buffers.
-
-* we should use descriptors so that resources can be instantiated when we
-  first need them.
-
 * add sort-key to encoder, so that we can decouple calling the callbacks
   from generating the command buffers.
 
 # TODO
 
-* Remove namespaces in header files - these are not compatible with other
-  programming languages.
- 
 * Better distinguish between renderpass types when creating vulkan command
   buffers
 
@@ -24,11 +14,6 @@
 
 ## (A)
 
-- format detection for image resources: we need to find a way to insert
-  defaults in a sane way, and to reduce complexity. currently, default
-  formats are set implicitly, but it would be better to note down if
-  a default was used, so that we can reason on consolidatation what kind
-  of format makes the most sense. 
 
 ## (B)
 
@@ -41,12 +26,6 @@
   - loadOp
   - storeOp
   - is it depth or color attachment
-
-- currently, the dependency checking mechanism for attachments appears
-  broken, source and sink determination for resources probably does not
-  work as intended.
-
-- look into LeImageAttachmentInfo: do we still need res.accessflags?
 
 - what should we do with "orphaned" resources? that's resources which were
   not provided by previous passes, but are used by following passes...
@@ -106,17 +85,17 @@ internal state. The internal state of an object may be hidden, and this is
 how you implement encapsulation, and abstraction (an object may decide for
 itself how it implements a certain method).
 
-Let's refer to all resources in the renderer using opaque `uint64_t`
-handles. These ids should be based on hashing the name to 32 bits, which
-allows us to store 32bits of metadata with each handle. Metadata includes:
-resourcetype, resource flags.
+Let's refer to all resources in the renderer using opaque handles. These
+handles should be based on hashing the name to 32 bits, which allows us to
+store 32bits of metadata with each handle. Metadata includes:
+resourcetype, resource id flags.
 
 Hashing the name has the benefit that this can be done independently and
 that no locking has to occur, and everyone who hashes a name should get
 the same result. Also, hashing is ecutable as a constexpr, so the id will
 not have to be calculated at runtime at all.
 
-Resources are introduced in passes during their setup stage - if
+Resources are introduced by passes during their setup stage - if
 a resource is permanent, the backend will remember the reource id, this
 also means that if a permanent resource gets dropped during a resource
 pass, the backend will mark that physical resource for recycling once no
@@ -124,13 +103,6 @@ frame which is in-flight still uses it.
 
     > does this mean we could also introduce shader resources in setup
     > stage?
-
-Where should we *declare* resources? 
-
-* if we declare resources at the point of first use, this means that
-  resources always need to be declared using their full resource
-  descriptor, which means all callbacks need to have access to the same
-  version of the resource descriptor. 
 
 # Data + Algorithms
 
@@ -165,7 +137,6 @@ Where should we *declare* resources?
 
 # LEARNED SO FAR:
 
-
 * we can pass around LE objects (buffers, attachments, pipelines, etc.) as
   opaque handles, effectively using a pointer-to-object-type which
   represents an object:
@@ -175,6 +146,13 @@ Where should we *declare* resources?
   ```
     
   This is also how APIs like Vulkan present their objects.
+
+* When we want to pass out an enum, but don't want to include a header
+  file, we can hand out the enum wrapped in a struct (struct has only the
+  enum as a field) for the enum. This means in a header file we can use
+  the wrapper-type opaquely, which gives us type-safety for the enum.
+  Implementations (.cpp files) which use the enum need a method to unwrap
+  the original enum from the wrapper, which can be implemented trivially.
 
 * instead of passing the api via parameter- you can retrieve it via the
   registry inside the function which uses it, and store it as
