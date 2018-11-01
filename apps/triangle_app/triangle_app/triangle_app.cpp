@@ -115,11 +115,11 @@ static triangle_app_o *triangle_app_create() {
 	{
 		// create shader objects
 
-		app->shaderTriangle[ 0 ] = app->renderer.createShaderModule( "./resources/shaders/quad_bezier.vert", LeShaderType::eVert );
-		app->shaderTriangle[ 1 ] = app->renderer.createShaderModule( "./resources/shaders/quad_bezier.frag", LeShaderType::eFrag );
+		app->shaderTriangle[ 0 ] = app->renderer.createShaderModule( "./resources/shaders/quad_bezier.vert", le::ShaderType::eVert );
+		app->shaderTriangle[ 1 ] = app->renderer.createShaderModule( "./resources/shaders/quad_bezier.frag", le::ShaderType::eFrag );
 
-		app->shaderPathTracer[ 0 ] = app->renderer.createShaderModule( "./resources/shaders/path_tracer.vert", LeShaderType::eVert );
-		app->shaderPathTracer[ 1 ] = app->renderer.createShaderModule( "./resources/shaders/path_tracer.frag", LeShaderType::eFrag );
+		app->shaderPathTracer[ 0 ] = app->renderer.createShaderModule( "./resources/shaders/path_tracer.vert", le::ShaderType::eVert );
+		app->shaderPathTracer[ 1 ] = app->renderer.createShaderModule( "./resources/shaders/path_tracer.frag", le::ShaderType::eFrag );
 	}
 
 	{
@@ -165,15 +165,12 @@ static void reset_camera( triangle_app_o *self ) {
 static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto rp = le::RenderPassRef{pRp};
 
-	rp.createResource( LE_BUF_RESOURCE( "TriangleBuffer" ),
-	                   le::BufferResourceBuilder()
-	                       .setSize( sizeof( glm::vec3 ) * 6 )
-	                       .setUsageFlags( VK_BUFFER_USAGE_TRANSFER_DST_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT )
-	                       .build() // create resource for triangle vertex buffer
+	rp.useResource( LE_BUF_RESOURCE( "TriangleBuffer" ),
+	                le::BufferInfoBuilder()
+	                    .setSize( sizeof( glm::vec3 ) * 6 )
+	                    .setUsageFlags( VK_BUFFER_USAGE_TRANSFER_DST_BIT )
+	                    .build() // create resource for triangle vertex buffer
 	);
-	rp.useResource( LE_BUF_RESOURCE( "TriangleBuffer" ), LeAccessFlagBits::eLeAccessFlagBitWrite );
-
-	rp.setIsRoot( true );
 
 	return true;
 }
@@ -202,17 +199,14 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto rp  = le::RenderPassRef{pRp};
 	auto app = static_cast<triangle_app_o *>( user_data );
 
-	rp.createResource( LE_IMG_RESOURCE( "ImgDepth" ),
-	                   le::ImageResourceBuilder()
-	                       .setUsageFlags( VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT )
-	                       .setFormat( VK_FORMAT_D32_SFLOAT_S8_UINT )
-	                       .build() // create z-buffer image for main renderpass
-	);
-
 	rp
-	    .addImageAttachment( app->renderer.getBackbufferResource() ) // color attachment
-	    .addDepthImageAttachment( LE_IMG_RESOURCE( "ImgDepth" ) )    // depth attachment
-	    .useResource( LE_BUF_RESOURCE( "TriangleBuffer" ), LeAccessFlagBits::eLeAccessFlagBitRead )
+	    .addColorAttachment( app->renderer.getBackbufferResource() ) // color attachment
+	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "ImgDepth" ) )  // depth attachment
+	    .useResource( LE_BUF_RESOURCE( "TriangleBuffer" ),
+	                  le::BufferInfoBuilder()
+	                      .setSize( sizeof( glm::vec3 ) * 6 )
+	                      .setUsageFlags( LE_BUFFER_USAGE_VERTEX_BUFFER_BIT )
+	                      .build() )
 	    .setIsRoot( true );
 
 	return true;

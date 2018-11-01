@@ -156,8 +156,8 @@ static test_app_o *test_app_create() {
 		{
 			// create default pipeline
 
-			auto defaultVertShader = app->renderer.createShaderModule( "./resources/shaders/default.vert", LeShaderType::eVert );
-			auto defaultFragShader = app->renderer.createShaderModule( "./resources/shaders/default.frag", LeShaderType::eFrag );
+			auto defaultVertShader = app->renderer.createShaderModule( "./resources/shaders/default.vert", le::ShaderType::eVert );
+			auto defaultFragShader = app->renderer.createShaderModule( "./resources/shaders/default.frag", le::ShaderType::eFrag );
 
 			app->shaderTriangle[ 0 ] = defaultVertShader;
 			app->shaderTriangle[ 1 ] = defaultFragShader;
@@ -182,8 +182,8 @@ static test_app_o *test_app_create() {
 
 		{
 			// Create pso for imgui rendering
-			auto imguiVertShader = app->renderer.createShaderModule( "./resources/shaders/imgui.vert", LeShaderType::eVert );
-			auto imguiFragShader = app->renderer.createShaderModule( "./resources/shaders/imgui.frag", LeShaderType::eFrag );
+			auto imguiVertShader = app->renderer.createShaderModule( "./resources/shaders/imgui.vert", le::ShaderType::eVert );
+			auto imguiFragShader = app->renderer.createShaderModule( "./resources/shaders/imgui.frag", le::ShaderType::eFrag );
 
 			std::array<le_vertex_input_attribute_description, 3> attrs    = {};
 			std::array<le_vertex_input_binding_description, 1>   bindings = {};
@@ -238,14 +238,14 @@ static test_app_o *test_app_create() {
 
 		// load shaders for prepass
 
-		app->shaderPrepass[ 0 ] = app->renderer.createShaderModule( "./resources/shaders/prepass.vert", LeShaderType::eVert );
-		app->shaderPrepass[ 1 ] = app->renderer.createShaderModule( "./resources/shaders/prepass.frag", LeShaderType::eFrag );
+		app->shaderPrepass[ 0 ] = app->renderer.createShaderModule( "./resources/shaders/prepass.vert", {le::ShaderType::eVert} );
+		app->shaderPrepass[ 1 ] = app->renderer.createShaderModule( "./resources/shaders/prepass.frag", le::ShaderType::eFrag );
 
 		{
 			// create full screen quad pipeline
 
-			auto fullScreenQuadVertShader = app->renderer.createShaderModule( "./resources/shaders/fullscreenQuad.vert", LeShaderType::eVert );
-			auto fullScreenQuadFragShader = app->renderer.createShaderModule( "./resources/shaders/fullscreenQuad.frag", LeShaderType::eFrag );
+			auto fullScreenQuadVertShader = app->renderer.createShaderModule( "./resources/shaders/fullscreenQuad.vert", le::ShaderType::eVert );
+			auto fullScreenQuadFragShader = app->renderer.createShaderModule( "./resources/shaders/fullscreenQuad.frag", le::ShaderType::eFrag );
 
 			auto psoHandle = LeGraphicsPipelineBuilder( pipelineCache )
 			                     .setFragmentShader( fullScreenQuadFragShader )
@@ -353,25 +353,25 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	auto app = static_cast<test_app_o *>( user_data_ );
 	auto rp  = le::RenderPassRef{pRp};
 
-	rp.createResource( resImgHorse,
-	                   le::ImageInfoBuilder()
-	                       .setExtent( 640, 425 )
-	                       .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
-	                       .build() // create resource for horse image
+	rp.useResource( resImgHorse,
+	                le::ImageInfoBuilder()
+	                    .setExtent( 640, 425 )
+	                    .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
+	                    .build() // create resource for horse image
 	);
 
-	rp.createResource( app->imguiTexture.le_image_handle,
-	                   le::ImageInfoBuilder()
-	                       .setExtent( uint32_t( app->imguiTexture.width ), uint32_t( app->imguiTexture.height ) )
-	                       .setUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
-	                       .build() // create resource for imgui font texture if it does not yet exist.
+	rp.useResource( app->imguiTexture.le_image_handle,
+	                le::ImageInfoBuilder()
+	                    .setExtent( uint32_t( app->imguiTexture.width ), uint32_t( app->imguiTexture.height ) )
+	                    .setUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
+	                    .build() // create resource for imgui font texture if it does not yet exist.
 	);
 
-	rp.createResource( resBufTrianglePos,
-	                   le::BufferInfoBuilder()
-	                       .setSize( sizeof( glm::vec3 ) * 3 )
-	                       .addUsageFlags( LE_BUFFER_USAGE_VERTEX_BUFFER_BIT )
-	                       .build() // create resource for triangle vertex buffer
+	rp.useResource( resBufTrianglePos,
+	                le::BufferInfoBuilder()
+	                    .setSize( sizeof( glm::vec3 ) * 3 )
+	                    .addUsageFlags( LE_BUFFER_USAGE_VERTEX_BUFFER_BIT )
+	                    .build() // create resource for triangle vertex buffer
 	);
 
 	{
@@ -383,7 +383,7 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data_ ) {
 		gltf_document_i.get_resource_infos( app->gltfDoc, &resourceInfo, &resourceHandles, &numResourceInfos );
 
 		for ( size_t i = 0; i != numResourceInfos; i++ ) {
-			rp.createResource( resourceHandles[ i ], resourceInfo[ i ] );
+			rp.useResource( resourceHandles[ i ], resourceInfo[ i ] );
 		}
 	}
 
