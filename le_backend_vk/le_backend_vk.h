@@ -50,7 +50,7 @@ struct VmaAllocationInfo;
 enum class LeShaderType : uint64_t; // we're forward declaring this enum, for heaven's sake...
 enum class LeResourceType : uint8_t;
 
-typedef int LeFormat_t; // we're declaring this as a placeholder for image format enum
+struct VkFormatWrapper; // wrapper around VkFormatEnum
 
 struct le_resource_info_t;
 
@@ -127,7 +127,7 @@ struct le_backend_vk_api {
 		uint32_t                    ( *get_default_compute_queue_family_index  ) ( le_backend_vk_device_o* self_ );
 		VkQueue_T *                 ( *get_default_graphics_queue              ) ( le_backend_vk_device_o* self_ );
 		VkQueue_T *                 ( *get_default_compute_queue               ) ( le_backend_vk_device_o* self_ );
-		LeFormat_t                  ( *get_default_depth_stencil_format        ) ( le_backend_vk_device_o* self_ );
+		VkFormatWrapper             ( *get_default_depth_stencil_format        ) ( le_backend_vk_device_o* self_ );
 		VkPhysicalDevice_T*         ( *get_vk_physical_device                  ) ( le_backend_vk_device_o* self_ );
 		VkDevice_T*                 ( *get_vk_device                           ) ( le_backend_vk_device_o* self_ );
 
@@ -309,10 +309,6 @@ class Device : NoCopy, NoMove {
 
 	VkQueue_T *getDefaultComputeQueue() const {
 		return le_backend_vk::vk_device_i.get_default_compute_queue( self );
-	}
-
-	LeFormat_t getDefaultDepthStencilFormat() const {
-		return le_backend_vk::vk_device_i.get_default_depth_stencil_format( self );
 	}
 
 	operator auto() {

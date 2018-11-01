@@ -13,6 +13,10 @@
 constexpr uint8_t VK_MAX_BOUND_DESCRIPTOR_SETS = 8;
 constexpr uint8_t VK_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color attachments to a renderpass
 
+struct VkFormatWrapper {
+	VkFormat format;
+};
+
 struct le_graphics_pipeline_builder_data {
 
 	vk::PipelineRasterizationStateCreateInfo rasterizationInfo{};
@@ -105,10 +109,10 @@ struct AbstractPhysicalResource {
 };
 
 struct AttachmentInfo {
-        le_resource_handle_t  resource_id{};      ///< which resource to look up for resource state
-        vk::Format            format;             ///
-        vk::AttachmentLoadOp  loadOp;             ///
-        vk::AttachmentStoreOp storeOp;            ///
+	le_resource_handle_t  resource_id{};      ///< which resource to look up for resource state
+	vk::Format            format;             ///
+	vk::AttachmentLoadOp  loadOp;             ///
+	vk::AttachmentStoreOp storeOp;            ///
 	vk::ClearValue        clearValue;         ///< either color or depth clear value, only used if loadOp is eClear
 	uint16_t              initialStateOffset; ///< state of resource before entering the renderpass
 	uint16_t              finalStateOffset;   ///< state of resource after exiting the renderpass
@@ -116,9 +120,9 @@ struct AttachmentInfo {
 
 struct LeRenderPass {
 
-        AttachmentInfo attachments[ 16 ];          // maximum of 16 color output attachments
-        uint16_t       numColorAttachments;        // 0..16
-        uint16_t       numDepthStencilAttachments; // 0..1
+	AttachmentInfo attachments[ 16 ];          // maximum of 16 color output attachments
+	uint16_t       numColorAttachments;        // 0..16
+	uint16_t       numDepthStencilAttachments; // 0..1
 
 	LeRenderPassType type;
 

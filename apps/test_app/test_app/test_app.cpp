@@ -509,8 +509,8 @@ static bool pass_final_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	rp
 	    .addColorAttachment( app->renderer.getBackbufferResource() ) // color attachment
 	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "ImgDepth" ) )  // depth attachment
-	    .sampleTexture( resTexPrepass, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {resImgPrepass, 0}} )
-	    .sampleTexture( app->imguiTexture.le_texture_handle, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {app->imguiTexture.le_image_handle, 0}} )
+	    .sampleTexture( resTexPrepass, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {resImgPrepass, {}}} )
+	    .sampleTexture( app->imguiTexture.le_texture_handle, {{VK_FILTER_LINEAR, VK_FILTER_LINEAR}, {app->imguiTexture.le_image_handle, {}}} )
 	    .setIsRoot( true );
 
 	return true;

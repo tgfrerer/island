@@ -13,7 +13,7 @@
 #include "le_renderer/private/le_renderer_types.h"
 
 #ifndef PRINT_DEBUG_MESSAGES
-#	define PRINT_DEBUG_MESSAGES true
+#	define PRINT_DEBUG_MESSAGES false
 #endif
 
 #define LE_rendergraph_RECURSION_DEPTH 20
@@ -170,7 +170,6 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 			assert( stored_resource_info.image.arrayLayers == resource_info.image.arrayLayers ); //
 			assert( stored_resource_info.image.samples == resource_info.image.samples );         // enum VkSampleCountFlagBits
 			assert( stored_resource_info.image.tiling == resource_info.image.tiling );           // enum VkImageTiling
-			assert( stored_resource_info.image.sharingMode == resource_info.image.sharingMode ); // enum vkSharingMode
 		} break;
 		default:
 		    break;

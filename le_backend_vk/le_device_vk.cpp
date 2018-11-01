@@ -1,4 +1,5 @@
 #include "le_backend_vk/le_backend_vk.h"
+#include "le_backend_types_internal.h"
 
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
@@ -359,8 +360,9 @@ VkQueue device_get_default_compute_queue( le_backend_vk_device_o *self_ ) {
 
 // ----------------------------------------------------------------------
 
-LeFormat_t device_get_default_depth_stencil_format( le_backend_vk_device_o *self ) {
-	return reinterpret_cast<LeFormat_t &>( self->defaultDepthStencilFormat );
+VkFormatWrapper device_get_default_depth_stencil_format( le_backend_vk_device_o *self ) {
+	VkFormatWrapper res{static_cast<VkFormat>( self->defaultDepthStencilFormat )};
+	return res;
 }
 
 // ----------------------------------------------------------------------

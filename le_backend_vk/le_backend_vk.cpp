@@ -31,12 +31,12 @@
 #endif
 
 // ----------------------------------------------------------------------
-// ResourceCreateInfo is used internally in to translate Renderer-specific structures
-// into Vulkan CreateInfos for buffers and images.
-//
-// It is then stored with the allocation, so that subsequent requests for resources
-// may check if a requested resource is already available to the backend.
-//
+/// ResourceCreateInfo is used internally in to translate Renderer-specific structures
+/// into Vulkan CreateInfos for buffers and images we wish to allocate in Vulkan.
+///
+/// The ResourceCreateInfo is then stored with the allocation, so that subsequent
+/// requests for resources may check if a requested resource is already available to the
+/// backend.
 struct ResourceCreateInfo {
 
 	// Since this is a union, the first field will for both be VK_STRUCTURE_TYPE
@@ -46,7 +46,13 @@ struct ResourceCreateInfo {
 		VkImageCreateInfo  imageInfo;  // | only one of either ever in use
 	};
 
+	// Compares two ResourceCreateInfos, returns true if identical, false if not.
+	//
+	// FIXME: the comparison of pQueueFamilyIndices is fraught with peril,
+	// as we must really compare the contents of the memory pointed at
+	// rather than the pointer, and the pointer has no guarantee to be alife.
 	bool operator==( const ResourceCreateInfo &rhs ) const {
+
 		if ( bufferInfo.sType == rhs.bufferInfo.sType ) {
 
 			if ( bufferInfo.sType == VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO ) {
@@ -56,7 +62,8 @@ struct ResourceCreateInfo {
 				         bufferInfo.usage == rhs.bufferInfo.usage &&
 				         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode &&
 				         bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
-				         bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices );
+				         bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices // should not be compared this way
+				);
 
 			} else {
 
@@ -72,9 +79,10 @@ struct ResourceCreateInfo {
 				         imageInfo.tiling == rhs.imageInfo.tiling &&
 				         imageInfo.usage == rhs.imageInfo.usage &&
 				         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
+				         imageInfo.initialLayout == rhs.imageInfo.initialLayout &&
 				         imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
-				         imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices &&
-				         imageInfo.initialLayout == rhs.imageInfo.initialLayout );
+				         imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices // should not be compared this way
+				);
 			}
 
 		} else {
@@ -91,60 +99,110 @@ struct ResourceCreateInfo {
 		return bufferInfo.sType == VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	}
 
-	enum class ConsolidationResult : uint8_t {
-		eOk = 0,
-		eIncompatibleTypes, // can't consolidate two resources of non-matching resource type
-	};
-
-	// ----------------------------------------------------------------------
-	// Combines usage flags for image and buffer resources, sets a ConsolidationResult enum
-	// indicating result of operation.
-	//
-	// If operation was successful, returns a consolidated ResourceCreateInfo,
-	// otherwise returns a copy of the first parameter.
-	//
-	// We do this because multiple passes may want to use a resource using different flags.
-	// In order for the resource to be useable for all these passes, a resource's usage flags
-	// need to cover *all* intended uses.
-	static ResourceCreateInfo consolidate( const ResourceCreateInfo &lhs, const ResourceCreateInfo &rhs, ConsolidationResult *errNo ) {
-		auto result = lhs;
-
-		if ( lhs.bufferInfo.sType != rhs.bufferInfo.sType ) {
-			*errNo = ConsolidationResult::eIncompatibleTypes;
-			return result;
-		}
-
-		// --------| invariant: types are identical
-
-		if ( lhs.isBuffer() ) {
-			// buffer resources
-			result.bufferInfo.usage |= rhs.bufferInfo.usage;
-		} else {
-			// image resources
-			result.imageInfo.usage |= rhs.imageInfo.usage;
-
-			// note: if format is different, we must check that it uses the same number of bits per pixel,
-			// otherwise the resource cannot be used with both formats - this is problematic, as the format
-			// for textures should be 0 (undefined) by default, and the format for
-			//
-			assert( result.imageInfo.format == rhs.imageInfo.format );
-		}
-
-		return result;
-	}
+	static ResourceCreateInfo from_le_resource_info( const le_resource_info_t &info, uint32_t *pQueueFamilyIndices, uint32_t queueFamilyindexCount );
 };
 
 // ------------------------------------------------------------
 
-struct AllocatedResource {
+static inline VkAttachmentStoreOp le_to_vk( const LeAttachmentStoreOp &lhs ) noexcept {
+	switch ( lhs ) {
+	case ( LE_ATTACHMENT_STORE_OP_STORE ):
+	    return VK_ATTACHMENT_STORE_OP_STORE;
+	case ( LE_ATTACHMENT_STORE_OP_DONTCARE ):
+	    return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+	}
+	assert( false ); // if control ends here, something is wrong, as switch must cover all cases
+	return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+}
+
+// ----------------------------------------------------------------------
+static inline VkAttachmentLoadOp le_to_vk( const LeAttachmentLoadOp &lhs ) noexcept {
+	switch ( lhs ) {
+	case ( LE_ATTACHMENT_LOAD_OP_LOAD ):
+	    return VK_ATTACHMENT_LOAD_OP_LOAD;
+	case ( LE_ATTACHMENT_LOAD_OP_CLEAR ):
+	    return VK_ATTACHMENT_LOAD_OP_CLEAR;
+	case ( LE_ATTACHMENT_LOAD_OP_DONTCARE ):
+	    return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+	}
+	assert( false ); // if control ends here, something is wrong, as switch must cover all cases
+	return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+}
+
+// ----------------------------------------------------------------------
+
+static inline constexpr vk::Format le_to_vk( const le::Format &format ) noexcept {
+	vk::Format result{};
+
+	// for now, we assume that
+	result = vk::Format( format );
+
+	return result;
+}
+
+// ----------------------------------------------------------------------
+
+static inline const vk::ClearValue &le_to_vk( const LeClearValue &lhs ) {
+	static_assert( sizeof( vk::ClearValue ) == sizeof( LeClearValue ), "clear value must be of equal size" );
+	return reinterpret_cast<const vk::ClearValue &>( lhs );
+}
+
+// ----------------------------------------------------------------------
+
+ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_info_t &info, uint32_t *pQueueFamilyIndices, uint32_t queueFamilyIndexCount ) {
+	ResourceCreateInfo res;
+
+	switch ( info.type ) {
+	case ( LeResourceType::eBuffer ): {
+		res.bufferInfo = vk::BufferCreateInfo()
+		                     .setFlags( {} )
+		                     .setSize( info.buffer.size )
+		                     .setUsage( vk::BufferUsageFlags{info.buffer.usage} )
+		                     .setSharingMode( vk::SharingMode::eExclusive )
+		                     .setQueueFamilyIndexCount( queueFamilyIndexCount )
+		                     .setPQueueFamilyIndices( pQueueFamilyIndices );
+
+	} break;
+	case ( LeResourceType::eImage ): {
+		auto const &img = info.image;
+		res.imageInfo   = vk::ImageCreateInfo()
+		                    .setFlags( vk::ImageCreateFlags( img.flags ) )                        // TODO: check conversion from le->vk
+		                    .setImageType( vk::ImageType::e2D )                                   // TODO: check conversion from le->vk
+		                    .setFormat( le_to_vk( img.format ) )                                  // TODO: check conversion from le->vk
+		                    .setExtent( {img.extent.width, img.extent.height, img.extent.depth} ) //
+		                    .setMipLevels( img.mipLevels )                                        //
+		                    .setArrayLayers( img.arrayLayers )                                    //
+		                    .setSamples( vk::SampleCountFlagBits( img.samples ) )                 // TODO: check conversion for vk::SampleCountFlagBits
+		                    .setTiling( vk::ImageTiling( img.tiling ) )                           // TODO: check conversion for vk::ImageTiling
+		                    .setUsage( vk::ImageUsageFlags{img.usage} )                           // TODO: check conversion for ImageUsageFlags
+		                    .setSharingMode( vk::SharingMode::eExclusive )                        // TODO: check conversion for sharingMode
+		                    .setQueueFamilyIndexCount( queueFamilyIndexCount )                    //
+		                    .setPQueueFamilyIndices( pQueueFamilyIndices )                        //
+		                    .setInitialLayout( vk::ImageLayout::eUndefined )                      // must be either pre-initialised, or undefined (most likely)
+		    ;
+
+	} break;
+	default:
+		assert( false ); // we can only create (allocate) buffer or image resources
+	    break;
+	}
+
+	return res;
+}
+
+// ------------------------------------------------------------
+
+struct AllocatedResourceVk {
 	VmaAllocation     allocation;
 	VmaAllocationInfo allocationInfo;
 	union {
 		VkBuffer asBuffer;
 		VkImage  asImage;
 	};
-	ResourceCreateInfo info; // Details on resource
+	ResourceCreateInfo info; // Creation info for resource
 };
+
+// ------------------------------------------------------------
 
 // herein goes all data which is associated with the current frame
 // backend keeps track of multiple frames, exactly one per renderer::FrameData frame.
@@ -202,8 +260,8 @@ struct BackendFrameData {
 
 	 */
 
-	std::unordered_map<le_resource_handle_t, AllocatedResource, LeResourceHandleIdentity> availableResources; // resources this frame may use
-	std::unordered_map<le_resource_handle_t, AllocatedResource, LeResourceHandleIdentity> binnedResources;    // resources to delete when this frame comes round to clear()
+	std::unordered_map<le_resource_handle_t, AllocatedResourceVk, LeResourceHandleIdentity> availableResources; // resources this frame may use
+	std::unordered_map<le_resource_handle_t, AllocatedResourceVk, LeResourceHandleIdentity> binnedResources;    // resources to delete when this frame comes round to clear()
 
 	VmaPool                        allocationPool;   // pool from which allocations for this frame come from
 	std::vector<le_allocator_o *>  allocators;       // one linear sub-allocator per command buffer
@@ -238,8 +296,8 @@ struct le_backend_o {
 	const le_resource_handle_t backBufferImageHandle = LE_IMG_RESOURCE( "Backbuffer-Image" ); // opaque handle identifying the backbuffer image, initialised in setup()
 
 	struct {
-		std::unordered_map<le_resource_handle_t, AllocatedResource, LeResourceHandleIdentity> allocatedResources; // allocated resources, indexed by resource name hash
-	} only_backend_allocate_resources_may_access;                                                                 // only acquire_physical_resources may read/write
+		std::unordered_map<le_resource_handle_t, AllocatedResourceVk, LeResourceHandleIdentity> allocatedResources; // allocated resources, indexed by resource name hash
+	} only_backend_allocate_resources_may_access;                                                                   // only acquire_physical_resources may read/write
 
 	const vk::BufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =
 	    vk::BufferUsageFlagBits::eIndexBuffer |
@@ -247,39 +305,6 @@ struct le_backend_o {
 	    vk::BufferUsageFlagBits::eUniformBuffer |
 	    vk::BufferUsageFlagBits::eTransferSrc;
 };
-
-// ----------------------------------------------------------------------
-static inline VkAttachmentStoreOp le_to_vk( const LeAttachmentStoreOp &lhs ) {
-	switch ( lhs ) {
-	case ( LE_ATTACHMENT_STORE_OP_STORE ):
-	    return VK_ATTACHMENT_STORE_OP_STORE;
-	case ( LE_ATTACHMENT_STORE_OP_DONTCARE ):
-	    return VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	}
-	assert( false ); // if control ends here, something is wrong, as switch must cover all cases
-	return VK_ATTACHMENT_STORE_OP_DONT_CARE;
-}
-
-// ----------------------------------------------------------------------
-static inline VkAttachmentLoadOp le_to_vk( const LeAttachmentLoadOp &lhs ) {
-	switch ( lhs ) {
-	case ( LE_ATTACHMENT_LOAD_OP_LOAD ):
-	    return VK_ATTACHMENT_LOAD_OP_LOAD;
-	case ( LE_ATTACHMENT_LOAD_OP_CLEAR ):
-	    return VK_ATTACHMENT_LOAD_OP_CLEAR;
-	case ( LE_ATTACHMENT_LOAD_OP_DONTCARE ):
-	    return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	}
-	assert( false ); // if control ends here, something is wrong, as switch must cover all cases
-	return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-}
-
-// ----------------------------------------------------------------------
-
-static inline const vk::ClearValue &le_to_vk( const LeClearValue &lhs ) {
-	static_assert( sizeof( vk::ClearValue ) == sizeof( LeClearValue ), "clear value must be of equal size" );
-	return reinterpret_cast<const vk::ClearValue &>( lhs );
-}
 
 // ----------------------------------------------------------------------
 
@@ -1227,7 +1252,7 @@ static inline VkFormat frame_data_get_image_format_from_resource_id( BackendFram
 // ----------------------------------------------------------------------
 // if specific format for texture was not specified, return format of referenced image
 static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFrameData const &frame, LeTextureInfo const &texInfo ) {
-	if ( texInfo.imageView.format == 0 ) {
+	if ( texInfo.imageView.format == le::Format::eUndefined ) {
 		return ( frame_data_get_image_format_from_resource_id( frame, texInfo.imageView.imageId ) );
 	} else {
 		return VkFormat( texInfo.imageView.format );
@@ -1346,6 +1371,53 @@ static void backend_create_descriptor_pools( BackendFrameData &frame, vk::Device
 }
 
 // ----------------------------------------------------------------------
+// Returns a VkFormat which will match a given set of LeImageUsageFlags.
+// If a matching format cannot be inferred, this method
+VkFormat infer_image_format_from_le_image_usage_flags( LeImageUsageFlags flags ) {
+	VkFormat format{};
+
+	if ( flags & ( LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | LE_IMAGE_USAGE_SAMPLED_BIT ) ) {
+		// set to default color format
+		format = VK_FORMAT_R8G8B8A8_UNORM;
+	} else if ( flags & LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) {
+		// set to default depth stencil format
+		format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+	} else {
+		// we don't know what to do because we can't infer the intended use of this resource.
+		//		assert( false );
+	}
+	return format;
+}
+
+// ----------------------------------------------------------------------
+
+static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &alloc, const ResourceCreateInfo &resourceInfo ) {
+	AllocatedResourceVk     res{};
+	VmaAllocationCreateInfo allocationCreateInfo{};
+	allocationCreateInfo.flags          = {}; // default flags
+	allocationCreateInfo.usage          = VMA_MEMORY_USAGE_GPU_ONLY;
+	allocationCreateInfo.preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+
+	if ( resourceInfo.isBuffer() ) {
+		vmaCreateBuffer( alloc,
+		                 &resourceInfo.bufferInfo,
+		                 &allocationCreateInfo,
+		                 &res.asBuffer,
+		                 &res.allocation,
+		                 &res.allocationInfo );
+	} else {
+		vmaCreateImage( alloc,
+		                &resourceInfo.imageInfo,
+		                &allocationCreateInfo,
+		                &res.asImage,
+		                &res.allocation,
+		                &res.allocationInfo );
+	}
+	res.info = resourceInfo;
+	return res;
+};
+
+// ----------------------------------------------------------------------
 
 static void backend_allocate_resources( le_backend_o *self, BackendFrameData &frame, le_renderpass_o **passes, size_t numRenderPasses ) {
 
@@ -1355,17 +1427,6 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	- "Acquire" therefore means we create local copies of backend-wide resources.
 
 	*/
-
-	// -- Make a list of all images to create
-	// -- Make a list of all buffers to create
-
-	// make a list of all resources to create
-	// - if an image appears more than once, we OR the image's flags.
-	// - if a  buffer appears more than once, we OR all the buffer's flags.
-
-	// Locally, in the frame, we store these in a vector,
-	// and we could reference them by their offsets, because this method must
-	// be uncontested.
 
 	{
 		// -- first it is our holy duty to drop any binned resources which were condemned the last time this frame was active.
@@ -1387,206 +1448,263 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 	using namespace le_renderer;
 
-	std::unordered_map<le_resource_handle_t, ResourceCreateInfo, LeResourceHandleIdentity> declaredResources;
+	std::vector<le_resource_handle_t>            usedResources;      // (
+	std::vector<std::vector<le_resource_info_t>> usedResourcesInfos; // ( usedResourceInfos[index] contains vector of usages for usedResource[index]
 
-	// -- iterate over all passes
+	// Iterate over all resource declarations in all passes so that we can collect all resources,
+	// and their infos (usages). Later, we will consolidate their usages so that resources can
+	// be re-used across passes.
+	//
+	// Note that we accumulate all resource infos first, and do consolidation
+	// in a separate step. That way, we can first make sure all flags are combined,
+	// before we make sure to we find a valid image format which matches all uses...
+
 	for ( le_renderpass_o **rp = passes; rp != passes + numRenderPasses; rp++ ) {
+
+		auto pass_width  = renderpass_i.get_width( *rp );
+		auto pass_height = renderpass_i.get_height( *rp );
+
+		{
+			if ( pass_width == 0 ) {
+				// if zero was chosen this means to use the default extents values for a
+				// renderpass, which is to use the frame's current swapchain extents.
+				pass_width = frame.swapchainWidth;
+				renderpass_i.set_width( *rp, pass_width );
+			}
+
+			if ( pass_height == 0 ) {
+				// if zero was chosen this means to use the default extents values for a
+				// renderpass, which is to use the frame's current swapchain extents.
+				pass_height = frame.swapchainHeight;
+				renderpass_i.set_height( *rp, pass_height );
+			}
+		}
 
 		le_resource_handle_t const *pCreateResourceIds = nullptr;
 		le_resource_info_t const *  pResourceInfos     = nullptr;
 		size_t                      numCreateResources = 0;
 
-		// -- iterate over all resource declarations in this pass
 		renderpass_i.get_used_resources( *rp, &pCreateResourceIds, &pResourceInfos, &numCreateResources );
-
-		auto pass_width  = renderpass_i.get_width( *rp );
-		auto pass_height = renderpass_i.get_height( *rp );
-
-		if ( pass_width == 0 ) {
-			// if zero was chosen this means to use the default extents values for a
-			// renderpass, which is to use the frame's current swapchain extents.
-			pass_width = frame.swapchainWidth;
-			renderpass_i.set_width( *rp, pass_width );
-		}
-
-		if ( pass_height == 0 ) {
-			// if zero was chosen this means to use the default extents values for a
-			// renderpass, which is to use the frame's current swapchain extents.
-			pass_height = frame.swapchainHeight;
-			renderpass_i.set_height( *rp, pass_height );
-		}
 
 		for ( size_t i = 0; i != numCreateResources; ++i ) {
 
-			le_resource_info_t const &  createInfo = pResourceInfos[ i ];     // Resource descriptor (from renderpass)
-			le_resource_handle_t const &resourceId = pCreateResourceIds[ i ]; // Hash of resource name
+			le_resource_handle_t const &resourceId   = pCreateResourceIds[ i ]; // Resource handle
+			le_resource_info_t          resourceInfo = pResourceInfos[ i ];     // Resource info (from renderpass)
 
-			ResourceCreateInfo resourceCreateInfo{};
+			// Test whether a resource with this id is already in usedResources -
+			// if not, found_index will be identical to usedResource vector size,
+			// which is useful, beacause as soon as we add an element to the vector
+			// found_index will index the correct element.
 
-			switch ( createInfo.type ) {
-			case LeResourceType::eBuffer: {
-				resourceCreateInfo.bufferInfo                       = vk::BufferCreateInfo{};
-				resourceCreateInfo.bufferInfo.size                  = createInfo.buffer.size;
-				resourceCreateInfo.bufferInfo.usage                 = createInfo.buffer.usage;
-				resourceCreateInfo.bufferInfo.sharingMode           = VK_SHARING_MODE_EXCLUSIVE;
-				resourceCreateInfo.bufferInfo.queueFamilyIndexCount = 1;
-				resourceCreateInfo.bufferInfo.pQueueFamilyIndices   = &self->queueFamilyIndexGraphics;
+			auto resource_index = static_cast<size_t>( std::find( usedResources.begin(), usedResources.end(), resourceId ) - usedResources.begin() );
 
-			} break;
-			case LeResourceType::eImage: {
+			if ( resource_index == usedResources.size() ) {
 
-				// For width and height, we place the current swapchain width and height if
-				// given as initially 0.
-				// This allows us to express that we want to allocate images by default at
-				// the same size as the swapchain, which is especially useful with images
-				// which are created as rendertargets.
+				// Resource not found - we must insert elements to fulfill the invariant
+				// that found_index points at the correct elements
 
-				auto const &ci         = createInfo.image;                                     // src info data
-				auto &      imgInfoRef = resourceCreateInfo.imageInfo = vk::ImageCreateInfo{}; // dst info data
-
-				imgInfoRef.flags     = ci.flags;
-				imgInfoRef.imageType = VkImageType( ci.imageType );
-				imgInfoRef.format    = VkFormat( ci.format );
-
-				// check for undefined format
-				if ( 0 == ci.format ) {
-					assert( ci.le_format_flags ); // default format flags must be set, otherwise we're clueless...
-
-					if ( ci.le_format_flags & le_resource_info_t::LE_RESOURCE_FORMAT_FLAG_IS_COLOR ) {
-						// set to default color format
-						imgInfoRef.format = VK_FORMAT_R8G8B8A8_UNORM;
-					} else {
-						// set to default depth stencil format
-						imgInfoRef.format = VK_FORMAT_D32_SFLOAT_S8_UINT;
-					}
-
-				} else {
-					imgInfoRef.format = VkFormat( ci.format );
-				}
-
-				imgInfoRef.extent.width          = ci.extent.width != 0 ? ci.extent.width : pass_width;
-				imgInfoRef.extent.height         = ci.extent.height != 0 ? ci.extent.height : pass_height;
-				imgInfoRef.extent.depth          = ci.extent.depth != 0 ? ci.extent.depth : 1;
-				imgInfoRef.mipLevels             = ci.mipLevels;
-				imgInfoRef.arrayLayers           = ci.arrayLayers != 0 ? ci.arrayLayers : 1;
-				imgInfoRef.samples               = VkSampleCountFlagBits( ci.samples );
-				imgInfoRef.tiling                = VkImageTiling( ci.tiling );
-				imgInfoRef.usage                 = ci.usage;
-				imgInfoRef.sharingMode           = VK_SHARING_MODE_EXCLUSIVE;
-				imgInfoRef.queueFamilyIndexCount = 1;
-				imgInfoRef.pQueueFamilyIndices   = &self->queueFamilyIndexGraphics;
-				imgInfoRef.initialLayout         = VK_IMAGE_LAYOUT_UNDEFINED; // must be either preinitialized or undefined
-
-			} break;
-			case LeResourceType::eUndefined:
-				assert( false ); // Resource Type must be defined at this point.
-			    break;
+				usedResources.push_back( resourceId );
+				usedResourcesInfos.push_back( {} );
 			}
 
-			// -- Add createInfo to set of declared resources
+			// We must ensure that images which are used as Color, or DepthStencil attachments
+			// fit the extents of their renderpass - as this is a Vulkan requirement.
+			//
+			// We do this here, because we know the extents of the renderpass.
+			//
+			// We also need to ensure that the extent has 1 as depth value by default.
 
-			auto it = declaredResources.insert( {resourceId, resourceCreateInfo} );
+			if ( resourceInfo.type == LeResourceType::eImage ) {
 
-			if ( it.second == false ) {
-				auto &storedResource = it.first->second;
-				if ( storedResource == resourceCreateInfo ) {
-					continue; // resource is identical
-				} else {
+				auto &imgInfo   = resourceInfo.image;
+				auto &imgExtent = imgInfo.extent;
 
-					ResourceCreateInfo::ConsolidationResult consolidationResult{};
-					storedResource = ResourceCreateInfo::consolidate( storedResource, resourceCreateInfo, &consolidationResult );
+				if ( imgInfo.usage & ( LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) ) {
 
-					assert( consolidationResult == ResourceCreateInfo::ConsolidationResult::eOk ); // resource was re-declared, we must consolidate the resource before it can be allocated.
+					imgExtent.width  = std::max<uint32_t>( imgExtent.width, pass_width );
+					imgExtent.height = std::max<uint32_t>( imgExtent.height, pass_height );
 				}
-			}
+
+				// depth must be at least 1, but may arrive zero-initialised.
+
+				imgExtent.depth = std::max<uint32_t>( imgExtent.depth, 1 );
+
+			} // end for LeResourceType::Image
+
+			usedResourcesInfos[ resource_index ].emplace_back( resourceInfo );
 
 		} // end for all create resources
 
 	} // end for all passes
 
+	assert( usedResources.size() == usedResourcesInfos.size() );
+
+	// Consolidate usedResourcesInfos so that the first element in the vector of
+	// resourceInfos for a resource covers all intended usages of a resource.
+
+	size_t resouce_index = 0;
+	for ( auto &resourceInfoVersions : usedResourcesInfos ) {
+
+		if ( resourceInfoVersions.empty() )
+			continue;
+
+		// ---------| invariant: there is at least a first element.
+
+		le_resource_info_t *const       first_info = resourceInfoVersions.data();
+		le_resource_info_t const *const info_end   = first_info + resourceInfoVersions.size();
+
+		switch ( first_info->type ) {
+		case LeResourceType::eBuffer: {
+			// Consolidate into first_info, beginning with the second element
+			for ( auto *info = first_info + 1; info != info_end; info++ ) {
+				first_info->buffer.usage |= info->buffer.usage;
+			}
+
+			// Now, we must make sure that the buffer info contains sane values.
+			// TODO: implement sane defaults if possible, or emit an error message.
+			assert( first_info->buffer.usage != 0 );
+			assert( first_info->buffer.size != 0 );
+
+		} break;
+		case LeResourceType::eImage: {
+
+			// Consolidate into first_info, beginning with the second element
+			for ( auto *info = first_info + 1; info != info_end; info++ ) {
+
+				first_info->image.flags |= info->image.flags;
+				first_info->image.usage |= info->image.usage;
+
+				// If an image format was explictly set, this takes precedence over eUndefined.
+				// Note that we skip this block if both infos have the same format.
+
+				if ( info->image.format != le::Format::eUndefined && info->image.format != first_info->image.format ) {
+
+					// ----------| invariant: both formats differ, and second format is not undefined
+
+					if ( first_info->image.format == le::Format::eUndefined ) {
+						first_info->image.format = info->image.format;
+					} else {
+						// Houston, we have a problem!
+						// Two different formats were explicitly specified for this image.
+						assert( false );
+					}
+				}
+			}
+
+			// If the image format is still eUndefined at this point, it might be
+			// possible to infer it from usage flags.
+
+			if ( first_info->image.format == le::Format::eUndefined ) {
+
+				// TODO: query default formats for depth/stencil from device
+
+				const auto &usage = first_info->image.usage;
+
+				if ( usage & ( LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT ) ) {
+					first_info->image.format = le::Format::eR8G8B8A8Unorm;              // TODO: Get default color image format
+				} else if ( usage & ( LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) ) { //
+					first_info->image.format = le::Format::eD32SfloatS8Uint;            // TODO: Get default depth stencil format for device.
+				} else if ( usage & ( LE_IMAGE_USAGE_SAMPLED_BIT ) ) {                  //
+					first_info->image.format = le::Format::eR8G8B8A8Unorm;              // TODO: Get default color image format
+				} else {
+					assert( false ); // we don't have enough information to infer image format.
+				}
+			}
+
+			// TODO: Do a final sanity check to make sure all required fields are valid.
+			// Note: if, for example image width and/or image height were 0, this indicates
+			// that an image is only used for sampling, but has not been fully specified as
+			// a resource. We could then substitute this resource with a statically allocated
+			// error indicator resource (an image which has a grizzly error pattern) for example.
+
+			first_info->image.extent.height = std::max<uint32_t>( first_info->image.extent.height, 1 );
+			first_info->image.extent.width  = std::max<uint32_t>( first_info->image.extent.width, 1 );
+
+			assert( first_info->image.extent.depth != 0 );
+			assert( first_info->image.extent.width != 0 );
+			assert( first_info->image.extent.height != 0 );
+			assert( first_info->image.usage != 0 );
+
+		} break;
+		default:
+		    break;
+		}
+		resouce_index++;
+	}
+
+	// Check if all resources declared in this frame are already available in backend.
+	// If a resource is not available yet, this resource must be allocated.
+
 	auto &backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
 
-	// -- now check if all resources declared in this frame are already available in backend.
+	const size_t usedResourcesSize = usedResources.size();
+	for ( size_t i = 0; i != usedResourcesSize; ++i ) {
 
-	auto allocateResource = []( const VmaAllocator &alloc, const ResourceCreateInfo &resourceInfo ) -> AllocatedResource {
-		AllocatedResource       res{};
-		VmaAllocationCreateInfo allocationCreateInfo{};
-		allocationCreateInfo.flags          = {}; // default flags
-		allocationCreateInfo.usage          = VMA_MEMORY_USAGE_GPU_ONLY;
-		allocationCreateInfo.preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
+		le_resource_handle_t const &resourceId   = usedResources[ i ];
+		le_resource_info_t const &  resourceInfo = usedResourcesInfos[ i ][ 0 ];
 
-		if ( resourceInfo.isBuffer() ) {
-			vmaCreateBuffer( alloc,
-			                 &resourceInfo.bufferInfo,
-			                 &allocationCreateInfo,
-			                 &res.asBuffer,
-			                 &res.allocation,
-			                 &res.allocationInfo );
-		} else {
-			vmaCreateImage( alloc,
-			                &resourceInfo.imageInfo,
-			                &allocationCreateInfo,
-			                &res.asImage,
-			                &res.allocation,
-			                &res.allocationInfo );
-		}
-		res.info = resourceInfo;
-		return res;
-	};
+		// See if a resource with this id is already available to the backend.
 
-	for ( auto &r : declaredResources ) {
+		auto resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo, &self->queueFamilyIndexGraphics, 0 );
 
-		le_resource_handle_t const &resourceId           = r.first;  // hash of resource name
-		ResourceCreateInfo const &  declaredResourceInfo = r.second; // current resourceInfo
+		auto       foundIt            = backendResources.find( resourceId );
+		const bool resourceIdNotFound = ( foundIt == backendResources.end() );
 
-		auto foundIt = backendResources.find( resourceId ); // find an allocated resource with same name as declared resource
+		if ( resourceIdNotFound ) {
 
-		if ( foundIt == backendResources.end() ) {
-			// -- not found, we must allocate this resource and add it to the backend.
-			// then add a reference to it to the current frame.
+			// Resource does not yet exist, we must allocate this resource and add it to the backend.
+			// Then add a reference to it to the current frame.
 
-			auto res = allocateResource( self->mAllocator, declaredResourceInfo );
+			auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo );
 
-			// -- add resource to list of available resources for this frame
-			frame.availableResources.emplace( resourceId, res );
+			// Add resource to map of available resources for this frame
+			frame.availableResources.insert( {resourceId, allocatedResource} );
 
-			// -- add resource to backend
-			backendResources.insert_or_assign( resourceId, res );
+			// Add this newly allocated resource to the backend so that the following frames
+			// may use it, too
+			backendResources.insert_or_assign( resourceId, allocatedResource );
 
 		} else {
-			// check if resource create info matches.
 
-			auto &resourceInfo = foundIt->second.info;
+			// If an existing resource has been found, we must check that it
+			// was allocated with the same properties as the resource we require
 
-			if ( resourceInfo == declaredResourceInfo ) {
+			auto &foundResourceCreateInfo = foundIt->second.info;
+
+			if ( foundResourceCreateInfo == resourceCreateInfo ) {
+
 				// -- descriptor matches.
-				// add a copy of this resource allocation to the current frame.
-
+				// Add a copy of this resource allocation to the current frame.
 				frame.availableResources.emplace( resourceId, foundIt->second );
 
 			} else {
-				// -- descriptor does not match. We must re-allocate this resource, and add the old version of the resource to the recycling bin.
+
+				// -- descriptor does not match.
+
+				// We must re-allocate this resource, and add the old version of the resource to the recycling bin.
 
 				// -- allocate a new resource
 
-				auto res = allocateResource( self->mAllocator, declaredResourceInfo );
+				auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo );
 
 				// Add a copy of old resource to recycling bin for this frame, so that
 				// these resources get freed when this frame comes round again.
 				//
-				// We don't immediately delete the resources, as in-flight frames
+				// We don't immediately delete the resources, as in-flight (preceding) frames
 				// might still be using them.
 				frame.binnedResources.try_emplace( resourceId, foundIt->second );
 
-				//
-				frame.availableResources.emplace( resourceId, res );
+				// add the new version of the resource to frame available resources
+				frame.availableResources.insert( {resourceId, allocatedResource} );
 
-				// remove old version of resource from backend, and
+				// Remove old version of resource from backend, and
 				// add new version of resource to backend
-				backendResources.insert_or_assign( resourceId, res );
+				backendResources.insert_or_assign( resourceId, allocatedResource );
 			}
 		}
-	}
+	} // end for all used resources
+
+	// If we locked backendResources with a mutex, this would be the right place to release it.
 }
 
 static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Device const &device, le_renderpass_o **passes, size_t numRenderPasses ) {
@@ -2397,19 +2515,18 @@ static le_resource_info_t get_default_resource_info_for_image() {
 
 	res.type = LeResourceType::eImage;
 	{
-		auto &img           = res.image;
-		img.flags           = 0;
-		img.format          = VK_FORMAT_UNDEFINED; // TODO: query this via device
-		img.arrayLayers     = 1;
-		img.extent.width    = 0;
-		img.extent.height   = 0;
-		img.extent.depth    = 1;
-		img.usage           = LE_IMAGE_USAGE_SAMPLED_BIT;
-		img.mipLevels       = 1;
-		img.samples         = VK_SAMPLE_COUNT_1_BIT;
-		img.imageType       = VK_IMAGE_TYPE_2D;
-		img.tiling          = VK_IMAGE_TILING_OPTIMAL;
-		img.le_format_flags = le_resource_info_t::LE_RESOURCE_FORMAT_FLAG_IS_COLOR;
+		auto &img         = res.image;
+		img.flags         = 0;
+		img.format        = le::Format::eUndefined;
+		img.arrayLayers   = 1;
+		img.extent.width  = 0;
+		img.extent.height = 0;
+		img.extent.depth  = 1;
+		img.usage         = LE_IMAGE_USAGE_SAMPLED_BIT;
+		img.mipLevels     = 1;
+		img.samples       = VK_SAMPLE_COUNT_1_BIT;
+		img.imageType     = VK_IMAGE_TYPE_2D;
+		img.tiling        = VK_IMAGE_TILING_OPTIMAL;
 	}
 
 	return res;
@@ -2420,19 +2537,18 @@ static le_resource_info_t get_default_resource_info_for_color_attachment() {
 
 	res.type = LeResourceType::eImage;
 	{
-		auto &img           = res.image;
-		img.flags           = 0;
-		img.format          = VK_FORMAT_UNDEFINED; // TODO: query this via device
-		img.arrayLayers     = 1;
-		img.extent.width    = 0;
-		img.extent.height   = 0;
-		img.extent.depth    = 1;
-		img.usage           = LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		img.mipLevels       = 1;
-		img.samples         = VK_SAMPLE_COUNT_1_BIT;
-		img.imageType       = VK_IMAGE_TYPE_2D;
-		img.tiling          = VK_IMAGE_TILING_OPTIMAL;
-		img.le_format_flags = le_resource_info_t::LE_RESOURCE_FORMAT_FLAG_IS_COLOR;
+		auto &img         = res.image;
+		img.flags         = 0;
+		img.format        = le::Format::eUndefined;
+		img.arrayLayers   = 1;
+		img.extent.width  = 0;
+		img.extent.height = 0;
+		img.extent.depth  = 1;
+		img.usage         = LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+		img.mipLevels     = 1;
+		img.samples       = VK_SAMPLE_COUNT_1_BIT;
+		img.imageType     = VK_IMAGE_TYPE_2D;
+		img.tiling        = VK_IMAGE_TILING_OPTIMAL;
 	}
 
 	return res;
@@ -2443,19 +2559,18 @@ static le_resource_info_t get_default_resource_info_for_depth_stencil_attachment
 
 	res.type = LeResourceType::eImage;
 	{
-		auto &img           = res.image;
-		img.flags           = 0;
-		img.format          = VK_FORMAT_UNDEFINED; // TODO: query this via device
-		img.arrayLayers     = 1;
-		img.extent.width    = 0;
-		img.extent.height   = 0;
-		img.extent.depth    = 1;
-		img.usage           = LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-		img.mipLevels       = 1;
-		img.samples         = VK_SAMPLE_COUNT_1_BIT;
-		img.imageType       = VK_IMAGE_TYPE_2D;
-		img.tiling          = VK_IMAGE_TILING_OPTIMAL;
-		img.le_format_flags = le_resource_info_t::LE_RESOURCE_FORMAT_FLAG_IS_DEPTH;
+		auto &img         = res.image;
+		img.flags         = 0;
+		img.format        = le::Format::eUndefined;
+		img.arrayLayers   = 1;
+		img.extent.width  = 0;
+		img.extent.height = 0;
+		img.extent.depth  = 1;
+		img.usage         = LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+		img.mipLevels     = 1;
+		img.samples       = VK_SAMPLE_COUNT_1_BIT;
+		img.imageType     = VK_IMAGE_TYPE_2D;
+		img.tiling        = VK_IMAGE_TILING_OPTIMAL;
 	}
 
 	return res;
@@ -2467,7 +2582,7 @@ static le_resource_info_t get_default_resource_info_for_buffer() {
 	le_resource_info_t res;
 	res.type         = LeResourceType::eBuffer;
 	res.buffer.size  = 0;
-	res.buffer.usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	res.buffer.usage = LE_BUFFER_USAGE_TRANSFER_DST_BIT;
 	return res;
 }
 

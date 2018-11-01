@@ -251,23 +251,13 @@ class ImageInfoBuilder : NoCopy, NoMove {
 	ImageInfoBuilder()  = default;
 	~ImageInfoBuilder() = default;
 
-	ImageInfoBuilder &setFormat( int format ) {
+	ImageInfoBuilder &setFormat( Format format ) {
 		img.format = format;
 		return *this;
 	}
 
 	ImageInfoBuilder &setCreateFlags( uint32_t flags = 0 ) {
 		img.flags = flags;
-		return *this;
-	}
-
-	ImageInfoBuilder &setDefaultFormatIsDepth() {
-		img.le_format_flags = le_resource_info_t::LE_RESOURCE_FORMAT_FLAG_IS_DEPTH;
-		return *this;
-	}
-
-	ImageInfoBuilder &setDefaultFormatIsColor() {
-		img.le_format_flags = le_resource_info_t::LE_RESOURCE_FORMAT_FLAG_IS_COLOR;
 		return *this;
 	}
 
@@ -283,12 +273,12 @@ class ImageInfoBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	ImageInfoBuilder &setUsageFlags( uint32_t usageFlagBits ) {
+	ImageInfoBuilder &setUsageFlags( LeImageUsageFlags usageFlagBits ) {
 		img.usage = usageFlagBits;
 		return *this;
 	}
 
-	ImageInfoBuilder &addUsageFlags( uint32_t usageFlagBits ) {
+	ImageInfoBuilder &addUsageFlags( LeImageUsageFlags usageFlagBits ) {
 		img.usage |= usageFlagBits;
 		return *this;
 	}
