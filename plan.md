@@ -7,16 +7,10 @@
 
 # TODO
 
-* Better distinguish between renderpass types when creating vulkan command
-  buffers
-
-* Rename internal structure to `Batch` instead of `Renderpass` in backend.
-
 ## (A)
 
 
 ## (B)
-
 
 - the way we use LeImageAttachmentInfo is over-specified - it would be
   great to find a more terse struct, which does not cross the abstraction
@@ -30,18 +24,22 @@
 - what should we do with "orphaned" resources? that's resources which were
   not provided by previous passes, but are used by following passes...
   currently, these get re-allocated to default values - which means that
-  images eventually get the backbuffer extent in memory, even if they are
-  not used. this is nice, because it doesn't crash, but i can imagine that
-  we might want to have a better way for dealing with this.
+  images eventually get the backbuffer extent in memory, even if they
+  are not used. this is nice, because it doesn't crash, but i can imagine
+  that we might want to have a better way for dealing with this.
 
 - provide current pass extents in encoders
+
 - add default scissors, viewports to encoder matching current renderpass
   extents
+
 - clean up swapchain extents gathering (we currently record before we have
   an image acquied, right?)
 
 ## (C)
+
 - use opaque handle to reference pso instead of bare `uint64_t`
+
 - find a better way to store window surface- it should probably live
   inside the backend, tagged with window name, or perhaps it should be
   owned by the swapchain which uses it, so that it can be deleted at the
@@ -54,7 +52,17 @@
   for images. We should have something which matches `sampleTexture`, e.g.
   `readBuffer` or `readWriteBuffer` depending on usage.
 
+- Better distinguish between renderpass types when creating vulkan command
+  buffers
 
+- Rename internal structure to `Batch` instead of `Renderpass` in backend
+  because batch may fit better for *resource transfer*, *compute*, or
+  *draw*.
+
+- LeImageAttachmentInfo is not very discoverable - we need to think about
+  a better way to set properties for attachments
+
+- fix debug printouts for le::AttachmentLoad/StoreOp
 
 ----------------------------------------------------------------------
 
