@@ -68,6 +68,15 @@
   owned by the swapchain which uses it, so that it can be deleted at the
   correct time. 
 
+## (Unsorted)
+
+- api for creating a buffer is not specific enough right now,
+  `renderpass.createResource` should be used, but this can also be used
+  for images. We should have something which matches `sampleTexture`, e.g.
+  `readBuffer` or `readWriteBuffer` depending on usage.
+
+
+
 ----------------------------------------------------------------------
 
 # STRATEGY
