@@ -24,6 +24,9 @@
 
 ## (A)
 
+- when inferring the default format, use queried defaults from the
+  backend, not hardcoded defaults
+
 - format detection for image resources: we need to find a way to insert
   defaults in a sane way, and to reduce complexity. currently, default
   formats are set implicitly, but it would be better to note down if
