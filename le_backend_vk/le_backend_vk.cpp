@@ -104,47 +104,49 @@ struct ResourceCreateInfo {
 
 // ------------------------------------------------------------
 
-static inline VkAttachmentStoreOp le_to_vk( const LeAttachmentStoreOp &lhs ) noexcept {
-	switch ( lhs ) {
-	case ( LE_ATTACHMENT_STORE_OP_STORE ):
-	    return VK_ATTACHMENT_STORE_OP_STORE;
-	case ( LE_ATTACHMENT_STORE_OP_DONTCARE ):
-	    return VK_ATTACHMENT_STORE_OP_DONT_CARE;
-	}
-	assert( false ); // if control ends here, something is wrong, as switch must cover all cases
-	return VK_ATTACHMENT_STORE_OP_DONT_CARE;
+static inline vk::AttachmentStoreOp le_to_vk( const le::AttachmentStoreOp &lhs ) noexcept {
+	return vk::AttachmentStoreOp( lhs );
 }
 
 // ----------------------------------------------------------------------
-static inline VkAttachmentLoadOp le_to_vk( const LeAttachmentLoadOp &lhs ) noexcept {
-	switch ( lhs ) {
-	case ( LE_ATTACHMENT_LOAD_OP_LOAD ):
-	    return VK_ATTACHMENT_LOAD_OP_LOAD;
-	case ( LE_ATTACHMENT_LOAD_OP_CLEAR ):
-	    return VK_ATTACHMENT_LOAD_OP_CLEAR;
-	case ( LE_ATTACHMENT_LOAD_OP_DONTCARE ):
-	    return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-	}
-	assert( false ); // if control ends here, something is wrong, as switch must cover all cases
-	return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+static inline vk::AttachmentLoadOp le_to_vk( const le::AttachmentLoadOp &lhs ) noexcept {
+	return vk::AttachmentLoadOp( lhs );
 }
 
 // ----------------------------------------------------------------------
 
 static inline constexpr vk::Format le_to_vk( const le::Format &format ) noexcept {
-	vk::Format result{};
-
-	// for now, we assume that
-	result = vk::Format( format );
-
-	return result;
+	return vk::Format( format );
 }
 
 // ----------------------------------------------------------------------
 
 static inline const vk::ClearValue &le_to_vk( const LeClearValue &lhs ) {
-	static_assert( sizeof( vk::ClearValue ) == sizeof( LeClearValue ), "clear value must be of equal size" );
+	static_assert( sizeof( vk::ClearValue ) == sizeof( LeClearValue ), "Clear value type size must be equal between Le and Vk" );
 	return reinterpret_cast<const vk::ClearValue &>( lhs );
+}
+
+// ----------------------------------------------------------------------
+
+static inline constexpr vk::SampleCountFlagBits le_to_vk( const le::SampleCountFlagBits &rhs ) noexcept {
+	return vk::SampleCountFlagBits( rhs );
+}
+
+// ----------------------------------------------------------------------
+
+static inline constexpr vk::ImageTiling le_to_vk( const le::ImageTiling &rhs ) noexcept {
+	return vk::ImageTiling( rhs );
+}
+// ----------------------------------------------------------------------
+
+static inline constexpr vk::ImageUsageFlagBits le_to_vk( const LeImageUsageFlags &rhs ) noexcept {
+	return vk::ImageUsageFlagBits( rhs );
+}
+
+// ----------------------------------------------------------------------
+
+static inline constexpr vk::ImageType le_to_vk( const le::ImageType &rhs ) noexcept {
+	return vk::ImageType( rhs );
 }
 
 // ----------------------------------------------------------------------
@@ -167,14 +169,14 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 		auto const &img = info.image;
 		res.imageInfo   = vk::ImageCreateInfo()
 		                    .setFlags( vk::ImageCreateFlags( img.flags ) )                        // TODO: check conversion from le->vk
-		                    .setImageType( vk::ImageType::e2D )                                   // TODO: check conversion from le->vk
+		                    .setImageType( le_to_vk( img.imageType ) )                            // TODO: check conversion from le->vk
 		                    .setFormat( le_to_vk( img.format ) )                                  // TODO: check conversion from le->vk
 		                    .setExtent( {img.extent.width, img.extent.height, img.extent.depth} ) //
 		                    .setMipLevels( img.mipLevels )                                        //
 		                    .setArrayLayers( img.arrayLayers )                                    //
-		                    .setSamples( vk::SampleCountFlagBits( img.samples ) )                 // TODO: check conversion for vk::SampleCountFlagBits
-		                    .setTiling( vk::ImageTiling( img.tiling ) )                           // TODO: check conversion for vk::ImageTiling
-		                    .setUsage( vk::ImageUsageFlags{img.usage} )                           // TODO: check conversion for ImageUsageFlags
+		                    .setSamples( le_to_vk( img.samples ) )                                // TODO: check conversion for vk::SampleCountFlagBits
+		                    .setTiling( le_to_vk( img.tiling ) )                                  // TODO: check conversion for vk::ImageTiling
+		                    .setUsage( le_to_vk( img.usage ) )                                    // TODO: check conversion for ImageUsageFlags
 		                    .setSharingMode( vk::SharingMode::eExclusive )                        // TODO: check conversion for sharingMode
 		                    .setQueueFamilyIndexCount( queueFamilyIndexCount )                    //
 		                    .setPQueueFamilyIndices( pQueueFamilyIndices )                        //
@@ -734,7 +736,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 				auto &previousSyncState = syncChain.back();
 				auto  beforeSubpass{previousSyncState};
 
-				if ( imageAttachment->loadOp == LE_ATTACHMENT_LOAD_OP_LOAD ) {
+				if ( imageAttachment->loadOp == le::AttachmentLoadOp::eLoad ) {
 					// resource.loadOp most be LOAD
 
 					// we must now specify which stages need to be visible for which coming memory access

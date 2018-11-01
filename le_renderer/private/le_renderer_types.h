@@ -114,16 +114,6 @@ enum LeRenderPassType : uint32_t {
         LE_RENDER_PASS_TYPE_COMPUTE   = 3,
 };
 
-enum LeAttachmentStoreOp : uint32_t {
-        LE_ATTACHMENT_STORE_OP_STORE    = 0, // << most common case
-        LE_ATTACHMENT_STORE_OP_DONTCARE = 1,
-};
-
-enum LeAttachmentLoadOp : uint32_t {
-        LE_ATTACHMENT_LOAD_OP_CLEAR    = 0, // << most common case
-        LE_ATTACHMENT_LOAD_OP_LOAD     = 1,
-        LE_ATTACHMENT_LOAD_OP_DONTCARE = 2,
-};
 
 
 
@@ -181,6 +171,18 @@ struct LeShaderTypeEnum{
 
 
 namespace le{
+
+enum class AttachmentStoreOp : uint32_t {
+        eStore= 0, // << most common case
+        eDontCare = 1,
+};
+
+enum AttachmentLoadOp : uint32_t {
+        eLoad     = 0,
+        eClear = 1, // << most common case
+        eDontCare = 2,
+};
+
 
 enum class ImageType : uint32_t {
     e1D = 0,
@@ -552,8 +554,8 @@ struct LeImageAttachmentInfo {
         static constexpr LeClearValue DefaultClearValueColor        = {{{{{0.f, 0.f, 0.f, 0.f}}}}};
         static constexpr LeClearValue DefaultClearValueDepthStencil = {{{{{1.f, 0}}}}};
 
-	LeAttachmentLoadOp  loadOp       = LE_ATTACHMENT_LOAD_OP_CLEAR;  //
-	LeAttachmentStoreOp storeOp      = LE_ATTACHMENT_STORE_OP_STORE; //
+	    le::AttachmentLoadOp  loadOp       = le::AttachmentLoadOp::eClear;  //
+	    le::AttachmentStoreOp storeOp      = le::AttachmentStoreOp::eStore; //
 	LeClearValue        clearValue   = DefaultClearValueColor;       // only used if loadOp == clear
 
 	le_resource_handle_t resource_id{}; // (private - do not set) handle given to this attachment
@@ -561,9 +563,7 @@ struct LeImageAttachmentInfo {
 };
 
 static constexpr LeImageAttachmentInfo LeDepthAttachmentInfo(){
-    auto info       = LeImageAttachmentInfo();
-    info.loadOp     = LE_ATTACHMENT_LOAD_OP_CLEAR;
-    info.storeOp    = LE_ATTACHMENT_STORE_OP_STORE;
+    auto info       = LeImageAttachmentInfo{};
     info.clearValue = LeImageAttachmentInfo::DefaultClearValueDepthStencil;
     return info;
 }
