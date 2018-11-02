@@ -1,0 +1,160 @@
+#!/usr/bin/python
+
+# NOTE: THIS FILE DEPENDS ON AN EXTERNAL PYTHON LIBRARY, PYCPARSER:
+# pip install pycparser
+
+import sys, re
+from os import getenv
+
+# This is not required if you've installed pycparser into
+# your site-packages/ with setup.py
+#
+sys.path.extend(['.', '..'])
+
+from pycparser import c_parser, c_ast, parse_file
+
+
+def common_from_start(sa, sb):
+	""" returns the longest common substring from the beginning of sa and sb """
+	def _iter():
+		for a, b in zip(sa, sb):
+			if a == b:
+				yield a
+			else:
+				return
+
+	return ''.join(_iter())
+
+def to_camel_case(snake_str):
+	components = snake_str.split('_')
+	# We capitalize the first letter of each component 
+	# with the 'capitalize' method and join them together.
+	pass1 = ''.join(x.title() for x in components)
+	# We need to account for strings which have 'x' between numbers,
+	# meaning a stylised multiplication sign, as in "2x2" - this happens
+	# when the 'x' is placed between two numbers - as is the case with 
+	# with image formats. In this case, we want the "x" lower-cased.
+	pass1 = re.sub('([0-9]+[X]{1}[0-9]+)', lambda pat: pat.group(1).lower(), pass1)
+	return pass1
+
+def to_upper_snake_case(name):
+	s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+	return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).upper()
+
+
+# A visitor with some state information (the funcname it's looking for)
+class EnumVisitor(c_ast.NodeVisitor):
+	def __init__(self, enumName):
+		self.enumName = enumName
+		self.indent_level = 0
+		self.length_enum_prelude = 0
+		self.enum_name = ''
+
+	def _make_indent(self):
+		return '\t' * self.indent_level
+
+	def visit(self, node):
+		method = 'visit_' + node.__class__.__name__
+		return getattr(self, method, self.generic_visit)(node)
+
+	def generic_visit(self, node):
+		#~ print('generic:', type(node))
+		if node is None:
+			return ''
+		else:
+			return ''.join(self.visit(c) for c_name, c in node.children())
+
+	def to_le_enum_name(self, n):
+		name = n
+		# We must remove the last "_BIT", in case the field was a flag ENUM
+		if (name.endswith("_BIT")):
+			name = name[:-4]
+
+		return 'e' + to_camel_case(name[self.length_enum_prelude:])
+
+
+	def visit_Enum(self, n):
+		if (n.name == self.enumName):
+			return self._generate_enum(n, name='enum')
+		else:
+			return ''
+
+	def visit_ID(self, n):
+		return self.to_le_enum_name(n.name)
+
+	def visit_Enumerator(self, n):
+		if (len(n.name) and self.length_enum_prelude == 0):
+			c_enum_prelude = to_upper_snake_case(self.enumName)
+			self.length_enum_prelude = len(common_from_start(c_enum_prelude, n.name))
+		if not n.value:
+			return '{indent}{name},\n'.format(
+				indent=self._make_indent(),
+				name=n.name,
+			)
+		else:
+			if (n.value.__class__.__name__ == "Constant"):
+				return '{indent}{name} = {value},\n'.format(
+					indent=self._make_indent(),
+					name = self.to_le_enum_name(n.name),
+					value=n.value.value,
+				)
+			elif (n.value.__class__.__name__ == "ID"):
+				return '{indent}{name} = {value},\n'.format(
+					indent=self._make_indent(),
+					name = self.to_le_enum_name(n.name),
+					value = self.visit(n.value),
+				)
+			else:
+				return ''
+
+	def _generate_enum(self, n, name):
+		""" Generates code for enums. name should be
+			'enum'.
+		"""
+		assert name == 'enum'
+		members = None if n.values is None else n.values.enumerators
+		s = name + ' class ' + (self._remove_vk_prefix(n.name) or '')
+		if members is not None:
+			# None means no members
+			# Empty sequence means an empty list of members
+			s += '\n'
+			s += self._make_indent()
+			self.indent_level += 2
+			s += '{\n'
+			s += self._generate_enum_body(members)
+			self.indent_level -= 2
+			s += self._make_indent() + '};'
+		return s
+
+	def _generate_enum_body(self, members):
+		return ''.join(self.visit(value) for value in members)
+
+	def _remove_vk_prefix(self, name):
+		return name[2:]
+
+
+if __name__ == "__main__":
+	if len(sys.argv) > 1:
+		VkEnumName = sys.argv[1]
+	else:
+		VkEnumName = 'VkSampleCountFlagBits'
+
+# TODO: Add error check for whether $VULKAN_SDK is available
+
+vulkan_include_path = getenv("VULKAN_SDK") + '/include/vulkan'
+
+# print vulkan_include_path
+
+ast = parse_file('include_vk_header.c', use_cpp=True,
+			cpp_path='gcc',
+			cpp_args=['-E', r'-I' + vulkan_include_path, r"-std=c99"])
+
+v = EnumVisitor(VkEnumName)
+a = v.visit(ast)
+
+print (a)
+
+
+
+# ast.show()
+
