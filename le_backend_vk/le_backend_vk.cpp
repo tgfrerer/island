@@ -1392,7 +1392,8 @@ VkFormat infer_image_format_from_le_image_usage_flags( LeImageUsageFlags flags )
 }
 
 // ----------------------------------------------------------------------
-
+// Allocates and creates a physical vulkan resource using vmaAlloc given an allocator
+// Returns an AllocatedResourceVk, currently does not do any error checking.
 static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &alloc, const ResourceCreateInfo &resourceInfo ) {
 	AllocatedResourceVk     res{};
 	VmaAllocationCreateInfo allocationCreateInfo{};
@@ -1420,7 +1421,24 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 };
 
 // ----------------------------------------------------------------------
-
+// Allocates all physical Vulkan memory resources (Images/Buffers) referenced to by the frame.
+//
+// - If a resource is already available to the backend, the previously allocated resource is
+//   copied into the frame.
+// - If a resource has not yet been seen, it is freshly allocated, then made available to the
+//   the frame. It is also copied to the backend, so that the following frames may access it.
+// - If a resource is requested with properties differing from a resource with the same handle
+//   available from the backend, the previous resource is placed in the frame bin for recycling,
+//   and a new resource is allocated and copied to the frame. This resource in the backend is
+//   replaced by the new version, too. (Effectively, the frame has taken ownership of the old
+//   version and keeps it until it disposes of it).
+// - If there are resources in the recycling bin of a frame, these will get freed. Freeing
+//   happens as a first step, so that resources are only freed once the frame has "come around"
+//   so that earlier frames which may still use the old version of the resource can have no claim
+//   on the old version of the resource anymore.
+//
+// We are currently not checking for "orphaned" resources (resources which are available in the
+// backend, but not used by the frame) - these could possibly be recycled, too.
 static void backend_allocate_resources( le_backend_o *self, BackendFrameData &frame, le_renderpass_o **passes, size_t numRenderPasses ) {
 
 	/*
@@ -1432,7 +1450,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 	{
 		// -- first it is our holy duty to drop any binned resources which were condemned the last time this frame was active.
-		// It's possible that this is more than two screen refreshes ago, depending on how many swapchain images there are.
+		// It's possible that this was more than two frames ago, depending on how many swapchain images there are.
 		vk::Device device = self->device->getVkDevice();
 
 		for ( auto &a : frame.binnedResources ) {
