@@ -9,6 +9,8 @@
 
 ## (A)
 
+- when inferring the default format, use queried defaults from the
+  backend, not hardcoded defaults
 
 ## (B)
 
