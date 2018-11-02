@@ -121,6 +121,12 @@ static inline constexpr vk::Format le_to_vk( const le::Format &format ) noexcept
 
 // ----------------------------------------------------------------------
 
+static inline constexpr le::Format vk_to_le( const vk::Format &format ) noexcept {
+	return le::Format( format );
+}
+
+// ----------------------------------------------------------------------
+
 static inline const vk::ClearValue &le_to_vk( const LeClearValue &lhs ) {
 	static_assert( sizeof( vk::ClearValue ) == sizeof( LeClearValue ), "Clear value type size must be equal between Le and Vk" );
 	return reinterpret_cast<const vk::ClearValue &>( lhs );
@@ -169,15 +175,15 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 		auto const &img = info.image;
 		res.imageInfo   = vk::ImageCreateInfo()
 		                    .setFlags( vk::ImageCreateFlags( img.flags ) )                        // TODO: check conversion from le->vk
-		                    .setImageType( le_to_vk( img.imageType ) )                            // TODO: check conversion from le->vk
-		                    .setFormat( le_to_vk( img.format ) )                                  // TODO: check conversion from le->vk
+		                    .setImageType( le_to_vk( img.imageType ) )                            //
+		                    .setFormat( le_to_vk( img.format ) )                                  //
 		                    .setExtent( {img.extent.width, img.extent.height, img.extent.depth} ) //
 		                    .setMipLevels( img.mipLevels )                                        //
 		                    .setArrayLayers( img.arrayLayers )                                    //
-		                    .setSamples( le_to_vk( img.samples ) )                                // TODO: check conversion for vk::SampleCountFlagBits
-		                    .setTiling( le_to_vk( img.tiling ) )                                  // TODO: check conversion for vk::ImageTiling
-		                    .setUsage( le_to_vk( img.usage ) )                                    // TODO: check conversion for ImageUsageFlags
-		                    .setSharingMode( vk::SharingMode::eExclusive )                        // TODO: check conversion for sharingMode
+		                    .setSamples( le_to_vk( img.samples ) )                                //
+		                    .setTiling( le_to_vk( img.tiling ) )                                  //
+		                    .setUsage( le_to_vk( img.usage ) )                                    //
+		                    .setSharingMode( vk::SharingMode::eExclusive )                        // hardcoded to Exclusive - no sharing between queues
 		                    .setQueueFamilyIndexCount( queueFamilyIndexCount )                    //
 		                    .setPQueueFamilyIndices( pQueueFamilyIndices )                        //
 		                    .setInitialLayout( vk::ImageLayout::eUndefined )                      // must be either pre-initialised, or undefined (most likely)
@@ -206,17 +212,20 @@ struct AllocatedResourceVk {
 
 // ------------------------------------------------------------
 
-// herein goes all data which is associated with the current frame
-// backend keeps track of multiple frames, exactly one per renderer::FrameData frame.
+// Herein goes all data which is associated with the current frame.
+// Backend keeps track of multiple frames, exactly one per renderer::FrameData frame.
+//
+// We do this so that frames own their own memory exclusively, as long as a
+// frame only operates only on its own memory, it will never see contention
+// with other threads processing other frames concurrently.
 struct BackendFrameData {
 	vk::Fence                      frameFence               = nullptr;
 	vk::Semaphore                  semaphoreRenderComplete  = nullptr;
 	vk::Semaphore                  semaphorePresentComplete = nullptr;
 	vk::CommandPool                commandPool              = nullptr;
 	uint32_t                       swapchainImageIndex      = uint32_t( ~0 );
-	uint32_t                       swapchainWidth           = 0; // swapchain may be resized, therefore it needs to be stored with frame
-	uint32_t                       swapchainHeight          = 0; // swapchain may be resized, therefore it needs to be stored with frame
-	uint32_t                       padding                  = 0; // NOTICE: remove if needed.
+	uint32_t                       swapchainWidth           = 0; // Swapchain may be resized, therefore it needs to be stored with frame
+	uint32_t                       swapchainHeight          = 0; // Swapchain may be resized, therefore it needs to be stored with frame
 	std::vector<vk::CommandBuffer> commandBuffers;
 
 	struct Texture {
@@ -284,22 +293,29 @@ struct le_backend_o {
 
 	std::unique_ptr<pal::Window>   window; // non-owning
 	std::unique_ptr<le::Swapchain> swapchain;
-	vk::Format                     swapchainImageFormat = {}; ///< default image format used for swapchain (backbuffer image must be in this format)
 
+	// Default color formats are inferred during setup() based on
+	// swapchain surface (color) and device properties (depth/stencil)
+	vk::Format swapchainImageFormat                = {}; ///< default image format used for swapchain (backbuffer image must be in this format)
+	le::Format defaultFormatColorAttachment        = {}; ///< default image format used for color attachments
+	le::Format defaultFormatDepthStencilAttachment = {}; ///< default image format used for depth stencil attachments
+	le::Format defaultFormatSampledImage           = {}; ///< default image format used for sampled images
+
+	// Siloed per-frame memory
 	std::vector<BackendFrameData> mFrames;
 
 	le_pipeline_manager_o *pipelineCache = nullptr;
 
 	VmaAllocator mAllocator = nullptr;
 
-	uint32_t queueFamilyIndexGraphics = 0; // set during setup
-	uint32_t queueFamilyIndexCompute  = 0; // set during setup
+	uint32_t queueFamilyIndexGraphics = 0; // inferred during setup
+	uint32_t queueFamilyIndexCompute  = 0; // inferred during setup
 
 	const le_resource_handle_t backBufferImageHandle = LE_IMG_RESOURCE( "Backbuffer-Image" ); // opaque handle identifying the backbuffer image, initialised in setup()
 
 	struct {
-		std::unordered_map<le_resource_handle_t, AllocatedResourceVk, LeResourceHandleIdentity> allocatedResources; // allocated resources, indexed by resource name hash
-	} only_backend_allocate_resources_may_access;                                                                   // only acquire_physical_resources may read/write
+		std::unordered_map<le_resource_handle_t, AllocatedResourceVk, LeResourceHandleIdentity> allocatedResources; // Allocated resources, indexed by resource name hash
+	} only_backend_allocate_resources_may_access;                                                                   // Only acquire_physical_resources may read/write
 
 	const vk::BufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =
 	    vk::BufferUsageFlagBits::eIndexBuffer |
@@ -606,6 +622,20 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 		}
 
 		self->mFrames.emplace_back( std::move( frameData ) );
+	}
+
+	{
+		// Set default image formats
+
+		using namespace le_backend_vk;
+
+		self->defaultFormatColorAttachment        = vk_to_le( self->swapchainImageFormat );
+		self->defaultFormatDepthStencilAttachment = vk_to_le( vk_device_i.get_default_depth_stencil_format( *self->device ) );
+
+		// We hard-code default format for sampled images, since this is the most likely
+		// format we will encounter bitmaps to be encoded in, and there is no good way
+		// to infer it.
+		self->defaultFormatSampledImage = le::Format::eR8G8B8A8Unorm;
 	}
 
 	// CHECK: this is where we used to create the vulkan pipeline cache object
@@ -1621,11 +1651,11 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				const auto &usage = first_info->image.usage;
 
 				if ( usage & ( LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT ) ) {
-					first_info->image.format = le::Format::eR8G8B8A8Unorm;              // TODO: Get default color image format
-				} else if ( usage & ( LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) ) { //
-					first_info->image.format = le::Format::eD32SfloatS8Uint;            // TODO: Get default depth stencil format for device.
-				} else if ( usage & ( LE_IMAGE_USAGE_SAMPLED_BIT ) ) {                  //
-					first_info->image.format = le::Format::eR8G8B8A8Unorm;              // TODO: Get default color image format
+					first_info->image.format = self->defaultFormatColorAttachment;        // TODO: Get default color image format
+				} else if ( usage & ( LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) ) {   //
+					first_info->image.format = self->defaultFormatDepthStencilAttachment; // TODO: Get default depth stencil format for device.
+				} else if ( usage & ( LE_IMAGE_USAGE_SAMPLED_BIT ) ) {                    //
+					first_info->image.format = self->defaultFormatSampledImage;           // TODO: Get default color image format
 				} else {
 					assert( false ); // we don't have enough information to infer image format.
 				}

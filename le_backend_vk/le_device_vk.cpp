@@ -360,9 +360,8 @@ VkQueue device_get_default_compute_queue( le_backend_vk_device_o *self_ ) {
 
 // ----------------------------------------------------------------------
 
-VkFormatWrapper device_get_default_depth_stencil_format( le_backend_vk_device_o *self ) {
-	VkFormatWrapper res{static_cast<VkFormat>( self->defaultDepthStencilFormat )};
-	return res;
+VkFormatEnum device_get_default_depth_stencil_format( le_backend_vk_device_o *self ) {
+	return {self->defaultDepthStencilFormat};
 }
 
 // ----------------------------------------------------------------------

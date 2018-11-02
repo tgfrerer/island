@@ -13,9 +13,36 @@
 constexpr uint8_t VK_MAX_BOUND_DESCRIPTOR_SETS = 8;
 constexpr uint8_t VK_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color attachments to a renderpass
 
-struct VkFormatWrapper {
-	VkFormat format;
+// ----------------------------------------------------------------------
+// Preprocessor Macro utilities
+//
+
+// Wraps an enum of `enum_name` in a struct with `struct_name` so
+// that it can be opaquely passed around, then unwrapped.
+#define LE_WRAP_ENUM_IN_STRUCT( enum_name, struct_name ) \
+	struct struct_name {                                 \
+	    enum_name data;                                  \
+	    operator const enum_name &() const {             \
+	        return data;                                 \
+	    }                                                \
+	    operator enum_name &() {                         \
+	        return data;                                 \
+	    }                                                \
+	}
+
+// ----------------------------------------------------------------------
+// Utility methods
+//
+template <typename T>
+static constexpr typename std::underlying_type<T>::type enumToNum( const T &enumVal ) {
+	return static_cast<typename std::underlying_type<T>::type>( enumVal );
 };
+
+// ----------------------------------------------------------------------
+
+LE_WRAP_ENUM_IN_STRUCT( vk::Format, VkFormatEnum ); // define wrapper struct `VkFormatEnum`
+
+// ----------------------------------------------------------------------
 
 struct le_graphics_pipeline_builder_data {
 
@@ -133,10 +160,4 @@ struct LeRenderPass {
 	uint64_t        renderpassHash; ///< spooky hash of elements that could influence renderpass compatibility
 
 	struct le_command_buffer_encoder_o *encoder;
-};
-
-// ----------------------------------------------------------------------
-template <typename T>
-static constexpr typename std::underlying_type<T>::type enumToNum( const T &enumVal ) {
-	return static_cast<typename std::underlying_type<T>::type>( enumVal );
 };

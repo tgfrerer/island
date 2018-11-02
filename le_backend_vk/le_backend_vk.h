@@ -50,7 +50,7 @@ struct VmaAllocationInfo;
 struct LeShaderTypeEnum;
 enum class LeResourceType : uint8_t;
 
-struct VkFormatWrapper; // wrapper around VkFormatEnum
+struct VkFormatEnum; // wrapper around `vk::Format`. Defined in <le_backend_types_internal.h>
 
 struct le_resource_info_t;
 
@@ -120,7 +120,7 @@ struct le_backend_vk_api {
 		uint32_t                    ( *get_default_compute_queue_family_index  ) ( le_backend_vk_device_o* self_ );
 		VkQueue_T *                 ( *get_default_graphics_queue              ) ( le_backend_vk_device_o* self_ );
 		VkQueue_T *                 ( *get_default_compute_queue               ) ( le_backend_vk_device_o* self_ );
-		VkFormatWrapper             ( *get_default_depth_stencil_format        ) ( le_backend_vk_device_o* self_ );
+		VkFormatEnum                ( *get_default_depth_stencil_format        ) ( le_backend_vk_device_o* self_ );
 		VkPhysicalDevice_T*         ( *get_vk_physical_device                  ) ( le_backend_vk_device_o* self_ );
 		VkDevice_T*                 ( *get_vk_device                           ) ( le_backend_vk_device_o* self_ );
 

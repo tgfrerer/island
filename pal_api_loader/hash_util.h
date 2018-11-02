@@ -55,7 +55,7 @@ inline uint32_t hash_32_fnv1a( char const *const input ) noexcept {
 
 // ----------------------------------------------------------------------
 struct IdentityHash {
-	auto operator()( const uint64_t &key_ ) const noexcept {
+        auto const &operator()( const uint64_t &key_ ) const noexcept {
 		return key_;
 	}
 };
