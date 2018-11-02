@@ -62,8 +62,6 @@
 - LeImageAttachmentInfo is not very discoverable - we need to think about
   a better way to set properties for attachments
 
-- fix debug printouts for le::AttachmentLoad/StoreOp
-
 ----------------------------------------------------------------------
 
 # STRATEGY
