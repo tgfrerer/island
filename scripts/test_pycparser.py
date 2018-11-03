@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/python3
 
 # NOTE: THIS FILE DEPENDS ON AN EXTERNAL PYTHON LIBRARY, PYCPARSER:
 # pip install pycparser
@@ -44,11 +44,11 @@ def to_upper_snake_case(name):
 
 # A visitor with some state information (the funcname it's looking for)
 class EnumVisitor(c_ast.NodeVisitor):
-	def __init__(self, enumName):
+	def __init__(self, enumName, enumAttr=''):
 		self.enumName = enumName
+		self.enumAttr = enumAttr
 		self.indent_level = 0
 		self.length_enum_prelude = 0
-		self.enum_name = ''
 
 	def _make_indent(self):
 		return '\t' * self.indent_level
@@ -114,6 +114,8 @@ class EnumVisitor(c_ast.NodeVisitor):
 		assert name == 'enum'
 		members = None if n.values is None else n.values.enumerators
 		s = name + ' class ' + (self._remove_vk_prefix(n.name) or '')
+		if self.enumAttr != '':
+			s += " : %s" % self.enumAttr
 		if members is not None:
 			# None means no members
 			# Empty sequence means an empty list of members
@@ -123,7 +125,7 @@ class EnumVisitor(c_ast.NodeVisitor):
 			s += '{\n'
 			s += self._generate_enum_body(members)
 			self.indent_level -= 2
-			s += self._make_indent() + '};'
+			s += self._make_indent() + '};\n'
 		return s
 
 	def _generate_enum_body(self, members):
@@ -132,12 +134,6 @@ class EnumVisitor(c_ast.NodeVisitor):
 	def _remove_vk_prefix(self, name):
 		return name[2:]
 
-
-if __name__ == "__main__":
-	if len(sys.argv) > 1:
-		VkEnumName = sys.argv[1]
-	else:
-		VkEnumName = 'VkSampleCountFlagBits'
 
 # TODO: Add error check for whether $VULKAN_SDK is available
 
@@ -149,12 +145,20 @@ ast = parse_file('include_vk_header.c', use_cpp=True,
 			cpp_path='gcc',
 			cpp_args=['-E', r'-I' + vulkan_include_path, r"-std=c99"])
 
-v = EnumVisitor(VkEnumName)
-a = v.visit(ast)
+VkEnumName = ''
 
-print (a)
-
-
-
-# ast.show()
+if __name__ == "__main__":
+	if len(sys.argv) > 1:
+		# if called with an enum name as a parameter, 
+		# print the generated enum code for
+		VkEnumName = sys.argv[1]
+		v = EnumVisitor(VkEnumName)
+		a = v.visit(ast)
+		print (a)
+	else:
+		# print a test if no parameter specified
+		VkEnumName = 'VkSampleCountFlagBits'
+		v = EnumVisitor(VkEnumName)
+		a = v.visit(ast)
+		print (a)
 
