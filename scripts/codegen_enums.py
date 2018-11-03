@@ -4,7 +4,7 @@ import sys
 import re
 from copy import copy # so that we can copy objects
 
-from test_pycparser import EnumVisitor, ast
+from vk_enums_generator import EnumVisitor, ast
 
 source_file = open("testfile.cpp", 'r')
 lines = source_file.readlines()
@@ -41,11 +41,11 @@ for lNr, line in enumerate(lines):
 		tagAttr = '' # attribute for codegen, most probably type information, e.g. uint32_t
 
 		if len(matches) > 0:
-			print (matches)
+			# print (matches)
 			tag = (matches[0][0]).strip()
 			tagAttr = matches[0][1].strip()
 
-		print (tag)
+		# print (tag)
 
 		if (tag != ''):
 			# there is a valid tag, it could be an opening or a closing tag.
@@ -103,7 +103,9 @@ for i in changeSets:
 
 	lastLine = start + linesInserted
 
-for lnr, l in enumerate(lines):
- 	print ('{0: <5}'.format(lnr), l, end='')
+# for lnr, l in enumerate(lines):
+#   print ('{0: <5}'.format(lnr), l, end='')
 
+for l in lines:
+    print(l, end='')
 

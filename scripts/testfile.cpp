@@ -174,14 +174,14 @@ LE_WRAP_ENUM_IN_STRUCT( le::ShaderType, LeShaderTypeEnum );
 
 namespace le {
 
-// Codegen <VkAttachmentStoreOp>
+// Codegen <VkAttachmentStoreOp, uint32_t>
 enum class AttachmentStoreOp : uint32_t {
         eStore    = 0, // << most common case
         eDontCare = 1,
 };
 // Codegen </VkAttachmentStoreOp>
 
-// Codegen <VkAttachmentLoadOp>
+// Codegen <VkAttachmentLoadOp, uint32_t>
 enum AttachmentLoadOp : uint32_t {
         eLoad     = 0,
         eClear    = 1, // << most common case
@@ -189,7 +189,7 @@ enum AttachmentLoadOp : uint32_t {
 };
 // Codegen </VkAttachmentLoadOp>
 
-// Codegen <VkImageType>
+// Codegen <VkImageType, uint32_t>
 enum class ImageType : uint32_t {
         e1D = 0,
         e2D = 1,
@@ -230,14 +230,14 @@ static const char *to_str( const ImageType &lhs ) {
         }
         return "";
 }
-// Codegen <VkSampleCountFlagBits>
+// Codegen <VkSampleCountFlagBits, uint32_t>
 enum class ImageTiling : uint32_t {
         eOptimal = 0,
         eLinear  = 1,
 };
 // Codegen </VkSampleCountFlagBits>
 
-// Codegen <VkSampleCountFlagBits>
+// Codegen <VkSampleCountFlagBits, uint32_t>
 enum class SampleCountFlagBits {
         e1               = 0x00000001,
         e2               = 0x00000002,
@@ -250,7 +250,7 @@ enum class SampleCountFlagBits {
 };
 // Codegen </VkSampleCountFlagBits>
 
-// Codegen <VkFormat>
+// Codegen <VkFormat, uint32_t>
 enum class Format {
         eUndefined                               = 0,
         eR4G4UnormPack8                          = 1,
