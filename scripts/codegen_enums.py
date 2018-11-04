@@ -2,6 +2,7 @@
 
 import sys
 import re
+import datetime
 from copy import copy # so that we can copy objects
 
 from vk_enums_generator import EnumVisitor, ast
@@ -22,9 +23,10 @@ class ChangeSet:
 	name = ''
 	startOffset = 0
 	numLines = 0
-	def __init__(self, name='', attr='', startOffset=0,numLines=0):
+	def __init__(self, name='', attr='', isCEnum = 0, startOffset=0,numLines=0):
 		self.name = name
 		self.attr = attr
+		self.isCEnum = isCEnum
 		self.startOffset = startOffset
 		self.numLines = numLines
 		
@@ -35,17 +37,23 @@ changeSets = []
 for lNr, line in enumerate(lines):
 	if "Codegen" in line:
 		# we need to check whether we have an open tag or a closing tag
-		matches = re.findall(r'^// Codegen <(.+?)(?:,\s*?([a-z,A-Z,0-9_]+?))?>.*$' , line)
+		matches = re.findall(r'^// Codegen <(.+?)(?:,\s*?([a-z,A-Z,0-9_]+?)(?:,\s*?([a-z,A-Z,0-9_]+?))?)?>.*$' , line)
 		
 		tag = ''     # name for the enum to look up via codegen, e.g. VkFormat
 		tagAttr = '' # attribute for codegen, most probably type information, e.g. uint32_t
+		tagIsCEnum = 0 # whether a tag emits a c enum (0 == false == default)  
 
 		if len(matches) > 0:
 			# print (matches)
 			tag = (matches[0][0]).strip()
 			tagAttr = matches[0][1].strip()
+			if matches[0][2].strip() == 'c':
+				# By default we generate cpp-style class enums
+				# If 'c' is explicitly specified, flag to create
+				# c-style enum.
+				tagIsCEnum = 1
 
-		# print (tag)
+			# print (matches)
 
 		if (tag != ''):
 			# there is a valid tag, it could be an opening or a closing tag.
@@ -59,6 +67,7 @@ for lNr, line in enumerate(lines):
 				currentChangeSet.name = currentTag
 				currentChangeSet.attr = tagAttr
 				currentChangeSet.startOffset = lDelta
+				currentChangeSet.isCEnum = tagIsCEnum
 
 			elif tag[0] == '/' and currentTag != '' and tag[1:] == currentTag:
 				# close the current tag
@@ -88,7 +97,7 @@ for i in changeSets:
 
 	# print (start, numLinesToRemove)
 
-	v = EnumVisitor(i.name, i.attr)
+	v = EnumVisitor(i.name, i.attr, i.isCEnum)
 	generated_code = v.visit(ast).splitlines(keepends=1)
 	#print (generated_code)
 	# generated_code = ""
@@ -97,6 +106,9 @@ for i in changeSets:
 
 	linesInserted = 0 # note how many lines were added
 	
+	lines.insert(start, "// ** generated %s ** \n" % datetime.datetime.utcnow().isoformat())
+	start += 1
+
 	for i, source in enumerate(generated_code):
 		lines.insert( start + i, source)
 		linesInserted += 1

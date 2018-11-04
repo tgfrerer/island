@@ -128,18 +128,20 @@ enum LeRenderPassType : uint32_t {
 };
 
 typedef uint32_t LeImageUsageFlags;
-enum LeImageUsageFlagBits : LeImageUsageFlags {
-        LE_IMAGE_USAGE_TRANSFER_SRC_BIT             = 0x00000001,
-        LE_IMAGE_USAGE_TRANSFER_DST_BIT             = 0x00000002,
-        LE_IMAGE_USAGE_SAMPLED_BIT                  = 0x00000004,
-        LE_IMAGE_USAGE_STORAGE_BIT                  = 0x00000008, // load, store, atomic
-        LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT         = 0x00000010,
-        LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT = 0x00000020,
-        LE_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT     = 0x00000040,
-        LE_IMAGE_USAGE_INPUT_ATTACHMENT_BIT         = 0x00000080,
-        LE_IMAGE_USAGE_SHADING_RATE_IMAGE_BIT_NV    = 0x00000100,
-        LE_IMAGE_USAGE_FLAG_BITS_MAX_ENUM           = 0x7FFFFFFF
+// Codegen <VkImageUsageFlagBits, LeImageUsageFlags, 1>
+enum LeImageUsageFlagBits : 
+{
+                LE_IMAGE_USAGE_TRANSFER_SRC_BIT = 0x00000001,
+                LE_IMAGE_USAGE_TRANSFER_DST_BIT = 0x00000002,
+                LE_IMAGE_USAGE_SAMPLED_BIT = 0x00000004,
+                LE_IMAGE_USAGE_STORAGE_BIT = 0x00000008,
+                LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT = 0x00000010,
+                LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT = 0x00000020,
+                LE_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT = 0x00000040,
+                LE_IMAGE_USAGE_INPUT_ATTACHMENT_BIT = 0x00000080,
+                LE_IMAGE_USAGE_FLAG_BITS_MAX_ENUM = 0x7FFFFFFF,
 };
+// Codegen </VkImageUsageFlagBits>
 
 typedef uint32_t LeBufferUsageFlags;
 enum LeBufferUsageFlagBits : LeBufferUsageFlags {

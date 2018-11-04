@@ -44,9 +44,10 @@ def to_upper_snake_case(name):
 
 # A visitor with some state information (the funcname it's looking for)
 class EnumVisitor(c_ast.NodeVisitor):
-	def __init__(self, enumName, enumAttr=''):
+	def __init__(self, enumName, enumAttr='', IsCEnum=0):
 		self.enumName = enumName
 		self.enumAttr = enumAttr
+		self.is_c_enum = IsCEnum
 		self.indent_level = 0
 		self.length_enum_prelude = 0
 
@@ -61,16 +62,18 @@ class EnumVisitor(c_ast.NodeVisitor):
 		#~ print('generic:', type(node))
 		if node is None:
 			return ''
-		else:
+		else:			
 			return ''.join(self.visit(c) for c_name, c in node.children())
 
 	def to_le_enum_name(self, n):
 		name = n
 		# We must remove the last "_BIT", in case the field was a flag ENUM
-		if (name.endswith("_BIT")):
-			name = name[:-4]
-
-		return 'e' + to_camel_case(name[self.length_enum_prelude:])
+		if (self.is_c_enum == 0):
+			if (name.endswith("_BIT")):
+				name = name[:-4]
+			return 'e' + to_camel_case(name[self.length_enum_prelude:])
+		else :
+			return 'LE' + to_upper_snake_case(name[2:])
 
 
 	def visit_Enum(self, n):
@@ -113,7 +116,11 @@ class EnumVisitor(c_ast.NodeVisitor):
 		"""
 		assert name == 'enum'
 		members = None if n.values is None else n.values.enumerators
-		s = name + ' class ' + (self._remove_vk_prefix(n.name) or '')
+		s = ''
+		if (self.is_c_enum == 0):
+			s = name + ' class ' + (self._remove_vk_prefix(n.name) or '')
+		else:
+			s =  name + ' ' + 'Le' + (self._remove_vk_prefix(n.name) or '')
 		if self.enumAttr != '':
 			s += " : %s" % self.enumAttr
 		if members is not None:
@@ -157,8 +164,8 @@ if __name__ == "__main__":
 		print (a)
 	else:
 		# print a test if no parameter specified
-		VkEnumName = 'VkSampleCountFlagBits'
-		v = EnumVisitor(VkEnumName)
+		VkEnumName = 'VkImageUsageFlagBits'
+		v = EnumVisitor(VkEnumName, 'uint32_t')
 		a = v.visit(ast)
 		print (a)
 
