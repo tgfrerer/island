@@ -121,10 +121,10 @@ struct le_renderer_api {
 		void                         ( *set_scissor            )( le_command_buffer_encoder_o *self, uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D *pViewports );
 		void                         ( *bind_graphics_pipeline )( le_command_buffer_encoder_o *self, uint64_t gpsoHash);
 
-		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, le_resource_handle_t const bufferId, uint64_t offset, uint64_t const indexType);
+		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, le_resource_handle_t const bufferId, uint64_t offset, le::IndexType const & indexType);
 		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, le_resource_handle_t const * pBufferId, uint64_t const * pOffsets );
 
-		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint64_t indexType );
+		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, le::IndexType const & indexType );
 		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint32_t bindingIndex );
 
 		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_resource_handle_t const resourceId, size_t offset, void const* data, size_t numBytes);
@@ -483,7 +483,7 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &bindIndexBuffer( le_resource_handle_t const &bufferId, uint64_t const &offset, uint64_t const &indexType = 0 ) {
+	Encoder &bindIndexBuffer( le_resource_handle_t const &bufferId, uint64_t const &offset, IndexType const &indexType = IndexType::eUint16 ) {
 		le_renderer::encoder_i.bind_index_buffer( self, bufferId, offset, indexType );
 		return *this;
 	}
@@ -493,7 +493,7 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &setIndexData( void const *data, uint64_t const &numBytes, uint64_t const &indexType = 0 ) {
+	Encoder &setIndexData( void const *data, uint64_t const &numBytes, IndexType const &indexType = IndexType::eUint16 ) {
 		le_renderer::encoder_i.set_index_data( self, data, numBytes, indexType );
 		return *this;
 	}

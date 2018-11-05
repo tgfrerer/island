@@ -160,6 +160,7 @@ enum LeBufferUsageFlagBits : LeBufferUsageFlags {
 // Codegen </VkBufferUsageFlagBits>
 
 namespace le {
+
 enum class ShaderType : uint32_t {
 	// no default type for shader modules, you must specify a type
 	eVert        = 0x00000001,
@@ -170,11 +171,19 @@ enum class ShaderType : uint32_t {
 	eAllGraphics = 0x0000001F,
 	eCompute     = 0x00000020, // max needed space to cover this enum is 6 bit
 };
-}
+
+} // namespace le
 
 LE_WRAP_ENUM_IN_STRUCT( le::ShaderType, LeShaderTypeEnum );
 
 namespace le {
+
+// Codegen <VkIndexType, uint32_t>
+enum class IndexType : uint32_t {
+	eUint16 = 0,
+	eUint32 = 1,
+};
+// Codegen </VkIndexType>
 
 // Codegen <VkAttachmentStoreOp, uint32_t>
 enum class AttachmentStoreOp : uint32_t {

@@ -168,12 +168,12 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self,
 static void cbe_bind_index_buffer( le_command_buffer_encoder_o *self,
                                    le_resource_handle_t const   buffer,
                                    uint64_t                     offset,
-                                   uint64_t                     indexType ) {
+                                   le::IndexType const &        indexType ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandBindIndexBuffer );
 
 	// Note: indexType==0 means uint16, indexType==1 means uint32
-	cmd->info = {buffer, offset, indexType};
+	cmd->info = {buffer, offset, static_cast<uint32_t>( indexType )};
 
 	self->mCommandStreamSize += cmd->header.info.size;
 	self->mCommandCount++;
@@ -212,7 +212,7 @@ static void cbe_set_vertex_data( le_command_buffer_encoder_o *self,
 static void cbe_set_index_data( le_command_buffer_encoder_o *self,
                                 void const *                 data,
                                 uint64_t                     numBytes,
-                                uint64_t                     indexType ) {
+                                le::IndexType const &        indexType ) {
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
 
