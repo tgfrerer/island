@@ -3,8 +3,9 @@
 # NOTE: THIS FILE DEPENDS ON AN EXTERNAL PYTHON LIBRARY, PYCPARSER:
 # pip install pycparser
 
-import sys, re
+import sys, re, tempfile
 from os import getenv
+
 
 # This is not required if you've installed pycparser into
 # your site-packages/ with setup.py
@@ -145,10 +146,17 @@ class EnumVisitor(c_ast.NodeVisitor):
 # TODO: Add error check for whether $VULKAN_SDK is available
 
 vulkan_include_path = getenv("VULKAN_SDK") + '/include/vulkan'
-
 # print vulkan_include_path
 
-ast = parse_file('include_vk_header.c', use_cpp=True,
+
+# Create a temporaty file where we just place the header
+# include for the Vulkan Header, so that we may generate an 
+# AST form it.
+vk_src_file = tempfile.NamedTemporaryFile(suffix='.c')
+vk_src_file.write(b'#include <vulkan.h>\n')
+vk_src_file.seek(0)
+
+ast = parse_file(vk_src_file.name, use_cpp=True,
 			cpp_path='gcc',
 			cpp_args=['-E', r'-I' + vulkan_include_path, r"-std=c99"])
 
