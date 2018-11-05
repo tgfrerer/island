@@ -112,8 +112,9 @@ def codegen_enums(inputFilePath, outputFilePath = ''):
 
 		linesInserted = 0 # note how many lines were added
 		
-		lines.insert(start, "// ** generated %s ** \n" % datetime.datetime.utcnow().isoformat())
-		start += 1
+		# Uncommenting the next two lines will add timecode comments to generated code.
+		# lines.insert(start, "// ** generated %s ** \n" % datetime.datetime.utcnow().isoformat())
+		# start += 1
 
 		for i, source in enumerate(generated_code):
 			lines.insert( start + i, source)
