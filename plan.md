@@ -46,6 +46,11 @@
 
 ## (Unsorted)
 
+- long term: we want become independent of vulkan headers, especially the
+  vulkan.cpp behemoth in our client-facing code, so that apps don't have
+  to include it. This is also so that we might be able to add other
+  backends eventually.
+
 - api for creating a buffer is not specific enough right now,
   `renderpass.createResource` should be used, but this can also be used
   for images. We should have something which matches `sampleTexture`, e.g.
@@ -53,6 +58,9 @@
 
 - Better distinguish between renderpass types when creating vulkan command
   buffers
+
+- Refactor renderpass dependency tracker so that it works along the lines
+  of `le_dependency_manager`
 
 - Rename internal structure to `Batch` instead of `Renderpass` in backend
   because batch may fit better for *resource transfer*, *compute*, or
