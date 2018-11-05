@@ -129,7 +129,6 @@ enum LeRenderPassType : uint32_t {
 
 typedef uint32_t LeImageUsageFlags;
 // Codegen <VkImageUsageFlagBits, LeImageUsageFlags, c>
-// ** generated 2018-11-05T11:18:23.712552 ** 
 enum LeImageUsageFlagBits : LeImageUsageFlags
 {
 		LE_IMAGE_USAGE_TRANSFER_SRC_BIT = 0x00000001,
@@ -148,7 +147,6 @@ enum LeImageUsageFlagBits : LeImageUsageFlags
 typedef uint32_t LeBufferUsageFlags;
 
 // Codegen <VkBufferUsageFlagBits, LeBufferUsageFlags, c>
-// ** generated 2018-11-05T11:18:23.734545 ** 
 enum LeBufferUsageFlagBits : LeBufferUsageFlags
 {
 		LE_BUFFER_USAGE_TRANSFER_SRC_BIT = 0x00000001,
@@ -184,7 +182,6 @@ LE_WRAP_ENUM_IN_STRUCT( le::ShaderType, LeShaderTypeEnum );
 namespace le {
 
 // Codegen <VkAttachmentStoreOp, uint32_t>
-// ** generated 2018-11-05T11:18:23.756524 ** 
 enum class AttachmentStoreOp : uint32_t
 {
 		eStore = 0,
@@ -196,7 +193,6 @@ enum class AttachmentStoreOp : uint32_t
 // Codegen </VkAttachmentStoreOp>
 
 // Codegen <VkAttachmentLoadOp, uint32_t>
-// ** generated 2018-11-05T11:18:23.778319 ** 
 enum class AttachmentLoadOp : uint32_t
 {
 		eLoad = 0,
@@ -209,7 +205,6 @@ enum class AttachmentLoadOp : uint32_t
 // Codegen </VkAttachmentLoadOp>
 
 // Codegen <VkImageType, uint32_t>
-// ** generated 2018-11-05T11:18:23.800351 ** 
 enum class ImageType : uint32_t
 {
 		e1D = 0,
@@ -255,7 +250,6 @@ static const char *to_str( const ImageType &lhs ) {
         return "";
 }
 // Codegen <VkSampleCountFlagBits, uint32_t>
-// ** generated 2018-11-05T11:18:23.822440 ** 
 enum class SampleCountFlagBits : uint32_t
 {
 		e1 = 0x00000001,
@@ -270,7 +264,6 @@ enum class SampleCountFlagBits : uint32_t
 // Codegen </VkSampleCountFlagBits>
 
 // Codegen <VkSampleCountFlagBits, uint32_t>
-// ** generated 2018-11-05T11:18:23.844410 ** 
 enum class SampleCountFlagBits : uint32_t
 {
 		e1 = 0x00000001,
@@ -285,7 +278,6 @@ enum class SampleCountFlagBits : uint32_t
 // Codegen </VkSampleCountFlagBits>
 
 // Codegen <VkFormat, uint32_t>
-// ** generated 2018-11-05T11:18:23.867600 ** 
 enum class Format : uint32_t
 {
 		eUndefined = 0,

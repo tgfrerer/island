@@ -2,6 +2,7 @@
 
 import sys, re, datetime, argparse, os.path
 from copy import copy # so that we can copy objects
+import shutil
 
 from vk_enums_generator import EnumVisitor, ast
 
@@ -126,6 +127,10 @@ def codegen_enums(inputFilePath, outputFilePath = ''):
 	if (outputFilePath == '' or outputFilePath == None):
 		outputFile = sys.stdout
 	else:
+		if (os.path.isfile(outputFilePath)):
+			# output file already exists - we better create a backup
+			shutil.copy2(outputFilePath, "%s.backup" % outputFilePath )
+			print("Created backup for `%s`." % outputFilePath)
 		outputFile = open(outputFilePath,'w')
 
 	for l in lines:
