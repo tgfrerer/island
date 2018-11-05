@@ -1646,16 +1646,14 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 			if ( first_info->image.format == le::Format::eUndefined ) {
 
-				// TODO: query default formats for depth/stencil from device
-
 				const auto &usage = first_info->image.usage;
 
 				if ( usage & ( LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT ) ) {
-					first_info->image.format = self->defaultFormatColorAttachment;        // TODO: Get default color image format
-				} else if ( usage & ( LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) ) {   //
-					first_info->image.format = self->defaultFormatDepthStencilAttachment; // TODO: Get default depth stencil format for device.
-				} else if ( usage & ( LE_IMAGE_USAGE_SAMPLED_BIT ) ) {                    //
-					first_info->image.format = self->defaultFormatSampledImage;           // TODO: Get default color image format
+					first_info->image.format = self->defaultFormatColorAttachment;
+				} else if ( usage & ( LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) ) {
+					first_info->image.format = self->defaultFormatDepthStencilAttachment;
+				} else if ( usage & ( LE_IMAGE_USAGE_SAMPLED_BIT ) ) {
+					first_info->image.format = self->defaultFormatSampledImage;
 				} else {
 					assert( false ); // we don't have enough information to infer image format.
 				}

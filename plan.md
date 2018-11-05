@@ -9,9 +9,6 @@
 
 ## (A)
 
-- when inferring the default format, use queried defaults from the
-  backend, not hardcoded defaults
-
 ## (B)
 
 - the way we use LeImageAttachmentInfo is over-specified - it would be
