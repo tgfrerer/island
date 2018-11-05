@@ -143,6 +143,7 @@ enum LeImageUsageFlagBits : LeImageUsageFlags {
 // Codegen </VkImageUsageFlagBits>
 
 typedef uint32_t LeBufferUsageFlags;
+// Codegen <VkBufferUsageFlagBits, LeBufferUsageFlags, c>
 enum LeBufferUsageFlagBits : LeBufferUsageFlags {
 	LE_BUFFER_USAGE_TRANSFER_SRC_BIT              = 0x00000001,
 	LE_BUFFER_USAGE_TRANSFER_DST_BIT              = 0x00000002,
@@ -155,8 +156,8 @@ enum LeBufferUsageFlagBits : LeBufferUsageFlags {
 	LE_BUFFER_USAGE_INDIRECT_BUFFER_BIT           = 0x00000100,
 	LE_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT = 0x00000200,
 	LE_BUFFER_USAGE_RAYTRACING_BIT_NVX            = 0x00000400,
-	LE_BUFFER_USAGE_FLAG_BITS_MAX_ENUM            = 0x7FFFFFFF
 };
+// Codegen </VkBufferUsageFlagBits>
 
 namespace le {
 enum class ShaderType : uint32_t {
