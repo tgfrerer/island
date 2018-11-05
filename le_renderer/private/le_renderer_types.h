@@ -139,7 +139,6 @@ enum LeImageUsageFlagBits : LeImageUsageFlags {
 	LE_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT     = 0x00000040,
 	LE_IMAGE_USAGE_INPUT_ATTACHMENT_BIT         = 0x00000080,
 	LE_IMAGE_USAGE_SHADING_RATE_IMAGE_BIT_NV    = 0x00000100,
-	LE_IMAGE_USAGE_FLAG_BITS_MAX_ENUM           = 0x7FFFFFFF,
 };
 // Codegen </VkImageUsageFlagBits>
 
@@ -178,33 +177,24 @@ namespace le {
 
 // Codegen <VkAttachmentStoreOp, uint32_t>
 enum class AttachmentStoreOp : uint32_t {
-	eStore      = 0,
-	eDontCare   = 1,
-	eBeginRange = eStore,
-	eEndRange   = eDontCare,
-	eMaxEnum    = 0x7FFFFFFF,
+	eStore    = 0,
+	eDontCare = 1,
 };
 // Codegen </VkAttachmentStoreOp>
 
 // Codegen <VkAttachmentLoadOp, uint32_t>
 enum class AttachmentLoadOp : uint32_t {
-	eLoad       = 0,
-	eClear      = 1,
-	eDontCare   = 2,
-	eBeginRange = eLoad,
-	eEndRange   = eDontCare,
-	eMaxEnum    = 0x7FFFFFFF,
+	eLoad     = 0,
+	eClear    = 1,
+	eDontCare = 2,
 };
 // Codegen </VkAttachmentLoadOp>
 
 // Codegen <VkImageType, uint32_t>
 enum class ImageType : uint32_t {
-	e1D         = 0,
-	e2D         = 1,
-	e3D         = 2,
-	eBeginRange = e1D,
-	eEndRange   = e3D,
-	eMaxEnum    = 0x7FFFFFFF,
+	e1D = 0,
+	e2D = 1,
+	e3D = 2,
 };
 // Codegen </VkImageType>
 
@@ -243,24 +233,20 @@ static const char *to_str( const ImageType &lhs ) {
 }
 // Codegen <VkImageTiling, uint32_t>
 enum class ImageTiling : uint32_t {
-	eOptimal    = 0,
-	eLinear     = 1,
-	eBeginRange = eOptimal,
-	eEndRange   = eLinear,
-	eMaxEnum    = 0x7FFFFFFF,
+	eOptimal = 0,
+	eLinear  = 1,
 };
 // Codegen </VkImageTiling>
 
 // Codegen <VkSampleCountFlagBits, uint32_t>
 enum class SampleCountFlagBits : uint32_t {
-	e1               = 0x00000001,
-	e2               = 0x00000002,
-	e4               = 0x00000004,
-	e8               = 0x00000008,
-	e16              = 0x00000010,
-	e32              = 0x00000020,
-	e64              = 0x00000040,
-	eFlagBitsMaxEnum = 0x7FFFFFFF,
+	e1  = 0x00000001,
+	e2  = 0x00000002,
+	e4  = 0x00000004,
+	e8  = 0x00000008,
+	e16 = 0x00000010,
+	e32 = 0x00000020,
+	e64 = 0x00000040,
 };
 // Codegen </VkSampleCountFlagBits>
 
@@ -527,9 +513,6 @@ enum class Format {
 	eG16B16R163Plane422UnormKhr              = eG16B16R163Plane422Unorm,
 	eG16B16R162Plane422UnormKhr              = eG16B16R162Plane422Unorm,
 	eG16B16R163Plane444UnormKhr              = eG16B16R163Plane444Unorm,
-	eBeginRange                              = eUndefined,
-	eEndRange                                = eAstc12x12SrgbBlock,
-	eMaxEnum                                 = 0x7FFFFFFF,
 };
 // Codegen </VkFormat>
 

@@ -90,6 +90,12 @@ class EnumVisitor(c_ast.NodeVisitor):
 		if (len(n.name) and self.length_enum_prelude == 0):
 			c_enum_prelude = to_upper_snake_case(self.enumName)
 			self.length_enum_prelude = len(common_from_start(c_enum_prelude, n.name))
+		if "MAX_ENUM" in to_upper_snake_case(n.name):
+			return '' 
+		if "BEGIN_RANGE" in to_upper_snake_case(n.name):
+			return '' 
+		if "END_RANGE" in to_upper_snake_case(n.name):
+			return '' 
 		if not n.value:
 			return '{indent}{name},\n'.format(
 				indent=self._make_indent(),
@@ -172,7 +178,7 @@ if __name__ == "__main__":
 		print (a)
 	else:
 		# print a test if no parameter specified
-		VkEnumName = 'VkImageUsageFlagBits'
+		VkEnumName = 'VkAttachmentLoadOp'
 		v = EnumVisitor(VkEnumName, 'uint32_t')
 		a = v.visit(ast)
 		print (a)
