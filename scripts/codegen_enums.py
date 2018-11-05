@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 
-import sys, re, datetime, argparse, os.path
+import sys, re, datetime, argparse, os.path, shutil
+
+from py_modules.vk_enums_generator import EnumVisitor, ast
 from copy import copy # so that we can copy objects
-import shutil
-
-from vk_enums_generator import EnumVisitor, ast
-
 
 def codegen_enums(inputFilePath, outputFilePath = ''):
 
