@@ -235,11 +235,11 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
 			settings.filePath           = s.c_str();
 			settings.callback_user_data = self;
 			settings.callback_fun       = []( const char *path, void *user_data ) -> bool {
-				auto shader_manager = static_cast<le_shader_manager_o *>( user_data );
-				// call a method on backend to tell it that the file path has changed.
-				// backend to figure out which modules are affected.
-				le_pipeline_cache_flag_affected_modules_for_source_path( shader_manager, path );
-				return true;
+                auto shader_manager = static_cast<le_shader_manager_o *>( user_data );
+                // call a method on backend to tell it that the file path has changed.
+                // backend to figure out which modules are affected.
+                le_pipeline_cache_flag_affected_modules_for_source_path( shader_manager, path );
+                return true;
 			};
 			file_watcher_i.add_watch( self->shaderFileWatcher, settings );
 		}
@@ -584,9 +584,9 @@ static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( std
 			size_t countValidBindings        = 0;
 			size_t idxPotentiallyOnlyOneLeft = 0;
 
-			for ( size_t i = 0; i != numShaders; ++i ) {
-				if ( pBindings[ i ] != pBindingsEnd[ i ] ) {
-					idxPotentiallyOnlyOneLeft = i;
+            for ( size_t j = 0; j != numShaders; ++j ) {
+                if ( pBindings[ j ] != pBindingsEnd[ j ] ) {
+                    idxPotentiallyOnlyOneLeft = j;
 					countValidBindings++;
 				}
 			}
@@ -594,9 +594,9 @@ static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( std
 			if ( countValidBindings == 1 ) {
 				// Only one binding left - we can add this one to the list of combined bindings
 				// without further checks
-				combined_bindings.push_back( *pBindings[ i ] );
-				pBindings[ i ]++; // Increment to next binding on this shader
-				continue;         // We must break out of the main loop because otherwise the bindings risk being compared again.
+                combined_bindings.push_back( *pBindings[ idxPotentiallyOnlyOneLeft ] );
+                pBindings[ idxPotentiallyOnlyOneLeft ]++; // Increment to next binding on this shader
+                continue;                                 // We must break out of the main loop because otherwise the bindings risk being compared again.
 			}
 		}
 
@@ -1004,9 +1004,9 @@ static vk::PipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_m
 static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_vertex_input_binding_description::INPUT_RATE &input_rate ) {
 	switch ( input_rate ) {
 	case ( le_vertex_input_binding_description::ePerInstance ):
-	    return vk::VertexInputRate::eInstance;
+        return vk::VertexInputRate::eInstance;
 	case ( le_vertex_input_binding_description::ePerVertex ):
-	    return vk::VertexInputRate::eVertex;
+        return vk::VertexInputRate::eVertex;
 	}
 	assert( false ); // something's wrong: control should never come here, switch needs to cover all cases.
 	return vk::VertexInputRate::eVertex;
@@ -1306,13 +1306,13 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 				case vk::DescriptorType::eInputAttachment:
 					// TODO: Find out what descriptorData an InputAttachment expects, if it is really done with an imageInfo
 					entry.setOffset( base_offset + offsetof( DescriptorData, sampler ) ); // point to first field of ImageInfo
-				    break;
+                    break;
 				case vk::DescriptorType::eUniformBuffer:
 				case vk::DescriptorType::eStorageBuffer:
 				case vk::DescriptorType::eUniformBufferDynamic:
 				case vk::DescriptorType::eStorageBufferDynamic:
 					entry.setOffset( base_offset + offsetof( DescriptorData, buffer ) ); // point to first element of BufferInfo
-				    break;
+                    break;
 				}
 
 				entry.setStride( sizeof( DescriptorData ) );
