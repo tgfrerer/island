@@ -200,7 +200,8 @@ static uint64_t le_graphics_pipeline_builder_build( le_graphics_pipeline_builder
 	hash_value = SpookyHash::Hash64( &self->obj->data, hash_msg_size, 0 );
 
 	// FIXME: THIS IS NOT NICE!!!
-	hash_value = SpookyHash::Hash64( &self->obj->shaderModuleFrag, 8, hash_value );
+    // We should probably refer to the internal hash of each of these modules...
+    hash_value = SpookyHash::Hash64( &self->obj->shaderModuleFrag, 8, hash_value );
 	hash_value = SpookyHash::Hash64( &self->obj->shaderModuleVert, 8, hash_value );
 
 	// Check if this hash_value is already in the cold store.

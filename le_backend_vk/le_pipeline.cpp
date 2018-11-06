@@ -498,7 +498,6 @@ static bool shader_module_check_bindings_valid( le_shader_binding_info const *bi
 // Currently, we assume bindings to be non-sparse, but it's possible that sparse bindings
 // are allowed by the standard. let's check.
 //
-// TODO: extend this to allow more than just vert/frag shaders.
 static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( std::vector<le_shader_module_o *> shaders ) {
 
 	std::vector<le_shader_binding_info> combined_bindings;
@@ -1500,10 +1499,10 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pi
 
 	uint64_t pso_renderpass_hash_data[ 4 ] = {};
 
-	pso_renderpass_hash_data[ 0 ] = gpso_hash;                   // Hash associated with `pso`
-	pso_renderpass_hash_data[ 1 ] = pso->shaderModuleVert->hash; // Module state - may have been recompiled, hash must be current
-	pso_renderpass_hash_data[ 2 ] = pso->shaderModuleFrag->hash; // Module state - may have been recompiled, hash must be current
-	pso_renderpass_hash_data[ 3 ] = pass.renderpassHash;         // Hash for *compatible* renderpass
+    pso_renderpass_hash_data[ 0 ] = gpso_hash;                                               // Hash associated with `pso`
+    pso_renderpass_hash_data[ 1 ] = pso->shaderModuleVert ? pso->shaderModuleVert->hash : 0; // Module state - may have been recompiled, hash must be current
+    pso_renderpass_hash_data[ 2 ] = pso->shaderModuleFrag ? pso->shaderModuleFrag->hash : 0; // Module state - may have been recompiled, hash must be current
+    pso_renderpass_hash_data[ 3 ] = pass.renderpassHash;                                     // Hash for *compatible* renderpass
 
 	// -- create combined hash for pipeline, renderpass
 
