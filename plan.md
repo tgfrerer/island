@@ -11,6 +11,12 @@
 
 ## (B)
 
+- extend pipeline builder to not use vk objects, but to keep its own state
+  which may be modified via method calls. This will allow us to clean up
+  the pipeline builder api, and will also remove temporary allocations
+  which are not used once a pipeline state object has been created for the
+  first time.
+
 - the way we use LeImageAttachmentInfo is over-specified - it would be
   great to find a more terse struct, which does not cross the abstraction
   barrier. The intent of `ImageAttachmentInfo` is to provide just enough
