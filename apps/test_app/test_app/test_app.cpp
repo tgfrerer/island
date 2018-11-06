@@ -103,6 +103,8 @@ struct test_app_o {
 	LeCameraController cameraController;
 };
 
+static void test_app_process_ui_events( test_app_o *self ); // ffdecl
+
 // ----------------------------------------------------------------------
 
 static void initialize() {
@@ -298,25 +300,6 @@ static test_app_o *test_app_create() {
 		io.KeyMap[ ImGuiKey_X ]          = GLFW_KEY_X;
 		io.KeyMap[ ImGuiKey_Y ]          = GLFW_KEY_Y;
 		io.KeyMap[ ImGuiKey_Z ]          = GLFW_KEY_Z;
-	}
-
-	{
-		// -- Set window event callbacks
-
-		using namespace pal_window;
-		// set the callback user data for all callbacks from window *app->window
-		// to be our app pointer.
-		window_i.set_callback_user_data( app->window, app );
-
-		using test_app::test_app_i;
-
-		window_i.set_key_callback( app->window, &test_app_i.key_callback );
-		window_i.set_character_callback( app->window, &test_app_i.character_callback );
-
-		window_i.set_cursor_position_callback( app->window, &test_app_i.cursor_position_callback );
-		window_i.set_cursor_enter_callback( app->window, &test_app_i.cursor_enter_callback );
-		window_i.set_mouse_button_callback( app->window, &test_app_i.mouse_button_callback );
-		window_i.set_scroll_callback( app->window, &test_app_i.scroll_callback );
 	}
 
 	app->update_start_time = std::chrono::high_resolution_clock::now();
@@ -603,8 +586,8 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 		    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &matrixStack, sizeof( MvpUbo_t ) )
 		    .bindVertexBuffers( 0, 1, buffers, offsets )
 		    .setVertexData( triangleColors, sizeof( glm::vec4 ) * 3, 1 )
-		    .setIndexData( indexData, sizeof( indexData ), 0 ) // 0 for indexType means uint16_t
-		    .drawIndexed( 3 )                                  //
+		    .setIndexData( indexData, sizeof( indexData ), le::IndexType::eUint16 ) // 0 for indexType means uint16_t
+		    .drawIndexed( 3 )                                                       //
 		    ;
 	}
 
@@ -665,7 +648,7 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 			auto &im_cmd_list = *cmdList;
 
 			// upload index data
-			encoder_i.set_index_data( encoder, im_cmd_list->IdxBuffer.Data, size_t( im_cmd_list->IdxBuffer.size() * sizeof( ImDrawIdx ) ), 0 );
+			encoder_i.set_index_data( encoder, im_cmd_list->IdxBuffer.Data, size_t( im_cmd_list->IdxBuffer.size() * sizeof( ImDrawIdx ) ), le::IndexType::eUint16 );
 			// upload vertex data
 			encoder_i.set_vertex_data( encoder, im_cmd_list->VtxBuffer.Data, size_t( im_cmd_list->VtxBuffer.size() * sizeof( ImDrawVert ) ), 0 );
 
@@ -734,6 +717,9 @@ static bool test_app_update( test_app_o *self ) {
 	if ( self->window.shouldClose() ) {
 		return false;
 	}
+
+	// Process pending ui events. This means that all ui events
+	test_app_process_ui_events( self );
 
 	{
 		// update interactive camera using mouse data
@@ -825,132 +811,88 @@ static void test_app_destroy( test_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void test_app_key_callback( void *user_data, int key, int scancode, int action, int mods ) {
+static void test_app_process_ui_events( test_app_o *self ) {
 
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
-
-	// --------| invariant : user data is not null
-
-	auto app = static_cast<test_app_o *>( user_data );
-
-	{
-		static auto const &window_i = Registry::getApi<pal_window_api>()->window_i;
-		if ( key == GLFW_KEY_F11 && action == GLFW_RELEASE ) {
-			window_i.toggle_fullscreen( app->window );
-		}
-	}
-	ImGuiIO &io = ImGui::GetIO();
-
-	if ( action == GLFW_PRESS ) {
-		io.KeysDown[ key ] = true;
-	}
-	if ( action == GLFW_RELEASE ) {
-		io.KeysDown[ key ] = false;
-	}
-
-	( void )mods; // Modifiers are not reliable across systems
-	io.KeyCtrl  = io.KeysDown[ GLFW_KEY_LEFT_CONTROL ] || io.KeysDown[ GLFW_KEY_RIGHT_CONTROL ];
-	io.KeyShift = io.KeysDown[ GLFW_KEY_LEFT_SHIFT ] || io.KeysDown[ GLFW_KEY_RIGHT_SHIFT ];
-	io.KeyAlt   = io.KeysDown[ GLFW_KEY_LEFT_ALT ] || io.KeysDown[ GLFW_KEY_RIGHT_ALT ];
-	io.KeySuper = io.KeysDown[ GLFW_KEY_LEFT_SUPER ] || io.KeysDown[ GLFW_KEY_RIGHT_SUPER ];
-}
-
-// ----------------------------------------------------------------------
-
-static void test_app_character_callback( void *user_data, unsigned int codepoint ) {
-
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
-
-	// --------| invariant : user data is not null
-
-	auto app = static_cast<test_app_o *>( user_data );
+	using namespace pal_window; // For calls to the Window object
 
 	ImGuiIO &io = ImGui::GetIO();
 
-	if ( codepoint > 0 && codepoint < 0x10000 ) {
-		io.AddInputCharacter( ( unsigned short )codepoint );
-	}
-}
+	bool wantsFullscreenToggle = false; // Accumulate fullscreen toggles to minimize toggles.
 
-// ----------------------------------------------------------------------
+	UIEvent const *events;
+	uint32_t       numEvents = 0;
 
-static void test_app_cursor_position_callback( void *user_data, double xpos, double ypos ) {
+	window_i.get_ui_event_queue( self->window, &events, numEvents );
 
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
+	UIEvent const *const events_end = events + numEvents; // end iterator
+	for ( UIEvent const *event = events; event != events_end; event++ ) {
+		// Process events in sequence
 
-	// --------| invariant : user data is not null
+		switch ( event->event ) {
+		case UIEvent::Type::eKey: {
+			auto &e = event->key;
 
-	auto app = static_cast<test_app_o *>( user_data );
+			if ( e.key == GLFW_KEY_F11 && e.action == GLFW_RELEASE ) {
+				wantsFullscreenToggle ^= 1;
+			}
 
-	app->mouseData.cursor_pos = {float( xpos ), float( ypos )};
-	app->mousePos             = {float( xpos ), float( ypos )};
-}
+			if ( e.action == GLFW_PRESS ) {
+				io.KeysDown[ e.key ] = true;
+			}
+			if ( e.action == GLFW_RELEASE ) {
+				io.KeysDown[ e.key ] = false;
+			}
 
-// ----------------------------------------------------------------------
+			// ( void )e.mods; // Modifiers are not reliable across systems
+			io.KeyCtrl  = io.KeysDown[ GLFW_KEY_LEFT_CONTROL ] || io.KeysDown[ GLFW_KEY_RIGHT_CONTROL ];
+			io.KeyShift = io.KeysDown[ GLFW_KEY_LEFT_SHIFT ] || io.KeysDown[ GLFW_KEY_RIGHT_SHIFT ];
+			io.KeyAlt   = io.KeysDown[ GLFW_KEY_LEFT_ALT ] || io.KeysDown[ GLFW_KEY_RIGHT_ALT ];
+			io.KeySuper = io.KeysDown[ GLFW_KEY_LEFT_SUPER ] || io.KeysDown[ GLFW_KEY_RIGHT_SUPER ];
 
-static void test_app_cursor_enter_callback( void *user_data, int entered ) {
+		} break;
+		case UIEvent::Type::eCharacter: {
+			auto &e = event->character;
+			if ( e.codepoint > 0 && e.codepoint < 0x10000 ) {
+				io.AddInputCharacter( uint16_t( e.codepoint ) );
+			}
+		} break;
+		case UIEvent::Type::eCursorPosition: {
+			auto &e                    = event->cursorPosition;
+			self->mouseData.cursor_pos = {float( e.x ), float( e.y )};
+			self->mousePos             = {float( e.x ), float( e.y )};
+		} break;
+		case UIEvent::Type::eCursorEnter: {
+			auto &e = event->cursorPosition;
+		} break;
+		case UIEvent::Type::eMouseButton: {
+			auto &e = event->mouseButton;
+			if ( e.button >= 0 && e.button < int( self->mouseButtonStatus.size() ) ) {
+				self->mouseButtonStatus[ size_t( e.button ) ] = ( e.action == GLFW_PRESS );
 
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
+				if ( e.action == GLFW_PRESS ) {
+					self->mouseData.buttonState |= uint8_t( 1 << size_t( e.button ) );
+				} else if ( e.action == GLFW_RELEASE ) {
+					self->mouseData.buttonState &= uint8_t( 0 << size_t( e.button ) );
+				}
+			}
+		} break;
+		case UIEvent::Type::eScroll: {
+			auto &e = event->scroll;
+			io.MouseWheelH += float( e.x_offset );
+			io.MouseWheel += float( e.y_offset );
 
-	// --------| invariant : user data is not null
-}
-
-// ----------------------------------------------------------------------
-
-static void test_app_mouse_button_callback( void *user_data, int button, int action, int mods ) {
-
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
-
-	// --------| invariant : user data is not null
-
-	auto app = static_cast<test_app_o *>( user_data );
-
-	if ( button >= 0 && button < int( app->mouseButtonStatus.size() ) ) {
-		app->mouseButtonStatus[ size_t( button ) ] = ( action == GLFW_PRESS );
-
-		if ( action == GLFW_PRESS ) {
-			app->mouseData.buttonState |= uint8_t( 1 << size_t( button ) );
-		} else if ( action == GLFW_RELEASE ) {
-			app->mouseData.buttonState &= uint8_t( 0 << size_t( button ) );
-		}
-	}
-}
-
-// ----------------------------------------------------------------------
-
-static void test_app_scroll_callback( void *user_data, double xoffset, double yoffset ) {
-
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
+		} break;
+		} // end switch event->event
 	}
 
-	// --------| invariant : user data is not null
+	// We have accumulated all fullscreen toggles - if we wanted to change to fullscreen-we should do it now.
+	// We do this so that the screen size does not change whilst we are processing the current event stream.
+	// but it might be an idea to do so.
 
-	ImGuiIO &io = ImGui::GetIO();
-	io.MouseWheelH += static_cast<float>( xoffset );
-	io.MouseWheel += static_cast<float>( yoffset );
+	if ( wantsFullscreenToggle ) {
+		// toggle fullscreen if requested.
+		window_i.toggle_fullscreen( self->window );
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -962,16 +904,17 @@ ISL_API_ATTR void register_test_app_api( void *api ) {
 	test_app_i.initialize = initialize;
 	test_app_i.terminate  = terminate;
 
-	test_app_i.create  = test_app_create;
-	test_app_i.destroy = test_app_destroy;
-	test_app_i.update  = test_app_update;
+	test_app_i.create            = test_app_create;
+	test_app_i.destroy           = test_app_destroy;
+	test_app_i.update            = test_app_update;
+	test_app_i.process_ui_events = test_app_process_ui_events;
 
-	test_app_i.key_callback             = test_app_key_callback;
-	test_app_i.character_callback       = test_app_character_callback;
-	test_app_i.cursor_position_callback = test_app_cursor_position_callback;
-	test_app_i.cursor_enter_callback    = test_app_cursor_enter_callback;
-	test_app_i.mouse_button_callback    = test_app_mouse_button_callback;
-	test_app_i.scroll_callback          = test_app_scroll_callback;
+	//	test_app_i.key_callback             = test_app_key_callback;
+	//	test_app_i.character_callback       = test_app_character_callback;
+	//	test_app_i.cursor_position_callback = test_app_cursor_position_callback;
+	//	test_app_i.cursor_enter_callback    = test_app_cursor_enter_callback;
+	//	test_app_i.mouse_button_callback    = test_app_mouse_button_callback;
+	//	test_app_i.scroll_callback          = test_app_scroll_callback;
 
 #ifdef PLUGINS_DYNAMIC
 	Registry::loadLibraryPersistently( "./libs/imgui/libimgui.so" );
