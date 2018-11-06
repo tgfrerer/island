@@ -675,10 +675,10 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 					// clip rects are different
 					currentClipRect = im_cmd.ClipRect;
 					le::Rect2D scissor;
-					scissor.x      = ( int32_t )( im_cmd.ClipRect.x - display_pos.x ) > 0 ? ( int32_t )( im_cmd.ClipRect.x - display_pos.x ) : 0;
-					scissor.y      = ( int32_t )( im_cmd.ClipRect.y - display_pos.y ) > 0 ? ( int32_t )( im_cmd.ClipRect.y - display_pos.y ) : 0;
-					scissor.width  = ( uint32_t )( im_cmd.ClipRect.z - im_cmd.ClipRect.x );
-					scissor.height = ( uint32_t )( im_cmd.ClipRect.w - im_cmd.ClipRect.y + 1 ); // FIXME: Why +1 here?
+					scissor.x      = ( im_cmd.ClipRect.x - display_pos.x ) > 0 ? uint32_t( im_cmd.ClipRect.x - display_pos.x ) : 0;
+					scissor.y      = ( im_cmd.ClipRect.y - display_pos.y ) > 0 ? uint32_t( im_cmd.ClipRect.y - display_pos.y ) : 0;
+					scissor.width  = uint32_t( im_cmd.ClipRect.z - im_cmd.ClipRect.x );
+					scissor.height = uint32_t( im_cmd.ClipRect.w - im_cmd.ClipRect.y + 1 ); // FIXME: Why +1 here?
 
 					encoder_i.set_scissor( encoder, 0, 1, &scissor );
 				}
