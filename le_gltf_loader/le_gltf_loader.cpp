@@ -837,7 +837,7 @@ static void document_draw( le_gltf_document_o *self, le_command_buffer_encoder_o
 
 				if ( p.hasIndices ) {
 					// bind indices
-					encoder_i.bind_index_buffer( encoder, documentBufferHandle, p.indexDataOffs, 0 ); // TODO: check if indextype really is 0==uint16_t
+					encoder_i.bind_index_buffer( encoder, documentBufferHandle, p.indexDataOffs, le::IndexType::eUint16 ); // TODO: check if indextype really is 0==uint16_t
 					encoder_i.draw_indexed( encoder, p.numElements, 1, 0, 0, 0 );
 				} else {
 					encoder_i.draw( encoder, p.numElements, 1, 0, 0 );
