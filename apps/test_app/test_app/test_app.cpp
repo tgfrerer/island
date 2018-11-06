@@ -718,7 +718,7 @@ static bool test_app_update( test_app_o *self ) {
 		return false;
 	}
 
-	// Process pending ui events. This means that all ui events
+	// Process pending ui events.
 	test_app_process_ui_events( self );
 
 	{
