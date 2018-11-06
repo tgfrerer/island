@@ -1,18 +1,23 @@
 #include "pal_window/pal_window.h"
 #include "assert.h"
-
 #include <iostream>
+#include <vector>
+#include <array>
 
 #define GLFW_INCLUDE_VULKAN
 #include "GLFW/glfw3.h"
 
 #include <vector>
+#include <atomic>
+
+constexpr size_t EVENT_QUEUE_SIZE = 100; // Only allocate space for 100 events per-frame
 
 struct pal_window_settings_o {
-	int          width   = 640;
-	int          height  = 480;
-	std::string  title   = "Island default window title";
-	GLFWmonitor *monitor = nullptr;
+	int          width          = 640;
+	int          height         = 480;
+	std::string  title          = "Island default window title";
+	GLFWmonitor *monitor        = nullptr;
+	uint32_t     useEventsQueue = true; // whether to use an events queue or not
 };
 
 struct WindowGeometry {
@@ -32,26 +37,56 @@ struct pal_window_o {
 	size_t                referenceCount = 0;
 	void *                user_data      = nullptr;
 
-	pal_window_api::key_callback_fun_t const *            key_callback             = nullptr;
-	pal_window_api::character_callback_fun_t const *      character_callback       = nullptr;
-	pal_window_api::cursor_position_callback_fun_t const *cursor_position_callback = nullptr;
-	pal_window_api::cursor_enter_callback_fun_t const *   cursor_enter_callback    = nullptr;
-	pal_window_api::mouse_button_callback_fun_t const *   mouse_button_callback    = nullptr;
-	pal_window_api::scroll_callback_fun_t const *         scroll_callback          = nullptr;
+	uint32_t                                             eventQueueBack = 0;      // Event queue currently used to record events
+	std::array<std::atomic<uint32_t>, 2>                 numEventsForQueue{0, 0}; // Counter for events per queue (works as arena allocator marker for events queue)
+	std::array<std::array<UIEvent, EVENT_QUEUE_SIZE>, 2> eventQueue;              // Events queue is double-bufferd, flip happens on `get_event_queue`
 
 	WindowGeometry windowGeometry{};
 	bool           isFullscreen = false;
 };
 
 // ----------------------------------------------------------------------
+// Check if there is an available index to write at given an event counter and sets
+// eventIdx as a side-effect.
+// Returns false if no index in the queue is available for writing.
+// Returns true and an available index as a side-effect in eventIdx.
+//
+// Note that we limit the return value `eventIdx` to EVENT_QUEUE_SIZE-1
+bool event_queue_idx_available( std::atomic<uint32_t> &atomicCounter, uint32_t &eventIdx ) {
+
+	// We post-increment here, so that eventIdx receives the current value of the atomic
+	// counter, just before the counter gets incremented.
+	eventIdx = atomicCounter++;
+
+	if ( eventIdx >= EVENT_QUEUE_SIZE ) {
+		eventIdx = atomicCounter = EVENT_QUEUE_SIZE - 1;
+		return false;
+	} else {
+		return true;
+	}
+}
+
+// ----------------------------------------------------------------------
 static void glfw_window_key_callback( GLFWwindow *glfwWindow, int key, int scancode, int action, int mods ) {
 
 	auto window = static_cast<pal_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
 
-	if ( window->key_callback ) {
-		// NOTE: we first look up the address, then call,
-		// this is because the function may be from an indirection table.
-		( *window->key_callback )( window->user_data, key, scancode, action, mods );
+	if ( window->mSettings.useEventsQueue ) {
+
+		uint32_t queueIdx = window->eventQueueBack;
+		uint32_t eventIdx = 0;
+
+		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
+			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
+			event.event = UIEvent::Type::eKey;
+			auto &e     = event.key;
+			e.key       = key;
+			e.action    = action;
+			e.scancode  = scancode;
+			e.mods      = mods;
+		} else {
+			// we're over the high - watermark for events, we should probably print a warning.
+		}
 	}
 }
 
@@ -60,10 +95,19 @@ static void glfw_window_character_callback( GLFWwindow *glfwWindow, unsigned int
 
 	auto window = static_cast<pal_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
 
-	if ( window->character_callback ) {
-		// NOTE: we first look up the address, then call,
-		// this is because the function may be from an indirection table.
-		( *window->character_callback )( window->user_data, codepoint );
+	if ( window->mSettings.useEventsQueue ) {
+
+		uint32_t queueIdx = window->eventQueueBack;
+		uint32_t eventIdx = 0;
+
+		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
+			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
+			event.event = UIEvent::Type::eCharacter;
+			auto &e     = event.character;
+			e.codepoint = codepoint;
+		} else {
+			// we're over the high - watermark for events, we should probably print a warning.
+		}
 	}
 }
 
@@ -72,10 +116,20 @@ static void glfw_window_cursor_position_callback( GLFWwindow *glfwWindow, double
 
 	auto window = static_cast<pal_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
 
-	if ( window->cursor_position_callback ) {
-		// NOTE: we first look up the address, then call,
-		// this is because the function may be from an indirection table.
-		( *window->cursor_position_callback )( window->user_data, xpos, ypos );
+	if ( window->mSettings.useEventsQueue ) {
+
+		uint32_t queueIdx = window->eventQueueBack;
+		uint32_t eventIdx = 0;
+
+		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
+			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
+			event.event = UIEvent::Type::eCursorPosition;
+			auto &e     = event.cursorPosition;
+			e.x         = xpos;
+			e.y         = ypos;
+		} else {
+			// we're over the high - watermark for events, we should probably print a warning.
+		}
 	}
 }
 
@@ -84,10 +138,19 @@ static void glfw_window_cursor_enter_callback( GLFWwindow *glfwWindow, int enter
 
 	auto window = static_cast<pal_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
 
-	if ( window->cursor_enter_callback ) {
-		// NOTE: we first look up the address, then call,
-		// this is because the function may be from an indirection table.
-		( *window->cursor_enter_callback )( window->user_data, entered );
+	if ( window->mSettings.useEventsQueue ) {
+
+		uint32_t queueIdx = window->eventQueueBack;
+		uint32_t eventIdx = 0;
+
+		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
+			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
+			event.event = UIEvent::Type::eCursorEnter;
+			auto &e     = event.cursorEnter;
+			e.entered   = uint32_t( entered );
+		} else {
+			// we're over the high - watermark for events, we should probably print a warning.
+		}
 	}
 }
 
@@ -96,10 +159,21 @@ static void glfw_window_mouse_button_callback( GLFWwindow *glfwWindow, int butto
 
 	auto window = static_cast<pal_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
 
-	if ( window->mouse_button_callback ) {
-		// NOTE: we first look up the address, then call,
-		// this is because the function may be from an indirection table.
-		( *window->mouse_button_callback )( window->user_data, button, action, mods );
+	if ( window->mSettings.useEventsQueue ) {
+
+		uint32_t queueIdx = window->eventQueueBack;
+		uint32_t eventIdx = 0;
+
+		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
+			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
+			event.event = UIEvent::Type::eMouseButton;
+			auto &e     = event.mouseButton;
+			e.button    = button;
+			e.action    = action;
+			e.mods      = mods;
+		} else {
+			// we're over the high - watermark for events, we should probably print a warning.
+		}
 	}
 }
 
@@ -108,42 +182,23 @@ static void glfw_window_scroll_callback( GLFWwindow *glfwWindow, double xoffset,
 
 	auto window = static_cast<pal_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
 
-	if ( window->scroll_callback ) {
-		// NOTE: we first look up the address, then call,
-		// this is because the function may be from an indirection table.
-		( *window->scroll_callback )( window->user_data, xoffset, yoffset );
+	if ( window->mSettings.useEventsQueue ) {
+
+		uint32_t queueIdx = window->eventQueueBack;
+		uint32_t eventIdx = 0;
+
+		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
+			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
+			event.event = UIEvent::Type::eScroll;
+			auto &e     = event.scroll;
+			e.x_offset  = xoffset;
+			e.y_offset  = yoffset;
+		} else {
+			// we're over the high - watermark for events, we should probably print a warning.
+		}
 	}
 }
 
-// ----------------------------------------------------------------------
-static void window_set_key_callback( pal_window_o *self, pal_window_api::key_callback_fun_t const *callback ) {
-	self->key_callback = callback;
-}
-
-// ----------------------------------------------------------------------
-static void window_set_character_callback( pal_window_o *self, pal_window_api::character_callback_fun_t const *callback ) {
-	self->character_callback = callback;
-}
-
-// ----------------------------------------------------------------------
-static void window_set_cursor_position_callback( pal_window_o *self, pal_window_api::cursor_position_callback_fun_t const *callback ) {
-	self->cursor_position_callback = callback;
-}
-
-// ----------------------------------------------------------------------
-static void window_set_cursor_enter_callback( pal_window_o *self, pal_window_api::cursor_enter_callback_fun_t const *callback ) {
-	self->cursor_enter_callback = callback;
-}
-
-// ----------------------------------------------------------------------
-static void window_set_mouse_button_callback( pal_window_o *self, pal_window_api::mouse_button_callback_fun_t const *callback ) {
-	self->mouse_button_callback = callback;
-}
-
-// ----------------------------------------------------------------------
-static void window_set_scroll_callback( pal_window_o *self, pal_window_api::scroll_callback_fun_t const *callback ) {
-	self->scroll_callback = callback;
-}
 // ----------------------------------------------------------------------
 static void glfw_framebuffer_resize_callback( GLFWwindow *glfwWindow, int width_px, int height_px ) {
 
@@ -160,11 +215,6 @@ static void glfw_framebuffer_resize_callback( GLFWwindow *glfwWindow, int width_
 	//	std::cout << "\t* Framebuffer resized callback: " << std::dec << w << ", " << h << std::endl
 	//	          << std::flush;
 };
-
-// ----------------------------------------------------------------------
-static void window_set_callback_user_data( pal_window_o *self, void *user_data ) {
-	self->user_data = user_data;
-}
 
 // ----------------------------------------------------------------------
 
@@ -311,7 +361,7 @@ static VkSurfaceKHR window_get_vk_surface_khr( pal_window_o *self ) {
 
 static void window_set_callbacks( pal_window_o *self ) {
 
-	// FIXME: Callback function address target may have changed after library hot-reload
+	// Note: Callback function address target may have changed after library hot-reload
 	// Problem -- the address of the callback function may have changed
 	// after the library was reloaded, and we would have to go through
 	// all windows to patch the callback function.
@@ -362,6 +412,39 @@ static void window_remove_callbacks( pal_window_o *self ) {
 	glfwSetMouseButtonCallback( self->window, nullptr );
 	glfwSetScrollCallback( self->window, nullptr );
 	glfwSetFramebufferSizeCallback( self->window, nullptr );
+}
+
+// ----------------------------------------------------------------------
+// Returns an array of events pending since the last call to this method.
+// Note that calling this method invalidates any values returned from the previous call to this method.
+static void window_get_ui_event_queue( pal_window_o *self, UIEvent const **events, uint32_t &numEvents ) {
+
+	if ( false == self->mSettings.useEventsQueue ) {
+		*events   = nullptr;
+		numEvents = 0;
+
+		std::cout << "WARNING: Querying ui event queue when event queue not in use. Use window.settings to enable events queue." << std::endl
+		          << std::flush;
+		return;
+	}
+
+	// ----------| Invariant: Event queue is in use.
+
+	// Flip front and back event queue
+	auto eventQueueFront = self->eventQueueBack;
+	self->eventQueueBack ^= 1;
+
+	// Note: In the unlikely event that any UIEvent will be added asynchronously in between
+	// these two calls it will be added to the very end of the back queue and then implicitly
+	// released, as the event counter for the back queue is reset at the next step.
+	// This is not elegant, but otherwise we must mutex for all event callbacks...
+
+	// Clear new back event queue
+	self->numEventsForQueue[ self->eventQueueBack ] = 0;
+
+	// Hand out front events queue
+	*events   = self->eventQueue[ eventQueueFront ].data();
+	numEvents = self->numEventsForQueue[ eventQueueFront ];
 }
 
 // ----------------------------------------------------------------------
@@ -464,7 +547,10 @@ static const char **get_required_vk_instance_extensions( uint32_t *count ) {
 }
 
 // ----------------------------------------------------------------------
-
+// Polls Window events via GLFW - this will trigger glfw callbacks for
+// any events raised via glfw. Since this triggers polling for any window
+// associated with this glfw instance, we must find a way to communicate
+// to all windows that their event queue is stale at this moment.
 static void pollEvents() {
 	glfwPollEvents();
 }
@@ -502,14 +588,8 @@ void register_pal_window_api( void *api ) {
 	window_i.get_reference_count      = window_get_reference_count;
 	window_i.get_glfw_window          = window_get_glfw_window;
 
-	window_i.toggle_fullscreen            = window_toggle_fullscreen;
-	window_i.set_callback_user_data       = window_set_callback_user_data;
-	window_i.set_key_callback             = window_set_key_callback;
-	window_i.set_character_callback       = window_set_character_callback;
-	window_i.set_cursor_position_callback = window_set_cursor_position_callback;
-	window_i.set_cursor_enter_callback    = window_set_cursor_enter_callback;
-	window_i.set_mouse_button_callback    = window_set_mouse_button_callback;
-	window_i.set_scroll_callback          = window_set_scroll_callback;
+	window_i.toggle_fullscreen  = window_toggle_fullscreen;
+	window_i.get_ui_event_queue = window_get_ui_event_queue;
 
 	auto &window_settings_i      = windowApi->window_settings_i;
 	window_settings_i.create     = window_settings_create;

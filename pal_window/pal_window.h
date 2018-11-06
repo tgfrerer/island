@@ -16,17 +16,58 @@ struct pal_window_settings_o;
 struct VkSurfaceKHR_T;
 struct GLFWwindow;
 
+struct UIEvent {
+
+	enum class Type {
+		eKey,
+		eCharacter,
+		eCursorPosition,
+		eCursorEnter,
+		eMouseButton,
+		eScroll,
+	};
+	struct KeyEvent {
+		int32_t key;
+		int32_t scancode;
+		int32_t action;
+		int32_t mods;
+	};
+	struct CharacterEvent {
+		uint32_t codepoint;
+	};
+	struct CursorPositionEvent {
+		double x;
+		double y;
+	};
+	struct CursorEnterEvent {
+		uint32_t entered;
+	};
+	struct MouseButtonEvent {
+		int32_t button;
+		int32_t action;
+		int32_t mods;
+	};
+	struct ScrollEvent {
+		double x_offset;
+		double y_offset;
+	};
+
+	Type event;
+
+	union {
+		KeyEvent            key;
+		CharacterEvent      character;
+		CursorPositionEvent cursorPosition;
+		CursorEnterEvent    cursorEnter;
+		MouseButtonEvent    mouseButton;
+		ScrollEvent         scroll;
+	};
+};
+
 // clang-format off
 struct pal_window_api {
 	static constexpr auto id      = "pal_window";
 	static constexpr auto pRegFun = register_pal_window_api;
-
-	typedef void ( *key_callback_fun_t             )( void *user_data, int key, int scancode, int action, int mods );
-	typedef void ( *character_callback_fun_t       )( void *user_data, unsigned int codepoint );
-	typedef void ( *cursor_position_callback_fun_t )( void *user_data, double xpos, double ypos );
-	typedef void ( *cursor_enter_callback_fun_t    )( void *user_data, int entered );
-	typedef void ( *mouse_button_callback_fun_t    )( void *user_data, int button, int action, int mods );
-	typedef void ( *scroll_callback_fun_t          )( void *user_data, double xoffset, double yoffset );
 
 
 	struct window_settings_interface_t {
@@ -56,18 +97,16 @@ struct pal_window_api {
 
 		void            ( *toggle_fullscreen  ) ( pal_window_o* self );
 
-		void            ( *set_callback_user_data      )(pal_window_o* self, void* user_data);
-		void            ( *set_key_callback            )(pal_window_o*, key_callback_fun_t const * callback_fun_ptr); // NOTE: we want a pointer to a function pointer!
-		void 		    ( *set_character_callback      )(pal_window_o*, character_callback_fun_t const * callback_fun_ptr);
-		void            ( *set_cursor_position_callback)(pal_window_o*, cursor_position_callback_fun_t const * callback_fun_ptr);
-		void            ( *set_cursor_enter_callback   )(pal_window_o*, cursor_enter_callback_fun_t const * callback_fun_ptr);
-		void            ( *set_mouse_button_callback   )(pal_window_o*, mouse_button_callback_fun_t const *  callback_fun_ptr);
-		void            ( *set_scroll_callback         )(pal_window_o*, scroll_callback_fun_t const * callback_fun_ptr);
+		// Returns a sorted array of events pending for the current frame, and the number of events.
+		// Note that calling this method invalidates any values returned in the previous call to this method.
+		void            ( *get_ui_event_queue )(pal_window_o* self, UIEvent const ** events, uint32_t& numEvents);
+
 	};
 
 	int           ( *init                       ) ();
 	void          ( *terminate                  ) ();
 	void          ( *pollEvents                 ) ();
+
 	const char ** ( *get_required_vk_extensions ) ( uint32_t *count );
 
 
