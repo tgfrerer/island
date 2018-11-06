@@ -178,6 +178,22 @@ LE_WRAP_ENUM_IN_STRUCT( le::ShaderType, LeShaderTypeEnum );
 
 namespace le {
 
+// Codegen <VkPrimitiveTopology, uint32_t>
+enum class PrimitiveTopology : uint32_t {
+	ePointList                  = 0,
+	eLineList                   = 1,
+	eLineStrip                  = 2,
+	eTriangleList               = 3,
+	eTriangleStrip              = 4,
+	eTriangleFan                = 5,
+	eLineListWithAdjacency      = 6,
+	eLineStripWithAdjacency     = 7,
+	eTriangleListWithAdjacency  = 8,
+	eTriangleStripWithAdjacency = 9,
+	ePatchList                  = 10,
+};
+// Codegen </VkPrimitiveTopology>
+
 // Codegen <VkIndexType, uint32_t>
 enum class IndexType : uint32_t {
 	eUint16 = 0,

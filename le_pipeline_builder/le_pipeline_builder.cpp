@@ -49,6 +49,10 @@
 
 */
 
+static constexpr inline vk::PrimitiveTopology le_to_vk( const le::PrimitiveTopology &lhs ) noexcept {
+	return vk::PrimitiveTopology( lhs );
+}
+
 // contains everything (except renderpass/subpass) needed to create a pipeline in the backend
 struct le_graphics_pipeline_builder_o {
 	graphics_pipeline_state_o *obj           = nullptr;
@@ -228,6 +232,14 @@ static void le_graphics_pipeline_builder_set_fragment_shader( le_graphics_pipeli
 	self->obj->shaderModuleFrag = fragmentShader;
 }
 
+static void input_assembly_state_set_primitive_restart_enable( le_graphics_pipeline_builder_o *self, uint32_t const &primitiveRestartEnable ) {
+	self->obj->data.inputAssemblyState.setPrimitiveRestartEnable( primitiveRestartEnable );
+}
+
+static void input_assembly_state_set_toplogy( le_graphics_pipeline_builder_o *self, le::PrimitiveTopology const &topology ) {
+	self->obj->data.inputAssemblyState.setTopology( le_to_vk( topology ) );
+}
+
 // ----------------------------------------------------------------------
 
 ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
@@ -245,4 +257,7 @@ ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
 	i.set_tessellation_info                   = le_graphics_pipeline_builder_set_tessellation_info;
 	i.set_multisample_info                    = le_graphics_pipeline_builder_set_multisample_info;
 	i.set_depth_stencil_info                  = le_graphics_pipeline_builder_set_depth_stencil_info;
+
+	i.input_assembly_state_i.set_primitive_restart_enable = input_assembly_state_set_primitive_restart_enable;
+	i.input_assembly_state_i.set_topology                 = input_assembly_state_set_toplogy;
 }

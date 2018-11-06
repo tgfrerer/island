@@ -20,6 +20,10 @@ struct VkPipelineTessellationStateCreateInfo;
 struct VkPipelineMultisampleStateCreateInfo;
 struct VkPipelineDepthStencilStateCreateInfo;
 
+namespace le {
+enum class PrimitiveTopology : uint32_t;
+}
+
 void register_le_pipeline_builder_api( void *api );
 
 // clang-format off
@@ -44,7 +48,14 @@ struct le_graphics_pipeline_builder_api {
 		void     ( * set_multisample_info                    ) ( le_graphics_pipeline_builder_o *self, const VkPipelineMultisampleStateCreateInfo &multisampleInfo );
 		void     ( * set_depth_stencil_info                  ) ( le_graphics_pipeline_builder_o *self, const VkPipelineDepthStencilStateCreateInfo &depthStencilInfo );
 
-		uint64_t ( * build                                   )(le_graphics_pipeline_builder_o* self );
+		uint64_t ( * build                                   ) ( le_graphics_pipeline_builder_o* self );
+
+		struct input_assembly_state_t {
+			void ( *set_primitive_restart_enable ) ( le_graphics_pipeline_builder_o* self, uint32_t const& primitiveRestartEnable );
+			void ( *set_topology                 ) ( le_graphics_pipeline_builder_o* self, le::PrimitiveTopology const & topology);
+		};
+
+		input_assembly_state_t input_assembly_state_i;
 	};
 
 	le_graphics_pipeline_builder_interface_t le_graphics_pipeline_builder_i;
@@ -65,9 +76,38 @@ static const auto &le_graphics_pipeline_builder_i = api -> le_graphics_pipeline_
 
 } // namespace le_pipeline_builder
 
+class LeGraphicsPipelineBuilder;
+
 class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 
 	le_graphics_pipeline_builder_o *self;
+
+	class InputAssembly {
+		LeGraphicsPipelineBuilder &parent;
+
+	  public:
+		InputAssembly( LeGraphicsPipelineBuilder &parent_ )
+		    : parent( parent_ ) {
+		}
+
+		InputAssembly &setPrimitiveRestartEnable( uint32_t const &primitiveRestartEnable ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.input_assembly_state_i.set_primitive_restart_enable( parent.self, primitiveRestartEnable );
+			return *this;
+		}
+
+		InputAssembly &setToplogy( le::PrimitiveTopology const &topology ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.input_assembly_state_i.set_topology( parent.self, topology );
+			return *this;
+		}
+
+		LeGraphicsPipelineBuilder &end() {
+			return parent;
+		}
+	};
+
+	InputAssembly mInputAssembly{*this};
 
   public:
 	LeGraphicsPipelineBuilder( le_pipeline_manager_o *pipelineCache )
@@ -125,6 +165,10 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	LeGraphicsPipelineBuilder &setDepthStencilInfo( const VkPipelineDepthStencilStateCreateInfo &info ) {
 		le_pipeline_builder::le_graphics_pipeline_builder_i.set_depth_stencil_info( self, info );
 		return *this;
+	}
+
+	InputAssembly &withInputAssembly() {
+		return mInputAssembly;
 	}
 };
 
