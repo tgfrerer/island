@@ -122,25 +122,6 @@ static triangle_app_o *triangle_app_create() {
 		app->shaderPathTracer[ 1 ] = app->renderer.createShaderModule( "./resources/shaders/path_tracer.frag", le::ShaderType::eFrag );
 	}
 
-	{
-		// -- Set window event callbacks
-
-		using namespace pal_window;
-		// set the callback user data for all callbacks from window *app->window
-		// to be our app pointer.
-		window_i.set_callback_user_data( app->window, app );
-
-		using triangle_app::triangle_app_i;
-
-		window_i.set_key_callback( app->window, &triangle_app_i.key_callback );
-		window_i.set_character_callback( app->window, &triangle_app_i.character_callback );
-
-		window_i.set_cursor_position_callback( app->window, &triangle_app_i.cursor_position_callback );
-		window_i.set_cursor_enter_callback( app->window, &triangle_app_i.cursor_enter_callback );
-		window_i.set_mouse_button_callback( app->window, &triangle_app_i.mouse_button_callback );
-		window_i.set_scroll_callback( app->window, &triangle_app_i.scroll_callback );
-	}
-
 	app->update_start_time = std::chrono::high_resolution_clock::now();
 
 	{
@@ -387,6 +368,40 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	}
 }
 
+static void process_ui_events( triangle_app_o *self ) {
+	using namespace pal_window;
+
+	UIEvent const *pEvents;
+	uint32_t       eventCount = 0;
+	window_i.get_ui_event_queue( self->window, &pEvents, eventCount );
+	std::vector<UIEvent> events{pEvents, pEvents + eventCount};
+
+	for ( auto const &e : events ) {
+		switch ( e.event ) {
+		case ( UIEvent::Type::eCursorPosition ): {
+			auto &data                 = e.cursorPosition;
+			self->mouseData.cursor_pos = {float( data.x ), float( data.y )};
+			self->mousePos             = {float( data.x ), float( data.y )};
+
+		} break;
+		case ( UIEvent::Type::eMouseButton ): {
+			auto &data = e.mouseButton;
+			if ( data.button >= 0 && data.button < int( self->mouseButtonStatus.size() ) ) {
+				self->mouseButtonStatus[ size_t( data.button ) ] = ( data.action == GLFW_PRESS );
+
+				if ( data.action == GLFW_PRESS ) {
+					self->mouseData.buttonState |= uint8_t( 1 << size_t( data.button ) );
+				} else if ( data.action == GLFW_RELEASE ) {
+					self->mouseData.buttonState &= uint8_t( 0 << size_t( data.button ) );
+				}
+			}
+		} break;
+		default:
+		    break;
+		}
+	}
+}
+
 // ----------------------------------------------------------------------
 
 static bool triangle_app_update( triangle_app_o *self ) {
@@ -408,6 +423,8 @@ static bool triangle_app_update( triangle_app_o *self ) {
 	if ( self->window.shouldClose() ) {
 		return false;
 	}
+
+	process_ui_events( self );
 
 	{
 		// update interactive camera using mouse data
@@ -454,93 +471,6 @@ static void triangle_app_destroy( triangle_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void triangle_app_key_callback( void *user_data, int key, int scancode, int action, int mods ) {
-
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
-
-	// --------| invariant : user data is not null
-
-	auto app = static_cast<triangle_app_o *>( user_data );
-
-	using namespace pal_window;
-	if ( key == GLFW_KEY_F11 && action == GLFW_RELEASE ) {
-		window_i.toggle_fullscreen( app->window );
-	}
-}
-static void triangle_app_character_callback( void *user_data, unsigned int codepoint ) {
-
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
-
-	// --------| invariant : user data is not null
-}
-static void triangle_app_cursor_position_callback( void *user_data, double xpos, double ypos ) {
-
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
-
-	// --------| invariant : user data is not null
-
-	auto app = static_cast<triangle_app_o *>( user_data );
-
-	app->mouseData.cursor_pos = {float( xpos ), float( ypos )};
-	app->mousePos             = {float( xpos ), float( ypos )};
-}
-static void triangle_app_cursor_enter_callback( void *user_data, int entered ) {
-
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
-
-	// --------| invariant : user data is not null
-}
-static void triangle_app_mouse_button_callback( void *user_data, int button, int action, int mods ) {
-
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
-
-	// --------| invariant : user data is not null
-
-	auto app = static_cast<triangle_app_o *>( user_data );
-
-	if ( button >= 0 && button < int( app->mouseButtonStatus.size() ) ) {
-		app->mouseButtonStatus[ size_t( button ) ] = ( action == GLFW_PRESS );
-
-		if ( action == GLFW_PRESS ) {
-			app->mouseData.buttonState |= uint8_t( 1 << size_t( button ) );
-		} else if ( action == GLFW_RELEASE ) {
-			app->mouseData.buttonState &= uint8_t( 0 << size_t( button ) );
-		}
-	}
-}
-static void triangle_app_scroll_callback( void *user_data, double xoffset, double yoffset ) {
-
-	if ( user_data == nullptr ) {
-		std::cerr << __FILE__ << "#L" << std::dec << __LINE__ << "Missing user data." << std::endl
-		          << std::flush;
-		return;
-	}
-
-	// --------| invariant : user data is not null
-}
-
-// ----------------------------------------------------------------------
-
 ISL_API_ATTR void register_triangle_app_api( void *api ) {
 	auto  triangle_app_api_i = static_cast<triangle_app_api *>( api );
 	auto &triangle_app_i     = triangle_app_api_i->triangle_app_i;
@@ -551,11 +481,4 @@ ISL_API_ATTR void register_triangle_app_api( void *api ) {
 	triangle_app_i.create  = triangle_app_create;
 	triangle_app_i.destroy = triangle_app_destroy;
 	triangle_app_i.update  = triangle_app_update;
-
-	triangle_app_i.key_callback             = triangle_app_key_callback;
-	triangle_app_i.character_callback       = triangle_app_character_callback;
-	triangle_app_i.cursor_position_callback = triangle_app_cursor_position_callback;
-	triangle_app_i.cursor_enter_callback    = triangle_app_cursor_enter_callback;
-	triangle_app_i.mouse_button_callback    = triangle_app_mouse_button_callback;
-	triangle_app_i.scroll_callback          = triangle_app_scroll_callback;
 }
