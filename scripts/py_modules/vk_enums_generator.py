@@ -45,12 +45,13 @@ def to_upper_snake_case(name):
 
 # A visitor with some state information (the funcname it's looking for)
 class EnumVisitor(c_ast.NodeVisitor):
-	def __init__(self, enumName, enumAttr='', IsCEnum=0):
+	def __init__(self, enumName, enumAttr='', IsCEnum=False, friendlyName=''):
 		self.enumName = enumName
 		self.enumAttr = enumAttr
 		self.is_c_enum = IsCEnum
 		self.indent_level = 0
 		self.length_enum_prelude = 0
+		self.friendlyName = friendlyName
 
 	def _make_indent(self):
 		return '\t' * self.indent_level
@@ -69,13 +70,12 @@ class EnumVisitor(c_ast.NodeVisitor):
 	def to_le_enum_name(self, n):
 		name = n
 		# We must remove the last "_BIT", in case the field was a flag ENUM
-		if (self.is_c_enum == 0):
+		if self.is_c_enum == True:
+			return 'LE' + to_upper_snake_case(name[2:])
+		else:
 			if (name.endswith("_BIT")):
 				name = name[:-4]
 			return 'e' + to_camel_case(name[self.length_enum_prelude:])
-		else :
-			return 'LE' + to_upper_snake_case(name[2:])
-
 
 	def visit_Enum(self, n):
 		if (n.name == self.enumName):
@@ -124,10 +124,18 @@ class EnumVisitor(c_ast.NodeVisitor):
 		assert name == 'enum'
 		members = None if n.values is None else n.values.enumerators
 		s = ''
-		if (self.is_c_enum == 0):
-			s = name + ' class ' + (self._remove_vk_prefix(n.name) or '')
+
+		enumName = ''
+		
+		# apply any name overrides - otherwise use inferred name
+
+		if self.is_c_enum == False:
+			enumName = self.friendlyName or self._remove_vk_prefix(n.name)
+			s = name + ' class ' + enumName
 		else:
-			s =  name + ' ' + 'Le' + (self._remove_vk_prefix(n.name) or '')
+			enumName = self.friendlyName or ('Le' + (self._remove_vk_prefix(n.name)))
+			s =  name + ' ' + enumName
+
 		if self.enumAttr != '':
 			s += " : %s" % self.enumAttr
 		if members is not None:
@@ -139,7 +147,7 @@ class EnumVisitor(c_ast.NodeVisitor):
 			s += '{\n'
 			s += self._generate_enum_body(members)
 			self.indent_level -= 2
-			s += self._make_indent() + '};\n'
+			s += self._make_indent() + '};\n'			
 		return s
 
 	def _generate_enum_body(self, members):
@@ -179,7 +187,10 @@ if __name__ == "__main__":
 	else:
 		# print a test if no parameter specified
 		VkEnumName = 'VkAttachmentLoadOp'
-		v = EnumVisitor(VkEnumName, 'uint32_t')
+		v = EnumVisitor(VkEnumName, 'uint32_t', IsCEnum=True)
+		a = v.visit(ast)
+		print (a)
+		v = EnumVisitor(VkEnumName, 'uint32_t', IsCEnum=False)
 		a = v.visit(ast)
 		print (a)
 

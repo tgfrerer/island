@@ -27,10 +27,11 @@ def codegen_enums(inputFilePath, outputFilePath = ''):
 		name = ''
 		startOffset = 0
 		numLines = 0
-		def __init__(self, name='', attr='', isCEnum = 0, startOffset=0,numLines=0):
+		def __init__(self, name='', friendlyName='', attr='', isCEnum = False, startOffset=0,numLines=0):
 			self.name = name
 			self.attr = attr
 			self.isCEnum = isCEnum
+			self.friendlyName = friendlyName
 			self.startOffset = startOffset
 			self.numLines = numLines
 			
@@ -41,11 +42,12 @@ def codegen_enums(inputFilePath, outputFilePath = ''):
 	for lNr, line in enumerate(lines):
 		if "Codegen" in line:
 			# we need to check whether we have an open tag or a closing tag
-			matches = re.findall(r'^// Codegen <(.+?)(?:,\s*?([a-z,A-Z,0-9_]+?)(?:,\s*?([a-z,A-Z,0-9_]+?))?)?>.*$' , line)
+			matches = re.findall(r'^// Codegen <(.+?)(?:,\s*?([a-z,A-Z,0-9_]+?)(?:,\s*?([cp]+?))?(?:,\s*?([a-z,A-Z,0-9_:]+?))?)?>.*$' , line)
 			
-			tag = ''     # name for the enum to look up via codegen, e.g. VkFormat
-			tagAttr = '' # attribute for codegen, most probably type information, e.g. uint32_t
-			tagIsCEnum = 0 # whether a tag emits a c enum (0 == false == default)  
+			tag = ''             # name for the enum to look up via codegen, e.g. VkFormat
+			tagAttr = ''         # attribute for codegen, most probably type information, e.g. uint32_t
+			tagIsCEnum = False   # whether a tag emits a c enum (0 == false == default)
+			tagFriendlyName = '' # enum name to generate for tag (if empty, infer from `tag`)
 
 			if len(matches) > 0:
 				# print (matches)
@@ -55,7 +57,9 @@ def codegen_enums(inputFilePath, outputFilePath = ''):
 					# By default we generate cpp-style class enums
 					# If 'c' is explicitly specified, flag to create
 					# c-style enum.
-					tagIsCEnum = 1
+					tagIsCEnum = True
+				if matches[0][3].strip() != '':
+					tagFriendlyName = matches[0][3].strip()
 
 				# print (matches)
 
@@ -68,10 +72,11 @@ def codegen_enums(inputFilePath, outputFilePath = ''):
 					# print ("Opening " + currentTag + " in line %s, delta lines=%s" %(lNr, lDelta))
 					lastOpeningLine = lNr 
 
-					currentChangeSet.name = currentTag
-					currentChangeSet.attr = tagAttr
-					currentChangeSet.startOffset = lDelta
-					currentChangeSet.isCEnum = tagIsCEnum
+					currentChangeSet.name         = currentTag
+					currentChangeSet.attr         = tagAttr
+					currentChangeSet.startOffset  = lDelta
+					currentChangeSet.isCEnum      = tagIsCEnum
+					currentChangeSet.friendlyName = tagFriendlyName
 
 				elif tag[0] == '/' and currentTag != '' and tag[1:] == currentTag:
 					# close the current tag
@@ -101,7 +106,7 @@ def codegen_enums(inputFilePath, outputFilePath = ''):
 
 		# print (start, numLinesToRemove)
 
-		v = EnumVisitor(i.name, i.attr, i.isCEnum)
+		v = EnumVisitor(i.name, i.attr, i.isCEnum, i.friendlyName)
 		generated_code = v.visit(ast).splitlines(keepends=1)
 		#print (generated_code)
 		# generated_code = ""
@@ -144,4 +149,3 @@ if __name__ == "__main__":
 	parser.add_argument("-o","--outputFile", dest='outFile', help="Output file name (will overwrite if exists!)")
 	args = parser.parse_args()
 	codegen_enums(args.inFile, args.outFile)
-	
