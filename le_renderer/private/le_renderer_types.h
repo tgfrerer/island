@@ -163,14 +163,22 @@ namespace le {
 
 // Codegen <VkShaderStageFlagBits, uint32_t, cpp, ShaderStage>
 enum class ShaderStage : uint32_t {
-	// no default stage for shader modules, you must specify a stage
-	eVert        = 0x00000001,
-	eTessControl = 0x00000002,
-	eTessEval    = 0x00000004,
-	eGeom        = 0x00000008,
-	eFrag        = 0x00000010,
-	eAllGraphics = 0x0000001F,
-	eCompute     = 0x00000020, // max needed space to cover this enum is 6 bit
+	eVertex                 = 0x00000001,
+	eTessellationControl    = 0x00000002,
+	eTessellationEvaluation = 0x00000004,
+	eGeometry               = 0x00000008,
+	eFragment               = 0x00000010,
+	eCompute                = 0x00000020,
+	eAllGraphics            = 0x0000001F,
+	eAll                    = 0x7FFFFFFF,
+	eRaygenBitNvx           = 0x00000100,
+	eAnyHitBitNvx           = 0x00000200,
+	eClosestHitBitNvx       = 0x00000400,
+	eMissBitNvx             = 0x00000800,
+	eIntersectionBitNvx     = 0x00001000,
+	eCallableBitNvx         = 0x00002000,
+	eTaskBitNv              = 0x00000040,
+	eMeshBitNv              = 0x00000080,
 };
 // Codegen </VkShaderStageFlagBits>
 
