@@ -161,6 +161,7 @@ enum LeBufferUsageFlagBits : LeBufferUsageFlags {
 
 namespace le {
 
+// Codegen <VkShaderStageFlagBits, uint32_t, cpp, ShaderStage>
 enum class ShaderStage : uint32_t {
 	// no default stage for shader modules, you must specify a stage
 	eVert        = 0x00000001,
@@ -171,6 +172,7 @@ enum class ShaderStage : uint32_t {
 	eAllGraphics = 0x0000001F,
 	eCompute     = 0x00000020, // max needed space to cover this enum is 6 bit
 };
+// Codegen </VkShaderStageFlagBits>
 
 } // namespace le
 
