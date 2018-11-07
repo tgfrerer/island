@@ -192,35 +192,46 @@ static void le_graphics_pipeline_builder_destroy( le_graphics_pipeline_builder_o
 // Calculate pipeline info hash, and add pipeline info to shared store if not yet seen.
 // Return pipeline hash
 static uint64_t le_graphics_pipeline_builder_build( le_graphics_pipeline_builder_o *self ) {
-	uint64_t hash_value{}; // hash will get updated based on values from info_objects
 
-	constexpr size_t
-	    hash_msg_size = sizeof( le_graphics_pipeline_builder_data );
+	uint64_t hash_value{}; // We declare this as the first element, because it will get returned
+	                       // at the end of the method and we're hoping for copy-elision.
+
+	constexpr size_t hash_msg_size = sizeof( le_graphics_pipeline_builder_data );
 
 	hash_value = SpookyHash::Hash64( &self->obj->data, hash_msg_size, 0 );
 
-	// TODO: tidy this up a little (use static array for hash source accumulation)
-	for ( auto const &module : self->obj->shaderStages ) {
-		using namespace le_backend_vk;
-		auto module_hash = le_shader_module_i.get_hash( module );
-		hash_value       = SpookyHash::Hash64( &module_hash, sizeof( module_hash ), hash_value );
+	{
+		// Calculate a meta-hash over shader stage hash entries so that we can
+		// detect if a shader component has changed
+		//
+		// Rather than a std::vector, we use a plain-c array to collect hash entries
+		// for all stages, because we don't want to allocate anything on the heap,
+		// and local fixed-size c-arrays are cheap.
+
+		constexpr size_t maxShaderStages = 8;                 // we assume a maximum number of shader entries
+		uint64_t         stageHashEntries[ maxShaderStages ]; // array of stage hashes for further hashing
+		uint64_t         stageHashEntriesUsed = 0;            // number of used shader stage hash entries
+
+		for ( auto const &module : self->obj->shaderStages ) {
+			using namespace le_backend_vk;
+			stageHashEntries[ stageHashEntriesUsed++ ] = le_shader_module_i.get_hash( module );
+			assert( stageHashEntriesUsed <= maxShaderStages ); // We're gonna need a bigger boat.
+		}
+
+		// Mix in the meta-hash over shader stages with the previous hash over pipeline state
+		// which gives the complete hash representing a pipeline state object.
+
+		hash_value = SpookyHash::Hash64( stageHashEntries, stageHashEntriesUsed * sizeof( uint64_t ), hash_value );
 	}
 
-	// Check if this hash_value is already in the cold store.
-	// - if not, add info to cold store, and index it with hash_value
-	// - if yes, just return the hash value.
-
-	// The hash value is what we use to refer to this pso
-	// from within the encoders, for example.
-	//
-	// it is not used to refer to a pipeline object directly, since
-	// the pipeline object needs to take into account the renderpass
-	// and subpass.
-
-	// note that object will be copied.
+	// Add pipeline state object to the shared store
 
 	using namespace le_backend_vk;
 	le_pipeline_manager_i.introduce_graphics_pipeline_state( self->pipelineCache, self->obj, hash_value );
+
+	// Note that the pipeline_manager makes a copy of the pso object before returning
+	// from `introduce_graphics_pipeline_state` if it wants to keep it, which means
+	// we don't have to worry about keeping self->obj alife.
 
 	return hash_value;
 }

@@ -158,8 +158,8 @@ static test_app_o *test_app_create() {
 		{
 			// create default pipeline
 
-			auto defaultVertShader = app->renderer.createShaderModule( "./resources/shaders/default.vert", le::ShaderStage::eVert );
-			auto defaultFragShader = app->renderer.createShaderModule( "./resources/shaders/default.frag", le::ShaderStage::eFrag );
+			auto defaultVertShader = app->renderer.createShaderModule( "./resources/shaders/default.vert", le::ShaderStage::eVertex );
+			auto defaultFragShader = app->renderer.createShaderModule( "./resources/shaders/default.frag", le::ShaderStage::eFragment );
 
 			app->shaderTriangle[ 0 ] = defaultVertShader;
 			app->shaderTriangle[ 1 ] = defaultFragShader;
@@ -184,8 +184,8 @@ static test_app_o *test_app_create() {
 
 		{
 			// Create pso for imgui rendering
-			auto imguiVertShader = app->renderer.createShaderModule( "./resources/shaders/imgui.vert", le::ShaderStage::eVert );
-			auto imguiFragShader = app->renderer.createShaderModule( "./resources/shaders/imgui.frag", le::ShaderStage::eFrag );
+			auto imguiVertShader = app->renderer.createShaderModule( "./resources/shaders/imgui.vert", le::ShaderStage::eVertex );
+			auto imguiFragShader = app->renderer.createShaderModule( "./resources/shaders/imgui.frag", le::ShaderStage::eFragment );
 
 			std::array<le_vertex_input_attribute_description, 3> attrs    = {};
 			std::array<le_vertex_input_binding_description, 1>   bindings = {};
@@ -240,14 +240,14 @@ static test_app_o *test_app_create() {
 
 		// load shaders for prepass
 
-		app->shaderPrepass[ 0 ] = app->renderer.createShaderModule( "./resources/shaders/prepass.vert", {le::ShaderStage::eVert} );
-		app->shaderPrepass[ 1 ] = app->renderer.createShaderModule( "./resources/shaders/prepass.frag", le::ShaderStage::eFrag );
+		app->shaderPrepass[ 0 ] = app->renderer.createShaderModule( "./resources/shaders/prepass.vert", {le::ShaderStage::eVertex} );
+		app->shaderPrepass[ 1 ] = app->renderer.createShaderModule( "./resources/shaders/prepass.frag", le::ShaderStage::eFragment );
 
 		{
 			// create full screen quad pipeline
 
-			auto fullScreenQuadVertShader = app->renderer.createShaderModule( "./resources/shaders/fullscreenQuad.vert", le::ShaderStage::eVert );
-			auto fullScreenQuadFragShader = app->renderer.createShaderModule( "./resources/shaders/fullscreenQuad.frag", le::ShaderStage::eFrag );
+			auto fullScreenQuadVertShader = app->renderer.createShaderModule( "./resources/shaders/fullscreenQuad.vert", le::ShaderStage::eVertex );
+			auto fullScreenQuadFragShader = app->renderer.createShaderModule( "./resources/shaders/fullscreenQuad.frag", le::ShaderStage::eFragment );
 
 			auto psoHandle = LeGraphicsPipelineBuilder( pipelineCache )
 			                     .addShaderStage( fullScreenQuadFragShader )

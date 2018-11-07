@@ -752,8 +752,8 @@ static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *r
 		// Cache buffer lookups for primitives
 
 		{
-			auto shader_module_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.vert", {le::ShaderStage::eVert} );
-			auto shader_module_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.frag", {le::ShaderStage::eFrag} );
+			auto shader_module_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.vert", {le::ShaderStage::eVertex} );
+			auto shader_module_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.frag", {le::ShaderStage::eFragment} );
 
 			p.pso = LeGraphicsPipelineBuilder( pipelineCache )
 			            .addShaderStage( shader_module_frag )

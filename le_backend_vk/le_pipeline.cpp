@@ -55,7 +55,7 @@ struct le_pipeline_manager_o {
 
 	le_shader_manager_o *shaderManager = nullptr; // owning
 
-	std::vector<graphics_pipeline_state_o *> graphicsPSO_list; // indexed by PSOs_hashes
+	std::vector<graphics_pipeline_state_o *> graphicsPSO_list; // indexed by graphicsPSO_hashes
 	std::vector<uint64_t>                    graphicsPSO_hashes;
 
 	std::unordered_map<uint64_t, vk::Pipeline, IdentityHash>            pipelines;
@@ -375,7 +375,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 
 	// If this shader module represents a vertex shader, get
 	// stage_inputs, as these represent vertex shader inputs.
-	if ( module->stage == le::ShaderStage::eVert ) {
+	if ( module->stage == le::ShaderStage::eVertex ) {
 
 		uint32_t location = 0; // shader location qualifier mapped to binding number
 
@@ -1115,7 +1115,7 @@ static vk::Pipeline le_pipeline_cache_create_pipeline( le_pipeline_manager_o *se
 	for ( auto const &s : pso->shaderStages ) {
 
 		// Try to set the vertex shader module pointer while we are at it.
-		if ( s->stage == le::ShaderStage::eVert ) {
+		if ( s->stage == le::ShaderStage::eVertex ) {
 			vertexShaderModule = s;
 		}
 

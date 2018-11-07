@@ -63,10 +63,10 @@ static shaderc_shader_kind convert_to_shaderc_shader_kind( const le::ShaderStage
 	shaderc_shader_kind result;
 
 	switch ( type ) {
-	case ( le::ShaderStage::eFrag ):
+	case ( le::ShaderStage::eFragment ):
 		result = shaderc_shader_kind::shaderc_glsl_fragment_shader;
 	    break;
-	case ( le::ShaderStage::eVert ):
+	case ( le::ShaderStage::eVertex ):
 		result = shaderc_shader_kind::shaderc_glsl_vertex_shader;
 	    break;
 	}
