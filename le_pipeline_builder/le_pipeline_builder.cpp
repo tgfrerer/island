@@ -199,10 +199,12 @@ static uint64_t le_graphics_pipeline_builder_build( le_graphics_pipeline_builder
 
 	hash_value = SpookyHash::Hash64( &self->obj->data, hash_msg_size, 0 );
 
-	// FIXME: THIS IS NOT NICE!!!
-    // We should probably refer to the internal hash of each of these modules...
-    hash_value = SpookyHash::Hash64( &self->obj->shaderModuleFrag, 8, hash_value );
-	hash_value = SpookyHash::Hash64( &self->obj->shaderModuleVert, 8, hash_value );
+	// TODO: tidy this up a little (use static array for hash source accumulation)
+	for ( auto const &module : self->obj->shaderStages ) {
+		using namespace le_backend_vk;
+		auto module_hash = le_shader_module_i.get_hash( module );
+		hash_value       = SpookyHash::Hash64( &module_hash, sizeof( module_hash ), hash_value );
+	}
 
 	// Check if this hash_value is already in the cold store.
 	// - if not, add info to cold store, and index it with hash_value
@@ -224,18 +226,39 @@ static uint64_t le_graphics_pipeline_builder_build( le_graphics_pipeline_builder
 }
 
 // ----------------------------------------------------------------------
+// Adds a shader module to a given pipeline builder object
+//
+// If shader module with the given shader stage already exists in pso,
+// overwrite old entry, otherwise add new shader module.
+static void le_graphics_pipeline_builder_add_shader_stage( le_graphics_pipeline_builder_o *self, struct le_shader_module_o *shaderModule ) {
 
-static void le_graphics_pipeline_builder_set_vertex_shader( le_graphics_pipeline_builder_o *self, struct le_shader_module_o *vertexShader ) {
-	self->obj->shaderModuleVert = vertexShader;
+	using namespace le_backend_vk;
+
+	auto givenShaderStage = le_shader_module_i.get_stage( shaderModule );
+
+	bool wasInserted = false;
+	for ( auto &s : self->obj->shaderStages ) {
+		if ( givenShaderStage == le_shader_module_i.get_stage( s ) ) {
+			// PSO has a previous module which refers to the same shader stage as our given shaderModule.
+			// We need to overwrite the shader module pointer with the given pointer.
+			s           = shaderModule;
+			wasInserted = true;
+		}
+	}
+
+	// No entry for such shader stage yet, we add a new shader module
+	if ( false == wasInserted ) {
+		self->obj->shaderStages.push_back( shaderModule );
+	}
 }
 
-static void le_graphics_pipeline_builder_set_fragment_shader( le_graphics_pipeline_builder_o *self, struct le_shader_module_o *fragmentShader ) {
-	self->obj->shaderModuleFrag = fragmentShader;
-}
+// ----------------------------------------------------------------------
 
 static void input_assembly_state_set_primitive_restart_enable( le_graphics_pipeline_builder_o *self, uint32_t const &primitiveRestartEnable ) {
 	self->obj->data.inputAssemblyState.setPrimitiveRestartEnable( primitiveRestartEnable );
 }
+
+// ----------------------------------------------------------------------
 
 static void input_assembly_state_set_toplogy( le_graphics_pipeline_builder_o *self, le::PrimitiveTopology const &topology ) {
 	self->obj->data.inputAssemblyState.setTopology( le_to_vk( topology ) );
@@ -249,8 +272,7 @@ ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
 	i.create                                  = le_graphics_pipeline_builder_create;
 	i.destroy                                 = le_graphics_pipeline_builder_destroy;
 	i.build                                   = le_graphics_pipeline_builder_build;
-	i.set_fragment_shader                     = le_graphics_pipeline_builder_set_fragment_shader;
-	i.set_vertex_shader                       = le_graphics_pipeline_builder_set_vertex_shader;
+	i.add_shader_stage                        = le_graphics_pipeline_builder_add_shader_stage;
 	i.set_vertex_input_attribute_descriptions = le_graphics_pipeline_builder_set_vertex_input_attribute_descriptions;
 	i.set_vertex_input_binding_descriptions   = le_graphics_pipeline_builder_set_vertex_input_binding_descriptions;
 	i.set_rasterization_info                  = le_graphics_pipeline_builder_set_rasterization_info;

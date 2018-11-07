@@ -10,7 +10,7 @@ extern "C" {
 
 struct le_shader_compiler_o;
 struct le_shader_compilation_result_o;
-struct LeShaderTypeEnum; // defined in renderer_types.h
+struct LeShaderStageEnum; // defined in renderer_types.h
 
 void register_le_shader_compiler_api( void *api );
 
@@ -24,7 +24,7 @@ struct le_shader_compiler_api {
 		le_shader_compiler_o*           (* create                ) ( );
 		void                            (* destroy               ) ( le_shader_compiler_o* self );
 
-		le_shader_compilation_result_o* (* compile_source        ) ( le_shader_compiler_o *compiler, const char *sourceText, size_t sourceTextSize, const LeShaderTypeEnum& shaderType, const char *original_file_path );
+		le_shader_compilation_result_o* (* compile_source        ) ( le_shader_compiler_o *compiler, const char *sourceText, size_t sourceTextSize, const LeShaderStageEnum& shaderType, const char *original_file_path );
 
 		/// \brief  iterate over include paths in current compilation result
 		/// \return false if no more paths, otherwise: true, and updates to pPath and pStrSz as side-effect

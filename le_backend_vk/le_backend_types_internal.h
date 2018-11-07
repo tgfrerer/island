@@ -58,8 +58,7 @@ struct le_graphics_pipeline_builder_data {
 struct graphics_pipeline_state_o {
 	le_graphics_pipeline_builder_data data{};
 
-	le_shader_module_o *shaderModuleVert = nullptr; // non-owning; refers opaquely to a shader module (or not)
-	le_shader_module_o *shaderModuleFrag = nullptr; // non-owning; refers opaquely to a shader module (or not)
+	std::vector<le_shader_module_o *> shaderStages; // non-owning; refers opaquely to a shader modules (or not)
 
 	std::vector<le_vertex_input_attribute_description> explicitVertexAttributeDescriptions;    // only used if contains values, otherwise use from vertex shader reflection
 	std::vector<le_vertex_input_binding_description>   explicitVertexInputBindingDescriptions; // only used if contains values, otherwise use from vertex shader reflection

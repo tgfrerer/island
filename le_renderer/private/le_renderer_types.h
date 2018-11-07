@@ -161,8 +161,8 @@ enum LeBufferUsageFlagBits : LeBufferUsageFlags {
 
 namespace le {
 
-enum class ShaderType : uint32_t {
-	// no default type for shader modules, you must specify a type
+enum class ShaderStage : uint32_t {
+	// no default stage for shader modules, you must specify a stage
 	eVert        = 0x00000001,
 	eTessControl = 0x00000002,
 	eTessEval    = 0x00000004,
@@ -174,7 +174,7 @@ enum class ShaderType : uint32_t {
 
 } // namespace le
 
-LE_WRAP_ENUM_IN_STRUCT( le::ShaderType, LeShaderTypeEnum );
+LE_WRAP_ENUM_IN_STRUCT( le::ShaderStage, LeShaderStageEnum );
 
 namespace le {
 

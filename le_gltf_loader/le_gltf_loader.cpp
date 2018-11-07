@@ -752,12 +752,12 @@ static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *r
 		// Cache buffer lookups for primitives
 
 		{
-			auto shader_module_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.vert", {le::ShaderType::eVert} );
-			auto shader_module_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.frag", {le::ShaderType::eFrag} );
+			auto shader_module_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.vert", {le::ShaderStage::eVert} );
+			auto shader_module_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.frag", {le::ShaderStage::eFrag} );
 
 			p.pso = LeGraphicsPipelineBuilder( pipelineCache )
-			            .setFragmentShader( shader_module_frag )
-			            .setVertexShader( shader_module_vert )
+			            .addShaderStage( shader_module_frag )
+			            .addShaderStage( shader_module_vert )
 			            .setRasterizationInfo( rasterizationState )
 			            .setVertexInputAttributeDescriptions( p.attributeDescriptions.data(), p.attributeDescriptions.size() )
 			            .setVertexInputBindingDescriptions( p.bindingDescriptions.data(), p.bindingDescriptions.size() )

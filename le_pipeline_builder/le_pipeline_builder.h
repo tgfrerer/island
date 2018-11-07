@@ -36,8 +36,7 @@ struct le_graphics_pipeline_builder_api {
 		le_graphics_pipeline_builder_o * ( * create          ) ( le_pipeline_manager_o *pipeline_cache ); // TODO: needs to be created for a backend.
 		void                             ( * destroy         ) ( le_graphics_pipeline_builder_o* self );
 
-		void     ( * set_vertex_shader                       ) ( le_graphics_pipeline_builder_o* self,  le_shader_module_o* vertex_shader);
-		void     ( * set_fragment_shader                     ) ( le_graphics_pipeline_builder_o* self,  le_shader_module_o* fragment_shader);
+		void     ( * add_shader_stage                        ) ( le_graphics_pipeline_builder_o* self,  le_shader_module_o* shaderStage);
 
 		void     ( * set_vertex_input_attribute_descriptions ) ( le_graphics_pipeline_builder_o* self, le_vertex_input_attribute_description* p_input_attribute_descriptions, size_t count);
 		void     ( * set_vertex_input_binding_descriptions   ) ( le_graphics_pipeline_builder_o* self, le_vertex_input_binding_description* p_input_binding_descriptions, size_t count);
@@ -122,13 +121,8 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		return le_pipeline_builder::le_graphics_pipeline_builder_i.build( self );
 	}
 
-	LeGraphicsPipelineBuilder &setVertexShader( le_shader_module_o *shaderModule ) {
-		le_pipeline_builder::le_graphics_pipeline_builder_i.set_vertex_shader( self, shaderModule );
-		return *this;
-	}
-
-	LeGraphicsPipelineBuilder &setFragmentShader( le_shader_module_o *shaderModule ) {
-		le_pipeline_builder::le_graphics_pipeline_builder_i.set_fragment_shader( self, shaderModule );
+	LeGraphicsPipelineBuilder &addShaderStage( le_shader_module_o *shaderModule ) {
+	        le_pipeline_builder::le_graphics_pipeline_builder_i.add_shader_stage( self, shaderModule );
 		return *this;
 	}
 
