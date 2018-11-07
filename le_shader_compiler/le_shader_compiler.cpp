@@ -60,7 +60,7 @@ struct le_shader_compilation_result_o {
 // ---------------------------------------------------------------
 
 static shaderc_shader_kind convert_to_shaderc_shader_kind( const le::ShaderStage &type ) {
-	shaderc_shader_kind result;
+	shaderc_shader_kind result{};
 
 	switch ( type ) {
 	case ( le::ShaderStage::eFragment ):
@@ -69,6 +69,14 @@ static shaderc_shader_kind convert_to_shaderc_shader_kind( const le::ShaderStage
 	case ( le::ShaderStage::eVertex ):
 		result = shaderc_shader_kind::shaderc_glsl_vertex_shader;
 	    break;
+	case ( le::ShaderStage::eGeometry ):
+		result = shaderc_glsl_geometry_shader;
+	    break;
+	default: {
+
+		std::cout << "WARNING: unknown shader type: " << uint32_t( type ) << std::endl
+		          << std::flush;
+	} break;
 	}
 	return result;
 }
