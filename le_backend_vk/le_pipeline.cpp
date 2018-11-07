@@ -493,63 +493,56 @@ static bool shader_module_check_bindings_valid( le_shader_binding_info const *bi
 
 // ----------------------------------------------------------------------
 
-// Returns bindings vector associated with a pso, based on the pso's combined bindings,
-// and the pso's hash_pipeline_layouts.
-// Currently, we assume bindings to be non-sparse, but it's possible that sparse bindings
-// are allowed by the standard. let's check.
+// Create union of bindings over shader stages based on the
+// invariant that each shader stage provides their bindings
+// in ascending order.
 //
-static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( std::vector<le_shader_module_o *> shaders ) {
+// Returns a vector with binding info, combined over all shader stages given.
+// Note: Bindings must not be sparse, otherwise this method will assert(false)
+//
+static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( std::vector<le_shader_module_o *> shaderStages ) {
 
 	std::vector<le_shader_binding_info> combined_bindings;
 
-	// create union of bindings from vert and frag shader
-	// we assume these bindings are sorted.
-
-	// TODO: optimise: we only need to re-calculate bindings when
-	// the shader pipelinelayout has changed.
-
 	size_t maxNumBindings = 0;
-	size_t numShaders     = shaders.size();
+	size_t numStages      = shaderStages.size();
 
-	for ( auto &s : shaders ) {
+	// maxNumBindings holds the upper bound for the total number of bindings
+	// assuming no overlaps in bindings between shader stages.
+
+	for ( auto &s : shaderStages ) {
 		maxNumBindings += s->bindings.size();
 	}
 
-	// -- make space for the full number of bindings
-	// note that there could be more bindings than that
-
+	// Reserve space for the worst casse so that we avoid internal
+	// re-allocations when appending to combined_bindings.
 	combined_bindings.reserve( maxNumBindings );
 
-	// We want to iterate over all bindings over all shaders.
-	// For this, we store the base pointer of each shader's bindings in a vector, one vector entry per shader.
-
+	// We want to iterate over all bindings over all shader stages.
+	// For this, we store the base pointer of each shader stage's
+	// bindings in a vector, one vector entry per shader stage.
 	std::vector<le_shader_binding_info *> pBindings;
-	pBindings.reserve( numShaders );
+	pBindings.reserve( numStages );
 
-	for ( auto &s : shaders ) {
+	// So that we know when to stop iterating over bindings for each shader, we store
+	// the end pointer of the bindings for each shader stage, one vector entry per shader stage.
+	// Vector indices match with pBindings
+	std::vector<le_shader_binding_info *> pBindingsEnd; // end marker for infos, per shader stage
+	pBindingsEnd.reserve( numStages );
+
+	for ( auto &s : shaderStages ) {
 		pBindings.push_back( s->bindings.data() );
 	}
 
-	// So that we know when to stop iterating over bindings for each shader, we store
-	// the end pointer of the bindings for each shader, one vector entry per shader.
-	// Vector indices match with pBindings
-	std::vector<le_shader_binding_info *> pBindingsEnd; // binding info per shader
-	pBindingsEnd.reserve( numShaders );
-
-	for ( auto &s : shaders ) {
+	for ( auto &s : shaderStages ) {
 		pBindingsEnd.emplace_back( s->bindings.data() + s->bindings.size() );
 	}
 
-	uint64_t sort_mask = 0;
-	{
-		// create a bitmask which compares only setIndex and binding number form a binding
-		le_shader_binding_info info{};
-		info.binding  = ~info.binding;
-		info.setIndex = ~info.setIndex;
-		sort_mask     = info.data;
-	}
-
-	for ( size_t i = 0; i != maxNumBindings; ++i ) {
+	// Note that we could execute the following loop as an unbounded
+	// while loop, but we choose to use maxNumBinings as the upper limit
+	// for this loop - it is well conceivable that we return earlier
+	// because a break condition is met.
+	for ( size_t nb = 0; nb != maxNumBindings; ++nb ) {
 
 		// Find the lowest binding, and push it back to the
 		// vector of combined bindings
@@ -562,7 +555,7 @@ static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( std
 		// binding in another shader at the same position
 
 		bool noMoreBindings = true;
-		for ( size_t i = 0; i != numShaders; ++i ) {
+		for ( size_t i = 0; i != numStages; ++i ) {
 
 			if ( pBindings[ i ] != pBindingsEnd[ i ] ) {
 				noMoreBindings = false;
@@ -577,82 +570,59 @@ static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( std
 
 		// ---------- invariant: there are bindings to process
 
-		{
-			// if all but one shaders are at the end of their bindings,
-			// we can add that binding without comparing it.
-			size_t countValidBindings        = 0;
-			size_t idxPotentiallyOnlyOneLeft = 0;
-
-            for ( size_t j = 0; j != numShaders; ++j ) {
-                if ( pBindings[ j ] != pBindingsEnd[ j ] ) {
-                    idxPotentiallyOnlyOneLeft = j;
-					countValidBindings++;
-				}
-			}
-
-			if ( countValidBindings == 1 ) {
-				// Only one binding left - we can add this one to the list of combined bindings
-				// without further checks
-                combined_bindings.push_back( *pBindings[ idxPotentiallyOnlyOneLeft ] );
-                pBindings[ idxPotentiallyOnlyOneLeft ]++; // Increment to next binding on this shader
-                continue;                                 // We must break out of the main loop because otherwise the bindings risk being compared again.
-			}
-		}
-
 		// Now we want all bindings which refer to the same set index and binding
 		// so that we can make sure they can be combined.
 
-		// Find the binding with the lowest set index and binding over all shaders.
-		int shaderWithLowestSetBinding = -1;
+		uint64_t set_binding_mask = 0;
 		{
-			uint64_t compare_mask = 0;
-			{
-				// switch on elements which we want to compare against
-				le_shader_binding_info info{};
-				info.binding  = ~info.binding;
-				info.setIndex = ~info.setIndex;
-				compare_mask  = info.data;
-			}
+			// switch on elements which we want to compare against
+			le_shader_binding_info info{};
+			info.binding     = ~info.binding;
+			info.setIndex    = ~info.setIndex;
+			set_binding_mask = info.data;
+		}
 
-			for ( size_t i = 0; i != numShaders; ++i ) {
+		// Find the binding with the lowest set index and binding over all shaders.
+		size_t stageWithLowestSetBinding = 0;
+		{
+
+			bool isFirstIteration = true;
+			for ( size_t i = 0; i != numStages; ++i ) {
 				if ( pBindings[ i ] == pBindingsEnd[ i ] ) {
 					continue;
-				} else if ( shaderWithLowestSetBinding == -1 ) {
-					// first shader with valid binding found
-					shaderWithLowestSetBinding = i;
+				} else if ( isFirstIteration ) {
+					// First shader with binding information found
+					stageWithLowestSetBinding = i;
+					isFirstIteration          = false;
 					continue;
 				} else {
 					// invariant :
 					// + pBindings[i] is valid
 					// + pBindings[shaderWithLowestSetBinding] is valid
 
-					if ( ( ( pBindings[ i ]->data ) & compare_mask ) < ( ( pBindings[ shaderWithLowestSetBinding ]->data ) & compare_mask ) ) {
-						shaderWithLowestSetBinding = i;
+					if ( ( ( pBindings[ i ]->data ) & set_binding_mask ) < ( ( pBindings[ stageWithLowestSetBinding ]->data ) & set_binding_mask ) ) {
+						stageWithLowestSetBinding = i;
 					}
 				}
 			}
+			assert( isFirstIteration == false ); // This should not happen, indicates that no bindings are left to process, since we didn't even get a first iteration...
 		}
-		assert( shaderWithLowestSetBinding != -1 ); // This should not happen, indicates that no bindings are left to process...
 
-		// Now we need to find all shaders which refer to this, the lowest binding.
+		// Now we need to find all shaders which refer to this, the lowest (set, binding) combination.
 
-		std::vector<size_t> filteredShaderIndices; // indices for shaders with same binding
+		std::vector<size_t> filteredStageIndices; // indices for shader stages with same set, binding
 		{
-			uint64_t compare_mask = 0;
-			{
-				// switch on elements which we want to compare against
-				le_shader_binding_info info{};
-				info.binding  = ~info.binding;
-				info.setIndex = ~info.setIndex;
-				compare_mask  = info.data;
-			}
-			for ( size_t i = shaderWithLowestSetBinding; i != numShaders; ++i ) {
-				if ( ( ( pBindings[ i ]->data ) & compare_mask ) == ( ( pBindings[ shaderWithLowestSetBinding ]->data ) & compare_mask ) ) {
-					filteredShaderIndices.push_back( i );
+			const uint64_t lowestSetBinding = ( pBindings[ stageWithLowestSetBinding ]->data ) & set_binding_mask;
+
+			for ( size_t i = stageWithLowestSetBinding; i != numStages; ++i ) {
+				if ( pBindings[ i ] == pBindingsEnd[ i ] ) {
+					continue;
+				} else if ( ( ( pBindings[ i ]->data ) & set_binding_mask ) == lowestSetBinding ) {
+					filteredStageIndices.push_back( i );
 				}
 			}
 		}
-		assert( filteredShaderIndices.size() != 0 );
+		assert( filteredStageIndices.size() != 0 );
 
 		// Check whether binding data is consistent over all shaders which refer
 		// to the binding with the currently lowest setBinding
@@ -666,39 +636,45 @@ static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( std
 			compare_mask  = info.data;
 		}
 
-		bool                          bindingDataIsConsistent = true;
-		bool                          bindingNameIsConsistent = true;
-		le_shader_binding_info const &firstBinding            = *pBindings[ filteredShaderIndices[ 0 ] ];
+		bool bindingDataIsConsistent = true;
+		bool bindingNameIsConsistent = true;
 
-		for ( size_t i = 1; i != filteredShaderIndices.size(); ++i ) {
-			if ( ( pBindings[ filteredShaderIndices[ i ] ]->data & compare_mask ) != ( firstBinding.data & compare_mask ) ) {
+		le_shader_binding_info const &firstBinding = *pBindings[ filteredStageIndices[ 0 ] ];
+
+		for ( size_t i = 1; i != filteredStageIndices.size(); ++i ) {
+			if ( ( pBindings[ filteredStageIndices[ i ] ]->data & compare_mask ) != ( firstBinding.data & compare_mask ) ) {
 				bindingDataIsConsistent = false;
 			}
-			if ( pBindings[ filteredShaderIndices[ i ] ]->name_hash != firstBinding.name_hash ) {
+			if ( pBindings[ filteredStageIndices[ i ] ]->name_hash != firstBinding.name_hash ) {
 				bindingNameIsConsistent = false;
 			}
 		}
 
 		if ( bindingDataIsConsistent ) {
+
 			if ( !bindingNameIsConsistent ) {
 				// This is not tragic, but we need to flag up that this binding is not
 				// consistently named in case this hints at a bigger issue.
 
-				std::cout << "Warning: Inconsistent name in Set: " << firstBinding.setIndex << ", for binding: " << firstBinding.binding << std::endl;
+				std::cout << "Warning: Inconsistent name in set: " << firstBinding.setIndex << ", for binding: " << firstBinding.binding << std::endl;
 
-				for ( auto i : filteredShaderIndices ) {
-					std::cout << "\t shader : " << shaders[ i ]->filepath << std::endl;
+				for ( auto i : filteredStageIndices ) {
+					std::cout << "\t shader stage: " << shaderStages[ i ]->filepath << std::endl;
 				}
 
-				std::cout << "Using name given in lowest shader stage for this binding." << std::endl
+				std::cout << "Using name given in first shader stage for this binding." << std::endl
 				          << std::flush;
+
 			} // end binding name not consistent
 
-			// Initialise out combined binding from the first binding.
+			// Initialise our combined binding from the first binding.
 			le_shader_binding_info combinedBinding = firstBinding;
 
+			// Combine binding information over all stages, so that a descriptor generated
+			// for a binding can match all shader stages which it feeds into.
+
 			bool first_iter = true;
-			for ( auto i : filteredShaderIndices ) {
+			for ( auto shaderI : filteredStageIndices ) {
 				if ( first_iter ) {
 					first_iter = false;
 					continue;
@@ -709,30 +685,30 @@ static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( std
 					// If we're dealing with a buffer type, we must check ranges
 					// TODO: if one of them has range == 0, that means this shader stage can be ignored
 					// If they have not the same range, that means we need to take the largest range of them both
-					combinedBinding.range = std::max( combinedBinding.range, pBindings[ i ]->range );
+					combinedBinding.range = std::max( combinedBinding.range, pBindings[ shaderI ]->range );
 				}
 
 				// -- combine stage bits so that descriptor will be available for all stages that request it.
-				combinedBinding.stage_bits = combinedBinding.stage_bits | pBindings[ i ]->stage_bits;
+				combinedBinding.stage_bits = combinedBinding.stage_bits | pBindings[ shaderI ]->stage_bits;
 
 				// if count is not identical, that's not that bad, we adjust to larger of the two
-				combinedBinding.count = std::max( combinedBinding.count, pBindings[ i ]->count );
+				combinedBinding.count = std::max( combinedBinding.count, pBindings[ shaderI ]->count );
 			}
 
 			// store combined binding.
 			combined_bindings.emplace_back( combinedBinding );
 
 			// Now increase bindig pointers for all shaders which were affected
-			for ( auto i : filteredShaderIndices ) {
-				pBindings[ i ]++;
+			for ( auto stageI : filteredStageIndices ) {
+				pBindings[ stageI ]++;
 			}
 
 		} else {
 
 			std::cerr << "ERROR: Shader binding mismatch in set: " << firstBinding.setIndex
 			          << ", binding: " << firstBinding.binding << std::endl;
-			for ( auto i : filteredShaderIndices ) {
-				std::cerr << "\t shader : " << shaders[ i ]->filepath << std::endl;
+			for ( auto stageI : filteredStageIndices ) {
+				std::cerr << "\t shader stage : " << shaderStages[ stageI ]->filepath << std::endl;
 			}
 
 			std::cerr << std::flush;
@@ -740,7 +716,7 @@ static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( std
 
 		} // end if binding data is consistent
 
-	} // end loop over maximum number of bindings
+	} // end loop over upper bound on number of bindings over all shader stages
 
 	return combined_bindings;
 }
@@ -1003,9 +979,9 @@ static vk::PipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_m
 static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_vertex_input_binding_description::INPUT_RATE &input_rate ) {
 	switch ( input_rate ) {
 	case ( le_vertex_input_binding_description::ePerInstance ):
-        return vk::VertexInputRate::eInstance;
+	    return vk::VertexInputRate::eInstance;
 	case ( le_vertex_input_binding_description::ePerVertex ):
-        return vk::VertexInputRate::eVertex;
+	    return vk::VertexInputRate::eVertex;
 	}
 	assert( false ); // something's wrong: control should never come here, switch needs to cover all cases.
 	return vk::VertexInputRate::eVertex;
@@ -1305,13 +1281,13 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 				case vk::DescriptorType::eInputAttachment:
 					// TODO: Find out what descriptorData an InputAttachment expects, if it is really done with an imageInfo
 					entry.setOffset( base_offset + offsetof( DescriptorData, sampler ) ); // point to first field of ImageInfo
-                    break;
+				    break;
 				case vk::DescriptorType::eUniformBuffer:
 				case vk::DescriptorType::eStorageBuffer:
 				case vk::DescriptorType::eUniformBufferDynamic:
 				case vk::DescriptorType::eStorageBufferDynamic:
 					entry.setOffset( base_offset + offsetof( DescriptorData, buffer ) ); // point to first element of BufferInfo
-                    break;
+				    break;
 				}
 
 				entry.setStride( sizeof( DescriptorData ) );
@@ -1499,10 +1475,10 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pi
 
 	uint64_t pso_renderpass_hash_data[ 4 ] = {};
 
-    pso_renderpass_hash_data[ 0 ] = gpso_hash;                                               // Hash associated with `pso`
-    pso_renderpass_hash_data[ 1 ] = pso->shaderModuleVert ? pso->shaderModuleVert->hash : 0; // Module state - may have been recompiled, hash must be current
-    pso_renderpass_hash_data[ 2 ] = pso->shaderModuleFrag ? pso->shaderModuleFrag->hash : 0; // Module state - may have been recompiled, hash must be current
-    pso_renderpass_hash_data[ 3 ] = pass.renderpassHash;                                     // Hash for *compatible* renderpass
+	pso_renderpass_hash_data[ 0 ] = gpso_hash;                                               // Hash associated with `pso`
+	pso_renderpass_hash_data[ 1 ] = pso->shaderModuleVert ? pso->shaderModuleVert->hash : 0; // Module state - may have been recompiled, hash must be current
+	pso_renderpass_hash_data[ 2 ] = pso->shaderModuleFrag ? pso->shaderModuleFrag->hash : 0; // Module state - may have been recompiled, hash must be current
+	pso_renderpass_hash_data[ 3 ] = pass.renderpassHash;                                     // Hash for *compatible* renderpass
 
 	// -- create combined hash for pipeline, renderpass
 
