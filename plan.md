@@ -11,8 +11,6 @@
 
 ## (B)
 
-- extend shader system to allow for geometry shaders
-
 - extend pipeline builder to not use vk objects, but to keep its own state
   which may be modified via method calls. This will allow us to clean up
   the pipeline builder api, and will also remove temporary allocations
