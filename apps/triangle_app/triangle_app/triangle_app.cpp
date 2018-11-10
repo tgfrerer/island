@@ -115,11 +115,11 @@ static triangle_app_o *triangle_app_create() {
 	{
 		// create shader objects
 
-		app->shaderTriangle[ 0 ] = app->renderer.createShaderModule( "./resources/shaders/quad_bezier.vert", le::ShaderType::eVert );
-		app->shaderTriangle[ 1 ] = app->renderer.createShaderModule( "./resources/shaders/quad_bezier.frag", le::ShaderType::eFrag );
+		app->shaderTriangle[ 0 ] = app->renderer.createShaderModule( "./resources/shaders/quad_bezier.vert", le::ShaderStage::eVertex );
+		app->shaderTriangle[ 1 ] = app->renderer.createShaderModule( "./resources/shaders/quad_bezier.frag", le::ShaderStage::eFragment );
 
-		app->shaderPathTracer[ 0 ] = app->renderer.createShaderModule( "./resources/shaders/path_tracer.vert", le::ShaderType::eVert );
-		app->shaderPathTracer[ 1 ] = app->renderer.createShaderModule( "./resources/shaders/path_tracer.frag", le::ShaderType::eFrag );
+		app->shaderPathTracer[ 0 ] = app->renderer.createShaderModule( "./resources/shaders/path_tracer.vert", le::ShaderStage::eVertex );
+		app->shaderPathTracer[ 1 ] = app->renderer.createShaderModule( "./resources/shaders/path_tracer.frag", le::ShaderStage::eFragment );
 	}
 
 	app->update_start_time = std::chrono::high_resolution_clock::now();
@@ -265,16 +265,16 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 		static auto pipelineTriangle =
 		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-		        .setVertexShader( app->shaderTriangle[ 0 ] )
-		        .setFragmentShader( app->shaderTriangle[ 1 ] )
+		        .addShaderStage( app->shaderTriangle[ 0 ] )
+		        .addShaderStage( app->shaderTriangle[ 1 ] )
 		        .setRasterizationInfo( rasterizationState )
 		        //		        .setInputAssemblyInfo( inputAssemblyInfo )
 		        .build();
 
 		static auto pipelinePathTracer =
 		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-		        .setVertexShader( app->shaderPathTracer[ 0 ] )
-		        .setFragmentShader( app->shaderPathTracer[ 1 ] )
+		        .addShaderStage( app->shaderPathTracer[ 0 ] )
+		        .addShaderStage( app->shaderPathTracer[ 1 ] )
 		        .setRasterizationInfo( rasterizationState )
 		        .build();
 

@@ -100,7 +100,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto app = static_cast<triangle_app_o *>( user_data );
 
 	rp
-	    .addImageAttachment( app->renderer.getBackbufferResource() ) // color attachment
+	    .addColorAttachment( app->renderer.getBackbufferResource() ) // color attachment
 	    .setIsRoot( true );
 
 	return true;
@@ -139,13 +139,13 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	// Draw main scene
 	if ( true ) {
 
-		static auto shaderVert = app->renderer.createShaderModule( "./resources/shaders/default.vert", LeShaderType::eVert );
-		static auto shaderFrag = app->renderer.createShaderModule( "./resources/shaders/default.frag", LeShaderType::eFrag );
+		static auto shaderVert = app->renderer.createShaderModule( "./resources/shaders/default.vert", le::ShaderStage::eVertex );
+		static auto shaderFrag = app->renderer.createShaderModule( "./resources/shaders/default.frag", le::ShaderStage::eFragment );
 
 		static auto pipelineTriangle =
 		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-		        .setVertexShader( shaderVert )
-		        .setFragmentShader( shaderFrag )
+		        .addShaderStage( shaderVert )
+		        .addShaderStage( shaderFrag )
 		        .build();
 
 		MatrixStackUbo_t mvp;
