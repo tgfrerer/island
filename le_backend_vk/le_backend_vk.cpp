@@ -2430,7 +2430,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					::vk::ImageSubresourceRange subresourceRange;
 					subresourceRange
-					    .setAspectMask( ::vk::ImageAspectFlagBits::eColor )
+					    .setAspectMask( vk::ImageAspectFlagBits::eColor )
 					    .setBaseMipLevel( 0 )
 					    .setLevelCount( 1 )
 					    .setBaseArrayLayer( 0 )
@@ -2454,37 +2454,63 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto srcBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.src_buffer_id );
 					auto dstImage  = frame_data_get_image_from_le_resource_id( frame, le_cmd->info.dst_image_id );
 
-					::vk::BufferMemoryBarrier bufferTransferBarrier;
-					bufferTransferBarrier
-					    .setSrcAccessMask( ::vk::AccessFlagBits::eHostWrite )    // after host write
-					    .setDstAccessMask( ::vk::AccessFlagBits::eTransferRead ) // ready buffer for transfer read
-					    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-					    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-					    .setBuffer( srcBuffer )
-					    .setOffset( le_cmd->info.src_offset )
-					    .setSize( le_cmd->info.numBytes );
+					{
+						::vk::BufferMemoryBarrier bufferTransferBarrier;
+						bufferTransferBarrier
+						    .setSrcAccessMask( vk::AccessFlagBits::eHostWrite )    // after host write
+						    .setDstAccessMask( vk::AccessFlagBits::eTransferRead ) // ready buffer for transfer read
+						    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+						    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+						    .setBuffer( srcBuffer )
+						    .setOffset( le_cmd->info.src_offset )
+						    .setSize( le_cmd->info.numBytes );
 
-					::vk::ImageMemoryBarrier imageLayoutToTransferDstOptimal;
-					imageLayoutToTransferDstOptimal
-					    .setSrcAccessMask( {} )                                   // no prior access
-					    .setDstAccessMask( ::vk::AccessFlagBits::eTransferWrite ) // ready image for transferwrite
-					    .setOldLayout( ::vk::ImageLayout::eUndefined )            // from don't care
-					    .setNewLayout( ::vk::ImageLayout::eTransferDstOptimal )   // to transfer destination optimal
-					    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-					    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
-					    .setImage( dstImage )
-					    .setSubresourceRange( subresourceRange );
+						::vk::ImageMemoryBarrier imageLayoutToTransferDstOptimal;
+						imageLayoutToTransferDstOptimal
+						    .setSrcAccessMask( {} )                                 // no prior access
+						    .setDstAccessMask( vk::AccessFlagBits::eTransferWrite ) // ready image for transferwrite
+						    .setOldLayout( {} )                                     // from vk::ImageLayout::eUndefined
+						    .setNewLayout( vk::ImageLayout::eTransferDstOptimal )   // to transfer destination optimal
+						    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+						    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+						    .setImage( dstImage )
+						    .setSubresourceRange( subresourceRange );
 
-					cmd.pipelineBarrier(
-					    ::vk::PipelineStageFlagBits::eHost,
-					    ::vk::PipelineStageFlagBits::eTransfer,
-					    {},
-					    {},
-					    {bufferTransferBarrier},          // buffer: host write -> transfer read
-					    {imageLayoutToTransferDstOptimal} // image: prepare for transfer write
-					);
+						cmd.pipelineBarrier(
+						    ::vk::PipelineStageFlagBits::eHost,
+						    ::vk::PipelineStageFlagBits::eTransfer,
+						    {},
+						    {},
+						    {bufferTransferBarrier},          // buffer: host write -> transfer read
+						    {imageLayoutToTransferDstOptimal} // image: prepare for transfer write
+						);
+					}
 
-					cmd.copyBufferToImage( srcBuffer, dstImage, ::vk::ImageLayout::eTransferDstOptimal, 1, &region );
+					cmd.copyBufferToImage( srcBuffer, dstImage, vk::ImageLayout::eTransferDstOptimal, 1, &region );
+
+					// Transition image to shader read only optimal layout
+					// -- TODO: we should use sync chain for this.
+					{
+						vk::ImageMemoryBarrier imageLayoutToShaderReadOptimal;
+						imageLayoutToShaderReadOptimal
+						    .setSrcAccessMask( vk::AccessFlagBits::eTransferWrite )  // transfer write
+						    .setDstAccessMask( vk::AccessFlagBits::eShaderRead )     // ready image for shader read
+						    .setOldLayout( vk::ImageLayout::eTransferDstOptimal )    // from transfer dst optimal
+						    .setNewLayout( vk::ImageLayout::eShaderReadOnlyOptimal ) // to shader readonly optimal
+						    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+						    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+						    .setImage( dstImage )
+						    .setSubresourceRange( subresourceRange );
+
+						cmd.pipelineBarrier(
+						    vk::PipelineStageFlagBits::eTransfer,
+						    vk::PipelineStageFlagBits::eFragmentShader,
+						    {},
+						    {},
+						    {},                              // buffers: nothing to do
+						    {imageLayoutToShaderReadOptimal} // images: prepare for shader read
+						);
+					}
 
 					break;
 				}
