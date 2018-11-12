@@ -127,6 +127,32 @@ enum LeRenderPassType : uint32_t {
 	LE_RENDER_PASS_TYPE_COMPUTE   = 3,
 };
 
+typedef uint32_t LeImageCreateFlags;
+// Codegen <VkImageCreateFlagBits, LeImageCreateFlags, c>
+enum LeImageCreateFlagBits : LeImageCreateFlags {
+	LE_IMAGE_CREATE_SPARSE_BINDING_BIT                        = 0x00000001,
+	LE_IMAGE_CREATE_SPARSE_RESIDENCY_BIT                      = 0x00000002,
+	LE_IMAGE_CREATE_SPARSE_ALIASED_BIT                        = 0x00000004,
+	LE_IMAGE_CREATE_MUTABLE_FORMAT_BIT                        = 0x00000008,
+	LE_IMAGE_CREATE_CUBE_COMPATIBLE_BIT                       = 0x00000010,
+	LE_IMAGE_CREATE_ALIAS_BIT                                 = 0x00000400,
+	LE_IMAGE_CREATE_SPLIT_INSTANCE_BIND_REGIONS_BIT           = 0x00000040,
+	LE_IMAGE_CREATE_2_D_ARRAY_COMPATIBLE_BIT                  = 0x00000020,
+	LE_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT           = 0x00000080,
+	LE_IMAGE_CREATE_EXTENDED_USAGE_BIT                        = 0x00000100,
+	LE_IMAGE_CREATE_PROTECTED_BIT                             = 0x00000800,
+	LE_IMAGE_CREATE_DISJOINT_BIT                              = 0x00000200,
+	LE_IMAGE_CREATE_CORNER_SAMPLED_BIT_NV                     = 0x00002000,
+	LE_IMAGE_CREATE_SAMPLE_LOCATIONS_COMPATIBLE_DEPTH_BIT_EXT = 0x00001000,
+	LE_IMAGE_CREATE_SPLIT_INSTANCE_BIND_REGIONS_BIT_KHR       = LE_IMAGE_CREATE_SPLIT_INSTANCE_BIND_REGIONS_BIT,
+	LE_IMAGE_CREATE_2_D_ARRAY_COMPATIBLE_BIT_KHR              = LE_IMAGE_CREATE_2_D_ARRAY_COMPATIBLE_BIT,
+	LE_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT_KHR       = LE_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT,
+	LE_IMAGE_CREATE_EXTENDED_USAGE_BIT_KHR                    = LE_IMAGE_CREATE_EXTENDED_USAGE_BIT,
+	LE_IMAGE_CREATE_DISJOINT_BIT_KHR                          = LE_IMAGE_CREATE_DISJOINT_BIT,
+	LE_IMAGE_CREATE_ALIAS_BIT_KHR                             = LE_IMAGE_CREATE_ALIAS_BIT,
+};
+// Codegen </VkImageCreateFlagBits>
+
 typedef uint32_t LeImageUsageFlags;
 // Codegen <VkImageUsageFlagBits, LeImageUsageFlags, c>
 enum LeImageUsageFlagBits : LeImageUsageFlags {
@@ -655,7 +681,7 @@ static constexpr LeImageAttachmentInfo LeDepthAttachmentInfo() {
 struct le_resource_info_t {
 
 	struct Image {
-		uint32_t                flags;       // creation flags
+		LeImageCreateFlags      flags;       // creation flags
 		le::ImageType           imageType;   // enum vk::ImageType
 		le::Format              format;      // enum vk::Format
 		le::Extent3D            extent;      //

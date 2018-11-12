@@ -145,7 +145,7 @@ static inline constexpr vk::ImageTiling le_to_vk( const le::ImageTiling &rhs ) n
 }
 // ----------------------------------------------------------------------
 
-static inline constexpr vk::ImageUsageFlagBits le_to_vk( const LeImageUsageFlags &rhs ) noexcept {
+static inline constexpr vk::ImageUsageFlagBits le_image_usage_flags_to_vk( const LeImageUsageFlags &rhs ) noexcept {
 	return vk::ImageUsageFlagBits( rhs );
 }
 
@@ -153,6 +153,10 @@ static inline constexpr vk::ImageUsageFlagBits le_to_vk( const LeImageUsageFlags
 
 static inline constexpr vk::ImageType le_to_vk( const le::ImageType &rhs ) noexcept {
 	return vk::ImageType( rhs );
+}
+
+static inline vk::ImageCreateFlags le_image_create_flags_to_vk( const LeImageCreateFlags &rhs ) noexcept {
+	return vk::ImageCreateFlags( rhs );
 }
 
 // ----------------------------------------------------------------------
@@ -174,7 +178,7 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 	case ( LeResourceType::eImage ): {
 		auto const &img = info.image;
 		res.imageInfo   = vk::ImageCreateInfo()
-		                    .setFlags( vk::ImageCreateFlags( img.flags ) )                        // TODO: check conversion from le->vk
+		                    .setFlags( le_image_create_flags_to_vk( img.flags ) )                 //
 		                    .setImageType( le_to_vk( img.imageType ) )                            //
 		                    .setFormat( le_to_vk( img.format ) )                                  //
 		                    .setExtent( {img.extent.width, img.extent.height, img.extent.depth} ) //
@@ -182,7 +186,7 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 		                    .setArrayLayers( img.arrayLayers )                                    //
 		                    .setSamples( le_to_vk( img.samples ) )                                //
 		                    .setTiling( le_to_vk( img.tiling ) )                                  //
-		                    .setUsage( le_to_vk( img.usage ) )                                    //
+		                    .setUsage( le_image_usage_flags_to_vk( img.usage ) )                  //
 		                    .setSharingMode( vk::SharingMode::eExclusive )                        // hardcoded to Exclusive - no sharing between queues
 		                    .setQueueFamilyIndexCount( queueFamilyIndexCount )                    //
 		                    .setPQueueFamilyIndices( pQueueFamilyIndices )                        //
