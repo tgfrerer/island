@@ -375,6 +375,12 @@ static void blend_attachment_state_use_preset( le_graphics_pipeline_builder_o *s
 
 // ----------------------------------------------------------------------
 
+static void tessellation_state_set_patch_control_points( le_graphics_pipeline_builder_o *self, uint32_t count ) {
+	self->obj->data.tessellationState.setPatchControlPoints( count );
+}
+
+// ----------------------------------------------------------------------
+
 ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
 	auto &i = static_cast<le_graphics_pipeline_builder_api *>( api )->le_graphics_pipeline_builder_i;
 
@@ -401,4 +407,6 @@ ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
 	i.blend_attachment_state_i.set_dst_color_blend_factor = blend_attachment_state_set_dst_color_blend_factor;
 	i.blend_attachment_state_i.set_src_color_blend_factor = blend_attachment_state_set_src_color_blend_factor;
 	i.blend_attachment_state_i.use_preset                 = blend_attachment_state_use_preset;
+
+	i.tessellation_state_i.set_patch_control_points = tessellation_state_set_patch_control_points;
 }

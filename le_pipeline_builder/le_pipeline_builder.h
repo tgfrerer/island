@@ -70,8 +70,13 @@ struct le_graphics_pipeline_builder_api {
 			void (*use_preset                 )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::AttachmentBlendPreset &preset );
 		};
 
+		struct tessellation_state_t{
+			void (*set_patch_control_points)(le_graphics_pipeline_builder_o *self, uint32_t count);
+		};
+
 		input_assembly_state_t   input_assembly_state_i;
 		blend_attachment_state_t blend_attachment_state_i;
+		tessellation_state_t     tessellation_state_i;
 	};
 
 	le_graphics_pipeline_builder_interface_t le_graphics_pipeline_builder_i;
@@ -124,6 +129,27 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	};
 
 	InputAssembly mInputAssembly{*this};
+
+	class TessellationState {
+		LeGraphicsPipelineBuilder &parent;
+
+	  public:
+		TessellationState( LeGraphicsPipelineBuilder &parent_ )
+		    : parent( parent_ ) {
+		}
+
+		TessellationState &setPatchControlPoints( uint32_t const &count ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.tessellation_state_i.set_patch_control_points( parent.self, count );
+			return *this;
+		}
+
+		LeGraphicsPipelineBuilder &end() {
+			return parent;
+		}
+	};
+
+	TessellationState mTessellationState{*this};
 
 	class AttachmentBlendState {
 		LeGraphicsPipelineBuilder &parent;
