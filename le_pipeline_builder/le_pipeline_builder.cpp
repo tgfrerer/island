@@ -434,6 +434,82 @@ static void multisample_state_set_alpha_to_one_enable( le_graphics_pipeline_buil
 
 // ----------------------------------------------------------------------
 
+vk::StencilOp le_stencil_op_state_to_vk( le::StencilOp const &rhs ) {
+	return vk::StencilOp( rhs );
+}
+
+vk::CompareOp le_compare_op_to_vk( le::CompareOp const &rhs ) {
+	return vk::CompareOp( rhs );
+}
+
+static void stencil_op_state_front_set_fail_op( le_graphics_pipeline_builder_o *self, le::StencilOp const &op ) {
+	self->obj->data.depthStencilState.front.setFailOp( le_stencil_op_state_to_vk( op ) );
+}
+static void stencil_op_state_front_set_pass_op( le_graphics_pipeline_builder_o *self, le::StencilOp const &op ) {
+	self->obj->data.depthStencilState.front.setPassOp( le_stencil_op_state_to_vk( op ) );
+}
+static void stencil_op_state_front_set_depth_fail_op( le_graphics_pipeline_builder_o *self, le::StencilOp const &op ) {
+	self->obj->data.depthStencilState.front.setDepthFailOp( le_stencil_op_state_to_vk( op ) );
+}
+static void stencil_op_state_front_set_compare_op( le_graphics_pipeline_builder_o *self, le::CompareOp const &op ) {
+	self->obj->data.depthStencilState.front.setCompareOp( le_compare_op_to_vk( op ) );
+}
+static void stencil_op_state_front_set_compare_mask( le_graphics_pipeline_builder_o *self, uint32_t const &mask ) {
+	self->obj->data.depthStencilState.front.setCompareMask( mask );
+}
+static void stencil_op_state_front_set_write_mask( le_graphics_pipeline_builder_o *self, uint32_t const &mask ) {
+	self->obj->data.depthStencilState.front.setWriteMask( mask );
+}
+static void stencil_op_state_front_set_reference( le_graphics_pipeline_builder_o *self, uint32_t const &reference ) {
+	self->obj->data.depthStencilState.front.setReference( reference );
+}
+
+static void stencil_op_state_back_set_fail_op( le_graphics_pipeline_builder_o *self, le::StencilOp const &op ) {
+	self->obj->data.depthStencilState.back.setFailOp( le_stencil_op_state_to_vk( op ) );
+}
+static void stencil_op_state_back_set_pass_op( le_graphics_pipeline_builder_o *self, le::StencilOp const &op ) {
+	self->obj->data.depthStencilState.back.setPassOp( le_stencil_op_state_to_vk( op ) );
+}
+static void stencil_op_state_back_set_depth_fail_op( le_graphics_pipeline_builder_o *self, le::StencilOp const &op ) {
+	self->obj->data.depthStencilState.back.setDepthFailOp( le_stencil_op_state_to_vk( op ) );
+}
+static void stencil_op_state_back_set_compare_op( le_graphics_pipeline_builder_o *self, le::CompareOp const &op ) {
+	self->obj->data.depthStencilState.back.setCompareOp( le_compare_op_to_vk( op ) );
+}
+static void stencil_op_state_back_set_compare_mask( le_graphics_pipeline_builder_o *self, uint32_t const &mask ) {
+	self->obj->data.depthStencilState.back.setCompareMask( mask );
+}
+static void stencil_op_state_back_set_write_mask( le_graphics_pipeline_builder_o *self, uint32_t const &mask ) {
+	self->obj->data.depthStencilState.back.setWriteMask( mask );
+}
+static void stencil_op_state_back_set_reference( le_graphics_pipeline_builder_o *self, uint32_t const &reference ) {
+	self->obj->data.depthStencilState.back.setReference( reference );
+}
+
+static void depth_stencil_state_set_depth_test_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+	self->obj->data.depthStencilState.setDepthTestEnable( enable );
+}
+static void depth_stencil_state_set_depth_write_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+	self->obj->data.depthStencilState.setDepthWriteEnable( enable );
+}
+static void depth_stencil_state_set_depth_compare_op( le_graphics_pipeline_builder_o *self, le::CompareOp const &compare_op ) {
+	self->obj->data.depthStencilState.setDepthCompareOp( le_compare_op_to_vk( compare_op ) );
+}
+static void depth_stencil_state_set_depth_bounds_test_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+	self->obj->data.depthStencilState.setDepthBoundsTestEnable( enable );
+}
+static void depth_stencil_state_set_stencil_test_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+	self->obj->data.depthStencilState.setStencilTestEnable( enable );
+}
+static void depth_stencil_state_set_min_depth_bounds( le_graphics_pipeline_builder_o *self, float const &min_bounds ) {
+	self->obj->data.depthStencilState.setMinDepthBounds( min_bounds );
+}
+static void depth_stencil_state_set_max_depth_bounds( le_graphics_pipeline_builder_o *self, float const &max_bounds ) {
+	self->obj->data.depthStencilState.setMaxDepthBounds( max_bounds );
+}
+
+// ----------------------------------------------------------------------
+
 ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
 	auto &i = static_cast<le_graphics_pipeline_builder_api *>( api )->le_graphics_pipeline_builder_i;
 
@@ -476,4 +552,28 @@ ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
 	i.multisample_state_i.set_min_sample_shading       = multisample_state_set_min_sample_shading;
 	i.multisample_state_i.set_alpha_to_coverage_enable = multisample_state_set_alpha_to_coverage_enable;
 	i.multisample_state_i.set_alpha_to_one_enable      = multisample_state_set_alpha_to_one_enable;
+
+	i.stencil_op_state_front_i.set_fail_op       = stencil_op_state_front_set_fail_op;
+	i.stencil_op_state_front_i.set_pass_op       = stencil_op_state_front_set_pass_op;
+	i.stencil_op_state_front_i.set_depth_fail_op = stencil_op_state_front_set_depth_fail_op;
+	i.stencil_op_state_front_i.set_compare_op    = stencil_op_state_front_set_compare_op;
+	i.stencil_op_state_front_i.set_compare_mask  = stencil_op_state_front_set_compare_mask;
+	i.stencil_op_state_front_i.set_write_mask    = stencil_op_state_front_set_write_mask;
+	i.stencil_op_state_front_i.set_reference     = stencil_op_state_front_set_reference;
+
+	i.stencil_op_state_back_i.set_fail_op       = stencil_op_state_back_set_fail_op;
+	i.stencil_op_state_back_i.set_pass_op       = stencil_op_state_back_set_pass_op;
+	i.stencil_op_state_back_i.set_depth_fail_op = stencil_op_state_back_set_depth_fail_op;
+	i.stencil_op_state_back_i.set_compare_op    = stencil_op_state_back_set_compare_op;
+	i.stencil_op_state_back_i.set_compare_mask  = stencil_op_state_back_set_compare_mask;
+	i.stencil_op_state_back_i.set_write_mask    = stencil_op_state_back_set_write_mask;
+	i.stencil_op_state_back_i.set_reference     = stencil_op_state_back_set_reference;
+
+	i.depth_stencil_state_i.set_depth_test_enable        = depth_stencil_state_set_depth_test_enable;
+	i.depth_stencil_state_i.set_depth_write_enable       = depth_stencil_state_set_depth_write_enable;
+	i.depth_stencil_state_i.set_depth_compare_op         = depth_stencil_state_set_depth_compare_op;
+	i.depth_stencil_state_i.set_depth_bounds_test_enable = depth_stencil_state_set_depth_bounds_test_enable;
+	i.depth_stencil_state_i.set_stencil_test_enable      = depth_stencil_state_set_stencil_test_enable;
+	i.depth_stencil_state_i.set_min_depth_bounds         = depth_stencil_state_set_min_depth_bounds;
+	i.depth_stencil_state_i.set_max_depth_bounds         = depth_stencil_state_set_max_depth_bounds;
 }

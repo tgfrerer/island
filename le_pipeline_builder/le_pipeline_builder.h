@@ -28,6 +28,8 @@ enum class PolygonMode : uint32_t;
 enum class FrontFace : uint32_t;
 enum class CullModeFlagBits : uint32_t;
 enum class SampleCountFlagBits : uint32_t;
+enum class CompareOp : uint32_t;
+enum class StencilOp : uint32_t;
 } // namespace le
 
 void register_le_pipeline_builder_api( void *api );
@@ -93,11 +95,34 @@ struct le_graphics_pipeline_builder_api {
 			void (*set_alpha_to_one_enable      )(le_graphics_pipeline_builder_o *self, bool const & enable);
 		};
 
+		struct stencil_op_state_t{
+			void (*set_fail_op       )(le_graphics_pipeline_builder_o *self, le::StencilOp const & op);
+			void (*set_pass_op       )(le_graphics_pipeline_builder_o *self, le::StencilOp const & op);
+			void (*set_depth_fail_op )(le_graphics_pipeline_builder_o *self, le::StencilOp const & op);
+			void (*set_compare_op    )(le_graphics_pipeline_builder_o *self, le::CompareOp const & op);
+			void (*set_compare_mask  )(le_graphics_pipeline_builder_o *self, uint32_t const &mask);
+			void (*set_write_mask    )(le_graphics_pipeline_builder_o *self, uint32_t const & mask);
+			void (*set_reference     )(le_graphics_pipeline_builder_o *self, uint32_t const & reference);
+		};
+
+		struct depth_stencil_state_t {
+			void (*set_depth_test_enable        )(le_graphics_pipeline_builder_o *self, bool const & enable);
+			void (*set_depth_write_enable       )(le_graphics_pipeline_builder_o *self, bool const& enable);
+			void (*set_depth_compare_op         )(le_graphics_pipeline_builder_o *self, le::CompareOp const & compare_op);
+			void (*set_depth_bounds_test_enable )(le_graphics_pipeline_builder_o *self, bool const & enable);
+			void (*set_stencil_test_enable      )(le_graphics_pipeline_builder_o *self, bool const& enable);
+			void (*set_min_depth_bounds         )(le_graphics_pipeline_builder_o *self, float const & min_bounds);
+			void (*set_max_depth_bounds         )(le_graphics_pipeline_builder_o *self, float const & max_bounds);
+		};
+
 		input_assembly_state_t   input_assembly_state_i;
 		blend_attachment_state_t blend_attachment_state_i;
 		tessellation_state_t     tessellation_state_i;
 		rasterization_state_t    rasterization_state_i;
 		multisample_state_t      multisample_state_i;
+		stencil_op_state_t       stencil_op_state_front_i;
+		stencil_op_state_t       stencil_op_state_back_i;
+		depth_stencil_state_t    depth_stencil_state_i;
 	};
 
 	le_graphics_pipeline_builder_interface_t le_graphics_pipeline_builder_i;
@@ -150,6 +175,177 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	};
 
 	InputAssemblyState mInputAssembly{*this};
+
+	class DepthStencilState {
+		LeGraphicsPipelineBuilder &parent;
+
+	  public:
+		DepthStencilState( LeGraphicsPipelineBuilder &parent_ )
+		    : parent( parent_ ) {
+		}
+
+		DepthStencilState &setDepthTestEnable( bool const &enable ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.depth_stencil_state_i.set_depth_test_enable( parent.self, enable );
+			return *this;
+		}
+
+		DepthStencilState &setDepthWriteEnable( bool const &enable ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.depth_stencil_state_i.set_depth_write_enable( parent.self, enable );
+			return *this;
+		}
+
+		DepthStencilState &setDepthCompareOp( le::CompareOp const &compare_op ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.depth_stencil_state_i.set_depth_compare_op( parent.self, compare_op );
+			return *this;
+		}
+
+		DepthStencilState &setDepthBoundsTestEnable( bool const &enable ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.depth_stencil_state_i.set_depth_bounds_test_enable( parent.self, enable );
+			return *this;
+		}
+
+		DepthStencilState &setStencilTestEnable( bool const &enable ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.depth_stencil_state_i.set_stencil_test_enable( parent.self, enable );
+			return *this;
+		}
+
+		DepthStencilState &setMinDepthBounds( float const &min_bounds ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.depth_stencil_state_i.set_min_depth_bounds( parent.self, min_bounds );
+			return *this;
+		}
+
+		DepthStencilState &setMaxDepthBounds( float const &max_bounds ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.depth_stencil_state_i.set_max_depth_bounds( parent.self, max_bounds );
+			return *this;
+		}
+
+		LeGraphicsPipelineBuilder &end() {
+			return parent;
+		}
+	};
+
+	DepthStencilState mDepthStencilState{*this};
+
+	class DepthStencilOpFront {
+		LeGraphicsPipelineBuilder &parent;
+
+	  public:
+		DepthStencilOpFront( LeGraphicsPipelineBuilder &parent_ )
+		    : parent( parent_ ) {
+		}
+
+		DepthStencilOpFront &setFailOp( le::StencilOp const &op ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.stencil_op_state_front_i.set_fail_op( parent.self, op );
+			return *this;
+		}
+
+		DepthStencilOpFront &setPassOp( le::StencilOp const &op ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.stencil_op_state_front_i.set_pass_op( parent.self, op );
+			return *this;
+		}
+
+		DepthStencilOpFront &setDepthFailOp( le::StencilOp const &op ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.stencil_op_state_front_i.set_depth_fail_op( parent.self, op );
+			return *this;
+		}
+
+		DepthStencilOpFront &setCompareOp( le::CompareOp const &op ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.stencil_op_state_front_i.set_compare_op( parent.self, op );
+			return *this;
+		}
+
+		DepthStencilOpFront &setCompareMask( uint32_t const &mask ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.stencil_op_state_front_i.set_compare_mask( parent.self, mask );
+			return *this;
+		}
+
+		DepthStencilOpFront &setWriteMask( uint32_t const &mask ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.stencil_op_state_front_i.set_write_mask( parent.self, mask );
+			return *this;
+		}
+
+		DepthStencilOpFront &setReference( uint32_t const &reference ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.stencil_op_state_front_i.set_reference( parent.self, reference );
+			return *this;
+		}
+
+		LeGraphicsPipelineBuilder &end() {
+			return parent;
+		}
+	};
+
+	DepthStencilOpFront mDepthStencilOpFront{*this};
+
+	class DepthStencilOpBack {
+		LeGraphicsPipelineBuilder &parent;
+
+	  public:
+		DepthStencilOpBack( LeGraphicsPipelineBuilder &parent_ )
+		    : parent( parent_ ) {
+		}
+
+		DepthStencilOpBack &setFailOp( le::StencilOp const &op ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.stencil_op_state_back_i.set_fail_op( parent.self, op );
+			return *this;
+		}
+
+		DepthStencilOpBack &setPassOp( le::StencilOp const &op ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.stencil_op_state_back_i.set_pass_op( parent.self, op );
+			return *this;
+		}
+
+		DepthStencilOpBack &setDepthFailOp( le::StencilOp const &op ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.stencil_op_state_back_i.set_depth_fail_op( parent.self, op );
+			return *this;
+		}
+
+		DepthStencilOpBack &setCompareOp( le::CompareOp const &op ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.stencil_op_state_back_i.set_compare_op( parent.self, op );
+			return *this;
+		}
+
+		DepthStencilOpBack &setCompareMask( uint32_t const &mask ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.stencil_op_state_back_i.set_compare_mask( parent.self, mask );
+			return *this;
+		}
+
+		DepthStencilOpBack &setWriteMask( uint32_t const &mask ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.stencil_op_state_back_i.set_write_mask( parent.self, mask );
+			return *this;
+		}
+
+		DepthStencilOpBack &setReference( uint32_t const &reference ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.stencil_op_state_back_i.set_reference( parent.self, reference );
+			return *this;
+		}
+
+		LeGraphicsPipelineBuilder &end() {
+			return parent;
+		}
+	};
+
+	DepthStencilOpBack mDepthStencilOpBack{*this};
 
 	class MultiSampleState {
 		LeGraphicsPipelineBuilder &parent;
@@ -410,6 +606,18 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 
 	MultiSampleState &withMultiSampleState() {
 		return mMultiSampleState;
+	}
+
+	DepthStencilState &withDepthStencilState() {
+		return mDepthStencilState;
+	}
+
+	DepthStencilOpBack &withDepthStencilOpBack() {
+		return mDepthStencilOpBack;
+	}
+
+	DepthStencilOpFront &withDepthStencilOpFront() {
+		return mDepthStencilOpFront;
 	}
 
 	AttachmentBlendState &withAttachmentBlendState( uint32_t attachmentIndex = 0 ) {

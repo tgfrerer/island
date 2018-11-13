@@ -377,6 +377,32 @@ enum class AttachmentStoreOp : uint32_t {
 };
 // Codegen </VkAttachmentStoreOp>
 
+// Codegen <VkStencilOp, uint32_t>
+enum class StencilOp : uint32_t {
+	eKeep              = 0,
+	eZero              = 1,
+	eReplace           = 2,
+	eIncrementAndClamp = 3,
+	eDecrementAndClamp = 4,
+	eInvert            = 5,
+	eIncrementAndWrap  = 6,
+	eDecrementAndWrap  = 7,
+};
+// Codegen </VkStencilOp>
+
+// Codegen <VkCompareOp, uint32_t>
+enum class CompareOp : uint32_t {
+	eNever          = 0,
+	eLess           = 1,
+	eEqual          = 2,
+	eLessOrEqual    = 3,
+	eGreater        = 4,
+	eNotEqual       = 5,
+	eGreaterOrEqual = 6,
+	eAlways         = 7,
+};
+// Codegen </VkCompareOp>
+
 // Codegen <VkAttachmentLoadOp, uint32_t>
 enum class AttachmentLoadOp : uint32_t {
 	eLoad     = 0,
@@ -426,6 +452,7 @@ static const char *to_str( const ImageType &lhs ) {
 	}
 	return "";
 }
+
 // Codegen <VkImageTiling, uint32_t>
 enum class ImageTiling : uint32_t {
 	eOptimal = 0,
