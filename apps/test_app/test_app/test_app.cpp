@@ -11,8 +11,8 @@
 #include "le_pipeline_builder/le_pipeline_builder.h"
 #include "le_pixels/le_pixels.h"
 
-#define VULKAN_HPP_NO_SMART_HANDLE
-#include "vulkan/vulkan.hpp"
+//#define VULKAN_HPP_NO_SMART_HANDLE
+//#include "vulkan/vulkan.hpp"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h> // for key codes
@@ -312,7 +312,7 @@ static test_app_o *test_app_create() {
 		gltf_document_i.load_from_text( app->gltfDoc, "resources/gltf/FlightHelmet.gltf" );
 		//gltf_document_i.load_from_text( app->gltfDoc, "resources/gltf/Box.gltf" );
 		//gltf_document_i.load_from_text( app->gltfDoc, "resources/gltf/exportFile.gltf" );
-		gltf_document_i.setup_resources( app->gltfDoc, app->renderer );
+		gltf_document_i.setup_resources( app->gltfDoc, app->renderer, pipelineCache );
 	}
 
 	{
@@ -538,23 +538,13 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 	// Draw RGB triangle
 	if ( true ) {
 
-		vk::PipelineRasterizationStateCreateInfo rasterizationState{};
-		rasterizationState
-		    .setDepthClampEnable( VK_FALSE )
-		    .setRasterizerDiscardEnable( VK_FALSE )
-		    .setPolygonMode( vk::PolygonMode::eFill )
-		    //		    .setCullMode( vk::CullModeFlagBits::eBack )
-		    //		    .setFrontFace( vk::FrontFace::eCounterClockwise )
-		    .setDepthBiasEnable( VK_FALSE )
-		    .setDepthBiasConstantFactor( 0.f )
-		    .setDepthBiasClamp( 0.f )
-		    .setDepthBiasSlopeFactor( 1.f )
-		    .setLineWidth( 1.f );
 
 		static auto psoTriangle = LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 		                              .addShaderStage( app->shaderTriangle[ 0 ] )
 		                              .addShaderStage( app->shaderTriangle[ 1 ] )
-		                              .setRasterizationInfo( rasterizationState )
+		                              .withRasterizationState()
+		                              .setPolygonMode( le::PolygonMode::eFill )
+		                              .end()
 		                              .build();
 
 		MvpUbo_t matrixStack;
