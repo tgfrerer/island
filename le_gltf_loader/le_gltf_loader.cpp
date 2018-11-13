@@ -3,9 +3,6 @@
 
 #include "fx/gltf.h"
 
-#define VULKAN_HPP_NO_SMART_HANDLE
-#include "vulkan/vulkan.hpp"
-
 #include <iostream>
 #include <iomanip>
 #include <map>
@@ -13,7 +10,7 @@
 #include "le_renderer/le_renderer.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
 
-#include "le_backend_vk/le_backend_vk.h" // for get_pipeline_cache (FIXME: get rid of this)
+//#include "le_backend_vk/le_backend_vk.h" // for get_pipeline_cache (FIXME: get rid of this)
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -595,9 +592,9 @@ static bool document_load_from_text( le_gltf_document_o *self, const char *path 
 		le_resource_info_t resourceInfo;
 		resourceInfo.type         = LeResourceType::eBuffer;
 		resourceInfo.buffer.size  = uint32_t( geometryDataSize );
-		resourceInfo.buffer.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT |
-		                            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-		                            VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+		resourceInfo.buffer.usage = LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
+		                            LE_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+		                            LE_BUFFER_USAGE_TRANSFER_DST_BIT;
 		self->bufferResourceInfos.emplace_back( resourceInfo );
 	}
 
@@ -722,30 +719,10 @@ static bool document_load_from_text( le_gltf_document_o *self, const char *path 
 
 // ----------------------------------------------------------------------
 
-static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *renderer ) {
+static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *renderer, le_pipeline_manager_o *pipeline_manager ) {
 	static const auto &renderer_i = Registry::getApi<le_renderer_api>()->le_renderer_i;
 
-	vk::PipelineRasterizationStateCreateInfo rasterizationState{};
-	rasterizationState
-	    .setDepthClampEnable( VK_FALSE )
-	    .setRasterizerDiscardEnable( VK_FALSE )
-	    .setPolygonMode( vk::PolygonMode::eFill )
-	    .setCullMode( vk::CullModeFlagBits::eBack )
-	    .setFrontFace( vk::FrontFace::eCounterClockwise )
-	    .setDepthBiasEnable( VK_FALSE )
-	    .setDepthBiasConstantFactor( 0.f )
-	    .setDepthBiasClamp( 0.f )
-	    .setDepthBiasSlopeFactor( 1.f )
-	    .setLineWidth( 1.f );
-
 	using namespace le_renderer;
-	auto backend = renderer_i.get_backend( renderer );
-
-	le_pipeline_manager_o *pipelineCache = nullptr;
-	{
-		using namespace le_backend_vk;
-		pipelineCache = vk_backend_i.get_pipeline_cache( backend );
-	}
 
 	for ( auto &p : self->primitives ) {
 
@@ -755,10 +732,16 @@ static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *r
 			auto shader_module_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.vert", {le::ShaderStage::eVertex} );
 			auto shader_module_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.frag", {le::ShaderStage::eFragment} );
 
-			p.pso = LeGraphicsPipelineBuilder( pipelineCache )
+			p.pso = LeGraphicsPipelineBuilder( pipeline_manager )
 			            .addShaderStage( shader_module_frag )
 			            .addShaderStage( shader_module_vert )
-			            .setRasterizationInfo( rasterizationState )
+			            .withRasterizationState()
+			            .setCullMode( le::CullModeFlagBits::eBack )
+			            .setFrontFace( le::FrontFace::eCounterClockwise )
+			            .end()
+			            .withAttachmentBlendState()
+			            .usePreset( le::AttachmentBlendPreset::ePremultipliedAlpha )
+			            .end()
 			            .setVertexInputAttributeDescriptions( p.attributeDescriptions.data(), p.attributeDescriptions.size() )
 			            .setVertexInputBindingDescriptions( p.bindingDescriptions.data(), p.bindingDescriptions.size() )
 			            .build();

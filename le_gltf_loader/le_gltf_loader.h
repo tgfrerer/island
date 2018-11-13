@@ -12,6 +12,7 @@ struct le_gltf_document_o;
 struct le_renderer_o;
 struct le_command_buffer_encoder_o;
 struct le_resource_info_t;
+struct le_pipeline_manager_o;
 
 struct GltfUboMvp;
 
@@ -30,7 +31,7 @@ struct le_gltf_loader_api {
 		void                 ( * destroy                  ) ( le_gltf_document_o* self );
 
 		bool                 ( *load_from_text            ) ( le_gltf_document_o* self, char const * path);
-		void                 ( *setup_resources           ) ( le_gltf_document_o *self, le_renderer_o *renderer );
+		void                 ( *setup_resources           ) ( le_gltf_document_o *self, le_renderer_o *renderer, le_pipeline_manager_o* pipeline_manager );
 		void                 ( *get_resource_infos        ) ( le_gltf_document_o *self, le_resource_info_t **infos, le_resource_handle_t const **handles, size_t *numResources );
 		void                 ( *upload_resource_data      ) ( le_gltf_document_o *self, le_command_buffer_encoder_o *encoder );
 		void                 ( *draw                      ) ( le_gltf_document_o *self, le_command_buffer_encoder_o *encoder,  GltfUboMvp const * mvp );
