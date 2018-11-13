@@ -5,17 +5,17 @@
 
 #include "pal_api_loader/hash_util.h"
 
-// Wraps an enum of `enum_name` in a struct with `struct_name` so
+// Wraps a type (also may also be an enum) in a struct with `struct_name` so
 // that it can be opaquely passed around, then unwrapped.
-#define LE_WRAP_ENUM_IN_STRUCT( enum_name, struct_name ) \
-	struct struct_name {                                 \
-	    enum_name data;                                  \
-	    operator const enum_name &() const {             \
-	        return data;                                 \
-	    }                                                \
-	    operator enum_name &() {                         \
-	        return data;                                 \
-	    }                                                \
+#define LE_WRAP_TYPE_IN_STRUCT( type_name, struct_name )               \
+	struct struct_name {                                               \
+	    type_name        data;                                         \
+	    inline constexpr operator const type_name &() const noexcept { \
+	        return data;                                               \
+	    }                                                              \
+	    inline constexpr operator type_name &() noexcept {             \
+	        return data;                                               \
+	    }                                                              \
 	}
 
 #define LE_RESOURCE_LABEL_LENGTH 32 // (no-hotreload) set to zero to disable storing name (for debug printouts) with resource handles
@@ -185,6 +185,17 @@ enum LeBufferUsageFlagBits : LeBufferUsageFlags {
 };
 // Codegen </VkBufferUsageFlagBits>
 
+typedef uint32_t LeColorComponentFlags_t;
+LE_WRAP_TYPE_IN_STRUCT( LeColorComponentFlags_t, LeColorComponentFlags );
+// Codegen <VkColorComponentFlagBits, LeColorComponentFlags_t, c>
+enum LeColorComponentFlagBits : LeColorComponentFlags_t {
+	LE_COLOR_COMPONENT_R_BIT = 0x00000001,
+	LE_COLOR_COMPONENT_G_BIT = 0x00000002,
+	LE_COLOR_COMPONENT_B_BIT = 0x00000004,
+	LE_COLOR_COMPONENT_A_BIT = 0x00000008,
+};
+// Codegen </VkColorComponentFlagBits>
+
 namespace le {
 
 // Codegen <VkShaderStageFlagBits, uint32_t, cpp, ShaderStage>
@@ -210,7 +221,7 @@ enum class ShaderStage : uint32_t {
 
 } // namespace le
 
-LE_WRAP_ENUM_IN_STRUCT( le::ShaderStage, LeShaderStageEnum );
+LE_WRAP_TYPE_IN_STRUCT( le::ShaderStage, LeShaderStageEnum );
 
 namespace le {
 
@@ -236,6 +247,91 @@ enum class IndexType : uint32_t {
 	eUint32 = 1,
 };
 // Codegen </VkIndexType>
+
+// Codegen <VkBlendFactor, uint32_t>
+enum class BlendFactor : uint32_t {
+	eZero                  = 0,
+	eOne                   = 1,
+	eSrcColor              = 2,
+	eOneMinusSrcColor      = 3,
+	eDstColor              = 4,
+	eOneMinusDstColor      = 5,
+	eSrcAlpha              = 6,
+	eOneMinusSrcAlpha      = 7,
+	eDstAlpha              = 8,
+	eOneMinusDstAlpha      = 9,
+	eConstantColor         = 10,
+	eOneMinusConstantColor = 11,
+	eConstantAlpha         = 12,
+	eOneMinusConstantAlpha = 13,
+	eSrcAlphaSaturate      = 14,
+	eSrc1Color             = 15,
+	eOneMinusSrc1Color     = 16,
+	eSrc1Alpha             = 17,
+	eOneMinusSrc1Alpha     = 18,
+};
+// Codegen </VkBlendFactor>
+
+// Codegen <VkBlendOp, uint32_t>
+enum class BlendOp : uint32_t {
+	eAdd                 = 0,
+	eSubtract            = 1,
+	eReverseSubtract     = 2,
+	eMin                 = 3,
+	eMax                 = 4,
+	eZeroExt             = 1000148000,
+	eSrcExt              = 1000148001,
+	eDstExt              = 1000148002,
+	eSrcOverExt          = 1000148003,
+	eDstOverExt          = 1000148004,
+	eSrcInExt            = 1000148005,
+	eDstInExt            = 1000148006,
+	eSrcOutExt           = 1000148007,
+	eDstOutExt           = 1000148008,
+	eSrcAtopExt          = 1000148009,
+	eDstAtopExt          = 1000148010,
+	eXorExt              = 1000148011,
+	eMultiplyExt         = 1000148012,
+	eScreenExt           = 1000148013,
+	eOverlayExt          = 1000148014,
+	eDarkenExt           = 1000148015,
+	eLightenExt          = 1000148016,
+	eColordodgeExt       = 1000148017,
+	eColorburnExt        = 1000148018,
+	eHardlightExt        = 1000148019,
+	eSoftlightExt        = 1000148020,
+	eDifferenceExt       = 1000148021,
+	eExclusionExt        = 1000148022,
+	eInvertExt           = 1000148023,
+	eInvertRgbExt        = 1000148024,
+	eLineardodgeExt      = 1000148025,
+	eLinearburnExt       = 1000148026,
+	eVividlightExt       = 1000148027,
+	eLinearlightExt      = 1000148028,
+	ePinlightExt         = 1000148029,
+	eHardmixExt          = 1000148030,
+	eHslHueExt           = 1000148031,
+	eHslSaturationExt    = 1000148032,
+	eHslColorExt         = 1000148033,
+	eHslLuminosityExt    = 1000148034,
+	ePlusExt             = 1000148035,
+	ePlusClampedExt      = 1000148036,
+	ePlusClampedAlphaExt = 1000148037,
+	ePlusDarkerExt       = 1000148038,
+	eMinusExt            = 1000148039,
+	eMinusClampedExt     = 1000148040,
+	eContrastExt         = 1000148041,
+	eInvertOvgExt        = 1000148042,
+	eRedExt              = 1000148043,
+	eGreenExt            = 1000148044,
+	eBlueExt             = 1000148045,
+};
+// Codegen </VkBlendOp>
+
+enum class AttachmentBlendPreset : uint32_t {
+	ePremultipliedAlpha = 0,
+	eAdd,
+};
 
 // Codegen <VkAttachmentStoreOp, uint32_t>
 enum class AttachmentStoreOp : uint32_t {

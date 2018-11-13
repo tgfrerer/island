@@ -121,7 +121,7 @@ static le_graphics_pipeline_builder_o *le_graphics_pipeline_builder_create( le_p
 	    .setMinDepthBounds( 0.f )
 	    .setMaxDepthBounds( 0.f );
 
-	// Default values for color blend state
+	// Default values for color blend state: premultiplied alpha
 	for ( auto &blendAttachmentState : self->obj->data.blendAttachmentStates ) {
 		blendAttachmentState
 		    .setBlendEnable( VK_TRUE )
@@ -277,6 +277,104 @@ static void input_assembly_state_set_toplogy( le_graphics_pipeline_builder_o *se
 
 // ----------------------------------------------------------------------
 
+static void blend_attachment_state_set_blend_enable( le_graphics_pipeline_builder_o *self, size_t which_attachment, const bool &enable ) {
+	self->obj->data.blendAttachmentStates[ which_attachment ].setBlendEnable( enable );
+}
+
+// ----------------------------------------------------------------------
+
+vk::BlendOp le_blend_op_to_vk( const le::BlendOp &rhs ) {
+	return vk::BlendOp( rhs );
+}
+
+vk::BlendFactor le_blend_factor_to_vk( const le::BlendFactor &rhs ) {
+	return vk::BlendFactor( rhs );
+}
+
+vk::ColorComponentFlags le_color_component_flags_to_vk( LeColorComponentFlags rhs ) {
+	return vk::ColorComponentFlags( rhs );
+}
+
+static void blend_attachment_state_set_color_blend_op( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendOp &blendOp ) {
+	self->obj->data.blendAttachmentStates[ which_attachment ]
+	    .setColorBlendOp( le_blend_op_to_vk( blendOp ) );
+}
+
+static void blend_attachment_state_set_alpha_blend_op( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendOp &blendOp ) {
+	self->obj->data.blendAttachmentStates[ which_attachment ]
+	    .setAlphaBlendOp( le_blend_op_to_vk( blendOp ) );
+}
+
+static void blend_attachment_state_set_src_color_blend_factor( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor ) {
+	self->obj->data.blendAttachmentStates[ which_attachment ]
+	    .setSrcColorBlendFactor( le_blend_factor_to_vk( blendFactor ) );
+}
+static void blend_attachment_state_set_dst_color_blend_factor( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor ) {
+	self->obj->data.blendAttachmentStates[ which_attachment ]
+	    .setDstColorBlendFactor( le_blend_factor_to_vk( blendFactor ) );
+}
+
+static void blend_attachment_state_set_src_alpha_blend_factor( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor ) {
+	self->obj->data.blendAttachmentStates[ which_attachment ]
+	    .setSrcAlphaBlendFactor( le_blend_factor_to_vk( blendFactor ) );
+}
+
+static void blend_attachment_state_set_dst_alpha_blend_factor( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor ) {
+	self->obj->data.blendAttachmentStates[ which_attachment ]
+	    .setDstAlphaBlendFactor( le_blend_factor_to_vk( blendFactor ) );
+}
+
+static void blend_attachment_state_set_color_write_mask( le_graphics_pipeline_builder_o *self, size_t which_attachment, const LeColorComponentFlags &write_mask ) {
+	self->obj->data.blendAttachmentStates[ which_attachment ]
+	    .setColorWriteMask( le_color_component_flags_to_vk( write_mask ) );
+}
+
+static void blend_attachment_state_use_preset( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::AttachmentBlendPreset &preset ) {
+
+	switch ( preset ) {
+
+	case le::AttachmentBlendPreset::ePremultipliedAlpha: {
+
+		self->obj->data.blendAttachmentStates[ which_attachment ]
+		    .setBlendEnable( VK_TRUE )
+		    .setColorBlendOp( ::vk::BlendOp::eAdd )
+		    .setAlphaBlendOp( ::vk::BlendOp::eAdd )
+		    .setSrcColorBlendFactor( ::vk::BlendFactor::eSrcAlpha )
+		    .setDstColorBlendFactor( ::vk::BlendFactor::eOneMinusSrcAlpha )
+		    .setSrcAlphaBlendFactor( ::vk::BlendFactor::eOne )
+		    .setDstAlphaBlendFactor( ::vk::BlendFactor::eZero )
+		    .setColorWriteMask(
+		        ::vk::ColorComponentFlagBits::eR |
+		        ::vk::ColorComponentFlagBits::eG |
+		        ::vk::ColorComponentFlagBits::eB |
+		        ::vk::ColorComponentFlagBits::eA ) //
+		    ;
+
+	} break;
+
+	case le::AttachmentBlendPreset::eAdd: {
+
+		self->obj->data.blendAttachmentStates[ which_attachment ]
+		    .setBlendEnable( VK_TRUE )
+		    .setColorBlendOp( vk::BlendOp::eAdd )
+		    .setAlphaBlendOp( vk::BlendOp::eAdd )
+		    .setSrcColorBlendFactor( vk::BlendFactor::eOne )  //  fragment shader output assumed to be premultiplied alpha!
+		    .setDstColorBlendFactor( vk::BlendFactor::eOne )  //
+		    .setSrcAlphaBlendFactor( vk::BlendFactor::eZero ) //
+		    .setDstAlphaBlendFactor( vk::BlendFactor::eZero ) //
+		    .setColorWriteMask(
+		        vk::ColorComponentFlagBits::eR |
+		        vk::ColorComponentFlagBits::eG |
+		        vk::ColorComponentFlagBits::eB |
+		        vk::ColorComponentFlagBits::eA ) //
+		    ;
+
+	} break;
+	}
+}
+
+// ----------------------------------------------------------------------
+
 ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
 	auto &i = static_cast<le_graphics_pipeline_builder_api *>( api )->le_graphics_pipeline_builder_i;
 
@@ -294,4 +392,13 @@ ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
 
 	i.input_assembly_state_i.set_primitive_restart_enable = input_assembly_state_set_primitive_restart_enable;
 	i.input_assembly_state_i.set_topology                 = input_assembly_state_set_toplogy;
+
+	i.blend_attachment_state_i.set_alpha_blend_op         = blend_attachment_state_set_alpha_blend_op;
+	i.blend_attachment_state_i.set_color_blend_op         = blend_attachment_state_set_color_blend_op;
+	i.blend_attachment_state_i.set_color_write_mask       = blend_attachment_state_set_color_write_mask;
+	i.blend_attachment_state_i.set_dst_alpha_blend_factor = blend_attachment_state_set_dst_alpha_blend_factor;
+	i.blend_attachment_state_i.set_src_alpha_blend_factor = blend_attachment_state_set_src_alpha_blend_factor;
+	i.blend_attachment_state_i.set_dst_color_blend_factor = blend_attachment_state_set_dst_color_blend_factor;
+	i.blend_attachment_state_i.set_src_color_blend_factor = blend_attachment_state_set_src_color_blend_factor;
+	i.blend_attachment_state_i.use_preset                 = blend_attachment_state_use_preset;
 }

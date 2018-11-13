@@ -20,9 +20,14 @@ struct VkPipelineTessellationStateCreateInfo;
 struct VkPipelineMultisampleStateCreateInfo;
 struct VkPipelineDepthStencilStateCreateInfo;
 
+struct LeColorComponentFlags;
+
 namespace le {
 enum class PrimitiveTopology : uint32_t;
-}
+enum class BlendOp : uint32_t;
+enum class BlendFactor : uint32_t;
+enum class AttachmentBlendPreset : uint32_t;
+} // namespace le
 
 void register_le_pipeline_builder_api( void *api );
 
@@ -54,7 +59,19 @@ struct le_graphics_pipeline_builder_api {
 			void ( *set_topology                 ) ( le_graphics_pipeline_builder_o* self, le::PrimitiveTopology const & topology);
 		};
 
-		input_assembly_state_t input_assembly_state_i;
+		struct blend_attachment_state_t{
+			void (*set_color_blend_op         )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendOp &blendOp );
+			void (*set_alpha_blend_op         )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendOp &blendOp );
+			void (*set_src_color_blend_factor )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor );
+			void (*set_dst_color_blend_factor )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor );
+			void (*set_src_alpha_blend_factor )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor );
+			void (*set_dst_alpha_blend_factor )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor );
+			void (*set_color_write_mask       )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const LeColorComponentFlags &write_mask );
+			void (*use_preset                 )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::AttachmentBlendPreset &preset );
+		};
+
+		input_assembly_state_t   input_assembly_state_i;
+		blend_attachment_state_t blend_attachment_state_i;
 	};
 
 	le_graphics_pipeline_builder_interface_t le_graphics_pipeline_builder_i;
@@ -108,6 +125,72 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 
 	InputAssembly mInputAssembly{*this};
 
+	class AttachmentBlendState {
+		LeGraphicsPipelineBuilder &parent;
+		size_t                     index;
+
+	  public:
+		AttachmentBlendState( LeGraphicsPipelineBuilder &parent_ )
+		    : parent( parent_ ) {
+		}
+
+		AttachmentBlendState &setColorBlendOp( const le::BlendOp &blendOp ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_color_blend_op( parent.self, index, blendOp );
+			return *this;
+		}
+
+		AttachmentBlendState &setAlphaBlendOp( const le::BlendOp &blendOp ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_alpha_blend_op( parent.self, index, blendOp );
+			return *this;
+		}
+
+		AttachmentBlendState &setSrcColorBlendFactor( const le::BlendFactor &blendFactor ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_src_color_blend_factor( parent.self, index, blendFactor );
+			return *this;
+		}
+
+		AttachmentBlendState &setDstColorBlendFactor( const le::BlendFactor &blendFactor ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_dst_color_blend_factor( parent.self, index, blendFactor );
+			return *this;
+		}
+
+		AttachmentBlendState &setSrcAlphaBlendFactor( const le::BlendFactor &blendFactor ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_src_alpha_blend_factor( parent.self, index, blendFactor );
+			return *this;
+		}
+
+		AttachmentBlendState &setDstAlphaBlendFactor( const le::BlendFactor &blendFactor ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_dst_alpha_blend_factor( parent.self, index, blendFactor );
+			return *this;
+		}
+
+		AttachmentBlendState &setColorWriteMask( const LeColorComponentFlags &write_mask ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_color_write_mask( parent.self, index, write_mask );
+			return *this;
+		}
+
+		AttachmentBlendState &usePreset( const le::AttachmentBlendPreset &preset ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.blend_attachment_state_i.use_preset( parent.self, index, preset );
+			return *this;
+		}
+
+		LeGraphicsPipelineBuilder &end() {
+			return parent;
+		}
+
+		friend class LeGraphicsPipelineBuilder;
+	};
+
+	AttachmentBlendState mAttachmentBlendState{*this};
+
   public:
 	LeGraphicsPipelineBuilder( le_pipeline_manager_o *pipelineCache )
 	    : self( le_pipeline_builder::le_graphics_pipeline_builder_i.create( pipelineCache ) ) {
@@ -122,7 +205,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	}
 
 	LeGraphicsPipelineBuilder &addShaderStage( le_shader_module_o *shaderModule ) {
-	        le_pipeline_builder::le_graphics_pipeline_builder_i.add_shader_stage( self, shaderModule );
+		le_pipeline_builder::le_graphics_pipeline_builder_i.add_shader_stage( self, shaderModule );
 		return *this;
 	}
 
@@ -163,6 +246,11 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 
 	InputAssembly &withInputAssembly() {
 		return mInputAssembly;
+	}
+
+	AttachmentBlendState &withAttachmentBlendState( uint32_t attachmentIndex = 0 ) {
+		mAttachmentBlendState.index = attachmentIndex;
+		return mAttachmentBlendState;
 	}
 };
 
