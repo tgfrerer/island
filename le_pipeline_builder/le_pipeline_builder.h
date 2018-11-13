@@ -27,6 +27,9 @@ enum class PrimitiveTopology : uint32_t;
 enum class BlendOp : uint32_t;
 enum class BlendFactor : uint32_t;
 enum class AttachmentBlendPreset : uint32_t;
+enum class PolygonMode : uint32_t;
+enum class FrontFace : uint32_t;
+enum class CullModeFlagBits : uint32_t;
 } // namespace le
 
 void register_le_pipeline_builder_api( void *api );
@@ -74,9 +77,23 @@ struct le_graphics_pipeline_builder_api {
 			void (*set_patch_control_points)(le_graphics_pipeline_builder_o *self, uint32_t count);
 		};
 
+		struct rasterization_state_t{
+			void (*set_depth_clamp_enable         )(le_graphics_pipeline_builder_o *self, bool const & enable);
+			void (*set_rasterizer_discard_enable  )(le_graphics_pipeline_builder_o *self, bool const & enable);
+			void (*set_polygon_mode               )(le_graphics_pipeline_builder_o *self, le::PolygonMode const & polygon_mode);
+			void (*set_cull_mode                  )(le_graphics_pipeline_builder_o *self, le::CullModeFlagBits const & cull_mode_flag_bits);
+			void (*set_front_face                 )(le_graphics_pipeline_builder_o *self, le::FrontFace const & front_face);
+			void (*set_depth_bias_enable          )(le_graphics_pipeline_builder_o *self, bool const & enable);
+			void (*set_depth_bias_constant_factor )(le_graphics_pipeline_builder_o *self, float const & factor);
+			void (*set_depth_bias_clamp           )(le_graphics_pipeline_builder_o *self, float const & clamp);
+			void (*set_depth_bias_slope_factor    )(le_graphics_pipeline_builder_o *self, float const & factor);
+			void (*set_line_width                 )(le_graphics_pipeline_builder_o *self, float const & line_width);
+		};
+
 		input_assembly_state_t   input_assembly_state_i;
 		blend_attachment_state_t blend_attachment_state_i;
 		tessellation_state_t     tessellation_state_i;
+		rasterization_state_t    rasterization_state_i;
 	};
 
 	le_graphics_pipeline_builder_interface_t le_graphics_pipeline_builder_i;
@@ -150,6 +167,81 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	};
 
 	TessellationState mTessellationState{*this};
+
+	class RasterizationState {
+		LeGraphicsPipelineBuilder &parent;
+
+	  public:
+		RasterizationState( LeGraphicsPipelineBuilder &parent_ )
+		    : parent( parent_ ) {
+		}
+
+		RasterizationState &setDepthClampEnable( bool const &enable ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.rasterization_state_i.set_depth_clamp_enable( parent.self, enable );
+			return *this;
+		}
+
+		RasterizationState &setRasterizerDiscardEnable( bool const &enable ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.rasterization_state_i.set_rasterizer_discard_enable( parent.self, enable );
+			return *this;
+		}
+
+		RasterizationState &setPolygonMode( le::PolygonMode const &mode ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.rasterization_state_i.set_polygon_mode( parent.self, mode );
+			return *this;
+		}
+
+		RasterizationState &setCullMode( le::CullModeFlagBits const &mode ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.rasterization_state_i.set_cull_mode( parent.self, mode );
+			return *this;
+		}
+
+		RasterizationState &setFrontFace( le::FrontFace const &frontFace ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.rasterization_state_i.set_front_face( parent.self, frontFace );
+			return *this;
+		}
+
+		RasterizationState &setDepthBiasEnable( bool const &enable ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.rasterization_state_i.set_depth_bias_enable( parent.self, enable );
+			return *this;
+		}
+
+		RasterizationState &setDepthBiasConstantFactor( float const &factor ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.rasterization_state_i.set_depth_bias_constant_factor( parent.self, factor );
+			return *this;
+		}
+
+		RasterizationState &setDepthBiasClamp( float const &clamp ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.rasterization_state_i.set_depth_bias_clamp( parent.self, clamp );
+			return *this;
+		}
+
+		RasterizationState &setDepthBiasSlopeFactor( float const &factor ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.rasterization_state_i.set_depth_bias_slope_factor( parent.self, factor );
+			return *this;
+		}
+
+		RasterizationState &setLineWidth( float const &lineWidth ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.rasterization_state_i.set_line_width( parent.self, lineWidth );
+			return *this;
+		}
+
+		LeGraphicsPipelineBuilder &end() {
+			return parent;
+		}
+	};
+
+	RasterizationState mRasterizationState{*this};
 
 	class AttachmentBlendState {
 		LeGraphicsPipelineBuilder &parent;
@@ -272,6 +364,14 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 
 	InputAssembly &withInputAssembly() {
 		return mInputAssembly;
+	}
+
+	RasterizationState &withRasterizationState() {
+		return mRasterizationState;
+	}
+
+	TessellationState &withTessellationState() {
+		return mTessellationState;
 	}
 
 	AttachmentBlendState &withAttachmentBlendState( uint32_t attachmentIndex = 0 ) {

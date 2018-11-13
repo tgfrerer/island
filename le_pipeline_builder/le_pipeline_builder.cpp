@@ -375,8 +375,51 @@ static void blend_attachment_state_use_preset( le_graphics_pipeline_builder_o *s
 
 // ----------------------------------------------------------------------
 
+vk::PolygonMode le_polygon_mode_to_vk( le::PolygonMode const &mode ) {
+	return vk::PolygonMode( mode );
+}
+
+vk::CullModeFlagBits le_cull_mode_to_vk( le::CullModeFlagBits const &cull_mode ) {
+	return vk::CullModeFlagBits( cull_mode );
+}
+
+vk::FrontFace le_front_face_to_vk( le::FrontFace const &front_face ) {
+	return vk::FrontFace( front_face );
+}
+
 static void tessellation_state_set_patch_control_points( le_graphics_pipeline_builder_o *self, uint32_t count ) {
 	self->obj->data.tessellationState.setPatchControlPoints( count );
+}
+
+static void rasterization_state_set_depth_clamp_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+	self->obj->data.rasterizationInfo.setDepthClampEnable( enable );
+}
+static void rasterization_state_set_rasterizer_discard_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+	self->obj->data.rasterizationInfo.setRasterizerDiscardEnable( enable );
+}
+static void rasterization_state_set_polygon_mode( le_graphics_pipeline_builder_o *self, le::PolygonMode const &polygon_mode ) {
+	self->obj->data.rasterizationInfo.setPolygonMode( le_polygon_mode_to_vk( polygon_mode ) );
+}
+static void rasterization_state_set_cull_mode( le_graphics_pipeline_builder_o *self, le::CullModeFlagBits const &cull_mode_flag_bits ) {
+	self->obj->data.rasterizationInfo.setCullMode( le_cull_mode_to_vk( cull_mode_flag_bits ) );
+}
+static void rasterization_state_set_front_face( le_graphics_pipeline_builder_o *self, le::FrontFace const &front_face ) {
+	self->obj->data.rasterizationInfo.setFrontFace( le_front_face_to_vk( front_face ) );
+}
+static void rasterization_state_set_depth_bias_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+	self->obj->data.rasterizationInfo.setDepthBiasEnable( enable );
+}
+static void rasterization_state_set_depth_bias_constant_factor( le_graphics_pipeline_builder_o *self, float const &factor ) {
+	self->obj->data.rasterizationInfo.setDepthBiasConstantFactor( factor );
+}
+static void rasterization_state_set_depth_bias_clamp( le_graphics_pipeline_builder_o *self, float const &clamp ) {
+	self->obj->data.rasterizationInfo.setDepthBiasClamp( clamp );
+}
+static void rasterization_state_set_depth_bias_slope_factor( le_graphics_pipeline_builder_o *self, float const &factor ) {
+	self->obj->data.rasterizationInfo.setDepthBiasSlopeFactor( factor );
+}
+static void rasterization_state_set_line_width( le_graphics_pipeline_builder_o *self, float const &line_width ) {
+	self->obj->data.rasterizationInfo.setLineWidth( line_width );
 }
 
 // ----------------------------------------------------------------------
@@ -409,4 +452,15 @@ ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
 	i.blend_attachment_state_i.use_preset                 = blend_attachment_state_use_preset;
 
 	i.tessellation_state_i.set_patch_control_points = tessellation_state_set_patch_control_points;
+
+	i.rasterization_state_i.set_depth_clamp_enable         = rasterization_state_set_depth_clamp_enable;
+	i.rasterization_state_i.set_rasterizer_discard_enable  = rasterization_state_set_rasterizer_discard_enable;
+	i.rasterization_state_i.set_polygon_mode               = rasterization_state_set_polygon_mode;
+	i.rasterization_state_i.set_cull_mode                  = rasterization_state_set_cull_mode;
+	i.rasterization_state_i.set_front_face                 = rasterization_state_set_front_face;
+	i.rasterization_state_i.set_depth_bias_enable          = rasterization_state_set_depth_bias_enable;
+	i.rasterization_state_i.set_depth_bias_constant_factor = rasterization_state_set_depth_bias_constant_factor;
+	i.rasterization_state_i.set_depth_bias_clamp           = rasterization_state_set_depth_bias_clamp;
+	i.rasterization_state_i.set_depth_bias_slope_factor    = rasterization_state_set_depth_bias_slope_factor;
+	i.rasterization_state_i.set_line_width                 = rasterization_state_set_line_width;
 }

@@ -225,6 +225,31 @@ LE_WRAP_TYPE_IN_STRUCT( le::ShaderStage, LeShaderStageEnum );
 
 namespace le {
 
+// Codegen <VkFrontFace, uint32_t>
+enum class FrontFace : uint32_t {
+	eCounterClockwise = 0,
+	eClockwise        = 1,
+};
+// Codegen </VkFrontFace, uint32_t>
+
+// Codegen <VkCullModeFlagBits, uint32_t>
+enum class CullModeFlagBits : uint32_t {
+	eNone         = 0,
+	eFront        = 0x00000001,
+	eBack         = 0x00000002,
+	eFrontAndBack = 0x00000003,
+};
+// Codegen </VkCullModeFlagBits, uint32_t>
+
+// Codegen <VkPolygonMode, uint32_t>
+enum class PolygonMode : uint32_t {
+	eFill            = 0,
+	eLine            = 1,
+	ePoint           = 2,
+	eFillRectangleNv = 1000153000,
+};
+// Codegen </VkPolygonMode, uint32_t>
+
 // Codegen <VkPrimitiveTopology, uint32_t>
 enum class PrimitiveTopology : uint32_t {
 	ePointList                  = 0,
