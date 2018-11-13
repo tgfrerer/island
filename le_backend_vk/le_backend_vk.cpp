@@ -241,7 +241,7 @@ struct BackendFrameData {
 
 	// ResourceState keeps track of the resource stage *before* a barrier
 	struct ResourceState {
-		vk::AccessFlags        visible_access; // which memory access must be be visible - if any of these are WRITE accesses, these must be made available(flushed) before next access
+		vk::AccessFlags        visible_access; // which memory access must be be visible - if any of these are WRITE accesses, these must be made available(flushed) before next access - for the next src access we can OR this with ANY_WRITES
 		vk::PipelineStageFlags write_stage;    // current or last stage at which write occurs
 		vk::ImageLayout        layout;         // current layout (for images)
 	};
@@ -707,6 +707,42 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 		currentPass.width  = renderpass_i.get_width( *pass );
 		currentPass.height = renderpass_i.get_height( *pass );
+
+		{
+			// FIXME: This is quite a hack.
+
+			// If an image gets sampled inside a renderpass, we must insert the target sync
+			// state to the sync chain for the image resource, so that the renderpass writing to this resource
+			// knows the target state to transition into for this resource when transitioning out of the
+			// renderpass.
+			//
+			// Only image resources can be implicitly transitioned by renderpasses, so this doesnt apply
+			// to buffers.
+
+			le_resource_handle_t const *handles;
+			le_resource_info_t const *  info;
+			size_t                      numResources;
+
+			renderpass_i.get_used_resources( *pass, &handles, &info, &numResources );
+
+			le_resource_handle_t const *const handles_end = handles + numResources;
+
+			for ( le_resource_handle_t const *handle = handles; handle != handles_end; ++handle ) {
+
+				auto h  = handle->debug_name;
+				auto tp = info->type;
+				if ( tp == LeResourceType::eImage && info->image.usage == LE_IMAGE_USAGE_SAMPLED_BIT ) {
+					auto &                          imageSyncChain = syncChainTable[ *handle ];
+					BackendFrameData::ResourceState resourceState;
+					resourceState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
+					resourceState.visible_access = vk::AccessFlagBits::eShaderRead;
+					resourceState.write_stage    = vk::PipelineStageFlagBits::eFragmentShader;
+					imageSyncChain.emplace_back( resourceState );
+				}
+
+				info++;
+			}
+		}
 
 		// iterate over all image attachments
 
@@ -1596,6 +1632,14 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	// Consolidate usedResourcesInfos so that the first element in the vector of
 	// resourceInfos for a resource covers all intended usages of a resource.
 
+	// TODO: if Resource usage changes between passes, (e.g. write-to image, sample-from image)
+	// we must somehow annotate that the image has changed.
+	// This is complicated somehow through the fact that an image
+	// may not actually be written to, as the execute stage is what counts for access to resources.
+	//
+	// There needs to be a pipeline barrier so that resources are transitioned
+	// from their previous usage to their next usage.
+
 	size_t resouce_index = 0;
 	for ( auto &resourceInfoVersions : usedResourcesInfos ) {
 
@@ -1759,6 +1803,8 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	// If we locked backendResources with a mutex, this would be the right place to release it.
 }
 
+// Allocates Samplers and Textures requested by individual passes
+// these are tied to the lifetime of the frame, and will be re-created
 static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Device const &device, le_renderpass_o **passes, size_t numRenderPasses ) {
 
 	static auto const &renderpass_i = Registry::getApi<le_renderer_api>()->le_renderpass_i;
@@ -1841,14 +1887,15 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 				frame.textures[ textureId ] = tex;
 
 				{
-					// Now store vk objects with frame owned resources, so that
-					// they can be destroyed when frame crosses the fence.
+					// Now store vk object references with frame owned resources, so that
+					// the vk objects can be destroyed when frame crosses the fence.
 
 					AbstractPhysicalResource sampler;
 					AbstractPhysicalResource imgView;
 
-					sampler.asSampler   = vkSampler;
-					sampler.type        = AbstractPhysicalResource::Type::eSampler;
+					sampler.asSampler = vkSampler;
+					sampler.type      = AbstractPhysicalResource::Type::eSampler;
+
 					imgView.asImageView = vkImageView;
 					imgView.type        = AbstractPhysicalResource::Type::eImageView;
 
@@ -1856,14 +1903,8 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 					frame.ownedResources.emplace_front( std::move( imgView ) );
 				}
 			}
-		}
-	}
-
-	// we need to store texture (= sampler+imageview) in a map of textures, indexed by their id.
-	// we only need to create a new texture if it has a new name, otherwise we will use the same texture.
-	// this could lead to some stange effects, but texture names should be universal over the frame.
-
-	// store any resources in ownedResources so that they get destroyed when frame fence is passed
+		} // end for all textureIds
+	}     // end for all passes
 }
 
 // ----------------------------------------------------------------------
@@ -1899,6 +1940,7 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 	frame_track_resource_state( frame, passes, numRenderPasses, self->backBufferImageHandle );
 
 	vk::Device device = self->device->getVkDevice();
+
 	// -- allocate any transient vk objects such as image samplers, and image views
 	frame_allocate_per_pass_resources( frame, device, passes, numRenderPasses );
 
