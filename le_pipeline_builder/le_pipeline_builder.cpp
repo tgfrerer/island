@@ -159,18 +159,6 @@ static void le_graphics_pipeline_builder_set_vertex_input_binding_descriptions( 
 
 // ----------------------------------------------------------------------
 
-static void le_graphics_pipeline_builder_set_rasterization_info( le_graphics_pipeline_builder_o *self, const VkPipelineRasterizationStateCreateInfo &rasterizationInfo ) {
-	self->obj->data.rasterizationInfo = rasterizationInfo;
-};
-
-static void le_graphics_pipeline_builder_set_input_assembly_info( le_graphics_pipeline_builder_o *self, const VkPipelineInputAssemblyStateCreateInfo &inputAssemblyInfo ) {
-	self->obj->data.inputAssemblyState = inputAssemblyInfo;
-}
-
-static void le_graphics_pipeline_builder_set_tessellation_info( le_graphics_pipeline_builder_o *self, const VkPipelineTessellationStateCreateInfo &tessellationInfo ) {
-	self->obj->data.tessellationState = tessellationInfo;
-}
-
 static void le_graphics_pipeline_builder_set_multisample_info( le_graphics_pipeline_builder_o *self, const VkPipelineMultisampleStateCreateInfo &multisampleInfo ) {
 	self->obj->data.multisampleState = multisampleInfo;
 }
@@ -433,9 +421,6 @@ ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
 	i.add_shader_stage                        = le_graphics_pipeline_builder_add_shader_stage;
 	i.set_vertex_input_attribute_descriptions = le_graphics_pipeline_builder_set_vertex_input_attribute_descriptions;
 	i.set_vertex_input_binding_descriptions   = le_graphics_pipeline_builder_set_vertex_input_binding_descriptions;
-	i.set_rasterization_info                  = le_graphics_pipeline_builder_set_rasterization_info;
-	i.set_input_assembly_info                 = le_graphics_pipeline_builder_set_input_assembly_info;
-	i.set_tessellation_info                   = le_graphics_pipeline_builder_set_tessellation_info;
 	i.set_multisample_info                    = le_graphics_pipeline_builder_set_multisample_info;
 	i.set_depth_stencil_info                  = le_graphics_pipeline_builder_set_depth_stencil_info;
 

@@ -14,9 +14,6 @@ struct le_pipeline_manager_o;
 
 struct le_vertex_input_binding_description;
 struct le_vertex_input_attribute_description;
-struct VkPipelineRasterizationStateCreateInfo;
-struct VkPipelineInputAssemblyStateCreateInfo;
-struct VkPipelineTessellationStateCreateInfo;
 struct VkPipelineMultisampleStateCreateInfo;
 struct VkPipelineDepthStencilStateCreateInfo;
 
@@ -49,9 +46,6 @@ struct le_graphics_pipeline_builder_api {
 		void     ( * set_vertex_input_attribute_descriptions ) ( le_graphics_pipeline_builder_o* self, le_vertex_input_attribute_description* p_input_attribute_descriptions, size_t count);
 		void     ( * set_vertex_input_binding_descriptions   ) ( le_graphics_pipeline_builder_o* self, le_vertex_input_binding_description* p_input_binding_descriptions, size_t count);
 
-		void     ( * set_rasterization_info                  ) ( le_graphics_pipeline_builder_o* self, const VkPipelineRasterizationStateCreateInfo& rasterizationState);
-		void     ( * set_input_assembly_info                 ) ( le_graphics_pipeline_builder_o *self, const VkPipelineInputAssemblyStateCreateInfo &inputAssemblyInfo ) ;
-		void     ( * set_tessellation_info                   ) ( le_graphics_pipeline_builder_o *self, const VkPipelineTessellationStateCreateInfo &tessellationInfo );
 		void     ( * set_multisample_info                    ) ( le_graphics_pipeline_builder_o *self, const VkPipelineMultisampleStateCreateInfo &multisampleInfo );
 		void     ( * set_depth_stencil_info                  ) ( le_graphics_pipeline_builder_o *self, const VkPipelineDepthStencilStateCreateInfo &depthStencilInfo );
 
@@ -120,21 +114,21 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 
 	le_graphics_pipeline_builder_o *self;
 
-	class InputAssembly {
+	class InputAssemblyState {
 		LeGraphicsPipelineBuilder &parent;
 
 	  public:
-		InputAssembly( LeGraphicsPipelineBuilder &parent_ )
+		InputAssemblyState( LeGraphicsPipelineBuilder &parent_ )
 		    : parent( parent_ ) {
 		}
 
-		InputAssembly &setPrimitiveRestartEnable( uint32_t const &primitiveRestartEnable ) {
+		InputAssemblyState &setPrimitiveRestartEnable( uint32_t const &primitiveRestartEnable ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.input_assembly_state_i.set_primitive_restart_enable( parent.self, primitiveRestartEnable );
 			return *this;
 		}
 
-		InputAssembly &setToplogy( le::PrimitiveTopology const &topology ) {
+		InputAssemblyState &setToplogy( le::PrimitiveTopology const &topology ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.input_assembly_state_i.set_topology( parent.self, topology );
 			return *this;
@@ -145,7 +139,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		}
 	};
 
-	InputAssembly mInputAssembly{*this};
+	InputAssemblyState mInputAssembly{*this};
 
 	class TessellationState {
 		LeGraphicsPipelineBuilder &parent;
@@ -337,21 +331,6 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	LeGraphicsPipelineBuilder &setRasterizationInfo( const VkPipelineRasterizationStateCreateInfo &info ) {
-		le_pipeline_builder::le_graphics_pipeline_builder_i.set_rasterization_info( self, info );
-		return *this;
-	}
-
-	LeGraphicsPipelineBuilder &setInputAssemblyInfo( const VkPipelineInputAssemblyStateCreateInfo &info ) {
-		le_pipeline_builder::le_graphics_pipeline_builder_i.set_input_assembly_info( self, info );
-		return *this;
-	}
-
-	LeGraphicsPipelineBuilder &setTessellationInfo( const VkPipelineTessellationStateCreateInfo &info ) {
-		le_pipeline_builder::le_graphics_pipeline_builder_i.set_tessellation_info( self, info );
-		return *this;
-	}
-
 	LeGraphicsPipelineBuilder &setMultisampleInfo( const VkPipelineMultisampleStateCreateInfo &info ) {
 		le_pipeline_builder::le_graphics_pipeline_builder_i.set_multisample_info( self, info );
 		return *this;
@@ -362,7 +341,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	InputAssembly &withInputAssembly() {
+	InputAssemblyState &withInputAssemblyState() {
 		return mInputAssembly;
 	}
 
