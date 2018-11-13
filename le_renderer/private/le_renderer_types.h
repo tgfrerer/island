@@ -232,6 +232,18 @@ enum class FrontFace : uint32_t {
 };
 // Codegen </VkFrontFace, uint32_t>
 
+// Codegen <VkSampleCountFlagBits, uint32_t>
+enum class SampleCountFlagBits : uint32_t {
+	e1  = 0x00000001,
+	e2  = 0x00000002,
+	e4  = 0x00000004,
+	e8  = 0x00000008,
+	e16 = 0x00000010,
+	e32 = 0x00000020,
+	e64 = 0x00000040,
+};
+// Codegen </VkSampleCountFlagBits, uint32_t>
+
 // Codegen <VkCullModeFlagBits, uint32_t>
 enum class CullModeFlagBits : uint32_t {
 	eNone         = 0,
@@ -420,18 +432,6 @@ enum class ImageTiling : uint32_t {
 	eLinear  = 1,
 };
 // Codegen </VkImageTiling>
-
-// Codegen <VkSampleCountFlagBits, uint32_t>
-enum class SampleCountFlagBits : uint32_t {
-	e1  = 0x00000001,
-	e2  = 0x00000002,
-	e4  = 0x00000004,
-	e8  = 0x00000008,
-	e16 = 0x00000010,
-	e32 = 0x00000020,
-	e64 = 0x00000040,
-};
-// Codegen </VkSampleCountFlagBits>
 
 // Codegen <VkFormat>
 enum class Format {

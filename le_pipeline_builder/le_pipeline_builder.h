@@ -27,6 +27,7 @@ enum class AttachmentBlendPreset : uint32_t;
 enum class PolygonMode : uint32_t;
 enum class FrontFace : uint32_t;
 enum class CullModeFlagBits : uint32_t;
+enum class SampleCountFlagBits : uint32_t;
 } // namespace le
 
 void register_le_pipeline_builder_api( void *api );
@@ -84,10 +85,19 @@ struct le_graphics_pipeline_builder_api {
 			void (*set_line_width                 )(le_graphics_pipeline_builder_o *self, float const & line_width);
 		};
 
+		struct multisample_state_t{
+			void (*set_rasterization_samples    )(le_graphics_pipeline_builder_o *self, le::SampleCountFlagBits const & num_samples);
+			void (*set_sample_shading_enable    )(le_graphics_pipeline_builder_o *self, bool const & enable);
+			void (*set_min_sample_shading       )(le_graphics_pipeline_builder_o *self, float const & min_sample_shading);
+			void (*set_alpha_to_coverage_enable )(le_graphics_pipeline_builder_o *self, bool const& enable);
+			void (*set_alpha_to_one_enable      )(le_graphics_pipeline_builder_o *self, bool const & enable);
+		};
+
 		input_assembly_state_t   input_assembly_state_i;
 		blend_attachment_state_t blend_attachment_state_i;
 		tessellation_state_t     tessellation_state_i;
 		rasterization_state_t    rasterization_state_i;
+		multisample_state_t      multisample_state_i;
 	};
 
 	le_graphics_pipeline_builder_interface_t le_graphics_pipeline_builder_i;
@@ -140,6 +150,51 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	};
 
 	InputAssemblyState mInputAssembly{*this};
+
+	class MultiSampleState {
+		LeGraphicsPipelineBuilder &parent;
+
+	  public:
+		MultiSampleState( LeGraphicsPipelineBuilder &parent_ )
+		    : parent( parent_ ) {
+		}
+
+		MultiSampleState &setRasterizationSamples( le::SampleCountFlagBits const &num_samples ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.multisample_state_i.set_rasterization_samples( parent.self, num_samples );
+			return *this;
+		}
+
+		MultiSampleState &setSampleShadingEnable( bool const &enable ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.multisample_state_i.set_sample_shading_enable( parent.self, enable );
+			return *this;
+		}
+
+		MultiSampleState &setMinSampleShading( float const &min_sample_shading ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.multisample_state_i.set_min_sample_shading( parent.self, min_sample_shading );
+			return *this;
+		}
+
+		MultiSampleState &setAlphaToCoverageEnable( bool const &enable ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.multisample_state_i.set_alpha_to_coverage_enable( parent.self, enable );
+			return *this;
+		}
+
+		MultiSampleState &setAlphaToOneEnable( bool const &enable ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.multisample_state_i.set_alpha_to_one_enable( parent.self, enable );
+			return *this;
+		}
+
+		LeGraphicsPipelineBuilder &end() {
+			return parent;
+		}
+	};
+
+	MultiSampleState mMultiSampleState{*this};
 
 	class TessellationState {
 		LeGraphicsPipelineBuilder &parent;
@@ -351,6 +406,10 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 
 	TessellationState &withTessellationState() {
 		return mTessellationState;
+	}
+
+	MultiSampleState &withMultiSampleState() {
+		return mMultiSampleState;
 	}
 
 	AttachmentBlendState &withAttachmentBlendState( uint32_t attachmentIndex = 0 ) {

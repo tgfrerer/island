@@ -411,6 +411,28 @@ static void rasterization_state_set_line_width( le_graphics_pipeline_builder_o *
 }
 
 // ----------------------------------------------------------------------
+vk::SampleCountFlagBits le_sample_count_flags_to_vk( le::SampleCountFlagBits const &rhs ) {
+	return vk::SampleCountFlagBits( rhs );
+}
+
+static void multisample_state_set_rasterization_samples( le_graphics_pipeline_builder_o *self, le::SampleCountFlagBits const &num_samples ) {
+	self->obj->data.multisampleState.setRasterizationSamples( le_sample_count_flags_to_vk( num_samples ) );
+}
+
+static void multisample_state_set_sample_shading_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+	self->obj->data.multisampleState.setSampleShadingEnable( enable );
+}
+static void multisample_state_set_min_sample_shading( le_graphics_pipeline_builder_o *self, float const &min_sample_shading ) {
+	self->obj->data.multisampleState.setMinSampleShading( min_sample_shading );
+}
+static void multisample_state_set_alpha_to_coverage_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+	self->obj->data.multisampleState.setAlphaToCoverageEnable( enable );
+}
+static void multisample_state_set_alpha_to_one_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+	self->obj->data.multisampleState.setAlphaToOneEnable( enable );
+}
+
+// ----------------------------------------------------------------------
 
 ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
 	auto &i = static_cast<le_graphics_pipeline_builder_api *>( api )->le_graphics_pipeline_builder_i;
@@ -448,4 +470,10 @@ ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
 	i.rasterization_state_i.set_depth_bias_clamp           = rasterization_state_set_depth_bias_clamp;
 	i.rasterization_state_i.set_depth_bias_slope_factor    = rasterization_state_set_depth_bias_slope_factor;
 	i.rasterization_state_i.set_line_width                 = rasterization_state_set_line_width;
+
+	i.multisample_state_i.set_rasterization_samples    = multisample_state_set_rasterization_samples;
+	i.multisample_state_i.set_sample_shading_enable    = multisample_state_set_sample_shading_enable;
+	i.multisample_state_i.set_min_sample_shading       = multisample_state_set_min_sample_shading;
+	i.multisample_state_i.set_alpha_to_coverage_enable = multisample_state_set_alpha_to_coverage_enable;
+	i.multisample_state_i.set_alpha_to_one_enable      = multisample_state_set_alpha_to_one_enable;
 }
