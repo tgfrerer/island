@@ -11,9 +11,6 @@
 #include "le_pipeline_builder/le_pipeline_builder.h"
 #include "le_pixels/le_pixels.h"
 
-//#define VULKAN_HPP_NO_SMART_HANDLE
-//#include "vulkan/vulkan.hpp"
-
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h> // for key codes
 
@@ -538,7 +535,6 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 	// Draw RGB triangle
 	if ( true ) {
 
-
 		static auto psoTriangle = LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 		                              .addShaderStage( app->shaderTriangle[ 0 ] )
 		                              .addShaderStage( app->shaderTriangle[ 1 ] )
@@ -898,13 +894,6 @@ ISL_API_ATTR void register_test_app_api( void *api ) {
 	test_app_i.destroy           = test_app_destroy;
 	test_app_i.update            = test_app_update;
 	test_app_i.process_ui_events = test_app_process_ui_events;
-
-	//	test_app_i.key_callback             = test_app_key_callback;
-	//	test_app_i.character_callback       = test_app_character_callback;
-	//	test_app_i.cursor_position_callback = test_app_cursor_position_callback;
-	//	test_app_i.cursor_enter_callback    = test_app_cursor_enter_callback;
-	//	test_app_i.mouse_button_callback    = test_app_mouse_button_callback;
-	//	test_app_i.scroll_callback          = test_app_scroll_callback;
 
 #ifdef PLUGINS_DYNAMIC
 	Registry::loadLibraryPersistently( "./libs/imgui/libimgui.so" );
