@@ -10,8 +10,10 @@
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
+#define GLM_ENABLE_EXPERIMENTAL
 #include "glm.hpp"
 #include "gtc/matrix_transform.hpp"
+#include "glm/gtx/string_cast.hpp"
 
 #include <iostream>
 #include <memory>
@@ -68,7 +70,7 @@ static lensflare_app_o *lensflare_app_create() {
 	app->window.setup( settings );
 
 	le_swapchain_vk_settings_t swapchainSettings;
-	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eImmediate;
+	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eFifo;
 	swapchainSettings.imagecount_hint  = 3;
 
 	le_backend_vk_settings_t backendCreateInfo;
@@ -215,13 +217,21 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 			float                                        uHowClose;
 		};
 
-		glm::vec3 source = ( mvp.projection * mvp.view * glm::vec4{0.5f, -0.25f, 0.5f, 1.f} );
+		glm::vec4 sourceInCameraSpace = mvp.view * glm::vec4{0, 0, -1000, 1.f};
+		glm::vec4 tmp                 = mvp.projection * sourceInCameraSpace;
+		glm::vec3 sourceInClipSpace   = tmp / tmp.w;
+
+		bool inFrustum = app->camera.getSphereCentreInFrustum( &sourceInCameraSpace.x, 500 );
+
+		//		std::cout << "Clip space: " << glm::to_string( sourceInClipSpace ) << ", Camera Space: " << glm::to_string( sourceInCameraSpace ) << ", " << ( inFrustum ? "PASS" : "FAIL" )
+		//		          << std::endl
+		//		          << std::flush;
 
 		LensflareParams params{};
 		params.uCanvas.x        = screenWidth;
 		params.uCanvas.y        = screenHeight;
 		params.uCanvas.z        = app->camera.getUnitDistance();
-		params.uLensflareSource = source;
+		params.uLensflareSource = sourceInClipSpace;
 		params.uHowClose        = 800;
 
 		encoder
@@ -231,12 +241,18 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		    .setVertexData( trianglePositions, sizeof( trianglePositions ), 0 )
 		    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &mvp, sizeof( MatrixStackUbo_t ) )
 		    .draw( 4 ) //
-		    .bindGraphicsPipeline( pipelineLensflares )
-		    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &mvp, sizeof( MatrixStackUbo_t ) )
-		    .setArgumentData( LE_ARGUMENT_NAME( LensflareParams ), &params, sizeof( LensflareParams ) )
-		    .setVertexData( lensflareData, sizeof( lensflareData ), 0 )
-		    .draw( sizeof( lensflareData ) / sizeof( glm::vec4 ) ) //
 		    ;
+
+		// let' check if source is in clip space
+
+		if ( inFrustum )
+			encoder
+			    .bindGraphicsPipeline( pipelineLensflares )
+			    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &mvp, sizeof( MatrixStackUbo_t ) )
+			    .setArgumentData( LE_ARGUMENT_NAME( LensflareParams ), &params, sizeof( LensflareParams ) )
+			    .setVertexData( lensflareData, sizeof( lensflareData ), 0 )
+			    .draw( sizeof( lensflareData ) / sizeof( glm::vec4 ) ) //
+			    ;
 	}
 }
 
@@ -286,7 +302,7 @@ static void lensflare_app_process_ui_events( lensflare_app_o *self ) {
 
 static bool lensflare_app_update( lensflare_app_o *self ) {
 
-	static bool resetCameraOnReload = true; // reload meand module reload
+	static bool resetCameraOnReload = false; // reload meand module reload
 
 	// Polls events for all windows -
 	// This means any window may trigger callbacks for any events they have callbacks registered.
