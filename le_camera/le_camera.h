@@ -37,6 +37,7 @@ struct le_camera_api {
 		float            ( * get_unit_distance        ) ( le_camera_o* self );
 		void             ( * set_clip_distances       ) ( le_camera_o* self, float nearClip, float farClip);
 		void             ( * get_clip_distances       ) ( le_camera_o* self, float *nearClip, float *farClip);
+		bool             ( * get_sphere_in_frustum    ) ( le_camera_o *self, float const *pSphereCentreInCameraSpaceFloat3, float sphereRadius );
 	};
 
 	struct le_camera_controller_interface_t {
@@ -105,15 +106,19 @@ class LeCamera : NoCopy, NoMove {
 	}
 
 	float getFovRadians() {
-	        return le_camera::le_camera_i.get_fov_radians( self );
+		return le_camera::le_camera_i.get_fov_radians( self );
 	}
 
 	void getClipDistances( float *nearClip, float *farClip ) {
-	        le_camera::le_camera_i.get_clip_distances( self, nearClip, farClip );
+		le_camera::le_camera_i.get_clip_distances( self, nearClip, farClip );
 	}
 
 	void setClipDistances( float nearClip, float farClip ) {
-	        le_camera::le_camera_i.set_clip_distances( self, nearClip, farClip );
+		le_camera::le_camera_i.set_clip_distances( self, nearClip, farClip );
+	}
+
+	bool getSphereCentreInFrustum( float const *pSphereCentreInCameraSpaceFloat3, float sphereRadius_ ) {
+		return le_camera::le_camera_i.get_sphere_in_frustum( self, pSphereCentreInCameraSpaceFloat3, sphereRadius_ );
 	}
 
 	operator auto() {

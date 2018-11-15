@@ -15,13 +15,15 @@ struct le_mouse_event_data_o {
 };
 
 struct le_camera_o {
-	glm::mat4    matrix{}; // camera position in world space
-	glm::mat4    projectionMatrix{};
-	float        fovRadians{glm::radians( 60.f )}; // field of view angle (in radians)
-	le::Viewport viewport{};                       // current camera viewport
-	float        nearClip              = 10.f;
-	float        farClip               = 10000.f;
-	bool         projectionMatrixDirty = true; // whenever fovRadians changes, or viewport changes, this means that the projection matrix needs to be recalculated.
+	glm::mat4                matrix{}; // camera position in world space
+	glm::mat4                projectionMatrix{};
+	float                    fovRadians{glm::radians( 60.f )}; // field of view angle (in radians)
+	le::Viewport             viewport{};                       // current camera viewport
+	float                    nearClip = 10.f;
+	float                    farClip  = 10000.f;
+	std::array<glm::vec4, 6> frustumPlane;                 // right,top,far,left,bottom,near
+	bool                     projectionMatrixDirty = true; // whenever fovRadians changes, or viewport changes, this means that the projection matrix needs to be recalculated.
+	bool                     frustumPlanesDirty    = true; // whenever projection matrix changes frustum planes must be re-calculated
 };
 
 struct le_camera_controller_o {
@@ -41,6 +43,80 @@ struct le_camera_controller_o {
 
 	glm::vec2 mouse_pos_initial{}; // initial position of mouse on mouse_down
 };
+
+// ----------------------------------------------------------------------
+
+static float const *camera_get_projection_matrix( le_camera_o *self ); // ffdecl.
+
+// ----------------------------------------------------------------------
+
+static void update_frustum_planes( le_camera_o *self ) {
+
+	if ( false == self->frustumPlanesDirty ) {
+		return;
+	}
+
+	// invariant : frustum planes are dirty and must be re-calculated.
+
+	if ( self->projectionMatrixDirty ) {
+		// Force recalculation of projection matrix if dirty
+		camera_get_projection_matrix( self );
+	}
+
+	glm::mat4 pM = self->projectionMatrix;
+
+	auto fP = std::array<glm::vec4, 6>{};
+
+	fP[ 0 ] = ( pM[ 3 ] - pM[ 0 ] ); // right
+	fP[ 1 ] = ( pM[ 3 ] - pM[ 1 ] ); // top
+	fP[ 2 ] = ( pM[ 3 ] - pM[ 2 ] ); // far
+	fP[ 3 ] = ( pM[ 3 ] + pM[ 0 ] ); // left
+	fP[ 4 ] = ( pM[ 3 ] + pM[ 1 ] ); // bottom
+	fP[ 5 ] = ( pM[ 3 ] + pM[ 2 ] ); // near
+
+	float fPL[ 6 ]{};
+	for ( size_t i = 0; i != 6; i++ ) {
+		// get the length (= magnitude of the .xyz part of the row), so that we can normalize later
+		fPL[ i ] = glm::vec3( fP[ i ].x, fP[ i ].y, fP[ i ].z ).length();
+	}
+
+	for ( size_t i = 0; i < 6; i++ ) {
+		// normalize by dividing each plane by its xyz length
+		fP[ i ] = fP[ i ] / fPL[ i ];
+	}
+
+	// Frustum planes are now represented in their Hessian normal form, that is, each plane is
+	// represented as a normal vector (xyz components) and a distance to origin (w component)
+
+	// apply frustum plane equation to cache.
+	std::swap( self->frustumPlane, fP );
+
+	self->frustumPlanesDirty = false;
+}
+
+// ----------------------------------------------------------------------
+// Calculates whether a sphere (given centre in camera space, and radius) is contained
+// within the frustum. The calculation is conservative, meaning a sphere intersecting the
+// frustum partially will pass the test.
+static bool camera_get_sphere_in_frustum( le_camera_o *self, float const *pSphereCentreInCameraSpaceFloat3, float sphereRadius_ ) {
+	bool inFrustum = true;
+
+	update_frustum_planes( self );
+
+	glm::vec4 sphereCentreInCameraSpace = {
+	    pSphereCentreInCameraSpaceFloat3[ 0 ],
+	    pSphereCentreInCameraSpaceFloat3[ 1 ],
+	    pSphereCentreInCameraSpaceFloat3[ 2 ],
+	    1,
+	};
+
+	for ( size_t i = 0; i != self->frustumPlane.size(); i++ ) {
+		float signedDistance = glm::dot( self->frustumPlane[ i ], ( sphereCentreInCameraSpace ) );
+		inFrustum &= ( signedDistance >= -sphereRadius_ );
+	}
+
+	return inFrustum;
+}
 
 // ----------------------------------------------------------------------
 
@@ -67,6 +143,7 @@ static void camera_set_clip_distances( le_camera_o *self, float nearClip, float 
 	self->nearClip              = nearClip;
 	self->farClip               = farClip;
 	self->projectionMatrixDirty = true;
+	self->frustumPlanesDirty    = true;
 }
 
 // ----------------------------------------------------------------------
@@ -105,6 +182,7 @@ static void camera_set_viewport( le_camera_o *self, le::Viewport const &viewport
 static void camera_set_fov_radians( le_camera_o *self, float fov_radians ) {
 	if ( fabsf( fov_radians - self->fovRadians ) > std::numeric_limits<float>().epsilon() ) {
 		self->projectionMatrixDirty = true;
+		self->frustumPlanesDirty    = true;
 		self->fovRadians            = fov_radians;
 	}
 }
@@ -313,6 +391,7 @@ ISL_API_ATTR void register_le_camera_api( void *api ) {
 	le_camera_i.get_fov_radians       = camera_get_fov_radians;
 	le_camera_i.get_clip_distances    = camera_get_clip_distances;
 	le_camera_i.set_clip_distances    = camera_set_clip_distances;
+	le_camera_i.get_sphere_in_frustum = camera_get_sphere_in_frustum;
 
 	auto &le_camera_controller_i = static_cast<le_camera_api *>( api )->le_camera_controller_i;
 
