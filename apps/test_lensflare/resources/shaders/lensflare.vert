@@ -60,13 +60,13 @@ void main()
 	// we first calculate the position of the flare in screen space, placing 
 	// it on our virtual image plane. 
 
-	vec3 sourceInScreenSpace = vec3(uLensflareSource.xy, 1) * 
-	vec3(uCanvas.x * 0.5, - uCanvas.y * 0.5, uCanvas.z *0.5);
+	vec3 sourceInClipSpace = vec3(uLensflareSource.xy, 1) * 
+	vec3(uCanvas.x * 0.5, - uCanvas.y * 0.5, uCanvas.z *0.5); // calculate position in window space.
 
 	// we then calculate the position of the virtual screen centre in NDC space
 	vec3 screenCentre = vec3( 0, 0, -uCanvas.z*0.5 );
 	// and the direction of an axis going from the flare through the NDC centre
-	vec3 flareAxisDirection = (sourceInScreenSpace - screenCentre);
+	vec3 flareAxisDirection = (sourceInClipSpace - screenCentre);
 
 	vertex.position = (screenCentre - flareAxisDirection * (fLensflarePositionOnAxis - 0.5) );
 

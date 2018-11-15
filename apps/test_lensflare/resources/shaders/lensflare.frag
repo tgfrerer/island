@@ -64,22 +64,27 @@ if ( true ) // fancy effects on / off
 
 		float cosPhi = dot(texPos, nVec) / texDistance ;
 		
-		if (cosPhi < EPSILON) discard;
+		//if (cosPhi < EPSILON) discard;
 
-		float hue = map(pow(texDistance,1.2), 0.0, 1.0, -1.25, 0.93);
+		// float hue = map(pow(texDistance,1.1), 0.5, 1.5, 1.75, -1.05);
 
-		vec3 chroma = hsv2rgb(vec3( hue , 0.7, 1)) * vec3(1, 0.85, 0.7) ;
+		// vec3 chroma = hsv2rgb(vec3( hue , 0.5, 2)) * vec3(0.4, 0.5, 0.6) ;
+		vec3 chroma = vec3( 
+			pow(sin(map(texDistance+0.0, 0.0, 1.0, 0, PI)), 3.0)*0.2 ,
+			pow(sin(map(texDistance+0.3, 0.25, 1.0, 0, PI)), 3.0)*0.26 ,
+			pow(sin(map(texDistance+0.5, 0.4, 1.0, 0, PI)), 2.3) *0.4
+			);
 
 		gradient = map(acos(cosPhi - EPSILON), 0, PI, 0.75, -0.2);
 		gradient *= cosPhi;
 
 		//gradient = 1;
 		// outer ring feather
-		intensity *= (1.0 - smoothstep(0.83, 0.98, texDistance)); //< narrowness of border blur
+		intensity *= (1.0 - smoothstep(0.8, 0.98, texDistance)); //< narrowness of border blur
 		// inner ring feather
-		intensity *=  smoothstep(0.45-gradient*0.1, 0.85, texDistance);
+		intensity *=  smoothstep(0.1-gradient*0.5, 0.65, texDistance);
 
-		intensity *= 0.35;
+		intensity *= 0.9;
 
 		//intensity = 1;
 
@@ -91,6 +96,7 @@ if ( true ) // fancy effects on / off
 
 		// multi-iris lens flares.
 
+		// discard;
 		float intensity = vertex.distanceToBorder;
 		intensity =  1.0 - abs(0.5 - smoothstep(0.1, 0.8, intensity))  * 2 ;
 
@@ -117,6 +123,7 @@ if ( true ) // fancy effects on / off
 
 	} else if (vertex.flare_type == 3){
 
+		// discard;
 		// white hot sun point flare
 		
 		// if (uHowClose > 100) discard; ///< do not render if sun is behind earth. 
@@ -136,6 +143,7 @@ if ( true ) // fancy effects on / off
 
 	} else {
 
+		// discard;
 		float intensity = 1.0 ; //abs( 0.5 - fract( length(vertex.texcoord.xy * 2.0 - vec2(1)) / 0.2));
 		float attenuation = pow(1.0 - length(vertex.texcoord.xy * 2.0 - vec2(1)),3);
 
@@ -149,6 +157,7 @@ if ( true ) // fancy effects on / off
 	}
 } else {
 
+	discard;
 	fragColor = vec4(vertex.texcoord.xy,0,1);
 	//fragColor = vec4(1);
 }
