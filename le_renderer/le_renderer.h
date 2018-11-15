@@ -72,7 +72,6 @@ struct le_renderer_api {
 		void                         ( *run_execute_callback )( le_renderpass_o* obj, le_command_buffer_encoder_o* encoder);
 		bool                         ( *has_execute_callback )( const le_renderpass_o* obj);
 		void                         ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle_t& resource_id, const le_resource_info_t &info);
-		//void                         ( *create_resource      )( le_renderpass_o *obj, le_resource_handle_t resource_id, const le_resource_info_t &info );
 		void                         ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
 		bool                         ( *get_is_root          )( const le_renderpass_o *obj);
 		void                         ( *set_sort_key         )( le_renderpass_o *obj, uint64_t sort_key);
