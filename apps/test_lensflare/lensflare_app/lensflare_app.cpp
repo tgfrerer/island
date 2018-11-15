@@ -188,7 +188,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		    {50, -50, 0},
 		};
 
-		constexpr float size_scale      = 0.15;
+		constexpr float size_scale      = 0.25;
 		glm::vec4       lensflareData[] = {
 		    {3, 0.0, 0.0, 400 * size_scale}, //< flare point
 		    {0, 0.1, 0.1, 200 * size_scale},
@@ -218,8 +218,8 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		};
 
 		glm::vec4 sourceInCameraSpace = mvp.view * glm::vec4{0, 0, -1000, 1.f};
-		glm::vec4 tmp                 = mvp.projection * sourceInCameraSpace;
-		glm::vec3 sourceInClipSpace   = tmp / tmp.w;
+		glm::vec4 sourceInClipSpace   = mvp.projection * sourceInCameraSpace;
+		sourceInClipSpace             = sourceInClipSpace / sourceInClipSpace.w; // Normalise
 
 		bool inFrustum = app->camera.getSphereCentreInFrustum( &sourceInCameraSpace.x, 500 );
 
@@ -232,7 +232,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		params.uCanvas.y        = screenHeight;
 		params.uCanvas.z        = app->camera.getUnitDistance();
 		params.uLensflareSource = sourceInClipSpace;
-		params.uHowClose        = 800;
+		params.uHowClose        = 500;
 
 		encoder
 		    .setScissors( 0, 1, scissors )

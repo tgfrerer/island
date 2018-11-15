@@ -917,8 +917,8 @@ enum class CommandType : uint32_t {
 struct CommandHeader {
 	union {
 		struct {
-			CommandType type : 32; // type of recorded command
-			uint64_t    size : 32; // number of bytes this command occupies in a tightly packed array
+			CommandType type; // type of recorded command
+			uint32_t    size; // number of bytes this command occupies in a tightly packed array
 		};
 		uint64_t u64all;
 	} info;

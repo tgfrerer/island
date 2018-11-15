@@ -52,10 +52,6 @@
 
 ## (Unsorted)
 
-- long term: we want become independent of vulkan headers, especially the
-  vulkan.cpp behemoth in our client-facing code, so that apps don't have
-  to include it. This is also so that we might be able to add other
-  backends eventually.
 
 - api for creating a buffer is not specific enough right now,
   `renderpass.createResource` should be used, but this can also be used
