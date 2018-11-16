@@ -1501,6 +1501,24 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 	return res;
 };
 
+// Frees any resources which are marked for being recycled in the current frame.
+static void frame_release_binned_resources( BackendFrameData &frame, vk::Device device, VmaAllocator &allocator ) {
+	{
+
+		for ( auto &a : frame.binnedResources ) {
+
+			if ( a.second.info.isBuffer() ) {
+				device.destroyBuffer( a.second.asBuffer );
+			} else {
+				device.destroyImage( a.second.asImage );
+			}
+
+			vmaFreeMemory( allocator, a.second.allocation );
+		}
+		frame.binnedResources.clear();
+	}
+}
+
 // ----------------------------------------------------------------------
 // Allocates all physical Vulkan memory resources (Images/Buffers) referenced to by the frame.
 //
@@ -1520,6 +1538,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 //
 // We are currently not checking for "orphaned" resources (resources which are available in the
 // backend, but not used by the frame) - these could possibly be recycled, too.
+
 static void backend_allocate_resources( le_backend_o *self, BackendFrameData &frame, le_renderpass_o **passes, size_t numRenderPasses ) {
 
 	/*
@@ -1527,23 +1546,10 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	- "Acquire" therefore means we create local copies of backend-wide resource handles.
 	*/
 
-	{
-		// -- first it is our holy duty to drop any binned resources which were condemned the last time this frame was active.
-		// It's possible that this was more than two frames ago, depending on how many swapchain images there are.
-		vk::Device device = self->device->getVkDevice();
+	// -- first it is our holy duty to drop any binned resources which were condemned the last time this frame was active.
+	// It's possible that this was more than two frames ago, depending on how many swapchain images there are.
 
-		for ( auto &a : frame.binnedResources ) {
-
-			if ( a.second.info.isBuffer() ) {
-				device.destroyBuffer( a.second.asBuffer );
-			} else {
-				device.destroyImage( a.second.asImage );
-			}
-
-			vmaFreeMemory( self->mAllocator, a.second.allocation );
-		}
-		frame.binnedResources.clear();
-	}
+	frame_release_binned_resources( frame, self->device->getVkDevice(), self->mAllocator );
 
 	using namespace le_renderer;
 
