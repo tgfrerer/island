@@ -367,6 +367,10 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *self,
 		cmd->info.dst_region    = region;
 		cmd->info.numBytes      = numBytes;
 		cmd->info.dst_image_id  = resourceId;
+	} else {
+		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl
+		          << std::flush;
+		return;
 	}
 
 	self->mCommandStreamSize += sizeof( le::CommandWriteToImage );
