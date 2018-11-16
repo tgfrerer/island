@@ -1506,7 +1506,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 //
 // - If a resource is already available to the backend, the previously allocated resource is
 //   copied into the frame.
-// - If a resource has not yet been seen, it is freshly allocated, then made available to the
+// - If a resource has not yet been seen, it is freshly allocated, then made available to
 //   the frame. It is also copied to the backend, so that the following frames may access it.
 // - If a resource is requested with properties differing from a resource with the same handle
 //   available from the backend, the previous resource is placed in the frame bin for recycling,
@@ -1515,7 +1515,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 //   version and keeps it until it disposes of it).
 // - If there are resources in the recycling bin of a frame, these will get freed. Freeing
 //   happens as a first step, so that resources are only freed once the frame has "come around"
-//   so that earlier frames which may still use the old version of the resource can have no claim
+//   and earlier frames which may have still used the old version of the resource have no claim
 //   on the old version of the resource anymore.
 //
 // We are currently not checking for "orphaned" resources (resources which are available in the
@@ -1523,10 +1523,8 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 static void backend_allocate_resources( le_backend_o *self, BackendFrameData &frame, le_renderpass_o **passes, size_t numRenderPasses ) {
 
 	/*
-
 	- Frame is only ever allowed to reference frame-local resources .
-	- "Acquire" therefore means we create local copies of backend-wide resources.
-
+	- "Acquire" therefore means we create local copies of backend-wide resource handles.
 	*/
 
 	{

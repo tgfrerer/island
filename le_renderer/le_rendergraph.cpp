@@ -638,7 +638,8 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 	using namespace le_renderer;
 	using namespace le_backend_vk;
 
-	// Receive one allocator per pass
+	// Receive one allocator per pass -
+	// allocators come from the frame's own pool
 	auto const       ppAllocators = vk_backend_i.get_transient_allocators( backend, frameIndex, self->passes.size() );
 	le_allocator_o **allocIt      = ppAllocators; // iterator over allocators - note that number of allocators must be identical with number of passes
 
