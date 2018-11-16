@@ -1501,22 +1501,19 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 	return res;
 };
 
+// ----------------------------------------------------------------------
+
 // Frees any resources which are marked for being recycled in the current frame.
-static void frame_release_binned_resources( BackendFrameData &frame, vk::Device device, VmaAllocator &allocator ) {
-	{
-
-		for ( auto &a : frame.binnedResources ) {
-
-			if ( a.second.info.isBuffer() ) {
-				device.destroyBuffer( a.second.asBuffer );
-			} else {
-				device.destroyImage( a.second.asImage );
-			}
-
-			vmaFreeMemory( allocator, a.second.allocation );
+inline void frame_release_binned_resources( BackendFrameData &frame, vk::Device device, VmaAllocator &allocator ) {
+	for ( auto &a : frame.binnedResources ) {
+		if ( a.second.info.isBuffer() ) {
+			device.destroyBuffer( a.second.asBuffer );
+		} else {
+			device.destroyImage( a.second.asImage );
 		}
-		frame.binnedResources.clear();
+		vmaFreeMemory( allocator, a.second.allocation );
 	}
+	frame.binnedResources.clear();
 }
 
 // ----------------------------------------------------------------------
