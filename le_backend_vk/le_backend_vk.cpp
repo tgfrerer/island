@@ -30,6 +30,9 @@
 #	define PRINT_DEBUG_MESSAGES false
 #endif
 
+constexpr size_t LE_FRAME_DATA_POOL_BLOCK_SIZE  = 1u << 24; // 16.77 MB
+constexpr size_t LE_FRAME_DATA_POOL_BLOCK_COUNT = 10;
+constexpr size_t LE_LINEAR_ALLOCATOR_SIZE       = ( 1u << 24 ) * 2;
 // ----------------------------------------------------------------------
 /// ResourceCreateInfo is used internally in to translate Renderer-specific structures
 /// into Vulkan CreateInfos for buffers and images we wish to allocate in Vulkan.
@@ -154,6 +157,8 @@ static inline constexpr vk::ImageUsageFlagBits le_image_usage_flags_to_vk( const
 static inline constexpr vk::ImageType le_to_vk( const le::ImageType &rhs ) noexcept {
 	return vk::ImageType( rhs );
 }
+
+// ----------------------------------------------------------------------
 
 static inline vk::ImageCreateFlags le_image_create_flags_to_vk( const LeImageCreateFlags &rhs ) noexcept {
 	return vk::ImageCreateFlags( rhs );
@@ -623,11 +628,11 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 			// when it creates command buffers for each frame.
 
 			VmaPoolCreateInfo aInfo{};
-			aInfo.blockSize       = 1u << 24; // 16.77MB
+			aInfo.blockSize       = LE_FRAME_DATA_POOL_BLOCK_SIZE; // 16.77MB
 			aInfo.flags           = VmaPoolCreateFlagBits::VMA_POOL_CREATE_IGNORE_BUFFER_IMAGE_GRANULARITY_BIT;
 			aInfo.memoryTypeIndex = memIndexScratchBufferGraphics;
 			aInfo.frameInUseCount = 0;
-			aInfo.minBlockCount   = 1;
+			aInfo.minBlockCount   = LE_FRAME_DATA_POOL_BLOCK_COUNT;
 			vmaCreatePool( self->mAllocator, &aInfo, &frameData.allocationPool );
 		}
 
@@ -2008,7 +2013,7 @@ static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, si
 			vk::BufferCreateInfo bufferInfoProxy;
 			bufferInfoProxy
 			    .setFlags( {} )
-			    .setSize( 1u << 24 ) // 16.77MB
+			    .setSize( LE_LINEAR_ALLOCATOR_SIZE )
 			    .setUsage( self->LE_BUFFER_USAGE_FLAGS_SCRATCH )
 			    .setSharingMode( vk::SharingMode::eExclusive )
 			    .setQueueFamilyIndexCount( 1 )
