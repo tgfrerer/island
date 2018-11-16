@@ -232,6 +232,14 @@ enum class FrontFace : uint32_t {
 };
 // Codegen </VkFrontFace, uint32_t>
 
+// Codegen <VkFilter, uint32_t>
+enum class Filter : uint32_t {
+	eNearest  = 0,
+	eLinear   = 1,
+	eCubicImg = 1000015000,
+};
+// Codegen </VkFilter>
+
 // Codegen <VkSampleCountFlagBits, uint32_t>
 enum class SampleCountFlagBits : uint32_t {
 	e1  = 0x00000001,
@@ -768,9 +776,9 @@ typedef uint32_t LeAccessFlags;
 
 struct LeTextureInfo {
 	struct SamplerInfo {
-		int minFilter; // enum VkFilter
-		int magFilter; // enum VkFilter
-		               // TODO: add clamp clamp modes etc.
+		le::Filter minFilter; // enum VkFilter
+		le::Filter magFilter; // enum VkFilter
+		                      // TODO: add clamp clamp modes etc.
 	};
 	struct ImageViewInfo {
 		le_resource_handle_t imageId; // le image resource id

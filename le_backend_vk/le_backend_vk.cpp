@@ -161,6 +161,12 @@ static inline vk::ImageCreateFlags le_image_create_flags_to_vk( const LeImageCre
 
 // ----------------------------------------------------------------------
 
+static inline vk::Filter le_filter_to_vk( le::Filter const &rhs ) noexcept {
+	return vk::Filter( rhs );
+}
+
+// ----------------------------------------------------------------------
+
 ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_info_t &info, uint32_t *pQueueFamilyIndices, uint32_t queueFamilyIndexCount ) {
 	ResourceCreateInfo res;
 
@@ -1859,12 +1865,12 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 				vk::SamplerCreateInfo samplerCreateInfo{};
 				samplerCreateInfo
 				    .setFlags( {} )
-				    .setMagFilter( vk::Filter( texInfo.sampler.magFilter ) )
-				    .setMinFilter( vk::Filter( texInfo.sampler.minFilter ) )
 				    .setMipmapMode( ::vk::SamplerMipmapMode::eLinear )
 				    .setAddressModeU( ::vk::SamplerAddressMode::eClampToBorder )
 				    .setAddressModeV( ::vk::SamplerAddressMode::eClampToBorder )
 				    .setAddressModeW( ::vk::SamplerAddressMode::eRepeat )
+				    .setMagFilter( le_filter_to_vk( texInfo.sampler.magFilter ) )
+				    .setMinFilter( le_filter_to_vk( texInfo.sampler.minFilter ) )
 				    .setMipLodBias( 0.f )
 				    .setAnisotropyEnable( VK_FALSE )
 				    .setMaxAnisotropy( 0.f )
