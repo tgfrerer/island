@@ -11,11 +11,20 @@
 
 ## (B)
 
+- let camera controller accept an event input stream instead of directly
+  controlling it - mouse and key event state needs to be accumulated
+  inside the camera controller, not outside...
+
+- add a geometry generator module - something for us to experiment with
+
 - extend pipeline builder to not use vk objects, but to keep its own state
   which may be modified via method calls. This will allow us to clean up
   the pipeline builder api, and will also remove temporary allocations
   which are not used once a pipeline state object has been created for the
   first time.
+
+- LeImageAttachmentInfo is not very discoverable - we need to think about
+  a better way to set properties for attachments
 
 - the way we use LeImageAttachmentInfo is over-specified - it would be
   great to find a more terse struct, which does not cross the abstraction
@@ -68,8 +77,6 @@
   because batch may fit better for *resource transfer*, *compute*, or
   *draw*.
 
-- LeImageAttachmentInfo is not very discoverable - we need to think about
-  a better way to set properties for attachments
 
 ----------------------------------------------------------------------
 
@@ -206,9 +213,6 @@ frame which is in-flight still uses it.
 * Create a templating script to generate class scaffold so you don't have
   to type that much boilerplate.
 
-* structure framework so that you may have multiple test applications
-  using it
-
 ----------------------------------------------------------------------
 
 # Applications
@@ -245,7 +249,6 @@ list - that way we can be much faster at assigning resources
 - create a project generator
 - entity-component system for nodes
 - add materials for renderer
-- add a geometry generator module - something for us to experiment with
 - implement a post processing effects pipeline
 - implement pbrt materials based on gltf reference implementation
 - investigate intel performance primitives for multithreading
