@@ -1868,20 +1868,20 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 				vk::SamplerCreateInfo samplerCreateInfo{};
 				samplerCreateInfo
 				    .setFlags( {} )
-				    .setMipmapMode( ::vk::SamplerMipmapMode::eLinear )
-				    .setAddressModeU( ::vk::SamplerAddressMode::eClampToBorder )
-				    .setAddressModeV( ::vk::SamplerAddressMode::eClampToBorder )
-				    .setAddressModeW( ::vk::SamplerAddressMode::eRepeat )
 				    .setMagFilter( le_filter_to_vk( texInfo.sampler.magFilter ) )
 				    .setMinFilter( le_filter_to_vk( texInfo.sampler.minFilter ) )
+				    .setMipmapMode( vk::SamplerMipmapMode::eLinear )
+				    .setAddressModeU( vk::SamplerAddressMode::eClampToBorder )
+				    .setAddressModeV( vk::SamplerAddressMode::eClampToBorder )
+				    .setAddressModeW( vk::SamplerAddressMode::eRepeat )
 				    .setMipLodBias( 0.f )
 				    .setAnisotropyEnable( VK_FALSE )
 				    .setMaxAnisotropy( 0.f )
 				    .setCompareEnable( VK_FALSE )
-				    .setCompareOp( ::vk::CompareOp::eLess )
+				    .setCompareOp( vk::CompareOp::eLess )
 				    .setMinLod( 0.f )
 				    .setMaxLod( 1.f )
-				    .setBorderColor( ::vk::BorderColor::eFloatTransparentBlack )
+				    .setBorderColor( vk::BorderColor::eFloatTransparentBlack )
 				    .setUnnormalizedCoordinates( VK_FALSE );
 
 				auto vkSampler   = device.createSampler( samplerCreateInfo );
