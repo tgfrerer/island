@@ -16,6 +16,7 @@ struct pal_window_settings_o;
 struct VkSurfaceKHR_T;
 struct GLFWwindow;
 
+// Todo: move this to a frame-work wide internal header file.
 struct UIEvent {
 
 	enum class Type {

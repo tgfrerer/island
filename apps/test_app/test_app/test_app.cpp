@@ -811,6 +811,7 @@ static void test_app_process_ui_events( test_app_o *self ) {
 	window_i.get_ui_event_queue( self->window, &events, numEvents );
 
 	UIEvent const *const events_end = events + numEvents; // end iterator
+
 	for ( UIEvent const *event = events; event != events_end; event++ ) {
 		// Process events in sequence
 
