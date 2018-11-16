@@ -11,11 +11,17 @@
 
 ## (B)
 
+- add samplercreateinfo fields to textureInfo (mipmapmode, etc.) when
+  creating sampler/textures
+
+- refactor allocation logic so that memory usage becomes more efficient.
+  it should be possible for renderpasses to use their scratch buffers only
+  for dynamic data, and for them to have resizeable staging buffers for
+  image and buffer uploads.
+
 - let camera controller accept an event input stream instead of directly
   controlling it - mouse and key event state needs to be accumulated
   inside the camera controller, not outside...
-
-- add a geometry generator module - something for us to experiment with
 
 - extend pipeline builder to not use vk objects, but to keep its own state
   which may be modified via method calls. This will allow us to clean up
