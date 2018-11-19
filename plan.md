@@ -19,6 +19,13 @@
   for dynamic data, and for them to have resizeable staging buffers for
   image and buffer uploads.
 
+- add a staging buffer (for buffer/image upload memory) which is only
+  accessed for writing by the current recording frame. next frame will use
+  it for reading. allocations in this pool live until the frame which
+  allocated them is cleared. The staging pool is shared amongst all
+  recording tasks for writing. It must already be accessible in RECORD
+  stage. This pool should be created with `VMA_MEMORY_USAGE_CPU_ONLY`
+
 - let camera controller accept an event input stream instead of directly
   controlling it - mouse and key event state needs to be accumulated
   inside the camera controller, not outside...
