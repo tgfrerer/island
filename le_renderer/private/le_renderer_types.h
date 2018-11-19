@@ -36,9 +36,8 @@ struct le_resource_handle_t {
 	union Meta {
 		struct {
 			LeResourceType type;
-			uint8_t        index;
 			uint8_t        flags;
-			uint8_t        padding;
+			uint16_t       index;
 		};
 		uint32_t meta_data;
 	};
