@@ -31,8 +31,8 @@
 #endif
 
 constexpr size_t LE_FRAME_DATA_POOL_BLOCK_SIZE  = 1u << 24; // 16.77 MB
-constexpr size_t LE_FRAME_DATA_POOL_BLOCK_COUNT = 10;
-constexpr size_t LE_LINEAR_ALLOCATOR_SIZE       = ( 1u << 24 ) * 2;
+constexpr size_t LE_FRAME_DATA_POOL_BLOCK_COUNT = 1;
+constexpr size_t LE_LINEAR_ALLOCATOR_SIZE       = 1u << 24;
 // ----------------------------------------------------------------------
 /// ResourceCreateInfo is used internally in to translate Renderer-specific structures
 /// into Vulkan CreateInfos for buffers and images we wish to allocate in Vulkan.
@@ -225,6 +225,15 @@ struct AllocatedResourceVk {
 	ResourceCreateInfo info; // Creation info for resource
 };
 
+struct le_staging_allocator_o {
+	VmaAllocator                   allocator;      // non-owning, refers to backend allocator object
+	VkDevice                       device;         // non-owning, refers to vulkan device object
+	std::mutex                     mtx;            // protects all staging* elements
+	std::vector<vk::Buffer>        buffers;        // 0..n staging buffers used with the current frame (freed on frame clear)
+	std::vector<VmaAllocation>     allocations;    // SOA: counterpart to buffers[]
+	std::vector<VmaAllocationInfo> allocationInfo; // SOA: counterpart to buffers[]
+};
+
 // ------------------------------------------------------------
 
 // Herein goes all data which is associated with the current frame.
@@ -294,6 +303,8 @@ struct BackendFrameData {
 	std::vector<vk::Buffer>        allocatorBuffers; // one vkBuffer per command buffer
 	std::vector<VmaAllocation>     allocations;      // one allocation per command buffer
 	std::vector<VmaAllocationInfo> allocationInfos;  // one allocation info per command buffer
+
+	le_staging_allocator_o *stagingAllocator;
 };
 
 // ----------------------------------------------------------------------
@@ -392,6 +403,9 @@ static void backend_destroy( le_backend_o *self ) {
 
 		vmaMakePoolAllocationsLost( self->mAllocator, frameData.allocationPool, nullptr );
 		vmaDestroyPool( self->mAllocator, frameData.allocationPool );
+
+		// destroy staging allocator
+		le_staging_allocator_i.destroy( frameData.stagingAllocator );
 
 		// remove any binned resources
 		for ( auto &a : frameData.binnedResources ) {
@@ -499,12 +513,11 @@ static void backend_reset_swapchain( le_backend_o *self ) {
 /// are used to store Frame-local transient data such as values for shader parameters.
 /// Each Encoder uses its own virtual buffer for such purposes.
 static le_resource_handle_t declare_resource_virtual_buffer( uint8_t index ) {
-	auto resource = LE_RESOURCE( "Encoder-Virtual", LeResourceType::eBuffer ); // virtual resources all have the same id, 0, which means they are not part of the regular roster of resources...
 
-	{
-		resource.meta.index = index; // encoder index
-		resource.meta.flags = le_resource_handle_t::FlagBits::eIsVirtual;
-	}
+	auto resource = LE_RESOURCE( "Encoder-Virtual", LeResourceType::eBuffer ); // virtual resources all have the same id, which means they are not part of the regular roster of resources...
+
+	resource.meta.index = index; // encoder index
+	resource.meta.flags = le_resource_handle_t::FlagBits::eIsVirtual;
 
 	return resource;
 }
@@ -575,6 +588,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 	self->queueFamilyIndexCompute  = self->device->getDefaultComputeQueueFamilyIndex();
 
 	uint32_t memIndexScratchBufferGraphics = 0;
+	uint32_t memIndexStagingBufferGraphics = 0;
 	{
 		// -- Create allocator for backend vulkan memory
 		{
@@ -605,7 +619,27 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 			allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 			allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 
-			vmaFindMemoryTypeIndexForBufferInfo( self->mAllocator, reinterpret_cast<VkBufferCreateInfo *>( &bufferInfo ), &allocInfo, &memIndexScratchBufferGraphics );
+			vmaFindMemoryTypeIndexForBufferInfo( self->mAllocator, &( static_cast<VkBufferCreateInfo &>( bufferInfo ) ), &allocInfo, &memIndexScratchBufferGraphics );
+		}
+
+		{
+			// Find memory index for staging buffer - we do this by pretending to create
+			// an allocation.
+
+			vk::BufferCreateInfo bufferInfo{};
+			bufferInfo
+			    .setFlags( {} )
+			    .setSize( 1 )
+			    .setUsage( vk::BufferUsageFlagBits::eTransferSrc )
+			    .setSharingMode( vk::SharingMode::eExclusive )
+			    .setQueueFamilyIndexCount( 1 )
+			    .setPQueueFamilyIndices( &self->queueFamilyIndexGraphics );
+
+			VmaAllocationCreateInfo allocInfo{};
+			allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+			allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+			vmaFindMemoryTypeIndexForBufferInfo( self->mAllocator, &( static_cast<VkBufferCreateInfo &>( bufferInfo ) ), &allocInfo, &memIndexStagingBufferGraphics );
 		}
 	}
 
@@ -627,14 +661,18 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 			// so that each frame can create sub-allocators
 			// when it creates command buffers for each frame.
 
-			VmaPoolCreateInfo aInfo{};
-			aInfo.blockSize       = LE_FRAME_DATA_POOL_BLOCK_SIZE; // 16.77MB
-			aInfo.flags           = VmaPoolCreateFlagBits::VMA_POOL_CREATE_IGNORE_BUFFER_IMAGE_GRANULARITY_BIT;
-			aInfo.memoryTypeIndex = memIndexScratchBufferGraphics;
-			aInfo.frameInUseCount = 0;
-			aInfo.minBlockCount   = LE_FRAME_DATA_POOL_BLOCK_COUNT;
-			vmaCreatePool( self->mAllocator, &aInfo, &frameData.allocationPool );
+			VmaPoolCreateInfo poolInfo{};
+			poolInfo.blockSize       = LE_FRAME_DATA_POOL_BLOCK_SIZE; // 16.77MB
+			poolInfo.flags           = VmaPoolCreateFlagBits::VMA_POOL_CREATE_IGNORE_BUFFER_IMAGE_GRANULARITY_BIT;
+			poolInfo.memoryTypeIndex = memIndexScratchBufferGraphics;
+			poolInfo.frameInUseCount = 0;
+			poolInfo.minBlockCount   = LE_FRAME_DATA_POOL_BLOCK_COUNT;
+			vmaCreatePool( self->mAllocator, &poolInfo, &frameData.allocationPool );
 		}
+
+		// -- create a staging allocator for this frame
+		using namespace le_backend_vk;
+		frameData.stagingAllocator = le_staging_allocator_i.create( self->mAllocator, vkDevice );
 
 		self->mFrames.emplace_back( std::move( frameData ) );
 	}
@@ -919,8 +957,7 @@ static bool backend_poll_frame_fence( le_backend_o *self, size_t frameIndex ) {
 /// \preliminary: frame fence must have been crossed.
 static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 
-	static auto &backendI   = *Registry::getApi<le_backend_vk_api>();
-	static auto &allocatorI = backendI.le_allocator_linear_i;
+	using namespace le_backend_vk;
 
 	auto &     frame  = self->mFrames[ frameIndex ];
 	vk::Device device = self->device->getVkDevice();
@@ -938,8 +975,11 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 
 	// -- reset all frame-local sub-allocators
 	for ( auto &alloc : frame.allocators ) {
-		allocatorI.reset( alloc );
+		le_allocator_linear_i.reset( alloc );
 	}
+
+	// -- reset frame-local staging allocator
+	le_staging_allocator_i.reset( frame.stagingAllocator );
 
 	// -- remove any texture references
 
@@ -1304,13 +1344,18 @@ static void frame_create_resource_table( BackendFrameData &frame, le_renderpass_
 
 // ----------------------------------------------------------------------
 
-/// \brief fetch vk::Buffer from encoder index if transient, otherwise, fetch from frame available resources.
+/// \brief fetch vk::Buffer from frame local storage based on resource handle flags
+/// - allocatorBuffers[index] if transient,
+/// - stagingAllocator.buffers[index] if staging,
+/// otherwise, fetch from frame available resources based on an id lookup.
 static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData &frame, const le_resource_handle_t &resource ) {
 
 	assert( resource.meta.type == LeResourceType::eBuffer ); // resource type must be buffer
 
-	if ( resource.meta.flags & le_resource_handle_t::FlagBits::eIsVirtual ) {
+	if ( resource.meta.flags == le_resource_handle_t::FlagBits::eIsVirtual ) {
 		return frame.allocatorBuffers[ resource.meta.index ];
+	} else if ( resource.meta.flags == le_resource_handle_t::FlagBits::eIsStaging ) {
+		return frame.stagingAllocator->buffers[ resource.meta.index ];
 	} else {
 		return frame.availableResources.at( resource ).asBuffer;
 	}
@@ -1500,6 +1545,132 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 	res.info = resourceInfo;
 	return res;
 };
+
+// ----------------------------------------------------------------------
+
+// Creates a new staging allocator
+// Typically, there is one staging allocator associated to each frame.
+static le_staging_allocator_o *staging_allocator_create( VmaAllocator const vmaAlloc, VkDevice const device ) {
+	auto self       = new le_staging_allocator_o{};
+	self->allocator = vmaAlloc;
+	self->device    = device;
+	return self;
+}
+
+// ----------------------------------------------------------------------
+
+// Allocates a chunk of memory from the vulkan free store via vmaAlloc, and maps it
+// for writing at *pData.
+//
+// If successful, `resource_handle` receives a valid `le_resource_handle` referring to
+// this particular chunk of staging memory.
+//
+// Returns false on error, true on success.
+//
+// Staging memory is only allowed to be used for staging, that is, only
+// TRANSFER_SRC are set for usage flags.
+//
+// Staging memory is typically cache coherent, ie. does not need to be flushed.
+static bool staging_allocator_map( le_staging_allocator_o *self, uint64_t numBytes, void **pData, le_resource_handle_t *resource_handle ) {
+
+	VmaAllocation     allocation; // handle to allocation
+	VkBuffer          buffer;     // handle to buffer (returned from vmaMemAlloc)
+	VmaAllocationInfo allocationInfo;
+
+	VkBufferCreateInfo bufferCreateInfo = vk::BufferCreateInfo()
+	                                          .setSize( numBytes )
+	                                          .setSharingMode( vk::SharingMode::eExclusive )
+	                                          .setUsage( vk::BufferUsageFlagBits::eTransferSrc );
+
+	VmaAllocationCreateInfo allocationCreateInfo{};
+	allocationCreateInfo.flags          = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+	allocationCreateInfo.usage          = VMA_MEMORY_USAGE_CPU_ONLY;
+	allocationCreateInfo.preferredFlags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
+
+	auto result = vmaCreateBuffer( self->allocator,
+	                               &bufferCreateInfo,
+	                               &allocationCreateInfo,
+	                               &buffer,
+	                               &allocation,
+	                               &allocationInfo );
+
+	assert( result == VK_SUCCESS );
+
+	if ( result != VK_SUCCESS ) {
+		return false;
+	}
+
+	{
+		// -- Now store our allocation in the allocations vectors.
+		//
+		// We need to lock the mutex as we are updating all vectors
+		// and this might lead to re-allocations.
+		//
+		// Other encoders might also want to map memory, and
+		// they will have to wait for whichever operation in
+		// process to finish.
+		auto lock = std::scoped_lock( self->mtx );
+
+		size_t allocationIndex = self->allocations.size();
+
+		self->allocations.push_back( allocation );
+		self->allocationInfo.push_back( allocationInfo );
+		self->buffers.push_back( buffer );
+
+		// Virtual resources all share the same id,
+		// but their meta data is different.
+		auto resource = LE_BUF_RESOURCE( "Le-Staging-Buffer" );
+
+		// We store the allocation index in the resource handle meta data
+		// so that the correct buffer for this handle can be retrieved later.
+		resource.meta.index = uint16_t( allocationIndex );
+		resource.meta.flags = le_resource_handle_t::FlagBits::eIsStaging;
+
+		// Store the handle for this resource so that the caller
+		// may receive it.
+		*resource_handle = resource;
+	}
+
+	// Map memory so that it may be written to
+	vmaMapMemory( self->allocator, allocation, pData );
+
+	return true;
+};
+
+// ----------------------------------------------------------------------
+
+/// Frees all allocations held by the staging allocator given in `self`
+static void staging_allocator_reset( le_staging_allocator_o *self ) {
+	auto lock   = std::scoped_lock( self->mtx );
+	auto device = vk::Device{self->device};
+
+	// destroy all buffers
+	for ( auto &b : self->buffers ) {
+		device.destroyBuffer( b );
+	}
+	self->buffers.clear();
+
+	// free allocations
+
+	for ( auto &a : self->allocations ) {
+		vmaFreeMemory( self->allocator, a );
+	}
+	self->allocations.clear();
+
+	// clear allocation infos.
+	self->allocationInfo.clear();
+}
+
+// ----------------------------------------------------------------------
+
+// Destroys a staging allocator (and implicitly all of its derived objects)
+static void staging_allocator_destroy( le_staging_allocator_o *self ) {
+
+	// Reset the object first so that dependent objects (vmaAllocations, vulkan objects) are cleaned up.
+	staging_allocator_reset( self );
+
+	delete self;
+}
 
 // ----------------------------------------------------------------------
 
@@ -2036,6 +2207,12 @@ static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, si
 	}
 
 	return frame.allocators.data();
+}
+
+// ----------------------------------------------------------------------
+
+static le_staging_allocator_o *backend_get_staging_allocator( le_backend_o *self, size_t frameIndex ) {
+	return self->mFrames[ frameIndex ].stagingAllocator;
 }
 
 // ----------------------------------------------------------------------
@@ -2652,6 +2829,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.get_num_swapchain_images   = backend_get_num_swapchain_images;
 	vk_backend_i.reset_swapchain            = backend_reset_swapchain;
 	vk_backend_i.get_transient_allocators   = backend_get_transient_allocators;
+	vk_backend_i.get_staging_allocator      = backend_get_staging_allocator;
 	vk_backend_i.poll_frame_fence           = backend_poll_frame_fence;
 	vk_backend_i.clear_frame                = backend_clear_frame;
 	vk_backend_i.acquire_physical_resources = backend_acquire_physical_resources;
@@ -2663,6 +2841,12 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.create_shader_module  = backend_create_shader_module;
 
 	vk_backend_i.get_backbuffer_resource = backend_get_backbuffer_resource;
+
+	auto &staging_allocator_i   = api_i->le_staging_allocator_i;
+	staging_allocator_i.create  = staging_allocator_create;
+	staging_allocator_i.destroy = staging_allocator_destroy;
+	staging_allocator_i.map     = staging_allocator_map;
+	staging_allocator_i.reset   = staging_allocator_reset;
 
 	// register/update submodules inside this plugin
 

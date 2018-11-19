@@ -643,13 +643,15 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 	auto const       ppAllocators = vk_backend_i.get_transient_allocators( backend, frameIndex, self->passes.size() );
 	le_allocator_o **allocIt      = ppAllocators; // iterator over allocators - note that number of allocators must be identical with number of passes
 
+	auto stagingAllocator = vk_backend_i.get_staging_allocator( backend, frameIndex );
+
 	le_pipeline_manager_o *pipelineCache = vk_backend_i.get_pipeline_cache( backend ); // TODO: make pipeline cache either pass- or frame- local
 
 	for ( auto &pass : self->passes ) {
 
 		if ( pass->callbackExecute && pass->sort_key != 0 ) {
 
-			auto encoder = encoder_i.create( *allocIt, pipelineCache ); // NOTE: we must manually track the lifetime of encoder!
+			auto encoder = encoder_i.create( *allocIt, pipelineCache, stagingAllocator ); // NOTE: we must manually track the lifetime of encoder!
 
 			renderpass_run_execute_callback( pass, encoder ); // record draw commands into encoder
 

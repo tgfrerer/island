@@ -31,6 +31,7 @@ struct le_resource_handle_t {
 
 	enum FlagBits : uint8_t {
 		eIsVirtual = 1u << 0,
+		eIsStaging = 1u << 1,
 	};
 
 	union Meta {

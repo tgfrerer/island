@@ -12,20 +12,21 @@
 #define EMPLACE_CMD( x ) new ( &self->mCommandStream[ 0 ] + self->mCommandStreamSize )( x )
 
 struct le_command_buffer_encoder_o {
-	char                   mCommandStream[ 4096 * 16 ]; // 16 pages of memory
-	size_t                 mCommandStreamSize = 0;
-	size_t                 mCommandCount      = 0;
-	le_allocator_o *       pAllocator         = nullptr; // allocator is owned by backend, externally
-	le_pipeline_manager_o *pipelineManager    = nullptr;
+	char                    mCommandStream[ 4096 * 16 ]; // 16 pages of memory
+	size_t                  mCommandStreamSize = 0;
+	size_t                  mCommandCount      = 0;
+	le_allocator_o *        pAllocator         = nullptr; // allocator is owned by backend, externally
+	le_pipeline_manager_o * pipelineManager    = nullptr;
+	le_staging_allocator_o *stagingAllocator   = nullptr; // borrowed from backend
 };
 
 // ----------------------------------------------------------------------
 
-static le_command_buffer_encoder_o *cbe_create( le_allocator_o *allocator, le_pipeline_manager_o *pipelineManager ) {
-	auto self             = new le_command_buffer_encoder_o;
-	self->pAllocator      = allocator;
-	self->pipelineManager = pipelineManager;
-
+static le_command_buffer_encoder_o *cbe_create( le_allocator_o *allocator, le_pipeline_manager_o *pipelineManager, le_staging_allocator_o *stagingAllocator ) {
+	auto self              = new le_command_buffer_encoder_o;
+	self->pAllocator       = allocator;
+	self->pipelineManager  = pipelineManager;
+	self->stagingAllocator = stagingAllocator;
 	//	std::cout << "encoder create : " << std::hex << self << std::endl
 	//	          << std::flush;
 	return self;
@@ -312,20 +313,22 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_resource_
 	auto cmd = EMPLACE_CMD( le::CommandWriteToBuffer );
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
-	void *   memAddr;
-	uint64_t bufferOffset = 0;
+	void *               memAddr;
+	le_resource_handle_t srcResourceId;
 
-	// -- Allocate memory on scratch buffer
+	// -- Allocate memory using staging allocator
 	//
-	// Note that we might want to have specialised memory if that
-	// made a performance difference.
-	if ( le_allocator_linear_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
-
+	// We don't use the encoder local scratch linear allocator, since memory written to buffers is
+	// typically a lot larger than uniforms and other small settings structs. Staging memory is also
+	// allocated so that it is only used for TRANSFER_SRC, and shared amongst encoders so that we
+	// use available memory more efficiently.
+	//
+	if ( le_staging_allocator_i.map( self->stagingAllocator, numBytes, &memAddr, &srcResourceId ) ) {
 		// -- Write data to scratch memory now
 		memcpy( memAddr, data, numBytes );
 
-		cmd->info.src_buffer_id = le_allocator_linear_i.get_le_resource_id( self->pAllocator );
-		cmd->info.src_offset    = bufferOffset;
+		cmd->info.src_buffer_id = srcResourceId;
+		cmd->info.src_offset    = 0; // staging allocator will give us a fresh buffer, and src memory will be placed at its start
 		cmd->info.dst_offset    = offset;
 		cmd->info.numBytes      = numBytes;
 		cmd->info.dst_buffer_id = resourceId;
@@ -350,20 +353,23 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *self,
 	auto cmd = EMPLACE_CMD( le::CommandWriteToImage );
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
-	void *   memAddr;
-	uint64_t bufferOffset = 0;
+	void *               memAddr;
+	le_resource_handle_t srcResourceId;
 
-	// -- Allocate memory on scratch buffer
+	// -- Allocate memory using staging allocator
 	//
-	// Note that we might want to have specialised memory if that
-	// made a performance difference.
-	if ( le_allocator_linear_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
+	// We don't use the encoder local scratch linear allocator, since memory written to buffers is
+	// typically a lot larger than uniforms and other small settings structs. Staging memory is also
+	// allocated so that it is only used for TRANSFER_SRC, and shared amongst encoders so that we
+	// use available memory more efficiently.
+	//
+	if ( le_staging_allocator_i.map( self->stagingAllocator, numBytes, &memAddr, &srcResourceId ) ) {
 
 		// -- Write data to scratch memory now
 		memcpy( memAddr, data, numBytes );
 
-		cmd->info.src_buffer_id = le_allocator_linear_i.get_le_resource_id( self->pAllocator );
-		cmd->info.src_offset    = bufferOffset;
+		cmd->info.src_buffer_id = srcResourceId;
+		cmd->info.src_offset    = 0; // staging allocator will give us a fresh buffer, and src memory will be placed at its start
 		cmd->info.dst_region    = region;
 		cmd->info.numBytes      = numBytes;
 		cmd->info.dst_image_id  = resourceId;

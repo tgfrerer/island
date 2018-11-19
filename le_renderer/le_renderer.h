@@ -22,9 +22,11 @@ struct le_renderpass_o;
 struct le_rendergraph_o;
 struct le_command_buffer_encoder_o;
 struct le_backend_o;
-struct le_allocator_o;
 struct le_shader_module_o; ///< shader module, 1:1 relationship with a shader source file
 struct le_pipeline_manager_o;
+
+struct le_allocator_o;         // from backend
+struct le_staging_allocator_o; // from backend
 
 // clang-format off
 struct le_renderer_api {
@@ -110,7 +112,7 @@ struct le_renderer_api {
 	};
 
 	struct command_buffer_encoder_interface_t {
-		le_command_buffer_encoder_o *( *create                 )( le_allocator_o *allocator, le_pipeline_manager_o* pipeline_cache );
+		le_command_buffer_encoder_o *( *create                 )( le_allocator_o *allocator, le_pipeline_manager_o* pipeline_cache, le_staging_allocator_o* stagingAllocator );
 		void                         ( *destroy                )( le_command_buffer_encoder_o *obj );
 
 		void                         ( *draw                   )( le_command_buffer_encoder_o *self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance );

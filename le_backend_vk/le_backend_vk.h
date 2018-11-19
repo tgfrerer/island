@@ -23,6 +23,7 @@ struct le_backend_vk_device_o;   // defined in le_device_vk.cpp
 struct le_renderpass_o;
 struct le_buffer_o;
 struct le_allocator_o;
+struct le_staging_allocator_o;
 
 struct graphics_pipeline_state_o; // for le_pipeline_builder
 struct le_pipeline_manager_o;
@@ -46,6 +47,7 @@ struct VkMemoryAllocateInfo;
 struct LeRenderPass;
 
 struct VmaAllocationInfo;
+struct VmaAllocator_T;
 
 struct LeShaderStageEnum;
 enum class LeResourceType : uint8_t;
@@ -92,6 +94,7 @@ struct le_backend_vk_api {
 		size_t                 ( *get_num_swapchain_images   ) ( le_backend_o *self );
 		void                   ( *reset_swapchain            ) ( le_backend_o *self );
 		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex, size_t numAllocators);
+		le_staging_allocator_o*( *get_staging_allocator      ) ( le_backend_o* self, size_t frameIndex);
 
 		le_shader_module_o*    ( *create_shader_module       ) ( le_backend_o* self, char const * path, const LeShaderStageEnum& moduleType);
 		void                   ( *update_shader_modules      ) ( le_backend_o* self );
@@ -143,10 +146,17 @@ struct le_backend_vk_api {
 
 	struct allocator_linear_interface_t {
 		le_allocator_o *        ( *create               ) ( VmaAllocationInfo const *info, uint16_t alignment);
-		void                    ( *destroy              ) ( le_allocator_o *self );
+		void                    ( *destroy              ) ( le_allocator_o* self );
 		bool                    ( *allocate             ) ( le_allocator_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset);
 		void                    ( *reset                ) ( le_allocator_o* self );
 		le_resource_handle_t    ( *get_le_resource_id   ) ( le_allocator_o* self );
+	};
+
+	struct staging_allocator_interface_t {
+		le_staging_allocator_o* ( *create  )( VmaAllocator_T* const vmaAlloc, VkDevice_T* const device );
+		void                    ( *destroy )( le_staging_allocator_o* self ) ;
+		void                    ( *reset   )( le_staging_allocator_o* self );
+		bool                    ( *map     )( le_staging_allocator_o* self, uint64_t numBytes, void **pData, le_resource_handle_t *resource_handle );
 	};
 
 	struct shader_module_interface_t {
@@ -162,6 +172,7 @@ struct le_backend_vk_api {
 	backend_vk_interface_t          vk_backend_i;
 	le_pipeline_manager_interface_t le_pipeline_manager_i;
 	shader_module_interface_t       le_shader_module_i;
+	staging_allocator_interface_t   le_staging_allocator_i;
 
 	mutable le_backend_vk_instance_o *cUniqueInstance = nullptr;
 };
@@ -176,12 +187,13 @@ const auto api = Registry::addApiDynamic<le_backend_vk_api>( true );
 const auto api = Registry::addApiStatic<le_backend_vk_api>();
 #	endif
 
-static const auto &vk_backend_i          = api -> vk_backend_i;
-static const auto &le_allocator_linear_i = api -> le_allocator_linear_i;
-static const auto &vk_instance_i         = api -> vk_instance_i;
-static const auto &vk_device_i           = api -> vk_device_i;
-static const auto &le_pipeline_manager_i = api -> le_pipeline_manager_i;
-static const auto &le_shader_module_i    = api -> le_shader_module_i;
+static const auto &vk_backend_i           = api -> vk_backend_i;
+static const auto &le_allocator_linear_i  = api -> le_allocator_linear_i;
+static const auto &le_staging_allocator_i = api -> le_staging_allocator_i;
+static const auto &vk_instance_i          = api -> vk_instance_i;
+static const auto &vk_device_i            = api -> vk_device_i;
+static const auto &le_pipeline_manager_i  = api -> le_pipeline_manager_i;
+static const auto &le_shader_module_i     = api -> le_shader_module_i;
 
 } // namespace le_backend_vk
 
