@@ -167,6 +167,10 @@ class Window : NoMove, NoCopy {
 		pal_window::window_i.destroy_surface( self );
 	}
 
+	void toggleFullscreen() {
+		pal_window::window_i.toggle_fullscreen( self );
+	}
+
 	operator auto() {
 		return self;
 	}
