@@ -14,10 +14,6 @@
 - add samplercreateinfo fields to textureInfo (mipmapmode, etc.) when
   creating sampler/textures
 
-- let camera controller accept an event input stream instead of directly
-  controlling it - mouse and key event state needs to be accumulated
-  inside the camera controller, not outside...
-
 - LeImageAttachmentInfo is not very discoverable - we need to think about
   a better way to set properties for attachments
 

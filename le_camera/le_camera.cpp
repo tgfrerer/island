@@ -1,13 +1,16 @@
 #include "le_camera.h"
 #include "pal_api_loader/ApiRegistry.hpp"
 
-#include "le_renderer/le_renderer.h" // for le::Viewport
+#include "le_renderer/private/le_renderer_types.h" // for le::Viewport
+#include "le_ui_event/le_ui_event.h"
 
 #include <array>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include "gtc/matrix_transform.hpp"
 #include <glm.hpp>
+
+#include <vector>
 
 struct le_mouse_event_data_o {
 	uint8_t   buttonState{};
@@ -41,7 +44,8 @@ struct le_camera_controller_o {
 	Mode                 mode{};
 	std::array<float, 4> controlRect{}; // active rectangle for mouse inputs
 
-	glm::vec2 mouse_pos_initial{}; // initial position of mouse on mouse_down
+	le_mouse_event_data_o mouse_state;         // current mouse state
+	glm::vec2             mouse_pos_initial{}; // initial position of mouse on mouse_down
 };
 
 // ----------------------------------------------------------------------
@@ -201,151 +205,201 @@ static void camera_controller_set_contol_rect( le_camera_controller_o *self, flo
 
 // ----------------------------------------------------------------------
 
-static void camera_controller_update_camera( le_camera_controller_o *controller, le_camera_o *camera, le_mouse_event_data_o const *mouse_event ) {
+static void camera_controller_update_camera( le_camera_controller_o *controller, le_camera_o *camera, const std::vector<LeUiEvent const *> &events ) {
 
-	// centre point of the mouse control rectangle
+	// Centre point of the mouse control rectangle
 	glm::vec2 controlRectCentre{0.5f * ( controller->controlRect[ 0 ] + controller->controlRect[ 2 ] ),
 		                        0.5f * ( controller->controlRect[ 1 ] + controller->controlRect[ 3 ] )};
 
-	// distance 1/3 of small edge of control rectangle
+	// Distance 1/3 of small edge of control rectangle
 	float controlCircleRadius = std::min( controller->controlRect[ 2 ], controller->controlRect[ 3 ] ) / 3.f;
 
-	switch ( controller->mode ) {
-	case le_camera_controller_o::eNeutral: {
+	le_mouse_event_data_o mouse_state = controller->mouse_state; // gather mouse state from previous
 
-		if ( false == is_inside_rect( mouse_event->cursor_pos, controller->controlRect ) ) {
-			// if camera is outside the control rect, we don't care.
-			return;
-		};
+	for ( auto const &event : events ) {
 
-		if ( mouse_event->buttonState & ( 0b111 ) ) {
-			// A relevant mouse button has been pressed.
-			// we must store the initial state of the camera.
-			controller->matrix            = camera->matrix;
-			controller->mouse_pos_initial = mouse_event->cursor_pos;
+		// -- accumulate mouse state
+
+		switch ( event->event ) {
+		case ( LeUiEvent::Type::eCursorPosition ): {
+			auto &e                = event->cursorPosition;
+			mouse_state.cursor_pos = {e.x, e.y};
+		} break;
+		case ( LeUiEvent::Type::eMouseButton ): {
+			auto &e = event->mouseButton;
+			if ( e.action == LeUiEvent::ButtonAction::ePress ) {
+				// set appropriate button flag
+				mouse_state.buttonState |= ( 1 << e.button );
+
+			} else if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
+				// null appropriate button flag
+				mouse_state.buttonState &= ~( 1 << e.button );
+			}
+		}
+		default:
+		    break;
 		}
 
-		if ( mouse_event->buttonState & ( 1 << 0 ) ) {
-			// -- change controller mode to either xy or z
+		// -- update controller state machine based on accumulated mouse_state
 
-			if ( glm::distance( mouse_event->cursor_pos, controlRectCentre ) < controlCircleRadius ) {
-				// -- if mouse inside inner circle, control rotation XY
-				controller->mode = le_camera_controller_o::eRotXY;
-			} else {
-				// -- if mouse outside inner circle, control rotation Z
-				controller->mode = le_camera_controller_o::eRotZ;
+		switch ( controller->mode ) {
+		case le_camera_controller_o::eNeutral: {
+
+			if ( false == is_inside_rect( mouse_state.cursor_pos, controller->controlRect ) ) {
+				// if camera is outside the control rect, we don't care.
+				continue;
+			};
+
+			if ( mouse_state.buttonState & ( 0b111 ) ) {
+				// A relevant mouse button has been pressed.
+				// we must store the initial state of the camera.
+				controller->matrix            = camera->matrix;
+				controller->mouse_pos_initial = mouse_state.cursor_pos;
 			}
 
-		} else if ( mouse_event->buttonState & ( 1 << 1 ) ) {
-			// -- change mode to translate z
-			controller->mode = le_camera_controller_o::eTranslateZ;
-		} else if ( mouse_event->buttonState & ( 1 << 2 ) ) {
-			// -- change mode ot translate xy
-			controller->mode = le_camera_controller_o::eTranslateXY;
+			if ( mouse_state.buttonState & ( 1 << 0 ) ) {
+				// -- change controller mode to either xy or z
+
+				if ( glm::distance( mouse_state.cursor_pos, controlRectCentre ) < controlCircleRadius ) {
+					// -- if mouse inside inner circle, control rotation XY
+					controller->mode = le_camera_controller_o::eRotXY;
+				} else {
+					// -- if mouse outside inner circle, control rotation Z
+					controller->mode = le_camera_controller_o::eRotZ;
+				}
+
+			} else if ( mouse_state.buttonState & ( 1 << 1 ) ) {
+				// -- change mode to translate z
+				controller->mode = le_camera_controller_o::eTranslateZ;
+			} else if ( mouse_state.buttonState & ( 1 << 2 ) ) {
+				// -- change mode ot translate xy
+				controller->mode = le_camera_controller_o::eTranslateXY;
+			}
+
+		} break;
+		case le_camera_controller_o::eRotXY: {
+			if ( 0 == ( mouse_state.buttonState & ( 1 << 0 ) ) ) {
+				// apply transforms, exit mode
+				controller->mode = le_camera_controller_o::eNeutral;
+			}
+
+			// process normal logic for cursor position
+			float normalised_distance_x = -( mouse_state.cursor_pos.x - controller->mouse_pos_initial.x ) / ( controlCircleRadius * 3.f ); // map to -1..1
+			float normalised_distance_y = ( mouse_state.cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 3.f );  // map to -1..1
+
+			// build a quaternion based on rotation around x, rotation around y
+
+			// first we must transform into the pivot point
+			// the pivot point is a point which is at normdistance from the camera in negative z
+
+			auto const &cam_to_world = controller->matrix;
+			auto        world_to_cam = glm::inverse( cam_to_world );
+
+			float normDistance = camera_get_unit_distance( camera );
+
+			auto pivot   = glm::translate( world_to_cam, glm::vec3{0, 0, -normDistance} );
+			pivot        = glm::rotate( pivot, glm::two_pi<float>() * normalised_distance_x, glm::vec3{0, 1, 0} );
+			pivot        = glm::rotate( pivot, glm::two_pi<float>() * normalised_distance_y, glm::vec3{1, 0, 0} );
+			world_to_cam = glm::translate( pivot, glm::vec3{0, 0, normDistance} );
+
+			camera->matrix = glm::inverse( world_to_cam );
+
+		} break;
+		case le_camera_controller_o::eRotZ: {
+			if ( 0 == ( mouse_state.buttonState & ( 1 << 0 ) ) ) {
+				// -- apply transforms, exit mode
+				controller->mode = le_camera_controller_o::eNeutral;
+			}
+
+			auto  mouseInitial      = controller->mouse_pos_initial - controlRectCentre;
+			float mouseInitialAngle = glm::two_pi<float>() - fmodf( glm::two_pi<float>() + atan2f( mouseInitial.y, mouseInitial.x ), glm::two_pi<float>() ); // Range is expected to be 0..2pi, ccw
+
+			auto mouseDelta = mouse_state.cursor_pos - controlRectCentre;
+
+			float cameraAngle = glm::two_pi<float>() - fmodf( mouseInitialAngle + glm::two_pi<float>() + atan2f( mouseDelta.y, mouseDelta.x ), glm::two_pi<float>() ); // Range is expected to 0..2pi, ccw
+
+			// first we must transform into the pivot point
+			// the pivot point is a point which is at normdistance from the camera in negative z
+
+			auto const &cam_to_world = controller->matrix;
+			auto        world_to_cam = glm::inverse( cam_to_world );
+
+			float normDistance = camera_get_unit_distance( camera );
+
+			auto pivot = glm::translate( world_to_cam, glm::vec3{0, 0, -normDistance} );
+
+			pivot        = glm::rotate( pivot, cameraAngle, glm::vec3{0, 0, 1} );
+			world_to_cam = glm::translate( pivot, glm::vec3{0, 0, normDistance} );
+
+			camera->matrix = glm::inverse( world_to_cam );
+
+		} break;
+		case le_camera_controller_o::eTranslateXY: {
+			if ( 0 == ( mouse_state.buttonState & ( 1 << 1 ) ) ) {
+				// -- apply transforms, exit mode
+				controller->mode = le_camera_controller_o::eNeutral;
+			}
+
+			float normalised_distance_x = -( mouse_state.cursor_pos.x - controller->mouse_pos_initial.x ) / ( controlCircleRadius * 1.f ); // map to -1..1
+			float normalised_distance_y = -( mouse_state.cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 1.f ); // map to -1..1
+
+			float movement_speed = 100;
+
+			auto const &cam_to_world = controller->matrix;
+			auto        world_to_cam = glm::inverse( cam_to_world );
+
+			float normDistance = camera_get_unit_distance( camera );
+
+			auto pivot     = glm::translate( world_to_cam, glm::vec3{0, 0, -normDistance} );
+			pivot          = glm::translate( pivot, movement_speed * glm::vec3{normalised_distance_x, normalised_distance_y, 0} );
+			world_to_cam   = glm::translate( pivot, glm::vec3{0, 0, normDistance} );
+			camera->matrix = glm::inverse( world_to_cam );
+
+		} break;
+		case le_camera_controller_o::eTranslateZ: {
+			if ( 0 == ( mouse_state.buttonState & ( 1 << 2 ) ) ) {
+				// -- apply transforms, exit mode
+				controller->mode = le_camera_controller_o::eNeutral;
+			}
+
+			float normalised_distance_y = ( mouse_state.cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 1.f ); // map to -1..1
+
+			float movement_speed = 100;
+
+			auto const &cam_to_world = controller->matrix;
+			auto        world_to_cam = glm::inverse( cam_to_world );
+
+			float normDistance = camera_get_unit_distance( camera );
+
+			auto pivot     = glm::translate( world_to_cam, glm::vec3{0, 0, -normDistance} );
+			pivot          = glm::translate( pivot, movement_speed * glm::vec3{0, 0, normalised_distance_y} );
+			world_to_cam   = glm::translate( pivot, glm::vec3{0, 0, normDistance} );
+			camera->matrix = glm::inverse( world_to_cam );
+
+		} break;
+		} // end switch controller->mode
+	}
+
+	controller->mouse_state = mouse_state; // store current mouse state
+}
+
+// ----------------------------------------------------------------------
+
+static void camera_controller_process_events( le_camera_controller_o *controller, le_camera_o *camera, LeUiEvent const *events, size_t numEvents ) {
+
+	LeUiEvent const *const events_end = events + numEvents;
+
+	std::vector<LeUiEvent const *> filtered_events;
+
+	filtered_events.reserve( numEvents );
+
+	for ( auto event = events; event != events_end; event++ ) {
+		if ( event->event == LeUiEvent::Type::eCursorPosition || event->event == LeUiEvent::Type::eMouseButton ) {
+			filtered_events.emplace_back( event );
 		}
+	}
 
-	} break;
-	case le_camera_controller_o::eRotXY: {
-		if ( 0 == ( mouse_event->buttonState & ( 1 << 0 ) ) ) {
-			// apply transforms, exit mode
-			controller->mode = le_camera_controller_o::eNeutral;
-		}
-
-		// process normal logic for cursor position
-		float normalised_distance_x = -( mouse_event->cursor_pos.x - controller->mouse_pos_initial.x ) / ( controlCircleRadius * 3.f ); // map to -1..1
-		float normalised_distance_y = ( mouse_event->cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 3.f );  // map to -1..1
-
-		// build a quaternion based on rotation around x, rotation around y
-
-		// first we must transform into the pivot point
-		// the pivot point is a point which is at normdistance from the camera in negative z
-
-		auto const &cam_to_world = controller->matrix;
-		auto        world_to_cam = glm::inverse( cam_to_world );
-
-		float normDistance = camera_get_unit_distance( camera );
-
-		auto pivot   = glm::translate( world_to_cam, glm::vec3{0, 0, -normDistance} );
-		pivot        = glm::rotate( pivot, glm::two_pi<float>() * normalised_distance_x, glm::vec3{0, 1, 0} );
-		pivot        = glm::rotate( pivot, glm::two_pi<float>() * normalised_distance_y, glm::vec3{1, 0, 0} );
-		world_to_cam = glm::translate( pivot, glm::vec3{0, 0, normDistance} );
-
-		camera->matrix = glm::inverse( world_to_cam );
-
-	} break;
-	case le_camera_controller_o::eRotZ: {
-		if ( 0 == ( mouse_event->buttonState & ( 1 << 0 ) ) ) {
-			// -- apply transforms, exit mode
-			controller->mode = le_camera_controller_o::eNeutral;
-		}
-
-		auto  mouseInitial      = controller->mouse_pos_initial - controlRectCentre;
-		float mouseInitialAngle = glm::two_pi<float>() - fmodf( glm::two_pi<float>() + atan2f( mouseInitial.y, mouseInitial.x ), glm::two_pi<float>() ); // Range is expected to be 0..2pi, ccw
-
-		auto mouseDelta = mouse_event->cursor_pos - controlRectCentre;
-
-		float cameraAngle = glm::two_pi<float>() - fmodf( mouseInitialAngle + glm::two_pi<float>() + atan2f( mouseDelta.y, mouseDelta.x ), glm::two_pi<float>() ); // Range is expected to 0..2pi, ccw
-
-		// first we must transform into the pivot point
-		// the pivot point is a point which is at normdistance from the camera in negative z
-
-		auto const &cam_to_world = controller->matrix;
-		auto        world_to_cam = glm::inverse( cam_to_world );
-
-		float normDistance = camera_get_unit_distance( camera );
-
-		auto pivot = glm::translate( world_to_cam, glm::vec3{0, 0, -normDistance} );
-
-		pivot        = glm::rotate( pivot, cameraAngle, glm::vec3{0, 0, 1} );
-		world_to_cam = glm::translate( pivot, glm::vec3{0, 0, normDistance} );
-
-		camera->matrix = glm::inverse( world_to_cam );
-
-	} break;
-	case le_camera_controller_o::eTranslateXY: {
-		if ( 0 == ( mouse_event->buttonState & ( 1 << 1 ) ) ) {
-			// -- apply transforms, exit mode
-			controller->mode = le_camera_controller_o::eNeutral;
-		}
-
-		float normalised_distance_x = -( mouse_event->cursor_pos.x - controller->mouse_pos_initial.x ) / ( controlCircleRadius * 1.f ); // map to -1..1
-		float normalised_distance_y = -( mouse_event->cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 1.f ); // map to -1..1
-
-		float movement_speed = 100;
-
-		auto const &cam_to_world = controller->matrix;
-		auto        world_to_cam = glm::inverse( cam_to_world );
-
-		float normDistance = camera_get_unit_distance( camera );
-
-		auto pivot     = glm::translate( world_to_cam, glm::vec3{0, 0, -normDistance} );
-		pivot          = glm::translate( pivot, movement_speed * glm::vec3{normalised_distance_x, normalised_distance_y, 0} );
-		world_to_cam   = glm::translate( pivot, glm::vec3{0, 0, normDistance} );
-		camera->matrix = glm::inverse( world_to_cam );
-
-	} break;
-	case le_camera_controller_o::eTranslateZ: {
-		if ( 0 == ( mouse_event->buttonState & ( 1 << 2 ) ) ) {
-			// -- apply transforms, exit mode
-			controller->mode = le_camera_controller_o::eNeutral;
-		}
-
-		float normalised_distance_y = ( mouse_event->cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 1.f ); // map to -1..1
-
-		float movement_speed = 100;
-
-		auto const &cam_to_world = controller->matrix;
-		auto        world_to_cam = glm::inverse( cam_to_world );
-
-		float normDistance = camera_get_unit_distance( camera );
-
-		auto pivot     = glm::translate( world_to_cam, glm::vec3{0, 0, -normDistance} );
-		pivot          = glm::translate( pivot, movement_speed * glm::vec3{0, 0, normalised_distance_y} );
-		world_to_cam   = glm::translate( pivot, glm::vec3{0, 0, normDistance} );
-		camera->matrix = glm::inverse( world_to_cam );
-
-	} break;
-	} // end switch controller->mode
+	camera_controller_update_camera( controller, camera, filtered_events );
 }
 
 // ----------------------------------------------------------------------
@@ -397,6 +451,6 @@ ISL_API_ATTR void register_le_camera_api( void *api ) {
 
 	le_camera_controller_i.create           = camera_controller_create;
 	le_camera_controller_i.destroy          = camera_controller_destroy;
-	le_camera_controller_i.update_camera    = camera_controller_update_camera;
+	le_camera_controller_i.process_events   = camera_controller_process_events;
 	le_camera_controller_i.set_control_rect = camera_controller_set_contol_rect;
 }

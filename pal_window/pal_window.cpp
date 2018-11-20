@@ -1,4 +1,6 @@
 #include "pal_window/pal_window.h"
+#include "le_ui_event/le_ui_event.h"
+
 #include "assert.h"
 #include <iostream>
 #include <vector>
@@ -37,9 +39,9 @@ struct pal_window_o {
 	size_t                referenceCount = 0;
 	void *                user_data      = nullptr;
 
-	uint32_t                                             eventQueueBack = 0;      // Event queue currently used to record events
-	std::array<std::atomic<uint32_t>, 2>                 numEventsForQueue{0, 0}; // Counter for events per queue (works as arena allocator marker for events queue)
-	std::array<std::array<UIEvent, EVENT_QUEUE_SIZE>, 2> eventQueue;              // Events queue is double-bufferd, flip happens on `get_event_queue`
+	uint32_t                                               eventQueueBack = 0;      // Event queue currently used to record events
+	std::array<std::atomic<uint32_t>, 2>                   numEventsForQueue{0, 0}; // Counter for events per queue (works as arena allocator marker for events queue)
+	std::array<std::array<LeUiEvent, EVENT_QUEUE_SIZE>, 2> eventQueue;              // Events queue is double-bufferd, flip happens on `get_event_queue`
 
 	WindowGeometry windowGeometry{};
 	bool           isFullscreen = false;
@@ -78,7 +80,7 @@ static void glfw_window_key_callback( GLFWwindow *glfwWindow, int key, int scanc
 
 		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
 			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
-			event.event = UIEvent::Type::eKey;
+			event.event = LeUiEvent::Type::eKey;
 			auto &e     = event.key;
 			e.key       = key;
 			e.action    = action;
@@ -102,7 +104,7 @@ static void glfw_window_character_callback( GLFWwindow *glfwWindow, unsigned int
 
 		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
 			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
-			event.event = UIEvent::Type::eCharacter;
+			event.event = LeUiEvent::Type::eCharacter;
 			auto &e     = event.character;
 			e.codepoint = codepoint;
 		} else {
@@ -123,7 +125,7 @@ static void glfw_window_cursor_position_callback( GLFWwindow *glfwWindow, double
 
 		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
 			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
-			event.event = UIEvent::Type::eCursorPosition;
+			event.event = LeUiEvent::Type::eCursorPosition;
 			auto &e     = event.cursorPosition;
 			e.x         = xpos;
 			e.y         = ypos;
@@ -145,7 +147,7 @@ static void glfw_window_cursor_enter_callback( GLFWwindow *glfwWindow, int enter
 
 		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
 			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
-			event.event = UIEvent::Type::eCursorEnter;
+			event.event = LeUiEvent::Type::eCursorEnter;
 			auto &e     = event.cursorEnter;
 			e.entered   = uint32_t( entered );
 		} else {
@@ -166,10 +168,10 @@ static void glfw_window_mouse_button_callback( GLFWwindow *glfwWindow, int butto
 
 		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
 			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
-			event.event = UIEvent::Type::eMouseButton;
+			event.event = LeUiEvent::Type::eMouseButton;
 			auto &e     = event.mouseButton;
 			e.button    = button;
-			e.action    = action;
+			e.action    = le::UiEvent::ButtonAction( action );
 			e.mods      = mods;
 		} else {
 			// we're over the high - watermark for events, we should probably print a warning.
@@ -189,7 +191,7 @@ static void glfw_window_scroll_callback( GLFWwindow *glfwWindow, double xoffset,
 
 		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
 			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
-			event.event = UIEvent::Type::eScroll;
+			event.event = LeUiEvent::Type::eScroll;
 			auto &e     = event.scroll;
 			e.x_offset  = xoffset;
 			e.y_offset  = yoffset;
@@ -417,7 +419,7 @@ static void window_remove_callbacks( pal_window_o *self ) {
 // ----------------------------------------------------------------------
 // Returns an array of events pending since the last call to this method.
 // Note that calling this method invalidates any values returned from the previous call to this method.
-static void window_get_ui_event_queue( pal_window_o *self, UIEvent const **events, uint32_t &numEvents ) {
+static void window_get_ui_event_queue( pal_window_o *self, LeUiEvent const **events, uint32_t &numEvents ) {
 
 	if ( false == self->mSettings.useEventsQueue ) {
 		*events   = nullptr;
@@ -434,7 +436,7 @@ static void window_get_ui_event_queue( pal_window_o *self, UIEvent const **event
 	auto eventQueueFront = self->eventQueueBack;
 	self->eventQueueBack ^= 1;
 
-	// Note: In the unlikely event that any UIEvent will be added asynchronously in between
+	// Note: In the unlikely event that any LeUiEvent will be added asynchronously in between
 	// these two calls it will be added to the very end of the back queue and then implicitly
 	// released, as the event counter for the back queue is reset at the next step.
 	// This is not elegant, but otherwise we must mutex for all event callbacks...

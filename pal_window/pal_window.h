@@ -16,54 +16,7 @@ struct pal_window_settings_o;
 struct VkSurfaceKHR_T;
 struct GLFWwindow;
 
-// Todo: move this to a frame-work wide internal header file.
-struct UIEvent {
-
-	enum class Type {
-		eKey,
-		eCharacter,
-		eCursorPosition,
-		eCursorEnter,
-		eMouseButton,
-		eScroll,
-	};
-	struct KeyEvent {
-		int32_t key;
-		int32_t scancode;
-		int32_t action;
-		int32_t mods;
-	};
-	struct CharacterEvent {
-		uint32_t codepoint;
-	};
-	struct CursorPositionEvent {
-		double x;
-		double y;
-	};
-	struct CursorEnterEvent {
-		uint32_t entered;
-	};
-	struct MouseButtonEvent {
-		int32_t button;
-		int32_t action;
-		int32_t mods;
-	};
-	struct ScrollEvent {
-		double x_offset;
-		double y_offset;
-	};
-
-	Type event;
-
-	union {
-		KeyEvent            key;
-		CharacterEvent      character;
-		CursorPositionEvent cursorPosition;
-		CursorEnterEvent    cursorEnter;
-		MouseButtonEvent    mouseButton;
-		ScrollEvent         scroll;
-	};
-};
+struct LeUiEvent; // declared in le_ui_event.h
 
 // clang-format off
 struct pal_window_api {
@@ -100,7 +53,7 @@ struct pal_window_api {
 
 		// Returns a sorted array of events pending for the current frame, and the number of events.
 		// Note that calling this method invalidates any values returned in the previous call to this method.
-		void            ( *get_ui_event_queue )(pal_window_o* self, UIEvent const ** events, uint32_t& numEvents);
+		void            ( *get_ui_event_queue )(pal_window_o* self, LeUiEvent const ** events, uint32_t& numEvents);
 
 	};
 

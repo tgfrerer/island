@@ -10,6 +10,7 @@
 #include "le_camera/le_camera.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
 #include "le_pixels/le_pixels.h"
+#include "le_ui_event/le_ui_event.h"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h> // for key codes
@@ -74,9 +75,8 @@ struct test_app_o {
 
 	FontTextureInfo imguiTexture = {};
 
-	std::array<bool, 5>   mouseButtonStatus{}; // status for each mouse button
-	glm::vec2             mousePos{};          // current mouse position
-	le_mouse_event_data_o mouseData;
+	std::array<bool, 5> mouseButtonStatus{}; // status for each mouse button
+	glm::vec2           mousePos{};          // current mouse position
 
 	NanoTime update_start_time;
 
@@ -704,14 +704,10 @@ static bool test_app_update( test_app_o *self ) {
 		return false;
 	}
 
+	self->cameraController.setControlRect( 0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ) );
+
 	// Process pending ui events.
 	test_app_process_ui_events( self );
-
-	{
-		// update interactive camera using mouse data
-		self->cameraController.setControlRect( 0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ) );
-		self->cameraController.updateCamera( self->camera, &self->mouseData );
-	}
 
 	if ( resetCameraOnReload ) {
 		// Reset camera
@@ -805,18 +801,18 @@ static void test_app_process_ui_events( test_app_o *self ) {
 
 	bool wantsFullscreenToggle = false; // Accumulate fullscreen toggles to minimize toggles.
 
-	UIEvent const *events;
-	uint32_t       numEvents = 0;
+	LeUiEvent const *events;
+	uint32_t         numEvents = 0;
 
 	window_i.get_ui_event_queue( self->window, &events, numEvents );
 
-	UIEvent const *const events_end = events + numEvents; // end iterator
+	LeUiEvent const *const events_end = events + numEvents; // end iterator
 
-	for ( UIEvent const *event = events; event != events_end; event++ ) {
+	for ( LeUiEvent const *event = events; event != events_end; event++ ) {
 		// Process events in sequence
 
 		switch ( event->event ) {
-		case UIEvent::Type::eKey: {
+		case LeUiEvent::Type::eKey: {
 			auto &e = event->key;
 
 			if ( e.key == GLFW_KEY_F11 && e.action == GLFW_RELEASE ) {
@@ -837,33 +833,26 @@ static void test_app_process_ui_events( test_app_o *self ) {
 			io.KeySuper = io.KeysDown[ GLFW_KEY_LEFT_SUPER ] || io.KeysDown[ GLFW_KEY_RIGHT_SUPER ];
 
 		} break;
-		case UIEvent::Type::eCharacter: {
+		case LeUiEvent::Type::eCharacter: {
 			auto &e = event->character;
 			if ( e.codepoint > 0 && e.codepoint < 0x10000 ) {
 				io.AddInputCharacter( uint16_t( e.codepoint ) );
 			}
 		} break;
-		case UIEvent::Type::eCursorPosition: {
-			auto &e                    = event->cursorPosition;
-			self->mouseData.cursor_pos = {float( e.x ), float( e.y )};
-			self->mousePos             = {float( e.x ), float( e.y )};
+		case LeUiEvent::Type::eCursorPosition: {
+			auto &e        = event->cursorPosition;
+			self->mousePos = {float( e.x ), float( e.y )};
 		} break;
-		case UIEvent::Type::eCursorEnter: {
-			auto &e = event->cursorPosition;
+		case LeUiEvent::Type::eCursorEnter: {
+			auto &e = event->cursorEnter;
 		} break;
-		case UIEvent::Type::eMouseButton: {
+		case LeUiEvent::Type::eMouseButton: {
 			auto &e = event->mouseButton;
 			if ( e.button >= 0 && e.button < int( self->mouseButtonStatus.size() ) ) {
-				self->mouseButtonStatus[ size_t( e.button ) ] = ( e.action == GLFW_PRESS );
-
-				if ( e.action == GLFW_PRESS ) {
-					self->mouseData.buttonState |= uint8_t( 1 << size_t( e.button ) );
-				} else if ( e.action == GLFW_RELEASE ) {
-					self->mouseData.buttonState &= uint8_t( 0 << size_t( e.button ) );
-				}
+				self->mouseButtonStatus[ size_t( e.button ) ] = ( e.action == LeUiEvent::ButtonAction::ePress );
 			}
 		} break;
-		case UIEvent::Type::eScroll: {
+		case LeUiEvent::Type::eScroll: {
 			auto &e = event->scroll;
 			io.MouseWheelH += float( e.x_offset );
 			io.MouseWheel += float( e.y_offset );
@@ -872,10 +861,14 @@ static void test_app_process_ui_events( test_app_o *self ) {
 		} // end switch event->event
 	}
 
+	// -- Forward events to camera controller. Todo: we could have filtered events, based on whether
+	// a gui window was hit by the mouse, for example.
+	self->cameraController.processEvents( self->camera, events, numEvents );
+
 	// We have accumulated all fullscreen toggles - if we wanted to change to fullscreen-we should do it now.
 	// We do this so that the screen size does not change whilst we are processing the current event stream.
 	// but it might be an idea to do so.
-
+	//
 	if ( wantsFullscreenToggle ) {
 		// toggle fullscreen if requested.
 		window_i.toggle_fullscreen( self->window );

@@ -12,6 +12,8 @@ struct le_camera_o;
 struct le_camera_controller_o;
 struct le_mouse_event_data_o;
 
+struct LeUiEvent; // defined in le_ui_event
+
 namespace le {
 struct Viewport;
 }
@@ -44,7 +46,7 @@ struct le_camera_api {
 
 		le_camera_controller_o* ( * create          )( );
 		void                    ( * destroy         )( le_camera_controller_o* self);
-		void                    ( * update_camera   )( le_camera_controller_o* self, le_camera_o* camera, le_mouse_event_data_o const * mouse_event);
+		void                    ( * process_events   )( le_camera_controller_o* self, le_camera_o* camera, LeUiEvent const * events, size_t numEvents);
 		void                    ( * set_control_rect )( le_camera_controller_o *self, float x, float y, float w, float h );
 	};
 
@@ -138,8 +140,8 @@ class LeCameraController : NoCopy, NoMove {
 		le_camera::le_camera_controller_i.destroy( self );
 	}
 
-	void updateCamera( le_camera_o *camera, le_mouse_event_data_o *mouseEvent ) {
-		le_camera::le_camera_controller_i.update_camera( self, camera, mouseEvent );
+	void processEvents( le_camera_o *camera, LeUiEvent const *events, size_t numEvents ) {
+		le_camera::le_camera_controller_i.process_events( self, camera, events, numEvents );
 	}
 
 	void setControlRect( float x, float y, float w, float h ) {
