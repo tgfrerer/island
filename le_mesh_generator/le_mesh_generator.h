@@ -34,11 +34,12 @@ struct le_mesh_generator_api {
 
 		void ( *destroy )( le_mesh_generator_o *self );
 
-		void (*get_vertices )( le_mesh_generator_o *self, float ** vertices, size_t& count);
-		void (*get_normals )( le_mesh_generator_o *self, float ** normals, size_t& count);
-		void (*get_uvs )( le_mesh_generator_o *self, float ** uvs, size_t& count);
-		void (*get_indices  )( le_mesh_generator_o* self, uint16_t**indices, size_t&count);
-		void (*get_data)(le_mesh_generator_o*self, float** vertices, float**normals, float**uvs, uint16_t **indices, size_t& numVertices, size_t& numIndices);
+		void (*get_vertices )( le_mesh_generator_o *self, size_t& count, float **   vertices);
+		void (*get_normals  )( le_mesh_generator_o *self, size_t& count, float **   normals );
+		void (*get_uvs      )( le_mesh_generator_o *self, size_t& count, float **   uvs     );
+		void (*get_indices  )( le_mesh_generator_o *self, size_t& count, uint16_t** indices );
+
+		void (*get_data     )( le_mesh_generator_o *self, size_t& numVertices, size_t& numIndices, float** vertices, float**normals, float**uvs, uint16_t **indices);
 	};
 
 	le_mesh_generator_interface_t le_mesh_generator_i;
@@ -85,24 +86,24 @@ class LeMeshGenerator : NoCopy, NoMove {
 		le_mesh_generator::le_mesh_generator_i.destroy( self );
 	}
 
-	void getVertices( float **pVertices, size_t &count ) {
-		le_mesh_generator::le_mesh_generator_i.get_vertices( self, pVertices, count );
+	void getVertices( size_t &count, float **pVertices = nullptr ) {
+		le_mesh_generator::le_mesh_generator_i.get_vertices( self, count, pVertices );
 	}
 
-	void getNormals( float **pNormals, size_t &count ) {
-		le_mesh_generator::le_mesh_generator_i.get_vertices( self, pNormals, count );
+	void getNormals( size_t &count, float **pNormals = nullptr ) {
+		le_mesh_generator::le_mesh_generator_i.get_vertices( self, count, pNormals );
 	}
 
-	void getUvs( float **pUvs, size_t &count ) {
-		le_mesh_generator::le_mesh_generator_i.get_uvs( self, pUvs, count );
+	void getUvs( size_t &count, float **pUvs = nullptr ) {
+		le_mesh_generator::le_mesh_generator_i.get_uvs( self, count, pUvs );
 	}
 
-	void getIndices( uint16_t **pIndices, size_t &count ) {
-		le_mesh_generator::le_mesh_generator_i.get_indices( self, pIndices, count );
+	void getIndices( size_t &count, uint16_t **pIndices = nullptr ) {
+		le_mesh_generator::le_mesh_generator_i.get_indices( self, count, pIndices );
 	}
 
-	void getData( float **pVertices, float **pNormals, float **pUvs, uint16_t **pIndices, size_t &numVertices, size_t &numIndices ) {
-		le_mesh_generator::le_mesh_generator_i.get_data( self, pVertices, pNormals, pUvs, pIndices, numVertices, numIndices );
+	void getData( size_t &numVertices, size_t &numIndices, float **pVertices = nullptr, float **pNormals = nullptr, float **pUvs = nullptr, uint16_t **pIndices = nullptr ) {
+		le_mesh_generator::le_mesh_generator_i.get_data( self, numVertices, numIndices, pVertices, pNormals, pUvs, pIndices );
 	}
 
 	operator auto() {

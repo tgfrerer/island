@@ -112,41 +112,58 @@ static void le_mesh_generator_generate_sphere( le_mesh_generator_o *self,
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_generator_get_vertices( le_mesh_generator_o *self, float **vertices, size_t &count ) {
-	count     = self->vertices.size();
-	*vertices = static_cast<float *>( &self->vertices[ 0 ].x );
+static void le_mesh_generator_get_vertices( le_mesh_generator_o *self, size_t &count, float **vertices ) {
+	count = self->vertices.size();
+	if ( vertices ) {
+		*vertices = static_cast<float *>( &self->vertices[ 0 ].x );
+	}
 }
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_generator_get_indices( le_mesh_generator_o *self, uint16_t **indices, size_t &count ) {
-	count    = self->indices.size();
-	*indices = self->indices.data();
+static void le_mesh_generator_get_indices( le_mesh_generator_o *self, size_t &count, uint16_t **indices ) {
+	count = self->indices.size();
+	if ( indices ) {
+		*indices = self->indices.data();
+	}
 }
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_generator_get_normals( le_mesh_generator_o *self, float **normals, size_t &count ) {
-	count    = self->normals.size();
-	*normals = static_cast<float *>( &self->normals[ 0 ].x );
-}
-
-// ----------------------------------------------------------------------
-
-static void le_mesh_generator_get_uvs( le_mesh_generator_o *self, float **uvs, size_t &count ) {
+static void le_mesh_generator_get_normals( le_mesh_generator_o *self, size_t &count, float **normals ) {
 	count = self->normals.size();
-	*uvs  = static_cast<float *>( &self->uvs[ 0 ].x );
+	if ( normals ) {
+		*normals = static_cast<float *>( &self->normals[ 0 ].x );
+	}
 }
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_generator_get_data( le_mesh_generator_o *self, float **vertices, float **normals, float **uvs, uint16_t **indices, size_t &numVertices, size_t &numIndices ) {
+static void le_mesh_generator_get_uvs( le_mesh_generator_o *self, size_t &count, float **uvs ) {
+	count = self->normals.size();
+	if ( uvs ) {
+		*uvs = static_cast<float *>( &self->uvs[ 0 ].x );
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static void le_mesh_generator_get_data( le_mesh_generator_o *self, size_t &numVertices, size_t &numIndices, float **vertices, float **normals, float **uvs, uint16_t **indices ) {
 	numVertices = self->vertices.size();
-	*vertices   = static_cast<float *>( &self->vertices[ 0 ].x );
-	*normals    = static_cast<float *>( &self->normals[ 0 ].x );
-	*uvs        = static_cast<float *>( &self->uvs[ 0 ].x );
 	numIndices  = self->indices.size();
-	*indices    = self->indices.data();
+
+	if ( vertices ) {
+		*vertices = static_cast<float *>( &self->vertices[ 0 ].x );
+	}
+	if ( normals ) {
+		*normals = static_cast<float *>( &self->normals[ 0 ].x );
+	}
+	if ( uvs ) {
+		*uvs = static_cast<float *>( &self->uvs[ 0 ].x );
+	}
+	if ( indices ) {
+		*indices = self->indices.data();
+	}
 }
 
 // ----------------------------------------------------------------------
