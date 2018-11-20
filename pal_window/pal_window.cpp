@@ -82,8 +82,8 @@ static void glfw_window_key_callback( GLFWwindow *glfwWindow, int key, int scanc
 			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
 			event.event = LeUiEvent::Type::eKey;
 			auto &e     = event.key;
-			e.key       = key;
-			e.action    = action;
+			e.key       = LeUiEvent::NamedKey( key );
+			e.action    = LeUiEvent::ButtonAction( action );
 			e.scancode  = scancode;
 			e.mods      = mods;
 		} else {
