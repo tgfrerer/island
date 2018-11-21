@@ -2019,19 +2019,19 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 				    .setFlags( {} )
 				    .setMagFilter( le_filter_to_vk( texInfo.sampler.magFilter ) )
 				    .setMinFilter( le_filter_to_vk( texInfo.sampler.minFilter ) )
-				    .setMipmapMode( vk::SamplerMipmapMode::eLinear )
-				    .setAddressModeU( vk::SamplerAddressMode::eClampToBorder )
-				    .setAddressModeV( vk::SamplerAddressMode::eClampToBorder )
-				    .setAddressModeW( vk::SamplerAddressMode::eRepeat )
-				    .setMipLodBias( 0.f )
-				    .setAnisotropyEnable( VK_FALSE )
-				    .setMaxAnisotropy( 0.f )
-				    .setCompareEnable( VK_FALSE )
-				    .setCompareOp( vk::CompareOp::eLess )
-				    .setMinLod( 0.f )
-				    .setMaxLod( 1.f )
-				    .setBorderColor( vk::BorderColor::eFloatTransparentBlack )
-				    .setUnnormalizedCoordinates( VK_FALSE );
+				    .setMipmapMode( le_sampler_mipmap_mode_to_vk( texInfo.sampler.mipmapMode ) )
+				    .setAddressModeU( le_sampler_address_mode_to_vk( texInfo.sampler.addressModeU ) )
+				    .setAddressModeV( le_sampler_address_mode_to_vk( texInfo.sampler.addressModeV ) )
+				    .setAddressModeW( le_sampler_address_mode_to_vk( texInfo.sampler.addressModeW ) )
+				    .setMipLodBias( texInfo.sampler.mipLodBias )
+				    .setAnisotropyEnable( texInfo.sampler.anisotropyEnable )
+				    .setMaxAnisotropy( texInfo.sampler.maxAnisotropy )
+				    .setCompareEnable( texInfo.sampler.compareEnable )
+				    .setCompareOp( le_compare_op_to_vk( texInfo.sampler.compareOp ) )
+				    .setMinLod( texInfo.sampler.minLod )
+				    .setMaxLod( texInfo.sampler.maxLod )
+				    .setBorderColor( le_border_color_to_vk( texInfo.sampler.borderColor ) )
+				    .setUnnormalizedCoordinates( texInfo.sampler.unnormalizedCoordinates );
 
 				auto vkSampler   = device.createSampler( samplerCreateInfo );
 				auto vkImageView = device.createImageView( imageViewCreateInfo );
