@@ -317,6 +317,34 @@ enum class BlendFactor : uint32_t {
 };
 // Codegen </VkBlendFactor>
 
+// Codegen <VkSamplerAddressMode, uint32_t>
+enum class SamplerAddressMode : uint32_t {
+	eRepeat            = 0,
+	eMirroredRepeat    = 1,
+	eClampToEdge       = 2,
+	eClampToBorder     = 3,
+	eMirrorClampToEdge = 4,
+};
+// Codegen </VkSamplerAddressMode>
+
+// Codegen <VkSamplerMipmapMode, uint32_t>
+enum class SamplerMipmapMode : uint32_t {
+	eNearest = 0,
+	eLinear  = 1,
+};
+// Codegen </VkSamplerMipmapMode>
+
+// Codegen <VkBorderColor, uint32_t>
+enum class BorderColor : uint32_t {
+	eFloatTransparentBlack = 0,
+	eIntTransparentBlack   = 1,
+	eFloatOpaqueBlack      = 2,
+	eIntOpaqueBlack        = 3,
+	eFloatOpaqueWhite      = 4,
+	eIntOpaqueWhite        = 5,
+};
+// Codegen </VkBorderColor>
+
 // Codegen <VkBlendOp, uint32_t>
 enum class BlendOp : uint32_t {
 	eAdd                 = 0,
@@ -776,9 +804,21 @@ typedef uint32_t LeAccessFlags;
 
 struct LeTextureInfo {
 	struct SamplerInfo {
-		le::Filter minFilter; // enum VkFilter
-		le::Filter magFilter; // enum VkFilter
-		                      // TODO: add clamp clamp modes etc.
+		le::Filter             magFilter               = le::Filter::eLinear;
+		le::Filter             minFilter               = le::Filter::eLinear;
+		le::SamplerMipmapMode  mipmapMode              = le::SamplerMipmapMode::eLinear;
+		le::SamplerAddressMode addressModeU            = le::SamplerAddressMode::eClampToBorder;
+		le::SamplerAddressMode addressModeV            = le::SamplerAddressMode::eClampToBorder;
+		le::SamplerAddressMode addressModeW            = le::SamplerAddressMode::eRepeat;
+		float                  mipLodBias              = 0.f;
+		bool                   anisotropyEnable        = false;
+		float                  maxAnisotropy           = 0.f;
+		bool                   compareEnable           = false;
+		le::CompareOp          compareOp               = le::CompareOp::eLess;
+		float                  minLod                  = 0.f;
+		float                  maxLod                  = 1.f;
+		le::BorderColor        borderColor             = le::BorderColor::eFloatTransparentBlack;
+		bool                   unnormalizedCoordinates = false;
 	};
 	struct ImageViewInfo {
 		le_resource_handle_t imageId; // le image resource id

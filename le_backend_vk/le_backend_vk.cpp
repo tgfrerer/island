@@ -30,6 +30,17 @@
 #	define PRINT_DEBUG_MESSAGES false
 #endif
 
+// Helper macro to convert le:: enums to vk:: enums
+#define LE_ENUM_TO_VK( enum_name, fun_name )                                    \
+	static inline vk::enum_name fun_name( le::enum_name const &rhs ) noexcept { \
+	    return vk::enum_name( rhs );                                            \
+	}
+
+#define LE_C_ENUM_TO_VK( enum_name, fun_name, c_enum_name )                   \
+	static inline vk::enum_name fun_name( c_enum_name const &rhs ) noexcept { \
+	    return vk::enum_name( rhs );                                          \
+	}
+
 constexpr size_t LE_FRAME_DATA_POOL_BLOCK_SIZE  = 1u << 24; // 16.77 MB
 constexpr size_t LE_FRAME_DATA_POOL_BLOCK_COUNT = 1;
 constexpr size_t LE_LINEAR_ALLOCATOR_SIZE       = 1u << 24;
@@ -105,70 +116,34 @@ struct ResourceCreateInfo {
 	static ResourceCreateInfo from_le_resource_info( const le_resource_info_t &info, uint32_t *pQueueFamilyIndices, uint32_t queueFamilyindexCount );
 };
 
-// ------------------------------------------------------------
-
-static inline vk::AttachmentStoreOp le_to_vk( const le::AttachmentStoreOp &lhs ) noexcept {
-	return vk::AttachmentStoreOp( lhs );
-}
-
-// ----------------------------------------------------------------------
-static inline vk::AttachmentLoadOp le_to_vk( const le::AttachmentLoadOp &lhs ) noexcept {
-	return vk::AttachmentLoadOp( lhs );
-}
-
 // ----------------------------------------------------------------------
 
-static inline constexpr vk::Format le_to_vk( const le::Format &format ) noexcept {
-	return vk::Format( format );
-}
-
-// ----------------------------------------------------------------------
-
-static inline constexpr le::Format vk_to_le( const vk::Format &format ) noexcept {
-	return le::Format( format );
-}
-
-// ----------------------------------------------------------------------
-
-static inline const vk::ClearValue &le_to_vk( const LeClearValue &lhs ) {
+static inline const vk::ClearValue &le_clear_value_to_vk( const LeClearValue &lhs ) {
 	static_assert( sizeof( vk::ClearValue ) == sizeof( LeClearValue ), "Clear value type size must be equal between Le and Vk" );
 	return reinterpret_cast<const vk::ClearValue &>( lhs );
 }
 
 // ----------------------------------------------------------------------
 
-static inline constexpr vk::SampleCountFlagBits le_to_vk( const le::SampleCountFlagBits &rhs ) noexcept {
-	return vk::SampleCountFlagBits( rhs );
+static inline constexpr le::Format vk_format_to_le( const vk::Format &format ) noexcept {
+	return le::Format( format );
 }
 
 // ----------------------------------------------------------------------
 
-static inline constexpr vk::ImageTiling le_to_vk( const le::ImageTiling &rhs ) noexcept {
-	return vk::ImageTiling( rhs );
-}
-// ----------------------------------------------------------------------
-
-static inline constexpr vk::ImageUsageFlagBits le_image_usage_flags_to_vk( const LeImageUsageFlags &rhs ) noexcept {
-	return vk::ImageUsageFlagBits( rhs );
-}
-
-// ----------------------------------------------------------------------
-
-static inline constexpr vk::ImageType le_to_vk( const le::ImageType &rhs ) noexcept {
-	return vk::ImageType( rhs );
-}
-
-// ----------------------------------------------------------------------
-
-static inline vk::ImageCreateFlags le_image_create_flags_to_vk( const LeImageCreateFlags &rhs ) noexcept {
-	return vk::ImageCreateFlags( rhs );
-}
-
-// ----------------------------------------------------------------------
-
-static inline vk::Filter le_filter_to_vk( le::Filter const &rhs ) noexcept {
-	return vk::Filter( rhs );
-}
+LE_C_ENUM_TO_VK( ImageUsageFlagBits, le_image_usage_flags_to_vk, LeImageUsageFlags );
+LE_C_ENUM_TO_VK( ImageCreateFlags, le_image_create_flags_to_vk, LeImageCreateFlags );
+LE_ENUM_TO_VK( SampleCountFlagBits, le_sample_count_flag_bits_to_vk );
+LE_ENUM_TO_VK( ImageTiling, le_image_tiling_to_vk );
+LE_ENUM_TO_VK( ImageType, le_image_type_to_vk );
+LE_ENUM_TO_VK( Format, le_format_to_vk );
+LE_ENUM_TO_VK( AttachmentLoadOp, le_attachment_load_op_to_vk );
+LE_ENUM_TO_VK( AttachmentStoreOp, le_attachment_store_op_to_vk );
+LE_ENUM_TO_VK( Filter, le_filter_to_vk );
+LE_ENUM_TO_VK( SamplerMipmapMode, le_sampler_mipmap_mode_to_vk );
+LE_ENUM_TO_VK( SamplerAddressMode, le_sampler_address_mode_to_vk );
+LE_ENUM_TO_VK( CompareOp, le_compare_op_to_vk );
+LE_ENUM_TO_VK( BorderColor, le_border_color_to_vk );
 
 // ----------------------------------------------------------------------
 
@@ -190,13 +165,13 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 		auto const &img = info.image;
 		res.imageInfo   = vk::ImageCreateInfo()
 		                    .setFlags( le_image_create_flags_to_vk( img.flags ) )                 //
-		                    .setImageType( le_to_vk( img.imageType ) )                            //
-		                    .setFormat( le_to_vk( img.format ) )                                  //
+		                    .setImageType( le_image_type_to_vk( img.imageType ) )                 //
+		                    .setFormat( le_format_to_vk( img.format ) )                           //
 		                    .setExtent( {img.extent.width, img.extent.height, img.extent.depth} ) //
 		                    .setMipLevels( img.mipLevels )                                        //
 		                    .setArrayLayers( img.arrayLayers )                                    //
-		                    .setSamples( le_to_vk( img.samples ) )                                //
-		                    .setTiling( le_to_vk( img.tiling ) )                                  //
+		                    .setSamples( le_sample_count_flag_bits_to_vk( img.samples ) )         //
+		                    .setTiling( le_image_tiling_to_vk( img.tiling ) )                     //
 		                    .setUsage( le_image_usage_flags_to_vk( img.usage ) )                  //
 		                    .setSharingMode( vk::SharingMode::eExclusive )                        // hardcoded to Exclusive - no sharing between queues
 		                    .setQueueFamilyIndexCount( queueFamilyIndexCount )                    //
@@ -682,8 +657,8 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 
 		using namespace le_backend_vk;
 
-		self->defaultFormatColorAttachment        = vk_to_le( self->swapchainImageFormat );
-		self->defaultFormatDepthStencilAttachment = vk_to_le( vk_device_i.get_default_depth_stencil_format( *self->device ) );
+		self->defaultFormatColorAttachment        = vk_format_to_le( self->swapchainImageFormat );
+		self->defaultFormatDepthStencilAttachment = vk_format_to_le( vk_device_i.get_default_depth_stencil_format( *self->device ) );
 
 		// We hard-code default format for sampled images, since this is the most likely
 		// format we will encounter bitmaps to be encoded in, and there is no good way
@@ -816,9 +791,9 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 			currentAttachment->resource_id = imageAttachment->resource_id;
 			currentAttachment->format      = attachmentFormat;
-			currentAttachment->loadOp      = vk::AttachmentLoadOp( le_to_vk( imageAttachment->loadOp ) );
-			currentAttachment->storeOp     = vk::AttachmentStoreOp( le_to_vk( imageAttachment->storeOp ) );
-			currentAttachment->clearValue  = le_to_vk( imageAttachment->clearValue );
+			currentAttachment->loadOp      = le_attachment_load_op_to_vk( imageAttachment->loadOp );
+			currentAttachment->storeOp     = le_attachment_store_op_to_vk( imageAttachment->storeOp );
+			currentAttachment->clearValue  = le_clear_value_to_vk( imageAttachment->clearValue );
 
 			{
 				// track resource state before entering a subpass
