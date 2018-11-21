@@ -33,8 +33,8 @@ struct le_camera_controller_o {
 
 	glm::mat4 world_to_cam; // current camera node (== inverse camera view matrix) read this right-to-left, (in multiplication order: "cam to world")
 
-	float pivotDistance    = 0;
-	bool  pivotDistanceSet = false; // if not set, will initialsise by distance camera to origin on first update
+	float pivotDistance    = 0;     // if we set pivotdistance to 0 this means that the camera rotates around its own axes, other values make the camera rotate around a pivot point
+	bool  pivotDistanceSet = false; // if not set, will initialsise by distance (camera -> world origin) on first update
 
 	enum Mode {
 		eNeutral = 0,
@@ -279,9 +279,6 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 		controller->pivotDistanceSet = true;
 	}
 
-	glm::vec3 rotationDelta;
-	glm::vec3 translationDelta;
-
 	for ( auto const &event : events ) {
 
 		// -- accumulate mouse state
@@ -308,6 +305,8 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 		    break;
 		}
 
+		glm::vec3 rotationDelta;
+		glm::vec3 translationDelta;
 		{
 			auto  mouseInitial      = controller->mouse_pos_initial - controlRectCentre;
 			float mouseInitialAngle = glm::two_pi<float>() - fmodf( glm::two_pi<float>() + atan2f( mouseInitial.y, mouseInitial.x ), glm::two_pi<float>() ); // Range is expected to be 0..2pi, ccw

@@ -257,10 +257,10 @@ static void renderpass_sample_texture( le_renderpass_o *self, le_resource_handle
 	self->textureInfoIds.push_back( texture );
 	self->textureInfos.push_back( *textureInfo ); // store a copy
 
-	static const auto required_flags = le::ImageInfoBuilder()
-	                                       .addUsageFlags( LE_IMAGE_USAGE_SAMPLED_BIT )
-	                                       .setFormat( textureInfo->imageView.format )
-	                                       .build();
+	auto required_flags = le::ImageInfoBuilder()
+	                          .addUsageFlags( LE_IMAGE_USAGE_SAMPLED_BIT )
+	                          .setFormat( textureInfo->imageView.format )
+	                          .build();
 
 	// -- Mark image resource referenced by texture as used for reading
 	renderpass_use_resource( self, textureInfo->imageView.imageId, required_flags );
