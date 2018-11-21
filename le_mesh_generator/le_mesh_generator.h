@@ -37,6 +37,8 @@ struct le_mesh_generator_api {
 		void (*get_vertices )( le_mesh_generator_o *self, size_t& count, float **   vertices);
 		void (*get_normals  )( le_mesh_generator_o *self, size_t& count, float **   normals );
 		void (*get_uvs      )( le_mesh_generator_o *self, size_t& count, float **   uvs     );
+		void (*get_tangents )( le_mesh_generator_o *self, size_t& count, float **   tangents);
+
 		void (*get_indices  )( le_mesh_generator_o *self, size_t& count, uint16_t** indices );
 
 		void (*get_data     )( le_mesh_generator_o *self, size_t& numVertices, size_t& numIndices, float** vertices, float**normals, float**uvs, uint16_t **indices);
@@ -88,6 +90,10 @@ class LeMeshGenerator : NoCopy, NoMove {
 
 	void getVertices( size_t &count, float **pVertices = nullptr ) {
 		le_mesh_generator::le_mesh_generator_i.get_vertices( self, count, pVertices );
+	}
+
+	void getTangents( size_t &count, float **pTangents = nullptr ) {
+		le_mesh_generator::le_mesh_generator_i.get_tangents( self, count, pTangents );
 	}
 
 	void getNormals( size_t &count, float **pNormals = nullptr ) {

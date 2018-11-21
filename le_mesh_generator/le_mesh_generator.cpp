@@ -9,8 +9,9 @@
 struct le_mesh_generator_o {
 
 	std::vector<glm::vec3> vertices; // 3d position in model space
-	std::vector<glm::vec3> normals;  // normalsied normal, per-vertex
-	std::vector<glm::vec2> uvs;      //
+	std::vector<glm::vec3> tangents; // normalised tangents, per-vertex
+	std::vector<glm::vec3> normals;  // normalsied normal  , per-vertex
+	std::vector<glm::vec2> uvs;      // uv coordintates    , per-vertex
 	std::vector<uint16_t>  indices;  // index
 };
 
@@ -43,6 +44,7 @@ static void le_mesh_generator_generate_sphere( le_mesh_generator_o *self,
 	self->indices.reserve( numIndices );
 	self->vertices.reserve( numVertices );
 	self->normals.reserve( numVertices );
+	self->tangents.reserve( numVertices );
 	self->uvs.reserve( numVertices );
 
 	size_t   ix;
@@ -61,6 +63,7 @@ static void le_mesh_generator_generate_sphere( le_mesh_generator_o *self,
 		for ( ix = 0; ix <= widthSegments; ix++ ) {
 			glm::vec3 vertex;
 			glm::vec3 normal;
+			glm::vec3 tangent;
 
 			float u = ix / float( widthSegments );
 
@@ -72,10 +75,23 @@ static void le_mesh_generator_generate_sphere( le_mesh_generator_o *self,
 			// normal
 			normal = glm::normalize( vertex );
 
+			// tangents
+
+			// We could calculate tangents based on the fact that each tangent field (x/y/z) is the derivative of the
+			// corresponding vertex field (x/y/z) - but for a sphere we can take advantage of the special case where we say the
+			// tangent is normalized the cross product of the y-axis with V-Origin. Since our sphere is centred on the origin,
+			// this boils down to: normalize ({0,1,0} cross Vertex)
+			//
+			// See:
+			// <https://computergraphics.stackexchange.com/questions/5498/compute-sphere-tangent-for-normal-mapping>
+
+			tangent = glm::normalize( glm::cross( {0, 1, 0}, vertex ) );
+
 			// Store vertex data
 			self->uvs.emplace_back( u, 1 - v );
 			self->vertices.emplace_back( vertex );
 			self->normals.emplace_back( normal );
+			self->tangents.emplace_back( tangent );
 
 			// Store index
 			verticesRow.emplace_back( index++ );
@@ -116,6 +132,15 @@ static void le_mesh_generator_get_vertices( le_mesh_generator_o *self, size_t &c
 	count = self->vertices.size();
 	if ( vertices ) {
 		*vertices = static_cast<float *>( &self->vertices[ 0 ].x );
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static void le_mesh_generator_get_tangents( le_mesh_generator_o *self, size_t &count, float **tangents ) {
+	count = self->tangents.size();
+	if ( tangents ) {
+		*tangents = static_cast<float *>( &self->tangents[ 0 ].x );
 	}
 }
 
@@ -182,6 +207,7 @@ ISL_API_ATTR void register_le_mesh_generator_api( void *api ) {
 	le_mesh_generator_i.get_vertices = le_mesh_generator_get_vertices;
 	le_mesh_generator_i.get_indices  = le_mesh_generator_get_indices;
 	le_mesh_generator_i.get_uvs      = le_mesh_generator_get_uvs;
+	le_mesh_generator_i.get_tangents = le_mesh_generator_get_tangents;
 	le_mesh_generator_i.get_normals  = le_mesh_generator_get_normals;
 	le_mesh_generator_i.get_data     = le_mesh_generator_get_data;
 
