@@ -36,6 +36,8 @@ struct le_camera_controller_o {
 	float pivotDistance    = 0;     // if we set pivotdistance to 0 this means that the camera rotates around its own axes, other values make the camera rotate around a pivot point
 	bool  pivotDistanceSet = false; // if not set, will initialsise by distance (camera -> world origin) on first update
 
+	float movement_speed = 10000; //
+
 	enum Mode {
 		eNeutral = 0,
 		eRotXY   = 1,
@@ -363,11 +365,11 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 		} break;
 		case le_camera_controller_o::eTranslateXY: {
 			float movement_speed = 100;
-			camera_translate_xy( camera, controller->world_to_cam, translationDelta, movement_speed, controller->pivotDistance );
+			camera_translate_xy( camera, controller->world_to_cam, translationDelta, controller->movement_speed, controller->pivotDistance );
 		} break;
 		case le_camera_controller_o::eTranslateZ: {
 			float movement_speed = 100;
-			camera_translate_z( camera, controller->world_to_cam, translationDelta, movement_speed, controller->pivotDistance );
+			camera_translate_z( camera, controller->world_to_cam, translationDelta, controller->movement_speed, controller->pivotDistance );
 		} break;
 		} // end switch controller->mode
 	}
@@ -422,6 +424,13 @@ static void camera_controller_destroy( le_camera_controller_o *self ) {
 
 // ----------------------------------------------------------------------
 
+static void camera_controller_set_pivot_distance( le_camera_controller_o *self, float pivotDistance ) {
+	self->pivotDistanceSet = true;
+	self->pivotDistance    = pivotDistance;
+}
+
+// ----------------------------------------------------------------------
+
 ISL_API_ATTR void register_le_camera_api( void *api ) {
 	auto &le_camera_i = static_cast<le_camera_api *>( api )->le_camera_i;
 
@@ -441,8 +450,9 @@ ISL_API_ATTR void register_le_camera_api( void *api ) {
 
 	auto &le_camera_controller_i = static_cast<le_camera_api *>( api )->le_camera_controller_i;
 
-	le_camera_controller_i.create           = camera_controller_create;
-	le_camera_controller_i.destroy          = camera_controller_destroy;
-	le_camera_controller_i.process_events   = camera_controller_process_events;
-	le_camera_controller_i.set_control_rect = camera_controller_set_contol_rect;
+	le_camera_controller_i.create             = camera_controller_create;
+	le_camera_controller_i.destroy            = camera_controller_destroy;
+	le_camera_controller_i.process_events     = camera_controller_process_events;
+	le_camera_controller_i.set_control_rect   = camera_controller_set_contol_rect;
+	le_camera_controller_i.set_pivot_distance = camera_controller_set_pivot_distance;
 }

@@ -44,10 +44,11 @@ struct le_camera_api {
 
 	struct le_camera_controller_interface_t {
 
-		le_camera_controller_o* ( * create          )( );
-		void                    ( * destroy         )( le_camera_controller_o* self);
-		void                    ( * process_events   )( le_camera_controller_o* self, le_camera_o* camera, LeUiEvent const * events, size_t numEvents);
-		void                    ( * set_control_rect )( le_camera_controller_o *self, float x, float y, float w, float h );
+		le_camera_controller_o* ( *create             )( );
+		void                    ( *destroy            )( le_camera_controller_o* self);
+		void                    ( *process_events     )( le_camera_controller_o* self, le_camera_o* camera, LeUiEvent const * events, size_t numEvents);
+		void                    ( *set_control_rect   )( le_camera_controller_o *self, float x, float y, float w, float h );
+		void                    ( *set_pivot_distance )( le_camera_controller_o* self, float pivotDistance);
 	};
 
 	le_camera_interface_t       le_camera_i;
@@ -146,6 +147,19 @@ class LeCameraController : NoCopy, NoMove {
 
 	void setControlRect( float x, float y, float w, float h ) {
 		le_camera::le_camera_controller_i.set_control_rect( self, x, y, w, h );
+	}
+
+	/// Sets distance for pivot around which camera rotates
+	///
+	/// Setting a distance of 0 means that camera will rotate aound its own axis, greater
+	/// distances make it orbit around a point at distance on the camera's negative z-axis.
+	///
+	/// By default, the pivotDistance is initialised on first updating a camera to the
+	/// camera's global distance to world origin. Specifying a distance explicitly using
+	/// this method disables this default behaviour.
+	///
+	void setPivotDistance( float pivotDistance ) {
+		le_camera::le_camera_controller_i.set_pivot_distance( self, pivotDistance );
 	}
 };
 
