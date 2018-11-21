@@ -51,7 +51,7 @@ struct Image : NoCopy, NoMove {
 struct WorldGeometry {
 	le_resource_handle_t    vertex_buffer_handle = LE_BUF_RESOURCE( "WORLD_VERTICES" );
 	le_resource_info_t      vertex_buffer_info{};
-	std::array<uint64_t, 3> buffer_offsets{};
+	std::array<uint64_t, 4> buffer_offsets{};
 	size_t                  vertexDataByteCount{};   // total byte count of vertex data
 	size_t                  vertexCount         = 0; // number of Vertices
 	le_resource_handle_t    index_buffer_handle = LE_BUF_RESOURCE( "WORLD_INDICES" );
@@ -140,9 +140,9 @@ static hello_world_app_o *hello_world_app_create() {
 
 		size_t vertexCount;
 		size_t indexCount;
-		app->sphereGenerator.getData( vertexCount, indexCount ); // only fetch count of vertices
+		app->sphereGenerator.getData( vertexCount, indexCount ); // only fetch counts so we can calculate memory requirements for vertex buffer, index buffer
 
-		app->worldGeometry.vertexDataByteCount = vertexCount * sizeof( float ) * ( 3 + 3 + 2 );
+		app->worldGeometry.vertexDataByteCount = vertexCount * sizeof( float ) * ( 3 + 3 + 2 + 3 );
 		app->worldGeometry.vertexCount         = vertexCount;
 		app->worldGeometry.indexCount          = indexCount;
 		app->worldGeometry.index_buffer_info   = le::BufferInfoBuilder()
@@ -160,8 +160,8 @@ static hello_world_app_o *hello_world_app_create() {
 	{
 		using namespace le_pixels;
 		//		app->imgEarthAlbedo.pixels = le_pixels_i.create( "/home/tim/Documents/dev/island/apps/hello_world/resources/images/2_no_clouds_8k.jpg", 4, le_pixels_info::eUInt8 );
-		// app->imgEarthAlbedo.pixels     = le_pixels_i.create( "/home/tim/Documents/dev/island/apps/hello_world/resources/images/world-winter.png", 4, le_pixels_info::eUInt8 );
-		app->imgEarthAlbedo.pixels     = le_pixels_i.create( "./local_resources/images/white.tga", 4, le_pixels_info::eUInt8 );
+		app->imgEarthAlbedo.pixels = le_pixels_i.create( "/home/tim/Documents/dev/island/apps/hello_world/resources/images/world-winter.png", 4, le_pixels_info::eUInt8 );
+		//		app->imgEarthAlbedo.pixels     = le_pixels_i.create( "./local_resources/images/white.tga", 4, le_pixels_info::eUInt8 );
 		app->imgEarthAlbedo.pixelsInfo = le_pixels_i.get_info( app->imgEarthAlbedo.pixels );
 
 		// store earth albedo image handle
@@ -238,8 +238,10 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *use
 			float *   sphereUvs{};
 			size_t    numVertices{};
 			size_t    numIndices{};
+			float *   sphereTangents{};
 			app->sphereGenerator.getData( numVertices, numIndices, &sphereVertices, &sphereNormals, &sphereUvs, &sphereIndices );
-
+			size_t numTangents;
+			app->sphereGenerator.getTangents( numTangents, &sphereTangents );
 			uint32_t offset = 0;
 
 			// upload vertex positions
@@ -256,6 +258,11 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *use
 			geom.buffer_offsets[ 2 ] = offset;
 			encoder.writeToBuffer( geom.vertex_buffer_handle, offset, sphereUvs, numVertices * sizeof( float ) * 2 );
 			offset += numVertices * sizeof( float ) * 2;
+
+			// upload vertex tangents
+			geom.buffer_offsets[ 3 ] = offset;
+			encoder.writeToBuffer( geom.vertex_buffer_handle, offset, sphereTangents, numTangents * sizeof( float ) * 3 );
+			offset += numVertices * sizeof( float ) * 3;
 
 			// upload indices
 			encoder.writeToBuffer( geom.index_buffer_handle, 0, sphereIndices, numIndices * sizeof( uint16_t ) );
@@ -464,17 +471,18 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 			// We use the same buffer for the whole mesh, but at different offsets.
 			// offsets are held by app->worldGeometry.buffer_offsets
-			le_resource_handle_t buffers[ 3 ] = {
+			le_resource_handle_t buffers[ 4 ] = {
 			    app->worldGeometry.vertex_buffer_handle, // position
 			    app->worldGeometry.vertex_buffer_handle, // normal
 			    app->worldGeometry.vertex_buffer_handle, // uv
+			    app->worldGeometry.vertex_buffer_handle, // tangents
 			};
 
 			encoder
 			    .setScissors( 0, 1, scissors )
 			    .setViewports( 0, 1, viewports )
 			    .bindGraphicsPipeline( pipelineEarthAlbedo )
-			    .bindVertexBuffers( 0, 3, buffers, app->worldGeometry.buffer_offsets.data() )
+			    .bindVertexBuffers( 0, 4, buffers, app->worldGeometry.buffer_offsets.data() )
 			    .bindIndexBuffer( app->worldGeometry.index_buffer_handle, 0 );
 
 			encoder

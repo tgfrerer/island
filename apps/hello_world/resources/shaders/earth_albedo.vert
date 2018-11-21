@@ -10,12 +10,14 @@
 layout (location = 0) in vec3 pos;
 layout (location = 1) in vec3 normal;
 layout (location = 2) in vec2 texCoord;
+layout (location = 3) in vec3 tangent;
 
 // outputs 
 layout (location = 0) out VertexData {
 	vec4 position;
 	vec3 normal;
 	vec2 texCoord;
+	vec3 tangent;
 } outData;
 
 
@@ -45,8 +47,9 @@ void main()
 	outData.position =  viewMatrix * modelMatrix * vec4(pos,1);
 	outData.texCoord = texCoord;	
 	
-	vec4 normal = transpose(inverse(viewMatrix * modelMatrix)) * vec4(normal,1);
-	outData.normal = normal.xyz;
+	mat3 normalMatrix = transpose(inverse(mat3(viewMatrix) * mat3(modelMatrix)));
+	outData.normal = normalMatrix * normal;
+	outData.tangent = normalMatrix * tangent;
 
 	gl_Position = projectionMatrix * outData.position;
 }
