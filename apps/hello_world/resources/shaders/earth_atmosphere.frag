@@ -3,6 +3,10 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
+// we activate this from version 420 onwards, so that the fragment shader
+// is not even run, should depth test fail.
+layout (early_fragment_tests) in;
+
 // SET 0 --------------------------------------------------UNIFORM-INPUTS
 
 layout (set = 0, binding = 0) uniform CameraParams 
@@ -19,6 +23,8 @@ layout (set=1, binding = 0) uniform ModelParams
 	vec4 sunInEyeSpace;
 	vec4 worldCentreInEyeSpace;
 };
+
+layout (set = 1, binding = 1) uniform sampler2D tex_unit_3;
 
 // ---------------------------------------------------------VERTEX-INPUTS
 
@@ -37,7 +43,7 @@ layout (location = 0) out vec4 outFragColor;
 #include "scattering_constants.glsl"
 
 // -----
-// O'Neill scale function, valid for atmosphere width = radius * 0.025
+// O'Neill's scale function, valid for atmosphere width = radius * 0.025
 // the constants in this function are valid for scaleHeight = 0.25 and 
 // an atmosphere to earth radius ratio of 1.025 : 1 
 // -----
@@ -212,21 +218,25 @@ void main(){
 
 	calculateLighting(Atmosphere);
 
+	float nightOnEarth = max(0, -dot(Atmosphere.L, Atmosphere.N));
+	
 	float cosPhi = dot(Atmosphere.V, uLightDirection); 
 
 	const float mieConstGAtmo = -0.92;
 	vec3 scatteredLightColour = vec3(0);
 
 	scatteredLightColour +=  1 * colourMie * FMiePhase(cosPhi, mieConstGAtmo); // it's not the phase functions
-	scatteredLightColour +=  0.8 * colourRayleigh * FRaleighPhase(cosPhi);
+	scatteredLightColour +=  0.5 * colourRayleigh * FRaleighPhase(cosPhi);
 
-	float diffuse = 1.f;
-	diffuse = dot(normal,L);
-	
 	vec3 outColor;
-	// outColor = vec3(1) * (Atmosphere.diffuse + 0.2 * pow(Atmosphere.specularH, 23)) ;
 	outColor = scatteredLightColour;
+
+	vec3 cloudSample =texture(tex_unit_3, inData.texCoord).rgb;
+	outColor += 0.5 * cloudSample * Atmosphere.diffuse;
+	outColor += 0.2 * cloudSample * FMiePhase(dot(Atmosphere.L,-Atmosphere.N),mieConstGAtmo);
+
 	outFragColor = vec4(outColor,1);
+	// outColor = vec3(1) * (Atmosphere.diffuse + 0.2 * pow(Atmosphere.specularH, 23)) ;
 	// outFragColor = vec4((bumpNormal * 0.5 + vec3(0.5)),1);
 	// outFragColor = inData.color;
 }

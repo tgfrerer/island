@@ -79,11 +79,14 @@ struct hello_world_app_o {
 	LeMeshGenerator    sphereGenerator;
 
 	Image         imgEarthAlbedo{};
+	Image         imgEarthNight{};
+	Image         imgEarthClouds{};
 	Image         imgEarthNormals{};
 	WorldGeometry worldGeometry{};
 	NanoTime      timeStamp{};
 	double        timeDelta{};       // time since last frame, in s
 	double        earthRotation = 0; // day/night cycle
+	bool          animate       = true;
 };
 
 static void hello_world_app_process_ui_events( hello_world_app_o *self ); //ffdecl
@@ -165,9 +168,7 @@ static hello_world_app_o *hello_world_app_create() {
 
 	{
 		using namespace le_pixels;
-		//		app->imgEarthAlbedo.pixels = le_pixels_i.create( "/home/tim/Documents/dev/island/apps/hello_world/resources/images/2_no_clouds_8k.jpg", 4, le_pixels_info::eUInt8 );
-		app->imgEarthAlbedo.pixels = le_pixels_i.create( "/home/tim/Documents/dev/island/apps/hello_world/resources/images/world-winter.png", 4, le_pixels_info::eUInt8 );
-		//		app->imgEarthAlbedo.pixels     = le_pixels_i.create( "./local_resources/images/white.tga", 4, le_pixels_info::eUInt8 );
+		app->imgEarthAlbedo.pixels     = le_pixels_i.create( "./local_resources/images/world-winter.tga", 4, le_pixels_info::eUInt8 );
 		app->imgEarthAlbedo.pixelsInfo = le_pixels_i.get_info( app->imgEarthAlbedo.pixels );
 
 		// store earth albedo image handle
@@ -178,6 +179,36 @@ static hello_world_app_o *hello_world_app_create() {
 		                                    .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
 		                                    .build();
 		app->imgEarthAlbedo.textureHandle = LE_TEX_RESOURCE( "TexEarthAlbedo" );
+	}
+
+	{
+		using namespace le_pixels;
+		app->imgEarthNight.pixels     = le_pixels_i.create( "./local_resources/images/earth_lights.tga", 4, le_pixels_info::eUInt8 );
+		app->imgEarthNight.pixelsInfo = le_pixels_i.get_info( app->imgEarthNight.pixels );
+
+		// store earth albedo image handle
+		app->imgEarthNight.imageHandle = LE_IMG_RESOURCE( "EarthNight" );
+		app->imgEarthNight.imageInfo   = le::ImageInfoBuilder()
+		                                   .setFormat( le::Format::eR8G8B8A8Unorm )
+		                                   .setExtent( app->imgEarthNight.pixelsInfo.width, app->imgEarthNight.pixelsInfo.height )
+		                                   .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
+		                                   .build();
+		app->imgEarthNight.textureHandle = LE_TEX_RESOURCE( "TexEarthNight" );
+	}
+
+	{
+		using namespace le_pixels;
+		app->imgEarthClouds.pixels     = le_pixels_i.create( "./local_resources/images/earth_clouds.tga", 4, le_pixels_info::eUInt8 );
+		app->imgEarthClouds.pixelsInfo = le_pixels_i.get_info( app->imgEarthClouds.pixels );
+
+		// store earth albedo image handle
+		app->imgEarthClouds.imageHandle = LE_IMG_RESOURCE( "EarthClouds" );
+		app->imgEarthClouds.imageInfo   = le::ImageInfoBuilder()
+		                                    .setFormat( le::Format::eR8G8B8A8Unorm )
+		                                    .setExtent( app->imgEarthClouds.pixelsInfo.width, app->imgEarthClouds.pixelsInfo.height )
+		                                    .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
+		                                    .build();
+		app->imgEarthClouds.textureHandle = LE_TEX_RESOURCE( "TexEarthClouds" );
 	}
 
 	{
@@ -221,7 +252,9 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto app = static_cast<hello_world_app_o *>( user_data );
 
 	rp.useResource( app->imgEarthAlbedo.imageHandle, app->imgEarthAlbedo.imageInfo );
+	rp.useResource( app->imgEarthNight.imageHandle, app->imgEarthNight.imageInfo );
 	rp.useResource( app->imgEarthNormals.imageHandle, app->imgEarthNormals.imageInfo );
+	rp.useResource( app->imgEarthClouds.imageHandle, app->imgEarthClouds.imageInfo );
 	rp.useResource( app->worldGeometry.vertex_buffer_handle, app->worldGeometry.vertex_buffer_info );
 	rp.useResource( app->worldGeometry.index_buffer_handle, app->worldGeometry.index_buffer_info );
 
@@ -310,6 +343,38 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *use
 
 			app->imgEarthNormals.wasLoaded = true;
 		}
+
+		if ( false == app->imgEarthNight.wasLoaded ) {
+
+			using namespace le_pixels;
+			auto pixelsData = le_pixels_i.get_data( app->imgEarthNight.pixels );
+
+			encoder.writeToImage( app->imgEarthNight.imageHandle,
+			                      {app->imgEarthNight.pixelsInfo.width, app->imgEarthNight.pixelsInfo.height},
+			                      pixelsData,
+			                      app->imgEarthNight.pixelsInfo.byte_count );
+
+			le_pixels_i.destroy( app->imgEarthNight.pixels ); // Free pixels memory
+			app->imgEarthNight.pixels = nullptr;              // Mark pixels memory as freed, otherwise Image.destroy() will double-free!
+
+			app->imgEarthNight.wasLoaded = true;
+		}
+
+		if ( false == app->imgEarthClouds.wasLoaded ) {
+
+			using namespace le_pixels;
+			auto pixelsData = le_pixels_i.get_data( app->imgEarthClouds.pixels );
+
+			encoder.writeToImage( app->imgEarthClouds.imageHandle,
+			                      {app->imgEarthClouds.pixelsInfo.width, app->imgEarthClouds.pixelsInfo.height},
+			                      pixelsData,
+			                      app->imgEarthClouds.pixelsInfo.byte_count );
+
+			le_pixels_i.destroy( app->imgEarthClouds.pixels ); // Free pixels memory
+			app->imgEarthClouds.pixels = nullptr;              // Mark pixels memory as freed, otherwise Image.destroy() will double-free!
+
+			app->imgEarthClouds.wasLoaded = true;
+		}
 	}
 }
 
@@ -327,19 +392,37 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	texInfoAlbedo.sampler.addressModeU = le::SamplerAddressMode::eRepeat;
 	texInfoAlbedo.sampler.addressModeV = le::SamplerAddressMode::eMirroredRepeat;
 
+	LeTextureInfo texInfoNight;
+	texInfoNight.imageView.format     = app->imgEarthNight.imageInfo.image.format;
+	texInfoNight.imageView.imageId    = app->imgEarthNight.imageHandle;
+	texInfoNight.sampler.magFilter    = le::Filter::eLinear;
+	texInfoNight.sampler.minFilter    = le::Filter::eLinear;
+	texInfoNight.sampler.addressModeU = le::SamplerAddressMode::eRepeat;
+	texInfoNight.sampler.addressModeV = le::SamplerAddressMode::eMirroredRepeat;
+
+	LeTextureInfo texInfoClouds;
+	texInfoClouds.imageView.format     = app->imgEarthClouds.imageInfo.image.format;
+	texInfoClouds.imageView.imageId    = app->imgEarthClouds.imageHandle;
+	texInfoClouds.sampler.magFilter    = le::Filter::eLinear;
+	texInfoClouds.sampler.minFilter    = le::Filter::eLinear;
+	texInfoClouds.sampler.addressModeU = le::SamplerAddressMode::eRepeat;
+	texInfoClouds.sampler.addressModeV = le::SamplerAddressMode::eMirroredRepeat;
+
 	LeTextureInfo texInfoNormals;
 	texInfoNormals.imageView.format     = app->imgEarthNormals.imageInfo.image.format;
 	texInfoNormals.imageView.imageId    = app->imgEarthNormals.imageHandle;
 	texInfoNormals.sampler.magFilter    = le::Filter::eLinear;
 	texInfoNormals.sampler.minFilter    = le::Filter::eLinear;
-	texInfoNormals.sampler.addressModeU = le::SamplerAddressMode::eRepeat;
-	texInfoNormals.sampler.addressModeV = le::SamplerAddressMode::eMirroredRepeat;
+	texInfoNormals.sampler.addressModeU = le::SamplerAddressMode::eClampToEdge;
+	texInfoNormals.sampler.addressModeV = le::SamplerAddressMode::eRepeat;
 
 	rp
 	    .addColorAttachment( app->renderer.getBackbufferResource() ) // color attachment
 	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER" ) )
 	    .sampleTexture( app->imgEarthAlbedo.textureHandle, texInfoAlbedo )
+	    .sampleTexture( app->imgEarthNight.textureHandle, texInfoNight )
 	    .sampleTexture( app->imgEarthNormals.textureHandle, texInfoNormals )
+	    .sampleTexture( app->imgEarthClouds.textureHandle, texInfoClouds )
 	    .useResource( app->worldGeometry.vertex_buffer_handle, app->worldGeometry.vertex_buffer_info )
 	    .useResource( app->worldGeometry.index_buffer_handle, app->worldGeometry.index_buffer_info )
 	    .setIsRoot( true ) //
@@ -350,9 +433,10 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 
 // ----------------------------------------------------------------------
 
-constexpr float  size_scale      = 0.25;
+constexpr float size_scale = 0.25;
+// type, triggerpointOnAxis, positionOnAxis, radius
 static glm::vec4 lensflareData[] = {
-    {3, 0.0, 0.0, 400 * size_scale}, //< flare point
+    {3, 0.0, 0.0, 100 * size_scale}, //< flare point
     {0, 0.1, 0.1, 200 * size_scale},
     {0, 0.9, 0.9, 120 * size_scale},
     {0, 1.0, 1.0, 300 * size_scale},
@@ -403,11 +487,12 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		CameraParams cameraParams;
 		ModelParams  earthParams;
 
-		double speed       = 0.01; // degrees per millisecond
-		app->earthRotation = fmod( app->earthRotation + app->timeDelta * speed, 360.0 );
+		double speed           = 0.01; // degrees per millisecond
+		double angularDistance = app->animate ? app->timeDelta * speed : 0;
+		app->earthRotation     = fmod( app->earthRotation + angularDistance, 360.0 );
 
 		earthParams.model       = glm::mat4( 1.f );                                                                                  // identity matrix
-		earthParams.model       = glm::rotate( earthParams.model, glm::radians( 23.4f ), glm::vec3{0, 0, 1} );                       // apply ecliptic
+		earthParams.model       = glm::rotate( earthParams.model, glm::radians( -23.4f ), glm::vec3{0, 0, 1} );                      // apply ecliptic
 		earthParams.model       = glm::rotate( earthParams.model, glm::radians( float( app->earthRotation ) ), glm::vec3{0, 1, 0} ); // apply day/night rotation
 		cameraParams.view       = reinterpret_cast<glm::mat4 const &>( *app->camera.getViewMatrix() );
 		cameraParams.projection = reinterpret_cast<glm::mat4 const &>( *app->camera.getProjectionMatrix() );
@@ -464,6 +549,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		    .setArgumentData( LE_ARGUMENT_NAME( ModelParams ), &earthParams, sizeof( ModelParams ) )
 		    .setArgumentTexture( LE_ARGUMENT_NAME( tex_unit_0 ), app->imgEarthAlbedo.textureHandle )
 		    .setArgumentTexture( LE_ARGUMENT_NAME( tex_unit_1 ), app->imgEarthNormals.textureHandle )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( tex_unit_2 ), app->imgEarthNight.textureHandle )
 		    .drawIndexed( uint32_t( app->worldGeometry.indexCount ) ) //
 		    ;
 
@@ -493,6 +579,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		    .bindGraphicsPipeline( pipelineEarthAtmosphere )
 		    .setArgumentData( LE_ARGUMENT_NAME( ModelParams ), &earthParams, sizeof( ModelParams ) )
 		    .setArgumentData( LE_ARGUMENT_NAME( CameraParams ), &cameraParams, sizeof( CameraParams ) )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( tex_unit_3 ), app->imgEarthClouds.textureHandle )
 		    .bindVertexBuffers( 0, 3, buffers, app->worldGeometry.buffer_offsets.data() )
 		    .drawIndexed( uint32_t( app->worldGeometry.indexCount ) ) // index buffers should still be bound.
 		    ;
@@ -626,6 +713,8 @@ static void hello_world_app_process_ui_events( hello_world_app_o *self ) {
 			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eF3 ) {
 				float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, glm::inverse( *reinterpret_cast<glm::mat4 const *>( self->camera.getViewMatrix() ) ) * glm::vec4( 0, 0, 0, 1 ) );
 				self->cameraController.setPivotDistance( distance_to_origin );
+			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eF4 ) {
+				self->animate ^= true;
 			}
 
 		} break;

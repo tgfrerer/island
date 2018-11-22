@@ -29,6 +29,7 @@ layout (set=1, binding = 0) uniform ModelParams
 
 layout (set = 1, binding = 1) uniform sampler2D tex_unit_0;
 layout (set = 1, binding = 2) uniform sampler2D tex_unit_1;
+layout (set = 1, binding = 3) uniform sampler2D tex_unit_2;
 
 
 struct BlinnPhong {
@@ -76,7 +77,7 @@ void main(){
 		normal = tangentSpace * bumpNormal; // transform bumpNormal into tangent space
 	}
 
-	vec3 L = normalize(sunInEyeSpace.xyz); // parallel rays to distant sun, we don't care about the origin point that much;
+	//vec3 L = normalize(sunInEyeSpace.xyz); // parallel rays to distant sun, we don't care about the origin point that much;
 
 	// calculate specular + diffuse light terms.	
 	BlinnPhong Atmosphere;
@@ -86,10 +87,14 @@ void main(){
 
 	calculateLighting(Atmosphere);	
 
-	vec3 outColor = vec3(1);
-	outColor = texture(tex_unit_0, inData.texCoord).rgb;
+	// night on earth is when diffuse would turn negative
+	float nightOnEarth = max(0, -dot(Atmosphere.L, Atmosphere.N));
+
+	vec3 daySample   = texture(tex_unit_0, inData.texCoord).rgb;
+	vec3 nightSample = texture(tex_unit_2, inData.texCoord).rgb;
 	
-	outColor *=  (Atmosphere.diffuse + 0.6 * pow(Atmosphere.specularH, 23)) ;
+	vec3 outColor = vec3(1);
+	outColor = mix(daySample * (Atmosphere.diffuse + 0.6 * pow(Atmosphere.specularH, 23)) , nightSample, nightOnEarth*1.2 );
 
 	outFragColor = vec4(outColor,1);
 	// outFragColor = vec4(inData.texCoord, 0, 1);
