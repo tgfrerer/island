@@ -238,31 +238,61 @@ static void window_decrease_reference_count( pal_window_o *self ) {
 
 // ----------------------------------------------------------------------
 
+static bool pt2_inside_rect( int x, int y, int left, int top, int width, int height ) {
+	return ( x > left &&
+	         x < ( left + width ) &&
+	         y > top &&
+	         y < ( top + height ) );
+}
+
+// ----------------------------------------------------------------------
+
+// Goes fullscreen (or returns to windowed mode) on the monitor which contains
+// the current window.
+//
+// If more than one monitor is available, the monitor which contains the current
+// window's centre receives the fullscreen window.
+//
 static void window_toggle_fullscreen( pal_window_o *self ) {
+
+	auto &g = self->windowGeometry;
 
 	if ( self->isFullscreen ) {
 		//restore previous window state
-		auto &g = self->windowGeometry;
 
 		glfwSetWindowMonitor( self->window, nullptr, g.x, g.y, g.width, g.height, 0 );
 
 		self->isFullscreen = false;
 	} else {
-		// go fullscreen
+		// note that monitor vidmode width and window width and height are both given in screen coordinates
+		// screen coordinates have y go from top to bottom (y-axis points down, origin is at the top left)
 
-		// first store current window geometry to restore state later.
-		glfwGetWindowPos( self->window, &self->windowGeometry.x, &self->windowGeometry.y );
-		glfwGetWindowSize( self->window, &self->windowGeometry.width, &self->windowGeometry.height );
+		// First store current window geometry to restore state later.
+		glfwGetWindowPos( self->window, &g.x, &g.y );
+		glfwGetWindowSize( self->window, &g.width, &g.height );
 
-		GLFWmonitor * primaryMonitor    = glfwGetPrimaryMonitor();
-		GLFWmonitor * fullscreenMonitor = primaryMonitor;
-		int           monitorCount      = 0;
-		GLFWmonitor **monitors          = glfwGetMonitors( &monitorCount );
+		int                 monitorCount      = 0;
+		GLFWmonitor **      monitors          = glfwGetMonitors( &monitorCount );
+		GLFWmonitor **const monitors_end      = monitors + monitorCount;
+		GLFWmonitor *       fullscreenMonitor = *monitors;
 
-		// we want to go fullscreen on the first non-primary monitor
-		for ( int i = 0; i != monitorCount; i++ ) {
-			if ( monitors[ i ] != primaryMonitor ) {
-				fullscreenMonitor = monitors[ i ];
+		// Iterate over all monitors, and find out if our window is inside any of them.
+		// If so, that monitor will be our fullscreen monitor.
+
+		for ( auto monitor = monitors; monitor != monitors_end; monitor++ ) {
+
+			int x_m{};
+			int y_m{};
+			glfwGetMonitorPos( *monitor, &x_m, &y_m );
+
+			// Get monitor extents (in screen corrds) by querying its GLFWvidmode
+			GLFWvidmode const *mode = glfwGetVideoMode( *monitor );
+
+			// Check if the current window's centre point is inside the monitor in question.
+			// If yes, we have found our target monitor for going fullscreen.
+
+			if ( pt2_inside_rect( g.x + g.width / 2, g.y + g.height / 2, x_m, y_m, mode->width, mode->height ) ) {
+				fullscreenMonitor = *monitor;
 				break;
 			}
 		}
