@@ -2,17 +2,19 @@
 
 # ROADMAP
 
-* add sort-key to encoder, so that we can decouple calling the callbacks
-  from generating the command buffers.
-
 # TODO
 
 ## (A)
 
 ## (B)
 
-- add samplercreateinfo fields to textureInfo (mipmapmode, etc.) when
-  creating sampler/textures
+- Implement multisampling : this means renderpasses must enable it if any
+  pipelines request it. better to do it the other way round, where
+  renderpass injects their sampling into pipelines. This is probably
+  linked to resolve attachments, we must investigate further.
+
+- Bug: when including a glsl include at run-time, it is not added to the
+  list of watched files.
 
 - LeImageAttachmentInfo is not very discoverable - we need to think about
   a better way to set properties for attachments
@@ -52,6 +54,8 @@
 
 ## (Unsorted)
 
+- add sort-key to encoder, so that we can decouple calling the callbacks
+  from generating the command buffers.
 
 - api for creating a buffer is not specific enough right now,
   `renderpass.createResource` should be used, but this can also be used
