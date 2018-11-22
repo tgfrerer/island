@@ -24,11 +24,37 @@ layout (set=1, binding = 0) uniform ModelParams
 {
 	mat4 modelMatrix;
 	vec4 sunInEyeSpace;
+	vec4 worldCentreInEyeSpace;
 };
 
 layout (set = 1, binding = 1) uniform sampler2D tex_unit_0;
 layout (set = 1, binding = 2) uniform sampler2D tex_unit_1;
 
+
+struct BlinnPhong {
+	vec3 V; // view vector
+	vec3 L; // light vector
+	vec3 N; // normal vector
+	vec3 H; // half vector
+	vec3 R; // reflected light vector
+	float diffuse;
+	float specularR; // based on reflect
+	float specularH; // based on half vector
+};
+
+// ----------------------------------------------------------------------
+
+void calculateLighting(inout BlinnPhong b){
+
+	b.H = normalize(b.V + b.L );
+	b.R = reflect( - b.L, b.N);
+
+	b.diffuse   = max( dot( b.L, b.N), 0.f);
+	b.specularH = max( dot(b.N, b.H) , 0.f);
+	b.specularR = max( dot(b.R, b.V) , 0.f);
+}
+
+// ----------------------------------------------------------------------
 
 void main(){
 
@@ -37,35 +63,36 @@ void main(){
 	vec3 tangent  = normalize(inData.tangent);
 	vec3 biNormal = cross(normal,tangent);
 
-	// tangent space is a space where the 
+	// Tangent space is a space where the: 
 	// x-axis is formed by tangent,
 	// y-axis is formed by biNormal,
 	// z-axis is formed by normal
 	mat3 tangentSpace = mat3(tangent, biNormal, normal);
 
-	vec3 bumpMap = texture(tex_unit_1, inData.texCoord).rgb;
-	vec3 bumpNormal = 2 * (bumpMap - vec3(0.5));
-	bumpNormal = tangentSpace * bumpNormal;
-
+	{
+		vec3 bumpMap = texture(tex_unit_1, inData.texCoord).rgb;
+		vec3 bumpNormal = 2 * (bumpMap - vec3(0.5)); // map 0..1 to -1..1
+		// store bumpNormal in normal
+		normal = tangentSpace * bumpNormal; // transform bumpNormal into tangent space
+	}
 
 	vec3 L = normalize(sunInEyeSpace.xyz); // parallel rays to distant sun, we don't care about the origin point that much;
 
-	float diffuse = 1.f;
-	diffuse = dot(normal,L);
-	diffuse = dot(bumpNormal,L);
-	
-	outFragColor = vec4(inData.texCoord, 0, 1);
+	// calculate specular + diffuse light terms.	
+	BlinnPhong Atmosphere;
+	Atmosphere.V = normalize(-inData.position.xyz); // (negative view ray direction) : ray from sample point to camera
+	Atmosphere.N = normal;
+	Atmosphere.L = normalize(sunInEyeSpace.xyz - inData.position.xyz);
 
-	
+	calculateLighting(Atmosphere);	
 
 	vec3 outColor = vec3(1);
 	outColor = texture(tex_unit_0, inData.texCoord).rgb;
 	
-
-
-	outColor *= diffuse;
+	outColor *=  (Atmosphere.diffuse + 0.6 * pow(Atmosphere.specularH, 23)) ;
 
 	outFragColor = vec4(outColor,1);
+	// outFragColor = vec4(inData.texCoord, 0, 1);
 	// outFragColor = vec4((bumpNormal * 0.5 + vec3(0.5)),1);
 	// outFragColor = inData.color;
 }

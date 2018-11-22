@@ -23,6 +23,9 @@
 #include <memory>
 #include <sstream>
 #include <vector>
+#include <chrono>
+
+using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 #define LE_ARGUMENT_NAME( x ) hash_64_fnv1a_const( #x )
 
@@ -78,6 +81,9 @@ struct hello_world_app_o {
 	Image         imgEarthAlbedo{};
 	Image         imgEarthNormals{};
 	WorldGeometry worldGeometry{};
+	NanoTime      timeStamp{};
+	double        timeDelta{};       // time since last frame, in s
+	double        earthRotation = 0; // day/night cycle
 };
 
 static void hello_world_app_process_ui_events( hello_world_app_o *self ); //ffdecl
@@ -189,6 +195,9 @@ static hello_world_app_o *hello_world_app_create() {
 		                                     .build();
 		app->imgEarthNormals.textureHandle = LE_TEX_RESOURCE( "TexEarthNormals" );
 	}
+
+	// initialise app timer
+	app->timeStamp = std::chrono::high_resolution_clock::now();
 
 	return app;
 }
@@ -383,70 +392,37 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	};
 
 	struct ModelParams {
-		glm::mat4 model;
-		glm::vec4 sunInEyeSpace;
+		__attribute__( ( aligned( 16 ) ) ) glm::mat4 model;
+		__attribute__( ( aligned( 16 ) ) ) glm::vec4 sunInEyeSpace;
+		__attribute__( ( aligned( 16 ) ) ) glm::vec4 worldCentreInEyeSpace;
 	};
 
 	// Draw main scene
 	if ( true ) {
 
-		static auto pipelineLensflares =
-		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-		        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/lensflare.vert", le::ShaderStage::eVertex ) )
-		        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/lensflare.frag", le::ShaderStage::eFragment ) )
-		        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/lensflare.geom", le::ShaderStage::eGeometry ) )
-		        .withRasterizationState()
-		        .setPolygonMode( le::PolygonMode::eFill )
-		        .setCullMode( le::CullModeFlagBits::eNone )
-		        .end()
-		        .withInputAssemblyState()
-		        .setToplogy( le::PrimitiveTopology::ePointList )
-		        .end()
-		        .withAttachmentBlendState( 0 )
-		        .usePreset( le::AttachmentBlendPreset::eAdd )
-		        .end()
-		        .withDepthStencilState()
-		        .setDepthTestEnable( false )
-		        .end()
-		        .build();
-
 		CameraParams cameraParams;
 		ModelParams  earthParams;
 
-		earthParams.model       = glm::mat4( 1.f );                                                            // identity matrix
-		earthParams.model       = glm::rotate( earthParams.model, glm::radians( 23.4f ), glm::vec3{0, 0, 1} ); // apply ecliptic
+		double speed       = 0.01; // degrees per millisecond
+		app->earthRotation = fmod( app->earthRotation + app->timeDelta * speed, 360.0 );
+
+		earthParams.model       = glm::mat4( 1.f );                                                                                  // identity matrix
+		earthParams.model       = glm::rotate( earthParams.model, glm::radians( 23.4f ), glm::vec3{0, 0, 1} );                       // apply ecliptic
+		earthParams.model       = glm::rotate( earthParams.model, glm::radians( float( app->earthRotation ) ), glm::vec3{0, 1, 0} ); // apply day/night rotation
 		cameraParams.view       = reinterpret_cast<glm::mat4 const &>( *app->camera.getViewMatrix() );
 		cameraParams.projection = reinterpret_cast<glm::mat4 const &>( *app->camera.getProjectionMatrix() );
 
-		struct LensflareParams {
-			// uCanvas:
-			// .x -> global canvas height (in pixels)
-			// .y -> global canvas width (in pixels)
-			// .z -> identity distance, that is the distance at which canvas is rendered 1:1
-			__attribute__( ( aligned( 16 ) ) ) glm::vec3 uCanvas;
-			__attribute__( ( aligned( 16 ) ) ) glm::vec3 uLensflareSource; ///< source of flare in screen space
-			float                                        uHowClose;
-		};
+		glm::vec4 sunInWorldSpace         = glm::vec4{1000000, 0, 1000000, 1.f};
+		glm::vec4 sourceInCameraSpace     = cameraParams.view * sunInWorldSpace;
+		glm::vec4 worldCentreInWorldSpace = glm::vec4{0, 0, 0, 1};
+		glm::vec4 worldCentreInEyeSpace   = cameraParams.view * earthParams.model * worldCentreInWorldSpace;
+		glm::vec4 sourceInClipSpace       = cameraParams.projection * sourceInCameraSpace;
+		sourceInClipSpace                 = sourceInClipSpace / sourceInClipSpace.w; // Normalise
 
-		glm::vec4 sunInWorldSpace     = glm::vec4{1000000, 0, 1000000, 1.f};
-		glm::vec4 sourceInCameraSpace = cameraParams.view * sunInWorldSpace;
-		glm::vec4 sourceInClipSpace   = cameraParams.projection * sourceInCameraSpace;
-		sourceInClipSpace             = sourceInClipSpace / sourceInClipSpace.w; // Normalise
-
-		earthParams.sunInEyeSpace = sourceInCameraSpace;
+		earthParams.sunInEyeSpace         = sourceInCameraSpace;
+		earthParams.worldCentreInEyeSpace = worldCentreInEyeSpace;
 
 		bool inFrustum = app->camera.getSphereCentreInFrustum( &sourceInCameraSpace.x, 100 );
-
-		//		std::cout << "Clip space: " << glm::to_string( sourceInClipSpace ) << ", Camera Space: " << glm::to_string( sourceInCameraSpace ) << ", " << ( inFrustum ? "PASS" : "FAIL" )
-		//		          << std::endl
-		//		          << std::flush;
-
-		LensflareParams params{};
-		params.uCanvas.x        = screenWidth;
-		params.uCanvas.y        = screenHeight;
-		params.uCanvas.z        = app->camera.getUnitDistance();
-		params.uLensflareSource = sourceInClipSpace;
-		params.uHowClose        = 500;
 
 		// draw mesh
 
@@ -467,36 +443,101 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		        .end()
 		        .build();
 
-		{
+		// We use the same buffer for the whole mesh, but at different offsets.
+		// offsets are held by app->worldGeometry.buffer_offsets
+		le_resource_handle_t buffers[ 4 ] = {
+		    app->worldGeometry.vertex_buffer_handle, // position
+		    app->worldGeometry.vertex_buffer_handle, // normal
+		    app->worldGeometry.vertex_buffer_handle, // uv
+		    app->worldGeometry.vertex_buffer_handle, // tangents
+		};
 
-			// We use the same buffer for the whole mesh, but at different offsets.
-			// offsets are held by app->worldGeometry.buffer_offsets
-			le_resource_handle_t buffers[ 4 ] = {
-			    app->worldGeometry.vertex_buffer_handle, // position
-			    app->worldGeometry.vertex_buffer_handle, // normal
-			    app->worldGeometry.vertex_buffer_handle, // uv
-			    app->worldGeometry.vertex_buffer_handle, // tangents
-			};
+		encoder
+		    .setScissors( 0, 1, scissors )
+		    .setViewports( 0, 1, viewports )
+		    .bindGraphicsPipeline( pipelineEarthAlbedo )
+		    .bindVertexBuffers( 0, 4, buffers, app->worldGeometry.buffer_offsets.data() )
+		    .bindIndexBuffer( app->worldGeometry.index_buffer_handle, 0 );
 
-			encoder
-			    .setScissors( 0, 1, scissors )
-			    .setViewports( 0, 1, viewports )
-			    .bindGraphicsPipeline( pipelineEarthAlbedo )
-			    .bindVertexBuffers( 0, 4, buffers, app->worldGeometry.buffer_offsets.data() )
-			    .bindIndexBuffer( app->worldGeometry.index_buffer_handle, 0 );
+		encoder
+		    .setArgumentData( LE_ARGUMENT_NAME( CameraParams ), &cameraParams, sizeof( CameraParams ) )
+		    .setArgumentData( LE_ARGUMENT_NAME( ModelParams ), &earthParams, sizeof( ModelParams ) )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( tex_unit_0 ), app->imgEarthAlbedo.textureHandle )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( tex_unit_1 ), app->imgEarthNormals.textureHandle )
+		    .drawIndexed( uint32_t( app->worldGeometry.indexCount ) ) //
+		    ;
 
-			encoder
-			    .setArgumentData( LE_ARGUMENT_NAME( CameraParams ), &cameraParams, sizeof( CameraParams ) )
-			    .setArgumentData( LE_ARGUMENT_NAME( ModelParams ), &earthParams, sizeof( ModelParams ) )
-			    .setArgumentTexture( LE_ARGUMENT_NAME( tex_unit_0 ), app->imgEarthAlbedo.textureHandle )
-			    .setArgumentTexture( LE_ARGUMENT_NAME( tex_unit_1 ), app->imgEarthNormals.textureHandle )
-			    .drawIndexed( uint32_t( app->worldGeometry.indexCount ) ) //
-			    ;
-		}
+		// draw atmosphere
+
+		static auto pipelineEarthAtmosphere =
+		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+		        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/earth_atmosphere.vert", le::ShaderStage::eVertex ) )
+		        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/earth_atmosphere.frag", le::ShaderStage::eFragment ) )
+		        .withRasterizationState()
+		        .setPolygonMode( le::PolygonMode::eFill )
+		        .setCullMode( le::CullModeFlagBits::eBack )
+		        .setFrontFace( le::FrontFace::eCounterClockwise )
+		        .end()
+		        .withAttachmentBlendState()
+		        .usePreset( le::AttachmentBlendPreset::eAdd )
+		        .end()
+		        .withDepthStencilState()
+		        .setDepthTestEnable( true )
+		        .setDepthWriteEnable( false )
+		        .end()
+		        .build();
+
+		earthParams.model = glm::scale( earthParams.model, glm::vec3{1.025f} );
+
+		encoder
+		    .bindGraphicsPipeline( pipelineEarthAtmosphere )
+		    .setArgumentData( LE_ARGUMENT_NAME( ModelParams ), &earthParams, sizeof( ModelParams ) )
+		    .setArgumentData( LE_ARGUMENT_NAME( CameraParams ), &cameraParams, sizeof( CameraParams ) )
+		    .bindVertexBuffers( 0, 3, buffers, app->worldGeometry.buffer_offsets.data() )
+		    .drawIndexed( uint32_t( app->worldGeometry.indexCount ) ) // index buffers should still be bound.
+		    ;
 
 		// let's check if source is in clip space
 
-		if ( inFrustum && false )
+		if ( inFrustum ) {
+
+			struct LensflareParams {
+				// uCanvas:
+				// .x -> global canvas height (in pixels)
+				// .y -> global canvas width (in pixels)
+				// .z -> identity distance, that is the distance at which canvas is rendered 1:1
+				__attribute__( ( aligned( 16 ) ) ) glm::vec3 uCanvas;
+				__attribute__( ( aligned( 16 ) ) ) glm::vec3 uLensflareSource; ///< source of flare in screen space
+				float                                        uHowClose;
+			};
+
+			static auto pipelineLensflares =
+			    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+			        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/lensflare.vert", le::ShaderStage::eVertex ) )
+			        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/lensflare.frag", le::ShaderStage::eFragment ) )
+			        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/lensflare.geom", le::ShaderStage::eGeometry ) )
+			        .withRasterizationState()
+			        .setPolygonMode( le::PolygonMode::eFill )
+			        .setCullMode( le::CullModeFlagBits::eNone )
+			        .end()
+			        .withInputAssemblyState()
+			        .setToplogy( le::PrimitiveTopology::ePointList )
+			        .end()
+			        .withAttachmentBlendState( 0 )
+			        .usePreset( le::AttachmentBlendPreset::eAdd )
+			        .end()
+			        .withDepthStencilState()
+			        .setDepthTestEnable( false )
+			        .end()
+			        .build();
+
+			LensflareParams params{};
+			params.uCanvas.x        = screenWidth * 0.5;
+			params.uCanvas.y        = screenHeight * 0.5;
+			params.uCanvas.z        = app->camera.getUnitDistance();
+			params.uLensflareSource = sourceInClipSpace;
+			params.uHowClose        = 500;
+
 			encoder
 			    .bindGraphicsPipeline( pipelineLensflares )
 			    .setArgumentData( LE_ARGUMENT_NAME( CameraParams ), &cameraParams, sizeof( CameraParams ) )
@@ -504,9 +545,9 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 			    .setVertexData( lensflareData, sizeof( lensflareData ), 0 )
 			    .draw( sizeof( lensflareData ) / sizeof( glm::vec4 ) ) //
 			    ;
-	}
+		} // end inFrustum
+	}     // end draw main scene
 }
-
 // ----------------------------------------------------------------------
 
 static bool hello_world_app_update( hello_world_app_o *self ) {
@@ -532,7 +573,9 @@ static bool hello_world_app_update( hello_world_app_o *self ) {
 	}
 	//	self->cameraController.setPivotDistance( 0 );
 
-	using namespace le_renderer;
+	auto now        = std::chrono::high_resolution_clock::now();
+	self->timeDelta = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>( self->timeStamp - now ).count();
+	self->timeStamp = now;
 
 	le::RenderModule mainModule{};
 	{
@@ -574,7 +617,17 @@ static void hello_world_app_process_ui_events( hello_world_app_o *self ) {
 			auto &e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eF11 ) {
 				wantsToggle ^= true;
+			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eF1 ) {
+				reset_camera( self );
+				float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, glm::inverse( *reinterpret_cast<glm::mat4 const *>( self->camera.getViewMatrix() ) ) * glm::vec4( 0, 0, 0, 1 ) );
+				self->cameraController.setPivotDistance( distance_to_origin );
+			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eF2 ) {
+				self->cameraController.setPivotDistance( 0 );
+			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eF3 ) {
+				float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, glm::inverse( *reinterpret_cast<glm::mat4 const *>( self->camera.getViewMatrix() ) ) * glm::vec4( 0, 0, 0, 1 ) );
+				self->cameraController.setPivotDistance( distance_to_origin );
 			}
+
 		} break;
 		default:
 			// do nothing
