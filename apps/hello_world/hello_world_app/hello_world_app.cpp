@@ -107,6 +107,25 @@ static void reset_camera( hello_world_app_o *self ); // ffdecl.
 
 // ----------------------------------------------------------------------
 
+static bool loadImage( Image &img, char const *path, le_pixels_info::TYPE const &pixelType = le_pixels_info::eUInt8, le::Format const &imgFormat = le::Format::eR8G8B8A8Unorm, int numChannels = 4 ) {
+	using namespace le_pixels;
+	img.pixels     = le_pixels_i.create( path, numChannels, pixelType );
+	img.pixelsInfo = le_pixels_i.get_info( img.pixels );
+
+	// store earth albedo image handle
+	img.imageHandle = LE_IMG_RESOURCE( path );
+	img.imageInfo   = le::ImageInfoBuilder()
+	                    .setFormat( imgFormat )
+	                    .setExtent( img.pixelsInfo.width, img.pixelsInfo.height )
+	                    .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
+	                    .build();
+
+	img.textureHandle = LE_TEX_RESOURCE( ( std::string( path ) + "_tex" ).c_str() );
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
 static hello_world_app_o *hello_world_app_create() {
 	auto app = new ( hello_world_app_o );
 
@@ -166,66 +185,11 @@ static hello_world_app_o *hello_world_app_create() {
 
 	// load pixels for earth albedo
 
-	{
-		using namespace le_pixels;
-		app->imgEarthAlbedo.pixels     = le_pixels_i.create( "./local_resources/images/world-winter.tga", 4, le_pixels_info::eUInt8 );
-		app->imgEarthAlbedo.pixelsInfo = le_pixels_i.get_info( app->imgEarthAlbedo.pixels );
+	loadImage( app->imgEarthAlbedo, "./local_resources/images/world-winter.tga" );
+	loadImage( app->imgEarthNight, "./local_resources/images/earth_lights.tga" );
+	loadImage( app->imgEarthClouds, "./local_resources/images/earth_clouds.tga" );
 
-		// store earth albedo image handle
-		app->imgEarthAlbedo.imageHandle = LE_IMG_RESOURCE( "EarthAlbedo" );
-		app->imgEarthAlbedo.imageInfo   = le::ImageInfoBuilder()
-		                                    .setFormat( le::Format::eR8G8B8A8Unorm )
-		                                    .setExtent( app->imgEarthAlbedo.pixelsInfo.width, app->imgEarthAlbedo.pixelsInfo.height )
-		                                    .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
-		                                    .build();
-		app->imgEarthAlbedo.textureHandle = LE_TEX_RESOURCE( "TexEarthAlbedo" );
-	}
-
-	{
-		using namespace le_pixels;
-		app->imgEarthNight.pixels     = le_pixels_i.create( "./local_resources/images/earth_lights.tga", 4, le_pixels_info::eUInt8 );
-		app->imgEarthNight.pixelsInfo = le_pixels_i.get_info( app->imgEarthNight.pixels );
-
-		// store earth albedo image handle
-		app->imgEarthNight.imageHandle = LE_IMG_RESOURCE( "EarthNight" );
-		app->imgEarthNight.imageInfo   = le::ImageInfoBuilder()
-		                                   .setFormat( le::Format::eR8G8B8A8Unorm )
-		                                   .setExtent( app->imgEarthNight.pixelsInfo.width, app->imgEarthNight.pixelsInfo.height )
-		                                   .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
-		                                   .build();
-		app->imgEarthNight.textureHandle = LE_TEX_RESOURCE( "TexEarthNight" );
-	}
-
-	{
-		using namespace le_pixels;
-		app->imgEarthClouds.pixels     = le_pixels_i.create( "./local_resources/images/earth_clouds.tga", 4, le_pixels_info::eUInt8 );
-		app->imgEarthClouds.pixelsInfo = le_pixels_i.get_info( app->imgEarthClouds.pixels );
-
-		// store earth albedo image handle
-		app->imgEarthClouds.imageHandle = LE_IMG_RESOURCE( "EarthClouds" );
-		app->imgEarthClouds.imageInfo   = le::ImageInfoBuilder()
-		                                    .setFormat( le::Format::eR8G8B8A8Unorm )
-		                                    .setExtent( app->imgEarthClouds.pixelsInfo.width, app->imgEarthClouds.pixelsInfo.height )
-		                                    .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
-		                                    .build();
-		app->imgEarthClouds.textureHandle = LE_TEX_RESOURCE( "TexEarthClouds" );
-	}
-
-	{
-		// load pixels for earth normals
-		using namespace le_pixels;
-		app->imgEarthNormals.pixels     = le_pixels_i.create( "./local_resources/images/normals-small.tga", 4, le_pixels_info::eUInt16 );
-		app->imgEarthNormals.pixelsInfo = le_pixels_i.get_info( app->imgEarthNormals.pixels );
-
-		// store earth albedo image handle
-		app->imgEarthNormals.imageHandle = LE_IMG_RESOURCE( "EarthNormals" );
-		app->imgEarthNormals.imageInfo   = le::ImageInfoBuilder()
-		                                     .setFormat( le::Format::eR16G16B16A16Unorm )
-		                                     .setExtent( app->imgEarthNormals.pixelsInfo.width, app->imgEarthNormals.pixelsInfo.height )
-		                                     .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
-		                                     .build();
-		app->imgEarthNormals.textureHandle = LE_TEX_RESOURCE( "TexEarthNormals" );
-	}
+	loadImage( app->imgEarthNormals, "./local_resources/images/normals-small.tga", le_pixels_info::eUInt16, le::Format::eR16G16B16A16Unorm );
 
 	// initialise app timer
 	app->timeStamp = std::chrono::high_resolution_clock::now();
