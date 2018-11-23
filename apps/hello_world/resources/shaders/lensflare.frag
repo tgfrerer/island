@@ -59,7 +59,7 @@ if ( true ) // fancy effects on / off
 		float gradient = 1.0;
 
 		vec2 texPos = 2.0 * (vertex.texcoord.xy - vec2(0.5));
-		float texDistance = length(texPos);
+		float texDistance = length(texPos) + EPSILON;
 		vec2 nVec = vec2(1,0);
 
 		float cosPhi = dot(texPos, nVec) / texDistance ;
