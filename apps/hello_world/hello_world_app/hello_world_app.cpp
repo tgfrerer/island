@@ -185,11 +185,10 @@ static hello_world_app_o *hello_world_app_create() {
 
 	// load pixels for earth albedo
 
-	loadImage( app->imgEarthAlbedo, "./local_resources/images/world-winter.tga" );
-	loadImage( app->imgEarthNight, "./local_resources/images/earth_lights.tga" );
-	loadImage( app->imgEarthClouds, "./local_resources/images/earth_clouds.tga" );
-
-	loadImage( app->imgEarthNormals, "./local_resources/images/normals-small.tga", le_pixels_info::eUInt16, le::Format::eR16G16B16A16Unorm );
+	loadImage( app->imgEarthAlbedo, "./local_resources/images/world_winter.jpg" );
+	loadImage( app->imgEarthNight, "./local_resources/images/earth_lights.jpg" );
+	loadImage( app->imgEarthClouds, "./local_resources/images/earth_clouds.jpg" );
+	loadImage( app->imgEarthNormals, "./local_resources/images/normals_small.png", le_pixels_info::eUInt16, le::Format::eR16G16B16A16Unorm );
 
 	// initialise app timer
 	app->timeStamp = std::chrono::high_resolution_clock::now();
