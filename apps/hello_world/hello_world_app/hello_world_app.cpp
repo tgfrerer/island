@@ -392,24 +392,23 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 
 // ----------------------------------------------------------------------
 
-constexpr float size_scale = 0.25;
 // type, triggerpointOnAxis, positionOnAxis, radius
 static glm::vec4 lensflareData[] = {
-    {3, 0.0, 0.0, 100 * size_scale}, //< flare point
-    {0, 0.1, 0.1, 200 * size_scale},
-    {0, 0.9, 0.9, 120 * size_scale},
-    {0, 1.0, 1.0, 300 * size_scale},
-    {0, 1.2, 1.2, 120 * size_scale},
-    {0, 1.5, 1.5, 30 * size_scale},
-    {1, 0.3, 0.3, 650 * size_scale},
-    {1, 0.5, 0.5, 300 * size_scale}, ///< screen centre
-    {1, 1.1, 1.1, 1300 * size_scale},
-    {1, 2.5, 2.5, 2300 * size_scale},
-    {2, 1.0, 1.0, 500 * size_scale},
-    {2, 1.0, 1.1, 400 * size_scale},
-    {2, 1.0, 1.2, 400 * size_scale},
-    {2, 1.0, 1.5, 500 * size_scale},
-    {2, 1.0, 2.5, 400 * size_scale},
+    {3, 0.0, 0.0, 0.100}, //< flare point
+    {0, 0.1, 0.1, 0.200},
+    {0, 0.9, 0.9, 0.120},
+    {0, 1.0, 1.0, 0.300},
+    {0, 1.2, 1.2, 0.120},
+    {0, 1.5, 1.5, 0.300},
+    {1, 0.3, 0.3, 0.650},
+    {1, 0.5, 0.5, 0.300}, ///< screen centre
+    {1, 1.1, 1.1, 1.300},
+    {1, 2.5, 2.5, 2.300},
+    {2, 1.0, 1.0, 0.500},
+    {2, 1.0, 1.1, 0.400},
+    {2, 1.0, 1.2, 0.400},
+    {2, 1.0, 1.5, 0.500},
+    {2, 1.0, 2.5, 0.400},
 };
 
 static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {

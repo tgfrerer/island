@@ -83,7 +83,7 @@ void main()
 		abs(uCanvas.y * 0.25) - abs(triggerPoint.y)) / (uCanvas.x * 0.25); //< divide by largest possible distance. you need to change this to .y if canvas height < canvas width
 
 	vertex.rotation = atan(triggerPoint.y,triggerPoint.x); // gets rotation in range -pi,pi
-	vertex.radius = fLensflareRadius;
+	vertex.radius = fLensflareRadius * min(uCanvas.x,uCanvas.y)*0.5;
 	vertex.distanceToBorder = distanceToBorder;
 	vertex.intensity = (1.0-smoothstep(500,1300,uHowClose));
 }
