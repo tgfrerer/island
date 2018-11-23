@@ -107,7 +107,7 @@ static void reset_camera( hello_world_app_o *self ); // ffdecl.
 
 // ----------------------------------------------------------------------
 
-static bool loadImage( Image &img, char const *path, le_pixels_info::TYPE const &pixelType = le_pixels_info::eUInt8, le::Format const &imgFormat = le::Format::eR8G8B8A8Unorm, int numChannels = 4 ) {
+static bool initialiseImage( Image &img, char const *path, le_pixels_info::TYPE const &pixelType = le_pixels_info::eUInt8, le::Format const &imgFormat = le::Format::eR8G8B8A8Unorm, int numChannels = 4 ) {
 	using namespace le_pixels;
 	img.pixels     = le_pixels_i.create( path, numChannels, pixelType );
 	img.pixelsInfo = le_pixels_i.get_info( img.pixels );
@@ -185,10 +185,10 @@ static hello_world_app_o *hello_world_app_create() {
 
 	// load pixels for earth albedo
 
-	loadImage( app->imgEarthAlbedo, "./local_resources/images/world_winter.jpg" );
-	loadImage( app->imgEarthNight, "./local_resources/images/earth_lights.jpg" );
-	loadImage( app->imgEarthClouds, "./local_resources/images/earth_clouds.jpg" );
-	loadImage( app->imgEarthNormals, "./local_resources/images/normals_small.png", le_pixels_info::eUInt16, le::Format::eR16G16B16A16Unorm );
+	initialiseImage( app->imgEarthAlbedo, "./local_resources/images/world_winter.jpg" );
+	initialiseImage( app->imgEarthNight, "./local_resources/images/earth_lights.jpg" );
+	initialiseImage( app->imgEarthClouds, "./local_resources/images/earth_clouds.jpg" );
+	initialiseImage( app->imgEarthNormals, "./local_resources/images/normals_small.png", le_pixels_info::eUInt16, le::Format::eR16G16B16A16Unorm );
 
 	// initialise app timer
 	app->timeStamp = std::chrono::high_resolution_clock::now();
@@ -348,7 +348,6 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto app = static_cast<hello_world_app_o *>( user_data );
 
 	LeTextureInfo texInfoAlbedo;
-	texInfoAlbedo.imageView.format     = app->imgEarthAlbedo.imageInfo.image.format;
 	texInfoAlbedo.imageView.imageId    = app->imgEarthAlbedo.imageHandle;
 	texInfoAlbedo.sampler.magFilter    = le::Filter::eLinear;
 	texInfoAlbedo.sampler.minFilter    = le::Filter::eLinear;
@@ -356,7 +355,6 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	texInfoAlbedo.sampler.addressModeV = le::SamplerAddressMode::eMirroredRepeat;
 
 	LeTextureInfo texInfoNight;
-	texInfoNight.imageView.format     = app->imgEarthNight.imageInfo.image.format;
 	texInfoNight.imageView.imageId    = app->imgEarthNight.imageHandle;
 	texInfoNight.sampler.magFilter    = le::Filter::eLinear;
 	texInfoNight.sampler.minFilter    = le::Filter::eLinear;
@@ -364,7 +362,6 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	texInfoNight.sampler.addressModeV = le::SamplerAddressMode::eMirroredRepeat;
 
 	LeTextureInfo texInfoClouds;
-	texInfoClouds.imageView.format     = app->imgEarthClouds.imageInfo.image.format;
 	texInfoClouds.imageView.imageId    = app->imgEarthClouds.imageHandle;
 	texInfoClouds.sampler.magFilter    = le::Filter::eLinear;
 	texInfoClouds.sampler.minFilter    = le::Filter::eLinear;
@@ -372,7 +369,6 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	texInfoClouds.sampler.addressModeV = le::SamplerAddressMode::eMirroredRepeat;
 
 	LeTextureInfo texInfoNormals;
-	texInfoNormals.imageView.format     = app->imgEarthNormals.imageInfo.image.format;
 	texInfoNormals.imageView.imageId    = app->imgEarthNormals.imageHandle;
 	texInfoNormals.sampler.magFilter    = le::Filter::eLinear;
 	texInfoNormals.sampler.minFilter    = le::Filter::eLinear;
