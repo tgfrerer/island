@@ -821,8 +821,8 @@ struct LeTextureInfo {
 		bool                   unnormalizedCoordinates = false;
 	};
 	struct ImageViewInfo {
-		le_resource_handle_t imageId; // le image resource id
-		le::Format           format;  // leave at 0 (undefined) to use format of image referenced by `imageId`
+		le_resource_handle_t imageId{}; // le image resource id
+		le::Format           format{};  // leave at 0 (undefined) to use format of image referenced by `imageId`
 	};
 	SamplerInfo   sampler;
 	ImageViewInfo imageView;
