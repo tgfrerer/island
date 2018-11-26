@@ -2627,38 +2627,16 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					// TODO: use sync chain to sync
 					auto *le_cmd = static_cast<le::CommandWriteToImage *>( dataIt );
 
-					vk::ImageSubresourceLayers layer;
-					layer
-					    .setAspectMask( vk::ImageAspectFlagBits::eColor )
-					    .setMipLevel( 0 )
-					    .setBaseArrayLayer( 0 )
-					    .setLayerCount( 1 );
+					auto srcBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.src_buffer_id );
+					auto dstImage  = frame_data_get_image_from_le_resource_id( frame, le_cmd->info.dst_image_id );
 
 					::vk::ImageSubresourceRange subresourceRange;
 					subresourceRange
 					    .setAspectMask( vk::ImageAspectFlagBits::eColor )
 					    .setBaseMipLevel( 0 )
-					    .setLevelCount( 1 )
+					    .setLevelCount( 1 ) // <- number of mipmap levels - get this from command
 					    .setBaseArrayLayer( 0 )
 					    .setLayerCount( 1 );
-
-					vk::Extent3D imageExtent{
-						le_cmd->info.dst_region.width,
-						le_cmd->info.dst_region.height,
-						1,
-					};
-
-					vk::BufferImageCopy region;
-					region
-					    .setBufferOffset( le_cmd->info.src_offset )
-					    .setBufferRowLength( imageExtent.width )
-					    .setBufferImageHeight( imageExtent.height )
-					    .setImageSubresource( layer )
-					    .setImageOffset( {0, 0, 0} )
-					    .setImageExtent( imageExtent );
-
-					auto srcBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.src_buffer_id );
-					auto dstImage  = frame_data_get_image_from_le_resource_id( frame, le_cmd->info.dst_image_id );
 
 					{
 						::vk::BufferMemoryBarrier bufferTransferBarrier;
@@ -2668,7 +2646,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 						    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 						    .setBuffer( srcBuffer )
-						    .setOffset( le_cmd->info.src_offset )
+						    .setOffset( 0 ) // we assume a fresh buffer was allocated, so offset must be 0
 						    .setSize( le_cmd->info.numBytes );
 
 						::vk::ImageMemoryBarrier imageLayoutToTransferDstOptimal;
@@ -2692,7 +2670,45 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						);
 					}
 
-					cmd.copyBufferToImage( srcBuffer, dstImage, vk::ImageLayout::eTransferDstOptimal, 1, &region );
+					{
+						// Build regions to copy, from command info.
+
+						// We need to build a BufferImageCopy for each region we must copy.
+						// We collect information for each region into a vector of `vk::BUfferImageCopy` regions
+						// by iterating over the pRegions in the command.
+						//
+						//
+						std::vector<vk::BufferImageCopy> regions;
+
+						// We reserve to prevent re-allocations inside regions.
+						regions.reserve( le_cmd->info.numRegions );
+
+						auto const regions_begin = le_cmd->info.pRegions;                   // begin iterator
+						auto const regions_end   = regions_begin + le_cmd->info.numRegions; // end iterator
+
+						for ( auto pRegion = regions_begin; pRegion != regions_end; pRegion++ ) {
+
+							vk::ImageSubresourceLayers imageSubresourceLayers;
+							imageSubresourceLayers
+							    .setAspectMask( vk::ImageAspectFlagBits::eColor )
+							    .setMipLevel( pRegion->dstMipLevel )
+							    .setBaseArrayLayer( 0 )
+							    .setLayerCount( 1 );
+
+							vk::BufferImageCopy region;
+							region
+							    .setBufferOffset( pRegion->srcBufferOffset )
+							    .setBufferRowLength( 0 )                                    // 0 means tightly packed
+							    .setBufferImageHeight( 0 )                                  // 0 means tightly packed
+							    .setImageSubresource( std::move( imageSubresourceLayers ) ) // stored inline
+							    .setImageOffset( {0, 0, 0} )
+							    .setImageExtent( {pRegion->dstMipLevelExtentW, pRegion->dstMipLevelExtentH, 1} );
+
+							regions.emplace_back( std::move( region ) );
+						}
+
+						cmd.copyBufferToImage( srcBuffer, dstImage, vk::ImageLayout::eTransferDstOptimal, uint32_t( regions.size() ), regions.data() );
+					}
 
 					// Transition image to shader read only optimal layout
 					// -- TODO: we should use sync chain for this.

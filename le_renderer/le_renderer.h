@@ -34,7 +34,6 @@ struct le_renderer_api {
 	static constexpr auto id      = "le_renderer";
 	static constexpr auto pRegFun = register_le_renderer_api;
 
-
 	struct renderer_interface_t {
 		le_renderer_o *                ( *create                                )( );
 		void                           ( *destroy                               )( le_renderer_o *obj );
@@ -128,8 +127,8 @@ struct le_renderer_api {
 		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, le::IndexType const & indexType );
 		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint32_t bindingIndex );
 
-		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_resource_handle_t const resourceId, size_t offset, void const* data, size_t numBytes);
-		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_resource_handle_t const resourceId, struct LeBufferWriteRegion const &region, void const *data, size_t numBytes );
+		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, size_t offset, void const* data, size_t numBytes);
+		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, le_resource_info_t const & resourceInfo, void const *data, size_t numBytes );
 
 		// stores ubo argument data to scratch buffer - note that parameter index must be dynamic offset index
 		void                         ( *set_argument_ubo_data  )( le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
@@ -142,7 +141,7 @@ struct le_renderer_api {
 	renderer_interface_t               le_renderer_i;
 	renderpass_interface_t             le_renderpass_i;
 	rendermodule_interface_t           le_render_module_i;
-	rendergraph_interface_t          le_rendergraph_i;
+	rendergraph_interface_t            le_rendergraph_i;
 	command_buffer_encoder_interface_t le_command_buffer_encoder_i;
 	helpers_interface_t                helpers_i;
 };
@@ -509,8 +508,8 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &writeToImage( le_resource_handle_t const resourceId, struct LeBufferWriteRegion const &region, void const *data, size_t const &numBytes ) {
-		le_renderer::encoder_i.write_to_image( self, resourceId, region, data, numBytes );
+	Encoder &writeToImage( le_resource_handle_t const &resourceId, le_resource_info_t const &resourceInfo, void const *data, size_t const &numBytes ) {
+		le_renderer::encoder_i.write_to_image( self, resourceId, resourceInfo, data, numBytes );
 		return *this;
 	}
 

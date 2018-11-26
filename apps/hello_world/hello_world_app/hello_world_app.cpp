@@ -118,6 +118,7 @@ static bool initialiseImage( Image &img, char const *path, le_pixels_info::TYPE 
 	                    .setFormat( imgFormat )
 	                    .setExtent( img.pixelsInfo.width, img.pixelsInfo.height )
 	                    .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
+	                    .setMipLevels( 1 )
 	                    .build();
 
 	img.textureHandle = LE_TEX_RESOURCE( ( std::string( path ) + "_tex" ).c_str() );
@@ -281,7 +282,7 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *use
 			auto pixelsData = le_pixels_i.get_data( app->imgEarthAlbedo.pixels );
 
 			encoder.writeToImage( app->imgEarthAlbedo.imageHandle,
-			                      {app->imgEarthAlbedo.pixelsInfo.width, app->imgEarthAlbedo.pixelsInfo.height},
+			                      app->imgEarthAlbedo.imageInfo,
 			                      pixelsData,
 			                      app->imgEarthAlbedo.pixelsInfo.byte_count );
 
@@ -297,7 +298,7 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *use
 			auto pixelsData = le_pixels_i.get_data( app->imgEarthNormals.pixels );
 
 			encoder.writeToImage( app->imgEarthNormals.imageHandle,
-			                      {app->imgEarthNormals.pixelsInfo.width, app->imgEarthNormals.pixelsInfo.height},
+			                      app->imgEarthNormals.imageInfo,
 			                      pixelsData,
 			                      app->imgEarthNormals.pixelsInfo.byte_count );
 
@@ -313,7 +314,7 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *use
 			auto pixelsData = le_pixels_i.get_data( app->imgEarthNight.pixels );
 
 			encoder.writeToImage( app->imgEarthNight.imageHandle,
-			                      {app->imgEarthNight.pixelsInfo.width, app->imgEarthNight.pixelsInfo.height},
+			                      app->imgEarthNight.imageInfo,
 			                      pixelsData,
 			                      app->imgEarthNight.pixelsInfo.byte_count );
 
@@ -329,7 +330,7 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *use
 			auto pixelsData = le_pixels_i.get_data( app->imgEarthClouds.pixels );
 
 			encoder.writeToImage( app->imgEarthClouds.imageHandle,
-			                      {app->imgEarthClouds.pixelsInfo.width, app->imgEarthClouds.pixelsInfo.height},
+			                      app->imgEarthClouds.imageInfo,
 			                      pixelsData,
 			                      app->imgEarthClouds.pixelsInfo.byte_count );
 

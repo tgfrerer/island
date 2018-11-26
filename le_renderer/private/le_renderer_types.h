@@ -115,11 +115,6 @@ constexpr le_resource_handle_t LE_BUF_RESOURCE( const char *const str ) noexcept
 	return LE_RESOURCE( str, LeResourceType::eBuffer );
 }
 
-struct LeBufferWriteRegion {
-	uint32_t width;
-	uint32_t height;
-};
-
 enum LeRenderPassType : uint32_t {
 	LE_RENDER_PASS_TYPE_UNDEFINED = 0,
 	LE_RENDER_PASS_TYPE_DRAW      = 1, // << most common case, should be 0
@@ -1077,13 +1072,20 @@ struct CommandWriteToBuffer {
 
 struct CommandWriteToImage {
 	CommandHeader header = {{{CommandType::eWriteToImage, sizeof( CommandWriteToImage )}}};
+
+	struct ImageWriteRegion {
+		uint32_t srcBufferOffset;    // offset from start of buffer in bytes [must be a multiple of 4 (vkspec p. 740)]
+		uint32_t dstMipLevelExtentW; // extent in texels
+		uint32_t dstMipLevelExtentH; // extent in texels
+		uint32_t dstMipLevel;        // miplevel for this region
+	};
+
 	struct {
 		le_resource_handle_t src_buffer_id; // le buffer id of scratch buffer
 		le_resource_handle_t dst_image_id;  // which resource to write to
-		uint64_t             src_offset;    // offset in scratch buffer where to find source data
 		uint64_t             numBytes;      // number of bytes
-		LeBufferWriteRegion  dst_region;    // which part of the image to write to
-
+		ImageWriteRegion *   pRegions;      // regions in this buffer
+		uint64_t             numRegions;    // number of regions to copy (data for regions follows command immediately, inline)
 	} info;
 };
 

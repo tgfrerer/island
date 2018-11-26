@@ -8,6 +8,8 @@
 #include <cstring>
 #include <iostream>
 #include <iomanip>
+#include <assert.h>
+#include <vector>
 
 #define EMPLACE_CMD( x ) new ( &self->mCommandStream[ 0 ] + self->mCommandStreamSize )( x )
 
@@ -308,7 +310,7 @@ static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, uint64_t psoHa
 
 // ----------------------------------------------------------------------
 
-static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_resource_handle_t const resourceId, size_t offset, void const *data, size_t numBytes ) {
+static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_resource_handle_t const &resourceId, size_t offset, void const *data, size_t numBytes ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandWriteToBuffer );
 
@@ -342,19 +344,100 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_resource_
 	self->mCommandCount++;
 }
 
-// ----------------------------------------------------------------------
+// Generate mipmap from input data
+// adapted from https://github.com/ValveSoftware/openvr/blob/1fb1030f2ac238456dca7615a4408fb2bb42afb6/samples/hellovr_vulkan/hellovr_vulkan_main.cpp#L2271
+template <typename PixelType, const size_t numChannels>
+static void generate_mipmap( const PixelType *pSrc, PixelType *pDst, int nSrcWidth, int nSrcHeight, int *pDstWidthOut, int *pDstHeightOut ) {
 
+	*pDstWidthOut = nSrcWidth / 2;
+	if ( *pDstWidthOut <= 0 ) {
+		*pDstWidthOut = 1;
+	}
+	*pDstHeightOut = nSrcHeight / 2;
+	if ( *pDstHeightOut <= 0 ) {
+		*pDstHeightOut = 1;
+	}
+
+	for ( int y = 0; y < *pDstHeightOut; y++ ) {
+		for ( int x = 0; x < *pDstWidthOut; x++ ) {
+
+			float channel[ numChannels ]{};
+
+			int nSrcIndex[ 4 ]; // we reduce 4 neighbouring pixels to 1
+
+			// Get pixel indices
+			nSrcIndex[ 0 ] = ( ( ( y * 2 ) * nSrcWidth ) + ( x * 2 ) ) * 4;
+			nSrcIndex[ 1 ] = ( ( ( y * 2 ) * nSrcWidth ) + ( x * 2 + 1 ) ) * 4;
+			nSrcIndex[ 2 ] = ( ( ( ( y * 2 ) + 1 ) * nSrcWidth ) + ( x * 2 ) ) * 4;
+			nSrcIndex[ 3 ] = ( ( ( ( y * 2 ) + 1 ) * nSrcWidth ) + ( x * 2 + 1 ) ) * 4;
+
+			// Sum all pixels
+			for ( int nSample = 0; nSample != 4; nSample++ ) {
+				for ( int c = 0; c != numChannels; c++ ) {
+					channel[ c ] += pSrc[ nSrcIndex[ nSample ] + c ];
+				}
+			}
+
+			// Average results
+			for ( int c = 0; c != numChannels; c++ ) {
+				channel[ c ] /= 4.0;
+			}
+
+			// Store resulting pixels
+			for ( int c = 0; c != numChannels; c++ ) {
+				pDst[ ( y * ( *pDstWidthOut ) + x ) * numChannels + c ] = static_cast<PixelType>( channel[ c ] );
+			}
+		}
+	}
+}
+
+template <typename PixelType, const size_t numChannels>
+static size_t getNumBytesRequiredForMipchain( size_t width, size_t height, size_t const &numMipLevels ) {
+	// we do a rough calculation which just double the size of the original image
+	size_t totalBytes = 0;
+
+	for ( size_t i = 0; i != numMipLevels; i++ ) {
+		totalBytes += sizeof( PixelType ) * numChannels * width * height;
+		width  = width > 2 ? width >> 2 : 1;
+		height = height > 2 ? height >> 2 : 1;
+	}
+
+	return totalBytes;
+}
+
+// ----------------------------------------------------------------------
+// Writes buffer contents to staging memory (which is allocated on-demand)
+// and adds a write-to-image command into the command stream.
+//
+// TODO: Implement uploading mipmaps based on this example:
+//       <https://github.com/ValveSoftware/openvr/blob/1fb1030f2ac238456dca7615a4408fb2bb42afb6/samples/hellovr_vulkan/hellovr_vulkan_main.cpp#L2169>
+// we could generate mipmaps here - but how would the image know it was mipmapped? - and how many mipmap levels there are?
+// if we had the matching resourceinfo we would have all the information we needed. perhaps we should require it.
 static void cbe_write_to_image( le_command_buffer_encoder_o *self,
-                                le_resource_handle_t         resourceId,
-                                LeBufferWriteRegion const &  region,
+                                le_resource_handle_t const & resourceId,
+                                le_resource_info_t const &   resourceInfo,
                                 void const *                 data,
                                 size_t                       numBytes ) {
+
+	assert( resourceInfo.type == LeResourceType::eImage );
+	auto &imageInfo = resourceInfo.image;
 
 	auto cmd = EMPLACE_CMD( le::CommandWriteToImage );
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
 	void *               memAddr;
 	le_resource_handle_t srcResourceId;
+
+	// Check if resourceInfo requests more than one mip level.
+	// If so, we must generate the number of mip levels requested.
+
+	// We must also re-calculate the number of bytes based on the number of mip-levels,
+	// the image size, and the image format. For now, we only cover a select number of formats.
+
+	// TODO: make this dependent on format, change parameter to use imageInfo directly.
+	size_t numBytesForRequestedMipchain = getNumBytesRequiredForMipchain<uint8_t, 4>( imageInfo.extent.width, imageInfo.extent.height, imageInfo.mipLevels );
+
+	numBytesForRequestedMipchain = numBytes;
 
 	// -- Allocate memory using staging allocator
 	//
@@ -363,23 +446,37 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *self,
 	// allocated so that it is only used for TRANSFER_SRC, and shared amongst encoders so that we
 	// use available memory more efficiently.
 	//
-	if ( le_staging_allocator_i.map( self->stagingAllocator, numBytes, &memAddr, &srcResourceId ) ) {
+	if ( le_staging_allocator_i.map( self->stagingAllocator, numBytesForRequestedMipchain, &memAddr, &srcResourceId ) ) {
 
 		// -- Write data to scratch memory now
 		memcpy( memAddr, data, numBytes );
 
+		// Add number of regions to this command matching the number of mip levels
+		// so that we can upload multiple mip levels at once.
+
+		auto const pRegions = reinterpret_cast<le::CommandWriteToImage::ImageWriteRegion *>( cmd + 1 );
+		auto       pRegion  = pRegions;
+
+		pRegion->dstMipLevel        = 0;
+		pRegion->dstMipLevelExtentW = imageInfo.extent.width;
+		pRegion->dstMipLevelExtentH = imageInfo.extent.height;
+		pRegion->srcBufferOffset    = 0;
+
 		cmd->info.src_buffer_id = srcResourceId;
-		cmd->info.src_offset    = 0; // staging allocator will give us a fresh buffer, and src memory will be placed at its start
-		cmd->info.dst_region    = region;
-		cmd->info.numBytes      = numBytes;
-		cmd->info.dst_image_id  = resourceId;
+
+		cmd->info.numBytes     = numBytesForRequestedMipchain; // total number of bytes from buffer which must be synchronised
+		cmd->info.dst_image_id = resourceId;
+		cmd->info.pRegions     = pRegions;
+		cmd->info.numRegions   = imageInfo.mipLevels;
+
+		cmd->header.info.size += sizeof( le::CommandWriteToImage::ImageWriteRegion ) * cmd->info.numRegions;
 	} else {
-		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl
+		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytesForRequestedMipchain << " Bytes." << std::endl
 		          << std::flush;
 		return;
 	}
-
-	self->mCommandStreamSize += sizeof( le::CommandWriteToImage );
+	// increase command stream size by size of command, plus size of regions attached to command.
+	self->mCommandStreamSize += cmd->header.info.size;
 	self->mCommandCount++;
 }
 
