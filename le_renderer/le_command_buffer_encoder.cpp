@@ -499,20 +499,52 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *self,
 		// Add number of regions to this command matching the number of mip levels
 		// so that we can upload multiple mip levels at once.
 
-		auto const pRegions = reinterpret_cast<le::CommandWriteToImage::ImageWriteRegion *>( cmd + 1 );
-		auto       pRegion  = pRegions;
+		auto const regions_begin = reinterpret_cast<le::CommandWriteToImage::ImageWriteRegion *>( cmd + 1 );
+		auto const regions_end   = regions_begin + imageInfo.mipLevels;
 
-		pRegion->dstMipLevel        = 0;
-		pRegion->dstMipLevelExtentW = imageInfo.extent.width;
-		pRegion->dstMipLevelExtentH = imageInfo.extent.height;
-		pRegion->srcBufferOffset    = 0;
+		auto region = regions_begin;
+
+		region->dstMipLevel        = 0;
+		region->dstMipLevelExtentW = imageInfo.extent.width;
+		region->dstMipLevelExtentH = imageInfo.extent.height;
+		region->srcBufferOffset    = 0;
+
+		// We increase the region pointer, because now, we add regions for mipmaps.
+		region++;
+		uint64_t dstRegionOffsetInBytes = numBytes; // careful: these offsets need to be in PixelType
+		uint64_t srcRegionOffsetInBytes = 0;        // careful: these offsets need to be in PixelType
+		uint32_t srcWidth               = imageInfo.extent.width;
+		uint32_t srcHeight              = imageInfo.extent.height;
+
+		for ( uint32_t mipLevel = 1; region != regions_end; mipLevel++ ) {
+			region->dstMipLevel = mipLevel;
+
+			uint32_t dstWidth  = 0;
+			uint32_t dstHeight = 0;
+
+			generate_mipmap<uint8_t, 4>( static_cast<uint8_t *>( memAddr ) + srcRegionOffsetInBytes,
+			                             static_cast<uint8_t *>( memAddr ) + dstRegionOffsetInBytes,
+			                             srcWidth, srcHeight, &dstWidth, &dstHeight );
+
+			region->dstMipLevelExtentW = dstWidth;
+			region->dstMipLevelExtentH = dstHeight;
+			region->srcBufferOffset    = uint32_t( dstRegionOffsetInBytes );
+
+			// Store dst -> src  for nex iteration
+			//
+			srcWidth               = dstWidth;
+			srcHeight              = dstHeight;
+			srcRegionOffsetInBytes = dstRegionOffsetInBytes;
+
+			// Next iteration shall work on next region
+			region++;
+		}
 
 		cmd->info.src_buffer_id = srcResourceId;
-
-		cmd->info.numBytes     = numBytesForRequestedMipchain; // total number of bytes from buffer which must be synchronised
-		cmd->info.dst_image_id = resourceId;
-		cmd->info.pRegions     = pRegions;
-		cmd->info.numRegions   = imageInfo.mipLevels;
+		cmd->info.numBytes      = numBytesForRequestedMipchain; // total number of bytes from buffer which must be synchronised
+		cmd->info.dst_image_id  = resourceId;
+		cmd->info.pRegions      = regions_begin;
+		cmd->info.numRegions    = imageInfo.mipLevels;
 
 		cmd->header.info.size += sizeof( le::CommandWriteToImage::ImageWriteRegion ) * cmd->info.numRegions;
 	} else {
