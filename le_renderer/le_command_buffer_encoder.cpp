@@ -391,13 +391,55 @@ static void generate_mipmap( const PixelType *pSrc, PixelType *pDst, int nSrcWid
 	}
 }
 
-template <typename PixelType, const size_t numChannels>
-static size_t getNumBytesRequiredForMipchain( size_t width, size_t height, size_t const &numMipLevels ) {
+// ----------------------------------------------------------------------
+// Returns the number of bytes needed to store numMipLevels for an image
+// with dimensions at width/height
+static size_t getNumBytesRequiredForMipchain( le_resource_info_t::Image const &imageInfo ) {
+
+	size_t numBytesPerTexel = 0;
+
+	switch ( imageInfo.format ) {
+	case ( le::Format::eR8G8B8A8Unorm ):   // fall-through
+	case ( le::Format::eR8G8B8A8Snorm ):   // fall-through
+	case ( le::Format::eR8G8B8A8Uscaled ): // fall-through
+	case ( le::Format::eR8G8B8A8Sscaled ): // fall-through
+	case ( le::Format::eR8G8B8A8Uint ):    // fall-through
+	case ( le::Format::eR8G8B8A8Sint ):    // fall-through
+	case ( le::Format::eR8G8B8A8Srgb ):    // fall-through
+	case ( le::Format::eB8G8R8A8Unorm ):   // fall-through
+	case ( le::Format::eB8G8R8A8Snorm ):   // fall-through
+	case ( le::Format::eB8G8R8A8Uscaled ): // fall-through
+	case ( le::Format::eB8G8R8A8Sscaled ): // fall-through
+	case ( le::Format::eB8G8R8A8Uint ):    // fall-through
+	case ( le::Format::eB8G8R8A8Sint ):    // fall-through
+	case ( le::Format::eB8G8R8A8Srgb ):    // fall-through
+		numBytesPerTexel = 4 * sizeof( uint8_t );
+	    break;
+	case ( le::Format::eR16G16B16A16Unorm ):   // fall-through
+	case ( le::Format::eR16G16B16A16Snorm ):   // fall-through
+	case ( le::Format::eR16G16B16A16Uscaled ): // fall-through
+	case ( le::Format::eR16G16B16A16Sscaled ): // fall-through
+	case ( le::Format::eR16G16B16A16Uint ):    // fall-through
+	case ( le::Format::eR16G16B16A16Sint ):    // fall-through
+	case ( le::Format::eR16G16B16A16Sfloat ):  // fall-through
+		numBytesPerTexel = 4 * sizeof( uint16_t );
+	    break;
+	default:
+		assert( false ); // unhandled format
+	}
+
+	assert( numBytesPerTexel != 0 );
+
+	// --------| invariant: number of bytes per texel is valid
+
 	// we do a rough calculation which just double the size of the original image
 	size_t totalBytes = 0;
 
-	for ( size_t i = 0; i != numMipLevels; i++ ) {
-		totalBytes += sizeof( PixelType ) * numChannels * width * height;
+	uint32_t width  = imageInfo.extent.width;
+	uint32_t height = imageInfo.extent.height;
+
+	for ( size_t i = 0; i != imageInfo.mipLevels; i++ ) {
+		totalBytes += numBytesPerTexel * width * height;
 		width  = width > 2 ? width >> 2 : 1;
 		height = height > 2 ? height >> 2 : 1;
 	}
@@ -420,7 +462,7 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *self,
                                 size_t                       numBytes ) {
 
 	assert( resourceInfo.type == LeResourceType::eImage );
-	auto &imageInfo = resourceInfo.image;
+	auto const &imageInfo = resourceInfo.image;
 
 	auto cmd = EMPLACE_CMD( le::CommandWriteToImage );
 
@@ -435,9 +477,7 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *self,
 	// the image size, and the image format. For now, we only cover a select number of formats.
 
 	// TODO: make this dependent on format, change parameter to use imageInfo directly.
-	size_t numBytesForRequestedMipchain = getNumBytesRequiredForMipchain<uint8_t, 4>( imageInfo.extent.width, imageInfo.extent.height, imageInfo.mipLevels );
-
-	numBytesForRequestedMipchain = numBytes;
+	size_t numBytesForRequestedMipchain = getNumBytesRequiredForMipchain( imageInfo );
 
 	// -- Allocate memory using staging allocator
 	//
