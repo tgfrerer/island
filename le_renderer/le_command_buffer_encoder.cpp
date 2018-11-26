@@ -347,7 +347,7 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_resource_
 // Generate mipmap from input data
 // adapted from https://github.com/ValveSoftware/openvr/blob/1fb1030f2ac238456dca7615a4408fb2bb42afb6/samples/hellovr_vulkan/hellovr_vulkan_main.cpp#L2271
 template <typename PixelType, const size_t numChannels>
-static void generate_mipmap( const PixelType *pSrc, PixelType *pDst, int nSrcWidth, int nSrcHeight, int *pDstWidthOut, int *pDstHeightOut ) {
+static void generate_mipmap( const PixelType *pSrc, PixelType *pDst, uint32_t const nSrcWidth, uint32_t const nSrcHeight, uint32_t *pDstWidthOut, uint32_t *pDstHeightOut ) {
 
 	*pDstWidthOut = nSrcWidth / 2;
 	if ( *pDstWidthOut <= 0 ) {
@@ -358,12 +358,17 @@ static void generate_mipmap( const PixelType *pSrc, PixelType *pDst, int nSrcWid
 		*pDstHeightOut = 1;
 	}
 
-	for ( int y = 0; y < *pDstHeightOut; y++ ) {
-		for ( int x = 0; x < *pDstWidthOut; x++ ) {
+	for ( uint32_t y = 0; y != *pDstHeightOut; y++ ) {
+		for ( uint32_t x = 0; x != *pDstWidthOut; x++ ) {
 
+			// We use floats to accumulate pixel values.
+			//
+			// TODO: if pixels arrive in non-linear SRGB format, we must convert them to linear when
+			// we read them, and convert them back to non-linear when we write them back after averaging.
+			//
 			float channel[ numChannels ]{};
 
-			int nSrcIndex[ 4 ]; // we reduce 4 neighbouring pixels to 1
+			uint32_t nSrcIndex[ 4 ]; // we reduce 4 neighbouring pixels to 1
 
 			// Get pixel indices
 			nSrcIndex[ 0 ] = ( ( ( y * 2 ) * nSrcWidth ) + ( x * 2 ) ) * 4;
@@ -372,19 +377,19 @@ static void generate_mipmap( const PixelType *pSrc, PixelType *pDst, int nSrcWid
 			nSrcIndex[ 3 ] = ( ( ( ( y * 2 ) + 1 ) * nSrcWidth ) + ( x * 2 + 1 ) ) * 4;
 
 			// Sum all pixels
-			for ( int nSample = 0; nSample != 4; nSample++ ) {
-				for ( int c = 0; c != numChannels; c++ ) {
+			for ( uint32_t nSample = 0; nSample != 4; nSample++ ) {
+				for ( uint32_t c = 0; c != numChannels; c++ ) {
 					channel[ c ] += pSrc[ nSrcIndex[ nSample ] + c ];
 				}
 			}
 
 			// Average results
-			for ( int c = 0; c != numChannels; c++ ) {
-				channel[ c ] /= 4.0;
+			for ( uint32_t c = 0; c != numChannels; c++ ) {
+				channel[ c ] /= 4.f;
 			}
 
 			// Store resulting pixels
-			for ( int c = 0; c != numChannels; c++ ) {
+			for ( uint32_t c = 0; c != numChannels; c++ ) {
 				pDst[ ( y * ( *pDstWidthOut ) + x ) * numChannels + c ] = static_cast<PixelType>( channel[ c ] );
 			}
 		}
