@@ -171,6 +171,10 @@ class Window : NoMove, NoCopy {
 		pal_window::window_i.toggle_fullscreen( self );
 	}
 
+	void getUIEventQueue( LeUiEvent const **events, uint32_t &numEvents ) {
+		pal_window::window_i.get_ui_event_queue( self, events, numEvents );
+	}
+
 	operator auto() {
 		return self;
 	}
