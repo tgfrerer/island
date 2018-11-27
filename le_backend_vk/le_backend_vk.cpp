@@ -2634,7 +2634,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					subresourceRange
 					    .setAspectMask( vk::ImageAspectFlagBits::eColor )
 					    .setBaseMipLevel( 0 )
-					    .setLevelCount( 1 ) // <- number of mipmap levels - get this from command
+					    .setLevelCount( uint32_t( le_cmd->info.numRegions ) ) // <- number of mipmap levels - get this from command
 					    .setBaseArrayLayer( 0 )
 					    .setLayerCount( 1 );
 
