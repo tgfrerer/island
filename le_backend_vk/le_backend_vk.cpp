@@ -1998,7 +1998,7 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 				subresourceRange
 				    .setAspectMask( is_depth_stencil_format( imageFormat ) ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor )
 				    .setBaseMipLevel( 0 )
-				    .setLevelCount( 1 )
+				    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
 				    .setBaseArrayLayer( 0 )
 				    .setLayerCount( 1 );
 
