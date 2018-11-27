@@ -8,9 +8,6 @@
 #include "le_camera/le_camera.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
 
-#define VULKAN_HPP_NO_SMART_HANDLE
-#include "vulkan/vulkan.hpp"
-
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
 #include "glm.hpp"
