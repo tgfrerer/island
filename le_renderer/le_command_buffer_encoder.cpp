@@ -522,9 +522,14 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *self,
 			uint32_t dstWidth  = 0;
 			uint32_t dstHeight = 0;
 
+			std::cout << "Generating mipmap level..." << mipLevel << std::flush;
+
 			generate_mipmap<uint8_t, 4>( static_cast<uint8_t *>( memAddr ) + srcRegionOffsetInBytes,
 			                             static_cast<uint8_t *>( memAddr ) + dstRegionOffsetInBytes,
 			                             srcWidth, srcHeight, &dstWidth, &dstHeight );
+
+			std::cout << " done." << std::endl
+			          << std::flush;
 
 			region->dstMipLevelExtentW = dstWidth;
 			region->dstMipLevelExtentH = dstHeight;
@@ -535,6 +540,10 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *self,
 			srcWidth               = dstWidth;
 			srcHeight              = dstHeight;
 			srcRegionOffsetInBytes = dstRegionOffsetInBytes;
+
+			// Move dstRegionOffsetInBytes to end of current image
+
+			dstRegionOffsetInBytes += dstWidth * dstHeight * sizeof( uint8_t ) * 4; // assuming 4 channels of uint8_t
 
 			// Next iteration shall work on next region
 			region++;
