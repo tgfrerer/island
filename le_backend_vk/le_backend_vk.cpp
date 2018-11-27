@@ -1777,6 +1777,11 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 				imgExtent.depth = std::max<uint32_t>( imgExtent.depth, 1 );
 
+				if ( imgInfo.mipLevels > 1 ) {
+					// if image has mip levels, we add usage transfer src, so that mip maps may be created by blitting.
+					imgInfo.usage |= LE_IMAGE_USAGE_TRANSFER_SRC_BIT;
+				}
+
 			} // end for LeResourceType::Image
 
 			usedResourcesInfos[ resource_index ].emplace_back( resourceInfo );
@@ -2625,21 +2630,24 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				case le::CommandType::eWriteToImage: {
 
 					// TODO: use sync chain to sync
+
 					auto *le_cmd = static_cast<le::CommandWriteToImage *>( dataIt );
 
 					auto srcBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.src_buffer_id );
 					auto dstImage  = frame_data_get_image_from_le_resource_id( frame, le_cmd->info.dst_image_id );
 
-					::vk::ImageSubresourceRange subresourceRange;
-					subresourceRange
+					// We define a range that covers all miplevels. this is useful as it allows us to transform
+					// Image layouts in bulk, covering the full mip chain.
+					vk::ImageSubresourceRange rangeAllMiplevels;
+					rangeAllMiplevels
 					    .setAspectMask( vk::ImageAspectFlagBits::eColor )
 					    .setBaseMipLevel( 0 )
-					    .setLevelCount( uint32_t( le_cmd->info.numRegions ) ) // <- number of mipmap levels - get this from command
+					    .setLevelCount( le_cmd->info.mipLevelCount ) // we want all miplevels to be in transferDstOptimal.
 					    .setBaseArrayLayer( 0 )
 					    .setLayerCount( 1 );
 
 					{
-						::vk::BufferMemoryBarrier bufferTransferBarrier;
+						vk::BufferMemoryBarrier bufferTransferBarrier;
 						bufferTransferBarrier
 						    .setSrcAccessMask( vk::AccessFlagBits::eHostWrite )    // after host write
 						    .setDstAccessMask( vk::AccessFlagBits::eTransferRead ) // ready buffer for transfer read
@@ -2649,20 +2657,20 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						    .setOffset( 0 ) // we assume a fresh buffer was allocated, so offset must be 0
 						    .setSize( le_cmd->info.numBytes );
 
-						::vk::ImageMemoryBarrier imageLayoutToTransferDstOptimal;
+						vk::ImageMemoryBarrier imageLayoutToTransferDstOptimal;
 						imageLayoutToTransferDstOptimal
 						    .setSrcAccessMask( {} )                                 // no prior access
 						    .setDstAccessMask( vk::AccessFlagBits::eTransferWrite ) // ready image for transferwrite
 						    .setOldLayout( {} )                                     // from vk::ImageLayout::eUndefined
-						    .setNewLayout( vk::ImageLayout::eTransferDstOptimal )   // to transfer destination optimal
+						    .setNewLayout( vk::ImageLayout::eTransferDstOptimal )   // to transfer_dst_optimal
 						    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 						    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 						    .setImage( dstImage )
-						    .setSubresourceRange( subresourceRange );
+						    .setSubresourceRange( rangeAllMiplevels );
 
 						cmd.pipelineBarrier(
-						    ::vk::PipelineStageFlagBits::eHost,
-						    ::vk::PipelineStageFlagBits::eTransfer,
+						    vk::PipelineStageFlagBits::eHost,
+						    vk::PipelineStageFlagBits::eTransfer,
 						    {},
 						    {},
 						    {bufferTransferBarrier},          // buffer: host write -> transfer read
@@ -2671,58 +2679,149 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					}
 
 					{
-						// Build regions to copy, from command info.
-
-						// We need to build a BufferImageCopy for each region we must copy.
-						// We collect information for each region into a vector of `vk::BUfferImageCopy` regions
-						// by iterating over the pRegions in the command.
+						// Copy data for first mip level from buffer to image.
 						//
+						// Then use the first mip level as a source for subsequent mip levels.
+						// When copying from a lower mip level to a higher mip level, we must make
+						// sure to add barriers, as these blit operations are transfers.
 						//
-						std::vector<vk::BufferImageCopy> regions;
 
-						// We reserve to prevent re-allocations inside regions.
-						regions.reserve( le_cmd->info.numRegions );
+						vk::ImageSubresourceLayers imageSubresourceLayers;
+						imageSubresourceLayers
+						    .setAspectMask( vk::ImageAspectFlagBits::eColor )
+						    .setMipLevel( 0 )
+						    .setBaseArrayLayer( 0 )
+						    .setLayerCount( 1 );
 
-						auto const regions_begin = le_cmd->info.pRegions;                   // begin iterator
-						auto const regions_end   = regions_begin + le_cmd->info.numRegions; // end iterator
+						vk::BufferImageCopy region;
+						region
+						    .setBufferOffset( 0 )                                       // buffer offset is 0 as staging buffer is a fresh, specially allocated buffer
+						    .setBufferRowLength( 0 )                                    // 0 means tightly packed
+						    .setBufferImageHeight( 0 )                                  // 0 means tightly packed
+						    .setImageSubresource( std::move( imageSubresourceLayers ) ) // stored inline
+						    .setImageOffset( {0, 0, 0} )
+						    .setImageExtent( {le_cmd->info.image_w, le_cmd->info.image_h, 1} );
 
-						for ( auto pRegion = regions_begin; pRegion != regions_end; pRegion++ ) {
-
-							vk::ImageSubresourceLayers imageSubresourceLayers;
-							imageSubresourceLayers
-							    .setAspectMask( vk::ImageAspectFlagBits::eColor )
-							    .setMipLevel( pRegion->dstMipLevel )
-							    .setBaseArrayLayer( 0 )
-							    .setLayerCount( 1 );
-
-							vk::BufferImageCopy region;
-							region
-							    .setBufferOffset( pRegion->srcBufferOffset )
-							    .setBufferRowLength( 0 )                                    // 0 means tightly packed
-							    .setBufferImageHeight( 0 )                                  // 0 means tightly packed
-							    .setImageSubresource( std::move( imageSubresourceLayers ) ) // stored inline
-							    .setImageOffset( {0, 0, 0} )
-							    .setImageExtent( {pRegion->dstMipLevelExtentW, pRegion->dstMipLevelExtentH, 1} );
-
-							regions.emplace_back( std::move( region ) );
-						}
-
-						cmd.copyBufferToImage( srcBuffer, dstImage, vk::ImageLayout::eTransferDstOptimal, uint32_t( regions.size() ), regions.data() );
+						cmd.copyBufferToImage( srcBuffer, dstImage, vk::ImageLayout::eTransferDstOptimal, 1, &region );
 					}
 
-					// Transition image to shader read only optimal layout
-					// -- TODO: we should use sync chain for this.
-					{
-						vk::ImageMemoryBarrier imageLayoutToShaderReadOptimal;
-						imageLayoutToShaderReadOptimal
-						    .setSrcAccessMask( vk::AccessFlagBits::eTransferWrite )  // transfer write
-						    .setDstAccessMask( vk::AccessFlagBits::eShaderRead )     // ready image for shader read
-						    .setOldLayout( vk::ImageLayout::eTransferDstOptimal )    // from transfer dst optimal
-						    .setNewLayout( vk::ImageLayout::eShaderReadOnlyOptimal ) // to shader readonly optimal
+					if ( le_cmd->info.mipLevelCount > 1 ) {
+
+						// We generate additional miplevels by issueing scaled blits from one image subresource to the
+						// next higher mip level subresource.
+
+						// For this to work, we must first make sure that the image subresource we just wrote to
+						// is ready to be read back. We do this by issueing a read-after-write barrier, and with
+						// the same barrier we also transition the source subresource image to transfer_src_optimal
+						// layout (which is a requirement for blitting operations)
+						//
+						// The target image subresource is already in layout transfer_dst_optimal, as this is the
+						// layout we applied to the whole mip chain when
+
+						constexpr uint32_t     mipLevelZero = 0;
+						vk::ImageMemoryBarrier prepareBlit;
+						prepareBlit
+						    .setSrcAccessMask( vk::AccessFlagBits::eTransferWrite ) // transfer write
+						    .setDstAccessMask( vk::AccessFlagBits::eTransferRead )  // ready image for transfer read
+						    .setOldLayout( vk::ImageLayout::eTransferDstOptimal )   // from transfer dst optimal
+						    .setNewLayout( vk::ImageLayout::eTransferSrcOptimal )   // to shader readonly optimal
 						    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 						    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 						    .setImage( dstImage )
-						    .setSubresourceRange( subresourceRange );
+						    .setSubresourceRange( {vk::ImageAspectFlagBits::eColor, mipLevelZero, 1, 0, 1} );
+
+						cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, {prepareBlit} );
+
+						// Now blit from the srcMipLevel to dstMipLevel
+
+						int32_t srcImgWidth  = int32_t( le_cmd->info.image_w );
+						int32_t srcImgHeight = int32_t( le_cmd->info.image_h );
+
+						for ( uint32_t dstMipLevel = 1; dstMipLevel < le_cmd->info.mipLevelCount; dstMipLevel++ ) {
+
+							// Blit from lower mip level into next higher mip level
+							auto srcMipLevel = dstMipLevel - 1;
+
+							// Calculate width and height for next image in mip chain as half the corresponding source
+							// image dimension, unless dimension is smaller or equal to 2, in which case clamp to 1.
+							auto dstImgWidth  = srcImgWidth > 2 ? srcImgWidth >> 1 : 1;
+							auto dstImgHeight = srcImgHeight > 2 ? srcImgHeight >> 1 : 1;
+
+							vk::ImageSubresourceRange rangeSrcMipLevel( vk::ImageAspectFlagBits::eColor, srcMipLevel, 1, 0, 1 );
+							vk::ImageSubresourceRange rangeDstMipLevel( vk::ImageAspectFlagBits::eColor, dstMipLevel, 1, 0, 1 );
+
+							vk::ImageBlit region;
+
+							vk::Offset3D offsetZero = {0, 0, 0};
+							vk::Offset3D offsetSrc  = {srcImgWidth, srcImgHeight, 1};
+							vk::Offset3D offsetDst  = {dstImgWidth, dstImgHeight, 1};
+							region
+							    .setSrcSubresource( {vk::ImageAspectFlagBits::eColor, srcMipLevel, 0, 1} )
+							    .setDstSubresource( {vk::ImageAspectFlagBits::eColor, dstMipLevel, 0, 1} )
+							    .setSrcOffsets( {offsetZero, offsetSrc} )
+							    .setDstOffsets( {offsetZero, offsetDst} )
+							    //
+							    ;
+
+							cmd.blitImage( dstImage, vk::ImageLayout::eTransferSrcOptimal, dstImage, vk::ImageLayout::eTransferDstOptimal, 1, &region, vk::Filter::eLinear );
+
+							// Now we barrier Read after Write, and transition our freshly blitted subresource to transferSrc,
+							// so that the next iteration may read from it.
+
+							vk::ImageMemoryBarrier finishBlit;
+							finishBlit
+							    .setSrcAccessMask( vk::AccessFlagBits::eTransferWrite ) // transfer write
+							    .setDstAccessMask( vk::AccessFlagBits::eTransferRead )  // ready image for shader read
+							    .setOldLayout( vk::ImageLayout::eTransferDstOptimal )   // from transfer dst optimal
+							    .setNewLayout( vk::ImageLayout::eTransferSrcOptimal )   // to shader readonly optimal
+							    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+							    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+							    .setImage( dstImage )
+							    .setSubresourceRange( rangeDstMipLevel );
+
+							cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, {finishBlit} );
+
+							// Store this miplevel image's dimensions for next iteration
+							srcImgHeight = dstImgHeight;
+							srcImgWidth  = dstImgWidth;
+						}
+
+					} // end if mipLevelCount > 1
+
+					// Transition image to shader layout from transfer src optimal to shader read only optimal layout
+
+					{
+						vk::ImageMemoryBarrier imageLayoutToShaderReadOptimal;
+
+						if ( le_cmd->info.mipLevelCount > 1 ) {
+
+							// If there were additional miplevels, the miplevel generation logic ensures that all subresources
+							// are left in transfer_src layout.
+
+							imageLayoutToShaderReadOptimal
+							    .setSrcAccessMask( {} )                                  // nothing to flush, as previous barriers ensure flush                                                                                   // no need to flush anything, that's been done by barriers before
+							    .setDstAccessMask( vk::AccessFlagBits::eShaderRead )     // ready image for shader read
+							    .setOldLayout( vk::ImageLayout::eTransferSrcOptimal )    // all subresources are in transfer src optimal
+							    .setNewLayout( vk::ImageLayout::eShaderReadOnlyOptimal ) // to shader readonly optimal
+							    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+							    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+							    .setImage( dstImage )
+							    .setSubresourceRange( rangeAllMiplevels );
+						} else {
+
+							// If there are no additional miplevels, the single subresource will still be in
+							// transfer_dst layout after pixel data was uploaded to it.
+
+							imageLayoutToShaderReadOptimal
+							    .setSrcAccessMask( vk::AccessFlagBits::eTransferWrite )  // no need to flush anything, that's been done by barriers before
+							    .setDstAccessMask( vk::AccessFlagBits::eShaderRead )     // ready image for shader read
+							    .setOldLayout( vk::ImageLayout::eTransferDstOptimal )    // the single one subresource is in transfer dst optimal
+							    .setNewLayout( vk::ImageLayout::eShaderReadOnlyOptimal ) // to shader readonly optimal
+							    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+							    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+							    .setImage( dstImage )
+							    .setSubresourceRange( rangeAllMiplevels );
+						}
 
 						cmd.pipelineBarrier(
 						    vk::PipelineStageFlagBits::eTransfer,
@@ -2736,7 +2835,6 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					break;
 				}
-
 				} // end switch header.info.type
 
 				// Move iterator by size of current le_command so that it points

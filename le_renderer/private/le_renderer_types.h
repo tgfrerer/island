@@ -1073,19 +1073,13 @@ struct CommandWriteToBuffer {
 struct CommandWriteToImage {
 	CommandHeader header = {{{CommandType::eWriteToImage, sizeof( CommandWriteToImage )}}};
 
-	struct ImageWriteRegion {
-		uint32_t srcBufferOffset;    // offset from start of buffer in bytes [must be a multiple of 4 (vkspec p. 740)]
-		uint32_t dstMipLevelExtentW; // extent in texels
-		uint32_t dstMipLevelExtentH; // extent in texels
-		uint32_t dstMipLevel;        // miplevel for this region
-	};
-
 	struct {
 		le_resource_handle_t src_buffer_id; // le buffer id of scratch buffer
 		le_resource_handle_t dst_image_id;  // which resource to write to
 		uint64_t             numBytes;      // number of bytes
-		ImageWriteRegion *   pRegions;      // regions in this buffer
-		uint64_t             numRegions;    // number of regions to copy (data for regions follows command immediately, inline)
+		uint32_t             image_w;       // image width in texels
+		uint32_t             image_h;       // image height in texels
+		uint64_t             mipLevelCount; // number of mip levels to generate, default is 1
 	} info;
 };
 

@@ -344,122 +344,8 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_resource_
 	self->mCommandCount++;
 }
 
-// Generate mipmap from input data
-// adapted from https://github.com/ValveSoftware/openvr/blob/1fb1030f2ac238456dca7615a4408fb2bb42afb6/samples/hellovr_vulkan/hellovr_vulkan_main.cpp#L2271
-template <typename PixelType, const size_t numChannels>
-static void generate_mipmap( const PixelType *pSrc, PixelType *pDst, uint32_t const nSrcWidth, uint32_t const nSrcHeight, uint32_t *pDstWidthOut, uint32_t *pDstHeightOut ) {
-
-	*pDstWidthOut = nSrcWidth / 2;
-	if ( *pDstWidthOut <= 0 ) {
-		*pDstWidthOut = 1;
-	}
-	*pDstHeightOut = nSrcHeight / 2;
-	if ( *pDstHeightOut <= 0 ) {
-		*pDstHeightOut = 1;
-	}
-
-	for ( uint32_t y = 0; y != *pDstHeightOut; y++ ) {
-		for ( uint32_t x = 0; x != *pDstWidthOut; x++ ) {
-
-			// We use floats to accumulate pixel values.
-			//
-			// TODO: if pixels arrive in non-linear SRGB format, we must convert them to linear when
-			// we read them, and convert them back to non-linear when we write them back after averaging.
-			//
-			float channel[ numChannels ]{};
-
-			uint32_t nSrcIndex[ 4 ]; // we reduce 4 neighbouring pixels to 1
-
-			// Get pixel indices
-			nSrcIndex[ 0 ] = ( ( ( y * 2 ) * nSrcWidth ) + ( x * 2 ) ) * 4;
-			nSrcIndex[ 1 ] = ( ( ( y * 2 ) * nSrcWidth ) + ( x * 2 + 1 ) ) * 4;
-			nSrcIndex[ 2 ] = ( ( ( ( y * 2 ) + 1 ) * nSrcWidth ) + ( x * 2 ) ) * 4;
-			nSrcIndex[ 3 ] = ( ( ( ( y * 2 ) + 1 ) * nSrcWidth ) + ( x * 2 + 1 ) ) * 4;
-
-			// Sum all pixels
-			for ( uint32_t nSample = 0; nSample != 4; nSample++ ) {
-				for ( uint32_t c = 0; c != numChannels; c++ ) {
-					channel[ c ] += pSrc[ nSrcIndex[ nSample ] + c ];
-				}
-			}
-
-			// Average results
-			for ( uint32_t c = 0; c != numChannels; c++ ) {
-				channel[ c ] /= 4.f;
-			}
-
-			// Store resulting pixels
-			for ( uint32_t c = 0; c != numChannels; c++ ) {
-				pDst[ ( y * ( *pDstWidthOut ) + x ) * numChannels + c ] = static_cast<PixelType>( channel[ c ] );
-			}
-		}
-	}
-}
-
 // ----------------------------------------------------------------------
-// Returns the number of bytes needed to store numMipLevels for an image
-// with dimensions at width/height
-static size_t getNumBytesRequiredForMipchain( le_resource_info_t::Image const &imageInfo ) {
 
-	size_t numBytesPerTexel = 0;
-
-	switch ( imageInfo.format ) {
-	case ( le::Format::eR8G8B8A8Unorm ):   // fall-through
-	case ( le::Format::eR8G8B8A8Snorm ):   // fall-through
-	case ( le::Format::eR8G8B8A8Uscaled ): // fall-through
-	case ( le::Format::eR8G8B8A8Sscaled ): // fall-through
-	case ( le::Format::eR8G8B8A8Uint ):    // fall-through
-	case ( le::Format::eR8G8B8A8Sint ):    // fall-through
-	case ( le::Format::eR8G8B8A8Srgb ):    // fall-through
-	case ( le::Format::eB8G8R8A8Unorm ):   // fall-through
-	case ( le::Format::eB8G8R8A8Snorm ):   // fall-through
-	case ( le::Format::eB8G8R8A8Uscaled ): // fall-through
-	case ( le::Format::eB8G8R8A8Sscaled ): // fall-through
-	case ( le::Format::eB8G8R8A8Uint ):    // fall-through
-	case ( le::Format::eB8G8R8A8Sint ):    // fall-through
-	case ( le::Format::eB8G8R8A8Srgb ):    // fall-through
-		numBytesPerTexel = 4 * sizeof( uint8_t );
-	    break;
-	case ( le::Format::eR16G16B16A16Unorm ):   // fall-through
-	case ( le::Format::eR16G16B16A16Snorm ):   // fall-through
-	case ( le::Format::eR16G16B16A16Uscaled ): // fall-through
-	case ( le::Format::eR16G16B16A16Sscaled ): // fall-through
-	case ( le::Format::eR16G16B16A16Uint ):    // fall-through
-	case ( le::Format::eR16G16B16A16Sint ):    // fall-through
-	case ( le::Format::eR16G16B16A16Sfloat ):  // fall-through
-		numBytesPerTexel = 4 * sizeof( uint16_t );
-	    break;
-	default:
-		assert( false ); // unhandled format
-	}
-
-	assert( numBytesPerTexel != 0 );
-
-	// --------| invariant: number of bytes per texel is valid
-
-	// we do a rough calculation which just double the size of the original image
-	size_t totalBytes = 0;
-
-	uint32_t width  = imageInfo.extent.width;
-	uint32_t height = imageInfo.extent.height;
-
-	for ( size_t i = 0; i != imageInfo.mipLevels; i++ ) {
-		totalBytes += numBytesPerTexel * width * height;
-		width  = width > 2 ? width >> 1 : 1;
-		height = height > 2 ? height >> 1 : 1;
-	}
-
-	return totalBytes;
-}
-
-// ----------------------------------------------------------------------
-// Writes buffer contents to staging memory (which is allocated on-demand)
-// and adds a write-to-image command into the command stream.
-//
-// TODO: Implement uploading mipmaps based on this example:
-//       <https://github.com/ValveSoftware/openvr/blob/1fb1030f2ac238456dca7615a4408fb2bb42afb6/samples/hellovr_vulkan/hellovr_vulkan_main.cpp#L2169>
-// we could generate mipmaps here - but how would the image know it was mipmapped? - and how many mipmap levels there are?
-// if we had the matching resourceinfo we would have all the information we needed. perhaps we should require it.
 static void cbe_write_to_image( le_command_buffer_encoder_o *self,
                                 le_resource_handle_t const & resourceId,
                                 le_resource_info_t const &   resourceInfo,
@@ -467,6 +353,9 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *self,
                                 size_t                       numBytes ) {
 
 	assert( resourceInfo.type == LeResourceType::eImage );
+
+	// ----------| invariant: resource info represents an image
+
 	auto const &imageInfo = resourceInfo.image;
 
 	auto cmd = EMPLACE_CMD( le::CommandWriteToImage );
@@ -475,15 +364,6 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *self,
 	void *               memAddr;
 	le_resource_handle_t srcResourceId;
 
-	// Check if resourceInfo requests more than one mip level.
-	// If so, we must generate the number of mip levels requested.
-
-	// We must also re-calculate the number of bytes based on the number of mip-levels,
-	// the image size, and the image format. For now, we only cover a select number of formats.
-
-	// TODO: make this dependent on format, change parameter to use imageInfo directly.
-	size_t numBytesForRequestedMipchain = getNumBytesRequiredForMipchain( imageInfo );
-
 	// -- Allocate memory using staging allocator
 	//
 	// We don't use the encoder local scratch linear allocator, since memory written to buffers is
@@ -491,73 +371,20 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *self,
 	// allocated so that it is only used for TRANSFER_SRC, and shared amongst encoders so that we
 	// use available memory more efficiently.
 	//
-	if ( le_staging_allocator_i.map( self->stagingAllocator, numBytesForRequestedMipchain, &memAddr, &srcResourceId ) ) {
+	if ( le_staging_allocator_i.map( self->stagingAllocator, numBytes, &memAddr, &srcResourceId ) ) {
 
-		// -- Write data to scratch memory now
+		// -- Write data to the freshly allocated buffer
 		memcpy( memAddr, data, numBytes );
 
-		// Add number of regions to this command matching the number of mip levels
-		// so that we can upload multiple mip levels at once.
+		cmd->info.src_buffer_id = srcResourceId;           // resource id of staging buffer
+		cmd->info.numBytes      = numBytes;                // total number of bytes from staging buffer which need to be synchronised.
+		cmd->info.dst_image_id  = resourceId;              // resouce id for target image resource
+		cmd->info.mipLevelCount = imageInfo.mipLevels;     // number of miplevels to generate - default is 1, *must not* be 0.
+		cmd->info.image_w       = imageInfo.extent.width;  // image extent
+		cmd->info.image_h       = imageInfo.extent.height; // image extent
 
-		auto const regions_begin = reinterpret_cast<le::CommandWriteToImage::ImageWriteRegion *>( cmd + 1 );
-		auto const regions_end   = regions_begin + imageInfo.mipLevels;
-
-		auto region = regions_begin;
-
-		region->dstMipLevel        = 0;
-		region->dstMipLevelExtentW = imageInfo.extent.width;
-		region->dstMipLevelExtentH = imageInfo.extent.height;
-		region->srcBufferOffset    = 0;
-
-		// We increase the region pointer, because now, we add regions for mipmaps.
-		region++;
-		uint64_t dstRegionOffsetInBytes = numBytes; // careful: these offsets need to be in PixelType
-		uint64_t srcRegionOffsetInBytes = 0;        // careful: these offsets need to be in PixelType
-		uint32_t srcWidth               = imageInfo.extent.width;
-		uint32_t srcHeight              = imageInfo.extent.height;
-
-		for ( uint32_t mipLevel = 1; region != regions_end; mipLevel++ ) {
-			region->dstMipLevel = mipLevel;
-
-			uint32_t dstWidth  = 0;
-			uint32_t dstHeight = 0;
-
-			std::cout << "Generating mipmap level..." << mipLevel << std::flush;
-
-			generate_mipmap<uint8_t, 4>( static_cast<uint8_t *>( memAddr ) + srcRegionOffsetInBytes,
-			                             static_cast<uint8_t *>( memAddr ) + dstRegionOffsetInBytes,
-			                             srcWidth, srcHeight, &dstWidth, &dstHeight );
-
-			std::cout << " done." << std::endl
-			          << std::flush;
-
-			region->dstMipLevelExtentW = dstWidth;
-			region->dstMipLevelExtentH = dstHeight;
-			region->srcBufferOffset    = uint32_t( dstRegionOffsetInBytes );
-
-			// Store dst -> src  for nex iteration
-			//
-			srcWidth               = dstWidth;
-			srcHeight              = dstHeight;
-			srcRegionOffsetInBytes = dstRegionOffsetInBytes;
-
-			// Move dstRegionOffsetInBytes to end of current image
-
-			dstRegionOffsetInBytes += dstWidth * dstHeight * sizeof( uint8_t ) * 4; // assuming 4 channels of uint8_t
-
-			// Next iteration shall work on next region
-			region++;
-		}
-
-		cmd->info.src_buffer_id = srcResourceId;
-		cmd->info.numBytes      = numBytesForRequestedMipchain; // total number of bytes from buffer which must be synchronised
-		cmd->info.dst_image_id  = resourceId;
-		cmd->info.pRegions      = regions_begin;
-		cmd->info.numRegions    = imageInfo.mipLevels;
-
-		cmd->header.info.size += sizeof( le::CommandWriteToImage::ImageWriteRegion ) * cmd->info.numRegions;
 	} else {
-		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytesForRequestedMipchain << " Bytes." << std::endl
+		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl
 		          << std::flush;
 		return;
 	}
