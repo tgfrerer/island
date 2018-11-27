@@ -47,6 +47,7 @@ static void *load_library( const char *lib_name ) {
 		auto loadResult = dlerror();
 		std::cerr << "ERROR: " << loadResult << std::endl
 		          << std::flush;
+		exit( 1 );
 	} else {
 		std::cout << LOG_PREFIX_STR "OK Loaded Module: '" << lib_name << "', Handle: " << std::hex << handle << std::endl
 		          << std::flush;
@@ -78,6 +79,7 @@ static bool load_library_persistent( const char *lib_name ) {
 			auto loadResult = dlerror();
 			std::cerr << LOG_PREFIX_STR "ERROR: " << loadResult << std::endl
 			          << std::flush;
+			exit( 1 );
 		} else {
 			std::cout << LOG_PREFIX_STR "Keep     Library: " << lib_name << ", handle:  " << std::hex << lib_handle << std::endl;
 		}
