@@ -445,8 +445,8 @@ static size_t getNumBytesRequiredForMipchain( le_resource_info_t::Image const &i
 
 	for ( size_t i = 0; i != imageInfo.mipLevels; i++ ) {
 		totalBytes += numBytesPerTexel * width * height;
-		width  = width > 2 ? width >> 2 : 1;
-		height = height > 2 ? height >> 2 : 1;
+		width  = width > 2 ? width >> 1 : 1;
+		height = height > 2 ? height >> 1 : 1;
 	}
 
 	return totalBytes;
