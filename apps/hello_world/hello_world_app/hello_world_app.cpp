@@ -38,7 +38,7 @@ struct Image : NoCopy, NoMove {
 	le_resource_handle_t imageHandle{};
 	le_resource_info_t   imageInfo{};
 	le_resource_handle_t textureHandle{};
-	le_pixels_o *        pixels; // need to manually delete
+	le_pixels_o *        pixels; // owned
 	le_pixels_info       pixelsInfo;
 	bool                 wasLoaded{};
 
@@ -186,10 +186,10 @@ static hello_world_app_o *hello_world_app_create() {
 
 	// load pixels for earth albedo
 
-	initialiseImage( app->imgEarthAlbedo, "./local_resources/images/world_winter.jpg", 4 );
-	initialiseImage( app->imgEarthNight, "./local_resources/images/earth_lights.jpg", 4 );
-	initialiseImage( app->imgEarthClouds, "./local_resources/images/earth_clouds.jpg" );
-	initialiseImage( app->imgEarthNormals, "./local_resources/images/normals_small.png", 1, le_pixels_info::eUInt16, le::Format::eR16G16B16A16Unorm );
+	initialiseImage( app->imgEarthAlbedo, "./local_resources/images/world_winter.jpg", 8 );
+	initialiseImage( app->imgEarthNight, "./local_resources/images/earth_lights.jpg", 8 );
+	initialiseImage( app->imgEarthClouds, "./local_resources/images/earth_clouds.jpg", 8 );
+	initialiseImage( app->imgEarthNormals, "./local_resources/images/normals_small.png", 4, le_pixels_info::eUInt16, le::Format::eR16G16B16A16Unorm );
 
 	// initialise app timer
 	app->timeStamp = std::chrono::high_resolution_clock::now();
@@ -349,22 +349,22 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto app = static_cast<hello_world_app_o *>( user_data );
 
 	LeTextureInfo texInfoAlbedo;
-	texInfoAlbedo.imageView.imageId        = app->imgEarthAlbedo.imageHandle;
-	texInfoAlbedo.sampler.magFilter        = le::Filter::eLinear;
-	texInfoAlbedo.sampler.minFilter        = le::Filter::eLinear;
-	texInfoAlbedo.sampler.addressModeU     = le::SamplerAddressMode::eRepeat;
-	texInfoAlbedo.sampler.addressModeV     = le::SamplerAddressMode::eMirroredRepeat;
-	texInfoAlbedo.sampler.maxLod           = 3;
-	texInfoAlbedo.sampler.minLod           = 0;
+	texInfoAlbedo.imageView.imageId    = app->imgEarthAlbedo.imageHandle;
+	texInfoAlbedo.sampler.magFilter    = le::Filter::eLinear;
+	texInfoAlbedo.sampler.minFilter    = le::Filter::eLinear;
+	texInfoAlbedo.sampler.addressModeU = le::SamplerAddressMode::eRepeat;
+	texInfoAlbedo.sampler.addressModeV = le::SamplerAddressMode::eMirroredRepeat;
+	texInfoAlbedo.sampler.maxLod       = 3;
+	texInfoAlbedo.sampler.minLod       = 0;
 
 	LeTextureInfo texInfoNight;
-	texInfoNight.imageView.imageId        = app->imgEarthNight.imageHandle;
-	texInfoNight.sampler.magFilter        = le::Filter::eNearest;
-	texInfoNight.sampler.minFilter        = le::Filter::eNearest;
-	texInfoNight.sampler.addressModeU     = le::SamplerAddressMode::eRepeat;
-	texInfoNight.sampler.maxLod           = 3;
-	texInfoNight.sampler.minLod           = 0;
-	texInfoNight.sampler.addressModeV     = le::SamplerAddressMode::eMirroredRepeat;
+	texInfoNight.imageView.imageId    = app->imgEarthNight.imageHandle;
+	texInfoNight.sampler.magFilter    = le::Filter::eNearest;
+	texInfoNight.sampler.minFilter    = le::Filter::eNearest;
+	texInfoNight.sampler.addressModeU = le::SamplerAddressMode::eRepeat;
+	texInfoNight.sampler.maxLod       = 3;
+	texInfoNight.sampler.minLod       = 0;
+	texInfoNight.sampler.addressModeV = le::SamplerAddressMode::eMirroredRepeat;
 
 	LeTextureInfo texInfoClouds;
 	texInfoClouds.imageView.imageId    = app->imgEarthClouds.imageHandle;
@@ -374,11 +374,11 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	texInfoClouds.sampler.addressModeV = le::SamplerAddressMode::eMirroredRepeat;
 
 	LeTextureInfo texInfoNormals;
-	texInfoNormals.imageView.imageId        = app->imgEarthNormals.imageHandle;
-	texInfoNormals.sampler.magFilter        = le::Filter::eLinear;
-	texInfoNormals.sampler.minFilter        = le::Filter::eLinear;
-	texInfoNormals.sampler.addressModeU     = le::SamplerAddressMode::eClampToEdge;
-	texInfoNormals.sampler.addressModeV     = le::SamplerAddressMode::eRepeat;
+	texInfoNormals.imageView.imageId    = app->imgEarthNormals.imageHandle;
+	texInfoNormals.sampler.magFilter    = le::Filter::eLinear;
+	texInfoNormals.sampler.minFilter    = le::Filter::eLinear;
+	texInfoNormals.sampler.addressModeU = le::SamplerAddressMode::eClampToEdge;
+	texInfoNormals.sampler.addressModeV = le::SamplerAddressMode::eRepeat;
 
 	rp
 	    .addColorAttachment( app->renderer.getBackbufferResource() ) // color attachment
