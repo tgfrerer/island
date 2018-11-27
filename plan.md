@@ -256,15 +256,37 @@ list - that way we can be much faster at assigning resources
 
 # Long-Term aspirations
 - reduce compile times with glm: template specialisations
-- improve ergonomics, reduce lines to type
+- improve ergonomics, reduce lines to type (less "noisy" code)
 - project generator for simple apps
 - project generator for apps
 
 # Todo
 
-# What I'm unhappy with
+## What I'm happy with
+
+- The infer the "duh" principle - as a user of the api we want the
+  renderer/engine to do the bookkeeping for us. 
+
+- Automatic mipmaps are auto-generated on image upload, if an image is
+  declared with miplevels. If it is not declared with mip levels, no
+  mipmap is generated.
+
+- shader error reporting is pretty robust
+
+- Automatic allocation of resources works - first all declarations of the
+  resource are collected, then combined, then resources are allocated so
+  that they fit all their uses. This means we can reason locally about
+  what we need from a resource, and the engine will give us a resource
+  that can do it.
+
+- The way we can just add attachments to renderpasses, and enable/disable
+  depth buffer by not declaring it in the setup stage of the renderpass.
+
+## What I'm unhappy with
+
 - the way a lower sytem calls into a higher level system when executing
   renderpass callbacks is too complicated - it also appears to be a case
   of the tail wagging the dog.
-- i can see no benefit in having renderpass setup being a callback
+
+
 
