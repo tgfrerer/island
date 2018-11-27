@@ -12,9 +12,6 @@
 #include "le_pixels/le_pixels.h"
 #include "le_ui_event/le_ui_event.h"
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h> // for key codes
-
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
 #include "glm.hpp"
@@ -95,6 +92,9 @@ struct test_app_o {
 	// and de-serializing objects which are allocated on the heap. we don't have to worry about objects which are allocated
 	// on the stack, as the stack acts like a pool allocator, and they are only alife while control visits the code section
 	// in question.
+
+	le_resource_info_t resInfoHorse; // resource info for horse image
+	le_resource_info_t resInfoFont;  // resource info for font image
 
 	LeCamera           camera;
 	LeCameraController cameraController;
@@ -276,27 +276,27 @@ static test_app_o *test_app_create() {
 		io.Fonts->TexID = ( void * )( uint64_t const & )app->imguiTexture.le_texture_handle;
 
 		// Keyboard mapping. ImGui will use those indices to peek into the io.KeysDown[] array.
-		io.KeyMap[ ImGuiKey_Tab ]        = GLFW_KEY_TAB;
-		io.KeyMap[ ImGuiKey_LeftArrow ]  = GLFW_KEY_LEFT;
-		io.KeyMap[ ImGuiKey_RightArrow ] = GLFW_KEY_RIGHT;
-		io.KeyMap[ ImGuiKey_UpArrow ]    = GLFW_KEY_UP;
-		io.KeyMap[ ImGuiKey_DownArrow ]  = GLFW_KEY_DOWN;
-		io.KeyMap[ ImGuiKey_PageUp ]     = GLFW_KEY_PAGE_UP;
-		io.KeyMap[ ImGuiKey_PageDown ]   = GLFW_KEY_PAGE_DOWN;
-		io.KeyMap[ ImGuiKey_Home ]       = GLFW_KEY_HOME;
-		io.KeyMap[ ImGuiKey_End ]        = GLFW_KEY_END;
-		io.KeyMap[ ImGuiKey_Insert ]     = GLFW_KEY_INSERT;
-		io.KeyMap[ ImGuiKey_Delete ]     = GLFW_KEY_DELETE;
-		io.KeyMap[ ImGuiKey_Backspace ]  = GLFW_KEY_BACKSPACE;
-		io.KeyMap[ ImGuiKey_Space ]      = GLFW_KEY_SPACE;
-		io.KeyMap[ ImGuiKey_Enter ]      = GLFW_KEY_ENTER;
-		io.KeyMap[ ImGuiKey_Escape ]     = GLFW_KEY_ESCAPE;
-		io.KeyMap[ ImGuiKey_A ]          = GLFW_KEY_A;
-		io.KeyMap[ ImGuiKey_C ]          = GLFW_KEY_C;
-		io.KeyMap[ ImGuiKey_V ]          = GLFW_KEY_V;
-		io.KeyMap[ ImGuiKey_X ]          = GLFW_KEY_X;
-		io.KeyMap[ ImGuiKey_Y ]          = GLFW_KEY_Y;
-		io.KeyMap[ ImGuiKey_Z ]          = GLFW_KEY_Z;
+		io.KeyMap[ ImGuiKey_Tab ]        = uint32_t( LeUiEvent::NamedKey::eTab );
+		io.KeyMap[ ImGuiKey_LeftArrow ]  = uint32_t( LeUiEvent::NamedKey::eLeft );
+		io.KeyMap[ ImGuiKey_RightArrow ] = uint32_t( LeUiEvent::NamedKey::eRight );
+		io.KeyMap[ ImGuiKey_UpArrow ]    = uint32_t( LeUiEvent::NamedKey::eUp );
+		io.KeyMap[ ImGuiKey_DownArrow ]  = uint32_t( LeUiEvent::NamedKey::eDown );
+		io.KeyMap[ ImGuiKey_PageUp ]     = uint32_t( LeUiEvent::NamedKey::ePageUp );
+		io.KeyMap[ ImGuiKey_PageDown ]   = uint32_t( LeUiEvent::NamedKey::ePageDown );
+		io.KeyMap[ ImGuiKey_Home ]       = uint32_t( LeUiEvent::NamedKey::eHome );
+		io.KeyMap[ ImGuiKey_End ]        = uint32_t( LeUiEvent::NamedKey::eEnd );
+		io.KeyMap[ ImGuiKey_Insert ]     = uint32_t( LeUiEvent::NamedKey::eInsert );
+		io.KeyMap[ ImGuiKey_Delete ]     = uint32_t( LeUiEvent::NamedKey::eDelete );
+		io.KeyMap[ ImGuiKey_Backspace ]  = uint32_t( LeUiEvent::NamedKey::eBackspace );
+		io.KeyMap[ ImGuiKey_Space ]      = uint32_t( LeUiEvent::NamedKey::eSpace );
+		io.KeyMap[ ImGuiKey_Enter ]      = uint32_t( LeUiEvent::NamedKey::eEnter );
+		io.KeyMap[ ImGuiKey_Escape ]     = uint32_t( LeUiEvent::NamedKey::eEscape );
+		io.KeyMap[ ImGuiKey_A ]          = uint32_t( LeUiEvent::NamedKey::eA );
+		io.KeyMap[ ImGuiKey_C ]          = uint32_t( LeUiEvent::NamedKey::eC );
+		io.KeyMap[ ImGuiKey_V ]          = uint32_t( LeUiEvent::NamedKey::eV );
+		io.KeyMap[ ImGuiKey_X ]          = uint32_t( LeUiEvent::NamedKey::eX );
+		io.KeyMap[ ImGuiKey_Y ]          = uint32_t( LeUiEvent::NamedKey::eY );
+		io.KeyMap[ ImGuiKey_Z ]          = uint32_t( LeUiEvent::NamedKey::eZ );
 	}
 
 	app->update_start_time = std::chrono::high_resolution_clock::now();
@@ -315,6 +315,23 @@ static test_app_o *test_app_create() {
 	{
 		reset_camera( app );
 	}
+
+	{
+		app->resInfoHorse = le::ImageInfoBuilder()
+		                        .setExtent( 640, 425 )
+		                        .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
+		                        .setFormat( le::Format::eR8G8B8A8Unorm )
+		                        .build() // create resource for horse image
+		    ;
+
+		app->resInfoFont = le::ImageInfoBuilder()
+		                       .setExtent( uint32_t( app->imguiTexture.width ), uint32_t( app->imguiTexture.height ) )
+		                       .setUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
+		                       .setFormat( le::Format::eR8G8B8A8Unorm )
+		                       .build() // create resource for imgui font texture if it does not yet exist.
+		    ;
+	}
+
 	return app;
 }
 
@@ -333,19 +350,9 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	auto app = static_cast<test_app_o *>( user_data_ );
 	auto rp  = le::RenderPassRef{pRp};
 
-	rp.useResource( resImgHorse,
-	                le::ImageInfoBuilder()
-	                    .setExtent( 640, 425 )
-	                    .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
-	                    .build() // create resource for horse image
-	);
+	rp.useResource( resImgHorse, app->resInfoHorse );
 
-	rp.useResource( app->imguiTexture.le_image_handle,
-	                le::ImageInfoBuilder()
-	                    .setExtent( uint32_t( app->imguiTexture.width ), uint32_t( app->imguiTexture.height ) )
-	                    .setUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
-	                    .build() // create resource for imgui font texture if it does not yet exist.
-	);
+	rp.useResource( app->imguiTexture.le_image_handle, app->resInfoFont );
 
 	rp.useResource( resBufTrianglePos,
 	                le::BufferInfoBuilder()
@@ -389,16 +396,16 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder, void *user
 		auto pix      = LePixels( "./resources/images/horse-1330690_640.jpg", 4 );
 		auto pix_info = pix.getInfo();
 		auto pix_data = pix.getData();
-		encoder_i.write_to_image( encoder, resImgHorse, {pix_info.width, pix_info.height}, pix_data, pix_info.byte_count );
+		encoder_i.write_to_image( encoder, resImgHorse, app->resInfoHorse, pix_data, pix_info.byte_count );
 		app->imgHorseWasUploaded = true;
 	}
 
 	if ( false == app->imguiTexture.wasUploaded ) {
 		// tell encoder to upload imgui image - but only once
 		// note that we use the le_image_handle field to signal that the image has been uploaded.
-		size_t              numBytes = size_t( app->imguiTexture.width ) * size_t( app->imguiTexture.height ) * 32;
-		LeBufferWriteRegion region   = {uint32_t( app->imguiTexture.width ), uint32_t( app->imguiTexture.height )};
-		encoder_i.write_to_image( encoder, app->imguiTexture.le_image_handle, region, app->imguiTexture.pixels, numBytes );
+		size_t numBytes = size_t( app->imguiTexture.width ) * size_t( app->imguiTexture.height ) * 32;
+
+		encoder_i.write_to_image( encoder, app->imguiTexture.le_image_handle, app->resInfoFont, app->imguiTexture.pixels, numBytes );
 		app->imguiTexture.wasUploaded = true;
 	}
 
@@ -730,8 +737,6 @@ static bool test_app_update( test_app_o *self ) {
 		io.MousePos = {self->mousePos.x, self->mousePos.y};
 	}
 
-	// ImGui::Text( "Hello Island" );
-
 	//	ImGui::ShowDemoWindow();
 	ImGui::ShowMetricsWindow();
 	ImGui::Render();
@@ -815,22 +820,22 @@ static void test_app_process_ui_events( test_app_o *self ) {
 		case LeUiEvent::Type::eKey: {
 			auto &e = event->key;
 
-			if ( e.key == GLFW_KEY_F11 && e.action == GLFW_RELEASE ) {
+			if ( e.key == LeUiEvent::NamedKey::eF11 && e.action == LeUiEvent::ButtonAction::eRelease ) {
 				wantsFullscreenToggle ^= 1;
 			}
 
-			if ( e.action == GLFW_PRESS ) {
-				io.KeysDown[ e.key ] = true;
+			if ( e.action == LeUiEvent::ButtonAction::ePress ) {
+				io.KeysDown[ uint32_t( e.key ) ] = true;
 			}
-			if ( e.action == GLFW_RELEASE ) {
-				io.KeysDown[ e.key ] = false;
+			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
+				io.KeysDown[ uint32_t( e.key ) ] = false;
 			}
 
 			// ( void )e.mods; // Modifiers are not reliable across systems
-			io.KeyCtrl  = io.KeysDown[ GLFW_KEY_LEFT_CONTROL ] || io.KeysDown[ GLFW_KEY_RIGHT_CONTROL ];
-			io.KeyShift = io.KeysDown[ GLFW_KEY_LEFT_SHIFT ] || io.KeysDown[ GLFW_KEY_RIGHT_SHIFT ];
-			io.KeyAlt   = io.KeysDown[ GLFW_KEY_LEFT_ALT ] || io.KeysDown[ GLFW_KEY_RIGHT_ALT ];
-			io.KeySuper = io.KeysDown[ GLFW_KEY_LEFT_SUPER ] || io.KeysDown[ GLFW_KEY_RIGHT_SUPER ];
+			io.KeyCtrl  = io.KeysDown[ uint32_t( LeUiEvent::NamedKey::eLeftControl ) ] || io.KeysDown[ uint32_t( LeUiEvent::NamedKey::eRightControl ) ];
+			io.KeyShift = io.KeysDown[ uint32_t( LeUiEvent::NamedKey::eLeftShift ) ] || io.KeysDown[ uint32_t( LeUiEvent::NamedKey::eRightShift ) ];
+			io.KeyAlt   = io.KeysDown[ uint32_t( LeUiEvent::NamedKey::eLeftAlt ) ] || io.KeysDown[ uint32_t( LeUiEvent::NamedKey::eRightAlt ) ];
+			io.KeySuper = io.KeysDown[ uint32_t( LeUiEvent::NamedKey::eLeftSuper ) ] || io.KeysDown[ uint32_t( LeUiEvent::NamedKey::eRightSuper ) ];
 
 		} break;
 		case LeUiEvent::Type::eCharacter: {
