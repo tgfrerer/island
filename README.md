@@ -1,14 +1,50 @@
 # Installation instructions
 
-## Install Vulkan SDK
+## Install Vulkan SDK 
 
-Download Vulkan SDK from the LunarG [web site](https://vulkan.lunarg.com/sdk/home#linux)
+### Current Vulkan SDK >= 1.1.92.0
 
-## Recommended SDK local folder structure
+I recommend installing the Vulkan SDK via the ubuntu package manager. Follow
+the installation instructions via <https://vulkan.lunarg.com/sdk/home#linux>.
 
-We recommend to extract this and future Vulkan SDK archives into a
-shared top-level folder so that you can recreate the following
-structure:
+    wget -qO - http://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
+    sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.1.92-bionic.list http://packages.lunarg.com/vulkan/1.1.92/lunarg-vulkan-1.1.92-bionic.list
+    sudo apt update
+
+    sudo apt-get install vulkan-lunarg-sdk
+
+Download Vulkan SDK from the LunarG [web
+site](https://vulkan.lunarg.com/sdk/home#linux)
+
+### Previous Vulkan SDK < 1.1.92.0
+
+Previous SDK did not come with a ubuntu package, and was more cumbersome
+to set up. Follow instructions at the end of this document under section
+`Legacy Vulkan SDK installation instructions`.
+
+## Island compilation
+
+*Remember to update submodules before building*
+
+    git submodule init
+    git submodule update
+
+The CMAKE parameter `PLUGINS_DYNAMIC` lets you choose whether to compile Island
+as a static binary, or as a thin module with dynamic plugins. I recommend
+dynamic plugins for debug, and deactivating the option for release builds.
+
+## Legacy Vulkan SDK installation instructions
+
+Previous Vulkan SDK installation was slighly more cumbersome, and required
+to manually build shaderc so that we could use it as a shared library.
+
+Note that the shaderc header include path in island the source using
+shaderc.h might need to be changed for the legacy method to work again.
+
+### Recommended SDK local folder structure
+
+We recommend to extract this and future Vulkan SDK archives into a shared
+top-level folder so that you can recreate the following structure:
 
     VulkanSDK/
         1.1.73.0/
@@ -19,13 +55,13 @@ Note that the folder has a symlink, `current`, which points at the
 very latest version of the Vulkan SDK. This way, upgrading the SDK
 becomes trivial.
 
-## Make Vulkan SDK environment variables visible
+### Make Vulkan SDK environment variables visible
 
 Current linux distributions of the Vulkan SDK include a file named
 `setup-env.sh`. This file needs to be sourced into your shell on
 startup. 
 
-### Ubuntu 18.0
+#### Ubuntu 18.0
 
 To source `setup-env.sh`, add the following line to your `~/.profile`:
 
@@ -36,9 +72,7 @@ This assumes you have created the VulkanSDK top level folder in
 Note that we're using the symlink `current` mentioned above, so that
 we're always sourcing the current SDK.
 
-### Ubuntu 18.0
-
-Add a library search path entry for SDK libs: 
+Then add a library search path entry for SDK libs: 
 
     sudo echo echo "$VULKAN_SDK/lib" > /etc/ld.so.conf.d/vk.conf
 
@@ -55,7 +89,7 @@ Unfortunately ubuntu won't let `setup-env.sh` update the system-wide
 library search paths, `LD_LIBRARY_PATH`, which is why we have to jump
 through this hoop.
 
-## Build Vulkan SDK Tools 
+### Build Vulkan SDK Tools 
 
 Move to the current Vulkan SDK directory, and edit `build_tools.sh`
 
@@ -79,16 +113,5 @@ add the line:
 Save & close `build_tools.sh`, then build the SDK tools:
 
     ./build_tools.sh
-
-## Island compilation
-
-*Remember to update submodules before building*
-
-    git submodule init
-    git submodule update
-
-The CMAKE parameter `PLUGINS_DYNAMIC` lets you choose whether to compile Island
-as a static binary, or as a thin module with dynamic plugins. I recommend
-dynamic plugins for debug, and deactivating the option for release builds.
 
 

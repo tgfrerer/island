@@ -12,7 +12,7 @@
 
 #include "le_shader_compiler/le_shader_compiler.h"
 
-#include "libshaderc/shaderc.h"
+#include "shaderc/shaderc.hpp"
 
 #include "le_renderer/le_renderer.h" // for shader type
 

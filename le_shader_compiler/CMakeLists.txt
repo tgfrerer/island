@@ -3,13 +3,13 @@ set (TARGET le_shader_compiler)
 set (SOURCES "le_shader_compiler.cpp")
 set (SOURCES ${SOURCES} "le_shader_compiler.h")
 
-set (LIB_SHADERC_DIR $ENV{VULKAN_SDK}/lib/libshaderc/)
+#set (LIB_SHADERC_DIR $ENV{VULKAN_SDK}/lib/libshaderc/)
 
 # NOTE: We're linking shaderc from this system's Vulkan SDK directory
-link_directories(${LIB_SHADERC_DIR})
+#link_directories(${LIB_SHADERC_DIR})
 
 # NOTE: We're using the shaderc headers from this system's Vulkan SDK directory
-include_directories($ENV{VULKAN_SDK}/include/)
+#include_directories($ENV{VULKAN_SDK}/include/)
 
 if (${PLUGINS_DYNAMIC})
 
@@ -25,6 +25,7 @@ if (${PLUGINS_DYNAMIC})
 
     target_compile_definitions(${TARGET} PUBLIC "PLUGINS_DYNAMIC=1")
 
+    set (LINKER_FLAGS -Wl,--whole-archive shaderc_shared.so -Wl,--no-whole-archive)
 else()
 
     # Set additional search directory for static linker - where it may find
@@ -37,9 +38,10 @@ else()
 
     add_library(${TARGET} STATIC ${SOURCES})
 
+    set (LINKER_FLAGS -Wl,--whole-archive shaderc_combined -Wl,--no-whole-archive)
+
 endif()
 
-set (LINKER_FLAGS -Wl,--whole-archive shaderc_shared -Wl,--no-whole-archive)
 
 set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
 

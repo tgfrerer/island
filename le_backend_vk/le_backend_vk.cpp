@@ -594,7 +594,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 			allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 			allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
 
-			vmaFindMemoryTypeIndexForBufferInfo( self->mAllocator, &( static_cast<VkBufferCreateInfo &>( bufferInfo ) ), &allocInfo, &memIndexScratchBufferGraphics );
+			vmaFindMemoryTypeIndexForBufferInfo( self->mAllocator, &reinterpret_cast<VkBufferCreateInfo &>( bufferInfo ), &allocInfo, &memIndexScratchBufferGraphics );
 		}
 
 		{
@@ -614,7 +614,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 			allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 			allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
 
-			vmaFindMemoryTypeIndexForBufferInfo( self->mAllocator, &( static_cast<VkBufferCreateInfo &>( bufferInfo ) ), &allocInfo, &memIndexStagingBufferGraphics );
+			vmaFindMemoryTypeIndexForBufferInfo( self->mAllocator, &reinterpret_cast<VkBufferCreateInfo &>( bufferInfo ), &allocInfo, &memIndexStagingBufferGraphics );
 		}
 	}
 
