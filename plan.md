@@ -212,7 +212,8 @@ frame which is in-flight still uses it.
 
 # Island-framework
 
-* Create a templating script to generate class scaffold so you don't have
+- create a project generator
+- Create a templating script to generate class scaffold so you don't have
   to type that much boilerplate.
 
 ----------------------------------------------------------------------
@@ -248,7 +249,6 @@ list - that way we can be much faster at assigning resources
   value, for example.
 
 # Next Step Features
-- create a project generator
 - entity-component system for nodes
 - add materials for renderer
 - implement a post processing effects pipeline
@@ -256,8 +256,6 @@ list - that way we can be much faster at assigning resources
 - investigate intel performance primitives for multithreading
 - image writer swapchain (for post processing)
 - implement compute pipeline - and compute passes
-- refactor shader related methods/pipeline state object elements to their
-  own translation unit within backend
 - implement pipeline generation as a channeled op - per encoder first,
   then consolidate those elements generated within a frame
 

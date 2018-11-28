@@ -13,14 +13,12 @@ the installation instructions via <https://vulkan.lunarg.com/sdk/home#linux>.
 
     sudo apt-get install vulkan-lunarg-sdk
 
-Download Vulkan SDK from the LunarG [web
-site](https://vulkan.lunarg.com/sdk/home#linux)
-
 ### Previous Vulkan SDK < 1.1.92.0
 
 Previous SDK did not come with a ubuntu package, and was more cumbersome
 to set up. Follow instructions at the end of this document under section
 `Legacy Vulkan SDK installation instructions`.
+
 
 ## Island compilation
 
@@ -40,6 +38,9 @@ to manually build shaderc so that we could use it as a shared library.
 
 Note that the shaderc header include path in island the source using
 shaderc.h might need to be changed for the legacy method to work again.
+
+Download Vulkan SDK from the LunarG [web
+site](https://vulkan.lunarg.com/sdk/home#linux)
 
 ### Recommended SDK local folder structure
 
