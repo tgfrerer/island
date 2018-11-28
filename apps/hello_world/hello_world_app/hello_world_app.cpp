@@ -27,11 +27,6 @@
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
-struct le_mouse_event_data_o {
-	uint32_t  buttonState{};
-	glm::vec2 cursor_pos;
-};
-
 struct Image : NoCopy, NoMove {
 	le_resource_handle_t imageHandle{};
 	le_resource_info_t   imageInfo{};
@@ -68,9 +63,6 @@ struct hello_world_app_o {
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
 
-	std::array<bool, 5>   mouseButtonStatus{}; // status for each mouse button
-	glm::vec2             mousePos{};          // current mouse position
-	le_mouse_event_data_o mouseData;
 
 	LeCameraController cameraController;
 	LeCamera           camera;
