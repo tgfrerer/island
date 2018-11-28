@@ -35,8 +35,6 @@ struct GltfUboMvp {
 	glm::mat4 view;
 };
 
-#define LE_ARGUMENT_NAME( x ) hash_64_fnv1a_const( #x )
-
 struct FontTextureInfo {
 	uint8_t *                  pixels            = nullptr;
 	int32_t                    width             = 0;
@@ -479,8 +477,8 @@ static void pass_pre_exec( le_command_buffer_encoder_o *encoder_, void *user_dat
 
 		encoder
 		    .bindGraphicsPipeline( psoPrepass )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( src_tex_unit_0 ), resTexHorse, 0 )
-		    .setArgumentData( LE_ARGUMENT_NAME( TimeInfo ), &info, sizeof( info ) )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), resTexHorse, 0 )
+		    .setArgumentData( LE_ARGUMENT_NAME( "TimeInfo" ), &info, sizeof( info ) )
 		    .setScissors( 0, 1, &scissors[ 0 ] )
 		    .setViewports( 0, 1, &viewports[ 0 ] )
 		    .draw( 3 );
@@ -576,7 +574,7 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 		    .bindGraphicsPipeline( psoTriangle )
 		    .setScissors( 0, 1, scissors )
 		    .setViewports( 0, 1, viewports )
-		    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &matrixStack, sizeof( MvpUbo_t ) )
+		    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &matrixStack, sizeof( MvpUbo_t ) )
 		    .bindVertexBuffers( 0, 1, buffers, offsets )
 		    .setVertexData( triangleColors, sizeof( glm::vec4 ) * 3, 1 )
 		    .setIndexData( indexData, sizeof( indexData ), le::IndexType::eUint16 ) // 0 for indexType means uint16_t
@@ -611,7 +609,7 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 
 		encoder
 		    .bindGraphicsPipeline( app->psoFullScreenQuad )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( src_tex_unit_0 ), resTexPrepass, 0 )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), resTexPrepass, 0 )
 		    .setScissors( 0, 1, &scissors[ 2 ] )
 		    .setViewports( 0, 1, &viewports[ 2 ] )
 		    .draw( 3 ) //
@@ -629,8 +627,8 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 		encoder
 		    .bindGraphicsPipeline( app->psoImgui )
 		    .setViewports( 0, 1, &viewports[ 0 ] )
-		    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &ortho_projection, sizeof( glm::mat4 ) )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( tex_unit_0 ), app->imguiTexture.le_texture_handle, 0 ) //
+		    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &ortho_projection, sizeof( glm::mat4 ) )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), app->imguiTexture.le_texture_handle, 0 ) //
 		    ;
 
 		le_resource_handle_t currentTexture = app->imguiTexture.le_texture_handle; // we check this for changes so that we don't have to switch state that often.

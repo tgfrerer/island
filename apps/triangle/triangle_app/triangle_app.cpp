@@ -17,8 +17,6 @@
 #include <memory>
 #include <sstream>
 
-#define LE_ARGUMENT_NAME( x ) hash_64_fnv1a_const( #x )
-
 struct triangle_app_o {
 	le::Backend  backend;
 	pal::Window  window;
@@ -163,7 +161,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		    .bindGraphicsPipeline( pipelineTriangle )
 		    .setScissors( 0, 1, scissors )
 		    .setViewports( 0, 1, viewports )
-		    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &mvp, sizeof( MatrixStackUbo_t ) )
+		    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
 		    .setVertexData( trianglePositions, sizeof( trianglePositions ), 0 )
 		    .setVertexData( triangleColors, sizeof( triangleColors ), 1 )
 		    .draw( 3 );

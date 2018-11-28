@@ -27,8 +27,6 @@
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
-#define LE_ARGUMENT_NAME( x ) hash_64_fnv1a_const( #x )
-
 struct le_mouse_event_data_o {
 	uint32_t  buttonState{};
 	glm::vec2 cursor_pos;
@@ -508,11 +506,11 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		    .bindIndexBuffer( app->worldGeometry.index_buffer_handle, 0 );
 
 		encoder
-		    .setArgumentData( LE_ARGUMENT_NAME( CameraParams ), &cameraParams, sizeof( CameraParams ) )
-		    .setArgumentData( LE_ARGUMENT_NAME( ModelParams ), &earthParams, sizeof( ModelParams ) )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( tex_unit_0 ), app->imgEarthAlbedo.textureHandle )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( tex_unit_1 ), app->imgEarthNormals.textureHandle )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( tex_unit_2 ), app->imgEarthNight.textureHandle )
+		    .setArgumentData( LE_ARGUMENT_NAME( "CameraParams" ), &cameraParams, sizeof( CameraParams ) )
+		    .setArgumentData( LE_ARGUMENT_NAME( "ModelParams" ), &earthParams, sizeof( ModelParams ) )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), app->imgEarthAlbedo.textureHandle )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_1" ), app->imgEarthNormals.textureHandle )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_2" ), app->imgEarthNight.textureHandle )
 		    .drawIndexed( uint32_t( app->worldGeometry.indexCount ) ) //
 		    ;
 
@@ -540,9 +538,9 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 		encoder
 		    .bindGraphicsPipeline( pipelineEarthAtmosphere )
-		    .setArgumentData( LE_ARGUMENT_NAME( ModelParams ), &earthParams, sizeof( ModelParams ) )
-		    .setArgumentData( LE_ARGUMENT_NAME( CameraParams ), &cameraParams, sizeof( CameraParams ) )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( tex_unit_3 ), app->imgEarthClouds.textureHandle )
+		    .setArgumentData( LE_ARGUMENT_NAME( "ModelParams" ), &earthParams, sizeof( ModelParams ) )
+		    .setArgumentData( LE_ARGUMENT_NAME( "CameraParams" ), &cameraParams, sizeof( CameraParams ) )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_3" ), app->imgEarthClouds.textureHandle )
 		    .bindVertexBuffers( 0, 3, buffers, app->worldGeometry.buffer_offsets.data() )
 		    .drawIndexed( uint32_t( app->worldGeometry.indexCount ) ) // index buffers should still be bound.
 		    ;
@@ -590,8 +588,8 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 			encoder
 			    .bindGraphicsPipeline( pipelineLensflares )
-			    .setArgumentData( LE_ARGUMENT_NAME( CameraParams ), &cameraParams, sizeof( CameraParams ) )
-			    .setArgumentData( LE_ARGUMENT_NAME( LensflareParams ), &params, sizeof( LensflareParams ) )
+			    .setArgumentData( LE_ARGUMENT_NAME( "CameraParams" ), &cameraParams, sizeof( CameraParams ) )
+			    .setArgumentData( LE_ARGUMENT_NAME( "LensflareParams" ), &params, sizeof( LensflareParams ) )
 			    .setVertexData( lensflareData, sizeof( lensflareData ), 0 )
 			    .draw( sizeof( lensflareData ) / sizeof( glm::vec4 ) ) //
 			    ;

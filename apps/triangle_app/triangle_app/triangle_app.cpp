@@ -10,11 +10,7 @@
 #include "le_pipeline_builder/le_pipeline_builder.h"
 #include "le_pixels/le_pixels.h"
 
-#define VULKAN_HPP_NO_SMART_HANDLE
-#include "vulkan/vulkan.hpp"
-
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h> // for key codes
+#include "le_ui_event/le_ui_event.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -27,16 +23,10 @@
 #include <memory>
 #include <sstream>
 #include <bitset>
-
-#define LE_ARGUMENT_NAME( x ) hash_64_fnv1a_const( #x )
+#include <vector>
 
 #include <chrono> // for nanotime
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
-
-struct le_mouse_event_data_o {
-	uint32_t  buttonState{};
-	glm::vec2 cursor_pos;
-};
 
 struct triangle_app_o {
 	le::Backend  backend;
@@ -45,10 +35,6 @@ struct triangle_app_o {
 	uint64_t     frame_counter = 0;
 	float        deltaTimeSec  = 0;
 	float        animT         = 0;
-
-	std::array<bool, 5>   mouseButtonStatus{}; // status for each mouse button
-	glm::vec2             mousePos{};          // current mouse position
-	le_mouse_event_data_o mouseData;
 
 	NanoTime update_start_time;
 
@@ -149,7 +135,6 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data ) {
 	rp.useResource( LE_BUF_RESOURCE( "TriangleBuffer" ),
 	                le::BufferInfoBuilder()
 	                    .setSize( sizeof( glm::vec3 ) * 6 )
-	                    .setUsageFlags( VK_BUFFER_USAGE_TRANSFER_DST_BIT )
 	                    .build() // create resource for triangle vertex buffer
 	);
 
@@ -247,35 +232,18 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	// Draw main scene
 	if ( true ) {
 
-		vk::PipelineRasterizationStateCreateInfo rasterizationState{};
-		rasterizationState
-		    .setDepthClampEnable( VK_FALSE )
-		    .setRasterizerDiscardEnable( VK_FALSE )
-		    .setPolygonMode( vk::PolygonMode::eFill )
-		    .setCullMode( vk::CullModeFlagBits::eNone )
-		    .setFrontFace( vk::FrontFace::eCounterClockwise )
-		    .setDepthBiasEnable( VK_FALSE )
-		    .setDepthBiasConstantFactor( 0.f )
-		    .setDepthBiasClamp( 0.f )
-		    .setDepthBiasSlopeFactor( 1.f )
-		    .setLineWidth( 1.f );
-
-		vk::PipelineInputAssemblyStateCreateInfo inputAssemblyInfo{};
-		inputAssemblyInfo.setTopology( vk::PrimitiveTopology::eTriangleList );
-
 		static auto pipelineTriangle =
 		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 		        .addShaderStage( app->shaderTriangle[ 0 ] )
 		        .addShaderStage( app->shaderTriangle[ 1 ] )
-		        .setRasterizationInfo( rasterizationState )
-		        //		        .setInputAssemblyInfo( inputAssemblyInfo )
 		        .build();
 
 		static auto pipelinePathTracer =
 		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 		        .addShaderStage( app->shaderPathTracer[ 0 ] )
 		        .addShaderStage( app->shaderPathTracer[ 1 ] )
-		        .setRasterizationInfo( rasterizationState )
+		        .withRasterizationState()
+		        .end()
 		        .build();
 
 		MatrixStackUbo_t mvp;
@@ -347,8 +315,8 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 			    .bindGraphicsPipeline( pipelineTriangle )
 			    .setScissors( 0, 1, scissors )
 			    .setViewports( 0, 1, viewports )
-			    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &mvp, sizeof( MatrixStackUbo_t ) )
-			    .setArgumentData( LE_ARGUMENT_NAME( Color ), &color, sizeof( ColorUbo_t ) )
+			    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
+			    .setArgumentData( LE_ARGUMENT_NAME( "Color" ), &color, sizeof( ColorUbo_t ) )
 			    .bindVertexBuffers( 0, 1, buffers, offsets )
 			    .setVertexData( triangleColors, sizeof( triangleColors ), 1 )
 			    .setIndexData( indexData, sizeof( indexData ) )
@@ -361,45 +329,20 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 			    .bindGraphicsPipeline( pipelinePathTracer )
 			    .setScissors( 0, 1, scissors )
 			    .setViewports( 0, 1, viewports )
-			    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &mvp, sizeof( MatrixStackUbo_t ) )
-			    .setArgumentData( LE_ARGUMENT_NAME( RayInfo ), &rayInfo, sizeof( RayInfo_t ) )
+			    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
+			    .setArgumentData( LE_ARGUMENT_NAME( "RayInfo" ), &rayInfo, sizeof( RayInfo_t ) )
 			    .draw( 3 );
 		}
 	}
 }
 
 static void process_ui_events( triangle_app_o *self ) {
-	using namespace pal_window;
 
-	UIEvent const *pEvents;
-	uint32_t       eventCount = 0;
-	window_i.get_ui_event_queue( self->window, &pEvents, eventCount );
-	std::vector<UIEvent> events{pEvents, pEvents + eventCount};
+	le::UiEvent const *pEvents;
+	uint32_t           eventCount = 0;
+	self->window.getUIEventQueue( &pEvents, eventCount );
 
-	for ( auto const &e : events ) {
-		switch ( e.event ) {
-		case ( UIEvent::Type::eCursorPosition ): {
-			auto &data                 = e.cursorPosition;
-			self->mouseData.cursor_pos = {float( data.x ), float( data.y )};
-			self->mousePos             = {float( data.x ), float( data.y )};
-
-		} break;
-		case ( UIEvent::Type::eMouseButton ): {
-			auto &data = e.mouseButton;
-			if ( data.button >= 0 && data.button < int( self->mouseButtonStatus.size() ) ) {
-				self->mouseButtonStatus[ size_t( data.button ) ] = ( data.action == GLFW_PRESS );
-
-				if ( data.action == GLFW_PRESS ) {
-					self->mouseData.buttonState |= uint8_t( 1 << size_t( data.button ) );
-				} else if ( data.action == GLFW_RELEASE ) {
-					self->mouseData.buttonState &= uint8_t( 0 << size_t( data.button ) );
-				}
-			}
-		} break;
-		default:
-		    break;
-		}
-	}
+	self->cameraController.processEvents( self->camera, pEvents, eventCount );
 }
 
 // ----------------------------------------------------------------------
@@ -424,13 +367,8 @@ static bool triangle_app_update( triangle_app_o *self ) {
 		return false;
 	}
 
+	self->cameraController.setControlRect( 0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ) );
 	process_ui_events( self );
-
-	{
-		// update interactive camera using mouse data
-		self->cameraController.setControlRect( 0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ) );
-		self->cameraController.updateCamera( self->camera, &self->mouseData );
-	}
 
 	if ( resetCameraOnReload ) {
 		// Reset camera

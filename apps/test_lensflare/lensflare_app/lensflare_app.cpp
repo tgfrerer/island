@@ -7,6 +7,7 @@
 
 #include "le_camera/le_camera.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
+#include "le_ui_event/le_ui_event.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -20,8 +21,6 @@
 #include <sstream>
 #include <vector>
 
-#define LE_ARGUMENT_NAME( x ) hash_64_fnv1a_const( #x )
-
 struct le_mouse_event_data_o {
 	uint32_t  buttonState{};
 	glm::vec2 cursor_pos;
@@ -31,11 +30,6 @@ struct lensflare_app_o {
 	le::Backend  backend;
 	pal::Window  window;
 	le::Renderer renderer;
-	uint64_t     frame_counter = 0;
-
-	std::array<bool, 5>   mouseButtonStatus{}; // status for each mouse button
-	glm::vec2             mousePos{};          // current mouse position
-	le_mouse_event_data_o mouseData;
 
 	LeCameraController cameraController;
 	LeCamera           camera;
@@ -84,10 +78,7 @@ static lensflare_app_o *lensflare_app_create() {
 
 	// -- Declare graphics pipeline state objects
 
-	{
-		// set up the camera
-		reset_camera( app );
-	}
+	reset_camera( app ); // set up the camera
 
 	return app;
 }
@@ -239,7 +230,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		    .setViewports( 0, 1, viewports )
 		    .bindGraphicsPipeline( pipelineDefault )
 		    .setVertexData( trianglePositions, sizeof( trianglePositions ), 0 )
-		    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &mvp, sizeof( MatrixStackUbo_t ) )
+		    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
 		    .draw( 4 ) //
 		    ;
 
@@ -248,8 +239,8 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		if ( inFrustum )
 			encoder
 			    .bindGraphicsPipeline( pipelineLensflares )
-			    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &mvp, sizeof( MatrixStackUbo_t ) )
-			    .setArgumentData( LE_ARGUMENT_NAME( LensflareParams ), &params, sizeof( LensflareParams ) )
+			    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
+			    .setArgumentData( LE_ARGUMENT_NAME( "LensflareParams" ), &params, sizeof( LensflareParams ) )
 			    .setVertexData( lensflareData, sizeof( lensflareData ), 0 )
 			    .draw( sizeof( lensflareData ) / sizeof( glm::vec4 ) ) //
 			    ;
@@ -260,49 +251,17 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 static void lensflare_app_process_ui_events( lensflare_app_o *self ) {
 	using namespace pal_window;
-	uint32_t       numEvents;
-	UIEvent const *pEvents;
-	window_i.get_ui_event_queue( self->window, &pEvents, numEvents );
+	uint32_t           numEvents;
+	le::UiEvent const *pEvents;
 
-	std::vector<UIEvent> events{pEvents, pEvents + numEvents};
-
-	for ( auto &event : events ) {
-		switch ( event.event ) {
-		case ( UIEvent::Type::eCursorPosition ): {
-			auto &e                    = event.cursorPosition;
-			self->mouseData.cursor_pos = {float( e.x ), float( e.y )};
-			self->mousePos             = {float( e.x ), float( e.y )};
-
-			break;
-		}
-		case ( UIEvent::Type::eMouseButton ): {
-			auto &e = event.mouseButton;
-			if ( e.button >= 0 && e.button < int( self->mouseButtonStatus.size() ) ) {
-				self->mouseButtonStatus[ size_t( e.button ) ] = ( e.action == 1 );
-
-				if ( e.action == 1 ) {
-					self->mouseData.buttonState |= uint8_t( 1 << size_t( e.button ) );
-				} else if ( e.action == 0 ) {
-					self->mouseData.buttonState &= uint8_t( 0 << size_t( e.button ) );
-				}
-			}
-
-		} break;
-		case ( UIEvent::Type::eCursorEnter ): {
-			auto &e = event.cursorEnter;
-		} break;
-		default:
-			// do nothing
-		    break;
-		}
-	}
+	self->cameraController.setControlRect( 0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ) );
+	self->window.getUIEventQueue( &pEvents, numEvents );
+	self->cameraController.processEvents( self->camera, pEvents, numEvents );
 }
 
 // ----------------------------------------------------------------------
 
 static bool lensflare_app_update( lensflare_app_o *self ) {
-
-	static bool resetCameraOnReload = false; // reload meand module reload
 
 	// Polls events for all windows -
 	// This means any window may trigger callbacks for any events they have callbacks registered.
@@ -314,19 +273,12 @@ static bool lensflare_app_update( lensflare_app_o *self ) {
 
 	lensflare_app_process_ui_events( self );
 
-	{
-		// update interactive camera using mouse data
-		self->cameraController.setControlRect( 0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ) );
-		self->cameraController.updateCamera( self->camera, &self->mouseData );
-	}
-
+	static bool resetCameraOnReload = false; // reload meand module reload
 	if ( resetCameraOnReload ) {
 		// Reset camera
 		reset_camera( self );
 		resetCameraOnReload = false;
 	}
-
-	using namespace le_renderer;
 
 	le::RenderModule mainModule{};
 	{
@@ -341,8 +293,6 @@ static bool lensflare_app_update( lensflare_app_o *self ) {
 	// Update will call all rendercallbacks in this module.
 	// the RECORD phase is guaranteed to execute - all rendercallbacks will get called.
 	self->renderer.update( mainModule );
-
-	self->frame_counter++;
 
 	return true; // keep app alive
 }

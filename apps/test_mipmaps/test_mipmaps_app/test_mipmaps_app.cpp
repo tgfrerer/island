@@ -3,17 +3,16 @@
 #include "pal_window/pal_window.h"
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_swapchain_vk/le_swapchain_vk.h"
-#include "le_renderer/le_renderer.h"
-#include "le_pixels/le_pixels.h"
-#include "le_ui_event/le_ui_event.h"
 
+#include "le_renderer/le_renderer.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
+#include "le_pixels/le_pixels.h"
+
+#include "le_ui_event/le_ui_event.h"
 
 #include <iostream>
 #include <memory>
 #include <sstream>
-
-#define LE_ARGUMENT_NAME( x ) hash_64_fnv1a_const( #x )
 
 struct Image : NoCopy, NoMove {
 	le_resource_handle_t imageHandle{};
@@ -202,7 +201,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		    .bindGraphicsPipeline( pipelineTriangle )
 		    .setScissors( 0, 1, scissors )
 		    .setViewports( 0, 1, viewports )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( src_tex_unit_0 ), app->testImage.textureHandle )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), app->testImage.textureHandle )
 		    .draw( 4 ) //
 		    ;
 	}

@@ -25,14 +25,6 @@ struct lensflare_app_api {
 		lensflare_app_o * ( *create              )();
 		void         ( *destroy                  )( lensflare_app_o *self );
 		bool         ( *update                   )( lensflare_app_o *self );
-
-		void         ( *key_callback             )( void *user_data, int key, int scancode, int action, int mods );
-		void         ( *character_callback       )( void *user_data, unsigned int codepoint );
-		void         ( *cursor_position_callback )( void *user_data, double xpos, double ypos );
-		void         ( *cursor_enter_callback    )( void *user_data, int entered );
-		void         ( *mouse_button_callback    )( void *user_data, int button, int action, int mods );
-		void         ( *scroll_callback          )( void *user_data, double xoffset, double yoffset );
-
 		void         ( *initialize               )(); // static methods
 		void         ( *terminate                )(); // static methods
 	};
