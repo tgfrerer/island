@@ -123,10 +123,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	};
 
 	// data as it is laid out in the ubo for the shader
-	struct ColorUbo_t {
-		glm::vec4 color;
-	};
-
 	struct MatrixStackUbo_t {
 		glm::mat4 model;
 		glm::mat4 view;
