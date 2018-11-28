@@ -4,3 +4,5 @@ CMakeLists.txt.user
 /3rdparty/include/**
 /3rdparty/libs/**
 
+/scripts/py_modules/**
+/scripts/**/*.pyc
