@@ -51,10 +51,10 @@ def copy_tree(src, dst, template_name, app_name, symlinks=False, ignore=None, co
 	for name in names:
 		if name in ignored_names:
 			continue
-		print("name: %s" % name)
+		# print("name: %s" % name)
 		srcname = os.path.join(src, name)
 		dstname = os.path.join(dst, name.replace(template_name, app_name, 1))
-		print ("dstname: %s" % dstname)
+		# print ("dstname: %s" % dstname)
 		try:
 			if os.path.islink(srcname):
 				linkto = os.readlink(srcname)
