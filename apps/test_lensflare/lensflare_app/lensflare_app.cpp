@@ -14,7 +14,6 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm.hpp"
 #include "gtc/matrix_transform.hpp"
-#include "glm/gtx/string_cast.hpp"
 
 #include <iostream>
 #include <memory>
