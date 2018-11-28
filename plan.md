@@ -8,6 +8,9 @@
 
 ## (B)
 
+- Architect a usability layer on top of base framework, which makes common
+  operations easy, and dry. Images are a good point to start.
+
 - Implement multisampling : this means renderpasses must enable it if any
   pipelines request it. better to do it the other way round, where
   renderpass injects their sampling into pipelines. This is probably
@@ -45,6 +48,10 @@
 
 ## (C)
 
+- add an mpeg encoder swapchain so that we can render direcly to a video
+  file. See this
+  [link](http://blog.mmacklin.com/2013/06/11/real-time-video-capture-with-ffmpeg/).  
+
 - use opaque handle to reference pso instead of bare `uint64_t`
 
 - find a better way to store window surface- it should probably live
@@ -54,8 +61,8 @@
 
 ## (Unsorted)
 
-- add sort-key to encoder, so that we can decouple calling the callbacks
-  from generating the command buffers.
+- add sort-key to encoder, so that we can decouple calling the `execute`
+  callbacks from generating the command buffers.
 
 - api for creating a buffer is not specific enough right now,
   `renderpass.createResource` should be used, but this can also be used
@@ -85,7 +92,7 @@
 * if two objects communicate by sharing an object, communication should be
   strictly pipeline-style, i.e. the consumer is not allowed to write back
   to the object borrowed from the provider. This makes it easier to reason
-  about data-flow. we should also enforce that borrowing is an atomic
+  about data-flow. We should also enforce that borrowing is an atomic
   operation, i.e. the provider *must not* be able to write to an object
   once it has been handed out for reading.
 
@@ -109,8 +116,8 @@ resourcetype, resource id flags.
 
 Hashing the name has the benefit that this can be done independently and
 that no locking has to occur, and everyone who hashes a name should get
-the same result. Also, hashing is ecutable as a constexpr, so the id will
-not have to be calculated at runtime at all.
+the same result. Also, hashing is executable as a constexpr, so the id
+will not have to be calculated at runtime at all.
 
 Resources are introduced by passes during their setup stage - if
 a resource is permanent, the backend will remember the reource id, this
