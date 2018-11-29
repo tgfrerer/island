@@ -24,7 +24,7 @@ layout (set=1, binding = 0) uniform ModelParams
 	vec4 worldCentreInEyeSpace;
 };
 
-layout (set = 1, binding = 1) uniform sampler2D tex_clouds;
+// layout (set = 1, binding = 1) uniform sampler2D tex_clouds;
 
 // ---------------------------------------------------------VERTEX-INPUTS
 
@@ -111,7 +111,7 @@ void getScattering(const in vec3 vertexInEyeSpace, inout vec3 colourRayleigh_, i
 
 	t1 = max(t1, 0);
 
-	// distance caluclation is correct!
+	// distance calculation is correct!
 	float fDistance = (hitsEarth && t3 > 0) ?  (t3 - t1) : (t2 - t1);
 
 	vec3  v3Start = vec3(0) + uEyeRay * t1; // camera pos == origin in eye space
@@ -140,6 +140,7 @@ void getScattering(const in vec3 vertexInEyeSpace, inout vec3 colourRayleigh_, i
 	vec3 v3Attenuate;
 	float depthAccumulate = fDepth;
 
+
 	for (int i=0; i < nSamples; i++){
 
 		vec3 uLightDir = normalize(sunInEyeSpace.xyz - v3SamplePoint); // unit direction from sample point to light . 
@@ -157,10 +158,10 @@ void getScattering(const in vec3 vertexInEyeSpace, inout vec3 colourRayleigh_, i
 		float offsetScale = smoothstep(fInnerRadius, fOuterRadius, fHeight );
 		dynamicOffset = max(dynamicOffset,0);
 		// max(dynamicOffset,0) is to get rid of blue blotsches.
-		float fScatter   =  -dynamicOffset + offsetScale * fStartOffset + fDepth * (scale(fLightAngle));  // calculate scattering based on lookups for light, eye angles
+		float fScatter = -dynamicOffset + offsetScale * fStartOffset + fDepth * (scale(fLightAngle));  // calculate scattering based on lookups for light, eye angles
 
 		v3Attenuate = exp(- fScatter * (v3InvWavelength * fKr4PI + fKm4PI)); // calculate attenuation, taking into account different colour wavelengths' respones
-
+		
 		lightIntensity   += v3Attenuate * (fDepth * fScaledLength ); // 
 		v3SamplePoint    += v3SampleRay; // move one line segment along the ray
 	}
@@ -220,20 +221,21 @@ void main(){
 
 	float nightOnEarth = max(0, -dot(Atmosphere.L, Atmosphere.N));
 	
-	float cosPhi = dot(Atmosphere.V, uLightDirection); 
+	float cosPhi = dot(Atmosphere.V, uLightDirection);
+	
 
 	const float mieConstGAtmo = -0.92;
 	vec3 scatteredLightColour = vec3(0);
 
-	scatteredLightColour +=  1 * colourMie * FMiePhase(cosPhi, mieConstGAtmo); // it's not the phase functions
-	scatteredLightColour +=  0.5 * colourRayleigh * FRaleighPhase(cosPhi);
+	 scatteredLightColour +=  10.0 * colourMie * FMiePhase(cosPhi, mieConstGAtmo); // it's not the phase functions
+	 scatteredLightColour +=  0.6 * colourRayleigh * FRaleighPhase(cosPhi);
+
 
 	vec3 outColor;
-	outColor = scatteredLightColour;
+	outColor = scatteredLightColour ;
 
 	// vec3 cloudSample = texture(tex_clouds, inData.texCoord).rrr;
 	// outColor += cloudSample * (Atmosphere.diffuse +  Atmosphere.specularR);
-	// outColor += nightOnEarth * cloudSample ;
 	// outColor += -0.3 * cloudSample * FMiePhase(dot(Atmosphere.L,-Atmosphere.N),mieConstGAtmo);
 
 	outFragColor = vec4(outColor,1);

@@ -8,7 +8,7 @@ const float PI = 3.141592653589793;
 
 const float mieConstG = -0.999;			// mie phase constant G. negative value means more light is scattered in *forward* direction. default value: -0.75 to -0.99. setting to 1 or -1 cancels out phase equations. don't.
 //note that we use a positive value here, since for the sky dome we're interested in light that is scattered in the backward direction.
-// uniform vec3 v3InvWavelength = pow(vec3( 0.420, 0.530 , 0.620 ), vec3(-4));	// 1 / pow(wavelength, 4) for the red, green, and blue channels
+// const vec3 v3InvWavelength = pow(vec3( 0.420, 0.530 , 0.620 ), vec3(-4));	// 1 / pow(wavelength, 4) for the red, green, and blue channels
 
 // TODO: animate v3InvWavelength
 const vec3 v3InvWavelength = pow(vec3( 0.650, 0.550 , 0.440 ), vec3(-4));	// 1 / pow(wavelength, 4) for the red, green, and blue channels
