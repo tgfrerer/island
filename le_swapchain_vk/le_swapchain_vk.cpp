@@ -48,20 +48,33 @@ static void swapchain_query_surface_capabilities( le_backend_swapchain_o *self )
 	surfaceProperties.surfaceCapabilities     = physicalDevice.getSurfaceCapabilitiesKHR( settings.vk_surface );
 	surfaceProperties.presentmodes            = physicalDevice.getSurfacePresentModesKHR( settings.vk_surface );
 
-	// If the surface format list only includes one entry with VK_FORMAT_UNDEFINED,
-	// there is no preferred format, so we assume VK_FORMAT_B8G8R8A8_UNORM
-	if ( ( surfaceProperties.availableSurfaceFormats.size() == 1 ) && ( surfaceProperties.availableSurfaceFormats[ 0 ].format == ::vk::Format::eUndefined ) ) {
-		surfaceProperties.windowSurfaceFormat.format = ::vk::Format::eB8G8R8A8Unorm;
+	size_t selectedSurfaceFormatIndex = 0;
+	auto   preferredSurfaceFormat     = vk::Format::eB8G8R8A8Unorm;
+
+	if ( ( surfaceProperties.availableSurfaceFormats.size() == 1 ) && ( surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format == vk::Format::eUndefined ) ) {
+
+		// If the surface format list only includes one entry with VK_FORMAT_UNDEFINED,
+		// there is no preferred format, and we must assume vk::Format::eB8G8R8A8Unorm.
+		surfaceProperties.windowSurfaceFormat.format = vk::Format::eB8G8R8A8Unorm;
+
 	} else {
-		// Always select the first available color format
-		// If you need a specific format (e.g. SRGB) you'd need to
-		// iterate over the list of available surface formats and
-		// check for its presence
-		surfaceProperties.windowSurfaceFormat.format = surfaceProperties.availableSurfaceFormats[ 0 ].format;
+
+		// Iterate over the list of available surface formats and check for the presence of
+		// our preferredSurfaceFormat
+		//
+		// Select the first available color format if the preferredSurfaceFormat cannot be found.
+
+		for ( size_t i = 0; i != surfaceProperties.availableSurfaceFormats.size(); ++i ) {
+			if ( surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format == preferredSurfaceFormat ) {
+				selectedSurfaceFormatIndex = i;
+				break;
+			}
+		}
+		surfaceProperties.windowSurfaceFormat.format = surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format;
 	}
 
 	// always select the first available color space
-	surfaceProperties.windowSurfaceFormat.colorSpace = surfaceProperties.availableSurfaceFormats[ 0 ].colorSpace;
+	surfaceProperties.windowSurfaceFormat.colorSpace = surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].colorSpace;
 
 	// ofLog() << "Present supported: " << ( mSurfaceProperties.presentSupported ? "TRUE" : "FALSE" );
 }
