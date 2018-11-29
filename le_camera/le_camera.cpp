@@ -13,9 +13,13 @@
 #include <vector>
 
 struct le_mouse_event_data_o {
+	enum ModKeyFlag : uint8_t {
+		MOD_KEY_FLAG_LEFT_SHIFT   = 1 << 0,
+		MOD_KEY_FLAG_LEFT_CONTROL = 1 << 1,
+	};
 	uint8_t   buttonState{};
-    uint8_t   shiftState{}; // keyboard modifiers for mouse
-    glm::vec2 cursor_pos;
+	uint8_t   modKeyMask{}; // keyboard modifiers for mouse, made up of ModFeyFlags
+	glm::vec2 cursor_pos;
 };
 
 struct le_camera_o {
@@ -269,7 +273,7 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 
 	// Centre point of the mouse control rectangle
 	glm::vec2 controlRectCentre{0.5f * ( controller->controlRect[ 0 ] + controller->controlRect[ 2 ] ),
-                                0.5f * ( controller->controlRect[ 1 ] + controller->controlRect[ 3 ] )};
+		                        0.5f * ( controller->controlRect[ 1 ] + controller->controlRect[ 3 ] )};
 
 	// Distance 1/3 of small edge of control rectangle
 	float controlCircleRadius = std::min( controller->controlRect[ 2 ], controller->controlRect[ 3 ] ) / 3.f;
@@ -291,38 +295,37 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 			auto &e                = event->cursorPosition;
 			mouse_state.cursor_pos = {e.x, e.y};
 		} break;
-        case ( LeUiEvent::Type::eKey ): {
-            auto &e = event->key;
-            if ( e.key == LeUiEvent::NamedKey::eLeftShift ) {
-                if ( e.action == LeUiEvent::ButtonAction::ePress ) {
-                    mouse_state.shiftState = 1;
-                } else if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
-                    mouse_state.shiftState = 0;
-                }
-            } else if ( e.key == LeUiEvent::NamedKey::eLeftControl ) {
-                if ( e.action == LeUiEvent::ButtonAction::ePress ) {
-                    mouse_state.shiftState = 2;
-                } else if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
-                    mouse_state.shiftState = 0;
-                }
-            }
-
-        } break;
+		case ( LeUiEvent::Type::eKey ): {
+			auto &e = event->key;
+			if ( e.key == LeUiEvent::NamedKey::eLeftShift ) {
+				if ( e.action == LeUiEvent::ButtonAction::ePress ) {
+					mouse_state.modKeyMask |= le_mouse_event_data_o::ModKeyFlag::MOD_KEY_FLAG_LEFT_SHIFT;
+				} else if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
+					mouse_state.modKeyMask &= ~( le_mouse_event_data_o::ModKeyFlag::MOD_KEY_FLAG_LEFT_SHIFT );
+				}
+			} else if ( e.key == LeUiEvent::NamedKey::eLeftControl ) {
+				if ( e.action == LeUiEvent::ButtonAction::ePress ) {
+					mouse_state.modKeyMask |= le_mouse_event_data_o::ModKeyFlag::MOD_KEY_FLAG_LEFT_CONTROL;
+				} else if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
+					mouse_state.modKeyMask &= ~( le_mouse_event_data_o::ModKeyFlag::MOD_KEY_FLAG_LEFT_CONTROL );
+				}
+			}
+		} break;
 		case ( LeUiEvent::Type::eMouseButton ): {
 			auto &e = event->mouseButton;
 			if ( e.action == LeUiEvent::ButtonAction::ePress ) {
 				// set appropriate button flag
-                mouse_state.buttonState |= ( 1 << ( e.button + mouse_state.shiftState ) );
+				mouse_state.buttonState |= ( 1 << e.button );
 
 			} else if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
 				// null appropriate button flag
-                mouse_state.buttonState &= ~( 1 << ( e.button + mouse_state.shiftState ) );
+				mouse_state.buttonState &= ~( 1 << e.button );
 				// set camera controller into neutral state if any button was released.
 				controller->mode = le_camera_controller_o::eNeutral;
 			}
-        } break;
+		} break;
 		default:
-            break;
+		    break;
 		}
 
 		glm::vec3 rotationDelta;
@@ -360,11 +363,21 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 			}
 
 			if ( mouse_state.buttonState & ( 1 << 0 ) ) {
-				// -- change controller mode to either xy or z
-				( glm::distance( mouse_state.cursor_pos, controlRectCentre ) < controlCircleRadius )
-				    ? controller->mode = le_camera_controller_o::eRotXY // -- if mouse inside  inner circle, control rotation XY
-				    : controller->mode = le_camera_controller_o::eRotZ  // -- if mouse outside inner circle, control rotation Z
-				    ;
+				// Left mouse button down
+				if ( mouse_state.modKeyMask == 0 ) {
+					// no modifier keys pressed.
+					// -- change controller mode to either xy or z
+					( glm::distance( mouse_state.cursor_pos, controlRectCentre ) < controlCircleRadius )
+					    ? controller->mode = le_camera_controller_o::eRotXY // -- if mouse inside  inner circle, control rotation XY
+					    : controller->mode = le_camera_controller_o::eRotZ  // -- if mouse outside inner circle, control rotation Z
+					    ;
+				} else if ( mouse_state.modKeyMask & le_mouse_event_data_o::MOD_KEY_FLAG_LEFT_SHIFT ) {
+					// left shift key held down - this is equivalent to right mouse button action
+					controller->mode = le_camera_controller_o::eTranslateZ;
+				} else if ( mouse_state.modKeyMask & le_mouse_event_data_o::MOD_KEY_FLAG_LEFT_CONTROL ) {
+					// left control key held down - this is equivalent to middle mouse button action
+					controller->mode = le_camera_controller_o::eTranslateXY;
+				}
 
 			} else if ( mouse_state.buttonState & ( 1 << 1 ) ) {
 				// -- change mode to translate z
@@ -406,7 +419,7 @@ static void camera_controller_process_events( le_camera_controller_o *controller
 	filtered_events.reserve( numEvents );
 
 	for ( auto event = events; event != events_end; event++ ) {
-        if ( event->event == LeUiEvent::Type::eCursorPosition || event->event == LeUiEvent::Type::eMouseButton || event->event == LeUiEvent::Type::eKey ) {
+		if ( event->event == LeUiEvent::Type::eCursorPosition || event->event == LeUiEvent::Type::eMouseButton || event->event == LeUiEvent::Type::eKey ) {
 			filtered_events.emplace_back( event );
 		}
 	}
