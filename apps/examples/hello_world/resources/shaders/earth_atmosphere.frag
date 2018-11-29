@@ -24,7 +24,7 @@ layout (set=1, binding = 0) uniform ModelParams
 	vec4 worldCentreInEyeSpace;
 };
 
-layout (set = 1, binding = 1) uniform sampler2D tex_unit_3;
+layout (set = 1, binding = 1) uniform sampler2D tex_clouds;
 
 // ---------------------------------------------------------VERTEX-INPUTS
 
@@ -231,11 +231,13 @@ void main(){
 	vec3 outColor;
 	outColor = scatteredLightColour;
 
-	vec3 cloudSample =texture(tex_unit_3, inData.texCoord).rgb;
-	outColor += 0.5 * cloudSample * Atmosphere.diffuse;
-	outColor += 0.2 * cloudSample * FMiePhase(dot(Atmosphere.L,-Atmosphere.N),mieConstGAtmo);
+	// vec3 cloudSample = texture(tex_clouds, inData.texCoord).rrr;
+	// outColor += cloudSample * (Atmosphere.diffuse +  Atmosphere.specularR);
+	// outColor += nightOnEarth * cloudSample ;
+	// outColor += -0.3 * cloudSample * FMiePhase(dot(Atmosphere.L,-Atmosphere.N),mieConstGAtmo);
 
 	outFragColor = vec4(outColor,1);
+	// outFragColor = vec4(vec3(1) * nightOnEarth, 1);
 	// outColor = vec3(1) * (Atmosphere.diffuse + 0.2 * pow(Atmosphere.specularH, 23)) ;
 	// outFragColor = vec4((bumpNormal * 0.5 + vec3(0.5)),1);
 	// outFragColor = inData.color;

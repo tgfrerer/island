@@ -32,10 +32,12 @@ layout (set = 1, binding = 2) uniform sampler2D tex_unit_1;
 layout (set = 1, binding = 3) uniform sampler2D tex_unit_2;
 
 
-struct BlinnPhong {
+struct Albedo {
+	// inputs
 	vec3 V; // view vector
 	vec3 L; // light vector
 	vec3 N; // normal vector
+	// outputs
 	vec3 H; // half vector
 	vec3 R; // reflected light vector
 	float diffuse;
@@ -45,23 +47,23 @@ struct BlinnPhong {
 
 // ----------------------------------------------------------------------
 
-void calculateLighting(inout BlinnPhong b){
+void calculateLighting(inout Albedo b){
 
 	b.H = normalize(b.V + b.L );
-	b.R = reflect( - b.L, b.N);
+	b.R = reflect( -b.L, b.N);
 
-	b.diffuse   = max( dot( b.L, b.N), 0.f);
+	b.diffuse   = max( dot(b.L, b.N), 0.f);
 	b.specularH = max( dot(b.N, b.H) , 0.f);
 	b.specularR = max( dot(b.R, b.V) , 0.f);
 }
 
 // ----------------------------------------------------------------------
 
+
 void main(){
 
-
-	vec3 normal   = normalize(inData.normal);
 	vec3 tangent  = normalize(inData.tangent);
+	vec3 normal   = normalize(inData.normal);
 	vec3 biNormal = cross(normal,tangent);
 
 	// Tangent space is a space where the: 
@@ -71,30 +73,29 @@ void main(){
 	mat3 tangentSpace = mat3(tangent, biNormal, normal);
 
 	{
-		vec3 bumpMap = texture(tex_unit_1, inData.texCoord).rgb;
+		vec3 bumpMap = texture(tex_unit_1, inData.texCoord, 0.75).rgb;
 		vec3 bumpNormal = 2 * (bumpMap - vec3(0.5)); // map 0..1 to -1..1
-		// store bumpNormal in normal
-		normal = tangentSpace * bumpNormal; // transform bumpNormal into tangent space
+		normal = tangentSpace * bumpNormal; // transform bumpNormal into tangent space, and store in normal
 	}
 
 	//vec3 L = normalize(sunInEyeSpace.xyz); // parallel rays to distant sun, we don't care about the origin point that much;
 
 	// calculate specular + diffuse light terms.	
-	BlinnPhong Atmosphere;
-	Atmosphere.V = normalize(-inData.position.xyz); // (negative view ray direction) : ray from sample point to camera
-	Atmosphere.N = normal;
-	Atmosphere.L = normalize(sunInEyeSpace.xyz - inData.position.xyz);
+	Albedo albedo;
+	albedo.N = normal;
+	albedo.V = normalize(-inData.position.xyz); // (negative view ray direction) : ray from sample point to camera
+	albedo.L = normalize(sunInEyeSpace.xyz - inData.position.xyz);
 
-	calculateLighting(Atmosphere);	
+	calculateLighting(albedo);	
 
 	// night on earth is when diffuse would turn negative
-	float nightOnEarth = max(0, -dot(Atmosphere.L, Atmosphere.N));
+	float nightOnEarth = max(0, -dot(albedo.L, albedo.N));
 
 	vec3 daySample   = texture(tex_unit_0, inData.texCoord).rgb;
 	vec3 nightSample = texture(tex_unit_2, inData.texCoord).rgb;
 	
 	vec3 outColor = vec3(1);
-	outColor = mix(daySample * (Atmosphere.diffuse + 0.6 * pow(Atmosphere.specularH, 23)) , nightSample, nightOnEarth*1.2 );
+	outColor = mix(daySample * (albedo.diffuse + 0.2 * albedo.specularR) , nightSample, nightOnEarth );
 
 	outFragColor = vec4(outColor,1);
 	// outFragColor = vec4(inData.texCoord, 0, 1);

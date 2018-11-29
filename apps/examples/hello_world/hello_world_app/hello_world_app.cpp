@@ -177,9 +177,9 @@ static hello_world_app_o *hello_world_app_create() {
 	// load pixels for earth albedo
 
 	initialiseImage( app->imgEarthAlbedo, "./local_resources/images/world_winter.jpg", 8 );
-	initialiseImage( app->imgEarthNight, "./local_resources/images/earth_lights.jpg", 8 );
+	initialiseImage( app->imgEarthNight, "./local_resources/images/earth_city_lights_8192_r.png", 10, le_pixels_info::TYPE::eUInt8, le::Format::eR8Unorm, 1 );
 	initialiseImage( app->imgEarthClouds, "./local_resources/images/earth_clouds.jpg", 8 );
-	initialiseImage( app->imgEarthNormals, "./local_resources/images/normals_small.png", 4, le_pixels_info::eUInt16, le::Format::eR16G16B16A16Unorm );
+	initialiseImage( app->imgEarthNormals, "./local_resources/images/normals_larger.png", 8, le_pixels_info::eUInt16, le::Format::eR16G16B16A16Unorm );
 
 	// initialise app timer
 	app->timeStamp = std::chrono::high_resolution_clock::now();
@@ -302,15 +302,15 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	texInfoAlbedo.sampler.minFilter    = le::Filter::eLinear;
 	texInfoAlbedo.sampler.addressModeU = le::SamplerAddressMode::eRepeat;
 	texInfoAlbedo.sampler.addressModeV = le::SamplerAddressMode::eMirroredRepeat;
-	texInfoAlbedo.sampler.maxLod       = 3;
+	texInfoAlbedo.sampler.maxLod       = 10;
 	texInfoAlbedo.sampler.minLod       = 0;
 
 	LeTextureInfo texInfoNight;
 	texInfoNight.imageView.imageId    = app->imgEarthNight.imageHandle;
-	texInfoNight.sampler.magFilter    = le::Filter::eNearest;
-	texInfoNight.sampler.minFilter    = le::Filter::eNearest;
+	texInfoNight.sampler.magFilter    = le::Filter::eLinear;
+	texInfoNight.sampler.minFilter    = le::Filter::eLinear;
 	texInfoNight.sampler.addressModeU = le::SamplerAddressMode::eRepeat;
-	texInfoNight.sampler.maxLod       = 3;
+	texInfoNight.sampler.maxLod       = 10;
 	texInfoNight.sampler.minLod       = 0;
 	texInfoNight.sampler.addressModeV = le::SamplerAddressMode::eMirroredRepeat;
 
@@ -327,6 +327,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	texInfoNormals.sampler.minFilter    = le::Filter::eLinear;
 	texInfoNormals.sampler.addressModeU = le::SamplerAddressMode::eClampToEdge;
 	texInfoNormals.sampler.addressModeV = le::SamplerAddressMode::eRepeat;
+	texInfoNormals.sampler.maxLod       = 10;
 
 	rp
 	    .addColorAttachment( app->renderer.getBackbufferResource() ) // color attachment
@@ -490,7 +491,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		    .bindGraphicsPipeline( pipelineEarthAtmosphere )
 		    .setArgumentData( LE_ARGUMENT_NAME( "ModelParams" ), &earthParams, sizeof( ModelParams ) )
 		    .setArgumentData( LE_ARGUMENT_NAME( "CameraParams" ), &cameraParams, sizeof( CameraParams ) )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_3" ), app->imgEarthClouds.textureHandle )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_clouds" ), app->imgEarthClouds.textureHandle )
 		    .bindVertexBuffers( 0, 3, buffers, app->worldGeometry.buffer_offsets.data() )
 		    .drawIndexed( uint32_t( app->worldGeometry.indexCount ) ) // index buffers should still be bound.
 		    ;
@@ -615,16 +616,16 @@ static void hello_world_app_process_ui_events( hello_world_app_o *self ) {
 			auto &e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eF11 ) {
 				wantsToggle ^= true;
-            } else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eZ ) {
+			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eZ ) {
 				reset_camera( self );
 				float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, glm::inverse( *reinterpret_cast<glm::mat4 const *>( self->camera.getViewMatrix() ) ) * glm::vec4( 0, 0, 0, 1 ) );
 				self->cameraController.setPivotDistance( distance_to_origin );
-            } else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eX ) {
+			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eX ) {
 				self->cameraController.setPivotDistance( 0 );
-            } else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eC ) {
+			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eC ) {
 				float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, glm::inverse( *reinterpret_cast<glm::mat4 const *>( self->camera.getViewMatrix() ) ) * glm::vec4( 0, 0, 0, 1 ) );
 				self->cameraController.setPivotDistance( distance_to_origin );
-            } else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eA ) {
+			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eA ) {
 				self->animate ^= true;
 			}
 
