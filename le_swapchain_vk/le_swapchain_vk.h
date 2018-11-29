@@ -57,6 +57,7 @@ struct le_swapchain_vk_api {
 		uint32_t                  ( *get_image_width          ) ( le_backend_swapchain_o* self );
 		uint32_t                  ( *get_image_height         ) ( le_backend_swapchain_o* self );
 		size_t                    ( *get_images_count         ) ( le_backend_swapchain_o* self );
+
 		void                      ( *decrease_reference_count ) ( le_backend_swapchain_o* self );
 		void                      ( *increase_reference_count ) ( le_backend_swapchain_o* self );
 		uint32_t                  ( *get_reference_count      ) ( le_backend_swapchain_o* self );

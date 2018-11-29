@@ -75,8 +75,6 @@ static void swapchain_query_surface_capabilities( le_backend_swapchain_o *self )
 
 	// always select the first available color space
 	surfaceProperties.windowSurfaceFormat.colorSpace = surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].colorSpace;
-
-	// ofLog() << "Present supported: " << ( mSurfaceProperties.presentSupported ? "TRUE" : "FALSE" );
 }
 
 // ----------------------------------------------------------------------
@@ -260,7 +258,7 @@ static VkImage swapchain_get_image( le_backend_swapchain_o *self, uint32_t index
 // ----------------------------------------------------------------------
 
 static VkSurfaceFormatKHR *swapchain_get_surface_format( le_backend_swapchain_o *self ) {
-	return ( VkSurfaceFormatKHR * )&self->mSurfaceProperties.windowSurfaceFormat;
+	return &reinterpret_cast<VkSurfaceFormatKHR &>( self->mSurfaceProperties.windowSurfaceFormat );
 }
 
 // ----------------------------------------------------------------------
