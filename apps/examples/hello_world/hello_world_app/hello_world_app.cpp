@@ -266,69 +266,27 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *use
 			geom.wasLoaded = true;
 		}
 
-		if ( false == app->imgEarthAlbedo.wasLoaded ) {
+		auto uploadImage = [&]( Image &img ) {
+			if ( false == img.wasLoaded ) {
+				using namespace le_pixels;
+				auto pixelsData = le_pixels_i.get_data( img.pixels );
 
-			using namespace le_pixels;
-			auto pixelsData = le_pixels_i.get_data( app->imgEarthAlbedo.pixels );
+				encoder.writeToImage( img.imageHandle,
+				                      img.imageInfo,
+				                      pixelsData,
+				                      img.pixelsInfo.byte_count );
 
-			encoder.writeToImage( app->imgEarthAlbedo.imageHandle,
-			                      app->imgEarthAlbedo.imageInfo,
-			                      pixelsData,
-			                      app->imgEarthAlbedo.pixelsInfo.byte_count );
+				le_pixels_i.destroy( img.pixels ); // Free pixels memory
+				img.pixels = nullptr;              // Mark pixels memory as freed, otherwise Image.destroy() will double-free!
 
-			le_pixels_i.destroy( app->imgEarthAlbedo.pixels ); // Free pixels memory
-			app->imgEarthAlbedo.pixels = nullptr;              // Mark pixels memory as freed, otherwise Image.destroy() will double-free!
+				img.wasLoaded = true;
+			}
+		};
 
-			app->imgEarthAlbedo.wasLoaded = true;
-		}
-
-		if ( false == app->imgEarthNormals.wasLoaded ) {
-
-			using namespace le_pixels;
-			auto pixelsData = le_pixels_i.get_data( app->imgEarthNormals.pixels );
-
-			encoder.writeToImage( app->imgEarthNormals.imageHandle,
-			                      app->imgEarthNormals.imageInfo,
-			                      pixelsData,
-			                      app->imgEarthNormals.pixelsInfo.byte_count );
-
-			le_pixels_i.destroy( app->imgEarthNormals.pixels ); // Free pixels memory
-			app->imgEarthNormals.pixels = nullptr;              // Mark pixels memory as freed, otherwise Image.destroy() will double-free!
-
-			app->imgEarthNormals.wasLoaded = true;
-		}
-
-		if ( false == app->imgEarthNight.wasLoaded ) {
-
-			using namespace le_pixels;
-			auto pixelsData = le_pixels_i.get_data( app->imgEarthNight.pixels );
-
-			encoder.writeToImage( app->imgEarthNight.imageHandle,
-			                      app->imgEarthNight.imageInfo,
-			                      pixelsData,
-			                      app->imgEarthNight.pixelsInfo.byte_count );
-
-			le_pixels_i.destroy( app->imgEarthNight.pixels ); // Free pixels memory
-			app->imgEarthNight.pixels = nullptr;              // Mark pixels memory as freed, otherwise Image.destroy() will double-free!
-
-			app->imgEarthNight.wasLoaded = true;
-		}
-
-		if ( false == app->imgEarthClouds.wasLoaded ) {
-
-			using namespace le_pixels;
-			auto pixelsData = le_pixels_i.get_data( app->imgEarthClouds.pixels );
-
-			encoder.writeToImage( app->imgEarthClouds.imageHandle,
-			                      app->imgEarthClouds.imageInfo,
-			                      pixelsData,
-			                      app->imgEarthClouds.pixelsInfo.byte_count );
-
-			le_pixels_i.destroy( app->imgEarthClouds.pixels ); // Free pixels memory
-			app->imgEarthClouds.pixels = nullptr;              // Mark pixels memory as freed, otherwise Image.destroy() will double-free!
-
-			app->imgEarthClouds.wasLoaded = true;
-		}
+		uploadImage( app->imgEarthAlbedo );
+		uploadImage( app->imgEarthNormals );
+		uploadImage( app->imgEarthNight );
+		uploadImage( app->imgEarthClouds );
 	}
 }
 
