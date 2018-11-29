@@ -740,7 +740,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 			// knows the target state to transition into for this resource when transitioning out of the
 			// renderpass.
 			//
-			// Only image resources can be implicitly transitioned by renderpasses, so this doesnt apply
+			// Only image resources can be implicitly transitioned by renderpasses, so this doesn't apply
 			// to buffers.
 
 			le_resource_handle_t const *handles;
@@ -2130,10 +2130,6 @@ static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, si
 	using namespace le_backend_vk;
 
 	auto &frame = self->mFrames[ frameIndex ];
-
-	// IMPROVEMENT: if we're dealing with a transfer pass, we might want to use an allocator
-	// which allows for variable size - this will allow us to upload large images in one go
-	// for example.
 
 	// Only add another buffer to frame-allocated buffers if we don't yet have
 	// enough buffers to cover each pass (numAllocators should correspond to

@@ -991,9 +991,6 @@ static vk::PipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_m
 }
 
 // ----------------------------------------------------------------------
-// NEXT: gpso builder methods
-
-// ----------------------------------------------------------------------
 
 static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_vertex_input_binding_description::INPUT_RATE &input_rate ) {
 	switch ( input_rate ) {
