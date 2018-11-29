@@ -156,23 +156,19 @@ class EnumVisitor(c_ast.NodeVisitor):
 	def _remove_vk_prefix(self, name):
 		return name[2:]
 
-
-# TODO: Add error check for whether $VULKAN_SDK is available
-
-vulkan_include_path = getenv("VULKAN_SDK") + '/include/vulkan'
-# print vulkan_include_path
-
-
+# This uses the vulkan headers from the system.
+# It assumes the Vulkan SDK is installed in default locations.
+# 
 # Create a temporaty file where we just place the header
 # include for the Vulkan Header, so that we may generate an 
 # AST form it.
 vk_src_file = tempfile.NamedTemporaryFile(suffix='.c')
-vk_src_file.write(b'#include <vulkan.h>\n')
+vk_src_file.write(b'#include <vulkan/vulkan.h>\n')
 vk_src_file.seek(0)
 
 ast = parse_file(vk_src_file.name, use_cpp=True,
 			cpp_path='gcc',
-			cpp_args=['-E', r'-I' + vulkan_include_path, r"-std=c99"])
+			cpp_args=['-E', r"-std=c99"])
 
 VkEnumName = ''
 
