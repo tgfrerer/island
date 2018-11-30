@@ -175,10 +175,10 @@ static hello_world_app_o *hello_world_app_create() {
 
 	// load pixels for earth albedo
 
-	initialiseImage( app->imgEarthAlbedo, "./local_resources/images/world_winter.jpg", 8 );
-	initialiseImage( app->imgEarthNight, "./local_resources/images/earth_city_lights_8192_r.png", 10, le_pixels_info::TYPE::eUInt8, le::Format::eR8Unorm, 1 );
-	initialiseImage( app->imgEarthClouds, "./local_resources/images/earth_clouds.jpg", 8 );
-	initialiseImage( app->imgEarthNormals, "./local_resources/images/normals_larger.png", 8, le_pixels_info::eUInt16, le::Format::eR16G16B16A16Unorm );
+	initialiseImage( app->imgEarthAlbedo, "./local_resources/images/world_winter.jpg", 10 );
+	initialiseImage( app->imgEarthNight, "./local_resources/images/earth_city_lights_8192_rs.png", 10, le_pixels_info::TYPE::eUInt8, le::Format::eR8Unorm, 1 );
+	initialiseImage( app->imgEarthClouds, "./local_resources/images/earth_clouds.jpg", 10 );
+	initialiseImage( app->imgEarthNormals, "./local_resources/images/earthNormalMap_8k-sobel.png", 10, le_pixels_info::eUInt16, le::Format::eR16G16B16A16Unorm );
 
 	// initialise app timer
 	app->timeStamp = std::chrono::high_resolution_clock::now();
@@ -201,7 +201,7 @@ static void reset_camera( hello_world_app_o *self ) {
 typedef bool ( *renderpass_setup )( le_renderpass_o *pRp, void *user_data );
 
 static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data ) {
-	auto rp  = le::RenderPassRef{pRp};
+	auto rp  = le::RenderPass{pRp};
 	auto app = static_cast<hello_world_app_o *>( user_data );
 
 	rp.useResource( app->imgEarthAlbedo.imageHandle, app->imgEarthAlbedo.imageInfo );
@@ -292,41 +292,56 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *use
 // ----------------------------------------------------------------------
 
 static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
-	auto rp  = le::RenderPassRef{pRp};
+	auto rp  = le::RenderPass{pRp};
 	auto app = static_cast<hello_world_app_o *>( user_data );
 
-	LeTextureInfo texInfoAlbedo;
-	texInfoAlbedo.imageView.imageId    = app->imgEarthAlbedo.imageHandle;
-	texInfoAlbedo.sampler.magFilter    = le::Filter::eLinear;
-	texInfoAlbedo.sampler.minFilter    = le::Filter::eLinear;
-	texInfoAlbedo.sampler.addressModeU = le::SamplerAddressMode::eRepeat;
-	texInfoAlbedo.sampler.addressModeV = le::SamplerAddressMode::eMirroredRepeat;
-	texInfoAlbedo.sampler.maxLod       = 10;
-	texInfoAlbedo.sampler.minLod       = 0;
+	auto texInfoAlbedo =
+	    le::TextureInfoBuilder()
+	        .withImageViewInfo()
+	        .setImage( app->imgEarthAlbedo.imageHandle )
+	        .end()
+	        .withSamplerInfo()
+	        .setAddressModeU( le::SamplerAddressMode::eRepeat )
+	        .setAddressModeV( le::SamplerAddressMode::eMirroredRepeat )
+	        .setMaxLod( 10.f )
+	        .end()
+	        .build();
 
-	LeTextureInfo texInfoNight;
-	texInfoNight.imageView.imageId    = app->imgEarthNight.imageHandle;
-	texInfoNight.sampler.magFilter    = le::Filter::eLinear;
-	texInfoNight.sampler.minFilter    = le::Filter::eLinear;
-	texInfoNight.sampler.addressModeU = le::SamplerAddressMode::eRepeat;
-	texInfoNight.sampler.maxLod       = 10;
-	texInfoNight.sampler.minLod       = 0;
-	texInfoNight.sampler.addressModeV = le::SamplerAddressMode::eMirroredRepeat;
+	auto texInfoNight =
+	    le::TextureInfoBuilder()
+	        .withImageViewInfo()
+	        .setImage( app->imgEarthNight.imageHandle )
+	        .end()
+	        .withSamplerInfo()
+	        .setAddressModeU( le::SamplerAddressMode::eRepeat )
+	        .setAddressModeV( le::SamplerAddressMode::eMirroredRepeat )
+	        .setMaxLod( 10.f )
+	        .end()
+	        .build();
 
-	LeTextureInfo texInfoClouds;
-	texInfoClouds.imageView.imageId    = app->imgEarthClouds.imageHandle;
-	texInfoClouds.sampler.magFilter    = le::Filter::eLinear;
-	texInfoClouds.sampler.minFilter    = le::Filter::eLinear;
-	texInfoClouds.sampler.addressModeU = le::SamplerAddressMode::eRepeat;
-	texInfoClouds.sampler.addressModeV = le::SamplerAddressMode::eMirroredRepeat;
+	auto texInfoClouds =
+	    le::TextureInfoBuilder()
+	        .withImageViewInfo()
+	        .setImage( app->imgEarthClouds.imageHandle )
+	        .end()
+	        .withSamplerInfo()
+	        .setAddressModeU( le::SamplerAddressMode::eRepeat )
+	        .setAddressModeV( le::SamplerAddressMode::eMirroredRepeat )
+	        .setMaxLod( 10.f )
+	        .end()
+	        .build();
 
-	LeTextureInfo texInfoNormals;
-	texInfoNormals.imageView.imageId    = app->imgEarthNormals.imageHandle;
-	texInfoNormals.sampler.magFilter    = le::Filter::eLinear;
-	texInfoNormals.sampler.minFilter    = le::Filter::eLinear;
-	texInfoNormals.sampler.addressModeU = le::SamplerAddressMode::eClampToEdge;
-	texInfoNormals.sampler.addressModeV = le::SamplerAddressMode::eRepeat;
-	texInfoNormals.sampler.maxLod       = 10;
+	auto texInfoNormals =
+	    le::TextureInfoBuilder()
+	        .withImageViewInfo()
+	        .setImage( app->imgEarthNormals.imageHandle )
+	        .end()
+	        .withSamplerInfo()
+	        .setAddressModeU( le::SamplerAddressMode::eRepeat )
+	        .setAddressModeV( le::SamplerAddressMode::eClampToEdge )
+	        .setMaxLod( 10.f )
+	        .end()
+	        .build();
 
 	rp
 	    .addColorAttachment( app->renderer.getBackbufferResource() ) // color attachment
@@ -530,8 +545,8 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 			        .build();
 
 			LensflareParams params{};
-			params.uCanvas.x        = screenWidth * 0.5;
-			params.uCanvas.y        = screenHeight * 0.5;
+			params.uCanvas.x        = screenWidth * 0.25f;
+			params.uCanvas.y        = screenHeight * 0.25f;
 			params.uCanvas.z        = app->camera.getUnitDistance();
 			params.uLensflareSource = sourceInClipSpace;
 			params.uHowClose        = 500;

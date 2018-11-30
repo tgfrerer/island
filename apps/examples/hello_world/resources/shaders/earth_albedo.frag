@@ -3,6 +3,8 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
+#define EPSILON 0.0001f
+
 layout (early_fragment_tests) in;
 
 // inputs 
@@ -101,8 +103,11 @@ void main(){
 	// z-axis is formed by normal
 	mat3 tangentSpace = mat3(tangent, biNormal, normal);
 
+	// we only transform our normal into tangent space if 
+	// tangent and normal are not co-planar, otherwise tangent space is not defined.
+	if (dot(biNormal,biNormal) > EPSILON )
 	{
-		vec3 bumpMap = texture(tex_unit_1, inData.texCoord, 0.75).rgb;
+		vec3 bumpMap = texture(tex_unit_1, inData.texCoord).rgb;
 		vec3 bumpNormal = 2 * (bumpMap - vec3(0.5)); // map 0..1 to -1..1
 		normal = tangentSpace * bumpNormal; // transform bumpNormal into tangent space, and store in normal
 	}
@@ -135,11 +140,13 @@ void main(){
 
 		vec3 worldToHitPoint = worldCentreInEyeSpace.xyz -( vec3(0) + uEyeRay * t1 );
 
-		mat3 normalMatrix = ((mat3(viewMatrix) * mat3(modelMatrix)));
-		vec3 vU =  normalize(worldToHitPoint) * normalMatrix;
+		mat3 normalMatrix = mat3(viewMatrix * modelMatrix);
+		vec3 vU =  normalize(worldToHitPoint * normalMatrix);
 			
-		float aPhi =  (1 + atan(vU.x, vU.z) / PI) * 0.5 + 0.25;
-		float aTheta = (acos(vU.y)) / PI ;	// OK
+		// Note that atan is not defined for vU.z == 0
+		// we must add a mod operator to remove visual artifacts.
+		float aPhi =  mod(atan(vU.x, vU.z ) / TWO_PI + 0.75 + 1, 1);
+		float aTheta = (acos(vU.y)) / PI ;
 		
 		if ( hitsAtmo ){
 			cloudCoords = vec2(aPhi,aTheta);
