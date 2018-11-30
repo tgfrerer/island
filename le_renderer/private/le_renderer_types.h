@@ -823,6 +823,92 @@ struct LeTextureInfo {
 	ImageViewInfo imageView;
 };
 
+namespace le {
+
+#define BUILDER_IMPLEMENT( builder, method_name, param_type, param, default_value ) \
+	builder &method_name( param_type param default_value ) {                        \
+	    self.param = param;                                                         \
+	    return *this;                                                               \
+    }
+
+class TextureInfoBuilder {
+	LeTextureInfo info{};
+
+	class SamplerInfoBuilder {
+		TextureInfoBuilder &        parent;
+		LeTextureInfo::SamplerInfo &self = parent.info.sampler;
+
+	  public:
+		SamplerInfoBuilder( TextureInfoBuilder &parent_ )
+		    : parent( parent_ ) {
+		}
+
+		BUILDER_IMPLEMENT( SamplerInfoBuilder, setMagFilter, le::Filter, magFilter, = le::Filter::eLinear )
+		BUILDER_IMPLEMENT( SamplerInfoBuilder, setMinFilter, le::Filter, minFilter, = le::Filter::eLinear )
+		BUILDER_IMPLEMENT( SamplerInfoBuilder, setMipmapMode, le::SamplerMipmapMode, mipmapMode, = le::SamplerMipmapMode::eLinear )
+		BUILDER_IMPLEMENT( SamplerInfoBuilder, setAddressModeU, le::SamplerAddressMode, addressModeU, = le::SamplerAddressMode::eClampToBorder )
+		BUILDER_IMPLEMENT( SamplerInfoBuilder, setAddressModeV, le::SamplerAddressMode, addressModeV, = le::SamplerAddressMode::eClampToBorder )
+		BUILDER_IMPLEMENT( SamplerInfoBuilder, setAddressModeW, le::SamplerAddressMode, addressModeW, = le::SamplerAddressMode::eRepeat )
+		BUILDER_IMPLEMENT( SamplerInfoBuilder, setMipLodBias, float, mipLodBias, = 0.f )
+		BUILDER_IMPLEMENT( SamplerInfoBuilder, setAnisotropyEnable, bool, anisotropyEnable, = false )
+		BUILDER_IMPLEMENT( SamplerInfoBuilder, setMaxAnisotropy, float, maxAnisotropy, = 0.f )
+		BUILDER_IMPLEMENT( SamplerInfoBuilder, setCompareEnable, bool, compareEnable, = false )
+		BUILDER_IMPLEMENT( SamplerInfoBuilder, setCompareOp, le::CompareOp, compareOp, = le::CompareOp::eLess )
+		BUILDER_IMPLEMENT( SamplerInfoBuilder, setMinLod, float, minLod, = 0.f )
+		BUILDER_IMPLEMENT( SamplerInfoBuilder, setMaxLod, float, maxLod, = 1.f )
+		BUILDER_IMPLEMENT( SamplerInfoBuilder, setBorderColor, le::BorderColor, borderColor, = le::BorderColor::eFloatTransparentBlack )
+		BUILDER_IMPLEMENT( SamplerInfoBuilder, setUnnormalizedCoordinates, bool, unnormalizedCoordinates, = false )
+
+		TextureInfoBuilder &end() {
+			return parent;
+		}
+	};
+
+	class ImageViewInfoBuilder {
+		TextureInfoBuilder &          parent;
+		LeTextureInfo::ImageViewInfo &self = parent.info.imageView;
+
+	  public:
+		ImageViewInfoBuilder( TextureInfoBuilder &parent_ )
+		    : parent( parent_ ) {
+		}
+
+		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setImage, le_resource_handle_t, imageId, = {} )
+		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setFormat, le::Format, format, = le::Format::eUndefined )
+
+		TextureInfoBuilder &end() {
+			return parent;
+		}
+	};
+
+	SamplerInfoBuilder   mSamplerInfoBuilder{*this};
+	ImageViewInfoBuilder mImageViewInfoBuilder{*this};
+
+  public:
+    TextureInfoBuilder()  = default;
+    ~TextureInfoBuilder() = default;
+
+	TextureInfoBuilder( LeTextureInfo const &info_ )
+	    : info( info_ ) {
+	}
+
+	ImageViewInfoBuilder &withImageViewInfo() {
+		return mImageViewInfoBuilder;
+	}
+
+	SamplerInfoBuilder &withSamplerInfo() {
+		return mSamplerInfoBuilder;
+	}
+
+	LeTextureInfo const &build() {
+		return info;
+	}
+};
+
+#undef BUILDER_IMPLEMENT
+
+} // namespace le
+
 struct LeClearColorValue {
 	union {
 		float    float32[ 4 ];
