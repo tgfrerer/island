@@ -193,6 +193,12 @@ static void camera_set_viewport( le_camera_o *self, le::Viewport const &viewport
 
 // ----------------------------------------------------------------------
 
+static le::Viewport const &camera_get_viewport( le_camera_o *self ) {
+	return self->viewport;
+}
+
+// ----------------------------------------------------------------------
+
 static void camera_set_fov_radians( le_camera_o *self, float fov_radians ) {
 	if ( fabsf( fov_radians - self->fovRadians ) > std::numeric_limits<float>().epsilon() ) {
 		self->projectionMatrixDirty = true;
@@ -472,6 +478,7 @@ ISL_API_ATTR void register_le_camera_api( void *api ) {
 	le_camera_i.get_view_matrix       = camera_get_view_matrix;
 	le_camera_i.get_projection_matrix = camera_get_projection_matrix;
 	le_camera_i.set_viewport          = camera_set_viewport;
+	le_camera_i.get_viewport          = camera_get_viewport;
 	le_camera_i.set_view_matrix       = camera_set_view_matrix;
 	le_camera_i.set_fov_radians       = camera_set_fov_radians;
 	le_camera_i.get_fov_radians       = camera_get_fov_radians;

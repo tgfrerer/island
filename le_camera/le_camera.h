@@ -32,6 +32,7 @@ struct le_camera_api {
 		void             ( * update                   ) ( le_camera_o* self );
 		void             ( * set_view_matrix          ) ( le_camera_o* self, float const * view_matrix);
 		void             ( * set_viewport             ) ( le_camera_o* self, le::Viewport const & viewport);
+		le::Viewport const & ( * get_viewport         ) ( le_camera_o* self);
 		void             ( * set_fov_radians          ) ( le_camera_o* self, float fov_radians);
 		float            ( * get_fov_radians          ) ( le_camera_o* self );
 		float const *    ( * get_view_matrix          ) ( le_camera_o* self);
@@ -102,6 +103,10 @@ class LeCamera : NoCopy, NoMove {
 
 	void setViewport( le::Viewport const &viewport ) {
 		le_camera::le_camera_i.set_viewport( self, viewport );
+	}
+
+	le::Viewport const &getViewport() {
+		return le_camera::le_camera_i.get_viewport( self );
 	}
 
 	void setFovRadians( float fov_radians ) {
