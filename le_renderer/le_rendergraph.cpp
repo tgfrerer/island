@@ -378,7 +378,7 @@ static bool renderpass_has_execute_callback( const le_renderpass_o *self ) {
 }
 
 static bool renderpass_has_setup_callback( const le_renderpass_o *self ) {
-	return self->callbackExecute != nullptr;
+	return self->callbackSetup != nullptr;
 }
 
 /// @warning Encoder becomes the thief's worry to destroy!
@@ -702,15 +702,19 @@ static void render_module_setup_passes( le_render_module_o *self, le_rendergraph
 		// + populate input attachments
 		// + populate output attachments
 		// + (optionally) add renderpass to graph builder.
-		assert( renderpass_has_setup_callback( pass ) );
 
-		if ( renderpass_run_setup_callback( pass ) ) {
-			// if pass.setup() returns true, this means we shall add this pass to the graph
-			// This means a transfer of ownership for pass: pass moves from module into graph_builder
-			rendergraph_add_renderpass( rendergraph_, pass );
-			pass = nullptr;
+		if ( renderpass_has_setup_callback( pass ) ) {
+			if ( renderpass_run_setup_callback( pass ) ) {
+				// if pass.setup() returns true, this means we shall add this pass to the graph
+				// This means a transfer of ownership for pass: pass moves from module into graph_builder
+				rendergraph_add_renderpass( rendergraph_, pass );
+				pass = nullptr;
+			} else {
+				renderpass_destroy( pass );
+				pass = nullptr;
+			}
 		} else {
-			renderpass_destroy( pass );
+			rendergraph_add_renderpass( rendergraph_, pass );
 			pass = nullptr;
 		}
 	}
