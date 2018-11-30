@@ -4,17 +4,23 @@
 
 # TODO
 
+- What good is it to run setup as a callback for renderpasses?
+
 ## (A)
+
+- Compute Passes
+- Image Swapchain
+- Resolve Attachments
 
 ## (B)
 
 - Architect a usability layer on top of base framework, which makes common
   operations easy, and dry. Images are a good point to start.
 
-- Implement multisampling : this means renderpasses must enable it if any
-  pipelines request it. better to do it the other way round, where
-  renderpass injects their sampling into pipelines. This is probably
-  linked to resolve attachments, we must investigate further.
+- Implement multisampling and Resolve Attachments: this means renderpasses
+  must enable it if any pipelines request it. better to do it the other
+  way round, where renderpass injects their sampling into pipelines. This
+  is probably linked to resolve attachments, we must investigate further.
 
 - Bug: when including a glsl include at run-time, it is not added to the
   list of watched files.
