@@ -63,7 +63,6 @@ struct hello_world_app_o {
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
 
-
 	LeCameraController cameraController;
 	LeCamera           camera;
 	LeMeshGenerator    sphereGenerator;
@@ -130,7 +129,7 @@ static hello_world_app_o *hello_world_app_create() {
 	app->window.setup( settings );
 
 	le_swapchain_vk_settings_t swapchainSettings;
-	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eFifoRelaxed;
+	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eFifo;
 	swapchainSettings.imagecount_hint  = 3;
 
 	le_backend_vk_settings_t backendCreateInfo;
@@ -462,6 +461,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), app->imgEarthAlbedo.textureHandle )
 		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_1" ), app->imgEarthNormals.textureHandle )
 		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_2" ), app->imgEarthNight.textureHandle )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_clouds" ), app->imgEarthClouds.textureHandle )
 		    .drawIndexed( uint32_t( app->worldGeometry.indexCount ) ) //
 		    ;
 
@@ -491,7 +491,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		    .bindGraphicsPipeline( pipelineEarthAtmosphere )
 		    .setArgumentData( LE_ARGUMENT_NAME( "ModelParams" ), &earthParams, sizeof( ModelParams ) )
 		    .setArgumentData( LE_ARGUMENT_NAME( "CameraParams" ), &cameraParams, sizeof( CameraParams ) )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_clouds" ), app->imgEarthClouds.textureHandle )
 		    .bindVertexBuffers( 0, 3, buffers, app->worldGeometry.buffer_offsets.data() )
 		    .drawIndexed( uint32_t( app->worldGeometry.indexCount ) ) // index buffers should still be bound.
 		    ;
