@@ -178,7 +178,7 @@ static hello_world_app_o *hello_world_app_create() {
 	initialiseImage( app->imgEarthAlbedo, "./local_resources/images/world_winter.jpg", 10 );
 	initialiseImage( app->imgEarthNight, "./local_resources/images/earth_city_lights_8192_rs.png", 10, le_pixels_info::TYPE::eUInt8, le::Format::eR8Unorm, 1 );
 	initialiseImage( app->imgEarthClouds, "./local_resources/images/earth_clouds.jpg", 10 );
-	initialiseImage( app->imgEarthNormals, "./local_resources/images/earthNormalMap_8k-sobel.png", 10, le_pixels_info::eUInt16, le::Format::eR16G16B16A16Unorm );
+	initialiseImage( app->imgEarthNormals, "./local_resources/images/earthNormalMap_8k-sobel.tga", 10, le_pixels_info::eUInt16, le::Format::eR16G16B16A16Unorm );
 
 	// initialise app timer
 	app->timeStamp = std::chrono::high_resolution_clock::now();
