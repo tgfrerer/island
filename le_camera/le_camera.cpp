@@ -23,8 +23,8 @@ struct le_mouse_event_data_o {
 };
 
 struct le_camera_o {
-	glm::mat4                matrix{}; // camera position in world space
-	glm::mat4                projectionMatrix{};
+	glm::mat4                view_matrix{};
+	glm::mat4                projection_matrix{};
 	float                    fovRadians{glm::radians( 60.f )}; // field of view angle (in radians)
 	le::Viewport             viewport{};                       // current camera viewport
 	float                    nearClip = 10.f;
@@ -77,7 +77,7 @@ static void update_frustum_planes( le_camera_o *self ) {
 		camera_get_projection_matrix( self );
 	}
 
-	glm::mat4 pM = self->projectionMatrix;
+	glm::mat4 pM = self->projection_matrix;
 
 	auto fP = std::array<glm::vec4, 6>{};
 
@@ -135,13 +135,13 @@ static bool camera_get_sphere_in_frustum( le_camera_o *self, float const *pSpher
 // ----------------------------------------------------------------------
 
 static float const *camera_get_view_matrix( le_camera_o *self ) {
-	return reinterpret_cast<float const *>( &self->matrix );
+	return reinterpret_cast<float const *>( &self->view_matrix );
 }
 
 // ----------------------------------------------------------------------
 
 static void camera_set_view_matrix( le_camera_o *self, float const *viewMatrix ) {
-	self->matrix = *reinterpret_cast<glm::mat4 const *>( viewMatrix );
+	self->view_matrix = *reinterpret_cast<glm::mat4 const *>( viewMatrix );
 }
 
 // ----------------------------------------------------------------------
@@ -165,10 +165,10 @@ static void camera_set_clip_distances( le_camera_o *self, float nearClip, float 
 static float const *camera_get_projection_matrix( le_camera_o *self ) {
 	if ( self->projectionMatrixDirty ) {
 		// cache projection matrix calculation
-		self->projectionMatrix      = glm::perspective( self->fovRadians, float( self->viewport.width ) / float( self->viewport.height ), self->nearClip, self->farClip );
+		self->projection_matrix     = glm::perspective( self->fovRadians, float( self->viewport.width ) / float( self->viewport.height ), self->nearClip, self->farClip );
 		self->projectionMatrixDirty = false;
 	}
-	return reinterpret_cast<float const *>( &self->projectionMatrix );
+	return reinterpret_cast<float const *>( &self->projection_matrix );
 }
 
 // ----------------------------------------------------------------------
@@ -236,7 +236,7 @@ void camera_orbit_xy( le_camera_o *camera, glm::mat4 const &world_to_cam_start, 
 	pivot             = glm::rotate( pivot, signedAnglesRad.y, glm::vec3{1, 0, 0} );
 	auto world_to_cam = glm::translate( pivot, glm::vec3{0, 0, pivotDistance} );
 
-	camera->matrix = glm::inverse( world_to_cam );
+	camera->view_matrix = glm::inverse( world_to_cam );
 }
 
 // ----------------------------------------------------------------------
@@ -249,7 +249,7 @@ void camera_orbit_z( le_camera_o *camera, glm::mat4 const &world_to_cam_start, g
 	pivot             = glm::rotate( pivot, cameraAngleRad.z, glm::vec3{0, 0, 1} );
 	auto world_to_cam = glm::translate( pivot, glm::vec3{0, 0, pivotDistance} );
 
-	camera->matrix = glm::inverse( world_to_cam );
+	camera->view_matrix = glm::inverse( world_to_cam );
 }
 
 // ----------------------------------------------------------------------
@@ -260,17 +260,17 @@ void camera_translate_xy( le_camera_o *camera, glm::mat4 const &world_to_cam_sta
 	pivot             = glm::translate( pivot, movement_speed * glm::vec3{signedNorm.x, signedNorm.y, 0} );
 	auto world_to_cam = glm::translate( pivot, glm::vec3{0, 0, pivotDistance} );
 
-	camera->matrix = glm::inverse( world_to_cam );
+	camera->view_matrix = glm::inverse( world_to_cam );
 }
 
 // ----------------------------------------------------------------------
 
 void camera_translate_z( le_camera_o *camera, glm::mat4 const &world_to_cam_start, glm::vec3 const &signedNorm, float movement_speed, float pivotDistance ) {
 
-	auto pivot        = glm::translate( world_to_cam_start, glm::vec3{0, 0, -pivotDistance} );
-	pivot             = glm::translate( pivot, movement_speed * glm::vec3{0, 0, signedNorm.z} );
-	auto world_to_cam = glm::translate( pivot, glm::vec3{0, 0, pivotDistance} );
-	camera->matrix    = glm::inverse( world_to_cam );
+	auto pivot          = glm::translate( world_to_cam_start, glm::vec3{0, 0, -pivotDistance} );
+	pivot               = glm::translate( pivot, movement_speed * glm::vec3{0, 0, signedNorm.z} );
+	auto world_to_cam   = glm::translate( pivot, glm::vec3{0, 0, pivotDistance} );
+	camera->view_matrix = glm::inverse( world_to_cam );
 }
 
 // ----------------------------------------------------------------------
@@ -287,7 +287,7 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 	le_mouse_event_data_o mouse_state = controller->mouse_state; // gather mouse state from previous
 
 	if ( false == controller->pivotDistanceSet ) {
-		glm::vec4 camInWorldPos      = glm::inverse( camera->matrix ) * glm::vec4( 0, 0, 0, 1 );
+		glm::vec4 camInWorldPos      = glm::inverse( camera->view_matrix ) * glm::vec4( 0, 0, 0, 1 );
 		controller->pivotDistance    = glm::length( camInWorldPos );
 		controller->pivotDistanceSet = true;
 	}
@@ -364,7 +364,7 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 			if ( mouse_state.buttonState & ( 0b111 ) ) {
 				// A relevant mouse button has been pressed.
 				// we must store the initial state of the camera.
-				controller->world_to_cam      = glm::inverse( camera->matrix );
+				controller->world_to_cam      = glm::inverse( camera->view_matrix );
 				controller->mouse_pos_initial = mouse_state.cursor_pos;
 			}
 
