@@ -98,7 +98,7 @@ static void reset_camera( test_mesh_generator_app_o *self ) {
 typedef bool ( *renderpass_setup )( le_renderpass_o *pRp, void *user_data );
 
 static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
-	auto rp  = le::RenderPassRef{pRp};
+	auto rp  = le::RenderPass{pRp};
 	auto app = static_cast<test_mesh_generator_app_o *>( user_data );
 
 	rp
@@ -131,12 +131,12 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 	// Draw main scene
 
-	struct MatrixStackUbo_t {
+	struct MVP_DefaultUbo_t {
 		glm::mat4 model;
 		glm::mat4 view;
 		glm::mat4 projection;
 	};
-	MatrixStackUbo_t mvp;
+	MVP_DefaultUbo_t mvp;
 
 	mvp.model      = glm::mat4( 1.f ); // identity matrix
 	mvp.model      = glm::scale( mvp.model, glm::vec3( 1 ) );
@@ -183,7 +183,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	    .setVertexData( sphereUvs, numVertices * 2 * sizeof( float ), 2 )
 	    .setIndexData( sphereIndices, numIndices * sizeof( uint16_t ) );
 
-	encoder.setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
+	encoder.setArgumentData( LE_ARGUMENT_NAME( "MVP_Default" ), &mvp, sizeof( MVP_DefaultUbo_t ) )
 	    .drawIndexed( uint32_t( numIndices ) ) //
 	    ;
 }

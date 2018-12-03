@@ -6,7 +6,7 @@ set (PROJECT_NAME "Island-TestMeshGenerator")
 project (${PROJECT_NAME})
 
 # Point this to the base directory of your Island installation
-set (ISLAND_BASE_DIR "${PROJECT_SOURCE_DIR}/../../")
+set (ISLAND_BASE_DIR "${PROJECT_SOURCE_DIR}/../../../")
 
 # Select which standard Island modules to use
 set(REQUIRES_ISLAND_LOADER ON )
