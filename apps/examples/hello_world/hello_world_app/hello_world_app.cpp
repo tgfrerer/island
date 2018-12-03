@@ -78,41 +78,32 @@ struct hello_world_app_o {
 	bool          animate       = true;
 };
 
-static void hello_world_app_process_ui_events( hello_world_app_o *self ); //ffdecl
+static const glm::vec4 sunInWorldSpace = glm::vec4{-200000, 0, 0, 1.f};
 
-// ----------------------------------------------------------------------
-
-static void initialize() {
-	pal::Window::init();
+// type, triggerpointOnAxis, positionOnAxis, radius
+static glm::vec4 lensflareData[] = {
+    //    {3, 0.0, 0.0, 0.100}, //< flare point
+    //    {0, 0.1, 0.1, 0.200},
+    {0, 0.9, 0.9, 0.120},
+    {0, 1.0, 1.0, 0.300},
+    {0, 1.2, 1.2, 0.120},
+    {0, 1.5, 1.5, 0.300},
+    {1, 0.3, 0.3, 0.650},
+    {1, 0.5, 0.5, 0.300}, ///< screen centre
+    {1, 1.1, 1.1, 1.300},
+    {1, 2.5, 2.5, 2.300},
+    {2, 1.0, 1.0, 0.500},
+    {2, 1.0, 1.1, 0.400},
+    {2, 1.0, 1.2, 0.400},
+    {2, 1.0, 1.5, 0.500},
+    {2, 1.0, 2.5, 0.400},
 };
 
 // ----------------------------------------------------------------------
 
-static void terminate() {
-	pal::Window::terminate();
-};
-
-static void reset_camera( hello_world_app_o *self ); // ffdecl.
-
-// ----------------------------------------------------------------------
-// FIXME: miplevels parameter placement is weird.
-static bool initialiseImage( Image &img, char const *path, uint32_t mipLevels = 1, le_pixels_info::TYPE const &pixelType = le_pixels_info::eUInt8, le::Format const &imgFormat = le::Format::eR8G8B8A8Unorm, int numChannels = 4 ) {
-	using namespace le_pixels;
-	img.pixels     = le_pixels_i.create( path, numChannels, pixelType );
-	img.pixelsInfo = le_pixels_i.get_info( img.pixels );
-
-	// store earth albedo image handle
-	img.imageHandle = LE_IMG_RESOURCE( path );
-	img.imageInfo   = le::ImageInfoBuilder()
-	                    .setFormat( imgFormat )
-	                    .setExtent( img.pixelsInfo.width, img.pixelsInfo.height )
-	                    .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
-	                    .setMipLevels( mipLevels )
-	                    .build();
-
-	img.textureHandle = LE_TEX_RESOURCE( ( std::string( path ) + "_tex" ).c_str() );
-	return true;
-}
+static void hello_world_app_process_ui_events( hello_world_app_o *self );                                                                                                                                                           // ffdecl
+static void reset_camera( hello_world_app_o *self );                                                                                                                                                                                // ffdecl
+static bool initialiseImage( Image &img, char const *path, uint32_t mipLevels = 1, le_pixels_info::TYPE const &pixelType = le_pixels_info::eUInt8, le::Format const &imgFormat = le::Format::eR8G8B8A8Unorm, int numChannels = 4 ); // ffdecl
 
 // ----------------------------------------------------------------------
 
@@ -187,13 +178,91 @@ static hello_world_app_o *hello_world_app_create() {
 }
 
 // ----------------------------------------------------------------------
+// FIXME: miplevels parameter placement is weird.
+static bool initialiseImage( Image &img, char const *path, uint32_t mipLevels, le_pixels_info::TYPE const &pixelType, le::Format const &imgFormat, int numChannels ) {
+	using namespace le_pixels;
+	img.pixels     = le_pixels_i.create( path, numChannels, pixelType );
+	img.pixelsInfo = le_pixels_i.get_info( img.pixels );
+
+	// store earth albedo image handle
+	img.imageHandle = LE_IMG_RESOURCE( path );
+	img.imageInfo   = le::ImageInfoBuilder()
+	                    .setFormat( imgFormat )
+	                    .setExtent( img.pixelsInfo.width, img.pixelsInfo.height )
+	                    .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
+	                    .setMipLevels( mipLevels )
+	                    .build();
+
+	img.textureHandle = LE_TEX_RESOURCE( ( std::string( path ) + "_tex" ).c_str() );
+	return true;
+}
+
+// ----------------------------------------------------------------------
 
 static void reset_camera( hello_world_app_o *self ) {
 	self->camera.setViewport( {0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ), 0.f, 1.f} );
-	self->camera.setClipDistances( 10.f, 150000.f );
+	self->camera.setClipDistances( 100.f, 150000.f );
 	self->camera.setFovRadians( glm::radians( 25.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, 30000}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
+}
+
+// ----------------------------------------------------------------------
+
+static bool hello_world_app_ray_cam_to_sun_hits_earth( hello_world_app_o *self, float &howClose ) {
+
+	// TODO: query whether the sun is within our current render frustum
+
+	// We're following the recipe from
+	// "Real-Time Rendering", by Akenine-Moeller et al., 3rd. ed. pp. 740
+
+	// We send a ray from the camera to the sun and want to know if the
+	// earth is in the way...
+
+	const float visibleSunRadius = 200;
+	const float cEARTH_RADIUS    = 6360.f - visibleSunRadius;
+
+	glm::mat4 viewMatrix             = *reinterpret_cast<glm::mat4 const *>( self->camera.getViewMatrix() );
+	glm::vec4 camera_pos_world_space = glm::inverse( viewMatrix ) * glm::vec4( 0, 0, 0, 1 );
+	glm::vec3 camToEarthCentre       = glm::vec3( 0, 0, 0 ) - glm::vec3( camera_pos_world_space );
+
+	float distanceToEarthSquared = glm::dot( camToEarthCentre, camToEarthCentre );
+	float earthRadiusSquared     = cEARTH_RADIUS * cEARTH_RADIUS - ( 500 * 500 ); // < we subtract a little so that the flare will appear a bit earlier.
+
+	if ( distanceToEarthSquared < earthRadiusSquared ) {
+		// this effectively means the ray origin is within the sphere.
+		// there's no way we won't hit the sphere at some point,
+		// so we can already return true here.
+		howClose = -0;
+		return true;
+	}
+
+	// --- invariant: ray origin is outside of sphere
+
+	// ray goes from camera to sun
+	glm::vec3 rayDirection                = glm::normalize( glm::vec3( sunInWorldSpace ) - glm::vec3( camera_pos_world_space ) );
+	float     camToSphereProjectedOntoRay = glm::dot( rayDirection, camToEarthCentre );
+
+	if ( camToSphereProjectedOntoRay < 0 ) {
+		// a negative result means the sphere is behind the ray origin,
+		// so we can reject the intersection here.
+		howClose = -0; ///< we return -1 to signal that we're not even close to intersect.
+		return false;
+	}
+
+	// ---- invariant: sphere is not behind ray origin
+
+	float orthogonalDistanceSquared = distanceToEarthSquared - camToSphereProjectedOntoRay * camToSphereProjectedOntoRay;
+
+	if ( orthogonalDistanceSquared > earthRadiusSquared ) {
+		// intersection outside of sphere.
+		howClose = sqrtf( orthogonalDistanceSquared - earthRadiusSquared );
+		return false;
+	} else {
+		// we've been hit!
+		howClose = -sqrtf( earthRadiusSquared - orthogonalDistanceSquared );
+		return true;
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -360,25 +429,6 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 
 // ----------------------------------------------------------------------
 
-// type, triggerpointOnAxis, positionOnAxis, radius
-static glm::vec4 lensflareData[] = {
-    {3, 0.0, 0.0, 0.100}, //< flare point
-    {0, 0.1, 0.1, 0.200},
-    {0, 0.9, 0.9, 0.120},
-    {0, 1.0, 1.0, 0.300},
-    {0, 1.2, 1.2, 0.120},
-    {0, 1.5, 1.5, 0.300},
-    {1, 0.3, 0.3, 0.650},
-    {1, 0.5, 0.5, 0.300}, ///< screen centre
-    {1, 1.1, 1.1, 1.300},
-    {1, 2.5, 2.5, 2.300},
-    {2, 1.0, 1.0, 0.500},
-    {2, 1.0, 1.1, 0.400},
-    {2, 1.0, 1.2, 0.400},
-    {2, 1.0, 1.5, 0.500},
-    {2, 1.0, 2.5, 0.400},
-};
-
 static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
 	auto        app = static_cast<hello_world_app_o *>( user_data );
 	le::Encoder encoder{encoder_};
@@ -423,7 +473,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		cameraParams.view       = reinterpret_cast<glm::mat4 const &>( *app->camera.getViewMatrix() );
 		cameraParams.projection = reinterpret_cast<glm::mat4 const &>( *app->camera.getProjectionMatrix() );
 
-		glm::vec4 sunInWorldSpace         = glm::vec4{1000000, 0, 1000000, 1.f};
 		glm::vec4 sourceInCameraSpace     = cameraParams.view * sunInWorldSpace;
 		glm::vec4 worldCentreInWorldSpace = glm::vec4{0, 0, 0, 1};
 		glm::vec4 worldCentreInEyeSpace   = cameraParams.view * earthParams.model * worldCentreInWorldSpace;
@@ -432,8 +481,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 		earthParams.sunInEyeSpace         = sourceInCameraSpace;
 		earthParams.worldCentreInEyeSpace = worldCentreInEyeSpace;
-
-		bool inFrustum = app->camera.getSphereCentreInFrustum( &sourceInCameraSpace.x, 100 );
 
 		// draw mesh
 
@@ -510,9 +557,14 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		    .drawIndexed( uint32_t( app->worldGeometry.indexCount ) ) // index buffers should still be bound.
 		    ;
 
-		// let's check if source is in clip space
+		// let's check if sun is in clip space
 
-		if ( inFrustum ) {
+		float howClose;
+
+		bool hit = hello_world_app_ray_cam_to_sun_hits_earth( app, howClose );
+
+
+		if ( !hit && fabsf( howClose ) > 1000.f ) {
 
 			struct LensflareParams {
 				// uCanvas:
@@ -545,11 +597,11 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 			        .build();
 
 			LensflareParams params{};
-			params.uCanvas.x        = screenWidth * 0.25f;
-			params.uCanvas.y        = screenHeight * 0.25f;
+			params.uCanvas.x        = screenWidth;
+			params.uCanvas.y        = screenHeight;
 			params.uCanvas.z        = app->camera.getUnitDistance();
 			params.uLensflareSource = sourceInClipSpace;
-			params.uHowClose        = 500;
+			params.uHowClose        = howClose;
 
 			encoder
 			    .bindGraphicsPipeline( pipelineLensflares )
@@ -561,6 +613,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		} // end inFrustum
 	}     // end draw main scene
 }
+
 // ----------------------------------------------------------------------
 
 static bool hello_world_app_update( hello_world_app_o *self ) {
@@ -663,6 +716,18 @@ static void hello_world_app_destroy( hello_world_app_o *self ) {
 
 	delete ( self ); // deletes camera
 }
+
+// ----------------------------------------------------------------------
+
+static void initialize() {
+	pal::Window::init();
+};
+
+// ----------------------------------------------------------------------
+
+static void terminate() {
+	pal::Window::terminate();
+};
 
 // ----------------------------------------------------------------------
 

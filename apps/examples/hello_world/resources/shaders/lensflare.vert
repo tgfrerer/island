@@ -85,5 +85,5 @@ void main()
 	vertex.rotation = atan(triggerPoint.y,triggerPoint.x); // gets rotation in range -pi,pi
 	vertex.radius = fLensflareRadius * min(uCanvas.x,uCanvas.y)*0.5;
 	vertex.distanceToBorder = distanceToBorder;
-	vertex.intensity = (1.0-smoothstep(500,1300,uHowClose));
+	vertex.intensity = (smoothstep(0,8000,uHowClose)) * (1.0-smoothstep(1000,30000,uHowClose));
 }
