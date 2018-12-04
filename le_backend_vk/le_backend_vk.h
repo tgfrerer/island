@@ -108,7 +108,6 @@ struct le_backend_vk_api {
 		le_device_o*        (*get_le_device            )(le_backend_o* self);
 		VkDevice_T*         (*get_vk_device            )(le_backend_o* self);
 		VkPhysicalDevice_T* (*get_vk_physical_device   )(le_backend_o* self);
-		VmaAllocator_T*     (*get_vma_allocator        )(le_backend_o* self);
 	};
 
 	struct instance_interface_t {

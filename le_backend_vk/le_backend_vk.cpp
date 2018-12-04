@@ -515,9 +515,6 @@ static VkPhysicalDevice backend_get_vk_physical_device( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static VmaAllocator backend_get_vma_allocator( le_backend_o *self ) {
-	return self->mAllocator;
-};
 
 // ----------------------------------------------------------------------
 
@@ -2952,7 +2949,6 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	auto &private_backend_i                  = api_i->private_backend_vk_i;
 	private_backend_i.get_vk_device          = backend_get_vk_device;
 	private_backend_i.get_vk_physical_device = backend_get_vk_physical_device;
-	private_backend_i.get_vma_allocator      = backend_get_vma_allocator;
 	private_backend_i.get_le_device          = backend_get_le_device;
 
 	auto &staging_allocator_i   = api_i->le_staging_allocator_i;
