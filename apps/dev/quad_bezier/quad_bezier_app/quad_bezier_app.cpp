@@ -130,7 +130,7 @@ static void reset_camera( quad_bezier_app_o *self ) {
 // ----------------------------------------------------------------------
 
 static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data ) {
-	auto rp = le::RenderPassRef{pRp};
+	auto rp = le::RenderPass{pRp};
 
 	rp.useResource( LE_BUF_RESOURCE( "QuadBezierBuffer" ),
 	                le::BufferInfoBuilder()
@@ -162,7 +162,7 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder, void *user
 // ----------------------------------------------------------------------
 
 static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
-	auto rp  = le::RenderPassRef{pRp};
+	auto rp  = le::RenderPass{pRp};
 	auto app = static_cast<quad_bezier_app_o *>( user_data );
 
 	rp

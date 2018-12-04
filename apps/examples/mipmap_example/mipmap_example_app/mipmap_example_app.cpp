@@ -114,7 +114,7 @@ typedef bool ( *renderpass_setup )( le_renderpass_o *pRp, void *user_data );
 
 static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data ) {
 
-	auto rp  = le::RenderPassRef{pRp};
+	auto rp  = le::RenderPass{pRp};
 	auto app = static_cast<mipmap_example_app_o *>( user_data );
 
 	rp.useResource( app->testImage.imageHandle, app->testImage.imageInfo );
@@ -147,7 +147,7 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *use
 // ----------------------------------------------------------------------
 
 static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
-	auto rp  = le::RenderPassRef{pRp};
+	auto rp  = le::RenderPass{pRp};
 	auto app = static_cast<mipmap_example_app_o *>( user_data );
 
 	LeTextureInfo texTest;

@@ -346,7 +346,7 @@ static void reset_camera( workbench_app_o *self ) {
 
 static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	auto app = static_cast<workbench_app_o *>( user_data_ );
-	auto rp  = le::RenderPassRef{pRp};
+	auto rp  = le::RenderPass{pRp};
 
 	rp.useResource( resImgHorse, app->resInfoHorse );
 
@@ -425,7 +425,7 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder, void *user
 // ----------------------------------------------------------------------
 
 static bool pass_pre_setup( le_renderpass_o *pRp, void *user_data_ ) {
-	auto rp  = le::RenderPassRef{pRp};
+	auto rp  = le::RenderPass{pRp};
 	auto app = static_cast<workbench_app_o *>( user_data_ );
 
 	rp.addColorAttachment( resImgPrepass );
@@ -488,7 +488,7 @@ static void pass_pre_exec( le_command_buffer_encoder_o *encoder_, void *user_dat
 // ----------------------------------------------------------------------
 
 static bool pass_final_setup( le_renderpass_o *pRp, void *user_data_ ) {
-	auto rp  = le::RenderPassRef{pRp};
+	auto rp  = le::RenderPass{pRp};
 	auto app = static_cast<workbench_app_o *>( user_data_ );
 
 	rp

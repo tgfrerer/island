@@ -91,7 +91,7 @@ static void reset_camera( triangle_app_o *self ) {
 typedef bool ( *renderpass_setup )( le_renderpass_o *pRp, void *user_data );
 
 static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
-	auto rp  = le::RenderPassRef{pRp};
+	auto rp  = le::RenderPass{pRp};
 	auto app = static_cast<triangle_app_o *>( user_data );
 
 	rp
