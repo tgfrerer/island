@@ -515,6 +515,45 @@ static VkPhysicalDevice backend_get_vk_physical_device( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 
+static int32_t backend_allocate_image( le_backend_o *                 self,
+                                       VkImageCreateInfo const *      pImageCreateInfo,
+                                       VmaAllocationCreateInfo const *pAllocationCreateInfo,
+                                       VkImage *                      pImage,
+                                       VmaAllocation *                pAllocation,
+                                       VmaAllocationInfo *            pAllocationInfo ) {
+
+	auto result = vmaCreateImage( self->mAllocator,
+	                              pImageCreateInfo,
+	                              pAllocationCreateInfo,
+	                              pImage,
+	                              pAllocation,
+	                              pAllocationInfo );
+	return result;
+}
+
+// ----------------------------------------------------------------------
+
+static void backend_destroy_image( le_backend_o *self, VkImage image, VmaAllocation allocation ) {
+	vmaDestroyImage( self->mAllocator, image, allocation );
+}
+
+// ----------------------------------------------------------------------
+
+static int32_t backend_allocate_buffer( le_backend_o *                 self,
+                                        VkBufferCreateInfo const *     pBufferCreateInfo,
+                                        VmaAllocationCreateInfo const *pAllocationCreateInfo,
+                                        VkBuffer *                     pBuffer,
+                                        VmaAllocation *                pAllocation,
+                                        VmaAllocationInfo *            pAllocationInfo ) {
+	auto result = vmaCreateBuffer( self->mAllocator, pBufferCreateInfo, pAllocationCreateInfo, pBuffer, pAllocation, pAllocationInfo );
+	return result;
+}
+
+// ----------------------------------------------------------------------
+
+static void backend_destroy_buffer( le_backend_o *self, VkBuffer buffer, VmaAllocation allocation ) {
+	vmaDestroyBuffer( self->mAllocator, buffer, allocation );
+}
 
 // ----------------------------------------------------------------------
 
@@ -2950,6 +2989,10 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	private_backend_i.get_vk_device          = backend_get_vk_device;
 	private_backend_i.get_vk_physical_device = backend_get_vk_physical_device;
 	private_backend_i.get_le_device          = backend_get_le_device;
+	private_backend_i.allocate_image         = backend_allocate_image;
+	private_backend_i.destroy_image          = backend_destroy_image;
+	private_backend_i.allocate_buffer        = backend_allocate_buffer;
+	private_backend_i.destroy_buffer         = backend_destroy_buffer;
 
 	auto &staging_allocator_i   = api_i->le_staging_allocator_i;
 	staging_allocator_i.create  = staging_allocator_create;
