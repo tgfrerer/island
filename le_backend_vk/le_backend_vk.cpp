@@ -456,14 +456,11 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settin
 
 	// The following settings are not user-hintable, and will get overridden by default
 
-	settings.width_hint                     = self->window->getSurfaceWidth();
-	settings.height_hint                    = self->window->getSurfaceHeight();
-	settings.vk_device                      = self->device->getVkDevice();
-	settings.vk_physical_device             = self->device->getVkPhysicalDevice();
-	settings.vk_surface                     = self->window->getVkSurfaceKHR();
-	settings.vk_graphics_queue_family_index = self->device->getDefaultGraphicsQueueFamilyIndex();
+	settings.width_hint  = self->window->getSurfaceWidth();
+	settings.height_hint = self->window->getSurfaceHeight();
+	settings.vk_surface  = self->window->getVkSurfaceKHR();
 
-	self->swapchain            = std::make_unique<le::Swapchain>( &settings );
+	self->swapchain            = std::make_unique<le::Swapchain>( self, &settings );
 	self->swapchainImageFormat = vk::Format( self->swapchain->getSurfaceFormat()->format );
 }
 

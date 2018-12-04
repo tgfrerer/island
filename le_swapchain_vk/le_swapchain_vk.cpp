@@ -1,4 +1,5 @@
 #include "le_swapchain_vk/le_swapchain_vk.h"
+#include "le_backend_vk/le_backend_vk.h"
 
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
@@ -19,14 +20,18 @@ struct SurfaceProperties {
 
 struct le_swapchain_o {
 	le_swapchain_vk_settings_t mSettings;
+	le_backend_o *             backend;
 	uint32_t                   mImagecount      = 0;
 	uint32_t                   mImageIndex      = uint32_t( ~0 ); // current image index
-	vk::SwapchainKHR           mSwapchain       = nullptr;
+	vk::SwapchainKHR           swapchainKHR     = nullptr;
 	vk::Extent2D               mSwapchainExtent = {};
 	vk::PresentModeKHR         mPresentMode     = vk::PresentModeKHR::eFifo;
 	uint32_t                   referenceCount   = 0;
 	SurfaceProperties          mSurfaceProperties;
 	std::vector<vk::Image>     mImageRefs; // owned by SwapchainKHR, don't delete
+	vk::Device                 device                         = nullptr;
+	vk::PhysicalDevice         physicalDevice                 = nullptr;
+	uint32_t                   vk_graphics_queue_family_index = 0;
 };
 
 // ----------------------------------------------------------------------
@@ -35,18 +40,19 @@ static void swapchain_query_surface_capabilities( le_swapchain_o *self ) {
 
 	// we need to find out if the current physical device supports PRESENT
 
+	using namespace le_backend_vk;
+
 	const auto &settings          = self->mSettings;
 	auto &      surfaceProperties = self->mSurfaceProperties;
-	auto        physicalDevice    = vk::PhysicalDevice{settings.vk_physical_device};
 
-	physicalDevice.getSurfaceSupportKHR( settings.vk_graphics_queue_family_index,
-	                                     settings.vk_surface,
-	                                     &surfaceProperties.presentSupported );
+	self->physicalDevice.getSurfaceSupportKHR( self->vk_graphics_queue_family_index,
+	                                           settings.vk_surface,
+	                                           &surfaceProperties.presentSupported );
 
 	// Get list of supported surface formats
-	surfaceProperties.availableSurfaceFormats = physicalDevice.getSurfaceFormatsKHR( settings.vk_surface );
-	surfaceProperties.surfaceCapabilities     = physicalDevice.getSurfaceCapabilitiesKHR( settings.vk_surface );
-	surfaceProperties.presentmodes            = physicalDevice.getSurfacePresentModesKHR( settings.vk_surface );
+	surfaceProperties.availableSurfaceFormats = self->physicalDevice.getSurfaceFormatsKHR( settings.vk_surface );
+	surfaceProperties.surfaceCapabilities     = self->physicalDevice.getSurfaceCapabilitiesKHR( settings.vk_surface );
+	surfaceProperties.presentmodes            = self->physicalDevice.getSurfacePresentModesKHR( settings.vk_surface );
 
 	size_t selectedSurfaceFormatIndex = 0;
 	auto   preferredSurfaceFormat     = vk::Format::eB8G8R8A8Unorm;
@@ -102,11 +108,8 @@ vk::PresentModeKHR get_khr_presentmode( const le::Swapchain::Presentmode &presen
 
 // ----------------------------------------------------------------------
 
-static void swapchain_attach_images( le_backend_swapchain_o *self ) {
-
-	vk::Device device = self->mSettings.vk_device;
-
-	self->mImageRefs  = device.getSwapchainImagesKHR( self->mSwapchain );
+static void swapchain_attach_images( le_swapchain_o *self ) {
+	self->mImageRefs  = self->device.getSwapchainImagesKHR( self->swapchainKHR );
 	self->mImagecount = uint32_t( self->mImageRefs.size() );
 }
 
@@ -131,8 +134,8 @@ static void swapchain_reset( le_swapchain_o *self, const le_swapchain_vk_setting
 	// just before this setup() method was called.
 	swapchain_query_surface_capabilities( self );
 
-	vk::SwapchainKHR                         oldSwapchain        = self->mSwapchain;
-	vk::Device                               device              = self->mSettings.vk_device;
+	vk::SwapchainKHR oldSwapchain = self->swapchainKHR;
+
 	const vk::SurfaceCapabilitiesKHR &       surfaceCapabilities = self->mSurfaceProperties.surfaceCapabilities;
 	const std::vector<::vk::PresentModeKHR> &presentModes        = self->mSurfaceProperties.presentmodes;
 
@@ -199,12 +202,12 @@ static void swapchain_reset( le_swapchain_o *self, const le_swapchain_vk_setting
 	    .setClipped( VK_TRUE )
 	    .setOldSwapchain( oldSwapchain );
 
-	self->mSwapchain = device.createSwapchainKHR( swapChainCreateInfo );
+	self->swapchainKHR = self->device.createSwapchainKHR( swapChainCreateInfo );
 
 	// If an existing swap chain is re-created, destroy the old swap chain
 	// This also cleans up all the presentable images
 	if ( oldSwapchain ) {
-		device.destroySwapchainKHR( oldSwapchain );
+		self->device.destroySwapchainKHR( oldSwapchain );
 		oldSwapchain = nullptr;
 	}
 
@@ -215,6 +218,16 @@ static void swapchain_reset( le_swapchain_o *self, const le_swapchain_vk_setting
 
 static le_swapchain_o *swapchain_create( le_backend_o *backend, const le_swapchain_vk_settings_t *settings_ ) {
 	auto self = new ( le_swapchain_o );
+
+	self->backend = backend;
+
+	{
+		using namespace le_backend_vk;
+		self->device                         = private_backend_vk_i.get_vk_device( backend );
+		self->physicalDevice                 = private_backend_vk_i.get_vk_physical_device( backend );
+		auto le_device                       = private_backend_vk_i.get_le_device( backend );
+		self->vk_graphics_queue_family_index = vk_device_i.get_default_graphics_queue_family_index( le_device );
+	}
 
 	swapchain_reset( self, settings_ );
 
@@ -229,7 +242,7 @@ static bool swapchain_acquire_next_image( le_swapchain_o *self, VkSemaphore sema
 	// before this image is available for writing. Image will be ready for writing when
 	// semaphorePresentComplete is signalled.
 
-	auto result = vkAcquireNextImageKHR( self->mSettings.vk_device, self->mSwapchain, UINT64_MAX, semaphorePresentComplete_, nullptr, &imageIndex_ );
+	auto result = vkAcquireNextImageKHR( self->device, self->swapchainKHR, UINT64_MAX, semaphorePresentComplete_, nullptr, &imageIndex_ );
 
 	switch ( result ) {
 	case VK_SUCCESS:
@@ -283,10 +296,10 @@ static size_t swapchain_get_swapchain_images_count( le_swapchain_o *self ) {
 
 static void swapchain_destroy( le_swapchain_o *self_ ) {
 
-	vk::Device device = self_->mSettings.vk_device;
+	vk::Device device = self_->device;
 
-	device.destroySwapchainKHR( self_->mSwapchain );
-	self_->mSwapchain = nullptr;
+	device.destroySwapchainKHR( self_->swapchainKHR );
+	self_->swapchainKHR = nullptr;
 
 	delete ( self_ );
 	self_ = nullptr;
@@ -303,11 +316,11 @@ static bool swapchain_present( le_swapchain_o *self, VkQueue queue_, VkSemaphore
 	    .setWaitSemaphoreCount( 1 )
 	    .setPWaitSemaphores( &renderCompleteSemaphore )
 	    .setSwapchainCount( 1 )
-	    .setPSwapchains( &self->mSwapchain )
+	    .setPSwapchains( &self->swapchainKHR )
 	    .setPImageIndices( pImageIndex )
 	    .setPResults( nullptr );
 
-	auto result = vkQueuePresentKHR( queue_, ( VkPresentInfoKHR * )&presentInfo );
+	auto result = vkQueuePresentKHR( queue_, reinterpret_cast<VkPresentInfoKHR *>( &presentInfo ) );
 
 	if ( vk::Result( result ) == vk::Result::eErrorOutOfDateKHR ) {
 		// FIXME: handle swapchain resize event properly

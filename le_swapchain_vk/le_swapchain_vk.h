@@ -11,6 +11,7 @@ extern "C" {
 void register_le_swapchain_vk_api( void *api );
 
 struct le_swapchain_o;
+struct le_backend_o;
 
 struct VkDevice_T;
 struct VkPhysicalDevice_T;
@@ -31,14 +32,11 @@ struct le_swapchain_vk_settings_t {
 		eSharedDemandRefresh,
 		eSharedContinuousRefresh,
 	};
-	uint32_t            width_hint                     = 640;
-	uint32_t            height_hint                    = 480;
-	uint32_t            imagecount_hint                = 3;
-	Presentmode         presentmode_hint               = Presentmode::eFifo;
-	VkDevice_T *        vk_device                      = nullptr; // owned by backend
-	VkPhysicalDevice_T *vk_physical_device             = nullptr;
-	VkSurfaceKHR_T *    vk_surface                     = nullptr; // owned by window
-	uint32_t            vk_graphics_queue_family_index = ~uint32_t( 0 );
+	uint32_t        width_hint       = 640;
+	uint32_t        height_hint      = 480;
+	uint32_t        imagecount_hint  = 3;
+	Presentmode     presentmode_hint = Presentmode::eFifo;
+	VkSurfaceKHR_T *vk_surface       = nullptr; // owned by window
 };
 
 struct le_swapchain_vk_api {
