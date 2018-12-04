@@ -3,6 +3,7 @@ set (TARGET le_swapchain_vk)
 set (SOURCES "le_swapchain_vk.h")
 set (SOURCES ${SOURCES} "le_swapchain_vk.cpp")
 set (SOURCES ${SOURCES} "le_swapchain_khr.cpp")
+set (SOURCES ${SOURCES} "le_swapchain_img.cpp")
 set (SOURCES ${SOURCES} "include/internal/le_swapchain_vk_common.h")
 
 if (${PLUGINS_DYNAMIC})

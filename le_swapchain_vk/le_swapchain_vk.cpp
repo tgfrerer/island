@@ -102,6 +102,7 @@ void register_le_swapchain_vk_api( void *api_ ) {
 	refcount_i.get_reference_count      = swapchain_get_reference_count;
 
 	register_le_swapchain_khr_api( api );
+	register_le_swapchain_img_api( api );
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
 }
