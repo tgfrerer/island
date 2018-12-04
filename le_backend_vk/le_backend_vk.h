@@ -102,7 +102,11 @@ struct le_backend_vk_api {
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
 
 		le_resource_handle_t       ( *get_backbuffer_resource    ) ( le_backend_o* self);
+	struct private_backend_vk_interface_t {
 		le_device_o*        (*get_le_device            )(le_backend_o* self);
+		VkDevice_T*         (*get_vk_device            )(le_backend_o* self);
+		VkPhysicalDevice_T* (*get_vk_physical_device   )(le_backend_o* self);
+		VmaAllocator_T*     (*get_vma_allocator        )(le_backend_o* self);
 	};
 
 	struct instance_interface_t {
@@ -175,6 +179,8 @@ struct le_backend_vk_api {
 	shader_module_interface_t       le_shader_module_i;
 	staging_allocator_interface_t   le_staging_allocator_i;
 
+	private_backend_vk_interface_t private_backend_vk_i;
+
 	mutable le_backend_vk_instance_o *cUniqueInstance = nullptr;
 };
 
@@ -189,6 +195,7 @@ const auto api = Registry::addApiStatic<le_backend_vk_api>();
 #	endif
 
 static const auto &vk_backend_i           = api -> vk_backend_i;
+static const auto &private_backend_vk_i   = api -> private_backend_vk_i;
 static const auto &le_allocator_linear_i  = api -> le_allocator_linear_i;
 static const auto &le_staging_allocator_i = api -> le_staging_allocator_i;
 static const auto &vk_instance_i          = api -> vk_instance_i;
