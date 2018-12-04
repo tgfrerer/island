@@ -17,7 +17,7 @@ struct SurfaceProperties {
 	std::vector<::vk::SurfaceFormatKHR> availableSurfaceFormats;
 };
 
-struct le_backend_swapchain_o {
+struct le_swapchain_o {
 	le_swapchain_vk_settings_t mSettings;
 	uint32_t                   mImagecount      = 0;
 	uint32_t                   mImageIndex      = uint32_t( ~0 ); // current image index
@@ -31,7 +31,7 @@ struct le_backend_swapchain_o {
 
 // ----------------------------------------------------------------------
 
-static void swapchain_query_surface_capabilities( le_backend_swapchain_o *self ) {
+static void swapchain_query_surface_capabilities( le_swapchain_o *self ) {
 
 	// we need to find out if the current physical device supports PRESENT
 
@@ -119,7 +119,7 @@ static inline auto clamp( const T &val_, const T &min_, const T &max_ ) {
 
 // ----------------------------------------------------------------------
 
-static void swapchain_reset( le_backend_swapchain_o *self, const le_swapchain_vk_settings_t *settings_ ) {
+static void swapchain_reset( le_swapchain_o *self, const le_swapchain_vk_settings_t *settings_ ) {
 
 	if ( settings_ ) {
 		self->mSettings = *settings_;
@@ -213,8 +213,8 @@ static void swapchain_reset( le_backend_swapchain_o *self, const le_swapchain_vk
 
 // ----------------------------------------------------------------------
 
-static le_backend_swapchain_o *swapchain_create( const le_swapchain_vk_settings_t *settings_ ) {
-	auto self = new ( le_backend_swapchain_o );
+static le_swapchain_o *swapchain_create( le_backend_o *backend, const le_swapchain_vk_settings_t *settings_ ) {
+	auto self = new ( le_swapchain_o );
 
 	swapchain_reset( self, settings_ );
 
@@ -223,7 +223,7 @@ static le_backend_swapchain_o *swapchain_create( const le_swapchain_vk_settings_
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_acquire_next_image( le_backend_swapchain_o *self, VkSemaphore semaphorePresentComplete_, uint32_t &imageIndex_ ) {
+static bool swapchain_acquire_next_image( le_swapchain_o *self, VkSemaphore semaphorePresentComplete_, uint32_t &imageIndex_ ) {
 
 	// This method will return the next avaliable vk image index for this swapchain, possibly
 	// before this image is available for writing. Image will be ready for writing when
@@ -248,7 +248,7 @@ static bool swapchain_acquire_next_image( le_backend_swapchain_o *self, VkSemaph
 
 // ----------------------------------------------------------------------
 
-static VkImage swapchain_get_image( le_backend_swapchain_o *self, uint32_t index ) {
+static VkImage swapchain_get_image( le_swapchain_o *self, uint32_t index ) {
 #ifndef NDEBUG
 	assert( index < self->mImageRefs.size() );
 #endif
@@ -257,31 +257,31 @@ static VkImage swapchain_get_image( le_backend_swapchain_o *self, uint32_t index
 
 // ----------------------------------------------------------------------
 
-static VkSurfaceFormatKHR *swapchain_get_surface_format( le_backend_swapchain_o *self ) {
+static VkSurfaceFormatKHR *swapchain_get_surface_format( le_swapchain_o *self ) {
 	return &reinterpret_cast<VkSurfaceFormatKHR &>( self->mSurfaceProperties.windowSurfaceFormat );
 }
 
 // ----------------------------------------------------------------------
 
-static uint32_t swapchain_get_image_width( le_backend_swapchain_o *self ) {
+static uint32_t swapchain_get_image_width( le_swapchain_o *self ) {
 	return self->mSwapchainExtent.width;
 }
 
 // ----------------------------------------------------------------------
 
-static uint32_t swapchain_get_image_height( le_backend_swapchain_o *self ) {
+static uint32_t swapchain_get_image_height( le_swapchain_o *self ) {
 	return self->mSwapchainExtent.height;
 }
 
 // ----------------------------------------------------------------------
 
-static size_t swapchain_get_swapchain_images_count( le_backend_swapchain_o *self ) {
+static size_t swapchain_get_swapchain_images_count( le_swapchain_o *self ) {
 	return self->mImagecount;
 }
 
 // ----------------------------------------------------------------------
 
-static void swapchain_destroy( le_backend_swapchain_o *self_ ) {
+static void swapchain_destroy( le_swapchain_o *self_ ) {
 
 	vk::Device device = self_->mSettings.vk_device;
 
@@ -294,7 +294,7 @@ static void swapchain_destroy( le_backend_swapchain_o *self_ ) {
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_present( le_backend_swapchain_o *self, VkQueue queue_, VkSemaphore renderCompleteSemaphore_, uint32_t *pImageIndex ) {
+static bool swapchain_present( le_swapchain_o *self, VkQueue queue_, VkSemaphore renderCompleteSemaphore_, uint32_t *pImageIndex ) {
 	vk::PresentInfoKHR presentInfo;
 
 	auto renderCompleteSemaphore = vk::Semaphore{renderCompleteSemaphore_};
@@ -321,19 +321,19 @@ static bool swapchain_present( le_backend_swapchain_o *self, VkQueue queue_, VkS
 
 // ----------------------------------------------------------------------
 
-static void swapchain_increase_reference_count( le_backend_swapchain_o *self ) {
+static void swapchain_increase_reference_count( le_swapchain_o *self ) {
 	++self->referenceCount;
 }
 
 // ----------------------------------------------------------------------
 
-static void swapchain_decrease_reference_count( le_backend_swapchain_o *self ) {
+static void swapchain_decrease_reference_count( le_swapchain_o *self ) {
 	--self->referenceCount;
 }
 
 // ----------------------------------------------------------------------
 
-static uint32_t swapchain_get_reference_count( le_backend_swapchain_o *self ) {
+static uint32_t swapchain_get_reference_count( le_swapchain_o *self ) {
 	return self->referenceCount;
 }
 

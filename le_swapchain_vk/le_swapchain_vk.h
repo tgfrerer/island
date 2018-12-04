@@ -10,7 +10,7 @@ extern "C" {
 
 void register_le_swapchain_vk_api( void *api );
 
-struct le_backend_swapchain_o;
+struct le_swapchain_o;
 
 struct VkDevice_T;
 struct VkPhysicalDevice_T;
@@ -47,20 +47,20 @@ struct le_swapchain_vk_api {
 
 	// clang-format off
 	struct swapchain_interface_t {
-		le_backend_swapchain_o *  ( *create                   ) ( const le_swapchain_vk_settings_t* settings_ );
-		void                      ( *destroy                  ) ( le_backend_swapchain_o* self );
-		void                      ( *reset                    ) ( le_backend_swapchain_o* self, const le_swapchain_vk_settings_t* settings_ );
-		bool                      ( *present                  ) ( le_backend_swapchain_o* self, VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex);
-		bool                      ( *acquire_next_image       ) ( le_backend_swapchain_o* self, VkSemaphore_T* semaphore_, uint32_t& imageIndex_ );
-		VkSurfaceFormatKHR*       ( *get_surface_format       ) ( le_backend_swapchain_o* self );
-		VkImage_T*                ( *get_image                ) ( le_backend_swapchain_o* self, uint32_t index_);
-		uint32_t                  ( *get_image_width          ) ( le_backend_swapchain_o* self );
-		uint32_t                  ( *get_image_height         ) ( le_backend_swapchain_o* self );
-		size_t                    ( *get_images_count         ) ( le_backend_swapchain_o* self );
+		le_swapchain_o *          ( *create                   ) ( le_backend_o* backend, const le_swapchain_vk_settings_t* settings_ );
+		void                      ( *destroy                  ) ( le_swapchain_o* self );
+		void                      ( *reset                    ) ( le_swapchain_o* self, const le_swapchain_vk_settings_t* settings_ );
+		bool                      ( *present                  ) ( le_swapchain_o* self, VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex);
+		bool                      ( *acquire_next_image       ) ( le_swapchain_o* self, VkSemaphore_T* semaphore_, uint32_t& imageIndex_ );
+		VkSurfaceFormatKHR*       ( *get_surface_format       ) ( le_swapchain_o* self );
+		VkImage_T*                ( *get_image                ) ( le_swapchain_o* self, uint32_t index_);
+		uint32_t                  ( *get_image_width          ) ( le_swapchain_o* self );
+		uint32_t                  ( *get_image_height         ) ( le_swapchain_o* self );
+		size_t                    ( *get_images_count         ) ( le_swapchain_o* self );
 
-		void                      ( *decrease_reference_count ) ( le_backend_swapchain_o* self );
-		void                      ( *increase_reference_count ) ( le_backend_swapchain_o* self );
-		uint32_t                  ( *get_reference_count      ) ( le_backend_swapchain_o* self );
+		void                      ( *decrease_reference_count ) ( le_swapchain_o* self );
+		void                      ( *increase_reference_count ) ( le_swapchain_o* self );
+		uint32_t                  ( *get_reference_count      ) ( le_swapchain_o* self );
 	};
 	// clang-format on
 
@@ -77,7 +77,7 @@ const auto api = Registry::addApiDynamic<le_swapchain_vk_api>( true );
 const auto api = Registry::addApiStatic<le_swapchain_vk_api>();
 #	endif
 
-static const auto &swapchain_i = api -> swapchain_i;
+static const auto &swapchain_i     = api -> swapchain_i;
 
 } // namespace le_swapchain_vk
 
@@ -85,21 +85,23 @@ namespace le {
 
 class Swapchain {
 
-	le_backend_swapchain_o *self = le_swapchain_vk::swapchain_i.create( nullptr );
+	le_swapchain_o *self = nullptr;
 
   public:
 	using Presentmode = le_swapchain_vk_settings_t::Presentmode;
 
   public:
-	Swapchain( le_swapchain_vk_settings_t *settings_ )
-	    : self( le_swapchain_vk::swapchain_i.create( settings_ ) ) {
+	Swapchain( le_backend_o *backend, le_swapchain_vk_settings_t *settings_ )
+	    : self( le_swapchain_vk::swapchain_i.create( backend, settings_ ) ) {
 		le_swapchain_vk::swapchain_i.increase_reference_count( self );
 	}
 
 	~Swapchain() {
-		le_swapchain_vk::swapchain_i.decrease_reference_count( self );
-		if ( 0 == le_swapchain_vk::swapchain_i.get_reference_count( self ) ) {
-			le_swapchain_vk::swapchain_i.destroy( self );
+		if ( self != nullptr ) {
+			le_swapchain_vk::swapchain_i.decrease_reference_count( self );
+			if ( 0 == le_swapchain_vk::swapchain_i.get_reference_count( self ) ) {
+				le_swapchain_vk::swapchain_i.destroy( self );
+			}
 		}
 	}
 
@@ -110,7 +112,7 @@ class Swapchain {
 	}
 
 	// reference from data constructor
-	Swapchain( le_backend_swapchain_o *swapchain_ )
+	Swapchain( le_swapchain_o *swapchain_ )
 	    : self( swapchain_ ) {
 		le_swapchain_vk::swapchain_i.increase_reference_count( self );
 	}
@@ -157,7 +159,7 @@ class Swapchain {
 		return le_swapchain_vk::swapchain_i.present( self, queue, renderCompleteSemaphore, pImageIndex );
 	}
 
-	operator le_backend_swapchain_o *() {
+	operator le_swapchain_o *() {
 		return self;
 	}
 };
