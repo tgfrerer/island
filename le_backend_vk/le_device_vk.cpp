@@ -11,7 +11,7 @@
 #include <set>
 #include <map>
 
-struct le_backend_vk_device_o {
+struct le_device_o {
 
 	vk::Device                         vkDevice         = nullptr;
 	vk::PhysicalDevice                 vkPhysicalDevice = nullptr;
@@ -146,9 +146,9 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 
 // ----------------------------------------------------------------------
 
-le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
+le_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 
-	le_backend_vk_device_o *device = new ( le_backend_vk_device_o );
+	le_device_o *device = new ( le_device_o );
 
 	const le_backend_vk_api &                      backendApiI = *Registry::getApi<le_backend_vk_api>();
 	const le_backend_vk_api::instance_interface_t &instanceI   = backendApiI.vk_instance_i;
@@ -294,80 +294,80 @@ le_backend_vk_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 
 // ----------------------------------------------------------------------
 
-void device_increase_reference_count( le_backend_vk_device_o *self ) {
+void device_increase_reference_count( le_device_o *self ) {
 	++self->referenceCount;
 }
 
 // ----------------------------------------------------------------------
 
-void device_decrease_reference_count( le_backend_vk_device_o *self ) {
+void device_decrease_reference_count( le_device_o *self ) {
 	--self->referenceCount;
 }
 
 // ----------------------------------------------------------------------
 
-uint32_t device_get_reference_count( le_backend_vk_device_o *self ) {
+uint32_t device_get_reference_count( le_device_o *self ) {
 	return self->referenceCount;
 }
 
 // ----------------------------------------------------------------------
 
-VkDevice device_get_vk_device( le_backend_vk_device_o *self_ ) {
+VkDevice device_get_vk_device( le_device_o *self_ ) {
 	return self_->vkDevice;
 }
 
 // ----------------------------------------------------------------------
 
-VkPhysicalDevice device_get_vk_physical_device( le_backend_vk_device_o *self_ ) {
+VkPhysicalDevice device_get_vk_physical_device( le_device_o *self_ ) {
 	return self_->vkPhysicalDevice;
 }
 
 // ----------------------------------------------------------------------
 
-const VkPhysicalDeviceProperties &device_get_vk_physical_device_properties( le_backend_vk_device_o *self ) {
+const VkPhysicalDeviceProperties &device_get_vk_physical_device_properties( le_device_o *self ) {
 	return self->vkPhysicalDeviceProperties;
 }
 
 // ----------------------------------------------------------------------
 
-const VkPhysicalDeviceMemoryProperties &device_get_vk_physical_device_memory_properties( le_backend_vk_device_o *self ) {
+const VkPhysicalDeviceMemoryProperties &device_get_vk_physical_device_memory_properties( le_device_o *self ) {
 	return self->vkPhysicalDeviceMemoryProperties;
 }
 
 // ----------------------------------------------------------------------
 
-uint32_t device_get_default_graphics_queue_family_index( le_backend_vk_device_o *self_ ) {
+uint32_t device_get_default_graphics_queue_family_index( le_device_o *self_ ) {
 	return self_->queueFamilyIndices[ self_->defaultQueueIndices.graphics ];
 };
 
 // ----------------------------------------------------------------------
 
-uint32_t device_get_default_compute_queue_family_index( le_backend_vk_device_o *self_ ) {
+uint32_t device_get_default_compute_queue_family_index( le_device_o *self_ ) {
 	return self_->queueFamilyIndices[ self_->defaultQueueIndices.compute ];
 }
 
 // ----------------------------------------------------------------------
 
-VkQueue device_get_default_graphics_queue( le_backend_vk_device_o *self_ ) {
+VkQueue device_get_default_graphics_queue( le_device_o *self_ ) {
 	return self_->queues[ self_->defaultQueueIndices.graphics ];
 }
 
 // ----------------------------------------------------------------------
 
-VkQueue device_get_default_compute_queue( le_backend_vk_device_o *self_ ) {
+VkQueue device_get_default_compute_queue( le_device_o *self_ ) {
 	return self_->queues[ self_->defaultQueueIndices.compute ];
 }
 
 // ----------------------------------------------------------------------
 
-VkFormatEnum device_get_default_depth_stencil_format( le_backend_vk_device_o *self ) {
+VkFormatEnum device_get_default_depth_stencil_format( le_device_o *self ) {
 	return {self->defaultDepthStencilFormat};
 }
 
 // ----------------------------------------------------------------------
 
 // get memory allocation info for best matching memory type that matches any of the type bits and flags
-static bool device_get_memory_allocation_info( le_backend_vk_device_o *    self,
+static bool device_get_memory_allocation_info( le_device_o *               self,
                                                const VkMemoryRequirements &memReqs,
                                                const VkFlags &             memPropsRef,
                                                VkMemoryAllocateInfo *      pMemoryAllocationInfo ) {
@@ -404,7 +404,7 @@ static bool device_get_memory_allocation_info( le_backend_vk_device_o *    self,
 
 // ----------------------------------------------------------------------
 
-void device_destroy( le_backend_vk_device_o *self ) {
+void device_destroy( le_device_o *self ) {
 	self->vkDevice.destroy();
 	delete ( self );
 };

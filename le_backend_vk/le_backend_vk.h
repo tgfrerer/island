@@ -19,7 +19,7 @@ struct le_backend_vk_api;
 struct le_backend_o;
 
 struct le_backend_vk_instance_o; // defined in le_instance_vk.cpp
-struct le_backend_vk_device_o;   // defined in le_device_vk.cpp
+struct le_device_o;              // defined in le_device_vk.cpp
 struct le_renderpass_o;
 struct le_buffer_o;
 struct le_allocator_o;
@@ -102,6 +102,7 @@ struct le_backend_vk_api {
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
 
 		le_resource_handle_t       ( *get_backbuffer_resource    ) ( le_backend_o* self);
+		le_device_o*        (*get_le_device            )(le_backend_o* self);
 	};
 
 	struct instance_interface_t {
@@ -112,24 +113,24 @@ struct le_backend_vk_api {
 	};
 
 	struct device_interface_t {
-		le_backend_vk_device_o *    ( *create                                  ) ( le_backend_vk_instance_o* instance_ );
-		void                        ( *destroy                                 ) ( le_backend_vk_device_o* self_ );
+		le_device_o *    ( *create                                  ) ( le_backend_vk_instance_o* instance_ );
+		void                        ( *destroy                                 ) ( le_device_o* self_ );
 
-		void                        ( *decrease_reference_count                ) ( le_backend_vk_device_o* self_ );
-		void                        ( *increase_reference_count                ) ( le_backend_vk_device_o* self_ );
-		uint32_t                    ( *get_reference_count                     ) ( le_backend_vk_device_o* self_ );
+		void                        ( *decrease_reference_count                ) ( le_device_o* self_ );
+		void                        ( *increase_reference_count                ) ( le_device_o* self_ );
+		uint32_t                    ( *get_reference_count                     ) ( le_device_o* self_ );
 
-		uint32_t                    ( *get_default_graphics_queue_family_index ) ( le_backend_vk_device_o* self_ );
-		uint32_t                    ( *get_default_compute_queue_family_index  ) ( le_backend_vk_device_o* self_ );
-		VkQueue_T *                 ( *get_default_graphics_queue              ) ( le_backend_vk_device_o* self_ );
-		VkQueue_T *                 ( *get_default_compute_queue               ) ( le_backend_vk_device_o* self_ );
-		VkFormatEnum                ( *get_default_depth_stencil_format        ) ( le_backend_vk_device_o* self_ );
-		VkPhysicalDevice_T*         ( *get_vk_physical_device                  ) ( le_backend_vk_device_o* self_ );
-		VkDevice_T*                 ( *get_vk_device                           ) ( le_backend_vk_device_o* self_ );
+		uint32_t                    ( *get_default_graphics_queue_family_index ) ( le_device_o* self_ );
+		uint32_t                    ( *get_default_compute_queue_family_index  ) ( le_device_o* self_ );
+		VkQueue_T *                 ( *get_default_graphics_queue              ) ( le_device_o* self_ );
+		VkQueue_T *                 ( *get_default_compute_queue               ) ( le_device_o* self_ );
+		VkFormatEnum                ( *get_default_depth_stencil_format        ) ( le_device_o* self_ );
+		VkPhysicalDevice_T*         ( *get_vk_physical_device                  ) ( le_device_o* self_ );
+		VkDevice_T*                 ( *get_vk_device                           ) ( le_device_o* self_ );
 
-		const VkPhysicalDeviceProperties&       ( *get_vk_physical_device_properties        ) ( le_backend_vk_device_o* self );
-		const VkPhysicalDeviceMemoryProperties& ( *get_vk_physical_device_memory_properties ) ( le_backend_vk_device_o* self );
-		bool                                    ( *get_memory_allocation_info               ) ( le_backend_vk_device_o *self, const VkMemoryRequirements &memReqs, const uint32_t &memPropsRef, VkMemoryAllocateInfo *pMemoryAllocationInfo );
+		const VkPhysicalDeviceProperties&       ( *get_vk_physical_device_properties        ) ( le_device_o* self );
+		const VkPhysicalDeviceMemoryProperties& ( *get_vk_physical_device_memory_properties ) ( le_device_o* self );
+		bool                                    ( *get_memory_allocation_info               ) ( le_device_o *self, const VkMemoryRequirements &memReqs, const uint32_t &memPropsRef, VkMemoryAllocateInfo *pMemoryAllocationInfo );
 	};
 
 	struct le_pipeline_manager_interface_t {
@@ -271,7 +272,7 @@ class Instance {
 };
 
 class Device : NoCopy, NoMove {
-	le_backend_vk_device_o *self = nullptr;
+	le_device_o *self = nullptr;
 
   public:
 	Device( le_backend_vk_instance_o *instance_ )
@@ -293,7 +294,7 @@ class Device : NoCopy, NoMove {
 	}
 
 	// reference from data constructor
-	Device( le_backend_vk_device_o *device_ )
+	Device( le_device_o *device_ )
 	    : self( device_ ) {
 		le_backend_vk::vk_device_i.increase_reference_count( self );
 	}
