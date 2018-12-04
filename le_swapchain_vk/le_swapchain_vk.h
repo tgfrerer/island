@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 void register_le_swapchain_vk_api( void *api );
+void register_le_swapchain_khr_api( void *api ); // in le_swapchain_khr.cpp
 
 struct le_swapchain_o;
 struct le_backend_o;
@@ -45,7 +46,7 @@ struct le_swapchain_vk_api {
 
 	// clang-format off
 	struct swapchain_interface_t {
-		le_swapchain_o *          ( *create                   ) ( le_backend_o* backend, const le_swapchain_vk_settings_t* settings_ );
+		le_swapchain_o *          ( *create                   ) ( le_swapchain_vk_api::swapchain_interface_t const & interface, le_backend_o* backend, const le_swapchain_vk_settings_t* settings_ );
 		void                      ( *destroy                  ) ( le_swapchain_o* self );
 		void                      ( *reset                    ) ( le_swapchain_o* self, const le_swapchain_vk_settings_t* settings_ );
 		bool                      ( *present                  ) ( le_swapchain_o* self, VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex);
@@ -55,14 +56,20 @@ struct le_swapchain_vk_api {
 		uint32_t                  ( *get_image_width          ) ( le_swapchain_o* self );
 		uint32_t                  ( *get_image_height         ) ( le_swapchain_o* self );
 		size_t                    ( *get_images_count         ) ( le_swapchain_o* self );
+	};
 
+	struct refcount_interface_t {
 		void                      ( *decrease_reference_count ) ( le_swapchain_o* self );
 		void                      ( *increase_reference_count ) ( le_swapchain_o* self );
 		uint32_t                  ( *get_reference_count      ) ( le_swapchain_o* self );
 	};
+
 	// clang-format on
 
-	swapchain_interface_t swapchain_i;
+	swapchain_interface_t swapchain_i;     // base interface, forwards to either:
+	swapchain_interface_t swapchain_khr_i; // khr swapchain interface
+	swapchain_interface_t swapchain_img_i; // image swapchain interface
+	refcount_interface_t  refcount_i;      // reference count interface
 };
 
 #ifdef __cplusplus
@@ -76,6 +83,8 @@ const auto api = Registry::addApiStatic<le_swapchain_vk_api>();
 #	endif
 
 static const auto &swapchain_i     = api -> swapchain_i;
+static const auto &swapchain_khr_i = api -> swapchain_khr_i;
+static const auto &refcount_i      = api -> refcount_i;
 
 } // namespace le_swapchain_vk
 
@@ -89,15 +98,15 @@ class Swapchain {
 	using Presentmode = le_swapchain_vk_settings_t::Presentmode;
 
   public:
-	Swapchain( le_backend_o *backend, le_swapchain_vk_settings_t *settings_ )
-	    : self( le_swapchain_vk::swapchain_i.create( backend, settings_ ) ) {
-		le_swapchain_vk::swapchain_i.increase_reference_count( self );
+	Swapchain( le_swapchain_vk_api::swapchain_interface_t const &interface, le_backend_o *backend, le_swapchain_vk_settings_t *settings_ )
+	    : self( le_swapchain_vk::swapchain_i.create( interface, backend, settings_ ) ) {
+		le_swapchain_vk::refcount_i.increase_reference_count( self );
 	}
 
 	~Swapchain() {
 		if ( self != nullptr ) {
-			le_swapchain_vk::swapchain_i.decrease_reference_count( self );
-			if ( 0 == le_swapchain_vk::swapchain_i.get_reference_count( self ) ) {
+			le_swapchain_vk::refcount_i.decrease_reference_count( self );
+			if ( 0 == le_swapchain_vk::refcount_i.get_reference_count( self ) ) {
 				le_swapchain_vk::swapchain_i.destroy( self );
 			}
 		}
@@ -106,13 +115,13 @@ class Swapchain {
 	// copy constructor
 	Swapchain( const Swapchain &lhs )
 	    : self( lhs.self ) {
-		le_swapchain_vk::swapchain_i.increase_reference_count( self );
+		le_swapchain_vk::refcount_i.increase_reference_count( self );
 	}
 
 	// reference from data constructor
 	Swapchain( le_swapchain_o *swapchain_ )
 	    : self( swapchain_ ) {
-		le_swapchain_vk::swapchain_i.increase_reference_count( self );
+		le_swapchain_vk::refcount_i.increase_reference_count( self );
 	}
 
 	// deactivate copy assignment operator

@@ -460,7 +460,8 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settin
 	settings.height_hint = self->window->getSurfaceHeight();
 	settings.vk_surface  = self->window->getVkSurfaceKHR();
 
-	self->swapchain            = std::make_unique<le::Swapchain>( self, &settings );
+	using namespace le_swapchain_vk;
+	self->swapchain            = std::make_unique<le::Swapchain>( swapchain_khr_i, self, &settings );
 	self->swapchainImageFormat = vk::Format( self->swapchain->getSurfaceFormat()->format );
 }
 
