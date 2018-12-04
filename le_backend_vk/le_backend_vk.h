@@ -101,7 +101,9 @@ struct le_backend_vk_api {
 
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
 
-		le_resource_handle_t       ( *get_backbuffer_resource    ) ( le_backend_o* self);
+		le_resource_handle_t   ( *get_backbuffer_resource    ) ( le_backend_o* self);
+	};
+
 	struct private_backend_vk_interface_t {
 		le_device_o*        (*get_le_device            )(le_backend_o* self);
 		VkDevice_T*         (*get_vk_device            )(le_backend_o* self);
