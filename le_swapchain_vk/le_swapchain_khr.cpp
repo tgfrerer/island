@@ -69,7 +69,7 @@ static void swapchain_query_surface_capabilities( le_swapchain_o *base ) {
 
 // ----------------------------------------------------------------------
 
-vk::PresentModeKHR get_khr_presentmode( const le::Swapchain::Presentmode &presentmode_hint_ ) {
+static vk::PresentModeKHR get_khr_presentmode( const le::Swapchain::Presentmode &presentmode_hint_ ) {
 	switch ( presentmode_hint_ ) {
 	case ( le::Swapchain::Presentmode::eDefault ):
 	    return vk::PresentModeKHR::eFifo;
