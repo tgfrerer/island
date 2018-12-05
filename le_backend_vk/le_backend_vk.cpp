@@ -439,32 +439,38 @@ static bool backend_create_window_surface( le_backend_o *self, pal_window_o *win
 
 static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settings_t *swapchainSettings_ ) {
 
-	assert( self->window );
-
-	le_swapchain_vk_settings_t settings{};
+	le_swapchain_vk_settings_t swp_settings{};
 
 	if ( swapchainSettings_ ) {
-		settings = *swapchainSettings_;
+		swp_settings = *swapchainSettings_;
 	}
 
 	// Set default settings if not user specified for certain swapchain settings
 
-	if ( settings.imagecount_hint == 0 ) {
-		settings.imagecount_hint = 3;
+	if ( swp_settings.imagecount_hint == 0 ) {
+		swp_settings.imagecount_hint = 3;
 	}
 
-	if ( settings.presentmode_hint == le::Swapchain::Presentmode::eDefault ) {
-		settings.presentmode_hint = le::Swapchain::Presentmode::eFifo;
+	if ( swp_settings.presentmode_hint == le::Swapchain::Presentmode::eDefault ) {
+		swp_settings.presentmode_hint = le::Swapchain::Presentmode::eFifo;
 	}
-
-	// The following settings are not user-hintable, and will get overridden by default
-
-	settings.width_hint  = self->window->getSurfaceWidth();
-	settings.height_hint = self->window->getSurfaceHeight();
-	settings.vk_surface  = self->window->getVkSurfaceKHR();
 
 	using namespace le_swapchain_vk;
-	self->swapchain            = std::make_unique<le::Swapchain>( swapchain_khr_i, self, &settings );
+	// The following settings are not user-hintable, and will get overridden by default
+	if ( self->window ) {
+		swp_settings.width_hint  = self->window->getSurfaceWidth();
+		swp_settings.height_hint = self->window->getSurfaceHeight();
+		swp_settings.vk_surface  = self->window->getVkSurfaceKHR();
+
+		// If we're running without a window, we pass through swapchainSettings,
+		// and initialise our swapchain as a regular khr swapchain
+		self->swapchain = std::make_unique<le::Swapchain>( swapchain_khr_i, self, &swp_settings );
+	} else {
+		// If we're running without a window, we pass through swapchainSettings,
+		// and initialise our swapchain as an image swapchain
+		self->swapchain = std::make_unique<le::Swapchain>( swapchain_img_i, self, &swp_settings );
+	}
+
 	self->swapchainImageFormat = vk::Format( self->swapchain->getSurfaceFormat()->format );
 	self->swapchainWidth       = le_swapchain_vk::swapchain_i.get_image_width( *self->swapchain );
 	self->swapchainHeight      = le_swapchain_vk::swapchain_i.get_image_height( *self->swapchain );
