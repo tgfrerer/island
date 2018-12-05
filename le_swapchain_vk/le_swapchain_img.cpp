@@ -163,9 +163,9 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_vk_set
 	for ( auto &frame : self->transferFrames ) {
 		{
 			// copy == transfer image to buffer memory
-			vk::CommandBuffer &cmdCopy = frame.cmdPresent;
+			vk::CommandBuffer &cmdPresent = frame.cmdPresent;
 
-			cmdCopy.begin( {::vk::CommandBufferUsageFlags()} );
+			cmdPresent.begin( {::vk::CommandBufferUsageFlags()} );
 
 			auto imgMemBarrier =
 			    vk::ImageMemoryBarrier()
@@ -178,7 +178,7 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_vk_set
 			        .setImage( frame.image )
 			        .setSubresourceRange( {::vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1} );
 
-			cmdCopy.pipelineBarrier( ::vk::PipelineStageFlagBits::eAllCommands, ::vk::PipelineStageFlagBits::eTransfer, ::vk::DependencyFlags(), {}, {}, {imgMemBarrier} );
+			cmdPresent.pipelineBarrier( ::vk::PipelineStageFlagBits::eAllCommands, ::vk::PipelineStageFlagBits::eTransfer, ::vk::DependencyFlags(), {}, {}, {imgMemBarrier} );
 
 			::vk::ImageSubresourceLayers imgSubResource;
 			imgSubResource
@@ -197,8 +197,8 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_vk_set
 			    .setImageExtent( self->mSwapchainExtent );
 
 			// image must be transferred to a buffer - we can then read from this buffer.
-			cmdCopy.copyImageToBuffer( frame.image, ::vk::ImageLayout::eTransferSrcOptimal, frame.buffer, {imgCopy} );
-			cmdCopy.end();
+			cmdPresent.copyImageToBuffer( frame.image, ::vk::ImageLayout::eTransferSrcOptimal, frame.buffer, {imgCopy} );
+			cmdPresent.end();
 		}
 		{
 			// Move ownership of image back from transfer -> graphics
