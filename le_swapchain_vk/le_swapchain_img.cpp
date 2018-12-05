@@ -263,19 +263,23 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 
 	// start ffmpeg telling it to expect raw rgba 720p-60hz frames
 	// -i - tells it to read frames from stdin
-	std::array<char, 1024> cmd{};
-	sprintf( cmd.data(), "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - "
-	                     "-threads 0 -preset fast -y -pix_fmt yuv420p -crf 21 -vf vflip output.mp4",
+	char cmd[ 1024 ];
+	sprintf( cmd,
+
+	         // "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0  -preset fast -y -pix_fmt yuv420p -crf 21 output.mp4",
+
+	         "/home/tim/bin/ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -vcodec h264_nvenc -preset llhq -rc:v vbr_minqp -qmin:v 19 -qmax:v 21 -b:v 2500k -maxrate:v 5000k -profile:v high output.mp4",
+
 	         self->mSwapchainExtent.width, self->mSwapchainExtent.height );
 
-	std::cout << "FFmpeg command line string: '" << cmd.data() << "'" << std::endl
+	std::cout << "FFmpeg command line string: '" << cmd << "'" << std::endl
 	          << std::flush;
 
 	// open pipe to ffmpeg's stdin in binary write mode
-	//	self->ffmpeg = popen( cmd.data(), "w" );
-	//	auto err     = errno;
+	self->ffmpeg = popen( cmd, "w" );
+	auto err     = errno;
 
-	//	assert( self->ffmpeg != nullptr );
+	assert( self->ffmpeg != nullptr );
 
 	return base;
 }
@@ -341,50 +345,20 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 
 	self->mImageIndex = imageIndex;
 
-	//	static ofPixels mPixels;
-
-	//	if ( false ) {
-	//		// memcpy into pixels object
-	//		if ( !mPixels.isAllocated() ) {
-	//			mPixels.allocate( mSettings.width, mSettings.height, ofImageType::OF_IMAGE_COLOR_ALPHA );
-	//			ofLogNotice() << "Image Swapchain: Allocating pixels.";
-	//		}
-	//		memcpy( mPixels.getData(), mTransferFrames[ imageIndex ].bufferReadAddress, mPixels.size() );
-	//	} else {
-	//		// Directly use ofPixels object to wrap memory
-	//		mPixels.setFromExternalPixels( reinterpret_cast<unsigned char *>( mTransferFrames[ imageIndex ].bufferReadAddress ),
-	//		                               size_t( mSettings.width ), size_t( mSettings.height ), ofPixelFormat::OF_PIXELS_RGBA );
-	//	}
-
-	//	// we could use an event here to synchronise host <-> device, meaning
-	//	// a command buffer on the device would wait execution until the event signalling that the
-	//	// copy operation has completed was signalled by the host.
-
-	//	std::array<char, 15> numStr;
-	//	sprintf( numStr.data(), "%08zd.png", mImageCounter );
-	//	std::string filename( numStr.data(), numStr.size() );
-
-	//	// Invariant: we can assume the image has been transferred into the mapped buffer.
-	//	// Now we must write the memory from the mapped buffer to the hard drive.
-	//	ofSaveImage( mPixels, ( mSettings.path + filename ), ofImageQualityType::OF_IMAGE_QUALITY_BEST );
-
-	std::array<char, 15> numStr{};
-	sprintf( numStr.data(), "%08d.png", self->totalImages );
-
-	std::cout << "display image: " << numStr.data() << std::endl
-	          << std::flush;
-
+	char numStr[ 1024 ];
 	if ( false ) {
+		sprintf( numStr, "output/%08d.rgba", self->totalImages );
+
+		std::cout << "display image: " << numStr << std::endl
+		          << std::flush;
 		auto const &  frame = self->transferFrames[ imageIndex ];
-		std::ofstream myfile( numStr.data(), std::ios::out | std::ios::binary );
-		myfile.write( ( char * )frame.bufferAllocationInfo.pMappedData, frame.bufferAllocationInfo.size );
+		std::ofstream myfile( numStr, std::ios::out | std::ios::binary );
+		myfile.write( ( char * )frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4 );
 		myfile.close();
-	}
+	} else {
 
-	if ( true ) {
 		auto const &frame = self->transferFrames[ imageIndex ];
-
-		fwrite( frame.bufferAllocationInfo.pMappedData, frame.bufferAllocationInfo.size, 1, self->ffmpeg );
+		fwrite( frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4, 1, self->ffmpeg );
 	}
 
 	++self->totalImages;
