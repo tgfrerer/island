@@ -489,6 +489,9 @@ static void backend_get_swapchain_dimensions( le_backend_o *self, uint32_t *p_wi
 
 static void backend_reset_swapchain( le_backend_o *self ) {
 	self->swapchain->reset();
+	// We must update our cached values for swapchain dimensions if the swapchain was reset.
+	self->swapchainWidth  = le_swapchain_vk::swapchain_i.get_image_width( *self->swapchain );
+	self->swapchainHeight = le_swapchain_vk::swapchain_i.get_image_height( *self->swapchain );
 }
 
 // ----------------------------------------------------------------------
