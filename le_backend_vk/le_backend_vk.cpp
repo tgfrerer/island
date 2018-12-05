@@ -617,6 +617,23 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 		backend_create_window_surface( self, self->settings.pWindow );
 	}
 
+	vk::Device         vkDevice         = self->device->getVkDevice();
+	vk::PhysicalDevice vkPhysicalDevice = self->device->getVkPhysicalDevice();
+
+	{
+		// -- Create allocator for backend vulkan memory
+		// we do this here, because swapchain might want to already use the allocator.
+
+		VmaAllocatorCreateInfo createInfo{};
+		createInfo.flags                       = 0;
+		createInfo.device                      = vkDevice;
+		createInfo.frameInUseCount             = 0;
+		createInfo.physicalDevice              = vkPhysicalDevice;
+		createInfo.preferredLargeHeapBlockSize = 0; // set to default, currently 256 MB
+
+		vmaCreateAllocator( &createInfo, &self->mAllocator );
+	}
+
 	// -- create swapchain if requested
 
 	backend_create_swapchain( self, self->settings.swapchain_settings );
@@ -627,26 +644,12 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 
 	self->mFrames.reserve( frameCount );
 
-	vk::Device         vkDevice         = self->device->getVkDevice();
-	vk::PhysicalDevice vkPhysicalDevice = self->device->getVkPhysicalDevice();
-
 	self->queueFamilyIndexGraphics = self->device->getDefaultGraphicsQueueFamilyIndex();
 	self->queueFamilyIndexCompute  = self->device->getDefaultComputeQueueFamilyIndex();
 
 	uint32_t memIndexScratchBufferGraphics = 0;
 	uint32_t memIndexStagingBufferGraphics = 0;
 	{
-		// -- Create allocator for backend vulkan memory
-		{
-			VmaAllocatorCreateInfo createInfo{};
-			createInfo.flags                       = 0;
-			createInfo.device                      = vkDevice;
-			createInfo.frameInUseCount             = 0;
-			createInfo.physicalDevice              = vkPhysicalDevice;
-			createInfo.preferredLargeHeapBlockSize = 0; // set to default, currently 256 MB
-
-			vmaCreateAllocator( &createInfo, &self->mAllocator );
-		}
 
 		{
 			// Find memory index for scratch buffer - we do this by pretending to create
