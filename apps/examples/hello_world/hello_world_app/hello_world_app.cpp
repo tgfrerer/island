@@ -168,7 +168,7 @@ static hello_world_app_o *hello_world_app_create() {
 
 	initialiseImage( app->imgEarthAlbedo, "./local_resources/images/world_winter.jpg", 10 );
 	initialiseImage( app->imgEarthNight, "./local_resources/images/earth_city_lights_8192_rs.png", 10, le_pixels_info::TYPE::eUInt8, le::Format::eR8Unorm, 1 );
-	initialiseImage( app->imgEarthClouds, "./local_resources/images/earth_clouds.jpg", 10 );
+	initialiseImage( app->imgEarthClouds, "./local_resources/images/storm_clouds_8k.jpg", 10 );
 	initialiseImage( app->imgEarthNormals, "./local_resources/images/earthNormalMap_8k-sobel.tga", 10, le_pixels_info::eUInt16, le::Format::eR16G16B16A16Unorm );
 
 	// initialise app timer
@@ -219,7 +219,7 @@ static bool hello_world_app_ray_cam_to_sun_hits_earth( hello_world_app_o *self, 
 	// We send a ray from the camera to the sun and want to know if the
 	// earth is in the way...
 
-	const float visibleSunRadius = 200;
+	const float visibleSunRadius = 200; // when to start showing the sun
 	const float cEARTH_RADIUS    = 6360.f - visibleSunRadius;
 
 	glm::mat4 viewMatrix             = *reinterpret_cast<glm::mat4 const *>( self->camera.getViewMatrix() );
@@ -433,8 +433,10 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	auto        app = static_cast<hello_world_app_o *>( user_data );
 	le::Encoder encoder{encoder_};
 
-	auto screenWidth  = app->window.getSurfaceWidth();
-	auto screenHeight = app->window.getSurfaceHeight();
+	uint32_t screenWidth{};
+	uint32_t screenHeight{};
+
+	app->renderer.getSwapchainDimensions( &screenWidth, &screenHeight );
 
 	le::Viewport viewports[ 1 ] = {
 	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
