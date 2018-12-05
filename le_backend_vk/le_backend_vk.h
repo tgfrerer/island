@@ -36,18 +36,23 @@ struct le_resource_handle_t; // defined in renderer_types
 
 struct VkInstance_T;
 struct VkDevice_T;
+struct VkImage_T;
+struct VkBuffer_T;
 struct VkPhysicalDevice_T;
 struct VkQueue_T;
 struct VkPhysicalDeviceProperties;
 struct VkPhysicalDeviceMemoryProperties;
-
+struct VkImageCreateInfo;
+struct VkBufferCreateInfo;
 struct VkMemoryRequirements;
 struct VkMemoryAllocateInfo;
 
 struct LeRenderPass;
 
-struct VmaAllocationInfo;
 struct VmaAllocator_T;
+struct VmaAllocation_T;
+struct VmaAllocationCreateInfo;
+struct VmaAllocationInfo;
 
 struct LeShaderStageEnum;
 enum class LeResourceType : uint8_t;
@@ -110,23 +115,29 @@ struct le_backend_vk_api {
 		VkDevice_T*         (*get_vk_device            )(le_backend_o* self);
 		VkPhysicalDevice_T* (*get_vk_physical_device   )(le_backend_o* self);
 
-		int32_t             (*allocate_image           )(le_backend_o* self,
-		                                      struct VkImageCreateInfo const *       pImageCreateInfo,
-		                                      struct VmaAllocationCreateInfo const * pAllocationCreateInfo,
-		                                      struct VkImage_T **                     pImage,
-		                                      struct VmaAllocation_T **              pAllocation,
-		                                      struct VmaAllocationInfo *             pAllocationInfo);
+		int32_t ( *allocate_image )
+		(
+		    le_backend_o*                   self,
+		    VkImageCreateInfo const *       pImageCreateInfo,
+		    VmaAllocationCreateInfo const * pAllocationCreateInfo,
+		    VkImage_T **                    pImage,
+		    VmaAllocation_T **              pAllocation,
+		    VmaAllocationInfo *             pAllocationInfo
+		);
 
 		void (*destroy_image)(le_backend_o* self, struct VkImage_T * image, struct VmaAllocation_T* allocation);
 
-		int32_t             (*allocate_buffer           )(le_backend_o* self,
-		                                                  struct VkBufferCreateInfo const*      pBufferCreateInfo,
-		                                                  struct VmaAllocationCreateInfo const *pAllocationCreateInfo,
-		                                                  struct VkBuffer_T* *                  pBuffer,
-		                                                  struct VmaAllocation_T **             pAllocation,
-		                                                  struct VmaAllocationInfo *            pAllocationInfo );
+		int32_t ( *allocate_buffer )
+		(
+		    le_backend_o*                  self,
+		    VkBufferCreateInfo const*      pBufferCreateInfo,
+		    VmaAllocationCreateInfo const *pAllocationCreateInfo,
+		    VkBuffer_T* *                  pBuffer,
+		    VmaAllocation_T **             pAllocation,
+		    VmaAllocationInfo *            pAllocationInfo
+		);
 
-		void (*destroy_buffer)(le_backend_o* self, struct VkBuffer_T * buffer, struct VmaAllocation_T* allocation);
+		void ( *destroy_buffer )(le_backend_o* self, struct VkBuffer_T * buffer, struct VmaAllocation_T* allocation);
 
 	};
 

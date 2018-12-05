@@ -42,9 +42,9 @@ struct le_renderer_api {
 		le_shader_module_o*            ( *create_shader_module                  )( le_renderer_o *self, char const *path, const LeShaderStageEnum& mtype );
 
 		/// returns the resource handle for the current swapchain image
-		le_backend_o*                  ( *get_backend)(le_renderer_o* self);
 		le_resource_handle_t           ( *get_swapchain_resource               )( le_renderer_o* self );
 		void                           ( *get_swapchain_dimensions             )( le_renderer_o* self, uint32_t* p_width, uint32_t* p_height);
+		le_backend_o*                  ( *get_backend                           )( le_renderer_o* self );
 	};
 
 	struct helpers_interface_t {
