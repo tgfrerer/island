@@ -388,6 +388,11 @@ static le_resource_handle_t renderer_get_swapchain_resource( le_renderer_o *self
 	return vk_backend_i.get_swapchain_resource( self->backend );
 }
 
+static void renderer_get_swapchain_dimensions( le_renderer_o *self, uint32_t *p_width, uint32_t *p_height ) {
+	using namespace le_backend_vk; // for swapchain
+	vk_backend_i.get_swapchain_dimensions( self->backend, p_width, p_height );
+}
+
 // ----------------------------------------------------------------------
 
 static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) {
@@ -544,13 +549,15 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	auto  le_renderer_api_i = static_cast<le_renderer_api *>( api_ );
 	auto &le_renderer_i     = le_renderer_api_i->le_renderer_i;
 
-	le_renderer_i.create                  = renderer_create;
-	le_renderer_i.destroy                 = renderer_destroy;
-	le_renderer_i.setup                   = renderer_setup;
-	le_renderer_i.update                  = renderer_update;
-	le_renderer_i.create_shader_module    = renderer_create_shader_module;
-	le_renderer_i.get_backend             = renderer_get_backend;
+	le_renderer_i.create                   = renderer_create;
+	le_renderer_i.destroy                  = renderer_destroy;
+	le_renderer_i.setup                    = renderer_setup;
+	le_renderer_i.update                   = renderer_update;
+	le_renderer_i.create_shader_module     = renderer_create_shader_module;
 	le_renderer_i.get_swapchain_resource   = renderer_get_swapchain_resource;
+	le_renderer_i.get_swapchain_dimensions = renderer_get_swapchain_dimensions;
+
+	le_renderer_i.get_backend = renderer_get_backend;
 
 	auto &helpers_i = le_renderer_api_i->helpers_i;
 

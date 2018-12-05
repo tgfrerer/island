@@ -309,6 +309,9 @@ struct le_backend_o {
 
 	VmaAllocator mAllocator = nullptr;
 
+	uint32_t swapchainWidth  = 0; ///< swapchain width gathered when setting/resetting swapchain
+	uint32_t swapchainHeight = 0; ///< swapchain height gathered when setting/resetting swapchain
+
 	uint32_t queueFamilyIndexGraphics = 0; // inferred during setup
 	uint32_t queueFamilyIndexCompute  = 0; // inferred during setup
 
@@ -463,6 +466,8 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settin
 	using namespace le_swapchain_vk;
 	self->swapchain            = std::make_unique<le::Swapchain>( swapchain_khr_i, self, &settings );
 	self->swapchainImageFormat = vk::Format( self->swapchain->getSurfaceFormat()->format );
+	self->swapchainWidth       = le_swapchain_vk::swapchain_i.get_image_width( *self->swapchain );
+	self->swapchainHeight      = le_swapchain_vk::swapchain_i.get_image_height( *self->swapchain );
 }
 
 // ----------------------------------------------------------------------
@@ -470,6 +475,14 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settin
 static size_t backend_get_num_swapchain_images( le_backend_o *self ) {
 	assert( self->swapchain );
 	return self->swapchain->getImagesCount();
+}
+
+// ----------------------------------------------------------------------
+// Returns the current swapchain width and height.
+// Both values are cached, and re-calculated whenever the swapchain is set / or reset.
+static void backend_get_swapchain_dimensions( le_backend_o *self, uint32_t *p_width, uint32_t *p_height ) {
+	*p_width  = self->swapchainWidth;
+	*p_height = self->swapchainHeight;
 }
 
 // ----------------------------------------------------------------------
@@ -1765,6 +1778,9 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	// in a separate step. That way, we can first make sure all flags are combined,
 	// before we make sure to we find a valid image format which matches all uses...
 
+	assert( frame.swapchainWidth == self->swapchainWidth );
+	assert( frame.swapchainHeight == self->swapchainHeight );
+
 	for ( le_renderpass_o **rp = passes; rp != passes + numRenderPasses; rp++ ) {
 
 		auto pass_width  = renderpass_i.get_width( *rp );
@@ -2984,6 +3000,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.create_shader_module  = backend_create_shader_module;
 
 	vk_backend_i.get_swapchain_resource   = backend_get_swapchain_resource;
+	vk_backend_i.get_swapchain_dimensions = backend_get_swapchain_dimensions;
 
 	auto &private_backend_i                  = api_i->private_backend_vk_i;
 	private_backend_i.get_vk_device          = backend_get_vk_device;

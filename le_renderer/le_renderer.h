@@ -44,6 +44,7 @@ struct le_renderer_api {
 		/// returns the resource handle for the current swapchain image
 		le_backend_o*                  ( *get_backend)(le_renderer_o* self);
 		le_resource_handle_t           ( *get_swapchain_resource               )( le_renderer_o* self );
+		void                           ( *get_swapchain_dimensions             )( le_renderer_o* self, uint32_t* p_width, uint32_t* p_height);
 	};
 
 	struct helpers_interface_t {
@@ -198,6 +199,9 @@ class Renderer {
 	le_resource_handle_t getSwapchainResource() {
 		return le_renderer::renderer_i.get_swapchain_resource( self );
 	}
+
+	void getSwapchainDimensions( uint32_t *pWidth, uint32_t *pHeight ) {
+		le_renderer::renderer_i.get_swapchain_dimensions( self, pWidth, pHeight );
 	}
 
 	operator auto() {

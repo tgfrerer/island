@@ -101,6 +101,7 @@ struct le_backend_vk_api {
 
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
 
+		void                   ( *get_swapchain_dimensions  ) ( le_backend_o* self, uint32_t * p_width, uint32_t * p_height);
 		le_resource_handle_t   ( *get_swapchain_resource    ) ( le_backend_o* self);
 	};
 
