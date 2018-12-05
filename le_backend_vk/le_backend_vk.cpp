@@ -312,7 +312,7 @@ struct le_backend_o {
 	uint32_t queueFamilyIndexGraphics = 0; // inferred during setup
 	uint32_t queueFamilyIndexCompute  = 0; // inferred during setup
 
-	const le_resource_handle_t backBufferImageHandle = LE_IMG_RESOURCE( "Backbuffer-Image" ); // opaque handle identifying the backbuffer image, initialised in setup()
+	const le_resource_handle_t swapchainImageHandle = LE_IMG_RESOURCE( "Backbuffer-Image" ); // opaque handle identifying the backbuffer image, initialised in setup()
 
 	struct {
 		std::unordered_map<le_resource_handle_t, AllocatedResourceVk, LeResourceHandleIdentity> allocatedResources; // Allocated resources, indexed by resource name hash
@@ -497,8 +497,8 @@ static le_resource_handle_t declare_resource_virtual_buffer( uint8_t index ) {
 
 // ----------------------------------------------------------------------
 
-static le_resource_handle_t backend_get_backbuffer_resource( le_backend_o *self ) {
-	return self->backBufferImageHandle;
+static le_resource_handle_t backend_get_swapchain_resource( le_backend_o *self ) {
+	return self->swapchainImageHandle;
 }
 
 // ----------------------------------------------------------------------
@@ -2143,9 +2143,9 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 	frame.swapchainWidth  = self->swapchain->getImageWidth();
 	frame.swapchainHeight = self->swapchain->getImageHeight();
 
-	frame.availableResources[ self->backBufferImageHandle ].asImage = self->swapchain->getImage( frame.swapchainImageIndex );
+	frame.availableResources[ self->swapchainImageHandle ].asImage = self->swapchain->getImage( frame.swapchainImageIndex );
 	{
-		auto &backbufferInfo  = frame.availableResources[ self->backBufferImageHandle ].info.imageInfo;
+		auto &backbufferInfo  = frame.availableResources[ self->swapchainImageHandle ].info.imageInfo;
 		backbufferInfo        = vk::ImageCreateInfo{};
 		backbufferInfo.extent = vk::Extent3D( frame.swapchainWidth, frame.swapchainHeight, 1 );
 		backbufferInfo.format = VkFormat( self->swapchainImageFormat );
@@ -2158,7 +2158,7 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
 
 	frame_create_resource_table( frame, passes, numRenderPasses );
-	frame_track_resource_state( frame, passes, numRenderPasses, self->backBufferImageHandle );
+	frame_track_resource_state( frame, passes, numRenderPasses, self->swapchainImageHandle );
 
 	vk::Device device = self->device->getVkDevice();
 
@@ -2983,7 +2983,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.update_shader_modules = backend_update_shader_modules;
 	vk_backend_i.create_shader_module  = backend_create_shader_module;
 
-	vk_backend_i.get_backbuffer_resource = backend_get_backbuffer_resource;
+	vk_backend_i.get_swapchain_resource   = backend_get_swapchain_resource;
 
 	auto &private_backend_i                  = api_i->private_backend_vk_i;
 	private_backend_i.get_vk_device          = backend_get_vk_device;

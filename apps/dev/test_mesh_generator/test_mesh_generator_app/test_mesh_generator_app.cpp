@@ -102,7 +102,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto app = static_cast<test_mesh_generator_app_o *>( user_data );
 
 	rp
-	    .addColorAttachment( app->renderer.getBackbufferResource() ) // color attachment
+	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
 	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER" ) )
 	    .setIsRoot( true ) //
 	    ;

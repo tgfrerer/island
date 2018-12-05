@@ -161,7 +161,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	texTest.sampler.mipLodBias   = app->lodBias;
 
 	rp
-	    .addColorAttachment( app->renderer.getBackbufferResource() ) // color attachment
+	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
 	    .sampleTexture( app->testImage.textureHandle, texTest )
 	    .setIsRoot( true );
 

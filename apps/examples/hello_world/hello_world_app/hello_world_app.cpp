@@ -413,7 +413,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	        .build();
 
 	rp
-	    .addColorAttachment( app->renderer.getBackbufferResource() ) // color attachment
+	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
 	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER" ) )
 	    .sampleTexture( app->imgEarthAlbedo.textureHandle, texInfoAlbedo )
 	    .sampleTexture( app->imgEarthNight.textureHandle, texInfoNight )

@@ -143,7 +143,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	texInfoTwo.imageView.imageId = LE_IMG_RESOURCE( "two_output" );
 
 	rp
-	    .addColorAttachment( app->renderer.getBackbufferResource() ) // color attachment
+	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
 	    .sampleTexture( LE_IMG_RESOURCE( "dummy_texture_two" ), texInfoTwo )
 	    .setIsRoot( true ) //
 	    ;

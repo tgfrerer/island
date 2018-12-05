@@ -492,7 +492,7 @@ static bool pass_final_setup( le_renderpass_o *pRp, void *user_data_ ) {
 	auto app = static_cast<workbench_app_o *>( user_data_ );
 
 	rp
-	    .addColorAttachment( app->renderer.getBackbufferResource() ) // color attachment
+	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
 	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "ImgDepth" ) )  // depth attachment
 	    .sampleTexture( resTexPrepass, {{le::Filter::eLinear, le::Filter::eLinear}, {resImgPrepass, {}}} )
 	    .sampleTexture( app->imguiTexture.le_texture_handle, {{le::Filter::eLinear, le::Filter::eLinear}, {app->imguiTexture.le_image_handle, {}}} )

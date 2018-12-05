@@ -166,7 +166,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto app = static_cast<quad_bezier_app_o *>( user_data );
 
 	rp
-	    .addColorAttachment( app->renderer.getBackbufferResource() ) // color attachment
+	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
 	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "ImgDepth" ) )  // depth attachment
 	    .useResource( LE_BUF_RESOURCE( "QuadBezierBuffer" ),
 	                  le::BufferInfoBuilder()

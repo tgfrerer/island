@@ -383,9 +383,9 @@ struct ClearTask : public enki::ITaskSet {
 
 // ----------------------------------------------------------------------
 
-static le_resource_handle_t renderer_get_backbuffer_resource( le_renderer_o *self ) {
+static le_resource_handle_t renderer_get_swapchain_resource( le_renderer_o *self ) {
 	using namespace le_backend_vk; // for rendergraph_i
-	return vk_backend_i.get_backbuffer_resource( self->backend );
+	return vk_backend_i.get_swapchain_resource( self->backend );
 }
 
 // ----------------------------------------------------------------------
@@ -549,8 +549,8 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	le_renderer_i.setup                   = renderer_setup;
 	le_renderer_i.update                  = renderer_update;
 	le_renderer_i.create_shader_module    = renderer_create_shader_module;
-	le_renderer_i.get_backbuffer_resource = renderer_get_backbuffer_resource;
 	le_renderer_i.get_backend             = renderer_get_backend;
+	le_renderer_i.get_swapchain_resource   = renderer_get_swapchain_resource;
 
 	auto &helpers_i = le_renderer_api_i->helpers_i;
 

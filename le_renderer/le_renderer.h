@@ -42,8 +42,8 @@ struct le_renderer_api {
 		le_shader_module_o*            ( *create_shader_module                  )( le_renderer_o *self, char const *path, const LeShaderStageEnum& mtype );
 
 		/// returns the resource handle for the current swapchain image
-		le_resource_handle_t           ( *get_backbuffer_resource               )( le_renderer_o* self );
 		le_backend_o*                  ( *get_backend)(le_renderer_o* self);
+		le_resource_handle_t           ( *get_swapchain_resource               )( le_renderer_o* self );
 	};
 
 	struct helpers_interface_t {
@@ -195,8 +195,9 @@ class Renderer {
 		return le_renderer::renderer_i.create_shader_module( self, path, {moduleType} );
 	}
 
-	le_resource_handle_t getBackbufferResource() {
-		return le_renderer::renderer_i.get_backbuffer_resource( self );
+	le_resource_handle_t getSwapchainResource() {
+		return le_renderer::renderer_i.get_swapchain_resource( self );
+	}
 	}
 
 	operator auto() {
