@@ -1,6 +1,19 @@
 #include "le_backend_vk/le_backend_vk.h"
 #include "include/internal/le_swapchain_vk_common.h"
 
+#define VULKAN_HPP_NO_SMART_HANDLE
+#include <vulkan/vulkan.hpp>
+
+#include <iostream>
+
+struct SurfaceProperties {
+	vk::SurfaceFormatKHR              windowSurfaceFormat;
+	vk::SurfaceCapabilitiesKHR        surfaceCapabilities;
+	VkBool32                          presentSupported = VK_FALSE;
+	std::vector<vk::PresentModeKHR>   presentmodes;
+	std::vector<vk::SurfaceFormatKHR> availableSurfaceFormats;
+};
+
 struct data_o {
 	le_swapchain_vk_settings_t mSettings;
 	le_backend_o *             backend;

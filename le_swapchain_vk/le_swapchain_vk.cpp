@@ -14,13 +14,13 @@ static le_swapchain_o *swapchain_create( le_swapchain_vk_api::swapchain_interfac
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_acquire_next_image( le_swapchain_o *self, VkSemaphore semaphorePresentComplete_, uint32_t &imageIndex_ ) {
+static bool swapchain_acquire_next_image( le_swapchain_o *self, VkSemaphore_T *semaphorePresentComplete_, uint32_t &imageIndex_ ) {
 	return self->vtable.acquire_next_image( self, semaphorePresentComplete_, imageIndex_ );
 }
 
 // ----------------------------------------------------------------------
 
-static VkImage swapchain_get_image( le_swapchain_o *self, uint32_t index ) {
+static VkImage_T *swapchain_get_image( le_swapchain_o *self, uint32_t index ) {
 	return self->vtable.get_image( self, index );
 }
 
@@ -56,7 +56,7 @@ static void swapchain_destroy( le_swapchain_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_present( le_swapchain_o *self, VkQueue queue, VkSemaphore renderCompleteSemaphore, uint32_t *pImageIndex ) {
+static bool swapchain_present( le_swapchain_o *self, VkQueue_T *queue, VkSemaphore_T *renderCompleteSemaphore, uint32_t *pImageIndex ) {
 	return self->vtable.present( self, queue, renderCompleteSemaphore, pImageIndex );
 };
 
