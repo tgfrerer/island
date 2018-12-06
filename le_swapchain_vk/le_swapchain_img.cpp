@@ -137,7 +137,7 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_vk_set
 			allocationCreateInfo.usage          = VMA_MEMORY_USAGE_CPU_ONLY;
 			allocationCreateInfo.preferredFlags = 0;
 
-			bufAllocationResult = private_backend_vk_i.allocate_buffer( self->backend, &bufferCreateInfo, &allocationCreateInfo, static_cast<VkBuffer *>( &frame.buffer ), &frame.bufferAllocation, &frame.bufferAllocationInfo );
+			bufAllocationResult = private_backend_vk_i.allocate_buffer( self->backend, &bufferCreateInfo, &allocationCreateInfo, reinterpret_cast<VkBuffer *>( &frame.buffer ), &frame.bufferAllocation, &frame.bufferAllocationInfo );
 			assert( imgAllocationResult == VK_SUCCESS );
 		}
 
