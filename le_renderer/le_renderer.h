@@ -117,11 +117,12 @@ struct le_renderer_api {
 
 		void                         ( *draw                   )( le_command_buffer_encoder_o *self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance );
 		void                         ( *draw_indexed           )( le_command_buffer_encoder_o *self, uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
+
 		void                         ( *set_line_width         )( le_command_buffer_encoder_o *self, float line_width_ );
 		void                         ( *set_viewport           )( le_command_buffer_encoder_o *self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport *pViewports );
 		void                         ( *set_scissor            )( le_command_buffer_encoder_o *self, uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D *pViewports );
-		void                         ( *bind_graphics_pipeline )( le_command_buffer_encoder_o *self, uint64_t gpsoHash);
 
+		void                         ( *bind_graphics_pipeline )( le_command_buffer_encoder_o *self, uint64_t gpsoHash);
 		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, le_resource_handle_t const bufferId, uint64_t offset, le::IndexType const & indexType);
 		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, le_resource_handle_t const * pBufferId, uint64_t const * pOffsets );
 
