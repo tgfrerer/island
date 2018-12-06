@@ -25,6 +25,8 @@
 #include <vector>
 #include <chrono>
 
+#define RUN_HEADLESS true
+
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 struct Image : NoCopy, NoMove {
@@ -110,26 +112,32 @@ static bool initialiseImage( Image &img, char const *path, uint32_t mipLevels = 
 static hello_world_app_o *hello_world_app_create() {
 	auto app = new ( hello_world_app_o );
 
-	pal::Window::Settings settings;
-	settings
-	    .setWidth( 1920 / 2 )
-	    .setHeight( 1080 / 2 )
-	    .setTitle( "Hello world" );
+	if ( RUN_HEADLESS == false ) {
 
-	// create a new window
-	app->window.setup( settings );
+		pal::Window::Settings settings;
+		settings
+		    .setWidth( 1920 )
+		    .setHeight( 1080 )
+		    .setTitle( "Hello world" );
+
+		// create a new window
+		app->window.setup( settings );
+	}
 
 	le_swapchain_vk_settings_t swapchainSettings;
 	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eFifo;
 	swapchainSettings.imagecount_hint  = 3;
+	swapchainSettings.width_hint       = 1920 * 2;
+	swapchainSettings.height_hint      = 1080 * 2;
+	le_backend_vk_settings_t backendCreateInfo{};
 
-	le_backend_vk_settings_t backendCreateInfo;
-	backendCreateInfo.requestedExtensions = pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
-	backendCreateInfo.swapchain_settings  = &swapchainSettings;
-	backendCreateInfo.pWindow             = app->window;
+	backendCreateInfo.swapchain_settings = &swapchainSettings;
+
+	if ( RUN_HEADLESS == false ) {
+		backendCreateInfo.pWindow = app->window;
+	}
 
 	app->backend.setup( &backendCreateInfo );
-
 	app->renderer.setup( app->backend );
 
 	// -- Declare graphics pipeline state objects
@@ -436,7 +444,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	uint32_t screenWidth{};
 	uint32_t screenHeight{};
 
-	app->renderer.getSwapchainDimensions( &screenWidth, &screenHeight );
+	app->renderer.getSwapchainExtent( &screenWidth, &screenHeight );
 
 	le::Viewport viewports[ 1 ] = {
 	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
@@ -565,6 +573,64 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 		bool hit = hello_world_app_ray_cam_to_sun_hits_earth( app, howClose );
 
+		//		std::cout << "Hit? " << ( hit ? "true  " : " false " ) << ", distance: " << howClose << std::endl
+		//		          << std::flush;
+
+		// draw sun
+		if ( true ) {
+			struct MVP_DefaultUbo_t {
+				glm::mat4 model;
+				glm::mat4 view;
+				glm::mat4 projection;
+			};
+			MVP_DefaultUbo_t mvp;
+
+			mvp.model      = glm::translate( glm::mat4( 1 ), glm::vec3( sunInWorldSpace ) );
+			mvp.view       = cameraParams.view;
+			mvp.projection = cameraParams.projection;
+
+			static auto pipelineDefault =
+			    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+			        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/sun.vert", le::ShaderStage::eVertex ) )
+			        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/sun.frag", le::ShaderStage::eFragment ) )
+			        .withRasterizationState()
+			        //			        .setPolygonMode( le::PolygonMode::eLine )
+			        .setPolygonMode( le::PolygonMode::eFill )
+			        .setCullMode( le::CullModeFlagBits::eBack )
+			        .setFrontFace( le::FrontFace::eCounterClockwise )
+			        .end()
+			        .withInputAssemblyState()
+			        .setToplogy( le::PrimitiveTopology::eTriangleList )
+			        .end()
+			        .withDepthStencilState()
+			        .setDepthTestEnable( true )
+			        .end()
+			        .build();
+
+			app->sphereGenerator.generateSphere( 10000, 6, 4 );
+			uint16_t *sphereIndices{};
+			float *   sphereVertices{};
+			float *   sphereNormals{};
+			float *   sphereUvs{};
+			size_t    numVertices{};
+			size_t    numIndices{};
+			app->sphereGenerator.getData( numVertices, numIndices, &sphereVertices, &sphereNormals, &sphereUvs, &sphereIndices );
+
+			encoder
+			    .setScissors( 0, 1, scissors )
+			    .setViewports( 0, 1, viewports )
+			    .bindGraphicsPipeline( pipelineDefault );
+
+			encoder
+			    .setVertexData( sphereVertices, numVertices * 3 * sizeof( float ), 0 )
+			    .setVertexData( sphereNormals, numVertices * 3 * sizeof( float ), 1 )
+			    .setVertexData( sphereUvs, numVertices * 2 * sizeof( float ), 2 )
+			    .setIndexData( sphereIndices, numIndices * sizeof( uint16_t ) );
+
+			encoder.setArgumentData( LE_ARGUMENT_NAME( "MVP_Default" ), &mvp, sizeof( MVP_DefaultUbo_t ) )
+			    .drawIndexed( uint32_t( numIndices ) ) //
+			    ;
+		}
 
 		if ( !hit && fabsf( howClose ) > 1000.f ) {
 
@@ -626,7 +692,7 @@ static bool hello_world_app_update( hello_world_app_o *self ) {
 	// This means any window may trigger callbacks for any events they have callbacks registered.
 	pal::Window::pollEvents();
 
-	if ( self->window.shouldClose() ) {
+	if ( RUN_HEADLESS == false && self->window.shouldClose() ) {
 		return false;
 	}
 
@@ -642,7 +708,12 @@ static bool hello_world_app_update( hello_world_app_o *self ) {
 	//	self->cameraController.setPivotDistance( 0 );
 
 	auto now        = std::chrono::high_resolution_clock::now();
-	self->timeDelta = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>( self->timeStamp - now ).count();
+	auto time_delta = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>( now - self->timeStamp ).count();
+
+	std::cout << std::dec << time_delta << "ms per frame. FPS: " << 1000. / time_delta << std::endl
+	          << std::flush;
+
+	self->timeDelta = 1000. / 60.;
 	self->timeStamp = now;
 
 	le::RenderModule mainModule{};
