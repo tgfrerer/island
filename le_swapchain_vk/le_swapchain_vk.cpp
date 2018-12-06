@@ -62,24 +62,6 @@ static bool swapchain_present( le_swapchain_o *self, VkQueue_T *queue, VkSemapho
 
 // ----------------------------------------------------------------------
 
-static void swapchain_increase_reference_count( le_swapchain_o *self ) {
-	++self->referenceCount;
-}
-
-// ----------------------------------------------------------------------
-
-static void swapchain_decrease_reference_count( le_swapchain_o *self ) {
-	--self->referenceCount;
-}
-
-// ----------------------------------------------------------------------
-
-static uint32_t swapchain_get_reference_count( le_swapchain_o *self ) {
-	return self->referenceCount;
-}
-
-// ----------------------------------------------------------------------
-
 void register_le_swapchain_vk_api( void *api_ ) {
 	auto  api         = static_cast<le_swapchain_vk_api *>( api_ );
 	auto &swapchain_i = api->swapchain_i;
@@ -94,12 +76,6 @@ void register_le_swapchain_vk_api( void *api_ ) {
 	swapchain_i.get_surface_format = swapchain_get_surface_format;
 	swapchain_i.get_images_count   = swapchain_get_swapchain_images_count;
 	swapchain_i.present            = swapchain_present;
-
-	auto &refcount_i = api->refcount_i;
-
-	refcount_i.increase_reference_count = swapchain_increase_reference_count;
-	refcount_i.decrease_reference_count = swapchain_decrease_reference_count;
-	refcount_i.get_reference_count      = swapchain_get_reference_count;
 
 	register_le_swapchain_khr_api( api );
 	register_le_swapchain_img_api( api );

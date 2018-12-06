@@ -292,8 +292,8 @@ struct le_backend_o {
 	std::unique_ptr<le::Instance> instance;
 	std::unique_ptr<le::Device>   device;
 
-	std::unique_ptr<pal::Window>   window; // non-owning
-	std::unique_ptr<le::Swapchain> swapchain;
+	std::unique_ptr<pal::Window> window;              // Non-owning
+	le_swapchain_o *             swapchain = nullptr; // Owning.
 
 	// Default color formats are inferred during setup() based on
 	// swapchain surface (color) and device properties (depth/stencil)
@@ -352,6 +352,17 @@ static void backend_destroy( le_backend_o *self ) {
 	}
 
 	vk::Device device = self->device->getVkDevice(); // may be nullptr if device was not created
+
+	// We must destroy the swapchain before self->mAllocator, as
+	// the swapchain might have allocated memory using the backend's allocator,
+	// and the allocator must still be alive for the swapchain to free objects
+	// alloacted through it.
+
+	if ( self->swapchain ) {
+		using namespace le_swapchain_vk;
+		swapchain_i.destroy( self->swapchain );
+		self->swapchain = nullptr;
+	}
 
 	for ( auto &frameData : self->mFrames ) {
 
@@ -465,23 +476,27 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settin
 
 		// If we're running without a window, we pass through swapchainSettings,
 		// and initialise our swapchain as a regular khr swapchain
-		self->swapchain = std::make_unique<le::Swapchain>( swapchain_khr_i, self, &swp_settings );
+
+		self->swapchain = swapchain_i.create( swapchain_khr_i, self, &swp_settings );
+
 	} else {
 		// If we're running without a window, we pass through swapchainSettings,
 		// and initialise our swapchain as an image swapchain
-		self->swapchain = std::make_unique<le::Swapchain>( swapchain_img_i, self, &swp_settings );
+
+		self->swapchain = swapchain_i.create( swapchain_img_i, self, &swp_settings );
 	}
 
-	self->swapchainImageFormat = vk::Format( self->swapchain->getSurfaceFormat()->format );
-	self->swapchainWidth       = le_swapchain_vk::swapchain_i.get_image_width( *self->swapchain );
-	self->swapchainHeight      = le_swapchain_vk::swapchain_i.get_image_height( *self->swapchain );
+	self->swapchainImageFormat = vk::Format( swapchain_i.get_surface_format( self->swapchain )->format );
+	self->swapchainWidth       = swapchain_i.get_image_width( self->swapchain );
+	self->swapchainHeight      = swapchain_i.get_image_height( self->swapchain );
 }
 
 // ----------------------------------------------------------------------
 
 static size_t backend_get_num_swapchain_images( le_backend_o *self ) {
 	assert( self->swapchain );
-	return self->swapchain->getImagesCount();
+	using namespace le_swapchain_vk;
+	return swapchain_i.get_images_count( self->swapchain );
 }
 
 // ----------------------------------------------------------------------
@@ -495,10 +510,12 @@ static void backend_get_swapchain_extent( le_backend_o *self, uint32_t *p_width,
 // ----------------------------------------------------------------------
 
 static void backend_reset_swapchain( le_backend_o *self ) {
-	self->swapchain->reset();
+	using namespace le_swapchain_vk;
+
+	swapchain_i.reset( self->swapchain, nullptr );
 	// We must update our cached values for swapchain dimensions if the swapchain was reset.
-	self->swapchainWidth  = le_swapchain_vk::swapchain_i.get_image_width( *self->swapchain );
-	self->swapchainHeight = le_swapchain_vk::swapchain_i.get_image_height( *self->swapchain );
+	self->swapchainWidth  = swapchain_i.get_image_width( self->swapchain );
+	self->swapchainHeight = swapchain_i.get_image_height( self->swapchain );
 }
 
 // ----------------------------------------------------------------------
@@ -2161,23 +2178,28 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 // TODO: this should mark acquired resources as used by this frame -
 // so that they can only be destroyed iff this frame has been reset.
 static bool backend_acquire_physical_resources( le_backend_o *self, size_t frameIndex, le_renderpass_o **passes, size_t numRenderPasses ) {
+
 	auto &frame = self->mFrames[ frameIndex ];
 
-	if ( !self->swapchain->acquireNextImage( frame.semaphorePresentComplete, frame.swapchainImageIndex ) ) {
-		return false;
-	}
-
-	// ----------| invariant: swapchain acquisition successful.
-
-	frame.swapchainWidth  = self->swapchain->getImageWidth();
-	frame.swapchainHeight = self->swapchain->getImageHeight();
-
-	frame.availableResources[ self->swapchainImageHandle ].asImage = self->swapchain->getImage( frame.swapchainImageIndex );
 	{
-		auto &backbufferInfo  = frame.availableResources[ self->swapchainImageHandle ].info.imageInfo;
-		backbufferInfo        = vk::ImageCreateInfo{};
-		backbufferInfo.extent = vk::Extent3D( frame.swapchainWidth, frame.swapchainHeight, 1 );
-		backbufferInfo.format = VkFormat( self->swapchainImageFormat );
+		using namespace le_swapchain_vk;
+
+		if ( !swapchain_i.acquire_next_image( self->swapchain, frame.semaphorePresentComplete, frame.swapchainImageIndex ) ) {
+			return false;
+		}
+
+		// ----------| invariant: swapchain acquisition successful.
+
+		frame.swapchainWidth  = swapchain_i.get_image_width( self->swapchain );
+		frame.swapchainHeight = swapchain_i.get_image_height( self->swapchain );
+
+		frame.availableResources[ self->swapchainImageHandle ].asImage = swapchain_i.get_image( self->swapchain, frame.swapchainImageIndex );
+		{
+			auto &backbufferInfo  = frame.availableResources[ self->swapchainImageHandle ].info.imageInfo;
+			backbufferInfo        = vk::ImageCreateInfo{};
+			backbufferInfo.extent = vk::Extent3D( frame.swapchainWidth, frame.swapchainHeight, 1 );
+			backbufferInfo.format = VkFormat( self->swapchainImageFormat );
+		}
 	}
 
 	// Note that at this point memory for scratch buffers for each pass
@@ -2984,7 +3006,9 @@ static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
 
 	queue.submit( {submitInfo}, frame.frameFence );
 
-	bool presentSuccessful = self->swapchain->present( self->device->getDefaultGraphicsQueue(), frame.semaphoreRenderComplete, &frame.swapchainImageIndex );
+	using namespace le_swapchain_vk;
+
+	bool presentSuccessful = swapchain_i.present( self->swapchain, self->device->getDefaultGraphicsQueue(), frame.semaphoreRenderComplete, &frame.swapchainImageIndex );
 
 	return presentSuccessful;
 }

@@ -40,13 +40,6 @@ struct img_data_o {
 
 // ----------------------------------------------------------------------
 
-template <typename T>
-static inline auto clamp( const T &val_, const T &min_, const T &max_ ) {
-	return std::max( min_, ( std::min( val_, max_ ) ) );
-}
-
-// ----------------------------------------------------------------------
-
 static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_vk_settings_t *settings_ ) {
 
 	auto self = static_cast<img_data_o *const>( base->data );
