@@ -439,7 +439,7 @@ static bool swapchain_img_present( le_swapchain_o *base, VkQueue queue_, VkSemap
 	    .setPWaitSemaphores( &renderCompleteSemaphore ) // these are the renderComplete semaphores
 	    .setPWaitDstStageMask( &wait_dst_stage_mask )
 	    .setCommandBufferCount( 1 )
-	    .setPCommandBuffers( &self->transferFrames[ self->mImageIndex ].cmdPresent ) // copies image to buffer
+	    .setPCommandBuffers( &self->transferFrames[ *pImageIndex ].cmdPresent ) // copies image to buffer
 	    .setSignalSemaphoreCount( 0 )
 	    .setPSignalSemaphores( nullptr );
 
@@ -447,7 +447,7 @@ static bool swapchain_img_present( le_swapchain_o *base, VkQueue queue_, VkSemap
 
 	{
 		vk::Queue queue{queue_};
-		queue.submit( {submitInfo}, self->transferFrames[ self->mImageIndex ].frameFence );
+		queue.submit( {submitInfo}, self->transferFrames[ *pImageIndex ].frameFence );
 	}
 
 	return true;
