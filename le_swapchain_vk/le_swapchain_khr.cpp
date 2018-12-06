@@ -36,7 +36,7 @@ static void swapchain_query_surface_capabilities( le_swapchain_o *base ) {
 
 	// we need to find out if the current physical device supports PRESENT
 
-	auto self = reinterpret_cast<khr_data_o *const>( base->data );
+	auto self = static_cast<khr_data_o *const>( base->data );
 
 	using namespace le_backend_vk;
 
@@ -107,7 +107,7 @@ static vk::PresentModeKHR get_khr_presentmode( const le::Swapchain::Presentmode 
 // ----------------------------------------------------------------------
 
 static void swapchain_attach_images( le_swapchain_o *base ) {
-	auto self         = reinterpret_cast<khr_data_o *const>( base->data );
+	auto self         = static_cast<khr_data_o *const>( base->data );
 	self->mImageRefs  = self->device.getSwapchainImagesKHR( self->swapchainKHR );
 	self->mImagecount = uint32_t( self->mImageRefs.size() );
 }
@@ -123,7 +123,7 @@ static inline auto clamp( const T &val_, const T &min_, const T &max_ ) {
 
 static void swapchain_khr_reset( le_swapchain_o *base, const le_swapchain_vk_settings_t *settings_ ) {
 
-	auto self = reinterpret_cast<khr_data_o *const>( base->data );
+	auto self = static_cast<khr_data_o *const>( base->data );
 
 	if ( settings_ ) {
 		self->mSettings = *settings_;
@@ -218,6 +218,7 @@ static void swapchain_khr_reset( le_swapchain_o *base, const le_swapchain_vk_set
 // ----------------------------------------------------------------------
 
 static le_swapchain_o *swapchain_khr_create( const le_swapchain_vk_api::swapchain_interface_t &interface, le_backend_o *backend, const le_swapchain_vk_settings_t *settings ) {
+
 	auto base  = new le_swapchain_o( interface );
 	base->data = new khr_data_o{};
 	auto self  = static_cast<khr_data_o *>( base->data );
@@ -256,7 +257,7 @@ static void swapchain_khr_destroy( le_swapchain_o *base ) {
 
 static bool swapchain_khr_acquire_next_image( le_swapchain_o *base, VkSemaphore semaphorePresentComplete_, uint32_t &imageIndex_ ) {
 
-	auto self = reinterpret_cast<khr_data_o *const>( base->data );
+	auto self = static_cast<khr_data_o *const>( base->data );
 	// This method will return the next avaliable vk image index for this swapchain, possibly
 	// before this image is available for writing. Image will be ready for writing when
 	// semaphorePresentComplete is signalled.
@@ -293,14 +294,14 @@ static VkImage swapchain_khr_get_image( le_swapchain_o *base, uint32_t index ) {
 // ----------------------------------------------------------------------
 
 static VkSurfaceFormatKHR *swapchain_khr_get_surface_format( le_swapchain_o *base ) {
-	auto self = reinterpret_cast<khr_data_o *const>( base->data );
+	auto self = static_cast<khr_data_o *const>( base->data );
 	return &reinterpret_cast<VkSurfaceFormatKHR &>( self->mSurfaceProperties.windowSurfaceFormat );
 }
 
 // ----------------------------------------------------------------------
 
 static uint32_t swapchain_khr_get_image_width( le_swapchain_o *base ) {
-	auto self = reinterpret_cast<khr_data_o *const>( base->data );
+	auto self = static_cast<khr_data_o *const>( base->data );
 	return self->mSwapchainExtent.width;
 }
 
@@ -308,14 +309,14 @@ static uint32_t swapchain_khr_get_image_width( le_swapchain_o *base ) {
 
 static uint32_t swapchain_khr_get_image_height( le_swapchain_o *base ) {
 
-	auto self = reinterpret_cast<khr_data_o *const>( base->data );
+	auto self = static_cast<khr_data_o *const>( base->data );
 	return self->mSwapchainExtent.height;
 }
 
 // ----------------------------------------------------------------------
 
 static size_t swapchain_khr_get_swapchain_images_count( le_swapchain_o *base ) {
-	auto self = reinterpret_cast<khr_data_o *const>( base->data );
+	auto self = static_cast<khr_data_o *const>( base->data );
 	return self->mImagecount;
 }
 
@@ -323,7 +324,7 @@ static size_t swapchain_khr_get_swapchain_images_count( le_swapchain_o *base ) {
 
 static bool swapchain_khr_present( le_swapchain_o *base, VkQueue queue_, VkSemaphore renderCompleteSemaphore_, uint32_t *pImageIndex ) {
 
-	auto self = reinterpret_cast<khr_data_o *const>( base->data );
+	auto self = static_cast<khr_data_o *const>( base->data );
 
 	vk::PresentInfoKHR presentInfo;
 

@@ -50,7 +50,7 @@ static inline auto clamp( const T &val_, const T &min_, const T &max_ ) {
 
 static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_vk_settings_t *settings_ ) {
 
-	auto self = reinterpret_cast<img_data_o *const>( base->data );
+	auto self = static_cast<img_data_o *const>( base->data );
 
 	assert( settings_ );
 
@@ -137,7 +137,7 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_vk_set
 			allocationCreateInfo.usage          = VMA_MEMORY_USAGE_CPU_ONLY;
 			allocationCreateInfo.preferredFlags = 0;
 
-			bufAllocationResult = private_backend_vk_i.allocate_buffer( self->backend, &bufferCreateInfo, &allocationCreateInfo, reinterpret_cast<VkBuffer *>( &frame.buffer ), &frame.bufferAllocation, &frame.bufferAllocationInfo );
+			bufAllocationResult = private_backend_vk_i.allocate_buffer( self->backend, &bufferCreateInfo, &allocationCreateInfo, static_cast<VkBuffer *>( &frame.buffer ), &frame.bufferAllocation, &frame.bufferAllocationInfo );
 			assert( imgAllocationResult == VK_SUCCESS );
 		}
 
@@ -306,7 +306,7 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 
 static void swapchain_img_destroy( le_swapchain_o *base ) {
 
-	auto self = reinterpret_cast<img_data_o *const>( base->data );
+	auto self = static_cast<img_data_o *const>( base->data );
 
 	// close ffmpeg pipe handle
 
@@ -345,7 +345,7 @@ static void swapchain_img_destroy( le_swapchain_o *base ) {
 
 static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore semaphorePresentComplete, uint32_t &imageIndex ) {
 
-	auto self = reinterpret_cast<img_data_o *const>( base->data );
+	auto self = static_cast<img_data_o *const>( base->data );
 	// This method will return the next avaliable vk image index for this swapchain, possibly
 	// before this image is available for writing. Image will be ready for writing when
 	// semaphorePresentComplete is signalled.
@@ -426,7 +426,7 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 
 static bool swapchain_img_present( le_swapchain_o *base, VkQueue queue_, VkSemaphore renderCompleteSemaphore_, uint32_t *pImageIndex ) {
 
-	auto self = reinterpret_cast<img_data_o *const>( base->data );
+	auto self = static_cast<img_data_o *const>( base->data );
 
 	vk::PipelineStageFlags wait_dst_stage_mask = ::vk::PipelineStageFlagBits::eColorAttachmentOutput;
 
@@ -456,7 +456,7 @@ static bool swapchain_img_present( le_swapchain_o *base, VkQueue queue_, VkSemap
 
 static VkImage swapchain_img_get_image( le_swapchain_o *base, uint32_t index ) {
 
-	auto self = reinterpret_cast<img_data_o *const>( base->data );
+	auto self = static_cast<img_data_o *const>( base->data );
 
 #ifndef NDEBUG
 	assert( index < self->transferFrames.size() );
@@ -467,14 +467,14 @@ static VkImage swapchain_img_get_image( le_swapchain_o *base, uint32_t index ) {
 // ----------------------------------------------------------------------
 
 static VkSurfaceFormatKHR *swapchain_img_get_surface_format( le_swapchain_o *base ) {
-	auto self = reinterpret_cast<img_data_o *const>( base->data );
+	auto self = static_cast<img_data_o *const>( base->data );
 	return &reinterpret_cast<VkSurfaceFormatKHR &>( self->windowSurfaceFormat );
 }
 
 // ----------------------------------------------------------------------
 
 static uint32_t swapchain_img_get_image_width( le_swapchain_o *base ) {
-	auto self = reinterpret_cast<img_data_o *const>( base->data );
+	auto self = static_cast<img_data_o *const>( base->data );
 	return self->mSwapchainExtent.width;
 }
 
@@ -482,14 +482,14 @@ static uint32_t swapchain_img_get_image_width( le_swapchain_o *base ) {
 
 static uint32_t swapchain_img_get_image_height( le_swapchain_o *base ) {
 
-	auto self = reinterpret_cast<img_data_o *const>( base->data );
+	auto self = static_cast<img_data_o *const>( base->data );
 	return self->mSwapchainExtent.height;
 }
 
 // ----------------------------------------------------------------------
 
 static size_t swapchain_img_get_swapchain_images_count( le_swapchain_o *base ) {
-	auto self = reinterpret_cast<img_data_o *const>( base->data );
+	auto self = static_cast<img_data_o *const>( base->data );
 	return self->mImagecount;
 }
 
