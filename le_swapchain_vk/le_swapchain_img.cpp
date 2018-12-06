@@ -245,7 +245,6 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 	self->backend             = backend;
 	self->windowSurfaceFormat = {vk::Format::eR8G8B8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear};
 	self->mImageIndex         = uint32_t( ~0 );
-
 	{
 
 		using namespace le_backend_vk;
