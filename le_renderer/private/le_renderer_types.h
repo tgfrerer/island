@@ -772,6 +772,12 @@ struct Rect2D {
 	uint32_t width;
 	uint32_t height;
 };
+
+struct Extent2D {
+	uint32_t width;
+	uint32_t height;
+};
+
 struct Extent3D {
 	uint32_t width;
 	uint32_t height;
