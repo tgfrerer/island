@@ -263,7 +263,8 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 
 	// start ffmpeg telling it to expect raw rgba 720p-60hz frames
 	// -i - tells it to read frames from stdin
-	char cmd[ 1024 ];
+
+	char cmd[ 2048 ];
 	sprintf( cmd,
 
 	         // "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0  -preset fast -y -pix_fmt yuv420p -crf 21 output.mp4",
