@@ -29,10 +29,10 @@ struct le_mouse_event_data_o {
 };
 
 struct mesh_generator_example_app_o {
-	le::Backend  backend;
-	pal::Window  window;
-	le::Renderer renderer;
-
+	le::Backend        backend;
+	pal::Window        window;
+	le::Renderer       renderer;
+	le::Extent2D       swapchainExtent;
 	LeCameraController cameraController;
 	LeCamera           camera;
 	LeMeshGenerator    sphereGenerator;
@@ -71,7 +71,7 @@ static mesh_generator_example_app_o *mesh_generator_example_app_create() {
 	swapchainSettings.imagecount_hint  = 3;
 
 	le_backend_vk_settings_t backendCreateInfo;
-	backendCreateInfo.requestedExtensions = pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
+	backendCreateInfo.requestedExtensions = nullptr;
 	backendCreateInfo.swapchain_settings  = &swapchainSettings;
 	backendCreateInfo.pWindow             = app->window;
 
@@ -87,15 +87,15 @@ static mesh_generator_example_app_o *mesh_generator_example_app_create() {
 // ----------------------------------------------------------------------
 
 static void reset_camera( mesh_generator_example_app_o *self ) {
-	self->camera.setViewport( {0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ), 0.f, 1.f} );
+	// Fetch and cache swapchain extents once swapchain has been set up via renderer.
+	auto swapchainExtent = self->renderer.getSwapchainExtent();
+	self->camera.setViewport( {0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ), 0.f, 1.f} );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
 }
 
 // ----------------------------------------------------------------------
-
-typedef bool ( *renderpass_setup )( le_renderpass_o *pRp, void *user_data );
 
 static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto rp  = le::RenderPass{pRp};
@@ -189,13 +189,13 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 // ----------------------------------------------------------------------
 
-static void mesh_generator_example_app_process_ui_events( mesh_generator_example_app_o *self ) {
+static void process_ui_events( mesh_generator_example_app_o *self ) {
 	using namespace pal_window;
 	uint32_t           numEvents;
 	le::UiEvent const *pEvents;
 	window_i.get_ui_event_queue( self->window, &pEvents, numEvents );
 
-	self->cameraController.setControlRect( 0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ) );
+	self->cameraController.setControlRect( 0, 0, float( self->swapchainExtent.width ), float( self->swapchainExtent.height ) );
 	self->cameraController.processEvents( self->camera, pEvents, numEvents );
 }
 
@@ -211,8 +211,12 @@ static bool mesh_generator_example_app_update( mesh_generator_example_app_o *sel
 		return false;
 	}
 
+	// Fetch and cache swapchain extents - we need to do this here since
+	// process ui events will make use of swapchainExtent.
+	self->swapchainExtent = self->renderer.getSwapchainExtent();
+
 	// update interactive camera using mouse data
-	mesh_generator_example_app_process_ui_events( self );
+	process_ui_events( self );
 
 	static bool resetCameraOnReload = false; // reload meand module reload
 	if ( resetCameraOnReload ) {
@@ -220,8 +224,6 @@ static bool mesh_generator_example_app_update( mesh_generator_example_app_o *sel
 		reset_camera( self );
 		resetCameraOnReload = false;
 	}
-
-	using namespace le_renderer;
 
 	le::RenderModule mainModule{};
 	{
