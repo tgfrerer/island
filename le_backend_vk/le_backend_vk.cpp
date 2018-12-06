@@ -486,7 +486,7 @@ static size_t backend_get_num_swapchain_images( le_backend_o *self ) {
 // ----------------------------------------------------------------------
 // Returns the current swapchain width and height.
 // Both values are cached, and re-calculated whenever the swapchain is set / or reset.
-static void backend_get_swapchain_dimensions( le_backend_o *self, uint32_t *p_width, uint32_t *p_height ) {
+static void backend_get_swapchain_extent( le_backend_o *self, uint32_t *p_width, uint32_t *p_height ) {
 	*p_width  = self->swapchainWidth;
 	*p_height = self->swapchainHeight;
 }
@@ -3012,7 +3012,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.create_shader_module  = backend_create_shader_module;
 
 	vk_backend_i.get_swapchain_resource   = backend_get_swapchain_resource;
-	vk_backend_i.get_swapchain_dimensions = backend_get_swapchain_dimensions;
+	vk_backend_i.get_swapchain_extent = backend_get_swapchain_extent;
 
 	auto &private_backend_i                  = api_i->private_backend_vk_i;
 	private_backend_i.get_vk_device          = backend_get_vk_device;

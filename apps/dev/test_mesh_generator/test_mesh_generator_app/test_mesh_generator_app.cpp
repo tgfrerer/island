@@ -91,7 +91,7 @@ static test_mesh_generator_app_o *test_mesh_generator_app_create() {
 static void reset_camera( test_mesh_generator_app_o *self ) {
 	uint32_t screenWidth{};
 	uint32_t screenHeight{};
-	self->renderer.getSwapchainDimensions( &screenWidth, &screenHeight );
+	self->renderer.getSwapchainExtent( &screenWidth, &screenHeight );
 
 	self->camera.setViewport( {0, 0, float( screenWidth ), float( screenHeight ), 0.f, 1.f} );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
@@ -127,7 +127,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 	uint32_t screenWidth{};
 	uint32_t screenHeight{};
-	app->renderer.getSwapchainDimensions( &screenWidth, &screenHeight );
+	app->renderer.getSwapchainExtent( &screenWidth, &screenHeight );
 
 	le::Viewport viewports[ 1 ] = {
 	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
@@ -208,7 +208,7 @@ static void test_mesh_generator_app_process_ui_events( test_mesh_generator_app_o
 
 	uint32_t screenWidth{};
 	uint32_t screenHeight{};
-	self->renderer.getSwapchainDimensions( &screenWidth, &screenHeight );
+	self->renderer.getSwapchainExtent( &screenWidth, &screenHeight );
 
 	self->cameraController.setControlRect( 0, 0, float( screenWidth ), float( screenHeight ) );
 	self->cameraController.processEvents( self->camera, pEvents, numEvents );

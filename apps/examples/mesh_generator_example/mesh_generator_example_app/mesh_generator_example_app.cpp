@@ -116,17 +116,16 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	auto        app = static_cast<mesh_generator_example_app_o *>( user_data );
 	le::Encoder encoder{encoder_};
 
-	auto screenWidth  = app->window.getSurfaceWidth();
-	auto screenHeight = app->window.getSurfaceHeight();
+	auto const &surfaceExtent = encoder.getRenderpassExtent();
 
 	le::Viewport viewports[ 1 ] = {
-	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
+	    {0.f, 0.f, float( surfaceExtent.width ), float( surfaceExtent.height ), 0.f, 1.f},
 	};
 
 	app->camera.setViewport( viewports[ 0 ] );
 
 	le::Rect2D scissors[ 1 ] = {
-	    {0, 0, screenWidth, screenHeight},
+	    {0, 0, surfaceExtent.width, surfaceExtent.height},
 	};
 
 	// Draw main scene

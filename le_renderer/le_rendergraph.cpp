@@ -652,7 +652,7 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 	//
 	// Note that this does not change the renderpass extents.
 	le::Extent2D swapchain_extent{};
-	vk_backend_i.get_swapchain_dimensions( backend, &swapchain_extent.width, &swapchain_extent.height );
+	vk_backend_i.get_swapchain_extent( backend, &swapchain_extent.width, &swapchain_extent.height );
 
 	// Create one encoder per pass, and then record commands by calling the execute callback.
 
