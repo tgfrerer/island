@@ -205,7 +205,9 @@ static void reset_camera( hello_world_app_o *self ) {
 	self->camera.setViewport( {0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ), 0.f, 1.f} );
 	self->camera.setClipDistances( 100.f, 150000.f );
 	self->camera.setFovRadians( glm::radians( 25.f ) ); // glm::radians converts degrees to radians
-	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, 30000}, glm::vec3{0}, glm::vec3{0, 1, 0} );
+
+	glm::mat4 camMatrix = glm::lookAt( glm::vec3{30000, -10000, 20000}, glm::vec3{0}, glm::vec3{0, 1, 0} );
+	//glm::mat4 camMatrix = glm::mat4{{0.585995, 0.191119, 0.787454, -0.000000}, {-0.049265, 0.978394, -0.200800, 0.000000}, {-0.808816, 0.078874, 0.582749, -0.000000}, {3039.844482, 3673.605225, -15533.671875, 1.000000}};
 	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
 }
 
@@ -674,8 +676,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 static bool hello_world_app_update( hello_world_app_o *self ) {
 
-	static bool resetCameraOnReload = false; // reload meand module reload
-
 	// Polls events for all windows -
 	// This means any window may trigger callbacks for any events they have callbacks registered.
 	pal::Window::pollEvents();
@@ -691,6 +691,7 @@ static bool hello_world_app_update( hello_world_app_o *self ) {
 
 	hello_world_app_process_ui_events( self );
 
+	static bool resetCameraOnReload = false; // reload meand module reload
 	if ( resetCameraOnReload ) {
 		// Reset camera
 		reset_camera( self );
