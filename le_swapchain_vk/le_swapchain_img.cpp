@@ -23,19 +23,19 @@ struct TransferFrame {
 
 struct img_data_o {
 	le_swapchain_vk_settings_t mSettings;
-	uint32_t                   mImagecount;                    // number of images in swapchain
+	uint32_t                   mImagecount;                    // Number of images in swapchain
 	uint32_t                   totalImages;                    // total number of produced images
 	uint32_t                   mImageIndex;                    // current image index
 	uint32_t                   vk_graphics_queue_family_index; //
 	vk::Extent3D               mSwapchainExtent;               //
 	vk::SurfaceFormatKHR       windowSurfaceFormat;            //
-	uint32_t                   reserved__;
-	vk::Device                 device;           // Owned by backend
-	vk::PhysicalDevice         physicalDevice;   // Owned by backend
-	vk::CommandPool            vkCommandPool;    // Command pool from wich we allocate present and acquire command buffers
-	le_backend_o *             backend;          // Not owned. Backend owns swapchain.
-	std::vector<TransferFrame> transferFrames{}; //
-	FILE *                     ffmpeg = nullptr;
+	uint32_t                   reserved__;                     // RESERVED for packing this struct
+	vk::Device                 device;                         // Owned by backend
+	vk::PhysicalDevice         physicalDevice;                 // Owned by backend
+	vk::CommandPool            vkCommandPool;                  // Command pool from wich we allocate present and acquire command buffers
+	le_backend_o *             backend = nullptr;              // Not owned. Backend owns swapchain.
+	std::vector<TransferFrame> transferFrames;                 //
+	FILE *                     ffmpeg = nullptr;               // Pipe to ffmpeg. Owned. must be closed if opened
 };
 
 // ----------------------------------------------------------------------
