@@ -134,14 +134,8 @@ static hello_world_app_o *hello_world_app_create() {
 
 	// -- Declare graphics pipeline state objects
 
-	{
-		// Set up the camera
-		reset_camera( app );
-
-		// Set the camera controller pivot distance to 0 to make the camera rotate around its proper axes,
-		// not the pivot's.
-		// app->cameraController.setPivotDistance( 0 );
-	}
+	// Set up the camera
+	reset_camera( app );
 
 	{
 		// Generate geometry for earth sphere
