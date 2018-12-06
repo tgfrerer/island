@@ -25,8 +25,6 @@
 #include <vector>
 #include <chrono>
 
-#define RUN_HEADLESS true
-
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 struct Image : NoCopy, NoMove {
@@ -112,30 +110,24 @@ static bool initialiseImage( Image &img, char const *path, uint32_t mipLevels = 
 static hello_world_app_o *hello_world_app_create() {
 	auto app = new ( hello_world_app_o );
 
-	if ( RUN_HEADLESS == false ) {
+	pal::Window::Settings settings;
+	settings
+	    .setWidth( 1920 )
+	    .setHeight( 1080 )
+	    .setTitle( "Hello world" );
 
-		pal::Window::Settings settings;
-		settings
-		    .setWidth( 1920 )
-		    .setHeight( 1080 )
-		    .setTitle( "Hello world" );
-
-		// create a new window
-		app->window.setup( settings );
-	}
+	// create a new window
+	app->window.setup( settings );
 
 	le_swapchain_vk_settings_t swapchainSettings;
 	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eFifo;
 	swapchainSettings.imagecount_hint  = 3;
-	swapchainSettings.width_hint       = 1920 * 2;
-	swapchainSettings.height_hint      = 1080 * 2;
+	swapchainSettings.width_hint       = 1920;
+	swapchainSettings.height_hint      = 1080;
 	le_backend_vk_settings_t backendCreateInfo{};
 
 	backendCreateInfo.swapchain_settings = &swapchainSettings;
-
-	if ( RUN_HEADLESS == false ) {
-		backendCreateInfo.pWindow = app->window;
-	}
+	backendCreateInfo.pWindow            = app->window; // set this to nullptr for no window
 
 	app->backend.setup( &backendCreateInfo );
 	app->renderer.setup( app->backend );
@@ -208,7 +200,9 @@ static bool initialiseImage( Image &img, char const *path, uint32_t mipLevels, l
 // ----------------------------------------------------------------------
 
 static void reset_camera( hello_world_app_o *self ) {
-	self->camera.setViewport( {0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ), 0.f, 1.f} );
+	le::Extent2D swapchainExtent{};
+	self->renderer.getSwapchainExtent( &swapchainExtent.width, &swapchainExtent.height );
+	self->camera.setViewport( {0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ), 0.f, 1.f} );
 	self->camera.setClipDistances( 100.f, 150000.f );
 	self->camera.setFovRadians( glm::radians( 25.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, 30000}, glm::vec3{0}, glm::vec3{0, 1, 0} );
@@ -297,73 +291,70 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *use
 	auto        app = static_cast<hello_world_app_o *>( user_data );
 	le::Encoder encoder{encoder_};
 
-	{
+	if ( false == app->worldGeometry.wasLoaded ) {
 
-		if ( false == app->worldGeometry.wasLoaded ) {
+		// fetch sphere geometry
+		auto &geom = app->worldGeometry;
 
-			// fetch sphere geometry
-			auto &geom = app->worldGeometry;
+		uint16_t *sphereIndices{};
+		float *   sphereVertices{};
+		float *   sphereNormals{};
+		float *   sphereUvs{};
+		size_t    numVertices{};
+		size_t    numIndices{};
+		float *   sphereTangents{};
+		app->sphereGenerator.getData( numVertices, numIndices, &sphereVertices, &sphereNormals, &sphereUvs, &sphereIndices );
+		size_t numTangents;
+		app->sphereGenerator.getTangents( numTangents, &sphereTangents );
+		uint32_t offset = 0;
 
-			uint16_t *sphereIndices{};
-			float *   sphereVertices{};
-			float *   sphereNormals{};
-			float *   sphereUvs{};
-			size_t    numVertices{};
-			size_t    numIndices{};
-			float *   sphereTangents{};
-			app->sphereGenerator.getData( numVertices, numIndices, &sphereVertices, &sphereNormals, &sphereUvs, &sphereIndices );
-			size_t numTangents;
-			app->sphereGenerator.getTangents( numTangents, &sphereTangents );
-			uint32_t offset = 0;
+		// upload vertex positions
+		geom.buffer_offsets[ 0 ] = 0;
+		encoder.writeToBuffer( geom.vertex_buffer_handle, offset, sphereVertices, numVertices * sizeof( float ) * 3 );
+		offset += numVertices * sizeof( float ) * 3;
 
-			// upload vertex positions
-			geom.buffer_offsets[ 0 ] = 0;
-			encoder.writeToBuffer( geom.vertex_buffer_handle, offset, sphereVertices, numVertices * sizeof( float ) * 3 );
-			offset += numVertices * sizeof( float ) * 3;
+		// upload vertex normals
+		geom.buffer_offsets[ 1 ] = offset;
+		encoder.writeToBuffer( geom.vertex_buffer_handle, offset, sphereNormals, numVertices * sizeof( float ) * 3 );
+		offset += numVertices * sizeof( float ) * 3;
 
-			// upload vertex normals
-			geom.buffer_offsets[ 1 ] = offset;
-			encoder.writeToBuffer( geom.vertex_buffer_handle, offset, sphereNormals, numVertices * sizeof( float ) * 3 );
-			offset += numVertices * sizeof( float ) * 3;
+		// upload vertex uvs
+		geom.buffer_offsets[ 2 ] = offset;
+		encoder.writeToBuffer( geom.vertex_buffer_handle, offset, sphereUvs, numVertices * sizeof( float ) * 2 );
+		offset += numVertices * sizeof( float ) * 2;
 
-			// upload vertex uvs
-			geom.buffer_offsets[ 2 ] = offset;
-			encoder.writeToBuffer( geom.vertex_buffer_handle, offset, sphereUvs, numVertices * sizeof( float ) * 2 );
-			offset += numVertices * sizeof( float ) * 2;
+		// upload vertex tangents
+		geom.buffer_offsets[ 3 ] = offset;
+		encoder.writeToBuffer( geom.vertex_buffer_handle, offset, sphereTangents, numTangents * sizeof( float ) * 3 );
+		offset += numVertices * sizeof( float ) * 3;
 
-			// upload vertex tangents
-			geom.buffer_offsets[ 3 ] = offset;
-			encoder.writeToBuffer( geom.vertex_buffer_handle, offset, sphereTangents, numTangents * sizeof( float ) * 3 );
-			offset += numVertices * sizeof( float ) * 3;
+		// upload indices
+		encoder.writeToBuffer( geom.index_buffer_handle, 0, sphereIndices, numIndices * sizeof( uint16_t ) );
 
-			// upload indices
-			encoder.writeToBuffer( geom.index_buffer_handle, 0, sphereIndices, numIndices * sizeof( uint16_t ) );
-
-			geom.wasLoaded = true;
-		}
-
-		auto uploadImage = [&]( Image &img ) {
-			if ( false == img.wasLoaded ) {
-				using namespace le_pixels;
-				auto pixelsData = le_pixels_i.get_data( img.pixels );
-
-				encoder.writeToImage( img.imageHandle,
-				                      img.imageInfo,
-				                      pixelsData,
-				                      img.pixelsInfo.byte_count );
-
-				le_pixels_i.destroy( img.pixels ); // Free pixels memory
-				img.pixels = nullptr;              // Mark pixels memory as freed, otherwise Image.destroy() will double-free!
-
-				img.wasLoaded = true;
-			}
-		};
-
-		uploadImage( app->imgEarthAlbedo );
-		uploadImage( app->imgEarthNormals );
-		uploadImage( app->imgEarthNight );
-		uploadImage( app->imgEarthClouds );
+		geom.wasLoaded = true;
 	}
+
+	auto uploadImage = [&]( Image &img ) {
+		if ( false == img.wasLoaded ) {
+			using namespace le_pixels;
+			auto pixelsData = le_pixels_i.get_data( img.pixels );
+
+			encoder.writeToImage( img.imageHandle,
+			                      img.imageInfo,
+			                      pixelsData,
+			                      img.pixelsInfo.byte_count );
+
+			le_pixels_i.destroy( img.pixels ); // Free pixels memory
+			img.pixels = nullptr;              // Mark pixels memory as freed, otherwise Image.destroy() will double-free!
+
+			img.wasLoaded = true;
+		}
+	};
+
+	uploadImage( app->imgEarthAlbedo );
+	uploadImage( app->imgEarthNormals );
+	uploadImage( app->imgEarthNight );
+	uploadImage( app->imgEarthClouds );
 }
 
 // ----------------------------------------------------------------------
@@ -441,19 +432,16 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	auto        app = static_cast<hello_world_app_o *>( user_data );
 	le::Encoder encoder{encoder_};
 
-	uint32_t screenWidth{};
-	uint32_t screenHeight{};
-
-	app->renderer.getSwapchainExtent( &screenWidth, &screenHeight );
+	le::Extent2D passExtent = encoder.getRenderpassExtent();
 
 	le::Viewport viewports[ 1 ] = {
-	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
+	    {0.f, 0.f, float( passExtent.width ), float( passExtent.height ), 0.f, 1.f},
 	};
 
 	app->camera.setViewport( viewports[ 0 ] );
 
 	le::Rect2D scissors[ 1 ] = {
-	    {0, 0, screenWidth, screenHeight},
+	    {0, 0, passExtent.width, passExtent.height},
 	};
 
 	struct CameraParams {
@@ -665,8 +653,8 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 			        .build();
 
 			LensflareParams params{};
-			params.uCanvas.x        = screenWidth;
-			params.uCanvas.y        = screenHeight;
+			params.uCanvas.x        = passExtent.width;
+			params.uCanvas.y        = passExtent.height;
 			params.uCanvas.z        = app->camera.getUnitDistance();
 			params.uLensflareSource = sourceInClipSpace;
 			params.uHowClose        = howClose;
@@ -692,11 +680,14 @@ static bool hello_world_app_update( hello_world_app_o *self ) {
 	// This means any window may trigger callbacks for any events they have callbacks registered.
 	pal::Window::pollEvents();
 
-	if ( RUN_HEADLESS == false && self->window.shouldClose() ) {
+	if ( self->window.shouldClose() ) {
 		return false;
 	}
 
-	self->cameraController.setControlRect( 0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ) );
+	le::Extent2D swapchainExtent{};
+	self->renderer.getSwapchainExtent( &swapchainExtent.width, &swapchainExtent.height );
+
+	self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
 
 	hello_world_app_process_ui_events( self );
 
@@ -710,8 +701,8 @@ static bool hello_world_app_update( hello_world_app_o *self ) {
 	auto now        = std::chrono::high_resolution_clock::now();
 	auto time_delta = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>( now - self->timeStamp ).count();
 
-	std::cout << std::dec << time_delta << "ms per frame. FPS: " << 1000. / time_delta << std::endl
-	          << std::flush;
+	//	std::cout << std::dec << time_delta << "ms per frame. FPS: " << 1000. / time_delta << std::endl
+	//	          << std::flush;
 
 	self->timeDelta = 1000. / 60.;
 	self->timeStamp = now;
