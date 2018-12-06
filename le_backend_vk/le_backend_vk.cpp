@@ -458,8 +458,9 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settin
 	using namespace le_swapchain_vk;
 	// The following settings are not user-hintable, and will get overridden by default
 	if ( self->window ) {
-		swp_settings.width_hint  = self->window->getSurfaceWidth();
-		swp_settings.height_hint = self->window->getSurfaceHeight();
+		using namespace pal_window;
+		swp_settings.width_hint  = window_i.get_surface_width( *self->window );
+		swp_settings.height_hint = window_i.get_surface_height( *self->window );
 		swp_settings.vk_surface  = self->window->getVkSurfaceKHR();
 
 		// If we're running without a window, we pass through swapchainSettings,

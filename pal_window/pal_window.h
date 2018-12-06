@@ -151,13 +151,7 @@ class Window : NoMove, NoCopy {
 		return pal_window::window_i.create_surface( self, instance );
 	}
 
-	uint32_t getSurfaceWidth() {
-		return pal_window::window_i.get_surface_width( self );
-	}
 
-	uint32_t getSurfaceHeight() {
-		return pal_window::window_i.get_surface_height( self );
-	}
 
 	VkSurfaceKHR_T *getVkSurfaceKHR() {
 		return pal_window::window_i.get_vk_surface_khr( self );
