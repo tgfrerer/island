@@ -189,12 +189,15 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_vk_set
 
 			vk::BufferImageCopy imgCopy;
 			imgCopy
-			    .setBufferOffset( 0 ) // offset is always 0, since allocator creates a fresh buffer object
+			    .setBufferOffset( 0 ) // offset is always 0, since allocator created individual buffer objects
 			    .setBufferRowLength( self->mSwapchainExtent.width )
 			    .setBufferImageHeight( self->mSwapchainExtent.height )
 			    .setImageSubresource( imgSubResource )
 			    .setImageOffset( {0} )
 			    .setImageExtent( self->mSwapchainExtent );
+
+			// TODO: here we must wait for the buffer read event to have been signalled - because that means that the buffer
+			// is available for writing again. Perhaps we should use a buffer which is not persistently mapped, if that's faster.
 
 			// image must be transferred to a buffer - we can then read from this buffer.
 			cmdPresent.copyImageToBuffer( frame.image, ::vk::ImageLayout::eTransferSrcOptimal, frame.buffer, {imgCopy} );
@@ -357,7 +360,11 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 		myfile.write( ( char * )frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4 );
 		myfile.close();
 	} else {
+		// TODO: we should be able to do the write on the back thread.
+		// the back thread must signal that it is complete with writing
+		// before the next present command is executed.
 
+		// fwrite is very slow.
 		auto const &frame = self->transferFrames[ imageIndex ];
 		fwrite( frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4, 1, self->ffmpeg );
 	}
