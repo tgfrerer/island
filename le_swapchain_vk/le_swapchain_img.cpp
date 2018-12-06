@@ -286,7 +286,7 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 	std::cout << "FFmpeg command line string: '" << cmd.data() << "'" << std::endl
 	          << std::flush;
 
-	//	// open pipe to ffmpeg's stdin in binary write mode
+	// open pipe to ffmpeg's stdin in binary write mode
 	self->ffmpeg = popen( cmd.data(), "w" );
 
 	if ( errno ) {
