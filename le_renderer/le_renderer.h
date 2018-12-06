@@ -199,12 +199,18 @@ class Renderer {
 		return le_renderer::renderer_i.create_shader_module( self, path, {moduleType} );
 	}
 
-	le_resource_handle_t getSwapchainResource() {
+	le_resource_handle_t getSwapchainResource() const {
 		return le_renderer::renderer_i.get_swapchain_resource( self );
 	}
 
-	void getSwapchainExtent( uint32_t *pWidth, uint32_t *pHeight ) {
+	void getSwapchainExtent( uint32_t *pWidth, uint32_t *pHeight ) const {
 		le_renderer::renderer_i.get_swapchain_extent( self, pWidth, pHeight );
+	}
+
+	const le::Extent2D getSwapchainExtent() const {
+		le::Extent2D result;
+		le_renderer::renderer_i.get_swapchain_extent( self, &result.width, &result.height );
+		return result;
 	}
 
 	operator auto() {
