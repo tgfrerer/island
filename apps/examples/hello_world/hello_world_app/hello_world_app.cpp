@@ -753,6 +753,9 @@ static void hello_world_app_process_ui_events( hello_world_app_o *self ) {
 				self->cameraController.setPivotDistance( distance_to_origin );
 			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eA ) {
 				self->animate ^= true;
+			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eP ) {
+				std::cout << glm::to_string( *( glm::mat4 * )( self->camera.getViewMatrix() ) ) << std::endl
+				          << std::flush;
 			}
 
 		} break;
