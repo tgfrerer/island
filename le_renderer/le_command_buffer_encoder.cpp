@@ -45,6 +45,12 @@ static void cbe_destroy( le_command_buffer_encoder_o *self ) {
 }
 
 // ----------------------------------------------------------------------
+// Returns extent to which this encoder has been set up to
+static le::Extent2D const &cbe_get_extent( le_command_buffer_encoder_o *self ) {
+	return self->extent;
+}
+
+// ----------------------------------------------------------------------
 
 static void cbe_set_line_width( le_command_buffer_encoder_o *self, float lineWidth ) {
 
@@ -423,6 +429,7 @@ ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 	cbe_i.destroy                = cbe_destroy;
 	cbe_i.draw                   = cbe_draw;
 	cbe_i.draw_indexed           = cbe_draw_indexed;
+	cbe_i.get_extent             = cbe_get_extent;
 	cbe_i.set_line_width         = cbe_set_line_width;
 	cbe_i.set_viewport           = cbe_set_viewport;
 	cbe_i.set_scissor            = cbe_set_scissor;

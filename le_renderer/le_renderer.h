@@ -131,6 +131,8 @@ struct le_renderer_api {
 		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, size_t offset, void const* data, size_t numBytes);
 		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, le_resource_info_t const & resourceInfo, void const *data, size_t numBytes );
 
+		le::Extent2D const &         ( *get_extent             ) ( le_command_buffer_encoder_o* self );
+
 //		void                         ( *write_to_image_regions )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, le_resource_info_t const & resourceInfo, void const *data, size_t numBytes );
 
 		// stores ubo argument data to scratch buffer - note that parameter index must be dynamic offset index
@@ -512,6 +514,10 @@ class Encoder {
 
 	operator auto() {
 		return self;
+	}
+
+	Extent2D const &getRenderpassExtent() {
+		return le_renderer::encoder_i.get_extent( self );
 	}
 
 	Encoder &draw( const uint32_t &vertexCount, const uint32_t &instanceCount = 1, const uint32_t &firstVertex = 0, const uint32_t &firstInstance = 0 ) {
