@@ -69,6 +69,8 @@ static test_mesh_generator_app_o *test_mesh_generator_app_create() {
 	le_swapchain_vk_settings_t swapchainSettings;
 	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eFifo;
 	swapchainSettings.imagecount_hint  = 3;
+	swapchainSettings.width_hint       = 1920;
+	swapchainSettings.height_hint      = 1080;
 
 	le_backend_vk_settings_t backendCreateInfo;
 	backendCreateInfo.requestedExtensions = pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
@@ -87,7 +89,11 @@ static test_mesh_generator_app_o *test_mesh_generator_app_create() {
 // ----------------------------------------------------------------------
 
 static void reset_camera( test_mesh_generator_app_o *self ) {
-	self->camera.setViewport( {0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ), 0.f, 1.f} );
+	uint32_t screenWidth{};
+	uint32_t screenHeight{};
+	self->renderer.getSwapchainDimensions( &screenWidth, &screenHeight );
+
+	self->camera.setViewport( {0, 0, float( screenWidth ), float( screenHeight ), 0.f, 1.f} );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
@@ -101,8 +107,11 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto rp  = le::RenderPass{pRp};
 	auto app = static_cast<test_mesh_generator_app_o *>( user_data );
 
+	LeImageAttachmentInfo attachmentInfo{};
+	attachmentInfo.clearValue.color = {{{0.f, 0.f, 0.f, 1.f}}};
+
 	rp
-	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
+	    .addColorAttachment( app->renderer.getSwapchainResource(), attachmentInfo ) // color attachment
 	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER" ) )
 	    .setIsRoot( true ) //
 	    ;
@@ -116,8 +125,9 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	auto        app = static_cast<test_mesh_generator_app_o *>( user_data );
 	le::Encoder encoder{encoder_};
 
-	auto screenWidth  = app->window.getSurfaceWidth();
-	auto screenHeight = app->window.getSurfaceHeight();
+	uint32_t screenWidth{};
+	uint32_t screenHeight{};
+	app->renderer.getSwapchainDimensions( &screenWidth, &screenHeight );
 
 	le::Viewport viewports[ 1 ] = {
 	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
@@ -196,7 +206,11 @@ static void test_mesh_generator_app_process_ui_events( test_mesh_generator_app_o
 	le::UiEvent const *pEvents;
 	window_i.get_ui_event_queue( self->window, &pEvents, numEvents );
 
-	self->cameraController.setControlRect( 0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ) );
+	uint32_t screenWidth{};
+	uint32_t screenHeight{};
+	self->renderer.getSwapchainDimensions( &screenWidth, &screenHeight );
+
+	self->cameraController.setControlRect( 0, 0, float( screenWidth ), float( screenHeight ) );
 	self->cameraController.processEvents( self->camera, pEvents, numEvents );
 }
 

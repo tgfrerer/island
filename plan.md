@@ -4,7 +4,13 @@
 
 # TODO
 
-- What good is it to run setup as a callback for renderpasses?
+- encoder should receive current swapchain dimensions if not explicitly
+  set renderpass dimensions exist, otherwise renderpass dimensions
+- encoder should have getter for its own dimensions
+- ecoder should automatically set default viewport and scissors to its own
+  dimensions.
+- examples should use swapchain dimensions to calculate camera, not window
+  dimensions.
 
 ## (A)
 
