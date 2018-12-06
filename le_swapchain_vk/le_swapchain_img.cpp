@@ -305,8 +305,26 @@ static void swapchain_img_destroy( le_swapchain_o *base ) {
 		self->ffmpeg = nullptr; // mark as closed
 	}
 
+	using namespace le_backend_vk;
+
+	{
+		// -- Wait for current in-flight frame to be completed on device.
+
+		// We must do this since we're not allowed to delete any vulkan resources
+		// which are currently used by the device. Awaiting the fence guarantees
+		// that no resources are in-flight at this point.
+
+		auto imageIndex = ( self->mImageIndex + 1 ) % self->mImagecount;
+
+		auto fenceWaitResult = self->device.waitForFences( {self->transferFrames[ imageIndex ].frameFence}, VK_TRUE, 100'000'000 );
+
+		if ( fenceWaitResult != ::vk::Result::eSuccess ) {
+			assert( false ); // waiting for fence took too long.
+		}
+	}
+
 	for ( auto &f : self->transferFrames ) {
-		using namespace le_backend_vk;
+
 		// Destroy image allocation for this frame.
 		private_backend_vk_i.destroy_image( self->backend, f.image, f.imageAllocation );
 		// Destroy buffer allocation for this frame.
@@ -323,6 +341,11 @@ static void swapchain_img_destroy( le_swapchain_o *base ) {
 	self->transferFrames.clear();
 
 	if ( self->vkCommandPool ) {
+
+		// Destroying the command pool implicitly frees all command buffers
+		// which were allocated from it, so we don't have to free command
+		// buffers explicitly.
+
 		self->device.destroyCommandPool( self->vkCommandPool );
 		self->vkCommandPool = nullptr;
 	}
