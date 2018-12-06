@@ -7,7 +7,9 @@
 #include "le_backend_vk/util/vk_mem_alloc/vk_mem_alloc.h"
 
 #include <iostream>
+#include <iomanip>
 #include <fstream>
+#include <ctime>
 
 struct TransferFrame {
 	vk::Image         image            = nullptr; // Owned. Handle to image
@@ -35,7 +37,7 @@ struct img_data_o {
 	vk::CommandPool            vkCommandPool;                  // Command pool from wich we allocate present and acquire command buffers
 	le_backend_o *             backend = nullptr;              // Not owned. Backend owns swapchain.
 	std::vector<TransferFrame> transferFrames;                 //
-	FILE *                     ffmpeg = nullptr;               // Pipe to ffmpeg. Owned. must be closed if opened
+	FILE *                     ffmpeg_pipe = nullptr;          // Pipe to ffmpeg. Owned. must be closed if opened
 };
 
 // ----------------------------------------------------------------------
@@ -259,36 +261,42 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 
 	swapchain_img_reset( base, settings );
 
-	// open file as a pipe for writing
+	{
+		// First generate a timestamp tag so that we can make
+		// sure that successive screen captures don't overwrite.
 
-	// start ffmpeg telling it to expect raw rgba 720p-60hz frames
-	// -i - tells it to read frames from stdin
+		std::ostringstream timestamp_tag;
+		std::time_t        time_now = std::time( nullptr );
 
-	//std::string commandline    = "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -vcodec h264_nvenc -preset llhq -rc:v vbr_minqp -qmin:v 19 -qmax:v 21 -b:v 2500k -maxrate:v 5000k -profile:v high ";
-	std::string commandline = "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0  -preset fast -y -pix_fmt yuv420p -crf 21 ";
+		timestamp_tag << std::put_time( std::localtime( &time_now ), "_%y-%m-%d_%OH-%OM-%OS" );
 
-	std::string ffmpegPath     = "/usr/bin/";
-	std::string outputFileName = "island_screencapture.mp4";
-	commandline                = ffmpegPath + commandline + outputFileName;
+		// -- Initialise ffmpeg as a receiver for our frames by selecting one of
+		// these possible command line options. Eventually we want to expose the
+		// command line, so that we may pipe to any program.
 
-	std::vector<char> cmd( commandline.size(), '\0' );
+		const char *commandLines[] = {
+		    "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -vcodec h264_nvenc -preset llhq -rc:v vbr_minqp -qmin:v 19 -qmax:v 21 -b:v 2500k -maxrate:v 5000k -profile:v high isl%s.mp4",
+		    "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0  -preset fast -y -pix_fmt yuv420p -crf 21 isl%s.mp4",
+		    "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0  isl%s_%%03d.png",
+		};
 
-	sprintf( cmd.data(), commandline.c_str(), self->mSwapchainExtent.width, self->mSwapchainExtent.height );
+		char cmd[ 1024 ]{};
+		sprintf( cmd, commandLines[ 0 ], self->mSwapchainExtent.width, self->mSwapchainExtent.height, timestamp_tag.str().c_str() );
 
-	std::cout << "FFmpeg command line string: '" << cmd.data() << "'" << std::endl
-	          << std::flush;
-
-	// open pipe to ffmpeg's stdin in binary write mode
-	self->ffmpeg = popen( cmd.data(), "w" );
-
-	if ( self->ffmpeg == nullptr ) {
-
-		std::cout << " ***** ERROR: Could not open pipe. Additionally, strerror reports:" << strerror( errno ) << std::endl
+		std::cout << "Pipe command line string: '" << cmd << "'" << std::endl
 		          << std::flush;
+
+		// Open pipe to ffmpeg's stdin in binary write mode
+		self->ffmpeg_pipe = popen( cmd, "w" );
+
+		if ( self->ffmpeg_pipe == nullptr ) {
+
+			std::cout << " ***** ERROR: Could not open pipe. Additionally, strerror reports:" << strerror( errno ) << std::endl
+			          << std::flush;
+		}
+
+		assert( self->ffmpeg_pipe != nullptr );
 	}
-
-	assert( self->ffmpeg != nullptr );
-
 	return base;
 }
 
@@ -300,9 +308,9 @@ static void swapchain_img_destroy( le_swapchain_o *base ) {
 
 	// close ffmpeg pipe handle
 
-	if ( self->ffmpeg ) {
-		pclose( self->ffmpeg );
-		self->ffmpeg = nullptr; // mark as closed
+	if ( self->ffmpeg_pipe ) {
+		pclose( self->ffmpeg_pipe );
+		self->ffmpeg_pipe = nullptr; // mark as closed
 	}
 
 	using namespace le_backend_vk;
@@ -376,24 +384,24 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 
 	self->mImageIndex = imageIndex;
 
-	char numStr[ 1024 ];
-	if ( false ) {
-		sprintf( numStr, "output/%08d.rgba", self->totalImages );
-
-		std::cout << "display image: " << numStr << std::endl
-		          << std::flush;
-		auto const &  frame = self->transferFrames[ imageIndex ];
-		std::ofstream myfile( numStr, std::ios::out | std::ios::binary );
-		myfile.write( ( char * )frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4 );
-		myfile.close();
-	} else {
+	if ( self->ffmpeg_pipe ) {
 		// TODO: we should be able to do the write on the back thread.
 		// the back thread must signal that it is complete with writing
 		// before the next present command is executed.
 
-		// fwrite is very slow.
+		// Write out frame contents to ffmpeg via pipe.
 		auto const &frame = self->transferFrames[ imageIndex ];
-		fwrite( frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4, 1, self->ffmpeg );
+		fwrite( frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4, 1, self->ffmpeg_pipe );
+
+	} else {
+		char file_name[ 1024 ];
+		sprintf( file_name, "isl_%08d.rgba", self->totalImages );
+		auto const &  frame = self->transferFrames[ imageIndex ];
+		std::ofstream myfile( file_name, std::ios::out | std::ios::binary );
+		myfile.write( ( char * )frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4 );
+		myfile.close();
+		std::cout << "Wrote Image: " << file_name << std::endl
+		          << std::flush;
 	}
 
 	++self->totalImages;
