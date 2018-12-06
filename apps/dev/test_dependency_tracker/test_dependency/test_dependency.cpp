@@ -18,8 +18,6 @@
 #include <memory>
 #include <sstream>
 
-#define LE_ARGUMENT_NAME( x ) hash_64_fnv1a_const( #x )
-
 struct test_dependency_o {
 	le::Backend  backend;
 	pal::Window  window;
@@ -91,28 +89,28 @@ static void reset_camera( test_dependency_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static bool pass_one_setup( le_renderpass_o *pRp, void *user_data ) {
-	auto rp = le::RenderPassRef{pRp};
+//static bool pass_one_setup( le_renderpass_o *pRp, void *user_data ) {
+//	auto rp = le::RenderPass{pRp};
 
-	LeTextureInfo texInfo{};
-	texInfo.imageView.imageId = LE_IMG_RESOURCE( "dummy_image" );
+//	LeTextureInfo texInfo{};
+//	texInfo.imageView.imageId = LE_IMG_RESOURCE( "dummy_image" );
 
-	LeImageAttachmentInfo attachmentInfo{};
-	attachmentInfo.clearValue.color = {{{1.f, 0.f, 0.f, 1.f}}};
+//	LeImageAttachmentInfo attachmentInfo{};
+//	attachmentInfo.clearValue.color = {{{1.f, 0.f, 0.f, 1.f}}};
 
-	auto img_info = le::ImageInfoBuilder()
-	                    .setFormat( le::Format::eR32G32B32A32Sfloat )
-	                    .build();
+//	auto img_info = le::ImageInfoBuilder()
+//	                    .setFormat( le::Format::eR32G32B32A32Sfloat )
+//	                    .build();
 
-	rp
-	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "one_depth" ) )                     // color attachment 0
-	    .addColorAttachment( LE_IMG_RESOURCE( "two_output" ), attachmentInfo, img_info ) // color attachment 1
+//	rp
+//	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "one_depth" ) )                     // color attachment 0
+//	    .addColorAttachment( LE_IMG_RESOURCE( "two_output" ), attachmentInfo, img_info ) // color attachment 1
 
-	    .sampleTexture( LE_TEX_RESOURCE( "dummy_texture" ), texInfo )
-	    .setIsRoot( true );
+//	    .sampleTexture( LE_TEX_RESOURCE( "dummy_texture" ), texInfo )
+//	    .setIsRoot( true );
 
-	return true;
-}
+//	return true;
+//}
 
 // ----------------------------------------------------------------------
 
@@ -221,7 +219,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		    .bindGraphicsPipeline( pipelineTriangle )
 		    .setScissors( 0, 1, scissors )
 		    .setViewports( 0, 1, viewports )
-		    .setArgumentData( LE_ARGUMENT_NAME( MatrixStack ), &mvp, sizeof( MatrixStackUbo_t ) )
+		    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
 		    .setVertexData( trianglePositions, sizeof( trianglePositions ), 0 )
 		    .setVertexData( triangleColors, sizeof( triangleColors ), 1 )
 		    .draw( 3 );
@@ -240,11 +238,24 @@ static bool test_dependency_update( test_dependency_o *self ) {
 		return false;
 	}
 
-	using namespace le_renderer;
-
 	le::RenderModule mainModule{};
 	{
-		mainModule.addRenderPass( le::RenderPass( "one", LE_RENDER_PASS_TYPE_DRAW, pass_one_setup, pass_one_exec, self ) );
+
+		LeTextureInfo texInfo{};
+		texInfo.imageView.imageId = LE_IMG_RESOURCE( "dummy_image" );
+
+		LeImageAttachmentInfo attachmentInfo{};
+		attachmentInfo.clearValue.color = {{{1.f, 0.f, 0.f, 1.f}}};
+
+		auto renderpassOne = le::RenderPass( "one", LE_RENDER_PASS_TYPE_DRAW );
+		renderpassOne
+		    .addDepthStencilAttachment( LE_IMG_RESOURCE( "one_depth" ) )                                                                                        // color attachment 0
+		    .addColorAttachment( LE_IMG_RESOURCE( "two_output" ), attachmentInfo, le::ImageInfoBuilder().setFormat( le::Format::eR32G32B32A32Sfloat ).build() ) // color attachment 1
+		    .sampleTexture( LE_TEX_RESOURCE( "dummy_texture" ), texInfo )
+		    .setIsRoot( true )
+		    .setExecuteCallback( self, pass_one_exec );
+
+		mainModule.addRenderPass( renderpassOne );
 		mainModule.addRenderPass( le::RenderPass( "two", LE_RENDER_PASS_TYPE_DRAW, pass_two_setup, pass_two_exec, self ) );
 		mainModule.addRenderPass( le::RenderPass( "main", LE_RENDER_PASS_TYPE_DRAW, pass_main_setup, pass_main_exec, self ) );
 	}
