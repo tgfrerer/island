@@ -30,11 +30,12 @@ struct data_o {
 	uint32_t                   vk_graphics_queue_family_index; //
 	vk::Extent3D               mSwapchainExtent;               //
 	vk::SurfaceFormatKHR       windowSurfaceFormat;            //
-	vk::Device                 device;                         // Owned by backend
-	vk::PhysicalDevice         physicalDevice;                 // Owned by backend
-	vk::CommandPool            vkCommandPool;                  // Command pool from wich we allocate present and acquire command buffers
-	le_backend_o *             backend;                        // Not owned. Backend owns swapchain.
-	std::vector<TransferFrame> transferFrames;                 //
+	uint32_t                   reserved__;
+	vk::Device                 device;         // Owned by backend
+	vk::PhysicalDevice         physicalDevice; // Owned by backend
+	vk::CommandPool            vkCommandPool;  // Command pool from wich we allocate present and acquire command buffers
+	le_backend_o *             backend;        // Not owned. Backend owns swapchain.
+	std::vector<TransferFrame> transferFrames; //
 	FILE *                     ffmpeg;
 };
 
