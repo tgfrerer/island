@@ -13,8 +13,8 @@ struct TransferFrame {
 	VmaAllocationInfo imageAllocationInfo{};
 	VmaAllocationInfo bufferAllocationInfo{};
 	vk::Fence         frameFence;
-	vk::CommandBuffer cmdPresent;
-	vk::CommandBuffer cmdAcquire;
+	vk::CommandBuffer cmdPresent; // copies from image to buffer
+	vk::CommandBuffer cmdAcquire; // transfers image back to correct layout
 };
 
 struct data_o {
@@ -375,7 +375,7 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 	    .setPWaitSemaphores( nullptr )
 	    .setPWaitDstStageMask( nullptr )
 	    .setCommandBufferCount( 1 )
-	    .setPCommandBuffers( &self->transferFrames[ imageIndex ].cmdAcquire )
+	    .setPCommandBuffers( &self->transferFrames[ imageIndex ].cmdAcquire ) // transfers image back to correct layout
 	    .setSignalSemaphoreCount( 1 )
 	    .setPSignalSemaphores( &presentCompleteSemaphore );
 
@@ -387,6 +387,8 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 		// Submitting directly via the queue is not very elegant, as the queue must be exernally synchronised, and
 		// by submitting to the queue here we are living on the edge if we ever wanted
 		// to have more than one thread producing frames.
+
+		// we can use an event (signal here, command buffer waits for it)
 
 		using namespace le_backend_vk;
 		auto le_device_o = private_backend_vk_i.get_le_device( self->backend );
@@ -413,8 +415,8 @@ static bool swapchain_img_present( le_swapchain_o *base, VkQueue queue_, VkSemap
 	    .setWaitSemaphoreCount( 1 )
 	    .setPWaitSemaphores( &renderCompleteSemaphore ) // these are the renderComplete semaphores
 	    .setPWaitDstStageMask( &wait_dst_stage_mask )
-	    .setCommandBufferCount( 1 )                                                  // TODO: set transfer command buffer here.
-	    .setPCommandBuffers( &self->transferFrames[ self->mImageIndex ].cmdPresent ) // TODO: set transfer command buffer here.
+	    .setCommandBufferCount( 1 )
+	    .setPCommandBuffers( &self->transferFrames[ self->mImageIndex ].cmdPresent ) // copies image to buffer
 	    .setSignalSemaphoreCount( 0 )
 	    .setPSignalSemaphores( nullptr );
 
