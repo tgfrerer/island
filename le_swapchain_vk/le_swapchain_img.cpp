@@ -8,7 +8,6 @@
 
 #include <iostream>
 #include <fstream>
-#include <stdio.h>
 
 struct TransferFrame {
 	vk::Image         image            = nullptr; // Owned. Handle to image
