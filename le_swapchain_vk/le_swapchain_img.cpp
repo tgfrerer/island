@@ -314,7 +314,7 @@ static void swapchain_img_destroy( le_swapchain_o *base ) {
 		// which are currently used by the device. Awaiting the fence guarantees
 		// that no resources are in-flight at this point.
 
-		auto imageIndex = ( self->mImageIndex + 1 ) % self->mImagecount;
+		auto imageIndex = ( self->mImageIndex ) % self->mImagecount;
 
 		auto fenceWaitResult = self->device.waitForFences( {self->transferFrames[ imageIndex ].frameFence}, VK_TRUE, 100'000'000 );
 
