@@ -3012,8 +3012,8 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	vk_backend_i.update_shader_modules = backend_update_shader_modules;
 	vk_backend_i.create_shader_module  = backend_create_shader_module;
 
-	vk_backend_i.get_swapchain_resource   = backend_get_swapchain_resource;
-	vk_backend_i.get_swapchain_extent = backend_get_swapchain_extent;
+	vk_backend_i.get_swapchain_resource = backend_get_swapchain_resource;
+	vk_backend_i.get_swapchain_extent   = backend_get_swapchain_extent;
 
 	auto &private_backend_i                  = api_i->private_backend_vk_i;
 	private_backend_i.get_vk_device          = backend_get_vk_device;
