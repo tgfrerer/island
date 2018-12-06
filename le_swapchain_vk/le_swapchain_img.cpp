@@ -273,21 +273,30 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 	// start ffmpeg telling it to expect raw rgba 720p-60hz frames
 	// -i - tells it to read frames from stdin
 
-	char cmd[ 2048 ];
-	sprintf( cmd,
+	//std::string commandline    = "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -vcodec h264_nvenc -preset llhq -rc:v vbr_minqp -qmin:v 19 -qmax:v 21 -b:v 2500k -maxrate:v 5000k -profile:v high ";
+	std::string commandline = "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0  -preset fast -y -pix_fmt yuv420p -crf 21 ";
 
-	         // "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0  -preset fast -y -pix_fmt yuv420p -crf 21 output.mp4",
+	std::string ffmpegPath     = "/usr/bin/";
+	std::string outputFileName = "island_screencapture.mp4";
+	commandline                = ffmpegPath + commandline + outputFileName;
 
-	         "/home/tim/bin/ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -vcodec h264_nvenc -preset llhq -rc:v vbr_minqp -qmin:v 19 -qmax:v 21 -b:v 2500k -maxrate:v 5000k -profile:v high output.mp4",
+	std::vector<char> cmd( commandline.size(), '\0' );
 
-	         self->mSwapchainExtent.width, self->mSwapchainExtent.height );
+	sprintf( cmd.data(), commandline.c_str(), self->mSwapchainExtent.width, self->mSwapchainExtent.height );
 
-	std::cout << "FFmpeg command line string: '" << cmd << "'" << std::endl
+	std::cout << "FFmpeg command line string: '" << cmd.data() << "'" << std::endl
 	          << std::flush;
 
-	// open pipe to ffmpeg's stdin in binary write mode
-	self->ffmpeg = popen( cmd, "w" );
-	auto err     = errno;
+	//	// open pipe to ffmpeg's stdin in binary write mode
+	self->ffmpeg = popen( cmd.data(), "w" );
+
+	if ( errno ) {
+
+		std::cout << " ***** ERROR: " << strerror( errno ) << std::endl
+		          << std::flush;
+	}
+
+	assert( errno == 0 );
 
 	assert( self->ffmpeg != nullptr );
 
