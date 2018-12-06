@@ -289,13 +289,11 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 	// open pipe to ffmpeg's stdin in binary write mode
 	self->ffmpeg = popen( cmd.data(), "w" );
 
-	if ( errno ) {
+	if ( self->ffmpeg == nullptr ) {
 
-		std::cout << " ***** ERROR: " << strerror( errno ) << std::endl
+		std::cout << " ***** ERROR: Could not open pipe. Additionally, strerror reports:" << strerror( errno ) << std::endl
 		          << std::flush;
 	}
-
-	assert( errno == 0 );
 
 	assert( self->ffmpeg != nullptr );
 
