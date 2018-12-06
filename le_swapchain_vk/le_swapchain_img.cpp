@@ -122,7 +122,7 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_vk_set
 			    vk::BufferCreateInfo()
 			        .setPQueueFamilyIndices( &self->vk_graphics_queue_family_index )
 			        .setQueueFamilyIndexCount( 1 )
-			        .setUsage( vk::BufferUsageFlagBits::eTransferDst  )
+			        .setUsage( vk::BufferUsageFlagBits::eTransferDst )
 			        .setSize( imgSize ) //
 			    ;
 
