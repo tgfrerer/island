@@ -239,8 +239,8 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_vk_set
 
 static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchain_interface_t &interface, le_backend_o *backend, const le_swapchain_vk_settings_t *settings ) {
 	auto base  = new le_swapchain_o( interface );
-	auto self  = new data_o();
-	base->data = self;
+	base->data = new data_o();
+	auto self  = static_cast<data_o *>( base->data );
 
 	self->backend             = backend;
 	self->windowSurfaceFormat = {vk::Format::eR8G8B8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear};
