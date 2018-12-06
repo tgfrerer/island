@@ -20,15 +20,17 @@ struct le_command_buffer_encoder_o {
 	le_allocator_o *        pAllocator         = nullptr; // allocator is owned by backend, externally
 	le_pipeline_manager_o * pipelineManager    = nullptr;
 	le_staging_allocator_o *stagingAllocator   = nullptr; // borrowed from backend
+	le::Extent2D            extent             = {};      // renderpass extent, otherwise swapchain extent (set via renderer)
 };
 
 // ----------------------------------------------------------------------
 
-static le_command_buffer_encoder_o *cbe_create( le_allocator_o *allocator, le_pipeline_manager_o *pipelineManager, le_staging_allocator_o *stagingAllocator ) {
+static le_command_buffer_encoder_o *cbe_create( le_allocator_o *allocator, le_pipeline_manager_o *pipelineManager, le_staging_allocator_o *stagingAllocator, le::Extent2D const &extent = {} ) {
 	auto self              = new le_command_buffer_encoder_o;
 	self->pAllocator       = allocator;
 	self->pipelineManager  = pipelineManager;
 	self->stagingAllocator = stagingAllocator;
+	self->extent           = extent;
 	//	std::cout << "encoder create : " << std::hex << self << std::endl
 	//	          << std::flush;
 	return self;

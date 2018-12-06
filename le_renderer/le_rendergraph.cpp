@@ -647,11 +647,25 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 
 	le_pipeline_manager_o *pipelineCache = vk_backend_i.get_pipeline_cache( backend ); // TODO: make pipeline cache either pass- or frame- local
 
+	// Grab swapchain dimensions so that we may use these as defaults for
+	// encoder extents if these cannot be initialised via renderpass extents.
+	//
+	// Note that this does not change the renderpass extents.
+	le::Extent2D swapchain_extent{};
+	vk_backend_i.get_swapchain_dimensions( backend, &swapchain_extent.width, &swapchain_extent.height );
+
+	// Create one encoder per pass, and then record commands by calling the execute callback.
+
 	for ( auto &pass : self->passes ) {
 
 		if ( pass->callbackExecute && pass->sort_key != 0 ) {
 
-			auto encoder = encoder_i.create( *allocIt, pipelineCache, stagingAllocator ); // NOTE: we must manually track the lifetime of encoder!
+			le::Extent2D encoder_extent{
+				pass->width != 0 ? pass->width : swapchain_extent.width,   // Use pass extent unless it is 0, otherwise revert to swapchain_extent
+				pass->height != 0 ? pass->height : swapchain_extent.height // Use pass extent unless it is 0, otherwise revert to swapchain_extent
+			};
+
+			auto encoder = encoder_i.create( *allocIt, pipelineCache, stagingAllocator, encoder_extent ); // NOTE: we must manually track the lifetime of encoder!
 
 			renderpass_run_execute_callback( pass, encoder ); // record draw commands into encoder
 
