@@ -153,7 +153,9 @@ frame which is in-flight still uses it.
   This means that algorithms can run, as long as their data is available,
   in parallel, without risk of race conditions or contention.
 
-# Normal Accidents
+----------------------------------------------------------------------
+
+# Caveat Emptor: Normal Accidents
 + Happen if systems are: 
 
     1. Highly Complex 
@@ -218,10 +220,6 @@ frame which is in-flight still uses it.
 
 # Island-framework
 
-- create a project generator
-- Create a templating script to generate class scaffold so you don't have
-  to type that much boilerplate.
-
 ----------------------------------------------------------------------
 
 # Applications
@@ -275,12 +273,12 @@ list - that way we can be much faster at assigning resources
 
 ## What I'm happy with
 
-- The infer the "duh" principle - as a user of the api we want the
+- The "infer the obvious" principle - as a user of the api we want the
   renderer/engine to do the bookkeeping for us. 
 
 - Automatic mipmaps are auto-generated on image upload, if an image is
   declared with miplevels. If it is not declared with mip levels, no
-  mipmap is generated.
+  mipmap chain is generated.
 
 - shader error reporting is pretty robust
 
@@ -298,6 +296,4 @@ list - that way we can be much faster at assigning resources
 - the way a lower sytem calls into a higher level system when executing
   renderpass callbacks is too complicated - it also appears to be a case
   of the tail wagging the dog.
-
-
 
