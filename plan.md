@@ -4,9 +4,6 @@
 
 # TODO
 
-- encoder should receive current swapchain dimensions if not explicitly
-  set renderpass dimensions exist, otherwise renderpass dimensions
-- encoder should have getter for its own dimensions
 - ecoder should automatically set default viewport and scissors to its own
   dimensions.
 - examples should use swapchain dimensions to calculate camera, not window
@@ -15,7 +12,6 @@
 ## (A)
 
 - Compute Passes
-- Image Swapchain
 - Resolve Attachments
 
 ## (B)
@@ -50,19 +46,11 @@
   are not used. this is nice, because it doesn't crash, but i can imagine
   that we might want to have a better way for dealing with this.
 
-- provide current pass extents in encoders
-
 - add default scissors, viewports to encoder matching current renderpass
   extents
 
-- clean up swapchain extents gathering (we currently record before we have
-  an image acquied, right?)
 
 ## (C)
-
-- add an mpeg encoder swapchain so that we can render direcly to a video
-  file. See this
-  [link](http://blog.mmacklin.com/2013/06/11/real-time-video-capture-with-ffmpeg/).  
 
 - use opaque handle to reference pso instead of bare `uint64_t`
 
@@ -264,7 +252,6 @@ list - that way we can be much faster at assigning resources
 - implement a post processing effects pipeline
 - implement pbrt materials based on gltf reference implementation
 - investigate intel performance primitives for multithreading
-- image writer swapchain (for post processing)
 - implement compute pipeline - and compute passes
 - implement pipeline generation as a channeled op - per encoder first,
   then consolidate those elements generated within a frame
@@ -272,8 +259,6 @@ list - that way we can be much faster at assigning resources
 # Long-Term aspirations
 - reduce compile times with glm: template specialisations
 - improve ergonomics, reduce lines to type (less "noisy" code)
-- project generator for simple apps
-- project generator for apps
 
 # Todo
 
