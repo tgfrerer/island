@@ -52,8 +52,8 @@ if ( true ) // fancy effects on / off
 
 		// rainbow lens flare
 
-		float intensity = 1.0 - vertex.distanceToBorder;
-		 // intensity = 1.0;
+		float intensity = max(0,1-vertex.distanceToBorder);
+		 
 		if (intensity < EPSILON ) discard;
 
 		float gradient = 1.0;
@@ -67,26 +67,31 @@ if ( true ) // fancy effects on / off
 		//if (cosPhi < EPSILON) discard;
 
 		vec3 chroma = vec3( 
-			pow(sin(map(texDistance+0.0, 0.0, 1.0, 0, PI)), 3.0)*0.2 ,
-			pow(sin(map(texDistance+0.3, 0.25, 1.0, 0, PI)), 3.0)*0.26 ,
-			pow(sin(map(texDistance+0.5, 0.4, 1.0, 0, PI)), 2.3) *0.4
+			pow(sin(map(texDistance+0.0, 0.0, 1.4, 0, PI)), 3.0)*0.2 ,
+			pow(sin(map(texDistance+0.3, 0.25, 1.4, 0, PI)), 3.0)*0.26 ,
+			pow(sin(map(texDistance+0.5, 0.4, 1.4, 0, PI)), 2.3) *0.4
 			);
 
-		gradient = map(acos(cosPhi - EPSILON), 0, PI, 0.75, -0.2);
+		gradient = map(acos(cosPhi - EPSILON), 0, PI, 0.75, 0.5);
 		gradient *= cosPhi;
 
 		//gradient = 1;
 		// outer ring feather
-		intensity *= (1.0 - smoothstep(0.8, 0.98, texDistance)); //< narrowness of border blur
+		const float blurwidth = 0.3;
+		float ringIntensity = 0;
+		ringIntensity = (1-smoothstep(0.9-blurwidth*0.5, 0.9+blurwidth*0.5, texDistance)); //< narrowness of border blur
 		// inner ring feather
-		intensity *=  smoothstep(0.1-gradient*0.5, 0.65, texDistance);
+		// ringIntensity -= (1-smoothstep(0.7-blurwidth*0.5, 0.7+blurwidth*0.5, texDistance)); //< narrowness of border blur
+		intensity = ringIntensity * intensity;
 
-		intensity *= 0.9;
+
+		// intensity *= 0.9;
 
 		//intensity = 1;
 
 		if (intensity < EPSILON ) discard;
 		
+		// fragColor = vec4(vec3(1) * intensity, 1);
 		fragColor = vec4(chroma * gradient * intensity * vertex.intensity, 1);
 
 	} else if (vertex.flare_type == 2){
@@ -95,7 +100,7 @@ if ( true ) // fancy effects on / off
 
 		// discard;
 		float intensity = vertex.distanceToBorder;
-		intensity =  1.0 - abs(0.5 - smoothstep(0.1, 0.8, intensity))  * 2 ;
+		intensity =  max(1, 1.0 - abs(0.5 - smoothstep(0.1, 0.8, intensity))  * 2 );
 
 		float gradient = 1.0;
 
@@ -121,26 +126,50 @@ if ( true ) // fancy effects on / off
 	} else if (vertex.flare_type == 3){
 
 		// discard;
-		// white hot sun point flare
+		// sun glare
 		
-		// if (uHowClose > 100) discard; ///< do not render if sun is behind earth. 
-									///< if the sun is unobstructed, uHowClose will be < 0
+		 if (uHowClose < 100) discard; ///< do not render if sun is behind earth. 
 
-		float intensity = 1.0 ; //abs( 0.5 - fract( length(vertex.texcoord.xy * 2.0 - vec2(1)) / 0.2));
-		float attenuation = 1.0 - length(vertex.texcoord.xy * 2.0 - vec2(1));
-		//attenuation *= attenuation;
+		vec2 p = (mod(vertex.texcoord.xy*4,vec2(2,2)) - vec2(1)) * -sign(vertex.texcoord.xy-vec2(0.5)); // range -1,1 
+
+		float pL = length(p);
+		
+		float r = pL;
+
+		
+		float intensity =  min(10,max(0, pow(max(p.x*1,0.0),23) + pow(max(p.y,0),44) ));
+		intensity *= (p.x+0.75);
+		intensity *= (p.y+0.75);
+
+		vec2 cVec = vertex.texcoord.xy * 2.0 - vec2(1);
+		float attenuation = pow(smoothstep(0,1, max(0,1-8*length(cVec*vec2(0.125,0.25)) )),15);
+		intensity += attenuation;
+
+		intensity *= 0.7 *vertex.intensity;
+
+		if (intensity < EPSILON) discard;
+
+		vec3 chroma = vec3(95,200,255) * TO_RGB;
+		
+		fragColor = vec4(vertex.distanceToBorder * min(chroma * intensity, vec3(1,1,1)) , 1);
+
+	} else if (vertex.flare_type == 4){
+
+		// Sun highlight
+		float intensity = 1.0 ; 
+		float attenuation = smoothstep(0,0.8,max(0,1.0 - length(vertex.texcoord.xy * 2.0 - vec2(1))));
+
 		// do not render if not really contributing to image.
 		if (attenuation < EPSILON ) discard;
-		attenuation *= attenuation + 0.4 * smoothstep(0.5, 0.8, attenuation);
 
-		vec3 gradient = (intensity * attenuation).xxx;
-		vec3 color = gradient * vec3(1.0);
+		vec3 color = vec3(0.9,0.9,0.7) * pow(attenuation,7);
 
-		fragColor = vec4(color * 1.0 * vertex.intensity, 1);
-
+		fragColor = vec4(min(vec3(1), color * 2.0 * pow(vertex.intensity,4)), 1);
+	
 	} else {
 
 		// discard;
+		// Glow dot
 		float intensity = 1.0 ; //abs( 0.5 - fract( length(vertex.texcoord.xy * 2.0 - vec2(1)) / 0.2));
 		float attenuation = pow(1.0 - length(vertex.texcoord.xy * 2.0 - vec2(1)),3);
 
@@ -153,8 +182,6 @@ if ( true ) // fancy effects on / off
 		fragColor = vec4(color * 1.0 * vertex.intensity, 1);
 	}
 } else {
-
-	discard;
 	fragColor = vec4(vertex.texcoord.xy,0,1);
 	//fragColor = vec4(1);
 }

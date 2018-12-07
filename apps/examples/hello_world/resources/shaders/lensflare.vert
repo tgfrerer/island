@@ -67,10 +67,10 @@ void main()
 	// it on our virtual image plane. 
 
 	vec3 sourceInClipSpace = vec3(uLensflareSource.xy, 1) * 
-	vec3(uCanvas.x * 0.5,  uCanvas.y * 0.5, uCanvas.z *0.5); // calculate position in window space.
+	vec3(uCanvas.x * 0.5,  uCanvas.y * 0.5, uCanvas.z *-0.5); // calculate position in window space.
 
 	// we then calculate the position of the virtual screen centre in NDC space
-	vec3 screenCentre = vec3( 0, 0, -uCanvas.z*0.5 );
+	vec3 screenCentre = vec3( 0, 0, -uCanvas.z *0.5 );
 	// and the direction of an axis going from the flare through the NDC centre
 	vec3 flareAxisDirection = (sourceInClipSpace - screenCentre);
 
@@ -80,10 +80,15 @@ void main()
 	
 	float distanceToBorder = min(
 		abs(uCanvas.x * 0.25) - abs(triggerPoint.x),
-		abs(uCanvas.y * 0.25) - abs(triggerPoint.y)) / (uCanvas.x * 0.25); //< divide by largest possible distance. you need to change this to .y if canvas height < canvas width
+		abs(uCanvas.y * 0.25) - abs(triggerPoint.y)) / (max(uCanvas.x, uCanvas.y) * 0.25); //< divide by largest possible distance. you need to change this to .y if canvas height < canvas width
 
-	vertex.rotation = atan(triggerPoint.y,triggerPoint.x); // gets rotation in range -pi,pi
+	if (vertex.flare_type != 3){
+		vertex.rotation = atan(triggerPoint.y,triggerPoint.x); // gets rotation in range -pi,pi
+	} else {
+		vertex.rotation = 0;
+	}
+
 	vertex.radius = fLensflareRadius * min(uCanvas.x,uCanvas.y)*0.5;
 	vertex.distanceToBorder = distanceToBorder;
-	vertex.intensity = (smoothstep(0,8000,uHowClose)) * (1.0-smoothstep(1000,30000,uHowClose));
+	vertex.intensity = (smoothstep( 6360*0.60*0.5, 6360*0.70*0.5, uHowClose)) ;//* (1.0-smoothstep(8000,10000,uHowClose));
 }

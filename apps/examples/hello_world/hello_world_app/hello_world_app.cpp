@@ -82,21 +82,22 @@ static const glm::vec4 sunInWorldSpace = glm::vec4{-200000, 0, 0, 1.f};
 
 // type, triggerpointOnAxis, positionOnAxis, radius
 static glm::vec4 lensflareData[] = {
-    //    {3, 0.0, 0.0, 0.100}, //< flare point
-    //    {0, 0.1, 0.1, 0.200},
-    {0, 0.9, 0.9, 0.120},
-    {0, 1.0, 1.0, 0.300},
-    {0, 1.2, 1.2, 0.120},
-    {0, 1.5, 1.5, 0.300},
-    {1, 0.3, 0.3, 0.650},
-    {1, 0.5, 0.5, 0.300}, ///< screen centre
-    {1, 1.1, 1.1, 1.300},
-    {1, 2.5, 2.5, 2.300},
-    {2, 1.0, 1.0, 0.500},
-    {2, 1.0, 1.1, 0.400},
-    {2, 1.0, 1.2, 0.400},
-    {2, 1.0, 1.5, 0.500},
-    {2, 1.0, 2.5, 0.400},
+    {4, 0.0, 0, 0.125 * 0.76}, //< flare point
+    {3, 0.0, 0, 0.5},          //< flare point
+    {0, 0.1, 0.1, 0.200 * 0.5},
+    {0, 0.9, 0.9, 0.1120 * 0.5},
+    {0, 1.0, 0.78 + 0.0 * 0.25, 0.1300 * 0.5},
+    {0, 1.2, 0.78 + 0.2 * 0.25, 0.1120 * 0.5},
+    {0, 1.5, 0.78 + 0.5 * 0.25, 0.1300 * 0.5},
+    {1, 0.25, -0.2, 0.250},
+    {1, 0.1, 0.1, 0.170},  ///< screen centre
+    {1, 0.5, 0.55, 0.200}, ///< screen centre
+    {1, 1.1, 1.1, 0.700},
+    {1, 1.5, 2.5, 0.300},
+    {2, 1.9, 0.78, 0.12500 * 0.75},
+    {2, 1.0, 0.78 + 0.1 * 0.25, 0.12400 * 0.75},
+    {2, 1.2, 0.78 + 0.2 * 0.25, 0.1400 * 0.75},
+    {2, 1.9, 0.78 + 0.5 * 0.25, 0.12500 * 0.75},
 };
 
 // ----------------------------------------------------------------------
@@ -112,8 +113,8 @@ static hello_world_app_o *hello_world_app_create() {
 
 	pal::Window::Settings settings;
 	settings
-	    .setWidth( 1920 )
-	    .setHeight( 1080 )
+	    .setWidth( 1920 / 2 )
+	    .setHeight( 1080 / 2 )
 	    .setTitle( "Hello world" );
 
 	// create a new window
@@ -139,7 +140,7 @@ static hello_world_app_o *hello_world_app_create() {
 
 	{
 		// Generate geometry for earth sphere
-		app->sphereGenerator.generateSphere( 6371, 120, 120 ); // earth radius given in km.
+		app->sphereGenerator.generateSphere( 6360, 120, 120 ); // earth radius given in km.
 
 		size_t vertexCount;
 		size_t indexCount;
@@ -200,9 +201,9 @@ static void reset_camera( hello_world_app_o *self ) {
 	self->camera.setClipDistances( 100.f, 150000.f );
 	self->camera.setFovRadians( glm::radians( 25.f ) ); // glm::radians converts degrees to radians
 
-	glm::mat4 camMatrix = glm::lookAt( glm::vec3{30000, -10000, 20000}, glm::vec3{0}, glm::vec3{0, 1, 0} );
-	//glm::mat4 camMatrix = glm::mat4{{0.585995, 0.191119, 0.787454, -0.000000}, {-0.049265, 0.978394, -0.200800, 0.000000}, {-0.808816, 0.078874, 0.582749, -0.000000}, {3039.844482, 3673.605225, -15533.671875, 1.000000}};
-	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
+	//glm::mat4 camMatrix = glm::lookAt( glm::vec3{30000, -10000, 20000}, glm::vec3{0}, glm::vec3{0, 1, 0} );
+	glm::mat4 camMatrix = glm::mat4{{0.585995, 0.191119, 0.787454, -0.000000}, {-0.049265, 0.978394, -0.200800, 0.000000}, {-0.808816, 0.078874, 0.582749, -0.000000}, {3039.844482, 3673.605225, -15533.671875, 1.000000}};
+	self->camera.setViewMatrixGlm( camMatrix );
 }
 
 // ----------------------------------------------------------------------
@@ -220,7 +221,7 @@ static bool hello_world_app_ray_cam_to_sun_hits_earth( hello_world_app_o *self, 
 	const float visibleSunRadius = 200; // when to start showing the sun
 	const float cEARTH_RADIUS    = 6360.f - visibleSunRadius;
 
-	glm::mat4 viewMatrix             = *reinterpret_cast<glm::mat4 const *>( self->camera.getViewMatrix() );
+	glm::mat4 viewMatrix             = self->camera.getViewMatrixGlm();
 	glm::vec4 camera_pos_world_space = glm::inverse( viewMatrix ) * glm::vec4( 0, 0, 0, 1 );
 	glm::vec3 camToEarthCentre       = glm::vec3( 0, 0, 0 ) - glm::vec3( camera_pos_world_space );
 
@@ -464,8 +465,8 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		earthParams.model       = glm::mat4( 1.f );                                                                                  // identity matrix
 		earthParams.model       = glm::rotate( earthParams.model, glm::radians( -23.4f ), glm::vec3{0, 0, 1} );                      // apply ecliptic
 		earthParams.model       = glm::rotate( earthParams.model, glm::radians( float( app->earthRotation ) ), glm::vec3{0, 1, 0} ); // apply day/night rotation
-		cameraParams.view       = reinterpret_cast<glm::mat4 const &>( *app->camera.getViewMatrix() );
-		cameraParams.projection = reinterpret_cast<glm::mat4 const &>( *app->camera.getProjectionMatrix() );
+		cameraParams.view       = app->camera.getViewMatrixGlm();
+		cameraParams.projection = app->camera.getProjectionMatrixGlm();
 
 		glm::vec4 sourceInCameraSpace     = cameraParams.view * sunInWorldSpace;
 		glm::vec4 worldCentreInWorldSpace = glm::vec4{0, 0, 0, 1};
@@ -744,17 +745,20 @@ static void hello_world_app_process_ui_events( hello_world_app_o *self ) {
 				wantsToggle ^= true;
 			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eZ ) {
 				reset_camera( self );
-				float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, glm::inverse( *reinterpret_cast<glm::mat4 const *>( self->camera.getViewMatrix() ) ) * glm::vec4( 0, 0, 0, 1 ) );
+				float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
 				self->cameraController.setPivotDistance( distance_to_origin );
 			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eX ) {
 				self->cameraController.setPivotDistance( 0 );
 			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eC ) {
-				float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, glm::inverse( *reinterpret_cast<glm::mat4 const *>( self->camera.getViewMatrix() ) ) * glm::vec4( 0, 0, 0, 1 ) );
+				float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
 				self->cameraController.setPivotDistance( distance_to_origin );
 			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eA ) {
 				self->animate ^= true;
 			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eP ) {
-				std::cout << glm::to_string( *( glm::mat4 * )( self->camera.getViewMatrix() ) ) << std::endl
+				// print out current camera view matrix
+				std::cout << "View matrix:" << glm::to_string( self->camera.getViewMatrixGlm() ) << std::endl
+				          << std::flush;
+				std::cout << "camera node matrix:" << glm::to_string( glm::inverse( self->camera.getViewMatrixGlm() ) ) << std::endl
 				          << std::flush;
 			}
 

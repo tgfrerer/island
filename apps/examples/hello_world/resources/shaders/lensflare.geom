@@ -48,7 +48,8 @@ void main()
 	// orient towards camera: get ray from vertex to camera.
 
 	vec3 vertexToCamera = (-vertex[0].position);
-	vec3 up = vec3(0,1,0);
+	
+	vec3 up = vec3(0,vertex[0].flare_type != 3 ? 1 : 0.25,0);
 
 #ifdef CO_PLANAR
 	vec3 right = vec3(1,0,0); ///< will make the billboards be co-planar with the camera projection plane
