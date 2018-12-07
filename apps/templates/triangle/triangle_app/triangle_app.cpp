@@ -80,10 +80,12 @@ static triangle_app_o *triangle_app_create() {
 // ----------------------------------------------------------------------
 
 static void reset_camera( triangle_app_o *self ) {
-	self->camera.setViewport( {0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ), 0.f, 1.f} );
+	le::Extent2D extents{};
+	self->renderer.getSwapchainExtent( &extents.width, &extents.height );
+	self->camera.setViewport( {0, 0, float( extents.width ), float( extents.height ), 0.f, 1.f} );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
-	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
+	self->camera.setViewMatrixGlm( camMatrix );
 }
 
 // ----------------------------------------------------------------------
@@ -107,17 +109,17 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	auto        app = static_cast<triangle_app_o *>( user_data );
 	le::Encoder encoder{encoder_};
 
-	auto screenWidth  = app->window.getSurfaceWidth();
-	auto screenHeight = app->window.getSurfaceHeight();
+	// Fetch current extents
+	auto extents = encoder.getRenderpassExtent();
 
 	le::Viewport viewports[ 1 ] = {
-	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
+	    {0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f},
 	};
 
 	app->camera.setViewport( viewports[ 0 ] );
 
 	le::Rect2D scissors[ 1 ] = {
-	    {0, 0, screenWidth, screenHeight},
+	    {0, 0, extents.width, extents.height},
 	};
 
 	// data as it is laid out in the ubo for the shader
@@ -142,8 +144,8 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		MatrixStackUbo_t mvp;
 		mvp.model      = glm::mat4( 1.f ); // identity matrix
 		mvp.model      = glm::scale( mvp.model, glm::vec3( 4.5 ) );
-		mvp.view       = reinterpret_cast<glm::mat4 const &>( *app->camera.getViewMatrix() );
-		mvp.projection = reinterpret_cast<glm::mat4 const &>( *app->camera.getProjectionMatrix() );
+		mvp.view       = app->camera.getViewMatrixGlm();
+		mvp.projection = app->camera.getProjectionMatrixGlm();
 
 		glm::vec3 trianglePositions[] = {
 		    {-50, -50, 0},
@@ -179,8 +181,6 @@ static bool triangle_app_update( triangle_app_o *self ) {
 	if ( self->window.shouldClose() ) {
 		return false;
 	}
-
-	using namespace le_renderer;
 
 	le::RenderModule mainModule{};
 	{
