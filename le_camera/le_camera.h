@@ -4,6 +4,11 @@
 #include <stdint.h>
 #include "pal_api_loader/ApiRegistry.hpp"
 
+#define ISL_ALLOW_GLM_TYPES
+#ifdef ISL_ALLOW_GLM_TYPES
+#	include <glm/fwd.hpp>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -36,6 +41,13 @@ struct le_camera_api {
 		void             ( * set_fov_radians          ) ( le_camera_o* self, float fov_radians);
 		float            ( * get_fov_radians          ) ( le_camera_o* self );
 		float const *    ( * get_view_matrix          ) ( le_camera_o* self);
+
+#ifdef ISL_ALLOW_GLM_TYPES
+		void              (* set_view_matrix_glm       )( le_camera_o* self, glm::mat4 const & view_matrix);
+		glm::mat4 const & (* get_view_matrix_glm       )( le_camera_o* self);
+		glm::mat4 const & (* get_projection_matrix_glm )( le_camera_o* self);
+#endif
+
 		float const *    ( * get_projection_matrix    ) ( le_camera_o* self );
 		float            ( * get_unit_distance        ) ( le_camera_o* self );
 		void             ( * set_clip_distances       ) ( le_camera_o* self, float nearClip, float farClip);
@@ -84,6 +96,22 @@ class LeCamera : NoCopy, NoMove {
 	~LeCamera() {
 		le_camera::le_camera_i.destroy( self );
 	}
+
+#	ifdef ISL_ALLOW_GLM_TYPES
+
+	glm::mat4 const &getViewMatrixGlm() {
+		return le_camera::le_camera_i.get_view_matrix_glm( self );
+	}
+
+	glm::mat4 const &getProjectionMatrixGlm() {
+		return le_camera::le_camera_i.get_projection_matrix_glm( self );
+	}
+
+	void setViewMatrixGlm( glm::mat4 const &viewMatrix ) {
+		le_camera::le_camera_i.set_view_matrix_glm( self, viewMatrix );
+	}
+
+#	endif
 
 	float const *getViewMatrix() {
 		return le_camera::le_camera_i.get_view_matrix( self );

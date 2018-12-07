@@ -140,8 +140,20 @@ static float const *camera_get_view_matrix( le_camera_o *self ) {
 
 // ----------------------------------------------------------------------
 
+static glm::mat4 const &camera_get_view_matrix_glm( le_camera_o *self ) {
+	return self->view_matrix;
+}
+
+// ----------------------------------------------------------------------
+
 static void camera_set_view_matrix( le_camera_o *self, float const *viewMatrix ) {
 	self->view_matrix = *reinterpret_cast<glm::mat4 const *>( viewMatrix );
+}
+
+// ----------------------------------------------------------------------
+
+static void camera_set_view_matrix_glm( le_camera_o *self, glm::mat4 const &viewMatrix ) {
+	self->view_matrix = viewMatrix;
 }
 
 // ----------------------------------------------------------------------
@@ -162,13 +174,19 @@ static void camera_set_clip_distances( le_camera_o *self, float nearClip, float 
 
 // ----------------------------------------------------------------------
 
-static float const *camera_get_projection_matrix( le_camera_o *self ) {
+static glm::mat4 const &camera_get_projection_matrix_glm( le_camera_o *self ) {
 	if ( self->projectionMatrixDirty ) {
 		// cache projection matrix calculation
 		self->projection_matrix     = glm::perspective( self->fovRadians, float( self->viewport.width ) / float( self->viewport.height ), self->nearClip, self->farClip );
 		self->projectionMatrixDirty = false;
 	}
-	return reinterpret_cast<float const *>( &self->projection_matrix );
+	return self->projection_matrix;
+}
+
+// ----------------------------------------------------------------------
+
+static float const *camera_get_projection_matrix( le_camera_o *self ) {
+	return reinterpret_cast<float const *>( &camera_get_projection_matrix_glm( self ) );
 }
 
 // ----------------------------------------------------------------------
@@ -485,6 +503,12 @@ ISL_API_ATTR void register_le_camera_api( void *api ) {
 	le_camera_i.get_clip_distances    = camera_get_clip_distances;
 	le_camera_i.set_clip_distances    = camera_set_clip_distances;
 	le_camera_i.get_sphere_in_frustum = camera_get_sphere_in_frustum;
+
+#ifdef ISL_ALLOW_GLM_TYPES
+	le_camera_i.set_view_matrix_glm       = camera_set_view_matrix_glm;
+	le_camera_i.get_view_matrix_glm       = camera_get_view_matrix_glm;
+	le_camera_i.get_projection_matrix_glm = camera_get_projection_matrix_glm;
+#endif
 
 	auto &le_camera_controller_i = static_cast<le_camera_api *>( api )->le_camera_controller_i;
 
