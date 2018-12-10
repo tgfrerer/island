@@ -2,6 +2,8 @@
 #include "pal_api_loader/ApiRegistry.hpp"
 #include "3rdparty/stb_image.h"
 #include "assert.h"
+#include <iostream>
+#include <iomanip>
 
 struct le_pixels_o {
 	// members
@@ -40,13 +42,13 @@ static le_pixels_o *le_pixels_create( char const *file_path, int num_channels_re
 	switch ( type ) {
 	case le_pixels_info::TYPE::eUInt8:
 		self->image_data = stbi_load( file_path, &width, &height, &num_channels_in_file, num_channels_requested );
-	    break;
+		break;
 	case le_pixels_info::TYPE::eUInt16:
 		self->image_data = stbi_load_16( file_path, &width, &height, &num_channels_in_file, num_channels_requested );
-	    break;
+		break;
 	case le_pixels_info::TYPE::eFloat32:
 		self->image_data = stbi_loadf( file_path, &width, &height, &num_channels_in_file, num_channels_requested );
-	    break;
+		break;
 	}
 
 	if ( num_channels_requested == 0 ) {
@@ -55,17 +57,18 @@ static le_pixels_o *le_pixels_create( char const *file_path, int num_channels_re
 		num_channels = num_channels_requested;
 	}
 
-	assert( self->image_data );
-
 	if ( !self->image_data ) {
 
 		// If we didn't manage to load an image, this object is invalid,
 		// we must therefore free all memory which we had set aside for it
 		// and return a null pointer.
-
+		std::cerr << "ERROR: Could not load image: " << file_path << std::endl
+				  << std::flush;
 		le_pixels_destroy( self );
 		return nullptr;
 	}
+
+	assert( self->image_data );
 
 	// ----------| invariant: load was successful
 
