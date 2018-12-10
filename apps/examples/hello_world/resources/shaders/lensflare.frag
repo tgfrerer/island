@@ -64,34 +64,27 @@ if ( true ) // fancy effects on / off
 
 		float cosPhi = dot(texPos, nVec) / texDistance ;
 		
-		//if (cosPhi < EPSILON) discard;
+		if (cosPhi < EPSILON) discard;
 
 		vec3 chroma = vec3( 
-			pow(sin(map(texDistance+0.0, 0.0, 1.4, 0, PI)), 3.0)*0.2 ,
-			pow(sin(map(texDistance+0.3, 0.25, 1.4, 0, PI)), 3.0)*0.26 ,
+			pow(sin(map(texDistance+0.0, 0.2, 1.4, 0, PI)), 2.0)*0.2 ,
+			pow(sin(map(texDistance+0.27, 0.25, 1.4, 0, PI)), 3.0)*0.26 ,
 			pow(sin(map(texDistance+0.5, 0.4, 1.4, 0, PI)), 2.3) *0.4
 			);
 
 		gradient = map(acos(cosPhi - EPSILON), 0, PI, 0.75, 0.5);
-		gradient *= cosPhi;
+		gradient *= map(cosPhi,0.65,1,0,1); // narrow arc 
 
-		//gradient = 1;
 		// outer ring feather
 		const float blurwidth = 0.3;
-		float ringIntensity = 0;
-		ringIntensity = (1-smoothstep(0.9-blurwidth*0.5, 0.9+blurwidth*0.5, texDistance)); //< narrowness of border blur
+		float ringIntensity = (1-smoothstep(0.9-blurwidth*0.25, 0.9+blurwidth*0.25, texDistance)); //< narrowness of border blur
 		// inner ring feather
-		// ringIntensity -= (1-smoothstep(0.7-blurwidth*0.5, 0.7+blurwidth*0.5, texDistance)); //< narrowness of border blur
+		ringIntensity *= (smoothstep(0.5-blurwidth*0.5, 0.5+blurwidth*0.5, texDistance)); //< narrowness of border blur
 		intensity = ringIntensity * intensity;
-
-
-		// intensity *= 0.9;
-
-		//intensity = 1;
 
 		if (intensity < EPSILON ) discard;
 		
-		// fragColor = vec4(vec3(1) * intensity, 1);
+		 // fragColor = vec4(vec3(1) * intensity, 1);
 		fragColor = vec4(chroma * gradient * intensity * vertex.intensity, 1);
 
 	} else if (vertex.flare_type == 2){
@@ -125,33 +118,35 @@ if ( true ) // fancy effects on / off
 
 	} else if (vertex.flare_type == 3){
 
-		// discard;
 		// sun glare
 		
-		 if (uHowClose < 100) discard; ///< do not render if sun is behind earth. 
+		if (uHowClose < 100) discard; ///< do not render if sun is behind earth. 
 
 		vec2 p = (mod(vertex.texcoord.xy*4,vec2(2,2)) - vec2(1)) * -sign(vertex.texcoord.xy-vec2(0.5)); // range -1,1 
 
 		float pL = length(p);
 		
 		float r = pL;
-
 		
 		float intensity =  min(10,max(0, pow(max(p.x*1,0.0),23) + pow(max(p.y,0),44) ));
 		intensity *= (p.x+0.75);
 		intensity *= (p.y+0.75);
 
 		vec2 cVec = vertex.texcoord.xy * 2.0 - vec2(1);
-		float attenuation = pow(smoothstep(0,1, max(0,1-8*length(cVec*vec2(0.125,0.25)) )),15);
-		intensity += attenuation;
+		
+		float gradient = vertex.intensity - 0.5 * length( cVec ); // intensity mask for glare, conrolled by vertex.intensity
+		gradient = smoothstep(0.6,0.7,gradient);
+		
+		intensity = (intensity * gradient );
 
-		intensity *= 0.7 *vertex.intensity;
+		intensity *= 0.25 * vertex.intensity;
 
 		if (intensity < EPSILON) discard;
 
-		vec3 chroma = vec3(95,200,255) * TO_RGB;
+		vec3 chroma = vec3(180,230,255) * TO_RGB;
 		
 		fragColor = vec4(vertex.distanceToBorder * min(chroma * intensity, vec3(1,1,1)) , 1);
+		// fragColor = vec4(attenuation*vec3(1),1);
 
 	} else if (vertex.flare_type == 4){
 
@@ -177,7 +172,7 @@ if ( true ) // fancy effects on / off
 		if (attenuation < EPSILON ) discard;
 
 		vec3 gradient = (intensity * attenuation).xxx;
-		vec3 color = gradient * vec3(0.9,0.9,0.7);
+		vec3 color = gradient * vec3(0.9,0.9,0.7)*0.5;
 
 		fragColor = vec4(color * 1.0 * vertex.intensity, 1);
 	}

@@ -65,23 +65,23 @@ void calculateLighting(inout Albedo b){
 	b.specularR = max( dot(b.R, b.V) , 0.f);
 }
 
-bool raySphereIntersect(in vec3 ray_, in vec3 rayOrigin_, in vec4 sphere_, inout float t1, inout float t2, inout float m2, inout float s){
+// bool raySphereIntersect(in vec3 ray_, in vec3 rayOrigin_, in vec4 sphere_, inout float t1, inout float t2, inout float m2, inout float s){
 
-	float r = sphere_.w;
-	vec3  l = sphere_.xyz - rayOrigin_ ;  
-	s = dot(l, ray_);
+// 	float r = sphere_.w;
+// 	vec3  l = sphere_.xyz - rayOrigin_ ;  
+// 	s = dot(l, ray_);
 	
-	m2 = dot(l, l) - s*s; ///< "m squared", this is the (midpoint distance to sphere centre) squared 
+// 	m2 = dot(l, l) - s*s; ///< "m squared", this is the (midpoint distance to sphere centre) squared 
 
-	if (m2 > r*r) return false;
+// 	if (m2 > r*r) return false;
 
-	float q = sqrt(r*r - m2);
+// 	float q = sqrt(r*r - m2);
 
-	t1 = (s - q); // close intersection
-	t2 = (s + q); // far   intersection
+// 	t1 = (s - q); // close intersection
+// 	t2 = (s + q); // far   intersection
 
-	return true;
-}
+// 	return true;
+// }
 
 // ----------------------------------------------------------------------
 
@@ -129,12 +129,13 @@ void main(){
 	calculateLighting(cloudAlbedo);
 
 	vec2 cloudCoords = inData.texCoord;
+	
+	vec3  uEyeRay = normalize( inData.position ).xyz;	// ray from camera to vertex, now unit length, and World Space
 	{
 
-		vec3  uEyeRay = normalize( inData.position ).xyz;	// ray from camera to vertex, now unit length, and World Space
 		
 		float t1, t2, t3, t4, cA, cB, s1, s2;
-		bool hitsAtmo  = raySphereIntersect( uEyeRay, vec3(0), vec4(worldCentreInEyeSpace.xyz, mix(fInnerRadius,fOuterRadius, 0.75) ) , t1, t2, cA, s1 );
+		bool hitsAtmo  = raySphereIntersect( uEyeRay, vec3(0), vec4(worldCentreInEyeSpace.xyz, mix(fInnerRadius,fOuterRadius, 0.65) ) , t1, t2, cA, s1 );
 
 		t1 = min(t1, t2);
 
@@ -154,6 +155,19 @@ void main(){
 
 	}
 
+	vec3 colourRayleigh = vec3(0);
+	vec3 colourMie = vec3(0);
+	float fThickness = 0.f;
+
+	getScattering(inData.position.xyz, colourRayleigh, colourMie,fThickness );
+
+	float cosPhi = dot(albedo.V, normalize(sunInEyeSpace.xyz- inData.position.xyz));
+	
+	const float mieConstGAtmo = -0.99;
+
+	vec3 mieScatter =  10.0 * colourMie * FMiePhase(cosPhi, mieConstGAtmo); // it's not the phase functions
+	vec3 rayleighScatter =  0.6 * colourRayleigh * FRaleighPhase(cosPhi);
+
 	// night on earth is when diffuse would turn negative
 	float nightOnEarth = max(0, -dot(albedo.L, albedo.N));
 
@@ -161,10 +175,16 @@ void main(){
 	float cloudBrightness = texture(tex_clouds, cloudCoords).r;
 	vec3 nightLights      = vec3(texture(tex_unit_2, inData.texCoord, -0.3 + cloudBrightness * 5.f).r);
 
+	float fillLight = smoothstep(0.02,0.3, abs(dot(cloudNormal,uEyeRay)));
+
+
 	// we're mixing the clouds on top of the ground texture. 
 	// we're using different light for ground and clouds. 
-	vec3 daySide   = mix( daySample * (albedo.diffuse + 0.2 * albedo.specularR), vec3(1) * (cloudAlbedo.diffuse + 0.2 * cloudAlbedo.specularR), cloudBrightness);
-	vec3 nightSide = vec3(1,0.5,0.2) * nightLights + cloudBrightness * vec3(0.15) * vec3(0.7,0.4,0.2);
+	vec3 daySide   = mix( daySample * (albedo.diffuse + 0.4 * albedo.specularR), 
+		fillLight * vec3(1) * ( cloudAlbedo.diffuse + 0.3 * cloudAlbedo.specularR + cloudBrightness *mieScatter ), 
+		cloudBrightness);
+
+	vec3 nightSide = ( vec3(1,0.5,0.2) * nightLights * 5 + cloudBrightness * 0.4 * vec3(0.6, 0.4, 0.2)) * fillLight;
 
 	vec3 outColor = vec3(1);
 	

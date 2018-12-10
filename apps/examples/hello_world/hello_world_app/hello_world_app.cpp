@@ -82,19 +82,19 @@ static const glm::vec4 sunInWorldSpace = glm::vec4{-200000, 0, 0, 1.f};
 
 // type, triggerpointOnAxis, positionOnAxis, radius
 static glm::vec4 lensflareData[] = {
-    {4, 0.0, 0, 0.125 * 0.76}, //< flare point
-    {3, 0.0, 0, 0.5},          //< flare point
-    {0, 0.1, 0.1, 0.200 * 0.5},
+    {4, 0.0, 0, 0.125 * 0.5}, //< flare point
+    {3, 0.0, 0, 0.25},        //< screen glare
+    {0, 0.0, 0.1, 0.800 * 0.75},
     {0, 0.9, 0.9, 0.1120 * 0.5},
     {0, 1.0, 0.78 + 0.0 * 0.25, 0.1300 * 0.5},
     {0, 1.2, 0.78 + 0.2 * 0.25, 0.1120 * 0.5},
     {0, 1.5, 0.78 + 0.5 * 0.25, 0.1300 * 0.5},
     {1, 0.25, -0.2, 0.250},
-    {1, 0.1, 0.1, 0.170},  ///< screen centre
-    {1, 0.5, 0.55, 0.200}, ///< screen centre
-    {1, 1.1, 1.1, 0.700},
+    {1, 0.1, 0.1, 0.170},
+    {1, 0.52, 0.55, 0.200}, ///< screen centre
+    {1, 1.1, 1.1, 0.250},
     {1, 1.5, 2.5, 0.300},
-    {2, 1.9, 0.78, 0.12500 * 0.75},
+    {2, 1.9, 0.78, 0.12500 * 0.75 * 0.5},
     {2, 1.0, 0.78 + 0.1 * 0.25, 0.12400 * 0.75},
     {2, 1.2, 0.78 + 0.2 * 0.25, 0.1400 * 0.75},
     {2, 1.9, 0.78 + 0.5 * 0.25, 0.12500 * 0.75},
@@ -115,7 +115,7 @@ static hello_world_app_o *hello_world_app_create() {
 	settings
 	    .setWidth( 1920 / 2 )
 	    .setHeight( 1080 / 2 )
-	    .setTitle( "Hello world" );
+	    .setTitle( "Island // Hello world" );
 
 	// create a new window
 	app->window.setup( settings );
@@ -123,12 +123,12 @@ static hello_world_app_o *hello_world_app_create() {
 	le_swapchain_vk_settings_t swapchainSettings;
 	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eFifo;
 	swapchainSettings.imagecount_hint  = 3;
-	swapchainSettings.width_hint       = 1920;
-	swapchainSettings.height_hint      = 1080;
+	swapchainSettings.width_hint       = 1920 * 2;
+	swapchainSettings.height_hint      = 1080 * 2;
 	le_backend_vk_settings_t backendCreateInfo{};
 
 	backendCreateInfo.swapchain_settings = &swapchainSettings;
-	backendCreateInfo.pWindow            = app->window; // set this to nullptr for no window
+	backendCreateInfo.pWindow            = nullptr; //app->window; // set this to nullptr for no window
 
 	app->backend.setup( &backendCreateInfo );
 	app->renderer.setup( app->backend );
@@ -203,14 +203,15 @@ static void reset_camera( hello_world_app_o *self ) {
 
 	//glm::mat4 camMatrix = glm::lookAt( glm::vec3{30000, -10000, 20000}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 	glm::mat4 camMatrix = glm::mat4{{0.585995, 0.191119, 0.787454, -0.000000}, {-0.049265, 0.978394, -0.200800, 0.000000}, {-0.808816, 0.078874, 0.582749, -0.000000}, {3039.844482, 3673.605225, -15533.671875, 1.000000}};
+	//glm::mat4 camMatrix = glm::mat4{{-0.254149, 0.880418, 0.400359, -0.000000}, {0.633864, 0.464280, -0.618607, 0.000000}, {-0.730506, 0.096555, -0.676056, 0.000000}, {-792.769653, 1875.776367, -15593.370117, 1.000000}};
 	self->camera.setViewMatrixGlm( camMatrix );
 }
 
 // ----------------------------------------------------------------------
 
+// Returns whether a ray from the sun is obscured by earth,
+// If false, tells us the closest distance ray / earth centre
 static bool hello_world_app_ray_cam_to_sun_hits_earth( hello_world_app_o *self, float &howClose ) {
-
-	// TODO: query whether the sun is within our current render frustum
 
 	// We're following the recipe from
 	// "Real-Time Rendering", by Akenine-Moeller et al., 3rd. ed. pp. 740
@@ -463,7 +464,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		app->earthRotation     = fmod( app->earthRotation + angularDistance, 360.0 );
 
 		earthParams.model       = glm::mat4( 1.f );                                                                                  // identity matrix
-		earthParams.model       = glm::rotate( earthParams.model, glm::radians( -23.4f ), glm::vec3{0, 0, 1} );                      // apply ecliptic
+		earthParams.model       = glm::rotate( earthParams.model, glm::radians( -13.4f ), glm::vec3{0, 0, 1} );                      // apply ecliptic
 		earthParams.model       = glm::rotate( earthParams.model, glm::radians( float( app->earthRotation ) ), glm::vec3{0, 1, 0} ); // apply day/night rotation
 		cameraParams.view       = app->camera.getViewMatrixGlm();
 		cameraParams.projection = app->camera.getProjectionMatrixGlm();
@@ -561,62 +562,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		//		std::cout << "Hit? " << ( hit ? "true  " : " false " ) << ", distance: " << howClose << std::endl
 		//		          << std::flush;
 
-		// draw sun
-		if ( true ) {
-			struct MVP_DefaultUbo_t {
-				glm::mat4 model;
-				glm::mat4 view;
-				glm::mat4 projection;
-			};
-			MVP_DefaultUbo_t mvp;
-
-			mvp.model      = glm::translate( glm::mat4( 1 ), glm::vec3( sunInWorldSpace ) );
-			mvp.view       = cameraParams.view;
-			mvp.projection = cameraParams.projection;
-
-			static auto pipelineDefault =
-			    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-			        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/sun.vert", le::ShaderStage::eVertex ) )
-			        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/sun.frag", le::ShaderStage::eFragment ) )
-			        .withRasterizationState()
-			        //			        .setPolygonMode( le::PolygonMode::eLine )
-			        .setPolygonMode( le::PolygonMode::eFill )
-			        .setCullMode( le::CullModeFlagBits::eBack )
-			        .setFrontFace( le::FrontFace::eCounterClockwise )
-			        .end()
-			        .withInputAssemblyState()
-			        .setToplogy( le::PrimitiveTopology::eTriangleList )
-			        .end()
-			        .withDepthStencilState()
-			        .setDepthTestEnable( true )
-			        .end()
-			        .build();
-
-			app->sphereGenerator.generateSphere( 10000, 6, 4 );
-			uint16_t *sphereIndices{};
-			float *   sphereVertices{};
-			float *   sphereNormals{};
-			float *   sphereUvs{};
-			size_t    numVertices{};
-			size_t    numIndices{};
-			app->sphereGenerator.getData( numVertices, numIndices, &sphereVertices, &sphereNormals, &sphereUvs, &sphereIndices );
-
-			encoder
-			    .setScissors( 0, 1, scissors )
-			    .setViewports( 0, 1, viewports )
-			    .bindGraphicsPipeline( pipelineDefault );
-
-			encoder
-			    .setVertexData( sphereVertices, numVertices * 3 * sizeof( float ), 0 )
-			    .setVertexData( sphereNormals, numVertices * 3 * sizeof( float ), 1 )
-			    .setVertexData( sphereUvs, numVertices * 2 * sizeof( float ), 2 )
-			    .setIndexData( sphereIndices, numIndices * sizeof( uint16_t ) );
-
-			encoder.setArgumentData( LE_ARGUMENT_NAME( "MVP_Default" ), &mvp, sizeof( MVP_DefaultUbo_t ) )
-			    .drawIndexed( uint32_t( numIndices ) ) //
-			    ;
-		}
-
 		if ( !hit && fabsf( howClose ) > 1000.f ) {
 
 			struct LensflareParams {
@@ -700,6 +645,7 @@ static bool hello_world_app_update( hello_world_app_o *self ) {
 	//	std::cout << std::dec << time_delta << "ms per frame. FPS: " << 1000. / time_delta << std::endl
 	//	          << std::flush;
 
+	// self->timeDelta = time_delta;
 	self->timeDelta = 1000. / 60.;
 	self->timeStamp = now;
 
