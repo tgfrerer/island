@@ -69,7 +69,7 @@ static void swapchain_query_surface_capabilities( le_swapchain_o *base ) {
 		// Select the first available color format if the preferredSurfaceFormat cannot be found.
 
 		for ( size_t i = 0; i != surfaceProperties.availableSurfaceFormats.size(); ++i ) {
-			if ( surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format == preferredSurfaceFormat ) {
+			if ( surfaceProperties.availableSurfaceFormats[ i ].format == preferredSurfaceFormat ) {
 				selectedSurfaceFormatIndex = i;
 				break;
 			}
@@ -77,7 +77,7 @@ static void swapchain_query_surface_capabilities( le_swapchain_o *base ) {
 		surfaceProperties.windowSurfaceFormat.format = surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format;
 	}
 
-	// always select the first available color space
+	// always select the corresponding color space
 	surfaceProperties.windowSurfaceFormat.colorSpace = surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].colorSpace;
 }
 
