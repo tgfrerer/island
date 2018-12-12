@@ -667,6 +667,23 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 
 			auto encoder = encoder_i.create( *allocIt, pipelineCache, stagingAllocator, encoder_extent ); // NOTE: we must manually track the lifetime of encoder!
 
+			if ( pass->type == LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW ) {
+
+				// Set default scissor and viewport to full extent.
+
+				le::Rect2D default_scissor[ 1 ] = {
+				    {0, 0, encoder_extent.width, encoder_extent.height},
+				};
+
+				le::Viewport default_viewport[ 1 ] = {
+				    {0.f, 0.f, float( encoder_extent.width ), float( encoder_extent.height ), 0.f, 1.f},
+				};
+
+				// setup encoder default viewport and scissor to extent
+				encoder_i.set_scissor( encoder, 0, 1, default_scissor );
+				encoder_i.set_viewport( encoder, 0, 1, default_viewport );
+			}
+
 			renderpass_run_execute_callback( pass, encoder ); // record draw commands into encoder
 
 			allocIt++; // Move to next unused allocator
