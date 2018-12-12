@@ -67,12 +67,8 @@ static triangle_app_o *triangle_app_create() {
 
 	app->renderer.setup( app->backend );
 
-	// -- Declare graphics pipeline state objects
-
-	{
-		// set up the camera
-		reset_camera( app );
-	}
+	// Set up the camera
+	reset_camera( app );
 
 	return app;
 }
@@ -96,6 +92,9 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto rp  = le::RenderPass{pRp};
 	auto app = static_cast<triangle_app_o *>( user_data );
 
+	// Attachment resource info may be further specialised using ImageInfoBuilder().
+	// Attachment clear color, load and store op may be set via LeImageAttachmentInfo.
+
 	rp
 	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
 	    .setIsRoot( true );
@@ -109,7 +108,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	auto        app = static_cast<triangle_app_o *>( user_data );
 	le::Encoder encoder{encoder_};
 
-	// Fetch current extents
 	auto extents = encoder.getRenderpassExtent();
 
 	le::Viewport viewports[ 1 ] = {
@@ -118,11 +116,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 	app->camera.setViewport( viewports[ 0 ] );
 
-	le::Rect2D scissors[ 1 ] = {
-	    {0, 0, extents.width, extents.height},
-	};
-
-	// data as it is laid out in the ubo for the shader
+	// Data as it is laid out in the shader ubo
 	struct MatrixStackUbo_t {
 		glm::mat4 model;
 		glm::mat4 view;
@@ -130,52 +124,48 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	};
 
 	// Draw main scene
-	if ( true ) {
 
-		static auto shaderVert = app->renderer.createShaderModule( "./resources/shaders/default.vert", le::ShaderStage::eVertex );
-		static auto shaderFrag = app->renderer.createShaderModule( "./resources/shaders/default.frag", le::ShaderStage::eFragment );
+	static auto shaderVert = app->renderer.createShaderModule( "./resources/shaders/default.vert", le::ShaderStage::eVertex );
+	static auto shaderFrag = app->renderer.createShaderModule( "./resources/shaders/default.frag", le::ShaderStage::eFragment );
 
-		static auto pipelineTriangle =
-		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-		        .addShaderStage( shaderVert )
-		        .addShaderStage( shaderFrag )
-		        .build();
+	static auto pipelineTriangle =
+	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+	        .addShaderStage( shaderVert )
+	        .addShaderStage( shaderFrag )
+	        .build();
 
-		MatrixStackUbo_t mvp;
-		mvp.model      = glm::mat4( 1.f ); // identity matrix
-		mvp.model      = glm::scale( mvp.model, glm::vec3( 4.5 ) );
-		mvp.view       = app->camera.getViewMatrixGlm();
-		mvp.projection = app->camera.getProjectionMatrixGlm();
+	MatrixStackUbo_t mvp;
+	mvp.model      = glm::mat4( 1.f ); // identity matrix
+	mvp.model      = glm::scale( mvp.model, glm::vec3( 4.5 ) );
+	mvp.view       = app->camera.getViewMatrixGlm();
+	mvp.projection = app->camera.getProjectionMatrixGlm();
 
-		glm::vec3 trianglePositions[] = {
-		    {-50, -50, 0},
-		    {50, -50, 0},
-		    {0, 50, 0},
-		};
+	glm::vec3 trianglePositions[] = {
+	    {-50, -50, 0},
+	    {50, -50, 0},
+	    {0, 50, 0},
+	};
 
-		glm::vec4 triangleColors[] = {
-		    {1, 0, 0, 1.f},
-		    {0, 1, 0, 1.f},
-		    {0, 0, 1, 1.f},
-		};
+	glm::vec4 triangleColors[] = {
+	    {1, 0, 0, 1.f},
+	    {0, 1, 0, 1.f},
+	    {0, 0, 1, 1.f},
+	};
 
-		encoder
-		    .bindGraphicsPipeline( pipelineTriangle )
-		    .setScissors( 0, 1, scissors )
-		    .setViewports( 0, 1, viewports )
-		    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
-		    .setVertexData( trianglePositions, sizeof( trianglePositions ), 0 )
-		    .setVertexData( triangleColors, sizeof( triangleColors ), 1 )
-		    .draw( 3 );
-	}
+	encoder
+	    .bindGraphicsPipeline( pipelineTriangle )
+	    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
+	    .setVertexData( trianglePositions, sizeof( trianglePositions ), 0 )
+	    .setVertexData( triangleColors, sizeof( triangleColors ), 1 )
+	    .draw( 3 );
 }
 
 // ----------------------------------------------------------------------
 
 static bool triangle_app_update( triangle_app_o *self ) {
 
-	// Polls events for all windows -
-	// This means any window may trigger callbacks for any events they have callbacks registered.
+	// Polls events for all windows
+	// Use `self->window.getUIEventQueue()` to fetch events.
 	pal::Window::pollEvents();
 
 	if ( self->window.shouldClose() ) {
@@ -186,14 +176,15 @@ static bool triangle_app_update( triangle_app_o *self ) {
 	{
 
 		le::RenderPass renderPassFinal( "root", LE_RENDER_PASS_TYPE_DRAW );
-		renderPassFinal.setSetupCallback( self, pass_main_setup );
-		renderPassFinal.setExecuteCallback( self, pass_main_exec );
+
+		renderPassFinal
+		    .setSetupCallback( self, pass_main_setup )
+		    .setExecuteCallback( self, pass_main_exec ) //
+		    ;
 
 		mainModule.addRenderPass( renderPassFinal );
 	}
 
-	// Update will call all rendercallbacks in this module.
-	// the RECORD phase is guaranteed to execute - all rendercallbacks will get called.
 	self->renderer.update( mainModule );
 
 	self->frame_counter++;
