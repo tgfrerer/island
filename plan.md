@@ -4,10 +4,6 @@
 
 # TODO
 
-- ecoder should automatically set default viewport and scissors to its own
-  dimensions.
-- examples should use swapchain dimensions to calculate camera, not window
-  dimensions.
 - we should not have to setup the backend in app - instead set up the
   backend through the renderer, app should not be able to pierce
   abstraction and call backend directly, but needs to go through renderer.
@@ -20,6 +16,18 @@
 
 ## (B)
 
+- LeImageAttachmentInfo is not very discoverable - we need to think about
+  a better way to set properties for attachments
+- the way we use LeImageAttachmentInfo is over-specified - it would be
+  great to find a more terse struct, which does not cross the abstraction
+  barrier. The intent of `ImageAttachmentInfo` is to provide just enough
+  information to specify an attachment on the public side which means:
+  - clearColor/clearDepthStencil
+  - loadOp
+  - storeOp
+  - is it depth or color attachment
+
+
 - Architect a usability layer on top of base framework, which makes common
   operations easy, and dry. Images are a good point to start.
 
@@ -31,28 +39,12 @@
 - Bug: when including a glsl include at run-time, it is not added to the
   list of watched files.
 
-- LeImageAttachmentInfo is not very discoverable - we need to think about
-  a better way to set properties for attachments
-
-- the way we use LeImageAttachmentInfo is over-specified - it would be
-  great to find a more terse struct, which does not cross the abstraction
-  barrier. The intent of `ImageAttachmentInfo` is to provide just enough
-  information to specify an attachment on the public side which means:
-  - clearColor/clearDepthStencil
-  - loadOp
-  - storeOp
-  - is it depth or color attachment
-
 - what should we do with "orphaned" resources? that's resources which were
   not provided by previous passes, but are used by following passes...
   currently, these get re-allocated to default values - which means that
   images eventually get the backbuffer extent in memory, even if they
   are not used. this is nice, because it doesn't crash, but i can imagine
   that we might want to have a better way for dealing with this.
-
-- add default scissors, viewports to encoder matching current renderpass
-  extents
-
 
 ## (C)
 
@@ -192,12 +184,11 @@ frame which is in-flight still uses it.
 
 # RESOURCE HANDLING
 
-* when we encode commands which mention resources, resources are
-  referenced by opaque ids retrieved via the engine. the engine then
-  patches the command stream and substitutes any engine-specific resource
-  ids by api-specific ids. this happens between command recording and
-  command processing, in a method called
-  `renderer_acquire_backend_resources`. 
+* when we encode commands which mention resources, resources are referenced by
+  opaque handles retrieved via the engine. the engine then patches the command
+  stream and substitutes any engine-specific resource ids by api-specific ids.
+  this happens between command recording and command processing, in a method
+  called `renderer_acquire_backend_resources`. 
 
 * we could abstract resources further, resources are stored internally in
   one large array, and resource handles effectively consist of a 32 bit
@@ -215,10 +206,6 @@ frame which is in-flight still uses it.
 * The BACKEND does everything which is API specific.
 
 ---------------------------------------------------------------------- 
-
-# Island-framework
-
-----------------------------------------------------------------------
 
 # Applications
 
