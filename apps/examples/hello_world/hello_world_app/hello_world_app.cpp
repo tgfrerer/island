@@ -123,12 +123,12 @@ static hello_world_app_o *hello_world_app_create() {
 	le_swapchain_vk_settings_t swapchainSettings;
 	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eFifo;
 	swapchainSettings.imagecount_hint  = 3;
-	swapchainSettings.width_hint       = 1920 * 2;
-	swapchainSettings.height_hint      = 1080 * 2;
+	swapchainSettings.width_hint       = 1920;
+	swapchainSettings.height_hint      = 1080;
 	le_backend_vk_settings_t backendCreateInfo{};
 
 	backendCreateInfo.swapchain_settings = &swapchainSettings;
-	backendCreateInfo.pWindow            = nullptr; //app->window; // set this to nullptr for no window
+	backendCreateInfo.pWindow            = app->window; // set this to nullptr for no window
 
 	app->backend.setup( &backendCreateInfo );
 	app->renderer.setup( app->backend );
