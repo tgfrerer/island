@@ -8,25 +8,12 @@
   backend through the renderer, app should not be able to pierce
   abstraction and call backend directly, but needs to go through renderer.
 
-
 ## (A)
 
 - Compute Passes
 - Resolve Attachments
 
 ## (B)
-
-- LeImageAttachmentInfo is not very discoverable - we need to think about
-  a better way to set properties for attachments
-- the way we use LeImageAttachmentInfo is over-specified - it would be
-  great to find a more terse struct, which does not cross the abstraction
-  barrier. The intent of `ImageAttachmentInfo` is to provide just enough
-  information to specify an attachment on the public side which means:
-  - clearColor/clearDepthStencil
-  - loadOp
-  - storeOp
-  - is it depth or color attachment
-
 
 - Architect a usability layer on top of base framework, which makes common
   operations easy, and dry. Images are a good point to start.
@@ -74,7 +61,6 @@
 - Rename internal structure to `Batch` instead of `Renderpass` in backend
   because batch may fit better for *resource transfer*, *compute*, or
   *draw*.
-
 
 ----------------------------------------------------------------------
 
