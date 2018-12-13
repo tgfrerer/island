@@ -89,31 +89,6 @@ static void reset_camera( test_dependency_o *self ) {
 
 // ----------------------------------------------------------------------
 
-//static bool pass_one_setup( le_renderpass_o *pRp, void *user_data ) {
-//	auto rp = le::RenderPass{pRp};
-
-//	LeTextureInfo texInfo{};
-//	texInfo.imageView.imageId = LE_IMG_RESOURCE( "dummy_image" );
-
-//	LeImageAttachmentInfo attachmentInfo{};
-//	attachmentInfo.clearValue.color = {{{1.f, 0.f, 0.f, 1.f}}};
-
-//	auto img_info = le::ImageInfoBuilder()
-//	                    .setFormat( le::Format::eR32G32B32A32Sfloat )
-//	                    .build();
-
-//	rp
-//	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "one_depth" ) )                     // color attachment 0
-//	    .addColorAttachment( LE_IMG_RESOURCE( "two_output" ), attachmentInfo, img_info ) // color attachment 1
-
-//	    .sampleTexture( LE_TEX_RESOURCE( "dummy_texture" ), texInfo )
-//	    .setIsRoot( true );
-
-//	return true;
-//}
-
-// ----------------------------------------------------------------------
-
 static bool pass_two_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto rp = le::RenderPass{pRp};
 

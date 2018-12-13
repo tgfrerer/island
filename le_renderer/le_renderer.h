@@ -304,68 +304,6 @@ class RenderPass {
 	}
 };
 
-//// ----------------------------------------------------------------------
-
-//class RenderPassRef {
-//	// non-owning version of RenderPass, but with more public methods
-
-//	le_renderpass_o *self = nullptr;
-
-//  public:
-//	RenderPassRef()  = delete;
-//	~RenderPassRef() = default;
-
-//	RenderPassRef( le_renderpass_o *self_ )
-//	    : self( self_ ) {
-//	}
-
-//	operator auto() {
-//		return self;
-//	}
-
-//	/// \brief Adds a resource as an image attachment to the renderpass.
-//	/// \details resource is used for ColorAttachment and Write access, unless otherwise specified.
-//	///          Use an LeImageAttachmentInfo struct to specialise parameters, such as LOAD_OP, CLEAR_OP, and Clear/Load Color.
-//	RenderPassRef &addColorAttachment( const le_resource_handle_t & resource_id,
-//	                                   const LeImageAttachmentInfo &attachmentInfo = LeImageAttachmentInfo(),
-//	                                   const le_resource_info_t &   resource_info  = le_renderer::helpers_i.get_default_resource_info_for_color_attachment() ) {
-//		le_renderer::renderpass_i.add_color_attachment( self, resource_id, resource_info, &attachmentInfo );
-//		return *this;
-//	}
-
-//	RenderPassRef &addDepthStencilAttachment( const le_resource_handle_t & resource_id,
-//	                                          const LeImageAttachmentInfo &attachmentInfo = LeDepthAttachmentInfo(),
-//	                                          const le_resource_info_t &   resource_info  = le_renderer::helpers_i.get_default_resource_info_for_depth_stencil_attachment() ) {
-//		le_renderer::renderpass_i.add_depth_stencil_attachment( self, resource_id, resource_info, &attachmentInfo );
-//		return *this;
-//	}
-
-//	RenderPassRef &useResource( le_resource_handle_t resource_id, const le_resource_info_t &info ) {
-//		le_renderer::renderpass_i.use_resource( self, resource_id, info );
-//		return *this;
-//	}
-
-//	RenderPassRef &setIsRoot( bool isRoot = true ) {
-//		le_renderer::renderpass_i.set_is_root( self, isRoot );
-//		return *this;
-//	}
-
-//	RenderPassRef &sampleTexture( le_resource_handle_t textureName, const LeTextureInfo &texInfo ) {
-//		le_renderer::renderpass_i.sample_texture( self, textureName, &texInfo );
-//		return *this;
-//	}
-
-//	RenderPassRef &setWidth( uint32_t width ) {
-//		le_renderer::renderpass_i.set_width( self, width );
-//		return *this;
-//	}
-
-//	RenderPassRef &setHeight( uint32_t height ) {
-//		le_renderer::renderpass_i.set_height( self, height );
-//		return *this;
-//	}
-//};
-
 // ----------------------------------------------------------------------
 
 class RenderModule {

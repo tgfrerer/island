@@ -891,8 +891,8 @@ class TextureInfoBuilder {
 	ImageViewInfoBuilder mImageViewInfoBuilder{*this};
 
   public:
-    TextureInfoBuilder()  = default;
-    ~TextureInfoBuilder() = default;
+	TextureInfoBuilder()  = default;
+	~TextureInfoBuilder() = default;
 
 	TextureInfoBuilder( LeTextureInfo const &info_ )
 	    : info( info_ ) {
