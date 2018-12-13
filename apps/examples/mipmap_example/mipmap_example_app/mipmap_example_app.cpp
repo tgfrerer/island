@@ -174,17 +174,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	auto        app = static_cast<mipmap_example_app_o *>( user_data );
 	le::Encoder encoder{encoder_};
 
-	auto screenWidth  = app->window.getSurfaceWidth();
-	auto screenHeight = app->window.getSurfaceHeight();
-
-	le::Viewport viewports[ 1 ] = {
-	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
-	};
-
-	le::Rect2D scissors[ 1 ] = {
-	    {0, 0, screenWidth, screenHeight},
-	};
-
 	// Draw main scene
 	if ( true ) {
 
@@ -199,8 +188,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 		encoder
 		    .bindGraphicsPipeline( pipelineTriangle )
-		    .setScissors( 0, 1, scissors )
-		    .setViewports( 0, 1, viewports )
 		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), app->testImage.textureHandle )
 		    .draw( 4 ) //
 		    ;
@@ -219,7 +206,7 @@ static void process_events( mipmap_example_app_o *self ) {
 		self->window.getUIEventQueue( &events, numEvents );
 		auto const events_end = events + numEvents;
 
-		float maxY = float( self->window.getSurfaceHeight() );
+		float maxY = float( self->renderer.getSwapchainExtent().height );
 
 		for ( auto e = events; e != events_end; e++ ) {
 
