@@ -8,6 +8,10 @@
   dimensions.
 - examples should use swapchain dimensions to calculate camera, not window
   dimensions.
+- we should not have to setup the backend in app - instead set up the
+  backend through the renderer, app should not be able to pierce
+  abstraction and call backend directly, but needs to go through renderer.
+
 
 ## (A)
 
