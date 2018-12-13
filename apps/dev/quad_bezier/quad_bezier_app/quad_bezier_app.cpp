@@ -121,10 +121,11 @@ static quad_bezier_app_o *quad_bezier_app_create() {
 // ----------------------------------------------------------------------
 
 static void reset_camera( quad_bezier_app_o *self ) {
-	self->camera.setViewport( {0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ), 0.f, 1.f} );
+	auto swapchainExtent = self->renderer.getSwapchainExtent();
+	self->camera.setViewport( {0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ), 0.f, 1.f} );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
-	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
+	self->camera.setViewMatrixGlm( camMatrix );
 }
 
 // ----------------------------------------------------------------------
@@ -167,7 +168,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 
 	rp
 	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
-	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "ImgDepth" ) )  // depth attachment
+	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "ImgDepth" ) ) // depth attachment
 	    .useResource( LE_BUF_RESOURCE( "QuadBezierBuffer" ),
 	                  le::BufferInfoBuilder()
 	                      .setSize( sizeof( glm::vec3 ) * 6 )
@@ -184,22 +185,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	auto        app = static_cast<quad_bezier_app_o *>( user_data );
 	le::Encoder encoder{encoder_};
 
-	auto screenWidth  = app->window.getSurfaceWidth();
-	auto screenHeight = app->window.getSurfaceHeight();
-
-	le::Viewport viewports[ 3 ] = {
-	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
-	    {10.f, 10.f, 160.f * 3.f + 10.f, 106.f * 3.f + 10.f, 0.f, 1.f},
-	    {10.f, 10.f, 640 / 5, 425 / 5, 0.f, 1.f},
-	};
-
-	app->camera.setViewport( viewports[ 0 ] );
-
-	le::Rect2D scissors[ 3 ] = {
-	    {0, 0, screenWidth, screenHeight},
-	    {10, 10, 160 * 3 + 10, 106 * 3 + 10},
-	    {10, 10, 640 / 5, 425 / 5},
-	};
+	//	app->camera.setViewport( {0, 0, float( encoder.getRenderpassExtent().width ), float( encoder.getRenderpassExtent().height ), 0, 1} );
 
 	// data as it is laid out in the ubo for the shader
 	struct ColorUbo_t {
@@ -313,8 +299,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		if ( true ) {
 			encoder
 			    .bindGraphicsPipeline( pipelineQuadBezier )
-			    .setScissors( 0, 1, scissors )
-			    .setViewports( 0, 1, viewports )
 			    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
 			    .setArgumentData( LE_ARGUMENT_NAME( "Color" ), &color, sizeof( ColorUbo_t ) )
 			    .bindVertexBuffers( 0, 1, buffers, offsets )
@@ -327,8 +311,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 			// note that this draws a full screen quad.
 			encoder
 			    .bindGraphicsPipeline( pipelinePathTracer )
-			    .setScissors( 0, 1, scissors )
-			    .setViewports( 0, 1, viewports )
 			    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
 			    .setArgumentData( LE_ARGUMENT_NAME( "RayInfo" ), &rayInfo, sizeof( RayInfo_t ) )
 			    .draw( 3 );
@@ -367,7 +349,9 @@ static bool quad_bezier_app_update( quad_bezier_app_o *self ) {
 		return false;
 	}
 
-	self->cameraController.setControlRect( 0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ) );
+	auto swapchainExtent = self->renderer.getSwapchainExtent();
+
+	self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
 	process_ui_events( self );
 
 	if ( resetCameraOnReload ) {
