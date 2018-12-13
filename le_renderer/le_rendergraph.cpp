@@ -31,9 +31,11 @@ struct le_renderpass_o {
 	std::vector<le_resource_handle_t> resources;     // all resources used in this pass
 	std::vector<le_resource_info_t>   resourceInfos; // `resources` holds ids at matching index
 
-	std::vector<le_resource_handle_t>  readResources;
-	std::vector<le_resource_handle_t>  writeResources;
-	std::vector<LeImageAttachmentInfo> imageAttachments;
+	std::vector<le_resource_handle_t> readResources;
+	std::vector<le_resource_handle_t> writeResources;
+
+	std::vector<LeImageAttachmentInfo> imageAttachments;    // settings for image attachments (may be color/or depth)
+	std::vector<le_resource_handle_t>  attachmentResources; // kept in sync with imageAttachments, one resource per attachment
 
 	uint32_t width  = 0; ///< width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
 	uint32_t height = 0; ///< height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
@@ -271,9 +273,7 @@ static void renderpass_sample_texture( le_renderpass_o *self, le_resource_handle
 static void renderpass_add_color_attachment( le_renderpass_o *self, le_resource_handle_t image_id, const le_resource_info_t &resource_info, LeImageAttachmentInfo const *attachmentInfo ) {
 
 	self->imageAttachments.push_back( *attachmentInfo );
-	auto &imageAttachmentInfo = self->imageAttachments.back();
-
-	imageAttachmentInfo.resource_id = image_id;
+	self->attachmentResources.push_back( image_id );
 
 	le_resource_info_t updated_resource_info = resource_info;
 
@@ -289,9 +289,7 @@ static void renderpass_add_color_attachment( le_renderpass_o *self, le_resource_
 static void renderpass_add_depth_stencil_attachment( le_renderpass_o *self, le_resource_handle_t image_id, const le_resource_info_t &resource_info, LeImageAttachmentInfo const *attachmentInfo ) {
 
 	self->imageAttachments.push_back( *attachmentInfo );
-	auto &imageAttachmentInfo = self->imageAttachments.back();
-
-	imageAttachmentInfo.resource_id = image_id;
+	self->attachmentResources.push_back( image_id );
 
 	le_resource_info_t updated_resource_info = resource_info;
 
@@ -358,8 +356,9 @@ static uint64_t renderpass_get_id( le_renderpass_o const *self ) {
 	return self->id;
 }
 
-static void renderpass_get_image_attachments( const le_renderpass_o *self, const LeImageAttachmentInfo **pAttachments, size_t *numAttachments ) {
+static void renderpass_get_image_attachments( const le_renderpass_o *self, LeImageAttachmentInfo const **pAttachments, le_resource_handle_t const **pResources, size_t *numAttachments ) {
 	*pAttachments   = self->imageAttachments.data();
+	*pResources     = self->attachmentResources.data();
 	*numAttachments = self->imageAttachments.size();
 }
 
@@ -622,13 +621,14 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 			msg << "renderpass: '" << pass->debugName << "' , sort_key: " << pass->sort_key << std::endl;
 
 			LeImageAttachmentInfo const *pImageAttachments   = nullptr;
+			le_resource_handle_t const * pResources          = nullptr;
 			size_t                       numImageAttachments = 0;
-			renderpass_get_image_attachments( pass, &pImageAttachments, &numImageAttachments );
+			renderpass_get_image_attachments( pass, &pImageAttachments, &pResources, &numImageAttachments );
 
-			for ( auto const *attachment = pImageAttachments; attachment != pImageAttachments + numImageAttachments; attachment++ ) {
-				msg << "\t Attachment: '" << attachment->resource_id.debug_name << std::endl; //"', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'" << std::endl;
-				msg << "\t load : " << std::setw( 10 ) << to_str( attachment->loadOp ) << std::endl;
-				msg << "\t store: " << std::setw( 10 ) << to_str( attachment->storeOp ) << std::endl
+			for ( size_t i = 0; i != numImageAttachments; ++i ) {
+				msg << "\t Attachment: '" << pResources[ i ].debug_name << std::endl; //"', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'" << std::endl;
+				msg << "\t load : " << std::setw( 10 ) << to_str( pImageAttachments[ i ].loadOp ) << std::endl;
+				msg << "\t store: " << std::setw( 10 ) << to_str( pImageAttachments[ i ].storeOp ) << std::endl
 				    << std::endl;
 			}
 		}

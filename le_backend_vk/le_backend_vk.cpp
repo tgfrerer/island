@@ -872,13 +872,17 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		// iterate over all image attachments
 
 		LeImageAttachmentInfo const *pImageAttachments   = nullptr;
+		le_resource_handle_t const * pResources          = nullptr;
 		size_t                       numImageAttachments = 0;
-		renderpass_i.get_image_attachments( *pass, &pImageAttachments, &numImageAttachments );
-		for ( auto const *imageAttachment = pImageAttachments; imageAttachment != pImageAttachments + numImageAttachments; imageAttachment++ ) {
+		renderpass_i.get_image_attachments( *pass, &pImageAttachments, &pResources, &numImageAttachments );
+		for ( size_t i = 0; i != numImageAttachments; ++i ) {
 
-			auto &syncChain = syncChainTable[ imageAttachment->resource_id ];
+			auto const &image_resource_id     = pResources[ i ];
+			auto const &image_attachment_info = pImageAttachments[ i ];
 
-			vk::Format attachmentFormat = vk::Format( frame.availableResources[ imageAttachment->resource_id ].info.imageInfo.format );
+			auto &syncChain = syncChainTable[ pResources[ i ] ];
+
+			vk::Format attachmentFormat = vk::Format( frame.availableResources[ image_resource_id ].info.imageInfo.format );
 
 			bool isDepthStencil = is_depth_stencil_format( attachmentFormat );
 
@@ -890,11 +894,11 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 				currentPass.numColorAttachments++;
 			}
 
-			currentAttachment->resource_id = imageAttachment->resource_id;
+			currentAttachment->resource_id = image_resource_id;
 			currentAttachment->format      = attachmentFormat;
-			currentAttachment->loadOp      = le_attachment_load_op_to_vk( imageAttachment->loadOp );
-			currentAttachment->storeOp     = le_attachment_store_op_to_vk( imageAttachment->storeOp );
-			currentAttachment->clearValue  = le_clear_value_to_vk( imageAttachment->clearValue );
+			currentAttachment->loadOp      = le_attachment_load_op_to_vk( image_attachment_info.loadOp );
+			currentAttachment->storeOp     = le_attachment_store_op_to_vk( image_attachment_info.storeOp );
+			currentAttachment->clearValue  = le_clear_value_to_vk( image_attachment_info.clearValue );
 
 			{
 				// track resource state before entering a subpass
@@ -931,7 +935,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 				auto &previousSyncState = syncChain.back();
 				auto  beforeSubpass{previousSyncState};
 
-				if ( imageAttachment->loadOp == le::AttachmentLoadOp::eLoad ) {
+				if ( image_attachment_info.loadOp == le::AttachmentLoadOp::eLoad ) {
 					// resource.loadOp most be LOAD
 
 					// we must now specify which stages need to be visible for which coming memory access

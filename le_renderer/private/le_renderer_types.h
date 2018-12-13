@@ -944,8 +944,6 @@ struct LeImageAttachmentInfo {
 	le::AttachmentLoadOp  loadOp     = le::AttachmentLoadOp::eClear;  //
 	le::AttachmentStoreOp storeOp    = le::AttachmentStoreOp::eStore; //
 	LeClearValue          clearValue = DefaultClearValueColor;        // only used if loadOp == clear
-
-	le_resource_handle_t resource_id{}; // (private - do not set) handle given to this attachment
 };
 
 static constexpr LeImageAttachmentInfo LeDepthAttachmentInfo() {
