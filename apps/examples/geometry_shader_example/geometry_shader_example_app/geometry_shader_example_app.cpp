@@ -85,7 +85,8 @@ static geometry_shader_example_app_o *geometry_shader_example_app_create() {
 // ----------------------------------------------------------------------
 
 static void reset_camera( geometry_shader_example_app_o *self ) {
-	self->camera.setViewport( {0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ), 0.f, 1.f} );
+	auto renderpassExtent = self->renderer.getSwapchainExtent();
+	self->camera.setViewport( {0, 0, float( renderpassExtent.width ), float( renderpassExtent.height ), 0.f, 1.f} );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
@@ -111,19 +112,6 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
 	auto        app = static_cast<geometry_shader_example_app_o *>( user_data );
 	le::Encoder encoder{encoder_};
-
-	auto screenWidth  = app->window.getSurfaceWidth();
-	auto screenHeight = app->window.getSurfaceHeight();
-
-	le::Viewport viewports[ 1 ] = {
-	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
-	};
-
-	app->camera.setViewport( viewports[ 0 ] );
-
-	le::Rect2D scissors[ 1 ] = {
-	    {0, 0, screenWidth, screenHeight},
-	};
 
 	struct MatrixStackUbo_t {
 		glm::mat4 model;
@@ -178,7 +166,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		    {50, -50, 0},
 		};
 
-		constexpr float size_scale      = 0.25;
+		constexpr float size_scale                    = 0.25;
 		glm::vec4       geometry_shader_exampleData[] = {
 		    {3, 0.0, 0.0, 400 * size_scale}, //< flare point
 		    {0, 0.1, 0.1, 200 * size_scale},
@@ -218,15 +206,13 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		//		          << std::flush;
 
 		GeometryShaderExampleParams params{};
-		params.uCanvas.x        = screenWidth;
-		params.uCanvas.y        = screenHeight;
-		params.uCanvas.z        = app->camera.getUnitDistance();
+		params.uCanvas.x                    = encoder.getRenderpassExtent().width;
+		params.uCanvas.y                    = encoder.getRenderpassExtent().height;
+		params.uCanvas.z                    = app->camera.getUnitDistance();
 		params.uGeometryShaderExampleSource = sourceInClipSpace;
-		params.uHowClose        = 500;
+		params.uHowClose                    = 500;
 
 		encoder
-		    .setScissors( 0, 1, scissors )
-		    .setViewports( 0, 1, viewports )
 		    .bindGraphicsPipeline( pipelineDefault )
 		    .setVertexData( trianglePositions, sizeof( trianglePositions ), 0 )
 		    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
@@ -253,7 +239,9 @@ static void geometry_shader_example_app_process_ui_events( geometry_shader_examp
 	uint32_t           numEvents;
 	le::UiEvent const *pEvents;
 
-	self->cameraController.setControlRect( 0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ) );
+	auto swapchainExtent = self->renderer.getSwapchainExtent();
+
+	self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
 	self->window.getUIEventQueue( &pEvents, numEvents );
 	self->cameraController.processEvents( self->camera, pEvents, numEvents );
 }
