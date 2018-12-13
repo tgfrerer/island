@@ -265,8 +265,10 @@ static workbench_app_o *workbench_app_create() {
 		io.Fonts->AddFontFromFileTTF( "./resources/fonts/IBMPlexSans-Regular.otf", 20.0f, nullptr, io.Fonts->GetGlyphRangesDefault() );
 		io.Fonts->GetTexDataAsRGBA32( &app->imguiTexture.pixels, &app->imguiTexture.width, &app->imguiTexture.height );
 
-		io.DisplaySize = {float( app->window.getSurfaceWidth() ),
-		                  float( app->window.getSurfaceHeight() )};
+		auto extent = app->renderer.getSwapchainExtent();
+
+		io.DisplaySize = {float( extent.width ),
+		                  float( extent.height )};
 
 		// we want to save the raw value in the pointer, because if we passed in a
 		// pointer to the name of the texture, the texture may have changed.
@@ -336,7 +338,8 @@ static workbench_app_o *workbench_app_create() {
 // ----------------------------------------------------------------------
 
 static void reset_camera( workbench_app_o *self ) {
-	self->camera.setViewport( {0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ), 0.f, 1.f} );
+	auto extent = self->renderer.getSwapchainExtent();
+	self->camera.setViewport( {0, 0, float( extent.width ), float( extent.height ), 0.f, 1.f} );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
@@ -452,15 +455,6 @@ static void pass_pre_exec( le_command_buffer_encoder_o *encoder_, void *user_dat
 	uint32_t screenWidth  = 640;
 	uint32_t screenHeight = 425;
 
-	le::Viewport viewports[ 1 ] = {
-	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
-
-	};
-
-	le::Rect2D scissors[ 1 ] = {
-	    {0, 0, screenWidth, screenHeight},
-	};
-
 	// Bind full screen quad pipeline
 	if ( true ) {
 
@@ -479,8 +473,6 @@ static void pass_pre_exec( le_command_buffer_encoder_o *encoder_, void *user_dat
 		    .bindGraphicsPipeline( psoPrepass )
 		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), resTexHorse, 0 )
 		    .setArgumentData( LE_ARGUMENT_NAME( "TimeInfo" ), &info, sizeof( info ) )
-		    .setScissors( 0, 1, &scissors[ 0 ] )
-		    .setViewports( 0, 1, &viewports[ 0 ] )
 		    .draw( 3 );
 	}
 }
@@ -493,7 +485,7 @@ static bool pass_final_setup( le_renderpass_o *pRp, void *user_data_ ) {
 
 	rp
 	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
-	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "ImgDepth" ) )  // depth attachment
+	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "ImgDepth" ) ) // depth attachment
 	    .sampleTexture( resTexPrepass, {{le::Filter::eLinear, le::Filter::eLinear}, {resImgPrepass, {}}} )
 	    .sampleTexture( app->imguiTexture.le_texture_handle, {{le::Filter::eLinear, le::Filter::eLinear}, {app->imguiTexture.le_image_handle, {}}} )
 	    .setIsRoot( true );
@@ -508,10 +500,10 @@ static void pass_final_exec( le_command_buffer_encoder_o *encoder_, void *user_d
 	using namespace le_renderer;
 	auto app = static_cast<workbench_app_o *>( user_data );
 
-	auto screenWidth  = app->window.getSurfaceWidth();
-	auto screenHeight = app->window.getSurfaceHeight();
-
 	auto encoder = le::Encoder( encoder_ );
+
+	auto screenWidth  = encoder.getRenderpassExtent().width;
+	auto screenHeight = encoder.getRenderpassExtent().height;
 
 	le::Viewport viewports[ 3 ] = {
 	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
@@ -709,7 +701,8 @@ static bool workbench_app_update( workbench_app_o *self ) {
 		return false;
 	}
 
-	self->cameraController.setControlRect( 0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ) );
+	auto swapchainExtent = self->renderer.getSwapchainExtent();
+	self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
 
 	// Process pending ui events.
 	workbench_app_process_ui_events( self );
@@ -724,8 +717,8 @@ static bool workbench_app_update( workbench_app_o *self ) {
 	{
 		ImGuiIO &io = ImGui::GetIO();
 
-		io.DisplaySize = {float( self->window.getSurfaceWidth() ),
-		                  float( self->window.getSurfaceHeight() )};
+		io.DisplaySize = {float( swapchainExtent.width ),
+		                  float( swapchainExtent.height )};
 
 		// update mouse pos and buttons
 		for ( size_t i = 0; i < self->mouseButtonStatus.size(); i++ ) {
