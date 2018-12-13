@@ -64,8 +64,8 @@ struct le_renderer_api {
 		void                         ( *set_setup_callback   )( le_renderpass_o *obj, pfn_renderpass_setup_t setup_fun, void *user_data );
 		bool                         ( *has_setup_callback   )( const le_renderpass_o* obj);
 		bool                         ( *run_setup_callback   )( le_renderpass_o* obj);
-		void                         ( *add_color_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, const le_resource_info_t& resource_info, LeImageAttachmentInfo const *info );
-		void                         ( *add_depth_stencil_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, const le_resource_info_t& resource_info, LeImageAttachmentInfo const *info );
+		void                         ( *add_color_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, const le_resource_info_t& resource_info, le_image_attachment_info_t const *info );
+		void                         ( *add_depth_stencil_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, const le_resource_info_t& resource_info, le_image_attachment_info_t const *info );
 		uint32_t                     ( *get_width            )( le_renderpass_o* obj);
 		uint32_t                     ( *get_height           )( le_renderpass_o* obj);
 		void                         ( *set_width            )( le_renderpass_o* obj, uint32_t width);
@@ -83,7 +83,7 @@ struct le_renderer_api {
 		uint64_t                     ( *get_id               )( const le_renderpass_o* obj );
 		LeRenderPassType             ( *get_type             )( const le_renderpass_o* obj );
 		le_command_buffer_encoder_o* ( *steal_encoder        )( le_renderpass_o* obj );
-		void                         ( *get_image_attachments)(const le_renderpass_o* obj, const LeImageAttachmentInfo** pAttachments, const le_resource_handle_t** pResources, size_t* numAttachments);
+		void                         ( *get_image_attachments)(const le_renderpass_o* obj, const le_image_attachment_info_t** pAttachments, const le_resource_handle_t** pResources, size_t* numAttachments);
 
 		// TODO: not too sure about the nomenclature of this
 		// Note that this method implicitly marks the image resource referenced in LeTextureInfo for read access.
@@ -263,17 +263,17 @@ class RenderPass {
 
 	/// \brief Adds a resource as an image attachment to the renderpass.
 	/// \details resource is used for ColorAttachment and Write access, unless otherwise specified.
-	///          Use an LeImageAttachmentInfo struct to specialise parameters, such as LOAD_OP, CLEAR_OP, and Clear/Load Color.
-	RenderPass &addColorAttachment( const le_resource_handle_t & resource_id,
-	                                const LeImageAttachmentInfo &attachmentInfo = LeImageAttachmentInfo(),
-	                                const le_resource_info_t &   resource_info  = le_renderer::helpers_i.get_default_resource_info_for_color_attachment() ) {
+	///          Use an le_image_attachment_info_t struct to specialise parameters, such as LOAD_OP, CLEAR_OP, and Clear/Load Color.
+	RenderPass &addColorAttachment( const le_resource_handle_t &      resource_id,
+	                                const le_image_attachment_info_t &attachmentInfo = le_image_attachment_info_t(),
+	                                const le_resource_info_t &        resource_info  = le_renderer::helpers_i.get_default_resource_info_for_color_attachment() ) {
 		le_renderer::renderpass_i.add_color_attachment( self, resource_id, resource_info, &attachmentInfo );
 		return *this;
 	}
 
-	RenderPass &addDepthStencilAttachment( const le_resource_handle_t & resource_id,
-	                                       const LeImageAttachmentInfo &attachmentInfo = LeDepthAttachmentInfo(),
-	                                       const le_resource_info_t &   resource_info  = le_renderer::helpers_i.get_default_resource_info_for_depth_stencil_attachment() ) {
+	RenderPass &addDepthStencilAttachment( const le_resource_handle_t &      resource_id,
+	                                       const le_image_attachment_info_t &attachmentInfo = LeDepthAttachmentInfo(),
+	                                       const le_resource_info_t &        resource_info  = le_renderer::helpers_i.get_default_resource_info_for_depth_stencil_attachment() ) {
 		le_renderer::renderpass_i.add_depth_stencil_attachment( self, resource_id, resource_info, &attachmentInfo );
 		return *this;
 	}

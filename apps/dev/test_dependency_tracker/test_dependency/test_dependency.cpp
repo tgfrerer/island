@@ -96,7 +96,7 @@ static bool pass_two_setup( le_renderpass_o *pRp, void *user_data ) {
 	LeTextureInfo texInfo{};
 	texInfo.imageView.imageId = LE_IMG_RESOURCE( "dummy_image" );
 
-	LeImageAttachmentInfo attachmentInfo{};
+	le_image_attachment_info_t attachmentInfo{};
 	attachmentInfo.clearValue.color = {{{0.f, 0.f, 1.f, 1.f}}};
 
 	rp
@@ -205,7 +205,7 @@ static bool test_dependency_update( test_dependency_o *self ) {
 		LeTextureInfo texInfo{};
 		texInfo.imageView.imageId = LE_IMG_RESOURCE( "dummy_image" );
 
-		LeImageAttachmentInfo attachmentInfo{};
+		le_image_attachment_info_t attachmentInfo{};
 		attachmentInfo.clearValue.color = {{{1.f, 0.f, 0.f, 1.f}}};
 
 		auto renderpassOne = le::RenderPass( "one", LE_RENDER_PASS_TYPE_DRAW );

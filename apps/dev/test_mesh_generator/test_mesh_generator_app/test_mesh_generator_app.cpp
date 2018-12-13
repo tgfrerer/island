@@ -107,7 +107,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto rp  = le::RenderPass{pRp};
 	auto app = static_cast<test_mesh_generator_app_o *>( user_data );
 
-	LeImageAttachmentInfo attachmentInfo{};
+	le_image_attachment_info_t attachmentInfo{};
 	attachmentInfo.clearValue.color = {{{0.f, 0.f, 0.f, 1.f}}};
 
 	rp

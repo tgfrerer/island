@@ -93,7 +93,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto app = static_cast<triangle_app_o *>( user_data );
 
 	// Attachment resource info may be further specialised using ImageInfoBuilder().
-	// Attachment clear color, load and store op may be set via LeImageAttachmentInfo.
+	// Attachment clear color, load and store op may be set via le_image_attachment_info_t.
 
 	rp
 	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment

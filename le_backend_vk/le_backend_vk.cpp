@@ -871,7 +871,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 		// iterate over all image attachments
 
-		LeImageAttachmentInfo const *pImageAttachments   = nullptr;
+		le_image_attachment_info_t const *pImageAttachments   = nullptr;
 		le_resource_handle_t const * pResources          = nullptr;
 		size_t                       numImageAttachments = 0;
 		renderpass_i.get_image_attachments( *pass, &pImageAttachments, &pResources, &numImageAttachments );

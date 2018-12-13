@@ -935,8 +935,7 @@ struct LeClearValue {
 	};
 };
 
-// FIXME: this struct is over-specified and pierces abstraction boundaries.
-struct LeImageAttachmentInfo {
+struct le_image_attachment_info_t {
 
 	static constexpr LeClearValue DefaultClearValueColor        = {{{{{0.f, 0.f, 0.f, 0.f}}}}};
 	static constexpr LeClearValue DefaultClearValueDepthStencil = {{{{{1.f, 0}}}}};
@@ -946,9 +945,9 @@ struct LeImageAttachmentInfo {
 	LeClearValue          clearValue = DefaultClearValueColor;        // only used if loadOp == clear
 };
 
-static constexpr LeImageAttachmentInfo LeDepthAttachmentInfo() {
-	auto info       = LeImageAttachmentInfo{};
-	info.clearValue = LeImageAttachmentInfo::DefaultClearValueDepthStencil;
+static constexpr le_image_attachment_info_t LeDepthAttachmentInfo() {
+	auto info       = le_image_attachment_info_t{};
+	info.clearValue = le_image_attachment_info_t::DefaultClearValueDepthStencil;
 	return info;
 }
 
