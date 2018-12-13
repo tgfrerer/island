@@ -81,7 +81,8 @@ static test_dependency_o *test_dependency_create() {
 // ----------------------------------------------------------------------
 
 static void reset_camera( test_dependency_o *self ) {
-	self->camera.setViewport( {0, 0, float( self->window.getSurfaceWidth() ), float( self->window.getSurfaceHeight() ), 0.f, 1.f} );
+	auto swapchainExtent = self->renderer.getSwapchainExtent();
+	self->camera.setViewport( {0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ), 0.f, 1.f} );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
@@ -136,19 +137,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	auto        app = static_cast<test_dependency_o *>( user_data );
 	le::Encoder encoder{encoder_};
 
-	auto screenWidth  = app->window.getSurfaceWidth();
-	auto screenHeight = app->window.getSurfaceHeight();
-
-	le::Viewport viewports[ 1 ] = {
-	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
-	};
-
-	app->camera.setViewport( viewports[ 0 ] );
-
-	le::Rect2D scissors[ 1 ] = {
-	    {0, 0, screenWidth, screenHeight},
-	};
-
 	// data as it is laid out in the ubo for the shader
 	struct ColorUbo_t {
 		glm::vec4 color;
@@ -192,8 +180,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 		encoder
 		    .bindGraphicsPipeline( pipelineTriangle )
-		    .setScissors( 0, 1, scissors )
-		    .setViewports( 0, 1, viewports )
 		    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
 		    .setVertexData( trianglePositions, sizeof( trianglePositions ), 0 )
 		    .setVertexData( triangleColors, sizeof( triangleColors ), 1 )
@@ -225,7 +211,7 @@ static bool test_dependency_update( test_dependency_o *self ) {
 		auto renderpassOne = le::RenderPass( "one", LE_RENDER_PASS_TYPE_DRAW );
 		renderpassOne
 		    .addDepthStencilAttachment( LE_IMG_RESOURCE( "one_depth" ) )                                                                                        // color attachment 0
-		    .addColorAttachment( LE_IMG_RESOURCE( "two_output" ), attachmentInfo, le::ImageInfoBuilder().setFormat( le::Format::eR32G32B32A32Sfloat ).build() ) // color attachment 1
+		    .addColorAttachment( LE_IMG_RESOURCE( "one_output" ), attachmentInfo, le::ImageInfoBuilder().setFormat( le::Format::eR32G32B32A32Sfloat ).build() ) // color attachment 1
 		    .sampleTexture( LE_TEX_RESOURCE( "dummy_texture" ), texInfo )
 		    .setIsRoot( true )
 		    .setExecuteCallback( self, pass_one_exec );

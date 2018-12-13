@@ -450,31 +450,25 @@ static bool pass_pre_setup( le_renderpass_o *pRp, void *user_data_ ) {
 
 static void pass_pre_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
 
-	auto     encoder      = le::Encoder( encoder_ ); // use c++ facade for less typing ;)
-	auto     app          = static_cast<workbench_app_o *>( user_data );
-	uint32_t screenWidth  = 640;
-	uint32_t screenHeight = 425;
+	auto encoder = le::Encoder( encoder_ ); // use c++ facade for less typing ;)
+	auto app     = static_cast<workbench_app_o *>( user_data );
 
-	// Bind full screen quad pipeline
-	if ( true ) {
+	static float t_start = 0;
+	float        info    = fmodf( t_start + app->deltaTimeSec, 3.f );
+	info /= 3.f;
+	info = fabs( ( glm::sineEaseInOut( info ) - 0.5f ) * 2.f );
+	t_start += app->deltaTimeSec;
 
-		static float t_start = 0;
-		float        info    = fmodf( t_start + app->deltaTimeSec, 3.f );
-		info /= 3.f;
-		info = fabs( ( glm::sineEaseInOut( info ) - 0.5f ) * 2.f );
-		t_start += app->deltaTimeSec;
+	static auto psoPrepass = LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+	                             .addShaderStage( app->shaderPrepass[ 0 ] )
+	                             .addShaderStage( app->shaderPrepass[ 1 ] )
+	                             .build();
 
-		static auto psoPrepass = LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-		                             .addShaderStage( app->shaderPrepass[ 0 ] )
-		                             .addShaderStage( app->shaderPrepass[ 1 ] )
-		                             .build();
-
-		encoder
-		    .bindGraphicsPipeline( psoPrepass )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), resTexHorse, 0 )
-		    .setArgumentData( LE_ARGUMENT_NAME( "TimeInfo" ), &info, sizeof( info ) )
-		    .draw( 3 );
-	}
+	encoder
+	    .bindGraphicsPipeline( psoPrepass ) // Bind full screen quad pipeline
+	    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), resTexHorse, 0 )
+	    .setArgumentData( LE_ARGUMENT_NAME( "TimeInfo" ), &info, sizeof( info ) )
+	    .draw( 3 );
 }
 
 // ----------------------------------------------------------------------
