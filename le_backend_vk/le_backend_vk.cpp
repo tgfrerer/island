@@ -474,7 +474,7 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settin
 		swp_settings.height_hint = window_i.get_surface_height( *self->window );
 		swp_settings.vk_surface  = self->window->getVkSurfaceKHR();
 
-		// If we're running without a window, we pass through swapchainSettings,
+		// If we're running with a window, we pass through swapchainSettings,
 		// and initialise our swapchain as a regular khr swapchain
 
 		self->swapchain = swapchain_i.create( swapchain_khr_i, self, &swp_settings );
