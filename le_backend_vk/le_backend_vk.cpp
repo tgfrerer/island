@@ -292,8 +292,10 @@ struct le_backend_o {
 	std::unique_ptr<le::Instance> instance;
 	std::unique_ptr<le::Device>   device;
 
-	std::unique_ptr<pal::Window> window;              // Non-owning
-	le_swapchain_o *             swapchain = nullptr; // Owning.
+	pal_window_o *  window    = nullptr; // Non-owning
+	le_swapchain_o *swapchain = nullptr; // Owning.
+
+	vk::SurfaceKHR windowSurface = nullptr; // Owning, optional.
 
 	// Default color formats are inferred during setup() based on
 	// swapchain surface (color) and device properties (depth/stencil)
@@ -332,6 +334,26 @@ struct le_backend_o {
 
 static inline bool is_depth_stencil_format( vk::Format format_ ) {
 	return ( format_ >= vk::Format::eD16Unorm && format_ <= vk::Format::eD32SfloatS8Uint );
+}
+
+// ----------------------------------------------------------------------
+
+static vk::SurfaceKHR backend_create_window_surface( le_backend_o *self ) {
+	if ( self->window ) {
+		using namespace pal_window;
+		return window_i.create_surface( self->window, self->instance->getVkInstance() );
+	}
+	return nullptr;
+}
+
+// ----------------------------------------------------------------------
+static void backend_destroy_window_surface( le_backend_o *self ) {
+	if ( self->windowSurface ) {
+		vk::Instance instance = self->instance->getVkInstance();
+		instance.destroySurfaceKHR( self->windowSurface );
+		std::cout << "Surface destroyed." << std::endl
+		          << std::flush;
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -433,17 +455,10 @@ static void backend_destroy( le_backend_o *self ) {
 		self->mAllocator = nullptr;
 	}
 
+	// destroy window surface if there was a window surface
+	backend_destroy_window_surface( self );
+
 	delete self;
-}
-
-// ----------------------------------------------------------------------
-
-static bool backend_create_window_surface( le_backend_o *self, pal_window_o *window_ ) {
-	self->window = std::make_unique<pal::Window>( window_ );
-	assert( self->instance );
-	assert( self->instance->getVkInstance() );
-	bool success = self->window->createSurface( self->instance->getVkInstance() );
-	return success;
 }
 
 // ----------------------------------------------------------------------
@@ -470,16 +485,18 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settin
 	// The following settings are not user-hintable, and will get overridden by default
 	if ( self->window ) {
 		using namespace pal_window;
-		swp_settings.width_hint  = window_i.get_surface_width( *self->window );
-		swp_settings.height_hint = window_i.get_surface_height( *self->window );
-		swp_settings.vk_surface  = self->window->getVkSurfaceKHR();
 
 		// If we're running with a window, we pass through swapchainSettings,
 		// and initialise our swapchain as a regular khr swapchain
 
+		swp_settings.width_hint  = window_i.get_surface_width( self->window );
+		swp_settings.height_hint = window_i.get_surface_height( self->window );
+		swp_settings.vk_surface  = self->windowSurface; // we need this so that swapchain can query surface capabilities
+
 		self->swapchain = swapchain_i.create( swapchain_khr_i, self, &swp_settings );
 
 	} else {
+
 		// If we're running without a window, we pass through swapchainSettings,
 		// and initialise our swapchain as an image swapchain
 
@@ -632,6 +649,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 
 	self->instance = std::make_unique<le::Instance>( requestedInstanceExtensions.data(), requestedInstanceExtensions.size() );
 	self->device   = std::make_unique<le::Device>( *self->instance );
+	self->window   = self->settings.pWindow;
 
 	{
 		using namespace le_backend_vk;
@@ -639,10 +657,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 	}
 
 	// -- create window surface if requested
-
-	if ( self->settings.pWindow ) {
-		backend_create_window_surface( self, self->settings.pWindow );
-	}
+	self->windowSurface = backend_create_window_surface( self );
 
 	vk::Device         vkDevice         = self->device->getVkDevice();
 	vk::PhysicalDevice vkPhysicalDevice = self->device->getVkPhysicalDevice();
@@ -872,8 +887,8 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		// iterate over all image attachments
 
 		le_image_attachment_info_t const *pImageAttachments   = nullptr;
-		le_resource_handle_t const * pResources          = nullptr;
-		size_t                       numImageAttachments = 0;
+		le_resource_handle_t const *      pResources          = nullptr;
+		size_t                            numImageAttachments = 0;
 		renderpass_i.get_image_attachments( *pass, &pImageAttachments, &pResources, &numImageAttachments );
 		for ( size_t i = 0; i != numImageAttachments; ++i ) {
 

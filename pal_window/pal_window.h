@@ -42,11 +42,9 @@ struct pal_window_api {
 		size_t          ( *get_reference_count      )( pal_window_o* self );
 
 		bool            ( *should_close       ) ( pal_window_o * );
-		bool            ( *create_surface     ) ( pal_window_o *, VkInstance_T * );
-		void            ( *destroy_surface    ) ( pal_window_o * );
+		VkSurfaceKHR_T* ( *create_surface     ) ( pal_window_o *, VkInstance_T * );
 		uint32_t        ( *get_surface_width  ) ( pal_window_o * );
 		uint32_t        ( *get_surface_height ) ( pal_window_o * );
-		VkSurfaceKHR_T* ( *get_vk_surface_khr ) ( pal_window_o * );
 		GLFWwindow*     ( *get_glfw_window    ) ( pal_window_o* self );
 
 		void            ( *toggle_fullscreen  ) ( pal_window_o* self );
@@ -146,20 +144,7 @@ class Window : NoMove, NoCopy {
 		return pal_window::window_i.should_close( self );
 	}
 
-	/// \brief create and store a vk surface in the current window object
-	bool createSurface( VkInstance_T *instance ) {
-		return pal_window::window_i.create_surface( self, instance );
-	}
 
-
-
-	VkSurfaceKHR_T *getVkSurfaceKHR() {
-		return pal_window::window_i.get_vk_surface_khr( self );
-	}
-
-	void destroySurface() {
-		pal_window::window_i.destroy_surface( self );
-	}
 
 	void toggleFullscreen() {
 		pal_window::window_i.toggle_fullscreen( self );

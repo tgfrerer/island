@@ -64,7 +64,7 @@ struct le_resource_info_t;
 struct le_backend_vk_settings_t {
 	const char **               requestedExtensions    = nullptr;
 	uint32_t                    numRequestedExtensions = 0;
-	pal_window_o *              pWindow                = nullptr;
+	pal_window_o *              pWindow                = nullptr; // non-owning, owned by application. Application must outlive backend.
 	le_swapchain_vk_settings_t *swapchain_settings     = nullptr;
 };
 

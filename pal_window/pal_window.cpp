@@ -35,7 +35,6 @@ struct pal_window_o {
 	VkSurfaceKHR          mSurface = nullptr;
 	VkExtent2D            mSurfaceExtent{};
 	pal_window_settings_o mSettings{};
-	VkInstance            mInstance      = nullptr;
 	size_t                referenceCount = 0;
 	void *                user_data      = nullptr;
 
@@ -336,8 +335,10 @@ static void window_settings_destroy( pal_window_settings_o *self_ ) {
 }
 
 // ----------------------------------------------------------------------
-
-static bool window_create_surface( pal_window_o *self, VkInstance vkInstance ) {
+// Creates a khr surface using glfw - note that ownership is handed over to
+// the caller which must outlive this pal_window_o, and take responsibility
+// of deleting  the surface.
+static VkSurfaceKHR_T *window_create_surface( pal_window_o *self, VkInstance vkInstance ) {
 	auto result = glfwCreateWindowSurface( vkInstance, self->window, nullptr, &self->mSurface );
 	if ( result == VK_SUCCESS ) {
 		int tmp_w = 0;
@@ -345,24 +346,12 @@ static bool window_create_surface( pal_window_o *self, VkInstance vkInstance ) {
 		glfwGetFramebufferSize( self->window, &tmp_w, &tmp_h );
 		self->mSurfaceExtent.height = uint32_t( tmp_h );
 		self->mSurfaceExtent.width  = uint32_t( tmp_w );
-		self->mInstance             = vkInstance;
 		std::cout << "Created surface" << std::endl;
 	} else {
 		std::cerr << "Error creating surface" << std::endl;
-		return false;
+		return nullptr;
 	}
-	return true;
-}
-
-// ----------------------------------------------------------------------
-// note: this is the only function for which we need to link this lib against vulkan!
-static void window_destroy_surface( pal_window_o *self ) {
-	if ( self->mInstance ) {
-		PFN_vkDestroySurfaceKHR destroySurfaceFun = reinterpret_cast<PFN_vkDestroySurfaceKHR>( vkGetInstanceProcAddr( self->mInstance, "vkDestroySurfaceKHR" ) );
-		destroySurfaceFun( self->mInstance, self->mSurface, nullptr );
-		std::cout << "Surface destroyed" << std::endl;
-		self->mSurface = nullptr;
-	}
+	return self->mSurface;
 }
 
 // ----------------------------------------------------------------------
@@ -534,10 +523,6 @@ static void window_destroy( pal_window_o *self ) {
 		window_remove_callbacks( self );
 	}
 
-	if ( self->mSurface ) {
-		window_destroy_surface( self );
-	}
-
 	if ( self->window ) {
 		glfwDestroyWindow( self->window );
 	}
@@ -605,16 +590,14 @@ void register_pal_window_api( void *api ) {
 	windowApi->pollEvents                 = pollEvents;
 	windowApi->get_required_vk_extensions = get_required_vk_instance_extensions;
 
-	auto &window_i                    = windowApi->window_i;
-	window_i.create                   = window_create;
-	window_i.destroy                  = window_destroy;
-	window_i.setup                    = window_setup;
-	window_i.should_close             = window_should_close;
-	window_i.get_surface_width        = window_get_surface_width;
-	window_i.get_surface_height       = window_get_surface_height;
-	window_i.create_surface           = window_create_surface;
-	window_i.destroy_surface          = window_destroy_surface;
-	window_i.get_vk_surface_khr       = window_get_vk_surface_khr;
+	auto &window_i              = windowApi->window_i;
+	window_i.create             = window_create;
+	window_i.destroy            = window_destroy;
+	window_i.setup              = window_setup;
+	window_i.should_close       = window_should_close;
+	window_i.get_surface_width  = window_get_surface_width;
+	window_i.get_surface_height = window_get_surface_height;
+	window_i.create_surface     = window_create_surface;
 	window_i.increase_reference_count = window_increase_reference_count;
 	window_i.decrease_reference_count = window_decrease_reference_count;
 	window_i.get_reference_count      = window_get_reference_count;
