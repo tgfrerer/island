@@ -187,7 +187,8 @@ static void instance_destroy( le_backend_vk_instance_o *obj ) {
 	destroy_debug_callback( obj );
 	obj->vkInstance.destroy();
 	delete ( obj );
-	std::cout << "Instance destroyed." << std::endl;
+	std::cout << "Instance destroyed." << std::endl
+	          << std::flush;
 }
 
 // ----------------------------------------------------------------------
