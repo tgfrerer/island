@@ -59,7 +59,7 @@ static triangle_app_o *triangle_app_create() {
 	swapchainSettings.imagecount_hint  = 3;
 
 	le_backend_vk_settings_t backendCreateInfo;
-	backendCreateInfo.requestedExtensions = pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
+	backendCreateInfo.requestedExtensions = nullptr;
 	backendCreateInfo.swapchain_settings  = &swapchainSettings;
 	backendCreateInfo.pWindow             = app->window;
 
