@@ -2,8 +2,6 @@
 
 #include "pal_window/pal_window.h"
 #include "le_ui_event/le_ui_event.h"
-#include "le_backend_vk/le_backend_vk.h"
-#include "le_swapchain_vk/le_swapchain_vk.h"
 #include "le_renderer/le_renderer.h"
 
 #include "le_camera/le_camera.h"
@@ -58,7 +56,6 @@ struct WorldGeometry {
 };
 
 struct hello_world_app_o {
-	le::Backend  backend;
 	pal::Window  window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
@@ -120,18 +117,19 @@ static hello_world_app_o *hello_world_app_create() {
 	// create a new window
 	app->window.setup( settings );
 
-	le_swapchain_vk_settings_t swapchainSettings;
-	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eFifo;
-	swapchainSettings.imagecount_hint  = 3;
-	swapchainSettings.width_hint       = 1920;
-	swapchainSettings.height_hint      = 1080;
-	le_backend_vk_settings_t backendCreateInfo{};
+	auto rendererInfo = le::RendererInfoBuilder()
+	                        .setWindow( app->window )
+	                        .withSwapchain()
+	                        .setWidthHint( 1920 )
+	                        .setHeightHint( 1080 )
+	                        .setImagecountHint( 3 )
+	                        .withKhrSwapchain()
+	                        .setPresentmode( le::Presentmode::eFifo )
+	                        .end()
+	                        .end()
+	                        .build();
 
-	backendCreateInfo.swapchain_settings = &swapchainSettings;
-	backendCreateInfo.pWindow            = app->window; // set this to nullptr for no window
-
-	app->backend.setup( &backendCreateInfo );
-	app->renderer.setup( app->backend );
+	app->renderer.setup( rendererInfo );
 
 	// -- Declare graphics pipeline state objects
 
@@ -459,7 +457,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		CameraParams cameraParams;
 		ModelParams  earthParams;
 
-		double speed           = 0.01; // degrees per millisecond
+		double speed           = 0.005; // degrees per millisecond
 		double angularDistance = app->animate ? app->timeDelta * speed : 0;
 		app->earthRotation     = fmod( app->earthRotation + angularDistance, 360.0 );
 
