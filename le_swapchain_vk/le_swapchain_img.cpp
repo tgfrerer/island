@@ -4,6 +4,7 @@
 #include <vulkan/vulkan.hpp>
 
 #include "include/internal/le_swapchain_vk_common.h"
+#include "le_renderer/private/le_renderer_types.h" // for le_swapchain_settings_t, and le::Format
 #include "le_backend_vk/util/vk_mem_alloc/vk_mem_alloc.h"
 
 #include <iostream>
@@ -24,7 +25,7 @@ struct TransferFrame {
 };
 
 struct img_data_o {
-	le_swapchain_vk_settings_t mSettings;
+	le_swapchain_settings_t    mSettings;
 	uint32_t                   mImagecount;                    // Number of images in swapchain
 	uint32_t                   totalImages;                    // total number of produced images
 	uint32_t                   mImageIndex;                    // current image index
@@ -42,11 +43,15 @@ struct img_data_o {
 
 // ----------------------------------------------------------------------
 
-static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_vk_settings_t *settings_ ) {
+static inline vk::Format le_format_to_vk( const le::Format &format ) noexcept {
+	return vk::Format( format );
+}
+
+// ----------------------------------------------------------------------
+
+static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settings_t *settings_ ) {
 
 	auto self = static_cast<img_data_o *const>( base->data );
-
-	assert( settings_ );
 
 	if ( settings_ ) {
 		self->mSettings = *settings_;
@@ -56,6 +61,8 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_vk_set
 		    .setDepth( 1 );
 		self->mImagecount = self->mSettings.imagecount_hint;
 	}
+
+	assert( self->mSettings.type == le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN );
 
 	// TODO: create image allocations.
 
@@ -231,13 +238,13 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_vk_set
 
 // ----------------------------------------------------------------------
 
-static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchain_interface_t &interface, le_backend_o *backend, const le_swapchain_vk_settings_t *settings ) {
+static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchain_interface_t &interface, le_backend_o *backend, const le_swapchain_settings_t *settings ) {
 	auto base  = new le_swapchain_o( interface );
 	base->data = new img_data_o{};
 	auto self  = static_cast<img_data_o *>( base->data );
 
 	self->backend             = backend;
-	self->windowSurfaceFormat = {vk::Format::eR8G8B8A8Unorm, vk::ColorSpaceKHR::eSrgbNonlinear};
+	self->windowSurfaceFormat = {le_format_to_vk( self->mSettings.format_hint ), vk::ColorSpaceKHR::eSrgbNonlinear};
 	self->mImageIndex         = uint32_t( ~0 );
 	{
 

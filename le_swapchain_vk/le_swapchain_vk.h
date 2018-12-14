@@ -23,23 +23,7 @@ struct VkImage_T;
 struct VkImageView_T;
 struct VkQueue_T;
 struct VkSurfaceFormatKHR;
-
-struct le_swapchain_vk_settings_t {
-	enum class Presentmode : uint32_t {
-		eDefault = 0,
-		eImmediate,
-		eMailbox,
-		eFifo,
-		eFifoRelaxed,
-		eSharedDemandRefresh,
-		eSharedContinuousRefresh,
-	};
-	uint32_t        width_hint       = 640;
-	uint32_t        height_hint      = 480;
-	uint32_t        imagecount_hint  = 3;
-	Presentmode     presentmode_hint = Presentmode::eFifo;
-	VkSurfaceKHR_T *vk_surface       = nullptr; // owned by window
-};
+struct le_swapchain_settings_t;
 
 struct le_swapchain_vk_api {
 	static constexpr auto id      = "le_swapchain_vk";
@@ -47,9 +31,9 @@ struct le_swapchain_vk_api {
 
 	// clang-format off
 	struct swapchain_interface_t {
-		le_swapchain_o *          ( *create                   ) ( le_swapchain_vk_api::swapchain_interface_t const & interface, le_backend_o* backend, const le_swapchain_vk_settings_t* settings_ );
+		le_swapchain_o *          ( *create                   ) ( le_swapchain_vk_api::swapchain_interface_t const & interface, le_backend_o* backend, const le_swapchain_settings_t* settings );
 		void                      ( *destroy                  ) ( le_swapchain_o* self );
-		void                      ( *reset                    ) ( le_swapchain_o* self, const le_swapchain_vk_settings_t* settings_ );
+		void                      ( *reset                    ) ( le_swapchain_o* self, const le_swapchain_settings_t* settings );
 		bool                      ( *present                  ) ( le_swapchain_o* self, VkQueue_T* queue, VkSemaphore_T* renderCompleteSemaphore, uint32_t* pImageIndex);
 		bool                      ( *acquire_next_image       ) ( le_swapchain_o* self, VkSemaphore_T* semaphore_, uint32_t& imageIndex_ );
 		VkSurfaceFormatKHR*       ( *get_surface_format       ) ( le_swapchain_o* self );
@@ -81,12 +65,6 @@ static const auto &swapchain_khr_i = api -> swapchain_khr_i; /// private interfa
 static const auto &swapchain_img_i = api -> swapchain_img_i; /// private interface, do not use directly.
 
 } // namespace le_swapchain_vk
-
-namespace le {
-namespace Swapchain {
-using Presentmode = le_swapchain_vk_settings_t::Presentmode;
-} // namespace Swapchain
-} // namespace le
 
 #endif // __cplusplus
 #endif // GUARD_PAL_BACKEND_VK_H

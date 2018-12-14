@@ -829,13 +829,164 @@ struct LeTextureInfo {
 	ImageViewInfo imageView;
 };
 
+struct le_swapchain_settings_t {
+	enum Type {
+		LE_KHR_SWAPCHAIN = 0,
+		LE_IMG_SWAPCHAIN,
+	};
+	struct khr_settings_t {
+		enum class Presentmode : uint32_t {
+			eDefault = 0,
+			eImmediate,
+			eMailbox,
+			eFifo,
+			eFifoRelaxed,
+			eSharedDemandRefresh,
+			eSharedContinuousRefresh,
+		};
+		Presentmode            presentmode_hint = Presentmode::eFifo;
+		struct VkSurfaceKHR_T *vk_surface;
+	};
+	struct img_settings_t {
+	};
+
+	Type       type            = LE_KHR_SWAPCHAIN;
+	uint32_t   width_hint      = 640;
+	uint32_t   height_hint     = 480;
+	uint32_t   imagecount_hint = 3;
+	le::Format format_hint     = le::Format::eR8G8B8A8Unorm; // preferred surface format
+
+	union {
+		khr_settings_t khr_settings{};
+		img_settings_t img_settings;
+	};
+};
+
+struct le_renderer_settings_t {
+	struct pal_window_o *   window = nullptr; // optional;
+	le_swapchain_settings_t swapchain_settings{};
+};
+
 namespace le {
+
+using Presentmode = le_swapchain_settings_t::khr_settings_t::Presentmode;
 
 #define BUILDER_IMPLEMENT( builder, method_name, param_type, param, default_value ) \
 	builder &method_name( param_type param default_value ) {                        \
 	    self.param = param;                                                         \
 	    return *this;                                                               \
     }
+
+class RendererInfoBuilder {
+	le_renderer_settings_t  info{};
+	le_renderer_settings_t &self = info;
+
+  public:
+	RendererInfoBuilder( pal_window_o *window = nullptr ) {
+		info.window = window;
+	}
+
+	class SwapchainInfoBuilder {
+		RendererInfoBuilder &    parent;
+		le_swapchain_settings_t &self = parent.info.swapchain_settings;
+
+	  public:
+		SwapchainInfoBuilder( RendererInfoBuilder &parent_ )
+		    : parent( parent_ ) {
+		}
+
+		SwapchainInfoBuilder &setType( le_swapchain_settings_t::Type type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN ) {
+			self.type = type;
+
+			switch ( type ) {
+			case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN:
+				self.khr_settings = {};
+			    break;
+			case le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN:
+				self.img_settings = {};
+			    break;
+			}
+
+			return *this;
+		}
+
+		BUILDER_IMPLEMENT( SwapchainInfoBuilder, setWidthHint, uint32_t, width_hint, = 640 )
+		BUILDER_IMPLEMENT( SwapchainInfoBuilder, setHeightHint, uint32_t, height_hint, = 480 )
+		BUILDER_IMPLEMENT( SwapchainInfoBuilder, setImagecountHint, uint32_t, imagecount_hint, = 3 )
+		BUILDER_IMPLEMENT( SwapchainInfoBuilder, setFormatHint, le::Format, format_hint, = le::Format::eR8G8B8A8Unorm )
+
+		class KhrSwapchainInfoBuilder {
+			SwapchainInfoBuilder &                   parent;
+			le_swapchain_settings_t::khr_settings_t &self = parent.self.khr_settings;
+
+		  public:
+			KhrSwapchainInfoBuilder( SwapchainInfoBuilder &parent_ )
+			    : parent( parent_ ) {
+			}
+
+			BUILDER_IMPLEMENT( KhrSwapchainInfoBuilder, setPresentmode, le::Presentmode, presentmode_hint, = le::Presentmode::eFifo )
+
+			SwapchainInfoBuilder &end() {
+				parent.parent.info.swapchain_settings.type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN;
+				return parent;
+			}
+		};
+
+		class ImgSwapchainInfoBuilder {
+			SwapchainInfoBuilder &                   parent;
+			le_swapchain_settings_t::img_settings_t &self = parent.self.img_settings;
+
+		  public:
+			ImgSwapchainInfoBuilder( SwapchainInfoBuilder &parent_ )
+			    : parent( parent_ ) {
+			}
+
+			SwapchainInfoBuilder &end() {
+				parent.parent.info.swapchain_settings.type = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
+				return parent;
+			}
+		};
+
+		ImgSwapchainInfoBuilder mImgSwapchainInfoBuilder{*this}; // order matters, last one will be default, because initialisation overwrites.
+		KhrSwapchainInfoBuilder mKhrSwapchainInfoBuilder{*this}; // order matters, last one will be default, because initialisation overwrites.
+
+		KhrSwapchainInfoBuilder &withKhrSwapchain() {
+			return mKhrSwapchainInfoBuilder;
+		}
+
+		ImgSwapchainInfoBuilder &withImgSwapchain() {
+			return mImgSwapchainInfoBuilder;
+		}
+
+		RendererInfoBuilder &end() {
+			return parent;
+		}
+	};
+
+	SwapchainInfoBuilder mSwapchainInfoBuilder{*this};
+
+	SwapchainInfoBuilder &withSwapchain() {
+		return mSwapchainInfoBuilder;
+	}
+
+	BUILDER_IMPLEMENT( RendererInfoBuilder, setWindow, pal_window_o *, window, = nullptr )
+
+	le_renderer_settings_t const &build() {
+
+		// Do some checks:
+		// + If no window was specified, then force image swapchain as a fallback.
+
+		if ( self.swapchain_settings.type == le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN && self.window == nullptr ) {
+			// We must force an image swapchain as a fallback.
+			self.swapchain_settings.type         = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
+			self.swapchain_settings.img_settings = {}; // apply default image swapchain settings.
+		}
+
+		return info;
+	}
+};
+
+// ----------------------------------------------------------------------
 
 class TextureInfoBuilder {
 	LeTextureInfo info{};

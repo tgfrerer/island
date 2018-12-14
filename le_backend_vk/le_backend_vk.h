@@ -28,7 +28,7 @@ struct le_staging_allocator_o;
 struct graphics_pipeline_state_o; // for le_pipeline_builder
 struct le_pipeline_manager_o;
 
-struct le_swapchain_vk_settings_t;
+struct le_swapchain_settings_t;
 struct pal_window_o;
 
 struct le_shader_module_o;
@@ -62,10 +62,10 @@ struct VkFormatEnum; // wrapper around `vk::Format`. Defined in <le_backend_type
 struct le_resource_info_t;
 
 struct le_backend_vk_settings_t {
-	const char **               requestedExtensions    = nullptr;
-	uint32_t                    numRequestedExtensions = 0;
-	pal_window_o *              pWindow                = nullptr; // non-owning, owned by application. Application must outlive backend.
-	le_swapchain_vk_settings_t *swapchain_settings     = nullptr;
+	const char **            requestedExtensions    = nullptr;
+	uint32_t                 numRequestedExtensions = 0;
+	pal_window_o *           pWindow                = nullptr; // non-owning, owned by application. Application must outlive backend.
+	le_swapchain_settings_t *pSwapchain_settings    = nullptr; // non-owning, owned by caller of setup method.
 };
 
 struct le_pipeline_layout_info {

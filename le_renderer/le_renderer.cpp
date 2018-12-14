@@ -60,11 +60,12 @@ struct FrameData {
 struct le_renderer_o {
 
 	uint64_t      swapchainDirty = false;
-	le_backend_o *backend        = nullptr;
+	le_backend_o *backend        = nullptr; // Owned, created in setup
 
-	std::vector<FrameData> frames;
-	size_t                 numSwapchainImages = 0;
-	size_t                 currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
+	std::vector<FrameData>  frames;
+	size_t                  numSwapchainImages = 0;
+	size_t                  currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
+	le_swapchain_settings_t swapchain_settings{};              // default swapchain settings
 
 	enki::TaskScheduler g_TS = {};
 };
@@ -101,7 +102,12 @@ static void renderer_destroy( le_renderer_o *self ) {
 
 	self->frames.clear();
 
-	// -- Delete any objects created dynamically
+	if ( self->backend ) {
+		// Destroy the backend, as it is owned by the renderer
+		using namespace le_backend_vk;
+		vk_backend_i.destroy( self->backend );
+		self->backend = nullptr;
+	}
 
 	delete self;
 }
@@ -114,21 +120,50 @@ static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, c
 	return vk_backend_i.create_shader_module( self->backend, path, moduleType );
 }
 
+// ----------------------------------------------------------------------
+
 static le_backend_o *renderer_get_backend( le_renderer_o *self ) {
 	return self->backend;
 }
 
 // ----------------------------------------------------------------------
 
-static void renderer_setup( le_renderer_o *self, le_backend_o *backend ) {
+static void renderer_setup( le_renderer_o *self, le_renderer_settings_t const &settings ) {
 
-	self->backend = backend;
+	// We store swapchain settings with the renderer so that we can pass
+	// backend a permanent pointer to it.
+	self->swapchain_settings = settings.swapchain_settings;
 
-	using namespace le_backend_vk; // for vk_bakend_i
-	using namespace le_renderer;   // for rendergraph_i
+	{
+		// Set up the backend
 
+		using namespace le_backend_vk;
+		self->backend = vk_backend_i.create();
+
+		le_backend_vk_settings_t backend_settings{};
+		backend_settings.pWindow             = settings.window;
+		backend_settings.pSwapchain_settings = &self->swapchain_settings;
+
+		{
+			// TODO: If needed, any additional renderer modules which
+			// request certain extensions need to be queried here,
+			// so that the list of requested extensions for backend
+			// may be appended.
+
+			backend_settings.requestedExtensions    = nullptr;
+			backend_settings.numRequestedExtensions = 0;
+		}
+
+		vk_backend_i.setup( self->backend, &backend_settings );
+	}
+
+	using namespace le_backend_vk;
+
+	// Since backend setup implicitly sets up the swapchain,
+	// we may now query the available number of swapchain images.
 	self->numSwapchainImages = vk_backend_i.get_num_swapchain_images( self->backend );
 
+	using namespace le_renderer; // for rendergraph_i
 	self->frames.reserve( self->numSwapchainImages );
 
 	for ( size_t i = 0; i != self->numSwapchainImages; ++i ) {

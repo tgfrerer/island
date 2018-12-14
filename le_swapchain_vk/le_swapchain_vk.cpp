@@ -1,14 +1,14 @@
-#include "./include/internal/le_swapchain_vk_common.h"
+#include "./include/internal/le_swapchain_vk_common.h" // defines struct le_swapchain_o
 
 // ----------------------------------------------------------------------
 
-static void swapchain_reset( le_swapchain_o *self, const le_swapchain_vk_settings_t *settings ) {
+static void swapchain_reset( le_swapchain_o *self, const le_swapchain_settings_t *settings ) {
 	self->vtable.reset( self, settings );
 }
 
 // ----------------------------------------------------------------------
 
-static le_swapchain_o *swapchain_create( le_swapchain_vk_api::swapchain_interface_t const &interface, le_backend_o *backend, const le_swapchain_vk_settings_t *settings_ ) {
+static le_swapchain_o *swapchain_create( le_swapchain_vk_api::swapchain_interface_t const &interface, le_backend_o *backend, const le_swapchain_settings_t *settings_ ) {
 	return interface.create( interface, backend, settings_ );
 }
 

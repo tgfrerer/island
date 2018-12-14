@@ -287,7 +287,6 @@ struct BackendFrameData {
 /// \brief backend data object
 struct le_backend_o {
 
-	le_backend_vk_settings_t settings;
 
 	std::unique_ptr<le::Instance> instance;
 	std::unique_ptr<le::Device>   device;
@@ -351,7 +350,7 @@ static void backend_destroy_window_surface( le_backend_o *self ) {
 	if ( self->windowSurface ) {
 		vk::Instance instance = self->instance->getVkInstance();
 		instance.destroySurfaceKHR( self->windowSurface );
-		std::cout << "Surface destroyed." << std::endl
+		std::cout << "Surface was destroyed." << std::endl
 		          << std::flush;
 	}
 }
@@ -463,9 +462,9 @@ static void backend_destroy( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settings_t *swapchainSettings_ ) {
+static void backend_create_swapchain( le_backend_o *self, le_swapchain_settings_t *swapchainSettings_ ) {
 
-	le_swapchain_vk_settings_t swp_settings{};
+	le_swapchain_settings_t swp_settings{};
 
 	if ( swapchainSettings_ ) {
 		swp_settings = *swapchainSettings_;
@@ -477,32 +476,42 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_vk_settin
 		swp_settings.imagecount_hint = 3;
 	}
 
-	if ( swp_settings.presentmode_hint == le::Swapchain::Presentmode::eDefault ) {
-		swp_settings.presentmode_hint = le::Swapchain::Presentmode::eFifo;
+	switch ( swp_settings.type ) {
+
+	case le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN: {
+		using namespace le_swapchain_vk;
+		// Create an image swapchain
+		self->swapchain = swapchain_i.create( swapchain_img_i, self, &swp_settings );
+	} break;
+
+	case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN: {
+		using namespace le_swapchain_vk;
+
+		if ( self->window ) {
+			// If we're running with a window, we pass through swapchainSettings,
+			// and initialise our swapchain as a regular khr swapchain
+			using namespace pal_window;
+
+			swp_settings.width_hint              = window_i.get_surface_width( self->window );
+			swp_settings.height_hint             = window_i.get_surface_height( self->window );
+			swp_settings.khr_settings.vk_surface = self->windowSurface; // we need this so that swapchain can query surface capabilities
+
+			self->swapchain = swapchain_i.create( swapchain_khr_i, self, &swp_settings );
+
+		} else {
+			// cannot run a khr swapchain without a window.
+		}
+
+	} break;
+	}
+
+	// The following settings are not user-hintable, and will get overridden by default
+	if ( self->window ) {
+
+	} else {
 	}
 
 	using namespace le_swapchain_vk;
-	// The following settings are not user-hintable, and will get overridden by default
-	if ( self->window ) {
-		using namespace pal_window;
-
-		// If we're running with a window, we pass through swapchainSettings,
-		// and initialise our swapchain as a regular khr swapchain
-
-		swp_settings.width_hint  = window_i.get_surface_width( self->window );
-		swp_settings.height_hint = window_i.get_surface_height( self->window );
-		swp_settings.vk_surface  = self->windowSurface; // we need this so that swapchain can query surface capabilities
-
-		self->swapchain = swapchain_i.create( swapchain_khr_i, self, &swp_settings );
-
-	} else {
-
-		// If we're running without a window, we pass through swapchainSettings,
-		// and initialise our swapchain as an image swapchain
-
-		self->swapchain = swapchain_i.create( swapchain_img_i, self, &swp_settings );
-	}
-
 	self->swapchainImageFormat = vk::Format( swapchain_i.get_surface_format( self->swapchain )->format );
 	self->swapchainWidth       = swapchain_i.get_image_width( self->swapchain );
 	self->swapchainHeight      = swapchain_i.get_image_height( self->swapchain );
@@ -622,18 +631,23 @@ static le_device_o *backend_get_le_device( le_backend_o *self ) {
 
 static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *settings ) {
 
-	self->settings = *settings;
+	assert( settings );
+	if ( settings == nullptr ) {
+		std::cerr << "FATAL: Must specify settings for backend." << std::endl
+		          << std::flush;
+		exit( 1 );
+	}
 
 	// -- if window surface, query required vk extensions from glfw
 
 	std::vector<char const *> requestedInstanceExtensions;
 	{
-		if ( self->settings.pWindow ) {
+		if ( settings->pWindow ) {
 
 			// -- insert extensions necessary for glfw window
 
 			uint32_t extensionCount         = 0;
-			auto     glfwRequiredExtensions = pal::Window( self->settings.pWindow ).getRequiredVkExtensions( &extensionCount );
+			auto     glfwRequiredExtensions = pal::Window( settings->pWindow ).getRequiredVkExtensions( &extensionCount );
 
 			requestedInstanceExtensions.insert( requestedInstanceExtensions.end(),
 			                                    glfwRequiredExtensions,
@@ -649,7 +663,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 
 	self->instance = std::make_unique<le::Instance>( requestedInstanceExtensions.data(), requestedInstanceExtensions.size() );
 	self->device   = std::make_unique<le::Device>( *self->instance );
-	self->window   = self->settings.pWindow;
+	self->window   = settings->pWindow;
 
 	{
 		using namespace le_backend_vk;
@@ -678,7 +692,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 
 	// -- create swapchain if requested
 
-	backend_create_swapchain( self, self->settings.swapchain_settings );
+	backend_create_swapchain( self, settings->pSwapchain_settings );
 
 	// -- setup backend memory objects
 

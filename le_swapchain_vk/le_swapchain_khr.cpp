@@ -1,4 +1,5 @@
 #include "le_backend_vk/le_backend_vk.h"
+#include "le_renderer/private/le_renderer_types.h"
 #include "include/internal/le_swapchain_vk_common.h"
 
 #define VULKAN_HPP_NO_SMART_HANDLE
@@ -16,19 +17,25 @@ struct SurfaceProperties {
 };
 
 struct khr_data_o {
-	le_swapchain_vk_settings_t mSettings                      = {};
-	le_backend_o *             backend                        = nullptr;
-	uint32_t                   mImagecount                    = 0;
-	uint32_t                   mImageIndex                    = uint32_t( ~0 ); // current image index
-	vk::SwapchainKHR           swapchainKHR                   = nullptr;
-	vk::Extent2D               mSwapchainExtent               = {};
-	vk::PresentModeKHR         mPresentMode                   = vk::PresentModeKHR::eFifo;
-	uint32_t                   vk_graphics_queue_family_index = 0;
-	SurfaceProperties          mSurfaceProperties             = {};
-	std::vector<vk::Image>     mImageRefs                     = {}; // owned by SwapchainKHR, don't delete
-	vk::Device                 device                         = nullptr;
-	vk::PhysicalDevice         physicalDevice                 = nullptr;
+	le_swapchain_settings_t mSettings                      = {};
+	le_backend_o *          backend                        = nullptr;
+	uint32_t                mImagecount                    = 0;
+	uint32_t                mImageIndex                    = uint32_t( ~0 ); // current image index
+	vk::SwapchainKHR        swapchainKHR                   = nullptr;
+	vk::Extent2D            mSwapchainExtent               = {};
+	vk::PresentModeKHR      mPresentMode                   = vk::PresentModeKHR::eFifo;
+	uint32_t                vk_graphics_queue_family_index = 0;
+	SurfaceProperties       mSurfaceProperties             = {};
+	std::vector<vk::Image>  mImageRefs                     = {}; // owned by SwapchainKHR, don't delete
+	vk::Device              device                         = nullptr;
+	vk::PhysicalDevice      physicalDevice                 = nullptr;
 };
+
+// ----------------------------------------------------------------------
+
+static inline vk::Format le_format_to_vk( const le::Format &format ) noexcept {
+	return vk::Format( format );
+}
 
 // ----------------------------------------------------------------------
 
@@ -40,7 +47,7 @@ static void swapchain_query_surface_capabilities( le_swapchain_o *base ) {
 
 	using namespace le_backend_vk;
 
-	const auto &settings          = self->mSettings;
+	const auto &settings          = self->mSettings.khr_settings;
 	auto &      surfaceProperties = self->mSurfaceProperties;
 
 	self->physicalDevice.getSurfaceSupportKHR( self->vk_graphics_queue_family_index,
@@ -53,7 +60,7 @@ static void swapchain_query_surface_capabilities( le_swapchain_o *base ) {
 	surfaceProperties.presentmodes            = self->physicalDevice.getSurfacePresentModesKHR( settings.vk_surface );
 
 	size_t selectedSurfaceFormatIndex = 0;
-	auto   preferredSurfaceFormat     = vk::Format::eB8G8R8A8Unorm;
+	auto   preferredSurfaceFormat     = le_format_to_vk( self->mSettings.format_hint );
 
 	if ( ( surfaceProperties.availableSurfaceFormats.size() == 1 ) && ( surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format == vk::Format::eUndefined ) ) {
 
@@ -83,21 +90,22 @@ static void swapchain_query_surface_capabilities( le_swapchain_o *base ) {
 
 // ----------------------------------------------------------------------
 
-static vk::PresentModeKHR get_khr_presentmode( const le::Swapchain::Presentmode &presentmode_hint_ ) {
+static vk::PresentModeKHR get_khr_presentmode( const le_swapchain_settings_t::khr_settings_t::Presentmode &presentmode_hint_ ) {
+	using PresentMode = le_swapchain_settings_t::khr_settings_t::Presentmode;
 	switch ( presentmode_hint_ ) {
-	case ( le::Swapchain::Presentmode::eDefault ):
+	case ( PresentMode::eDefault ):
 	    return vk::PresentModeKHR::eFifo;
-	case ( le::Swapchain::Presentmode::eImmediate ):
+	case ( PresentMode::eImmediate ):
 	    return vk::PresentModeKHR::eImmediate;
-	case ( le::Swapchain::Presentmode::eMailbox ):
+	case ( PresentMode::eMailbox ):
 	    return vk::PresentModeKHR::eMailbox;
-	case ( le::Swapchain::Presentmode::eFifo ):
+	case ( PresentMode::eFifo ):
 	    return vk::PresentModeKHR::eFifo;
-	case ( le::Swapchain::Presentmode::eFifoRelaxed ):
+	case ( PresentMode::eFifoRelaxed ):
 	    return vk::PresentModeKHR::eFifoRelaxed;
-	case ( le::Swapchain::Presentmode::eSharedDemandRefresh ):
+	case ( PresentMode::eSharedDemandRefresh ):
 	    return vk::PresentModeKHR::eSharedDemandRefresh;
-	case ( le::Swapchain::Presentmode::eSharedContinuousRefresh ):
+	case ( PresentMode::eSharedContinuousRefresh ):
 	    return vk::PresentModeKHR::eSharedContinuousRefresh;
 	}
 	assert( false ); // something's wrong: control should never come here, switch needs to cover all cases.
@@ -121,13 +129,18 @@ static inline auto clamp( const T &val_, const T &min_, const T &max_ ) {
 
 // ----------------------------------------------------------------------
 
-static void swapchain_khr_reset( le_swapchain_o *base, const le_swapchain_vk_settings_t *settings_ ) {
+static void swapchain_khr_reset( le_swapchain_o *base, const le_swapchain_settings_t *settings_ ) {
 
 	auto self = static_cast<khr_data_o *const>( base->data );
 
 	if ( settings_ ) {
 		self->mSettings = *settings_;
 	}
+
+	// `settings_` may have been a nullptr in which case this operation is only valid
+	// if self->mSettings has been fully set before.
+
+	assert( self->mSettings.type == le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN );
 
 	//	::vk::Result err = ::vk::Result::eSuccess;
 
@@ -150,7 +163,7 @@ static void swapchain_khr_reset( le_swapchain_o *base, const le_swapchain_vk_set
 		self->mSwapchainExtent = surfaceCapabilities.currentExtent;
 	}
 
-	auto presentModeHint = get_khr_presentmode( self->mSettings.presentmode_hint );
+	auto presentModeHint = get_khr_presentmode( self->mSettings.khr_settings.presentmode_hint );
 
 	for ( auto &p : presentModes ) {
 		if ( p == presentModeHint ) {
@@ -189,7 +202,7 @@ static void swapchain_khr_reset( le_swapchain_o *base, const le_swapchain_vk_set
 	::vk::SwapchainCreateInfoKHR swapChainCreateInfo;
 
 	swapChainCreateInfo
-	    .setSurface( self->mSettings.vk_surface )
+	    .setSurface( self->mSettings.khr_settings.vk_surface )
 	    .setMinImageCount( self->mImagecount )
 	    .setImageFormat( self->mSurfaceProperties.windowSurfaceFormat.format )
 	    .setImageColorSpace( self->mSurfaceProperties.windowSurfaceFormat.colorSpace )
@@ -217,7 +230,7 @@ static void swapchain_khr_reset( le_swapchain_o *base, const le_swapchain_vk_set
 
 // ----------------------------------------------------------------------
 
-static le_swapchain_o *swapchain_khr_create( const le_swapchain_vk_api::swapchain_interface_t &interface, le_backend_o *backend, const le_swapchain_vk_settings_t *settings ) {
+static le_swapchain_o *swapchain_khr_create( const le_swapchain_vk_api::swapchain_interface_t &interface, le_backend_o *backend, const le_swapchain_settings_t *settings ) {
 
 	auto base  = new le_swapchain_o( interface );
 	base->data = new khr_data_o{};
