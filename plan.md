@@ -4,10 +4,6 @@
 
 # TODO
 
-- we should not have to setup the backend in app - instead set up the
-  backend through the renderer, app should not be able to pierce
-  abstraction and call backend directly, but needs to go through renderer.
-
 ## (A)
 
 - Compute Passes
@@ -36,11 +32,6 @@
 ## (C)
 
 - use opaque handle to reference pso instead of bare `uint64_t`
-
-- find a better way to store window surface- it should probably live
-  inside the backend, tagged with window name, or perhaps it should be
-  owned by the swapchain which uses it, so that it can be deleted at the
-  correct time. 
 
 ## (Unsorted)
 
