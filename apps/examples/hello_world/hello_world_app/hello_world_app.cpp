@@ -120,11 +120,12 @@ static hello_world_app_o *hello_world_app_create() {
 	auto rendererInfo = le::RendererInfoBuilder()
 	                        .setWindow( app->window )
 	                        .withSwapchain()
+							.setFormatHint( le::Format::eB8G8R8A8Unorm )
 	                        .setWidthHint( 1920 )
 	                        .setHeightHint( 1080 )
 	                        .setImagecountHint( 3 )
 	                        .withKhrSwapchain()
-	                        .setPresentmode( le::Presentmode::eFifo )
+							.setPresentmode( le::Presentmode::eImmediate )
 	                        .end()
 	                        .end()
 	                        .build();
@@ -709,7 +710,7 @@ static void hello_world_app_process_ui_events( hello_world_app_o *self ) {
 		} break;
 		default:
 			// do nothing
-		    break;
+			break;
 		}
 	}
 

@@ -1,8 +1,6 @@
 #include "test_mesh_generator_app.h"
 
 #include "pal_window/pal_window.h"
-#include "le_backend_vk/le_backend_vk.h"
-#include "le_swapchain_vk/le_swapchain_vk.h"
 #include "le_renderer/le_renderer.h"
 
 #include "le_camera/le_camera.h"
@@ -29,7 +27,6 @@ struct le_mouse_event_data_o {
 };
 
 struct test_mesh_generator_app_o {
-	le::Backend  backend;
 	pal::Window  window;
 	le::Renderer renderer;
 
@@ -66,20 +63,7 @@ static test_mesh_generator_app_o *test_mesh_generator_app_create() {
 	// Create a new window
 	app->window.setup( settings );
 
-	le_swapchain_vk_settings_t swapchainSettings;
-	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eFifo;
-	swapchainSettings.imagecount_hint  = 3;
-	swapchainSettings.width_hint       = 1920;
-	swapchainSettings.height_hint      = 1080;
-
-	le_backend_vk_settings_t backendCreateInfo;
-	backendCreateInfo.requestedExtensions = pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
-	backendCreateInfo.swapchain_settings  = &swapchainSettings;
-	backendCreateInfo.pWindow             = app->window;
-
-	app->backend.setup( &backendCreateInfo );
-
-	app->renderer.setup( app->backend );
+	app->renderer.setup( le::RendererInfoBuilder( app->window ).build() );
 
 	reset_camera( app ); // set up the camera
 

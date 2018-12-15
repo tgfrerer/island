@@ -1,8 +1,6 @@
 #include "workbench_app.h"
 
 #include "pal_window/pal_window.h"
-#include "le_backend_vk/le_backend_vk.h"
-#include "le_swapchain_vk/le_swapchain_vk.h"
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/le_renderer_types.h"
 #include "le_gltf_loader/le_gltf_loader.h"
@@ -57,7 +55,6 @@ static constexpr le_resource_handle_t resTexHorse       = LE_TEX_RESOURCE( "TexH
 static constexpr le_resource_handle_t resBufTrianglePos = LE_BUF_RESOURCE( "BufTrianglePos" );
 
 struct workbench_app_o {
-	le::Backend   backend;
 	pal::Window   window;
 	le::Renderer  renderer;
 	uint64_t      psoMain;           // weak ref, owned by renderer
@@ -128,23 +125,12 @@ static workbench_app_o *workbench_app_create() {
 	// create a new window
 	app->window.setup( settings );
 
-	le_swapchain_vk_settings_t swapchainSettings{};
-	{
-		swapchainSettings.presentmode_hint = le_swapchain_vk_settings_t::Presentmode::eImmediate;
-	}
-
-	le_backend_vk_settings_t backendSettings;
-	{
-		backendSettings.pWindow            = app->window;
-		backendSettings.swapchain_settings = &swapchainSettings;
-	}
-	app->backend.setup( &backendSettings );
-	app->renderer.setup( app->backend );
+	app->renderer.setup( le::RendererInfoBuilder( app->window ).build() );
 
 	le_pipeline_manager_o *pipelineCache = nullptr;
 	{
-		using namespace le_backend_vk;
-		pipelineCache = vk_backend_i.get_pipeline_cache( app->backend );
+		using namespace le_renderer;
+		pipelineCache = renderer_i.get_pipeline_manager( app->renderer );
 	}
 
 	{

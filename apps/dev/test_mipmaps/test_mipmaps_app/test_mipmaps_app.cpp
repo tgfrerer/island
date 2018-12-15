@@ -1,8 +1,6 @@
 #include "test_mipmaps_app.h"
 
 #include "pal_window/pal_window.h"
-#include "le_backend_vk/le_backend_vk.h"
-#include "le_swapchain_vk/le_swapchain_vk.h"
 
 #include "le_renderer/le_renderer.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
@@ -34,7 +32,6 @@ struct Image : NoCopy, NoMove {
 // ----------------------------------------------------------------------
 
 struct test_mipmaps_app_o {
-	le::Backend  backend;
 	pal::Window  window;
 	le::Renderer renderer;
 
@@ -91,17 +88,11 @@ static test_mipmaps_app_o *test_mipmaps_app_create() {
 	// Create a new window
 	app->window.setup( settings );
 
-	le_swapchain_vk_settings_t swapchainSettings;
-	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eImmediate;
-	swapchainSettings.imagecount_hint  = 3;
-
-	le_backend_vk_settings_t backendCreateInfo;
-	backendCreateInfo.requestedExtensions = pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
-	backendCreateInfo.swapchain_settings  = &swapchainSettings;
-	backendCreateInfo.pWindow             = app->window;
-
-	app->backend.setup( &backendCreateInfo );
-	app->renderer.setup( app->backend );
+	app->renderer.setup( le::RendererInfoBuilder( app->window )
+							 .withSwapchain()
+							 .setFormatHint( le::Format::eB8G8R8A8Unorm )
+							 .end()
+							 .build() );
 
 	return app;
 }
@@ -174,17 +165,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	auto        app = static_cast<test_mipmaps_app_o *>( user_data );
 	le::Encoder encoder{encoder_};
 
-	auto screenWidth  = app->window.getSurfaceWidth();
-	auto screenHeight = app->window.getSurfaceHeight();
-
-	le::Viewport viewports[ 1 ] = {
-	    {0.f, 0.f, float( screenWidth ), float( screenHeight ), 0.f, 1.f},
-	};
-
-	le::Rect2D scissors[ 1 ] = {
-	    {0, 0, screenWidth, screenHeight},
-	};
-
 	// Draw main scene
 	if ( true ) {
 
@@ -199,8 +179,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 		encoder
 		    .bindGraphicsPipeline( pipelineTriangle )
-		    .setScissors( 0, 1, scissors )
-		    .setViewports( 0, 1, viewports )
 		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), app->testImage.textureHandle )
 		    .draw( 4 ) //
 		    ;
@@ -219,7 +197,7 @@ static void process_events( test_mipmaps_app_o *self ) {
 		self->window.getUIEventQueue( &events, numEvents );
 		auto const events_end = events + numEvents;
 
-		float maxY = float( self->window.getSurfaceHeight() );
+		float maxY = float( self->renderer.getSwapchainExtent().height );
 
 		for ( auto e = events; e != events_end; e++ ) {
 
@@ -233,7 +211,7 @@ static void process_events( test_mipmaps_app_o *self ) {
 
 			} break;
 			default:
-			    break;
+				break;
 			}
 		}
 	}

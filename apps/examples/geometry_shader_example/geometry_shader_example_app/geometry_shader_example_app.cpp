@@ -1,8 +1,6 @@
 #include "geometry_shader_example_app.h"
 
 #include "pal_window/pal_window.h"
-#include "le_backend_vk/le_backend_vk.h"
-#include "le_swapchain_vk/le_swapchain_vk.h"
 #include "le_renderer/le_renderer.h"
 
 #include "le_camera/le_camera.h"
@@ -26,7 +24,6 @@ struct le_mouse_event_data_o {
 };
 
 struct geometry_shader_example_app_o {
-	le::Backend  backend;
 	pal::Window  window;
 	le::Renderer renderer;
 
@@ -62,18 +59,11 @@ static geometry_shader_example_app_o *geometry_shader_example_app_create() {
 	// create a new window
 	app->window.setup( settings );
 
-	le_swapchain_vk_settings_t swapchainSettings;
-	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eFifo;
-	swapchainSettings.imagecount_hint  = 3;
-
-	le_backend_vk_settings_t backendCreateInfo;
-	backendCreateInfo.requestedExtensions = pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
-	backendCreateInfo.swapchain_settings  = &swapchainSettings;
-	backendCreateInfo.pWindow             = app->window;
-
-	app->backend.setup( &backendCreateInfo );
-
-	app->renderer.setup( app->backend );
+	app->renderer.setup( le::RendererInfoBuilder( app->window )
+							 .withSwapchain()
+							 .setFormatHint( le::Format::eB8G8R8A8Unorm )
+							 .end()
+							 .build() );
 
 	// -- Declare graphics pipeline state objects
 
@@ -118,6 +108,9 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		glm::mat4 view;
 		glm::mat4 projection;
 	};
+
+	auto extent = encoder.getRenderpassExtent();
+	app->camera.setViewport( {0, 0, float( extent.width ), float( extent.height )} );
 
 	// Draw main scene
 	if ( true ) {
@@ -168,21 +161,21 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 		constexpr float size_scale                    = 0.25;
 		glm::vec4       geometry_shader_exampleData[] = {
-		    {3, 0.0, 0.0, 400 * size_scale}, //< flare point
-		    {0, 0.1, 0.1, 200 * size_scale},
-		    {0, 0.9, 0.9, 120 * size_scale},
-		    {0, 1.0, 1.0, 300 * size_scale},
-		    {0, 1.2, 1.2, 120 * size_scale},
-		    {0, 1.5, 1.5, 30 * size_scale},
-		    {1, 0.3, 0.3, 650 * size_scale},
-		    {1, 0.5, 0.5, 300 * size_scale}, ///< screen centre
-		    {1, 1.1, 1.1, 1300 * size_scale},
-		    {1, 2.5, 2.5, 2300 * size_scale},
-		    {2, 1.0, 1.0, 500 * size_scale},
-		    {2, 1.0, 1.1, 400 * size_scale},
-		    {2, 1.0, 1.2, 400 * size_scale},
-		    {2, 1.0, 1.5, 500 * size_scale},
-		    {2, 1.0, 2.5, 400 * size_scale},
+			{3, 0.0, 0.0, 400 * size_scale}, //< flare point
+			{0, 0.1, 0.1, 200 * size_scale},
+			{0, 0.9, 0.9, 120 * size_scale},
+			{0, 1.0, 1.0, 300 * size_scale},
+			{0, 1.2, 1.2, 120 * size_scale},
+			{0, 1.5, 1.5, 30 * size_scale},
+			{1, 0.3, 0.3, 650 * size_scale},
+			{1, 0.5, 0.5, 300 * size_scale}, ///< screen centre
+			{1, 1.1, 1.1, 1300 * size_scale},
+			{1, 2.5, 2.5, 2300 * size_scale},
+			{2, 1.0, 1.0, 500 * size_scale},
+			{2, 1.0, 1.1, 400 * size_scale},
+			{2, 1.0, 1.2, 400 * size_scale},
+			{2, 1.0, 1.5, 500 * size_scale},
+			{2, 1.0, 2.5, 400 * size_scale},
 		};
 
 		struct GeometryShaderExampleParams {

@@ -1,8 +1,6 @@
 #include "test_dependency.h"
 
 #include "pal_window/pal_window.h"
-#include "le_backend_vk/le_backend_vk.h"
-#include "le_swapchain_vk/le_swapchain_vk.h"
 #include "le_renderer/le_renderer.h"
 
 #include "le_camera/le_camera.h"
@@ -19,7 +17,6 @@
 #include <sstream>
 
 struct test_dependency_o {
-	le::Backend  backend;
 	pal::Window  window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
@@ -55,18 +52,7 @@ static test_dependency_o *test_dependency_create() {
 	// create a new window
 	app->window.setup( settings );
 
-	le_swapchain_vk_settings_t swapchainSettings;
-	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eFifo;
-	swapchainSettings.imagecount_hint  = 3;
-
-	le_backend_vk_settings_t backendCreateInfo;
-	backendCreateInfo.requestedExtensions = pal::Window::getRequiredVkExtensions( &backendCreateInfo.numRequestedExtensions );
-	backendCreateInfo.swapchain_settings  = &swapchainSettings;
-	backendCreateInfo.pWindow             = app->window;
-
-	app->backend.setup( &backendCreateInfo );
-
-	app->renderer.setup( app->backend );
+	app->renderer.setup( le::RendererInfoBuilder( app->window ).build() );
 
 	// -- Declare graphics pipeline state objects
 

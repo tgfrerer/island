@@ -1,8 +1,6 @@
 #include "test_img_swapchain_app.h"
 
 #include "pal_window/pal_window.h"
-#include "le_backend_vk/le_backend_vk.h"
-#include "le_swapchain_vk/le_swapchain_vk.h"
 #include "le_renderer/le_renderer.h"
 
 #include "le_camera/le_camera.h"
@@ -18,7 +16,6 @@
 #include <sstream>
 
 struct test_img_swapchain_app_o {
-	le::Backend  backend;
 	pal::Window  window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
@@ -54,25 +51,21 @@ static test_img_swapchain_app_o *test_img_swapchain_app_create() {
 	// create a new window
 	app->window.setup( settings );
 
-	le_swapchain_vk_settings_t swapchainSettings;
-	swapchainSettings.presentmode_hint = le::Swapchain::Presentmode::eFifo;
-	swapchainSettings.imagecount_hint  = 3;
-	swapchainSettings.width_hint       = 1024;
-	swapchainSettings.height_hint      = 1024;
+	auto rendererInfo = le::RendererInfoBuilder()
+							.withSwapchain()
+							.setHeightHint( 480 )
+							.setWidthHint( 640 )
+							.setFormatHint( le::Format::eR8G8B8A8Unorm )
+							.setImagecountHint( 2 )
+							.withImgSwapchain()
+							.end()
+							.end()
+							.build();
 
-	le_backend_vk_settings_t backendCreateInfo{};
-	backendCreateInfo.requestedExtensions = nullptr;
-	backendCreateInfo.swapchain_settings  = &swapchainSettings;
-	backendCreateInfo.pWindow             = nullptr;
+	app->renderer.setup( rendererInfo );
 
-	app->backend.setup( &backendCreateInfo );
-
-	app->renderer.setup( app->backend );
-
-	{
-		// set up the camera
-		reset_camera( app );
-	}
+	// set up the camera
+	reset_camera( app );
 
 	return app;
 }
