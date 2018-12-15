@@ -126,6 +126,11 @@ static le_backend_o *renderer_get_backend( le_renderer_o *self ) {
 	return self->backend;
 }
 
+static le_pipeline_manager_o *renderer_get_pipeline_manager( le_renderer_o *self ) {
+	using namespace le_backend_vk;
+	return vk_backend_i.get_pipeline_cache( self->backend );
+}
+
 // ----------------------------------------------------------------------
 
 static void renderer_setup( le_renderer_o *self, le_renderer_settings_t const &settings ) {
@@ -593,8 +598,8 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	le_renderer_i.create_shader_module   = renderer_create_shader_module;
 	le_renderer_i.get_swapchain_resource = renderer_get_swapchain_resource;
 	le_renderer_i.get_swapchain_extent   = renderer_get_swapchain_extent;
-
-	le_renderer_i.get_backend = renderer_get_backend;
+	le_renderer_i.get_pipeline_manager   = renderer_get_pipeline_manager;
+	le_renderer_i.get_backend            = renderer_get_backend;
 
 	auto &helpers_i = le_renderer_api_i->helpers_i;
 
