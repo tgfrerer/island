@@ -276,15 +276,15 @@ static void blend_attachment_state_set_blend_enable( le_graphics_pipeline_builde
 
 // ----------------------------------------------------------------------
 
-vk::BlendOp le_blend_op_to_vk( const le::BlendOp &rhs ) {
+static vk::BlendOp le_blend_op_to_vk( const le::BlendOp &rhs ) {
 	return vk::BlendOp( rhs );
 }
 
-vk::BlendFactor le_blend_factor_to_vk( const le::BlendFactor &rhs ) {
+static vk::BlendFactor le_blend_factor_to_vk( const le::BlendFactor &rhs ) {
 	return vk::BlendFactor( rhs );
 }
 
-vk::ColorComponentFlags le_color_component_flags_to_vk( LeColorComponentFlags rhs ) {
+static vk::ColorComponentFlags le_color_component_flags_to_vk( LeColorComponentFlags rhs ) {
 	return vk::ColorComponentFlags( rhs );
 }
 
@@ -368,15 +368,15 @@ static void blend_attachment_state_use_preset( le_graphics_pipeline_builder_o *s
 
 // ----------------------------------------------------------------------
 
-vk::PolygonMode le_polygon_mode_to_vk( le::PolygonMode const &mode ) {
+static inline vk::PolygonMode le_polygon_mode_to_vk( le::PolygonMode const &mode ) {
 	return vk::PolygonMode( mode );
 }
 
-vk::CullModeFlagBits le_cull_mode_to_vk( le::CullModeFlagBits const &cull_mode ) {
+static inline vk::CullModeFlagBits le_cull_mode_to_vk( le::CullModeFlagBits const &cull_mode ) {
 	return vk::CullModeFlagBits( cull_mode );
 }
 
-vk::FrontFace le_front_face_to_vk( le::FrontFace const &front_face ) {
+static inline vk::FrontFace le_front_face_to_vk( le::FrontFace const &front_face ) {
 	return vk::FrontFace( front_face );
 }
 
@@ -416,7 +416,7 @@ static void rasterization_state_set_line_width( le_graphics_pipeline_builder_o *
 }
 
 // ----------------------------------------------------------------------
-vk::SampleCountFlagBits le_sample_count_flags_to_vk( le::SampleCountFlagBits const &rhs ) {
+static inline vk::SampleCountFlagBits le_sample_count_flags_to_vk( le::SampleCountFlagBits const &rhs ) {
 	return vk::SampleCountFlagBits( rhs );
 }
 
@@ -439,11 +439,11 @@ static void multisample_state_set_alpha_to_one_enable( le_graphics_pipeline_buil
 
 // ----------------------------------------------------------------------
 
-vk::StencilOp le_stencil_op_state_to_vk( le::StencilOp const &rhs ) {
+static inline vk::StencilOp le_stencil_op_state_to_vk( le::StencilOp const &rhs ) {
 	return vk::StencilOp( rhs );
 }
 
-vk::CompareOp le_compare_op_to_vk( le::CompareOp const &rhs ) {
+static inline vk::CompareOp le_compare_op_to_vk( le::CompareOp const &rhs ) {
 	return vk::CompareOp( rhs );
 }
 
