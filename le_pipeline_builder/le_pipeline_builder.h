@@ -11,6 +11,7 @@ extern "C" {
 struct le_graphics_pipeline_builder_o;
 struct le_shader_module_o;
 struct le_pipeline_manager_o;
+struct le_graphics_pipeline_handle_t; // Opaque handle for graphics pipeline state
 
 struct le_vertex_input_binding_description;
 struct le_vertex_input_attribute_description;
@@ -52,7 +53,7 @@ struct le_graphics_pipeline_builder_api {
 		void     ( * set_multisample_info                    ) ( le_graphics_pipeline_builder_o *self, const VkPipelineMultisampleStateCreateInfo &multisampleInfo );
 		void     ( * set_depth_stencil_info                  ) ( le_graphics_pipeline_builder_o *self, const VkPipelineDepthStencilStateCreateInfo &depthStencilInfo );
 
-		uint64_t ( * build                                   ) ( le_graphics_pipeline_builder_o* self );
+		le_graphics_pipeline_handle_t* ( * build             ) ( le_graphics_pipeline_builder_o* self );
 
 		struct input_assembly_state_t {
 			void ( *set_primitive_restart_enable ) ( le_graphics_pipeline_builder_o* self, uint32_t const& primitiveRestartEnable );
@@ -563,7 +564,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		le_pipeline_builder::le_graphics_pipeline_builder_i.destroy( self );
 	}
 
-	uint64_t build() {
+	le_graphics_pipeline_handle_t *build() {
 		return le_pipeline_builder::le_graphics_pipeline_builder_i.build( self );
 	}
 

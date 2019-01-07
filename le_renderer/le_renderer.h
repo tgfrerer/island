@@ -123,7 +123,7 @@ struct le_renderer_api {
 		void                         ( *set_viewport           )( le_command_buffer_encoder_o *self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport *pViewports );
 		void                         ( *set_scissor            )( le_command_buffer_encoder_o *self, uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D *pViewports );
 
-		void                         ( *bind_graphics_pipeline )( le_command_buffer_encoder_o *self, uint64_t gpsoHash);
+		void                         ( *bind_graphics_pipeline )( le_command_buffer_encoder_o *self, le_graphics_pipeline_handle pipelineHandle);
 		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, le_resource_handle_t const bufferId, uint64_t offset, le::IndexType const & indexType);
 		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, le_resource_handle_t const * pBufferId, uint64_t const * pOffsets );
 
@@ -491,8 +491,8 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &bindGraphicsPipeline( uint64_t gpsoHash ) {
-		le_renderer::encoder_i.bind_graphics_pipeline( self, gpsoHash );
+	Encoder &bindGraphicsPipeline( le_graphics_pipeline_handle pipelineHandle ) {
+		le_renderer::encoder_i.bind_graphics_pipeline( self, pipelineHandle );
 		return *this;
 	}
 

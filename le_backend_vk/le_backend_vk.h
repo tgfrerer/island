@@ -34,6 +34,8 @@ struct pal_window_o;
 struct le_shader_module_o;
 struct le_resource_handle_t; // defined in renderer_types
 
+struct le_graphics_pipeline_handle_t; // opaque handle representing pipeline state hash
+
 struct VkInstance_T;
 struct VkDevice_T;
 struct VkImage_T;
@@ -173,8 +175,8 @@ struct le_backend_vk_api {
 		le_pipeline_manager_o*                   ( *create                            ) ( VkDevice_T* device          );
 		void                                     ( *destroy                           ) ( le_pipeline_manager_o* self );
 
-		void                                     ( *introduce_graphics_pipeline_state ) ( le_pipeline_manager_o *self, graphics_pipeline_state_o* gpso, uint64_t gpoHash);
-		le_pipeline_and_layout_info_t            ( *produce_pipeline                  ) ( le_pipeline_manager_o *self, uint64_t gpso_hash, const LeRenderPass &pass, uint32_t subpass ) ;
+		void                                     ( *introduce_graphics_pipeline_state ) ( le_pipeline_manager_o *self, graphics_pipeline_state_o* gpso, le_graphics_pipeline_handle_t* gpoHandle);
+		le_pipeline_and_layout_info_t            ( *produce_pipeline                  ) ( le_pipeline_manager_o *self, le_graphics_pipeline_handle_t* gpsoHandle, const LeRenderPass &pass, uint32_t subpass ) ;
 		le_shader_module_o*                      ( *create_shader_module              ) ( le_pipeline_manager_o* self, char const * path, const LeShaderStageEnum& moduleType);
 		void                                     ( *update_shader_modules             ) ( le_pipeline_manager_o* self );
 		struct VkPipelineLayout_T*               ( *get_pipeline_layout               ) ( le_pipeline_manager_o* self, uint64_t pipeline_layout_key);

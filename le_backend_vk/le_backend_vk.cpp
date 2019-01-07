@@ -287,7 +287,6 @@ struct BackendFrameData {
 /// \brief backend data object
 struct le_backend_o {
 
-
 	std::unique_ptr<le::Instance> instance;
 	std::unique_ptr<le::Device>   device;
 
@@ -2501,7 +2500,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 						using namespace le_backend_vk;
 						// -- potentially compile and create pipeline here, based on current pass and subpass
-						currentPipeline = le_pipeline_manager_i.produce_pipeline( pipelineManager, le_cmd->info.psoHash, pass, subpassIndex );
+						currentPipeline = le_pipeline_manager_i.produce_pipeline( pipelineManager, le_cmd->info.gpsoHandle, pass, subpassIndex );
 
 						// -- grab current pipeline layout from cache
 						currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );

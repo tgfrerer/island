@@ -179,16 +179,14 @@ static void le_graphics_pipeline_builder_destroy( le_graphics_pipeline_builder_o
 
 // Calculate pipeline info hash, and add pipeline info to shared store if not yet seen.
 // Return pipeline hash
-static uint64_t le_graphics_pipeline_builder_build( le_graphics_pipeline_builder_o *self ) {
+static le_graphics_pipeline_handle le_graphics_pipeline_builder_build( le_graphics_pipeline_builder_o *self ) {
 
-	uint64_t hash_value{}; // We declare this as the first element, because it will get returned
-	                       // at the end of the method and we're hoping for copy-elision.
+	le_graphics_pipeline_handle pipeline_handle = {};
 
 	constexpr size_t hash_msg_size = sizeof( le_graphics_pipeline_builder_data );
 
-	hash_value = SpookyHash::Hash64( &self->obj->data, hash_msg_size, 0 );
-
 	{
+		uint64_t hash_value = SpookyHash::Hash64( &self->obj->data, hash_msg_size, 0 );
 		// Calculate a meta-hash over shader stage hash entries so that we can
 		// detect if a shader component has changed
 		//
@@ -210,18 +208,25 @@ static uint64_t le_graphics_pipeline_builder_build( le_graphics_pipeline_builder
 		// which gives the complete hash representing a pipeline state object.
 
 		hash_value = SpookyHash::Hash64( stageHashEntries, stageHashEntriesUsed * sizeof( uint64_t ), hash_value );
+
+		// Cast hash_value to a pipeline handle, so we can use the type system with it
+		// its value, of course, is still equivalent to hash_value.
+
+		pipeline_handle = reinterpret_cast<le_graphics_pipeline_handle>( hash_value );
+
+		assert( ( uint64_t )pipeline_handle == hash_value );
 	}
 
 	// Add pipeline state object to the shared store
-
-	using namespace le_backend_vk;
-	le_pipeline_manager_i.introduce_graphics_pipeline_state( self->pipelineCache, self->obj, hash_value );
 
 	// Note that the pipeline_manager makes a copy of the pso object before returning
 	// from `introduce_graphics_pipeline_state` if it wants to keep it, which means
 	// we don't have to worry about keeping self->obj alife.
 
-	return hash_value;
+	using namespace le_backend_vk;
+	le_pipeline_manager_i.introduce_graphics_pipeline_state( self->pipelineCache, self->obj, pipeline_handle );
+
+	return pipeline_handle;
 }
 
 // ----------------------------------------------------------------------

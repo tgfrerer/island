@@ -302,12 +302,12 @@ static void cbe_set_argument_texture( le_command_buffer_encoder_o *self, le_reso
 
 // ----------------------------------------------------------------------
 
-static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, uint64_t psoHash ) {
+static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, le_graphics_pipeline_handle gpsoHandle ) {
 
 	// -- insert PSO pointer into command stream
 	auto cmd = EMPLACE_CMD( le::CommandBindPipeline );
 
-	cmd->info.psoHash = psoHash;
+	cmd->info.gpsoHandle = gpsoHandle;
 
 	//	std::cout << "binding pipeline" << std::endl
 	//	          << std::flush;

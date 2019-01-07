@@ -56,7 +56,7 @@ struct le_pipeline_manager_o {
 	le_shader_manager_o *shaderManager = nullptr; // owning
 
 	std::vector<graphics_pipeline_state_o *> graphicsPSO_list; // indexed by graphicsPSO_hashes
-	std::vector<uint64_t>                    graphicsPSO_hashes;
+	std::vector<le_graphics_pipeline_handle> graphicsPSO_hashes;
 
 	std::unordered_map<uint64_t, vk::Pipeline, IdentityHash>            pipelines;
 	std::unordered_map<uint64_t, le_pipeline_layout_info, IdentityHash> pipelineLayoutInfos;
@@ -1444,7 +1444,7 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 
 // ----------------------------------------------------------------------
 /// \returns pointer to a graphicsPSO which matches gpsoHash, or `nullptr` if no match
-graphics_pipeline_state_o *le_pipeline_manager_get_pso_from_cache( le_pipeline_manager_o *self, const uint64_t &gpso_hash ) {
+graphics_pipeline_state_o *le_pipeline_manager_get_pso_from_cache( le_pipeline_manager_o *self, const le_graphics_pipeline_handle &gpso_hash ) {
 	// FIXME: (PIPELINE) THIS NEEDS TO BE MUTEXED, AND ACCESS CONTROLLED
 
 	auto       pso              = self->graphicsPSO_list.data();
@@ -1473,16 +1473,16 @@ graphics_pipeline_state_o *le_pipeline_manager_get_pso_from_cache( le_pipeline_m
 /// \note This method may lock the pipeline cache and is therefore costly.
 // TODO: Ensure there are no races around this method
 //
-// + Only the command buffer recording slice of a frame shall be able to modify the cache
-//   the cache must be exclusively accessed through this method
+// + Only the 'command buffer recording'-slice of a frame shall be able to modify the cache.
+//   The cache must be exclusively accessed through this method
 //
 // + Access to this method must be sequential - no two frames may access this method
 //   at the same time - and no two renderpasses may access this method at the same time.
-static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pipeline_manager_o *self, uint64_t gpso_hash, const LeRenderPass &pass, uint32_t subpass ) {
+static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pipeline_manager_o *self, le_graphics_pipeline_handle gpso_handle, const LeRenderPass &pass, uint32_t subpass ) {
 
 	// -- 0. Fetch pso from cache using its hash key
 
-	graphics_pipeline_state_o const *pso = le_pipeline_manager_get_pso_from_cache( self, gpso_hash );
+	graphics_pipeline_state_o const *pso = le_pipeline_manager_get_pso_from_cache( self, gpso_handle );
 
 	assert( pso );
 
@@ -1516,8 +1516,8 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pi
 		uint64_t pso_renderpass_hash_data[ 12 ]       = {}; // we use a c-style array, with an entry count so that this is reliably allocated on the stack and not on the heap.
 		uint64_t pso_renderpass_hash_data_num_entries = 0;  // number of entries in pso_renderpass_hash_data
 
-		pso_renderpass_hash_data[ 0 ]        = gpso_hash;           // Hash associated with `pso`
-		pso_renderpass_hash_data[ 1 ]        = pass.renderpassHash; // Hash for *compatible* renderpass
+		pso_renderpass_hash_data[ 0 ]        = reinterpret_cast<uint64_t>( gpso_handle ); // Hash associated with `pso`
+		pso_renderpass_hash_data[ 1 ]        = pass.renderpassHash;                       // Hash for *compatible* renderpass
 		pso_renderpass_hash_data_num_entries = 2;
 
 		for ( auto const &s : pso->shaderStages ) {
@@ -1553,16 +1553,16 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pi
 //
 // via RECORD in command buffer recording state
 // in SETUP
-void le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_o *self, graphics_pipeline_state_o *gpso, uint64_t gpsoHash ) {
+void le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_o *self, graphics_pipeline_state_o *gpso, le_graphics_pipeline_handle gpsoHandle ) {
 
 	// we must copy!
 
 	// check if pso is already in cache
-	auto pso = le_pipeline_manager_get_pso_from_cache( self, gpsoHash );
+	auto pso = le_pipeline_manager_get_pso_from_cache( self, gpsoHandle );
 
 	if ( pso == nullptr ) {
 		// not found in cache - add to cache
-		self->graphicsPSO_hashes.emplace_back( gpsoHash );
+		self->graphicsPSO_hashes.emplace_back( gpsoHandle );
 		self->graphicsPSO_list.emplace_back( new graphics_pipeline_state_o( *gpso ) ); // note that we copy
 	} else {
 		// assert( false ); // pso was already found in cache, this is strange

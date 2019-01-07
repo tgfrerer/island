@@ -55,15 +55,15 @@ static constexpr le_resource_handle_t resTexHorse       = LE_TEX_RESOURCE( "TexH
 static constexpr le_resource_handle_t resBufTrianglePos = LE_BUF_RESOURCE( "BufTrianglePos" );
 
 struct workbench_app_o {
-	pal::Window   window;
-	le::Renderer  renderer;
-	uint64_t      psoMain;           // weak ref, owned by renderer
-	uint64_t      psoFullScreenQuad; // weak ref, owned by renderer
-	uint64_t      psoImgui;          // weak ref, owned by renderer
-	ImGuiContext *imguiContext  = nullptr;
-	uint64_t      frame_counter = 0;
-	float         deltaTimeSec  = 0;
-	float         animT         = 0;
+	pal::Window                 window;
+	le::Renderer                renderer;
+	le_graphics_pipeline_handle psoMain;           // weak ref, owned by renderer
+	le_graphics_pipeline_handle psoFullScreenQuad; // weak ref, owned by renderer
+	le_graphics_pipeline_handle psoImgui;          // weak ref, owned by renderer
+	ImGuiContext *              imguiContext  = nullptr;
+	uint64_t                    frame_counter = 0;
+	float                       deltaTimeSec  = 0;
+	float                       animT         = 0;
 
 	FontTextureInfo imguiTexture = {};
 
@@ -205,12 +205,12 @@ static workbench_app_o *workbench_app_create() {
 			// Which makes sense since every other time it will return the same hash value for
 			// given data.
 			// and all calculations will be in vain, and write access to the cache is expensive.
-			static uint64_t psoHandle = LeGraphicsPipelineBuilder( pipelineCache )
-			                                .addShaderStage( imguiFragShader )
-			                                .addShaderStage( imguiVertShader )
-			                                .setVertexInputAttributeDescriptions( attrs.data(), attrs.size() )
-			                                .setVertexInputBindingDescriptions( bindings.data(), bindings.size() )
-			                                .build();
+			static le_graphics_pipeline_handle psoHandle = LeGraphicsPipelineBuilder( pipelineCache )
+			                                                   .addShaderStage( imguiFragShader )
+			                                                   .addShaderStage( imguiVertShader )
+			                                                   .setVertexInputAttributeDescriptions( attrs.data(), attrs.size() )
+			                                                   .setVertexInputBindingDescriptions( bindings.data(), bindings.size() )
+			                                                   .build();
 
 			if ( psoHandle ) {
 				app->psoImgui = psoHandle;

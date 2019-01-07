@@ -122,6 +122,13 @@ enum LeRenderPassType : uint32_t {
 	LE_RENDER_PASS_TYPE_COMPUTE   = 3,
 };
 
+// A graphics pipeline handle is an opaque handle to a *pipeline state* object.
+// Note that the pipeline state is different from the actual pipeline, as the
+// pipeline is created, based on a pipeline state and a renderpass.
+//
+struct le_graphics_pipeline_handle_t;                               // Opaque pipeline state object handle type
+typedef le_graphics_pipeline_handle_t *le_graphics_pipeline_handle; // Opaque pipeline state object handle
+
 typedef uint32_t LeImageCreateFlags;
 // Codegen <VkImageCreateFlagBits, LeImageCreateFlags, c>
 enum LeImageCreateFlagBits : LeImageCreateFlags {
@@ -1294,7 +1301,7 @@ struct CommandBindIndexBuffer {
 struct CommandBindPipeline {
 	CommandHeader header = {{{CommandType::eBindPipeline, sizeof( CommandBindPipeline )}}};
 	struct {
-		uint64_t psoHash;
+		le_graphics_pipeline_handle gpsoHandle;
 	} info;
 };
 

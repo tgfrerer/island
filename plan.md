@@ -31,8 +31,6 @@
 
 ## (C)
 
-- use opaque handle to reference pso instead of bare `uint64_t`
-
 ## (Unsorted)
 
 - add sort-key to encoder, so that we can decouple calling the `execute`
