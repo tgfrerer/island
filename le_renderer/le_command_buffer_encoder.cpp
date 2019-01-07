@@ -19,7 +19,7 @@ struct le_command_buffer_encoder_o {
 	size_t                  mCommandCount      = 0;
 	le_allocator_o *        pAllocator         = nullptr; // allocator is owned by backend, externally
 	le_pipeline_manager_o * pipelineManager    = nullptr;
-	le_staging_allocator_o *stagingAllocator   = nullptr; // borrowed from backend
+	le_staging_allocator_o *stagingAllocator   = nullptr; // Borrowed from backend - used for larger, permanent resources, shared amongst encoders
 	le::Extent2D            extent             = {};      // Renderpass extent, otherwise swapchain extent inferred via renderer, this may be queried by users of encoder.
 };
 

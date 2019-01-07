@@ -25,7 +25,7 @@ struct le_renderpass_o {
 
 	LeRenderPassType type     = LE_RENDER_PASS_TYPE_UNDEFINED;
 	uint32_t         isRoot   = false; // whether pass *must* be processed
-	uint64_t         id       = 0;
+	uint64_t         id       = 0;     // hash of name
 	uint64_t         sort_key = 0;
 
 	std::vector<le_resource_handle_t> resources;     // all resources used in this pass
@@ -35,7 +35,7 @@ struct le_renderpass_o {
 	std::vector<le_resource_handle_t> writeResources;
 
 	std::vector<le_image_attachment_info_t> imageAttachments;    // settings for image attachments (may be color/or depth)
-	std::vector<le_resource_handle_t>  attachmentResources; // kept in sync with imageAttachments, one resource per attachment
+	std::vector<le_resource_handle_t>       attachmentResources; // kept in sync with imageAttachments, one resource per attachment
 
 	uint32_t width  = 0; ///< width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
 	uint32_t height = 0; ///< height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
@@ -48,8 +48,8 @@ struct le_renderpass_o {
 	void *                                    execute_callback_user_data = nullptr;
 	void *                                    setup_callback_user_data   = nullptr;
 
-	struct le_command_buffer_encoder_o *encoder   = nullptr;
-	std::string                         debugName = "";
+	le_command_buffer_encoder_o *encoder   = nullptr;
+	std::string                  debugName = "";
 };
 
 // ----------------------------------------------------------------------
@@ -128,14 +128,13 @@ static inline bool vector_contains( const std::vector<T> &haystack, const T &nee
 
 static void renderpass_use_resource( le_renderpass_o *self, const le_resource_handle_t &resource_id, const le_resource_info_t &resource_info ) {
 
-	// check if resource is already known to this renderpass
-	// if yes, consolidate info (to largest common denominator), otherwise, push resource to resources list, and add a debug resource info
-	// TODO: self->usedResourceInfos.push_back( info );
-	// TODO: self->usedResources.push_back( resource );
+	// Check if resource is already known to this renderpass -
+	//		+ If yes, consolidate info (to largest common denominator),
+	//		+ Otherwise, add new resource to resources list, and add a matching new resource info entry.
 
 	assert( resource_info.type == LeResourceType::eBuffer || resource_info.type == LeResourceType::eImage );
 
-	// invariant: only check images or buffers
+	// ---------| Invariant: only check images or buffers
 
 	auto found_res = std::find( self->resources.begin(), self->resources.end(), resource_id );
 
@@ -148,13 +147,13 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 		consolidated_info = &self->resourceInfos.back();
 	} else {
 
-		// resource already exists. we must consolidate the corresponding `resource_info`, so that it covers both cases.
+		// Resource already exists. we must consolidate the corresponding `resource_info`, so that it covers both cases.
 
 		auto &stored_resource_info = *( self->resourceInfos.begin() + ( found_res - self->resources.begin() ) );
 
 		assert( stored_resource_info.type == resource_info.type );
 
-		// consolidate resource_info
+		// Consolidate resource_info
 		switch ( resource_info.type ) {
 		case LeResourceType::eBuffer: {
 			stored_resource_info.buffer.size = std::max<uint32_t>( stored_resource_info.buffer.size, resource_info.buffer.size );
@@ -163,7 +162,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 		case LeResourceType::eImage: {
 			stored_resource_info.image.usage |= resource_info.image.usage;
 
-			// todo: find out how best to consolidate these values...
+			// Todo: find out how best to consolidate these values...
 			assert( stored_resource_info.image.flags == resource_info.image.flags );             // creation flags
 			assert( stored_resource_info.image.imageType == resource_info.image.imageType );     // enum vk::ImageType
 			assert( stored_resource_info.image.format == resource_info.image.format );           // enum vk::Format
@@ -180,7 +179,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 		consolidated_info = &stored_resource_info;
 	}
 
-	// now we check whether there is a read and/or a write operation on
+	// Now we check whether there is a read and/or a write operation on
 	// the resource
 	static constexpr uint32_t ALL_IMAGE_WRITE_FLAGS =
 	    LE_IMAGE_USAGE_TRANSFER_DST_BIT |             //
@@ -621,8 +620,8 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 			msg << "renderpass: '" << pass->debugName << "' , sort_key: " << pass->sort_key << std::endl;
 
 			le_image_attachment_info_t const *pImageAttachments   = nullptr;
-			le_resource_handle_t const * pResources          = nullptr;
-			size_t                       numImageAttachments = 0;
+			le_resource_handle_t const *      pResources          = nullptr;
+			size_t                            numImageAttachments = 0;
 			renderpass_get_image_attachments( pass, &pImageAttachments, &pResources, &numImageAttachments );
 
 			for ( size_t i = 0; i != numImageAttachments; ++i ) {
