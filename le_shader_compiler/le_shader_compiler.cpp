@@ -63,14 +63,23 @@ static shaderc_shader_kind convert_to_shaderc_shader_kind( const le::ShaderStage
 	shaderc_shader_kind result{};
 
 	switch ( type ) {
-	case ( le::ShaderStage::eFragment ):
-		result = shaderc_shader_kind::shaderc_glsl_fragment_shader;
-	    break;
 	case ( le::ShaderStage::eVertex ):
-		result = shaderc_shader_kind::shaderc_glsl_vertex_shader;
+		result = shaderc_glsl_vertex_shader;
+	    break;
+	case ( le::ShaderStage::eTessellationControl ):
+		result = shaderc_tess_control_shader;
+	    break;
+	case ( le::ShaderStage::eTessellationEvaluation ):
+		result = shaderc_tess_evaluation_shader;
 	    break;
 	case ( le::ShaderStage::eGeometry ):
-		result = shaderc_glsl_geometry_shader;
+		result = shaderc_geometry_shader;
+	    break;
+	case ( le::ShaderStage::eFragment ):
+		result = shaderc_glsl_fragment_shader;
+	    break;
+	case ( le::ShaderStage::eCompute ):
+		result = shaderc_glsl_compute_shader;
 	    break;
 	default: {
 
