@@ -52,15 +52,16 @@ static test_img_swapchain_app_o *test_img_swapchain_app_create() {
 	app->window.setup( settings );
 
 	auto rendererInfo = le::RendererInfoBuilder()
-							.withSwapchain()
-							.setHeightHint( 480 )
-							.setWidthHint( 640 )
-							.setFormatHint( le::Format::eR8G8B8A8Unorm )
-							.setImagecountHint( 2 )
-							.withImgSwapchain()
-							.end()
-							.end()
-							.build();
+
+	                        .withSwapchain()
+	                        .setHeightHint( 480 )
+	                        .setWidthHint( 640 )
+	                        .setFormatHint( le::Format::eR8G8B8A8Unorm )
+	                        .setImagecountHint( 2 )
+	                        .withImgSwapchain()
+	                        .end()
+	                        .end()
+	                        .build();
 
 	app->renderer.setup( rendererInfo );
 
