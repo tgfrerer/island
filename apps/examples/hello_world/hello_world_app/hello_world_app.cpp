@@ -686,26 +686,28 @@ static void hello_world_app_process_ui_events( hello_world_app_o *self ) {
 		switch ( event.event ) {
 		case ( LeUiEvent::Type::eKey ): {
 			auto &e = event.key;
-			if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eF11 ) {
-				wantsToggle ^= true;
-			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eZ ) {
-				reset_camera( self );
-				float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
-				self->cameraController.setPivotDistance( distance_to_origin );
-			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eX ) {
-				self->cameraController.setPivotDistance( 0 );
-			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eC ) {
-				float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
-				self->cameraController.setPivotDistance( distance_to_origin );
-			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eA ) {
-				self->animate ^= true;
-			} else if ( e.action == LeUiEvent::ButtonAction::eRelease && e.key == LeUiEvent::NamedKey::eP ) {
-				// print out current camera view matrix
-				std::cout << "View matrix:" << glm::to_string( self->camera.getViewMatrixGlm() ) << std::endl
-				          << std::flush;
-				std::cout << "camera node matrix:" << glm::to_string( glm::inverse( self->camera.getViewMatrixGlm() ) ) << std::endl
-				          << std::flush;
-			}
+			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
+				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
+					wantsToggle ^= true;
+				} else if ( e.key == LeUiEvent::NamedKey::eZ ) {
+					reset_camera( self );
+					float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
+					self->cameraController.setPivotDistance( distance_to_origin );
+				} else if ( e.key == LeUiEvent::NamedKey::eX ) {
+					self->cameraController.setPivotDistance( 0 );
+				} else if ( e.key == LeUiEvent::NamedKey::eC ) {
+					float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
+					self->cameraController.setPivotDistance( distance_to_origin );
+				} else if ( e.key == LeUiEvent::NamedKey::eA ) {
+					self->animate ^= true;
+				} else if ( e.key == LeUiEvent::NamedKey::eP ) {
+					// print out current camera view matrix
+					std::cout << "View matrix:" << glm::to_string( self->camera.getViewMatrixGlm() ) << std::endl
+					          << std::flush;
+					std::cout << "camera node matrix:" << glm::to_string( glm::inverse( self->camera.getViewMatrixGlm() ) ) << std::endl
+					          << std::flush;
+				}
+			} // if ButtonAction == eRelease
 
 		} break;
 		default:
