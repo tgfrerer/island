@@ -137,7 +137,7 @@ struct le_renderer_api {
 
 		le::Extent2D const &         ( *get_extent             ) ( le_command_buffer_encoder_o* self );
 
-//		void                         ( *write_to_image_regions )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, le_resource_info_t const & resourceInfo, void const *data, size_t numBytes );
+		void                         ( *bind_argument_buffer   )( le_command_buffer_encoder_o *self, le_resource_handle_t const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range );
 
 		void                         ( *set_argument_data      )( le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
 		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, le_resource_handle_t const textureId, uint64_t argumentName, uint64_t arrayIndex);
@@ -539,6 +539,11 @@ class Encoder {
 
 	Encoder &setArgumentTexture( uint64_t const &argumentName, le_resource_handle_t const &textureId, uint64_t const &arrayIndex = 0 ) {
 		le_renderer::encoder_i.set_argument_texture( self, textureId, argumentName, arrayIndex );
+		return *this;
+	}
+
+	Encoder &bindArgumentBuffer( uint64_t const &argumentName, le_resource_handle_t const &bufferId, uint64_t const &offset = 0, uint64_t const &range = ( ~0ULL ) ) {
+		le_renderer::encoder_i.bind_argument_buffer( self, bufferId, argumentName, offset, range );
 		return *this;
 	}
 

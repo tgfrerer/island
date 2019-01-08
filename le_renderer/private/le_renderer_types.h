@@ -1200,7 +1200,8 @@ enum class CommandType : uint32_t {
 	eSetLineWidth,
 	eSetViewport,
 	eSetScissor,
-	eSetArgumentUbo,
+	eSetArgumentData,
+	eBindArgumentBuffer,
 	eSetArgumentTexture,
 	eBindIndexBuffer,
 	eBindVertexBuffers,
@@ -1274,6 +1275,17 @@ struct CommandSetArgumentTexture {
 		uint64_t             argument_name_id; // const_char_hash id of argument name
 		le_resource_handle_t texture_id;       // texture id, hash of texture name
 		uint64_t             array_index;      // argument array index (default is 0)
+	} info;
+};
+
+// -- bind a buffer to a ssbo shader argument
+struct CommandBindArgumentBuffer {
+	CommandHeader header = {{{CommandType::eBindArgumentBuffer, sizeof( CommandBindArgumentBuffer )}}};
+	struct {
+		uint64_t             argument_name_id; // const_char_hash id of argument name
+		le_resource_handle_t buffer_id;        // id of buffer that holds data
+		uint64_t             offset;           // offset into buffer
+		uint64_t             range;            // size of argument data in bytes
 	} info;
 };
 

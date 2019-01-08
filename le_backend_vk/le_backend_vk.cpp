@@ -2768,6 +2768,56 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				} break;
 
+				case le::CommandType::eBindArgumentBuffer: {
+					// we need to store the data for the dynamic binding which was set as an argument to the ubo
+					// this alters our internal state
+					auto *le_cmd = static_cast<le::CommandBindArgumentBuffer *>( dataIt );
+
+					uint64_t argument_name_id = le_cmd->info.argument_name_id;
+
+					// find binding info with name referenced in command
+
+					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(),
+					                       [&argument_name_id]( const le_shader_binding_info &e ) -> bool {
+						                       return e.name_hash == argument_name_id;
+					                       } );
+
+					if ( b == argumentState.binding_infos.end() ) {
+						std::cout << __FUNCTION__ << "#L" << std::dec << __LINE__ << " : Warning: Invalid argument name id: 0x" << std::hex << argument_name_id << std::endl
+						          << std::flush;
+						break;
+					}
+
+					// ---------| invariant: we found an argument name that matches
+					auto setIndex = b->setIndex;
+					auto binding  = b->binding;
+
+					auto &bindingData = argumentState.setData[ setIndex ][ binding ];
+
+					bindingData.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
+					bindingData.range  = std::min<uint64_t>( le_cmd->info.range, b->range ); // CHECK: use range from binding to limit range...
+
+					if ( bindingData.range == 0 ) {
+
+						// If no range was specified, we must default to VK_WHOLE_SIZE,
+						// as a range setting of 0 is not allowed in Vulkan.
+
+						bindingData.range = VK_WHOLE_SIZE;
+					}
+
+					// If binding is in fact a dynamic binding, set the corresponding dynamic offset
+					// and set the buffer offset to 0.
+					if ( b->type == enumToNum( vk::DescriptorType::eStorageBufferDynamic ) ||
+					     b->type == enumToNum( vk::DescriptorType::eUniformBufferDynamic ) ) {
+						auto dynamicOffset                            = b->dynamic_offset_idx;
+						bindingData.offset                            = 0;
+						argumentState.dynamicOffsets[ dynamicOffset ] = le_cmd->info.offset;
+					} else {
+						bindingData.offset = le_cmd->info.offset;
+					}
+
+				} break;
+
 				case le::CommandType::eSetArgumentTexture: {
 					auto *   le_cmd           = static_cast<le::CommandSetArgumentTexture *>( dataIt );
 					uint64_t argument_name_id = le_cmd->info.argument_name_id;
