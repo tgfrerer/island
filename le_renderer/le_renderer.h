@@ -119,6 +119,8 @@ struct le_renderer_api {
 		void                         ( *draw                   )( le_command_buffer_encoder_o *self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance );
 		void                         ( *draw_indexed           )( le_command_buffer_encoder_o *self, uint32_t indexCount, uint32_t instanceCount, uint32_t firstIndex, int32_t vertexOffset, uint32_t firstInstance);
 
+		void                         (* dispatch               )( le_command_buffer_encoder_o *self, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ );
+
 		void                         ( *set_line_width         )( le_command_buffer_encoder_o *self, float line_width_ );
 		void                         ( *set_viewport           )( le_command_buffer_encoder_o *self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport *pViewports );
 		void                         ( *set_scissor            )( le_command_buffer_encoder_o *self, uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D *pViewports );
@@ -465,6 +467,11 @@ class Encoder {
 
 	Extent2D const &getRenderpassExtent() {
 		return le_renderer::encoder_i.get_extent( self );
+	}
+
+	Encoder &dispatch( const uint32_t &groupCountX = 1, const uint32_t &groupCountY = 1, const uint32_t &groupCountZ = 1 ) {
+		le_renderer::encoder_i.dispatch( self, groupCountX, groupCountY, groupCountZ );
+		return *this;
 	}
 
 	Encoder &draw( const uint32_t &vertexCount, const uint32_t &instanceCount = 1, const uint32_t &firstVertex = 0, const uint32_t &firstInstance = 0 ) {

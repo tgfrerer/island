@@ -1197,6 +1197,7 @@ namespace le {
 enum class CommandType : uint32_t {
 	eDrawIndexed,
 	eDraw,
+	eDispatch,
 	eSetLineWidth,
 	eSetViewport,
 	eSetScissor,
@@ -1240,6 +1241,16 @@ struct CommandDraw {
 		uint32_t instanceCount;
 		uint32_t firstVertex;
 		uint32_t firstInstance;
+	} info;
+};
+
+struct CommandDispatch {
+	CommandHeader header = {{{CommandType::eDispatch, sizeof( CommandDispatch )}}};
+	struct {
+		uint32_t groupCountX;
+		uint32_t groupCountY;
+		uint32_t groupCountZ;
+		uint32_t __padding__;
 	} info;
 };
 

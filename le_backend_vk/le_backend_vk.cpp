@@ -2656,6 +2656,32 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				} break;
 
+				case le::CommandType::eDispatch: {
+					auto *le_cmd = static_cast<le::CommandDispatch *>( dataIt );
+
+					// -- update descriptorsets via template if tainted
+					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, descriptorSets );
+
+					if ( false == argumentsOk ) {
+						break;
+					}
+
+					// --------| invariant: arguments were updated successfully
+
+					if ( argumentState.setCount > 0 ) {
+
+						cmd.bindDescriptorSets( vk::PipelineBindPoint::eCompute,
+						                        currentPipelineLayout,
+						                        0,
+						                        argumentState.setCount,
+						                        descriptorSets,
+						                        argumentState.dynamicOffsetCount,
+						                        argumentState.dynamicOffsets.data() );
+					}
+
+					cmd.dispatch( le_cmd->info.groupCountX, le_cmd->info.groupCountY, le_cmd->info.groupCountZ );
+				} break;
+
 				case le::CommandType::eDraw: {
 					auto *le_cmd = static_cast<le::CommandDraw *>( dataIt );
 

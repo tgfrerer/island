@@ -63,6 +63,17 @@ static void cbe_set_line_width( le_command_buffer_encoder_o *self, float lineWid
 
 // ----------------------------------------------------------------------
 
+static void cbe_dispatch( le_command_buffer_encoder_o *self, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ ) {
+
+	auto cmd  = EMPLACE_CMD( le::CommandDispatch ); // placement new!
+	cmd->info = {groupCountX, groupCountY, groupCountZ, 0};
+
+	self->mCommandStreamSize += sizeof( le::CommandDispatch );
+	self->mCommandCount++;
+}
+
+// ----------------------------------------------------------------------
+
 static void cbe_draw( le_command_buffer_encoder_o *self,
                       uint32_t                     vertexCount,
                       uint32_t                     instanceCount,
@@ -454,6 +465,7 @@ ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 	cbe_i.destroy                = cbe_destroy;
 	cbe_i.draw                   = cbe_draw;
 	cbe_i.draw_indexed           = cbe_draw_indexed;
+	cbe_i.dispatch               = cbe_dispatch;
 	cbe_i.get_extent             = cbe_get_extent;
 	cbe_i.set_line_width         = cbe_set_line_width;
 	cbe_i.set_viewport           = cbe_set_viewport;
