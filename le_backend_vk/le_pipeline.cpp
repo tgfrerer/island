@@ -483,6 +483,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 		info.type       = enumToNum( vk::DescriptorType::eStorageBufferDynamic );
 		info.count      = 1;
 		info.stage_bits = enumToNum( module->stage );
+		info.name_hash  = hash_64_fnv1a( resource.name.c_str() );
 
 		bindings.emplace_back( std::move( info ) );
 	}
