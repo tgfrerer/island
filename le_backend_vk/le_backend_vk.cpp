@@ -2369,12 +2369,12 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 		cmd.begin( {::vk::CommandBufferUsageFlagBits::eOneTimeSubmit} );
 
-		for ( size_t i = 0; i != ( pass.numColorAttachments + pass.numDepthStencilAttachments ); ++i ) {
-			clearValues[ i ] = pass.attachments[ i ].clearValue;
-		}
-
-		// non-draw passes don't need renderpasses.
+		// Draw passes must begin by opening a Renderpass context.
 		if ( pass.type == LE_RENDER_PASS_TYPE_DRAW && pass.renderPass ) {
+
+			for ( size_t i = 0; i != ( pass.numColorAttachments + pass.numDepthStencilAttachments ); ++i ) {
+				clearValues[ i ] = pass.attachments[ i ].clearValue;
+			}
 
 			vk::RenderPassBeginInfo renderPassBeginInfo;
 			renderPassBeginInfo
@@ -2619,7 +2619,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 										descriptorData.arrayIndex    = uint32_t( arrayIndex );
 										descriptorData.bindingNumber = b.binding;
 										descriptorData.type          = vk::DescriptorType( b.type );
-										descriptorData.range         = VK_WHOLE_SIZE; // note this could be vk_full_size
+										descriptorData.range         = VK_WHOLE_SIZE; // note this could be vk_whole_size
 										setData.emplace_back( std::move( descriptorData ) );
 									}
 
