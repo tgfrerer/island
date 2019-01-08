@@ -1145,9 +1145,11 @@ struct le_resource_info_t {
 /// \note This struct assumes a little endian machine for sorting
 struct le_vertex_input_attribute_description {
 
-	// Note that we store the log2 of the number of Bytes needed to store values of a type
-	// in the least significant two bits, so that we can say: numBytes =  1 << (type & 0b11);
 	enum Type : uint8_t {
+		//
+		// Note that we store the log2 of the number of Bytes needed to store values of a type
+		// in the least significant two bits, so that we can say: numBytes =  1 << (type & 0b11);
+		//
 		eChar   = ( 0 << 2 ) | 0,
 		eUChar  = ( 1 << 2 ) | 0,
 		eShort  = ( 2 << 2 ) | 1,
