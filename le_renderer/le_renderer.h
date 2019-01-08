@@ -139,8 +139,7 @@ struct le_renderer_api {
 
 //		void                         ( *write_to_image_regions )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, le_resource_info_t const & resourceInfo, void const *data, size_t numBytes );
 
-		// stores ubo argument data to scratch buffer - note that parameter index must be dynamic offset index
-		void                         ( *set_argument_ubo_data  )( le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
+		void                         ( *set_argument_data      )( le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
 		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, le_resource_handle_t const textureId, uint64_t argumentName, uint64_t arrayIndex);
 
 		le_pipeline_manager_o*       ( *get_pipeline_manager   )( le_command_buffer_encoder_o *self );
@@ -534,7 +533,7 @@ class Encoder {
 	}
 
 	Encoder &setArgumentData( uint64_t const &argumentNameId, void const *data, size_t const &numBytes ) {
-		le_renderer::encoder_i.set_argument_ubo_data( self, argumentNameId, data, numBytes );
+		le_renderer::encoder_i.set_argument_data( self, argumentNameId, data, numBytes );
 		return *this;
 	}
 

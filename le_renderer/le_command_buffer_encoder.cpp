@@ -248,14 +248,14 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
-                                       uint64_t                     argumentNameId, // hash id of argument name
-                                       void const *                 data,
-                                       size_t                       numBytes ) {
+static void cbe_set_argument_data( le_command_buffer_encoder_o *self,
+                                   uint64_t                     argumentNameId, // hash id of argument name
+                                   void const *                 data,
+                                   size_t                       numBytes ) {
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
 
-	auto cmd = EMPLACE_CMD( le::CommandSetArgumentUbo );
+	auto cmd = EMPLACE_CMD( le::CommandSetArgumentData );
 
 	void *   memAddr;
 	uint64_t bufferOffset = 0;
@@ -282,7 +282,7 @@ static void cbe_set_argument_ubo_data( le_command_buffer_encoder_o *self,
 		return;
 	}
 
-	self->mCommandStreamSize += sizeof( le::CommandSetArgumentUbo );
+	self->mCommandStreamSize += sizeof( le::CommandSetArgumentData );
 	self->mCommandCount++;
 }
 
@@ -447,7 +447,7 @@ ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 	cbe_i.bind_index_buffer      = cbe_bind_index_buffer;
 	cbe_i.set_index_data         = cbe_set_index_data;
 	cbe_i.set_vertex_data        = cbe_set_vertex_data;
-	cbe_i.set_argument_ubo_data  = cbe_set_argument_ubo_data;
+	cbe_i.set_argument_data      = cbe_set_argument_data;
 	cbe_i.set_argument_texture   = cbe_set_argument_texture;
 	cbe_i.bind_graphics_pipeline = cbe_bind_graphics_pipeline;
 	cbe_i.bind_compute_pipeline  = cbe_bind_compute_pipeline;

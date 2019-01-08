@@ -806,8 +806,8 @@ static void document_draw( le_gltf_document_o *self, le_command_buffer_encoder_o
 		if ( n.flags & Node::Flags::eHasMesh ) {
 
 			uboNode.matrix = n.globalTransform;
-			encoder_i.set_argument_ubo_data( encoder, hash_64_fnv1a_const( "UBO" ), mvp, sizeof( GltfUboMvp ) );
-			encoder_i.set_argument_ubo_data( encoder, hash_64_fnv1a_const( "UBONode" ), &uboNode, sizeof( GltfUboNode ) );
+			encoder_i.set_argument_data( encoder, hash_64_fnv1a_const( "UBO" ), mvp, sizeof( GltfUboMvp ) );
+			encoder_i.set_argument_data( encoder, hash_64_fnv1a_const( "UBONode" ), &uboNode, sizeof( GltfUboNode ) );
 
 			// this node has a mesh, let's draw it.
 

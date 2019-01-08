@@ -2727,10 +2727,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D *>( le_cmd + 1 ) );
 				} break;
 
-				case le::CommandType::eSetArgumentUbo: {
+				case le::CommandType::eSetArgumentData: {
 					// we need to store the data for the dynamic binding which was set as an argument to the ubo
 					// this alters our internal state
-					auto *le_cmd = static_cast<le::CommandSetArgumentUbo *>( dataIt );
+					auto *le_cmd = static_cast<le::CommandSetArgumentData *>( dataIt );
 
 					uint64_t argument_name_id = le_cmd->info.argument_name_id;
 

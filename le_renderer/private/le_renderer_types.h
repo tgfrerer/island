@@ -1258,8 +1258,8 @@ struct CommandSetScissor {
 	} info;
 };
 
-struct CommandSetArgumentUbo {
-	CommandHeader header = {{{CommandType::eSetArgumentUbo, sizeof( CommandSetArgumentUbo )}}};
+struct CommandSetArgumentData {
+	CommandHeader header = {{{CommandType::eSetArgumentData, sizeof( CommandSetArgumentData )}}};
 	struct {
 		uint64_t             argument_name_id; // const_char_hash id of argument name
 		le_resource_handle_t buffer_id;        // id of buffer that holds data
