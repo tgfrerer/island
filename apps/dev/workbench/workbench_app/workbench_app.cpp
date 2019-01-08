@@ -57,9 +57,9 @@ static constexpr le_resource_handle_t resBufTrianglePos = LE_BUF_RESOURCE( "BufT
 struct workbench_app_o {
 	pal::Window                 window;
 	le::Renderer                renderer;
-	le_graphics_pipeline_handle psoMain;           // weak ref, owned by renderer
-	le_graphics_pipeline_handle psoFullScreenQuad; // weak ref, owned by renderer
-	le_graphics_pipeline_handle psoImgui;          // weak ref, owned by renderer
+	le_gpso_handle psoMain;           // weak ref, owned by renderer
+	le_gpso_handle psoFullScreenQuad; // weak ref, owned by renderer
+	le_gpso_handle psoImgui;          // weak ref, owned by renderer
 	ImGuiContext *              imguiContext  = nullptr;
 	uint64_t                    frame_counter = 0;
 	float                       deltaTimeSec  = 0;
@@ -205,7 +205,7 @@ static workbench_app_o *workbench_app_create() {
 			// Which makes sense since every other time it will return the same hash value for
 			// given data.
 			// and all calculations will be in vain, and write access to the cache is expensive.
-			static le_graphics_pipeline_handle psoHandle = LeGraphicsPipelineBuilder( pipelineCache )
+			static le_gpso_handle psoHandle = LeGraphicsPipelineBuilder( pipelineCache )
 			                                                   .addShaderStage( imguiFragShader )
 			                                                   .addShaderStage( imguiVertShader )
 			                                                   .setVertexInputAttributeDescriptions( attrs.data(), attrs.size() )

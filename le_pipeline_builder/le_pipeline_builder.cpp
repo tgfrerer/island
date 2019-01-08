@@ -59,9 +59,73 @@ struct le_graphics_pipeline_builder_o {
 	le_pipeline_manager_o *    pipelineCache = nullptr;
 };
 
+struct le_compute_pipeline_builder_o {
+	compute_pipeline_state_o *obj           = nullptr;
+	le_pipeline_manager_o *   pipelineCache = nullptr;
+};
+
+static le_compute_pipeline_builder_o *le_compute_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
+	auto self           = new le_compute_pipeline_builder_o();
+	self->pipelineCache = pipelineCache;
+	self->obj           = new compute_pipeline_state_o();
+
+	// Now initialise obj with default values.
+	self->obj->shaderStage = nullptr;
+
+	return self;
+}
+
 // ----------------------------------------------------------------------
 
-static le_graphics_pipeline_builder_o *le_graphics_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
+static void le_compute_pipeline_builder_destroy( le_compute_pipeline_builder_o *self ) {
+	if ( self->obj ) {
+		delete self->obj;
+	}
+	delete self;
+}
+
+// ----------------------------------------------------------------------
+// Builds a hash value from the pipeline state object, that is:
+//	+ pipeline shader stages,
+//  + and associated settings,
+// so that we have a unique fingerprint for this pipeline.
+// The handle contains the hash value and is unique for pipeline
+// state objects with given settings.
+static le_cpso_handle le_compute_pipeline_builder_build( le_compute_pipeline_builder_o *self ) {
+
+	le_cpso_handle pipeline_handle = {};
+	using namespace le_backend_vk;
+
+	{
+		// TODO: Include settings data with the hash.
+
+		// constexpr size_t hash_msg_size = sizeof( le_compute_pipeline_builder_data );
+		// uint64_t         hash_value    = SpookyHash::Hash64( &self->obj->data, hash_msg_size, 0 );
+
+		uint64_t hash_value = le_shader_module_i.get_hash( self->obj->shaderStage );
+		pipeline_handle     = reinterpret_cast<le_cpso_handle>( hash_value );
+	}
+
+	// Introduce pipeline state object to manager so that it may be cached.
+
+	le_pipeline_manager_i.introduce_compute_pipeline_state( self->pipelineCache, self->obj, pipeline_handle );
+
+	return pipeline_handle;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_compute_pipeline_builder_set_shader_stage( le_compute_pipeline_builder_o *self, le_shader_module_o *shaderModule ) {
+	assert( self->obj );
+	if ( self->obj ) {
+		self->obj->shaderStage = shaderModule;
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static le_graphics_pipeline_builder_o *
+le_graphics_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
 	auto self = new le_graphics_pipeline_builder_o();
 
 	self->pipelineCache = pipelineCache;
@@ -179,14 +243,13 @@ static void le_graphics_pipeline_builder_destroy( le_graphics_pipeline_builder_o
 
 // Calculate pipeline info hash, and add pipeline info to shared store if not yet seen.
 // Return pipeline hash
-static le_graphics_pipeline_handle le_graphics_pipeline_builder_build( le_graphics_pipeline_builder_o *self ) {
+static le_gpso_handle le_graphics_pipeline_builder_build( le_graphics_pipeline_builder_o *self ) {
 
-	le_graphics_pipeline_handle pipeline_handle = {};
-
-	constexpr size_t hash_msg_size = sizeof( le_graphics_pipeline_builder_data );
+	le_gpso_handle pipeline_handle = {};
 
 	{
-		uint64_t hash_value = SpookyHash::Hash64( &self->obj->data, hash_msg_size, 0 );
+		constexpr size_t hash_msg_size = sizeof( le_graphics_pipeline_builder_data );
+		uint64_t         hash_value    = SpookyHash::Hash64( &self->obj->data, hash_msg_size, 0 );
 		// Calculate a meta-hash over shader stage hash entries so that we can
 		// detect if a shader component has changed
 		//
@@ -212,7 +275,7 @@ static le_graphics_pipeline_handle le_graphics_pipeline_builder_build( le_graphi
 		// Cast hash_value to a pipeline handle, so we can use the type system with it
 		// its value, of course, is still equivalent to hash_value.
 
-		pipeline_handle = reinterpret_cast<le_graphics_pipeline_handle>( hash_value );
+		pipeline_handle = reinterpret_cast<le_gpso_handle>( hash_value );
 
 		assert( ( uint64_t )pipeline_handle == hash_value );
 	}
@@ -516,69 +579,82 @@ static void depth_stencil_state_set_max_depth_bounds( le_graphics_pipeline_build
 // ----------------------------------------------------------------------
 
 ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
-	auto &i = static_cast<le_graphics_pipeline_builder_api *>( api )->le_graphics_pipeline_builder_i;
 
-	i.create                                  = le_graphics_pipeline_builder_create;
-	i.destroy                                 = le_graphics_pipeline_builder_destroy;
-	i.build                                   = le_graphics_pipeline_builder_build;
-	i.add_shader_stage                        = le_graphics_pipeline_builder_add_shader_stage;
-	i.set_vertex_input_attribute_descriptions = le_graphics_pipeline_builder_set_vertex_input_attribute_descriptions;
-	i.set_vertex_input_binding_descriptions   = le_graphics_pipeline_builder_set_vertex_input_binding_descriptions;
-	i.set_multisample_info                    = le_graphics_pipeline_builder_set_multisample_info;
-	i.set_depth_stencil_info                  = le_graphics_pipeline_builder_set_depth_stencil_info;
+	{
+		// setup graphics pipeline builder api
+		auto &i = static_cast<le_pipeline_builder_api *>( api )->le_graphics_pipeline_builder_i;
 
-	i.input_assembly_state_i.set_primitive_restart_enable = input_assembly_state_set_primitive_restart_enable;
-	i.input_assembly_state_i.set_topology                 = input_assembly_state_set_toplogy;
+		i.create                                  = le_graphics_pipeline_builder_create;
+		i.destroy                                 = le_graphics_pipeline_builder_destroy;
+		i.build                                   = le_graphics_pipeline_builder_build;
+		i.add_shader_stage                        = le_graphics_pipeline_builder_add_shader_stage;
+		i.set_vertex_input_attribute_descriptions = le_graphics_pipeline_builder_set_vertex_input_attribute_descriptions;
+		i.set_vertex_input_binding_descriptions   = le_graphics_pipeline_builder_set_vertex_input_binding_descriptions;
+		i.set_multisample_info                    = le_graphics_pipeline_builder_set_multisample_info;
+		i.set_depth_stencil_info                  = le_graphics_pipeline_builder_set_depth_stencil_info;
 
-	i.blend_attachment_state_i.set_alpha_blend_op         = blend_attachment_state_set_alpha_blend_op;
-	i.blend_attachment_state_i.set_color_blend_op         = blend_attachment_state_set_color_blend_op;
-	i.blend_attachment_state_i.set_color_write_mask       = blend_attachment_state_set_color_write_mask;
-	i.blend_attachment_state_i.set_dst_alpha_blend_factor = blend_attachment_state_set_dst_alpha_blend_factor;
-	i.blend_attachment_state_i.set_src_alpha_blend_factor = blend_attachment_state_set_src_alpha_blend_factor;
-	i.blend_attachment_state_i.set_dst_color_blend_factor = blend_attachment_state_set_dst_color_blend_factor;
-	i.blend_attachment_state_i.set_src_color_blend_factor = blend_attachment_state_set_src_color_blend_factor;
-	i.blend_attachment_state_i.use_preset                 = blend_attachment_state_use_preset;
+		i.input_assembly_state_i.set_primitive_restart_enable = input_assembly_state_set_primitive_restart_enable;
+		i.input_assembly_state_i.set_topology                 = input_assembly_state_set_toplogy;
 
-	i.tessellation_state_i.set_patch_control_points = tessellation_state_set_patch_control_points;
+		i.blend_attachment_state_i.set_alpha_blend_op         = blend_attachment_state_set_alpha_blend_op;
+		i.blend_attachment_state_i.set_color_blend_op         = blend_attachment_state_set_color_blend_op;
+		i.blend_attachment_state_i.set_color_write_mask       = blend_attachment_state_set_color_write_mask;
+		i.blend_attachment_state_i.set_dst_alpha_blend_factor = blend_attachment_state_set_dst_alpha_blend_factor;
+		i.blend_attachment_state_i.set_src_alpha_blend_factor = blend_attachment_state_set_src_alpha_blend_factor;
+		i.blend_attachment_state_i.set_dst_color_blend_factor = blend_attachment_state_set_dst_color_blend_factor;
+		i.blend_attachment_state_i.set_src_color_blend_factor = blend_attachment_state_set_src_color_blend_factor;
+		i.blend_attachment_state_i.use_preset                 = blend_attachment_state_use_preset;
 
-	i.rasterization_state_i.set_depth_clamp_enable         = rasterization_state_set_depth_clamp_enable;
-	i.rasterization_state_i.set_rasterizer_discard_enable  = rasterization_state_set_rasterizer_discard_enable;
-	i.rasterization_state_i.set_polygon_mode               = rasterization_state_set_polygon_mode;
-	i.rasterization_state_i.set_cull_mode                  = rasterization_state_set_cull_mode;
-	i.rasterization_state_i.set_front_face                 = rasterization_state_set_front_face;
-	i.rasterization_state_i.set_depth_bias_enable          = rasterization_state_set_depth_bias_enable;
-	i.rasterization_state_i.set_depth_bias_constant_factor = rasterization_state_set_depth_bias_constant_factor;
-	i.rasterization_state_i.set_depth_bias_clamp           = rasterization_state_set_depth_bias_clamp;
-	i.rasterization_state_i.set_depth_bias_slope_factor    = rasterization_state_set_depth_bias_slope_factor;
-	i.rasterization_state_i.set_line_width                 = rasterization_state_set_line_width;
+		i.tessellation_state_i.set_patch_control_points = tessellation_state_set_patch_control_points;
 
-	i.multisample_state_i.set_rasterization_samples    = multisample_state_set_rasterization_samples;
-	i.multisample_state_i.set_sample_shading_enable    = multisample_state_set_sample_shading_enable;
-	i.multisample_state_i.set_min_sample_shading       = multisample_state_set_min_sample_shading;
-	i.multisample_state_i.set_alpha_to_coverage_enable = multisample_state_set_alpha_to_coverage_enable;
-	i.multisample_state_i.set_alpha_to_one_enable      = multisample_state_set_alpha_to_one_enable;
+		i.rasterization_state_i.set_depth_clamp_enable         = rasterization_state_set_depth_clamp_enable;
+		i.rasterization_state_i.set_rasterizer_discard_enable  = rasterization_state_set_rasterizer_discard_enable;
+		i.rasterization_state_i.set_polygon_mode               = rasterization_state_set_polygon_mode;
+		i.rasterization_state_i.set_cull_mode                  = rasterization_state_set_cull_mode;
+		i.rasterization_state_i.set_front_face                 = rasterization_state_set_front_face;
+		i.rasterization_state_i.set_depth_bias_enable          = rasterization_state_set_depth_bias_enable;
+		i.rasterization_state_i.set_depth_bias_constant_factor = rasterization_state_set_depth_bias_constant_factor;
+		i.rasterization_state_i.set_depth_bias_clamp           = rasterization_state_set_depth_bias_clamp;
+		i.rasterization_state_i.set_depth_bias_slope_factor    = rasterization_state_set_depth_bias_slope_factor;
+		i.rasterization_state_i.set_line_width                 = rasterization_state_set_line_width;
 
-	i.stencil_op_state_front_i.set_fail_op       = stencil_op_state_front_set_fail_op;
-	i.stencil_op_state_front_i.set_pass_op       = stencil_op_state_front_set_pass_op;
-	i.stencil_op_state_front_i.set_depth_fail_op = stencil_op_state_front_set_depth_fail_op;
-	i.stencil_op_state_front_i.set_compare_op    = stencil_op_state_front_set_compare_op;
-	i.stencil_op_state_front_i.set_compare_mask  = stencil_op_state_front_set_compare_mask;
-	i.stencil_op_state_front_i.set_write_mask    = stencil_op_state_front_set_write_mask;
-	i.stencil_op_state_front_i.set_reference     = stencil_op_state_front_set_reference;
+		i.multisample_state_i.set_rasterization_samples    = multisample_state_set_rasterization_samples;
+		i.multisample_state_i.set_sample_shading_enable    = multisample_state_set_sample_shading_enable;
+		i.multisample_state_i.set_min_sample_shading       = multisample_state_set_min_sample_shading;
+		i.multisample_state_i.set_alpha_to_coverage_enable = multisample_state_set_alpha_to_coverage_enable;
+		i.multisample_state_i.set_alpha_to_one_enable      = multisample_state_set_alpha_to_one_enable;
 
-	i.stencil_op_state_back_i.set_fail_op       = stencil_op_state_back_set_fail_op;
-	i.stencil_op_state_back_i.set_pass_op       = stencil_op_state_back_set_pass_op;
-	i.stencil_op_state_back_i.set_depth_fail_op = stencil_op_state_back_set_depth_fail_op;
-	i.stencil_op_state_back_i.set_compare_op    = stencil_op_state_back_set_compare_op;
-	i.stencil_op_state_back_i.set_compare_mask  = stencil_op_state_back_set_compare_mask;
-	i.stencil_op_state_back_i.set_write_mask    = stencil_op_state_back_set_write_mask;
-	i.stencil_op_state_back_i.set_reference     = stencil_op_state_back_set_reference;
+		i.stencil_op_state_front_i.set_fail_op       = stencil_op_state_front_set_fail_op;
+		i.stencil_op_state_front_i.set_pass_op       = stencil_op_state_front_set_pass_op;
+		i.stencil_op_state_front_i.set_depth_fail_op = stencil_op_state_front_set_depth_fail_op;
+		i.stencil_op_state_front_i.set_compare_op    = stencil_op_state_front_set_compare_op;
+		i.stencil_op_state_front_i.set_compare_mask  = stencil_op_state_front_set_compare_mask;
+		i.stencil_op_state_front_i.set_write_mask    = stencil_op_state_front_set_write_mask;
+		i.stencil_op_state_front_i.set_reference     = stencil_op_state_front_set_reference;
 
-	i.depth_stencil_state_i.set_depth_test_enable        = depth_stencil_state_set_depth_test_enable;
-	i.depth_stencil_state_i.set_depth_write_enable       = depth_stencil_state_set_depth_write_enable;
-	i.depth_stencil_state_i.set_depth_compare_op         = depth_stencil_state_set_depth_compare_op;
-	i.depth_stencil_state_i.set_depth_bounds_test_enable = depth_stencil_state_set_depth_bounds_test_enable;
-	i.depth_stencil_state_i.set_stencil_test_enable      = depth_stencil_state_set_stencil_test_enable;
-	i.depth_stencil_state_i.set_min_depth_bounds         = depth_stencil_state_set_min_depth_bounds;
-	i.depth_stencil_state_i.set_max_depth_bounds         = depth_stencil_state_set_max_depth_bounds;
+		i.stencil_op_state_back_i.set_fail_op       = stencil_op_state_back_set_fail_op;
+		i.stencil_op_state_back_i.set_pass_op       = stencil_op_state_back_set_pass_op;
+		i.stencil_op_state_back_i.set_depth_fail_op = stencil_op_state_back_set_depth_fail_op;
+		i.stencil_op_state_back_i.set_compare_op    = stencil_op_state_back_set_compare_op;
+		i.stencil_op_state_back_i.set_compare_mask  = stencil_op_state_back_set_compare_mask;
+		i.stencil_op_state_back_i.set_write_mask    = stencil_op_state_back_set_write_mask;
+		i.stencil_op_state_back_i.set_reference     = stencil_op_state_back_set_reference;
+
+		i.depth_stencil_state_i.set_depth_test_enable        = depth_stencil_state_set_depth_test_enable;
+		i.depth_stencil_state_i.set_depth_write_enable       = depth_stencil_state_set_depth_write_enable;
+		i.depth_stencil_state_i.set_depth_compare_op         = depth_stencil_state_set_depth_compare_op;
+		i.depth_stencil_state_i.set_depth_bounds_test_enable = depth_stencil_state_set_depth_bounds_test_enable;
+		i.depth_stencil_state_i.set_stencil_test_enable      = depth_stencil_state_set_stencil_test_enable;
+		i.depth_stencil_state_i.set_min_depth_bounds         = depth_stencil_state_set_min_depth_bounds;
+		i.depth_stencil_state_i.set_max_depth_bounds         = depth_stencil_state_set_max_depth_bounds;
+	}
+
+	{
+		// setup compute pipleine builder api
+		auto &i            = static_cast<le_pipeline_builder_api *>( api )->le_compute_pipeline_builder_i;
+		i.create           = le_compute_pipeline_builder_create;
+		i.destroy          = le_compute_pipeline_builder_destroy;
+		i.build            = le_compute_pipeline_builder_build;
+		i.set_shader_stage = le_compute_pipeline_builder_set_shader_stage;
+	}
 }

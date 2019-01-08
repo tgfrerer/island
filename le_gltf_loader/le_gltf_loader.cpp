@@ -57,7 +57,7 @@ struct Primitive {
 	uint8_t  mode        = 0;     // triangles,lines,points TODO: use a mode that makes sense
 	bool     hasIndices  = false; // wether to render using indices or
 
-	le_graphics_pipeline_handle pso{};
+	le_gpso_handle pso{};
 };
 
 struct Mesh {

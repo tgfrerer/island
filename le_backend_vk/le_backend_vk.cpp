@@ -2493,8 +2493,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				switch ( header->info.type ) {
 
-				case le::CommandType::eBindPipeline: {
-					auto *le_cmd = static_cast<le::CommandBindPipeline *>( dataIt );
+				case le::CommandType::eBindGraphicsPipeline: {
+					auto *le_cmd = static_cast<le::CommandBindGraphicsPipeline *>( dataIt );
 					if ( pass.type == LE_RENDER_PASS_TYPE_DRAW ) {
 						// at this point, a valid renderpass must be bound
 
@@ -2568,9 +2568,92 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, currentPipeline.pipeline );
 
-					} else if ( pass.type == LE_RENDER_PASS_TYPE_COMPUTE ) {
-						// -- TODO: implement compute pass pipeline binding
+					} else {
+						// -- TODO: warn that graphics pipelines may only be bound within
+						// draw passes.
 					}
+				} break;
+
+				case le::CommandType::eBindComputePipeline: {
+					auto *le_cmd = static_cast<le::CommandBindComputePipeline *>( dataIt );
+					if ( pass.type == LE_RENDER_PASS_TYPE_COMPUTE ) {
+						// at this point, a valid renderpass must be bound
+
+						using namespace le_backend_vk;
+						// -- potentially compile and create pipeline here, based on current pass and subpass
+						currentPipeline = le_pipeline_manager_i.produce_compute_pipeline( pipelineManager, le_cmd->info.cpsoHandle );
+
+						// -- grab current pipeline layout from cache
+						currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );
+
+						{
+							// -- update pipelineData - that's the data values for all descriptors which are currently bound
+
+							argumentState.setCount = uint32_t( currentPipeline.layout_info.set_layout_count );
+							argumentState.binding_infos.clear();
+
+							// -- reset dynamic offset count
+							argumentState.dynamicOffsetCount = 0;
+
+							// let's create descriptorData vector based on current bindings-
+							for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
+
+								// look up set layout info via set layout key
+								auto const &set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
+
+								auto const &setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
+
+								auto &setData = argumentState.setData[ setId ];
+
+								argumentState.layouts[ setId ]         = setLayoutInfo.vk_descriptor_set_layout;
+								argumentState.updateTemplates[ setId ] = setLayoutInfo.vk_descriptor_update_template;
+
+								setData.clear();
+								setData.reserve( setLayoutInfo.binding_info.size() );
+
+								for ( auto b : setLayoutInfo.binding_info ) {
+
+									// add an entry for each array element with this binding to setData
+									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
+										DescriptorData descriptorData{};
+										descriptorData.arrayIndex    = uint32_t( arrayIndex );
+										descriptorData.bindingNumber = b.binding;
+										descriptorData.type          = vk::DescriptorType( b.type );
+										descriptorData.range         = VK_WHOLE_SIZE; // note this could be vk_full_size
+										setData.emplace_back( std::move( descriptorData ) );
+									}
+
+									if ( b.type == enumToNum( vk::DescriptorType::eStorageBufferDynamic ) ||
+									     b.type == enumToNum( vk::DescriptorType::eUniformBufferDynamic ) ) {
+										assert( b.count != 0 ); // count cannot be 0
+
+										// store dynamic offset index for this element
+										b.dynamic_offset_idx = argumentState.dynamicOffsetCount;
+
+										// increase dynamic offset count by number of elements in this binding
+										argumentState.dynamicOffsetCount += b.count;
+									}
+
+									// add this binding to list of current bindings
+									argumentState.binding_infos.emplace_back( std::move( b ) );
+								}
+							}
+
+							// -- reset dynamic offsets
+							memset( argumentState.dynamicOffsets.data(), 0, sizeof( uint32_t ) * argumentState.dynamicOffsetCount );
+
+							// we write directly into descriptorsetstate when we update descriptors.
+							// when we bind a pipeline, we update the descriptorsetstate based
+							// on what the pipeline requires.
+						}
+
+						cmd.bindPipeline( vk::PipelineBindPoint::eCompute, currentPipeline.pipeline );
+
+					} else {
+						// -- TODO: warn that compute pipelines may only be bound within
+						// compute passes.
+					}
+
 				} break;
 
 				case le::CommandType::eDraw: {

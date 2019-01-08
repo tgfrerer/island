@@ -14,9 +14,11 @@ void register_le_allocator_linear_api( void *api_ ); // for le_allocator.cpp
 void register_le_device_vk_api( void *api );         // for le_device_vk.cpp
 void register_le_pipeline_vk_api( void *api );       // for le_pipeline_vk.cpp
 
+struct le_backend_o;
 struct le_backend_vk_api;
 
-struct le_backend_o;
+struct le_swapchain_settings_t;
+struct pal_window_o;
 
 struct le_backend_vk_instance_o; // defined in le_instance_vk.cpp
 struct le_device_o;              // defined in le_device_vk.cpp
@@ -24,17 +26,14 @@ struct le_renderpass_o;
 struct le_buffer_o;
 struct le_allocator_o;
 struct le_staging_allocator_o;
-
-struct graphics_pipeline_state_o; // for le_pipeline_builder
-struct le_pipeline_manager_o;
-
-struct le_swapchain_settings_t;
-struct pal_window_o;
-
-struct le_shader_module_o;
 struct le_resource_handle_t; // defined in renderer_types
 
-struct le_graphics_pipeline_handle_t; // opaque handle representing pipeline state hash
+struct le_pipeline_manager_o;
+struct le_shader_module_o;
+struct graphics_pipeline_state_o; // for le_pipeline_builder
+struct compute_pipeline_state_o;  // for le_pipeline_builder
+struct le_gpso_handle_t;          // opaque handle representing graphics pipeline state object hash
+struct le_cpso_handle_t;          // opaque handle representing compute  pipeline state object hash
 
 struct VkInstance_T;
 struct VkDevice_T;
@@ -175,8 +174,12 @@ struct le_backend_vk_api {
 		le_pipeline_manager_o*                   ( *create                            ) ( VkDevice_T* device          );
 		void                                     ( *destroy                           ) ( le_pipeline_manager_o* self );
 
-		void                                     ( *introduce_graphics_pipeline_state ) ( le_pipeline_manager_o *self, graphics_pipeline_state_o* gpso, le_graphics_pipeline_handle_t* gpoHandle);
-		le_pipeline_and_layout_info_t            ( *produce_pipeline                  ) ( le_pipeline_manager_o *self, le_graphics_pipeline_handle_t* gpsoHandle, const LeRenderPass &pass, uint32_t subpass ) ;
+		void                                     ( *introduce_graphics_pipeline_state ) ( le_pipeline_manager_o *self, graphics_pipeline_state_o* gpso, le_gpso_handle_t* gpsoHandle);
+		void                                     ( *introduce_compute_pipeline_state  ) ( le_pipeline_manager_o *self, compute_pipeline_state_o* cpso, le_cpso_handle_t* cpsoHandle);
+
+		le_pipeline_and_layout_info_t            ( *produce_pipeline                  ) ( le_pipeline_manager_o *self, le_gpso_handle_t* gpsoHandle, const LeRenderPass &pass, uint32_t subpass ) ;
+		le_pipeline_and_layout_info_t            ( *produce_compute_pipeline          ) ( le_pipeline_manager_o *self, le_cpso_handle_t* gpsoHandle);
+
 		le_shader_module_o*                      ( *create_shader_module              ) ( le_pipeline_manager_o* self, char const * path, const LeShaderStageEnum& moduleType);
 		void                                     ( *update_shader_modules             ) ( le_pipeline_manager_o* self );
 		struct VkPipelineLayout_T*               ( *get_pipeline_layout               ) ( le_pipeline_manager_o* self, uint64_t pipeline_layout_key);

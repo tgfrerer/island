@@ -302,17 +302,27 @@ static void cbe_set_argument_texture( le_command_buffer_encoder_o *self, le_reso
 
 // ----------------------------------------------------------------------
 
-static void cbe_bind_pipeline( le_command_buffer_encoder_o *self, le_graphics_pipeline_handle gpsoHandle ) {
+static void cbe_bind_graphics_pipeline( le_command_buffer_encoder_o *self, le_gpso_handle gpsoHandle ) {
 
-	// -- insert PSO pointer into command stream
-	auto cmd = EMPLACE_CMD( le::CommandBindPipeline );
+	// -- insert graphics PSO pointer into command stream
+	auto cmd = EMPLACE_CMD( le::CommandBindGraphicsPipeline );
 
 	cmd->info.gpsoHandle = gpsoHandle;
 
-	//	std::cout << "binding pipeline" << std::endl
-	//	          << std::flush;
+	self->mCommandStreamSize += sizeof( le::CommandBindGraphicsPipeline );
+	self->mCommandCount++;
+}
 
-	self->mCommandStreamSize += sizeof( le::CommandBindPipeline );
+// ----------------------------------------------------------------------
+
+static void cbe_bind_compute_pipeline( le_command_buffer_encoder_o *self, le_cpso_handle cpsoHandle ) {
+
+	// -- insert compute PSO pointer into command stream
+	auto cmd = EMPLACE_CMD( le::CommandBindComputePipeline );
+
+	cmd->info.cpsoHandle = cpsoHandle;
+
+	self->mCommandStreamSize += sizeof( le::CommandBindComputePipeline );
 	self->mCommandCount++;
 }
 
@@ -439,7 +449,8 @@ ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 	cbe_i.set_vertex_data        = cbe_set_vertex_data;
 	cbe_i.set_argument_ubo_data  = cbe_set_argument_ubo_data;
 	cbe_i.set_argument_texture   = cbe_set_argument_texture;
-	cbe_i.bind_graphics_pipeline = cbe_bind_pipeline;
+	cbe_i.bind_graphics_pipeline = cbe_bind_graphics_pipeline;
+	cbe_i.bind_compute_pipeline  = cbe_bind_compute_pipeline;
 	cbe_i.get_encoded_data       = cbe_get_encoded_data;
 	cbe_i.write_to_buffer        = cbe_write_to_buffer;
 	cbe_i.write_to_image         = cbe_write_to_image;

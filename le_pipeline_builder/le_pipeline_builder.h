@@ -11,7 +11,10 @@ extern "C" {
 struct le_graphics_pipeline_builder_o;
 struct le_shader_module_o;
 struct le_pipeline_manager_o;
-struct le_graphics_pipeline_handle_t; // Opaque handle for graphics pipeline state
+struct le_gpso_handle_t; // Opaque handle for graphics pipeline state
+
+struct le_compute_pipeline_builder_o;
+struct le_cpso_handle_t; // opaque handle for compute pipeline state
 
 struct le_vertex_input_binding_description;
 struct le_vertex_input_attribute_description;
@@ -36,13 +39,13 @@ enum class StencilOp : uint32_t;
 void register_le_pipeline_builder_api( void *api );
 
 // clang-format off
-struct le_graphics_pipeline_builder_api {
+struct le_pipeline_builder_api {
 	static constexpr auto id      = "le_pipeline_builder";
 	static constexpr auto pRegFun = register_le_pipeline_builder_api;
 
 	struct le_graphics_pipeline_builder_interface_t {
 
-		le_graphics_pipeline_builder_o * ( * create          ) ( le_pipeline_manager_o *pipeline_cache ); // TODO: needs to be created for a backend.
+		le_graphics_pipeline_builder_o * ( * create          ) ( le_pipeline_manager_o *pipeline_cache );
 		void                             ( * destroy         ) ( le_graphics_pipeline_builder_o* self );
 
 		void     ( * add_shader_stage                        ) ( le_graphics_pipeline_builder_o* self,  le_shader_module_o* shaderStage);
@@ -53,7 +56,7 @@ struct le_graphics_pipeline_builder_api {
 		void     ( * set_multisample_info                    ) ( le_graphics_pipeline_builder_o *self, const VkPipelineMultisampleStateCreateInfo &multisampleInfo );
 		void     ( * set_depth_stencil_info                  ) ( le_graphics_pipeline_builder_o *self, const VkPipelineDepthStencilStateCreateInfo &depthStencilInfo );
 
-		le_graphics_pipeline_handle_t* ( * build             ) ( le_graphics_pipeline_builder_o* self );
+		le_gpso_handle_t* ( * build             ) ( le_graphics_pipeline_builder_o* self );
 
 		struct input_assembly_state_t {
 			void ( *set_primitive_restart_enable ) ( le_graphics_pipeline_builder_o* self, uint32_t const& primitiveRestartEnable );
@@ -127,22 +130,63 @@ struct le_graphics_pipeline_builder_api {
 	};
 
 	le_graphics_pipeline_builder_interface_t le_graphics_pipeline_builder_i;
+
+	// ---------- Compute Pipeline Builder is much simpler, as there are fewer parameters to set
+
+	struct le_compute_pipeline_builder_interface_t {
+		le_compute_pipeline_builder_o * ( * create           ) ( le_pipeline_manager_o *pipeline_cache );
+		void                            ( * destroy          ) ( le_compute_pipeline_builder_o* self );
+		void                            ( * set_shader_stage ) ( le_compute_pipeline_builder_o* self,  le_shader_module_o* shaderStage);
+		le_cpso_handle_t*               ( * build            ) ( le_compute_pipeline_builder_o* self );
+	};
+
+	le_compute_pipeline_builder_interface_t le_compute_pipeline_builder_i;
 };
 // clang-format on
 
 #ifdef __cplusplus
 } // extern c
 
+// ----------------------------------------------------------------------
+
 namespace le_pipeline_builder {
 #	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_graphics_pipeline_builder_api>( true );
+const auto api = Registry::addApiDynamic<le_pipeline_builder_api>( true );
 #	else
-const auto api = Registry::addApiStatic<le_graphics_pipeline_builder_api>();
+const auto api = Registry::addApiStatic<le_pipeline_builder_api>();
 #	endif
 
 static const auto &le_graphics_pipeline_builder_i = api -> le_graphics_pipeline_builder_i;
+static const auto &le_compute_pipeline_builder_i  = api -> le_compute_pipeline_builder_i;
 
 } // namespace le_pipeline_builder
+
+// ----------------------------------------------------------------------
+
+class LeComputePipelineBuilder : NoCopy, NoMove {
+
+	le_compute_pipeline_builder_o *self;
+
+  public:
+	LeComputePipelineBuilder( le_pipeline_manager_o *pipelineCache )
+	    : self( le_pipeline_builder::le_compute_pipeline_builder_i.create( pipelineCache ) ) {
+	}
+
+	~LeComputePipelineBuilder() {
+		le_pipeline_builder::le_compute_pipeline_builder_i.destroy( self );
+	}
+
+	le_cpso_handle_t *build() {
+		return le_pipeline_builder::le_compute_pipeline_builder_i.build( self );
+	}
+
+	LeComputePipelineBuilder &setShaderStage( le_shader_module_o *shaderModule ) {
+		le_pipeline_builder::le_compute_pipeline_builder_i.set_shader_stage( self, shaderModule );
+		return *this;
+	}
+};
+
+// ----------------------------------------------------------------------
 
 class LeGraphicsPipelineBuilder;
 
@@ -564,7 +608,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		le_pipeline_builder::le_graphics_pipeline_builder_i.destroy( self );
 	}
 
-	le_graphics_pipeline_handle_t *build() {
+	le_gpso_handle_t *build() {
 		return le_pipeline_builder::le_graphics_pipeline_builder_i.build( self );
 	}
 

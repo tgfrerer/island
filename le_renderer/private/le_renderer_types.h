@@ -126,8 +126,11 @@ enum LeRenderPassType : uint32_t {
 // Note that the pipeline state is different from the actual pipeline, as the
 // pipeline is created, based on a pipeline state and a renderpass.
 //
-struct le_graphics_pipeline_handle_t;                               // Opaque pipeline state object handle type
-typedef le_graphics_pipeline_handle_t *le_graphics_pipeline_handle; // Opaque pipeline state object handle
+struct le_gpso_handle_t;                  // Opaque graphics pipeline state object handle type
+typedef le_gpso_handle_t *le_gpso_handle; // Opaque graphics pipeline state object handle
+
+struct le_cpso_handle_t;                  // Opaque compute pipeline state object handle type
+typedef le_cpso_handle_t *le_cpso_handle; // Opaque compute pipeline state object handle
 
 typedef uint32_t LeImageCreateFlags;
 // Codegen <VkImageCreateFlagBits, LeImageCreateFlags, c>
@@ -1201,7 +1204,8 @@ enum class CommandType : uint32_t {
 	eSetArgumentTexture,
 	eBindIndexBuffer,
 	eBindVertexBuffers,
-	eBindPipeline,
+	eBindGraphicsPipeline,
+	eBindComputePipeline,
 	eWriteToBuffer,
 	eWriteToImage,
 };
@@ -1300,10 +1304,17 @@ struct CommandBindIndexBuffer {
 	} info;
 };
 
-struct CommandBindPipeline {
-	CommandHeader header = {{{CommandType::eBindPipeline, sizeof( CommandBindPipeline )}}};
+struct CommandBindGraphicsPipeline {
+	CommandHeader header = {{{CommandType::eBindGraphicsPipeline, sizeof( CommandBindGraphicsPipeline )}}};
 	struct {
-		le_graphics_pipeline_handle gpsoHandle;
+		le_gpso_handle gpsoHandle;
+	} info;
+};
+
+struct CommandBindComputePipeline {
+	CommandHeader header = {{{CommandType::eBindComputePipeline, sizeof( CommandBindComputePipeline )}}};
+	struct {
+		le_cpso_handle cpsoHandle;
 	} info;
 };
 

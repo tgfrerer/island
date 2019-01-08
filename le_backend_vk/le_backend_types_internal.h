@@ -64,6 +64,10 @@ struct graphics_pipeline_state_o {
 	std::vector<le_vertex_input_binding_description>   explicitVertexInputBindingDescriptions; // only used if contains values, otherwise use from vertex shader reflection
 };
 
+struct compute_pipeline_state_o {
+	le_shader_module_o *shaderStage; // non-owning; refers opaquely to a compute shader module (or not)
+};
+
 // clang-format off
 // FIXME: microsoft places members in bitfields low to high (LSB first)
 // and gcc appears to do the same - sorting is based on this assumption, and we must somehow test for it when compiling.

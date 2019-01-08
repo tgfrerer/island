@@ -55,8 +55,11 @@ struct le_pipeline_manager_o {
 
 	le_shader_manager_o *shaderManager = nullptr; // owning
 
-	std::vector<graphics_pipeline_state_o *> graphicsPSO_list; // indexed by graphicsPSO_hashes
-	std::vector<le_graphics_pipeline_handle> graphicsPSO_hashes;
+	std::vector<graphics_pipeline_state_o *> graphicsPSO_list; // indexed by graphicsPSO_handles
+	std::vector<le_gpso_handle>              graphicsPSO_handles;
+
+	std::vector<compute_pipeline_state_o *> computePSO_list; // indexed by computePSO_handles
+	std::vector<le_cpso_handle>             computePSO_handles;
 
 	std::unordered_map<uint64_t, vk::Pipeline, IdentityHash>            pipelines;
 	std::unordered_map<uint64_t, le_pipeline_layout_info, IdentityHash> pipelineLayoutInfos;
@@ -266,17 +269,29 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
 
 // ----------------------------------------------------------------------
 // Calculates a hash of hashes over all pipeline layout hashes over all
-// shader stages from the given pso
-static uint64_t graphics_pso_get_pipeline_layout_hash( graphics_pipeline_state_o const *pso ) {
+// shader stages held in array shader_modules
+// Note that shader_modules must have not more than 16 elements.
+static uint64_t shader_modules_get_pipeline_layout_hash( le_shader_module_o const *const *shader_modules, size_t numModules ) {
 
-	std::vector<uint64_t> pipeline_layout_hash_data;
-	pipeline_layout_hash_data.reserve( pso->shaderStages.size() );
+	assert( numModules <= 16 ); // note max 16 shader modules.
 
-	for ( auto const &s : pso->shaderStages ) {
-		pipeline_layout_hash_data.push_back( s->hash_pipelinelayout );
+	// We use a stack-allocated c-array instead of vector so that
+	// temporary allocations happens on the stack and not on the
+	// free store. The number of shader modules will always be very
+	// small.
+
+	uint64_t pipeline_layout_hash_data[ 16 ] = {};
+
+	le_shader_module_o const *const *end_shader_modules = shader_modules + numModules;
+
+	uint64_t *elem = pipeline_layout_hash_data; // Get first element
+
+	for ( auto s = shader_modules; s != end_shader_modules; s++ ) {
+		*elem = ( *s )->hash_pipelinelayout;
+		elem++;
 	}
 
-	return SpookyHash::Hash64( pipeline_layout_hash_data.data(), pipeline_layout_hash_data.size() * sizeof( uint64_t ), 0 );
+	return SpookyHash::Hash64( pipeline_layout_hash_data, numModules * sizeof( uint64_t ), 0 );
 }
 
 // ----------------------------------------------------------------------
@@ -519,18 +534,19 @@ static bool shader_module_check_bindings_valid( le_shader_binding_info const *bi
 // Returns a vector with binding info, combined over all shader stages given.
 // Note: Bindings must not be sparse, otherwise this method will assert(false)
 //
-static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( std::vector<le_shader_module_o *> shaderStages ) {
+static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( le_shader_module_o const *const *shaderStages, size_t numStages ) {
 
 	std::vector<le_shader_binding_info> combined_bindings;
 
 	size_t maxNumBindings = 0;
-	size_t numStages      = shaderStages.size();
 
 	// maxNumBindings holds the upper bound for the total number of bindings
 	// assuming no overlaps in bindings between shader stages.
 
-	for ( auto &s : shaderStages ) {
-		maxNumBindings += s->bindings.size();
+	auto end_shaderStages = shaderStages + numStages;
+
+	for ( auto s = shaderStages; s != end_shaderStages; s++ ) {
+		maxNumBindings += ( *s )->bindings.size();
 	}
 
 	// Reserve space for the worst casse so that we avoid internal
@@ -540,21 +556,21 @@ static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( std
 	// We want to iterate over all bindings over all shader stages.
 	// For this, we store the base pointer of each shader stage's
 	// bindings in a vector, one vector entry per shader stage.
-	std::vector<le_shader_binding_info *> pBindings;
+	std::vector<le_shader_binding_info const *> pBindings;
 	pBindings.reserve( numStages );
 
 	// So that we know when to stop iterating over bindings for each shader, we store
 	// the end pointer of the bindings for each shader stage, one vector entry per shader stage.
 	// Vector indices match with pBindings
-	std::vector<le_shader_binding_info *> pBindingsEnd; // end marker for infos, per shader stage
+	std::vector<le_shader_binding_info const *> pBindingsEnd; // end marker for infos, per shader stage
 	pBindingsEnd.reserve( numStages );
 
-	for ( auto &s : shaderStages ) {
-		pBindings.push_back( s->bindings.data() );
+	for ( auto s = shaderStages; s != end_shaderStages; s++ ) {
+		pBindings.push_back( ( *s )->bindings.data() );
 	}
 
-	for ( auto &s : shaderStages ) {
-		pBindingsEnd.emplace_back( s->bindings.data() + s->bindings.size() );
+	for ( auto s = shaderStages; s != end_shaderStages; s++ ) {
+		pBindingsEnd.emplace_back( ( *s )->bindings.data() + ( *s )->bindings.size() );
 	}
 
 	// Note that we could execute the following loop as an unbounded
@@ -974,9 +990,9 @@ static le_shader_module_o *le_shader_manager_create_shader_module( le_shader_man
 
 // ----------------------------------------------------------------------
 // called via decoder / produce_frame -
-static vk::PipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_manager_o *self, graphics_pipeline_state_o const *pso ) {
+static vk::PipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_manager_o *self, le_shader_module_o const *const *shader_modules, size_t numModules ) {
 
-	uint64_t pipelineLayoutHash = graphics_pso_get_pipeline_layout_hash( pso );
+	uint64_t pipelineLayoutHash = shader_modules_get_pipeline_layout_hash( shader_modules, numModules );
 
 	auto foundLayout = self->pipelineLayouts.find( pipelineLayoutHash );
 
@@ -1111,7 +1127,9 @@ static vk::Pipeline le_pipeline_cache_create_pipeline( le_pipeline_manager_o *se
 
 	for ( auto const &s : pso->shaderStages ) {
 
-		// Try to set the vertex shader module pointer while we are at it.
+		// Try to set the vertex shader module pointer while we are at it. We will need it
+		// when figuring out default bindings later, as the Vertex module is used to derive
+		// default attribute bindings.
 		if ( s->stage == le::ShaderStage::eVertex ) {
 			vertexShaderModule = s;
 		}
@@ -1177,7 +1195,7 @@ static vk::Pipeline le_pipeline_cache_create_pipeline( le_pipeline_manager_o *se
 	    ;
 
 	// Fetch vk::PipelineLayout for this pso
-	auto pipelineLayout = le_pipeline_manager_get_pipeline_layout( self, pso );
+	auto pipelineLayout = le_pipeline_manager_get_pipeline_layout( self, pso->shaderStages.data(), pso->shaderStages.size() );
 
 	//
 	// We must match blend attachment states with number of attachments for
@@ -1235,6 +1253,35 @@ static vk::Pipeline le_pipeline_cache_create_pipeline( le_pipeline_manager_o *se
 	    ;
 
 	auto pipeline = self->device.createGraphicsPipeline( self->vulkanCache, gpi );
+	return pipeline;
+}
+
+// ----------------------------------------------------------------------
+
+static vk::Pipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manager_o *self, compute_pipeline_state_o const *pso ) {
+
+	// Fetch vk::PipelineLayout for this pso
+	auto pipelineLayout = le_pipeline_manager_get_pipeline_layout( self, &pso->shaderStage, 1 );
+
+	vk::PipelineShaderStageCreateInfo shaderStage{};
+	shaderStage
+	    .setFlags( {} )                                  // must be 0 - "reserved for future use"
+	    .setStage( vk_to_le( pso->shaderStage->stage ) ) //
+	    .setModule( pso->shaderStage->module )           //
+	    .setPName( "main" )                              //
+	    .setPSpecializationInfo( nullptr )               // TODO: Use specialisation consts to set workgroup size?
+	    ;
+
+	vk::ComputePipelineCreateInfo cpi;
+	cpi
+	    .setFlags( vk::PipelineCreateFlagBits::eAllowDerivatives )
+	    .setStage( shaderStage )
+	    .setLayout( pipelineLayout )
+	    .setBasePipelineHandle( nullptr )
+	    .setBasePipelineIndex( 0 ) // -1 signals not to use base pipeline index
+	    ;
+
+	auto pipeline = self->device.createComputePipeline( self->vulkanCache, cpi );
 	return pipeline;
 }
 
@@ -1360,11 +1407,13 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 }
 
 // ----------------------------------------------------------------------
-
-static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( le_pipeline_manager_o *self, graphics_pipeline_state_o const *pso ) {
+// Calculates pipeline layout info by first consolidating all bindings
+// over all referenced modules, and then ordering these by descriptor sets.
+//
+static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( le_pipeline_manager_o *self, le_shader_module_o const *const *shader_modules, size_t shader_modules_count ) {
 	le_pipeline_layout_info info{};
 
-	std::vector<le_shader_binding_info> combined_bindings = shader_modules_get_bindings_list( pso->shaderStages );
+	std::vector<le_shader_binding_info> combined_bindings = shader_modules_get_bindings_list( shader_modules, shader_modules_count );
 
 	// -- Create array of DescriptorSetLayouts
 	std::array<vk::DescriptorSetLayout, 8> vkLayouts{};
@@ -1418,7 +1467,7 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 		}
 	}
 
-	info.pipeline_layout_key = graphics_pso_get_pipeline_layout_hash( pso );
+	info.pipeline_layout_key = shader_modules_get_pipeline_layout_hash( shader_modules, shader_modules_count );
 
 	// -- Attempt to find this pipelineLayout from cache, if we can't find one, we create and retain it.
 
@@ -1444,16 +1493,41 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 
 // ----------------------------------------------------------------------
 /// \returns pointer to a graphicsPSO which matches gpsoHash, or `nullptr` if no match
-graphics_pipeline_state_o *le_pipeline_manager_get_pso_from_cache( le_pipeline_manager_o *self, const le_graphics_pipeline_handle &gpso_hash ) {
+graphics_pipeline_state_o *le_pipeline_manager_get_gpso_from_cache( le_pipeline_manager_o *self, const le_gpso_handle &gpso_hash ) {
 	// FIXME: (PIPELINE) THIS NEEDS TO BE MUTEXED, AND ACCESS CONTROLLED
 
 	auto       pso              = self->graphicsPSO_list.data();
-	const auto pso_hashes_begin = self->graphicsPSO_hashes.data();
+	const auto pso_hashes_begin = self->graphicsPSO_handles.data();
 	auto       pso_hash         = pso_hashes_begin;
-	const auto pso_hashes_end   = pso_hashes_begin + self->graphicsPSO_hashes.size();
+	const auto pso_hashes_end   = pso_hashes_begin + self->graphicsPSO_handles.size();
 
 	for ( ; pso_hash != pso_hashes_end; pso_hash++, pso++ ) {
 		if ( gpso_hash == *pso_hash )
+			break;
+	}
+
+	if ( pso_hash == pso_hashes_end ) {
+		// not found
+		return nullptr; // could not find pso with given hash
+	}
+
+	// ---------| invariant: element found
+
+	return *pso;
+}
+
+// ----------------------------------------------------------------------
+/// \returns pointer to a computePSO which matches cpsoHash, or `nullptr` if no match
+compute_pipeline_state_o *le_pipeline_manager_get_cpso_from_cache( le_pipeline_manager_o *self, const le_cpso_handle &cpso_hash ) {
+	// FIXME: (PIPELINE) THIS NEEDS TO BE MUTEXED, AND ACCESS CONTROLLED
+
+	auto       pso              = self->computePSO_list.data();
+	const auto pso_hashes_begin = self->computePSO_handles.data();
+	auto       pso_hash         = pso_hashes_begin;
+	const auto pso_hashes_end   = pso_hashes_begin + self->computePSO_handles.size();
+
+	for ( ; pso_hash != pso_hashes_end; pso_hash++, pso++ ) {
+		if ( cpso_hash == *pso_hash )
 			break;
 	}
 
@@ -1478,11 +1552,11 @@ graphics_pipeline_state_o *le_pipeline_manager_get_pso_from_cache( le_pipeline_m
 //
 // + Access to this method must be sequential - no two frames may access this method
 //   at the same time - and no two renderpasses may access this method at the same time.
-static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pipeline_manager_o *self, le_graphics_pipeline_handle gpso_handle, const LeRenderPass &pass, uint32_t subpass ) {
+static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pipeline_manager_o *self, le_gpso_handle gpso_handle, const LeRenderPass &pass, uint32_t subpass ) {
 
 	// -- 0. Fetch pso from cache using its hash key
 
-	graphics_pipeline_state_o const *pso = le_pipeline_manager_get_pso_from_cache( self, gpso_handle );
+	graphics_pipeline_state_o const *pso = le_pipeline_manager_get_gpso_from_cache( self, gpso_handle );
 
 	assert( pso );
 
@@ -1491,14 +1565,14 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pi
 	// -- 1. get pipeline layout info for a pipeline with these bindings
 	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
 
-	uint64_t pipeline_layout_hash = graphics_pso_get_pipeline_layout_hash( pso );
+	uint64_t pipeline_layout_hash = shader_modules_get_pipeline_layout_hash( pso->shaderStages.data(), pso->shaderStages.size() );
 
 	auto pl = self->pipelineLayoutInfos.find( pipeline_layout_hash );
 
 	if ( pl == self->pipelineLayoutInfos.end() ) {
 
 		// this will also create vulkan objects for pipeline layout / descriptor set layout and cache them
-		pipeline_and_layout_info.layout_info = le_pipeline_cache_produce_pipeline_layout_info( self, pso );
+		pipeline_and_layout_info.layout_info = le_pipeline_cache_produce_pipeline_layout_info( self, pso->shaderStages.data(), pso->shaderStages.size() );
 
 		// store in cache
 		self->pipelineLayoutInfos[ pipeline_layout_hash ] = pipeline_and_layout_info.layout_info;
@@ -1536,7 +1610,74 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pi
 		// -- if not, create pipeline in pipeline cache and store / retain it
 		pipeline_and_layout_info.pipeline = le_pipeline_cache_create_pipeline( self, pso, pass, subpass );
 
-		std::cout << "New VK Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
+		std::cout << "New VK Graphics Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
+		          << std::flush;
+
+		self->pipelines[ pipeline_hash ] = pipeline_and_layout_info.pipeline;
+	} else {
+		// -- else return pipeline found in hash map
+		pipeline_and_layout_info.pipeline = p->second;
+	}
+
+	return pipeline_and_layout_info;
+}
+
+// ----------------------------------------------------------------------
+
+static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipeline( le_pipeline_manager_o *self, le_cpso_handle cpso_handle ) {
+
+	compute_pipeline_state_o const *pso = le_pipeline_manager_get_cpso_from_cache( self, cpso_handle );
+	assert( pso );
+
+	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
+
+	// Fetch the hash over the pipeline layout. Since there is only one shader
+	// stage for compute, we can take it straight from that stage without
+	// accumulating over stages.
+	uint64_t pipeline_layout_hash = shader_modules_get_pipeline_layout_hash( &pso->shaderStage, 1 );
+
+	auto pl = self->pipelineLayoutInfos.find( pipeline_layout_hash );
+
+	if ( pl == self->pipelineLayoutInfos.end() ) {
+
+		// this will also create vulkan objects for pipeline layout / descriptor set layout and cache them
+		pipeline_and_layout_info.layout_info = le_pipeline_cache_produce_pipeline_layout_info( self, &pso->shaderStage, 1 );
+
+		// store in cache
+		self->pipelineLayoutInfos[ pipeline_layout_hash ] = pipeline_and_layout_info.layout_info;
+	} else {
+		pipeline_and_layout_info.layout_info = pl->second;
+	}
+
+	// -- 2. get vk pipeline object
+	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
+
+	uint64_t pipeline_hash = 0;
+	{
+		// Create a combined hash for pipeline, renderpass, and all contributing shader stages.
+
+		// We use a fixed-size c-style array to collect all hashes for this pipeline,
+		// and an entry count so that this is reliably allocated on the stack and not on the heap.
+		//
+		uint64_t pso_renderpass_hash_data[ 12 ]       = {};
+		uint64_t pso_renderpass_hash_data_num_entries = 0; // max 12
+
+		pso_renderpass_hash_data[ pso_renderpass_hash_data_num_entries++ ] = reinterpret_cast<uint64_t>( cpso_handle ); // Hash associated with `pso`
+		pso_renderpass_hash_data[ pso_renderpass_hash_data_num_entries++ ] = pso->shaderStage->hash;                    // Module state - may have been recompiled, hash must be current
+
+		// -- create combined hash for pipeline, renderpass
+		pipeline_hash = SpookyHash::Hash64( pso_renderpass_hash_data, sizeof( uint64_t ) * pso_renderpass_hash_data_num_entries, pipeline_layout_hash );
+	}
+
+	// -- look up if pipeline with this hash already exists in cache.
+	auto p = self->pipelines.find( pipeline_hash );
+
+	if ( p == self->pipelines.end() ) {
+
+		// -- if not, create pipeline in pipeline cache and store / retain it
+		pipeline_and_layout_info.pipeline = le_pipeline_cache_create_compute_pipeline( self, pso );
+
+		std::cout << "New VK Compute Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
 		          << std::flush;
 
 		self->pipelines[ pipeline_hash ] = pipeline_and_layout_info.pipeline;
@@ -1553,17 +1694,38 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pi
 //
 // via RECORD in command buffer recording state
 // in SETUP
-void le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_o *self, graphics_pipeline_state_o *gpso, le_graphics_pipeline_handle gpsoHandle ) {
+void le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_o *self, graphics_pipeline_state_o *gpso, le_gpso_handle gpsoHandle ) {
 
 	// we must copy!
 
 	// check if pso is already in cache
-	auto pso = le_pipeline_manager_get_pso_from_cache( self, gpsoHandle );
+	auto pso = le_pipeline_manager_get_gpso_from_cache( self, gpsoHandle );
 
 	if ( pso == nullptr ) {
 		// not found in cache - add to cache
-		self->graphicsPSO_hashes.emplace_back( gpsoHandle );
+		self->graphicsPSO_handles.emplace_back( gpsoHandle );
 		self->graphicsPSO_list.emplace_back( new graphics_pipeline_state_o( *gpso ) ); // note that we copy
+	} else {
+		// assert( false ); // pso was already found in cache, this is strange
+	}
+};
+
+// ----------------------------------------------------------------------
+// This method may get called through the pipeline builder -
+//
+// via RECORD in command buffer recording state
+// in SETUP
+void le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o *self, compute_pipeline_state_o *cpso, le_cpso_handle cpsoHandle ) {
+
+	// we must copy!
+
+	// check if pso is already in cache
+	auto pso = le_pipeline_manager_get_cpso_from_cache( self, cpsoHandle );
+
+	if ( pso == nullptr ) {
+		// not found in cache - add to cache
+		self->computePSO_handles.emplace_back( cpsoHandle );
+		self->computePSO_list.emplace_back( new compute_pipeline_state_o( *cpso ) ); // note that we copy
 	} else {
 		// assert( false ); // pso was already found in cache, this is strange
 	}
@@ -1620,7 +1782,7 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 	self->shaderManager = nullptr;
 
 	// -- destroy any pipeline state objects
-	self->graphicsPSO_hashes.clear();
+	self->graphicsPSO_handles.clear();
 	for ( auto &pPso : self->graphicsPSO_list ) {
 		delete ( pPso );
 	}
@@ -1670,9 +1832,11 @@ ISL_API_ATTR void register_le_pipeline_vk_api( void *api_ ) {
 		i.create_shader_module              = le_pipeline_manager_create_shader_module;
 		i.update_shader_modules             = le_pipeline_manager_update_shader_modules;
 		i.introduce_graphics_pipeline_state = le_pipeline_manager_introduce_graphics_pipeline_state;
+		i.introduce_compute_pipeline_state  = le_pipeline_manager_introduce_compute_pipeline_state;
 		i.get_pipeline_layout               = le_pipeline_manager_get_pipeline_layout;
 		i.get_descriptor_set_layout         = le_pipeline_manager_get_descriptor_set_layout;
 		i.produce_pipeline                  = le_pipeline_manager_produce_pipeline;
+		i.produce_compute_pipeline          = le_pipeline_manager_produce_compute_pipeline;
 	}
 	{
 		auto &i     = le_backend_vk_api_i->le_shader_module_i;
