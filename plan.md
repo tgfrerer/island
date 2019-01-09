@@ -4,9 +4,18 @@
 
 # TODO
 
+
 ## (A)
 
+- SetIsRoot seems to be required for all renderpasses - this is not what
+  this was intended to do - check for bug.
 - Compute Passes
+    - combine setArgumentData and bindArgumentBuffer in encoder so that
+      we're using a single path in the backend for both these methods (we
+      can express them fully as setArgumentData).
+    - use computation result in a draw pass to check synchronisation
+      requirements.
+    - read up on workgroup sizes  
 - Resolve Attachments
 
 ## (B)

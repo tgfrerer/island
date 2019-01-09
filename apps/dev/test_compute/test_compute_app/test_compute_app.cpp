@@ -15,10 +15,17 @@
 #include <memory>
 #include <sstream>
 
+struct BufferData {
+	le_resource_handle_t handle;
+	uint32_t             numBytes;
+};
+
 struct test_compute_app_o {
 	pal::Window  window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
+
+	BufferData *particleBuffer = nullptr; // owning
 
 	LeCamera camera;
 };
@@ -51,7 +58,13 @@ static test_compute_app_o *test_compute_app_create() {
 	// create a new window
 	app->window.setup( settings );
 
-	app->renderer.setup( le::RendererInfoBuilder( app->window ).build() );
+	app->renderer.setup( le::RendererInfoBuilder( app->window )
+	                         .withSwapchain()
+	                         .withKhrSwapchain()
+	                         .setPresentmode( le::Presentmode::eFifo )
+	                         .end()
+	                         .end()
+	                         .build() );
 
 	// Set up the camera
 	reset_camera( app );
@@ -72,6 +85,42 @@ static void reset_camera( test_compute_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
+static bool pass_compute_setup( le_renderpass_o *pRp, void *user_data ) {
+	auto           app = static_cast<test_compute_app_o *>( user_data );
+	le::RenderPass rp( pRp );
+	rp
+	    .useResource( app->particleBuffer->handle,
+	                  le::BufferInfoBuilder()
+	                      .setSize( app->particleBuffer->numBytes )
+	                      .addUsageFlags( LE_BUFFER_USAGE_STORAGE_BUFFER_BIT )
+	                      .build() );
+
+	return true;
+};
+
+// ----------------------------------------------------------------------
+
+static void pass_compute_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+	auto        app = static_cast<test_compute_app_o *>( user_data );
+	le::Encoder encoder{encoder_};
+
+	// Draw main scene
+
+	static auto shaderCompute = app->renderer.createShaderModule( "./local_resources/shaders/compute.glsl", le::ShaderStage::eCompute );
+
+	static auto psoCompute =
+	    LeComputePipelineBuilder( encoder.getPipelineManager() )
+	        .setShaderStage( shaderCompute )
+	        .build();
+
+	encoder
+	    .bindComputePipeline( psoCompute )
+	    .bindArgumentBuffer( LE_ARGUMENT_NAME( "ParticleBuf" ), app->particleBuffer->handle )
+	    .dispatch( 16, 16, 4 );
+}
+
+// ----------------------------------------------------------------------
+
 static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto rp  = le::RenderPass{pRp};
 	auto app = static_cast<test_compute_app_o *>( user_data );
@@ -81,7 +130,11 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 
 	rp
 	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
-	    .setIsRoot( true );
+	    .useResource( app->particleBuffer->handle,
+	                  le::BufferInfoBuilder()
+	                      .addUsageFlags( LE_BUFFER_USAGE_VERTEX_BUFFER_BIT )
+	                      .setSize( app->particleBuffer->numBytes )
+	                      .build() );
 
 	return true;
 }
@@ -124,61 +177,27 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	mvp.view       = app->camera.getViewMatrixGlm();
 	mvp.projection = app->camera.getProjectionMatrixGlm();
 
-	glm::vec3 test_computePositions[] = {
-	    {-50, -50, 0},
+	glm::vec3 trianglePositions[] = {
+	    {-150, -50, 0},
 	    {50, -50, 0},
 	    {0, 50, 0},
 	};
 
-	glm::vec4 test_computeColors[] = {
+	glm::vec4 triangleColors[] = {
 	    {1, 0, 0, 1.f},
 	    {0, 1, 0, 1.f},
 	    {0, 0, 1, 1.f},
 	};
 
+	uint64_t bufferOffsets[ 1 ] = {0};
+
 	encoder
 	    .bindGraphicsPipeline( psoDefaultGraphics )
 	    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
-	    .setVertexData( test_computePositions, sizeof( test_computePositions ), 0 )
-	    .setVertexData( test_computeColors, sizeof( test_computeColors ), 1 )
+	    //	    .setVertexData( trianglePositions, sizeof( trianglePositions ), 0 )
+	    .bindVertexBuffers( 0, 1, &app->particleBuffer->handle, bufferOffsets )
+	    .setVertexData( triangleColors, sizeof( triangleColors ), 1 )
 	    .draw( 3 );
-}
-
-// ----------------------------------------------------------------------
-
-static bool pass_compute_setup( le_renderpass_o *pRp, void *user_data ) {
-	le::RenderPass rp( pRp );
-	rp
-	    .useResource( LE_BUF_RESOURCE( "particle_buffer" ),
-	                  le::BufferInfoBuilder()
-	                      .setSize( 1024 * sizeof( float ) * 8 )
-	                      .addUsageFlags( LE_BUFFER_USAGE_STORAGE_BUFFER_BIT )
-	                      .build() )
-	    .setIsRoot( true ) //
-	    ;
-
-	return true;
-};
-
-// ----------------------------------------------------------------------
-
-static void pass_compute_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto        app = static_cast<test_compute_app_o *>( user_data );
-	le::Encoder encoder{encoder_};
-
-	// Draw main scene
-
-	static auto shaderCompute = app->renderer.createShaderModule( "./local_resources/shaders/compute.glsl", le::ShaderStage::eCompute );
-
-	static auto psoCompute =
-	    LeComputePipelineBuilder( encoder.getPipelineManager() )
-	        .setShaderStage( shaderCompute )
-	        .build();
-
-	encoder
-	    .bindComputePipeline( psoCompute )
-	    .bindArgumentBuffer( LE_ARGUMENT_NAME( "ParticleBuf" ), LE_BUF_RESOURCE( "particle_buffer" ) )
-	    .dispatch( 16, 16, 4 );
 }
 
 // ----------------------------------------------------------------------
@@ -195,6 +214,50 @@ static bool test_compute_app_update( test_compute_app_o *self ) {
 
 	le::RenderModule mainModule{};
 	{
+		le::RenderPass passInitial( "initial", LE_RENDER_PASS_TYPE_TRANSFER );
+
+		passInitial
+		    .setSetupCallback( self, []( le_renderpass_o *pRp, void *user_data ) -> bool {
+			    auto app = static_cast<test_compute_app_o *>( user_data );
+
+				if ( app->particleBuffer ) {
+
+					// We don't have to do anything with this pass if the particle buffer already exists.
+					// returning false means that this pass will not be added to the frame graph.
+
+					return false;
+				} else {
+
+					// ---------| invariant: particle buffer has not been created yet.
+					app->particleBuffer = new BufferData{LE_BUF_RESOURCE( "particle_buffer" ), 1024 * 8 * sizeof( float )};
+				}
+
+				// --------| invariant: particle buffer handle exists
+
+				le::RenderPass rp( pRp );
+				rp
+				    .useResource( app->particleBuffer->handle,
+				                  le::BufferInfoBuilder()
+				                      .setSize( app->particleBuffer->numBytes )
+				                      .addUsageFlags( LE_BUFFER_USAGE_TRANSFER_DST_BIT )
+				                      .build() ) //
+				    ;
+				return true;
+		    } )
+
+		    .setExecuteCallback( self, []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+			    auto        app = static_cast<test_compute_app_o *>( user_data );
+				le::Encoder encoder( encoder_ );
+
+				// todo: add some initial data which we want to upload to the particle buffer.
+				glm::vec3 test_computePositions[] = {
+				    {-50, -50, 0},
+				    {50, -50, 0},
+				    {0, 50, 0},
+				};
+
+				encoder.writeToBuffer( app->particleBuffer->handle, 0, test_computePositions, sizeof( glm::vec3 ) * 3 );
+		    } );
 
 		le::RenderPass passCompute( "compute", LE_RENDER_PASS_TYPE_COMPUTE );
 
@@ -207,9 +270,11 @@ static bool test_compute_app_update( test_compute_app_o *self ) {
 
 		passMain
 		    .setSetupCallback( self, pass_main_setup )
-		    .setExecuteCallback( self, pass_main_exec ) //
+		    .setExecuteCallback( self, pass_main_exec )
+		    .setIsRoot( true ) //
 		    ;
 
+		mainModule.addRenderPass( passInitial );
 		mainModule.addRenderPass( passCompute );
 		mainModule.addRenderPass( passMain );
 	}
@@ -224,7 +289,9 @@ static bool test_compute_app_update( test_compute_app_o *self ) {
 // ----------------------------------------------------------------------
 
 static void test_compute_app_destroy( test_compute_app_o *self ) {
-
+	if ( self->particleBuffer ) {
+		delete self->particleBuffer;
+	}
 	delete ( self ); // deletes camera
 }
 

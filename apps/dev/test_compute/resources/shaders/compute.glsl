@@ -4,9 +4,7 @@
 #extension GL_ARB_shading_language_420pack : enable
 
 struct Particle {
-	vec2 pos;
-	vec2 vel;
-	vec4 result;
+	vec3 pos;
 };
 
 
@@ -25,6 +23,6 @@ layout (local_size_x = 16, local_size_y = 16, local_size_z=4) in;
 
 void main(){
 
-	 particles[gl_LocalInvocationIndex].pos.xy = vec2(gl_LocalInvocationIndex);
+	 particles[gl_LocalInvocationIndex].pos.xy *= 1.000;
 
 }
