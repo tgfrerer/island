@@ -551,7 +551,7 @@ static void tasks_calculate_sort_indices( Task const *const tasks, const size_t 
 static void rendergraph_build( le_rendergraph_o *self ) {
 
 	// We must express our list of passes as a list of tasks.
-	// A task holds two bitfields, the bitfield names are read and write.
+	// A task holds two bitfields, the bitfield names are: `read` and `write`.
 	// Each bit in the bitfield represents a possible resource.
 	// This means we must create a list of unique resources, so that we can use the resource index as the
 	// offset value for a bit representing this particular resource in the bitfields.
