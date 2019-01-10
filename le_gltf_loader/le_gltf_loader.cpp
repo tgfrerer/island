@@ -44,6 +44,8 @@ struct Node {
 
 struct Primitive {
 
+	// A primitive contains all the data for a draw call using a single pipeline.
+
 	std::vector<le_vertex_input_attribute_description> attributeDescriptions;
 	std::vector<le_vertex_input_binding_description>   bindingDescriptions;
 
@@ -59,6 +61,10 @@ struct Primitive {
 };
 
 struct Mesh {
+
+	// A gltf mesh contains a list of primitives that are to be drawn at a common transform.
+	// A gltf mesh therefore is a transform element.
+
 	std::vector<uint32_t> primitives;
 };
 
@@ -562,7 +568,8 @@ static bool document_load_from_text( le_gltf_document_o *self, const char *path 
 	 * Ingest geometry:
 	 *
 	 * We want geometry data to be of uniform structure.
-	 * We dont want vertex data to be interleaved, because this makes it less performant when rendering sub-passes (e.g. z-prepass, where we only need positions)
+	 * We dont want vertex data to be interleaved, because this makes it
+	 * less performant when rendering sub-passes (e.g. z-prepass, where we only need positions)
 	 *
 	 * Mesh
 	 * \-- indices[]
@@ -686,7 +693,7 @@ static bool document_load_from_text( le_gltf_document_o *self, const char *path 
 
 				prim.mode     = enum_to_num( p.mode );
 				prim.material = p.material;
-				msh.primitives.push_back( uint32_t( self->primitives.size() ) );
+				msh.primitives.push_back( uint32_t( self->primitives.size() ) ); // store primitive index with mesh
 				self->primitives.push_back( prim );
 			} // end for all primitives
 			self->meshes.push_back( msh );
