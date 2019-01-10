@@ -16,7 +16,16 @@
 #	define PRINT_DEBUG_MESSAGES false
 #endif
 
-#define LE_rendergraph_RECURSION_DEPTH 20
+#include <bitset>
+
+constexpr size_t MAX_NUM_LAYER_RESOURCES      = 4096; // set this to larger value if you want to deal with more than 128 distinct resources.
+using BitField                                = std::bitset<MAX_NUM_LAYER_RESOURCES>;
+constexpr auto LE_RENDER_GRAPH_ROOT_LAYER_TAG = LE_RESOURCE( "LE_RENDER_GRAPH_ROOT_LAYER_TAG", LeResourceType::eUndefined );
+
+struct Task {
+	BitField reads;
+	BitField writes;
+};
 
 // these are some sanity checks for le_renderer_types
 static_assert( sizeof( le::CommandHeader ) == sizeof( uint64_t ), "Size of le::CommandHeader must be 64bit" );
@@ -28,11 +37,9 @@ struct le_renderpass_o {
 	uint64_t         id       = 0;     // hash of name
 	uint64_t         sort_key = 0;
 
-	std::vector<le_resource_handle_t> resources;     // all resources used in this pass
-	std::vector<le_resource_info_t>   resourceInfos; // `resources` holds ids at matching index
-
-	std::vector<le_resource_handle_t> readResources;
-	std::vector<le_resource_handle_t> writeResources;
+	std::vector<le_resource_handle_t> resources;              // all resources used in this pass
+	std::vector<le_resource_info_t>   resourceInfos;          // `resources` holds ids at matching index
+	std::vector<LeAccessFlags>        resources_access_flags; // access flags for all resources, in sync with resources
 
 	std::vector<le_image_attachment_info_t> imageAttachments;    // settings for image attachments (may be color/or depth)
 	std::vector<le_resource_handle_t>       attachmentResources; // kept in sync with imageAttachments, one resource per attachment
@@ -62,6 +69,7 @@ struct le_render_module_o : NoCopy, NoMove {
 
 struct le_rendergraph_o : NoCopy, NoMove {
 	std::vector<le_renderpass_o *> passes;
+	std::vector<uint32_t>          sortIndices;
 };
 
 // ----------------------------------------------------------------------
@@ -140,20 +148,25 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 
 	// ---------| Invariant: only check images or buffers
 
-	auto found_res = std::find( self->resources.begin(), self->resources.end(), resource_id );
+	size_t resource_idx      = 0; // index of matching resource
+	size_t numKnownResources = self->resources.size();
+	for ( le_resource_handle_t *res = self->resources.data(); resource_idx != numKnownResources; res++, resource_idx++ ) {
+		if ( *res == resource_id ) {
+			// found a match
+			break;
+		}
+	}
 
-	le_resource_info_t *consolidated_info = nullptr;
-
-	if ( self->resources.end() == found_res ) {
+	if ( resource_idx == numKnownResources ) {
 		// not found, add resource and resource info
 		self->resources.push_back( resource_id );
 		self->resourceInfos.push_back( resource_info );
-		consolidated_info = &self->resourceInfos.back();
+		self->resources_access_flags.push_back( LeAccessFlagBits::eLeAccessFlagBitUndefined );
 	} else {
 
 		// Resource already exists. we must consolidate the corresponding `resource_info`, so that it covers both cases.
 
-		auto &stored_resource_info = *( self->resourceInfos.begin() + ( found_res - self->resources.begin() ) );
+		auto &stored_resource_info = self->resourceInfos[ resource_idx ];
 
 		assert( stored_resource_info.type == resource_info.type );
 
@@ -179,9 +192,10 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 		default:
 		    break;
 		}
-
-		consolidated_info = &stored_resource_info;
 	}
+
+	le_resource_info_t &consolidated_info = self->resourceInfos[ resource_idx ];
+	LeAccessFlags &     access_flags      = self->resources_access_flags[ resource_idx ];
 
 	// Now we check whether there is a read and/or a write operation on
 	// the resource
@@ -205,8 +219,8 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 
 	static constexpr auto ALL_BUFFER_WRITE_FLAGS =
 	    LE_BUFFER_USAGE_TRANSFER_DST_BIT |         //
-	    LE_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT | //
-	    LE_BUFFER_USAGE_STORAGE_BUFFER_BIT         //
+	    LE_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT | // assume read_write
+	    LE_BUFFER_USAGE_STORAGE_BUFFER_BIT         // assume read_write
 	    ;
 
 	static constexpr auto ALL_BUFFER_READ_FLAGS =
@@ -215,6 +229,8 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 	    LE_BUFFER_USAGE_UNIFORM_BUFFER_BIT |          //
 	    LE_BUFFER_USAGE_INDEX_BUFFER_BIT |            //
 	    LE_BUFFER_USAGE_VERTEX_BUFFER_BIT |           //
+	    LE_BUFFER_USAGE_STORAGE_BUFFER_BIT |          // assume read_write
+	    LE_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT |    // assume read_write
 	    LE_BUFFER_USAGE_INDIRECT_BUFFER_BIT |         //
 	    LE_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT //
 	    ;
@@ -222,27 +238,27 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 	bool resourceWillBeWrittenTo = false;
 	bool resourceWillBeReadFrom  = false;
 
-	switch ( consolidated_info->type ) {
+	switch ( consolidated_info.type ) {
 	case LeResourceType::eBuffer: {
-		resourceWillBeReadFrom  = consolidated_info->buffer.usage & ALL_BUFFER_READ_FLAGS;
-		resourceWillBeWrittenTo = consolidated_info->buffer.usage & ALL_BUFFER_WRITE_FLAGS;
+		resourceWillBeReadFrom  = consolidated_info.buffer.usage & ALL_BUFFER_READ_FLAGS;
+		resourceWillBeWrittenTo = consolidated_info.buffer.usage & ALL_BUFFER_WRITE_FLAGS;
 	} break;
 	case LeResourceType::eImage: {
-		resourceWillBeReadFrom  = consolidated_info->image.usage & ALL_IMAGE_READ_FLAGS;
-		resourceWillBeWrittenTo = consolidated_info->image.usage & ALL_IMAGE_WRITE_FLAGS;
+		resourceWillBeReadFrom  = consolidated_info.image.usage & ALL_IMAGE_READ_FLAGS;
+		resourceWillBeWrittenTo = consolidated_info.image.usage & ALL_IMAGE_WRITE_FLAGS;
 	} break;
 	default:
 	    break;
 	}
 
-	if ( ( resourceWillBeReadFrom ) &&
-	     !vector_contains( self->readResources, resource_id ) ) {
-		self->readResources.push_back( resource_id );
+	// update access flags
+
+	if ( resourceWillBeReadFrom ) {
+		access_flags |= LeAccessFlagBits::eLeAccessFlagBitRead;
 	}
 
-	if ( ( resourceWillBeWrittenTo ) &&
-	     !vector_contains( self->writeResources, resource_id ) ) {
-		self->writeResources.push_back( resource_id );
+	if ( resourceWillBeWrittenTo ) {
+		access_flags |= LeAccessFlagBits::eLeAccessFlagBitWrite;
 	}
 }
 
@@ -424,174 +440,230 @@ static void rendergraph_add_renderpass( le_rendergraph_o *self, le_renderpass_o 
 	self->passes.push_back( renderpass ); // Note: We receive ownership of the pass here. We must destroy it.
 }
 
-// ----------------------------------------------------------------------
-/// \brief find corresponding output for each input resource
-static std::vector<std::vector<uint64_t>> rendergraph_resolve_resource_ids( const std::vector<le_renderpass_o *> &passes ) {
+/// \brief Tag any tasks which contribute to any root task
+/// \details We do this so that we can weed out any tasks which are provably
+///          not contributing - these don't need to be executed at all.
+static void tasks_tag_contributing( Task *const tasks, const size_t numTasks ) {
 
-	using namespace le_renderer;
-	std::vector<std::vector<uint64_t>> dependenciesPerPass;
+	// we must iterate backwards from last layer to first layer
+	Task *            task      = tasks + numTasks;
+	Task const *const task_rend = tasks;
 
-	// Rendermodule gives us a pre-sorted list of renderpasses,
-	// we use this to resolve attachment aliases. Since Rendermodule is a linear sequence,
-	// this means that dependencies for resources are well-defined. It's impossible for
-	// two renderpasses using the same resource not to have a clearly defined priority, as
-	// the earliest submitted renderpasses of the two will get priority.
+	BitField read_accum;
 
-	// returns: for each pass, a list of passes which write to resources that this pass uses.
+	// find first root layer
+	//    monitored reads will be from the first root layer
 
-	dependenciesPerPass.reserve( passes.size() );
+	while ( task != task_rend ) {
+		--task;
 
-	// map from resource id -> source pass id
-	std::unordered_map<le_resource_handle_t, uint64_t, LeResourceHandleIdentity> writeAttachmentTable;
+		bool isRoot = task->reads[ 0 ]; // any task which has the root signal set in the first read channel is considered a root task
 
-	// We go through passes in module submission order, so that outputs will match later inputs.
-	uint64_t passIndex = 0;
-	for ( auto const &pass : passes ) {
+		// If it's a root task, get all reads from (= providers to) this task
+		// If it's not a root task, first see if there are any writes to currently monitored reads
+		//    if yes, add all reads to monitored reads
 
-		size_t readResourceCount = pass->readResources.size();
+		if ( isRoot || ( task->writes & read_accum ).any() ) {
+			// If this task is a root task - OR					      ) this means the layer is contributing
+			// If this task writes to any subsequent monitored reads, )
+			// Then we must monitor all reads by this task.
+			read_accum |= task->reads;
 
-		std::vector<uint64_t> passesThisPassDependsOn;
-		passesThisPassDependsOn.reserve( readResourceCount );
-
-		// We must first look if any of our READ attachments are already present in the attachment table.
-		// If so, we update source ids (from table) for each attachment we found.
-		for ( auto const &resource : pass->readResources ) {
-
-			auto foundOutputIt = writeAttachmentTable.find( resource );
-			if ( foundOutputIt != writeAttachmentTable.end() ) {
-				passesThisPassDependsOn.emplace_back( foundOutputIt->second );
-			}
+			task->reads[ 0 ] = true; // Make sure the task is tagged as contributing
+		} else {
+			// Otherwise - this task does not contribute
 		}
-
-		dependenciesPerPass.emplace_back( passesThisPassDependsOn );
-
-		// Outputs from current pass overwrite any cached outputs with same name:
-		// later inputs with same name will then resolve to the latest version
-		// of an output with a particular name.
-
-		for ( auto const &resource : pass->writeResources ) {
-			writeAttachmentTable[ resource ] = passIndex;
-		}
-
-		++passIndex;
-	}
-
-	return dependenciesPerPass;
+	} // end for all tasks, backwards iteration
 }
 
-// ----------------------------------------------------------------------
-/// \brief depth-first traversal of graph, following each input back to its corresponding output (source)
-static void rendergraph_traverse_passes( const std::vector<std::vector<uint64_t>> &passes,
-                                         const uint64_t &                          currentRenderpassId,
-                                         const uint32_t                            recursion_depth,
-                                         std::vector<uint32_t> &                   sort_order_per_pass ) {
+/// Note: `sortIndices` must point to an array of `numtasks` elements of type uint32_t
+static void tasks_calculate_sort_indices( Task const *const tasks, const size_t numTasks, uint32_t *sortIndices ) {
 
-	if ( recursion_depth > LE_rendergraph_RECURSION_DEPTH ) {
-		std::cerr << __FUNCTION__ << " : "
-		          << "max recursion level reached. check for cycles in render graph" << std::endl;
-		return;
-	}
+	BitField read_accum{};
+	BitField write_accum{};
 
-	// TODO: how do we deal with external resources?
+	/// Each bit in the task bitfield stands for one resource.
+	/// Bitfield index corresponds to a resource id. Note that
+	/// bitfields are indexed right-to left (index zero is right-most).
+
+	bool needs_barrier = false;
+
+	uint32_t sortIndex = 0;
 
 	{
-		// -- Store recursion depth as sort order for this pass if it is
-		//    higher than current sort order for this pass.
-		//
-		// We want the maximum edge distance (one recursion equals one edge) from the root node
-		// for each pass, since the max distance makes sure that all resources are available,
-		// even resources which have a shorter path.
+		Task const *const tasks_end = tasks + numTasks;
+		uint32_t *        taskOrder = sortIndices;
+		for ( Task const *task = tasks; task != tasks_end; task++, taskOrder++ ) {
 
-		uint32_t &currentSortOrder = sort_order_per_pass[ currentRenderpassId ];
+			// Weed out any tasks which are marked as non-contributing
 
-		if ( currentSortOrder < recursion_depth ) {
-			currentSortOrder = recursion_depth;
+			if ( task->reads[ 0 ] == false ) {
+				*taskOrder = ~( 0u ); // tag task as not contributing by marking it with the maximum sort index
+				continue;
+			}
+
+			BitField read_write = ( task->reads & task->writes ); // read_after write in same task - this means a task boundary if it does touch any previously read or written elements
+
+			// A barrier is needed, if:
+			needs_barrier = ( read_accum & read_write ).any() ||    // - any previously read elements are touched by read-write, OR
+			                ( write_accum & read_write ).any() ||   // - any previously written elements are touched by read-write, OR
+			                ( write_accum & task->reads ).any() ||  // - the current task wants to read from a previously written task, OR
+			                ( write_accum & task->writes ).any() || // - the current task writes to a previously written resource, OR
+			                ( read_accum & task->writes ).any();    // - the current task wants to write to a task which was previously read.
+
+			//			std::cout << "Needs barrier: " << ( needs_barrier ? "true" : "false" ) << std::endl
+			//			          << std::flush;
+
+			if ( needs_barrier ) {
+				++sortIndex;         // Barriers are expressed by increasing the sortIndex. tasks with the same sortIndex *may* execute concurrently.
+				read_accum.reset();  // Barriers apply everything before the current task
+				write_accum.reset(); //
+				needs_barrier = false;
+			}
+
+			write_accum |= task->writes;
+			read_accum |= task->reads;
+
+			*taskOrder = sortIndex; // store current sortIndex value with task
+
+			// std::cout << task->reads << " reads" << std::endl
+			//           << std::flush;
+			// std::cout << read_accum << " read accum" << std::endl
+			//           << std::flush;
+			// std::cout << write_accum << " write accum" << std::endl
+			//           << std::flush;
 		}
-	}
-
-	// -- Iterate over all sources
-	// As each input tells us its source renderpass, we can look up the provider pass for each source by id
-	const std::vector<uint64_t> &sourcePasses = passes.at( currentRenderpassId );
-	for ( auto &sourcePass : sourcePasses ) {
-		rendergraph_traverse_passes( passes, sourcePass, recursion_depth + 1, sort_order_per_pass );
 	}
 }
 
 // ----------------------------------------------------------------------
-
-static std::vector<uint64_t> rendergraph_find_root_passes( const std::vector<le_renderpass_o *> &passes ) {
-
-	std::vector<uint64_t> roots;
-	roots.reserve( passes.size() );
-
-	uint64_t i = 0;
-	for ( auto const &pass : passes ) {
-		if ( renderpass_get_is_root( pass ) ) {
-			roots.push_back( i );
-		}
-		++i;
-	}
-
-	return roots;
-}
-
-// ----------------------------------------------------------------------
+// Calculate a topological order for passes within rendergraph.
+//
+// We assume that passes arrive in partial-order (i.e. the order
+// of adding passes to a module is meaningful)
+//
+// As a side-effect, this method:
+// + Removes (and deletes) any passes which do not contribute from a rendergraph.
+// + Updates sortIndices so that it has same number of elements as rendergraph.
+// After completion this method guarantees that sortIndices constains a valid
+// sort index for each corresponding renderpass.
 //
 static void rendergraph_build( le_rendergraph_o *self ) {
 
-	// Find corresponding output for each input attachment,
-	// and tag input with output id, as dependencies are
-	// declared using names rather than linked in code.
-	auto pass_dependencies = rendergraph_resolve_resource_ids( self->passes );
+	// We must express our list of passes as a list of tasks.
+	// A task holds two bitfields, the bitfield names are read and write.
+	// Each bit in the bitfield represents a possible resource.
+	// This means we must create a list of unique resources, so that we can use the resource index as the
+	// offset value for a bit representing this particular resource in the bitfields.
 
-	{
-		// Establish a toplogical sorting order
-		// so that passes which produce resources for other
-		// passes are executed *before* their dependencies
-		//
-		auto root_passes = rendergraph_find_root_passes( self->passes );
+	std::vector<Task>                                         tasks;
+	std::array<le_resource_handle_t, MAX_NUM_LAYER_RESOURCES> uniqueHandles; // lookup for resource handles.
+	uniqueHandles[ 0 ]        = LE_RENDER_GRAPH_ROOT_LAYER_TAG;              // handle with index zero is marker for root tasks
+	size_t numUniqueResources = 1;
 
-		std::vector<uint32_t> pass_sort_orders; // sort order for each pass in self->passes
-		pass_sort_orders.resize( self->passes.size(), 0 );
+	// Translate all passes into a task
+	//   Get list of resources per pass and build task from this
 
-		for ( auto root : root_passes ) {
-			// note that we begin with sort order 1, so that any passes which have
-			// sort order 0 still after this loop is complete can be seen as
-			// marked for deletion / or can be ignored.
-			rendergraph_traverse_passes( pass_dependencies, root, 1, pass_sort_orders );
+	for ( auto const &p : self->passes ) {
+
+		Task task;
+
+		const size_t numResources = p->resources.size();
+
+		for ( size_t i = 0; i != numResources; i++ ) {
+			auto const &         resource_handle = p->resources[ i ];
+			LeAccessFlags const &access_flags    = p->resources_access_flags[ i ];
+
+			size_t res_idx = 0; // unique resource id (monotonic, non-sparse, index into bitfield)
+			for ( auto r = uniqueHandles.data(); res_idx != numUniqueResources; res_idx++, r++ ) {
+				if ( *r == resource_handle ) {
+					// found matching resource, res_idx is index into uniqueHandles for resource
+					break;
+				}
+			}
+
+			if ( res_idx == numUniqueResources ) {
+				// resource was not found, we must add a new resource
+				uniqueHandles[ res_idx ] = resource_handle;
+				numUniqueResources++;
+			}
+
+			// --------| invariant: uniqueHandles[res_idx] is valid
+
+			task.reads |= ( ( access_flags & LeAccessFlagBits::eLeAccessFlagBitRead ) << res_idx );
+			task.writes |= ( ( ( access_flags & LeAccessFlagBits::eLeAccessFlagBitWrite ) >> 1 ) << res_idx );
 		}
 
-		// We use the passes' sort order as a field in the
-		// sorting key for any command buffers associated with that
-		// renderpass.
-
-		// store sort key with every pass
-		for ( size_t i = 0; i != self->passes.size(); ++i ) {
-			self->passes[ i ]->sort_key = pass_sort_orders[ i ];
+		if ( p->isRoot ) {
+			// Any task which has reads[0] set to true is marked as a root task.
+			task.reads[ 0 ] = true;
 		}
+
+		tasks.emplace_back( std::move( task ) );
 	}
 
-	// -- Eliminate any passes with sort key 0 (they don't contribute)
-	auto end_valid_passes_range = std::remove_if( self->passes.begin(), self->passes.end(), []( le_renderpass_o *lhs ) -> bool {
-	    bool needs_removal = false;
-	    if ( lhs->sort_key == 0 ) {
-	        needs_removal = true;
-	        renderpass_destroy( lhs );
-        }
-	    return needs_removal;
-    } );
-
-	// remove any passes which were marked invalid
-	self->passes.erase( end_valid_passes_range, self->passes.end() );
-
-	// Use sort key to order passes in decending order, based on sort key.
-	// pass with lower sort key depends on pass with higher sort key
+	// Tag all tasks which contribute to any root task.
 	//
-	// We use stable_sort because this respects the original submission order when
-	// two passes share the same priority.
-	std::stable_sort( self->passes.begin(), self->passes.end(), []( le_renderpass_o const *lhs, le_renderpass_o const *rhs ) {
-		return lhs->sort_key > rhs->sort_key;
-	} );
+	// Tasks which don't contribute to any root task
+	// can be disposed, as their products will never be used.
+	tasks_tag_contributing( tasks.data(), tasks.size() );
+
+	self->sortIndices.resize( tasks.size(), 0 );
+
+	// Associate sort indices to tasks
+	tasks_calculate_sort_indices( tasks.data(), tasks.size(), self->sortIndices.data() );
+
+	auto printPassList = [&]() -> void {
+	    for ( size_t i = 0; i != self->sortIndices.size(); ++i ) {
+		    std::cout << "Pass: " << std::dec << std::setw( 3 ) << i << " sort order : " << std::setw( 12 ) << self->sortIndices[ i ] << " : "
+			          << self->passes[ i ]->debugName
+			          << std::endl
+			          << std::flush;
+	    }
+    };
+
+    if ( PRINT_DEBUG_MESSAGES ) {
+	    printPassList();
+    }
+
+    {
+        // Remove any passes from rendergraph which do not contribute.
+        // Passes which don't contribute have a sort index of (unsigned) -1.
+        //
+        // We consiolidate the list of passes by rebuilding it while only
+        // including passes which contribute (whose sort index != -1)
+
+        size_t numSortIndices = self->sortIndices.size();
+
+		std::vector<le_renderpass_o *> consolidated_passes;
+		std::vector<uint32_t>          consolidated_sort_indices;
+
+		consolidated_passes.reserve( numSortIndices );
+		consolidated_sort_indices.reserve( numSortIndices );
+
+		for ( size_t i = 0; i != self->sortIndices.size(); i++ ) {
+			if ( self->sortIndices[ i ] != ( ~0u ) ) {
+				// valid sort index, add to consolidated passes
+				consolidated_passes.push_back( self->passes[ i ] );
+				consolidated_sort_indices.push_back( self->sortIndices[ i ] );
+			} else {
+				// Sort index hints that this pass is not used,
+				// since the rendergraph owns the pass at this point,
+				// we must delete it.
+				delete self->passes[ i ];
+				self->passes[ i ] = nullptr;
+			}
+		}
+
+		std::swap( self->passes, consolidated_passes );
+		std::swap( self->sortIndices, consolidated_sort_indices );
+
+		if ( PRINT_DEBUG_MESSAGES ) {
+			std::cout << "* Consolidated Pass List *" << std::endl
+			          << std::flush;
+			printPassList();
+		}
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -651,7 +723,19 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 
 	// Create one encoder per pass, and then record commands by calling the execute callback.
 
-	for ( auto &pass : self->passes ) {
+	const size_t numPasses = self->passes.size();
+
+	for ( size_t i = 0; i != numPasses; ++i ) {
+
+		auto &pass       = self->passes[ i ];
+		auto &sort_index = self->sortIndices[ i ]; // passes with same sort_index may execute in parallel.
+
+		if ( sort_index == ( ~0u ) ) {
+			// Pass has been marked as non-contributing during rendergraph.build step.
+			continue;
+		}
+
+		// ---------| invariant: pass may contribute
 
 		if ( pass->callbackExecute ) {
 
