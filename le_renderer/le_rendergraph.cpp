@@ -125,7 +125,11 @@ static inline bool vector_contains( const std::vector<T> &haystack, const T &nee
 }
 
 // ----------------------------------------------------------------------
-
+// Associate a resource with a renderpass.
+// Data containted in `resource_info` decides whether the resource
+// is used for read, write, or read/write.
+// If a resource is already known to the renderpass, we attempt to
+// consolidate resource_info.
 static void renderpass_use_resource( le_renderpass_o *self, const le_resource_handle_t &resource_id, const le_resource_info_t &resource_info ) {
 
 	// Check if resource is already known to this renderpass -
@@ -722,7 +726,10 @@ static void render_module_add_renderpass( le_render_module_o *self, le_renderpas
 }
 
 // ----------------------------------------------------------------------
-
+// Builds rendergraph from render_module, calls `setup` callbacks on each renderpass which provides a
+// `setup` callback.
+// If renderpass provides a setup method, pass is only added to rendergraph if its setup
+// method returns true. Discards contents of render_module at end.
 static void render_module_setup_passes( le_render_module_o *self, le_rendergraph_o *rendergraph_ ) {
 
 	for ( auto &pass : self->passes ) {
