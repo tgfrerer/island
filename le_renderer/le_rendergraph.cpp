@@ -343,12 +343,12 @@ static LeRenderPassType renderpass_get_type( le_renderpass_o const *self ) {
 	return self->type;
 }
 
-static void renderpass_get_used_resources( le_renderpass_o const *self, le_resource_handle_t const **pCreateResources, le_resource_info_t const **pResourceInfos, size_t *count ) {
+static void renderpass_get_used_resources( le_renderpass_o const *self, le_resource_handle_t const **pResources, le_resource_info_t const **pResourceInfos, size_t *count ) {
 	assert( self->resourceInfos.size() == self->resources.size() );
 
-	*pCreateResources = self->resources.data();
-	*pResourceInfos   = self->resourceInfos.data();
-	*count            = self->resources.size();
+	*count          = self->resources.size();
+	*pResources     = self->resources.data();
+	*pResourceInfos = self->resourceInfos.data();
 }
 
 static const char *renderpass_get_debug_name( le_renderpass_o const *self ) {
@@ -536,7 +536,7 @@ static std::vector<uint64_t> rendergraph_find_root_passes( const std::vector<le_
 }
 
 // ----------------------------------------------------------------------
-
+//
 static void rendergraph_build( le_rendergraph_o *self ) {
 
 	// Find corresponding output for each input attachment,
@@ -612,13 +612,6 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 		msg << std::endl
 		    << std::endl;
 		msg << "Render graph: " << std::endl;
-
-		//		std::unordered_map<uint64_t, std::string> pass_id_to_handle;
-		//		pass_id_to_handle.emplace( LE_RENDERPASS_MARKER_EXTERNAL, "RP_EXTERNAL" );
-
-		//		for ( const auto &pass : self->passes ) {
-		//			pass_id_to_handle.emplace( pass->id, pass->debugName );
-		//		}
 
 		for ( const auto &pass : self->passes ) {
 			msg << "renderpass: '" << pass->debugName << "' , sort_key: " << pass->sort_key << std::endl;
