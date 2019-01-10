@@ -7,15 +7,10 @@
 
 ## (A)
 
-- SetIsRoot seems to be required for all renderpasses - this is not what
-  this was intended to do - check for bug.
 - Compute Passes
     - combine setArgumentData and bindArgumentBuffer in encoder so that
       we're using a single path in the backend for both these methods (we
       can express them fully as setArgumentData).
-    - use computation result in a draw pass to check synchronisation
-      requirements.
-    - read up on workgroup sizes  
 - Resolve Attachments
 
 ## (B)
@@ -52,9 +47,6 @@
 
 - Better distinguish between renderpass types when creating vulkan command
   buffers
-
-- Refactor renderpass dependency tracker so that it works along the lines
-  of `le_dependency_manager`
 
 - Rename internal structure to `Batch` instead of `Renderpass` in backend
   because batch may fit better for *resource transfer*, *compute*, or
@@ -211,23 +203,12 @@ when we acquire resources, we create a matching vector which has the
 vulkan object id for each resource - indices match frame available
 resources vector.
 
-when we record command buffers, we store index into the frame resource
-list - that way we can be much faster at assigning resources
-
-- Something like an allocator which comes with the frame context - an
-  arena allocator which provides you with storage for any temporary
-  objects that different libraries want to create, and which have
-  a frame-bound lifespan; this will need to be thread-safe but should be
-  quite trivial to attain, if the `used_mem` index is an atomic `uint32_t`
-  value, for example.
-
 # Next Step Features
 - entity-component system for nodes
 - add materials for renderer
 - implement a post processing effects pipeline
 - implement pbrt materials based on gltf reference implementation
 - investigate intel performance primitives for multithreading
-- implement compute pipeline - and compute passes
 - implement pipeline generation as a channeled op - per encoder first,
   then consolidate those elements generated within a frame
 
