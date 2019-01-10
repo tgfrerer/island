@@ -5,7 +5,6 @@
 
 #include "le_camera/le_camera.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
-#include <vulkan/vulkan.h>
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -13,8 +12,7 @@
 #include "gtc/matrix_transform.hpp"
 
 #include <iostream>
-#include <memory>
-#include <sstream>
+#include <iomanip>
 
 struct test_dependency_o {
 	pal::Window  window;
@@ -52,7 +50,13 @@ static test_dependency_o *test_dependency_create() {
 	// create a new window
 	app->window.setup( settings );
 
-	app->renderer.setup( le::RendererInfoBuilder( app->window ).build() );
+	app->renderer.setup( le::RendererInfoBuilder( app->window )
+	                         .withSwapchain()
+	                         .withKhrSwapchain()
+	                         .setPresentmode( le::Presentmode::eFifo )
+	                         .end()
+	                         .end()
+	                         .build() );
 
 	// -- Declare graphics pipeline state objects
 
@@ -76,103 +80,30 @@ static void reset_camera( test_dependency_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static bool pass_two_setup( le_renderpass_o *pRp, void *user_data ) {
-	auto rp = le::RenderPass{pRp};
-
-	LeTextureInfo texInfo{};
-	texInfo.imageView.imageId = LE_IMG_RESOURCE( "dummy_image" );
-
-	le_image_attachment_info_t attachmentInfo{};
-	attachmentInfo.clearValue.color = {{{0.f, 0.f, 1.f, 1.f}}};
-
-	rp
-	    .addColorAttachment( LE_IMG_RESOURCE( "two_output" ), attachmentInfo ) // color attachment 0
-	    .sampleTexture( LE_TEX_RESOURCE( "dummy_texture" ), texInfo )          //
-	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "depthStencil" ) );
-
-	return true;
-}
-
-// ----------------------------------------------------------------------
-
-static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
-	auto rp  = le::RenderPass{pRp};
-	auto app = static_cast<test_dependency_o *>( user_data );
-
-	LeTextureInfo texInfoTwo{};
-	texInfoTwo.imageView.imageId = LE_IMG_RESOURCE( "two_output" );
-
-	rp
-	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
-	    .sampleTexture( LE_IMG_RESOURCE( "dummy_texture_two" ), texInfoTwo )
-	    .setIsRoot( true ) //
-	    ;
-
-	return true;
-}
-
-// ----------------------------------------------------------------------
-
 static void pass_one_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+	std::cout << "one exec" << std::endl
+	          << std::flush;
 }
 
 static void pass_two_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+	std::cout << "two exec" << std::endl
+	          << std::flush;
 }
 
-static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto        app = static_cast<test_dependency_o *>( user_data );
-	le::Encoder encoder{encoder_};
-
-	// data as it is laid out in the ubo for the shader
-	struct ColorUbo_t {
-		glm::vec4 color;
-	};
-
-	struct MatrixStackUbo_t {
-		glm::mat4 model;
-		glm::mat4 view;
-		glm::mat4 projection;
-	};
-
-	// Draw main scene
-	if ( true ) {
-
-		static auto shaderVert = app->renderer.createShaderModule( "./resources/shaders/default.vert", le::ShaderStage::eVertex );
-		static auto shaderFrag = app->renderer.createShaderModule( "./resources/shaders/default.frag", le::ShaderStage::eFragment );
-
-		static auto pipelineTriangle =
-		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-		        .addShaderStage( shaderVert )
-		        .addShaderStage( shaderFrag )
-		        .build();
-
-		MatrixStackUbo_t mvp;
-		mvp.model      = glm::mat4( 1.f ); // identity matrix
-		mvp.model      = glm::scale( mvp.model, glm::vec3( 4.5 ) );
-		mvp.view       = reinterpret_cast<glm::mat4 const &>( *app->camera.getViewMatrix() );
-		mvp.projection = reinterpret_cast<glm::mat4 const &>( *app->camera.getProjectionMatrix() );
-
-		glm::vec3 trianglePositions[] = {
-		    {-50, -50, 0},
-		    {50, -50, 0},
-		    {0, 50, 0},
-		};
-
-		glm::vec4 triangleColors[] = {
-		    {1, 0, 0, 1.f},
-		    {0, 1, 0, 1.f},
-		    {0, 0, 1, 1.f},
-		};
-
-		encoder
-		    .bindGraphicsPipeline( pipelineTriangle )
-		    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
-		    .setVertexData( trianglePositions, sizeof( trianglePositions ), 0 )
-		    .setVertexData( triangleColors, sizeof( triangleColors ), 1 )
-		    .draw( 3 );
-	}
+static void pass_three_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+	std::cout << "three exec" << std::endl
+	          << std::flush;
 }
 
+static void pass_comp_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+	std::cout << "comp exec" << std::endl
+	          << std::flush;
+}
+
+static void pass_transf_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+	std::cout << "transf exec" << std::endl
+	          << std::flush;
+}
 // ----------------------------------------------------------------------
 
 static bool test_dependency_update( test_dependency_o *self ) {
@@ -185,26 +116,45 @@ static bool test_dependency_update( test_dependency_o *self ) {
 		return false;
 	}
 
+	std::cout << "Frame update: " << std::dec << self->frame_counter << std::endl
+	          << std::flush;
+
 	le::RenderModule mainModule{};
 	{
 
-		LeTextureInfo texInfo{};
-		texInfo.imageView.imageId = LE_IMG_RESOURCE( "dummy_image" );
+		le_image_attachment_info_t defaultClearInfo{};
+		defaultClearInfo.clearValue.color = {{{1.f, 0.f, 0.f, 1.f}}};
 
-		le_image_attachment_info_t attachmentInfo{};
-		attachmentInfo.clearValue.color = {{{1.f, 0.f, 0.f, 1.f}}};
+		mainModule
+		    .addRenderPass( le::RenderPass( "transf_one", LE_RENDER_PASS_TYPE_TRANSFER )
+		                        .useResource( LE_BUF_RESOURCE( "particle_buffer" ), le::BufferInfoBuilder().setSize( 1024 ).setUsageFlags( LE_BUFFER_USAGE_TRANSFER_DST_BIT ).build() )
+		                        .setExecuteCallback( self, pass_transf_exec ) )
+		    .addRenderPass( le::RenderPass( "comp_one", LE_RENDER_PASS_TYPE_COMPUTE )
+		                        .useResource( LE_BUF_RESOURCE( "particle_buffer" ), le::BufferInfoBuilder().setSize( 1024 ).setUsageFlags( LE_BUFFER_USAGE_STORAGE_BUFFER_BIT ).build() )
+		                        .setExecuteCallback( self, pass_comp_exec ) )
+		    .addRenderPass( le::RenderPass( "one", LE_RENDER_PASS_TYPE_DRAW )
+		                        .useResource( LE_BUF_RESOURCE( "particle_buffer" ), le::BufferInfoBuilder().setSize( 1024 ).setUsageFlags( LE_BUFFER_USAGE_VERTEX_BUFFER_BIT ).build() )
+		                        .addDepthStencilAttachment( LE_IMG_RESOURCE( "one_depth" ) )                                                                                                  // depth attachment
+		                        .addColorAttachment( LE_IMG_RESOURCE( "one_output" ), defaultClearInfo, le::ImageInfoBuilder().setFormat( le::Format::eR32G32B32A32Sfloat ).build() )         // color attachment 0
+		                        .sampleTexture( LE_TEX_RESOURCE( "dummy_texture" ), le::TextureInfoBuilder().withImageViewInfo().setImage( LE_IMG_RESOURCE( "dummy_image" ) ).end().build() ) //
+		                        .setExecuteCallback( self, pass_one_exec )                                                                                                                    //
+		                    )
 
-		auto renderpassOne = le::RenderPass( "one", LE_RENDER_PASS_TYPE_DRAW );
-		renderpassOne
-		    .addDepthStencilAttachment( LE_IMG_RESOURCE( "one_depth" ) )                                                                                        // color attachment 0
-		    .addColorAttachment( LE_IMG_RESOURCE( "one_output" ), attachmentInfo, le::ImageInfoBuilder().setFormat( le::Format::eR32G32B32A32Sfloat ).build() ) // color attachment 1
-		    .sampleTexture( LE_TEX_RESOURCE( "dummy_texture" ), texInfo )
-		    .setIsRoot( true )
-		    .setExecuteCallback( self, pass_one_exec );
+		    .addRenderPass( le::RenderPass( "two", LE_RENDER_PASS_TYPE_DRAW )
+		                        .addColorAttachment( LE_IMG_RESOURCE( "two_output" ), defaultClearInfo )                                                                                     // color attachment 0
+		                        .sampleTexture( LE_TEX_RESOURCE( "dummy_texture" ), le::TextureInfoBuilder().withImageViewInfo().setImage( LE_IMG_RESOURCE( "one_output" ) ).end().build() ) //
+		                        .addDepthStencilAttachment( LE_IMG_RESOURCE( "depthStencil" ) )                                                                                              //
+		                        .setExecuteCallback( self, pass_two_exec )                                                                                                                   //
+		                    )
 
-		mainModule.addRenderPass( renderpassOne );
-		mainModule.addRenderPass( le::RenderPass( "two", LE_RENDER_PASS_TYPE_DRAW, pass_two_setup, pass_two_exec, self ) );
-		mainModule.addRenderPass( le::RenderPass( "main", LE_RENDER_PASS_TYPE_DRAW, pass_main_setup, pass_main_exec, self ) );
+		    .addRenderPass( le::RenderPass( "three", LE_RENDER_PASS_TYPE_DRAW )
+		                        .addColorAttachment( self->renderer.getSwapchainResource(), defaultClearInfo )                                                                                   // color attachment
+		                        .sampleTexture( LE_TEX_RESOURCE( "dummy_texture_two" ), le::TextureInfoBuilder().withImageViewInfo().setImage( LE_IMG_RESOURCE( "two_output" ) ).end().build() ) //
+		                        .setExecuteCallback( self, pass_three_exec )                                                                                                                     //
+		                        .setIsRoot( true )                                                                                                                                               //
+		                    )
+		    //
+		    ;
 	}
 
 	// Update will first call setup callbacks, then render callbacks in this module.
