@@ -595,17 +595,16 @@ static void rendergraph_build( le_rendergraph_o *self ) {
 }
 
 // ----------------------------------------------------------------------
+/// Record commands by calling execution callbacks for each renderpass.
+///
+/// Commands are stored as a command stream. This command stream uses a binary,
+/// API-agnostic representation, and contains an ordered list of commands, and optionally,
+/// inlined parameters for each command.
+///
+/// The command stream is stored inside of the Encoder that is used to record it (that's not elegant).
+///
+/// We could possibly go wide when recording renderpasses, with one context per renderpass.
 static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_backend_o *backend ) {
-
-	/// Record render commands by calling rendercallbacks for each renderpass.
-	///
-	/// Render Commands are stored as a command stream. This command stream uses a binary,
-	/// API-agnostic representation, and contains an ordered list of commands, and optionally,
-	/// inlined parameters for each command.
-	///
-	/// The command stream is stored inside of the Encoder that is used to record it (that's not elegant).
-	///
-	/// We could possibly go wide when recording renderpasses, with one context per renderpass.
 
 	if ( PRINT_DEBUG_MESSAGES ) {
 		std::ostringstream msg;
