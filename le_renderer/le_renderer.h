@@ -64,7 +64,6 @@ struct le_renderer_api {
 		le_renderpass_o *            ( *clone                )( const le_renderpass_o *obj );
 		void                         ( *set_setup_callback   )( le_renderpass_o *obj, pfn_renderpass_setup_t setup_fun, void *user_data );
 		bool                         ( *has_setup_callback   )( const le_renderpass_o* obj);
-		bool                         ( *run_setup_callback   )( le_renderpass_o* obj);
 		void                         ( *add_color_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, const le_resource_info_t& resource_info, le_image_attachment_info_t const *info );
 		void                         ( *add_depth_stencil_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, const le_resource_info_t& resource_info, le_image_attachment_info_t const *info );
 		uint32_t                     ( *get_width            )( le_renderpass_o* obj);
@@ -72,7 +71,6 @@ struct le_renderer_api {
 		void                         ( *set_width            )( le_renderpass_o* obj, uint32_t width);
 		void                         ( *set_height           )( le_renderpass_o* obj, uint32_t height);
 		void                         ( *set_execute_callback )( le_renderpass_o *obj, pfn_renderpass_execute_t render_fun, void *user_data );
-		void                         ( *run_execute_callback )( le_renderpass_o* obj, le_command_buffer_encoder_o* encoder);
 		bool                         ( *has_execute_callback )( const le_renderpass_o* obj);
 		void                         ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle_t& resource_id, const le_resource_info_t &info);
 		void                         ( *set_is_root          )( le_renderpass_o *obj, bool is_root );

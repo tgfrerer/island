@@ -96,9 +96,9 @@ static void renderpass_destroy( le_renderpass_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void renderpass_set_setup_fun( le_renderpass_o *self, le_renderer_api::pfn_renderpass_setup_t fun, void *user_data ) {
+static void renderpass_set_setup_callback( le_renderpass_o *self, le_renderer_api::pfn_renderpass_setup_t callback, void *user_data ) {
 	self->setup_callback_user_data = user_data;
-	self->callbackSetup            = fun;
+	self->callbackSetup            = callback;
 }
 
 // ----------------------------------------------------------------------
@@ -109,11 +109,11 @@ static void renderpass_set_execute_callback( le_renderpass_o *self, le_renderer_
 }
 
 // ----------------------------------------------------------------------
-static void renderpass_run_execute_callback( le_renderpass_o *self, le_command_buffer_encoder_o *encoder ) {
-	self->encoder = encoder; // store encoder
+static void renderpass_run_execute_callback( le_renderpass_o *self ) {
 	self->callbackExecute( self->encoder, self->execute_callback_user_data );
 }
 
+// ----------------------------------------------------------------------
 static bool renderpass_run_setup_callback( le_renderpass_o *self ) {
 	return self->callbackSetup( self, self->setup_callback_user_data );
 }
@@ -664,7 +664,7 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 				pass->height != 0 ? pass->height : swapchain_extent.height // Use pass extent unless it is 0, otherwise revert to swapchain_extent
 			};
 
-			auto encoder = encoder_i.create( *allocIt, pipelineCache, stagingAllocator, encoder_extent ); // NOTE: we must manually track the lifetime of encoder!
+			pass->encoder = encoder_i.create( *allocIt, pipelineCache, stagingAllocator, encoder_extent ); // NOTE: we must manually track the lifetime of encoder!
 
 			if ( pass->type == LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW ) {
 
@@ -679,11 +679,11 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 				};
 
 				// setup encoder default viewport and scissor to extent
-				encoder_i.set_scissor( encoder, 0, 1, default_scissor );
-				encoder_i.set_viewport( encoder, 0, 1, default_viewport );
+				encoder_i.set_scissor( pass->encoder, 0, 1, default_scissor );
+				encoder_i.set_viewport( pass->encoder, 0, 1, default_viewport );
 			}
 
-			renderpass_run_execute_callback( pass, encoder ); // record draw commands into encoder
+			renderpass_run_execute_callback( pass ); // record draw commands into encoder
 
 			allocIt++; // Move to next unused allocator
 		}
@@ -783,12 +783,10 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_renderpass_i.set_width                    = renderpass_set_width;
 	le_renderpass_i.get_height                   = renderpass_get_height;
 	le_renderpass_i.set_height                   = renderpass_set_height;
-	le_renderpass_i.set_setup_callback           = renderpass_set_setup_fun;
+	le_renderpass_i.set_setup_callback           = renderpass_set_setup_callback;
 	le_renderpass_i.has_setup_callback           = renderpass_has_setup_callback;
-	le_renderpass_i.run_setup_callback           = renderpass_run_setup_callback;
 	le_renderpass_i.set_execute_callback         = renderpass_set_execute_callback;
 	le_renderpass_i.has_execute_callback         = renderpass_has_execute_callback;
-	le_renderpass_i.run_execute_callback         = renderpass_run_execute_callback;
 	le_renderpass_i.set_is_root                  = renderpass_set_is_root;
 	le_renderpass_i.get_is_root                  = renderpass_get_is_root;
 	le_renderpass_i.get_sort_key                 = renderpass_get_sort_key;
