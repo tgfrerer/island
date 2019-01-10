@@ -10,8 +10,6 @@
 #include "le_renderer/le_renderer.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
 
-//#include "le_backend_vk/le_backend_vk.h" // for get_pipeline_cache (FIXME: get rid of this)
-
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
 #define GLM_ENABLE_EXPERIMENTAL
@@ -677,7 +675,7 @@ static bool document_load_from_text( le_gltf_document_o *self, const char *path 
 					for ( const auto &attrInfo : tmpAttrInfos ) {
 						le_vertex_input_binding_description bindingDescr;
 						bindingDescr.binding = attrInfo.attr.binding;
-						bindingDescr.stride  = attrInfo.attr.vecsize * ( 1 << ( attrInfo.attr.type & 0x03 ) ); // FIXME: stride cannot be 0, it must be the size in bytes of this attribute!
+						bindingDescr.stride  = attrInfo.attr.vecsize * ( 1 << ( attrInfo.attr.type & 0x03 ) );
 						prim.bindingDescriptions.emplace_back( bindingDescr );
 						prim.attributeDescriptions.push_back( attrInfo.attr );
 						prim.attributeDataOffs.push_back( ( attrInfo.bufferViewOffs ) );
@@ -791,7 +789,8 @@ static void document_draw( le_gltf_document_o *self, le_command_buffer_encoder_o
 	// that way we can make sure to minimize binding changes.
 	// And all that crap is running on the front thread. Aaaargh.
 
-	auto &                               documentBufferHandle = self->bufferResources[ 0 ];
+	auto &documentBufferHandle = self->bufferResources[ 0 ];
+
 	std::array<le_resource_handle_t, 32> bufferHandles;
 	bufferHandles.fill( documentBufferHandle );
 
