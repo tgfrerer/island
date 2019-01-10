@@ -654,7 +654,7 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 
 	for ( auto &pass : self->passes ) {
 
-		if ( pass->callbackExecute && pass->sort_key != 0 ) {
+		if ( pass->callbackExecute ) {
 
 			le::Extent2D encoder_extent{
 				pass->width != 0 ? pass->width : swapchain_extent.width,   // Use pass extent unless it is 0, otherwise revert to swapchain_extent
