@@ -36,7 +36,6 @@ struct le_dependency_manager_o {
 	size_t                                        knownResourcesCount = 0; // count of used elements in knownResources
 	std::vector<Layer>                            layers;                  // r/w information for each layer. `Layer::reads` and `Layer::writes` bitfield indices correspond to `knownResources` indices
 	std::vector<uint32_t>                         layers_sort_order;       // Sort order for layers
-	std::vector<uint8_t>                          layers_flags;            // bitmask representing whether a layer is a root layer (root layers and their contributors must always be processed), and whether a layer must be processed as it does contribute.
 #ifdef LE_DEPENDENCY_MANAGER_USE_DEBUG_NAMES
 	std::vector<std::string> layers_debug_names; // debug name for each layer(optional), but must be same element count as layers.
 #endif
