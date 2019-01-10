@@ -585,8 +585,10 @@ static bool document_load_from_text( le_gltf_document_o *self, const char *path 
 	}
 
 	{
-		le_resource_handle_t bufferResource = LE_RESOURCE( "gltf-buffer-1", LeResourceType::eBuffer );
+		// Note that we use the path as the buffer name, assuming path is unique.
+		le_resource_handle_t bufferResource = LE_BUF_RESOURCE( path );
 		self->bufferResources.emplace_back( bufferResource );
+
 		le_resource_info_t resourceInfo;
 		resourceInfo.type         = LeResourceType::eBuffer;
 		resourceInfo.buffer.size  = uint32_t( geometryDataSize );
