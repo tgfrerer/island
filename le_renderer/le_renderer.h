@@ -335,8 +335,9 @@ class RenderModule {
 		return self;
 	}
 
-	void addRenderPass( le_renderpass_o *renderpass ) {
+	RenderModule &addRenderPass( le_renderpass_o *renderpass ) {
 		le_renderer::render_module_i.add_renderpass( self, renderpass );
+		return *this;
 	}
 };
 
