@@ -18,7 +18,7 @@
 	    }                                                              \
 	}
 
-#define LE_RESOURCE_LABEL_LENGTH 32 // (no-hotreload) set to zero to disable storing name (for debug printouts) with resource handles
+#define LE_RESOURCE_LABEL_LENGTH 16 // (no-hotreload) set to zero to disable storing name (for debug printouts) with resource handles
 
 enum class LeResourceType : uint8_t {
 	eUndefined = 0,
