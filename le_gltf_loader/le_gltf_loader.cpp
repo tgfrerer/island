@@ -776,7 +776,8 @@ static void document_upload_resource_data( le_gltf_document_o *self, le_command_
 
 	// ---------| invariant: data needs to be uploaded to GPU
 
-	static const auto &encoder_i = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
+	using namespace le_renderer;
+
 	if ( self->bufferResources.size() == 1 ) {
 		encoder_i.write_to_buffer( encoder, self->bufferResources[ 0 ], 0, self->data.data(), self->data.size() );
 	}
