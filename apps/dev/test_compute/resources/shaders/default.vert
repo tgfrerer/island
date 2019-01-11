@@ -7,8 +7,8 @@
 #extension GL_ARB_shading_language_420pack : enable
 
 // inputs 
-layout (location = 0) in vec3 pos;
-layout (location = 1) in vec4 col;
+layout (location = 0) in vec4 pos;
+// layout (location = 1) in vec4 col;
 
 // outputs 
 layout (location = 0) out VertexData {
@@ -37,8 +37,8 @@ out gl_PerVertex
 void main() 
 {
 	outData.texCoord = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
-	outData.texColor = col;
-	vec4 position = projectionMatrix * viewMatrix * modelMatrix * vec4(pos,1);
+	outData.texColor = vec4(1);
+	vec4 position = projectionMatrix * viewMatrix * modelMatrix * vec4(pos.xy,0,1);
 
 	gl_Position = position;
 }

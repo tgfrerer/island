@@ -15,6 +15,8 @@
 #include <memory>
 #include <sstream>
 
+constexpr size_t cNumDataElements = 256 * 256;
+
 struct BufferData {
 	le_resource_handle_t handle;
 	uint32_t             numBytes;
@@ -85,6 +87,59 @@ static void reset_camera( test_compute_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
+static bool pass_initial_setup( le_renderpass_o *pRp, void *user_data ) {
+
+	auto app = static_cast<test_compute_app_o *>( user_data );
+
+	if ( app->particleBuffer ) {
+
+		// We don't have to do anything with this pass if the particle buffer already exists.
+		// returning false means that this pass will not be added to the frame graph.
+
+		return false;
+	} else {
+
+		// ---------| invariant: particle buffer has not been created yet.
+		app->particleBuffer = new BufferData{LE_BUF_RESOURCE( "particle_buffer" ), cNumDataElements * sizeof( glm::vec4 )};
+	}
+
+	// --------| invariant: particle buffer handle exists
+
+	le::RenderPass rp( pRp );
+	rp
+	    .useResource( app->particleBuffer->handle,
+	                  le::BufferInfoBuilder()
+	                      .setSize( app->particleBuffer->numBytes )
+	                      .addUsageFlags( LE_BUFFER_USAGE_TRANSFER_DST_BIT )
+	                      .build() ) //
+	    ;
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
+static void pass_initial_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+
+	auto        app = static_cast<test_compute_app_o *>( user_data );
+	le::Encoder encoder( encoder_ );
+
+	glm::vec4 initialData[ cNumDataElements ];
+
+	// We add some initial data to the buffer
+
+	for ( int i = 0; i != cNumDataElements; i++ ) {
+		initialData[ i ] = glm::vec4{
+		    1024 * ( ( i % 256 ) / float( 256 ) ) - 1024 / 2,
+		    1024 * ( ( i / 256 ) / float( 256 ) ) - 1024 / 2,
+		    1024 * ( ( i % 256 ) / float( 256 ) ) - 1024 / 2,
+		    1024 * ( ( i / 256 ) / float( 256 ) ) - 1024 / 2};
+	}
+
+	encoder.writeToBuffer( app->particleBuffer->handle, 0, initialData, sizeof( glm::vec4 ) * cNumDataElements );
+}
+
+// ----------------------------------------------------------------------
+
 static bool pass_compute_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto           app = static_cast<test_compute_app_o *>( user_data );
 	le::RenderPass rp( pRp );
@@ -116,7 +171,7 @@ static void pass_compute_exec( le_command_buffer_encoder_o *encoder_, void *user
 	encoder
 	    .bindComputePipeline( psoCompute )
 	    .bindArgumentBuffer( LE_ARGUMENT_NAME( "ParticleBuf" ), app->particleBuffer->handle )
-	    .dispatch( 16, 16, 4 );
+	    .dispatch( cNumDataElements, 1, 1 );
 }
 
 // ----------------------------------------------------------------------
@@ -169,35 +224,27 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 	        .addShaderStage( shaderVert )
 	        .addShaderStage( shaderFrag )
+	        .withInputAssemblyState()
+	        .setToplogy( le::PrimitiveTopology::eLineList )
+	        .end()
+	        .withRasterizationState()
+	        .setPolygonMode( le::PolygonMode::eLine )
+	        .end()
 	        .build();
 
 	MatrixStackUbo_t mvp;
 	mvp.model      = glm::mat4( 1.f ); // identity matrix
-	mvp.model      = glm::scale( mvp.model, glm::vec3( 4.5 ) );
 	mvp.view       = app->camera.getViewMatrixGlm();
 	mvp.projection = app->camera.getProjectionMatrixGlm();
-
-	glm::vec3 trianglePositions[] = {
-	    {-150, -50, 0},
-	    {50, -50, 0},
-	    {0, 50, 0},
-	};
-
-	glm::vec4 triangleColors[] = {
-	    {1, 0, 0, 1.f},
-	    {0, 1, 0, 1.f},
-	    {0, 0, 1, 1.f},
-	};
 
 	uint64_t bufferOffsets[ 1 ] = {0};
 
 	encoder
+	    .setLineWidth( 1 )
 	    .bindGraphicsPipeline( psoDefaultGraphics )
 	    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
-	    //	    .setVertexData( trianglePositions, sizeof( trianglePositions ), 0 )
 	    .bindVertexBuffers( 0, 1, &app->particleBuffer->handle, bufferOffsets )
-	    .setVertexData( triangleColors, sizeof( triangleColors ), 1 )
-	    .draw( 3 );
+	    .draw( cNumDataElements );
 }
 
 // ----------------------------------------------------------------------
@@ -217,47 +264,8 @@ static bool test_compute_app_update( test_compute_app_o *self ) {
 		le::RenderPass passInitial( "initial", LE_RENDER_PASS_TYPE_TRANSFER );
 
 		passInitial
-		    .setSetupCallback( self, []( le_renderpass_o *pRp, void *user_data ) -> bool {
-			    auto app = static_cast<test_compute_app_o *>( user_data );
-
-				if ( app->particleBuffer ) {
-
-					// We don't have to do anything with this pass if the particle buffer already exists.
-					// returning false means that this pass will not be added to the frame graph.
-
-					return false;
-				} else {
-
-					// ---------| invariant: particle buffer has not been created yet.
-					app->particleBuffer = new BufferData{LE_BUF_RESOURCE( "particle_buffer" ), 1024 * 8 * sizeof( float )};
-				}
-
-				// --------| invariant: particle buffer handle exists
-
-				le::RenderPass rp( pRp );
-				rp
-				    .useResource( app->particleBuffer->handle,
-				                  le::BufferInfoBuilder()
-				                      .setSize( app->particleBuffer->numBytes )
-				                      .addUsageFlags( LE_BUFFER_USAGE_TRANSFER_DST_BIT )
-				                      .build() ) //
-				    ;
-				return true;
-		    } )
-
-		    .setExecuteCallback( self, []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-			    auto        app = static_cast<test_compute_app_o *>( user_data );
-				le::Encoder encoder( encoder_ );
-
-				// todo: add some initial data which we want to upload to the particle buffer.
-				glm::vec3 test_computePositions[] = {
-				    {-50, -50, 0},
-				    {50, -50, 0},
-				    {0, 50, 0},
-				};
-
-				encoder.writeToBuffer( app->particleBuffer->handle, 0, test_computePositions, sizeof( glm::vec3 ) * 3 );
-		    } );
+		    .setSetupCallback( self, pass_initial_setup )
+		    .setExecuteCallback( self, pass_initial_exec );
 
 		le::RenderPass passCompute( "compute", LE_RENDER_PASS_TYPE_COMPUTE );
 

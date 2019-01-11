@@ -1,10 +1,10 @@
 #version 450
 
-#extension GL_ARB_separate_shader_objects : enable
-#extension GL_ARB_shading_language_420pack : enable
+
+layout (local_size_x = 1, local_size_y = 1, local_size_z=1) in;
 
 struct Particle {
-	vec3 pos;
+	vec4 pos;
 };
 
 
@@ -14,15 +14,13 @@ layout(std430, set = 0, binding = 0) buffer ParticleBuf
    Particle particles[ ];
 };
 
-// layout(set=0, binding=1) uniform Parameters {
-// 	uint flipFlop; // will be either 0 or 1
-// };
-
-
-layout (local_size_x = 16, local_size_y = 16, local_size_z=4) in;
 
 void main(){
 
-	 particles[gl_LocalInvocationIndex].pos.xy *= 1.000;
+	uint index = gl_GlobalInvocationID.x; // globalInvocationId is how we were dispatched.
+
+	 particles[index].pos.y = particles[index].pos.w 
+	 						+ particles[index].pos.z * 0.10 * sin(((index % 256) / 256.f) * 2 * 3.14159);
+
 
 }
