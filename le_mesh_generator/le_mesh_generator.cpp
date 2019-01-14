@@ -20,6 +20,48 @@ le_mesh_generator_o *le_mesh_generator_create() {
 	return self;
 }
 
+static void le_mesh_generator_generate_plane( le_mesh_generator_o *self,
+                                              float                width,
+                                              float                height,
+                                              uint32_t             numWidthSegments,
+                                              uint32_t             numHeightSegments ) {
+
+	self->indices.clear();
+	self->vertices.clear();
+	self->normals.clear();
+	self->uvs.clear();
+
+	uint32_t ix = 0;
+	uint32_t iz = 0;
+
+	float deltaX = 1.f / float( numWidthSegments );
+	float deltaZ = 1.f / float( numHeightSegments );
+
+	// Build up vertices
+
+	for ( iz = 0; iz <= numHeightSegments; ++iz ) {
+		for ( ix = 0; ix <= numWidthSegments; ++ix ) {
+			self->vertices.emplace_back( width * ( ix * deltaX - 0.5f ), 0, height * ( iz * deltaZ - 0.5f ) );
+			self->normals.emplace_back( 0, 1, 0 );
+			self->uvs.emplace_back( ix * deltaX, iz * deltaZ );
+		}
+	}
+
+	// build up indices for mesh
+
+	for ( uint32_t z = 0; z + 1 < iz; z++ ) {
+		for ( uint32_t x = 0; x + 1 < ix; x++ ) {
+			self->indices.push_back( x + 0 + ( z + 0 ) * ix );
+			self->indices.push_back( x + 0 + ( z + 1 ) * ix );
+			self->indices.push_back( x + 1 + ( z + 1 ) * ix );
+
+			self->indices.push_back( x + 0 + ( z + 0 ) * ix );
+			self->indices.push_back( x + 1 + ( z + 1 ) * ix );
+			self->indices.push_back( x + 1 + ( z + 0 ) * ix );
+		}
+	}
+};
+
 // ----------------------------------------------------------------------
 // Adapted from: https://github.com/mrdoob/three.js/blob/dev/src/geometries/SphereGeometry.js
 static void le_mesh_generator_generate_sphere( le_mesh_generator_o *self,
@@ -212,5 +254,7 @@ ISL_API_ATTR void register_le_mesh_generator_api( void *api ) {
 	le_mesh_generator_i.get_data     = le_mesh_generator_get_data;
 
 	le_mesh_generator_i.generate_sphere = le_mesh_generator_generate_sphere;
-	le_mesh_generator_i.destroy         = le_mesh_generator_destroy;
+	le_mesh_generator_i.generate_plane  = le_mesh_generator_generate_plane;
+
+	le_mesh_generator_i.destroy = le_mesh_generator_destroy;
 }

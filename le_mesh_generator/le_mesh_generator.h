@@ -32,6 +32,8 @@ struct le_mesh_generator_api {
 		    float                 thetaLength     // 0..pi  (default 2pi)
 		);
 
+		void ( *generate_plane )(le_mesh_generator_o* self, float width, float height, uint32_t widthSegments, uint32_t heightSegments);
+
 		void ( *destroy )( le_mesh_generator_o *self );
 
 		void (*get_vertices )( le_mesh_generator_o *self, size_t& count, float **   vertices);
