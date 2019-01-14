@@ -22,6 +22,7 @@ add_subdirectory (test_compute_app)
 # Specify any optional modules from the standard framework here
 add_island_module(le_pipeline_builder)
 add_island_module(le_camera)
+add_island_module(le_mesh_generator)
 
 # Main application c++ file. Not much to see there,
 set (SOURCES main.cpp)

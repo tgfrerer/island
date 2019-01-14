@@ -3,23 +3,32 @@
 #include "pal_window/pal_window.h"
 #include "le_renderer/le_renderer.h"
 
-#include "le_camera/le_camera.h"
-#include "le_pipeline_builder/le_pipeline_builder.h"
-
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
 #include "glm.hpp"
 #include "gtc/matrix_transform.hpp"
+#define GLM_ENABLE_EXPERIMENTAL
+#include "glm/gtx/string_cast.hpp"
+
+#include "le_camera/le_camera.h"
+#include "le_pipeline_builder/le_pipeline_builder.h"
+
+#include "le_mesh_generator/le_mesh_generator.h"
 
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <vector>
 
-constexpr size_t cNumDataElements = 256 * 256;
+#include "le_ui_event/le_ui_event.h"
 
-struct BufferData {
-	le_resource_handle_t handle;
-	uint32_t             numBytes;
+constexpr size_t cNumDataElements = 32;
+
+struct MeshData {
+	le_resource_handle_t vertex_handle;
+	le_resource_handle_t index_handle;
+	uint32_t             vertex_num_bytes;
+	uint32_t             index_num_bytes;
 };
 
 struct test_compute_app_o {
@@ -27,9 +36,10 @@ struct test_compute_app_o {
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
 
-	BufferData *particleBuffer = nullptr; // owning
+	MeshData *mesh = nullptr; // owning
 
-	LeCamera camera;
+	LeCamera           camera;
+	LeCameraController cameraController;
 };
 
 // ----------------------------------------------------------------------
@@ -81,7 +91,11 @@ static void reset_camera( test_compute_app_o *self ) {
 	self->renderer.getSwapchainExtent( &extents.width, &extents.height );
 	self->camera.setViewport( {0, 0, float( extents.width ), float( extents.height ), 0.f, 1.f} );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
-	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
+	// glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
+	glm::mat4 camMatrix =
+	    {{0.937339, -0.235563, -0.256721, -0.000000}, {-0.000000, 0.736816, -0.676093, 0.000000}, {0.348419, 0.633728, 0.690647, -0.000000}, {-79.101540, -152.343918, -1253.020996, 1.000000}}
+
+	;
 	self->camera.setViewMatrixGlm( camMatrix );
 }
 
@@ -91,7 +105,7 @@ static bool pass_initial_setup( le_renderpass_o *pRp, void *user_data ) {
 
 	auto app = static_cast<test_compute_app_o *>( user_data );
 
-	if ( app->particleBuffer ) {
+	if ( app->mesh ) {
 
 		// We don't have to do anything with this pass if the particle buffer already exists.
 		// returning false means that this pass will not be added to the frame graph.
@@ -100,16 +114,26 @@ static bool pass_initial_setup( le_renderpass_o *pRp, void *user_data ) {
 	} else {
 
 		// ---------| invariant: particle buffer has not been created yet.
-		app->particleBuffer = new BufferData{LE_BUF_RESOURCE( "particle_buffer" ), cNumDataElements * sizeof( glm::vec4 )};
+		app->mesh = new MeshData{
+		    LE_BUF_RESOURCE( "vertex_buffer" ),
+		    LE_BUF_RESOURCE( "index_buffer" ),
+		    ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ) * sizeof( glm::vec4 ),    // vertex_num_bytes
+		    ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ) * 6 * sizeof( uint16_t ), // indices_num_bytes
+	    };
 	}
 
 	// --------| invariant: particle buffer handle exists
 
 	le::RenderPass rp( pRp );
 	rp
-	    .useResource( app->particleBuffer->handle,
+	    .useResource( app->mesh->vertex_handle,
 	                  le::BufferInfoBuilder()
-	                      .setSize( app->particleBuffer->numBytes )
+	                      .setSize( app->mesh->vertex_num_bytes )
+	                      .addUsageFlags( LE_BUFFER_USAGE_TRANSFER_DST_BIT )
+	                      .build() ) //
+	    .useResource( app->mesh->index_handle,
+	                  le::BufferInfoBuilder()
+	                      .setSize( app->mesh->index_num_bytes )
 	                      .addUsageFlags( LE_BUFFER_USAGE_TRANSFER_DST_BIT )
 	                      .build() ) //
 	    ;
@@ -123,19 +147,43 @@ static void pass_initial_exec( le_command_buffer_encoder_o *encoder_, void *user
 	auto        app = static_cast<test_compute_app_o *>( user_data );
 	le::Encoder encoder( encoder_ );
 
-	glm::vec4 initialData[ cNumDataElements ];
+	using namespace le_mesh_generator;
+	le_mesh_generator_o *meshGenerator = le_mesh_generator_i.create();
 
-	// We add some initial data to the buffer
+	le_mesh_generator_i.generate_plane( meshGenerator, 1024, 1024, cNumDataElements, cNumDataElements );
 
-	for ( int i = 0; i != cNumDataElements; i++ ) {
-		initialData[ i ] = glm::vec4{
-		    1024 * ( ( i % 256 ) / float( 256 ) ) - 1024 / 2,
-		    1024 * ( ( i / 256 ) / float( 256 ) ) - 1024 / 2,
-		    1024 * ( ( i % 256 ) / float( 256 ) ) - 1024 / 2,
-		    1024 * ( ( i / 256 ) / float( 256 ) ) - 1024 / 2};
+	{
+		// This is really annoying - we must use vec4 instead of vec3 for vertex position
+		// as ssbo alignment only allows us vec4 - we can't have that packed tightly
+
+		float *vertData = nullptr;
+		size_t numVerts = 0;
+
+		std::vector<float> tmp_vertices;
+		tmp_vertices.reserve( ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ) );
+
+		le_mesh_generator_i.get_vertices( meshGenerator, numVerts, &vertData );
+		float *      v     = vertData;
+		float *const end_v = vertData + ( numVerts * 3 );
+
+		for ( ; v != end_v; ) {
+			tmp_vertices.emplace_back( *v++ );
+			tmp_vertices.emplace_back( *v++ );
+			tmp_vertices.emplace_back( *v++ );
+			tmp_vertices.emplace_back( 1 );
+		}
+
+		encoder.writeToBuffer( app->mesh->vertex_handle, 0, tmp_vertices.data(), tmp_vertices.size() * sizeof( float ) );
+	}
+	{
+		uint16_t *indexData  = nullptr;
+		size_t    numIndices = 0;
+
+		le_mesh_generator_i.get_indices( meshGenerator, numIndices, &indexData );
+		encoder.writeToBuffer( app->mesh->index_handle, 0, indexData, numIndices * sizeof( uint16_t ) );
 	}
 
-	encoder.writeToBuffer( app->particleBuffer->handle, 0, initialData, sizeof( glm::vec4 ) * cNumDataElements );
+	le_mesh_generator_i.destroy( meshGenerator );
 }
 
 // ----------------------------------------------------------------------
@@ -144,9 +192,9 @@ static bool pass_compute_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto           app = static_cast<test_compute_app_o *>( user_data );
 	le::RenderPass rp( pRp );
 	rp
-	    .useResource( app->particleBuffer->handle,
+	    .useResource( app->mesh->vertex_handle,
 	                  le::BufferInfoBuilder()
-	                      .setSize( app->particleBuffer->numBytes )
+	                      .setSize( app->mesh->vertex_num_bytes )
 	                      .addUsageFlags( LE_BUFFER_USAGE_STORAGE_BUFFER_BIT )
 	                      .build() );
 
@@ -168,10 +216,13 @@ static void pass_compute_exec( le_command_buffer_encoder_o *encoder_, void *user
 	        .setShaderStage( shaderCompute )
 	        .build();
 
+	float t_val = ( app->frame_counter % 60 ) / 60.f;
+
 	encoder
 	    .bindComputePipeline( psoCompute )
-	    .bindArgumentBuffer( LE_ARGUMENT_NAME( "ParticleBuf" ), app->particleBuffer->handle )
-	    .dispatch( cNumDataElements, 1, 1 );
+	    .bindArgumentBuffer( LE_ARGUMENT_NAME( "ParticleBuf" ), app->mesh->vertex_handle )
+	    .setArgumentData( LE_ARGUMENT_NAME( "Uniforms" ), &t_val, sizeof( float ) )
+	    .dispatch( ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ), 1, 1 );
 }
 
 // ----------------------------------------------------------------------
@@ -185,10 +236,15 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 
 	rp
 	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
-	    .useResource( app->particleBuffer->handle,
+	    .useResource( app->mesh->vertex_handle,
 	                  le::BufferInfoBuilder()
 	                      .addUsageFlags( LE_BUFFER_USAGE_VERTEX_BUFFER_BIT )
-	                      .setSize( app->particleBuffer->numBytes )
+	                      .setSize( app->mesh->vertex_num_bytes )
+	                      .build() )
+	    .useResource( app->mesh->index_handle,
+	                  le::BufferInfoBuilder()
+	                      .addUsageFlags( LE_BUFFER_USAGE_INDEX_BUFFER_BIT )
+	                      .setSize( app->mesh->index_num_bytes )
 	                      .build() );
 
 	return true;
@@ -225,7 +281,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	        .addShaderStage( shaderVert )
 	        .addShaderStage( shaderFrag )
 	        .withInputAssemblyState()
-	        .setToplogy( le::PrimitiveTopology::eLineList )
+	        .setToplogy( le::PrimitiveTopology::eTriangleList )
 	        .end()
 	        .withRasterizationState()
 	        .setPolygonMode( le::PolygonMode::eLine )
@@ -243,8 +299,62 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	    .setLineWidth( 1 )
 	    .bindGraphicsPipeline( psoDefaultGraphics )
 	    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
-	    .bindVertexBuffers( 0, 1, &app->particleBuffer->handle, bufferOffsets )
-	    .draw( cNumDataElements );
+	    .bindVertexBuffers( 0, 1, &app->mesh->vertex_handle, bufferOffsets )
+	    .bindIndexBuffer( app->mesh->index_handle, 0 )
+	    .drawIndexed( 6 * ( cNumDataElements + 1 ) * ( cNumDataElements + 1 ) );
+}
+
+// ----------------------------------------------------------------------
+static void test_compute_app_process_ui_events( test_compute_app_o *self ) {
+	using namespace pal_window;
+	uint32_t         numEvents;
+	LeUiEvent const *pEvents;
+	window_i.get_ui_event_queue( self->window, &pEvents, numEvents );
+
+	std::vector<LeUiEvent> events{pEvents, pEvents + numEvents};
+
+	bool wantsToggle = false;
+
+	for ( auto &event : events ) {
+		switch ( event.event ) {
+		case ( LeUiEvent::Type::eKey ): {
+			auto &e = event.key;
+			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
+				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
+					wantsToggle ^= true;
+				} else if ( e.key == LeUiEvent::NamedKey::eZ ) {
+					reset_camera( self );
+					float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
+					self->cameraController.setPivotDistance( distance_to_origin );
+				} else if ( e.key == LeUiEvent::NamedKey::eX ) {
+					self->cameraController.setPivotDistance( 0 );
+				} else if ( e.key == LeUiEvent::NamedKey::eC ) {
+					float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
+					self->cameraController.setPivotDistance( distance_to_origin );
+				} else if ( e.key == LeUiEvent::NamedKey::eP ) {
+					// print out current camera view matrix
+					std::cout << "View matrix:" << glm::to_string( self->camera.getViewMatrixGlm() ) << std::endl
+					          << std::flush;
+					std::cout << "camera node matrix:" << glm::to_string( glm::inverse( self->camera.getViewMatrixGlm() ) ) << std::endl
+					          << std::flush;
+				}
+			} // if ButtonAction == eRelease
+
+		} break;
+		default:
+			// do nothing
+		    break;
+		}
+	}
+
+	auto swapchainExtent = self->renderer.getSwapchainExtent();
+	self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
+
+	self->cameraController.processEvents( self->camera, events.data(), events.size() );
+
+	if ( wantsToggle ) {
+		self->window.toggleFullscreen();
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -258,6 +368,8 @@ static bool test_compute_app_update( test_compute_app_o *self ) {
 	if ( self->window.shouldClose() ) {
 		return false;
 	}
+
+	test_compute_app_process_ui_events( self );
 
 	le::RenderModule mainModule{};
 	{
@@ -297,8 +409,8 @@ static bool test_compute_app_update( test_compute_app_o *self ) {
 // ----------------------------------------------------------------------
 
 static void test_compute_app_destroy( test_compute_app_o *self ) {
-	if ( self->particleBuffer ) {
-		delete self->particleBuffer;
+	if ( self->mesh ) {
+		delete self->mesh;
 	}
 	delete ( self ); // deletes camera
 }
