@@ -41,7 +41,7 @@ struct le_camera_controller_o {
 	float pivotDistance    = 0;     // if we set pivotdistance to 0 this means that the camera rotates around its own axes, other values make the camera rotate around a pivot point
 	bool  pivotDistanceSet = false; // if not set, will initialsise by distance (camera -> world origin) on first update
 
-	float movement_speed = 10000; //
+	float movement_speed = 1000; //
 
 	enum Mode {
 		eNeutral = 0,
@@ -419,11 +419,9 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 			camera_orbit_z( camera, controller->world_to_cam, rotationDelta, controller->pivotDistance );
 		} break;
 		case le_camera_controller_o::eTranslateXY: {
-			float movement_speed = 100;
 			camera_translate_xy( camera, controller->world_to_cam, translationDelta, controller->movement_speed, controller->pivotDistance );
 		} break;
 		case le_camera_controller_o::eTranslateZ: {
-			float movement_speed = 100;
 			camera_translate_z( camera, controller->world_to_cam, translationDelta, controller->movement_speed, controller->pivotDistance );
 		} break;
 		} // end switch controller->mode

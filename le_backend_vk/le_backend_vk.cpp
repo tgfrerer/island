@@ -3156,14 +3156,12 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 }
 
 // ----------------------------------------------------------------------
-// FIXME: remove forwarding via renderer to here
 static void backend_update_shader_modules( le_backend_o *self ) {
 	using namespace le_backend_vk;
 	le_pipeline_manager_i.update_shader_modules( self->pipelineCache );
 }
 
 // ----------------------------------------------------------------------
-// FIXME: remove forwarding via renderer to here
 static le_shader_module_o *backend_create_shader_module( le_backend_o *self, char const *path, const LeShaderStageEnum &moduleType ) {
 	using namespace le_backend_vk;
 	return le_pipeline_manager_i.create_shader_module( self->pipelineCache, path, moduleType );
