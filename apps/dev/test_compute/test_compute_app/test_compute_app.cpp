@@ -34,7 +34,10 @@ struct MeshData {
 struct test_compute_app_o {
 	pal::Window  window;
 	le::Renderer renderer;
-	uint64_t     frame_counter = 0;
+
+	uint64_t frame_counter = 0;
+	uint32_t anim_frame    = 0;
+	int32_t  anim_speed    = 1;
 
 	MeshData *mesh = nullptr; // owning
 
@@ -91,7 +94,7 @@ static void reset_camera( test_compute_app_o *self ) {
 	self->renderer.getSwapchainExtent( &extents.width, &extents.height );
 	self->camera.setViewport( {0, 0, float( extents.width ), float( extents.height ), 0.f, 1.f} );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
-	// glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
+	                                                    //	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 	glm::mat4 camMatrix =
 	    {{0.937339, -0.235563, -0.256721, -0.000000}, {-0.000000, 0.736816, -0.676093, 0.000000}, {0.348419, 0.633728, 0.690647, -0.000000}, {-79.101540, -152.343918, -1253.020996, 1.000000}}
 
@@ -216,7 +219,7 @@ static void pass_compute_exec( le_command_buffer_encoder_o *encoder_, void *user
 	        .setShaderStage( shaderCompute )
 	        .build();
 
-	float t_val = ( app->frame_counter % 60 ) / 60.f;
+	float t_val = ( app->anim_frame % ( 240 * 10 ) ) / 240.f;
 
 	encoder
 	    .bindComputePipeline( psoCompute )
@@ -337,7 +340,16 @@ static void test_compute_app_process_ui_events( test_compute_app_o *self ) {
 					          << std::flush;
 					std::cout << "camera node matrix:" << glm::to_string( glm::inverse( self->camera.getViewMatrixGlm() ) ) << std::endl
 					          << std::flush;
+				} else if ( e.key == LeUiEvent::NamedKey::eA ) {
+					if ( self->anim_speed != 0 ) {
+						self->anim_speed = 0;
+					}
+				} else if ( e.key == LeUiEvent::NamedKey::ePageUp ) {
+					self->anim_speed++;
+				} else if ( e.key == LeUiEvent::NamedKey::ePageDown ) {
+					self->anim_speed--;
 				}
+
 			} // if ButtonAction == eRelease
 
 		} break;
@@ -402,6 +414,7 @@ static bool test_compute_app_update( test_compute_app_o *self ) {
 	self->renderer.update( mainModule );
 
 	self->frame_counter++;
+	self->anim_frame += self->anim_speed;
 
 	return true; // keep app alive
 }
