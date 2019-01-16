@@ -18,7 +18,6 @@ layout (set = 0, binding = 1) uniform Uniforms
 	float time;
 };
 
-
 #define PI 3.1415926535897932384626433
 
 
@@ -45,9 +44,9 @@ void main(){
 	wave_direction[2] = normalize(vec2(cos(wave_angle[2]),sin(wave_angle[2])));
 
 	float wave_length[3] = {
-		2*PI/22.f,
-		2*PI/55.f,
-		2*PI/115.f,
+		22.f,
+		55.f,
+		115.f,
 	};
 
 	vec2 wave_vector[3];
@@ -57,9 +56,9 @@ void main(){
 	float omega[3];
 
 	for (int i=0; i!=3; i++){
-		wave_vector[i] = wave_direction[i] * (2*PI / wave_length[i]);
-		float depthF = tanh(length(wave_vector[i])*0.2*(x_zero.x+513));
-		// depthF = 1;
+		wave_vector[i] = wave_direction[i] * wave_length[i];
+		float depthF = tanh(length(wave_vector[i])*0.002*(x_zero.x+513));
+		depthF = 1; // deep water
 		omega[i] = floor(sqrt(9.8 * length(wave_vector[i]) * depthF)/omega_0) * omega_0;
 	}
 
