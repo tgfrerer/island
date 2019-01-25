@@ -96,9 +96,7 @@ static void reset_camera( test_compute_app_o *self ) {
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	                                                    //	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 	glm::mat4 camMatrix =
-	    {{0.937339, -0.235563, -0.256721, -0.000000}, {-0.000000, 0.736816, -0.676093, 0.000000}, {0.348419, 0.633728, 0.690647, -0.000000}, {-79.101540, -152.343918, -1253.020996, 1.000000}}
-
-	;
+	    {{0.930103, -0.093034, -0.355320, -0.000000}, {-0.007937, 0.962072, -0.272678, 0.000000}, {0.367212, 0.256439, 0.894089, -0.000000}, {25.002544, -99.994820, -616.479797, 1.000000}};
 	self->camera.setViewMatrixGlm( camMatrix );
 }
 
@@ -343,6 +341,8 @@ static void test_compute_app_process_ui_events( test_compute_app_o *self ) {
 				} else if ( e.key == LeUiEvent::NamedKey::eA ) {
 					if ( self->anim_speed != 0 ) {
 						self->anim_speed = 0;
+					} else {
+						self->anim_speed = 1;
 					}
 				} else if ( e.key == LeUiEvent::NamedKey::ePageUp ) {
 					self->anim_speed++;

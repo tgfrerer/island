@@ -118,7 +118,7 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 	    .setApplicationVersion( VK_MAKE_VERSION( 0, 0, 0 ) )
 	    .setPEngineName( "light engine" )
 	    .setEngineVersion( VK_MAKE_VERSION( 0, 1, 0 ) )
-	    .setApiVersion( VK_MAKE_VERSION( 1, 1, 85 ) );
+	    .setApiVersion( VK_MAKE_VERSION( 1, 1, 97 ) );
 
 	// -- create a vector of unique requested instance extension names
 

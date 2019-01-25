@@ -166,23 +166,13 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 
 	//	ofLog() << "GPU Type: " << mPhysicalDeviceProperties.deviceName;
 
-	//	{
-	//		of::vk::RendererSettings tmpSettings;
-	//		tmpSettings.vkVersion = mPhysicalDeviceProperties.apiVersion;
-	//		ofLog() << "GPU API Version: " << tmpSettings.getVkVersionMajor() << "."
-	//		        << tmpSettings.getVersionMinor() << "." << tmpSettings.getVersionPatch();
-
-	//		uint32_t driverVersion = mPhysicalDeviceProperties.driverVersion;
-	//		ofLog() << "GPU Driver Version: " << std::hex << driverVersion;
-	//	}
-
 	// let's find out the devices' memory properties
 	device->vkPhysicalDeviceMemoryProperties = device->vkPhysicalDevice.getMemoryProperties();
 
 	// Check which features must be switched on for default operations.
 	// For now, we just make sure we can draw with lines.
 	//
-	// We should put this into the renderer setttings.
+	// TODO: We should add settings to renderer which specify required device features
 	vk::PhysicalDeviceFeatures deviceFeatures = device->vkPhysicalDevice.getFeatures();
 	deviceFeatures
 	    .setFillModeNonSolid( VK_TRUE ) // allow wireframe drawing

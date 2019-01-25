@@ -26,10 +26,10 @@ struct le_mesh_generator_api {
 		    float                 radius,         //
 		    uint32_t              widthSegments,  //
 		    uint32_t              heightSegments, //
-		    float                 phiStart,       // 0..2pi (default 0)
-		    float                 phiLength,      // 0..2pi (default 2pi)
-		    float                 thetaStart,     // 0..pi  (default 0)
-		    float                 thetaLength     // 0..pi  (default 2pi)
+		    float                 phiStart,       // 0..2pi (default: 0)
+		    float                 phiLength,      // 0..2pi (default: 2pi)
+		    float                 thetaStart,     // 0..pi  (default: 0)
+		    float                 thetaLength     // 0..pi  (default: pi)
 		);
 
 		void ( *generate_plane )(le_mesh_generator_o* self, float width, float height, uint32_t widthSegments, uint32_t heightSegments);
