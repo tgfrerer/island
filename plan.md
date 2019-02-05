@@ -4,6 +4,10 @@
 
 # TODO
 
+- integrate cgltf
+- integrate jsmn json parser
+- add a way to draw paths in 2D
+- add a tessellator
 
 ## (A)
 
@@ -51,6 +55,17 @@
 - Rename internal structure to `Batch` instead of `Renderpass` in backend
   because batch may fit better for *resource transfer*, *compute*, or
   *draw*.
+
+### Find a better way to deal with external dependencies
+
+With external dependencies we mean libraries which help us deal with glm,
+json, memory allocation, gltf, midi, etc. 
+
+- ideally, external dependencies are treated the same as internal modules;
+  everything is a plug-in.
+
+- it should be possible to express module dependencies (does this mean we
+  need something like a package manager?)
 
 ----------------------------------------------------------------------
 
