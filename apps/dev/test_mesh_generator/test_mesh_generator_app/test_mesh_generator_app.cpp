@@ -232,8 +232,6 @@ static bool test_mesh_generator_app_update( test_mesh_generator_app_o *self ) {
 		mainModule.addRenderPass( renderPassFinal );
 	}
 
-	// Update will call all rendercallbacks in this module.
-	// the RECORD phase is guaranteed to execute - all rendercallbacks will get called.
 	self->renderer.update( mainModule );
 
 	return true; // keep app alive
