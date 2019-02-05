@@ -16,11 +16,15 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <vector>
 
 struct show_font_app_o {
 	pal::Window  window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
+
+	le_glyph_shape_o *glyph_shape = nullptr;
+	le_font_o *       font;
 
 	LeCamera camera;
 };
@@ -59,9 +63,9 @@ static show_font_app_o *show_font_app_create() {
 	reset_camera( app );
 
 	using namespace le_font;
-	auto fnt = le_font_i.create();
+	app->font = le_font_i.create();
 
-	le_font_i.destroy( fnt );
+	app->glyph_shape = le_font_i.get_shape_for_glyph( app->font, '&', nullptr );
 
 	return app;
 }
@@ -125,32 +129,50 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 	        .addShaderStage( shaderVert )
 	        .addShaderStage( shaderFrag )
+	        .withInputAssemblyState()
+	        .setToplogy( le::PrimitiveTopology::eLineStrip )
+	        .end()
 	        .build();
 
 	MatrixStackUbo_t mvp;
+
 	mvp.model      = glm::mat4( 1.f ); // identity matrix
-	mvp.model      = glm::scale( mvp.model, glm::vec3( 4.5 ) );
+	mvp.model      = glm::scale( mvp.model, glm::vec3( 1.0 ) );
+	mvp.model      = glm::translate( mvp.model, glm::vec3( -200, 300, 0 ) );
 	mvp.view       = app->camera.getViewMatrixGlm();
 	mvp.projection = app->camera.getProjectionMatrixGlm();
 
-	glm::vec3 show_fontPositions[] = {
-	    {-50, -50, 0},
-	    {50, -50, 0},
-	    {0, 50, 0},
-	};
-
-	glm::vec4 show_fontColors[] = {
-	    {1, 0, 0, 1.f},
-	    {0, 1, 0, 1.f},
-	    {0, 0, 1, 1.f},
-	};
-
 	encoder
+	    .setLineWidth( 1.f )
 	    .bindGraphicsPipeline( pipelineShowFont )
-	    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
-	    .setVertexData( show_fontPositions, sizeof( show_fontPositions ), 0 )
-	    .setVertexData( show_fontColors, sizeof( show_fontColors ), 1 )
-	    .draw( 3 );
+	    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) ) //
+	    ;
+
+	{
+		using namespace le_font;
+
+		size_t numContours = le_glyph_shape_i.get_num_contours( app->glyph_shape );
+
+		for ( size_t i = 0; i != numContours; i++ ) {
+			size_t                 numV = 0;
+			glm::vec2 *            vv   = le_glyph_shape_i.get_vertices_for_shape_contour( app->glyph_shape, i, &numV );
+			std::vector<glm::vec3> vertices;
+			std::vector<glm::vec4> colors;
+
+			vertices.reserve( numV );
+			colors.reserve( numV );
+
+			for ( auto p = vv; p != vv + numV; p++ ) {
+				vertices.emplace_back( p->x, -p->y, 0 );
+				colors.emplace_back( 1, 1, 1, 1 );
+			}
+
+			encoder
+			    .setVertexData( vertices.data(), sizeof( glm::vec3 ) * numV, 0 )
+			    .setVertexData( colors.data(), sizeof( glm::vec4 ) * numV, 1 )
+			    .draw( numV );
+		}
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -188,6 +210,13 @@ static bool show_font_app_update( show_font_app_o *self ) {
 // ----------------------------------------------------------------------
 
 static void show_font_app_destroy( show_font_app_o *self ) {
+
+	using namespace le_font;
+	le_glyph_shape_i.destroy( self->glyph_shape );
+	self->glyph_shape = nullptr;
+
+	le_font_i.destroy( self->font );
+	self->font = nullptr;
 
 	delete ( self ); // deletes camera
 }

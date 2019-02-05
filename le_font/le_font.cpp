@@ -266,7 +266,8 @@ static le_font_o *le_font_create() {
 
 	/* prepare font */
 
-	char const *font_file_name = "resources/fonts/IBMPlexSans-Text.ttf";
+	//	char const *font_file_name = "resources/fonts/IBMPlexSans-Text.ttf";
+	char const *font_file_name = "resources/fonts/IBMPlexSans-Regular.otf";
 
 	bool loadOk{};
 
