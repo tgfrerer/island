@@ -71,20 +71,20 @@ struct Contour {
 	std::vector<Vertex> vertices;
 };
 
-struct Shape {
+struct le_glyph_shape_o {
 	// a series of contours
 	std::vector<Contour> contours;
 };
 
 // ----------------------------------------------------------------------
 
-void contour_move_to( Contour &c, Vertex const &p ) {
+static void contour_move_to( Contour &c, Vertex const &p ) {
 	c.vertices.emplace_back( p );
 }
 
 // ----------------------------------------------------------------------
 
-void contour_line_to( Contour &c, Vertex const &p ) {
+static void contour_line_to( Contour &c, Vertex const &p ) {
 	c.vertices.emplace_back( p );
 }
 
@@ -139,11 +139,11 @@ void contour_curve_to( Contour &     c,
 
 // ----------------------------------------------------------------------
 
-void contour_cubic_curve_to( Contour &     c,
-                             Vertex const &p3,        // end point
-                             Vertex const &p1,        // control point 1
-                             Vertex const &p2,        // control point 2
-                             int           resolution // number of segments
+static void contour_cubic_curve_to( Contour &     c,
+                                    Vertex const &p3,        // end point
+                                    Vertex const &p1,        // control point 1
+                                    Vertex const &p2,        // control point 2
+                                    int           resolution // number of segments
 ) {
 
 	if ( resolution == 0 ) {
@@ -189,10 +189,10 @@ void contour_cubic_curve_to( Contour &     c,
 
 // ----------------------------------------------------------------------
 
-// Converts a list of path points (pp) into a vector of contours
-// and returns these as a shape.
-static Shape get_shape( stbtt_vertex const *pp_arr, int const pp_count ) {
-	Shape shape;
+// Converts an array of path instructions (pp) into a list of contours.
+// A list of contours represents a shape.
+static le_glyph_shape_o *get_shape( stbtt_vertex const *pp_arr, int const pp_count ) {
+	auto shape = new le_glyph_shape_o();
 
 	fprintf( stdout, "** Getting glyph shape **\n" );
 	fprintf( stdout, "Number of vertices: %i\n", pp_count );
@@ -200,26 +200,27 @@ static Shape get_shape( stbtt_vertex const *pp_arr, int const pp_count ) {
 	stbtt_vertex const *const pp_end = pp_arr + pp_count;
 
 	int current_contour_idx = -1;
+	int resolution          = 30;
 
 	for ( auto pp = pp_arr; pp != pp_end; pp++ ) {
 		switch ( pp->type ) {
 		case STBTT_vmove:
-			// a move means a new glyph
-			shape.contours.emplace_back(); // Add new contour
-			current_contour_idx++;         // Point to current contour
-			contour_move_to( shape.contours[ current_contour_idx ], {pp->x, pp->y} );
+			// a move signals the start of a new glyph
+			shape->contours.emplace_back(); // Add new contour
+			current_contour_idx++;          // Point to current contour
+			contour_move_to( shape->contours[ current_contour_idx ], {pp->x, pp->y} );
 		    break;
 		case STBTT_vline:
 			// line from last position to this pos
-			contour_line_to( shape.contours[ current_contour_idx ], {pp->x, pp->y} );
+			contour_line_to( shape->contours[ current_contour_idx ], {pp->x, pp->y} );
 		    break;
 		case STBTT_vcurve:
 			// quadratic bezier to pos
-			contour_curve_to( shape.contours[ current_contour_idx ], {pp->x, pp->y}, {pp->cx, pp->cy}, 3 );
+			contour_curve_to( shape->contours[ current_contour_idx ], {pp->x, pp->y}, {pp->cx, pp->cy}, resolution );
 		    break;
 		case STBTT_vcubic:
 			// cubic bezier to pos
-			contour_cubic_curve_to( shape.contours[ current_contour_idx ], {pp->x, pp->y}, {pp->cx, pp->cy}, {pp->cx1, pp->cy1}, 3 );
+			contour_cubic_curve_to( shape->contours[ current_contour_idx ], {pp->x, pp->y}, {pp->cx, pp->cy}, {pp->cx1, pp->cy1}, resolution );
 		    break;
 		}
 	}
@@ -229,25 +230,54 @@ static Shape get_shape( stbtt_vertex const *pp_arr, int const pp_count ) {
 
 // ----------------------------------------------------------------------
 
+static le_glyph_shape_o *le_font_get_shape_for_glyph( le_font_o *self, int32_t codepoint, size_t *num_contours ) {
+	stbtt_vertex *pathInstructions = nullptr;
+
+	int pathInstructionsCount = stbtt_GetCodepointShape( &self->info, codepoint, &pathInstructions );
+
+	le_glyph_shape_o *shape = get_shape( pathInstructions, pathInstructionsCount );
+
+	stbtt_FreeShape( &self->info, pathInstructions );
+
+	if ( num_contours ) {
+		*num_contours = shape->contours.size();
+	}
+
+	return shape;
+}
+
+// ----------------------------------------------------------------------
+
+static Vertex *le_glyph_shape_get_vertices_for_shape_contour( le_glyph_shape_o *self, size_t const &contour_idx, size_t *num_vertices ) {
+	*num_vertices = self->contours[ contour_idx ].vertices.size();
+	return self->contours[ contour_idx ].vertices.data();
+};
+
+// ----------------------------------------------------------------------
+
+static size_t le_glyph_shape_get_num_contours( le_glyph_shape_o *self ) {
+	return self->contours.size();
+}
+
+// ----------------------------------------------------------------------
+
 static le_font_o *le_font_create() {
 	auto self = new le_font_o();
 
 	/* prepare font */
 
+	char const *font_file_name = "resources/fonts/IBMPlexSans-Text.ttf";
+
 	bool loadOk{};
 
-	auto data  = load_file( "resources/fonts/IBMPlexSans-Text.ttf", &loadOk );
+	auto data  = load_file( font_file_name, &loadOk );
 	self->data = {data.data(), data.data() + data.size()};
 
 	if ( loadOk ) {
 		stbtt_InitFont( &self->info, self->data.data(), 0 );
-
-		stbtt_vertex *vertices    = nullptr;
-		int           numVertices = stbtt_GetCodepointShape( &self->info, 'e', &vertices );
-
-		Shape s = get_shape( vertices, numVertices );
-
-		stbtt_FreeShape( &self->info, vertices );
+	} else {
+		std::cerr << "Could not load font file: '" << font_file_name << "'" << std::endl
+		          << std::flush;
 	}
 
 	return self;
@@ -261,9 +291,23 @@ static void le_font_destroy( le_font_o *self ) {
 
 // ----------------------------------------------------------------------
 
+static void le_glyph_shape_destroy( le_glyph_shape_o *self ) {
+	self->contours.clear();
+	delete self;
+}
+
+// ----------------------------------------------------------------------
+
 ISL_API_ATTR void register_le_font_api( void *api ) {
 	auto &le_font_i = static_cast<le_font_api *>( api )->le_font_i;
 
-	le_font_i.create  = le_font_create;
-	le_font_i.destroy = le_font_destroy;
+	le_font_i.create              = le_font_create;
+	le_font_i.destroy             = le_font_destroy;
+	le_font_i.get_shape_for_glyph = le_font_get_shape_for_glyph;
+
+	auto &le_glyph_shape_i = static_cast<le_font_api *>( api )->le_glyph_shape_i;
+
+	le_glyph_shape_i.destroy                        = le_glyph_shape_destroy;
+	le_glyph_shape_i.get_vertices_for_shape_contour = le_glyph_shape_get_vertices_for_shape_contour;
+	le_glyph_shape_i.get_num_contours               = le_glyph_shape_get_num_contours;
 }
