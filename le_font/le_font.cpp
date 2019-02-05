@@ -9,6 +9,8 @@
 #include <iostream>
 #include <assert.h>
 
+#include <glm/vec2.hpp>
+
 namespace std {
 using namespace experimental;
 }
@@ -62,11 +64,7 @@ static std::vector<char> load_file( const std::filesystem::path &file_path, bool
 	return contents;
 }
 
-struct Vertex {
-	float x;
-	float y;
-	float z;
-};
+typedef glm::vec2 Vertex;
 
 struct Contour {
 	// closed loop of vertices.
@@ -80,14 +78,14 @@ struct Shape {
 
 // ----------------------------------------------------------------------
 
-void contour_move_to( Contour &c, float const &x, float const &y ) {
-	c.vertices.push_back( {x, y, 0.f} );
+void contour_move_to( Contour &c, Vertex const &p ) {
+	c.vertices.emplace_back( p );
 }
 
 // ----------------------------------------------------------------------
 
-void contour_line_to( Contour &c, float const &x, float const &y ) {
-	c.vertices.push_back( {x, y, 0.f} );
+void contour_line_to( Contour &c, Vertex const &p ) {
+	c.vertices.emplace_back( p );
 }
 
 // ----------------------------------------------------------------------
@@ -95,10 +93,8 @@ void contour_line_to( Contour &c, float const &x, float const &y ) {
 // Trace a quadratic bezier curve from previous point p0 to target point p2 (p2_x,p2_y),
 // controlled by control point p1 (p1_x, p1_y), in steps iterations.
 void contour_curve_to( Contour &     c,
-                       double const &p2_x,      // end point
-                       double const &p2_y,      // end point
-                       double const &p1_x,      // control point
-                       double const &p1_y,      // control point
+                       Vertex const &p2,        // end point
+                       Vertex const &p1,        // control point
                        int           resolution // number of segments
 ) {
 
@@ -109,20 +105,19 @@ void contour_curve_to( Contour &     c,
 
 	if ( resolution == 1 ) {
 		// If we are to add but one segment, we may directly add the target point and return.
-		c.vertices.push_back( {float( p2_x ), float( p2_y ), 0.f} );
+		c.vertices.emplace_back( p2 );
 		return;
 	}
 
 	// --------| invariant: resolution > 1
 
-	c.vertices.reserve( c.vertices.size() + resolution );
+	c.vertices.reserve( c.vertices.size() + size_t( resolution ) );
 
 	assert( !c.vertices.empty() ); // Contour vertices must not be empty.
 
-	double p0_x = double( c.vertices.back().x ); // start points
-	double p0_y = double( c.vertices.back().y ); // start points
+	auto const &p0 = c.vertices.back(); // start points
 
-	double delta_t = 1. / double( resolution );
+	float delta_t = 1.f / float( resolution );
 
 	// Note that we begin the following loop at 1,
 	// because element 0 (the starting point) is
@@ -131,27 +126,23 @@ void contour_curve_to( Contour &     c,
 	// Loop goes over the set: ]0,resolution]
 	//
 	for ( int i = 1; i <= resolution; i++ ) {
-		double t              = i * delta_t;
-		double t_sq           = t * t;
-		double one_minus_t    = ( 1. - t );
-		double one_minus_t_sq = one_minus_t * one_minus_t;
+		float t              = i * delta_t;
+		float t_sq           = t * t;
+		float one_minus_t    = ( 1.f - t );
+		float one_minus_t_sq = one_minus_t * one_minus_t;
 
-		double b_x = one_minus_t_sq * p0_x + 2 * one_minus_t * t * p1_x + t_sq * p2_x;
-		double b_y = one_minus_t_sq * p0_y + 2 * one_minus_t * t * p1_y + t_sq * p2_y;
+		Vertex b = one_minus_t_sq * p0 + 2 * one_minus_t * t * p1 + t_sq * p2;
 
-		c.vertices.push_back( {float( b_x ), float( b_y ), 0.f} );
+		c.vertices.emplace_back( b );
 	}
 }
 
 // ----------------------------------------------------------------------
 
 void contour_cubic_curve_to( Contour &     c,
-                             double const &p3_x,      // end point
-                             double const &p3_y,      // end point
-                             double const &p1_x,      // control point 1
-                             double const &p1_y,      // control point 1
-                             double const &p2_x,      // control point 2
-                             double const &p2_y,      // control point 2
+                             Vertex const &p3,        // end point
+                             Vertex const &p1,        // control point 1
+                             Vertex const &p2,        // control point 2
                              int           resolution // number of segments
 ) {
 
@@ -162,20 +153,19 @@ void contour_cubic_curve_to( Contour &     c,
 
 	if ( resolution == 1 ) {
 		// If we are to add but one segment, we may directly add the target point and return.
-		c.vertices.push_back( {float( p3_x ), float( p3_y ), 0.f} );
+		c.vertices.emplace_back( p3 );
 		return;
 	}
 
 	// --------| invariant: resolution > 1
 
-	c.vertices.reserve( c.vertices.size() + resolution );
+	c.vertices.reserve( c.vertices.size() + size_t( resolution ) );
 
 	assert( !c.vertices.empty() ); // Contour vertices must not be empty.
 
-	double p0_x = c.vertices.back().x;
-	double p0_y = c.vertices.back().y;
+	auto const &p0 = c.vertices.back();
 
-	double delta_t = 1. / double( resolution );
+	float delta_t = 1.f / float( resolution );
 
 	// Note that we begin the following loop at 1,
 	// because element 0 (the starting point) is
@@ -184,17 +174,16 @@ void contour_cubic_curve_to( Contour &     c,
 	// Loop goes over the set: ]0,resolution]
 	//
 	for ( int i = 1; i <= resolution; i++ ) {
-		double t               = i * delta_t;
-		double t_sq            = t * t;
-		double t_cub           = t_sq * t;
-		double one_minus_t     = ( 1. - t );
-		double one_minus_t_sq  = one_minus_t * one_minus_t;
-		double one_minus_t_cub = one_minus_t_sq * one_minus_t;
+		float t               = i * delta_t;
+		float t_sq            = t * t;
+		float t_cub           = t_sq * t;
+		float one_minus_t     = ( 1.f - t );
+		float one_minus_t_sq  = one_minus_t * one_minus_t;
+		float one_minus_t_cub = one_minus_t_sq * one_minus_t;
 
-		double b_x = one_minus_t_cub * p0_x + 3 * one_minus_t_sq * t * p1_x + 3 * one_minus_t * t_sq * p2_x + t_cub * p3_x;
-		double b_y = one_minus_t_cub * p0_y + 3 * one_minus_t_sq * t * p1_y + 3 * one_minus_t * t_sq * p2_y + t_cub * p3_y;
+		Vertex b = one_minus_t_cub * p0 + 3 * one_minus_t_sq * t * p1 + 3 * one_minus_t * t_sq * p2 + t_cub * p3;
 
-		c.vertices.push_back( {float( b_x ), float( b_y ), 0.f} );
+		c.vertices.emplace_back( b );
 	}
 }
 
@@ -218,19 +207,19 @@ static Shape get_shape( stbtt_vertex const *pp_arr, int const pp_count ) {
 			// a move means a new glyph
 			shape.contours.emplace_back(); // Add new contour
 			current_contour_idx++;         // Point to current contour
-			contour_move_to( shape.contours[ current_contour_idx ], pp->x, pp->y );
+			contour_move_to( shape.contours[ current_contour_idx ], {pp->x, pp->y} );
 		    break;
 		case STBTT_vline:
 			// line from last position to this pos
-			contour_line_to( shape.contours[ current_contour_idx ], pp->x, pp->y );
+			contour_line_to( shape.contours[ current_contour_idx ], {pp->x, pp->y} );
 		    break;
 		case STBTT_vcurve:
 			// quadratic bezier to pos
-			contour_curve_to( shape.contours[ current_contour_idx ], pp->x, pp->y, pp->cx, pp->cy, 3 );
+			contour_curve_to( shape.contours[ current_contour_idx ], {pp->x, pp->y}, {pp->cx, pp->cy}, 3 );
 		    break;
 		case STBTT_vcubic:
 			// cubic bezier to pos
-			contour_cubic_curve_to( shape.contours[ current_contour_idx ], pp->x, pp->y, pp->cx, pp->cy, pp->cx1, pp->cy1, 3 );
+			contour_cubic_curve_to( shape.contours[ current_contour_idx ], {pp->x, pp->y}, {pp->cx, pp->cy}, {pp->cx1, pp->cy1}, 3 );
 		    break;
 		}
 	}
@@ -238,7 +227,6 @@ static Shape get_shape( stbtt_vertex const *pp_arr, int const pp_count ) {
 	return shape;
 }
 
-// ----------------------------------------------------------------------
 // ----------------------------------------------------------------------
 
 static le_font_o *le_font_create() {
