@@ -23,6 +23,7 @@ add_subdirectory (show_font_app)
 add_island_module(le_pipeline_builder)
 add_island_module(le_camera)
 add_island_module(le_font)
+add_island_module(le_tessellator)
 
 # Main application c++ file. Not much to see there,
 set (SOURCES main.cpp)

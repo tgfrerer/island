@@ -12,6 +12,7 @@
 #include "gtc/matrix_transform.hpp"
 
 #include "le_font/le_font.h"
+#include "le_tessellator/le_tessellator.h"
 
 #include <iostream>
 #include <memory>
@@ -125,15 +126,6 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	static auto shaderVert = app->renderer.createShaderModule( "./resources/shaders/default.vert", le::ShaderStage::eVertex );
 	static auto shaderFrag = app->renderer.createShaderModule( "./resources/shaders/default.frag", le::ShaderStage::eFragment );
 
-	static auto pipelineShowFont =
-	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-	        .addShaderStage( shaderVert )
-	        .addShaderStage( shaderFrag )
-	        .withInputAssemblyState()
-	        .setToplogy( le::PrimitiveTopology::eLineStrip )
-	        .end()
-	        .build();
-
 	MatrixStackUbo_t mvp;
 
 	mvp.model      = glm::mat4( 1.f ); // identity matrix
@@ -142,13 +134,105 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	mvp.view       = app->camera.getViewMatrixGlm();
 	mvp.projection = app->camera.getProjectionMatrixGlm();
 
-	encoder
-	    .setLineWidth( 1.f )
-	    .bindGraphicsPipeline( pipelineShowFont )
-	    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) ) //
-	    ;
+	static auto pipelineFontFill =
+	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+	        .addShaderStage( shaderVert )
+	        .addShaderStage( shaderFrag )
+	        .withInputAssemblyState()
+	        .setToplogy( le::PrimitiveTopology::eTriangleList )
+	        .end()
+	        .withRasterizationState()
+	        .setPolygonMode( le::PolygonMode::eFill )
+	        .end()
+	        .withDepthStencilState()
+	        .setDepthTestEnable( false ) // disable depth testing
+	        .end()
+	        .build();
 
 	{
+		// draw body
+
+		using namespace le_font;
+		using namespace le_tessellator;
+
+		auto tess = le_tessellator_i.create();
+
+		size_t numContours = le_glyph_shape_i.get_num_contours( app->glyph_shape );
+
+		std::vector<glm::vec3> vertices;
+		std::vector<glm::vec4> colors;
+
+		// First, we gather all contours and feed them to the tessellator.
+		static bool one_time_only = true;
+
+		for ( size_t i = 0; i != numContours; i++ ) {
+			size_t     numV = 0;
+			glm::vec2 *vv   = le_glyph_shape_i.get_vertices_for_shape_contour( app->glyph_shape, i, &numV );
+
+			vertices.reserve( numV );
+			colors.reserve( numV );
+
+			// add vertices and colors to  outline
+
+			for ( auto p = vv; p != vv + numV; p++ ) {
+				vertices.emplace_back( p->x, -p->y, 0 );
+				colors.emplace_back( 1, 1, 1, 1 );
+			}
+
+			// add polyline to tessellator
+			le_tessellator_i.add_polyline( tess, vv, numV );
+		}
+
+		one_time_only = false;
+
+		// Once the tessellator has all contours, we may triangulate.
+
+		le_tessellator_i.tessellate( tess );
+
+		// we should now have a list of indices which reference our vertices in tessellator.
+
+		uint16_t const *pIndices   = nullptr;
+		size_t          numIndices = 0;
+
+		le_tessellator_i.get_indices( tess, &pIndices, &numIndices );
+
+		encoder
+		    .bindGraphicsPipeline( pipelineFontFill )
+		    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) ) //
+
+		    .setVertexData( vertices.data(), sizeof( glm::vec3 ) * vertices.size(), 0 )
+		    .setVertexData( colors.data(), sizeof( glm::vec4 ) * colors.size(), 1 )
+		    .setIndexData( pIndices, sizeof( le_tessellator_api::le_tessellator_interface_t::IndexType ) * numIndices )
+		    .drawIndexed( numIndices ) //
+		    ;
+
+		// free the tessellator object
+
+		le_tessellator_i.destroy( tess );
+	}
+
+	static auto pipelineFontOutline =
+	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+	        .addShaderStage( shaderVert )
+	        .addShaderStage( shaderFrag )
+	        .withInputAssemblyState()
+	        .setToplogy( le::PrimitiveTopology::eLineStrip )
+	        .end()
+	        .withDepthStencilState()
+	        .setDepthTestEnable( false ) // disable depth testing
+	        .end()
+	        .build();
+
+	if ( true ) {
+
+		// draw outline
+
+		encoder
+		    .setLineWidth( 1.f )
+		    .bindGraphicsPipeline( pipelineFontOutline )
+		    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) ) //
+		    ;
+
 		using namespace le_font;
 
 		size_t numContours = le_glyph_shape_i.get_num_contours( app->glyph_shape );
@@ -164,7 +248,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 			for ( auto p = vv; p != vv + numV; p++ ) {
 				vertices.emplace_back( p->x, -p->y, 0 );
-				colors.emplace_back( 1, 1, 1, 1 );
+				colors.emplace_back( 1, 0, 0, 1 ); // use red for outline
 			}
 
 			encoder
