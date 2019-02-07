@@ -13,7 +13,7 @@ layout (location = 1) in vec4 col;
 // outputs 
 layout (location = 0) out VertexData {
 	vec2 texCoord;
-	vec4 texColor;
+	vec4 vertexColor;
 } outData;
 
 
@@ -37,7 +37,7 @@ out gl_PerVertex
 void main() 
 {
 	outData.texCoord = vec2((gl_VertexIndex << 1) & 2, gl_VertexIndex & 2);
-	outData.texColor = col;
+	outData.vertexColor = col;
 	vec4 position = projectionMatrix * viewMatrix * modelMatrix * vec4(pos,1);
 
 	gl_Position = position;

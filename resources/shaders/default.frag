@@ -6,7 +6,7 @@
 // inputs 
 layout (location = 0) in VertexData {
 	vec2 texCoord;
-	vec4 texColor;
+	vec4 vertexColor;
 } inData;
 
 // outputs
@@ -23,6 +23,6 @@ layout (set = 0, binding = 0) uniform MatrixStack
 
 void main(){
 	
-	//outFragColor = vec4(inTexCoord, 0, 1);
-	outFragColor = inData.texColor;
+	// outFragColor = vec4(inTexCoord, 0, 1);
+	outFragColor = vec4(1);
 }
