@@ -34,6 +34,7 @@ struct le_tessellator_api {
 		void                 ( * add_polyline             ) ( le_tessellator_o* self, VertexType const * const pPoints, size_t const& pointCount );
 		bool                 ( * tessellate               ) ( le_tessellator_o* self );
 		void                 ( * get_indices              ) ( le_tessellator_o* self, IndexType const ** pIndices, size_t * indexCount );
+		void                 ( * get_vertices             ) ( le_tessellator_o* self, VertexType const ** pVertices, size_t * vertexCount );
 		void                 ( * reset                    ) ( le_tessellator_o* self );
 
 	};
