@@ -28,7 +28,7 @@ struct nth<1, Point> {
 } // namespace mapbox
 
 struct le_tessellator_o {
-	std::vector<std::vector<Point>> polygon;
+	std::vector<std::vector<Point>> contours;
 	std::vector<IndexType>          indices;
 	std::vector<Point>              vertices;
 };
@@ -49,10 +49,15 @@ static void le_tessellator_destroy( le_tessellator_o *self ) {
 // ----------------------------------------------------------------------
 
 static void le_tessellator_add_polyline( le_tessellator_o *self, Point const *const pPoints, size_t const &pointCount ) {
-	self->polygon.insert( self->polygon.end(), {pPoints, pPoints + pointCount} );
+	// Add new contour
+	self->contours.insert( self->contours.end(), {pPoints, pPoints + pointCount} );
+
 	// append to vertices
 	self->vertices.insert( self->vertices.end(), pPoints, pPoints + pointCount );
 }
+
+// ----------------------------------------------------------------------
+
 static bool le_tessellator_tessellate( le_tessellator_o *self ) {
 
 	// Run tessellation
@@ -62,17 +67,24 @@ static bool le_tessellator_tessellate( le_tessellator_o *self ) {
 	return true;
 }
 
+// ----------------------------------------------------------------------
+
 static void le_tessellator_get_indices( le_tessellator_o *self, IndexType const **pIndices, size_t *indexCount ) {
 	*pIndices   = self->indices.data();
 	*indexCount = self->indices.size();
 }
 
+// ----------------------------------------------------------------------
+
 static void le_tessellator_get_vertices( le_tessellator_o *self, Point const **pVertices, size_t *vertexCount ) {
 	*pVertices   = self->vertices.data();
 	*vertexCount = self->vertices.size();
 }
+
+// ----------------------------------------------------------------------
+
 static void le_tessellator_reset( le_tessellator_o *self ) {
-	self->polygon.clear();
+	self->contours.clear();
 	self->indices.clear();
 	self->vertices.clear();
 }
