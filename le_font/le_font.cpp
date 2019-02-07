@@ -95,7 +95,7 @@ static void contour_line_to( Contour &c, Vertex const &p ) {
 void contour_curve_to( Contour &     c,
                        Vertex const &p2,        // end point
                        Vertex const &p1,        // control point
-                       int           resolution // number of segments
+                       size_t        resolution // number of segments
 ) {
 
 	if ( resolution == 0 ) {
@@ -111,7 +111,7 @@ void contour_curve_to( Contour &     c,
 
 	// --------| invariant: resolution > 1
 
-	c.vertices.reserve( c.vertices.size() + size_t( resolution ) );
+	c.vertices.reserve( c.vertices.size() + resolution );
 
 	assert( !c.vertices.empty() ); // Contour vertices must not be empty.
 
@@ -125,7 +125,7 @@ void contour_curve_to( Contour &     c,
 	//
 	// Loop goes over the set: ]0,resolution]
 	//
-	for ( int i = 1; i <= resolution; i++ ) {
+	for ( size_t i = 1; i <= resolution; i++ ) {
 		float t              = i * delta_t;
 		float t_sq           = t * t;
 		float one_minus_t    = ( 1.f - t );
@@ -143,7 +143,7 @@ static void contour_cubic_curve_to( Contour &     c,
                                     Vertex const &p3,        // end point
                                     Vertex const &p1,        // control point 1
                                     Vertex const &p2,        // control point 2
-                                    int           resolution // number of segments
+                                    size_t        resolution // number of segments
 ) {
 
 	if ( resolution == 0 ) {
@@ -159,7 +159,7 @@ static void contour_cubic_curve_to( Contour &     c,
 
 	// --------| invariant: resolution > 1
 
-	c.vertices.reserve( c.vertices.size() + size_t( resolution ) );
+	c.vertices.reserve( c.vertices.size() + resolution );
 
 	assert( !c.vertices.empty() ); // Contour vertices must not be empty.
 
@@ -173,7 +173,7 @@ static void contour_cubic_curve_to( Contour &     c,
 	//
 	// Loop goes over the set: ]0,resolution]
 	//
-	for ( int i = 1; i <= resolution; i++ ) {
+	for ( size_t i = 1; i <= resolution; i++ ) {
 		float t               = i * delta_t;
 		float t_sq            = t * t;
 		float t_cub           = t_sq * t;
@@ -191,7 +191,7 @@ static void contour_cubic_curve_to( Contour &     c,
 
 // Converts an array of path instructions (pp) into a list of contours.
 // A list of contours represents a shape.
-static le_glyph_shape_o *get_shape( stbtt_vertex const *pp_arr, int const pp_count ) {
+static le_glyph_shape_o *get_shape( stbtt_vertex const *pp_arr, int const pp_count, size_t resolution ) {
 	auto shape = new le_glyph_shape_o();
 
 	fprintf( stdout, "** Getting glyph shape **\n" );
@@ -200,7 +200,6 @@ static le_glyph_shape_o *get_shape( stbtt_vertex const *pp_arr, int const pp_cou
 	stbtt_vertex const *const pp_end = pp_arr + pp_count;
 
 	int current_contour_idx = -1;
-	int resolution          = 30;
 
 	for ( auto pp = pp_arr; pp != pp_end; pp++ ) {
 		switch ( pp->type ) {
@@ -235,7 +234,7 @@ static le_glyph_shape_o *le_font_get_shape_for_glyph( le_font_o *self, int32_t c
 
 	int pathInstructionsCount = stbtt_GetCodepointShape( &self->info, codepoint, &pathInstructions );
 
-	le_glyph_shape_o *shape = get_shape( pathInstructions, pathInstructionsCount );
+	le_glyph_shape_o *shape = get_shape( pathInstructions, pathInstructionsCount, 1 );
 
 	stbtt_FreeShape( &self->info, pathInstructions );
 
