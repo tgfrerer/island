@@ -66,8 +66,6 @@ static show_font_app_o *show_font_app_create() {
 	using namespace le_font;
 	app->font = le_font_i.create();
 
-	app->glyph_shape = le_font_i.get_shape_for_glyph( app->font, '&', nullptr );
-
 	return app;
 }
 
@@ -120,6 +118,17 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		glm::mat4 view;
 		glm::mat4 projection;
 	};
+
+	{
+		using namespace le_font;
+
+		if ( app->glyph_shape ) {
+			le_glyph_shape_i.destroy( app->glyph_shape );
+		}
+		app->glyph_shape = le_font_i.get_shape_for_glyph( app->font, 'B', nullptr ); // draw registration mark '(r)' glyph
+
+		//	app->glyph_shape = le_font_i.get_shape_for_glyph( app->font, 'i', nullptr );
+	}
 
 	// Draw main scene
 
