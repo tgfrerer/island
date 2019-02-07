@@ -199,7 +199,7 @@ static le_glyph_shape_o *get_shape( stbtt_vertex const *pp_arr, int const pp_cou
 
 	stbtt_vertex const *const pp_end = pp_arr + pp_count;
 
-	int current_contour_idx = -1;
+	size_t current_contour_idx = ~( 0ul );
 
 	for ( auto pp = pp_arr; pp != pp_end; pp++ ) {
 		switch ( pp->type ) {
@@ -207,18 +207,22 @@ static le_glyph_shape_o *get_shape( stbtt_vertex const *pp_arr, int const pp_cou
 			// a move signals the start of a new glyph
 			shape->contours.emplace_back(); // Add new contour
 			current_contour_idx++;          // Point to current contour
+			assert( current_contour_idx < shape->contours.size() );
 			contour_move_to( shape->contours[ current_contour_idx ], {pp->x, pp->y} );
 		    break;
 		case STBTT_vline:
 			// line from last position to this pos
+			assert( current_contour_idx < shape->contours.size() );
 			contour_line_to( shape->contours[ current_contour_idx ], {pp->x, pp->y} );
 		    break;
 		case STBTT_vcurve:
 			// quadratic bezier to pos
+			assert( current_contour_idx < shape->contours.size() );
 			contour_curve_to( shape->contours[ current_contour_idx ], {pp->x, pp->y}, {pp->cx, pp->cy}, resolution );
 		    break;
 		case STBTT_vcubic:
 			// cubic bezier to pos
+			assert( current_contour_idx < shape->contours.size() );
 			contour_cubic_curve_to( shape->contours[ current_contour_idx ], {pp->x, pp->y}, {pp->cx, pp->cy}, {pp->cx1, pp->cy1}, resolution );
 		    break;
 		}
