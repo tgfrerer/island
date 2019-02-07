@@ -194,8 +194,8 @@ static void contour_cubic_curve_to( Contour &     c,
 static le_glyph_shape_o *get_shape( stbtt_vertex const *pp_arr, int const pp_count, size_t resolution ) {
 	auto shape = new le_glyph_shape_o();
 
-	fprintf( stdout, "** Getting glyph shape **\n" );
-	fprintf( stdout, "Number of vertices: %i\n", pp_count );
+	//	fprintf( stdout, "** Getting glyph shape **\n" );
+	//	fprintf( stdout, "Number of vertices: %i\n", pp_count );
 
 	stbtt_vertex const *const pp_end = pp_arr + pp_count;
 
