@@ -73,10 +73,11 @@ static bool le_tessellator_tessellate( le_tessellator_o *self ) {
 		// use libtess
 		TESStesselator *tess;
 		tess = tessNewTess( nullptr );
+
 		tessSetOption( tess, TessOption::TESS_CONSTRAINED_DELAUNAY_TRIANGULATION, 1 );
 
 		for ( auto const &contour : self->contours ) {
-			tessAddContour( tess, Point::type::length(), contour.data(), sizeof( Point ), contour.size() );
+			tessAddContour( tess, Point::type::length(), contour.data(), sizeof( Point ), int( contour.size() ) );
 		}
 
 		tessTesselate( tess,
@@ -89,12 +90,12 @@ static bool le_tessellator_tessellate( le_tessellator_o *self ) {
 		self->indices.clear();
 		self->vertices.clear();
 
-		size_t numVertices = tessGetVertexCount( tess );
+		size_t numVertices = size_t( tessGetVertexCount( tess ) );
 		auto   pVertices   = tessGetVertices( tess );
 		self->vertices.resize( numVertices );
 		memcpy( self->vertices.data(), pVertices, sizeof( Point ) * numVertices );
 
-		size_t numIndices = tessGetElementCount( tess ) * 3; // each element has 3 vertices, as we requested triangles when tessellating
+		size_t numIndices = size_t( tessGetElementCount( tess ) ) * 3; // each element has 3 vertices, as we requested triangles when tessellating
 		self->indices.reserve( numIndices );
 
 		TESSindex const *      pIndex     = tessGetElements( tess );
