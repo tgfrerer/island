@@ -2,8 +2,12 @@
 #include "pal_api_loader/ApiRegistry.hpp"
 
 #include "./3rdparty/earcut.hpp/include/mapbox/earcut.hpp"
+#include "tesselator.h"
 
+#include <string.h> // memcpy
 #include <glm/vec2.hpp>
+
+constexpr bool LE_FEATURE_FLAG_USE_EARCUT = false; // fall back to libtess if earcut disabled
 
 using Point     = le_tessellator_api::le_tessellator_interface_t::VertexType;
 using IndexType = le_tessellator_api::le_tessellator_interface_t::IndexType;
@@ -61,8 +65,49 @@ static void le_tessellator_add_polyline( le_tessellator_o *self, Point const *co
 static bool le_tessellator_tessellate( le_tessellator_o *self ) {
 
 	// Run tessellation
+	if ( LE_FEATURE_FLAG_USE_EARCUT ) {
+		// use earcut tessellator
+		self->indices = mapbox::earcut<IndexType>( self->contours );
 
-	self->indices = mapbox::earcut<IndexType>( self->polygon );
+	} else {
+		// use libtess
+		TESStesselator *tess;
+		tess = tessNewTess( nullptr );
+		tessSetOption( tess, TessOption::TESS_CONSTRAINED_DELAUNAY_TRIANGULATION, 1 );
+
+		for ( auto const &contour : self->contours ) {
+			tessAddContour( tess, Point::type::length(), contour.data(), sizeof( Point ), contour.size() );
+		}
+
+		tessTesselate( tess,
+		               TessWindingRule::TESS_WINDING_ODD,
+		               TessElementType::TESS_POLYGONS,
+		               3, // max number of vertices per polygon - we want triangles.
+		               Point::length(),
+		               nullptr );
+
+		self->indices.clear();
+		self->vertices.clear();
+
+		size_t numVertices = tessGetVertexCount( tess );
+		auto   pVertices   = tessGetVertices( tess );
+		self->vertices.resize( numVertices );
+		memcpy( self->vertices.data(), pVertices, sizeof( Point ) * numVertices );
+
+		size_t numIndices = tessGetElementCount( tess ) * 3; // each element has 3 vertices, as we requested triangles when tessellating
+		self->indices.reserve( numIndices );
+
+		TESSindex const *      pIndex     = tessGetElements( tess );
+		TESSindex const *const pIndex_end = pIndex + numIndices;
+
+		// we must copy manually since indices are int, but we want uint16_t
+
+		for ( auto idx = pIndex; idx != pIndex_end; idx++ ) {
+			self->indices.emplace_back( *idx );
+		}
+
+		tessDeleteTess( tess );
+	}
 
 	return true;
 }
