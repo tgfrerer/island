@@ -125,9 +125,12 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		if ( app->glyph_shape ) {
 			le_glyph_shape_i.destroy( app->glyph_shape );
 		}
-		app->glyph_shape = le_font_i.get_shape_for_glyph( app->font, 'B', nullptr ); // draw registration mark '(r)' glyph
 
-		//	app->glyph_shape = le_font_i.get_shape_for_glyph( app->font, 'i', nullptr );
+		app->glyph_shape = le_font_i.get_shape_for_glyph( app->font, 0xae, nullptr ); // draw registration mark '(r)' glyph
+
+		//		app->glyph_shape = le_font_i.get_shape_for_glyph( app->font, 'i', nullptr );
+
+		//		app->glyph_shape = le_font_i.get_shape_for_glyph( app->font, 'B', nullptr );
 	}
 
 	// Draw main scene
@@ -143,66 +146,71 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	mvp.view       = app->camera.getViewMatrixGlm();
 	mvp.projection = app->camera.getProjectionMatrixGlm();
 
-	static auto pipelineFontFill =
-	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-	        .addShaderStage( shaderVert )
-	        .addShaderStage( shaderFrag )
-	        .withInputAssemblyState()
-	        .setToplogy( le::PrimitiveTopology::eTriangleList )
-	        .end()
-	        .withRasterizationState()
-	        .setPolygonMode( le::PolygonMode::eFill )
-	        .end()
-	        .withDepthStencilState()
-	        .setDepthTestEnable( false ) // disable depth testing
-	        .end()
-	        .build();
-
-	{
+	if ( true ) {
 		// draw body
+
+		static auto pipelineFontFill =
+		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+		        .addShaderStage( shaderVert )
+		        .addShaderStage( shaderFrag )
+		        .withInputAssemblyState()
+		        .setToplogy( le::PrimitiveTopology::eTriangleList )
+		        .end()
+		        .withRasterizationState()
+		        .setPolygonMode( le::PolygonMode::eLine )
+		        .end()
+		        .withDepthStencilState()
+		        .setDepthTestEnable( false ) // disable depth testing
+		        .end()
+		        .build();
 
 		using namespace le_font;
 		using namespace le_tessellator;
 
-		auto tess = le_tessellator_i.create();
-
 		size_t numContours = le_glyph_shape_i.get_num_contours( app->glyph_shape );
 
-		std::vector<glm::vec3> vertices;
-		std::vector<glm::vec4> colors;
+		auto tess = le_tessellator_i.create();
 
 		// First, we gather all contours and feed them to the tessellator.
-		static bool one_time_only = true;
 
 		for ( size_t i = 0; i != numContours; i++ ) {
 			size_t     numV = 0;
 			glm::vec2 *vv   = le_glyph_shape_i.get_vertices_for_shape_contour( app->glyph_shape, i, &numV );
 
-			vertices.reserve( numV );
-			colors.reserve( numV );
-
-			// add vertices and colors to  outline
-
-			for ( auto p = vv; p != vv + numV; p++ ) {
-				vertices.emplace_back( p->x, -p->y, 0 );
-				colors.emplace_back( 1, 1, 1, 1 );
-			}
-
 			// add polyline to tessellator
 			le_tessellator_i.add_polyline( tess, vv, numV );
 		}
-
-		one_time_only = false;
 
 		// Once the tessellator has all contours, we may triangulate.
 
 		le_tessellator_i.tessellate( tess );
 
+		// we must translate vertices to vec3
+		std::vector<glm::vec3> vertices;
+		std::vector<glm::vec4> colors;
+
+		{
+			size_t           numVertices = 0;
+			glm::vec2 const *pVertices   = nullptr;
+			le_tessellator_i.get_vertices( tess, &pVertices, &numVertices );
+
+			vertices.reserve( numVertices );
+			colors.reserve( numVertices );
+
+			for ( size_t i = 0; i != numVertices; ++i ) {
+				// add vertices and colors to  outline
+				// note that we flip the y-axis
+				vertices.emplace_back( pVertices[ i ].x,
+				                       -pVertices[ i ].y,
+				                       0 );
+				colors.emplace_back( 1, 1, 1, 1 );
+			}
+		}
+
 		// we should now have a list of indices which reference our vertices in tessellator.
 
 		uint16_t const *pIndices   = nullptr;
 		size_t          numIndices = 0;
-
 		le_tessellator_i.get_indices( tess, &pIndices, &numIndices );
 
 		encoder
@@ -212,7 +220,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		    .setVertexData( vertices.data(), sizeof( glm::vec3 ) * vertices.size(), 0 )
 		    .setVertexData( colors.data(), sizeof( glm::vec4 ) * colors.size(), 1 )
 		    .setIndexData( pIndices, sizeof( le_tessellator_api::le_tessellator_interface_t::IndexType ) * numIndices )
-		    .drawIndexed( numIndices ) //
+		    .drawIndexed( uint32_t( numIndices ) ) //
 		    ;
 
 		// free the tessellator object
@@ -220,21 +228,21 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		le_tessellator_i.destroy( tess );
 	}
 
-	static auto pipelineFontOutline =
-	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-	        .addShaderStage( shaderVert )
-	        .addShaderStage( shaderFrag )
-	        .withInputAssemblyState()
-	        .setToplogy( le::PrimitiveTopology::eLineStrip )
-	        .end()
-	        .withDepthStencilState()
-	        .setDepthTestEnable( false ) // disable depth testing
-	        .end()
-	        .build();
-
 	if ( true ) {
 
 		// draw outline
+
+		static auto pipelineFontOutline =
+		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+		        .addShaderStage( shaderVert )
+		        .addShaderStage( shaderFrag )
+		        .withInputAssemblyState()
+		        .setToplogy( le::PrimitiveTopology::eLineStrip )
+		        .end()
+		        .withDepthStencilState()
+		        .setDepthTestEnable( false ) // disable depth testing
+		        .end()
+		        .build();
 
 		encoder
 		    .setLineWidth( 1.f )
@@ -256,8 +264,8 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 			colors.reserve( numV );
 
 			for ( auto p = vv; p != vv + numV; p++ ) {
-				vertices.emplace_back( p->x, -p->y, 0 );
-				colors.emplace_back( 1, 0, 0, 1 ); // use red for outline
+				vertices.emplace_back( p->x, -p->y, 0 ); // note that we flip the y-axis.
+				colors.emplace_back( 1, 0, 0, 1 );       // use red for outline
 			}
 
 			encoder

@@ -238,7 +238,7 @@ static le_glyph_shape_o *le_font_get_shape_for_glyph( le_font_o *self, int32_t c
 
 	int pathInstructionsCount = stbtt_GetCodepointShape( &self->info, codepoint, &pathInstructions );
 
-	le_glyph_shape_o *shape = get_shape( pathInstructions, pathInstructionsCount, 1 );
+	le_glyph_shape_o *shape = get_shape( pathInstructions, pathInstructionsCount, 10 );
 
 	stbtt_FreeShape( &self->info, pathInstructions );
 
