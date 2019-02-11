@@ -131,7 +131,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 			le_glyph_shape_i.destroy( app->glyph_shape );
 		}
 
-		// app->glyph_shape = le_font_i.get_shape_for_glyph( app->font, 0xae, nullptr ); // draw registration mark '(r)' glyph
+		//		app->glyph_shape = le_font_i.get_shape_for_glyph( app->font, 0xae, nullptr ); // draw registration mark '(r)' glyph
 
 		app->glyph_shape = le_font_i.get_shape_for_glyph( app->font, 's', nullptr );
 
@@ -153,7 +153,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	mvp.view       = app->camera.getViewMatrixGlm();
 	mvp.projection = app->camera.getProjectionMatrixGlm();
 
-	if ( false ) {
+	if ( true ) {
 		// draw body
 
 		static auto pipelineFontFill =
@@ -287,12 +287,14 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		static int at = 0;
 		at            = ( ++at ) % 360;
 
+		std::vector<kiss_fft_cpx> fft_in;
+
+		// grab vertex data from font glyph
+
 		using namespace le_font;
 		size_t     numV;
 		glm::vec2 *vv     = le_glyph_shape_i.get_vertices_for_shape_contour( app->glyph_shape, 0, &numV );
 		auto const vv_end = vv + numV;
-
-		std::vector<kiss_fft_cpx> fft_in;
 
 		fft_in.reserve( numV );
 
@@ -300,28 +302,13 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 			fft_in.push_back( {p->x, p->y} ); // note that we flip the y-axis.
 		}
 
-		//		fft_in = {
-		//		    {-50, 50},
-		//		    //		    {-50, 0},
-		//		    {-50, -50},
-		//		    //		    {0 + 500 * float( at ) / 360.f, -50},
-		//		    {50, -50},
-		//		    //		    {50, 0},
-		//		    {50 + 500 * float( at ) / 360.f, 50},
-		//		    //		    {0 + 500 * float( at ) / 360.f, 50},
-		//		};
 		std::vector<kiss_fft_cpx> fft_out;
 
 		{
-
 			// use kisfft to calculate fast fourier transform
-
 			kiss_fft_cfg kiss = kiss_fft_alloc( fft_in.size(), 0, nullptr, nullptr );
-
 			fft_out.resize( fft_in.size() );
-
 			kiss_fft( kiss, fft_in.data(), fft_out.data() );
-
 			kiss_fft_free( kiss );
 		}
 

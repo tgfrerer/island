@@ -3,6 +3,9 @@ set (TARGET show_font_app)
 set (SOURCES "show_font_app.cpp")
 set (SOURCES ${SOURCES} "show_font_app.h")
 
+# source files for kissffft
+set (SOURCES ${SOURCES} "./3rdparty/kissfft/kiss_fft.c")
+
 if (${PLUGINS_DYNAMIC})
 
     add_library(${TARGET} SHARED ${SOURCES})
