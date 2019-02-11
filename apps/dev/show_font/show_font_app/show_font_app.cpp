@@ -18,6 +18,9 @@
 #include <memory>
 #include <sstream>
 #include <vector>
+#include <complex>
+
+#include "./3rdparty/kissfft/kiss_fft.h"
 
 struct show_font_app_o {
 	pal::Window  window;
@@ -26,6 +29,8 @@ struct show_font_app_o {
 
 	le_glyph_shape_o *glyph_shape = nullptr;
 	le_font_o *       font;
+
+	std::vector<glm::vec3> blobVertices;
 
 	LeCamera camera;
 };
@@ -126,7 +131,9 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 			le_glyph_shape_i.destroy( app->glyph_shape );
 		}
 
-		app->glyph_shape = le_font_i.get_shape_for_glyph( app->font, 0xae, nullptr ); // draw registration mark '(r)' glyph
+		// app->glyph_shape = le_font_i.get_shape_for_glyph( app->font, 0xae, nullptr ); // draw registration mark '(r)' glyph
+
+		app->glyph_shape = le_font_i.get_shape_for_glyph( app->font, 's', nullptr );
 
 		//		app->glyph_shape = le_font_i.get_shape_for_glyph( app->font, 'i', nullptr );
 
@@ -142,11 +149,11 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 	mvp.model      = glm::mat4( 1.f ); // identity matrix
 	mvp.model      = glm::scale( mvp.model, glm::vec3( 1.0 ) );
-	mvp.model      = glm::translate( mvp.model, glm::vec3( -200, 300, 0 ) );
+	mvp.model      = glm::translate( mvp.model, glm::vec3( -200, 200, 0 ) );
 	mvp.view       = app->camera.getViewMatrixGlm();
 	mvp.projection = app->camera.getProjectionMatrixGlm();
 
-	if ( true ) {
+	if ( false ) {
 		// draw body
 
 		static auto pipelineFontFill =
@@ -228,21 +235,20 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		le_tessellator_i.destroy( tess );
 	}
 
+	static auto pipelineFontOutline =
+	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+	        .addShaderStage( shaderVert )
+	        .addShaderStage( shaderFrag )
+	        .withInputAssemblyState()
+	        .setToplogy( le::PrimitiveTopology::eLineStrip )
+	        .end()
+	        .withDepthStencilState()
+	        .setDepthTestEnable( false ) // disable depth testing
+	        .end()
+	        .build();
 	if ( true ) {
 
 		// draw outline
-
-		static auto pipelineFontOutline =
-		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-		        .addShaderStage( shaderVert )
-		        .addShaderStage( shaderFrag )
-		        .withInputAssemblyState()
-		        .setToplogy( le::PrimitiveTopology::eLineStrip )
-		        .end()
-		        .withDepthStencilState()
-		        .setDepthTestEnable( false ) // disable depth testing
-		        .end()
-		        .build();
 
 		encoder
 		    .setLineWidth( 1.f )
@@ -273,6 +279,106 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 			    .setVertexData( colors.data(), sizeof( glm::vec4 ) * numV, 1 )
 			    .draw( numV );
 		}
+	}
+
+	if ( true ) {
+		app->blobVertices.clear();
+
+		static int at = 0;
+		at            = ( ++at ) % 360;
+
+		using namespace le_font;
+		size_t     numV;
+		glm::vec2 *vv     = le_glyph_shape_i.get_vertices_for_shape_contour( app->glyph_shape, 0, &numV );
+		auto const vv_end = vv + numV;
+
+		std::vector<kiss_fft_cpx> fft_in;
+
+		fft_in.reserve( numV );
+
+		for ( auto p = vv; p != vv_end; p++ ) {
+			fft_in.push_back( {p->x, p->y} ); // note that we flip the y-axis.
+		}
+
+		//		fft_in = {
+		//		    {-50, 50},
+		//		    //		    {-50, 0},
+		//		    {-50, -50},
+		//		    //		    {0 + 500 * float( at ) / 360.f, -50},
+		//		    {50, -50},
+		//		    //		    {50, 0},
+		//		    {50 + 500 * float( at ) / 360.f, 50},
+		//		    //		    {0 + 500 * float( at ) / 360.f, 50},
+		//		};
+		std::vector<kiss_fft_cpx> fft_out;
+
+		{
+
+			// use kisfft to calculate fast fourier transform
+
+			kiss_fft_cfg kiss = kiss_fft_alloc( fft_in.size(), 0, nullptr, nullptr );
+
+			fft_out.resize( fft_in.size() );
+
+			kiss_fft( kiss, fft_in.data(), fft_out.data() );
+
+			kiss_fft_free( kiss );
+		}
+
+		// Alias terms to fft_out
+		auto &terms = fft_out;
+
+		app->blobVertices.clear();
+		constexpr size_t numVertices   = 300;
+		constexpr auto   ImaginaryUnit = std::complex<float>( 0, 1 ); // constant I, the imaginary number
+		app->blobVertices.reserve( numVertices );
+
+		size_t numPoints = terms.size();
+
+		for ( size_t i = 0; i < numVertices; i++ ) {
+
+			// evaluate for t
+			float t = float( i ) / float( numVertices - 1 );
+
+			glm::vec2 sum{0};
+
+			for ( int n = 0; n != numPoints; ++n ) {
+
+				int freq = ( n % 2 ) * ( ( n + 1 ) / 2 ) + // only applies to odd  numbers
+				           ( ( n + 1 ) % 2 ) * ( -n / 2 )  // only applies to even numbers
+				    ;
+
+				auto const idx = size_t( int( numPoints ) + freq ) % numPoints;
+
+				auto const &term          = terms[ idx ];
+				float       dft_amplitude = sqrtf( term.i * term.i + term.r * term.r ) / ( numPoints );
+				float       dft_phase     = atan2( term.i, term.r );
+
+				float angle = glm::two_pi<float>() * freq * t + dft_phase;
+
+				sum += dft_amplitude * glm::vec2{cos( angle ), -sin( angle )};
+			}
+
+			app->blobVertices.emplace_back( sum.x, sum.y, 0 );
+		}
+
+		// let's see if we have enough colors in the colors buffer
+		std::vector<glm::vec4> colors;
+		colors.reserve( numVertices );
+
+		for ( size_t i = 0; i != app->blobVertices.size(); i++ ) {
+			colors.emplace_back( 0, 1, 1, 1 ); // use blue for outline
+		}
+
+		//		mvp.model = glm::mat4( 1.f ); // reset model matrix
+
+		encoder
+		    .setLineWidth( 1.f )
+		    .bindGraphicsPipeline( pipelineFontOutline )
+		    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) ) //
+		    .setVertexData( app->blobVertices.data(), sizeof( glm::vec3 ) * numVertices, 0 )
+		    .setVertexData( colors.data(), sizeof( glm::vec4 ) * numVertices, 1 )
+		    .draw( numVertices );
 	}
 }
 
