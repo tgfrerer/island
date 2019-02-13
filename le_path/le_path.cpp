@@ -19,8 +19,6 @@ struct PathCommand {
 		eClosePath,
 	} type = eUnknown;
 
-	uint32_t isRelative{}; // bool signaling whether coordinates are relative to the last pen point or absolute.
-
 	Vertex p  = {}; // end point
 	Vertex c1 = {}; // control point 1
 	Vertex c2 = {}; // control point 2
@@ -178,7 +176,6 @@ static void le_path_trace_path( le_path_o *self ) {
 	self->polylines.reserve( self->subpaths.size() );
 
 	constexpr size_t resolution = 12; // Curves sample resolution
-	Vertex           penPos{};        // pen position state
 
 	for ( auto const &s : self->subpaths ) {
 
@@ -186,26 +183,24 @@ static void le_path_trace_path( le_path_o *self ) {
 
 		for ( auto const &command : s.commands ) {
 
-			Vertex offset = command.isRelative ? penPos : Vertex{0};
-
 			switch ( command.type ) {
 			case PathCommand::eMoveTo:
-				trace_move_to( polyline, command.p + offset );
+				trace_move_to( polyline, command.p );
 			    break;
 			case PathCommand::eLineTo:
-				trace_line_to( polyline, command.p + offset );
+				trace_line_to( polyline, command.p );
 			    break;
 			case PathCommand::eQuadBezierTo:
 				trace_quad_bezier_to( polyline,
-				                      command.p + offset,
-				                      command.c1 + offset,
+				                      command.p,
+				                      command.c1,
 				                      resolution );
 			    break;
 			case PathCommand::eCubicBezierTo:
 				trace_cubic_bezier_to( polyline,
-				                       command.p + offset,
-				                       command.c1 + offset,
-				                       command.c2 + offset,
+				                       command.p,
+				                       command.c1,
+				                       command.c2,
 				                       resolution );
 			    break;
 			case PathCommand::eClosePath:
@@ -215,9 +210,6 @@ static void le_path_trace_path( le_path_o *self ) {
 				assert( false );
 			    break;
 			}
-
-			// Set pen position to last added point.
-			penPos = polyline.back();
 		}
 
 		self->polylines.emplace_back( polyline );
@@ -226,31 +218,31 @@ static void le_path_trace_path( le_path_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_path_move_to( le_path_o *self, Vertex const &p, bool isRelative ) {
+static void le_path_move_to( le_path_o *self, Vertex const &p ) {
 	// move_to means a new subpath, unless the last command was a
 	self->subpaths.emplace_back(); // add empty subpath
-	self->subpaths.back().commands.push_back( {PathCommand::eMoveTo, isRelative, p} );
+	self->subpaths.back().commands.push_back( {PathCommand::eMoveTo, p} );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_path_line_to( le_path_o *self, Vertex const &p, bool isRelative ) {
+static void le_path_line_to( le_path_o *self, Vertex const &p ) {
 	assert( !self->subpaths.empty() ); //subpath must exist
-	self->subpaths.back().commands.push_back( {PathCommand::eLineTo, isRelative, p} );
+	self->subpaths.back().commands.push_back( {PathCommand::eLineTo, p} );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_path_quad_bezier_to( le_path_o *self, Vertex const &p, Vertex const &c1, bool isRelative ) {
+static void le_path_quad_bezier_to( le_path_o *self, Vertex const &p, Vertex const &c1 ) {
 	assert( !self->subpaths.empty() ); //subpath must exist
-	self->subpaths.back().commands.push_back( {PathCommand::eQuadBezierTo, isRelative, p, c1} );
+	self->subpaths.back().commands.push_back( {PathCommand::eQuadBezierTo, p, c1} );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_path_cubic_bezier_to( le_path_o *self, Vertex const &p, Vertex const &c1, Vertex const &c2, bool isRelative ) {
+static void le_path_cubic_bezier_to( le_path_o *self, Vertex const &p, Vertex const &c1, Vertex const &c2 ) {
 	assert( !self->subpaths.empty() ); //subpath must exist
-	self->subpaths.back().commands.push_back( {PathCommand::eCubicBezierTo, isRelative, p, c1, c2} );
+	self->subpaths.back().commands.push_back( {PathCommand::eCubicBezierTo, p, c1, c2} );
 }
 
 // ----------------------------------------------------------------------
