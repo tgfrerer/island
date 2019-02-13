@@ -72,8 +72,8 @@ static void trace_close_path( std::vector<Vertex> &polyline ) {
 // Trace a quadratic bezier curve from previous point p0 to target point p2 (p2_x,p2_y),
 // controlled by control point p1 (p1_x, p1_y), in steps iterations.
 static void trace_quad_bezier_to( std::vector<Vertex> &polyline,
-                                  Vertex const &       p2,        // end point
-                                  Vertex const &       p1,        // control point
+                                  Vertex const &       p1,        // end point
+                                  Vertex const &       c1,        // control point
                                   size_t               resolution // number of segments
 ) {
 
@@ -84,7 +84,7 @@ static void trace_quad_bezier_to( std::vector<Vertex> &polyline,
 
 	if ( resolution == 1 ) {
 		// If we are to add but one segment, we may directly add the target point and return.
-		polyline.emplace_back( p2 );
+		polyline.emplace_back( p1 );
 		return;
 	}
 
@@ -110,7 +110,7 @@ static void trace_quad_bezier_to( std::vector<Vertex> &polyline,
 		float one_minus_t    = ( 1.f - t );
 		float one_minus_t_sq = one_minus_t * one_minus_t;
 
-		Vertex b = one_minus_t_sq * p0 + 2 * one_minus_t * t * p1 + t_sq * p2;
+		Vertex b = one_minus_t_sq * p0 + 2 * one_minus_t * t * c1 + t_sq * p1;
 
 		polyline.emplace_back( b );
 	}
@@ -120,9 +120,9 @@ static void trace_quad_bezier_to( std::vector<Vertex> &polyline,
 // Trace a cubic bezier curve from previous point p0 to target point p3
 // controlled by control points p1, and p2.
 static void trace_cubic_bezier_to( std::vector<Vertex> &polyline,
-                                   Vertex const &       p3,        // end point
-                                   Vertex const &       p1,        // control point 1
-                                   Vertex const &       p2,        // control point 2
+                                   Vertex const &       p1,        // end point
+                                   Vertex const &       c1,        // control point 1
+                                   Vertex const &       c2,        // control point 2
                                    size_t               resolution // number of segments
 ) {
 	if ( resolution == 0 ) {
@@ -132,7 +132,7 @@ static void trace_cubic_bezier_to( std::vector<Vertex> &polyline,
 
 	if ( resolution == 1 ) {
 		// If we are to add but one segment, we may directly add the target point and return.
-		polyline.emplace_back( p3 );
+		polyline.emplace_back( p1 );
 		return;
 	}
 
@@ -160,7 +160,7 @@ static void trace_cubic_bezier_to( std::vector<Vertex> &polyline,
 		float one_minus_t_sq  = one_minus_t * one_minus_t;
 		float one_minus_t_cub = one_minus_t_sq * one_minus_t;
 
-		Vertex b = one_minus_t_cub * p0 + 3 * one_minus_t_sq * t * p1 + 3 * one_minus_t * t_sq * p2 + t_cub * p3;
+		Vertex b = one_minus_t_cub * p0 + 3 * one_minus_t_sq * t * c1 + 3 * one_minus_t * t_sq * c2 + t_cub * p1;
 
 		polyline.emplace_back( b );
 	}
@@ -196,10 +196,17 @@ static void le_path_trace_path( le_path_o *self ) {
 				trace_line_to( polyline, command.p + offset );
 			    break;
 			case PathCommand::eQuadBezierTo:
-				trace_quad_bezier_to( polyline, command.p + offset, command.c1 + offset, resolution );
+				trace_quad_bezier_to( polyline,
+				                      command.p + offset,
+				                      command.c1 + offset,
+				                      resolution );
 			    break;
 			case PathCommand::eCubicBezierTo:
-				trace_cubic_bezier_to( polyline, command.p + offset, command.c1 + offset, command.c2, resolution );
+				trace_cubic_bezier_to( polyline,
+				                       command.p + offset,
+				                       command.c1 + offset,
+				                       command.c2 + offset,
+				                       resolution );
 			    break;
 			case PathCommand::eClosePath:
 				trace_close_path( polyline );
