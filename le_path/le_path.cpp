@@ -172,7 +172,6 @@ static void trace_cubic_bezier_to( std::vector<Vertex> &polyline,
 // A polyline is a list of vertices which may be thought of being
 // connected by lines.
 //
-//
 static void le_path_trace_path( le_path_o *self ) {
 	self->polylines.clear();
 	self->polylines.reserve( self->subpaths.size() );
@@ -231,6 +230,58 @@ static void le_path_move_to( le_path_o *self, Vertex const &p ) {
 static void le_path_line_to( le_path_o *self, Vertex const &p ) {
 	assert( !self->subpaths.empty() ); //subpath must exist
 	self->subpaths.back().commands.push_back( {PathCommand::eLineTo, p} );
+}
+
+// Fetch the current pen point by grabbing the previous target point
+// from the command stream.
+Vertex const *le_path_get_previous_p( le_path_o *self ) {
+	assert( !self->subpaths.empty() );                 // Subpath must exist
+	assert( !self->subpaths.back().commands.empty() ); // previous command must exist
+
+	Vertex const *p = nullptr;
+
+	auto const &c = self->subpaths.back().commands.back(); // fetch last command
+
+	switch ( c.type ) {
+	case PathCommand::eMoveTo:        // fall-through
+	case PathCommand::eLineTo:        // fall-through
+	case PathCommand::eQuadBezierTo:  // fall-through
+	case PathCommand::eCubicBezierTo: // fall-through
+		p = &c.p;
+	    break;
+	default:
+		// Error. Previous command must be one of above
+		fprintf( stderr, "Warning: Relative path instruction requires absolute position to be known. In %s:%i\n", __FILE__, __LINE__ );
+	    break;
+	}
+
+	return p;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_path_line_horiz_to( le_path_o *self, float const &px ) {
+	assert( !self->subpaths.empty() );                 // Subpath must exist
+	assert( !self->subpaths.back().commands.empty() ); // previous command must exist
+
+	auto p = le_path_get_previous_p( self );
+
+	if ( p ) {
+		le_path_line_to( self, {px, p->y} );
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static void le_path_line_vert_to( le_path_o *self, float const &py ) {
+	assert( !self->subpaths.empty() );                 // Subpath must exist
+	assert( !self->subpaths.back().commands.empty() ); // previous command must exist
+
+	auto p = le_path_get_previous_p( self );
+
+	if ( p ) {
+		le_path_line_to( self, {p->x, py} );
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -388,6 +439,40 @@ static bool is_l_instruction( char const *c, int *offset, Vertex *p0 ) {
 	       add_offsets( &local_offset, offset );
 }
 
+// Return true if string `c` can be evaluated as an 'h' instruction.
+// A 'h' instruction is a horizontal line_to instruction
+// In case this method returns true,
+// + `*offset` will hold the count of characters from `c` spent on the instruction.
+// + `*px` will hold the value of the target point's x coordinate
+static bool is_h_instruction( char const *c, int *offset, float *px ) {
+	if ( *c == 0 )
+		return false;
+
+	int local_offset = 0;
+
+	return is_character_match( 'H', c, &local_offset ) &&
+	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_float_number( c + local_offset, &local_offset, px ) &&
+	       add_offsets( &local_offset, offset );
+}
+
+// Return true if string `c` can be evaluated as an 'l' instruction.
+// A 'v' instruction is a vertical line_to instruction
+// In case this method returns true,
+// + `*offset` will hold the count of characters from `c` spent on the instruction.
+// + `*px` will hold the value of the target point's x coordinate
+static bool is_v_instruction( char const *c, int *offset, float *py ) {
+	if ( *c == 0 )
+		return false;
+
+	int local_offset = 0;
+
+	return is_character_match( 'H', c, &local_offset ) &&
+	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_float_number( c + local_offset, &local_offset, py ) &&
+	       add_offsets( &local_offset, offset );
+}
+
 // Return true if string `c` can be evaluated as a 'c' instruction.
 // A 'c' instruction is a cubic bezier instruction.
 // In case this method returns true,
@@ -472,6 +557,18 @@ static void le_path_add_from_simplified_svg( le_path_o *self, char const *svg ) 
 		if ( is_l_instruction( c, &offset, &p0 ) ) {
 			// lineto event
 			le_path_line_to( self, p0 );
+			c += offset;
+			continue;
+		}
+		if ( is_h_instruction( c, &offset, &p0.x ) ) {
+			// lineto event
+			le_path_line_horiz_to( self, p0.x );
+			c += offset;
+			continue;
+		}
+		if ( is_v_instruction( c, &offset, &p0.y ) ) {
+			// lineto event
+			le_path_line_vert_to( self, p0.y );
 			c += offset;
 			continue;
 		}
