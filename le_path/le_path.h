@@ -51,6 +51,8 @@ struct le_path_api {
 		void        (* cubic_bezier_to           ) ( le_path_o* self, Vertex const& p, Vertex const & c1, Vertex const & c2);
 		void        (* close_path                ) ( le_path_o* self);
 
+		void        (* add_from_simplified_svg ) (le_path_o* self, char const* svg);
+
 		void        (* trace_path                ) ( le_path_o* self );
 
 		size_t      (* get_num_polylines         ) ( le_path_o* self );

@@ -4,6 +4,8 @@
 #include <vector>
 
 #include <cstring>
+#include <cstdio>
+#include <cstdlib>
 
 using Vertex = glm::vec2;
 
@@ -268,18 +270,255 @@ static void le_path_get_vertices_for_polyline( le_path_o *self, size_t const &po
 	*numVertices = polyline.size();
 }
 
+// Accumulates `*offset_local` into `*offset_total`.
+// Always returns true.
+static bool add_offsets( int *offset_local, int *offset_total ) {
+	( *offset_total ) += ( *offset_local );
+	return true;
+}
+
+// Returns true if string c may be interpreted as
+// a number,
+// If true,
+// + increases *offset by the count of characters forming the number.
+// + sets *f to value of parsed number.
+//
+static bool is_float_number( char const *c, int *offset, float *f ) {
+	if ( *c == 0 )
+		return false;
+
+	char *num_end;
+
+	*f = strtof( c, &num_end ); // num_end will point to one after last number character
+	*offset += ( num_end - c ); // add number of number characters to offset
+
+	return num_end != c; // if at least one number character was extracted, we were successful
+}
+
+// Returns true if needle matches c.
+// Increases *offset by 1 if true.
+static bool is_character_match( char const needle, char const *c, int *offset ) {
+	if ( *c == 0 ) {
+		return false;
+	}
+	// ---------| invarant: c is not end of string
+
+	if ( *c == needle ) {
+		++( *offset );
+		return true;
+	} else {
+		return false;
+	}
+}
+
+// Returns true if what c points to may be interpreted as
+// whitespace, and sets offset to the count of whitespace
+// characters.
+static bool is_whitespace( char const *c, int *offset ) {
+	if ( *c == 0 ) {
+		return false;
+	}
+	// ---------| invarant: c is not end of string
+
+	bool found_whitespace = false;
+
+	// while c is one of possible whitespace characters
+	while ( *c == 0x20 || *c == 0x9 || *c == 0xD || *c == 0xA ) {
+		c++;
+		++( *offset );
+		found_whitespace = true;
+	}
+
+	return found_whitespace;
+}
+
+// Returns true if c points to a coordinate pair.
+// In case this method returns true,
+// + `*offset` will hold the count of characters from `c` spent on the instruction.
+// + `*coord` will hold the vertex defined by the coordinate pair
+static bool is_coordinate_pair( char const *c, int *offset, Vertex *v ) {
+	if ( *c == 0 ) {
+		return false;
+	}
+	// ---------| invarant: c is not end of string
+
+	// we want the pattern:
+
+	int local_offset = 0;
+
+	return is_float_number( c, &local_offset, &v->x ) &&                 // note how offset is re-used
+	       is_character_match( ',', c + local_offset, &local_offset ) && // in subsequent tests, so that
+	       is_float_number( c + local_offset, &local_offset, &v->y ) &&  // each test begins at the previous offset
+	       add_offsets( &local_offset, offset );
+}
+
+// Return true if string `c` can be evaluated as an 'm' instruction.
+// An 'm' instruction is a move_to instruction
+// In case this method returns true,
+// + `*offset` will hold the count of characters from `c` spent on the instruction.
+// + `*p0` will hold the value of the target point
+static bool is_m_instruction( char const *c, int *offset, Vertex *p0 ) {
+	if ( *c == 0 ) {
+		return false;
+	}
+	// ---------| invarant: c is not end of string
+
+	int local_offset = 0;
+
+	return is_character_match( 'M', c, &local_offset ) &&
+	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, p0 ) &&
+	       add_offsets( &local_offset, offset );
+}
+
+// Return true if string `c` can be evaluated as an 'l' instruction.
+// An 'l' instruction is a line_to instruction
+// In case this method returns true,
+// + `*offset` will hold the count of characters from `c` spent on the instruction.
+// + `*p0` will hold the value of the target point
+static bool is_l_instruction( char const *c, int *offset, Vertex *p0 ) {
+	if ( *c == 0 )
+		return false;
+
+	int local_offset = 0;
+
+	return is_character_match( 'L', c, &local_offset ) &&
+	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, p0 ) &&
+	       add_offsets( &local_offset, offset );
+}
+
+// Return true if string `c` can be evaluated as a 'c' instruction.
+// A 'c' instruction is a cubic bezier instruction.
+// In case this method returns true,
+// + `*offset` will hold the count of characters from `c` spent on the instruction.
+// + `*p0` will hold the value of control point 0
+// + `*p1` will hold the value of control point 1
+// + `*p2` will hold the value of the target point
+static bool is_c_instruction( char const *c, int *offset, Vertex *p0, Vertex *p1, Vertex *p2 ) {
+	if ( *c == 0 )
+		return false;
+
+	int local_offset = 0;
+
+	return is_character_match( 'C', c, &local_offset ) &&
+	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, p0 ) &&
+	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, p1 ) &&
+	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, p2 ) &&
+	       add_offsets( &local_offset, offset );
+}
+
+// Return true if string `c` can be evaluated as a 'q' instruction.
+// A 'q' instruction is a quadratic bezier instruction.
+// In case this method returns true,
+// + `*offset` will hold the count of characters from `c` spent on the instruction.
+// + `*p0` will hold the value of the control point
+// + `*p1` will hold the value of the target point
+static bool is_q_instruction( char const *c, int *offset, Vertex *p0, Vertex *p1 ) {
+	if ( *c == 0 )
+		return false;
+
+	int local_offset = 0;
+
+	return is_character_match( 'Q', c, &local_offset ) &&
+	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, p0 ) &&
+	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, p1 ) &&
+	       add_offsets( &local_offset, offset );
+}
+
+// ----------------------------------------------------------------------
+// Parse string `svg` for simplified SVG instructions and adds paths
+// based on instructions found.
+//
+// Rules for similified SVG:
+//
+// - All coordinates must be absolute
+// - Commands must be repeated
+// - Allowed instruction tokens are:
+//	 - 'M', with params {  p        } (moveto),
+//	 - 'L', with params {  p        } (lineto),
+//	 - 'C', with params { c0, c1, p } (cubic bezier to),
+//	 - 'Q', with params { c0,  p,   } (quad bezier to),
+//	 - 'Z', with params {           } (close path)
+//
+// You may set up Inkscape to output simplified SVG via:
+// `Edit -> Preferences -> SVG Output ->
+// (tick) Force Repeat Commands, Path string format (select: Absolute)`
+//
+static void le_path_add_from_simplified_svg( le_path_o *self, char const *svg ) {
+
+	char const *c = svg;
+
+	Vertex p0 = {};
+	Vertex p1 = {};
+	Vertex p2 = {};
+
+	for ( ; *c != 0; ) // We test for the \0 character, end of c-string
+	{
+
+		int offset = 0;
+
+		if ( is_m_instruction( c, &offset, &p0 ) ) {
+			// moveto event
+			le_path_move_to( self, p0 );
+			c += offset;
+			continue;
+		}
+		if ( is_l_instruction( c, &offset, &p0 ) ) {
+			// lineto event
+			le_path_line_to( self, p0 );
+			c += offset;
+			continue;
+		}
+		if ( is_c_instruction( c, &offset, &p0, &p1, &p2 ) ) {
+			// cubic bezier event
+			le_path_cubic_bezier_to( self, p2, p0, p1 ); // Note that end vertex is p2 from SVG,
+			                                             // as SVG has target vertex as last vertex
+			c += offset;
+			continue;
+		}
+		if ( is_q_instruction( c, &offset, &p0, &p1 ) ) {
+			// quadratic bezier event
+			le_path_quad_bezier_to( self, p1, p0 ); // Note that target vertex is p1 from SVG,
+			                                        // as SVG has target vertex as last vertex
+			c += offset;
+			continue;
+		}
+		if ( is_character_match( 'Z', c, &offset ) ) {
+			// close path event.
+			le_path_close_path( self );
+			c += offset;
+			continue;
+		}
+
+		// ----------| Invariant: None of the cases above did match
+
+		// If none of the above cases match, the current character is
+		// invalid, or does not contribute. Most likely it is a white-
+		// space character.
+
+		++c; // Ignore current character.
+	}
+};
+
 // ----------------------------------------------------------------------
 
 ISL_API_ATTR void register_le_path_api( void *api ) {
 	auto &le_path_i = static_cast<le_path_api *>( api )->le_path_i;
 
-	le_path_i.create          = le_path_create;
-	le_path_i.destroy         = le_path_destroy;
-	le_path_i.move_to         = le_path_move_to;
-	le_path_i.line_to         = le_path_line_to;
-	le_path_i.quad_bezier_to  = le_path_quad_bezier_to;
-	le_path_i.cubic_bezier_to = le_path_cubic_bezier_to;
-	le_path_i.close_path      = le_path_close_path;
+	le_path_i.create                  = le_path_create;
+	le_path_i.destroy                 = le_path_destroy;
+	le_path_i.move_to                 = le_path_move_to;
+	le_path_i.line_to                 = le_path_line_to;
+	le_path_i.quad_bezier_to          = le_path_quad_bezier_to;
+	le_path_i.cubic_bezier_to         = le_path_cubic_bezier_to;
+	le_path_i.close_path              = le_path_close_path;
+	le_path_i.add_from_simplified_svg = le_path_add_from_simplified_svg;
 
 	le_path_i.get_num_polylines         = le_path_get_num_polylines;
 	le_path_i.get_vertices_for_polyline = le_path_get_vertices_for_polyline;
