@@ -17,11 +17,6 @@ CMakeLists.txt.user
 /apps/test_dependency_tracker/test_dependency/CMakeLists.txt
 /apps/test_dependency_tracker/test_dependency/test_dependency.cpp
 /apps/test_dependency_tracker/test_dependency/test_dependency.h
-/le_font/3rdparty/stb_truetype.cpp
-/le_font/3rdparty/stb_truetype.h
-/le_font/CMakeLists.txt
-/le_font/le_font.cpp
-/le_font/le_font.h
 /apps/examples/hello_world/resources/images/earthNormalMap_8k-sobel.tga
 /apps/examples/hello_world/resources/images/earth_city_lights_8192_rs.png
 /apps/examples/hello_world/resources/images/storm_clouds_8k.jpg

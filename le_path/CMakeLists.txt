@@ -1,7 +1,7 @@
-set (TARGET quad_bezier_app)
+set (TARGET le_path)
 
-set (SOURCES "quad_bezier_app.cpp")
-set (SOURCES ${SOURCES} "quad_bezier_app.h")
+set (SOURCES "le_path.cpp")
+set (SOURCES ${SOURCES} "le_path.h")
 
 if (${PLUGINS_DYNAMIC})
 
@@ -14,17 +14,17 @@ if (${PLUGINS_DYNAMIC})
     #            loaded, will have no effect, and autoreload for this library will not work
     #            as the first version of the library will remain resident.
     target_compile_options (${TARGET} PUBLIC --no-gnu-unique)
-
+    
     target_compile_definitions(${TARGET}  PUBLIC "PLUGINS_DYNAMIC")
 
 else()
 
-    # Adding a static library means to also add a linker dependency for our target
-    # to the library.
-    set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
-
     add_library(${TARGET} STATIC ${SOURCES})
 
+    set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
+
 endif()
+
+# set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
