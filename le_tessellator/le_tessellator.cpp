@@ -35,6 +35,7 @@ struct le_tessellator_o {
 	std::vector<std::vector<Point>> contours;
 	std::vector<IndexType>          indices;
 	std::vector<Point>              vertices;
+	uint64_t                        options;
 };
 
 // ----------------------------------------------------------------------
@@ -74,14 +75,18 @@ static bool le_tessellator_tessellate( le_tessellator_o *self ) {
 		TESStesselator *tess;
 		tess = tessNewTess( nullptr );
 
-		tessSetOption( tess, TessOption::TESS_CONSTRAINED_DELAUNAY_TRIANGULATION, 1 );
+		tessSetOption( tess, TessOption::TESS_CONSTRAINED_DELAUNAY_TRIANGULATION,
+		               self->options & le_tessellator::Options::bitConstrainedDelaunayTriangulation );
+
+		tessSetOption( tess, TessOption::TESS_REVERSE_CONTOURS,
+		               self->options & le_tessellator::Options::bitReverseContours );
 
 		for ( auto const &contour : self->contours ) {
 			tessAddContour( tess, Point::type::length(), contour.data(), sizeof( Point ), int( contour.size() ) );
 		}
 
 		tessTesselate( tess,
-		               TessWindingRule::TESS_WINDING_ODD,
+		               int( self->options >> le_tessellator_api::le_tessellator_interface_t::OptionsWindingsOffset ),
 		               TessElementType::TESS_POLYGONS,
 		               3, // max number of vertices per polygon - we want triangles.
 		               Point::length(),
@@ -137,6 +142,12 @@ static void le_tessellator_reset( le_tessellator_o *self ) {
 
 // ----------------------------------------------------------------------
 
+static void le_tessellator_set_options( le_tessellator_o *self, uint64_t options ) {
+	self->options = options;
+}
+
+// ----------------------------------------------------------------------
+
 ISL_API_ATTR void register_le_tessellator_api( void *api ) {
 	auto &le_tessellator_i = static_cast<le_tessellator_api *>( api )->le_tessellator_i;
 
@@ -147,4 +158,5 @@ ISL_API_ATTR void register_le_tessellator_api( void *api ) {
 	le_tessellator_i.get_indices  = le_tessellator_get_indices;
 	le_tessellator_i.get_vertices = le_tessellator_get_vertices;
 	le_tessellator_i.reset        = le_tessellator_reset;
+	le_tessellator_i.set_options  = le_tessellator_set_options;
 }

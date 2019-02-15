@@ -25,16 +25,34 @@ struct le_tessellator_api {
 
 	struct le_tessellator_interface_t {
 
+		static constexpr auto OptionsWindingsOffset = 2;
+
+		enum Options : uint64_t {
+			// Flip one or more bits for options.
+			bitConstrainedDelaunayTriangulation = 1 << 0,
+			bitReverseContours                  = 1 << 1,
+			// Pick *one* of the following winding modes;
+			// For a description of winding modes, see: <http://www.glprogramming.com/red/chapter11.html>
+			eWindingOdd                         = 0 << OptionsWindingsOffset,
+			eWindingNonzero                     = 1 << OptionsWindingsOffset,
+			eWindingPositive                    = 3 << OptionsWindingsOffset,
+			eWindingNegative                    = 4 << OptionsWindingsOffset,
+			eWindingAbsGeqTwo                   = 5 << OptionsWindingsOffset,
+		};
+
 		typedef uint16_t IndexType;
 		typedef glm::vec2 VertexType;
 
 		le_tessellator_o *   ( * create                   ) ( );
 		void                 ( * destroy                  ) ( le_tessellator_o* self );
 
+		void                 ( * set_options              ) ( le_tessellator_o* self, uint64_t options);
 		void                 ( * add_polyline             ) ( le_tessellator_o* self, VertexType const * const pPoints, size_t const& pointCount );
-		bool                 ( * tessellate               ) ( le_tessellator_o* self );
 		void                 ( * get_indices              ) ( le_tessellator_o* self, IndexType const ** pIndices, size_t * indexCount );
 		void                 ( * get_vertices             ) ( le_tessellator_o* self, VertexType const ** pVertices, size_t * vertexCount );
+
+		bool                 ( * tessellate               ) ( le_tessellator_o* self );
+
 		void                 ( * reset                    ) ( le_tessellator_o* self );
 
 	};
@@ -54,6 +72,8 @@ const auto api = Registry::addApiStatic<le_tessellator_api>();
 #	endif
 
 static const auto &le_tessellator_i = api -> le_tessellator_i;
+
+using Options = le_tessellator_api::le_tessellator_interface_t::Options;
 
 } // namespace le_tessellator
 
