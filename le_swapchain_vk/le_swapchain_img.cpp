@@ -391,24 +391,28 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 
 	self->mImageIndex = imageIndex;
 
-	if ( self->ffmpeg_pipe ) {
-		// TODO: we should be able to do the write on the back thread.
-		// the back thread must signal that it is complete with writing
-		// before the next present command is executed.
+	// We only want to write out images which have made the round-trip
+	// the first n images will be black...
+	if ( self->totalImages > self->mImagecount ) {
+		if ( self->ffmpeg_pipe ) {
+			// TODO: we should be able to do the write on the back thread.
+			// the back thread must signal that it is complete with writing
+			// before the next present command is executed.
 
-		// Write out frame contents to ffmpeg via pipe.
-		auto const &frame = self->transferFrames[ imageIndex ];
-		fwrite( frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4, 1, self->ffmpeg_pipe );
+			// Write out frame contents to ffmpeg via pipe.
+			auto const &frame = self->transferFrames[ imageIndex ];
+			fwrite( frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4, 1, self->ffmpeg_pipe );
 
-	} else {
-		char file_name[ 1024 ];
-		sprintf( file_name, "isl_%08d.rgba", self->totalImages );
-		auto const &  frame = self->transferFrames[ imageIndex ];
-		std::ofstream myfile( file_name, std::ios::out | std::ios::binary );
-		myfile.write( ( char * )frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4 );
-		myfile.close();
-		std::cout << "Wrote Image: " << file_name << std::endl
-		          << std::flush;
+		} else {
+			char file_name[ 1024 ];
+			sprintf( file_name, "isl_%08d.rgba", self->totalImages );
+			auto const &  frame = self->transferFrames[ imageIndex ];
+			std::ofstream myfile( file_name, std::ios::out | std::ios::binary );
+			myfile.write( ( char * )frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4 );
+			myfile.close();
+			std::cout << "Wrote Image: " << file_name << std::endl
+			          << std::flush;
+		}
 	}
 
 	++self->totalImages;
