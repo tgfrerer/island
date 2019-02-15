@@ -804,6 +804,42 @@ static inline constexpr bool operator!=( const Extent3D &lhs, const Extent3D &rh
 
 } // namespace le
 
+struct LeClearColorValue {
+	union {
+		float    float32[ 4 ];
+		int32_t  int32[ 4 ];
+		uint32_t uint32[ 4 ];
+	};
+};
+
+struct LeClearDepthStencilValue {
+	float    depth;
+	uint32_t stencil;
+};
+
+struct LeClearValue {
+	union {
+		LeClearColorValue        color;
+		LeClearDepthStencilValue depthStencil;
+	};
+};
+
+struct le_image_attachment_info_t {
+
+	static constexpr LeClearValue DefaultClearValueColor        = {{{{{0.f, 0.f, 0.f, 0.f}}}}};
+	static constexpr LeClearValue DefaultClearValueDepthStencil = {{{{{1.f, 0}}}}};
+
+	le::AttachmentLoadOp  loadOp     = le::AttachmentLoadOp::eClear;  //
+	le::AttachmentStoreOp storeOp    = le::AttachmentStoreOp::eStore; //
+	LeClearValue          clearValue = DefaultClearValueColor;        // only used if loadOp == clear
+};
+
+static constexpr le_image_attachment_info_t LeDepthAttachmentInfo() {
+	auto info       = le_image_attachment_info_t{};
+	info.clearValue = le_image_attachment_info_t::DefaultClearValueDepthStencil;
+	return info;
+}
+
 enum LeAccessFlagBits : uint32_t {
 	eLeAccessFlagBitUndefined  = 0x0,
 	eLeAccessFlagBitRead       = 0x1 << 0,
@@ -1072,45 +1108,23 @@ class TextureInfoBuilder {
 	}
 };
 
+class ImageAttachmentInfoBuilder {
+	le_image_attachment_info_t self{};
+
+  public:
+	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setLoadOp, le::AttachmentLoadOp, loadOp, = le::AttachmentLoadOp::eClear )
+	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setStoreOp, le::AttachmentStoreOp, storeOp, = le::AttachmentStoreOp::eStore )
+	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setColorClearValue, LeClearValue, clearValue, = le_image_attachment_info_t::DefaultClearValueColor )
+	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setDepthStencilClearValue, LeClearValue, clearValue, = le_image_attachment_info_t::DefaultClearValueDepthStencil )
+
+	le_image_attachment_info_t const &build() {
+		return self;
+	}
+};
+
 #undef BUILDER_IMPLEMENT
 
 } // namespace le
-
-struct LeClearColorValue {
-	union {
-		float    float32[ 4 ];
-		int32_t  int32[ 4 ];
-		uint32_t uint32[ 4 ];
-	};
-};
-
-struct LeClearDepthStencilValue {
-	float    depth;
-	uint32_t stencil;
-};
-
-struct LeClearValue {
-	union {
-		LeClearColorValue        color;
-		LeClearDepthStencilValue depthStencil;
-	};
-};
-
-struct le_image_attachment_info_t {
-
-	static constexpr LeClearValue DefaultClearValueColor        = {{{{{0.f, 0.f, 0.f, 0.f}}}}};
-	static constexpr LeClearValue DefaultClearValueDepthStencil = {{{{{1.f, 0}}}}};
-
-	le::AttachmentLoadOp  loadOp     = le::AttachmentLoadOp::eClear;  //
-	le::AttachmentStoreOp storeOp    = le::AttachmentStoreOp::eStore; //
-	LeClearValue          clearValue = DefaultClearValueColor;        // only used if loadOp == clear
-};
-
-static constexpr le_image_attachment_info_t LeDepthAttachmentInfo() {
-	auto info       = le_image_attachment_info_t{};
-	info.clearValue = le_image_attachment_info_t::DefaultClearValueDepthStencil;
-	return info;
-}
 
 // ----------------------------------------------------------------------
 /// Specifies the intended usage for a resource.
