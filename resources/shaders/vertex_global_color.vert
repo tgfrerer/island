@@ -23,6 +23,7 @@ layout (set = 0, binding = 0) uniform MatrixStack
 out gl_PerVertex
 {
     vec4 gl_Position;
+    float gl_PointSize;
 };
 
 
@@ -30,5 +31,6 @@ out gl_PerVertex
 void main() 
 {
 	vec4 position = projectionMatrix * viewMatrix * modelMatrix * vec4(pos,1);
+	gl_PointSize = 3;
 	gl_Position = position;
 }
