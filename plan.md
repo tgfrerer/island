@@ -6,8 +6,10 @@
 
 - integrate cgltf
 - integrate jsmn json parser
-- add a way to draw paths in 2D
-- add a tessellator
+- test whether the treatment for attachments which get loaded on load is
+  correct wrt image layouts
+- check if there is an elegant way to keep as much as possible from
+  a bound pipeline when binding a compatible pipeline
 
 ## (A)
 
