@@ -467,7 +467,7 @@ static bool is_v_instruction( char const *c, int *offset, float *py ) {
 
 	int local_offset = 0;
 
-	return is_character_match( 'H', c, &local_offset ) &&
+	return is_character_match( 'V', c, &local_offset ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_float_number( c + local_offset, &local_offset, py ) &&
 	       add_offsets( &local_offset, offset );
