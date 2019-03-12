@@ -122,32 +122,31 @@ static void poll_notifications( pal_file_watcher_o *instance ) {
 					continue;
 				}
 
-				auto foundWatch = std::find_if( instance->mWatches.begin(), instance->mWatches.end(), [&]( const Watch &w ) -> bool {
-					if ( ev->len == 0 ) {
-						return false;
+				std::string path          = ev->name;
+				const char *prev_filename = nullptr; // store previous filename to declutter printout
+
+				// Only trigger on close-write
+				if ( ev->mask & IN_CLOSE_WRITE ) {
+
+					// We trigger *all* callbacks which watch the current file path
+					// For this, we must iterate through all watches and filter the
+					// ones which watch the event's file.
+					for ( auto const &w : instance->mWatches ) {
+
+						if ( w.inotify_watch_handle == ev->wd && w.filename == path ) {
+
+							// Only print notice if it is for another filename:
+							if ( prev_filename != path.c_str() ) {
+								std::cout << "Watch triggered for: " << path << " [" << w.basename << "]" << std::endl
+								          << std::flush;
+								prev_filename = path.c_str();
+							}
+
+							// Trigger Callback.
+							( *w.callback_fun )( w.path.c_str(), w.callback_user_data );
+						}
 					}
-
-					// Since inotify watches directories, we must check for the name of the file within the directory
-
-					std::string path = std::string( ev->name );
-					return ( w.inotify_watch_handle == ev->wd ) && ( w.filename == path );
-				} );
-
-				if ( foundWatch != instance->mWatches.end() ) {
-
-					if ( ev->mask & ( IN_CLOSE_WRITE ) ) {
-
-						std::string tmpStr( ev->name );
-						std::cout << "Watch triggered for: " << tmpStr << " [" << foundWatch->basename << "]" << std::endl
-						          << std::flush;
-
-						( *foundWatch->callback_fun )( foundWatch->path.c_str(), foundWatch->callback_user_data );
-					}
-
-				} else {
-					std::cout << __FUNCTION__ << ": found no affected watch." << std::endl;
 				}
-				// std::cout << "watch descriptor: " << ev->wd << std::endl;
 			}
 
 		} else {
