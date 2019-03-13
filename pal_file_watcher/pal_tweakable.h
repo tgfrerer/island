@@ -20,10 +20,10 @@
 
   Important: You must only place one tweakable value per line.
 
-  Note: This header file includes a few headers - which is a break with the rule,
+  Note: This header file includes a few headers - which is a break with the #1 rule,
   but there's no good way around it for now...
 
-  Thanks to Dennis Gustafsson described this technique in his blog:
+  Thanks to Dennis Gustafsson, who originally described this technique in his blog:
   http://blog.tuxedolabs.com/2018/03/13/hot-reloading-hardcoded-parameters.html
 
 */
@@ -113,11 +113,11 @@ struct CbData {
 
 static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 
-	pal_file_watcher_watch_settings settings;
-	settings.filePath           = file_path;
-	settings.callback_user_data = cb_data;
+	pal_file_watcher_watch_settings watch;
+	watch.filePath           = file_path;
+	watch.callback_user_data = cb_data;
 
-	settings.callback_fun = []( const char *path, void *user_data ) -> bool {
+	watch.callback_fun = []( const char *path, void *user_data ) -> bool {
 		auto cb_data = static_cast<CbData *>( user_data );
 
 		// Open file read-only.
@@ -181,7 +181,7 @@ static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 				    break;
 				case CbData::Type::b32: {
 					char token[ 6 ];
-					sscanf( start, "TWEAK ( %5c ) ", token ); // TODO: bool needs to be able to parse true/false
+					sscanf( start, "TWEAK ( %5c ) ", token );
 					if ( strncmp( token, "true", 4 ) == 0 ) {
 						cb_data->data.b32 = true;
 					} else if ( strncmp( token, "false", 5 ) == 0 ) {
@@ -202,14 +202,14 @@ static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 			}
 
 			++current_line_num;
-		} // end while ( file.good() )
+		} // while ( file.good() )
 
 		file.close();
 
 		return true;
-	};
+	}; // watch.callback_fun
 
-	return aux_file_watcher_i.add_watch( aux_source_watcher, settings );
+	return aux_file_watcher_i.add_watch( aux_source_watcher, watch );
 };
 
     // ----------------------------------------------------------------------
