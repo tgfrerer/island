@@ -17,20 +17,17 @@
     - combine setArgumentData and bindArgumentBuffer in encoder so that
       we're using a single path in the backend for both these methods (we
       can express them fully as setArgumentData).
-- Resolve Attachments
+- Resolve Attachments (implement these for multisampling / anti-aliasing)
 
 ## (B)
 
 - Architect a usability layer on top of base framework, which makes common
-  operations easy, and dry. Images are a good point to start.
+  operations easy, and DRY. Images are a good point to start.
 
 - Implement multisampling and Resolve Attachments: this means renderpasses
   must enable it if any pipelines request it. better to do it the other
   way round, where renderpass injects their sampling into pipelines. This
   is probably linked to resolve attachments, we must investigate further.
-
-- Bug: when including a glsl include at run-time, it is not added to the
-  list of watched files.
 
 - what should we do with "orphaned" resources? that's resources which were
   not provided by previous passes, but are used by following passes...
@@ -244,7 +241,12 @@ resources vector.
   declared with miplevels. If it is not declared with mip levels, no
   mipmap chain is generated.
 
-- shader error reporting is pretty robust
+- shader error reporting is pretty robust - you get file name, line
+  number plus a context printout if a shader fails compilation.
+
+- shader includes (and includes watching) is working great. If
+  a shader or an included shader file is updated and saved, all
+  dependent pieplines are recreated automatically.
 
 - Automatic allocation of resources works - first all declarations of the
   resource are collected, then combined, then resources are allocated so
