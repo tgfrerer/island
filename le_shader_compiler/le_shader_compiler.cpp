@@ -304,15 +304,28 @@ static inline bool checkForLineNumberModifier( const std::string &line, uint32_t
 
 static void le_shader_compiler_print_error_context( const char *errMsg, const std::string &shaderSource, const std::string &sourceFileName ) {
 
-	std::cerr << "ERROR: Shader compilation failed: " << std::endl
-	          << errMsg << std::flush;
-
 	std::string errorFileName( 255, '\0' ); // Will contain the name of the file which contains the error
 	uint32_t    lineNumber = 0;             // Will contain error line number after successful parse
 
 	// Error string will has the form:  "triangle.frag:28: error: '' :  syntax error"
 	auto scanResult = sscanf( errMsg, "%[^:]:%d:", errorFileName.data(), &lineNumber );
 	errorFileName.shrink_to_fit();
+
+	auto errorFilePath  = std::filesystem::canonical( std::filesystem::path( errorFileName ) );
+	auto sourceFilePath = std::filesystem::canonical( std::filesystem::path( sourceFileName ) );
+
+	std::cerr << "ERROR: Shader module compilation failed." << std::endl;
+	if ( errorFilePath != sourceFilePath ) {
+		// error happened in include file.
+
+		std::cerr << sourceFileName << " contains error in included file:" << std::endl
+		          << errMsg
+		          << std::flush;
+	} else {
+		std::cerr
+		    << errMsg
+		    << std::flush;
+	}
 
 	std::istringstream sourceCode( shaderSource );
 	std::string        currentLine;
