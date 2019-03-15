@@ -3095,7 +3095,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 							// are left in transfer_src layout.
 
 							imageLayoutToShaderReadOptimal
-							    .setSrcAccessMask( {} )                                  // nothing to flush, as previous barriers ensure flush                                                                                   // no need to flush anything, that's been done by barriers before
+							    .setSrcAccessMask( {} )                                  // nothing to flush, as previous barriers ensure flush
 							    .setDstAccessMask( vk::AccessFlagBits::eShaderRead )     // ready image for shader read
 							    .setOldLayout( vk::ImageLayout::eTransferSrcOptimal )    // all subresources are in transfer src optimal
 							    .setNewLayout( vk::ImageLayout::eShaderReadOnlyOptimal ) // to shader readonly optimal
