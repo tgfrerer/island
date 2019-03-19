@@ -66,6 +66,8 @@ static void le_bspline_set_weights( le_bspline_o *self, float const *weights, si
 // ----------------------------------------------------------------------
 static bool le_bspline_trace( le_bspline_o *self, size_t resolution ) {
 
+	assert( resolution > 1 ); // resolution must be at least 2, otherwise we cannot cover at least start and endpoint.
+
 	size_t n = self->points.size();
 
 	if ( self->degree < 1 ) {
@@ -113,7 +115,7 @@ static bool le_bspline_trace( le_bspline_o *self, size_t resolution ) {
 
 	size_t domain[ 2 ] = {self->degree, self->knots.size() - ( self->degree + 1 )};
 	float  low         = self->knots[ domain[ 0 ] ];
-	float  high        = self->knots[ domain[ 1 ] ];
+	float  high        = self->knots[ domain[ 1 ] - 1 ];
 
 	self->polyline.clear();
 
@@ -140,20 +142,20 @@ static bool le_bspline_trace( le_bspline_o *self, size_t resolution ) {
 			}
 		}
 
-		float t = float( r ) / float( resolution );
+		float t = float( r ) / float( resolution - 1 );
 		t       = t * ( high - low ) + low; // map t to domain
 
-		for ( ; s < domain[ 1 ]; s++ ) {
+		for ( ; s < domain[ 1 ]; ) {
 			if ( t >= self->knots[ s ] && t <= self->knots[ s + 1 ] ) {
 				break;
 			}
+			s++;
 		}
 
 		// l (level) goes from 1 to the curve degree + 1
 		for ( size_t l = 1; l <= self->degree + 1; ++l ) {
 			// build level l of the pyramid
 			for ( size_t i = s; i > ( s - self->degree - 1 + l ); i-- ) {
-				// std::cout << i << std::flush;
 				float alpha = ( t - self->knots[ i ] ) /
 				              ( self->knots[ i + self->degree + 1 - l ] - self->knots[ i ] );
 				v[ i ] = ( 1.f - alpha ) * v[ i - 1 ] + alpha * v[ i ];
