@@ -25,19 +25,20 @@ struct le_tessellator_api {
 
 	struct le_tessellator_interface_t {
 
-		static constexpr auto OptionsWindingsOffset = 2;
+		static constexpr auto OptionsWindingsOffset = 3;
 
 		enum Options : uint64_t {
 			// Flip one or more bits for options.
-			bitConstrainedDelaunayTriangulation = 1 << 0,
-			bitReverseContours                  = 1 << 1,
+			bitUseEarcutTessellator             = 1 << 0, // use earcut over libtess, libtess being default
+			bitConstrainedDelaunayTriangulation = 1 << 1, /* ignored if tessellator not libtess */
+			bitReverseContours                  = 1 << 2, /* ignored if tessellator not libtess */
 			// Pick *one* of the following winding modes;
 			// For a description of winding modes, see: <http://www.glprogramming.com/red/chapter11.html>
-			eWindingOdd                         = 0 << OptionsWindingsOffset,
-			eWindingNonzero                     = 1 << OptionsWindingsOffset,
-			eWindingPositive                    = 3 << OptionsWindingsOffset,
-			eWindingNegative                    = 4 << OptionsWindingsOffset,
-			eWindingAbsGeqTwo                   = 5 << OptionsWindingsOffset,
+			eWindingOdd                         = 0 << OptionsWindingsOffset, /* ignored if tessellator not libtess */
+			eWindingNonzero                     = 1 << OptionsWindingsOffset, /* ignored if tessellator not libtess */
+			eWindingPositive                    = 3 << OptionsWindingsOffset, /* ignored if tessellator not libtess */
+			eWindingNegative                    = 4 << OptionsWindingsOffset, /* ignored if tessellator not libtess */
+			eWindingAbsGeqTwo                   = 5 << OptionsWindingsOffset, /* ignored if tessellator not libtess */
 		};
 
 		typedef uint16_t IndexType;

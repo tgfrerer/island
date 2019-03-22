@@ -7,8 +7,6 @@
 #include <string.h> // memcpy
 #include <glm/vec2.hpp>
 
-constexpr bool LE_FEATURE_FLAG_USE_EARCUT = false; // fall back to libtess if earcut disabled
-
 using Point     = le_tessellator_api::le_tessellator_interface_t::VertexType;
 using IndexType = le_tessellator_api::le_tessellator_interface_t::IndexType;
 
@@ -66,12 +64,11 @@ static void le_tessellator_add_polyline( le_tessellator_o *self, Point const *co
 static bool le_tessellator_tessellate( le_tessellator_o *self ) {
 
 	// Run tessellation
-	if ( LE_FEATURE_FLAG_USE_EARCUT ) {
-		// use earcut tessellator
+	if ( self->options & le_tessellator::Options::bitUseEarcutTessellator ) {
+		// Use earcut tessellator
 		self->indices = mapbox::earcut<IndexType>( self->contours );
-
 	} else {
-		// use libtess
+		// Use libtess
 		TESStesselator *tess;
 		tess = tessNewTess( nullptr );
 
