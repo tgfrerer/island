@@ -188,6 +188,13 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 	return res;
 }
 
+// ResourceState keeps track of the resource stage *before* a barrier
+struct ResourceState {
+	vk::AccessFlags        visible_access; // which memory access must be be visible - if any of these are WRITE accesses, these must be made available(flushed) before next access - for the next src access we can OR this with ANY_WRITES
+	vk::PipelineStageFlags write_stage;    // current or last stage at which write occurs
+	vk::ImageLayout        layout;         // current layout (for images)
+};
+
 // ------------------------------------------------------------
 
 struct AllocatedResourceVk {
@@ -197,7 +204,9 @@ struct AllocatedResourceVk {
 		VkBuffer asBuffer;
 		VkImage  asImage;
 	};
-	ResourceCreateInfo info; // Creation info for resource
+	ResourceCreateInfo info;  // Creation info for resource
+	ResourceState      state; // sync state for resource
+	uint32_t           padding__;
 };
 
 struct le_staging_allocator_o {
@@ -234,13 +243,6 @@ struct BackendFrameData {
 
 	std::unordered_map<le_resource_handle_t, Texture, LeResourceHandleIdentity> textures; // non-owning, references to frame-local textures, cleared on frame fence.
 
-	// ResourceState keeps track of the resource stage *before* a barrier
-	struct ResourceState {
-		vk::AccessFlags        visible_access; // which memory access must be be visible - if any of these are WRITE accesses, these must be made available(flushed) before next access - for the next src access we can OR this with ANY_WRITES
-		vk::PipelineStageFlags write_stage;    // current or last stage at which write occurs
-		vk::ImageLayout        layout;         // current layout (for images)
-	};
-
 	// With `syncChainTable` and image_attachment_info_o.syncState, we should
 	// be able to create renderpasses. Each resource has a sync chain, and each attachment_info
 	// has a struct which holds indices into the sync chain telling us where to look
@@ -270,8 +272,10 @@ struct BackendFrameData {
 
 	 */
 
-	std::unordered_map<le_resource_handle_t, AllocatedResourceVk, LeResourceHandleIdentity> availableResources; // resources this frame may use
-	std::unordered_map<le_resource_handle_t, AllocatedResourceVk, LeResourceHandleIdentity> binnedResources;    // resources to delete when this frame comes round to clear()
+	typedef std::unordered_map<le_resource_handle_t, AllocatedResourceVk, LeResourceHandleIdentity> ResourceMap_T;
+
+	ResourceMap_T availableResources; // resources this frame may use
+	ResourceMap_T binnedResources;    // resources to delete when this frame comes round to clear()
 
 	VmaPool                        allocationPool;   // pool from which allocations for this frame come from
 	std::vector<le_allocator_o *>  allocators;       // one linear sub-allocator per command buffer
@@ -885,8 +889,8 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 				auto h  = handle->debug_name;
 				auto tp = info->type;
 				if ( tp == LeResourceType::eImage && info->image.usage == LE_IMAGE_USAGE_SAMPLED_BIT ) {
-					auto &                          imageSyncChain = syncChainTable[ *handle ];
-					BackendFrameData::ResourceState resourceState;
+					auto &        imageSyncChain = syncChainTable[ *handle ];
+					ResourceState resourceState;
 					resourceState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
 					resourceState.visible_access = vk::AccessFlagBits::eShaderRead;
 					resourceState.write_stage    = vk::PipelineStageFlagBits::eFragmentShader;
@@ -1422,30 +1426,6 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 			// Add vulkan renderpass object to list of owned and life-time tracked resources, so that
 			// it can be recycled when not needed anymore.
 			frame.ownedResources.emplace_front( std::move( rp ) );
-		}
-	}
-}
-// ----------------------------------------------------------------------
-
-// create a list of all unique resources referenced by the rendergraph
-// and store it with the current backend frame.
-static void frame_create_resource_table( BackendFrameData &frame, le_renderpass_o **passes, size_t numRenderPasses ) {
-
-	using namespace le_renderer;
-
-	frame.syncChainTable.clear();
-
-	for ( auto *pPass = passes; pPass != passes + numRenderPasses; pPass++ ) {
-
-		le_resource_handle_t const *pResources     = nullptr;
-		le_resource_info_t const *  pResourceInfos = nullptr;
-		size_t                      numResources   = 0;
-
-		renderpass_i.get_used_resources( *pPass, &pResources, &pResourceInfos, &numResources );
-
-		// CHECK: make sure not to append to resources which already exist.
-		for ( auto it = pResources; it != pResources + numResources; ++it ) {
-			frame.syncChainTable.insert( {*it, {BackendFrameData::ResourceState{}}} );
 		}
 	}
 }
@@ -2240,8 +2220,42 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
 
-	frame_create_resource_table( frame, passes, numRenderPasses );
+	// Initialise sync chain table - each resource receives initial state
+	// from current entry in frame.availableResources resource map.
+	frame.syncChainTable.clear();
+	for ( auto const &res : frame.availableResources ) {
+		frame.syncChainTable.insert( {res.first, {res.second.state}} );
+	}
+
+	// build sync chain for each resource
 	frame_track_resource_state( frame, passes, numRenderPasses, self->swapchainImageHandle );
+
+	// At this point we know the state for each resource at the end of the sync chain.
+	// this state will be the initial state for the resource
+
+	{
+		// Update final sync state for each backend resource.
+		auto &backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
+		for ( auto const &tbl : frame.syncChainTable ) {
+			auto &resId       = tbl.first;
+			auto &resSyncList = tbl.second;
+
+			assert( !resSyncList.empty() ); // sync list must have entries
+
+			// find element with matching resource ID in list of backend resources
+
+			auto res = backendResources.find( resId );
+			if ( res != backendResources.end() ) {
+				// element found.
+				// Set sync state for this resource to value of last elment in the sync chain.
+				res->second.state = resSyncList.back();
+			} else {
+				assert( false ); // frame local resource must be available as a backend resource, otherwise something fishy is going on.
+			}
+		}
+
+		// If we use a mutex to protect backend-wide resources, we can release it now.
+	}
 
 	vk::Device device = self->device->getVkDevice();
 
