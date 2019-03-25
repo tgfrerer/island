@@ -1492,7 +1492,7 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 
 			bool isDepthStencilFormat = is_depth_stencil_format( attachment->format );
 
-			::vk::ImageSubresourceRange subresourceRange;
+			vk::ImageSubresourceRange subresourceRange;
 			subresourceRange
 			    .setAspectMask( isDepthStencilFormat ? ( vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil ) : vk::ImageAspectFlagBits::eColor )
 			    .setBaseMipLevel( 0 )
@@ -1500,7 +1500,7 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 			    .setBaseArrayLayer( 0 )
 			    .setLayerCount( 1 );
 
-			::vk::ImageViewCreateInfo imageViewCreateInfo;
+			vk::ImageViewCreateInfo imageViewCreateInfo;
 			imageViewCreateInfo
 			    .setImage( frame_data_get_image_from_le_resource_id( frame, attachment->resource_id ) )
 			    .setViewType( vk::ImageViewType::e2D )
