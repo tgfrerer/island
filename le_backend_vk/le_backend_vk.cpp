@@ -1858,7 +1858,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 			// Test whether a resource with this id is already in usedResources -
 			// if not, found_index will be identical to usedResource vector size,
-			// which is useful, beacause as soon as we add an element to the vector
+			// which is useful, because as soon as we add an element to the vector
 			// found_index will index the correct element.
 
 			auto resource_index = static_cast<size_t>( std::find( usedResources.begin(), usedResources.end(), resourceId ) - usedResources.begin() );
