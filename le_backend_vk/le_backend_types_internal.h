@@ -144,8 +144,8 @@ struct AttachmentInfo {
 	vk::AttachmentLoadOp  loadOp;             ///
 	vk::AttachmentStoreOp storeOp;            ///
 	vk::ClearValue        clearValue;         ///< either color or depth clear value, only used if loadOp is eClear
-	uint16_t              initialStateOffset; ///< state of resource before entering the renderpass
-	uint16_t              finalStateOffset;   ///< state of resource after exiting the renderpass
+	uint16_t              initialStateOffset; ///< sync state of resource before entering the renderpass (offset is into resource specific sync chain )
+	uint16_t              finalStateOffset;   ///< sync state of resource after exiting the renderpass (offset is into resource specific sync chain )
 };
 
 struct LeRenderPass {
