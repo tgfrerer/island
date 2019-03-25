@@ -6,8 +6,6 @@
 
 - integrate cgltf
 - integrate jsmn json parser
-- test whether the treatment for attachments which get loaded on load is
-  correct wrt image layouts
 - check if there is an elegant way to keep as much as possible from
   a bound pipeline when binding a compatible pipeline
 
@@ -95,10 +93,12 @@ internal state. The internal state of an object may be hidden, and this is
 how you implement encapsulation, and abstraction (an object may decide for
 itself how it implements a certain method).
 
-Let's refer to all resources in the renderer using opaque handles. These
-handles should be based on hashing the name to 32 bits, which allows us to
-store 32bits of metadata with each handle. Metadata includes:
-resourcetype, resource id flags.
+## Resource addressing
+
+Let's refer to all resources in the renderer using opaque handles.
+These handles should be based on hashing the name to 32 bits, which
+allows us to store 32bits of metadata with each handle. Metadata
+includes: resourcetype, resource id flags.
 
 Hashing the name has the benefit that this can be done independently and
 that no locking has to occur, and everyone who hashes a name should get
