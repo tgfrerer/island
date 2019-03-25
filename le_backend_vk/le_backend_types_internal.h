@@ -139,13 +139,14 @@ struct AbstractPhysicalResource {
 };
 
 struct AttachmentInfo {
-	le_resource_handle_t  resource_id{};      ///< which resource to look up for resource state
-	vk::Format            format;             ///
-	vk::AttachmentLoadOp  loadOp;             ///
-	vk::AttachmentStoreOp storeOp;            ///
-	vk::ClearValue        clearValue;         ///< either color or depth clear value, only used if loadOp is eClear
-	uint16_t              initialStateOffset; ///< sync state of resource before entering the renderpass (offset is into resource specific sync chain )
-	uint16_t              finalStateOffset;   ///< sync state of resource after exiting the renderpass (offset is into resource specific sync chain )
+	le_resource_handle_t    resource_id{};      ///< which resource to look up for resource state
+	vk::Format              format;             ///
+	vk::AttachmentLoadOp    loadOp;             ///
+	vk::AttachmentStoreOp   storeOp;            ///
+	vk::ClearValue          clearValue;         ///< either color or depth clear value, only used if loadOp is eClear
+	vk::SampleCountFlagBits numSamples;         /// < number of samples, default 1
+	uint32_t                initialStateOffset; ///< sync state of resource before entering the renderpass (offset is into resource specific sync chain )
+	uint32_t                finalStateOffset;   ///< sync state of resource after exiting the renderpass (offset is into resource specific sync chain )
 };
 
 struct LeRenderPass {

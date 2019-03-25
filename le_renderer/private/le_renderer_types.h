@@ -829,9 +829,12 @@ struct le_image_attachment_info_t {
 	static constexpr LeClearValue DefaultClearValueColor        = {{{{{0.f, 0.f, 0.f, 0.f}}}}};
 	static constexpr LeClearValue DefaultClearValueDepthStencil = {{{{{1.f, 0}}}}};
 
-	le::AttachmentLoadOp  loadOp     = le::AttachmentLoadOp::eClear;  //
-	le::AttachmentStoreOp storeOp    = le::AttachmentStoreOp::eStore; //
-	LeClearValue          clearValue = DefaultClearValueColor;        // only used if loadOp == clear
+	le::AttachmentLoadOp  loadOp  = le::AttachmentLoadOp::eClear;  //
+	le::AttachmentStoreOp storeOp = le::AttachmentStoreOp::eStore; //
+
+	le::SampleCountFlagBits numSamples = le::SampleCountFlagBits::e1;
+
+	LeClearValue clearValue = DefaultClearValueColor; // only used if loadOp == clear
 };
 
 static constexpr le_image_attachment_info_t LeDepthAttachmentInfo() {
@@ -1116,6 +1119,7 @@ class ImageAttachmentInfoBuilder {
 	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setStoreOp, le::AttachmentStoreOp, storeOp, = le::AttachmentStoreOp::eStore )
 	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setColorClearValue, LeClearValue, clearValue, = le_image_attachment_info_t::DefaultClearValueColor )
 	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setDepthStencilClearValue, LeClearValue, clearValue, = le_image_attachment_info_t::DefaultClearValueDepthStencil )
+	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setNumSamples, le::SampleCountFlagBits, numSamples, = le::SampleCountFlagBits::e1 )
 
 	le_image_attachment_info_t const &build() {
 		return self;

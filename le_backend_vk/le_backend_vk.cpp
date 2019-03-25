@@ -928,6 +928,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 			currentAttachment->resource_id = image_resource_id;
 			currentAttachment->format      = attachmentFormat;
+			currentAttachment->numSamples  = le_sample_count_flag_bits_to_vk( image_attachment_info.numSamples );
 			currentAttachment->loadOp      = le_attachment_load_op_to_vk( image_attachment_info.loadOp );
 			currentAttachment->storeOp     = le_attachment_store_op_to_vk( image_attachment_info.storeOp );
 			currentAttachment->clearValue  = le_clear_value_to_vk( image_attachment_info.clearValue );
@@ -1226,7 +1227,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 			attachmentDescription
 			    .setFlags( vk::AttachmentDescriptionFlags() ) // relevant for compatibility
 			    .setFormat( attachment->format )              // relevant for compatibility
-			    .setSamples( vk::SampleCountFlagBits::e1 )    // relevant for compatibility
+			    .setSamples( attachment->numSamples )         // relevant for compatibility
 			    .setLoadOp( attachment->loadOp )
 			    .setStoreOp( attachment->storeOp )
 			    .setStencilLoadOp( isDepthStencil ? attachment->loadOp : vk::AttachmentLoadOp::eDontCare )
