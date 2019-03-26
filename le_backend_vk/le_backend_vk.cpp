@@ -851,7 +851,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 	// + Exit renderpass
 	// + Layout transform (if final layout differs)
 
-	static auto const &renderpass_i = Registry::getApi<le_renderer_api>()->le_renderpass_i;
+	using namespace le_renderer;
 
 	frame.passes.reserve( numRenderPasses );
 
