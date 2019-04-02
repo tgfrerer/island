@@ -86,7 +86,7 @@ constexpr le_resource_handle_t LE_RESOURCE( const char *const str, const LeResou
 #if ( LE_RESOURCE_LABEL_LENGTH > 0 )
 	auto c = str;
 	int  i = 0;
-	while ( *c != '\0' && i < LE_RESOURCE_LABEL_LENGTH ) {
+	while ( *c != '\0' && i < LE_RESOURCE_LABEL_LENGTH - 1 ) {
 		handle.debug_name[ i++ ] = *c++;
 	}
 #endif
