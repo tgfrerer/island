@@ -226,6 +226,41 @@ resources vector.
 - implement pipeline generation as a channeled op - per encoder first,
   then consolidate those elements generated within a frame
 
+## Plan on how to implement Multisampling
+
+Multisampling means that draws don't go to image directly, but to
+a *version* of the image which has a larger-than-one sample count. The
+multisample version then gets resolved before the image is sampled.
+Renderpasses have a mechanism which allows you to resolve multisample
+attachments by specifying resolveAttachments. 
+
+Note that the multisample versions of images must be allocated like
+normal images, and that we must create imageviews for these
+multisample images too. we must also track the sync state of the
+single sample image and the multisample image. 
+
+In case a renderpass has resolve attachments it needs to be created
+with one resolve attachment per color attachment. It appears that we
+also need one reolve attachment per depth attachment.
+
+It would be nice to have a way to access the multisample image from
+the corresponding single sample image and vice versa if such exists
+for a renderpass. (We have tried to implement this by making the
+sampleCount a property of the resourceID handle, but i'm not sure how
+successful this approach is).
+
+Multisampling is a property of the renderpass: 
+
++ if samplecount for a renderpass is greater than 1, all image
+  attachments (apart from resolve attachments) must be images with the
+  same chosen sample count. resolve attachments must have sample count
+  of 1. 
++ Similarly, all pipelines used with such a multisampled renderpass
+  must have chosen sample count for rasterizationSamples in its
+  multisamplestate property.
+
+
+
 # Long-Term aspirations
 - reduce compile times with glm: template specialisations
 - improve ergonomics, reduce lines to type (less "noisy" code)
