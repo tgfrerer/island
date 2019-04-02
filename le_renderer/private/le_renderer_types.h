@@ -852,6 +852,7 @@ enum LeAccessFlagBits : uint32_t {
 
 typedef uint32_t LeAccessFlags;
 
+// use TextureInfoBuilder to define texture info
 struct LeTextureInfo {
 	struct SamplerInfo {
 		le::Filter             magFilter               = le::Filter::eLinear;
