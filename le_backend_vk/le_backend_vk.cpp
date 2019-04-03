@@ -242,6 +242,16 @@ struct ResourceState {
 	vk::AccessFlags        visible_access; // which memory access must be be visible - if any of these are WRITE accesses, these must be made available(flushed) before next access - for the next src access we can OR this with ANY_WRITES
 	vk::PipelineStageFlags write_stage;    // current or last stage at which write occurs
 	vk::ImageLayout        layout;         // current layout (for images)
+
+	bool operator==( const ResourceState &rhs ) const {
+		return visible_access == rhs.visible_access &&
+		       write_stage == rhs.write_stage &&
+		       layout == rhs.layout;
+	}
+
+	bool operator!=( const ResourceState &rhs ) const {
+		return !operator==( rhs );
+	}
 };
 
 // ------------------------------------------------------------
