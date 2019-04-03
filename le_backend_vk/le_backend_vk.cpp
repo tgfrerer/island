@@ -870,9 +870,6 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 	auto &syncChainTable = frame.syncChainTable;
 
 	{
-		// TODO: frame-external ("persistent") resources such as backbuffer
-		// need to be correctly initialised:
-		//
 
 		auto backbufferIt = syncChainTable.find( backbufferImageHandle );
 		if ( backbufferIt != syncChainTable.end() ) {
@@ -903,8 +900,6 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 	using namespace le_renderer;
 
 	frame.passes.reserve( numRenderPasses );
-
-	// TODO: move pass creation to its own method.
 
 	for ( auto pass = ppPasses; pass != ppPasses + numRenderPasses; pass++ ) {
 
@@ -1475,7 +1470,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 			// it can be recycled when not needed anymore.
 			frame.ownedResources.emplace_front( std::move( rp ) );
 		}
-	}
+	} // end for all passes
 }
 
 // ----------------------------------------------------------------------
@@ -1601,11 +1596,11 @@ static void backend_create_descriptor_pools( BackendFrameData &frame, vk::Device
 	// Make sure that there is one descriptorpool for every renderpass.
 	// descriptor pools which were created previously will be re-used,
 	// if we're suddenly rendering more frames, we will add additional
-	// descriptorpools.
+	// descriptorPools.
 
 	// at this point it would be nice to have an idea for each renderpass
 	// on how many descriptors to expect, but we cannot know that realistically
-	// without going through the command buffer... not ideal.
+	// without going through the command buffer... yuck.
 
 	// this is why we're creating space for a generous amount of descriptors
 	// hoping we're not running out when assembling the command buffer.
@@ -2152,7 +2147,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 // these are tied to the lifetime of the frame, and will be re-created
 static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Device const &device, le_renderpass_o **passes, size_t numRenderPasses ) {
 
-	static auto const &renderpass_i = Registry::getApi<le_renderer_api>()->le_renderpass_i;
+	using namespace le_renderer;
 
 	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
 		// get all texture names for this pass
@@ -2200,7 +2195,6 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 				    .setComponents( {} ) // default component mapping
 				    .setSubresourceRange( subresourceRange );
 
-				// TODO: fill in additional sampler create info based on info from pass...
 				vk::SamplerCreateInfo samplerCreateInfo{};
 				samplerCreateInfo
 				    .setFlags( {} )
@@ -2300,7 +2294,7 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 	// this state will be the initial state for the resource
 
 	{
-		// Update final sync state for each backend resource.
+		// Update final sync state for each pre-existing backend resource.
 		auto &backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
 		for ( auto const &tbl : frame.syncChainTable ) {
 			auto &resId       = tbl.first;
@@ -2917,7 +2911,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					     b->type == enumToNum( vk::DescriptorType::eUniformBufferDynamic ) ) {
 						auto dynamicOffset                            = b->dynamic_offset_idx;
 						bindingData.offset                            = 0;
-						argumentState.dynamicOffsets[ dynamicOffset ] = le_cmd->info.offset;
+						argumentState.dynamicOffsets[ dynamicOffset ] = uint32_t( le_cmd->info.offset );
 					} else {
 						bindingData.offset = le_cmd->info.offset;
 					}
@@ -2956,8 +2950,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					// ----------| invariant: texture has been found
 
-					// TODO: we must be able to programmatically figure out the image layout in advance
-					// perhaps through resource tracking.
+					// FIXME: (sync) image layout at this point *must* be shaderReadOnlyOptimal.
 					bindingData.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
 					bindingData.arrayIndex = uint32_t( le_cmd->info.array_index );
@@ -3018,7 +3011,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					rangeAllMiplevels
 					    .setAspectMask( vk::ImageAspectFlagBits::eColor )
 					    .setBaseMipLevel( 0 )
-					    .setLevelCount( le_cmd->info.mipLevelCount ) // we want all miplevels to be in transferDstOptimal.
+					    .setLevelCount( uint32_t( le_cmd->info.mipLevelCount ) ) // we want all miplevels to be in transferDstOptimal.
 					    .setBaseArrayLayer( 0 )
 					    .setLayerCount( 1 );
 
@@ -3164,7 +3157,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					} // end if mipLevelCount > 1
 
-					// Transition image to shader layout from transfer src optimal to shader read only optimal layout
+					// Transition image from transfer src optimal to shader read only optimal layout
 
 					{
 						vk::ImageMemoryBarrier imageLayoutToShaderReadOptimal;
