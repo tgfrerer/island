@@ -930,11 +930,9 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 			size_t                      numResources;
 
 			renderpass_i.get_used_resources( *pass, &handles, &info, &numResources );
-
 			le_resource_handle_t const *const handles_end = handles + numResources;
 
-			for ( le_resource_handle_t const *handle = handles; handle != handles_end; ++handle ) {
-
+			for ( auto handle = handles; handle != handles_end; ++handle ) {
 				auto h  = handle->debug_name;
 				auto tp = info->type;
 				if ( tp == LeResourceType::eImage && info->image.usage == LE_IMAGE_USAGE_SAMPLED_BIT ) {
