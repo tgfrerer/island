@@ -2081,6 +2081,11 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			// Resource does not yet exist, we must allocate this resource and add it to the backend.
 			// Then add a reference to it to the current frame.
 
+			if ( PRINT_DEBUG_MESSAGES || true ) {
+				std::cout << "Allocating resource: " << resourceId.debug_name << std::endl
+				          << std::flush;
+			}
+
 			auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo );
 
 			// Add resource to map of available resources for this frame
@@ -2097,19 +2102,29 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 			auto &foundResourceCreateInfo = foundIt->second.info;
 
-			if ( foundResourceCreateInfo == resourceCreateInfo ) {
+			// Note that we use the greater-than operator, which means
+			// that if our foundResource is equal to *or a superset of*
+			// resourceCreateInfo, we can re-use the found resource.
+			//
+			if ( foundResourceCreateInfo >= resourceCreateInfo ) {
 
-				// -- descriptor matches.
+				// -- found info is either equal or a superset
+
 				// Add a copy of this resource allocation to the current frame.
 				frame.availableResources.emplace( resourceId, foundIt->second );
 
 			} else {
 
-				// -- descriptor does not match.
+				// -- info does not match.
 
 				// We must re-allocate this resource, and add the old version of the resource to the recycling bin.
 
 				// -- allocate a new resource
+
+				if ( PRINT_DEBUG_MESSAGES || true ) {
+					std::cout << "Re-allocating resource: " << resourceId.debug_name << std::endl
+					          << std::flush;
+				}
 
 				auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo );
 
