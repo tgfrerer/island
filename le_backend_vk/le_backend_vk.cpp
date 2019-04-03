@@ -1967,7 +1967,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	// There needs to be a pipeline barrier so that resources are transitioned
 	// from their previous usage to their next usage.
 
-	size_t resouce_index = 0;
+	size_t resource_index = 0;
 	for ( auto &resourceInfoVersions : usedResourcesInfos ) {
 
 		if ( resourceInfoVersions.empty() )
@@ -2030,6 +2030,9 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				} else if ( usage & ( LE_IMAGE_USAGE_SAMPLED_BIT ) ) {
 					first_info->image.format = self->defaultFormatSampledImage;
 				} else {
+					std::cerr << "FATAL: Cannot infer image format, resource underspecified: '" << usedResources[ resource_index ].debug_name << "'" << std::endl
+					          << "Specify usage, or provide explicit format option for resource to fix this error. " << std::endl
+					          << std::flush;
 					assert( false ); // we don't have enough information to infer image format.
 				}
 			}
@@ -2052,7 +2055,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		default:
 		    break;
 		}
-		resouce_index++;
+		resource_index++;
 	}
 
 	// Check if all resources declared in this frame are already available in backend.
