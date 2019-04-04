@@ -917,10 +917,12 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 	for ( auto pass = ppPasses; pass != ppPasses + numRenderPasses; pass++ ) {
 
 		LeRenderPass currentPass{};
-		currentPass.type = renderpass_i.get_type( *pass );
 
-		currentPass.width  = renderpass_i.get_width( *pass );
-		currentPass.height = renderpass_i.get_height( *pass );
+		currentPass.type      = renderpass_i.get_type( *pass );
+		currentPass.width     = renderpass_i.get_width( *pass );
+		currentPass.height    = renderpass_i.get_height( *pass );
+		currentPass.debugName = renderpass_i.get_debug_name( *pass );
+
 
 		{
 
@@ -1245,6 +1247,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		}
 
 		// ---------| Invariant: current pass is a draw pass.
+
 		std::vector<vk::AttachmentDescription> attachments;
 		attachments.reserve( pass.numColorAttachments + pass.numDepthStencilAttachments );
 
@@ -1263,8 +1266,21 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		vk::AccessFlags        srcAccessToExternalFlags;
 		vk::AccessFlags        dstAccessToExternalFlags;
 
-		for ( AttachmentInfo const *attachment = pass.attachments; attachment != pass.attachments + ( pass.numColorAttachments + pass.numDepthStencilAttachments ); attachment++ ) {
+		if ( PRINT_DEBUG_MESSAGES ) {
 
+			std::cout << "* Renderpass: '" << pass.debugName << "'" << std::endl;
+
+			std::cout << std::setw( 30 ) << "Attachment"
+			          << " : " << std::setw( 30 ) << "Layout initial"
+			          << " : " << std::setw( 30 ) << "Layout subpass"
+			          << " : " << std::setw( 30 ) << "Layout final"
+			          << std::endl;
+		}
+
+		auto const attachments_end = pass.attachments +
+		                             ( pass.numColorAttachments + pass.numDepthStencilAttachments );
+
+		for ( AttachmentInfo const *attachment = pass.attachments; attachment != attachments_end; attachment++ ) {
 
 			auto &syncChain = syncChainTable.at( attachment->resource_id );
 
@@ -1287,10 +1303,16 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 			    .setFinalLayout( syncFinal.layout );
 
 			if ( PRINT_DEBUG_MESSAGES ) {
-				std::cout << "attachment: " << std::hex << attachment->resource_id.debug_name << std::endl;
-				std::cout << "layout initial: " << vk::to_string( syncInitial.layout ) << std::endl;
-				std::cout << "layout subpass: " << vk::to_string( syncSubpass.layout ) << std::endl;
-				std::cout << "layout   final: " << vk::to_string( syncFinal.layout ) << std::endl;
+
+				std::cout << std::setw( 30 ) << attachment->resource_id.debug_name
+				          << " : " << std::setw( 30 ) << vk::to_string( syncInitial.layout )
+				          << " : " << std::setw( 30 ) << vk::to_string( syncSubpass.layout )
+				          << " : " << std::setw( 30 ) << vk::to_string( syncFinal.layout )
+				          << std::setw( 30 ) << "sync chain indices"
+				          << " : " << std::setw( 4 ) << std::dec << attachment->initialStateOffset
+				          << " : " << std::setw( 4 ) << std::dec << attachment->initialStateOffset + 1
+				          << " : " << std::setw( 4 ) << std::dec << attachment->finalStateOffset
+				          << std::endl;
 			}
 
 			attachments.emplace_back( attachmentDescription );
@@ -1317,6 +1339,11 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 				// Ensure that the stage mask is valid if no src stage was specified.
 				srcStageFromExternalFlags = vk::PipelineStageFlagBits::eTopOfPipe;
 			}
+		}
+
+		if ( PRINT_DEBUG_MESSAGES ) {
+			std::cout << std::endl
+			          << std::flush;
 		}
 
 		std::vector<vk::SubpassDescription> subpasses;
@@ -2061,6 +2088,23 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	// Check if all resources declared in this frame are already available in backend.
 	// If a resource is not available yet, this resource must be allocated.
 
+	auto printResourceInfo = []( le_resource_handle_t const &handle, ResourceCreateInfo const &info ) {
+		std::cout << std::setw( 16 ) << handle.debug_name;
+		if ( info.isBuffer() ) {
+			std::cout
+			    << " : " << std::setw( 4 ) << ( info.bufferInfo.size )
+			    << " : " << std::setw( 30 ) << to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) )
+			    << std::endl;
+		} else {
+			std::cout
+			    << " : " << std::dec << std::setw( 4 ) << info.imageInfo.extent.width << " x " << std::setw( 4 ) << info.imageInfo.extent.height
+			    << " : " << std::setw( 30 ) << to_string( vk::Format( info.imageInfo.format ) )
+			    << " : " << std::setw( 30 ) << to_string( vk::ImageUsageFlags( info.imageInfo.usage ) )
+			    << std::endl;
+		}
+		std::cout << std::flush;
+	};
+
 	auto &backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
 
 	const size_t usedResourcesSize = usedResources.size();
@@ -2082,8 +2126,8 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			// Then add a reference to it to the current frame.
 
 			if ( PRINT_DEBUG_MESSAGES || true ) {
-				std::cout << "Allocating resource: " << resourceId.debug_name << std::endl
-				          << std::flush;
+				std::cout << "Allocating resource: ";
+				printResourceInfo( resourceId, resourceCreateInfo );
 			}
 
 			auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo );
@@ -2122,8 +2166,8 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				// -- allocate a new resource
 
 				if ( PRINT_DEBUG_MESSAGES || true ) {
-					std::cout << "Re-allocating resource: " << resourceId.debug_name << std::endl
-					          << std::flush;
+					std::cout << "Re-allocating resource: ";
+					printResourceInfo( resourceId, resourceCreateInfo );
 				}
 
 				auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo );
@@ -2146,6 +2190,25 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	} // end for all used resources
 
 	// If we locked backendResources with a mutex, this would be the right place to release it.
+
+	if ( PRINT_DEBUG_MESSAGES ) {
+		std::cout << "Available Resources: " << std::endl
+		          << std::setw( 10 ) << "Type"
+		          << " : " << std::setw( 30 ) << "debugName"
+		          << " : " << std::setw( 30 ) << "Vk Handle : " << std::endl;
+		for ( auto const &r : frame.availableResources ) {
+			if ( r.second.info.isBuffer() ) {
+				std::cout << std::setw( 10 ) << "Buffer"
+				          << " : " << std::setw( 30 ) << r.first.debug_name
+				          << " : " << std::setw( 30 ) << r.second.asBuffer << std::endl;
+			} else {
+				std::cout << std::setw( 10 ) << "Image"
+				          << " : " << std::setw( 30 ) << r.first.debug_name
+				          << " : " << std::setw( 30 ) << r.second.asImage << std::endl;
+			}
+		}
+		std::cout << std::flush;
+	}
 }
 
 // Allocates Samplers and Textures requested by individual passes
@@ -2415,6 +2478,12 @@ static le_staging_allocator_o *backend_get_staging_allocator( le_backend_o *self
 // Decode commandStream for each pass (may happen in parallel)
 // translate into vk specific commands.
 static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
+
+	if ( PRINT_DEBUG_MESSAGES ) {
+
+		std::cout << "** Process Frame **" << std::endl
+		          << std::flush;
+	}
 
 	using namespace le_renderer;   // for encoder
 	using namespace le_backend_vk; // for device
