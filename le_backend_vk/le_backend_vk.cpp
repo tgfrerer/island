@@ -868,34 +868,13 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 // can be implicitly synced using subpass dependencies.
 static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses, const le_resource_handle_t &backbufferImageHandle ) {
 
-	// Track resource state
-
-	// we should mark persistent resources which are not frame-local with special flags, so that they
-	// come with an initial element in their sync chain, this element signals their last (frame-crossing) state
-	// this naturally applies to "backbuffer", for example.
-
 	// A pipeline barrier is defined as a combination of EXECUTION dependency and MEMORY dependency:
 	//
 	// * An EXECUTION DEPENDENCY tells us which stage needs to be complete (srcStage) before another named stage (dstStage) may execute.
 	// * A  MEMORY DEPENDECY     tells us which memory needs to be made available/flushed (srcAccess) after srcStage,
 	//   before another memory can be made visible/invalidated (dstAccess) before dstStage
 
-	auto &syncChainTable = frame.syncChainTable;
-
-	{
-
-		auto backbufferIt = syncChainTable.find( backbufferImageHandle );
-		if ( backbufferIt != syncChainTable.end() ) {
-			auto &backbufferState          = backbufferIt->second.front();
-			backbufferState.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
-			backbufferState.visible_access = vk::AccessFlagBits( 0 );                           // semaphore took care of availability - we can assume memory is already available
-		} else {
-			std::cout << "WARNING: no reference to backbuffer found in renderpasses" << std::endl
-			          << std::flush;
-		}
-	}
-
-	// Renderpass implicit sync (per image resource):
+	// Renderpass implicit sync (per image resource)
 	//
 	// + Enter renderpass : INITIAL LAYOUT (layout must match)
 	// + Layout transition if initial layout and attachment reference layout differ for subpass
@@ -909,6 +888,27 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 	// + Exit subpass : final layout
 	// + Exit renderpass
 	// + Layout transform (if final layout differs)
+	//
+	//- NOTE texture image resources *must* be explicitly synchronised:
+
+	auto &syncChainTable = frame.syncChainTable;
+
+	{
+
+		// -- backbuffer has their sync state changed outside of our frame graph
+		// because submitting to the swapchain changes its sync state.
+		// We must adjust the backbuffer sync-chain table to account for this.
+
+		auto backbufferIt = syncChainTable.find( backbufferImageHandle );
+		if ( backbufferIt != syncChainTable.end() ) {
+			auto &backbufferState          = backbufferIt->second.front();
+			backbufferState.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
+			backbufferState.visible_access = vk::AccessFlagBits( 0 );                           // semaphore took care of availability - we can assume memory is already available
+		} else {
+			std::cout << "WARNING: no reference to backbuffer found in renderpasses" << std::endl
+			          << std::flush;
+		}
+	}
 
 	using namespace le_renderer;
 
@@ -923,7 +923,6 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		currentPass.height = renderpass_i.get_height( *pass );
 
 		{
-			// FIXME: This is quite a hack.
 
 			// If an image gets sampled inside a renderpass, we must insert the target sync
 			// state to the sync chain for the image resource, so that the renderpass writing to this resource
@@ -1262,13 +1261,6 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 		for ( AttachmentInfo const *attachment = pass.attachments; attachment != pass.attachments + ( pass.numColorAttachments + pass.numDepthStencilAttachments ); attachment++ ) {
 
-			//#ifndef NDEBUG
-			//			if ( attachment->resource_id == nullptr ) {
-			//				std::cerr << "[ FATAL ] Use of undeclared resource handle. Did you forget to declare this resource handle with the renderer?" << std::endl
-			//				          << std::flush;
-			//			}
-			//			assert( attachment->resource_id != nullptr ); // resource id must not be zero: did you forget to declare this resource with the renderer via renderer->declareResource?
-			//#endif
 
 			auto &syncChain = syncChainTable.at( attachment->resource_id );
 
