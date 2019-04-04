@@ -260,7 +260,7 @@ static void renderer_record_frame( le_renderer_o *self, size_t frameIndex, le_re
 	frame.meta.time_record_frame_end = std::chrono::high_resolution_clock::now();
 
 	frame.state = FrameData::State::eRecorded;
-	//std::cout << "renderer_record_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double,std::milli>>(frame.meta.time_record_frame_end-frame.meta.time_record_frame_start).count() << "ms" << std::endl;
+	// std::cout << "renderer_record_frame: " << std::dec << std::chrono::duration_cast<std::chrono::duration<double, std::milli>>( frame.meta.time_record_frame_end - frame.meta.time_record_frame_start ).count() << "ms" << std::endl;
 
 	//	std::cout << "RECORD FRAME " << frameIndex << std::endl
 	//	          << std::flush;
@@ -380,6 +380,10 @@ static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex ) {
 }
 
 static void render_tasks( le_renderer_o *renderer, size_t frameIndex ) {
+
+	//	std::cout << "RENDER FRAME " << frameIndex << std::endl
+	//	          << std::flush;
+
 	// acquire external backend resources such as swapchain
 	// and create any temporary resources
 	renderer_acquire_backend_resources( renderer, frameIndex );
