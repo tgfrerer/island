@@ -47,8 +47,8 @@ struct le_renderpass_o {
 	uint32_t width  = 0; ///< width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
 	uint32_t height = 0; ///< height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
 
-	std::vector<LeTextureInfo>        textureInfos;   // kept in sync
-	std::vector<le_resource_handle_t> textureInfoIds; // kept in sync
+	std::vector<LeTextureInfo>        textureInfos; // kept in sync : info for corresponding texture id
+	std::vector<le_resource_handle_t> textureIds;   // kept in sync : texture id
 
 	le_renderer_api::pfn_renderpass_setup_t   callbackSetup              = nullptr;
 	le_renderer_api::pfn_renderpass_execute_t callbackExecute            = nullptr;
@@ -179,12 +179,17 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 		case LeResourceType::eImage: {
 			stored_resource_info.image.usage |= resource_info.image.usage;
 
-			// Todo: find out how best to consolidate these values...
-			assert( stored_resource_info.image.flags == resource_info.image.flags );             // creation flags
-			assert( stored_resource_info.image.imageType == resource_info.image.imageType );     // enum vk::ImageType
-			assert( stored_resource_info.image.format == resource_info.image.format );           // enum vk::Format
-			assert( stored_resource_info.image.extent == resource_info.image.extent );           //
 			assert( stored_resource_info.image.mipLevels == resource_info.image.mipLevels );     //
+			// Todo: find out the best way to consolidate these values...
+			assert( stored_resource_info.image.flags == resource_info.image.flags );         // creation flags
+			assert( stored_resource_info.image.imageType == resource_info.image.imageType ); // enum vk::ImageType
+			assert( stored_resource_info.image.format == resource_info.image.format );       // enum vk::Format
+
+			// We consolidate extent by using keeping maximum value
+			stored_resource_info.image.extent.width  = std::max( stored_resource_info.image.extent.width, resource_info.image.extent.width );
+			stored_resource_info.image.extent.height = std::max( stored_resource_info.image.extent.height, resource_info.image.extent.height );
+			stored_resource_info.image.extent.depth  = std::max( stored_resource_info.image.extent.depth, resource_info.image.extent.depth );
+
 			assert( stored_resource_info.image.arrayLayers == resource_info.image.arrayLayers ); //
 			assert( stored_resource_info.image.samples == resource_info.image.samples );         // enum VkSampleCountFlagBits
 			assert( stored_resource_info.image.tiling == resource_info.image.tiling );           // enum VkImageTiling
@@ -268,15 +273,16 @@ static void renderpass_sample_texture( le_renderpass_o *self, le_resource_handle
 
 	// -- store texture info so that backend can create resources
 
-	if ( vector_contains( self->textureInfoIds, texture ) ) {
+	if ( vector_contains( self->textureIds, texture ) ) {
 		return; // texture already present
 	}
 
 	// --------| invariant: texture id was not previously known
 
 	// -- Add texture info to list of texture infos for this frame
-	self->textureInfoIds.push_back( texture );
-	self->textureInfos.push_back( *textureInfo ); // store a copy
+	self->textureIds.push_back( texture );
+	//	self->textureImageIds.push_back( textureInfo->imageView.imageId );
+	self->textureInfos.push_back( *textureInfo ); // store a copy of info
 
 	auto required_flags = le::ImageInfoBuilder()
 	                          .addUsageFlags( LE_IMAGE_USAGE_SAMPLED_BIT )
@@ -382,8 +388,8 @@ static void renderpass_get_image_attachments( const le_renderpass_o *self, le_im
 }
 
 static void renderpass_get_texture_ids( le_renderpass_o *self, const le_resource_handle_t **ids, uint64_t *count ) {
-	*ids   = self->textureInfoIds.data();
-	*count = self->textureInfoIds.size();
+	*ids   = self->textureIds.data();
+	*count = self->textureIds.size();
 };
 
 static void renderpass_get_texture_infos( le_renderpass_o *self, const LeTextureInfo **infos, uint64_t *count ) {
