@@ -923,37 +923,50 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		currentPass.height    = renderpass_i.get_height( *pass );
 		currentPass.debugName = renderpass_i.get_debug_name( *pass );
 
+		// Iterate over all sampled textures used within this renderpass
 
 		{
+			// Fetch texture infos - each tex_info references an image used for sampling.
 
-			// If an image gets sampled inside a renderpass, we must insert the target sync
-			// state to the sync chain for the image resource, so that the renderpass writing to this resource
-			// knows the target state to transition into for this resource when transitioning out of the
-			// renderpass.
+			LeTextureInfo const *tex_infos;
+			size_t               tex_infos_count;
+
+			renderpass_i.get_texture_infos( *pass, &tex_infos, &tex_infos_count );
+			auto const infos_end = tex_infos + tex_infos_count;
+
+			// Iterate over all texture infos
 			//
-			// Only image resources can be implicitly transitioned by renderpasses, so this doesn't apply
-			// to buffers.
+			// -- ensure that current sync state for image allows for a shader read operation.
+			// -- if not, we must add a sync element, and it must account for an external synchronisation barrier.
 
-			le_resource_handle_t const *handles;
-			le_resource_info_t const *  info;
-			size_t                      numResources;
+			for ( auto tex_info = tex_infos; tex_info != infos_end; tex_info++ ) {
+				// -- get sync chain for image referenced by texture info
+				auto const &imageId        = tex_info->imageView.imageId;
+				auto &      imageSyncChain = syncChainTable[ imageId ];
 
-			renderpass_i.get_used_resources( *pass, &handles, &info, &numResources );
-			le_resource_handle_t const *const handles_end = handles + numResources;
+				assert( !imageSyncChain.empty() ); // must not be empty - this image must exist, and have an initial sync state.
 
-			for ( auto handle = handles; handle != handles_end; ++handle ) {
-				auto h  = handle->debug_name;
-				auto tp = info->type;
-				if ( tp == LeResourceType::eImage && info->image.usage == LE_IMAGE_USAGE_SAMPLED_BIT ) {
-					auto &        imageSyncChain = syncChainTable[ *handle ];
-					ResourceState resourceState;
-					resourceState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
-					resourceState.visible_access = vk::AccessFlagBits::eShaderRead;
-					resourceState.write_stage    = vk::PipelineStageFlagBits::eFragmentShader;
-					imageSyncChain.emplace_back( resourceState );
-				}
+				LeRenderPass::ExplicitSyncOp syncOp{};
 
-				info++;
+				syncOp.resource_id               = imageId;
+				syncOp.active                    = true;
+				syncOp.sync_chain_offset_initial = uint32_t( imageSyncChain.size() - 1 );
+
+				ResourceState requestedState; // State we want our image to be in when pass begins.
+				requestedState.visible_access = vk::AccessFlagBits::eShaderRead;
+				requestedState.write_stage    = vk::PipelineStageFlagBits::eFragmentShader;
+				requestedState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
+
+				// -- we must add an entry to the sync chain to signal the state after change
+				// -- we must add an explicit sync op so that the change happens before the pass
+
+				// add target state to sync chain for image.
+				imageSyncChain.emplace_back( requestedState );
+
+				syncOp.sync_chain_offset_final = uint32_t( imageSyncChain.size() - 1 );
+
+				// Store an explicit sync op
+				currentPass.explicit_sync_ops.emplace_back( syncOp );
 			}
 		}
 
@@ -1101,6 +1114,69 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		}
 
 		syncChain.emplace_back( std::move( finalState ) );
+	}
+
+	// ------------------------------------------------------
+	// Check for barrier correctness
+	//
+	// Go through all frames and passes and make sure that any explicit sync ops do refer
+	// to sync chain indices which are higher than the current sync chain id for a given resource.
+	//
+	// If they were lower, that would mean that an implicit sync has already taken care of this
+	// image resource operation, in which case we want to deactivate the barrier, as it is not needed.
+	//
+	// Note that only image resources have a chance of being implicitly synced
+
+	typedef std::unordered_map<le_resource_handle_t, uint32_t, LeResourceHandleIdentity> SyncChainMap;
+
+	SyncChainMap max_sync_index;
+
+	auto insert_if_greater = [&max_sync_index]( le_resource_handle_t const &handle, uint32_t index ) {
+		auto found_it = max_sync_index.find( handle );
+		if ( found_it == max_sync_index.end() ) {
+			// not yet in map, we must insert the new value
+			max_sync_index[ handle ] = index;
+		} else if ( index > found_it->second ) {
+			// new index is higher than value in map, replace map value with new index.
+			found_it->second = index;
+		}
+	};
+
+	for ( auto &p : frame.passes ) {
+
+		// check barrier sync chain index against current sync index.
+		//
+		// if barrier sync index is higher, barrier must be issued. otherwise, barrier must be removed,
+		// as subpass dependency takes care of barrier via implicit sync.
+
+		for ( auto &op : p.explicit_sync_ops ) {
+
+			if ( op.resource_id.meta.type != LeResourceType::eImage ) {
+				continue;
+			}
+
+			// ---------| invariant: only image resources need checking,
+			// we can skip checks for all other barriers.
+
+			auto found_it = max_sync_index.find( op.resource_id );
+			if ( found_it != max_sync_index.end() && found_it->second >= op.sync_chain_offset_final ) {
+				// found an element, and current index is already higher than barrier index.
+				op.active = false;
+			} else {
+				// no element found, or max index is smaller.
+				op.active = true;
+				// store the current max index, then.
+				max_sync_index[ op.resource_id ] = op.sync_chain_offset_final;
+			}
+		}
+
+		// Update max_sync_index, so that it contains the maximum sync chain index for each
+		// attachment image resource used in the current pass.
+		//
+		for ( size_t a = 0; a != p.numColorAttachments + p.numDepthStencilAttachments; a++ ) {
+			auto const &attachmentInfo = p.attachments[ a ];
+			insert_if_greater( attachmentInfo.resource_id, attachmentInfo.finalStateOffset );
+		}
 	}
 }
 

@@ -164,5 +164,14 @@ struct LeRenderPass {
 	uint64_t        renderpassHash; ///< spooky hash of elements that could influence renderpass compatibility
 
 	struct le_command_buffer_encoder_o *encoder;
+
+	struct ExplicitSyncOp {
+		le_resource_handle_t resource_id;               // image used as texture, or buffer resource used in this pass
+		uint32_t             sync_chain_offset_initial; // offset when entering this pass
+		uint32_t             sync_chain_offset_final;   // offset when this pass has completed
+		uint32_t             active;
+	};
+
 	std::string                 debugName;         // Debug name for renderpass
+	std::vector<ExplicitSyncOp> explicit_sync_ops; // explicit sync operations for renderpass, these execute before renderpass begins.
 };
