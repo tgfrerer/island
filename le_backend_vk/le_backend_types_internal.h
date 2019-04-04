@@ -164,4 +164,5 @@ struct LeRenderPass {
 	uint64_t        renderpassHash; ///< spooky hash of elements that could influence renderpass compatibility
 
 	struct le_command_buffer_encoder_o *encoder;
+	std::string                 debugName;         // Debug name for renderpass
 };
