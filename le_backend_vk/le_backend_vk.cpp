@@ -2593,13 +2593,12 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 		cmd.begin( {::vk::CommandBufferUsageFlagBits::eOneTimeSubmit} );
 
-		// Draw passes must begin by opening a Renderpass context.
-		if ( pass.type == LE_RENDER_PASS_TYPE_DRAW && pass.renderPass ) {
-
-			for ( size_t i = 0; i != ( pass.numColorAttachments + pass.numDepthStencilAttachments ); ++i ) {
-				clearValues[ i ] = pass.attachments[ i ].clearValue;
-			}
-
+		{
+			// -- Issue sync barriers for all resources which require explicit sync.
+			//
+			// We must to this here, as the spec requires barriers to happen
+			// before renderpass begin.
+			//
 			for ( auto const &op : pass.explicit_sync_ops ) {
 				// fill in sync op
 
@@ -2684,7 +2683,15 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					    {imageLayoutTransfer} // image: transfer layout
 					);
 				}
-			} // end explicit sync ops.
+			} // end for all explicit sync ops.
+		}
+
+		// Draw passes must begin by opening a Renderpass context.
+		if ( pass.type == LE_RENDER_PASS_TYPE_DRAW && pass.renderPass ) {
+
+			for ( size_t i = 0; i != ( pass.numColorAttachments + pass.numDepthStencilAttachments ); ++i ) {
+				clearValues[ i ] = pass.attachments[ i ].clearValue;
+			}
 
 			vk::RenderPassBeginInfo renderPassBeginInfo;
 			renderPassBeginInfo
