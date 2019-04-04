@@ -2466,6 +2466,7 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 	// -- allocate any transient vk objects such as image samplers, and image views
 	frame_allocate_per_pass_resources( frame, device, passes, numRenderPasses );
 
+	// create renderpasses - use sync chain to apply implicit syncing for image attachment resources
 	backend_create_renderpasses( frame, device );
 
 	// -- make sure that there is a descriptorpool for every renderpass
