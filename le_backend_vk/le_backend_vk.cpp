@@ -1233,14 +1233,18 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 	                                      vk::AccessFlagBits::eShaderWrite |
 	                                      vk::AccessFlagBits::eTransferWrite );
 
-	for ( size_t i = 0; i != frame.passes.size(); ++i ) {
+	// for each attachment, we want to keep track of its last used sync state
+	// so that we may know whether to issue a barrier or not.
 
-		auto &pass = frame.passes[ i ];
+	for ( auto &pass : frame.passes ) {
 
+		// The rest of this loop only concerns draw passes
+		//
 		if ( pass.type != LE_RENDER_PASS_TYPE_DRAW ) {
 			continue;
 		}
 
+		// ---------| Invariant: current pass is a draw pass.
 		std::vector<vk::AttachmentDescription> attachments;
 		attachments.reserve( pass.numColorAttachments + pass.numDepthStencilAttachments );
 
@@ -1336,12 +1340,8 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		std::vector<vk::SubpassDependency> dependencies;
 		dependencies.reserve( 2 );
 		{
-			if ( PRINT_DEBUG_MESSAGES ) {
+			if ( PRINT_DEBUG_MESSAGES && false ) {
 
-				std::cout << "PASS :'"
-				          << "index: " << i << " / "
-				          << "FIXME: need pass name / identifier "
-				          << "'" << std::endl;
 				std::cout << "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass [0]" << std::endl;
 				std::cout << "\t srcStage: " << vk::to_string( srcStageFromExternalFlags ) << std::endl;
 				std::cout << "\t dstStage: " << vk::to_string( dstStageFromExternalFlags ) << std::endl;
