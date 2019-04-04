@@ -862,7 +862,10 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 }
 
 // ----------------------------------------------------------------------
-
+// Updates sync chain for resourcess referenced in rendergraph
+// each renderpass contains offsets into sync chain for given resource used by renderpass.
+// resource sync state for images used as renderpass attachments is chosen so that they
+// can be implicitly synced using subpass dependencies.
 static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses, const le_resource_handle_t &backbufferImageHandle ) {
 
 	// Track resource state
@@ -2459,6 +2462,92 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			for ( size_t i = 0; i != ( pass.numColorAttachments + pass.numDepthStencilAttachments ); ++i ) {
 				clearValues[ i ] = pass.attachments[ i ].clearValue;
 			}
+
+			for ( auto const &op : pass.explicit_sync_ops ) {
+				// fill in sync op
+
+				if ( op.active == false ) {
+					continue;
+				}
+
+				// ---------| invariant: barrier is active.
+
+				auto const &syncChain = frame.syncChainTable[ op.resource_id ];
+
+				auto const &stateInitial = syncChain[ op.sync_chain_offset_initial ];
+				auto const &stateFinal   = syncChain[ op.sync_chain_offset_final ];
+
+				if ( stateInitial != stateFinal ) {
+					// we must issue an image barrier
+
+					if ( PRINT_DEBUG_MESSAGES ) {
+
+						std::cout << "Renderpass: '" << pass.debugName << "'" << std::endl
+						          << std::flush;
+
+						for ( auto const &op : pass.explicit_sync_ops ) {
+
+							if ( op.active == false ) {
+								continue;
+							}
+							//
+							// --------| invariant: barrier is active.
+
+							// print out sync chain for sampled image
+							std::cout << "Explicit Barrier for: " << op.resource_id.debug_name << std::endl;
+
+							std::cout << std::setw( 3 ) << "#"
+							          << " : " << std::setw( 30 ) << "visible_access"
+							          << " : " << std::setw( 30 ) << "write_stage"
+							          << " : "
+							          << "layout" << std::endl;
+
+							auto const &syncChain = frame.syncChainTable.at( op.resource_id );
+
+							for ( size_t i = op.sync_chain_offset_initial; i <= op.sync_chain_offset_final; i++ ) {
+								auto const &s = syncChain[ i ];
+
+								std::cout << std::setw( 3 ) << std::dec << i
+								          << " : " << std::setw( 30 ) << to_string( s.visible_access )
+								          << " : " << std::setw( 30 ) << to_string( s.write_stage )
+								          << " : " << to_string( s.layout ) << std::endl;
+							}
+
+							std::cout << std::flush;
+						}
+					}
+
+					auto dstImage = frame_data_get_image_from_le_resource_id( frame, op.resource_id );
+
+					vk::ImageSubresourceRange rangeAllMiplevels;
+					rangeAllMiplevels
+					    .setAspectMask( vk::ImageAspectFlagBits::eColor )
+					    .setBaseMipLevel( 0 )
+					    .setLevelCount( 1 ) // we want all miplevels to be in transferDstOptimal.
+					    .setBaseArrayLayer( 0 )
+					    .setLayerCount( 1 );
+
+					vk::ImageMemoryBarrier imageLayoutTransfer;
+					imageLayoutTransfer
+					    .setSrcAccessMask( stateInitial.visible_access ) // no prior access
+					    .setDstAccessMask( stateFinal.visible_access )   // ready image for transferwrite
+					    .setOldLayout( stateInitial.layout )             // from vk::ImageLayout::eUndefined
+					    .setNewLayout( stateFinal.layout )               // to transfer_dst_optimal
+					    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+					    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
+					    .setImage( dstImage )
+					    .setSubresourceRange( rangeAllMiplevels );
+
+					cmd.pipelineBarrier(
+					    vk::PipelineStageFlagBits::eColorAttachmentOutput,
+					    vk::PipelineStageFlagBits::eVertexShader,
+					    {},
+					    {},
+					    {},                   // buffer: host write -> transfer read
+					    {imageLayoutTransfer} // image: transfer layout
+					);
+				}
+			} // end explicit sync ops.
 
 			vk::RenderPassBeginInfo renderPassBeginInfo;
 			renderPassBeginInfo
