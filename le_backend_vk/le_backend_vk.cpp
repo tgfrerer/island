@@ -2323,7 +2323,23 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 
 				// ---------| Invariant: ImageView for this image not yet stored with frame.
 
-				auto imageFormat = le_format_to_vk( r_info.image.format );
+				vk::Format imageFormat = le_format_to_vk( r_info.image.format );
+
+				if ( imageFormat == vk::Format::eUndefined ) {
+					// attempt to look up format via available resources - this is important for
+					// unspecified formats which get automatically inferred, in which case we want
+					// to set the format to whatever was inferred when the image was allocated and placed
+					// in available resources.
+					imageFormat = vk::Format( frame_data_get_image_format_from_resource_id( frame, r ) );
+				}
+
+				// If the format is still undefined at this point, we can only throw out hands up in the air...
+				//
+				if ( imageFormat == vk::Format::eUndefined ) {
+					std::cout << "WARNING: Cannot create default view for image '" << r.debug_name << "', as format is undefined" << std::endl
+					          << std::flush;
+					continue;
+				}
 
 				vk::ImageSubresourceRange subresourceRange;
 				subresourceRange
