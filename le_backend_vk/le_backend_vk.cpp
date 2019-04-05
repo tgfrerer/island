@@ -2933,11 +2933,13 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 									// add an entry for each array element with this binding to setData
 									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
-										DescriptorData descriptorData{};
-										descriptorData.arrayIndex    = uint32_t( arrayIndex );
-										descriptorData.bindingNumber = b.binding;
-										descriptorData.type          = vk::DescriptorType( b.type );
-										descriptorData.range         = VK_WHOLE_SIZE; // note this could be vk_whole_size
+										DescriptorData descriptorData{
+											.type          = vk::DescriptorType( b.type ),
+											.bindingNumber = uint32_t( b.binding ),
+											.arrayIndex    = uint32_t( arrayIndex ),
+										};
+										descriptorData.bufferInfo.range = VK_WHOLE_SIZE;
+
 										setData.emplace_back( std::move( descriptorData ) );
 									}
 
@@ -3094,7 +3096,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto setIndex = b->setIndex;
 					auto binding  = b->binding;
 
-					auto &bindingData = argumentState.setData[ setIndex ][ binding ];
+					auto &bindingData = argumentState.setData[ setIndex ][ binding ].bufferInfo;
 
 					bindingData.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
 					bindingData.range  = std::min<uint32_t>( le_cmd->info.range, b->range ); // CHECK: use range from binding to limit range...
@@ -3136,7 +3138,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto setIndex = b->setIndex;
 					auto binding  = b->binding;
 
-					auto &bindingData = argumentState.setData[ setIndex ][ binding ];
+					auto &bindingData = argumentState.setData[ setIndex ][ binding ].bufferInfo;
 
 					bindingData.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
 					bindingData.range  = std::min<uint64_t>( le_cmd->info.range, b->range ); // CHECK: use range from binding to limit range...
@@ -3195,11 +3197,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					// ----------| invariant: texture has been found
 
 					// FIXME: (sync) image layout at this point *must* be shaderReadOnlyOptimal.
-					bindingData.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+					bindingData.imageInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+					bindingData.imageInfo.sampler     = foundTex->second.sampler;
+					bindingData.imageInfo.imageView   = foundTex->second.imageView;
 
 					bindingData.arrayIndex = uint32_t( le_cmd->info.array_index );
-					bindingData.sampler    = foundTex->second.sampler;
-					bindingData.imageView  = foundTex->second.imageView;
 					bindingData.type       = vk::DescriptorType::eCombinedImageSampler;
 
 				} break;

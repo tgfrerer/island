@@ -1356,21 +1356,26 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 				// set offset based on type of binding, so that template reads from correct data
 
 				switch ( descriptorType ) {
-				case vk::DescriptorType::eSampler:
-				case vk::DescriptorType::eCombinedImageSampler:
-				case vk::DescriptorType::eSampledImage:
-				case vk::DescriptorType::eStorageImage:
 				case vk::DescriptorType::eUniformTexelBuffer:
-				case vk::DescriptorType::eStorageTexelBuffer:
-				case vk::DescriptorType::eInputAttachment:
-					// TODO: Find out what descriptorData an InputAttachment expects, if it is really done with an imageInfo
-					entry.setOffset( base_offset + offsetof( DescriptorData, sampler ) ); // point to first field of ImageInfo
+					assert( false ); // not implemented
 				    break;
-				case vk::DescriptorType::eUniformBuffer:
-				case vk::DescriptorType::eStorageBuffer:
-				case vk::DescriptorType::eUniformBufferDynamic:
-				case vk::DescriptorType::eStorageBufferDynamic:
-					entry.setOffset( base_offset + offsetof( DescriptorData, buffer ) ); // point to first element of BufferInfo
+				case vk::DescriptorType::eStorageTexelBuffer:
+					assert( false ); // not implemented
+				    break;
+				case vk::DescriptorType::eInputAttachment:
+					assert( false ); // not implemented
+				    break;
+				case vk::DescriptorType::eCombinedImageSampler:                              // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
+				case vk::DescriptorType::eSampledImage:                                      // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
+				case vk::DescriptorType::eStorageImage:                                      // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
+				case vk::DescriptorType::eSampler:                                           // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
+					entry.setOffset( base_offset + offsetof( DescriptorData, imageInfo ) );  // <- point to first field of ImageInfo
+				    break;                                                                   //
+				case vk::DescriptorType::eUniformBuffer:                                     // fall-through as this kind of descriptor uses BufferInfo
+				case vk::DescriptorType::eStorageBuffer:                                     // fall-through as this kind of descriptor uses BufferInfo
+				case vk::DescriptorType::eUniformBufferDynamic:                              // fall-through as this kind of descriptor uses BufferInfo
+				case vk::DescriptorType::eStorageBufferDynamic:                              //
+					entry.setOffset( base_offset + offsetof( DescriptorData, bufferInfo ) ); // <- point to first element of BufferInfo
 				    break;
 				}
 
