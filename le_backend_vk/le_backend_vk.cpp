@@ -300,7 +300,8 @@ struct BackendFrameData {
 		vk::ImageView imageView;
 	};
 
-	std::unordered_map<le_resource_handle_t, Texture, LeResourceHandleIdentity> textures; // non-owning, references to frame-local textures, cleared on frame fence.
+	std::unordered_map<le_resource_handle_t, Texture, LeResourceHandleIdentity>       textures;   // non-owning, references to frame-local textures, cleared on frame fence.
+	std::unordered_map<le_resource_handle_t, vk::ImageView, LeResourceHandleIdentity> imageViews; // non-owning, references to frame-local textures, cleared on frame fence.
 
 	// With `syncChainTable` and image_attachment_info_o.syncState, we should
 	// be able to create renderpasses. Each resource has a sync chain, and each attachment_info
@@ -1227,8 +1228,10 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 	le_staging_allocator_i.reset( frame.stagingAllocator );
 
 	// -- remove any texture references
-
 	frame.textures.clear();
+
+	// -- remove any image view references
+	frame.imageViews.clear();
 
 	// -- remove any frame-local copy of allocated resources
 	frame.availableResources.clear();
@@ -2293,6 +2296,69 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 
 	using namespace le_renderer;
 
+	// Create imageviews for all available resources which are of type image
+	// and which have usage sampled or storage.
+	//
+	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
+
+		const le_resource_handle_t *resources      = nullptr;
+		const le_resource_info_t *  resource_infos = nullptr;
+		size_t                      resource_count = 0;
+
+		renderpass_i.get_used_resources( *p, &resources, &resource_infos, &resource_count );
+
+		for ( size_t i = 0; i != resource_count; ++i ) {
+			auto const &r      = resources[ i ];
+			auto const &r_info = resource_infos[ i ];
+
+			if ( r_info.type == LeResourceType::eImage &&
+			     ( r_info.image.usage & ( LE_IMAGE_USAGE_SAMPLED_BIT | LE_IMAGE_USAGE_STORAGE_BIT ) ) ) {
+
+				// We create a default image view for this image and store it with the frame. If no explicit image view
+				// for a particular operation has been specified, this default image view is used.
+
+				if ( frame.imageViews.find( r ) != frame.imageViews.end() ) {
+					continue;
+				}
+
+				// ---------| Invariant: ImageView for this image not yet stored with frame.
+
+				auto imageFormat = le_format_to_vk( r_info.image.format );
+
+				vk::ImageSubresourceRange subresourceRange;
+				subresourceRange
+				    .setAspectMask( is_depth_stencil_format( imageFormat ) ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor )
+				    .setBaseMipLevel( 0 )
+				    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
+				    .setBaseArrayLayer( 0 )
+				    .setLayerCount( 1 );
+
+				vk::ImageViewCreateInfo imageViewCreateInfo{};
+				imageViewCreateInfo
+				    .setFlags( {} )
+				    .setImage( frame_data_get_image_from_le_resource_id( frame, r ) )
+				    .setViewType( vk::ImageViewType::e2D )
+				    .setFormat( imageFormat )
+				    .setComponents( {} ) // default component mapping
+				    .setSubresourceRange( subresourceRange );
+
+				auto imageView = device.createImageView( imageViewCreateInfo );
+
+				// Store image view object with frame, indexed by image resource id,
+				// so that it can be found quickly if need be.
+				frame.imageViews[ r ] = imageView;
+
+				AbstractPhysicalResource imgView{};
+				imgView.type        = AbstractPhysicalResource::Type::eImageView;
+				imgView.asImageView = imageView;
+
+				frame.ownedResources.emplace_front( std::move( imgView ) );
+			}
+		}
+	}
+
+	// Create Samplers for all images which are used as Textures
+
 	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
 		// get all texture names for this pass
 
@@ -2318,73 +2384,84 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 
 				auto &texInfo = textureInfos[ i ];
 
-				auto imageFormat = vk::Format( frame_data_get_image_format_from_texture_info( frame, texInfo ) );
-
-				vk::ImageSubresourceRange subresourceRange;
-				subresourceRange
-				    .setAspectMask( is_depth_stencil_format( imageFormat ) ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor )
-				    .setBaseMipLevel( 0 )
-				    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
-				    .setBaseArrayLayer( 0 )
-				    .setLayerCount( 1 );
-
-				// TODO: fill in additional image view create info based on info from pass...
-
-				vk::ImageViewCreateInfo imageViewCreateInfo{};
-				imageViewCreateInfo
-				    .setFlags( {} )
-				    .setImage( frame_data_get_image_from_le_resource_id( frame, texInfo.imageView.imageId ) )
-				    .setViewType( vk::ImageViewType::e2D )
-				    .setFormat( imageFormat )
-				    .setComponents( {} ) // default component mapping
-				    .setSubresourceRange( subresourceRange );
-
-				vk::SamplerCreateInfo samplerCreateInfo{};
-				samplerCreateInfo
-				    .setFlags( {} )
-				    .setMagFilter( le_filter_to_vk( texInfo.sampler.magFilter ) )
-				    .setMinFilter( le_filter_to_vk( texInfo.sampler.minFilter ) )
-				    .setMipmapMode( le_sampler_mipmap_mode_to_vk( texInfo.sampler.mipmapMode ) )
-				    .setAddressModeU( le_sampler_address_mode_to_vk( texInfo.sampler.addressModeU ) )
-				    .setAddressModeV( le_sampler_address_mode_to_vk( texInfo.sampler.addressModeV ) )
-				    .setAddressModeW( le_sampler_address_mode_to_vk( texInfo.sampler.addressModeW ) )
-				    .setMipLodBias( texInfo.sampler.mipLodBias )
-				    .setAnisotropyEnable( texInfo.sampler.anisotropyEnable )
-				    .setMaxAnisotropy( texInfo.sampler.maxAnisotropy )
-				    .setCompareEnable( texInfo.sampler.compareEnable )
-				    .setCompareOp( le_compare_op_to_vk( texInfo.sampler.compareOp ) )
-				    .setMinLod( texInfo.sampler.minLod )
-				    .setMaxLod( texInfo.sampler.maxLod )
-				    .setBorderColor( le_border_color_to_vk( texInfo.sampler.borderColor ) )
-				    .setUnnormalizedCoordinates( texInfo.sampler.unnormalizedCoordinates );
-
-				auto vkSampler   = device.createSampler( samplerCreateInfo );
-				auto vkImageView = device.createImageView( imageViewCreateInfo );
-
-				// -- Store Texture with frame so that decoder can find references
-
-				BackendFrameData::Texture tex;
-				tex.imageView = vkImageView;
-				tex.sampler   = vkSampler;
-
-				frame.textures[ textureId ] = tex;
-
+				vk::ImageView imageView{};
 				{
-					// Now store vk object references with frame owned resources, so that
+					// Set or create vkImageview
+
+					auto imageFormat = vk::Format( frame_data_get_image_format_from_texture_info( frame, texInfo ) );
+
+					vk::ImageSubresourceRange subresourceRange;
+					subresourceRange
+					    .setAspectMask( is_depth_stencil_format( imageFormat ) ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor )
+					    .setBaseMipLevel( 0 )
+					    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
+					    .setBaseArrayLayer( 0 )
+					    .setLayerCount( 1 );
+
+					// TODO: fill in additional image view create info based on info from pass...
+
+					vk::ImageViewCreateInfo imageViewCreateInfo{};
+					imageViewCreateInfo
+					    .setFlags( {} )
+					    .setImage( frame_data_get_image_from_le_resource_id( frame, texInfo.imageView.imageId ) )
+					    .setViewType( vk::ImageViewType::e2D )
+					    .setFormat( imageFormat )
+					    .setComponents( {} ) // default component mapping
+					    .setSubresourceRange( subresourceRange );
+
+					imageView = device.createImageView( imageViewCreateInfo );
+
+					// Store vk object references with frame-owned resources, so that
 					// the vk objects can be destroyed when frame crosses the fence.
 
-					AbstractPhysicalResource sampler;
-					AbstractPhysicalResource imgView;
+					AbstractPhysicalResource res;
+					res.asImageView = imageView;
+					res.type        = AbstractPhysicalResource::Type::eImageView;
 
-					sampler.asSampler = vkSampler;
-					sampler.type      = AbstractPhysicalResource::Type::eSampler;
-
-					imgView.asImageView = vkImageView;
-					imgView.type        = AbstractPhysicalResource::Type::eImageView;
-
-					frame.ownedResources.emplace_front( std::move( sampler ) );
-					frame.ownedResources.emplace_front( std::move( imgView ) );
+					frame.ownedResources.emplace_front( std::move( res ) );
 				}
+
+				vk::Sampler sampler{};
+				{
+					// Create VkSampler object on device.
+
+					vk::SamplerCreateInfo samplerCreateInfo{};
+					samplerCreateInfo
+					    .setFlags( {} )
+					    .setMagFilter( le_filter_to_vk( texInfo.sampler.magFilter ) )
+					    .setMinFilter( le_filter_to_vk( texInfo.sampler.minFilter ) )
+					    .setMipmapMode( le_sampler_mipmap_mode_to_vk( texInfo.sampler.mipmapMode ) )
+					    .setAddressModeU( le_sampler_address_mode_to_vk( texInfo.sampler.addressModeU ) )
+					    .setAddressModeV( le_sampler_address_mode_to_vk( texInfo.sampler.addressModeV ) )
+					    .setAddressModeW( le_sampler_address_mode_to_vk( texInfo.sampler.addressModeW ) )
+					    .setMipLodBias( texInfo.sampler.mipLodBias )
+					    .setAnisotropyEnable( texInfo.sampler.anisotropyEnable )
+					    .setMaxAnisotropy( texInfo.sampler.maxAnisotropy )
+					    .setCompareEnable( texInfo.sampler.compareEnable )
+					    .setCompareOp( le_compare_op_to_vk( texInfo.sampler.compareOp ) )
+					    .setMinLod( texInfo.sampler.minLod )
+					    .setMaxLod( texInfo.sampler.maxLod )
+					    .setBorderColor( le_border_color_to_vk( texInfo.sampler.borderColor ) )
+					    .setUnnormalizedCoordinates( texInfo.sampler.unnormalizedCoordinates );
+
+					sampler = device.createSampler( samplerCreateInfo );
+
+					// Now store vk object references with frame-owned resources, so that
+					// the vk objects can be destroyed when frame crosses the fence.
+
+					AbstractPhysicalResource res;
+
+					res.asSampler = sampler;
+					res.type      = AbstractPhysicalResource::Type::eSampler;
+					frame.ownedResources.emplace_front( std::move( res ) );
+				}
+
+				// -- Store Texture with frame so that decoder can find references
+				BackendFrameData::Texture tex;
+				tex.imageView = imageView;
+				tex.sampler   = sampler;
+
+				frame.textures[ textureId ] = tex;
 			}
 		} // end for all textureIds
 	}     // end for all passes
@@ -2762,11 +2839,12 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					case vk::DescriptorType::eUniformBufferDynamic: //
 					case vk::DescriptorType::eStorageBuffer:        // fall-through
 						// if buffer must have valid buffer bound
-						argumentsOk &= ( nullptr != a.buffer );
+						argumentsOk &= ( nullptr != a.bufferInfo.buffer );
 					    break;
 					case vk::DescriptorType::eCombinedImageSampler:
 					case vk::DescriptorType::eSampledImage:
-						argumentsOk &= ( nullptr != a.imageView ); // if sampler, must have image view
+					case vk::DescriptorType::eStorageImage:
+						argumentsOk &= ( nullptr != a.imageInfo.imageView ); // if sampler, must have valid image view
 					    break;
 					default:
 						// TODO: check arguments for other types of descriptors
@@ -2852,11 +2930,12 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 									// add an entry for each array element with this binding to setData
 									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
-										DescriptorData descriptorData{};
-										descriptorData.arrayIndex    = uint32_t( arrayIndex );
-										descriptorData.bindingNumber = b.binding;
-										descriptorData.type          = vk::DescriptorType( b.type );
-										descriptorData.range         = VK_WHOLE_SIZE; // note this could be vk_full_size
+										DescriptorData descriptorData{
+											.type          = vk::DescriptorType( b.type ),
+											.bindingNumber = uint32_t( b.binding ),
+											.arrayIndex    = uint32_t( arrayIndex ),
+										};
+										descriptorData.bufferInfo.range = VK_WHOLE_SIZE; // note this could be vk_full_size
 										setData.emplace_back( std::move( descriptorData ) );
 									}
 
