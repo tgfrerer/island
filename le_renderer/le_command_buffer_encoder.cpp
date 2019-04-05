@@ -258,7 +258,7 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *self,
 }
 
 // ----------------------------------------------------------------------
-// Todo - after uploading we should call bind_argument_buffer and proceed from there.
+// TODO - after uploading we should call bind_argument_buffer and proceed from there.
 static void cbe_set_argument_data( le_command_buffer_encoder_o *self,
                                    uint64_t                     argumentNameId, // hash id of argument name
                                    void const *                 data,
@@ -323,6 +323,20 @@ static void cbe_set_argument_texture( le_command_buffer_encoder_o *self, le_reso
 	cmd->info.array_index      = arrayIndex;
 
 	self->mCommandStreamSize += sizeof( le::CommandSetArgumentTexture );
+	self->mCommandCount++;
+}
+
+// ----------------------------------------------------------------------
+
+static void cbe_set_argument_image( le_command_buffer_encoder_o *self, le_resource_handle_t const imageId, uint64_t argumentName, uint64_t arrayIndex ) {
+
+	auto cmd = EMPLACE_CMD( le::CommandSetArgumentImage );
+
+	cmd->info.argument_name_id = argumentName;
+	cmd->info.image_id         = imageId;
+	cmd->info.array_index      = arrayIndex;
+
+	self->mCommandStreamSize += sizeof( le::CommandSetArgumentImage );
 	self->mCommandCount++;
 }
 
@@ -477,6 +491,7 @@ ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
 	cbe_i.set_argument_data      = cbe_set_argument_data;
 	cbe_i.bind_argument_buffer   = cbe_bind_argument_buffer;
 	cbe_i.set_argument_texture   = cbe_set_argument_texture;
+	cbe_i.set_argument_image     = cbe_set_argument_image;
 	cbe_i.bind_graphics_pipeline = cbe_bind_graphics_pipeline;
 	cbe_i.bind_compute_pipeline  = cbe_bind_compute_pipeline;
 	cbe_i.get_encoded_data       = cbe_get_encoded_data;
