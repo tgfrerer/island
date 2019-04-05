@@ -3268,7 +3268,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					auto foundTex = frame.textures.find( le_cmd->info.texture_id );
 					if ( foundTex == frame.textures.end() ) {
-						std::cerr << "Could not find requested texture: " << le_cmd->info.texture_id << " Ignoring texture binding command." << std::endl
+						std::cerr << "Could not find requested texture: " << le_cmd->info.texture_id.debug_name << " Ignoring texture binding command." << std::endl
 						          << std::flush;
 						break;
 					}
