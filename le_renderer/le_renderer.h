@@ -77,12 +77,12 @@ struct le_renderer_api {
 		bool                         ( *get_is_root          )( const le_renderpass_o *obj);
 		void                         ( *set_sort_key         )( le_renderpass_o *obj, uint64_t sort_key);
 		uint64_t                     ( *get_sort_key         )( const le_renderpass_o *obj);
-		void                         ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle_t const **pCreateResources, le_resource_info_t const **pResourceInfos, size_t *count );
+		void                         ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle_t const **pResourceIds, le_resource_info_t const **pResourceInfos, size_t *count );
 		const char*                  ( *get_debug_name       )( const le_renderpass_o* obj );
 		uint64_t                     ( *get_id               )( const le_renderpass_o* obj );
 		LeRenderPassType             ( *get_type             )( const le_renderpass_o* obj );
 		le_command_buffer_encoder_o* ( *steal_encoder        )( le_renderpass_o* obj );
-		void                         ( *get_image_attachments)(const le_renderpass_o* obj, const le_image_attachment_info_t** pAttachments, const le_resource_handle_t** pResources, size_t* numAttachments);
+		void                         ( *get_image_attachments)(const le_renderpass_o* obj, const le_image_attachment_info_t** pAttachments, const le_resource_handle_t** pResourceIds, size_t* numAttachments);
 
 		// TODO: not too sure about the nomenclature of this
 		// Note that this method implicitly marks the image resource referenced in LeTextureInfo for read access.
