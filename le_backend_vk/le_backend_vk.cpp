@@ -2894,13 +2894,15 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		if ( pass.encoder ) {
 			encoder_i.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
 		} else {
-			assert( false );
-			std::cout << "ERROR: pass does not have valid encoder.";
+
+			// assert( false );
+			std::cout << "WARNING: pass '" << pass.debugName << "' does not have valid encoder." << std::endl
+			          << std::flush;
 		}
 
-		le_pipeline_manager_o *pipelineManager = encoder_i.get_pipeline_manager( pass.encoder );
-
 		if ( commandStream != nullptr && numCommands > 0 ) {
+
+			le_pipeline_manager_o *pipelineManager = encoder_i.get_pipeline_manager( pass.encoder );
 
 			std::vector<vk::Buffer>       vertexInputBindings( maxVertexInputBindings, nullptr );
 			void *                        dataIt = commandStream;
