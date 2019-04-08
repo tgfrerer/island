@@ -99,7 +99,7 @@ struct le_renderer_api {
 		void                 ( *setup_passes   )( le_render_module_o *obj, le_rendergraph_o *gb );
 	};
 
-	// graph builder builds a graph for a module
+	// Graph builder builds a graph for a module
 	struct rendergraph_interface_t {
 		le_rendergraph_o *   ( *create         )();
 		void                 ( *destroy        )( le_rendergraph_o *obj );

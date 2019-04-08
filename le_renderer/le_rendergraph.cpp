@@ -136,17 +136,11 @@ static inline bool vector_contains( const std::vector<T> &haystack, const T &nee
 // Associate a resource with a renderpass.
 // Data containted in `resource_info` decides whether the resource
 // is used for read, write, or read/write.
-// If a resource is already known to the renderpass, we attempt to
-// consolidate resource_info.
 static void renderpass_use_resource( le_renderpass_o *self, const le_resource_handle_t &resource_id, const le_resource_info_t &resource_info ) {
-
-	// Check if resource is already known to this renderpass -
-	//		+ If yes, consolidate info (to largest common denominator),
-	//		+ Otherwise, add new resource to resources list, and add a matching new resource info entry.
 
 	assert( resource_info.type == LeResourceType::eBuffer || resource_info.type == LeResourceType::eImage );
 
-	// ---------| Invariant: only check images or buffers
+	// ---------| Invariant: resource is either an image or buffer
 
 	size_t resource_idx      = 0; // index of matching resource
 	size_t numKnownResources = self->resources.size();
@@ -268,7 +262,6 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 }
 
 // ----------------------------------------------------------------------
-// FIXME: this does not properly preserve the format for images.
 static void renderpass_sample_texture( le_renderpass_o *self, le_resource_handle_t texture, LeTextureInfo const *textureInfo ) {
 
 	// -- store texture info so that backend can create resources
@@ -286,7 +279,6 @@ static void renderpass_sample_texture( le_renderpass_o *self, le_resource_handle
 
 	auto required_flags = le::ImageInfoBuilder()
 	                          .addUsageFlags( LE_IMAGE_USAGE_SAMPLED_BIT )
-	                          .setFormat( textureInfo->imageView.format )
 	                          .build();
 
 	// -- Mark image resource referenced by texture as used for reading

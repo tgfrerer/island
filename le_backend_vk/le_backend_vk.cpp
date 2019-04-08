@@ -315,10 +315,10 @@ struct BackendFrameData {
 
 	static_assert( sizeof( VkBuffer ) == sizeof( VkImageView ) && sizeof( VkBuffer ) == sizeof( VkImage ), "size of AbstractPhysicalResource components must be identical" );
 
-	// Todo: clarify ownership of physical resources inside FrameData
+	// Map from renderer resource id to physical resources - only contains resources this frame uses.
 	// Q: Does this table actually own the resources?
 	// A: It must not: as it is used to map external resources as well.
-	std::unordered_map<le_resource_handle_t, AbstractPhysicalResource, LeResourceHandleIdentity> physicalResources; // map from renderer resource id to physical resources - only contains resources this frame uses.
+	std::unordered_map<le_resource_handle_t, AbstractPhysicalResource, LeResourceHandleIdentity> physicalResources;
 
 	/// \brief vk resources retained and destroyed with BackendFrameData
 	std::forward_list<AbstractPhysicalResource> ownedResources;
@@ -328,10 +328,10 @@ struct BackendFrameData {
 
 	/*
 
-	  Each Frame has one allocation Pool from which all allocations for scratch buffers are drawn.
+	  Each Frame has one allocation pool from which all allocations for scratch buffers are drawn.
 
 	  When creating encoders, each encoder has their own sub-allocator, each sub-allocator owns an
-	  independent block of memory allcated from the frame pool. This way, encoders can work in their
+	  independent block of memory allcated from the frame pool. This way, encoders can work on their
 	  own thread.
 
 	 */
@@ -876,8 +876,8 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 	// A pipeline barrier is defined as a combination of EXECUTION dependency and MEMORY dependency:
 	//
 	// * An EXECUTION DEPENDENCY tells us which stage needs to be complete (srcStage) before another named stage (dstStage) may execute.
-	// * A  MEMORY DEPENDECY     tells us which memory needs to be made available/flushed (srcAccess) after srcStage,
-	//   before another memory can be made visible/invalidated (dstAccess) before dstStage
+	// * A  MEMORY DEPENDECY     tells us which memory/cache needs to be made available/flushed (srcAccess) after srcStage,
+	//   before another memory/cache can be made visible/invalidated (dstAccess) before dstStage
 
 	// Renderpass implicit sync (per image resource)
 	//
@@ -924,11 +924,16 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		LeRenderPass currentPass{};
 
 		currentPass.type      = renderpass_i.get_type( *pass );
+		currentPass.debugName = renderpass_i.get_debug_name( *pass );
 		currentPass.width     = renderpass_i.get_width( *pass );
 		currentPass.height    = renderpass_i.get_height( *pass );
-		currentPass.debugName = renderpass_i.get_debug_name( *pass );
 
-		// Iterate over all sampled textures used within this renderpass
+		// Find explicit sync ops needed for resources which are not image
+		// attachments. We deal with image attachments separately, since image
+		// attachments can be synchronised implicitly via subpass transitions.
+		//
+		// Iterate over all resources which are not used as image attachments.
+		//
 
 		{
 			// Fetch texture infos - each tex_info references an image used for sampling.
@@ -2111,7 +2116,8 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				first_info->image.usage |= info->image.usage;
 
 				// If an image format was explictly set, this takes precedence over eUndefined.
-				// Note that we skip this block if both infos have the same format.
+				// Note that we skip this block if both infos have the same format, so if both
+				// infos are eUndefined, format stays undefined.
 
 				if ( info->image.format != le::Format::eUndefined && info->image.format != first_info->image.format ) {
 
@@ -2129,18 +2135,8 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 			// Do a final sanity check to make sure all required fields are valid.
 
-			// NOTE: if, for example image width and/or image height were 0, this indicates
-			// that an image is only used for sampling, but has not been fully specified as
-			// a resource. We could then substitute this resource with a statically allocated
-			// error indicator resource (an image which has a grizzly error pattern) for example.
-
-			first_info->image.extent.height = std::max<uint32_t>( first_info->image.extent.height, 0 ); // we make this 0 so that we fail early instead of allocating 1x1 pixel images.
-			first_info->image.extent.width  = std::max<uint32_t>( first_info->image.extent.width, 0 );  // we make this 0 so that we fail early instead of allocating 1x1 pixel images.
-
 			assert( first_info->image.extent.depth != 0 ); // zero depth is illegal.
-			                                               //			assert( first_info->image.extent.width != 0 );
-			                                               //			assert( first_info->image.extent.height != 0 );
-			assert( first_info->image.usage != 0 );
+			assert( first_info->image.usage != 0 );        // some kind of usage must be specified.
 
 		} break;
 		default:
