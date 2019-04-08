@@ -130,9 +130,13 @@ struct ResourceCreateInfo {
 				// rhs must be found in lhs:
 				// flags_rhs == (this.flags & flags_rhs)
 
+				// Note this.format passes >=,
+				// a) if it is identical with rhs.format,
+				// b) iff this.format is defined, and rhs.format is undefined.
+
 				return ( ( ( imageInfo.flags & rhs.imageInfo.flags ) == rhs.imageInfo.flags ) &&
 				         imageInfo.imageType == rhs.imageInfo.imageType &&
-				         imageInfo.format == rhs.imageInfo.format &&
+				         ( imageInfo.format == rhs.imageInfo.format || ( imageInfo.format != VK_FORMAT_UNDEFINED && rhs.imageInfo.format == VK_FORMAT_UNDEFINED ) ) &&
 				         imageInfo.extent.width >= rhs.imageInfo.extent.width &&
 				         imageInfo.extent.height >= rhs.imageInfo.extent.height &&
 				         imageInfo.extent.depth >= rhs.imageInfo.extent.depth &&
@@ -1743,18 +1747,19 @@ static void backend_create_descriptor_pools( BackendFrameData &frame, vk::Device
 // ----------------------------------------------------------------------
 // Returns a VkFormat which will match a given set of LeImageUsageFlags.
 // If a matching format cannot be inferred, this method
-VkFormat infer_image_format_from_le_image_usage_flags( LeImageUsageFlags flags ) {
-	VkFormat format{};
-
-	if ( flags & ( LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | LE_IMAGE_USAGE_SAMPLED_BIT ) ) {
+le::Format infer_image_format_from_le_image_usage_flags( le_backend_o *self, LeImageUsageFlags flags ) {
+	le::Format format{};
+	if ( flags & ( LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT ) ) {
 		// set to default color format
-		format = VK_FORMAT_R8G8B8A8_UNORM;
+		format = self->defaultFormatColorAttachment;
 	} else if ( flags & LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) {
 		// set to default depth stencil format
-		format = VK_FORMAT_D32_SFLOAT_S8_UINT;
+		format = self->defaultFormatDepthStencilAttachment;
+	} else if ( flags & LE_IMAGE_USAGE_SAMPLED_BIT ) {
+		format = self->defaultFormatSampledImage;
 	} else {
 		// we don't know what to do because we can't infer the intended use of this resource.
-		//		assert( false );
+		format = le::Format::eUndefined;
 	}
 	return format;
 }
@@ -2122,39 +2127,19 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				}
 			}
 
-			// If the image format is still eUndefined at this point, it might be
-			// possible to infer it from usage flags.
+			// Do a final sanity check to make sure all required fields are valid.
 
-			if ( first_info->image.format == le::Format::eUndefined ) {
-
-				const auto &usage = first_info->image.usage;
-
-				if ( usage & ( LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT ) ) {
-					first_info->image.format = self->defaultFormatColorAttachment;
-				} else if ( usage & ( LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) ) {
-					first_info->image.format = self->defaultFormatDepthStencilAttachment;
-				} else if ( usage & ( LE_IMAGE_USAGE_SAMPLED_BIT ) ) {
-					first_info->image.format = self->defaultFormatSampledImage;
-				} else {
-					std::cerr << "FATAL: Cannot infer image format, resource underspecified: '" << usedResources[ resource_index ].debug_name << "'" << std::endl
-					          << "Specify usage, or provide explicit format option for resource to fix this error. " << std::endl
-					          << std::flush;
-					assert( false ); // we don't have enough information to infer image format.
-				}
-			}
-
-			// TODO: Do a final sanity check to make sure all required fields are valid.
-			// Note: if, for example image width and/or image height were 0, this indicates
+			// NOTE: if, for example image width and/or image height were 0, this indicates
 			// that an image is only used for sampling, but has not been fully specified as
 			// a resource. We could then substitute this resource with a statically allocated
 			// error indicator resource (an image which has a grizzly error pattern) for example.
 
-			first_info->image.extent.height = std::max<uint32_t>( first_info->image.extent.height, 1 );
-			first_info->image.extent.width  = std::max<uint32_t>( first_info->image.extent.width, 1 );
+			first_info->image.extent.height = std::max<uint32_t>( first_info->image.extent.height, 0 ); // we make this 0 so that we fail early instead of allocating 1x1 pixel images.
+			first_info->image.extent.width  = std::max<uint32_t>( first_info->image.extent.width, 0 );  // we make this 0 so that we fail early instead of allocating 1x1 pixel images.
 
-			assert( first_info->image.extent.depth != 0 );
-			assert( first_info->image.extent.width != 0 );
-			assert( first_info->image.extent.height != 0 );
+			assert( first_info->image.extent.depth != 0 ); // zero depth is illegal.
+			                                               //			assert( first_info->image.extent.width != 0 );
+			                                               //			assert( first_info->image.extent.height != 0 );
 			assert( first_info->image.usage != 0 );
 
 		} break;
@@ -2186,6 +2171,25 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 	auto &backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
 
+	auto checkImageFormat = []( le_backend_o *self, le_resource_handle_t const &resource, ResourceCreateInfo *createInfo, LeImageUsageFlags const &usageFlags ) -> bool {
+		// If image format was not specified, we must try to
+		// infer the image format from usage flags.
+		auto inferred_format = infer_image_format_from_le_image_usage_flags( self, usageFlags );
+
+		if ( inferred_format == le::Format::eUndefined ) {
+			std::cerr << "FATAL: Cannot infer image format, resource underspecified: '" << resource.debug_name << "'" << std::endl
+			          << "Specify usage, or provide explicit format option for resource to fix this error. " << std::endl
+			          << std::flush;
+
+			assert( false ); // we don't have enough information to infer image format.
+			return false;
+		} else {
+			createInfo->imageInfo.format = VkFormat( le_format_to_vk( inferred_format ) );
+		}
+
+		return true;
+	};
+
 	const size_t usedResourcesSize = usedResources.size();
 	for ( size_t i = 0; i != usedResourcesSize; ++i ) {
 
@@ -2194,8 +2198,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 		// See if a resource with this id is already available to the backend.
 
-		auto resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo, &self->queueFamilyIndexGraphics, 0 );
-
+		auto       resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo, &self->queueFamilyIndexGraphics, 0 );
 		auto       foundIt            = backendResources.find( resourceId );
 		const bool resourceIdNotFound = ( foundIt == backendResources.end() );
 
@@ -2203,6 +2206,10 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 			// Resource does not yet exist, we must allocate this resource and add it to the backend.
 			// Then add a reference to it to the current frame.
+
+			if ( resourceCreateInfo.isBuffer() == false && resourceCreateInfo.imageInfo.format == VK_FORMAT_UNDEFINED ) {
+				checkImageFormat( self, resourceId, &resourceCreateInfo, resourceInfo.image.usage );
+			}
 
 			if ( PRINT_DEBUG_MESSAGES || true ) {
 				std::cout << "Allocating resource: ";
@@ -2243,6 +2250,10 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				// We must re-allocate this resource, and add the old version of the resource to the recycling bin.
 
 				// -- allocate a new resource
+
+				if ( resourceCreateInfo.isBuffer() == false && resourceCreateInfo.imageInfo.format == VK_FORMAT_UNDEFINED ) {
+					checkImageFormat( self, resourceId, &resourceCreateInfo, resourceInfo.image.usage );
+				}
 
 				if ( PRINT_DEBUG_MESSAGES || true ) {
 					std::cout << "Re-allocating resource: ";
