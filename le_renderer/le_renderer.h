@@ -64,15 +64,15 @@ struct le_renderer_api {
 		le_renderpass_o *            ( *clone                )( const le_renderpass_o *obj );
 		void                         ( *set_setup_callback   )( le_renderpass_o *obj, pfn_renderpass_setup_t setup_fun, void *user_data );
 		bool                         ( *has_setup_callback   )( const le_renderpass_o* obj);
-		void                         ( *add_color_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, const le_resource_info_t& resource_info, le_image_attachment_info_t const *info );
-		void                         ( *add_depth_stencil_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, const le_resource_info_t& resource_info, le_image_attachment_info_t const *info );
+		void                         ( *add_color_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, le_image_attachment_info_t const *info );
+		void                         ( *add_depth_stencil_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, le_image_attachment_info_t const *info );
 		uint32_t                     ( *get_width            )( le_renderpass_o* obj);
 		uint32_t                     ( *get_height           )( le_renderpass_o* obj);
 		void                         ( *set_width            )( le_renderpass_o* obj, uint32_t width);
 		void                         ( *set_height           )( le_renderpass_o* obj, uint32_t height);
 		void                         ( *set_execute_callback )( le_renderpass_o *obj, pfn_renderpass_execute_t render_fun, void *user_data );
 		bool                         ( *has_execute_callback )( const le_renderpass_o* obj);
-		void                         ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle_t& resource_id, const le_resource_info_t &info);
+		void                         ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle_t& resource_id, const LeResourceUsageFlags &usage_flags);
 		void                         ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
 		bool                         ( *get_is_root          )( const le_renderpass_o *obj);
 		void                         ( *set_sort_key         )( le_renderpass_o *obj, uint64_t sort_key);
@@ -268,21 +268,29 @@ class RenderPass {
 	/// \details resource is used for ColorAttachment and Write access, unless otherwise specified.
 	///          Use an le_image_attachment_info_t struct to specialise parameters, such as LOAD_OP, CLEAR_OP, and Clear/Load Color.
 	RenderPass &addColorAttachment( const le_resource_handle_t &      resource_id,
-	                                const le_image_attachment_info_t &attachmentInfo = le_image_attachment_info_t(),
-	                                const le_resource_info_t &        resource_info  = le_renderer::helpers_i.get_default_resource_info_for_color_attachment() ) {
-		le_renderer::renderpass_i.add_color_attachment( self, resource_id, resource_info, &attachmentInfo );
+	                                const le_image_attachment_info_t &attachmentInfo = le_image_attachment_info_t() ) {
+		le_renderer::renderpass_i.add_color_attachment( self, resource_id, &attachmentInfo );
 		return *this;
 	}
 
 	RenderPass &addDepthStencilAttachment( const le_resource_handle_t &      resource_id,
-	                                       const le_image_attachment_info_t &attachmentInfo = LeDepthAttachmentInfo(),
-	                                       const le_resource_info_t &        resource_info  = le_renderer::helpers_i.get_default_resource_info_for_depth_stencil_attachment() ) {
-		le_renderer::renderpass_i.add_depth_stencil_attachment( self, resource_id, resource_info, &attachmentInfo );
+	                                       const le_image_attachment_info_t &attachmentInfo = LeDepthAttachmentInfo() ) {
+		le_renderer::renderpass_i.add_depth_stencil_attachment( self, resource_id, &attachmentInfo );
 		return *this;
 	}
 
-	RenderPass &useResource( le_resource_handle_t resource_id, const le_resource_info_t &info ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, info );
+	RenderPass &useImageResource( le_resource_handle_t resource_id, const LeImageUsageFlags &usage_flags ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, {LeResourceType::eImage, {{usage_flags}}} );
+		return *this;
+	}
+
+	RenderPass &useBufferResource( le_resource_handle_t resource_id, const LeBufferUsageFlags &usage_flags ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, {LeResourceType::eBuffer, {{usage_flags}}} );
+		return *this;
+	}
+
+	RenderPass &useResource( le_resource_handle_t resource_id, const LeResourceUsageFlags &usage_flags ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, usage_flags );
 		return *this;
 	}
 

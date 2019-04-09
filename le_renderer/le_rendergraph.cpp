@@ -264,34 +264,30 @@ static void renderpass_sample_texture( le_renderpass_o *self, le_resource_handle
 
 // ----------------------------------------------------------------------
 
-static void renderpass_add_color_attachment( le_renderpass_o *self, le_resource_handle_t image_id, const le_resource_info_t &resource_info, le_image_attachment_info_t const *attachmentInfo ) {
+static void renderpass_add_color_attachment( le_renderpass_o *self, le_resource_handle_t image_id, le_image_attachment_info_t const *attachmentInfo ) {
 
 	self->imageAttachments.push_back( *attachmentInfo );
 	self->attachmentResources.push_back( image_id );
 
-	le_resource_info_t updated_resource_info = resource_info;
-
 	// Make sure that this imgage can be used as a color attachment,
 	// even if user forgot to specify the flag.
-	updated_resource_info.image.usage |= LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	LeResourceUsageFlags required_flags{LeResourceType::eImage, {{LeImageUsageFlagBits::LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT}}};
 
-	renderpass_use_resource( self, image_id, updated_resource_info );
+	renderpass_use_resource( self, image_id, required_flags );
 }
 
 // ----------------------------------------------------------------------
 
-static void renderpass_add_depth_stencil_attachment( le_renderpass_o *self, le_resource_handle_t image_id, const le_resource_info_t &resource_info, le_image_attachment_info_t const *attachmentInfo ) {
+static void renderpass_add_depth_stencil_attachment( le_renderpass_o *self, le_resource_handle_t image_id, le_image_attachment_info_t const *attachmentInfo ) {
 
 	self->imageAttachments.push_back( *attachmentInfo );
 	self->attachmentResources.push_back( image_id );
 
-	le_resource_info_t updated_resource_info = resource_info;
-
 	// Make sure that this image can be used as a depth stencil attachment,
 	// even if user forgot to specify the flag.
-	updated_resource_info.image.usage |= LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+	LeResourceUsageFlags required_flags{LeResourceType::eImage, {{LeImageUsageFlagBits::LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT}}};
 
-	renderpass_use_resource( self, image_id, updated_resource_info );
+	renderpass_use_resource( self, image_id, required_flags );
 }
 
 // ----------------------------------------------------------------------
