@@ -327,6 +327,11 @@ struct BackendFrameData {
 	/// \brief vk resources retained and destroyed with BackendFrameData
 	std::forward_list<AbstractPhysicalResource> ownedResources;
 
+	/// \brief if user provides explicit resource info, we collect this here, so that we can make sure
+	/// that any inferred resourceInfo is compatible with what the user selected.
+	std::vector<le_resource_handle_t> declared_resources_id;   // | pre-declared resources (declared via module)
+	std::vector<le_resource_info_t>   declared_resources_info; // | pre-declared resources (declared via module)
+
 	std::vector<LeRenderPass>       passes;
 	std::vector<vk::DescriptorPool> descriptorPools; // one descriptor pool per pass
 
@@ -1981,7 +1986,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	std::vector<std::vector<le_resource_info_t>> usedResourcesInfos; // ( usedResourceInfos[index] contains vector of usages for usedResource[index]
 
 	// Iterate over all resource declarations in all passes so that we can collect all resources,
-	// and their infos (usages). Later, we will consolidate their usages so that resources can
+	// and their usage information. Later, we will consolidate their usages so that resources can
 	// be re-used across passes.
 	//
 	// Note that we accumulate all resource infos first, and do consolidation
@@ -2012,31 +2017,61 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			}
 		}
 
-		le_resource_handle_t const *pCreateResourceIds = nullptr;
-		le_resource_info_t const *  pResourceInfos     = nullptr;
-		size_t                      numCreateResources = 0;
+		le_resource_handle_t const *p_resources             = nullptr;
+		LeResourceUsageFlags const *p_resources_usage_flags = nullptr;
+		size_t                      resources_count         = 0;
 
-		renderpass_i.get_used_resources( *rp, &pCreateResourceIds, &pResourceInfos, &numCreateResources );
+		renderpass_i.get_used_resources( *rp, &p_resources, &p_resources_usage_flags, &resources_count );
 
-		for ( size_t i = 0; i != numCreateResources; ++i ) {
+		for ( size_t i = 0; i != resources_count; ++i ) {
 
-			le_resource_handle_t const &resourceId   = pCreateResourceIds[ i ]; // Resource handle
-			le_resource_info_t          resourceInfo = pResourceInfos[ i ];     // Resource info (from renderpass)
+			le_resource_handle_t const &resource             = p_resources[ i ];             // Resource handle
+			LeResourceUsageFlags const &resource_usage_flags = p_resources_usage_flags[ i ]; //usage flags
+
+			assert( resource_usage_flags.type == resource.meta.type ); // must be of same type.
 
 			// Test whether a resource with this id is already in usedResources -
-			// if not, found_index will be identical to usedResource vector size,
+			// if not, resource_index will be identical to usedResource vector size,
 			// which is useful, because as soon as we add an element to the vector
-			// found_index will index the correct element.
+			// resource_index will index the correct element.
 
-			auto resource_index = static_cast<size_t>( std::find( usedResources.begin(), usedResources.end(), resourceId ) - usedResources.begin() );
+			auto resource_index = static_cast<size_t>( std::find( usedResources.begin(), usedResources.end(), resource ) - usedResources.begin() );
 
 			if ( resource_index == usedResources.size() ) {
 
-				// Resource not found - we must insert elements to fulfill the invariant
-				// that found_index points at the correct elements
+				// Resource not found - we must insert a resource, and an empty vector, to fullfil the invariant
+				// that resource_index points at the correct elements
 
-				usedResources.push_back( resourceId );
-				usedResourcesInfos.push_back( {} );
+				// Check if resource is part of previously declared resources - if yes,
+				// insert resource info from declared resources - otherwise insert an
+				// empty entry to indicate that for this resource there are no previous
+				// resource infos.
+
+				// We only want to add resources which are actually used in the frame to
+				// used_resources, which is why we keep declared resources separate, and
+				// only copy their resource info as needed.
+
+				{
+					size_t found_resource_index = 0;
+					// search for resource id in vector of declared resources.
+					for ( auto const &id : frame.declared_resources_id ) {
+						if ( id == resource ) {
+							// resource found, let's use this declared_resource_index.
+							break;
+						}
+						found_resource_index++;
+					}
+
+					if ( found_resource_index == frame.declared_resources_id.size() ) {
+						// Nothing found. Insert empty entry
+						usedResources.push_back( resource );
+						usedResourcesInfos.push_back( {} );
+					} else {
+						// Previously declared resource found. Insert declaration information.
+						usedResources.push_back( frame.declared_resources_id[ found_resource_index ] );
+						usedResourcesInfos.push_back( {frame.declared_resources_info[ found_resource_index ]} );
+					}
+				}
 			}
 
 			// We must ensure that images which are used as Color, or DepthStencil attachments
@@ -2046,31 +2081,41 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			//
 			// We also need to ensure that the extent has 1 as depth value by default.
 
+			le_resource_info_t resourceInfo = {}; // empty resource info
+			resourceInfo.type               = resource_usage_flags.type;
+
 			if ( resourceInfo.type == LeResourceType::eImage ) {
+
+				resourceInfo.image.usage = resource_usage_flags.typed_as.image_usage_flags;
 
 				auto &imgInfo   = resourceInfo.image;
 				auto &imgExtent = imgInfo.extent;
 
 				if ( imgInfo.usage & ( LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) ) {
 
-					imgExtent.width  = std::max<uint32_t>( imgExtent.width, pass_width );
-					imgExtent.height = std::max<uint32_t>( imgExtent.height, pass_height );
+					// FIXME: this should be set via defaults of renderer::default_info_for_color_attachment
+					imgInfo.mipLevels   = 1;
+					imgInfo.samples     = le::SampleCountFlagBits::e1;
+					imgInfo.imageType   = le::ImageType::e2D;
+					imgInfo.tiling      = le::ImageTiling::eOptimal;
+					imgInfo.arrayLayers = 1;
+
+					imgExtent.width  = pass_width;
+					imgExtent.height = pass_height;
 				}
 
 				// depth must be at least 1, but may arrive zero-initialised.
-
 				imgExtent.depth = std::max<uint32_t>( imgExtent.depth, 1 );
 
-				if ( imgInfo.mipLevels > 1 ) {
-					// if image has mip levels, we add usage transfer src, so that mip maps may be created by blitting.
-					imgInfo.usage |= LE_IMAGE_USAGE_TRANSFER_SRC_BIT;
-				}
-
-			} // end for LeResourceType::Image
+			} else if ( resourceInfo.type == LeResourceType::eBuffer ) {
+				resourceInfo.buffer.usage = resource_usage_flags.typed_as.buffer_usage_flags;
+			} else {
+				assert( false ); // unreachable
+			}
 
 			usedResourcesInfos[ resource_index ].emplace_back( resourceInfo );
 
-		} // end for all create resources
+		} // end for all resources
 
 	} // end for all passes
 
@@ -2103,10 +2148,16 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			// Consolidate into first_info, beginning with the second element
 			for ( auto *info = first_info + 1; info != info_end; info++ ) {
 				first_info->buffer.usage |= info->buffer.usage;
+
+				// Make sure buffer can hold maximum of requested number of bytes.
+				if ( info->buffer.size != 0 && info->buffer.size > first_info->buffer.size ) {
+					first_info->buffer.size = info->buffer.size;
+				}
 			}
 
 			// Now, we must make sure that the buffer info contains sane values.
-			// TODO: implement sane defaults if possible, or emit an error message.
+
+			// TODO: emit an error message and emit sane defaults if values fail this test.
 			assert( first_info->buffer.usage != 0 );
 			assert( first_info->buffer.size != 0 );
 
@@ -2134,6 +2185,20 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 						// Two different formats were explicitly specified for this image.
 						assert( false );
 					}
+				}
+
+				// Make sure the image is as large as it needs to be
+
+				if ( info->image.extent.width != 0 && info->image.extent.width > first_info->image.extent.width ) {
+					first_info->image.extent.width = info->image.extent.width;
+				}
+
+				if ( info->image.extent.height != 0 && info->image.extent.height > first_info->image.extent.height ) {
+					first_info->image.extent.height = info->image.extent.height;
+				}
+
+				if ( info->image.extent.depth != 0 && info->image.extent.depth > first_info->image.extent.depth ) {
+					first_info->image.extent.depth = info->image.extent.depth;
 				}
 			}
 
@@ -2190,6 +2255,13 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		return true;
 	};
 
+	// If image has mip levels, we implicitly add usage transfer src, so that mip maps may be created by blitting.
+	auto checkImageUsageForMipLevels = []( ResourceCreateInfo *createInfo ) {
+		if ( createInfo->imageInfo.mipLevels > 1 ) {
+			createInfo->imageInfo.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+		}
+	};
+
 	const size_t usedResourcesSize = usedResources.size();
 	for ( size_t i = 0; i != usedResourcesSize; ++i ) {
 
@@ -2207,8 +2279,13 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			// Resource does not yet exist, we must allocate this resource and add it to the backend.
 			// Then add a reference to it to the current frame.
 
-			if ( resourceCreateInfo.isBuffer() == false && resourceCreateInfo.imageInfo.format == VK_FORMAT_UNDEFINED ) {
-				checkImageFormat( self, resourceId, &resourceCreateInfo, resourceInfo.image.usage );
+			if ( resourceCreateInfo.isImage() ) {
+
+				checkImageUsageForMipLevels( &resourceCreateInfo );
+
+				if ( resourceCreateInfo.imageInfo.format == VK_FORMAT_UNDEFINED ) {
+					checkImageFormat( self, resourceId, &resourceCreateInfo, resourceInfo.image.usage );
+				}
 			}
 
 			if ( PRINT_DEBUG_MESSAGES || true ) {
@@ -2251,8 +2328,11 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 				// -- allocate a new resource
 
-				if ( resourceCreateInfo.isBuffer() == false && resourceCreateInfo.imageInfo.format == VK_FORMAT_UNDEFINED ) {
-					checkImageFormat( self, resourceId, &resourceCreateInfo, resourceInfo.image.usage );
+				if ( resourceCreateInfo.isImage() ) {
+					checkImageUsageForMipLevels( &resourceCreateInfo );
+					if ( resourceCreateInfo.imageInfo.format == VK_FORMAT_UNDEFINED ) {
+						checkImageFormat( self, resourceId, &resourceCreateInfo, resourceInfo.image.usage );
+					}
 				}
 
 				if ( PRINT_DEBUG_MESSAGES || true ) {
@@ -2313,17 +2393,17 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
 
 		const le_resource_handle_t *resources      = nullptr;
-		const le_resource_info_t *  resource_infos = nullptr;
+		const LeResourceUsageFlags *resource_usage = nullptr;
 		size_t                      resource_count = 0;
 
-		renderpass_i.get_used_resources( *p, &resources, &resource_infos, &resource_count );
+		renderpass_i.get_used_resources( *p, &resources, &resource_usage, &resource_count );
 
 		for ( size_t i = 0; i != resource_count; ++i ) {
-			auto const &r      = resources[ i ];
-			auto const &r_info = resource_infos[ i ];
+			auto const &r             = resources[ i ];
+			auto const &r_usage_flags = resource_usage[ i ];
 
-			if ( r_info.type == LeResourceType::eImage &&
-			     ( r_info.image.usage & ( LE_IMAGE_USAGE_SAMPLED_BIT | LE_IMAGE_USAGE_STORAGE_BIT ) ) ) {
+			if ( r_usage_flags.type == LeResourceType::eImage &&
+			     ( r_usage_flags.typed_as.image_usage_flags & ( LE_IMAGE_USAGE_SAMPLED_BIT | LE_IMAGE_USAGE_STORAGE_BIT ) ) ) {
 
 				// We create a default image view for this image and store it with the frame. If no explicit image view
 				// for a particular operation has been specified, this default image view is used.
@@ -2334,15 +2414,11 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 
 				// ---------| Invariant: ImageView for this image not yet stored with frame.
 
-				vk::Format imageFormat = le_format_to_vk( r_info.image.format );
-
-				if ( imageFormat == vk::Format::eUndefined ) {
-					// attempt to look up format via available resources - this is important for
-					// unspecified formats which get automatically inferred, in which case we want
-					// to set the format to whatever was inferred when the image was allocated and placed
-					// in available resources.
-					imageFormat = vk::Format( frame_data_get_image_format_from_resource_id( frame, r ) );
-				}
+				// attempt to look up format via available resources - this is important for
+				// unspecified formats which get automatically inferred, in which case we want
+				// to set the format to whatever was inferred when the image was allocated and placed
+				// in available resources.
+				vk::Format imageFormat = vk::Format( frame_data_get_image_format_from_resource_id( frame, r ) );
 
 				// If the format is still undefined at this point, we can only throw out hands up in the air...
 				//
@@ -2497,7 +2573,13 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 // ----------------------------------------------------------------------
 // TODO: this should mark acquired resources as used by this frame -
 // so that they can only be destroyed iff this frame has been reset.
-static bool backend_acquire_physical_resources( le_backend_o *self, size_t frameIndex, le_renderpass_o **passes, size_t numRenderPasses ) {
+static bool backend_acquire_physical_resources( le_backend_o *              self,
+                                                size_t                      frameIndex,
+                                                le_renderpass_o **          passes,
+                                                size_t                      numRenderPasses,
+                                                le_resource_handle_t const *declared_resources,
+                                                le_resource_info_t const *  declared_resources_infos,
+                                                size_t const &              declared_resources_count ) {
 
 	auto &frame = self->mFrames[ frameIndex ];
 
@@ -2520,6 +2602,15 @@ static bool backend_acquire_physical_resources( le_backend_o *self, size_t frame
 			backbufferInfo.extent = vk::Extent3D( frame.swapchainWidth, frame.swapchainHeight, 1 );
 			backbufferInfo.format = VkFormat( self->swapchainImageFormat );
 		}
+	}
+
+	{
+		// Setup declared resources per frame - These are resources declared using resource infos
+		// which are explicitly declared by user via the rendermodule, but which may or may not be
+		// actually used in the frame.
+
+		frame.declared_resources_id   = {declared_resources, declared_resources + declared_resources_count};
+		frame.declared_resources_info = {declared_resources_infos, declared_resources_infos + declared_resources_count};
 	}
 
 	// Note that at this point memory for scratch buffers for each pass

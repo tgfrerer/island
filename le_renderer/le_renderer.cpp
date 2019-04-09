@@ -290,7 +290,14 @@ static const FrameData::State &renderer_acquire_backend_resources( le_renderer_o
 
 	rendergraph_i.get_passes( frame.rendergraph, &passes, &numRenderPasses );
 
-	auto acquireSuccess = vk_backend_i.acquire_physical_resources( self->backend, frameIndex, passes, numRenderPasses );
+	le_resource_handle_t const *declared_resources;
+	le_resource_info_t const *  declared_resources_infos;
+	size_t                      declared_resources_count = 0;
+
+	rendergraph_i.get_declared_resources( frame.rendergraph, &declared_resources, &declared_resources_infos, &declared_resources_count );
+
+	auto acquireSuccess = vk_backend_i.acquire_physical_resources( self->backend, frameIndex, passes, numRenderPasses,
+	                                                               declared_resources, declared_resources_infos, declared_resources_count );
 
 	frame.meta.time_acquire_frame_end = std::chrono::high_resolution_clock::now();
 

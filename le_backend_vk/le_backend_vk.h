@@ -94,7 +94,7 @@ struct le_backend_vk_api {
 		bool                   ( *poll_frame_fence           ) ( le_backend_o* self, size_t frameIndex);
 		bool                   ( *clear_frame                ) ( le_backend_o *self, size_t frameIndex );
 		void                   ( *process_frame              ) ( le_backend_o *self, size_t frameIndex );
-		bool                   ( *acquire_physical_resources ) ( le_backend_o *self, size_t frameIndex, le_renderpass_o **passes, size_t numRenderPasses  );
+		bool                   ( *acquire_physical_resources ) ( le_backend_o *self, size_t frameIndex, le_renderpass_o **passes, size_t numRenderPasses, le_resource_handle_t const * declared_resources, le_resource_info_t const * declared_resources_infos, size_t const & declared_resources_count );
 		bool                   ( *dispatch_frame             ) ( le_backend_o *self, size_t frameIndex );
 
 		size_t                 ( *get_num_swapchain_images   ) ( le_backend_o *self );

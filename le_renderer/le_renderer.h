@@ -77,7 +77,7 @@ struct le_renderer_api {
 		bool                         ( *get_is_root          )( const le_renderpass_o *obj);
 		void                         ( *set_sort_key         )( le_renderpass_o *obj, uint64_t sort_key);
 		uint64_t                     ( *get_sort_key         )( const le_renderpass_o *obj);
-		void                         ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle_t const **pResourceIds, le_resource_info_t const **pResourceInfos, size_t *count );
+		void                         ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle_t const **pResourceIds, LeResourceUsageFlags const **pResourcesUsage, size_t *count );
 		const char*                  ( *get_debug_name       )( const le_renderpass_o* obj );
 		uint64_t                     ( *get_id               )( const le_renderpass_o* obj );
 		LeRenderPassType             ( *get_type             )( const le_renderpass_o* obj );
@@ -93,21 +93,24 @@ struct le_renderer_api {
 	};
 
 	struct rendermodule_interface_t {
-		le_render_module_o * ( *create         )();
-		void                 ( *destroy        )( le_render_module_o *obj );
-		void                 ( *add_renderpass )( le_render_module_o *obj, le_renderpass_o *rp );
-		void                 ( *setup_passes   )( le_render_module_o *obj, le_rendergraph_o *gb );
+		le_render_module_o * ( *create           )();
+		void                 ( *destroy          )( le_render_module_o *self );
+		void                 ( *add_renderpass   )( le_render_module_o *self, le_renderpass_o *rp );
+		void                 ( *setup_passes     )( le_render_module_o *self, le_rendergraph_o *gb );
+		void                 ( *declare_resource )( le_render_module_o *self, le_resource_handle_t const & resource_id, le_resource_info_t const & info);
 	};
 
 	// Graph builder builds a graph for a module
 	struct rendergraph_interface_t {
-		le_rendergraph_o *   ( *create         )();
-		void                 ( *destroy        )( le_rendergraph_o *obj );
-		void                 ( *reset          )( le_rendergraph_o *obj );
+		le_rendergraph_o *   ( *create                 ) ();
+		void                 ( *destroy                ) ( le_rendergraph_o *self );
+		void                 ( *reset                  ) ( le_rendergraph_o *self );
 
-		void                 ( *build          )( le_rendergraph_o *obj );
-		void                 ( *execute        )( le_rendergraph_o *obj, size_t frameIndex, le_backend_o *backend );
-		void                 ( *get_passes     )( le_rendergraph_o *obj, le_renderpass_o ***pPasses, size_t *pNumPasses );
+		void                 ( *build                  ) ( le_rendergraph_o *self );
+		void                 ( *execute                ) ( le_rendergraph_o *self, size_t frameIndex, le_backend_o *backend );
+
+		void                 ( *get_passes             ) ( le_rendergraph_o *self, le_renderpass_o ***pPasses, size_t *pNumPasses );
+		void                 ( *get_declared_resources ) ( le_rendergraph_o *self, le_resource_handle_t const **p_resource_handles, le_resource_info_t const **p_resource_infos, size_t *p_resource_count );
 	};
 
 	struct command_buffer_encoder_interface_t {
@@ -344,6 +347,11 @@ class RenderModule {
 
 	RenderModule &addRenderPass( le_renderpass_o *renderpass ) {
 		le_renderer::render_module_i.add_renderpass( self, renderpass );
+		return *this;
+	}
+
+	RenderModule &declareResource( le_resource_handle_t const &resource_id, le_resource_info_t const &info ) {
+		le_renderer::render_module_i.declare_resource( self, resource_id, info );
 		return *this;
 	}
 };

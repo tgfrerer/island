@@ -37,9 +37,9 @@ struct le_renderpass_o {
 	uint64_t         id       = 0;     // hash of name
 	uint64_t         sort_key = 0;
 
-	std::vector<le_resource_handle_t> resources;              // all resources used in this pass
-	std::vector<le_resource_info_t>   resourceInfos;          // `resources` holds ids at matching index
+	std::vector<le_resource_handle_t> resources; // all resources used in this pass
 	std::vector<LeAccessFlags>        resources_access_flags; // access flags for all resources, in sync with resources
+	std::vector<LeResourceUsageFlags> resources_usage;        // declared usage for each resource, in sync with resources
 
 	std::vector<le_image_attachment_info_t> imageAttachments;    // settings for image attachments (may be color/or depth)
 	std::vector<le_resource_handle_t>       attachmentResources; // kept in sync with imageAttachments, one resource per attachment
@@ -62,14 +62,18 @@ struct le_renderpass_o {
 // ----------------------------------------------------------------------
 
 struct le_render_module_o : NoCopy, NoMove {
-	std::vector<le_renderpass_o *> passes;
+	std::vector<le_renderpass_o *>    passes;
+	std::vector<le_resource_handle_t> declared_resources_id;   // | pre-declared resources (declared via module)
+	std::vector<le_resource_info_t>   declared_resources_info; // | pre-declared resources (declared via module)
 };
 
 // ----------------------------------------------------------------------
 
 struct le_rendergraph_o : NoCopy, NoMove {
-	std::vector<le_renderpass_o *> passes;
-	std::vector<uint32_t>          sortIndices;
+	std::vector<le_renderpass_o *>    passes;
+	std::vector<uint32_t>             sortIndices;
+	std::vector<le_resource_handle_t> declared_resources_id;   // | pre-declared resources (declared via module)
+	std::vector<le_resource_info_t>   declared_resources_info; // | pre-declared resources (declared via module)
 };
 
 // ----------------------------------------------------------------------
@@ -136,9 +140,9 @@ static inline bool vector_contains( const std::vector<T> &haystack, const T &nee
 // Associate a resource with a renderpass.
 // Data containted in `resource_info` decides whether the resource
 // is used for read, write, or read/write.
-static void renderpass_use_resource( le_renderpass_o *self, const le_resource_handle_t &resource_id, const le_resource_info_t &resource_info ) {
+static void renderpass_use_resource( le_renderpass_o *self, const le_resource_handle_t &resource_id, LeResourceUsageFlags const &usage_flags ) {
 
-	assert( resource_info.type == LeResourceType::eBuffer || resource_info.type == LeResourceType::eImage );
+	assert( usage_flags.type == LeResourceType::eBuffer || usage_flags.type == LeResourceType::eImage );
 
 	// ---------| Invariant: resource is either an image or buffer
 
@@ -154,11 +158,11 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 	if ( resource_idx == resources_count ) {
 		// not found, add resource and resource info
 		self->resources.push_back( resource_id );
-		self->resourceInfos.push_back( resource_info );
 		// Note that we don't immediately set the access flag,
 		// as the correct access flag is calculated based on resource_info
 		// after this block.
 		self->resources_access_flags.push_back( LeAccessFlagBits::eLeAccessFlagBitUndefined );
+		self->resources_usage.push_back( usage_flags );
 	} else {
 
 		// Resource already exists.
@@ -169,9 +173,6 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 
 		assert( false );
 	}
-
-	le_resource_info_t &consolidated_info = self->resourceInfos[ resource_idx ];
-	LeAccessFlags &     access_flags      = self->resources_access_flags[ resource_idx ];
 
 	// Now we check whether there is a read and/or a write operation on
 	// the resource
@@ -214,20 +215,21 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 	bool resourceWillBeWrittenTo = false;
 	bool resourceWillBeReadFrom  = false;
 
-	switch ( consolidated_info.type ) {
+	switch ( usage_flags.type ) {
 	case LeResourceType::eBuffer: {
-		resourceWillBeReadFrom  = consolidated_info.buffer.usage & ALL_BUFFER_READ_FLAGS;
-		resourceWillBeWrittenTo = consolidated_info.buffer.usage & ALL_BUFFER_WRITE_FLAGS;
+		resourceWillBeReadFrom  = usage_flags.typed_as.buffer_usage_flags & ALL_BUFFER_READ_FLAGS;
+		resourceWillBeWrittenTo = usage_flags.typed_as.buffer_usage_flags & ALL_BUFFER_WRITE_FLAGS;
 	} break;
 	case LeResourceType::eImage: {
-		resourceWillBeReadFrom  = consolidated_info.image.usage & ALL_IMAGE_READ_FLAGS;
-		resourceWillBeWrittenTo = consolidated_info.image.usage & ALL_IMAGE_WRITE_FLAGS;
+		resourceWillBeReadFrom  = usage_flags.typed_as.image_usage_flags & ALL_IMAGE_READ_FLAGS;
+		resourceWillBeWrittenTo = usage_flags.typed_as.image_usage_flags & ALL_IMAGE_WRITE_FLAGS;
 	} break;
 	default:
 	    break;
 	}
 
 	// update access flags
+	LeAccessFlags &access_flags = self->resources_access_flags[ resource_idx ];
 
 	if ( resourceWillBeReadFrom ) {
 		access_flags |= LeAccessFlagBits::eLeAccessFlagBitRead;
@@ -254,9 +256,7 @@ static void renderpass_sample_texture( le_renderpass_o *self, le_resource_handle
 	//	self->textureImageIds.push_back( textureInfo->imageView.imageId );
 	self->textureInfos.push_back( *textureInfo ); // store a copy of info
 
-	auto required_flags = le::ImageInfoBuilder()
-	                          .addUsageFlags( LE_IMAGE_USAGE_SAMPLED_BIT )
-	                          .build();
+	LeResourceUsageFlags required_flags{LeResourceType::eImage, {{LeImageUsageFlagBits::LE_IMAGE_USAGE_SAMPLED_BIT}}};
 
 	// -- Mark image resource referenced by texture as used for reading
 	renderpass_use_resource( self, textureInfo->imageView.imageId, required_flags );
@@ -330,12 +330,12 @@ static LeRenderPassType renderpass_get_type( le_renderpass_o const *self ) {
 	return self->type;
 }
 
-static void renderpass_get_used_resources( le_renderpass_o const *self, le_resource_handle_t const **pResources, le_resource_info_t const **pResourceInfos, size_t *count ) {
-	assert( self->resourceInfos.size() == self->resources.size() );
+static void renderpass_get_used_resources( le_renderpass_o const *self, le_resource_handle_t const **pResources, LeResourceUsageFlags const **pResourcesUsage, size_t *count ) {
+	assert( self->resources_usage.size() == self->resources.size() );
 
-	*count          = self->resources.size();
-	*pResources     = self->resources.data();
-	*pResourceInfos = self->resourceInfos.data();
+	*count           = self->resources.size();
+	*pResources      = self->resources.data();
+	*pResourcesUsage = self->resources_usage.data();
 }
 
 static const char *renderpass_get_debug_name( le_renderpass_o const *self ) {
@@ -394,6 +394,8 @@ static void rendergraph_reset( le_rendergraph_o *self ) {
 		renderpass_destroy( rp );
 	}
 
+	self->declared_resources_id.clear();
+	self->declared_resources_info.clear();
 	self->passes.clear();
 }
 
@@ -752,6 +754,14 @@ static void rendergraph_get_passes( le_rendergraph_o *self, le_renderpass_o ***p
 
 // ----------------------------------------------------------------------
 
+static void rendergraph_get_declared_resources( le_rendergraph_o *self, le_resource_handle_t const **p_resource_handles, le_resource_info_t const **p_resource_infos, size_t *p_resource_count ) {
+	*p_resource_count   = self->declared_resources_id.size();
+	*p_resource_handles = self->declared_resources_id.data();
+	*p_resource_infos   = self->declared_resources_info.data();
+}
+
+// ----------------------------------------------------------------------
+
 static le_render_module_o *render_module_create() {
 	auto obj = new le_render_module_o();
 	return obj;
@@ -803,8 +813,19 @@ static void render_module_setup_passes( le_render_module_o *self, le_rendergraph
 		}
 	}
 
+	// Move any resource ids and resource infos to rendergraph
+	rendergraph_->declared_resources_id   = std::move( self->declared_resources_id );
+	rendergraph_->declared_resources_info = std::move( self->declared_resources_info );
+
 	self->passes.clear();
 };
+
+// ----------------------------------------------------------------------
+
+static void render_module_declare_resource( le_render_module_o *self, le_resource_handle_t const &resource_id, le_resource_info_t const &info ) {
+	self->declared_resources_id.emplace_back( resource_id );
+	self->declared_resources_info.emplace_back( info );
+}
 
 // ----------------------------------------------------------------------
 
@@ -812,19 +833,21 @@ void register_le_rendergraph_api( void *api_ ) {
 
 	auto le_renderer_api_i = static_cast<le_renderer_api *>( api_ );
 
-	auto &le_render_module_i          = le_renderer_api_i->le_render_module_i;
-	le_render_module_i.create         = render_module_create;
-	le_render_module_i.destroy        = render_module_destroy;
-	le_render_module_i.add_renderpass = render_module_add_renderpass;
-	le_render_module_i.setup_passes   = render_module_setup_passes;
+	auto &le_render_module_i            = le_renderer_api_i->le_render_module_i;
+	le_render_module_i.create           = render_module_create;
+	le_render_module_i.destroy          = render_module_destroy;
+	le_render_module_i.add_renderpass   = render_module_add_renderpass;
+	le_render_module_i.setup_passes     = render_module_setup_passes;
+	le_render_module_i.declare_resource = render_module_declare_resource;
 
-	auto &le_rendergraph_i      = le_renderer_api_i->le_rendergraph_i;
-	le_rendergraph_i.create     = rendergraph_create;
-	le_rendergraph_i.destroy    = rendergraph_destroy;
-	le_rendergraph_i.reset      = rendergraph_reset;
-	le_rendergraph_i.build      = rendergraph_build;
-	le_rendergraph_i.execute    = rendergraph_execute;
-	le_rendergraph_i.get_passes = rendergraph_get_passes;
+	auto &le_rendergraph_i                  = le_renderer_api_i->le_rendergraph_i;
+	le_rendergraph_i.create                 = rendergraph_create;
+	le_rendergraph_i.destroy                = rendergraph_destroy;
+	le_rendergraph_i.reset                  = rendergraph_reset;
+	le_rendergraph_i.build                  = rendergraph_build;
+	le_rendergraph_i.execute                = rendergraph_execute;
+	le_rendergraph_i.get_passes             = rendergraph_get_passes;
+	le_rendergraph_i.get_declared_resources = rendergraph_get_declared_resources;
 
 	auto &le_renderpass_i                        = le_renderer_api_i->le_renderpass_i;
 	le_renderpass_i.create                       = renderpass_create;
