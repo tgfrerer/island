@@ -183,7 +183,7 @@ static bool initialiseImage( Image &img, char const *path, uint32_t mipLevels, l
 	img.imageInfo   = le::ImageInfoBuilder()
 	                    .setFormat( imgFormat )
 	                    .setExtent( img.pixelsInfo.width, img.pixelsInfo.height )
-	                    .addUsageFlags( LE_IMAGE_USAGE_TRANSFER_DST_BIT )
+	                    .addUsageFlags( {LE_IMAGE_USAGE_TRANSFER_DST_BIT} )
 	                    .setMipLevels( mipLevels )
 	                    .build();
 
@@ -272,12 +272,12 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto rp  = le::RenderPass{pRp};
 	auto app = static_cast<hello_world_app_o *>( user_data );
 
-	rp.useResource( app->imgEarthAlbedo.imageHandle, app->imgEarthAlbedo.imageInfo );
-	rp.useResource( app->imgEarthNight.imageHandle, app->imgEarthNight.imageInfo );
-	rp.useResource( app->imgEarthNormals.imageHandle, app->imgEarthNormals.imageInfo );
-	rp.useResource( app->imgEarthClouds.imageHandle, app->imgEarthClouds.imageInfo );
-	rp.useResource( app->worldGeometry.vertex_buffer_handle, app->worldGeometry.vertex_buffer_info );
-	rp.useResource( app->worldGeometry.index_buffer_handle, app->worldGeometry.index_buffer_info );
+	rp.useImageResource( app->imgEarthAlbedo.imageHandle, {LE_IMAGE_USAGE_TRANSFER_DST_BIT} );
+	rp.useImageResource( app->imgEarthNight.imageHandle, {LE_IMAGE_USAGE_TRANSFER_DST_BIT} );
+	rp.useImageResource( app->imgEarthNormals.imageHandle, {LE_IMAGE_USAGE_TRANSFER_DST_BIT} );
+	rp.useImageResource( app->imgEarthClouds.imageHandle, {LE_IMAGE_USAGE_TRANSFER_DST_BIT} );
+	rp.useBufferResource( app->worldGeometry.vertex_buffer_handle, {LE_BUFFER_USAGE_TRANSFER_DST_BIT} );
+	rp.useBufferResource( app->worldGeometry.index_buffer_handle, {LE_BUFFER_USAGE_TRANSFER_DST_BIT} );
 
 	return true;
 }
@@ -415,8 +415,8 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	    .sampleTexture( app->imgEarthNight.textureHandle, texInfoNight )
 	    .sampleTexture( app->imgEarthNormals.textureHandle, texInfoNormals )
 	    .sampleTexture( app->imgEarthClouds.textureHandle, texInfoClouds )
-	    .useResource( app->worldGeometry.vertex_buffer_handle, app->worldGeometry.vertex_buffer_info )
-	    .useResource( app->worldGeometry.index_buffer_handle, app->worldGeometry.index_buffer_info )
+	    .useBufferResource( app->worldGeometry.vertex_buffer_handle, {LE_BUFFER_USAGE_VERTEX_BUFFER_BIT} )
+	    .useBufferResource( app->worldGeometry.index_buffer_handle, {LE_BUFFER_USAGE_INDEX_BUFFER_BIT} )
 	    .setIsRoot( true ) //
 	    ;
 
@@ -658,8 +658,16 @@ static bool hello_world_app_update( hello_world_app_o *self ) {
 		renderPassFinal.setSetupCallback( self, pass_main_setup );
 		renderPassFinal.setExecuteCallback( self, pass_main_exec );
 
-		mainModule.addRenderPass( resourcePass );
-		mainModule.addRenderPass( renderPassFinal );
+		mainModule
+		    .addRenderPass( resourcePass )
+		    .addRenderPass( renderPassFinal )
+		    .declareResource( self->worldGeometry.index_buffer_handle, self->worldGeometry.index_buffer_info )
+		    .declareResource( self->worldGeometry.vertex_buffer_handle, self->worldGeometry.vertex_buffer_info )
+		    .declareResource( self->imgEarthNight.imageHandle, self->imgEarthNight.imageInfo )
+		    .declareResource( self->imgEarthAlbedo.imageHandle, self->imgEarthAlbedo.imageInfo )
+		    .declareResource( self->imgEarthNormals.imageHandle, self->imgEarthNormals.imageInfo )
+		    .declareResource( self->imgEarthClouds.imageHandle, self->imgEarthClouds.imageInfo ) //
+		    ;
 	}
 
 	// Update will call all rendercallbacks in this module.
