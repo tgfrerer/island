@@ -356,7 +356,7 @@ struct BackendFrameData {
 	std::vector<VmaAllocation>     allocations;      // one allocation per command buffer
 	std::vector<VmaAllocationInfo> allocationInfos;  // one allocation info per command buffer
 
-	le_staging_allocator_o *stagingAllocator;
+	le_staging_allocator_o *stagingAllocator; // owning
 };
 
 // ----------------------------------------------------------------------

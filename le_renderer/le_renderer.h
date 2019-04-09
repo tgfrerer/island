@@ -392,12 +392,12 @@ class ImageInfoBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	ImageInfoBuilder &setUsageFlags( LeImageUsageFlags usageFlagBits ) {
+	ImageInfoBuilder &setUsageFlags( LeImageUsageFlags const &usageFlagBits ) {
 		img.usage = usageFlagBits;
 		return *this;
 	}
 
-	ImageInfoBuilder &addUsageFlags( LeImageUsageFlags usageFlagBits ) {
+	ImageInfoBuilder &addUsageFlags( LeImageUsageFlags const &usageFlagBits ) {
 		img.usage |= usageFlagBits;
 		return *this;
 	}
@@ -407,17 +407,17 @@ class ImageInfoBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	ImageInfoBuilder &setSamples( const le::SampleCountFlagBits &sampleFlagBits = le::SampleCountFlagBits::e1 ) {
+	ImageInfoBuilder &setSamples( le::SampleCountFlagBits const &sampleFlagBits = le::SampleCountFlagBits::e1 ) {
 		img.samples = sampleFlagBits;
 		return *this;
 	}
 
-	ImageInfoBuilder &setImageType( const le::ImageType &imageType = le::ImageType::e2D ) {
+	ImageInfoBuilder &setImageType( le::ImageType const &imageType = le::ImageType::e2D ) {
 		img.imageType = imageType;
 		return *this;
 	}
 
-	ImageInfoBuilder &setImageTiling( const le::ImageTiling &imageTiling = le::ImageTiling::eOptimal ) {
+	ImageInfoBuilder &setImageTiling( le::ImageTiling const &imageTiling = le::ImageTiling::eOptimal ) {
 		img.tiling = imageTiling;
 		return *this;
 	}
@@ -447,7 +447,7 @@ class BufferInfoBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	BufferInfoBuilder &setUsageFlags( uint32_t usageFlagBits ) {
+	BufferInfoBuilder &setUsageFlags( LeBufferUsageFlags const &usageFlagBits ) {
 		buf.usage = usageFlagBits;
 		return *this;
 	}
