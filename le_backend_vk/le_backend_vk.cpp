@@ -126,20 +126,20 @@ struct ResourceCreateInfo {
 
 			} else {
 
-				// for flags to be greater or equal means that all flags from
+				// For flags to be greater or equal means that all flags from
 				// rhs must be found in lhs:
 				// flags_rhs == (this.flags & flags_rhs)
 
-				// Note this.format passes >=,
-				// a) if it is identical with rhs.format,
-				// b) iff this.format is defined, and rhs.format is undefined.
+				// Note this.format, and this.extent passes the test:
+				// a) if this.x is identical with rhs.x,
+				// b) iff this.x is defined, *and* rhs.x is undefined.
 
 				return ( ( ( imageInfo.flags & rhs.imageInfo.flags ) == rhs.imageInfo.flags ) &&
 				         imageInfo.imageType == rhs.imageInfo.imageType &&
 				         ( imageInfo.format == rhs.imageInfo.format || ( imageInfo.format != VK_FORMAT_UNDEFINED && rhs.imageInfo.format == VK_FORMAT_UNDEFINED ) ) &&
-				         imageInfo.extent.width >= rhs.imageInfo.extent.width &&
-				         imageInfo.extent.height >= rhs.imageInfo.extent.height &&
-				         imageInfo.extent.depth >= rhs.imageInfo.extent.depth &&
+				         ( imageInfo.extent.width == rhs.imageInfo.extent.width || ( imageInfo.extent.width != 0 && rhs.imageInfo.extent.width == 0 ) ) &&
+				         ( imageInfo.extent.height == rhs.imageInfo.extent.height || ( imageInfo.extent.height != 0 && rhs.imageInfo.extent.height == 0 ) ) &&
+				         ( imageInfo.extent.depth == rhs.imageInfo.extent.depth || ( imageInfo.extent.depth != 0 && rhs.imageInfo.extent.depth == 0 ) ) &&
 				         imageInfo.mipLevels >= rhs.imageInfo.mipLevels &&
 				         imageInfo.arrayLayers >= rhs.imageInfo.arrayLayers &&
 				         imageInfo.samples == rhs.imageInfo.samples &&
