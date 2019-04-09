@@ -142,55 +142,32 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 
 	// ---------| Invariant: resource is either an image or buffer
 
-	size_t resource_idx      = 0; // index of matching resource
-	size_t numKnownResources = self->resources.size();
-	for ( le_resource_handle_t *res = self->resources.data(); resource_idx != numKnownResources; res++, resource_idx++ ) {
+	size_t resource_idx    = 0; // index of matching resource
+	size_t resources_count = self->resources.size();
+	for ( le_resource_handle_t *res = self->resources.data(); resource_idx != resources_count; res++, resource_idx++ ) {
 		if ( *res == resource_id ) {
 			// found a match
 			break;
 		}
 	}
 
-	if ( resource_idx == numKnownResources ) {
+	if ( resource_idx == resources_count ) {
 		// not found, add resource and resource info
 		self->resources.push_back( resource_id );
 		self->resourceInfos.push_back( resource_info );
+		// Note that we don't immediately set the access flag,
+		// as the correct access flag is calculated based on resource_info
+		// after this block.
 		self->resources_access_flags.push_back( LeAccessFlagBits::eLeAccessFlagBitUndefined );
 	} else {
 
-		// Resource already exists. we must consolidate the corresponding `resource_info`, so that it covers both cases.
+		// Resource already exists.
 
-		auto &stored_resource_info = self->resourceInfos[ resource_idx ];
+		std::cerr << "FATAL: Resource '" << resource_id.debug_name << "' declared more than once for renderpass : '"
+		          << self->debugName << "'. There can only be one declaration per resource per renderpass." << std::endl
+		          << std::flush;
 
-		assert( stored_resource_info.type == resource_info.type );
-
-		// Consolidate resource_info
-		switch ( resource_info.type ) {
-		case LeResourceType::eBuffer: {
-			stored_resource_info.buffer.size = std::max<uint32_t>( stored_resource_info.buffer.size, resource_info.buffer.size );
-			stored_resource_info.buffer.usage |= resource_info.buffer.usage;
-		} break;
-		case LeResourceType::eImage: {
-			stored_resource_info.image.usage |= resource_info.image.usage;
-
-			assert( stored_resource_info.image.mipLevels == resource_info.image.mipLevels );     //
-			// Todo: find out the best way to consolidate these values...
-			assert( stored_resource_info.image.flags == resource_info.image.flags );         // creation flags
-			assert( stored_resource_info.image.imageType == resource_info.image.imageType ); // enum vk::ImageType
-			assert( stored_resource_info.image.format == resource_info.image.format );       // enum vk::Format
-
-			// We consolidate extent by using keeping maximum value
-			stored_resource_info.image.extent.width  = std::max( stored_resource_info.image.extent.width, resource_info.image.extent.width );
-			stored_resource_info.image.extent.height = std::max( stored_resource_info.image.extent.height, resource_info.image.extent.height );
-			stored_resource_info.image.extent.depth  = std::max( stored_resource_info.image.extent.depth, resource_info.image.extent.depth );
-
-			assert( stored_resource_info.image.arrayLayers == resource_info.image.arrayLayers ); //
-			assert( stored_resource_info.image.samples == resource_info.image.samples );         // enum VkSampleCountFlagBits
-			assert( stored_resource_info.image.tiling == resource_info.image.tiling );           // enum VkImageTiling
-		} break;
-		default:
-		    break;
-		}
+		assert( false );
 	}
 
 	le_resource_info_t &consolidated_info = self->resourceInfos[ resource_idx ];
