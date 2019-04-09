@@ -285,10 +285,6 @@ class Backend : NoCopy, NoMove {
 		return le_backend_vk::vk_backend_i.get_num_swapchain_images( self );
 	}
 
-	bool acquirePhysicalResources( size_t frameIndex, struct le_renderpass_o **passes, size_t numRenderPasses ) {
-		return le_backend_vk::vk_backend_i.acquire_physical_resources( self, frameIndex, passes, numRenderPasses );
-	}
-
 	bool dispatchFrame( size_t frameIndex ) {
 		return le_backend_vk::vk_backend_i.dispatch_frame( self, frameIndex );
 	}
