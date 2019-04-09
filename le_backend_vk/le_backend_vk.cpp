@@ -166,6 +166,10 @@ struct ResourceCreateInfo {
 		return bufferInfo.sType == VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	}
 
+	bool isImage() const {
+		return imageInfo.sType == VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	}
+
 	static ResourceCreateInfo from_le_resource_info( const le_resource_info_t &info, uint32_t *pQueueFamilyIndices, uint32_t queueFamilyindexCount );
 };
 
