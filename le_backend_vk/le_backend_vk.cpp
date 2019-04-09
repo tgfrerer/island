@@ -188,7 +188,7 @@ static inline constexpr le::Format vk_format_to_le( const vk::Format &format ) n
 
 // ----------------------------------------------------------------------
 
-LE_C_ENUM_TO_VK( ImageUsageFlagBits, le_image_usage_flags_to_vk, LeImageUsageFlags );
+LE_C_ENUM_TO_VK( ImageUsageFlagBits, le_image_usage_flags_to_vk, LeImageUsageFlags_t );
 LE_C_ENUM_TO_VK( ImageCreateFlags, le_image_create_flags_to_vk, LeImageCreateFlags );
 LE_ENUM_TO_VK( SampleCountFlagBits, le_sample_count_flag_bits_to_vk );
 LE_ENUM_TO_VK( ImageTiling, le_image_tiling_to_vk );

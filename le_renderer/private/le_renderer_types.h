@@ -158,9 +158,10 @@ enum LeImageCreateFlagBits : LeImageCreateFlags {
 };
 // Codegen </VkImageCreateFlagBits>
 
-typedef uint32_t LeImageUsageFlags;
+typedef uint32_t LeImageUsageFlags_t;
+LE_WRAP_TYPE_IN_STRUCT( LeImageUsageFlags_t, LeImageUsageFlags );
 // Codegen <VkImageUsageFlagBits, LeImageUsageFlags, c>
-enum LeImageUsageFlagBits : LeImageUsageFlags {
+enum LeImageUsageFlagBits : LeImageUsageFlags_t {
 	LE_IMAGE_USAGE_TRANSFER_SRC_BIT             = 0x00000001,
 	LE_IMAGE_USAGE_TRANSFER_DST_BIT             = 0x00000002,
 	LE_IMAGE_USAGE_SAMPLED_BIT                  = 0x00000004,
@@ -173,9 +174,10 @@ enum LeImageUsageFlagBits : LeImageUsageFlags {
 };
 // Codegen </VkImageUsageFlagBits>
 
-typedef uint32_t LeBufferUsageFlags;
+typedef uint32_t LeBufferUsageFlags_t;
+LE_WRAP_TYPE_IN_STRUCT( LeBufferUsageFlags_t, LeBufferUsageFlags );
 // Codegen <VkBufferUsageFlagBits, LeBufferUsageFlags, c>
-enum LeBufferUsageFlagBits : LeBufferUsageFlags {
+enum LeBufferUsageFlagBits : LeBufferUsageFlags_t {
 	LE_BUFFER_USAGE_TRANSFER_SRC_BIT              = 0x00000001,
 	LE_BUFFER_USAGE_TRANSFER_DST_BIT              = 0x00000002,
 	LE_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT      = 0x00000004,
@@ -189,6 +191,15 @@ enum LeBufferUsageFlagBits : LeBufferUsageFlags {
 	LE_BUFFER_USAGE_RAYTRACING_BIT_NVX            = 0x00000400,
 };
 // Codegen </VkBufferUsageFlagBits>
+
+struct LeResourceUsageFlags {
+	LeResourceType type;
+	union {
+		LeImageUsageFlags  image_usage_flags;
+		LeBufferUsageFlags buffer_usage_flags;
+		uint32_t           raw_data;
+	} typed_as;
+};
 
 typedef uint32_t LeColorComponentFlags_t;
 LE_WRAP_TYPE_IN_STRUCT( LeColorComponentFlags_t, LeColorComponentFlags );
