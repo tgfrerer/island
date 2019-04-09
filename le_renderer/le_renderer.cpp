@@ -532,7 +532,7 @@ static le_resource_info_t get_default_resource_info_for_image() {
 		img.extent.width  = 0;
 		img.extent.height = 0;
 		img.extent.depth  = 1;
-		img.usage         = LE_IMAGE_USAGE_SAMPLED_BIT;
+		img.usage         = {LE_IMAGE_USAGE_SAMPLED_BIT};
 		img.mipLevels     = 1;
 		img.samples       = le::SampleCountFlagBits::e1;
 		img.imageType     = le::ImageType::e2D;
@@ -542,49 +542,11 @@ static le_resource_info_t get_default_resource_info_for_image() {
 	return res;
 }
 
-static le_resource_info_t get_default_resource_info_for_color_attachment() {
-	le_resource_info_t res;
 
-	res.type = LeResourceType::eImage;
-	{
-		auto &img         = res.image;
-		img.flags         = 0;
-		img.format        = le::Format::eUndefined;
-		img.arrayLayers   = 1;
-		img.extent.width  = 0;
-		img.extent.height = 0;
-		img.extent.depth  = 1;
-		img.usage         = LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
-		img.mipLevels     = 1;
-		img.samples       = le::SampleCountFlagBits::e1;
-		img.imageType     = le::ImageType::e2D;
-		img.tiling        = le::ImageTiling::eOptimal;
-	}
 
-	return res;
-}
 
-static le_resource_info_t get_default_resource_info_for_depth_stencil_attachment() {
-	le_resource_info_t res;
 
-	res.type = LeResourceType::eImage;
-	{
-		auto &img         = res.image;
-		img.flags         = 0;
-		img.format        = le::Format::eUndefined;
-		img.arrayLayers   = 1;
-		img.extent.width  = 0;
-		img.extent.height = 0;
-		img.extent.depth  = 1;
-		img.usage         = LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-		img.mipLevels     = 1;
-		img.samples       = le::SampleCountFlagBits::e1;
-		img.imageType     = le::ImageType::e2D;
-		img.tiling        = le::ImageTiling::eOptimal;
-	}
 
-	return res;
-}
 
 // ----------------------------------------------------------------------
 
@@ -592,7 +554,7 @@ static le_resource_info_t get_default_resource_info_for_buffer() {
 	le_resource_info_t res;
 	res.type         = LeResourceType::eBuffer;
 	res.buffer.size  = 0;
-	res.buffer.usage = LE_BUFFER_USAGE_TRANSFER_DST_BIT;
+	res.buffer.usage = {LE_BUFFER_USAGE_TRANSFER_DST_BIT};
 	return res;
 }
 
@@ -614,10 +576,8 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 
 	auto &helpers_i = le_renderer_api_i->helpers_i;
 
-	helpers_i.get_default_resource_info_for_buffer                   = get_default_resource_info_for_buffer;
-	helpers_i.get_default_resource_info_for_image                    = get_default_resource_info_for_image;
-	helpers_i.get_default_resource_info_for_depth_stencil_attachment = get_default_resource_info_for_depth_stencil_attachment;
-	helpers_i.get_default_resource_info_for_color_attachment         = get_default_resource_info_for_color_attachment;
+	helpers_i.get_default_resource_info_for_buffer = get_default_resource_info_for_buffer;
+	helpers_i.get_default_resource_info_for_image  = get_default_resource_info_for_image;
 
 	// register sub-components of this api
 	register_le_rendergraph_api( api_ );

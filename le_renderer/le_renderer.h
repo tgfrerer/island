@@ -50,8 +50,6 @@ struct le_renderer_api {
 
 	struct helpers_interface_t {
 		le_resource_info_t (*get_default_resource_info_for_image)();
-		le_resource_info_t (*get_default_resource_info_for_color_attachment)();
-		le_resource_info_t (*get_default_resource_info_for_depth_stencil_attachment)();
 		le_resource_info_t (*get_default_resource_info_for_buffer)();
 	};
 
