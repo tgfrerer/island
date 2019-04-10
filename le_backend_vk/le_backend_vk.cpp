@@ -994,6 +994,17 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 						requestedState.write_stage    = get_stage_flags_based_on_renderpass_type( currentPass.type );
 						requestedState.layout         = vk::ImageLayout::eGeneral;
 
+					} else if ( usage.typed_as.image_usage_flags & LE_IMAGE_USAGE_TRANSFER_DST_BIT ) {
+						// this is an image write operation.'
+
+						continue;
+
+						// FIXME: implement - and make sure we're still compatible with the barriers inserted
+						// when processing le::CommandType::eWriteToImage.
+						//						requestedState.visible_access = vk::AccessFlagBits::eTransferWrite;
+						//						requestedState.write_stage    = get_stage_flags_based_on_renderpass_type( currentPass.type );
+						//						requestedState.layout         = vk::ImageLayout::eTransferDstOptimal;
+
 					} else {
 						continue;
 					}
