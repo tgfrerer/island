@@ -2783,8 +2783,7 @@ static le_staging_allocator_o *backend_get_staging_allocator( le_backend_o *self
 static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 	if ( PRINT_DEBUG_MESSAGES ) {
-
-		std::cout << "** Process Frame **" << std::endl
+		std::cout << "** Process Frame #" << std::dec << std::setw( 8 ) << frameIndex << " **" << std::endl
 		          << std::flush;
 	}
 
@@ -2821,6 +2820,12 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		cmd.begin( {::vk::CommandBufferUsageFlagBits::eOneTimeSubmit} );
 
 		{
+
+			if ( PRINT_DEBUG_MESSAGES ) {
+				std::cout << "Renderpass: '" << pass.debugName << "'" << std::endl
+				          << std::flush;
+			}
+
 			// -- Issue sync barriers for all resources which require explicit sync.
 			//
 			// We must to this here, as the spec requires barriers to happen
@@ -2845,39 +2850,30 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					if ( PRINT_DEBUG_MESSAGES ) {
 
-						std::cout << "Renderpass: '" << pass.debugName << "'" << std::endl
-						          << std::flush;
+						//
+						// --------| invariant: barrier is active.
 
-						for ( auto const &op : pass.explicit_sync_ops ) {
+						// print out sync chain for sampled image
+						std::cout << "\t Explicit Barrier for: " << op.resource_id.debug_name << std::endl;
 
-							if ( op.active == false ) {
-								continue;
-							}
-							//
-							// --------| invariant: barrier is active.
+						std::cout << "\t " << std::setw( 3 ) << "#"
+						          << " : " << std::setw( 30 ) << "visible_access"
+						          << " : " << std::setw( 30 ) << "write_stage"
+						          << " : "
+						          << "layout" << std::endl;
 
-							// print out sync chain for sampled image
-							std::cout << "Explicit Barrier for: " << op.resource_id.debug_name << std::endl;
+						auto const &syncChain = frame.syncChainTable.at( op.resource_id );
 
-							std::cout << std::setw( 3 ) << "#"
-							          << " : " << std::setw( 30 ) << "visible_access"
-							          << " : " << std::setw( 30 ) << "write_stage"
-							          << " : "
-							          << "layout" << std::endl;
+						for ( size_t i = op.sync_chain_offset_initial; i <= op.sync_chain_offset_final; i++ ) {
+							auto const &s = syncChain[ i ];
 
-							auto const &syncChain = frame.syncChainTable.at( op.resource_id );
-
-							for ( size_t i = op.sync_chain_offset_initial; i <= op.sync_chain_offset_final; i++ ) {
-								auto const &s = syncChain[ i ];
-
-								std::cout << std::setw( 3 ) << std::dec << i
-								          << " : " << std::setw( 30 ) << to_string( s.visible_access )
-								          << " : " << std::setw( 30 ) << to_string( s.write_stage )
-								          << " : " << to_string( s.layout ) << std::endl;
-							}
-
-							std::cout << std::flush;
+							std::cout << "\t " << std::setw( 3 ) << std::dec << i
+							          << " : " << std::setw( 30 ) << to_string( s.visible_access )
+							          << " : " << std::setw( 30 ) << to_string( s.write_stage )
+							          << " : " << to_string( s.layout ) << std::endl;
 						}
+
+						std::cout << std::flush;
 					}
 
 					auto dstImage = frame_data_get_image_from_le_resource_id( frame, op.resource_id );
