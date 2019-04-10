@@ -926,6 +926,22 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 	using namespace le_renderer;
 
+	auto get_stage_flags_based_on_renderpass_type = []( LeRenderPassType const &rp_type ) -> vk::PipelineStageFlags {
+		// write_stage depends on current renderpass type.
+		switch ( rp_type ) {
+		case LE_RENDER_PASS_TYPE_TRANSFER:
+		    return vk::PipelineStageFlagBits::eTransfer; // stage for transfer pass
+		case LE_RENDER_PASS_TYPE_DRAW:
+		    return vk::PipelineStageFlagBits::eVertexShader; // earliest stage for draw pass
+		case LE_RENDER_PASS_TYPE_COMPUTE:
+		    return vk::PipelineStageFlagBits::eComputeShader; // stage for compute pass
+
+		default:
+			assert( false ); // unreachable - we don't know what kind of stage we're in.
+		    return vk::PipelineStageFlagBits();
+		}
+	};
+
 	frame.passes.reserve( numRenderPasses );
 
 	for ( auto pass = ppPasses; pass != ppPasses + numRenderPasses; pass++ ) {
@@ -961,18 +977,21 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 				ResourceState requestedState{}; // State we want our image to be in when pass begins.
 
+				// Define synchronisation requirements for each resource based on resource type,
+				// and resource usage.
+				//
 				if ( usage.type == LeResourceType::eImage ) {
 
 					if ( usage.typed_as.image_usage_flags & LE_IMAGE_USAGE_SAMPLED_BIT ) {
 
 						requestedState.visible_access = vk::AccessFlagBits::eShaderRead;
-						requestedState.write_stage    = vk::PipelineStageFlagBits::eVertexShader; // needs to be ready for vertex shader
-						requestedState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
+						requestedState.write_stage = requestedState.write_stage = get_stage_flags_based_on_renderpass_type( currentPass.type );
+						requestedState.layout                                   = vk::ImageLayout::eShaderReadOnlyOptimal;
 
 					} else if ( usage.typed_as.image_usage_flags & LE_IMAGE_USAGE_STORAGE_BIT ) {
 
 						requestedState.visible_access = vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eShaderWrite;
-						requestedState.write_stage    = vk::PipelineStageFlagBits::eComputeShader;
+						requestedState.write_stage    = get_stage_flags_based_on_renderpass_type( currentPass.type );
 						requestedState.layout         = vk::ImageLayout::eGeneral;
 
 					} else {
