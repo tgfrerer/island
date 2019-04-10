@@ -938,51 +938,59 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		currentPass.height    = renderpass_i.get_height( *pass );
 
 		// Find explicit sync ops needed for resources which are not image
-		// attachments. We deal with image attachments separately, since image
-		// attachments can be synchronised implicitly via subpass transitions.
+		// attachments.
 		//
-		// Iterate over all resources which are not used as image attachments.
-		//
-
 		{
-			// Fetch texture infos - each tex_info references an image used for sampling.
+			le_resource_handle_t const *resources       = nullptr;
+			LeResourceUsageFlags const *resources_usage = nullptr;
+			size_t                      resources_count = 0;
+			renderpass_i.get_used_resources( *pass, &resources, &resources_usage, &resources_count );
 
-			LeTextureInfo const *tex_infos;
-			size_t               tex_infos_count;
+			for ( size_t i = 0; i != resources_count; ++i ) {
+				auto &resource = resources[ i ];
+				auto &usage    = resources_usage[ i ];
 
-			renderpass_i.get_texture_infos( *pass, &tex_infos, &tex_infos_count );
-			auto const infos_end = tex_infos + tex_infos_count;
-
-			// Iterate over all texture infos
-			//
-			// -- ensure that current sync state for image allows for a shader read operation.
-			// -- if not, we must add a sync element, and it must account for an external synchronisation barrier.
-
-			for ( auto tex_info = tex_infos; tex_info != infos_end; tex_info++ ) {
-				// -- get sync chain for image referenced by texture info
-				auto const &imageId        = tex_info->imageView.imageId;
-				auto &      imageSyncChain = syncChainTable[ imageId ];
-
-				assert( !imageSyncChain.empty() ); // must not be empty - this image must exist, and have an initial sync state.
+				auto &syncChain = syncChainTable[ resource ];
+				assert( !syncChain.empty() ); // must not be empty - this resource must exist, and have an initial sync state
 
 				LeRenderPass::ExplicitSyncOp syncOp{};
 
-				syncOp.resource_id               = imageId;
+				syncOp.resource_id               = resource;
 				syncOp.active                    = true;
-				syncOp.sync_chain_offset_initial = uint32_t( imageSyncChain.size() - 1 );
+				syncOp.sync_chain_offset_initial = uint32_t( syncChain.size() - 1 );
 
-				ResourceState requestedState; // State we want our image to be in when pass begins.
-				requestedState.visible_access = vk::AccessFlagBits::eShaderRead;
-				requestedState.write_stage    = vk::PipelineStageFlagBits::eFragmentShader;
-				requestedState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
+				ResourceState requestedState{}; // State we want our image to be in when pass begins.
+
+				if ( usage.type == LeResourceType::eImage ) {
+
+					if ( usage.typed_as.image_usage_flags & LE_IMAGE_USAGE_SAMPLED_BIT ) {
+
+						requestedState.visible_access = vk::AccessFlagBits::eShaderRead;
+						requestedState.write_stage    = vk::PipelineStageFlagBits::eVertexShader; // needs to be ready for vertex shader
+						requestedState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
+
+					} else if ( usage.typed_as.image_usage_flags & LE_IMAGE_USAGE_STORAGE_BIT ) {
+
+						requestedState.visible_access = vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eShaderWrite;
+						requestedState.write_stage    = vk::PipelineStageFlagBits::eComputeShader;
+						requestedState.layout         = vk::ImageLayout::eGeneral;
+
+					} else {
+						continue;
+					}
+
+				} else {
+					// Continue means nothing is added to sync chain.
+					continue;
+				}
 
 				// -- we must add an entry to the sync chain to signal the state after change
 				// -- we must add an explicit sync op so that the change happens before the pass
 
 				// add target state to sync chain for image.
-				imageSyncChain.emplace_back( requestedState );
+				syncChain.emplace_back( requestedState );
 
-				syncOp.sync_chain_offset_final = uint32_t( imageSyncChain.size() - 1 );
+				syncOp.sync_chain_offset_final = uint32_t( syncChain.size() - 1 );
 
 				// Store an explicit sync op
 				currentPass.explicit_sync_ops.emplace_back( syncOp );
@@ -1111,10 +1119,6 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		frame.passes.emplace_back( std::move( currentPass ) );
 	}
 
-	// TODO: add final states for resources which are permanent - or are used on another queue
-	// this includes backbuffer, and makes sure the backbuffer transitions to the correct state in its last
-	// subpass dependency.
-
 	for ( auto &syncChainPair : syncChainTable ) {
 		const auto &id        = syncChainPair.first;
 		auto &      syncChain = syncChainPair.second;
@@ -1174,8 +1178,13 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 				continue;
 			}
 
-			// ---------| invariant: only image resources need checking,
-			// we can skip checks for all other barriers.
+			// ---------| invariant: only image resources need checking
+			//
+			// This is because only image may potentially be synchronised implicitly via
+			// subpass dependencies. No such mechanism exists for buffers.
+			//
+			// We can skip checks for buffer barriers, as we assume they are
+			// all needed.
 
 			auto found_it = max_sync_index.find( op.resource_id );
 			if ( found_it != max_sync_index.end() && found_it->second >= op.sync_chain_offset_final ) {
@@ -2461,10 +2470,10 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 	}
 
 	// Create Samplers for all images which are used as Textures
-
+	//
 	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
-		// get all texture names for this pass
 
+		// Get all texture names for this pass
 		const le_resource_handle_t *textureIds     = nullptr;
 		size_t                      textureIdCount = 0;
 		renderpass_i.get_texture_ids( *p, &textureIds, &textureIdCount );
@@ -2571,8 +2580,9 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 }
 
 // ----------------------------------------------------------------------
-// TODO: this should mark acquired resources as used by this frame -
-// so that they can only be destroyed iff this frame has been reset.
+// This is one of the most important methods of backend -
+// where we associate virtual with physical resources, allocate physical
+// resources as needed, and keep track of sync state of physical resources.
 static bool backend_acquire_physical_resources( le_backend_o *              self,
                                                 size_t                      frameIndex,
                                                 le_renderpass_o **          passes,
@@ -2584,6 +2594,8 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 	auto &frame = self->mFrames[ frameIndex ];
 
 	{
+		// Acquire swapchain image
+
 		using namespace le_swapchain_vk;
 
 		if ( !swapchain_i.acquire_next_image( self->swapchain, frame.semaphorePresentComplete, frame.swapchainImageIndex ) ) {
@@ -2614,8 +2626,7 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 	}
 
 	// Note that at this point memory for scratch buffers for each pass
-	// in this frame has already been allocated,
-	// as this happens shortly before executeGraph.
+	// in this frame has already been allocated, as this happens shortly before executeGraph.
 
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
 
@@ -2626,7 +2637,8 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 		frame.syncChainTable.insert( {res.first, {res.second.state}} );
 	}
 
-	// build sync chain for each resource
+	// -- build sync chain for each resource, create explicit sync barrier requests for resources
+	// which cannot be impliciltly synced.
 	frame_track_resource_state( frame, passes, numRenderPasses, self->swapchainImageHandle );
 
 	// At this point we know the state for each resource at the end of the sync chain.
@@ -2871,8 +2883,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					    .setSubresourceRange( rangeAllMiplevels );
 
 					cmd.pipelineBarrier(
-					    vk::PipelineStageFlagBits::eColorAttachmentOutput,
-					    vk::PipelineStageFlagBits::eVertexShader,
+					    uint32_t( stateInitial.write_stage ) == 0 ? vk::PipelineStageFlagBits::eTopOfPipe : stateInitial.write_stage, // srcStage, top of pipe if not set.
+					    stateFinal.write_stage,                                                                                       // dstStage
 					    {},
 					    {},
 					    {},                   // buffer: host write -> transfer read
