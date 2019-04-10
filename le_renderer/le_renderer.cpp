@@ -542,12 +542,6 @@ static le_resource_info_t get_default_resource_info_for_image() {
 	return res;
 }
 
-
-
-
-
-
-
 // ----------------------------------------------------------------------
 
 static le_resource_info_t get_default_resource_info_for_buffer() {
