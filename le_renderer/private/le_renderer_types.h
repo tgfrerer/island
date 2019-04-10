@@ -943,7 +943,7 @@ namespace le {
 using Presentmode = le_swapchain_settings_t::khr_settings_t::Presentmode;
 
 #define BUILDER_IMPLEMENT( builder, method_name, param_type, param, default_value ) \
-	builder &method_name( param_type param default_value ) {                        \
+	constexpr builder &method_name( param_type param default_value ) {              \
 	    self.param = param;                                                         \
 	    return *this;                                                               \
     }
@@ -1144,6 +1144,24 @@ class ImageAttachmentInfoBuilder {
 	BUILDER_IMPLEMENT( ImageAttachmentInfoBuilder, setNumSamples, le::SampleCountFlagBits, numSamples, = le::SampleCountFlagBits::e1 )
 
 	le_image_attachment_info_t const &build() {
+		return self;
+	}
+};
+
+class BuilderWriteToImageSettings {
+	le_write_to_image_settings_t self{};
+
+  public:
+	BuilderWriteToImageSettings() = default;
+
+	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setImageW, uint32_t, image_w, = 0 );
+	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setImageH, uint32_t, image_h, = 0 );
+	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setOffsetW, int32_t, offset_w, = 0 );
+	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setOffsetH, int32_t, offset_h, = 0 );
+	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setDstMiplevel, uint32_t, dst_miplevel, = 0 );
+	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setNumMiplevels, uint32_t, num_miplevels, = 1 );
+
+	constexpr le_write_to_image_settings_t const &build() const {
 		return self;
 	}
 };
