@@ -3531,11 +3531,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					// We define a range that covers all miplevels. this is useful as it allows us to transform
 					// Image layouts in bulk, covering the full mip chain.
-					vk::ImageSubresourceRange rangeAllMiplevels;
-					rangeAllMiplevels
+					vk::ImageSubresourceRange rangeAllRemainingMiplevels;
+					rangeAllRemainingMiplevels
 					    .setAspectMask( vk::ImageAspectFlagBits::eColor )
-					    .setBaseMipLevel( 0 )
-					    .setLevelCount( uint32_t( le_cmd->info.mipLevelCount ) ) // we want all miplevels to be in transferDstOptimal.
+					    .setBaseMipLevel( le_cmd->info.dst_miplevel )
+					    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we want all miplevels to be in transferDstOptimal.
 					    .setBaseArrayLayer( 0 )
 					    .setLayerCount( 1 );
 
@@ -3559,7 +3559,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 						    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 						    .setImage( dstImage )
-						    .setSubresourceRange( rangeAllMiplevels );
+						    .setSubresourceRange( rangeAllRemainingMiplevels );
 
 						cmd.pipelineBarrier(
 						    vk::PipelineStageFlagBits::eHost,
@@ -3592,13 +3592,13 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						    .setBufferRowLength( 0 )                                    // 0 means tightly packed
 						    .setBufferImageHeight( 0 )                                  // 0 means tightly packed
 						    .setImageSubresource( std::move( imageSubresourceLayers ) ) // stored inline
-						    .setImageOffset( {0, 0, 0} )
+						    .setImageOffset( {le_cmd->info.offset_w, le_cmd->info.offset_h, 0} )
 						    .setImageExtent( {le_cmd->info.image_w, le_cmd->info.image_h, 1} );
 
 						cmd.copyBufferToImage( srcBuffer, dstImage, vk::ImageLayout::eTransferDstOptimal, 1, &region );
 					}
 
-					if ( le_cmd->info.mipLevelCount > 1 ) {
+					if ( le_cmd->info.num_miplevels > 1 ) {
 
 						// We generate additional miplevels by issueing scaled blits from one image subresource to the
 						// next higher mip level subresource.
@@ -3611,7 +3611,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// The target image subresource is already in layout transfer_dst_optimal, as this is the
 						// layout we applied to the whole mip chain when
 
-						constexpr uint32_t     mipLevelZero = 0;
+						const uint32_t         base_miplevel = le_cmd->info.dst_miplevel;
 						vk::ImageMemoryBarrier prepareBlit;
 						prepareBlit
 						    .setSrcAccessMask( vk::AccessFlagBits::eTransferWrite ) // transfer write
@@ -3621,7 +3621,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 						    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 						    .setImage( dstImage )
-						    .setSubresourceRange( {vk::ImageAspectFlagBits::eColor, mipLevelZero, 1, 0, 1} );
+						    .setSubresourceRange( {vk::ImageAspectFlagBits::eColor, base_miplevel, 1, 0, 1} );
 
 						cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, {prepareBlit} );
 
@@ -3630,7 +3630,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						int32_t srcImgWidth  = int32_t( le_cmd->info.image_w );
 						int32_t srcImgHeight = int32_t( le_cmd->info.image_h );
 
-						for ( uint32_t dstMipLevel = 1; dstMipLevel < le_cmd->info.mipLevelCount; dstMipLevel++ ) {
+						for ( uint32_t dstMipLevel = le_cmd->info.dst_miplevel + 1; dstMipLevel < le_cmd->info.num_miplevels; dstMipLevel++ ) {
 
 							// Blit from lower mip level into next higher mip level
 							auto srcMipLevel = dstMipLevel - 1;
@@ -3686,7 +3686,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					{
 						vk::ImageMemoryBarrier imageLayoutToShaderReadOptimal;
 
-						if ( le_cmd->info.mipLevelCount > 1 ) {
+						if ( le_cmd->info.num_miplevels > 1 ) {
 
 							// If there were additional miplevels, the miplevel generation logic ensures that all subresources
 							// are left in transfer_src layout.
@@ -3699,7 +3699,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 							    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 							    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 							    .setImage( dstImage )
-							    .setSubresourceRange( rangeAllMiplevels );
+							    .setSubresourceRange( rangeAllRemainingMiplevels );
 						} else {
 
 							// If there are no additional miplevels, the single subresource will still be in
@@ -3713,7 +3713,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 							    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 							    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 							    .setImage( dstImage )
-							    .setSubresourceRange( rangeAllMiplevels );
+							    .setSubresourceRange( rangeAllRemainingMiplevels );
 						}
 
 						cmd.pipelineBarrier(

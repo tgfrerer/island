@@ -134,7 +134,7 @@ struct le_renderer_api {
 		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint32_t bindingIndex );
 
 		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, size_t offset, void const* data, size_t numBytes);
-		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, le_resource_info_t const & resourceInfo, void const *data, size_t numBytes );
+		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, le_write_to_image_settings_t const & writeInfo, void const *data, size_t numBytes );
 
 		le::Extent2D const &         ( *get_extent             ) ( le_command_buffer_encoder_o* self );
 
@@ -548,8 +548,8 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &writeToImage( le_resource_handle_t const &resourceId, le_resource_info_t const &resourceInfo, void const *data, size_t const &numBytes ) {
-		le_renderer::encoder_i.write_to_image( self, resourceId, resourceInfo, data, numBytes );
+	Encoder &writeToImage( le_resource_handle_t const &resourceId, le_write_to_image_settings_t const &writeInfo, void const *data, size_t const &numBytes ) {
+		le_renderer::encoder_i.write_to_image( self, resourceId, writeInfo, data, numBytes );
 		return *this;
 	}
 

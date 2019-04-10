@@ -404,23 +404,21 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_resource_
 
 // ----------------------------------------------------------------------
 
-static void cbe_write_to_image( le_command_buffer_encoder_o *self,
-                                le_resource_handle_t const & resourceId,
-                                le_resource_info_t const &   resourceInfo,
-                                void const *                 data,
-                                size_t                       numBytes ) {
+static void cbe_write_to_image( le_command_buffer_encoder_o *       self,
+                                le_resource_handle_t const &        imageId,
+                                le_write_to_image_settings_t const &writeInfo,
+                                void const *                        data,
+                                size_t                              numBytes ) {
 
-	assert( resourceInfo.type == LeResourceType::eImage );
+	assert( imageId.meta.type == LeResourceType::eImage );
 
 	// ----------| invariant: resource info represents an image
-
-	auto const &imageInfo = resourceInfo.image;
 
 	auto cmd = EMPLACE_CMD( le::CommandWriteToImage );
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
 	void *               memAddr;
-	le_resource_handle_t srcResourceId;
+	le_resource_handle_t stagingBufferId;
 
 	// -- Allocate memory using staging allocator
 	//
@@ -429,17 +427,22 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *self,
 	// allocated so that it is only used for TRANSFER_SRC, and shared amongst encoders so that we
 	// use available memory more efficiently.
 	//
-	if ( le_staging_allocator_i.map( self->stagingAllocator, numBytes, &memAddr, &srcResourceId ) ) {
+	if ( le_staging_allocator_i.map( self->stagingAllocator, numBytes, &memAddr, &stagingBufferId ) ) {
 
 		// -- Write data to the freshly allocated buffer
 		memcpy( memAddr, data, numBytes );
 
-		cmd->info.src_buffer_id = srcResourceId;           // resource id of staging buffer
+		assert( writeInfo.num_miplevels != 0 ); // number of miplevels must be at least 1.
+
+		cmd->info.src_buffer_id = stagingBufferId;         // resource id of staging buffer
 		cmd->info.numBytes      = numBytes;                // total number of bytes from staging buffer which need to be synchronised.
-		cmd->info.dst_image_id  = resourceId;              // resouce id for target image resource
-		cmd->info.mipLevelCount = imageInfo.mipLevels;     // number of miplevels to generate - default is 1, *must not* be 0.
-		cmd->info.image_w       = imageInfo.extent.width;  // image extent
-		cmd->info.image_h       = imageInfo.extent.height; // image extent
+		cmd->info.dst_image_id  = imageId;                 // resouce id for target image resource
+		cmd->info.dst_miplevel  = writeInfo.dst_miplevel;  // default 0, use higher number to manually upload higher mip levels.
+		cmd->info.num_miplevels = writeInfo.num_miplevels; // default is 1, *must not* be 0. More than 1 means to auto-generate these miplevels
+		cmd->info.image_w       = writeInfo.image_w;       // image extent
+		cmd->info.image_h       = writeInfo.image_h;       // image extent
+		cmd->info.offset_h      = writeInfo.offset_h;      // offset into image where to place data
+		cmd->info.offset_w      = writeInfo.offset_w;      // offset into image where to place data
 
 	} else {
 		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl

@@ -928,6 +928,16 @@ struct le_renderer_settings_t {
 	le_swapchain_settings_t swapchain_settings{};
 };
 
+// specifies parameters for an image write operation.
+struct le_write_to_image_settings_t {
+	uint32_t image_w       = 0; // image (slice) width in texels
+	uint32_t image_h       = 0; // image (slice) height in texels
+	int32_t  offset_w      = 0; // offset
+	int32_t  offset_h      = 0; // offset
+	uint32_t dst_miplevel  = 0; // target image mip level to write into
+	uint32_t num_miplevels = 1; // number of miplevels to auto-generate (default 1 - more than one means to auto-generate miplevels)
+};
+
 namespace le {
 
 using Presentmode = le_swapchain_settings_t::khr_settings_t::Presentmode;
@@ -1402,7 +1412,10 @@ struct CommandWriteToImage {
 		uint64_t             numBytes;      // number of bytes
 		uint32_t             image_w;       // image width in texels
 		uint32_t             image_h;       // image height in texels
-		uint64_t             mipLevelCount; // number of mip levels to generate, default is 1
+		int32_t              offset_w;      // offset
+		int32_t              offset_h;      // offset
+		uint32_t             dst_miplevel;  // mip level to write into
+		uint32_t             num_miplevels; // number of miplevels to generate (default 1 - more than one means to auto-generate miplevels)
 	} info;
 };
 
