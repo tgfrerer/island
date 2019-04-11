@@ -1154,12 +1154,12 @@ class BuilderWriteToImageSettings {
   public:
 	BuilderWriteToImageSettings() = default;
 
-	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setImageW, uint32_t, image_w, = 0 );
-	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setImageH, uint32_t, image_h, = 0 );
-	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setOffsetW, int32_t, offset_w, = 0 );
-	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setOffsetH, int32_t, offset_h, = 0 );
-	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setDstMiplevel, uint32_t, dst_miplevel, = 0 );
-	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setNumMiplevels, uint32_t, num_miplevels, = 1 );
+	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setImageW, uint32_t, image_w, = 0 )
+	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setImageH, uint32_t, image_h, = 0 )
+	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setOffsetW, int32_t, offset_w, = 0 )
+	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setOffsetH, int32_t, offset_h, = 0 )
+	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setDstMiplevel, uint32_t, dst_miplevel, = 0 )
+	BUILDER_IMPLEMENT( BuilderWriteToImageSettings, setNumMiplevels, uint32_t, num_miplevels, = 1 )
 
 	constexpr le_write_to_image_settings_t const &build() const {
 		return self;
