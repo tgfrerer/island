@@ -104,3 +104,17 @@ float attenuation( in float distance, in float atten )
 {
     return min( 1.0/(atten*distance*distance), 1.0 );
 }
+
+// Returns vec4 float color from 8 digit hex color
+// parameter hexVal given as: 0xRRGGBBAA
+vec4 colorFromHexRGBA(in uint hexVal ){
+
+	vec4 result = vec4(0);
+
+	result.a = (hexVal >>  0) & 0xff;
+	result.b = (hexVal >>  8) & 0xff;
+	result.g = (hexVal >> 16) & 0xff;
+	result.r = (hexVal >> 24) & 0xff;
+
+	return (result/255.f);
+}
