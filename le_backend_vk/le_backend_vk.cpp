@@ -30,6 +30,11 @@
 #	define PRINT_DEBUG_MESSAGES false
 #endif
 
+#ifndef DEBUG_TAG_RESOURCES
+// Whether to tag resources - requires the debugUtils extension to be present.
+#	define DEBUG_TAG_RESOURCES true
+#endif
+
 // Helper macro to convert le:: enums to vk:: enums
 #define LE_ENUM_TO_VK( enum_name, fun_name )                                    \
 	static inline vk::enum_name fun_name( le::enum_name const &rhs ) noexcept { \
@@ -2418,6 +2423,21 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		}
 		std::cout << std::flush;
 	}
+
+	if ( DEBUG_TAG_RESOURCES && self->instance->isExtensionAvailable( VK_EXT_DEBUG_UTILS_EXTENSION_NAME ) ) {
+		for ( auto const &r : frame.availableResources ) {
+
+			auto device = vk::Device( self->device->getVkDevice() );
+
+			vk::DebugUtilsObjectNameInfoEXT nameInfo;
+			nameInfo
+			    .setObjectType( r.first.meta.type == LeResourceType::eImage ? vk::ObjectType::eImage : vk::ObjectType::eBuffer )
+			    .setObjectHandle( reinterpret_cast<uint64_t>( r.second.asImage ) )
+			    .setPObjectName( r.first.debug_name );
+
+			device.setDebugUtilsObjectNameEXT( &nameInfo );
+		}
+	}
 }
 
 // Allocates Samplers and Textures requested by individual passes
@@ -3028,9 +3048,12 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			encoder_i.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
 		} else {
 
+			// This is legit behaviour for draw passes which are used only to clear attachments,
+			// in which case they don't need to include any draw commands.
+
 			// assert( false );
-			std::cout << "WARNING: pass '" << pass.debugName << "' does not have valid encoder." << std::endl
-			          << std::flush;
+			//std::cout << "WARNING: pass '" << pass.debugName << "' does not have valid encoder." << std::endl
+			//          << std::flush;
 		}
 
 		if ( commandStream != nullptr && numCommands > 0 ) {
