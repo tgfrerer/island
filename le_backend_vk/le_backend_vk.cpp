@@ -995,7 +995,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 						requestedState.layout         = vk::ImageLayout::eGeneral;
 
 					} else if ( usage.typed_as.image_usage_flags & LE_IMAGE_USAGE_TRANSFER_DST_BIT ) {
-						// this is an image write operation.'
+						// this is an image write operation.
 
 						continue;
 
