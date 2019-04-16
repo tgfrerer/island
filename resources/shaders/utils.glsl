@@ -118,3 +118,15 @@ vec4 colorFromHexRGBA(in uint hexVal ){
 
 	return (result/255.f);
 }
+
+// Maps value t (expected to be in range [min_val..max_val]) to range [new_min..new_max]
+// Expectations: min_val < max_val && new_min < new_max 
+#define GEN_MAP( Typename )                                                                        \
+	Typename map(Typename t, Typename min_val, Typename max_val, Typename new_min, Typename new_max ){ \
+		return new_min + (new_max - new_min) * ((t-min_val) / (max_val-min_val));                      \
+	}
+	GEN_MAP(float) // maps float Typenames
+	GEN_MAP(vec2)  // maps vec2  Typenames
+	GEN_MAP(vec3)  // maps vec3  Typenames
+	GEN_MAP(vec4)  // maps vec4  Typenames
+#undef GEN_MAP
