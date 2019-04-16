@@ -450,7 +450,7 @@ class BufferInfoBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	BufferInfoBuilder &addUsageFlags( uint32_t usageFlagBits ) {
+	BufferInfoBuilder &addUsageFlags( LeBufferUsageFlags const &usageFlagBits ) {
 		buf.usage |= usageFlagBits;
 		return *this;
 	}
