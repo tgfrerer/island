@@ -20,95 +20,122 @@
 // ----------------------------------------------------------------------
 
 struct le_backend_vk_instance_o {
-	vk::Instance               vkInstance = nullptr;
-	vk::DebugReportCallbackEXT debugCallback;
+	vk::Instance               vkInstance     = nullptr;
+	vk::DebugUtilsMessengerEXT debugMessenger = nullptr;
+
 	std::vector<std::string> enabledInstanceExtensions{};
 };
 
-PFN_vkCreateDebugReportCallbackEXT  pfn_vkCreateDebugReportCallbackEXT;
-PFN_vkDestroyDebugReportCallbackEXT pfn_vkDestroyDebugReportCallbackEXT;
-PFN_vkDebugReportMessageEXT         pfn_vkDebugReportMessageEXT;
 // ----------------------------------------------------------------------
 
 static bool instance_is_extension_available( le_backend_vk_instance_o *self, char const *extension_name ); //ffdecl
 
+#define DECLARE_EXT_PFN( proc )    \
+	static PFN_##proc pfn_##proc { \
+	}
+DECLARE_EXT_PFN( vkSetDebugUtilsObjectNameEXT );
+DECLARE_EXT_PFN( vkCreateDebugUtilsMessengerEXT );
+DECLARE_EXT_PFN( vkDestroyDebugUtilsMessengerEXT );
+#undef DECLARE_EXT_PFN
+
 void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
-	pfn_vkCreateDebugReportCallbackEXT  = reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>( obj->vkInstance.getProcAddr( "vkCreateDebugReportCallbackEXT" ) );
-	pfn_vkDestroyDebugReportCallbackEXT = reinterpret_cast<PFN_vkDestroyDebugReportCallbackEXT>( obj->vkInstance.getProcAddr( "vkDestroyDebugReportCallbackEXT" ) );
-	pfn_vkDebugReportMessageEXT         = reinterpret_cast<PFN_vkDebugReportMessageEXT>( obj->vkInstance.getProcAddr( "vkDebugReportMessageEXT" ) );
+
+#define GET_EXT_PROC_ADDR( proc ) \
+	pfn_##proc = reinterpret_cast<PFN_##proc>( obj->vkInstance.getProcAddr( #proc ) )
+
+	if ( instance_is_extension_available( obj, VK_EXT_DEBUG_UTILS_EXTENSION_NAME ) ) {
+		GET_EXT_PROC_ADDR( vkSetDebugUtilsObjectNameEXT );
+		GET_EXT_PROC_ADDR( vkCreateDebugUtilsMessengerEXT );
+		GET_EXT_PROC_ADDR( vkDestroyDebugUtilsMessengerEXT );
+	}
+
+#undef GET_EXT_PROC_ADDR
+
 	std::cout << "Patched proc addrs." << std::endl;
 }
 
 // ----------------------------------------------------------------------
 
-static void create_debug_callback( le_backend_vk_instance_o *obj );  // ffdecl.
-static void destroy_debug_callback( le_backend_vk_instance_o *obj ); // ffdecl.
+static void create_debug_messenger_callback( le_backend_vk_instance_o *obj );  // ffdecl.
+static void destroy_debug_messenger_callback( le_backend_vk_instance_o *obj ); // ffdecl.
 
-// ----------------------------------------------------------------------
+static VkBool32 debugUtilsMessengerCallback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT             messageType,
+    const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+    void *                                      pUserData ) {
 
-static VkBool32 debugCallback(
-    VkDebugReportFlagsEXT      flags,
-    VkDebugReportObjectTypeEXT objectType,
-    uint64_t                   object,
-    size_t                     location,
-    int32_t                    messageCode,
-    const char *               pLayerPrefix,
-    const char *               pMessage,
-    void *                     pUserData ) {
+	bool shouldBailout = VK_FALSE;
 
-	bool        shouldBailout = VK_FALSE;
-	std::string logLevel      = "";
+	std::string logLevel = "";
+	std::string msgType  = "";
 
-	if ( flags & VK_DEBUG_REPORT_INFORMATION_BIT_EXT ) {
+	if ( messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT ) {
 		logLevel = "INFO";
-	} else if ( flags & VK_DEBUG_REPORT_WARNING_BIT_EXT ) {
-		logLevel = "WARN";
-	} else if ( flags & VK_DEBUG_REPORT_PERFORMANCE_WARNING_BIT_EXT ) {
-		logLevel = "PERF";
-	} else if ( flags & VK_DEBUG_REPORT_ERROR_BIT_EXT ) {
+	} else if ( messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT ) {
+		logLevel = "VERBOSE";
+	} else if ( messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT ) {
+		logLevel = "WARNING";
+	} else if ( messageSeverity & VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT ) {
 		logLevel = "ERROR";
+	}
+
+	if ( messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT ) {
+		msgType = "GENERAL";
+	} else if ( messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT ) {
+		msgType = "VALIDATION";
+	} else if ( messageType & VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT ) {
+		msgType = "PERF";
+	}
+
+	if ( messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT ) {
 		shouldBailout |= VK_TRUE;
-	} else if ( flags & VK_DEBUG_REPORT_DEBUG_BIT_EXT ) {
-		logLevel = "DEBUG";
 	}
 
 	std::ostringstream os;
-	os << " * \t " << std::left << std::setw( 8 ) << logLevel << "{" << std::setw( 10 ) << pLayerPrefix << "}: " << pMessage << std::endl;
+	os << " * " << std::left << std::setw( 10 ) << msgType << " | " << std::setw( 7 ) << logLevel << pCallbackData->pMessage << std::endl;
 	std::cout << os.str();
 	std::cout << std::flush;
 
-	// if error returns true, this layer will try to bail out and not forward the command
 	return shouldBailout;
 }
-
 // ----------------------------------------------------------------------
 
-static void create_debug_callback( le_backend_vk_instance_o *obj ) {
+static void create_debug_messenger_callback( le_backend_vk_instance_o *obj ) {
 
 	if ( !SHOULD_USE_VALIDATION_LAYERS ) {
 		return;
 	}
 
-	vk::DebugReportCallbackCreateInfoEXT debugCallbackCreateInfo;
-	debugCallbackCreateInfo
-	    .setPNext( nullptr )
-	    .setFlags( vk::DebugReportFlagBitsEXT::eError | vk::DebugReportFlagBitsEXT::eWarning )
-	    .setPfnCallback( debugCallback )
-	    .setPUserData( obj );
+	if ( !instance_is_extension_available( obj, VK_EXT_DEBUG_UTILS_EXTENSION_NAME ) ) {
+		return;
+	}
 
-	obj->debugCallback = obj->vkInstance.createDebugReportCallbackEXT( debugCallbackCreateInfo );
+	vk::DebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo;
+	debugMessengerCreateInfo
+	    .setFlags( {} )
+	    .setMessageSeverity( vk::DebugUtilsMessageSeverityFlagBitsEXT::eError | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning )
+	    .setMessageType( vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral )
+	    .setPfnUserCallback( debugUtilsMessengerCallback )
+	    .setPUserData( nullptr );
+
+	obj->debugMessenger = obj->vkInstance.createDebugUtilsMessengerEXT( debugMessengerCreateInfo );
 }
 
 // ----------------------------------------------------------------------
 
-static void destroy_debug_callback( le_backend_vk_instance_o *obj ) {
+static void destroy_debug_messenger_callback( le_backend_vk_instance_o *obj ) {
 
 	if ( !SHOULD_USE_VALIDATION_LAYERS ) {
 		return;
 	}
 
-	obj->vkInstance.destroyDebugReportCallbackEXT( obj->debugCallback );
-	obj->debugCallback = nullptr;
+	if ( !instance_is_extension_available( obj, VK_EXT_DEBUG_UTILS_EXTENSION_NAME ) ) {
+		return;
+	}
+
+	obj->vkInstance.destroyDebugUtilsMessengerEXT( obj->debugMessenger );
+	obj->debugMessenger = nullptr;
 }
 
 // ----------------------------------------------------------------------
@@ -161,51 +188,45 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 	std::vector<const char *> instanceLayerNames = {};
 
 	if ( SHOULD_USE_VALIDATION_LAYERS ) {
-		instanceExtensionNames.push_back( VK_EXT_DEBUG_REPORT_EXTENSION_NAME );
-		// instanceLayerNames.push_back( "VK_LAYER_LUNARG_standard_validation" ); // <- deactivate for now because of mem leak in unique_objects
-		instanceLayerNames.push_back( "VK_LAYER_GOOGLE_threading" );
-		instanceLayerNames.push_back( "VK_LAYER_LUNARG_parameter_validation" );
-		instanceLayerNames.push_back( "VK_LAYER_LUNARG_object_tracker" );
-		instanceLayerNames.push_back( "VK_LAYER_LUNARG_core_validation" );
-		// instanceLayerNames.push_back("VK_LAYER_GOOGLE_unique_objects"); // <- deactivate for now because memory leak
+		instanceLayerNames.push_back( "VK_LAYER_LUNARG_standard_validation" );
 		std::cout << "Debug instance layers added." << std::endl;
 	}
 
-	// seems that the latest driver won't let us do this.
-	vk::DebugReportCallbackCreateInfoEXT debugCallbackCreateInfo;
-	debugCallbackCreateInfo
-	    .setPNext( nullptr )
-	    .setFlags( ~vk::DebugReportFlagBitsEXT() )
-	    .setPfnCallback( debugCallback )
+	vk::DebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo;
+	debugMessengerCreateInfo
+	    .setFlags( {} )
+	    .setMessageSeverity( ~vk::DebugUtilsMessageSeverityFlagsEXT() ) // everything.
+	    .setMessageType( ~vk::DebugUtilsMessageTypeFlagsEXT() )         // everything.
+	    .setPfnUserCallback( debugUtilsMessengerCallback )
 	    .setPUserData( nullptr );
 
 	vk::InstanceCreateInfo info;
 	info.setFlags( {} )
-	    .setPNext( &debugCallbackCreateInfo ) // we add a debugcallback object to instance creation to get creation-time debug info
+	    .setPNext( &debugMessengerCreateInfo ) // We add a debug messenger object to instance creation to get creation-time debug info
 	    .setPApplicationInfo( &appInfo )
 	    .setEnabledLayerCount( uint32_t( instanceLayerNames.size() ) )
 	    .setPpEnabledLayerNames( instanceLayerNames.data() )
-	    .setEnabledExtensionCount( uint32_t( instanceExtensionNames.size() ) )
-	    .setPpEnabledExtensionNames( instanceExtensionNames.data() );
+	    .setEnabledExtensionCount( uint32_t( instanceExtensionCstr.size() ) )
+	    .setPpEnabledExtensionNames( instanceExtensionCstr.data() );
 
-	obj->vkInstance = vk::createInstance( info );
+	instance->vkInstance = vk::createInstance( info );
 
-	le_backend_vk::api->cUniqueInstance = obj;
+	le_backend_vk::api->cUniqueInstance = instance;
 
 	if ( SHOULD_USE_VALIDATION_LAYERS ) {
-		patchExtProcAddrs( obj );
-		create_debug_callback( obj );
+		patchExtProcAddrs( instance );
+		create_debug_messenger_callback( instance );
 		std::cout << "VULKAN VALIDATION LAYERS ACTIVE." << std::endl;
 	}
 
 	std::cout << "Instance created." << std::endl;
-	return obj;
+	return instance;
 }
 
 // ----------------------------------------------------------------------
 
 static void instance_destroy( le_backend_vk_instance_o *obj ) {
-	destroy_debug_callback( obj );
+	destroy_debug_messenger_callback( obj );
 	obj->vkInstance.destroy();
 	delete ( obj );
 	std::cout << "Instance destroyed." << std::endl
@@ -236,55 +257,36 @@ static bool instance_is_extension_available( le_backend_vk_instance_o *self, cha
 static void instance_post_reload_hook( le_backend_vk_instance_o *obj ) {
 	std::cout << "** post reload hook triggered." << std::endl;
 	patchExtProcAddrs( obj );
-	destroy_debug_callback( obj );
+	destroy_debug_messenger_callback( obj );
 	std::cout << "** Removed debug report callback." << std::endl;
-	create_debug_callback( obj );
+	create_debug_messenger_callback( obj );
 	std::cout << "** Added new debug report callback." << std::endl;
 }
 
 // ----------------------------------------------------------------------
 // These method definitions are exported so that vkhpp can call them
 // vkhpp has matching declarations
-VkResult vkCreateDebugReportCallbackEXT(
+// - Note that these methods are not defined as `extern` -
+// their linkage *must not* be local, so that they can be called
+// from other translation units.
+
+VkResult vkSetDebugUtilsObjectNameEXT(
+    VkDevice                             device,
+    const VkDebugUtilsObjectNameInfoEXT *pNameInfo ) {
+	return pfn_vkSetDebugUtilsObjectNameEXT( device, pNameInfo );
+}
+VkResult vkCreateDebugUtilsMessengerEXT(
     VkInstance                                instance,
-    const VkDebugReportCallbackCreateInfoEXT *pCreateInfo,
+    const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
     const VkAllocationCallbacks *             pAllocator,
-    VkDebugReportCallbackEXT *                pCallback ) {
-	return pfn_vkCreateDebugReportCallbackEXT(
-	    instance,
-	    pCreateInfo,
-	    pAllocator,
-	    pCallback );
+    VkDebugUtilsMessengerEXT *                pMessenger ) {
+	return pfn_vkCreateDebugUtilsMessengerEXT( instance, pCreateInfo, pAllocator, pMessenger );
 }
-
-void vkDestroyDebugReportCallbackEXT(
+void vkDestroyDebugUtilsMessengerEXT(
     VkInstance                   instance,
-    VkDebugReportCallbackEXT     callback,
+    VkDebugUtilsMessengerEXT     messenger,
     const VkAllocationCallbacks *pAllocator ) {
-	pfn_vkDestroyDebugReportCallbackEXT(
-	    instance,
-	    callback,
-	    pAllocator );
-}
-
-void vkDebugReportMessageEXT(
-    VkInstance                 instance,
-    VkDebugReportFlagsEXT      flags,
-    VkDebugReportObjectTypeEXT objectType,
-    uint64_t                   object,
-    size_t                     location,
-    int32_t                    messageCode,
-    const char *               pLayerPrefix,
-    const char *               pMessage ) {
-	pfn_vkDebugReportMessageEXT(
-	    instance,
-	    flags,
-	    objectType,
-	    object,
-	    location,
-	    messageCode,
-	    pLayerPrefix,
-	    pMessage );
+	pfn_vkDestroyDebugUtilsMessengerEXT( instance, messenger, pAllocator );
 }
 
 // ----------------------------------------------------------------------
