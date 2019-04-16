@@ -33,6 +33,10 @@ struct le_device_o {
 		uint32_t sparseBinding = ~uint32_t( 0 );
 	};
 
+	std::vector<std::string> enabledDeviceExtensions{
+		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+	};
+
 	DefaultQueueIndices defaultQueueIndices;
 	vk::Format          defaultDepthStencilFormat;
 
@@ -148,12 +152,11 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 
 le_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 
-	le_device_o *device = new ( le_device_o );
+	le_device_o *device = new le_device_o{};
 
-	const le_backend_vk_api &                      backendApiI = *Registry::getApi<le_backend_vk_api>();
-	const le_backend_vk_api::instance_interface_t &instanceI   = backendApiI.vk_instance_i;
+	using namespace le_backend_vk;
 
-	vk::Instance instance   = instanceI.get_vk_instance( instance_ );
+	vk::Instance instance   = vk_instance_i.get_vk_instance( instance_ );
 	auto         deviceList = instance.enumeratePhysicalDevices();
 
 	// CONSIDER: find the best appropriate GPU
@@ -219,9 +222,13 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 
 		// TODO: make this optional - get this from outside world.
 
-		std::vector<const char *> enabledDeviceExtensionNames = {
-		    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-		};
+		std::vector<const char *> enabledDeviceExtensionNames;
+
+		enabledDeviceExtensionNames.reserve( device->enabledDeviceExtensions.size() );
+
+		for ( auto const &ext : device->enabledDeviceExtensions ) {
+			enabledDeviceExtensionNames.emplace_back( ext.c_str() );
+		}
 
 		vk::DeviceCreateInfo deviceCreateInfo;
 		deviceCreateInfo
@@ -392,6 +399,17 @@ static bool device_get_memory_allocation_info( le_device_o *               self,
 	return true;
 }
 
+static bool device_is_extension_available( le_device_o *self, char const *extension_name ) {
+
+	for ( auto const &e : self->enabledDeviceExtensions ) {
+		if ( e == std::string{extension_name} ) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
 // ----------------------------------------------------------------------
 
 void device_destroy( le_device_o *self ) {
@@ -420,4 +438,5 @@ ISL_API_ATTR void register_le_device_vk_api( void *api_ ) {
 	device_i.get_vk_physical_device_properties        = device_get_vk_physical_device_properties;
 	device_i.get_vk_physical_device_memory_properties = device_get_vk_physical_device_memory_properties;
 	device_i.get_memory_allocation_info               = device_get_memory_allocation_info;
+	device_i.is_extension_available                   = device_is_extension_available;
 }

@@ -16,16 +16,21 @@
 #ifndef SHOULD_USE_VALIDATION_LAYERS
 #	define SHOULD_USE_VALIDATION_LAYERS true
 #endif
+
 // ----------------------------------------------------------------------
 
 struct le_backend_vk_instance_o {
 	vk::Instance               vkInstance = nullptr;
 	vk::DebugReportCallbackEXT debugCallback;
+	std::vector<std::string> enabledInstanceExtensions{};
 };
 
 PFN_vkCreateDebugReportCallbackEXT  pfn_vkCreateDebugReportCallbackEXT;
 PFN_vkDestroyDebugReportCallbackEXT pfn_vkDestroyDebugReportCallbackEXT;
 PFN_vkDebugReportMessageEXT         pfn_vkDebugReportMessageEXT;
+// ----------------------------------------------------------------------
+
+static bool instance_is_extension_available( le_backend_vk_instance_o *self, char const *extension_name ); //ffdecl
 
 void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
 	pfn_vkCreateDebugReportCallbackEXT  = reinterpret_cast<PFN_vkCreateDebugReportCallbackEXT>( obj->vkInstance.getProcAddr( "vkCreateDebugReportCallbackEXT" ) );
@@ -110,32 +115,48 @@ static void destroy_debug_callback( le_backend_vk_instance_o *obj ) {
 
 le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, uint32_t numExtensionNames_ ) {
 
-	auto obj = new le_backend_vk_instance_o();
+	auto instance = new le_backend_vk_instance_o();
 
 	vk::ApplicationInfo appInfo;
 	appInfo
-	    .setPApplicationName( "debug app" )
+	    .setPApplicationName( "island app" )
 	    .setApplicationVersion( VK_MAKE_VERSION( 0, 0, 0 ) )
-	    .setPEngineName( "light engine" )
+	    .setPEngineName( "island" )
 	    .setEngineVersion( VK_MAKE_VERSION( 0, 1, 0 ) )
-	    .setApiVersion( VK_MAKE_VERSION( 1, 1, 97 ) );
+	    .setApiVersion( VK_MAKE_VERSION( 1, 1, 101 ) );
 
 	// -- create a vector of unique requested instance extension names
 
-	std::vector<const char *> instanceExtensionNames = {};
-	std::set<std::string>     instanceExtensionSet;
+	std::set<std::string> instanceExtensionSet{};
 
-	instanceExtensionSet.emplace( "VK_KHR_surface" );
+	instanceExtensionSet.emplace( VK_KHR_SURFACE_EXTENSION_NAME );
 
+	if ( SHOULD_USE_VALIDATION_LAYERS ) {
+		instanceExtensionSet.emplace( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
+	}
+
+	// Merge with user-requested extensions
 	for ( uint32_t i = 0; i != numExtensionNames_; ++i ) {
 		instanceExtensionSet.emplace( extensionNamesArray_[ i ] );
 	}
 
-	for ( auto &e : instanceExtensionSet ) {
-		instanceExtensionNames.emplace_back( e.c_str() );
+	{
+		// Store requested instance extensions with instance so that
+		// we may query later.
+		instance->enabledInstanceExtensions.reserve( instanceExtensionSet.size() );
+
+		for ( auto &e : instanceExtensionSet ) {
+			instance->enabledInstanceExtensions.push_back( e );
+		}
 	}
 
-	// -- create a vector of requested instance layers
+	std::vector<const char *> instanceExtensionCstr{};
+
+	for ( auto &e : instance->enabledInstanceExtensions ) {
+		instanceExtensionCstr.push_back( e.c_str() );
+	}
+
+	// -- Create a vector of requested instance layers
 
 	std::vector<const char *> instanceLayerNames = {};
 
@@ -195,6 +216,19 @@ static void instance_destroy( le_backend_vk_instance_o *obj ) {
 
 static VkInstance_T *instance_get_vk_instance( le_backend_vk_instance_o *obj ) {
 	return ( reinterpret_cast<VkInstance &>( obj->vkInstance ) );
+}
+
+// ----------------------------------------------------------------------
+
+static bool instance_is_extension_available( le_backend_vk_instance_o *self, char const *extension_name ) {
+
+	for ( auto const &e : self->enabledInstanceExtensions ) {
+		if ( e == std::string( extension_name ) ) {
+			return true;
+		}
+	}
+
+	return false;
 }
 
 // ----------------------------------------------------------------------
@@ -259,8 +293,9 @@ ISL_API_ATTR void register_le_instance_vk_api( void *api_ ) {
 	auto  api_i      = static_cast<le_backend_vk_api *>( api_ );
 	auto &instance_i = api_i->vk_instance_i;
 
-	instance_i.create           = instance_create;
-	instance_i.destroy          = instance_destroy;
-	instance_i.get_vk_instance  = instance_get_vk_instance;
-	instance_i.post_reload_hook = instance_post_reload_hook;
+	instance_i.create                 = instance_create;
+	instance_i.destroy                = instance_destroy;
+	instance_i.get_vk_instance        = instance_get_vk_instance;
+	instance_i.post_reload_hook       = instance_post_reload_hook;
+	instance_i.is_extension_available = instance_is_extension_available;
 }

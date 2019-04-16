@@ -147,6 +147,8 @@ struct le_backend_vk_api {
 		void                        ( *destroy          ) ( le_backend_vk_instance_o* self_ );
 		void                        ( *post_reload_hook ) ( le_backend_vk_instance_o* self_ );
 		VkInstance_T*               ( *get_vk_instance  ) ( le_backend_vk_instance_o* self_ );
+		bool                        ( *is_extension_available ) ( le_backend_vk_instance_o* self, char const * extension_name);
+
 	};
 
 	struct device_interface_t {
@@ -164,6 +166,7 @@ struct le_backend_vk_api {
 		VkFormatEnum                ( *get_default_depth_stencil_format        ) ( le_device_o* self_ );
 		VkPhysicalDevice_T*         ( *get_vk_physical_device                  ) ( le_device_o* self_ );
 		VkDevice_T*                 ( *get_vk_device                           ) ( le_device_o* self_ );
+		bool                        ( *is_extension_available                  ) ( le_device_o* self, char const * extension_name);
 
 		const VkPhysicalDeviceProperties&       ( *get_vk_physical_device_properties        ) ( le_device_o* self );
 		const VkPhysicalDeviceMemoryProperties& ( *get_vk_physical_device_memory_properties ) ( le_device_o* self );
@@ -306,6 +309,10 @@ class Instance {
 		return le_backend_vk::vk_instance_i.get_vk_instance( self );
 	}
 
+	bool isExtensionAvailable( char const *extensionName ) {
+		return le_backend_vk::vk_instance_i.is_extension_available( self, extensionName );
+	}
+
 	operator auto() {
 		return self;
 	}
@@ -361,6 +368,10 @@ class Device : NoCopy, NoMove {
 
 	VkQueue_T *getDefaultComputeQueue() const {
 		return le_backend_vk::vk_device_i.get_default_compute_queue( self );
+	}
+
+	bool isExtensionAvailable( char const *extensionName ) const {
+		return le_backend_vk::vk_device_i.is_extension_available( self, extensionName );
 	}
 
 	operator auto() {
