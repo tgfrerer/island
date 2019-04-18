@@ -264,23 +264,21 @@ static size_t le_glyph_shape_get_num_contours( le_glyph_shape_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static le_font_o *le_font_create() {
+static le_font_o *le_font_create( char const *font_filename ) {
 	auto self = new le_font_o();
 
 	/* prepare font */
 
-	//	char const *font_file_name = "resources/fonts/IBMPlexSans-Text.ttf";
-	char const *font_file_name = "resources/fonts/IBMPlexSans-Regular.otf";
 
 	bool loadOk{};
 
-	auto data  = load_file( font_file_name, &loadOk );
+	auto data  = load_file( font_filename, &loadOk );
 	self->data = {data.data(), data.data() + data.size()};
 
 	if ( loadOk ) {
 		stbtt_InitFont( &self->info, self->data.data(), 0 );
 	} else {
-		std::cerr << "Could not load font file: '" << font_file_name << "'" << std::endl
+		std::cerr << "Could not load font file: '" << font_filename << "'" << std::endl
 		          << std::flush;
 	}
 
