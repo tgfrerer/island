@@ -37,7 +37,7 @@ struct le_font_api {
 	struct le_font_interface_t {
 		le_font_o *			 ( * create                   ) ( );
 		void                 ( * destroy                  ) ( le_font_o* self );
-		le_glyph_shape_o*	 ( * get_shape_for_glyph       ) ( le_font_o* font, int32_t codepoint, size_t* num_contours);
+		le_glyph_shape_o*	 ( * get_shape_for_glyph      ) ( le_font_o* font, int32_t codepoint, size_t* num_contours);
 	};
 
 	struct glyph_shape_interface_t{
