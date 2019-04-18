@@ -5,6 +5,9 @@ set ( SOURCES ${SOURCES} ApiLoader.h )
 set ( SOURCES ${SOURCES} ApiRegistry.cpp )
 set ( SOURCES ${SOURCES} ApiRegistry.hpp )
 set ( SOURCES ${SOURCES} hash_util.h )
+set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.cpp")
+set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.h")
+
 
 if (${PLUGINS_DYNAMIC})
 

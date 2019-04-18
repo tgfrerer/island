@@ -1,7 +1,7 @@
 #include "le_pipeline_builder.h"
 #include "pal_api_loader/ApiRegistry.hpp"
 
-#include "3rdparty/spooky/SpookyV2.h"
+#include "3rdparty/src/spooky/SpookyV2.h"
 
 #include "le_renderer/le_renderer.h" // for le_vertex_input_attribute_description le_vertex_input_binding_description
 
