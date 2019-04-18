@@ -25,7 +25,7 @@ if (${PLUGINS_DYNAMIC})
 
     target_compile_definitions(${TARGET} PUBLIC "PLUGINS_DYNAMIC=1")
 
-    set (LINKER_FLAGS -Wl,--whole-archive shaderc_shared.so -Wl,--no-whole-archive)
+    set (LINKER_FLAGS  ${LINKER_FLAGS} -Wl,--whole-archive shaderc_shared.so -Wl,--no-whole-archive)
 else()
 
     # Set additional search directory for static linker - where it may find
@@ -38,7 +38,7 @@ else()
 
     add_library(${TARGET} STATIC ${SOURCES})
 
-    set (LINKER_FLAGS -Wl,--whole-archive shaderc_combined -Wl,--no-whole-archive)
+    set (LINKER_FLAGS  ${LINKER_FLAGS} -Wl,--whole-archive shaderc_combined -Wl,--no-whole-archive)
 
 endif()
 
