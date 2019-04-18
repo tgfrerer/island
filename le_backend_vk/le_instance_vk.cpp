@@ -93,7 +93,7 @@ static VkBool32 debugUtilsMessengerCallback(
 	}
 
 	std::ostringstream os;
-	os << " * " << std::left << std::setw( 10 ) << msgType << " | " << std::setw( 7 ) << logLevel << pCallbackData->pMessage << std::endl;
+	os << "[ " << std::left << std::setw( 10 ) << msgType << " | " << std::setw( 7 ) << logLevel << " ] " << pCallbackData->pMessage << std::endl;
 	std::cout << os.str();
 	std::cout << std::flush;
 
