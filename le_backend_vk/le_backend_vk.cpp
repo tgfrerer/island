@@ -2137,7 +2137,6 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 				if ( imgInfo.usage & ( LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) ) {
 
-					// FIXME: this should be set via defaults of renderer::default_info_for_color_attachment
 					imgInfo.mipLevels   = 1;
 					imgInfo.samples     = le::SampleCountFlagBits::e1;
 					imgInfo.imageType   = le::ImageType::e2D;

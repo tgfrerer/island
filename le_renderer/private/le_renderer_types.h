@@ -24,7 +24,7 @@ enum class LeResourceType : uint8_t {
 	eUndefined = 0,
 	eBuffer,
 	eImage,
-	eTexture,
+	eTexture, //<< FIXME: rename to ImageSampler
 };
 
 struct le_resource_handle_t {
