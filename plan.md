@@ -4,6 +4,10 @@
 
 # TODO
 
+- change `Texture` to `Sampler` so that resource handles can only ever
+  refer to memory-backed resources. It should not be possible
+  accidentally to provide a texture handle for a `resource_handle`
+  where we expect an image or buffer handle.
 - integrate cgltf
 - integrate jsmn json parser
 - check if there is an elegant way to keep as much as possible from
@@ -38,13 +42,11 @@
 
 ## (Unsorted)
 
+- usability: make rendertarget specification more discoverable - it
+  should be trivial for example to change the clear color.
+
 - add sort-key to encoder, so that we can decouple calling the `execute`
   callbacks from generating the command buffers.
-
-- api for creating a buffer is not specific enough right now,
-  `renderpass.createResource` should be used, but this can also be used
-  for images. We should have something which matches `sampleTexture`, e.g.
-  `readBuffer` or `readWriteBuffer` depending on usage.
 
 - Better distinguish between renderpass types when creating vulkan command
   buffers
