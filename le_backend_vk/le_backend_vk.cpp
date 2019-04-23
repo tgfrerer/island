@@ -2287,6 +2287,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		if ( inferred_format == le::Format::eUndefined ) {
 			std::cerr << "FATAL: Cannot infer image format, resource underspecified: '" << resource.debug_name << "'" << std::endl
 			          << "Specify usage, or provide explicit format option for resource to fix this error. " << std::endl
+			          << "Consider using le::RenderModule::declareResource()" << std::endl
 			          << std::flush;
 
 			assert( false ); // we don't have enough information to infer image format.
