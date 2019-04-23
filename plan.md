@@ -11,17 +11,20 @@
 - integrate cgltf
 - integrate jsmn json parser
 - check if there is an elegant way to keep as much as possible from
-  a bound pipeline when binding a compatible pipeline
+  a bound pipeline when binding a compatible pipeline - basically
+  re-use descriptorsets if possible (check this holds true: if
+  descriptorsetlayout does not change, descriptors are compatible).
+- Implement text rendering using `stb_font`
 
 ## (A)
 
+- Resolve Attachments (implement these for multisampling / anti-aliasing)
+
+## (B)
 - Compute Passes
     - combine setArgumentData and bindArgumentBuffer in encoder so that
       we're using a single path in the backend for both these methods (we
       can express them fully as setArgumentData).
-- Resolve Attachments (implement these for multisampling / anti-aliasing)
-
-## (B)
 
 - Architect a usability layer on top of base framework, which makes common
   operations easy, and DRY. Images are a good point to start.
@@ -31,6 +34,10 @@
   way round, where renderpass injects their sampling into pipelines. This
   is probably linked to resolve attachments, we must investigate further.
 
+- allow user to specify graphics api extensions when creating the
+  application - vulkan extesions could be specified this way.
+
+## (C)
 - what should we do with "orphaned" resources? that's resources which were
   not provided by previous passes, but are used by following passes...
   currently, these get re-allocated to default values - which means that
@@ -38,7 +45,10 @@
   are not used. this is nice, because it doesn't crash, but i can imagine
   that we might want to have a better way for dealing with this.
 
-## (C)
+- implement a way to store paramters- parameters are values which we
+  want to tweak during program runtime, and save before we quit the
+  program, then reaload. parameters are closely related to
+  serialisation as a more general problem.
 
 ## (Unsorted)
 
