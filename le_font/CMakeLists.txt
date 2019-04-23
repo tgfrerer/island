@@ -4,6 +4,7 @@ set (SOURCES "le_font.cpp")
 set (SOURCES ${SOURCES} "le_font.h")
 set (SOURCES ${SOURCES} "3rdparty/stb_truetype.h")
 set (SOURCES ${SOURCES} "3rdparty/stb_truetype.cpp")
+set (SOURCES ${SOURCES} "3rdparty/stb_rect_pack.h")
 
 if (${PLUGINS_DYNAMIC})
 
@@ -30,3 +31,4 @@ endif()
 # set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
+
