@@ -371,12 +371,15 @@ static inline uint8_t count_leading_bits( uint8_t in ) {
 //
 // max_vertices is optional - if set, it marks the maximum number of
 // vertices we may write into.
-size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float x_pos, float y_pos, glm::vec4 *vertices, size_t max_vertices ) {
+//
+// If vertices were issued, x_pos and y_pos will be updated to the current
+// advance of the virtual text cursor.
+size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float *x_pos, float *y_pos, glm::vec4 *vertices, size_t max_vertices ) {
 
 	size_t glyph_count = 0;
 
-	const float x_anchor     = x_pos;
-	const float y_anchor     = y_pos;
+	const float x_anchor     = *x_pos;
+	const float y_anchor     = *y_pos;
 	size_t      num_newlines = 0;
 
 	static constexpr uint8_t mask_bits[] = {
@@ -449,8 +452,8 @@ size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float x_pos, 
 		for ( auto const &cp : codepoints ) {
 
 			if ( cp == '\n' ) {
-				y_pos = y_anchor + int( ( ++num_newlines ) * self->font_size * 1.2f ); // We increase y position - assumed line height 1.2, and align to pixels.
-				x_pos = x_anchor;                                                      // And reset x position
+				*y_pos = y_anchor + int( ( ++num_newlines ) * self->font_size * 1.2f ); // We increase y position - assumed line height 1.2, and align to pixels.
+				*x_pos = x_anchor;                                                      // And reset x position
 				continue;
 			}
 
@@ -471,7 +474,7 @@ size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float x_pos, 
 
 			// -------| invariant: cp is < range->end_range
 
-			stbtt_GetPackedQuad( range->data.data(), self->PIXELS_WIDTH, self->PIXELS_HEIGHT, int( cp - range->start_range ), &x_pos, &y_pos, &quad, 0 );
+			stbtt_GetPackedQuad( range->data.data(), self->PIXELS_WIDTH, self->PIXELS_HEIGHT, int( cp - range->start_range ), x_pos, y_pos, &quad, 0 );
 
 			if ( num_vertices + 6 > max_vertices ) {
 				// we don't have enough vertex memory left, we must return early.

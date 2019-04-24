@@ -40,7 +40,7 @@ struct le_font_api {
 		le_glyph_shape_o*	 ( * get_shape_for_glyph      ) ( le_font_o* font, int32_t codepoint, size_t* num_contours);
 		bool                 ( * create_atlas             ) ( le_font_o* self );
 		bool                 ( * get_atlas                )  ( le_font_o* self, uint8_t const ** pixels, uint32_t * width, uint32_t * height, uint32_t *pix_stride_in_bytes );
-		size_t				 ( * draw_utf8_string         ) ( le_font_o *self, const char *str, float x_pos, float y_pos, glm::vec4 *vertices, size_t max_vertices );
+		size_t				 ( * draw_utf8_string         ) ( le_font_o *self, const char *str, float* x_pos, float* y_pos, glm::vec4 *vertices, size_t max_vertices );
 	};
 
 	struct glyph_shape_interface_t{
