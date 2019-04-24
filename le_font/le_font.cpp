@@ -376,7 +376,7 @@ static inline uint8_t count_leading_bits( uint8_t in ) {
 //
 // If vertex data was written, x_pos and y_pos will be updated to the current
 // advance of the virtual text cursor.
-size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float *x_pos, float *y_pos, glm::vec4 *vertices, size_t max_vertices ) {
+size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float *x_pos, float *y_pos, glm::vec4 *vertices, size_t max_vertices, size_t vertex_offset ) {
 
 	size_t glyph_count = 0;
 
@@ -393,7 +393,7 @@ size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float *x_pos,
 	};
 
 	std::vector<uint32_t> codepoints;
-	codepoints.reserve( max_vertices );
+	codepoints.reserve( max_vertices / 6 );
 
 	{
 		// Iterate over utf-8 glyphs: <https://en.m.wikipedia.org/wiki/UTF-8>
@@ -454,8 +454,8 @@ size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float *x_pos,
 		for ( auto const &cp : codepoints ) {
 
 			if ( cp == '\n' ) {
-				*y_pos = y_anchor + int( ( ++num_newlines ) * self->font_size * 1.2f ); // We increase y position - assumed line height 1.2, and align to pixels.
-				*x_pos = x_anchor;                                                      // And reset x position
+				*y_pos = y_anchor + int( ( ++num_newlines ) * self->font_size * 1.2f ); // We increase y position - assumed line height 1.2, aligned to pixels,
+				*x_pos = x_anchor;                                                      // and reset x position
 				continue;
 			}
 
@@ -483,14 +483,14 @@ size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float *x_pos,
 				return num_vertices / 6;
 			}
 
-			// Update vertices - stb_tt packed quad returns top-left,
-			// and bottom-right vertex, we must expand this to two
+			// Update vertices - stb_tt_packed_quad returns top-left,
+			// and bottom-right vertex, and we must expand this to two
 			// triangles.
 
 			// Our return vertices will be x/y s/t per-vertex
 			// (we store texture coordinates per vertex in .zw coordinates to save bandwidth)
 
-			glm::vec4 *vtx = vertices + num_vertices;
+			glm::vec4 *vtx = vertices + vertex_offset + num_vertices;
 
 			vtx[ 0 ] = {quad.x0, quad.y0, quad.s0, quad.t0}; // top-left
 			vtx[ 1 ] = {quad.x0, quad.y1, quad.s0, quad.t1}; // bottom-left
