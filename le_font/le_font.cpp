@@ -330,6 +330,7 @@ static bool le_font_create_atlas( le_font_o *self ) {
 		self->unicode_ranges.emplace_back( pack_uniform_range( &pack_context, self->data.data(), self->font_size, 0x00, 0x7F ) );     // ascii
 		self->unicode_ranges.emplace_back( pack_uniform_range( &pack_context, self->data.data(), self->font_size, 0x80, 0xff ) );     // latin-extended
 		self->unicode_ranges.emplace_back( pack_uniform_range( &pack_context, self->data.data(), self->font_size, 0x20A0, 0x20CF ) ); // currency symbols
+		self->unicode_ranges.emplace_back( pack_uniform_range( &pack_context, self->data.data(), self->font_size, 0x2190, 0x21FF ) ); // arrows
 
 		stbtt_PackEnd( &pack_context );
 
