@@ -13,11 +13,15 @@ layout (location = 0) out vec4 outFragColor;
 
 layout (set = 0, binding = 1) uniform sampler2D tex_unit_0;
 
+layout (set = 1, binding = 0) uniform VertexColor {
+	vec4 vertexColor;
+};
+
 
 void main(){
 	
 	// outFragColor = vec4(inData.texCoord, 0, 1);
 	float sampleColor = texture(tex_unit_0, inData.texCoord,0).r;
 
-	outFragColor = vec4(vec3(1),sampleColor);
+	outFragColor = vertexColor * vec4(vec3(1),sampleColor);
 }
