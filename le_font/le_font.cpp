@@ -30,11 +30,11 @@ struct le_font_o {
 	static constexpr uint16_t                                      PIXELS_HEIGHT = 256;
 	static constexpr uint16_t                                      PIXELS_BPP    = 1; // bytes per pixels
 	stbtt_fontinfo                                                 info;
-	std::vector<unsigned char>                                     data; // ttf file data
+	std::vector<uint8_t>                                           data;                     // ttf file data
+	std::array<uint8_t, PIXELS_WIDTH * PIXELS_HEIGHT * PIXELS_BPP> pixels;                   // pixels for texture_atlas
+	float                                                          font_size         = 24.f; // font size in pixels. TODO: check units for font size.
 	bool                                                           has_texture_atlas = false;
-	std::array<uint8_t, PIXELS_WIDTH * PIXELS_HEIGHT * PIXELS_BPP> pixels;           // pixels for texture_atlas
-	float                                                          font_size = 24.f; // font size in pixels. TODO: check units for font size.
-	std::vector<UnicodeRange>                                      unicode_ranges;   // available unicode ranges, assumed to be sorted.
+	std::vector<UnicodeRange>                                      unicode_ranges; // available unicode ranges, assumed to be sorted.
 };
 
 // ----------------------------------------------------------------------
@@ -280,7 +280,7 @@ static size_t le_glyph_shape_get_num_contours( le_glyph_shape_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static le_font_o *le_font_create( char const *font_filename ) {
+static le_font_o *le_font_create( char const *font_filename, float font_size ) {
 	auto self = new le_font_o();
 
 	/* prepare font */
@@ -296,6 +296,8 @@ static le_font_o *le_font_create( char const *font_filename ) {
 		std::cerr << "Could not load font file: '" << font_filename << "'" << std::endl
 		          << std::flush;
 	}
+
+	self->font_size = font_size;
 
 	return self;
 }

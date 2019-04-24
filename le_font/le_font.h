@@ -35,7 +35,7 @@ struct le_font_api {
 	static constexpr auto pRegFun = register_le_font_api;
 
 	struct le_font_interface_t {
-		le_font_o *			 ( * create                   ) ( char const * font_filename );
+		le_font_o *			 ( * create                   ) ( char const * font_filename, float font_size );
 		void                 ( * destroy                  ) ( le_font_o* self );
 		le_glyph_shape_o*	 ( * get_shape_for_glyph      ) ( le_font_o* font, int32_t codepoint, size_t* num_contours);
 		bool                 ( * create_atlas             ) ( le_font_o* self );
@@ -75,8 +75,8 @@ class LeFont : NoCopy, NoMove {
 	le_font_o *self;
 
   public:
-	LeFont( char const *font_filename )
-	    : self( le_font::le_font_i.create( font_filename ) ) {
+	LeFont( char const *font_filename, float font_size = 24.f )
+	    : self( le_font::le_font_i.create( font_filename, font_size ) ) {
 	}
 
 	~LeFont() {
