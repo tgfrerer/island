@@ -362,17 +362,18 @@ static inline uint8_t count_leading_bits( uint8_t in ) {
 }
 // ----------------------------------------------------------------------
 
-// Places geometry into vertices to draw an utf-8 string using font.
+// Places geometry into vertices to draw an utf-8 string using given font.
 //
 // Returns count of used vertices - calculated as 6 * codepoint count.
 // Note that we count utf-8 code points, not ascii characters.
 //
-// Place nullptr in vertices to only return vertex count.
+// Place nullptr in `vertices` to calculate vertex count and return early.
 //
-// max_vertices is optional - if set, it marks the maximum number of
-// vertices we may write into.
+// `max_vertices` marks the maximum number of vertices we may write into.
 //
-// If vertices were issued, x_pos and y_pos will be updated to the current
+// `vertex_offset` tells us at which position in `vertices` to begin writing vertex data
+//
+// If vertex data was written, x_pos and y_pos will be updated to the current
 // advance of the virtual text cursor.
 size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float *x_pos, float *y_pos, glm::vec4 *vertices, size_t max_vertices ) {
 
