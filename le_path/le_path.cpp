@@ -1,6 +1,6 @@
 #include "le_path.h"
 #include "pal_api_loader/ApiRegistry.hpp"
-#include "glm/vec2.hpp"
+#include "glm.hpp"
 #include <vector>
 
 #include <cstring>
@@ -46,6 +46,13 @@ static le_path_o *le_path_create() {
 
 static void le_path_destroy( le_path_o *self ) {
 	delete self;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_path_clear( le_path_o *self ) {
+	self->subpaths.clear();
+	self->polylines.clear();
 }
 
 // ----------------------------------------------------------------------
@@ -206,6 +213,238 @@ static void le_path_trace_path( le_path_o *self ) {
 			    break;
 			case PathCommand::eClosePath:
 				trace_close_path( polyline );
+			    break;
+			case PathCommand::eUnknown:
+				assert( false );
+			    break;
+			}
+		}
+
+		self->polylines.emplace_back( polyline );
+	}
+}
+
+// ----------------------------------------------------------------------
+// move-to operation for resample is essentially the same as `trave_move_to`
+static void resample_move_to( std::vector<Vertex> &polyline, Vertex const &p, float const interval, float *sum_distance ) {
+	polyline.emplace_back( p );
+}
+
+// ----------------------------------------------------------------------
+// Resample path into segments of length `interval` while accumulating
+// path length in `sum_distance`
+static void resample_line_to( std::vector<Vertex> &polyline, Vertex const &p, float const interval, float *sum_distance ) {
+
+	// -- Find out how many times interval fits in distance between start point and target point.
+	// -- At each interval add a point to the polyline.
+	// -- Increase sum_distance by total distance.
+
+	if ( polyline.empty() ) {
+		assert( false );
+		return;
+	}
+
+	glm::vec2 start_point = polyline.back(); // must copy, as address may change.
+
+	float     distance  = glm::distance( p, start_point );
+	glm::vec2 direction = ( p - start_point ) / distance;
+
+	// How far are we into the next step?
+	float start_distance = ( *sum_distance ) - std::floor( ( *sum_distance ) / interval ) * interval;
+
+	// How many intervals can we fit in between the two points?
+	int n_intervals = int( std::floor( ( distance - start_distance ) / interval ) );
+
+	for ( int i = 1; i <= n_intervals; ++i ) {
+		polyline.emplace_back( start_point + direction * ( i * interval + start_distance ) );
+	}
+
+	// Accumulate distance.
+	*sum_distance += start_distance + ( n_intervals * interval );
+}
+
+// ----------------------------------------------------------------------
+// Trace a quadratic bezier curve from previous point p0 to target point p2 (p2_x,p2_y),
+// controlled by control point p1 (p1_x, p1_y), in steps iterations, resample by
+// interval while accumulating path distance.
+static void resample_quad_bezier_to( std::vector<Vertex> &polyline,
+                                     Vertex const &       p1,         // end point
+                                     Vertex const &       c1,         // control point
+                                     size_t               resolution, // number of segments
+                                     float                interval,
+                                     float *              sum_distance ) {
+
+	if ( resolution == 0 ) {
+		// nothing to do.
+		return;
+	}
+
+	if ( resolution == 1 ) {
+		// If we are to add but one segment, really, we're not drawning a curve, but a line.
+		resample_line_to( polyline, p1, interval, sum_distance );
+		return;
+	}
+
+	// --------| invariant: resolution > 1
+
+	assert( !polyline.empty() ); // Contour vertices must not be empty.
+
+	glm::vec2 const p0              = polyline.back(); // copy start point
+	glm::vec2       previous_vertex = p0;
+
+	float delta_t = 1.f / float( resolution );
+
+	size_t num_intervals        = size_t( std::floor( ( *sum_distance ) / interval ) );
+	float  last_vertex_distance = *sum_distance;
+
+	// Note that we begin the following loop at 1,
+	// because element 0 (the starting point) is
+	// already part of the contour.
+	//
+	// Loop goes over the set: ]0,resolution]
+	//
+	for ( size_t i = 1; i <= resolution; i++ ) {
+		float t              = i * delta_t;
+		float t_sq           = t * t;
+		float one_minus_t    = ( 1.f - t );
+		float one_minus_t_sq = one_minus_t * one_minus_t;
+
+		Vertex b = one_minus_t_sq * p0 + 2 * one_minus_t * t * c1 + t_sq * p1;
+
+		// Calculate distance between this vertex and the previous vertex
+		float distance = glm::distance( previous_vertex, b );
+
+		// Accumulate distance (This is equivalent to numerical integration)
+		last_vertex_distance += distance;
+
+		// Did we cross an interval boundary?
+		size_t current_interval = size_t( std::floor( ( last_vertex_distance ) / interval ) );
+
+		if ( current_interval > num_intervals ) {
+			polyline.push_back( b );
+			num_intervals = current_interval;
+			*sum_distance = last_vertex_distance;
+		}
+
+		previous_vertex = b;
+	}
+}
+
+// ----------------------------------------------------------------------
+// Trace a cubic bezier curve from previous point p0 to target point p3
+// controlled by control points p1, and p2, resample by interval whilst
+// accumulating path distance.
+static void resample_cubic_bezier_to( std::vector<Vertex> &polyline,
+                                      Vertex const &       p1,         // end point
+                                      Vertex const &       c1,         // control point 1
+                                      Vertex const &       c2,         // control point 2
+                                      size_t               resolution, // number of segments
+                                      float                interval,
+                                      float *              sum_distance ) {
+
+	if ( resolution == 0 ) {
+		// Nothing to do.
+		return;
+	}
+
+	if ( resolution == 1 ) {
+		// If we are to add but one segment, really, we're not drawning a curve, but a line.
+		resample_line_to( polyline, p1, interval, sum_distance );
+		return;
+	}
+
+	// --------| invariant: resolution > 1
+
+	assert( !polyline.empty() ); // Contour vertices must not be empty.
+
+	glm::vec2 const p0              = polyline.back(); // copy start point
+	glm::vec2       previous_vertex = p0;
+
+	float delta_t = 1.f / float( resolution );
+
+	size_t num_intervals        = size_t( std::floor( ( *sum_distance ) / interval ) );
+	float  last_vertex_distance = *sum_distance;
+
+	// Note that we begin the following loop at 1,
+	// because element 0 (the starting point) is
+	// already part of the contour.
+	//
+	// Loop goes over the set: ]0,resolution]
+	//
+	for ( size_t i = 1; i <= resolution; i++ ) {
+		float t               = i * delta_t;
+		float t_sq            = t * t;
+		float t_cub           = t_sq * t;
+		float one_minus_t     = ( 1.f - t );
+		float one_minus_t_sq  = one_minus_t * one_minus_t;
+		float one_minus_t_cub = one_minus_t_sq * one_minus_t;
+
+		Vertex b = one_minus_t_cub * p0 + 3 * one_minus_t_sq * t * c1 + 3 * one_minus_t * t_sq * c2 + t_cub * p1;
+
+		// Calculate distance between this vertex and the previous vertex
+		float distance = glm::distance( previous_vertex, b );
+
+		// Accumulate total distance (This is equivalent to numerical integration)
+		last_vertex_distance += distance;
+
+		// Did we cross an interval boundary?
+		size_t current_interval = size_t( std::floor( ( last_vertex_distance ) / interval ) );
+
+		if ( current_interval > num_intervals ) {
+			polyline.push_back( b );
+			num_intervals = current_interval;
+			*sum_distance = last_vertex_distance;
+		}
+
+		previous_vertex = b;
+	}
+}
+// ----------------------------------------------------------------------
+static void resample_close_path( std::vector<Vertex> &polyline, float const interval, float *sum_distance ) {
+	resample_line_to( polyline, polyline.front(), interval, sum_distance );
+	// It's very unlikely that the path is closed perfectly because
+	// we can't guarantee that line distance is an integer multiple
+	// of interval, so we double the first point to be sure.
+	polyline.emplace_back( polyline.front() );
+}
+
+// ----------------------------------------------------------------------
+// Traces the path by resampling it
+static void le_path_resample( le_path_o *self, float interval ) {
+	self->polylines.clear();
+	self->polylines.reserve( self->subpaths.size() );
+
+	constexpr size_t resolution = 100; // Curves sample resolution - make this higher to get better fit.
+
+	for ( auto const &s : self->subpaths ) {
+
+		std::vector<Vertex> polyline;
+		float               sum_distance = 0;
+
+		for ( auto const &command : s.commands ) {
+
+			switch ( command.type ) {
+			case PathCommand::eMoveTo:
+				resample_move_to( polyline, command.p, interval, &sum_distance );
+			    break;
+			case PathCommand::eLineTo:
+				resample_line_to( polyline, command.p, interval, &sum_distance );
+			    break;
+			case PathCommand::eQuadBezierTo:
+				resample_quad_bezier_to( polyline,
+				                         command.p,
+				                         command.c1,
+				                         resolution, interval, &sum_distance );
+			    break;
+			case PathCommand::eCubicBezierTo:
+				resample_cubic_bezier_to( polyline,
+				                          command.p,
+				                          command.c1,
+				                          command.c2,
+				                          resolution, interval, &sum_distance );
+			    break;
+			case PathCommand::eClosePath:
+				resample_close_path( polyline, interval, &sum_distance );
 			    break;
 			case PathCommand::eUnknown:
 				assert( false );
@@ -614,10 +853,13 @@ ISL_API_ATTR void register_le_path_api( void *api ) {
 	le_path_i.line_to                 = le_path_line_to;
 	le_path_i.quad_bezier_to          = le_path_quad_bezier_to;
 	le_path_i.cubic_bezier_to         = le_path_cubic_bezier_to;
-	le_path_i.close_path              = le_path_close_path;
+	le_path_i.close                   = le_path_close_path;
 	le_path_i.add_from_simplified_svg = le_path_add_from_simplified_svg;
 
 	le_path_i.get_num_polylines         = le_path_get_num_polylines;
 	le_path_i.get_vertices_for_polyline = le_path_get_vertices_for_polyline;
-	le_path_i.trace_path                = le_path_trace_path;
+
+	le_path_i.trace    = le_path_trace_path;
+	le_path_i.resample = le_path_resample;
+	le_path_i.clear    = le_path_clear;
 }

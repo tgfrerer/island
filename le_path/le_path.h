@@ -49,12 +49,14 @@ struct le_path_api {
 		void        (* line_to                   ) ( le_path_o* self, Vertex const& p );
 		void        (* quad_bezier_to            ) ( le_path_o* self, Vertex const& p, Vertex const & c1 );
 		void        (* cubic_bezier_to           ) ( le_path_o* self, Vertex const& p, Vertex const & c1, Vertex const & c2 );
-		void        (* close_path                ) ( le_path_o* self);
+		void        (* close                     ) ( le_path_o* self);
 
 		void        (* add_from_simplified_svg   ) ( le_path_o* self, char const* svg );
 
-		void        (* trace_path                ) ( le_path_o* self );
-		void        (* trace_with_interval       ) ( le_path_o* self, float interval);
+		void        (* trace                     ) ( le_path_o* self );
+		void        (* resample                  ) ( le_path_o* self, float interval);
+
+		void        (* clear                     ) ( le_path_o* self );
 
 		size_t      (* get_num_polylines         ) ( le_path_o* self );
 		void        (* get_vertices_for_polyline ) ( le_path_o* self, size_t const &polyline_index, Vertex const **vertices, size_t * numVertices );
@@ -120,15 +122,15 @@ class Path : NoCopy, NoMove {
 	}
 
 	void close() {
-		le_path::le_path_i.close_path( self );
+		le_path::le_path_i.close( self );
 	}
 
 	void trace() {
-		le_path::le_path_i.trace_path( self );
+		le_path::le_path_i.trace( self );
 	}
 
-	void traceWithInterval( float interval ) {
-		le_path::le_path_i.trace_with_interval( self, interval );
+	void resample( float interval ) {
+		le_path::le_path_i.resample( self, interval );
 	}
 
 	size_t getNumPolylines() {
@@ -137,6 +139,10 @@ class Path : NoCopy, NoMove {
 
 	void getVerticesForPolyline( size_t const &polyline_index, le_path_api::Vertex const **vertices, size_t *numVertices ) {
 		le_path::le_path_i.get_vertices_for_polyline( self, polyline_index, vertices, numVertices );
+	}
+
+	void clear() {
+		le_path::le_path_i.clear( self );
 	}
 
 	operator auto() {
