@@ -45,13 +45,13 @@ struct le_path_api {
 		le_path_o *	( * create                   ) ( );
 		void        ( * destroy                  ) ( le_path_o* self );
 
-		void        (* move_to                   ) ( le_path_o* self, Vertex const& p);
-		void        (* line_to                   ) ( le_path_o* self, Vertex const& p);
-		void        (* quad_bezier_to            ) ( le_path_o* self, Vertex const& p, Vertex const & c1);
-		void        (* cubic_bezier_to           ) ( le_path_o* self, Vertex const& p, Vertex const & c1, Vertex const & c2);
+		void        (* move_to                   ) ( le_path_o* self, Vertex const& p );
+		void        (* line_to                   ) ( le_path_o* self, Vertex const& p );
+		void        (* quad_bezier_to            ) ( le_path_o* self, Vertex const& p, Vertex const & c1 );
+		void        (* cubic_bezier_to           ) ( le_path_o* self, Vertex const& p, Vertex const & c1, Vertex const & c2 );
 		void        (* close_path                ) ( le_path_o* self);
 
-		void        (* add_from_simplified_svg ) (le_path_o* self, char const* svg);
+		void        (* add_from_simplified_svg   ) ( le_path_o* self, char const* svg );
 
 		void        (* trace_path                ) ( le_path_o* self );
 
