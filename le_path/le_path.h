@@ -54,6 +54,7 @@ struct le_path_api {
 		void        (* add_from_simplified_svg   ) ( le_path_o* self, char const* svg );
 
 		void        (* trace_path                ) ( le_path_o* self );
+		void        (* trace_with_interval       ) ( le_path_o* self, float interval);
 
 		size_t      (* get_num_polylines         ) ( le_path_o* self );
 		void        (* get_vertices_for_polyline ) ( le_path_o* self, size_t const &polyline_index, Vertex const **vertices, size_t * numVertices );
@@ -78,23 +79,71 @@ static const auto &le_path_i = api -> le_path_i;
 
 } // namespace le_path
 
-class LePath : NoCopy, NoMove {
+namespace le {
+
+class Path : NoCopy, NoMove {
 
 	le_path_o *self;
 
   public:
-	LePath()
+	Path()
 	    : self( le_path::le_path_i.create() ) {
 	}
 
-	~LePath() {
+	~Path() {
 		le_path::le_path_i.destroy( self );
+	}
+
+	Path &moveTo( le_path_api::Vertex const &p ) {
+		le_path::le_path_i.move_to( self, p );
+		return *this;
+	}
+
+	Path &lineTo( le_path_api::Vertex const &p ) {
+		le_path::le_path_i.line_to( self, p );
+		return *this;
+	}
+
+	Path &quadBezierTo( le_path_api::Vertex const &p, le_path_api::Vertex const &c1 ) {
+		le_path::le_path_i.quad_bezier_to( self, p, c1 );
+		return *this;
+	}
+
+	Path &cubicBezierTo( le_path_api::Vertex const &p, le_path_api::Vertex const &c1, le_path_api::Vertex const &c2 ) {
+		le_path::le_path_i.cubic_bezier_to( self, p, c1, c2 );
+		return *this;
+	}
+
+	Path &addFromSimplifiedSvg( char const *svg ) {
+		le_path::le_path_i.add_from_simplified_svg( self, svg );
+		return *this;
+	}
+
+	void close() {
+		le_path::le_path_i.close_path( self );
+	}
+
+	void trace() {
+		le_path::le_path_i.trace_path( self );
+	}
+
+	void traceWithInterval( float interval ) {
+		le_path::le_path_i.trace_with_interval( self, interval );
+	}
+
+	size_t getNumPolylines() {
+		return le_path::le_path_i.get_num_polylines( self );
+	}
+
+	void getVerticesForPolyline( size_t const &polyline_index, le_path_api::Vertex const **vertices, size_t *numVertices ) {
+		le_path::le_path_i.get_vertices_for_polyline( self, polyline_index, vertices, numVertices );
 	}
 
 	operator auto() {
 		return self;
 	}
 };
+} // end namespace le
 
 #endif // __cplusplus
 
