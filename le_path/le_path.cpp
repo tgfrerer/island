@@ -71,7 +71,28 @@ static void trace_move_to( Polyline &polyline, Vertex const &p ) {
 // ----------------------------------------------------------------------
 
 static void trace_line_to( Polyline &polyline, Vertex const &p ) {
-	polyline.total_distance += glm::distance( p, polyline.vertices.back() );
+	// we must check if the current point is identical with previous point -
+	// in which case we will not add this point.
+
+	glm::vec2 toPrevious = polyline.vertices.back() - p;
+
+	// Instead of using glm::distance directly, we calculate squared distance
+	// so that we can filter out any potential invalid distance calculations -
+	// distance cannot be calculated with two points which are identical,
+	// because this would mean a division by zero. We must therefore filter out
+	// any zero distances.
+
+	float dist2 = glm::dot( toPrevious, toPrevious );
+
+	static constexpr float epsilon2 = std::numeric_limits<float>::epsilon() * std::numeric_limits<float>::epsilon();
+
+	if ( dist2 <= epsilon2 ) {
+		// Distance to previous point is too small
+		// No need to add this point twice.
+		return;
+	}
+
+	polyline.total_distance += sqrt( dist2 );
 	polyline.distances.emplace_back( polyline.total_distance );
 	polyline.vertices.emplace_back( p );
 }
@@ -244,18 +265,115 @@ static void le_path_trace_path( le_path_o *self, size_t resolution ) {
 		self->polylines.emplace_back( polyline );
 	}
 }
+// ----------------------------------------------------------------------
+
+static float clamp( float val, float range_min, float range_max ) {
+	return val < range_min ? range_min : val > range_max ? range_max : val;
+}
+
+static float map( float val_, float range_min_, float range_max_, float min_, float max_ ) {
+	return clamp( min_ + ( max_ - min_ ) * ( ( clamp( val_, range_min_, range_max_ ) - range_min_ ) / ( range_max_ - range_min_ ) ), min_, max_ );
+}
 
 // ----------------------------------------------------------------------
-// Traces the path by resampling it
+// Updates `result` to the vertex position on polyline
+// at normalized position `t`
+static void le_polyline_get_at( Polyline const &polyline, float t, Vertex &result ) {
+
+	// -- Calculate unnormalised distance
+	float d = t * float( polyline.total_distance );
+
+	// find the first element in polyline which has a position larger than pos
+
+	size_t       a = 0, b = 1;
+	size_t const n = polyline.distances.size();
+
+	assert( n >= 2 ); // we must have at least two elements for this to work.
+
+	for ( ; b < n - 1; ++a, ++b ) {
+		if ( polyline.distances[ b ] > d ) {
+			// find the second distance which is larger than our test distance
+			break;
+		}
+	}
+
+	assert( b < n ); // b must not overshoot.
+
+	float dist_start = polyline.distances[ a ];
+	float dist_end   = polyline.distances[ b ];
+
+	float scalar = map( d, dist_start, dist_end, 0.f, 1.f );
+
+	glm::vec2 const &start_vertex = polyline.vertices[ a ];
+	glm::vec2 const &end_vertex   = polyline.vertices[ b ];
+
+	result = start_vertex + scalar * ( end_vertex - start_vertex );
+}
+
+// ----------------------------------------------------------------------
+// return calculated position on polyline
+static void le_path_get_polyline_at_pos_interpolated( le_path_o *self, size_t const &polyline_index, float t, Vertex &result ) {
+	assert( polyline_index < self->polylines.size() );
+	le_polyline_get_at( self->polylines[ polyline_index ], t, result );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_polyline_resample( Polyline &polyline, float interval ) {
+	Polyline poly_resampled;
+
+	// -- How many times can we fit interval into length of polyline?
+
+	// Find next integer multiple
+	size_t n_segments = std::round( polyline.total_distance / interval );
+	n_segments        = std::max( size_t( 1 ), n_segments );
+
+	float delta = 1.f / float( n_segments );
+
+	// reserve n vertices
+
+	poly_resampled.vertices.reserve( n_segments + 1 );
+	poly_resampled.distances.reserve( n_segments + 1 );
+
+	// Find first point
+	Vertex vertex;
+	le_polyline_get_at( polyline, 0.f, vertex );
+	trace_move_to( poly_resampled, vertex );
+
+	// Note that we must add an extra vertex at the end so that we
+	// capture the correct number of segments.
+	for ( size_t i = 1; i <= n_segments; ++i ) {
+		le_polyline_get_at( polyline, i * delta, vertex );
+		// We use trace_line_to, because this will get us more accurate distance
+		// calculations - trace_line_to updates the distances as a side-effect,
+		// effectively redrawing the polyline as if it was a series of `line_to`s.
+		trace_line_to( poly_resampled, vertex );
+	}
+
+	std::swap( polyline, poly_resampled );
+}
+
+// ----------------------------------------------------------------------
+
 static void le_path_resample( le_path_o *self, float interval ) {
 
-	self->polylines.clear();
-	self->polylines.reserve( self->subpaths.size() );
+	if ( self->subpaths.empty() ) {
+		// nothing to do.
+		return;
+	}
 
-	constexpr size_t resolution = 100; // Curves sample resolution - make this higher to get better fit.
+	// --------| invariant: subpaths exist
 
-	for ( auto const &s : self->subpaths ) {
-		// TODO: implement using getAt()
+	if ( self->polylines.empty() ) {
+		le_path_trace_path( self, 100 ); // We must trace path - we will do it at a fairy high resolution.
+	}
+
+	// Resample each polyline, turn by turn
+
+	for ( auto &p : self->polylines ) {
+		le_polyline_resample( p, interval );
+		// -- Enforce invariant that says for closed paths:
+		// First and last vertex must be identical.
 	}
 }
 
@@ -274,9 +392,11 @@ static void le_path_line_to( le_path_o *self, Vertex const &p ) {
 	self->subpaths.back().commands.push_back( {PathCommand::eLineTo, p} );
 }
 
+// ----------------------------------------------------------------------
+
 // Fetch the current pen point by grabbing the previous target point
 // from the command stream.
-Vertex const *le_path_get_previous_p( le_path_o *self ) {
+static Vertex const *le_path_get_previous_p( le_path_o *self ) {
 	assert( !self->subpaths.empty() );                 // Subpath must exist
 	assert( !self->subpaths.back().commands.empty() ); // previous command must exist
 
@@ -361,54 +481,6 @@ static void le_path_get_vertices_for_polyline( le_path_o *self, size_t const &po
 
 	*vertices    = polyline.vertices.data();
 	*numVertices = polyline.vertices.size();
-}
-
-// ----------------------------------------------------------------------
-
-static float clamp( float val, float range_min, float range_max ) {
-	return val < range_min ? range_min : val > range_max ? range_max : val;
-}
-
-static float map( float val_, float range_min_, float range_max_, float min_, float max_ ) {
-	return clamp( min_ + ( max_ - min_ ) * ( ( clamp( val_, range_min_, range_max_ ) - range_min_ ) / ( range_max_ - range_min_ ) ), min_, max_ );
-}
-
-// ----------------------------------------------------------------------
-// return calculated position on polyline
-static void le_path_get_polyline_at_pos_interpolated( le_path_o *self, size_t const &polyline_index, float t, Vertex &result ) {
-
-	assert( polyline_index < self->polylines.size() );
-
-	auto const &polyline = self->polylines[ polyline_index ];
-
-	// -- Calculate unnormalised distance
-	float d = t * float( polyline.total_distance );
-
-	// find the first element in polyline which has a position larger than pos
-
-	size_t       a = 0, b = 1;
-	size_t const n = polyline.distances.size();
-
-	assert( n >= 2 ); // we must have at least two elements for this to work.
-
-	for ( ; b < n - 1; ++a, ++b ) {
-		if ( polyline.distances[ b ] > d ) {
-			// find the second distance which is larger than our test distance
-			break;
-		}
-	}
-
-	assert( b < n ); // b must not overshoot.
-
-	float dist_start = polyline.distances[ a ];
-	float dist_end   = polyline.distances[ b ];
-
-	float scalar = map( d, dist_start, dist_end, 0.f, 1.f );
-
-	glm::vec2 const &start_vertex = polyline.vertices[ a ];
-	glm::vec2 const &end_vertex   = polyline.vertices[ b ];
-
-	result = start_vertex + scalar * ( end_vertex - start_vertex );
 }
 
 // ----------------------------------------------------------------------
