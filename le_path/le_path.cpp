@@ -598,14 +598,15 @@ static float map( float val_, float range_min_, float range_max_, float min_, fl
 }
 
 // ----------------------------------------------------------------------
-
-static void le_path_get_polyline_at_pos_interpolated( le_path_o *self, size_t const &polyline_index, float normPos, Vertex &result ) {
+// return calculated position on polyline
+static void le_path_get_polyline_at_pos_interpolated( le_path_o *self, size_t const &polyline_index, float t, Vertex &result ) {
 
 	assert( polyline_index < self->polylines.size() );
 
 	auto const &polyline = self->polylines[ polyline_index ];
 
-	float pos = normPos * float( polyline.total_distance );
+	// -- Calculate unnormalised distance
+	float d = t * float( polyline.total_distance );
 
 	// find the first element in polyline which has a position larger than pos
 
@@ -615,7 +616,7 @@ static void le_path_get_polyline_at_pos_interpolated( le_path_o *self, size_t co
 	assert( n >= 2 ); // we must have at least two elements for this to work.
 
 	for ( ; b < n - 1; ++a, ++b ) {
-		if ( polyline.distances[ b ] > pos ) {
+		if ( polyline.distances[ b ] > d ) {
 			// find the second distance which is larger than our test distance
 			break;
 		}
@@ -623,10 +624,10 @@ static void le_path_get_polyline_at_pos_interpolated( le_path_o *self, size_t co
 
 	assert( b < n ); // b must not overshoot.
 
-	float pos_start = polyline.distances[ a ];
-	float pos_end   = polyline.distances[ b ];
+	float dist_start = polyline.distances[ a ];
+	float dist_end   = polyline.distances[ b ];
 
-	float scalar = map( pos, pos_start, pos_end, 0.f, 1.f );
+	float scalar = map( d, dist_start, dist_end, 0.f, 1.f );
 
 	glm::vec2 const &start_vertex = polyline.vertices[ a ];
 	glm::vec2 const &end_vertex   = polyline.vertices[ b ];
