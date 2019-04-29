@@ -37,9 +37,8 @@ struct Polyline {
 };
 
 struct le_path_o {
-	std::vector<SubPath>  subpaths;              // an array of sub-paths, a subpath must start with a moveto instruction
-	std::vector<Polyline> polylines;             // an array of polylines, each corresponding to a sub-path.
-	float                 sample_interval = 0.f; // last used sample interval if path was resampled.
+	std::vector<SubPath>  subpaths;  // an array of sub-paths, a subpath must start with a moveto instruction
+	std::vector<Polyline> polylines; // an array of polylines, each corresponding to a sub-path.
 };
 
 // ----------------------------------------------------------------------
@@ -441,7 +440,6 @@ static void le_path_resample( le_path_o *self, float interval ) {
 
 	self->polylines.clear();
 	self->polylines.reserve( self->subpaths.size() );
-	self->sample_interval = interval;
 
 	constexpr size_t resolution = 100; // Curves sample resolution - make this higher to get better fit.
 
@@ -588,6 +586,55 @@ static void le_path_get_vertices_for_polyline( le_path_o *self, size_t const &po
 	*vertices    = polyline.vertices.data();
 	*numVertices = polyline.vertices.size();
 }
+
+// ----------------------------------------------------------------------
+
+static float clamp( float val, float range_min, float range_max ) {
+	return val < range_min ? range_min : val > range_max ? range_max : val;
+}
+
+static float map( float val_, float range_min_, float range_max_, float min_, float max_ ) {
+	return clamp( min_ + ( max_ - min_ ) * ( ( clamp( val_, range_min_, range_max_ ) - range_min_ ) / ( range_max_ - range_min_ ) ), min_, max_ );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_path_get_polyline_at_pos_interpolated( le_path_o *self, size_t const &polyline_index, float normPos, Vertex &result ) {
+
+	assert( polyline_index < self->polylines.size() );
+
+	auto const &polyline = self->polylines[ polyline_index ];
+
+	float pos = normPos * float( polyline.total_distance );
+
+	// find the first element in polyline which has a position larger than pos
+
+	size_t       a = 0, b = 1;
+	size_t const n = polyline.distances.size();
+
+	assert( n >= 2 ); // we must have at least two elements for this to work.
+
+	for ( ; b < n - 1; ++a, ++b ) {
+		if ( polyline.distances[ b ] > pos ) {
+			// find the second distance which is larger than our test distance
+			break;
+		}
+	}
+
+	assert( b < n ); // b must not overshoot.
+
+	float pos_start = polyline.distances[ a ];
+	float pos_end   = polyline.distances[ b ];
+
+	float scalar = map( pos, pos_start, pos_end, 0.f, 1.f );
+
+	glm::vec2 const &start_vertex = polyline.vertices[ a ];
+	glm::vec2 const &end_vertex   = polyline.vertices[ b ];
+
+	result = start_vertex + scalar * ( end_vertex - start_vertex );
+}
+
+// ----------------------------------------------------------------------
 
 // Accumulates `*offset_local` into `*offset_total`.
 // Always returns true.
@@ -885,8 +932,9 @@ ISL_API_ATTR void register_le_path_api( void *api ) {
 	le_path_i.close                   = le_path_close_path;
 	le_path_i.add_from_simplified_svg = le_path_add_from_simplified_svg;
 
-	le_path_i.get_num_polylines         = le_path_get_num_polylines;
-	le_path_i.get_vertices_for_polyline = le_path_get_vertices_for_polyline;
+	le_path_i.get_num_polylines                = le_path_get_num_polylines;
+	le_path_i.get_vertices_for_polyline        = le_path_get_vertices_for_polyline;
+	le_path_i.get_polyline_at_pos_interpolated = le_path_get_polyline_at_pos_interpolated;
 
 	le_path_i.trace    = le_path_trace_path;
 	le_path_i.resample = le_path_resample;
