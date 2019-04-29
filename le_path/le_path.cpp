@@ -199,12 +199,10 @@ static void trace_cubic_bezier_to( Polyline &    polyline,
 // A polyline is a list of vertices which may be thought of being
 // connected by lines.
 //
-static void le_path_trace_path( le_path_o *self ) {
+static void le_path_trace_path( le_path_o *self, size_t resolution ) {
 
 	self->polylines.clear();
 	self->polylines.reserve( self->subpaths.size() );
-
-	constexpr size_t resolution = 12; // Curves sample resolution
 
 	for ( auto const &s : self->subpaths ) {
 
