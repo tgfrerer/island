@@ -4,23 +4,20 @@
 
 # TODO
 
-- change `Texture` to `Sampler` so that resource handles can only ever
-  refer to memory-backed resources. It should not be possible
-  accidentally to provide a texture handle for a `resource_handle`
-  where we expect an image or buffer handle.
-- integrate cgltf
-- integrate jsmn json parser
-- check if there is an elegant way to keep as much as possible from
-  a bound pipeline when binding a compatible pipeline - basically
-  re-use descriptorsets if possible (check this holds true: if
-  descriptorsetlayout does not change, descriptors are compatible).
-- Implement text rendering using `stb_font`
+- change directory structure so that modules are in a subdirectory
+- update main readme for setup instructions to be minimal, move old
+  setup instructions to separate readme.
+- add instructions for how to create an empty app or module using the
+  generators
+
 
 ## (A)
 
 - Resolve Attachments (implement these for multisampling / anti-aliasing)
 
 ## (B)
+- It should not be possible accidentally to provide a texture handle
+  for a `resource_handle` where we expect an image or buffer handle.
 - Compute Passes
     - combine setArgumentData and bindArgumentBuffer in encoder so that
       we're using a single path in the backend for both these methods (we
@@ -35,9 +32,15 @@
   is probably linked to resolve attachments, we must investigate further.
 
 - allow user to specify graphics api extensions when creating the
-  application - vulkan extesions could be specified this way.
+  application - vulkan extensions could be specified this way.
 
 ## (C)
+- integrate cgltf
+- integrate jsmn json parser
+- check if there is an elegant way to keep as much as possible from
+  a bound pipeline when binding a compatible pipeline - basically
+  re-use descriptorsets if possible (check this holds true: if
+  descriptorsetlayout does not change, descriptors are compatible).
 - what should we do with "orphaned" resources? that's resources which were
   not provided by previous passes, but are used by following passes...
   currently, these get re-allocated to default values - which means that
