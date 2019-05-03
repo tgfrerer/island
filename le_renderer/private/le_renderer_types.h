@@ -24,7 +24,7 @@ enum class LeResourceType : uint8_t {
 	eUndefined = 0,
 	eBuffer,
 	eImage,
-	eTexture, //<< FIXME: rename to ImageSampler
+	eImageSampler,
 };
 
 struct le_resource_handle_t {
@@ -107,8 +107,8 @@ constexpr le_resource_handle_t LE_IMG_RESOURCE( const char *const str ) noexcept
 	return LE_RESOURCE( str, LeResourceType::eImage );
 }
 
-constexpr le_resource_handle_t LE_TEX_RESOURCE( const char *const str ) noexcept {
-	return LE_RESOURCE( str, LeResourceType::eTexture );
+constexpr le_resource_handle_t LE_IMAGE_SAMPLER_RESOURCE( const char *const str ) noexcept {
+	return LE_RESOURCE( str, LeResourceType::eImageSampler );
 }
 
 constexpr le_resource_handle_t LE_BUF_RESOURCE( const char *const str ) noexcept {
@@ -864,7 +864,7 @@ enum LeAccessFlagBits : uint32_t {
 typedef uint32_t LeAccessFlags;
 
 // use TextureInfoBuilder to define texture info
-struct LeTextureInfo {
+struct LeImageSamplerInfo {
 	struct SamplerInfo {
 		le::Filter             magFilter               = le::Filter::eLinear;
 		le::Filter             minFilter               = le::Filter::eLinear;
@@ -1059,15 +1059,15 @@ class RendererInfoBuilder {
 
 // ----------------------------------------------------------------------
 
-class TextureInfoBuilder {
-	LeTextureInfo info{};
+class ImageSamplerInfoBuilder {
+	LeImageSamplerInfo info{};
 
 	class SamplerInfoBuilder {
-		TextureInfoBuilder &        parent;
-		LeTextureInfo::SamplerInfo &self = parent.info.sampler;
+		ImageSamplerInfoBuilder &        parent;
+		LeImageSamplerInfo::SamplerInfo &self = parent.info.sampler;
 
 	  public:
-		SamplerInfoBuilder( TextureInfoBuilder &parent_ )
+		SamplerInfoBuilder( ImageSamplerInfoBuilder &parent_ )
 		    : parent( parent_ ) {
 		}
 
@@ -1087,24 +1087,24 @@ class TextureInfoBuilder {
 		BUILDER_IMPLEMENT( SamplerInfoBuilder, setBorderColor, le::BorderColor, borderColor, = le::BorderColor::eFloatTransparentBlack )
 		BUILDER_IMPLEMENT( SamplerInfoBuilder, setUnnormalizedCoordinates, bool, unnormalizedCoordinates, = false )
 
-		TextureInfoBuilder &end() {
+		ImageSamplerInfoBuilder &end() {
 			return parent;
 		}
 	};
 
 	class ImageViewInfoBuilder {
-		TextureInfoBuilder &          parent;
-		LeTextureInfo::ImageViewInfo &self = parent.info.imageView;
+		ImageSamplerInfoBuilder &          parent;
+		LeImageSamplerInfo::ImageViewInfo &self = parent.info.imageView;
 
 	  public:
-		ImageViewInfoBuilder( TextureInfoBuilder &parent_ )
+		ImageViewInfoBuilder( ImageSamplerInfoBuilder &parent_ )
 		    : parent( parent_ ) {
 		}
 
 		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setImage, le_resource_handle_t, imageId, = {} )
 		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setFormat, le::Format, format, = le::Format::eUndefined )
 
-		TextureInfoBuilder &end() {
+		ImageSamplerInfoBuilder &end() {
 			return parent;
 		}
 	};
@@ -1113,10 +1113,10 @@ class TextureInfoBuilder {
 	ImageViewInfoBuilder mImageViewInfoBuilder{*this};
 
   public:
-	TextureInfoBuilder()  = default;
-	~TextureInfoBuilder() = default;
+    ImageSamplerInfoBuilder()  = default;
+    ~ImageSamplerInfoBuilder() = default;
 
-	TextureInfoBuilder( LeTextureInfo const &info_ )
+	ImageSamplerInfoBuilder( LeImageSamplerInfo const &info_ )
 	    : info( info_ ) {
 	}
 
@@ -1128,7 +1128,7 @@ class TextureInfoBuilder {
 		return mSamplerInfoBuilder;
 	}
 
-	LeTextureInfo const &build() {
+	LeImageSamplerInfo const &build() {
 		return info;
 	}
 };

@@ -84,10 +84,10 @@ struct le_renderer_api {
 
 		// TODO: not too sure about the nomenclature of this
 		// Note that this method implicitly marks the image resource referenced in LeTextureInfo for read access.
-		void                         ( *sample_texture        )(le_renderpass_o* obj, le_resource_handle_t texture_name, const LeTextureInfo* info);
+		void                         ( *sample_texture        )(le_renderpass_o* obj, le_resource_handle_t texture_name, const LeImageSamplerInfo* info);
 
 		void                         ( *get_texture_ids       )(le_renderpass_o* obj, const le_resource_handle_t ** pIds, uint64_t* count);
-		void                         ( *get_texture_infos     )(le_renderpass_o* obj, const LeTextureInfo** pInfos, uint64_t* count);
+		void                         ( *get_texture_infos     )(le_renderpass_o* obj, const LeImageSamplerInfo** pInfos, uint64_t* count);
 	};
 
 	struct rendermodule_interface_t {
@@ -300,7 +300,7 @@ class RenderPass {
 		return *this;
 	}
 
-	RenderPass &sampleTexture( le_resource_handle_t textureName, const LeTextureInfo &texInfo ) {
+	RenderPass &sampleTexture( le_resource_handle_t textureName, const LeImageSamplerInfo &texInfo ) {
 		le_renderer::renderpass_i.sample_texture( self, textureName, &texInfo );
 		return *this;
 	}
@@ -543,8 +543,8 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &writeToBuffer( le_resource_handle_t const &resourceId, size_t const &offset, void const *data, size_t const &numBytes ) {
-		le_renderer::encoder_i.write_to_buffer( self, resourceId, offset, data, numBytes );
+	Encoder &writeToBuffer( le_resource_handle_t const &resourceId, size_t const &byteOffset, void const *data, size_t const &numBytes ) {
+		le_renderer::encoder_i.write_to_buffer( self, resourceId, byteOffset, data, numBytes );
 		return *this;
 	}
 

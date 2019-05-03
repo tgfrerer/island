@@ -47,7 +47,7 @@ struct le_renderpass_o {
 	uint32_t width  = 0; ///< width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
 	uint32_t height = 0; ///< height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
 
-	std::vector<LeTextureInfo>        textureInfos; // kept in sync : info for corresponding texture id
+	std::vector<LeImageSamplerInfo>        textureInfos; // kept in sync : info for corresponding texture id
 	std::vector<le_resource_handle_t> textureIds;   // kept in sync : texture id
 
 	le_renderer_api::pfn_renderpass_setup_t   callbackSetup              = nullptr;
@@ -241,7 +241,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 }
 
 // ----------------------------------------------------------------------
-static void renderpass_sample_texture( le_renderpass_o *self, le_resource_handle_t texture, LeTextureInfo const *textureInfo ) {
+static void renderpass_sample_texture( le_renderpass_o *self, le_resource_handle_t texture, LeImageSamplerInfo const *textureInfo ) {
 
 	// -- store texture info so that backend can create resources
 
@@ -357,7 +357,7 @@ static void renderpass_get_texture_ids( le_renderpass_o *self, const le_resource
 	*count = self->textureIds.size();
 };
 
-static void renderpass_get_texture_infos( le_renderpass_o *self, const LeTextureInfo **infos, uint64_t *count ) {
+static void renderpass_get_texture_infos( le_renderpass_o *self, const LeImageSamplerInfo **infos, uint64_t *count ) {
 	*infos = self->textureInfos.data();
 	*count = self->textureInfos.size();
 };
