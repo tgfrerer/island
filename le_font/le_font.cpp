@@ -413,7 +413,7 @@ size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float *x_pos,
 				uint8_t leading_bit_count = count_leading_bits( cur_byte );
 
 				// If there are no remaining bits to process this marks the beginning
-				// of a new code point. The leadnig count of '1' bits will tell us how
+				// of a new code point. The leading count of '1' bits will tell us how
 				// many bytes of input to expect for this code point.
 				if ( count_remaining_bytes == 0 ) {
 					// new glyph
@@ -422,7 +422,8 @@ size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float *x_pos,
 				}
 
 				// We mask out the leading bits from the current byte,
-				// and shift it into place based on the number of remaining bytes.
+				// and shift the current byte into place based on the
+				// number of remaining bytes.
 				code_point |= ( cur_byte & ~mask_bits[ leading_bit_count + 1 ] ) << ( ( --count_remaining_bytes ) * 6 );
 
 			} else {
