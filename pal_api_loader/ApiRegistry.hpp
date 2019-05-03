@@ -185,9 +185,9 @@ struct NoMove {
 
 #endif // __cplusplus
 
-#ifndef LE_DEFINE_HANDLE_GUARD
-#	define LE_DEFINE_HANDLE( object ) typedef struct object##_T *object;
-#	define LE_DEFINE_HANDLE_GUARD
-#endif
+//#ifndef LE_DEFINE_HANDLE_GUARD
+//#	define LE_DEFINE_HANDLE( object ) typedef struct object##_T *object;
+//#	define LE_DEFINE_HANDLE_GUARD
+//#endif
 
 #endif // GUARD_API_REGISTRY_HPP
