@@ -23,6 +23,8 @@ struct triangle_app_o {
 	LeCamera camera;
 };
 
+typedef triangle_app_o app_o;
+
 // ----------------------------------------------------------------------
 
 static void initialize() {
@@ -73,6 +75,8 @@ static void reset_camera( triangle_app_o *self ) {
 // ----------------------------------------------------------------------
 
 typedef bool ( *renderpass_setup )( le_renderpass_o *pRp, void *user_data );
+
+// ----------------------------------------------------------------------
 
 static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto rp  = le::RenderPass{pRp};
