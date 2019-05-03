@@ -599,9 +599,9 @@ static bool document_load_from_text( le_gltf_document_o *self, const char *path 
 		le_resource_info_t resourceInfo;
 		resourceInfo.type         = LeResourceType::eBuffer;
 		resourceInfo.buffer.size  = uint32_t( geometryDataSize );
-		resourceInfo.buffer.usage = LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
-		                            LE_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-		                            LE_BUFFER_USAGE_TRANSFER_DST_BIT;
+		resourceInfo.buffer.usage = {LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
+		                             LE_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+		                             LE_BUFFER_USAGE_TRANSFER_DST_BIT};
 		self->bufferResourceInfos.emplace_back( resourceInfo );
 	}
 

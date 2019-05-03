@@ -74,11 +74,12 @@ if (REQUIRES_ISLAND_CORE)
 endif()
 
 include_directories ("${ISLAND_BASE_DIR}")
+include_directories ("${ISLAND_BASE_DIR}/modules")
 
 
 function(add_island_module MODULE_NAME)
     message(STATUS "Requesting optional island module: ${MODULE_NAME}")
-    add_subdirectory ("${ISLAND_BASE_DIR}${MODULE_NAME}" ${MODULE_NAME})
+    add_subdirectory ("${ISLAND_BASE_DIR}/modules/${MODULE_NAME}" ${MODULE_NAME})
     # propagate static libs from sub_directory to global scope
     set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
 endfunction(add_island_module)

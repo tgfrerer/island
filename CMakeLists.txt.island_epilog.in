@@ -2,16 +2,16 @@
 # Load Island default modules if so requested
 
 if (REQUIRES_ISLAND_LOADER)
-    add_subdirectory ("${ISLAND_BASE_DIR}pal_api_loader" pal_api_loader)
-    add_subdirectory ("${ISLAND_BASE_DIR}pal_file_watcher" pal_file_watcher)
+    add_subdirectory ("${ISLAND_BASE_DIR}/modules/pal_api_loader" pal_api_loader)
+    add_subdirectory ("${ISLAND_BASE_DIR}/modules/pal_file_watcher" pal_file_watcher)
 endif()
 
 if (REQUIRES_ISLAND_CORE)
-    add_subdirectory ("${ISLAND_BASE_DIR}pal_window" pal_window)
-    add_subdirectory ("${ISLAND_BASE_DIR}le_backend_vk" le_backend_vk)
-    add_subdirectory ("${ISLAND_BASE_DIR}le_swapchain_vk" le_swapchain_vk)
-    add_subdirectory ("${ISLAND_BASE_DIR}le_renderer" le_renderer)
-    add_subdirectory ("${ISLAND_BASE_DIR}le_shader_compiler" le_shader_compiler)
+    add_subdirectory ("${ISLAND_BASE_DIR}/modules/pal_window" pal_window)
+    add_subdirectory ("${ISLAND_BASE_DIR}/modules/le_backend_vk" le_backend_vk)
+    add_subdirectory ("${ISLAND_BASE_DIR}/modules/le_swapchain_vk" le_swapchain_vk)
+    add_subdirectory ("${ISLAND_BASE_DIR}/modules/le_renderer" le_renderer)
+    add_subdirectory ("${ISLAND_BASE_DIR}/modules/le_shader_compiler" le_shader_compiler)
 endif()
 
 # NOTE: provide paths for libraries which are used by plugins, but not available via system search paths
