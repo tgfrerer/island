@@ -8,11 +8,11 @@
 [submodule "3rdparty/fx-gltf"]
 	path = 3rdparty/src/fx-gltf
 	url = https://github.com/jessey-git/fx-gltf.git
-[submodule "le_tessellator/3rdparty/libtess2"]
-	path = le_tessellator/3rdparty/libtess2
+[submodule "modules/le_tessellator/3rdparty/libtess2"]
+	path = modules/le_tessellator/3rdparty/libtess2
 	url = https://github.com/memononen/libtess2
-[submodule "le_tessellator/3rdparty/earcut.hpp"]
-	path = le_tessellator/3rdparty/earcut.hpp 
+[submodule "modules/le_tessellator/3rdparty/earcut.hpp"]
+	path = modules/le_tessellator/3rdparty/earcut.hpp 
 	url = https://github.com/mapbox/earcut.hpp
 [submodule "3rdparty/src/json"]
 	path = 3rdparty/src/json
