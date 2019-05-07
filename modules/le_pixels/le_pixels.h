@@ -61,16 +61,18 @@ static const auto &le_pixels_i = api -> le_pixels_i;
 
 } // namespace le_pixels
 
-class LePixels : NoCopy, NoMove {
+namespace le {
+
+class Pixels : NoCopy, NoMove {
 
 	le_pixels_o *self;
 
   public:
-	LePixels( char const *path, int const &numChannelsRequested = 0, le_pixels_info::TYPE const &type = le_pixels_info::eUInt8 )
+    Pixels( char const *path, int const &numChannelsRequested = 0, le_pixels_info::TYPE const &type = le_pixels_info::eUInt8 )
 	    : self( le_pixels::le_pixels_i.create( path, numChannelsRequested, type ) ) {
 	}
 
-	~LePixels() {
+	~Pixels() {
 		le_pixels::le_pixels_i.destroy( self );
 	}
 
@@ -82,7 +84,7 @@ class LePixels : NoCopy, NoMove {
 		return le_pixels::le_pixels_i.get_info( self );
 	}
 };
-
+} //end namespace le
 #endif // __cplusplus
 
 #endif
