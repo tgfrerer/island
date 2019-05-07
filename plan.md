@@ -4,9 +4,6 @@
 
 # TODO
 
-- change directory structure so that modules are in a subdirectory
-- update main readme for setup instructions to be minimal, move old
-  setup instructions to separate readme.
 - add instructions for how to create an empty app or module using the
   generators
 
