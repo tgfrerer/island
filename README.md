@@ -24,10 +24,14 @@ or instructive.
 
 ## Island includes the following helper modules: 
 
-|-|-| 
-|camera | interactive mouse controlled camera |
-|path | draw svg style paths, can parse simplified SVG strings |
-|tessellator | choice between earcut/libtess for backend |
+| Module | wraps | Description | 
+| --- | :---: | --- | 
+| `le_camera` | - | interactive, mouse controlled camera |
+| `le_path` | - | draw svg style paths, can parse simplified SVG strings | 
+| `le_tessellator` | earcut/libtess | dynamic choice of tessellation lib |
+| `pixels` | `stb_image` | load image files |
+| `font` | `stb_font` | true type glyph geometry and texture atlas based typesetting |
+| `pipeline_builder` | - | build vulkan pipelines | 
 
 Island is highly modular and dynamic when run in debug, but compiles
 into a single, optimised static binary for release. 
