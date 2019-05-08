@@ -76,10 +76,31 @@ endif()
 include_directories ("${ISLAND_BASE_DIR}")
 include_directories ("${ISLAND_BASE_DIR}/modules")
 
+set ( MODULES_LIST )
+set ( CORE_ISLAND_MODULES pal_window;le_backend_vk;le_swapchain_vk;le_renderer;le_shader_compiler;le_pipeline_builder )
 
-function(add_island_module MODULE_NAME)
-    message(STATUS "Requesting optional island module: ${MODULE_NAME}")
-    add_subdirectory ("${ISLAND_BASE_DIR}/modules/${MODULE_NAME}" ${MODULE_NAME})
-    # propagate static libs from sub_directory to global scope
-    set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
-endfunction(add_island_module)
+macro(add_island_module MODULE_NAME)
+    # NOTE: We use a macro here instead of a function as macros are executed
+    # in the caller's scope and this method needs access to global variables.
+
+    if (${MODULE_NAME} IN_LIST CORE_ISLAND_MODULES )
+        message(STATUS "Requesting core island module: ${MODULE_NAME}")
+    else()
+        message(STATUS "Requesting optional island module: ${MODULE_NAME}")
+    endif()
+
+    # Check whether a module has already been added - only add if not.
+
+    if (${MODULE_NAME} IN_LIST MODULES_LIST)
+        # message(STATUS "element was already found in list of modules.")
+    else()
+        add_subdirectory ("${ISLAND_BASE_DIR}/modules/${MODULE_NAME}" ${MODULE_NAME})
+
+        # propagate static libs from sub_directory to global scope
+        set (STATIC_LIBS ${STATIC_LIBS} ${TARGET})
+
+        # set modules in global scope
+        set (MODULES_LIST ${MODULES_LIST} ${MODULE_NAME})
+    endif()
+
+endmacro(add_island_module)

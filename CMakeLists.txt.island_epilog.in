@@ -2,16 +2,14 @@
 # Load Island default modules if so requested
 
 if (REQUIRES_ISLAND_LOADER)
-    add_subdirectory ("${ISLAND_BASE_DIR}/modules/pal_api_loader" pal_api_loader)
-    add_subdirectory ("${ISLAND_BASE_DIR}/modules/pal_file_watcher" pal_file_watcher)
+    add_island_module (pal_api_loader)
+    add_island_module (pal_file_watcher)
 endif()
 
 if (REQUIRES_ISLAND_CORE)
-    add_subdirectory ("${ISLAND_BASE_DIR}/modules/pal_window" pal_window)
-    add_subdirectory ("${ISLAND_BASE_DIR}/modules/le_backend_vk" le_backend_vk)
-    add_subdirectory ("${ISLAND_BASE_DIR}/modules/le_swapchain_vk" le_swapchain_vk)
-    add_subdirectory ("${ISLAND_BASE_DIR}/modules/le_renderer" le_renderer)
-    add_subdirectory ("${ISLAND_BASE_DIR}/modules/le_shader_compiler" le_shader_compiler)
+    foreach( M IN LISTS CORE_ISLAND_MODULES )
+        add_island_module (${M})
+    endforeach()
 endif()
 
 # NOTE: provide paths for libraries which are used by plugins, but not available via system search paths
@@ -33,6 +31,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${PLUGIN_LIBS_DEPENDENCIES})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${STATIC_LIBS})
 
 message(STATUS "Static libs are: ${STATIC_LIBS}")
+message(STATUS "Requested Modules are: ${MODULES_LIST}")
 
 ##################################################################################
 # OPTIONAL - Use Vulkan Validation Layers compiled from source -
