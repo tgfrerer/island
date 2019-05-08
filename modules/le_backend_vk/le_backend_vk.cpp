@@ -3360,7 +3360,13 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto &bindingData = argumentState.setData[ setIndex ][ binding ].bufferInfo;
 
 					bindingData.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
-					bindingData.range  = std::min<uint32_t>( le_cmd->info.range, b->range ); // CHECK: use range from binding to limit range...
+					bindingData.range  = std::max<uint32_t>( le_cmd->info.range, b->range );
+
+					if ( bindingData.range == 0 ) {
+						// If no range was specified, we must default to VK_WHOLE_SIZE,
+						// as a range setting of 0 is not allowed in Vulkan.
+						bindingData.range = VK_WHOLE_SIZE;
+					}
 
 					// If binding is in fact a dynamic binding, set the corresponding dynamic offset
 					// and set the buffer offset to 0.
