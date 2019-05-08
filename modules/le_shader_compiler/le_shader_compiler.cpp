@@ -3,7 +3,7 @@
 /// Note that the shader compiler depends on the shared lib version of libshaderc
 /// this version is available through the LunarG VULKAN SDK,
 ///
-/// But has to be compiled manually.
+/// But may have to be compiled manually for older versions of the SDK.
 ///
 /// For this, go to $VULKAN_SDK, edit `build_tools.sh` so that, in method `buildShaderc`,
 /// build type says: `-DCMAKE_BUILD_TYPE=Release`,
