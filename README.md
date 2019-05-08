@@ -1,3 +1,45 @@
+# Project Island
+
+Project Island is a Vulkan r&d renderer/engine for Linux based
+systems.
+
+Island is made for rapid protoyping and tweaking. It combines native
+performance with fast interactive iteration via fast compilation
+speeds and code hot-reloading. 
+
+Island is under active development, expect lots of change. As such,
+there are no promises that it might be fit for any purpose, and the
+code here is released in the hope that you might find it entertaining
+or instructive. 
+
+## Island's main features are:
+
++ C++ source-code hot-reloading
++ GLSL hot-reloading and debugging 
++ Parameter tweaks within source code
++ Dynamic GPU resource management via Framegraph
++ Straight-to-video, image sequence or screen rendering
++ compile to a single static binary with Release target
++ Vulkan validation layers loaded by default for Debug target
+
+## Island includes the following helper modules: 
+
+| Module | wraps | Description | 
+| --- | :---: | --- | 
+| `le_camera` | - | interactive, mouse controlled camera |
+| `le_path` | - | draw svg style paths, can parse simplified SVG strings | 
+| `le_tessellator` | earcut/libtess | dynamic choice of tessellation lib |
+| `pixels` | `stb_image` | load image files |
+| `font` | `stb_font` | true type glyph geometry and texture atlas based typesetting |
+| `pipeline_builder` | - | build vulkan pipelines | 
+
+Island is highly modular and dynamic when run in debug, but compiles
+into a single, optimised static binary for release. 
+
+Similarly, debug builds will automatically load Vulkan debug layers,
+while release builds won't.
+
+
 # Installation instructions
 
 ## Install Vulkan SDK 
