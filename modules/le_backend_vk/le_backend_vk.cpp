@@ -2529,7 +2529,7 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 		renderpass_i.get_texture_ids( *p, &textureIds, &textureIdCount );
 
 		const LeImageSamplerInfo *textureInfos     = nullptr;
-		size_t               textureInfoCount = 0;
+		size_t                    textureInfoCount = 0;
 		renderpass_i.get_texture_infos( *p, &textureInfos, &textureInfoCount );
 
 		assert( textureIdCount == textureInfoCount ); // texture info and -id count must be identical, as there is a 1:1 relationship
@@ -3116,8 +3116,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 											.bindingNumber = uint32_t( b.binding ),
 											.arrayIndex    = uint32_t( arrayIndex ),
 										};
-										descriptorData.bufferInfo.range = VK_WHOLE_SIZE; // note this could be vk_full_size
-										setData.emplace_back( std::move( descriptorData ) );
+										descriptorData.bufferInfo.range = VK_WHOLE_SIZE;
+										setData.emplace_back( descriptorData );
 									}
 
 									if ( b.type == enumToNum( vk::DescriptorType::eStorageBufferDynamic ) ||
