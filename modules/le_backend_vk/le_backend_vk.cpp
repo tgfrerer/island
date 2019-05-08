@@ -407,6 +407,7 @@ struct le_backend_o {
 	    vk::BufferUsageFlagBits::eIndexBuffer |
 	    vk::BufferUsageFlagBits::eVertexBuffer |
 	    vk::BufferUsageFlagBits::eUniformBuffer |
+	    vk::BufferUsageFlagBits::eStorageBuffer |
 	    vk::BufferUsageFlagBits::eTransferSrc;
 };
 
