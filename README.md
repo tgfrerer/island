@@ -1,7 +1,6 @@
 # Project Island
 
-Project Island is a Vulkan r&d renderer/engine for Linux based
-systems, written in c/c++.
+Project Island is a Vulkan r&d renderer/engine for Linux, written in c/c++.
 
 Island supports rapid protoyping and tweaking. It combines native performance
 with fast interactive iteration by allowing hot-reloading of its code, and by
@@ -13,13 +12,20 @@ released in the hope that you might find it entertaining or instructive.
 
 ## Island's main features are:
 
-+ C/C++ hot-reloading
++ C/C++ code hot-reloading
 + GLSL hot-reloading and debugging 
 + Parameter tweaks within source code
 + Vulkan backend with dynamic GPU resource management via Framegraph
+
 + Straight-to-video, image sequence or screen rendering
-+ compile to a single static binary with Release target
++ Compile to a single static binary with Release target
 + Vulkan validation layers loaded by default for Debug target
+
+## Things that make your life easier
++ Consistent architecture
++ Project generator
++ Module scaffold generator
+
 
 ## Island includes the following helper modules: 
 
