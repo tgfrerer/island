@@ -1,6 +1,6 @@
 set(PLUGINS_DYNAMIC ON CACHE BOOL "Use dynamic linking for all plugins")
 
-set ( STATIC_LIBS "")
+set ( STATIC_LIBS )
 
 set ( PLUGIN_LIBS_DEPENDENCIES "")
 set ( PLUGIN_LINK_DIRS "")
@@ -76,31 +76,40 @@ endif()
 include_directories ("${ISLAND_BASE_DIR}")
 include_directories ("${ISLAND_BASE_DIR}/modules")
 
+# These modules are always loaded - they control the plugin system.
+set ( ISLAND_LOADER_MODULES pal_file_watcher;pal_api_loader )
+
+# These modules form the renderer - if you want to draw graphics, you want these.
+# Note that order matters: dependent modules must be named before their dependencies.
+set ( CORE_ISLAND_MODULES le_pipeline_builder;pal_window;le_backend_vk;le_swapchain_vk;le_renderer;le_shader_compiler)
+
+# We will store all requested module names in this list, and then load modules based on this list
 set ( MODULES_LIST )
-set ( CORE_ISLAND_MODULES pal_window;le_backend_vk;le_swapchain_vk;le_renderer;le_shader_compiler;le_pipeline_builder )
 
+# Add required modules to modules list based on user flags
+#
+if (REQUIRES_ISLAND_LOADER)
+    list (APPEND MODULES_LIST ${ISLAND_LOADER_MODULES})
+endif()
+ 
+if (REQUIRES_ISLAND_CORE)
+   list (APPEND MODULES_LIST ${CORE_ISLAND_MODULES})
+endif()
+
+# Loads a requested module
+macro(load_island_module MODULE_NAME)
+    add_subdirectory ("${ISLAND_BASE_DIR}/modules/${MODULE_NAME}" ${MODULE_NAME})
+endmacro()
+
+# Call this macro from other modules to establish a dependency.
+# Adds a module name to list of requested modules, 
+# checks whether a module was already requested to prevent duplicates.
 macro(add_island_module MODULE_NAME)
-    # NOTE: We use a macro here instead of a function as macros are executed
-    # in the caller's scope and this method needs access to global variables.
-
-    if (${MODULE_NAME} IN_LIST CORE_ISLAND_MODULES )
-        message(STATUS "Requesting core island module: ${MODULE_NAME}")
+    if (NOT ${MODULE_NAME} IN_LIST MODULES_LIST)
+        message(STATUS "Requesting extra module: ${MODULE_NAME}")
+        # prepend module name to modules_list in global scope
+        set( MODULES_LIST ${MODULE_NAME} ${MODULES_LIST} )
     else()
-        message(STATUS "Requesting optional island module: ${MODULE_NAME}")
+        # message(STATUS "[ NOTE ] Rejecting extra module request: `${MODULE_NAME}` - Module already present."  )
     endif()
-
-    # Check whether a module has already been added - only add if not.
-
-    if (${MODULE_NAME} IN_LIST MODULES_LIST)
-        # message(STATUS "element was already found in list of modules.")
-    else()
-        add_subdirectory ("${ISLAND_BASE_DIR}/modules/${MODULE_NAME}" ${MODULE_NAME})
-
-        # propagate static libs from sub_directory to global scope
-        set (STATIC_LIBS ${STATIC_LIBS} ${TARGET})
-
-        # set modules in global scope
-        set (MODULES_LIST ${MODULES_LIST} ${MODULE_NAME})
-    endif()
-
 endmacro(add_island_module)

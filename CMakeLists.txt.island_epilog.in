@@ -1,24 +1,17 @@
 
-# Load Island default modules if so requested
+# Load all modules which where requested
+foreach( M IN LISTS MODULES_LIST )
+    load_island_module(${M})
+endforeach()
 
-if (REQUIRES_ISLAND_LOADER)
-    add_island_module (pal_api_loader)
-    add_island_module (pal_file_watcher)
-endif()
-
-if (REQUIRES_ISLAND_CORE)
-    foreach( M IN LISTS CORE_ISLAND_MODULES )
-        add_island_module (${M})
-    endforeach()
-endif()
-
-# NOTE: provide paths for libraries which are used by plugins, but not available via system search paths
+# NOTE: provide paths for libraries which are used by modules, 
+# but not available via system search paths
 # these were set via PARENT_SCOPE from the plugin CMake files.
 link_directories(${PLUGIN_LINK_DIRS})
 
 add_executable (${PROJECT_NAME} ${SOURCES})
 
-# add -D definitions so that source code will know whether plugins are linked
+# add -D definitions so that source code will know whether modules are linked
 # statically or dynamically
 if (PLUGINS_DYNAMIC)
     target_compile_definitions(${PROJECT_NAME} PUBLIC "PLUGINS_DYNAMIC=1")
@@ -30,8 +23,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PLUGIN_LIBS_DEPENDENCIES})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${STATIC_LIBS})
 
-message(STATUS "Static libs are: ${STATIC_LIBS}")
-message(STATUS "Requested Modules are: ${MODULES_LIST}")
+message(STATUS "Static  libraries: ${STATIC_LIBS}")
+message(STATUS "Requested modules: ${MODULES_LIST}")
 
 ##################################################################################
 # OPTIONAL - Use Vulkan Validation Layers compiled from source -
