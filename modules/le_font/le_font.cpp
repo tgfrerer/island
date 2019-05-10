@@ -14,6 +14,8 @@
 #include <glm/vec2.hpp>
 #include <glm/vec4.hpp>
 
+#include "modules/le_path/le_path.h" // for get_path_for_glyph
+
 namespace std {
 using namespace experimental;
 }
@@ -225,22 +227,22 @@ static le_glyph_shape_o *get_shape( stbtt_vertex const *pp_arr, int const pp_cou
 			current_contour_idx++;          // Point to current contour
 			assert( current_contour_idx < shape->contours.size() );
 			contour_move_to( shape->contours[ current_contour_idx ], {pp->x, pp->y} );
-		    break;
+			break;
 		case STBTT_vline:
 			// line from last position to this pos
 			assert( current_contour_idx < shape->contours.size() );
 			contour_line_to( shape->contours[ current_contour_idx ], {pp->x, pp->y} );
-		    break;
+			break;
 		case STBTT_vcurve:
 			// quadratic bezier to pos
 			assert( current_contour_idx < shape->contours.size() );
 			contour_curve_to( shape->contours[ current_contour_idx ], {pp->x, pp->y}, {pp->cx, pp->cy}, resolution );
-		    break;
+			break;
 		case STBTT_vcubic:
 			// cubic bezier to pos
 			assert( current_contour_idx < shape->contours.size() );
 			contour_cubic_curve_to( shape->contours[ current_contour_idx ], {pp->x, pp->y}, {pp->cx, pp->cy}, {pp->cx1, pp->cy1}, resolution );
-		    break;
+			break;
 		}
 	}
 
@@ -263,6 +265,38 @@ static le_glyph_shape_o *le_font_get_shape_for_glyph( le_font_o *self, int32_t c
 	}
 
 	return shape;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_font_add_paths_for_glyph( le_font_o const *self, int32_t const codepoint, le_path_o *path ) {
+	stbtt_vertex *pp_arr   = nullptr;
+	int           pp_count = stbtt_GetCodepointShape( &self->info, codepoint, &pp_arr );
+
+	stbtt_vertex const *const pp_end = pp_arr + pp_count;
+
+	using namespace le_path;
+
+	for ( auto pp = pp_arr; pp != pp_end; pp++ ) {
+		switch ( pp->type ) {
+		case STBTT_vmove:
+			// a move signals the start of a new glyph
+			le_path_i.move_to( path, {pp->x, pp->y} );
+			break;
+		case STBTT_vline:
+			// line from last position to this pos
+			le_path_i.line_to( path, {pp->x, pp->y} );
+			break;
+		case STBTT_vcurve:
+			// quadratic bezier to pos
+			le_path_i.quad_bezier_to( path, {pp->x, pp->y}, {pp->cx, pp->cy} );
+			break;
+		case STBTT_vcubic:
+			// cubic bezier to pos
+			le_path_i.cubic_bezier_to( path, {pp->x, pp->y}, {pp->cx, pp->cy}, {pp->cx1, pp->cy1} );
+			break;
+		}
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -547,6 +581,7 @@ ISL_API_ATTR void register_le_font_api( void *api ) {
 	le_font_i.get_shape_for_glyph = le_font_get_shape_for_glyph;
 	le_font_i.create_atlas        = le_font_create_atlas;
 	le_font_i.get_atlas           = le_font_get_atlas;
+	le_font_i.add_paths_for_glyph = le_font_add_paths_for_glyph;
 
 	le_font_i.draw_utf8_string = le_font_draw_utf8_string;
 

@@ -16,6 +16,7 @@ extern "C" {
 
 struct le_font_o;
 struct le_glyph_shape_o;
+struct le_path_o;
 
 void register_le_font_api( void *api );
 
@@ -34,13 +35,19 @@ struct le_font_api {
 	static constexpr auto id      = "le_font";
 	static constexpr auto pRegFun = register_le_font_api;
 
+
 	struct le_font_interface_t {
 		le_font_o *			 ( * create                   ) ( char const * font_filename, float font_size );
 		void                 ( * destroy                  ) ( le_font_o* self );
 		le_glyph_shape_o*	 ( * get_shape_for_glyph      ) ( le_font_o* font, int32_t codepoint, size_t* num_contours);
 		bool                 ( * create_atlas             ) ( le_font_o* self );
-		bool                 ( * get_atlas                )  ( le_font_o* self, uint8_t const ** pixels, uint32_t * width, uint32_t * height, uint32_t *pix_stride_in_bytes );
+		bool                 ( * get_atlas                ) ( le_font_o* self, uint8_t const ** pixels, uint32_t * width, uint32_t * height, uint32_t *pix_stride_in_bytes );
 		size_t				 ( * draw_utf8_string         ) ( le_font_o *self, const char *str, float* x_pos, float* y_pos, glm::vec4 *vertices, size_t max_vertices, size_t vertex_offset );
+
+		// API todo: add parameter: `Vertex* offset` -
+		// method updates offset to new virtual cursor as a side effect, so that repeatedly adding paths will
+		// place glyphs next to each other as if typed.
+		void                 ( * add_paths_for_glyph   ) ( le_font_o const * self, int32_t const codepoint, le_path_o* path);
 	};
 
 	struct glyph_shape_interface_t{
@@ -49,6 +56,7 @@ struct le_font_api {
 		size_t              ( * get_num_contours               ) ( le_glyph_shape_o* self );
 		Vertex*				( * get_vertices_for_shape_contour ) ( le_glyph_shape_o* shape, size_t const &contour_idx, size_t* num_vertices);
 	};
+
 
 	le_font_interface_t       le_font_i;
 	glyph_shape_interface_t   le_glyph_shape_i;
