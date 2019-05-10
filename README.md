@@ -2,9 +2,9 @@
 
 Project Island is a Vulkan r&d renderer/engine for Linux, written in c/c++.
 
-Island supports rapid protoyping and tweaking. It combines native performance
-with fast interactive iteration by allowing hot-reloading of its code, and by
-being fast to compile.
+Island is written to support rapid protoyping and tweaking. To enable
+fast interactive iteration cycles of demos and prototypes, Island
+allows hot-reloading of its code, and aims to be very fast to compile.
 
 Island is under active development, expect lots of change. As such, there are
 no promises that it might be ready or fit for any purpose, and the code here is
@@ -22,10 +22,14 @@ released in the hope that you might find it entertaining or instructive.
 + Vulkan validation layers loaded by default for Debug target
 
 ## Things that make your life easier
-+ Consistent architecture
 + Project generator
 + Module scaffold generator
 
+## Examples 
+
+* TODO:
+- show screenshot for each example, and short description
+- show basic usage example
 
 ## Island includes the following helper modules: 
 
@@ -46,6 +50,9 @@ while release builds won't.
 
 
 # Installation instructions
+
+Island should run out of the box on a modern Linux system with
+a current Vulkan SDK installed. 
 
 ## Install Vulkan SDK 
 
