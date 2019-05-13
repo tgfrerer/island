@@ -269,7 +269,7 @@ static le_glyph_shape_o *le_font_get_shape_for_glyph( le_font_o *self, int32_t c
 
 // ----------------------------------------------------------------------
 
-static void le_font_add_paths_for_glyph( le_font_o const *self, int32_t const codepoint, le_path_o *path, glm::vec2 *offset ) {
+static void le_font_add_paths_for_glyph( le_font_o const *self, int32_t const codepoint, int32_t const codepoint_prev, le_path_o *path, float const scale, glm::vec2 *offset ) {
 	stbtt_vertex *pp_arr   = nullptr;
 	int           pp_count = stbtt_GetCodepointShape( &self->info, codepoint, &pp_arr );
 
@@ -277,23 +277,37 @@ static void le_font_add_paths_for_glyph( le_font_o const *self, int32_t const co
 
 	using namespace le_path;
 
+	float kern_advance = 0.f;
+
+	if ( codepoint_prev ) {
+		kern_advance = stbtt_GetCodepointKernAdvance( &self->info, codepoint_prev, codepoint );
+	}
+
 	for ( auto pp = pp_arr; pp != pp_end; pp++ ) {
+		// Note that since the font coordinate system has origin at top/left we must flip y
+		// to make it work with our standard coordinate system which has positive y pointing
+		// upwards.
 		switch ( pp->type ) {
 		case STBTT_vmove:
 			// a move signals the start of a new glyph
-			le_path_i.move_to( path, *offset + glm::vec2{pp->x, pp->y} );
+			le_path_i.move_to( path, *offset + scale * glm::vec2{pp->x + kern_advance, -pp->y} );
 			break;
 		case STBTT_vline:
 			// line from last position to this pos
-			le_path_i.line_to( path, *offset + glm::vec2{pp->x, pp->y} );
+			le_path_i.line_to( path, *offset + scale * glm::vec2{pp->x + kern_advance, -pp->y} );
 			break;
 		case STBTT_vcurve:
 			// quadratic bezier to pos
-			le_path_i.quad_bezier_to( path, *offset + glm::vec2{pp->x, pp->y}, *offset + glm::vec2{pp->cx, pp->cy} );
+			le_path_i.quad_bezier_to( path,
+			                          *offset + scale * glm::vec2{pp->x + kern_advance, -pp->y},
+			                          *offset + scale * glm::vec2{pp->cx + kern_advance, -pp->cy} );
 			break;
 		case STBTT_vcubic:
 			// cubic bezier to pos
-			le_path_i.cubic_bezier_to( path, *offset + glm::vec2{pp->x, pp->y}, *offset + glm::vec2{pp->cx, pp->cy}, *offset + glm::vec2{pp->cx1, pp->cy1} );
+			le_path_i.cubic_bezier_to( path,
+			                           *offset + scale * glm::vec2{pp->x + kern_advance, -pp->y},
+			                           *offset + scale * glm::vec2{pp->cx + kern_advance, -pp->cy},
+			                           *offset + scale * glm::vec2{pp->cx1 + kern_advance, -pp->cy1} );
 			break;
 		}
 	}
@@ -301,7 +315,8 @@ static void le_font_add_paths_for_glyph( le_font_o const *self, int32_t const co
 	stbtt_GetCodepointHMetrics( &self->info, codepoint, &advanceWidth, &leftSideBearing );
 
 	// Update offset
-	offset->x += advanceWidth;
+	offset->x += scale * ( kern_advance + advanceWidth );
+
 	// TODO: if we know the previous codepoint, we may add kerning to offset before drawing
 }
 

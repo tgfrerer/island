@@ -44,8 +44,8 @@ struct le_font_api {
 		bool                 ( * get_atlas                ) ( le_font_o* self, uint8_t const ** pixels, uint32_t * width, uint32_t * height, uint32_t *pix_stride_in_bytes );
 		size_t				 ( * draw_utf8_string         ) ( le_font_o *self, const char *str, float* x_pos, float* y_pos, glm::vec4 *vertices, size_t max_vertices, size_t vertex_offset );
 
-		// API todo: note all path coordinates (incl offset) are given in unscaled integer font coordinates...
-		void                 ( * add_paths_for_glyph   ) ( le_font_o const * self, int32_t const codepoint, le_path_o* path, glm::vec2 *offset);
+		// NOTE: `codepoint_prev` is optional, if 0, no kerning is applied, any other value will apply kerning for kerning pair (`codepoint_prev`,`codepoint`).
+		void                 ( * add_paths_for_glyph   ) ( le_font_o const * self, int32_t const codepoint,  int32_t const codepoint_prev, le_path_o* path, float const scale, glm::vec2 *offset);
 	};
 
 	struct glyph_shape_interface_t{
