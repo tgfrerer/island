@@ -269,7 +269,7 @@ static le_glyph_shape_o *le_font_get_shape_for_glyph( le_font_o *self, int32_t c
 
 // ----------------------------------------------------------------------
 
-static void le_font_add_paths_for_glyph( le_font_o const *self, int32_t const codepoint, int32_t const codepoint_prev, le_path_o *path, float const scale, glm::vec2 *offset ) {
+static void le_font_add_paths_for_glyph( le_font_o const *self, le_path_o *path, int32_t const codepoint, int32_t const codepoint_prev, float const scale, glm::vec2 *offset ) {
 	stbtt_vertex *pp_arr   = nullptr;
 	int           pp_count = stbtt_GetCodepointShape( &self->info, codepoint, &pp_arr );
 
@@ -416,7 +416,68 @@ static inline uint8_t count_leading_bits( uint8_t in ) {
 
 	return count_bits;
 }
+
 // ----------------------------------------------------------------------
+// Iterate over utf-8 glyphs: <https://en.m.wikipedia.org/wiki/UTF-8>
+// Calls given callback for each codepoint in str.
+// Runs until it meets '\0' (end of c-string) character.
+// Returns true on success, false if the last codepoint was not completely
+// parsed.
+static bool le_utf8_iterator( char const *str, void *user_data, le_font_api::le_uft8_iterator_cb_t cb ) {
+	static constexpr uint8_t mask_bits[] = {
+	    0b00000000,
+	    0b10000000,
+	    0b11000000,
+	    0b11100000,
+	    0b11110000,
+	};
+
+	// We need to keep track of number of bytes to process.
+	uint8_t count_remaining_bytes = 0;
+
+	uint32_t code_point = 0;
+
+	for ( char const *c = str; *c != '\0'; c++ ) {
+
+		uint8_t cur_byte = uint8_t( *c );
+
+		if ( cur_byte & 0x80 ) {
+			//This codepoint is from beyond the ASCII range.
+
+			// Let's count the leading '1' bits.
+			uint8_t leading_bit_count = count_leading_bits( cur_byte );
+
+			// If there are no remaining bits to process this marks the beginning
+			// of a new code point. The leading count of '1' bits will tell us how
+			// many bytes of input to expect for this code point.
+			if ( count_remaining_bytes == 0 ) {
+				// new glyph
+				code_point            = 0;
+				count_remaining_bytes = leading_bit_count;
+			}
+
+			// We mask out the leading bits from the current byte,
+			// and shift the current byte into place based on the
+			// number of remaining bytes.
+			code_point |= ( cur_byte & ~mask_bits[ leading_bit_count + 1 ] ) << ( ( --count_remaining_bytes ) * 6 );
+
+		} else {
+			// Codepoint is part of the ASCII range
+			code_point            = cur_byte;
+			count_remaining_bytes = 0;
+		}
+
+		if ( count_remaining_bytes == 0 ) {
+			// Add code point.
+			cb( code_point, user_data );
+		}
+	}
+
+	// There must not be any leftover bytes to process when the end of the input
+	// string was reached.
+	// We return false to signal that the string was prematurely cut short.
+	return ( count_remaining_bytes == 0 );
+}
 
 // Places geometry into vertices to draw an utf-8 string using given font.
 //
@@ -431,69 +492,20 @@ static inline uint8_t count_leading_bits( uint8_t in ) {
 //
 // If vertex data was written, x_pos and y_pos will be updated to the current
 // advance of the virtual text cursor.
-size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float *x_pos, float *y_pos, glm::vec4 *vertices, size_t max_vertices, size_t vertex_offset ) {
+static size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float *x_pos, float *y_pos, glm::vec4 *vertices, size_t max_vertices, size_t vertex_offset ) {
 
 	size_t glyph_count = 0;
-
-	const float x_anchor     = *x_pos;
-	const float y_anchor     = *y_pos;
-	size_t      num_newlines = 0;
-
-	static constexpr uint8_t mask_bits[] = {
-	    0b00000000,
-	    0b10000000,
-	    0b11000000,
-	    0b11100000,
-	    0b11110000,
-	};
 
 	std::vector<uint32_t> codepoints;
 	codepoints.reserve( max_vertices / 6 );
 
-	{
-		// Iterate over utf-8 glyphs: <https://en.m.wikipedia.org/wiki/UTF-8>
-		// We need to keep track of number of bytes to process.
-		uint8_t count_remaining_bytes = 0;
+	// TODO: add codepoints
+	le_utf8_iterator( str, &codepoints, []( uint32_t cp, void *user_data ) {
+		auto &cps = *static_cast<std::vector<uint32_t> *>( user_data );
+		cps.push_back( uint32_t( cp ) );
+	} );
 
-		uint32_t code_point = 0;
-
-		for ( char const *c = str; *c != '\0'; c++ ) {
-
-			uint8_t cur_byte = uint8_t( *c );
-
-			if ( cur_byte & 0x80 ) {
-				//This codepoint is from beyond the ASCII range.
-
-				// Let's count the leading '1' bits.
-				uint8_t leading_bit_count = count_leading_bits( cur_byte );
-
-				// If there are no remaining bits to process this marks the beginning
-				// of a new code point. The leading count of '1' bits will tell us how
-				// many bytes of input to expect for this code point.
-				if ( count_remaining_bytes == 0 ) {
-					// new glyph
-					code_point            = 0;
-					count_remaining_bytes = leading_bit_count;
-				}
-
-				// We mask out the leading bits from the current byte,
-				// and shift the current byte into place based on the
-				// number of remaining bytes.
-				code_point |= ( cur_byte & ~mask_bits[ leading_bit_count + 1 ] ) << ( ( --count_remaining_bytes ) * 6 );
-
-			} else {
-				// Codepoint is part of the ASCII range
-				code_point            = cur_byte;
-				count_remaining_bytes = 0;
-			}
-
-			if ( count_remaining_bytes == 0 ) {
-				// Add code point.
-				codepoints.push_back( code_point );
-				++glyph_count;
-			}
-		}
-	}
+	glyph_count = codepoints.size();
 
 	if ( nullptr == vertices ) {
 		// Don't update vertices, only return number of glyphs * 6, which is the number of required vertices.
@@ -501,6 +513,10 @@ size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float *x_pos,
 	}
 
 	// --------| invariant: vertices is set
+
+	const float x_anchor     = x_pos ? *x_pos : 0; // In case nullptr, set to zero.
+	const float y_anchor     = y_pos ? *y_pos : 0; // In case nullptr, set to zero.
+	size_t      num_newlines = 0;
 
 	size_t num_vertices = 0;
 
@@ -611,4 +627,7 @@ ISL_API_ATTR void register_le_font_api( void *api ) {
 	le_glyph_shape_i.destroy                        = le_glyph_shape_destroy;
 	le_glyph_shape_i.get_vertices_for_shape_contour = le_glyph_shape_get_vertices_for_shape_contour;
 	le_glyph_shape_i.get_num_contours               = le_glyph_shape_get_num_contours;
+
+	auto &utf8_iterator = static_cast<le_font_api *>( api )->le_utf8_iterator;
+	utf8_iterator       = le_utf8_iterator;
 }
