@@ -84,192 +84,9 @@ static std::vector<char> load_file( const std::filesystem::path &file_path, bool
 
 typedef glm::vec2 Vertex;
 
-struct Contour {
-	// closed loop of vertices.
-	std::vector<Vertex> vertices;
-};
-
-struct le_glyph_shape_o {
-	// a series of contours
-	std::vector<Contour> contours;
-};
-
 // ----------------------------------------------------------------------
 
-static void contour_move_to( Contour &c, Vertex const &p ) {
-	c.vertices.emplace_back( p );
-}
-
-// ----------------------------------------------------------------------
-
-static void contour_line_to( Contour &c, Vertex const &p ) {
-	c.vertices.emplace_back( p );
-}
-
-// ----------------------------------------------------------------------
-
-// Trace a quadratic bezier curve from previous point p0 to target point p2 (p2_x,p2_y),
-// controlled by control point p1 (p1_x, p1_y), in steps iterations.
-void contour_curve_to( Contour &     c,
-                       Vertex const &p2,        // end point
-                       Vertex const &p1,        // control point
-                       size_t        resolution // number of segments
-) {
-
-	if ( resolution == 0 ) {
-		// nothing to do.
-		return;
-	}
-
-	if ( resolution == 1 ) {
-		// If we are to add but one segment, we may directly add the target point and return.
-		c.vertices.emplace_back( p2 );
-		return;
-	}
-
-	// --------| invariant: resolution > 1
-
-	c.vertices.reserve( c.vertices.size() + resolution );
-
-	assert( !c.vertices.empty() ); // Contour vertices must not be empty.
-
-	auto const &p0 = c.vertices.back(); // start points
-
-	float delta_t = 1.f / float( resolution );
-
-	// Note that we begin the following loop at 1,
-	// because element 0 (the starting point) is
-	// already part of the contour.
-	//
-	// Loop goes over the set: ]0,resolution]
-	//
-	for ( size_t i = 1; i <= resolution; i++ ) {
-		float t              = i * delta_t;
-		float t_sq           = t * t;
-		float one_minus_t    = ( 1.f - t );
-		float one_minus_t_sq = one_minus_t * one_minus_t;
-
-		Vertex b = one_minus_t_sq * p0 + 2 * one_minus_t * t * p1 + t_sq * p2;
-
-		c.vertices.emplace_back( b );
-	}
-}
-
-// ----------------------------------------------------------------------
-
-static void contour_cubic_curve_to( Contour &     c,
-                                    Vertex const &p3,        // end point
-                                    Vertex const &p1,        // control point 1
-                                    Vertex const &p2,        // control point 2
-                                    size_t        resolution // number of segments
-) {
-
-	if ( resolution == 0 ) {
-		// Nothing to do.
-		return;
-	}
-
-	if ( resolution == 1 ) {
-		// If we are to add but one segment, we may directly add the target point and return.
-		c.vertices.emplace_back( p3 );
-		return;
-	}
-
-	// --------| invariant: resolution > 1
-
-	c.vertices.reserve( c.vertices.size() + resolution );
-
-	assert( !c.vertices.empty() ); // Contour vertices must not be empty.
-
-	auto const &p0 = c.vertices.back();
-
-	float delta_t = 1.f / float( resolution );
-
-	// Note that we begin the following loop at 1,
-	// because element 0 (the starting point) is
-	// already part of the contour.
-	//
-	// Loop goes over the set: ]0,resolution]
-	//
-	for ( size_t i = 1; i <= resolution; i++ ) {
-		float t               = i * delta_t;
-		float t_sq            = t * t;
-		float t_cub           = t_sq * t;
-		float one_minus_t     = ( 1.f - t );
-		float one_minus_t_sq  = one_minus_t * one_minus_t;
-		float one_minus_t_cub = one_minus_t_sq * one_minus_t;
-
-		Vertex b = one_minus_t_cub * p0 + 3 * one_minus_t_sq * t * p1 + 3 * one_minus_t * t_sq * p2 + t_cub * p3;
-
-		c.vertices.emplace_back( b );
-	}
-}
-
-// ----------------------------------------------------------------------
-
-// Converts an array of path instructions (pp) into a list of contours.
-// A list of contours represents a shape.
-static le_glyph_shape_o *get_shape( stbtt_vertex const *pp_arr, int const pp_count, size_t resolution ) {
-	auto shape = new le_glyph_shape_o();
-
-	//	fprintf( stdout, "** Getting glyph shape **\n" );
-	//	fprintf( stdout, "Number of vertices: %i\n", pp_count );
-
-	stbtt_vertex const *const pp_end = pp_arr + pp_count;
-
-	size_t current_contour_idx = ~( 0ul );
-
-	for ( auto pp = pp_arr; pp != pp_end; pp++ ) {
-		switch ( pp->type ) {
-		case STBTT_vmove:
-			// a move signals the start of a new glyph
-			shape->contours.emplace_back(); // Add new contour
-			current_contour_idx++;          // Point to current contour
-			assert( current_contour_idx < shape->contours.size() );
-			contour_move_to( shape->contours[ current_contour_idx ], {pp->x, pp->y} );
-			break;
-		case STBTT_vline:
-			// line from last position to this pos
-			assert( current_contour_idx < shape->contours.size() );
-			contour_line_to( shape->contours[ current_contour_idx ], {pp->x, pp->y} );
-			break;
-		case STBTT_vcurve:
-			// quadratic bezier to pos
-			assert( current_contour_idx < shape->contours.size() );
-			contour_curve_to( shape->contours[ current_contour_idx ], {pp->x, pp->y}, {pp->cx, pp->cy}, resolution );
-			break;
-		case STBTT_vcubic:
-			// cubic bezier to pos
-			assert( current_contour_idx < shape->contours.size() );
-			contour_cubic_curve_to( shape->contours[ current_contour_idx ], {pp->x, pp->y}, {pp->cx, pp->cy}, {pp->cx1, pp->cy1}, resolution );
-			break;
-		}
-	}
-
-	return shape;
-}
-
-// ----------------------------------------------------------------------
-
-static le_glyph_shape_o *le_font_get_shape_for_glyph( le_font_o *self, int32_t codepoint, size_t *num_contours ) {
-	stbtt_vertex *pathInstructions = nullptr;
-
-	int pathInstructionsCount = stbtt_GetCodepointShape( &self->info, codepoint, &pathInstructions );
-
-	le_glyph_shape_o *shape = get_shape( pathInstructions, pathInstructionsCount, 10 );
-
-	stbtt_FreeShape( &self->info, pathInstructions );
-
-	if ( num_contours ) {
-		*num_contours = shape->contours.size();
-	}
-
-	return shape;
-}
-
-// ----------------------------------------------------------------------
-
-static void le_font_add_paths_for_glyph( le_font_o const *self, le_path_o *path, int32_t const codepoint, int32_t const codepoint_prev, float const scale, glm::vec2 *offset ) {
+static void le_font_add_paths_for_glyph( le_font_o const *self, le_path_o *path, int32_t const codepoint, float const scale, glm::vec2 *offset, int32_t const codepoint_prev ) {
 	stbtt_vertex *pp_arr   = nullptr;
 	int           pp_count = stbtt_GetCodepointShape( &self->info, codepoint, &pp_arr );
 
@@ -318,19 +135,6 @@ static void le_font_add_paths_for_glyph( le_font_o const *self, le_path_o *path,
 	offset->x += scale * ( kern_advance + advanceWidth );
 
 	// TODO: if we know the previous codepoint, we may add kerning to offset before drawing
-}
-
-// ----------------------------------------------------------------------
-
-static Vertex *le_glyph_shape_get_vertices_for_shape_contour( le_glyph_shape_o *self, size_t const &contour_idx, size_t *num_vertices ) {
-	*num_vertices = self->contours[ contour_idx ].vertices.size();
-	return self->contours[ contour_idx ].vertices.data();
-};
-
-// ----------------------------------------------------------------------
-
-static size_t le_glyph_shape_get_num_contours( le_glyph_shape_o *self ) {
-	return self->contours.size();
 }
 
 // ----------------------------------------------------------------------
@@ -499,7 +303,6 @@ static size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float 
 	std::vector<uint32_t> codepoints;
 	codepoints.reserve( max_vertices / 6 );
 
-	// TODO: add codepoints
 	le_utf8_iterator( str, &codepoints, []( uint32_t cp, void *user_data ) {
 		auto &cps = *static_cast<std::vector<uint32_t> *>( user_data );
 		cps.push_back( uint32_t( cp ) );
@@ -581,6 +384,12 @@ static size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float 
 
 // ----------------------------------------------------------------------
 
+static float le_font_get_scale_for_pixels_height( le_font_o *self, float height_in_pixels ) {
+	return stbtt_ScaleForPixelHeight( &self->info, height_in_pixels );
+}
+
+// ----------------------------------------------------------------------
+
 static bool le_font_get_atlas( le_font_o *self, uint8_t const **pixels, uint32_t *width, uint32_t *height, uint32_t *pix_stride_in_bytes ) {
 
 	if ( false == self->has_texture_atlas ) {
@@ -603,30 +412,17 @@ static void le_font_destroy( le_font_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_glyph_shape_destroy( le_glyph_shape_o *self ) {
-	self->contours.clear();
-	delete self;
-}
-
-// ----------------------------------------------------------------------
-
 ISL_API_ATTR void register_le_font_api( void *api ) {
 	auto &le_font_i = static_cast<le_font_api *>( api )->le_font_i;
 
-	le_font_i.create              = le_font_create;
-	le_font_i.destroy             = le_font_destroy;
-	le_font_i.get_shape_for_glyph = le_font_get_shape_for_glyph;
-	le_font_i.create_atlas        = le_font_create_atlas;
-	le_font_i.get_atlas           = le_font_get_atlas;
-	le_font_i.add_paths_for_glyph = le_font_add_paths_for_glyph;
+	le_font_i.create                     = le_font_create;
+	le_font_i.destroy                    = le_font_destroy;
+	le_font_i.create_atlas               = le_font_create_atlas;
+	le_font_i.get_atlas                  = le_font_get_atlas;
+	le_font_i.add_paths_for_glyph        = le_font_add_paths_for_glyph;
+	le_font_i.get_scale_for_pixel_height = le_font_get_scale_for_pixels_height;
 
 	le_font_i.draw_utf8_string = le_font_draw_utf8_string;
-
-	auto &le_glyph_shape_i = static_cast<le_font_api *>( api )->le_glyph_shape_i;
-
-	le_glyph_shape_i.destroy                        = le_glyph_shape_destroy;
-	le_glyph_shape_i.get_vertices_for_shape_contour = le_glyph_shape_get_vertices_for_shape_contour;
-	le_glyph_shape_i.get_num_contours               = le_glyph_shape_get_num_contours;
 
 	auto &utf8_iterator = static_cast<le_font_api *>( api )->le_utf8_iterator;
 	utf8_iterator       = le_utf8_iterator;

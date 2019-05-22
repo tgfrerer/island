@@ -15,7 +15,6 @@ extern "C" {
 #endif
 
 struct le_font_o;
-struct le_glyph_shape_o;
 struct le_path_o;
 
 void register_le_font_api( void *api );
@@ -42,27 +41,19 @@ struct le_font_api {
 	bool  (*le_utf8_iterator)( char const *str, void *user_data, le_uft8_iterator_cb_t cb );
 
 	struct le_font_interface_t {
-		le_font_o *			 ( * create                   ) ( char const * font_filename, float font_size );
-		void                 ( * destroy                  ) ( le_font_o* self );
-		bool                 ( * create_atlas             ) ( le_font_o* self );
-		bool                 ( * get_atlas                ) ( le_font_o* self, uint8_t const ** pixels, uint32_t * width, uint32_t * height, uint32_t *pix_stride_in_bytes );
-		size_t				 ( * draw_utf8_string         ) ( le_font_o *self, const char *str, float* x_pos, float* y_pos, glm::vec4 *vertices, size_t max_vertices, size_t vertex_offset );
-
-		le_glyph_shape_o*	 ( * get_shape_for_glyph      ) ( le_font_o* font, int32_t codepoint, size_t* num_contours);
+		le_font_o *			 ( * create                     ) ( char const * font_filename, float font_size );
+		void                 ( * destroy                    ) ( le_font_o* self );
+		bool                 ( * create_atlas               ) ( le_font_o* self );
+		bool                 ( * get_atlas                  ) ( le_font_o* self, uint8_t const ** pixels, uint32_t * width, uint32_t * height, uint32_t *pix_stride_in_bytes );
+		size_t				 ( * draw_utf8_string           ) ( le_font_o *self, const char *str, float* x_pos, float* y_pos, glm::vec4 *vertices, size_t max_vertices, size_t vertex_offset );
+		float                ( * get_scale_for_pixel_height ) ( le_font_o* self, float height_in_pixels);
 
 		// NOTE: `codepoint_prev` is optional, if 0, no kerning is applied, any other value will apply kerning for kerning pair (`codepoint_prev`,`codepoint`).
-		void                 ( * add_paths_for_glyph      ) ( le_font_o const * self, le_path_o* path, int32_t const codepoint, int32_t const codepoint_prev,  float const scale, glm::vec2 *offset);
+		void                 ( * add_paths_for_glyph      ) ( le_font_o const * self, le_path_o* path, int32_t const codepoint, float const scale, glm::vec2 *offset, int32_t const codepoint_prev);
 	};
 
-	struct glyph_shape_interface_t{
-		// created via font_interface
-		void				( * destroy                        ) ( le_glyph_shape_o* self );
-		size_t              ( * get_num_contours               ) ( le_glyph_shape_o* self );
-		Vertex*				( * get_vertices_for_shape_contour ) ( le_glyph_shape_o* shape, size_t const &contour_idx, size_t* num_vertices);
-	};
 
 	le_font_interface_t       le_font_i;
-	glyph_shape_interface_t   le_glyph_shape_i;
 };
 // clang-format on
 
@@ -77,7 +68,6 @@ const auto api = Registry::addApiStatic<le_font_api>();
 #	endif
 
 static const auto &le_font_i        = api -> le_font_i;
-static const auto &le_glyph_shape_i = api -> le_glyph_shape_i;
 static const auto &le_utf8_iterator = api -> le_utf8_iterator;
 
 } // namespace le_font
