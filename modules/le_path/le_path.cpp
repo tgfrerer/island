@@ -330,6 +330,11 @@ static void le_polyline_resample( Polyline &polyline, float interval ) {
 
 	float delta = 1.f / float( n_segments );
 
+	if ( n_segments == 1 ) {
+		// we cannot resample polylines which have only one segment.
+		return;
+	}
+
 	// reserve n vertices
 
 	poly_resampled.vertices.reserve( n_segments + 1 );
