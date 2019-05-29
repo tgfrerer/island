@@ -5,7 +5,7 @@
 #include <glm.hpp>
 
 typedef le_verlet_api::Constraint Constraint;
-static constexpr float            cSTIFFNESS = 0.0015f;
+static constexpr float            cSTIFFNESS = 0.01445f;
 
 struct le_verlet_particle_system_o {
 	std::vector<glm::vec2>  pos;
@@ -117,7 +117,7 @@ static void le_verlet_update( le_verlet_particle_system_o *self, size_t num_step
 		pp = p;
 
 		// Apply friction
-		velocity *= 0.9;
+		velocity *= 0.995;
 
 		// Apply inertia
 		p += velocity;
