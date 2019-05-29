@@ -4,8 +4,19 @@
 
 # TODO
 
+- move this file along with anything that's not the main readme to
+  a folder labelled "meta"
 - add instructions for how to create an empty app or module using the
   generators
+- add summary of what Island is to readme
+- add screenshot to readme
+- add code example to readme which demonstrates something island does
+  well
+- check y-up coordinate is correct with camera - perhaps our
+  projection matrix is missing something?
+- create an utf8-iterator for `char const *`
+- add a coordinate axes geometry generator - so that we can debug
+  cameras and handedness.
 
 
 ## (A)
