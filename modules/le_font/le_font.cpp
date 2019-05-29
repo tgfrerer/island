@@ -406,6 +406,18 @@ static bool le_font_get_atlas( le_font_o *self, uint8_t const **pixels, uint32_t
 
 // ----------------------------------------------------------------------
 
+static uint8_t *le_font_create_codepoint_sdf_bitmap( le_font_o *self, float scale, int codepoint, int padding, unsigned char onedge_value, float pixel_dist_scale, int *width, int *height, int *xoff, int *yoff ) {
+	return stbtt_GetCodepointSDF( &self->info, scale, codepoint, padding, onedge_value, pixel_dist_scale, width, height, xoff, yoff );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_font_destroy_codepoint_sdf_bitmap( le_font_o *self, uint8_t *bitmap ) {
+	stbtt_FreeSDF( bitmap, &self->info );
+}
+
+// ----------------------------------------------------------------------
+
 static void le_font_destroy( le_font_o *self ) {
 	delete self;
 }
@@ -415,12 +427,14 @@ static void le_font_destroy( le_font_o *self ) {
 ISL_API_ATTR void register_le_font_api( void *api ) {
 	auto &le_font_i = static_cast<le_font_api *>( api )->le_font_i;
 
-	le_font_i.create                     = le_font_create;
-	le_font_i.destroy                    = le_font_destroy;
-	le_font_i.create_atlas               = le_font_create_atlas;
-	le_font_i.get_atlas                  = le_font_get_atlas;
-	le_font_i.add_paths_for_glyph        = le_font_add_paths_for_glyph;
-	le_font_i.get_scale_for_pixel_height = le_font_get_scale_for_pixels_height;
+	le_font_i.create                       = le_font_create;
+	le_font_i.destroy                      = le_font_destroy;
+	le_font_i.create_atlas                 = le_font_create_atlas;
+	le_font_i.get_atlas                    = le_font_get_atlas;
+	le_font_i.add_paths_for_glyph          = le_font_add_paths_for_glyph;
+	le_font_i.get_scale_for_pixel_height   = le_font_get_scale_for_pixels_height;
+	le_font_i.create_codepoint_sdf_bitmap  = le_font_create_codepoint_sdf_bitmap;
+	le_font_i.destroy_codepoint_sdf_bitmap = le_font_destroy_codepoint_sdf_bitmap;
 
 	le_font_i.draw_utf8_string = le_font_draw_utf8_string;
 

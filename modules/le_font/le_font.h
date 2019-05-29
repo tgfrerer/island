@@ -48,6 +48,9 @@ struct le_font_api {
 		size_t				 ( * draw_utf8_string           ) ( le_font_o *self, const char *str, float* x_pos, float* y_pos, glm::vec4 *vertices, size_t max_vertices, size_t vertex_offset );
 		float                ( * get_scale_for_pixel_height ) ( le_font_o* self, float height_in_pixels);
 
+		uint8_t*             ( * create_codepoint_sdf_bitmap  ) ( le_font_o* self, float scale, int codepoint, int padding, unsigned char onedge_value, float pixel_dist_scale, int *width, int *height, int *xoff, int *yoff);
+		void                 ( * destroy_codepoint_sdf_bitmap ) ( le_font_o* self, uint8_t * bitmap);
+
 		// NOTE: `codepoint_prev` is optional, if 0, no kerning is applied, any other value will apply kerning for kerning pair (`codepoint_prev`,`codepoint`).
 		void                 ( * add_paths_for_glyph      ) ( le_font_o const * self, le_path_o* path, int32_t const codepoint, float const scale, glm::vec2 *offset, int32_t const codepoint_prev);
 	};
