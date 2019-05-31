@@ -37,7 +37,7 @@ struct le_renderpass_o {
 	uint64_t         id       = 0;     // hash of name
 	uint64_t         sort_key = 0;
 
-	std::vector<le_resource_handle_t> resources; // all resources used in this pass
+    std::vector<le_resource_handle_t> resources;              // all resources used in this pass
 	std::vector<LeAccessFlags>        resources_access_flags; // access flags for all resources, in sync with resources
 	std::vector<LeResourceUsageFlags> resources_usage;        // declared usage for each resource, in sync with resources
 
@@ -47,7 +47,7 @@ struct le_renderpass_o {
 	uint32_t width  = 0; ///< width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
 	uint32_t height = 0; ///< height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
 
-	std::vector<LeImageSamplerInfo>        textureInfos; // kept in sync : info for corresponding texture id
+    std::vector<LeImageSamplerInfo>   textureInfos; // kept in sync : info for corresponding texture id
 	std::vector<le_resource_handle_t> textureIds;   // kept in sync : texture id
 
 	le_renderer_api::pfn_renderpass_setup_t   callbackSetup              = nullptr;
@@ -225,7 +225,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 		resourceWillBeWrittenTo = usage_flags.typed_as.image_usage_flags & ALL_IMAGE_WRITE_FLAGS;
 	} break;
 	default:
-	    break;
+        break;
 	}
 
 	// update access flags
@@ -587,16 +587,16 @@ static void rendergraph_build( le_rendergraph_o *self ) {
 	tasks_calculate_sort_indices( tasks.data(), tasks.size(), self->sortIndices.data() );
 
 	auto printPassList = [&]() -> void {
-	    for ( size_t i = 0; i != self->sortIndices.size(); ++i ) {
-		    std::cout << "Pass: " << std::dec << std::setw( 3 ) << i << " sort order : " << std::setw( 12 ) << self->sortIndices[ i ] << " : "
+        for ( size_t i = 0; i != self->sortIndices.size(); ++i ) {
+            std::cout << "Pass: " << std::dec << std::setw( 3 ) << i << " sort order : " << std::setw( 12 ) << self->sortIndices[ i ] << " : "
 			          << self->passes[ i ]->debugName
 			          << std::endl
 			          << std::flush;
-	    }
+        }
     };
 
     if ( PRINT_DEBUG_MESSAGES ) {
-	    printPassList();
+        printPassList();
     }
 
     {
@@ -713,8 +713,8 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 		if ( pass->callbackExecute ) {
 
 			le::Extent2D encoder_extent{
-				pass->width != 0 ? pass->width : swapchain_extent.width,   // Use pass extent unless it is 0, otherwise revert to swapchain_extent
-				pass->height != 0 ? pass->height : swapchain_extent.height // Use pass extent unless it is 0, otherwise revert to swapchain_extent
+                pass->width != 0 ? pass->width : swapchain_extent.width,   // Use pass extent unless it is 0, otherwise revert to swapchain_extent
+                pass->height != 0 ? pass->height : swapchain_extent.height // Use pass extent unless it is 0, otherwise revert to swapchain_extent
 			};
 
 			pass->encoder = encoder_i.create( *allocIt, pipelineCache, stagingAllocator, encoder_extent ); // NOTE: we must manually track the lifetime of encoder!
