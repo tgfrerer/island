@@ -60,7 +60,7 @@ struct le_renderer_api {
 		le_renderpass_o *            ( *create               )( const char *renderpass_name, const LeRenderPassType &type_ );
 		void                         ( *destroy              )( le_renderpass_o *obj );
 		le_renderpass_o *            ( *clone                )( const le_renderpass_o *obj );
-		void                         ( *set_setup_callback   )( le_renderpass_o *obj, pfn_renderpass_setup_t setup_fun, void *user_data );
+        void                         ( *set_setup_callback   )( le_renderpass_o *obj, void *user_data, pfn_renderpass_setup_t setup_fun );
 		bool                         ( *has_setup_callback   )( const le_renderpass_o* obj);
 		void                         ( *add_color_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, le_image_attachment_info_t const *info );
 		void                         ( *add_depth_stencil_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, le_image_attachment_info_t const *info );
@@ -68,7 +68,7 @@ struct le_renderer_api {
 		uint32_t                     ( *get_height           )( le_renderpass_o* obj);
 		void                         ( *set_width            )( le_renderpass_o* obj, uint32_t width);
 		void                         ( *set_height           )( le_renderpass_o* obj, uint32_t height);
-		void                         ( *set_execute_callback )( le_renderpass_o *obj, pfn_renderpass_execute_t render_fun, void *user_data );
+        void                         ( *set_execute_callback )( le_renderpass_o *obj, void *user_data, pfn_renderpass_execute_t render_fun );
 		bool                         ( *has_execute_callback )( const le_renderpass_o* obj);
 		void                         ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle_t& resource_id, const LeResourceUsageFlags &usage_flags);
 		void                         ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
@@ -234,8 +234,8 @@ class RenderPass {
 
 	RenderPass( const char *name_, const LeRenderPassType &type_, le_renderer_api::pfn_renderpass_setup_t fun_setup, le_renderer_api::pfn_renderpass_execute_t fun_exec, void *user_data )
 	    : self( le_renderer::renderpass_i.create( name_, type_ ) ) {
-		le_renderer::renderpass_i.set_setup_callback( self, fun_setup, user_data );
-		le_renderer::renderpass_i.set_execute_callback( self, fun_exec, user_data );
+        le_renderer::renderpass_i.set_setup_callback( self, user_data, fun_setup );
+        le_renderer::renderpass_i.set_execute_callback( self, user_data, fun_exec );
 	}
 
 	RenderPass( le_renderpass_o *self_ )
@@ -254,12 +254,12 @@ class RenderPass {
 	}
 
 	RenderPass &setSetupCallback( void *user_data, le_renderer_api::pfn_renderpass_setup_t fun ) {
-		le_renderer::renderpass_i.set_setup_callback( self, fun, user_data );
+        le_renderer::renderpass_i.set_setup_callback( self, user_data, fun );
 		return *this;
 	}
 
 	RenderPass &setExecuteCallback( void *user_data, le_renderer_api::pfn_renderpass_execute_t fun ) {
-		le_renderer::renderpass_i.set_execute_callback( self, fun, user_data );
+        le_renderer::renderpass_i.set_execute_callback( self, user_data, fun );
 		return *this;
 	}
 

@@ -108,14 +108,14 @@ static void renderpass_destroy( le_renderpass_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void renderpass_set_setup_callback( le_renderpass_o *self, le_renderer_api::pfn_renderpass_setup_t callback, void *user_data ) {
+static void renderpass_set_setup_callback( le_renderpass_o *self, void *user_data, le_renderer_api::pfn_renderpass_setup_t callback ) {
 	self->setup_callback_user_data = user_data;
 	self->callbackSetup            = callback;
 }
 
 // ----------------------------------------------------------------------
 
-static void renderpass_set_execute_callback( le_renderpass_o *self, le_renderer_api::pfn_renderpass_execute_t callback, void *user_data ) {
+static void renderpass_set_execute_callback( le_renderpass_o *self, void *user_data, le_renderer_api::pfn_renderpass_execute_t callback ) {
 	self->execute_callback_user_data = user_data;
 	self->callbackExecute            = callback;
 }
