@@ -217,6 +217,10 @@ class Renderer {
 		return result;
 	}
 
+    le_pipeline_manager_o *getPipelineManager() {
+        return le_renderer::renderer_i.get_pipeline_manager( self );
+    }
+
 	operator auto() {
 		return self;
 	}
