@@ -208,7 +208,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 			return *this;
 		}
 
-		InputAssemblyState &setToplogy( le::PrimitiveTopology const &topology ) {
+        InputAssemblyState &setTopology( le::PrimitiveTopology const &topology ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.input_assembly_state_i.set_topology( parent.self, topology );
 			return *this;
