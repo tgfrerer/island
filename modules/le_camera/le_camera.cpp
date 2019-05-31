@@ -297,7 +297,7 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 
 	// Centre point of the mouse control rectangle
 	glm::vec2 controlRectCentre{0.5f * ( controller->controlRect[ 0 ] + controller->controlRect[ 2 ] ),
-		                        0.5f * ( controller->controlRect[ 1 ] + controller->controlRect[ 3 ] )};
+                                0.5f * ( controller->controlRect[ 1 ] + controller->controlRect[ 3 ] )};
 
 	// Distance 1/3 of small edge of control rectangle
 	float controlCircleRadius = std::min( controller->controlRect[ 2 ], controller->controlRect[ 3 ] ) / 3.f;
@@ -349,7 +349,7 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 			}
 		} break;
 		default:
-		    break;
+            break;
 		}
 
 		glm::vec3 rotationDelta;
@@ -464,6 +464,14 @@ static void le_camera_destroy( le_camera_o *self ) {
 
 // ----------------------------------------------------------------------
 
+static le_camera_o *le_camera_clone( le_camera_o const *self ) {
+    auto clone = new le_camera_o();
+    *clone     = *self;
+    return clone;
+}
+
+// ----------------------------------------------------------------------
+
 static le_camera_controller_o *camera_controller_create() {
 	auto self = new le_camera_controller_o();
 	return self;
@@ -489,6 +497,7 @@ ISL_API_ATTR void register_le_camera_api( void *api ) {
 
 	le_camera_i.create                = le_camera_create;
 	le_camera_i.destroy               = le_camera_destroy;
+    le_camera_i.clone                 = le_camera_clone;
 	le_camera_i.get_projection_matrix = camera_get_projection_matrix;
 	le_camera_i.get_unit_distance     = camera_get_unit_distance;
 	le_camera_i.get_view_matrix       = camera_get_view_matrix;

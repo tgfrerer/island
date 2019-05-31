@@ -34,6 +34,8 @@ struct le_camera_api {
 
 		le_camera_o *    ( * create                   ) ( );
 		void             ( * destroy                  ) ( le_camera_o* self );
+        le_camera_o *    ( * clone                    ) ( le_camera_o const * self );
+
 		void             ( * update                   ) ( le_camera_o* self );
 		void             ( * set_view_matrix          ) ( le_camera_o* self, float const * view_matrix);
 		void             ( * set_viewport             ) ( le_camera_o* self, le::Viewport const & viewport);
@@ -84,7 +86,7 @@ static const auto &le_camera_controller_i = api -> le_camera_controller_i;
 
 } // namespace le_camera
 
-class LeCamera : NoCopy, NoMove {
+class LeCamera : NoMove {
 
 	le_camera_o *self;
 
@@ -95,15 +97,21 @@ class LeCamera : NoCopy, NoMove {
 
 	~LeCamera() {
 		le_camera::le_camera_i.destroy( self );
-	}
+    }
+
+    LeCamera( const LeCamera &rhs )
+        : self( le_camera::le_camera_i.clone( rhs.self ) ) {
+    }
+
+    LeCamera &operator=( const LeCamera &rhs ) = delete;
 
 #	ifdef ISL_ALLOW_GLM_TYPES
 
-	glm::mat4 const &getViewMatrixGlm() {
+    glm::mat4 const &getViewMatrixGlm() const {
 		return le_camera::le_camera_i.get_view_matrix_glm( self );
 	}
 
-	glm::mat4 const &getProjectionMatrixGlm() {
+    glm::mat4 const &getProjectionMatrixGlm() const {
 		return le_camera::le_camera_i.get_projection_matrix_glm( self );
 	}
 
@@ -113,11 +121,11 @@ class LeCamera : NoCopy, NoMove {
 
 #	endif
 
-	float const *getViewMatrix() {
+    float const *getViewMatrix() const {
 		return le_camera::le_camera_i.get_view_matrix( self );
 	}
 
-	float const *getProjectionMatrix() {
+    float const *getProjectionMatrix() const {
 		return le_camera::le_camera_i.get_projection_matrix( self );
 	}
 
