@@ -40,6 +40,9 @@ struct le_path_api {
 	static constexpr auto id      = "le_path";
 	static constexpr auto pRegFun = register_le_path_api;
 
+    typedef void contour_vertex_cb (void *user_data, Vertex const& p);
+    typedef void contour_quad_bezier_cb(void *user_data, Vertex const& p0, Vertex const& p1, Vertex const& c);
+
 	struct le_path_interface_t {
 
 		le_path_o *	( * create                   ) ( );
@@ -58,9 +61,14 @@ struct le_path_api {
 
 		void        (* clear                     ) ( le_path_o* self );
 
+        size_t      (* get_num_contours          ) ( le_path_o* self );
 		size_t      (* get_num_polylines         ) ( le_path_o* self );
+
 		void        (* get_vertices_for_polyline ) ( le_path_o* self, size_t const &polyline_index, Vertex const **vertices, size_t * numVertices );
 		void        (* get_polyline_at_pos_interpolated ) ( le_path_o* self, size_t const &polyline_index, float normPos, Vertex& result);
+
+        void        (* iterate_vertices_for_contour)(le_path_o* self, size_t const & contour_index, contour_vertex_cb callback, void* user_data);
+        void        (* iterate_quad_beziers_for_contour)(le_path_o* self, size_t const & contour_index, contour_quad_bezier_cb callback, void* user_data);
 
 	};
 
@@ -138,7 +146,11 @@ class Path : NoCopy, NoMove {
 		return le_path::le_path_i.get_num_polylines( self );
 	}
 
-	void getVerticesForPolyline( size_t const &polyline_index, le_path_api::Vertex const **vertices, size_t *numVertices ) {
+    size_t getNumContours() {
+        return le_path::le_path_i.get_num_contours( self );
+    }
+
+    void getVerticesForPolyline( size_t const &polyline_index, le_path_api::Vertex const **vertices, size_t *numVertices ) {
 		le_path::le_path_i.get_vertices_for_polyline( self, polyline_index, vertices, numVertices );
 	}
 
