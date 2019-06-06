@@ -18,7 +18,7 @@
 
 #include <bitset>
 
-constexpr size_t MAX_NUM_LAYER_RESOURCES      = 4096; // set this to larger value if you want to deal with more than 128 distinct resources.
+constexpr size_t MAX_NUM_LAYER_RESOURCES      = 4096; // set this to larger value if you want to deal with a larger number of distinct resources.
 using BitField                                = std::bitset<MAX_NUM_LAYER_RESOURCES>;
 constexpr auto LE_RENDER_GRAPH_ROOT_LAYER_TAG = LE_RESOURCE( "LE_RENDER_GRAPH_ROOT_LAYER_TAG", LeResourceType::eUndefined );
 
