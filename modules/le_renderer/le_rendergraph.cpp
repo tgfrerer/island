@@ -30,6 +30,11 @@ struct Task {
 // these are some sanity checks for le_renderer_types
 static_assert( sizeof( le::CommandHeader ) == sizeof( uint64_t ), "Size of le::CommandHeader must be 64bit" );
 
+struct ExecuteCallbackInfo {
+    le_renderer_api::pfn_renderpass_execute_t fn        = nullptr;
+    void *                                    user_data = nullptr;
+};
+
 struct le_renderpass_o {
 
 	LeRenderPassType type     = LE_RENDER_PASS_TYPE_UNDEFINED;
@@ -50,10 +55,9 @@ struct le_renderpass_o {
     std::vector<LeImageSamplerInfo>   textureInfos; // kept in sync : info for corresponding texture id
 	std::vector<le_resource_handle_t> textureIds;   // kept in sync : texture id
 
-	le_renderer_api::pfn_renderpass_setup_t   callbackSetup              = nullptr;
-	le_renderer_api::pfn_renderpass_execute_t callbackExecute            = nullptr;
-	void *                                    execute_callback_user_data = nullptr;
-	void *                                    setup_callback_user_data   = nullptr;
+    le_renderer_api::pfn_renderpass_setup_t callbackSetup            = nullptr;
+    void *                                  setup_callback_user_data = nullptr;
+    std::vector<ExecuteCallbackInfo>        executeCallbacks;
 
 	le_command_buffer_encoder_o *encoder   = nullptr;
 	std::string                  debugName = "";
@@ -116,13 +120,14 @@ static void renderpass_set_setup_callback( le_renderpass_o *self, void *user_dat
 // ----------------------------------------------------------------------
 
 static void renderpass_set_execute_callback( le_renderpass_o *self, void *user_data, le_renderer_api::pfn_renderpass_execute_t callback ) {
-	self->execute_callback_user_data = user_data;
-	self->callbackExecute            = callback;
+    self->executeCallbacks.push_back( {callback, user_data} );
 }
 
 // ----------------------------------------------------------------------
 static void renderpass_run_execute_callback( le_renderpass_o *self ) {
-	self->callbackExecute( self->encoder, self->execute_callback_user_data );
+    for ( auto const &c : self->executeCallbacks ) {
+        c.fn( self->encoder, c.user_data );
+    }
 }
 
 // ----------------------------------------------------------------------
@@ -363,7 +368,7 @@ static void renderpass_get_texture_infos( le_renderpass_o *self, const LeImageSa
 };
 
 static bool renderpass_has_execute_callback( const le_renderpass_o *self ) {
-	return self->callbackExecute != nullptr;
+    return !self->executeCallbacks.empty();
 }
 
 static bool renderpass_has_setup_callback( const le_renderpass_o *self ) {
@@ -710,7 +715,7 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 
 		// ---------| invariant: pass may contribute
 
-		if ( pass->callbackExecute ) {
+        if ( !pass->executeCallbacks.empty() ) {
 
 			le::Extent2D encoder_extent{
                 pass->width != 0 ? pass->width : swapchain_extent.width,   // Use pass extent unless it is 0, otherwise revert to swapchain_extent
