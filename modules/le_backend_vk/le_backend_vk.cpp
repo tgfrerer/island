@@ -413,8 +413,31 @@ struct le_backend_o {
 
 // ----------------------------------------------------------------------
 
-static inline bool is_depth_stencil_format( vk::Format format_ ) {
-	return ( format_ >= vk::Format::eD16Unorm && format_ <= vk::Format::eD32SfloatS8Uint );
+static inline void vk_format_get_is_depth_stencil( vk::Format format_, bool &isDepth, bool &isStencil ) {
+
+    switch ( format_ ) {
+    case vk::Format::eD16Unorm:         // fall-through
+    case vk::Format::eX8D24UnormPack32: // fall-through
+    case vk::Format::eD32Sfloat:        // fall-through
+        isDepth   = true;
+        isStencil = false;
+        break;
+    case vk::Format::eS8Uint:
+        isDepth   = false;
+        isStencil = true;
+        break;
+    case vk::Format::eD16UnormS8Uint:  // fall-through
+    case vk::Format::eD24UnormS8Uint:  // fall-through
+    case vk::Format::eD32SfloatS8Uint: // fall-through
+        isDepth = isStencil = true;
+        break;
+
+    default:
+        isDepth = isStencil = false;
+        break;
+    }
+
+    return;
 }
 
 // ----------------------------------------------------------------------
@@ -1048,7 +1071,9 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 			vk::Format attachmentFormat = vk::Format( frame.availableResources[ image_resource_id ].info.imageInfo.format );
 
-			bool isDepthStencil = is_depth_stencil_format( attachmentFormat );
+            bool isDepth = false, isStencil = false;
+            vk_format_get_is_depth_stencil( attachmentFormat, isDepth, isStencil );
+            bool isDepthStencil = isDepth || isStencil;
 
 			AttachmentInfo *currentAttachment = ( currentPass.attachments + ( currentPass.numColorAttachments + currentPass.numDepthStencilAttachments ) );
 
@@ -1394,7 +1419,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		attachments.reserve( pass.numColorAttachments + pass.numDepthStencilAttachments );
 
 		std::vector<vk::AttachmentReference>     colorAttachmentReferences;
-		std::unique_ptr<vk::AttachmentReference> depthAttachmentReference;
+        std::unique_ptr<vk::AttachmentReference> dsAttachmentReference;
 
 		// We must accumulate these flags over all attachments - they are the
 		// union of all flags required by all attachments in a pass.
@@ -1430,7 +1455,9 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 			const auto &syncSubpass = syncChain.at( attachment->initialStateOffset + 1 );
 			const auto &syncFinal   = syncChain.at( attachment->finalStateOffset );
 
-			bool isDepthStencil = is_depth_stencil_format( attachment->format );
+            bool isDepth   = false;
+            bool isStencil = false;
+            vk_format_get_is_depth_stencil( attachment->format, isDepth, isStencil );
 
 			vk::AttachmentDescription attachmentDescription{};
 			attachmentDescription
@@ -1439,8 +1466,8 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 			    .setSamples( attachment->numSamples )         // relevant for compatibility
 			    .setLoadOp( attachment->loadOp )
 			    .setStoreOp( attachment->storeOp )
-			    .setStencilLoadOp( isDepthStencil ? attachment->loadOp : vk::AttachmentLoadOp::eDontCare )
-			    .setStencilStoreOp( isDepthStencil ? attachment->storeOp : vk::AttachmentStoreOp::eDontCare )
+                .setStencilLoadOp( isStencil ? attachment->loadOp : vk::AttachmentLoadOp::eDontCare )
+                .setStencilStoreOp( isStencil ? attachment->storeOp : vk::AttachmentStoreOp::eDontCare )
 			    .setInitialLayout( syncInitial.layout )
 			    .setFinalLayout( syncFinal.layout );
 
@@ -1459,8 +1486,8 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 			attachments.emplace_back( attachmentDescription );
 
-			if ( isDepthStencil ) {
-				depthAttachmentReference = std::make_unique<vk::AttachmentReference>( attachments.size() - 1, syncSubpass.layout );
+            if ( isDepth || isStencil ) {
+                dsAttachmentReference = std::make_unique<vk::AttachmentReference>( attachments.size() - 1, syncSubpass.layout );
 			} else {
 				colorAttachmentReferences.emplace_back( attachments.size() - 1, syncSubpass.layout );
 			}
@@ -1500,7 +1527,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		    .setColorAttachmentCount( uint32_t( colorAttachmentReferences.size() ) )
 		    .setPColorAttachments( colorAttachmentReferences.data() )
 		    .setPResolveAttachments( nullptr ) // must be NULL or have same length as colorAttachments
-		    .setPDepthStencilAttachment( depthAttachmentReference.get() )
+            .setPDepthStencilAttachment( dsAttachmentReference.get() )
 		    .setPreserveAttachmentCount( 0 )
 		    .setPPreserveAttachments( nullptr );
 
@@ -1693,6 +1720,29 @@ static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFra
 }
 
 // ----------------------------------------------------------------------
+
+vk::ImageAspectFlags get_aspect_flags_from_format( vk::Format const &format ) {
+    vk::ImageAspectFlags aspectFlags{};
+
+    bool isDepth   = false;
+    bool isStencil = false;
+    vk_format_get_is_depth_stencil( format, isDepth, isStencil );
+
+    if ( isDepth || isStencil ) {
+        if ( isDepth ) {
+            aspectFlags |= vk::ImageAspectFlagBits::eDepth;
+        }
+        if ( isStencil ) {
+            aspectFlags |= vk::ImageAspectFlagBits::eStencil;
+        }
+    } else {
+        aspectFlags |= vk::ImageAspectFlagBits::eColor;
+    }
+
+    return aspectFlags;
+}
+
+// ----------------------------------------------------------------------
 // input: Pass
 // output: framebuffer, append newly created imageViews to retained resources list.
 static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &device ) {
@@ -1707,11 +1757,9 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 
 		for ( AttachmentInfo const *attachment = pass.attachments; attachment != pass.attachments + ( pass.numColorAttachments + pass.numDepthStencilAttachments ); attachment++ ) {
 
-			bool isDepthStencilFormat = is_depth_stencil_format( attachment->format );
-
 			vk::ImageSubresourceRange subresourceRange;
 			subresourceRange
-			    .setAspectMask( isDepthStencilFormat ? ( vk::ImageAspectFlagBits::eDepth | vk::ImageAspectFlagBits::eStencil ) : vk::ImageAspectFlagBits::eColor )
+                .setAspectMask( get_aspect_flags_from_format( attachment->format ) )
 			    .setBaseMipLevel( 0 )
 			    .setLevelCount( 1 )
 			    .setBaseArrayLayer( 0 )
@@ -2490,7 +2538,7 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 
 				vk::ImageSubresourceRange subresourceRange;
 				subresourceRange
-				    .setAspectMask( is_depth_stencil_format( imageFormat ) ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor )
+                    .setAspectMask( get_aspect_flags_from_format( imageFormat ) )
 				    .setBaseMipLevel( 0 )
 				    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
 				    .setBaseArrayLayer( 0 )
@@ -2555,7 +2603,7 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 
 					vk::ImageSubresourceRange subresourceRange;
 					subresourceRange
-					    .setAspectMask( is_depth_stencil_format( imageFormat ) ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor )
+                        .setAspectMask( get_aspect_flags_from_format( imageFormat ) )
 					    .setBaseMipLevel( 0 )
 					    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
 					    .setBaseArrayLayer( 0 )
