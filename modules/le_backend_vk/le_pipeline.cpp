@@ -923,6 +923,9 @@ static void le_shader_manager_destroy( le_shader_manager_o *self ) {
 /// \brief create vulkan shader module based on file path
 /// \details FIXME: this method can get called nearly anywhere - it should not be publicly accessible.
 /// ideally, this method is only allowed to be called in the setup phase.
+///
+/// TODO: consider handing out an opaque handle instead of a pointer for shader_module, so that it becomes
+/// clear that the object is owned by the backend, and must not be deleted or directly accessed outside.
 static le_shader_module_o *le_shader_manager_create_shader_module( le_shader_manager_o *self, char const *path, const LeShaderStageEnum &moduleType ) {
 
 	// This method gets called through the renderer - it is assumed during the setup stage.
