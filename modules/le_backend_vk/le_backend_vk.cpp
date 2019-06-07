@@ -38,12 +38,12 @@
 // Helper macro to convert le:: enums to vk:: enums
 #define LE_ENUM_TO_VK( enum_name, fun_name )                                    \
 	static inline vk::enum_name fun_name( le::enum_name const &rhs ) noexcept { \
-	    return vk::enum_name( rhs );                                            \
+        return vk::enum_name( rhs );                                            \
 	}
 
 #define LE_C_ENUM_TO_VK( enum_name, fun_name, c_enum_name )                   \
 	static inline vk::enum_name fun_name( c_enum_name const &rhs ) noexcept { \
-	    return vk::enum_name( rhs );                                          \
+        return vk::enum_name( rhs );                                          \
 	}
 
 constexpr size_t LE_FRAME_DATA_POOL_BLOCK_SIZE  = 1u << 24; // 16.77 MB
@@ -244,7 +244,7 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 	} break;
 	default:
 		assert( false ); // we can only create (allocate) buffer or image resources
-	    break;
+        break;
 	}
 
 	return res;
@@ -959,15 +959,15 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		// write_stage depends on current renderpass type.
 		switch ( rp_type ) {
 		case LE_RENDER_PASS_TYPE_TRANSFER:
-		    return vk::PipelineStageFlagBits::eTransfer; // stage for transfer pass
+            return vk::PipelineStageFlagBits::eTransfer; // stage for transfer pass
 		case LE_RENDER_PASS_TYPE_DRAW:
-		    return vk::PipelineStageFlagBits::eVertexShader; // earliest stage for draw pass
+            return vk::PipelineStageFlagBits::eVertexShader; // earliest stage for draw pass
 		case LE_RENDER_PASS_TYPE_COMPUTE:
-		    return vk::PipelineStageFlagBits::eComputeShader; // stage for compute pass
+            return vk::PipelineStageFlagBits::eComputeShader; // stage for compute pass
 
 		default:
 			assert( false ); // unreachable - we don't know what kind of stage we're in.
-		    return vk::PipelineStageFlagBits();
+            return vk::PipelineStageFlagBits();
 		}
 	};
 
@@ -1334,26 +1334,26 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 			switch ( r.type ) {
 			case AbstractPhysicalResource::eBuffer:
 				device.destroyBuffer( r.asBuffer );
-			    break;
+                break;
 			case AbstractPhysicalResource::eFramebuffer:
 				device.destroyFramebuffer( r.asFramebuffer );
-			    break;
+                break;
 			case AbstractPhysicalResource::eImage:
 				device.destroyImage( r.asImage );
-			    break;
+                break;
 			case AbstractPhysicalResource::eImageView:
 				device.destroyImageView( r.asImageView );
-			    break;
+                break;
 			case AbstractPhysicalResource::eRenderPass:
 				device.destroyRenderPass( r.asRenderPass );
-			    break;
+                break;
 			case AbstractPhysicalResource::eSampler:
 				device.destroySampler( r.asSampler );
-			    break;
+                break;
 
 			case AbstractPhysicalResource::eUndefined:
 				std::cout << __PRETTY_FUNCTION__ << ": abstract physical resource has unknown type (" << std::hex << r.type << ") and cannot be deleted. leaking..." << std::flush;
-			    break;
+                break;
 			}
 		}
 		frame.ownedResources.clear();
@@ -2301,7 +2301,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 		} break;
 		default:
-		    break;
+            break;
 		}
 		resource_index++;
 	}
@@ -3065,16 +3065,16 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					case vk::DescriptorType::eStorageBuffer:        // fall-through
 						// if buffer must have valid buffer bound
 						argumentsOk &= ( nullptr != a.bufferInfo.buffer );
-					    break;
+                        break;
 					case vk::DescriptorType::eCombinedImageSampler:
 					case vk::DescriptorType::eSampledImage:
 					case vk::DescriptorType::eStorageImage:
 						argumentsOk &= ( nullptr != a.imageInfo.imageView ); // if sampler, must have valid image view
-					    break;
+                        break;
 					default:
 						// TODO: check arguments for other types of descriptors
 						argumentsOk &= true;
-					    break;
+                        break;
 					}
 
 					if ( false == argumentsOk ) {
@@ -3161,9 +3161,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 									// add an entry for each array element with this binding to setData
 									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
 										DescriptorData descriptorData{
-											.type          = vk::DescriptorType( b.type ),
-											.bindingNumber = uint32_t( b.binding ),
-											.arrayIndex    = uint32_t( arrayIndex ),
+                                            .type          = vk::DescriptorType( b.type ),
+                                            .bindingNumber = uint32_t( b.binding ),
+                                            .arrayIndex    = uint32_t( arrayIndex ),
 										};
 										descriptorData.bufferInfo.range = VK_WHOLE_SIZE;
 										setData.emplace_back( descriptorData );
@@ -3243,9 +3243,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 									// add an entry for each array element with this binding to setData
 									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
 										DescriptorData descriptorData{
-											.type          = vk::DescriptorType( b.type ),
-											.bindingNumber = uint32_t( b.binding ),
-											.arrayIndex    = uint32_t( arrayIndex ),
+                                            .type          = vk::DescriptorType( b.type ),
+                                            .bindingNumber = uint32_t( b.binding ),
+                                            .arrayIndex    = uint32_t( arrayIndex ),
 										};
 										descriptorData.bufferInfo.range = VK_WHOLE_SIZE;
 
