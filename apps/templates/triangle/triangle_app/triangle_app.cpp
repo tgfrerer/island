@@ -107,7 +107,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	app->camera.setViewport( viewports[ 0 ] );
 
 	// Data as it is laid out in the shader ubo
-	struct MatrixStackUbo_t {
+	struct MvpUbo {
 		glm::mat4 model;
 		glm::mat4 view;
 		glm::mat4 projection;
@@ -124,7 +124,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	        .addShaderStage( shaderFrag )
 	        .build();
 
-	MatrixStackUbo_t mvp;
+	MvpUbo mvp;
 	mvp.model      = glm::mat4( 1.f ); // identity matrix
 	mvp.model      = glm::scale( mvp.model, glm::vec3( 4.5 ) );
 	mvp.view       = app->camera.getViewMatrixGlm();
@@ -144,7 +144,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 	encoder
 	    .bindGraphicsPipeline( pipelineTriangle )
-	    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MatrixStackUbo_t ) )
+	    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MvpUbo ) )
 	    .setVertexData( trianglePositions, sizeof( trianglePositions ), 0 )
 	    .setVertexData( triangleColors, sizeof( triangleColors ), 1 )
 	    .draw( 3 );
