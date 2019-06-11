@@ -24,6 +24,8 @@ struct imgui_example_app_o {
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
 
+	glm::vec4 backgroundColor{0, 0, 0, 1};
+
 	le_imgui_o *gui;
 	LeCamera camera;
 };
@@ -77,26 +79,6 @@ static void reset_camera( imgui_example_app_o *self ) {
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
 	self->camera.setViewMatrixGlm( camMatrix );
-}
-
-// ----------------------------------------------------------------------
-
-typedef bool ( *renderpass_setup )( le_renderpass_o *pRp, void *user_data );
-
-// ----------------------------------------------------------------------
-
-static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
-	auto rp  = le::RenderPass{pRp};
-	auto app = static_cast<imgui_example_app_o *>( user_data );
-
-	// Attachment resource info may be further specialised using ImageInfoBuilder().
-	// Attachment clear color, load and store op may be set via le_image_attachment_info_t.
-
-	rp
-	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
-	    .setIsRoot( true );
-
-	return true;
 }
 
 // ----------------------------------------------------------------------
@@ -188,16 +170,44 @@ static bool imgui_example_app_update( imgui_example_app_o *self ) {
 
 		le::RenderPass passToScreen( "root", LE_RENDER_PASS_TYPE_DRAW );
 
-		passToScreen
-		    .setSetupCallback( self, pass_main_setup )
-		    .setExecuteCallback( self, pass_main_exec ) //
-		    ;
-
 		le_imgui::le_imgui_i.begin_frame( self->gui );
 
 		ImGui::ShowMetricsWindow();
 
+		ImGui::Begin( "Background Color Chooser" ); // begin window
+
+		// Background color edit
+		if ( ImGui::ColorEdit3( "Background Color", &self->backgroundColor.x ) ) {
+		}
+
+		if ( ImGui::Button( "White Background" ) ) {
+			self->backgroundColor = {1, 1, 1, 1};
+		}
+
+		ImGui::End(); // end window
+
 		le_imgui::le_imgui_i.end_frame( self->gui );
+
+		passToScreen
+		    .setSetupCallback( self, []( le_renderpass_o *pRp, void *user_data ) {
+			    auto rp  = le::RenderPass{pRp};
+			    auto app = static_cast<imgui_example_app_o *>( user_data );
+
+			    // Attachment resource info may be further specialised using ImageInfoBuilder().
+			    // Attachment clear color, load and store op may be set via le_image_attachment_info_t.
+
+			    auto info = le::ImageAttachmentInfoBuilder()
+			                    .setColorClearValue( reinterpret_cast<LeClearValue &>( app->backgroundColor ) )
+			                    .build();
+
+			    rp
+			        .addColorAttachment( app->renderer.getSwapchainResource(), info ) // color attachment
+			        .setIsRoot( true );
+
+			    return true;
+		    } )
+		    .setExecuteCallback( self, pass_main_exec ) //
+		    ;
 
 		le_imgui::le_imgui_i.draw_gui( self->gui, passToScreen );
 
