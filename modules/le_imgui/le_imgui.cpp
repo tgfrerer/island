@@ -13,8 +13,6 @@
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
 #include "glm.hpp"
 #include "gtc/matrix_transform.hpp"
-//#define GLM_ENABLE_EXPERIMENTAL
-//#include "gtx/easing.hpp"
 
 #include <array>
 #include <vector>
