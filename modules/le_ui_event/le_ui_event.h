@@ -133,17 +133,17 @@ struct LeUiEvent {
 
 	enum class ButtonAction : int32_t {
 		eRelease = 0,
-		ePress   = 1,
-		eRepeat  = 2,
+		ePress,
+		eRepeat,
 	};
 
-	enum class Type {
-		eKey,
-		eCharacter,
-		eCursorPosition,
-		eCursorEnter,
-		eMouseButton,
-		eScroll,
+	enum class Type : uint32_t {
+		eKey            = 1 << 0,
+		eCharacter      = 1 << 1,
+		eCursorPosition = 1 << 2,
+		eCursorEnter    = 1 << 3,
+		eMouseButton    = 1 << 4,
+		eScroll         = 1 << 5,
 	};
 
 	struct KeyEvent {
