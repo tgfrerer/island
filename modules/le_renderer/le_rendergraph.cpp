@@ -37,27 +37,27 @@ struct ExecuteCallbackInfo {
 
 struct le_renderpass_o {
 
-	LeRenderPassType type     = LE_RENDER_PASS_TYPE_UNDEFINED;
-	uint32_t         isRoot   = false; // whether pass *must* be processed
-	uint64_t         id       = 0;     // hash of name
-	uint64_t         sort_key = 0;
+	LeRenderPassType        type         = LE_RENDER_PASS_TYPE_UNDEFINED;
+	uint64_t                id           = 0;                           // hash of name
+	uint64_t                sort_key     = 0;                           //
+	uint32_t                width        = 0;                           ///< width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
+	uint32_t                height       = 0;                           ///< height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
+	le::SampleCountFlagBits sample_count = le::SampleCountFlagBits::e1; // (samplecount = 1 << sample_count_log_2) must be identical for all attachments. default:0 means 1 sample.
+	uint32_t                isRoot       = false;                       // whether pass *must* be processed
 
-    std::vector<le_resource_handle_t> resources;              // all resources used in this pass
+	std::vector<le_resource_handle_t> resources;              // all resources used in this pass
 	std::vector<LeAccessFlags>        resources_access_flags; // access flags for all resources, in sync with resources
 	std::vector<LeResourceUsageFlags> resources_usage;        // declared usage for each resource, in sync with resources
 
 	std::vector<le_image_attachment_info_t> imageAttachments;    // settings for image attachments (may be color/or depth)
 	std::vector<le_resource_handle_t>       attachmentResources; // kept in sync with imageAttachments, one resource per attachment
 
-	uint32_t width  = 0; ///< width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
-	uint32_t height = 0; ///< height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
+	std::vector<le_resource_handle_t> textureIds;   // imageSampler resource infos
+	std::vector<LeImageSamplerInfo>   textureInfos; // kept in sync with texture id: info for corresponding texture id
 
-    std::vector<LeImageSamplerInfo>   textureInfos; // kept in sync : info for corresponding texture id
-	std::vector<le_resource_handle_t> textureIds;   // kept in sync : texture id
-
-    le_renderer_api::pfn_renderpass_setup_t callbackSetup            = nullptr;
-    void *                                  setup_callback_user_data = nullptr;
-    std::vector<ExecuteCallbackInfo>        executeCallbacks;
+	le_renderer_api::pfn_renderpass_setup_t callbackSetup            = nullptr;
+	void *                                  setup_callback_user_data = nullptr;
+	std::vector<ExecuteCallbackInfo>        executeCallbacks;
 
 	le_command_buffer_encoder_o *encoder   = nullptr;
 	std::string                  debugName = "";
@@ -311,6 +311,14 @@ static void renderpass_set_width( le_renderpass_o *self, uint32_t width ) {
 
 static void renderpass_set_height( le_renderpass_o *self, uint32_t height ) {
 	self->height = height;
+}
+
+static void renderpass_set_sample_count( le_renderpass_o *self, le::SampleCountFlagBits const &sampleCount ) {
+	self->sample_count = sampleCount;
+}
+
+static le::SampleCountFlagBits const &renderpass_get_sample_count( le_renderpass_o *self ) {
+	return self->sample_count;
 }
 
 // ----------------------------------------------------------------------
@@ -863,6 +871,8 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_renderpass_i.get_type                     = renderpass_get_type;
 	le_renderpass_i.get_width                    = renderpass_get_width;
 	le_renderpass_i.set_width                    = renderpass_set_width;
+	le_renderpass_i.set_sample_count             = renderpass_set_sample_count;
+	le_renderpass_i.get_sample_count             = renderpass_get_sample_count;
 	le_renderpass_i.get_height                   = renderpass_get_height;
 	le_renderpass_i.set_height                   = renderpass_set_height;
 	le_renderpass_i.set_setup_callback           = renderpass_set_setup_callback;

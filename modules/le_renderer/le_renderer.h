@@ -57,30 +57,32 @@ struct le_renderer_api {
 	typedef void ( *pfn_renderpass_execute_t )( le_command_buffer_encoder_o *encoder, void *user_data );
 
 	struct renderpass_interface_t {
-		le_renderpass_o *            ( *create               )( const char *renderpass_name, const LeRenderPassType &type_ );
-		void                         ( *destroy              )( le_renderpass_o *obj );
-		le_renderpass_o *            ( *clone                )( const le_renderpass_o *obj );
-        void                         ( *set_setup_callback   )( le_renderpass_o *obj, void *user_data, pfn_renderpass_setup_t setup_fun );
-		bool                         ( *has_setup_callback   )( const le_renderpass_o* obj);
-		void                         ( *add_color_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, le_image_attachment_info_t const *info );
-		void                         ( *add_depth_stencil_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, le_image_attachment_info_t const *info );
-		uint32_t                     ( *get_width            )( le_renderpass_o* obj);
-		uint32_t                     ( *get_height           )( le_renderpass_o* obj);
-		void                         ( *set_width            )( le_renderpass_o* obj, uint32_t width);
-		void                         ( *set_height           )( le_renderpass_o* obj, uint32_t height);
-        void                         ( *set_execute_callback )( le_renderpass_o *obj, void *user_data, pfn_renderpass_execute_t render_fun );
-		bool                         ( *has_execute_callback )( const le_renderpass_o* obj);
-		void                         ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle_t& resource_id, const LeResourceUsageFlags &usage_flags);
-		void                         ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
-		bool                         ( *get_is_root          )( const le_renderpass_o *obj);
-		void                         ( *set_sort_key         )( le_renderpass_o *obj, uint64_t sort_key);
-		uint64_t                     ( *get_sort_key         )( const le_renderpass_o *obj);
-		void                         ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle_t const **pResourceIds, LeResourceUsageFlags const **pResourcesUsage, size_t *count );
-		const char*                  ( *get_debug_name       )( const le_renderpass_o* obj );
-		uint64_t                     ( *get_id               )( const le_renderpass_o* obj );
-		LeRenderPassType             ( *get_type             )( const le_renderpass_o* obj );
-		le_command_buffer_encoder_o* ( *steal_encoder        )( le_renderpass_o* obj );
-		void                         ( *get_image_attachments)(const le_renderpass_o* obj, const le_image_attachment_info_t** pAttachments, const le_resource_handle_t** pResourceIds, size_t* numAttachments);
+		le_renderpass_o *               ( *create               )( const char *renderpass_name, const LeRenderPassType &type_ );
+		void                            ( *destroy              )( le_renderpass_o *obj );
+		le_renderpass_o *               ( *clone                )( const le_renderpass_o *obj );
+        void                            ( *set_setup_callback   )( le_renderpass_o *obj, void *user_data, pfn_renderpass_setup_t setup_fun );
+		bool                            ( *has_setup_callback   )( const le_renderpass_o* obj);
+		void                            ( *add_color_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, le_image_attachment_info_t const *info );
+		void                            ( *add_depth_stencil_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, le_image_attachment_info_t const *info );
+		uint32_t                        ( *get_width            )( le_renderpass_o* obj);
+		uint32_t                        ( *get_height           )( le_renderpass_o* obj);
+		void                            ( *set_width            )( le_renderpass_o* obj, uint32_t width);
+		void                            ( *set_height           )( le_renderpass_o* obj, uint32_t height);
+		void                            ( *set_sample_count     ) (le_renderpass_o* obj, le::SampleCountFlagBits const & sampleCount);
+		le::SampleCountFlagBits const & ( *get_sample_count     ) (le_renderpass_o* obj ); 
+        void                            ( *set_execute_callback )( le_renderpass_o *obj, void *user_data, pfn_renderpass_execute_t render_fun );
+		bool                            ( *has_execute_callback )( const le_renderpass_o* obj);
+		void                            ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle_t& resource_id, const LeResourceUsageFlags &usage_flags);
+		void                            ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
+		bool                            ( *get_is_root          )( const le_renderpass_o *obj);
+		void                            ( *set_sort_key         )( le_renderpass_o *obj, uint64_t sort_key);
+		uint64_t                        ( *get_sort_key         )( const le_renderpass_o *obj);
+		void                            ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle_t const **pResourceIds, LeResourceUsageFlags const **pResourcesUsage, size_t *count );
+		const char*                     ( *get_debug_name       )( const le_renderpass_o* obj );
+		uint64_t                        ( *get_id               )( const le_renderpass_o* obj );
+		LeRenderPassType                ( *get_type             )( const le_renderpass_o* obj );
+		le_command_buffer_encoder_o*    ( *steal_encoder        )( le_renderpass_o* obj );
+		void                            ( *get_image_attachments)(const le_renderpass_o* obj, const le_image_attachment_info_t** pAttachments, const le_resource_handle_t** pResourceIds, size_t* numAttachments);
 
 		// TODO: not too sure about the nomenclature of this
 		// Note that this method implicitly marks the image resource referenced in LeTextureInfo for read access.
@@ -316,6 +318,11 @@ class RenderPass {
 
 	RenderPass &setHeight( uint32_t height ) {
 		le_renderer::renderpass_i.set_height( self, height );
+		return *this;
+	}
+
+	RenderPass &setSampleCount( le::SampleCountFlagBits const &sampleCount ) {
+		le_renderer::renderpass_i.set_sample_count( self, sampleCount );
 		return *this;
 	}
 };
