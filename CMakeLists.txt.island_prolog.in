@@ -11,6 +11,13 @@ set(CMAKE_MODULE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/modules)
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/modules)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR})
 
+# get git commit version for island framework
+execute_process(COMMAND
+  git describe --match=NeVeRmAtCh --always --abbrev=40 --dirty
+  WORKING_DIRECTORY "${ISLAND_BASE_DIR}"
+  OUTPUT_VARIABLE ISLAND_GIT_SHA1
+  ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
+
 function (build_imgui)
     # n.b. configure_file will replace any cmake variables it finds in the file with their values.
     configure_file("${ISLAND_BASE_DIR}CMakeLists.txt.imgui.in" ${ISLAND_BASE_DIR}/3rdparty/src/imgui/CMakeLists.txt @ONLY)
