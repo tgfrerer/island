@@ -397,7 +397,7 @@ struct le_backend_o {
 	uint32_t queueFamilyIndexGraphics = 0; // inferred during setup
 	uint32_t queueFamilyIndexCompute  = 0; // inferred during setup
 
-	const le_resource_handle_t swapchainImageHandle = LE_IMG_RESOURCE( "Backbuffer-Image" ); // opaque handle identifying the backbuffer image, initialised in setup()
+	const le_resource_handle_t swapchainImageHandle = LE_IMG_RESOURCE( "Swapchain-Image" ); // opaque handle identifying the swapchain image, initialised in setup()
 
 	struct {
 		std::unordered_map<le_resource_handle_t, AllocatedResourceVk, LeResourceHandleIdentity> allocatedResources; // Allocated resources, indexed by resource name hash
