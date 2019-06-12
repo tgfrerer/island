@@ -2365,6 +2365,15 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		// This may be the case with the swapchain image resource for example,
 		// as it is allocated and managed from within the swapchain
 
+		if ( frame.availableResources.find( resourceId ) != frame.availableResources.end() ) {
+			continue;
+		}
+
+		// ---------| invariant: resource with this id is not yet available to frame.
+
+		// first check if the resource is available to the frame,
+		// if that is not the chase, check if the resource is available to the frame.
+
 		auto       resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo, &self->queueFamilyIndexGraphics, 0 );
 		auto       foundIt            = backendResources.find( resourceId );
 		const bool resourceIdNotFound = ( foundIt == backendResources.end() );
@@ -2391,7 +2400,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo );
 
 			// Add resource to map of available resources for this frame
-			frame.availableResources.insert( {resourceId, allocatedResource} );
+			frame.availableResources.insert_or_assign( resourceId, allocatedResource );
 
 			// Add this newly allocated resource to the backend so that the following frames
 			// may use it, too
@@ -2445,7 +2454,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				frame.binnedResources.try_emplace( resourceId, foundIt->second );
 
 				// add the new version of the resource to frame available resources
-				frame.availableResources.insert( {resourceId, allocatedResource} );
+				frame.availableResources.insert_or_assign( resourceId, allocatedResource );
 
 				// Remove old version of resource from backend, and
 				// add new version of resource to backend
@@ -2714,12 +2723,18 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 		frame.swapchainWidth  = swapchain_i.get_image_width( self->swapchain );
 		frame.swapchainHeight = swapchain_i.get_image_height( self->swapchain );
 
+		// TODO: we should be able to query swapchain image info so that we can mark the
+		// swapchain image as a frame available resource.
+
 		frame.availableResources[ self->swapchainImageHandle ].asImage = swapchain_i.get_image( self->swapchain, frame.swapchainImageIndex );
 		{
-			auto &backbufferInfo  = frame.availableResources[ self->swapchainImageHandle ].info.imageInfo;
-			backbufferInfo        = vk::ImageCreateInfo{};
-			backbufferInfo.extent = vk::Extent3D( frame.swapchainWidth, frame.swapchainHeight, 1 );
-			backbufferInfo.format = VkFormat( self->swapchainImageFormat );
+			auto &backbufferInfo       = frame.availableResources[ self->swapchainImageHandle ].info.imageInfo;
+			backbufferInfo             = vk::ImageCreateInfo{};
+			backbufferInfo.extent      = vk::Extent3D( frame.swapchainWidth, frame.swapchainHeight, 1 );
+			backbufferInfo.format      = VkFormat( self->swapchainImageFormat );
+			backbufferInfo.usage       = VkImageUsageFlags( vk::ImageUsageFlagBits::eColorAttachment );
+			backbufferInfo.mipLevels   = 1;
+			backbufferInfo.arrayLayers = 1;
 		}
 	}
 
@@ -2768,7 +2783,10 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 				// Set sync state for this resource to value of last elment in the sync chain.
 				res->second.state = resSyncList.back();
 			} else {
-				assert( false ); // frame local resource must be available as a backend resource, otherwise something fishy is going on.
+				assert( resId == self->swapchainImageHandle );
+				// Frame local resource must be available as a backend resource,
+				// unless the resource is the swapchain image handle, which is owned and managed
+				// by the swapchain. Otherwise something fishy is going on.
 			}
 		}
 
