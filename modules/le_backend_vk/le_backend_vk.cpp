@@ -153,7 +153,7 @@ struct ResourceCreateInfo {
 				         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
 				         imageInfo.initialLayout == rhs.imageInfo.initialLayout &&
 				         imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
-				         imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices // should not be compared this way
+				         ( void * )imageInfo.pQueueFamilyIndices == ( void * )rhs.imageInfo.pQueueFamilyIndices // should not be compared this way
 				);
 			}
 
