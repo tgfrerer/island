@@ -37,8 +37,8 @@ struct le_resource_handle_t {
 	union Meta {
 		struct {
 			LeResourceType type;
-			uint8_t        flags;
-			uint16_t       index;
+			uint8_t        flags; // used for virtual resources: staging or virtual
+			uint16_t       index; // refers to index of staging buffer or allocator buffer depending on type resource type
 		};
 		uint32_t meta_data;
 	};

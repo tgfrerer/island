@@ -2362,8 +2362,8 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		le_resource_info_t const &  resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
 
 		// See if a resource with this id is already available to the frame
-		// This may be the case with the swapchain image resource for example,
-		// as it is allocated and managed from within the swapchain
+		// This may be the case with a swapchain image resource for example,
+		// as it is allocated and managed from within the swapchain, not here.
 
 		if ( frame.availableResources.find( resourceId ) != frame.availableResources.end() ) {
 			continue;
