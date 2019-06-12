@@ -2064,7 +2064,7 @@ inline void frame_release_binned_resources( BackendFrameData &frame, vk::Device 
 static void backend_allocate_resources( le_backend_o *self, BackendFrameData &frame, le_renderpass_o **passes, size_t numRenderPasses ) {
 
 	/*
-	- Frame is only ever allowed to reference frame-local resources .
+	- Frame is only ever allowed to reference frame-local resources.
 	- "Acquire" therefore means we create local copies of backend-wide resource handles.
 	*/
 
@@ -2119,9 +2119,9 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		for ( size_t i = 0; i != resources_count; ++i ) {
 
 			le_resource_handle_t const &resource             = p_resources[ i ];             // Resource handle
-			LeResourceUsageFlags const &resource_usage_flags = p_resources_usage_flags[ i ]; //usage flags
+			LeResourceUsageFlags const &resource_usage_flags = p_resources_usage_flags[ i ]; // Resource usage flags
 
-			assert( resource_usage_flags.type == resource.meta.type ); // must be of same type.
+			assert( resource_usage_flags.type == resource.meta.type ); // Resource Usage Flags must be for matching resource type.
 
 			// Test whether a resource with this id is already in usedResources -
 			// if not, resource_index will be identical to usedResource vector size,
@@ -2135,8 +2135,8 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				// Resource not found - we must insert a resource, and an empty vector, to fullfil the invariant
 				// that resource_index points at the correct elements
 
-				// Check if resource is part of previously declared resources - if yes,
-				// insert resource info from declared resources - otherwise insert an
+				// Check if resource was declared explicitly via module - if yes,
+				// insert resource info from there - otherwise insert an
 				// empty entry to indicate that for this resource there are no previous
 				// resource infos.
 
@@ -2144,26 +2144,24 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				// used_resources, which is why we keep declared resources separate, and
 				// only copy their resource info as needed.
 
-				{
-					size_t found_resource_index = 0;
-					// search for resource id in vector of declared resources.
-					for ( auto const &id : frame.declared_resources_id ) {
-						if ( id == resource ) {
-							// resource found, let's use this declared_resource_index.
-							break;
-						}
-						found_resource_index++;
+				size_t found_resource_index = 0;
+				// search for resource id in vector of declared resources.
+				for ( auto const &id : frame.declared_resources_id ) {
+					if ( id == resource ) {
+						// resource found, let's use this declared_resource_index.
+						break;
 					}
+					found_resource_index++;
+				}
 
-					if ( found_resource_index == frame.declared_resources_id.size() ) {
-						// Nothing found. Insert empty entry
-						usedResources.push_back( resource );
-						usedResourcesInfos.push_back( {} );
-					} else {
-						// Previously declared resource found. Insert declaration information.
-						usedResources.push_back( frame.declared_resources_id[ found_resource_index ] );
-						usedResourcesInfos.push_back( {frame.declared_resources_info[ found_resource_index ]} );
-					}
+				if ( found_resource_index == frame.declared_resources_id.size() ) {
+					// Nothing found. Insert empty entry
+					usedResources.push_back( resource );
+					usedResourcesInfos.push_back( {} );
+				} else {
+					// Explicitly declared resource found. Insert declaration info.
+					usedResources.push_back( frame.declared_resources_id[ found_resource_index ] );
+					usedResourcesInfos.push_back( {frame.declared_resources_info[ found_resource_index ]} );
 				}
 			}
 
@@ -2473,7 +2471,13 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		std::cout << std::flush;
 	}
 
-	if ( DEBUG_TAG_RESOURCES && self->instance->isExtensionAvailable( VK_EXT_DEBUG_UTILS_EXTENSION_NAME ) ) {
+	// We capture the check for extension as a static, as this is not expected to
+	// change for the lifetime of the application, and checking for the extension
+	// on each frame is wasteful.
+	//
+	static bool check_utils_extension_available = self->instance->isExtensionAvailable( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
+
+	if ( DEBUG_TAG_RESOURCES && check_utils_extension_available ) {
 		for ( auto const &r : frame.availableResources ) {
 
 			auto device = vk::Device( self->device->getVkDevice() );

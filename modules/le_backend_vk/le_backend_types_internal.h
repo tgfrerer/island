@@ -104,7 +104,6 @@ struct le_descriptor_set_layout_t {
 // Type of descriptor decides which values will be used.
 
 struct DescriptorData {
-	// NOTE: explore use of union of structs DescriptorImageInfo/DescriptorBufferInfo to tighten this up/simplify, add texelbufferview as option
 	struct ImageInfo {
 		vk::Sampler     sampler     = nullptr;                                 // |
 		vk::ImageView   imageView   = nullptr;                                 // | > keep in this order, so we can pass address for sampler as descriptorImageInfo
