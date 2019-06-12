@@ -38,12 +38,12 @@
 // Helper macro to convert le:: enums to vk:: enums
 #define LE_ENUM_TO_VK( enum_name, fun_name )                                    \
 	static inline vk::enum_name fun_name( le::enum_name const &rhs ) noexcept { \
-        return vk::enum_name( rhs );                                            \
+		return vk::enum_name( rhs );                                            \
 	}
 
 #define LE_C_ENUM_TO_VK( enum_name, fun_name, c_enum_name )                   \
 	static inline vk::enum_name fun_name( c_enum_name const &rhs ) noexcept { \
-        return vk::enum_name( rhs );                                          \
+		return vk::enum_name( rhs );                                          \
 	}
 
 constexpr size_t LE_FRAME_DATA_POOL_BLOCK_SIZE  = 1u << 24; // 16.77 MB
@@ -244,7 +244,7 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 	} break;
 	default:
 		assert( false ); // we can only create (allocate) buffer or image resources
-        break;
+		break;
 	}
 
 	return res;
@@ -415,29 +415,29 @@ struct le_backend_o {
 
 static inline void vk_format_get_is_depth_stencil( vk::Format format_, bool &isDepth, bool &isStencil ) {
 
-    switch ( format_ ) {
-    case vk::Format::eD16Unorm:         // fall-through
-    case vk::Format::eX8D24UnormPack32: // fall-through
-    case vk::Format::eD32Sfloat:        // fall-through
-        isDepth   = true;
-        isStencil = false;
-        break;
-    case vk::Format::eS8Uint:
-        isDepth   = false;
-        isStencil = true;
-        break;
-    case vk::Format::eD16UnormS8Uint:  // fall-through
-    case vk::Format::eD24UnormS8Uint:  // fall-through
-    case vk::Format::eD32SfloatS8Uint: // fall-through
-        isDepth = isStencil = true;
-        break;
+	switch ( format_ ) {
+	case vk::Format::eD16Unorm:         // fall-through
+	case vk::Format::eX8D24UnormPack32: // fall-through
+	case vk::Format::eD32Sfloat:        // fall-through
+		isDepth   = true;
+		isStencil = false;
+		break;
+	case vk::Format::eS8Uint:
+		isDepth   = false;
+		isStencil = true;
+		break;
+	case vk::Format::eD16UnormS8Uint:  // fall-through
+	case vk::Format::eD24UnormS8Uint:  // fall-through
+	case vk::Format::eD32SfloatS8Uint: // fall-through
+		isDepth = isStencil = true;
+		break;
 
-    default:
-        isDepth = isStencil = false;
-        break;
-    }
+	default:
+		isDepth = isStencil = false;
+		break;
+	}
 
-    return;
+	return;
 }
 
 // ----------------------------------------------------------------------
@@ -959,15 +959,15 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		// write_stage depends on current renderpass type.
 		switch ( rp_type ) {
 		case LE_RENDER_PASS_TYPE_TRANSFER:
-            return vk::PipelineStageFlagBits::eTransfer; // stage for transfer pass
+			return vk::PipelineStageFlagBits::eTransfer; // stage for transfer pass
 		case LE_RENDER_PASS_TYPE_DRAW:
-            return vk::PipelineStageFlagBits::eVertexShader; // earliest stage for draw pass
+			return vk::PipelineStageFlagBits::eVertexShader; // earliest stage for draw pass
 		case LE_RENDER_PASS_TYPE_COMPUTE:
-            return vk::PipelineStageFlagBits::eComputeShader; // stage for compute pass
+			return vk::PipelineStageFlagBits::eComputeShader; // stage for compute pass
 
 		default:
 			assert( false ); // unreachable - we don't know what kind of stage we're in.
-            return vk::PipelineStageFlagBits();
+			return vk::PipelineStageFlagBits();
 		}
 	};
 
@@ -1071,9 +1071,9 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 			vk::Format attachmentFormat = vk::Format( frame.availableResources[ image_resource_id ].info.imageInfo.format );
 
-            bool isDepth = false, isStencil = false;
-            vk_format_get_is_depth_stencil( attachmentFormat, isDepth, isStencil );
-            bool isDepthStencil = isDepth || isStencil;
+			bool isDepth = false, isStencil = false;
+			vk_format_get_is_depth_stencil( attachmentFormat, isDepth, isStencil );
+			bool isDepthStencil = isDepth || isStencil;
 
 			AttachmentInfo *currentAttachment = ( currentPass.attachments + ( currentPass.numColorAttachments + currentPass.numDepthStencilAttachments ) );
 
@@ -1334,26 +1334,26 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 			switch ( r.type ) {
 			case AbstractPhysicalResource::eBuffer:
 				device.destroyBuffer( r.asBuffer );
-                break;
+				break;
 			case AbstractPhysicalResource::eFramebuffer:
 				device.destroyFramebuffer( r.asFramebuffer );
-                break;
+				break;
 			case AbstractPhysicalResource::eImage:
 				device.destroyImage( r.asImage );
-                break;
+				break;
 			case AbstractPhysicalResource::eImageView:
 				device.destroyImageView( r.asImageView );
-                break;
+				break;
 			case AbstractPhysicalResource::eRenderPass:
 				device.destroyRenderPass( r.asRenderPass );
-                break;
+				break;
 			case AbstractPhysicalResource::eSampler:
 				device.destroySampler( r.asSampler );
-                break;
+				break;
 
 			case AbstractPhysicalResource::eUndefined:
 				std::cout << __PRETTY_FUNCTION__ << ": abstract physical resource has unknown type (" << std::hex << r.type << ") and cannot be deleted. leaking..." << std::flush;
-                break;
+				break;
 			}
 		}
 		frame.ownedResources.clear();
@@ -1419,7 +1419,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		attachments.reserve( pass.numColorAttachments + pass.numDepthStencilAttachments );
 
 		std::vector<vk::AttachmentReference>     colorAttachmentReferences;
-        std::unique_ptr<vk::AttachmentReference> dsAttachmentReference;
+		std::unique_ptr<vk::AttachmentReference> dsAttachmentReference;
 
 		// We must accumulate these flags over all attachments - they are the
 		// union of all flags required by all attachments in a pass.
@@ -1455,9 +1455,9 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 			const auto &syncSubpass = syncChain.at( attachment->initialStateOffset + 1 );
 			const auto &syncFinal   = syncChain.at( attachment->finalStateOffset );
 
-            bool isDepth   = false;
-            bool isStencil = false;
-            vk_format_get_is_depth_stencil( attachment->format, isDepth, isStencil );
+			bool isDepth   = false;
+			bool isStencil = false;
+			vk_format_get_is_depth_stencil( attachment->format, isDepth, isStencil );
 
 			vk::AttachmentDescription attachmentDescription{};
 			attachmentDescription
@@ -1466,8 +1466,8 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 			    .setSamples( attachment->numSamples )         // relevant for compatibility
 			    .setLoadOp( attachment->loadOp )
 			    .setStoreOp( attachment->storeOp )
-                .setStencilLoadOp( isStencil ? attachment->loadOp : vk::AttachmentLoadOp::eDontCare )
-                .setStencilStoreOp( isStencil ? attachment->storeOp : vk::AttachmentStoreOp::eDontCare )
+			    .setStencilLoadOp( isStencil ? attachment->loadOp : vk::AttachmentLoadOp::eDontCare )
+			    .setStencilStoreOp( isStencil ? attachment->storeOp : vk::AttachmentStoreOp::eDontCare )
 			    .setInitialLayout( syncInitial.layout )
 			    .setFinalLayout( syncFinal.layout );
 
@@ -1486,8 +1486,8 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 			attachments.emplace_back( attachmentDescription );
 
-            if ( isDepth || isStencil ) {
-                dsAttachmentReference = std::make_unique<vk::AttachmentReference>( attachments.size() - 1, syncSubpass.layout );
+			if ( isDepth || isStencil ) {
+				dsAttachmentReference = std::make_unique<vk::AttachmentReference>( attachments.size() - 1, syncSubpass.layout );
 			} else {
 				colorAttachmentReferences.emplace_back( attachments.size() - 1, syncSubpass.layout );
 			}
@@ -1527,7 +1527,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		    .setColorAttachmentCount( uint32_t( colorAttachmentReferences.size() ) )
 		    .setPColorAttachments( colorAttachmentReferences.data() )
 		    .setPResolveAttachments( nullptr ) // must be NULL or have same length as colorAttachments
-            .setPDepthStencilAttachment( dsAttachmentReference.get() )
+		    .setPDepthStencilAttachment( dsAttachmentReference.get() )
 		    .setPreserveAttachmentCount( 0 )
 		    .setPPreserveAttachments( nullptr );
 
@@ -1722,24 +1722,24 @@ static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFra
 // ----------------------------------------------------------------------
 
 vk::ImageAspectFlags get_aspect_flags_from_format( vk::Format const &format ) {
-    vk::ImageAspectFlags aspectFlags{};
+	vk::ImageAspectFlags aspectFlags{};
 
-    bool isDepth   = false;
-    bool isStencil = false;
-    vk_format_get_is_depth_stencil( format, isDepth, isStencil );
+	bool isDepth   = false;
+	bool isStencil = false;
+	vk_format_get_is_depth_stencil( format, isDepth, isStencil );
 
-    if ( isDepth || isStencil ) {
-        if ( isDepth ) {
-            aspectFlags |= vk::ImageAspectFlagBits::eDepth;
-        }
-        if ( isStencil ) {
-            aspectFlags |= vk::ImageAspectFlagBits::eStencil;
-        }
-    } else {
-        aspectFlags |= vk::ImageAspectFlagBits::eColor;
-    }
+	if ( isDepth || isStencil ) {
+		if ( isDepth ) {
+			aspectFlags |= vk::ImageAspectFlagBits::eDepth;
+		}
+		if ( isStencil ) {
+			aspectFlags |= vk::ImageAspectFlagBits::eStencil;
+		}
+	} else {
+		aspectFlags |= vk::ImageAspectFlagBits::eColor;
+	}
 
-    return aspectFlags;
+	return aspectFlags;
 }
 
 // ----------------------------------------------------------------------
@@ -1759,7 +1759,7 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 
 			vk::ImageSubresourceRange subresourceRange;
 			subresourceRange
-                .setAspectMask( get_aspect_flags_from_format( attachment->format ) )
+			    .setAspectMask( get_aspect_flags_from_format( attachment->format ) )
 			    .setBaseMipLevel( 0 )
 			    .setLevelCount( 1 )
 			    .setBaseArrayLayer( 0 )
@@ -2299,7 +2299,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 		} break;
 		default:
-            break;
+			break;
 		}
 		resource_index++;
 	}
@@ -2311,7 +2311,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		std::cout << std::setw( 16 ) << handle.debug_name;
 		if ( info.isBuffer() ) {
 			std::cout
-			    << " : " << std::setw( 4 ) << ( info.bufferInfo.size )
+			    << " : " << std::dec << std::setw( 4 ) << ( info.bufferInfo.size )
 			    << " : " << std::setw( 30 ) << to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) )
 			    << std::endl;
 		} else {
@@ -2542,7 +2542,7 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 
 				vk::ImageSubresourceRange subresourceRange;
 				subresourceRange
-                    .setAspectMask( get_aspect_flags_from_format( imageFormat ) )
+				    .setAspectMask( get_aspect_flags_from_format( imageFormat ) )
 				    .setBaseMipLevel( 0 )
 				    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
 				    .setBaseArrayLayer( 0 )
@@ -2607,7 +2607,7 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 
 					vk::ImageSubresourceRange subresourceRange;
 					subresourceRange
-                        .setAspectMask( get_aspect_flags_from_format( imageFormat ) )
+					    .setAspectMask( get_aspect_flags_from_format( imageFormat ) )
 					    .setBaseMipLevel( 0 )
 					    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
 					    .setBaseArrayLayer( 0 )
@@ -2760,7 +2760,7 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 
 			auto res = backendResources.find( resId );
 			if ( res != backendResources.end() ) {
-				// element found.
+				// Element found.
 				// Set sync state for this resource to value of last elment in the sync chain.
 				res->second.state = resSyncList.back();
 			} else {
@@ -3069,16 +3069,16 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					case vk::DescriptorType::eStorageBuffer:        // fall-through
 						// if buffer must have valid buffer bound
 						argumentsOk &= ( nullptr != a.bufferInfo.buffer );
-                        break;
+						break;
 					case vk::DescriptorType::eCombinedImageSampler:
 					case vk::DescriptorType::eSampledImage:
 					case vk::DescriptorType::eStorageImage:
 						argumentsOk &= ( nullptr != a.imageInfo.imageView ); // if sampler, must have valid image view
-                        break;
+						break;
 					default:
 						// TODO: check arguments for other types of descriptors
 						argumentsOk &= true;
-                        break;
+						break;
 					}
 
 					if ( false == argumentsOk ) {
@@ -3165,9 +3165,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 									// add an entry for each array element with this binding to setData
 									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
 										DescriptorData descriptorData{
-                                            .type          = vk::DescriptorType( b.type ),
-                                            .bindingNumber = uint32_t( b.binding ),
-                                            .arrayIndex    = uint32_t( arrayIndex ),
+										    .type          = vk::DescriptorType( b.type ),
+										    .bindingNumber = uint32_t( b.binding ),
+										    .arrayIndex    = uint32_t( arrayIndex ),
 										};
 										descriptorData.bufferInfo.range = VK_WHOLE_SIZE;
 										setData.emplace_back( descriptorData );
@@ -3247,9 +3247,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 									// add an entry for each array element with this binding to setData
 									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
 										DescriptorData descriptorData{
-                                            .type          = vk::DescriptorType( b.type ),
-                                            .bindingNumber = uint32_t( b.binding ),
-                                            .arrayIndex    = uint32_t( arrayIndex ),
+										    .type          = vk::DescriptorType( b.type ),
+										    .bindingNumber = uint32_t( b.binding ),
+										    .arrayIndex    = uint32_t( arrayIndex ),
 										};
 										descriptorData.bufferInfo.range = VK_WHOLE_SIZE;
 
