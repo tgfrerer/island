@@ -2359,9 +2359,11 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	for ( size_t i = 0; i != usedResourcesSize; ++i ) {
 
 		le_resource_handle_t const &resourceId   = usedResources[ i ];
-		le_resource_info_t const &  resourceInfo = usedResourcesInfos[ i ][ 0 ];
+		le_resource_info_t const &  resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
 
-		// See if a resource with this id is already available to the backend.
+		// See if a resource with this id is already available to the frame
+		// This may be the case with the swapchain image resource for example,
+		// as it is allocated and managed from within the swapchain
 
 		auto       resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo, &self->queueFamilyIndexGraphics, 0 );
 		auto       foundIt            = backendResources.find( resourceId );
