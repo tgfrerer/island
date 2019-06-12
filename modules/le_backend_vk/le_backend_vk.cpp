@@ -2326,8 +2326,6 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		std::cout << std::flush;
 	};
 
-	auto &backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
-
 	auto checkImageFormat = []( le_backend_o *self, le_resource_handle_t const &resource, ResourceCreateInfo *createInfo, LeImageUsageFlags const &usageFlags ) -> bool {
 		// If image format was not specified, we must try to
 		// infer the image format from usage flags.
@@ -2354,6 +2352,8 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			createInfo->imageInfo.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 		}
 	};
+
+	auto &backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
 
 	const size_t usedResourcesSize = usedResources.size();
 	for ( size_t i = 0; i != usedResourcesSize; ++i ) {
@@ -2786,7 +2786,8 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 				assert( resId == self->swapchainImageHandle );
 				// Frame local resource must be available as a backend resource,
 				// unless the resource is the swapchain image handle, which is owned and managed
-				// by the swapchain. Otherwise something fishy is going on.
+				// by the swapchain.
+				// Otherwise something fishy is going on.
 			}
 		}
 
