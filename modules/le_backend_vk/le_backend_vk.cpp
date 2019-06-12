@@ -2091,8 +2091,9 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 	for ( le_renderpass_o **rp = passes; rp != passes + numRenderPasses; rp++ ) {
 
-		auto pass_width  = renderpass_i.get_width( *rp );
-		auto pass_height = renderpass_i.get_height( *rp );
+		auto pass_width       = renderpass_i.get_width( *rp );
+		auto pass_height      = renderpass_i.get_height( *rp );
+		auto pass_num_samples = renderpass_i.get_sample_count( *rp );
 
 		{
 			if ( pass_width == 0 ) {
@@ -2185,7 +2186,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				if ( imgInfo.usage & ( LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) ) {
 
 					imgInfo.mipLevels   = 1;
-					imgInfo.samples     = le::SampleCountFlagBits::e1;
+					imgInfo.samples     = pass_num_samples;
 					imgInfo.imageType   = le::ImageType::e2D;
 					imgInfo.tiling      = le::ImageTiling::eOptimal;
 					imgInfo.arrayLayers = 1;
@@ -2319,6 +2320,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			    << " : " << std::dec << std::setw( 4 ) << info.imageInfo.extent.width << " x " << std::setw( 4 ) << info.imageInfo.extent.height
 			    << " : " << std::setw( 30 ) << to_string( vk::Format( info.imageInfo.format ) )
 			    << " : " << std::setw( 30 ) << to_string( vk::ImageUsageFlags( info.imageInfo.usage ) )
+			    << " : " << std::setw( 5 ) << to_string( vk::SampleCountFlagBits( info.imageInfo.samples ) ) << " samples"
 			    << std::endl;
 		}
 		std::cout << std::flush;
