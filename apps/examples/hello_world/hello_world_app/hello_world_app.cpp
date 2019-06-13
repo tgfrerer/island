@@ -549,6 +549,9 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		        .setDepthTestEnable( true )
 		        .setDepthWriteEnable( false )
 		        .end()
+		        .withMultiSampleState()
+		        .setSampleShadingEnable( true )
+		        .end()
 		        .build();
 
 		earthParams.model = glm::scale( earthParams.model, glm::vec3{1.025f} );
@@ -660,12 +663,17 @@ static bool hello_world_app_update( hello_world_app_o *self ) {
 	le::RenderModule mainModule{};
 	{
 		le::RenderPass resourcePass( "resources", LE_RENDER_PASS_TYPE_TRANSFER );
-		resourcePass.setSetupCallback( self, pass_resource_setup );
-		resourcePass.setExecuteCallback( self, pass_resource_exec );
+		resourcePass
+		    .setSetupCallback( self, pass_resource_setup )
+		    .setExecuteCallback( self, pass_resource_exec ) //
+		    ;
 
 		le::RenderPass renderPassFinal( "root", LE_RENDER_PASS_TYPE_DRAW );
-		renderPassFinal.setSetupCallback( self, pass_main_setup );
-		renderPassFinal.setExecuteCallback( self, pass_main_exec );
+		renderPassFinal
+		    .setSetupCallback( self, pass_main_setup )
+		    .setSampleCount( le::SampleCountFlagBits::e8 )
+		    .setExecuteCallback( self, pass_main_exec ) //
+		    ;
 
 		mainModule
 		    .addRenderPass( resourcePass )
