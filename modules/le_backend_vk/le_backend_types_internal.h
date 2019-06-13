@@ -153,6 +153,11 @@ struct AbstractPhysicalResource {
 };
 
 struct AttachmentInfo {
+	enum class Type : uint64_t {
+		eColorAttachment = 0,
+		eDepthStencilAttachment,
+		eResolveAttachment,
+	};
 	le_resource_handle_t    resource_id{};      ///< which resource to look up for resource state
 	vk::Format              format;             ///
 	vk::AttachmentLoadOp    loadOp;             ///
@@ -161,6 +166,7 @@ struct AttachmentInfo {
 	vk::SampleCountFlagBits numSamples;         /// < number of samples, default 1
 	uint32_t                initialStateOffset; ///< sync state of resource before entering the renderpass (offset is into resource specific sync chain )
 	uint32_t                finalStateOffset;   ///< sync state of resource after exiting the renderpass (offset is into resource specific sync chain )
+	Type                    type;
 };
 
 struct LeRenderPass {
