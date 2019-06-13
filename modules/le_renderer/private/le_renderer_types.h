@@ -38,7 +38,10 @@ struct le_resource_handle_t {
 		struct {
 			LeResourceType type;
 			uint8_t        flags; // used for virtual resources: staging or virtual
-			uint16_t       index; // refers to index of staging buffer or allocator buffer depending on type resource type
+			union {
+				uint16_t num_samples; // If used as image : refers to number of samples (stored as log_2 values, where 0 means 1, 1 means 2..)
+				uint16_t index;       // If used as buffer: refers to index of staging buffer or allocator buffer, depending on type
+			};
 		};
 		uint32_t meta_data;
 	};
@@ -1186,9 +1189,10 @@ struct le_resource_info_t {
 		le::Extent3D            extent;      //
 		uint32_t                mipLevels;   //
 		uint32_t                arrayLayers; //
-		le::SampleCountFlagBits samples;     // enum VkSampleCountFlagBits (NOT bitfield)
+		uint32_t                sample_count_log2; // sample count as log2, 0 means 1, 1 means 2, 2 means 4...
 		le::ImageTiling         tiling;      // enum VkImageTiling
 		LeImageUsageFlags       usage;       // usage flags (LeImageUsageFlags : uint32_t)
+		uint32_t                samplesFlags; // bitfield over all variants of this image resource
 	};
 
 	struct Buffer {

@@ -209,6 +209,33 @@ LE_ENUM_TO_VK( BorderColor, le_border_color_to_vk );
 
 // ----------------------------------------------------------------------
 
+// Convert a log2 of sample count to the corresponding `vk::SampleCountFlagBits` enum
+vk::SampleCountFlagBits le_sample_count_log_2_to_vk( uint32_t sample_count_log2 ) {
+
+	// this method is a quick and dirty hack, but as long as the
+	// following static asserts hold true, it will work.
+
+	static_assert( uint32_t( vk::SampleCountFlagBits::e1 ) == 1 << 0, "SampleCountFlagBits conversion failed." );
+	static_assert( uint32_t( vk::SampleCountFlagBits::e2 ) == 1 << 1, "SampleCountFlagBits conversion failed." );
+	static_assert( uint32_t( vk::SampleCountFlagBits::e4 ) == 1 << 2, "SampleCountFlagBits conversion failed." );
+	static_assert( uint32_t( vk::SampleCountFlagBits::e8 ) == 1 << 3, "SampleCountFlagBits conversion failed." );
+	static_assert( uint32_t( vk::SampleCountFlagBits::e16 ) == 1 << 4, "SampleCountFlagBits conversion failed." );
+	static_assert( uint32_t( vk::SampleCountFlagBits::e32 ) == 1 << 5, "SampleCountFlagBits conversion failed." );
+
+	return vk::SampleCountFlagBits( 1 << sample_count_log2 );
+}
+
+// ----------------------------------------------------------------------
+
+// returns log2 of number of samples, so that number of samples can be
+// calculated as `num_samples = 1 << log2_num_samples`
+inline uint16_t get_sample_count_log_2( uint32_t const &sample_count ) {
+	auto lz = __builtin_clz( sample_count );
+	return 31 - lz;
+}
+
+// ----------------------------------------------------------------------
+
 ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_info_t &info, uint32_t *pQueueFamilyIndices, uint32_t queueFamilyIndexCount ) {
 	ResourceCreateInfo res;
 
@@ -232,7 +259,7 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 		                    .setExtent( {img.extent.width, img.extent.height, img.extent.depth} ) //
 		                    .setMipLevels( img.mipLevels )                                        //
 		                    .setArrayLayers( img.arrayLayers )                                    //
-		                    .setSamples( le_sample_count_flag_bits_to_vk( img.samples ) )         //
+		                    .setSamples( le_sample_count_log_2_to_vk( img.sample_count_log2 ) )   //
 		                    .setTiling( le_image_tiling_to_vk( img.tiling ) )                     //
 		                    .setUsage( le_image_usage_flags_to_vk( img.usage ) )                  //
 		                    .setSharingMode( vk::SharingMode::eExclusive )                        // hardcoded to Exclusive - no sharing between queues
@@ -979,8 +1006,10 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 		currentPass.type      = renderpass_i.get_type( *pass );
 		currentPass.debugName = renderpass_i.get_debug_name( *pass );
-		currentPass.width     = renderpass_i.get_width( *pass );
-		currentPass.height    = renderpass_i.get_height( *pass );
+
+		currentPass.width       = renderpass_i.get_width( *pass );
+		currentPass.height      = renderpass_i.get_height( *pass );
+		currentPass.sampleCount = le_sample_count_flag_bits_to_vk( renderpass_i.get_sample_count( *pass ) );
 
 		// Find explicit sync ops needed for resources which are not image
 		// attachments.
@@ -1057,6 +1086,9 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		}
 
 		// iterate over all image attachments
+
+		auto const &sampleCount    = renderpass_i.get_sample_count( *pass );
+		auto        numSamplesLog2 = get_sample_count_log_2( uint32_t( sampleCount ) );
 
 		le_image_attachment_info_t const *pImageAttachments   = nullptr;
 		le_resource_handle_t const *      pResources          = nullptr;
@@ -2091,9 +2123,9 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 	for ( le_renderpass_o **rp = passes; rp != passes + numRenderPasses; rp++ ) {
 
-		auto pass_width       = renderpass_i.get_width( *rp );
-		auto pass_height      = renderpass_i.get_height( *rp );
-		auto pass_num_samples = renderpass_i.get_sample_count( *rp );
+		auto pass_width            = renderpass_i.get_width( *rp );
+		auto pass_height           = renderpass_i.get_height( *rp );
+		auto pass_num_samples_log2 = get_sample_count_log_2( uint32_t( renderpass_i.get_sample_count( *rp ) ) );
 
 		{
 			if ( pass_width == 0 ) {
