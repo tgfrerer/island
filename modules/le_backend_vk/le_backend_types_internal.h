@@ -165,9 +165,10 @@ struct AttachmentInfo {
 
 struct LeRenderPass {
 
-	AttachmentInfo attachments[ 16 ];          // maximum of 16 color output attachments
-	uint16_t       numColorAttachments;        // 0..16
-	uint16_t       numDepthStencilAttachments; // 0..1
+	AttachmentInfo attachments[ VK_MAX_COLOR_ATTACHMENTS ]; // maximum of 16 color output attachments
+	uint16_t       numColorAttachments;                     // 0..VK_MAX_COLOR_ATTACHMENTS
+	uint16_t       numResolveAttachments;                   // 0..8
+	uint16_t       numDepthStencilAttachments;              // 0..1
 
 	LeRenderPassType type;
 
