@@ -1238,8 +1238,8 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 			renderpass_i.get_used_resources( *pass, &resources, &resources_usage, &resources_count );
 
 			for ( size_t i = 0; i != resources_count; ++i ) {
-				auto &resource = resources[ i ];
-				auto &usage    = resources_usage[ i ];
+				auto const &resource = resources[ i ];
+				auto const &usage    = resources_usage[ i ];
 
 				auto &syncChain = syncChainTable[ resource ];
 				assert( !syncChain.empty() ); // must not be empty - this resource must exist, and have an initial sync state
@@ -1260,8 +1260,8 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 					if ( usage.typed_as.image_usage_flags & LE_IMAGE_USAGE_SAMPLED_BIT ) {
 
 						requestedState.visible_access = vk::AccessFlagBits::eShaderRead;
-						requestedState.write_stage = requestedState.write_stage = get_stage_flags_based_on_renderpass_type( currentPass.type );
-						requestedState.layout                                   = vk::ImageLayout::eShaderReadOnlyOptimal;
+						requestedState.write_stage    = get_stage_flags_based_on_renderpass_type( currentPass.type );
+						requestedState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
 
 					} else if ( usage.typed_as.image_usage_flags & LE_IMAGE_USAGE_STORAGE_BIT ) {
 
@@ -1274,7 +1274,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 						continue;
 
-						// FIXME: implement - and make sure we're still compatible with the barriers inserted
+						// TODO: implement - and make sure we're still compatible with the barriers inserted
 						// when processing le::CommandType::eWriteToImage.
 						//						requestedState.visible_access = vk::AccessFlagBits::eTransferWrite;
 						//						requestedState.write_stage    = get_stage_flags_based_on_renderpass_type( currentPass.type );
@@ -1311,7 +1311,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		currentPass.encoder = renderpass_i.steal_encoder( *pass );
 
 		frame.passes.emplace_back( std::move( currentPass ) );
-	}
+	} // end for all passes
 
 	for ( auto &syncChainPair : syncChainTable ) {
 		const auto &id        = syncChainPair.first;
@@ -1342,7 +1342,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 	// If they were lower, that would mean that an implicit sync has already taken care of this
 	// image resource operation, in which case we want to deactivate the barrier, as it is not needed.
 	//
-	// Note that only image resources have a chance of being implicitly synced
+	// Note that only resources of type image may be implicitly synced.
 
 	typedef std::unordered_map<le_resource_handle_t, uint32_t, LeResourceHandleIdentity> SyncChainMap;
 
@@ -1361,10 +1361,11 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 	for ( auto &p : frame.passes ) {
 
-		// check barrier sync chain index against current sync index.
+		// Check barrier sync chain index against current sync index.
 		//
-		// if barrier sync index is higher, barrier must be issued. otherwise, barrier must be removed,
-		// as subpass dependency takes care of barrier via implicit sync.
+		// If barrier sync index is higher, barrier must be issued. Otherwise,
+		// barrier must be removed, as subpass dependency already takes care
+		// of synchronisation implicitly.
 
 		for ( auto &op : p.explicit_sync_ops ) {
 
@@ -1741,7 +1742,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 				// -- Hash subpasses
 				for ( const auto &s : subpasses ) {
 
-					// note: attachment references are not that straightforward to hash either, as they contain a layout
+					// Note: Attachment references are not that straightforward to hash either, as they contain a layout
 					// field, which we want to ignore, since it makes no difference for render pass compatibility.
 
 					rp_hash = SpookyHash::Hash64( &s.flags, sizeof( s.flags ), rp_hash );
@@ -1750,8 +1751,8 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 					rp_hash = SpookyHash::Hash64( &s.colorAttachmentCount, sizeof( s.colorAttachmentCount ), rp_hash );
 					rp_hash = SpookyHash::Hash64( &s.preserveAttachmentCount, sizeof( s.preserveAttachmentCount ), rp_hash );
 
+					// We define this as a pure function lambda, and hope for it to be inlined
 					auto calc_hash_for_attachment_references = []( vk::AttachmentReference const *pAttachmentRefs, unsigned int count, uint64_t seed ) -> uint64_t {
-						// We define this as a pure function lambda, and hope for it to be inlined
 						if ( pAttachmentRefs == nullptr ) {
 							return seed;
 						}
@@ -1762,7 +1763,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 						return seed;
 					};
 
-					// -- for each element in attachment reference, add attachment reference index to the hash
+					// -- For each element in attachment reference, add attachment reference index to the hash
 					//
 					rp_hash = calc_hash_for_attachment_references( s.pColorAttachments, s.colorAttachmentCount, rp_hash );
 					rp_hash = calc_hash_for_attachment_references( s.pResolveAttachments, s.colorAttachmentCount, rp_hash );
@@ -1945,6 +1946,8 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 		}
 	}
 }
+
+// ----------------------------------------------------------------------
 
 static void backend_create_descriptor_pools( BackendFrameData &frame, vk::Device &device, size_t numRenderPasses ) {
 
@@ -2489,8 +2492,8 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		}
 	};
 
-	// TODO: For each image resource which has more than one sample
-	// we must add a resource id and a new resource info to the list
+	// For each image resource which has more than one sample
+	// we add a resource id and a new resource info to the list
 	// of used resources.
 	{
 		const size_t usedResourcesSize = usedResources.size();
@@ -2666,7 +2669,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				          << " : " << std::setw( 30 ) << r.second.asBuffer << std::endl;
 			} else {
 				std::cout << std::setw( 10 ) << "Image"
-				          << " : " << std::setw( 30 ) << r.first.debug_name
+				          << " : " << std::setw( 30 ) << r.first.debug_name << "(s:" << r.first.meta.num_samples << ")"
 				          << " : " << std::setw( 30 ) << r.second.asImage << std::endl;
 			}
 		}
@@ -3150,7 +3153,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// --------| invariant: barrier is active.
 
 						// print out sync chain for sampled image
-						std::cout << "\t Explicit Barrier for: " << op.resource_id.debug_name << std::endl;
+						std::cout << "\t Explicit Barrier for: " << op.resource_id.debug_name << "(s:" << op.resource_id.meta.num_samples << ")" << std::endl;
 
 						std::cout << "\t " << std::setw( 3 ) << "#"
 						          << " : " << std::setw( 30 ) << "visible_access"
