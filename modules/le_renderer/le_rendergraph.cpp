@@ -317,7 +317,7 @@ static void renderpass_set_sample_count( le_renderpass_o *self, le::SampleCountF
 	self->sample_count = sampleCount;
 }
 
-static le::SampleCountFlagBits const &renderpass_get_sample_count( le_renderpass_o *self ) {
+static le::SampleCountFlagBits const &renderpass_get_sample_count( le_renderpass_o const *self ) {
 	return self->sample_count;
 }
 
