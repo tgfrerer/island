@@ -416,11 +416,6 @@ class ImageInfoBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	ImageInfoBuilder &setSamples( le::SampleCountFlagBits const &sampleFlagBits = le::SampleCountFlagBits::e1 ) {
-		img.samples = sampleFlagBits;
-		return *this;
-	}
-
 	ImageInfoBuilder &setImageType( le::ImageType const &imageType = le::ImageType::e2D ) {
 		img.imageType = imageType;
 		return *this;
