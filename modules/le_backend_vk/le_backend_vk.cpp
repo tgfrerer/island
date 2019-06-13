@@ -1551,6 +1551,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		attachments.reserve( pass.numColorAttachments + pass.numDepthStencilAttachments );
 
 		std::vector<vk::AttachmentReference>     colorAttachmentReferences;
+		std::vector<vk::AttachmentReference>     resolveAttachmentReferences;
 		std::unique_ptr<vk::AttachmentReference> dsAttachmentReference;
 
 		// We must accumulate these flags over all attachments - they are the
@@ -1577,7 +1578,9 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		}
 
 		auto const attachments_end = pass.attachments +
-		                             ( pass.numColorAttachments + pass.numDepthStencilAttachments );
+		                             pass.numColorAttachments +
+		                             pass.numDepthStencilAttachments +
+		                             pass.numResolveAttachments;
 
 		for ( AttachmentInfo const *attachment = pass.attachments; attachment != attachments_end; attachment++ ) {
 
@@ -1605,7 +1608,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 			if ( PRINT_DEBUG_MESSAGES ) {
 
-				std::cout << std::setw( 30 ) << attachment->resource_id.debug_name
+				std::cout << std::setw( 30 ) << attachment->resource_id.debug_name << "(s:" << attachment->resource_id.meta.num_samples << ")"
 				          << " : " << std::setw( 30 ) << vk::to_string( syncInitial.layout )
 				          << " : " << std::setw( 30 ) << vk::to_string( syncSubpass.layout )
 				          << " : " << std::setw( 30 ) << vk::to_string( syncFinal.layout )
@@ -1618,10 +1621,16 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 			attachments.emplace_back( attachmentDescription );
 
-			if ( isDepth || isStencil ) {
+			switch ( attachment->type ) {
+			case AttachmentInfo::Type::eDepthStencilAttachment:
 				dsAttachmentReference = std::make_unique<vk::AttachmentReference>( attachments.size() - 1, syncSubpass.layout );
-			} else {
+				break;
+			case AttachmentInfo::Type::eColorAttachment:
 				colorAttachmentReferences.emplace_back( attachments.size() - 1, syncSubpass.layout );
+				break;
+			case AttachmentInfo::Type::eResolveAttachment:
+				resolveAttachmentReferences.emplace_back( attachments.size() - 1, syncSubpass.layout );
+				break;
 			}
 
 			srcStageFromExternalFlags |= syncInitial.write_stage;
@@ -1658,7 +1667,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		    .setPInputAttachments( nullptr )
 		    .setColorAttachmentCount( uint32_t( colorAttachmentReferences.size() ) )
 		    .setPColorAttachments( colorAttachmentReferences.data() )
-		    .setPResolveAttachments( nullptr ) // must be NULL or have same length as colorAttachments
+		    .setPResolveAttachments( resolveAttachmentReferences.empty() ? nullptr : resolveAttachmentReferences.data() ) // must be NULL or have same length as colorAttachments
 		    .setPDepthStencilAttachment( dsAttachmentReference.get() )
 		    .setPreserveAttachmentCount( 0 )
 		    .setPPreserveAttachments( nullptr );
@@ -1764,9 +1773,11 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 					// -- For each element in attachment reference, add attachment reference index to the hash
 					//
 					rp_hash = calc_hash_for_attachment_references( s.pColorAttachments, s.colorAttachmentCount, rp_hash );
-					rp_hash = calc_hash_for_attachment_references( s.pResolveAttachments, s.colorAttachmentCount, rp_hash );
 					rp_hash = calc_hash_for_attachment_references( s.pInputAttachments, s.inputAttachmentCount, rp_hash );
 					rp_hash = calc_hash_for_attachment_references( s.pDepthStencilAttachment, 1, rp_hash );
+
+					// Note that we did not calculate hashes for resolve attachments, as these do not contribute
+					// to renderpass compatibility considerations. See: vkSpec:`7.2. Render Pass Compatibility`
 
 					// -- preserve attachments are special, because they are not stored as attachment references, but as plain indices
 					if ( s.pPreserveAttachments ) {
@@ -1884,10 +1895,16 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 		if ( pass.type != LE_RENDER_PASS_TYPE_DRAW ) {
 			continue;
 		}
-		std::vector<vk::ImageView> framebufferAttachments;
-		framebufferAttachments.reserve( pass.numColorAttachments + pass.numDepthStencilAttachments );
 
-		for ( AttachmentInfo const *attachment = pass.attachments; attachment != pass.attachments + ( pass.numColorAttachments + pass.numDepthStencilAttachments ); attachment++ ) {
+		uint32_t attachmentCount = pass.numColorAttachments +
+		                           pass.numResolveAttachments +
+		                           pass.numDepthStencilAttachments;
+
+		std::vector<vk::ImageView> framebufferAttachments;
+		framebufferAttachments.reserve( attachmentCount );
+
+		auto const attachment_end = pass.attachments + attachmentCount;
+		for ( AttachmentInfo const *attachment = pass.attachments; attachment != attachment_end; attachment++ ) {
 
 			vk::ImageSubresourceRange subresourceRange;
 			subresourceRange
@@ -1925,8 +1942,9 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 		framebufferCreateInfo
 		    .setFlags( {} )
 		    .setRenderPass( pass.renderPass )
-		    .setAttachmentCount( uint32_t( framebufferAttachments.size() ) )
+		    .setAttachmentCount( attachmentCount )
 		    .setPAttachments( framebufferAttachments.data() )
+
 		    .setWidth( pass.width )
 		    .setHeight( pass.height )
 		    .setLayers( 1 );
