@@ -1348,15 +1348,10 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 	SyncChainMap max_sync_index;
 
-	auto insert_if_greater = [&max_sync_index]( le_resource_handle_t const &handle, uint32_t index ) {
-		auto found_it = max_sync_index.find( handle );
-		if ( found_it == max_sync_index.end() ) {
-			// not yet in map, we must insert the new value
-			max_sync_index[ handle ] = index;
-		} else if ( index > found_it->second ) {
-			// new index is higher than value in map, replace map value with new index.
-			found_it->second = index;
-		}
+	auto insert_if_greater = [&max_sync_index]( le_resource_handle_t const &key, uint32_t value ) {
+		// Updates map entry to highest value
+		auto &element = max_sync_index[ key ];
+		element       = std::max( element, value );
 	};
 
 	for ( auto &p : frame.passes ) {
