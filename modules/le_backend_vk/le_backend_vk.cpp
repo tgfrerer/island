@@ -1093,13 +1093,19 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		le_image_attachment_info_t const *pImageAttachments   = nullptr;
 		le_resource_handle_t const *      pResources          = nullptr;
 		size_t                            numImageAttachments = 0;
+
 		renderpass_i.get_image_attachments( *pass, &pImageAttachments, &pResources, &numImageAttachments );
 		for ( size_t i = 0; i != numImageAttachments; ++i ) {
 
-			auto const &image_resource_id     = pResources[ i ];
+			auto        image_resource_id     = pResources[ i ];
 			auto const &image_attachment_info = pImageAttachments[ i ];
 
-			auto &syncChain = syncChainTable[ pResources[ i ] ];
+			// We patch the number of samples into resource ID so that lookups
+			// go to the correct version of the resource.
+
+			image_resource_id.meta.num_samples = numSamplesLog2;
+
+			auto &syncChain = syncChainTable[ image_resource_id ];
 
 			vk::Format attachmentFormat = vk::Format( frame.availableResources[ image_resource_id ].info.imageInfo.format );
 
@@ -2217,11 +2223,11 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 				if ( imgInfo.usage & ( LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) ) {
 
-					imgInfo.mipLevels   = 1;
-					imgInfo.samples     = pass_num_samples;
-					imgInfo.imageType   = le::ImageType::e2D;
-					imgInfo.tiling      = le::ImageTiling::eOptimal;
-					imgInfo.arrayLayers = 1;
+					imgInfo.mipLevels         = 1;
+					imgInfo.imageType         = le::ImageType::e2D;
+					imgInfo.tiling            = le::ImageTiling::eOptimal;
+					imgInfo.arrayLayers       = 1;
+					imgInfo.sample_count_log2 = pass_num_samples_log2;
 
 					imgExtent.width  = pass_width;
 					imgExtent.height = pass_height;
@@ -2287,11 +2293,14 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		} break;
 		case LeResourceType::eImage: {
 
+			first_info->image.samplesFlags |= uint32_t( 1 << first_info->image.sample_count_log2 );
+
 			// Consolidate into first_info, beginning with the second element
 			for ( auto *info = first_info + 1; info != info_end; info++ ) {
 
 				first_info->image.flags |= info->image.flags;
 				first_info->image.usage |= info->image.usage;
+				first_info->image.samplesFlags |= uint32_t( 1 << info->image.sample_count_log2 );
 
 				// If an image format was explictly set, this takes precedence over eUndefined.
 				// Note that we skip this block if both infos have the same format, so if both
@@ -2352,7 +2361,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			    << " : " << std::dec << std::setw( 4 ) << info.imageInfo.extent.width << " x " << std::setw( 4 ) << info.imageInfo.extent.height
 			    << " : " << std::setw( 30 ) << to_string( vk::Format( info.imageInfo.format ) )
 			    << " : " << std::setw( 30 ) << to_string( vk::ImageUsageFlags( info.imageInfo.usage ) )
-			    << " : " << std::setw( 5 ) << to_string( vk::SampleCountFlagBits( info.imageInfo.samples ) ) << " samples"
+			    << " : " << std::setw( 5 ) << to_string( vk::SampleCountFlags( info.imageInfo.samples ) ) << " samples"
 			    << std::endl;
 		}
 		std::cout << std::flush;
@@ -2384,6 +2393,59 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			createInfo->imageInfo.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 		}
 	};
+
+	// TODO: For each image resource which has more than one sample
+	// we must add a resource id and a new resource info to the list
+	// of used resources.
+	{
+		const size_t usedResourcesSize = usedResources.size();
+
+		std::vector<le_resource_handle_t>            msaa_resources;
+		std::vector<std::vector<le_resource_info_t>> msaa_resource_infos;
+
+		for ( size_t i = 0; i != usedResourcesSize; ++i ) {
+
+			le_resource_handle_t &resourceId   = usedResources[ i ];
+			le_resource_info_t &  resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
+
+			if ( resourceId.meta.type != LeResourceType::eImage ) {
+				continue;
+			}
+
+			// --------| invariant: resource is image
+
+			if ( resourceInfo.image.samplesFlags & ~uint32( le::SampleCountFlagBits::e1 ) ) {
+
+				// TODO: handle case if there are more than just two
+				// Msaa versions requested.
+				//
+				// we found a resource with flags requesting more than just single sample.
+				// for each flag we must clone the current resource and add to extra resources
+
+				le_resource_handle_t resource_copy      = resourceId;
+				le_resource_info_t   resource_info_copy = resourceInfo;
+
+				uint16_t current_sample_count_log_2 = get_sample_count_log_2( resourceInfo.image.samplesFlags );
+
+				resource_copy.meta.num_samples             = current_sample_count_log_2;
+				resource_info_copy.image.sample_count_log2 = current_sample_count_log_2;
+
+				msaa_resources.push_back( resource_copy );
+				msaa_resource_infos.push_back( {resource_info_copy} );
+
+				// update the original resource to have a single sample.
+
+				resourceId.meta.num_samples          = 0;
+				resourceInfo.image.sample_count_log2 = 0;
+			}
+		}
+
+		// insert extra resources into usedResources
+		// insert extra resource infos into usedResourceInfos
+
+		usedResources.insert( usedResources.end(), msaa_resources.begin(), msaa_resources.end() );
+		usedResourcesInfos.insert( usedResourcesInfos.end(), msaa_resource_infos.begin(), msaa_resource_infos.end() );
+	}
 
 	auto &backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
 
