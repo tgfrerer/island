@@ -1390,8 +1390,11 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 		// Update max_sync_index, so that it contains the maximum sync chain index for each
 		// attachment image resource used in the current pass.
-		//
-		for ( size_t a = 0; a != p.numColorAttachments + p.numDepthStencilAttachments; a++ ) {
+		const size_t numAttachments = p.numColorAttachments +
+		                              p.numDepthStencilAttachments +
+		                              p.numResolveAttachments;
+
+		for ( size_t a = 0; a != numAttachments; a++ ) {
 			auto const &attachmentInfo = p.attachments[ a ];
 			insert_if_greater( attachmentInfo.resource_id, attachmentInfo.finalStateOffset );
 		}
