@@ -931,6 +931,223 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 	// CHECK: this is where we used to create the vulkan pipeline cache object
 }
 
+// Add image attachments to leRenderPass
+// Update syncchain for images affected.
+static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRenderPass &currentPass, BackendFrameData &frame, le::SampleCountFlagBits const &sampleCount ) {
+	using namespace le_renderer;
+
+	auto numSamplesLog2 = get_sample_count_log_2( uint32_t( sampleCount ) );
+
+	le_image_attachment_info_t const *pImageAttachments   = nullptr;
+	le_resource_handle_t const *      pResources          = nullptr;
+	size_t                            numImageAttachments = 0;
+
+	renderpass_i.get_image_attachments( pass, &pImageAttachments, &pResources, &numImageAttachments );
+	for ( size_t i = 0; i != numImageAttachments; ++i ) {
+
+		auto        image_resource_id     = pResources[ i ];
+		auto const &image_attachment_info = pImageAttachments[ i ];
+
+		// We patch the number of samples into resource ID so that lookups
+		// go to the correct version of the resource.
+
+		image_resource_id.meta.num_samples = numSamplesLog2;
+
+		auto &syncChain = frame.syncChainTable[ image_resource_id ];
+
+		vk::Format attachmentFormat = vk::Format( frame.availableResources[ image_resource_id ].info.imageInfo.format );
+
+		bool isDepth = false, isStencil = false;
+		vk_format_get_is_depth_stencil( attachmentFormat, isDepth, isStencil );
+		bool isDepthStencil = isDepth || isStencil;
+
+		AttachmentInfo *currentAttachment = currentPass.attachments +
+		                                    currentPass.numColorAttachments +
+		                                    currentPass.numDepthStencilAttachments +
+		                                    currentPass.numResolveAttachments;
+
+		if ( isDepthStencil ) {
+			currentPass.numDepthStencilAttachments++;
+			currentAttachment->type = AttachmentInfo::Type::eDepthStencilAttachment;
+		} else {
+			currentPass.numColorAttachments++;
+			currentAttachment->type = AttachmentInfo::Type::eColorAttachment;
+		}
+
+		currentAttachment->resource_id = image_resource_id;
+		currentAttachment->format      = attachmentFormat;
+		currentAttachment->numSamples  = le_sample_count_flag_bits_to_vk( sampleCount );
+		currentAttachment->loadOp      = le_attachment_load_op_to_vk( image_attachment_info.loadOp );
+		currentAttachment->storeOp     = le_attachment_store_op_to_vk( image_attachment_info.storeOp );
+		currentAttachment->clearValue  = le_clear_value_to_vk( image_attachment_info.clearValue );
+
+		{
+			// track resource state before entering a subpass
+
+			auto &previousSyncState = syncChain.back();
+			auto  beforeFirstUse{previousSyncState};
+
+			if ( currentAttachment->loadOp == vk::AttachmentLoadOp::eLoad ) {
+				// we must now specify which stages need to be visible for which coming memory access
+				if ( isDepthStencil ) {
+					beforeFirstUse.visible_access = vk::AccessFlagBits::eDepthStencilAttachmentRead;
+					beforeFirstUse.write_stage    = vk::PipelineStageFlagBits::eEarlyFragmentTests;
+
+				} else {
+					// we need to make visible the information from color attachment output stage
+					// to anyone using read or write on the color attachment.
+					beforeFirstUse.visible_access = vk::AccessFlagBits::eColorAttachmentRead;
+					beforeFirstUse.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+				}
+			} else if ( currentAttachment->loadOp == vk::AttachmentLoadOp::eClear ) {
+				// resource.loadOp must be either CLEAR / or DONT_CARE
+				beforeFirstUse.write_stage    = isDepthStencil ? vk::PipelineStageFlagBits::eEarlyFragmentTests : vk::PipelineStageFlagBits::eColorAttachmentOutput;
+				beforeFirstUse.visible_access = vk::AccessFlagBits( 0 );
+			}
+
+			currentAttachment->initialStateOffset = uint16_t( syncChain.size() );
+			syncChain.emplace_back( std::move( beforeFirstUse ) ); // attachment initial state for a renderpass - may be loaded/cleared on first use
+			                                                       // * sync state: ready for load/store *
+		}
+
+		{
+			// track resource state before subpass
+
+			auto &previousSyncState = syncChain.back();
+			auto  beforeSubpass{previousSyncState};
+
+			if ( image_attachment_info.loadOp == le::AttachmentLoadOp::eLoad ) {
+				// resource.loadOp most be LOAD
+
+				// we must now specify which stages need to be visible for which coming memory access
+				if ( isDepthStencil ) {
+					beforeSubpass.visible_access = vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+					beforeSubpass.write_stage    = vk::PipelineStageFlagBits::eEarlyFragmentTests;
+					beforeSubpass.layout         = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+				} else {
+					// we need to make visible the information from color attachment output stage
+					// to anyone using read or write on the color attachment.
+					beforeSubpass.visible_access = vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead;
+					beforeSubpass.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+					beforeSubpass.layout         = vk::ImageLayout::eColorAttachmentOptimal;
+				}
+
+			} else {
+
+				// load op is either CLEAR, or DONT_CARE
+
+				if ( isDepthStencil ) {
+					beforeSubpass.visible_access = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+					beforeSubpass.write_stage    = vk::PipelineStageFlagBits::eEarlyFragmentTests;
+					beforeSubpass.layout         = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+				} else {
+					beforeSubpass.visible_access = vk::AccessFlagBits::eColorAttachmentWrite;
+					beforeSubpass.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+					beforeSubpass.layout         = vk::ImageLayout::eColorAttachmentOptimal;
+				}
+			}
+
+			syncChain.emplace_back( std::move( beforeSubpass ) );
+		}
+
+		// TODO: here, go through command instructions for renderpass and update resource chain if necessary.
+		// If resource is modified by commands inside the renderpass, this needs to be added to the sync chain here.
+
+		// Whichever next resource state will be in the sync chain will be the resource state we should transition to
+		// when defining the last_subpass_to_external dependency
+		// which is why, optimistically, we designate the index of the next, not yet written state here -
+		currentAttachment->finalStateOffset = uint16_t( syncChain.size() );
+
+	} // end foreach image attachment
+
+	if ( numSamplesLog2 == 0 ) {
+		return;
+	}
+
+	// ----------| invariant: this is multisampled renderpass.
+
+	// We must add resolve attachments.
+	// each image attachment from the renderpass receives a resolve attachment.
+
+	for ( size_t i = 0; i != numImageAttachments; ++i ) {
+
+		auto        image_resource_id     = pResources[ i ];
+		auto const &image_attachment_info = pImageAttachments[ i ];
+
+		// We patch the number of samples into resource ID so that lookups
+		// go to the correct version of the resource.
+
+		image_resource_id.meta.num_samples = 0; // hard-coded to zero, resolve attachment *must* have one single sample only.
+
+		auto &syncChain = frame.syncChainTable[ image_resource_id ];
+
+		vk::Format attachmentFormat = vk::Format( frame.availableResources[ image_resource_id ].info.imageInfo.format );
+
+		bool isDepth = false, isStencil = false;
+		vk_format_get_is_depth_stencil( attachmentFormat, isDepth, isStencil );
+		bool isDepthStencil = isDepth || isStencil;
+
+		AttachmentInfo *currentAttachment = currentPass.attachments +
+		                                    currentPass.numColorAttachments +
+		                                    currentPass.numDepthStencilAttachments +
+		                                    currentPass.numResolveAttachments;
+
+		// we're dealing with a resolve attachment here.
+		currentPass.numResolveAttachments++;
+
+		currentAttachment->resource_id = image_resource_id;
+		currentAttachment->format      = attachmentFormat;
+		currentAttachment->numSamples  = vk::SampleCountFlagBits::e1; // this is a requirement for resolve passes.
+		currentAttachment->loadOp      = vk::AttachmentLoadOp::eDontCare;
+		currentAttachment->storeOp     = le_attachment_store_op_to_vk( image_attachment_info.storeOp );
+		currentAttachment->clearValue  = le_clear_value_to_vk( image_attachment_info.clearValue );
+		currentAttachment->type        = AttachmentInfo::Type::eResolveAttachment;
+
+		{
+			// track resource state before entering a subpass
+
+			auto &previousSyncState = syncChain.back();
+			auto  beforeFirstUse{previousSyncState};
+
+			currentAttachment->initialStateOffset = uint16_t( syncChain.size() );
+			syncChain.emplace_back( std::move( beforeFirstUse ) ); // attachment initial state for a renderpass - may be loaded/cleared on first use
+			                                                       // * sync state: ready for load/store *
+		}
+
+		{
+			// track resource state before subpass
+
+			auto &previousSyncState = syncChain.back();
+			auto  beforeSubpass{previousSyncState};
+
+			{
+				// load op is either CLEAR, or DONT_CARE
+
+				if ( isDepthStencil ) {
+					beforeSubpass.visible_access = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
+					beforeSubpass.write_stage    = vk::PipelineStageFlagBits::eEarlyFragmentTests;
+					beforeSubpass.layout         = vk::ImageLayout::eDepthStencilAttachmentOptimal;
+				} else {
+					beforeSubpass.visible_access = vk::AccessFlagBits::eColorAttachmentWrite;
+					beforeSubpass.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput;
+					beforeSubpass.layout         = vk::ImageLayout::eColorAttachmentOptimal;
+				}
+			}
+
+			syncChain.emplace_back( std::move( beforeSubpass ) );
+		}
+
+		// TODO: here, go through command instructions for renderpass and update resource chain if necessary.
+		// If resource is modified by commands inside the renderpass, this needs to be added to the sync chain here.
+
+		// Whichever next resource state will be in the sync chain will be the resource state we should transition to
+		// when defining the last_subpass_to_external dependency
+		// which is why, optimistically, we designate the index of the next, not yet written state here -
+		currentAttachment->finalStateOffset = uint16_t( syncChain.size() );
+
+	} // end foreach image attachment
+}
+
 // ----------------------------------------------------------------------
 // Updates sync chain for resourcess referenced in rendergraph
 // each renderpass contains offsets into sync chain for given resource used by renderpass.
@@ -1085,131 +1302,9 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 			}
 		}
 
-		// iterate over all image attachments
-
-		auto const &sampleCount    = renderpass_i.get_sample_count( *pass );
-		auto        numSamplesLog2 = get_sample_count_log_2( uint32_t( sampleCount ) );
-
-		le_image_attachment_info_t const *pImageAttachments   = nullptr;
-		le_resource_handle_t const *      pResources          = nullptr;
-		size_t                            numImageAttachments = 0;
-
-		renderpass_i.get_image_attachments( *pass, &pImageAttachments, &pResources, &numImageAttachments );
-		for ( size_t i = 0; i != numImageAttachments; ++i ) {
-
-			auto        image_resource_id     = pResources[ i ];
-			auto const &image_attachment_info = pImageAttachments[ i ];
-
-			// We patch the number of samples into resource ID so that lookups
-			// go to the correct version of the resource.
-
-			image_resource_id.meta.num_samples = numSamplesLog2;
-
-			auto &syncChain = syncChainTable[ image_resource_id ];
-
-			vk::Format attachmentFormat = vk::Format( frame.availableResources[ image_resource_id ].info.imageInfo.format );
-
-			bool isDepth = false, isStencil = false;
-			vk_format_get_is_depth_stencil( attachmentFormat, isDepth, isStencil );
-			bool isDepthStencil = isDepth || isStencil;
-
-			AttachmentInfo *currentAttachment = ( currentPass.attachments + ( currentPass.numColorAttachments + currentPass.numDepthStencilAttachments ) );
-
-			if ( isDepthStencil ) {
-				currentPass.numDepthStencilAttachments++;
-			} else {
-				currentPass.numColorAttachments++;
-			}
-
-			currentAttachment->resource_id = image_resource_id;
-			currentAttachment->format      = attachmentFormat;
-			currentAttachment->numSamples  = le_sample_count_flag_bits_to_vk( image_attachment_info.numSamples );
-			currentAttachment->loadOp      = le_attachment_load_op_to_vk( image_attachment_info.loadOp );
-			currentAttachment->storeOp     = le_attachment_store_op_to_vk( image_attachment_info.storeOp );
-			currentAttachment->clearValue  = le_clear_value_to_vk( image_attachment_info.clearValue );
-
-			{
-				// track resource state before entering a subpass
-
-				auto &previousSyncState = syncChain.back();
-				auto  beforeFirstUse{previousSyncState};
-
-				if ( currentAttachment->loadOp == vk::AttachmentLoadOp::eLoad ) {
-					// we must now specify which stages need to be visible for which coming memory access
-					if ( isDepthStencil ) {
-						beforeFirstUse.visible_access = vk::AccessFlagBits::eDepthStencilAttachmentRead;
-						beforeFirstUse.write_stage    = vk::PipelineStageFlagBits::eEarlyFragmentTests;
-
-					} else {
-						// we need to make visible the information from color attachment output stage
-						// to anyone using read or write on the color attachment.
-						beforeFirstUse.visible_access = vk::AccessFlagBits::eColorAttachmentRead;
-						beforeFirstUse.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-					}
-				} else if ( currentAttachment->loadOp == vk::AttachmentLoadOp::eClear ) {
-					// resource.loadOp must be either CLEAR / or DONT_CARE
-					beforeFirstUse.write_stage    = isDepthStencil ? vk::PipelineStageFlagBits::eEarlyFragmentTests : vk::PipelineStageFlagBits::eColorAttachmentOutput;
-					beforeFirstUse.visible_access = vk::AccessFlagBits( 0 );
-				}
-
-				currentAttachment->initialStateOffset = uint16_t( syncChain.size() );
-				syncChain.emplace_back( std::move( beforeFirstUse ) ); // attachment initial state for a renderpass - may be loaded/cleared on first use
-				                                                       // * sync state: ready for load/store *
-			}
-
-			{
-				// track resource state before subpass
-
-				auto &previousSyncState = syncChain.back();
-				auto  beforeSubpass{previousSyncState};
-
-				if ( image_attachment_info.loadOp == le::AttachmentLoadOp::eLoad ) {
-					// resource.loadOp most be LOAD
-
-					// we must now specify which stages need to be visible for which coming memory access
-					if ( isDepthStencil ) {
-						beforeSubpass.visible_access = vk::AccessFlagBits::eDepthStencilAttachmentRead | vk::AccessFlagBits::eDepthStencilAttachmentWrite;
-						beforeSubpass.write_stage    = vk::PipelineStageFlagBits::eEarlyFragmentTests;
-						beforeSubpass.layout         = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-					} else {
-						// we need to make visible the information from color attachment output stage
-						// to anyone using read or write on the color attachment.
-						beforeSubpass.visible_access = vk::AccessFlagBits::eColorAttachmentWrite | vk::AccessFlagBits::eColorAttachmentRead;
-						beforeSubpass.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-						beforeSubpass.layout         = vk::ImageLayout::eColorAttachmentOptimal;
-					}
-
-				} else {
-
-					// load op is either CLEAR, or DONT_CARE
-
-					if ( isDepthStencil ) {
-						beforeSubpass.visible_access = vk::AccessFlagBits::eDepthStencilAttachmentWrite;
-						beforeSubpass.write_stage    = vk::PipelineStageFlagBits::eEarlyFragmentTests;
-						beforeSubpass.layout         = vk::ImageLayout::eDepthStencilAttachmentOptimal;
-					} else {
-						beforeSubpass.visible_access = vk::AccessFlagBits::eColorAttachmentWrite;
-						beforeSubpass.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput;
-						beforeSubpass.layout         = vk::ImageLayout::eColorAttachmentOptimal;
-					}
-				}
-
-				syncChain.emplace_back( std::move( beforeSubpass ) );
-			}
-
-			// TODO: here, go through command instructions for renderpass and update resource chain
-
-			// ... NOTE: if resource is modified by commands inside the renderpass, this needs to be added to the sync chain here.
-
-			{
-				// Whichever next resource state will be in the sync chain will be the resource state we should transition to
-				// when defining the last_subpass_to_external dependency
-				// which is why, optimistically, we designate the index of the next, not yet written state here -
-				currentAttachment->finalStateOffset = uint16_t( syncChain.size() );
-			}
-
-			// print out info for this resource at this pass.
-		}
+		// Iterate over all image attachments
+		auto const &sampleCount = renderpass_i.get_sample_count( *pass );
+		le_renderpass_add_attachments( *pass, currentPass, frame, sampleCount );
 
 		// Note that we "steal" the encoder from the renderer pass -
 		// it becomes now our (the backend's) job to destroy it.
