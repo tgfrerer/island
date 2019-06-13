@@ -1248,6 +1248,12 @@ static vk::Pipeline le_pipeline_cache_create_pipeline( le_pipeline_manager_o *se
 	    .setDynamicStateCount( dynamicStates.size() )
 	    .setPDynamicStates( dynamicStates.data() );
 
+	// We must patch pipeline multisample state here - this is because we may not know the renderpass a pipeline
+	// is used with, and the number of samples such renderpass supports.
+	auto multisampleCreateInfo = pso->data.multisampleState;
+
+	multisampleCreateInfo.setRasterizationSamples( pass.sampleCount );
+
 	// setup pipeline
 	vk::GraphicsPipelineCreateInfo gpi;
 	gpi
@@ -1259,7 +1265,7 @@ static vk::Pipeline le_pipeline_cache_create_pipeline( le_pipeline_manager_o *se
 	    .setPTessellationState( &pso->data.tessellationState )     //
 	    .setPViewportState( &defaultViewportState )                // not used as these states are dynamic, defaultState is a dummy value to pacify driver
 	    .setPRasterizationState( &pso->data.rasterizationInfo )    //
-	    .setPMultisampleState( &pso->data.multisampleState )       //
+	    .setPMultisampleState( &multisampleCreateInfo )            // <- we patch this with correct sample count for renderpass, because otherwise not possible
 	    .setPDepthStencilState( &pso->data.depthStencilState )     //
 	    .setPColorBlendState( &colorBlendState )                   //
 	    .setPDynamicState( &dynamicState )                         //

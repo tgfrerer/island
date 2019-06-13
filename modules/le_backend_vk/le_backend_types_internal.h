@@ -171,11 +171,12 @@ struct LeRenderPass {
 
 	LeRenderPassType type;
 
-	vk::Framebuffer framebuffer;
-	vk::RenderPass  renderPass;
-	uint32_t        width;
-	uint32_t        height;
-	uint64_t        renderpassHash; ///< spooky hash of elements that could influence renderpass compatibility
+	vk::Framebuffer         framebuffer;
+	vk::RenderPass          renderPass;
+	uint32_t                width;
+	uint32_t                height;
+	vk::SampleCountFlagBits sampleCount;    // We store this with renderpass, as sampleCount must be same for all color/depth attachments
+	uint64_t                renderpassHash; ///< spooky hash of elements that could influence renderpass compatibility
 
 	struct le_command_buffer_encoder_o *encoder;
 
