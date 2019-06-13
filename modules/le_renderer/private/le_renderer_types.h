@@ -60,7 +60,7 @@ struct le_resource_handle_t {
 			Meta     debug_meta;
 		};
 #endif
-		uint64_t handle_data;
+		uint64_t handle_data = 0;
 
 	}; // end union handle_data
 
