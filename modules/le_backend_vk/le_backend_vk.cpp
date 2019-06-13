@@ -2508,9 +2508,10 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		}
 	};
 
-	// For each image resource which has more than one sample
-	// we add a resource id and a new resource info to the list
-	// of used resources.
+	// For each image resource which has more than one sample we create additional
+	// resource_ids (by patching in the sample count), and add matching resource
+	// info, so that multisample versions of image resources can be allocated
+	// dynamically.
 	{
 		const size_t usedResourcesSize = usedResources.size();
 
@@ -2554,8 +2555,8 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			}
 		}
 
-		// insert extra resources into usedResources
-		// insert extra resource infos into usedResourceInfos
+		// -- Insert additional msaa resources into usedResources
+		// -- Insert additional msaa resource infos into usedResourceInfos
 
 		usedResources.insert( usedResources.end(), msaa_resources.begin(), msaa_resources.end() );
 		usedResourcesInfos.insert( usedResourcesInfos.end(), msaa_resource_infos.begin(), msaa_resource_infos.end() );
@@ -2572,8 +2573,9 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		// See if a resource with this id is already available to the frame
 		// This may be the case with a swapchain image resource for example,
 		// as it is allocated and managed from within the swapchain, not here.
-
+		//
 		if ( frame.availableResources.find( resourceId ) != frame.availableResources.end() ) {
+			// Resource is already available to and present in the frame.
 			continue;
 		}
 
