@@ -9,13 +9,13 @@
 // that it can be opaquely passed around, then unwrapped.
 #define LE_WRAP_TYPE_IN_STRUCT( type_name, struct_name )               \
 	struct struct_name {                                               \
-	    type_name        data;                                         \
-	    inline constexpr operator const type_name &() const noexcept { \
-	        return data;                                               \
-	    }                                                              \
-	    inline constexpr operator type_name &() noexcept {             \
-	        return data;                                               \
-	    }                                                              \
+		type_name        data;                                         \
+		inline constexpr operator const type_name &() const noexcept { \
+			return data;                                               \
+		}                                                              \
+		inline constexpr operator type_name &() noexcept {             \
+			return data;                                               \
+		}                                                              \
 	}
 
 #define LE_RESOURCE_LABEL_LENGTH 16 // (no-hotreload) set to zero to disable storing name (for debug printouts) with resource handles
@@ -477,9 +477,9 @@ enum class ImageType : uint32_t {
 static const char *to_str( const AttachmentStoreOp &lhs ) {
 	switch ( lhs ) {
 	case AttachmentStoreOp::eStore:
-	    return "Store";
+		return "Store";
 	case AttachmentStoreOp::eDontCare:
-	    return "DontCare";
+		return "DontCare";
 	}
 	return "";
 }
@@ -487,11 +487,11 @@ static const char *to_str( const AttachmentStoreOp &lhs ) {
 static const char *to_str( const AttachmentLoadOp &lhs ) {
 	switch ( lhs ) {
 	case AttachmentLoadOp::eLoad:
-	    return "Load";
+		return "Load";
 	case AttachmentLoadOp::eClear:
-	    return "Clear";
+		return "Clear";
 	case AttachmentLoadOp::eDontCare:
-	    return "DontCare";
+		return "DontCare";
 	}
 	return "";
 }
@@ -499,11 +499,11 @@ static const char *to_str( const AttachmentLoadOp &lhs ) {
 static const char *to_str( const ImageType &lhs ) {
 	switch ( lhs ) {
 	case ImageType::e1D:
-	    return "1D";
+		return "1D";
 	case ImageType::e2D:
-	    return "2D";
+		return "2D";
 	case ImageType::e3D:
-	    return "3D";
+		return "3D";
 	}
 	return "";
 }
@@ -945,9 +945,9 @@ using Presentmode = le_swapchain_settings_t::khr_settings_t::Presentmode;
 
 #define BUILDER_IMPLEMENT( builder, method_name, param_type, param, default_value ) \
 	constexpr builder &method_name( param_type param default_value ) {              \
-	    self.param = param;                                                         \
-	    return *this;                                                               \
-    }
+		self.param = param;                                                         \
+		return *this;                                                               \
+	}
 
 class RendererInfoBuilder {
 	le_renderer_settings_t  info{};
@@ -973,10 +973,10 @@ class RendererInfoBuilder {
 			switch ( type ) {
 			case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN:
 				self.khr_settings = {};
-			    break;
+				break;
 			case le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN:
 				self.img_settings = {};
-			    break;
+				break;
 			}
 
 			return *this;
@@ -1114,8 +1114,8 @@ class ImageSamplerInfoBuilder {
 	ImageViewInfoBuilder mImageViewInfoBuilder{*this};
 
   public:
-    ImageSamplerInfoBuilder()  = default;
-    ~ImageSamplerInfoBuilder() = default;
+	ImageSamplerInfoBuilder()  = default;
+	~ImageSamplerInfoBuilder() = default;
 
 	ImageSamplerInfoBuilder( LeImageSamplerInfo const &info_ )
 	    : info( info_ ) {
@@ -1180,16 +1180,16 @@ class BuilderWriteToImageSettings {
 struct le_resource_info_t {
 
 	struct Image {
-		LeImageCreateFlags      flags;       // creation flags
-		le::ImageType           imageType;   // enum vk::ImageType
-		le::Format              format;      // enum vk::Format
-		le::Extent3D            extent;      //
-		uint32_t                mipLevels;   //
-		uint32_t                arrayLayers; //
-		uint32_t                sample_count_log2; // sample count as log2, 0 means 1, 1 means 2, 2 means 4...
-		le::ImageTiling         tiling;      // enum VkImageTiling
-		LeImageUsageFlags       usage;       // usage flags (LeImageUsageFlags : uint32_t)
-		uint32_t                samplesFlags; // bitfield over all variants of this image resource
+		LeImageCreateFlags flags;             // creation flags
+		le::ImageType      imageType;         // enum vk::ImageType
+		le::Format         format;            // enum vk::Format
+		le::Extent3D       extent;            //
+		uint32_t           mipLevels;         //
+		uint32_t           arrayLayers;       //
+		uint32_t           sample_count_log2; // sample count as log2, 0 means 1, 1 means 2, 2 means 4...
+		le::ImageTiling    tiling;            // enum VkImageTiling
+		LeImageUsageFlags  usage;             // usage flags (LeImageUsageFlags : uint32_t)
+		uint32_t           samplesFlags;      // bitfield over all variants of this image resource
 	};
 
 	struct Buffer {
