@@ -163,7 +163,7 @@ enum LeImageCreateFlagBits : LeImageCreateFlags {
 
 typedef uint32_t LeImageUsageFlags_t;
 LE_WRAP_TYPE_IN_STRUCT( LeImageUsageFlags_t, LeImageUsageFlags );
-// Codegen <VkImageUsageFlagBits, LeImageUsageFlags, c>
+// Codegen <VkImageUsageFlagBits, LeImageUsageFlags_t, c>
 enum LeImageUsageFlagBits : LeImageUsageFlags_t {
 	LE_IMAGE_USAGE_TRANSFER_SRC_BIT             = 0x00000001,
 	LE_IMAGE_USAGE_TRANSFER_DST_BIT             = 0x00000002,
@@ -179,7 +179,7 @@ enum LeImageUsageFlagBits : LeImageUsageFlags_t {
 
 typedef uint32_t LeBufferUsageFlags_t;
 LE_WRAP_TYPE_IN_STRUCT( LeBufferUsageFlags_t, LeBufferUsageFlags );
-// Codegen <VkBufferUsageFlagBits, LeBufferUsageFlags, c>
+// Codegen <VkBufferUsageFlagBits, LeBufferUsageFlags_t, c>
 enum LeBufferUsageFlagBits : LeBufferUsageFlags_t {
 	LE_BUFFER_USAGE_TRANSFER_SRC_BIT              = 0x00000001,
 	LE_BUFFER_USAGE_TRANSFER_DST_BIT              = 0x00000002,
