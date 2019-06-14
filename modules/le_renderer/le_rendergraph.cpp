@@ -38,11 +38,12 @@ struct ExecuteCallbackInfo {
 struct le_renderpass_o {
 
 	LeRenderPassType        type         = LE_RENDER_PASS_TYPE_UNDEFINED;
+	uint32_t                ref_count    = 0;                           // reference count (we're following an intrusive shared pointer pattern)
 	uint64_t                id           = 0;                           // hash of name
 	uint64_t                sort_key     = 0;                           //
 	uint32_t                width        = 0;                           ///< width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
 	uint32_t                height       = 0;                           ///< height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
-	le::SampleCountFlagBits sample_count = le::SampleCountFlagBits::e1; // (samplecount = 1 << sample_count_log_2) must be identical for all attachments. default:0 means 1 sample.
+	le::SampleCountFlagBits sample_count = le::SampleCountFlagBits::e1; // < SampleCount for all attachments.
 	uint32_t                isRoot       = false;                       // whether pass *must* be processed
 
 	std::vector<le_resource_handle_t> resources;              // all resources used in this pass
@@ -87,6 +88,7 @@ static le_renderpass_o *renderpass_create( const char *renderpass_name, const Le
 	self->id        = hash_64_fnv1a( renderpass_name );
 	self->type      = type_;
 	self->debugName = renderpass_name;
+	self->ref_count = 1;
 	return self;
 }
 
@@ -95,6 +97,7 @@ static le_renderpass_o *renderpass_create( const char *renderpass_name, const Le
 static le_renderpass_o *renderpass_clone( le_renderpass_o const *rhs ) {
 	auto self = new le_renderpass_o();
 	*self     = *rhs;
+	self->ref_count = 1;
 	return self;
 }
 
@@ -108,6 +111,16 @@ static void renderpass_destroy( le_renderpass_o *self ) {
 	}
 
 	delete self;
+}
+
+static void renderpass_ref_inc( le_renderpass_o *self ) {
+	++self->ref_count;
+}
+
+static void renderpass_ref_dec( le_renderpass_o *self ) {
+	if ( --self->ref_count == 0 ) {
+		renderpass_destroy( self );
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -892,4 +905,6 @@ void register_le_rendergraph_api( void *api_ ) {
 	le_renderpass_i.sample_texture               = renderpass_sample_texture;
 	le_renderpass_i.get_texture_ids              = renderpass_get_texture_ids;
 	le_renderpass_i.get_texture_infos            = renderpass_get_texture_infos;
+	le_renderpass_i.ref_inc                      = renderpass_ref_inc;
+	le_renderpass_i.ref_dec                      = renderpass_ref_dec;
 }

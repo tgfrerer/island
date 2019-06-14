@@ -84,6 +84,10 @@ struct le_renderer_api {
 		le_command_buffer_encoder_o*    ( *steal_encoder        )( le_renderpass_o* obj );
 		void                            ( *get_image_attachments)(const le_renderpass_o* obj, const le_image_attachment_info_t** pAttachments, const le_resource_handle_t** pResourceIds, size_t* numAttachments);
 
+		// Reference counting
+		void (*ref_inc)(le_renderpass_o* self);
+		void (*ref_dec)(le_renderpass_o* self);
+
 		// TODO: not too sure about the nomenclature of this
 		// Note that this method implicitly marks the image resource referenced in LeTextureInfo for read access.
 		void                         ( *sample_texture        )(le_renderpass_o* obj, le_resource_handle_t texture_name, const LeImageSamplerInfo* info);
@@ -231,7 +235,6 @@ class Renderer {
 class RenderPass {
 
 	le_renderpass_o *self;
-	bool             isReference = false;
 
   public:
 	RenderPass( const char *name_, const LeRenderPassType &type_ )
@@ -244,15 +247,45 @@ class RenderPass {
         le_renderer::renderpass_i.set_execute_callback( self, user_data, fun_exec );
 	}
 
+	// Create facade from pointer
 	RenderPass( le_renderpass_o *self_ )
-	    : self( self_ )
-	    , isReference( true ) {
+	    : self( self_ ) {
+		le_renderer::renderpass_i.ref_inc( self );
 	}
 
+	// Destructor
 	~RenderPass() {
-		if ( !isReference ) {
-			le_renderer::renderpass_i.destroy( self );
+		// We check for validity of self, as move assignment/constructor
+		// set the moved-from to null after completion.
+		if ( self ) {
+			le_renderer::renderpass_i.ref_dec( self );
 		}
+	}
+
+	// Copy constructor
+	RenderPass( RenderPass const &rhs )
+	    : self( rhs.self ) {
+		le_renderer::renderpass_i.ref_inc( self );
+	}
+
+	// Copy assignment
+	RenderPass &operator=( RenderPass const &rhs ) {
+		self = rhs.self;
+		le_renderer::renderpass_i.ref_inc( self );
+		return *this;
+	}
+
+	// Move constructor
+	RenderPass( RenderPass &&rhs ) noexcept
+	    : self( rhs.self ) {
+		rhs.self = nullptr;
+	}
+
+	// Move assignment
+	RenderPass &operator=( RenderPass &&rhs ) {
+		self     = rhs.self;
+		rhs.self = nullptr;
+		return *this;
 	}
 
 	operator auto() {
