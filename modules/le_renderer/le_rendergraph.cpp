@@ -419,10 +419,10 @@ static void rendergraph_reset( le_rendergraph_o *self ) {
 	for ( auto rp : self->passes ) {
 		renderpass_destroy( rp );
 	}
+	self->passes.clear();
 
 	self->declared_resources_id.clear();
 	self->declared_resources_info.clear();
-	self->passes.clear();
 }
 
 // ----------------------------------------------------------------------
