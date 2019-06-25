@@ -2508,10 +2508,10 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		}
 	};
 
-	// For each image resource which has more than one sample we create additional
-	// resource_ids (by patching in the sample count), and add matching resource
-	// info, so that multisample versions of image resources can be allocated
-	// dynamically.
+	// For each image resource which is specified with versions of additional sample counts
+	// we create additional resource_ids (by patching in the sample count), and add matching
+	// resource info, so that multisample versions of image resources can be allocated dynamically.
+
 	{
 		const size_t usedResourcesSize = usedResources.size();
 
@@ -2531,10 +2531,10 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 			if ( resourceInfo.image.samplesFlags & ~uint32( le::SampleCountFlagBits::e1 ) ) {
 
-				// TODO: handle case if there are more than just two
-				// Msaa versions requested.
+				// TODO: Handle case if same image is requested with more than two
+				// versions.
 				//
-				// we found a resource with flags requesting more than just single sample.
+				// We found a resource with flags requesting more than just single sample.
 				// for each flag we must clone the current resource and add to extra resources
 
 				le_resource_handle_t resource_copy      = resourceId;
