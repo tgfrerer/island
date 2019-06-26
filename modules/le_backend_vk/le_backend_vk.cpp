@@ -1494,8 +1494,6 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 	device.freeCommandBuffers( frame.commandPool, frame.commandBuffers );
 	frame.commandBuffers.clear();
 
-	// todo: we should probably notify anyone who wanted to recycle these
-	// physical resources that they are not in use anymore.
 	frame.physicalResources.clear();
 	frame.syncChainTable.clear();
 
