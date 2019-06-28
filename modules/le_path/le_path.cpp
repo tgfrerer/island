@@ -32,6 +32,7 @@ struct Contour {
 
 struct Polyline {
 	std::vector<Vertex> vertices;
+	std::vector<Vertex> tangents;
 	std::vector<float>  distances;
 	double              total_distance = 0;
 };
@@ -66,15 +67,21 @@ static void le_path_clear( le_path_o *self ) {
 static void trace_move_to( Polyline &polyline, Vertex const &p ) {
 	polyline.distances.emplace_back( 0 );
 	polyline.vertices.emplace_back( p );
+	// NOTE: we dont insert a tangent here, as we need at least two
+	// points to calculate tangents. In an open path, there will be n-1
+	// tangent vectors than vertices, closed paths have same number of
+	// tangent vectors as vertices.
 }
 
 // ----------------------------------------------------------------------
 
 static void trace_line_to( Polyline &polyline, Vertex const &p ) {
-	// we must check if the current point is identical with previous point -
+
+	// We must check if the current point is identical with previous point -
 	// in which case we will not add this point.
 
-	glm::vec2 toPrevious = polyline.vertices.back() - p;
+	auto const &p0               = polyline.vertices.back();
+	glm::vec2   relativeMovement = p - p0;
 
 	// Instead of using glm::distance directly, we calculate squared distance
 	// so that we can filter out any potential invalid distance calculations -
@@ -82,7 +89,7 @@ static void trace_line_to( Polyline &polyline, Vertex const &p ) {
 	// because this would mean a division by zero. We must therefore filter out
 	// any zero distances.
 
-	float dist2 = glm::dot( toPrevious, toPrevious );
+	float dist2 = glm::dot( relativeMovement, relativeMovement );
 
 	static constexpr float epsilon2 = std::numeric_limits<float>::epsilon() * std::numeric_limits<float>::epsilon();
 
@@ -95,6 +102,7 @@ static void trace_line_to( Polyline &polyline, Vertex const &p ) {
 	polyline.total_distance += sqrt( dist2 );
 	polyline.distances.emplace_back( polyline.total_distance );
 	polyline.vertices.emplace_back( p );
+	polyline.tangents.emplace_back( relativeMovement );
 }
 
 // ----------------------------------------------------------------------
@@ -133,7 +141,7 @@ static void trace_quad_bezier_to( Polyline &    polyline,
 
 	assert( !polyline.vertices.empty() ); // Contour vertices must not be empty.
 
-	glm::vec2 const p0     = polyline.vertices.back(); // copy start point
+	glm::vec2 const &p0     = polyline.vertices.back(); // copy start point
 	glm::vec2       p_prev = p0;
 
 	float delta_t = 1.f / float( resolution );
@@ -156,6 +164,9 @@ static void trace_quad_bezier_to( Polyline &    polyline,
 		polyline.distances.emplace_back( polyline.total_distance );
 		p_prev = b;
 		polyline.vertices.emplace_back( b );
+
+		// First derivative with respect to t, see: https://en.m.wikipedia.org/wiki/B%C3%A9zier_curve
+		polyline.tangents.emplace_back( 2 * one_minus_t * ( c1 - p0 ) + 2 * t * ( p1 - c1 ) );
 	}
 }
 
@@ -211,6 +222,9 @@ static void trace_cubic_bezier_to( Polyline &    polyline,
 		p_prev = b;
 
 		polyline.vertices.emplace_back( b );
+
+		// First derivative with respect to t, see: https://en.m.wikipedia.org/wiki/B%C3%A9zier_curve
+		polyline.tangents.emplace_back( 3 * one_minus_t_sq * ( c1 - p0 ) + 6 * one_minus_t * t * ( c2 - c1 ) + 3 * t_sq * ( p1 - c2 ) );
 	}
 }
 
@@ -402,6 +416,7 @@ static void le_polyline_resample( Polyline &polyline, float interval ) {
 
 	poly_resampled.vertices.reserve( n_segments + 1 );
 	poly_resampled.distances.reserve( n_segments + 1 );
+	poly_resampled.tangents.reserve( n_segments + 1 );
 
 	// Find first point
 	Vertex vertex;
@@ -553,6 +568,17 @@ static void le_path_get_vertices_for_polyline( le_path_o *self, size_t const &po
 
 	*vertices    = polyline.vertices.data();
 	*numVertices = polyline.vertices.size();
+}
+
+// ----------------------------------------------------------------------
+
+static void le_path_get_tangents_for_polyline( le_path_o *self, size_t const &polyline_index, Vertex const **tangents, size_t *numTangents ) {
+	assert( polyline_index < self->polylines.size() );
+
+	auto const &polyline = self->polylines[ polyline_index ];
+
+	*tangents    = polyline.tangents.data();
+	*numTangents = polyline.tangents.size();
 }
 
 // ----------------------------------------------------------------------
@@ -853,9 +879,10 @@ ISL_API_ATTR void register_le_path_api( void *api ) {
 	le_path_i.close                   = le_path_close_path;
 	le_path_i.add_from_simplified_svg = le_path_add_from_simplified_svg;
 
-    le_path_i.get_num_contours                 = le_path_get_num_contours;
+	le_path_i.get_num_contours                 = le_path_get_num_contours;
 	le_path_i.get_num_polylines                = le_path_get_num_polylines;
 	le_path_i.get_vertices_for_polyline        = le_path_get_vertices_for_polyline;
+	le_path_i.get_tangents_for_polyline        = le_path_get_tangents_for_polyline;
 	le_path_i.get_polyline_at_pos_interpolated = le_path_get_polyline_at_pos_interpolated;
 
     le_path_i.iterate_vertices_for_contour     = le_path_iterate_vertices_for_contour;

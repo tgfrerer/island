@@ -65,6 +65,8 @@ struct le_path_api {
 		size_t      (* get_num_polylines         ) ( le_path_o* self );
 
 		void        (* get_vertices_for_polyline ) ( le_path_o* self, size_t const &polyline_index, Vertex const **vertices, size_t * numVertices );
+		void        (* get_tangents_for_polyline ) ( le_path_o* self, size_t const &polyline_index, Vertex const **tangents, size_t * numTangents );
+
 		void        (* get_polyline_at_pos_interpolated ) ( le_path_o* self, size_t const &polyline_index, float normPos, Vertex& result);
 
         void        (* iterate_vertices_for_contour)(le_path_o* self, size_t const & contour_index, contour_vertex_cb callback, void* user_data);
@@ -152,6 +154,10 @@ class Path : NoCopy, NoMove {
 
     void getVerticesForPolyline( size_t const &polyline_index, le_path_api::Vertex const **vertices, size_t *numVertices ) {
 		le_path::le_path_i.get_vertices_for_polyline( self, polyline_index, vertices, numVertices );
+	}
+
+	void getTangentsForPolyline( size_t const &polyline_index, le_path_api::Vertex const **tangents, size_t *numTangents ) {
+		le_path::le_path_i.get_tangents_for_polyline( self, polyline_index, tangents, numTangents );
 	}
 
 	void getPolylineAtPos( size_t const &polylineIndex, float normalizedPos, le_path_api::Vertex &vertex ) {
