@@ -937,6 +937,9 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 
 	using namespace le_renderer;
 
+	// FIXME: We must ensure that color attachments are listed before possible depth/stencil attachment,
+	// because if a resolve is required, attachment reference indices will be off by one.
+
 	auto numSamplesLog2 = get_sample_count_log_2( uint32_t( sampleCount ) );
 
 	le_image_attachment_info_t const *pImageAttachments   = nullptr;
