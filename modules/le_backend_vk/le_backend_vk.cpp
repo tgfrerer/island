@@ -934,6 +934,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 // Add image attachments to leRenderPass
 // Update syncchain for images affected.
 static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRenderPass &currentPass, BackendFrameData &frame, le::SampleCountFlagBits const &sampleCount ) {
+
 	using namespace le_renderer;
 
 	auto numSamplesLog2 = get_sample_count_log_2( uint32_t( sampleCount ) );
@@ -1059,6 +1060,9 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 		currentAttachment->finalStateOffset = uint16_t( syncChain.size() );
 
 	} // end foreach image attachment
+
+	// -- Check whether this is a multisampled renderpass.
+	// If not, we're done.
 
 	if ( numSamplesLog2 == 0 ) {
 		return;
