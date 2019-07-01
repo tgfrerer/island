@@ -15,7 +15,7 @@ released in the hope that you might find it entertaining or instructive.
 + C/C++ code hot-reloading
 + GLSL hot-reloading and debugging 
 + Parameter tweaks within source code
-+ Vulkan backend with dynamic GPU resource management via Framegraph
++ Vulkan backend with dynamic GPU resource management/allocation via Framegraph
 
 + Straight-to-video, image sequence or screen rendering
 + Compile to a single static binary with Release target
@@ -54,6 +54,10 @@ while release builds won't.
 Island should run out of the box on a modern Linux system with
 a current Vulkan SDK installed. 
 
+## Depencencies
+
+Island depends on a baseline of common development tools: CMake, gcc, git 
+
 ## Install Vulkan SDK 
 
 ### Current Vulkan SDK >= `1.1.92.0`
@@ -84,6 +88,4 @@ readme](legacy_sdk_installation_instructions.md).
 The CMAKE parameter `PLUGINS_DYNAMIC` lets you choose whether to compile Island
 as a static binary, or as a thin module with dynamic plugins. I recommend
 dynamic plugins for debug, and deactivating the option for release builds.
-
-## Legacy Vulkan SDK installation instructions
 
