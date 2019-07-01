@@ -1,27 +1,30 @@
 # Project Island
 
-Project Island is a Vulkan r&d renderer/engine for Linux, written in c/c++.
+Project Island is a Vulkan r&d renderer/engine for Linux, written in C/C++.
 
-Island is written to support rapid protoyping and tweaking. To enable
-fast interactive iteration cycles of demos and prototypes, Island
-allows hot-reloading of its code, and aims to be very fast to compile.
+Island is written for rapid protoyping and tweaking. It allows code hot-reloading for GLSL shaders and for native code, including its own core modules. The codebase aims to be strictly separated into independent modules, to make it very fast to compile in parallel.
 
-Island is under active development, expect lots of change. As such, there are
-no promises that it might be ready or fit for any purpose, and the code here is
-released in the hope that you might find it entertaining or instructive. 
+The API is under active development, expect lots of change. As such, there are no promises that it might be ready or fit for any purpose, and the code here is released in the hope that you might find it entertaining or instructive.
 
 ## Island's main features are:
 
 + C/C++ code hot-reloading
 + GLSL hot-reloading and debugging 
-+ Parameter tweaks within source code
-+ Vulkan backend with dynamic GPU resource management/allocation via Framegraph
++ GLSL code allows `#include` directive, debug messages, and hot-reloading are `#include` aware
++ Near-instant in-code parameter tweaks
++ Automatic resource allocation/resolution via Framegraph system
++ Minimal effort to add multisampling/depth passes to renderpasses
++ Vulkan backend
+	+ Dynamic GPU resource management/allocation
+	+ Dynamic pipeline generation and caching
+	+ Dynamic descriptor management and caching
+	+ Automatic synchronisation
 
 + Straight-to-video, image sequence or screen rendering
-+ Compile to a single static binary with Release target
++ Compiles to a single static binary with Release target
 + Vulkan validation layers loaded by default for Debug target
 
-## Things that make your life easier
+## Things that make life easier
 + Project generator
 + Module scaffold generator
 
@@ -38,9 +41,10 @@ released in the hope that you might find it entertaining or instructive.
 | `le_camera` | - | interactive, mouse controlled camera |
 | `le_path` | - | draw svg style paths, can parse simplified SVG strings | 
 | `le_tessellator` | earcut/libtess | dynamic choice of tessellation lib |
-| `pixels` | `stb_image` | load image files |
-| `font` | `stb_font` | true type glyph geometry and texture atlas based typesetting |
-| `pipeline_builder` | - | build vulkan pipelines | 
+| `le_imgui` | `imgui` | graphical user interface |
+| `le_pixels` | `stb_image` | load image files |
+| `le_font` | `stb_font` | truetype glyph sdf, geometry and texture atlas based typesetting |
+| `le_pipeline_builder` | - | build vulkan pipelines | 
 
 Island is highly modular and dynamic when run in debug, but compiles
 into a single, optimised static binary for release. 
@@ -85,7 +89,5 @@ readme](legacy_sdk_installation_instructions.md).
     git submodule init
     git submodule update
 
-The CMAKE parameter `PLUGINS_DYNAMIC` lets you choose whether to compile Island
-as a static binary, or as a thin module with dynamic plugins. I recommend
-dynamic plugins for debug, and deactivating the option for release builds.
+The CMAKE parameter `PLUGINS_DYNAMIC` lets you choose whether to compile Island as a static binary, or as a thin module with dynamic plugins. I recommend dynamic plugins for debug, and deactivating the option for release builds.
 
