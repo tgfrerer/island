@@ -102,7 +102,7 @@ struct le_backend_vk_api {
 		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex, size_t numAllocators);
 		le_staging_allocator_o*( *get_staging_allocator      ) ( le_backend_o* self, size_t frameIndex);
 
-		le_shader_module_o*    ( *create_shader_module       ) ( le_backend_o* self, char const * path, const LeShaderStageEnum& moduleType);
+		le_shader_module_o*    ( *create_shader_module       ) ( le_backend_o* self, char const * path, const LeShaderStageEnum& moduleType, char const * macro_definitions);
 		void                   ( *update_shader_modules      ) ( le_backend_o* self );
 
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
@@ -183,7 +183,7 @@ struct le_backend_vk_api {
 		le_pipeline_and_layout_info_t            ( *produce_pipeline                  ) ( le_pipeline_manager_o *self, le_gpso_handle_t* gpsoHandle, const LeRenderPass &pass, uint32_t subpass ) ;
 		le_pipeline_and_layout_info_t            ( *produce_compute_pipeline          ) ( le_pipeline_manager_o *self, le_cpso_handle_t* gpsoHandle);
 
-		le_shader_module_o*                      ( *create_shader_module              ) ( le_pipeline_manager_o* self, char const * path, const LeShaderStageEnum& moduleType);
+		le_shader_module_o*                      ( *create_shader_module              ) ( le_pipeline_manager_o* self, char const * path, const LeShaderStageEnum& moduleType, char const *macro_definitions);
 		void                                     ( *update_shader_modules             ) ( le_pipeline_manager_o* self );
 		struct VkPipelineLayout_T*               ( *get_pipeline_layout               ) ( le_pipeline_manager_o* self, uint64_t pipeline_layout_key);
 		const struct le_descriptor_set_layout_t& ( *get_descriptor_set_layout         ) ( le_pipeline_manager_o* self, uint64_t setlayout_key);

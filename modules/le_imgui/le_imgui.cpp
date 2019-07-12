@@ -7,7 +7,7 @@
 #include "le_pipeline_builder/le_pipeline_builder.h"
 #include "le_ui_event/le_ui_event.h"
 
-#include "le_backend_vk/le_backend_vk.h"
+#include "le_backend_vk/le_backend_vk.h" // for pipeline_manager
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -209,8 +209,8 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 
 		// TODO: we should not have to call into backend this way - there must be a way for encoder to
 		// be self-sufficient, i.e. not depend on renderer in any way.
-		static auto imguiVertShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.vert", {le::ShaderStage::eVertex} );
-		static auto imguiFragShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.frag", {le::ShaderStage::eFragment} );
+		static auto imguiVertShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.vert", {le::ShaderStage::eVertex}, nullptr );
+		static auto imguiFragShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.frag", {le::ShaderStage::eFragment}, nullptr );
 
 		std::array<le_vertex_input_attribute_description, 3> attrs    = {};
 		std::array<le_vertex_input_binding_description, 1>   bindings = {};

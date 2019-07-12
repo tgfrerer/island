@@ -21,8 +21,10 @@ using namespace experimental; // so that we can use std::filesystem as such
 }
 
 struct le_shader_module_o {
-	uint64_t                                         hash                = 0;     ///< hash taken from spirv code + filepath hash
+	uint64_t                                         hash                = 0;     ///< hash taken from spirv code + hash_file_path + hash_shader_defines
 	uint64_t                                         hash_file_path      = 0;     ///< hash taken from filepath (canonical)
+	std::string                                      macro_defines       = "";    ///< #defines to pass to shader compiler
+	uint64_t                                         hash_shader_defines = 0;     /// hash taken from shader defines string
 	uint64_t                                         hash_pipelinelayout = 0;     ///< hash taken from descriptors over all sets
 	std::vector<le_shader_binding_info>              bindings;                    ///< info for each binding, sorted asc.
 	std::vector<uint32_t>                            spirv    = {};               ///< spirv source code for this module
@@ -169,8 +171,8 @@ static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 
 /// \brief translate a binary blob into spirv code if possible
 /// \details Blob may be raw spirv data, or glsl data
-static void le_pipeline_cache_translate_to_spirv_code( le_shader_compiler_o *shader_compiler, void *raw_data, size_t numBytes, LeShaderStageEnum moduleType, const char *original_file_name,
-                                                       std::vector<uint32_t> &spirvCode, std::set<std::string> &includesSet ) {
+static void translate_to_spirv_code( le_shader_compiler_o *shader_compiler, void *raw_data, size_t numBytes, LeShaderStageEnum moduleType, const char *original_file_name,
+                                     std::vector<uint32_t> &spirvCode, std::set<std::string> &includesSet, std::string const &shaderDefines ) {
 
 	if ( check_is_data_spirv( raw_data, numBytes ) ) {
 		spirvCode.resize( numBytes / 4 );
@@ -180,7 +182,8 @@ static void le_pipeline_cache_translate_to_spirv_code( le_shader_compiler_o *sha
 
 		using namespace le_shader_compiler; // for compiler_i
 
-		auto compileResult = compiler_i.compile_source( shader_compiler, static_cast<const char *>( raw_data ), numBytes, moduleType, original_file_name );
+		auto compileResult = compiler_i.compile_source( shader_compiler, static_cast<const char *>( raw_data ), numBytes,
+		                                                moduleType, original_file_name, shaderDefines.c_str(), shaderDefines.size() );
 
 		if ( compiler_i.get_result_success( compileResult ) == true ) {
 			const char *addr;
@@ -797,15 +800,21 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o *self, l
 	std::vector<uint32_t> spirv_code;
 	std::set<std::string> includesSet{{module->filepath}}; // let first element be the original source file path
 
-	le_pipeline_cache_translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), {module->stage}, module->filepath.c_str(), spirv_code, includesSet );
+	translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), {module->stage}, module->filepath.c_str(), spirv_code, includesSet, module->macro_defines );
 
 	if ( spirv_code.empty() ) {
 		// no spirv code available, bail out.
 		return;
 	}
 
+	module->hash_file_path      = SpookyHash::Hash64( module->filepath.string().data(), module->filepath.string().size(), 0 );
+	module->hash_shader_defines = SpookyHash::Hash64( module->macro_defines.data(), module->macro_defines.size(), 0 );
+
 	// -- check spirv code hash against module spirv hash
-	uint64_t hash_of_module = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module->hash_file_path );
+	uint64_t path_and_shader_defines_hash_data[ 2 ] = {module->hash_file_path, module->hash_shader_defines};
+	uint64_t path_and_shader_defines_hash           = SpookyHash::Hash64( path_and_shader_defines_hash_data, sizeof( path_and_shader_defines_hash_data ), 0 );
+
+	uint64_t hash_of_module = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), path_and_shader_defines_hash );
 
 	if ( hash_of_module == module->hash ) {
 		// spirv code identical, no update needed, bail out.
@@ -926,7 +935,7 @@ static void le_shader_manager_destroy( le_shader_manager_o *self ) {
 ///
 /// TODO: consider handing out an opaque handle instead of a pointer for shader_module, so that it becomes
 /// clear that the object is owned by the backend, and must not be deleted or directly accessed outside.
-static le_shader_module_o *le_shader_manager_create_shader_module( le_shader_manager_o *self, char const *path, const LeShaderStageEnum &moduleType ) {
+static le_shader_module_o *le_shader_manager_create_shader_module( le_shader_manager_o *self, char const *path, const LeShaderStageEnum &moduleType, char const *macro_defines_ ) {
 
 	// This method gets called through the renderer - it is assumed during the setup stage.
 
@@ -940,15 +949,16 @@ static le_shader_module_o *le_shader_manager_create_shader_module( le_shader_man
 	// ---------| invariant: load was successful
 
 	// We use the canonical path to store a fingerprint of the file
-	auto     canonical_path_as_string = std::filesystem::canonical( path ).string();
-	uint64_t file_path_hash           = SpookyHash::Hash64( canonical_path_as_string.data(), canonical_path_as_string.size(), 0x0 );
+	auto canonical_path_as_string = std::filesystem::canonical( path ).string();
 
 	// -- Make sure the file contains spir-v code.
 
 	std::vector<uint32_t> spirv_code;
 	std::set<std::string> includesSet = {{canonical_path_as_string}}; // let first element be the source file path
 
-	le_pipeline_cache_translate_to_spirv_code( self->shader_compiler, raw_file_data.data(), raw_file_data.size(), moduleType, path, spirv_code, includesSet );
+	std::string macro_defines = macro_defines_ ? std::string( macro_defines_ ) : "";
+
+	translate_to_spirv_code( self->shader_compiler, raw_file_data.data(), raw_file_data.size(), moduleType, path, spirv_code, includesSet, macro_defines );
 
 	// FIXME: we need to check spirv code is ok, that compilation succeeded.
 
@@ -956,8 +966,15 @@ static le_shader_module_o *le_shader_manager_create_shader_module( le_shader_man
 
 	module->stage          = moduleType;
 	module->filepath       = canonical_path_as_string;
-	module->hash_file_path = file_path_hash;
-	module->hash           = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module->hash_file_path );
+	module->macro_defines  = macro_defines;
+
+	module->hash_file_path      = SpookyHash::Hash64( module->filepath.string().data(), module->filepath.string().size(), 0 );
+	module->hash_shader_defines = SpookyHash::Hash64( module->macro_defines.data(), module->macro_defines.size(), 0 );
+
+	uint64_t path_and_shader_defines_hash_data[ 2 ] = {module->hash_file_path, module->hash_shader_defines};
+	uint64_t path_and_shader_defines_hash           = SpookyHash::Hash64( path_and_shader_defines_hash_data, sizeof( path_and_shader_defines_hash_data ), 0 );
+
+	module->hash = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), path_and_shader_defines_hash );
 
 	{
 		// -- Check if module is already present in render module cache.
@@ -996,7 +1013,7 @@ static le_shader_module_o *le_shader_manager_create_shader_module( le_shader_man
 		module->module = self->device.createShaderModule( createInfo );
 	}
 
-	// -- retain module in renderer
+	// -- retain module in shader manager
 	self->shaderModules.push_back( module );
 
 	// -- add all source files for this file to the list of watched
@@ -1774,8 +1791,8 @@ static const le_descriptor_set_layout_t &le_pipeline_manager_get_descriptor_set_
 
 // ----------------------------------------------------------------------
 
-static le_shader_module_o *le_pipeline_manager_create_shader_module( le_pipeline_manager_o *self, char const *path, const LeShaderStageEnum &moduleType ) {
-	return le_shader_manager_create_shader_module( self->shaderManager, path, moduleType );
+static le_shader_module_o *le_pipeline_manager_create_shader_module( le_pipeline_manager_o *self, char const *path, const LeShaderStageEnum &moduleType, char const *macro_definitions ) {
+	return le_shader_manager_create_shader_module( self->shaderManager, path, moduleType, macro_definitions );
 }
 
 // ----------------------------------------------------------------------
