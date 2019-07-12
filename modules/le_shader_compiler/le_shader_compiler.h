@@ -24,7 +24,7 @@ struct le_shader_compiler_api {
 		le_shader_compiler_o*           (* create                ) ( );
 		void                            (* destroy               ) ( le_shader_compiler_o* self );
 
-		le_shader_compilation_result_o* (* compile_source        ) ( le_shader_compiler_o *compiler, const char *sourceText, size_t sourceTextSize, const LeShaderStageEnum& shaderType, const char *original_file_path );
+		le_shader_compilation_result_o* (* compile_source        ) ( le_shader_compiler_o *compiler, const char *sourceText, size_t sourceTextSize, const LeShaderStageEnum& shaderType, const char *original_file_path, char const * macroDefinitionsStr, size_t macroDefinitionsStrSz );
 
 		/// \brief  iterate over include paths in current compilation result
 		/// \return false if no more paths, otherwise: true, and updates to pPath and pStrSz as side-effect

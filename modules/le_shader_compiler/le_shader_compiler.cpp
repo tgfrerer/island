@@ -376,7 +376,90 @@ static void le_shader_compiler_print_error_context( const char *errMsg, const st
 
 // ---------------------------------------------------------------
 
-static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_shader_compiler_o *self, const char *sourceFileText, size_t sourceFileNumBytes, const LeShaderStageEnum &shaderType, const char *original_file_path ) {
+static inline void debug_print_macro_definition( char const *def_start, size_t def_sz, char const *val_start, size_t val_sz ) {
+	char def_str[ 256 ]{};
+	char val_str[ 256 ]{};
+
+	snprintf( def_str, def_sz + 1, "%s", def_start );
+	snprintf( val_str, val_sz + 1, "%s", val_start );
+
+	std::cout << "Inserting macro #define '" << def_str << "', value: '" << val_str << "'" << std::endl
+	          << std::flush;
+}
+
+// ---------------------------------------------------------------
+// Parse macro definitions from macroDefinitionsStr and update given
+// `shader_c_compile_options` object with any macro definitions extracted.
+//
+// Options given as a string + length
+// Options string format: "value=12,value_a,value_a=TRUE,,"
+//
+static void shader_options_parse_macro_definitions_string( shaderc_compile_options *options, char const *macroDefinitionsStr, size_t macroDefinitionsStrSz ) {
+
+	// macroDefinitionsStr   = "value=12,value_a,value_a=TRUE,,";
+	// macroDefinitionsStrSz = strlen( macroDefinitionsStr );
+
+	const char *      c       = macroDefinitionsStr;
+	const char *const str_end = c + macroDefinitionsStrSz;
+
+	if ( macroDefinitionsStr && macroDefinitionsStrSz != 0 ) {
+
+		// ',' or end of string: triggers new macro being issued.
+		// '=' : triggers end of macro definition, start of macro value
+
+		char const *def_start = macroDefinitionsStr; // start of definition string slice
+		char const *val_start = nullptr;             // start of value string (may be nullptr)
+		size_t      def_sz    = 0;                   // number or characters used for definition (must be >0)
+		size_t      val_sz    = 0;                   // number of characters used for value (may be 0)
+
+		for ( ;; c++ ) {
+
+			if ( *c == '=' ) {
+				def_sz    = c - def_start;
+				val_start = c + 1; // value must follow
+				val_sz    = 0;     // reset
+
+			} else if ( *c == ',' || c == str_end ) {
+
+				if ( val_start ) {
+					// We're closing a value
+					val_sz = c - val_start;
+				} else {
+					// We're closing a definition
+					def_sz = c - def_start;
+					val_sz = 0;
+				}
+
+				// -- Issue current options state
+
+				if ( def_sz > 0 ) {
+					debug_print_macro_definition( def_start, def_sz, val_start, val_sz );
+					shaderc_compile_options_add_macro_definition( options, def_start, def_sz, val_start, val_sz );
+				}
+
+				// -- reset state for next options
+
+				def_start = c + 1; // next element must be definition
+				def_sz    = 0;
+				val_start = nullptr; // we don't know value yet.
+				val_sz    = 0;
+			}
+
+			if ( c == str_end ) {
+				// No more characters left to parse.
+				break;
+			}
+
+		} // end for
+	}
+}
+
+// ---------------------------------------------------------------
+
+static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_shader_compiler_o *self, const char *sourceFileText,
+                                                                          size_t sourceFileNumBytes, const LeShaderStageEnum &shaderType,
+                                                                          const char *original_file_path,
+                                                                          char const *macroDefinitionsStr, size_t macroDefinitionsStrSz ) {
 
 	auto shaderKind = convert_to_shaderc_shader_kind( shaderType );
 
@@ -385,6 +468,8 @@ static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_sha
 	// Make a copy of compiler options so that we can add callback pointers only for
 	// this compilation.
 	auto local_options = shaderc_compile_options_clone( self->options );
+
+	shader_options_parse_macro_definitions_string( local_options, macroDefinitionsStr, macroDefinitionsStrSz );
 
 	shaderc_compile_options_set_include_callbacks( local_options,
 	                                               le_shaderc_include_result_create,
