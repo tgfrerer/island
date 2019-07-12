@@ -151,6 +151,7 @@ static le_shader_compiler_o *le_shader_compiler_create() {
 		obj->options = shaderc_compile_options_initialize();
 		shaderc_compile_options_set_generate_debug_info( obj->options );
 		shaderc_compile_options_set_source_language( obj->options, shaderc_source_language::shaderc_source_language_glsl );
+		shaderc_compile_options_set_optimization_level( obj->options, shaderc_optimization_level_performance );
 	}
 
 	return obj;
