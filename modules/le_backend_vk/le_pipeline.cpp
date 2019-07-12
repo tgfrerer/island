@@ -169,13 +169,14 @@ static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 
 /// \brief translate a binary blob into spirv code if possible
 /// \details Blob may be raw spirv data, or glsl data
-static void le_pipeline_cache_translate_to_spirv_code( le_shader_compiler_o *shader_compiler, void *raw_data, size_t numBytes, LeShaderStageEnum moduleType, const char *original_file_name, std::vector<uint32_t> &spirvCode, std::set<std::string> &includesSet ) {
+static void le_pipeline_cache_translate_to_spirv_code( le_shader_compiler_o *shader_compiler, void *raw_data, size_t numBytes, LeShaderStageEnum moduleType, const char *original_file_name,
+                                                       std::vector<uint32_t> &spirvCode, std::set<std::string> &includesSet ) {
 
 	if ( check_is_data_spirv( raw_data, numBytes ) ) {
 		spirvCode.resize( numBytes / 4 );
 		memcpy( spirvCode.data(), raw_data, numBytes );
 	} else {
-		// Data is not spirv - is it glsl, perhaps?
+		// ----------| Invariant: Data is not SPIRV - is it GLSL, perhaps?
 
 		using namespace le_shader_compiler; // for compiler_i
 
@@ -189,7 +190,6 @@ static void le_pipeline_cache_translate_to_spirv_code( le_shader_compiler_o *sha
 			memcpy( spirvCode.data(), addr, res_sz );
 
 			// -- grab a list of includes which this compilation unit depends on:
-
 			const char *pStr;
 			size_t      strSz = 0;
 
@@ -199,7 +199,7 @@ static void le_pipeline_cache_translate_to_spirv_code( le_shader_compiler_o *sha
 			}
 		}
 
-		// release compile result object
+		// Release compile result object
 		compiler_i.release_result( compileResult );
 	}
 }
@@ -776,12 +776,12 @@ static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( le_
 static void le_shader_manager_shader_module_update( le_shader_manager_o *self, le_shader_module_o *module ) {
 
 	// Shader module needs updating if shader code has changed.
-	// if this happens, a new vulkan object for the module must be crated.
+	// if this happens, a new vulkan object for the module must be created.
 
 	// The module must be locked for this, as we need exclusive access just in case the module is
 	// in use by the frame recording thread, which may want to create pipelines.
 	//
-	// Vulkan Lifetimes require us only to keep module alive for as long as a pipeline is being
+	// Vulkan lifetimes require us only to keep module alive for as long as a pipeline is being
 	// generated from it. This means we "only" need to protect against any threads which might be
 	// creating pipelines.
 
@@ -795,7 +795,7 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o *self, l
 	}
 
 	std::vector<uint32_t> spirv_code;
-	std::set<std::string> includesSet;
+	std::set<std::string> includesSet{{module->filepath}}; // let first element be the original source file path
 
 	le_pipeline_cache_translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), {module->stage}, module->filepath.c_str(), spirv_code, includesSet );
 
