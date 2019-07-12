@@ -210,13 +210,11 @@ static std::vector<char> load_file( const std::filesystem::path &file_path, bool
 
 // ---------------------------------------------------------------
 
-static shaderc_include_result *
-le_shaderc_include_result_create(
-    void *      user_data,
-    const char *requested_source,
-    int         type,
-    const char *requesting_source,
-    size_t      include_depth ) {
+static shaderc_include_result *le_shaderc_include_result_create( void *      user_data,
+                                                                 const char *requested_source,
+                                                                 int         type,
+                                                                 const char *requesting_source,
+                                                                 size_t      include_depth ) {
 
 	auto self         = new shaderc_include_result();
 	auto includesList = reinterpret_cast<IncludesList *>( user_data );
@@ -428,8 +426,7 @@ static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_sha
 
 	// -- Compile preprocessed GLSL into SPIRV
 	result->result = shaderc_compile_into_spv( self->compiler,
-	                                           preprocessorText,
-	                                           preprocessorTextNumBytes,
+	                                           preprocessorText, preprocessorTextNumBytes,
 	                                           shaderKind,
 	                                           original_file_path,
 	                                           "main",
