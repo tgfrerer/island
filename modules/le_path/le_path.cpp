@@ -185,8 +185,8 @@ static void trace_cubic_bezier_to( Polyline &    polyline,
 	}
 
 	if ( resolution == 1 ) {
-		// If we are to add but one segment, we may directly add the target point and return.
-		polyline.vertices.emplace_back( p1 );
+		// If we are to add but one segment, we may directly trace to the target point and return.
+		trace_line_to( polyline, p1 );
 		return;
 	}
 

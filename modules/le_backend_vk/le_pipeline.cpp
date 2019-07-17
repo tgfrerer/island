@@ -1152,7 +1152,7 @@ static inline vk::ShaderStageFlagBits vk_to_le( const le::ShaderStage &stage ) {
 // Creates a vulkan Pipeline based on a shader state object and a given renderpass and subpass index.
 //
 // TODO: Check spec whether shader stages must be sorted by stage flags (vertex first for example)
-// when fed into the create info object. If so, we should make sure to sort befor building the object.
+// when fed into the create info object. If so, we should make sure to sort before building the object.
 static vk::Pipeline le_pipeline_cache_create_pipeline( le_pipeline_manager_o *self, graphics_pipeline_state_o const *pso, const LeRenderPass &pass, uint32_t subpass ) {
 
 	std::vector<vk::PipelineShaderStageCreateInfo> pipelineStages;
@@ -1189,12 +1189,12 @@ static vk::Pipeline le_pipeline_cache_create_pipeline( le_pipeline_manager_o *se
 		vertexBindingDescriptions        = vertexShaderModule->vertexBindingDescriptions;
 		vertexInputAttributeDescriptions = vertexShaderModule->vertexAttributeDescriptions;
 	} else {
-		// use vertex input schema based on explicit user input
+		// Use vertex input schema based on explicit user input
 		// which was stored in `backend_create_grapics_pipeline_state_object`
 		vertexBindingDescriptions.reserve( pso->explicitVertexInputBindingDescriptions.size() );
 		vertexInputAttributeDescriptions.reserve( pso->explicitVertexAttributeDescriptions.size() );
 
-		// create vertex input binding descriptions
+		// Create vertex input binding descriptions
 		for ( auto const &b : pso->explicitVertexInputBindingDescriptions ) {
 
 			vk::VertexInputBindingDescription bindingDescription;
