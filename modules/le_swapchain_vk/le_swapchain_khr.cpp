@@ -355,8 +355,8 @@ static bool swapchain_khr_present( le_swapchain_o *base, VkQueue queue_, VkSemap
 
 	if ( vk::Result( result ) == vk::Result::eErrorOutOfDateKHR ) {
 		// FIXME: handle swapchain resize event properly
-		std::cout << "Out of date detected - this most commonly indicates surface resize." << std::endl
-		          << std::flush;
+		//		std::cout << "Out of date detected - this most commonly indicates surface resize." << std::endl
+		//		          << std::flush;
 		return false;
 	}
 
