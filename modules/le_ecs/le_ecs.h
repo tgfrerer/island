@@ -10,7 +10,7 @@ extern "C" {
 
 struct le_ecs_o;
 typedef struct EntityId_T *EntityId;
-typedef struct SystemId_T *SystemId;
+typedef struct SystemId_T *LeEcsSystemId;
 
 void register_le_ecs_api( void *api );
 
@@ -25,7 +25,7 @@ struct le_ecs_api {
 		uint32_t num_bytes; // number of bytes as in sizeof(), this includes padding.
 	};
 
-	typedef void ( *system_fn )( void **read_params, void **write_params );
+	typedef void ( *system_fn )( void **read_params, void **write_params, void* user_data );
 
 	struct le_ecs_interface_t {
 
@@ -38,12 +38,13 @@ struct le_ecs_api {
 		// This may re-allocate component storage, and invalidate pointers and iterators to components held inside the ecs.
 		void* (*entity_add_component)( le_ecs_o *self, EntityId entity_id, ComponentType const & component_type );
 		
-		SystemId  (*system_create)( le_ecs_o *self, system_fn fn );
+		LeEcsSystemId  (*system_create)( le_ecs_o *self );
 
-		bool (*system_add_write_component)( le_ecs_o *self, SystemId system_id, ComponentType const &component_type );
-		bool (*system_add_read_component)( le_ecs_o *self, SystemId system_id, ComponentType const &component_type );
+		void (*system_set_method)(le_ecs_o*self, LeEcsSystemId system_id, system_fn fn, void * user_data);
+		bool (*system_add_write_component)( le_ecs_o *self, LeEcsSystemId system_id, ComponentType const &component_type );
+		bool (*system_add_read_component)( le_ecs_o *self, LeEcsSystemId system_id, ComponentType const &component_type );
 
-		void (*execute_system)( le_ecs_o *self, SystemId system_id ) ;
+		void (*execute_system)( le_ecs_o *self, LeEcsSystemId system_id ) ;
 
 	};
 
@@ -98,12 +99,16 @@ class LeEcs : NoCopy, NoMove {
 		}
 	}
 
-	SystemId create_system( le_ecs_api::system_fn fn ) {
-		return le_ecs::le_ecs_i.system_create( self, fn );
+	LeEcsSystemId create_system() {
+		return le_ecs::le_ecs_i.system_create( self );
+	}
+
+	void system_set_method( LeEcsSystemId system_id, le_ecs_api::system_fn fn, void *user_data ) {
+		le_ecs::le_ecs_i.system_set_method( self, system_id, fn, user_data );
 	}
 
 	template <typename T>
-	bool system_add_read_component( SystemId system_id ) {
+	bool system_add_read_component( LeEcsSystemId system_id ) {
 		constexpr le_ecs_api::ComponentType ct{
 		    hash_64_fnv1a_const( T::type_id ),
 		    T::type_id,
@@ -112,7 +117,7 @@ class LeEcs : NoCopy, NoMove {
 	}
 
 	template <typename R, typename S, typename... T>
-	bool system_add_read_component( SystemId system_id ) {
+	bool system_add_read_component( LeEcsSystemId system_id ) {
 		bool result = true;
 		result &= system_add_read_component<R>( system_id );
 		result &= system_add_read_component<S, T...>( system_id );
@@ -120,7 +125,7 @@ class LeEcs : NoCopy, NoMove {
 	}
 
 	template <typename T>
-	bool system_add_write_component( SystemId system_id ) {
+	bool system_add_write_component( LeEcsSystemId system_id ) {
 		constexpr le_ecs_api::ComponentType ct{
 		    hash_64_fnv1a_const( T::type_id ),
 		    T::type_id,
@@ -129,14 +134,14 @@ class LeEcs : NoCopy, NoMove {
 	}
 
 	template <typename R, typename S, typename... T>
-	bool system_add_write_component( SystemId system_id ) {
+	bool system_add_write_component( LeEcsSystemId system_id ) {
 		bool result = true;
 		result &= system_add_write_component<R>( system_id );
 		result &= system_add_write_component<S, T...>( system_id );
 		return result;
 	}
 
-	void update_system( SystemId system_id ) {
+	void update_system( LeEcsSystemId system_id ) {
 		le_ecs::le_ecs_i.execute_system( self, system_id );
 	}
 

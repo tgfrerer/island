@@ -25,6 +25,7 @@ struct System {
 	std::vector<size_t> write_component_indices; // indices into component storage/component type
 
 	system_fn fn; // we must cast params back to struct of entities' components
+	void *    user_data;
 };
 
 struct le_ecs_o {
@@ -61,12 +62,12 @@ static EntityId get_entity_id_from_index( size_t idx ) {
 
 // ----------------------------------------------------------------------
 
-static size_t get_index_from_sytem_id( SystemId id ) {
+static size_t get_index_from_sytem_id( LeEcsSystemId id ) {
 	return reinterpret_cast<size_t>( id );
 }
 
-static SystemId get_system_id_from_index( size_t idx ) {
-	return reinterpret_cast<SystemId>( idx );
+static LeEcsSystemId get_system_id_from_index( size_t idx ) {
+	return reinterpret_cast<LeEcsSystemId>( idx );
 }
 
 size_t le_ecs_find_component_type_index( le_ecs_o const *self, ComponentType const &component_type ) {
@@ -143,21 +144,38 @@ static EntityId le_ecs_entity_create( le_ecs_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static SystemId le_ecs_system_create( le_ecs_o *self, system_fn fn ) {
+static LeEcsSystemId le_ecs_system_create( le_ecs_o *self ) {
 	self->systems.push_back( {
 	    0,
 	    0,
 	    {},
 	    {},
-	    fn,
+		{},
+		nullptr,
 	} );
 	return get_system_id_from_index( self->systems.size() - 1 );
 }
 
 // ----------------------------------------------------------------------
 
+static void le_ecs_system_set_method( le_ecs_o *self, LeEcsSystemId system_id, system_fn fn, void *user_data ) {
+
+	size_t system_index = get_index_from_sytem_id( system_id );
+
+	assert( system_index < self->systems.size() );
+
+	// --------| invariant: system with this index exists.
+
+	auto &system = self->systems[ system_index ];
+
+	system.fn        = fn;
+	system.user_data = user_data;
+}
+
+// ----------------------------------------------------------------------
+
 // adds a component type as a read parameter to system
-static bool le_ecs_system_add_read_component( le_ecs_o *self, SystemId system_id, ComponentType const &component_type ) {
+static bool le_ecs_system_add_read_component( le_ecs_o *self, LeEcsSystemId system_id, ComponentType const &component_type ) {
 
 	// check if component type exists as a type in ecs - we do this by finding it's index.
 
@@ -190,7 +208,7 @@ static bool le_ecs_system_add_read_component( le_ecs_o *self, SystemId system_id
 // ----------------------------------------------------------------------
 
 // adds a component type as a read parameter to system
-static bool le_ecs_system_add_write_component( le_ecs_o *self, SystemId system_id, ComponentType const &component_type ) {
+static bool le_ecs_system_add_write_component( le_ecs_o *self, LeEcsSystemId system_id, ComponentType const &component_type ) {
 
 	// check if component type exists as a type in ecs - we do this by finding it's index.
 
@@ -222,7 +240,7 @@ static bool le_ecs_system_add_write_component( le_ecs_o *self, SystemId system_i
 
 // ----------------------------------------------------------------------
 
-static void le_ecs_execute_system( le_ecs_o *self, SystemId system_id ) {
+static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id ) {
 
 	// Filter all entities - we only want those which provide all the component types which our system
 	// cares about.
@@ -231,6 +249,14 @@ static void le_ecs_execute_system( le_ecs_o *self, SystemId system_id ) {
 	// Function call happens repeatedly over all matching entities.
 
 	auto &system = self->systems.at( get_index_from_sytem_id( system_id ) );
+
+	if ( system.fn == nullptr ) {
+		// if system does not define callable function there is
+		// we can return early.
+		return;
+	}
+
+	// --------| invariant: system provides callable function
 
 	const size_t types_count = self->component_types.size(); // total number of types/component stores inside this ecs.
 
@@ -299,7 +325,7 @@ static void le_ecs_execute_system( le_ecs_o *self, SystemId system_id ) {
 
 		// this is where we call the function
 
-		system.fn( read_containers.data(), write_containers.data() );
+		system.fn( read_containers.data(), write_containers.data(), system.user_data );
 
 		// now we must increase component iterators for all elements which were
 		// named in required_components
@@ -324,6 +350,7 @@ ISL_API_ATTR void register_le_ecs_api( void *api ) {
 
 	le_ecs_i.system_create              = le_ecs_system_create;
 	le_ecs_i.system_add_read_component  = le_ecs_system_add_read_component;
+	le_ecs_i.system_set_method          = le_ecs_system_set_method;
 	le_ecs_i.system_add_write_component = le_ecs_system_add_write_component;
 
 	le_ecs_i.execute_system = le_ecs_execute_system;
