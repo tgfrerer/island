@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 #include <cstddef> // for size_t
+#include <assert.h>
 
 #include "hash_util.h"
 
