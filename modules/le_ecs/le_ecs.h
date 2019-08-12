@@ -25,7 +25,7 @@ struct le_ecs_api {
 		uint32_t num_bytes; // number of bytes as in sizeof(), this includes padding.
 	};
 
-	typedef void ( *system_fn )( void **read_params, void **write_params, void* user_data );
+	typedef void ( *system_fn )( void const **read_params, void **write_params, void* user_data );
 
 	struct le_ecs_interface_t {
 

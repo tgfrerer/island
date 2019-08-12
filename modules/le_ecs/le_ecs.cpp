@@ -150,8 +150,8 @@ static LeEcsSystemId le_ecs_system_create( le_ecs_o *self ) {
 	    0,
 	    {},
 	    {},
-		{},
-		nullptr,
+	    {},
+	    nullptr,
 	} );
 	return get_system_id_from_index( self->systems.size() - 1 );
 }
@@ -264,9 +264,9 @@ static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id ) {
 
 	// Find indices for required components
 
-	std::array<size_t, MAX_COMPONENT_TYPES> component_iterators; // current offset as object counts into component storage at index
-	std::array<void *, MAX_COMPONENT_TYPES> read_containers;
-	std::array<void *, MAX_COMPONENT_TYPES> write_containers;
+	std::array<size_t, MAX_COMPONENT_TYPES>       component_iterators; // current offset as object counts into component storage at index
+	std::array<void const *, MAX_COMPONENT_TYPES> read_containers;
+	std::array<void *, MAX_COMPONENT_TYPES>       write_containers;
 
 	component_iterators.fill( 0 );
 	read_containers.fill( nullptr );
