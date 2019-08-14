@@ -6,6 +6,10 @@ Island is written for rapid protoyping and tweaking. It allows code hot-reloadin
 
 The API is under active development, expect lots of change. As such, there are no promises that it might be ready or fit for any purpose, and the code here is released in the hope that you might find it entertaining or instructive.
 
+## Why?
+
+Because it is there.
+
 ## Main Features:
 
 + C/C++ code hot-reloading
