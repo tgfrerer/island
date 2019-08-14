@@ -182,6 +182,7 @@ static bool le_ecs_system_add_read_component( le_ecs_o *self, LeEcsSystemId syst
 	size_t storage_index = le_ecs_find_component_type_index( self, component_type );
 
 	if ( storage_index == self->component_types.size() ) {
+		assert( false ); // no components of this type exists - this can happen if no component of such type has ever been added to any entity.
 		return false;
 	}
 
