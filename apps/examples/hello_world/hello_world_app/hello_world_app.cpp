@@ -7,7 +7,9 @@
 #include "le_camera/le_camera.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
 
+#include "le_mesh/le_mesh.h"
 #include "le_mesh_generator/le_mesh_generator.h"
+
 #include "le_pixels/le_pixels.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
@@ -63,13 +65,13 @@ struct hello_world_app_o {
 
 	LeCameraController cameraController;
 	LeCamera           camera;
-	LeMeshGenerator    sphereGenerator;
+	LeMesh             sphereMesh;
 
-	Image         imgEarthAlbedo{};
-	Image         imgEarthNight{};
-	Image         imgEarthClouds{};
-	Image         imgEarthNormals{};
-	WorldGeometry worldGeometry{};
+	Image         imgEarthAlbedo;
+	Image         imgEarthNight;
+	Image         imgEarthClouds;
+	Image         imgEarthNormals;
+	WorldGeometry worldGeometry;
 	NanoTime      timeStamp{};
 	double        timeDelta{};       // time since last frame, in s
 	double        earthRotation = 0; // day/night cycle
@@ -140,11 +142,11 @@ static hello_world_app_o *hello_world_app_create() {
 
 	{
 		// Generate geometry for earth sphere
-		app->sphereGenerator.generateSphere( 6360, 120, 120 ); // earth radius given in km.
+		LeMeshGenerator::generateSphere( app->sphereMesh, 6360, 120, 120 ); // earth radius given in km.
 
 		size_t vertexCount;
 		size_t indexCount;
-		app->sphereGenerator.getData( vertexCount, indexCount ); // only fetch counts so we can calculate memory requirements for vertex buffer, index buffer
+		app->sphereMesh.getData( vertexCount, indexCount ); // only fetch counts so we can calculate memory requirements for vertex buffer, index buffer
 
 		app->worldGeometry.vertexDataByteCount = vertexCount * sizeof( float ) * ( 3 + 3 + 2 + 3 );
 		app->worldGeometry.vertexCount         = vertexCount;
@@ -303,9 +305,9 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *use
 		size_t    numVertices{};
 		size_t    numIndices{};
 		float *   sphereTangents{};
-		app->sphereGenerator.getData( numVertices, numIndices, &sphereVertices, &sphereNormals, &sphereUvs, &sphereIndices );
+		app->sphereMesh.getData( numVertices, numIndices, &sphereVertices, &sphereNormals, &sphereUvs, &sphereIndices );
 		size_t numTangents;
-		app->sphereGenerator.getTangents( numTangents, &sphereTangents );
+		app->sphereMesh.getTangents( numTangents, &sphereTangents );
 		uint32_t offset = 0;
 
 		// upload vertex positions

@@ -1,35 +1,17 @@
 #include "le_mesh_generator.h"
 #include "pal_api_loader/ApiRegistry.hpp"
 
-#include <vector>
 #include <math.h>
-#include "glm.hpp"
+#include <le_mesh/le_mesh.h>
+#include <le_mesh/le_mesh_types.h>
 
-// members
-struct le_mesh_generator_o {
+static void le_mesh_generator_generate_plane( le_mesh_o *mesh,
+                                              float      width,
+                                              float      height,
+                                              uint32_t   numWidthSegments,
+                                              uint32_t   numHeightSegments ) {
 
-	std::vector<glm::vec3> vertices; // 3d position in model space
-	std::vector<glm::vec3> tangents; // normalised tangents, per-vertex
-	std::vector<glm::vec3> normals;  // normalsied normal  , per-vertex
-	std::vector<glm::vec2> uvs;      // uv coordintates    , per-vertex
-	std::vector<uint16_t>  indices;  // index
-};
-
-le_mesh_generator_o *le_mesh_generator_create() {
-	auto self = new le_mesh_generator_o;
-	return self;
-}
-
-static void le_mesh_generator_generate_plane( le_mesh_generator_o *self,
-                                              float                width,
-                                              float                height,
-                                              uint32_t             numWidthSegments,
-                                              uint32_t             numHeightSegments ) {
-
-	self->indices.clear();
-	self->vertices.clear();
-	self->normals.clear();
-	self->uvs.clear();
+	le_mesh::le_mesh_i.clear( mesh );
 
 	uint32_t ix = 0;
 	uint32_t iz = 0;
@@ -41,9 +23,9 @@ static void le_mesh_generator_generate_plane( le_mesh_generator_o *self,
 
 	for ( iz = 0; iz <= numHeightSegments; ++iz ) {
 		for ( ix = 0; ix <= numWidthSegments; ++ix ) {
-			self->vertices.emplace_back( width * ( ix * deltaX - 0.5f ), 0, height * ( iz * deltaZ - 0.5f ) );
-			self->normals.emplace_back( 0, 1, 0 );
-			self->uvs.emplace_back( ix * deltaX, iz * deltaZ );
+			mesh->vertices.emplace_back( width * ( ix * deltaX - 0.5f ), 0, height * ( iz * deltaZ - 0.5f ) );
+			mesh->normals.emplace_back( 0, 1, 0 );
+			mesh->uvs.emplace_back( ix * deltaX, iz * deltaZ );
 		}
 	}
 
@@ -51,43 +33,40 @@ static void le_mesh_generator_generate_plane( le_mesh_generator_o *self,
 
 	for ( uint32_t z = 0; z + 1 < iz; z++ ) {
 		for ( uint32_t x = 0; x + 1 < ix; x++ ) {
-			self->indices.push_back( x + 0 + ( z + 0 ) * ix );
-			self->indices.push_back( x + 0 + ( z + 1 ) * ix );
-			self->indices.push_back( x + 1 + ( z + 1 ) * ix );
+			mesh->indices.push_back( x + 0 + ( z + 0 ) * ix );
+			mesh->indices.push_back( x + 0 + ( z + 1 ) * ix );
+			mesh->indices.push_back( x + 1 + ( z + 1 ) * ix );
 
-			self->indices.push_back( x + 0 + ( z + 0 ) * ix );
-			self->indices.push_back( x + 1 + ( z + 1 ) * ix );
-			self->indices.push_back( x + 1 + ( z + 0 ) * ix );
+			mesh->indices.push_back( x + 0 + ( z + 0 ) * ix );
+			mesh->indices.push_back( x + 1 + ( z + 1 ) * ix );
+			mesh->indices.push_back( x + 1 + ( z + 0 ) * ix );
 		}
 	}
 };
 
 // ----------------------------------------------------------------------
 // Adapted from: https://github.com/mrdoob/three.js/blob/dev/src/geometries/SphereGeometry.js
-static void le_mesh_generator_generate_sphere( le_mesh_generator_o *self,
-                                               float                radius,
-                                               uint32_t             widthSegments,
-                                               uint32_t             heightSegments,
-                                               float                phiStart,
-                                               float                phiLength,
-                                               float                thetaStart,
-                                               float                thetaLength ) {
+static void le_mesh_generator_generate_sphere( le_mesh_o *mesh,
+                                               float      radius,
+                                               uint32_t   widthSegments,
+                                               uint32_t   heightSegments,
+                                               float      phiStart,
+                                               float      phiLength,
+                                               float      thetaStart,
+                                               float      thetaLength ) {
 
 	float thetaEnd = thetaStart + thetaLength;
 
 	size_t numIndices  = 3 * 2 * heightSegments * widthSegments - widthSegments * 3 * 2;
 	size_t numVertices = ( widthSegments + 1 ) * ( heightSegments + 1 );
 
-	self->indices.clear();
-	self->vertices.clear();
-	self->normals.clear();
-	self->uvs.clear();
+	le_mesh::le_mesh_i.clear( mesh );
 
-	self->indices.reserve( numIndices );
-	self->vertices.reserve( numVertices );
-	self->normals.reserve( numVertices );
-	self->tangents.reserve( numVertices );
-	self->uvs.reserve( numVertices );
+	mesh->indices.reserve( numIndices );
+	mesh->vertices.reserve( numVertices );
+	mesh->normals.reserve( numVertices );
+	mesh->tangents.reserve( numVertices );
+	mesh->uvs.reserve( numVertices );
 
 	size_t   ix;
 	size_t   iy;
@@ -130,10 +109,10 @@ static void le_mesh_generator_generate_sphere( le_mesh_generator_o *self,
 			tangent = glm::normalize( glm::cross( {0, 1, 0}, vertex ) );
 
 			// Store vertex data
-			self->uvs.emplace_back( u, 1 - v );
-			self->vertices.emplace_back( vertex );
-			self->normals.emplace_back( normal );
-			self->tangents.emplace_back( tangent );
+			mesh->uvs.emplace_back( u, 1 - v );
+			mesh->vertices.emplace_back( vertex );
+			mesh->normals.emplace_back( normal );
+			mesh->tangents.emplace_back( tangent );
 
 			// Store index
 			verticesRow.emplace_back( index++ );
@@ -154,15 +133,15 @@ static void le_mesh_generator_generate_sphere( le_mesh_generator_o *self,
 
 			if ( iy != 0 || thetaStart > 0 ) {
 				// bottom triangle
-				self->indices.emplace_back( a );
-				self->indices.emplace_back( d );
-				self->indices.emplace_back( b );
+				mesh->indices.emplace_back( a );
+				mesh->indices.emplace_back( d );
+				mesh->indices.emplace_back( b );
 			}
 			if ( iy != heightSegments - 1 || thetaEnd < M_PI ) {
 				// top triangle
-				self->indices.emplace_back( d );
-				self->indices.emplace_back( c );
-				self->indices.emplace_back( b );
+				mesh->indices.emplace_back( d );
+				mesh->indices.emplace_back( c );
+				mesh->indices.emplace_back( b );
 			}
 		}
 	}
@@ -170,91 +149,11 @@ static void le_mesh_generator_generate_sphere( le_mesh_generator_o *self,
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_generator_get_vertices( le_mesh_generator_o *self, size_t &count, float **vertices ) {
-	count = self->vertices.size();
-	if ( vertices ) {
-		*vertices = static_cast<float *>( &self->vertices[ 0 ].x );
-	}
-}
-
-// ----------------------------------------------------------------------
-
-static void le_mesh_generator_get_tangents( le_mesh_generator_o *self, size_t &count, float **tangents ) {
-	count = self->tangents.size();
-	if ( tangents ) {
-		*tangents = static_cast<float *>( &self->tangents[ 0 ].x );
-	}
-}
-
-// ----------------------------------------------------------------------
-
-static void le_mesh_generator_get_indices( le_mesh_generator_o *self, size_t &count, uint16_t **indices ) {
-	count = self->indices.size();
-	if ( indices ) {
-		*indices = self->indices.data();
-	}
-}
-
-// ----------------------------------------------------------------------
-
-static void le_mesh_generator_get_normals( le_mesh_generator_o *self, size_t &count, float **normals ) {
-	count = self->normals.size();
-	if ( normals ) {
-		*normals = static_cast<float *>( &self->normals[ 0 ].x );
-	}
-}
-
-// ----------------------------------------------------------------------
-
-static void le_mesh_generator_get_uvs( le_mesh_generator_o *self, size_t &count, float **uvs ) {
-	count = self->normals.size();
-	if ( uvs ) {
-		*uvs = static_cast<float *>( &self->uvs[ 0 ].x );
-	}
-}
-
-// ----------------------------------------------------------------------
-
-static void le_mesh_generator_get_data( le_mesh_generator_o *self, size_t &numVertices, size_t &numIndices, float **vertices, float **normals, float **uvs, uint16_t **indices ) {
-	numVertices = self->vertices.size();
-	numIndices  = self->indices.size();
-
-	if ( vertices ) {
-		*vertices = static_cast<float *>( &self->vertices[ 0 ].x );
-	}
-	if ( normals ) {
-		*normals = static_cast<float *>( &self->normals[ 0 ].x );
-	}
-	if ( uvs ) {
-		*uvs = static_cast<float *>( &self->uvs[ 0 ].x );
-	}
-	if ( indices ) {
-		*indices = self->indices.data();
-	}
-}
-
-// ----------------------------------------------------------------------
-
-static void le_mesh_generator_destroy( le_mesh_generator_o *self ) {
-	delete self;
-}
-
 // ----------------------------------------------------------------------
 
 ISL_API_ATTR void register_le_mesh_generator_api( void *api ) {
 	auto &le_mesh_generator_i = static_cast<le_mesh_generator_api *>( api )->le_mesh_generator_i;
 
-	le_mesh_generator_i.create = le_mesh_generator_create;
-
-	le_mesh_generator_i.get_vertices = le_mesh_generator_get_vertices;
-	le_mesh_generator_i.get_indices  = le_mesh_generator_get_indices;
-	le_mesh_generator_i.get_uvs      = le_mesh_generator_get_uvs;
-	le_mesh_generator_i.get_tangents = le_mesh_generator_get_tangents;
-	le_mesh_generator_i.get_normals  = le_mesh_generator_get_normals;
-	le_mesh_generator_i.get_data     = le_mesh_generator_get_data;
-
 	le_mesh_generator_i.generate_sphere = le_mesh_generator_generate_sphere;
 	le_mesh_generator_i.generate_plane  = le_mesh_generator_generate_plane;
-
-	le_mesh_generator_i.destroy = le_mesh_generator_destroy;
 }

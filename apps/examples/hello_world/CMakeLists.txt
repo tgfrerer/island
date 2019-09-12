@@ -23,6 +23,7 @@ add_subdirectory (hello_world_app)
 add_island_module(le_ui_event)
 add_island_module(le_pipeline_builder)
 add_island_module(le_camera)
+add_island_module(le_mesh)
 add_island_module(le_mesh_generator)
 add_island_module(le_pixels)
 

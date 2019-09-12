@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-struct le_mesh_generator_o;
+struct le_mesh_o;
 
 void register_le_mesh_generator_api( void *api );
 
@@ -19,10 +19,8 @@ struct le_mesh_generator_api {
 
 	struct le_mesh_generator_interface_t {
 
-		 le_mesh_generator_o * (*create) ();
-
 		void ( *generate_sphere )(
-		    le_mesh_generator_o * self,
+		    le_mesh_o * mesh,
 		    float                 radius,         //
 		    uint32_t              widthSegments,  //
 		    uint32_t              heightSegments, //
@@ -32,18 +30,8 @@ struct le_mesh_generator_api {
 		    float                 thetaLength     // 0..pi  (default: pi)
 		);
 
-		void ( *generate_plane )(le_mesh_generator_o* self, float width, float height, uint32_t widthSegments, uint32_t heightSegments);
+		void ( *generate_plane )(le_mesh_o* mesh, float width, float height, uint32_t widthSegments, uint32_t heightSegments);
 
-		void ( *destroy )( le_mesh_generator_o *self );
-
-		void (*get_vertices )( le_mesh_generator_o *self, size_t& count, float **   vertices);
-		void (*get_normals  )( le_mesh_generator_o *self, size_t& count, float **   normals );
-		void (*get_uvs      )( le_mesh_generator_o *self, size_t& count, float **   uvs     );
-		void (*get_tangents )( le_mesh_generator_o *self, size_t& count, float **   tangents);
-
-		void (*get_indices  )( le_mesh_generator_o *self, size_t& count, uint16_t** indices );
-
-		void (*get_data     )( le_mesh_generator_o *self, size_t& numVertices, size_t& numIndices, float** vertices, float**normals, float**uvs, uint16_t **indices);
 	};
 
 	le_mesh_generator_interface_t le_mesh_generator_i;
@@ -65,58 +53,29 @@ static const auto &le_mesh_generator_i = api -> le_mesh_generator_i;
 } // namespace le_mesh_generator
 
 class LeMeshGenerator : NoCopy, NoMove {
-
-	le_mesh_generator_o *self;
+#	ifndef this_i
+#		define this_i le_mesh_generator::le_mesh_generator_i
 
 	static constexpr float PI = 3.14159265358979323846f;
 
   public:
-	LeMeshGenerator()
-	    : self( le_mesh_generator::le_mesh_generator_i.create() ) {
+	static void generateSphere( le_mesh_o *mesh,
+	                            float      radius         = 1.f,
+	                            uint32_t   widthSegments  = 3,
+	                            uint32_t   heightSegments = 2,
+	                            float      phiStart       = 0.f,
+	                            float      phiLength      = 2 * PI,
+	                            float      thetaStart     = 0.f,
+	                            float      thetaLength    = PI ) {
+
+		this_i.generate_sphere( mesh, radius, widthSegments, heightSegments, phiStart, phiLength, thetaStart, thetaLength );
 	}
 
-	void generateSphere( float    radius         = 1.f,
-	                     uint32_t widthSegments  = 3,
-	                     uint32_t heightSegments = 2,
-	                     float    phiStart       = 0.f,
-	                     float    phiLength      = 2 * PI,
-	                     float    thetaStart     = 0.f,
-	                     float    thetaLength    = PI ) {
-
-		le_mesh_generator::le_mesh_generator_i.generate_sphere( self, radius, widthSegments, heightSegments, phiStart, phiLength, thetaStart, thetaLength );
+	static void generatePlane( le_mesh_o *mesh, float width, float height, uint32_t widthSegments = 2, uint32_t heightSegments = 2 ) {
+		this_i.generate_plane( mesh, width, height, widthSegments, heightSegments );
 	}
-
-	~LeMeshGenerator() {
-		le_mesh_generator::le_mesh_generator_i.destroy( self );
-	}
-
-	void getVertices( size_t &count, float **pVertices = nullptr ) {
-		le_mesh_generator::le_mesh_generator_i.get_vertices( self, count, pVertices );
-	}
-
-	void getTangents( size_t &count, float **pTangents = nullptr ) {
-		le_mesh_generator::le_mesh_generator_i.get_tangents( self, count, pTangents );
-	}
-
-	void getNormals( size_t &count, float **pNormals = nullptr ) {
-		le_mesh_generator::le_mesh_generator_i.get_vertices( self, count, pNormals );
-	}
-
-	void getUvs( size_t &count, float **pUvs = nullptr ) {
-		le_mesh_generator::le_mesh_generator_i.get_uvs( self, count, pUvs );
-	}
-
-	void getIndices( size_t &count, uint16_t **pIndices = nullptr ) {
-		le_mesh_generator::le_mesh_generator_i.get_indices( self, count, pIndices );
-	}
-
-	void getData( size_t &numVertices, size_t &numIndices, float **pVertices = nullptr, float **pNormals = nullptr, float **pUvs = nullptr, uint16_t **pIndices = nullptr ) {
-		le_mesh_generator::le_mesh_generator_i.get_data( self, numVertices, numIndices, pVertices, pNormals, pUvs, pIndices );
-	}
-
-	operator auto() {
-		return self;
-	}
+#		undef this_i
+#	endif
 };
 
 #endif // __cplusplus
