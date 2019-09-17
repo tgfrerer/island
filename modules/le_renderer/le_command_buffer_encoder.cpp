@@ -127,7 +127,28 @@ static void cbe_set_viewport( le_command_buffer_encoder_o *self,
 	cmd->info = {firstViewport, viewportCount};
 	cmd->header.info.size += dataSize; // we must increase the size of this command by its payload size
 
-	memcpy( data, pViewports, dataSize );
+	if ( /* DISABLES CODE */ ( true ) ) {
+
+		memcpy( data, pViewports, dataSize );
+
+	} else {
+
+		// Copy viewport data whilst flipping viewports,
+		//
+		// see: <https://www.saschawillems.de/blog/2019/03/29/flipping-the-vulkan-viewport/>
+		// We do this instead of directly moving data, because it allows us to keep our
+		// shaders to have the Y-Axis go up as it does in OpenGL, whereas otherwise
+		// we would have the Vulkan default, with the Y-axis pointing down.
+
+		auto const    pViewportsEnd   = pViewports + viewportCount;
+		le::Viewport *pTargetViewport = static_cast<le::Viewport *>( data );
+
+		for ( auto v = pViewports; v != pViewportsEnd; v++, pTargetViewport++ ) {
+			*pTargetViewport = *v;
+			pTargetViewport->y += pTargetViewport->height;
+			pTargetViewport->height = -pTargetViewport->height;
+		}
+	}
 
 	self->mCommandStreamSize += cmd->header.info.size;
 	self->mCommandCount++;
