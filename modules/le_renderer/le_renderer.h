@@ -572,11 +572,15 @@ class Encoder {
 		return *this;
 	}
 
+	/// \brief Set index data directly by uploading data via GPU scratch buffer
+	/// \note if either `data == nullptr`, or numBytes == 0, this method call has no effect.
 	Encoder &setIndexData( void const *data, uint64_t const &numBytes, IndexType const &indexType = IndexType::eUint16 ) {
 		le_renderer::encoder_i.set_index_data( self, data, numBytes, indexType );
 		return *this;
 	}
 
+	/// \brief Set vertex data directly by uploading data via GPU scratch buffer
+	/// \note if either `data == nullptr`, or numBytes == 0, this method call has no effect.
 	Encoder &setVertexData( void const *data, uint64_t const &numBytes, uint32_t const &bindingIndex ) {
 		le_renderer::encoder_i.set_vertex_data( self, data, numBytes, bindingIndex );
 		return *this;
