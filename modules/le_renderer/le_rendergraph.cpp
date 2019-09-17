@@ -31,8 +31,8 @@ struct Task {
 static_assert( sizeof( le::CommandHeader ) == sizeof( uint64_t ), "Size of le::CommandHeader must be 64bit" );
 
 struct ExecuteCallbackInfo {
-    le_renderer_api::pfn_renderpass_execute_t fn        = nullptr;
-    void *                                    user_data = nullptr;
+	le_renderer_api::pfn_renderpass_execute_t fn        = nullptr;
+	void *                                    user_data = nullptr;
 };
 
 struct le_renderpass_o {
@@ -95,8 +95,8 @@ static le_renderpass_o *renderpass_create( const char *renderpass_name, const Le
 // ----------------------------------------------------------------------
 
 static le_renderpass_o *renderpass_clone( le_renderpass_o const *rhs ) {
-	auto self = new le_renderpass_o();
-	*self     = *rhs;
+	auto self       = new le_renderpass_o();
+	*self           = *rhs;
 	self->ref_count = 1;
 	return self;
 }
@@ -133,14 +133,14 @@ static void renderpass_set_setup_callback( le_renderpass_o *self, void *user_dat
 // ----------------------------------------------------------------------
 
 static void renderpass_set_execute_callback( le_renderpass_o *self, void *user_data, le_renderer_api::pfn_renderpass_execute_t callback ) {
-    self->executeCallbacks.push_back( {callback, user_data} );
+	self->executeCallbacks.push_back( {callback, user_data} );
 }
 
 // ----------------------------------------------------------------------
 static void renderpass_run_execute_callback( le_renderpass_o *self ) {
-    for ( auto const &c : self->executeCallbacks ) {
-        c.fn( self->encoder, c.user_data );
-    }
+	for ( auto const &c : self->executeCallbacks ) {
+		c.fn( self->encoder, c.user_data );
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -243,7 +243,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 		resourceWillBeWrittenTo = usage_flags.typed_as.image_usage_flags & ALL_IMAGE_WRITE_FLAGS;
 	} break;
 	default:
-        break;
+		break;
 	}
 
 	// update access flags
@@ -389,7 +389,7 @@ static void renderpass_get_texture_infos( le_renderpass_o *self, const LeImageSa
 };
 
 static bool renderpass_has_execute_callback( const le_renderpass_o *self ) {
-    return !self->executeCallbacks.empty();
+	return !self->executeCallbacks.empty();
 }
 
 static bool renderpass_has_setup_callback( const le_renderpass_o *self ) {
@@ -613,26 +613,26 @@ static void rendergraph_build( le_rendergraph_o *self ) {
 	tasks_calculate_sort_indices( tasks.data(), tasks.size(), self->sortIndices.data() );
 
 	auto printPassList = [&]() -> void {
-        for ( size_t i = 0; i != self->sortIndices.size(); ++i ) {
-            std::cout << "Pass: " << std::dec << std::setw( 3 ) << i << " sort order : " << std::setw( 12 ) << self->sortIndices[ i ] << " : "
+		for ( size_t i = 0; i != self->sortIndices.size(); ++i ) {
+			std::cout << "Pass: " << std::dec << std::setw( 3 ) << i << " sort order : " << std::setw( 12 ) << self->sortIndices[ i ] << " : "
 			          << self->passes[ i ]->debugName
 			          << std::endl
 			          << std::flush;
-        }
-    };
+		}
+	};
 
-    if ( PRINT_DEBUG_MESSAGES ) {
-        printPassList();
-    }
+	if ( PRINT_DEBUG_MESSAGES ) {
+		printPassList();
+	}
 
-    {
-        // Remove any passes from rendergraph which do not contribute.
-        // Passes which don't contribute have a sort index of (unsigned) -1.
-        //
-        // We consiolidate the list of passes by rebuilding it while only
-        // including passes which contribute (whose sort index != -1)
+	{
+		// Remove any passes from rendergraph which do not contribute.
+		// Passes which don't contribute have a sort index of (unsigned) -1.
+		//
+		// We consiolidate the list of passes by rebuilding it while only
+		// including passes which contribute (whose sort index != -1)
 
-        size_t numSortIndices = self->sortIndices.size();
+		size_t numSortIndices = self->sortIndices.size();
 
 		std::vector<le_renderpass_o *> consolidated_passes;
 		std::vector<uint32_t>          consolidated_sort_indices;
@@ -736,11 +736,11 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 
 		// ---------| invariant: pass may contribute
 
-        if ( !pass->executeCallbacks.empty() ) {
+		if ( !pass->executeCallbacks.empty() ) {
 
 			le::Extent2D encoder_extent{
-                pass->width != 0 ? pass->width : swapchain_extent.width,   // Use pass extent unless it is 0, otherwise revert to swapchain_extent
-                pass->height != 0 ? pass->height : swapchain_extent.height // Use pass extent unless it is 0, otherwise revert to swapchain_extent
+			    pass->width != 0 ? pass->width : swapchain_extent.width,   // Use pass extent unless it is 0, otherwise revert to swapchain_extent
+			    pass->height != 0 ? pass->height : swapchain_extent.height // Use pass extent unless it is 0, otherwise revert to swapchain_extent
 			};
 
 			pass->encoder = encoder_i.create( *allocIt, pipelineCache, stagingAllocator, encoder_extent ); // NOTE: we must manually track the lifetime of encoder!
