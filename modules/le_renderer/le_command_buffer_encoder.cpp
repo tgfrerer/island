@@ -235,6 +235,11 @@ static void cbe_set_vertex_data( le_command_buffer_encoder_o *self,
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
 
+	if ( data == nullptr || numBytes == 0 )
+		return;
+
+	// --------| invariant: there are some bytes to set
+
 	void *   memAddr;
 	uint64_t bufferOffset = 0;
 
@@ -258,6 +263,11 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *self,
                                 le::IndexType const &        indexType ) {
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
+
+	if ( data == nullptr || numBytes == 0 )
+		return;
+
+	// --------| invariant: there are some bytes to set
 
 	void *   memAddr;
 	uint64_t bufferOffset = 0;
@@ -286,6 +296,11 @@ static void cbe_set_argument_data( le_command_buffer_encoder_o *self,
                                    size_t                       numBytes ) {
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
+
+	if ( data == nullptr || numBytes == 0 )
+		return;
+
+	// --------| invariant: there are some bytes to set
 
 	auto cmd = EMPLACE_CMD( le::CommandSetArgumentData );
 
