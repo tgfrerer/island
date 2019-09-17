@@ -180,7 +180,7 @@ static void camera_set_clip_distances( le_camera_o *self, float nearClip, float 
 static glm::mat4 const &camera_get_projection_matrix_glm( le_camera_o *self ) {
 	if ( self->projectionMatrixDirty ) {
 		// cache projection matrix calculation
-		self->projection_matrix     = glm::perspective( self->fovRadians, float( self->viewport.width ) / float( self->viewport.height ), self->nearClip, self->farClip );
+		self->projection_matrix     = glm::perspective( self->fovRadians, float( self->viewport.width ) / fabsf( self->viewport.height ), self->nearClip, self->farClip );
 		self->projectionMatrixDirty = false;
 	}
 	return self->projection_matrix;
@@ -195,7 +195,7 @@ static float const *camera_get_projection_matrix( le_camera_o *self ) {
 // ----------------------------------------------------------------------
 
 static float camera_get_unit_distance( le_camera_o *self ) {
-	return self->viewport.height / ( 2.f * tanf( self->fovRadians * 0.5f ) );
+	return fabsf( self->viewport.height ) / ( 2.f * tanf( self->fovRadians * 0.5f ) );
 }
 
 // ----------------------------------------------------------------------
@@ -300,10 +300,14 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 
 	// Centre point of the mouse control rectangle
 	glm::vec2 controlRectCentre{0.5f * ( controller->controlRect[ 0 ] + controller->controlRect[ 2 ] ),
-                                0.5f * ( controller->controlRect[ 1 ] + controller->controlRect[ 3 ] )};
+	                            0.5f * ( controller->controlRect[ 1 ] + controller->controlRect[ 3 ] )};
 
 	// Distance 1/3 of small edge of control rectangle
 	float controlCircleRadius = std::min( controller->controlRect[ 2 ], controller->controlRect[ 3 ] ) / 3.f;
+
+	// negative viewport height indicates that y-axis should be flipped - which means that
+	// camera controls must be flipped as well.
+	float flip = camera->viewport.height > 0 ? 1.f : -1.f;
 
 	le_mouse_event_data_o mouse_state = controller->mouse_state; // gather mouse state from previous
 
@@ -352,7 +356,7 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 			}
 		} break;
 		default:
-            break;
+			break;
 		}
 
 		glm::vec3 rotationDelta;
@@ -363,13 +367,13 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 
 			auto mouseDelta = mouse_state.cursor_pos - controlRectCentre;
 
-			rotationDelta.x = glm::two_pi<float>() * -( mouse_state.cursor_pos.x - controller->mouse_pos_initial.x ) / ( controlCircleRadius * 3.f );                // map to -1..1
-			rotationDelta.y = glm::two_pi<float>() * ( mouse_state.cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 3.f );                 // map to -1..1
-			rotationDelta.z = glm::two_pi<float>() - fmodf( mouseInitialAngle + glm::two_pi<float>() + atan2f( mouseDelta.y, mouseDelta.x ), glm::two_pi<float>() ); // Range is expected to 0..2pi, ccw
+			rotationDelta.x = glm::two_pi<float>() * -( mouse_state.cursor_pos.x - controller->mouse_pos_initial.x ) / ( controlCircleRadius * 3.f );                       // map to -1..1
+			rotationDelta.y = glm::two_pi<float>() * flip * ( mouse_state.cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 3.f );                 // map to -1..1
+			rotationDelta.z = glm::two_pi<float>() - flip * fmodf( mouseInitialAngle + glm::two_pi<float>() + atan2f( mouseDelta.y, mouseDelta.x ), glm::two_pi<float>() ); // Range is expected to 0..2pi, ccw
 
-			translationDelta.x = -( mouse_state.cursor_pos.x - controller->mouse_pos_initial.x ) / ( controlCircleRadius * 1.f ); // map to -1..1
-			translationDelta.y = -( mouse_state.cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 1.f ); // map to -1..1
-			translationDelta.z = ( mouse_state.cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 1.f );  // map to -1..1
+			translationDelta.x = -( mouse_state.cursor_pos.x - controller->mouse_pos_initial.x ) / ( controlCircleRadius * 1.f );        // map to -1..1
+			translationDelta.y = -flip * ( mouse_state.cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 1.f ); // map to -1..1
+			translationDelta.z = ( mouse_state.cursor_pos.y - controller->mouse_pos_initial.y ) / ( controlCircleRadius * 1.f );         // map to -1..1
 		}
 
 		// -- update controller state machine based on accumulated mouse_state
@@ -500,7 +504,7 @@ ISL_API_ATTR void register_le_camera_api( void *api ) {
 
 	le_camera_i.create                = le_camera_create;
 	le_camera_i.destroy               = le_camera_destroy;
-    le_camera_i.clone                 = le_camera_clone;
+	le_camera_i.clone                 = le_camera_clone;
 	le_camera_i.get_projection_matrix = camera_get_projection_matrix;
 	le_camera_i.get_unit_distance     = camera_get_unit_distance;
 	le_camera_i.get_view_matrix       = camera_get_view_matrix;
