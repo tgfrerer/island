@@ -36,6 +36,7 @@ static void le_mesh_clear( le_mesh_o *self ) {
 	self->normals.clear();
 	self->uvs.clear();
 	self->tangents.clear();
+	self->colours.clear();
 	self->indices.clear();
 }
 
@@ -77,6 +78,15 @@ static void le_mesh_get_normals( le_mesh_o *self, size_t &count, float **normals
 
 // ----------------------------------------------------------------------
 
+static void le_mesh_get_colours( le_mesh_o *self, size_t &count, float **colours ) {
+	count = self->colours.size();
+	if ( colours ) {
+		*colours = static_cast<float *>( &self->colours[ 0 ].x );
+	}
+}
+
+// ----------------------------------------------------------------------
+
 static void le_mesh_get_uvs( le_mesh_o *self, size_t &count, float **uvs ) {
 	count = self->normals.size();
 	if ( uvs ) {
@@ -86,19 +96,26 @@ static void le_mesh_get_uvs( le_mesh_o *self, size_t &count, float **uvs ) {
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_data( le_mesh_o *self, size_t &numVertices, size_t &numIndices, float **vertices, float **normals, float **uvs, uint16_t **indices ) {
+static void le_mesh_get_data( le_mesh_o *self, size_t &numVertices, size_t &numIndices, float **vertices, float **normals, float **uvs, float **colours, uint16_t **indices ) {
 	numVertices = self->vertices.size();
 	numIndices  = self->indices.size();
 
 	if ( vertices ) {
-		*vertices = static_cast<float *>( &self->vertices[ 0 ].x );
+		*vertices = self->vertices.empty() ? nullptr : static_cast<float *>( &self->vertices[ 0 ].x );
 	}
+
+	if ( colours ) {
+		*colours = self->colours.empty() ? nullptr : static_cast<float *>( &self->colours[ 0 ].x );
+	}
+
 	if ( normals ) {
-		*normals = static_cast<float *>( &self->normals[ 0 ].x );
+		*normals = self->normals.empty() ? nullptr : static_cast<float *>( &self->normals[ 0 ].x );
 	}
+
 	if ( uvs ) {
-		*uvs = static_cast<float *>( &self->uvs[ 0 ].x );
+		*uvs = self->uvs.empty() ? nullptr : static_cast<float *>( &self->uvs[ 0 ].x );
 	}
+
 	if ( indices ) {
 		*indices = self->indices.data();
 	}
@@ -199,14 +216,18 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 			eNZ,
 			eTexU,
 			eTexV,
+			eColR,
+			eColG,
+			eColB,
+			eColA,
 		};
 
-		Type          type;
-		AttributeType attribute_type;    // only used for attributes - not lists.
-		Type          list_size_type;    // only used for lists
-		Type          list_content_type; // only used for lists
-		char const *  name;
-		uint8_t       name_len; ///< number of chars for name (does not include \0)
+		Type          type              = Type::eUnknown;
+		AttributeType attribute_type    = AttributeType::eUnknown; // only used for attributes - not lists.
+		Type          list_size_type    = Type::eUnknown;          // only used for lists
+		Type          list_content_type = Type::eUnknown;          // only used for lists
+		char const *  name              = nullptr;
+		uint8_t       name_len          = 0; ///< number of chars for name (does not include \0)
 	};
 
 	struct Element {
@@ -295,6 +316,8 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 			};
 
 			c += last_search_string_len + 1;
+
+			// fetch name of element, and count of elements
 			parse_element_line( c, element );
 
 			elements.emplace_back( std::move( element ) );
@@ -309,37 +332,8 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 			auto parse_property_line = []( char *c, Property &property ) -> bool {
 				size_t last_search_string_len = 0;
 
-				// now, we expect either float or list as property type
-				if ( does_start_with( c, "float", last_search_string_len ) ) {
-					property.type = Property::Type::eFloat;
-					c += last_search_string_len + 1;
-
-					property.name     = c;
-					property.name_len = uint8_t( strlen( c ) );
-
-					if ( 0 == strncmp( c, "x", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eVX;
-					} else if ( 0 == strncmp( c, "y", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eVY;
-					} else if ( 0 == strncmp( c, "z", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eVZ;
-					} else if ( 0 == strncmp( c, "nx", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eNX;
-					} else if ( 0 == strncmp( c, "ny", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eNY;
-					} else if ( 0 == strncmp( c, "nz", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eNZ;
-					} else if ( 0 == strncmp( c, "s", property.name_len ) || strncmp( c, "u", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eTexU;
-					} else if ( 0 == strncmp( c, "t", property.name_len ) || strncmp( c, "v", property.name_len ) ) {
-						property.attribute_type = Property::AttributeType::eTexV;
-					} else {
-						std::cerr << "WARNING: Attribute name not recognised: '" << c << "'" << std::endl
-						          << std::flush;
-					}
-
-					return true;
-				} else if ( does_start_with( c, "list", last_search_string_len ) ) {
+				// now, we expect either list or [float|uchar] as property type
+				if ( does_start_with( c, "list", last_search_string_len ) ) {
 					c += last_search_string_len + 1;
 					property.type = Property::Type::eList;
 
@@ -376,9 +370,66 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 					property.name     = c;
 					property.name_len = uint8_t( strlen( c ) );
 					return true;
-				}
+				} else {
 
-				std::cerr << "Expected property type must be either 'float' or 'list', but given: " << c << std::endl
+					// Non-list type
+
+					if ( does_start_with( c, "float", last_search_string_len ) ) {
+						property.type = Property::Type::eFloat;
+					} else if ( does_start_with( c, "uint", last_search_string_len ) ) {
+						property.type = Property::Type::eUint;
+					} else if ( does_start_with( c, "uchar", last_search_string_len ) ) {
+						property.type = Property::Type::eUchar;
+					} else {
+						// Unknown property type.
+						std::cerr << __PRETTY_FUNCTION__ << ": Unknown property type: " << c << std::endl
+						          << std::flush;
+						assert( false );
+						return false;
+					}
+
+					c += last_search_string_len + 1;
+					property.name     = c;
+					property.name_len = uint8_t( strlen( c ) );
+
+					if ( 0 == strncmp( c, "x", property.name_len ) ) {
+						property.attribute_type = Property::AttributeType::eVX;
+					} else if ( 0 == strncmp( c, "y", property.name_len ) ) {
+						property.attribute_type = Property::AttributeType::eVY;
+					} else if ( 0 == strncmp( c, "z", property.name_len ) ) {
+						property.attribute_type = Property::AttributeType::eVZ;
+					} else if ( 0 == strncmp( c, "nx", property.name_len ) ) {
+						property.attribute_type = Property::AttributeType::eNX;
+					} else if ( 0 == strncmp( c, "ny", property.name_len ) ) {
+						property.attribute_type = Property::AttributeType::eNY;
+					} else if ( 0 == strncmp( c, "nz", property.name_len ) ) {
+						property.attribute_type = Property::AttributeType::eNZ;
+					} else if ( 0 == strncmp( c, "s", property.name_len ) ||
+					            0 == strncmp( c, "u", property.name_len ) ) {
+						property.attribute_type = Property::AttributeType::eTexU;
+					} else if ( 0 == strncmp( c, "t", property.name_len ) ||
+					            0 == strncmp( c, "v", property.name_len ) ) {
+						property.attribute_type = Property::AttributeType::eTexV;
+					} else if ( 0 == strncmp( c, "red", property.name_len ) ||
+					            0 == strncmp( c, "r", property.name_len ) ) {
+						property.attribute_type = Property::AttributeType::eColR;
+					} else if ( 0 == strncmp( c, "green", property.name_len ) ||
+					            0 == strncmp( c, "g", property.name_len ) ) {
+						property.attribute_type = Property::AttributeType::eColG;
+					} else if ( 0 == strncmp( c, "blue", property.name_len ) ||
+					            0 == strncmp( c, "b", property.name_len ) ) {
+						property.attribute_type = Property::AttributeType::eColB;
+					} else if ( 0 == strncmp( c, "alpha", property.name_len ) ||
+					            0 == strncmp( c, "a", property.name_len ) ) {
+						property.attribute_type = Property::AttributeType::eColA;
+					} else {
+						std::cerr << "WARNING: Attribute name not recognised: '" << c << "'" << std::endl
+						          << std::flush;
+					}
+
+					return true;
+				}
+				std::cerr << "Expected property type must be either 'list', or one of non-list type: uchar, float, uint, but given: " << c << std::endl
 				          << std::flush;
 				assert( false );
 				return false;
@@ -449,6 +500,12 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 				case ( Property::AttributeType::eNZ ): // intentional fall-through
 					self->normals.resize( element_archetype->num_elements, {} );
 					break;
+				case ( Property::AttributeType::eColR ): // intentional fall-through
+				case ( Property::AttributeType::eColG ): // intentional fall-through
+				case ( Property::AttributeType::eColB ): // intentional fall-through
+				case ( Property::AttributeType::eColA ): // intentional fall-through
+					self->colours.resize( element_archetype->num_elements, {} );
+					break;
 				case ( Property::AttributeType::eTexU ): // intentional fall-through
 				case ( Property::AttributeType::eTexV ): // intentional fall-through
 					self->uvs.resize( element_archetype->num_elements, {} );
@@ -460,48 +517,39 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 			}
 
 			for ( uint32_t i = 0; i != element_archetype->num_elements && c != nullptr; ++i, c = strtok_r( nullptr, DELIMS, &c_save_ptr ) ) {
-				char const *s = c;
-				char *      end_prop;
+				char *s = c;
 
 				auto *v_data  = self->vertices.empty() ? nullptr : &self->vertices[ i ];
 				auto *n_data  = self->normals.empty() ? nullptr : &self->normals[ i ];
 				auto *uv_data = self->uvs.empty() ? nullptr : &self->uvs[ i ];
+				auto *c_data  = self->colours.empty() ? nullptr : &self->colours[ i ];
 
 				for ( auto const &p : element_archetype->properties ) {
 
+					// clang-format off
 					switch ( p.attribute_type ) {
-					case ( Property::AttributeType::eVX ):
-						v_data->x = strtof( s, &end_prop );
-						break;
-					case ( Property::AttributeType::eVY ):
-						v_data->y = strtof( s, &end_prop );
-						break;
-					case ( Property::AttributeType::eVZ ):
-						v_data->z = strtof( s, &end_prop );
-						break;
-					case ( Property::AttributeType::eNX ):
-						n_data->x = strtof( s, &end_prop );
-						break;
-					case ( Property::AttributeType::eNY ):
-						n_data->y = strtof( s, &end_prop );
-						break;
-					case ( Property::AttributeType::eNZ ):
-						n_data->z = strtof( s, &end_prop );
-						break;
-					case ( Property::AttributeType::eTexU ):
-						uv_data->x = strtof( s, &end_prop );
-						break;
-					case ( Property::AttributeType::eTexV ):
-						uv_data->y = strtof( s, &end_prop );
-						break;
+					case ( Property::AttributeType::eVX )   : v_data->x  = strtof( s, &s ); break;
+					case ( Property::AttributeType::eVY )   : v_data->y  = strtof( s, &s ); break;
+					case ( Property::AttributeType::eVZ )   : v_data->z  = strtof( s, &s ); break;
+					case ( Property::AttributeType::eNX )   : n_data->x  = strtof( s, &s ); break;
+					case ( Property::AttributeType::eNY )   : n_data->y  = strtof( s, &s ); break;
+					case ( Property::AttributeType::eNZ )   : n_data->z  = strtof( s, &s ); break;
+					case ( Property::AttributeType::eTexU ) : uv_data->x = strtof( s, &s ); break;
+					case ( Property::AttributeType::eTexV ) : uv_data->y = strtof( s, &s ); break;
+					case ( Property::AttributeType::eColR ):
+						c_data->x = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
+					case ( Property::AttributeType::eColG ):
+						c_data->y = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
+					case ( Property::AttributeType::eColB ):
+						c_data->z = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
+					case ( Property::AttributeType::eColA ):
+						c_data->w = p.type == Property::Type::eFloat ? strtof( s, &s ) : strtoul( s, &s, 0 )/255.f; break;
 					case ( Property::AttributeType::eUnknown ):
 						// TODO: what do we do if there is an unknown attribute?
 						assert( false );
-						end_prop = nullptr;
 						break;
 					}
-
-					s = end_prop;
+					// clang-format on
 				}
 			}
 
@@ -560,6 +608,7 @@ ISL_API_ATTR void register_le_mesh_api( void *api ) {
 	le_mesh_i.get_uvs      = le_mesh_get_uvs;
 	le_mesh_i.get_tangents = le_mesh_get_tangents;
 	le_mesh_i.get_normals  = le_mesh_get_normals;
+	le_mesh_i.get_colours  = le_mesh_get_colours;
 	le_mesh_i.get_data     = le_mesh_get_data;
 
 	le_mesh_i.load_from_ply_file = le_mesh_load_from_ply_file;

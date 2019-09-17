@@ -26,11 +26,12 @@ struct le_mesh_api {
 
 		void (*get_vertices )( le_mesh_o *self, size_t& count, float **   vertices);
 		void (*get_normals  )( le_mesh_o *self, size_t& count, float **   normals );
+		void (*get_colours  )( le_mesh_o *self, size_t& count, float **   colours );
 		void (*get_uvs      )( le_mesh_o *self, size_t& count, float **   uvs     );
 		void (*get_tangents )( le_mesh_o *self, size_t& count, float **   tangents);
 		void (*get_indices  )( le_mesh_o *self, size_t& count, uint16_t** indices );
 
-		void (*get_data     )( le_mesh_o *self, size_t& numVertices, size_t& numIndices, float** vertices, float**normals, float**uvs, uint16_t **indices);
+		void (*get_data     )( le_mesh_o *self, size_t& numVertices, size_t& numIndices, float** vertices, float**normals, float**uvs, float ** colours, uint16_t **indices);
 
 		bool (*load_from_ply_file)( le_mesh_o *self, char const *file_path );
 
@@ -81,6 +82,10 @@ class LeMesh : NoCopy, NoMove {
 		this_i.get_tangents( self, count, pTangents );
 	}
 
+	void getColours( size_t &count, float **pColours = nullptr ) {
+		this_i.get_colours( self, count, pColours );
+	}
+
 	void getNormals( size_t &count, float **pNormals = nullptr ) {
 		this_i.get_vertices( self, count, pNormals );
 	}
@@ -93,8 +98,8 @@ class LeMesh : NoCopy, NoMove {
 		this_i.get_indices( self, count, pIndices );
 	}
 
-	void getData( size_t &numVertices, size_t &numIndices, float **pVertices = nullptr, float **pNormals = nullptr, float **pUvs = nullptr, uint16_t **pIndices = nullptr ) {
-		this_i.get_data( self, numVertices, numIndices, pVertices, pNormals, pUvs, pIndices );
+	void getData( size_t &numVertices, size_t &numIndices, float **pVertices = nullptr, float **pNormals = nullptr, float **pUvs = nullptr, float **pColours = nullptr, uint16_t **pIndices = nullptr ) {
+		this_i.get_data( self, numVertices, numIndices, pVertices, pNormals, pUvs, pColours, pIndices );
 	}
 
 	bool loadFromPlyFile( char const *file_path ) {

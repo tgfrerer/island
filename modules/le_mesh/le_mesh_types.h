@@ -8,7 +8,8 @@
 struct le_mesh_o {
 	std::vector<uint16_t>  indices;  // list of indices
 	std::vector<glm::vec3> vertices; // 3d position in model space
-	std::vector<glm::vec3> normals;  // normalsied normal  , per-vertex
+	std::vector<glm::vec3> normals;  // normalised normal, per-vertex
+	std::vector<glm::vec4> colours;  // rgba colour, per-vertex
 	std::vector<glm::vec2> uvs;      // uv coordintates    , per-vertex
 	std::vector<glm::vec3> tangents; // normalised tangents, per-vertex
 };
