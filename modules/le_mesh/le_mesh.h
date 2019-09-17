@@ -32,6 +32,8 @@ struct le_mesh_api {
 
 		void (*get_data     )( le_mesh_o *self, size_t& numVertices, size_t& numIndices, float** vertices, float**normals, float**uvs, uint16_t **indices);
 
+		bool (*load_from_ply_file)( le_mesh_o *self, char const *file_path );
+
 	};
 
 	le_mesh_interface_t       le_mesh_i;
@@ -93,6 +95,10 @@ class LeMesh : NoCopy, NoMove {
 
 	void getData( size_t &numVertices, size_t &numIndices, float **pVertices = nullptr, float **pNormals = nullptr, float **pUvs = nullptr, uint16_t **pIndices = nullptr ) {
 		this_i.get_data( self, numVertices, numIndices, pVertices, pNormals, pUvs, pIndices );
+	}
+
+	bool loadFromPlyFile( char const *file_path ) {
+		return this_i.load_from_ply_file( self, file_path );
 	}
 
 	operator auto() {
