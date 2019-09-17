@@ -223,9 +223,9 @@ class Renderer {
 		return result;
 	}
 
-    le_pipeline_manager_o *getPipelineManager() const {
-        return le_renderer::renderer_i.get_pipeline_manager( self );
-    }
+	le_pipeline_manager_o *getPipelineManager() const {
+		return le_renderer::renderer_i.get_pipeline_manager( self );
+	}
 
 	operator auto() {
 		return self;
@@ -243,8 +243,8 @@ class RenderPass {
 
 	RenderPass( const char *name_, const LeRenderPassType &type_, le_renderer_api::pfn_renderpass_setup_t fun_setup, le_renderer_api::pfn_renderpass_execute_t fun_exec, void *user_data )
 	    : self( le_renderer::renderpass_i.create( name_, type_ ) ) {
-        le_renderer::renderpass_i.set_setup_callback( self, user_data, fun_setup );
-        le_renderer::renderpass_i.set_execute_callback( self, user_data, fun_exec );
+		le_renderer::renderpass_i.set_setup_callback( self, user_data, fun_setup );
+		le_renderer::renderpass_i.set_execute_callback( self, user_data, fun_exec );
 	}
 
 	// Create facade from pointer
@@ -293,12 +293,12 @@ class RenderPass {
 	}
 
 	RenderPass &setSetupCallback( void *user_data, le_renderer_api::pfn_renderpass_setup_t fun ) {
-        le_renderer::renderpass_i.set_setup_callback( self, user_data, fun );
+		le_renderer::renderpass_i.set_setup_callback( self, user_data, fun );
 		return *this;
 	}
 
 	RenderPass &setExecuteCallback( void *user_data, le_renderer_api::pfn_renderpass_execute_t fun ) {
-        le_renderer::renderpass_i.set_execute_callback( self, user_data, fun );
+		le_renderer::renderpass_i.set_execute_callback( self, user_data, fun );
 		return *this;
 	}
 
