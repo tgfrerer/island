@@ -7,7 +7,7 @@
 #include <vector>
 #include <array>
 #include <fstream>
-#include "experimental/filesystem" // for parsing shader source file paths
+#include "experimental/filesystem" // for parsing source filepaths
 #include <iostream>
 #include <assert.h>
 
