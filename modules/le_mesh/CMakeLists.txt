@@ -26,6 +26,6 @@ else()
 
 endif()
 
-# set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
+set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})

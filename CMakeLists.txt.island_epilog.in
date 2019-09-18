@@ -1,7 +1,7 @@
 
 # Load all modules which where requested
 foreach( M IN LISTS MODULES_LIST )
-    load_island_module(${M})
+    add_island_module(${M})
 endforeach()
 
 # NOTE: provide paths for libraries which are used by modules, 
@@ -23,8 +23,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PLUGIN_LIBS_DEPENDENCIES})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${STATIC_LIBS})
 
-message(STATUS "Static  libraries: ${STATIC_LIBS}")
-message(STATUS "Requested modules: ${MODULES_LIST}")
+message(STATUS "Static libraries: ${STATIC_LIBS}")
+message(STATUS "Loaded modules  : ${LOADED_MODULES_LIST}")
 
 ##################################################################################
 # OPTIONAL - Use Vulkan Validation Layers compiled from source -

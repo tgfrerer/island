@@ -93,6 +93,10 @@ set ( CORE_ISLAND_MODULES le_pipeline_builder;pal_window;le_backend_vk;le_swapch
 # We will store all requested module names in this list, and then load modules based on this list
 set ( MODULES_LIST )
 
+# We will store all loaded module names in this global list, so that we can make sure that modules don't get loaded more than once.
+set ( LOADED_MODULES_LIST CACHE INTERNAL "loaded_modules_list" )
+
+
 # Add required modules to modules list based on user flags
 #
 if (REQUIRES_ISLAND_LOADER)
@@ -105,6 +109,7 @@ endif()
 
 # Loads a requested module
 macro(load_island_module MODULE_NAME)
+    message(STATUS "Loading module  : ${MODULE_NAME}")
     add_subdirectory ("${ISLAND_BASE_DIR}/modules/${MODULE_NAME}" ${MODULE_NAME})
 endmacro()
 
@@ -112,11 +117,17 @@ endmacro()
 # Adds a module name to list of requested modules, 
 # checks whether a module was already requested to prevent duplicates.
 macro(add_island_module MODULE_NAME)
-    if (NOT ${MODULE_NAME} IN_LIST MODULES_LIST)
-        message(STATUS "Requesting extra module: ${MODULE_NAME}")
-        # prepend module name to modules_list in global scope
-        set( MODULES_LIST ${MODULE_NAME} ${MODULES_LIST} )
+    
+    if (NOT ${MODULE_NAME} IN_LIST LOADED_MODULES_LIST)
+        # prepend module name to loaded_modules_list in global scope
+        set( LOADED_MODULES_LIST ${LOADED_MODULES_LIST} ${MODULE_NAME} CACHE INTERNAL "loaded_modules_list" )        
+        load_island_module(${MODULE_NAME})        
     else()
-        # message(STATUS "[ NOTE ] Rejecting extra module request: `${MODULE_NAME}` - Module already present."  )
+        message(STATUS "[ NOTE ] Rejecting extra module request: `${MODULE_NAME}` - Module already present."  )
     endif()
+
 endmacro(add_island_module)
+
+macro (depends_on_island_module MODULE_NAME)
+    add_island_module(${MODULE_NAME})
+endmacro(depends_on_island_module)

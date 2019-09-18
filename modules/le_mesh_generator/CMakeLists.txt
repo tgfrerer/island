@@ -1,3 +1,5 @@
+depends_on_island_module(le_mesh)
+
 set (TARGET le_mesh_generator)
 
 set (SOURCES "le_mesh_generator.cpp")
@@ -28,3 +30,4 @@ endif()
 # set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
+

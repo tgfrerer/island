@@ -1,3 +1,5 @@
+depends_on_island_module(le_path)
+
 set (TARGET le_font)
 
 set (SOURCES "le_font.cpp")
