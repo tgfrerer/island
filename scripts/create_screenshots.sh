@@ -31,7 +31,6 @@ apps_list=("
 	test_outline:Island-TestOutline
 	test_paintbrush:Island-TestPaintbrush
 	test_param:Island-TestParam
-	test_parameter:Island-TestParameter
 	test_path:Island-TestPath
 	test_path_render:Island-TestPathRender
 	test_ping_pong:Island-TestPingPong
@@ -87,6 +86,7 @@ copy_screenshot(){
 
 	mkdir -p $screenshot_dir
 	convert ${build_dir}/60.ppm  ${screenshot_dir}/${app_name}.png
+	ln -f ${screenshot_dir}/${app_name}.png ${build_dir}/../../screenshot.png
 }
 
 # run app and takes screenshot using the vulkan screenshot layer
@@ -116,15 +116,15 @@ build_app(){
 	cmake --config ../.. -GNinja
 	
 	# we store the timestamp of the last built app executable
-	local last_modified_time=0
-	local last_app_time=0
-	last_app_time=`tar cf - modules ${app_name} local_resources resources | md5sum`
+	local previous_hash=0
+	local default_hash=0
+	default_hash=`tar cf - modules ${app_name} | md5sum`
 	
 	# if no previous executable exists, we must still set the 
-	# last_modified_time to something sensible
+	# previous_hash to something sensible
 	if test $? -eq 0 
 	then
-		last_modified_time=$last_app_time
+		previous_hash=$default_hash
 	else
 		echo "could not stat"
 	fi
@@ -142,16 +142,16 @@ build_app(){
 		# ninja did okay.
 		# we must now check if we have a new artifact, or if its still the same.
 
-		local current_modified_time=`tar cf - modules ${app_name} local_resources resources | md5sum`
+		local current_hash=`tar cf - modules ${app_name} | md5sum`
 		popd
 
-		if [[ $current_modified_time != $last_modified_time ]];
+		if [[ $current_hash != $previous_hash ]];
 		then
 			# we have a new artifact
-			echo "time mismatch: $current_modified_time != $last_modified_time"  
+			echo "time mismatch: $current_hash != $previous_hash"  
 			return 0
 		else
-			echo "$current_modified_time == $last_modified_time"
+			echo "$current_hash == $previous_hash"
 			# artifact has not changed.
 			echo "no change" 
 			return 2
@@ -170,7 +170,6 @@ process_app(){
 	if [ -d $app_base_dir ] 
 	then
 		local build_dir="${app_base_dir}/build/Desktop-Test"
-
 
 		build_app $build_dir $app_name &>build.log
 		local build_result=$?
