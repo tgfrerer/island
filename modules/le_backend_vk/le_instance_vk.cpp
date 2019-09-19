@@ -150,7 +150,7 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 	    .setApplicationVersion( VK_MAKE_VERSION( 0, 0, 0 ) )
 	    .setPEngineName( "island" )
 	    .setEngineVersion( VK_MAKE_VERSION( 0, 1, 0 ) )
-	    .setApiVersion( VK_MAKE_VERSION( 1, 1, 101 ) );
+	    .setApiVersion( VK_MAKE_VERSION( 1, 1, 121 ) );
 
 	// -- create a vector of unique requested instance extension names
 
