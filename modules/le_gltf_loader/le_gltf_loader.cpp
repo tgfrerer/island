@@ -128,15 +128,15 @@ typename std::underlying_type<T>::type enum_to_num( const T &a ) {
 static uint8_t vec_size_from_gltf_type( const gltf::Accessor::Type &t ) {
 	switch ( t ) {
 	case gltf::Accessor::Type::Scalar:
-	    return 1;
+		return 1;
 	case gltf::Accessor::Type::Vec2:
-	    return 2;
+		return 2;
 	case gltf::Accessor::Type::Vec3:
-	    return 3;
+		return 3;
 	case gltf::Accessor::Type::Vec4:
-	    return 4;
+		return 4;
 	default:
-	    return 0;
+		return 0;
 	}
 };
 
@@ -174,26 +174,26 @@ static void getAttrInfo( const std::string &attrName, const gltf::Accessor &acc,
 	switch ( acc.componentType ) {
 	case ( gltf::Accessor::ComponentType::None ):
 		// invalid component type
-	    break;
+		break;
 	case ( gltf::Accessor::ComponentType::Byte ):
 		attr.type = le_vertex_input_attribute_description::Type::eChar;
-	    break;
+		break;
 	case ( gltf::Accessor::ComponentType::UnsignedByte ):
 		attr.type = le_vertex_input_attribute_description::Type::eUChar;
-	    break;
+		break;
 	case ( gltf::Accessor::ComponentType::Short ):
 		attr.type = le_vertex_input_attribute_description::Type::eShort;
-	    break;
+		break;
 	case ( gltf::Accessor::ComponentType::UnsignedShort ):
 		attr.type = le_vertex_input_attribute_description::Type::eUShort;
-	    break;
+		break;
 	case ( gltf::Accessor::ComponentType::UnsignedInt ):
 		attr.type = le_vertex_input_attribute_description::Type::eUInt;
-	    break;
+		break;
 	case ( gltf::Accessor::ComponentType::Float ):
 		attr.type         = le_vertex_input_attribute_description::Type::eFloat;
 		attr.isNormalised = false; // Floats are never normalised
-	    break;
+		break;
 	}
 };
 
@@ -205,19 +205,19 @@ static inline uint32_t get_num_bytes_per_element( const gltf::Accessor::Type &t,
 	switch ( cT ) {
 	case ( gltf::Accessor::ComponentType::None ):
 		componentSz = 0;
-	    break;
+		break;
 	case ( gltf::Accessor::ComponentType::Byte ):
 	case ( gltf::Accessor::ComponentType::UnsignedByte ):
 		componentSz = 1;
-	    break;
+		break;
 	case ( gltf::Accessor::ComponentType::Short ):
 	case ( gltf::Accessor::ComponentType::UnsignedShort ):
 		componentSz = 2;
-	    break;
+		break;
 	case ( gltf::Accessor::ComponentType::UnsignedInt ):
 	case ( gltf::Accessor::ComponentType::Float ):
 		componentSz = 4;
-	    break;
+		break;
 	}
 
 	return vecSz * componentSz;
@@ -736,8 +736,8 @@ static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *r
 		// Cache buffer lookups for primitives
 
 		{
-			auto shader_module_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.vert", {le::ShaderStage::eVertex} );
-			auto shader_module_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.frag", {le::ShaderStage::eFragment} );
+			auto shader_module_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.vert", {le::ShaderStage::eVertex}, "" );
+			auto shader_module_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.frag", {le::ShaderStage::eFragment}, "" );
 
 			p.pso = LeGraphicsPipelineBuilder( pipeline_manager )
 			            .addShaderStage( shader_module_frag )
