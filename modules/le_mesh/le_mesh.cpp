@@ -42,7 +42,7 @@ static void le_mesh_clear( le_mesh_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_vertices( le_mesh_o *self, size_t &count, float **vertices ) {
+static void le_mesh_get_vertices( le_mesh_o *self, size_t &count, float const **vertices ) {
 	count = self->vertices.size();
 	if ( vertices ) {
 		*vertices = static_cast<float *>( &self->vertices[ 0 ].x );
@@ -51,7 +51,7 @@ static void le_mesh_get_vertices( le_mesh_o *self, size_t &count, float **vertic
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_tangents( le_mesh_o *self, size_t &count, float **tangents ) {
+static void le_mesh_get_tangents( le_mesh_o *self, size_t &count, float const **tangents ) {
 	count = self->tangents.size();
 	if ( tangents ) {
 		*tangents = static_cast<float *>( &self->tangents[ 0 ].x );
@@ -60,7 +60,7 @@ static void le_mesh_get_tangents( le_mesh_o *self, size_t &count, float **tangen
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_indices( le_mesh_o *self, size_t &count, uint16_t **indices ) {
+static void le_mesh_get_indices( le_mesh_o *self, size_t &count, uint16_t const **indices ) {
 	count = self->indices.size();
 	if ( indices ) {
 		*indices = self->indices.data();
@@ -69,7 +69,7 @@ static void le_mesh_get_indices( le_mesh_o *self, size_t &count, uint16_t **indi
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_normals( le_mesh_o *self, size_t &count, float **normals ) {
+static void le_mesh_get_normals( le_mesh_o *self, size_t &count, float const **normals ) {
 	count = self->normals.size();
 	if ( normals ) {
 		*normals = static_cast<float *>( &self->normals[ 0 ].x );
@@ -78,7 +78,7 @@ static void le_mesh_get_normals( le_mesh_o *self, size_t &count, float **normals
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_colours( le_mesh_o *self, size_t &count, float **colours ) {
+static void le_mesh_get_colours( le_mesh_o *self, size_t &count, float const **colours ) {
 	count = self->colours.size();
 	if ( colours ) {
 		*colours = static_cast<float *>( &self->colours[ 0 ].x );
@@ -87,7 +87,7 @@ static void le_mesh_get_colours( le_mesh_o *self, size_t &count, float **colours
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_uvs( le_mesh_o *self, size_t &count, float **uvs ) {
+static void le_mesh_get_uvs( le_mesh_o *self, size_t &count, float const **uvs ) {
 	count = self->normals.size();
 	if ( uvs ) {
 		*uvs = static_cast<float *>( &self->uvs[ 0 ].x );
@@ -96,24 +96,24 @@ static void le_mesh_get_uvs( le_mesh_o *self, size_t &count, float **uvs ) {
 
 // ----------------------------------------------------------------------
 
-static void le_mesh_get_data( le_mesh_o *self, size_t &numVertices, size_t &numIndices, float **vertices, float **normals, float **uvs, float **colours, uint16_t **indices ) {
+static void le_mesh_get_data( le_mesh_o *self, size_t &numVertices, size_t &numIndices, float const **vertices, float const **normals, float const **uvs, float const **colours, uint16_t const **indices ) {
 	numVertices = self->vertices.size();
 	numIndices  = self->indices.size();
 
 	if ( vertices ) {
-		*vertices = self->vertices.empty() ? nullptr : static_cast<float *>( &self->vertices[ 0 ].x );
+		*vertices = self->vertices.empty() ? nullptr : static_cast<float const *>( &self->vertices[ 0 ].x );
 	}
 
 	if ( colours ) {
-		*colours = self->colours.empty() ? nullptr : static_cast<float *>( &self->colours[ 0 ].x );
+		*colours = self->colours.empty() ? nullptr : static_cast<float const *>( &self->colours[ 0 ].x );
 	}
 
 	if ( normals ) {
-		*normals = self->normals.empty() ? nullptr : static_cast<float *>( &self->normals[ 0 ].x );
+		*normals = self->normals.empty() ? nullptr : static_cast<float const *>( &self->normals[ 0 ].x );
 	}
 
 	if ( uvs ) {
-		*uvs = self->uvs.empty() ? nullptr : static_cast<float *>( &self->uvs[ 0 ].x );
+		*uvs = self->uvs.empty() ? nullptr : static_cast<float const *>( &self->uvs[ 0 ].x );
 	}
 
 	if ( indices ) {

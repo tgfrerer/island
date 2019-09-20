@@ -24,14 +24,14 @@ struct le_mesh_api {
 
 		void (*clear)(le_mesh_o* self);
 
-		void (*get_vertices )( le_mesh_o *self, size_t& count, float **   vertices);
-		void (*get_normals  )( le_mesh_o *self, size_t& count, float **   normals );
-		void (*get_colours  )( le_mesh_o *self, size_t& count, float **   colours );
-		void (*get_uvs      )( le_mesh_o *self, size_t& count, float **   uvs     );
-		void (*get_tangents )( le_mesh_o *self, size_t& count, float **   tangents);
-		void (*get_indices  )( le_mesh_o *self, size_t& count, uint16_t** indices );
+		void (*get_vertices )( le_mesh_o *self, size_t& count, float const **   vertices);
+		void (*get_normals  )( le_mesh_o *self, size_t& count, float const **   normals );
+		void (*get_colours  )( le_mesh_o *self, size_t& count, float const **   colours );
+		void (*get_uvs      )( le_mesh_o *self, size_t& count, float const **   uvs     );
+		void (*get_tangents )( le_mesh_o *self, size_t& count, float const **   tangents);
+		void (*get_indices  )( le_mesh_o *self, size_t& count, uint16_t const ** indices );
 
-		void (*get_data     )( le_mesh_o *self, size_t& numVertices, size_t& numIndices, float** vertices, float**normals, float**uvs, float ** colours, uint16_t **indices);
+		void (*get_data     )( le_mesh_o *self, size_t& numVertices, size_t& numIndices, float const** vertices, float const **normals, float const **uvs, float const  ** colours, uint16_t const **indices);
 
 		bool (*load_from_ply_file)( le_mesh_o *self, char const *file_path );
 
@@ -74,31 +74,31 @@ class LeMesh : NoCopy, NoMove {
 		this_i.clear( self );
 	}
 
-	void getVertices( size_t &count, float **pVertices = nullptr ) {
+	void getVertices( size_t &count, float const **pVertices = nullptr ) {
 		this_i.get_vertices( self, count, pVertices );
 	}
 
-	void getTangents( size_t &count, float **pTangents = nullptr ) {
+	void getTangents( size_t &count, float const **pTangents = nullptr ) {
 		this_i.get_tangents( self, count, pTangents );
 	}
 
-	void getColours( size_t &count, float **pColours = nullptr ) {
+	void getColours( size_t &count, float const **pColours = nullptr ) {
 		this_i.get_colours( self, count, pColours );
 	}
 
-	void getNormals( size_t &count, float **pNormals = nullptr ) {
+	void getNormals( size_t &count, float const **pNormals = nullptr ) {
 		this_i.get_vertices( self, count, pNormals );
 	}
 
-	void getUvs( size_t &count, float **pUvs = nullptr ) {
+	void getUvs( size_t &count, float const **pUvs = nullptr ) {
 		this_i.get_uvs( self, count, pUvs );
 	}
 
-	void getIndices( size_t &count, uint16_t **pIndices = nullptr ) {
+	void getIndices( size_t &count, uint16_t const **pIndices = nullptr ) {
 		this_i.get_indices( self, count, pIndices );
 	}
 
-	void getData( size_t &numVertices, size_t &numIndices, float **pVertices = nullptr, float **pNormals = nullptr, float **pUvs = nullptr, float **pColours = nullptr, uint16_t **pIndices = nullptr ) {
+	void getData( size_t &numVertices, size_t &numIndices, float const **pVertices = nullptr, float const **pNormals = nullptr, float const **pUvs = nullptr, float const **pColours = nullptr, uint16_t const **pIndices = nullptr ) {
 		this_i.get_data( self, numVertices, numIndices, pVertices, pNormals, pUvs, pColours, pIndices );
 	}
 
