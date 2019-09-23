@@ -21,13 +21,13 @@ constexpr uint8_t VK_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color 
 // that it can be opaquely passed around, then unwrapped.
 #define LE_WRAP_ENUM_IN_STRUCT( enum_name, struct_name ) \
 	struct struct_name {                                 \
-	    enum_name data;                                  \
-	    operator const enum_name &() const {             \
-	        return data;                                 \
-	    }                                                \
-	    operator enum_name &() {                         \
-	        return data;                                 \
-	    }                                                \
+		enum_name data;                                  \
+		operator const enum_name &() const {             \
+			return data;                                 \
+		}                                                \
+		operator enum_name &() {                         \
+			return data;                                 \
+		}                                                \
 	}
 
 // ----------------------------------------------------------------------
@@ -58,7 +58,7 @@ struct le_graphics_pipeline_builder_data {
 struct graphics_pipeline_state_o {
 	le_graphics_pipeline_builder_data data{};
 
-	std::vector<le_shader_module_o *> shaderStages; // non-owning; refers opaquely to a shader modules (or not)
+	std::vector<le_shader_module_o *> shaderStages; // non-owning; refers opaquely to shader modules (or not)
 
 	std::vector<le_vertex_input_attribute_description> explicitVertexAttributeDescriptions;    // only used if contains values, otherwise use from vertex shader reflection
 	std::vector<le_vertex_input_binding_description>   explicitVertexInputBindingDescriptions; // only used if contains values, otherwise use from vertex shader reflection
