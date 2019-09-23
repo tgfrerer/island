@@ -3,7 +3,6 @@
 # list apps you want to test
 
 apps_list=("
-	test_ply:Island-TestPly
 	blob_wave:Island-BlobWave
 	aeon:Island-Aeon
 	bb_spectrum:Island-BbSpectrum
@@ -45,6 +44,7 @@ apps_list=("
 	workbench:Island-WorkbenchApp
 ")
 
+TAKE_SCREENSHOTS=0
 
 tempfiles=( )
 cleanup() {
@@ -191,6 +191,12 @@ process_app(){
 		fi
 
 		echo -n "[  OK  ] Build : ${app_name}"
+
+		# we return early if screenshots have not been requested explicitly
+		if [[ $TAKE_SCREENSHOTS != 1 ]];
+		then
+			return 0
+		fi
 		
 		run_app $build_dir $app_name &>run.log
 
@@ -215,6 +221,21 @@ process_app(){
 }
 
 # main script
+
+# check if we want to make screenshots as well
+# as compiling apps.
+
+while getopts ":s" opt; do
+  case ${opt} in
+    s ) # take screenshots
+	  TAKE_SCREENSHOTS=1
+	  echo "requesting screenshots."
+      ;;
+    \? ) echo "Usage: cmd [-s]"
+      ;;
+  esac
+done
+
 
 IFS=$'\n' read -ra arr -d '' <<<"$apps_list"
 
