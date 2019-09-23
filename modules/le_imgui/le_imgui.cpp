@@ -40,7 +40,7 @@ struct le_imgui_o {
 
 // ----------------------------------------------------------------------
 
-static le_imgui_o * le_imgui_create() {
+static le_imgui_o *le_imgui_create() {
 	auto self = new le_imgui_o();
 
 	self->imguiContext = ImGui::CreateContext( nullptr );
@@ -136,7 +136,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *
 			    le::Encoder encoder{p_encoder};
 			    size_t      numBytes = size_t( imgui->imguiTexture.width ) * size_t( imgui->imguiTexture.height ) * 4;
 
-			    auto writeInfo = le::BuilderWriteToImageSettings()
+			    auto writeInfo = le::WriteToImageSettingsBuilder()
 			                         .setImageW( int32_t( imgui->imguiTexture.width ) )
 			                         .setImageH( int32_t( imgui->imguiTexture.height ) )
 			                         .build();
