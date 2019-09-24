@@ -5,11 +5,6 @@ set (SOURCES ${SOURCES} "le_renderer.h")
 set (SOURCES ${SOURCES} "private/le_renderer_types.h")
 set (SOURCES ${SOURCES} "le_rendergraph.cpp")
 set (SOURCES ${SOURCES} "le_command_buffer_encoder.cpp")
-set (SOURCES ${SOURCES} "util/enkiTS/LockLessMultiReadPipe.h")
-set (SOURCES ${SOURCES} "util/enkiTS/TaskScheduler.cpp")
-set (SOURCES ${SOURCES} "util/enkiTS/TaskScheduler.h")
-set (SOURCES ${SOURCES} "util/enkiTS/TaskScheduler_c.cpp")
-set (SOURCES ${SOURCES} "util/enkiTS/TaskScheduler_c.h")
 
 if (${PLUGINS_DYNAMIC})
 

@@ -8,8 +8,7 @@
 #include <iostream>
 #include <iomanip>
 #include <chrono>
-
-#include "util/enkiTS/TaskScheduler.h"
+#include <vector>
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
@@ -66,21 +65,14 @@ struct le_renderer_o {
 	size_t                  numSwapchainImages = 0;
 	size_t                  currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
 	le_swapchain_settings_t swapchain_settings{};              // default swapchain settings
-
-	enki::TaskScheduler g_TS = {};
 };
 
 static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ); // ffdecl
 
 // ----------------------------------------------------------------------
 
-static le_renderer_o *
-renderer_create() {
+static le_renderer_o *renderer_create() {
 	auto obj = new le_renderer_o();
-
-	if ( LE_RENDERER_MULTITHREADED ) {
-		obj->g_TS.Initialize( 4 );
-	}
 	return obj;
 }
 
@@ -388,52 +380,6 @@ static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex ) {
 	}
 }
 
-static void render_tasks( le_renderer_o *renderer, size_t frameIndex ) {
-
-	//	std::cout << "RENDER FRAME " << frameIndex << std::endl
-	//	          << std::flush;
-
-	// acquire external backend resources such as swapchain
-	// and create any temporary resources
-	renderer_acquire_backend_resources( renderer, frameIndex );
-
-	// generate api commands for the frame
-	renderer_process_frame( renderer, frameIndex );
-
-	renderer_dispatch_frame( renderer, frameIndex );
-}
-
-static void clear_task( le_renderer_o *renderer, size_t frameIndex ) {
-	renderer_clear_frame( renderer, frameIndex );
-}
-
-struct RenderTask : public enki::ITaskSet {
-	size_t         frameIndex;
-	le_renderer_o *renderer;
-	virtual void   ExecuteRange( enki::TaskSetPartition range, uint32_t threadnum ) override {
-		render_tasks( renderer, frameIndex );
-	}
-	virtual ~RenderTask() = default;
-};
-
-struct RecordTask : public enki::ITaskSet {
-	size_t              frameIndex;
-	le_renderer_o *     renderer;
-	le_render_module_o *module;
-	virtual void        ExecuteRange( enki::TaskSetPartition range, uint32_t threadnum ) override {
-	}
-	virtual ~RecordTask() = default;
-};
-
-struct ClearTask : public enki::ITaskSet {
-	size_t         frameIndex;
-	le_renderer_o *renderer;
-	virtual void   ExecuteRange( enki::TaskSetPartition range, uint32_t threadnum ) override {
-		clear_task( renderer, frameIndex );
-	}
-	virtual ~ClearTask() = default;
-};
-
 // ----------------------------------------------------------------------
 
 static le_resource_handle_t renderer_get_swapchain_resource( le_renderer_o *self ) {
@@ -464,33 +410,21 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 
 	if ( LE_RENDERER_MULTITHREADED ) {
 		// use task system (experimental)
-
-		//		std::cout << "RENDERER UPDATE" << std::endl
-		//		          << std::endl
-		//		          << std::flush;
-
-		ClearTask clearTask;
-		clearTask.renderer   = self;
-		clearTask.frameIndex = ( index + 1 ) % numFrames;
-		self->g_TS.AddTaskSetToPipe( &clearTask );
-
-		RenderTask renderTask;
-		renderTask.renderer   = self;
-		renderTask.frameIndex = ( index + 2 ) % numFrames;
-		self->g_TS.AddTaskSetToPipe( &renderTask );
-
-		// we record on the main thread.
-		renderer_record_frame( self, ( index + 0 ) % numFrames, module_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
-
-		self->g_TS.WaitforTaskSet( &renderTask );
-		self->g_TS.WaitforTaskSet( &clearTask );
-
 	} else {
 
 		// render on the main thread
 
 		renderer_record_frame( self, ( index + 0 ) % numFrames, module_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
-		render_tasks( self, ( index + 2 ) % numFrames );
+
+		// acquire external backend resources such as swapchain
+		// and create any temporary resources
+		renderer_acquire_backend_resources( self, ( index + 2 ) % numFrames );
+
+		// generate api commands for the frame
+		renderer_process_frame( self, ( index + 2 ) % numFrames );
+
+		renderer_dispatch_frame( self, ( index + 2 ) % numFrames );
+
 		renderer_clear_frame( self, ( index + 1 ) % numFrames ); // wait for frame to come back (important to do this last, as it may block...)
 	}
 
