@@ -472,8 +472,6 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 	Element const *element_archetype     = elements.data();
 	auto const     element_archetype_end = elements.data() + elements.size();
 
-	size_t element_idx = 0;
-
 	// What follows now is a list of elements, one element per line.
 	// elements have properties, which are separated by commas.
 
