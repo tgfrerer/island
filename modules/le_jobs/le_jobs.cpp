@@ -49,7 +49,7 @@ struct le_worker_thread_o {
 };
 
 // TODO: we dont' like that at all, it introduces a fixed memory address.
-static le_worker_thread_o static_worker_thread;
+static le_worker_thread_o static_worker_thread{};
 
 struct le_job_manager_o {
 	std::forward_list<counter_t *> counters;
@@ -72,8 +72,6 @@ static le_fiber_o *le_fiber_create() {
 	if ( fiber->stack_bottom == nullptr )
 		return nullptr;
 
-	fiber->stack = ( void ** )( ( char * )fiber->stack_bottom + le_fiber_o::STACK_SIZE );
-
 	return fiber;
 }
 
@@ -87,6 +85,8 @@ static void le_fiber_destroy( le_fiber_o *fiber ) {
 // ----------------------------------------------------------------------
 // associates a fiber with a job
 static void le_fiber_setup( le_fiber_o *main_fiber, le_fiber_o *fiber, le_job_o *job ) {
+
+	fiber->stack = ( void ** )( ( char * )fiber->stack_bottom + le_fiber_o::STACK_SIZE );
 	//
 	// We push main_fiber and this_fiber onto the stack so that fiber_exit method can
 	// pop these. Note that both these pointers together occupy 16 bytes, which is great
