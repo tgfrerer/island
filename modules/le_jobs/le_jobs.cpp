@@ -124,6 +124,9 @@ void le_fiber_yield() {
 	// we need to find out whether the yield happened from the current worker thread or
 	// from another thread.
 
+	// TODO: find out on which thread we are - via std::this_thread or similar
+	// call asm_switch with correct parameters for worker in question.
+
 	asm_switch( &static_worker_thread.this_fiber, static_worker_thread.current_fiber, 0 );
 }
 
