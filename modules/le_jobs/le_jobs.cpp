@@ -6,7 +6,8 @@
 #include <cstdlib> // for malloc
 #include <deque>
 #include <thread>
-#include <mutex>
+
+#include "private/lockfree_ring_buffer.h"
 
 struct le_fiber_o;
 struct le_worker_thread_o;
@@ -60,8 +61,7 @@ static le_worker_thread_o *static_worker_thread[ MAX_WORKER_THREAD_COUNT ]{};
 struct le_job_manager_o {
 	std::forward_list<counter_t *> counters;
 	le_fiber_o *                   fibers[ FIBER_POOL_SIZE ]{};
-	std::mutex                     job_queue_mutex = {};
-	std::deque<le_job_o>           job_queue; // we need to control access to this deque via a mutex.
+	lockfree_ring_buffer_t *       job_queue; // we need to control access to this deque via a mutex.
 };
 
 // ----------------------------------------------------------------------
@@ -92,23 +92,23 @@ static void le_fiber_destroy( le_fiber_o *fiber ) {
 // associates a fiber with a job
 static void le_fiber_setup( le_fiber_o *main_fiber, le_fiber_o *fiber, le_job_o *job ) {
 
-	fiber->stack = ( void ** )( ( char * )fiber->stack_bottom + le_fiber_o::STACK_SIZE );
+	fiber->stack = reinterpret_cast<void **>( static_cast<char *>( fiber->stack_bottom ) + le_fiber_o::STACK_SIZE );
 	//
 	// We push main_fiber and this_fiber onto the stack so that fiber_exit method can
 	// pop these. Note that both these pointers together occupy 16 bytes, which is great
 	// because it keeps our stack 16 byte aligned. It is part of the calling convention
 	// that the stack must be 16 byte aligned before any calls happen.
 	//
-	*( --fiber->stack ) = ( void * )( ( uintptr_t )( 0 ) ); // we need this so that the stack stays 16 byte-aligned.
-	*( --fiber->stack ) = ( void * )( ( uintptr_t )( fiber ) );
-	*( --fiber->stack ) = ( void * )( ( uintptr_t )( main_fiber ) );
+	*( --fiber->stack ) = reinterpret_cast<void *>( 0 ); // we need this so that the stack stays 16 byte-aligned.
+	*( --fiber->stack ) = reinterpret_cast<void *>( fiber );
+	*( --fiber->stack ) = reinterpret_cast<void *>( main_fiber );
 
 	// 4 bytes below 16-byte alignment: mac os x wants return address here
 	// so this points to a call instruction.
-	*( --fiber->stack ) = ( void * )( ( uintptr_t )&asm_call_fiber_exit );
+	*( --fiber->stack ) = reinterpret_cast<void *>( &asm_call_fiber_exit );
 
 	// 8 bytes below 16-byte alignment: will "return" to start this function
-	*( --fiber->stack ) = ( void * )( ( uintptr_t )job->fun_ptr );
+	*( --fiber->stack ) = reinterpret_cast<void *>( job->fun_ptr );
 
 	// push NULL words to initialize the registers loaded by asm_switch
 	for ( size_t i = 0; i < le_fiber_o::NUM_REGISTERS; ++i ) {
@@ -249,20 +249,15 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
 	if ( nullptr == self->current_fiber ) {
 
-		// check if there are any more jobs to process...
+		// --------| invariant: this worker thread has no current job, active or sleeping.
 
-		le_job_o job;
-		{
-			auto lock = std::lock_guard( self->job_manager->job_queue_mutex );
+		le_job_o *job = static_cast<le_job_o *>( lockfree_ring_buffer_trypop( self->job_manager->job_queue ) );
 
-			if ( self->job_manager->job_queue.empty() ) {
-				// No more jobs: relax this CPU, then return early.
-				std::this_thread::sleep_for( std::chrono::microseconds( 100 ) );
-				return;
-			}
-
-			job = self->job_manager->job_queue.front();
-			self->job_manager->job_queue.pop_front();
+		if ( nullptr == job ) {
+			// We couldn't get another job from the queue - this could mean that the queue is empty.
+			// anyway, let's wait a little bit before returning...
+			std::this_thread::sleep_for( std::chrono::microseconds( 10 ) );
+			return;
 		}
 
 		// --------| invariant: there are some more jobs to process on the jobs queue.
@@ -289,7 +284,12 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
 		// Pop the job which has been waiting the longest off the job queue
 
-		le_fiber_setup( &self->this_fiber, self->current_fiber, &job );
+		le_fiber_setup( &self->this_fiber, self->current_fiber, job );
+
+		// we don't need job anymore after it was passed to fiber_setup
+		// and since the ring buffer did own the job, we must delete it
+		// here.
+		delete ( job );
 	}
 
 	// --------| invariant: current_fiber contains a fiber
@@ -321,6 +321,7 @@ static void le_worker_thread_loop( le_worker_thread_o *self ) {
 	self->thread_id = std::this_thread::get_id();
 
 	while ( 0 == self->stop_thread ) {
+		uint32_t stop_val = self->stop_thread;
 		le_worker_thread_dispatch( self );
 	}
 }
@@ -331,6 +332,8 @@ static le_job_manager_o *le_job_manager_create( size_t num_threads ) {
 
 	auto self = new le_job_manager_o();
 	// TODO: we need to create a job queue from which to pick jobs.
+
+	self->job_queue = lockfree_ring_buffer_create( 10 ); // note size is given as a power of 2, so "10" means 1024 elements
 
 	// Allocate a number of fibers to execute jobs in.
 	for ( size_t i = 0; i != FIBER_POOL_SIZE; ++i ) {
@@ -376,6 +379,8 @@ static void le_job_manager_destroy( le_job_manager_o *self ) {
 		self->fibers[ i ] = nullptr;
 	}
 
+	lockfree_ring_buffer_destroy( self->job_queue );
+
 	// free all leftover counters.
 	for ( auto &c : self->counters ) {
 		delete c;
@@ -413,8 +418,11 @@ static void le_job_manager_run_jobs( le_job_manager_o *self, le_job_o *jobs, uin
 	le_job_o *const jobs_end = jobs + num_jobs;
 
 	for ( ; j != jobs_end; j++ ) {
-		// store pointer to counter with each job
-		self->job_queue.push_back( {j->fun_ptr, j->fun_param, counter} );
+		// Note that we must store a pointer to counter with each job,
+		// which is why we must allocate job objects for each job.
+
+		// TODO: we don't like these allocations here, it would be nice not to have to make these small allocations.
+		lockfree_ring_buffer_push( self->job_queue, new le_job_o{j->fun_ptr, j->fun_param, counter} );
 	}
 
 	// store address back into parameter, so that caller knows about our counter.

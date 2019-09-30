@@ -2,6 +2,8 @@ set (TARGET le_jobs)
 
 set (SOURCES "le_jobs.cpp")
 set (SOURCES ${SOURCES} "le_jobs.h")
+set (SOURCES ${SOURCES} "private/lockfree_ring_buffer.h")
+set (SOURCES ${SOURCES} "private/lockfree_ring_buffer.cpp")
 
 if (${PLUGINS_DYNAMIC})
 
