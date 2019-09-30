@@ -23,6 +23,7 @@ else()
 
     set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
 
+     target_link_libraries(${TARGET} PRIVATE pthread)
 endif()
 
 # set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
