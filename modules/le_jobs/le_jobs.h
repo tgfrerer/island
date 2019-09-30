@@ -31,7 +31,7 @@ struct le_jobs_api {
 
 	struct le_job_manager_interface_t {
 
-		le_job_manager_o * ( * create  ) ( );
+		le_job_manager_o * ( * create  ) ( size_t num_threads);
 		void               ( * destroy ) ( le_job_manager_o* self );
 		
 		
@@ -39,6 +39,8 @@ struct le_jobs_api {
 		void ( * wait_for_counter_and_free )( le_job_manager_o* self, counter_t* counter, uint32_t target_value );
 
 	};
+
+	void (* yield)(void);
 
 	le_job_manager_interface_t       le_job_manager_i;
 };
@@ -54,9 +56,11 @@ const auto api = Registry::addApiDynamic<le_jobs_api>( true );
 const auto api = Registry::addApiStatic<le_jobs_api>();
 #	endif
 
-using counter_t              = le_jobs_api::counter_t;
-using job_t                  = le_jobs_api::le_job_o;
+using counter_t = le_jobs_api::counter_t;
+using job_t     = le_jobs_api::le_job_o;
+
 static const auto &manager_i = api -> le_job_manager_i;
+static const auto &yield     = api -> yield;
 
 } // namespace le_jobs
 
