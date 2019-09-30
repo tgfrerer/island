@@ -31,8 +31,6 @@ else()
 
     add_library(${TARGET} STATIC ${SOURCES})
 
-    target_link_libraries(${TARGET} PRIVATE pthread)
-
 endif()
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
