@@ -298,14 +298,14 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *use
 		// fetch sphere geometry
 		auto &geom = app->worldGeometry;
 
-		uint16_t *sphereIndices{};
-		float *   sphereVertices{};
-		float *   sphereNormals{};
-		float *   sphereUvs{};
-		size_t    numVertices{};
-		size_t    numIndices{};
-		float *   sphereTangents{};
-		app->sphereMesh.getData( numVertices, numIndices, &sphereVertices, &sphereNormals, &sphereUvs, &sphereIndices );
+		uint16_t const *sphereIndices{};
+		float const *   sphereVertices{};
+		float const *   sphereNormals{};
+		float const *   sphereUvs{};
+		size_t          numVertices{};
+		size_t          numIndices{};
+		float const *   sphereTangents{};
+		app->sphereMesh.getData( numVertices, numIndices, &sphereVertices, &sphereNormals, &sphereUvs, nullptr, &sphereIndices );
 		size_t numTangents;
 		app->sphereMesh.getTangents( numTangents, &sphereTangents );
 		uint32_t offset = 0;
@@ -341,7 +341,7 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *use
 			using namespace le_pixels;
 			auto pixelsData = le_pixels_i.get_data( img.pixels );
 
-			auto wi = le::BuilderWriteToImageSettings()
+			auto wi = le::WriteToImageSettingsBuilder()
 			              .setImageH( img.pixelsInfo.height )
 			              .setImageW( img.pixelsInfo.width )
 			              .setNumMiplevels( img.numMipLevels )
