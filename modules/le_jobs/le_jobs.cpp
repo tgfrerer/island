@@ -347,6 +347,12 @@ static le_job_manager_o *le_job_manager_create( size_t num_threads ) {
 		w->job_manager = self;
 		w->thread      = std::thread( le_worker_thread_loop, w );
 
+		auto      pthread = w->thread.native_handle();
+		cpu_set_t mask;
+		CPU_ZERO( &mask );
+		CPU_SET( i + 1, &mask );
+		pthread_setaffinity_np( pthread, sizeof( mask ), &mask );
+
 		// Thread in static ledger of threads so that
 		// we may retrieve thread-ids later.
 		static_worker_thread[ i ] = w;
