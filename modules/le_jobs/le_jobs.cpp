@@ -321,7 +321,6 @@ static void le_worker_thread_loop( le_worker_thread_o *self ) {
 	self->thread_id = std::this_thread::get_id();
 
 	while ( 0 == self->stop_thread ) {
-		uint32_t stop_val = self->stop_thread;
 		le_worker_thread_dispatch( self );
 	}
 }
@@ -397,7 +396,7 @@ static void le_job_manager_destroy( le_job_manager_o *self ) {
 static void le_job_manager_wait_for_counter_and_free( le_job_manager_o *self, counter_t *counter, uint32_t target_value ) {
 
 	for ( ; counter->data != target_value; ) {
-		uint32_t val = counter->data;
+		std::this_thread::sleep_for( std::chrono::microseconds( 1 ) );
 	}
 
 	// remove counter from list of counters owned by job manager
@@ -406,6 +405,8 @@ static void le_job_manager_wait_for_counter_and_free( le_job_manager_o *self, co
 	// free counter memory
 	delete counter;
 }
+
+// ----------------------------------------------------------------------
 
 static void le_job_manager_run_jobs( le_job_manager_o *self, le_job_o *jobs, uint32_t num_jobs, counter_t **p_counter ) {
 
