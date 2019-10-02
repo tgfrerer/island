@@ -19,6 +19,8 @@ if (${PLUGINS_DYNAMIC})
     
     target_compile_definitions(${TARGET}  PUBLIC "PLUGINS_DYNAMIC")
 
+    set (LINKER_FLAGS ${LINKER_FLAGS} pthread)
+
 else()
 
     add_library(${TARGET} STATIC ${SOURCES})
@@ -28,6 +30,5 @@ else()
      target_link_libraries(${TARGET} PRIVATE pthread)
 endif()
 
-# set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
