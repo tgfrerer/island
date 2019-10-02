@@ -38,6 +38,8 @@ else()
 
     add_library(${TARGET} STATIC ${SOURCES})
 
+    set (LINKER_FLAGS ${LINKER_FLAGS} pthread)
+
     set (LINKER_FLAGS  ${LINKER_FLAGS} -Wl,--whole-archive shaderc_combined -Wl,--no-whole-archive)
 
 endif()
