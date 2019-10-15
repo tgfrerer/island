@@ -61,8 +61,9 @@ void lockfree_ring_buffer_destroy( lockfree_ring_buffer_t *rb ) {
 
 size_t lockfree_ring_buffer_size( const lockfree_ring_buffer_t *rb ) {
 	assert( rb );
+	//read high first; make it look less than or equal to its actual size
 	const uint64_t high = rb->high;
-	//load_load_barrier();//read high first; make it look less than or equal to its actual size
+	//load_load_barrier();
 	const int64_t size = high - rb->low;
 	return size >= 0 ? size : 0;
 }
@@ -70,9 +71,9 @@ size_t lockfree_ring_buffer_size( const lockfree_ring_buffer_t *rb ) {
 int lockfree_ring_buffer_trypush( lockfree_ring_buffer_t *rb, void *in ) {
 	assert( rb );
 	assert( in ); //can't store NULLs; we rely on a NULL to indicate a spot in the buffer has not been written yet
-
+	//read low first; this means the buffer will appear larger or equal to its actual size
 	const uint64_t low = rb->low;
-	//load_load_barrier();//read low first; this means the buffer will appear larger or equal to its actual size
+	//load_load_barrier();
 	uint64_t       high  = rb->high;
 	const uint64_t index = high & rb->power_of_2_mod;
 	if ( !rb->buffer[ index ] && high - low < rb->size && rb->high.compare_exchange_weak( high, high + 1 ) ) {
@@ -93,8 +94,9 @@ void lockfree_ring_buffer_push( lockfree_ring_buffer_t *rb, void *in ) {
 
 void *lockfree_ring_buffer_trypop( lockfree_ring_buffer_t *rb ) {
 	assert( rb );
+	//read high first; this means the buffer will appear smaller or equal to its actual size
 	const uint64_t high = rb->high;
-	// load_load_barrier();//read high first; this means the buffer will appear smaller or equal to its actual size
+	// load_load_barrier();
 	uint64_t       low   = rb->low;
 	const uint64_t index = low & rb->power_of_2_mod;
 	void *const    ret   = rb->buffer[ index ];
