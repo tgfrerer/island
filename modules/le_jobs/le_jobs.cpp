@@ -2,6 +2,7 @@
 #include "pal_api_loader/ApiRegistry.hpp"
 
 #include <atomic>
+#include <mutex>
 #include <forward_list>
 #include <cstdlib> // for malloc
 #include <deque>
@@ -29,14 +30,14 @@ constexpr static size_t MAX_WORKER_THREAD_COUNT = 16; // maximum number of possi
  * For this it provides the job with a stack.
  * A fiber can only have one job going at the same time.
  * Once a fiber yields or returns, control returns to the worker 
- * thread which dispatches the next fiber.
- * If a fiber yields, it will do so 
+ * thread which dispatches the next fiber. 
  */
 struct le_fiber_o {
-	void **                 stack                = nullptr;
+	void **                 stack                = nullptr; // pointer to address of current stack
 	void *                  job_param            = nullptr; // parameter pointer for job
 	void *                  stack_bottom         = nullptr; // allocation address so that it may be freed
 	le_fiber_o *            next_fiber           = nullptr; // linked list
+	counter_t *             fiber_await_counter  = nullptr; // owned by le_job_manager, must be nullptr, or counter->data must be zero for fiber to start/resume
 	counter_t *             job_complete_counter = nullptr; // owned by le_job_manager
 	uint32_t                job_complete         = 0;       // flag whether job was completed.
 	std::atomic<uint32_t>   fiber_active         = 0;       // flag whether fiber is currently active
@@ -56,9 +57,10 @@ struct le_worker_thread_o {
 };
 
 // TODO: we dont' like that at all, it introduces a fixed memory address.
-static le_worker_thread_o *static_worker_thread[ MAX_WORKER_THREAD_COUNT ]{};
+static le_worker_thread_o *static_worker_threads[ MAX_WORKER_THREAD_COUNT ]{};
 
 struct le_job_manager_o {
+	std::mutex                     counters_mtx;
 	std::forward_list<counter_t *> counters;
 	le_fiber_o *                   fibers[ FIBER_POOL_SIZE ]{};
 	lockfree_ring_buffer_t *       job_queue; // we need to control access to this deque via a mutex.
@@ -135,7 +137,7 @@ void le_fiber_yield() {
 	auto                this_thread_id  = std::this_thread::get_id();
 	le_worker_thread_o *yielding_thread = nullptr;
 
-	for ( le_worker_thread_o **t = static_worker_thread; *t != nullptr; ++t ) {
+	for ( le_worker_thread_o **t = static_worker_threads; *t != nullptr; ++t ) {
 		if ( this_thread_id == ( *t )->thread_id ) {
 			yielding_thread = *t;
 			break;
@@ -189,7 +191,7 @@ asm( ".globl asm_switch"
 
      // Load param pointer from "next" fiber and place it in RDI register
      // (which is register for first argument)
-     // duata pointer is located at offset +8bytes from address of "next" fiber, see static assert below
+     // data pointer is located at offset +8bytes from address of "next" fiber, see static assert below
      "\n\t movq 8(%rdi), %rdi"
 
      // return to the "next" fiber with eax set to return_value,
@@ -251,6 +253,8 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
 		// --------| invariant: this worker thread has no current job, active or sleeping.
 
+		// Pop the job which has been waiting the longest off the job queue
+
 		le_job_o *job = static_cast<le_job_o *>( lockfree_ring_buffer_trypop( self->job_manager->job_queue ) );
 
 		if ( nullptr == job ) {
@@ -282,8 +286,6 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
 		// ---------| invariant: we have found an available fiber
 
-		// Pop the job which has been waiting the longest off the job queue
-
 		le_fiber_setup( &self->this_fiber, self->current_fiber, job );
 
 		// we don't need job anymore after it was passed to fiber_setup
@@ -314,6 +316,7 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 	}
 }
 
+// ----------------------------------------------------------------------
 // Main loop for each worker thread
 //
 static void le_worker_thread_loop( le_worker_thread_o *self ) {
@@ -324,6 +327,8 @@ static void le_worker_thread_loop( le_worker_thread_o *self ) {
 		le_worker_thread_dispatch( self );
 	}
 }
+
+// ----------------------------------------------------------------------
 
 static le_job_manager_o *le_job_manager_create( size_t num_threads ) {
 
@@ -355,7 +360,7 @@ static le_job_manager_o *le_job_manager_create( size_t num_threads ) {
 
 		// Thread in static ledger of threads so that
 		// we may retrieve thread-ids later.
-		static_worker_thread[ i ] = w;
+		static_worker_threads[ i ] = w;
 	}
 
 	return self;
@@ -367,13 +372,13 @@ static void le_job_manager_destroy( le_job_manager_o *self ) {
 
 	// - Send termination signal to all threads.
 
-	for ( le_worker_thread_o **t = &static_worker_thread[ 0 ]; *t != nullptr; ++t ) {
+	for ( le_worker_thread_o **t = &static_worker_threads[ 0 ]; *t != nullptr; ++t ) {
 		( *t )->stop_thread = 1;
 	}
 
 	// - Join all worker threads
 
-	for ( le_worker_thread_o **t = &static_worker_thread[ 0 ]; *t != nullptr; ++t ) {
+	for ( le_worker_thread_o **t = &static_worker_threads[ 0 ]; *t != nullptr; ++t ) {
 		( *t )->thread.join();
 		delete ( *t );
 		( *t ) = nullptr;
@@ -384,15 +389,24 @@ static void le_job_manager_destroy( le_job_manager_o *self ) {
 		self->fibers[ i ] = nullptr;
 	}
 
-	lockfree_ring_buffer_destroy( self->job_queue );
-
-	// free all leftover counters.
-	for ( auto &c : self->counters ) {
-		delete c;
+	// attempt to delete any leftover jobs on the job queue.
+	void *ret;
+	while ( ( ret = lockfree_ring_buffer_trypop( self->job_queue ) ) ) {
+		delete ( static_cast<le_job_o *>( ret ) );
 	}
 
-	// clear list of leftover counters.
-	self->counters.clear();
+	lockfree_ring_buffer_destroy( self->job_queue );
+
+	{
+		std::scoped_lock lock( self->counters_mtx );
+		// free all leftover counters.
+		for ( auto &c : self->counters ) {
+			delete c;
+		}
+
+		// clear list of leftover counters.
+		self->counters.clear();
+	}
 
 	delete self;
 }
@@ -402,24 +416,35 @@ static void le_job_manager_destroy( le_job_manager_o *self ) {
 static void le_job_manager_wait_for_counter_and_free( le_job_manager_o *self, counter_t *counter, uint32_t target_value ) {
 
 	for ( ; counter->data != target_value; ) {
+		// if this was called from a job,
+		// we should place this job on the wait queue
+		// and update the job's await_counter to be counter.
 		std::this_thread::sleep_for( std::chrono::microseconds( 1 ) );
 	}
 
-	// remove counter from list of counters owned by job manager
-	self->counters.remove( counter );
+	// Remove counter from list of counters owned by job manager
+	{
+		// we must protect this using a mutex, as other threads might want to add/remove counters
+		// and this might lead to a race condition on the forward_list of counters.
+		std::scoped_lock lock( self->counters_mtx );
+		self->counters.remove( counter );
+	}
 
 	// free counter memory
 	delete counter;
 }
 
 // ----------------------------------------------------------------------
-
+// copies jobs into job queue
 static void le_job_manager_run_jobs( le_job_manager_o *self, le_job_o *jobs, uint32_t num_jobs, counter_t **p_counter ) {
 
 	auto counter  = new counter_t();
 	counter->data = num_jobs;
 
-	self->counters.emplace_front( counter );
+	{
+		std::scoped_lock lock( self->counters_mtx );
+		self->counters.emplace_front( counter );
+	}
 
 	le_job_o *      j        = jobs;
 	le_job_o *const jobs_end = jobs + num_jobs;
@@ -427,8 +452,7 @@ static void le_job_manager_run_jobs( le_job_manager_o *self, le_job_o *jobs, uin
 	for ( ; j != jobs_end; j++ ) {
 		// Note that we must store a pointer to counter with each job,
 		// which is why we must allocate job objects for each job.
-
-		// TODO: we don't like these allocations here, it would be nice not to have to make these small allocations.
+		// Jobs are freed when
 		lockfree_ring_buffer_push( self->job_queue, new le_job_o{j->fun_ptr, j->fun_param, counter} );
 	}
 

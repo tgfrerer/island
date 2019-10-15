@@ -26,7 +26,7 @@ struct le_jobs_api {
 	struct le_job_o {
 		fun_ptr_t  fun_ptr          = nullptr; // function to execute
 		void *     fun_param        = nullptr; // user_data for function
-		counter_t *complete_counter = nullptr; // owned by le_job_manager
+		counter_t *complete_counter = nullptr; // owned by le_job_manager, counter to decrement when job completes
 	};
 
 	struct le_job_manager_interface_t {
