@@ -19,7 +19,7 @@ if (${PLUGINS_DYNAMIC})
     
     target_compile_definitions(${TARGET}  PUBLIC "PLUGINS_DYNAMIC")
 
-    set (LINKER_FLAGS ${LINKER_FLAGS} pthread)
+    set (LINKER_FLAGS ${LINKER_FLAGS} -Wl,--whole-archive pthread -Wl,--no-whole-archive )
 
 else()
 
