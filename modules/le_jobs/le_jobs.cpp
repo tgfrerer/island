@@ -473,4 +473,6 @@ ISL_API_ATTR void register_le_jobs_api( void *api ) {
 	le_job_manager_i.run_jobs                  = le_job_manager_run_jobs;
 
 	static_cast<le_jobs_api *>( api )->yield = le_fiber_yield;
+
+	Registry::loadLibraryPersistently( "libpthread.so" );
 }
