@@ -120,29 +120,37 @@ static void le_fiber_setup( le_fiber_o *main_fiber, le_fiber_o *fiber, le_job_o 
 	fiber->job_param            = job->fun_param;
 	fiber->job_complete         = 0;
 	fiber->job_complete_counter = job->complete_counter;
+	fiber->fiber_await_counter  = nullptr;
 }
 
-// fiber yield means that the fiber needs to go to sleep and that control needs to return to
-// the worker_thread.
+// ----------------------------------------------------------------------
+// return pointer to current worker thread providing context,
+// or nullptr if no current worker thread could be found.
+static le_worker_thread_o *get_current_thread() {
+
+	auto this_thread_id = std::this_thread::get_id();
+
+	for ( le_worker_thread_o **t = static_worker_threads; *t != nullptr; ++t ) {
+		if ( this_thread_id == ( *t )->thread_id ) {
+			return *t;
+		}
+	}
+
+	return nullptr;
+}
 
 // ----------------------------------------------------------------------
+// Fiber yield means that the fiber needs to go to sleep and that control needs to return to
+// the worker_thread.
 // a yield is always back to the worker_thread.
-void le_fiber_yield() {
+static void le_fiber_yield() {
 
 	// - We need to find out the thread which did yield.
 	//
 	// We do this by comparing the yielding thread's id
 	// with the stored worker thread ids.
 	//
-	auto                this_thread_id  = std::this_thread::get_id();
-	le_worker_thread_o *yielding_thread = nullptr;
-
-	for ( le_worker_thread_o **t = static_worker_threads; *t != nullptr; ++t ) {
-		if ( this_thread_id == ( *t )->thread_id ) {
-			yielding_thread = *t;
-			break;
-		}
-	}
+	le_worker_thread_o *yielding_thread = get_current_thread();
 
 	assert( yielding_thread ); // must be one of our worker threads. Can't yield from the main thread.
 
@@ -169,25 +177,25 @@ asm( ".globl asm_switch"
 
      /* save registers: rbx rbp r12 r13 r14 r15 (rsp into structure) */
 
-     "\n\t pushq %rbx"
      "\n\t pushq %rbp"
+     "\n\t pushq %rbx"
 
-     "\n\t pushq %r12"
-     "\n\t pushq %r13"
-     "\n\t pushq %r14"
      "\n\t pushq %r15"
+     "\n\t pushq %r14"
+     "\n\t pushq %r13"
+     "\n\t pushq %r12"
 
      "\n\t movq %rsp, (%rsi)" // store "current" stack pointer state into "current" structure
      "\n\t movq (%rdi), %rsp" // restore "next" stack pointer state from "next" structure
 
      /* stack changed. now restore registers */
-     "\n\t popq %r15"
-     "\n\t popq %r14"
-     "\n\t popq %r13"
      "\n\t popq %r12"
+     "\n\t popq %r13"
+     "\n\t popq %r14"
+     "\n\t popq %r15"
 
-     "\n\t popq %rbp"
      "\n\t popq %rbx"
+     "\n\t popq %rbp"
 
      // Load param pointer from "next" fiber and place it in RDI register
      // (which is register for first argument)
@@ -198,6 +206,7 @@ asm( ".globl asm_switch"
      // and rdi set to next fiber's param pointer.
 
      "\n\t ret"
+     "\n\t.size asm_switch,.-asm_switch"
 
      // The ret instruction implements a subroutine return mechanism.
      // This instruction first pops a code location off the hardware supported in-memory stack.
@@ -295,6 +304,16 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 	}
 
 	// --------| invariant: current_fiber contains a fiber
+
+	// we are only allowed to switch to a fiber if its await counter is zero,
+	// or unset. Otherwise this means that child jobs of a fiber are still
+	// executing.
+
+	if ( self->current_fiber->fiber_await_counter && self->current_fiber->fiber_await_counter->data != 0 ) {
+		// this fiber is not ready yet, as its dependent jobs are still executing.
+		// we must not process it further.
+		return;
+	}
 
 	// switch to current fiber
 	asm_switch( self->current_fiber, &self->this_fiber, 0 );
@@ -415,12 +434,28 @@ static void le_job_manager_destroy( le_job_manager_o *self ) {
 // polls counter, and will not return until counter == target_value
 static void le_job_manager_wait_for_counter_and_free( le_job_manager_o *self, counter_t *counter, uint32_t target_value ) {
 
-	for ( ; counter->data != target_value; ) {
-		// if this was called from a job,
-		// we should place this job on the wait queue
-		// and update the job's await_counter to be counter.
-		std::this_thread::sleep_for( std::chrono::microseconds( 1 ) );
+	auto current_worker = get_current_thread();
+
+	if ( nullptr == current_worker ) {
+		for ( ; counter->data != target_value; ) {
+			// if this was called from a job,
+			// we should place this job on the wait queue
+			// and update the job's await_counter to be counter.
+			std::this_thread::sleep_for( std::chrono::microseconds( 1 ) );
+		}
+	} else {
+		// This method has been issued from a job, and not from the main thread.
+		// We must issue a yield, but not before we have set the wait_counter for the
+		// current worker.
+		current_worker->current_fiber->fiber_await_counter = counter;
+		// Switch back to current worker's main fiber
+		asm_switch( &current_worker->this_fiber, current_worker->current_fiber, 0 );
+		// If we're back from the switch, this means that the counter has reached
+		// zero.
 	}
+
+	// --------| invariant: counter must be at zero.
+	assert( counter->data == 0 );
 
 	// Remove counter from list of counters owned by job manager
 	{
@@ -428,10 +463,9 @@ static void le_job_manager_wait_for_counter_and_free( le_job_manager_o *self, co
 		// and this might lead to a race condition on the forward_list of counters.
 		std::scoped_lock lock( self->counters_mtx );
 		self->counters.remove( counter );
+		// free counter memory
+		delete counter;
 	}
-
-	// free counter memory
-	delete counter;
 }
 
 // ----------------------------------------------------------------------
