@@ -164,8 +164,11 @@ static void le_fiber_yield() {
 
 #ifdef __x86_64
 
+// General assembly reference: https://www.felixcloutier.com/x86/
+
 /* arguments in rdi, rsi, rdx */
 // arguments: asm_switch( next_fiber==rdi, current_fiber==rsi, ret_val==edx );
+//
 //
 asm( ".globl asm_switch"
      "\n.align 16"
@@ -206,10 +209,8 @@ asm( ".globl asm_switch"
      "\n\t fnstcw   0x4(%rsp)"
 
      // --- stack switching
-
      "\n\t movq %rsp, (%rsi)" // store "current" stack pointer state into "current" structure
      "\n\t movq (%rdi), %rsp" // restore "next" stack pointer state from "next" structure
-
      // ----
 
      /* test for flag preserve_fpu */
@@ -263,9 +264,9 @@ static_assert( offsetof( le_fiber_o, job_param ) == 8, "job_param must be at cor
 // ----------------------------------------------------------------------
 
 /* Called when a fiber exits
- * note this gets called from asm_call_fiber_exit, not directly.
-*/
-extern "C" void __attribute__( ( __noreturn__ ) ) fiber_exit( le_fiber_o *main_fiber, le_fiber_o *fiber ) {
+ * Note this gets called from asm_call_fiber_exit, not directly.
+ */
+extern "C" void __attribute__( ( __noreturn__ ) ) fiber_exit( le_fiber_o *worker_fiber, le_fiber_o *fiber ) {
 
 	if ( fiber->job_complete_counter ) {
 		--fiber->job_complete_counter->data;
@@ -273,7 +274,8 @@ extern "C" void __attribute__( ( __noreturn__ ) ) fiber_exit( le_fiber_o *main_f
 
 	fiber->job_complete = 1;
 
-	asm_switch( main_fiber, fiber, 0 );
+	// switch back to worker thread.
+	asm_switch( worker_fiber, fiber, 0 );
 
 	/* asm_switch should never return for an exiting fiber. */
 	abort();
@@ -281,16 +283,23 @@ extern "C" void __attribute__( ( __noreturn__ ) ) fiber_exit( le_fiber_o *main_f
 
 // ----------------------------------------------------------------------
 
-/* Used to handle the correct stack alignment on Mac OS X, which requires a
-16-byte aligned stack. The process returns here from its "main" function,
-leaving the stack at 16-byte alignment. The call instruction then places a
-return address on the stack, making the stack correctly aligned for the
-process_exit function. */
+#ifdef __x86_64
+
+/* Call fiber_exit with `main_fiber` and `fiber` set via current job
+ * 
+ * Note - stack must always be 16byte aligned. 
+ * 
+ * The call instruction places a return address on the stack, 
+ * making the stack correctly aligned for the fiber_exit function.
+ */
 asm( ".globl asm_call_fiber_exit"
      "\n asm_call_fiber_exit:"
      "\n\t pop %rdi" // was placed on stack in le_fiber_setup: main_fiber
      "\n\t pop %rsi" // was placed on stack in le_fiber_setup: fiber
      "\n\t call fiber_exit" );
+#else
+#	error must implement asm_call_fiber_exit for your cpu architecture.
+#endif
 
 // ----------------------------------------------------------------------
 
@@ -343,12 +352,12 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
 	// --------| invariant: current_fiber contains a fiber
 
-	// we are only allowed to switch to a fiber if its await counter is zero,
+	// We are only allowed to switch to a fiber if its await counter is zero,
 	// or unset. Otherwise this means that child jobs of a fiber are still
 	// executing.
 
 	if ( self->current_fiber->fiber_await_counter && self->current_fiber->fiber_await_counter->data != 0 ) {
-		// this fiber is not ready yet, as its dependent jobs are still executing.
+		// This fiber is not ready yet, as its dependent jobs are still executing.
 		// we must not process it further.
 		return;
 	}
