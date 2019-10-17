@@ -91,17 +91,14 @@ static void le_fiber_destroy( le_fiber_o *fiber ) {
 }
 
 // ----------------------------------------------------------------------
-// associates a fiber with a job
+// Associate a fiber with a job
 static void le_fiber_setup( le_fiber_o *main_fiber, le_fiber_o *fiber, le_job_o *job ) {
 
 	fiber->stack = reinterpret_cast<void **>( static_cast<char *>( fiber->stack_bottom ) + le_fiber_o::STACK_SIZE );
 	//
 	// We push main_fiber and this_fiber onto the stack so that fiber_exit method can
-	// pop these. Note that both these pointers together occupy 16 bytes, which is great
-	// because it keeps our stack 16 byte aligned. It is part of the calling convention
-	// that the stack must be 16 byte aligned before any calls happen.
+	// pop these.
 	//
-	*( --fiber->stack ) = reinterpret_cast<void *>( 0 ); // we need this so that the stack stays 16 byte-aligned.
 	*( --fiber->stack ) = reinterpret_cast<void *>( fiber );
 	*( --fiber->stack ) = reinterpret_cast<void *>( main_fiber );
 
@@ -116,6 +113,9 @@ static void le_fiber_setup( le_fiber_o *main_fiber, le_fiber_o *fiber, le_job_o 
 	for ( size_t i = 0; i < le_fiber_o::NUM_REGISTERS; ++i ) {
 		*( --fiber->stack ) = nullptr;
 	}
+
+	// push 8 bytes (=2x 4 bytes) -> these are to store the fpu control words
+	*( --fiber->stack ) = nullptr;
 
 	fiber->job_param            = job->fun_param;
 	fiber->job_complete         = 0;
@@ -168,7 +168,7 @@ static void le_fiber_yield() {
 // arguments: asm_switch( next_fiber==rdi, current_fiber==rsi, ret_val==edx );
 //
 asm( ".globl asm_switch"
-
+     "\n.align 16"
      "\n asm_switch:"
      "\n\t .type asm_switch, @function"
 
@@ -185,8 +185,47 @@ asm( ".globl asm_switch"
      "\n\t pushq %r13"
      "\n\t pushq %r12"
 
+     /* prepare stack for FPU */
+     "\n\t leaq  -0x8(%rsp), %rsp" // Load effective address at 8 bytes before rsp into rsp
+                                   // meaning: decrease the stack pointer by 8 bytes.
+
+     // We do this to create a gap so that we can store the
+     // control words for mmx, and x87, which each use 4bytes of space.
+     // We use the "gap" method because this allows us to keep the stack
+     // at the same size, regardless of whether we use that memory or not.
+
+     /* test for flag preserve_fpu */
+     "\n\t cmp  $0, %rcx"
+     "\n\t je  1f"
+
+     // -- 1:
+     "\n 1:"
+     /* save MMX control- and status-word */
+     "\n\t stmxcsr  (%rsp)"
+     /* save x87 control-word */
+     "\n\t fnstcw   0x4(%rsp)"
+
+     // --- stack switching
+
      "\n\t movq %rsp, (%rsi)" // store "current" stack pointer state into "current" structure
      "\n\t movq (%rdi), %rsp" // restore "next" stack pointer state from "next" structure
+
+     // ----
+
+     /* test for flag preserve_fpu */
+     "\n\t cmp  $0, %rcx"
+     "\n\t je  2f"
+
+     /* restore MMX control- and status-word */
+     "\n\t ldmxcsr  (%rsp)"
+     /* restore x87 control-word */
+     "\n\t fldcw  0x4(%rsp)"
+
+     "\n 2:"
+     /* prepare stack for FPU */
+     "\n\t leaq  0x8(%rsp), %rsp"
+
+     // ----
 
      /* stack changed. now restore registers */
      "\n\t popq %r12"
@@ -251,7 +290,6 @@ asm( ".globl asm_call_fiber_exit"
      "\n asm_call_fiber_exit:"
      "\n\t pop %rdi" // was placed on stack in le_fiber_setup: main_fiber
      "\n\t pop %rsi" // was placed on stack in le_fiber_setup: fiber
-     "\n\t pop %rdx" // was placed on stack in le_fiber_setup: ... <- we pop stack a third time so that remainder of the stack is 16-bytes aligned.
      "\n\t call fiber_exit" );
 
 // ----------------------------------------------------------------------
