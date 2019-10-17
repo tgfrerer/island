@@ -358,7 +358,7 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
 	if ( self->current_fiber->fiber_await_counter && self->current_fiber->fiber_await_counter->data != 0 ) {
 		// This fiber is not ready yet, as its dependent jobs are still executing.
-		// we must not process it further.
+		// we must not process it further, instead place this fiber on the wait list.
 		return;
 	}
 
@@ -378,7 +378,7 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 		self->current_fiber               = nullptr; // reset current fiber
 	} else {
 		// fiber has yielded.
-		// if fiber did yield, we must add it to the wait_list.
+		// TODO: if fiber did yield, we must add it to the wait_list.
 	}
 }
 
