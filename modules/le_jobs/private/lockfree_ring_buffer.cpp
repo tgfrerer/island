@@ -87,7 +87,7 @@ void lockfree_ring_buffer_push( lockfree_ring_buffer_t *rb, void *in ) {
 	while ( !lockfree_ring_buffer_trypush( rb, in ) ) {
 		if ( rb->high - rb->low >= rb->size ) {
 			//            cpu_relax();//the buffer is full
-			std::this_thread::sleep_for( std::chrono::microseconds( 10 ) );
+			std::this_thread::sleep_for( std::chrono::nanoseconds( 200 ) );
 		}
 	}
 }
@@ -112,7 +112,7 @@ void *lockfree_ring_buffer_pop( lockfree_ring_buffer_t *rb ) {
 	while ( !( ret = lockfree_ring_buffer_trypop( rb ) ) ) {
 		if ( rb->high <= rb->low ) {
 			//cpu_relax();//the buffer is empty
-			std::this_thread::sleep_for( std::chrono::microseconds( 10 ) );
+			std::this_thread::sleep_for( std::chrono::nanoseconds( 200 ) );
 		}
 	}
 	return ret;

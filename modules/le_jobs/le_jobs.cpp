@@ -25,6 +25,12 @@ using le_job_o  = le_jobs_api::le_job_o;
 constexpr static size_t FIBER_POOL_SIZE         = 128; // Number of available fibers, each with their own stack
 constexpr static size_t MAX_WORKER_THREAD_COUNT = 16;  // Maximum number of possible, but not necessarily requested worker threads.
 
+enum class FIBER_STATUS : uint32_t {
+	eIdle    = 0,
+	eRunning = 1,
+	eWaiting = 2,
+};
+
 /* A Fiber is an execution context, in which a job can execute.
  * For this it provides the job with a stack.
  * A fiber can only have one job going at the same time.
@@ -32,16 +38,16 @@ constexpr static size_t MAX_WORKER_THREAD_COUNT = 16;  // Maximum number of poss
  * thread which dispatches the next fiber. 
  */
 struct le_fiber_o {
-	void **                   stack                = nullptr; // pointer to address of current stack
-	void *                    job_param            = nullptr; // parameter pointer for job
-	void *                    stack_bottom         = nullptr; // allocation address so that it may be freed
-	counter_t *               fiber_await_counter  = nullptr; // owned by le_job_manager, must be nullptr, or counter->data must be zero for fiber to start/resume
-	counter_t *               job_complete_counter = nullptr; // owned by le_job_manager
-	uint32_t                  job_complete         = 0;       // flag whether job was completed.
-	std::atomic<uint32_t>     fiber_active         = 0;       // flag whether fiber is currently active
-	constexpr static size_t   STACK_SIZE           = 1 << 16; // 2^16
-	constexpr static size_t   NUM_REGISTERS        = 6;       // must save RBX, RBP, and R12..R15
-	std::atomic<le_fiber_o *> next_fiber           = nullptr; // next fiber if in list
+	void **                   stack                = nullptr;             // pointer to address of current stack
+	void *                    job_param            = nullptr;             // parameter pointer for job
+	void *                    stack_bottom         = nullptr;             // allocation address so that it may be freed
+	counter_t *               fiber_await_counter  = nullptr;             // owned by le_job_manager, must be nullptr, or counter->data must be zero for fiber to start/resume
+	counter_t *               job_complete_counter = nullptr;             // owned by le_job_manager
+	uint32_t                  job_complete         = 0;                   // flag whether job was completed.
+	std::atomic<FIBER_STATUS> fiber_status         = FIBER_STATUS::eIdle; // flag whether fiber is currently active
+	constexpr static size_t   STACK_SIZE           = 1 << 16;             // 2^16
+	constexpr static size_t   NUM_REGISTERS        = 6;                   // must save RBX, RBP, and R12..R15
+	std::atomic<le_fiber_o *> next_fiber           = nullptr;             // next fiber if in list
 };
 
 struct le_job_manager_o {
@@ -179,7 +185,21 @@ asm( ".globl asm_switch"
      /* Move ret_val into rax */
      "\n\t movq %rdx, %rax\n"
 
-     /* save registers: rbx rbp r12 r13 r14 r15 (rsp into structure) */
+     /* save registers: rbx rbp r12 r13 r14 r15 (rsp into structure),
+      * 
+      * These registers are callee-saved registers, which means they 
+      * must be restored after function call.
+      * 
+      * Compare the `System V ABI` calling convention: <https://github.com/hjl-tools/x86-psABI/wiki/x86-64-psABI-1.0.pdf>
+      * Specifically page 17, and 18.
+      * 
+      * Note that this calling convention also requires the callee (i.e. us)
+      * to store the control bits of the MXCSR register, and the x87 status 
+      * word. 
+      * 
+      * store MXCSR control bits (4byte): `stmxcsr`, load MXCSR control bits: `ldmxcsr`
+      * store x87 status bits (4 byte)  : `fnstcw`, load x87 status bits: `fldcw`
+      */
 
      "\n\t pushq %rbp"
      "\n\t pushq %rbx"
@@ -312,25 +332,14 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
 		// --------| invariant: this worker thread has no current job, active or sleeping.
 
-		// Pop the job which has been waiting the longest off the job queue
-
-		le_job_o *job = static_cast<le_job_o *>( lockfree_ring_buffer_trypop( job_manager->job_queue ) );
-
-		if ( nullptr == job ) {
-			// We couldn't get another job from the queue - this could mean that the queue is empty.
-			// anyway, let's wait a little bit before returning...
-			std::this_thread::sleep_for( std::chrono::microseconds( 10 ) );
-			return;
-		}
-
 		// --------| invariant: there are some more jobs to process on the jobs queue.
 
 		// find first available idle fiber
 		size_t i = 0;
 		for ( ; i != FIBER_POOL_SIZE; ++i ) {
-			uint32_t fib_inactive = 0; // < value to compare against
+			auto fib_inactive = FIBER_STATUS::eIdle; // < value to compare against
 
-			if ( job_manager->fibers[ i ]->fiber_active.compare_exchange_strong( fib_inactive, 1 ) ) {
+			if ( job_manager->fibers[ i ]->fiber_status.compare_exchange_strong( fib_inactive, FIBER_STATUS::eRunning ) ) {
 				// ----------| invariant: `fiber_active` was 0, is now atomically changed to 1
 				self->guest_fiber = job_manager->fibers[ i ];
 				break;
@@ -343,14 +352,29 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 			return;
 		}
 
-		// ---------| invariant: we have found an available fiber
+		// Pop the job which has been waiting the longest off the job queue
 
-		le_fiber_load_job( self->guest_fiber, &self->host_fiber, job );
+		le_job_o *job = static_cast<le_job_o *>( lockfree_ring_buffer_trypop( job_manager->job_queue ) );
 
-		// we don't need job anymore after it was passed to fiber_setup
-		// and since the ring buffer did own the job, we must delete it
-		// here.
-		delete ( job );
+		if ( nullptr == job ) {
+			// We couldn't get another job from the queue - this could mean that the queue is empty.
+			// anyway, let's wait a little bit before returning...
+
+			self->guest_fiber->fiber_status = FIBER_STATUS::eIdle; // return fiber to pool
+			self->guest_fiber               = nullptr;
+
+			std::this_thread::sleep_for( std::chrono::nanoseconds( 200 ) );
+			return;
+		} else {
+			// ---------| invariant: we have found an available fiber
+
+			le_fiber_load_job( self->guest_fiber, &self->host_fiber, job );
+
+			// we don't need job anymore after it was passed to fiber_setup
+			// and since the ring buffer did own the job, we must delete it
+			// here.
+			delete ( job );
+		}
 	}
 
 	// --------| invariant: current_fiber contains a fiber
@@ -365,6 +389,8 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 		return;
 	}
 
+	assert( self->guest_fiber->stack ); // address of stack must not be 0
+
 	// switch to current fiber
 	asm_switch( self->guest_fiber, &self->host_fiber, 0 );
 
@@ -377,8 +403,10 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 	if ( 1 == self->guest_fiber->job_complete ) {
 		// fiber was completed.
 		// if fiber did complete, we must return it to the pool
-		self->guest_fiber->fiber_active = 0;       // mark fiber as idle.
-		self->guest_fiber               = nullptr; // reset current fiber
+		self->guest_fiber->stack        = nullptr;             // Reset fiber stack
+		self->guest_fiber->fiber_status = FIBER_STATUS::eIdle; // return fiber to pool !! do this as the last thing, otherwise other threads will already have taken ownership of it !!
+		self->guest_fiber               = nullptr;             // reset current fiber
+
 	} else {
 		// fiber has yielded.
 		// TODO: if fiber did yield, we must add it to the wait_list.
@@ -493,7 +521,7 @@ static void le_job_manager_wait_for_counter_and_free( counter_t *counter, uint32
 			// if this was called from a job,
 			// we should place this job on the wait queue
 			// and update the job's await_counter to be counter.
-			std::this_thread::sleep_for( std::chrono::microseconds( 1 ) );
+			std::this_thread::sleep_for( std::chrono::nanoseconds( 200 ) );
 		}
 	} else {
 		// This method has been issued from a job, and not from the main thread.
