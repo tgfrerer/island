@@ -89,7 +89,7 @@ void lockfree_ring_buffer_push( lockfree_ring_buffer_t *rb, void *in ) {
 			//            cpu_relax();//the buffer is full
 			std::this_thread::sleep_for( std::chrono::microseconds( 10 ) );
 		}
-	};
+	}
 }
 
 void *lockfree_ring_buffer_trypop( lockfree_ring_buffer_t *rb ) {
@@ -101,10 +101,10 @@ void *lockfree_ring_buffer_trypop( lockfree_ring_buffer_t *rb ) {
 	const uint64_t index = low & rb->power_of_2_mod;
 	void *const    ret   = rb->buffer[ index ];
 	if ( ret && high > low && rb->low.compare_exchange_weak( low, low + 1 ) ) {
-		rb->buffer[ index ] = 0;
+		rb->buffer[ index ] = nullptr;
 		return ret;
 	}
-	return NULL;
+	return nullptr;
 }
 
 void *lockfree_ring_buffer_pop( lockfree_ring_buffer_t *rb ) {
