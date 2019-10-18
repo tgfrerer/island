@@ -56,12 +56,11 @@ struct le_job_manager_o {
 /* A worker thread is the motor providing execution power for fibers.
  */
 struct le_worker_thread_o {
-	le_fiber_o        host_fiber{};          // host context which does the switching
-	le_fiber_o *      guest_fiber = nullptr; // linked list of fibers. first one is active, rest are waiting.
-	le_job_manager_o *job_manager = nullptr; // link back to job manager
-	std::thread       thread      = {};
-	std::thread::id   thread_id   = {};
-	uint64_t          stop_thread = 0; // flag, value `1` tells worker to join
+	le_fiber_o      host_fiber{};          // host context which does the switching
+	le_fiber_o *    guest_fiber = nullptr; // linked list of fibers. first one is active, rest are waiting.
+	std::thread     thread      = {};
+	std::thread::id thread_id   = {};
+	uint64_t        stop_thread = 0; // flag, value `1` tells worker to join
 };
 
 static le_worker_thread_o *static_worker_threads[ MAX_WORKER_THREAD_COUNT ]{};
@@ -315,7 +314,7 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
 		// Pop the job which has been waiting the longest off the job queue
 
-		le_job_o *job = static_cast<le_job_o *>( lockfree_ring_buffer_trypop( self->job_manager->job_queue ) );
+		le_job_o *job = static_cast<le_job_o *>( lockfree_ring_buffer_trypop( job_manager->job_queue ) );
 
 		if ( nullptr == job ) {
 			// We couldn't get another job from the queue - this could mean that the queue is empty.
@@ -331,9 +330,9 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 		for ( ; i != FIBER_POOL_SIZE; ++i ) {
 			uint32_t fib_inactive = 0; // < value to compare against
 
-			if ( self->job_manager->fibers[ i ]->fiber_active.compare_exchange_strong( fib_inactive, 1 ) ) {
+			if ( job_manager->fibers[ i ]->fiber_active.compare_exchange_strong( fib_inactive, 1 ) ) {
 				// ----------| invariant: `fiber_active` was 0, is now atomically changed to 1
-				self->guest_fiber = self->job_manager->fibers[ i ];
+				self->guest_fiber = job_manager->fibers[ i ];
 				break;
 			}
 		}
@@ -420,8 +419,7 @@ static void le_job_manager_initialize( size_t num_threads ) {
 
 		le_worker_thread_o *w = new le_worker_thread_o();
 
-		w->job_manager = job_manager;
-		w->thread      = std::thread( le_worker_thread_loop, w );
+		w->thread = std::thread( le_worker_thread_loop, w );
 
 		auto      pthread = w->thread.native_handle();
 		cpu_set_t mask;
