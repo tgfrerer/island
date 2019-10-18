@@ -5,7 +5,6 @@
 #include <mutex>
 #include <forward_list>
 #include <cstdlib> // for malloc
-#include <deque>
 #include <thread>
 
 #include "private/lockfree_ring_buffer.h"
@@ -23,8 +22,8 @@ struct le_jobs_api::counter_t {
 using counter_t = le_jobs_api::counter_t;
 using le_job_o  = le_jobs_api::le_job_o;
 
-constexpr static size_t FIBER_POOL_SIZE         = 12;
-constexpr static size_t MAX_WORKER_THREAD_COUNT = 16; // maximum number of possible, but not necessarily requested worker threads.
+constexpr static size_t FIBER_POOL_SIZE         = 128; // Number of available fibers, each with their own stack
+constexpr static size_t MAX_WORKER_THREAD_COUNT = 16;  // Maximum number of possible, but not necessarily requested worker threads.
 
 /* A Fiber is an execution context, in which a job can execute.
  * For this it provides the job with a stack.
@@ -33,15 +32,16 @@ constexpr static size_t MAX_WORKER_THREAD_COUNT = 16; // maximum number of possi
  * thread which dispatches the next fiber. 
  */
 struct le_fiber_o {
-	void **                 stack                = nullptr; // pointer to address of current stack
-	void *                  job_param            = nullptr; // parameter pointer for job
-	void *                  stack_bottom         = nullptr; // allocation address so that it may be freed
-	counter_t *             fiber_await_counter  = nullptr; // owned by le_job_manager, must be nullptr, or counter->data must be zero for fiber to start/resume
-	counter_t *             job_complete_counter = nullptr; // owned by le_job_manager
-	uint32_t                job_complete         = 0;       // flag whether job was completed.
-	std::atomic<uint32_t>   fiber_active         = 0;       // flag whether fiber is currently active
-	constexpr static size_t STACK_SIZE           = 1 << 16;
-	constexpr static size_t NUM_REGISTERS        = 6; // must save RBX, RBP, and R12..R15
+	void **                   stack                = nullptr; // pointer to address of current stack
+	void *                    job_param            = nullptr; // parameter pointer for job
+	void *                    stack_bottom         = nullptr; // allocation address so that it may be freed
+	counter_t *               fiber_await_counter  = nullptr; // owned by le_job_manager, must be nullptr, or counter->data must be zero for fiber to start/resume
+	counter_t *               job_complete_counter = nullptr; // owned by le_job_manager
+	uint32_t                  job_complete         = 0;       // flag whether job was completed.
+	std::atomic<uint32_t>     fiber_active         = 0;       // flag whether fiber is currently active
+	constexpr static size_t   STACK_SIZE           = 1 << 16; // 2^16
+	constexpr static size_t   NUM_REGISTERS        = 6;       // must save RBX, RBP, and R12..R15
+	std::atomic<le_fiber_o *> next_fiber           = nullptr; // next fiber if in list
 };
 
 struct le_job_manager_o {
@@ -49,6 +49,8 @@ struct le_job_manager_o {
 	std::forward_list<counter_t *> counters;
 	le_fiber_o *                   fibers[ FIBER_POOL_SIZE ]{};
 	lockfree_ring_buffer_t *       job_queue;
+	std::atomic<le_fiber_o *>      fibers_ready_list = nullptr; // list/stack of ready fibers (may have been initialised with job or not)
+	std::atomic<le_fiber_o *>      fibers_wait_list  = nullptr; // list/stack of waiting fibers - filo
 };
 
 /* A worker thread is the motor providing execution power for fibers.
@@ -66,12 +68,12 @@ static le_worker_thread_o *static_worker_threads[ MAX_WORKER_THREAD_COUNT ]{};
 static le_job_manager_o *  job_manager = nullptr; ///< job manager singleton, must be initialised via initialise(), and terminated via terminate().
 
 // ----------------------------------------------------------------------
-// creates a fiber object, and allocates memory for this fiber
+// Creates a fiber object, and allocates memory for this fiber
 static le_fiber_o *le_fiber_create() {
 
 	le_fiber_o *fiber = new le_fiber_o();
 
-	/* Create a 16-byte aligned stack which will work on Mac OS X. */
+	/* Create a 16-byte aligned stack */
 	static_assert( le_fiber_o::STACK_SIZE % 16 == 0, "stack size must be 16 byte-aligned." );
 
 	fiber->stack_bottom = malloc( le_fiber_o::STACK_SIZE );
@@ -91,7 +93,7 @@ static void le_fiber_destroy( le_fiber_o *fiber ) {
 
 // ----------------------------------------------------------------------
 // Associate a fiber with a job
-static void le_fiber_setup( le_fiber_o *host_fiber, le_fiber_o *fiber, le_job_o *job ) {
+static void le_fiber_load_job( le_fiber_o *fiber, le_fiber_o *host_fiber, le_job_o *job ) {
 
 	fiber->stack = reinterpret_cast<void **>( static_cast<char *>( fiber->stack_bottom ) + le_fiber_o::STACK_SIZE );
 	//
@@ -344,7 +346,7 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
 		// ---------| invariant: we have found an available fiber
 
-		le_fiber_setup( &self->host_fiber, self->guest_fiber, job );
+		le_fiber_load_job( self->guest_fiber, &self->host_fiber, job );
 
 		// we don't need job anymore after it was passed to fiber_setup
 		// and since the ring buffer did own the job, we must delete it
