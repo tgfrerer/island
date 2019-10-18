@@ -14,7 +14,7 @@ struct le_fiber_o;
 struct le_worker_thread_o;
 
 extern "C" void asm_call_fiber_exit( void );
-extern "C" int  asm_switch( le_fiber_o *next, le_fiber_o *current, int return_value );
+extern "C" int  asm_switch( le_fiber_o *to, le_fiber_o *from, int return_value );
 
 struct le_jobs_api::counter_t {
 	std::atomic<uint32_t> data{0};
@@ -36,7 +36,6 @@ struct le_fiber_o {
 	void **                 stack                = nullptr; // pointer to address of current stack
 	void *                  job_param            = nullptr; // parameter pointer for job
 	void *                  stack_bottom         = nullptr; // allocation address so that it may be freed
-	le_fiber_o *            next_fiber           = nullptr; // linked list
 	counter_t *             fiber_await_counter  = nullptr; // owned by le_job_manager, must be nullptr, or counter->data must be zero for fiber to start/resume
 	counter_t *             job_complete_counter = nullptr; // owned by le_job_manager
 	uint32_t                job_complete         = 0;       // flag whether job was completed.
@@ -49,18 +48,18 @@ struct le_job_manager_o {
 	std::mutex                     counters_mtx;
 	std::forward_list<counter_t *> counters;
 	le_fiber_o *                   fibers[ FIBER_POOL_SIZE ]{};
-	lockfree_ring_buffer_t *       job_queue; // we need to control access to this deque via a mutex.
+	lockfree_ring_buffer_t *       job_queue;
 };
 
 /* A worker thread is the motor providing execution power for fibers.
  */
 struct le_worker_thread_o {
-	le_fiber_o        this_fiber{};            // context which does the switching
-	le_fiber_o *      current_fiber = nullptr; // linked list of fibers. first one is active, rest are waiting.
-	le_job_manager_o *job_manager   = nullptr; // link back to job manager
-	std::thread       thread        = {};
-	std::thread::id   thread_id     = {};
-	uint64_t          stop_thread   = 0;
+	le_fiber_o        host_fiber{};          // host context which does the switching
+	le_fiber_o *      guest_fiber = nullptr; // linked list of fibers. first one is active, rest are waiting.
+	le_job_manager_o *job_manager = nullptr; // link back to job manager
+	std::thread       thread      = {};
+	std::thread::id   thread_id   = {};
+	uint64_t          stop_thread = 0; // flag, value `1` tells worker to join
 };
 
 static le_worker_thread_o *static_worker_threads[ MAX_WORKER_THREAD_COUNT ]{};
@@ -92,15 +91,16 @@ static void le_fiber_destroy( le_fiber_o *fiber ) {
 
 // ----------------------------------------------------------------------
 // Associate a fiber with a job
-static void le_fiber_setup( le_fiber_o *main_fiber, le_fiber_o *fiber, le_job_o *job ) {
+static void le_fiber_setup( le_fiber_o *host_fiber, le_fiber_o *fiber, le_job_o *job ) {
 
 	fiber->stack = reinterpret_cast<void **>( static_cast<char *>( fiber->stack_bottom ) + le_fiber_o::STACK_SIZE );
 	//
-	// We push main_fiber and this_fiber onto the stack so that fiber_exit method can
-	// pop these.
+	// We push host_fiber and guest_fiber (==fiber) onto the stack so
+	// that fiber_exit method can retrieve this information via popping
+	// the stack.
 	//
 	*( --fiber->stack ) = reinterpret_cast<void *>( fiber );
-	*( --fiber->stack ) = reinterpret_cast<void *>( main_fiber );
+	*( --fiber->stack ) = reinterpret_cast<void *>( host_fiber );
 
 	// 4 bytes below 16-byte alignment: mac os x wants return address here
 	// so this points to a call instruction.
@@ -156,7 +156,7 @@ static void le_fiber_yield() {
 
 	if ( yielding_thread ) {
 		// Call switch method using the fiber information from the yielding thread.
-		asm_switch( &yielding_thread->this_fiber, yielding_thread->current_fiber, 0 );
+		asm_switch( &yielding_thread->host_fiber, yielding_thread->guest_fiber, 0 );
 	}
 }
 
@@ -166,8 +166,8 @@ static void le_fiber_yield() {
 
 // General assembly reference: https://www.felixcloutier.com/x86/
 
-/* arguments in rdi, rsi, rdx */
-// arguments: asm_switch( next_fiber==rdi, current_fiber==rsi, ret_val==edx );
+/* Arguments in rdi, rsi, rdx */
+// Arguments: asm_switch( next_fiber==rdi, current_fiber==rsi, ret_val==edx );
 //
 //
 asm( ".globl asm_switch"
@@ -266,16 +266,16 @@ static_assert( offsetof( le_fiber_o, job_param ) == 8, "job_param must be at cor
 /* Called when a fiber exits
  * Note this gets called from asm_call_fiber_exit, not directly.
  */
-extern "C" void __attribute__( ( __noreturn__ ) ) fiber_exit( le_fiber_o *worker_fiber, le_fiber_o *fiber ) {
+extern "C" void __attribute__( ( __noreturn__ ) ) fiber_exit( le_fiber_o *host_fiber, le_fiber_o *guest_fiber ) {
 
-	if ( fiber->job_complete_counter ) {
-		--fiber->job_complete_counter->data;
+	if ( guest_fiber->job_complete_counter ) {
+		--guest_fiber->job_complete_counter->data;
 	}
 
-	fiber->job_complete = 1;
+	guest_fiber->job_complete = 1;
 
 	// switch back to worker thread.
-	asm_switch( worker_fiber, fiber, 0 );
+	asm_switch( host_fiber, guest_fiber, 0 );
 
 	/* asm_switch should never return for an exiting fiber. */
 	abort();
@@ -285,17 +285,19 @@ extern "C" void __attribute__( ( __noreturn__ ) ) fiber_exit( le_fiber_o *worker
 
 #ifdef __x86_64
 
-/* Call fiber_exit with `main_fiber` and `fiber` set via current job
+/* Call fiber_exit with `host_fiber` and `guest_fiber` set correctly.
+ * Both these values were stored in `guest_fiber`s stack when this fiber
+ * was set up.
  * 
- * Note - stack must always be 16byte aligned. 
+ * Note - stack must always be 16byte aligned:
  * 
- * The call instruction places a return address on the stack, 
- * making the stack correctly aligned for the fiber_exit function.
+ *      The call instruction places a return address on the stack, 
+ *      making the stack correctly aligned for the fiber_exit function.
  */
 asm( ".globl asm_call_fiber_exit"
      "\n asm_call_fiber_exit:"
-     "\n\t pop %rdi" // was placed on stack in le_fiber_setup: main_fiber
-     "\n\t pop %rsi" // was placed on stack in le_fiber_setup: fiber
+     "\n\t pop %rdi" // was placed on stack in le_fiber_setup: host_fiber
+     "\n\t pop %rsi" // was placed on stack in le_fiber_setup: guest_fiber
      "\n\t call fiber_exit" );
 #else
 #	error must implement asm_call_fiber_exit for your cpu architecture.
@@ -305,7 +307,7 @@ asm( ".globl asm_call_fiber_exit"
 
 static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
-	if ( nullptr == self->current_fiber ) {
+	if ( nullptr == self->guest_fiber ) {
 
 		// --------| invariant: this worker thread has no current job, active or sleeping.
 
@@ -329,7 +331,7 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
 			if ( self->job_manager->fibers[ i ]->fiber_active.compare_exchange_strong( fib_inactive, 1 ) ) {
 				// ----------| invariant: `fiber_active` was 0, is now atomically changed to 1
-				self->current_fiber = self->job_manager->fibers[ i ];
+				self->guest_fiber = self->job_manager->fibers[ i ];
 				break;
 			}
 		}
@@ -342,7 +344,7 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
 		// ---------| invariant: we have found an available fiber
 
-		le_fiber_setup( &self->this_fiber, self->current_fiber, job );
+		le_fiber_setup( &self->host_fiber, self->guest_fiber, job );
 
 		// we don't need job anymore after it was passed to fiber_setup
 		// and since the ring buffer did own the job, we must delete it
@@ -356,14 +358,14 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 	// or unset. Otherwise this means that child jobs of a fiber are still
 	// executing.
 
-	if ( self->current_fiber->fiber_await_counter && self->current_fiber->fiber_await_counter->data != 0 ) {
+	if ( self->guest_fiber->fiber_await_counter && self->guest_fiber->fiber_await_counter->data != 0 ) {
 		// This fiber is not ready yet, as its dependent jobs are still executing.
 		// we must not process it further, instead place this fiber on the wait list.
 		return;
 	}
 
 	// switch to current fiber
-	asm_switch( self->current_fiber, &self->this_fiber, 0 );
+	asm_switch( self->guest_fiber, &self->host_fiber, 0 );
 
 	// If we're back here, this means that the fiber in current_fiber has
 	// finished executing. This can have two reasons:
@@ -371,11 +373,11 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 	// 1. fiber did complete
 	// 2. fiber did yield
 
-	if ( 1 == self->current_fiber->job_complete ) {
+	if ( 1 == self->guest_fiber->job_complete ) {
 		// fiber was completed.
 		// if fiber did complete, we must return it to the pool
-		self->current_fiber->fiber_active = 0;       // mark fiber as idle.
-		self->current_fiber               = nullptr; // reset current fiber
+		self->guest_fiber->fiber_active = 0;       // mark fiber as idle.
+		self->guest_fiber               = nullptr; // reset current fiber
 	} else {
 		// fiber has yielded.
 		// TODO: if fiber did yield, we must add it to the wait_list.
@@ -497,9 +499,9 @@ static void le_job_manager_wait_for_counter_and_free( counter_t *counter, uint32
 		// This method has been issued from a job, and not from the main thread.
 		// We must issue a yield, but not before we have set the wait_counter for the
 		// current worker.
-		current_worker->current_fiber->fiber_await_counter = counter;
-		// Switch back to current worker's main fiber
-		asm_switch( &current_worker->this_fiber, current_worker->current_fiber, 0 );
+		current_worker->guest_fiber->fiber_await_counter = counter;
+		// Switch back to current worker's host fiber
+		asm_switch( &current_worker->host_fiber, current_worker->guest_fiber, 0 );
 		// If we're back from the switch, this means that the counter has reached
 		// zero.
 	}
