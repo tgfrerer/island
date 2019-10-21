@@ -4,6 +4,7 @@
 #include <atomic>
 #include <mutex>
 #include <forward_list>
+#include <list>
 #include <cstdlib> // for malloc
 #include <thread>
 
@@ -25,10 +26,9 @@ using le_job_o  = le_jobs_api::le_job_o;
 constexpr static size_t FIBER_POOL_SIZE         = 128; // Number of available fibers, each with their own stack
 constexpr static size_t MAX_WORKER_THREAD_COUNT = 16;  // Maximum number of possible, but not necessarily requested worker threads.
 
-enum class FIBER_STATUS : uint32_t {
-	eIdle    = 0,
-	eRunning = 1,
-	eWaiting = 2,
+enum class FIBER_STATUS : uint64_t {
+	eIdle       = 0,
+	eProcessing = 1,
 };
 
 /* A Fiber is an execution context, in which a job can execute.
@@ -47,7 +47,6 @@ struct le_fiber_o {
 	std::atomic<FIBER_STATUS> fiber_status         = FIBER_STATUS::eIdle; // flag whether fiber is currently active
 	constexpr static size_t   STACK_SIZE           = 1 << 16;             // 2^16
 	constexpr static size_t   NUM_REGISTERS        = 6;                   // must save RBX, RBP, and R12..R15
-	std::atomic<le_fiber_o *> next_fiber           = nullptr;             // next fiber if in list
 };
 
 struct le_job_manager_o {
@@ -55,18 +54,18 @@ struct le_job_manager_o {
 	std::forward_list<counter_t *> counters;
 	le_fiber_o *                   fibers[ FIBER_POOL_SIZE ]{};
 	lockfree_ring_buffer_t *       job_queue;
-	std::atomic<le_fiber_o *>      fibers_ready_list = nullptr; // list/stack of ready fibers (may have been initialised with job or not)
-	std::atomic<le_fiber_o *>      fibers_wait_list  = nullptr; // list/stack of waiting fibers - filo
 };
 
 /* A worker thread is the motor providing execution power for fibers.
  */
 struct le_worker_thread_o {
-	le_fiber_o      host_fiber{};          // host context which does the switching
-	le_fiber_o *    guest_fiber = nullptr; // linked list of fibers. first one is active, rest are waiting.
-	std::thread     thread      = {};
-	std::thread::id thread_id   = {};
-	uint64_t        stop_thread = 0; // flag, value `1` tells worker to join
+	le_fiber_o              host_fiber{};          // host context which does the switching
+	le_fiber_o *            guest_fiber = nullptr; // current fiber executing inside this worker thread
+	std::thread             thread      = {};
+	std::thread::id         thread_id   = {};
+	std::list<le_fiber_o *> wait_list;
+	std::list<le_fiber_o *> ready_list;
+	uint64_t                stop_thread = 0; // flag, value `1` tells worker to join
 };
 
 static le_worker_thread_o *static_worker_threads[ MAX_WORKER_THREAD_COUNT ]{};
@@ -330,16 +329,41 @@ asm( ".globl asm_call_fiber_exit"
 
 static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
-	if ( nullptr == self->guest_fiber ) {
+	{
+		auto it_start = self->wait_list.begin();
+		auto it_end   = self->wait_list.end();
 
-		// --------| invariant: this worker thread has no current fiber, active or sleeping.
+		for ( auto it = it_start; it != it_end; ) {
+			auto &f = *it;
+			it++;
+			if ( nullptr == f->fiber_await_counter || 0 == f->fiber_await_counter->data ) {
+				self->ready_list.push_back( f );
+				self->wait_list.remove( f );
+			}
+		}
+	}
+
+	{
+		auto it_start = self->ready_list.begin();
+		auto it_end   = self->ready_list.end();
+
+		for ( auto it = it_start; it != it_end; ) {
+			auto &f = *it;
+			it++;
+			self->ready_list.remove( f );
+			self->guest_fiber = f;
+			break;
+		}
+	}
+
+	if ( nullptr == self->guest_fiber ) {
 
 		// find first available idle fiber
 		size_t i = 0;
-		for ( ; i != FIBER_POOL_SIZE; ++i ) {
-			auto fib_inactive = FIBER_STATUS::eIdle; // < value to compare against
+		for ( i = 0; i != FIBER_POOL_SIZE; ++i ) {
+			auto fib_idle = FIBER_STATUS::eIdle; // < value to compare against
 
-			if ( job_manager->fibers[ i ]->fiber_status.compare_exchange_strong( fib_inactive, FIBER_STATUS::eRunning ) ) {
+			if ( job_manager->fibers[ i ]->fiber_status.compare_exchange_weak( fib_idle, FIBER_STATUS::eProcessing ) ) {
 				// ----------| invariant: `fiber_active` was 0, is now atomically changed to 1
 				self->guest_fiber = job_manager->fibers[ i ];
 				break;
@@ -384,6 +408,7 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 	if ( self->guest_fiber->fiber_await_counter && self->guest_fiber->fiber_await_counter->data != 0 ) {
 		// This fiber is not ready yet, as its dependent jobs are still executing.
 		// we must not process it further, instead place this fiber on the wait list.
+		assert( false );
 		return;
 	}
 
@@ -408,6 +433,9 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 	} else {
 		// fiber has yielded.
 		// TODO: if fiber did yield, we must add it to the wait_list.
+
+		self->wait_list.push_back( self->guest_fiber );
+		self->guest_fiber = nullptr;
 	}
 }
 
