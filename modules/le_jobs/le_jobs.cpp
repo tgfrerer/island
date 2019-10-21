@@ -185,7 +185,9 @@ asm( ".globl asm_switch"
      /* Move ret_val into rax */
      "\n\t movq %rdx, %rax\n"
 
-     /* save registers: rbx rbp r12 r13 r14 r15 (rsp into structure),
+     /* Save registers on the stack: rbx rbp r12 r13 r14 r15,
+      * Additionally save mxcsr control bits, and x87 status bits on the stack.
+      * Store value of rsp into current fiber,
       * 
       * These registers are callee-saved registers, which means they 
       * must be restored after function call.
@@ -197,8 +199,8 @@ asm( ".globl asm_switch"
       * to store the control bits of the MXCSR register, and the x87 status 
       * word. 
       * 
-      * store MXCSR control bits (4byte): `stmxcsr`, load MXCSR control bits: `ldmxcsr`
-      * store x87 status bits (4 byte)  : `fnstcw`, load x87 status bits: `fldcw`
+      * Store MXCSR control bits (4byte): `stmxcsr`, load MXCSR control bits: `ldmxcsr`
+      * Store x87 status bits (4 byte)  : `fnstcw`, load x87 status bits: `fldcw`
       */
 
      "\n\t pushq %rbp"
@@ -330,9 +332,7 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
 	if ( nullptr == self->guest_fiber ) {
 
-		// --------| invariant: this worker thread has no current job, active or sleeping.
-
-		// --------| invariant: there are some more jobs to process on the jobs queue.
+		// --------| invariant: this worker thread has no current fiber, active or sleeping.
 
 		// find first available idle fiber
 		size_t i = 0;
@@ -348,7 +348,6 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
 		if ( i == FIBER_POOL_SIZE ) {
 			// we could not find an available fiber, we must return empty-handed.
-			// note: we must place the job back !to the front! of the job queue
 			return;
 		}
 
@@ -363,10 +362,9 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 			self->guest_fiber->fiber_status = FIBER_STATUS::eIdle; // return fiber to pool
 			self->guest_fiber               = nullptr;
 
-			std::this_thread::sleep_for( std::chrono::nanoseconds( 200 ) );
+			std::this_thread::sleep_for( std::chrono::nanoseconds( 100 ) );
 			return;
 		} else {
-			// ---------| invariant: we have found an available fiber
 
 			le_fiber_load_job( self->guest_fiber, &self->host_fiber, job );
 
@@ -521,7 +519,7 @@ static void le_job_manager_wait_for_counter_and_free( counter_t *counter, uint32
 			// if this was called from a job,
 			// we should place this job on the wait queue
 			// and update the job's await_counter to be counter.
-			std::this_thread::sleep_for( std::chrono::nanoseconds( 200 ) );
+			std::this_thread::sleep_for( std::chrono::nanoseconds( 100 ) );
 		}
 	} else {
 		// This method has been issued from a job, and not from the main thread.
