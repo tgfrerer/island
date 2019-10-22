@@ -45,6 +45,8 @@ struct le_fiber_o {
 	counter_t *               job_complete_counter = nullptr;             // owned by le_job_manager
 	uint32_t                  job_complete         = 0;                   // flag whether job was completed.
 	std::atomic<FIBER_STATUS> fiber_status         = FIBER_STATUS::eIdle; // flag whether fiber is currently active
+	le_fiber_o *              list_prev            = nullptr;             // intrusive list
+	le_fiber_o *              list_next            = nullptr;             // intrusive list
 	constexpr static size_t   STACK_SIZE           = 1 << 16;             // 2^16
 	constexpr static size_t   NUM_REGISTERS        = 6;                   // must save RBX, RBP, and R12..R15
 };
@@ -56,20 +58,81 @@ struct le_job_manager_o {
 	lockfree_ring_buffer_t *       job_queue;
 };
 
+struct le_fiber_list_t {
+	le_fiber_o *begin = nullptr;
+	le_fiber_o *end   = nullptr;
+};
+
 /* A worker thread is the motor providing execution power for fibers.
  */
 struct le_worker_thread_o {
-	le_fiber_o              host_fiber{};          // host context which does the switching
-	le_fiber_o *            guest_fiber = nullptr; // current fiber executing inside this worker thread
-	std::thread             thread      = {};
-	std::thread::id         thread_id   = {};
-	std::list<le_fiber_o *> wait_list;
-	std::list<le_fiber_o *> ready_list;
-	uint64_t                stop_thread = 0; // flag, value `1` tells worker to join
+	le_fiber_o      host_fiber{};          // host context which does the switching
+	le_fiber_o *    guest_fiber = nullptr; // current fiber executing inside this worker thread
+	std::thread     thread      = {};
+	std::thread::id thread_id   = {};
+	le_fiber_list_t wait_list   = {};
+	le_fiber_list_t ready_list  = {};
+	uint64_t        stop_thread = 0; // flag, value `1` tells worker to join
 };
 
 static le_worker_thread_o *static_worker_threads[ MAX_WORKER_THREAD_COUNT ]{};
 static le_job_manager_o *  job_manager = nullptr; ///< job manager singleton, must be initialised via initialise(), and terminated via terminate().
+
+void fiber_list_push_back( le_fiber_list_t *list, le_fiber_o *element ) {
+
+	if ( nullptr == list->begin ) {
+		list->begin        = element;
+		element->list_prev = nullptr;
+		element->list_next = nullptr;
+		list->end          = element;
+	} else {
+		element->list_prev   = list->end;
+		element->list_next   = nullptr;
+		list->end->list_next = element;
+		list->end            = element;
+	}
+}
+
+void fiber_list_remove_element( le_fiber_list_t *list, le_fiber_o *element ) {
+	// check if element is either start or end element
+	// if it is, we must update in list.
+
+	if ( nullptr == element ) {
+		return;
+	}
+
+	// --------| invariant: element is not nullptr
+
+	if ( list->begin && element == list->begin ) {
+		// element is first list element
+		list->begin = list->begin->list_next;
+		if ( list->begin ) {
+			list->begin->list_prev = nullptr;
+		}
+	}
+
+	if ( list->end && element == list->end ) {
+		// element is last list element
+		list->end = list->end->list_prev;
+		if ( list->end ) {
+			list->end->list_next = nullptr;
+		}
+	}
+
+	if ( element->list_prev ) {
+		// element has a previous list element
+		element->list_prev->list_next = element->list_next;
+	}
+
+	if ( element->list_next ) {
+		// element has a next list element
+		element->list_next->list_prev = element->list_prev;
+	}
+
+	// Mark element as not being part of the list.
+	element->list_next = nullptr;
+	element->list_prev = nullptr;
+}
 
 // ----------------------------------------------------------------------
 // Creates a fiber object, and allocates memory for this fiber
@@ -329,31 +392,25 @@ asm( ".globl asm_call_fiber_exit"
 
 static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
-	{
-		auto it_start = self->wait_list.begin();
-		auto it_end   = self->wait_list.end();
+	// -- Check all fibers on the wait list, and add them to the ready list
+	// should their condition have become true.
+	//
+	for ( auto it_f = self->wait_list.begin; it_f != nullptr; ) {
 
-		for ( auto it = it_start; it != it_end; ) {
-			auto &f = *it;
-			it++;
-			if ( nullptr == f->fiber_await_counter || 0 == f->fiber_await_counter->data ) {
-				self->ready_list.push_back( f );
-				self->wait_list.remove( f );
-			}
+		le_fiber_o *f = it_f;
+		it_f          = it_f->list_next;
+
+		if ( nullptr == f->fiber_await_counter || 0 == f->fiber_await_counter->data ) {
+			fiber_list_remove_element( &self->wait_list, f ); // must first remove, since list is intrusive
+			fiber_list_push_back( &self->ready_list, f );
 		}
 	}
 
-	{
-		auto it_start = self->ready_list.begin();
-		auto it_end   = self->ready_list.end();
-
-		for ( auto it = it_start; it != it_end; ) {
-			auto &f = *it;
-			it++;
-			self->ready_list.remove( f );
-			self->guest_fiber = f;
-			break;
-		}
+	// -- If there is any fiber in the ready-list, we must switch to that fiber.
+	//
+	if ( self->ready_list.begin ) {
+		self->guest_fiber = self->ready_list.begin;
+		fiber_list_remove_element( &self->ready_list, self->ready_list.begin );
 	}
 
 	if ( nullptr == self->guest_fiber ) {
@@ -434,7 +491,8 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 		// fiber has yielded.
 		// TODO: if fiber did yield, we must add it to the wait_list.
 
-		self->wait_list.push_back( self->guest_fiber );
+		fiber_list_push_back( &self->wait_list, self->guest_fiber );
+
 		self->guest_fiber = nullptr;
 	}
 }
