@@ -397,12 +397,12 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 	//
 	for ( auto it_f = self->wait_list.begin; it_f != nullptr; ) {
 
-		le_fiber_o *f = it_f;
-		it_f          = it_f->list_next;
+		le_fiber_o *f = it_f;            // We must capture f here,
+		it_f          = it_f->list_next; // and increase iterator, since it_f may be invalidated because of remove op
 
 		if ( nullptr == f->fiber_await_counter || 0 == f->fiber_await_counter->data ) {
-			fiber_list_remove_element( &self->wait_list, f ); // must first remove, since list is intrusive
-			fiber_list_push_back( &self->ready_list, f );
+			fiber_list_remove_element( &self->wait_list, f ); // Must first remove, since list op is intrusive and will update the fiber
+			fiber_list_push_back( &self->ready_list, f );     // This will also update the fiber
 		}
 	}
 
