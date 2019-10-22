@@ -4,8 +4,12 @@
 #include <stdint.h>
 #include "pal_api_loader/ApiRegistry.hpp"
 
-#define ISL_ALLOW_GLM_TYPES
-#ifdef ISL_ALLOW_GLM_TYPES
+#ifndef ISL_ALLOW_GLM_TYPES
+#	define ISL_ALLOW_GLM_TYPES 1
+#endif
+
+// Life is terrible without 3d type primitives, so let's include some glm forward declarations
+#if ( ISL_ALLOW_GLM_TYPES == 1 )
 #	include <glm/fwd.hpp>
 #endif
 
@@ -44,7 +48,7 @@ struct le_camera_api {
 		float            ( * get_fov_radians          ) ( le_camera_o* self );
 		float const *    ( * get_view_matrix          ) ( le_camera_o* self);
 
-#ifdef ISL_ALLOW_GLM_TYPES
+#if ( ISL_ALLOW_GLM_TYPES == 1 )
 		void              (* set_view_matrix_glm       )( le_camera_o* self, glm::mat4 const & view_matrix);
 		glm::mat4 const & (* get_view_matrix_glm       )( le_camera_o* self);
 		glm::mat4 const & (* get_projection_matrix_glm )( le_camera_o* self);
@@ -105,7 +109,7 @@ class LeCamera : NoMove {
 
     LeCamera &operator=( const LeCamera &rhs ) = delete;
 
-#	ifdef ISL_ALLOW_GLM_TYPES
+#	if ( ISL_ALLOW_GLM_TYPES == 1 )
 
     glm::mat4 const &getViewMatrixGlm() const {
 		return le_camera::le_camera_i.get_view_matrix_glm( self );

@@ -12,9 +12,13 @@
 
 #ifdef __cplusplus
 
-#	define ISL_ALLOW_GLM_TYPES
+#	ifndef ISL_ALLOW_GLM_TYPES
+#		define ISL_ALLOW_GLM_TYPES 1
+#	endif
+
 // Life is terrible without 3d type primitives, so let's include some glm forward declarations
-#	ifdef ISL_ALLOW_GLM_TYPES
+
+#	if ( ISL_ALLOW_GLM_TYPES == 1 )
 #		include <glm/fwd.hpp>
 #	endif
 
@@ -28,7 +32,7 @@ void register_le_path_api( void *api );
 // clang-format off
 struct le_path_api {
 
-#ifdef ISL_ALLOW_GLM_TYPES
+#if ( ISL_ALLOW_GLM_TYPES == 1 )
 	typedef glm::vec2 Vertex;
 #else
 	struct Vertex{
