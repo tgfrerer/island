@@ -56,7 +56,7 @@ struct le_font_api {
 		void                 ( * destroy_codepoint_sdf_bitmap ) ( le_font_o* self, uint8_t * bitmap);
 
 		// NOTE: `codepoint_prev` is optional, if 0, no kerning is applied, any other value will apply kerning for kerning pair (`codepoint_prev`,`codepoint`).
-		void                 ( * add_paths_for_glyph      ) ( le_font_o const * self, le_path_o* path, int32_t const codepoint, float const scale, glm::vec2 *offset, int32_t const codepoint_prev);
+		void                 ( * add_paths_for_glyph      ) ( le_font_o const * self, le_path_o* path, int32_t const codepoint, float const scale, Vertex *offset, int32_t const codepoint_prev);
 	};
 
 

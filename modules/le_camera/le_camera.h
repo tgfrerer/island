@@ -101,21 +101,21 @@ class LeCamera : NoMove {
 
 	~LeCamera() {
 		le_camera::le_camera_i.destroy( self );
-    }
+	}
 
-    LeCamera( const LeCamera &rhs )
-        : self( le_camera::le_camera_i.clone( rhs.self ) ) {
-    }
+	LeCamera( const LeCamera &rhs )
+	    : self( le_camera::le_camera_i.clone( rhs.self ) ) {
+	}
 
-    LeCamera &operator=( const LeCamera &rhs ) = delete;
+	LeCamera &operator=( const LeCamera &rhs ) = delete;
 
 #	if ( ISL_ALLOW_GLM_TYPES == 1 )
 
-    glm::mat4 const &getViewMatrixGlm() const {
+	glm::mat4 const &getViewMatrixGlm() const {
 		return le_camera::le_camera_i.get_view_matrix_glm( self );
 	}
 
-    glm::mat4 const &getProjectionMatrixGlm() const {
+	glm::mat4 const &getProjectionMatrixGlm() const {
 		return le_camera::le_camera_i.get_projection_matrix_glm( self );
 	}
 
@@ -125,11 +125,11 @@ class LeCamera : NoMove {
 
 #	endif
 
-    float const *getViewMatrix() const {
+	float const *getViewMatrix() const {
 		return le_camera::le_camera_i.get_view_matrix( self );
 	}
 
-    float const *getProjectionMatrix() const {
+	float const *getProjectionMatrix() const {
 		return le_camera::le_camera_i.get_projection_matrix( self );
 	}
 

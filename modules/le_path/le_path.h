@@ -152,11 +152,11 @@ class Path : NoCopy, NoMove {
 		return le_path::le_path_i.get_num_polylines( self );
 	}
 
-    size_t getNumContours() {
-        return le_path::le_path_i.get_num_contours( self );
-    }
+	size_t getNumContours() {
+		return le_path::le_path_i.get_num_contours( self );
+	}
 
-    void getVerticesForPolyline( size_t const &polyline_index, le_path_api::Vertex const **vertices, size_t *numVertices ) {
+	void getVerticesForPolyline( size_t const &polyline_index, le_path_api::Vertex const **vertices, size_t *numVertices ) {
 		le_path::le_path_i.get_vertices_for_polyline( self, polyline_index, vertices, numVertices );
 	}
 
