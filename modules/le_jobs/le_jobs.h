@@ -32,7 +32,10 @@ struct le_jobs_api {
 	void ( * run_jobs                  ) ( le_job_o* jobs, uint32_t num_jobs, counter_t** counter );
 	void ( * wait_for_counter_and_free ) ( counter_t* counter, uint32_t target_value );
 
-	void (* yield)(void);
+	void    (* yield                )(void);
+
+	// return id of current worker thread (0..MAX_THREADS), or -1 if called from outside job system.
+	int32_t (* get_current_worker_id)(void); 
 
 };
 // clang-format on
@@ -55,7 +58,8 @@ static const auto &terminate                 = api -> terminate;
 static const auto &run_jobs                  = api -> run_jobs;
 static const auto &wait_for_counter_and_free = api -> wait_for_counter_and_free;
 
-static const auto &yield = api -> yield;
+static const auto &yield                 = api -> yield;
+static const auto &get_current_worker_id = api -> get_current_worker_id;
 
 } // namespace le_jobs
 

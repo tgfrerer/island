@@ -193,19 +193,27 @@ static void le_fiber_load_job( le_fiber_o *fiber, le_fiber_o *host_fiber, le_job
 }
 
 // ----------------------------------------------------------------------
-// return pointer to current worker thread providing context,
-// or nullptr if no current worker thread could be found.
-static le_worker_thread_o *get_current_thread() {
 
-	auto this_thread_id = std::this_thread::get_id();
+static inline int32_t get_current_worker_thread_id() {
+	int32_t result         = -1;
+	auto    this_thread_id = std::this_thread::get_id();
 
-	for ( le_worker_thread_o **t = static_worker_threads; *t != nullptr; ++t ) {
+	int i = 0;
+	for ( le_worker_thread_o **t = static_worker_threads; *t != nullptr; ++t, ++i ) {
 		if ( this_thread_id == ( *t )->thread_id ) {
-			return *t;
+			return i;
 		}
 	}
 
-	return nullptr;
+	return result;
+}
+
+// ----------------------------------------------------------------------
+// return pointer to current worker thread providing context,
+// or nullptr if no current worker thread could be found.
+static le_worker_thread_o *get_current_thread() {
+	int32_t worker_thread_id = get_current_worker_thread_id();
+	return ( worker_thread_id == -1 ) ? nullptr : static_worker_threads[ worker_thread_id ];
 }
 
 // ----------------------------------------------------------------------
@@ -665,6 +673,7 @@ static void le_job_manager_run_jobs( le_job_o *jobs, uint32_t num_jobs, counter_
 ISL_API_ATTR void register_le_jobs_api( void *api ) {
 
 	static_cast<le_jobs_api *>( api )->yield                     = le_fiber_yield;
+	static_cast<le_jobs_api *>( api )->get_current_worker_id     = get_current_worker_thread_id;
 	static_cast<le_jobs_api *>( api )->run_jobs                  = le_job_manager_run_jobs;
 	static_cast<le_jobs_api *>( api )->initialize                = le_job_manager_initialize;
 	static_cast<le_jobs_api *>( api )->terminate                 = le_job_manager_terminate;
