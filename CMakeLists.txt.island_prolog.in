@@ -88,7 +88,7 @@ set ( ISLAND_LOADER_MODULES pal_file_watcher;pal_api_loader )
 
 # These modules form the renderer - if you want to draw graphics, you want these.
 # Note that order matters: dependent modules must be named before their dependencies.
-set ( CORE_ISLAND_MODULES le_pipeline_builder;pal_window;le_backend_vk;le_swapchain_vk;le_renderer;le_shader_compiler)
+set ( CORE_ISLAND_MODULES le_pipeline_builder;pal_window;le_backend_vk;le_swapchain_vk;le_renderer;le_jobs;le_shader_compiler)
 
 # We will store all requested module names in this list, and then load modules based on this list
 set ( MODULES_LIST )
