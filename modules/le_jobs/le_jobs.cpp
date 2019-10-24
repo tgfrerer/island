@@ -14,7 +14,8 @@ struct le_fiber_o;
 struct le_worker_thread_o;
 
 extern "C" void asm_call_fiber_exit( void );
-extern "C" int  asm_switch( le_fiber_o *to, le_fiber_o *from, int return_value );
+extern "C" int  asm_switch( le_fiber_o *to, le_fiber_o *from, int switch_to_guest );
+extern "C" void asm_fetch_default_control_words( uint64_t * );
 
 struct le_jobs_api::counter_t {
 	std::atomic<uint32_t> data{0};
@@ -43,7 +44,7 @@ struct le_fiber_o {
 	void *                    stack_bottom         = nullptr;             // allocation address so that it may be freed
 	counter_t *               fiber_await_counter  = nullptr;             // owned by le_job_manager, must be nullptr, or counter->data must be zero for fiber to start/resume
 	counter_t *               job_complete_counter = nullptr;             // owned by le_job_manager
-	uint32_t                  job_complete         = 0;                   // flag whether job was completed.
+	uint64_t                  job_complete         = 0;                   // flag whether job was completed.
 	std::atomic<FIBER_STATUS> fiber_status         = FIBER_STATUS::eIdle; // flag whether fiber is currently active
 	le_fiber_o *              list_prev            = nullptr;             // intrusive list
 	le_fiber_o *              list_next            = nullptr;             // intrusive list
@@ -77,6 +78,8 @@ struct le_worker_thread_o {
 
 static le_worker_thread_o *static_worker_threads[ MAX_WORKER_THREAD_COUNT ]{};
 static le_job_manager_o *  job_manager = nullptr; ///< job manager singleton, must be initialised via initialise(), and terminated via terminate().
+
+static uint64_t DEFAULT_CONTROL_WORDS = 0; // storage for default control words (must be 8 byte, == 2 words)
 
 void fiber_list_push_back( le_fiber_list_t *list, le_fiber_o *element ) {
 
@@ -184,7 +187,7 @@ static void le_fiber_load_job( le_fiber_o *fiber, le_fiber_o *host_fiber, le_job
 	}
 
 	// push 8 bytes (=2x 4 bytes) -> these are to store the fpu control words
-	*( --fiber->stack ) = nullptr;
+	*( --fiber->stack ) = reinterpret_cast<void *>( DEFAULT_CONTROL_WORDS );
 
 	fiber->job_param            = job->fun_param;
 	fiber->job_complete         = 0;
@@ -239,123 +242,6 @@ static void le_fiber_yield() {
 
 // ----------------------------------------------------------------------
 
-#ifdef __x86_64
-
-// General assembly reference: https://www.felixcloutier.com/x86/
-
-/* Arguments in rdi, rsi, rdx */
-// Arguments: asm_switch( next_fiber==rdi, current_fiber==rsi, ret_val==edx );
-//
-//
-asm( ".globl asm_switch"
-     "\n.align 16"
-     "\n asm_switch:"
-     "\n\t .type asm_switch, @function"
-
-     /* Move ret_val into rax */
-     "\n\t movq %rdx, %rax\n"
-
-     /* Save registers on the stack: rbx rbp r12 r13 r14 r15,
-      * Additionally save mxcsr control bits, and x87 status bits on the stack.
-      * Store value of rsp into current fiber,
-      * 
-      * These registers are callee-saved registers, which means they 
-      * must be restored after function call.
-      * 
-      * Compare the `System V ABI` calling convention: <https://github.com/hjl-tools/x86-psABI/wiki/x86-64-psABI-1.0.pdf>
-      * Specifically page 17, and 18.
-      * 
-      * Note that this calling convention also requires the callee (i.e. us)
-      * to store the control bits of the MXCSR register, and the x87 status 
-      * word. 
-      * 
-      * Store MXCSR control bits (4byte): `stmxcsr`, load MXCSR control bits: `ldmxcsr`
-      * Store x87 status bits (4 byte)  : `fnstcw`, load x87 status bits: `fldcw`
-      */
-
-     "\n\t pushq %rbp"
-     "\n\t pushq %rbx"
-
-     "\n\t pushq %r15"
-     "\n\t pushq %r14"
-     "\n\t pushq %r13"
-     "\n\t pushq %r12"
-
-     /* prepare stack for FPU */
-     "\n\t leaq  -0x8(%rsp), %rsp" // Load effective address at 8 bytes before rsp into rsp
-                                   // meaning: decrease the stack pointer by 8 bytes.
-
-     // We do this to create a gap so that we can store the
-     // control words for mmx, and x87, which each use 4bytes of space.
-     // We use the "gap" method because this allows us to keep the stack
-     // at the same size, regardless of whether we use that memory or not.
-
-     /* test for flag preserve_fpu */
-     "\n\t cmp  $0, %rcx"
-     "\n\t je  1f"
-
-     // -- 1:
-     "\n 1:"
-     /* save MMX control- and status-word */
-     "\n\t stmxcsr  (%rsp)"
-     /* save x87 control-word */
-     "\n\t fnstcw   0x4(%rsp)"
-
-     // --- stack switching
-     "\n\t movq %rsp, (%rsi)" // store "current" stack pointer state into "current" structure
-     "\n\t movq (%rdi), %rsp" // restore "next" stack pointer state from "next" structure
-     // ----
-
-     /* test for flag preserve_fpu */
-     "\n\t cmp  $0, %rcx"
-     "\n\t je  2f"
-
-     /* restore MMX control- and status-word */
-     "\n\t ldmxcsr  (%rsp)"
-     /* restore x87 control-word */
-     "\n\t fldcw  0x4(%rsp)"
-
-     "\n 2:"
-     /* prepare stack for FPU */
-     "\n\t leaq  0x8(%rsp), %rsp"
-
-     // ----
-
-     /* stack changed. now restore registers */
-     "\n\t popq %r12"
-     "\n\t popq %r13"
-     "\n\t popq %r14"
-     "\n\t popq %r15"
-
-     "\n\t popq %rbx"
-     "\n\t popq %rbp"
-
-     // Load param pointer from "next" fiber and place it in RDI register
-     // (which is register for first argument)
-     // data pointer is located at offset +8bytes from address of "next" fiber, see static assert below
-     "\n\t movq 8(%rdi), %rdi"
-
-     // return to the "next" fiber with eax set to return_value,
-     // and rdi set to next fiber's param pointer.
-
-     "\n\t ret"
-     "\n\t.size asm_switch,.-asm_switch"
-
-     // The ret instruction implements a subroutine return mechanism.
-     // This instruction first pops a code location off the hardware supported in-memory stack.
-     // It then performs an unconditional jump to the retrieved code location.
-     // <https://www.cs.virginia.edu/~evans/cs216/guides/x86.html>
-
-);
-
-static_assert( offsetof( le_fiber_o, job_param ) == 8, "job_param must be at correct offset for asm_switch to capture it." );
-
-#else
-#	error must implement asm_switch for your cpu architecture.
-#endif
-
-// ----------------------------------------------------------------------
-
 /* Called when a fiber exits
  * Note this gets called from asm_call_fiber_exit, not directly.
  */
@@ -367,34 +253,12 @@ extern "C" void __attribute__( ( __noreturn__ ) ) fiber_exit( le_fiber_o *host_f
 
 	guest_fiber->job_complete = 1;
 
-	// switch back to worker thread.
+	// switch back to host thread.
 	asm_switch( host_fiber, guest_fiber, 0 );
 
 	/* asm_switch should never return for an exiting fiber. */
 	abort();
 }
-
-// ----------------------------------------------------------------------
-
-#ifdef __x86_64
-
-/* Call fiber_exit with `host_fiber` and `guest_fiber` set correctly.
- * Both these values were stored in `guest_fiber`s stack when this fiber
- * was set up.
- * 
- * Note - stack must always be 16byte aligned:
- * 
- *      The call instruction places a return address on the stack, 
- *      making the stack correctly aligned for the fiber_exit function.
- */
-asm( ".globl asm_call_fiber_exit"
-     "\n asm_call_fiber_exit:"
-     "\n\t pop %rdi" // was placed on stack in le_fiber_setup: host_fiber
-     "\n\t pop %rsi" // was placed on stack in le_fiber_setup: guest_fiber
-     "\n\t call fiber_exit" );
-#else
-#	error must implement asm_call_fiber_exit for your cpu architecture.
-#endif
 
 // ----------------------------------------------------------------------
 
@@ -479,28 +343,23 @@ static void le_worker_thread_dispatch( le_worker_thread_o *self ) {
 
 	assert( self->guest_fiber->stack ); // address of stack must not be 0
 
-	// switch to current fiber
-	asm_switch( self->guest_fiber, &self->host_fiber, 0 );
+	// switch to guest fiber
+	asm_switch( self->guest_fiber, &self->host_fiber, 1 );
 
 	// If we're back here, this means that the fiber in current_fiber has
-	// finished executing. This can have two reasons:
+	// finished executing for now. This can have two reasons:
 	//
-	// 1. fiber did complete
-	// 2. fiber did yield
+	// 1. Fiber did complete
+	// 2. Fiber did yield
 
 	if ( 1 == self->guest_fiber->job_complete ) {
-		// fiber was completed.
-		// if fiber did complete, we must return it to the pool
+		// Fiber was completed: We must return it to the pool
 		self->guest_fiber->stack        = nullptr;             // Reset fiber stack
 		self->guest_fiber->fiber_status = FIBER_STATUS::eIdle; // return fiber to pool !! do this as the last thing, otherwise other threads will already have taken ownership of it !!
 		self->guest_fiber               = nullptr;             // reset current fiber
-
 	} else {
-		// fiber has yielded.
-		// TODO: if fiber did yield, we must add it to the wait_list.
-
+		// Fiber has yielded: We must add it to the wait_list.
 		fiber_list_push_back( &self->wait_list, self->guest_fiber );
-
 		self->guest_fiber = nullptr;
 	}
 }
@@ -524,8 +383,9 @@ static void le_job_manager_initialize( size_t num_threads ) {
 	assert( num_threads <= MAX_WORKER_THREAD_COUNT );
 	assert( nullptr == job_manager );
 
+	asm_fetch_default_control_words( &DEFAULT_CONTROL_WORDS );
+
 	job_manager = new le_job_manager_o();
-	// TODO: we need to create a job queue from which to pick jobs.
 
 	job_manager->job_queue = lockfree_ring_buffer_create( 10 ); // note size is given as a power of 2, so "10" means 1024 elements
 
@@ -681,3 +541,163 @@ ISL_API_ATTR void register_le_jobs_api( void *api ) {
 
 	Registry::loadLibraryPersistently( "libpthread.so" );
 }
+
+// ----------------------------------------------------------------------
+
+#ifdef __x86_64
+
+// General assembly reference: https://www.felixcloutier.com/x86/
+
+/* Arguments in rdi, rsi, rdx */
+// Arguments: asm_switch( next_fiber==rdi, current_fiber==rsi, switch_to_guest==edx );
+//
+//
+asm( R"MARK(
+
+.text
+.globl asm_switch
+.type asm_switch, @function
+.align 16
+
+asm_switch:
+     
+    /* Save registers on the stack: rbx rbp r12 r13 r14 r15,
+     * Additionally save mxcsr control bits, and x87 status bits on the stack.
+     * Store value of rsp into current fiber,
+     *
+     * These registers are callee-saved registers, which means they
+     * must be restored after function call.
+     *
+     * Compare the `System V ABI` calling convention: <https://github.com/hjl-tools/x86-psABI/wiki/x86-64-psABI-1.0.pdf>
+     * Specifically page 17, and 18.
+     *
+     * Note that this calling convention also requires the callee (i.e. us)
+     * to store the control bits of the MXCSR register, and the x87 status
+     * word.
+     *
+     * Store MXCSR control bits (4byte): `stmxcsr`, load MXCSR control bits: `ldmxcsr`
+     * Store x87 status bits (4 byte)  : `fnstcw`, load x87 status bits: `fldcw`
+     */
+     
+    mov %edx, %eax          /* Move switch_to_guest into rax */ 
+
+    pushq %rbp
+    pushq %rbx
+
+    pushq %r15
+    pushq %r14
+    pushq %r13
+    pushq %r12
+
+    leaq  -0x8(%rsp), %rsp  /* Load effective address of rsp (stack pointer) -8 Bytes, into rsp. */
+                            /* Meaning: Grow stack by 8 bytes, (stack grows downwards). */
+    
+                            /* We do this to create a gap so that we can store the
+                             * control words for mmx, and x87, which each use 4bytes of space.
+                             * We use the "gap" method because this allows us to keep the stack
+                             * at the same size, regardless of whether we use that memory or not.
+                             */
+
+    stmxcsr  (%rsp)         /* store MMX control- and status-word */
+    fnstcw   0x4(%rsp)      /* store x87 control-word */
+
+    // --- stack switching
+
+    movq %rsp, (%rsi)       /* store 'current' stack pointer state into 'current' structure */
+    movq (%rdi), %rsp       /* restore 'next' stack pointer state from 'next' structure */
+
+    // ----
+
+    ldmxcsr  (%rsp)         /* restore MMX control-and status-word */
+    fldcw  0x4(%rsp)        /* restore x87 control-word */
+
+    leaq  0x8(%rsp), %rsp   /* jump over 8 bytes used for control-and status words */
+
+                            /* restore registers */
+    popq %r12
+    popq %r13
+    popq %r14
+    popq %r15
+
+    popq %rbx
+    popq %rbp
+
+    // Load param pointer from "next" fiber and place it in RDI register
+    // (which is register for first argument)
+    // Data pointer is located at offset +8bytes from address of "next" fiber,
+    // see static assert below.
+
+    cmp $0, %rdx            /* if parameter `switch_to_guest` equals 0, don't set function param */
+    je 3f
+
+    movq 8(%rdi), %rdi      /* set first parameter for function being called through ret */
+
+3: 
+    // return to the "next" fiber 
+    // and rdi set to next fiber's param pointer.
+
+     ret
+    .size asm_switch,.-asm_switch
+
+    // The ret instruction implements a subroutine return mechanism.
+    // This instruction first pops a code location off the hardware supported in-memory stack.
+    // It then performs an unconditional jump to the retrieved code location.
+    // <https://www.cs.virginia.edu/~evans/cs216/guides/x86.html>
+
+)MARK" );
+
+static_assert( offsetof( le_fiber_o, job_param ) == 8, "job_param must be at correct offset for asm_switch to capture it." );
+
+#else
+#	error must implement asm_switch for your cpu architecture.
+#endif
+
+// ----------------------------------------------------------------------
+
+#ifdef __x86_64
+
+/* Call fiber_exit with `host_fiber` and `guest_fiber` set correctly.
+ * Both these values were stored in `guest_fiber`s stack when this fiber
+ * was set up.
+ * 
+ * Note - stack must always be 16byte aligned:
+ * 
+ *      The call instruction places a return address on the stack, 
+ *      making the stack correctly aligned for the fiber_exit function.
+ */
+asm( R"MARK(
+
+.globl asm_call_fiber_exit
+
+asm_call_fiber_exit:
+    
+    pop %rdi                /* was placed on stack in le_fiber_setup: host_fiber */
+    pop %rsi                /* was placed on stack in le_fiber_setup: guest_fiber */
+    
+    call fiber_exit
+
+)MARK" );
+#else
+#	error must implement asm_call_fiber_exit for your cpu architecture.
+#endif
+
+#ifdef __x86_64
+
+/* Fetch default control words for mmx and x87 so that we can build
+ * a default stack.
+ */
+asm( R"MARK(
+
+.globl asm_fetch_default_control_words
+
+asm_fetch_default_control_words:
+
+    stmxcsr  (%rdi)         /* store MMX control- and status-word */
+    fnstcw   0x4(%rdi)      /* store x87 control-word */
+
+    ret
+
+)MARK" );
+#else
+#	error must implement asm_fetch_default_control_words for your cpu architecture.
+#endif
