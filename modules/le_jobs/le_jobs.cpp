@@ -24,8 +24,24 @@ struct le_jobs_api::counter_t {
 using counter_t = le_jobs_api::counter_t;
 using le_job_o  = le_jobs_api::le_job_o;
 
-constexpr static size_t FIBER_POOL_SIZE         = 128; // Number of available fibers, each with their own stack
-constexpr static size_t MAX_WORKER_THREAD_COUNT = 16;  // Maximum number of possible, but not necessarily requested worker threads.
+/* NOTE
+ * 
+ * Make sure to set the per-fiber stack size to a value large enough, or jobs will write
+ * across their stack boundaries, effectively overwriting heap memory which they don't own.
+ *
+ * This can lead to some really hard to debug errors, which you can only realistically 
+ * trace using data-breakpoints. If heap memory is magically overwritten by another thread
+ * - without you wanting it - this is a symptom of stack spill.
+ * 
+ * We keep the stack size at 8 MB, which seems to be standard on linux. Don't worry about the 
+ * potentially large size, memory overcommitting makes sure that physical memory only gets 
+ * allocated if you really need it.
+ *
+ */
+
+constexpr static size_t FIBER_POOL_SIZE         = 128;     // Number of available fibers, each with their own stack
+constexpr static size_t FIBER_STACK_SIZE        = 1 << 23; // 2^23 == 8 MB
+constexpr static size_t MAX_WORKER_THREAD_COUNT = 16;      // Maximum number of possible, but not necessarily requested worker threads.
 
 enum class FIBER_STATUS : uint64_t {
 	eIdle       = 0,
@@ -48,7 +64,6 @@ struct le_fiber_o {
 	std::atomic<FIBER_STATUS> fiber_status         = FIBER_STATUS::eIdle; // flag whether fiber is currently active
 	le_fiber_o *              list_prev            = nullptr;             // intrusive list
 	le_fiber_o *              list_next            = nullptr;             // intrusive list
-	constexpr static size_t   STACK_SIZE           = 1 << 16;             // 2^16
 	constexpr static size_t   NUM_REGISTERS        = 6;                   // must save RBX, RBP, and R12..R15
 };
 
@@ -144,9 +159,9 @@ static le_fiber_o *le_fiber_create() {
 	le_fiber_o *fiber = new le_fiber_o();
 
 	/* Create a 16-byte aligned stack */
-	static_assert( le_fiber_o::STACK_SIZE % 16 == 0, "stack size must be 16 byte-aligned." );
+	static_assert( FIBER_STACK_SIZE % 16 == 0, "stack size must be 16 byte-aligned." );
 
-	fiber->stack_bottom = malloc( le_fiber_o::STACK_SIZE );
+	fiber->stack_bottom = malloc( FIBER_STACK_SIZE );
 
 	if ( fiber->stack_bottom == nullptr )
 		return nullptr;
@@ -165,7 +180,7 @@ static void le_fiber_destroy( le_fiber_o *fiber ) {
 // Associate a fiber with a job
 static void le_fiber_load_job( le_fiber_o *fiber, le_fiber_o *host_fiber, le_job_o *job ) {
 
-	fiber->stack = reinterpret_cast<void **>( static_cast<char *>( fiber->stack_bottom ) + le_fiber_o::STACK_SIZE );
+	fiber->stack = reinterpret_cast<void **>( static_cast<char *>( fiber->stack_bottom ) + FIBER_STACK_SIZE );
 	//
 	// We push host_fiber and guest_fiber (==fiber) onto the stack so
 	// that fiber_exit method can retrieve this information via popping
