@@ -13,7 +13,7 @@
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 #ifndef LE_RENDERER_MULTITHREADED
-#	define LE_RENDERER_MULTITHREADED 1
+#	define LE_RENDERER_MULTITHREADED 0
 #endif
 
 #if LE_RENDERER_MULTITHREADED
@@ -209,7 +209,7 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 
 		while ( false == vk_backend_i.poll_frame_fence( self->backend, frameIndex ) ) {
 			// Note: this call may block until the fence has been reached.
-		};
+		}
 
 		bool result = vk_backend_i.clear_frame( self->backend, frameIndex );
 
@@ -430,6 +430,19 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 			size_t         frame_index;
 		};
 
+		struct record_params_t {
+			le_renderer_o *     renderer;
+			size_t              frame_index;
+			le_render_module_o *module;
+			size_t              current_frame_number;
+		};
+
+		auto record_frame_fun = []( void *param_ ) {
+			auto p = static_cast<record_params_t *>( param_ );
+			// generate an intermediary, api-agnostic, representation of the frame
+			renderer_record_frame( p->renderer, p->frame_index, p->module, p->current_frame_number );
+		};
+
 		auto process_frame_fun = []( void *param_ ) {
 			auto p = static_cast<frame_params_t *>( param_ );
 			// acquire external backend resources such as swapchain
@@ -445,7 +458,13 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 			renderer_clear_frame( p->renderer, p->frame_index );
 		};
 
-		le_jobs::job_t jobs[ 2 ];
+		le_jobs::job_t jobs[ 3 ];
+
+		record_params_t record_frame_params;
+		record_frame_params.renderer             = self;
+		record_frame_params.frame_index          = ( index + 0 ) % numFrames;
+		record_frame_params.module               = module_;
+		record_frame_params.current_frame_number = self->currentFrameNumber;
 
 		frame_params_t process_frame_params;
 		process_frame_params.renderer    = self;
@@ -457,11 +476,15 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 
 		jobs[ 0 ] = {process_frame_fun, &process_frame_params};
 		jobs[ 1 ] = {clear_frame_fun, &clear_frame_params};
+		jobs[ 2 ] = {record_frame_fun, &record_frame_params};
 
 		le_jobs::counter_t *counter;
-		le_jobs::run_jobs( jobs, 2, &counter );
 
-		renderer_record_frame( self, ( index + 0 ) % numFrames, module_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
+		assert( self->backend );
+
+		le_jobs::run_jobs( jobs, 3, &counter );
+
+		//renderer_record_frame( self, ( index + 0 ) % numFrames, module_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
 
 		le_jobs::wait_for_counter_and_free( counter, 0 );
 #endif
