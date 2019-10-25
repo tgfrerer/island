@@ -24,7 +24,7 @@ else()
     # link against static version of imgui library
     target_link_libraries(${TARGET} PRIVATE imgui)
 
-    set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
+    add_static_lib( ${TARGET} )
 
 endif()
 

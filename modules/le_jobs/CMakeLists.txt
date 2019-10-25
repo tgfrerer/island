@@ -25,7 +25,7 @@ else()
 
     add_library(${TARGET} STATIC ${SOURCES})
 
-    set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
+    add_static_lib( ${TARGET} )
 
      target_link_libraries(${TARGET} PRIVATE pthread)
 endif()

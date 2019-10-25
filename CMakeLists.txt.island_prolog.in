@@ -128,6 +128,24 @@ macro(add_island_module MODULE_NAME)
 
 endmacro(add_island_module)
 
+macro(add_static_lib LIB_NAME)
+
+    if (NOT ${LIB_NAME} IN_LIST STATIC_LIBS)
+        set (STATIC_LIBS ${STATIC_LIBS} ${LIB_NAME} PARENT_SCOPE)
+    else()
+        set (STATIC_LIBS ${STATIC_LIBS} PARENT_SCOPE)
+        # message(STATUS "[ NOTE ] Rejecting extra static lib addition: `${LIB_NAME}` - lib already present."  )
+    endif()
+
+endmacro(add_static_lib LIB_NAME)
+
 macro (depends_on_island_module MODULE_NAME)
+    set (STORED_STATIC_LIBS ${STATIC_LIBS} )
+    set (STATIC_LIBS ${STATIC_LIBS} ${TARGET})
+
     add_island_module(${MODULE_NAME})
+    
+    # message(STATUS "*** Current static libs: ${STATIC_LIBS}")
+    set (STATIC_LIBS ${STATIC_LIBS})
+
 endmacro(depends_on_island_module)

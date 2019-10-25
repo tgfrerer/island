@@ -24,7 +24,7 @@ else()
 
     # Adding a static library means to also add a linker dependency for our target
     # to the library.
-    set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
+    add_static_lib( ${TARGET} )
 
     add_library(${TARGET} STATIC ${SOURCES})
 
