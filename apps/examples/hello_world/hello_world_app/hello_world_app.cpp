@@ -47,15 +47,15 @@ struct Image : NoCopy, NoMove {
 
 struct WorldGeometry {
 	le_resource_handle_t    vertex_buffer_handle = LE_BUF_RESOURCE( "WORLD_VERTICES" );
-	le_resource_info_t      vertex_buffer_info{};
-	std::array<uint64_t, 4> buffer_offsets{};
-	size_t                  vertexDataByteCount{};   // total byte count of vertex data
-	size_t                  vertexCount         = 0; // number of Vertices
-	le_resource_handle_t    index_buffer_handle = LE_BUF_RESOURCE( "WORLD_INDICES" );
-	le_resource_info_t      index_buffer_info{};
-	size_t                  indexDataByteCount;
-	size_t                  indexCount; // number of indices
-	bool                    wasLoaded;
+	le_resource_info_t      vertex_buffer_info   = {};
+	std::array<uint64_t, 4> buffer_offsets       = {};
+	size_t                  vertexDataByteCount  = {}; // total byte count of vertex data
+	size_t                  vertexCount          = 0;  // number of Vertices
+	le_resource_handle_t    index_buffer_handle  = LE_BUF_RESOURCE( "WORLD_INDICES" );
+	le_resource_info_t      index_buffer_info    = {};
+	size_t                  indexDataByteCount   = {};
+	size_t                  indexCount           = {}; // number of indices
+	bool                    wasLoaded            = false;
 };
 
 struct hello_world_app_o {
