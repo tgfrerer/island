@@ -689,8 +689,8 @@ static le_resource_handle_t declare_resource_virtual_buffer( uint8_t index ) {
 
 	auto resource = LE_RESOURCE( "Encoder-Virtual", LeResourceType::eBuffer ); // virtual resources all have the same id, which means they are not part of the regular roster of resources...
 
-	resource.meta.index = index; // encoder index
-	resource.meta.flags = le_resource_handle_t::FlagBits::eIsVirtual;
+	resource.handle.as_handle.meta.as_meta.index = index; // encoder index
+	resource.handle.as_handle.meta.as_meta.flags = le_resource_handle_t::FlagBits::eIsVirtual;
 
 	return resource;
 }
@@ -970,7 +970,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 		// We patch the number of samples into resource ID so that lookups
 		// go to the correct version of the resource.
 
-		image_resource_id.meta.num_samples = numSamplesLog2;
+		image_resource_id.handle.as_handle.meta.as_meta.num_samples = numSamplesLog2;
 
 		auto &syncChain = frame.syncChainTable[ image_resource_id ];
 
@@ -1099,7 +1099,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 		// We patch the number of samples into resource ID so that lookups
 		// go to the correct version of the resource.
 
-		image_resource_id.meta.num_samples = 0; // hard-coded to zero, resolve attachment *must* have one single sample only.
+		image_resource_id.handle.as_handle.meta.as_meta.num_samples = 0; // hard-coded to zero, resolve attachment *must* have one single sample only.
 
 		auto &syncChain = frame.syncChainTable[ image_resource_id ];
 
@@ -1386,7 +1386,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 		for ( auto &op : p.explicit_sync_ops ) {
 
-			if ( op.resource_id.meta.type != LeResourceType::eImage ) {
+			if ( op.resource_id.getResourceType() != LeResourceType::eImage ) {
 				continue;
 			}
 
@@ -1628,7 +1628,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 			if ( PRINT_DEBUG_MESSAGES ) {
 
-				std::cout << std::setw( 30 ) << attachment->resource_id.debug_name << "(s:" << attachment->resource_id.meta.num_samples << ")"
+				std::cout << std::setw( 30 ) << attachment->resource_id.debug_name << "(s:" << attachment->resource_id.getNumSamples() << ")"
 				          << " : " << std::setw( 30 ) << vk::to_string( syncInitial.layout )
 				          << " : " << std::setw( 30 ) << vk::to_string( syncSubpass.layout )
 				          << " : " << std::setw( 30 ) << vk::to_string( syncFinal.layout )
@@ -1845,12 +1845,12 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 /// otherwise, fetch from frame available resources based on an id lookup.
 static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData &frame, const le_resource_handle_t &resource ) {
 
-	assert( resource.meta.type == LeResourceType::eBuffer ); // resource type must be buffer
+	assert( resource.getResourceType() == LeResourceType::eBuffer ); // resource type must be buffer
 
-	if ( resource.meta.flags == le_resource_handle_t::FlagBits::eIsVirtual ) {
-		return frame.allocatorBuffers[ resource.meta.index ];
-	} else if ( resource.meta.flags == le_resource_handle_t::FlagBits::eIsStaging ) {
-		return frame.stagingAllocator->buffers[ resource.meta.index ];
+	if ( resource.getFlags() == le_resource_handle_t::FlagBits::eIsVirtual ) {
+		return frame.allocatorBuffers[ resource.getIndex() ];
+	} else if ( resource.getFlags() == le_resource_handle_t::FlagBits::eIsStaging ) {
+		return frame.stagingAllocator->buffers[ resource.getIndex() ];
 	} else {
 		return frame.availableResources.at( resource ).asBuffer;
 	}
@@ -1859,7 +1859,7 @@ static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const Backen
 // ----------------------------------------------------------------------
 static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendFrameData &frame, const le_resource_handle_t &resource ) {
 
-	assert( resource.meta.type == LeResourceType::eImage ); // resource type must be image
+	assert( resource.getResourceType() == LeResourceType::eImage ); // resource type must be image
 
 	return frame.availableResources.at( resource ).asImage;
 }
@@ -1867,7 +1867,7 @@ static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendF
 // ----------------------------------------------------------------------
 static inline VkFormat frame_data_get_image_format_from_resource_id( BackendFrameData const &frame, const le_resource_handle_t &resource ) {
 
-	assert( resource.meta.type == LeResourceType::eImage ); // resource type must be image
+	assert( resource.getResourceType() == LeResourceType::eImage ); // resource type must be image
 
 	return frame.availableResources.at( resource ).info.imageInfo.format;
 }
@@ -2150,8 +2150,8 @@ static bool staging_allocator_map( le_staging_allocator_o *self, uint64_t numByt
 
 		// We store the allocation index in the resource handle meta data
 		// so that the correct buffer for this handle can be retrieved later.
-		resource.meta.index = uint16_t( allocationIndex );
-		resource.meta.flags = le_resource_handle_t::FlagBits::eIsStaging;
+		resource.handle.as_handle.meta.as_meta.index = uint16_t( allocationIndex );
+		resource.handle.as_handle.meta.as_meta.flags = le_resource_handle_t::FlagBits::eIsStaging;
 
 		// Store the handle for this resource so that the caller
 		// may receive it.
@@ -2295,7 +2295,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			le_resource_handle_t const &resource             = p_resources[ i ];             // Resource handle
 			LeResourceUsageFlags const &resource_usage_flags = p_resources_usage_flags[ i ]; // Resource usage flags
 
-			assert( resource_usage_flags.type == resource.meta.type ); // Resource Usage Flags must be for matching resource type.
+			assert( resource_usage_flags.type == resource.getResourceType() ); // Resource Usage Flags must be for matching resource type.
 
 			// Test whether a resource with this id is already in usedResources -
 			// if not, resource_index will be identical to usedResource vector size,
@@ -2544,7 +2544,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			le_resource_handle_t &resourceId   = usedResources[ i ];
 			le_resource_info_t &  resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
 
-			if ( resourceId.meta.type != LeResourceType::eImage ) {
+			if ( resourceId.getResourceType() != LeResourceType::eImage ) {
 				continue;
 			}
 
@@ -2563,16 +2563,16 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 				uint16_t current_sample_count_log_2 = get_sample_count_log_2( resourceInfo.image.samplesFlags );
 
-				resource_copy.meta.num_samples             = current_sample_count_log_2;
-				resource_info_copy.image.sample_count_log2 = current_sample_count_log_2;
+				resource_copy.handle.as_handle.meta.as_meta.num_samples = current_sample_count_log_2;
+				resource_info_copy.image.sample_count_log2              = current_sample_count_log_2;
 
 				msaa_resources.push_back( resource_copy );
 				msaa_resource_infos.push_back( {resource_info_copy} );
 
 				// update the original resource to have a single sample.
 
-				resourceId.meta.num_samples          = 0;
-				resourceInfo.image.sample_count_log2 = 0;
+				resourceId.handle.as_handle.meta.as_meta.num_samples = 0;
+				resourceInfo.image.sample_count_log2                 = 0;
 			}
 		}
 
@@ -2708,7 +2708,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				          << " : " << std::setw( 30 ) << r.second.asBuffer << std::endl;
 			} else {
 				std::cout << std::setw( 10 ) << "Image"
-				          << " : " << std::setw( 30 ) << r.first.debug_name << "(s:" << r.first.meta.num_samples << ")"
+				          << " : " << std::setw( 30 ) << r.first.debug_name << "(s:" << r.first.handle.as_handle.meta.as_meta.num_samples << ")"
 				          << " : " << std::setw( 30 ) << r.second.asImage << std::endl;
 			}
 		}
@@ -2728,7 +2728,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 			vk::DebugUtilsObjectNameInfoEXT nameInfo;
 			nameInfo
-			    .setObjectType( r.first.meta.type == LeResourceType::eImage ? vk::ObjectType::eImage : vk::ObjectType::eBuffer )
+			    .setObjectType( r.first.getResourceType() == LeResourceType::eImage ? vk::ObjectType::eImage : vk::ObjectType::eBuffer )
 			    .setObjectHandle( reinterpret_cast<uint64_t>( r.second.asImage ) )
 			    .setPObjectName( r.first.debug_name );
 
@@ -3187,7 +3187,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// --------| invariant: barrier is active.
 
 						// print out sync chain for sampled image
-						std::cout << "\t Explicit Barrier for: " << op.resource_id.debug_name << "(s:" << op.resource_id.meta.num_samples << ")" << std::endl;
+						std::cout << "\t Explicit Barrier for: " << op.resource_id.debug_name << "(s:" << op.resource_id.getNumSamples() << ")" << std::endl;
 
 						std::cout << "\t " << std::setw( 3 ) << "#"
 						          << " : " << std::setw( 30 ) << "visible_access"

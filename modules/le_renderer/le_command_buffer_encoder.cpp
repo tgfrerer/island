@@ -480,7 +480,7 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *       self,
                                 void const *                        data,
                                 size_t                              numBytes ) {
 
-	assert( imageId.meta.type == LeResourceType::eImage );
+	assert( imageId.handle.as_handle.meta.as_meta.type == LeResourceType::eImage );
 
 	// ----------| invariant: resource info represents an image
 

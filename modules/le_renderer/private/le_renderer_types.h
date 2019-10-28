@@ -18,7 +18,7 @@
 		}                                                              \
 	}
 
-#define LE_RESOURCE_LABEL_LENGTH 32 // (no-hotreload) set to zero to disable storing name (for debug printouts) with resource handles
+#define LE_RESOURCE_LABEL_LENGTH 0 // (no-hotreload) set to zero to disable storing name (for debug printouts) with resource handles
 
 enum class LeResourceType : uint8_t {
 	eUndefined = 0,
@@ -35,46 +35,55 @@ struct le_resource_handle_t {
 	};
 
 	union Meta {
-		struct {
+		struct Data {
 			LeResourceType type;
 			uint8_t        flags; // used for virtual resources: staging or virtual
 			union {
 				uint16_t num_samples; // If used as image : refers to number of samples (stored as log_2 values, where 0 means 1, 1 means 2..)
 				uint16_t index;       // If used as buffer: refers to index of staging buffer or allocator buffer, depending on type
 			};
-		};
-		uint32_t meta_data;
+		} as_meta;
+		uint32_t as_data;
 	};
 
-	union {
-		struct {
-			uint32_t name_hash;
-			Meta     meta;
-		};
+	union Handle {
+		struct Data {
+			uint32_t name_hash; // 32b
+			Meta     meta;      // 32b
+		} as_handle;
 
-#if ( LE_RESOURCE_LABEL_LENGTH == 0 )
-		// We define an alias `debug_name`, which is the hash of the debug name
-		// if the name was not stored with the resource handle.
-		struct {
-			uint32_t debug_name;
-			Meta     debug_meta;
-		};
-#endif
-		uint64_t handle_data = 0;
+		uint64_t as_data;
+	} handle; // end union handle_data
 
-	}; // end union handle_data
-
-#if ( LE_RESOURCE_LABEL_LENGTH > 0 )
-	char debug_name[ LE_RESOURCE_LABEL_LENGTH ]; // FIXME: this is unsafe for reload, we cannot assume that string constants will be stored at the same location after reload...
-#endif
-
-	inline operator uint64_t() {
-		return handle_data;
+	inline const LeResourceType &getResourceType() const noexcept {
+		return handle.as_handle.meta.as_meta.type;
 	}
+
+	inline const uint16_t &getNumSamples() const noexcept {
+		return handle.as_handle.meta.as_meta.num_samples;
+	}
+
+	inline const uint16_t &getIndex() const noexcept {
+		return handle.as_handle.meta.as_meta.index;
+	}
+
+	inline const uint8_t &getFlags() const noexcept {
+		return handle.as_handle.meta.as_meta.flags;
+	}
+
+	inline operator uint64_t() const noexcept {
+		return handle.as_data;
+	}
+
+#if LE_RESOURCE_LABEL_LENGTH > 0
+	char debug_name[ 32 ];
+#else
+	char const *debug_name = "unknown";
+#endif
 };
 
 static inline bool operator==( le_resource_handle_t const &lhs, le_resource_handle_t const &rhs ) noexcept {
-	return lhs.handle_data == rhs.handle_data;
+	return lhs.handle.as_data == rhs.handle.as_data;
 }
 
 static inline bool operator!=( le_resource_handle_t const &lhs, le_resource_handle_t const &rhs ) noexcept {
@@ -82,18 +91,20 @@ static inline bool operator!=( le_resource_handle_t const &lhs, le_resource_hand
 }
 
 constexpr le_resource_handle_t LE_RESOURCE( const char *const str, const LeResourceType tp ) noexcept {
-	le_resource_handle_t handle{};
-	handle.name_hash = hash_32_fnv1a_const( str );
-	handle.meta.type = tp;
+	le_resource_handle_t h{};
+	h.handle.as_handle.name_hash         = hash_32_fnv1a_const( str );
+	h.handle.as_handle.meta.as_meta.type = tp;
 
 #if ( LE_RESOURCE_LABEL_LENGTH > 0 )
 	auto c = str;
 	int  i = 0;
 	while ( *c != '\0' && i < LE_RESOURCE_LABEL_LENGTH - 1 ) {
-		handle.debug_name[ i++ ] = *c++;
+		h.debug_name[ i++ ] = *c++;
 	}
+#else
+	h.debug_name           = str;
 #endif
-	return handle;
+	return h;
 }
 
 #ifdef LE_RESOURCE_LABEL_LENGTH
@@ -102,19 +113,19 @@ constexpr le_resource_handle_t LE_RESOURCE( const char *const str, const LeResou
 
 struct LeResourceHandleIdentity {
 	inline uint64_t operator()( const le_resource_handle_t &key_ ) const noexcept {
-		return key_.handle_data;
+		return key_.handle.as_data;
 	}
 };
 
-constexpr le_resource_handle_t LE_IMG_RESOURCE( const char *const str ) noexcept {
+constexpr le_resource_handle_t LE_IMG_RESOURCE( const char *str ) noexcept {
 	return LE_RESOURCE( str, LeResourceType::eImage );
 }
 
-constexpr le_resource_handle_t LE_IMAGE_SAMPLER_RESOURCE( const char *const str ) noexcept {
+constexpr le_resource_handle_t LE_IMAGE_SAMPLER_RESOURCE( const char *str ) noexcept {
 	return LE_RESOURCE( str, LeResourceType::eImageSampler );
 }
 
-constexpr le_resource_handle_t LE_BUF_RESOURCE( const char *const str ) noexcept {
+constexpr le_resource_handle_t LE_BUF_RESOURCE( const char *str ) noexcept {
 	return LE_RESOURCE( str, LeResourceType::eBuffer );
 }
 
