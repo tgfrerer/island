@@ -17,13 +17,14 @@
 #include <array>
 #include <vector>
 
+constexpr le_resource_handle_t IMGUI_IMG_SAMPLER_HANDLE = LE_IMAGE_SAMPLER_RESOURCE( "ImguiDefaultFontTexture" );
+constexpr le_resource_handle_t IMGUI_IMG_HANDLE         = LE_IMG_RESOURCE( "ImguiDefaultFontImage" );
+
 struct FontTextureInfo {
-	uint8_t *                             pixels                  = nullptr;
-	int32_t                               width                   = 0;
-	int32_t                               height                  = 0;
-	static constexpr le_resource_handle_t le_image_sampler_handle = LE_IMAGE_SAMPLER_RESOURCE( "ImguiDefaultFontTexture" );
-	static constexpr le_resource_handle_t le_image_handle         = LE_IMG_RESOURCE( "ImguiDefaultFontImage" );
-	bool                                  wasUploaded             = false;
+	uint8_t *pixels      = nullptr;
+	int32_t  width       = 0;
+	int32_t  height      = 0;
+	bool     wasUploaded = false;
 };
 
 struct le_mouse_event_data_o {
@@ -94,7 +95,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *
 		                       .setFormat( le::Format::eR8G8B8A8Unorm )
 		                       .build(); // create resource for imgui font texture if it does not yet exist.
 
-		module.declareResource( self->imguiTexture.le_image_handle, fontImgInfo );
+		module.declareResource( IMGUI_IMG_HANDLE, fontImgInfo );
 
 		return;
 	}
@@ -119,14 +120,14 @@ static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *
 	                       .setFormat( le::Format::eR8G8B8A8Unorm )
 	                       .build(); // create resource for imgui font texture if it does not yet exist.
 
-	module.declareResource( self->imguiTexture.le_image_handle, fontImgInfo );
+	module.declareResource( IMGUI_IMG_HANDLE, fontImgInfo );
 
 	// Upload resources
 
 	le::RenderPass pass{"imguiSetup", LE_RENDER_PASS_TYPE_TRANSFER};
 
 	pass
-	    .useImageResource( self->imguiTexture.le_image_handle, {LE_IMAGE_USAGE_TRANSFER_DST_BIT} )
+	    .useImageResource( IMGUI_IMG_HANDLE, {LE_IMAGE_USAGE_TRANSFER_DST_BIT} )
 	    .setExecuteCallback( self, []( le_command_buffer_encoder_o *p_encoder, void *user_data ) {
 		    auto imgui = static_cast<le_imgui_o *>( user_data );
 
@@ -141,7 +142,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *
 			                         .setImageH( int32_t( imgui->imguiTexture.height ) )
 			                         .build();
 
-			    encoder.writeToImage( imgui->imguiTexture.le_image_handle, writeInfo, imgui->imguiTexture.pixels, numBytes );
+			    encoder.writeToImage( IMGUI_IMG_HANDLE, writeInfo, imgui->imguiTexture.pixels, numBytes );
 			    imgui->imguiTexture.wasUploaded = true;
 		    }
 	    } );
@@ -153,7 +154,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *
 	// We want to save the raw value in the pointer, because if we passed in a
 	// pointer to the name of the texture, the texture may have changed.
 	// for this to work, we first cast to uint64_t, then cast to void*
-	io.Fonts->TexID = ( void * )( uint64_t const & )self->imguiTexture.le_image_sampler_handle;
+	io.Fonts->TexID = ( void * )( uint64_t const & )IMGUI_IMG_SAMPLER_HANDLE;
 
 	// Keyboard mapping. ImGui will use those indices to peek into the io.KeysDown[] array.
 	io.KeyMap[ ImGuiKey_Tab ]        = uint32_t( LeUiEvent::NamedKey::eTab );
@@ -193,7 +194,7 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 	// TODO: We must implement a safeguard in renderpass which checks
 	// resources, and makes sure that each resource is declared consistently.
 	//
-	rp.sampleTexture( self->imguiTexture.le_image_sampler_handle, {{le::Filter::eLinear, le::Filter::eLinear}, {self->imguiTexture.le_image_handle, {}}} );
+	rp.sampleTexture( IMGUI_IMG_SAMPLER_HANDLE, {{le::Filter::eLinear, le::Filter::eLinear}, {IMGUI_IMG_HANDLE, {}}} );
 
 	rp.setExecuteCallback( self, []( le_command_buffer_encoder_o *p_encoder, void *user_data ) {
 		auto encoder = le::Encoder{p_encoder};
@@ -279,10 +280,10 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 			    .bindGraphicsPipeline( psoImgui )
 			    .setViewports( 0, 1, &viewports[ 0 ] )
 			    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &ortho_projection, sizeof( glm::mat4 ) )
-			    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), imgui->imguiTexture.le_image_sampler_handle, 0 ) //
+			    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), IMGUI_IMG_SAMPLER_HANDLE, 0 ) //
 			    ;
 
-			le_resource_handle_t currentTexture = imgui->imguiTexture.le_image_sampler_handle; // we check this for changes so that we don't have to switch state that often.
+			le_resource_handle_t currentTexture = IMGUI_IMG_SAMPLER_HANDLE; // we check this for changes so that we don't have to switch state that often.
 
 			ImVec4 currentClipRect{};
 
