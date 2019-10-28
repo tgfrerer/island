@@ -68,10 +68,11 @@ struct le_fiber_o {
 };
 
 struct le_job_manager_o {
-	std::mutex                     counters_mtx;
-	std::forward_list<counter_t *> counters;
-	le_fiber_o *                   fibers[ FIBER_POOL_SIZE ]{};
-	lockfree_ring_buffer_t *       job_queue;
+	std::mutex                     counters_mtx;                // mutex protecting counters list
+	std::forward_list<counter_t *> counters;                    // storage for counters, list.
+	le_fiber_o *                   fibers[ FIBER_POOL_SIZE ]{}; // pool of available fibers
+	lockfree_ring_buffer_t *       job_queue;                   // queue onto which to push jobs
+	size_t                         worker_thread_count = 0;     // actual number of initialised worker threads
 };
 
 struct le_fiber_list_t {
@@ -396,6 +397,8 @@ static void le_worker_thread_loop( le_worker_thread_o *self ) {
 static void le_job_manager_initialize( size_t num_threads ) {
 
 	assert( num_threads <= MAX_WORKER_THREAD_COUNT );
+	assert( num_threads > 0 && "num_threads must be > than 0" );
+
 	assert( nullptr == job_manager );
 
 	asm_fetch_default_control_words( &DEFAULT_CONTROL_WORDS );
@@ -426,6 +429,8 @@ static void le_job_manager_initialize( size_t num_threads ) {
 		// we may retrieve thread-ids later.
 		static_worker_threads[ i ] = w;
 	}
+
+	job_manager->worker_thread_count = num_threads;
 }
 
 // ----------------------------------------------------------------------

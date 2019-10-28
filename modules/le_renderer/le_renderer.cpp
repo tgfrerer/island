@@ -12,11 +12,11 @@
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
-#ifndef LE_RENDERER_MULTITHREADED
-#	define LE_RENDERER_MULTITHREADED 0
+#ifndef LE_MT
+#	define LE_MT 0
 #endif
 
-#if LE_RENDERER_MULTITHREADED
+#if ( LE_MT > 0 )
 #	include "le_jobs/le_jobs.h"
 #endif
 
@@ -78,8 +78,8 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ); // f
 static le_renderer_o *renderer_create() {
 	auto obj = new le_renderer_o();
 
-#if LE_RENDERER_MULTITHREADED
-	le_jobs::initialize( 4 );
+#if ( LE_MT > 0 )
+	le_jobs::initialize( LE_MT );
 #endif
 
 	return obj;
@@ -110,7 +110,7 @@ static void renderer_destroy( le_renderer_o *self ) {
 		self->backend = nullptr;
 	}
 
-#if LE_RENDERER_MULTITHREADED
+#if ( LE_MT > 0 )
 	le_jobs::terminate();
 #endif
 
@@ -165,6 +165,10 @@ static void renderer_setup( le_renderer_o *self, le_renderer_settings_t const &s
 			backend_settings.requestedExtensions    = nullptr;
 			backend_settings.numRequestedExtensions = 0;
 		}
+
+#if ( LE_MT > 0 )
+		backend_settings.concurrency_count = LE_MT;
+#endif
 
 		vk_backend_i.setup( self->backend, &backend_settings );
 	}
@@ -421,8 +425,8 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 
 	vk_backend_i.update_shader_modules( self->backend );
 
-	if ( LE_RENDERER_MULTITHREADED ) {
-#if ( LE_RENDERER_MULTITHREADED == 1 )
+	if ( LE_MT > 0 ) {
+#if ( LE_MT > 0 )
 		// use task system (experimental)
 
 		struct frame_params_t {

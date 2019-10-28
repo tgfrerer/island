@@ -11,13 +11,21 @@
 #include <assert.h>
 #include <vector>
 
+#ifndef LE_MT
+#	define LE_MT 0
+#endif
+
+#if ( LE_MT > 0 )
+#	include "le_jobs/le_jobs.h"
+#endif
+
 #define EMPLACE_CMD( x ) new ( &self->mCommandStream[ 0 ] + self->mCommandStreamSize )( x )
 
 struct le_command_buffer_encoder_o {
 	char                    mCommandStream[ 4096 * 16 ]; // 16 pages of memory
 	size_t                  mCommandStreamSize = 0;
 	size_t                  mCommandCount      = 0;
-	le_allocator_o *        pAllocator         = nullptr; // allocator is owned by backend, externally
+	le_allocator_o **       ppAllocator        = nullptr; // allocator list is owned by backend, externally
 	le_pipeline_manager_o * pipelineManager    = nullptr;
 	le_staging_allocator_o *stagingAllocator   = nullptr; // Borrowed from backend - used for larger, permanent resources, shared amongst encoders
 	le::Extent2D            extent             = {};      // Renderpass extent, otherwise swapchain extent inferred via renderer, this may be queried by users of encoder.
@@ -25,9 +33,9 @@ struct le_command_buffer_encoder_o {
 
 // ----------------------------------------------------------------------
 
-static le_command_buffer_encoder_o *cbe_create( le_allocator_o *allocator, le_pipeline_manager_o *pipelineManager, le_staging_allocator_o *stagingAllocator, le::Extent2D const &extent = {} ) {
+static le_command_buffer_encoder_o *cbe_create( le_allocator_o **allocator, le_pipeline_manager_o *pipelineManager, le_staging_allocator_o *stagingAllocator, le::Extent2D const &extent = {} ) {
 	auto self              = new le_command_buffer_encoder_o;
-	self->pAllocator       = allocator;
+	self->ppAllocator      = allocator;
 	self->pipelineManager  = pipelineManager;
 	self->stagingAllocator = stagingAllocator;
 	self->extent           = extent;
@@ -223,6 +231,25 @@ static void cbe_bind_index_buffer( le_command_buffer_encoder_o *self,
 }
 
 // ----------------------------------------------------------------------
+// return allocator offset based on current worker thread index.
+static inline int fetch_allocator_index() {
+#if ( LE_MT > 0 )
+	int result = le_jobs::get_current_worker_id();
+	assert( result >= 0 );
+	return result;
+#else
+	return 0;
+#endif
+}
+
+static inline le_allocator_o *fetch_allocator( le_allocator_o **ppAlloc ) {
+	int             index  = fetch_allocator_index();
+	le_allocator_o *result = *( ppAlloc + index );
+	assert( result );
+	return result;
+}
+
+// ----------------------------------------------------------------------
 
 static void cbe_set_vertex_data( le_command_buffer_encoder_o *self,
                                  void const *                 data,
@@ -240,13 +267,16 @@ static void cbe_set_vertex_data( le_command_buffer_encoder_o *self,
 
 	// --------| invariant: there are some bytes to set
 
-	void *   memAddr;
+	void *   memAddr      = nullptr;
 	uint64_t bufferOffset = 0;
 
-	if ( le_allocator_linear_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
+	le_allocator_o *allocator = fetch_allocator( self->ppAllocator );
+
+	if ( le_allocator_linear_i.allocate( allocator, numBytes, &memAddr, &bufferOffset ) ) {
+
 		memcpy( memAddr, data, numBytes );
 
-		le_resource_handle_t allocatorBufferId = le_allocator_linear_i.get_le_resource_id( self->pAllocator );
+		le_resource_handle_t allocatorBufferId = le_allocator_linear_i.get_le_resource_id( allocator );
 
 		cbe_bind_vertex_buffers( self, bindingIndex, 1, &allocatorBufferId, &bufferOffset );
 	} else {
@@ -272,13 +302,15 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *self,
 	void *   memAddr;
 	uint64_t bufferOffset = 0;
 
+	le_allocator_o *allocator = fetch_allocator( self->ppAllocator );
+
 	// -- Allocate data on scratch buffer
-	if ( le_allocator_linear_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
+	if ( le_allocator_linear_i.allocate( allocator, numBytes, &memAddr, &bufferOffset ) ) {
 
 		// -- Upload data via scratch allocator
 		memcpy( memAddr, data, numBytes );
 
-		le_resource_handle_t allocatorBufferId = le_allocator_linear_i.get_le_resource_id( self->pAllocator );
+		le_resource_handle_t allocatorBufferId = le_allocator_linear_i.get_le_resource_id( allocator );
 
 		// -- Bind index buffer to scratch allocator
 		cbe_bind_index_buffer( self, allocatorBufferId, bufferOffset, indexType );
@@ -307,16 +339,18 @@ static void cbe_set_argument_data( le_command_buffer_encoder_o *self,
 	void *   memAddr;
 	uint64_t bufferOffset = 0;
 
+	le_allocator_o *allocator = fetch_allocator( self->ppAllocator );
+
 	// -- Allocate memory on scratch buffer for ubo
 	//
 	// Note that we might want to have specialised ubo memory eventually if that
 	// made a performance difference.
-	if ( le_allocator_linear_i.allocate( self->pAllocator, numBytes, &memAddr, &bufferOffset ) ) {
+	if ( le_allocator_linear_i.allocate( allocator, numBytes, &memAddr, &bufferOffset ) ) {
 
 		// -- Store ubo data to scratch allocator
 		memcpy( memAddr, data, numBytes );
 
-		le_resource_handle_t allocatorBufferId = le_allocator_linear_i.get_le_resource_id( self->pAllocator );
+		le_resource_handle_t allocatorBufferId = le_allocator_linear_i.get_le_resource_id( allocator );
 
 		cmd->info.argument_name_id = argumentNameId;
 		cmd->info.buffer_id        = allocatorBufferId;

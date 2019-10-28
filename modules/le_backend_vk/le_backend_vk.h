@@ -65,6 +65,7 @@ struct le_resource_info_t;
 struct le_backend_vk_settings_t {
 	const char **            requestedExtensions    = nullptr;
 	uint32_t                 numRequestedExtensions = 0;
+	uint32_t                 concurrency_count      = 1;       // number of potential worker threads
 	pal_window_o *           pWindow                = nullptr; // non-owning, owned by application. Application must outlive backend.
 	le_swapchain_settings_t *pSwapchain_settings    = nullptr; // non-owning, owned by caller of setup method.
 };
@@ -99,7 +100,7 @@ struct le_backend_vk_api {
 
 		size_t                 ( *get_num_swapchain_images   ) ( le_backend_o *self );
 		void                   ( *reset_swapchain            ) ( le_backend_o *self );
-		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex, size_t numAllocators);
+		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex);
 		le_staging_allocator_o*( *get_staging_allocator      ) ( le_backend_o* self, size_t frameIndex);
 
 		le_shader_module_o*    ( *create_shader_module       ) ( le_backend_o* self, char const * path, const LeShaderStageEnum& moduleType, char const * macro_definitions);

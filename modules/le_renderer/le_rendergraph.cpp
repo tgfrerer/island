@@ -706,8 +706,7 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 
 	// Receive one allocator per pass -
 	// allocators come from the frame's own pool
-	auto const       ppAllocators = vk_backend_i.get_transient_allocators( backend, frameIndex, self->passes.size() );
-	le_allocator_o **allocIt      = ppAllocators; // iterator over allocators - note that number of allocators must be identical with number of passes
+	auto const ppAllocators = vk_backend_i.get_transient_allocators( backend, frameIndex );
 
 	auto stagingAllocator = vk_backend_i.get_staging_allocator( backend, frameIndex );
 
@@ -743,7 +742,7 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 			    pass->height != 0 ? pass->height : swapchain_extent.height // Use pass extent unless it is 0, otherwise revert to swapchain_extent
 			};
 
-			pass->encoder = encoder_i.create( *allocIt, pipelineCache, stagingAllocator, encoder_extent ); // NOTE: we must manually track the lifetime of encoder!
+			pass->encoder = encoder_i.create( ppAllocators, pipelineCache, stagingAllocator, encoder_extent ); // NOTE: we must manually track the lifetime of encoder!
 
 			if ( pass->type == LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW ) {
 
@@ -763,8 +762,6 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 			}
 
 			renderpass_run_execute_callback( pass ); // record draw commands into encoder
-
-			allocIt++; // Move to next unused allocator
 		}
 	}
 

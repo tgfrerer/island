@@ -118,7 +118,7 @@ struct le_renderer_api {
 	};
 
 	struct command_buffer_encoder_interface_t {
-		le_command_buffer_encoder_o *( *create                 )( le_allocator_o *allocator, le_pipeline_manager_o* pipeline_cache, le_staging_allocator_o* stagingAllocator, le::Extent2D const& extent );
+		le_command_buffer_encoder_o *( *create                 )( le_allocator_o **allocator, le_pipeline_manager_o* pipeline_cache, le_staging_allocator_o* stagingAllocator, le::Extent2D const& extent );
 		void                         ( *destroy                )( le_command_buffer_encoder_o *obj );
 
 		void                         ( *draw                   )( le_command_buffer_encoder_o *self, uint32_t vertexCount, uint32_t instanceCount, uint32_t firstVertex, uint32_t firstInstance );

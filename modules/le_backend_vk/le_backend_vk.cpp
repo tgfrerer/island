@@ -49,6 +49,7 @@
 constexpr size_t LE_FRAME_DATA_POOL_BLOCK_SIZE  = 1u << 24; // 16.77 MB
 constexpr size_t LE_FRAME_DATA_POOL_BLOCK_COUNT = 1;
 constexpr size_t LE_LINEAR_ALLOCATOR_SIZE       = 1u << 24;
+
 // ----------------------------------------------------------------------
 /// ResourceCreateInfo is used internally in to translate Renderer-specific structures
 /// into Vulkan CreateInfos for buffers and images we wish to allocate in Vulkan.
@@ -382,16 +383,24 @@ struct BackendFrameData {
 	ResourceMap_T availableResources; // resources this frame may use
 	ResourceMap_T binnedResources;    // resources to delete when this frame comes round to clear()
 
-	VmaPool                        allocationPool;   // pool from which allocations for this frame come from
-	std::vector<le_allocator_o *>  allocators;       // one linear sub-allocator per command buffer
-	std::vector<vk::Buffer>        allocatorBuffers; // one vkBuffer per command buffer
-	std::vector<VmaAllocation>     allocations;      // one allocation per command buffer
-	std::vector<VmaAllocationInfo> allocationInfos;  // one allocation info per command buffer
+	VmaPool allocationPool; // pool from which allocations for this frame come from
 
-	le_staging_allocator_o *stagingAllocator; // owning
+	std::vector<le_allocator_o *>  allocators;       // owning; typically one per `le_worker_thread`.
+	std::vector<vk::Buffer>        allocatorBuffers; // per allocator: one vkBuffer
+	std::vector<VmaAllocation>     allocations;      // per allocator: one allocation
+	std::vector<VmaAllocationInfo> allocationInfos;  // per allocator: one allocationInfo
+
+	le_staging_allocator_o *stagingAllocator; // owning: allocator to large objects to GPU memory
 };
 
 // ----------------------------------------------------------------------
+
+static const vk::BufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =
+    vk::BufferUsageFlagBits::eIndexBuffer |
+    vk::BufferUsageFlagBits::eVertexBuffer |
+    vk::BufferUsageFlagBits::eUniformBuffer |
+    vk::BufferUsageFlagBits::eStorageBuffer |
+    vk::BufferUsageFlagBits::eTransferSrc;
 
 /// \brief backend data object
 struct le_backend_o {
@@ -429,13 +438,6 @@ struct le_backend_o {
 	struct {
 		std::unordered_map<le_resource_handle_t, AllocatedResourceVk, LeResourceHandleIdentity> allocatedResources; // Allocated resources, indexed by resource name hash
 	} only_backend_allocate_resources_may_access;                                                                   // Only acquire_physical_resources may read/write
-
-	const vk::BufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =
-	    vk::BufferUsageFlagBits::eIndexBuffer |
-	    vk::BufferUsageFlagBits::eVertexBuffer |
-	    vk::BufferUsageFlagBits::eUniformBuffer |
-	    vk::BufferUsageFlagBits::eStorageBuffer |
-	    vk::BufferUsageFlagBits::eTransferSrc;
 };
 
 // ----------------------------------------------------------------------
@@ -759,6 +761,9 @@ static le_device_o *backend_get_le_device( le_backend_o *self ) {
 	return *self->device;
 }
 
+// ffdecl.
+static le_allocator_o **backend_create_transient_allocators( le_backend_o *self, size_t frameIndex, size_t numAllocators );
+
 // ----------------------------------------------------------------------
 
 static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *settings ) {
@@ -847,7 +852,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 			bufferInfo
 			    .setFlags( {} )
 			    .setSize( 1 )
-			    .setUsage( self->LE_BUFFER_USAGE_FLAGS_SCRATCH )
+			    .setUsage( LE_BUFFER_USAGE_FLAGS_SCRATCH )
 			    .setSharingMode( vk::SharingMode::eExclusive )
 			    .setQueueFamilyIndexCount( 1 )
 			    .setPQueueFamilyIndices( &self->queueFamilyIndexGraphics );
@@ -912,6 +917,16 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 		frameData.stagingAllocator = le_staging_allocator_i.create( self->mAllocator, vkDevice );
 
 		self->mFrames.emplace_back( std::move( frameData ) );
+	}
+
+	{
+		// We want to make sure to have at least one allocator.
+		size_t num_allocators = std::max<size_t>( 1, settings->concurrency_count );
+
+		for ( size_t i = 0; i != frameCount; ++i ) {
+			// -- create linear allocators for each frame
+			backend_create_transient_allocators( self, i, num_allocators );
+		}
 	}
 
 	{
@@ -2084,6 +2099,8 @@ static le_staging_allocator_o *staging_allocator_create( VmaAllocator const vmaA
 // Staging memory is typically cache coherent, ie. does not need to be flushed.
 static bool staging_allocator_map( le_staging_allocator_o *self, uint64_t numBytes, void **pData, le_resource_handle_t *resource_handle ) {
 
+	auto lock = std::scoped_lock( self->mtx );
+
 	VmaAllocation     allocation; // handle to allocation
 	VkBuffer          buffer;     // handle to buffer (returned from vmaMemAlloc)
 	VmaAllocationInfo allocationInfo;
@@ -2120,7 +2137,6 @@ static bool staging_allocator_map( le_staging_allocator_o *self, uint64_t numByt
 		// Other encoders might also want to map memory, and
 		// they will have to wait for whichever operation in
 		// process to finish.
-		auto lock = std::scoped_lock( self->mtx );
 
 		size_t allocationIndex = self->allocations.size();
 
@@ -3029,23 +3045,18 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 };
 
 // ----------------------------------------------------------------------
-// We return a list of transient allocators which exist for the frame.
-// as these allocators are not deleted, but reset every frame, we only create new allocations
-// if we don't have enough to cover the demand for this frame. Otherwise we re-use existing
-// allocators and allocations.
-static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, size_t frameIndex, size_t numAllocators ) {
+static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, size_t frameIndex ) {
+	return self->mFrames[ frameIndex ].allocators.data();
+}
+
+// ----------------------------------------------------------------------
+static le_allocator_o **backend_create_transient_allocators( le_backend_o *self, size_t frameIndex, size_t numAllocators ) {
 
 	using namespace le_backend_vk;
 
 	auto &frame = self->mFrames[ frameIndex ];
 
-	// Only add another buffer to frame-allocated buffers if we don't yet have
-	// enough buffers to cover each pass (numAllocators should correspond to
-	// number of passes.)
-	//
-	// NOTE: We compare by '<', since numAllocators may be smaller if number
-	// of renderpasses was reduced for some reason.
-	for ( size_t i = frame.allocators.size(); i < numAllocators; ++i ) {
+	for ( size_t i = frame.allocators.size(); i != numAllocators; ++i ) {
 
 		assert( numAllocators < 256 ); // must not have more than 255 allocators, otherwise we cannot store index in LeResourceHandleMeta.
 
@@ -3070,7 +3081,7 @@ static le_allocator_o **backend_get_transient_allocators( le_backend_o *self, si
 			bufferInfoProxy
 			    .setFlags( {} )
 			    .setSize( LE_LINEAR_ALLOCATOR_SIZE )
-			    .setUsage( self->LE_BUFFER_USAGE_FLAGS_SCRATCH )
+			    .setUsage( LE_BUFFER_USAGE_FLAGS_SCRATCH )
 			    .setSharingMode( vk::SharingMode::eExclusive )
 			    .setQueueFamilyIndexCount( 1 )
 			    .setPQueueFamilyIndices( &self->queueFamilyIndexGraphics ); // TODO: use compute queue for compute passes, or transfer for transfer passes
