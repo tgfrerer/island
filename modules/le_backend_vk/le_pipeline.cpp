@@ -1548,18 +1548,14 @@ graphics_pipeline_state_o *le_pipeline_manager_get_gpso_from_cache( le_pipeline_
 	const auto pso_hashes_end   = pso_hashes_begin + self->graphicsPSO_handles.size();
 
 	for ( ; pso_hash != pso_hashes_end; pso_hash++, pso++ ) {
-		if ( gpso_hash == *pso_hash )
-			break;
+		if ( gpso_hash == *pso_hash ) {
+			return *pso;
+		}
 	}
 
-	if ( pso_hash == pso_hashes_end ) {
-		// not found
-		return nullptr; // could not find pso with given hash
-	}
+	// ---------| invariant: no element found
 
-	// ---------| invariant: element found
-
-	return *pso;
+	return nullptr; // could not find pso with given hash
 }
 
 // ----------------------------------------------------------------------
@@ -1573,18 +1569,13 @@ compute_pipeline_state_o *le_pipeline_manager_get_cpso_from_cache( le_pipeline_m
 	const auto pso_hashes_end   = pso_hashes_begin + self->computePSO_handles.size();
 
 	for ( ; pso_hash != pso_hashes_end; pso_hash++, pso++ ) {
-		if ( cpso_hash == *pso_hash )
-			break;
+		if ( cpso_hash == *pso_hash ) {
+			return *pso;
+		}
 	}
 
-	if ( pso_hash == pso_hashes_end ) {
-		// not found
-		return nullptr; // could not find pso with given hash
-	}
-
-	// ---------| invariant: element found
-
-	return *pso;
+	// ---------| invariant: No element found
+	return nullptr; // could not find pso with given hash
 }
 
 // ----------------------------------------------------------------------
