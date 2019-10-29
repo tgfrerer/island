@@ -964,9 +964,9 @@ static le_shader_module_o *le_shader_manager_create_shader_module( le_shader_man
 
 	le_shader_module_o *module = new le_shader_module_o{};
 
-	module->stage          = moduleType;
-	module->filepath       = canonical_path_as_string;
-	module->macro_defines  = macro_defines;
+	module->stage         = moduleType;
+	module->filepath      = canonical_path_as_string;
+	module->macro_defines = macro_defines;
 
 	module->hash_file_path      = SpookyHash::Hash64( module->filepath.string().data(), module->filepath.string().size(), 0 );
 	module->hash_shader_defines = SpookyHash::Hash64( module->macro_defines.data(), module->macro_defines.size(), 0 );
@@ -1046,9 +1046,9 @@ static vk::PipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_m
 static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_vertex_input_binding_description::INPUT_RATE &input_rate ) {
 	switch ( input_rate ) {
 	case ( le_vertex_input_binding_description::ePerInstance ):
-	    return vk::VertexInputRate::eInstance;
+		return vk::VertexInputRate::eInstance;
 	case ( le_vertex_input_binding_description::ePerVertex ):
-	    return vk::VertexInputRate::eVertex;
+		return vk::VertexInputRate::eVertex;
 	}
 	assert( false ); // something's wrong: control should never come here, switch needs to cover all cases.
 	return vk::VertexInputRate::eVertex;
@@ -1398,25 +1398,25 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 				switch ( descriptorType ) {
 				case vk::DescriptorType::eUniformTexelBuffer:
 					assert( false ); // not implemented
-				    break;
+					break;
 				case vk::DescriptorType::eStorageTexelBuffer:
 					assert( false ); // not implemented
-				    break;
+					break;
 				case vk::DescriptorType::eInputAttachment:
 					assert( false ); // not implemented
-				    break;
+					break;
 				case vk::DescriptorType::eCombinedImageSampler:                              // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
 				case vk::DescriptorType::eSampledImage:                                      // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
 				case vk::DescriptorType::eStorageImage:                                      // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
 				case vk::DescriptorType::eSampler:                                           // fall-through, as this kind of descriptor uses ImageInfo or parts thereof
 					entry.setOffset( base_offset + offsetof( DescriptorData, imageInfo ) );  // <- point to first field of ImageInfo
-				    break;                                                                   //
+					break;                                                                   //
 				case vk::DescriptorType::eUniformBuffer:                                     // fall-through as this kind of descriptor uses BufferInfo
 				case vk::DescriptorType::eStorageBuffer:                                     // fall-through as this kind of descriptor uses BufferInfo
 				case vk::DescriptorType::eUniformBufferDynamic:                              // fall-through as this kind of descriptor uses BufferInfo
 				case vk::DescriptorType::eStorageBufferDynamic:                              //
 					entry.setOffset( base_offset + offsetof( DescriptorData, bufferInfo ) ); // <- point to first element of BufferInfo
-				    break;
+					break;
 				}
 
 				entry.setStride( sizeof( DescriptorData ) );
@@ -1539,8 +1539,8 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 
 // ----------------------------------------------------------------------
 /// \returns pointer to a graphicsPSO which matches gpsoHash, or `nullptr` if no match
+// FIXME: (PIPELINE) THIS NEEDS TO BE MUTEXED, AND ACCESS CONTROLLED
 graphics_pipeline_state_o *le_pipeline_manager_get_gpso_from_cache( le_pipeline_manager_o *self, const le_gpso_handle &gpso_hash ) {
-	// FIXME: (PIPELINE) THIS NEEDS TO BE MUTEXED, AND ACCESS CONTROLLED
 
 	auto       pso              = self->graphicsPSO_list.data();
 	const auto pso_hashes_begin = self->graphicsPSO_handles.data();
@@ -1728,6 +1728,8 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipelin
 
 // ----------------------------------------------------------------------
 // This method may get called through the pipeline builder -
+//
+// FIXME: this needs to be protected via mutex, as potentially WRITE to pipeline cache.
 //
 // via RECORD in command buffer recording state
 // in SETUP
