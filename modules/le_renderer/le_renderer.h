@@ -506,7 +506,6 @@ class BufferInfoBuilder : NoCopy, NoMove {
 // ----------------------------------------------------------------------
 
 class Encoder {
-	// non-owning version of RenderPass, but with more public methods
 
 	le_command_buffer_encoder_o *self = nullptr;
 
