@@ -3,6 +3,8 @@
 # list apps you want to test
 
 apps_list=("
+    test_mt_rendering:Island-TestMtRendering
+	test_jobs:Island-TestJobs
 	blob_wave:Island-BlobWave
 	aeon:Island-Aeon
 	bb_spectrum:Island-BbSpectrum
