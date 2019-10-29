@@ -14,14 +14,25 @@ layout (location = 0) out VertexData {
 	vec2 texCoord;
 } outData;
 
+#ifdef NO_MVP
 
-// arguments
+// arguments for without camera
+layout (set = 0, binding = 0) uniform Extents
+{
+	vec4 screenExtents; // x,y,w,h
+};
+
+#else 
+
+// arguments for rendering using 
 layout (set = 0, binding = 0) uniform MVP 
 {
 	mat4 modelMatrix;
 	mat4 viewMatrix;
 	mat4 projectionMatrix;
 };
+
+#endif
 
 // We override the built-in fixed function outputs
 // to have more control over the SPIR-V code created.
@@ -36,7 +47,13 @@ void main()
 {
 	outData.texCoord = vertex.zw;
 	
-	vec4 position = projectionMatrix * viewMatrix * modelMatrix * vec4(vertex.xy, 0, 1);
+	vec4 position;
+#ifdef NO_MVP
+
+	position = vec4((((screenExtents.xy+vertex.xy) * 2.f)/screenExtents.zw ), 0, 1);
+#else
+	position = projectionMatrix * viewMatrix * modelMatrix * vec4(vertex.xy, 0, 1);
+#endif
 
 	gl_Position = position;
 }
