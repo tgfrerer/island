@@ -292,6 +292,10 @@ class RenderPass {
 		return self;
 	}
 
+	operator const auto() const {
+		return self;
+	}
+
 	RenderPass &setSetupCallback( void *user_data, le_renderer_api::pfn_renderpass_setup_t fun ) {
 		le_renderer::renderpass_i.set_setup_callback( self, user_data, fun );
 		return *this;
