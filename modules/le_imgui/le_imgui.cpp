@@ -413,14 +413,13 @@ void le_imgui_process_events( le_imgui_o *self, LeUiEvent const *events, size_t 
 ISL_API_ATTR void register_le_imgui_api( void *api ) {
 	auto &le_imgui_i = static_cast<le_imgui_api *>( api )->le_imgui_i;
 
-	le_imgui_i.create      = le_imgui_create;
-	le_imgui_i.destroy     = le_imgui_destroy;
-	le_imgui_i.begin_frame = le_imgui_begin_frame;
-	le_imgui_i.end_frame   = le_imgui_end_frame;
-
-	le_imgui_i.setup_gui_resources = le_imgui_setup_gui_resources;
-	le_imgui_i.process_events      = le_imgui_process_events;
-	le_imgui_i.draw_gui            = le_imgui_draw_gui;
+	le_imgui_i.create          = le_imgui_create;
+	le_imgui_i.destroy         = le_imgui_destroy;
+	le_imgui_i.begin_frame     = le_imgui_begin_frame;
+	le_imgui_i.end_frame       = le_imgui_end_frame;
+	le_imgui_i.process_events  = le_imgui_process_events;
+	le_imgui_i.setup_resources = le_imgui_setup_gui_resources;
+	le_imgui_i.draw            = le_imgui_draw_gui;
 
 	Registry::loadLibraryPersistently( "libimgui.so" );
 }

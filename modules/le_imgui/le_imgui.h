@@ -26,11 +26,13 @@ struct le_imgui_api {
 		le_imgui_o *    ( * create            ) ( );
 		void            ( * destroy           ) ( le_imgui_o* self );
 
-		void            ( * setup_gui_resources )( le_imgui_o *self, le_render_module_o *p_render_module, float display_width, float display_height );
 		
 		void            ( * begin_frame             ) ( le_imgui_o* self);
 		void            ( * end_frame               ) ( le_imgui_o* self);
-		void            ( * draw_gui          ) ( le_imgui_o* self, le_renderpass_o* renderpass);
+
+		void            ( * setup_resources )( le_imgui_o *self, le_render_module_o *p_render_module, float display_width, float display_height );
+		void            ( * draw            )( le_imgui_o* self, le_renderpass_o* renderpass);
+
 		void            ( * process_events    ) ( le_imgui_o* self, LeUiEvent const * events, size_t numEvents);
 
 	};
@@ -51,7 +53,7 @@ const auto api = Registry::addApiStatic<le_imgui_api>();
 
 static const auto &le_imgui_i = api -> le_imgui_i;
 
-} // namespace
+} // namespace le_imgui
 
 #endif // __cplusplus
 
