@@ -173,17 +173,17 @@ static bool le_font_create_atlas( le_font_o *self ) {
 		stbtt_PackSetOversampling( &pack_context, 2, 1 );
 
 		auto pack_uniform_range = []( stbtt_pack_context *ctx, unsigned char const *font_data, float font_size, uint32_t start_range, uint32_t end_range ) -> UnicodeRange {
-			UnicodeRange unicode_latin_extended;
-			unicode_latin_extended.start_range = start_range;
-			unicode_latin_extended.end_range   = end_range;
-			unicode_latin_extended.data.resize( unicode_latin_extended.end_range - unicode_latin_extended.start_range );
+			UnicodeRange r;
+			r.start_range = start_range;
+			r.end_range   = end_range;
+			r.data.resize( r.end_range - r.start_range );
 
 			stbtt_PackFontRange( ctx, font_data, 0, font_size,
-			                     int( unicode_latin_extended.start_range ),
-			                     int( unicode_latin_extended.end_range - unicode_latin_extended.start_range ),
-			                     unicode_latin_extended.data.data() );
+			                     int( r.start_range ),
+			                     int( r.end_range - r.start_range ),
+			                     r.data.data() );
 
-			return unicode_latin_extended;
+			return r;
 		};
 
 		self->unicode_ranges.emplace_back( pack_uniform_range( &pack_context, self->data.data(), self->font_size, 0x00, 0x7F ) );     // ascii
@@ -214,7 +214,7 @@ static inline uint8_t count_leading_bits( uint8_t in ) {
 	for ( count_bits = 0; count_bits != 8; ++count_bits ) {
 		if ( ( in & ( 1 << 7 ) ) == 0 ) {
 			break;
-		};
+		}
 		in = uint8_t( in << 1 );
 	}
 
