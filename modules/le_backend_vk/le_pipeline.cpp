@@ -10,6 +10,7 @@
 #include <filesystem> // for parsing shader source file paths
 #include <fstream>    // for reading shader source files
 #include <cstring>    // for memcpy
+#include <shared_mutex>
 
 #include "le_shader_compiler/le_shader_compiler.h"
 #include "util/spirv-cross/spirv_cross.hpp"
@@ -43,19 +44,20 @@ struct le_shader_manager_o {
 	pal_file_watcher_o *  shaderFileWatcher = nullptr; // owning
 };
 
+// NOTE: It might make sense to have one pipeline manager per worker thread, and
+//       to consolidate after the frame has been processed.
 struct le_pipeline_manager_o {
-	// TODO: These resources are potentially in-flight, and may be used read-only
-	// by more than one frame - but they can only be written to one thread at a time.
-
 	vk::Device device = nullptr;
 
 	vk::PipelineCache vulkanCache = nullptr;
 
 	le_shader_manager_o *shaderManager = nullptr; // owning
 
+	std::shared_mutex                        graphicsPSO_mtx;  // protecting read/write access
 	std::vector<graphics_pipeline_state_o *> graphicsPSO_list; // indexed by graphicsPSO_handles
 	std::vector<le_gpso_handle>              graphicsPSO_handles;
 
+	std::shared_mutex                       computePSO_mtx;  // protecting read/write access
 	std::vector<compute_pipeline_state_o *> computePSO_list; // indexed by computePSO_handles
 	std::vector<le_cpso_handle>             computePSO_handles;
 
@@ -279,7 +281,7 @@ static uint64_t shader_modules_get_pipeline_layout_hash( le_shader_module_o cons
 	// free store. The number of shader modules will always be very
 	// small.
 
-	uint64_t pipeline_layout_hash_data[ 16 ] = {};
+	uint64_t pipeline_layout_hash_data[ 16 ];
 
 	le_shader_module_o const *const *end_shader_modules = shader_modules + numModules;
 
@@ -1535,8 +1537,11 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 
 // ----------------------------------------------------------------------
 /// \returns pointer to a graphicsPSO which matches gpsoHash, or `nullptr` if no match
-// FIXME: (PIPELINE) THIS NEEDS TO BE MUTEXED, AND ACCESS CONTROLLED
+// READ ACCESS pipelinemanager.graphicsPSO_list
+// READ ACCESS pipelinemanager.graphicsPSO_handles
 graphics_pipeline_state_o *le_pipeline_manager_get_gpso_from_cache( le_pipeline_manager_o *self, const le_gpso_handle &gpso_hash ) {
+
+	self->graphicsPSO_mtx.lock_shared();
 
 	auto       pso              = self->graphicsPSO_list.data();
 	const auto pso_hashes_begin = self->graphicsPSO_handles.data();
@@ -1545,19 +1550,25 @@ graphics_pipeline_state_o *le_pipeline_manager_get_gpso_from_cache( le_pipeline_
 
 	for ( ; pso_hash != pso_hashes_end; pso_hash++, pso++ ) {
 		if ( gpso_hash == *pso_hash ) {
+			self->graphicsPSO_mtx.unlock();
 			return *pso;
 		}
 	}
 
 	// ---------| invariant: no element found
 
+	self->graphicsPSO_mtx.unlock();
+
 	return nullptr; // could not find pso with given hash
 }
 
 // ----------------------------------------------------------------------
 /// \returns pointer to a computePSO which matches cpsoHash, or `nullptr` if no match
+// READ ACCESS pipelinemanager.computePSO_list
+// READ ACCESS pipelinemanager.computePSO_handles
 compute_pipeline_state_o *le_pipeline_manager_get_cpso_from_cache( le_pipeline_manager_o *self, const le_cpso_handle &cpso_hash ) {
-	// FIXME: (PIPELINE) THIS NEEDS TO BE MUTEXED, AND ACCESS CONTROLLED
+
+	self->computePSO_mtx.lock_shared();
 
 	auto       pso              = self->computePSO_list.data();
 	const auto pso_hashes_begin = self->computePSO_handles.data();
@@ -1566,24 +1577,27 @@ compute_pipeline_state_o *le_pipeline_manager_get_cpso_from_cache( le_pipeline_m
 
 	for ( ; pso_hash != pso_hashes_end; pso_hash++, pso++ ) {
 		if ( cpso_hash == *pso_hash ) {
+			self->computePSO_mtx.unlock();
 			return *pso;
 		}
 	}
 
 	// ---------| invariant: No element found
+
+	self->computePSO_mtx.unlock();
+
 	return nullptr; // could not find pso with given hash
 }
 
 // ----------------------------------------------------------------------
 
 /// \brief Creates - or loads a pipeline from cache - based on current pipeline state
-/// \note This method may lock the pipeline cache and is therefore costly.
-// TODO: Ensure there are no races around this method
+/// \note This method may lock the gpso/cpso cache and is therefore costly.
 //
 // + Only the 'command buffer recording'-slice of a frame shall be able to modify the cache.
 //   The cache must be exclusively accessed through this method
 //
-// + Access to this method must be sequential - no two frames may access this method
+// + NOTE: Access to this method must be sequential - no two frames may access this method
 //   at the same time - and no two renderpasses may access this method at the same time.
 static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pipeline_manager_o *self, le_gpso_handle gpso_handle, const LeRenderPass &pass, uint32_t subpass ) {
 
@@ -1725,7 +1739,8 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipelin
 // ----------------------------------------------------------------------
 // This method may get called through the pipeline builder -
 //
-// FIXME: this needs to be protected via mutex, as potentially WRITE to pipeline cache.
+// READ/WRITE ACCESS pipelinemanager.graphicsPSO_list
+// READ/WRITE ACCESS pipelinemanager.graphicsPSO_handles
 //
 // via RECORD in command buffer recording state
 // in SETUP
@@ -1738,8 +1753,10 @@ void le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_
 
 	if ( pso == nullptr ) {
 		// not found in cache - add to cache
+		self->graphicsPSO_mtx.lock(); // exclusive lock, as we're writing
 		self->graphicsPSO_handles.emplace_back( gpsoHandle );
 		self->graphicsPSO_list.emplace_back( new graphics_pipeline_state_o( *gpso ) ); // note that we copy
+		self->graphicsPSO_mtx.unlock();
 	} else {
 		// assert( false ); // pso was already found in cache, this is strange
 	}
@@ -1747,6 +1764,9 @@ void le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_
 
 // ----------------------------------------------------------------------
 // This method may get called through the pipeline builder -
+//
+// READ/WRITE ACCESS pipelinemanager.computePSO_list
+// READ/WRITE ACCESS pipelinemanager.computePSO_handles
 //
 // via RECORD in command buffer recording state
 // in SETUP
@@ -1759,8 +1779,10 @@ void le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o
 
 	if ( pso == nullptr ) {
 		// not found in cache - add to cache
+		self->computePSO_mtx.lock();
 		self->computePSO_handles.emplace_back( cpsoHandle );
 		self->computePSO_list.emplace_back( new compute_pipeline_state_o( *cpso ) ); // note that we copy
+		self->computePSO_mtx.unlock();
 	} else {
 		// assert( false ); // pso was already found in cache, this is strange
 	}
