@@ -16,9 +16,10 @@ struct le_jobs_api {
 	static constexpr auto pRegFun = register_le_jobs_api;
 
 	struct counter_t;
+
 	typedef void ( *fun_ptr_t )( void * );
 	
-	/* A Job is a function pointer with a wait_pointer which may be decreased
+	/* A Job is a function pointer with a complete_counter which gets decreased
 	 * once the job is complete.
 	 */
 	struct le_job_o {
@@ -27,8 +28,14 @@ struct le_jobs_api {
 		counter_t *complete_counter = nullptr; // owned by le_job_manager, counter to decrement when job completes
 	};
 
-	void ( * initialize                ) ( size_t num_threads     );
+	/* Initialise job system. This needs to be called only once
+	 * before any other method involving the job system; 
+	 * `num_threads` tells us how many worker threads to initialise.
+	 */
+	void ( * initialize                ) ( size_t num_threads );
 	void ( * terminate                 ) ( );
+
+
 	void ( * run_jobs                  ) ( le_job_o* jobs, uint32_t num_jobs, counter_t** counter );
 	void ( * wait_for_counter_and_free ) ( counter_t* counter, uint32_t target_value );
 

@@ -50,9 +50,17 @@ enum class FIBER_STATUS : uint64_t {
 
 /* A Fiber is an execution context, in which a job can execute.
  * For this it provides the job with a stack.
+ * 
  * A fiber can only have one job going at the same time.
+ * 
  * Once a fiber yields or returns, control returns to the worker 
  * thread which dispatches the next fiber. 
+ * 
+ * A fiber is guaranteed by le_jobs to stay on the same worker
+ * thread for as long as it takes until a job completes. This means
+ * that jobs resume on the same worker thread on which they did 
+ * yield.
+ * 
  */
 struct le_fiber_o {
 	void **                   stack                = nullptr;             // pointer to address of current stack
@@ -80,16 +88,25 @@ struct le_fiber_list_t {
 	le_fiber_o *end   = nullptr;
 };
 
-/* A worker thread is the motor providing execution power for fibers.
+/* 
+ * A worker thread is the motor providing execution power for fibers.
+ * 
+ * Worker threads are pinned to CPUs. 
+ * 
+ * Worker threads pull in fibers so that that they can execute jobs. 
+ * If a fiber yields within a worker thread,
+ * it is put on the worker thread's wait_list. If a fiber is ready to 
+ * resume, it is taken from the wait_list and put on the ready_list. 
+ * 
  */
 struct le_worker_thread_o {
-	le_fiber_o      host_fiber{};          // host context which does the switching
+	le_fiber_o      host_fiber{};          // Host context which does the switching
 	le_fiber_o *    guest_fiber = nullptr; // current fiber executing inside this worker thread
-	std::thread     thread      = {};
-	std::thread::id thread_id   = {};
-	le_fiber_list_t wait_list   = {};
-	le_fiber_list_t ready_list  = {};
-	uint64_t        stop_thread = 0; // flag, value `1` tells worker to join
+	std::thread     thread      = {};      //
+	std::thread::id thread_id   = {};      //
+	le_fiber_list_t wait_list   = {};      // list of fibers which need checking their condition
+	le_fiber_list_t ready_list  = {};      // list of fibers ready to resume after yield
+	uint64_t        stop_thread = 0;       // flag, value `1` tells worker to join
 };
 
 static le_worker_thread_o *static_worker_threads[ MAX_WORKER_THREAD_COUNT ]{};
@@ -97,6 +114,7 @@ static le_job_manager_o *  job_manager = nullptr; ///< job manager singleton, mu
 
 static uint64_t DEFAULT_CONTROL_WORDS = 0; // storage for default control words (must be 8 byte, == 2 words)
 
+// ----------------------------------------------------------------------
 void fiber_list_push_back( le_fiber_list_t *list, le_fiber_o *element ) {
 
 	if ( nullptr == list->begin ) {
@@ -112,6 +130,7 @@ void fiber_list_push_back( le_fiber_list_t *list, le_fiber_o *element ) {
 	}
 }
 
+// ----------------------------------------------------------------------
 void fiber_list_remove_element( le_fiber_list_t *list, le_fiber_o *element ) {
 	// check if element is either start or end element
 	// if it is, we must update in list.
