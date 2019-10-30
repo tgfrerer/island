@@ -5,7 +5,7 @@
 
 #include <iostream>
 
-#define LOG_PREFIX_STR "[ LOADER ] "
+#define LOG_PREFIX_STR "LOADER"
 
 // declare function pointer type to register_fun function
 typedef void ( *register_api_fun_p_t )( void * );
@@ -23,9 +23,12 @@ struct pal_api_loader_o {
 static void unload_library( void *handle_, const char *path ) {
 	if ( handle_ ) {
 		auto result = dlclose( handle_ );
-		std::cout << LOG_PREFIX_STR "Close    Module : '" << path << "', handle: " << std::hex << handle_ << std::endl;
+
+		fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p \n", LOG_PREFIX_STR, "", "Close Module", path, handle_ );
+
 		if ( result ) {
-			std::cerr << LOG_PREFIX_STR "ERROR dlclose: " << dlerror() << std::endl;
+			fprintf( stderr, "[ %-20.20s ] %10s %-20s: handle: %p, error: %s\n", LOG_PREFIX_STR, "ERROR", "dlclose", handle_, dlerror() );
+			fflush( stderr );
 		}
 		auto handle = dlopen( path, RTLD_NOLOAD );
 		if ( handle ) {
@@ -40,7 +43,9 @@ static void unload_library( void *handle_, const char *path ) {
 
 static void *load_library( const char *lib_name ) {
 
-	std::cout << LOG_PREFIX_STR "Load     Module : '" << lib_name << "'" << std::endl;
+	// fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s\n", LOG_PREFIX_STR, "", "Load Module", lib_name );
+	fflush( stdout );
+
 	void *handle = dlopen( lib_name, RTLD_LAZY | RTLD_LOCAL );
 
 	if ( !handle ) {
@@ -49,8 +54,8 @@ static void *load_library( const char *lib_name ) {
 		          << std::flush;
 		exit( 1 );
 	} else {
-		std::cout << LOG_PREFIX_STR "OK Loaded Module: '" << lib_name << "', Handle: " << std::hex << handle << std::endl
-		          << std::flush;
+		fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p\n", LOG_PREFIX_STR, "OK", "Loaded Module", lib_name, handle );
+		fflush( stdout );
 	}
 
 	return handle;
@@ -77,11 +82,12 @@ static bool load_library_persistent( const char *lib_name ) {
 		lib_handle = dlopen( lib_name, RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
 		if ( !lib_handle ) {
 			auto loadResult = dlerror();
-			std::cerr << LOG_PREFIX_STR "ERROR: " << loadResult << std::endl
-			          << std::flush;
+			fprintf( stderr, "[ %-20.20s ] %10s %-20s: %-50s, result: %s\n", LOG_PREFIX_STR, "ERROR", "Load Library", lib_name, loadResult );
+			fflush( stderr );
 			exit( 1 );
 		} else {
-			std::cout << LOG_PREFIX_STR "Keep     Library: " << lib_name << ", handle:  " << std::hex << lib_handle << std::endl;
+			fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p\n", LOG_PREFIX_STR, "", "Keep Library", lib_name, lib_handle );
+			fflush( stdout );
 		}
 	}
 	return ( lib_handle != nullptr );
@@ -124,7 +130,8 @@ static bool register_api( pal_api_loader_o *obj, void *api_interface, const char
 	}
 	// Initialize the API. This means telling the API to populate function
 	// pointers inside the struct which we are passing as parameter.
-	std::cout << LOG_PREFIX_STR "Register Module : '" << register_api_fun_name << "'" << std::endl;
+	fprintf( stderr, "[ %-20.20s ] %10s %-20s: %s\n", LOG_PREFIX_STR, "", "Register Module", register_api_fun_name );
+
 	( *fptr )( api_interface );
 	return true;
 }
