@@ -7,18 +7,14 @@
 #include <set>
 #include <unordered_map>
 
-#include "experimental/filesystem" // for parsing shader source file paths
-#include <fstream>                 // for reading shader source files
-#include <cstring>                 // for memcpy
+#include <filesystem> // for parsing shader source file paths
+#include <fstream>    // for reading shader source files
+#include <cstring>    // for memcpy
 
 #include "le_shader_compiler/le_shader_compiler.h"
 #include "util/spirv-cross/spirv_cross.hpp"
 #include "pal_file_watcher/pal_file_watcher.h"  // for watching shader source files
 #include "le_backend_vk/util/spooky/SpookyV2.h" // for hashing renderpass gestalt, so that we can test for *compatible* renderpasses
-
-namespace std {
-using namespace experimental; // so that we can use std::filesystem as such
-}
 
 struct le_shader_module_o {
 	uint64_t                                         hash                = 0;     ///< hash taken from spirv code + hash_file_path + hash_shader_defines

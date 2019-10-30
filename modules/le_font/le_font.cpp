@@ -7,7 +7,7 @@
 #include <vector>
 #include <array>
 #include <fstream>
-#include "experimental/filesystem" // for parsing source filepaths
+#include <filesystem> // for parsing source filepaths
 #include <iostream>
 #include <assert.h>
 
@@ -15,10 +15,6 @@
 #include <glm/vec4.hpp>
 
 #include "modules/le_path/le_path.h" // for get_path_for_glyph
-
-namespace std {
-using namespace experimental;
-}
 
 struct UnicodeRange {
 	uint32_t                      start_range;

@@ -8,16 +8,8 @@
 #include <stdio.h>
 #include <string>
 #include <list>
-#include <experimental/filesystem>
+#include <filesystem>
 #include <algorithm>
-
-using namespace std;
-
-namespace std {
-namespace filesystem {
-using namespace experimental::filesystem;
-}
-} // namespace std
 
 // ----------------------------------------------------------------------
 

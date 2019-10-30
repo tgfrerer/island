@@ -20,15 +20,11 @@
 #include <iostream>
 #include <assert.h>
 
-#include "experimental/filesystem" // for parsing shader source file paths
-#include <fstream>                 // for reading shader source files
-#include <cstring>                 // for memcpy
+#include <filesystem> // for parsing shader source file paths
+#include <fstream>    // for reading shader source files
+#include <cstring>    // for memcpy
 #include <vector>
 #include <set>
-
-namespace std {
-using namespace experimental; // bring filesystem into std::namespace
-}
 
 struct le_shader_compiler_o {
 	shaderc_compiler_t        compiler;
