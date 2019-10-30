@@ -65,22 +65,22 @@ static shaderc_shader_kind convert_to_shaderc_shader_kind( const le::ShaderStage
 	switch ( type ) {
 	case ( le::ShaderStage::eVertex ):
 		result = shaderc_glsl_vertex_shader;
-	    break;
+		break;
 	case ( le::ShaderStage::eTessellationControl ):
 		result = shaderc_tess_control_shader;
-	    break;
+		break;
 	case ( le::ShaderStage::eTessellationEvaluation ):
 		result = shaderc_tess_evaluation_shader;
-	    break;
+		break;
 	case ( le::ShaderStage::eGeometry ):
 		result = shaderc_geometry_shader;
-	    break;
+		break;
 	case ( le::ShaderStage::eFragment ):
 		result = shaderc_glsl_fragment_shader;
-	    break;
+		break;
 	case ( le::ShaderStage::eCompute ):
 		result = shaderc_glsl_compute_shader;
-	    break;
+		break;
 	default: {
 
 		std::cout << "WARNING: unknown shader type: " << uint32_t( type ) << std::endl
@@ -350,13 +350,15 @@ static void le_shader_compiler_print_error_context( const char *errMsg, const st
 					const auto shaderSourceCodeLine = wasLineMarker ? "#include \"" + lastFilename + "\"" : currentLine;
 
 					if ( currentLineNumber == lineNumber ) {
-						//sourceContext << of::utils::setConsoleColor( of::utils::ConsoleColor::eBrightCyan );
+						// set console color
+						sourceContext << char( 0x1B ) << "[38;5;209m";
 					}
 
 					sourceContext << std::right << std::setw( 4 ) << currentLineNumber << " | " << shaderSourceCodeLine;
 
 					if ( currentLineNumber == lineNumber ) {
-						//sourceContext << of::utils::resetConsoleColor();
+						// reset console color to defaults
+						sourceContext << char( 0x1B ) << "[0m";
 					}
 
 					std::cout << sourceContext.str() << std::endl;
