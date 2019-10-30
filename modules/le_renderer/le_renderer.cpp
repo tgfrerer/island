@@ -423,7 +423,20 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 	// If necessary, recompile and reload shader modules
 	// - this must be complete before the record_frame step
 
+#if ( LE_MT > 0 )
+
+	auto update_shader_modules_fun = []( void *backend ) {
+		vk_backend_i.update_shader_modules( static_cast<le_backend_o *>( backend ) );
+	};
+
+	le_jobs::job_t      j{update_shader_modules_fun, self->backend};
+	le_jobs::counter_t *shader_counter;
+
+	le_jobs::run_jobs( &j, 1, &shader_counter );
+
+#else
 	vk_backend_i.update_shader_modules( self->backend );
+#endif
 
 	if ( LE_MT > 0 ) {
 #if ( LE_MT > 0 )
@@ -439,11 +452,14 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 			size_t              frame_index;
 			le_render_module_o *module;
 			size_t              current_frame_number;
+			le_jobs::counter_t *shader_counter;
 		};
 
 		auto record_frame_fun = []( void *param_ ) {
 			auto p = static_cast<record_params_t *>( param_ );
 			// generate an intermediary, api-agnostic, representation of the frame
+
+			le_jobs::wait_for_counter_and_free( p->shader_counter, 0 );
 			renderer_record_frame( p->renderer, p->frame_index, p->module, p->current_frame_number );
 		};
 
@@ -454,6 +470,7 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 			renderer_acquire_backend_resources( p->renderer, p->frame_index );
 			// generate api commands for the frame
 			renderer_process_frame( p->renderer, p->frame_index );
+			// send api commands to GPU queue for processing
 			renderer_dispatch_frame( p->renderer, p->frame_index );
 		};
 
@@ -469,6 +486,7 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 		record_frame_params.frame_index          = ( index + 0 ) % numFrames;
 		record_frame_params.module               = module_;
 		record_frame_params.current_frame_number = self->currentFrameNumber;
+		record_frame_params.shader_counter       = shader_counter;
 
 		frame_params_t process_frame_params;
 		process_frame_params.renderer    = self;
@@ -488,7 +506,7 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 
 		le_jobs::run_jobs( jobs, 3, &counter );
 
-		//renderer_record_frame( self, ( index + 0 ) % numFrames, module_, self->currentFrameNumber ); // generate an intermediary, api-agnostic, representation of the frame
+		// we could theoretically do some more work on the main thread here...
 
 		le_jobs::wait_for_counter_and_free( counter, 0 );
 #endif
