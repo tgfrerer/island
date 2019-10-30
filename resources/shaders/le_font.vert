@@ -49,8 +49,7 @@ void main()
 	
 	vec4 position;
 #ifdef NO_MVP
-
-	position = vec4((((screenExtents.xy+vertex.xy) * 2.f)/screenExtents.zw ), 0, 1);
+	position = vec4((((screenExtents.xy + vertex.xy) * 2.f)/screenExtents.zw ), 0, 1);
 #else
 	position = projectionMatrix * viewMatrix * modelMatrix * vec4(vertex.xy, 0, 1);
 #endif

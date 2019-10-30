@@ -71,6 +71,8 @@ const auto api = Registry::addApiStatic<le_font_renderer_api>();
 
 static const auto &le_font_renderer_i = api -> le_font_renderer_i;
 
+using draw_string_info_t = le_font_renderer_api::draw_string_info_t;
+
 } // namespace le_font_renderer
 
 #endif // __cplusplus

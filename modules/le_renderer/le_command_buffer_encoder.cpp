@@ -449,7 +449,7 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_resource_
 	// -- Allocate memory using staging allocator
 	//
 	// We don't use the encoder local scratch linear allocator, since memory written to buffers is
-	// typically a lot larger than uniforms and other small settings structs. Staging memory is also
+	// typically a lot larger than uniforms and other small settings structs. Staging memory is
 	// allocated so that it is only used for TRANSFER_SRC, and shared amongst encoders so that we
 	// use available memory more efficiently.
 	//
