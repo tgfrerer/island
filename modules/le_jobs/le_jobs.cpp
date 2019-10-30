@@ -24,7 +24,7 @@ struct le_jobs_api::counter_t {
 using counter_t = le_jobs_api::counter_t;
 using le_job_o  = le_jobs_api::le_job_o;
 
-/* NOTE
+/* NOTE - consider appropriate stack size.
  * 
  * Make sure to set the per-fiber stack size to a value large enough, or jobs will write
  * across their stack boundaries, effectively overwriting heap memory which they don't own.

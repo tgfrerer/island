@@ -28,3 +28,17 @@ CMakeLists.txt.user.*
 /apps/dev/test_setup_pass/test_setup_pass_app/CMakeLists.txt
 /apps/dev/test_setup_pass/test_setup_pass_app/test_setup_pass_app.cpp
 /apps/dev/test_setup_pass/test_setup_pass_app/test_setup_pass_app.h
+/3rdparty/src/cgltf/
+/3rdparty/src/jsmn/
+/resources/fonts/EBGaramond-Bold.ttf
+/resources/fonts/EBGaramond-Italic.ttf
+/resources/fonts/IBMPlexSans-Text.ttf
+/resources/shaders/gaussian_blur.frag
+/resources/shaders/rgb_blit.frag
+/resources/shaders/rgb_blit_combine.frag
+/apps/dev/
+/meta
+/scripts/build.log
+/scripts/run.log
+/scripts/screenshots/*/**
+/scripts/screenshots/**
