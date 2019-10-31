@@ -99,10 +99,10 @@ class LeEcs : NoCopy, NoMove {
 
 	template <typename T>
 	void entity_add_component( EntityId entity_id, const T &component ) {
-		le_ecs_api::ComponentType ct;
-		ct.type_id   = T::type_id;
-		ct.type_hash = hash_64_fnv1a_const( T::type_id );
-		ct.num_bytes = sizeof( T );
+		constexpr le_ecs_api::ComponentType ct{
+		    hash_64_fnv1a_const( T::type_id ),
+		    T::type_id,
+		    sizeof( T )};
 		// Placement new component into memory allocated by ecs.
 		void *mem = le_ecs::le_ecs_i.entity_add_component( self, entity_id, ct );
 		if ( mem ) {
