@@ -7,7 +7,7 @@
 #include "pal_api_loader/hash_util.h"
 
 struct ComponentStorage {
-	std::vector<uint8_t> storage;
+	std::vector<uint8_t> storage; // raw data
 };
 
 static constexpr size_t MAX_COMPONENT_TYPES = 32;
