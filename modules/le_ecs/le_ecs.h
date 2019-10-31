@@ -5,6 +5,20 @@
 #include "pal_api_loader/ApiRegistry.hpp"
 
 #ifdef __cplusplus
+
+// Helper macros to define system callback signatures
+#	define LE_ECS_READ_WRITE_PARAMS void const **read_c, void **write_c
+#	define LE_ECS_WRITE_ONLY_PARAMS void const **, void **write_c
+#	define LE_ECS_READ_ONLY_PARAMS void const **read_c, void **
+
+// use this inside a system callback to fetch write parameter
+#	define LE_ECS_GET_WRITE_PARAM( index, param_type ) \
+		static_cast<param_type *>( write_c[ index ] )
+
+// use this inside a system callback to fetch read parameter
+#	define LE_ECS_GET_READ_PARAM( index, param_type ) \
+		static_cast<param_type const *>( read_c[ index ] )
+
 extern "C" {
 #endif
 
