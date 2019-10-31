@@ -4,13 +4,18 @@
 #include <stdint.h>
 #include "pal_api_loader/ApiRegistry.hpp"
 
-#define ISL_ALLOW_GLM_TYPES
-// Life is terrible without 3d type primitives, so let's include some glm forward declarations
-#ifdef ISL_ALLOW_GLM_TYPES
-#	include <glm/fwd.hpp>
-#endif
-
 #ifdef __cplusplus
+
+#	ifndef ISL_ALLOW_GLM_TYPES
+#		define ISL_ALLOW_GLM_TYPES 1
+#	endif
+
+// Life is terrible without 3d type primitives, so let's include some glm forward declarations
+
+#	if ( ISL_ALLOW_GLM_TYPES == 1 )
+#		include <glm/fwd.hpp>
+#	endif
+
 extern "C" {
 #endif
 
@@ -42,15 +47,23 @@ struct le_tessellator_api {
 		};
 
 		typedef uint16_t IndexType;
-		typedef glm::vec2 VertexType;
+
+#if ( ISL_ALLOW_GLM_TYPES == 1 )
+	typedef glm::vec2 Vertex;
+#else
+	struct Vertex{
+		float x;
+		float y;
+	};
+#endif
 
 		le_tessellator_o *   ( * create                   ) ( );
 		void                 ( * destroy                  ) ( le_tessellator_o* self );
 
 		void                 ( * set_options              ) ( le_tessellator_o* self, uint64_t options);
-		void                 ( * add_polyline             ) ( le_tessellator_o* self, VertexType const * const pPoints, size_t const& pointCount );
+		void                 ( * add_polyline             ) ( le_tessellator_o* self, Vertex const * const pPoints, size_t const& pointCount );
 		void                 ( * get_indices              ) ( le_tessellator_o* self, IndexType const ** pIndices, size_t * indexCount );
-		void                 ( * get_vertices             ) ( le_tessellator_o* self, VertexType const ** pVertices, size_t * vertexCount );
+		void                 ( * get_vertices             ) ( le_tessellator_o* self, Vertex const ** pVertices, size_t * vertexCount );
 
 		bool                 ( * tessellate               ) ( le_tessellator_o* self );
 

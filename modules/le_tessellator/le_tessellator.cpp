@@ -7,7 +7,7 @@
 #include <string.h> // memcpy
 #include <glm/vec2.hpp>
 
-using Point     = le_tessellator_api::le_tessellator_interface_t::VertexType;
+using Point     = le_tessellator_api::le_tessellator_interface_t::Vertex;
 using IndexType = le_tessellator_api::le_tessellator_interface_t::IndexType;
 
 namespace mapbox {

@@ -4,16 +4,18 @@
 #include <stdint.h>
 #include "pal_api_loader/ApiRegistry.hpp"
 
-#ifndef ISL_ALLOW_GLM_TYPES
-#	define ISL_ALLOW_GLM_TYPES 1
-#endif
+#ifdef __cplusplus
+
+#	ifndef ISL_ALLOW_GLM_TYPES
+#		define ISL_ALLOW_GLM_TYPES 1
+#	endif
 
 // Life is terrible without 3d type primitives, so let's include some glm forward declarations
-#if ( ISL_ALLOW_GLM_TYPES == 1 )
-#	include <glm/fwd.hpp>
-#endif
 
-#ifdef __cplusplus
+#	if ( ISL_ALLOW_GLM_TYPES == 1 )
+#		include <glm/fwd.hpp>
+#	endif
+
 extern "C" {
 #endif
 
