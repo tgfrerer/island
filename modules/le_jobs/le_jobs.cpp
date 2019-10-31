@@ -588,10 +588,30 @@ ISL_API_ATTR void register_le_jobs_api( void *api ) {
 // General assembly reference: https://www.felixcloutier.com/x86/
 
 /* Arguments in rdi, rsi, rdx */
-// Arguments: asm_switch( next_fiber==rdi, current_fiber==rsi, switch_to_guest==edx );
-//
-//
-asm( R"MARK(
+// ;
+
+/* Arguments: asm_switch( next_fiber==rdi, current_fiber==rsi, switch_to_guest==edx )
+ * 
+ * Save registers on the stack: rbx rbp r12 r13 r14 r15,
+ * 
+ * Additionally save mxcsr control bits, and x87 status bits on the stack.
+ * 
+ * Store MXCSR control bits (4byte): `stmxcsr`, load MXCSR control bits: `ldmxcsr`
+ * Store x87 status bits (4 byte)  : `fnstcw`, load x87 status bits: `fldcw`
+ * Store value of rsp into current fiber,
+ *
+ * These registers are callee-saved registers, which means they
+ * must be restored after function call.
+ *
+ * Compare the `System V ABI` calling convention: <https://github.com/hjl-tools/x86-psABI/wiki/x86-64-psABI-1.0.pdf>
+ * Specifically page 17, and 18.
+ *
+ * Note that this calling convention also requires the callee (i.e. us)
+ * to store the control bits of the MXCSR register, and the x87 status
+ * word.
+ *
+ */
+asm( R"ASM(
 
 .text
 .globl asm_switch
@@ -599,24 +619,6 @@ asm( R"MARK(
 .align 16
 
 asm_switch:
-     
-    /* Save registers on the stack: rbx rbp r12 r13 r14 r15,
-     * Additionally save mxcsr control bits, and x87 status bits on the stack.
-     * Store value of rsp into current fiber,
-     *
-     * These registers are callee-saved registers, which means they
-     * must be restored after function call.
-     *
-     * Compare the `System V ABI` calling convention: <https://github.com/hjl-tools/x86-psABI/wiki/x86-64-psABI-1.0.pdf>
-     * Specifically page 17, and 18.
-     *
-     * Note that this calling convention also requires the callee (i.e. us)
-     * to store the control bits of the MXCSR register, and the x87 status
-     * word.
-     *
-     * Store MXCSR control bits (4byte): `stmxcsr`, load MXCSR control bits: `ldmxcsr`
-     * Store x87 status bits (4 byte)  : `fnstcw`, load x87 status bits: `fldcw`
-     */
      
     mov %edx, %eax          /* Move switch_to_guest into rax */ 
 
@@ -640,20 +642,15 @@ asm_switch:
     stmxcsr  (%rsp)         /* store MMX control- and status-word */
     fnstcw   0x4(%rsp)      /* store x87 control-word */
 
-    // --- stack switching
-
     movq %rsp, (%rsi)       /* store 'current' stack pointer state into 'current' structure */
     movq (%rdi), %rsp       /* restore 'next' stack pointer state from 'next' structure */
-
-    // ----
 
     ldmxcsr  (%rsp)         /* restore MMX control-and status-word */
     fldcw  0x4(%rsp)        /* restore x87 control-word */
 
     leaq  0x8(%rsp), %rsp   /* jump over 8 bytes used for control-and status words */
 
-                            /* restore registers */
-    popq %r12
+    popq %r12               /* restore registers */
     popq %r13
     popq %r14
     popq %r15
@@ -661,21 +658,22 @@ asm_switch:
     popq %rbx
     popq %rbp
 
-    // Load param pointer from "next" fiber and place it in RDI register
-    // (which is register for first argument)
-    // Data pointer is located at offset +8bytes from address of "next" fiber,
-    // see static assert below.
-
     cmp $0, %rdx            /* if parameter `switch_to_guest` equals 0, don't set function param */
     je 3f
 
+                            /* Load param pointer from "next" fiber and place it in RDI register
+                             * (which is register for first argument)
+                             *
+                             * Data pointer is located at offset +8bytes from address of "next" fiber,
+                             * see static assert below.
+                             */
+
     movq 8(%rdi), %rdi      /* set first parameter for function being called through ret */
 
-3: 
-    // return to the "next" fiber 
-    // and rdi set to next fiber's param pointer.
+3:
 
-     ret
+    ret                     /* return to the "next" fiber and rdi set to next fiber's param pointer. */
+
     .size asm_switch,.-asm_switch
 
     // The ret instruction implements a subroutine return mechanism.
@@ -683,7 +681,7 @@ asm_switch:
     // It then performs an unconditional jump to the retrieved code location.
     // <https://www.cs.virginia.edu/~evans/cs216/guides/x86.html>
 
-)MARK" );
+)ASM" );
 
 static_assert( offsetof( le_fiber_o, job_param ) == 8, "job_param must be at correct offset for asm_switch to capture it." );
 
@@ -698,24 +696,24 @@ static_assert( offsetof( le_fiber_o, job_param ) == 8, "job_param must be at cor
 /* Call fiber_exit with `host_fiber` and `guest_fiber` set correctly.
  * Both these values were stored in `guest_fiber`s stack when this fiber
  * was set up.
- * 
+ *
  * Note - stack must always be 16byte aligned:
- * 
- *      The call instruction places a return address on the stack, 
+ *
+ *      The call instruction places a return address on the stack,
  *      making the stack correctly aligned for the fiber_exit function.
  */
-asm( R"MARK(
+asm( R"ASM(
 
 .globl asm_call_fiber_exit
 
 asm_call_fiber_exit:
-    
+
     pop %rdi                /* was placed on stack in le_fiber_setup: host_fiber */
     pop %rsi                /* was placed on stack in le_fiber_setup: guest_fiber */
-    
+
     call fiber_exit
 
-)MARK" );
+)ASM" );
 #else
 #	error must implement asm_call_fiber_exit for your cpu architecture.
 #endif
@@ -725,7 +723,7 @@ asm_call_fiber_exit:
 /* Fetch default control words for mmx and x87 so that we can build
  * a default stack.
  */
-asm( R"MARK(
+asm( R"ASM(
 
 .globl asm_fetch_default_control_words
 
@@ -736,7 +734,7 @@ asm_fetch_default_control_words:
 
     ret
 
-)MARK" );
+)ASM" );
 #else
 #	error must implement asm_fetch_default_control_words for your cpu architecture.
 #endif
