@@ -33,7 +33,7 @@ struct Node {
 		eHasCamera = 0x1 << 0,
 		eHasMesh   = 0x1 << 1,
 	};
-	uint16_t  numChildren;       //
+	uint16_t  numChildren;       // Node hierarchy is defined by position of node in nodes vector, and number of children.
 	uint16_t  flags;             //
 	uint32_t  meshOrCameraIndex; // may also be zero for a pure node
 	glm::vec3 localTranslation;
@@ -543,8 +543,8 @@ void updateNodeGraph( std::vector<Node> &nodes ) {
 			child++;
 		}
 	}
-	//	std::cout << "TRANSFORMED NODE GRAPH IN " << std::dec << numOps << " OPS" << std::endl
-	//	          << std::flush;
+	std::cout << "TRANSFORMED NODE GRAPH IN " << std::dec << numOps << " OPS" << std::endl
+	          << std::flush;
 }
 
 // ----------------------------------------------------------------------
