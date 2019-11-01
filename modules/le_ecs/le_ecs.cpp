@@ -6,6 +6,20 @@
 #include <bitset>
 #include "pal_api_loader/hash_util.h"
 
+/* Note
+ * 
+ * This ECS has a major shortcoming when it comes to removing entities. 
+ * 
+ * Since we don't have a level of indirection and entity ids are directly 
+ * mapped to indices into the entities vector, as soon as you remove an
+ * entity at position n, all entities now have wrong IDs.
+ * 
+ * When we remove an entity, we must first iterate over all previous 
+ * entities that use the same components so that we can find the correct 
+ * offset in the compnent_storage vector to remove that entity.
+ *
+ */
+
 struct ComponentStorage {
 	std::vector<uint8_t> storage; // raw data
 };
@@ -29,7 +43,7 @@ struct System {
 };
 
 struct le_ecs_o {
-	std::vector<ComponentType>    component_types;
+	std::vector<ComponentType>    component_types;   // index corresponds to ComponentFilter[index]
 	std::vector<ComponentStorage> component_storage; // one store per component type
 	std::vector<ComponentFilter>  entities;          // each entity may be different, index corresponds to entity ID
 	std::vector<System>           systems;
@@ -170,34 +184,29 @@ static void le_ecs_entity_remove_component( le_ecs_o *self, EntityId entity_id, 
 		return;
 	}
 
-	if ( 0 == component_type.num_bytes ) {
-		// flag-only components have no storage associated with them,
-		// we can return early.
-		return;
-	}
+	// -- If component has allocated storage, we must find it, and free it.
 
-	// ---------| Invariant: component has storage associated with it.
+	if ( 0 != component_type.num_bytes ) {
 
-	// -- now we must find out which bytes in a vector at `storage_index`
-	// belong to this entity.
-	//
-	// We must iterate through all entities up until our current entity.
-	// If any entity has a component of our type, we must add to offset
-	// so that we may skip over it when deleting the data for our component.
+		// We must iterate through all entities up until our current entity.
+		// If any entity has a component of our type, we must add to offset
+		// so that we may skip over it when deleting the data for our component.
 
-	size_t   stride = component_type.num_bytes;
-	uint32_t offset = 0;
+		size_t   stride = component_type.num_bytes;
+		uint32_t offset = 0;
 
-	for ( size_t i = 0; i != e_idx; ++i ) {
-		if ( self->entities[ i ].test( storage_index ) ) {
-			offset += stride;
+		for ( size_t i = 0; i != e_idx; ++i ) {
+			if ( self->entities[ i ].test( storage_index ) ) {
+				offset += stride;
+			}
 		}
+
+		auto &storage = self->component_storage[ storage_index ].storage;
+		storage.erase( storage.begin(), storage.begin() + offset );
 	}
 
-	auto &storage = self->component_storage[ storage_index ].storage;
-	storage.erase( storage.begin(), storage.begin() + offset );
-
-	entity[ storage_index ] = false; // remove flag for this component from entity
+	// -- Remove flag which indicates that component is part of entity
+	entity[ storage_index ] = false;
 }
 
 // ----------------------------------------------------------------------
