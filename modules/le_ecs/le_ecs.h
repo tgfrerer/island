@@ -6,6 +6,15 @@
 
 #ifdef __cplusplus
 
+#	define LE_ECS_FLAG_COMPONENT( TypeName )          \
+		struct TypeName {                              \
+			static constexpr auto type_id = #TypeName; \
+		}
+
+#	define LE_ECS_COMPONENT( TypeName ) \
+		struct TypeName {                \
+			static constexpr auto type_id = #TypeName
+
 // Helper macros to define system callback signatures
 #	define LE_ECS_READ_WRITE_PARAMS void const **read_c, void **write_c
 #	define LE_ECS_WRITE_ONLY_PARAMS void const **, void **write_c
@@ -47,13 +56,13 @@ struct le_ecs_api {
 		void       ( * destroy           ) ( le_ecs_o* self );
 
 		EntityId   ( * entity_create     ) ( le_ecs_o *self );
+		void       ( * entity_remove     ) ( le_ecs_o *self, EntityId entity);
 		
 		// Returns pointer to data allocated for component.
 		// Store data to ecs using this pointer.
 		// This may re-allocate component storage, and invalidate pointers and iterators to components held inside the ecs.
 		void* ( *entity_add_component      )( le_ecs_o *self, EntityId entity_id, ComponentType const & component_type );
 		void  ( *entity_remove_component   )( le_ecs_o *self, EntityId entity_id, ComponentType const & component_type );
-
 
 		LeEcsSystemId  ( *system_create    )( le_ecs_o *self );
 
@@ -96,12 +105,16 @@ class LeEcs : NoCopy, NoMove {
 		le_ecs::le_ecs_i.destroy( self );
 	}
 
-	EntityId createEntity() {
+	EntityId create_entity() {
 		return le_ecs::le_ecs_i.entity_create( self );
 	}
 
+	void remove_entity( EntityId entity ) {
+		le_ecs::le_ecs_i.entity_remove( self, entity );
+	}
+
 	template <typename T>
-	void entity_add_component( EntityId entity_id, const T &&component ) {
+	bool entity_add_component( EntityId entity_id, const T &component ) {
 
 		struct A : T {
 			int i;
@@ -119,10 +132,29 @@ class LeEcs : NoCopy, NoMove {
 
 		if ( ct.num_bytes != 0 && nullptr != mem ) {
 			new ( mem )( T ){component}; // placement new, then copy
+			return true;
 		} else {
 			// ERROR
 			assert( ct.num_bytes == 0 && "if component size > 0 then memory must have been allocated" );
+			return false;
 		}
+	}
+
+	template <typename T>
+	void entity_remove_component( EntityId entity_id ) {
+
+		struct A : T {
+			int i;
+		};
+
+		constexpr uint32_t component_size = uint32_t( sizeof( A ) - sizeof( int ) );
+
+		constexpr le_ecs_api::ComponentType ct{
+		    hash_64_fnv1a_const( T::type_id ),
+		    T::type_id,
+		    component_size};
+
+		le_ecs::le_ecs_i.entity_remove_component( self, entity_id, ct );
 	}
 
 	LeEcsSystemId create_system() {

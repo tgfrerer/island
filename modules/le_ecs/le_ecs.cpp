@@ -97,7 +97,24 @@ size_t le_ecs_find_component_type_index( le_ecs_o const *self, ComponentType con
 }
 
 // ----------------------------------------------------------------------
+// Iterate over all entities, accumulating offset for component at storage_index
+inline uint32_t get_offset( std::vector<ComponentFilter> const &entities, size_t e_idx, size_t storage_index, uint32_t stride ) {
 
+	uint32_t offset = 0;
+
+	for ( size_t i = 0; i != e_idx; ++i ) {
+		if ( entities[ i ].test( storage_index ) ) {
+			offset += stride;
+		}
+	}
+
+	return offset;
+}
+
+// ----------------------------------------------------------------------
+// TODO: if entity is not at end of entities list,
+// then we must iterate to the correct position for the component
+// and insert it there.
 static void *le_ecs_entity_add_component( le_ecs_o *self, EntityId entity_id, ComponentType const &component_type ) {
 
 	// Find if entity exists
@@ -112,11 +129,12 @@ static void *le_ecs_entity_add_component( le_ecs_o *self, EntityId entity_id, Co
 
 	// -- Does component of this type already exist in component storage?
 
-	// Find component storage index
 	size_t storage_index = le_ecs_find_component_type_index( self, component_type );
 
 	if ( storage_index == self->component_types.size() ) {
-		// if storage_index == size of component_types, we must add a new component type
+
+		// component storage for this component type does not yet exist, we must add it
+
 		self->component_types.push_back( component_type );
 		self->component_storage.push_back( {} );
 
@@ -125,39 +143,87 @@ static void *le_ecs_entity_add_component( le_ecs_o *self, EntityId entity_id, Co
 		}
 	}
 
-	// Find if a component with this type (at this storage_index) already exists with this entity.
-	//
-	// We do this to make sure that entities have only one component of each distinct type.
-	// This is important as we filter components by type, and there would be no way of distinguishing
-	// between components of the same type.
+	if ( 0 == component_type.num_bytes ) {
+		// If component type is empty (a flag-only component), then we set the flag and return early.
+		entity[ storage_index ] = true;
+		return nullptr; // signal that no memory has been allocated.
+	}
+
+	// ----------| Invariant: Component is not flag-only
+
+	bool     needs_search     = true;
+	bool     needs_allocation = true;
+	uint32_t offset           = 0;
 
 	if ( entity.test( storage_index ) ) {
-		// ERROR A  component of this type has already been added to this entity.
-		return nullptr;
+		// A component of this type was already present - we must return
+		// the current memory address for the component, and make sure
+		// not to allocate any more memory.
+		needs_search     = true;
+		needs_allocation = false;
 	} else {
-		// All good: Add flag to mark that entity has component of type component_type
 		entity[ storage_index ] = true;
+		needs_allocation        = true;
 	}
 
-	if ( component_type.num_bytes ) {
-		// If component type is empty (a flag-only component), then we return nullptr early.
-		return nullptr;
-	}
+	// If our entity is the last entity in the list of entities,
+	// our component memory will also be at the end of the corresponding
+	// component storage. This means in that case we don't have to search.
 
-	// ----------| invariant: component is not a flag-only component
+	if ( e_idx == self->entities.size() - 1 ) {
+		needs_search = false;
+	}
 
 	auto &component_storage = self->component_storage[ storage_index ].storage;
 
-	// we must add memory (allocate) to the relevant component storage
+	if ( needs_search == false ) {
+		offset = uint32_t( component_storage.size() );
+	} else {
+		offset = get_offset( self->entities, e_idx, storage_index, self->component_types[ storage_index ].num_bytes );
+	}
 
-	size_t start_offset = component_storage.size(); // Store byte index where new memory will be placed.
+	if ( needs_allocation ) {
+		component_storage.insert( component_storage.begin() + offset, component_type.num_bytes, 0 ); // zero-initialize data
+	}
 
-	component_storage.insert(
-	    component_storage.end(),
-	    component_type.num_bytes,
-	    0 ); // zero-initialize data
+	return &component_storage[ offset ];
+}
 
-	return &component_storage[ start_offset ];
+// ----------------------------------------------------------------------
+
+static void entity_at_index_remove_component( le_ecs_o *self, size_t e_idx, ComponentType const &component_type ) {
+	// Find component storage index
+	size_t storage_index = le_ecs_find_component_type_index( self, component_type );
+
+	if ( storage_index == self->component_types.size() ) {
+		// component does not exist
+		return;
+	}
+
+	auto &entity = self->entities.at( e_idx );
+
+	if ( false == entity[ storage_index ] ) {
+		return;
+	}
+
+	// ----------| Invariant: entity does not have such a component.
+
+	if ( 0 != component_type.num_bytes ) {
+
+		// -- If component has allocated storage, we must find it, and free it.
+		// We must iterate through all entities up until our current entity.
+		// If any entity has a component of our type, we must add to offset
+		// so that we may skip over it when deleting the data for our component.
+		uint32_t stride = component_type.num_bytes;
+
+		uint32_t offset = get_offset( self->entities, e_idx, storage_index, stride );
+
+		auto &storage = self->component_storage[ storage_index ].storage;
+		storage.erase( storage.begin() + offset, storage.begin() + offset + stride );
+	}
+
+	// -- Remove flag which indicates that component is part of entity
+	entity[ storage_index ] = false;
 }
 
 // ----------------------------------------------------------------------
@@ -172,41 +238,7 @@ static void le_ecs_entity_remove_component( le_ecs_o *self, EntityId entity_id, 
 		return;
 	}
 
-	auto &entity = self->entities.at( e_idx );
-
-	// -- Does component of this type already exist in component storage?
-
-	// Find component storage index
-	size_t storage_index = le_ecs_find_component_type_index( self, component_type );
-
-	if ( storage_index == self->component_types.size() ) {
-		// component does not exist
-		return;
-	}
-
-	// -- If component has allocated storage, we must find it, and free it.
-
-	if ( 0 != component_type.num_bytes ) {
-
-		// We must iterate through all entities up until our current entity.
-		// If any entity has a component of our type, we must add to offset
-		// so that we may skip over it when deleting the data for our component.
-
-		size_t   stride = component_type.num_bytes;
-		uint32_t offset = 0;
-
-		for ( size_t i = 0; i != e_idx; ++i ) {
-			if ( self->entities[ i ].test( storage_index ) ) {
-				offset += stride;
-			}
-		}
-
-		auto &storage = self->component_storage[ storage_index ].storage;
-		storage.erase( storage.begin(), storage.begin() + offset );
-	}
-
-	// -- Remove flag which indicates that component is part of entity
-	entity[ storage_index ] = false;
+	entity_at_index_remove_component( self, e_idx, component_type );
 }
 
 // ----------------------------------------------------------------------
@@ -214,6 +246,36 @@ static void le_ecs_entity_remove_component( le_ecs_o *self, EntityId entity_id, 
 static EntityId le_ecs_entity_create( le_ecs_o *self ) {
 	self->entities.push_back( {} ); // add a new, empty entity
 	return get_entity_id_from_index( self->entities.size() - 1 );
+}
+
+// ----------------------------------------------------------------------
+// Remove entity from ecs.
+// this first removes any components, then the entity entry.
+static void le_ecs_entity_remove( le_ecs_o *self, EntityId entity_id ) {
+	// Find if entity exists
+	size_t e_idx = get_index_from_entity_id( entity_id );
+
+	if ( e_idx >= self->entities.size() ) {
+		// ERROR: entity does not exist.
+		return;
+	}
+
+	auto const &entity = self->entities.at( e_idx );
+
+	// -- iterate to correct position at all components which use this entity
+
+	for ( uint32_t i = 0; i != MAX_COMPONENT_TYPES; ++i ) {
+		if ( entity[ i ] ) {
+			entity_at_index_remove_component( self, e_idx, self->component_types[ i ] );
+		}
+		if ( entity.none() ) {
+			break;
+		}
+	}
+
+	assert( entity.none() && "entity must have no components left" );
+
+	self->entities.erase( self->entities.begin() + uint32_t( e_idx ) );
 }
 
 // ----------------------------------------------------------------------
@@ -422,6 +484,7 @@ ISL_API_ATTR void register_le_ecs_api( void *api ) {
 	le_ecs_i.destroy = le_ecs_destroy;
 
 	le_ecs_i.entity_create           = le_ecs_entity_create;
+	le_ecs_i.entity_remove           = le_ecs_entity_remove;
 	le_ecs_i.entity_add_component    = le_ecs_entity_add_component;
 	le_ecs_i.entity_remove_component = le_ecs_entity_remove_component;
 
