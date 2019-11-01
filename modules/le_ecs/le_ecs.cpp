@@ -10,7 +10,7 @@ struct ComponentStorage {
 	std::vector<uint8_t> storage; // raw data
 };
 
-static constexpr size_t MAX_COMPONENT_TYPES = 32;
+static constexpr size_t MAX_COMPONENT_TYPES = 128;
 
 using system_fn       = le_ecs_api::system_fn;
 using ComponentType   = le_ecs_api::ComponentType;        //
@@ -81,6 +81,7 @@ size_t le_ecs_find_component_type_index( le_ecs_o const *self, ComponentType con
 	}
 	return storage_index;
 }
+
 // ----------------------------------------------------------------------
 
 static void *le_ecs_entity_add_component( le_ecs_o *self, EntityId entity_id, ComponentType const &component_type ) {
