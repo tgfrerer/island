@@ -100,18 +100,21 @@ static void *le_ecs_entity_add_component( le_ecs_o *self, EntityId entity_id, Co
 	// Find component storage index
 	size_t storage_index = le_ecs_find_component_type_index( self, component_type );
 
-	// if storage_index == size of component_types, we must add a new component type
-
 	if ( storage_index == self->component_types.size() ) {
+		// if storage_index == size of component_types, we must add a new component type
 		self->component_types.push_back( component_type );
 		self->component_storage.push_back( {} );
-		self->component_storage.back().storage.reserve( 4096 ); // reserve 1 page of memory, just in case.
+
+		if ( component_type.num_bytes > 0 ) {
+			self->component_storage.back().storage.reserve( 4096 ); // reserve 1 page of memory, just in case.
+		}
 	}
 
-	// Find if a component with this type (at this storage_index) already exists with this entity
-	// we do this to make sure that entities have only one component of each distinct type.
+	// Find if a component with this type (at this storage_index) already exists with this entity.
+	//
+	// We do this to make sure that entities have only one component of each distinct type.
 	// This is important as we filter components by type, and there would be no way of distinguishing
-	// between components of the same type
+	// between components of the same type.
 
 	if ( entity.test( storage_index ) ) {
 		// ERROR A  component of this type has already been added to this entity.
@@ -120,6 +123,13 @@ static void *le_ecs_entity_add_component( le_ecs_o *self, EntityId entity_id, Co
 		// All good: Add flag to mark that entity has component of type component_type
 		entity[ storage_index ] = true;
 	}
+
+	if ( component_type.num_bytes ) {
+		// If component type is empty (a flag-only component), then we return nullptr early.
+		return nullptr;
+	}
+
+	// ----------| invariant: component is not a flag-only component
 
 	auto &component_storage = self->component_storage[ storage_index ].storage;
 

@@ -98,18 +98,27 @@ class LeEcs : NoCopy, NoMove {
 	}
 
 	template <typename T>
-	void entity_add_component( EntityId entity_id, const T &component ) {
+	void entity_add_component( EntityId entity_id, const T &&component ) {
+
+		struct A : T {
+			int i;
+		};
+
+		constexpr uint32_t component_size = uint32_t( sizeof( A ) - sizeof( int ) );
+
 		constexpr le_ecs_api::ComponentType ct{
 		    hash_64_fnv1a_const( T::type_id ),
 		    T::type_id,
-		    sizeof( T )};
+		    component_size};
+
 		// Placement new component into memory allocated by ecs.
 		void *mem = le_ecs::le_ecs_i.entity_add_component( self, entity_id, ct );
-		if ( mem ) {
+
+		if ( ct.num_bytes != 0 && nullptr != mem ) {
 			new ( mem )( T ){component}; // placement new, then copy
 		} else {
 			// ERROR
-			assert( false );
+			assert( ct.num_bytes == 0 && "if component size > 0 then memory must have been allocated" );
 		}
 	}
 
