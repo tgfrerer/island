@@ -105,109 +105,147 @@ class LeEcs : NoCopy, NoMove {
 		le_ecs::le_ecs_i.destroy( self );
 	}
 
-	EntityId create_entity() {
-		return le_ecs::le_ecs_i.entity_create( self );
-	}
+	inline EntityId create_entity();
 
-	void remove_entity( EntityId entity ) {
-		le_ecs::le_ecs_i.entity_remove( self, entity );
-	}
+	inline void remove_entity( EntityId entity );
 
 	template <typename T>
-	bool entity_add_component( EntityId entity_id, const T &component ) {
-
-		struct A : T {
-			int i;
-		};
-
-		constexpr uint32_t component_size = uint32_t( sizeof( A ) - sizeof( int ) );
-
-		constexpr le_ecs_api::ComponentType ct{
-		    hash_64_fnv1a_const( T::type_id ),
-		    T::type_id,
-		    component_size};
-
-		// Placement new component into memory allocated by ecs.
-		void *mem = le_ecs::le_ecs_i.entity_add_component( self, entity_id, ct );
-
-		if ( ct.num_bytes != 0 && nullptr != mem ) {
-			new ( mem )( T ){component}; // placement new, then copy
-			return true;
-		} else {
-			// ERROR
-			assert( ct.num_bytes == 0 && "if component size > 0 then memory must have been allocated" );
-			return false;
-		}
-	}
+	inline bool entity_add_component( EntityId entity_id, const T &&component );
 
 	template <typename T>
-	void entity_remove_component( EntityId entity_id ) {
+	inline void entity_remove_component( EntityId entity_id );
 
-		struct A : T {
-			int i;
-		};
+	inline LeEcsSystemId create_system();
 
-		constexpr uint32_t component_size = uint32_t( sizeof( A ) - sizeof( int ) );
-
-		constexpr le_ecs_api::ComponentType ct{
-		    hash_64_fnv1a_const( T::type_id ),
-		    T::type_id,
-		    component_size};
-
-		le_ecs::le_ecs_i.entity_remove_component( self, entity_id, ct );
-	}
-
-	LeEcsSystemId create_system() {
-		return le_ecs::le_ecs_i.system_create( self );
-	}
-
-	void system_set_method( LeEcsSystemId system_id, le_ecs_api::system_fn fn, void *user_data ) {
-		le_ecs::le_ecs_i.system_set_method( self, system_id, fn, user_data );
-	}
+	inline void system_set_method( LeEcsSystemId system_id, le_ecs_api::system_fn fn, void *user_data );
 
 	template <typename T>
-	bool system_add_read_component( LeEcsSystemId system_id ) {
-		constexpr le_ecs_api::ComponentType ct{
-		    hash_64_fnv1a_const( T::type_id ),
-		    T::type_id,
-		    sizeof( T )};
-		return le_ecs::le_ecs_i.system_add_read_component( self, system_id, ct );
-	}
+	inline bool system_add_read_component( LeEcsSystemId system_id );
 
 	template <typename R, typename S, typename... T>
-	bool system_add_read_component( LeEcsSystemId system_id ) {
-		bool result = true;
-		result &= system_add_read_component<R>( system_id );
-		result &= system_add_read_component<S, T...>( system_id );
-		return result;
-	}
+	inline bool system_add_read_component( LeEcsSystemId system_id );
 
 	template <typename T>
-	bool system_add_write_component( LeEcsSystemId system_id ) {
-		constexpr le_ecs_api::ComponentType ct{
-		    hash_64_fnv1a_const( T::type_id ),
-		    T::type_id,
-		    sizeof( T )};
-		return le_ecs::le_ecs_i.system_add_write_component( self, system_id, ct );
-	}
+	inline bool system_add_write_component( LeEcsSystemId system_id );
 
 	template <typename R, typename S, typename... T>
-	bool system_add_write_component( LeEcsSystemId system_id ) {
-		bool result = true;
-		result &= system_add_write_component<R>( system_id );
-		result &= system_add_write_component<S, T...>( system_id );
-		return result;
-	}
+	inline bool system_add_write_component( LeEcsSystemId system_id );
 
-	void update_system( LeEcsSystemId system_id ) {
-		le_ecs::le_ecs_i.execute_system( self, system_id );
-	}
+	inline void update_system( LeEcsSystemId system_id );
 
-	operator auto() {
+	inline operator auto() {
 		return self;
 	}
 };
 
+// ----------------------------------------------------------------------
+
+EntityId LeEcs::create_entity() {
+	return le_ecs::le_ecs_i.entity_create( self );
+}
+
+// ----------------------------------------------------------------------
+
+void LeEcs::remove_entity( EntityId entity ) {
+	le_ecs::le_ecs_i.entity_remove( self, entity );
+}
+
+// ----------------------------------------------------------------------
+
+LeEcsSystemId LeEcs::create_system() {
+	return le_ecs::le_ecs_i.system_create( self );
+}
+
+// ----------------------------------------------------------------------
+
+void LeEcs::system_set_method( LeEcsSystemId system_id, le_ecs_api::system_fn fn, void *user_data ) {
+	le_ecs::le_ecs_i.system_set_method( self, system_id, fn, user_data );
+}
+
+// ----------------------------------------------------------------------
+
+void LeEcs::update_system( LeEcsSystemId system_id ) {
+	le_ecs::le_ecs_i.execute_system( self, system_id );
+}
+
+// ----------------------------------------------------------------------
+
+template <typename R, typename S, typename... T>
+bool LeEcs::system_add_write_component( LeEcsSystemId system_id ) {
+	bool result = true;
+	result &= system_add_write_component<R>( system_id );
+	result &= system_add_write_component<S, T...>( system_id );
+	return result;
+}
+
+// ----------------------------------------------------------------------
+
+template <typename R, typename S, typename... T>
+bool LeEcs::system_add_read_component( LeEcsSystemId system_id ) {
+	bool result = true;
+	result &= system_add_read_component<R>( system_id );
+	result &= system_add_read_component<S, T...>( system_id );
+	return result;
+}
+
+// ----------------------------------------------------------------------
+
+template <typename T>
+bool LeEcs::system_add_read_component( LeEcsSystemId system_id ) {
+	constexpr le_ecs_api::ComponentType ct{hash_64_fnv1a_const( T::type_id ), T::type_id, sizeof( T )};
+	return le_ecs::le_ecs_i.system_add_read_component( self, system_id, ct );
+}
+
+// ----------------------------------------------------------------------
+
+template <typename T>
+bool LeEcs::system_add_write_component( LeEcsSystemId system_id ) {
+	constexpr le_ecs_api::ComponentType ct{hash_64_fnv1a_const( T::type_id ), T::type_id, sizeof( T )};
+	return le_ecs::le_ecs_i.system_add_write_component( self, system_id, ct );
+}
+
+// ----------------------------------------------------------------------
+
+template <typename T>
+bool LeEcs::entity_add_component( EntityId entity_id, const T &&component ) {
+
+	struct A : T {
+		int i;
+	};
+
+	constexpr uint32_t component_size = uint32_t( sizeof( A ) - sizeof( int ) );
+
+	constexpr le_ecs_api::ComponentType ct{hash_64_fnv1a_const( T::type_id ), T::type_id, component_size};
+
+	// Allocate memory inside the ECS for our component.
+
+	void *mem = le_ecs::le_ecs_i.entity_add_component( self, entity_id, ct );
+
+	if ( ct.num_bytes != 0 && nullptr != mem ) {
+		new ( mem )( T ){component}; // placement new
+		return true;
+	} else {
+		// ERROR
+		assert( ct.num_bytes == 0 && "if component size > 0 then memory must have been allocated" );
+		return false;
+	}
+}
+
+// ----------------------------------------------------------------------
+
+template <typename T>
+void LeEcs::entity_remove_component( EntityId entity_id ) {
+
+	struct A : T {
+		int i;
+	};
+
+	constexpr uint32_t component_size = uint32_t( sizeof( A ) - sizeof( int ) );
+
+	constexpr le_ecs_api::ComponentType ct{hash_64_fnv1a_const( T::type_id ), T::type_id, component_size};
+
+	le_ecs::le_ecs_i.entity_remove_component( self, entity_id, ct );
+}
 #endif // __cplusplus
 
 #endif
