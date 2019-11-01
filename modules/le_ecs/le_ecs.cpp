@@ -146,6 +146,60 @@ static void *le_ecs_entity_add_component( le_ecs_o *self, EntityId entity_id, Co
 }
 
 // ----------------------------------------------------------------------
+// removes component from entity.
+static void le_ecs_entity_remove_component( le_ecs_o *self, EntityId entity_id, ComponentType const &component_type ) {
+
+	// Find if entity exists
+	size_t e_idx = get_index_from_entity_id( entity_id );
+
+	if ( e_idx >= self->entities.size() ) {
+		// ERROR: entity does not exist.
+		return;
+	}
+
+	auto &entity = self->entities.at( e_idx );
+
+	// -- Does component of this type already exist in component storage?
+
+	// Find component storage index
+	size_t storage_index = le_ecs_find_component_type_index( self, component_type );
+
+	if ( storage_index == self->component_types.size() ) {
+		// component does not exist
+		return;
+	}
+
+	if ( 0 == component_type.num_bytes ) {
+		// flag-only components have no storage associated with them,
+		// we can return early.
+		return;
+	}
+
+	// ---------| Invariant: component has storage associated with it.
+
+	// -- now we must find out which bytes in a vector at `storage_index`
+	// belong to this entity.
+	//
+	// We must iterate through all entities up until our current entity.
+	// If any entity has a component of our type, we must add to offset
+	// so that we may skip over it when deleting the data for our component.
+
+	size_t   stride = component_type.num_bytes;
+	uint32_t offset = 0;
+
+	for ( size_t i = 0; i != e_idx; ++i ) {
+		if ( self->entities[ i ].test( storage_index ) ) {
+			offset += stride;
+		}
+	}
+
+	auto &storage = self->component_storage[ storage_index ].storage;
+	storage.erase( storage.begin(), storage.begin() + offset );
+
+	entity[ storage_index ] = false; // remove flag for this component from entity
+}
+
+// ----------------------------------------------------------------------
 // create a new, empty entity
 static EntityId le_ecs_entity_create( le_ecs_o *self ) {
 	self->entities.push_back( {} ); // add a new, empty entity
@@ -354,10 +408,12 @@ static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id ) {
 ISL_API_ATTR void register_le_ecs_api( void *api ) {
 	auto &le_ecs_i = static_cast<le_ecs_api *>( api )->le_ecs_i;
 
-	le_ecs_i.create               = le_ecs_create;
-	le_ecs_i.destroy              = le_ecs_destroy;
-	le_ecs_i.entity_create        = le_ecs_entity_create;
-	le_ecs_i.entity_add_component = le_ecs_entity_add_component;
+	le_ecs_i.create  = le_ecs_create;
+	le_ecs_i.destroy = le_ecs_destroy;
+
+	le_ecs_i.entity_create           = le_ecs_entity_create;
+	le_ecs_i.entity_add_component    = le_ecs_entity_add_component;
+	le_ecs_i.entity_remove_component = le_ecs_entity_remove_component;
 
 	le_ecs_i.system_create              = le_ecs_system_create;
 	le_ecs_i.system_add_read_component  = le_ecs_system_add_read_component;

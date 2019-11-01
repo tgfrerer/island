@@ -35,7 +35,7 @@ struct le_ecs_api {
 
 	struct ComponentType {
 		uint64_t type_hash;   // we want a unique id per type.
-		const char* type_id;
+		char const * type_id;
 		uint32_t num_bytes; // number of bytes as in sizeof(), this includes padding.
 	};
 
@@ -45,20 +45,23 @@ struct le_ecs_api {
 
 		le_ecs_o * ( * create            ) ( );
 		void       ( * destroy           ) ( le_ecs_o* self );
+
 		EntityId   ( * entity_create     ) ( le_ecs_o *self );
 		
 		// Returns pointer to data allocated for component.
 		// Store data to ecs using this pointer.
 		// This may re-allocate component storage, and invalidate pointers and iterators to components held inside the ecs.
-		void* (*entity_add_component)( le_ecs_o *self, EntityId entity_id, ComponentType const & component_type );
-		
-		LeEcsSystemId  (*system_create)( le_ecs_o *self );
+		void* ( *entity_add_component      )( le_ecs_o *self, EntityId entity_id, ComponentType const & component_type );
+		void  ( *entity_remove_component   )( le_ecs_o *self, EntityId entity_id, ComponentType const & component_type );
 
-		void (*system_set_method)(le_ecs_o*self, LeEcsSystemId system_id, system_fn fn, void * user_data);
-		bool (*system_add_write_component)( le_ecs_o *self, LeEcsSystemId system_id, ComponentType const &component_type );
-		bool (*system_add_read_component)( le_ecs_o *self, LeEcsSystemId system_id, ComponentType const &component_type );
 
-		void (*execute_system)( le_ecs_o *self, LeEcsSystemId system_id ) ;
+		LeEcsSystemId  ( *system_create    )( le_ecs_o *self );
+
+		void (* system_set_method          )( le_ecs_o*self, LeEcsSystemId system_id, system_fn fn, void * user_data);
+		bool (* system_add_write_component )( le_ecs_o *self, LeEcsSystemId system_id, ComponentType const &component_type );
+		bool (* system_add_read_component  )( le_ecs_o *self, LeEcsSystemId system_id, ComponentType const &component_type );
+
+		void ( *execute_system             )( le_ecs_o *self, LeEcsSystemId system_id ) ;
 
 	};
 
