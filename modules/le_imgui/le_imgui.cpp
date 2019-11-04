@@ -213,49 +213,24 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 		static auto imguiVertShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.vert", {le::ShaderStage::eVertex}, nullptr );
 		static auto imguiFragShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.frag", {le::ShaderStage::eFragment}, nullptr );
 
-		std::array<le_vertex_input_attribute_description, 3> attrs    = {};
-		std::array<le_vertex_input_binding_description, 1>   bindings = {};
-		{
-			// location 0, binding 0
-			attrs[ 0 ].location       = 0;                           // refers to shader parameter location
-			attrs[ 0 ].binding        = 0;                           // refers to bound buffer index
-			attrs[ 0 ].binding_offset = offsetof( ImDrawVert, pos ); // offset into bound buffer
-			attrs[ 0 ].type           = le_vertex_input_attribute_description::eFloat;
-			attrs[ 0 ].vecsize        = 2;
-
-			// location 1, binding 0
-			attrs[ 1 ].location       = 1;
-			attrs[ 1 ].binding        = 0;
-			attrs[ 1 ].binding_offset = offsetof( ImDrawVert, uv );
-			attrs[ 1 ].type           = le_vertex_input_attribute_description::eFloat;
-			attrs[ 1 ].vecsize        = 2;
-
-			// location 2, binding 0
-			attrs[ 2 ].location       = 2;
-			attrs[ 2 ].binding        = 0;
-			attrs[ 2 ].binding_offset = offsetof( ImDrawVert, col );
-			attrs[ 2 ].type           = le_vertex_input_attribute_description::eChar;
-			attrs[ 2 ].vecsize        = 4;
-			attrs[ 2 ].isNormalised   = true;
-		}
-		{
-			// binding 0
-			bindings[ 0 ].binding    = 0;
-			bindings[ 0 ].input_rate = le_vertex_input_binding_description::INPUT_RATE::ePerVertex;
-			bindings[ 0 ].stride     = sizeof( ImDrawVert );
-		}
-
 		// Setting this static means that the builder only runs for the very first time.
 		//
 		// Which makes sense since every other time it will return the same hash value for
 		// given data.
 		// and all calculations will be in vain, and write access to the cache is expensive.
+		// clang-format off
 		static auto psoImgui = LeGraphicsPipelineBuilder( pipelineManager )
 		                           .addShaderStage( imguiFragShader )
 		                           .addShaderStage( imguiVertShader )
-		                           .setVertexInputAttributeDescriptions( attrs.data(), attrs.size() )
-		                           .setVertexInputBindingDescriptions( bindings.data(), bindings.size() )
+		                           .withAttributeBindingState()
+										.addBinding( sizeof( ImDrawVert ) )
+											.addAttribute( offsetof( ImDrawVert, pos ), le_num_type::eFloat , 2 )
+											.addAttribute( offsetof( ImDrawVert, uv  ), le_num_type::eFloat , 2 )
+											.addAttribute( offsetof( ImDrawVert, pos ), le_num_type::eChar  , 4, true )
+										.end()
+		                           .end()
 		                           .build();
+		// clang-format on
 
 		auto extents = encoder.getRenderpassExtent();
 
