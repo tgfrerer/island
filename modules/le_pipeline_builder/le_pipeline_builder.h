@@ -23,7 +23,7 @@ struct VkPipelineDepthStencilStateCreateInfo;
 
 struct LeColorComponentFlags;
 
-enum class le_vertex_input_binding_description_input_rate : uint8_t;
+enum class le_vertex_input_rate : uint8_t;
 enum class le_num_type : uint8_t;
 
 namespace le {
@@ -63,7 +63,7 @@ struct le_pipeline_builder_api {
 
 		struct attribute_binding_state_t{
 			void (*add_binding)( le_graphics_pipeline_builder_o* self, uint8_t binding_number);
-			void (*set_binding_input_rate )( le_graphics_pipeline_builder_o* self, uint8_t binding_number, const le_vertex_input_binding_description_input_rate& input_rate);
+			void (*set_binding_input_rate )( le_graphics_pipeline_builder_o* self, uint8_t binding_number, const le_vertex_input_rate& input_rate);
 			void (*set_binding_stride)( le_graphics_pipeline_builder_o* self, uint8_t binding_number, uint16_t stride);
 			
 			void (*binding_add_attribute)(le_graphics_pipeline_builder_o* self, uint8_t binding_number, uint8_t attribute_location);
@@ -245,7 +245,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 				return *this;
 			}
 
-			BindingState &setInputRate( const le_vertex_input_binding_description_input_rate &input_rate ) {
+			BindingState &setInputRate( const le_vertex_input_rate &input_rate ) {
 				using namespace le_pipeline_builder;
 				le_graphics_pipeline_builder_i.attribute_binding_state_i.set_binding_input_rate( parent.parent.self, mBindingNumber, input_rate );
 				return *this;

@@ -211,14 +211,14 @@ void le_graphics_pipeline_builder_add_binding( le_graphics_pipeline_builder_o *s
 	le_vertex_input_binding_description binding;
 	binding.stride     = 0;
 	binding.binding    = binding_number;
-	binding.input_rate = le_vertex_input_binding_description_input_rate::ePerVertex;
+	binding.input_rate = le_vertex_input_rate::ePerVertex;
 	assert( binding_number == self->obj->explicitVertexInputBindingDescriptions.size() && "binding numbers must be in sequence" );
 	self->obj->explicitVertexInputBindingDescriptions.emplace_back( binding );
 }
 
 // ----------------------------------------------------------------------
 
-void le_graphics_pipeline_builder_set_binding_input_rate( le_graphics_pipeline_builder_o *self, uint8_t binding_number, const le_vertex_input_binding_description_input_rate &input_rate ) {
+void le_graphics_pipeline_builder_set_binding_input_rate( le_graphics_pipeline_builder_o *self, uint8_t binding_number, const le_vertex_input_rate &input_rate ) {
 	self->obj->explicitVertexInputBindingDescriptions[ binding_number ].input_rate = input_rate;
 }
 
