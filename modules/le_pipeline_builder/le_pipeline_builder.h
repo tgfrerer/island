@@ -23,6 +23,9 @@ struct VkPipelineDepthStencilStateCreateInfo;
 
 struct LeColorComponentFlags;
 
+enum class le_vertex_input_binding_description_input_rate : uint8_t;
+enum class le_num_type : uint8_t;
+
 namespace le {
 enum class PrimitiveTopology : uint32_t;
 enum class BlendOp : uint32_t;
@@ -57,6 +60,19 @@ struct le_pipeline_builder_api {
 		void     ( * set_depth_stencil_info                  ) ( le_graphics_pipeline_builder_o *self, const VkPipelineDepthStencilStateCreateInfo &depthStencilInfo );
 
 		le_gpso_handle_t* ( * build             ) ( le_graphics_pipeline_builder_o* self );
+
+		struct attribute_binding_state_t{
+			void (*add_binding)( le_graphics_pipeline_builder_o* self, uint8_t binding_number);
+			void (*set_binding_input_rate )( le_graphics_pipeline_builder_o* self, uint8_t binding_number, const le_vertex_input_binding_description_input_rate& input_rate);
+			void (*set_binding_stride)( le_graphics_pipeline_builder_o* self, uint8_t binding_number, uint16_t stride);
+			
+			void (*binding_add_attribute)(le_graphics_pipeline_builder_o* self, uint8_t binding_number, uint8_t attribute_location);
+
+			void (*attribute_set_offset)(le_graphics_pipeline_builder_o* self, uint8_t attribute_location, uint16_t offset);
+			void (*attribute_set_type)(le_graphics_pipeline_builder_o* self,  uint8_t attribute_location, const le_num_type& type);
+			void (*attribute_set_vec_size)(le_graphics_pipeline_builder_o* self, uint8_t attribute_location, uint8_t vec_size);
+			void (*attribute_set_is_normalized)(le_graphics_pipeline_builder_o* self, uint8_t attribute_location, bool is_normalized);
+		};
 
 		struct input_assembly_state_t {
 			void ( *set_primitive_restart_enable ) ( le_graphics_pipeline_builder_o* self, uint32_t const& primitiveRestartEnable );
@@ -119,14 +135,15 @@ struct le_pipeline_builder_api {
 			void (*set_max_depth_bounds         )(le_graphics_pipeline_builder_o *self, float const & max_bounds);
 		};
 
-		input_assembly_state_t   input_assembly_state_i;
-		blend_attachment_state_t blend_attachment_state_i;
-		tessellation_state_t     tessellation_state_i;
-		rasterization_state_t    rasterization_state_i;
-		multisample_state_t      multisample_state_i;
-		stencil_op_state_t       stencil_op_state_front_i;
-		stencil_op_state_t       stencil_op_state_back_i;
-		depth_stencil_state_t    depth_stencil_state_i;
+		attribute_binding_state_t attribute_binding_state_i;
+		input_assembly_state_t    input_assembly_state_i;
+		blend_attachment_state_t  blend_attachment_state_i;
+		tessellation_state_t      tessellation_state_i;
+		rasterization_state_t     rasterization_state_i;
+		multisample_state_t       multisample_state_i;
+		stencil_op_state_t        stencil_op_state_front_i;
+		stencil_op_state_t        stencil_op_state_back_i;
+		depth_stencil_state_t     depth_stencil_state_i;
 	};
 
 	le_graphics_pipeline_builder_interface_t le_graphics_pipeline_builder_i;
@@ -194,6 +211,131 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 
 	le_graphics_pipeline_builder_o *self;
 
+	class AttributeBindingState {
+		LeGraphicsPipelineBuilder &parent;
+		uint8_t                    mBindingNumber{0};
+		uint8_t                    mNextBindingNumber{0};
+		uint8_t                    mLocation{0};
+		uint8_t                    mNextLocation{0};
+
+		friend class Attribute;
+
+	  public:
+		AttributeBindingState( LeGraphicsPipelineBuilder &parent_ )
+		    : parent( parent_ ) {
+		}
+
+		class BindingState {
+			AttributeBindingState &parent;
+			uint8_t &              mBindingNumber;
+			uint8_t &              mLocation;
+			uint8_t &              mNextLocation;
+
+		  public:
+			BindingState( AttributeBindingState &parent_, uint8_t &binding_number, uint8_t &location, uint8_t &next_location )
+			    : parent( parent_ )
+			    , mBindingNumber( binding_number )
+			    , mLocation( location )
+			    , mNextLocation( next_location ) {
+			}
+
+			BindingState &setStride( uint16_t stride ) {
+				using namespace le_pipeline_builder;
+				le_graphics_pipeline_builder_i.attribute_binding_state_i.set_binding_stride( parent.parent.self, mBindingNumber, stride );
+				return *this;
+			}
+
+			BindingState &setInputRate( const le_vertex_input_binding_description_input_rate &input_rate ) {
+				using namespace le_pipeline_builder;
+				le_graphics_pipeline_builder_i.attribute_binding_state_i.set_binding_input_rate( parent.parent.self, mBindingNumber, input_rate );
+				return *this;
+			}
+
+			class AttributeState {
+				BindingState &parent;
+				uint8_t &     mLocation;
+
+			  public:
+				AttributeState( BindingState &parent_, uint8_t &location )
+				    : parent( parent_ )
+				    , mLocation( location ) {
+				}
+
+				AttributeState &setOffset( uint16_t offset ) {
+					using namespace le_pipeline_builder;
+					le_graphics_pipeline_builder_i.attribute_binding_state_i.attribute_set_offset( parent.parent.parent.self, mLocation, offset );
+					return *this;
+				}
+				AttributeState &setType( const le_num_type &attribute_type ) {
+					using namespace le_pipeline_builder;
+					le_graphics_pipeline_builder_i.attribute_binding_state_i.attribute_set_type( parent.parent.parent.self, mLocation, attribute_type );
+					return *this;
+				}
+				AttributeState &setVecSize( uint8_t vec_size ) {
+					using namespace le_pipeline_builder;
+					le_graphics_pipeline_builder_i.attribute_binding_state_i.attribute_set_vec_size( parent.parent.parent.self, mLocation, vec_size );
+					return *this;
+				}
+				AttributeState &setIsNormalized( bool is_normalized ) {
+					using namespace le_pipeline_builder;
+					le_graphics_pipeline_builder_i.attribute_binding_state_i.attribute_set_is_normalized( parent.parent.parent.self, mLocation, is_normalized );
+					return *this;
+				}
+
+				BindingState &end() {
+					return parent;
+				}
+			};
+
+			AttributeState mAttributeState{*this, mLocation};
+
+			AttributeBindingState &end() {
+				return parent;
+			}
+
+			AttributeState &addAttribute() {
+				// locations increase with every call to addAttribute
+				mLocation = mNextLocation++;
+				using namespace le_pipeline_builder;
+				le_graphics_pipeline_builder_i.attribute_binding_state_i.binding_add_attribute( parent.parent.self, mBindingNumber, mLocation );
+				return mAttributeState;
+			}
+
+			BindingState &addAttribute( uint16_t offset, const le_num_type &attribute_type, uint8_t vec_size, bool is_normalized = false ) {
+				return addAttribute()
+				    .setOffset( offset )
+				    .setType( attribute_type )
+				    .setVecSize( vec_size )
+				    .setIsNormalized( is_normalized )
+				    .end();
+			}
+		};
+
+		BindingState mBindingState{*this, mBindingNumber, mLocation, mNextLocation};
+
+		BindingState &addBinding() {
+			mBindingNumber = mNextBindingNumber++;
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.attribute_binding_state_i.add_binding( parent.self, mBindingNumber );
+			return mBindingState;
+		}
+
+		BindingState &addBinding( uint16_t stride ) {
+			mBindingNumber = mNextBindingNumber++;
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.attribute_binding_state_i.add_binding( parent.self, mBindingNumber );
+			mBindingState.setStride( stride );
+			return mBindingState;
+		}
+
+		LeGraphicsPipelineBuilder &end() {
+			// todo: implement check binding
+			return parent;
+		}
+	};
+
+	AttributeBindingState mAttributeBindingState{*this};
+
 	class InputAssemblyState {
 		LeGraphicsPipelineBuilder &parent;
 
@@ -208,7 +350,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 			return *this;
 		}
 
-        InputAssemblyState &setTopology( le::PrimitiveTopology const &topology ) {
+		InputAssemblyState &setTopology( le::PrimitiveTopology const &topology ) {
 			using namespace le_pipeline_builder;
 			le_graphics_pipeline_builder_i.input_assembly_state_i.set_topology( parent.self, topology );
 			return *this;
@@ -635,6 +777,10 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	LeGraphicsPipelineBuilder &setDepthStencilInfo( const VkPipelineDepthStencilStateCreateInfo &info ) {
 		le_pipeline_builder::le_graphics_pipeline_builder_i.set_depth_stencil_info( self, info );
 		return *this;
+	}
+
+	AttributeBindingState &withAttributeBindingState() {
+		return mAttributeBindingState;
 	}
 
 	InputAssemblyState &withInputAssemblyState() {

@@ -3,7 +3,7 @@
 
 #include "3rdparty/src/spooky/SpookyV2.h"
 
-#include "le_renderer/le_renderer.h" // for le_vertex_input_attribute_description le_vertex_input_binding_description
+#include "le_renderer/private/le_renderer_types.h" // for le_vertex_input_attribute_description le_vertex_input_binding_description
 
 #include "le_backend_vk/le_backend_vk.h" // for access to pipeline state object cache
 #include "le_backend_vk/le_backend_types_internal.h"
@@ -207,6 +207,70 @@ le_graphics_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
 
 // ----------------------------------------------------------------------
 
+void le_graphics_pipeline_builder_add_binding( le_graphics_pipeline_builder_o *self, uint8_t binding_number ) {
+	le_vertex_input_binding_description binding;
+	binding.stride     = 0;
+	binding.binding    = binding_number;
+	binding.input_rate = le_vertex_input_binding_description_input_rate::ePerVertex;
+	assert( binding_number == self->obj->explicitVertexInputBindingDescriptions.size() && "binding numbers must be in sequence" );
+	self->obj->explicitVertexInputBindingDescriptions.emplace_back( binding );
+}
+
+// ----------------------------------------------------------------------
+
+void le_graphics_pipeline_builder_set_binding_input_rate( le_graphics_pipeline_builder_o *self, uint8_t binding_number, const le_vertex_input_binding_description_input_rate &input_rate ) {
+	self->obj->explicitVertexInputBindingDescriptions[ binding_number ].input_rate = input_rate;
+}
+
+// ----------------------------------------------------------------------
+
+void le_graphics_pipeline_builder_set_binding_stride( le_graphics_pipeline_builder_o *self, uint8_t binding_number, uint16_t stride ) {
+	self->obj->explicitVertexInputBindingDescriptions[ binding_number ].stride = stride;
+}
+
+// ----------------------------------------------------------------------
+
+void le_graphics_pipeline_builder_binding_add_attribute( le_graphics_pipeline_builder_o *self, uint8_t binding_number, uint8_t attribute_number ) {
+	le_vertex_input_attribute_description attribute;
+
+	attribute.binding        = binding_number;
+	attribute.location       = attribute_number;
+	attribute.type           = le_num_type::eFloat; // Float is the most likely type, so we're setting this as default
+	attribute.vecsize        = 1;                   // 1 means a single float, for vec3 use: 3, for vec2 use: 2, ...
+	attribute.isNormalised   = false;               // Mostly used for uint8_t which want to be treated as float values.
+	attribute.binding_offset = 0;                   // if not part of a struct, no binding offset must be sset
+
+	assert( attribute_number == self->obj->explicitVertexAttributeDescriptions.size() && "attribute locations must be in sequence" );
+
+	self->obj->explicitVertexAttributeDescriptions.emplace_back( attribute );
+}
+
+// ----------------------------------------------------------------------
+
+void le_graphics_pipeline_builder_attribute_set_offset( le_graphics_pipeline_builder_o *self, uint8_t attribute_location, uint16_t offset ) {
+	self->obj->explicitVertexAttributeDescriptions[ attribute_location ].binding_offset = offset;
+}
+
+// ----------------------------------------------------------------------
+
+void le_graphics_pipeline_builder_attribute_set_type( le_graphics_pipeline_builder_o *self, uint8_t attribute_location, const le_num_type &type ) {
+	self->obj->explicitVertexAttributeDescriptions[ attribute_location ].type = type;
+}
+
+// ----------------------------------------------------------------------
+
+void le_graphics_pipeline_builder_attribute_set_vec_size( le_graphics_pipeline_builder_o *self, uint8_t attribute_location, uint8_t vec_size ) {
+	self->obj->explicitVertexAttributeDescriptions[ attribute_location ].vecsize = vec_size;
+}
+
+// ----------------------------------------------------------------------
+
+void le_graphics_pipeline_builder_attribute_set_is_normalized( le_graphics_pipeline_builder_o *self, uint8_t attribute_location, bool is_normalized ) {
+	self->obj->explicitVertexAttributeDescriptions[ attribute_location ].isNormalised = is_normalized;
+}
+
+// ----------------------------------------------------------------------
+
 static void le_graphics_pipeline_builder_set_vertex_input_attribute_descriptions( le_graphics_pipeline_builder_o *self, le_vertex_input_attribute_description *p_input_attribute_descriptions, size_t count ) {
 	self->obj->explicitVertexAttributeDescriptions =
 	    {p_input_attribute_descriptions,
@@ -271,6 +335,18 @@ static le_gpso_handle le_graphics_pipeline_builder_build( le_graphics_pipeline_b
 		// which gives the complete hash representing a pipeline state object.
 
 		hash_value = SpookyHash::Hash64( stageHashEntries, stageHashEntriesUsed * sizeof( uint64_t ), hash_value );
+
+		// -- If pipeline has explicit attribute binding stages that must be factored in with the hash.
+
+		if ( !self->obj->explicitVertexInputBindingDescriptions.empty() ) {
+			hash_value = SpookyHash::Hash64( self->obj->explicitVertexInputBindingDescriptions.data(),
+			                                 self->obj->explicitVertexInputBindingDescriptions.size() * sizeof( le_vertex_input_binding_description ),
+			                                 hash_value );
+
+			hash_value = SpookyHash::Hash64( self->obj->explicitVertexAttributeDescriptions.data(),
+			                                 self->obj->explicitVertexAttributeDescriptions.size() * sizeof( le_vertex_input_attribute_description ),
+			                                 hash_value );
+		}
 
 		// Cast hash_value to a pipeline handle, so we can use the type system with it
 		// its value, of course, is still equivalent to hash_value.
@@ -592,6 +668,15 @@ ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
 		i.set_vertex_input_binding_descriptions   = le_graphics_pipeline_builder_set_vertex_input_binding_descriptions;
 		i.set_multisample_info                    = le_graphics_pipeline_builder_set_multisample_info;
 		i.set_depth_stencil_info                  = le_graphics_pipeline_builder_set_depth_stencil_info;
+
+		i.attribute_binding_state_i.add_binding                 = le_graphics_pipeline_builder_add_binding;
+		i.attribute_binding_state_i.set_binding_input_rate      = le_graphics_pipeline_builder_set_binding_input_rate;
+		i.attribute_binding_state_i.set_binding_stride          = le_graphics_pipeline_builder_set_binding_stride;
+		i.attribute_binding_state_i.binding_add_attribute       = le_graphics_pipeline_builder_binding_add_attribute;
+		i.attribute_binding_state_i.attribute_set_offset        = le_graphics_pipeline_builder_attribute_set_offset;
+		i.attribute_binding_state_i.attribute_set_type          = le_graphics_pipeline_builder_attribute_set_type;
+		i.attribute_binding_state_i.attribute_set_vec_size      = le_graphics_pipeline_builder_attribute_set_vec_size;
+		i.attribute_binding_state_i.attribute_set_is_normalized = le_graphics_pipeline_builder_attribute_set_is_normalized;
 
 		i.input_assembly_state_i.set_primitive_restart_enable = input_assembly_state_set_primitive_restart_enable;
 		i.input_assembly_state_i.set_topology                 = input_assembly_state_set_toplogy;

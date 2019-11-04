@@ -1215,48 +1215,61 @@ struct le_resource_info_t {
 	};
 };
 
+enum class le_num_type : uint8_t {
+	//
+	// Note that we store the log2 of the number of Bytes needed to store values of a type
+	// in the least significant two bits, so that we can say: numBytes =  1 << (type & 0b11);
+	//
+	eChar   = ( 0 << 2 ) | 0, //  8 bit signed int
+	eUChar  = ( 1 << 2 ) | 0, //  8 bit unsigned int
+	eShort  = ( 2 << 2 ) | 1, // 16 bit signed int
+	eUShort = ( 3 << 2 ) | 1, // 16 bit unsigned int
+	eInt    = ( 4 << 2 ) | 2, // 32 bit signed int
+	eUInt   = ( 5 << 2 ) | 2, // 32 bit unsigned int
+	eHalf   = ( 6 << 2 ) | 1, // 16 bit float type
+	eFloat  = ( 7 << 2 ) | 2, // 32 bit float type
+	eLong   = ( 8 << 2 ) | 3, // 64 bit signed int
+	eULong  = ( 9 << 2 ) | 3, // 64 bit unsigned int
+	//
+	// Aliases
+	eU8  = eUChar,
+	eI8  = eChar,
+	eI16 = eShort,
+	eU16 = eUShort,
+	eU32 = eUInt,
+	eI32 = eInt,
+	eU64 = eULong,
+	eI64 = eLong,
+	eF32 = eFloat,
+	eF16 = eHalf,
+};
+
+enum class le_vertex_input_rate : uint8_t {
+	ePerVertex   = 0,
+	ePerInstance = 1,
+};
+
 /// \note This struct assumes a little endian machine for sorting
 struct le_vertex_input_attribute_description {
-
-	enum Type : uint8_t {
-		//
-		// Note that we store the log2 of the number of Bytes needed to store values of a type
-		// in the least significant two bits, so that we can say: numBytes =  1 << (type & 0b11);
-		//
-		eChar   = ( 0 << 2 ) | 0,
-		eUChar  = ( 1 << 2 ) | 0,
-		eShort  = ( 2 << 2 ) | 1,
-		eUShort = ( 3 << 2 ) | 1,
-		eInt    = ( 4 << 2 ) | 2,
-		eUInt   = ( 5 << 2 ) | 2,
-		eHalf   = ( 6 << 2 ) | 1, // 16 bit float type
-		eFloat  = ( 7 << 2 ) | 2, // 32 bit float type
-	};
-
 	union {
 		struct {
-			uint8_t  location;       /// 0..32 shader attribute location
-			uint8_t  binding;        /// 0..32 binding slot
-			uint16_t binding_offset; /// 0..65565 offset for this location within binding (careful: must not be larger than maxVertexInputAttributeOffset [0.0x7ff])
-			Type     type;           /// base type for attribute
-			uint8_t  vecsize;        /// 0..7 number of elements of base type
-			uint8_t  isNormalised;   /// whether this input comes pre-normalized
+			uint8_t     location;       /// 0..32 shader attribute location
+			uint8_t     binding;        /// 0..32 binding slot
+			uint16_t    binding_offset; /// 0..65565 offset for this location within binding (careful: must not be larger than maxVertexInputAttributeOffset [0.0x7ff])
+			le_num_type type;           /// base type for attribute
+			uint8_t     vecsize;        /// 0..7 number of elements of base type
+			uint8_t     isNormalised;   /// whether this input comes pre-normalized
 		};
 		uint64_t raw_data = 0;
 	};
 };
 
 struct le_vertex_input_binding_description {
-	enum INPUT_RATE : uint8_t {
-		ePerVertex   = 0,
-		ePerInstance = 1,
-	};
-
 	union {
 		struct {
-			uint8_t    binding;    /// binding slot 0..32(==MAX_ATTRIBUTE_BINDINGS)
-			INPUT_RATE input_rate; /// per-vertex (0) or per-instance (1)
-			uint16_t   stride;     /// per-vertex or per-instance stride in bytes (must be smaller than maxVertexInputBindingStride = [0x800])
+			uint8_t              binding;    /// binding slot 0..32(==MAX_ATTRIBUTE_BINDINGS)
+			le_vertex_input_rate input_rate; /// per-vertex (0) or per-instance (1)
+			uint16_t             stride;     /// per-vertex or per-instance stride in bytes (must be smaller than maxVertexInputBindingStride = [0x800])
 		};
 		uint32_t raw_data;
 	};

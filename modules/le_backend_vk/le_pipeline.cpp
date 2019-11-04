@@ -1041,11 +1041,11 @@ static vk::PipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_m
 
 // ----------------------------------------------------------------------
 
-static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_vertex_input_binding_description::INPUT_RATE &input_rate ) {
+static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_vertex_input_rate &input_rate ) {
 	switch ( input_rate ) {
-	case ( le_vertex_input_binding_description::ePerInstance ):
+	case ( le_vertex_input_rate::ePerInstance ):
 		return vk::VertexInputRate::eInstance;
-	case ( le_vertex_input_binding_description::ePerVertex ):
+	case ( le_vertex_input_rate::ePerVertex ):
 		return vk::VertexInputRate::eVertex;
 	}
 	assert( false ); // something's wrong: control should never come here, switch needs to cover all cases.
@@ -1064,7 +1064,7 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description( l
 	}
 
 	switch ( d.type ) {
-	case le_vertex_input_attribute_description::eFloat:
+	case le_num_type::eFloat:
 		switch ( d.vecsize ) {
 		case 4: return vk::Format::eR32G32B32A32Sfloat;
 		case 3: return vk::Format::eR32G32B32Sfloat;
@@ -1072,7 +1072,7 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description( l
 		case 1: return vk::Format::eR32Sfloat;
 		}
 	    break;
-	case le_vertex_input_attribute_description::eHalf:
+	case le_num_type::eHalf:
 		switch ( d.vecsize ) {
 		case 4: return vk::Format::eR16G16B16A16Sfloat;
 		case 3: return vk::Format::eR16G16B16Sfloat;
@@ -1080,8 +1080,8 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description( l
 		case 1: return vk::Format::eR16Sfloat;
 		}
 	    break;
-	case le_vertex_input_attribute_description::eUShort: // fall through to eShort
-	case le_vertex_input_attribute_description::eShort:
+	case le_num_type::eUShort: // fall through to eShort
+	case le_num_type::eShort:
 		if (d.isNormalised){
 			switch ( d.vecsize ) {
 			case 4: return vk::Format::eR16G16B16A16Unorm;
@@ -1098,7 +1098,7 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description( l
 			}
 		}
 	    break;
-	case le_vertex_input_attribute_description::eInt:
+	case le_num_type::eInt:
 		switch ( d.vecsize ) {
 		case 4: return vk::Format::eR32G32B32A32Sint;
 		case 3: return vk::Format::eR32G32B32Sint;
@@ -1106,7 +1106,7 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description( l
 		case 1: return vk::Format::eR32Sint;
 		}
 	    break;
-	case le_vertex_input_attribute_description::eUInt:
+	case le_num_type::eUInt:
 		switch ( d.vecsize ) {
 		case 4: return vk::Format::eR32G32B32A32Uint;
 		case 3: return vk::Format::eR32G32B32Uint;
@@ -1114,8 +1114,8 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description( l
 		case 1: return vk::Format::eR32Uint;
 		}
 	    break;
-	case le_vertex_input_attribute_description::eChar:  // fall through to uChar
-	case le_vertex_input_attribute_description::eUChar:
+	case le_num_type::eChar:  // fall through to uChar
+	case le_num_type::eUChar:
 		if (d.isNormalised){
 			switch ( d.vecsize ) {
 			case 4: return vk::Format::eR8G8B8A8Unorm;
