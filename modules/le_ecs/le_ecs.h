@@ -4,6 +4,10 @@
 #include <stdint.h>
 #include "pal_api_loader/ApiRegistry.hpp"
 
+struct le_ecs_o;
+typedef struct EntityId_T *EntityId;
+typedef struct SystemId_T *LeEcsSystemId;
+
 #ifdef __cplusplus
 
 #	define LE_ECS_FLAG_COMPONENT( TypeName )          \
@@ -30,10 +34,6 @@
 
 extern "C" {
 #endif
-
-struct le_ecs_o;
-typedef struct EntityId_T *EntityId;
-typedef struct SystemId_T *LeEcsSystemId;
 
 void register_le_ecs_api( void *api );
 
