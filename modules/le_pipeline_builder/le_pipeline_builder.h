@@ -251,32 +251,32 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 				return *this;
 			}
 
-			class AttributeState {
+			class AttributeDescriptor {
 				BindingState &parent;
 				uint8_t &     mLocation;
 
 			  public:
-				AttributeState( BindingState &parent_, uint8_t &location )
+				AttributeDescriptor( BindingState &parent_, uint8_t &location )
 				    : parent( parent_ )
 				    , mLocation( location ) {
 				}
 
-				AttributeState &setOffset( uint16_t offset ) {
+				AttributeDescriptor &setOffset( uint16_t offset ) {
 					using namespace le_pipeline_builder;
 					le_graphics_pipeline_builder_i.attribute_binding_state_i.attribute_set_offset( parent.parent.parent.self, mLocation, offset );
 					return *this;
 				}
-				AttributeState &setType( const le_num_type &attribute_type ) {
+				AttributeDescriptor &setType( const le_num_type &attribute_type ) {
 					using namespace le_pipeline_builder;
 					le_graphics_pipeline_builder_i.attribute_binding_state_i.attribute_set_type( parent.parent.parent.self, mLocation, attribute_type );
 					return *this;
 				}
-				AttributeState &setVecSize( uint8_t vec_size ) {
+				AttributeDescriptor &setVecSize( uint8_t vec_size ) {
 					using namespace le_pipeline_builder;
 					le_graphics_pipeline_builder_i.attribute_binding_state_i.attribute_set_vec_size( parent.parent.parent.self, mLocation, vec_size );
 					return *this;
 				}
-				AttributeState &setIsNormalized( bool is_normalized ) {
+				AttributeDescriptor &setIsNormalized( bool is_normalized ) {
 					using namespace le_pipeline_builder;
 					le_graphics_pipeline_builder_i.attribute_binding_state_i.attribute_set_is_normalized( parent.parent.parent.self, mLocation, is_normalized );
 					return *this;
@@ -287,13 +287,13 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 				}
 			};
 
-			AttributeState mAttributeState{*this, mLocation};
+			AttributeDescriptor mAttributeState{*this, mLocation};
 
 			AttributeBindingState &end() {
 				return parent;
 			}
 
-			AttributeState &addAttribute() {
+			AttributeDescriptor &addAttribute() {
 				// locations increase with every call to addAttribute
 				mLocation = mNextLocation++;
 				using namespace le_pipeline_builder;
