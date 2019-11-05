@@ -737,23 +737,23 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 
 		if ( !pass->executeCallbacks.empty() ) {
 
-			le::Extent2D encoder_extent{
+			le::Extent2D pass_extents{
 			    pass->width != 0 ? pass->width : swapchain_extent.width,   // Use pass extent unless it is 0, otherwise revert to swapchain_extent
 			    pass->height != 0 ? pass->height : swapchain_extent.height // Use pass extent unless it is 0, otherwise revert to swapchain_extent
 			};
 
-			pass->encoder = encoder_i.create( ppAllocators, pipelineCache, stagingAllocator, encoder_extent ); // NOTE: we must manually track the lifetime of encoder!
+			pass->encoder = encoder_i.create( ppAllocators, pipelineCache, stagingAllocator, pass_extents ); // NOTE: we must manually track the lifetime of encoder!
 
 			if ( pass->type == LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW ) {
 
 				// Set default scissor and viewport to full extent.
 
 				le::Rect2D default_scissor[ 1 ] = {
-				    {0, 0, encoder_extent.width, encoder_extent.height},
+				    {0, 0, pass_extents.width, pass_extents.height},
 				};
 
 				le::Viewport default_viewport[ 1 ] = {
-				    {0.f, 0.f, float( encoder_extent.width ), float( encoder_extent.height ), 0.f, 1.f},
+				    {0.f, 0.f, float( pass_extents.width ), float( pass_extents.height ), 0.f, 1.f},
 				};
 
 				// setup encoder default viewport and scissor to extent
