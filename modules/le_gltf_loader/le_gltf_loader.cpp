@@ -176,22 +176,22 @@ static void getAttrInfo( const std::string &attrName, const gltf::Accessor &acc,
 		// invalid component type
 		break;
 	case ( gltf::Accessor::ComponentType::Byte ):
-		attr.type = le_vertex_input_attribute_description::Type::eChar;
+		attr.type = le_num_type::eChar;
 		break;
 	case ( gltf::Accessor::ComponentType::UnsignedByte ):
-		attr.type = le_vertex_input_attribute_description::Type::eUChar;
+		attr.type = le_num_type::eUChar;
 		break;
 	case ( gltf::Accessor::ComponentType::Short ):
-		attr.type = le_vertex_input_attribute_description::Type::eShort;
+		attr.type = le_num_type::eShort;
 		break;
 	case ( gltf::Accessor::ComponentType::UnsignedShort ):
-		attr.type = le_vertex_input_attribute_description::Type::eUShort;
+		attr.type = le_num_type::eUShort;
 		break;
 	case ( gltf::Accessor::ComponentType::UnsignedInt ):
-		attr.type = le_vertex_input_attribute_description::Type::eUInt;
+		attr.type = le_num_type::eUInt;
 		break;
 	case ( gltf::Accessor::ComponentType::Float ):
-		attr.type         = le_vertex_input_attribute_description::Type::eFloat;
+		attr.type         = le_num_type::eFloat;
 		attr.isNormalised = false; // Floats are never normalised
 		break;
 	}
@@ -684,7 +684,7 @@ static bool document_load_from_text( le_gltf_document_o *self, const char *path 
 					for ( const auto &attrInfo : tmpAttrInfos ) {
 						le_vertex_input_binding_description bindingDescr;
 						bindingDescr.binding = attrInfo.attr.binding;
-						bindingDescr.stride  = attrInfo.attr.vecsize * ( 1 << ( attrInfo.attr.type & 0x03 ) );
+						bindingDescr.stride  = attrInfo.attr.vecsize * ( 1 << ( uint8_t( attrInfo.attr.type ) & 0x03 ) );
 						prim.bindingDescriptions.emplace_back( bindingDescr );
 						prim.attributeDescriptions.push_back( attrInfo.attr );
 						prim.attributeDataOffs.push_back( ( attrInfo.bufferViewOffs ) );
