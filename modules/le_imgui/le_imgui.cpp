@@ -213,11 +213,14 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 		static auto imguiVertShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.vert", {le::ShaderStage::eVertex}, nullptr );
 		static auto imguiFragShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.frag", {le::ShaderStage::eFragment}, nullptr );
 
-		// Setting this static means that the builder only runs for the very first time.
+		// Attribute input via imGUI:
 		//
-		// Which makes sense since every other time it will return the same hash value for
-		// given data.
-		// and all calculations will be in vain, and write access to the cache is expensive.
+		// struct ImDrawVert{
+		//	  ImVec2  pos;
+		//	  ImVec2  uv;
+		//	  ImU32   col;
+		// };
+		//
 		// clang-format off
 		static auto psoImgui = LeGraphicsPipelineBuilder( pipelineManager )
 		                           .addShaderStage( imguiFragShader )
@@ -226,7 +229,7 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 										.addBinding( sizeof( ImDrawVert ) )
 											.addAttribute( offsetof( ImDrawVert, pos ), le_num_type::eFloat , 2 )
 											.addAttribute( offsetof( ImDrawVert, uv  ), le_num_type::eFloat , 2 )
-											.addAttribute( offsetof( ImDrawVert, pos ), le_num_type::eChar  , 4, true )
+											.addAttribute( offsetof( ImDrawVert, col ), le_num_type::eChar  , 4, true )
 										.end()
 		                           .end()
 		                           .build();
