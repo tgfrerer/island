@@ -2053,22 +2053,25 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 	allocationCreateInfo.usage          = VMA_MEMORY_USAGE_GPU_ONLY;
 	allocationCreateInfo.preferredFlags = VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT;
 
+	VkResult result = VK_SUCCESS;
+
 	if ( resourceInfo.isBuffer() ) {
-		vmaCreateBuffer( alloc,
-		                 &resourceInfo.bufferInfo,
-		                 &allocationCreateInfo,
-		                 &res.asBuffer,
-		                 &res.allocation,
-		                 &res.allocationInfo );
+		result = vmaCreateBuffer( alloc,
+		                          &resourceInfo.bufferInfo,
+		                          &allocationCreateInfo,
+		                          &res.asBuffer,
+		                          &res.allocation,
+		                          &res.allocationInfo );
 	} else {
-		vmaCreateImage( alloc,
-		                &resourceInfo.imageInfo,
-		                &allocationCreateInfo,
-		                &res.asImage,
-		                &res.allocation,
-		                &res.allocationInfo );
+		result = vmaCreateImage( alloc,
+		                         &resourceInfo.imageInfo,
+		                         &allocationCreateInfo,
+		                         &res.asImage,
+		                         &res.allocation,
+		                         &res.allocationInfo );
 	}
 	res.info = resourceInfo;
+	assert( result == VK_SUCCESS );
 	return res;
 };
 
