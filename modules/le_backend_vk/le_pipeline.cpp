@@ -446,15 +446,23 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 
 	// -- Get all sampled images in the shader
 	for ( auto const &resource : resources.sampled_images ) {
-		// TODO: how do we deal with arrays of images?
-		// it is well possible that spirv cross reports each image individually, giving it an index.
+
 		le_shader_binding_info info{};
+
+		// Fetch SPIRV-type so that we can interrogate the sampled image binding whether
+		// it is an array.
+		//
+		// If it is an array, it reports a non-empty array field, and the
+		// first item in the array field will then contain the size of the array.
+		// We use this to update the `info.count` field.
+		//
+		auto const &tp = compiler.get_type( resource.type_id );
 
 		info.setIndex   = compiler.get_decoration( resource.id, spv::DecorationDescriptorSet );
 		info.binding    = compiler.get_decoration( resource.id, spv::DecorationBinding );
 		info.type       = enumToNum( vk::DescriptorType::eCombinedImageSampler ); // Note: sampled_images corresponds to combinedImageSampler, separate_[image|sampler] corresponds to image, and sampler being separate
 		info.stage_bits = enumToNum( module->stage );
-		info.count      = 1;
+		info.count      = tp.array.empty() ? 1 : tp.array[ 0 ];
 		info.name_hash  = hash_64_fnv1a( resource.name.c_str() );
 
 		bindings.emplace_back( std::move( info ) );
