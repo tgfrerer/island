@@ -1132,6 +1132,10 @@ class ImageSamplerInfoBuilder {
 	    : info( info_ ) {
 	}
 
+	ImageSamplerInfoBuilder( le_resource_handle_t const &image_resource ) {
+		info.imageView.imageId = image_resource;
+	}
+
 	ImageViewInfoBuilder &withImageViewInfo() {
 		return mImageViewInfoBuilder;
 	}
