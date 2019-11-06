@@ -20,6 +20,10 @@ set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cross.hpp")
 set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cross.cpp")
 set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cfg.hpp")
 set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cfg.cpp")
+set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cross_parsed_ir.cpp")
+set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cross_parsed_ir.hpp")
+set (SOURCES ${SOURCES} "util/spirv-cross/spirv_parser.hpp")
+set (SOURCES ${SOURCES} "util/spirv-cross/spirv_parser.cpp")
 
 
 if (${PLUGINS_DYNAMIC})
