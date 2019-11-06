@@ -2436,6 +2436,21 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			// Consolidate into first_info, beginning with the second element
 			for ( auto *info = first_info + 1; info != info_end; info++ ) {
 
+				// TODO (tim): check how we can enforce correct number of array layers and mip levels
+
+				if ( info->image.arrayLayers > first_info->image.arrayLayers ) {
+					first_info->image.arrayLayers = info->image.arrayLayers;
+				}
+
+				if ( info->image.mipLevels > first_info->image.mipLevels ) {
+					first_info->image.mipLevels = info->image.mipLevels;
+				}
+
+				if ( uint32_t( info->image.imageType ) > uint32_t( first_info->image.imageType ) ) {
+					// this is a bit sketchy.
+					first_info->image.imageType = info->image.imageType;
+				}
+
 				first_info->image.flags |= info->image.flags;
 				first_info->image.usage |= info->image.usage;
 				first_info->image.samplesFlags |= uint32_t( 1 << info->image.sample_count_log2 );
