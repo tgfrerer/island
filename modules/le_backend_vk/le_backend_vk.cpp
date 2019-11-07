@@ -341,7 +341,8 @@ struct BackendFrameData {
 		vk::ImageView imageView;
 	};
 
-	std::unordered_map<le_resource_handle_t, Texture, LeResourceHandleIdentity>       textures;   // non-owning, references to frame-local textures, cleared on frame fence.
+	using texture_map_t    = std::unordered_map<le_resource_handle_t, Texture, LeResourceHandleIdentity>;
+	using image_view_map_t = std::unordered_map<le_resource_handle_t, vk::ImageView, LeResourceHandleIdentity>;
 	std::unordered_map<le_resource_handle_t, vk::ImageView, LeResourceHandleIdentity> imageViews; // non-owning, references to frame-local textures, cleared on frame fence.
 
 	// With `syncChainTable` and image_attachment_info_o.syncState, we should
@@ -365,7 +366,9 @@ struct BackendFrameData {
 	std::vector<le_resource_handle_t> declared_resources_id;   // | pre-declared resources (declared via module)
 	std::vector<le_resource_info_t>   declared_resources_info; // | pre-declared resources (declared via module)
 
-	std::vector<LeRenderPass>       passes;
+	std::vector<LeRenderPass>  passes;
+	std::vector<texture_map_t> textures_per_pass; // non-owning, references to frame-local textures, cleared on frame fence.
+
 	std::vector<vk::DescriptorPool> descriptorPools; // one descriptor pool per pass
 
 	/*
@@ -1470,7 +1473,7 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 	le_staging_allocator_i.reset( frame.stagingAllocator );
 
 	// -- remove any texture references
-	frame.textures.clear();
+	frame.textures_per_pass.clear();
 
 	// -- remove any image view references
 	frame.imageViews.clear();
@@ -2834,18 +2837,22 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 		}
 	}
 
+	frame.textures_per_pass.resize( numRenderPasses );
+
 	// Create Samplers for all images which are used as Textures
 	//
-	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
+	for ( size_t p_idx = 0; p_idx != numRenderPasses; ++p_idx ) {
+
+		auto &p = passes[ p_idx ];
 
 		// Get all texture names for this pass
 		const le_resource_handle_t *textureIds     = nullptr;
 		size_t                      textureIdCount = 0;
-		renderpass_i.get_texture_ids( *p, &textureIds, &textureIdCount );
+		renderpass_i.get_texture_ids( p, &textureIds, &textureIdCount );
 
 		const LeImageSamplerInfo *textureInfos     = nullptr;
 		size_t                    textureInfoCount = 0;
-		renderpass_i.get_texture_infos( *p, &textureInfos, &textureInfoCount );
+		renderpass_i.get_texture_infos( p, &textureInfos, &textureInfoCount );
 
 		assert( textureIdCount == textureInfoCount ); // texture info and -id count must be identical, as there is a 1:1 relationship
 
@@ -2856,7 +2863,7 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 
 			const le_resource_handle_t textureId = textureIds[ i ];
 
-			if ( frame.textures.find( textureId ) == frame.textures.end() ) {
+			if ( frame.textures_per_pass[ p_idx ].find( textureId ) == frame.textures_per_pass[ p_idx ].end() ) {
 				// -- we need to allocate a new texture
 
 				auto &texInfo = textureInfos[ i ];
@@ -2938,7 +2945,10 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 				tex.imageView = imageView;
 				tex.sampler   = sampler;
 
-				frame.textures[ textureId ] = tex;
+				frame.textures_per_pass[ p_idx ][ textureId ] = tex;
+			} else {
+				// The frame already has an element with such a texture id.
+				assert( false && "texture must have been defined multiple times using identical id within the same renderpass." );
 			}
 		} // end for all textureIds
 	}     // end for all passes
@@ -3774,8 +3784,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					// fetch texture information based on texture id from command
 
-					auto foundTex = frame.textures.find( le_cmd->info.texture_id );
-					if ( foundTex == frame.textures.end() ) {
+					auto foundTex = frame.textures_per_pass[ passIndex ].find( le_cmd->info.texture_id );
+					if ( foundTex == frame.textures_per_pass[ passIndex ].end() ) {
 						std::cerr << "Could not find requested texture: " << le_cmd->info.texture_id.debug_name << " Ignoring texture binding command." << std::endl
 						          << std::flush;
 						break;
