@@ -21,7 +21,8 @@ struct le_bloom_pass_api {
 
 	struct le_bloom_pass_interface_t {
 		void (* le_render_module_add_bloom_pass)(le_render_module_o* module, le_resource_handle_t const & input, le_resource_handle_t const & output, uint32_t const & width, uint32_t const & height);
-	};
+		void (* le_render_module_add_blit_pass)(le_render_module_o* module, le_resource_handle_t const & input, le_resource_handle_t const & output);	
+};
 
 	le_bloom_pass_interface_t       le_bloom_pass_i;
 };
