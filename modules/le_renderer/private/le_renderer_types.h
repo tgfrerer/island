@@ -436,6 +436,7 @@ enum class BlendOp : uint32_t {
 enum class AttachmentBlendPreset : uint32_t {
 	ePremultipliedAlpha = 0,
 	eAdd,
+	eCopy,
 };
 
 // Codegen <VkAttachmentStoreOp, uint32_t>

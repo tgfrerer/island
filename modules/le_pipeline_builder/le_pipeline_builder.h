@@ -80,6 +80,7 @@ struct le_pipeline_builder_api {
 		};
 
 		struct blend_attachment_state_t{
+			void (*set_blend_enable           )( le_graphics_pipeline_builder_o *self, size_t which_attachment, bool blendEnable );
 			void (*set_color_blend_op         )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendOp &blendOp );
 			void (*set_alpha_blend_op         )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendOp &blendOp );
 			void (*set_src_color_blend_factor )( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor );
@@ -682,6 +683,12 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 	  public:
 		AttachmentBlendState( LeGraphicsPipelineBuilder &parent_ )
 		    : parent( parent_ ) {
+		}
+
+		AttachmentBlendState &setBlendEnable( bool blendEnable ) {
+			using namespace le_pipeline_builder;
+			le_graphics_pipeline_builder_i.blend_attachment_state_i.set_blend_enable( parent.self, index, blendEnable );
+			return *this;
 		}
 
 		AttachmentBlendState &setColorBlendOp( const le::BlendOp &blendOp ) {

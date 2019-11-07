@@ -427,6 +427,11 @@ static vk::ColorComponentFlags le_color_component_flags_to_vk( LeColorComponentF
 	return vk::ColorComponentFlags( rhs );
 }
 
+static void blend_attachment_state_set_blend_enable( le_graphics_pipeline_builder_o *self, size_t which_attachment, bool blendEnable ) {
+	self->obj->data.blendAttachmentStates[ which_attachment ]
+	    .setBlendEnable( blendEnable );
+}
+
 static void blend_attachment_state_set_color_blend_op( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendOp &blendOp ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
 	    .setColorBlendOp( le_blend_op_to_vk( blendOp ) );
@@ -500,6 +505,12 @@ static void blend_attachment_state_use_preset( le_graphics_pipeline_builder_o *s
 		        vk::ColorComponentFlagBits::eB |
 		        vk::ColorComponentFlagBits::eA ) //
 		    ;
+
+	} break;
+	case le::AttachmentBlendPreset::eCopy: {
+
+		self->obj->data.blendAttachmentStates[ which_attachment ]
+		    .setBlendEnable( VK_FALSE );
 
 	} break;
 	}
@@ -681,6 +692,7 @@ ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
 		i.input_assembly_state_i.set_primitive_restart_enable = input_assembly_state_set_primitive_restart_enable;
 		i.input_assembly_state_i.set_topology                 = input_assembly_state_set_toplogy;
 
+		i.blend_attachment_state_i.set_blend_enable           = blend_attachment_state_set_blend_enable;
 		i.blend_attachment_state_i.set_alpha_blend_op         = blend_attachment_state_set_alpha_blend_op;
 		i.blend_attachment_state_i.set_color_blend_op         = blend_attachment_state_set_color_blend_op;
 		i.blend_attachment_state_i.set_color_write_mask       = blend_attachment_state_set_color_write_mask;
