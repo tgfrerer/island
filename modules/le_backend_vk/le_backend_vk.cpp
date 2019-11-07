@@ -436,8 +436,6 @@ struct le_backend_o {
 	uint32_t queueFamilyIndexGraphics = 0; // inferred during setup
 	uint32_t queueFamilyIndexCompute  = 0; // inferred during setup
 
-	const le_resource_handle_t swapchainImageHandle = LE_IMG_RESOURCE( "Swapchain-Image" ); // opaque handle identifying the swapchain image, initialised in setup()
-
 	struct {
 		std::unordered_map<le_resource_handle_t, AllocatedResourceVk, LeResourceHandleIdentity> allocatedResources; // Allocated resources, indexed by resource name hash
 	} only_backend_allocate_resources_may_access;                                                                   // Only acquire_physical_resources may read/write
@@ -700,8 +698,8 @@ static le_resource_handle_t declare_resource_virtual_buffer( uint8_t index ) {
 
 // ----------------------------------------------------------------------
 
-static le_resource_handle_t backend_get_swapchain_resource( le_backend_o *self ) {
-	return self->swapchainImageHandle;
+static le_resource_handle_t backend_get_swapchain_resource( le_backend_o * ) {
+	return LE_SWAPCHAIN_IMAGE_HANDLE;
 }
 
 // ----------------------------------------------------------------------
@@ -2985,9 +2983,9 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 		// TODO: we should be able to query swapchain image info so that we can mark the
 		// swapchain image as a frame available resource.
 
-		frame.availableResources[ self->swapchainImageHandle ].asImage = swapchain_i.get_image( self->swapchain, frame.swapchainImageIndex );
+		frame.availableResources[ LE_SWAPCHAIN_IMAGE_HANDLE ].asImage = swapchain_i.get_image( self->swapchain, frame.swapchainImageIndex );
 		{
-			auto &backbufferInfo       = frame.availableResources[ self->swapchainImageHandle ].info.imageInfo;
+			auto &backbufferInfo       = frame.availableResources[ LE_SWAPCHAIN_IMAGE_HANDLE ].info.imageInfo;
 			backbufferInfo             = vk::ImageCreateInfo{};
 			backbufferInfo.extent      = vk::Extent3D( frame.swapchainWidth, frame.swapchainHeight, 1 );
 			backbufferInfo.format      = VkFormat( self->swapchainImageFormat );
@@ -3020,7 +3018,7 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 
 	// -- build sync chain for each resource, create explicit sync barrier requests for resources
 	// which cannot be impliciltly synced.
-	frame_track_resource_state( frame, passes, numRenderPasses, self->swapchainImageHandle );
+	frame_track_resource_state( frame, passes, numRenderPasses, LE_SWAPCHAIN_IMAGE_HANDLE );
 
 	// At this point we know the state for each resource at the end of the sync chain.
 	// this state will be the initial state for the resource
@@ -3042,7 +3040,7 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 				// Set sync state for this resource to value of last elment in the sync chain.
 				res->second.state = resSyncList.back();
 			} else {
-				assert( resId == self->swapchainImageHandle );
+				assert( resId == LE_SWAPCHAIN_IMAGE_HANDLE );
 				// Frame local resource must be available as a backend resource,
 				// unless the resource is the swapchain image handle, which is owned and managed
 				// by the swapchain.
