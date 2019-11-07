@@ -9,23 +9,24 @@ layout (location = 0) in vec2 inTexCoord;
 // outputs
 layout (location = 0) out vec4 outFragColor;
 
-layout (set = 0, binding = 0) uniform sampler2D src_tex_unit_0;
-layout (set = 0, binding = 1) uniform sampler2D src_tex_unit_1[5];
+layout (set = 0, binding = 0) uniform sampler2D src_tex_unit_0[5];
 
-void main(){
+float bloomStrength = 1.f;
+float bloomRadius = 1.f;
 
-	vec3 colorA = texture(src_tex_unit_0, inTexCoord.xy).rgb;
-	vec3 colorB = 
-		texture(src_tex_unit_1[0], inTexCoord.xy).rgb
-		* texture(src_tex_unit_1[1], inTexCoord.xy).rgb
-		* texture(src_tex_unit_1[2], inTexCoord.xy).rgb
-		* texture(src_tex_unit_1[3], inTexCoord.xy).rgb
-		* texture(src_tex_unit_1[4], inTexCoord.xy).rgb
-		;
+float bloomFactors[5] = {1.0, 0.8, 0.6, 0.4, 0.2 };
+vec3 bloomTintColors[5] = {vec3(1),vec3(1),vec3(1),vec3(1),vec3(1)};
 
-	outFragColor = vec4(colorA * colorB,1);
+float lerpBloomFactor(const in float factor) { 
+	float mirrorFactor = 1.2 - factor;
+	return mix(factor, mirrorFactor, bloomRadius);
+}
 
-	outFragColor = vec4(mix(colorA, colorB, 1), 1);
-	// outFragColor = vec4( colorA + colorB , 1);
-	// outFragColor = vec4(inTexCoord.xy, 0, 1);
+void main() {
+
+	outFragColor = bloomStrength * ( lerpBloomFactor(bloomFactors[0]) * vec4(bloomTintColors[0], 1.0) * texture(src_tex_unit_0[0], inTexCoord) + 
+									 lerpBloomFactor(bloomFactors[1]) * vec4(bloomTintColors[1], 1.0) * texture(src_tex_unit_0[1], inTexCoord) + 
+									 lerpBloomFactor(bloomFactors[2]) * vec4(bloomTintColors[2], 1.0) * texture(src_tex_unit_0[2], inTexCoord) + 
+									 lerpBloomFactor(bloomFactors[3]) * vec4(bloomTintColors[3], 1.0) * texture(src_tex_unit_0[3], inTexCoord) + 
+									 lerpBloomFactor(bloomFactors[4]) * vec4(bloomTintColors[4], 1.0) * texture(src_tex_unit_0[4], inTexCoord) );
 }
