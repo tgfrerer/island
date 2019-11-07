@@ -3360,6 +3360,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					if ( false == argumentsOk ) {
 						// TODO: notify that an argument is not OKAY
+						assert( false && "descriptor did not fit template" );
 						break;
 					}
 				}
@@ -3777,10 +3778,33 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					}
 
 					// ---------| invariant: we found an argument name that matches
-					auto setIndex = b->setIndex;
-					auto binding  = b->binding;
 
-					auto &bindingData = argumentState.setData[ setIndex ][ binding ];
+					auto setIndex      = b->setIndex;
+					auto bindingNumber = b->binding;
+					auto arrayIndex    = uint32_t( le_cmd->info.array_index );
+
+					auto       bindingData      = argumentState.setData[ setIndex ].data();
+					auto const binding_data_end = bindingData + argumentState.setData[ setIndex ].size();
+
+					// Descriptors are stored as flat arrays; we cannot assume that binding number matches
+					// index of descriptor in set, because some types of uniforms may be arrays, and these
+					// arrays will be stored flat in the vector of per-set descriptors.
+					//
+					// Imagine these were bindings for a set: a b c0 c1 c2 c3 c4 d
+					// a(0), b(1), would have their own binding number, but c0(2), c1(2), c2(2), c3(2), c4(2)
+					// would share a single binding number, 2, until d(3), which would have binding number 3.
+					//
+					// To find the correct descriptor, we must therefore iterate over descriptors in-set
+					// until we find one that matches the correct array index.
+					//
+					for ( ; bindingData != binding_data_end; bindingData++ ) {
+						if ( bindingData->bindingNumber == bindingNumber &&
+						     bindingData->arrayIndex == arrayIndex ) {
+							break;
+						}
+					}
+
+					assert( bindingData != binding_data_end && "could not find specified binding." );
 
 					// fetch texture information based on texture id from command
 
@@ -3793,13 +3817,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					// ----------| invariant: texture has been found
 
-					// FIXME: (sync) image layout at this point *must* be shaderReadOnlyOptimal.
-					bindingData.imageInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
-					bindingData.imageInfo.sampler     = foundTex->second.sampler;
-					bindingData.imageInfo.imageView   = foundTex->second.imageView;
-
-					bindingData.arrayIndex = uint32_t( le_cmd->info.array_index );
-					bindingData.type       = vk::DescriptorType::eCombinedImageSampler;
+					bindingData->imageInfo.imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal;
+					bindingData->imageInfo.sampler     = foundTex->second.sampler;
+					bindingData->imageInfo.imageView   = foundTex->second.imageView;
+					bindingData->type                  = vk::DescriptorType::eCombinedImageSampler;
 
 				} break;
 
