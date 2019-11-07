@@ -254,6 +254,10 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 	}
 
 	if ( resourceWillBeWrittenTo ) {
+		if ( resource_id == LE_SWAPCHAIN_IMAGE_HANDLE ) {
+			// A request to write to swapchain automatically turns a pass into a root pass.
+			self->isRoot = true;
+		}
 		access_flags |= LeAccessFlagBits::eLeAccessFlagBitWrite;
 	}
 }
