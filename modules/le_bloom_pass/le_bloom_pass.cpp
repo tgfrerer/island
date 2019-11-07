@@ -41,7 +41,8 @@ le_render_module_add_blit_pass(
 	    le::RenderPass( "blit", LE_RENDER_PASS_TYPE_DRAW )
 	        .sampleTexture( LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0" ), le::ImageSamplerInfoBuilder( input ).build() )
 	        .addColorAttachment( output )
-	        .setExecuteCallback( nullptr, pass_blit_exec );
+	        .setExecuteCallback( nullptr, pass_blit_exec ) //
+	    ;
 
 	using namespace le_renderer;
 	render_module_i.add_renderpass( module, passBlit );
@@ -277,7 +278,6 @@ le_render_module_add_bloom_pass(
 
 		auto passCombine =
 		    le::RenderPass( "bloom_combine", LE_RENDER_PASS_TYPE_DRAW )
-		        .setIsRoot( true )
 		        .sampleTexture( LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.0" ), targets_blur_v[ 0 ].info )
 		        .sampleTexture( LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.1" ), targets_blur_v[ 1 ].info )
 		        .sampleTexture( LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.2" ), targets_blur_v[ 2 ].info )
