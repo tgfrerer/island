@@ -49,11 +49,12 @@ le_render_module_add_blit_pass(
 
 static void
 le_render_module_add_bloom_pass(
-    le_render_module_o *        module,
-    le_resource_handle_t const &input,
-    le_resource_handle_t const &output,
-    uint32_t const &            width,
-    uint32_t const &            height ) {
+    le_render_module_o *         module,
+    le_resource_handle_t const & input,
+    le_resource_handle_t const & output,
+    uint32_t const &             width,
+    uint32_t const &             height,
+    le_bloom_pass_api::params_t *params ) {
 
 	// we must introduce all transient resources
 
@@ -118,21 +119,19 @@ le_render_module_add_bloom_pass(
 	        .setLoadOp( le::AttachmentLoadOp::eLoad )
 	        .build();
 
-	auto luminosity_high_pass_fun = []( le_command_buffer_encoder_o *encoder_, void * ) {
+	auto luminosity_high_pass_fun = []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
 		le::Encoder encoder{encoder_};
+
+		static le_bloom_pass_api::params_t fallback_params{};
+		le_bloom_pass_api::params_t *      params = &fallback_params;
+
+		if ( user_data ) {
+			params = static_cast<le_bloom_pass_api::params_t *>( user_data );
+		}
 
 		auto *                     pm           = encoder.getPipelineManager();
 		static le_shader_module_o *quadVert     = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/fullscreenQuad.vert", {le::ShaderStage::eVertex}, "" );
 		static le_shader_module_o *highPassFrag = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/luminosity_high_pass.frag", {le::ShaderStage::eFragment}, "" );
-
-		struct Params {
-			glm::vec3 defaultColor{0};            // vec3(0)
-			float     defaultOpacity{0};          // 0
-			float     luminosityThreshold{0.75f}; // 1.f
-			float     smoothWidth{0.01f};         // 1.0
-		};
-
-		Params params{};
 
 		static auto pipeline =
 		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
@@ -143,7 +142,7 @@ le_render_module_add_bloom_pass(
 		encoder
 		    .bindGraphicsPipeline( pipeline )
 		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), texInput )
-		    .setArgumentData( LE_ARGUMENT_NAME( "Params" ), &params, sizeof( Params ) )
+		    .setArgumentData( LE_ARGUMENT_NAME( "Params" ), &params->luma_threshold, sizeof( le_bloom_pass_api::params_t::luma_threshold_params_t ) )
 		    .draw( 4 );
 	};
 
@@ -155,7 +154,7 @@ le_render_module_add_bloom_pass(
 
 		auto *pm = encoder.getPipelineManager();
 
-		static char const *KERNEL_DEFINES[] = {
+		static char const *BLUR_KERNEL_DEFINES[] = {
 		    "KERNEL_RADIUS=3",
 		    "KERNEL_RADIUS=5",
 		    "KERNEL_RADIUS=7",
@@ -165,29 +164,36 @@ le_render_module_add_bloom_pass(
 
 		static le_shader_module_o *quadVert           = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/fullscreenQuad.vert", {le::ShaderStage::eVertex}, "" );
 		static le_shader_module_o *gaussianBlurFrag[] = {
-		    le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/blur.frag", {le::ShaderStage::eFragment}, KERNEL_DEFINES[ 0 ] ),
-		    le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/blur.frag", {le::ShaderStage::eFragment}, KERNEL_DEFINES[ 1 ] ),
-		    le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/blur.frag", {le::ShaderStage::eFragment}, KERNEL_DEFINES[ 2 ] ),
-		    le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/blur.frag", {le::ShaderStage::eFragment}, KERNEL_DEFINES[ 3 ] ),
-		    le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/blur.frag", {le::ShaderStage::eFragment}, KERNEL_DEFINES[ 4 ] ),
+		    le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/blur.frag", {le::ShaderStage::eFragment}, BLUR_KERNEL_DEFINES[ 0 ] ),
+		    le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/blur.frag", {le::ShaderStage::eFragment}, BLUR_KERNEL_DEFINES[ 1 ] ),
+		    le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/blur.frag", {le::ShaderStage::eFragment}, BLUR_KERNEL_DEFINES[ 2 ] ),
+		    le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/blur.frag", {le::ShaderStage::eFragment}, BLUR_KERNEL_DEFINES[ 3 ] ),
+		    le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/blur.frag", {le::ShaderStage::eFragment}, BLUR_KERNEL_DEFINES[ 4 ] ),
 		};
 
 		struct BlurParams {
 			glm::vec2 resolution;
 			glm::vec2 direction;
-		} params = {{float( extent.width ), float( extent.height )}, settings->blur_direction};
+		} blur_params = {{float( extent.width ), float( extent.height )}, settings->blur_direction};
 
 		static auto pipeline = LeGraphicsPipelineBuilder( pm ).addShaderStage( quadVert ).addShaderStage( gaussianBlurFrag[ settings->kernel_define_index ] ).build();
 
 		encoder
 		    .bindGraphicsPipeline( pipeline )
 		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0" ) )
-		    .setArgumentData( LE_ARGUMENT_NAME( "BlurParams" ), &params, sizeof( BlurParams ) )
+		    .setArgumentData( LE_ARGUMENT_NAME( "BlurParams" ), &blur_params, sizeof( BlurParams ) )
 		    .draw( 4 );
 	};
 
-	auto combine_render_fun = []( le_command_buffer_encoder_o *encoder_, void * ) {
+	auto combine_render_fun = []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
 		le::Encoder encoder{encoder_};
+
+		static le_bloom_pass_api::params_t fallback_params{};
+		le_bloom_pass_api::params_t *      params = &fallback_params;
+
+		if ( user_data ) {
+			params = static_cast<le_bloom_pass_api::params_t *>( user_data );
+		}
 
 		auto *                     pm              = encoder.getPipelineManager();
 		static le_shader_module_o *quadVert        = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/fullscreenQuad.vert", {le::ShaderStage::eVertex}, "" );
@@ -209,6 +215,7 @@ le_render_module_add_bloom_pass(
 		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.2" ), 2 )
 		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.3" ), 3 )
 		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.4" ), 4 )
+		    .setArgumentData( LE_ARGUMENT_NAME( "Params" ), &params->bloom, sizeof( le_bloom_pass_api::params_t::bloom_params_t ) )
 		    .draw( 4 );
 	};
 
@@ -224,7 +231,7 @@ le_render_module_add_bloom_pass(
 	        .addColorAttachment( targets_blur_v[ 0 ].image, LOAD_CLEAR )
 	        .setWidth( width / 2 )
 	        .setHeight( height / 2 )
-	        .setExecuteCallback( nullptr, luminosity_high_pass_fun );
+	        .setExecuteCallback( params, luminosity_high_pass_fun );
 
 	{
 		using namespace le_renderer;
@@ -277,7 +284,7 @@ le_render_module_add_bloom_pass(
 		        .sampleTexture( LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.3" ), targets_blur_v[ 3 ].info )
 		        .sampleTexture( LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.4" ), targets_blur_v[ 4 ].info )
 		        .addColorAttachment( output, LOAD_LOAD ) // color attachment
-		        .setExecuteCallback( nullptr, combine_render_fun );
+		        .setExecuteCallback( params, combine_render_fun );
 
 		render_module_i.add_renderpass( module, passCombine );
 	}

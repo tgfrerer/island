@@ -19,10 +19,23 @@ struct le_bloom_pass_api {
 	static constexpr auto id      = "le_bloom_pass";
 	static constexpr auto pRegFun = register_le_bloom_pass_api;
 
+	struct params_t {
+		struct bloom_params_t {
+			float strength{1};
+			float radius{1};
+		} bloom;
+		struct luma_threshold_params_t {
+			float defaultColor[ 3 ]{0.f, 0.f, 0.f}; // vec3(0)
+			float defaultOpacity{0.7};              // 0
+			float luminosityThreshold{0.75f};       // 1.f
+			float smoothWidth{0.01f};               // 1.0
+		} luma_threshold;
+	};
+
 	struct le_bloom_pass_interface_t {
-		void (* le_render_module_add_bloom_pass)(le_render_module_o* module, le_resource_handle_t const & input, le_resource_handle_t const & output, uint32_t const & width, uint32_t const & height);
+		void (* le_render_module_add_bloom_pass)(le_render_module_o* module, le_resource_handle_t const & input, le_resource_handle_t const & output, uint32_t const & width, uint32_t const & height, params_t* params);
 		void (* le_render_module_add_blit_pass)(le_render_module_o* module, le_resource_handle_t const & input, le_resource_handle_t const & output);	
-};
+	};
 
 	le_bloom_pass_interface_t       le_bloom_pass_i;
 };
