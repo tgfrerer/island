@@ -29,6 +29,9 @@ le_render_module_add_blit_pass(
 		static auto pipeline = LeGraphicsPipelineBuilder( pm )
 		                           .addShaderStage( quadVert )
 		                           .addShaderStage( blitFrag )
+		                           .withAttachmentBlendState()
+		                           .setBlendEnable( false ) // we don't want any blending, just a straight copy.
+		                           .end()
 		                           .build();
 
 		encoder
@@ -138,6 +141,9 @@ le_render_module_add_bloom_pass(
 		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 		        .addShaderStage( quadVert )
 		        .addShaderStage( highPassFrag )
+		        .withAttachmentBlendState()
+		        .setBlendEnable( false ) // we don't want any blending, just a straight copy.
+		        .end()
 		        .build();
 
 		encoder
@@ -177,7 +183,13 @@ le_render_module_add_bloom_pass(
 			glm::vec2 direction;
 		} blur_params = {{float( extent.width ), float( extent.height )}, settings->blur_direction};
 
-		static auto pipeline = LeGraphicsPipelineBuilder( pm ).addShaderStage( quadVert ).addShaderStage( gaussianBlurFrag[ settings->kernel_define_index ] ).build();
+		static auto pipeline = LeGraphicsPipelineBuilder( pm )
+		                           .addShaderStage( quadVert )
+		                           .addShaderStage( gaussianBlurFrag[ settings->kernel_define_index ] )
+		                           .withAttachmentBlendState()
+		                           .setBlendEnable( false ) // we don't want any blending, just a straight copy.
+		                           .end()
+		                           .build();
 
 		encoder
 		    .bindGraphicsPipeline( pipeline )
@@ -205,7 +217,7 @@ le_render_module_add_bloom_pass(
 		        .addShaderStage( quadVert )
 		        .addShaderStage( quadCombineFrag )
 		        .withAttachmentBlendState()
-		        .usePreset( le::AttachmentBlendPreset::eAdd )
+		        .usePreset( le::AttachmentBlendPreset::eAdd ) // we want this screened on top
 		        .end()
 		        .build();
 
