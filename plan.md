@@ -12,37 +12,31 @@
 - add screenshot to readme
 - add code example to readme which demonstrates something island does
   well
-- check y-up coordinate is correct with camera - perhaps our
-  projection matrix is missing something?
-- create an utf8-iterator for `char const *`
+
+## (A)
+- **relative size for renderpass attachments instead of absolute
+  pixels dimensions** - the idea is that sometimes (like, with bloom)
+  we don't know the size for the final target buffer, but we know that
+  we don't need an effect etc to render at the full resolution, but
+  that a fraction of the resolution will be enough.
+
+## (B)
+
+- find a way to deal with deactivated bindings (assert in #1501, `le_pipeline.cpp`)
+- embed shader code as spir-v
+- Architect a usability layer on top of base framework, which makes common
+  operations easy, and DRY. Images are a good point to start.
+- implement automatic mip chain generation 
 - add a coordinate axes geometry generator - so that we can debug
   cameras and handedness.
 
-
-## (A)
-
-- Resolve Attachments (implement these for multisampling / anti-aliasing)
-
-## (B)
+## (C)
 - It should not be possible accidentally to provide a texture handle
   for a `resource_handle` where we expect an image or buffer handle.
 - Compute Passes
     - combine setArgumentData and bindArgumentBuffer in encoder so that
       we're using a single path in the backend for both these methods (we
       can express them fully as setArgumentData).
-
-- Architect a usability layer on top of base framework, which makes common
-  operations easy, and DRY. Images are a good point to start.
-
-- Implement multisampling and Resolve Attachments: this means renderpasses
-  must enable it if any pipelines request it. better to do it the other
-  way round, where renderpass injects their sampling into pipelines. This
-  is probably linked to resolve attachments, we must investigate further.
-
-- allow user to specify graphics api extensions when creating the
-  application - vulkan extensions could be specified this way.
-
-## (C)
 - integrate cgltf
 - integrate jsmn json parser
 - check if there is an elegant way to keep as much as possible from
