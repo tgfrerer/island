@@ -213,6 +213,9 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ) {
 
 		while ( false == vk_backend_i.poll_frame_fence( self->backend, frameIndex ) ) {
 			// Note: this call may block until the fence has been reached.
+#if ( LE_MT > 0 )
+			le_jobs::yield();
+#endif
 		}
 
 		bool result = vk_backend_i.clear_frame( self->backend, frameIndex );
