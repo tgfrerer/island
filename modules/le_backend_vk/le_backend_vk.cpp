@@ -1431,8 +1431,11 @@ static bool backend_poll_frame_fence( le_backend_o *self, size_t frameIndex ) {
 	auto &     frame  = self->mFrames[ frameIndex ];
 	vk::Device device = self->device->getVkDevice();
 
-	// auto result = device.waitForFences( {frame.frameFence}, true, 1000'000'000 );
-	auto result = device.getFenceStatus( {frame.frameFence} );
+	// Non-blocking, polling
+	// auto result = device.getFenceStatus( {frame.frameFence} );
+
+	// NOTE: this may block.
+	auto result = device.waitForFences( {frame.frameFence}, true, 1000'000'000 );
 
 	if ( result != vk::Result::eSuccess ) {
 		return false;
