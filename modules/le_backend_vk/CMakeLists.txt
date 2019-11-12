@@ -8,7 +8,6 @@ set (SOURCES ${SOURCES} "le_instance_vk.cpp")
 set (SOURCES ${SOURCES} "le_pipeline.cpp")
 set (SOURCES ${SOURCES} "le_device_vk.cpp")
 set (SOURCES ${SOURCES} "le_allocator.cpp")
-set (SOURCES ${SOURCES} "util/spooky/SpookyV2.cpp")
 
 set (SOURCES ${SOURCES} "util/vk_mem_alloc/vk_mem_alloc.h")
 set (SOURCES ${SOURCES} "util/vk_mem_alloc/vk_mem_alloc.cpp")
@@ -25,6 +24,8 @@ set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cross_parsed_ir.hpp")
 set (SOURCES ${SOURCES} "util/spirv-cross/spirv_parser.hpp")
 set (SOURCES ${SOURCES} "util/spirv-cross/spirv_parser.cpp")
 
+set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.cpp")
+set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.h")
 
 if (${PLUGINS_DYNAMIC})
 

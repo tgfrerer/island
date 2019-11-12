@@ -14,8 +14,8 @@
 
 #include "le_shader_compiler/le_shader_compiler.h"
 #include "util/spirv-cross/spirv_cross.hpp"
-#include "pal_file_watcher/pal_file_watcher.h"  // for watching shader source files
-#include "le_backend_vk/util/spooky/SpookyV2.h" // for hashing renderpass gestalt, so that we can test for *compatible* renderpasses
+#include "pal_file_watcher/pal_file_watcher.h" // for watching shader source files
+#include "3rdparty/src/spooky/SpookyV2.h"      // for hashing renderpass gestalt, so that we can test for *compatible* renderpasses
 
 struct le_shader_module_o {
 	uint64_t                                         hash                = 0;     ///< hash taken from spirv code + hash_file_path + hash_shader_defines

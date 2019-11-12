@@ -12,7 +12,7 @@
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/le_renderer_types.h"
 
-#include "le_backend_vk/util/spooky/SpookyV2.h" // for hashing renderpass gestalt
+#include "3rdparty/src/spooky/SpookyV2.h" // for hashing renderpass gestalt
 
 #include <vector>
 #include <unordered_map>

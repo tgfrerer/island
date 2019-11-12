@@ -6,6 +6,9 @@ set (SOURCES ${SOURCES} "private/le_renderer_types.h")
 set (SOURCES ${SOURCES} "le_rendergraph.cpp")
 set (SOURCES ${SOURCES} "le_command_buffer_encoder.cpp")
 
+set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.cpp")
+set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.h")
+
 if (${PLUGINS_DYNAMIC})
 
     add_library(${TARGET} MODULE ${SOURCES})

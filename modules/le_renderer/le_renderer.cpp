@@ -12,12 +12,10 @@
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
+#include "le_jobs/le_jobs.h"
+
 #ifndef LE_MT
 #	define LE_MT 0
-#endif
-
-#if ( LE_MT > 0 )
-#	include "le_jobs/le_jobs.h"
 #endif
 
 // ----------------------------------------------------------------------
@@ -264,7 +262,7 @@ static void renderer_record_frame( le_renderer_o *self, size_t frameIndex, le_re
 
 	// find out which renderpasses contribute, only add contributing render passes to
 	// frameBuilder
-	rendergraph_i.build( frame.rendergraph );
+	rendergraph_i.build( frame.rendergraph, frameNumber );
 
 	// Execute callbacks into main application for each render pass,
 	// build command lists per render pass in intermediate, api-agnostic representation
