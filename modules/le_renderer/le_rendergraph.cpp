@@ -698,9 +698,12 @@ generate_dot_file_for_rendergraph(
 				if ( ( tasks[ k ].reads & res_filter ).any() ||
 				     ( tasks[ k ].writes & tasks[ k ].reads & res_filter ).any() ) {
 
-					os << "\"" << p->debugName << "\":" << needle.debug_name << ":s"
+					os << "\"" << p->debugName << "\":"
+					   << "\"" << needle.debug_name << "\""
+					   << ":s"
 					   << " -> \"" << self->passes[ k ]->debugName << "\":"
-					   << needle.debug_name << ":n"
+					   << "\"" << needle.debug_name << "\""
+					   << ":n"
 					   << ( self->sortIndices[ k ] == ( ~0u ) ? "[style=dashed]" : "" )
 					   << ";" << std::endl;
 				}
