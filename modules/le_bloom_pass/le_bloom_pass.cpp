@@ -232,11 +232,9 @@ le_render_module_add_bloom_pass(
 		    .draw( 4 );
 	};
 
-	// first, have a pass which filters out anything which is not bright. (do this at half resolution)
-
-	// then, blur and scale down image 5 times
-
-	// then combine the main image with the blurred image
+	// -- First, have a pass which filters out anything which is not bright. (do this at half resolution)
+	// -- Then, blur and scale down image 5 times
+	// -- Finally, combine the main image with the blurred image
 
 	auto passHighPass =
 	    le::RenderPass( "high_pass", LE_RENDER_PASS_TYPE_DRAW )
