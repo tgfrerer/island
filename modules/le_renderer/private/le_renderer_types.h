@@ -165,6 +165,7 @@ enum LeImageCreateFlagBits : LeImageCreateFlags {
 	LE_IMAGE_CREATE_DISJOINT_BIT                              = 0x00000200,
 	LE_IMAGE_CREATE_CORNER_SAMPLED_BIT_NV                     = 0x00002000,
 	LE_IMAGE_CREATE_SAMPLE_LOCATIONS_COMPATIBLE_DEPTH_BIT_EXT = 0x00001000,
+	LE_IMAGE_CREATE_SUBSAMPLED_BIT_EXT                        = 0x00004000,
 	LE_IMAGE_CREATE_SPLIT_INSTANCE_BIND_REGIONS_BIT_KHR       = LE_IMAGE_CREATE_SPLIT_INSTANCE_BIND_REGIONS_BIT,
 	LE_IMAGE_CREATE_2_D_ARRAY_COMPATIBLE_BIT_KHR              = LE_IMAGE_CREATE_2_D_ARRAY_COMPATIBLE_BIT,
 	LE_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT_KHR       = LE_IMAGE_CREATE_BLOCK_TEXEL_VIEW_COMPATIBLE_BIT,
@@ -187,6 +188,7 @@ enum LeImageUsageFlagBits : LeImageUsageFlags_t {
 	LE_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT     = 0x00000040,
 	LE_IMAGE_USAGE_INPUT_ATTACHMENT_BIT         = 0x00000080,
 	LE_IMAGE_USAGE_SHADING_RATE_IMAGE_BIT_NV    = 0x00000100,
+	LE_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT = 0x00000200,
 };
 // Codegen </VkImageUsageFlagBits>
 
@@ -194,17 +196,20 @@ typedef uint32_t LeBufferUsageFlags_t;
 LE_WRAP_TYPE_IN_STRUCT( LeBufferUsageFlags_t, LeBufferUsageFlags );
 // Codegen <VkBufferUsageFlagBits, LeBufferUsageFlags_t, c>
 enum LeBufferUsageFlagBits : LeBufferUsageFlags_t {
-	LE_BUFFER_USAGE_TRANSFER_SRC_BIT              = 0x00000001,
-	LE_BUFFER_USAGE_TRANSFER_DST_BIT              = 0x00000002,
-	LE_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT      = 0x00000004,
-	LE_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT      = 0x00000008,
-	LE_BUFFER_USAGE_UNIFORM_BUFFER_BIT            = 0x00000010,
-	LE_BUFFER_USAGE_STORAGE_BUFFER_BIT            = 0x00000020,
-	LE_BUFFER_USAGE_INDEX_BUFFER_BIT              = 0x00000040,
-	LE_BUFFER_USAGE_VERTEX_BUFFER_BIT             = 0x00000080,
-	LE_BUFFER_USAGE_INDIRECT_BUFFER_BIT           = 0x00000100,
-	LE_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT = 0x00000200,
-	LE_BUFFER_USAGE_RAYTRACING_BIT_NVX            = 0x00000400,
+	LE_BUFFER_USAGE_TRANSFER_SRC_BIT                          = 0x00000001,
+	LE_BUFFER_USAGE_TRANSFER_DST_BIT                          = 0x00000002,
+	LE_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT                  = 0x00000004,
+	LE_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT                  = 0x00000008,
+	LE_BUFFER_USAGE_UNIFORM_BUFFER_BIT                        = 0x00000010,
+	LE_BUFFER_USAGE_STORAGE_BUFFER_BIT                        = 0x00000020,
+	LE_BUFFER_USAGE_INDEX_BUFFER_BIT                          = 0x00000040,
+	LE_BUFFER_USAGE_VERTEX_BUFFER_BIT                         = 0x00000080,
+	LE_BUFFER_USAGE_INDIRECT_BUFFER_BIT                       = 0x00000100,
+	LE_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT         = 0x00000800,
+	LE_BUFFER_USAGE_TRANSFORM_FEEDBACK_COUNTER_BUFFER_BIT_EXT = 0x00001000,
+	LE_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT             = 0x00000200,
+	LE_BUFFER_USAGE_RAY_TRACING_BIT_NV                        = 0x00000400,
+	LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_EXT             = 0x00020000,
 };
 // Codegen </VkBufferUsageFlagBits>
 
@@ -240,12 +245,12 @@ enum class ShaderStage : uint32_t {
 	eCompute                = 0x00000020,
 	eAllGraphics            = 0x0000001F,
 	eAll                    = 0x7FFFFFFF,
-	eRaygenBitNvx           = 0x00000100,
-	eAnyHitBitNvx           = 0x00000200,
-	eClosestHitBitNvx       = 0x00000400,
-	eMissBitNvx             = 0x00000800,
-	eIntersectionBitNvx     = 0x00001000,
-	eCallableBitNvx         = 0x00002000,
+	eRaygenBitNv            = 0x00000100,
+	eAnyHitBitNv            = 0x00000200,
+	eClosestHitBitNv        = 0x00000400,
+	eMissBitNv              = 0x00000800,
+	eIntersectionBitNv      = 0x00001000,
+	eCallableBitNv          = 0x00002000,
 	eTaskBitNv              = 0x00000040,
 	eMeshBitNv              = 0x00000080,
 };
@@ -269,6 +274,7 @@ enum class Filter : uint32_t {
 	eNearest  = 0,
 	eLinear   = 1,
 	eCubicImg = 1000015000,
+	eCubicExt = eCubicImg,
 };
 // Codegen </VkFilter>
 
@@ -320,8 +326,10 @@ enum class PrimitiveTopology : uint32_t {
 
 // Codegen <VkIndexType, uint32_t>
 enum class IndexType : uint32_t {
-	eUint16 = 0,
-	eUint32 = 1,
+	eUint16   = 0,
+	eUint32   = 1,
+	eNoneNv   = 1000165000,
+	eUint8Ext = 1000265000,
 };
 // Codegen </VkIndexType>
 
@@ -351,11 +359,12 @@ enum class BlendFactor : uint32_t {
 
 // Codegen <VkSamplerAddressMode, uint32_t>
 enum class SamplerAddressMode : uint32_t {
-	eRepeat            = 0,
-	eMirroredRepeat    = 1,
-	eClampToEdge       = 2,
-	eClampToBorder     = 3,
-	eMirrorClampToEdge = 4,
+	eRepeat               = 0,
+	eMirroredRepeat       = 1,
+	eClampToEdge          = 2,
+	eClampToBorder        = 3,
+	eMirrorClampToEdge    = 4,
+	eMirrorClampToEdgeKhr = eMirrorClampToEdge,
 };
 // Codegen </VkSamplerAddressMode>
 
@@ -524,8 +533,9 @@ static const char *to_str( const ImageType &lhs ) {
 
 // Codegen <VkImageTiling, uint32_t>
 enum class ImageTiling : uint32_t {
-	eOptimal = 0,
-	eLinear  = 1,
+	eOptimal              = 0,
+	eLinear               = 1,
+	eDrmFormatModifierExt = 1000158000,
 };
 // Codegen </VkImageTiling>
 
@@ -758,6 +768,20 @@ enum class Format {
 	ePvrtc14BppSrgbBlockImg                  = 1000054005,
 	ePvrtc22BppSrgbBlockImg                  = 1000054006,
 	ePvrtc24BppSrgbBlockImg                  = 1000054007,
+	eAstc4x4SfloatBlockExt                   = 1000066000,
+	eAstc5x4SfloatBlockExt                   = 1000066001,
+	eAstc5x5SfloatBlockExt                   = 1000066002,
+	eAstc6x5SfloatBlockExt                   = 1000066003,
+	eAstc6x6SfloatBlockExt                   = 1000066004,
+	eAstc8x5SfloatBlockExt                   = 1000066005,
+	eAstc8x6SfloatBlockExt                   = 1000066006,
+	eAstc8x8SfloatBlockExt                   = 1000066007,
+	eAstc10x5SfloatBlockExt                  = 1000066008,
+	eAstc10x6SfloatBlockExt                  = 1000066009,
+	eAstc10x8SfloatBlockExt                  = 1000066010,
+	eAstc10x10SfloatBlockExt                 = 1000066011,
+	eAstc12x10SfloatBlockExt                 = 1000066012,
+	eAstc12x12SfloatBlockExt                 = 1000066013,
 	eG8B8G8R8422UnormKhr                     = eG8B8G8R8422Unorm,
 	eB8G8R8G8422UnormKhr                     = eB8G8R8G8422Unorm,
 	eG8B8R83Plane420UnormKhr                 = eG8B8R83Plane420Unorm,
