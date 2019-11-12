@@ -588,7 +588,29 @@ generate_dot_file_for_rendergraph(
 		for ( size_t j = 0; j != p->resources.size(); j++ ) {
 			os << "<td cellpadding='3' port=\"";
 			auto const &r = p->resources[ j ];
-			os << r.debug_name << "\">" << r.debug_name << "</td>";
+			os << r.debug_name << "\">";
+
+			{
+				auto const needle = r;
+
+				size_t res_idx = 0; // unique resource id (monotonic, non-sparse, index into bitfield)
+				for ( auto ur = uniqueResources; res_idx != numUniqueResources; res_idx++, ur++ ) {
+					if ( *ur == needle ) {
+						// found matching resource, res_idx is index into uniqueHandles for resource
+						break;
+					}
+				}
+
+				// if resource is being written to, then underline resource name
+
+				if ( tasks[ i ].writes[ res_idx ] ) {
+					os << "<u>" << r.debug_name << "</u>";
+				} else {
+					os << r.debug_name;
+				}
+			}
+
+			os << "</td>";
 		}
 		os << "</tr></table>>];" << std::endl;
 	}
