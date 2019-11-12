@@ -12,6 +12,8 @@
 
 #include "le_renderer/private/le_renderer_types.h"
 
+#include <unistd.h> // for getexepath
+
 #include "3rdparty/src/spooky/SpookyV2.h" // for calculating rendergraph hash
 
 #ifndef PRINT_DEBUG_MESSAGES
@@ -549,6 +551,14 @@ static void tasks_calculate_sort_indices( Task const *const tasks, const size_t 
 		}
 	}
 }
+
+// returns path to current executable.
+std::string getexepath() {
+	char    result[ 1024 ];
+	ssize_t count = readlink( "/proc/self/exe", result, 1024 );
+	return std::string( result, ( count > 0 ) ? size_t( count ) : 0 );
+}
+
 // ----------------------------------------------------------------------
 // Generates a .dot file for graphviz which visualises renderpasses
 // and their resource dependencies. It will also show the sequencing
@@ -569,7 +579,14 @@ generate_dot_file_for_rendergraph(
 	os << "digraph g {" << std::endl;
 
 	os << "node [shape = plain,height=1,fontname=\"IBM Plex Sans\"];" << std::endl;
-	os << "graph [label=\"Island Rendergraph // Frame Number: " << frame_number << "\", splines=true, nodesep=0.7, fontname=\"IBM Plex Sans\", fontsize=12, labeljust=\"l\"];" << std::endl;
+	os << "graph [label=<"
+	   << "<table border='0' cellborder='0' cellspacing='0' cellpadding='3'>"
+	   << "<tr><td align='left'>Island Rendergraph</td></tr>"
+	   << "<tr><td align='left'>" << getexepath() << "</td></tr>"
+	   << "<tr><td align='left'>Frame № " << frame_number << "</td></tr>"
+	   << "</table>"
+	   << ">"
+	   << ", splines=true, nodesep=0.7, fontname=\"IBM Plex Sans\", fontsize=10, labeljust=\"l\"];" << std::endl;
 
 	for ( size_t i = 0; i != self->passes.size(); ++i ) {
 		auto const &p = self->passes[ i ];
