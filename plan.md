@@ -31,6 +31,8 @@
   cameras and handedness.
 
 ## (C)
+- job-queue: implement a way to not busy-wait, if there is nothing
+  more on the queue, if possible. 
 - It should not be possible accidentally to provide a texture handle
   for a `resource_handle` where we expect an image or buffer handle.
 - Compute Passes
