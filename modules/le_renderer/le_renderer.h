@@ -110,7 +110,7 @@ struct le_renderer_api {
 		void                 ( *destroy                ) ( le_rendergraph_o *self );
 		void                 ( *reset                  ) ( le_rendergraph_o *self );
 
-		void                 ( *build                  ) ( le_rendergraph_o *self );
+		void                 ( *build                  ) ( le_rendergraph_o *self, size_t frameNumber );
 		void                 ( *execute                ) ( le_rendergraph_o *self, size_t frameIndex, le_backend_o *backend );
 
 		void                 ( *get_passes             ) ( le_rendergraph_o *self, le_renderpass_o ***pPasses, size_t *pNumPasses );

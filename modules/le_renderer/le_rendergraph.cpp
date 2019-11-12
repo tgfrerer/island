@@ -12,11 +12,22 @@
 
 #include "le_renderer/private/le_renderer_types.h"
 
+#include "3rdparty/src/spooky/SpookyV2.h" // for calculating rendergraph hash
+
 #ifndef PRINT_DEBUG_MESSAGES
 #	define PRINT_DEBUG_MESSAGES false
 #endif
 
+#ifndef DEBUG_GENERATE_DOT_GRAPH
+#	ifndef NDEBUG
+#		define DEBUG_GENERATE_DOT_GRAPH true
+#	else
+#		define DEBUG_GENERATE_DOT_GRAPH false
+#	endif
+#endif
+
 #include <bitset>
+#include <set>
 
 constexpr size_t MAX_NUM_LAYER_RESOURCES   = 4096; // set this to larger value if you want to deal with a larger number of distinct resources.
 using BitField                             = std::bitset<MAX_NUM_LAYER_RESOURCES>;
@@ -206,7 +217,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 	    LE_IMAGE_USAGE_TRANSFER_SRC_BIT |             //
 	    LE_IMAGE_USAGE_SAMPLED_BIT |                  //
 	    LE_IMAGE_USAGE_STORAGE_BIT |                  // load, store, atomic
-	    LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |         //
+	    LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |         // assume read_write - but really, if clear, we don't need to read
 	    LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | //
 	    LE_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |     //
 	    LE_IMAGE_USAGE_INPUT_ATTACHMENT_BIT           //
@@ -538,6 +549,152 @@ static void tasks_calculate_sort_indices( Task const *const tasks, const size_t 
 		}
 	}
 }
+// ----------------------------------------------------------------------
+// Generates a .dot file for graphviz which visualises renderpasses
+// and their resource dependencies. It will also show the sequencing
+// of how renderpasses are executed, beginning at the top.
+//
+// The graphviz file is stored as graph.dot in the executable's directory.
+//
+static bool
+generate_dot_file_for_rendergraph(
+    le_rendergraph_o *    self,
+    le_resource_handle_t *uniqueResources,
+    size_t const &        numUniqueResources,
+    Task const *          tasks,
+    size_t                frame_number ) {
+
+	std::ostringstream os;
+
+	os << "digraph g {" << std::endl;
+
+	os << "node [shape = plain,height=1,fontname=\"IBM Plex Sans\"];" << std::endl;
+	os << "graph [label=\"Island Rendergraph // Frame Number: " << frame_number << "\", splines=true, nodesep=0.7, fontname=\"IBM Plex Sans\", fontsize=12, labeljust=\"l\"];" << std::endl;
+
+	for ( size_t i = 0; i != self->passes.size(); ++i ) {
+		auto const &p = self->passes[ i ];
+
+		if ( self->sortIndices[ i ] != ( ~0u ) ) {
+			os << p->debugName << "[label = <<table border='0' cellborder='1' cellspacing='0'><tr><td border='0' cellpadding='3'><b>" << p->debugName << "</b></td>";
+		} else {
+			os << p->debugName << "[label = <<table bgcolor='gray' border='0' cellborder='1' cellspacing='0'><tr><td border='0' cellpadding='3'><b>" << p->debugName << "</b></td>";
+		}
+
+		if ( p->resources.empty() ) {
+			os << "</tr></table>>];" << std::endl;
+			continue;
+		}
+
+		for ( size_t j = 0; j != p->resources.size(); j++ ) {
+			os << "<td cellpadding='3' port=\"";
+			auto const &r = p->resources[ j ];
+			os << r.debug_name << "\">" << r.debug_name << "</td>";
+		}
+		os << "</tr></table>>];" << std::endl;
+	}
+
+	// Indicate which passes are of the same rank,
+	// which we do by grouping passes by their sort order.
+
+	{
+		// we need to group elements with the same sort indices.
+
+		// -- get a set of sort indices
+		// -- for each sort index, list passes with this sort index
+
+		std::set<uint32_t> unique_sort_indices;
+
+		for ( auto &i : self->sortIndices ) {
+			unique_sort_indices.insert( i );
+		}
+
+		for ( auto const &i : unique_sort_indices ) {
+			if ( i == ( ~0u ) ) {
+				continue;
+			}
+			os << "{rank=same; ";
+			for ( size_t j = 0; j != self->sortIndices.size(); j++ ) {
+				if ( i == self->sortIndices[ j ] ) {
+					os << self->passes[ j ]->debugName << " ";
+				}
+			}
+			os << "}" << std::endl;
+		}
+	}
+
+	// Draw connections : A connection goes from each resource that
+	// has been written in a pass to all subsequent passes which read
+	// from this resource, until a pass writes to the resource again.
+
+	for ( size_t i = 0; i != self->passes.size(); ++i ) {
+		auto const &p = self->passes[ i ];
+
+		// For each resource: find passes which read from it subsequently, until
+		// the first pass writes to it again.
+
+		for ( size_t j = 0; j != p->resources.size(); j++ ) {
+			// find resources the current pass writes to.
+
+			auto const needle = p->resources[ j ];
+
+			size_t res_idx = 0; // unique resource id (monotonic, non-sparse, index into bitfield)
+			for ( auto r = uniqueResources; res_idx != numUniqueResources; res_idx++, r++ ) {
+				if ( *r == needle ) {
+					// found matching resource, res_idx is index into uniqueHandles for resource
+					break;
+				}
+			}
+
+			assert( res_idx != numUniqueResources && "something went wrong, handle could not be found in list of unique handles." );
+
+			if ( !tasks[ i ].writes[ res_idx ] ) {
+				continue;
+			}
+
+			// now we must find any subsequent tasks which read from this resource.
+
+			BitField res_filter = 1 << res_idx;
+
+			for ( size_t k = i + 1; k != self->passes.size(); k++ ) {
+				if ( ( tasks[ k ].reads & res_filter ).any() ||
+				     ( tasks[ k ].writes & tasks[ k ].reads & res_filter ).any() ) {
+
+					os << "\"" << p->debugName << "\":" << needle.debug_name << ":s"
+					   << " -> \"" << self->passes[ k ]->debugName << "\":"
+					   << needle.debug_name << ":n"
+					   << ( self->sortIndices[ k ] == ( ~0u ) ? "[style=dashed]" : "" )
+					   << ";" << std::endl;
+				}
+				if ( ( tasks[ k ].writes & res_filter ).any() ) {
+					break;
+				}
+			}
+		}
+	}
+
+	// for each resource in each pass, if it is a write resource:
+	// find the same resource in any subsequent passes which read from it,
+	// and create a write dependency
+	// until is it written to again.
+
+	os << "}" << std::endl;
+
+	auto write_to_file = []( char const *filename, std::ostringstream const &os ) {
+		FILE *out_file = fopen( filename, "wb" );
+		fprintf( out_file, "%s\n", os.str().c_str() );
+		fclose( out_file );
+	};
+
+	// We write to two files: "graph.dot",
+	// and then we write the same contents into a file with the frame number in the
+	// filename so that we may keep a history of rendergraphs...
+	char filename[ 32 ] = "graph.dot";
+	write_to_file( filename, os );
+	snprintf( filename, sizeof( filename ), "graph_%08zu.dot", frame_number );
+	write_to_file( filename, os );
+
+	return true;
+};
 
 // ----------------------------------------------------------------------
 // Calculate a topological order for passes within rendergraph.
@@ -551,7 +708,7 @@ static void tasks_calculate_sort_indices( Task const *const tasks, const size_t 
 // After completion this method guarantees that sortIndices constains a valid
 // sort index for each corresponding renderpass.
 //
-static void rendergraph_build( le_rendergraph_o *self ) {
+static void rendergraph_build( le_rendergraph_o *self, size_t frame_number ) {
 
 	// We must express our list of passes as a list of tasks.
 	// A task holds two bitfields, the bitfield names are: `read` and `write`.
@@ -625,9 +782,42 @@ static void rendergraph_build( le_rendergraph_o *self ) {
 		}
 	};
 
-	if ( PRINT_DEBUG_MESSAGES ) {
-		printPassList();
+#if ( DEBUG_GENERATE_DOT_GRAPH )
+	{
+		// We must check if the renderpass has somehow changed - if we detect change, save out a new .dot file.
+
+		// For the hash, we don't need it to be perfect, we just want to make sure that
+		// whenever something might have changed within the rendergraph, we generate a new .dot file.
+
+		// calculate hash over all unique resources
+
+		// calculate hash over all tasks, their signatures
+
+		std::hash<BitField> bit_hash;
+
+		std::vector<size_t> task_hashes;
+		task_hashes.reserve( tasks.size() * 2 );
+
+		for ( auto &t : tasks ) {
+			task_hashes.emplace_back( bit_hash( t.reads ) );
+			task_hashes.emplace_back( bit_hash( t.writes ) );
+		}
+
+		uint64_t tasks_hash = SpookyHash::Hash64( task_hashes.data(), sizeof( size_t ) * task_hashes.size(), 0 );
+		SpookyHash::Hash64( uniqueHandles.data(), sizeof( le_resource_handle_t ) * numUniqueResources, tasks_hash );
+
+		static uint64_t previous_hash = 0;
+
+		if ( previous_hash != tasks_hash ) {
+			generate_dot_file_for_rendergraph( self, uniqueHandles.data(), numUniqueResources, tasks.data(), frame_number );
+			previous_hash = tasks_hash;
+		}
 	}
+#endif
+
+#if ( PRINT_DEBUG_MESSAGES )
+	printPassList();
+#endif
 
 	{
 		// Remove any passes from rendergraph which do not contribute.
@@ -661,11 +851,11 @@ static void rendergraph_build( le_rendergraph_o *self ) {
 		std::swap( self->passes, consolidated_passes );
 		std::swap( self->sortIndices, consolidated_sort_indices );
 
-		if ( PRINT_DEBUG_MESSAGES ) {
-			std::cout << "* Consolidated Pass List *" << std::endl
-			          << std::flush;
-			printPassList();
-		}
+#if ( PRINT_DEBUG_MESSAGES )
+		std::cout << "* Consolidated Pass List *" << std::endl
+		          << std::flush;
+		printPassList();
+#endif
 	}
 }
 
@@ -708,7 +898,7 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 	using namespace le_renderer;
 	using namespace le_backend_vk;
 
-	// Receive one allocator per pass -
+	// Receive one allocator per renderer worker thread -
 	// allocators come from the frame's own pool
 	auto const ppAllocators = vk_backend_i.get_transient_allocators( backend, frameIndex );
 
@@ -840,7 +1030,7 @@ static void render_module_setup_passes( le_render_module_o *self, le_rendergraph
 		}
 	}
 
-	// Move any resource ids and resource infos to rendergraph
+	// Move any resource ids and resource infos from module into rendergraph
 	rendergraph_->declared_resources_id   = std::move( self->declared_resources_id );
 	rendergraph_->declared_resources_info = std::move( self->declared_resources_info );
 
