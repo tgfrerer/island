@@ -284,7 +284,13 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data ) {
 	    .useBufferResource( app->worldGeometry.index_buffer_handle, {LE_BUFFER_USAGE_TRANSFER_DST_BIT} ) //
 	    ;
 
-	return true;
+	return !app->worldGeometry.wasLoaded ||
+	       !app->imgEarthNight.wasLoaded ||
+	       !app->imgEarthAlbedo.wasLoaded ||
+	       !app->imgEarthNormals.wasLoaded ||
+	       !app->imgEarthNight.wasLoaded ||
+	       !app->imgEarthClouds.wasLoaded //
+	    ;
 }
 
 // ----------------------------------------------------------------------
@@ -420,7 +426,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	        .build();
 
 	rp
-	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
+	    .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE, le::ImageAttachmentInfoBuilder().setLoadOp( le::AttachmentLoadOp::eClear ).build() ) // color attachment
 	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER" ) )
 	    .sampleTexture( app->imgEarthAlbedo.imageSampler, texInfoAlbedo )
 	    .sampleTexture( app->imgEarthNight.imageSampler, texInfoNight )
@@ -428,7 +434,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	    .sampleTexture( app->imgEarthClouds.imageSampler, texInfoClouds )
 	    .useBufferResource( app->worldGeometry.vertex_buffer_handle, {LE_BUFFER_USAGE_VERTEX_BUFFER_BIT} )
 	    .useBufferResource( app->worldGeometry.index_buffer_handle, {LE_BUFFER_USAGE_INDEX_BUFFER_BIT} )
-	    .setIsRoot( true ) //
+
 	    ;
 
 	return true;
@@ -670,7 +676,7 @@ static bool hello_world_app_update( hello_world_app_o *self ) {
 		    .setExecuteCallback( self, pass_resource_exec ) //
 		    ;
 
-		le::RenderPass renderPassFinal( "root", LE_RENDER_PASS_TYPE_DRAW );
+		le::RenderPass renderPassFinal( "mainPass", LE_RENDER_PASS_TYPE_DRAW );
 		renderPassFinal
 		    .setSetupCallback( self, pass_main_setup )
 		    .setSampleCount( le::SampleCountFlagBits::e8 )
@@ -679,7 +685,8 @@ static bool hello_world_app_update( hello_world_app_o *self ) {
 
 		mainModule
 		    .addRenderPass( resourcePass )
-		    .addRenderPass( renderPassFinal )
+		    .addRenderPass( renderPassFinal );
+		mainModule
 		    .declareResource( self->worldGeometry.index_buffer_handle, self->worldGeometry.index_buffer_info )
 		    .declareResource( self->worldGeometry.vertex_buffer_handle, self->worldGeometry.vertex_buffer_info )
 		    .declareResource( self->imgEarthNight.imageHandle, self->imgEarthNight.imageInfo )
