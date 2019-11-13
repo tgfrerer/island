@@ -32,9 +32,9 @@ struct le_backend_vk_instance_o {
  * layer. (The following are otherwise disabled by default)
  * 
  */
-static const std::vector<vk::ValidationFeatureEnableEXT> enabledValidationFeatures{
-    //    vk::ValidationFeatureEnableEXT::eGpuAssisted,
-    //    vk::ValidationFeatureEnableEXT::eGpuAssistedReserveBindingSlot,
+static const vk::ValidationFeatureEnableEXT enabledValidationFeatures[] = {
+    // vk::ValidationFeatureEnableEXT::eGpuAssisted,
+    // vk::ValidationFeatureEnableEXT::eGpuAssistedReserveBindingSlot,
     vk::ValidationFeatureEnableEXT::eBestPractices,
 };
 
@@ -43,7 +43,7 @@ static const std::vector<vk::ValidationFeatureEnableEXT> enabledValidationFeatur
  * layer. (The following are otherwise enabled by default)
  * 
  */
-static const std::vector<vk::ValidationFeatureDisableEXT> disabledValidationFeatures{
+static const vk::ValidationFeatureDisableEXT disabledValidationFeatures[] = {
     // vk::ValidationFeatureDisableEXT::eAll,
     // vk::ValidationFeatureDisableEXT::eShaders,
     // vk::ValidationFeatureDisableEXT::eThreadSafety,
@@ -138,20 +138,13 @@ static void create_debug_messenger_callback( le_backend_vk_instance_o *obj ) {
 		return;
 	}
 
-	std::vector<const char *> instanceLayerNames = {};
-
 	vk::ValidationFeaturesEXT validationFeatures;
 	validationFeatures
 	    .setPNext( nullptr )
-	    .setEnabledValidationFeatureCount( uint32_t( enabledValidationFeatures.size() ) )
-	    .setPEnabledValidationFeatures( enabledValidationFeatures.data() )
-	    .setDisabledValidationFeatureCount( uint32_t( disabledValidationFeatures.size() ) )
-	    .setPDisabledValidationFeatures( disabledValidationFeatures.data() );
-
-	if ( SHOULD_USE_VALIDATION_LAYERS ) {
-		instanceLayerNames.push_back( "VK_LAYER_KHRONOS_validation" );
-		std::cout << "Debug instance layers added." << std::endl;
-	}
+	    .setEnabledValidationFeatureCount( uint32_t( sizeof( enabledValidationFeatures ) / sizeof( vk::ValidationFeatureEnableEXT ) ) )
+	    .setPEnabledValidationFeatures( enabledValidationFeatures )
+	    .setDisabledValidationFeatureCount( uint32_t( sizeof( disabledValidationFeatures ) / sizeof( vk::ValidationFeatureDisableEXT ) ) )
+	    .setPDisabledValidationFeatures( disabledValidationFeatures );
 
 	vk::DebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo;
 	debugMessengerCreateInfo
@@ -178,6 +171,7 @@ static void destroy_debug_messenger_callback( le_backend_vk_instance_o *obj ) {
 	}
 
 	obj->vkInstance.destroyDebugUtilsMessengerEXT( obj->debugMessenger );
+
 	obj->debugMessenger = nullptr;
 }
 
@@ -235,10 +229,10 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 	vk::ValidationFeaturesEXT validationFeatures;
 	validationFeatures
 	    .setPNext( nullptr )
-	    .setEnabledValidationFeatureCount( uint32_t( enabledValidationFeatures.size() ) )
-	    .setPEnabledValidationFeatures( enabledValidationFeatures.data() )
-	    .setDisabledValidationFeatureCount( uint32_t( disabledValidationFeatures.size() ) )
-	    .setPDisabledValidationFeatures( disabledValidationFeatures.data() );
+	    .setEnabledValidationFeatureCount( uint32_t( sizeof( enabledValidationFeatures ) / sizeof( vk::ValidationFeatureEnableEXT ) ) )
+	    .setPEnabledValidationFeatures( enabledValidationFeatures )
+	    .setDisabledValidationFeatureCount( uint32_t( sizeof( disabledValidationFeatures ) / sizeof( vk::ValidationFeatureDisableEXT ) ) )
+	    .setPDisabledValidationFeatures( disabledValidationFeatures );
 
 	if ( SHOULD_USE_VALIDATION_LAYERS ) {
 		instanceLayerNames.push_back( "VK_LAYER_KHRONOS_validation" );
