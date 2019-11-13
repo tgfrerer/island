@@ -13,6 +13,21 @@
 - add code example to readme which demonstrates something island does
   well
 
+# Unsorted
+- implement a basic retained renderer:
+    - draw basic shapes in 2d
+    - draw axes
+    - include default shader
+    - builds its own pipelines, sorts draw calls to minimise pipeline switches
+- implement a scene graph
+    - iterate through nodes, and allow attaching nodes
+    - interface nicely with ecs system
+    - implement a gizmo system
+- implement materials system
+    - based on filament
+    - import materials via gltf
+
+
 ## (A)
 - **relative size for renderpass attachments instead of absolute
   pixels dimensions** - the idea is that sometimes (like, with bloom)
@@ -26,13 +41,10 @@
 - embed shader code as spir-v
 - Architect a usability layer on top of base framework, which makes common
   operations easy, and DRY. Images are a good point to start.
-- implement automatic mip chain generation 
 - add a coordinate axes geometry generator - so that we can debug
   cameras and handedness.
 
 ## (C)
-- job-queue: implement a way to not busy-wait, if there is nothing
-  more on the queue, if possible. 
 - It should not be possible accidentally to provide a texture handle
   for a `resource_handle` where we expect an image or buffer handle.
 - Compute Passes
