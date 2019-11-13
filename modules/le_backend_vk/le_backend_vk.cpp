@@ -2507,10 +2507,14 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	// If a resource is not available yet, this resource must be allocated.
 
 	auto printResourceInfo = []( le_resource_handle_t const &handle, ResourceCreateInfo const &info ) {
-		std::cout << std::setw( 16 ) << handle.debug_name;
+		// when printing debug name we test whether the first glyph might be an utf-8 ellispis, in which
+		// case we must add two spaces to make up for the shorter length (in terms of glyphs) of the utf-8
+		// printout.
+		std::cout << ( handle.debug_name[ 0 ] == char( 0xe2 ) ? "  " : "" ) << std::setw( 32 ) << handle.debug_name;
 		if ( info.isBuffer() ) {
 			std::cout
-			    << " : " << std::dec << std::setw( 4 ) << ( info.bufferInfo.size )
+			    << " : " << std::dec << std::setw( 11 ) << ( info.bufferInfo.size )
+			    << " : " << std::setw( 30 ) << "-"
 			    << " : " << std::setw( 30 ) << to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) )
 			    << std::endl;
 		} else {
