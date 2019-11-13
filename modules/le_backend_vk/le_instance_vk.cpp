@@ -28,21 +28,21 @@ struct le_backend_vk_instance_o {
 };
 
 /*
-	 * Specify which validation layers to enable within Khronos validation
-	 * layer. (The following are otherwise disabled by default)
-	 * 
-	 */
+ * Specify which validation layers to enable within Khronos validation
+ * layer. (The following are otherwise disabled by default)
+ * 
+ */
 static const std::vector<vk::ValidationFeatureEnableEXT> enabledValidationFeatures{
-    vk::ValidationFeatureEnableEXT::eGpuAssisted,
-    vk::ValidationFeatureEnableEXT::eGpuAssistedReserveBindingSlot,
+    //    vk::ValidationFeatureEnableEXT::eGpuAssisted,
+    //    vk::ValidationFeatureEnableEXT::eGpuAssistedReserveBindingSlot,
     vk::ValidationFeatureEnableEXT::eBestPractices,
 };
 
 /* 
-	 * Specify which validation layers to disable within Khronos validation
-	 * layer. (The following are otherwise enabled by default)
-	 * 
-	 */
+ * Specify which validation layers to disable within Khronos validation
+ * layer. (The following are otherwise enabled by default)
+ * 
+ */
 static const std::vector<vk::ValidationFeatureDisableEXT> disabledValidationFeatures{
     // vk::ValidationFeatureDisableEXT::eAll,
     // vk::ValidationFeatureDisableEXT::eShaders,
