@@ -237,11 +237,9 @@ vulkan object id for each resource - indices match frame available
 resources vector.
 
 # Next Step Features
-- entity-component system for nodes
 - add materials for renderer
 - implement a post processing effects pipeline
 - implement pbrt materials based on gltf reference implementation
-- investigate intel performance primitives for multithreading
 - implement pipeline generation as a channeled op - per encoder first,
   then consolidate those elements generated within a frame
 
@@ -291,6 +289,10 @@ Multisampling is a property of the renderpass:
 - The "infer the obvious" principle - as a user of the api we want the
   renderer/engine to do the bookkeeping for us. 
 
+- The way renderpasses are skipped/pruned from the graph if the renderer
+  detects that they have no effect on swapchain. You can still force
+  renderpasses to be executed by marking them as "root"
+
 - Automatic mipmaps are auto-generated on image upload, if an image is
   declared with miplevels. If it is not declared with mip levels, no
   mipmap chain is generated.
@@ -307,6 +309,10 @@ Multisampling is a property of the renderpass:
   that they fit all their uses. This means we can reason locally about
   what we need from a resource, and the engine will give us a resource
   that can do it.
+
+- multisampling: it works almost magically: you specify the number of samples
+  per renderpass, and that's it. This is a really good example for a simple api
+  which protects you from great complexity.
 
 - The way we can just add attachments to renderpasses, and enable/disable
   depth buffer by not declaring it in the setup stage of the renderpass.
