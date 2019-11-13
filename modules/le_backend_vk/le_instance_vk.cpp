@@ -9,12 +9,13 @@
 #include <string>
 
 // Automatically disable Validation Layers for Release Builds
-#ifdef NDEBUG
-#	define SHOULD_USE_VALIDATION_LAYERS false
-#endif
 
 #ifndef SHOULD_USE_VALIDATION_LAYERS
-#	define SHOULD_USE_VALIDATION_LAYERS true
+#	ifdef NDEBUG
+#		define SHOULD_USE_VALIDATION_LAYERS false
+#	else
+#		define SHOULD_USE_VALIDATION_LAYERS true
+#	endif
 #endif
 
 // ----------------------------------------------------------------------
