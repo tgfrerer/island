@@ -26,6 +26,32 @@ struct le_backend_vk_instance_o {
 	std::vector<std::string> enabledInstanceExtensions{};
 };
 
+/*
+	 * Specify which validation layers to enable within Khronos validation
+	 * layer. (The following are otherwise disabled by default)
+	 * 
+	 */
+static const std::vector<vk::ValidationFeatureEnableEXT> enabledValidationFeatures{
+    vk::ValidationFeatureEnableEXT::eGpuAssisted,
+    vk::ValidationFeatureEnableEXT::eGpuAssistedReserveBindingSlot,
+    vk::ValidationFeatureEnableEXT::eBestPractices,
+};
+
+/* 
+	 * Specify which validation layers to disable within Khronos validation
+	 * layer. (The following are otherwise enabled by default)
+	 * 
+	 */
+static const std::vector<vk::ValidationFeatureDisableEXT> disabledValidationFeatures{
+    // vk::ValidationFeatureDisableEXT::eAll,
+    // vk::ValidationFeatureDisableEXT::eShaders,
+    // vk::ValidationFeatureDisableEXT::eThreadSafety,
+    // vk::ValidationFeatureDisableEXT::eApiParameters,
+    // vk::ValidationFeatureDisableEXT::eObjectLifetimes,
+    // vk::ValidationFeatureDisableEXT::eCoreChecks,
+    vk::ValidationFeatureDisableEXT::eUniqueHandles,
+};
+
 // ----------------------------------------------------------------------
 
 static bool instance_is_extension_available( le_backend_vk_instance_o *self, char const *extension_name ); //ffdecl
@@ -63,7 +89,7 @@ static VkBool32 debugUtilsMessengerCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT             messageType,
     const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-    void *                                      pUserData ) {
+    void * ) {
 
 	bool shouldBailout = VK_FALSE;
 
@@ -111,11 +137,27 @@ static void create_debug_messenger_callback( le_backend_vk_instance_o *obj ) {
 		return;
 	}
 
+	std::vector<const char *> instanceLayerNames = {};
+
+	vk::ValidationFeaturesEXT validationFeatures;
+	validationFeatures
+	    .setPNext( nullptr )
+	    .setEnabledValidationFeatureCount( uint32_t( enabledValidationFeatures.size() ) )
+	    .setPEnabledValidationFeatures( enabledValidationFeatures.data() )
+	    .setDisabledValidationFeatureCount( uint32_t( disabledValidationFeatures.size() ) )
+	    .setPDisabledValidationFeatures( disabledValidationFeatures.data() );
+
+	if ( SHOULD_USE_VALIDATION_LAYERS ) {
+		instanceLayerNames.push_back( "VK_LAYER_KHRONOS_validation" );
+		std::cout << "Debug instance layers added." << std::endl;
+	}
+
 	vk::DebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo;
 	debugMessengerCreateInfo
+	    .setPNext( SHOULD_USE_VALIDATION_LAYERS ? &validationFeatures : nullptr )
 	    .setFlags( {} )
-	    .setMessageSeverity( vk::DebugUtilsMessageSeverityFlagBitsEXT::eError | vk::DebugUtilsMessageSeverityFlagBitsEXT::eWarning )
-	    .setMessageType( vk::DebugUtilsMessageTypeFlagBitsEXT::eValidation | vk::DebugUtilsMessageTypeFlagBitsEXT::ePerformance | vk::DebugUtilsMessageTypeFlagBitsEXT::eGeneral )
+	    .setMessageSeverity( ~vk::DebugUtilsMessageSeverityFlagsEXT() ) // everything.
+	    .setMessageType( ~vk::DebugUtilsMessageTypeFlagsEXT() )         // everything.
 	    .setPfnUserCallback( debugUtilsMessengerCallback )
 	    .setPUserData( nullptr );
 
@@ -188,32 +230,6 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 	// -- Create a vector of requested instance layers
 
 	std::vector<const char *> instanceLayerNames = {};
-
-	/*
-	 * Specify which validation layers to enable within Khronos validation
-	 * layer. (The following are otherwise disabled by default)
-	 * 
-	 */
-	std::vector<vk::ValidationFeatureEnableEXT> enabledValidationFeatures{
-	    vk::ValidationFeatureEnableEXT::eGpuAssisted,
-	    vk::ValidationFeatureEnableEXT::eGpuAssistedReserveBindingSlot,
-	    vk::ValidationFeatureEnableEXT::eBestPractices,
-	};
-
-	/* 
-	 * Specify which validation layers to disable within Khronos validation
-	 * layer. (The following are otherwise enabled by default)
-	 * 
-	 */
-	std::vector<vk::ValidationFeatureDisableEXT> disabledValidationFeatures{
-	    // vk::ValidationFeatureDisableEXT::eAll,
-	    // vk::ValidationFeatureDisableEXT::eShaders,
-	    // vk::ValidationFeatureDisableEXT::eThreadSafety,
-	    // vk::ValidationFeatureDisableEXT::eApiParameters,
-	    // vk::ValidationFeatureDisableEXT::eObjectLifetimes,
-	    // vk::ValidationFeatureDisableEXT::eCoreChecks,
-	    vk::ValidationFeatureDisableEXT::eUniqueHandles,
-	};
 
 	vk::ValidationFeaturesEXT validationFeatures;
 	validationFeatures
