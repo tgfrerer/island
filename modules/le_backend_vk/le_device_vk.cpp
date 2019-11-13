@@ -34,7 +34,7 @@ struct le_device_o {
 	};
 
 	std::vector<std::string> enabledDeviceExtensions{
-		VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+	    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
 	};
 
 	DefaultQueueIndices defaultQueueIndices;
@@ -166,8 +166,6 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 
 	// query the gpu for more info about itself
 	device->vkPhysicalDeviceProperties = device->vkPhysicalDevice.getProperties();
-
-	//	ofLog() << "GPU Type: " << mPhysicalDeviceProperties.deviceName;
 
 	// let's find out the devices' memory properties
 	device->vkPhysicalDeviceMemoryProperties = device->vkPhysicalDevice.getMemoryProperties();
