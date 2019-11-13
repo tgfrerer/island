@@ -509,9 +509,8 @@ static void le_job_manager_wait_for_counter_and_free( counter_t *counter, uint32
 
 	if ( nullptr == current_worker ) {
 		for ( ; counter->data != target_value; ) {
-			// if this was called from a job,
-			// we should place this job on the wait queue
-			// and update the job's await_counter to be counter.
+			// called from the main thread - we must wait until
+			// all jobs which affect the counter have completed.
 			std::this_thread::sleep_for( std::chrono::nanoseconds( 100 ) );
 		}
 	} else {
