@@ -9,6 +9,7 @@
 #include <unordered_map>
 #include <iostream>
 #include <iomanip>
+#include <filesystem>
 
 #include "le_renderer/private/le_renderer_types.h"
 
@@ -553,7 +554,7 @@ static void tasks_calculate_sort_indices( Task const *const tasks, const size_t 
 }
 
 // returns path to current executable.
-std::string getexepath() {
+std::filesystem::path getexepath() {
 	char    result[ 1024 ];
 	ssize_t count = readlink( "/proc/self/exe", result, 1024 );
 	return std::string( result, ( count > 0 ) ? size_t( count ) : 0 );
@@ -574,6 +575,8 @@ generate_dot_file_for_rendergraph(
     Task const *          tasks,
     size_t                frame_number ) {
 
+	std::filesystem::path exe_path = getexepath();
+
 	std::ostringstream os;
 
 	os << "digraph g {" << std::endl;
@@ -582,7 +585,7 @@ generate_dot_file_for_rendergraph(
 	os << "graph [label=<"
 	   << "<table border='0' cellborder='0' cellspacing='0' cellpadding='3'>"
 	   << "<tr><td align='left'>Island Rendergraph</td></tr>"
-	   << "<tr><td align='left'>" << getexepath() << "</td></tr>"
+	   << "<tr><td align='left'>" << exe_path << "</td></tr>"
 	   << "<tr><td align='left'>Frame № " << frame_number << "</td></tr>"
 	   << "</table>"
 	   << ">"
@@ -725,15 +728,23 @@ generate_dot_file_for_rendergraph(
 		FILE *out_file = fopen( filename, "wb" );
 		fprintf( out_file, "%s\n", os.str().c_str() );
 		fclose( out_file );
+
+		std::cout << "Generated .dot file: '" << filename << "'" << std::endl
+		          << std::flush;
 	};
 
 	// We write to two files: "graph.dot",
 	// and then we write the same contents into a file with the frame number in the
 	// filename so that we may keep a history of rendergraphs...
 	char filename[ 32 ] = "graph.dot";
-	write_to_file( filename, os );
+
+	std::filesystem::path full_path = exe_path.parent_path() / filename;
+	write_to_file( full_path.c_str(), os );
+
 	snprintf( filename, sizeof( filename ), "graph_%08zu.dot", frame_number );
-	write_to_file( filename, os );
+
+	full_path = exe_path.parent_path() / filename;
+	write_to_file( full_path.c_str(), os );
 
 	return true;
 };
