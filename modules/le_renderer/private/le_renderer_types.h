@@ -98,7 +98,19 @@ constexpr le_resource_handle_t LE_RESOURCE( const char *const str, const LeResou
 #if ( LE_RESOURCE_LABEL_LENGTH > 0 )
 	auto c = str;
 	int  i = 0;
-	while ( *c != '\0' && i < LE_RESOURCE_LABEL_LENGTH - 1 ) {
+	while ( *c != '\0' ) {
+		if ( i == LE_RESOURCE_LABEL_LENGTH - 1 ) {
+			// If given string is longer than length reserved for label, we must
+			// push everything forward, and insert at the end, so that the label
+			// is more likely to contain the most significant elements.
+			for ( int j = 0; j != LE_RESOURCE_LABEL_LENGTH - 2; ++j ) {
+				h.debug_name[ j ] = h.debug_name[ j + 1 ];
+				h.debug_name[ 0 ] = char( 0xE2 ); // 0xE2 0x80 0xA6 -- utf-8 ellipsis
+				h.debug_name[ 1 ] = char( 0x80 );
+				h.debug_name[ 2 ] = char( 0xA6 );
+			}
+			i = LE_RESOURCE_LABEL_LENGTH - 2;
+		}
 		h.debug_name[ i++ ] = *c++;
 	}
 #else
