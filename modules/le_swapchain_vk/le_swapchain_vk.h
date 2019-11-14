@@ -45,9 +45,9 @@ struct le_swapchain_vk_api {
 
 	// clang-format on
 
-	swapchain_interface_t swapchain_i;     // base interface, forwards to either:
-	swapchain_interface_t swapchain_khr_i; // khr swapchain interface
-	swapchain_interface_t swapchain_img_i; // image swapchain interface
+	swapchain_interface_t swapchain_i;     // base (public) interface, forwards to either:
+	swapchain_interface_t swapchain_khr_i; // (private) khr swapchain interface
+	swapchain_interface_t swapchain_img_i; // (private) image swapchain interface
 };
 
 #ifdef __cplusplus

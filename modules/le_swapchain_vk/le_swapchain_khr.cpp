@@ -94,19 +94,19 @@ static vk::PresentModeKHR get_khr_presentmode( const le_swapchain_settings_t::kh
 	using PresentMode = le_swapchain_settings_t::khr_settings_t::Presentmode;
 	switch ( presentmode_hint_ ) {
 	case ( PresentMode::eDefault ):
-	    return vk::PresentModeKHR::eFifo;
+		return vk::PresentModeKHR::eFifo;
 	case ( PresentMode::eImmediate ):
-	    return vk::PresentModeKHR::eImmediate;
+		return vk::PresentModeKHR::eImmediate;
 	case ( PresentMode::eMailbox ):
-	    return vk::PresentModeKHR::eMailbox;
+		return vk::PresentModeKHR::eMailbox;
 	case ( PresentMode::eFifo ):
-	    return vk::PresentModeKHR::eFifo;
+		return vk::PresentModeKHR::eFifo;
 	case ( PresentMode::eFifoRelaxed ):
-	    return vk::PresentModeKHR::eFifoRelaxed;
+		return vk::PresentModeKHR::eFifoRelaxed;
 	case ( PresentMode::eSharedDemandRefresh ):
-	    return vk::PresentModeKHR::eSharedDemandRefresh;
+		return vk::PresentModeKHR::eSharedDemandRefresh;
 	case ( PresentMode::eSharedContinuousRefresh ):
-	    return vk::PresentModeKHR::eSharedContinuousRefresh;
+		return vk::PresentModeKHR::eSharedContinuousRefresh;
 	}
 	assert( false ); // something's wrong: control should never come here, switch needs to cover all cases.
 	return vk::PresentModeKHR::eFifo;
@@ -142,7 +142,7 @@ static void swapchain_khr_reset( le_swapchain_o *base, const le_swapchain_settin
 
 	assert( self->mSettings.type == le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN );
 
-	//	::vk::Result err = ::vk::Result::eSuccess;
+	//	vk::Result err = ::vk::Result::eSuccess;
 
 	// The surface in SwapchainSettings::windowSurface has been assigned by glfwwindow, through glfw,
 	// just before this setup() method was called.
@@ -188,7 +188,7 @@ static void swapchain_khr_reset( le_swapchain_o *base, const le_swapchain_settin
 		          << std::flush;
 	}
 
-	::vk::SurfaceTransformFlagBitsKHR preTransform;
+	vk::SurfaceTransformFlagBitsKHR preTransform;
 	// Note: this will be interesting for mobile devices
 	// - if rotation and mirroring for the final output can
 	// be defined here.
@@ -199,7 +199,7 @@ static void swapchain_khr_reset( le_swapchain_o *base, const le_swapchain_settin
 		preTransform = surfaceCapabilities.currentTransform;
 	}
 
-	::vk::SwapchainCreateInfoKHR swapChainCreateInfo;
+	vk::SwapchainCreateInfoKHR swapChainCreateInfo;
 
 	swapChainCreateInfo
 	    .setSurface( self->mSettings.khr_settings.vk_surface )
@@ -280,7 +280,7 @@ static bool swapchain_khr_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 	switch ( result ) {
 	case VK_SUCCESS:
 		self->mImageIndex = imageIndex_;
-	    return true;
+		return true;
 	case VK_SUBOPTIMAL_KHR:         // | fall-through
 	case VK_ERROR_SURFACE_LOST_KHR: // |
 	case VK_ERROR_OUT_OF_DATE_KHR:  // |
@@ -288,7 +288,7 @@ static bool swapchain_khr_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 		return false;
 	}
 	default:
-	    return false;
+		return false;
 	}
 }
 
