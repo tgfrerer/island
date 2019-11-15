@@ -20,7 +20,6 @@ include ("${ISLAND_BASE_DIR}CMakeLists.txt.island_prolog.in")
 add_subdirectory (triangle_app)
 
 # Specify any optional modules from the standard framework here
-add_island_module(le_pipeline_builder)
 add_island_module(le_camera)
 
 # Main application c++ file. Not much to see there,
