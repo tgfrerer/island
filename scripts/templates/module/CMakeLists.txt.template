@@ -1,5 +1,8 @@
 set (TARGET @module_name@)
 
+# list modules this module depends on
+# depends_on_island_module(le_path)
+
 set (SOURCES "@module_name@.cpp")
 set (SOURCES ${SOURCES} "@module_name@.h")
 
