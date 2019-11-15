@@ -3,7 +3,14 @@ set (CMAKE_CXX_STANDARD 20)
 
 set (PROJECT_NAME "Island-Triangle")
 
+# Set global property (all targets are impacted)
+set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CMAKE_COMMAND} -E time")
+set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK "${CMAKE_COMMAND} -E time")
+
 project (${PROJECT_NAME})
+
+# set to number of worker threads if you wish to use multi-threaded rendering
+# add_compile_definitions( LE_MT=4 )
 
 # Point this to the base directory of your Island installation
 set (ISLAND_BASE_DIR "${PROJECT_SOURCE_DIR}/../../../")
