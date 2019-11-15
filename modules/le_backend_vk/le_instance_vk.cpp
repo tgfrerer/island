@@ -24,7 +24,7 @@ struct le_backend_vk_instance_o {
 	vk::Instance               vkInstance     = nullptr;
 	vk::DebugUtilsMessengerEXT debugMessenger = nullptr;
 
-	std::vector<std::string> enabledInstanceExtensions{};
+	std::set<std::string> instanceExtensionSet{};
 };
 
 /*
@@ -57,6 +57,8 @@ static const vk::ValidationFeatureDisableEXT disabledValidationFeatures[] = {
 
 static bool instance_is_extension_available( le_backend_vk_instance_o *self, char const *extension_name ); //ffdecl
 
+// ----------------------------------------------------------------------
+
 #define DECLARE_EXT_PFN( proc )    \
 	static PFN_##proc pfn_##proc { \
 	}
@@ -65,7 +67,9 @@ DECLARE_EXT_PFN( vkCreateDebugUtilsMessengerEXT );
 DECLARE_EXT_PFN( vkDestroyDebugUtilsMessengerEXT );
 #undef DECLARE_EXT_PFN
 
-void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
+// ----------------------------------------------------------------------
+
+static void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
 
 #define GET_EXT_PROC_ADDR( proc ) \
 	pfn_##proc = reinterpret_cast<PFN_##proc>( obj->vkInstance.getProcAddr( #proc ) )
@@ -179,7 +183,7 @@ static void destroy_debug_messenger_callback( le_backend_vk_instance_o *obj ) {
 
 le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, uint32_t numExtensionNames_ ) {
 
-	auto instance = new le_backend_vk_instance_o();
+	auto self = new le_backend_vk_instance_o();
 
 	static_assert( VK_HEADER_VERSION >= 121, "Wrong VK_HEADER_VERSION!" );
 
@@ -193,32 +197,18 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 
 	// -- create a vector of unique requested instance extension names
 
-	std::set<std::string> instanceExtensionSet{};
-
-	instanceExtensionSet.emplace( VK_KHR_SURFACE_EXTENSION_NAME );
-
 	if ( SHOULD_USE_VALIDATION_LAYERS ) {
-		instanceExtensionSet.emplace( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
+		self->instanceExtensionSet.insert( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
 	}
 
 	// Merge with user-requested extensions
 	for ( uint32_t i = 0; i != numExtensionNames_; ++i ) {
-		instanceExtensionSet.emplace( extensionNamesArray_[ i ] );
-	}
-
-	{
-		// Store requested instance extensions with instance so that
-		// we may query later.
-		instance->enabledInstanceExtensions.reserve( instanceExtensionSet.size() );
-
-		for ( auto &e : instanceExtensionSet ) {
-			instance->enabledInstanceExtensions.push_back( e );
-		}
+		self->instanceExtensionSet.insert( extensionNamesArray_[ i ] );
 	}
 
 	std::vector<const char *> instanceExtensionCstr{};
 
-	for ( auto &e : instance->enabledInstanceExtensions ) {
+	for ( auto &e : self->instanceExtensionSet ) {
 		instanceExtensionCstr.push_back( e.c_str() );
 	}
 
@@ -257,18 +247,18 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 	    .setEnabledExtensionCount( uint32_t( instanceExtensionCstr.size() ) )
 	    .setPpEnabledExtensionNames( instanceExtensionCstr.data() );
 
-	instance->vkInstance = vk::createInstance( info );
+	self->vkInstance = vk::createInstance( info );
 
-	le_backend_vk::api->cUniqueInstance = instance;
+	le_backend_vk::api->cUniqueInstance = self;
 
 	if ( SHOULD_USE_VALIDATION_LAYERS ) {
-		patchExtProcAddrs( instance );
-		create_debug_messenger_callback( instance );
+		patchExtProcAddrs( self );
+		create_debug_messenger_callback( self );
 		std::cout << "VULKAN VALIDATION LAYERS ACTIVE." << std::endl;
 	}
 
 	std::cout << "Instance created." << std::endl;
-	return instance;
+	return self;
 }
 
 // ----------------------------------------------------------------------
@@ -290,14 +280,7 @@ static VkInstance_T *instance_get_vk_instance( le_backend_vk_instance_o *obj ) {
 // ----------------------------------------------------------------------
 
 static bool instance_is_extension_available( le_backend_vk_instance_o *self, char const *extension_name ) {
-
-	for ( auto const &e : self->enabledInstanceExtensions ) {
-		if ( e == std::string( extension_name ) ) {
-			return true;
-		}
-	}
-
-	return false;
+	return self->instanceExtensionSet.find( extension_name ) != self->instanceExtensionSet.end();
 }
 
 // ----------------------------------------------------------------------

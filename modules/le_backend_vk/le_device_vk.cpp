@@ -33,9 +33,7 @@ struct le_device_o {
 		uint32_t sparseBinding = ~uint32_t( 0 );
 	};
 
-	std::vector<std::string> enabledDeviceExtensions{
-	    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-	};
+	std::set<std::string> requestedDeviceExtensions;
 
 	DefaultQueueIndices defaultQueueIndices;
 	vk::Format          defaultDepthStencilFormat;
@@ -150,9 +148,9 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 
 // ----------------------------------------------------------------------
 
-le_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
+le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **extension_names, uint32_t extension_names_count ) {
 
-	le_device_o *device = new le_device_o{};
+	le_device_o *self = new le_device_o{};
 
 	using namespace le_backend_vk;
 
@@ -162,27 +160,27 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 	// CONSIDER: find the best appropriate GPU
 	// Select a physical device (GPU) from the above queried list of options.
 	// For now, we assume the first one to be the best one.
-	device->vkPhysicalDevice = deviceList.front();
+	self->vkPhysicalDevice = deviceList.front();
 
 	// query the gpu for more info about itself
-	device->vkPhysicalDeviceProperties = device->vkPhysicalDevice.getProperties();
+	self->vkPhysicalDeviceProperties = self->vkPhysicalDevice.getProperties();
 
 	// let's find out the devices' memory properties
-	device->vkPhysicalDeviceMemoryProperties = device->vkPhysicalDevice.getMemoryProperties();
+	self->vkPhysicalDeviceMemoryProperties = self->vkPhysicalDevice.getMemoryProperties();
 
 	// Check which features must be switched on for default operations.
 	// For now, we just make sure we can draw with lines.
 	//
 	// TODO: We should add settings to renderer which specify required device features
-	vk::PhysicalDeviceFeatures deviceFeatures = device->vkPhysicalDevice.getFeatures();
+	vk::PhysicalDeviceFeatures deviceFeatures = self->vkPhysicalDevice.getFeatures();
 	deviceFeatures
 	    .setFillModeNonSolid( VK_TRUE ) // allow wireframe drawing
 	    ;
 
-	const auto &queueFamilyProperties = device->vkPhysicalDevice.getQueueFamilyProperties();
+	const auto &queueFamilyProperties = self->vkPhysicalDevice.getQueueFamilyProperties();
 
 	// See findBestMatchForRequestedQueues for how this tuple is laid out.
-	auto queriedQueueFamilyAndIndex = findBestMatchForRequestedQueues( queueFamilyProperties, device->queuesWithCapabilitiesRequest );
+	auto queriedQueueFamilyAndIndex = findBestMatchForRequestedQueues( queueFamilyProperties, self->queuesWithCapabilitiesRequest );
 
 	// Consolidate queues by queue family type - this will also sort by queue family type.
 	{
@@ -218,14 +216,28 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 			createInfos.emplace_back( std::move( queueCreateInfo ) );
 		}
 
-		// TODO: make this optional - get this from outside world.
-
 		std::vector<const char *> enabledDeviceExtensionNames;
 
-		enabledDeviceExtensionNames.reserve( device->enabledDeviceExtensions.size() );
+		{
+			// We consolidate all requested device extensions in a set,
+			// so that we can be sure that each of the names requested
+			// is unique.
 
-		for ( auto const &ext : device->enabledDeviceExtensions ) {
-			enabledDeviceExtensionNames.emplace_back( ext.c_str() );
+			auto const extensions_names_end = extension_names + extension_names_count;
+
+			for ( auto ext = extension_names; ext != extensions_names_end; ++ext ) {
+				self->requestedDeviceExtensions.insert( *ext );
+			}
+
+			// We then copy the strings with the names for requested extensions
+			// into this object's storage, so that we can be sure the pointers
+			// will not go stale.
+
+			enabledDeviceExtensionNames.reserve( self->requestedDeviceExtensions.size() );
+
+			for ( auto const &ext : self->requestedDeviceExtensions ) {
+				enabledDeviceExtensionNames.emplace_back( ext.c_str() );
+			}
 		}
 
 		vk::DeviceCreateInfo deviceCreateInfo;
@@ -239,29 +251,29 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 		    .setPEnabledFeatures( &deviceFeatures );
 
 		// Create device
-		device->vkDevice = device->vkPhysicalDevice.createDevice( deviceCreateInfo );
+		self->vkDevice = self->vkPhysicalDevice.createDevice( deviceCreateInfo );
 	}
 
 	// Store queue flags, and queue family index per queue into renderer properties,
 	// so that queue capabilities and family index may be queried thereafter.
 
-	device->queueFamilyIndices.resize( device->queuesWithCapabilitiesRequest.size() );
-	device->queues.resize( queriedQueueFamilyAndIndex.size() );
+	self->queueFamilyIndices.resize( self->queuesWithCapabilitiesRequest.size() );
+	self->queues.resize( queriedQueueFamilyAndIndex.size() );
 
 	// Fetch queue handle into mQueue, matching indices with the original queue request vector
 	for ( auto &q : queriedQueueFamilyAndIndex ) {
-		const auto &queueFamilyIndex                      = std::get<0>( q );
-		const auto &queueIndex                            = std::get<1>( q );
-		const auto &requestedQueueIndex                   = std::get<2>( q );
-		device->queues[ requestedQueueIndex ]             = device->vkDevice.getQueue( queueFamilyIndex, queueIndex );
-		device->queueFamilyIndices[ requestedQueueIndex ] = queueFamilyIndex;
+		const auto &queueFamilyIndex                    = std::get<0>( q );
+		const auto &queueIndex                          = std::get<1>( q );
+		const auto &requestedQueueIndex                 = std::get<2>( q );
+		self->queues[ requestedQueueIndex ]             = self->vkDevice.getQueue( queueFamilyIndex, queueIndex );
+		self->queueFamilyIndices[ requestedQueueIndex ] = queueFamilyIndex;
 	}
 
 	// Populate indices for default queues - so that default queue may be queried by queue type
-	device->defaultQueueIndices.graphics      = findClosestMatchingQueueIndex( device->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eGraphics );
-	device->defaultQueueIndices.compute       = findClosestMatchingQueueIndex( device->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eCompute );
-	device->defaultQueueIndices.transfer      = findClosestMatchingQueueIndex( device->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eTransfer );
-	device->defaultQueueIndices.sparseBinding = findClosestMatchingQueueIndex( device->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eSparseBinding );
+	self->defaultQueueIndices.graphics      = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eGraphics );
+	self->defaultQueueIndices.compute       = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eCompute );
+	self->defaultQueueIndices.transfer      = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eTransfer );
+	self->defaultQueueIndices.sparseBinding = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eSparseBinding );
 
 	// Query possible depth formats, find the
 	// first format that supports attachment as a depth stencil
@@ -276,15 +288,15 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_ ) {
 	    vk::Format::eD16UnormS8Uint};
 
 	for ( auto &format : depthFormats ) {
-		vk::FormatProperties formatProps = device->vkPhysicalDevice.getFormatProperties( format );
+		vk::FormatProperties formatProps = self->vkPhysicalDevice.getFormatProperties( format );
 		// Format must support depth stencil attachment for optimal tiling
 		if ( formatProps.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment ) {
-			device->defaultDepthStencilFormat = format;
+			self->defaultDepthStencilFormat = format;
 			break;
 		}
 	}
 
-	return device;
+	return self;
 };
 
 // ----------------------------------------------------------------------
@@ -397,15 +409,10 @@ static bool device_get_memory_allocation_info( le_device_o *               self,
 	return true;
 }
 
+// ----------------------------------------------------------------------
+
 static bool device_is_extension_available( le_device_o *self, char const *extension_name ) {
-
-	for ( auto const &e : self->enabledDeviceExtensions ) {
-		if ( e == std::string{extension_name} ) {
-			return true;
-		}
-	}
-
-	return false;
+	return self->requestedDeviceExtensions.find( extension_name ) != self->requestedDeviceExtensions.end();
 }
 
 // ----------------------------------------------------------------------

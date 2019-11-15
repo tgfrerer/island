@@ -63,11 +63,13 @@ struct VkFormatEnum; // wrapper around `vk::Format`. Defined in <le_backend_type
 struct le_resource_info_t;
 
 struct le_backend_vk_settings_t {
-	const char **            requestedExtensions    = nullptr;
-	uint32_t                 numRequestedExtensions = 0;
-	uint32_t                 concurrency_count      = 1;       // number of potential worker threads
-	pal_window_o *           pWindow                = nullptr; // non-owning, owned by application. Application must outlive backend.
-	le_swapchain_settings_t *pSwapchain_settings    = nullptr; // non-owning, owned by caller of setup method.
+	const char **            requestedInstanceExtensions    = nullptr;
+	uint32_t                 numRequestedInstanceExtensions = 0;
+	const char **            requestedDeviceExtensions      = nullptr;
+	uint32_t                 numRequestedDeviceExtensions   = 0;
+	uint32_t                 concurrency_count              = 1;       // number of potential worker threads
+	pal_window_o *           pWindow                        = nullptr; // non-owning, owned by application. Application must outlive backend.
+	le_swapchain_settings_t *pSwapchain_settings            = nullptr; // non-owning, owned by caller of setup method.
 };
 
 struct le_pipeline_layout_info {
@@ -154,7 +156,7 @@ struct le_backend_vk_api {
 	};
 
 	struct device_interface_t {
-		le_device_o *    ( *create                                  ) ( le_backend_vk_instance_o* instance_ );
+		le_device_o *               ( *create                                  ) ( le_backend_vk_instance_o* instance_, const char **extension_names, uint32_t extension_names_count );
 		void                        ( *destroy                                 ) ( le_device_o* self_ );
 
 		void                        ( *decrease_reference_count                ) ( le_device_o* self_ );
@@ -299,8 +301,8 @@ class Device : NoCopy, NoMove {
 	le_device_o *self = nullptr;
 
   public:
-	Device( le_backend_vk_instance_o *instance_ )
-	    : self( le_backend_vk::vk_device_i.create( instance_ ) ) {
+	Device( le_backend_vk_instance_o *instance_, const char **extension_names, uint32_t extension_names_count )
+	    : self( le_backend_vk::vk_device_i.create( instance_, extension_names, extension_names_count ) ) {
 		le_backend_vk::vk_device_i.increase_reference_count( self );
 	}
 

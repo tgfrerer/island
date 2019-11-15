@@ -585,19 +585,19 @@ void register_pal_window_api( void *api ) {
 
 	auto windowApi = static_cast<pal_window_api *>( api );
 
-	windowApi->init                       = init;
-	windowApi->terminate                  = terminate;
-	windowApi->pollEvents                 = pollEvents;
-	windowApi->get_required_vk_extensions = get_required_vk_instance_extensions;
+	windowApi->init                                = init;
+	windowApi->terminate                           = terminate;
+	windowApi->pollEvents                          = pollEvents;
+	windowApi->get_required_vk_instance_extensions = get_required_vk_instance_extensions;
 
-	auto &window_i              = windowApi->window_i;
-	window_i.create             = window_create;
-	window_i.destroy            = window_destroy;
-	window_i.setup              = window_setup;
-	window_i.should_close       = window_should_close;
-	window_i.get_surface_width  = window_get_surface_width;
-	window_i.get_surface_height = window_get_surface_height;
-	window_i.create_surface     = window_create_surface;
+	auto &window_i                    = windowApi->window_i;
+	window_i.create                   = window_create;
+	window_i.destroy                  = window_destroy;
+	window_i.setup                    = window_setup;
+	window_i.should_close             = window_should_close;
+	window_i.get_surface_width        = window_get_surface_width;
+	window_i.get_surface_height       = window_get_surface_height;
+	window_i.create_surface           = window_create_surface;
 	window_i.increase_reference_count = window_increase_reference_count;
 	window_i.decrease_reference_count = window_decrease_reference_count;
 	window_i.get_reference_count      = window_get_reference_count;

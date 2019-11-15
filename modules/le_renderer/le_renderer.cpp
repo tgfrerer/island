@@ -160,8 +160,8 @@ static void renderer_setup( le_renderer_o *self, le_renderer_settings_t const &s
 			// so that the list of requested extensions for backend
 			// may be appended.
 
-			backend_settings.requestedExtensions    = nullptr;
-			backend_settings.numRequestedExtensions = 0;
+			backend_settings.requestedInstanceExtensions    = nullptr;
+			backend_settings.numRequestedInstanceExtensions = 0;
 		}
 
 #if ( LE_MT > 0 )

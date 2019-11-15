@@ -59,7 +59,7 @@ struct pal_window_api {
 	void          ( *terminate                  ) ();
 	void          ( *pollEvents                 ) ();
 
-	const char ** ( *get_required_vk_extensions ) ( uint32_t *count );
+	const char ** ( *get_required_vk_instance_extensions ) ( uint32_t *count );
 
 
 	window_interface_t          window_i;
@@ -144,8 +144,6 @@ class Window : NoMove, NoCopy {
 		return pal_window::window_i.should_close( self );
 	}
 
-
-
 	void toggleFullscreen() {
 		pal_window::window_i.toggle_fullscreen( self );
 	}
@@ -171,7 +169,7 @@ class Window : NoMove, NoCopy {
 	}
 
 	static const char **getRequiredVkExtensions( uint32_t *count ) {
-		return pal_window::api->get_required_vk_extensions( count );
+		return pal_window::api->get_required_vk_instance_extensions( count );
 	}
 };
 

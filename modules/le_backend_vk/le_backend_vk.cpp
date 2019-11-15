@@ -791,9 +791,10 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 		exit( 1 );
 	}
 
-	// -- if window surface, query required vk extensions from glfw
+	// -- collect requested instance extension names from swapchain, window system
 
 	std::vector<char const *> requestedInstanceExtensions;
+	std::vector<char const *> requestedDeviceExtensions;
 	{
 		if ( settings->pWindow ) {
 
@@ -807,11 +808,45 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 			                                    glfwRequiredExtensions + extensionCount );
 		}
 
+		{
+			// insert any instance extensions requested via the swapchain.
+
+			char const **exts;
+			size_t       num_exts;
+
+			le_swapchain_vk::swapchain_i.get_required_vk_instance_extensions( settings->pSwapchain_settings, &exts, &num_exts );
+
+			if ( num_exts ) {
+				requestedInstanceExtensions.insert( requestedInstanceExtensions.end(), exts, exts + num_exts );
+			}
+		}
+
 		// -- insert any additionally requested extensions
 		requestedInstanceExtensions.insert( requestedInstanceExtensions.end(),
-		                                    settings->requestedExtensions,
-		                                    settings->requestedExtensions + settings->numRequestedExtensions );
+		                                    settings->requestedInstanceExtensions,
+		                                    settings->requestedInstanceExtensions + settings->numRequestedInstanceExtensions );
 	}
+	{
+
+		{
+			// insert any device extensions requested via the swapchain.
+
+			char const **exts;
+			size_t       num_exts;
+
+			le_swapchain_vk::swapchain_i.get_required_vk_device_extensions( settings->pSwapchain_settings, &exts, &num_exts );
+
+			if ( num_exts ) {
+				requestedDeviceExtensions.insert( requestedDeviceExtensions.end(), exts, exts + num_exts );
+			}
+		}
+
+		// -- insert any additionally requested extensions
+		requestedDeviceExtensions.insert( requestedDeviceExtensions.end(),
+		                                  settings->requestedDeviceExtensions,
+		                                  settings->requestedDeviceExtensions + settings->numRequestedDeviceExtensions );
+	}
+
 	// -- initialise backend
 
 	{
