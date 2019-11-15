@@ -113,9 +113,10 @@ struct le_backend_vk_api {
 	};
 
 	struct private_backend_vk_interface_t {
-		le_device_o*        (*get_le_device            )(le_backend_o* self);
-		VkDevice_T*         (*get_vk_device            )(le_backend_o* self);
-		VkPhysicalDevice_T* (*get_vk_physical_device   )(le_backend_o* self);
+		le_device_o*              ( *get_le_device            )(le_backend_o* self);
+		le_backend_vk_instance_o* ( *get_instance             )(le_backend_o* self);
+		VkDevice_T*               ( *get_vk_device            )(le_backend_o* self);
+		VkPhysicalDevice_T*       ( *get_vk_physical_device   )(le_backend_o* self);
 
 		int32_t ( *allocate_image )
 		(
@@ -291,31 +292,6 @@ class Backend : NoCopy, NoMove {
 
 	bool dispatchFrame( size_t frameIndex ) {
 		return le_backend_vk::vk_backend_i.dispatch_frame( self, frameIndex );
-	}
-};
-
-class Instance {
-	le_backend_vk_instance_o *self = nullptr;
-
-  public:
-	Instance( const char **extensionsArray_ = nullptr, uint32_t numExtensions_ = 0 )
-	    : self( le_backend_vk::vk_instance_i.create( extensionsArray_, numExtensions_ ) ) {
-	}
-
-	~Instance() {
-		le_backend_vk::vk_instance_i.destroy( self );
-	}
-
-	VkInstance_T *getVkInstance() {
-		return le_backend_vk::vk_instance_i.get_vk_instance( self );
-	}
-
-	bool isExtensionAvailable( char const *extensionName ) {
-		return le_backend_vk::vk_instance_i.is_extension_available( self, extensionName );
-	}
-
-	operator auto() {
-		return self;
 	}
 };
 

@@ -408,8 +408,8 @@ static const vk::BufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =
 /// \brief backend data object
 struct le_backend_o {
 
-	std::unique_ptr<le::Instance> instance;
-	std::unique_ptr<le::Device>   device;
+	le_backend_vk_instance_o *  instance;
+	std::unique_ptr<le::Device> device;
 
 	pal_window_o *  window    = nullptr; // Non-owning
 	le_swapchain_o *swapchain = nullptr; // Owning.
@@ -475,7 +475,8 @@ static inline void vk_format_get_is_depth_stencil( vk::Format format_, bool &isD
 static vk::SurfaceKHR backend_create_window_surface( le_backend_o *self ) {
 	if ( self->window ) {
 		using namespace pal_window;
-		return window_i.create_surface( self->window, self->instance->getVkInstance() );
+		vk::Instance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
+		return window_i.create_surface( self->window, instance );
 	}
 	return nullptr;
 }
@@ -483,7 +484,7 @@ static vk::SurfaceKHR backend_create_window_surface( le_backend_o *self ) {
 // ----------------------------------------------------------------------
 static void backend_destroy_window_surface( le_backend_o *self ) {
 	if ( self->windowSurface ) {
-		vk::Instance instance = self->instance->getVkInstance();
+		vk::Instance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
 		instance.destroySurfaceKHR( self->windowSurface );
 		std::cout << "Surface was destroyed." << std::endl
 		          << std::flush;
@@ -591,6 +592,13 @@ static void backend_destroy( le_backend_o *self ) {
 
 	// destroy window surface if there was a window surface
 	backend_destroy_window_surface( self );
+
+	// we must delete the device which was allocated from an instance
+	// before we destroy the instance.
+	self->device.reset();
+
+	// Instance should be the last vulkan object to go.
+	le_backend_vk::vk_instance_i.destroy( self->instance );
 
 	delete self;
 }
@@ -762,6 +770,13 @@ static le_device_o *backend_get_le_device( le_backend_o *self ) {
 	return *self->device;
 }
 
+// ----------------------------------------------------------------------
+
+static le_backend_vk_instance_o *backend_get_instance( le_backend_o *self ) {
+	return self->instance;
+}
+
+// ----------------------------------------------------------------------
 // ffdecl.
 static le_allocator_o **backend_create_transient_allocators( le_backend_o *self, size_t frameIndex, size_t numAllocators );
 
@@ -799,12 +814,13 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 	}
 	// -- initialise backend
 
-	self->instance = std::make_unique<le::Instance>( requestedInstanceExtensions.data(), requestedInstanceExtensions.size() );
-	self->device   = std::make_unique<le::Device>( *self->instance );
-	self->window   = settings->pWindow;
-
 	{
 		using namespace le_backend_vk;
+
+		self->instance = vk_instance_i.create( requestedInstanceExtensions.data(), uint32_t( requestedInstanceExtensions.size() ) );
+		self->device   = std::make_unique<le::Device>( self->instance, requestedDeviceExtensions.data(), uint32_t( requestedDeviceExtensions.size() ) );
+		self->window   = settings->pWindow;
+
 		self->pipelineCache = le_pipeline_manager_i.create( self->device->getVkDevice() );
 	}
 
@@ -2745,7 +2761,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	// change for the lifetime of the application, and checking for the extension
 	// on each frame is wasteful.
 	//
-	static bool check_utils_extension_available = self->instance->isExtensionAvailable( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
+	static bool check_utils_extension_available = le_backend_vk::vk_instance_i.is_extension_available( self->instance, VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
 
 	if ( DEBUG_TAG_RESOURCES && check_utils_extension_available ) {
 		for ( auto const &r : frame.availableResources ) {
@@ -4215,6 +4231,7 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 	private_backend_i.get_vk_device          = backend_get_vk_device;
 	private_backend_i.get_vk_physical_device = backend_get_vk_physical_device;
 	private_backend_i.get_le_device          = backend_get_le_device;
+	private_backend_i.get_instance           = backend_get_instance;
 	private_backend_i.allocate_image         = backend_allocate_image;
 	private_backend_i.destroy_image          = backend_destroy_image;
 	private_backend_i.allocate_buffer        = backend_allocate_buffer;
