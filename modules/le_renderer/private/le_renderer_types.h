@@ -944,6 +944,7 @@ struct LeImageSamplerInfo {
 struct le_swapchain_settings_t {
 	enum Type {
 		LE_KHR_SWAPCHAIN = 0,
+		LE_DIRECT_SWAPCHAIN,
 		LE_IMG_SWAPCHAIN,
 	};
 	struct khr_settings_t {
@@ -1024,6 +1025,9 @@ class RendererInfoBuilder {
 			case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN:
 				self.khr_settings = {};
 				break;
+			case le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN:
+				self.khr_settings = {}; // TODO
+				break;
 			case le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN:
 				self.img_settings = {};
 				break;
@@ -1054,6 +1058,23 @@ class RendererInfoBuilder {
 			}
 		};
 
+		class DirectSwapchainInfoBuilder {
+			SwapchainInfoBuilder &                   parent;
+			le_swapchain_settings_t::khr_settings_t &self = parent.self.khr_settings;
+
+		  public:
+			DirectSwapchainInfoBuilder( SwapchainInfoBuilder &parent_ )
+			    : parent( parent_ ) {
+			}
+
+			BUILDER_IMPLEMENT( DirectSwapchainInfoBuilder, setPresentmode, le::Presentmode, presentmode_hint, = le::Presentmode::eFifo )
+
+			SwapchainInfoBuilder &end() {
+				parent.parent.info.swapchain_settings.type = le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN;
+				return parent;
+			}
+		};
+
 		class ImgSwapchainInfoBuilder {
 			SwapchainInfoBuilder &                   parent;
 			le_swapchain_settings_t::img_settings_t &self = parent.self.img_settings;
@@ -1069,8 +1090,9 @@ class RendererInfoBuilder {
 			}
 		};
 
-		ImgSwapchainInfoBuilder mImgSwapchainInfoBuilder{*this}; // order matters, last one will be default, because initialisation overwrites.
-		KhrSwapchainInfoBuilder mKhrSwapchainInfoBuilder{*this}; // order matters, last one will be default, because initialisation overwrites.
+		DirectSwapchainInfoBuilder mDirectSwapchainInfoBuilder{*this}; // order matters, last one will be default, because initialisation overwrites.
+		ImgSwapchainInfoBuilder    mImgSwapchainInfoBuilder{*this};    // order matters, last one will be default, because initialisation overwrites.
+		KhrSwapchainInfoBuilder    mKhrSwapchainInfoBuilder{*this};    // order matters, last one will be default, because initialisation overwrites.
 
 		KhrSwapchainInfoBuilder &withKhrSwapchain() {
 			return mKhrSwapchainInfoBuilder;
@@ -1078,6 +1100,10 @@ class RendererInfoBuilder {
 
 		ImgSwapchainInfoBuilder &withImgSwapchain() {
 			return mImgSwapchainInfoBuilder;
+		}
+
+		DirectSwapchainInfoBuilder &withDirectSwapchain() {
+			return mDirectSwapchainInfoBuilder;
 		}
 
 		RendererInfoBuilder &end() {

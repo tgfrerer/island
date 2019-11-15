@@ -4,6 +4,7 @@ set (SOURCES "le_swapchain_vk.h")
 set (SOURCES ${SOURCES} "le_swapchain_vk.cpp")
 set (SOURCES ${SOURCES} "le_swapchain_khr.cpp")
 set (SOURCES ${SOURCES} "le_swapchain_img.cpp")
+set (SOURCES ${SOURCES} "le_swapchain_direct.cpp")
 set (SOURCES ${SOURCES} "include/internal/le_swapchain_vk_common.h")
 
 if (${PLUGINS_DYNAMIC})
@@ -33,7 +34,7 @@ else()
 
 endif()
 
-set (LINKER_FLAGS -Wl,--whole-archive vulkan -Wl,--no-whole-archive )
+set (LINKER_FLAGS -Wl,--whole-archive vulkan X11 -Wl,--no-whole-archive )
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
 #include_directories("/usr/local/include")

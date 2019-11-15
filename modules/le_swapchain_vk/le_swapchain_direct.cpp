@@ -25,22 +25,23 @@ struct SurfaceProperties {
 	static auto procName = reinterpret_cast<PFN_##procName>( vkGetDeviceProcAddr( instance, #procName ) )
 
 struct swp_direct_data_o {
-	le_swapchain_settings_t mSettings                      = {};
-	le_backend_o *          backend                        = nullptr;
-	uint32_t                mImagecount                    = 0;
-	uint32_t                mImageIndex                    = uint32_t( ~0 ); // current image index
-	vk::SwapchainKHR        swapchainKHR                   = nullptr;
-	vk::Extent2D            mSwapchainExtent               = {};
-	vk::PresentModeKHR      mPresentMode                   = vk::PresentModeKHR::eFifo;
-	uint32_t                vk_graphics_queue_family_index = 0;
-	SurfaceProperties       mSurfaceProperties             = {};
-	std::vector<vk::Image>  mImageRefs                     = {}; // owned by SwapchainKHR, don't delete
-	vk::Instance            instance                       = nullptr;
-	vk::Device              device                         = nullptr;
-	vk::PhysicalDevice      physicalDevice                 = nullptr;
-	Display *               x11_display                    = nullptr;
-	vk::DisplayKHR          display                        = nullptr;
-	vk::SurfaceKHR          surface                        = nullptr;
+	le_swapchain_settings_t                   mSettings                      = {};
+	le_backend_o *                            backend                        = nullptr;
+	uint32_t                                  mImagecount                    = 0;
+	uint32_t                                  mImageIndex                    = uint32_t( ~0 ); // current image index
+	vk::SwapchainKHR                          swapchainKHR                   = nullptr;
+	vk::Extent2D                              mSwapchainExtent               = {};
+	vk::PresentModeKHR                        mPresentMode                   = vk::PresentModeKHR::eFifo;
+	uint32_t                                  vk_graphics_queue_family_index = 0;
+	SurfaceProperties                         mSurfaceProperties             = {};
+	std::vector<vk::Image>                    mImageRefs                     = {}; // owned by SwapchainKHR, don't delete
+	vk::Instance                              instance                       = nullptr;
+	vk::Device                                device                         = nullptr;
+	vk::PhysicalDevice                        physicalDevice                 = nullptr;
+	Display *                                 x11_display                    = nullptr;
+	vk::DisplayKHR                            display                        = nullptr;
+	vk::SurfaceKHR                            surface                        = nullptr;
+	std::vector<vk::DisplayModePropertiesKHR> display_mode_properties        = {};
 };
 
 // ----------------------------------------------------------------------
@@ -261,19 +262,17 @@ static le_swapchain_o *swapchain_direct_create( const le_swapchain_vk_api::swapc
 
 	{
 
-		getInstanceProc( self->instance, vkAcquireXlibDisplayEXT );
-
 		self->x11_display = XOpenDisplay( nullptr );
 
-		auto phyDevice = vk::PhysicalDevice( self->physicalDevice );
-
+		auto phyDevice  = vk::PhysicalDevice( self->physicalDevice );
 		auto properties = self->physicalDevice.getDisplayPropertiesKHR(); // place properties data
 
 		self->display = properties.front().display; // get first display in list
 
+		getInstanceProc( self->instance, vkAcquireXlibDisplayEXT );
 		result = vkAcquireXlibDisplayEXT( phyDevice, self->x11_display, self->display );
 
-		auto modeProperties = phyDevice.getDisplayModePropertiesKHR( self->display );
+		self->display_mode_properties = phyDevice.getDisplayModePropertiesKHR( self->display );
 
 		// let's try to acquire this screen
 
@@ -282,13 +281,13 @@ static le_swapchain_o *swapchain_direct_create( const le_swapchain_vk_api::swapc
 
 			info
 			    .setFlags( {} )
-			    .setDisplayMode( modeProperties[ 0 ].displayMode )
+			    .setDisplayMode( self->display_mode_properties[ 0 ].displayMode )
 			    .setPlaneIndex( 0 )
 			    .setPlaneStackIndex( 0 )
 			    .setTransform( vk::SurfaceTransformFlagBitsKHR::eRotate90 )
 			    .setGlobalAlpha( 1.f )
 			    .setAlphaMode( vk::DisplayPlaneAlphaFlagBitsKHR::eOpaque )
-			    .setImageExtent( modeProperties[ 0 ].parameters.visibleRegion );
+			    .setImageExtent( self->display_mode_properties[ 0 ].parameters.visibleRegion );
 
 			auto instance = vk::Instance( self->instance );
 			self->surface = instance.createDisplayPlaneSurfaceKHR( info );
@@ -326,7 +325,6 @@ static void swapchain_direct_destroy( le_swapchain_o *base ) {
 	self->surface = nullptr;
 
 	getInstanceProc( self->instance, vkReleaseDisplayEXT );
-
 	vkReleaseDisplayEXT( self->physicalDevice, self->display );
 
 	XCloseDisplay( self->x11_display );
@@ -360,6 +358,33 @@ static bool swapchain_direct_acquire_next_image( le_swapchain_o *base, VkSemapho
 		return false;
 	}
 }
+
+// ----------------------------------------------------------------------
+
+static bool swapchain_direct_present( le_swapchain_o *base, VkQueue queue_, VkSemaphore renderCompleteSemaphore_, uint32_t *pImageIndex ) {
+
+	auto self = static_cast<swp_direct_data_o *const>( base->data );
+
+	vk::PresentInfoKHR presentInfo;
+
+	auto renderCompleteSemaphore = vk::Semaphore{renderCompleteSemaphore_};
+
+	presentInfo
+	    .setWaitSemaphoreCount( 1 )
+	    .setPWaitSemaphores( &renderCompleteSemaphore )
+	    .setSwapchainCount( 1 )
+	    .setPSwapchains( &self->swapchainKHR )
+	    .setPImageIndices( pImageIndex )
+	    .setPResults( nullptr );
+
+	auto result = vkQueuePresentKHR( queue_, reinterpret_cast<VkPresentInfoKHR *>( &presentInfo ) );
+
+	if ( vk::Result( result ) == vk::Result::eErrorOutOfDateKHR ) {
+		return false;
+	}
+
+	return true;
+};
 
 // ----------------------------------------------------------------------
 
@@ -400,36 +425,6 @@ static size_t swapchain_direct_get_swapchain_images_count( le_swapchain_o *base 
 	auto self = static_cast<swp_direct_data_o *const>( base->data );
 	return self->mImagecount;
 }
-
-// ----------------------------------------------------------------------
-
-static bool swapchain_direct_present( le_swapchain_o *base, VkQueue queue_, VkSemaphore renderCompleteSemaphore_, uint32_t *pImageIndex ) {
-
-	auto self = static_cast<swp_direct_data_o *const>( base->data );
-
-	vk::PresentInfoKHR presentInfo;
-
-	auto renderCompleteSemaphore = vk::Semaphore{renderCompleteSemaphore_};
-
-	presentInfo
-	    .setWaitSemaphoreCount( 1 )
-	    .setPWaitSemaphores( &renderCompleteSemaphore )
-	    .setSwapchainCount( 1 )
-	    .setPSwapchains( &self->swapchainKHR )
-	    .setPImageIndices( pImageIndex )
-	    .setPResults( nullptr );
-
-	auto result = vkQueuePresentKHR( queue_, reinterpret_cast<VkPresentInfoKHR *>( &presentInfo ) );
-
-	if ( vk::Result( result ) == vk::Result::eErrorOutOfDateKHR ) {
-		// FIXME: handle swapchain resize event properly
-		//		std::cout << "Out of date detected - this most commonly indicates surface resize." << std::endl
-		//		          << std::flush;
-		return false;
-	}
-
-	return true;
-};
 
 // ----------------------------------------------------------------------
 

@@ -1,4 +1,5 @@
 #include "./include/internal/le_swapchain_vk_common.h" // defines struct le_swapchain_o
+#include "le_renderer/private/le_renderer_types.h"     // for swapchain_settings
 
 // ----------------------------------------------------------------------
 
@@ -8,8 +9,8 @@ static void swapchain_reset( le_swapchain_o *self, const le_swapchain_settings_t
 
 // ----------------------------------------------------------------------
 
-static le_swapchain_o *swapchain_create( le_swapchain_vk_api::swapchain_interface_t const &interface, le_backend_o *backend, const le_swapchain_settings_t *settings_ ) {
-	return interface.create( interface, backend, settings_ );
+static le_swapchain_o *swapchain_create( le_swapchain_vk_api::swapchain_interface_t const &interface, le_backend_o *backend, const le_swapchain_settings_t *settings ) {
+	return interface.create( interface, backend, settings );
 }
 
 // ----------------------------------------------------------------------
@@ -62,23 +63,62 @@ static bool swapchain_present( le_swapchain_o *self, VkQueue_T *queue, VkSemapho
 
 // ----------------------------------------------------------------------
 
+static inline le_swapchain_vk_api::swapchain_interface_t const *fetch_interface( le_swapchain_settings_t::Type const &type ) {
+	le_swapchain_vk_api::swapchain_interface_t const *interface = nullptr;
+
+	switch ( type ) {
+	case le_swapchain_settings_t::LE_KHR_SWAPCHAIN:
+		interface = &le_swapchain_vk::api->swapchain_khr_i;
+		return interface;
+	case le_swapchain_settings_t::LE_DIRECT_SWAPCHAIN:
+		interface = &le_swapchain_vk::api->swapchain_direct_i;
+		return interface;
+	case le_swapchain_settings_t::LE_IMG_SWAPCHAIN:
+		interface = &le_swapchain_vk::api->swapchain_img_i;
+		return interface;
+	}
+
+	assert( false ); // unreachable
+	return nullptr;
+}
+
+// ----------------------------------------------------------------------
+
+static void swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t *settings, char const ***exts, size_t *num_exts ) {
+	auto interface = fetch_interface( settings->type );
+	interface->get_required_vk_instance_extensions( settings, exts, num_exts );
+}
+
+// ----------------------------------------------------------------------
+
+static void swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t *settings, char const ***exts, size_t *num_exts ) {
+	auto interface = fetch_interface( settings->type );
+	interface->get_required_vk_device_extensions( settings, exts, num_exts );
+}
+
+// ----------------------------------------------------------------------
+
 void register_le_swapchain_vk_api( void *api_ ) {
 	auto  api         = static_cast<le_swapchain_vk_api *>( api_ );
 	auto &swapchain_i = api->swapchain_i;
 
-	swapchain_i.create             = swapchain_create;
-	swapchain_i.destroy            = swapchain_destroy;
-	swapchain_i.reset              = swapchain_reset;
-	swapchain_i.acquire_next_image = swapchain_acquire_next_image;
-	swapchain_i.get_image          = swapchain_get_image;
-	swapchain_i.get_image_width    = swapchain_get_image_width;
-	swapchain_i.get_image_height   = swapchain_get_image_height;
-	swapchain_i.get_surface_format = swapchain_get_surface_format;
-	swapchain_i.get_images_count   = swapchain_get_swapchain_images_count;
-	swapchain_i.present            = swapchain_present;
+	swapchain_i.create                              = swapchain_create;
+	swapchain_i.destroy                             = swapchain_destroy;
+	swapchain_i.reset                               = swapchain_reset;
+	swapchain_i.acquire_next_image                  = swapchain_acquire_next_image;
+	swapchain_i.get_image                           = swapchain_get_image;
+	swapchain_i.get_image_width                     = swapchain_get_image_width;
+	swapchain_i.get_image_height                    = swapchain_get_image_height;
+	swapchain_i.get_surface_format                  = swapchain_get_surface_format;
+	swapchain_i.get_images_count                    = swapchain_get_swapchain_images_count;
+	swapchain_i.present                             = swapchain_present;
+	swapchain_i.get_required_vk_instance_extensions = swapchain_get_required_vk_instance_extensions;
+	swapchain_i.get_required_vk_device_extensions   = swapchain_get_required_vk_device_extensions;
 
 	register_le_swapchain_khr_api( api );
 	register_le_swapchain_img_api( api );
+	register_le_swapchain_direct_api( api );
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
+	Registry::loadLibraryPersistently( "libX11.so" );
 }

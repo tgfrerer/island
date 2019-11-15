@@ -624,7 +624,13 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_settings_
 	case le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN: {
 		using namespace le_swapchain_vk;
 		// Create an image swapchain
-		self->swapchain = swapchain_i.create( swapchain_img_i, self, &swp_settings );
+		self->swapchain = swapchain_i.create( api->swapchain_img_i, self, &swp_settings );
+	} break;
+
+	case le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN: {
+		using namespace le_swapchain_vk;
+		// Create an image swapchain
+		self->swapchain = swapchain_i.create( api->swapchain_direct_i, self, &swp_settings );
 	} break;
 
 	case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN: {
@@ -639,7 +645,7 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_settings_
 			swp_settings.height_hint             = window_i.get_surface_height( self->window );
 			swp_settings.khr_settings.vk_surface = self->windowSurface; // we need this so that swapchain can query surface capabilities
 
-			self->swapchain = swapchain_i.create( swapchain_khr_i, self, &swp_settings );
+			self->swapchain = swapchain_i.create( le_swapchain_vk::api->swapchain_khr_i, self, &swp_settings );
 
 		} else {
 			// cannot run a khr swapchain without a window.

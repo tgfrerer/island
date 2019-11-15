@@ -363,20 +363,44 @@ static bool swapchain_khr_present( le_swapchain_o *base, VkQueue queue_, VkSemap
 	return true;
 };
 
+static void swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t *, char const ***exts, size_t *num_exts ) {
+
+	static std::array<char const *, 1> extensions = {
+	    VK_KHR_SURFACE_EXTENSION_NAME,
+	};
+
+	*exts     = extensions.data();
+	*num_exts = extensions.size();
+}
+
+// ----------------------------------------------------------------------
+
+static void swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t *, char const ***exts, size_t *num_exts ) {
+
+	static std::array<char const *, 1> extensions = {
+	    "VK_KHR_swapchain",
+	};
+
+	*exts     = extensions.data();
+	*num_exts = extensions.size();
+}
+
 // ----------------------------------------------------------------------
 
 void register_le_swapchain_khr_api( void *api_ ) {
 	auto  api         = static_cast<le_swapchain_vk_api *>( api_ );
 	auto &swapchain_i = api->swapchain_khr_i;
 
-	swapchain_i.create             = swapchain_khr_create;
-	swapchain_i.destroy            = swapchain_khr_destroy;
-	swapchain_i.reset              = swapchain_khr_reset;
-	swapchain_i.acquire_next_image = swapchain_khr_acquire_next_image;
-	swapchain_i.get_image          = swapchain_khr_get_image;
-	swapchain_i.get_image_width    = swapchain_khr_get_image_width;
-	swapchain_i.get_image_height   = swapchain_khr_get_image_height;
-	swapchain_i.get_surface_format = swapchain_khr_get_surface_format;
-	swapchain_i.get_images_count   = swapchain_khr_get_swapchain_images_count;
-	swapchain_i.present            = swapchain_khr_present;
+	swapchain_i.create                              = swapchain_khr_create;
+	swapchain_i.destroy                             = swapchain_khr_destroy;
+	swapchain_i.reset                               = swapchain_khr_reset;
+	swapchain_i.acquire_next_image                  = swapchain_khr_acquire_next_image;
+	swapchain_i.get_image                           = swapchain_khr_get_image;
+	swapchain_i.get_image_width                     = swapchain_khr_get_image_width;
+	swapchain_i.get_image_height                    = swapchain_khr_get_image_height;
+	swapchain_i.get_surface_format                  = swapchain_khr_get_surface_format;
+	swapchain_i.get_images_count                    = swapchain_khr_get_swapchain_images_count;
+	swapchain_i.present                             = swapchain_khr_present;
+	swapchain_i.get_required_vk_instance_extensions = swapchain_get_required_vk_instance_extensions;
+	swapchain_i.get_required_vk_device_extensions   = swapchain_get_required_vk_device_extensions;
 }
