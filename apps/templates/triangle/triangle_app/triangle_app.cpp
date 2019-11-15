@@ -82,12 +82,11 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto rp  = le::RenderPass{pRp};
 	auto app = static_cast<triangle_app_o *>( user_data );
 
-	// Attachment resource info may be further specialised using ImageInfoBuilder().
-	// Attachment clear color, load and store op may be set via le_image_attachment_info_t.
+	// Attachment may be further specialised using le::ImageAttachmentInfoBuilder().
 
 	rp
-	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
-	    .setIsRoot( true );
+	    .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE, le::ImageAttachmentInfoBuilder().build() ) // color attachment
+	    ;
 
 	return true;
 }
@@ -165,11 +164,10 @@ static bool triangle_app_update( triangle_app_o *self ) {
 	le::RenderModule mainModule{};
 	{
 
-		le::RenderPass renderPassFinal( "root", LE_RENDER_PASS_TYPE_DRAW );
-
-		renderPassFinal
-		    .setSetupCallback( self, pass_main_setup )
-		    .setExecuteCallback( self, pass_main_exec ) //
+		auto renderPassFinal =
+		    le::RenderPass( "root", LE_RENDER_PASS_TYPE_DRAW )
+		        .setSetupCallback( self, pass_main_setup )
+		        .setExecuteCallback( self, pass_main_exec ) //
 		    ;
 
 		mainModule.addRenderPass( renderPassFinal );
