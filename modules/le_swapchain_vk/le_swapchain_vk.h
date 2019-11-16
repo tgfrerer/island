@@ -8,10 +8,10 @@
 extern "C" {
 #endif
 
-void register_le_swapchain_vk_api( void *api );     // in le_swapchain_vk.cpp
-void register_le_swapchain_khr_api( void *api );    // in le_swapchain_khr.cpp
-void register_le_swapchain_img_api( void *api );    // in le_swapchain_img.cpp
-void register_le_swapchain_direct_api( void *api ); // in le_swapchain_direct.cpp
+void register_le_swapchain_vk_api( void *api );  // in le_swapchain_vk.cpp
+void register_le_swapchain_khr_api( void *api ); // in le_swapchain_khr.cpp
+void register_le_swapchain_img_api( void *api ); // in le_swapchain_img.cpp
+//void register_le_swapchain_direct_api( void *api ); // in le_swapchain_direct.cpp
 
 struct le_swapchain_o;
 struct le_backend_o;
