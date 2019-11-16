@@ -45,9 +45,10 @@ struct le_2d_api {
 
 		le_2d_primitive_o* ( *create_line           ) ( le_2d_o* context);
 
-		SETTER_DECLARE( line, vec2f, p0);
-		SETTER_DECLARE( line, vec2f, p1);
-		
+		SETTER_DECLARE( line, vec2f const, p0);
+		SETTER_DECLARE( line, vec2f const, p1);
+		SETTER_DECLARE( line, float, thickness);
+
 
 		#undef SETTER_DECLARE
 	};
@@ -148,8 +149,9 @@ class Le2D : NoCopy, NoMove {
 			return *this;                                                  \
 		}
 
-		BUILDER_IMPLEMENT( le_2d_api::vec2f, p0 )
-		BUILDER_IMPLEMENT( le_2d_api::vec2f, p1 )
+		BUILDER_IMPLEMENT( le_2d_api::vec2f const &, p0 )
+		BUILDER_IMPLEMENT( le_2d_api::vec2f const &, p1 )
+		BUILDER_IMPLEMENT( float, thickness )
 
 #	undef BUILDER_IMPLEMENT
 

@@ -34,6 +34,7 @@ struct circle_data_t {
 struct line_data_t {
 	float p0[ 2 ];
 	float p1[ 2 ];
+	float thickness;
 };
 
 struct le_2d_primitive_o {
@@ -126,8 +127,10 @@ SETTER_IMPLEMENT( circle, float, radius );
 SETTER_IMPLEMENT( circle, uint32_t, subdivisions );
 SETTER_IMPLEMENT( circle, bool, filled );
 
-SETTER_IMPLEMENT_MEMCPY( line, vec2f, p0 );
-SETTER_IMPLEMENT_MEMCPY( line, vec2f, p1 );
+SETTER_IMPLEMENT_MEMCPY( line, vec2f const, p0 );
+SETTER_IMPLEMENT_MEMCPY( line, vec2f const, p1 );
+
+SETTER_IMPLEMENT( line, float, thickness );
 
 #undef SETTER_IMPLEMENT
 
@@ -150,6 +153,8 @@ ISL_API_ATTR void register_le_2d_api( void *api ) {
 
 	SET_PRIMITIVE_FPTR( line, p0 );
 	SET_PRIMITIVE_FPTR( line, p1 );
+
+	SET_PRIMITIVE_FPTR( line, thickness );
 
 #undef SET_PRIMITIVE_FPTR
 
