@@ -472,9 +472,9 @@ static void le_camera_destroy( le_camera_o *self ) {
 // ----------------------------------------------------------------------
 
 static le_camera_o *le_camera_clone( le_camera_o const *self ) {
-    auto clone = new le_camera_o();
-    *clone     = *self;
-    return clone;
+	auto clone = new le_camera_o();
+	*clone     = *self;
+	return clone;
 }
 
 // ----------------------------------------------------------------------
@@ -518,7 +518,7 @@ ISL_API_ATTR void register_le_camera_api( void *api ) {
 	le_camera_i.set_clip_distances    = camera_set_clip_distances;
 	le_camera_i.get_sphere_in_frustum = camera_get_sphere_in_frustum;
 
-#ifdef ISL_ALLOW_GLM_TYPES
+#if ISL_ALLOW_GLM_TYPES == 1
 	le_camera_i.set_view_matrix_glm       = camera_set_view_matrix_glm;
 	le_camera_i.get_view_matrix_glm       = camera_get_view_matrix_glm;
 	le_camera_i.get_projection_matrix_glm = camera_get_projection_matrix_glm;
