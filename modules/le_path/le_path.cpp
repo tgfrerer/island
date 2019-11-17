@@ -7,7 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 
-using Vertex = glm::vec2;
+using Vertex = le_path_api::Vertex;
 
 struct PathCommand {
 
@@ -38,7 +38,7 @@ struct Polyline {
 };
 
 struct le_path_o {
-    std::vector<Contour>  contours;  // an array of sub-paths, a contour must start with a moveto instruction
+	std::vector<Contour>  contours;  // an array of sub-paths, a contour must start with a moveto instruction
 	std::vector<Polyline> polylines; // an array of polylines, each corresponding to a sub-path.
 };
 
@@ -58,7 +58,7 @@ static void le_path_destroy( le_path_o *self ) {
 // ----------------------------------------------------------------------
 
 static void le_path_clear( le_path_o *self ) {
-    self->contours.clear();
+	self->contours.clear();
 	self->polylines.clear();
 }
 
@@ -81,7 +81,7 @@ static void trace_line_to( Polyline &polyline, Vertex const &p ) {
 	// in which case we will not add this point.
 
 	auto const &p0               = polyline.vertices.back();
-	glm::vec2   relativeMovement = p - p0;
+	Vertex      relativeMovement = p - p0;
 
 	// Instead of using glm::distance directly, we calculate squared distance
 	// so that we can filter out any potential invalid distance calculations -
@@ -141,8 +141,8 @@ static void trace_quad_bezier_to( Polyline &    polyline,
 
 	assert( !polyline.vertices.empty() ); // Contour vertices must not be empty.
 
-	glm::vec2 const &p0     = polyline.vertices.back(); // copy start point
-	glm::vec2       p_prev = p0;
+	Vertex const &p0     = polyline.vertices.back(); // copy start point
+	Vertex        p_prev = p0;
 
 	float delta_t = 1.f / float( resolution );
 
@@ -196,8 +196,8 @@ static void trace_cubic_bezier_to( Polyline &    polyline,
 
 	assert( !polyline.vertices.empty() ); // Contour vertices must not be empty.
 
-	glm::vec2 const p0     = polyline.vertices.back(); // copy start point
-	glm::vec2       p_prev = p0;
+	Vertex const p0     = polyline.vertices.back(); // copy start point
+	Vertex       p_prev = p0;
 
 	float delta_t = 1.f / float( resolution );
 
@@ -237,9 +237,9 @@ static void trace_cubic_bezier_to( Polyline &    polyline,
 static void le_path_trace_path( le_path_o *self, size_t resolution ) {
 
 	self->polylines.clear();
-    self->polylines.reserve( self->contours.size() );
+	self->polylines.reserve( self->contours.size() );
 
-    for ( auto const &s : self->contours ) {
+	for ( auto const &s : self->contours ) {
 
 		Polyline polyline;
 
@@ -248,29 +248,29 @@ static void le_path_trace_path( le_path_o *self, size_t resolution ) {
 			switch ( command.type ) {
 			case PathCommand::eMoveTo:
 				trace_move_to( polyline, command.p );
-                break;
+				break;
 			case PathCommand::eLineTo:
 				trace_line_to( polyline, command.p );
-                break;
+				break;
 			case PathCommand::eQuadBezierTo:
 				trace_quad_bezier_to( polyline,
 				                      command.p,
 				                      command.c1,
 				                      resolution );
-                break;
+				break;
 			case PathCommand::eCubicBezierTo:
 				trace_cubic_bezier_to( polyline,
 				                       command.p,
 				                       command.c1,
 				                       command.c2,
 				                       resolution );
-                break;
+				break;
 			case PathCommand::eClosePath:
 				trace_close_path( polyline );
-                break;
+				break;
 			case PathCommand::eUnknown:
 				assert( false );
-                break;
+				break;
 			}
 		}
 
@@ -284,62 +284,62 @@ static void le_path_trace_path( le_path_o *self, size_t resolution ) {
 
 static void le_path_iterate_vertices_for_contour( le_path_o *self, size_t const &contour_index, le_path_api::contour_vertex_cb callback, void *user_data ) {
 
-    assert( self->contours.size() > contour_index );
+	assert( self->contours.size() > contour_index );
 
-    auto const &s = self->contours[ contour_index ];
+	auto const &s = self->contours[ contour_index ];
 
-    for ( auto const &command : s.commands ) {
+	for ( auto const &command : s.commands ) {
 
-        switch ( command.type ) {
-        case PathCommand::eMoveTo:        // fall-through, as we're allways just issueing the vertex, ignoring control points
-        case PathCommand::eLineTo:        // fall-through, as we're allways just issueing the vertex, ignoring control points
-        case PathCommand::eQuadBezierTo:  // fall-through, as we're allways just issueing the vertex, ignoring control points
-        case PathCommand::eCubicBezierTo: // fall-through, as we're allways just issueing the vertex, ignoring control points
-            callback( user_data, command.p );
-            break;
-        case PathCommand::eClosePath:
-            callback( user_data, s.commands[ 0 ].p ); // re-issue first vertex
-            break;
-        case PathCommand::eUnknown:
-            assert( false );
-            break;
-        }
-    }
+		switch ( command.type ) {
+		case PathCommand::eMoveTo:        // fall-through, as we're allways just issueing the vertex, ignoring control points
+		case PathCommand::eLineTo:        // fall-through, as we're allways just issueing the vertex, ignoring control points
+		case PathCommand::eQuadBezierTo:  // fall-through, as we're allways just issueing the vertex, ignoring control points
+		case PathCommand::eCubicBezierTo: // fall-through, as we're allways just issueing the vertex, ignoring control points
+			callback( user_data, command.p );
+			break;
+		case PathCommand::eClosePath:
+			callback( user_data, s.commands[ 0 ].p ); // re-issue first vertex
+			break;
+		case PathCommand::eUnknown:
+			assert( false );
+			break;
+		}
+	}
 }
 
 // ----------------------------------------------------------------------
 
 static void le_path_iterate_quad_beziers_for_contour( le_path_o *self, size_t const &contour_index, le_path_api::contour_quad_bezier_cb callback, void *user_data ) {
 
-    assert( self->contours.size() > contour_index );
+	assert( self->contours.size() > contour_index );
 
-    auto const &s = self->contours[ contour_index ];
+	auto const &s = self->contours[ contour_index ];
 
-    Vertex p0 = {};
+	Vertex p0 = {};
 
-    for ( auto const &command : s.commands ) {
+	for ( auto const &command : s.commands ) {
 
-        switch ( command.type ) {
-        case PathCommand::eMoveTo:
-            p0 = command.p;
-            break;
-        case PathCommand::eLineTo:
-            p0 = command.p;
-            break;
-        case PathCommand::eQuadBezierTo:
-            callback( user_data, p0, command.p, command.c1 );
-            p0 = command.p;
-            break;
-        case PathCommand::eCubicBezierTo:
-            p0 = command.p;
-            break;
-        case PathCommand::eClosePath:
-            break;
-        case PathCommand::eUnknown:
-            assert( false );
-            break;
-        }
-    }
+		switch ( command.type ) {
+		case PathCommand::eMoveTo:
+			p0 = command.p;
+			break;
+		case PathCommand::eLineTo:
+			p0 = command.p;
+			break;
+		case PathCommand::eQuadBezierTo:
+			callback( user_data, p0, command.p, command.c1 );
+			p0 = command.p;
+			break;
+		case PathCommand::eCubicBezierTo:
+			p0 = command.p;
+			break;
+		case PathCommand::eClosePath:
+			break;
+		case PathCommand::eUnknown:
+			assert( false );
+			break;
+		}
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -381,8 +381,8 @@ static void le_polyline_get_at( Polyline const &polyline, float t, Vertex &resul
 
 	float scalar = map( d, dist_start, dist_end, 0.f, 1.f );
 
-	glm::vec2 const &start_vertex = polyline.vertices[ a ];
-	glm::vec2 const &end_vertex   = polyline.vertices[ b ];
+	Vertex const &start_vertex = polyline.vertices[ a ];
+	Vertex const &end_vertex   = polyline.vertices[ b ];
 
 	result = start_vertex + scalar * ( end_vertex - start_vertex );
 }
@@ -440,7 +440,7 @@ static void le_polyline_resample( Polyline &polyline, float interval ) {
 
 static void le_path_resample( le_path_o *self, float interval ) {
 
-    if ( self->contours.empty() ) {
+	if ( self->contours.empty() ) {
 		// nothing to do.
 		return;
 	}
@@ -464,15 +464,15 @@ static void le_path_resample( le_path_o *self, float interval ) {
 
 static void le_path_move_to( le_path_o *self, Vertex const &p ) {
 	// move_to means a new subpath, unless the last command was a
-    self->contours.emplace_back(); // add empty subpath
-    self->contours.back().commands.push_back( {PathCommand::eMoveTo, p} );
+	self->contours.emplace_back(); // add empty subpath
+	self->contours.back().commands.push_back( {PathCommand::eMoveTo, p} );
 }
 
 // ----------------------------------------------------------------------
 
 static void le_path_line_to( le_path_o *self, Vertex const &p ) {
-    assert( !self->contours.empty() ); //subpath must exist
-    self->contours.back().commands.push_back( {PathCommand::eLineTo, p} );
+	assert( !self->contours.empty() ); //subpath must exist
+	self->contours.back().commands.push_back( {PathCommand::eLineTo, p} );
 }
 
 // ----------------------------------------------------------------------
@@ -480,12 +480,12 @@ static void le_path_line_to( le_path_o *self, Vertex const &p ) {
 // Fetch the current pen point by grabbing the previous target point
 // from the command stream.
 static Vertex const *le_path_get_previous_p( le_path_o *self ) {
-    assert( !self->contours.empty() );                 // Subpath must exist
-    assert( !self->contours.back().commands.empty() ); // previous command must exist
+	assert( !self->contours.empty() );                 // Subpath must exist
+	assert( !self->contours.back().commands.empty() ); // previous command must exist
 
 	Vertex const *p = nullptr;
 
-    auto const &c = self->contours.back().commands.back(); // fetch last command
+	auto const &c = self->contours.back().commands.back(); // fetch last command
 
 	switch ( c.type ) {
 	case PathCommand::eMoveTo:        // fall-through
@@ -493,11 +493,11 @@ static Vertex const *le_path_get_previous_p( le_path_o *self ) {
 	case PathCommand::eQuadBezierTo:  // fall-through
 	case PathCommand::eCubicBezierTo: // fall-through
 		p = &c.p;
-        break;
+		break;
 	default:
 		// Error. Previous command must be one of above
 		fprintf( stderr, "Warning: Relative path instruction requires absolute position to be known. In %s:%i\n", __FILE__, __LINE__ );
-        break;
+		break;
 	}
 
 	return p;
@@ -506,47 +506,51 @@ static Vertex const *le_path_get_previous_p( le_path_o *self ) {
 // ----------------------------------------------------------------------
 
 static void le_path_line_horiz_to( le_path_o *self, float const &px ) {
-    assert( !self->contours.empty() );                 // Subpath must exist
-    assert( !self->contours.back().commands.empty() ); // previous command must exist
+	assert( !self->contours.empty() );                 // Subpath must exist
+	assert( !self->contours.back().commands.empty() ); // previous command must exist
 
 	auto p = le_path_get_previous_p( self );
 
 	if ( p ) {
-		le_path_line_to( self, {px, p->y} );
+		Vertex p2 = *p;
+		p2.x      = px;
+		le_path_line_to( self, p2 );
 	}
 }
 
 // ----------------------------------------------------------------------
 
 static void le_path_line_vert_to( le_path_o *self, float const &py ) {
-    assert( !self->contours.empty() );                 // Subpath must exist
-    assert( !self->contours.back().commands.empty() ); // previous command must exist
+	assert( !self->contours.empty() );                 // Subpath must exist
+	assert( !self->contours.back().commands.empty() ); // previous command must exist
 
 	auto p = le_path_get_previous_p( self );
 
 	if ( p ) {
-		le_path_line_to( self, {p->x, py} );
+		Vertex p2 = *p;
+		p2.y      = py;
+		le_path_line_to( self, p2 );
 	}
 }
 
 // ----------------------------------------------------------------------
 
 static void le_path_quad_bezier_to( le_path_o *self, Vertex const &p, Vertex const &c1 ) {
-    assert( !self->contours.empty() ); //contour must exist
-    self->contours.back().commands.push_back( {PathCommand::eQuadBezierTo, p, c1} );
+	assert( !self->contours.empty() ); //contour must exist
+	self->contours.back().commands.push_back( {PathCommand::eQuadBezierTo, p, c1} );
 }
 
 // ----------------------------------------------------------------------
 
 static void le_path_cubic_bezier_to( le_path_o *self, Vertex const &p, Vertex const &c1, Vertex const &c2 ) {
-    assert( !self->contours.empty() ); //subpath must exist
-    self->contours.back().commands.push_back( {PathCommand::eCubicBezierTo, p, c1, c2} );
+	assert( !self->contours.empty() ); //subpath must exist
+	self->contours.back().commands.push_back( {PathCommand::eCubicBezierTo, p, c1, c2} );
 }
 
 // ----------------------------------------------------------------------
 
 static void le_path_close_path( le_path_o *self ) {
-    self->contours.back().commands.push_back( {PathCommand::eClosePath} );
+	self->contours.back().commands.push_back( {PathCommand::eClosePath} );
 }
 
 // ----------------------------------------------------------------------
@@ -556,7 +560,7 @@ static size_t le_path_get_num_polylines( le_path_o *self ) {
 }
 
 static size_t le_path_get_num_contours( le_path_o *self ) {
-    return self->contours.size();
+	return self->contours.size();
 }
 
 // ----------------------------------------------------------------------
@@ -885,8 +889,8 @@ ISL_API_ATTR void register_le_path_api( void *api ) {
 	le_path_i.get_tangents_for_polyline        = le_path_get_tangents_for_polyline;
 	le_path_i.get_polyline_at_pos_interpolated = le_path_get_polyline_at_pos_interpolated;
 
-    le_path_i.iterate_vertices_for_contour     = le_path_iterate_vertices_for_contour;
-    le_path_i.iterate_quad_beziers_for_contour = le_path_iterate_quad_beziers_for_contour;
+	le_path_i.iterate_vertices_for_contour     = le_path_iterate_vertices_for_contour;
+	le_path_i.iterate_quad_beziers_for_contour = le_path_iterate_quad_beziers_for_contour;
 
 	le_path_i.trace    = le_path_trace_path;
 	le_path_i.resample = le_path_resample;
