@@ -1,28 +1,38 @@
 #include "le_2d.h"
 #include "pal_api_loader/ApiRegistry.hpp"
 
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
+#define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
+#include "glm.hpp"
+#include "glm/gtc/constants.hpp" // for two_pi
+#include "glm/gtc/matrix_transform.hpp"
+
 #include <iostream>
 #include <iomanip>
 #include <vector>
 
-#include <cstring> // for memset
-
 #include "le_renderer/le_renderer.h"
 
-static size_t unique_num = 0;
-typedef float vec2f[ 2 ];
+#include "le_backend_vk/le_backend_vk.h"             // for shader module creation
+#include "le_pipeline_builder/le_pipeline_builder.h" // for pipeline creation
+
+using vec2f = glm::vec2;
 
 // A drawing context, owner of all primitives.
 struct le_2d_o {
 	le_command_buffer_encoder_o *    encoder = nullptr;
-	size_t                           id      = 0;
 	std::vector<le_2d_primitive_o *> primitives; // owning
 };
 
 struct node_data_t {
-	float position[ 2 ];    //x,y
+	vec2f origin;           //x,y
 	float ccw_rotation = 0; // rotation in ccw around z axis, anchored at position
 	float scale{1};
+};
+
+struct material_data_t {
+	uint32_t color;
+	float    stroke_weight;
 };
 
 struct circle_data_t {
@@ -31,10 +41,23 @@ struct circle_data_t {
 	bool     filled;
 };
 
+struct ellipse_data_t {
+	glm::vec2 radii; // radius x, radius y
+	uint32_t  subdivisions;
+	bool      filled;
+};
+
+struct arc_data_t {
+	glm::vec2 radii; // radius x, radius y
+	float     angle_start_rad;
+	float     angle_end_rad;
+	uint32_t  subdivisions;
+	bool      filled;
+};
+
 struct line_data_t {
-	float p0[ 2 ];
-	float p1[ 2 ];
-	float thickness;
+	vec2f p0;
+	vec2f p1;
 };
 
 struct le_2d_primitive_o {
@@ -42,15 +65,20 @@ struct le_2d_primitive_o {
 	enum class Type : uint32_t {
 		eUndefined,
 		eCircle,
+		eEllipse,
+		eArc,
 		eLine,
 	};
 
-	Type        type;
-	node_data_t node;
+	Type            type;
+	node_data_t     node;
+	material_data_t material;
 
 	union {
-		circle_data_t as_circle;
-		line_data_t   as_line;
+		circle_data_t  as_circle;
+		ellipse_data_t as_ellipse;
+		arc_data_t     as_arc;
+		line_data_t    as_line;
 
 	} data;
 };
@@ -59,17 +87,252 @@ struct le_2d_primitive_o {
 
 static le_2d_o *le_2d_create( le_command_buffer_encoder_o *encoder ) {
 	auto self     = new le_2d_o();
-	self->id      = unique_num++;
 	self->encoder = encoder;
 	self->primitives.reserve( 4096 / 8 );
-	std::cout << "create 2d ctx: " << std::dec << self->id << std::flush << std::endl;
+	//	std::cout << "create 2d ctx: " << std::dec << self->id << std::flush << std::endl;
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
+// Data as it is laid out in the shader ubo
+struct Mvp {
+	glm::mat4 mvp; // contains view projection matrix
+};
+
+// Data as it is laid out for shader attribute
+struct VertexData2D {
+	glm::vec2 pos;
+	glm::vec2 texCoord;
+	uint32_t  color;
+};
+
+static void generate_geometry_line( std::vector<VertexData2D> &geometry, glm::vec2 const &p0, glm::vec2 const &p1, float thickness, uint32_t colour ) {
+	if ( p0 == p1 ) {
+		// return empty if line cannot be generated.
+		return;
+	}
+
+	geometry.reserve( geometry.size() + 6 );
+
+	auto p_vec  = p1 - p0;
+	auto p_norm = glm::normalize( p_vec );
+
+	// Line offset: rotate p_norm 90 deg ccw
+	glm::vec2 off = {-p_norm.y, p_norm.x};
+
+	// Line thickness will be twice offset, therefore we scale offset by half line thickness
+
+	off *= 0.5f * thickness; // scale line by thickness
+
+	geometry.push_back( {p0 + off, {0.f, 0.f}, colour} );
+	geometry.push_back( {p0 - off, {0.f, 1.f}, colour} );
+	geometry.push_back( {p1 + off, {1.f, 0.f}, colour} );
+
+	geometry.push_back( {p0 - off, {0.f, 1.f}, colour} );
+	geometry.push_back( {p1 - off, {1.f, 1.f}, colour} );
+	geometry.push_back( {p1 + off, {1.f, 0.f}, colour} );
+}
+
+static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, float thickness, uint32_t subdivisions, uint32_t colour ) {
+
+	if ( std::numeric_limits<float>::epsilon() > angle_end_rad - angle_start_rad ) {
+		return;
+	}
+
+	// ---------| invariant: angle difference is not too close to zero
+
+	glm::vec2 p           = radii * glm::vec2{cosf( angle_start_rad ), sinf( angle_start_rad )};
+	float     angle_delta = ( angle_end_rad - angle_start_rad ) / float( subdivisions );
+
+	for ( uint32_t i = 1; i <= subdivisions; ++i ) {
+		float angle = angle_start_rad + angle_delta * i;
+
+		glm::vec2 p2 = radii * glm::vec2{cosf( angle ), sinf( angle )};
+
+		generate_geometry_line( geometry, p, p2, thickness, colour );
+
+		std::swap( p, p2 );
+	}
+}
+
+static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, uint32_t subdivisions, uint32_t color ) {
+
+	if ( subdivisions < 3 || std::numeric_limits<float>::epsilon() >= ( radii.x * radii.y ) ) {
+		// Return empty if geometry cannot be generated.
+		// This is either because we are not allowed enough subdivisions,
+		// or our radius is too close to zero.
+		return;
+	}
+
+	// --------| invariant: It should be possible to generate circle geometry.
+
+	geometry.reserve( 3 * ( subdivisions + 1 ) );
+
+	float arc_segment = ( angle_end_rad - angle_start_rad ) / float( subdivisions ); // arc segment given in radians
+
+	VertexData2D v_c{};
+	v_c.pos      = {0.f, 0.f};
+	v_c.texCoord = {0.5, 0.5};
+	v_c.color    = color;
+
+	float     arc_angle = angle_start_rad;
+	glm::vec2 n{cosf( arc_angle ), sinf( arc_angle )};
+
+	VertexData2D v{};
+	v.pos      = radii * n;
+	v.texCoord = glm::vec2{0.5, 0.5} + 0.5f * n;
+	v.color    = color;
+
+	for ( uint32_t i = 1; i <= subdivisions; ++i ) {
+		// one triangle per subdivision, we re-use last vertex if available
+
+		geometry.push_back( v_c );
+		geometry.push_back( v );
+
+		float     arc_angle = angle_start_rad + i * arc_segment;
+		glm::vec2 n{cosf( arc_angle ), sinf( arc_angle )};
+
+		v.pos      = radii * n;
+		v.texCoord = glm::vec2{0.5, 0.5} + 0.5f * n;
+
+		geometry.push_back( v );
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<VertexData2D> &geometry ) {
+
+	switch ( p->type ) {
+	case le_2d_primitive_o::Type::eLine: {
+		// generate geometry for line
+		auto const &line = p->data.as_line;
+
+		generate_geometry_line( geometry, line.p0, line.p1, p->material.stroke_weight, p->material.color );
+
+	} break;
+	case le_2d_primitive_o::Type::eCircle: {
+
+		auto const &circle = p->data.as_circle;
+
+		if ( circle.filled ) {
+			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), {circle.radius, circle.radius}, circle.subdivisions, p->material.color );
+		} else {
+			generate_geometry_outline_arc( geometry, 0, glm::two_pi<float>(), {circle.radius, circle.radius}, p->material.stroke_weight, circle.subdivisions, p->material.color );
+		}
+
+	} break;
+	case le_2d_primitive_o::Type::eEllipse: {
+		auto const &ellipse = p->data.as_ellipse;
+		if ( ellipse.filled ) {
+			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), ellipse.radii, ellipse.subdivisions, p->material.color );
+		} else {
+			generate_geometry_outline_arc( geometry, 0, glm::two_pi<float>(), ellipse.radii, p->material.stroke_weight, ellipse.subdivisions, p->material.color );
+		}
+	} break;
+	case le_2d_primitive_o::Type::eArc: {
+		auto const &arc = p->data.as_arc;
+		if ( arc.filled ) {
+			// TODO: implement
+			generate_geometry_ellipse( geometry, arc.angle_start_rad, arc.angle_end_rad, arc.radii, arc.subdivisions, p->material.color );
+		} else {
+			generate_geometry_outline_arc( geometry, arc.angle_start_rad, arc.angle_end_rad, arc.radii, p->material.stroke_weight, arc.subdivisions, p->material.color );
+		}
+	} break;
+	}
+}
+
+static void le_2d_draw_primitive( le_command_buffer_encoder_o *encoder_, le_2d_primitive_o *p, glm::mat4 const &v_p_matrix ) {
+
+	std::vector<VertexData2D> geometry;
+
+	generate_geometry_for_primitive( p, geometry );
+
+	if ( geometry.empty() ) {
+		return;
+	}
+
+	// --------| Invariant: there is geometry to draw
+
+	le::Encoder encoder{encoder_};
+
+	// We must apply the primitive node's transform.
+
+	glm::mat4 local_transform{1}; // identity matrix
+
+	local_transform = glm::translate( local_transform, {p->node.origin.x, p->node.origin.y, 0.f} );
+	local_transform = v_p_matrix * local_transform;
+
+	encoder
+	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &local_transform, sizeof( glm::mat4 ) )
+	    .setVertexData( geometry.data(), sizeof( VertexData2D ) * geometry.size(), 0 )
+	    .draw( uint32_t( geometry.size() ) );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_2d_draw_primitives( le_2d_o const *self ) {
+
+	/* We might want to do some sorting, and optimising here
+	 * Sort by pipeline for example. Also, issue draw commands
+	 * as instanced draws if more than three of the same prims
+	 * are issued.
+	 */
+
+	le::Encoder encoder{self->encoder};
+	auto *      pm = encoder.getPipelineManager();
+
+	static le_shader_module_o *vert = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/2d_primitives.vert", {le::ShaderStage::eVertex}, "" );
+	static le_shader_module_o *frag = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/2d_primitives.frag", {le::ShaderStage::eFragment}, "" );
+
+	// clang-format off
+	static auto pipeline =
+	    LeGraphicsPipelineBuilder( pm )
+	        .addShaderStage( vert )
+	        .addShaderStage( frag )
+	        .withAttributeBindingState()
+	            .addBinding( sizeof( VertexData2D ) )
+	                .setInputRate( le_vertex_input_rate::ePerVertex )
+	                .addAttribute( offsetof( VertexData2D, pos ), le_num_type::eF32, 2 )
+	                .addAttribute( offsetof( VertexData2D, texCoord ), le_num_type::eF32, 2 )
+	                .addAttribute( offsetof( VertexData2D, color ), le_num_type::eU8, 4, true )
+	            .end()
+	        .end()
+	        .build();
+	// clang-format on
+
+	encoder
+	    .bindGraphicsPipeline( pipeline );
+
+	// Calculate view projection matrix
+	// for 2D, this will be a simple orthographic projection, which means that the view matrix
+	// (camera matrix) will be the identity, and does not need to be factored in.
+
+	auto extents          = encoder.getRenderpassExtent();
+	auto ortho_projection = glm::ortho( 0.f, float( extents.width ), 0.f, float( extents.height ) );
+
+	{
+		// set a negative height for viewport so that +Y goes up, rather than down.
+
+		le::Viewport viewports[ 1 ] = {
+		    {0.f, float( extents.height ), float( extents.width ), -float( extents.height ), 0.f, 1.f},
+		};
+
+		encoder.setViewports( 0, 1, viewports );
+	}
+
+	for ( auto &p : self->primitives ) {
+		le_2d_draw_primitive( self->encoder, p, ortho_projection );
+	}
+}
+
+// ----------------------------------------------------------------------
+
 static void le_2d_destroy( le_2d_o *self ) {
-	std::cout << "destroy 2d ctx: " << std::dec << self->id << std::flush << std::endl;
+	//	std::cout << "destroy 2d ctx: " << std::dec << self->id << std::flush << std::endl;
+
+	le_2d_draw_primitives( self );
 
 	for ( auto &p : self->primitives ) {
 		delete p;
@@ -78,39 +341,97 @@ static void le_2d_destroy( le_2d_o *self ) {
 	delete self;
 }
 
+// ----------------------------------------------------------------------
+
 static le_2d_primitive_o *le_2d_allocate_primitive( le_2d_o *self ) {
 	le_2d_primitive_o *p = new le_2d_primitive_o();
+
+	p->node.scale        = 1;
+	p->node.origin       = {};
+	p->node.ccw_rotation = 0;
+
+	p->material.color         = 0xffffffff;
+	p->material.stroke_weight = 0.f;
+
 	self->primitives.push_back( p );
+
 	return p;
 }
+
+// ----------------------------------------------------------------------
 
 static le_2d_primitive_o *le_2d_primitive_create_circle( le_2d_o *context ) {
 	auto p = le_2d_allocate_primitive( context );
 
-	p->type = le_2d_primitive_o::Type::eCircle;
+	p->type      = le_2d_primitive_o::Type::eCircle;
+	auto &circle = p->data.as_circle;
 
-	p->data.as_circle.filled       = true;
-	p->data.as_circle.radius       = 0.f;
-	p->data.as_circle.subdivisions = 12;
+	circle.filled       = true;
+	circle.radius       = 0.f;
+	circle.subdivisions = 36;
 
 	return p;
 }
+
+// ----------------------------------------------------------------------
+
+static le_2d_primitive_o *le_2d_primitive_create_ellipse( le_2d_o *context ) {
+	auto p = le_2d_allocate_primitive( context );
+
+	p->type = le_2d_primitive_o::Type::eEllipse;
+
+	auto &ellipse = p->data.as_ellipse;
+
+	ellipse.filled       = true;
+	ellipse.radii        = {0.f, 0.f};
+	ellipse.subdivisions = 36;
+
+	return p;
+}
+
+// ----------------------------------------------------------------------
+
+static le_2d_primitive_o *le_2d_primitive_create_arc( le_2d_o *context ) {
+	auto p = le_2d_allocate_primitive( context );
+
+	p->type = le_2d_primitive_o::Type::eArc;
+
+	auto &arc = p->data.as_arc;
+
+	arc.filled          = false;
+	arc.radii           = {0.f, 0.f};
+	arc.subdivisions    = 36;
+	arc.angle_start_rad = 0;
+	arc.angle_end_rad   = glm::two_pi<float>();
+
+	p->material.stroke_weight = 1.f;
+
+	return p;
+}
+
+// ----------------------------------------------------------------------
 
 static le_2d_primitive_o *le_2d_primitive_create_line( le_2d_o *context ) {
 	auto p = le_2d_allocate_primitive( context );
 
-	p->type = le_2d_primitive_o::Type::eLine;
+	p->type    = le_2d_primitive_o::Type::eLine;
+	auto &line = p->data.as_line;
 
-	p->data.as_line.p0[ 0 ] = 0;
-	p->data.as_line.p0[ 0 ] = 0;
-	p->data.as_line.p1[ 1 ] = 0;
-	p->data.as_line.p1[ 1 ] = 0;
+	line.p0                   = {};
+	line.p1                   = {};
+	p->material.stroke_weight = 1.f;
 
 	return p;
 }
 
-static void le_2d_primitive_set_node_position( le_2d_primitive_o *p, vec2f const pos ) {
-	memcpy( &p->node.position, pos, sizeof( vec2f ) );
+// ----------------------------------------------------------------------
+
+static void le_2d_primitive_set_node_position( le_2d_primitive_o *p, vec2f const *pos ) {
+	p->node.origin = *pos;
+}
+
+static void le_2d_primitive_set_stroke_weight( le_2d_primitive_o *p, float weight ) {
+	p->material.stroke_weight = weight;
 }
 
 #define SETTER_IMPLEMENT( prim_type, field_type, field_name )                                                   \
@@ -118,19 +439,27 @@ static void le_2d_primitive_set_node_position( le_2d_primitive_o *p, vec2f const
 		p->data.as_##prim_type.field_name = field_name;                                                         \
 	}
 
-#define SETTER_IMPLEMENT_MEMCPY( prim_type, field_type, field_name )                                            \
+#define SETTER_IMPLEMENT_CPY( prim_type, field_type, field_name )                                               \
 	static void le_2d_primitive_##prim_type##_set_##field_name( le_2d_primitive_o *p, field_type field_name ) { \
-		memcpy( &p->data.as_##prim_type.field_name, field_name, sizeof( field_type ) );                         \
+		p->data.as_##prim_type.field_name = *field_name;                                                        \
 	}
 
 SETTER_IMPLEMENT( circle, float, radius );
 SETTER_IMPLEMENT( circle, uint32_t, subdivisions );
 SETTER_IMPLEMENT( circle, bool, filled );
 
-SETTER_IMPLEMENT_MEMCPY( line, vec2f const, p0 );
-SETTER_IMPLEMENT_MEMCPY( line, vec2f const, p1 );
+SETTER_IMPLEMENT_CPY( ellipse, vec2f const *, radii );
+SETTER_IMPLEMENT( ellipse, uint32_t, subdivisions );
+SETTER_IMPLEMENT( ellipse, bool, filled );
 
-SETTER_IMPLEMENT( line, float, thickness );
+SETTER_IMPLEMENT_CPY( arc, vec2f const *, radii );
+SETTER_IMPLEMENT( arc, uint32_t, subdivisions );
+SETTER_IMPLEMENT( arc, bool, filled );
+SETTER_IMPLEMENT( arc, float, angle_start_rad );
+SETTER_IMPLEMENT( arc, float, angle_end_rad );
+
+SETTER_IMPLEMENT_CPY( line, vec2f const *, p0 );
+SETTER_IMPLEMENT_CPY( line, vec2f const *, p1 );
 
 #undef SETTER_IMPLEMENT
 
@@ -151,14 +480,25 @@ ISL_API_ATTR void register_le_2d_api( void *api ) {
 	SET_PRIMITIVE_FPTR( circle, radius );
 	SET_PRIMITIVE_FPTR( circle, subdivisions );
 
+	SET_PRIMITIVE_FPTR( ellipse, filled );
+	SET_PRIMITIVE_FPTR( ellipse, radii );
+	SET_PRIMITIVE_FPTR( ellipse, subdivisions );
+
+	SET_PRIMITIVE_FPTR( arc, filled );
+	SET_PRIMITIVE_FPTR( arc, radii );
+	SET_PRIMITIVE_FPTR( arc, subdivisions );
+	SET_PRIMITIVE_FPTR( arc, angle_start_rad );
+	SET_PRIMITIVE_FPTR( arc, angle_end_rad );
+
 	SET_PRIMITIVE_FPTR( line, p0 );
 	SET_PRIMITIVE_FPTR( line, p1 );
 
-	SET_PRIMITIVE_FPTR( line, thickness );
-
 #undef SET_PRIMITIVE_FPTR
 
+	le_2d_primitive_i.create_arc        = le_2d_primitive_create_arc;
+	le_2d_primitive_i.create_ellipse    = le_2d_primitive_create_ellipse;
 	le_2d_primitive_i.create_circle     = le_2d_primitive_create_circle;
 	le_2d_primitive_i.create_line       = le_2d_primitive_create_line;
 	le_2d_primitive_i.set_node_position = le_2d_primitive_set_node_position;
+	le_2d_primitive_i.set_stroke_weight = le_2d_primitive_set_stroke_weight;
 }
