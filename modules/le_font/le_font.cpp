@@ -96,31 +96,38 @@ static void le_font_add_paths_for_glyph( le_font_o const *self, le_path_o *path,
 		kern_advance = stbtt_GetCodepointKernAdvance( &self->info, codepoint_prev, codepoint );
 	}
 
+	glm::vec2 p0{};
+	glm::vec2 p1{};
+	glm::vec2 p2{};
+
 	for ( auto pp = pp_arr; pp != pp_end; pp++ ) {
 		// Note that since the font coordinate system has origin at top/left we must flip y
 		// to make it work with our standard coordinate system which has positive y pointing
 		// upwards.
+
 		switch ( pp->type ) {
 		case STBTT_vmove:
 			// a move signals the start of a new glyph
-			le_path_i.move_to( path, *offset + scale * glm::vec2{pp->x + kern_advance, -pp->y} );
+			p0 = *offset + scale * glm::vec2{pp->x + kern_advance, -pp->y};
+			le_path_i.move_to( path, &p0 );
 			break;
 		case STBTT_vline:
 			// line from last position to this pos
-			le_path_i.line_to( path, *offset + scale * glm::vec2{pp->x + kern_advance, -pp->y} );
+			p0 = *offset + scale * glm::vec2{pp->x + kern_advance, -pp->y};
+			le_path_i.line_to( path, &p0 );
 			break;
 		case STBTT_vcurve:
 			// quadratic bezier to pos
-			le_path_i.quad_bezier_to( path,
-			                          *offset + scale * glm::vec2{pp->x + kern_advance, -pp->y},
-			                          *offset + scale * glm::vec2{pp->cx + kern_advance, -pp->cy} );
+			p0 = *offset + scale * glm::vec2{pp->x + kern_advance, -pp->y};
+			p1 = *offset + scale * glm::vec2{pp->cx + kern_advance, -pp->cy};
+			le_path_i.quad_bezier_to( path, &p0, &p1 );
 			break;
 		case STBTT_vcubic:
 			// cubic bezier to pos
-			le_path_i.cubic_bezier_to( path,
-			                           *offset + scale * glm::vec2{pp->x + kern_advance, -pp->y},
-			                           *offset + scale * glm::vec2{pp->cx + kern_advance, -pp->cy},
-			                           *offset + scale * glm::vec2{pp->cx1 + kern_advance, -pp->cy1} );
+			p0 = *offset + scale * glm::vec2{pp->x + kern_advance, -pp->y};
+			p1 = *offset + scale * glm::vec2{pp->cx + kern_advance, -pp->cy};
+			p2 = *offset + scale * glm::vec2{pp->cx1 + kern_advance, -pp->cy1};
+			le_path_i.cubic_bezier_to( path, &p0, &p1, &p2 );
 			break;
 		}
 	}
