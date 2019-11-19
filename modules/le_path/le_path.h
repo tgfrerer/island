@@ -46,6 +46,7 @@ struct le_path_api {
 		void        (* add_from_simplified_svg   ) ( le_path_o* self, char const* svg );
 
 		void        (* trace                     ) ( le_path_o* self, size_t resolution );
+		void        (* flatten                   ) ( le_path_o* self, float tolerance);
 		void        (* resample                  ) ( le_path_o* self, float interval);
 
 		void        (* clear                     ) ( le_path_o* self );
@@ -127,6 +128,10 @@ class Path : NoCopy, NoMove {
 
 	void trace( size_t resolution = 12 ) {
 		le_path::le_path_i.trace( self, resolution );
+	}
+
+	void flatten( float tolerance = 0.25f ) {
+		le_path::le_path_i.flatten( self, tolerance );
 	}
 
 	void resample( float interval ) {

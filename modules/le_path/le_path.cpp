@@ -280,6 +280,171 @@ static void le_path_trace_path( le_path_o *self, size_t resolution ) {
 	}
 }
 
+// Subdivides given cubic bezier curve `b` at position `t`
+// into two cubic bezier curves, `s_0`, and `s_1`
+// curves are expected in the format `{p0,c0,c1,p1}`
+static void bezier_subdivide( Vertex const b[ 4 ], float t, Vertex s_0[ 4 ], Vertex s_1[ 4 ] ) {
+
+	auto const b2_   = b[ 2 ] + t * ( b[ 3 ] - b[ 2 ] );
+	auto const b1_   = b[ 1 ] + t * ( b[ 2 ] - b[ 1 ] );
+	auto const b0_   = b[ 0 ] + t * ( b[ 1 ] - b[ 0 ] );
+	auto const b0__  = b0_ + t * ( b1_ - b0_ );
+	auto const b1__  = b1_ + t * ( b2_ - b1_ );
+	auto const b0___ = b0__ + t * ( b1__ - b0__ );
+
+	if ( s_0 ) {
+		s_0[ 0 ] = b[ 0 ];
+		s_0[ 1 ] = b0_;
+		s_0[ 2 ] = b0__;
+		s_0[ 3 ] = b0___;
+	}
+	if ( s_1 ) {
+		s_1[ 0 ] = b0___;
+		s_1[ 1 ] = b1__;
+		s_1[ 2 ] = b2_;
+		s_1[ 3 ] = b[ 3 ];
+	}
+}
+
+// ----------------------------------------------------------------------
+// Flatten a cubic bezier curve from previous point p0 to target point p3
+// controlled by control points p1, and p2.
+static void flatten_cubic_bezier_to( Polyline &    polyline,
+                                     Vertex const &p1,       // end point
+                                     Vertex const &c1,       // control point 1
+                                     Vertex const &c2,       // control point 2
+                                     float         tolerance // max distance for arc segment
+) {
+
+	assert( !polyline.vertices.empty() ); // Contour vertices must not be empty.
+
+	Vertex const p0     = polyline.vertices.back(); // copy start point
+	Vertex       p_prev = p0;
+
+	// first we define a coordinate basis built on the first two points, p0, and c1
+
+	glm::vec2 r = glm::normalize( c1 - p0 );
+	glm::vec2 s = {r.y, -r.x};
+
+	glm::mat2 basis     = {r, s};
+	glm::mat2 inv_basis = glm::inverse( basis );
+
+	glm::vec2 b[ 4 ]{
+	    {0.f, 0.f},
+	    {basis * ( c1 - p0 )},
+	    {basis * ( c2 - p0 )},
+	    {basis * ( p1 - p0 )}};
+
+	float t = 0;
+	for ( int i = 0; i <= 100; ++i ) {
+
+		float t_dash = sqrtf( 3 / ( 3 * fabsf( b[ 2 ].y ) ) );
+		t            = std::min<float>( 1.f, t + t_dash * 2.f );
+
+		if ( t >= 1.0f )
+			break;
+
+		float t_sq  = t * t;
+		float t_cub = t_sq * t;
+
+		glm::vec2 pt = b[ 0 ] +
+		               3.f * ( b[ 1 ] - b[ 0 ] ) * t +
+		               3.f * ( b[ 2 ] - 2.f * b[ 1 ] + b[ 0 ] ) * t_sq +
+		               ( b[ 3 ] - 3.f * b[ 2 ] + 3.f * b[ 1 ] - b[ 0 ] ) * t_cub;
+
+		// translate back into original coordinate system
+		pt = p0 + inv_basis * pt;
+
+		polyline.vertices.emplace_back( pt );
+		polyline.total_distance += glm::distance( pt, p_prev );
+		polyline.distances.emplace_back( polyline.total_distance );
+
+		polyline.tangents.emplace_back();
+
+		// Now apply subdivision: See p658 T.F. Hain et al.
+		bezier_subdivide( b, t, nullptr, b );
+
+		p_prev = pt;
+	}
+
+	//	float delta_t = 1.f / float( resolution );
+
+	//	// Note that we begin the following loop at 1,
+	//	// because element 0 (the starting point) is
+	//	// already part of the contour.
+	//	//
+	//	// Loop goes over the set: ]0,resolution]
+	//	//
+	//	for ( size_t i = 1; i <= resolution; i++ ) {
+	//		float t               = i * delta_t;
+	//		float t_sq            = t * t;
+	//		float t_cub           = t_sq * t;
+	//		float one_minus_t     = ( 1.f - t );
+	//		float one_minus_t_sq  = one_minus_t * one_minus_t;
+	//		float one_minus_t_cub = one_minus_t_sq * one_minus_t;
+
+	//		Vertex b = one_minus_t_cub * p0 + 3 * one_minus_t_sq * t * c1 + 3 * one_minus_t * t_sq * c2 + t_cub * p1;
+
+	//		polyline.total_distance += glm::distance( b, p_prev );
+	//		polyline.distances.emplace_back( polyline.total_distance );
+	//		p_prev = b;
+
+	//		polyline.vertices.emplace_back( b );
+
+	//		// First derivative with respect to t, see: https://en.m.wikipedia.org/wiki/B%C3%A9zier_curve
+	//		polyline.tangents.emplace_back( 3 * one_minus_t_sq * ( c1 - p0 ) + 6 * one_minus_t * t * ( c2 - c1 ) + 3 * t_sq * ( p1 - c2 ) );
+	//	}
+}
+
+// ----------------------------------------------------------------------
+
+static void le_path_flatten_path( le_path_o *self, float tolerance ) {
+
+	self->polylines.clear();
+	self->polylines.reserve( self->contours.size() );
+
+	for ( auto const &s : self->contours ) {
+
+		Polyline polyline;
+
+		for ( auto const &command : s.commands ) {
+
+			switch ( command.type ) {
+			case PathCommand::eMoveTo:
+				trace_move_to( polyline, command.p );
+				break;
+			case PathCommand::eLineTo:
+				trace_line_to( polyline, command.p );
+				break;
+			case PathCommand::eQuadBezierTo:
+				flatten_cubic_bezier_to( polyline,
+				                         command.p,
+				                         command.c1,
+				                         command.c1,
+				                         tolerance );
+				break;
+			case PathCommand::eCubicBezierTo:
+				flatten_cubic_bezier_to( polyline,
+				                         command.p,
+				                         command.c1,
+				                         command.c2,
+				                         tolerance );
+				break;
+			case PathCommand::eClosePath:
+				trace_close_path( polyline );
+				break;
+			case PathCommand::eUnknown:
+				assert( false );
+				break;
+			}
+		}
+
+		assert( polyline.vertices.size() == polyline.distances.size() );
+
+		self->polylines.emplace_back( polyline );
+	}
+}
+
 // ----------------------------------------------------------------------
 
 static void le_path_iterate_vertices_for_contour( le_path_o *self, size_t const &contour_index, le_path_api::contour_vertex_cb callback, void *user_data ) {
@@ -471,6 +636,10 @@ static void le_path_move_to( le_path_o *self, Vertex const *p ) {
 // ----------------------------------------------------------------------
 
 static void le_path_line_to( le_path_o *self, Vertex const *p ) {
+	if ( self->contours.empty() ) {
+		constexpr static auto v0 = Vertex{};
+		le_path_move_to( self, &v0 );
+	}
 	assert( !self->contours.empty() ); //subpath must exist
 	self->contours.back().commands.push_back( {PathCommand::eLineTo, *p} );
 }
@@ -893,6 +1062,7 @@ ISL_API_ATTR void register_le_path_api( void *api ) {
 	le_path_i.iterate_quad_beziers_for_contour = le_path_iterate_quad_beziers_for_contour;
 
 	le_path_i.trace    = le_path_trace_path;
+	le_path_i.flatten  = le_path_flatten_path;
 	le_path_i.resample = le_path_resample;
 	le_path_i.clear    = le_path_clear;
 }
