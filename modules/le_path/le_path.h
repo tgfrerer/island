@@ -12,15 +12,7 @@
 
 #ifdef __cplusplus
 
-#	ifndef ISL_ALLOW_GLM_TYPES
-#		define ISL_ALLOW_GLM_TYPES 1
-#	endif
-
-// Life is terrible without 3d type primitives, so let's include some glm forward declarations
-
-#	if ( ISL_ALLOW_GLM_TYPES == 1 )
-#		include <glm/fwd.hpp>
-#	endif
+#	include <glm/fwd.hpp>
 
 extern "C" {
 #endif
@@ -32,14 +24,7 @@ void register_le_path_api( void *api );
 // clang-format off
 struct le_path_api {
 
-#if ( ISL_ALLOW_GLM_TYPES == 1 )
 	typedef glm::vec2 Vertex;
-#else
-	struct Vertex{
-		float x;
-		float y;
-	};
-#endif
 
 	static constexpr auto id      = "le_path";
 	static constexpr auto pRegFun = register_le_path_api;
@@ -52,10 +37,10 @@ struct le_path_api {
 		le_path_o *	( * create                   ) ( );
 		void        ( * destroy                  ) ( le_path_o* self );
 
-		void        (* move_to                   ) ( le_path_o* self, Vertex const& p );
-		void        (* line_to                   ) ( le_path_o* self, Vertex const& p );
-		void        (* quad_bezier_to            ) ( le_path_o* self, Vertex const& p, Vertex const & c1 );
-		void        (* cubic_bezier_to           ) ( le_path_o* self, Vertex const& p, Vertex const & c1, Vertex const & c2 );
+		void        (* move_to                   ) ( le_path_o* self, Vertex const* p );
+		void        (* line_to                   ) ( le_path_o* self, Vertex const* p );
+		void        (* quad_bezier_to            ) ( le_path_o* self, Vertex const* p, Vertex const * c1 );
+		void        (* cubic_bezier_to           ) ( le_path_o* self, Vertex const* p, Vertex const * c1, Vertex const * c2 );
 		void        (* close                     ) ( le_path_o* self);
 
 		void        (* add_from_simplified_svg   ) ( le_path_o* self, char const* svg );
@@ -112,22 +97,22 @@ class Path : NoCopy, NoMove {
 	}
 
 	Path &moveTo( le_path_api::Vertex const &p ) {
-		le_path::le_path_i.move_to( self, p );
+		le_path::le_path_i.move_to( self, &p );
 		return *this;
 	}
 
 	Path &lineTo( le_path_api::Vertex const &p ) {
-		le_path::le_path_i.line_to( self, p );
+		le_path::le_path_i.line_to( self, &p );
 		return *this;
 	}
 
 	Path &quadBezierTo( le_path_api::Vertex const &p, le_path_api::Vertex const &c1 ) {
-		le_path::le_path_i.quad_bezier_to( self, p, c1 );
+		le_path::le_path_i.quad_bezier_to( self, &p, &c1 );
 		return *this;
 	}
 
 	Path &cubicBezierTo( le_path_api::Vertex const &p, le_path_api::Vertex const &c1, le_path_api::Vertex const &c2 ) {
-		le_path::le_path_i.cubic_bezier_to( self, p, c1, c2 );
+		le_path::le_path_i.cubic_bezier_to( self, &p, &c1, &c2 );
 		return *this;
 	}
 

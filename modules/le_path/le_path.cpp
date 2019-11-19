@@ -34,7 +34,7 @@ struct Polyline {
 	std::vector<Vertex> vertices;
 	std::vector<Vertex> tangents;
 	std::vector<float>  distances;
-	double              total_distance = 0;
+	float               total_distance = 0;
 };
 
 struct le_path_o {
@@ -99,7 +99,7 @@ static void trace_line_to( Polyline &polyline, Vertex const &p ) {
 		return;
 	}
 
-	polyline.total_distance += sqrt( dist2 );
+	polyline.total_distance += sqrtf( dist2 );
 	polyline.distances.emplace_back( polyline.total_distance );
 	polyline.vertices.emplace_back( p );
 	polyline.tangents.emplace_back( relativeMovement );
@@ -402,7 +402,7 @@ static void le_polyline_resample( Polyline &polyline, float interval ) {
 	// -- How many times can we fit interval into length of polyline?
 
 	// Find next integer multiple
-	size_t n_segments = std::round( polyline.total_distance / interval );
+	size_t n_segments = size_t( std::round( polyline.total_distance / interval ) );
 	n_segments        = std::max( size_t( 1 ), n_segments );
 
 	float delta = 1.f / float( n_segments );
@@ -462,17 +462,17 @@ static void le_path_resample( le_path_o *self, float interval ) {
 
 // ----------------------------------------------------------------------
 
-static void le_path_move_to( le_path_o *self, Vertex const &p ) {
+static void le_path_move_to( le_path_o *self, Vertex const *p ) {
 	// move_to means a new subpath, unless the last command was a
 	self->contours.emplace_back(); // add empty subpath
-	self->contours.back().commands.push_back( {PathCommand::eMoveTo, p} );
+	self->contours.back().commands.push_back( {PathCommand::eMoveTo, *p} );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_path_line_to( le_path_o *self, Vertex const &p ) {
+static void le_path_line_to( le_path_o *self, Vertex const *p ) {
 	assert( !self->contours.empty() ); //subpath must exist
-	self->contours.back().commands.push_back( {PathCommand::eLineTo, p} );
+	self->contours.back().commands.push_back( {PathCommand::eLineTo, *p} );
 }
 
 // ----------------------------------------------------------------------
@@ -505,7 +505,7 @@ static Vertex const *le_path_get_previous_p( le_path_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_path_line_horiz_to( le_path_o *self, float const &px ) {
+static void le_path_line_horiz_to( le_path_o *self, float px ) {
 	assert( !self->contours.empty() );                 // Subpath must exist
 	assert( !self->contours.back().commands.empty() ); // previous command must exist
 
@@ -514,13 +514,13 @@ static void le_path_line_horiz_to( le_path_o *self, float const &px ) {
 	if ( p ) {
 		Vertex p2 = *p;
 		p2.x      = px;
-		le_path_line_to( self, p2 );
+		le_path_line_to( self, &p2 );
 	}
 }
 
 // ----------------------------------------------------------------------
 
-static void le_path_line_vert_to( le_path_o *self, float const &py ) {
+static void le_path_line_vert_to( le_path_o *self, float py ) {
 	assert( !self->contours.empty() );                 // Subpath must exist
 	assert( !self->contours.back().commands.empty() ); // previous command must exist
 
@@ -529,22 +529,22 @@ static void le_path_line_vert_to( le_path_o *self, float const &py ) {
 	if ( p ) {
 		Vertex p2 = *p;
 		p2.y      = py;
-		le_path_line_to( self, p2 );
+		le_path_line_to( self, &p2 );
 	}
 }
 
 // ----------------------------------------------------------------------
 
-static void le_path_quad_bezier_to( le_path_o *self, Vertex const &p, Vertex const &c1 ) {
+static void le_path_quad_bezier_to( le_path_o *self, Vertex const *p, Vertex const *c1 ) {
 	assert( !self->contours.empty() ); //contour must exist
-	self->contours.back().commands.push_back( {PathCommand::eQuadBezierTo, p, c1} );
+	self->contours.back().commands.push_back( {PathCommand::eQuadBezierTo, *p, *c1} );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_path_cubic_bezier_to( le_path_o *self, Vertex const &p, Vertex const &c1, Vertex const &c2 ) {
+static void le_path_cubic_bezier_to( le_path_o *self, Vertex const *p, Vertex const *c1, Vertex const *c2 ) {
 	assert( !self->contours.empty() ); //subpath must exist
-	self->contours.back().commands.push_back( {PathCommand::eCubicBezierTo, p, c1, c2} );
+	self->contours.back().commands.push_back( {PathCommand::eCubicBezierTo, *p, *c1, *c2} );
 }
 
 // ----------------------------------------------------------------------
@@ -816,13 +816,13 @@ static void le_path_add_from_simplified_svg( le_path_o *self, char const *svg ) 
 
 		if ( is_m_instruction( c, &offset, &p0 ) ) {
 			// moveto event
-			le_path_move_to( self, p0 );
+			le_path_move_to( self, &p0 );
 			c += offset;
 			continue;
 		}
 		if ( is_l_instruction( c, &offset, &p0 ) ) {
 			// lineto event
-			le_path_line_to( self, p0 );
+			le_path_line_to( self, &p0 );
 			c += offset;
 			continue;
 		}
@@ -840,15 +840,15 @@ static void le_path_add_from_simplified_svg( le_path_o *self, char const *svg ) 
 		}
 		if ( is_c_instruction( c, &offset, &p0, &p1, &p2 ) ) {
 			// cubic bezier event
-			le_path_cubic_bezier_to( self, p2, p0, p1 ); // Note that end vertex is p2 from SVG,
-			                                             // as SVG has target vertex as last vertex
+			le_path_cubic_bezier_to( self, &p2, &p0, &p1 ); // Note that end vertex is p2 from SVG,
+			                                                // as SVG has target vertex as last vertex
 			c += offset;
 			continue;
 		}
 		if ( is_q_instruction( c, &offset, &p0, &p1 ) ) {
 			// quadratic bezier event
-			le_path_quad_bezier_to( self, p1, p0 ); // Note that target vertex is p1 from SVG,
-			                                        // as SVG has target vertex as last vertex
+			le_path_quad_bezier_to( self, &p1, &p0 ); // Note that target vertex is p1 from SVG,
+			                                          // as SVG has target vertex as last vertex
 			c += offset;
 			continue;
 		}
