@@ -59,6 +59,7 @@ struct arc_data_t {
 
 struct path_data_t {
 	le_path_o *path;
+	uint32_t   subdivisions;
 };
 
 struct line_data_t {
@@ -213,6 +214,29 @@ static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, floa
 		geometry.push_back( v );
 	}
 }
+// ----------------------------------------------------------------------
+
+static void generate_geometry_path( std::vector<VertexData2D> &geometry, le_path_o *path, float thickness, uint32_t subdivisions, uint32_t color ) {
+
+	using namespace le_path;
+
+	le_path_i.trace( path, subdivisions );
+
+	size_t const num_polylines = le_path_i.get_num_polylines( path );
+
+	for ( size_t i = 0; i != num_polylines; ++i ) {
+		glm::vec2 const *line_vertices = nullptr;
+		size_t           num_vertices;
+		le_path_i.get_vertices_for_polyline( path, i, &line_vertices, &num_vertices );
+
+		auto *p_prev = line_vertices + 0;
+		for ( size_t j = 1; j != num_vertices; ++j ) {
+			glm::vec2 const *p_cur = line_vertices + j;
+			generate_geometry_line( geometry, *p_prev, *p_cur, thickness, color );
+			p_prev = p_cur;
+		}
+	}
+}
 
 // ----------------------------------------------------------------------
 
@@ -254,6 +278,13 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 			generate_geometry_outline_arc( geometry, arc.angle_start_rad, arc.angle_end_rad, arc.radii, p->material.stroke_weight, arc.subdivisions, p->material.color );
 		}
 	} break;
+	case le_2d_primitive_o::Type::ePath: {
+		auto const &path = p->data.as_path;
+		generate_geometry_path( geometry, path.path, p->material.stroke_weight, path.subdivisions, p->material.color );
+	} break;
+	case le_2d_primitive_o::Type::eUndefined:
+		// noop
+		break;
 	}
 }
 
@@ -313,6 +344,9 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 	                .addAttribute( offsetof( VertexData2D, color ), le_num_type::eU8, 4, true )
 	            .end()
 	        .end()
+			.withRasterizationState()
+				.setPolygonMode(le::PolygonMode::eLine)
+			.end()
 	        .build();
 	// clang-format on
 
@@ -460,7 +494,8 @@ static le_2d_primitive_o *le_2d_primitive_create_path( le_2d_o *context ) {
 	p->type   = le_2d_primitive_o::Type::ePath;
 	auto &obj = p->data.as_path;
 
-	obj.path = le_path::le_path_i.create();
+	obj.path         = le_path::le_path_i.create();
+	obj.subdivisions = 12;
 
 	p->material.stroke_weight = 1.f;
 	return p;
@@ -470,18 +505,41 @@ static le_2d_primitive_o *le_2d_primitive_create_path( le_2d_o *context ) {
 
 static void le_2d_primitive_path_move_to( le_2d_primitive_o *p, vec2f const *pos ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
-
 	auto &obj = p->data.as_path;
 	le_path::le_path_i.move_to( obj.path, pos );
 }
+
 // ----------------------------------------------------------------------
+
 static void le_2d_primitive_path_line_to( le_2d_primitive_o *p, vec2f const *pos ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
-
 	auto &obj = p->data.as_path;
 	le_path::le_path_i.line_to( obj.path, pos );
 }
+
 // ----------------------------------------------------------------------
+
+static void le_2d_primitive_path_cubic_bezier_to( le_2d_primitive_o *p, vec2f const *pos, vec2f const *c1, vec2f const *c2 ) {
+	assert( p->type == le_2d_primitive_o::Type::ePath );
+	auto &obj = p->data.as_path;
+	le_path::le_path_i.cubic_bezier_to( obj.path, pos, c1, c2 );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_2d_primitive_path_quad_bezier_to( le_2d_primitive_o *p, vec2f const *pos, vec2f const *c1 ) {
+	assert( p->type == le_2d_primitive_o::Type::ePath );
+	auto &obj = p->data.as_path;
+	le_path::le_path_i.quad_bezier_to( obj.path, pos, c1 );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_2d_primitive_path_add_from_simplified_svg( le_2d_primitive_o *p, char const *svg ) {
+	assert( p->type == le_2d_primitive_o::Type::ePath );
+	auto &obj = p->data.as_path;
+	le_path::le_path_i.add_from_simplified_svg( obj.path, svg );
+}
 
 // ----------------------------------------------------------------------
 
@@ -554,9 +612,12 @@ ISL_API_ATTR void register_le_2d_api( void *api ) {
 
 #undef SET_PRIMITIVE_FPTR
 
-	le_2d_primitive_i.path_move_to = le_2d_primitive_path_move_to;
-	le_2d_primitive_i.path_line_to = le_2d_primitive_path_line_to;
-	le_2d_primitive_i.create_path  = le_2d_primitive_create_path;
+	le_2d_primitive_i.path_move_to                 = le_2d_primitive_path_move_to;
+	le_2d_primitive_i.path_line_to                 = le_2d_primitive_path_line_to;
+	le_2d_primitive_i.path_quad_bezier_to          = le_2d_primitive_path_quad_bezier_to;
+	le_2d_primitive_i.path_cubic_bezier_to         = le_2d_primitive_path_cubic_bezier_to;
+	le_2d_primitive_i.path_add_from_simplified_svg = le_2d_primitive_path_add_from_simplified_svg;
+	le_2d_primitive_i.create_path                  = le_2d_primitive_create_path;
 
 	le_2d_primitive_i.create_arc        = le_2d_primitive_create_arc;
 	le_2d_primitive_i.create_ellipse    = le_2d_primitive_create_ellipse;
