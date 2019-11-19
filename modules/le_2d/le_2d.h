@@ -59,6 +59,11 @@ struct le_2d_api {
 		SETTER_DECLARE( line, glm::vec2 const *, p0);
 		SETTER_DECLARE( line, glm::vec2 const *, p1);
 
+		le_2d_primitive_o* (*create_path)(le_2d_o* context);
+
+		void (*path_move_to)(le_2d_primitive_o* p, glm::vec2 const * pos);
+		void (*path_line_to)(le_2d_primitive_o* p, glm::vec2 const * pos);
+
 		#undef SETTER_DECLARE
 	};
 
@@ -278,6 +283,52 @@ class Le2D : NoCopy, NoMove {
 		return mLineBuilder.create();
 	}
 
+	// ---
+
+	class PathBuilder {
+		Le2D &             parent;
+		le_2d_primitive_o *self;
+
+	  public:
+		PathBuilder( Le2D &parent_ )
+		    : parent( parent_ ) {
+		}
+
+		PathBuilder &create() {
+			self = le_2d::le_2d_prim_i.create_path( parent.self );
+			return *this;
+		}
+
+		PathBuilder &move_to( glm::vec2 const &pos ) {
+			le_2d::le_2d_prim_i.path_move_to( self, &pos );
+			return *this;
+		}
+
+		PathBuilder &line_to( glm::vec2 const &pos ) {
+			le_2d::le_2d_prim_i.path_line_to( self, &pos );
+			return *this;
+		}
+
+		PathBuilder &set_node_position( glm::vec2 const &pos ) {
+			le_2d::le_2d_prim_i.set_node_position( self, &pos );
+			return *this;
+		}
+
+		PathBuilder &set_stroke_weight( float weight ) {
+			le_2d::le_2d_prim_i.set_stroke_weight( self, weight );
+			return *this;
+		}
+
+		Le2D &draw() {
+			return parent;
+		}
+	};
+
+	PathBuilder mPathBuilder{*this};
+
+	PathBuilder &path() {
+		return mPathBuilder.create();
+	}
 #	undef BUILDER_IMPLEMENT
 #	undef BUILDER_IMPLEMENT_VEC
 };

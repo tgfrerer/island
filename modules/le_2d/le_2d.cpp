@@ -16,6 +16,8 @@
 #include "le_backend_vk/le_backend_vk.h"             // for shader module creation
 #include "le_pipeline_builder/le_pipeline_builder.h" // for pipeline creation
 
+#include "le_path/le_path.h"
+
 using vec2f = glm::vec2;
 
 // A drawing context, owner of all primitives.
@@ -55,6 +57,10 @@ struct arc_data_t {
 	bool      filled;
 };
 
+struct path_data_t {
+	le_path_o *path;
+};
+
 struct line_data_t {
 	vec2f p0;
 	vec2f p1;
@@ -68,6 +74,7 @@ struct le_2d_primitive_o {
 		eEllipse,
 		eArc,
 		eLine,
+		ePath,
 	};
 
 	Type            type;
@@ -79,6 +86,7 @@ struct le_2d_primitive_o {
 		ellipse_data_t as_ellipse;
 		arc_data_t     as_arc;
 		line_data_t    as_line;
+		path_data_t    as_path;
 
 	} data;
 };
@@ -107,6 +115,8 @@ struct VertexData2D {
 	uint32_t  color;
 };
 
+// ----------------------------------------------------------------------
+
 static void generate_geometry_line( std::vector<VertexData2D> &geometry, glm::vec2 const &p0, glm::vec2 const &p1, float thickness, uint32_t colour ) {
 	if ( p0 == p1 ) {
 		// return empty if line cannot be generated.
@@ -134,6 +144,8 @@ static void generate_geometry_line( std::vector<VertexData2D> &geometry, glm::ve
 	geometry.push_back( {p1 + off, {1.f, 0.f}, colour} );
 }
 
+// ----------------------------------------------------------------------
+
 static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, float thickness, uint32_t subdivisions, uint32_t colour ) {
 
 	if ( std::numeric_limits<float>::epsilon() > angle_end_rad - angle_start_rad ) {
@@ -155,6 +167,8 @@ static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, 
 		std::swap( p, p2 );
 	}
 }
+
+// ----------------------------------------------------------------------
 
 static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, uint32_t subdivisions, uint32_t color ) {
 
@@ -335,6 +349,20 @@ static void le_2d_destroy( le_2d_o *self ) {
 	le_2d_draw_primitives( self );
 
 	for ( auto &p : self->primitives ) {
+
+		// Most primitives are POD types, but some might own
+		// their own heap-allocated objects which we must clean up.
+
+		switch ( p->type ) {
+		case ( le_2d_primitive_o::Type::ePath ):
+			if ( p->data.as_path.path ) {
+				le_path::le_path_i.destroy( p->data.as_path.path );
+			}
+			break;
+		default:
+			break;
+		}
+
 		delete p;
 	}
 
@@ -363,12 +391,12 @@ static le_2d_primitive_o *le_2d_allocate_primitive( le_2d_o *self ) {
 static le_2d_primitive_o *le_2d_primitive_create_circle( le_2d_o *context ) {
 	auto p = le_2d_allocate_primitive( context );
 
-	p->type      = le_2d_primitive_o::Type::eCircle;
-	auto &circle = p->data.as_circle;
+	p->type   = le_2d_primitive_o::Type::eCircle;
+	auto &obj = p->data.as_circle;
 
-	circle.filled       = true;
-	circle.radius       = 0.f;
-	circle.subdivisions = 36;
+	obj.filled       = true;
+	obj.radius       = 0.f;
+	obj.subdivisions = 36;
 
 	return p;
 }
@@ -380,11 +408,11 @@ static le_2d_primitive_o *le_2d_primitive_create_ellipse( le_2d_o *context ) {
 
 	p->type = le_2d_primitive_o::Type::eEllipse;
 
-	auto &ellipse = p->data.as_ellipse;
+	auto &obj = p->data.as_ellipse;
 
-	ellipse.filled       = true;
-	ellipse.radii        = {0.f, 0.f};
-	ellipse.subdivisions = 36;
+	obj.filled       = true;
+	obj.radii        = {0.f, 0.f};
+	obj.subdivisions = 36;
 
 	return p;
 }
@@ -396,13 +424,13 @@ static le_2d_primitive_o *le_2d_primitive_create_arc( le_2d_o *context ) {
 
 	p->type = le_2d_primitive_o::Type::eArc;
 
-	auto &arc = p->data.as_arc;
+	auto &obj = p->data.as_arc;
 
-	arc.filled          = false;
-	arc.radii           = {0.f, 0.f};
-	arc.subdivisions    = 36;
-	arc.angle_start_rad = 0;
-	arc.angle_end_rad   = glm::two_pi<float>();
+	obj.filled          = false;
+	obj.radii           = {0.f, 0.f};
+	obj.subdivisions    = 36;
+	obj.angle_start_rad = 0;
+	obj.angle_end_rad   = glm::two_pi<float>();
 
 	p->material.stroke_weight = 1.f;
 
@@ -414,15 +442,46 @@ static le_2d_primitive_o *le_2d_primitive_create_arc( le_2d_o *context ) {
 static le_2d_primitive_o *le_2d_primitive_create_line( le_2d_o *context ) {
 	auto p = le_2d_allocate_primitive( context );
 
-	p->type    = le_2d_primitive_o::Type::eLine;
-	auto &line = p->data.as_line;
+	p->type   = le_2d_primitive_o::Type::eLine;
+	auto &obj = p->data.as_line;
 
-	line.p0                   = {};
-	line.p1                   = {};
+	obj.p0                    = {};
+	obj.p1                    = {};
 	p->material.stroke_weight = 1.f;
 
 	return p;
 }
+
+// ----------------------------------------------------------------------
+
+static le_2d_primitive_o *le_2d_primitive_create_path( le_2d_o *context ) {
+	auto p = le_2d_allocate_primitive( context );
+
+	p->type   = le_2d_primitive_o::Type::ePath;
+	auto &obj = p->data.as_path;
+
+	obj.path = le_path::le_path_i.create();
+
+	p->material.stroke_weight = 1.f;
+	return p;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_2d_primitive_path_move_to( le_2d_primitive_o *p, vec2f const *pos ) {
+	assert( p->type == le_2d_primitive_o::Type::ePath );
+
+	auto &obj = p->data.as_path;
+	le_path::le_path_i.move_to( obj.path, pos );
+}
+// ----------------------------------------------------------------------
+static void le_2d_primitive_path_line_to( le_2d_primitive_o *p, vec2f const *pos ) {
+	assert( p->type == le_2d_primitive_o::Type::ePath );
+
+	auto &obj = p->data.as_path;
+	le_path::le_path_i.line_to( obj.path, pos );
+}
+// ----------------------------------------------------------------------
 
 // ----------------------------------------------------------------------
 
@@ -494,6 +553,10 @@ ISL_API_ATTR void register_le_2d_api( void *api ) {
 	SET_PRIMITIVE_FPTR( line, p1 );
 
 #undef SET_PRIMITIVE_FPTR
+
+	le_2d_primitive_i.path_move_to = le_2d_primitive_path_move_to;
+	le_2d_primitive_i.path_line_to = le_2d_primitive_path_line_to;
+	le_2d_primitive_i.create_path  = le_2d_primitive_create_path;
 
 	le_2d_primitive_i.create_arc        = le_2d_primitive_create_arc;
 	le_2d_primitive_i.create_ellipse    = le_2d_primitive_create_ellipse;

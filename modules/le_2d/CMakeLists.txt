@@ -1,6 +1,6 @@
 set (TARGET le_2d)
 
-# depends_on_island_module(le_path)
+depends_on_island_module(le_path)
 
 set (SOURCES "le_2d.cpp")
 set (SOURCES ${SOURCES} "le_2d.h")
