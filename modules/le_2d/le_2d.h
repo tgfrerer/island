@@ -28,7 +28,7 @@ void register_le_2d_api( void *api );
 // clang-format off
 struct le_2d_api {
 	static constexpr auto id      = "le_2d";
-	static constexpr auto pRegFukn = register_le_2d_api;
+	static constexpr auto pRegFun = register_le_2d_api;
 
 	struct le_2d_primitive_interface_t{
 
