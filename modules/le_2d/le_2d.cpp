@@ -155,17 +155,27 @@ static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, 
 
 	// ---------| invariant: angle difference is not too close to zero
 
-	glm::vec2 p           = radii * glm::vec2{cosf( angle_start_rad ), sinf( angle_start_rad )};
-	float     angle_delta = ( angle_end_rad - angle_start_rad ) / float( subdivisions );
+	glm::vec2 p0_far  = ( radii + 0.5f * thickness ) * glm::vec2{cosf( angle_start_rad ), sinf( angle_start_rad )};
+	glm::vec2 p0_near = ( radii - +0.5f * thickness ) * glm::vec2{cosf( angle_start_rad ), sinf( angle_start_rad )};
+
+	float angle_delta = ( angle_end_rad - angle_start_rad ) / float( subdivisions );
 
 	for ( uint32_t i = 1; i <= subdivisions; ++i ) {
 		float angle = angle_start_rad + angle_delta * i;
 
-		glm::vec2 p2 = radii * glm::vec2{cosf( angle ), sinf( angle )};
+		glm::vec2 p1_far  = ( radii + 0.5f * thickness ) * glm::vec2{cosf( angle ), sinf( angle )};
+		glm::vec2 p1_near = ( radii - +0.5f * thickness ) * glm::vec2{cosf( angle ), sinf( angle )};
 
-		generate_geometry_line( geometry, p, p2, thickness, colour );
+		geometry.push_back( {p0_far, {0.f, 0.f}, colour} );
+		geometry.push_back( {p0_near, {0.f, 1.f}, colour} );
+		geometry.push_back( {p1_far, {1.f, 0.f}, colour} );
 
-		std::swap( p, p2 );
+		geometry.push_back( {p0_near, {0.f, 1.f}, colour} );
+		geometry.push_back( {p1_near, {1.f, 1.f}, colour} );
+		geometry.push_back( {p1_far, {1.f, 0.f}, colour} );
+
+		std::swap( p0_far, p1_far );
+		std::swap( p0_near, p1_near );
 	}
 }
 
