@@ -322,7 +322,7 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 	Vertex       p_prev = p0;
 
 	float toi = tolerance;
-	toi       = 0.04f;
+	toi       = 0.4f; // FIXME: this overrides tolerance
 
 	glm::vec2 b[ 4 ]{
 	    p0,
@@ -338,17 +338,13 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 		glm::vec2 r = glm::normalize( b[ 1 ] - b[ 0 ] );
 		glm::vec2 s = {r.y, -r.x};
 
-		glm::mat2 const  basis     = {r, s};
-		glm::mat2 const &inv_basis = basis; // experiment (wolfram alpha) shows: inverse is same as original matrix: (because matrix is orthogonal?)
-
-		b[ 1 ] = {basis * ( b[ 1 ] - b[ 0 ] )};
-		b[ 2 ] = {basis * ( b[ 2 ] - b[ 0 ] )};
-		b[ 3 ] = {basis * ( b[ 3 ] - b[ 0 ] )};
-		b[ 0 ] = {};
+		glm::mat2 const basis = {r, s};
 
 		// first we define a coordinate basis built on the first two points, b0, and b1
 
-		float t_dash = sqrtf( toi / ( 3 * fabsf( b[ 2 ].y ) ) );
+		float s2 = ( basis * ( b[ 2 ] - b[ 0 ] ) ).y; // y coordinate at control point c1, transformed into coordinate system ((p0 -> c1), ccw90(p0 -> c1))
+
+		float t_dash = sqrtf( toi / ( 3 * fabsf( s2 ) ) );
 		t            = std::min<float>( 1.f, t_dash * 2.f );
 
 		float t_sq  = t * t;
@@ -360,7 +356,7 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 		               ( b[ 3 ] - 3.f * b[ 2 ] + 3.f * b[ 1 ] - b[ 0 ] ) * t_cub;
 
 		// translate back into original coordinate system
-		pt = p_prev + inv_basis * pt;
+		//		pt = p_prev + inv_basis * pt;
 
 		polyline.vertices.emplace_back( pt );
 		polyline.total_distance += glm::distance( pt, p_prev );
@@ -374,42 +370,8 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 		// Now apply subdivision: See p658 T.F. Hain et al.
 		bezier_subdivide( b, t, nullptr, b );
 
-		// transform bezier control points back into canonical coordinate system
-		b[ 0 ] = p_prev + inv_basis * b[ 0 ];
-		b[ 1 ] = p_prev + inv_basis * b[ 1 ];
-		b[ 2 ] = p_prev + inv_basis * b[ 2 ];
-		b[ 3 ] = p_prev + inv_basis * b[ 3 ];
-
 		p_prev = pt;
 	}
-
-	//	float delta_t = 1.f / float( resolution );
-
-	//	// Note that we begin the following loop at 1,
-	//	// because element 0 (the starting point) is
-	//	// already part of the contour.
-	//	//
-	//	// Loop goes over the set: ]0,resolution]
-	//	//
-	//	for ( size_t i = 1; i <= resolution; i++ ) {
-	//		float t               = i * delta_t;
-	//		float t_sq            = t * t;
-	//		float t_cub           = t_sq * t;
-	//		float one_minus_t     = ( 1.f - t );
-	//		float one_minus_t_sq  = one_minus_t * one_minus_t;
-	//		float one_minus_t_cub = one_minus_t_sq * one_minus_t;
-
-	//		Vertex b = one_minus_t_cub * p0 + 3 * one_minus_t_sq * t * c1 + 3 * one_minus_t * t_sq * c2 + t_cub * p1;
-
-	//		polyline.total_distance += glm::distance( b, p_prev );
-	//		polyline.distances.emplace_back( polyline.total_distance );
-	//		p_prev = b;
-
-	//		polyline.vertices.emplace_back( b );
-
-	//		// First derivative with respect to t, see: https://en.m.wikipedia.org/wiki/B%C3%A9zier_curve
-	//		polyline.tangents.emplace_back( 3 * one_minus_t_sq * ( c1 - p0 ) + 6 * one_minus_t * t * ( c2 - c1 ) + 3 * t_sq * ( p1 - c2 ) );
-	//	}
 }
 
 // ----------------------------------------------------------------------
