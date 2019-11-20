@@ -321,28 +321,35 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 	Vertex const p0     = polyline.vertices.back(); // copy start point
 	Vertex       p_prev = p0;
 
-	// first we define a coordinate basis built on the first two points, p0, and c1
-
-	glm::vec2 r = glm::normalize( c1 - p0 );
-	glm::vec2 s = {r.y, -r.x};
-
-	glm::mat2 basis     = {r, s};
-	glm::mat2 inv_basis = glm::inverse( basis );
+	float toi = tolerance;
+	toi       = 0.04f;
 
 	glm::vec2 b[ 4 ]{
-	    {0.f, 0.f},
-	    {basis * ( c1 - p0 )},
-	    {basis * ( c2 - p0 )},
-	    {basis * ( p1 - p0 )}};
+	    p0,
+	    c1,
+	    c2,
+	    p1,
+	};
 
 	float t = 0;
-	for ( int i = 0; i <= 100; ++i ) {
+	for ( ;; ) {
 
-		float t_dash = sqrtf( 3 / ( 3 * fabsf( b[ 2 ].y ) ) );
-		t            = std::min<float>( 1.f, t + t_dash * 2.f );
+		// create a coordinate basis based on the first point, and the first control point
+		glm::vec2 r = glm::normalize( b[ 1 ] - b[ 0 ] );
+		glm::vec2 s = {r.y, -r.x};
 
-		if ( t >= 1.0f )
-			break;
+		glm::mat2 const  basis     = {r, s};
+		glm::mat2 const &inv_basis = basis; // experiment (wolfram alpha) shows: inverse is same as original matrix: (because matrix is orthogonal?)
+
+		b[ 1 ] = {basis * ( b[ 1 ] - b[ 0 ] )};
+		b[ 2 ] = {basis * ( b[ 2 ] - b[ 0 ] )};
+		b[ 3 ] = {basis * ( b[ 3 ] - b[ 0 ] )};
+		b[ 0 ] = {};
+
+		// first we define a coordinate basis built on the first two points, b0, and b1
+
+		float t_dash = sqrtf( toi / ( 3 * fabsf( b[ 2 ].y ) ) );
+		t            = std::min<float>( 1.f, t_dash * 2.f );
 
 		float t_sq  = t * t;
 		float t_cub = t_sq * t;
@@ -353,7 +360,7 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 		               ( b[ 3 ] - 3.f * b[ 2 ] + 3.f * b[ 1 ] - b[ 0 ] ) * t_cub;
 
 		// translate back into original coordinate system
-		pt = p0 + inv_basis * pt;
+		pt = p_prev + inv_basis * pt;
 
 		polyline.vertices.emplace_back( pt );
 		polyline.total_distance += glm::distance( pt, p_prev );
@@ -361,8 +368,17 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 
 		polyline.tangents.emplace_back();
 
+		if ( t >= 1.0f )
+			break;
+
 		// Now apply subdivision: See p658 T.F. Hain et al.
 		bezier_subdivide( b, t, nullptr, b );
+
+		// transform bezier control points back into canonical coordinate system
+		b[ 0 ] = p_prev + inv_basis * b[ 0 ];
+		b[ 1 ] = p_prev + inv_basis * b[ 1 ];
+		b[ 2 ] = p_prev + inv_basis * b[ 2 ];
+		b[ 3 ] = p_prev + inv_basis * b[ 3 ];
 
 		p_prev = pt;
 	}
