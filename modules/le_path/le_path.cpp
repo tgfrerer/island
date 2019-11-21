@@ -322,29 +322,35 @@ static void bezier_subdivide( CubicBezier const b, float t, CubicBezier *s_0, Cu
 
 static bool cubic_bezier_calculate_inflection_points( CubicBezier const &b, InflectionData *infl ) {
 
-	glm::vec2 const a_ = -b.p0 + 3.f * b.c1 - 3.f * b.c2 + b.p1;
-	glm::vec2 const b_ = 3.f * b.p0 - 6.f * b.c1 + 3.f * b.c2;
+	// clang-format off
+	glm::vec2 const a_ =       -b.p0 + 3.f * b.c1 - 3.f * b.c2 + b.p1;
+	glm::vec2 const b_ =  3.f * b.p0 - 6.f * b.c1 + 3.f * b.c2;
 	glm::vec2 const c_ = -3.f * b.p0 + 3.f * b.c1;
+	// clang-format on
 
-	float const divisor = ( a_.y * b_.x - a_.x * b_.y );
+	float const divisor = 2 * ( -b_.y * c_.x + b_.x * c_.y );
 
 	if ( fabsf( divisor ) <= std::numeric_limits<float>::epsilon() ) {
 		// must not be zero, otherwise there are no solutions.
 		return false;
 	}
 
-	infl->t_cusp  = -0.5f * ( ( a_.y * c_.x - a_.x * c_.y ) / divisor );
-	float sq_term = -( 1.f / 3.f ) * ( ( b_.y * c_.x - b_.x * c_.y ) / divisor );
+	float t_cusp = ( a_.y * c_.x - a_.x * c_.y );
+
+	infl->t_cusp = t_cusp / divisor;
+
+	float sq_term = t_cusp * t_cusp - 4 * ( -a_.y * b_.x + a_.x * b_.y ) *
+	                                      ( -b_.y * c_.x + b_.x * c_.y );
 
 	if ( sq_term < 0 ) {
 		// must be > 0 otherswise, no solutions.
-		return false;
+		infl->t_1 = 0;
+		infl->t_2 = 0;
+		return true;
 	}
 
-	float delta_sq = ( infl->t_cusp * infl->t_cusp ) + sq_term;
-
-	infl->t_1 = infl->t_cusp - sqrtf( delta_sq );
-	infl->t_2 = infl->t_cusp + sqrtf( delta_sq );
+	infl->t_1 = ( t_cusp - sqrtf( sq_term ) ) / divisor;
+	infl->t_2 = ( t_cusp + sqrtf( sq_term ) ) / divisor;
 
 	return true;
 }
@@ -359,7 +365,8 @@ static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
 	CubicBezier b = b_; // fixme: not necessary.
 
 	float t = 0;
-	for ( ;; ) {
+
+	for ( int i = 0; i != 100; i++ ) {
 
 		// create a coordinate basis based on the first point, and the first control point
 		glm::vec2 r = glm::normalize( b.c1 - b.p0 );
@@ -369,18 +376,22 @@ static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
 
 		// first we define a coordinate basis built on the first two points, b0, and b1
 
-		float s2 = ( basis * ( b.c2 - b.p0 ) ).y; // this is weird, but appears to work...
+		glm::vec2 P1 = basis * ( b.c1 - b.p0 );
+		glm::vec2 P2 = basis * ( b.c2 - b.p0 );
 
-		float t_dash = sqrtf( tolerance / ( 3 * fabsf( s2 ) ) );
-		t            = std::min<float>( 1.f, t_dash );
+		float r1 = P1.x;
+		float s2 = ( P2 ).y; // this is weird, but appears to work...
 
-		float t_sq  = t * t;
-		float t_cub = t_sq * t;
+		s2 = 0.5f * ( fabsf( r1 ) + fabsf( s2 ) );
 
-		glm::vec2 pt = b.p0 +
-		               3.f * ( b.c1 - b.p0 ) * t +
-		               3.f * ( b.c2 - 2.f * b.c1 + b.p0 ) * t_sq +
-		               ( b.p1 - 3.f * b.c2 + 3.f * b.c1 - b.p0 ) * t_cub;
+		float t_dash = sqrtf( tolerance / ( 3 * s2 ) );
+		t            = std::min<float>( 1.f, 2 * t_dash );
+
+		// apply subdivision at (t) means that our current point will be the new
+		// point p0 in the subdivided segment.
+		bezier_subdivide( b, t, nullptr, &b );
+
+		glm::vec2 pt = b.p0;
 
 		// translate back into original coordinate system
 		//		pt = p_prev + inv_basis * pt;
@@ -393,9 +404,6 @@ static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
 
 		if ( t >= 1.0f )
 			break;
-
-		// Now apply subdivision: See p658 T.F. Hain et al.
-		bezier_subdivide( b, t, nullptr, &b );
 
 		//		p_prev = pt;
 	}
@@ -425,7 +433,6 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 	Vertex       p_prev = p0;
 
 	float toi = tolerance;
-	toi       = 00.5f; // FIXME: this overrides tolerance
 
 	CubicBezier b{
 	    p0,
@@ -448,6 +455,7 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 
 		CubicBezier b_0{};
 		CubicBezier b_1{};
+		CubicBezier b_2{};
 		CubicBezier b_3{};
 
 		{
@@ -459,42 +467,48 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 				CubicBezier b_sub{};
 				bezier_subdivide( b, infl.t_1, nullptr, &b_sub );
 
-				glm::vec2 r = glm::normalize( b_sub.c1 - b_sub.p0 );
+				glm::vec2 r = glm::normalize( b_sub.c2 - b_sub.p0 );
 				glm::vec2 s = {r.y, -r.x};
 
 				glm::mat2 const basis = {r, s};
 
 				// first we define a coordinate basis built on the first two points, b0, and b1
 
-				float s3 = fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
+				float s3  = 3 * fabsf( ( basis * ( b_sub.c2 - b_sub.p0 ) ).y );
+				float t_f = s3 <= tolerance
+				                ? 0
+				                : powf( tolerance / s3, 1.f / 3.f ); // cubic root
 
-				float t_f = powf( tolerance / s3, 1.f / 3.f ); // cubic root
-
-				t1_m = infl.t_1 - t_f * ( 1.f - infl.t_1 );
-				t1_p = infl.t_1 + t_f * ( 1.f - infl.t_1 );
+				t1_m = infl.t_1 - t_f * ( 1 - infl.t_1 );
+				t1_p = infl.t_1 + t_f * ( 1 - infl.t_1 );
 			}
 			{
 				CubicBezier b_sub{};
 				bezier_subdivide( b, infl.t_2, nullptr, &b_sub );
 
-				glm::vec2 r = glm::normalize( b_sub.c1 - b_sub.p0 );
+				glm::vec2 r = glm::normalize( b_sub.c2 - b_sub.p0 );
 				glm::vec2 s = {r.y, -r.x};
 
 				glm::mat2 const basis = {r, s};
 
 				// first we define a coordinate basis built on the first two points, b0, and b1
 
-				float s3 = fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
+				float s3  = 3 * fabsf( ( basis * ( b_sub.c2 - b_sub.p0 ) ).y );
+				float t_f = s3 <= tolerance
+				                ? 0
+				                : powf( tolerance / s3, 1.f / 3.f ); // cubic root
 
-				float t_f = powf( tolerance / s3, 1.f / 3.f ); // cubic root
-
-				t2_m = infl.t_2 - t_f * ( 1.f - infl.t_2 );
-				t2_p = infl.t_2 + t_f * ( 1.f - infl.t_2 );
+				t2_m = infl.t_2 - t_f * ( 1 - infl.t_2 );
+				t2_p = infl.t_2 + t_f * ( 1 - infl.t_2 );
 			}
 
 			// check whether t1_m,t1_p is in range 0..1
 
-			if ( is_fully_contained_0_1( t1_m, t1_p ) && !is_fully_contained_0_1( t2_m, t2_p ) ) {
+			if ( infl.t_1 == 0 && infl.t_2 == 0 && is_contained_0_1( infl.t_cusp ) ) {
+				bezier_subdivide( b, infl.t_cusp, &b_0, &b_1 ); // part t1p .. 1
+				curves.push_back( b_0 );
+				curves.push_back( b_1 );
+			} else if ( is_fully_contained_0_1( t1_m, t1_p ) && !is_fully_contained_0_1( t2_m, t2_p ) ) {
 
 				bezier_subdivide( b, t1_m, &b_0, nullptr ); // part 0 .. t1_m
 				bezier_subdivide( b, t1_p, nullptr, &b_1 ); // part t1p .. 1
@@ -510,11 +524,28 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 			} else if ( t1_m < 0 && t1_p < 0 && t2_m > 1 && t2_p > 1 ) {
 				// inflection points are outside 0..1 range
 				curves.push_back( b );
-			} else if ( t2_m <= 0 && t1_p <= 0 && !is_contained_0_1( t2_m ) &&
-			            is_contained_0_1( t2_p ) ) {
+			} else if ( t2_m <= 0 && t1_p <= 0 && !is_contained_0_1( t2_m ) && is_contained_0_1( t2_p ) ) {
 				// we must go from t2_p .. 1, but add a point at 0
 				bezier_subdivide( b, t2_p, nullptr, &b_1 ); // part t1p .. 1
 				curves.push_back( b_1 );
+			} else if ( t1_m == t1_p && t2_m == t2_p && t2_m > t1_p && is_fully_contained_0_1( t1_m, t2_m ) ) {
+				// we have two cusps.
+
+				bezier_subdivide( b, t1_m, &b_0, nullptr ); // part 0 .. t1_m
+				bezier_subdivide( b, t2_p, nullptr, &b_1 ); // part t2_p .. 1
+
+				// now we need to extract t1_p .. t2_m
+				bezier_subdivide( b, t1_p, nullptr, &b_2 );  // part t1_p .. 1
+				float t3 = ( t2_m - t1_p ) / ( 1.f - t1_p ); // t2_m expressed in t1_p .. 1 space
+				bezier_subdivide( b_2, t3, &b_3, nullptr );  // part t1_p .. 1
+
+				curves.push_back( b_0 );
+				curves.push_back( b_3 );
+				curves.push_back( b_1 );
+
+			} else {
+				// FIXME: we should cover all cases individually.
+				curves.push_back( b );
 			}
 		}
 		// for inflection point t_cups[]
@@ -532,7 +563,7 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 	// ---
 	for ( auto &c : curves ) {
 		flatten_cubic_bezier_segment_to( polyline, c, toi );
-		// break;
+		//		break;
 	}
 }
 
