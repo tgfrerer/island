@@ -34,6 +34,7 @@ struct le_2d_api {
 
 		void ( *set_node_position) ( le_2d_primitive_o* p, glm::vec2 const * pos );
 		void ( *set_stroke_weight) ( le_2d_primitive_o* p, float stroke_weight ); // thickness of any outlines, and lines, defaults to 0
+		void ( *set_color)( le_2d_primitive_o* p, uint32_t r8g8b8a8_color ); // color defaults to white
 
 		#define SETTER_DECLARE( prim_type, field_type, field_name ) \
 		void (  *prim_type##_set_##field_name)(le_2d_primitive_o* p, field_type field_name)\
@@ -148,6 +149,17 @@ class Le2D : NoCopy, NoMove {
 
 		CircleBuilder &set_stroke_weight( float weight ) {
 			le_2d::le_2d_prim_i.set_stroke_weight( self, weight );
+			return *this;
+		}
+
+		CircleBuilder &set_color( uint32_t r8g8b8a8_color ) {
+			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
+			return *this;
+		}
+
+		CircleBuilder &set_color( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
+			uint32_t r8g8b8a8_color = uint32_t( a << 24 | b << 16 | g << 8 | r );
+			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
 			return *this;
 		}
 

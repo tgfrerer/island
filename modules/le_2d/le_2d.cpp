@@ -561,6 +561,10 @@ static void le_2d_primitive_set_stroke_weight( le_2d_primitive_o *p, float weigh
 	p->material.stroke_weight = weight;
 }
 
+static void le_2d_primitive_set_color( le_2d_primitive_o *p, uint32_t r8g8b8a8_color ) {
+	p->material.color = r8g8b8a8_color;
+}
+
 #define SETTER_IMPLEMENT( prim_type, field_type, field_name )                                                   \
 	static void le_2d_primitive_##prim_type##_set_##field_name( le_2d_primitive_o *p, field_type field_name ) { \
 		p->data.as_##prim_type.field_name = field_name;                                                         \
@@ -635,4 +639,5 @@ ISL_API_ATTR void register_le_2d_api( void *api ) {
 	le_2d_primitive_i.create_line       = le_2d_primitive_create_line;
 	le_2d_primitive_i.set_node_position = le_2d_primitive_set_node_position;
 	le_2d_primitive_i.set_stroke_weight = le_2d_primitive_set_stroke_weight;
+	le_2d_primitive_i.set_color         = le_2d_primitive_set_color;
 }
