@@ -14,7 +14,8 @@ layout (location = 0) out vec4 outFragColor;
 
 void main()
 {
-	outFragColor = inColor ;//* texture( tex_unit_0, inTexCoord.st);
+	outFragColor = inColor.abgr ;
+	//* texture( tex_unit_0, inTexCoord.st);
 	// outFragColor = vec4(1) ;//* texture( tex_unit_0, inTexCoord.st);
 	// outFragColor = vec4(inTexCoord.xy, 0,1);//* texture( tex_unit_0, inTexCoord.st);
 }
