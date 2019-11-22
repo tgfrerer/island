@@ -479,149 +479,202 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 		CubicBezier b_2{};
 		CubicBezier b_3{};
 
+		float t1_m, t1_p;
+		float t2_m, t2_p;
+
 		{
+			CubicBezier b_sub{};
+			bezier_subdivide( b, infl.t_1, nullptr, &b_sub );
 
-			float t1_m, t1_p;
-			float t2_m, t2_p;
+			glm::vec2 r = glm::normalize( b_sub.c1 - b_sub.p0 );
+			glm::vec2 s = {r.y, -r.x};
 
-			{
-				CubicBezier b_sub{};
-				bezier_subdivide( b, infl.t_1, nullptr, &b_sub );
+			glm::mat2 const basis = {r, s};
 
-				glm::vec2 r = glm::normalize( b_sub.c1 - b_sub.p0 );
-				glm::vec2 s = {r.y, -r.x};
+			// first we define a coordinate basis built on the first two points, b0, and b1
 
-				glm::mat2 const basis = {r, s};
+			glm::vec2 RS0 = basis * ( b_sub.p0 - b_sub.p0 );
+			glm::vec2 RS1 = basis * ( b_sub.c1 - b_sub.p0 );
+			glm::vec2 RS2 = basis * ( b_sub.c2 - b_sub.p0 );
+			glm::vec2 RS3 = basis * ( b_sub.p1 - b_sub.p0 );
 
-				// first we define a coordinate basis built on the first two points, b0, and b1
+			float s3  = 3 * fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
+			float t_f = powf( tolerance / s3, 1.f / 3.f ); // cubic root
 
-				glm::vec2 RS0 = basis * ( b_sub.p0 - b_sub.p0 );
-				glm::vec2 RS1 = basis * ( b_sub.c1 - b_sub.p0 );
-				glm::vec2 RS2 = basis * ( b_sub.c2 - b_sub.p0 );
-				glm::vec2 RS3 = basis * ( b_sub.p1 - b_sub.p0 );
+			t1_m = infl.t_1 - t_f * ( 1 - infl.t_1 );
+			t1_p = infl.t_1 + t_f * ( 1 - infl.t_1 );
+		}
+		{
+			CubicBezier b_sub{};
+			bezier_subdivide( b, infl.t_2, nullptr, &b_sub );
 
-				float s3  = 3 * fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
-				float t_f = powf( tolerance / s3, 1.f / 3.f ); // cubic root
+			glm::vec2 r = glm::normalize( b_sub.c1 - b_sub.p0 );
+			glm::vec2 s = {r.y, -r.x};
 
-				t1_m = infl.t_1 - t_f * ( 1 - infl.t_1 );
-				t1_p = infl.t_1 + t_f * ( 1 - infl.t_1 );
-			}
-			{
-				CubicBezier b_sub{};
-				bezier_subdivide( b, infl.t_2, nullptr, &b_sub );
+			glm::mat2 const basis = {r, s};
 
-				glm::vec2 r = glm::normalize( b_sub.c1 - b_sub.p0 );
-				glm::vec2 s = {r.y, -r.x};
+			glm::vec2 RS0 = basis * ( b_sub.p0 - b_sub.p0 );
+			glm::vec2 RS1 = basis * ( b_sub.c1 - b_sub.p0 );
+			glm::vec2 RS2 = basis * ( b_sub.c2 - b_sub.p0 );
+			glm::vec2 RS3 = basis * ( b_sub.p1 - b_sub.p0 );
 
-				glm::mat2 const basis = {r, s};
+			// first we define a coordinate basis built on the first two points, b0, and b1
 
-				glm::vec2 RS0 = basis * ( b_sub.p0 - b_sub.p0 );
-				glm::vec2 RS1 = basis * ( b_sub.c1 - b_sub.p0 );
-				glm::vec2 RS2 = basis * ( b_sub.c2 - b_sub.p0 );
-				glm::vec2 RS3 = basis * ( b_sub.p1 - b_sub.p0 );
+			float s3  = 3 * fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
+			float t_f = powf( tolerance / s3, 1.f / 3.f ); // cubic root
 
-				// first we define a coordinate basis built on the first two points, b0, and b1
+			t2_m = infl.t_2 - t_f * ( 1 - infl.t_2 );
+			t2_p = infl.t_2 + t_f * ( 1 - infl.t_2 );
+		}
 
-				float s3  = 3 * fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
-				float t_f = powf( tolerance / s3, 1.f / 3.f ); // cubic root
+		uint8_t curve_flags = 0;
+		curve_flags |= ( is_contained_0_1( t1_m ) ? 1 : 0 ) << 0;
+		curve_flags |= ( is_contained_0_1( t1_p ) ? 1 : 0 ) << 1;
+		curve_flags |= ( is_contained_0_1( t2_m ) ? 1 : 0 ) << 2;
+		curve_flags |= ( is_contained_0_1( t2_p ) ? 1 : 0 ) << 3;
+		curve_flags |= ( t2_m <= t1_p ? 1 : 0 ) << 4; // cusp
 
-				t2_m = infl.t_2 - t_f * ( 1 - infl.t_2 );
-				t2_p = infl.t_2 + t_f * ( 1 - infl.t_2 );
-			}
+		t1_m = clamp( t1_m, 0.f, 1.f );
+		t1_p = clamp( t1_p, 0.f, 1.f );
+		t2_m = clamp( t2_m, 0.f, 1.f );
+		t2_p = clamp( t2_p, 0.f, 1.f );
 
-			if ( is_fully_contained_0_1( t1_m, t1_p ) &&
-			     !is_contained_0_1( t2_m ) &&
-			     !is_contained_0_1( t2_p ) ) {
-				// area around first inflection point is on by curve, and
-				// area around second inflection point is outside curve
-				bezier_subdivide( b, t1_m, &b_0, nullptr ); // part t1p .. 1
+		if ( curve_flags & ( 0b10000 ) ) {
+
+			// Curve contains a cusp
+
+			if ( curve_flags & 0b00011 && !( curve_flags & 0b01100 ) ) {
+				// cusp around first inflection point
+				bezier_subdivide( b, t1_m, &b_0, nullptr ); // part 0 .. t1_m
+				bezier_subdivide( b, t1_p, nullptr, &b_1 ); // part t1_p .. 1
 				curves.push_back( b_0 );
-				bezier_subdivide( b, t1_p, nullptr, &b_1 ); // part t1p .. 1
 				curves.push_back( b_1 );
-			} else if ( is_fully_contained_0_1( t2_m, t2_p ) &&
-			            !is_contained_0_1( t1_m ) &&
-			            !is_contained_0_1( t1_p ) ) {
-				// area around second inflection point is on by curve, and
-				// area around first inflection point is outside curve
-				bezier_subdivide( b, t2_m, &b_0, nullptr ); // part 0.. t2m
+			}
+
+			if ( curve_flags & 0b01100 && !( curve_flags & 0b00011 ) ) {
+				// cusp around second inflection point
+				bezier_subdivide( b, t2_m, &b_0, nullptr ); // part 0 .. t2_m
+				bezier_subdivide( b, t2_p, nullptr, &b_1 ); // part t2_p .. 1
 				curves.push_back( b_0 );
-				bezier_subdivide( b, t2_p, nullptr, &b_1 ); // part t1p .. 1
 				curves.push_back( b_1 );
-			} else if ( !is_contained_0_1( t1_m ) &&
-			            is_contained_0_1( t1_p ) &&
-			            !is_contained_0_1( t2_m ) &&
-			            !is_contained_0_1( t2_p ) ) {
-				bezier_subdivide( b, t1_p, nullptr, &b_0 ); // part t1p .. 1
+			}
+
+			if ( curve_flags == 0b11011 ||
+			     curve_flags == 0b11010 ||
+			     curve_flags == 0b11101 ||
+			     curve_flags == 0b11110 ||
+			     curve_flags == 0b11110 ||
+			     curve_flags == 0b11111 ) {
+				// t2_m , t2_p have invalid values
+				bezier_subdivide( b, infl.t_cusp, &b_0, &b_1 ); // part t1_p .. 1
+
 				curves.push_back( b_0 );
-			} else if ( !is_contained_0_1( t1_m ) &&
-			            !is_contained_0_1( t1_p ) &&
-			            !is_contained_0_1( t2_m ) &&
-			            is_contained_0_1( t2_p ) ) {
-				// only t2_p is contained on the curve
+				curves.push_back( b_1 );
+			}
+
+			if ( curve_flags & 0b10000 && !( curve_flags & 0b01111 ) ) {
+				// none of the cusps in range.
 				curves.push_back( b );
-			} else if ( !is_contained_0_1( t1_m ) &&
-			            !is_contained_0_1( t1_p ) &&
-			            is_contained_0_1( t2_m ) &&
-			            !is_contained_0_1( t2_p ) ) {
-				curves.push_back( b );
-			} else if ( is_contained_0_1( t1_m ) &&
-			            !is_contained_0_1( t1_p ) &&
-			            !is_contained_0_1( t2_m ) &&
-			            !is_contained_0_1( t2_p ) ) {
-				curves.push_back( b );
-			} else if ( !is_contained_0_1( t1_m ) &&
-			            !is_contained_0_1( t1_p ) &&
-			            !is_contained_0_1( t2_m ) &&
-			            !is_contained_0_1( t2_p ) ) {
-				// no inflection point is on the curve
-				curves.push_back( b );
-			} else if ( is_contained_0_1( t1_m ) &&
-			            is_contained_0_1( t1_p ) &&
-			            is_contained_0_1( t2_m ) &&
-			            !is_contained_0_1( t2_p ) ) {
-				// all but the last point of the inflection point range is on the curve
+			}
+
+		} else {
+
+			// Curve does not contain a cusp
+
+			if ( curve_flags & ( 0b00001 ) ) {
+				// t1_m in range
 				bezier_subdivide( b, t1_m, &b_0, nullptr ); // part 0 .. t1_m
 				curves.push_back( b_0 );
-				bezier_subdivide( b, t1_p, nullptr, &b_1 );  // part t1_p .. 1
-				float t3 = map( t2_m, t1_p, 1.f, 0.f, 1.f ); // t2_m expressed in t1_p .. 1 space
-				bezier_subdivide( b_1, t3, &b_1, nullptr );  // part t1_p .. t2_m
+				if ( curve_flags & ( 0b00110 ) ) {
+					bezier_subdivide( b, t2_m, &b_1, nullptr ); // part 0 .. t2_m
+					if ( curve_flags & ( 0b00010 ) ) {
+						// t1_p in range
+						bezier_subdivide( b, t1_p, nullptr, &b_1 ); // part t1_p .. 1
+						if ( curve_flags & 0b00100 ) {
+							// t2_m in range
+							float t3 = map( t2_m, t1_p, 1.f, 0.f, 1.f ); // t2_m expressed in t1_p .. 1 space
+							bezier_subdivide( b_1, t3, &b_1, nullptr );  // part t1_p .. t2_m
+							if ( curve_flags & 0b01000 ) {
+								curves.push_back( b_1 );
+								bezier_subdivide( b, t2_p, nullptr, &b_2 );
+								curves.push_back( b_2 );
+							} else {
+								curves.push_back( b_1 );
+							}
+						} else {
+							curves.push_back( b_1 );
+						}
+					} else {
+						if ( curve_flags & 0b00100 ) {
+							// t2_m in range
+							bezier_subdivide( b, t2_m, &b_1, nullptr ); // part t1_p .. t2_m
+						}
+						curves.push_back( b_1 );
+					}
+				}
+			} else if ( curve_flags & ( 0b00010 ) ) {
+				bezier_subdivide( b, t1_p, &b_0, nullptr ); // part 0 .. t1_p
+				curves.push_back( b_0 );
+				if ( curve_flags & ( 0b00110 ) ) {
+					bezier_subdivide( b, t2_m, &b_1, nullptr ); // part 0 .. t2_m
+					if ( curve_flags & ( 0b00010 ) ) {
+						// t1_p in range
+						bezier_subdivide( b, t1_p, nullptr, &b_1 ); // part t1_p .. 1
+						if ( curve_flags & 0b00100 ) {
+							// t2_m in range
+							float t3 = map( t2_m, t1_p, 1.f, 0.f, 1.f ); // t2_m expressed in t1_p .. 1 space
+							bezier_subdivide( b_1, t3, &b_1, nullptr );  // part t1_p .. t2_m
+							curves.push_back( b_1 );
+							if ( curve_flags & 0b01000 ) {
+								bezier_subdivide( b, t2_p, nullptr, &b_2 ); // part t1_p .. t2_m
+								curves.push_back( b_2 );
+							}
+
+						} else {
+							curves.push_back( b_1 );
+						}
+					} else {
+						if ( curve_flags & 0b00100 ) {
+							// t2_m in range
+							bezier_subdivide( b, t2_m, &b_1, nullptr ); // part t1_p .. t2_m
+							curves.push_back( b_1 );
+						} else {
+							curves.push_back( b_1 );
+						}
+					}
+				}
+			} else if ( curve_flags & ( 0b00100 ) ) {
+				if ( curve_flags & ( 0b00110 ) ) {
+					bezier_subdivide( b, t2_m, &b_1, nullptr ); // part 0 .. t2_m
+					if ( curve_flags & ( 0b00010 ) ) {
+						// t1_p in range
+						bezier_subdivide( b, t1_p, nullptr, &b_1 ); // part t1_p .. 1
+						if ( curve_flags & 0b00100 ) {
+							// t2_m in range
+							float t3 = map( t2_m, t1_p, 1.f, 0.f, 1.f ); // t2_m expressed in t1_p .. 1 space
+							bezier_subdivide( b_1, t3, &b_1, nullptr );  // part t1_p .. t2_m
+						}
+						curves.push_back( b_1 );
+					} else {
+						if ( curve_flags & 0b00100 ) {
+							// t2_m in range
+							bezier_subdivide( b, t2_m, &b_1, &b_2 ); // part 0 .. t2_m
+							curves.push_back( b_1 );
+							curves.push_back( b_2 );
+						}
+					}
+				}
+			} else if ( curve_flags & 0b01000 ) {
+				bezier_subdivide( b, t2_p, &b_1, &b_2 ); // part t1_p .. 1
 				curves.push_back( b_1 );
-				bezier_subdivide( b, t2_m, nullptr, &b_2 ); // part t1_p .. 1
 				curves.push_back( b_2 );
-			} else if ( is_contained_0_1( t1_m ) &&
-			            is_contained_0_1( t1_p ) &&
-			            is_contained_0_1( t2_m ) &&
-			            is_contained_0_1( t2_p ) ) {
-				// all but the last point of the inflection point range is on the curve
-				bezier_subdivide( b, t1_m, &b_0, nullptr ); // part 0 .. t1_m
-				curves.push_back( b_0 );
-				bezier_subdivide( b, t1_p, nullptr, &b_1 );  // part t1_p .. 1
-				float t3 = map( t2_m, t1_p, 1.f, 0.f, 1.f ); // t2_m expressed in t1_p .. 1 space
-				bezier_subdivide( b_1, t3, &b_1, nullptr );  // part t1_p .. t2_m
-				curves.push_back( b_1 );
-				bezier_subdivide( b, t2_p, nullptr, &b_3 ); // part t2_p .. 1
-				curves.push_back( b_3 );
-
-			} else if ( is_contained_0_1( t1_m ) &&
-			            is_contained_0_1( t1_p ) &&
-			            t2_m > t2_p ) {
-				// all but the last point of the inflection point range is on the curve
-				bezier_subdivide( b, t1_m, &b_0, nullptr ); // part 0 .. t1_m
-				curves.push_back( b_0 );
-				bezier_subdivide( b, t1_p, nullptr, &b_1 ); // part t1_p .. 1
-				curves.push_back( b_1 );
-			} else if ( is_contained_0_1( t1_m ) &&
-			            is_contained_0_1( t1_p ) &&
-			            t2_m < t1_p ) {
-				// first inflection points on curve, but second inflection point invalid, as it appears before first point.
-				bezier_subdivide( b, t1_m, &b_0, nullptr ); // part 0 .. t1_m
-				curves.push_back( b_0 );
-				bezier_subdivide( b, t1_p, nullptr, &b_1 ); // part t1_p .. 1
-				curves.push_back( b_1 );
-			} else {
-				curves.push_back( b );
 			}
 		}
+
+		if ( curve_flags == 0 ) {
+			curves.push_back( b );
+		}
+
 	} else {
 		curves.push_back( b );
 	}
