@@ -34,6 +34,8 @@ struct le_2d_api {
 
 		void ( *set_node_position) ( le_2d_primitive_o* p, glm::vec2 const * pos );
 		void ( *set_stroke_weight) ( le_2d_primitive_o* p, float stroke_weight ); // thickness of any outlines, and lines, defaults to 0
+		void ( *set_filled) ( le_2d_primitive_o* p, bool filled); // thickness of any outlines, and lines, defaults to 0
+
 		void ( *set_color)( le_2d_primitive_o* p, uint32_t r8g8b8a8_color ); // color defaults to white
 
 		#define SETTER_DECLARE( prim_type, field_type, field_name ) \
@@ -140,10 +142,14 @@ class Le2D : NoCopy, NoMove {
 
 		BUILDER_IMPLEMENT( CircleBuilder, circle, float, radius )
 		BUILDER_IMPLEMENT( CircleBuilder, circle, uint32_t, subdivisions )
-		BUILDER_IMPLEMENT( CircleBuilder, circle, bool, filled )
 
 		CircleBuilder &set_node_position( glm::vec2 const &pos ) {
 			le_2d::le_2d_prim_i.set_node_position( self, &pos );
+			return *this;
+		}
+
+		CircleBuilder &set_filled( bool filled ) {
+			le_2d::le_2d_prim_i.set_filled( self, filled );
 			return *this;
 		}
 
@@ -158,7 +164,7 @@ class Le2D : NoCopy, NoMove {
 		}
 
 		CircleBuilder &set_color( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
-			uint32_t r8g8b8a8_color = uint32_t( a << 24 | b << 16 | g << 8 | r );
+			uint32_t r8g8b8a8_color = uint32_t( r << 24 | g << 16 | b << 8 | a );
 			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
 			return *this;
 		}
@@ -192,15 +198,30 @@ class Le2D : NoCopy, NoMove {
 
 		BUILDER_IMPLEMENT_VEC( EllipseBuilder, ellipse, glm::vec2 const &, radii )
 		BUILDER_IMPLEMENT( EllipseBuilder, ellipse, uint32_t, subdivisions )
-		BUILDER_IMPLEMENT( EllipseBuilder, ellipse, bool, filled )
 
 		EllipseBuilder &set_node_position( glm::vec2 const &pos ) {
 			le_2d::le_2d_prim_i.set_node_position( self, &pos );
 			return *this;
 		}
 
+		EllipseBuilder &set_filled( bool filled ) {
+			le_2d::le_2d_prim_i.set_filled( self, filled );
+			return *this;
+		}
+
 		EllipseBuilder &set_stroke_weight( float weight ) {
 			le_2d::le_2d_prim_i.set_stroke_weight( self, weight );
+			return *this;
+		}
+
+		EllipseBuilder &set_color( uint32_t r8g8b8a8_color ) {
+			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
+			return *this;
+		}
+
+		EllipseBuilder &set_color( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
+			uint32_t r8g8b8a8_color = uint32_t( r << 24 | g << 16 | b << 8 | a );
+			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
 			return *this;
 		}
 
@@ -235,15 +256,30 @@ class Le2D : NoCopy, NoMove {
 		BUILDER_IMPLEMENT( ArcBuilder, arc, uint32_t, subdivisions )
 		BUILDER_IMPLEMENT( ArcBuilder, arc, float, angle_start_rad )
 		BUILDER_IMPLEMENT( ArcBuilder, arc, float, angle_end_rad )
-		BUILDER_IMPLEMENT( ArcBuilder, arc, bool, filled )
 
 		ArcBuilder &set_node_position( glm::vec2 const &pos ) {
 			le_2d::le_2d_prim_i.set_node_position( self, &pos );
 			return *this;
 		}
 
+		ArcBuilder &set_filled( bool filled ) {
+			le_2d::le_2d_prim_i.set_filled( self, filled );
+			return *this;
+		}
+
 		ArcBuilder &set_stroke_weight( float weight ) {
 			le_2d::le_2d_prim_i.set_stroke_weight( self, weight );
+			return *this;
+		}
+
+		ArcBuilder &set_color( uint32_t r8g8b8a8_color ) {
+			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
+			return *this;
+		}
+
+		ArcBuilder &set_color( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
+			uint32_t r8g8b8a8_color = uint32_t( r << 24 | g << 16 | b << 8 | a );
+			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
 			return *this;
 		}
 
@@ -284,6 +320,17 @@ class Le2D : NoCopy, NoMove {
 
 		LineBuilder &set_stroke_weight( float weight ) {
 			le_2d::le_2d_prim_i.set_stroke_weight( self, weight );
+			return *this;
+		}
+
+		LineBuilder &set_color( uint32_t r8g8b8a8_color ) {
+			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
+			return *this;
+		}
+
+		LineBuilder &set_color( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
+			uint32_t r8g8b8a8_color = uint32_t( r << 24 | g << 16 | b << 8 | a );
+			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
 			return *this;
 		}
 
@@ -346,6 +393,22 @@ class Le2D : NoCopy, NoMove {
 
 		PathBuilder &set_stroke_weight( float weight ) {
 			le_2d::le_2d_prim_i.set_stroke_weight( self, weight );
+			return *this;
+		}
+
+		PathBuilder &set_filled( bool filled ) {
+			le_2d::le_2d_prim_i.set_filled( self, filled );
+			return *this;
+		}
+
+		PathBuilder &set_color( uint32_t r8g8b8a8_color ) {
+			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
+			return *this;
+		}
+
+		PathBuilder &set_color( uint8_t r, uint8_t g, uint8_t b, uint8_t a = 255 ) {
+			uint32_t r8g8b8a8_color = uint32_t( r << 24 | g << 16 | b << 8 | a );
+			le_2d::le_2d_prim_i.set_color( self, r8g8b8a8_color );
 			return *this;
 		}
 

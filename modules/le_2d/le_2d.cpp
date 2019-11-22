@@ -16,6 +16,7 @@
 #include "le_backend_vk/le_backend_vk.h"             // for shader module creation
 #include "le_pipeline_builder/le_pipeline_builder.h" // for pipeline creation
 
+#include "le_tessellator/le_tessellator.h"
 #include "le_path/le_path.h"
 
 using vec2f = glm::vec2;
@@ -35,18 +36,17 @@ struct node_data_t {
 struct material_data_t {
 	uint32_t color;
 	float    stroke_weight;
+	bool     filled;
 };
 
 struct circle_data_t {
 	float    radius;
 	uint32_t subdivisions;
-	bool     filled;
 };
 
 struct ellipse_data_t {
 	glm::vec2 radii; // radius x, radius y
 	uint32_t  subdivisions;
-	bool      filled;
 };
 
 struct arc_data_t {
@@ -54,12 +54,11 @@ struct arc_data_t {
 	float     angle_start_rad;
 	float     angle_end_rad;
 	uint32_t  subdivisions;
-	bool      filled;
 };
 
 struct path_data_t {
 	le_path_o *path;
-	uint32_t   subdivisions;
+	float      tolerance;
 };
 
 struct line_data_t {
@@ -226,11 +225,16 @@ static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, floa
 }
 // ----------------------------------------------------------------------
 
-static void generate_geometry_path( std::vector<VertexData2D> &geometry, le_path_o *path, float thickness, uint32_t subdivisions, uint32_t color ) {
+static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry, le_path_o *path, float stroke_weight, float tolerance, uint32_t color ) {
 
 	using namespace le_path;
 
-	le_path_i.trace( path, subdivisions );
+	// fixme: we want to create polyline via flattening
+
+	// le_path_i.trace( path, subdivisions );
+
+	le_path_i.flatten( path, tolerance );
+	//	le_path_i.trace( path, 120 );
 
 	size_t const num_polylines = le_path_i.get_num_polylines( path );
 
@@ -242,10 +246,52 @@ static void generate_geometry_path( std::vector<VertexData2D> &geometry, le_path
 		auto *p_prev = line_vertices + 0;
 		for ( size_t j = 1; j != num_vertices; ++j ) {
 			glm::vec2 const *p_cur = line_vertices + j;
-			generate_geometry_line( geometry, *p_prev, *p_cur, thickness, color );
+			generate_geometry_line( geometry, *p_prev, *p_cur, stroke_weight, color );
 			p_prev = p_cur;
 		}
 	}
+}
+
+// Generates triangles by tessellating what's contained within path
+static void generate_geometry_path( std::vector<VertexData2D> &geometry, le_path_o *path, float stroke_weight, float tolerance, uint32_t color ) {
+
+	using namespace le_path;
+	using namespace le_tessellator;
+
+	le_path_i.flatten( path, tolerance );
+
+	size_t const num_polylines = le_path_i.get_num_polylines( path );
+
+	auto tess = le_tessellator_i.create();
+	//	le_tessellator_i.set_options( tess, le_tessellator::Options::bitConstrainedDelaunayTriangulation );
+	le_tessellator_i.set_options( tess, le_tessellator::Options::bitUseEarcutTessellator );
+
+	for ( size_t i = 0; i != num_polylines; ++i ) {
+		glm::vec2 const *line_vertices = nullptr;
+		size_t           num_vertices;
+		le_path_i.get_vertices_for_polyline( path, i, &line_vertices, &num_vertices );
+		le_tessellator_i.add_polyline( tess, line_vertices, num_vertices );
+	}
+
+	le_tessellator_i.tessellate( tess );
+
+	le_tessellator_api::IndexType const *indices;
+	size_t                               num_indices = 0;
+	glm::vec2 const *                    vertices;
+	size_t                               num_vertices = 0;
+
+	le_tessellator_i.get_indices( tess, &indices, &num_indices );
+	le_tessellator_i.get_vertices( tess, &vertices, &num_vertices );
+
+	// TODO: what do we want to set for tex coordinate?
+
+	for ( size_t i = 0; i + 2 < num_indices; ) {
+		geometry.push_back( {vertices[ indices[ i++ ] ], {0, 0}, color} );
+		geometry.push_back( {vertices[ indices[ i++ ] ], {0, 0}, color} );
+		geometry.push_back( {vertices[ indices[ i++ ] ], {0, 0}, color} );
+	}
+
+	le_tessellator_i.destroy( tess );
 }
 
 // ----------------------------------------------------------------------
@@ -264,7 +310,7 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 
 		auto const &circle = p->data.as_circle;
 
-		if ( circle.filled ) {
+		if ( p->material.filled ) {
 			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), {circle.radius, circle.radius}, circle.subdivisions, p->material.color );
 		} else {
 			generate_geometry_outline_arc( geometry, 0, glm::two_pi<float>(), {circle.radius, circle.radius}, p->material.stroke_weight, circle.subdivisions, p->material.color );
@@ -273,7 +319,7 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 	} break;
 	case le_2d_primitive_o::Type::eEllipse: {
 		auto const &ellipse = p->data.as_ellipse;
-		if ( ellipse.filled ) {
+		if ( p->material.filled ) {
 			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), ellipse.radii, ellipse.subdivisions, p->material.color );
 		} else {
 			generate_geometry_outline_arc( geometry, 0, glm::two_pi<float>(), ellipse.radii, p->material.stroke_weight, ellipse.subdivisions, p->material.color );
@@ -281,8 +327,7 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 	} break;
 	case le_2d_primitive_o::Type::eArc: {
 		auto const &arc = p->data.as_arc;
-		if ( arc.filled ) {
-			// TODO: implement
+		if ( p->material.filled ) {
 			generate_geometry_ellipse( geometry, arc.angle_start_rad, arc.angle_end_rad, arc.radii, arc.subdivisions, p->material.color );
 		} else {
 			generate_geometry_outline_arc( geometry, arc.angle_start_rad, arc.angle_end_rad, arc.radii, p->material.stroke_weight, arc.subdivisions, p->material.color );
@@ -290,7 +335,12 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 	} break;
 	case le_2d_primitive_o::Type::ePath: {
 		auto const &path = p->data.as_path;
-		generate_geometry_path( geometry, path.path, p->material.stroke_weight, path.subdivisions, p->material.color );
+		if ( p->material.filled ) {
+			// TODO: implement
+			generate_geometry_path( geometry, path.path, p->material.stroke_weight, path.tolerance, p->material.color );
+		} else {
+			generate_geometry_outline_path( geometry, path.path, p->material.stroke_weight, path.tolerance, p->material.color );
+		}
 	} break;
 	case le_2d_primitive_o::Type::eUndefined:
 		// noop
@@ -378,7 +428,7 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 		    {0.f, 0, float( extents.width ), float( extents.height ), 0.f, 1.f},
 		};
 
-		encoder.setViewports( 0, 1, viewports );
+		encoder.setViewports( 0, 1, viewports + 1 );
 	}
 
 	for ( auto &p : self->primitives ) {
@@ -425,6 +475,7 @@ static le_2d_primitive_o *le_2d_allocate_primitive( le_2d_o *self ) {
 
 	p->material.color         = 0xffffffff;
 	p->material.stroke_weight = 0.f;
+	p->material.filled        = true;
 
 	self->primitives.push_back( p );
 
@@ -439,7 +490,6 @@ static le_2d_primitive_o *le_2d_primitive_create_circle( le_2d_o *context ) {
 	p->type   = le_2d_primitive_o::Type::eCircle;
 	auto &obj = p->data.as_circle;
 
-	obj.filled       = true;
 	obj.radius       = 0.f;
 	obj.subdivisions = 36;
 
@@ -455,7 +505,6 @@ static le_2d_primitive_o *le_2d_primitive_create_ellipse( le_2d_o *context ) {
 
 	auto &obj = p->data.as_ellipse;
 
-	obj.filled       = true;
 	obj.radii        = {0.f, 0.f};
 	obj.subdivisions = 36;
 
@@ -471,7 +520,6 @@ static le_2d_primitive_o *le_2d_primitive_create_arc( le_2d_o *context ) {
 
 	auto &obj = p->data.as_arc;
 
-	obj.filled          = false;
 	obj.radii           = {0.f, 0.f};
 	obj.subdivisions    = 36;
 	obj.angle_start_rad = 0;
@@ -505,8 +553,8 @@ static le_2d_primitive_o *le_2d_primitive_create_path( le_2d_o *context ) {
 	p->type   = le_2d_primitive_o::Type::ePath;
 	auto &obj = p->data.as_path;
 
-	obj.path         = le_path::le_path_i.create();
-	obj.subdivisions = 12;
+	obj.path      = le_path::le_path_i.create();
+	obj.tolerance = 0.25;
 
 	p->material.stroke_weight = 1.f;
 	return p;
@@ -562,6 +610,10 @@ static void le_2d_primitive_set_stroke_weight( le_2d_primitive_o *p, float weigh
 	p->material.stroke_weight = weight;
 }
 
+static void le_2d_primitive_set_filled( le_2d_primitive_o *p, bool filled ) {
+	p->material.filled = filled;
+}
+
 static void le_2d_primitive_set_color( le_2d_primitive_o *p, uint32_t r8g8b8a8_color ) {
 	p->material.color = r8g8b8a8_color;
 }
@@ -578,15 +630,13 @@ static void le_2d_primitive_set_color( le_2d_primitive_o *p, uint32_t r8g8b8a8_c
 
 SETTER_IMPLEMENT( circle, float, radius );
 SETTER_IMPLEMENT( circle, uint32_t, subdivisions );
-SETTER_IMPLEMENT( circle, bool, filled );
 
 SETTER_IMPLEMENT_CPY( ellipse, vec2f const *, radii );
 SETTER_IMPLEMENT( ellipse, uint32_t, subdivisions );
-SETTER_IMPLEMENT( ellipse, bool, filled );
 
 SETTER_IMPLEMENT_CPY( arc, vec2f const *, radii );
 SETTER_IMPLEMENT( arc, uint32_t, subdivisions );
-SETTER_IMPLEMENT( arc, bool, filled );
+
 SETTER_IMPLEMENT( arc, float, angle_start_rad );
 SETTER_IMPLEMENT( arc, float, angle_end_rad );
 
@@ -608,15 +658,12 @@ ISL_API_ATTR void register_le_2d_api( void *api ) {
 #define SET_PRIMITIVE_FPTR( prim_type, field_name ) \
 	le_2d_primitive_i.prim_type##_set_##field_name = le_2d_primitive_##prim_type##_set_##field_name
 
-	SET_PRIMITIVE_FPTR( circle, filled );
 	SET_PRIMITIVE_FPTR( circle, radius );
 	SET_PRIMITIVE_FPTR( circle, subdivisions );
 
-	SET_PRIMITIVE_FPTR( ellipse, filled );
 	SET_PRIMITIVE_FPTR( ellipse, radii );
 	SET_PRIMITIVE_FPTR( ellipse, subdivisions );
 
-	SET_PRIMITIVE_FPTR( arc, filled );
 	SET_PRIMITIVE_FPTR( arc, radii );
 	SET_PRIMITIVE_FPTR( arc, subdivisions );
 	SET_PRIMITIVE_FPTR( arc, angle_start_rad );
@@ -634,11 +681,13 @@ ISL_API_ATTR void register_le_2d_api( void *api ) {
 	le_2d_primitive_i.path_add_from_simplified_svg = le_2d_primitive_path_add_from_simplified_svg;
 	le_2d_primitive_i.create_path                  = le_2d_primitive_create_path;
 
-	le_2d_primitive_i.create_arc        = le_2d_primitive_create_arc;
-	le_2d_primitive_i.create_ellipse    = le_2d_primitive_create_ellipse;
-	le_2d_primitive_i.create_circle     = le_2d_primitive_create_circle;
-	le_2d_primitive_i.create_line       = le_2d_primitive_create_line;
+	le_2d_primitive_i.create_arc     = le_2d_primitive_create_arc;
+	le_2d_primitive_i.create_ellipse = le_2d_primitive_create_ellipse;
+	le_2d_primitive_i.create_circle  = le_2d_primitive_create_circle;
+	le_2d_primitive_i.create_line    = le_2d_primitive_create_line;
+
 	le_2d_primitive_i.set_node_position = le_2d_primitive_set_node_position;
 	le_2d_primitive_i.set_stroke_weight = le_2d_primitive_set_stroke_weight;
+	le_2d_primitive_i.set_filled        = le_2d_primitive_set_filled;
 	le_2d_primitive_i.set_color         = le_2d_primitive_set_color;
 }
