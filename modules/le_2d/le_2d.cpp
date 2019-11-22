@@ -373,8 +373,9 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 	{
 		// set a negative height for viewport so that +Y goes up, rather than down.
 
-		le::Viewport viewports[ 1 ] = {
+		le::Viewport viewports[ 2 ] = {
 		    {0.f, float( extents.height ), float( extents.width ), -float( extents.height ), 0.f, 1.f},
+		    {0.f, 0, float( extents.width ), float( extents.height ), 0.f, 1.f},
 		};
 
 		encoder.setViewports( 0, 1, viewports );
