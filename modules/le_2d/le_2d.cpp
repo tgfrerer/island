@@ -602,6 +602,14 @@ static void le_2d_primitive_path_add_from_simplified_svg( le_2d_primitive_o *p, 
 
 // ----------------------------------------------------------------------
 
+static void le_2d_primitive_path_set_tolerance( le_2d_primitive_o *p, float tolerance ) {
+	assert( p->type == le_2d_primitive_o::Type::ePath );
+	auto &obj     = p->data.as_path;
+	obj.tolerance = tolerance;
+}
+
+// ----------------------------------------------------------------------
+
 static void le_2d_primitive_set_node_position( le_2d_primitive_o *p, vec2f const *pos ) {
 	p->node.origin = *pos;
 }
@@ -679,6 +687,7 @@ ISL_API_ATTR void register_le_2d_api( void *api ) {
 	le_2d_primitive_i.path_quad_bezier_to          = le_2d_primitive_path_quad_bezier_to;
 	le_2d_primitive_i.path_cubic_bezier_to         = le_2d_primitive_path_cubic_bezier_to;
 	le_2d_primitive_i.path_add_from_simplified_svg = le_2d_primitive_path_add_from_simplified_svg;
+	le_2d_primitive_i.path_set_tolerance           = le_2d_primitive_path_set_tolerance;
 	le_2d_primitive_i.create_path                  = le_2d_primitive_create_path;
 
 	le_2d_primitive_i.create_arc     = le_2d_primitive_create_arc;

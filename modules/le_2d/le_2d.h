@@ -64,6 +64,8 @@ struct le_2d_api {
 
 		le_2d_primitive_o* (*create_path)(le_2d_o* context);
 
+		SETTER_DECLARE( path, float, tolerance);
+
 		void (*path_move_to)(le_2d_primitive_o* p, glm::vec2 const * pos);
 		void (*path_line_to)(le_2d_primitive_o* p, glm::vec2 const * pos);
 		void (*path_quad_bezier_to)(le_2d_primitive_o* p, glm::vec2 const * p1, glm::vec2 const * c1);
@@ -383,6 +385,11 @@ class Le2D : NoCopy, NoMove {
 
 		PathBuilder &add_from_simplified_svg( char const *svg ) {
 			le_2d::le_2d_prim_i.path_add_from_simplified_svg( self, svg );
+			return *this;
+		}
+
+		PathBuilder &set_tolerance( float tolerance ) {
+			le_2d::le_2d_prim_i.path_set_tolerance( self, tolerance );
 			return *this;
 		}
 
