@@ -320,6 +320,12 @@ static void bezier_subdivide( CubicBezier const b, float t, CubicBezier *s_0, Cu
 	}
 }
 
+// Calculate inflection points for cubic bezier curve, expressed in
+// parameter t value at inflection point. Cubic bezier curves may
+// Have 0 or 2 inflection points. Inflection points may be negative,
+// in which case they don't appear on the curve.
+//
+// The mathematics for this method have been verified using mathematica.
 static bool cubic_bezier_calculate_inflection_points( CubicBezier const &b, InflectionData *infl ) {
 
 	// clang-format off
@@ -328,19 +334,21 @@ static bool cubic_bezier_calculate_inflection_points( CubicBezier const &b, Infl
 	glm::vec2 const c_ = -3.f * b.p0 + 3.f * b.c1;
 	// clang-format on
 
-	float const divisor = 2 * ( -b_.y * c_.x + b_.x * c_.y );
+	float const divisor = 12 * ( -a_.y * b_.x + a_.x * b_.y );
 
 	if ( fabsf( divisor ) <= std::numeric_limits<float>::epsilon() ) {
 		// must not be zero, otherwise there are no solutions.
 		return false;
 	}
 
-	float t_cusp = ( a_.y * c_.x - a_.x * c_.y );
+	float t_cusp = 6 * a_.y * c_.x - 6 * a_.x * c_.y;
 
 	infl->t_cusp = t_cusp / divisor;
 
-	float sq_term = t_cusp * t_cusp - 4 * ( -a_.y * b_.x + a_.x * b_.y ) *
-	                                      ( -b_.y * c_.x + b_.x * c_.y );
+	float sq_term = t_cusp * t_cusp -
+	                4 *
+	                    ( 6 * a_.y * b_.x - 6 * a_.x * b_.y ) *
+	                    ( 2 * b_.y * c_.x - 2 * b_.x * c_.y );
 
 	if ( sq_term < 0 ) {
 		// must be > 0 otherswise, no solutions.
