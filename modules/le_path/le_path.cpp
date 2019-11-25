@@ -57,17 +57,21 @@ struct InflectionData {
 
 // ----------------------------------------------------------------------
 
-static float clamp( float val, float range_min, float range_max ) {
+inline static float clamp( float val, float range_min, float range_max ) {
 	return val < range_min ? range_min : val > range_max ? range_max : val;
 }
 
 // ----------------------------------------------------------------------
 
-static float map( float val_, float range_min_, float range_max_, float min_, float max_ ) {
+inline static float map( float val_, float range_min_, float range_max_, float min_, float max_ ) {
 	return clamp( min_ + ( max_ - min_ ) * ( ( clamp( val_, range_min_, range_max_ ) - range_min_ ) / ( range_max_ - range_min_ ) ), min_, max_ );
 }
 
 // ----------------------------------------------------------------------
+
+inline static bool is_contained_0_1( float f ) {
+	return ( f >= 0.f && f <= 1.f );
+}
 
 // ----------------------------------------------------------------------
 
@@ -377,6 +381,8 @@ static bool cubic_bezier_calculate_inflection_points( CubicBezier const &b, Infl
 	return true;
 }
 
+// ----------------------------------------------------------------------
+
 static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
                                              CubicBezier const &b_,
                                              float              tolerance ) {
@@ -395,18 +401,14 @@ static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
 		glm::vec2 r = glm::normalize( b.c1 - b.p0 );
 		glm::vec2 s = {r.y, -r.x};
 
+		// Define a coordinate basis built on the first two points, b0, and b1
 		glm::mat2 const basis = {r, s};
 
-		// Define a coordinate basis built on the first two points, b0, and b1
-
-		glm::vec2 P1 = basis * ( b.c1 - b.p0 );
 		glm::vec2 P2 = basis * ( b.c2 - b.p0 );
 
 		float s2 = ( P2 ).y;
 
-		s2 = fabsf( s2 );
-
-		float t_dash = sqrtf( tolerance / ( 3 * s2 ) );
+		float t_dash = sqrtf( tolerance / ( 3 * fabsf( s2 ) ) );
 		t            = std::min<float>( 1.f, 2 * t_dash );
 
 		// Apply subdivision at (t). This means that the start point of the sub-segment
@@ -428,9 +430,7 @@ static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
 	}
 }
 
-inline static bool is_contained_0_1( float f ) {
-	return ( f >= 0.f && f <= 1.f );
-}
+// ----------------------------------------------------------------------
 
 static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std::vector<CubicBezier> &curves, float tolerance ) {
 	// --- calculate inflection points:
@@ -443,10 +443,7 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 		return;
 	}
 
-	// this curve contains cusps.
-
-	// we must subdivide the curve so that none of the sub-curves contains any cusps anymore,
-	// and then we must process each curve individually.
+	// ----------| Invariant: this curve contains inflection points.
 
 	float t1_m, t1_p;
 	float t2_m, t2_p;
@@ -462,10 +459,10 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 
 		// first we define a coordinate basis built on the first two points, b0, and b1
 
-		glm::vec2 RS0 = basis * ( b_sub.p0 - b_sub.p0 );
-		glm::vec2 RS1 = basis * ( b_sub.c1 - b_sub.p0 );
-		glm::vec2 RS2 = basis * ( b_sub.c2 - b_sub.p0 );
-		glm::vec2 RS3 = basis * ( b_sub.p1 - b_sub.p0 );
+		// glm::vec2 RS0 = basis * ( b_sub.p0 - b_sub.p0 );
+		// glm::vec2 RS1 = basis * ( b_sub.c1 - b_sub.p0 );
+		// glm::vec2 RS2 = basis * ( b_sub.c2 - b_sub.p0 );
+		// glm::vec2 RS3 = basis * ( b_sub.p1 - b_sub.p0 );
 
 		float s3  = 3 * fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
 		float t_f = powf( tolerance / s3, 1.f / 3.f ); // cubic root
@@ -482,10 +479,10 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 
 		glm::mat2 const basis = {r, s};
 
-		glm::vec2 RS0 = basis * ( b_sub.p0 - b_sub.p0 );
-		glm::vec2 RS1 = basis * ( b_sub.c1 - b_sub.p0 );
-		glm::vec2 RS2 = basis * ( b_sub.c2 - b_sub.p0 );
-		glm::vec2 RS3 = basis * ( b_sub.p1 - b_sub.p0 );
+		// glm::vec2 RS0 = basis * ( b_sub.p0 - b_sub.p0 );
+		// glm::vec2 RS1 = basis * ( b_sub.c1 - b_sub.p0 );
+		// glm::vec2 RS2 = basis * ( b_sub.c2 - b_sub.p0 );
+		// glm::vec2 RS3 = basis * ( b_sub.p1 - b_sub.p0 );
 
 		// first we define a coordinate basis built on the first two points, b0, and b1
 
@@ -509,15 +506,13 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 	// It's also possible that our bezier curve self-intersects through a cusp,
 	// in which case inflection points are out of order. In this case,
 	// calculation for curve segments must happen in a different way.
-	// FIXME: implement cusp curve segments.
+
 	bool curve_has_cusp = t2_m <= t1_p;
 
 	CubicBezier b_0; // placeholders.
 	CubicBezier b_1; // placeholders.
 
 	if ( curve_has_cusp ) {
-
-		// FIXME: we must check regions properly for cusped beziers, too...
 
 		float cusped_boundaries[ 3 ] = {
 		    t2_p,
@@ -528,7 +523,10 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 		size_t c_start = which_region( cusped_boundaries, 3, 0.f );
 		size_t c_end   = which_region( cusped_boundaries, 3, 1.f );
 
-		// cusp case: anything t1_m .. t_cusp,
+		// FIXME: we still need to work on the case when all,
+		// t1,t2, cusp are within 0..1
+
+		// Cusp case: anything t1_m .. t_cusp,
 		// and t_cusp .. t2_p may be represented by a line.
 		//
 
@@ -537,7 +535,6 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 			curves.push_back( b_0 );
 			bezier_subdivide( b, clamp( t1_p, 0, 1 ), nullptr, &b_0 );
 			curves.push_back( b_0 );
-
 		} else {
 			bezier_subdivide( b, clamp( t2_p, 0, 1 ), &b_0, nullptr );
 			curves.push_back( b_0 );
@@ -628,8 +625,7 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 
 	assert( !polyline.vertices.empty() ); // Contour vertices must not be empty.
 
-	Vertex const p0     = polyline.vertices.back(); // copy start point
-	Vertex       p_prev = p0;
+	Vertex const p0 = polyline.vertices.back(); // copy start point
 
 	CubicBezier b{
 	    p0,
