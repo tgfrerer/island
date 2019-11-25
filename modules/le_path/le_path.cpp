@@ -421,7 +421,7 @@ static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
 		polyline.total_distance += glm::distance( pt, p_prev );
 		polyline.distances.emplace_back( polyline.total_distance );
 
-		polyline.tangents.emplace_back();
+		polyline.tangents.emplace_back(); // todo: add tangent
 
 		if ( t >= 1.0f )
 			break;
@@ -431,7 +431,14 @@ static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
 }
 
 // ----------------------------------------------------------------------
-
+// Split a cubic bezier curve into a list of monotonous segments, so that
+// none of the segments contains a cusp or inflection point within its 0..1
+// parameter range.
+//
+// Each subsegment will itself be a cubic bezier curve.
+//
+// Tolerance tells us how close to follow original curve
+// when interpolating the curve as a list of straight line segments.
 static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std::vector<CubicBezier> &curves, float tolerance ) {
 	// --- calculate inflection points:
 
@@ -455,14 +462,8 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 		glm::vec2 r = glm::normalize( b_sub.c1 - b_sub.p0 );
 		glm::vec2 s = {r.y, -r.x};
 
+		// Define a coordinate basis built on the first two points, b0, and b1
 		glm::mat2 const basis = {r, s};
-
-		// first we define a coordinate basis built on the first two points, b0, and b1
-
-		// glm::vec2 RS0 = basis * ( b_sub.p0 - b_sub.p0 );
-		// glm::vec2 RS1 = basis * ( b_sub.c1 - b_sub.p0 );
-		// glm::vec2 RS2 = basis * ( b_sub.c2 - b_sub.p0 );
-		// glm::vec2 RS3 = basis * ( b_sub.p1 - b_sub.p0 );
 
 		float s3  = 3 * fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
 		float t_f = powf( tolerance / s3, 1.f / 3.f ); // cubic root
@@ -477,14 +478,8 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 		glm::vec2 r = glm::normalize( b_sub.c1 - b_sub.p0 );
 		glm::vec2 s = {r.y, -r.x};
 
+		// Define a coordinate basis built on the first two points, b0, and b1
 		glm::mat2 const basis = {r, s};
-
-		// glm::vec2 RS0 = basis * ( b_sub.p0 - b_sub.p0 );
-		// glm::vec2 RS1 = basis * ( b_sub.c1 - b_sub.p0 );
-		// glm::vec2 RS2 = basis * ( b_sub.c2 - b_sub.p0 );
-		// glm::vec2 RS3 = basis * ( b_sub.p1 - b_sub.p0 );
-
-		// first we define a coordinate basis built on the first two points, b0, and b1
 
 		float s3  = 3 * fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
 		float t_f = powf( tolerance / s3, 1.f / 3.f ); // cubic root
@@ -492,16 +487,6 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 		t2_m = infl.t_2 - t_f * ( 1 - infl.t_2 );
 		t2_p = infl.t_2 + t_f * ( 1 - infl.t_2 );
 	}
-
-	auto which_region = []( float *boundaries, size_t num_boundaries, float marker ) -> size_t {
-		size_t i = 0;
-		for ( ; i != num_boundaries; i++ ) {
-			if ( boundaries[ i ] > marker ) {
-				return i;
-			}
-		}
-		return i;
-	};
 
 	// It's also possible that our bezier curve self-intersects through a cusp,
 	// in which case inflection points are out of order. In this case,
@@ -513,15 +498,6 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 	CubicBezier b_1; // placeholders.
 
 	if ( curve_has_cusp ) {
-
-		float cusped_boundaries[ 3 ] = {
-		    t2_p,
-		    infl.t_cusp,
-		    t1_m,
-		};
-
-		size_t c_start = which_region( cusped_boundaries, 3, 0.f );
-		size_t c_end   = which_region( cusped_boundaries, 3, 1.f );
 
 		// FIXME: we still need to work on the case when all,
 		// t1,t2, cusp are within 0..1
@@ -546,6 +522,15 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 
 		// ----------| invariant: curve does not have a cusp.
 
+		auto which_region = []( float *boundaries, size_t num_boundaries, float marker ) -> size_t {
+			size_t i = 0;
+			for ( ; i != num_boundaries; i++ ) {
+				if ( boundaries[ i ] > marker ) {
+					return i;
+				}
+			}
+			return i;
+		};
 		float boundaries[ 4 ] = {
 		    t1_m,
 		    t1_p,
@@ -668,8 +653,8 @@ static void le_path_flatten_path( le_path_o *self, float tolerance ) {
 			case PathCommand::eQuadBezierTo:
 				flatten_cubic_bezier_to( polyline,
 				                         command.p,
-				                         command.c1,
-				                         command.c1,
+				                         2 / 3.f * ( command.c1 - command.p ),
+				                         2 / 3.f * ( command.c1 - command.c2 ),
 				                         tolerance );
 				break;
 			case PathCommand::eCubicBezierTo:
@@ -693,6 +678,8 @@ static void le_path_flatten_path( le_path_o *self, float tolerance ) {
 		self->polylines.emplace_back( polyline );
 	}
 }
+
+// ----------------------------------------------------------------------
 
 // ----------------------------------------------------------------------
 
