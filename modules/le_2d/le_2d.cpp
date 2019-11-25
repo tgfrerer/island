@@ -263,7 +263,7 @@ static void generate_geometry_path( std::vector<VertexData2D> &geometry, le_path
 	size_t const num_polylines = le_path_i.get_num_polylines( path );
 
 	auto tess = le_tessellator_i.create();
-	//	le_tessellator_i.set_options( tess, le_tessellator::Options::bitConstrainedDelaunayTriangulation );
+	// le_tessellator_i.set_options( tess, le_tessellator::Options::bitConstrainedDelaunayTriangulation );
 	le_tessellator_i.set_options( tess, le_tessellator::Options::bitUseEarcutTessellator );
 
 	for ( size_t i = 0; i != num_polylines; ++i ) {

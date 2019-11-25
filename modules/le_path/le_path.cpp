@@ -381,13 +381,14 @@ static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
                                              CubicBezier const &b_,
                                              float              tolerance ) {
 
-	// trace_cubic_bezier_to( polyline, b_.p1, b_.c1, b_.c2, 12 );
-	// return;
-
 	CubicBezier b = b_; // fixme: not necessary.
 
 	float t = 0;
 
+	glm::vec2 p_prev = b.p0;
+
+	// Note that we limit the number of iterations by setting a maximum of 100 - this
+	// should only ever be reached when tolerance is super small.
 	for ( int i = 0; i != 100; i++ ) {
 
 		// create a coordinate basis based on the first point, and the first control point
@@ -396,29 +397,26 @@ static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
 
 		glm::mat2 const basis = {r, s};
 
-		// first we define a coordinate basis built on the first two points, b0, and b1
+		// Define a coordinate basis built on the first two points, b0, and b1
 
 		glm::vec2 P1 = basis * ( b.c1 - b.p0 );
 		glm::vec2 P2 = basis * ( b.c2 - b.p0 );
 
-		float s2 = ( P2 ).y; // this is weird, but appears to work...
+		float s2 = ( P2 ).y;
 
 		s2 = fabsf( s2 );
 
 		float t_dash = sqrtf( tolerance / ( 3 * s2 ) );
 		t            = std::min<float>( 1.f, 2 * t_dash );
 
-		// apply subdivision at (t) means that our current point will be the new
-		// point p0 in the subdivided segment.
+		// Apply subdivision at (t). This means that the start point of the sub-segment
+		// will be the point we can add to the polyline while respecting flatness.
 		bezier_subdivide( b, t, nullptr, &b );
 
 		glm::vec2 pt = b.p0;
 
-		// translate back into original coordinate system
-		//		pt = p_prev + inv_basis * pt;
-
 		polyline.vertices.emplace_back( pt );
-		//		polyline.total_distance += glm::distance( pt, p_prev );
+		polyline.total_distance += glm::distance( pt, p_prev );
 		polyline.distances.emplace_back( polyline.total_distance );
 
 		polyline.tangents.emplace_back();
@@ -426,7 +424,7 @@ static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
 		if ( t >= 1.0f )
 			break;
 
-		//		p_prev = pt;
+		p_prev = pt;
 	}
 }
 
