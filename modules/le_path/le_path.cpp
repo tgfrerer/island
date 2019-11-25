@@ -438,6 +438,182 @@ inline static bool is_fully_contained_0_1( float f1, float f2 ) {
 	return is_contained_0_1( f1 ) && is_contained_0_1( f2 );
 }
 
+static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std::vector<CubicBezier> &curves, float tolerance ) {
+	// --- calculate inflection points:
+
+	InflectionData infl;
+	bool           has_inflection_points = cubic_bezier_calculate_inflection_points( b, &infl );
+
+	if ( !has_inflection_points ) {
+		curves.push_back( b ); // curve is already monotonous - no need to do anything further.
+		return;
+	}
+
+	// this curve contains cusps.
+
+	// we must subdivide the curve so that none of the sub-curves contains any cusps anymore,
+	// and then we must process each curve individually.
+
+	float t1_m, t1_p;
+	float t2_m, t2_p;
+
+	{
+		CubicBezier b_sub{};
+		bezier_subdivide( b, infl.t_1, nullptr, &b_sub );
+
+		glm::vec2 r = glm::normalize( b_sub.c1 - b_sub.p0 );
+		glm::vec2 s = {r.y, -r.x};
+
+		glm::mat2 const basis = {r, s};
+
+		// first we define a coordinate basis built on the first two points, b0, and b1
+
+		glm::vec2 RS0 = basis * ( b_sub.p0 - b_sub.p0 );
+		glm::vec2 RS1 = basis * ( b_sub.c1 - b_sub.p0 );
+		glm::vec2 RS2 = basis * ( b_sub.c2 - b_sub.p0 );
+		glm::vec2 RS3 = basis * ( b_sub.p1 - b_sub.p0 );
+
+		float s3  = 3 * fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
+		float t_f = powf( tolerance / s3, 1.f / 3.f ); // cubic root
+
+		t1_m = infl.t_1 - t_f * ( 1 - infl.t_1 );
+		t1_p = infl.t_1 + t_f * ( 1 - infl.t_1 );
+	}
+	{
+		CubicBezier b_sub{};
+		bezier_subdivide( b, infl.t_2, nullptr, &b_sub );
+
+		glm::vec2 r = glm::normalize( b_sub.c1 - b_sub.p0 );
+		glm::vec2 s = {r.y, -r.x};
+
+		glm::mat2 const basis = {r, s};
+
+		glm::vec2 RS0 = basis * ( b_sub.p0 - b_sub.p0 );
+		glm::vec2 RS1 = basis * ( b_sub.c1 - b_sub.p0 );
+		glm::vec2 RS2 = basis * ( b_sub.c2 - b_sub.p0 );
+		glm::vec2 RS3 = basis * ( b_sub.p1 - b_sub.p0 );
+
+		// first we define a coordinate basis built on the first two points, b0, and b1
+
+		float s3  = 3 * fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
+		float t_f = powf( tolerance / s3, 1.f / 3.f ); // cubic root
+
+		t2_m = infl.t_2 - t_f * ( 1 - infl.t_2 );
+		t2_p = infl.t_2 + t_f * ( 1 - infl.t_2 );
+	}
+
+	auto which_region = []( float *boundaries, size_t num_boundaries, float marker ) -> size_t {
+		size_t i = 0;
+		for ( ; i != num_boundaries; i++ ) {
+			if ( boundaries[ i ] > marker ) {
+				return i;
+			}
+		}
+		return i;
+	};
+
+	// It's also possible that our bezier curve self-intersects through a cusp,
+	// in which case inflection points are out of order. In this case,
+	// calculation for curve segments must happen in a different way.
+	// FIXME: implement cusp curve segments.
+	bool curve_has_cusp = t2_m <= t1_p;
+
+	CubicBezier b_0; // placeholders.
+	CubicBezier b_1; // placeholders.
+
+	if ( curve_has_cusp ) {
+
+		// FIXME: we must check regions properly for cusped beziers, too...
+
+		float cusped_boundaries[ 3 ] = {
+		    t2_p,
+		    infl.t_cusp,
+		    t1_m,
+		};
+
+		size_t c_start = which_region( cusped_boundaries, 3, 0.f );
+		size_t c_end   = which_region( cusped_boundaries, 3, 1.f );
+
+		// cusp case: anything t1_m .. t_cusp,
+		// and t_cusp .. t2_p may be represented by a line.
+		//
+
+		bezier_subdivide( b, clamp( t2_p, 0, 1 ), &b_0, nullptr );
+		curves.push_back( b_0 );
+		bezier_subdivide( b, clamp( t2_m, 0, 1 ), nullptr, &b_0 );
+		curves.push_back( b_0 );
+
+	} else {
+
+		// ----------| invariant: curve does not have a cusp.
+
+		float boundaries[ 4 ] = {
+		    t1_m,
+		    t1_p,
+		    t2_m,
+		    t2_p,
+		};
+
+		// Calculate into which of the 5 segments of an infinite cubic bezier
+		// the given start and end points (based on t = 0..1 ) fall:
+		//
+		// ---0--- t1_m ---1--- t1_p ---2--- t2_m ---3--- t2_p ---4---
+		//
+		size_t c_start = which_region( boundaries, 4, 0.f );
+		size_t c_end   = which_region( boundaries, 4, 1.f );
+
+		if ( c_start == c_end ) {
+			// curve contained within a single segment.
+
+			// Note segments 1, and 3 are flat, they
+			// should better be represented by lines.
+
+			curves.push_back( b );
+		} else {
+
+			// Curve spans multiple segments
+
+			if ( c_start == 0 ) {
+				// curve starts within first segment, but does not end here.
+				// this means the first segment of the curve will be 0..t1m
+				bezier_subdivide( b, t1_m, &b_0, nullptr );
+				curves.push_back( b_0 );
+			}
+
+			if ( c_end == 2 ) {
+				// curve ends within the 2nd segment, but does not start here.
+				// this means that the next segment of the curve will be limited
+				// by t1_p .. 1
+				bezier_subdivide( b, t1_p, nullptr, &b_0 );
+				curves.push_back( b_0 );
+			}
+
+			if ( c_start < 2 && c_end > 2 ) {
+				// curve goes over segment 2, we need to get segment t1_p .. t2..m
+				bezier_subdivide( b, t1_p, nullptr, &b_1 );  // part t1_p .. 1
+				float t3 = map( t2_m, t1_p, 1.f, 0.f, 1.f ); // t2_m expressed in t1_p .. 1 space
+				bezier_subdivide( b_1, t3, &b_0, nullptr );  // part t1_p .. t2_m
+				curves.push_back( b_0 );
+			}
+
+			if ( c_start == 2 ) {
+				bezier_subdivide( b, t2_m, &b_0, nullptr );
+				curves.push_back( b_0 );
+			}
+
+			if ( c_end == 3 ) {
+				bezier_subdivide( b, 1, nullptr, &b_0 ); // equivalent to adding just another point at the end.
+				curves.push_back( b_0 );
+			}
+
+			if ( c_end == 4 ) {
+				bezier_subdivide( b, t2_p, nullptr, &b_0 );
+				curves.push_back( b_0 );
+			}
+		}
+	}
+}
+
 // ----------------------------------------------------------------------
 // Flatten a cubic bezier curve from previous point p0 to target point p3
 // controlled by control points p1, and p2.
@@ -453,8 +629,6 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 	Vertex const p0     = polyline.vertices.back(); // copy start point
 	Vertex       p_prev = p0;
 
-	float toi = tolerance;
-
 	CubicBezier b{
 	    p0,
 	    c1,
@@ -462,226 +636,13 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 	    p1,
 	};
 
-	// --- calculate inflection points:
-
-	InflectionData infl;
-
 	std::vector<CubicBezier> curves;
 
-	if ( cubic_bezier_calculate_inflection_points( b, &infl ) ) {
-		// this curve contains cusps.
-
-		// we must subdivide the curve so that none of the sub-curves contains any cusps anymore,
-		// and then we must process each curve individually.
-
-		CubicBezier b_0{};
-		CubicBezier b_1{};
-		CubicBezier b_2{};
-		CubicBezier b_3{};
-
-		float t1_m, t1_p;
-		float t2_m, t2_p;
-
-		{
-			CubicBezier b_sub{};
-			bezier_subdivide( b, infl.t_1, nullptr, &b_sub );
-
-			glm::vec2 r = glm::normalize( b_sub.c1 - b_sub.p0 );
-			glm::vec2 s = {r.y, -r.x};
-
-			glm::mat2 const basis = {r, s};
-
-			// first we define a coordinate basis built on the first two points, b0, and b1
-
-			glm::vec2 RS0 = basis * ( b_sub.p0 - b_sub.p0 );
-			glm::vec2 RS1 = basis * ( b_sub.c1 - b_sub.p0 );
-			glm::vec2 RS2 = basis * ( b_sub.c2 - b_sub.p0 );
-			glm::vec2 RS3 = basis * ( b_sub.p1 - b_sub.p0 );
-
-			float s3  = 3 * fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
-			float t_f = powf( tolerance / s3, 1.f / 3.f ); // cubic root
-
-			t1_m = infl.t_1 - t_f * ( 1 - infl.t_1 );
-			t1_p = infl.t_1 + t_f * ( 1 - infl.t_1 );
-		}
-		{
-			CubicBezier b_sub{};
-			bezier_subdivide( b, infl.t_2, nullptr, &b_sub );
-
-			glm::vec2 r = glm::normalize( b_sub.c1 - b_sub.p0 );
-			glm::vec2 s = {r.y, -r.x};
-
-			glm::mat2 const basis = {r, s};
-
-			glm::vec2 RS0 = basis * ( b_sub.p0 - b_sub.p0 );
-			glm::vec2 RS1 = basis * ( b_sub.c1 - b_sub.p0 );
-			glm::vec2 RS2 = basis * ( b_sub.c2 - b_sub.p0 );
-			glm::vec2 RS3 = basis * ( b_sub.p1 - b_sub.p0 );
-
-			// first we define a coordinate basis built on the first two points, b0, and b1
-
-			float s3  = 3 * fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
-			float t_f = powf( tolerance / s3, 1.f / 3.f ); // cubic root
-
-			t2_m = infl.t_2 - t_f * ( 1 - infl.t_2 );
-			t2_p = infl.t_2 + t_f * ( 1 - infl.t_2 );
-		}
-
-		uint8_t curve_flags = 0;
-		curve_flags |= ( is_contained_0_1( t1_m ) ? 1 : 0 ) << 0;
-		curve_flags |= ( is_contained_0_1( t1_p ) ? 1 : 0 ) << 1;
-		curve_flags |= ( is_contained_0_1( t2_m ) ? 1 : 0 ) << 2;
-		curve_flags |= ( is_contained_0_1( t2_p ) ? 1 : 0 ) << 3;
-		curve_flags |= ( t2_m <= t1_p ? 1 : 0 ) << 4; // cusp
-
-		t1_m = clamp( t1_m, 0.f, 1.f );
-		t1_p = clamp( t1_p, 0.f, 1.f );
-		t2_m = clamp( t2_m, 0.f, 1.f );
-		t2_p = clamp( t2_p, 0.f, 1.f );
-
-		if ( curve_flags & ( 0b10000 ) ) {
-
-			// Curve contains a cusp
-
-			if ( curve_flags & 0b00011 && !( curve_flags & 0b01100 ) ) {
-				// cusp around first inflection point
-				bezier_subdivide( b, t1_m, &b_0, nullptr ); // part 0 .. t1_m
-				bezier_subdivide( b, t1_p, nullptr, &b_1 ); // part t1_p .. 1
-				curves.push_back( b_0 );
-				curves.push_back( b_1 );
-			}
-
-			if ( curve_flags & 0b01100 && !( curve_flags & 0b00011 ) ) {
-				// cusp around second inflection point
-				bezier_subdivide( b, t2_m, &b_0, nullptr ); // part 0 .. t2_m
-				bezier_subdivide( b, t2_p, nullptr, &b_1 ); // part t2_p .. 1
-				curves.push_back( b_0 );
-				curves.push_back( b_1 );
-			}
-
-			if ( curve_flags == 0b11011 ||
-			     curve_flags == 0b11010 ||
-			     curve_flags == 0b11101 ||
-			     curve_flags == 0b11110 ||
-			     curve_flags == 0b11110 ||
-			     curve_flags == 0b11111 ) {
-				// t2_m , t2_p have invalid values
-				bezier_subdivide( b, infl.t_cusp, &b_0, &b_1 ); // part t1_p .. 1
-
-				curves.push_back( b_0 );
-				curves.push_back( b_1 );
-			}
-
-			if ( curve_flags & 0b10000 && !( curve_flags & 0b01111 ) ) {
-				// none of the cusps in range.
-				curves.push_back( b );
-			}
-
-		} else {
-
-			// Curve does not contain a cusp
-
-			if ( curve_flags & ( 0b00001 ) ) {
-				// t1_m in range
-				bezier_subdivide( b, t1_m, &b_0, nullptr ); // part 0 .. t1_m
-				curves.push_back( b_0 );
-				if ( curve_flags & ( 0b00110 ) ) {
-					bezier_subdivide( b, t2_m, &b_1, nullptr ); // part 0 .. t2_m
-					if ( curve_flags & ( 0b00010 ) ) {
-						// t1_p in range
-						bezier_subdivide( b, t1_p, nullptr, &b_1 ); // part t1_p .. 1
-						if ( curve_flags & 0b00100 ) {
-							// t2_m in range
-							float t3 = map( t2_m, t1_p, 1.f, 0.f, 1.f ); // t2_m expressed in t1_p .. 1 space
-							bezier_subdivide( b_1, t3, &b_1, nullptr );  // part t1_p .. t2_m
-							if ( curve_flags & 0b01000 ) {
-								curves.push_back( b_1 );
-								bezier_subdivide( b, t2_p, nullptr, &b_2 );
-								curves.push_back( b_2 );
-							} else {
-								curves.push_back( b_1 );
-							}
-						} else {
-							curves.push_back( b_1 );
-						}
-					} else {
-						if ( curve_flags & 0b00100 ) {
-							// t2_m in range
-							bezier_subdivide( b, t2_m, &b_1, nullptr ); // part t1_p .. t2_m
-						}
-						curves.push_back( b_1 );
-					}
-				}
-			} else if ( curve_flags & ( 0b00010 ) ) {
-				bezier_subdivide( b, t1_p, &b_0, nullptr ); // part 0 .. t1_p
-				curves.push_back( b_0 );
-				if ( curve_flags & ( 0b00110 ) ) {
-					bezier_subdivide( b, t2_m, &b_1, nullptr ); // part 0 .. t2_m
-					if ( curve_flags & ( 0b00010 ) ) {
-						// t1_p in range
-						bezier_subdivide( b, t1_p, nullptr, &b_1 ); // part t1_p .. 1
-						if ( curve_flags & 0b00100 ) {
-							// t2_m in range
-							float t3 = map( t2_m, t1_p, 1.f, 0.f, 1.f ); // t2_m expressed in t1_p .. 1 space
-							bezier_subdivide( b_1, t3, &b_1, nullptr );  // part t1_p .. t2_m
-							curves.push_back( b_1 );
-							if ( curve_flags & 0b01000 ) {
-								bezier_subdivide( b, t2_p, nullptr, &b_2 ); // part t1_p .. t2_m
-								curves.push_back( b_2 );
-							}
-
-						} else {
-							curves.push_back( b_1 );
-						}
-					} else {
-						if ( curve_flags & 0b00100 ) {
-							// t2_m in range
-							bezier_subdivide( b, t2_m, &b_1, nullptr ); // part t1_p .. t2_m
-							curves.push_back( b_1 );
-						} else {
-							curves.push_back( b_1 );
-						}
-					}
-				}
-			} else if ( curve_flags & ( 0b00100 ) ) {
-				if ( curve_flags & ( 0b00110 ) ) {
-					bezier_subdivide( b, t2_m, &b_1, nullptr ); // part 0 .. t2_m
-					if ( curve_flags & ( 0b00010 ) ) {
-						// t1_p in range
-						bezier_subdivide( b, t1_p, nullptr, &b_1 ); // part t1_p .. 1
-						if ( curve_flags & 0b00100 ) {
-							// t2_m in range
-							float t3 = map( t2_m, t1_p, 1.f, 0.f, 1.f ); // t2_m expressed in t1_p .. 1 space
-							bezier_subdivide( b_1, t3, &b_1, nullptr );  // part t1_p .. t2_m
-						}
-						curves.push_back( b_1 );
-					} else {
-						if ( curve_flags & 0b00100 ) {
-							// t2_m in range
-							bezier_subdivide( b, t2_m, &b_1, &b_2 ); // part 0 .. t2_m
-							curves.push_back( b_1 );
-							curves.push_back( b_2 );
-						}
-					}
-				}
-			} else if ( curve_flags & 0b01000 ) {
-				bezier_subdivide( b, t2_p, &b_1, &b_2 ); // part t1_p .. 1
-				curves.push_back( b_1 );
-				curves.push_back( b_2 );
-			}
-		}
-
-		if ( curve_flags == 0 ) {
-			curves.push_back( b );
-		}
-
-	} else {
-		curves.push_back( b );
-	}
+	split_cubic_bezier_into_monotonous_sub_segments( b, curves, tolerance );
 
 	// ---
 	for ( auto &c : curves ) {
-		flatten_cubic_bezier_segment_to( polyline, c, toi );
+		flatten_cubic_bezier_segment_to( polyline, c, tolerance );
 		//break;
 	}
 }
