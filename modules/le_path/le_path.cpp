@@ -432,10 +432,6 @@ inline static bool is_contained_0_1( float f ) {
 	return ( f >= 0.f && f <= 1.f );
 }
 
-inline static bool is_fully_contained_0_1( float f1, float f2 ) {
-	return is_contained_0_1( f1 ) && is_contained_0_1( f2 );
-}
-
 static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std::vector<CubicBezier> &curves, float tolerance ) {
 	// --- calculate inflection points:
 
@@ -536,10 +532,18 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 		// and t_cusp .. t2_p may be represented by a line.
 		//
 
-		bezier_subdivide( b, clamp( t2_p, 0, 1 ), &b_0, nullptr );
-		curves.push_back( b_0 );
-		bezier_subdivide( b, clamp( t2_m, 0, 1 ), nullptr, &b_0 );
-		curves.push_back( b_0 );
+		if ( is_contained_0_1( infl.t_1 ) ) {
+			bezier_subdivide( b, clamp( t1_m, 0, 1 ), &b_0, nullptr );
+			curves.push_back( b_0 );
+			bezier_subdivide( b, clamp( t1_p, 0, 1 ), nullptr, &b_0 );
+			curves.push_back( b_0 );
+
+		} else {
+			bezier_subdivide( b, clamp( t2_p, 0, 1 ), &b_0, nullptr );
+			curves.push_back( b_0 );
+			bezier_subdivide( b, clamp( t2_m, 0, 1 ), nullptr, &b_0 );
+			curves.push_back( b_0 );
+		}
 
 	} else {
 
