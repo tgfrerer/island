@@ -382,55 +382,6 @@ static bool cubic_bezier_calculate_inflection_points( CubicBezier const &b, Infl
 }
 
 // ----------------------------------------------------------------------
-
-static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
-                                             CubicBezier const &b_,
-                                             float              tolerance ) {
-
-	CubicBezier b = b_; // fixme: not necessary.
-
-	float t = 0;
-
-	glm::vec2 p_prev = b.p0;
-
-	// Note that we limit the number of iterations by setting a maximum of 100 - this
-	// should only ever be reached when tolerance is super small.
-	for ( int i = 0; i != 100; i++ ) {
-
-		// create a coordinate basis based on the first point, and the first control point
-		glm::vec2 r = glm::normalize( b.c1 - b.p0 );
-		glm::vec2 s = {r.y, -r.x};
-
-		// Define a coordinate basis built on the first two points, b0, and b1
-		glm::mat2 const basis = {r, s};
-
-		glm::vec2 P2 = basis * ( b.c2 - b.p0 );
-
-		float s2 = ( P2 ).y;
-
-		float t_dash = sqrtf( tolerance / ( 3 * fabsf( s2 ) ) );
-		t            = std::min<float>( 1.f, 2 * t_dash );
-
-		// Apply subdivision at (t). This means that the start point of the sub-segment
-		// will be the point we can add to the polyline while respecting flatness.
-		bezier_subdivide( b, t, nullptr, &b );
-
-		glm::vec2 pt = b.p0;
-
-		polyline.vertices.emplace_back( pt );
-		polyline.total_distance += glm::distance( pt, p_prev );
-		polyline.distances.emplace_back( polyline.total_distance );
-
-		polyline.tangents.emplace_back(); // todo: add tangent
-
-		if ( t >= 1.0f )
-			break;
-
-		p_prev = pt;
-	}
-}
-
-// ----------------------------------------------------------------------
 // Split a cubic bezier curve into a list of monotonous segments, so that
 // none of the segments contains a cusp or inflection point within its 0..1
 // parameter range.
@@ -599,6 +550,55 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 }
 
 // ----------------------------------------------------------------------
+
+static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
+                                             CubicBezier const &b_,
+                                             float              tolerance ) {
+
+	CubicBezier b = b_; // fixme: not necessary.
+
+	float t = 0;
+
+	glm::vec2 p_prev = b.p0;
+
+	// Note that we limit the number of iterations by setting a maximum of 100 - this
+	// should only ever be reached when tolerance is super small.
+	for ( int i = 0; i != 100; i++ ) {
+
+		// create a coordinate basis based on the first point, and the first control point
+		glm::vec2 r = glm::normalize( b.c1 - b.p0 );
+		glm::vec2 s = {r.y, -r.x};
+
+		// Define a coordinate basis built on the first two points, b0, and b1
+		glm::mat2 const basis = {r, s};
+
+		glm::vec2 P2 = basis * ( b.c2 - b.p0 );
+
+		float s2 = ( P2 ).y;
+
+		float t_dash = sqrtf( tolerance / ( 3 * fabsf( s2 ) ) );
+		t            = std::min<float>( 1.f, 2 * t_dash );
+
+		// Apply subdivision at (t). This means that the start point of the sub-segment
+		// will be the point we can add to the polyline while respecting flatness.
+		bezier_subdivide( b, t, nullptr, &b );
+
+		glm::vec2 pt = b.p0;
+
+		polyline.vertices.emplace_back( pt );
+		polyline.total_distance += glm::distance( pt, p_prev );
+		polyline.distances.emplace_back( polyline.total_distance );
+
+		polyline.tangents.emplace_back(); // todo: add tangent
+
+		if ( t >= 1.0f )
+			break;
+
+		p_prev = pt;
+	}
+}
+
+// ----------------------------------------------------------------------
 // Flatten a cubic bezier curve from previous point p0 to target point p3
 // controlled by control points p1, and p2.
 static void flatten_cubic_bezier_to( Polyline &    polyline,
@@ -626,7 +626,6 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 	// ---
 	for ( auto &c : curves ) {
 		flatten_cubic_bezier_segment_to( polyline, c, tolerance );
-		//break;
 	}
 }
 
@@ -641,21 +640,26 @@ static void le_path_flatten_path( le_path_o *self, float tolerance ) {
 
 		Polyline polyline;
 
+		glm::vec2 prev_point = {};
+
 		for ( auto const &command : s.commands ) {
 
 			switch ( command.type ) {
 			case PathCommand::eMoveTo:
 				trace_move_to( polyline, command.p );
+				prev_point = command.p;
 				break;
 			case PathCommand::eLineTo:
 				trace_line_to( polyline, command.p );
+				prev_point = command.p;
 				break;
 			case PathCommand::eQuadBezierTo:
 				flatten_cubic_bezier_to( polyline,
 				                         command.p,
-				                         2 / 3.f * ( command.c1 - command.p ),
-				                         2 / 3.f * ( command.c1 - command.c2 ),
+				                         prev_point + 2 / 3.f * ( command.c1 - prev_point ),
+				                         command.c2 + 2 / 3.f * ( command.c1 - command.c2 ),
 				                         tolerance );
+				prev_point = command.p;
 				break;
 			case PathCommand::eCubicBezierTo:
 				flatten_cubic_bezier_to( polyline,
@@ -663,6 +667,7 @@ static void le_path_flatten_path( le_path_o *self, float tolerance ) {
 				                         command.c1,
 				                         command.c2,
 				                         tolerance );
+				prev_point = command.p;
 				break;
 			case PathCommand::eClosePath:
 				trace_close_path( polyline );
@@ -681,6 +686,207 @@ static void le_path_flatten_path( le_path_o *self, float tolerance ) {
 
 // ----------------------------------------------------------------------
 
+static void generate_offset_outline_line_to( std::vector<glm::vec2> &outline, Vertex const &p0, Vertex const &p1, float offset ) {
+
+	glm::vec2 r = glm::normalize( p1 - p0 );
+	glm::vec2 s = {r.y, -r.x};
+
+	if ( outline.empty() ) {
+		// Special case if this is the first line_to after a move_to:
+		// We must insert a point, offset from p_0.
+		outline.push_back( p0 + offset * s );
+	}
+
+	outline.push_back( p1 + offset * s );
+}
+
+// ----------------------------------------------------------------------
+static void flatten_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
+                                             CubicBezier const &     b_,
+                                             float                   tolerance,
+                                             float                   offset ) {
+
+	CubicBezier b = b_;
+
+	float t = 0;
+
+	glm::vec2 p_prev = b.p0;
+
+	// create a coordinate basis based on the first point, and the first control point
+	glm::vec2 r = glm::normalize( b.c1 - b.p0 );
+	glm::vec2 s = {r.y, -r.x};
+
+	// Note that we limit the number of iterations by setting a maximum of 100 - this
+	// should only ever be reached when tolerance is super small.
+
+	for ( int i = 0; i != 100; i++ ) {
+
+		// Define a coordinate basis built on the first two points, b0, and b1
+		glm::mat2 const basis = {r, s};
+
+		glm::vec2 P1 = basis * ( b.c1 - b.p0 );
+		glm::vec2 P2 = basis * ( b.c2 - b.p0 );
+
+		float s2 = P2.y;
+		float r1 = P1.x;
+
+		float t_dash = sqrtf( tolerance / ( 3 * fabsf( s2 ) * ( 1 - ( offset * s2 / ( 3 * r1 * r1 ) ) ) ) );
+
+		t = std::min<float>( 1.f, 2 * t_dash );
+
+		// Apply subdivision at (t). This means that the start point of the sub-segment
+		// will be the point we can add to the polyline while respecting flatness.
+		bezier_subdivide( b, t, nullptr, &b );
+
+		// update the coordinate basis based on the first point, and the first control point
+		glm::vec2 r = glm::normalize( b.c1 - b.p0 );
+		glm::vec2 s = {r.y, -r.x};
+
+		glm::vec2 pt = b.p0 + offset * s;
+
+		outline.emplace_back( pt );
+
+		if ( t >= 1.0f )
+			break;
+
+		p_prev = pt;
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static void generate_offset_outline_cubic_bezier_to( std::vector<glm::vec2> &outline_l,
+                                                     std::vector<glm::vec2> &outline_r,
+                                                     glm::vec2 const &       p0, // start point
+                                                     glm::vec2 const &       c1, // control point 1
+                                                     glm::vec2 const &       c2, // control point 2
+                                                     glm::vec2 const &       p1, // end point
+                                                     float                   tolerance,
+                                                     float                   line_weight ) {
+
+	CubicBezier b{
+	    p0,
+	    c1,
+	    c2,
+	    p1,
+	};
+
+	std::vector<CubicBezier> curves;
+
+	split_cubic_bezier_into_monotonous_sub_segments( b, curves, tolerance );
+
+	// ---
+	for ( auto &c : curves ) {
+		flatten_cubic_bezier_segment_to( outline_l, c, tolerance, -line_weight * 0.5f );
+		flatten_cubic_bezier_segment_to( outline_r, c, tolerance, line_weight * 0.5f );
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static void generate_offset_outline_close_path( std::vector<glm::vec2> &outline ) {
+	// We need to have at least 3 elements in outline to be able to close a path.
+	// If so, we duplicate the first point as a last point.
+	if ( outline.size() > 2 ) {
+		outline.push_back( outline.front() );
+	}
+}
+
+// ----------------------------------------------------------------------
+// generate vertices for path outline by flattening first left, then right outline
+// based on the t.f. hain paper for bezier curve outlines.
+static bool le_path_generate_offset_outline_for_contour(
+    le_path_o *self, size_t contour_index,
+    float   line_weight,
+    float   tolerance,
+    Vertex *outline_l_, size_t *max_count_outline_l,
+    Vertex *outline_r_, size_t *max_count_outline_r ) {
+
+	// We allocate space internally to store the results of our outline generation.
+	// We do this because if we were to directly write back to the caller, we would
+	// have to bounds-check against `max_count_outline[l|r]` on every write.
+	//
+	// This way we do the bounds-check only at the very end, and if the bounds check
+	// fails, we can at least tell the caller how many elements to reserve next time.
+
+	std::vector<Vertex> outline_l;
+	std::vector<Vertex> outline_r;
+
+	outline_l.reserve( *max_count_outline_l );
+	outline_r.resize( *max_count_outline_r );
+
+	// Now process the commands for this contour
+
+	glm::vec2 prev_point  = {};
+	float     line_offset = line_weight * 0.5f;
+
+	auto &s = self->contours[ contour_index ];
+	for ( auto const &command : s.commands ) {
+
+		switch ( command.type ) {
+		case PathCommand::eMoveTo:
+			prev_point = command.p;
+			break;
+		case PathCommand::eLineTo:
+			generate_offset_outline_line_to( outline_l, prev_point, command.p, -line_offset );
+			generate_offset_outline_line_to( outline_r, prev_point, command.p, line_offset );
+			prev_point = command.p;
+			break;
+		case PathCommand::eQuadBezierTo:
+			generate_offset_outline_cubic_bezier_to( outline_l,
+			                                         outline_r,
+			                                         prev_point,
+			                                         prev_point + 2 / 3.f * ( command.c1 - prev_point ),
+			                                         command.c2 + 2 / 3.f * ( command.c1 - command.c2 ),
+			                                         command.p,
+			                                         tolerance,
+			                                         line_weight );
+
+			prev_point = command.p;
+			break;
+		case PathCommand::eCubicBezierTo:
+			generate_offset_outline_cubic_bezier_to( outline_l,
+			                                         outline_r,
+			                                         prev_point,
+			                                         command.c1,
+			                                         command.c2,
+			                                         command.p,
+			                                         tolerance,
+			                                         line_weight );
+			prev_point = command.p;
+			break;
+		case PathCommand::eClosePath:
+			generate_offset_outline_close_path( outline_l );
+			generate_offset_outline_close_path( outline_r );
+			break;
+		case PathCommand::eUnknown:
+			assert( false );
+			break;
+		}
+	}
+
+	// Copy generated vertices back to caller
+
+	bool success = true;
+
+	if ( outline_l_ && outline_l.size() <= *max_count_outline_l ) {
+		memcpy( outline_l_, outline_l.data(), sizeof( Vertex ) * outline_l.size() );
+	} else {
+		success = false;
+	}
+
+	if ( outline_r_ && outline_r.size() <= *max_count_outline_r ) {
+		memcpy( outline_r_, outline_r.data(), sizeof( Vertex ) * outline_r.size() );
+	} else {
+		success = false;
+	}
+
+	// update outline counts with actual number of generated vertices.
+	*max_count_outline_l = outline_l.size();
+	*max_count_outline_r = outline_r.size();
+
+	return success;
+}
 // ----------------------------------------------------------------------
 
 static void le_path_iterate_vertices_for_contour( le_path_o *self, size_t const &contour_index, le_path_api::contour_vertex_cb callback, void *user_data ) {
@@ -1283,6 +1489,8 @@ ISL_API_ATTR void register_le_path_api( void *api ) {
 	le_path_i.get_vertices_for_polyline        = le_path_get_vertices_for_polyline;
 	le_path_i.get_tangents_for_polyline        = le_path_get_tangents_for_polyline;
 	le_path_i.get_polyline_at_pos_interpolated = le_path_get_polyline_at_pos_interpolated;
+
+	le_path_i.generate_offset_outline_for_contour = le_path_generate_offset_outline_for_contour;
 
 	le_path_i.iterate_vertices_for_contour     = le_path_iterate_vertices_for_contour;
 	le_path_i.iterate_quad_beziers_for_contour = le_path_iterate_quad_beziers_for_contour;

@@ -49,6 +49,8 @@ struct le_path_api {
 		void        (* flatten                   ) ( le_path_o* self, float tolerance);
 		void        (* resample                  ) ( le_path_o* self, float interval);
 
+	    bool (* generate_offset_outline_for_contour)(le_path_o *self, size_t contour_index, float line_weight, float tolerance, Vertex *outline_l_, size_t *max_count_outline_l, Vertex *outline_r_, size_t *max_count_outline_r );
+
 		void        (* clear                     ) ( le_path_o* self );
 
         size_t      (* get_num_contours          ) ( le_path_o* self );
