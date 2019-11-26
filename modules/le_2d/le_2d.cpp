@@ -225,21 +225,14 @@ static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, floa
 }
 // ----------------------------------------------------------------------
 
-static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry, le_path_o *path, float stroke_weight, float tolerance_, uint32_t color ) {
+static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry, le_path_o *path, float stroke_weight, float tolerance, uint32_t color ) {
 
 	using namespace le_path;
-
-	// fixme: we want to create polyline via flattening
-
-	float tolerance;
-	//	tolerance = 2.f;
-	tolerance = tolerance_;
 
 	// le_path_i.trace( path, subdivisions );
 	if ( stroke_weight < 2.f ) {
 
 		le_path_i.flatten( path, tolerance );
-		//	le_path_i.trace( path, 120 );
 
 		size_t const num_polylines = le_path_i.get_num_polylines( path );
 		for ( size_t i = 0; i != num_polylines; ++i ) {
@@ -345,9 +338,9 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 			// TODO: what do we want to set for tex coordinate?
 
 			for ( size_t i = 0; i + 2 < num_indices; ) {
-				geometry.push_back( {vertices[ indices[ i++ ] ], {0, 0}, color} );
-				geometry.push_back( {vertices[ indices[ i++ ] ], {0, 0}, color} );
-				geometry.push_back( {vertices[ indices[ i++ ] ], {0, 0}, color} );
+				geometry.push_back( {vertices[ indices[ i++ ] ], {1, 0}, color} );
+				geometry.push_back( {vertices[ indices[ i++ ] ], {0, 1}, color} );
+				geometry.push_back( {vertices[ indices[ i++ ] ], {1, 1}, color} );
 			}
 
 			le_tessellator_i.destroy( tess );
@@ -439,7 +432,6 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 	case le_2d_primitive_o::Type::ePath: {
 		auto const &path = p->data.as_path;
 		if ( p->material.filled ) {
-			// TODO: implement
 			generate_geometry_path( geometry, path.path, p->material.stroke_weight, path.tolerance, p->material.color );
 		} else {
 			generate_geometry_outline_path( geometry, path.path, p->material.stroke_weight, path.tolerance, p->material.color );
@@ -657,7 +649,7 @@ static le_2d_primitive_o *le_2d_primitive_create_path( le_2d_o *context ) {
 	auto &obj = p->data.as_path;
 
 	obj.path      = le_path::le_path_i.create();
-	obj.tolerance = 0.25;
+	obj.tolerance = 0.5f;
 
 	p->material.stroke_weight = 1.f;
 	return p;

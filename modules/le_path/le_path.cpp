@@ -745,16 +745,13 @@ static void flatten_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
 
 	float t = 0;
 
-	// create a coordinate basis based on the first point, and the first control point
+	// Prepare for a coordinate basis based on the first point, and the first control point
 	glm::vec2 r = glm::normalize( b.c1 - b.p0 );
 	glm::vec2 s = {r.y, -r.x};
 
 	glm::vec2 pt = b.p0 + offset * s;
 
 	outline.emplace_back( pt );
-
-	// Note that we limit the number of iterations by setting a maximum of 100 - this
-	// should only ever be reached when tolerance is super small.
 
 	for ( ;; ) {
 
