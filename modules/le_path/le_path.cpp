@@ -691,13 +691,11 @@ static void generate_offset_outline_line_to( std::vector<glm::vec2> &outline, Ve
 	glm::vec2 r = glm::normalize( p1 - p0 );
 	glm::vec2 s = {r.y, -r.x};
 
-	if ( outline.empty() ) {
-		// Special case if this is the first line_to after a move_to:
-		// We must insert a point, offset from p_0.
-		outline.push_back( p0 + offset * s );
-	}
+	outline.push_back( p0 + offset * s );
 
-	outline.push_back( p1 + offset * s );
+	auto p = p1 + offset * s;
+
+	outline.push_back( p );
 }
 
 // ----------------------------------------------------------------------
