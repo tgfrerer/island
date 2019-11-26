@@ -463,9 +463,9 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 			bezier_subdivide( b, clamp( t1_p, 0, 1 ), nullptr, &b_0 );
 			curves.push_back( b_0 );
 		} else {
-			bezier_subdivide( b, clamp( t2_p, 0, 1 ), &b_0, nullptr );
+			bezier_subdivide( b, clamp( t2_m, 0, 1 ), &b_0, nullptr );
 			curves.push_back( b_0 );
-			bezier_subdivide( b, clamp( t2_m, 0, 1 ), nullptr, &b_0 );
+			bezier_subdivide( b, clamp( t2_p, 0, 1 ), nullptr, &b_0 );
 			curves.push_back( b_0 );
 		}
 
