@@ -67,6 +67,7 @@ struct le_2d_api {
 		SETTER_DECLARE( path, float, tolerance);
 
 		void (*path_move_to)(le_2d_primitive_o* p, glm::vec2 const * pos);
+		void (*path_close)(le_2d_primitive_o* p);
 		void (*path_line_to)(le_2d_primitive_o* p, glm::vec2 const * pos);
 		void (*path_quad_bezier_to)(le_2d_primitive_o* p, glm::vec2 const * p1, glm::vec2 const * c1);
 		void (*path_cubic_bezier_to)(le_2d_primitive_o* p, glm::vec2 const * p1, glm::vec2 const * c1, glm::vec2 const * c2);
@@ -370,6 +371,11 @@ class Le2D : NoCopy, NoMove {
 
 		PathBuilder &line_to( glm::vec2 const &pos ) {
 			le_2d::le_2d_prim_i.path_line_to( self, &pos );
+			return *this;
+		}
+
+		PathBuilder &close() {
+			le_2d::le_2d_prim_i.path_close( self );
 			return *this;
 		}
 
