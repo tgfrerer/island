@@ -537,8 +537,9 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 			}
 
 			if ( c_end == 3 ) {
-				bezier_subdivide( b, 1, nullptr, &b_0 ); // equivalent to adding just another point at the end.
-				curves.push_back( b_0 );
+				bezier_subdivide( b, 0.5, &b_0, &b_1 ); // equivalent to adding just another point at the end.
+				                                        //				curves.push_back( b_0 );
+				curves.push_back( b_1 );
 			}
 
 			if ( c_end == 4 ) {
@@ -708,16 +709,18 @@ static void flatten_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
 
 	float t = 0;
 
-	glm::vec2 p_prev = b.p0;
-
 	// create a coordinate basis based on the first point, and the first control point
 	glm::vec2 r = glm::normalize( b.c1 - b.p0 );
 	glm::vec2 s = {r.y, -r.x};
 
+	glm::vec2 pt = b.p0 + offset * s;
+
+	outline.emplace_back( pt );
+
 	// Note that we limit the number of iterations by setting a maximum of 100 - this
 	// should only ever be reached when tolerance is super small.
 
-	for ( int i = 0; i != 100; i++ ) {
+	for ( ;; ) {
 
 		// Define a coordinate basis built on the first two points, b0, and b1
 		glm::mat2 const basis = {r, s};
@@ -728,26 +731,28 @@ static void flatten_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
 		float s2 = P2.y;
 		float r1 = P1.x;
 
-		float t_dash = sqrtf( tolerance / ( 3 * fabsf( s2 ) * ( 1 - ( offset * s2 / ( 3 * r1 * r1 ) ) ) ) );
+		float x      = ( 1 - ( offset * s2 / ( 3 * r1 * r1 ) ) );
+		float t_dash = sqrtf( tolerance / fabsf( 3 * s2 * x ) );
 
-		t = std::min<float>( 1.f, 2 * t_dash );
+		t = std::min<float>( 1.f, t_dash );
 
 		// Apply subdivision at (t). This means that the start point of the sub-segment
 		// will be the point we can add to the polyline while respecting flatness.
 		bezier_subdivide( b, t, nullptr, &b );
 
 		// update the coordinate basis based on the first point, and the first control point
-		glm::vec2 r = glm::normalize( b.c1 - b.p0 );
-		glm::vec2 s = {r.y, -r.x};
+		if ( t < 1.f ) {
+			r = glm::normalize( b.c1 - b.p0 );
+			s = {r.y, -r.x};
+		}
 
-		glm::vec2 pt = b.p0 + offset * s;
+		pt = b.p0 + offset * s;
 
-		outline.emplace_back( pt );
+		if ( t_dash > 0 )
+			outline.emplace_back( pt );
 
 		if ( t >= 1.0f )
 			break;
-
-		p_prev = pt;
 	}
 }
 
@@ -807,11 +812,11 @@ static bool le_path_generate_offset_outline_for_contour(
 	// This way we do the bounds-check only at the very end, and if the bounds check
 	// fails, we can at least tell the caller how many elements to reserve next time.
 
-	std::vector<Vertex> outline_l;
-	std::vector<Vertex> outline_r;
+	std::vector<glm::vec2> outline_l;
+	std::vector<glm::vec2> outline_r;
 
 	outline_l.reserve( *max_count_outline_l );
-	outline_r.resize( *max_count_outline_r );
+	outline_r.reserve( *max_count_outline_r );
 
 	// Now process the commands for this contour
 

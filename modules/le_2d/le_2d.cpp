@@ -225,29 +225,130 @@ static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, floa
 }
 // ----------------------------------------------------------------------
 
-static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry, le_path_o *path, float stroke_weight, float tolerance, uint32_t color ) {
+static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry, le_path_o *path, float stroke_weight, float tolerance_, uint32_t color ) {
 
 	using namespace le_path;
 
 	// fixme: we want to create polyline via flattening
 
+	float tolerance;
+	//	tolerance = 2.f;
+	tolerance = tolerance_;
+
 	// le_path_i.trace( path, subdivisions );
+	if ( stroke_weight < 2.f ) {
 
-	le_path_i.flatten( path, tolerance );
-	//	le_path_i.trace( path, 120 );
+		le_path_i.flatten( path, tolerance );
+		//	le_path_i.trace( path, 120 );
 
-	size_t const num_polylines = le_path_i.get_num_polylines( path );
+		size_t const num_polylines = le_path_i.get_num_polylines( path );
+		for ( size_t i = 0; i != num_polylines; ++i ) {
+			glm::vec2 const *line_vertices = nullptr;
+			size_t           num_vertices;
+			le_path_i.get_vertices_for_polyline( path, i, &line_vertices, &num_vertices );
+			auto *p_prev = line_vertices + 0;
+			for ( size_t j = 1; j != num_vertices; ++j ) {
+				glm::vec2 const *p_cur = line_vertices + j;
+				generate_geometry_line( geometry, *p_prev, *p_cur, stroke_weight, color );
+				p_prev = p_cur;
+			}
+		}
+	} else {
 
-	for ( size_t i = 0; i != num_polylines; ++i ) {
-		glm::vec2 const *line_vertices = nullptr;
-		size_t           num_vertices;
-		le_path_i.get_vertices_for_polyline( path, i, &line_vertices, &num_vertices );
+		size_t const num_contours = le_path_i.get_num_contours( path );
 
-		auto *p_prev = line_vertices + 0;
-		for ( size_t j = 1; j != num_vertices; ++j ) {
-			glm::vec2 const *p_cur = line_vertices + j;
-			generate_geometry_line( geometry, *p_prev, *p_cur, stroke_weight, color );
-			p_prev = p_cur;
+		if ( true ) {
+			std::vector<glm::vec2> vertices_l( 1024 );
+			std::vector<glm::vec2> vertices_r( 1024 );
+
+			for ( size_t i = 0; i != num_contours; ++i ) {
+
+				size_t num_vertices_l = vertices_l.size();
+				size_t num_vertices_r = vertices_r.size();
+
+				bool vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, vertices_l.data(), &num_vertices_l, vertices_r.data(), &num_vertices_r );
+
+				if ( !vertices_large_enough ) {
+					vertices_l.resize( num_vertices_l + 1 );
+					vertices_r.resize( num_vertices_r + 1 );
+					le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, vertices_l.data(), &num_vertices_l, vertices_r.data(), &num_vertices_r );
+				}
+
+				// reverse elements
+				std::reverse( vertices_r.begin(), vertices_r.begin() + num_vertices_r );
+
+				vertices_l[ num_vertices_l++ ] = ( vertices_r[ 0 ] );
+				vertices_r[ num_vertices_r++ ] = ( vertices_l[ 0 ] );
+
+				auto p_prev = vertices_l.front();
+
+				for ( size_t j = 1; j != num_vertices_l; ++j ) {
+					glm::vec2 const p_cur = vertices_l[ j ];
+					generate_geometry_line( geometry, p_prev, p_cur, 1, color );
+					p_prev = p_cur;
+				}
+
+				p_prev = vertices_r.front();
+
+				for ( size_t j = 1; j != num_vertices_r; ++j ) {
+					glm::vec2 const p_cur = vertices_r[ j ];
+					generate_geometry_line( geometry, p_prev, p_cur, 1, 0xff00ffff );
+					p_prev = p_cur;
+				}
+			}
+		} else {
+
+			using namespace le_tessellator;
+			auto tess = le_tessellator_i.create();
+			// le_tessellator_i.set_options( tess, le_tessellator::Options::bitConstrainedDelaunayTriangulation );
+			le_tessellator_i.set_options( tess, le_tessellator::Options::bitUseEarcutTessellator );
+
+			std::vector<glm::vec2> vertices_l( 1024 );
+			std::vector<glm::vec2> vertices_r( 1024 );
+
+			for ( size_t i = 0; i != num_contours; ++i ) {
+
+				size_t num_vertices_l = vertices_l.size();
+				size_t num_vertices_r = vertices_r.size();
+
+				bool vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, vertices_l.data(), &num_vertices_l, vertices_r.data(), &num_vertices_r );
+
+				if ( !vertices_large_enough ) {
+					vertices_l.resize( num_vertices_l + 1 );
+					vertices_r.resize( num_vertices_r + 1 );
+					le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, vertices_l.data(), &num_vertices_l, vertices_r.data(), &num_vertices_r );
+				}
+
+				// reverse elements
+				std::reverse( vertices_r.begin(), vertices_r.begin() + num_vertices_r );
+				//				std::reverse( vertices_l.begin(), vertices_l.begin() + num_vertices_l );
+
+				vertices_l[ num_vertices_l++ ] = ( vertices_r[ 0 ] ); // FIXME: we must make sure that vector capacity is sufficient
+				vertices_r[ num_vertices_r++ ] = ( vertices_l[ 0 ] ); // FIXME: we must make sure that vector capacity is sufficient
+
+				le_tessellator_i.add_polyline( tess, vertices_r.data(), num_vertices_r );
+				le_tessellator_i.add_polyline( tess, vertices_l.data(), num_vertices_l );
+			}
+
+			le_tessellator_i.tessellate( tess );
+
+			le_tessellator_api::IndexType const *indices;
+			size_t                               num_indices = 0;
+			glm::vec2 const *                    vertices;
+			size_t                               num_vertices = 0;
+
+			le_tessellator_i.get_indices( tess, &indices, &num_indices );
+			le_tessellator_i.get_vertices( tess, &vertices, &num_vertices );
+
+			// TODO: what do we want to set for tex coordinate?
+
+			for ( size_t i = 0; i + 2 < num_indices; ) {
+				geometry.push_back( {vertices[ indices[ i++ ] ], {0, 0}, color} );
+				geometry.push_back( {vertices[ indices[ i++ ] ], {0, 0}, color} );
+				geometry.push_back( {vertices[ indices[ i++ ] ], {0, 0}, color} );
+			}
+
+			le_tessellator_i.destroy( tess );
 		}
 	}
 }
