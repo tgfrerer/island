@@ -406,9 +406,9 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 	float t1_m, t1_p;
 	float t2_m, t2_p;
 
-	{
+	auto calc_inflection_point_offsets = []( CubicBezier const &b, float tolerance, float infl, float *infl_m, float *infl_p ) {
 		CubicBezier b_sub{};
-		bezier_subdivide( b, infl.t_1, nullptr, &b_sub );
+		bezier_subdivide( b, infl, nullptr, &b_sub );
 
 		glm::vec2 r = glm::normalize( b_sub.c1 - b_sub.p0 );
 		glm::vec2 s = {r.y, -r.x};
@@ -419,25 +419,12 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 		float s3  = 3 * fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
 		float t_f = powf( tolerance / s3, 1.f / 3.f ); // cubic root
 
-		t1_m = infl.t_1 - t_f * ( 1 - infl.t_1 );
-		t1_p = infl.t_1 + t_f * ( 1 - infl.t_1 );
-	}
-	{
-		CubicBezier b_sub{};
-		bezier_subdivide( b, infl.t_2, nullptr, &b_sub );
+		*infl_m = infl - t_f * ( 1 - infl );
+		*infl_p = infl + t_f * ( 1 - infl );
+	};
 
-		glm::vec2 r = glm::normalize( b_sub.c1 - b_sub.p0 );
-		glm::vec2 s = {r.y, -r.x};
-
-		// Define a coordinate basis built on the first two points, b0, and b1
-		glm::mat2 const basis = {r, s};
-
-		float s3  = 3 * fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
-		float t_f = powf( tolerance / s3, 1.f / 3.f ); // cubic root
-
-		t2_m = infl.t_2 - t_f * ( 1 - infl.t_2 );
-		t2_p = infl.t_2 + t_f * ( 1 - infl.t_2 );
-	}
+	calc_inflection_point_offsets( b, tolerance, infl.t_1, &t1_m, &t1_p );
+	calc_inflection_point_offsets( b, tolerance, infl.t_2, &t2_m, &t2_p );
 
 	// It's also possible that our bezier curve self-intersects through a cusp,
 	// in which case inflection points are out of order. In this case,
@@ -449,6 +436,12 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 	CubicBezier b_1; // placeholders.
 
 	if ( curve_has_cusp ) {
+		std::swap( t1_m, t2_m );
+		std::swap( t1_p, t2_p );
+		curve_has_cusp = false;
+	}
+
+	if ( curve_has_cusp ) {
 
 		// FIXME: we still need to work on the case when all,
 		// t1,t2, cusp are within 0..1
@@ -457,17 +450,46 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 		// and t_cusp .. t2_p may be represented by a line.
 		//
 
-		if ( is_contained_0_1( infl.t_1 ) ) {
-			bezier_subdivide( b, clamp( t1_m, 0, 1 ), &b_0, nullptr );
-			curves.push_back( b_0 );
-			bezier_subdivide( b, clamp( t1_p, 0, 1 ), nullptr, &b_0 );
-			curves.push_back( b_0 );
-		} else {
-			bezier_subdivide( b, clamp( t2_m, 0, 1 ), &b_0, nullptr );
-			curves.push_back( b_0 );
-			bezier_subdivide( b, clamp( t2_p, 0, 1 ), nullptr, &b_0 );
+		if ( is_contained_0_1( t2_m ) ) {
+			bezier_subdivide( b, t2_m, &b_0, nullptr );
 			curves.push_back( b_0 );
 		}
+		if ( is_contained_0_1( t2_p ) ) {
+
+			if ( is_contained_0_1( t1_m ) ) {
+				bezier_subdivide( b, t2_p, nullptr, &b_0 );
+				float t3 = map( t1_m, t2_p, 1.f, 0.f, 1.f ); // t1_m expressed in t2_p .. 1 space
+				bezier_subdivide( b_0, t3, &b_1, nullptr );
+				curves.push_back( b_1 );
+			} else {
+				bezier_subdivide( b, t2_p, nullptr, &b_0 );
+				curves.push_back( b_0 );
+			}
+		}
+
+		//		if ( is_contained_0_1( infl.t_1 ) ) {
+		//			if ( is_contained_0_1( t1_m ) ) {
+		//				bezier_subdivide( b, clamp( t1_m, 0, 1 ), &b_0, nullptr );
+		//				curves.push_back( b_0 );
+		//			}
+		//			if ( clamp( t1_p, 0, 1 ) < 1.f ) {
+		//				bezier_subdivide( b, clamp( t1_p, 0, 1 ), nullptr, &b_0 );
+		//				curves.push_back( b_0 );
+		//			} else if ( !is_contained_0_1( t1_m ) ) {
+		//				curves.push_back( b );
+		//			}
+		//		} else {
+		//			if ( is_contained_0_1( t2_m ) ) {
+		//				bezier_subdivide( b, t2_m, &b_0, nullptr );
+		//				curves.push_back( b_0 );
+		//			}
+		//			if ( clamp( t2_p, 0, 1 ) < 1.f ) {
+		//				bezier_subdivide( b, clamp( t2_p, 0, 1 ), nullptr, &b_0 );
+		//				curves.push_back( b_0 );
+		//			} else if ( !is_contained_0_1( t2_m ) ) {
+		//				curves.push_back( b );
+		//			}
+		//		}
 
 	} else {
 
@@ -515,6 +537,15 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 				curves.push_back( b_0 );
 			}
 
+			if ( c_start == 1 ) {
+				// curve starts between t1_m and t1_p which means that this
+				// segment, the segment before t1_p can be approximated by a
+				// straight line.
+
+				bezier_subdivide( b, t1_p, &b_0, nullptr );
+				curves.push_back( b_0 );
+			}
+
 			if ( c_end == 2 ) {
 				// curve ends within the 2nd segment, but does not start here.
 				// this means that the next segment of the curve will be limited
@@ -537,8 +568,8 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 			}
 
 			if ( c_end == 3 ) {
-				bezier_subdivide( b, 0.5, &b_0, &b_1 ); // equivalent to adding just another point at the end.
-				                                        //				curves.push_back( b_0 );
+				bezier_subdivide( b, 0.999f, &b_0, &b_1 ); // equivalent to adding just another point at the end.
+				                                           //				curves.push_back( b_0 );
 				curves.push_back( b_1 );
 			}
 
@@ -706,6 +737,11 @@ static void flatten_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
                                              float                   offset ) {
 
 	CubicBezier b = b_;
+
+	if ( std::numeric_limits<float>::epsilon() > fabsf( b.p1.x - b.p0.x ) &&
+	     std::numeric_limits<float>::epsilon() > fabsf( b.p1.y - b.p0.y ) ) {
+		return;
+	}
 
 	float t = 0;
 

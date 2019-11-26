@@ -257,7 +257,7 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 		size_t const num_contours = le_path_i.get_num_contours( path );
 
-		if ( true ) {
+		if ( false ) {
 			std::vector<glm::vec2> vertices_l( 1024 );
 			std::vector<glm::vec2> vertices_r( 1024 );
 
@@ -266,7 +266,9 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 				size_t num_vertices_l = vertices_l.size();
 				size_t num_vertices_r = vertices_r.size();
 
-				bool vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, vertices_l.data(), &num_vertices_l, vertices_r.data(), &num_vertices_r );
+				glm::vec2 *v_l                   = vertices_l.data();
+				glm::vec2 *v_r                   = vertices_r.data();
+				bool       vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, v_l, &num_vertices_l, v_r, &num_vertices_r );
 
 				if ( !vertices_large_enough ) {
 					vertices_l.resize( num_vertices_l + 1 );
@@ -277,22 +279,16 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 				// reverse elements
 				std::reverse( vertices_r.begin(), vertices_r.begin() + num_vertices_r );
 
-				vertices_l[ num_vertices_l++ ] = ( vertices_r[ 0 ] );
-				vertices_r[ num_vertices_r++ ] = ( vertices_l[ 0 ] );
+				std::vector<glm::vec2> all_vertices;
+				all_vertices.insert( all_vertices.end(), vertices_l.begin(), vertices_l.begin() + num_vertices_l );
+				all_vertices.insert( all_vertices.end(), vertices_r.begin(), vertices_r.begin() + num_vertices_r );
+				all_vertices.push_back( all_vertices.front() );
 
-				auto p_prev = vertices_l.front();
+				auto p_prev = all_vertices.front();
 
-				for ( size_t j = 1; j != num_vertices_l; ++j ) {
-					glm::vec2 const p_cur = vertices_l[ j ];
+				for ( size_t j = 1; j != all_vertices.size(); ++j ) {
+					glm::vec2 const p_cur = all_vertices[ j ];
 					generate_geometry_line( geometry, p_prev, p_cur, 1, color );
-					p_prev = p_cur;
-				}
-
-				p_prev = vertices_r.front();
-
-				for ( size_t j = 1; j != num_vertices_r; ++j ) {
-					glm::vec2 const p_cur = vertices_r[ j ];
-					generate_geometry_line( geometry, p_prev, p_cur, 1, 0xff00ffff );
 					p_prev = p_cur;
 				}
 			}
@@ -300,8 +296,9 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 			using namespace le_tessellator;
 			auto tess = le_tessellator_i.create();
-			// le_tessellator_i.set_options( tess, le_tessellator::Options::bitConstrainedDelaunayTriangulation );
-			le_tessellator_i.set_options( tess, le_tessellator::Options::bitUseEarcutTessellator );
+			le_tessellator_i.set_options( tess, le_tessellator::Options::eWindingNonzero );
+			//			le_tessellator_i.set_options( tess, le_tessellator::Options::bitConstrainedDelaunayTriangulation );
+			//			le_tessellator_i.set_options( tess, le_tessellator::Options::bitUseEarcutTessellator );
 
 			std::vector<glm::vec2> vertices_l( 1024 );
 			std::vector<glm::vec2> vertices_r( 1024 );
@@ -311,7 +308,10 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 				size_t num_vertices_l = vertices_l.size();
 				size_t num_vertices_r = vertices_r.size();
 
-				bool vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, vertices_l.data(), &num_vertices_l, vertices_r.data(), &num_vertices_r );
+				glm::vec2 *v_l = vertices_l.data();
+				glm::vec2 *v_r = vertices_r.data();
+
+				bool vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, v_l, &num_vertices_l, v_r, &num_vertices_r );
 
 				if ( !vertices_large_enough ) {
 					vertices_l.resize( num_vertices_l + 1 );
@@ -321,13 +321,15 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 				// reverse elements
 				std::reverse( vertices_r.begin(), vertices_r.begin() + num_vertices_r );
-				//				std::reverse( vertices_l.begin(), vertices_l.begin() + num_vertices_l );
 
-				vertices_l[ num_vertices_l++ ] = ( vertices_r[ 0 ] ); // FIXME: we must make sure that vector capacity is sufficient
-				vertices_r[ num_vertices_r++ ] = ( vertices_l[ 0 ] ); // FIXME: we must make sure that vector capacity is sufficient
+				std::vector<glm::vec2> all_vertices;
+				all_vertices.insert( all_vertices.end(), vertices_l.begin(), vertices_l.begin() + num_vertices_l );
+				all_vertices.insert( all_vertices.end(), vertices_r.begin(), vertices_r.begin() + num_vertices_r );
 
-				le_tessellator_i.add_polyline( tess, vertices_r.data(), num_vertices_r );
-				le_tessellator_i.add_polyline( tess, vertices_l.data(), num_vertices_l );
+				if ( !all_vertices.empty() ) {
+					all_vertices.push_back( all_vertices.front() );
+					le_tessellator_i.add_polyline( tess, all_vertices.data(), all_vertices.size() );
+				}
 			}
 
 			le_tessellator_i.tessellate( tess );
@@ -506,7 +508,7 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 	            .end()
 	        .end()
 			.withRasterizationState()
-				.setPolygonMode(le::PolygonMode::eLine)
+//				.setPolygonMode(le::PolygonMode::eLine)
 			.end()
 	        .build();
 	// clang-format on
