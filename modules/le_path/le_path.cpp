@@ -396,8 +396,18 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 	InflectionData infl;
 	bool           has_inflection_points = cubic_bezier_calculate_inflection_points( b, &infl );
 
+	CubicBezier b_0; // placeholder
+	CubicBezier b_1; // placeholder
+
 	if ( !has_inflection_points ) {
-		curves.push_back( b ); // curve is already monotonous - no need to do anything further.
+		if ( is_contained_0_1( infl.t_cusp ) ) {
+			bezier_subdivide( b, infl.t_cusp, &b_0, &b_1 );
+			curves.push_back( b_0 );
+			curves.push_back( b_1 );
+		} else {
+
+			curves.push_back( b ); // curve is already monotonous - no need to do anything further.
+		}
 		return;
 	}
 
@@ -426,72 +436,16 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 	calc_inflection_point_offsets( b, tolerance, infl.t_1, &t1_m, &t1_p );
 	calc_inflection_point_offsets( b, tolerance, infl.t_2, &t2_m, &t2_p );
 
-	// It's also possible that our bezier curve self-intersects through a cusp,
-	// in which case inflection points are out of order. In this case,
-	// calculation for curve segments must happen in a different way.
+	// It's possible that our bezier curve self-intersects through a cusp,
+	// in which case inflection points are out of order.
 
 	bool curve_has_cusp = t2_m <= t1_p;
-
-	CubicBezier b_0; // placeholders.
-	CubicBezier b_1; // placeholders.
-
 	if ( curve_has_cusp ) {
 		std::swap( t1_m, t2_m );
 		std::swap( t1_p, t2_p );
-		curve_has_cusp = false;
 	}
 
-	if ( curve_has_cusp ) {
-
-		// FIXME: we still need to work on the case when all,
-		// t1,t2, cusp are within 0..1
-
-		// Cusp case: anything t1_m .. t_cusp,
-		// and t_cusp .. t2_p may be represented by a line.
-		//
-
-		if ( is_contained_0_1( t2_m ) ) {
-			bezier_subdivide( b, t2_m, &b_0, nullptr );
-			curves.push_back( b_0 );
-		}
-		if ( is_contained_0_1( t2_p ) ) {
-
-			if ( is_contained_0_1( t1_m ) ) {
-				bezier_subdivide( b, t2_p, nullptr, &b_0 );
-				float t3 = map( t1_m, t2_p, 1.f, 0.f, 1.f ); // t1_m expressed in t2_p .. 1 space
-				bezier_subdivide( b_0, t3, &b_1, nullptr );
-				curves.push_back( b_1 );
-			} else {
-				bezier_subdivide( b, t2_p, nullptr, &b_0 );
-				curves.push_back( b_0 );
-			}
-		}
-
-		//		if ( is_contained_0_1( infl.t_1 ) ) {
-		//			if ( is_contained_0_1( t1_m ) ) {
-		//				bezier_subdivide( b, clamp( t1_m, 0, 1 ), &b_0, nullptr );
-		//				curves.push_back( b_0 );
-		//			}
-		//			if ( clamp( t1_p, 0, 1 ) < 1.f ) {
-		//				bezier_subdivide( b, clamp( t1_p, 0, 1 ), nullptr, &b_0 );
-		//				curves.push_back( b_0 );
-		//			} else if ( !is_contained_0_1( t1_m ) ) {
-		//				curves.push_back( b );
-		//			}
-		//		} else {
-		//			if ( is_contained_0_1( t2_m ) ) {
-		//				bezier_subdivide( b, t2_m, &b_0, nullptr );
-		//				curves.push_back( b_0 );
-		//			}
-		//			if ( clamp( t2_p, 0, 1 ) < 1.f ) {
-		//				bezier_subdivide( b, clamp( t2_p, 0, 1 ), nullptr, &b_0 );
-		//				curves.push_back( b_0 );
-		//			} else if ( !is_contained_0_1( t2_m ) ) {
-		//				curves.push_back( b );
-		//			}
-		//		}
-
-	} else {
+	{
 
 		// ----------| invariant: curve does not have a cusp.
 
@@ -546,6 +500,15 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 				curves.push_back( b_0 );
 			}
 
+			if ( c_end == 1 ) {
+				// curve ends within the 1st segment, but does not start here.
+				// this means that from t1m to end the curve can be approximated
+				// by a straight line.
+
+				bezier_subdivide( b, t1_m, nullptr, &b_0 );
+				curves.push_back( b_0 );
+			}
+
 			if ( c_end == 2 ) {
 				// curve ends within the 2nd segment, but does not start here.
 				// this means that the next segment of the curve will be limited
@@ -564,6 +527,11 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 
 			if ( c_start == 2 ) {
 				bezier_subdivide( b, t2_m, &b_0, nullptr );
+				curves.push_back( b_0 );
+			}
+
+			if ( c_start == 3 ) {
+				bezier_subdivide( b, clamp( t2_p, 0, 1 ), &b_0, nullptr );
 				curves.push_back( b_0 );
 			}
 
@@ -720,6 +688,10 @@ static void le_path_flatten_path( le_path_o *self, float tolerance ) {
 
 static void generate_offset_outline_line_to( std::vector<glm::vec2> &outline, Vertex const &p0, Vertex const &p1, float offset ) {
 
+	if ( p1 == p0 ) {
+		return;
+	}
+
 	glm::vec2 r = glm::normalize( p1 - p0 );
 	glm::vec2 s = {r.y, -r.x};
 
@@ -731,6 +703,7 @@ static void generate_offset_outline_line_to( std::vector<glm::vec2> &outline, Ve
 }
 
 // ----------------------------------------------------------------------
+
 static void flatten_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
                                              CubicBezier const &     b_,
                                              float                   tolerance,
@@ -753,7 +726,7 @@ static void flatten_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
 
 	outline.emplace_back( pt );
 
-	for ( ;; ) {
+	for ( int i = 0; i < 1000; i++ ) {
 
 		// Define a coordinate basis built on the first two points, b0, and b1
 		glm::mat2 const basis = {r, s};
@@ -765,7 +738,7 @@ static void flatten_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
 		float r1 = P1.x;
 
 		float x      = ( 1 - ( offset * s2 / ( 3 * r1 * r1 ) ) );
-		float t_dash = sqrtf( tolerance / fabsf( 3 * s2 * x ) );
+		float t_dash = sqrtf( tolerance / fabsf( 3 * s2 * std::max<float>( x, tolerance * tolerance ) ) );
 
 		t = std::min<float>( 1.f, t_dash );
 
@@ -774,6 +747,7 @@ static void flatten_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
 		bezier_subdivide( b, t, nullptr, &b );
 
 		// update the coordinate basis based on the first point, and the first control point
+
 		if ( t < 1.f ) {
 			r = glm::normalize( b.c1 - b.p0 );
 			s = {r.y, -r.x};
@@ -781,8 +755,9 @@ static void flatten_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
 
 		pt = b.p0 + offset * s;
 
-		if ( t_dash > 0 )
+		if ( x > 0 ) {
 			outline.emplace_back( pt );
+		}
 
 		if ( t >= 1.0f )
 			break;
