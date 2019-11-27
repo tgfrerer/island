@@ -711,8 +711,9 @@ static void flatten_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
 
 	CubicBezier b = b_;
 
-	if ( std::numeric_limits<float>::epsilon() > fabsf( b.p1.x - b.p0.x ) &&
-	     std::numeric_limits<float>::epsilon() > fabsf( b.p1.y - b.p0.y ) ) {
+	float determinant = dot( b.p1, {-b.p0.y, b.p0.x} );
+	if ( fabsf( determinant ) <= std::numeric_limits<float>::epsilon() ) {
+		// start point equals end point - we must not consider this curve segment.
 		return;
 	}
 
