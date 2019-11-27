@@ -720,7 +720,14 @@ static void flatten_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
 	float t = 0;
 
 	// Prepare for a coordinate basis based on the first point, and the first control point
-	glm::vec2 r = glm::normalize( b.c1 - b.p0 );
+	glm::vec2 r;
+
+	if ( b.p0 != b.c1 ) {
+		r = glm::normalize( b.c1 - b.p0 );
+	} else {
+		r = glm::normalize( b.c2 - b.p0 );
+	}
+
 	glm::vec2 s = {r.y, -r.x};
 
 	glm::vec2 pt = b.p0 + offset * s;
@@ -732,8 +739,8 @@ static void flatten_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
 		// Define a coordinate basis built on the first two points, b0, and b1
 		glm::mat2 const basis = {r, s};
 
-		glm::vec2 P1 = basis * ( b.c1 - b.p0 );
-		glm::vec2 P2 = basis * ( b.c2 - b.p0 );
+		glm::vec2 P1 = basis * ( ( b.p0 != b.c1 ) ? ( b.c1 - b.p0 ) : ( b.c2 - b.p0 ) );
+		glm::vec2 P2 = basis * ( ( b.p0 != b.c1 ) ? ( b.c2 - b.p0 ) : ( b.p1 - b.p0 ) );
 
 		float s2 = P2.y;
 		float r1 = P1.x;
