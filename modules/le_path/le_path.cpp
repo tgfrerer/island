@@ -866,10 +866,15 @@ static bool le_path_generate_offset_outline_for_contour(
 			                                         line_weight );
 			prev_point = command.p;
 			break;
-		case PathCommand::eClosePath:
-			generate_offset_outline_close_path( outline_l );
-			generate_offset_outline_close_path( outline_r );
+		case PathCommand::eClosePath: {
+			if ( outline_l.empty() || outline_r.empty() ) {
+				break;
+			}
+			glm::vec2 start_p = 0.5f * ( outline_l.front() + outline_r.front() );
+			generate_offset_outline_line_to( outline_l, prev_point, start_p, -line_offset );
+			generate_offset_outline_line_to( outline_r, prev_point, start_p, +line_offset );
 			break;
+		}
 		case PathCommand::eUnknown:
 			assert( false );
 			break;
