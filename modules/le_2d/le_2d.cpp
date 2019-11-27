@@ -223,13 +223,13 @@ static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, floa
 		geometry.push_back( v );
 	}
 }
+
 // ----------------------------------------------------------------------
 
 static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry, le_path_o *path, float stroke_weight, float tolerance, uint32_t color ) {
 
 	using namespace le_path;
 
-	// le_path_i.trace( path, subdivisions );
 	if ( stroke_weight < 2.f ) {
 
 		le_path_i.flatten( path, tolerance );
@@ -250,7 +250,10 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 		size_t const num_contours = le_path_i.get_num_contours( path );
 
-		if ( false ) {
+		size_t WHICH_TESSELLATOR = 2;
+
+		switch ( WHICH_TESSELLATOR ) {
+		case 0: {
 			std::vector<glm::vec2> vertices_l( 1024 );
 			std::vector<glm::vec2> vertices_r( 1024 );
 
@@ -285,8 +288,8 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 					p_prev = p_cur;
 				}
 			}
-		} else {
-
+		} break;
+		case 1: {
 			using namespace le_tessellator;
 			auto tess = le_tessellator_i.create();
 			le_tessellator_i.set_options( tess, le_tessellator::Options::eWindingNonzero );
@@ -344,6 +347,63 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 			}
 
 			le_tessellator_i.destroy( tess );
+		} break;
+		case 2: // deliberate fall-through
+		default: {
+			std::vector<glm::vec2> vertices_l( 1024 );
+			std::vector<glm::vec2> vertices_r( 1024 );
+
+			for ( size_t i = 0; i != num_contours; ++i ) {
+
+				size_t num_vertices_l = vertices_l.size();
+				size_t num_vertices_r = vertices_r.size();
+
+				glm::vec2 *v_l = vertices_l.data();
+				glm::vec2 *v_r = vertices_r.data();
+
+				bool vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, v_l, &num_vertices_l, v_r, &num_vertices_r );
+
+				if ( !vertices_large_enough ) {
+					vertices_l.resize( num_vertices_l + 1 );
+					vertices_r.resize( num_vertices_r + 1 );
+					v_l = vertices_l.data();
+					v_r = vertices_r.data();
+					le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, v_l, &num_vertices_l, v_r, &num_vertices_r );
+				}
+
+				glm::vec2 const *l_prev = v_l;
+				glm::vec2 const *r_prev = v_r;
+
+				glm::vec2 const *l = l_prev + 1;
+				glm::vec2 const *r = r_prev + 1;
+
+				glm::vec2 const *const l_end = vertices_l.data() + num_vertices_l;
+				glm::vec2 const *const r_end = vertices_r.data() + num_vertices_r;
+
+				for ( ; ( l != l_end || r != r_end ); ) {
+
+					if ( r != r_end ) {
+
+						geometry.push_back( {*l_prev, {1, 0}, color} );
+						geometry.push_back( {*r_prev, {0, 1}, color} );
+						geometry.push_back( {*r, {1, 1}, color} );
+
+						r_prev = r;
+						r++;
+					}
+
+					if ( l != l_end ) {
+
+						geometry.push_back( {*l_prev, {1, 0}, color} );
+						geometry.push_back( {*r_prev, {0, 1}, color} );
+						geometry.push_back( {*l, {1, 1}, color} );
+
+						l_prev = l;
+						l++;
+					}
+				}
+			}
+		}
 		}
 	}
 }
@@ -501,6 +561,8 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 	        .end()
 			.withRasterizationState()
 //				.setPolygonMode(le::PolygonMode::eLine)
+//				.setCullMode(le::CullModeFlagBits::eBack)
+//				.setFrontFace(le::FrontFace::eClockwise)
 			.end()
 	        .build();
 	// clang-format on
