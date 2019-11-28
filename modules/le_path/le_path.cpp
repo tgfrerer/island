@@ -795,16 +795,28 @@ static void flatten_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
 		float s2 = P2.y;
 		float r1 = P1.x;
 
-		float x      = ( 1 - ( offset * s2 / ( 3 * r1 * r1 ) ) );
-		float t_dash = sqrtf( tolerance / fabsf( 3 * s2 * std::max<float>( x, tolerance * tolerance ) ) );
+		// IMPORTANT:
+		// Since we're taking the absolute value of s2 we can't be sure whether s2 was
+		// positive or negative. We want to pick the smallest absolute t_dash value,
+		// which is why we calculate twice, once for positive, and once for negative s2
+		// and then pick the smallest absolute value.
 
-		t = std::min<float>( 1.f, t_dash );
+		float x          = ( 1 - offset * s2 / ( 3 * r1 * r1 ) );
+		float x_neg      = ( 1 - offset * -s2 / ( 3 * r1 * r1 ) );
+		float t_dash     = sqrtf( tolerance / fabsf( 3 * s2 * x ) );
+		float t_dash_neg = sqrtf( tolerance / fabsf( 3 * s2 * x_neg ) );
+
+		t_dash = std::min<float>( fabsf( t_dash ), fabsf( t_dash_neg ) );
+
+		// Limit t_dash to 0..1 range
+		t = std::min<float>( 1, t_dash );
 
 		// Apply subdivision at (t). This means that the start point of the sub-segment
 		// will be the point we can add to the polyline while respecting flatness.
 		bezier_subdivide( b, t, nullptr, &b );
 
-		// update the coordinate basis based on the first point, and the first control point
+		// Update the coordinate basis based on the first point, and the first control point
+		// if this is possible.
 
 		if ( t < 1.f ) {
 			r = glm::normalize( b.c1 - b.p0 );
