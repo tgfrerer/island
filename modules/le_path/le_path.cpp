@@ -620,7 +620,7 @@ static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
 		float s2 = ( P2 ).y;
 
 		float t_dash = sqrtf( tolerance / ( 3 * fabsf( s2 ) ) );
-		t            = std::min<float>( 1.f, 2 * t_dash );
+		t            = std::min<float>( 1.f, t_dash );
 
 		// Apply subdivision at (t). This means that the start point of the sub-segment
 		// will be the point we can add to the polyline while respecting flatness.
@@ -667,8 +667,15 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 	split_cubic_bezier_into_monotonous_sub_segments( b, segments, tolerance );
 
 	// ---
-	for ( auto &c : curves ) {
-		flatten_cubic_bezier_segment_to( polyline, c, tolerance );
+	for ( auto &s : segments ) {
+		switch ( s.type ) {
+		case ( CurveSegment::Type::eCubicBezier ):
+			flatten_cubic_bezier_segment_to( polyline, s.asCubicBezier, tolerance );
+			break;
+		case ( CurveSegment::Type::eLine ):
+			trace_line_to( polyline, s.asLine.p1 );
+			break;
+		}
 	}
 }
 
