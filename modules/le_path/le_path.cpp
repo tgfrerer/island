@@ -49,6 +49,30 @@ struct CubicBezier {
 	glm::vec2 p1;
 };
 
+struct Line {
+	glm::vec2 p0;
+	glm::vec2 p1;
+};
+
+struct CurveSegment {
+	enum Type : uint32_t {
+		eCubicBezier = 0,
+		eLine        = 1,
+	} const type;
+	union {
+		CubicBezier asCubicBezier;
+		Line        asLine;
+	};
+	CurveSegment( CubicBezier const &cb )
+	    : type( eCubicBezier ) {
+		asCubicBezier = cb;
+	}
+	CurveSegment( Line const &line )
+	    : type( eLine ) {
+		asLine = line;
+	}
+};
+
 struct InflectionData {
 	float t_cusp;
 	float t_1;
@@ -390,7 +414,7 @@ static bool cubic_bezier_calculate_inflection_points( CubicBezier const &b, Infl
 //
 // Tolerance tells us how close to follow original curve
 // when interpolating the curve as a list of straight line segments.
-static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std::vector<CubicBezier> &curves, float tolerance ) {
+static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std::vector<CurveSegment> &curves, float tolerance ) {
 	// --- calculate inflection points:
 
 	InflectionData infl;
@@ -497,7 +521,12 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 				// straight line.
 
 				bezier_subdivide( b, t1_p, &b_0, nullptr );
-				curves.push_back( b_0 );
+
+				CurveSegment line{Line()};
+				line.asLine.p0 = b_0.p0;
+				line.asLine.p1 = b_0.p1;
+
+				curves.push_back( line );
 			}
 
 			if ( c_end == 1 ) {
@@ -506,7 +535,12 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 				// by a straight line.
 
 				bezier_subdivide( b, t1_m, nullptr, &b_0 );
-				curves.push_back( b_0 );
+
+				CurveSegment line{Line()};
+				line.asLine.p0 = b_0.p0;
+				line.asLine.p1 = b_0.p1;
+
+				curves.push_back( line );
 			}
 
 			if ( c_end == 2 ) {
@@ -531,14 +565,22 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 			}
 
 			if ( c_start == 3 ) {
-				bezier_subdivide( b, clamp( t2_p, 0, 1 ), &b_0, nullptr );
-				curves.push_back( b_0 );
+				bezier_subdivide( b, t2_p, &b_0, nullptr );
+
+				CurveSegment line{Line()};
+				line.asLine.p0 = b.p0;
+				line.asLine.p1 = b_0.p1;
+
+				curves.push_back( line );
 			}
 
 			if ( c_end == 3 ) {
-				bezier_subdivide( b, 0.999f, &b_0, &b_1 ); // equivalent to adding just another point at the end.
-				                                           //				curves.push_back( b_0 );
-				curves.push_back( b_1 );
+				bezier_subdivide( b, t2_m, nullptr, &b_0 );
+				CurveSegment line{Line()};
+				line.asLine.p0 = b_0.p0;
+				line.asLine.p1 = b_0.p1;
+
+				curves.push_back( line );
 			}
 
 			if ( c_end == 4 ) {
@@ -619,9 +661,9 @@ static void flatten_cubic_bezier_to( Polyline &    polyline,
 	    p1,
 	};
 
-	std::vector<CubicBezier> curves;
+	std::vector<CurveSegment> segments;
 
-	split_cubic_bezier_into_monotonous_sub_segments( b, curves, tolerance );
+	split_cubic_bezier_into_monotonous_sub_segments( b, segments, tolerance );
 
 	// ---
 	for ( auto &c : curves ) {
@@ -790,14 +832,23 @@ static void generate_offset_outline_cubic_bezier_to( std::vector<glm::vec2> &out
 	    p1,
 	};
 
-	std::vector<CubicBezier> curves;
+	std::vector<CurveSegment> curve_segments;
 
-	split_cubic_bezier_into_monotonous_sub_segments( b, curves, tolerance );
+	split_cubic_bezier_into_monotonous_sub_segments( b, curve_segments, tolerance );
 
 	// ---
-	for ( auto &c : curves ) {
-		flatten_cubic_bezier_segment_to( outline_l, c, tolerance, -line_weight * 0.5f );
-		flatten_cubic_bezier_segment_to( outline_r, c, tolerance, line_weight * 0.5f );
+	for ( auto &s : curve_segments ) {
+
+		switch ( s.type ) {
+		case ( CurveSegment::Type::eCubicBezier ):
+			flatten_cubic_bezier_segment_to( outline_l, s.asCubicBezier, tolerance, -line_weight * 0.5f );
+			flatten_cubic_bezier_segment_to( outline_r, s.asCubicBezier, tolerance, line_weight * 0.5f );
+			break;
+		case ( CurveSegment::Type::eLine ):
+			generate_offset_outline_line_to( outline_l, s.asLine.p0, s.asLine.p1, -line_weight * 0.5f );
+			generate_offset_outline_line_to( outline_r, s.asLine.p0, s.asLine.p1, line_weight * 0.5f );
+			break;
+		}
 	}
 }
 
