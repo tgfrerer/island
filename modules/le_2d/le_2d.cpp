@@ -284,7 +284,7 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 				for ( size_t j = 1; j != all_vertices.size(); ++j ) {
 					glm::vec2 const p_cur = all_vertices[ j ];
-					generate_geometry_line( geometry, p_prev, p_cur, 1, color );
+					generate_geometry_line( geometry, p_prev, p_cur, 2.f, color );
 					p_prev = p_cur;
 				}
 			}
