@@ -40,20 +40,20 @@ struct material_data_t {
 };
 
 struct circle_data_t {
-	float    radius;
-	uint32_t subdivisions;
+	float radius;
+	float tolerance;
 };
 
 struct ellipse_data_t {
 	glm::vec2 radii; // radius x, radius y
-	uint32_t  subdivisions;
+	float     tolerance;
 };
 
 struct arc_data_t {
 	glm::vec2 radii; // radius x, radius y
 	float     angle_start_rad;
 	float     angle_end_rad;
-	uint32_t  subdivisions;
+	float     tolerance;
 };
 
 struct path_data_t {
@@ -146,7 +146,7 @@ static void generate_geometry_line( std::vector<VertexData2D> &geometry, glm::ve
 
 // ----------------------------------------------------------------------
 
-static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, float thickness, uint32_t subdivisions, uint32_t colour ) {
+static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, float thickness, float tolerance, uint32_t colour ) {
 
 	if ( std::numeric_limits<float>::epsilon() > angle_end_rad - angle_start_rad ) {
 		return;
@@ -154,16 +154,51 @@ static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, 
 
 	// ---------| invariant: angle difference is not too close to zero
 
-	glm::vec2 p0_far  = ( radii + 0.5f * thickness ) * glm::vec2{cosf( angle_start_rad ), sinf( angle_start_rad )};
-	glm::vec2 p0_near = ( radii - +0.5f * thickness ) * glm::vec2{cosf( angle_start_rad ), sinf( angle_start_rad )};
+	float     t = angle_start_rad;
+	glm::vec2 n{cosf( t ), sinf( t )};
 
-	float angle_delta = ( angle_end_rad - angle_start_rad ) / float( subdivisions );
+	float const offset = thickness * 0.5f;
 
-	for ( uint32_t i = 1; i <= subdivisions; ++i ) {
-		float angle = angle_start_rad + angle_delta * i;
+	glm::vec2 rad_rot = glm::normalize( radii );
 
-		glm::vec2 p1_far  = ( radii + 0.5f * thickness ) * glm::vec2{cosf( angle ), sinf( angle )};
-		glm::vec2 p1_near = ( radii - +0.5f * thickness ) * glm::vec2{cosf( angle ), sinf( angle )};
+	glm::vec2 p1_perp = glm::normalize( glm::vec2{radii.y, radii.x} * -n );
+
+	glm::vec2 p0_far  = n * radii + p1_perp * offset;
+	glm::vec2 p0_near = n * radii - p1_perp * offset;
+
+	for ( uint32_t i = 1; i != 1000; ++i ) {
+
+		// FIXME: angle_offset calculation is currently based on
+		// fantasy- matematics. Pin down the correct analytic solution by finding the
+		// correct curvature for the ellipse offset segment on the outide.
+		//
+		p1_perp        = glm::normalize( glm::vec2{radii.y, radii.x} * -n );
+		float r_length = glm::dot( glm::vec2{fabsf( n.x ), fabsf( n.y )}, radii + 4.f * glm::abs( p1_perp * offset ) );
+
+		float angle_offset = 2 * acosf( 1.f - ( tolerance / r_length ) );
+		t                  = std::min( t + angle_offset, angle_end_rad );
+		n                  = {cosf( t ), sinf( t )};
+
+		// p1_perp is a normalized vector which is perpendicular to the tangent
+		// of the ellipse at point p1.
+		//
+		// The tangent is the first derivative of the ellipse in parametric notation:
+		//
+		// e(t) : {r.x * cos(t), r.y * sin(t)}
+		// e(t'): {r.x * -sin(t), r.y * cos(t)} // tangent is first derivative
+		//
+		// now rotate this 90 deg ccw:
+		//
+		// {-r.y*cos(t), r.x*-sin(t)} // we can invert sign to remove negative if we want
+		//
+		// `offset` is how far we want to move outwards/inwards at the ellipse point p1,
+		// in direction p1_perp. So that p1_perp has unit length, we must normalize it.
+		//
+
+		p1_perp = glm::normalize( glm::vec2{radii.y, radii.x} * -n );
+
+		glm::vec2 p1_far  = n * radii + p1_perp * offset;
+		glm::vec2 p1_near = n * radii - p1_perp * offset;
 
 		geometry.push_back( {p0_far, {0.f, 0.f}, colour} );
 		geometry.push_back( {p0_near, {0.f, 1.f}, colour} );
@@ -175,25 +210,18 @@ static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, 
 
 		std::swap( p0_far, p1_far );
 		std::swap( p0_near, p1_near );
+
+		if ( t >= angle_end_rad ) {
+			break;
+		}
 	}
 }
 
 // ----------------------------------------------------------------------
 
-static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, uint32_t subdivisions, uint32_t color ) {
-
-	if ( subdivisions < 3 || std::numeric_limits<float>::epsilon() >= ( radii.x * radii.y ) ) {
-		// Return empty if geometry cannot be generated.
-		// This is either because we are not allowed enough subdivisions,
-		// or our radius is too close to zero.
-		return;
-	}
+static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, float tolerance, uint32_t color ) {
 
 	// --------| invariant: It should be possible to generate circle geometry.
-
-	geometry.reserve( 3 * ( subdivisions + 1 ) );
-
-	float arc_segment = ( angle_end_rad - angle_start_rad ) / float( subdivisions ); // arc segment given in radians
 
 	VertexData2D v_c{};
 	v_c.pos      = {0.f, 0.f};
@@ -208,19 +236,28 @@ static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, floa
 	v.texCoord = glm::vec2{0.5, 0.5} + 0.5f * n;
 	v.color    = color;
 
-	for ( uint32_t i = 1; i <= subdivisions; ++i ) {
-		// one triangle per subdivision, we re-use last vertex if available
+	for ( int i = 0; i != 1000; ++i ) {
 
-		geometry.push_back( v_c );
-		geometry.push_back( v );
+		geometry.push_back( v_c ); // centre vertex
+		geometry.push_back( v );   // previous vertex
 
-		float     arc_angle = angle_start_rad + i * arc_segment;
-		glm::vec2 n{cosf( arc_angle ), sinf( arc_angle )};
+		/* The maths for this are based on the intuition that an ellipse is 
+		 * a scaled circle. Formula to calculate the maximum angle 
+		 */
+		float r_length = glm::dot( glm::vec2{fabsf( n.x ), fabsf( n.y )}, radii );
+
+		float angle_offset = 2 * acosf( 1.f - ( tolerance / r_length ) );
+		arc_angle          = std::min( arc_angle + angle_offset, angle_end_rad );
+		n                  = {cosf( arc_angle ), sinf( arc_angle )};
 
 		v.pos      = radii * n;
 		v.texCoord = glm::vec2{0.5, 0.5} + 0.5f * n;
 
-		geometry.push_back( v );
+		geometry.push_back( v ); // current vertex
+
+		if ( arc_angle >= angle_end_rad ) {
+			break;
+		}
 	}
 }
 
@@ -409,7 +446,7 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 }
 
 // Generates triangles by tessellating what's contained within path
-static void generate_geometry_path( std::vector<VertexData2D> &geometry, le_path_o *path, float stroke_weight, float tolerance, uint32_t color ) {
+static void generate_geometry_path( std::vector<VertexData2D> &geometry, le_path_o *path, float tolerance, uint32_t color ) {
 
 	using namespace le_path;
 	using namespace le_tessellator;
@@ -467,32 +504,32 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 		auto const &circle = p->data.as_circle;
 
 		if ( p->material.filled ) {
-			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), {circle.radius, circle.radius}, circle.subdivisions, p->material.color );
+			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), {circle.radius, circle.radius}, circle.tolerance, p->material.color );
 		} else {
-			generate_geometry_outline_arc( geometry, 0, glm::two_pi<float>(), {circle.radius, circle.radius}, p->material.stroke_weight, circle.subdivisions, p->material.color );
+			generate_geometry_outline_arc( geometry, 0, glm::two_pi<float>(), {circle.radius, circle.radius}, p->material.stroke_weight, circle.tolerance, p->material.color );
 		}
 
 	} break;
 	case le_2d_primitive_o::Type::eEllipse: {
 		auto const &ellipse = p->data.as_ellipse;
 		if ( p->material.filled ) {
-			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), ellipse.radii, ellipse.subdivisions, p->material.color );
+			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), ellipse.radii, ellipse.tolerance, p->material.color );
 		} else {
-			generate_geometry_outline_arc( geometry, 0, glm::two_pi<float>(), ellipse.radii, p->material.stroke_weight, ellipse.subdivisions, p->material.color );
+			generate_geometry_outline_arc( geometry, 0, glm::two_pi<float>(), ellipse.radii, p->material.stroke_weight, ellipse.tolerance, p->material.color );
 		}
 	} break;
 	case le_2d_primitive_o::Type::eArc: {
 		auto const &arc = p->data.as_arc;
 		if ( p->material.filled ) {
-			generate_geometry_ellipse( geometry, arc.angle_start_rad, arc.angle_end_rad, arc.radii, arc.subdivisions, p->material.color );
+			generate_geometry_ellipse( geometry, arc.angle_start_rad, arc.angle_end_rad, arc.radii, arc.tolerance, p->material.color );
 		} else {
-			generate_geometry_outline_arc( geometry, arc.angle_start_rad, arc.angle_end_rad, arc.radii, p->material.stroke_weight, arc.subdivisions, p->material.color );
+			generate_geometry_outline_arc( geometry, arc.angle_start_rad, arc.angle_end_rad, arc.radii, p->material.stroke_weight, arc.tolerance, p->material.color );
 		}
 	} break;
 	case le_2d_primitive_o::Type::ePath: {
 		auto const &path = p->data.as_path;
 		if ( p->material.filled ) {
-			generate_geometry_path( geometry, path.path, p->material.stroke_weight, path.tolerance, p->material.color );
+			generate_geometry_path( geometry, path.path, path.tolerance, p->material.color );
 		} else {
 			generate_geometry_outline_path( geometry, path.path, p->material.stroke_weight, path.tolerance, p->material.color );
 		}
@@ -647,8 +684,8 @@ static le_2d_primitive_o *le_2d_primitive_create_circle( le_2d_o *context ) {
 	p->type   = le_2d_primitive_o::Type::eCircle;
 	auto &obj = p->data.as_circle;
 
-	obj.radius       = 0.f;
-	obj.subdivisions = 36;
+	obj.radius    = 0.f;
+	obj.tolerance = 0.5f;
 
 	return p;
 }
@@ -662,8 +699,8 @@ static le_2d_primitive_o *le_2d_primitive_create_ellipse( le_2d_o *context ) {
 
 	auto &obj = p->data.as_ellipse;
 
-	obj.radii        = {0.f, 0.f};
-	obj.subdivisions = 36;
+	obj.radii     = {0.f, 0.f};
+	obj.tolerance = 0.5;
 
 	return p;
 }
@@ -678,7 +715,7 @@ static le_2d_primitive_o *le_2d_primitive_create_arc( le_2d_o *context ) {
 	auto &obj = p->data.as_arc;
 
 	obj.radii           = {0.f, 0.f};
-	obj.subdivisions    = 36;
+	obj.tolerance       = 0.5;
 	obj.angle_start_rad = 0;
 	obj.angle_end_rad   = glm::two_pi<float>();
 
@@ -801,13 +838,13 @@ static void le_2d_primitive_set_color( le_2d_primitive_o *p, uint32_t r8g8b8a8_c
 	}
 
 SETTER_IMPLEMENT( circle, float, radius );
-SETTER_IMPLEMENT( circle, uint32_t, subdivisions );
+SETTER_IMPLEMENT( circle, float, tolerance );
 
 SETTER_IMPLEMENT_CPY( ellipse, vec2f const *, radii );
-SETTER_IMPLEMENT( ellipse, uint32_t, subdivisions );
+SETTER_IMPLEMENT( ellipse, float, tolerance );
 
 SETTER_IMPLEMENT_CPY( arc, vec2f const *, radii );
-SETTER_IMPLEMENT( arc, uint32_t, subdivisions );
+SETTER_IMPLEMENT( arc, float, tolerance );
 
 SETTER_IMPLEMENT( arc, float, angle_start_rad );
 SETTER_IMPLEMENT( arc, float, angle_end_rad );
@@ -831,13 +868,13 @@ ISL_API_ATTR void register_le_2d_api( void *api ) {
 	le_2d_primitive_i.prim_type##_set_##field_name = le_2d_primitive_##prim_type##_set_##field_name
 
 	SET_PRIMITIVE_FPTR( circle, radius );
-	SET_PRIMITIVE_FPTR( circle, subdivisions );
+	SET_PRIMITIVE_FPTR( circle, tolerance );
 
 	SET_PRIMITIVE_FPTR( ellipse, radii );
-	SET_PRIMITIVE_FPTR( ellipse, subdivisions );
+	SET_PRIMITIVE_FPTR( ellipse, tolerance );
 
 	SET_PRIMITIVE_FPTR( arc, radii );
-	SET_PRIMITIVE_FPTR( arc, subdivisions );
+	SET_PRIMITIVE_FPTR( arc, tolerance );
 	SET_PRIMITIVE_FPTR( arc, angle_start_rad );
 	SET_PRIMITIVE_FPTR( arc, angle_end_rad );
 

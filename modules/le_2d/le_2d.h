@@ -43,19 +43,19 @@ struct le_2d_api {
 
 		le_2d_primitive_o* ( *create_circle         ) ( le_2d_o* context);
 		SETTER_DECLARE( circle, float   , radius);
-		SETTER_DECLARE( circle, uint32_t, subdivisions );
+		SETTER_DECLARE( circle, float   , tolerance );
 		SETTER_DECLARE( circle, bool    , filled );
 
 		le_2d_primitive_o* ( *create_ellipse         ) ( le_2d_o* context);
 		SETTER_DECLARE( ellipse, glm::vec2 const *, radii);
-		SETTER_DECLARE( ellipse, uint32_t, subdivisions );
+		SETTER_DECLARE( ellipse, float, tolerance);
 		SETTER_DECLARE( ellipse, bool    , filled );
 
 		le_2d_primitive_o* ( *create_arc         ) ( le_2d_o* context);
 		SETTER_DECLARE( arc, glm::vec2 const *, radii);
 		SETTER_DECLARE( arc, float, angle_start_rad);
 		SETTER_DECLARE( arc, float, angle_end_rad);
-		SETTER_DECLARE( arc, uint32_t, subdivisions );
+		SETTER_DECLARE( arc, float, tolerance );
 		SETTER_DECLARE( arc, bool    , filled );
 
 		le_2d_primitive_o* ( *create_line           ) ( le_2d_o* context);
@@ -144,7 +144,7 @@ class Le2D : NoCopy, NoMove {
 		}
 
 		BUILDER_IMPLEMENT( CircleBuilder, circle, float, radius )
-		BUILDER_IMPLEMENT( CircleBuilder, circle, uint32_t, subdivisions )
+		BUILDER_IMPLEMENT( CircleBuilder, circle, float, tolerance )
 
 		CircleBuilder &set_node_position( glm::vec2 const &pos ) {
 			le_2d::le_2d_prim_i.set_node_position( self, &pos );
@@ -200,7 +200,7 @@ class Le2D : NoCopy, NoMove {
 		}
 
 		BUILDER_IMPLEMENT_VEC( EllipseBuilder, ellipse, glm::vec2 const &, radii )
-		BUILDER_IMPLEMENT( EllipseBuilder, ellipse, uint32_t, subdivisions )
+		BUILDER_IMPLEMENT( EllipseBuilder, ellipse, float, tolerance )
 
 		EllipseBuilder &set_node_position( glm::vec2 const &pos ) {
 			le_2d::le_2d_prim_i.set_node_position( self, &pos );
@@ -256,7 +256,7 @@ class Le2D : NoCopy, NoMove {
 		}
 
 		BUILDER_IMPLEMENT_VEC( ArcBuilder, arc, glm::vec2 const &, radii )
-		BUILDER_IMPLEMENT( ArcBuilder, arc, uint32_t, subdivisions )
+		BUILDER_IMPLEMENT( ArcBuilder, arc, float, tolerance )
 		BUILDER_IMPLEMENT( ArcBuilder, arc, float, angle_start_rad )
 		BUILDER_IMPLEMENT( ArcBuilder, arc, float, angle_end_rad )
 
