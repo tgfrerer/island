@@ -44,7 +44,7 @@ static quad_template_app_o *quad_template_app_create() {
 	settings
 	    .setWidth( 1024 )
 	    .setHeight( 1024 )
-	    .setTitle( "Island // QuadTemplateApp" );
+	    .setTitle( "IslΛnd // QuadTemplateApp" );
 
 	// create a new window
 	app->window.setup( settings );

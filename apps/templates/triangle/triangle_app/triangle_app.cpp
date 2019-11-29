@@ -48,7 +48,7 @@ static triangle_app_o *triangle_app_create() {
 	settings
 	    .setWidth( 1024 )
 	    .setHeight( 1024 )
-	    .setTitle( "Island // TriangleApp" );
+	    .setTitle( "IslΛnd // TriangleApp" );
 
 	// create a new window
 	app->window.setup( settings );
