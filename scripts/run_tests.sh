@@ -3,6 +3,8 @@
 # list apps you want to test
 
 apps_list=("
+    test_2d_thick_lines:Island-Test2DThickLines
+    test_2d:Island-Test2D
     test_mt_rendering:Island-TestMtRendering
 	test_jobs:Island-TestJobs
 	blob_wave:Island-BlobWave
