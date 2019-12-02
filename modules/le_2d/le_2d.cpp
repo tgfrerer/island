@@ -159,8 +159,6 @@ static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, 
 
 	float const offset = thickness * 0.5f;
 
-	glm::vec2 rad_rot = glm::normalize( radii );
-
 	glm::vec2 p1_perp = glm::normalize( glm::vec2{radii.y, radii.x} * -n );
 
 	glm::vec2 p0_far  = n * radii + p1_perp * offset;
@@ -172,10 +170,10 @@ static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, 
 		// fantasy- matematics. Pin down the correct analytic solution by finding the
 		// correct curvature for the ellipse offset segment on the outide.
 		//
-		p1_perp        = glm::normalize( glm::vec2{radii.y, radii.x} * -n );
-		float r_length = glm::dot( glm::vec2{fabsf( n.x ), fabsf( n.y )}, radii + 4.f * glm::abs( p1_perp * offset ) );
 
-		float angle_offset = 2 * acosf( 1.f - ( tolerance / r_length ) );
+		float r_length = glm::dot( glm::vec2{fabsf( n.x ), fabsf( n.y )}, radii + glm::abs( p1_perp * offset ) );
+
+		float angle_offset = acosf( 1.f - ( tolerance / r_length ) );
 		t                  = std::min( t + angle_offset, angle_end_rad );
 		n                  = {cosf( t ), sinf( t )};
 
@@ -242,11 +240,11 @@ static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, floa
 		geometry.push_back( v );   // previous vertex
 
 		/* The maths for this are based on the intuition that an ellipse is 
-		 * a scaled circle. Formula to calculate the maximum angle 
+		 * a scaled circle.
 		 */
 		float r_length = glm::dot( glm::vec2{fabsf( n.x ), fabsf( n.y )}, radii );
 
-		float angle_offset = 2 * acosf( 1.f - ( tolerance / r_length ) );
+		float angle_offset = acosf( 1.f - ( tolerance / r_length ) );
 		arc_angle          = std::min( arc_angle + angle_offset, angle_end_rad );
 		n                  = {cosf( arc_angle ), sinf( arc_angle )};
 

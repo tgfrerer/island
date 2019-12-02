@@ -1,6 +1,12 @@
 #ifndef GUARD_le_2d_H
 #define GUARD_le_2d_H
 
+/* Le2D is a 2D drawing context with the aim of making drawing in 2d simple, and intuitive.
+ * 
+ * Drawing is stateless - each draw command needs their attributes explicitly set. 
+ * 
+ */
+
 #include <stdint.h>
 #include "pal_api_loader/ApiRegistry.hpp"
 
@@ -19,7 +25,7 @@ struct le_renderpass_o;
 struct le_rendergraph_o;
 struct le_command_buffer_encoder_o;
 struct le_backend_o;
-struct le_shader_module_o; ///< shader module, 1:1 relationship with a shader source file
+struct le_shader_module_o;
 struct le_pipeline_manager_o;
 struct le_2d_primitive_o;
 
@@ -56,7 +62,7 @@ struct le_2d_api {
 		SETTER_DECLARE( arc, float, angle_start_rad);
 		SETTER_DECLARE( arc, float, angle_end_rad);
 		SETTER_DECLARE( arc, float, tolerance );
-		SETTER_DECLARE( arc, bool    , filled );
+		SETTER_DECLARE( arc, bool , filled );
 
 		le_2d_primitive_o* ( *create_line           ) ( le_2d_o* context);
 		SETTER_DECLARE( line, glm::vec2 const *, p0);

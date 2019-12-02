@@ -337,7 +337,7 @@ static void le_path_trace_path( le_path_o *self, size_t resolution ) {
 
 // Subdivides given cubic bezier curve `b` at position `t`
 // into two cubic bezier curves, `s_0`, and `s_1`
-static void bezier_subdivide( CubicBezier const b, float t, CubicBezier *s_0, CubicBezier *s_1 ) {
+static void bezier_subdivide( CubicBezier const &b, float t, CubicBezier *s_0, CubicBezier *s_1 ) {
 
 	auto const b0    = b.p0;
 	auto const b2_   = b.c2 + t * ( b.p1 - b.c2 );
@@ -604,9 +604,9 @@ static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
 
 	glm::vec2 p_prev = b.p0;
 
-	// Note that we limit the number of iterations by setting a maximum of 100 - this
+	// Note that we limit the number of iterations by setting a maximum of 1000 - this
 	// should only ever be reached when tolerance is super small.
-	for ( int i = 0; i != 100; i++ ) {
+	for ( int i = 0; i != 1000; i++ ) {
 
 		// create a coordinate basis based on the first point, and the first control point
 		glm::vec2 r = glm::normalize( b.c1 - b.p0 );
@@ -632,7 +632,8 @@ static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
 		polyline.total_distance += glm::distance( pt, p_prev );
 		polyline.distances.emplace_back( polyline.total_distance );
 
-		polyline.tangents.emplace_back(); // todo: add tangent
+		// First derivative with respect to t, see: https://en.m.wikipedia.org/wiki/B%C3%A9zier_curve
+		polyline.tangents.emplace_back( 3 * ( 1 - t * t ) * ( b.c1 - b.p0 ) + 6 * ( 1 - t ) * t * ( b.c2 - b.c1 ) + 3 * ( t * t ) * ( b.p1 - b.c2 ) );
 
 		if ( t >= 1.0f )
 			break;
@@ -883,8 +884,10 @@ static void generate_offset_outline_close_path( std::vector<glm::vec2> &outline 
 }
 
 // ----------------------------------------------------------------------
-// generate vertices for path outline by flattening first left, then right outline
-// based on the t.f. hain paper for bezier curve outlines.
+// Generate vertices for path outline by flattening first left, then right
+// offset outline. Offsetting cubic bezier curves is based on the T. F. Hain
+// paper from 2005.
+//
 static bool le_path_generate_offset_outline_for_contour(
     le_path_o *self, size_t contour_index,
     float   line_weight,
@@ -896,7 +899,7 @@ static bool le_path_generate_offset_outline_for_contour(
 	// We do this because if we were to directly write back to the caller, we would
 	// have to bounds-check against `max_count_outline[l|r]` on every write.
 	//
-	// This way we do the bounds-check only at the very end, and if the bounds check
+	// This way, we do the bounds-check only at the very end, and if the bounds check
 	// fails, we can at least tell the caller how many elements to reserve next time.
 
 	std::vector<glm::vec2> outline_l;
