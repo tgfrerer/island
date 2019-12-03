@@ -285,9 +285,10 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 		size_t const num_contours = le_path_i.get_num_contours( path );
 
-		size_t WHICH_TESSELLATOR = 2;
+		size_t WHICH_TESSELLATOR = 3;
 
 		switch ( WHICH_TESSELLATOR ) {
+
 		case 0: {
 			std::vector<glm::vec2> vertices_l( 1024 );
 			std::vector<glm::vec2> vertices_r( 1024 );
@@ -383,8 +384,7 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 			le_tessellator_i.destroy( tess );
 		} break;
-		case 2: // deliberate fall-through
-		default: {
+		case 2: {
 			std::vector<glm::vec2> vertices_l( 1024 );
 			std::vector<glm::vec2> vertices_r( 1024 );
 
@@ -438,7 +438,41 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 					}
 				}
 			}
-		}
+		} break;
+		case 3: {
+			std::vector<glm::vec2> vertices( 1024 );
+
+			for ( size_t i = 0; i != num_contours; ++i ) {
+
+				size_t num_vertices = vertices.size();
+
+				glm::vec2 *v_data = vertices.data();
+
+				le_path_api::stroke_attribute_t stroke_attribs{};
+				stroke_attribs.width          = stroke_weight;
+				stroke_attribs.tolerance      = tolerance;
+				stroke_attribs.line_join_type = le_path_api::stroke_attribute_t::eLineJoinRound;
+
+				bool vertices_large_enough = le_path_i.tessellate_thick_contour( path, i, &stroke_attribs, v_data, &num_vertices );
+
+				if ( !vertices_large_enough ) {
+					vertices.resize( num_vertices );
+					le_path_i.tessellate_thick_contour( path, i, &stroke_attribs, v_data, &num_vertices );
+				}
+
+				glm::vec2 const *v = v_data;
+
+				glm::vec2 const *const v_end = v_data + num_vertices;
+
+				assert( num_vertices % 3 == 0 ); // vertices count must be divisible by 3
+
+				for ( ; ( v != v_end ); ) {
+					geometry.push_back( {*v++, {1, 0}, color} );
+					geometry.push_back( {*v++, {0, 1}, color} );
+					geometry.push_back( {*v++, {1, 1}, color} );
+				}
+			}
+		} break;
 		}
 	}
 }
@@ -595,7 +629,7 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 	            .end()
 	        .end()
 			.withRasterizationState()
-//				.setPolygonMode(le::PolygonMode::eLine)
+				.setPolygonMode(le::PolygonMode::eLine)
 //				.setCullMode(le::CullModeFlagBits::eBack)
 //				.setFrontFace(le::FrontFace::eClockwise)
 			.end()
