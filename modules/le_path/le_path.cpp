@@ -1,11 +1,14 @@
 #include "le_path.h"
 #include "pal_api_loader/ApiRegistry.hpp"
-#include "glm.hpp"
 #include <vector>
 
 #include <cstring>
 #include <cstdio>
 #include <cstdlib>
+
+#include "glm.hpp"
+#include "glm/gtx/vector_query.hpp"
+#include "glm/gtx/vector_angle.hpp"
 
 using Vertex = le_path_api::Vertex;
 
@@ -21,9 +24,9 @@ struct PathCommand {
 		eClosePath,
 	} type = eUnknown;
 
-	Vertex p  = {}; // end point
-	Vertex c1 = {}; // control point 1
-	Vertex c2 = {}; // control point 2
+	glm::vec2 p  = {}; // end point
+	glm::vec2 c1 = {}; // control point 1
+	glm::vec2 c2 = {}; // control point 2
 };
 
 struct Contour {
@@ -985,6 +988,237 @@ static bool le_path_generate_offset_outline_for_contour(
 
 	return success;
 }
+
+// ----------------------------------------------------------------------
+
+bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le_path_api::stroke_attribute_t const *stroke_attributes, Vertex *vertices, size_t *num_vertices ) {
+	std::vector<glm::vec2> triangles;
+
+	using stroke_attribute_t = le_path_api::stroke_attribute_t;
+
+	triangles.reserve( *num_vertices );
+
+	auto tessellate_thick_line_to = []( std::vector<glm::vec2> &  triangles,
+	                                    stroke_attribute_t const *sa,
+	                                    PathCommand const *       prev_command,
+	                                    PathCommand const *       command,
+	                                    PathCommand const *       next_command ) {
+		glm::vec2 const &p0 = prev_command->p;
+		glm::vec2 const &p1 = command->p;
+
+		glm::vec2 t = glm::normalize( p1 - p0 ); // tangent == current line direction
+		glm::vec2 n = glm::vec2{-t.y, t.x};      // normal onto current line
+
+		float offset = sa->width * 0.5f;
+
+		if ( true ) {
+			triangles.push_back( p0 + n * offset );
+			triangles.push_back( p0 - n * offset );
+			triangles.push_back( p1 + n * offset );
+
+			triangles.push_back( p0 - n * offset );
+			triangles.push_back( p1 - n * offset );
+			triangles.push_back( p1 + n * offset );
+		}
+
+		if ( next_command == nullptr ) {
+			// draw cap depending on style.
+			return;
+		}
+
+		// --------| invariant: next_command exists: we must draw joint
+
+		glm::vec2 const &p2 = next_command->p;           // FIXME: tangent depends on type of command
+		glm::vec2        t1 = glm::normalize( p2 - p1 ); // FIXME: tangent depends on type of command
+		glm::vec2        n1 = glm::vec2{-t1.y, t1.x};    // normal onto next line
+
+		// If angles are collinear, we should not add a joint
+		if ( glm::areCollinear( t, t1, 0.001f ) ) {
+			return;
+		}
+
+		// ---------| invariant: We need to add a joint
+
+		// -- find out whether angle in + offset direction is greater than angle in
+		// - offset direction
+
+		float rotation_direction = glm::cross( glm::vec3( t, 0 ), glm::vec3( t1, 0 ) ).z;
+		rotation_direction       = rotation_direction / fabsf( rotation_direction );
+
+		// -- bevel: mid-point between the two end points
+		// We draw bevel triangles for both miter, and bevel.
+		if ( sa->line_join_type != stroke_attribute_t::eLineJoinRound ) {
+			triangles.push_back( p1 - rotation_direction * n * offset );
+			triangles.push_back( p1 );
+			triangles.push_back( p1 - rotation_direction * n1 * offset );
+		}
+
+		// -- miter: point where offset tangents meet
+		if ( sa->line_join_type == stroke_attribute_t::eLineJoinMiter ) {
+
+			// We must calculate point at which the offset contours meet.
+
+			glm::vec2 edge_0 = p1 - rotation_direction * n * offset;
+			glm::vec2 edge_1 = p1 - rotation_direction * n1 * offset;
+
+			float t_miter = ( edge_1.x - edge_0.x ) / ( t.x + t1.x ); // note we flip t1.x so that lines point to each other
+
+			glm::vec2 p_miter = edge_0 + t_miter * t;
+
+			triangles.push_back( edge_0 );
+			triangles.push_back( p_miter );
+			triangles.push_back( edge_1 );
+		}
+
+		if ( sa->line_join_type == stroke_attribute_t::eLineJoinRound ) {
+
+			// Calculate the angle for triangle fan segments - the angle
+			// is such that the outline of the triangle fan is at most
+			// at distance `sa->tolerance` from the perfect circle of
+			// radius `offset`
+
+			float angle_resolution = acosf( 1.f - ( sa->tolerance / offset ) );
+
+			float  angle              = glm::angle( n, n1 );
+			size_t angle_num_segments = size_t( fabsf( ceilf( angle / angle_resolution ) ) );
+
+			angle_resolution = angle / angle_num_segments;
+
+			float prev_angle = atan2f( n.y, n.x ); // start angle is equal to angle for n
+			angle            = prev_angle + angle_resolution * rotation_direction;
+
+			// start angle is orthonormal on t: n
+			// end angle is orthonormal on t1: n1
+			// centre point is p1
+
+			for ( size_t i = 0; i != angle_num_segments; ++i ) {
+
+				triangles.push_back( p1 - offset * rotation_direction * glm::vec2( cosf( prev_angle ), sinf( prev_angle ) ) );
+				triangles.push_back( p1 );
+				triangles.push_back( p1 - offset * rotation_direction * glm::vec2( cosf( angle ), sinf( angle ) ) );
+
+				prev_angle = angle;
+				angle += angle_resolution * rotation_direction;
+			}
+		}
+	};
+
+	// calculate tessellation and store inside triangles.
+
+	/* In order to calculate line joints we must, additionally to knowning the position of the previous point, 
+	 * also know the tangent of the previous point. Therefore we store the tangent whenever we add a segment.
+	 *
+	 *	
+	*/
+
+	glm::vec2 prev_point       = {};
+	glm::vec2 prev_tangent     = {}; // tangent on previous point
+	bool      has_prev_tangent = false;
+
+	float line_offset = stroke_attributes->width * 0.5f;
+
+	auto &contour = self->contours[ contour_index ];
+
+	if ( contour.commands.empty() ) {
+		*num_vertices = 0;
+		return true;
+	}
+
+	// ---------| Invariant: There are commands to render
+
+	PathCommand const *command_prev  = nullptr;
+	auto const *       command       = contour.commands.data();
+	PathCommand const *command_next  = nullptr;
+	auto const *       command_start = command;
+	auto const *const  command_end   = command + contour.commands.size();
+
+	// we must find the initial position for our pen.
+	// if we start with anything but a moveto, the initial position will be at {0,0}
+
+	// If the first element is a move_to, we process it
+	// by setting prev_point to the command's position.
+
+	if ( command->type == PathCommand::eMoveTo ) {
+		command_prev = command;
+		command++;
+	}
+
+	for ( ; command != command_end; command++ ) {
+
+		if ( command + 1 != command_end ) {
+
+			if ( ( command + 1 )->type == PathCommand::eClosePath ) {
+				command_next = command_start;
+			} else if ( command->type == PathCommand::eClosePath ) {
+				command_next = command_start + 1;
+			} else {
+				command_next = command + 1;
+			}
+		} else {
+			if ( command->type == PathCommand::eClosePath ) {
+				command_next = command_start + 1;
+			} else {
+				command_next = nullptr;
+			}
+		}
+
+		switch ( command->type ) {
+		case PathCommand::eMoveTo:
+			assert( false ); // Not allowed, only one move to ever allowed inside a contour and it must be at the start.
+			break;
+		case PathCommand::eLineTo:
+			tessellate_thick_line_to( triangles, stroke_attributes, command_prev, command, command_next );
+			command_prev = command;
+			break;
+		case PathCommand::eQuadBezierTo:
+			//			generate_offset_outline_cubic_bezier_to( outline_l,
+			//			                                         outline_r,
+			//			                                         prev_point,
+			//			                                         prev_point + 2 / 3.f * ( command.c1 - prev_point ),
+			//			                                         command.c2 + 2 / 3.f * ( command.c1 - command.c2 ),
+			//			                                         command.p,
+			//			                                         tolerance,
+			//			                                         line_weight );
+
+			prev_point = command->p;
+			break;
+		case PathCommand::eCubicBezierTo:
+			//			generate_offset_outline_cubic_bezier_to( outline_l,
+			//			                                         outline_r,
+			//			                                         prev_point,
+			//			                                         command.c1,
+			//			                                         command.c2,
+			//			                                         command.p,
+			//			                                         tolerance,
+			//			                                         line_weight );
+			prev_point = command->p;
+			break;
+		case PathCommand::eClosePath: {
+			tessellate_thick_line_to( triangles, stroke_attributes, command_prev, command_start, command_next );
+			break;
+		}
+		case PathCommand::eUnknown:
+			assert( false );
+			break;
+		}
+	}
+
+	//
+
+	bool success = true;
+
+	if ( vertices && triangles.size() <= *num_vertices ) {
+		memcpy( vertices, triangles.data(), sizeof( Vertex ) * triangles.size() );
+	} else {
+		success = false;
+	}
+
+	// update outline counts with actual number of generated vertices.
+	*num_vertices = triangles.size();
+
+	return success;
+}
+
 // ----------------------------------------------------------------------
 
 static void le_path_iterate_vertices_for_contour( le_path_o *self, size_t const &contour_index, le_path_api::contour_vertex_cb callback, void *user_data ) {
@@ -1589,6 +1823,7 @@ ISL_API_ATTR void register_le_path_api( void *api ) {
 	le_path_i.get_polyline_at_pos_interpolated = le_path_get_polyline_at_pos_interpolated;
 
 	le_path_i.generate_offset_outline_for_contour = le_path_generate_offset_outline_for_contour;
+	le_path_i.tessellate_thick_contour            = le_path_tessellate_thick_contour;
 
 	le_path_i.iterate_vertices_for_contour     = le_path_iterate_vertices_for_contour;
 	le_path_i.iterate_quad_beziers_for_contour = le_path_iterate_quad_beziers_for_contour;

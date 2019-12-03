@@ -26,8 +26,28 @@ struct le_path_api {
 
 	typedef glm::vec2 Vertex;
 
+	struct stroke_attribute_t {
+	
+		enum LineJoinType : uint32_t { // names for these follow svg standard: https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/stroke-linejoin
+			eLineJoinMiter = 0,
+			eLineJoinBevel,
+			eLineJoinRound,
+		};
+		enum LineCapType : uint32_t { // names for these follow SVG standard: https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/stroke-linecap
+			eLineCapButt = 0,
+			eLineCapRound,
+			eLineCapSquare,
+		};
+	
+		float        tolerance;      // Maximum allowed distance from curve segment to straight line approximating the segment, in pixels.
+		float        width;          // Stroke width
+		LineJoinType line_join_type; // Type of connection between line segments
+		LineCapType  line_cap_type;
+	};
+
 	static constexpr auto id      = "le_path";
 	static constexpr auto pRegFun = register_le_path_api;
+
 
     typedef void contour_vertex_cb (void *user_data, Vertex const& p);
     typedef void contour_quad_bezier_cb(void *user_data, Vertex const& p0, Vertex const& p1, Vertex const& c);
@@ -50,6 +70,10 @@ struct le_path_api {
 		void        (* resample                  ) ( le_path_o* self, float interval);
 
 	    bool        (* generate_offset_outline_for_contour )(le_path_o *self, size_t contour_index, float line_weight, float tolerance, Vertex *outline_l_, size_t *max_count_outline_l, Vertex *outline_r_, size_t *max_count_outline_r );
+
+		/// Returns `false` if num_vertices was smaller than needed number of vertices.
+		/// Note: Upon return, `*num_vertices` will contain number of vertices needed to describe tessellated contour triangles.
+		bool        (* tessellate_thick_contour)(le_path_o* self, size_t contour_index, struct stroke_attribute_t const * stroke_attributes, Vertex* vertices, size_t* num_vertices);
 
 		void        (* clear                     ) ( le_path_o* self );
 
