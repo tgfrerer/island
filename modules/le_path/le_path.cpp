@@ -10,7 +10,8 @@
 #include "glm/gtx/vector_query.hpp"
 #include "glm/gtx/vector_angle.hpp"
 
-using Vertex = le_path_api::Vertex;
+using Vertex             = le_path_api::Vertex;
+using stroke_attribute_t = le_path_api::stroke_attribute_t;
 
 struct PathCommand {
 
@@ -989,92 +990,85 @@ static bool le_path_generate_offset_outline_for_contour(
 	return success;
 }
 
-// ----------------------------------------------------------------------
+static void tessellate_thick_line_to( std::vector<glm::vec2> &  triangles,
+                                      stroke_attribute_t const *sa,
+                                      PathCommand const *       prev_command,
+                                      PathCommand const *       command,
+                                      PathCommand const *       next_command ) {
+	glm::vec2 const &p0 = prev_command->p;
+	glm::vec2 const &p1 = command->p;
 
-bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le_path_api::stroke_attribute_t const *stroke_attributes, Vertex *vertices, size_t *num_vertices ) {
-	std::vector<glm::vec2> triangles;
+	if ( glm::isNull( p1 - p0, 0.001f ) ) {
+		// If target point is too close to current point, we bail out.
+		return;
+	}
 
-	using stroke_attribute_t = le_path_api::stroke_attribute_t;
+	glm::vec2 t = glm::normalize( p1 - p0 ); // tangent == current line direction
+	glm::vec2 n = glm::vec2{-t.y, t.x};      // normal onto current line
 
-	triangles.reserve( *num_vertices );
+	float offset = sa->width * 0.5f;
 
-	auto tessellate_thick_line_to = []( std::vector<glm::vec2> &  triangles,
-	                                    stroke_attribute_t const *sa,
-	                                    PathCommand const *       prev_command,
-	                                    PathCommand const *       command,
-	                                    PathCommand const *       next_command ) {
-		glm::vec2 const &p0 = prev_command->p;
-		glm::vec2 const &p1 = command->p;
+	if ( true ) {
+		triangles.push_back( p0 + n * offset );
+		triangles.push_back( p0 - n * offset );
+		triangles.push_back( p1 + n * offset );
 
-		if ( glm::isNull( p1 - p0, 0.001f ) ) {
-			// If target point is too close to current point, we bail out.
-			return;
-		}
+		triangles.push_back( p0 - n * offset );
+		triangles.push_back( p1 - n * offset );
+		triangles.push_back( p1 + n * offset );
+	}
 
-		glm::vec2 t = glm::normalize( p1 - p0 ); // tangent == current line direction
-		glm::vec2 n = glm::vec2{-t.y, t.x};      // normal onto current line
+	if ( next_command == nullptr ) {
+		// draw cap depending on style.
+		return;
+	}
 
-		float offset = sa->width * 0.5f;
+	// --------| invariant: next_command exists: we must draw joint
 
-		if ( true ) {
-			triangles.push_back( p0 + n * offset );
-			triangles.push_back( p0 - n * offset );
-			triangles.push_back( p1 + n * offset );
+	glm::vec2 const &p2 = next_command->p; // FIXME: tangent depends on type of command
 
-			triangles.push_back( p0 - n * offset );
-			triangles.push_back( p1 - n * offset );
-			triangles.push_back( p1 + n * offset );
-		}
+	if ( glm::isNull( p2 - p1, 0.001f ) ) {
+		// next_command has same point as this command, we cannot use it
+		return;
+	}
 
-		if ( next_command == nullptr ) {
-			// draw cap depending on style.
-			return;
-		}
+	glm::vec2 t1 = glm::normalize( p2 - p1 ); // FIXME: tangent depends on type of command
+	glm::vec2 n1 = glm::vec2{-t1.y, t1.x};    // normal onto next line
 
-		// --------| invariant: next_command exists: we must draw joint
+	// If angles are identical, we should not add a joint
+	if ( glm::isNull( t1 - t, 0.01f ) ) {
+		return;
+	}
 
-		glm::vec2 const &p2 = next_command->p; // FIXME: tangent depends on type of command
+	float rotation_direction = 1;
 
-		if ( glm::isNull( p2 - p1, 0.001f ) ) {
-			// next_command has same point as this command, we cannot use it
-			return;
-		}
+	if ( !glm::isNull( t1 + t, 0.001f ) ) {
+		// if angles are not pointing exaclty against each other, we can calculate
+		// a rotation_direction.
+		// otherwise we can't.
+		rotation_direction = glm::cross( glm::vec3( t, 0 ), glm::vec3( t1, 0 ) ).z;
+		rotation_direction = rotation_direction / fabsf( rotation_direction );
+	}
 
-		glm::vec2 t1 = glm::normalize( p2 - p1 ); // FIXME: tangent depends on type of command
-		glm::vec2 n1 = glm::vec2{-t1.y, t1.x};    // normal onto next line
+	// ---------| invariant: We need to add a joint
 
-		// If angles are identical, we should not add a joint
-		if ( glm::isNull( t1 - t, 0.01f ) ) {
-			return;
-		}
+	if ( sa->line_join_type == stroke_attribute_t::eLineJoinBevel ||
+	     sa->line_join_type == stroke_attribute_t::eLineJoinMiter ) {
 
-		float rotation_direction = 1;
+		// -- Bevel: connect two edge points, and end point
 
-		if ( !glm::isNull( t1 + t, 0.001f ) ) {
-			// if angles are not pointing exaclty against each other, we can calculate
-			// a rotation_direction.
-			// otherwise we can't.
-			rotation_direction = glm::cross( glm::vec3( t, 0 ), glm::vec3( t1, 0 ) ).z;
-			rotation_direction = rotation_direction / fabsf( rotation_direction );
-		}
+		glm::vec2 edge_0 = p1 - rotation_direction * n * offset;
+		glm::vec2 edge_1 = p1 - rotation_direction * n1 * offset;
 
-		// ---------| invariant: We need to add a joint
+		triangles.push_back( edge_0 );
+		triangles.push_back( p1 );
+		triangles.push_back( edge_1 );
 
-		// -- bevel: mid-point between the two end points
-		// We draw bevel triangles for both miter, and bevel.
-		if ( sa->line_join_type != stroke_attribute_t::eLineJoinRound ) {
-			triangles.push_back( p1 - rotation_direction * n * offset );
-			triangles.push_back( p1 );
-			triangles.push_back( p1 - rotation_direction * n1 * offset );
-		}
+		// -- Miter: point where offset tangents meet
 
-		// -- miter: point where offset tangents meet
 		if ( sa->line_join_type == stroke_attribute_t::eLineJoinMiter ) {
 
 			// We must calculate point at which the offset contours meet.
-
-			glm::vec2 edge_0 = p1 - rotation_direction * n * offset;
-			glm::vec2 edge_1 = p1 - rotation_direction * n1 * offset;
 
 			float t_miter = ( edge_1.x - edge_0.x ) / ( t.x + t1.x ); // note we flip t1.x so that lines point to each other
 
@@ -1084,39 +1078,47 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 			triangles.push_back( p_miter );
 			triangles.push_back( edge_1 );
 		}
+	}
 
-		if ( sa->line_join_type == stroke_attribute_t::eLineJoinRound ) {
+	if ( sa->line_join_type == stroke_attribute_t::eLineJoinRound ) {
 
-			// Calculate the angle for triangle fan segments - the angle
-			// is such that the outline of the triangle fan is at most
-			// at distance `sa->tolerance` from the perfect circle of
-			// radius `offset`
+		// Calculate the angle for triangle fan segments - the angle
+		// is such that the outline of the triangle fan is at most
+		// at distance `sa->tolerance` from the perfect circle of
+		// radius `offset`
 
-			float angle_resolution = acosf( 1.f - ( sa->tolerance / offset ) );
+		float angle_resolution = acosf( 1.f - ( sa->tolerance / offset ) );
 
-			float  angle              = glm::angle( n, n1 );
-			size_t angle_num_segments = size_t( fabsf( ceilf( angle / angle_resolution ) ) );
+		float  angle              = glm::angle( n, n1 );
+		size_t angle_num_segments = size_t( fabsf( ceilf( angle / angle_resolution ) ) );
 
-			angle_resolution = angle / angle_num_segments;
+		angle_resolution = angle / angle_num_segments;
 
-			float prev_angle = atan2f( n.y, n.x ); // start angle is equal to angle for n
-			angle            = prev_angle + angle_resolution * rotation_direction;
+		float prev_angle = atan2f( n.y, n.x ); // start angle is equal to angle for n
+		angle            = prev_angle + angle_resolution * rotation_direction;
 
-			// start angle is orthonormal on t: n
-			// end angle is orthonormal on t1: n1
-			// centre point is p1
+		// start angle is orthonormal on t: n
+		// end angle is orthonormal on t1: n1
+		// centre point is p1
 
-			for ( size_t i = 0; i != angle_num_segments; ++i ) {
+		for ( size_t i = 0; i != angle_num_segments; ++i ) {
 
-				triangles.push_back( p1 - offset * rotation_direction * glm::vec2( cosf( prev_angle ), sinf( prev_angle ) ) );
-				triangles.push_back( p1 );
-				triangles.push_back( p1 - offset * rotation_direction * glm::vec2( cosf( angle ), sinf( angle ) ) );
+			triangles.push_back( p1 - offset * rotation_direction * glm::vec2( cosf( prev_angle ), sinf( prev_angle ) ) );
+			triangles.push_back( p1 );
+			triangles.push_back( p1 - offset * rotation_direction * glm::vec2( cosf( angle ), sinf( angle ) ) );
 
-				prev_angle = angle;
-				angle += angle_resolution * rotation_direction;
-			}
+			prev_angle = angle;
+			angle += angle_resolution * rotation_direction;
 		}
-	};
+	}
+};
+
+// ----------------------------------------------------------------------
+
+bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le_path_api::stroke_attribute_t const *stroke_attributes, Vertex *vertices, size_t *num_vertices ) {
+	std::vector<glm::vec2> triangles;
+
+	triangles.reserve( *num_vertices );
 
 	// calculate tessellation and store inside triangles.
 
