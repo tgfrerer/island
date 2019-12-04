@@ -990,6 +990,8 @@ static bool le_path_generate_offset_outline_for_contour(
 	return success;
 }
 
+// ----------------------------------------------------------------------
+
 static void tessellate_thick_line_to( std::vector<glm::vec2> &  triangles,
                                       stroke_attribute_t const *sa,
                                       PathCommand const *       prev_command,
@@ -1114,6 +1116,55 @@ static void tessellate_thick_line_to( std::vector<glm::vec2> &  triangles,
 };
 
 // ----------------------------------------------------------------------
+// Iterate over path, based on `cmd`, `wasClosed`.
+// update cmd_prev, cmd, cmd_next
+// Returns false if no next element.
+// TODO: Skip duplicates
+static bool path_command_iterator( std::vector<PathCommand> const &cmds,
+                                   PathCommand const **            cmd_prev,
+                                   PathCommand const **            cmd,
+                                   PathCommand const **            cmd_next,
+                                   bool *                          wasClosed ) {
+	auto cmds_start = cmds.data();
+	auto cmds_end   = cmds.data() + cmds.size();
+
+	if ( *wasClosed ) {
+		return false;
+	}
+
+	if ( *cmd == nullptr ) {
+		*cmd_prev = cmds_start; // first element must be moveto
+		*cmd      = cmds_start + 1;
+	} else {
+		*cmd_prev = *cmd;
+		( *cmd )++;
+	}
+
+	if ( *cmd == cmds_end ) {
+		return false;
+	}
+
+	if ( ( *cmd )->type == PathCommand::eClosePath ) {
+		*cmd_prev  = ( *cmd ) - 1;
+		*wasClosed = true;
+		*cmd_next  = cmds_start + 1;
+		return true;
+	}
+
+	*cmd_next = ( *cmd ) + 1;
+
+	if ( ( *cmd_next )->type == PathCommand::eClosePath ) {
+		*cmd_next = cmds_start;
+	}
+
+	if ( *cmd_next == cmds_end ) {
+		*cmd_next = nullptr;
+	}
+
+	return true;
+};
+
+// ----------------------------------------------------------------------
 
 bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le_path_api::stroke_attribute_t const *stroke_attributes, Vertex *vertices, size_t *num_vertices ) {
 	std::vector<glm::vec2> triangles;
@@ -1128,12 +1179,6 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 	 *	
 	*/
 
-	glm::vec2 prev_point       = {};
-	glm::vec2 prev_tangent     = {}; // tangent on previous point
-	bool      has_prev_tangent = false;
-
-	float line_offset = stroke_attributes->width * 0.5f;
-
 	auto &contour = self->contours[ contour_index ];
 
 	if ( contour.commands.empty() ) {
@@ -1143,49 +1188,18 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 
 	// ---------| Invariant: There are commands to render
 
-	PathCommand const *command_prev  = nullptr;
-	auto const *       command       = contour.commands.data();
-	PathCommand const *command_next  = nullptr;
-	auto const *       command_start = command;
-	auto const *const  command_end   = command + contour.commands.size();
+	PathCommand const *command      = nullptr;
+	PathCommand const *command_prev = nullptr;
+	PathCommand const *command_next = nullptr;
+	bool               wasClosed    = false;
 
-	// we must find the initial position for our pen.
-	// if we start with anything but a moveto, the initial position will be at {0,0}
-
-	// If the first element is a move_to, we process it
-	// by setting prev_point to the command's position.
-
-	if ( command->type == PathCommand::eMoveTo ) {
-		command_prev = command;
-		command++;
-	}
-
-	for ( ; command != command_end; command++ ) {
-
-		if ( command + 1 != command_end ) {
-
-			if ( ( command + 1 )->type == PathCommand::eClosePath ) {
-				command_next = command_start;
-			} else if ( command->type == PathCommand::eClosePath ) {
-				command_next = command_start + 1;
-			} else {
-				command_next = command + 1;
-			}
-		} else {
-			if ( command->type == PathCommand::eClosePath ) {
-				command_next = command_start + 1;
-			} else {
-				command_next = nullptr;
-			}
-		}
-
+	while ( path_command_iterator( contour.commands, &command_prev, &command, &command_next, &wasClosed ) ) {
 		switch ( command->type ) {
 		case PathCommand::eMoveTo:
-			assert( false ); // Not allowed, only one move to ever allowed inside a contour and it must be at the start.
+			assert( false );
 			break;
 		case PathCommand::eLineTo:
 			tessellate_thick_line_to( triangles, stroke_attributes, command_prev, command, command_next );
-			command_prev = command;
 			break;
 		case PathCommand::eQuadBezierTo:
 			//			generate_offset_outline_cubic_bezier_to( outline_l,
@@ -1197,7 +1211,6 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 			//			                                         tolerance,
 			//			                                         line_weight );
 
-			prev_point = command->p;
 			break;
 		case PathCommand::eCubicBezierTo:
 			//			generate_offset_outline_cubic_bezier_to( outline_l,
@@ -1208,10 +1221,10 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 			//			                                         command.p,
 			//			                                         tolerance,
 			//			                                         line_weight );
-			prev_point = command->p;
+
 			break;
 		case PathCommand::eClosePath: {
-			tessellate_thick_line_to( triangles, stroke_attributes, command_prev, command_start, command_next );
+			tessellate_thick_line_to( triangles, stroke_attributes, command_prev, &contour.commands.front(), command_next );
 			break;
 		}
 		case PathCommand::eUnknown:
