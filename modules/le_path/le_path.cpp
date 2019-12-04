@@ -1037,13 +1037,25 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 			return;
 		}
 
+		glm::vec2 t1 = glm::normalize( p2 - p1 ); // FIXME: tangent depends on type of command
+		glm::vec2 n1 = glm::vec2{-t1.y, t1.x};    // normal onto next line
+
+		// If angles are identical, we should not add a joint
+		if ( glm::isNull( t1 - t, 0.01f ) ) {
+			return;
+		}
+
+		float rotation_direction = 1;
+
+		if ( !glm::isNull( t1 + t, 0.001f ) ) {
+			// if angles are not pointing exaclty against each other, we can calculate
+			// a rotation_direction.
+			// otherwise we can't.
+			rotation_direction = glm::cross( glm::vec3( t, 0 ), glm::vec3( t1, 0 ) ).z;
+			rotation_direction = rotation_direction / fabsf( rotation_direction );
+		}
+
 		// ---------| invariant: We need to add a joint
-
-		// -- find out whether angle in + offset direction is greater than angle in
-		// - offset direction
-
-		float rotation_direction = glm::cross( glm::vec3( t, 0 ), glm::vec3( t1, 0 ) ).z;
-		rotation_direction       = rotation_direction / fabsf( rotation_direction );
 
 		// -- bevel: mid-point between the two end points
 		// We draw bevel triangles for both miter, and bevel.
