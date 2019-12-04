@@ -1006,52 +1006,29 @@ static bool le_path_generate_offset_outline_for_contour(
 	return success;
 }
 
-// ----------------------------------------------------------------------
+static void tessellate_joint( std::vector<glm::vec2> &  triangles,
+                              stroke_attribute_t const *sa,
+                              glm::vec2                 t,
+                              PathCommand const *       cmd,
+                              PathCommand const *       cmd_next ) {
 
-static void tessellate_thick_line_to( std::vector<glm::vec2> &  triangles,
-                                      stroke_attribute_t const *sa,
-                                      PathCommand const *       prev_command,
-                                      PathCommand const *       command,
-                                      PathCommand const *       next_command ) {
-	glm::vec2 const &p0 = prev_command->p;
-	glm::vec2 const &p1 = command->p;
+	float     offset = sa->width * 0.5f;
+	glm::vec2 n      = glm::vec2{-t.y, t.x}; // normal onto current line
 
-	if ( glm::isNull( p1 - p0, 0.001f ) ) {
-		// If target point is too close to current point, we bail out.
-		return;
+	glm::vec2 p1 = cmd->p;
+	glm::vec2 p2 = cmd_next->p;
+
+	glm::vec2 t1{};
+
+	if ( cmd_next->type == PathCommand::eQuadBezierTo ) {
+		t1 = glm::normalize( quad_bezier_derivative( 0.f, cmd->p, cmd_next->c1, cmd_next->p ) );
+	} else if ( cmd_next->type == PathCommand::eCubicBezierTo ) {
+		t1 = glm::normalize( cubic_bezier_derivative( 0.f, cmd->p, cmd_next->c1, cmd_next->c2, cmd_next->p ) );
+	} else {
+		t1 = glm::normalize( p2 - p1 ); // FIXME: tangent depends on type of command
 	}
 
-	glm::vec2 t = glm::normalize( p1 - p0 ); // tangent == current line direction
-	glm::vec2 n = glm::vec2{-t.y, t.x};      // normal onto current line
-
-	float offset = sa->width * 0.5f;
-
-	if ( true ) {
-		triangles.push_back( p0 + n * offset );
-		triangles.push_back( p0 - n * offset );
-		triangles.push_back( p1 + n * offset );
-
-		triangles.push_back( p0 - n * offset );
-		triangles.push_back( p1 - n * offset );
-		triangles.push_back( p1 + n * offset );
-	}
-
-	if ( next_command == nullptr ) {
-		// draw cap depending on style.
-		return;
-	}
-
-	// --------| invariant: next_command exists: we must draw joint
-
-	glm::vec2 const &p2 = next_command->p; // FIXME: tangent depends on type of command
-
-	if ( glm::isNull( p2 - p1, 0.001f ) ) {
-		// next_command has same point as this command, we cannot use it
-		return;
-	}
-
-	glm::vec2 t1 = glm::normalize( p2 - p1 ); // FIXME: tangent depends on type of command
-	glm::vec2 n1 = glm::vec2{-t1.y, t1.x};    // normal onto next line
+	glm::vec2 n1 = glm::vec2{-t1.y, t1.x}; // normal onto next line
 
 	// If angles are identical, we should not add a joint
 	if ( glm::isNull( t1 - t, 0.001f ) ) {
@@ -1129,7 +1106,54 @@ static void tessellate_thick_line_to( std::vector<glm::vec2> &  triangles,
 			angle += angle_resolution * rotation_direction;
 		}
 	}
+}
+
+// ----------------------------------------------------------------------
+
+static void tessellate_thick_line_to( std::vector<glm::vec2> &  triangles,
+                                      stroke_attribute_t const *sa,
+                                      PathCommand const *       prev_command,
+                                      PathCommand const *       command,
+                                      PathCommand const *       next_command ) {
+	glm::vec2 const &p0 = prev_command->p;
+	glm::vec2 const &p1 = command->p;
+
+	if ( glm::isNull( p1 - p0, 0.001f ) ) {
+		// If target point is too close to current point, we bail out.
+		return;
+	}
+
+	glm::vec2 t = glm::normalize( p1 - p0 ); // tangent == current line direction
+	glm::vec2 n = glm::vec2{-t.y, t.x};      // normal onto current line
+
+	float offset = sa->width * 0.5f;
+
+	triangles.push_back( p0 + n * offset );
+	triangles.push_back( p0 - n * offset );
+	triangles.push_back( p1 + n * offset );
+
+	triangles.push_back( p0 - n * offset );
+	triangles.push_back( p1 - n * offset );
+	triangles.push_back( p1 + n * offset );
+
+	if ( next_command == nullptr ) {
+		// draw cap depending on style.
+		return;
+	}
+
+	// --------| invariant: next_command exists: we must draw joint
+
+	glm::vec2 const &p2 = next_command->p; // FIXME: tangent depends on type of command
+
+	if ( glm::isNull( p2 - p1, 0.001f ) ) {
+		// next_command has same point as this command, we cannot use it
+		return;
+	}
+
+	tessellate_joint( triangles, sa, t, command, next_command );
 };
+
+// ----------------------------------------------------------------------
 
 static void draw_cap_round( std::vector<glm::vec2> &triangles, glm::vec2 const &p1, glm::vec2 const &n, stroke_attribute_t const *sa ) {
 	// Calculate the angle for triangle fan segments - the angle
@@ -1162,6 +1186,8 @@ static void draw_cap_round( std::vector<glm::vec2> &triangles, glm::vec2 const &
 	}
 }
 
+// ----------------------------------------------------------------------
+
 static void draw_cap_square( std::vector<glm::vec2> &triangles, glm::vec2 const &p1, glm::vec2 const &n, stroke_attribute_t const *sa ) {
 	float offset = sa->width * 0.5f;
 
@@ -1174,10 +1200,6 @@ static void draw_cap_square( std::vector<glm::vec2> &triangles, glm::vec2 const 
 	triangles.push_back( p1 - tangent * offset - offset * n );
 	triangles.push_back( p1 - tangent * offset + offset * n );
 	triangles.push_back( p1 + offset * n );
-
-	//	triangles.push_back( p1 - tangent * offset - offset * n );
-	//	triangles.push_back( p1 );
-	//	triangles.push_back( p1 - tangent * offset + offset * n );
 }
 
 // ----------------------------------------------------------------------
@@ -1243,7 +1265,7 @@ static bool get_path_endpoint_tangents( std::vector<PathCommand> const &commands
 
 	switch ( c_head->type ) {
 	case PathCommand::eLineTo:
-		tangent_tail = glm::normalize( c_head->p - c_tail->p );
+		tangent_tail = c_head->p - c_tail->p;
 		break;
 	case ( PathCommand::eQuadBezierTo ):
 		tangent_tail = quad_bezier_derivative( 0.f, c_tail->p, c_head->c1, c_head->p );
@@ -1263,7 +1285,7 @@ static bool get_path_endpoint_tangents( std::vector<PathCommand> const &commands
 
 	switch ( c_head->type ) {
 	case PathCommand::eLineTo:
-		tangent_head = glm::normalize( c_head->p - c_tail->p );
+		tangent_head = c_head->p - c_tail->p;
 		break;
 	case ( PathCommand::eQuadBezierTo ):
 		tangent_head = quad_bezier_derivative( 1.f, c_tail->p, c_head->c1, c_head->p );
@@ -1275,6 +1297,9 @@ static bool get_path_endpoint_tangents( std::vector<PathCommand> const &commands
 		assert( false ); // unreachable
 		return false;
 	}
+
+	tangent_tail = glm::normalize( tangent_tail );
+	tangent_head = glm::normalize( tangent_head );
 
 	return true;
 };
@@ -1359,6 +1384,10 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 					l++;
 				}
 			}
+
+			glm::vec2 t = glm::normalize( cubic_bezier_derivative( 1.f, command_prev->p, command->c1, command->c2, command->p ) );
+
+			tessellate_joint( triangles, stroke_attributes, t, command, command_next );
 
 		} break;
 		case PathCommand::eClosePath: {
