@@ -1317,27 +1317,50 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 			tessellate_thick_line_to( triangles, stroke_attributes, command_prev, command, command_next );
 			break;
 		case PathCommand::eQuadBezierTo:
-			//			generate_offset_outline_cubic_bezier_to( outline_l,
-			//			                                         outline_r,
-			//			                                         prev_point,
-			//			                                         prev_point + 2 / 3.f * ( command.c1 - prev_point ),
-			//			                                         command.c2 + 2 / 3.f * ( command.c1 - command.c2 ),
-			//			                                         command.p,
-			//			                                         tolerance,
-			//			                                         line_weight );
-
+			// generate_offset_outline_cubic_bezier_to( outline_l, outline_r, prev_point, prev_point + 2 / 3.f * ( command.c1 - prev_point ), command.c2 + 2 / 3.f * ( command.c1 - command.c2 ), command.p, tolerance, line_weight );
 			break;
-		case PathCommand::eCubicBezierTo:
-			//			generate_offset_outline_cubic_bezier_to( outline_l,
-			//			                                         outline_r,
-			//			                                         prev_point,
-			//			                                         command.c1,
-			//			                                         command.c2,
-			//			                                         command.p,
-			//			                                         tolerance,
-			//			                                         line_weight );
+		case PathCommand::eCubicBezierTo: {
+			std::vector<glm::vec2> vertices_l;
+			std::vector<glm::vec2> vertices_r;
 
-			break;
+			generate_offset_outline_cubic_bezier_to( vertices_l, vertices_r, command_prev->p, command->c1, command->c2, command->p, stroke_attributes->tolerance, stroke_attributes->width );
+
+			glm::vec2 *v_l = vertices_l.data();
+			glm::vec2 *v_r = vertices_r.data();
+
+			glm::vec2 const *l_prev = v_l;
+			glm::vec2 const *r_prev = v_r;
+
+			glm::vec2 const *l = l_prev + 1;
+			glm::vec2 const *r = r_prev + 1;
+
+			glm::vec2 const *const l_end = vertices_l.data() + vertices_l.size();
+			glm::vec2 const *const r_end = vertices_r.data() + vertices_r.size();
+
+			for ( ; ( l != l_end || r != r_end ); ) {
+
+				if ( r != r_end ) {
+
+					triangles.push_back( *l_prev );
+					triangles.push_back( *r_prev );
+					triangles.push_back( *r );
+
+					r_prev = r;
+					r++;
+				}
+
+				if ( l != l_end ) {
+
+					triangles.push_back( *l_prev );
+					triangles.push_back( *r_prev );
+					triangles.push_back( *l );
+
+					l_prev = l;
+					l++;
+				}
+			}
+
+		} break;
 		case PathCommand::eClosePath: {
 			tessellate_thick_line_to( triangles, stroke_attributes, command_prev, &contour.commands.front(), command_next );
 			break;
