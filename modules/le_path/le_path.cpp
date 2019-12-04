@@ -1131,6 +1131,55 @@ static void tessellate_thick_line_to( std::vector<glm::vec2> &  triangles,
 	}
 };
 
+static void draw_cap_round( std::vector<glm::vec2> &triangles, glm::vec2 const &p1, glm::vec2 const &n, stroke_attribute_t const *sa ) {
+	// Calculate the angle for triangle fan segments - the angle
+	// is such that the outline of the triangle fan is at most
+	// at distance `sa->tolerance` from the perfect circle of
+	// radius `offset`
+	float offset           = sa->width * 0.5f;
+	float angle_resolution = acosf( 1.f - ( sa->tolerance / offset ) );
+
+	float  angle              = glm::pi<float>();
+	size_t angle_num_segments = size_t( fabsf( ceilf( angle / angle_resolution ) ) );
+
+	angle_resolution = angle / angle_num_segments;
+
+	float prev_angle = atan2f( n.y, n.x ); // start angle is equal to angle for n
+	angle            = prev_angle + angle_resolution;
+
+	// start angle is orthonormal on t: n
+	// end angle is orthonormal on t1: n1
+	// centre point is p1
+
+	for ( size_t i = 0; i != angle_num_segments; ++i ) {
+
+		triangles.push_back( p1 - offset * glm::vec2( cosf( prev_angle ), sinf( prev_angle ) ) );
+		triangles.push_back( p1 );
+		triangles.push_back( p1 - offset * glm::vec2( cosf( angle ), sinf( angle ) ) );
+
+		prev_angle = angle;
+		angle += angle_resolution;
+	}
+}
+
+static void draw_cap_square( std::vector<glm::vec2> &triangles, glm::vec2 const &p1, glm::vec2 const &n, stroke_attribute_t const *sa ) {
+	float offset = sa->width * 0.5f;
+
+	glm::vec2 tangent = {-n.y, n.x};
+
+	triangles.push_back( p1 - tangent * offset - offset * n );
+	triangles.push_back( p1 + offset * n );
+	triangles.push_back( p1 - offset * n );
+
+	triangles.push_back( p1 - tangent * offset - offset * n );
+	triangles.push_back( p1 - tangent * offset + offset * n );
+	triangles.push_back( p1 + offset * n );
+
+	//	triangles.push_back( p1 - tangent * offset - offset * n );
+	//	triangles.push_back( p1 );
+	//	triangles.push_back( p1 - tangent * offset + offset * n );
+}
+
 // ----------------------------------------------------------------------
 // Iterate over path, based on `cmd`, `wasClosed`.
 // update cmd_prev, cmd, cmd_next
@@ -1175,6 +1224,56 @@ static bool path_command_iterator( std::vector<PathCommand> const &cmds,
 
 	if ( *cmd_next == cmds_end ) {
 		*cmd_next = nullptr;
+	}
+
+	return true;
+};
+
+// ----------------------------------------------------------------------
+// Calculate tangent at path end point
+// Note: does not return anything of value if pathcommand is not endpoint.
+static bool get_path_endpoint_tangents( std::vector<PathCommand> const &commands, glm::vec2 &tangent_tail, glm::vec2 &tangent_head ) {
+	auto cmds_start = commands.data();
+	auto cmds_end   = cmds_start + commands.size();
+
+	// calculate tangent at tail of path
+
+	auto c_tail = cmds_start;
+	auto c_head = cmds_start + 1;
+
+	switch ( c_head->type ) {
+	case PathCommand::eLineTo:
+		tangent_tail = glm::normalize( c_head->p - c_tail->p );
+		break;
+	case ( PathCommand::eQuadBezierTo ):
+		tangent_tail = quad_bezier_derivative( 0.f, c_tail->p, c_head->c1, c_head->p );
+		break;
+	case ( PathCommand::eCubicBezierTo ):
+		tangent_tail = cubic_bezier_derivative( 0.f, c_tail->p, c_head->c1, c_head->c2, c_head->p );
+		break;
+	default:
+		assert( false ); // unreachable
+		return false;
+	}
+
+	// calculate tangent at head of path
+
+	c_tail = cmds_end - 2;
+	c_head = cmds_end - 1;
+
+	switch ( c_head->type ) {
+	case PathCommand::eLineTo:
+		tangent_head = glm::normalize( c_head->p - c_tail->p );
+		break;
+	case ( PathCommand::eQuadBezierTo ):
+		tangent_head = quad_bezier_derivative( 1.f, c_tail->p, c_head->c1, c_head->p );
+		break;
+	case ( PathCommand::eCubicBezierTo ):
+		tangent_head = cubic_bezier_derivative( 1.f, c_tail->p, c_head->c1, c_head->c2, c_head->p );
+		break;
+	default:
+		assert( false ); // unreachable
+		return false;
 	}
 
 	return true;
@@ -1246,6 +1345,37 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 		case PathCommand::eUnknown:
 			assert( false );
 			break;
+		}
+	}
+
+	// Draw caps if path was not closed
+
+	if ( !wasClosed && !contour.commands.empty() &&
+	     stroke_attributes->line_cap_type != stroke_attribute_t::LineCapType::eLineCapButt ) {
+
+		if ( contour.commands.size() == 1 ) {
+			// path has zero length
+			// draw ending on first point
+		} else {
+
+			// we must find out tangent into the path
+
+			PathCommand *head = &contour.commands.front();
+			PathCommand *tail = &contour.commands.back();
+
+			glm::vec2 tangent_head{};
+			glm::vec2 tangent_tail{};
+
+			get_path_endpoint_tangents( contour.commands, tangent_head, tangent_tail );
+
+			if ( stroke_attributes->line_cap_type == stroke_attribute_t::LineCapType::eLineCapRound ) {
+				draw_cap_round( triangles, head->p, {tangent_head.y, -tangent_head.x}, stroke_attributes );
+				draw_cap_round( triangles, tail->p, {-tangent_tail.y, tangent_tail.x}, stroke_attributes );
+			} else if ( stroke_attributes->line_cap_type == stroke_attribute_t::LineCapType::eLineCapSquare ) {
+
+				draw_cap_square( triangles, head->p, {tangent_head.y, -tangent_head.x}, stroke_attributes );
+				draw_cap_square( triangles, tail->p, {-tangent_tail.y, tangent_tail.x}, stroke_attributes );
+			}
 		}
 	}
 
