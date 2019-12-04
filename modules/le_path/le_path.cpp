@@ -1006,6 +1006,11 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 		glm::vec2 const &p0 = prev_command->p;
 		glm::vec2 const &p1 = command->p;
 
+		if ( glm::isNull( p1 - p0, 0.001f ) ) {
+			// If target point is too close to current point, we bail out.
+			return;
+		}
+
 		glm::vec2 t = glm::normalize( p1 - p0 ); // tangent == current line direction
 		glm::vec2 n = glm::vec2{-t.y, t.x};      // normal onto current line
 
@@ -1028,12 +1033,10 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 
 		// --------| invariant: next_command exists: we must draw joint
 
-		glm::vec2 const &p2 = next_command->p;           // FIXME: tangent depends on type of command
-		glm::vec2        t1 = glm::normalize( p2 - p1 ); // FIXME: tangent depends on type of command
-		glm::vec2        n1 = glm::vec2{-t1.y, t1.x};    // normal onto next line
+		glm::vec2 const &p2 = next_command->p; // FIXME: tangent depends on type of command
 
-		// If angles are collinear, we should not add a joint
-		if ( glm::areCollinear( t, t1, 0.001f ) ) {
+		if ( glm::isNull( p2 - p1, 0.001f ) ) {
+			// next_command has same point as this command, we cannot use it
 			return;
 		}
 
