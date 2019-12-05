@@ -1018,6 +1018,12 @@ static void tessellate_joint( std::vector<glm::vec2> &  triangles,
 	glm::vec2 p1 = cmd->p;
 	glm::vec2 p2 = cmd_next->p;
 
+	// If this point and next point are identical
+	// do nothing.
+	if ( glm::isNull( p1 - p2, 0.001f ) ) {
+		return;
+	}
+
 	glm::vec2 t1{};
 
 	if ( cmd_next->type == PathCommand::eQuadBezierTo ) {
