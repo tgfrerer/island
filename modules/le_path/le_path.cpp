@@ -484,7 +484,7 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 	// in which case inflection points are out of order.
 
 	bool curve_has_knot = t2_m <= t1_p;
-	if ( curve_has_knot ) {
+	if ( curve_has_knot && ( infl.t_1 > infl.t_2 ) ) {
 		std::swap( t1_m, t2_m );
 		std::swap( t1_p, t2_p );
 		std::swap( infl.t_1, infl.t_2 );
