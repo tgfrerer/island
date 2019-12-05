@@ -1124,15 +1124,24 @@ static void tessellate_joint( std::vector<glm::vec2> &  triangles,
 		// end angle is orthonormal on t1: n1
 		// centre point is p1
 
-		for ( size_t i = 0; i != angle_num_segments; ++i ) {
+		glm::vec2 n_left  = n;
+		glm::vec2 n_right = {cosf( angle ), sinf( angle )};
 
-			triangles.push_back( p1 - offset * rotation_direction * glm::vec2( cosf( prev_angle ), sinf( prev_angle ) ) );
+		for ( size_t i = 0; i != angle_num_segments - 1; ++i ) {
+
+			triangles.push_back( p1 - offset * rotation_direction * n_left );
 			triangles.push_back( p1 );
-			triangles.push_back( p1 - offset * rotation_direction * glm::vec2( cosf( angle ), sinf( angle ) ) );
+			triangles.push_back( p1 - offset * rotation_direction * n_right );
 
-			prev_angle = angle;
 			angle += angle_resolution * rotation_direction;
+			n_left  = n_right;
+			n_right = {cosf( angle ), sinf( angle )};
 		}
+
+		n_right = n1;
+		triangles.push_back( p1 - offset * rotation_direction * n_left );
+		triangles.push_back( p1 );
+		triangles.push_back( p1 - offset * rotation_direction * n_right );
 	}
 }
 
