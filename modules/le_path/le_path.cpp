@@ -468,7 +468,15 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 		CubicBezier b_sub{};
 		bezier_subdivide( b, infl, nullptr, &b_sub );
 
-		glm::vec2 r = glm::normalize( b_sub.c1 - b_sub.p0 );
+		glm::vec2 r;
+
+		if ( b_sub.c1 == b_sub.p0 ) {
+			// We must handle special case in which c1 == p0: this means coordinate basis must be built as if we went to c2
+			r = glm::normalize( b_sub.c2 - b_sub.p0 );
+		} else {
+			r = glm::normalize( b_sub.c1 - b_sub.p0 );
+		}
+
 		glm::vec2 s = {r.y, -r.x};
 
 		// Define a coordinate basis built on the first two points, b0, and b1
@@ -1049,11 +1057,23 @@ static void tessellate_joint( std::vector<glm::vec2> &  triangles,
 		t1 = quad_bezier_derivative( 0.f, cmd->p, cmd_next->c1, cmd_next->p );
 	} else if ( cmd_next->type == PathCommand::eCubicBezierTo ) {
 		t1 = cubic_bezier_derivative( 0.f, cmd->p, cmd_next->c1, cmd_next->c2, cmd_next->p );
+		if ( cmd_next->c1 == cmd->p ) {
+			// we must account for the special case in which c1 is identical with cmd->p
+			// in which case we must point t1 to c2.
+			t1 = cmd_next->c2 - cmd->p;
+		}
 	} else {
 		t1 = p2 - p1;
 	}
 
-	t1 = glm::normalize( t1 );
+	float t1_length = glm::length( t1 );
+
+	if ( t1_length >= std::numeric_limits<float>::epsilon() ) {
+		t1 /= t1_length;
+	} else {
+		// we cannot continue - t1 cannot be calculated.
+		return;
+	}
 
 	glm::vec2 n1 = glm::vec2{-t1.y, t1.x}; // normal onto next line
 
@@ -1425,11 +1445,29 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 				}
 			}
 
-			glm::vec2 t = glm::normalize( quad_bezier_derivative( 1.f, command_prev->p, command->c1, command->p ) );
+			glm::vec2 tangent;
 
-			if ( command_next ) {
-				tessellate_joint( triangles, stroke_attributes, t, command, command_next );
+			if ( command->c1 == command->p ) {
+				// We must account for the special case in which c1 is identical with end point.
+				// in this case we calculate the tangent to point from previous point to end point.
+				tangent = command->p - command_prev->p;
+			} else {
+				tangent = quad_bezier_derivative( 1.f, command_prev->p, command->c1, command->p );
 			}
+
+			// Note that tangent at end may still bne undefined - that's the case if p0 == p1
+			// we test against this case by splitting apart the normlisation of the tangent -
+			// we first calculate the length (against which we may test) - in case of
+			// undefined tangent, length will be very close to zero.
+			//
+			float tangent_length = glm::length( tangent );
+
+			if ( command_next && ( tangent_length > std::numeric_limits<float>::epsilon() ) ) {
+				// invariant: tangent_length > 0
+				tangent /= tangent_length;
+				tessellate_joint( triangles, stroke_attributes, tangent, command, command_next );
+			}
+
 		} break;
 		case PathCommand::eCubicBezierTo: {
 			std::vector<glm::vec2> vertices_l;
@@ -1472,10 +1510,33 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 				}
 			}
 
-			glm::vec2 t = glm::normalize( cubic_bezier_derivative( 1.f, command_prev->p, command->c1, command->c2, command->p ) );
+			glm::vec2 tangent;
 
-			if ( command_next ) {
-				tessellate_joint( triangles, stroke_attributes, t, command, command_next );
+			if ( command->c2 == command->p ) {
+				// We must account for the special case in which c2 is identical with end point.
+				// in this case we calculate the tangent to point from c1 to end point.
+				if ( command->c1 == command->p ) {
+					// We must account for the special case in which c1 is identical with end point.
+					// in this case we calculate the tangent to point from previous point to end point.
+					tangent = command->p - command_prev->p;
+				} else {
+					tangent = command->p - command->c1;
+				}
+			} else {
+				tangent = cubic_bezier_derivative( 1.f, command_prev->p, command->c1, command->c2, command->p );
+			}
+
+			// Note that tangent at end may still be undefined - that's the case if p0 == p1
+			// we test against this case by splitting apart the normalisation of the tangent -
+			// we first calculate the length (against which we may test) - in case of
+			// undefined tangent, length will be very close to zero.
+			//
+			float tangent_length = glm::length( tangent );
+
+			if ( command_next && ( tangent_length > std::numeric_limits<float>::epsilon() ) ) {
+				// invariant: tangent_length > 0
+				tangent /= tangent_length;
+				tessellate_joint( triangles, stroke_attributes, tangent, command, command_next );
 			}
 		} break;
 		case PathCommand::eClosePath: {
