@@ -1047,12 +1047,14 @@ static void tessellate_joint( std::vector<glm::vec2> &  triangles,
 	glm::vec2 t1{};
 
 	if ( cmd_next->type == PathCommand::eQuadBezierTo ) {
-		t1 = glm::normalize( quad_bezier_derivative( 0.f, cmd->p, cmd_next->c1, cmd_next->p ) );
+		t1 = quad_bezier_derivative( 0.f, cmd->p, cmd_next->c1, cmd_next->p );
 	} else if ( cmd_next->type == PathCommand::eCubicBezierTo ) {
-		t1 = glm::normalize( cubic_bezier_derivative( 0.f, cmd->p, cmd_next->c1, cmd_next->c2, cmd_next->p ) );
+		t1 = cubic_bezier_derivative( 0.f, cmd->p, cmd_next->c1, cmd_next->c2, cmd_next->p );
 	} else {
-		t1 = glm::normalize( p2 - p1 ); // FIXME: tangent depends on type of command
+		t1 = p2 - p1;
 	}
+
+	t1 = glm::normalize( t1 );
 
 	glm::vec2 n1 = glm::vec2{-t1.y, t1.x}; // normal onto next line
 
