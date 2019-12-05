@@ -457,6 +457,7 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 				if ( !vertices_large_enough ) {
 					vertices.resize( num_vertices );
+					v_data = vertices.data();
 					le_path_i.tessellate_thick_contour( path, i, &stroke_attribs, v_data, &num_vertices );
 				}
 
