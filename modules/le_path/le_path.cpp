@@ -457,8 +457,12 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 
 	// ----------| Invariant: this curve contains inflection points.
 
-	float t1_m, t1_p;
-	float t2_m, t2_p;
+	float boundaries[ 4 ]{};
+
+	float &t1_m = boundaries[ 0 ]; // t1 minus delta
+	float &t1_p = boundaries[ 1 ]; // t1 plus  delta
+	float &t2_m = boundaries[ 2 ]; // t2 minus delta
+	float &t2_p = boundaries[ 3 ]; // t2 plus  delta
 
 	auto calc_inflection_point_offsets = []( CubicBezier const &b, float tolerance, float infl, float *infl_m, float *infl_p ) {
 		CubicBezier b_sub{};
@@ -481,12 +485,13 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 	calc_inflection_point_offsets( b, tolerance, infl.t_2, &t2_m, &t2_p );
 
 	// It's possible that our bezier curve self-intersects,
-	// in which case inflection points are out of order.
+	// in which case inflection points are out of order -
+	// then we must sort them.
 
-	bool curve_has_knot = t2_m <= t1_p;
-	if ( curve_has_knot && ( infl.t_1 > infl.t_2 ) ) {
-		std::swap( t1_m, t2_m );
-		std::swap( t1_p, t2_p );
+	bool curve_has_knot = t2_m <= t1_p || ( t1_p >= t2_m );
+
+	if ( curve_has_knot && ( infl.t_1 >= infl.t_2 ) ) {
+		std::sort( boundaries, boundaries + 4 );
 		std::swap( infl.t_1, infl.t_2 );
 	}
 
@@ -502,12 +507,6 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 				}
 			}
 			return i;
-		};
-		float boundaries[ 4 ] = {
-		    t1_m,
-		    t1_p,
-		    t2_m,
-		    t2_p,
 		};
 
 		// Calculate into which of the 5 segments of an infinite cubic bezier
