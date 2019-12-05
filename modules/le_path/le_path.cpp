@@ -1156,7 +1156,9 @@ static void tessellate_thick_line_to( std::vector<glm::vec2> &  triangles,
 		return;
 	}
 
-	tessellate_joint( triangles, sa, t, command, next_command );
+	if ( next_command ) {
+		tessellate_joint( triangles, sa, t, command, next_command );
+	}
 };
 
 // ----------------------------------------------------------------------
@@ -1393,8 +1395,9 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 
 			glm::vec2 t = glm::normalize( cubic_bezier_derivative( 1.f, command_prev->p, command->c1, command->c2, command->p ) );
 
-			tessellate_joint( triangles, stroke_attributes, t, command, command_next );
-
+			if ( command_next ) {
+				tessellate_joint( triangles, stroke_attributes, t, command, command_next );
+			}
 		} break;
 		case PathCommand::eClosePath: {
 			tessellate_thick_line_to( triangles, stroke_attributes, command_prev, &contour.commands.front(), command_next );
