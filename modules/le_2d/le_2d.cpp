@@ -19,7 +19,9 @@
 #include "le_tessellator/le_tessellator.h"
 #include "le_path/le_path.h"
 
-using vec2f = glm::vec2;
+using vec2f          = glm::vec2;
+using StrokeCapType  = le_2d_api::StrokeCapType;
+using StrokeJoinType = le_2d_api::StrokeJoinType;
 
 // A drawing context, owner of all primitives.
 struct le_2d_o {
@@ -34,9 +36,11 @@ struct node_data_t {
 };
 
 struct material_data_t {
-	uint32_t color;
-	float    stroke_weight;
-	bool     filled;
+	uint32_t       color;
+	StrokeCapType  stroke_cap_type;
+	StrokeJoinType stroke_join_type;
+	float          stroke_weight;
+	bool           filled;
 };
 
 struct circle_data_t {
@@ -259,11 +263,35 @@ static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, floa
 	}
 }
 
+// clang-format off
+le_path_api::stroke_attribute_t::LineJoinType to_path_enum(StrokeJoinType const & t){
+	switch(t){
+	case (StrokeJoinType::eStrokeJoinMiter) : return le_path_api::stroke_attribute_t::LineJoinType::eLineJoinMiter;
+	case (StrokeJoinType::eStrokeJoinBevel) : return le_path_api::stroke_attribute_t::LineJoinType::eLineJoinBevel;
+	case (StrokeJoinType::eStrokeJoinRound) : return le_path_api::stroke_attribute_t::LineJoinType::eLineJoinRound;		
+	}
+assert(false);
+return le_path_api::stroke_attribute_t::LineJoinType::eLineJoinRound; // unreachable
+}
+le_path_api::stroke_attribute_t::LineCapType to_path_enum(StrokeCapType const & t){
+	switch(t){
+	case (StrokeCapType::eStrokeCapButt)   : return le_path_api::stroke_attribute_t::LineCapType::eLineCapButt;
+	case (StrokeCapType::eStrokeCapSquare) : return le_path_api::stroke_attribute_t::LineCapType::eLineCapSquare;
+	case (StrokeCapType::eStrokeCapRound)  : return le_path_api::stroke_attribute_t::LineCapType::eLineCapRound;		
+	}
+assert(false);
+return le_path_api::stroke_attribute_t::LineCapType::eLineCapRound; // unreachable
+}
+// clang-format on
+
 // ----------------------------------------------------------------------
 
-static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry, le_path_o *path, float stroke_weight, float tolerance, uint32_t color ) {
+static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry, le_path_o *path, float tolerance, material_data_t const &material ) {
 
 	using namespace le_path;
+
+	float    stroke_weight = material.stroke_weight;
+	uint32_t color         = material.color;
 
 	if ( stroke_weight < 2.f ) {
 
@@ -451,7 +479,8 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 				le_path_api::stroke_attribute_t stroke_attribs{};
 				stroke_attribs.width          = stroke_weight;
 				stroke_attribs.tolerance      = tolerance;
-				stroke_attribs.line_join_type = le_path_api::stroke_attribute_t::eLineJoinRound;
+				stroke_attribs.line_join_type = to_path_enum( material.stroke_join_type );
+				stroke_attribs.line_cap_type  = to_path_enum( material.stroke_cap_type );
 
 				bool vertices_large_enough = le_path_i.tessellate_thick_contour( path, i, &stroke_attribs, v_data, &num_vertices );
 
@@ -564,7 +593,7 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 		if ( p->material.filled ) {
 			generate_geometry_path( geometry, path.path, path.tolerance, p->material.color );
 		} else {
-			generate_geometry_outline_path( geometry, path.path, p->material.stroke_weight, path.tolerance, p->material.color );
+			generate_geometry_outline_path( geometry, path.path, path.tolerance, p->material );
 		}
 	} break;
 	case le_2d_primitive_o::Type::eUndefined:
@@ -637,6 +666,13 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 	        .build();
 	// clang-format on
 
+	// Note: we can use DepthCompareOp::NotEqual to prevent overdraw for individual paths.
+	// This is useful for paths which self-overlap. If we want to draw such paths with
+	// transparency or blend them onto the screen, we would not like to see the self-overlap.
+	//
+	// We must then make sure though to monotonously increase a depth uniform for each path (layer)
+	// drawn, otherwise no overlap at all will be drawn.
+
 	encoder
 	    .bindGraphicsPipeline( pipeline );
 
@@ -700,9 +736,11 @@ static le_2d_primitive_o *le_2d_allocate_primitive( le_2d_o *self ) {
 	p->node.origin       = {};
 	p->node.ccw_rotation = 0;
 
-	p->material.color         = 0xffffffff;
-	p->material.stroke_weight = 0.f;
-	p->material.filled        = true;
+	p->material.color            = 0xffffffff;
+	p->material.stroke_weight    = 1.f;
+	p->material.filled           = true;
+	p->material.stroke_cap_type  = StrokeCapType::eStrokeCapRound;
+	p->material.stroke_join_type = StrokeJoinType::eStrokeJoinRound;
 
 	self->primitives.push_back( p );
 
@@ -852,6 +890,14 @@ static void le_2d_primitive_set_stroke_weight( le_2d_primitive_o *p, float weigh
 	p->material.stroke_weight = weight;
 }
 
+static void le_2d_primitive_set_stroke_cap_type( le_2d_primitive_o *p, StrokeCapType cap_type ) {
+	p->material.stroke_cap_type = cap_type;
+}
+
+static void le_2d_primitive_set_stroke_join_type( le_2d_primitive_o *p, StrokeJoinType join_type ) {
+	p->material.stroke_join_type = join_type;
+}
+
 static void le_2d_primitive_set_filled( le_2d_primitive_o *p, bool filled ) {
 	p->material.filled = filled;
 }
@@ -930,8 +976,11 @@ ISL_API_ATTR void register_le_2d_api( void *api ) {
 	le_2d_primitive_i.create_circle  = le_2d_primitive_create_circle;
 	le_2d_primitive_i.create_line    = le_2d_primitive_create_line;
 
-	le_2d_primitive_i.set_node_position = le_2d_primitive_set_node_position;
-	le_2d_primitive_i.set_stroke_weight = le_2d_primitive_set_stroke_weight;
-	le_2d_primitive_i.set_filled        = le_2d_primitive_set_filled;
-	le_2d_primitive_i.set_color         = le_2d_primitive_set_color;
+	le_2d_primitive_i.set_node_position    = le_2d_primitive_set_node_position;
+	le_2d_primitive_i.set_stroke_weight    = le_2d_primitive_set_stroke_weight;
+	le_2d_primitive_i.set_stroke_cap_type  = le_2d_primitive_set_stroke_cap_type;
+	le_2d_primitive_i.set_stroke_join_type = le_2d_primitive_set_stroke_join_type;
+
+	le_2d_primitive_i.set_filled = le_2d_primitive_set_filled;
+	le_2d_primitive_i.set_color  = le_2d_primitive_set_color;
 }

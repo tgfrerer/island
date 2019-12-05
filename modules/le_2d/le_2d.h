@@ -36,13 +36,27 @@ struct le_2d_api {
 	static constexpr auto id      = "le_2d";
 	static constexpr auto pRegFun = register_le_2d_api;
 
+	enum StrokeJoinType : uint32_t { // names for these follow svg standard: https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/stroke-linejoin
+		eStrokeJoinMiter = 0,
+		eStrokeJoinBevel,
+		eStrokeJoinRound,
+	};
+	enum StrokeCapType : uint32_t { // names for these follow SVG standard: https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/stroke-linecap
+		eStrokeCapButt = 0,
+		eStrokeCapRound,
+		eStrokeCapSquare,
+	};
+	
+
 	struct le_2d_primitive_interface_t{
 
 		void ( *set_node_position) ( le_2d_primitive_o* p, glm::vec2 const * pos );
-		void ( *set_stroke_weight) ( le_2d_primitive_o* p, float stroke_weight ); // thickness of any outlines, and lines, defaults to 0
 		void ( *set_filled) ( le_2d_primitive_o* p, bool filled); // thickness of any outlines, and lines, defaults to 0
-
 		void ( *set_color)( le_2d_primitive_o* p, uint32_t r8g8b8a8_color ); // color defaults to white
+
+		void ( *set_stroke_weight) ( le_2d_primitive_o* p, float stroke_weight ); // thickness of any outlines, and lines, defaults to 0
+		void ( *set_stroke_cap_type )( le_2d_primitive_o* p, StrokeCapType cap_type);
+		void ( *set_stroke_join_type )( le_2d_primitive_o* p, StrokeJoinType join_type);
 
 		#define SETTER_DECLARE( prim_type, field_type, field_name ) \
 		void (  *prim_type##_set_##field_name)(le_2d_primitive_o* p, field_type field_name)\
@@ -110,6 +124,9 @@ static const auto &le_2d_prim_i = api -> le_2d_primitive_i;
 } // namespace le_2d
 
 class Le2D : NoCopy, NoMove {
+
+	using StrokeJoinType = le_2d_api::StrokeJoinType;
+	using StrokeCapType  = le_2d_api::StrokeCapType;
 
 #	define BUILDER_IMPLEMENT_VEC( builder_type, obj_name, field_type, field_name ) \
 		builder_type &set_##field_name( field_type field_name ) {                   \
@@ -415,6 +432,15 @@ class Le2D : NoCopy, NoMove {
 			return *this;
 		}
 
+		PathBuilder &set_stroke_join_type( StrokeJoinType join_type ) {
+			le_2d::le_2d_prim_i.set_stroke_join_type( self, join_type );
+			return *this;
+		}
+
+		PathBuilder &set_stroke_cap_type( StrokeCapType cap_type ) {
+			le_2d::le_2d_prim_i.set_stroke_cap_type( self, cap_type );
+			return *this;
+		}
 		PathBuilder &set_filled( bool filled ) {
 			le_2d::le_2d_prim_i.set_filled( self, filled );
 			return *this;
