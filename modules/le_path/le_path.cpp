@@ -840,19 +840,39 @@ static void flatten_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
 		// if this is possible.
 
 		if ( t < 1.f ) {
+
 			r = glm::normalize( b.c1 - b.p0 );
 			s = {r.y, -r.x};
-		}
 
-		pt = b.p0 + offset * s;
+			pt = b.p0 + offset * s;
 
-		if ( x > 0 ) {
-			outline.emplace_back( pt );
-		}
+			if ( x > 0 ) {
+				outline.emplace_back( pt );
+			}
 
-		if ( t >= 1.0f )
+		} else {
 			break;
+		}
 	}
+
+	// Add a last point at exact position of tangent - we have to
+	// calculate the last point differently as with the subdividing
+	// method above we cannot calculate the tangent when t == 1.f.
+
+	// We can, however, calculate the precise tangent of the original
+	// bezier curve by taking the derivative of the curve at t == 1.f.
+
+	// -- Add last point:
+
+	// Last point sits at Bezier control parameter `t` == 1.f,
+	// at distance `offset` orthogonal to Bezier tangent at this
+	// point.
+	//
+	// Tangent is derivative of Bezier curve at `t` == 1.f.
+	glm::vec2 tangent = cubic_bezier_derivative( 1.f, b_.p0, b_.c1, b_.c2, b_.p1 );
+
+	pt = b_.p1 - offset * glm::normalize( glm::vec2{-tangent.y, tangent.x} );
+	outline.emplace_back( pt );
 }
 
 // ----------------------------------------------------------------------
