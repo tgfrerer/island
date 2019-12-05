@@ -526,12 +526,21 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 		size_t c_end   = which_region( boundaries, 4, 1.f );
 
 		if ( c_start == c_end ) {
-			// curve contained within a single segment.
 
-			// Note segments 1, and 3 are flat, they
-			// should better be represented by lines.
+			// Curve contained within a single segment.
 
-			curves.push_back( b );
+			// Note segments 1, and 3 are flat, as such they
+			// are better represented as straight lines.
+
+			if ( c_start == 1 || c_start == 3 ) {
+				CurveSegment line{Line()};
+				line.asLine.p0 = b.p0;
+				line.asLine.p1 = b.p1;
+				curves.push_back( line );
+			} else {
+				curves.push_back( b );
+			}
+
 		} else {
 
 			// Curve spans multiple segments
