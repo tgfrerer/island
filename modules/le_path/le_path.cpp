@@ -1484,6 +1484,11 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 
 			generate_offset_outline_cubic_bezier_to( vertices_l, vertices_r, command_prev->p, command->c1, command->c2, command->p, stroke_attributes->tolerance, stroke_attributes->width );
 
+			if ( vertices_l.empty() || vertices_r.empty() ) {
+				assert( false ); // something went wrong when generating vertices.
+				break;
+			}
+
 			glm::vec2 *v_l = vertices_l.data();
 			glm::vec2 *v_r = vertices_r.data();
 
