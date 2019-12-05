@@ -309,11 +309,11 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 				}
 
 				// reverse elements
-				std::reverse( vertices_r.begin(), vertices_r.begin() + num_vertices_r );
+				std::reverse( vertices_r.begin(), vertices_r.begin() + int64_t( num_vertices_r ) );
 
 				std::vector<glm::vec2> all_vertices;
-				all_vertices.insert( all_vertices.end(), vertices_l.begin(), vertices_l.begin() + num_vertices_l );
-				all_vertices.insert( all_vertices.end(), vertices_r.begin(), vertices_r.begin() + num_vertices_r );
+				all_vertices.insert( all_vertices.end(), vertices_l.begin(), vertices_l.begin() + int64_t( num_vertices_l ) );
+				all_vertices.insert( all_vertices.end(), vertices_r.begin(), vertices_r.begin() + int64_t( num_vertices_r ) );
 				all_vertices.push_back( all_vertices.front() );
 
 				auto p_prev = all_vertices.front();
@@ -352,11 +352,11 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 				}
 
 				// reverse elements
-				std::reverse( vertices_r.begin(), vertices_r.begin() + num_vertices_r );
+				std::reverse( vertices_r.begin(), vertices_r.begin() + int64_t( num_vertices_r ) );
 
 				std::vector<glm::vec2> all_vertices;
-				all_vertices.insert( all_vertices.end(), vertices_l.begin(), vertices_l.begin() + num_vertices_l );
-				all_vertices.insert( all_vertices.end(), vertices_r.begin(), vertices_r.begin() + num_vertices_r );
+				all_vertices.insert( all_vertices.end(), vertices_l.begin(), vertices_l.begin() + int64_t( num_vertices_l ) );
+				all_vertices.insert( all_vertices.end(), vertices_r.begin(), vertices_r.begin() + int64_t( num_vertices_r ) );
 
 				if ( !all_vertices.empty() ) {
 					all_vertices.push_back( all_vertices.front() );
