@@ -1380,9 +1380,58 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 		case PathCommand::eLineTo:
 			tessellate_thick_line_to( triangles, stroke_attributes, command_prev, command, command_next );
 			break;
-		case PathCommand::eQuadBezierTo:
-			// generate_offset_outline_cubic_bezier_to( outline_l, outline_r, prev_point, prev_point + 2 / 3.f * ( command.c1 - prev_point ), command.c2 + 2 / 3.f * ( command.c1 - command.c2 ), command.p, tolerance, line_weight );
-			break;
+		case PathCommand::eQuadBezierTo: {
+			std::vector<glm::vec2> vertices_l;
+			std::vector<glm::vec2> vertices_r;
+
+			glm::vec2 p0 = command_prev->p;
+			glm::vec2 p1 = command->p;
+			glm::vec2 c1 = p0 + 2.f / 3.f * ( command->c1 - p0 );
+			glm::vec2 c2 = p1 + 2 / 3.f * ( command->c1 - p1 );
+
+			generate_offset_outline_cubic_bezier_to( vertices_l, vertices_r, p0, c1, c2, p1, stroke_attributes->tolerance, stroke_attributes->width );
+
+			glm::vec2 *v_l = vertices_l.data();
+			glm::vec2 *v_r = vertices_r.data();
+
+			glm::vec2 const *l_prev = v_l;
+			glm::vec2 const *r_prev = v_r;
+
+			glm::vec2 const *l = l_prev + 1;
+			glm::vec2 const *r = r_prev + 1;
+
+			glm::vec2 const *const l_end = vertices_l.data() + vertices_l.size();
+			glm::vec2 const *const r_end = vertices_r.data() + vertices_r.size();
+
+			for ( ; ( l != l_end || r != r_end ); ) {
+
+				if ( r != r_end ) {
+
+					triangles.push_back( *l_prev );
+					triangles.push_back( *r_prev );
+					triangles.push_back( *r );
+
+					r_prev = r;
+					r++;
+				}
+
+				if ( l != l_end ) {
+
+					triangles.push_back( *l_prev );
+					triangles.push_back( *r_prev );
+					triangles.push_back( *l );
+
+					l_prev = l;
+					l++;
+				}
+			}
+
+			glm::vec2 t = glm::normalize( quad_bezier_derivative( 1.f, command_prev->p, command->c1, command->p ) );
+
+			if ( command_next ) {
+				tessellate_joint( triangles, stroke_attributes, t, command, command_next );
+			}
+		} break;
 		case PathCommand::eCubicBezierTo: {
 			std::vector<glm::vec2> vertices_l;
 			std::vector<glm::vec2> vertices_r;
