@@ -91,6 +91,8 @@ struct le_2d_api {
 		void (*path_line_to)(le_2d_primitive_o* p, glm::vec2 const * pos);
 		void (*path_quad_bezier_to)(le_2d_primitive_o* p, glm::vec2 const * p1, glm::vec2 const * c1);
 		void (*path_cubic_bezier_to)(le_2d_primitive_o* p, glm::vec2 const * p1, glm::vec2 const * c1, glm::vec2 const * c2);
+		void (*path_arc_to)(le_2d_primitive_o* p, glm::vec2 const * p1, glm::vec2 const * radii, float phi, bool large_arc, bool sweep);
+
 		void (*path_add_from_simplified_svg)(le_2d_primitive_o* p, char const * svg);
 
 		#undef SETTER_DECLARE
@@ -409,6 +411,11 @@ class Le2D : NoCopy, NoMove {
 
 		PathBuilder &cubic_bezier_to( glm::vec2 const &p, glm::vec2 const &c1, glm::vec2 const &c2 ) {
 			le_2d::le_2d_prim_i.path_cubic_bezier_to( self, &p, &c1, &c2 );
+			return *this;
+		}
+
+		PathBuilder &arc_to( glm::vec2 const &p, glm::vec2 const &radii, float phi, bool large_arc, bool sweep ) {
+			le_2d::le_2d_prim_i.path_arc_to( self, &p, &radii, phi, large_arc, sweep );
 			return *this;
 		}
 
