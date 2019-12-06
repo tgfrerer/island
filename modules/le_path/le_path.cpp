@@ -758,6 +758,21 @@ static void flatten_cubic_bezier_to( Polyline &       polyline,
 
 // ----------------------------------------------------------------------
 
+static void flatten_arc_to( Polyline &       polyline,
+                            glm::vec2 const &p1, // end point
+                            glm::vec2 const &radii,
+                            float            phi,
+                            bool             large_arc,
+                            bool             sweep,
+                            float            tolerance ) {
+
+	assert( !polyline.vertices.empty() ); // Contour vertices must not be empty.
+
+	glm::vec2 const p0 = polyline.vertices.back(); // copy start point
+}
+
+// ----------------------------------------------------------------------
+
 static void le_path_flatten_path( le_path_o *self, float tolerance ) {
 
 	self->polylines.clear();
@@ -796,6 +811,11 @@ static void le_path_flatten_path( le_path_o *self, float tolerance ) {
 				                         bez.c1,
 				                         bez.c2,
 				                         tolerance );
+				prev_point = command.p;
+			} break;
+			case PathCommand::eArcTo: {
+				auto &arc = command.data.as_arc;
+				flatten_arc_to( polyline, command.p, arc.radii, arc.phi, arc.large_arc, arc.sweep, tolerance );
 				prev_point = command.p;
 			} break;
 			case PathCommand::eClosePath:
@@ -973,7 +993,6 @@ static void generate_offset_outline_cubic_bezier_to( std::vector<glm::vec2> &out
 
 // ----------------------------------------------------------------------
 
-// ----------------------------------------------------------------------
 // Generate vertices for path outline by flattening first left, then right
 // offset outline. Offsetting cubic bezier curves is based on the T. F. Hain
 // paper from 2005.
@@ -1240,22 +1259,12 @@ static void tessellate_thick_line_to( std::vector<glm::vec2> &  triangles,
 	triangles.push_back( p1 + n * offset );
 
 	if ( next_command == nullptr ) {
-		// draw cap depending on style.
 		return;
 	}
 
-	// --------| invariant: next_command exists: we must draw joint
+	// invariant: next command exists.
 
-	glm::vec2 const &p2 = next_command->p; // FIXME: tangent depends on type of command
-
-	if ( glm::isNull( p2 - p1, 0.001f ) ) {
-		// next_command has same point as this command, we cannot use it
-		return;
-	}
-
-	if ( next_command ) {
-		tessellate_joint( triangles, sa, t, command, next_command );
-	}
+	tessellate_joint( triangles, sa, t, command, next_command );
 };
 
 // ----------------------------------------------------------------------
@@ -1378,6 +1387,9 @@ static bool get_path_endpoint_tangents( std::vector<PathCommand> const &commands
 	case ( PathCommand::eCubicBezierTo ):
 		tangent_tail = cubic_bezier_derivative( 0.f, c_tail->p, c_head->data.as_cubic_bezier.c1, c_head->data.as_cubic_bezier.c2, c_head->p );
 		break;
+	case ( PathCommand::eArcTo ):
+		// TODO: implement tangent calculation for arc tangent at tail of path
+		break;
 	default:
 		assert( false ); // unreachable
 		return false;
@@ -1397,6 +1409,9 @@ static bool get_path_endpoint_tangents( std::vector<PathCommand> const &commands
 		break;
 	case ( PathCommand::eCubicBezierTo ):
 		tangent_head = cubic_bezier_derivative( 1.f, c_tail->p, c_head->data.as_cubic_bezier.c1, c_head->data.as_cubic_bezier.c2, c_head->p );
+		break;
+	case ( PathCommand::eArcTo ):
+		// TODO: implement tangent calculation for arc tangent at head of path
 		break;
 	default:
 		assert( false ); // unreachable
@@ -1572,6 +1587,11 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 			tessellate_thick_line_to( triangles, stroke_attributes, command_prev, &contour.commands.front(), command_next );
 			break;
 		}
+		case PathCommand::eArcTo: {
+			// TODO: implement offset outline for arcTo
+			break;
+		}
+
 		case PathCommand::eUnknown:
 			assert( false );
 			break;
@@ -1640,6 +1660,7 @@ static void le_path_iterate_vertices_for_contour( le_path_o *self, size_t const 
 		case PathCommand::eLineTo:        // fall-through, as we're allways just issueing the vertex, ignoring control points
 		case PathCommand::eQuadBezierTo:  // fall-through, as we're allways just issueing the vertex, ignoring control points
 		case PathCommand::eCubicBezierTo: // fall-through, as we're allways just issueing the vertex, ignoring control points
+		case PathCommand::eArcTo:         // fall-through, as we're allways just issueing the vertex, ignoring control points
 			callback( user_data, command.p );
 			break;
 		case PathCommand::eClosePath:
@@ -1834,6 +1855,7 @@ static glm::vec2 const *le_path_get_previous_p( le_path_o *self ) {
 	case PathCommand::eLineTo:        // fall-through
 	case PathCommand::eQuadBezierTo:  // fall-through
 	case PathCommand::eCubicBezierTo: // fall-through
+	case PathCommand::eArcTo:         // fall-through
 		p = &c.p;
 		break;
 	default:
