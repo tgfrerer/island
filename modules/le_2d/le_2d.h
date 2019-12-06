@@ -414,8 +414,8 @@ class Le2D : NoCopy, NoMove {
 			return *this;
 		}
 
-		PathBuilder &arc_to( glm::vec2 const &p, glm::vec2 const &radii, float phi, bool large_arc, bool sweep ) {
-			le_2d::le_2d_prim_i.path_arc_to( self, &p, &radii, phi, large_arc, sweep );
+		PathBuilder &arc_to( glm::vec2 const &p, glm::vec2 const &radii, float phi, bool large_arc, bool sweep_cw ) {
+			le_2d::le_2d_prim_i.path_arc_to( self, &p, &radii, phi, large_arc, sweep_cw );
 			return *this;
 		}
 
