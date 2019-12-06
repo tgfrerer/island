@@ -21,12 +21,50 @@ struct PathCommand {
 		eCurveTo,
 		eQuadBezierTo = eCurveTo,
 		eCubicBezierTo,
+		eArcTo,
 		eClosePath,
-	} type = eUnknown;
+	} type;
 
-	glm::vec2 p  = {}; // end point
-	glm::vec2 c1 = {}; // control point 1
-	glm::vec2 c2 = {}; // control point 2
+	glm::vec2 p; // end point
+
+	union Data {
+		struct AsCubicBezier {
+			glm::vec2 c1; // control point 1
+			glm::vec2 c2; // control point 2
+		} as_cubic_bezier;
+		struct AsQuadBezier {
+			glm::vec2 c1; // control point 1
+		} as_quad_bezier;
+		struct AsArc {
+			glm::vec2 radii; // control point 1
+			float     phi;   // control point 2
+			bool      large_arc;
+			bool      sweep;
+		} as_arc;
+	} data;
+
+	PathCommand( glm::vec2 const &p, Data::AsCubicBezier const &as_cubic_bezier )
+	    : type( eCubicBezierTo )
+	    , p( p ) {
+		data.as_cubic_bezier = as_cubic_bezier;
+	}
+
+	PathCommand( glm::vec2 const &p, Data::AsQuadBezier const &as_quad_bezier )
+	    : type( eQuadBezierTo )
+	    , p( p ) {
+		data.as_quad_bezier = as_quad_bezier;
+	}
+
+	PathCommand( glm::vec2 const &p, Data::AsArc const &as_arc )
+	    : type( eArcTo )
+	    , p( p ) {
+		data.as_arc = as_arc;
+	}
+
+	PathCommand( Type type, glm::vec2 const &p )
+	    : type( type )
+	    , p( p ) {
+	}
 };
 
 struct Contour {
@@ -327,19 +365,21 @@ static void le_path_trace_path( le_path_o *self, size_t resolution ) {
 			case PathCommand::eLineTo:
 				trace_line_to( polyline, command.p );
 				break;
-			case PathCommand::eQuadBezierTo:
+			case PathCommand::eQuadBezierTo: {
+				auto &bez = command.data.as_quad_bezier;
 				trace_quad_bezier_to( polyline,
 				                      command.p,
-				                      command.c1,
+				                      bez.c1,
 				                      resolution );
-				break;
-			case PathCommand::eCubicBezierTo:
+			} break;
+			case PathCommand::eCubicBezierTo: {
+				auto &bez = command.data.as_cubic_bezier;
 				trace_cubic_bezier_to( polyline,
 				                       command.p,
-				                       command.c1,
-				                       command.c2,
+				                       bez.c1,
+				                       bez.c2,
 				                       resolution );
-				break;
+			} break;
 			case PathCommand::eClosePath:
 				trace_close_path( polyline );
 				break;
@@ -740,22 +780,24 @@ static void le_path_flatten_path( le_path_o *self, float tolerance ) {
 				trace_line_to( polyline, command.p );
 				prev_point = command.p;
 				break;
-			case PathCommand::eQuadBezierTo:
+			case PathCommand::eQuadBezierTo: {
+				auto &bez = command.data.as_quad_bezier;
 				flatten_cubic_bezier_to( polyline,
 				                         command.p,
-				                         prev_point + 2 / 3.f * ( command.c1 - prev_point ),
-				                         command.c2 + 2 / 3.f * ( command.c1 - command.c2 ),
+				                         prev_point + 2 / 3.f * ( bez.c1 - prev_point ),
+				                         command.p + 2 / 3.f * ( bez.c1 - command.p ),
 				                         tolerance );
 				prev_point = command.p;
-				break;
-			case PathCommand::eCubicBezierTo:
+			} break;
+			case PathCommand::eCubicBezierTo: {
+				auto &bez = command.data.as_cubic_bezier;
 				flatten_cubic_bezier_to( polyline,
 				                         command.p,
-				                         command.c1,
-				                         command.c2,
+				                         bez.c1,
+				                         bez.c2,
 				                         tolerance );
 				prev_point = command.p;
-				break;
+			} break;
 			case PathCommand::eClosePath:
 				trace_close_path( polyline );
 				break;
@@ -931,14 +973,6 @@ static void generate_offset_outline_cubic_bezier_to( std::vector<glm::vec2> &out
 
 // ----------------------------------------------------------------------
 
-static void generate_offset_outline_close_path( std::vector<glm::vec2> &outline ) {
-	// We need to have at least 3 elements in outline to be able to close a path.
-	// If so, we duplicate the first point as a last point.
-	if ( outline.size() > 2 ) {
-		outline.push_back( outline.front() );
-	}
-}
-
 // ----------------------------------------------------------------------
 // Generate vertices for path outline by flattening first left, then right
 // offset outline. Offsetting cubic bezier curves is based on the T. F. Hain
@@ -981,29 +1015,31 @@ static bool le_path_generate_offset_outline_for_contour(
 			generate_offset_outline_line_to( outline_r, prev_point, command.p, line_offset );
 			prev_point = command.p;
 			break;
-		case PathCommand::eQuadBezierTo:
+		case PathCommand::eQuadBezierTo: {
+			auto const &bez = command.data.as_quad_bezier;
 			generate_offset_outline_cubic_bezier_to( outline_l,
 			                                         outline_r,
 			                                         prev_point,
-			                                         prev_point + 2 / 3.f * ( command.c1 - prev_point ),
-			                                         command.c2 + 2 / 3.f * ( command.c1 - command.c2 ),
+			                                         prev_point + 2 / 3.f * ( bez.c1 - prev_point ),
+			                                         command.p + 2 / 3.f * ( bez.c1 - command.p ),
 			                                         command.p,
 			                                         tolerance,
 			                                         line_weight );
 
 			prev_point = command.p;
-			break;
-		case PathCommand::eCubicBezierTo:
+		} break;
+		case PathCommand::eCubicBezierTo: {
+			auto const &bez = command.data.as_cubic_bezier;
 			generate_offset_outline_cubic_bezier_to( outline_l,
 			                                         outline_r,
 			                                         prev_point,
-			                                         command.c1,
-			                                         command.c2,
+			                                         bez.c1,
+			                                         bez.c2,
 			                                         command.p,
 			                                         tolerance,
 			                                         line_weight );
 			prev_point = command.p;
-			break;
+		} break;
 		case PathCommand::eClosePath: {
 			if ( outline_l.empty() || outline_r.empty() ) {
 				break;
@@ -1063,13 +1099,15 @@ static void tessellate_joint( std::vector<glm::vec2> &  triangles,
 	glm::vec2 t1{};
 
 	if ( cmd_next->type == PathCommand::eQuadBezierTo ) {
-		t1 = quad_bezier_derivative( 0.f, cmd->p, cmd_next->c1, cmd_next->p );
+		auto const &bez = cmd_next->data.as_quad_bezier;
+		t1              = quad_bezier_derivative( 0.f, cmd->p, bez.c1, cmd_next->p );
 	} else if ( cmd_next->type == PathCommand::eCubicBezierTo ) {
-		t1 = cubic_bezier_derivative( 0.f, cmd->p, cmd_next->c1, cmd_next->c2, cmd_next->p );
-		if ( cmd_next->c1 == cmd->p ) {
+		auto const &bez = cmd_next->data.as_cubic_bezier;
+		t1              = cubic_bezier_derivative( 0.f, cmd->p, bez.c1, bez.c2, cmd_next->p );
+		if ( bez.c1 == cmd->p ) {
 			// we must account for the special case in which c1 is identical with cmd->p
 			// in which case we must point t1 to c2.
-			t1 = cmd_next->c2 - cmd->p;
+			t1 = bez.c2 - cmd->p;
 		}
 	} else {
 		t1 = p2 - p1;
@@ -1335,10 +1373,10 @@ static bool get_path_endpoint_tangents( std::vector<PathCommand> const &commands
 		tangent_tail = c_head->p - c_tail->p;
 		break;
 	case ( PathCommand::eQuadBezierTo ):
-		tangent_tail = quad_bezier_derivative( 0.f, c_tail->p, c_head->c1, c_head->p );
+		tangent_tail = quad_bezier_derivative( 0.f, c_tail->p, c_head->data.as_quad_bezier.c1, c_head->p );
 		break;
 	case ( PathCommand::eCubicBezierTo ):
-		tangent_tail = cubic_bezier_derivative( 0.f, c_tail->p, c_head->c1, c_head->c2, c_head->p );
+		tangent_tail = cubic_bezier_derivative( 0.f, c_tail->p, c_head->data.as_cubic_bezier.c1, c_head->data.as_cubic_bezier.c2, c_head->p );
 		break;
 	default:
 		assert( false ); // unreachable
@@ -1355,10 +1393,10 @@ static bool get_path_endpoint_tangents( std::vector<PathCommand> const &commands
 		tangent_head = c_head->p - c_tail->p;
 		break;
 	case ( PathCommand::eQuadBezierTo ):
-		tangent_head = quad_bezier_derivative( 1.f, c_tail->p, c_head->c1, c_head->p );
+		tangent_head = quad_bezier_derivative( 1.f, c_tail->p, c_head->data.as_quad_bezier.c1, c_head->p );
 		break;
 	case ( PathCommand::eCubicBezierTo ):
-		tangent_head = cubic_bezier_derivative( 1.f, c_tail->p, c_head->c1, c_head->c2, c_head->p );
+		tangent_head = cubic_bezier_derivative( 1.f, c_tail->p, c_head->data.as_cubic_bezier.c1, c_head->data.as_cubic_bezier.c2, c_head->p );
 		break;
 	default:
 		assert( false ); // unreachable
@@ -1409,13 +1447,14 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 			tessellate_thick_line_to( triangles, stroke_attributes, command_prev, command, command_next );
 			break;
 		case PathCommand::eQuadBezierTo: {
+			auto const &           bez = command->data.as_quad_bezier;
 			std::vector<glm::vec2> vertices_l;
 			std::vector<glm::vec2> vertices_r;
 
 			glm::vec2 p0 = command_prev->p;
 			glm::vec2 p1 = command->p;
-			glm::vec2 c1 = p0 + 2.f / 3.f * ( command->c1 - p0 );
-			glm::vec2 c2 = p1 + 2 / 3.f * ( command->c1 - p1 );
+			glm::vec2 c1 = p0 + 2.f / 3.f * ( bez.c1 - p0 );
+			glm::vec2 c2 = p1 + 2 / 3.f * ( bez.c1 - p1 );
 
 			generate_offset_outline_cubic_bezier_to( vertices_l, vertices_r, p0, c1, c2, p1, stroke_attributes->tolerance, stroke_attributes->width );
 
@@ -1456,12 +1495,12 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 
 			glm::vec2 tangent;
 
-			if ( command->c1 == command->p ) {
+			if ( bez.c1 == command->p ) {
 				// We must account for the special case in which c1 is identical with end point.
 				// in this case we calculate the tangent to point from previous point to end point.
 				tangent = command->p - command_prev->p;
 			} else {
-				tangent = quad_bezier_derivative( 1.f, command_prev->p, command->c1, command->p );
+				tangent = quad_bezier_derivative( 1.f, command_prev->p, bez.c1, command->p );
 			}
 
 			// Note that tangent at end may still bne undefined - that's the case if p0 == p1
@@ -1479,10 +1518,10 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 
 		} break;
 		case PathCommand::eCubicBezierTo: {
+			auto const &           bez = command->data.as_cubic_bezier;
 			std::vector<glm::vec2> vertices_l;
 			std::vector<glm::vec2> vertices_r;
-
-			generate_offset_outline_cubic_bezier_to( vertices_l, vertices_r, command_prev->p, command->c1, command->c2, command->p, stroke_attributes->tolerance, stroke_attributes->width );
+			generate_offset_outline_cubic_bezier_to( vertices_l, vertices_r, command_prev->p, bez.c1, bez.c2, command->p, stroke_attributes->tolerance, stroke_attributes->width );
 
 			if ( vertices_l.empty() || vertices_r.empty() ) {
 				assert( false ); // something went wrong when generating vertices.
@@ -1526,18 +1565,18 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 
 			glm::vec2 tangent;
 
-			if ( command->c2 == command->p ) {
+			if ( bez.c2 == command->p ) {
 				// We must account for the special case in which c2 is identical with end point.
 				// in this case we calculate the tangent to point from c1 to end point.
-				if ( command->c1 == command->p ) {
+				if ( bez.c1 == command->p ) {
 					// We must account for the special case in which c1 is identical with end point.
 					// in this case we calculate the tangent to point from previous point to end point.
 					tangent = command->p - command_prev->p;
 				} else {
-					tangent = command->p - command->c1;
+					tangent = command->p - bez.c1;
 				}
 			} else {
-				tangent = cubic_bezier_derivative( 1.f, command_prev->p, command->c1, command->c2, command->p );
+				tangent = cubic_bezier_derivative( 1.f, command_prev->p, bez.c1, bez.c2, command->p );
 			}
 
 			// Note that tangent at end may still be undefined - that's the case if p0 == p1
@@ -1657,7 +1696,10 @@ static void le_path_iterate_quad_beziers_for_contour( le_path_o *self, size_t co
 			p0 = command.p;
 			break;
 		case PathCommand::eQuadBezierTo:
-			callback( user_data, p0, command.p, command.c1 );
+			callback( user_data, p0, command.p, command.data.as_quad_bezier.c1 );
+			p0 = command.p;
+			break;
+		case PathCommand::eArcTo:
 			p0 = command.p;
 			break;
 		case PathCommand::eCubicBezierTo:
@@ -1785,7 +1827,7 @@ static void le_path_resample( le_path_o *self, float interval ) {
 static void le_path_move_to( le_path_o *self, glm::vec2 const *p ) {
 	// move_to means a new subpath, unless the last command was a
 	self->contours.emplace_back(); // add empty subpath
-	self->contours.back().commands.push_back( {PathCommand::eMoveTo, *p} );
+	self->contours.back().commands.emplace_back( PathCommand::eMoveTo, *p );
 }
 
 // ----------------------------------------------------------------------
@@ -1796,7 +1838,7 @@ static void le_path_line_to( le_path_o *self, glm::vec2 const *p ) {
 		le_path_move_to( self, &v0 );
 	}
 	assert( !self->contours.empty() ); //subpath must exist
-	self->contours.back().commands.push_back( {PathCommand::eLineTo, *p} );
+	self->contours.back().commands.emplace_back( PathCommand::eLineTo, *p );
 }
 
 // ----------------------------------------------------------------------
@@ -1861,20 +1903,27 @@ static void le_path_line_vert_to( le_path_o *self, float py ) {
 
 static void le_path_quad_bezier_to( le_path_o *self, glm::vec2 const *p, glm::vec2 const *c1 ) {
 	assert( !self->contours.empty() ); //contour must exist
-	self->contours.back().commands.push_back( {PathCommand::eQuadBezierTo, *p, *c1} );
+	self->contours.back().commands.emplace_back( *p, PathCommand::Data::AsQuadBezier{*c1} );
 }
 
 // ----------------------------------------------------------------------
 
 static void le_path_cubic_bezier_to( le_path_o *self, glm::vec2 const *p, glm::vec2 const *c1, glm::vec2 const *c2 ) {
 	assert( !self->contours.empty() ); //subpath must exist
-	self->contours.back().commands.push_back( {PathCommand::eCubicBezierTo, *p, *c1, *c2} );
+	self->contours.back().commands.emplace_back( *p, PathCommand::Data::AsCubicBezier{*c1, *c2} );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_path_arc_to( le_path_o *self, glm::vec2 const *p, glm::vec2 const *radii, float phi, bool large_arc, bool sweep ) {
+	assert( !self->contours.empty() ); //subpath must exist
+	self->contours.back().commands.emplace_back( *p, PathCommand::Data::AsArc{*radii, phi, large_arc, sweep} );
 }
 
 // ----------------------------------------------------------------------
 
 static void le_path_close_path( le_path_o *self ) {
-	self->contours.back().commands.push_back( {PathCommand::eClosePath} );
+	self->contours.back().commands.emplace_back( PathCommand::eClosePath, glm::vec2{} );
 }
 
 // ----------------------------------------------------------------------
@@ -2204,6 +2253,7 @@ ISL_API_ATTR void register_le_path_api( void *api ) {
 	le_path_i.line_to                 = le_path_line_to;
 	le_path_i.quad_bezier_to          = le_path_quad_bezier_to;
 	le_path_i.cubic_bezier_to         = le_path_cubic_bezier_to;
+	le_path_i.arc_to                  = le_path_arc_to;
 	le_path_i.close                   = le_path_close_path;
 	le_path_i.add_from_simplified_svg = le_path_add_from_simplified_svg;
 

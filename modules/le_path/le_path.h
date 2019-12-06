@@ -60,6 +60,7 @@ struct le_path_api {
 		void        (* line_to                   ) ( le_path_o* self, glm::vec2 const* p );
 		void        (* quad_bezier_to            ) ( le_path_o* self, glm::vec2 const* p, glm::vec2 const * c1 );
 		void        (* cubic_bezier_to           ) ( le_path_o* self, glm::vec2 const* p, glm::vec2 const * c1, glm::vec2 const * c2 );
+		void        (* arc_to                    ) ( le_path_o* self, glm::vec2 const* p, glm::vec2 const * radii, float phi, bool large_arc, bool sweep);
 		void        (* close                     ) ( le_path_o* self);
 
 		void        (* add_from_simplified_svg   ) ( le_path_o* self, char const* svg );
@@ -139,6 +140,11 @@ class Path : NoCopy, NoMove {
 
 	Path &cubicBezierTo( glm::vec2 const &p, glm::vec2 const &c1, glm::vec2 const &c2 ) {
 		le_path::le_path_i.cubic_bezier_to( self, &p, &c1, &c2 );
+		return *this;
+	}
+
+	Path &arcTo( glm::vec2 const &p, glm::vec2 const &radii, float phi, bool large_arc, bool sweep ) {
+		le_path::le_path_i.arc_to( self, &p, &radii, phi, large_arc, sweep );
 		return *this;
 	}
 
