@@ -1410,6 +1410,54 @@ static bool get_path_endpoint_tangents( std::vector<PathCommand> const &commands
 };
 
 // ----------------------------------------------------------------------
+// Tessellate a lines strip between two outlines vertices_l, vertices_r
+// into a list of triangles
+void tessellate_outline_l_r( std::vector<glm::vec2> &triangles, std::vector<glm::vec2> const &vertices_l, std::vector<glm::vec2> const &vertices_r ) {
+
+	if ( vertices_l.empty() || vertices_r.empty() ) {
+		assert( false ); // something went wrong when generating vertices.
+		return;
+	}
+
+	// ---------| vertices_l and vertices_r are not empty.
+
+	glm::vec2 const *v_l = vertices_l.data();
+	glm::vec2 const *v_r = vertices_r.data();
+
+	glm::vec2 const *l_prev = v_l;
+	glm::vec2 const *r_prev = v_r;
+
+	glm::vec2 const *l = l_prev + 1;
+	glm::vec2 const *r = r_prev + 1;
+
+	glm::vec2 const *const l_end = vertices_l.data() + vertices_l.size();
+	glm::vec2 const *const r_end = vertices_r.data() + vertices_r.size();
+
+	for ( ; ( l != l_end || r != r_end ); ) {
+
+		if ( r != r_end ) {
+
+			triangles.push_back( *l_prev );
+			triangles.push_back( *r_prev );
+			triangles.push_back( *r );
+
+			r_prev = r;
+			r++;
+		}
+
+		if ( l != l_end ) {
+
+			triangles.push_back( *l_prev );
+			triangles.push_back( *r_prev );
+			triangles.push_back( *l );
+
+			l_prev = l;
+			l++;
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
 
 bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le_path_api::stroke_attribute_t const *stroke_attributes, glm::vec2 *vertices, size_t *num_vertices ) {
 	std::vector<glm::vec2> triangles;
@@ -1457,41 +1505,7 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 			glm::vec2 c2 = p1 + 2 / 3.f * ( bez.c1 - p1 );
 
 			generate_offset_outline_cubic_bezier_to( vertices_l, vertices_r, p0, c1, c2, p1, stroke_attributes->tolerance, stroke_attributes->width );
-
-			glm::vec2 *v_l = vertices_l.data();
-			glm::vec2 *v_r = vertices_r.data();
-
-			glm::vec2 const *l_prev = v_l;
-			glm::vec2 const *r_prev = v_r;
-
-			glm::vec2 const *l = l_prev + 1;
-			glm::vec2 const *r = r_prev + 1;
-
-			glm::vec2 const *const l_end = vertices_l.data() + vertices_l.size();
-			glm::vec2 const *const r_end = vertices_r.data() + vertices_r.size();
-
-			for ( ; ( l != l_end || r != r_end ); ) {
-
-				if ( r != r_end ) {
-
-					triangles.push_back( *l_prev );
-					triangles.push_back( *r_prev );
-					triangles.push_back( *r );
-
-					r_prev = r;
-					r++;
-				}
-
-				if ( l != l_end ) {
-
-					triangles.push_back( *l_prev );
-					triangles.push_back( *r_prev );
-					triangles.push_back( *l );
-
-					l_prev = l;
-					l++;
-				}
-			}
+			tessellate_outline_l_r( triangles, vertices_l, vertices_r );
 
 			glm::vec2 tangent;
 
@@ -1523,45 +1537,7 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 			std::vector<glm::vec2> vertices_r;
 			generate_offset_outline_cubic_bezier_to( vertices_l, vertices_r, command_prev->p, bez.c1, bez.c2, command->p, stroke_attributes->tolerance, stroke_attributes->width );
 
-			if ( vertices_l.empty() || vertices_r.empty() ) {
-				assert( false ); // something went wrong when generating vertices.
-				break;
-			}
-
-			glm::vec2 *v_l = vertices_l.data();
-			glm::vec2 *v_r = vertices_r.data();
-
-			glm::vec2 const *l_prev = v_l;
-			glm::vec2 const *r_prev = v_r;
-
-			glm::vec2 const *l = l_prev + 1;
-			glm::vec2 const *r = r_prev + 1;
-
-			glm::vec2 const *const l_end = vertices_l.data() + vertices_l.size();
-			glm::vec2 const *const r_end = vertices_r.data() + vertices_r.size();
-
-			for ( ; ( l != l_end || r != r_end ); ) {
-
-				if ( r != r_end ) {
-
-					triangles.push_back( *l_prev );
-					triangles.push_back( *r_prev );
-					triangles.push_back( *r );
-
-					r_prev = r;
-					r++;
-				}
-
-				if ( l != l_end ) {
-
-					triangles.push_back( *l_prev );
-					triangles.push_back( *r_prev );
-					triangles.push_back( *l );
-
-					l_prev = l;
-					l++;
-				}
-			}
+			tessellate_outline_l_r( triangles, vertices_l, vertices_r );
 
 			glm::vec2 tangent;
 
