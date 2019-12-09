@@ -522,7 +522,15 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 		// Define a coordinate basis built on the first two points, b0, and b1
 		glm::mat2 const basis = {r, s};
 
-		float s3  = 3 * fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
+		float s3 = 3 * fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
+
+		if ( s3 <= std::numeric_limits<float>::epsilon() ) {
+			*infl_m = infl;
+			*infl_p = infl;
+
+			return;
+		}
+
 		float t_f = powf( tolerance / s3, 1.f / 3.f ); // cubic root
 
 		*infl_m = infl - t_f * ( 1 - infl );
