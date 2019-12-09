@@ -2335,6 +2335,27 @@ static void le_path_close_path( le_path_o *self ) {
 }
 
 // ----------------------------------------------------------------------
+static void le_path_ellipse( le_path_o *self, glm::vec2 const *centre, float r_x, float r_y ) {
+	glm::vec2 radii = glm::vec2{r_x, r_y};
+
+	glm::vec2 a0 = *centre + glm::vec2{r_x, 0};
+	le_path_move_to( self, &a0 );
+
+	glm::vec2 a1 = *centre + glm::vec2{0, r_y};
+	le_path_arc_to( self, &a1, &radii, 0, true, false );
+
+	glm::vec2 a2 = *centre + glm::vec2{-r_x, 0};
+	le_path_arc_to( self, &a2, &radii, 0, true, false );
+
+	glm::vec2 a3 = *centre + glm::vec2{0, -r_y};
+	le_path_arc_to( self, &a3, &radii, 0, true, false );
+
+	le_path_arc_to( self, &a0, &radii, 0, true, false );
+
+	le_path_close_path( self );
+}
+
+// ----------------------------------------------------------------------
 
 static size_t le_path_get_num_polylines( le_path_o *self ) {
 	return self->polylines.size();
@@ -2721,14 +2742,17 @@ static void le_path_add_from_simplified_svg( le_path_o *self, char const *svg ) 
 ISL_API_ATTR void register_le_path_api( void *api ) {
 	auto &le_path_i = static_cast<le_path_api *>( api )->le_path_i;
 
-	le_path_i.create                  = le_path_create;
-	le_path_i.destroy                 = le_path_destroy;
-	le_path_i.move_to                 = le_path_move_to;
-	le_path_i.line_to                 = le_path_line_to;
-	le_path_i.quad_bezier_to          = le_path_quad_bezier_to;
-	le_path_i.cubic_bezier_to         = le_path_cubic_bezier_to;
-	le_path_i.arc_to                  = le_path_arc_to;
-	le_path_i.close                   = le_path_close_path;
+	le_path_i.create          = le_path_create;
+	le_path_i.destroy         = le_path_destroy;
+	le_path_i.move_to         = le_path_move_to;
+	le_path_i.line_to         = le_path_line_to;
+	le_path_i.quad_bezier_to  = le_path_quad_bezier_to;
+	le_path_i.cubic_bezier_to = le_path_cubic_bezier_to;
+	le_path_i.arc_to          = le_path_arc_to;
+	le_path_i.close           = le_path_close_path;
+
+	le_path_i.ellipse = le_path_ellipse;
+
 	le_path_i.add_from_simplified_svg = le_path_add_from_simplified_svg;
 
 	le_path_i.get_num_contours                 = le_path_get_num_contours;

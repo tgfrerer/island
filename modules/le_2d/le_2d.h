@@ -92,6 +92,7 @@ struct le_2d_api {
 		void (*path_quad_bezier_to)(le_2d_primitive_o* p, glm::vec2 const * p1, glm::vec2 const * c1);
 		void (*path_cubic_bezier_to)(le_2d_primitive_o* p, glm::vec2 const * p1, glm::vec2 const * c1, glm::vec2 const * c2);
 		void (*path_arc_to)(le_2d_primitive_o* p, glm::vec2 const * p1, glm::vec2 const * radii, float phi, bool large_arc, bool sweep);
+		void (*path_ellipse)(le_2d_primitive_o* p, glm::vec2 const * centre, float r_x, float r_y);
 
 		void (*path_add_from_simplified_svg)(le_2d_primitive_o* p, char const * svg);
 
@@ -416,6 +417,16 @@ class Le2D : NoCopy, NoMove {
 
 		PathBuilder &arc_to( glm::vec2 const &p, glm::vec2 const &radii, float phi, bool large_arc, bool sweep_cw ) {
 			le_2d::le_2d_prim_i.path_arc_to( self, &p, &radii, phi, large_arc, sweep_cw );
+			return *this;
+		}
+
+		PathBuilder &ellipse( glm::vec2 const &centre, float r_x, float r_y ) {
+			le_2d::le_2d_prim_i.path_ellipse( self, &centre, r_x, r_y );
+			return *this;
+		}
+
+		PathBuilder &circle( glm::vec2 const &centre, float r ) {
+			le_2d::le_2d_prim_i.path_ellipse( self, &centre, r, r );
 			return *this;
 		}
 

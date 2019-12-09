@@ -63,6 +63,10 @@ struct le_path_api {
 		void        (* arc_to                    ) ( le_path_o* self, glm::vec2 const* p, glm::vec2 const * radii, float phi, bool large_arc, bool sweep);
 		void        (* close                     ) ( le_path_o* self);
 
+		// macro - style commands which resolve to a series of subcommands from above
+
+		void        (* ellipse                   ) ( le_path_o* self, glm::vec2 const* centre, float r_x, float r_y );
+
 		void        (* add_from_simplified_svg   ) ( le_path_o* self, char const* svg );
 
 		void        (* trace                     ) ( le_path_o* self, size_t resolution );
@@ -145,6 +149,16 @@ class Path : NoCopy, NoMove {
 
 	Path &arcTo( glm::vec2 const &p, glm::vec2 const &radii, float phi, bool large_arc, bool sweep ) {
 		le_path::le_path_i.arc_to( self, &p, &radii, phi, large_arc, sweep );
+		return *this;
+	}
+
+	Path &ellipse( glm::vec2 const &centre, float radiusX, float radiusY ) {
+		le_path::le_path_i.ellipse( self, &centre, radiusX, radiusY );
+		return *this;
+	}
+
+	Path &circle( glm::vec2 const &centre, float radius ) {
+		le_path::le_path_i.ellipse( self, &centre, radius, radius );
 		return *this;
 	}
 
