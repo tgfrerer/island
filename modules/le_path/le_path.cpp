@@ -817,7 +817,7 @@ static void flatten_arc_to( Polyline &       polyline,
 	                  ( rxsq * y_sq +
 	                    rysq * x_sq );
 
-	// Woah! that fabsf is not in the implementation notes...
+	// Woah! that fabsf is not in the w3c implementation notes...
 	// We need it for the special case where the sqrt_term
 	// would get negative.
 	//
@@ -975,10 +975,10 @@ static void generate_offset_outline_line_to( std::vector<glm::vec2> &outline, gl
 
 // ----------------------------------------------------------------------
 
-static void flatten_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
-                                             CubicBezier const &     b_,
-                                             float                   tolerance,
-                                             float                   offset ) {
+static void generate_offset_outline_cubic_bezier_segment_to( std::vector<glm::vec2> &outline,
+                                                             CubicBezier const &     b_,
+                                                             float                   tolerance,
+                                                             float                   offset ) {
 
 	CubicBezier b = b_;
 
@@ -1102,8 +1102,8 @@ static void generate_offset_outline_cubic_bezier_to( std::vector<glm::vec2> &out
 
 		switch ( s.type ) {
 		case ( CurveSegment::Type::eCubicBezier ):
-			flatten_cubic_bezier_segment_to( outline_l, s.asCubicBezier, tolerance, -line_weight * 0.5f );
-			flatten_cubic_bezier_segment_to( outline_r, s.asCubicBezier, tolerance, line_weight * 0.5f );
+			generate_offset_outline_cubic_bezier_segment_to( outline_l, s.asCubicBezier, tolerance, -line_weight * 0.5f );
+			generate_offset_outline_cubic_bezier_segment_to( outline_r, s.asCubicBezier, tolerance, line_weight * 0.5f );
 			break;
 		case ( CurveSegment::Type::eLine ):
 			generate_offset_outline_line_to( outline_l, s.asLine.p0, s.asLine.p1, -line_weight * 0.5f );
