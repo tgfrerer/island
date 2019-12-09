@@ -1114,6 +1114,156 @@ static void generate_offset_outline_cubic_bezier_to( std::vector<glm::vec2> &out
 }
 
 // ----------------------------------------------------------------------
+// translates arc into straight polylines - while respecting tolerance.
+static void generate_offset_outline_arc_to( std::vector<glm::vec2> &outline_l,
+                                            std::vector<glm::vec2> &outline_r,
+                                            glm::vec2 const &       p0, // start point
+                                            glm::vec2 const &       p1, // end point
+                                            glm::vec2 const &       radii_,
+                                            float                   phi,
+                                            bool                    large_arc,
+                                            bool                    sweep,
+                                            float                   tolerance,
+                                            float                   line_weight ) {
+
+	assert( !outline_l.empty() ); // Outline vertices_l must not be empty.
+	assert( !outline_r.empty() ); // Outline vertices_r must not be empty.
+
+	// If any or both of radii.x or radii.y is 0, then we must treat the
+	// arc as a straight line:
+	//
+	if ( fabsf( radii_.x * radii_.y ) <= std::numeric_limits<float>::epsilon() ) {
+		generate_offset_outline_line_to( outline_l, p0, p1, -line_weight * 0.5f );
+		generate_offset_outline_line_to( outline_r, p0, p1, +line_weight * 0.5f );
+		return;
+	}
+
+	// ---------| Invariant: radii.x and radii.y are not 0.
+
+	// First, we perform an endpoint to centre form conversion, following the
+	// implementation notes of the w3/svg standards group.
+	//
+	// See: <https://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter>
+	//
+	glm::vec2 x_axis{cosf( phi ), sinf( phi )};
+	glm::vec2 y_axis{-x_axis.y, x_axis.x};
+	glm::mat2 basis{x_axis, y_axis};
+	glm::mat2 inv_basis = glm::transpose( basis );
+
+	glm::vec2 x_ = basis * ( ( p0 - p1 ) / 2.f ); // "x dash"
+
+	float x_sq = x_.x * x_.x;
+	float y_sq = x_.y * x_.y;
+
+	glm::vec2 r    = glm::vec2{fabsf( radii_.x ), fabsf( radii_.y )}; // TODO: make sure radius is large enough.
+	float     rxsq = r.x * r.x;
+	float     rysq = r.y * r.y;
+
+	// Ensure radius is large enough
+	//
+	float lambda = x_sq / rxsq + y_sq / rysq;
+	if ( lambda > 1 ) {
+		float sqrt_lambda = sqrtf( lambda );
+		r *= sqrt_lambda;
+		rxsq = r.x * r.x;
+		rysq = r.y * r.y;
+	}
+	// ----------| Invariant: radius is large enough
+
+	float sqrt_sign = ( large_arc == sweep ) ? -1.f : 1.f;
+	float sqrt_term = ( rxsq * rysq -
+	                    rxsq * y_sq -
+	                    rysq * x_sq ) /
+	                  ( rxsq * y_sq +
+	                    rysq * x_sq );
+
+	// Woah! that fabsf is not in the w3c implementation notes...
+	// We need it for the special case where the sqrt_term
+	// would get negative.
+	//
+	glm::vec2 c_ = sqrtf( fabsf( sqrt_term ) ) * sqrt_sign *
+	               glm::vec2( ( r.x * x_.y ) / r.y,
+	                          ( -r.y * x_.x ) / r.x );
+
+	glm::vec2 c = inv_basis * c_ + ( ( p0 + p1 ) / 2.f );
+
+	glm::vec2 u = glm::normalize( ( x_ - c_ ) / r );
+	glm::vec2 v = glm::normalize( ( -x_ - c_ ) / r );
+
+	// Note that it's important to take the oriented, and not just the absolute angle here.
+	//
+	float theta_1     = glm::orientedAngle( glm::vec2{1, 0}, u );
+	float theta_delta = fmodf( glm::orientedAngle( u, v ), glm::two_pi<float>() );
+
+	// No Sweep: Angles must be decreasing
+	if ( sweep == false && theta_delta > 0 ) {
+		theta_delta = theta_delta - glm::two_pi<float>();
+	}
+
+	// Sweep: Angles must be increasing
+	if ( sweep == true && theta_delta < 0 ) {
+		theta_delta = theta_delta + glm::two_pi<float>();
+	}
+
+	if ( fabsf( theta_delta ) <= std::numeric_limits<float>::epsilon() ) {
+		return;
+	}
+
+	// --------- | Invariant: delta_theta is not zero.
+
+	float theta     = theta_1;
+	float theta_end = theta_1 + theta_delta;
+
+	glm::vec2 n = glm::vec2{cosf( theta ), sinf( theta )};
+
+	float const offset  = line_weight * 0.5f;
+	glm::vec2   p1_perp = glm::normalize( glm::vec2{r.y, r.x} * n );
+
+	glm::vec2 p_far  = c + inv_basis * ( n * r - p1_perp * offset );
+	glm::vec2 p_near = c + inv_basis * ( n * r + p1_perp * offset );
+
+	outline_l.push_back( p_near );
+	outline_r.push_back( p_far );
+
+	// We are much more likely to break ealier - but we add a counter as an upper bound
+	// to this loop to minimise getting trapped in an endless loop in case of some NaN
+	// mishap.
+	//
+	for ( size_t i = 0; i <= 1000; i++ ) {
+
+		float r_length = glm::dot( glm::vec2{fabsf( n.x ), fabsf( n.y )}, glm::abs( inv_basis * r ) );
+
+		float angle_offset = acosf( 1 - ( tolerance / r_length ) );
+
+		if ( !sweep ) {
+			theta = std::max( theta - angle_offset, theta_end );
+		} else {
+			theta = std::min( theta + angle_offset, theta_end );
+		}
+
+		n = {cosf( theta ), sinf( theta )};
+
+		glm::vec2 arc_pt = r * n;
+		arc_pt           = inv_basis * arc_pt + c;
+
+		p1_perp = glm::normalize( glm::vec2{r.y, r.x} * n );
+
+		p_far  = c + inv_basis * ( n * r - p1_perp * offset );
+		p_near = c + inv_basis * ( n * r + p1_perp * offset );
+
+		outline_l.push_back( p_near );
+		outline_r.push_back( p_far );
+
+		if ( !sweep && theta <= theta_end ) {
+			break;
+		}
+		if ( sweep && theta >= theta_end ) {
+			break;
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
 
 // Generate vertices for path outline by flattening first left, then right
 // offset outline. Offsetting cubic bezier curves is based on the T. F. Hain
@@ -1156,6 +1306,11 @@ static bool le_path_generate_offset_outline_for_contour(
 			generate_offset_outline_line_to( outline_r, prev_point, command.p, line_offset );
 			prev_point = command.p;
 			break;
+		case PathCommand::eArcTo: {
+			auto const &arc = command.data.as_arc;
+			generate_offset_outline_arc_to( outline_l, outline_r, prev_point, command.p, arc.radii, arc.phi, arc.large_arc, arc.sweep, tolerance, line_weight );
+			prev_point = command.p;
+		} break;
 		case PathCommand::eQuadBezierTo: {
 			auto const &bez = command.data.as_quad_bezier;
 			generate_offset_outline_cubic_bezier_to( outline_l,
