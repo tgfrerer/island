@@ -2401,6 +2401,31 @@ static bool is_character_match( char const needle, char const *c, int *offset ) 
 	}
 }
 
+// Returns true if character is either 0, or 1.
+// Sets *value to `true` if character is 1,
+// Sets *value to `false` if character is 0.
+// Increases *offset by 1 if returns true
+static bool is_boolean_zero_or_one( char const *c, int *offset, bool *value ) {
+	if ( *c == 0 ) {
+		return false;
+	}
+	// ---------| invarant: c is not end of string
+
+	if ( is_character_match( '0', c, offset ) ) {
+		*value = false;
+		return true;
+	}
+	if ( is_character_match( '1', c, offset ) ) {
+		*value = true;
+		return true;
+	}
+
+	// ----------| invariant: nothing found.
+
+	*value = false;
+	return false;
+}
+
 // Returns true if what c points to may be interpreted as
 // whitespace, and sets offset to the count of whitespace
 // characters.
@@ -2516,10 +2541,10 @@ static bool is_v_instruction( char const *c, int *offset, float *py ) {
 // A 'c' instruction is a cubic bezier instruction.
 // In case this method returns true,
 // + `*offset` will hold the count of characters from `c` spent on the instruction.
-// + `*p0` will hold the value of control point 0
-// + `*p1` will hold the value of control point 1
-// + `*p2` will hold the value of the target point
-static bool is_c_instruction( char const *c, int *offset, glm::vec2 *p0, glm::vec2 *p1, glm::vec2 *p2 ) {
+// + `*c1` will hold the value of control point 0
+// + `*c2` will hold the value of control point 1
+// + `*p1` will hold the value of the target point
+static bool is_c_instruction( char const *c, int *offset, glm::vec2 *c1, glm::vec2 *c2, glm::vec2 *p1 ) {
 	if ( *c == 0 )
 		return false;
 
@@ -2527,11 +2552,11 @@ static bool is_c_instruction( char const *c, int *offset, glm::vec2 *p0, glm::ve
 
 	return is_character_match( 'C', c, &local_offset ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
-	       is_coordinate_pair( c + local_offset, &local_offset, p0 ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, c1 ) &&
+	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, c2 ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, p1 ) &&
-	       is_whitespace( c + local_offset, &local_offset ) &&
-	       is_coordinate_pair( c + local_offset, &local_offset, p2 ) &&
 	       add_offsets( &local_offset, offset );
 }
 
@@ -2539,9 +2564,9 @@ static bool is_c_instruction( char const *c, int *offset, glm::vec2 *p0, glm::ve
 // A 'q' instruction is a quadratic bezier instruction.
 // In case this method returns true,
 // + `*offset` will hold the count of characters from `c` spent on the instruction.
-// + `*p0` will hold the value of the control point
+// + `*c1` will hold the value of the control point
 // + `*p1` will hold the value of the target point
-static bool is_q_instruction( char const *c, int *offset, glm::vec2 *p0, glm::vec2 *p1 ) {
+static bool is_q_instruction( char const *c, int *offset, glm::vec2 *c1, glm::vec2 *p1 ) {
 	if ( *c == 0 )
 		return false;
 
@@ -2549,7 +2574,36 @@ static bool is_q_instruction( char const *c, int *offset, glm::vec2 *p0, glm::ve
 
 	return is_character_match( 'Q', c, &local_offset ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
-	       is_coordinate_pair( c + local_offset, &local_offset, p0 ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, c1 ) &&
+	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, p1 ) &&
+	       add_offsets( &local_offset, offset );
+}
+
+// Return true if string `c` can be evaluated as a 'a' instruction.
+// An 'a' instruction is an arc_to instruction
+// In case this method returns true,
+// + `*offset` will hold the count of characters from `c` spent on the instruction.
+// + `*radii` will hold the value of the radii
+// + `*x_axis_rotation` will hold the value of the x axis rotation of the ellipse arc
+// + `*large_arc_flag` will hold a flag indicating whether to trace the large arc(true), or the short arc(false)
+// + `*sweep_flag` will hold a flag indicating whether to trace the arc in negative direction (true), or in positive direction (false)
+// + `*p1` will hold the value of the target point
+static bool is_a_instruction( char const *c, int *offset, glm::vec2 *radii, float *x_axis_rotation, bool *large_arc_flag, bool *sweep_flag, glm::vec2 *p1 ) {
+	if ( *c == 0 )
+		return false;
+
+	int local_offset = 0;
+
+	return is_character_match( 'A', c, &local_offset ) &&
+	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_coordinate_pair( c + local_offset, &local_offset, radii ) &&
+	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_float_number( c + local_offset, &local_offset, x_axis_rotation ) &&
+	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_boolean_zero_or_one( c + local_offset, &local_offset, large_arc_flag ) &&
+	       is_whitespace( c + local_offset, &local_offset ) &&
+	       is_boolean_zero_or_one( c + local_offset, &local_offset, sweep_flag ) &&
 	       is_whitespace( c + local_offset, &local_offset ) &&
 	       is_coordinate_pair( c + local_offset, &local_offset, p1 ) &&
 	       add_offsets( &local_offset, offset );
@@ -2569,6 +2623,7 @@ static bool is_q_instruction( char const *c, int *offset, glm::vec2 *p0, glm::ve
 //	 - 'C', with params { c0, c1, p } (cubic bezier to),
 //	 - 'Q', with params { c0,  p,   } (quad bezier to),
 //	 - 'Z', with params {           } (close path)
+//   - 'A', with params { r, x-rot, large-arc-flag, sweep-flag, p } (arc to)
 //
 // You may set up Inkscape to output simplified SVG via:
 // `Edit -> Preferences -> SVG Output ->
@@ -2578,50 +2633,61 @@ static void le_path_add_from_simplified_svg( le_path_o *self, char const *svg ) 
 
 	char const *c = svg;
 
-	glm::vec2 p0 = {};
-	glm::vec2 p1 = {};
-	glm::vec2 p2 = {};
+	glm::vec2 p                 = {};
+	glm::vec2 c1                = {};
+	glm::vec2 c2                = {};
+	glm::vec2 radii             = {};
+	float     arc_axis_rotation = {};
+	bool      arc_large{};
+	bool      arc_sweep{};
 
 	for ( ; *c != 0; ) // We test for the \0 character, end of c-string
 	{
 
 		int offset = 0;
 
-		if ( is_m_instruction( c, &offset, &p0 ) ) {
+		if ( is_m_instruction( c, &offset, &p ) ) {
 			// moveto event
-			le_path_move_to( self, &p0 );
+			le_path_move_to( self, &p );
 			c += offset;
 			continue;
 		}
-		if ( is_l_instruction( c, &offset, &p0 ) ) {
+		if ( is_l_instruction( c, &offset, &p ) ) {
 			// lineto event
-			le_path_line_to( self, &p0 );
+			le_path_line_to( self, &p );
 			c += offset;
 			continue;
 		}
-		if ( is_h_instruction( c, &offset, &p0.x ) ) {
+		if ( is_h_instruction( c, &offset, &p.x ) ) {
 			// lineto event
-			le_path_line_horiz_to( self, p0.x );
+			le_path_line_horiz_to( self, p.x );
 			c += offset;
 			continue;
 		}
-		if ( is_v_instruction( c, &offset, &p0.y ) ) {
+		if ( is_v_instruction( c, &offset, &p.y ) ) {
 			// lineto event
-			le_path_line_vert_to( self, p0.y );
+			le_path_line_vert_to( self, p.y );
 			c += offset;
 			continue;
 		}
-		if ( is_c_instruction( c, &offset, &p0, &p1, &p2 ) ) {
+		if ( is_c_instruction( c, &offset, &p, &c1, &c2 ) ) {
 			// cubic bezier event
-			le_path_cubic_bezier_to( self, &p2, &p0, &p1 ); // Note that end vertex is p2 from SVG,
-			                                                // as SVG has target vertex as last vertex
+			le_path_cubic_bezier_to( self, &c2, &p, &c1 ); // Note that end vertex is p2 from SVG,
+			                                               // as SVG has target vertex as last vertex
 			c += offset;
 			continue;
 		}
-		if ( is_q_instruction( c, &offset, &p0, &p1 ) ) {
+		if ( is_q_instruction( c, &offset, &p, &c1 ) ) {
 			// quadratic bezier event
-			le_path_quad_bezier_to( self, &p1, &p0 ); // Note that target vertex is p1 from SVG,
-			                                          // as SVG has target vertex as last vertex
+			le_path_quad_bezier_to( self, &c1, &p ); // Note that target vertex is p1 from SVG,
+			                                         // as SVG has target vertex as last vertex
+			c += offset;
+			continue;
+		}
+		if ( is_a_instruction( c, &offset, &radii, &arc_axis_rotation, &arc_large, &arc_sweep, &c1 ) ) {
+			// arc event
+			le_path_arc_to( self, &c1, &radii, arc_axis_rotation, arc_large, arc_sweep ); // Note that target vertex is p1 from SVG,
+
 			c += offset;
 			continue;
 		}
