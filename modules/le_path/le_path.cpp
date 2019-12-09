@@ -818,7 +818,8 @@ static void flatten_arc_to( Polyline &       polyline,
 	                    rysq * x_sq );
 
 	// Woah! that fabsf is not in the implementation notes...
-	// We need it for the special case where
+	// We need it for the special case where the sqrt_term
+	// would get negative.
 	//
 	glm::vec2 c_ = sqrtf( fabsf( sqrt_term ) ) * sqrt_sign *
 	               glm::vec2( ( r.x * x_.y ) / r.y,
@@ -829,25 +830,21 @@ static void flatten_arc_to( Polyline &       polyline,
 	glm::vec2 u = glm::normalize( ( x_ - c_ ) / r );
 	glm::vec2 v = glm::normalize( ( -x_ - c_ ) / r );
 
-	// same as glm::orientedAngle
-	//	auto angle = []( glm::vec2 const &u, glm::vec2 const &v ) -> float {
-	//		return copysignf( acosf( glm::dot( u, v ) ), u.x * v.y - u.y * v.x );
-	//	};
-
+	// Note that it's important to take the oriented, and not just the absolute angle here.
+	//
 	float theta_1     = glm::orientedAngle( glm::vec2{1, 0}, u );
 	float theta_delta = fmodf( glm::orientedAngle( u, v ), glm::two_pi<float>() );
 
-	// angles must be decreasing
+	// No Sweep: Angles must be decreasing
 	if ( sweep == false && theta_delta > 0 ) {
 		theta_delta = theta_delta - glm::two_pi<float>();
 	}
 
-	// angles must be increaseing
+	// Sweep: Angles must be increasing
 	if ( sweep == true && theta_delta < 0 ) {
 		theta_delta = theta_delta + glm::two_pi<float>();
 	}
 
-	// ---------
 
 	// TODO: use flatness to figure
 	// out how far each segment is allowed to go.
