@@ -758,6 +758,101 @@ static void flatten_cubic_bezier_to( Polyline &       polyline,
 
 // ----------------------------------------------------------------------
 // translates arc into straight polylines - while respecting tolerance.
+static glm::vec2 get_arc_tangent_at_normalised_t( glm::vec2 const &p0, // end point
+                                                  glm::vec2 const &p1, // end point
+                                                  glm::vec2 const &radii,
+                                                  float            phi,
+                                                  bool             large_arc,
+                                                  bool             sweep,
+                                                  float            t // [0..1] normalised over [theta..theta+delta_theta]
+) {
+
+	// If any or both of radii.x or radii.y is 0, then we must treat the
+	// arc as a straight line:
+	//
+	if ( fabsf( radii.x * radii.y ) <= std::numeric_limits<float>::epsilon() ) {
+		return glm::normalize( p1 - p0 );
+	}
+
+	// ---------| Invariant: radii.x and radii.y are not 0.
+
+	// First, we perform an endpoint to centre form conversion, following the
+	// implementation notes of the w3/svg standards group.
+	//
+	// See: <https://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter>
+	//
+	glm::vec2 x_axis{cosf( phi ), sinf( phi )};
+	glm::vec2 y_axis{-x_axis.y, x_axis.x};
+	glm::mat2 basis{x_axis, y_axis};
+	glm::mat2 inv_basis = glm::transpose( basis );
+
+	glm::vec2 x_ = basis * ( ( p0 - p1 ) / 2.f ); // "x dash"
+
+	float x_sq = x_.x * x_.x;
+	float y_sq = x_.y * x_.y;
+
+	glm::vec2 r    = glm::vec2{fabsf( radii.x ), fabsf( radii.y )}; // TODO: make sure radius is large enough.
+	float     rxsq = r.x * r.x;
+	float     rysq = r.y * r.y;
+
+	// Ensure radius is large enough
+	//
+	float lambda = x_sq / rxsq + y_sq / rysq;
+	if ( lambda > 1 ) {
+		float sqrt_lambda = sqrtf( lambda );
+		r *= sqrt_lambda;
+		rxsq = r.x * r.x;
+		rysq = r.y * r.y;
+	}
+	// ----------| Invariant: radius is large enough
+
+	float sqrt_sign = ( large_arc == sweep ) ? -1.f : 1.f;
+	float sqrt_term = ( rxsq * rysq -
+	                    rxsq * y_sq -
+	                    rysq * x_sq ) /
+	                  ( rxsq * y_sq +
+	                    rysq * x_sq );
+
+	// Woah! that fabsf is not in the w3c implementation notes...
+	// We need it for the special case where the sqrt_term
+	// would get negative.
+	//
+	glm::vec2 c_ = sqrtf( fabsf( sqrt_term ) ) * sqrt_sign *
+	               glm::vec2( ( r.x * x_.y ) / r.y,
+	                          ( -r.y * x_.x ) / r.x );
+
+	glm::vec2 u = glm::normalize( ( x_ - c_ ) / r );
+	glm::vec2 v = glm::normalize( ( -x_ - c_ ) / r );
+
+	// Note that it's important to take the oriented, and not just the absolute angle here.
+	//
+	float theta_1     = glm::orientedAngle( glm::vec2{1, 0}, u );
+	float theta_delta = fmodf( glm::orientedAngle( u, v ), glm::two_pi<float>() );
+
+	// No Sweep: Angles must be decreasing
+	if ( sweep == false && theta_delta > 0 ) {
+		theta_delta = theta_delta - glm::two_pi<float>();
+	}
+
+	// Sweep: Angles must be increasing
+	if ( sweep == true && theta_delta < 0 ) {
+		theta_delta = theta_delta + glm::two_pi<float>();
+	}
+
+	// --------- | Invariant: delta_theta is not zero.
+
+	float     theta   = theta_1 + theta_delta * t;
+	glm::vec2 tangent = inv_basis * ( r * glm::vec2{-sinf( theta ), cosf( theta )} );
+
+	if ( sweep ) {
+		return tangent;
+	} else {
+		return -tangent;
+	}
+}
+
+// ----------------------------------------------------------------------
+// translates arc into straight polylines - while respecting tolerance.
 static void flatten_arc_to( Polyline &       polyline,
                             glm::vec2 const &p1, // end point
                             glm::vec2 const &radii,
@@ -1126,9 +1221,6 @@ static void generate_offset_outline_arc_to( std::vector<glm::vec2> &outline_l,
                                             float                   tolerance,
                                             float                   line_weight ) {
 
-	assert( !outline_l.empty() ); // Outline vertices_l must not be empty.
-	assert( !outline_r.empty() ); // Outline vertices_r must not be empty.
-
 	// If any or both of radii.x or radii.y is 0, then we must treat the
 	// arc as a straight line:
 	//
@@ -1231,7 +1323,11 @@ static void generate_offset_outline_arc_to( std::vector<glm::vec2> &outline_l,
 	//
 	for ( size_t i = 0; i <= 1000; i++ ) {
 
-		float r_length = glm::dot( glm::vec2{fabsf( n.x ), fabsf( n.y )}, glm::abs( inv_basis * r ) );
+		// Note: The calculation for `r_length`, and `angle_offset` is based on flatness
+		// calculation formula for a circle, and some mathematical intuition.
+		// It is, in short, not proven to be correct.
+		//
+		float r_length = glm::dot( glm::vec2{fabsf( n.x ), fabsf( n.y )}, glm::abs( r ) + glm::abs( p1_perp * offset ) );
 
 		float angle_offset = acosf( 1 - ( tolerance / r_length ) );
 
@@ -1374,6 +1470,8 @@ static bool le_path_generate_offset_outline_for_contour(
 	return success;
 }
 
+// ----------------------------------------------------------------------
+
 static void tessellate_joint( std::vector<glm::vec2> &  triangles,
                               stroke_attribute_t const *sa,
                               glm::vec2                 t,
@@ -1405,6 +1503,10 @@ static void tessellate_joint( std::vector<glm::vec2> &  triangles,
 			// in which case we must point t1 to c2.
 			t1 = bez.c2 - cmd->p;
 		}
+	} else if ( cmd_next->type == PathCommand::eArcTo ) {
+		auto const &arc = cmd_next->data.as_arc;
+		t1              = get_arc_tangent_at_normalised_t( cmd->p, cmd_next->p, arc.radii, arc.phi, arc.large_arc, arc.sweep, 0.f );
+
 	} else {
 		t1 = p2 - p1;
 	}
@@ -1655,18 +1757,19 @@ static bool get_path_endpoint_tangents( std::vector<PathCommand> const &commands
 	auto c_head = cmds_start + 1;
 
 	switch ( c_head->type ) {
-	case PathCommand::eLineTo:
+	case PathCommand::eLineTo: {
 		tangent_tail = c_head->p - c_tail->p;
-		break;
-	case ( PathCommand::eQuadBezierTo ):
+	} break;
+	case ( PathCommand::eQuadBezierTo ): {
 		tangent_tail = quad_bezier_derivative( 0.f, c_tail->p, c_head->data.as_quad_bezier.c1, c_head->p );
-		break;
-	case ( PathCommand::eCubicBezierTo ):
+	} break;
+	case ( PathCommand::eCubicBezierTo ): {
 		tangent_tail = cubic_bezier_derivative( 0.f, c_tail->p, c_head->data.as_cubic_bezier.c1, c_head->data.as_cubic_bezier.c2, c_head->p );
-		break;
-	case ( PathCommand::eArcTo ):
-		// TODO: implement tangent calculation for arc tangent at tail of path
-		break;
+	} break;
+	case ( PathCommand::eArcTo ): {
+		auto &arc    = c_head->data.as_arc;
+		tangent_tail = get_arc_tangent_at_normalised_t( c_tail->p, c_head->p, arc.radii, arc.phi, arc.large_arc, arc.sweep, 0.f );
+	} break;
 	default:
 		assert( false ); // unreachable
 		return false;
@@ -1678,18 +1781,19 @@ static bool get_path_endpoint_tangents( std::vector<PathCommand> const &commands
 	c_head = cmds_end - 1;
 
 	switch ( c_head->type ) {
-	case PathCommand::eLineTo:
+	case PathCommand::eLineTo: {
 		tangent_head = c_head->p - c_tail->p;
-		break;
-	case ( PathCommand::eQuadBezierTo ):
+	} break;
+	case ( PathCommand::eQuadBezierTo ): {
 		tangent_head = quad_bezier_derivative( 1.f, c_tail->p, c_head->data.as_quad_bezier.c1, c_head->p );
-		break;
-	case ( PathCommand::eCubicBezierTo ):
+	} break;
+	case ( PathCommand::eCubicBezierTo ): {
 		tangent_head = cubic_bezier_derivative( 1.f, c_tail->p, c_head->data.as_cubic_bezier.c1, c_head->data.as_cubic_bezier.c2, c_head->p );
-		break;
-	case ( PathCommand::eArcTo ):
-		// TODO: implement tangent calculation for arc tangent at head of path
-		break;
+	} break;
+	case ( PathCommand::eArcTo ): {
+		auto &arc    = c_head->data.as_arc;
+		tangent_head = get_arc_tangent_at_normalised_t( c_tail->p, c_head->p, arc.radii, arc.phi, arc.large_arc, arc.sweep, 1.f );
+	} break;
 	default:
 		assert( false ); // unreachable
 		return false;
@@ -1865,7 +1969,29 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 			break;
 		}
 		case PathCommand::eArcTo: {
-			// TODO: implement offset outline for arcTo
+
+			auto const &           arc = command->data.as_arc;
+			std::vector<glm::vec2> vertices_l;
+			std::vector<glm::vec2> vertices_r;
+			generate_offset_outline_arc_to( vertices_l, vertices_r, command_prev->p, command->p, arc.radii, arc.phi, arc.large_arc, arc.sweep, stroke_attributes->tolerance, stroke_attributes->width );
+
+			tessellate_outline_l_r( triangles, vertices_l, vertices_r );
+
+			glm::vec2 tangent;
+
+			tangent = get_arc_tangent_at_normalised_t( command_prev->p, command->p, arc.radii, arc.phi, arc.large_arc, arc.sweep, 1.f );
+			// Note that tangent at end may still be undefined - that's the case if p0 == p1
+			// we test against this case by splitting apart the normalisation of the tangent -
+			// we first calculate the length (against which we may test) - in case of
+			// undefined tangent, length will be very close to zero.
+			//
+			float tangent_length = glm::length( tangent );
+
+			if ( command_next && ( tangent_length > std::numeric_limits<float>::epsilon() ) ) {
+				// invariant: tangent_length > 0
+				tangent /= tangent_length;
+				tessellate_joint( triangles, stroke_attributes, tangent, command, command_next );
+			}
 			break;
 		}
 
@@ -1899,7 +2025,6 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 				draw_cap_round( triangles, head->p, {tangent_head.y, -tangent_head.x}, stroke_attributes );
 				draw_cap_round( triangles, tail->p, {-tangent_tail.y, tangent_tail.x}, stroke_attributes );
 			} else if ( stroke_attributes->line_cap_type == stroke_attribute_t::LineCapType::eLineCapSquare ) {
-
 				draw_cap_square( triangles, head->p, {tangent_head.y, -tangent_head.x}, stroke_attributes );
 				draw_cap_square( triangles, tail->p, {-tangent_tail.y, tangent_tail.x}, stroke_attributes );
 			}
