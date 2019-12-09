@@ -845,21 +845,51 @@ static void flatten_arc_to( Polyline &       polyline,
 		theta_delta = theta_delta + glm::two_pi<float>();
 	}
 
+	if ( fabsf( theta_delta ) <= std::numeric_limits<float>::epsilon() ) {
+		return;
+	}
 
-	// TODO: use flatness to figure
-	// out how far each segment is allowed to go.
-	float theta_segment = theta_delta / 100.f;
+	// --------- | Invariant: delta_theta is not zero.
+
+	float theta     = theta_1;
+	float theta_end = theta_1 + theta_delta;
 
 	glm::vec2 prev_pt = polyline.vertices.back();
+	glm::vec2 n       = glm::vec2{cosf( theta ), sinf( theta )};
 
-	for ( size_t i = 0; i <= 100; i++ ) {
-		glm::vec2 arc_pt = r * glm::vec2{cosf( theta_1 + theta_segment * i ), sinf( theta_1 + theta_segment * i )};
+	// We are much more likely to break ealier - but we add a counter as an upper bound
+	// to this loop to minimise getting trapped in an endless loop in case of some NaN
+	// mishap.
+	//
+	for ( size_t i = 0; i <= 1000; i++ ) {
+
+		float r_length = glm::dot( glm::vec2{fabsf( n.x ), fabsf( n.y )}, glm::abs( inv_basis * radii ) );
+
+		float angle_offset = acosf( 1 - ( tolerance / r_length ) );
+
+		if ( !sweep ) {
+			theta = std::max( theta - angle_offset, theta_end );
+		} else {
+			theta = std::min( theta + angle_offset, theta_end );
+		}
+
+		n = {cosf( theta ), sinf( theta )};
+
+		glm::vec2 arc_pt = r * n;
 		arc_pt           = inv_basis * arc_pt + c;
 
 		polyline.vertices.push_back( arc_pt );
-		polyline.distances.push_back( polyline.distances.back() + glm::distance( arc_pt, prev_pt ) ); // TODO: check whether we store the current integral
-		polyline.tangents.push_back( arc_pt - prev_pt );
+		polyline.total_distance += glm::distance( arc_pt, prev_pt );
+		polyline.distances.push_back( polyline.total_distance );
+		polyline.tangents.push_back( inv_basis * ( r * glm::vec2{-sinf( theta ), cosf( theta )} ) );
 		prev_pt = arc_pt;
+
+		if ( !sweep && theta <= theta_end ) {
+			break;
+		}
+		if ( sweep && theta >= theta_end ) {
+			break;
+		}
 	}
 }
 
