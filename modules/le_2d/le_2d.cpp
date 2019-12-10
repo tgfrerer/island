@@ -659,7 +659,7 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 	            .end()
 	        .end()
 			.withRasterizationState()
-				.setPolygonMode(le::PolygonMode::eLine)
+//				.setPolygonMode(le::PolygonMode::eLine)
 //				.setCullMode(le::CullModeFlagBits::eBack)
 //				.setFrontFace(le::FrontFace::eClockwise)
 			.end()
@@ -674,7 +674,8 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 	// drawn, otherwise no overlap at all will be drawn.
 
 	encoder
-	    .bindGraphicsPipeline( pipeline );
+	    .bindGraphicsPipeline( pipeline )
+	    .setLineWidth( 1.5f );
 
 	// Calculate view projection matrix
 	// for 2D, this will be a simple orthographic projection, which means that the view matrix
