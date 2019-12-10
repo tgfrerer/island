@@ -821,13 +821,16 @@ static glm::vec2 get_arc_tangent_at_normalised_t( glm::vec2 const &p0, // end po
 	                  ( rxsq * y_sq +
 	                    rysq * x_sq );
 
-	// Woah! that fabsf is not in the w3c implementation notes...
-	// We need it for the special case where the sqrt_term
-	// would get negative.
-	//
-	glm::vec2 c_ = sqrtf( fabsf( sqrt_term ) ) * sqrt_sign *
-	               glm::vec2( ( r.x * x_.y ) / r.y,
-	                          ( -r.y * x_.x ) / r.x );
+	glm::vec2 c_{};
+	if ( ( rxsq * y_sq + rysq * x_sq ) > std::numeric_limits<float>::epsilon() ) {
+		// Woah! that fabsf is not in the w3c implementation notes...
+		// We need it for the special case where the sqrt_term
+		// would get negative.
+		c_ = sqrtf( fabsf( sqrt_term ) ) * sqrt_sign *
+		     glm::vec2( ( r.x * x_.y ) / r.y, ( -r.y * x_.x ) / r.x );
+	} else {
+		c_ = glm::vec2{0};
+	}
 
 	glm::vec2 u = glm::normalize( ( x_ - c_ ) / r );
 	glm::vec2 v = glm::normalize( ( -x_ - c_ ) / r );
@@ -920,13 +923,16 @@ static void flatten_arc_to( Polyline &       polyline,
 	                  ( rxsq * y_sq +
 	                    rysq * x_sq );
 
-	// Woah! that fabsf is not in the w3c implementation notes...
-	// We need it for the special case where the sqrt_term
-	// would get negative.
-	//
-	glm::vec2 c_ = sqrtf( fabsf( sqrt_term ) ) * sqrt_sign *
-	               glm::vec2( ( r.x * x_.y ) / r.y,
-	                          ( -r.y * x_.x ) / r.x );
+	glm::vec2 c_{};
+	if ( ( rxsq * y_sq + rysq * x_sq ) > std::numeric_limits<float>::epsilon() ) {
+		// Woah! that fabsf is not in the w3c implementation notes...
+		// We need it for the special case where the sqrt_term
+		// would get negative.
+		c_ = sqrtf( fabsf( sqrt_term ) ) * sqrt_sign *
+		     glm::vec2( ( r.x * x_.y ) / r.y, ( -r.y * x_.x ) / r.x );
+	} else {
+		c_ = glm::vec2{0};
+	}
 
 	glm::vec2 c = inv_basis * c_ + ( ( p0 + p1 ) / 2.f );
 
@@ -1277,13 +1283,16 @@ static void generate_offset_outline_arc_to( std::vector<glm::vec2> &outline_l,
 	                  ( rxsq * y_sq +
 	                    rysq * x_sq );
 
-	// Woah! that fabsf is not in the w3c implementation notes...
-	// We need it for the special case where the sqrt_term
-	// would get negative.
-	//
-	glm::vec2 c_ = sqrtf( fabsf( sqrt_term ) ) * sqrt_sign *
-	               glm::vec2( ( r.x * x_.y ) / r.y,
-	                          ( -r.y * x_.x ) / r.x );
+	glm::vec2 c_{};
+	if ( ( rxsq * y_sq + rysq * x_sq ) > std::numeric_limits<float>::epsilon() ) {
+		// Woah! that fabsf is not in the w3c implementation notes...
+		// We need it for the special case where the sqrt_term
+		// would get negative.
+		c_ = sqrtf( fabsf( sqrt_term ) ) * sqrt_sign *
+		     glm::vec2( ( r.x * x_.y ) / r.y, ( -r.y * x_.x ) / r.x );
+	} else {
+		c_ = glm::vec2{0};
+	}
 
 	glm::vec2 c = inv_basis * c_ + ( ( p0 + p1 ) / 2.f );
 
@@ -1834,7 +1843,7 @@ static bool get_path_endpoint_tangents( std::vector<PathCommand> const &commands
 void tessellate_outline_l_r( std::vector<glm::vec2> &triangles, std::vector<glm::vec2> const &vertices_l, std::vector<glm::vec2> const &vertices_r ) {
 
 	if ( vertices_l.empty() || vertices_r.empty() ) {
-		assert( false ); // something went wrong when generating vertices.
+		// assert( false ); // something went wrong when generating vertices.
 		return;
 	}
 
@@ -2036,17 +2045,17 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 
 			// we must find out tangent into the path
 
-			PathCommand *head = &contour.commands.front();
-			PathCommand *tail = &contour.commands.back();
+			PathCommand *tail = &contour.commands.front();
+			PathCommand *head = &contour.commands.back();
 
 			glm::vec2 tangent_head{};
 			glm::vec2 tangent_tail{};
 
-			get_path_endpoint_tangents( contour.commands, tangent_head, tangent_tail );
+			get_path_endpoint_tangents( contour.commands, tangent_tail, tangent_head );
 
 			if ( stroke_attributes->line_cap_type == stroke_attribute_t::LineCapType::eLineCapRound ) {
-				draw_cap_round( triangles, head->p, {tangent_head.y, -tangent_head.x}, stroke_attributes );
-				draw_cap_round( triangles, tail->p, {-tangent_tail.y, tangent_tail.x}, stroke_attributes );
+				draw_cap_round( triangles, head->p, {-tangent_head.y, tangent_head.x}, stroke_attributes );
+				draw_cap_round( triangles, tail->p, {tangent_tail.y, -tangent_tail.x}, stroke_attributes );
 			} else if ( stroke_attributes->line_cap_type == stroke_attribute_t::LineCapType::eLineCapSquare ) {
 				draw_cap_square( triangles, head->p, {tangent_head.y, -tangent_head.x}, stroke_attributes );
 				draw_cap_square( triangles, tail->p, {-tangent_tail.y, tangent_tail.x}, stroke_attributes );
