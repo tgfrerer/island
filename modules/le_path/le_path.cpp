@@ -1350,6 +1350,21 @@ static void generate_offset_outline_arc_to( std::vector<glm::vec2> &outline_l,
 		glm::vec2 arc_pt = r * n;
 		arc_pt           = inv_basis * arc_pt + c;
 
+		// p1_perp is a normalized vector which is perpendicular to the tangent
+		// of the ellipse at point p1.
+		//
+		// The tangent is the first derivative of the ellipse in parametric notation:
+		//
+		// e(t) : {r.x * cos(t), r.y * sin(t)}
+		// e(t'): {r.x * -sin(t), r.y * cos(t)} // tangent is first derivative
+		//
+		// now rotate this 90 deg ccw:
+		//
+		// {-r.y*cos(t), r.x*-sin(t)} // we can invert sign to remove negative if we want
+		//
+		// `offset` is how far we want to move outwards/inwards at the ellipse point p1,
+		// in direction p1_perp. So that p1_perp has unit length, we must normalize it.
+		//
 		p1_perp = glm::normalize( glm::vec2{r.y, r.x} * n );
 
 		p_far  = c + inv_basis * ( n * r - p1_perp * offset );
@@ -2335,6 +2350,7 @@ static void le_path_close_path( le_path_o *self ) {
 }
 
 // ----------------------------------------------------------------------
+
 static void le_path_ellipse( le_path_o *self, glm::vec2 const *centre, float r_x, float r_y ) {
 	glm::vec2 radii = glm::vec2{r_x, r_y};
 
