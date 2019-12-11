@@ -497,7 +497,7 @@ static void blend_attachment_state_use_preset( le_graphics_pipeline_builder_o *s
 		    .setAlphaBlendOp( vk::BlendOp::eAdd )
 		    .setSrcColorBlendFactor( vk::BlendFactor::eOne )  //  fragment shader output assumed to be premultiplied alpha!
 		    .setDstColorBlendFactor( vk::BlendFactor::eOne )  //
-		    .setSrcAlphaBlendFactor( vk::BlendFactor::eZero ) //
+		    .setSrcAlphaBlendFactor( vk::BlendFactor::eOne )  //
 		    .setDstAlphaBlendFactor( vk::BlendFactor::eZero ) //
 		    .setColorWriteMask(
 		        vk::ColorComponentFlagBits::eR |
