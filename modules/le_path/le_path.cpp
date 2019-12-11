@@ -2148,7 +2148,7 @@ static void le_path_iterate_quad_beziers_for_contour( le_path_o *self, size_t co
 // ----------------------------------------------------------------------
 // Updates `result` to the vertex position on polyline
 // at normalized position `t`
-static void le_polyline_get_at( Polyline const &polyline, float t, glm::vec2 &result ) {
+static void le_polyline_get_at( Polyline const &polyline, float t, glm::vec2 *result ) {
 
 	// -- Calculate unnormalised distance
 	float d = t * float( polyline.total_distance );
@@ -2177,12 +2177,12 @@ static void le_polyline_get_at( Polyline const &polyline, float t, glm::vec2 &re
 	glm::vec2 const &start_vertex = polyline.vertices[ a ];
 	glm::vec2 const &end_vertex   = polyline.vertices[ b ];
 
-	result = start_vertex + scalar * ( end_vertex - start_vertex );
+	*result = start_vertex + scalar * ( end_vertex - start_vertex );
 }
 
 // ----------------------------------------------------------------------
 // return calculated position on polyline
-static void le_path_get_polyline_at_pos_interpolated( le_path_o *self, size_t const &polyline_index, float t, glm::vec2 &result ) {
+static void le_path_get_polyline_at_pos_interpolated( le_path_o *self, size_t const &polyline_index, float t, glm::vec2 *result ) {
 	assert( polyline_index < self->polylines.size() );
 	le_polyline_get_at( self->polylines[ polyline_index ], t, result );
 }
@@ -2213,13 +2213,13 @@ static void le_polyline_resample( Polyline &polyline, float interval ) {
 
 	// Find first point
 	glm::vec2 vertex;
-	le_polyline_get_at( polyline, 0.f, vertex );
+	le_polyline_get_at( polyline, 0.f, &vertex );
 	trace_move_to( poly_resampled, vertex );
 
 	// Note that we must add an extra vertex at the end so that we
 	// capture the correct number of segments.
 	for ( size_t i = 1; i <= n_segments; ++i ) {
-		le_polyline_get_at( polyline, i * delta, vertex );
+		le_polyline_get_at( polyline, i * delta, &vertex );
 		// We use trace_line_to, because this will get us more accurate distance
 		// calculations - trace_line_to updates the distances as a side-effect,
 		// effectively redrawing the polyline as if it was a series of `line_to`s.

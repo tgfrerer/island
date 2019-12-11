@@ -87,7 +87,7 @@ struct le_path_api {
 		void        (* get_vertices_for_polyline ) ( le_path_o* self, size_t const &polyline_index, glm::vec2 const **vertices, size_t * numVertices );
 		void        (* get_tangents_for_polyline ) ( le_path_o* self, size_t const &polyline_index, glm::vec2 const **tangents, size_t * numTangents );
 
-		void        (* get_polyline_at_pos_interpolated ) ( le_path_o* self, size_t const &polyline_index, float normPos, glm::vec2& result);
+		void        (* get_polyline_at_pos_interpolated ) ( le_path_o* self, size_t const &polyline_index, float normPos, glm::vec2* result);
 
         void        (* iterate_vertices_for_contour)(le_path_o* self, size_t const & contour_index, contour_vertex_cb callback, void* user_data);
         void        (* iterate_quad_beziers_for_contour)(le_path_o* self, size_t const & contour_index, contour_quad_bezier_cb callback, void* user_data);
@@ -199,7 +199,7 @@ class Path : NoCopy, NoMove {
 		le_path::le_path_i.get_tangents_for_polyline( self, polyline_index, tangents, numTangents );
 	}
 
-	void getPolylineAtPos( size_t const &polylineIndex, float normalizedPos, glm::vec2 &vertex ) {
+	void getPolylineAtPos( size_t const &polylineIndex, float normalizedPos, glm::vec2 *vertex ) {
 		le_path::le_path_i.get_polyline_at_pos_interpolated( self, polylineIndex, normalizedPos, vertex );
 	}
 
