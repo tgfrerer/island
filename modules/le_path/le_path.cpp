@@ -1878,14 +1878,6 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 
 	triangles.reserve( *num_vertices );
 
-	// calculate tessellation and store inside triangles.
-
-	/* In order to calculate line joints we must, additionally to knowning the position of the previous point, 
-	 * also know the tangent of the previous point. Therefore we store the tangent whenever we add a segment.
-	 *
-	 *	
-	*/
-
 	auto &contour = self->contours[ contour_index ];
 
 	if ( contour.commands.empty() ) {
@@ -1900,11 +1892,8 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 	PathCommand const *command_next = nullptr;
 	bool               wasClosed    = false;
 
-	//	glm::vec3 prev_l = {}; // keep track of previous, so that next point can calculate distance.
-	//	glm::vec3 prev_r = {};
-
-	std::vector<glm::vec2> vertices_l; // we could use vec3 to store distance in 3rd param.
-	std::vector<glm::vec2> vertices_r; // we could use vec3 to store distance in 3rd param.
+	std::vector<glm::vec2> vertices_l;
+	std::vector<glm::vec2> vertices_r;
 
 	glm::vec2 tangent{};
 
