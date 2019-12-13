@@ -1186,6 +1186,29 @@ static void generate_offset_outline_cubic_bezier_segment_to( std::vector<glm::ve
 
 // ----------------------------------------------------------------------
 
+static void generate_offset_outline_line_to( std::vector<glm::vec2> &vertices_l,
+                                             std::vector<glm::vec2> &vertices_r,
+                                             glm::vec2 const &       p0,
+                                             glm::vec2 const &       p1,
+                                             float                   line_weight ) {
+
+	if ( glm::isNull( p1 - p0, 0.001f ) ) {
+		// If target point is too close to current point, we bail out.
+		return;
+	}
+
+	glm::vec2 t = glm::normalize( p1 - p0 ); // tangent == current line direction
+	glm::vec2 n = glm::vec2{-t.y, t.x};      // normal onto current line
+
+	vertices_l.push_back( p0 + n * line_weight * -0.5f );
+	vertices_r.push_back( p0 + n * line_weight * 0.5f );
+
+	vertices_l.push_back( p1 + n * line_weight * -0.5f );
+	vertices_r.push_back( p1 + n * line_weight * 0.5f );
+};
+
+// ----------------------------------------------------------------------
+
 static void generate_offset_outline_cubic_bezier_to( std::vector<glm::vec2> &outline_l,
                                                      std::vector<glm::vec2> &outline_r,
                                                      glm::vec2 const &       p0, // start point
@@ -1643,43 +1666,6 @@ static void tessellate_joint( std::vector<glm::vec2> &  triangles,
 
 // ----------------------------------------------------------------------
 
-static void tessellate_thick_line_to( std::vector<glm::vec2> &  triangles,
-                                      stroke_attribute_t const *sa,
-                                      PathCommand const *       prev_command,
-                                      PathCommand const *       command,
-                                      PathCommand const *       next_command ) {
-	glm::vec2 const &p0 = prev_command->p;
-	glm::vec2 const &p1 = command->p;
-
-	if ( glm::isNull( p1 - p0, 0.001f ) ) {
-		// If target point is too close to current point, we bail out.
-		return;
-	}
-
-	glm::vec2 t = glm::normalize( p1 - p0 ); // tangent == current line direction
-	glm::vec2 n = glm::vec2{-t.y, t.x};      // normal onto current line
-
-	float offset = sa->width * 0.5f;
-
-	triangles.push_back( p0 + n * offset );
-	triangles.push_back( p0 - n * offset );
-	triangles.push_back( p1 + n * offset );
-
-	triangles.push_back( p0 - n * offset );
-	triangles.push_back( p1 - n * offset );
-	triangles.push_back( p1 + n * offset );
-
-	if ( next_command == nullptr ) {
-		return;
-	}
-
-	// invariant: next command exists.
-
-	tessellate_joint( triangles, sa, t, command, next_command );
-};
-
-// ----------------------------------------------------------------------
-
 static void draw_cap_round( std::vector<glm::vec2> &triangles, glm::vec2 const &p1, glm::vec2 const &n, stroke_attribute_t const *sa ) {
 	// Calculate the angle for triangle fan segments - the angle
 	// is such that the outline of the triangle fan is at most
@@ -1914,18 +1900,25 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 	PathCommand const *command_next = nullptr;
 	bool               wasClosed    = false;
 
+	//	glm::vec3 prev_l = {}; // keep track of previous, so that next point can calculate distance.
+	//	glm::vec3 prev_r = {};
+
+	std::vector<glm::vec2> vertices_l; // we could use vec3 to store distance in 3rd param.
+	std::vector<glm::vec2> vertices_r; // we could use vec3 to store distance in 3rd param.
+
+	glm::vec2 tangent{};
+
 	while ( path_command_iterator( contour.commands, &command_prev, &command, &command_next, &wasClosed ) ) {
+
 		switch ( command->type ) {
-		case PathCommand::eMoveTo:
-			assert( false );
+
+		case PathCommand::eLineTo: {
+			generate_offset_outline_line_to( vertices_l, vertices_r, command_prev->p, command->p, stroke_attributes->width );
+			tangent = command->p - command_prev->p;
 			break;
-		case PathCommand::eLineTo:
-			tessellate_thick_line_to( triangles, stroke_attributes, command_prev, command, command_next );
-			break;
+		}
 		case PathCommand::eQuadBezierTo: {
-			auto const &           bez = command->data.as_quad_bezier;
-			std::vector<glm::vec2> vertices_l;
-			std::vector<glm::vec2> vertices_r;
+			auto const &bez = command->data.as_quad_bezier;
 
 			glm::vec2 p0 = command_prev->p;
 			glm::vec2 p1 = command->p;
@@ -1933,9 +1926,6 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 			glm::vec2 c2 = p1 + 2 / 3.f * ( bez.c1 - p1 );
 
 			generate_offset_outline_cubic_bezier_to( vertices_l, vertices_r, p0, c1, c2, p1, stroke_attributes->tolerance, stroke_attributes->width );
-			tessellate_outline_l_r( triangles, vertices_l, vertices_r );
-
-			glm::vec2 tangent;
 
 			if ( bez.c1 == command->p ) {
 				// We must account for the special case in which c1 is identical with end point.
@@ -1945,29 +1935,12 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 				tangent = quad_bezier_derivative( 1.f, command_prev->p, bez.c1, command->p );
 			}
 
-			// Note that tangent at end may still bne undefined - that's the case if p0 == p1
-			// we test against this case by splitting apart the normlisation of the tangent -
-			// we first calculate the length (against which we may test) - in case of
-			// undefined tangent, length will be very close to zero.
-			//
-			float tangent_length = glm::length( tangent );
-
-			if ( command_next && ( tangent_length > std::numeric_limits<float>::epsilon() ) ) {
-				// invariant: tangent_length > 0
-				tangent /= tangent_length;
-				tessellate_joint( triangles, stroke_attributes, tangent, command, command_next );
-			}
-
-		} break;
+			break;
+		}
 		case PathCommand::eCubicBezierTo: {
-			auto const &           bez = command->data.as_cubic_bezier;
-			std::vector<glm::vec2> vertices_l;
-			std::vector<glm::vec2> vertices_r;
+			auto const &bez = command->data.as_cubic_bezier;
+
 			generate_offset_outline_cubic_bezier_to( vertices_l, vertices_r, command_prev->p, bez.c1, bez.c2, command->p, stroke_attributes->tolerance, stroke_attributes->width );
-
-			tessellate_outline_l_r( triangles, vertices_l, vertices_r );
-
-			glm::vec2 tangent;
 
 			if ( bez.c2 == command->p ) {
 				// We must account for the special case in which c2 is identical with end point.
@@ -1983,57 +1956,62 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 				tangent = cubic_bezier_derivative( 1.f, command_prev->p, bez.c1, bez.c2, command->p );
 			}
 
-			// Note that tangent at end may still be undefined - that's the case if p0 == p1
-			// we test against this case by splitting apart the normalisation of the tangent -
-			// we first calculate the length (against which we may test) - in case of
-			// undefined tangent, length will be very close to zero.
-			//
-			float tangent_length = glm::length( tangent );
-
-			if ( command_next && ( tangent_length > std::numeric_limits<float>::epsilon() ) ) {
-				// invariant: tangent_length > 0
-				tangent /= tangent_length;
-				tessellate_joint( triangles, stroke_attributes, tangent, command, command_next );
-			}
-		} break;
-		case PathCommand::eClosePath: {
-			tessellate_thick_line_to( triangles, stroke_attributes, command_prev, &contour.commands.front(), command_next );
 			break;
 		}
 		case PathCommand::eArcTo: {
+			auto const &arc = command->data.as_arc;
 
-			auto const &           arc = command->data.as_arc;
-			std::vector<glm::vec2> vertices_l;
-			std::vector<glm::vec2> vertices_r;
 			generate_offset_outline_arc_to( vertices_l, vertices_r, command_prev->p, command->p, arc.radii, arc.phi, arc.large_arc, arc.sweep, stroke_attributes->tolerance, stroke_attributes->width );
 
-			tessellate_outline_l_r( triangles, vertices_l, vertices_r );
-
-			glm::vec2 tangent;
-
 			tangent = get_arc_tangent_at_normalised_t( command_prev->p, command->p, arc.radii, arc.phi, arc.large_arc, arc.sweep, 1.f );
-			// Note that tangent at end may still be undefined - that's the case if p0 == p1
-			// we test against this case by splitting apart the normalisation of the tangent -
-			// we first calculate the length (against which we may test) - in case of
-			// undefined tangent, length will be very close to zero.
-			//
-			float tangent_length = glm::length( tangent );
 
-			if ( command_next && ( tangent_length > std::numeric_limits<float>::epsilon() ) ) {
-				// invariant: tangent_length > 0
-				tangent /= tangent_length;
-				tessellate_joint( triangles, stroke_attributes, tangent, command, command_next );
-			}
 			break;
 		}
+		case PathCommand::eClosePath: {
 
-		case PathCommand::eUnknown:
-			assert( false );
+			generate_offset_outline_line_to( vertices_l, vertices_r, command_prev->p, contour.commands.front().p, stroke_attributes->width );
+
+			tangent = contour.commands.front().p - command_prev->p;
+
 			break;
 		}
-	}
+		default:
+			// This covers eMoveTo and eUnknown
+			continue;
+		}
 
-	// Draw caps if path was not closed
+		// Tessellate any outlines into triangles.
+
+		if ( !vertices_l.empty() && !vertices_r.empty() ) {
+			tessellate_outline_l_r( triangles, vertices_l, vertices_r );
+		}
+
+		vertices_l.clear();
+		vertices_r.clear();
+
+		// Draw joins
+		//
+		// Note that tangent at end may still bne undefined - that's the case if p0 == p1
+		// we test against this case by splitting apart the normlisation of the tangent -
+		// we first calculate the length (against which we may test) - in case of
+		// undefined tangent, length will be very close to zero.
+		//
+		float tangent_length = glm::length( tangent );
+
+		if ( command_next && ( tangent_length > std::numeric_limits<float>::epsilon() ) ) {
+
+			// ----------| Invariant: tangent_length > 0
+			tangent /= tangent_length;
+
+			tessellate_joint( triangles, stroke_attributes, tangent,
+			                  ( command->type == PathCommand::eClosePath ) ? &contour.commands.front()
+			                                                               : command,
+			                  command_next );
+		}
+
+	} // end path commands iterator
+
+	// -- Draw caps if path was not closed
 
 	if ( !wasClosed && !contour.commands.empty() &&
 	     stroke_attributes->line_cap_type != stroke_attribute_t::LineCapType::eLineCapButt ) {
