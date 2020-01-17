@@ -27,8 +27,9 @@
 */
 
 struct le_buffer_o {
-	void *               mem;             // nullptr if not owning
-	le_resource_handle_t handle;          // renderer resource handle
+	void *               mem;    // nullptr if not owning
+	le_resource_handle_t handle; // renderer resource handle
+	le_resource_info_t   resource_info;
 	uint32_t             size;            // number of bytes
 	bool                 was_transferred; // whether this buffer was transferred to gpu already
 	bool                 owns_mem;        // true if sole owner of memory pointed to in mem
@@ -143,6 +144,16 @@ static uint32_t le_stage_create_buffer( le_stage_o *stage, void *mem, uint32_t s
 			assert( false );
 		}
 
+		// TODO: check if we can narrow usage flags based on whether bufferview
+		// which uses this buffer specifies index, or vertex for usage.
+
+		buffer->resource_info = le::BufferInfoBuilder()
+		                            .setSize( buffer->size )
+		                            .addUsageFlags( {LE_BUFFER_USAGE_TRANSFER_DST_BIT |
+		                                             LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
+		                                             LE_BUFFER_USAGE_VERTEX_BUFFER_BIT} )
+		                            .build();
+
 		stage->buffer_handles.push_back( res );
 		stage->buffers.push_back( buffer );
 	}
@@ -233,6 +244,70 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 
 // ----------------------------------------------------------------------
 
+/// \brief
+static bool pass_setup_resources( le_renderpass_o *pRp, void *user_data ) {
+	le::RenderPass rp{pRp};
+	auto           stage = static_cast<le_stage_o *>( user_data );
+
+	bool needsUpload = false;
+
+	for ( auto &b : stage->buffers ) {
+		needsUpload |= !b->was_transferred;
+		if ( !b->was_transferred ) {
+			rp.useBufferResource( b->handle, {LE_BUFFER_USAGE_TRANSFER_DST_BIT} );
+		}
+	}
+
+	return needsUpload; // false means not to execute the execute callback.
+}
+
+// ----------------------------------------------------------------------
+
+static void pass_transfer_resources( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+	auto stage   = static_cast<le_stage_o *>( user_data );
+	auto encoder = le::Encoder{encoder_};
+
+	for ( auto &b : stage->buffers ) {
+		if ( !b->was_transferred ) {
+
+			// upload buffer
+			encoder.writeToBuffer( b->handle, 0, b->mem, b->size );
+
+			// we could possibly free mem once that's done.
+			free( b->mem );
+			b->mem             = nullptr;
+			b->owns_mem        = false;
+			b->was_transferred = true;
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
+
+/// \brief add setup and execute callbacks to rendermodule so that rendermodule
+/// knows which resources are needed to render the stage.
+/// There are two resource types which potentially need uploading: buffers,
+/// and images.
+static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o *module ) {
+
+	using namespace le_renderer;
+
+	auto rp = le::RenderPass( "STAGE_TRANSFER", LeRenderPassType::LE_RENDER_PASS_TYPE_TRANSFER )
+	              .setSetupCallback( stage, pass_setup_resources )
+	              .setExecuteCallback( stage, pass_transfer_resources )
+	              .setIsRoot( true );
+
+	// declare buffers
+
+	for ( auto &b : stage->buffers ) {
+		render_module_i.declare_resource( module, b->handle, b->resource_info );
+	}
+
+	render_module_i.add_renderpass( module, rp );
+}
+
+// ----------------------------------------------------------------------
+
 static le_stage_o *le_stage_create() {
 	auto self = new le_stage_o();
 	return self;
@@ -261,6 +336,8 @@ ISL_API_ATTR void register_le_stage_api( void *api ) {
 
 	le_stage_i.create  = le_stage_create;
 	le_stage_i.destroy = le_stage_destroy;
+
+	le_stage_i.update_rendermodule = le_stage_update_render_module;
 
 	le_stage_i.create_buffer      = le_stage_create_buffer;
 	le_stage_i.create_buffer_view = le_stage_create_buffer_view;

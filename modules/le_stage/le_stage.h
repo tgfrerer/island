@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 struct le_stage_o;
+struct le_render_module_o;
 
 void register_le_stage_api( void *api );
 
@@ -25,11 +26,14 @@ struct le_stage_api {
 		void            ( * destroy                  ) ( le_stage_o* self );
 		void            ( * update                   ) ( le_stage_o* self );
 		
+		void			( * update_rendermodule )(le_stage_o* self, le_render_module_o* module);
+
+		
 		uint32_t (* create_buffer)( le_stage_o *stage, void *mem, uint32_t sz, char const *debug_name );
 		uint32_t (* create_buffer_view)( le_stage_o *self, struct le_buffer_view_info const *info );
 		uint32_t (* create_accessor)( le_stage_o *self, struct le_accessor_info const *info );
-
 		uint32_t (* create_mesh)(le_stage_o* self, struct le_mesh_info const * info);
+		
 	};
 
 	le_stage_interface_t       le_stage_i;
