@@ -49,7 +49,7 @@ struct le_primitive_attribute_info {
 };
 
 struct le_primitive_info {
-	uint32_t                     index_accessor_idx;
+	uint32_t                     indices_accessor_idx;
 	bool                         has_indices;
 	le_primitive_attribute_info *attributes;
 	uint32_t                     attribute_count;
