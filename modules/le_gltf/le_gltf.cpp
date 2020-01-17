@@ -170,8 +170,12 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		cgltf_buffer const *buffers_begin = self->data->buffers;
 		auto                buffers_end   = self->data->buffers + self->data->buffers_count;
 
-		for ( auto b = buffers_begin; b != buffers_end; b++ ) {
-			uint32_t stage_idx = le_stage_i.create_buffer( stage, b->data, uint32_t( b->size ), "" );
+		char debug_name[ 32 ];
+
+		int i = 0;
+		for ( auto b = buffers_begin; b != buffers_end; b++, ++i ) {
+			snprintf( debug_name, 32, "glTF_buffer_%d", i );
+			uint32_t stage_idx = le_stage_i.create_buffer( stage, b->data, uint32_t( b->size ), debug_name );
 			buffer_map.insert( {b, stage_idx} );
 		}
 	}
