@@ -1280,6 +1280,17 @@ struct le_resource_info_t {
 	};
 };
 
+enum class le_compound_num_type : uint8_t {
+	eUndefined = 0,
+	eScalar,
+	eVec2,
+	eVec3,
+	eVec4,
+	eMat2,
+	eMat3,
+	eMat4,
+};
+
 enum class le_num_type : uint8_t {
 	//
 	// Note that we store the log2 of the number of Bytes needed to store values of a type
