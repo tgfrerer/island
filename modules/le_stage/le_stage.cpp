@@ -3,12 +3,18 @@
 
 #include "le_renderer/le_renderer.h"
 #include "le_stage_types.h"
+#include "le_pipeline_builder/le_pipeline_builder.h"
 
 #include "3rdparty/src/spooky/SpookyV2.h"
 
 #include <vector>
 #include <string>
 #include "string.h"
+
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
+#define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
+#include "glm.hpp"
+#include "gtc/matrix_transform.hpp"
 
 // It could be nice if le_mesh_o could live outside of the stage - so that
 // we could use it as a method to generate primitives for example, like spheres etc.
@@ -65,6 +71,14 @@ struct le_attribute_o {
 };
 
 struct le_primitive_o {
+
+	std::vector<uint64_t>             bindings_buffer_offsets;
+	std::vector<le_resource_handle_t> bindings_buffer_handles; // cached bufferviews sorted and grouped based on accessors
+
+	uint32_t vertex_count; // number of POSITION vertices, used to figure out draw call param
+	uint32_t index_count;  // number of INDICES, if any.
+
+	le_gpso_handle_t *          pipeline_state_handle; // contains material shaders, and vertex input state
 	std::vector<le_attribute_o> attributes;
 	bool                        has_indices;
 	uint32_t                    indices_accessor_idx;
@@ -230,6 +244,13 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 				primitive.attributes.emplace_back( attribute );
 			}
 
+			// sort attributes by type so that they are in the correct order for shader bindings.
+
+			std::sort( primitive.attributes.begin(), primitive.attributes.end(),
+			           []( le_attribute_o const &lhs, le_attribute_o const &rhs ) -> bool {
+				           return ( lhs.type < rhs.type );
+			           } );
+
 			if ( p->has_indices ) {
 				primitive.has_indices          = true;
 				primitive.indices_accessor_idx = p->indices_accessor_idx;
@@ -247,7 +268,7 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 // ----------------------------------------------------------------------
 
 /// \brief
-static bool pass_setup_resources( le_renderpass_o *pRp, void *user_data ) {
+static bool pass_xfer_setup_resources( le_renderpass_o *pRp, void *user_data ) {
 	le::RenderPass rp{pRp};
 	auto           stage = static_cast<le_stage_o *>( user_data );
 
@@ -265,7 +286,7 @@ static bool pass_setup_resources( le_renderpass_o *pRp, void *user_data ) {
 
 // ----------------------------------------------------------------------
 
-static void pass_transfer_resources( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+static void pass_xfer_resources( le_command_buffer_encoder_o *encoder_, void *user_data ) {
 	auto stage   = static_cast<le_stage_o *>( user_data );
 	auto encoder = le::Encoder{encoder_};
 
@@ -294,15 +315,204 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 
 	using namespace le_renderer;
 
-	auto rp = le::RenderPass( "STAGE_TRANSFER", LeRenderPassType::LE_RENDER_PASS_TYPE_TRANSFER )
-	              .setSetupCallback( stage, pass_setup_resources )
-	              .setExecuteCallback( stage, pass_transfer_resources )
+	auto rp = le::RenderPass( "Stage_Xfer", LeRenderPassType::LE_RENDER_PASS_TYPE_TRANSFER )
+	              .setSetupCallback( stage, pass_xfer_setup_resources )
+	              .setExecuteCallback( stage, pass_xfer_resources )
 	              .setIsRoot( true );
 
 	// declare buffers
 
 	for ( auto &b : stage->buffers ) {
 		render_module_i.declare_resource( module, b->handle, b->resource_info );
+	}
+
+	render_module_i.add_renderpass( module, rp );
+}
+
+static le::IndexType index_type_from_num_type( le_num_type const &tp ) {
+
+	// clang-format off
+	switch (tp)
+	{
+		case le_num_type::eI8 : return le::IndexType::eUint8Ext;
+		case le_num_type::eU32: return le::IndexType::eUint32;
+		case le_num_type::eU16: return le::IndexType::eUint16;
+	}
+	// clang-format on
+	assert( false ); // unreachable
+	return le::IndexType::eUint16;
+}
+
+// ----------------------------------------------------------------------
+
+static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+	auto stage   = static_cast<le_stage_o *>( user_data );
+	auto encoder = le::Encoder{encoder_};
+
+	auto extents = encoder.getRenderpassExtent();
+
+	le::Viewport viewports[ 1 ] = {
+	    {0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f},
+	};
+
+	auto ortho_projection = glm::ortho( 0.f, float( extents.width ), 0.f, float( extents.height ) );
+
+	using namespace le_renderer;
+	auto pipeline_manager = renderer_i.get_pipeline_manager( stage->renderer );
+
+	// TODO: clean
+	for ( auto &mesh : stage->meshes ) {
+
+		for ( auto &primitive : mesh.primitives ) {
+
+			if ( !primitive.pipeline_state_handle ) {
+				// primitive does not yet have pipeline - we must create a pipeline
+				// for this primitive.
+
+				auto shader_vert = renderer_i.create_shader_module( stage->renderer, "./local_resources/shaders/gltf.vert", {le::ShaderStage::eVertex}, "" );
+				auto shader_frag = renderer_i.create_shader_module( stage->renderer, "./local_resources/shaders/gltf.frag", {le::ShaderStage::eFragment}, "" );
+
+				LeGraphicsPipelineBuilder builder( pipeline_manager );
+
+				builder
+				    .addShaderStage( shader_frag )
+				    .addShaderStage( shader_vert );
+
+				primitive.bindings_buffer_handles.clear();
+				primitive.bindings_buffer_offsets.clear();
+
+				auto &abs =
+				    builder.withAttributeBindingState();
+
+				// We must group our attributes by buffersviews.
+
+				// only if there is interleaving we have more than one attribute per buffer binding
+				// otherwise each binding takes its own buffer.
+
+				// + we must detect interleaving:
+				// if bufferview has byteStride, then there is interleaving.
+				// if more than one accessor refer to the same bufferview, we have interleaving.
+
+				// + we must group by bufferViews.
+				//   each bufferview will mean one binding - as a bufferview refers to a buffer, and an offset into the buffer
+
+				// Q: if there is interleaving, does this mean that two or more accessors refer to the same
+				// bufferview?
+
+				//	+ multiple accessors may refer to the same bufferView, in which case each accessor
+				//    defines a byteOffset to specify where it starts within the bufferView.
+
+				// we must also detect attribute types - so that we can make sure that our shader has
+				// the exact number of attributes.
+
+				// our shader needs to simulate missing attributes, and we deactivate missing attributes via the shader preprocessor.
+
+				// attributes are pre-sorted by type.
+
+				// Note: iterator is increased in inner loop
+				for ( auto it = primitive.attributes.begin(); it != primitive.attributes.end(); ) {
+
+					le_accessor_o const *accessor        = &stage->accessors[ it->accessor_idx ];
+					auto const &         buffer_view     = stage->buffer_views[ accessor->buffer_view_idx ];
+					uint32_t             buffer_view_idx = accessor->buffer_view_idx;
+
+					auto &binding = abs.addBinding( buffer_view.byte_stride );
+
+					do {
+						// add attributes until buffer_view_idx changes.
+						// in which case we want to open the next binding.
+
+						// if the buffer_view_idx doesn't change, this means that we are still within the same
+						// binding, because then we have interleaving.
+
+						// every accessor mapping the same buffer will go into the same binding number
+						// because that's what the encoder will bind in the end.
+						// if things are interleaved we
+
+						binding.addAttribute( accessor->byte_offset,
+						                      accessor->component_type,
+						                      get_num_components( accessor->type ), // calculate number of components
+						                      accessor->is_normalized );
+
+						it++;
+
+						// prepare accessor for next iteration.
+						if ( it != primitive.attributes.end() ) {
+							accessor = &stage->accessors[ it->accessor_idx ];
+						}
+
+					} while ( it != primitive.attributes.end() &&
+					          buffer_view_idx == accessor->buffer_view_idx );
+
+					// cache binding for primitive so that we can bind faster.
+
+					primitive.bindings_buffer_handles.push_back( stage->buffers[ buffer_view.buffer_idx ]->handle );
+					primitive.bindings_buffer_offsets.push_back( buffer_view.byte_offset );
+
+					binding.end();
+				}
+
+				// fill in number of vertices for primitive
+				if ( primitive.attributes.empty() ) {
+					primitive.vertex_count = stage->accessors[ primitive.attributes.front().accessor_idx ].count;
+				}
+
+				if ( primitive.has_indices ) {
+					primitive.index_count = stage->accessors[ primitive.indices_accessor_idx ].count;
+				}
+
+				primitive.pipeline_state_handle = builder.build();
+			}
+
+			encoder
+			    .bindGraphicsPipeline( primitive.pipeline_state_handle )
+			    .setArgumentData( LE_ARGUMENT_NAME( "MvpUbo" ), &ortho_projection, sizeof( glm::mat4 ) )
+			    .setViewports( 0, 1, &viewports[ 0 ] );
+
+			// ---- invariant: primitive has pipeline, bindings.
+
+			encoder.bindVertexBuffers( 0, primitive.bindings_buffer_handles.size(),
+			                           primitive.bindings_buffer_handles.data(),
+			                           primitive.bindings_buffer_offsets.data() );
+
+			if ( primitive.has_indices ) {
+
+				auto &indices_accessor = stage->accessors[ primitive.indices_accessor_idx ];
+				auto &buffer_view      = stage->buffer_views[ indices_accessor.buffer_view_idx ];
+				auto &buffer           = stage->buffers[ buffer_view.buffer_idx ];
+
+				encoder.bindIndexBuffer( buffer->handle,
+				                         buffer_view.byte_offset,
+				                         index_type_from_num_type( indices_accessor.component_type ) );
+
+				encoder.drawIndexed( primitive.index_count );
+			} else {
+
+				encoder.draw( primitive.vertex_count );
+			}
+
+		} // end for all mesh.primitives
+	}     // end for all meshes
+}
+
+// ----------------------------------------------------------------------
+
+/// \brief add setup and execute callbacks to rendermodule so that rendermodule
+/// knows which resources are needed to render the stage.
+/// There are two resource types which potentially need uploading: buffers,
+/// and images.
+static void le_stage_draw_into_render_module( le_stage_o *stage, le_render_module_o *module ) {
+
+	using namespace le_renderer;
+
+	auto rp = le::RenderPass( "Stage Draw", LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW )
+	              .setExecuteCallback( stage, pass_draw )
+	              .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE )
+	              .setIsRoot( true );
+
+	for ( auto &b : stage->buffers ) {
+		rp.useBufferResource( b->handle, {LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
+		                                  LE_BUFFER_USAGE_VERTEX_BUFFER_BIT} );
 	}
 
 	render_module_i.add_renderpass( module, rp );
@@ -341,6 +551,7 @@ ISL_API_ATTR void register_le_stage_api( void *api ) {
 	le_stage_i.destroy = le_stage_destroy;
 
 	le_stage_i.update_rendermodule = le_stage_update_render_module;
+	le_stage_i.draw_into_module    = le_stage_draw_into_render_module;
 
 	le_stage_i.create_buffer      = le_stage_create_buffer;
 	le_stage_i.create_buffer_view = le_stage_create_buffer_view;
