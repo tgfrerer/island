@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 struct le_gltf_o;
+struct le_stage_o;
 
 void register_le_gltf_api( void *api );
 
@@ -21,6 +22,9 @@ struct le_gltf_api {
 
 		le_gltf_o *( *create ) ( char const * file_path );
 		void       ( *destroy )( le_gltf_o *self );
+
+		bool (*import)(le_gltf_o* self, le_stage_o* stage);
+
 	};
 
 	le_gltf_interface_t le_gltf_i;
@@ -48,6 +52,10 @@ class LeGltf : NoCopy, NoMove {
   public:
 	LeGltf( char const *path )
 	    : self( le_gltf::le_gltf_i.create( path ) ) {
+	}
+
+	bool import( le_stage_o *stage ) {
+		return le_gltf::le_gltf_i.import( self, stage );
 	}
 
 	~LeGltf() {

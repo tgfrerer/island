@@ -1,12 +1,15 @@
 set (TARGET le_gltf)
 
 # list modules this module depends on
-# depends_on_island_module(le_path)
+depends_on_island_module(le_stage)
 
 set (SOURCES "le_gltf.cpp")
 set (SOURCES ${SOURCES} "le_gltf.h")
 set (SOURCES ${SOURCES} "3rdparty/cgltf/cgltf.h")
 set (SOURCES ${SOURCES} "cgltf.c")
+set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.cpp")
+set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.h")
+
 
 if (${PLUGINS_DYNAMIC})
 
