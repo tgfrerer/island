@@ -65,6 +65,8 @@ struct le_attribute_o {
 
 struct le_primitive_o {
 	std::vector<le_attribute_o> attributes;
+	bool                        has_indices;
+	uint32_t                    indices_accessor_idx;
 };
 
 // has many primitives
@@ -189,6 +191,46 @@ static uint32_t le_stage_create_accessor( le_stage_o *self, le_accessor_info con
 	return idx;
 }
 
+/// \brief add mesh to stage, return index of newly added mesh as it appears in stage.
+static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info ) {
+
+	le_mesh_o mesh;
+
+	{
+		le_primitive_info const *primitive_info_begin = info->primitives;
+		auto                     primitive_infos_end  = primitive_info_begin + info->primitive_count;
+
+		for ( auto p = primitive_info_begin; p != primitive_infos_end; p++ ) {
+
+			le_primitive_o primitive{};
+
+			le_primitive_attribute_info const *attr_info_begin = p->attributes;
+			auto                               attr_info_end   = attr_info_begin + p->attribute_count;
+
+			for ( auto attr = attr_info_begin; attr != attr_info_end; attr++ ) {
+				le_attribute_o attribute{};
+				//				attribute.name = attr->name; // TODO: copy name if available
+				attribute.name         = "";
+				attribute.index        = attr->index;
+				attribute.accessor_idx = attr->accessor_idx;
+				attribute.type         = attr->type;
+				primitive.attributes.emplace_back( attribute );
+			}
+
+			if ( p->has_indices ) {
+				primitive.has_indices          = true;
+				primitive.indices_accessor_idx = p->indices_accessor_idx;
+			}
+
+			mesh.primitives.emplace_back( primitive );
+		}
+	}
+
+	uint32_t idx = uint32_t( self->meshes.size() );
+	self->meshes.emplace_back( mesh );
+	return idx;
+}
+
 // ----------------------------------------------------------------------
 
 static le_stage_o *le_stage_create() {
@@ -223,4 +265,5 @@ ISL_API_ATTR void register_le_stage_api( void *api ) {
 	le_stage_i.create_buffer      = le_stage_create_buffer;
 	le_stage_i.create_buffer_view = le_stage_create_buffer_view;
 	le_stage_i.create_accessor    = le_stage_create_accessor;
+	le_stage_i.create_mesh        = le_stage_create_mesh;
 }

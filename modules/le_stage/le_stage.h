@@ -29,6 +29,7 @@ struct le_stage_api {
 		uint32_t (* create_buffer_view)( le_stage_o *self, struct le_buffer_view_info const *info );
 		uint32_t (* create_accessor)( le_stage_o *self, struct le_accessor_info const *info );
 
+		uint32_t (* create_mesh)(le_stage_o* self, struct le_mesh_info const * info);
 	};
 
 	le_stage_interface_t       le_stage_i;
