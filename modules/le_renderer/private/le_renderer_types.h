@@ -1493,7 +1493,8 @@ struct CommandBindIndexBuffer {
 	struct {
 		le_resource_handle_t buffer; // buffer id
 		uint64_t             offset;
-		uint64_t             indexType;
+		le::IndexType        indexType;
+		uint32_t             padding;
 	} info;
 };
 
