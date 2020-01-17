@@ -76,7 +76,7 @@ struct le_resource_handle_t {
 	}
 
 #if LE_RESOURCE_LABEL_LENGTH > 0
-	char debug_name[ 32 ];
+	char debug_name[ LE_RESOURCE_LABEL_LENGTH ];
 #else
 	char const *debug_name = "unknown";
 #endif
@@ -118,10 +118,6 @@ constexpr le_resource_handle_t LE_RESOURCE( const char *const str, const LeResou
 #endif
 	return h;
 }
-
-#ifdef LE_RESOURCE_LABEL_LENGTH
-#	undef LE_RESOURCE_LABEL_LENGTH
-#endif
 
 struct LeResourceHandleIdentity {
 	inline uint64_t operator()( const le_resource_handle_t &key_ ) const noexcept {
