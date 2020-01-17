@@ -162,6 +162,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	std::unordered_map<cgltf_buffer const *, uint32_t>      buffer_map; // maps buffer by pointer to buffer index in stage
 	std::unordered_map<cgltf_buffer_view const *, uint32_t> buffer_view_map;
 	std::unordered_map<cgltf_accessor const *, uint32_t>    accessor_map;
+	std::unordered_map<cgltf_mesh const *, uint32_t>        mesh_map;
 
 	using namespace le_stage;
 
@@ -244,8 +245,8 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 				// TODO: fill prim_data
 				if ( prim->indices ) {
-					prim_info.has_indices        = true;
-					prim_info.index_accessor_idx = accessor_map.at( prim->indices );
+					prim_info.has_indices          = true;
+					prim_info.indices_accessor_idx = accessor_map.at( prim->indices );
 				}
 
 				cgltf_attribute const *attributes_begin = prim->attributes;
@@ -272,9 +273,8 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			mesh_info.primitives      = primitive_infos.data();
 			mesh_info.primitive_count = primitive_infos.size();
 
-			//
-
 			uint32_t stage_idx = le_stage_i.create_mesh( stage, &mesh_info );
+			mesh_map.insert( {msh, stage_idx} );
 
 			// Manual cleanup because raw pointer.
 
