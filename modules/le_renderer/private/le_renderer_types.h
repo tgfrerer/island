@@ -1281,15 +1281,22 @@ struct le_resource_info_t {
 };
 
 enum class le_compound_num_type : uint8_t {
-	eUndefined = 0,
-	eScalar,
-	eVec2,
-	eVec3,
-	eVec4,
-	eMat2,
-	eMat3,
-	eMat4,
+	// Note that we store the number of components
+	// for each num_type in the lower 4 bits, so that it may be extracted
+	// as: (type & 0xF);
+	eUndefined = ( 0 << 4 ) | 0,
+	eScalar    = ( 1 << 4 ) | 1,
+	eVec2      = ( 2 << 4 ) | 2,
+	eVec3      = ( 3 << 4 ) | 3,
+	eVec4      = ( 4 << 4 ) | 4,
+	eMat2      = ( 5 << 4 ) | 4,
+	eMat3      = ( 6 << 4 ) | 9,
+	eMat4      = ( 7 << 4 ) | 16,
 };
+
+constexpr uint8_t get_num_components( le_compound_num_type const &tp ) {
+	return ( uint8_t( tp ) & 0xF );
+}
 
 enum class le_num_type : uint8_t {
 	//
@@ -1320,6 +1327,10 @@ enum class le_num_type : uint8_t {
 	eF32 = eFloat,
 	eF16 = eHalf,
 };
+
+constexpr uint32_t size_of( le_num_type const &tp ) {
+	return ( 1 << ( uint8_t( tp ) & 0b11 ) );
+}
 
 enum class le_vertex_input_rate : uint8_t {
 	ePerVertex   = 0,
