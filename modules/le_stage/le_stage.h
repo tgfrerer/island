@@ -26,7 +26,7 @@ struct le_stage_api {
 
 	struct le_stage_interface_t {
 
-		le_stage_o *    ( * create                   ) ( );
+		le_stage_o *    ( * create                   ) ( le_renderer_o* renderer);
 		void            ( * destroy                  ) ( le_stage_o* self );
 		void            ( * update                   ) ( le_stage_o* self );
 		
@@ -62,8 +62,8 @@ class LeStage : NoCopy, NoMove {
 	le_stage_o *self;
 
   public:
-	LeStage()
-	    : self( le_stage::le_stage_i.create() ) {
+	LeStage( le_renderer_o *renderer )
+	    : self( le_stage::le_stage_i.create( renderer ) ) {
 	}
 
 	~LeStage() {

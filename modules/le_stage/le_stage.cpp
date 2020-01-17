@@ -78,6 +78,8 @@ struct le_mesh_o {
 // Owns all the data
 struct le_stage_o {
 
+	le_renderer_o *renderer; // non-owning.
+
 	struct le_scene_o *scenes;
 	size_t             scenes_sz;
 
@@ -308,8 +310,9 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 
 // ----------------------------------------------------------------------
 
-static le_stage_o *le_stage_create() {
-	auto self = new le_stage_o();
+static le_stage_o *le_stage_create( le_renderer_o *renderer ) {
+	auto self      = new le_stage_o{};
+	self->renderer = renderer;
 	return self;
 }
 
