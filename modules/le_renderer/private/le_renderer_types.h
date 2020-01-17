@@ -1296,16 +1296,17 @@ enum class le_num_type : uint8_t {
 	// Note that we store the log2 of the number of Bytes needed to store values of a type
 	// in the least significant two bits, so that we can say: numBytes =  1 << (type & 0b11);
 	//
-	eChar   = ( 0 << 2 ) | 0, //  8 bit signed int
-	eUChar  = ( 1 << 2 ) | 0, //  8 bit unsigned int
-	eShort  = ( 2 << 2 ) | 1, // 16 bit signed int
-	eUShort = ( 3 << 2 ) | 1, // 16 bit unsigned int
-	eInt    = ( 4 << 2 ) | 2, // 32 bit signed int
-	eUInt   = ( 5 << 2 ) | 2, // 32 bit unsigned int
-	eHalf   = ( 6 << 2 ) | 1, // 16 bit float type
-	eFloat  = ( 7 << 2 ) | 2, // 32 bit float type
-	eLong   = ( 8 << 2 ) | 3, // 64 bit signed int
-	eULong  = ( 9 << 2 ) | 3, // 64 bit unsigned int
+	eChar      = ( 0 << 2 ) | 0,  //  8 bit signed int
+	eUChar     = ( 1 << 2 ) | 0,  //  8 bit unsigned int
+	eShort     = ( 2 << 2 ) | 1,  // 16 bit signed int
+	eUShort    = ( 3 << 2 ) | 1,  // 16 bit unsigned int
+	eInt       = ( 4 << 2 ) | 2,  // 32 bit signed int
+	eUInt      = ( 5 << 2 ) | 2,  // 32 bit unsigned int
+	eHalf      = ( 6 << 2 ) | 1,  // 16 bit float type
+	eFloat     = ( 7 << 2 ) | 2,  // 32 bit float type
+	eLong      = ( 8 << 2 ) | 3,  // 64 bit signed int
+	eULong     = ( 9 << 2 ) | 3,  // 64 bit unsigned int
+	eUndefined = ( 63 << 2 ) | 0, // undefined
 	//
 	// Aliases
 	eU8  = eUChar,
