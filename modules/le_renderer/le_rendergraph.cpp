@@ -595,9 +595,11 @@ generate_dot_file_for_rendergraph(
 		auto const &p = self->passes[ i ];
 
 		if ( self->sortIndices[ i ] != ( ~0u ) ) {
-			os << p->debugName << "[label = <<table border='0' cellborder='1' cellspacing='0'><tr><td border='0' cellpadding='3'><b>" << p->debugName << "</b></td>";
+			os << "\"" << p->debugName << "\""
+			   << "[label = <<table border='0' cellborder='1' cellspacing='0'><tr><td border='0' cellpadding='3'><b>" << p->debugName << "</b></td>";
 		} else {
-			os << p->debugName << "[label = <<table bgcolor='gray' border='0' cellborder='1' cellspacing='0'><tr><td border='0' cellpadding='3'><b>" << p->debugName << "</b></td>";
+			os << "\"" << p->debugName << "\""
+			   << "[label = <<table bgcolor='gray' border='0' cellborder='1' cellspacing='0'><tr><td border='0' cellpadding='3'><b>" << p->debugName << "</b></td>";
 		}
 
 		if ( p->resources.empty() ) {
@@ -626,7 +628,7 @@ generate_dot_file_for_rendergraph(
 				if ( tasks[ i ].writes[ res_idx ] ) {
 					os << "<u>" << r.debug_name << "</u>";
 				} else {
-					os << r.debug_name;
+					os << "" << r.debug_name << "";
 				}
 			}
 
@@ -657,7 +659,7 @@ generate_dot_file_for_rendergraph(
 			os << "{rank=same; ";
 			for ( size_t j = 0; j != self->sortIndices.size(); j++ ) {
 				if ( i == self->sortIndices[ j ] ) {
-					os << self->passes[ j ]->debugName << " ";
+					os << "\"" << self->passes[ j ]->debugName << "\" ";
 				}
 			}
 			os << "}" << std::endl;
