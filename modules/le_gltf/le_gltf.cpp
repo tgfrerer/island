@@ -192,7 +192,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	}
 	{
 		cgltf_accessor const *accessors_begin = self->data->accessors;
-		auto                  accessors_end   = accessors_begin + self->data->accessors->count;
+		auto                  accessors_end   = accessors_begin + self->data->accessors_count;
 
 		for ( auto a = accessors_begin; a != accessors_end; a++ ) {
 			le_accessor_info info{};
