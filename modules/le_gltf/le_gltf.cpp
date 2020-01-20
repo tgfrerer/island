@@ -9,13 +9,33 @@
 #include <string>
 #include <unordered_map>
 #include "string.h" // for memcpy
+
+#define GLM_ENABLE_EXPERIMENTAL
+#include "glm.hpp"
+#include "glm/ext/matrix_transform.hpp"
+#include "glm/gtx/quaternion.hpp"
+#include <glm/gtx/matrix_decompose.hpp>
+
+// Wrappers so that we can pass data via opaque pointers across header boundaries
+struct glm_vec3_t {
+	glm::vec3 data;
+};
+struct glm_vec4_t {
+	glm::vec4 data;
+};
+struct glm_quat_t {
+	glm::quat data;
+};
+struct glm_mat4_t {
+	glm::mat4 data;
+};
+
 /*
 
 How to use this library:
 
 1. load file (this will also load associated assets into memory)
 2. upload assets (this will free associated assets once uploaded)
-
 
 */
 
@@ -163,10 +183,14 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	std::unordered_map<cgltf_buffer_view const *, uint32_t> buffer_view_map;
 	std::unordered_map<cgltf_accessor const *, uint32_t>    accessor_map;
 	std::unordered_map<cgltf_mesh const *, uint32_t>        mesh_map;
+	std::unordered_map<cgltf_node const *, uint32_t>        nodes_map;
+	std::unordered_map<cgltf_scene const *, uint32_t>       scenes_map;
 
 	using namespace le_stage;
 
 	{
+		// Upload buffers
+
 		cgltf_buffer const *buffers_begin = self->data->buffers;
 		auto                buffers_end   = self->data->buffers + self->data->buffers_count;
 
@@ -180,6 +204,8 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		}
 	}
 	{
+		// Upload buffer_views
+
 		cgltf_buffer_view const *buffer_views_begin = self->data->buffer_views;
 		auto                     buffer_views_end   = buffer_views_begin + self->data->buffer_views_count;
 
@@ -196,6 +222,8 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		}
 	}
 	{
+		// Upload accessors
+
 		cgltf_accessor const *accessors_begin = self->data->accessors;
 		auto                  accessors_end   = accessors_begin + self->data->accessors_count;
 
@@ -224,6 +252,8 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	}
 
 	{
+		// Upload meshes
+
 		cgltf_mesh const *mesh_begin = self->data->meshes;
 		auto              mesh_end   = mesh_begin + self->data->meshes_count;
 
@@ -285,6 +315,146 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			for ( auto &d : per_primitive_data ) {
 				delete ( d );
 			}
+		}
+	}
+
+	{
+
+		// -- Upload nodes
+
+		// We must build a linear structure which holds the full tree of node infos,
+		// so that we can pass it via api calls to stage, where the tree will
+		// get re-created.
+
+		std::vector<le_node_info> node_infos;
+		node_infos.reserve( self->data->nodes_count );
+
+		cgltf_node const *nodes_begin = self->data->nodes;
+		auto              nodes_end   = nodes_begin + self->data->nodes_count;
+
+		{
+			uint32_t i = 0;
+			for ( auto n = nodes_begin; n != nodes_end; n++, i++ ) {
+				nodes_map.insert( {n, i} );
+			}
+		}
+
+		for ( auto n = nodes_begin; n != nodes_end; n++ ) {
+			le_node_info info{};
+
+			info.local_scale       = new glm_vec3_t;
+			info.local_rotation    = new glm_quat_t;
+			info.local_translation = new glm_vec3_t;
+			info.local_transform   = new glm_mat4_t;
+
+			if ( n->mesh ) {
+				info.mesh     = mesh_map.at( n->mesh );
+				info.has_mesh = true;
+			} else {
+				info.has_mesh = false;
+			}
+
+			// -- Apply transformation calculations:
+			//    Our goal is to have SRT, as well as local transform matrix for each node.
+
+			glm::mat4 m( 1 );
+
+			if ( false == n->has_matrix ) {
+
+				info.local_scale->data       = n->has_scale ? reinterpret_cast<glm::vec3 const &>( n->scale ) : glm::vec3( 1 );
+				info.local_rotation->data    = n->has_rotation ? reinterpret_cast<glm::quat const &>( n->rotation ) : glm::quat( 0, 0, 0, 1 );
+				info.local_translation->data = n->has_translation ? reinterpret_cast<glm::vec3 const &>( n->translation ) : glm::vec3( 0 );
+
+				m = glm::scale( m, info.local_scale->data );           // Scale
+				m = glm::mat4_cast( info.local_rotation->data ) * m;   // Rotate
+				m = glm::translate( m, info.local_translation->data ); // Translate
+			} else {
+
+				m = reinterpret_cast<glm::mat4 const &>( n->matrix );
+
+				glm::vec3 skew;
+				glm::vec4 perspective;
+				glm::vec3 scale;
+				glm::vec3 translation;
+				glm::quat orientation;
+
+				if ( glm::decompose( m, scale, orientation, translation, skew, perspective ) ) {
+					info.local_scale->data       = n->has_scale ? reinterpret_cast<glm::vec3 const &>( n->scale ) : scale;
+					info.local_rotation->data    = n->has_rotation ? reinterpret_cast<glm::quat const &>( n->rotation ) : orientation;
+					info.local_translation->data = n->has_translation ? reinterpret_cast<glm::vec3 const &>( n->translation ) : translation;
+				} else {
+					assert( false && "could not decompose matrix" );
+				}
+			}
+
+			info.local_transform->data = m;
+
+			info.child_indices_count = uint32_t( n->children_count );
+
+			if ( n->children_count ) {
+
+				// -- prepare an array for children indices for each node, so that these may be looked up
+				// when re-creating the tree.
+				uint32_t *child_indices = static_cast<uint32_t *>( malloc( sizeof( uint32_t ) * n->children_count ) );
+
+				// We store the pointer to child_indices now,
+				// before it ceases to be the pointer to element [0] of the children array,
+				// as it will get incremented after we assign each child index element.
+				info.child_indices = child_indices;
+
+				cgltf_node const *const *children_begin = n->children;
+				auto                     children_end   = children_begin + n->children_count;
+				for ( auto c = children_begin; c != children_end; c++ ) {
+					( *child_indices ) = nodes_map.at( *c ); // fetch index for child node.
+					child_indices++;
+				}
+			}
+
+			node_infos.emplace_back( info );
+		}
+
+		le_stage_i.create_nodes( stage, node_infos.data(), node_infos.size() );
+
+		for ( auto &n : node_infos ) {
+			// n.b. we must manually free node child indices becasue these were allocated via malloc.
+
+#define DELETE_IF_SET( x ) \
+	if ( x ) {             \
+		delete x;          \
+	}
+
+			DELETE_IF_SET( n.local_scale )
+			DELETE_IF_SET( n.local_rotation )
+			DELETE_IF_SET( n.local_translation )
+			DELETE_IF_SET( n.local_transform )
+
+#undef DELETE_IF_SET
+
+			if ( n.child_indices ) {
+				free( n.child_indices );
+			}
+		}
+	}
+
+	{
+		// -- Upload scene
+
+		cgltf_scene const *scenes_begin = self->data->scenes;
+		auto               scenes_end   = scenes_begin + self->data->scenes_count;
+
+		for ( auto s = scenes_begin; s != scenes_end; s++ ) {
+			std::vector<uint32_t> nodes_info;
+			nodes_info.reserve( s->nodes_count );
+
+			cgltf_node const *const *nodes_begin = s->nodes;
+			auto                     nodes_end   = nodes_begin + s->nodes_count;
+
+			for ( auto n = nodes_begin; n != nodes_end; n++ ) {
+				nodes_info.push_back( nodes_map[ *n ] );
+			}
+
+			uint32_t scene_idx = le_stage_i.create_scene( stage, nodes_info.data(), uint32_t( nodes_info.size() ) );
+			scenes_map.insert( {s, scene_idx} );
 		}
 	}
 
