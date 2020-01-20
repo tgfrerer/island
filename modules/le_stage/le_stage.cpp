@@ -470,7 +470,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 				}
 
 				// fill in number of vertices for primitive
-				if ( primitive.attributes.empty() ) {
+				if ( !primitive.attributes.empty() ) {
 					primitive.vertex_count = stage->accessors[ primitive.attributes.front().accessor_idx ].count;
 				}
 
