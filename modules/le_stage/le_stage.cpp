@@ -409,6 +409,29 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	}     // end for all meshes
 }
 
+// ----------------------------------------------------------------------
+
+/// \brief add setup and execute callbacks to rendermodule so that rendermodule
+/// knows which resources are needed to render the stage.
+/// There are two resource types which potentially need uploading: buffers,
+/// and images.
+static void le_stage_draw_into_render_module( le_stage_o *stage, le_render_module_o *module ) {
+
+	using namespace le_renderer;
+
+	auto rp = le::RenderPass( "Stage Draw", LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW )
+	              .setExecuteCallback( stage, pass_draw )
+	              .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE )
+	              .setIsRoot( true );
+
+	for ( auto &b : stage->buffers ) {
+		rp.useBufferResource( b->handle, {LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
+		                                  LE_BUFFER_USAGE_VERTEX_BUFFER_BIT} );
+	}
+
+	render_module_i.add_renderpass( module, rp );
+}
+
 /// \brief initialises pipeline state objects associated with each primitive
 /// \details pipeline contains materials, vertex and index binding information on each primitive.
 /// this will also cache handles for vertex and index data with each primitive.
@@ -540,29 +563,6 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 		} // end for all mesh.primitives
 	}     // end for all meshes
-}
-
-// ----------------------------------------------------------------------
-
-/// \brief add setup and execute callbacks to rendermodule so that rendermodule
-/// knows which resources are needed to render the stage.
-/// There are two resource types which potentially need uploading: buffers,
-/// and images.
-static void le_stage_draw_into_render_module( le_stage_o *stage, le_render_module_o *module ) {
-
-	using namespace le_renderer;
-
-	auto rp = le::RenderPass( "Stage Draw", LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW )
-	              .setExecuteCallback( stage, pass_draw )
-	              .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE )
-	              .setIsRoot( true );
-
-	for ( auto &b : stage->buffers ) {
-		rp.useBufferResource( b->handle, {LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
-		                                  LE_BUFFER_USAGE_VERTEX_BUFFER_BIT} );
-	}
-
-	render_module_i.add_renderpass( module, rp );
 }
 
 // ----------------------------------------------------------------------
