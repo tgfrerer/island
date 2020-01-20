@@ -440,7 +440,6 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 						// every accessor mapping the same buffer will go into the same binding number
 						// because that's what the encoder will bind in the end.
 						// if things are interleaved we
-
 						binding.addAttribute( accessor->byte_offset,
 						                      accessor->component_type,
 						                      get_num_components( accessor->type ), // calculate number of components
@@ -489,7 +488,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 			// ---- invariant: primitive has pipeline, bindings.
 
-			encoder.bindVertexBuffers( 0, primitive.bindings_buffer_handles.size(),
+			encoder.bindVertexBuffers( 0, uint32_t( primitive.bindings_buffer_handles.size() ),
 			                           primitive.bindings_buffer_handles.data(),
 			                           primitive.bindings_buffer_offsets.data() );
 
