@@ -339,6 +339,7 @@ static le::IndexType index_type_from_num_type( le_num_type const &tp ) {
 		case le_num_type::eI8 : return le::IndexType::eUint8Ext;
 		case le_num_type::eU32: return le::IndexType::eUint32;
 		case le_num_type::eU16: return le::IndexType::eUint16;
+		default: assert(false);
 	}
 	// clang-format on
 	assert( false ); // unreachable
