@@ -17,6 +17,7 @@
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
 #include "glm.hpp"
 #include "gtc/matrix_transform.hpp"
+#include "glm/gtx/quaternion.hpp"
 
 // It could be nice if le_mesh_o could live outside of the stage - so that
 // we could use it as a method to generate primitives for example, like spheres etc.
@@ -33,6 +34,21 @@
  * once before we do any rendering of scenes from a particular gltf instance.
  * 
 */
+
+// Wrappers so that we can pass data via opaque pointers across header boundaries
+struct glm_vec3_t {
+	glm::vec3 data;
+};
+struct glm_quat_t {
+	glm::quat data;
+};
+struct glm_vec4_t {
+	glm::vec4 data;
+};
+
+struct glm_mat4_t {
+	glm::mat4 data;
+};
 
 struct le_buffer_o {
 	void *               mem;    // nullptr if not owning
@@ -91,22 +107,38 @@ struct le_mesh_o {
 	std::vector<le_primitive_o> primitives;
 };
 
+struct le_node_o {
+	glm::mat4 local_transform;
+
+	glm::vec3 local_translation;
+	glm::quat local_rotation;
+	glm::vec3 local_scale;
+
+	bool     has_mesh;
+	uint32_t mesh_idx;
+
+	std::vector<le_node_o *> children; // non-owning
+};
+
+struct le_scene_o {
+	std::vector<le_node_o *> root_nodes;
+};
+
 // Owns all the data
 struct le_stage_o {
 
 	le_renderer_o *renderer; // non-owning.
 
-	struct le_scene_o *scenes;
-	size_t             scenes_sz;
+	std::vector<le_scene_o> scenes;
 
-	// Everything is kept as owned pointers -
+	std::vector<le_node_o *> nodes; // owning.
 
 	std::vector<le_mesh_o> meshes;
 
 	std::vector<le_accessor_o>    accessors;
 	std::vector<le_buffer_view_o> buffer_views;
 
-	std::vector<le_buffer_o *>        buffers;
+	std::vector<le_buffer_o *>        buffers; // owning
 	std::vector<le_resource_handle_t> buffer_handles;
 };
 
@@ -267,6 +299,78 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 	return idx;
 }
 
+/// \brief creat nodes graph from list of nodes.
+/// nodes may refer to each other by index via their children property - indices may only refer
+/// to nodes passed within info. you cannot refer to nodes which are already inside the scene graph.
+static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info *info, size_t num_nodes ) {
+	uint32_t idx = uint32_t( self->nodes.size() );
+
+	// create all these nodes.
+	self->nodes.reserve( self->nodes.size() + num_nodes );
+
+	le_node_info const *n_begin = info;
+	auto                n_end   = n_begin + num_nodes;
+
+	for ( auto n = n_begin; n != n_end; n++ ) {
+		le_node_o *node = new le_node_o{};
+
+		node->local_translation = n->local_translation->data;
+		node->local_rotation    = glm::quat{n->local_rotation->data};
+		node->local_scale       = n->local_scale->data;
+
+		node->local_transform = n->local_transform->data;
+
+		if ( n->has_mesh ) {
+			node->has_mesh = true;
+			node->mesh_idx = n->mesh;
+		}
+
+		self->nodes.push_back( node );
+	}
+
+	// -- Resolve child references
+	// these are relative to the first index, because we assume
+	// that the array of nodes is self-contained.
+
+	for ( size_t i = 0; i != num_nodes; i++ ) {
+
+		if ( info[ i ].child_indices && info[ i ].child_indices_count ) {
+
+			uint32_t const *ci_begin = info[ i ].child_indices;
+			auto            ci_end   = ci_begin + info[ i ].child_indices_count;
+
+			self->nodes[ i + idx ]->children.reserve( info[ i ].child_indices_count );
+
+			for ( auto ci = ci_begin; ci != ci_end; ci++ ) {
+				self->nodes[ i + idx ]->children.push_back( self->nodes[ ( *ci + idx ) ] );
+			}
+		}
+	}
+
+	return idx;
+}
+
+// ----------------------------------------------------------------------
+
+static uint32_t le_stage_create_scene( le_stage_o *self, uint32_t *node_idx, uint32_t node_idx_count ) {
+	le_scene_o scene;
+
+	scene.root_nodes.reserve( node_idx_count );
+
+	uint32_t const *node_idx_begin = node_idx;
+	auto            node_idx_end   = node_idx_begin + node_idx_count;
+
+	for ( auto n = node_idx_begin; n != node_idx_end; n++ ) {
+		scene.root_nodes.push_back( self->nodes[ *n ] );
+	}
+
+	uint32_t idx = uint32_t( self->scenes.size() );
+
+	self->scenes.emplace_back( scene );
+
+	return idx;
+}
+
 // ----------------------------------------------------------------------
 
 /// \brief
@@ -358,7 +462,9 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	    {0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f},
 	};
 
-	auto ortho_projection = glm::ortho( 0.f, float( extents.width ), 0.f, float( extents.height ) );
+	auto ortho_projection = glm::ortho( -0.5f, 0.5f, -0.5f, 0.5f );
+	// *glm::scale( glm::mat4( 1 ), glm::vec3( 10.f ) );
+	// auto ortho_projection = glm::ortho( 0.f, float( extents.width ), 0.f, float( extents.height ) );
 
 	/*
 	
@@ -583,6 +689,13 @@ static void le_stage_destroy( le_stage_o *self ) {
 		}
 		delete b;
 	}
+
+	for ( auto &n : self->nodes ) {
+		if ( n ) {
+			delete n;
+		}
+	}
+
 	self->buffers.clear();
 	self->buffer_handles.clear();
 
@@ -601,8 +714,11 @@ ISL_API_ATTR void register_le_stage_api( void *api ) {
 	le_stage_i.draw_into_module    = le_stage_draw_into_render_module;
 
 	le_stage_i.setup_pipelines = le_stage_setup_pipelines;
+
 	le_stage_i.create_buffer      = le_stage_create_buffer;
 	le_stage_i.create_buffer_view = le_stage_create_buffer_view;
 	le_stage_i.create_accessor    = le_stage_create_accessor;
 	le_stage_i.create_mesh        = le_stage_create_mesh;
+	le_stage_i.create_nodes       = le_stage_create_nodes;
+	le_stage_i.create_scene       = le_stage_create_scene;
 }

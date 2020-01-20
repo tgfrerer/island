@@ -60,4 +60,17 @@ struct le_mesh_info {
 	uint32_t           primitive_count;
 };
 
+struct le_node_info {
+	uint32_t *child_indices;
+	uint32_t  child_indices_count;
+
+	uint32_t mesh; // index into stage's mesh list
+	bool     has_mesh;
+
+	struct glm_mat4_t *local_transform;
+	struct glm_vec3_t *local_translation;
+	struct glm_quat_t *local_rotation;
+	struct glm_vec3_t *local_scale;
+};
+
 #endif
