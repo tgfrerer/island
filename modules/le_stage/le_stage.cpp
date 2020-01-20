@@ -418,8 +418,20 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 					auto &binding = abs.addBinding( buffer_view.byte_stride );
 
+					// If no explicit buffer_view.byte_stride was given, we accumulate each accessor's
+					// storage size so that we can set the stride of the binding based on the sum total
+					// of a bindning's accessors at the end.
+					//
+					uint16_t accessors_total_byte_count = 0;
+
 					do {
-						// add attributes until buffer_view_idx changes.
+
+						if ( 0 == buffer_view.byte_stride ) {
+							accessors_total_byte_count += size_of( accessor->component_type ) *
+							                              get_num_components( accessor->type );
+						}
+
+						// Add attributes until buffer_view_idx changes.
 						// in which case we want to open the next binding.
 
 						// if the buffer_view_idx doesn't change, this means that we are still within the same
@@ -448,6 +460,12 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 					primitive.bindings_buffer_handles.push_back( stage->buffers[ buffer_view.buffer_idx ]->handle );
 					primitive.bindings_buffer_offsets.push_back( buffer_view.byte_offset );
+
+					if ( 0 == buffer_view.byte_stride ) {
+						// If stride was not explicitly specified - this will be non-zero,
+						// telling us that we must set stride here.
+						binding.setStride( accessors_total_byte_count );
+					}
 
 					binding.end();
 				}
