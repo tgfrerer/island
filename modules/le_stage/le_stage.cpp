@@ -7,6 +7,8 @@
 
 #include "3rdparty/src/spooky/SpookyV2.h"
 
+#include <iostream>
+#include <iomanip>
 #include <vector>
 #include <string>
 #include "string.h"
@@ -52,7 +54,7 @@ struct le_buffer_view_o {
 struct le_accessor_o {
 	le_num_type          component_type;
 	le_compound_num_type type;
-	uint32_t             byte_offset;
+	uint16_t             byte_offset;
 	uint32_t             count;
 	uint32_t             buffer_view_idx; // index of buffer view in stage
 	float                min[ 16 ];
@@ -357,10 +359,64 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 	auto ortho_projection = glm::ortho( 0.f, float( extents.width ), 0.f, float( extents.height ) );
 
-	using namespace le_renderer;
-	auto pipeline_manager = renderer_i.get_pipeline_manager( stage->renderer );
+	/*
+	
+		Todo:
+		
+		- Each mesh is drawn using the corresponding node's transform, which means we must calculate transforms,
+		then draw all of a meshes primitives using this particular transform.
 
-	// TODO: clean
+	*/
+
+	for ( auto &mesh : stage->meshes ) {
+
+		for ( auto &primitive : mesh.primitives ) {
+
+			if ( !primitive.pipeline_state_handle ) {
+				std::cerr << "missing pipeleine state object for primitive - did you call setup_pipelines on the stage after adding the mesh/primitive?" << std::endl;
+				continue;
+			}
+
+			encoder
+			    .bindGraphicsPipeline( primitive.pipeline_state_handle )
+			    .setArgumentData( LE_ARGUMENT_NAME( "MvpUbo" ), &ortho_projection, sizeof( glm::mat4 ) )
+			    .setViewports( 0, 1, &viewports[ 0 ] );
+
+			// ---- invariant: primitive has pipeline, bindings.
+
+			encoder.bindVertexBuffers( 0, uint32_t( primitive.bindings_buffer_handles.size() ),
+			                           primitive.bindings_buffer_handles.data(),
+			                           primitive.bindings_buffer_offsets.data() );
+
+			if ( primitive.has_indices ) {
+
+				auto &indices_accessor = stage->accessors[ primitive.indices_accessor_idx ];
+				auto &buffer_view      = stage->buffer_views[ indices_accessor.buffer_view_idx ];
+				auto &buffer           = stage->buffers[ buffer_view.buffer_idx ];
+
+				encoder.bindIndexBuffer( buffer->handle,
+				                         buffer_view.byte_offset,
+				                         index_type_from_num_type( indices_accessor.component_type ) );
+
+				encoder.drawIndexed( primitive.index_count );
+			} else {
+
+				encoder.draw( primitive.vertex_count );
+			}
+
+		} // end for all mesh.primitives
+	}     // end for all meshes
+}
+
+/// \brief initialises pipeline state objects associated with each primitive
+/// \details pipeline contains materials, vertex and index binding information on each primitive.
+/// this will also cache handles for vertex and index data with each primitive.
+static void le_stage_setup_pipelines( le_stage_o *stage ) {
+
+	using namespace le_renderer;
+
+	le_pipeline_manager_o *pipeline_manager = renderer_i.get_pipeline_manager( stage->renderer );
+
 	for ( auto &mesh : stage->meshes ) {
 
 		for ( auto &primitive : mesh.primitives ) {
@@ -384,14 +440,14 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 				auto &abs =
 				    builder.withAttributeBindingState();
 
-				// We must group our attributes by buffersviews.
+				// We must group our attributes by bufferviews.
 
 				// only if there is interleaving we have more than one attribute per buffer binding
 				// otherwise each binding takes its own buffer.
 
-				// + we must detect interleaving:
-				// if bufferview has byteStride, then there is interleaving.
-				// if more than one accessor refer to the same bufferview, we have interleaving.
+				// + We must detect interleaving:
+				// - 1. gltf requirement: if bufferview.byteStride != 0, then there is interleaving.
+				// - 2. if more than one accessor refer to the same bufferview, we have interleaving.
 
 				// + we must group by bufferViews.
 				//   each bufferview will mean one binding - as a bufferview refers to a buffer, and an offset into the buffer
@@ -440,7 +496,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 						// every accessor mapping the same buffer will go into the same binding number
 						// because that's what the encoder will bind in the end.
 						// if things are interleaved we
-						binding.addAttribute( accessor->byte_offset,
+						binding.addAttribute( uint16_t( accessor->byte_offset ),
 						                      accessor->component_type,
 						                      get_num_components( accessor->type ), // calculate number of components
 						                      accessor->is_normalized );
@@ -455,7 +511,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 					} while ( it != primitive.attributes.end() &&
 					          buffer_view_idx == accessor->buffer_view_idx );
 
-					// cache binding for primitive so that we can bind faster.
+					// Cache binding for primitive so that we can bind faster.
 
 					primitive.bindings_buffer_handles.push_back( stage->buffers[ buffer_view.buffer_idx ]->handle );
 					primitive.bindings_buffer_offsets.push_back( buffer_view.byte_offset );
@@ -469,7 +525,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 					binding.end();
 				}
 
-				// fill in number of vertices for primitive
+				// Fill in number of vertices for primitive
 				if ( !primitive.attributes.empty() ) {
 					primitive.vertex_count = stage->accessors[ primitive.attributes.front().accessor_idx ].count;
 				}
@@ -479,33 +535,6 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 				}
 
 				primitive.pipeline_state_handle = builder.build();
-			}
-
-			encoder
-			    .bindGraphicsPipeline( primitive.pipeline_state_handle )
-			    .setArgumentData( LE_ARGUMENT_NAME( "MvpUbo" ), &ortho_projection, sizeof( glm::mat4 ) )
-			    .setViewports( 0, 1, &viewports[ 0 ] );
-
-			// ---- invariant: primitive has pipeline, bindings.
-
-			encoder.bindVertexBuffers( 0, uint32_t( primitive.bindings_buffer_handles.size() ),
-			                           primitive.bindings_buffer_handles.data(),
-			                           primitive.bindings_buffer_offsets.data() );
-
-			if ( primitive.has_indices ) {
-
-				auto &indices_accessor = stage->accessors[ primitive.indices_accessor_idx ];
-				auto &buffer_view      = stage->buffer_views[ indices_accessor.buffer_view_idx ];
-				auto &buffer           = stage->buffers[ buffer_view.buffer_idx ];
-
-				encoder.bindIndexBuffer( buffer->handle,
-				                         buffer_view.byte_offset,
-				                         index_type_from_num_type( indices_accessor.component_type ) );
-
-				encoder.drawIndexed( primitive.index_count );
-			} else {
-
-				encoder.draw( primitive.vertex_count );
 			}
 
 		} // end for all mesh.primitives
@@ -570,6 +599,7 @@ ISL_API_ATTR void register_le_stage_api( void *api ) {
 	le_stage_i.update_rendermodule = le_stage_update_render_module;
 	le_stage_i.draw_into_module    = le_stage_draw_into_render_module;
 
+	le_stage_i.setup_pipelines = le_stage_setup_pipelines;
 	le_stage_i.create_buffer      = le_stage_create_buffer;
 	le_stage_i.create_buffer_view = le_stage_create_buffer_view;
 	le_stage_i.create_accessor    = le_stage_create_accessor;

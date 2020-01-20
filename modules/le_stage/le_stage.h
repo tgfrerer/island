@@ -33,6 +33,8 @@ struct le_stage_api {
 		void			( * update_rendermodule )(le_stage_o* self, le_render_module_o* module);
 		void            ( * draw_into_module )(le_stage_o* self, le_render_module_o* module);
 
+		void            ( * setup_pipelines)(le_stage_o* self);
+
 		uint32_t (* create_buffer)( le_stage_o *stage, void *mem, uint32_t sz, char const *debug_name );
 		uint32_t (* create_buffer_view)( le_stage_o *self, le_buffer_view_info const *info );
 		uint32_t (* create_accessor)( le_stage_o *self, le_accessor_info const *info );
