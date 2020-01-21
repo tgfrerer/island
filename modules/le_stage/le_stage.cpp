@@ -16,9 +16,11 @@
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
+#define GLM_ENABLE_EXPERIMENTAL
 #include "glm.hpp"
-#include "gtc/matrix_transform.hpp"
+#include "glm/ext/matrix_transform.hpp"
 #include "glm/gtx/quaternion.hpp"
+#include <glm/gtx/matrix_decompose.hpp>
 
 // It could be nice if le_mesh_o could live outside of the stage - so that
 // we could use it as a method to generate primitives for example, like spheres etc.
@@ -109,6 +111,7 @@ struct le_mesh_o {
 };
 
 struct le_node_o {
+	glm::mat4 global_transform;
 	glm::mat4 local_transform;
 
 	glm::vec3 local_translation;
@@ -116,6 +119,10 @@ struct le_node_o {
 	glm::vec3 local_scale;
 
 	char name[ 32 ];
+
+	bool local_transform_cached;   // whether local transform is accurate wrt local[translation|rotation|scale]
+	bool global_transform_chached; // whether global transform is current
+
 	bool     has_mesh;
 	uint32_t mesh_idx;
 
@@ -319,9 +326,9 @@ static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info *info, siz
 	for ( auto n = n_begin; n != n_end; n++ ) {
 		le_node_o *node = new le_node_o{};
 
-		node->local_translation = n->local_translation->data;
-		node->local_rotation    = glm::quat{n->local_rotation->data};
 		node->local_scale       = n->local_scale->data;
+		node->local_rotation    = glm::quat{n->local_rotation->data};
+		node->local_translation = n->local_translation->data;
 
 		node->local_transform = n->local_transform->data;
 
@@ -472,6 +479,17 @@ static le::IndexType index_type_from_num_type( le_num_type const &tp ) {
 
 // ----------------------------------------------------------------------
 
+static void traverse_node( le_node_o *parent ) {
+
+	for ( le_node_o *c : parent->children ) {
+		c->global_transform = parent->global_transform * c->local_transform;
+		traverse_node( c );
+		c->global_transform_chached = true;
+	}
+}
+
+// ----------------------------------------------------------------------
+
 static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) {
 	auto stage   = static_cast<le_stage_o *>( user_data );
 	auto encoder = le::Encoder{encoder_};
@@ -495,44 +513,78 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 	*/
 
-	for ( auto &mesh : stage->meshes ) {
+	// -- ensure all nodes have local matrices which reflect their
 
-		for ( auto &primitive : mesh.primitives ) {
+	for ( le_node_o *n : stage->nodes ) {
+		if ( true || false == n->local_transform_cached ) {
 
-			if ( !primitive.pipeline_state_handle ) {
-				std::cerr << "missing pipeleine state object for primitive - did you call setup_pipelines on the stage after adding the mesh/primitive?" << std::endl;
-				continue;
+			glm::mat4 m =
+			    glm::translate( glm::mat4( 1.f ), n->local_translation ) * // translate
+			    glm::mat4_cast( n->local_rotation ) *                      // rotate
+			    glm::scale( glm::mat4( 1.f ), n->local_scale )             // scale
+			    ;
+
+			n->local_transform = m;
+
+			n->local_transform_cached = true;
+		}
+	}
+
+	// -- we need to update global transform matrices.
+	// -- recurse over nodes, starting with root nodes of scene.
+
+	for ( le_scene_o const &s : stage->scenes ) {
+		for ( le_node_o *n : s.root_nodes ) {
+			n->global_transform = n->local_transform;
+			traverse_node( n );
+		}
+	}
+
+	for ( le_scene_o const &s : stage->scenes ) {
+		for ( le_node_o *n : stage->nodes ) {
+			if ( ( n->scene_bit_flags & ( 1 << s.scene_id ) ) && n->has_mesh ) {
+
+				auto const &mesh = stage->meshes[ n->mesh_idx ];
+				for ( auto const &primitive : mesh.primitives ) {
+
+					if ( !primitive.pipeline_state_handle ) {
+						std::cerr << "missing pipeleine state object for primitive - did you call setup_pipelines on the stage after adding the mesh/primitive?" << std::endl;
+						continue;
+					}
+
+					glm::mat4 mvp = ortho_projection * glm::scale( glm::mat4{1}, glm::vec3( 10 ) ) * n->global_transform;
+
+					encoder
+					    .bindGraphicsPipeline( primitive.pipeline_state_handle )
+					    .setArgumentData( LE_ARGUMENT_NAME( "MvpUbo" ), &mvp, sizeof( glm::mat4 ) )
+					    .setViewports( 0, 1, &viewports[ 0 ] );
+
+					// ---- invariant: primitive has pipeline, bindings.
+
+					encoder.bindVertexBuffers( 0, uint32_t( primitive.bindings_buffer_handles.size() ),
+					                           primitive.bindings_buffer_handles.data(),
+					                           primitive.bindings_buffer_offsets.data() );
+
+					if ( primitive.has_indices ) {
+
+						auto &indices_accessor = stage->accessors[ primitive.indices_accessor_idx ];
+						auto &buffer_view      = stage->buffer_views[ indices_accessor.buffer_view_idx ];
+						auto &buffer           = stage->buffers[ buffer_view.buffer_idx ];
+
+						encoder.bindIndexBuffer( buffer->handle,
+						                         buffer_view.byte_offset,
+						                         index_type_from_num_type( indices_accessor.component_type ) );
+
+						encoder.drawIndexed( primitive.index_count );
+					} else {
+
+						encoder.draw( primitive.vertex_count );
+					}
+
+				} // end for all mesh.primitives
 			}
-
-			encoder
-			    .bindGraphicsPipeline( primitive.pipeline_state_handle )
-			    .setArgumentData( LE_ARGUMENT_NAME( "MvpUbo" ), &ortho_projection, sizeof( glm::mat4 ) )
-			    .setViewports( 0, 1, &viewports[ 0 ] );
-
-			// ---- invariant: primitive has pipeline, bindings.
-
-			encoder.bindVertexBuffers( 0, uint32_t( primitive.bindings_buffer_handles.size() ),
-			                           primitive.bindings_buffer_handles.data(),
-			                           primitive.bindings_buffer_offsets.data() );
-
-			if ( primitive.has_indices ) {
-
-				auto &indices_accessor = stage->accessors[ primitive.indices_accessor_idx ];
-				auto &buffer_view      = stage->buffer_views[ indices_accessor.buffer_view_idx ];
-				auto &buffer           = stage->buffers[ buffer_view.buffer_idx ];
-
-				encoder.bindIndexBuffer( buffer->handle,
-				                         buffer_view.byte_offset,
-				                         index_type_from_num_type( indices_accessor.component_type ) );
-
-				encoder.drawIndexed( primitive.index_count );
-			} else {
-
-				encoder.draw( primitive.vertex_count );
-			}
-
-		} // end for all mesh.primitives
-	}     // end for all meshes
+		}
+	}
 }
 
 // ----------------------------------------------------------------------
