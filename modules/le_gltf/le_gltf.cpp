@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include "string.h" // for memcpy
 
+#define GLM_FORCE_RIGHT_HANDED // glTF uses right handed coordinate system, and we're following its lead.
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm.hpp"
 #include "glm/ext/matrix_transform.hpp"
@@ -357,7 +358,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			// -- Apply transformation calculations:
 			//    Our goal is to have SRT, as well as local transform matrix for each node.
 
-			glm::mat4 m( 1 );
+			glm::mat4 m = glm::identity<glm::mat4>();
 
 			if ( false == n->has_matrix ) {
 
@@ -365,9 +366,10 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				info.local_rotation->data    = n->has_rotation ? reinterpret_cast<glm::quat const &>( n->rotation ) : glm::identity<glm::quat>();
 				info.local_translation->data = n->has_translation ? reinterpret_cast<glm::vec3 const &>( n->translation ) : glm::vec3( 0 );
 
-				m = glm::scale( m, info.local_scale->data );           // Scale
-				m = glm::mat4_cast( info.local_rotation->data ) * m;   // Rotate
-				m = glm::translate( m, info.local_translation->data ); // Translate
+				m = glm::translate( glm::mat4( 1.f ), info.local_translation->data ) * // translate
+				    glm::mat4_cast( info.local_rotation->data ) *                      // rotate
+				    glm::scale( glm::mat4( 1.f ), info.local_scale->data );            // Scale
+
 			} else {
 
 				m = reinterpret_cast<glm::mat4 const &>( n->matrix );
