@@ -337,7 +337,9 @@ static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info *info, siz
 			node->mesh_idx = n->mesh;
 		}
 
-		strncpy( node->name, n->name, sizeof( node->name ) );
+		if ( n->name ) {
+			strncpy( node->name, n->name, sizeof( node->name ) );
+		}
 
 		self->nodes.push_back( node );
 	}
