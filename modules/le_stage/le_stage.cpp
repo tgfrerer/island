@@ -496,8 +496,9 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 	auto extents = encoder.getRenderpassExtent();
 
-	le::Viewport viewports[ 1 ] = {
-	    {0.f, float( extents.height ), float( extents.width ), -float( extents.height ), 0.f, 1.f},
+	le::Viewport viewports[ 2 ] = {
+	    {0.f, float( extents.height ), float( extents.width ), -float( extents.height ), -0.f, 1.f},
+	    {0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f},
 	};
 
 	auto ortho_projection = glm::ortho( -0.5f, 0.5f, -0.5f, 0.5f );
