@@ -630,8 +630,27 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 				// primitive does not yet have pipeline - we must create a pipeline
 				// for this primitive.
 
-				auto shader_vert = renderer_i.create_shader_module( stage->renderer, "./local_resources/shaders/gltf.vert", {le::ShaderStage::eVertex}, "" );
-				auto shader_frag = renderer_i.create_shader_module( stage->renderer, "./local_resources/shaders/gltf.frag", {le::ShaderStage::eFragment}, "" );
+				std::stringstream defines;
+
+				uint32_t location = 0;
+				for ( auto it : primitive.attributes ) {
+					// clang-format off
+					switch ( it.type ) {
+					case ( le_primitive_attribute_info::Type::eNormal    ): defines << "HAS_NORMALS="   << ++location << "," ; break;
+					case ( le_primitive_attribute_info::Type::eTangent   ): defines << "HAS_TANGENTS="  << ++location << "," ; break;
+					case ( le_primitive_attribute_info::Type::eTexcoord  ): defines << "HAS_TEXCOORDS=" << ++location << "," ; break;
+					case ( le_primitive_attribute_info::Type::eColor     ): defines << "HAS_COLORS="    << ++location << "," ; break;
+					case ( le_primitive_attribute_info::Type::eJoints    ): defines << "HAS_JOINTS="    << ++location << "," ; break;
+					case ( le_primitive_attribute_info::Type::eWeights   ): defines << "HAS_WEIGHTS="   << ++location << "," ; break;
+					default: break;
+					}
+					// clang-format on
+				}
+
+				std::cout << "adding the following defines: " << defines.str() << std::flush << std::endl;
+
+				auto shader_vert = renderer_i.create_shader_module( stage->renderer, "./local_resources/shaders/gltf.vert", {le::ShaderStage::eVertex}, defines.str().c_str() );
+				auto shader_frag = renderer_i.create_shader_module( stage->renderer, "./local_resources/shaders/gltf.frag", {le::ShaderStage::eFragment}, defines.str().c_str() );
 
 				LeGraphicsPipelineBuilder builder( pipeline_manager );
 
