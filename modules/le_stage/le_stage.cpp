@@ -602,6 +602,7 @@ static void le_stage_draw_into_render_module( le_stage_o *stage, le_render_modul
 	auto rp = le::RenderPass( "Stage Draw", LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW )
 	              .setExecuteCallback( stage, pass_draw )
 	              .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE )
+	              .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_STENCIL_IMAGE" ) )
 	              .setIsRoot( true );
 
 	for ( auto &b : stage->buffers ) {
