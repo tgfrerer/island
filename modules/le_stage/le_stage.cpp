@@ -633,7 +633,11 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 				builder
 				    .addShaderStage( shader_frag )
-				    .addShaderStage( shader_vert );
+				    .addShaderStage( shader_vert )
+				    .withRasterizationState()
+				    .setCullMode( le::CullModeFlagBits::eBack )
+				    .setFrontFace( le::FrontFace::eClockwise )
+				    .end();
 
 				primitive.bindings_buffer_handles.clear();
 				primitive.bindings_buffer_offsets.clear();
