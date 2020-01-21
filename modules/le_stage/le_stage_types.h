@@ -67,6 +67,8 @@ struct le_node_info {
 	uint32_t mesh; // index into stage's mesh list
 	bool     has_mesh;
 
+	char *name;
+
 	struct glm_mat4_t *local_transform;
 	struct glm_vec3_t *local_translation;
 	struct glm_quat_t *local_rotation;

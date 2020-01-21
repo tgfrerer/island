@@ -410,6 +410,8 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				}
 			}
 
+			info.name = n->name;
+
 			node_infos.emplace_back( info );
 		}
 

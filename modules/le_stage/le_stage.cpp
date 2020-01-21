@@ -7,11 +7,12 @@
 
 #include "3rdparty/src/spooky/SpookyV2.h"
 
+#include "string.h" // for memcpy
+
 #include <iostream>
 #include <iomanip>
 #include <vector>
 #include <string>
-#include "string.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -114,6 +115,7 @@ struct le_node_o {
 	glm::quat local_rotation;
 	glm::vec3 local_scale;
 
+	char name[ 32 ];
 	bool     has_mesh;
 	uint32_t mesh_idx;
 
@@ -324,6 +326,8 @@ static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info *info, siz
 			node->has_mesh = true;
 			node->mesh_idx = n->mesh;
 		}
+
+		strncpy( node->name, n->name, sizeof( node->name ) );
 
 		self->nodes.push_back( node );
 	}
