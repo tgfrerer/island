@@ -418,19 +418,20 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		le_stage_i.create_nodes( stage, node_infos.data(), node_infos.size() );
 
 		for ( auto &n : node_infos ) {
-			// n.b. we must manually free node child indices becasue these were allocated via malloc.
 
-#define DELETE_IF_SET( x ) \
-	if ( x ) {             \
-		delete x;          \
-	}
+			// N.b.: we must manually free node child indices becasue these were allocated via malloc.
+			//
+			// It is safe to call `delete` even if nothing is pointed to by the pointers it is being
+			// called upon.
+			//
+			// The standard says: "The value of the first argument supplied to a  deallocation function
+			// may be a null pointer value; if so, and if the deallocation function is one supplied in
+			// the standard library, the call has no effect."
 
-			DELETE_IF_SET( n.local_scale )
-			DELETE_IF_SET( n.local_rotation )
-			DELETE_IF_SET( n.local_translation )
-			DELETE_IF_SET( n.local_transform )
-
-#undef DELETE_IF_SET
+			delete n.local_scale;
+			delete n.local_rotation;
+			delete n.local_translation;
+			delete n.local_transform;
 
 			if ( n.child_indices ) {
 				free( n.child_indices );
