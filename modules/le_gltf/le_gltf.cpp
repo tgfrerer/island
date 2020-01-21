@@ -362,7 +362,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			if ( false == n->has_matrix ) {
 
 				info.local_scale->data       = n->has_scale ? reinterpret_cast<glm::vec3 const &>( n->scale ) : glm::vec3( 1 );
-				info.local_rotation->data    = n->has_rotation ? reinterpret_cast<glm::quat const &>( n->rotation ) : glm::quat( 0, 0, 0, 1 );
+				info.local_rotation->data    = n->has_rotation ? reinterpret_cast<glm::quat const &>( n->rotation ) : glm::identity<glm::quat>();
 				info.local_translation->data = n->has_translation ? reinterpret_cast<glm::vec3 const &>( n->translation ) : glm::vec3( 0 );
 
 				m = glm::scale( m, info.local_scale->data );           // Scale
