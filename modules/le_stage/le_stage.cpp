@@ -501,7 +501,6 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	};
 
 	auto ortho_projection = glm::ortho( -0.5f, 0.5f, -0.5f, 0.5f );
-	// *glm::scale( glm::mat4( 1 ), glm::vec3( 10.f ) );
 	// auto ortho_projection = glm::ortho( 0.f, float( extents.width ), 0.f, float( extents.height ) );
 
 	/*
