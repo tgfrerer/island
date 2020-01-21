@@ -119,11 +119,14 @@ struct le_node_o {
 	bool     has_mesh;
 	uint32_t mesh_idx;
 
+	uint64_t scene_bit_flags; // one bit for every scene this node is included in
+
 	std::vector<le_node_o *> children; // non-owning
 };
 
 struct le_scene_o {
-	std::vector<le_node_o *> root_nodes;
+	uint8_t                  scene_id;   // matches scene bit flag in node.
+	std::vector<le_node_o *> root_nodes; // non-owning
 };
 
 // Owns all the data
@@ -356,19 +359,32 @@ static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info *info, siz
 
 // ----------------------------------------------------------------------
 
+static void le_node_o_set_scene_bit( le_node_o *node, uint8_t bit ) {
+
+	node->scene_bit_flags |= ( 1 << bit );
+
+	for ( le_node_o *n : node->children ) {
+		le_node_o_set_scene_bit( n, bit );
+	}
+}
+
+// ----------------------------------------------------------------------
+
 static uint32_t le_stage_create_scene( le_stage_o *self, uint32_t *node_idx, uint32_t node_idx_count ) {
 	le_scene_o scene;
 
+	uint32_t idx   = uint32_t( self->scenes.size() );
+	scene.scene_id = uint8_t( idx );
 	scene.root_nodes.reserve( node_idx_count );
 
 	uint32_t const *node_idx_begin = node_idx;
 	auto            node_idx_end   = node_idx_begin + node_idx_count;
 
 	for ( auto n = node_idx_begin; n != node_idx_end; n++ ) {
-		scene.root_nodes.push_back( self->nodes[ *n ] );
+		auto root_node = self->nodes[ *n ];
+		scene.root_nodes.push_back( root_node );
+		le_node_o_set_scene_bit( root_node, scene.scene_id );
 	}
-
-	uint32_t idx = uint32_t( self->scenes.size() );
 
 	self->scenes.emplace_back( scene );
 
