@@ -592,33 +592,6 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 	*/
 
-	// -- ensure all nodes have local matrices which reflect their
-
-	for ( le_node_o *n : stage->nodes ) {
-		if ( true || false == n->local_transform_cached ) {
-
-			glm::mat4 m =
-			    glm::translate( glm::mat4( 1.f ), n->local_translation ) * // translate
-			    glm::mat4_cast( n->local_rotation ) *                      // rotate
-			    glm::scale( glm::mat4( 1.f ), n->local_scale )             // scale
-			    ;
-
-			n->local_transform = m;
-
-			n->local_transform_cached = true;
-		}
-	}
-
-	// -- we need to update global transform matrices.
-	// -- recurse over nodes, starting with root nodes of scene.
-
-	for ( le_scene_o const &s : stage->scenes ) {
-		for ( le_node_o *n : s.root_nodes ) {
-			n->global_transform = n->local_transform;
-			traverse_node( n );
-		}
-	}
-
 	for ( le_scene_o const &s : stage->scenes ) {
 		for ( le_node_o *n : stage->nodes ) {
 			if ( ( n->scene_bit_flags & ( 1 << s.scene_id ) ) && n->has_mesh ) {
@@ -849,6 +822,38 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 // ----------------------------------------------------------------------
 
+/// \brief updates scene graph - call this exactly once per frame.
+static void le_stage_update( le_stage_o *self ) {
+	// -- ensure all nodes have local matrices which reflect their T,R,S properties.
+
+	for ( le_node_o *n : self->nodes ) {
+		if ( false == n->local_transform_cached ) {
+
+			glm::mat4 m =
+			    glm::translate( glm::mat4( 1.f ), n->local_translation ) * // translate
+			    glm::mat4_cast( n->local_rotation ) *                      // rotate
+			    glm::scale( glm::mat4( 1.f ), n->local_scale )             // scale
+			    ;
+
+			n->local_transform = m;
+
+			n->local_transform_cached = true;
+		}
+	}
+
+	// -- we need to update global transform matrices.
+	// -- recurse over nodes, starting with root nodes of scene.
+
+	for ( le_scene_o const &s : self->scenes ) {
+		for ( le_node_o *n : s.root_nodes ) {
+			n->global_transform = n->local_transform;
+			traverse_node( n );
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
+
 static le_stage_o *le_stage_create( le_renderer_o *renderer ) {
 	auto self      = new le_stage_o{};
 	self->renderer = renderer;
@@ -885,6 +890,8 @@ ISL_API_ATTR void register_le_stage_api( void *api ) {
 
 	le_stage_i.create  = le_stage_create;
 	le_stage_i.destroy = le_stage_destroy;
+
+	le_stage_i.update = le_stage_update;
 
 	le_stage_i.update_rendermodule = le_stage_update_render_module;
 	le_stage_i.draw_into_module    = le_stage_draw_into_render_module;
