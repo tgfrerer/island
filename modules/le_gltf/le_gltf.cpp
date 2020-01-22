@@ -248,6 +248,16 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			info.has_max       = a->has_max;
 			info.is_sparse     = a->is_sparse;
 
+			if ( a->is_sparse ) {
+				auto &sparse                   = info.sparse_accessor;
+				sparse.count                   = uint32_t( a->sparse.count );
+				sparse.values_byte_offset      = uint32_t( a->sparse.values_byte_offset );
+				sparse.indices_byte_offset     = uint32_t( a->sparse.indices_byte_offset );
+				sparse.indices_component_type  = get_num_type_from_cgltf( a->sparse.indices_component_type );
+				sparse.values_buffer_view_idx  = buffer_view_map.at( a->sparse.values_buffer_view );
+				sparse.indices_buffer_view_idx = buffer_view_map.at( a->sparse.indices_buffer_view );
+			}
+
 			uint32_t stage_idx = le_stage_i.create_accessor( stage, &info );
 			accessor_map.insert( {a, stage_idx} );
 		}
