@@ -60,6 +60,35 @@ struct le_mesh_info {
 	uint32_t           primitive_count;
 };
 
+struct le_camera_info {
+	struct perspective_t {
+		float fov_y_rad;    // vertical firld of view in radians
+		float aspect_ratio; // width/height
+		float z_far;
+		float z_near;
+	};
+
+	struct orthographic_t {
+		float x_mag;
+		float y_mag;
+		float z_far;
+		float z_near;
+	};
+
+	enum class Type : uint32_t {
+		eUndefined = 0,
+		ePerspective,
+		eOrthographic,
+	};
+
+	Type type;
+
+	union {
+		perspective_t  as_perspective;
+		orthographic_t as_orthographic;
+	} data;
+};
+
 struct le_node_info {
 	uint32_t *child_indices;
 	uint32_t  child_indices_count;
