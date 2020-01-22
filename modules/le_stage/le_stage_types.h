@@ -93,8 +93,11 @@ struct le_node_info {
 	uint32_t *child_indices;
 	uint32_t  child_indices_count;
 
-	uint32_t mesh; // index into stage's mesh list
+	uint32_t mesh; // index into stage's mesh array
 	bool     has_mesh;
+
+	uint32_t camera; // index into stage's camera array
+	bool     has_camera;
 
 	char *name;
 

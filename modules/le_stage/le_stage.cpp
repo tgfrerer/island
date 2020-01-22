@@ -126,6 +126,9 @@ struct le_node_o {
 	bool     has_mesh;
 	uint32_t mesh_idx;
 
+	bool     has_camera;
+	uint32_t camera_idx;
+
 	uint64_t scene_bit_flags; // one bit for every scene this node is included in
 
 	std::vector<le_node_o *> children; // non-owning
@@ -367,6 +370,11 @@ static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info *info, siz
 		if ( n->has_mesh ) {
 			node->has_mesh = true;
 			node->mesh_idx = n->mesh;
+		}
+
+		if ( n->has_camera ) {
+			node->has_camera = true;
+			node->camera_idx = n->camera;
 		}
 
 		if ( n->name ) {

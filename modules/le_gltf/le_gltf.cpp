@@ -410,6 +410,13 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				info.has_mesh = false;
 			}
 
+			if ( n->camera ) {
+				info.camera     = camera_map.at( n->camera );
+				info.has_camera = true;
+			} else {
+				info.has_camera = false;
+			}
+
 			// -- Apply transformation calculations:
 			//    Our goal is to have SRT, as well as local transform matrix for each node.
 
