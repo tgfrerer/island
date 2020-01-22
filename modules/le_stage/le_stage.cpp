@@ -131,6 +131,36 @@ struct le_node_o {
 	std::vector<le_node_o *> children; // non-owning
 };
 
+struct le_stage_camera_o {
+
+	enum class Type : uint32_t {
+		eUndefined = 0,
+		ePerspective,
+		eOrthographic,
+	};
+
+	struct perspective_t {
+		float fov_y_rad;    // vertical firld of view in radians
+		float aspect_ratio; // width/height
+		float z_far;
+		float z_near;
+	};
+
+	struct orthographic_t {
+		float x_mag;
+		float y_mag;
+		float z_far;
+		float z_near;
+	};
+
+	Type type;
+
+	union {
+		perspective_t  as_perspective;
+		orthographic_t as_orthographic;
+	} data;
+};
+
 struct le_scene_o {
 	uint8_t                  scene_id;   // matches scene bit flag in node.
 	std::vector<le_node_o *> root_nodes; // non-owning
@@ -361,6 +391,51 @@ static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info *info, siz
 				self->nodes[ i + idx ]->children.push_back( self->nodes[ ( *ci + idx ) ] );
 			}
 		}
+	}
+
+	return idx;
+}
+
+// ----------------------------------------------------------------------
+
+static uint32_t le_stage_create_cameras( le_stage_o *self, le_camera_info *camera_infos, size_t num_cameras ) {
+
+	le_camera_info const *infos_begin = camera_infos;
+	auto                  infos_end   = infos_begin + num_cameras;
+
+	uint32_t idx = uint32_t( self->cameras.size() );
+
+	self->cameras.reserve( self->cameras.size() + num_cameras );
+
+	for ( auto info = infos_begin; info != infos_end; info++ ) {
+
+		le_stage_camera_o camera{};
+
+		switch ( info->type ) {
+		case ( le_camera_info::Type::ePerspective ): {
+			camera.type            = le_stage_camera_o::Type::ePerspective;
+			auto &persp_cam        = camera.data.as_perspective;
+			persp_cam.fov_y_rad    = info->data.as_perspective.fov_y_rad;
+			persp_cam.aspect_ratio = info->data.as_perspective.aspect_ratio;
+			persp_cam.z_far        = info->data.as_perspective.z_far;
+			persp_cam.z_near       = info->data.as_perspective.z_near;
+			break;
+		}
+		case ( le_camera_info::Type::eOrthographic ): {
+			camera.type      = le_stage_camera_o::Type::eOrthographic;
+			auto &ortho_cam  = camera.data.as_orthographic;
+			ortho_cam.x_mag  = info->data.as_orthographic.x_mag;
+			ortho_cam.y_mag  = info->data.as_orthographic.y_mag;
+			ortho_cam.z_far  = info->data.as_orthographic.z_far;
+			ortho_cam.z_near = info->data.as_orthographic.z_near;
+			break;
+		}
+		default:
+			assert( false && "Camera must be either perspective or orthographic" );
+			break;
+		}
+
+		self->cameras.emplace_back( camera );
 	}
 
 	return idx;
@@ -819,5 +894,6 @@ ISL_API_ATTR void register_le_stage_api( void *api ) {
 	le_stage_i.create_accessor    = le_stage_create_accessor;
 	le_stage_i.create_mesh        = le_stage_create_mesh;
 	le_stage_i.create_nodes       = le_stage_create_nodes;
+	le_stage_i.create_cameras     = le_stage_create_cameras;
 	le_stage_i.create_scene       = le_stage_create_scene;
 }
