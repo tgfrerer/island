@@ -184,6 +184,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	std::unordered_map<cgltf_buffer_view const *, uint32_t> buffer_view_map;
 	std::unordered_map<cgltf_accessor const *, uint32_t>    accessor_map;
 	std::unordered_map<cgltf_mesh const *, uint32_t>        mesh_map;
+	std::unordered_map<cgltf_camera const *, uint32_t>      camera_map;
 	std::unordered_map<cgltf_node const *, uint32_t>        nodes_map;
 	std::unordered_map<cgltf_scene const *, uint32_t>       scenes_map;
 
@@ -316,6 +317,60 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			for ( auto &d : per_primitive_data ) {
 				delete ( d );
 			}
+		}
+	}
+
+	{
+		// -- Upload cameras
+
+		std::vector<le_camera_info> camera_infos;
+
+		camera_infos.reserve( self->data->cameras_count );
+
+		cgltf_camera const *cameras_begin = self->data->cameras;
+		auto                cameras_end   = cameras_begin + self->data->cameras_count;
+
+		for ( auto c = cameras_begin; c != cameras_end; c++ ) {
+
+			le_camera_info info{};
+
+			switch ( c->type ) {
+			case ( cgltf_camera_type_perspective ): {
+				info.type        = le_camera_info::Type::ePerspective;
+				auto &cam        = info.data.as_perspective;
+				cam.fov_y_rad    = c->data.perspective.yfov;
+				cam.aspect_ratio = c->data.perspective.aspect_ratio;
+				cam.z_far        = c->data.perspective.zfar;
+				cam.z_near       = c->data.perspective.znear;
+				break;
+			}
+			case ( cgltf_camera_type_orthographic ): {
+				info.type  = le_camera_info::Type::eOrthographic;
+				auto &cam  = info.data.as_orthographic;
+				cam.x_mag  = c->data.orthographic.xmag;
+				cam.y_mag  = c->data.orthographic.ymag;
+				cam.z_far  = c->data.orthographic.zfar;
+				cam.z_near = c->data.orthographic.znear;
+				break;
+			}
+			default:
+				assert( false && "Camera must be either perspective or orthographic" );
+				break;
+			}
+
+			camera_infos.emplace_back( info );
+		}
+
+		uint32_t camera_idx = le_stage_i.create_cameras( stage, camera_infos.data(), camera_infos.size() );
+
+		// -- Store {camera -> camera stage index } in map for each camera:
+		//
+		// Since camera_idx received the first stage index for our added cameras,
+		// and we know that cameras were added in sequence to stage, we can update
+		// our camera_map accordingly.
+
+		for ( auto c = cameras_begin; c != cameras_end; c++ ) {
+			camera_map.insert( {c, camera_idx++} );
 		}
 	}
 

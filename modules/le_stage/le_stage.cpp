@@ -175,6 +175,8 @@ struct le_stage_o {
 
 	std::vector<le_node_o *> nodes; // owning.
 
+	std::vector<le_stage_camera_o> cameras;
+
 	std::vector<le_mesh_o> meshes;
 
 	std::vector<le_accessor_o>    accessors;
