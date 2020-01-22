@@ -584,21 +584,56 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	auto extents = encoder.getRenderpassExtent();
 
 	le::Viewport viewports[ 2 ] = {
-	    {0.f, float( extents.height ), float( extents.width ), -float( extents.height ), -0.f, 1.f},
+	    {0.f, float( extents.height ), float( extents.width ), -float( extents.height ), -0.f, 1.f}, // negative viewport means to flip y axis in screen space
 	    {0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f},
 	};
 
-	auto ortho_projection = glm::ortho( -0.5f, 0.5f, -0.5f, 0.5f, -1000.f, 1000.f );
-	// auto ortho_projection = glm::ortho( 0.f, float( extents.width ), 0.f, float( extents.height ) );
+	// we set projection matrix and view matrix to somehow sensible defaults.
+	glm::mat4 camera_projection_matrix = glm::ortho( -0.5f, 0.5f, -0.5f, 0.5f, -1000.f, 1000.f );
+	glm::mat4 camera_view_matrix       = glm::identity<glm::mat4>();
 
-	/*
-	
-		Todo:
-		
-		- Each mesh is drawn using the corresponding node's transform, which means we must calculate transforms,
-		then draw all of a meshes primitives using this particular transform.
+	// -- find the first available camera within the node graph which is
+	// tagged as belonging to the first scene.
 
-	*/
+	if ( !stage->scenes.empty() ) {
+		auto primary_scene_id = stage->scenes.front().scene_id;
+
+		le_node_o const *found_camera_node = nullptr;
+
+		// find first node which has a camera, and which matches our scene id.
+		for ( le_node_o *const node : stage->nodes ) {
+			if ( node->has_camera && ( node->scene_bit_flags & ( 1 << primary_scene_id ) ) ) {
+				found_camera_node = node;
+				break;
+			}
+		}
+
+		if ( found_camera_node ) {
+			le_stage_camera_o const &camera = stage->cameras[ found_camera_node->camera_idx ];
+
+			// view matrix is inverse global camera found_camera_node matrix.
+
+			camera_view_matrix = glm::inverse( found_camera_node->global_transform );
+
+			// projection matrix depends on type of camera.
+
+			if ( camera.type == le_stage_camera_o::Type::ePerspective ) {
+				camera_projection_matrix =
+				    glm::perspective( camera.data.as_perspective.fov_y_rad,
+				                      float( extents.width ) / float( extents.height ),
+				                      camera.data.as_perspective.z_near,
+				                      camera.data.as_perspective.z_far );
+			} else if ( camera.type == le_stage_camera_o::Type::eOrthographic ) {
+				camera_projection_matrix =
+				    glm::ortho( -camera.data.as_orthographic.x_mag,
+				                +camera.data.as_orthographic.x_mag,
+				                -camera.data.as_orthographic.y_mag,
+				                +camera.data.as_orthographic.y_mag,
+				                camera.data.as_perspective.z_near,
+				                camera.data.as_perspective.z_far );
+			}
+		}
+	}
 
 	for ( le_scene_o const &s : stage->scenes ) {
 		for ( le_node_o *n : stage->nodes ) {
@@ -612,7 +647,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 						continue;
 					}
 
-					glm::mat4 mvp = ortho_projection * glm::scale( glm::mat4{1}, glm::vec3( 10 ) ) * n->global_transform;
+					glm::mat4 mvp = camera_projection_matrix * camera_view_matrix * glm::scale( glm::mat4{1}, glm::vec3( 1 ) ) * n->global_transform;
 
 					encoder
 					    .bindGraphicsPipeline( primitive.pipeline_state_handle )
