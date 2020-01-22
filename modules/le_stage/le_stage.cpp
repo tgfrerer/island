@@ -274,6 +274,8 @@ static uint32_t le_stage_create_buffer_view( le_stage_o *self, le_buffer_view_in
 }
 
 /// \brief add accessor to stage, return index of newly added accessor as it appears in stage.
+/// since this refers to buffers and bufferviews, any buffers and bufferviews referred to must
+/// already be stored within the stage.
 static uint32_t le_stage_create_accessor( le_stage_o *self, le_accessor_info const *info ) {
 
 	le_accessor_o accessor{};
@@ -285,14 +287,94 @@ static uint32_t le_stage_create_accessor( le_stage_o *self, le_accessor_info con
 	accessor.buffer_view_idx = info->buffer_view_idx;
 	accessor.has_min         = info->has_min;
 	accessor.has_max         = info->has_max;
+
 	if ( info->has_min ) {
 		memcpy( accessor.min, info->min, sizeof( float ) * 16 );
 	}
 	if ( info->has_max ) {
 		memcpy( accessor.max, info->max, sizeof( float ) * 16 );
 	}
+
 	accessor.is_normalized = info->is_normalized;
 	accessor.is_sparse     = info->is_sparse;
+
+	if ( accessor.is_sparse ) {
+
+		// We must resolve buffer data for sparse accessors so that the data referred
+		// to by the accessor is a copy of the original data, modified by the sparse
+		// accessor.
+		//
+		// This means that sparse accessors create new buffers (To store the modified
+		// data), and new bufferviews (to point at the modified data).
+		//
+
+		le_buffer_view_o src_buffer_view = self->buffer_views[ accessor.buffer_view_idx ];
+		le_buffer_o *    src_buffer      = self->buffers[ src_buffer_view.buffer_idx ];
+
+		// Duplicate memory referred to in bufferview into new buffer, so that we may
+		// update its contents.
+		// Creating a new buffer will copy memory.
+
+		uint32_t dst_buffer_idx =
+		    le_stage_create_buffer(
+		        self,
+		        static_cast<char *>( src_buffer->mem ) + src_buffer_view.byte_offset,
+		        src_buffer_view.byte_length,
+		        "" );
+
+		// We must also create a bufferview so that we can in the future refer to this data -
+		// our accessor will use the new bufferview to refer to its sparsely modified data.
+
+		le_buffer_view_info view_info{};
+		view_info.type        = src_buffer_view.type;
+		view_info.buffer_idx  = dst_buffer_idx;
+		view_info.byte_offset = 0;
+		view_info.byte_stride = size_of( accessor.component_type ) * get_num_components( accessor.type );
+		view_info.byte_length = accessor.count * view_info.byte_stride;
+		uint32_t dst_view_idx = le_stage_create_buffer_view( self, &view_info );
+
+		// -- Now substitute sparse data by seeking to sparse data indices
+		// and patching data from sparse data source.
+
+		le_buffer_o *dst_buffer = self->buffers[ dst_buffer_idx ];
+
+		// First fetch indices which need substitution
+
+		le_buffer_view_o   indices_buffer_view = self->buffer_views[ info->sparse_accessor.indices_buffer_view_idx ];
+		le_buffer_o const *indices_buffer      = self->buffers[ indices_buffer_view.buffer_idx ];
+
+		le_buffer_view_o   sparse_data_view   = self->buffer_views[ info->sparse_accessor.values_buffer_view_idx ];
+		le_buffer_o const *sparse_data_buffer = self->buffers[ sparse_data_view.buffer_idx ];
+
+		if ( true ) {
+
+			char *const index_ptr       = static_cast<char *>( indices_buffer->mem ) + indices_buffer_view.byte_offset;
+			void *const sparse_data_src = static_cast<char *>( sparse_data_buffer->mem ) + sparse_data_view.byte_offset;
+
+			uint32_t stride       = view_info.byte_stride;
+			uint32_t index_stride = size_of( info->sparse_accessor.indices_component_type );
+
+			for ( uint32_t src_index = 0; src_index != info->sparse_accessor.count; src_index++ ) {
+
+				uint32_t dst_index = 0;
+
+				if ( info->sparse_accessor.indices_component_type == le_num_type::eU16 ) {
+					dst_index = ( uint16_t & )index_ptr[ index_stride * src_index ];
+				} else if ( info->sparse_accessor.indices_component_type == le_num_type::eU32 ) {
+					dst_index = ( uint32_t & )index_ptr[ index_stride * src_index ];
+				} else {
+					assert( false && "index type must be one of u16 or u32" );
+				}
+
+				memcpy( static_cast<char *>( dst_buffer->mem ) + stride * dst_index, // change in dest at sparse index
+				        static_cast<char *>( sparse_data_src ) + stride * src_index, // from data
+				        stride );
+			}
+		}
+
+		// we patch accessor here
+		accessor.buffer_view_idx = dst_view_idx;
+	}
 
 	uint32_t idx = uint32_t( self->accessors.size() );
 	self->accessors.emplace_back( accessor );

@@ -9,18 +9,30 @@ enum class le_buffer_view_type : uint8_t {
 	eVertex,
 };
 
+struct le_accessor_sparse_info {
+	uint32_t count;
+
+	uint32_t    indices_buffer_view_idx;
+	uint32_t    indices_byte_offset;
+	le_num_type indices_component_type;
+
+	uint32_t values_buffer_view_idx;
+	uint32_t values_byte_offset;
+};
+
 struct le_accessor_info {
-	le_num_type          component_type;
-	le_compound_num_type type;
-	uint32_t             byte_offset;
-	uint32_t             count;
-	uint32_t             buffer_view_idx;
-	float                min[ 16 ];
-	float                max[ 16 ];
-	bool                 is_normalized;
-	bool                 has_min;
-	bool                 has_max;
-	bool                 is_sparse;
+	le_num_type             component_type;
+	le_compound_num_type    type;
+	uint32_t                byte_offset;
+	uint32_t                count;
+	uint32_t                buffer_view_idx;
+	float                   min[ 16 ];
+	float                   max[ 16 ];
+	bool                    is_normalized;
+	bool                    has_min;
+	bool                    has_max;
+	bool                    is_sparse;
+	le_accessor_sparse_info sparse_accessor;
 };
 
 struct le_buffer_view_info {
