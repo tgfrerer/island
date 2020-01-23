@@ -15,7 +15,7 @@ struct le_buffer_view_info;
 struct le_accessor_info;
 struct le_mesh_info;
 struct le_node_info;
-struct le_camera_info;
+struct le_camera_settings_info;
 
 void register_le_stage_api( void *api );
 
@@ -42,7 +42,7 @@ struct le_stage_api {
 		uint32_t (* create_accessor)( le_stage_o *self, le_accessor_info const *info );
 		uint32_t (* create_mesh)(le_stage_o* self, le_mesh_info const * info);
 		uint32_t (* create_nodes)( le_stage_o *self, le_node_info *info, size_t num_nodes );
-		uint32_t (* create_cameras) (le_stage_o * self, le_camera_info* info, size_t num_cameras);
+		uint32_t (* create_camera_settings) (le_stage_o * self, le_camera_settings_info* info, size_t num_camera_settings);
 		uint32_t (* create_scene)( le_stage_o *self, uint32_t *node_idx, uint32_t node_idx_count );
 	};
 

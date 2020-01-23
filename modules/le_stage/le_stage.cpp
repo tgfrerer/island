@@ -134,7 +134,11 @@ struct le_node_o {
 	std::vector<le_node_o *> children; // non-owning
 };
 
-struct le_stage_camera_o {
+// A camera is only a camera if it is attached to a node - the same camera settings may be
+// attached to multiple nodes, therefore we name this camera_settings for lack of a better
+// name. Our interactive camera is held by a module, and that camera is called le_camera_o
+// as should be expected.
+struct le_camera_settings_o {
 
 	enum class Type : uint32_t {
 		eUndefined = 0,
@@ -178,7 +182,7 @@ struct le_stage_o {
 
 	std::vector<le_node_o *> nodes; // owning.
 
-	std::vector<le_stage_camera_o> cameras;
+	std::vector<le_camera_settings_o> camera_settings;
 
 	std::vector<le_mesh_o> meshes;
 
@@ -490,22 +494,22 @@ static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info *info, siz
 
 // ----------------------------------------------------------------------
 
-static uint32_t le_stage_create_cameras( le_stage_o *self, le_camera_info *camera_infos, size_t num_cameras ) {
+static uint32_t le_stage_create_camera_settings( le_stage_o *self, le_camera_settings_info *camera_infos, size_t num_cameras ) {
 
-	le_camera_info const *infos_begin = camera_infos;
-	auto                  infos_end   = infos_begin + num_cameras;
+	le_camera_settings_info const *infos_begin = camera_infos;
+	auto                           infos_end   = infos_begin + num_cameras;
 
-	uint32_t idx = uint32_t( self->cameras.size() );
+	uint32_t idx = uint32_t( self->camera_settings.size() );
 
-	self->cameras.reserve( self->cameras.size() + num_cameras );
+	self->camera_settings.reserve( self->camera_settings.size() + num_cameras );
 
 	for ( auto info = infos_begin; info != infos_end; info++ ) {
 
-		le_stage_camera_o camera{};
+		le_camera_settings_o camera{};
 
 		switch ( info->type ) {
-		case ( le_camera_info::Type::ePerspective ): {
-			camera.type            = le_stage_camera_o::Type::ePerspective;
+		case ( le_camera_settings_info::Type::ePerspective ): {
+			camera.type            = le_camera_settings_o::Type::ePerspective;
 			auto &persp_cam        = camera.data.as_perspective;
 			persp_cam.fov_y_rad    = info->data.as_perspective.fov_y_rad;
 			persp_cam.aspect_ratio = info->data.as_perspective.aspect_ratio;
@@ -513,8 +517,8 @@ static uint32_t le_stage_create_cameras( le_stage_o *self, le_camera_info *camer
 			persp_cam.z_near       = info->data.as_perspective.z_near;
 			break;
 		}
-		case ( le_camera_info::Type::eOrthographic ): {
-			camera.type      = le_stage_camera_o::Type::eOrthographic;
+		case ( le_camera_settings_info::Type::eOrthographic ): {
+			camera.type      = le_camera_settings_o::Type::eOrthographic;
 			auto &ortho_cam  = camera.data.as_orthographic;
 			ortho_cam.x_mag  = info->data.as_orthographic.x_mag;
 			ortho_cam.y_mag  = info->data.as_orthographic.y_mag;
@@ -527,7 +531,7 @@ static uint32_t le_stage_create_cameras( le_stage_o *self, le_camera_info *camer
 			break;
 		}
 
-		self->cameras.emplace_back( camera );
+		self->camera_settings.emplace_back( camera );
 	}
 
 	return idx;
@@ -691,7 +695,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 		}
 
 		if ( found_camera_node ) {
-			le_stage_camera_o const &camera = stage->cameras[ found_camera_node->camera_idx ];
+			le_camera_settings_o const &camera = stage->camera_settings[ found_camera_node->camera_idx ];
 
 			// view matrix is inverse global camera found_camera_node matrix.
 
@@ -699,13 +703,13 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 			// projection matrix depends on type of camera.
 
-			if ( camera.type == le_stage_camera_o::Type::ePerspective ) {
+			if ( camera.type == le_camera_settings_o::Type::ePerspective ) {
 				camera_projection_matrix =
 				    glm::perspective( camera.data.as_perspective.fov_y_rad,
 				                      float( extents.width ) / float( extents.height ),
 				                      camera.data.as_perspective.z_near,
 				                      camera.data.as_perspective.z_far );
-			} else if ( camera.type == le_stage_camera_o::Type::eOrthographic ) {
+			} else if ( camera.type == le_camera_settings_o::Type::eOrthographic ) {
 				camera_projection_matrix =
 				    glm::ortho( -camera.data.as_orthographic.x_mag,
 				                +camera.data.as_orthographic.x_mag,
@@ -1023,11 +1027,11 @@ ISL_API_ATTR void register_le_stage_api( void *api ) {
 
 	le_stage_i.setup_pipelines = le_stage_setup_pipelines;
 
-	le_stage_i.create_buffer      = le_stage_create_buffer;
-	le_stage_i.create_buffer_view = le_stage_create_buffer_view;
-	le_stage_i.create_accessor    = le_stage_create_accessor;
-	le_stage_i.create_mesh        = le_stage_create_mesh;
-	le_stage_i.create_nodes       = le_stage_create_nodes;
-	le_stage_i.create_cameras     = le_stage_create_cameras;
-	le_stage_i.create_scene       = le_stage_create_scene;
+	le_stage_i.create_buffer          = le_stage_create_buffer;
+	le_stage_i.create_buffer_view     = le_stage_create_buffer_view;
+	le_stage_i.create_accessor        = le_stage_create_accessor;
+	le_stage_i.create_mesh            = le_stage_create_mesh;
+	le_stage_i.create_nodes           = le_stage_create_nodes;
+	le_stage_i.create_camera_settings = le_stage_create_camera_settings;
+	le_stage_i.create_scene           = le_stage_create_scene;
 }

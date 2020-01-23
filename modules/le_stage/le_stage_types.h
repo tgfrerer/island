@@ -72,7 +72,7 @@ struct le_mesh_info {
 	uint32_t           primitive_count;
 };
 
-struct le_camera_info {
+struct le_camera_settings_info {
 	struct perspective_t {
 		float fov_y_rad;    // vertical firld of view in radians
 		float aspect_ratio; // width/height

@@ -333,7 +333,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	{
 		// -- Upload cameras
 
-		std::vector<le_camera_info> camera_infos;
+		std::vector<le_camera_settings_info> camera_infos;
 
 		camera_infos.reserve( self->data->cameras_count );
 
@@ -342,11 +342,11 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 		for ( auto c = cameras_begin; c != cameras_end; c++ ) {
 
-			le_camera_info info{};
+			le_camera_settings_info info{};
 
 			switch ( c->type ) {
 			case ( cgltf_camera_type_perspective ): {
-				info.type        = le_camera_info::Type::ePerspective;
+				info.type        = le_camera_settings_info::Type::ePerspective;
 				auto &cam        = info.data.as_perspective;
 				cam.fov_y_rad    = c->data.perspective.yfov;
 				cam.aspect_ratio = c->data.perspective.aspect_ratio;
@@ -355,7 +355,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				break;
 			}
 			case ( cgltf_camera_type_orthographic ): {
-				info.type  = le_camera_info::Type::eOrthographic;
+				info.type  = le_camera_settings_info::Type::eOrthographic;
 				auto &cam  = info.data.as_orthographic;
 				cam.x_mag  = c->data.orthographic.xmag;
 				cam.y_mag  = c->data.orthographic.ymag;
@@ -371,7 +371,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			camera_infos.emplace_back( info );
 		}
 
-		uint32_t camera_idx = le_stage_i.create_cameras( stage, camera_infos.data(), camera_infos.size() );
+		uint32_t camera_idx = le_stage_i.create_camera_settings( stage, camera_infos.data(), camera_infos.size() );
 
 		// -- Store {camera -> camera stage index } in map for each camera:
 		//
