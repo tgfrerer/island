@@ -689,6 +689,16 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 		camera_projection_matrix = le_camera_i.get_projection_matrix_glm( camera );
 	}
 
+	struct MVPUbo {
+		glm::mat4 projectionMatrix;
+		glm::mat4 viewMatrix;
+		glm::mat4 modelMatrix;
+	};
+
+	MVPUbo mvp_ubo;
+	mvp_ubo.projectionMatrix = camera_projection_matrix;
+	mvp_ubo.viewMatrix       = camera_view_matrix;
+
 	// -- find the first available camera within the node graph which is
 	// tagged as belonging to the first scene.
 
@@ -744,11 +754,11 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 						continue;
 					}
 
-					glm::mat4 mvp = camera_projection_matrix * camera_view_matrix * glm::scale( glm::mat4{1}, glm::vec3( 1 ) ) * n->global_transform;
+					mvp_ubo.modelMatrix = n->global_transform;
 
 					encoder
 					    .bindGraphicsPipeline( primitive.pipeline_state_handle )
-					    .setArgumentData( LE_ARGUMENT_NAME( "MvpUbo" ), &mvp, sizeof( glm::mat4 ) )
+					    .setArgumentData( LE_ARGUMENT_NAME( "MVPUbo" ), &mvp_ubo, sizeof( MVPUbo ) )
 					    .setViewports( 0, 1, &viewports[ 0 ] );
 
 					// ---- invariant: primitive has pipeline, bindings.
