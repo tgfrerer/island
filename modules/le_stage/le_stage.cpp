@@ -817,12 +817,18 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 		for ( auto &primitive : mesh.primitives ) {
 
 			if ( !primitive.pipeline_state_handle ) {
-				// primitive does not yet have pipeline - we must create a pipeline
-				// for this primitive.
 
+				// We must create a pipeline state object PSO for this primitive.
+				// The PSO captures everything needed for a material.
+
+				// We use an uber-shader to render materials; therefore our shader needs to simulate/handle
+				// missing attributes.
+				// We deactivate missing attributes via the shader preprocessor.
+
+				// -- Precondition: primitive.attributes are pre-sorted by type's value.
 				std::stringstream defines;
 
-				uint32_t location = 0;
+				uint32_t location = 0; // location 0 is used for position attribute, which is mandatory.
 				for ( auto it : primitive.attributes ) {
 					// clang-format off
 					switch ( it.type ) {
@@ -877,21 +883,14 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 				//	+ multiple accessors may refer to the same bufferView, in which case each accessor
 				//    defines a byteOffset to specify where it starts within the bufferView.
 
-				// we must also detect attribute types - so that we can make sure that our shader has
-				// the exact number of attributes.
-
-				// our shader needs to simulate missing attributes, and we deactivate missing attributes via the shader preprocessor.
-
-				// attributes are pre-sorted by type.
-
-				// Note: iterator is increased in inner loop
+				// Note: iterator is increased in inner do-while loop
 				for ( auto it = primitive.attributes.begin(); it != primitive.attributes.end(); ) {
 
 					le_accessor_o const *accessor        = &stage->accessors[ it->accessor_idx ];
 					auto const &         buffer_view     = stage->buffer_views[ accessor->buffer_view_idx ];
 					uint32_t             buffer_view_idx = accessor->buffer_view_idx;
 
-					auto &binding = abs.addBinding( buffer_view.byte_stride );
+					auto &binding = abs.addBinding( uint16_t( buffer_view.byte_stride ) );
 
 					// If no explicit buffer_view.byte_stride was given, we accumulate each accessor's
 					// storage size so that we can set the stride of the binding based on the sum total
