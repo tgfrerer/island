@@ -5,6 +5,8 @@
 #include "le_stage_types.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
 
+#include "le_camera/le_camera.h"
+
 #include "3rdparty/src/spooky/SpookyV2.h"
 
 #include "string.h" // for memcpy
@@ -664,8 +666,10 @@ static void traverse_node( le_node_o *parent ) {
 // ----------------------------------------------------------------------
 
 static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto stage   = static_cast<le_stage_o *>( user_data );
-	auto encoder = le::Encoder{encoder_};
+	auto draw_params = static_cast<le_stage_api::draw_params_t *>( user_data );
+	auto camera      = draw_params->camera;
+	auto stage       = draw_params->stage;
+	auto encoder     = le::Encoder{encoder_};
 
 	auto extents = encoder.getRenderpassExtent();
 
@@ -678,10 +682,17 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	glm::mat4 camera_projection_matrix = glm::ortho( -0.5f, 0.5f, -0.5f, 0.5f, -1000.f, 1000.f );
 	glm::mat4 camera_view_matrix       = glm::identity<glm::mat4>();
 
+	{
+		using namespace le_camera;
+		le_camera_i.set_viewport( camera, viewports[ 0 ] );
+		camera_view_matrix       = le_camera_i.get_view_matrix_glm( camera );
+		camera_projection_matrix = le_camera_i.get_projection_matrix_glm( camera );
+	}
+
 	// -- find the first available camera within the node graph which is
 	// tagged as belonging to the first scene.
 
-	if ( !stage->scenes.empty() ) {
+	if ( false && !stage->scenes.empty() ) {
 		auto primary_scene_id = stage->scenes.front().scene_id;
 
 		le_node_o const *found_camera_node = nullptr;
@@ -774,17 +785,17 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 /// knows which resources are needed to render the stage.
 /// There are two resource types which potentially need uploading: buffers,
 /// and images.
-static void le_stage_draw_into_render_module( le_stage_o *stage, le_render_module_o *module ) {
+static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_params, le_render_module_o *module ) {
 
 	using namespace le_renderer;
 
 	auto rp = le::RenderPass( "Stage Draw", LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW )
-	              .setExecuteCallback( stage, pass_draw )
+	              .setExecuteCallback( draw_params, pass_draw )
 	              .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE )
 	              .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_STENCIL_IMAGE" ) )
 	              .setIsRoot( true );
 
-	for ( auto &b : stage->buffers ) {
+	for ( auto &b : draw_params->stage->buffers ) {
 		rp.useBufferResource( b->handle, {LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
 		                                  LE_BUFFER_USAGE_VERTEX_BUFFER_BIT} );
 	}
@@ -826,7 +837,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 					// clang-format on
 				}
 
-				std::cout << "adding the following defines: " << defines.str() << std::flush << std::endl;
+				// std::cout << "adding the following defines: " << defines.str() << std::flush << std::endl;
 
 				auto shader_vert = renderer_i.create_shader_module( stage->renderer, "./local_resources/shaders/gltf.vert", {le::ShaderStage::eVertex}, defines.str().c_str() );
 				auto shader_frag = renderer_i.create_shader_module( stage->renderer, "./local_resources/shaders/gltf.frag", {le::ShaderStage::eFragment}, defines.str().c_str() );

@@ -16,6 +16,7 @@ struct le_accessor_info;
 struct le_mesh_info;
 struct le_node_info;
 struct le_camera_settings_info;
+struct le_camera_o; // from module::le_camera
 
 void register_le_stage_api( void *api );
 
@@ -26,6 +27,11 @@ struct le_stage_api {
 	static constexpr auto id      = "le_stage";
 	static constexpr auto pRegFun = register_le_stage_api;
 
+		struct draw_params_t {
+			le_stage_o* stage;
+			le_camera_o* camera;
+		};
+
 	struct le_stage_interface_t {
 
 		le_stage_o *    ( * create                   ) ( le_renderer_o* renderer);
@@ -33,7 +39,7 @@ struct le_stage_api {
 		void            ( * update                   ) ( le_stage_o* self );
 		
 		void			( * update_rendermodule )(le_stage_o* self, le_render_module_o* module);
-		void            ( * draw_into_module )(le_stage_o* self, le_render_module_o* module);
+		void            ( * draw_into_module )(draw_params_t* self, le_render_module_o* module);
 
 		void            ( * setup_pipelines)(le_stage_o* self);
 
