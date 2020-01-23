@@ -2074,7 +2074,7 @@ static void backend_create_descriptor_pools( BackendFrameData &frame, vk::Device
 
 		::vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo;
 		descriptorPoolCreateInfo
-		    .setMaxSets( 1000 )
+		    .setMaxSets( 2000 )
 		    .setPoolSizeCount( uint32_t( descriptorPoolSizes.size() ) )
 		    .setPPoolSizes( descriptorPoolSizes.data() );
 
@@ -3386,7 +3386,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			    .setPSetLayouts( argumentState_.layouts.data() );
 
 			// -- allocate some descriptorSets based on current layout
-			device.allocateDescriptorSets( &allocateInfo, descriptorSets );
+			auto result = device.allocateDescriptorSets( &allocateInfo, descriptorSets );
+
+			assert( result == vk::Result::eSuccess && "failed to allocate descriptor set" );
 
 			bool argumentsOk = true;
 
