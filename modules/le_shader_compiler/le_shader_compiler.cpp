@@ -382,8 +382,10 @@ static inline void debug_print_macro_definition( char const *def_start, size_t d
 	snprintf( def_str, def_sz + 1, "%s", def_start );
 	snprintf( val_str, val_sz + 1, "%s", val_start );
 
+#ifndef NDEBUG
 	std::cout << "Inserting macro #define '" << def_str << "', value: '" << val_str << "'" << std::endl
 	          << std::flush;
+#endif
 }
 
 // ---------------------------------------------------------------
