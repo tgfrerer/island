@@ -151,7 +151,8 @@ static void renderpass_set_execute_callback( le_renderpass_o *self, void *user_d
 }
 
 // ----------------------------------------------------------------------
-static void renderpass_run_execute_callback( le_renderpass_o *self ) {
+// ----------------------------------------------------------------------
+static void renderpass_run_execute_callbacks( le_renderpass_o *self ) {
 	for ( auto const &c : self->executeCallbacks ) {
 		c.fn( self->encoder, c.user_data );
 	}
@@ -878,7 +879,7 @@ static void rendergraph_build( le_rendergraph_o *self, size_t frame_number ) {
 		// Remove any passes from rendergraph which do not contribute.
 		// Passes which don't contribute have a sort index of (unsigned) -1.
 		//
-		// We consiolidate the list of passes by rebuilding it while only
+		// We consolidate the list of passes by rebuilding it while only
 		// including passes which contribute (whose sort index != -1)
 
 		size_t numSortIndices = self->sortIndices.size();
@@ -1010,7 +1011,7 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 				encoder_i.set_viewport( pass->encoder, 0, 1, default_viewport );
 			}
 
-			renderpass_run_execute_callback( pass ); // record draw commands into encoder
+			renderpass_run_execute_callbacks( pass ); // record draw commands into encoder
 		}
 	}
 
