@@ -183,6 +183,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	std::unordered_map<cgltf_buffer const *, uint32_t>      buffer_map; // maps buffer by pointer to buffer index in stage
 	std::unordered_map<cgltf_buffer_view const *, uint32_t> buffer_view_map;
 	std::unordered_map<cgltf_accessor const *, uint32_t>    accessor_map;
+	std::unordered_map<cgltf_material const *, uint32_t>    materials_map;
 	std::unordered_map<cgltf_mesh const *, uint32_t>        mesh_map;
 	std::unordered_map<cgltf_camera const *, uint32_t>      camera_map;
 	std::unordered_map<cgltf_node const *, uint32_t>        nodes_map;
@@ -264,6 +265,59 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	}
 
 	{
+		// Upload material info
+
+		cgltf_material const *materials_begin = self->data->materials;
+		auto                  materials_end   = materials_begin + self->data->materials_count;
+
+		std::vector<le_pbr_metallic_roughness_info *> metallic_roughness_infos;
+		std::vector<le_pbr_metallic_roughness_info *> specular_glossiness_infos;
+
+		for ( auto m = materials_begin; m != materials_end; m++ ) {
+			le_material_info info{};
+
+			if ( m->has_pbr_metallic_roughness ) {
+				auto        pbr_info = new le_pbr_metallic_roughness_info{};
+				auto const &pbr_src  = m->pbr_metallic_roughness;
+				// TODO: attach texture views
+
+				memcpy( pbr_info->base_color_factor, pbr_src.base_color_factor, sizeof( float ) * 4 );
+				pbr_info->metallic_factor  = pbr_src.metallic_factor;
+				pbr_info->roughness_factor = pbr_src.roughness_factor;
+
+				info.pbr_metallic_roughness_info = pbr_info;
+				metallic_roughness_infos.push_back( pbr_info ); // so that we can cleanup after api call.
+			}
+
+			if ( m->has_pbr_specular_glossiness ) {
+				// TODO
+				assert( false && "import for specular glossiness materials not yet implemented." );
+			}
+
+			// TODO: import normal texture
+			// TODO: import occlusion texture
+			// TODO: import emissive texture
+
+			memcpy( info.emissive_factor, m->emissive_factor, sizeof( float ) * 3 );
+
+			// Create stage resources via api call
+
+			uint32_t material_idx = le_stage_i.create_material( stage, &info );
+			materials_map.insert( {m, material_idx} );
+		}
+
+		// Cleanup
+
+		for ( auto &i : metallic_roughness_infos ) {
+			delete i;
+		}
+
+		for ( auto &i : specular_glossiness_infos ) {
+			delete i;
+		}
+	}
+
+	{
 		// Upload meshes
 
 		cgltf_mesh const *mesh_begin = self->data->meshes;
@@ -289,7 +343,11 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				per_primitive_data_t *prim_data = new per_primitive_data_t{};
 				per_primitive_data.push_back( prim_data ); // pushing info vec so it may be cleaned up
 
-				// TODO: fill prim_data
+				if ( prim->material ) {
+					prim_info.has_material = true;
+					prim_info.material_idx = materials_map.at( prim->material );
+				}
+
 				if ( prim->indices ) {
 					prim_info.has_indices          = true;
 					prim_info.indices_accessor_idx = accessor_map.at( prim->indices );
