@@ -93,8 +93,23 @@ struct le_attribute_o {
 	uint32_t                          accessor_idx;
 };
 
-struct le_primitive_o {
+struct le_material_pbr_metallic_roughness_o {
+	//	uint32_t base_color_texture_view;
+	//	uint32_t metallic_roughness_texture_view;
 
+	float base_color_factor[ 4 ];
+	float metallic_factor;
+	float roughness_factor;
+};
+
+struct le_material_o {
+
+	std::string                          name;
+	bool                                 has_metallic_roughness;
+	le_material_pbr_metallic_roughness_o metallic_roughness;
+};
+
+struct le_primitive_o {
 	std::vector<uint64_t>             bindings_buffer_offsets;
 	std::vector<le_resource_handle_t> bindings_buffer_handles; // cached bufferviews sorted and grouped based on accessors
 
@@ -103,8 +118,12 @@ struct le_primitive_o {
 
 	le_gpso_handle_t *          pipeline_state_handle; // contains material shaders, and vertex input state
 	std::vector<le_attribute_o> attributes;
-	bool                        has_indices;
-	uint32_t                    indices_accessor_idx;
+
+	uint32_t indices_accessor_idx;
+	uint32_t material_idx;
+
+	bool has_indices;
+	bool has_material;
 };
 
 // has many primitives
@@ -177,22 +196,16 @@ struct le_scene_o {
 
 // Owns all the data
 struct le_stage_o {
-
-	le_renderer_o *renderer; // non-owning.
-
-	std::vector<le_scene_o> scenes;
-
-	std::vector<le_node_o *> nodes; // owning.
-
-	std::vector<le_camera_settings_o> camera_settings;
-
-	std::vector<le_mesh_o> meshes;
-
-	std::vector<le_accessor_o>    accessors;
-	std::vector<le_buffer_view_o> buffer_views;
-
-	std::vector<le_buffer_o *>        buffers; // owning
-	std::vector<le_resource_handle_t> buffer_handles;
+	le_renderer_o *                   renderer;        // non-owning
+	std::vector<le_scene_o>           scenes;          //
+	std::vector<le_node_o *>          nodes;           // owning
+	std::vector<le_camera_settings_o> camera_settings; //
+	std::vector<le_mesh_o>            meshes;          //
+	std::vector<le_material_o>        materials;       //
+	std::vector<le_accessor_o>        accessors;       //
+	std::vector<le_buffer_view_o>     buffer_views;    //
+	std::vector<le_buffer_o *>        buffers;         // owning
+	std::vector<le_resource_handle_t> buffer_handles;  //
 };
 
 /// \brief Add a buffer to stage, return index to buffer within this stage.
@@ -387,6 +400,28 @@ static uint32_t le_stage_create_accessor( le_stage_o *self, le_accessor_info con
 	return idx;
 }
 
+/// \brief add material to stage, return index of newly created material as it appears in stage
+static uint32_t le_stage_create_material( le_stage_o *stage, le_material_info const *info ) {
+	uint32_t      idx = uint32_t( stage->materials.size() );
+	le_material_o material{};
+
+	if ( info->name ) {
+		material.name = info->name;
+	}
+
+	if ( info->pbr_metallic_roughness_info ) {
+		material.has_metallic_roughness = true;
+		auto &r                         = info->pbr_metallic_roughness_info;
+
+		material.metallic_roughness.metallic_factor  = r->metallic_factor;
+		material.metallic_roughness.roughness_factor = r->roughness_factor;
+		memcpy( material.metallic_roughness.base_color_factor, r->base_color_factor, sizeof( float ) * 4 );
+	}
+
+	stage->materials.emplace_back( material );
+	return idx;
+}
+
 /// \brief add mesh to stage, return index of newly added mesh as it appears in stage.
 static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info ) {
 
@@ -425,6 +460,11 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 				primitive.indices_accessor_idx = p->indices_accessor_idx;
 			}
 
+			if ( p->has_material ) {
+				primitive.has_material = true;
+				primitive.material_idx = p->material_idx;
+			}
+
 			mesh.primitives.emplace_back( primitive );
 		}
 	}
@@ -434,7 +474,7 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 	return idx;
 }
 
-/// \brief creat nodes graph from list of nodes.
+/// \brief create nodes graph from list of nodes.
 /// nodes may refer to each other by index via their children property - indices may only refer
 /// to nodes passed within info. you cannot refer to nodes which are already inside the scene graph.
 static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info *info, size_t num_nodes ) {
@@ -699,6 +739,14 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	mvp_ubo.projectionMatrix = camera_projection_matrix;
 	mvp_ubo.viewMatrix       = camera_view_matrix;
 
+	struct MaterialParamsUbo {
+		glm::vec4 base_color{1, 1, 1, 1};
+		float     metallic_factor{1};
+		float     roughness_factor{1};
+	};
+
+	MaterialParamsUbo material_params_ubo{};
+
 	// -- find the first available camera within the node graph which is
 	// tagged as belonging to the first scene.
 
@@ -761,6 +809,27 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 					    .setArgumentData( LE_ARGUMENT_NAME( "MVPUbo" ), &mvp_ubo, sizeof( MVPUbo ) )
 					    .setViewports( 0, 1, &viewports[ 0 ] );
 
+					if ( primitive.has_material ) {
+
+						auto const &material = stage->materials[ primitive.material_idx ];
+
+						if ( material.has_metallic_roughness ) {
+							auto &      mr         = material.metallic_roughness;
+							auto const &base_color = mr.base_color_factor;
+
+							material_params_ubo.base_color =
+							    glm::vec4( base_color[ 0 ],
+							               base_color[ 1 ],
+							               base_color[ 2 ],
+							               base_color[ 3 ] );
+							material_params_ubo.metallic_factor  = mr.metallic_factor;
+							material_params_ubo.roughness_factor = mr.roughness_factor;
+
+							encoder.setArgumentData( LE_ARGUMENT_NAME( "MaterialParamsUbo" ),
+							                         &material_params_ubo, sizeof( MaterialParamsUbo ) );
+						}
+					}
+
 					// ---- invariant: primitive has pipeline, bindings.
 
 					encoder.bindVertexBuffers( 0, uint32_t( primitive.bindings_buffer_handles.size() ),
@@ -801,7 +870,10 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 	auto rp = le::RenderPass( "Stage Draw", LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW )
 	              .setExecuteCallback( draw_params, pass_draw )
-	              .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE )
+	              .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE,
+	                                   le::ImageAttachmentInfoBuilder()
+	                                       .setColorClearValue( LeClearValue( {0.4f, 0.8f, 1.f, 1.f} ) )
+	                                       .build() )
 	              .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_STENCIL_IMAGE" ) )
 	              .setIsRoot( true );
 
@@ -852,6 +924,8 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 					}
 					// clang-format on
 				}
+
+				// TODO: add defines for material type - and whether the material binds any textures.
 
 				// std::cout << "adding the following defines: " << defines.str() << std::flush << std::endl;
 
@@ -1050,6 +1124,7 @@ ISL_API_ATTR void register_le_stage_api( void *api ) {
 	le_stage_i.create_buffer          = le_stage_create_buffer;
 	le_stage_i.create_buffer_view     = le_stage_create_buffer_view;
 	le_stage_i.create_accessor        = le_stage_create_accessor;
+	le_stage_i.create_material        = le_stage_create_material;
 	le_stage_i.create_mesh            = le_stage_create_mesh;
 	le_stage_i.create_nodes           = le_stage_create_nodes;
 	le_stage_i.create_camera_settings = le_stage_create_camera_settings;

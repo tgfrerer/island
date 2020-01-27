@@ -60,11 +60,41 @@ struct le_primitive_attribute_info {
 	Type     type;
 };
 
+struct le_pbr_metallic_roughness_info {
+	//	uint32_t base_color_texture_view;
+	//	uint32_t metallic_roughness_texture_view;
+
+	float base_color_factor[ 4 ];
+	float metallic_factor;
+	float roughness_factor;
+};
+
+struct le_pbr_specular_glossiness_info {
+	// TODO
+};
+
+struct le_material_info {
+	char const *name;
+	bool        has_normal_texture_view;
+	bool        has_occlusion_texture_view;
+	bool        has_emissive_texture_view;
+
+	le_pbr_metallic_roughness_info * pbr_metallic_roughness_info;
+	le_pbr_specular_glossiness_info *pbr_specular_glossiness_info;
+	uint32_t                         normal_texture_view_idx;
+	uint32_t                         occlusion_texture_view_idx;
+	uint32_t                         emissive_texture_view_idx;
+
+	float emissive_factor[ 3 ];
+};
+
 struct le_primitive_info {
 	uint32_t                     indices_accessor_idx;
 	bool                         has_indices;
 	le_primitive_attribute_info *attributes;
 	uint32_t                     attribute_count;
+	uint32_t                     material_idx;
+	bool                         has_material;
 };
 
 struct le_mesh_info {

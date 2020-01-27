@@ -13,6 +13,7 @@ struct le_renderer_o;
 struct le_render_module_o;
 struct le_buffer_view_info;
 struct le_accessor_info;
+struct le_material_info;
 struct le_mesh_info;
 struct le_node_info;
 struct le_camera_settings_info;
@@ -46,6 +47,7 @@ struct le_stage_api {
 		uint32_t (* create_buffer)( le_stage_o *stage, void *mem, uint32_t sz, char const *debug_name );
 		uint32_t (* create_buffer_view)( le_stage_o *self, le_buffer_view_info const *info );
 		uint32_t (* create_accessor)( le_stage_o *self, le_accessor_info const *info );
+		uint32_t (* create_material)(le_stage_o* self, le_material_info const * info);
 		uint32_t (* create_mesh)(le_stage_o* self, le_mesh_info const * info);
 		uint32_t (* create_nodes)( le_stage_o *self, le_node_info *info, size_t num_nodes );
 		uint32_t (* create_camera_settings) (le_stage_o * self, le_camera_settings_info* info, size_t num_camera_settings);
