@@ -721,31 +721,43 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	// we set projection matrix and view matrix to somehow sensible defaults.
 	glm::mat4 camera_projection_matrix = glm::ortho( -0.5f, 0.5f, -0.5f, 0.5f, -1000.f, 1000.f );
 	glm::mat4 camera_view_matrix       = glm::identity<glm::mat4>();
-
+	glm::mat4 camera_world_matrix      = glm::identity<glm::mat4>(); // global transform for camera node (==inverse view matrix)
+	glm::vec4 camera_in_world_space    = glm::vec4{0, 0, 0, 1};
 	{
 		using namespace le_camera;
 		le_camera_i.set_viewport( camera, viewports[ 0 ] );
 		camera_view_matrix       = le_camera_i.get_view_matrix_glm( camera );
 		camera_projection_matrix = le_camera_i.get_projection_matrix_glm( camera );
+		camera_world_matrix      = glm::inverse( camera_view_matrix );
 	}
 
-	struct MVPUbo {
-		glm::mat4 projectionMatrix;
-		glm::mat4 viewMatrix;
+	camera_in_world_space = camera_world_matrix * camera_in_world_space;
+	camera_in_world_space /= camera_in_world_space.w;
+
+	struct UboMatrices {
+		glm::mat4 viewProjectionMatrix; // (projection * view) matrix
+		glm::mat4 normalMatrix;         // given in world-space, which means normalmatrix does not depend on camera, but is transpose(inverse(globalMatrix))
 		glm::mat4 modelMatrix;
+		glm::vec3 camera_position; // camera position in world space
 	};
 
-	MVPUbo mvp_ubo;
-	mvp_ubo.projectionMatrix = camera_projection_matrix;
-	mvp_ubo.viewMatrix       = camera_view_matrix;
+	UboMatrices mvp_ubo;
+	mvp_ubo.viewProjectionMatrix = camera_projection_matrix * camera_view_matrix;
+	mvp_ubo.camera_position      = camera_in_world_space;
 
-	struct MaterialParamsUbo {
-		glm::vec4 base_color{1, 1, 1, 1};
+	struct UboMaterialParams {
+		glm::vec4 base_color_factor{1, 1, 1, 1};
 		float     metallic_factor{1};
 		float     roughness_factor{1};
 	};
 
-	MaterialParamsUbo material_params_ubo{};
+	UboMaterialParams material_params_ubo{};
+
+	struct UboPostProcessing {
+		float exposure{1.f};
+	};
+
+	UboPostProcessing post_processing_params{};
 
 	// -- find the first available camera within the node graph which is
 	// tagged as belonging to the first scene.
@@ -798,15 +810,16 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 				for ( auto const &primitive : mesh.primitives ) {
 
 					if ( !primitive.pipeline_state_handle ) {
-						std::cerr << "missing pipeleine state object for primitive - did you call setup_pipelines on the stage after adding the mesh/primitive?" << std::endl;
+						std::cerr << "missing pipeline state object for primitive - did you call setup_pipelines on the stage after adding the mesh/primitive?" << std::endl;
 						continue;
 					}
 
-					mvp_ubo.modelMatrix = n->global_transform;
+					mvp_ubo.modelMatrix  = n->global_transform;
+					mvp_ubo.normalMatrix = glm::transpose( glm::inverse( n->global_transform ) );
 
 					encoder
 					    .bindGraphicsPipeline( primitive.pipeline_state_handle )
-					    .setArgumentData( LE_ARGUMENT_NAME( "MVPUbo" ), &mvp_ubo, sizeof( MVPUbo ) )
+					    .setArgumentData( LE_ARGUMENT_NAME( "UboMatrices" ), &mvp_ubo, sizeof( UboMatrices ) )
 					    .setViewports( 0, 1, &viewports[ 0 ] );
 
 					if ( primitive.has_material ) {
@@ -817,7 +830,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 							auto &      mr         = material.metallic_roughness;
 							auto const &base_color = mr.base_color_factor;
 
-							material_params_ubo.base_color =
+							material_params_ubo.base_color_factor =
 							    glm::vec4( base_color[ 0 ],
 							               base_color[ 1 ],
 							               base_color[ 2 ],
@@ -825,8 +838,11 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 							material_params_ubo.metallic_factor  = mr.metallic_factor;
 							material_params_ubo.roughness_factor = mr.roughness_factor;
 
-							encoder.setArgumentData( LE_ARGUMENT_NAME( "MaterialParamsUbo" ),
-							                         &material_params_ubo, sizeof( MaterialParamsUbo ) );
+							encoder.setArgumentData( LE_ARGUMENT_NAME( "UboMaterialParams" ),
+							                         &material_params_ubo, sizeof( UboMaterialParams ) );
+
+							encoder.setArgumentData( LE_ARGUMENT_NAME( "UboPostProcessing" ),
+							                         &post_processing_params, sizeof( UboPostProcessing ) );
 						}
 					}
 
@@ -872,7 +888,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 	              .setExecuteCallback( draw_params, pass_draw )
 	              .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE,
 	                                   le::ImageAttachmentInfoBuilder()
-	                                       .setColorClearValue( LeClearValue( {0.4f, 0.8f, 1.f, 1.f} ) )
+	                                       .setColorClearValue( LeClearValue( {0.2f, 0.2f, 0.2f, 1.f} ) )
 	                                       .build() )
 	              .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_STENCIL_IMAGE" ) )
 	              .setIsRoot( true );
@@ -929,8 +945,12 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 				// std::cout << "adding the following defines: " << defines.str() << std::flush << std::endl;
 
+				if ( stage->materials[ primitive.material_idx ].has_metallic_roughness ) {
+					defines << "MATERIAL_METALLICROUGHNESS,";
+				}
+
 				auto shader_vert = renderer_i.create_shader_module( stage->renderer, "./local_resources/shaders/gltf.vert", {le::ShaderStage::eVertex}, defines.str().c_str() );
-				auto shader_frag = renderer_i.create_shader_module( stage->renderer, "./local_resources/shaders/gltf.frag", {le::ShaderStage::eFragment}, defines.str().c_str() );
+				auto shader_frag = renderer_i.create_shader_module( stage->renderer, "./local_resources/shaders/metallic-roughness.frag", {le::ShaderStage::eFragment}, defines.str().c_str() );
 
 				LeGraphicsPipelineBuilder builder( pipeline_manager );
 
