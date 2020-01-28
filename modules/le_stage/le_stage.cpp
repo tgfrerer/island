@@ -6,6 +6,7 @@
 #include "le_pipeline_builder/le_pipeline_builder.h"
 
 #include "le_camera/le_camera.h"
+#include "le_pixels/le_pixels.h"
 
 #include "3rdparty/src/spooky/SpookyV2.h"
 
@@ -53,6 +54,16 @@ struct glm_vec4_t {
 
 struct glm_mat4_t {
 	glm::mat4 data;
+};
+
+struct stage_image_o {
+	le_pixels_o *  pixels;
+	le_pixels_info info;
+
+	le_resource_handle_t handle;
+	le_resource_info_t   resource_info;
+
+	bool was_transferred;
 };
 
 struct le_buffer_o {
@@ -206,7 +217,116 @@ struct le_stage_o {
 	std::vector<le_buffer_view_o>     buffer_views;    //
 	std::vector<le_buffer_o *>        buffers;         // owning
 	std::vector<le_resource_handle_t> buffer_handles;  //
+	std::vector<stage_image_o *>      images;          // owning
+	std::vector<le_resource_handle_t> image_handles;   //
 };
+
+static uint32_t le_stage_create_image_from_memory(
+    le_stage_o *         stage,
+    unsigned char const *image_file_memory,
+    uint32_t             image_file_sz,
+    char const *         debug_name ) {
+
+	assert( image_file_memory && "must point to memory" );
+	assert( image_file_sz && "must have size > 0" );
+
+	assert( stage->images.size() == stage->image_handles.size() );
+
+	using namespace le_pixels;
+
+	le_resource_handle_t res;
+
+	res.handle.as_handle.meta.as_meta.type = LeResourceType::eImage;
+	res.handle.as_handle.name_hash         = SpookyHash::Hash32( image_file_memory, image_file_sz, 0 );
+
+#if LE_RESOURCE_LABEL_LENGTH > 0
+	if ( debug_name ) {
+		// Copy debug name if such was given, and handle has debug name field.
+		strncpy( res.debug_name, debug_name, LE_RESOURCE_LABEL_LENGTH );
+	}
+#endif
+
+	uint32_t image_handle_idx = 0;
+	for ( auto &h : stage->image_handles ) {
+		if ( h == res ) {
+			break;
+		}
+		image_handle_idx++;
+	}
+
+	if ( image_handle_idx == stage->image_handles.size() ) {
+
+		stage_image_o *img = new stage_image_o{};
+
+		// We want to find out whether this image uses a 16 bit type.
+		// further, if this image uses a single channel, we are fine with it,
+		le_pixels_i.get_info_from_memory( image_file_memory, image_file_sz, &img->info );
+
+		// If image more than 1 channel, we will request 4 channels, as
+		// we cannot sample from RGB images (must be RGBA).
+		if ( img->info.num_channels > 1 ) {
+			img->info.num_channels = 4;
+		}
+
+		// update pixel information after load, since load hints/requests may have changed
+		// how image was decoded in the end.
+
+		img->pixels          = le_pixels_i.create_from_memory( image_file_memory, image_file_sz, img->info.num_channels, img->info.type );
+		img->info            = le_pixels_i.get_info( img->pixels );
+		img->handle          = res;
+		img->was_transferred = false;
+
+		img->resource_info =
+		    le::ImageInfoBuilder()
+		        .setExtent( img->info.width, img->info.height, img->info.depth )
+		        .setFormat( img->info.num_channels == 1 ? le::Format::eR8Unorm : le::Format::eR8G8B8A8Srgb )
+		        .setUsageFlags( {LeImageUsageFlagBits::LE_IMAGE_USAGE_SAMPLED_BIT |
+		                         LeImageUsageFlagBits::LE_IMAGE_USAGE_TRANSFER_DST_BIT} )
+		        .build();
+
+		stage->images.emplace_back( img );
+		stage->image_handles.emplace_back( res );
+	}
+
+	return image_handle_idx;
+}
+
+static uint32_t le_stage_create_image_from_file_path( le_stage_o *stage, char const *image_file_path, char const *debug_name ) {
+
+	void * image_file_memory = nullptr;
+	size_t image_file_sz     = 0;
+
+	FILE *file = fopen( image_file_path, "r" );
+	assert( file );
+
+	{
+		fseek( file, 0, SEEK_END );
+		long tell_sz = ftell( file );
+		rewind( file );
+		assert( tell_sz > 0 && "file cannot be empty" );
+		image_file_sz = size_t( tell_sz );
+	}
+
+	image_file_memory = malloc( image_file_sz );
+
+	size_t num_bytes_read = fread( image_file_memory, 1, image_file_sz, file );
+
+	assert( num_bytes_read == image_file_sz );
+
+	// load into memory, call create_image_from_memory
+	uint32_t result =
+	    le_stage_create_image_from_memory(
+	        stage,
+	        static_cast<unsigned char const *>( image_file_memory ),
+	        uint32_t( image_file_sz ), debug_name );
+
+	free( image_file_memory );
+
+	fclose( file );
+	// free file memory
+
+	return result;
+}
 
 /// \brief Add a buffer to stage, return index to buffer within this stage.
 ///
@@ -1140,6 +1260,9 @@ ISL_API_ATTR void register_le_stage_api( void *api ) {
 	le_stage_i.draw_into_module    = le_stage_draw_into_render_module;
 
 	le_stage_i.setup_pipelines = le_stage_setup_pipelines;
+
+	le_stage_i.create_image_from_memory    = le_stage_create_image_from_memory;
+	le_stage_i.create_image_from_file_path = le_stage_create_image_from_file_path;
 
 	le_stage_i.create_buffer          = le_stage_create_buffer;
 	le_stage_i.create_buffer_view     = le_stage_create_buffer_view;

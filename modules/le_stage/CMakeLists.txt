@@ -1,7 +1,7 @@
 set (TARGET le_stage)
 
 # list modules this module depends on
-# depends_on_island_module(le_path)
+depends_on_island_module(le_pixels)
 
 set (SOURCES "le_stage.cpp")
 set (SOURCES ${SOURCES} "le_stage.h")
