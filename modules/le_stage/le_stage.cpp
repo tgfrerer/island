@@ -353,9 +353,8 @@ static uint32_t le_stage_create_buffer( le_stage_o *stage, void *mem, uint32_t s
 	for ( auto &h : stage->buffer_handles ) {
 		if ( h == res ) {
 			break;
-		} else {
-			buffer_handle_idx++;
 		}
+		buffer_handle_idx++;
 	}
 
 	// ----------| Invariant: buffer_handle_idx == index for buffer handle inside stage
@@ -1226,6 +1225,14 @@ static le_stage_o *le_stage_create( le_renderer_o *renderer ) {
 // ----------------------------------------------------------------------
 
 static void le_stage_destroy( le_stage_o *self ) {
+
+	for ( auto &img : self->images ) {
+		if ( img->pixels ) {
+			le_pixels::le_pixels_i.destroy( img->pixels );
+			img->pixels = nullptr;
+		}
+		delete img;
+	}
 
 	for ( auto &b : self->buffers ) {
 		if ( b->owns_mem && b->mem && b->size ) {
