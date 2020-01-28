@@ -62,7 +62,10 @@ static void le_gltf_destroy( le_gltf_o *self ) {
 // ----------------------------------------------------------------------
 
 static le_gltf_o *le_gltf_create( char const *path ) {
-	auto self    = new le_gltf_o();
+
+	assert( path && "valid path must be set" );
+
+	auto self    = new le_gltf_o{};
 	self->result = cgltf_parse_file( &self->options, path, &self->data );
 
 	if ( self->result == cgltf_result_success ) {
@@ -82,20 +85,6 @@ static le_gltf_o *le_gltf_create( char const *path ) {
 		le_gltf_destroy( self );
 		return nullptr;
 	}
-	struct le_accessor_info {
-		le_num_type          component_type;
-		le_compound_num_type type;
-		uint32_t             offset;
-		uint32_t             count;
-		uint32_t             stride;
-		uint32_t             buffer_view_idx;
-		float                min[ 16 ];
-		float                max[ 16 ];
-		bool                 normalized;
-		bool                 has_min;
-		bool                 has_max;
-		bool                 is_sparse;
-	};
 	return self;
 }
 
