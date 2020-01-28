@@ -748,6 +748,13 @@ static bool pass_xfer_setup_resources( le_renderpass_o *pRp, void *user_data ) {
 		}
 	}
 
+	for ( auto &img : stage->images ) {
+		needsUpload |= !img->was_transferred;
+		if ( !img->was_transferred ) {
+			rp.useImageResource( img->handle, {LE_IMAGE_USAGE_TRANSFER_DST_BIT} );
+		}
+	}
+
 	return needsUpload; // false means not to execute the execute callback.
 }
 
@@ -770,6 +777,24 @@ static void pass_xfer_resources( le_command_buffer_encoder_o *encoder_, void *us
 			b->was_transferred = true;
 		}
 	}
+
+	for ( auto &img : stage->images ) {
+		if ( !img->was_transferred && img->pixels ) {
+			using namespace le_pixels;
+			void *pix_data = le_pixels_i.get_data( img->pixels );
+
+			auto write_info = le::WriteToImageSettingsBuilder()
+			                      .setImageW( img->info.width )
+			                      .setImageH( img->info.height )
+			                      .build();
+
+			encoder.writeToImage( img->handle, write_info, pix_data, img->info.byte_count );
+
+			le_pixels_i.destroy( img->pixels );
+			img->pixels          = nullptr;
+			img->was_transferred = true;
+		}
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -788,9 +813,15 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 	              .setIsRoot( true );
 
 	// declare buffers
-
+	//
 	for ( auto &b : stage->buffers ) {
 		render_module_i.declare_resource( module, b->handle, b->resource_info );
+	}
+
+	// declare images
+	//
+	for ( auto &img : stage->images ) {
+		render_module_i.declare_resource( module, img->handle, img->resource_info );
 	}
 
 	render_module_i.add_renderpass( module, rp );
