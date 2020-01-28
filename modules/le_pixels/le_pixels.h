@@ -15,7 +15,7 @@ void register_le_pixels_api( void *api );
 struct le_pixels_info {
 	// Note that we store the log2 of the number of Bytes needed to store values of a type
 	// in the least significant two bits, so that we can say: numBytes =  1 << (type & 0x03);
-	enum TYPE : int {
+	enum Type : uint32_t {
 		eUInt8   = ( 0 << 2 ) | 0,
 		eUInt16  = ( 1 << 2 ) | 1,
 		eFloat32 = ( 2 << 2 ) | 2, // 32 bit float type
@@ -26,7 +26,7 @@ struct le_pixels_info {
 	uint32_t bpp;          // bits per pixel
 	uint32_t num_channels; // number of channels
 	uint32_t byte_count;   // total number of bytes
-	TYPE     type;
+	Type     type;
 };
 
 // clang-format off
@@ -36,7 +36,11 @@ struct le_pixels_api {
 
 	struct le_pixels_interface_t {
 
-		le_pixels_o *    ( * create   ) ( char const * path, int num_channels_requested, le_pixels_info::TYPE type);
+		bool (* get_info_from_memory ) ( unsigned char const * buffer, size_t buffer_byte_count, le_pixels_info * info);
+		bool (* get_info_from_file   ) ( char const * file_name, le_pixels_info * info);
+
+		le_pixels_o *    ( * create_from_memory )( unsigned char const * buffer, size_t buffer_byte_count, int num_channels_requested, le_pixels_info::Type type);
+		le_pixels_o *    ( * create   ) ( char const * file_path, int num_channels_requested, le_pixels_info::Type type);
 		void             ( * destroy  ) ( le_pixels_o* self );
 
 		le_pixels_info   ( * get_info ) ( le_pixels_o* self );
@@ -68,7 +72,7 @@ class Pixels : NoCopy, NoMove {
 	le_pixels_o *self;
 
   public:
-    Pixels( char const *path, int const &numChannelsRequested = 0, le_pixels_info::TYPE const &type = le_pixels_info::eUInt8 )
+	Pixels( char const *path, int const &numChannelsRequested = 0, le_pixels_info::Type const &type = le_pixels_info::eUInt8 )
 	    : self( le_pixels::le_pixels_i.create( path, numChannelsRequested, type ) ) {
 	}
 
