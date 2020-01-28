@@ -9,6 +9,7 @@
 #include <string>
 #include <unordered_map>
 #include "string.h" // for memcpy
+#include <filesystem>
 
 #define GLM_FORCE_RIGHT_HANDED // glTF uses right handed coordinate system, and we're following its lead.
 #define GLM_ENABLE_EXPERIMENTAL
@@ -44,17 +45,19 @@ How to use this library:
 // the stage may also optimise data
 
 struct le_gltf_o {
-	cgltf_options options = {};
-	cgltf_data *  data    = nullptr;
-	cgltf_result  result  = {};
+	cgltf_options         options = {};
+	cgltf_data *          data    = nullptr;
+	cgltf_result          result  = {};
+	std::filesystem::path gltf_file_path; // owning
 };
 
 // ----------------------------------------------------------------------
 
 static void le_gltf_destroy( le_gltf_o *self ) {
 	if ( self ) {
-		if ( self->data )
+		if ( self->data ) {
 			cgltf_free( self->data );
+		}
 		delete self;
 	}
 }
@@ -85,6 +88,9 @@ static le_gltf_o *le_gltf_create( char const *path ) {
 		le_gltf_destroy( self );
 		return nullptr;
 	}
+
+	self->gltf_file_path = std::filesystem::path{path};
+
 	return self;
 }
 
@@ -170,6 +176,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	}
 
 	std::unordered_map<cgltf_buffer const *, uint32_t>      buffer_map; // maps buffer by pointer to buffer index in stage
+	std::unordered_map<cgltf_image const *, uint32_t>       images_map;
 	std::unordered_map<cgltf_buffer_view const *, uint32_t> buffer_view_map;
 	std::unordered_map<cgltf_accessor const *, uint32_t>    accessor_map;
 	std::unordered_map<cgltf_material const *, uint32_t>    materials_map;
@@ -179,6 +186,50 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	std::unordered_map<cgltf_scene const *, uint32_t>       scenes_map;
 
 	using namespace le_stage;
+
+	{
+		// Upload image data.
+
+		// Note that we don't decode image data - we read in the image data but don't decode it yet - this is for the
+		// stage to do. We don't do this here because we don't want to allocate memory to store the decoded image twice.
+
+		// if we decoded the image inside this module, we would have to copy the decoded memory across the api boundary.
+		// we must copy because we cannot otherwise guarantee that the image data will still be available when stage
+		// uploads it to the gpu, as the upload step happens in another method than the import step.
+
+		cgltf_image const *images_begin = self->data->images;
+		auto               images_end   = images_begin + self->data->images_count;
+
+		for ( auto img = images_begin; img != images_end; img++ ) {
+
+			uint32_t stage_idx = 0;
+
+			if ( img->uri ) {
+
+				// We need to know the file basename, because the file path is most likely relative.
+
+				std::filesystem::path img_path{img->uri};
+
+				if ( img_path.is_relative() ) {
+					img_path = self->gltf_file_path.parent_path() / img_path;
+				}
+
+				stage_idx = le_stage_i.create_image_from_file_path( stage, img_path.c_str(), img->name ? img->name : img->uri );
+
+			} else if ( img->buffer_view && img->buffer_view->buffer && img->buffer_view->buffer->data ) {
+
+				unsigned char const *data = static_cast<unsigned char const *>( img->buffer_view->buffer->data );
+				data += img->buffer_view->offset;
+				size_t data_sz = img->buffer_view->size;
+				stage_idx      = le_stage_i.create_image_from_memory( stage, data, uint32_t( data_sz ), img->name ? img->name : img->uri );
+
+			} else {
+				assert( false && "image must either have inline data or provide an uri" );
+			}
+
+			images_map.insert( {img, stage_idx} );
+		}
+	}
 
 	{
 		// Upload buffers
