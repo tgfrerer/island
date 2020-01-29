@@ -544,7 +544,6 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 					prim_data->attribute_infos.push_back( attr_info );
 				}
-				// prim_data->attribute_infos.push_back(data);
 
 				prim_info.attributes      = prim_data->attribute_infos.data();
 				prim_info.attribute_count = prim_data->attribute_infos.size();

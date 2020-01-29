@@ -1199,7 +1199,10 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 				// missing attributes.
 				// We deactivate missing attributes via the shader preprocessor.
 
-				// -- Precondition: primitive.attributes are pre-sorted by type's value.
+				// -- Precondition: primitive.attributes are pre-sorted by type, then name,
+				// so that name "TEX_COORD_0" appears before "TEX_COORD_1"
+				// and normal attributes appear before tangent attributes etc.
+
 				std::stringstream defines;
 
 				uint32_t location = 0; // location 0 is used for position attribute, which is mandatory.
