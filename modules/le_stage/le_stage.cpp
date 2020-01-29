@@ -363,6 +363,8 @@ static uint32_t le_stage_create_sampler( le_stage_o *stage, LeSamplerInfo *info 
 	return sampler_idx;
 }
 
+/// \brief add a texture to stage, return index to texture within stage.
+///
 static uint32_t le_stage_create_texture( le_stage_o *stage, le_texture_info *info ) {
 	uint32_t texture_idx = uint32_t( stage->textures.size() );
 
