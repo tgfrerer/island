@@ -67,9 +67,10 @@ struct stage_image_o {
 };
 
 struct le_texture_o {
-	uint32_t    image_idx;
-	uint32_t    sampler_idx;
-	std::string name;
+	uint32_t             image_idx;
+	uint32_t             sampler_idx;
+	le_resource_handle_t texture_handle;
+	std::string          name;
 };
 
 struct le_buffer_o {
@@ -373,8 +374,26 @@ static uint32_t le_stage_create_texture( le_stage_o *stage, le_texture_info *inf
 	if ( info->name ) {
 		texture.name = std::string{info->name};
 	}
+
 	texture.image_idx   = info->image_idx;
 	texture.sampler_idx = info->sampler_idx;
+
+	{
+		// Create a unique handle from image id and sampler id
+
+		char tex_id_str[ 18 ]; // 17 characters 8+8+1, plus one extra character for terminating \0
+		snprintf( tex_id_str, 18, "%08u:%08u", info->image_idx, info->sampler_idx );
+
+		texture.texture_handle = LE_IMAGE_SAMPLER_RESOURCE( tex_id_str );
+
+#if LE_RESOURCE_LABEL_LENGTH > 0
+		if ( info->name ) {
+			strncpy( texture.texture_handle.debug_name, info->name, LE_RESOURCE_LABEL_LENGTH );
+		} else {
+			strncpy( texture.texture_handle.debug_name, tex_id_str, LE_RESOURCE_LABEL_LENGTH );
+		}
+#endif
+	}
 
 	stage->textures.emplace_back( texture );
 
