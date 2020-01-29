@@ -60,6 +60,13 @@ struct le_primitive_attribute_info {
 	Type     type;
 };
 
+struct le_sampler_info {
+	le::Filter             min_filter;
+	le::Filter             mag_filter;
+	le::SamplerMipmapMode  mipmap_mode;
+	le::SamplerAddressMode address_mode_u;
+	le::SamplerAddressMode address_mode_v;
+};
 struct le_pbr_metallic_roughness_info {
 	//	uint32_t base_color_texture_view;
 	//	uint32_t metallic_roughness_texture_view;
