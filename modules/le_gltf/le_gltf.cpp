@@ -540,7 +540,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 					attr_info.accessor_idx = accessor_map.at( attr->data );
 					attr_info.index        = attr->index;
 					attr_info.type         = get_primitive_attribute_type_from_cgltf( attr->type );
-					// TODO: attr->name;
+					attr_info.name         = attr->name;
 
 					prim_data->attribute_infos.push_back( attr_info );
 				}

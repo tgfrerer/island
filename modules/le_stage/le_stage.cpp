@@ -668,8 +668,9 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 
 			for ( auto attr = attr_info_begin; attr != attr_info_end; attr++ ) {
 				le_attribute_o attribute{};
-				//				attribute.name = attr->name; // TODO: copy name if available
-				attribute.name         = "";
+				if ( attr->name ) {
+					attribute.name = std::string( attr->name );
+				}
 				attribute.index        = attr->index;
 				attribute.accessor_idx = attr->accessor_idx;
 				attribute.type         = attr->type;

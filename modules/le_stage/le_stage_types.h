@@ -58,6 +58,7 @@ struct le_primitive_attribute_info {
 	uint32_t accessor_idx;
 	uint32_t index;
 	Type     type;
+	char *   name;
 };
 
 struct le_texture_info {
