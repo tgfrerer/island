@@ -67,6 +67,13 @@ struct le_sampler_info {
 	le::SamplerAddressMode address_mode_u;
 	le::SamplerAddressMode address_mode_v;
 };
+
+struct le_texture_info {
+	char *   name;
+	uint32_t image_idx;
+	uint32_t sampler_idx;
+};
+
 struct le_pbr_metallic_roughness_info {
 	//	uint32_t base_color_texture_view;
 	//	uint32_t metallic_roughness_texture_view;

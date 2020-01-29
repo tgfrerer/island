@@ -17,6 +17,7 @@ struct le_material_info;
 struct le_mesh_info;
 struct le_node_info;
 struct le_sampler_info;
+struct le_texture_info;
 struct le_camera_settings_info;
 struct le_camera_o; // from module::le_camera
 
@@ -49,6 +50,8 @@ struct le_stage_api {
 		uint32_t (* create_image_from_file_path)( le_stage_o* stage, char const * image_file_path, char const * debug_name);
 
 		uint32_t (*create_sampler)(le_stage_o* stage, le_sampler_info* info);
+		uint32_t (*create_texture)(le_stage_o* stage, le_texture_info* info);
+
 		uint32_t (* create_buffer)( le_stage_o *stage, void *mem, uint32_t sz, char const *debug_name );
 		uint32_t (* create_buffer_view)( le_stage_o *self, le_buffer_view_info const *info );
 		uint32_t (* create_accessor)( le_stage_o *self, le_accessor_info const *info );

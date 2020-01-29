@@ -70,6 +70,12 @@ struct le_sampler_o {
 	le_sampler_info info;
 };
 
+struct le_texture_o {
+	uint32_t    image_idx;
+	uint32_t    sampler_idx;
+	std::string name;
+};
+
 struct le_buffer_o {
 	void *               mem;    // nullptr if not owning
 	le_resource_handle_t handle; // renderer resource handle
@@ -222,6 +228,7 @@ struct le_stage_o {
 	std::vector<le_buffer_o *>        buffers;         // owning
 	std::vector<le_sampler_o>         samplers;        //
 	std::vector<le_resource_handle_t> buffer_handles;  //
+	std::vector<le_texture_o>         textures;        //
 	std::vector<stage_image_o *>      images;          // owning
 	std::vector<le_resource_handle_t> image_handles;   //
 };
@@ -344,6 +351,20 @@ static uint32_t le_stage_create_sampler( le_stage_o *stage, le_sampler_info *inf
 	stage->samplers.emplace_back( sampler );
 
 	return sampler_idx;
+}
+
+static uint32_t le_stage_create_texture( le_stage_o *stage, le_texture_info *info ) {
+	uint32_t texture_idx = uint32_t( stage->textures.size() );
+
+	le_texture_o texture{};
+
+	texture.name        = std::string{info->name};
+	texture.image_idx   = info->image_idx;
+	texture.sampler_idx = info->sampler_idx;
+
+	stage->textures.emplace_back( texture );
+
+	return texture_idx;
 }
 
 /// \brief Add a buffer to stage, return index to buffer within this stage.
@@ -1320,6 +1341,7 @@ ISL_API_ATTR void register_le_stage_api( void *api ) {
 	le_stage_i.create_image_from_memory    = le_stage_create_image_from_memory;
 	le_stage_i.create_image_from_file_path = le_stage_create_image_from_file_path;
 
+	le_stage_i.create_texture         = le_stage_create_texture;
 	le_stage_i.create_sampler         = le_stage_create_sampler;
 	le_stage_i.create_buffer          = le_stage_create_buffer;
 	le_stage_i.create_buffer_view     = le_stage_create_buffer_view;
