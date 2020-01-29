@@ -66,10 +66,6 @@ struct stage_image_o {
 	bool was_transferred;
 };
 
-struct le_sampler_o {
-	le_sampler_info info;
-};
-
 struct le_texture_o {
 	uint32_t    image_idx;
 	uint32_t    sampler_idx;
@@ -242,7 +238,7 @@ struct le_stage_o {
 	std::vector<le_accessor_o>        accessors;       //
 	std::vector<le_buffer_view_o>     buffer_views;    //
 	std::vector<le_buffer_o *>        buffers;         // owning
-	std::vector<le_sampler_o>         samplers;        //
+	std::vector<LeSamplerInfo>        samplers;        //
 	std::vector<le_resource_handle_t> buffer_handles;  //
 	std::vector<le_texture_o>         textures;        //
 	std::vector<stage_image_o *>      images;          // owning
@@ -358,13 +354,11 @@ static uint32_t le_stage_create_image_from_file_path( le_stage_o *stage, char co
 
 /// \brief add a sampler to stage, return index to sampler within this stage.
 ///
-static uint32_t le_stage_create_sampler( le_stage_o *stage, le_sampler_info *info ) {
+static uint32_t le_stage_create_sampler( le_stage_o *stage, LeSamplerInfo *info ) {
 
 	uint32_t sampler_idx = uint32_t( stage->samplers.size() );
 
-	le_sampler_o sampler{};
-	sampler.info = *info;
-	stage->samplers.emplace_back( sampler );
+	stage->samplers.emplace_back( *info );
 
 	return sampler_idx;
 }

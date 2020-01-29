@@ -910,30 +910,31 @@ enum LeAccessFlagBits : uint32_t {
 
 typedef uint32_t LeAccessFlags;
 
-// use TextureInfoBuilder to define texture info
+// use le::ImageSamplerBuilder to define texture info
+struct LeSamplerInfo {
+	le::Filter             magFilter               = le::Filter::eLinear;
+	le::Filter             minFilter               = le::Filter::eLinear;
+	le::SamplerMipmapMode  mipmapMode              = le::SamplerMipmapMode::eLinear;
+	le::SamplerAddressMode addressModeU            = le::SamplerAddressMode::eClampToBorder;
+	le::SamplerAddressMode addressModeV            = le::SamplerAddressMode::eClampToBorder;
+	le::SamplerAddressMode addressModeW            = le::SamplerAddressMode::eRepeat;
+	float                  mipLodBias              = 0.f;
+	bool                   anisotropyEnable        = false;
+	float                  maxAnisotropy           = 0.f;
+	bool                   compareEnable           = false;
+	le::CompareOp          compareOp               = le::CompareOp::eLess;
+	float                  minLod                  = 0.f;
+	float                  maxLod                  = 1.f;
+	le::BorderColor        borderColor             = le::BorderColor::eFloatTransparentBlack;
+	bool                   unnormalizedCoordinates = false;
+};
+
 struct LeImageSamplerInfo {
-	struct SamplerInfo {
-		le::Filter             magFilter               = le::Filter::eLinear;
-		le::Filter             minFilter               = le::Filter::eLinear;
-		le::SamplerMipmapMode  mipmapMode              = le::SamplerMipmapMode::eLinear;
-		le::SamplerAddressMode addressModeU            = le::SamplerAddressMode::eClampToBorder;
-		le::SamplerAddressMode addressModeV            = le::SamplerAddressMode::eClampToBorder;
-		le::SamplerAddressMode addressModeW            = le::SamplerAddressMode::eRepeat;
-		float                  mipLodBias              = 0.f;
-		bool                   anisotropyEnable        = false;
-		float                  maxAnisotropy           = 0.f;
-		bool                   compareEnable           = false;
-		le::CompareOp          compareOp               = le::CompareOp::eLess;
-		float                  minLod                  = 0.f;
-		float                  maxLod                  = 1.f;
-		le::BorderColor        borderColor             = le::BorderColor::eFloatTransparentBlack;
-		bool                   unnormalizedCoordinates = false;
-	};
 	struct ImageViewInfo {
 		le_resource_handle_t imageId{}; // le image resource id
 		le::Format           format{};  // leave at 0 (undefined) to use format of image referenced by `imageId`
 	};
-	SamplerInfo   sampler;
+	LeSamplerInfo sampler;
 	ImageViewInfo imageView;
 };
 
@@ -1136,8 +1137,8 @@ class ImageSamplerInfoBuilder {
 	LeImageSamplerInfo info{};
 
 	class SamplerInfoBuilder {
-		ImageSamplerInfoBuilder &        parent;
-		LeImageSamplerInfo::SamplerInfo &self = parent.info.sampler;
+		ImageSamplerInfoBuilder &parent;
+		LeSamplerInfo &          self = parent.info.sampler;
 
 	  public:
 		SamplerInfoBuilder( ImageSamplerInfoBuilder &parent_ )

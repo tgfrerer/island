@@ -281,17 +281,17 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		auto           samplers_end   = samplers_begin + self->data->samplers_count;
 
 		for ( auto s = samplers_begin; s != samplers_end; s++ ) {
-			le_sampler_info info{};
+			LeSamplerInfo info{};
 
-			info.address_mode_u = cgltf_to_le_sampler_address_mode( s->wrap_s );
-			info.address_mode_v = cgltf_to_le_sampler_address_mode( s->wrap_t );
+			info.addressModeU = cgltf_to_le_sampler_address_mode( s->wrap_s );
+			info.addressModeV = cgltf_to_le_sampler_address_mode( s->wrap_t );
 
 			// We assume that min and mag filter have the same values set for
 			// the Mipmap mode of their respective enums.
-			info.mipmap_mode = cgltf_to_le_sampler_mipmap_mode( s->min_filter );
+			info.mipmapMode = cgltf_to_le_sampler_mipmap_mode( s->min_filter );
 
-			info.mag_filter = cgltf_to_le_filter( s->mag_filter );
-			info.min_filter = cgltf_to_le_filter( s->min_filter );
+			info.magFilter = cgltf_to_le_filter( s->mag_filter );
+			info.minFilter = cgltf_to_le_filter( s->min_filter );
 
 			// add sampler to stage
 			uint32_t stage_idx = le_stage_i.create_sampler( stage, &info );

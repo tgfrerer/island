@@ -60,14 +60,6 @@ struct le_primitive_attribute_info {
 	Type     type;
 };
 
-struct le_sampler_info {
-	le::Filter             min_filter;
-	le::Filter             mag_filter;
-	le::SamplerMipmapMode  mipmap_mode;
-	le::SamplerAddressMode address_mode_u;
-	le::SamplerAddressMode address_mode_v;
-};
-
 struct le_texture_info {
 	char *   name;
 	uint32_t image_idx;
