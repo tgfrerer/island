@@ -247,6 +247,8 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 			uint32_t stage_idx = 0;
 
+			// TODO: must check if uri is not a data uri!
+
 			if ( img->uri ) {
 
 				// We need to know the file basename, because the file path is most likely relative.
@@ -421,6 +423,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 			return tex_view_info;
 		};
+
 		for ( auto m = materials_begin; m != materials_end; m++ ) {
 			le_material_info info{};
 
