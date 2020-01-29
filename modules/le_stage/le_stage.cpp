@@ -1160,6 +1160,16 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 		                                  LE_BUFFER_USAGE_VERTEX_BUFFER_BIT} );
 	}
 
+	for ( auto &t : draw_params->stage->textures ) {
+		// We must create texture handles for this renderpass.
+
+		rp.sampleTexture( t.texture_handle,
+		                  {
+		                      draw_params->stage->samplers[ t.sampler_idx ],           // samplerInfo
+		                      {draw_params->stage->images[ t.image_idx ]->handle, {}}, // imageViewInfo
+		                  } );
+	}
+
 	render_module_i.add_renderpass( module, rp );
 }
 
