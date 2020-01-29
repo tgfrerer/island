@@ -114,9 +114,23 @@ struct le_attribute_o {
 	uint32_t                          accessor_idx;
 };
 
+struct le_texture_view_o {
+	uint32_t  texture_id;
+	uint32_t  uv_set;
+	bool      has_transform;
+	glm::vec2 transform_offset;
+	float     transform_rotation;
+	glm::vec2 transform_scale;
+	uint32_t  transform_uv_set;
+	union {
+		float scale;
+		float strength;
+	} modifiers;
+};
+
 struct le_material_pbr_metallic_roughness_o {
-	//	uint32_t base_color_texture_view;
-	//	uint32_t metallic_roughness_texture_view;
+	le_texture_view_o *base_color;
+	le_texture_view_o *metallic_roughness;
 
 	float base_color_factor[ 4 ];
 	float metallic_factor;
@@ -124,10 +138,12 @@ struct le_material_pbr_metallic_roughness_o {
 };
 
 struct le_material_o {
-
-	std::string                          name;
-	bool                                 has_metallic_roughness;
-	le_material_pbr_metallic_roughness_o metallic_roughness;
+	std::string                           name;
+	le_material_pbr_metallic_roughness_o *metallic_roughness;
+	le_texture_view_o *                   normal_texture;
+	le_texture_view_o *                   occlusion_texture;
+	le_texture_view_o *                   emissive_texture;
+	glm::vec3                             emissive_factor;
 };
 
 struct le_primitive_o {
@@ -222,7 +238,7 @@ struct le_stage_o {
 	std::vector<le_node_o *>          nodes;           // owning
 	std::vector<le_camera_settings_o> camera_settings; //
 	std::vector<le_mesh_o>            meshes;          //
-	std::vector<le_material_o>        materials;       //
+	std::vector<le_material_o>        materials;       // owning
 	std::vector<le_accessor_o>        accessors;       //
 	std::vector<le_buffer_view_o>     buffer_views;    //
 	std::vector<le_buffer_o *>        buffers;         // owning
@@ -358,7 +374,9 @@ static uint32_t le_stage_create_texture( le_stage_o *stage, le_texture_info *inf
 
 	le_texture_o texture{};
 
-	texture.name        = std::string{info->name};
+	if ( info->name ) {
+		texture.name = std::string{info->name};
+	}
 	texture.image_idx   = info->image_idx;
 	texture.sampler_idx = info->sampler_idx;
 
@@ -558,6 +576,34 @@ static uint32_t le_stage_create_accessor( le_stage_o *self, le_accessor_info con
 	return idx;
 }
 
+/// \brief create textureview from `le_texture_view_info*`
+/// \return nullptr if info was nullptr
+static le_texture_view_o *create_texture_view( le_texture_view_info const *info ) {
+
+	if ( nullptr == info ) {
+		return nullptr;
+	}
+
+	auto const &src_tex = info;
+	auto        tex     = new le_texture_view_o{};
+
+	tex->uv_set          = src_tex->uv_set;
+	tex->modifiers.scale = src_tex->modifiers.scale;
+	tex->texture_id      = src_tex->texture_idx;
+
+	if ( src_tex->transform ) {
+		tex->has_transform = true;
+		memcpy( &tex->transform_scale, src_tex->transform->scale, sizeof( float ) * 2 );
+		tex->transform_rotation = src_tex->transform->rotation;
+		memcpy( &tex->transform_offset, src_tex->transform->offset, sizeof( float ) * 2 );
+		tex->transform_uv_set = src_tex->transform->uv_set;
+	} else {
+		tex->has_transform = false;
+	}
+
+	return tex;
+};
+
 /// \brief add material to stage, return index of newly created material as it appears in stage
 static uint32_t le_stage_create_material( le_stage_o *stage, le_material_info const *info ) {
 	uint32_t      idx = uint32_t( stage->materials.size() );
@@ -568,15 +614,24 @@ static uint32_t le_stage_create_material( le_stage_o *stage, le_material_info co
 	}
 
 	if ( info->pbr_metallic_roughness_info ) {
-		material.has_metallic_roughness = true;
-		auto &r                         = info->pbr_metallic_roughness_info;
+		material.metallic_roughness = new le_material_pbr_metallic_roughness_o{};
+		auto &src_mr_info           = info->pbr_metallic_roughness_info;
 
-		material.metallic_roughness.metallic_factor  = r->metallic_factor;
-		material.metallic_roughness.roughness_factor = r->roughness_factor;
-		memcpy( material.metallic_roughness.base_color_factor, r->base_color_factor, sizeof( float ) * 4 );
+		material.metallic_roughness->metallic_factor  = src_mr_info->metallic_factor;
+		material.metallic_roughness->roughness_factor = src_mr_info->roughness_factor;
+
+		memcpy( material.metallic_roughness->base_color_factor, src_mr_info->base_color_factor, sizeof( float ) * 4 );
+
+		material.metallic_roughness->base_color         = create_texture_view( src_mr_info->base_color_texture_view );
+		material.metallic_roughness->metallic_roughness = create_texture_view( src_mr_info->metallic_roughness_texture_view );
 	}
 
+	material.normal_texture    = create_texture_view( info->normal_texture_view_info );
+	material.emissive_texture  = create_texture_view( info->emissive_texture_view_info );
+	material.occlusion_texture = create_texture_view( info->occlusion_texture_view_info );
+
 	stage->materials.emplace_back( material );
+
 	return idx;
 }
 
@@ -1015,17 +1070,18 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 						auto const &material = stage->materials[ primitive.material_idx ];
 
-						if ( material.has_metallic_roughness ) {
+						if ( material.metallic_roughness ) {
 							auto &      mr         = material.metallic_roughness;
-							auto const &base_color = mr.base_color_factor;
+							auto const &base_color = mr->base_color_factor;
 
 							material_params_ubo.base_color_factor =
 							    glm::vec4( base_color[ 0 ],
 							               base_color[ 1 ],
 							               base_color[ 2 ],
 							               base_color[ 3 ] );
-							material_params_ubo.metallic_factor  = mr.metallic_factor;
-							material_params_ubo.roughness_factor = mr.roughness_factor;
+
+							material_params_ubo.metallic_factor  = mr->metallic_factor;
+							material_params_ubo.roughness_factor = mr->roughness_factor;
 
 							encoder.setArgumentData( LE_ARGUMENT_NAME( "UboMaterialParams" ),
 							                         &material_params_ubo, sizeof( UboMaterialParams ) );
@@ -1134,7 +1190,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 				// std::cout << "adding the following defines: " << defines.str() << std::flush << std::endl;
 
-				if ( stage->materials[ primitive.material_idx ].has_metallic_roughness ) {
+				if ( stage->materials[ primitive.material_idx ].metallic_roughness ) {
 					defines << "MATERIAL_METALLICROUGHNESS,";
 				}
 
@@ -1312,8 +1368,17 @@ static void le_stage_destroy( le_stage_o *self ) {
 	}
 
 	for ( auto &n : self->nodes ) {
-		if ( n ) {
-			delete n;
+		delete n;
+	}
+
+	for ( auto &m : self->materials ) {
+		if ( m.metallic_roughness ) {
+			delete ( m.metallic_roughness->base_color );
+			delete ( m.metallic_roughness->metallic_roughness );
+			delete m.metallic_roughness;
+			delete m.normal_texture;
+			delete m.occlusion_texture;
+			delete m.emissive_texture;
 		}
 	}
 

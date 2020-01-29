@@ -74,9 +74,26 @@ struct le_texture_info {
 	uint32_t sampler_idx;
 };
 
+struct le_texture_transform_info {
+	float    offset[ 2 ];
+	float    rotation;
+	float    scale[ 2 ];
+	uint32_t uv_set;
+};
+
+struct le_texture_view_info {
+	uint32_t texture_idx;
+	uint32_t uv_set; // which uv set to use
+	union {
+		float scale;
+		float strength;
+	} modifiers;
+	le_texture_transform_info *transform; // optional
+};
+
 struct le_pbr_metallic_roughness_info {
-	//	uint32_t base_color_texture_view;
-	//	uint32_t metallic_roughness_texture_view;
+	le_texture_view_info *base_color_texture_view;
+	le_texture_view_info *metallic_roughness_texture_view;
 
 	float base_color_factor[ 4 ];
 	float metallic_factor;
@@ -89,15 +106,12 @@ struct le_pbr_specular_glossiness_info {
 
 struct le_material_info {
 	char const *name;
-	bool        has_normal_texture_view;
-	bool        has_occlusion_texture_view;
-	bool        has_emissive_texture_view;
 
 	le_pbr_metallic_roughness_info * pbr_metallic_roughness_info;
 	le_pbr_specular_glossiness_info *pbr_specular_glossiness_info;
-	uint32_t                         normal_texture_view_idx;
-	uint32_t                         occlusion_texture_view_idx;
-	uint32_t                         emissive_texture_view_idx;
+	le_texture_view_info *           normal_texture_view_info;
+	le_texture_view_info *           occlusion_texture_view_info;
+	le_texture_view_info *           emissive_texture_view_info;
 
 	float emissive_factor[ 3 ];
 };
