@@ -216,9 +216,10 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		return false;
 	}
 
-	std::unordered_map<cgltf_buffer const *, uint32_t>      buffer_map; // maps buffer by pointer to buffer index in stage
+	std::unordered_map<cgltf_texture const *, uint32_t>     textures_map;
 	std::unordered_map<cgltf_sampler const *, uint32_t>     samplers_map;
 	std::unordered_map<cgltf_image const *, uint32_t>       images_map;
+	std::unordered_map<cgltf_buffer const *, uint32_t>      buffer_map; // maps buffer by pointer to buffer index in stage
 	std::unordered_map<cgltf_buffer_view const *, uint32_t> buffer_view_map;
 	std::unordered_map<cgltf_accessor const *, uint32_t>    accessor_map;
 	std::unordered_map<cgltf_material const *, uint32_t>    materials_map;
@@ -297,6 +298,23 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			samplers_map.insert( {s, stage_idx} );
 		}
 	}
+
+	{
+		// Upload texture information
+
+		cgltf_texture *textures_begin = self->data->textures;
+		auto           textures_end   = textures_begin + self->data->textures_count;
+
+		for ( auto t = textures_begin; t != textures_end; t++ ) {
+			le_texture_info info;
+			info.sampler_idx   = samplers_map.at( t->sampler );
+			info.image_idx     = images_map.at( t->image );
+			info.name          = t->name;
+			uint32_t stage_idx = le_stage_i.create_texture( stage, &info );
+			textures_map.insert( {t, stage_idx} );
+		}
+	}
+
 	{
 		// Upload buffers
 
