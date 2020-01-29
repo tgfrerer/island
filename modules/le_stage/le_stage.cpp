@@ -967,7 +967,10 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	glm::mat4 camera_view_matrix       = glm::identity<glm::mat4>();
 	glm::mat4 camera_world_matrix      = glm::identity<glm::mat4>(); // global transform for camera node (==inverse view matrix)
 	glm::vec4 camera_in_world_space    = glm::vec4{0, 0, 0, 1};
+
 	{
+		// update camera from interactive camera
+
 		using namespace le_camera;
 		le_camera_i.set_viewport( camera, viewports[ 0 ] );
 		camera_view_matrix       = le_camera_i.get_view_matrix_glm( camera );
