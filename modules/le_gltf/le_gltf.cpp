@@ -394,23 +394,58 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		cgltf_material const *materials_begin = self->data->materials;
 		auto                  materials_end   = materials_begin + self->data->materials_count;
 
+		std::vector<le_texture_transform_info *>      texture_transforms;
+		std::vector<le_texture_view_info *>           texture_view_infos;
 		std::vector<le_pbr_metallic_roughness_info *> metallic_roughness_infos;
 		std::vector<le_pbr_metallic_roughness_info *> specular_glossiness_infos;
 
+		auto create_texture_view_info = [&]( const cgltf_texture_view &tv ) -> le_texture_view_info * {
+			auto tex_view_info = new le_texture_view_info{};
+			texture_view_infos.push_back( tex_view_info );
+
+			tex_view_info->texture_idx     = textures_map.at( tv.texture );
+			tex_view_info->uv_set          = uint32_t( tv.texcoord );
+			tex_view_info->modifiers.scale = tv.scale;
+
+			if ( tv.has_transform ) {
+				auto tv_transform = new le_texture_transform_info{};
+				texture_transforms.push_back( tv_transform );
+
+				memcpy( tv_transform->scale, &tv.transform.scale, sizeof( float ) * 2 );
+				tv_transform->rotation = tv.transform.rotation;
+				memcpy( tv_transform->offset, &tv.transform.offset, sizeof( float ) * 2 );
+				tv_transform->uv_set = uint32_t( tv.transform.texcoord );
+
+				tex_view_info->transform = tv_transform;
+			}
+
+			return tex_view_info;
+		};
 		for ( auto m = materials_begin; m != materials_end; m++ ) {
 			le_material_info info{};
 
 			if ( m->has_pbr_metallic_roughness ) {
-				auto        pbr_info = new le_pbr_metallic_roughness_info{};
-				auto const &pbr_src  = m->pbr_metallic_roughness;
-				// TODO: attach texture views
+				auto mr_info = new le_pbr_metallic_roughness_info{};
+				metallic_roughness_infos.push_back( mr_info ); // so that we can cleanup after api call.
 
-				memcpy( pbr_info->base_color_factor, pbr_src.base_color_factor, sizeof( float ) * 4 );
-				pbr_info->metallic_factor  = pbr_src.metallic_factor;
-				pbr_info->roughness_factor = pbr_src.roughness_factor;
+				auto const &mr_src = m->pbr_metallic_roughness;
 
-				info.pbr_metallic_roughness_info = pbr_info;
-				metallic_roughness_infos.push_back( pbr_info ); // so that we can cleanup after api call.
+				if ( m->pbr_metallic_roughness.base_color_texture.texture ) {
+					mr_info->base_color_texture_view =
+					    create_texture_view_info( m->pbr_metallic_roughness.base_color_texture );
+				}
+
+				if ( m->pbr_metallic_roughness.metallic_roughness_texture.texture ) {
+					mr_info->metallic_roughness_texture_view =
+					    create_texture_view_info( m->pbr_metallic_roughness.metallic_roughness_texture );
+				}
+
+				memcpy( mr_info->base_color_factor, mr_src.base_color_factor, sizeof( float ) * 4 );
+
+				mr_info->metallic_factor  = mr_src.metallic_factor;
+				mr_info->roughness_factor = mr_src.roughness_factor;
+
+				info.pbr_metallic_roughness_info = mr_info;
 			}
 
 			if ( m->has_pbr_specular_glossiness ) {
@@ -418,9 +453,17 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				assert( false && "import for specular glossiness materials not yet implemented." );
 			}
 
-			// TODO: import normal texture
-			// TODO: import occlusion texture
-			// TODO: import emissive texture
+			if ( m->normal_texture.texture ) {
+				info.normal_texture_view_info = create_texture_view_info( m->normal_texture );
+			}
+
+			if ( m->emissive_texture.texture ) {
+				info.emissive_texture_view_info = create_texture_view_info( m->emissive_texture );
+			}
+
+			if ( m->occlusion_texture.texture ) {
+				info.occlusion_texture_view_info = create_texture_view_info( m->occlusion_texture );
+			}
 
 			memcpy( info.emissive_factor, m->emissive_factor, sizeof( float ) * 3 );
 
@@ -430,13 +473,21 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			materials_map.insert( {m, material_idx} );
 		}
 
-		// Cleanup
+		// Cleanup temporary objects
 
 		for ( auto &i : metallic_roughness_infos ) {
 			delete i;
 		}
 
 		for ( auto &i : specular_glossiness_infos ) {
+			delete i;
+		}
+
+		for ( auto &i : texture_view_infos ) {
+			delete i;
+		}
+
+		for ( auto &i : texture_transforms ) {
 			delete i;
 		}
 	}
