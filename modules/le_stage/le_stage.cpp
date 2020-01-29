@@ -1153,8 +1153,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 	                                   le::ImageAttachmentInfoBuilder()
 	                                       .setColorClearValue( LeClearValue( {0.2f, 0.2f, 0.2f, 1.f} ) )
 	                                       .build() )
-	              .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_STENCIL_IMAGE" ) )
-	              .setIsRoot( true );
+	              .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_STENCIL_IMAGE" ) );
 
 	for ( auto &b : draw_params->stage->buffers ) {
 		rp.useBufferResource( b->handle, {LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
