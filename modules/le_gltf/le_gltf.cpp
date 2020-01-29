@@ -167,6 +167,47 @@ static le_primitive_attribute_info::Type get_primitive_attribute_type_from_cgltf
 }
 
 // ----------------------------------------------------------------------
+static le::SamplerMipmapMode cgltf_to_le_sampler_mipmap_mode( cgltf_int const &v ) {
+	// clang-format off
+	switch(v){
+		case 9728: return le::SamplerMipmapMode::eLinear; // No mipmap mode specified, use default: Linear.
+		case 9729: return le::SamplerMipmapMode::eLinear; // No mipmap mode specified, use default: Linear.
+		case 9984: return le::SamplerMipmapMode::eNearest;
+		case 9985: return le::SamplerMipmapMode::eNearest;
+		case 9986: return le::SamplerMipmapMode::eLinear;
+		case 9987: return le::SamplerMipmapMode::eLinear;
+		default: assert(false); return le::SamplerMipmapMode();
+	}
+	// clang-format on
+};
+
+// ----------------------------------------------------------------------
+static le::Filter cgltf_to_le_filter( cgltf_int const &v ) {
+	// clang-format off
+	switch(v){
+		case 9728: return le::Filter::eNearest;
+		case 9729: return le::Filter::eLinear; 
+		case 9984: return le::Filter::eNearest;
+		case 9985: return le::Filter::eLinear;
+		case 9986: return le::Filter::eNearest;
+		case 9987: return le::Filter::eLinear;
+		default: assert(false); return le::Filter(); 
+	}
+	// clang-format on
+};
+
+static le::SamplerAddressMode cgltf_to_le_sampler_address_mode( cgltf_int const &v ) {
+	// clang-format off
+    switch(v){
+		case 33071: return le::SamplerAddressMode::eClampToEdge;
+		case 33648: return le::SamplerAddressMode::eMirroredRepeat;
+		case 10497: return le::SamplerAddressMode::eRepeat;
+		default: return le::SamplerAddressMode::eRepeat;         
+    }
+	// clang-format on
+};
+
+// ----------------------------------------------------------------------
 
 static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
@@ -176,6 +217,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	}
 
 	std::unordered_map<cgltf_buffer const *, uint32_t>      buffer_map; // maps buffer by pointer to buffer index in stage
+	std::unordered_map<cgltf_sampler const *, uint32_t>     samplers_map;
 	std::unordered_map<cgltf_image const *, uint32_t>       images_map;
 	std::unordered_map<cgltf_buffer_view const *, uint32_t> buffer_view_map;
 	std::unordered_map<cgltf_accessor const *, uint32_t>    accessor_map;
@@ -231,6 +273,30 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		}
 	}
 
+	{
+		// Upload sampler information
+
+		cgltf_sampler *samplers_begin = self->data->samplers;
+		auto           samplers_end   = samplers_begin + self->data->samplers_count;
+
+		for ( auto s = samplers_begin; s != samplers_end; s++ ) {
+			le_sampler_info info{};
+
+			info.address_mode_u = cgltf_to_le_sampler_address_mode( s->wrap_s );
+			info.address_mode_v = cgltf_to_le_sampler_address_mode( s->wrap_t );
+
+			// We assume that min and mag filter have the same values set for
+			// the Mipmap mode of their respective enums.
+			info.mipmap_mode = cgltf_to_le_sampler_mipmap_mode( s->min_filter );
+
+			info.mag_filter = cgltf_to_le_filter( s->mag_filter );
+			info.min_filter = cgltf_to_le_filter( s->min_filter );
+
+			// add sampler to stage
+			uint32_t stage_idx = le_stage_i.create_sampler( stage, &info );
+			samplers_map.insert( {s, stage_idx} );
+		}
+	}
 	{
 		// Upload buffers
 
