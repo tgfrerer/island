@@ -2859,7 +2859,7 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 				// in available resources.
 				vk::Format imageFormat = vk::Format( frame_data_get_image_format_from_resource_id( frame, r ) );
 
-				// If the format is still undefined at this point, we can only throw out hands up in the air...
+				// If the format is still undefined at this point, we can only throw our hands up in the air...
 				//
 				if ( imageFormat == vk::Format::eUndefined ) {
 					std::cout << "WARNING: Cannot create default view for image '" << r.debug_name << "', as format is undefined" << std::endl
