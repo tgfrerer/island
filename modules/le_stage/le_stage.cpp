@@ -681,7 +681,10 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 
 			std::sort( primitive.attributes.begin(), primitive.attributes.end(),
 			           []( le_attribute_o const &lhs, le_attribute_o const &rhs ) -> bool {
-				           return ( lhs.type < rhs.type );
+				           // sort by type first, then name.
+				           return ( lhs.type != rhs.type
+				                        ? lhs.type < rhs.type
+				                        : lhs.name < rhs.name );
 			           } );
 
 			if ( p->has_indices ) {
@@ -1201,11 +1204,14 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 				uint32_t location = 0; // location 0 is used for position attribute, which is mandatory.
 				for ( auto it : primitive.attributes ) {
+
+					uint32_t num_tex_coords = 0; // keep running tally of number of tex_coord attributes per primitive
+
 					// clang-format off
 					switch ( it.type ) {
 					case ( le_primitive_attribute_info::Type::eNormal    ): defines << "HAS_NORMALS="   << ++location << "," ; break;
 					case ( le_primitive_attribute_info::Type::eTangent   ): defines << "HAS_TANGENTS="  << ++location << "," ; break;
-					case ( le_primitive_attribute_info::Type::eTexcoord  ): defines << "HAS_TEXCOORDS=" << ++location << "," ; break;
+					case ( le_primitive_attribute_info::Type::eTexcoord  ): defines << "HAS_TEXCOORD_"  << num_tex_coords++ <<  "=" << ++location << "," ; break;
 					case ( le_primitive_attribute_info::Type::eColor     ): defines << "HAS_COLORS="    << ++location << "," ; break;
 					case ( le_primitive_attribute_info::Type::eJoints    ): defines << "HAS_JOINTS="    << ++location << "," ; break;
 					case ( le_primitive_attribute_info::Type::eWeights   ): defines << "HAS_WEIGHTS="   << ++location << "," ; break;
