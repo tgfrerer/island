@@ -176,7 +176,7 @@ static le::SamplerMipmapMode cgltf_to_le_sampler_mipmap_mode( cgltf_int const &v
 		case 9985: return le::SamplerMipmapMode::eNearest;
 		case 9986: return le::SamplerMipmapMode::eLinear;
 		case 9987: return le::SamplerMipmapMode::eLinear;
-		default: assert(false); return le::SamplerMipmapMode();
+		default: return le::SamplerMipmapMode::eLinear;
 	}
 	// clang-format on
 };
@@ -191,7 +191,7 @@ static le::Filter cgltf_to_le_filter( cgltf_int const &v ) {
 		case 9985: return le::Filter::eLinear;
 		case 9986: return le::Filter::eNearest;
 		case 9987: return le::Filter::eLinear;
-		default: assert(false); return le::Filter(); 
+		default:  return le::Filter::eLinear; 
 	}
 	// clang-format on
 };
