@@ -299,10 +299,20 @@ static uint32_t le_stage_create_image_from_memory(
 		img->handle          = res;
 		img->was_transferred = false;
 
+		le::Format imageFormat{};
+
+		if ( img->info.type == le_pixels_info::Type::eUInt8 ) {
+			if ( img->info.num_channels == 1 ) {
+				imageFormat = le::Format::eR8Unorm;
+			} else if ( img->info.num_channels == 4 ) {
+				imageFormat = le::Format::eR8G8B8A8Unorm;
+			}
+		}
+
 		img->resource_info =
 		    le::ImageInfoBuilder()
 		        .setExtent( img->info.width, img->info.height, img->info.depth )
-		        .setFormat( img->info.num_channels == 1 ? le::Format::eR8Unorm : le::Format::eR8G8B8A8Unorm )
+		        .setFormat( imageFormat )
 		        .setUsageFlags( {LeImageUsageFlagBits::LE_IMAGE_USAGE_SAMPLED_BIT |
 		                         LeImageUsageFlagBits::LE_IMAGE_USAGE_TRANSFER_DST_BIT} )
 		        .build();
