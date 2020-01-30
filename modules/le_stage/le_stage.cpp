@@ -1093,6 +1093,23 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 						auto const &material = stage->materials[ primitive.material_idx ];
 
+						if ( material.normal_texture ) {
+							// has normal texture
+							uint32_t tex_id = material.normal_texture->texture_id;
+							// todo: cache texure handles with primitive.
+							encoder.setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit" ), stage->textures[ tex_id ].texture_handle, 0 );
+
+							struct UboTextureParams {
+								float    scale   = 1;
+								uint32_t uv_set  = 0;
+								uint32_t tex_idx = 0;
+							};
+
+							UboTextureParams texParams{};
+
+							encoder.setArgumentData( LE_ARGUMENT_NAME( "UboTextureParams" ), &texParams, sizeof( texParams ) );
+						}
+
 						if ( material.metallic_roughness ) {
 							auto &      mr         = material.metallic_roughness;
 							auto const &base_color = mr->base_color_factor;
