@@ -1226,11 +1226,37 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 				// TODO: add defines for material type - and whether the material binds any textures.
 
-				// std::cout << "adding the following defines: " << defines.str() << std::flush << std::endl;
+				{
+					auto const &material = stage->materials[ primitive.material_idx ];
 
-				if ( stage->materials[ primitive.material_idx ].metallic_roughness ) {
-					defines << "MATERIAL_METALLICROUGHNESS,";
+					size_t num_textures = 0;
+
+					if ( material.normal_texture ) {
+						defines << "HAS_NORMAL_MAP,";
+						if ( material.normal_texture->has_transform ) {
+							defines << "HAS_NORMAL_UV_TRANSFORM,";
+						}
+						num_textures++;
+					}
+
+					if ( material.metallic_roughness ) {
+						defines << "MATERIAL_METALLICROUGHNESS,";
+						if ( material.metallic_roughness->base_color ) {
+							// add base colour texture
+							// increase texture count
+						}
+						if ( material.metallic_roughness->metallic_roughness ) {
+							// add metallic roughness texture
+							// increase texture count
+						}
+					}
+
+					if ( num_textures ) {
+						defines << "HAS_TEXTURES=" << num_textures << ",";
+					}
 				}
+
+				// std::cout << "adding the following defines: " << defines.str() << std::flush << std::endl;
 
 				auto shader_vert = renderer_i.create_shader_module( stage->renderer, "./local_resources/shaders/gltf.vert", {le::ShaderStage::eVertex}, defines.str().c_str() );
 				auto shader_frag = renderer_i.create_shader_module( stage->renderer, "./local_resources/shaders/metallic-roughness.frag", {le::ShaderStage::eFragment}, defines.str().c_str() );
