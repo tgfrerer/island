@@ -228,6 +228,8 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	std::unordered_map<cgltf_node const *, uint32_t>        nodes_map;
 	std::unordered_map<cgltf_scene const *, uint32_t>       scenes_map;
 
+	uint32_t default_sampler_idx = 0; // id for default sampler, in case texture does not specify sampler.
+
 	using namespace le_stage;
 
 	{
@@ -277,6 +279,17 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	}
 
 	{
+
+		{
+			// Sampler used for textures which don't define a sampler.
+			// Spec says: "When undefined, a sampler with repeat wrapping and auto filtering should be used."
+			LeSamplerInfo default_sampler_info{};
+			default_sampler_info.addressModeU = le::SamplerAddressMode::eRepeat;
+			default_sampler_info.addressModeV = le::SamplerAddressMode::eRepeat;
+
+			default_sampler_idx = le_stage_i.create_sampler( stage, &default_sampler_info );
+		}
+
 		// Upload sampler information
 
 		cgltf_sampler *samplers_begin = self->data->samplers;
@@ -309,7 +322,13 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 		for ( auto t = textures_begin; t != textures_end; t++ ) {
 			le_texture_info info;
-			info.sampler_idx   = samplers_map.at( t->sampler );
+			if ( t->sampler ) {
+				info.sampler_idx = samplers_map.at( t->sampler );
+			} else {
+				// Note: Sampler is optional, GLTF spec says:
+				// "When undefined, a sampler with repeat wrapping and auto filtering should be used."
+				info.sampler_idx = default_sampler_idx;
+			}
 			info.image_idx     = images_map.at( t->image );
 			info.name          = t->name;
 			uint32_t stage_idx = le_stage_i.create_texture( stage, &info );
