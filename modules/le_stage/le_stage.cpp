@@ -115,10 +115,8 @@ struct le_texture_view_o {
 	uint32_t  texture_id;
 	uint32_t  uv_set;
 	bool      has_transform;
-	glm::vec2 transform_offset;
-	float     transform_rotation;
-	glm::vec2 transform_scale;
 	uint32_t  transform_uv_set;
+	glm::mat3 transform;
 	union {
 		float scale;
 		float strength;
@@ -607,11 +605,12 @@ static le_texture_view_o *create_texture_view( le_texture_view_info const *info 
 	tex->texture_id      = src_tex->texture_idx;
 
 	if ( src_tex->transform ) {
-		tex->has_transform = true;
-		memcpy( &tex->transform_scale, src_tex->transform->scale, sizeof( float ) * 2 );
-		tex->transform_rotation = src_tex->transform->rotation;
-		memcpy( &tex->transform_offset, src_tex->transform->offset, sizeof( float ) * 2 );
+		tex->has_transform    = true;
 		tex->transform_uv_set = src_tex->transform->uv_set;
+		tex->transform =
+		    glm::translate( glm::identity<glm::mat4>(), glm::vec3{src_tex->transform->offset[ 0 ], src_tex->transform->offset[ 1 ], 0} ) * // translate
+		    glm::rotate( glm::identity<glm::mat4>(), src_tex->transform->rotation, glm::vec3{0.f, 0.f, 1.f} ) *                            // rotate
+		    glm::scale( glm::identity<glm::mat4>(), glm::vec3{src_tex->transform->scale[ 0 ], src_tex->transform->scale[ 1 ], 0} );        // scale
 	} else {
 		tex->has_transform = false;
 	}
