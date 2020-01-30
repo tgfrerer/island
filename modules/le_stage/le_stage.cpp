@@ -1011,10 +1011,12 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	mvp_ubo.camera_position      = camera_in_world_space;
 
 	struct UboMaterialParams {
-		glm::vec4 base_color_factor{1, 1, 1, 1};
-		float     metallic_factor{1};
-		float     roughness_factor{1};
+		glm::vec4 base_color_factor{1, 1, 1, 1}; // 4*4 = 16 byte alignment, which is largest alignment, and as such forms the struct's base alignment
+		float     metallic_factor{1};            // 4 byte alignment, must be at mulitple of 4
+		float     roughness_factor{1};           // 4 byte alignment, must be at multiple of 4
 	};
+
+	// static_assert(offsetof(UboMaterialParams,metallic_factor)%sizeof(UboMaterialParams::metallic_factor)==0, "must be at offset which is multiple of its size.");
 
 	UboMaterialParams material_params_ubo{};
 
