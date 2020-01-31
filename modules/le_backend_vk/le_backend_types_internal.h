@@ -116,7 +116,8 @@ struct DescriptorData {
 	};
 
 	struct TexelBufferInfo {
-		vk::BufferView bufferView = nullptr;
+		vk::BufferView bufferView   = nullptr;
+		uint64_t       padding[ 2 ] = {0, 0};
 	};
 
 	vk::DescriptorType type          = vk::DescriptorType::eUniformBufferDynamic; //
@@ -127,7 +128,15 @@ struct DescriptorData {
 		ImageInfo       imageInfo;
 		BufferInfo      bufferInfo;
 		TexelBufferInfo texelBufferInfo;
+		uint64_t        data[ 3 ];
 	};
+
+	bool operator==( DescriptorData const &rhs ) const noexcept {
+		return type == rhs.type &&
+		       bindingNumber == rhs.bindingNumber &&
+		       arrayIndex == rhs.arrayIndex &&
+		       0 == memcmp( data, rhs.data, sizeof( data ) );
+	}
 };
 
 struct AbstractPhysicalResource {

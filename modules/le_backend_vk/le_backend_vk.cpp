@@ -3359,19 +3359,32 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		uint32_t subpassIndex  = 0;
 
 		struct ArgumentState {
-			uint32_t                                    dynamicOffsetCount = 0;  // count of dynamic elements in current pipeline
-			std::array<uint32_t, 256>                   dynamicOffsets     = {}; // offset for each dynamic element in current pipeline
-			uint32_t                                    setCount           = 0;  // current count of bound descriptorSets (max: 8)
-			std::array<std::vector<DescriptorData>, 8>  setData;                 // data per-set
-			std::array<vk::DescriptorUpdateTemplate, 8> updateTemplates;         // update templates for currently bound descriptor sets
-			std::array<vk::DescriptorSetLayout, 8>      layouts;                 // layouts for currently bound descriptor sets
+			uint32_t                                   dynamicOffsetCount = 0;  // count of dynamic elements in current pipeline
+			std::array<uint32_t, 256>                  dynamicOffsets     = {}; // offset for each dynamic element in current pipeline
+			uint32_t                                   setCount           = 0;  // current count of bound descriptorSets (max: 8)
+			std::array<std::vector<DescriptorData>, 8> setData;                 // data per-set
+
+			std::array<vk::DescriptorUpdateTemplate, 8> updateTemplates; // update templates for currently bound descriptor sets
+			std::array<vk::DescriptorSetLayout, 8>      layouts;         // layouts for currently bound descriptor sets
 			std::vector<le_shader_binding_info>         binding_infos;
 		} argumentState;
 
 		vk::PipelineLayout currentPipelineLayout;
 		vk::DescriptorSet  descriptorSets[ VK_MAX_BOUND_DESCRIPTOR_SETS ] = {}; // currently bound descriptorSets (allocated from pool, therefore we must not worry about freeing, and may re-use freely)
 
-		auto updateArguments = []( const vk::Device &device, const vk::DescriptorPool &descriptorPool_, const ArgumentState &argumentState_, vk::DescriptorSet *descriptorSets ) -> bool {
+		// We store currently bound descriptors so that we only allocate new DescriptorSets
+		// if the descriptors really change. With dynamic descriptors, it is very likely
+		// that we don't need to allocate new descriptors, as the same descriptors are used
+		// for different accessors, only with different dynamic binding offsets.
+		//
+		//
+		std::array<std::vector<DescriptorData>, 8> previousSetData;
+
+		auto updateArguments = []( const vk::Device &                          device,
+		                           const vk::DescriptorPool &                  descriptorPool_,
+		                           const ArgumentState &                       argumentState_,
+		                           std::array<std::vector<DescriptorData>, 8> &previousSetData,
+		                           vk::DescriptorSet *                         descriptorSets ) -> bool {
 			// -- allocate descriptors from descriptorpool based on set layout info
 
 			if ( argumentState_.setCount == 0 ) {
@@ -3379,16 +3392,6 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			}
 
 			// ----------| invariant: there are descriptorSets to allocate
-
-			vk::DescriptorSetAllocateInfo allocateInfo;
-			allocateInfo.setDescriptorPool( descriptorPool_ )
-			    .setDescriptorSetCount( uint32_t( argumentState_.setCount ) )
-			    .setPSetLayouts( argumentState_.layouts.data() );
-
-			// -- allocate some descriptorSets based on current layout
-			auto result = device.allocateDescriptorSets( &allocateInfo, descriptorSets );
-
-			assert( result == vk::Result::eSuccess && "failed to allocate descriptor set" );
 
 			bool argumentsOk = true;
 
@@ -3430,7 +3433,30 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				}
 
 				if ( argumentsOk ) {
-					device.updateDescriptorSetWithTemplate( descriptorSets[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
+
+					// We test the current argument state of descriptors against the currently bound
+					// descriptors - we only (re-)allocate descriptorsets for when we detect a change
+					// within one of these sets.
+
+					if ( previousSetData[ setId ].empty() ||
+					     previousSetData[ setId ] != argumentState_.setData[ setId ] ) {
+
+						vk::DescriptorSetAllocateInfo allocateInfo;
+						allocateInfo.setDescriptorPool( descriptorPool_ )
+						    .setDescriptorSetCount( 1 )
+						    .setPSetLayouts( &argumentState_.layouts[ setId ] );
+
+						// -- allocate descriptorSets based on current layout
+						// and place them in the correct position
+						auto result = device.allocateDescriptorSets( &allocateInfo, &descriptorSets[ setId ] );
+
+						assert( result == vk::Result::eSuccess && "failed to allocate descriptor set" );
+
+						device.updateDescriptorSetWithTemplate( descriptorSets[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
+
+						previousSetData[ setId ] = argumentState_.setData[ setId ];
+					}
+
 				} else {
 					return false;
 				}
@@ -3636,7 +3662,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto *le_cmd = static_cast<le::CommandDispatch *>( dataIt );
 
 					// -- update descriptorsets via template if tainted
-					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, descriptorSets );
+					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetData, descriptorSets );
 
 					if ( false == argumentsOk ) {
 						break;
@@ -3662,7 +3688,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto *le_cmd = static_cast<le::CommandDraw *>( dataIt );
 
 					// -- update descriptorsets via template if tainted
-					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, descriptorSets );
+					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetData, descriptorSets );
 
 					if ( false == argumentsOk ) {
 						break;
@@ -3688,7 +3714,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto *le_cmd = static_cast<le::CommandDrawIndexed *>( dataIt );
 
 					// -- update descriptorsets via template if tainted
-					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, descriptorSets );
+					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetData, descriptorSets );
 
 					if ( false == argumentsOk ) {
 						break;
