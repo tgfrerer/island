@@ -16,6 +16,7 @@
 #include <iomanip>
 #include <vector>
 #include <string>
+#include <unordered_map>
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -164,19 +165,22 @@ struct le_material_o {
 	//
 	// We assume that 3 vec3 are binary compatible
 	// with a mat3.
-	std::vector<le_resource_handle_t>  texture_handles;       // cached texture handles
-	std::vector<UboTextureParamsSlice> cached_texture_params; // cached texture parameters from texture_infos
+	std::vector<le_resource_handle_t>  texture_handles;       // cached: texture handles
+	std::vector<UboTextureParamsSlice> cached_texture_params; // cached: texture parameters from texture_infos
 };
 
 struct le_primitive_o {
-	std::vector<uint64_t>             bindings_buffer_offsets;
-	std::vector<le_resource_handle_t> bindings_buffer_handles; // cached bufferviews sorted and grouped based on accessors
-
-	uint32_t vertex_count; // number of POSITION vertices, used to figure out draw call param
-	uint32_t index_count;  // number of INDICES, if any.
-
-	le_gpso_handle_t *          pipeline_state_handle; // contains material shaders, and vertex input state
-	std::vector<le_attribute_o> attributes;
+	std::vector<uint64_t>             bindings_buffer_offsets; // cached: offset into each buffer_handle when binding
+	std::vector<le_resource_handle_t> bindings_buffer_handles; // cached: bufferviews sorted and grouped based on accessors
+	                                                           //
+	uint32_t vertex_count;                                     // cached: number of POSITION vertices, used to figure out draw call param
+	uint32_t index_count;                                      // cached: number of INDICES, if any.
+	                                                           //
+	le_gpso_handle_t *pipeline_state_handle; /* non-owning */  // cached: contains material shaders, and vertex input state
+	                                                           //
+	uint64_t all_defines_hash;                                 // cached: hash over all shader defines
+	                                                           //
+	std::vector<le_attribute_o> attributes;                    // vertex data lookup
 
 	uint32_t indices_accessor_idx;
 	uint32_t material_idx;
@@ -1239,6 +1243,179 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 	le_pipeline_manager_o *pipeline_manager = renderer_i.get_pipeline_manager( stage->renderer );
 
+	// First, collect all possible shader define permutations based on shader #defines.
+	// since this will control how many instances of our shader we must send to the shader compiler.
+
+	std::unordered_map<uint64_t, std::string, IdentityHash> materials_defines_hash_to_defines_str; // map from materials defines hash to define string
+	std::vector<uint64_t>                                   defines_hash_at_material_idx;          // table from material inded to materials define hash
+
+	std::unordered_map<uint64_t, std::string, IdentityHash> vertex_input_defines_hash_to_defines_str; // map from vertex input defines hash to define string
+
+	struct shader_defines_signature {
+		uint64_t hash_vertex_input_defines;
+		uint64_t hash_materials_defines;
+	};
+
+	struct shader_programs {
+		shader_defines_signature signature;
+		le_shader_module_o *     vert;
+		le_shader_module_o *     frag;
+	};
+
+	std::unordered_map<uint64_t, shader_programs, IdentityHash> shader_map;
+
+	// -- First build up a map of all defines for materials
+
+	defines_hash_at_material_idx.reserve( stage->materials.size() );
+
+	for ( auto &material : stage->materials ) {
+
+		/** -- Update material properties - cache material texture transform matrices.
+		*  
+		* For each texture, we add a define, and we cache the texture handle and the associated 
+		* texture info data with the material. 
+		* 
+		* For the material ubos we combine these so that all material data can be uploded in a 
+		* single ubo.
+		* 
+		* We do this so that the material has a local cache of all the information
+		* it needs when it gets bound on a primitive.
+		*
+		*/
+
+		std::stringstream defines;
+
+		uint32_t num_textures = 0;
+
+		auto add_texture = [&]( char const *texture_name, const le_texture_view_o *tex_info ) {
+			defines << "HAS_" << texture_name << "_MAP,";
+
+			material.texture_handles.push_back( stage->textures[ tex_info->texture_id ].texture_handle );
+
+			if ( tex_info->has_transform ) {
+				defines << "HAS_" << texture_name << "_UV_TRANSFORM,";
+				// must push back 3 vec3 for the transform matrix
+				le_material_o::UboTextureParamsSlice vec_0{};
+				le_material_o::UboTextureParamsSlice vec_1{};
+				le_material_o::UboTextureParamsSlice vec_2{};
+				vec_0.slice.vec = tex_info->transform[ 0 ];
+				vec_1.slice.vec = tex_info->transform[ 1 ];
+				vec_2.slice.vec = tex_info->transform[ 2 ];
+				material.cached_texture_params.emplace_back( vec_0 );
+				material.cached_texture_params.emplace_back( vec_1 );
+				material.cached_texture_params.emplace_back( vec_2 );
+			}
+
+			le_material_o::UboTextureParamsSlice params{};
+			params.slice.data.scale   = tex_info->modifiers.scale;
+			params.slice.data.uv_set  = tex_info->uv_set;
+			params.slice.data.tex_idx = num_textures;
+			material.cached_texture_params.emplace_back( params );
+
+			num_textures++;
+		};
+
+		// clang-format off
+					if ( material.normal_texture )    add_texture( "NORMAL"     , material.normal_texture    );
+					if ( material.occlusion_texture ) add_texture( "OCCLUSION"  , material.occlusion_texture );
+					if ( material.emissive_texture )  add_texture( "EMISSIVE"  , material.emissive_texture  );
+		// clang-format on
+
+		if ( material.metallic_roughness ) {
+			defines << "MATERIAL_METALLICROUGHNESS,";
+			if ( material.metallic_roughness->base_color ) {
+				add_texture( "BASE_COLOR", material.metallic_roughness->base_color );
+			}
+			if ( material.metallic_roughness->metallic_roughness ) {
+				add_texture( "METALLIC_ROUGHNESS", material.metallic_roughness->metallic_roughness );
+			}
+		}
+
+		if ( num_textures ) {
+			defines << "HAS_TEXTURES=" << num_textures << ",";
+		}
+
+		std::string defines_str  = defines.str();
+		uint64_t    defines_hash = SpookyHash::Hash64( defines_str.data(), defines_str.size(), 0 );
+
+		defines_hash_at_material_idx.push_back( defines_hash );
+		materials_defines_hash_to_defines_str.insert( {defines_hash, std::move( defines_str )} );
+	}
+
+	// -- Then build a map of all vertex input defines per primitive
+
+	for ( auto &mesh : stage->meshes ) {
+
+		for ( auto &primitive : mesh.primitives ) {
+
+			std::stringstream defines;
+
+			uint32_t location = 0; // location 0 is used for position attribute, which is mandatory.
+			for ( auto it : primitive.attributes ) {
+
+				uint32_t num_tex_coords = 0; // keep running tally of number of tex_coord attributes per primitive
+
+				// clang-format off
+					switch ( it.type ) {
+					case ( le_primitive_attribute_info::Type::eNormal    ): defines << "HAS_NORMALS="   << ++location << "," ; break;
+					case ( le_primitive_attribute_info::Type::eTangent   ): defines << "HAS_TANGENTS="  << ++location << "," ; break;
+					case ( le_primitive_attribute_info::Type::eTexcoord  ): defines << "HAS_TEXCOORD_"  << num_tex_coords++ <<  "=" << ++location << "," ; break;
+					case ( le_primitive_attribute_info::Type::eColor     ): defines << "HAS_COLORS="    << ++location << "," ; break;
+					case ( le_primitive_attribute_info::Type::eJoints    ): defines << "HAS_JOINTS="    << ++location << "," ; break;
+					case ( le_primitive_attribute_info::Type::eWeights   ): defines << "HAS_WEIGHTS="   << ++location << "," ; break;
+					default: break;
+					}
+				// clang-format on
+			}
+			std::string vertex_input_defines = defines.str();
+
+			uint64_t vertex_input_defines_hash = SpookyHash::Hash64( vertex_input_defines.data(),
+			                                                         vertex_input_defines.size(), 0 );
+
+			// Store shader defines string if not yet present
+			vertex_input_defines_hash_to_defines_str.insert( {vertex_input_defines_hash, std::move( vertex_input_defines )} );
+
+			// Build a shader defines signature from vertex input defines and materials defines for this primitive.
+			// We will use this later to look up the correct shader for the primitive.
+
+			shader_defines_signature signature{};
+			signature.hash_materials_defines    = defines_hash_at_material_idx[ primitive.material_idx ];
+			signature.hash_vertex_input_defines = vertex_input_defines_hash;
+
+			primitive.all_defines_hash = SpookyHash::Hash64( &signature, sizeof( signature ), 0 );
+
+			// Inserting an element with null shader module pointers prepares for the next step, where
+			// we will iterate through the map of unique shader signatures, and instantiate shaders
+			// based on signatures.
+			shader_map.insert( {primitive.all_defines_hash, {signature, nullptr, nullptr}} );
+		}
+	}
+
+	// Get set of unique combinations of vertex inputs
+	// and material defines, and associate a shader with each.
+
+	// Create shaders from unique defines
+
+	for ( auto &shader : shader_map ) {
+
+		std::string defines = vertex_input_defines_hash_to_defines_str[ shader.second.signature.hash_vertex_input_defines ];
+		defines             = defines + materials_defines_hash_to_defines_str[ shader.second.signature.hash_materials_defines ];
+
+		shader.second.vert = renderer_i.create_shader_module(
+		    stage->renderer,
+		    "./local_resources/shaders/gltf.vert",
+		    {le::ShaderStage::eVertex}, defines.c_str() );
+
+		shader.second.frag = renderer_i.create_shader_module(
+		    stage->renderer, "./local_resources/shaders/metallic-roughness.frag",
+		    {le::ShaderStage::eFragment}, defines.c_str() );
+
+		std::cout << "Created shader instance using defines: \n\t'-D" << defines << "'" << std::endl
+		          << std::flush;
+	}
+
+	// associate each primitive with shader matching defines id
+
 	for ( auto &mesh : stage->meshes ) {
 
 		for ( auto &primitive : mesh.primitives ) {
@@ -1256,107 +1433,34 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 				// so that name "TEX_COORD_0" appears before "TEX_COORD_1"
 				// and normal attributes appear before tangent attributes etc.
 
-				std::stringstream defines;
-
-				uint32_t location = 0; // location 0 is used for position attribute, which is mandatory.
-				for ( auto it : primitive.attributes ) {
-
-					uint32_t num_tex_coords = 0; // keep running tally of number of tex_coord attributes per primitive
-
-					// clang-format off
-					switch ( it.type ) {
-					case ( le_primitive_attribute_info::Type::eNormal    ): defines << "HAS_NORMALS="   << ++location << "," ; break;
-					case ( le_primitive_attribute_info::Type::eTangent   ): defines << "HAS_TANGENTS="  << ++location << "," ; break;
-					case ( le_primitive_attribute_info::Type::eTexcoord  ): defines << "HAS_TEXCOORD_"  << num_tex_coords++ <<  "=" << ++location << "," ; break;
-					case ( le_primitive_attribute_info::Type::eColor     ): defines << "HAS_COLORS="    << ++location << "," ; break;
-					case ( le_primitive_attribute_info::Type::eJoints    ): defines << "HAS_JOINTS="    << ++location << "," ; break;
-					case ( le_primitive_attribute_info::Type::eWeights   ): defines << "HAS_WEIGHTS="   << ++location << "," ; break;
-					default: break;
-					}
-					// clang-format on
-				}
-
-				// TODO: add defines for material type - and whether the material binds any textures.
-
-				{
-
-					/** -- Update material textures
-					 *  
-					 * For each texture, we add a define, and we cache the texture handle and the associated 
-					 * texture info data with the material. 
-					 * 
-					 * For the material ubos we combine these so that all material data can be uploded in a 
-					 * single ubo.
-					 * 
-					 * We do this so that the material has a local cache of all the information
-					 * it needs when it gets bound on a primitive.
-					 */
-
-					auto &material = stage->materials[ primitive.material_idx ];
-
-					uint32_t num_textures = 0;
-
-					auto add_texture = [&]( char const *texture_name, const le_texture_view_o *tex_info ) {
-						defines << "HAS_" << texture_name << "_MAP,";
-						material.texture_handles.push_back( stage->textures[ tex_info->texture_id ].texture_handle );
-						if ( tex_info->has_transform ) {
-							defines << "HAS_" << texture_name << "_UV_TRANSFORM,";
-							// must push back 3 vec3 for the transform matrix
-							le_material_o::UboTextureParamsSlice vec_0{};
-							le_material_o::UboTextureParamsSlice vec_1{};
-							le_material_o::UboTextureParamsSlice vec_2{};
-							vec_0.slice.vec = tex_info->transform[ 0 ];
-							vec_1.slice.vec = tex_info->transform[ 1 ];
-							vec_2.slice.vec = tex_info->transform[ 2 ];
-							material.cached_texture_params.emplace_back( vec_0 );
-							material.cached_texture_params.emplace_back( vec_1 );
-							material.cached_texture_params.emplace_back( vec_2 );
-						}
-						le_material_o::UboTextureParamsSlice params{};
-						params.slice.data.scale   = tex_info->modifiers.scale;
-						params.slice.data.uv_set  = tex_info->uv_set;
-						params.slice.data.tex_idx = num_textures;
-						material.cached_texture_params.emplace_back( params );
-
-						num_textures++;
-					};
-
-					// clang-format off
-					if ( material.normal_texture )    add_texture( "NORMAL"     , material.normal_texture    );
-					if ( material.occlusion_texture ) add_texture( "OCCLUSION"  , material.occlusion_texture );
-					if ( material.emissive_texture )  add_texture( "EMISSIVE"  , material.emissive_texture  );
-					// clang-format on
-
-					if ( material.metallic_roughness ) {
-						defines << "MATERIAL_METALLICROUGHNESS,";
-						if ( material.metallic_roughness->base_color ) {
-							add_texture( "BASE_COLOR", material.metallic_roughness->base_color );
-						}
-						if ( material.metallic_roughness->metallic_roughness ) {
-							add_texture( "METALLIC_ROUGHNESS", material.metallic_roughness->metallic_roughness );
-						}
-					}
-
-					if ( num_textures ) {
-						defines << "HAS_TEXTURES=" << num_textures << ",";
-					}
-				}
-
-				// std::cout << "adding the following defines: " << defines.str() << std::flush << std::endl;
-
-				auto shader_vert = renderer_i.create_shader_module( stage->renderer, "./local_resources/shaders/gltf.vert", {le::ShaderStage::eVertex}, defines.str().c_str() );
-				auto shader_frag = renderer_i.create_shader_module( stage->renderer, "./local_resources/shaders/metallic-roughness.frag", {le::ShaderStage::eFragment}, defines.str().c_str() );
-
 				LeGraphicsPipelineBuilder builder( pipeline_manager );
 
-				builder
-				    .addShaderStage( shader_frag )
-				    .addShaderStage( shader_vert )
-				    //				    .withRasterizationState()
-				    //				    .setCullMode( le::CullModeFlagBits::eBack )
-				    //				    .setFrontFace( le::FrontFace::eClockwise )
-				    // 			    .end()
-				    ;
+				le_shader_module_o *shader_frag{};
+				le_shader_module_o *shader_vert{};
+
+				auto shaders = shader_map.find( primitive.all_defines_hash );
+
+				assert( shaders != shader_map.end() && "shader must be existing, and valid" );
+
+				shader_frag = shaders->second.frag;
+				shader_vert = shaders->second.vert;
+
+				if ( shader_frag ) {
+					builder.addShaderStage( shader_frag );
+				}
+
+				if ( shader_vert ) {
+					builder.addShaderStage( shader_vert );
+				}
+
+				assert( shader_frag && "shader_frag must be valid" );
+				assert( shader_vert && "shader_vert must be valid" );
+
+				// builder
+				//				    .withRasterizationState()
+				//				    .setCullMode( le::CullModeFlagBits::eBack )
+				//				    .setFrontFace( le::FrontFace::eClockwise )
+				// 			    .end();
 
 				primitive.bindings_buffer_handles.clear();
 				primitive.bindings_buffer_offsets.clear();
