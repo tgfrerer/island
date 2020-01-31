@@ -133,12 +133,39 @@ struct le_material_pbr_metallic_roughness_o {
 };
 
 struct le_material_o {
+
+	struct UboTextureParamsSlice {
+		union {
+			struct {
+				float    scale   = 1;
+				uint32_t uv_set  = 0;
+				uint32_t tex_idx = 0;
+			} data;
+			glm::vec3 vec;
+		} slice;
+	};
+
 	std::string                           name;
-	le_material_pbr_metallic_roughness_o *metallic_roughness;
 	le_texture_view_o *                   normal_texture;
 	le_texture_view_o *                   occlusion_texture;
 	le_texture_view_o *                   emissive_texture;
+	le_material_pbr_metallic_roughness_o *metallic_roughness;
 	glm::vec3                             emissive_factor;
+
+	// We initialise the following two elements when we set up our
+	// materials and pipelines. This allows us to fetch textures
+	// and associated settings quickers.
+	//
+	// Note that any matrices in texture infos will be split into
+	// mat[0], mat[1] and mat[2] and stored in slices of vec3 --
+	// based on our understanding of the uniform layout rules for
+	// std140 this should be fine as the base element size for a
+	// mat3 is a vec3.
+	//
+	// We assume that 3 vec3 are binary compatible
+	// with a mat3.
+	std::vector<le_resource_handle_t>  texture_handles;       // cached texture handles
+	std::vector<UboTextureParamsSlice> cached_texture_params; // cached texture parameters from texture_infos
 };
 
 struct le_primitive_o {
@@ -1103,21 +1130,19 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 						auto const &material = stage->materials[ primitive.material_idx ];
 
-						if ( material.normal_texture ) {
-							// has normal texture
-							uint32_t tex_id = material.normal_texture->texture_id;
-							// todo: cache texure handles with primitive.
-							encoder.setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit" ), stage->textures[ tex_id ].texture_handle, 0 );
+						{
+							// bind all textures
+							uint32_t tex_id = 0;
+							for ( auto const &tex : material.texture_handles ) {
+								encoder.setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit" ), tex, tex_id++ );
+							}
+						}
 
-							struct UboTextureParams {
-								float    scale   = 1;
-								uint32_t uv_set  = 0;
-								uint32_t tex_idx = 0;
-							};
-
-							UboTextureParams texParams{};
-
-							encoder.setArgumentData( LE_ARGUMENT_NAME( "UboTextureParams" ), &texParams, sizeof( texParams ) );
+						if ( !material.cached_texture_params.empty() ) {
+							// has cached texture parameters
+							encoder.setArgumentData( LE_ARGUMENT_NAME( "UboTextureParams" ),
+							                         material.cached_texture_params.data(),
+							                         sizeof( le_material_o::UboTextureParamsSlice ) * material.cached_texture_params.size() );
 						}
 
 						if ( material.metallic_roughness ) {
@@ -1254,27 +1279,61 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 				// TODO: add defines for material type - and whether the material binds any textures.
 
 				{
-					auto const &material = stage->materials[ primitive.material_idx ];
 
-					size_t num_textures = 0;
+					/** -- Update material textures
+					 *  
+					 * For each texture, we add a define, and we cache the texture handle and the associated 
+					 * texture info data with the material. 
+					 * 
+					 * For the material ubos we combine these so that all material data can be uploded in a 
+					 * single ubo.
+					 * 
+					 * We do this so that the material has a local cache of all the information
+					 * it needs when it gets bound on a primitive.
+					 */
 
-					if ( material.normal_texture ) {
-						defines << "HAS_NORMAL_MAP,";
-						if ( material.normal_texture->has_transform ) {
-							defines << "HAS_NORMAL_UV_TRANSFORM,";
+					auto &material = stage->materials[ primitive.material_idx ];
+
+					uint32_t num_textures = 0;
+
+					auto add_texture = [&]( char const *texture_name, const le_texture_view_o *tex_info ) {
+						defines << "HAS_" << texture_name << "_MAP,";
+						material.texture_handles.push_back( stage->textures[ tex_info->texture_id ].texture_handle );
+						if ( tex_info->has_transform ) {
+							defines << "HAS_" << texture_name << "_UV_TRANSFORM,";
+							// must push back 3 vec3 for the transform matrix
+							le_material_o::UboTextureParamsSlice vec_0{};
+							le_material_o::UboTextureParamsSlice vec_1{};
+							le_material_o::UboTextureParamsSlice vec_2{};
+							vec_0.slice.vec = tex_info->transform[ 0 ];
+							vec_1.slice.vec = tex_info->transform[ 1 ];
+							vec_2.slice.vec = tex_info->transform[ 2 ];
+							material.cached_texture_params.emplace_back( vec_0 );
+							material.cached_texture_params.emplace_back( vec_1 );
+							material.cached_texture_params.emplace_back( vec_2 );
 						}
+						le_material_o::UboTextureParamsSlice params{};
+						params.slice.data.scale   = tex_info->modifiers.scale;
+						params.slice.data.uv_set  = tex_info->uv_set;
+						params.slice.data.tex_idx = num_textures;
+						material.cached_texture_params.emplace_back( params );
+
 						num_textures++;
-					}
+					};
+
+					// clang-format off
+					if ( material.normal_texture )    add_texture( "NORMAL"     , material.normal_texture    );
+					if ( material.occlusion_texture ) add_texture( "OCCLUSION"  , material.occlusion_texture );
+					if ( material.emissive_texture )  add_texture( "EMISSIVE"  , material.emissive_texture  );
+					// clang-format on
 
 					if ( material.metallic_roughness ) {
 						defines << "MATERIAL_METALLICROUGHNESS,";
 						if ( material.metallic_roughness->base_color ) {
-							// add base colour texture
-							// increase texture count
+							add_texture( "BASE_COLOR", material.metallic_roughness->base_color );
 						}
 						if ( material.metallic_roughness->metallic_roughness ) {
-							// add metallic roughness texture
-							// increase texture count
+							add_texture( "METALLIC_ROUGHNESS", material.metallic_roughness->metallic_roughness );
 						}
 					}
 
