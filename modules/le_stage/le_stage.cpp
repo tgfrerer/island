@@ -140,8 +140,9 @@ struct le_material_o {
 				float    scale   = 1;
 				uint32_t uv_set  = 0;
 				uint32_t tex_idx = 0;
+				uint32_t padding = 0;
 			} data;
-			glm::vec3 vec;
+			glm::vec4 vec;
 		} slice;
 	};
 
@@ -684,6 +685,8 @@ static uint32_t le_stage_create_material( le_stage_o *stage, le_material_info co
 	material.normal_texture    = create_texture_view( info->normal_texture_view_info );
 	material.emissive_texture  = create_texture_view( info->emissive_texture_view_info );
 	material.occlusion_texture = create_texture_view( info->occlusion_texture_view_info );
+
+	memcpy( &material.emissive_factor, info->emissive_factor, sizeof( material.emissive_factor ) );
 
 	stage->materials.emplace_back( material );
 
@@ -1318,8 +1321,14 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 		// clang-format off
 					if ( material.normal_texture )    add_texture( "NORMAL"     , material.normal_texture    );
 					if ( material.occlusion_texture ) add_texture( "OCCLUSION"  , material.occlusion_texture );
-					if ( material.emissive_texture )  add_texture( "EMISSIVE"  , material.emissive_texture  );
 		// clang-format on
+
+		if ( material.emissive_texture ) {
+			add_texture( "EMISSIVE", material.emissive_texture );
+			le_material_o::UboTextureParamsSlice emissive_factor{};
+			emissive_factor.slice.vec = glm::vec4( material.emissive_factor, 1 );
+			material.cached_texture_params.emplace_back( emissive_factor );
+		}
 
 		if ( material.metallic_roughness ) {
 			defines << "MATERIAL_METALLICROUGHNESS,";
