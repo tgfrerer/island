@@ -1350,10 +1350,10 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 			std::stringstream defines;
 
-			uint32_t location = 0; // location 0 is used for position attribute, which is mandatory.
-			for ( auto it : primitive.attributes ) {
+			uint32_t location       = 0; // location 0 is used for position attribute, which is mandatory.
+			uint32_t num_tex_coords = 0; // keep running tally of number of tex_coord attributes per primitive
 
-				uint32_t num_tex_coords = 0; // keep running tally of number of tex_coord attributes per primitive
+			for ( auto it : primitive.attributes ) {
 
 				// clang-format off
 					switch ( it.type ) {
