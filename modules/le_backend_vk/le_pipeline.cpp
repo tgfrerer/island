@@ -535,12 +535,14 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 
 // ----------------------------------------------------------------------
 
+/// \brief compare sorted bindings and raise the alarm if two successive bindings alias locations
 static bool shader_module_check_bindings_valid( le_shader_binding_info const *bindings, size_t numBindings ) {
-	// -- perform sanity check on bindings - bindings must be unique (location+binding cannot be shared between shader uniforms)
+
+	// -- perform sanity check on bindings - bindings must be unique:
+	// (location+binding cannot be shared between shader uniforms)
+
 	auto b_start = bindings;
 	auto b_end   = b_start + numBindings;
-
-	// compare sorted bindings and raise the alarm if two successive bindings alias locations
 
 	for ( auto b = b_start, b_prev = b_start; b != b_end; b++ ) {
 
@@ -551,7 +553,10 @@ static bool shader_module_check_bindings_valid( le_shader_binding_info const *bi
 
 		if ( b->setIndex == b_prev->setIndex &&
 		     b->binding == b_prev->binding ) {
-			std::cerr << "ERROR: Illegal shader bindings detected, rejecting shader.\n\tDuplicate bindings for set: " << b->setIndex << ", binding: " << b->binding;
+			std::cerr << "ERROR: Illegal shader bindings detected, rejecting shader."
+			          << std::endl
+			          << "Duplicate bindings for set: " << b->setIndex << ", binding: " << b->binding
+			          << std::endl;
 			return false;
 		}
 
@@ -646,7 +651,7 @@ static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( le_
 							    << std::dec << b.binding << "' did not match."
 							    << std::endl
 							    << "Affected files : " << std::endl
-							    << get_filepaths_affected_by_message( begin_shader_stages, end_shader_stages, b.stage_bits | last_binding->stage_bits )
+							    << get_filepaths_affected_by_message( begin_shader_stages, end_shader_stages, uint32_t( b.stage_bits | last_binding->stage_bits ) )
 							    << std::flush;
 						}
 					}
