@@ -296,7 +296,7 @@ static uint32_t le_stage_create_image_from_memory(
 #if LE_RESOURCE_LABEL_LENGTH > 0
 	if ( debug_name ) {
 		// Copy debug name if such was given, and handle has debug name field.
-		strncpy( res.debug_name, debug_name, LE_RESOURCE_LABEL_LENGTH );
+		strncpy( res.debug_name, debug_name, LE_RESOURCE_LABEL_LENGTH - 1 );
 	}
 #endif
 
