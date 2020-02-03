@@ -68,30 +68,47 @@ struct compute_pipeline_state_o {
 	le_shader_module_o *shaderStage; // non-owning; refers opaquely to a compute shader module (or not)
 };
 
-// clang-format off
-// FIXME: microsoft places members in bitfields low to high (LSB first)
-// and gcc appears to do the same - sorting is based on this assumption, and we must somehow test for it when compiling.
+// This struct must be tightly packed, as a arrays of bindings get hashed
+// so that we can get a hash over DescriptorSets.
 struct le_shader_binding_info {
-	union {
-		struct{
-		uint64_t dynamic_offset_idx :  8; // only used when binding pipeline
-		uint64_t stage_bits         :  6; // vkShaderFlags : which stages this binding is used for (must be at least 6 bits wide)
-		uint64_t range              : 27; // only used for ubos (sizeof ubo)
-		uint64_t type               :  4; // vkDescriptorType descriptor type
-		uint64_t count              :  8; // number of elements
-		uint64_t binding            :  8; // |\                           : binding index within set
-		uint64_t setIndex           :  3; // |/ keep together for sorting : set index [0..7]
-		};
-		uint64_t data;
-	};
 
-	uint64_t name_hash; // const_char_hash of parameter name as given in shader
+	uint32_t setIndex;           //
+	uint32_t binding;            // Binding index within set
+	                             //
+	uint32_t count;              // Number of elements
+	uint32_t type;               // vkDescriptorType descriptor type
+	                             //
+	uint32_t dynamic_offset_idx; // Only used when binding pipeline
+	uint32_t range;              // Only used for ubos (sizeof ubo)
+	                             //
+	uint64_t stage_bits;         // Corresponds to bitfield of le::ShaderStage
+	                             //
+	uint64_t name_hash;          // fnv64_hash of parameter name as given in shader.
+	                             //
+	                             // NOTE: The above field `name_hash` doubles as a marker,
+	                             // as anything *before* and not including name_hash will be
+	                             // used to calculate hash of a `le_shader_binding_struct`.
 
-	bool operator < ( le_shader_binding_info const & lhs ){
-		return data < lhs.data;
+	//	char debug_name[ 32 ];
+
+	bool
+	operator<( le_shader_binding_info const &lhs ) const noexcept {
+		return setIndex == lhs.setIndex
+		           ? binding < lhs.binding
+		           : setIndex < lhs.setIndex;
+	}
+
+	bool operator==( le_shader_binding_info const &lhs ) const noexcept {
+		return setIndex == lhs.setIndex &&
+		       binding == lhs.binding &&
+		       count == lhs.count &&
+		       type == lhs.type &&
+		       dynamic_offset_idx == lhs.dynamic_offset_idx &&
+		       range == lhs.range &&
+		       stage_bits == lhs.stage_bits &&
+		       name_hash == lhs.name_hash;
 	}
 };
-// clang-format on
 
 // ----------------------------------------------------------------------
 struct le_descriptor_set_layout_t {
