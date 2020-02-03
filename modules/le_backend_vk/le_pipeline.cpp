@@ -565,6 +565,7 @@ static bool shader_module_check_bindings_valid( le_shader_binding_info const *bi
 
 	return true;
 }
+
 // Create union of bindings over shader stages based on the
 // invariant that each shader stage provides their bindings
 // in ascending order.
@@ -604,71 +605,84 @@ static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( le_
 		return os.str();
 	};
 
-	// sort all_bindings
+	// -- Sort all_bindings so that they are ordered by set, location
 
 	std::sort( all_bindings.begin(), all_bindings.end() );
 
-	// combine all bindings, so that elements with common set, binding are kept together.
+	// -- Combine all bindings, so that elements with common set, binding are kept together.
 
 	std::vector<le_shader_binding_info> combined_bindings;
+	le_shader_binding_info *            last_binding = nullptr;
 
-	le_shader_binding_info *last_binding = nullptr;
 	for ( auto &b : all_bindings ) {
-		if ( last_binding ) {
-			// check current binding against last binding
 
-			// skip if fully identical,
+		if ( nullptr == last_binding ) {
+			combined_bindings.emplace_back( b );
+			last_binding = &combined_bindings.back();
+			// First iteration does not need to do any comparison
+			// because there is by definition only one element in
+			// combined_bindings at this stage.
+			continue;
+		}
 
-			if ( b == *last_binding ) {
-				continue;
-			}
+		// ----------| Invariant: There is a last_binding
 
-			// merge if set id and binding id are identical
+		// -- Check current binding against last_binding
 
-			if ( b.setIndex == last_binding->setIndex && b.binding == last_binding->binding ) {
+		if ( b == *last_binding ) {
+			// -- Skip if fully identical
+			continue;
+		}
 
-				// -- Attempt to merge
+		// Attempt to merge binding info, if set id and location match
 
-				// we must compare bindings' count, range and type to make sure these
-				// are identical for bindings which are placed at the same set and
-				// location.
+		if ( b.setIndex == last_binding->setIndex &&
+		     b.binding == last_binding->binding ) {
 
-				if ( b.count == last_binding->count &&
-				     b.range == last_binding->range &&
-				     b.type == last_binding->type ) {
+			// -- Attempt to merge
 
-					// name must be identical, otherwise the name with the lowest stage flag bit set takes precedence.
+			// We must compare bindings' count, range and type to make sure these
+			// are identical for bindings which are placed at the same set and
+			// location.
 
-					if ( b.name_hash != last_binding->name_hash ) {
-						// we should be able to recover from non-identical name hash
-						// by keeping namehash of the lower stage_flag
+			if ( b.count == last_binding->count &&
+			     b.range == last_binding->range &&
+			     b.type == last_binding->type ) {
 
-						if ( b.stage_bits < last_binding->stage_bits ) {
-							last_binding->name_hash = b.name_hash;
-							std::cout
-							    << "Warning: Name for binding at Set: '"
-							    << std::dec << b.setIndex << "', location: '"
-							    << std::dec << b.binding << "' did not match."
-							    << std::endl
-							    << "Affected files : " << std::endl
-							    << get_filepaths_affected_by_message( begin_shader_stages, end_shader_stages, uint32_t( b.stage_bits | last_binding->stage_bits ) )
-							    << std::flush;
-						}
+				// -- Name must be identical
+
+				if ( b.name_hash != last_binding->name_hash ) {
+
+					// If name hash is not equal, then try to recover
+					// by choosing the namehash with has the lowest stage
+					// flag bits set. This ensures that names in vert shaders
+					// have precedence over names in frag shaders for example.
+
+					if ( b.stage_bits < last_binding->stage_bits ) {
+						last_binding->name_hash = b.name_hash;
+						std::cout
+						    << "Warning: Name for binding at Set: '"
+						    << std::dec << b.setIndex << "', location: '"
+						    << std::dec << b.binding << "' did not match."
+						    << std::endl
+						    << "Affected files : " << std::endl
+						    << get_filepaths_affected_by_message( begin_shader_stages, end_shader_stages, uint32_t( b.stage_bits | last_binding->stage_bits ) )
+						    << std::flush;
 					}
-
-					last_binding->stage_bits |= b.stage_bits;
-
-					continue;
-				} else {
-					assert( false && "descriptor at position set/binding must refer to same count, range and type." );
 				}
 
+				// Merge stage bits.
+
+				last_binding->stage_bits |= b.stage_bits;
+
+				continue;
 			} else {
-				// new binding
-				combined_bindings.emplace_back( b );
-				last_binding = &combined_bindings.back();
+				assert( false && "descriptor at position set/binding must refer to same count, range and type." );
 			}
+
 		} else {
+			// New binding -- we should probably check that set number is continuous
+			// and, if not, insert placeholder sets with empty bindings.
 			combined_bindings.emplace_back( b );
 			last_binding = &combined_bindings.back();
 		}
