@@ -77,10 +77,9 @@ struct le_texture_transform_info {
 struct le_texture_view_info {
 	uint32_t texture_idx;
 	uint32_t uv_set; // which uv set to use
-	union {
-		float scale;
-		float strength;
-	} modifiers;
+
+	float scale;
+
 	le_texture_transform_info *transform; // optional
 };
 

@@ -113,15 +113,14 @@ struct le_attribute_o {
 };
 
 struct le_texture_view_o {
-	uint32_t  texture_id;
-	uint32_t  uv_set;
-	bool      has_transform;
-	uint32_t  transform_uv_set;
+	uint32_t texture_id;
+	uint32_t uv_set;
+	uint32_t transform_uv_set;
+	float    scale;
+
 	glm::mat3 transform;
-	union {
-		float scale;
-		float strength;
-	} modifiers;
+
+	bool has_transform;
 };
 
 struct le_material_pbr_metallic_roughness_o {
@@ -641,9 +640,10 @@ static le_texture_view_o *create_texture_view( le_texture_view_info const *info 
 	auto const &src_tex = info;
 	auto        tex     = new le_texture_view_o{};
 
-	tex->uv_set          = src_tex->uv_set;
-	tex->modifiers.scale = src_tex->modifiers.scale;
-	tex->texture_id      = src_tex->texture_idx;
+	tex->uv_set = src_tex->uv_set;
+	tex->scale  = src_tex->scale;
+
+	tex->texture_id = src_tex->texture_idx;
 
 	if ( src_tex->transform ) {
 		tex->has_transform    = true;
@@ -1298,16 +1298,16 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 				le_material_o::UboTextureParamsSlice vec_0{};
 				le_material_o::UboTextureParamsSlice vec_1{};
 				le_material_o::UboTextureParamsSlice vec_2{};
-				vec_0.slice.vec = tex_info->transform[ 0 ];
-				vec_1.slice.vec = tex_info->transform[ 1 ];
-				vec_2.slice.vec = tex_info->transform[ 2 ];
+				vec_0.slice.vec = glm::vec4( tex_info->transform[ 0 ], 0 );
+				vec_1.slice.vec = glm::vec4( tex_info->transform[ 1 ], 0 );
+				vec_2.slice.vec = glm::vec4( tex_info->transform[ 2 ], 0 );
 				material.cached_texture_params.emplace_back( vec_0 );
 				material.cached_texture_params.emplace_back( vec_1 );
 				material.cached_texture_params.emplace_back( vec_2 );
 			}
 
 			le_material_o::UboTextureParamsSlice params{};
-			params.slice.data.scale   = tex_info->modifiers.scale;
+			params.slice.data.scale   = tex_info->scale;
 			params.slice.data.uv_set  = tex_info->uv_set;
 			params.slice.data.tex_idx = num_textures;
 			material.cached_texture_params.emplace_back( params );

@@ -424,9 +424,9 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			auto tex_view_info = new le_texture_view_info{};
 			texture_view_infos.push_back( tex_view_info );
 
-			tex_view_info->texture_idx     = textures_map.at( tv.texture );
-			tex_view_info->uv_set          = uint32_t( tv.texcoord );
-			tex_view_info->modifiers.scale = tv.scale;
+			tex_view_info->texture_idx = textures_map.at( tv.texture );
+			tex_view_info->uv_set      = uint32_t( tv.texcoord );
+			tex_view_info->scale       = tv.scale;
 
 			if ( tv.has_transform ) {
 				auto tv_transform = new le_texture_transform_info{};
