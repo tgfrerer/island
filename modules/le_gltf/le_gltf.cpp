@@ -462,7 +462,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 					    create_texture_view_info( m->pbr_metallic_roughness.metallic_roughness_texture );
 				}
 
-				memcpy( mr_info->base_color_factor, mr_src.base_color_factor, sizeof( float ) * 4 );
+				memcpy( mr_info->base_color_factor, mr_src.base_color_factor, sizeof( mr_src.base_color_factor ) );
 
 				mr_info->metallic_factor  = mr_src.metallic_factor;
 				mr_info->roughness_factor = mr_src.roughness_factor;
@@ -482,12 +482,11 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			if ( m->emissive_texture.texture ) {
 				info.emissive_texture_view_info = create_texture_view_info( m->emissive_texture );
 			}
+			memcpy( info.emissive_factor, m->emissive_factor, sizeof( m->emissive_factor ) );
 
 			if ( m->occlusion_texture.texture ) {
 				info.occlusion_texture_view_info = create_texture_view_info( m->occlusion_texture );
 			}
-
-			memcpy( info.emissive_factor, m->emissive_factor, sizeof( float ) * 3 );
 
 			// Create stage resources via api call
 
