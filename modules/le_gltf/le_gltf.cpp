@@ -238,8 +238,8 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		// Note that we don't decode image data - we read in the image data but don't decode it yet - this is for the
 		// stage to do. We don't do this here because we don't want to allocate memory to store the decoded image twice.
 
-		// if we decoded the image inside this module, we would have to copy the decoded memory across the api boundary.
-		// we must copy because we cannot otherwise guarantee that the image data will still be available when stage
+		// If we decoded the image inside this module, we would have to copy the decoded memory across the api boundary.
+		// We must copy because we cannot otherwise guarantee that the image data will still be available when stage
 		// uploads it to the gpu, as the upload step happens in another method than the import step.
 
 		cgltf_image const *images_begin = self->data->images;
