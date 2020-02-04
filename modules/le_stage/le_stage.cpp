@@ -43,6 +43,7 @@
 */
 
 // Wrappers so that we can pass data via opaque pointers across header boundaries
+
 struct glm_vec3_t {
 	glm::vec3 data;
 };
@@ -879,6 +880,22 @@ static void le_node_o_set_scene_bit( le_node_o *node, uint8_t bit ) {
 
 // ----------------------------------------------------------------------
 
+static uint32_t le_stage_create_animation( le_stage_o *self, le_animation_info *info ) {
+	uint32_t idx = 0;
+	// TODO: implement animation creation here
+	return idx;
+}
+
+// ----------------------------------------------------------------------
+
+static uint32_t le_stage_create_animation_sampler( le_stage_o *self, le_animation_sampler_info *info ) {
+	uint32_t idx = 0;
+	// TODO: implement animation sampler creation
+	return idx;
+}
+
+// ----------------------------------------------------------------------
+
 static uint32_t le_stage_create_scene( le_stage_o *self, uint32_t *node_idx, uint32_t node_idx_count ) {
 	le_scene_o scene;
 
@@ -1684,14 +1701,16 @@ ISL_API_ATTR void register_le_stage_api( void *api ) {
 	le_stage_i.create_image_from_memory    = le_stage_create_image_from_memory;
 	le_stage_i.create_image_from_file_path = le_stage_create_image_from_file_path;
 
-	le_stage_i.create_texture         = le_stage_create_texture;
-	le_stage_i.create_sampler         = le_stage_create_sampler;
-	le_stage_i.create_buffer          = le_stage_create_buffer;
-	le_stage_i.create_buffer_view     = le_stage_create_buffer_view;
-	le_stage_i.create_accessor        = le_stage_create_accessor;
-	le_stage_i.create_material        = le_stage_create_material;
-	le_stage_i.create_mesh            = le_stage_create_mesh;
-	le_stage_i.create_nodes           = le_stage_create_nodes;
-	le_stage_i.create_camera_settings = le_stage_create_camera_settings;
-	le_stage_i.create_scene           = le_stage_create_scene;
+	le_stage_i.create_texture           = le_stage_create_texture;
+	le_stage_i.create_sampler           = le_stage_create_sampler;
+	le_stage_i.create_buffer            = le_stage_create_buffer;
+	le_stage_i.create_buffer_view       = le_stage_create_buffer_view;
+	le_stage_i.create_accessor          = le_stage_create_accessor;
+	le_stage_i.create_material          = le_stage_create_material;
+	le_stage_i.create_mesh              = le_stage_create_mesh;
+	le_stage_i.create_camera_settings   = le_stage_create_camera_settings;
+	le_stage_i.create_nodes             = le_stage_create_nodes;
+	le_stage_i.create_animation_sampler = le_stage_create_animation_sampler;
+	le_stage_i.create_animation         = le_stage_create_animation;
+	le_stage_i.create_scene             = le_stage_create_scene;
 }
