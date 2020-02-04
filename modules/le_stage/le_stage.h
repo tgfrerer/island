@@ -17,8 +17,10 @@ struct le_material_info;
 struct le_mesh_info;
 struct le_node_info;
 struct le_sampler_info;
+struct le_animation_sampler_info;
 struct le_texture_info;
 struct le_camera_settings_info;
+struct le_animation_info;
 struct le_camera_o; // from module::le_camera
 
 struct LeSamplerInfo; // from le_renderer
@@ -61,6 +63,8 @@ struct le_stage_api {
 		uint32_t (* create_mesh)(le_stage_o* self, le_mesh_info const * info);
 		uint32_t (* create_nodes)( le_stage_o *self, le_node_info *info, size_t num_nodes );
 		uint32_t (* create_camera_settings) (le_stage_o * self, le_camera_settings_info* info, size_t num_camera_settings);
+		uint32_t (* create_animation_sampler)(le_stage_o* self, le_animation_sampler_info* info);
+		uint32_t (* create_animation)(le_stage_o* self, le_animation_info* info);
 		uint32_t (* create_scene)( le_stage_o *self, uint32_t *node_idx, uint32_t node_idx_count );
 	};
 
