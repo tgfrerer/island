@@ -207,6 +207,32 @@ static le::SamplerAddressMode cgltf_to_le_sampler_address_mode( cgltf_int const 
 	// clang-format on
 };
 
+static le_animation_sampler_info::InterpolationType cgltf_to_le_interpolation_type( uint32_t const &t ) {
+
+	// clang-format off
+	switch ( t ) {
+		case cgltf_interpolation_type_linear      : return le_animation_sampler_info::InterpolationType::eLinear;
+		case cgltf_interpolation_type_step        : return le_animation_sampler_info::InterpolationType::eStep;
+		case cgltf_interpolation_type_cubic_spline: return le_animation_sampler_info::InterpolationType::eCubicSpline;
+	}
+	// clang-format on
+
+	return le_animation_sampler_info::InterpolationType::eLinear;
+}
+
+static le_animation_channel_info::AnimationTargetType cgltf_to_le_animation_target_type( uint32_t const &t ) {
+	// clang-format off
+	switch ( t ) {
+		case cgltf_animation_path_type_invalid     : return le_animation_channel_info::AnimationTargetType::eUndefined;
+		case cgltf_animation_path_type_translation : return le_animation_channel_info::AnimationTargetType::eTranslation;
+		case cgltf_animation_path_type_rotation	   : return le_animation_channel_info::AnimationTargetType::eRotation;
+		case cgltf_animation_path_type_scale       : return le_animation_channel_info::AnimationTargetType::eScale;
+		case cgltf_animation_path_type_weights     : return le_animation_channel_info::AnimationTargetType::eWeights;
+	}
+	// clang-format on
+	return le_animation_channel_info::AnimationTargetType::eUndefined; // unreachable
+}
+
 // ----------------------------------------------------------------------
 
 static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
@@ -216,17 +242,19 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		return false;
 	}
 
-	std::unordered_map<cgltf_texture const *, uint32_t>     textures_map;
-	std::unordered_map<cgltf_sampler const *, uint32_t>     samplers_map;
-	std::unordered_map<cgltf_image const *, uint32_t>       images_map;
-	std::unordered_map<cgltf_buffer const *, uint32_t>      buffer_map; // maps buffer by pointer to buffer index in stage
-	std::unordered_map<cgltf_buffer_view const *, uint32_t> buffer_view_map;
-	std::unordered_map<cgltf_accessor const *, uint32_t>    accessor_map;
-	std::unordered_map<cgltf_material const *, uint32_t>    materials_map;
-	std::unordered_map<cgltf_mesh const *, uint32_t>        mesh_map;
-	std::unordered_map<cgltf_camera const *, uint32_t>      camera_map;
-	std::unordered_map<cgltf_node const *, uint32_t>        nodes_map;
-	std::unordered_map<cgltf_scene const *, uint32_t>       scenes_map;
+	std::unordered_map<cgltf_texture const *, uint32_t>           textures_map;
+	std::unordered_map<cgltf_sampler const *, uint32_t>           samplers_map;
+	std::unordered_map<cgltf_image const *, uint32_t>             images_map;
+	std::unordered_map<cgltf_buffer const *, uint32_t>            buffer_map;
+	std::unordered_map<cgltf_buffer_view const *, uint32_t>       buffer_view_map;
+	std::unordered_map<cgltf_accessor const *, uint32_t>          accessor_map;
+	std::unordered_map<cgltf_material const *, uint32_t>          materials_map;
+	std::unordered_map<cgltf_mesh const *, uint32_t>              mesh_map;
+	std::unordered_map<cgltf_camera const *, uint32_t>            camera_map;
+	std::unordered_map<cgltf_node const *, uint32_t>              nodes_map;
+	std::unordered_map<cgltf_scene const *, uint32_t>             scenes_map;
+	std::unordered_map<cgltf_animation_sampler const *, uint32_t> animation_samplers_map;
+	std::unordered_map<cgltf_animation const *, uint32_t>         animations_map;
 
 	uint32_t default_sampler_idx = 0; // id for default sampler, in case texture does not specify sampler.
 
@@ -764,6 +792,69 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				free( n.child_indices );
 			}
 		}
+	}
+
+	if ( self->data->animations_count ) {
+		// upload animations
+
+		// for each animation:
+		// -- upload animation samplers
+		cgltf_animation const *const animations_begin = self->data->animations;
+		auto                         animations_end   = animations_begin + self->data->animations_count;
+
+		for ( auto a = animations_begin; a != animations_end; a++ ) {
+
+			cgltf_animation_sampler const *const animation_samplers_begin = a->samplers;
+			auto                                 animation_samplers_end   = animation_samplers_begin + a->samplers_count;
+
+			for ( auto s = animation_samplers_begin; s != animation_samplers_end; s++ ) {
+				le_animation_sampler_info info{}; // TODO: fill in sampler_info
+
+				info.input_accesstor_idx = accessor_map.at( s->input );
+				info.output_accessor_idx = accessor_map.at( s->output );
+				info.interpolation_type  = cgltf_to_le_interpolation_type( s->interpolation );
+
+				uint32_t animation_sampler_idx = le_stage_i.create_animation_sampler( stage, &info );
+				animation_samplers_map.insert( {s, animation_sampler_idx} );
+			}
+		}
+
+		// For each animation:
+
+		for ( auto a = animations_begin; a != animations_end; a++ ) {
+
+			if ( a->channels_count ) {
+				continue;
+			}
+
+			// ----------| invariant: this animation has some channels.
+
+			std::vector<le_animation_channel_info> animation_channel_infos;
+
+			cgltf_animation_channel const *const animation_channels_begin = a->channels;
+			auto                                 animation_channels_end   = animation_channels_begin + a->channels_count;
+
+			animation_channel_infos.reserve( a->channels_count );
+
+			for ( auto c = animation_channels_begin; c != animation_channels_end; c++ ) {
+				le_animation_channel_info info{};
+
+				info.node_idx              = nodes_map.at( c->target_node );
+				info.animation_target_type = cgltf_to_le_animation_target_type( c->target_path );
+				info.animation_sampler_idx = animation_samplers_map.at( c->sampler );
+
+				animation_channel_infos.emplace_back( info );
+			}
+
+			le_animation_info info{};
+			info.channels       = animation_channel_infos.data();
+			info.channels_count = animation_channel_infos.size();
+			info.name           = a->name;
+
+			uint32_t animation_idx = le_stage_i.create_animation( stage, &info );
+		}
+		// - gather animation channels
+		// - upload animation
 	}
 
 	{
