@@ -610,30 +610,27 @@ static uint32_t le_stage_create_accessor( le_stage_o *self, le_accessor_info con
 		le_buffer_view_o   sparse_data_view   = self->buffer_views[ info->sparse_accessor.values_buffer_view_idx ];
 		le_buffer_o const *sparse_data_buffer = self->buffers[ sparse_data_view.buffer_idx ];
 
-		if ( true ) {
+		char *const index_ptr       = static_cast<char *>( indices_buffer->mem ) + indices_buffer_view.byte_offset;
+		void *const sparse_data_src = static_cast<char *>( sparse_data_buffer->mem ) + sparse_data_view.byte_offset;
 
-			char *const index_ptr       = static_cast<char *>( indices_buffer->mem ) + indices_buffer_view.byte_offset;
-			void *const sparse_data_src = static_cast<char *>( sparse_data_buffer->mem ) + sparse_data_view.byte_offset;
+		uint32_t stride       = view_info.byte_stride;
+		uint32_t index_stride = size_of( info->sparse_accessor.indices_component_type );
 
-			uint32_t stride       = view_info.byte_stride;
-			uint32_t index_stride = size_of( info->sparse_accessor.indices_component_type );
+		for ( uint32_t src_index = 0; src_index != info->sparse_accessor.count; src_index++ ) {
 
-			for ( uint32_t src_index = 0; src_index != info->sparse_accessor.count; src_index++ ) {
+			uint32_t dst_index = 0;
 
-				uint32_t dst_index = 0;
-
-				if ( info->sparse_accessor.indices_component_type == le_num_type::eU16 ) {
-					dst_index = ( uint16_t & )index_ptr[ index_stride * src_index ];
-				} else if ( info->sparse_accessor.indices_component_type == le_num_type::eU32 ) {
-					dst_index = ( uint32_t & )index_ptr[ index_stride * src_index ];
-				} else {
-					assert( false && "index type must be one of u16 or u32" );
-				}
-
-				memcpy( static_cast<char *>( dst_buffer->mem ) + stride * dst_index, // change in dest at sparse index
-				        static_cast<char *>( sparse_data_src ) + stride * src_index, // from data
-				        stride );
+			if ( info->sparse_accessor.indices_component_type == le_num_type::eU16 ) {
+				dst_index = static_cast<uint16_t const &>( index_ptr[ index_stride * src_index ] );
+			} else if ( info->sparse_accessor.indices_component_type == le_num_type::eU32 ) {
+				dst_index = static_cast<uint32_t const &>( index_ptr[ index_stride * src_index ] );
+			} else {
+				assert( false && "index type must be one of u16 or u32" );
 			}
+
+			memcpy( static_cast<char *>( dst_buffer->mem ) + stride * dst_index, // change in dest at sparse index
+			        static_cast<char *>( sparse_data_src ) + stride * src_index, // from data
+			        stride );
 		}
 
 		// we patch accessor here
