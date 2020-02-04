@@ -1401,7 +1401,9 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 			// We will use this later to look up the correct shader for the primitive.
 
 			shader_defines_signature signature{};
-			signature.hash_materials_defines    = defines_hash_at_material_idx[ primitive.material_idx ];
+			if ( primitive.has_material ) {
+				signature.hash_materials_defines = defines_hash_at_material_idx[ primitive.material_idx ];
+			}
 			signature.hash_vertex_input_defines = vertex_input_defines_hash;
 
 			primitive.all_defines_hash = SpookyHash::Hash64( &signature, sizeof( signature ), 0 );
