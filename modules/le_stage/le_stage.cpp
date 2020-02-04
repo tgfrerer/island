@@ -275,11 +275,18 @@ struct le_stage_o {
 	std::vector<le_resource_handle_t> image_handles;   //
 };
 
+/// \brief Create image by interpreting given memory as an image.
+/// \note  Image memory is decoded via stb_image.
+/// \param debug_name : (optional) name to remember the image by.
+/// \param mip_levels_: (optional) number of mip-levels to auto-generate:
+///        0 means generate the full mip chain, any other number limits
+///        the number of mip levels.
 static uint32_t le_stage_create_image_from_memory(
     le_stage_o *         stage,
     unsigned char const *image_file_memory,
     uint32_t             image_file_sz,
-    char const *         debug_name ) {
+    char const *         debug_name,
+    uint32_t             mip_levels_ ) {
 
 	assert( image_file_memory && "must point to memory" );
 	assert( image_file_sz && "must have size > 0" );
@@ -340,12 +347,18 @@ static uint32_t le_stage_create_image_from_memory(
 			}
 		}
 
+		uint32_t mip_levels =
+		    mip_levels_
+		        ? mip_levels_
+		        : uint32_t( ceilf( log2f( std::max( img->info.width, img->info.height ) ) ) );
+
 		img->resource_info =
 		    le::ImageInfoBuilder()
 		        .setExtent( img->info.width, img->info.height, img->info.depth )
 		        .setFormat( imageFormat )
 		        .setUsageFlags( {LeImageUsageFlagBits::LE_IMAGE_USAGE_SAMPLED_BIT |
 		                         LeImageUsageFlagBits::LE_IMAGE_USAGE_TRANSFER_DST_BIT} )
+		        .setMipLevels( mip_levels )
 		        .build();
 
 		stage->images.emplace_back( img );
@@ -355,7 +368,9 @@ static uint32_t le_stage_create_image_from_memory(
 	return image_handle_idx;
 }
 
-static uint32_t le_stage_create_image_from_file_path( le_stage_o *stage, char const *image_file_path, char const *debug_name ) {
+/// \brief create image by loading file at given filepath into memory,
+/// then handing over to `create_image_from_memory`
+static uint32_t le_stage_create_image_from_file_path( le_stage_o *stage, char const *image_file_path, char const *debug_name, uint32_t mip_levels ) {
 
 	void * image_file_memory = nullptr;
 	size_t image_file_sz     = 0;
@@ -382,7 +397,7 @@ static uint32_t le_stage_create_image_from_file_path( le_stage_o *stage, char co
 	    le_stage_create_image_from_memory(
 	        stage,
 	        static_cast<unsigned char const *>( image_file_memory ),
-	        uint32_t( image_file_sz ), debug_name );
+	        uint32_t( image_file_sz ), debug_name, mip_levels );
 
 	free( image_file_memory );
 
@@ -942,6 +957,7 @@ static void pass_xfer_resources( le_command_buffer_encoder_o *encoder_, void *us
 			auto write_info = le::WriteToImageSettingsBuilder()
 			                      .setImageW( img->info.width )
 			                      .setImageH( img->info.height )
+			                      .setNumMiplevels( img->resource_info.image.mipLevels )
 			                      .build();
 
 			encoder.writeToImage( img->handle, write_info, pix_data, img->info.byte_count );

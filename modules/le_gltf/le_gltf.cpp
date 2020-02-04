@@ -261,14 +261,14 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 					img_path = self->gltf_file_path.parent_path() / img_path;
 				}
 
-				stage_idx = le_stage_i.create_image_from_file_path( stage, img_path.c_str(), img->name ? img->name : img->uri );
+				stage_idx = le_stage_i.create_image_from_file_path( stage, img_path.c_str(), img->name ? img->name : img->uri, 0 );
 
 			} else if ( img->buffer_view && img->buffer_view->buffer && img->buffer_view->buffer->data ) {
 
 				unsigned char const *data = static_cast<unsigned char const *>( img->buffer_view->buffer->data );
 				data += img->buffer_view->offset;
 				size_t data_sz = img->buffer_view->size;
-				stage_idx      = le_stage_i.create_image_from_memory( stage, data, uint32_t( data_sz ), img->name ? img->name : img->uri );
+				stage_idx      = le_stage_i.create_image_from_memory( stage, data, uint32_t( data_sz ), img->name ? img->name : img->uri, 0 );
 
 			} else {
 				assert( false && "image must either have inline data or provide an uri" );
