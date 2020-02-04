@@ -151,6 +151,36 @@ struct le_camera_settings_info {
 	} data;
 };
 
+struct le_animation_channel_info {
+	enum class AnimationTargetType : uint32_t {
+		eUndefined = 0,
+		eTranslation,
+		eRotation,
+		eScale,
+		eWeights,
+	};
+	uint32_t            animation_sampler_idx;
+	uint32_t            node_idx;
+	AnimationTargetType animation_target_type;
+};
+
+struct le_animation_sampler_info {
+	enum class InterpolationType : uint32_t {
+		eLinear,
+		eStep,
+		eCubicSpline,
+	};
+	uint32_t          input_accesstor_idx;
+	uint32_t          output_accessor_idx;
+	InterpolationType interpolation_type;
+};
+
+struct le_animation_info {
+	const char *               name;
+	le_animation_channel_info *channels;
+	uint32_t                   channels_count;
+};
+
 struct le_node_info {
 	uint32_t *child_indices;
 	uint32_t  child_indices_count;
