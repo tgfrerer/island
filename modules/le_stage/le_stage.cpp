@@ -248,11 +248,22 @@ struct le_keyframe_o {
 	} data;
 };
 
-struct le_animation_sampler_o {
-	std::vector<le_keyframe_o> keyframes;
+struct le_animation_channel_o {
+
+	// A channel is a mapping from a sequence of keyframes to a node property
+
+	le_time_unit_t time_offset;                // TODO: time offset for this channel - global placement of this channel in world timeline. default 0
+	le_time_unit_t duration;                   // TODO: duration of this channel, default: end time of last keyframe.
+	                                           //
+	std::vector<le_keyframe_o> sampler;        // (non-owning) keyframes for this channel, their time is relative to this channel.
+	                                           //
+	le_compound_num_type target_compound_type; // numeric type for target - we keep this mostly because quaternion requires slerp rather than lerp.
+	le_node_o *          target_node;          // (non-owning) pointer to targeted node						 : how do we deal with deleted nodes?
+	float *              target_node_element;  // (non-owning) pointer to targeted node element (t, r, or s) : how do we deal with deleted nodes?
 };
 
-struct le_animation_channel_o {
+/// An animation is a collection of channels
+struct le_animation_o {
 
 	enum class Repeat : uint32_t {
 		eNone,
@@ -260,13 +271,10 @@ struct le_animation_channel_o {
 		eBounce,
 	}; // how this channel should behave when repeating
 
-	le_time_unit_t time_offset; // base offset for this channel - global placement of this channel in world timeline. default 0
-	le_time_unit_t duration;    // duration of this channel, default: end time of last keyframe.
+	bool           is_playing; // current animation state
+	le_time_unit_t start_time; // wall-clock time when animation last started playing
 
-	le_animation_sampler_o *sampler; // (non-owning) keyframes for this channel, their time is relative to this channel.
-
-	le_node_o *target_node;         // (non-owning) pointer to targeted node						 : how do we deal with deleted nodes?
-	void *     target_node_element; // (non-owning) pointer to targeted node element (t, r, or s) : how do we deal with deleted nodes?
+	std::vector<le_animation_channel_o> channels;
 };
 
 // A camera is only a camera if it is attached to a node - the same camera settings may be
@@ -310,21 +318,21 @@ struct le_scene_o {
 
 // Owns all the data
 struct le_stage_o {
-	le_renderer_o *                     renderer;           // non-owning
-	std::vector<le_scene_o>             scenes;             //
-	std::vector<le_animation_sampler_o> animation_samplers; //
-	std::vector<le_node_o *>            nodes;              // owning
-	std::vector<le_camera_settings_o>   camera_settings;    //
-	std::vector<le_mesh_o>              meshes;             //
-	std::vector<le_material_o>          materials;          //
-	std::vector<le_accessor_o>          accessors;          //
-	std::vector<le_buffer_view_o>       buffer_views;       //
-	std::vector<le_buffer_o *>          buffers;            // owning
-	std::vector<LeSamplerInfo>          samplers;           //
-	std::vector<le_resource_handle_t>   buffer_handles;     //
-	std::vector<le_texture_o>           textures;           //
-	std::vector<stage_image_o *>        images;             // owning
-	std::vector<le_resource_handle_t>   image_handles;      //
+	le_renderer_o *                   renderer;        // non-owning
+	std::vector<le_scene_o>           scenes;          //
+	std::vector<le_animation_o>       animations;      //
+	std::vector<le_node_o *>          nodes;           // owning
+	std::vector<le_camera_settings_o> camera_settings; //
+	std::vector<le_mesh_o>            meshes;          //
+	std::vector<le_material_o>        materials;       //
+	std::vector<le_accessor_o>        accessors;       //
+	std::vector<le_buffer_view_o>     buffer_views;    //
+	std::vector<le_buffer_o *>        buffers;         // owning
+	std::vector<LeSamplerInfo>        samplers;        //
+	std::vector<le_resource_handle_t> buffer_handles;  //
+	std::vector<le_texture_o>         textures;        //
+	std::vector<stage_image_o *>      images;          // owning
+	std::vector<le_resource_handle_t> image_handles;   //
 };
 
 /// \brief Create image by interpreting given memory as an image.
@@ -931,7 +939,9 @@ static void le_node_o_set_scene_bit( le_node_o *node, uint8_t bit ) {
 
 // ----------------------------------------------------------------------
 
-static uint32_t le_stage_create_animation_sampler( le_stage_o *self, le_animation_sampler_info *info ) {
+static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o *self, le_animation_sampler_info *info, LeAnimationTargetType const &target_type ) {
+
+	std::vector<le_keyframe_o> keyframes;
 
 	// A le_sampler_o is a vector of keyframes
 	// we build the sampler by loading keyframe data by resolving accessors
@@ -949,10 +959,6 @@ static uint32_t le_stage_create_animation_sampler( le_stage_o *self, le_animatio
 
 	assert( input_accessor.type == le_compound_num_type::eScalar && "animation input accessor type must be scalar (time)" );
 
-	le_animation_sampler_o sampler{};
-
-	auto &keyframes = sampler.keyframes;
-
 	// Build keyframes by iterating over accessors and resolving their data.
 	//
 	// We want to store keyframe data locally, so that the buffer can be discarded, once it
@@ -961,9 +967,20 @@ static uint32_t le_stage_create_animation_sampler( le_stage_o *self, le_animatio
 		// Note that the interpolation type is the same for all
 		// elements within a channel.
 
-		le_num_type          num_type             = output_accessor.component_type;
-		le_compound_num_type output_type          = output_accessor.type;
-		uint32_t             num_output_per_input = 1;
+		le_compound_num_type compound_type = output_accessor.type;
+
+		if ( target_type == LeAnimationTargetType::eRotation ) {
+
+			assert( get_num_components( compound_type ) == get_num_components( le_compound_num_type::eQuat4 ) );
+
+			// If type is rotation we change the component type to quaternion
+			// so that interpolations can use slerp rather than lerp on this sampler.
+
+			compound_type = le_compound_num_type::eQuat4;
+		}
+
+		le_num_type num_type             = output_accessor.component_type;
+		uint32_t    num_output_per_input = 1;
 
 		if ( info->interpolation_type == le_animation_sampler_info::InterpolationType::eCubicSpline ) {
 			num_output_per_input = 3;
@@ -985,7 +1002,7 @@ static uint32_t le_stage_create_animation_sampler( le_stage_o *self, le_animatio
 		uint32_t output_stride =
 		    output_buffer_view.byte_stride
 		        ? output_buffer_view.byte_stride
-		        : size_of( num_type ) * get_num_components( output_type );
+		        : size_of( num_type ) * get_num_components( compound_type );
 
 		char *input  = static_cast<char *>( input_buffer->mem );
 		char *output = static_cast<char *>( output_buffer->mem );
@@ -999,7 +1016,7 @@ static uint32_t le_stage_create_animation_sampler( le_stage_o *self, le_animatio
 			auto output_data = output + output_accessor.byte_offset;
 
 			le_keyframe_o keyframe{};
-			keyframe.compound_num_type = output_type;
+			keyframe.compound_num_type = compound_type;
 			keyframe.num_type          = num_type;
 
 			float input_time    = *reinterpret_cast<float *>( input_data ); // given in seconds
@@ -1012,7 +1029,7 @@ static uint32_t le_stage_create_animation_sampler( le_stage_o *self, le_animatio
 			// the same offset as the scalar version of type `T` within the union.
 			for ( uint32_t i = 0; i != num_output_per_input; i++ ) {
 
-				switch ( output_type ) {
+				switch ( compound_type ) {
 				case le_compound_num_type::eScalar:
 					keyframe.data.as_scalar_3[ i ] = *reinterpret_cast<float *>( output_data );
 					break;
@@ -1024,6 +1041,9 @@ static uint32_t le_stage_create_animation_sampler( le_stage_o *self, le_animatio
 					break;
 				case le_compound_num_type::eVec4:
 					keyframe.data.as_vec4_3[ i ] = *reinterpret_cast<glm::vec4 *>( output_data );
+					break;
+				case le_compound_num_type::eQuat4:
+					keyframe.data.as_quat_3[ i ] = *reinterpret_cast<glm::quat *>( output_data );
 					break;
 				default:
 					assert( false ); //unreacahble
@@ -1054,9 +1074,7 @@ static uint32_t le_stage_create_animation_sampler( le_stage_o *self, le_animatio
 	// animation data will always only cover T,R,S, and if it targets a bone
 	// this probably is handled similarly to how a node is handled.
 
-	uint32_t idx = self->animation_samplers.size();
-	self->animation_samplers.emplace_back( sampler );
-	return idx;
+	return keyframes;
 }
 
 // ----------------------------------------------------------------------
@@ -1876,16 +1894,15 @@ ISL_API_ATTR void register_le_stage_api( void *api ) {
 	le_stage_i.create_image_from_memory    = le_stage_create_image_from_memory;
 	le_stage_i.create_image_from_file_path = le_stage_create_image_from_file_path;
 
-	le_stage_i.create_texture           = le_stage_create_texture;
-	le_stage_i.create_sampler           = le_stage_create_sampler;
-	le_stage_i.create_buffer            = le_stage_create_buffer;
-	le_stage_i.create_buffer_view       = le_stage_create_buffer_view;
-	le_stage_i.create_accessor          = le_stage_create_accessor;
-	le_stage_i.create_material          = le_stage_create_material;
-	le_stage_i.create_mesh              = le_stage_create_mesh;
-	le_stage_i.create_camera_settings   = le_stage_create_camera_settings;
-	le_stage_i.create_nodes             = le_stage_create_nodes;
-	le_stage_i.create_animation_sampler = le_stage_create_animation_sampler;
-	le_stage_i.create_animation         = le_stage_create_animation;
-	le_stage_i.create_scene             = le_stage_create_scene;
+	le_stage_i.create_texture         = le_stage_create_texture;
+	le_stage_i.create_sampler         = le_stage_create_sampler;
+	le_stage_i.create_buffer          = le_stage_create_buffer;
+	le_stage_i.create_buffer_view     = le_stage_create_buffer_view;
+	le_stage_i.create_accessor        = le_stage_create_accessor;
+	le_stage_i.create_material        = le_stage_create_material;
+	le_stage_i.create_mesh            = le_stage_create_mesh;
+	le_stage_i.create_camera_settings = le_stage_create_camera_settings;
+	le_stage_i.create_nodes           = le_stage_create_nodes;
+	le_stage_i.create_animation       = le_stage_create_animation;
+	le_stage_i.create_scene           = le_stage_create_scene;
 }
