@@ -199,6 +199,30 @@ struct le_mesh_o {
 	std::vector<le_primitive_o> primitives;
 };
 
+struct le_node_o {
+	glm::mat4 global_transform;
+	glm::mat4 local_transform;
+
+	glm::vec3 local_translation;
+	glm::quat local_rotation;
+	glm::vec3 local_scale;
+
+	char name[ 32 ];
+
+	bool local_transform_cached;   // whether local transform is accurate wrt local[translation|rotation|scale]
+	bool global_transform_chached; // whether global transform is current
+
+	bool     has_mesh;
+	uint32_t mesh_idx;
+
+	bool     has_camera;
+	uint32_t camera_idx;
+
+	uint64_t scene_bit_flags; // one bit for every scene this node is included in
+
+	std::vector<le_node_o *> children; // non-owning
+};
+
 struct le_keyframe_o {
 	enum class Type : uint32_t {
 		eLinear,
@@ -225,28 +249,22 @@ struct le_keyframe_o {
 struct le_animation_sampler_o {
 	std::vector<le_keyframe_o> keyframes;
 };
-struct le_node_o {
-	glm::mat4 global_transform;
-	glm::mat4 local_transform;
 
-	glm::vec3 local_translation;
-	glm::quat local_rotation;
-	glm::vec3 local_scale;
+struct le_animation_channel_o {
 
-	char name[ 32 ];
+	enum class Repeat : uint32_t {
+		eNone,
+		eRepeat,
+		eBounce,
+	}; // how this channel should behave when repeating
 
-	bool local_transform_cached;   // whether local transform is accurate wrt local[translation|rotation|scale]
-	bool global_transform_chached; // whether global transform is current
+	le_time_unit_t time_offset; // base offset for this channel - global placement of this channel in world timeline. default 0
+	le_time_unit_t duration;    // duration of this channel, default: end time of last keyframe.
 
-	bool     has_mesh;
-	uint32_t mesh_idx;
+	le_animation_sampler_o *sampler; // (non-owning) keyframes for this channel, their time is relative to this channel.
 
-	bool     has_camera;
-	uint32_t camera_idx;
-
-	uint64_t scene_bit_flags; // one bit for every scene this node is included in
-
-	std::vector<le_node_o *> children; // non-owning
+	le_node_o *target_node;         // (non-owning) pointer to targeted node						 : how do we deal with deleted nodes?
+	void *     target_node_element; // (non-owning) pointer to targeted node element (t, r, or s) : how do we deal with deleted nodes?
 };
 
 // A camera is only a camera if it is attached to a node - the same camera settings may be

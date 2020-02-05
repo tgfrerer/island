@@ -151,17 +151,18 @@ struct le_camera_settings_info {
 	} data;
 };
 
+enum class LeAnimationTargetType : uint32_t {
+	eUndefined = 0,
+	eTranslation,
+	eRotation,
+	eScale,
+	eWeights,
+};
+
 struct le_animation_channel_info {
-	enum class AnimationTargetType : uint32_t {
-		eUndefined = 0,
-		eTranslation,
-		eRotation,
-		eScale,
-		eWeights,
-	};
-	uint32_t            animation_sampler_idx;
-	uint32_t            node_idx;
-	AnimationTargetType animation_target_type;
+	uint32_t              animation_sampler_idx;
+	uint32_t              node_idx;
+	LeAnimationTargetType animation_target_type;
 };
 
 struct le_animation_sampler_info {

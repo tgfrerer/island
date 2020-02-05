@@ -1,4 +1,4 @@
-#include "le_gltf.h"
+﻿#include "le_gltf.h"
 #include "pal_api_loader/ApiRegistry.hpp"
 
 #include "3rdparty/cgltf/cgltf.h"
@@ -220,17 +220,17 @@ static le_animation_sampler_info::InterpolationType cgltf_to_le_interpolation_ty
 	return le_animation_sampler_info::InterpolationType::eLinear;
 }
 
-static le_animation_channel_info::AnimationTargetType cgltf_to_le_animation_target_type( uint32_t const &t ) {
+static LeAnimationTargetType cgltf_to_le_animation_target_type( uint32_t const &t ) {
 	// clang-format off
 	switch ( t ) {
-		case cgltf_animation_path_type_invalid     : return le_animation_channel_info::AnimationTargetType::eUndefined;
-		case cgltf_animation_path_type_translation : return le_animation_channel_info::AnimationTargetType::eTranslation;
-		case cgltf_animation_path_type_rotation	   : return le_animation_channel_info::AnimationTargetType::eRotation;
-		case cgltf_animation_path_type_scale       : return le_animation_channel_info::AnimationTargetType::eScale;
-		case cgltf_animation_path_type_weights     : return le_animation_channel_info::AnimationTargetType::eWeights;
+		case cgltf_animation_path_type_invalid     : return LeAnimationTargetType::eUndefined;
+		case cgltf_animation_path_type_translation : return LeAnimationTargetType::eTranslation;
+		case cgltf_animation_path_type_rotation	   : return LeAnimationTargetType::eRotation;
+		case cgltf_animation_path_type_scale       : return LeAnimationTargetType::eScale;
+		case cgltf_animation_path_type_weights     : return LeAnimationTargetType::eWeights;
 	}
 	// clang-format on
-	return le_animation_channel_info::AnimationTargetType::eUndefined; // unreachable
+	return LeAnimationTargetType::eUndefined; // unreachable
 }
 
 // ----------------------------------------------------------------------
