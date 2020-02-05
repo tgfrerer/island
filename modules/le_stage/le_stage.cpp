@@ -235,10 +235,12 @@ struct le_keyframe_o {
 	le_compound_num_type compound_num_type; // scalar, vec2, vec3, etc.
 	uint16_t             padding;           // padding
 	union {                                 //
+		glm::quat as_quat;                  // used for step, linear : xyzw quaternion
 		glm::vec4 as_vec4;                  // used for step, linear
 		glm::vec3 as_vec3;                  // used for step, linear
 		glm::vec2 as_vec2;                  // used for step, linear
 		float     as_scalar;                // used for step, linear
+		glm::quat as_quat_3[ 3 ];           // used for spline       : xyzw quaternion
 		glm::vec4 as_vec4_3[ 3 ];           // used for spline
 		glm::vec3 as_vec3_3[ 3 ];           // used for spline
 		glm::vec2 as_vec2_3[ 3 ];           // used for spline

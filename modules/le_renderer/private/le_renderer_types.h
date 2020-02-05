@@ -1295,6 +1295,7 @@ enum class le_compound_num_type : uint8_t {
 	eMat2      = ( 5 << 4 ) | 4,
 	eMat3      = ( 6 << 4 ) | 9,
 	eMat4      = ( 7 << 4 ) | 16,
+	eQuat4     = ( 8 << 4 ) | 4, // quaternion is stored as vec4, but interpolated as slerp rather than lerp
 };
 
 constexpr uint8_t get_num_components( le_compound_num_type const &tp ) {
