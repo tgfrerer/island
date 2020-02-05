@@ -1080,10 +1080,43 @@ static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o 
 // ----------------------------------------------------------------------
 
 static uint32_t le_stage_create_animation( le_stage_o *self, le_animation_info *info ) {
-	uint32_t idx = 0;
 
-	// add channels for all channelinfos we are given
+	le_animation_o animation{};
 
+	le_animation_channel_info const *const channel_infos_begin = info->channels;
+	le_animation_channel_info const *const channel_infos_end   = info->channels + info->channels_count;
+
+	for ( auto c = channel_infos_begin; c != channel_infos_end; c++ ) {
+
+		le_animation_channel_o channel{};
+
+		assert( c->animation_sampler_idx < info->samplers_count );
+
+		channel.sampler     = le_stage_create_animation_sampler( self, info->samplers + c->animation_sampler_idx, c->animation_target_type );
+		channel.target_node = self->nodes[ c->node_idx ];
+		switch ( c->animation_target_type ) {
+		case LeAnimationTargetType::eTranslation:
+			channel.target_node_element = &channel.target_node->local_translation[ 0 ];
+			break;
+		case LeAnimationTargetType::eScale:
+			channel.target_node_element = &channel.target_node->local_scale[ 0 ];
+			break;
+		case LeAnimationTargetType::eRotation:
+			channel.target_node_element = &channel.target_node->local_rotation[ 0 ];
+			break;
+		case LeAnimationTargetType::eWeights:
+			assert( false ); // TODO: implement morph target weights manipulation
+			break;
+		default:
+			assert( false ); // unreachable
+			break;
+		}
+
+		animation.channels.emplace_back( channel );
+	}
+
+	uint32_t idx = uint32_t( self->animations.size() );
+	self->animations.emplace_back( animation );
 	return idx;
 }
 
