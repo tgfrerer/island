@@ -199,6 +199,32 @@ struct le_mesh_o {
 	std::vector<le_primitive_o> primitives;
 };
 
+struct le_keyframe_o {
+	enum class Type : uint32_t {
+		eLinear,
+		eStep,
+		eCubicSpline,
+	};
+	le_time_unit_t       delta_time;        // given in units of 1/12000 seconds.
+	Type                 type;              //
+	le_num_type          num_type;          // numeric type
+	le_compound_num_type compound_num_type; // scalar, vec2, vec3, etc.
+	uint16_t             padding;           // padding
+	union {                                 //
+		glm::vec4 as_vec4;                  // used for step, linear
+		glm::vec3 as_vec3;                  // used for step, linear
+		glm::vec2 as_vec2;                  // used for step, linear
+		float     as_scalar;                // used for step, linear
+		glm::vec4 as_vec4_3[ 3 ];           // used for spline
+		glm::vec3 as_vec3_3[ 3 ];           // used for spline
+		glm::vec2 as_vec2_3[ 3 ];           // used for spline
+		float     as_scalar_3[ 3 ];         // used for spline
+	} data;
+};
+
+struct le_animation_sampler_o {
+	std::vector<le_keyframe_o> keyframes;
+};
 struct le_node_o {
 	glm::mat4 global_transform;
 	glm::mat4 local_transform;
@@ -264,20 +290,21 @@ struct le_scene_o {
 
 // Owns all the data
 struct le_stage_o {
-	le_renderer_o *                   renderer;        // non-owning
-	std::vector<le_scene_o>           scenes;          //
-	std::vector<le_node_o *>          nodes;           // owning
-	std::vector<le_camera_settings_o> camera_settings; //
-	std::vector<le_mesh_o>            meshes;          //
-	std::vector<le_material_o>        materials;       // owning
-	std::vector<le_accessor_o>        accessors;       //
-	std::vector<le_buffer_view_o>     buffer_views;    //
-	std::vector<le_buffer_o *>        buffers;         // owning
-	std::vector<LeSamplerInfo>        samplers;        //
-	std::vector<le_resource_handle_t> buffer_handles;  //
-	std::vector<le_texture_o>         textures;        //
-	std::vector<stage_image_o *>      images;          // owning
-	std::vector<le_resource_handle_t> image_handles;   //
+	le_renderer_o *                     renderer;           // non-owning
+	std::vector<le_scene_o>             scenes;             //
+	std::vector<le_animation_sampler_o> animation_samplers; //
+	std::vector<le_node_o *>            nodes;              // owning
+	std::vector<le_camera_settings_o>   camera_settings;    //
+	std::vector<le_mesh_o>              meshes;             //
+	std::vector<le_material_o>          materials;          //
+	std::vector<le_accessor_o>          accessors;          //
+	std::vector<le_buffer_view_o>       buffer_views;       //
+	std::vector<le_buffer_o *>          buffers;            // owning
+	std::vector<LeSamplerInfo>          samplers;           //
+	std::vector<le_resource_handle_t>   buffer_handles;     //
+	std::vector<le_texture_o>           textures;           //
+	std::vector<stage_image_o *>        images;             // owning
+	std::vector<le_resource_handle_t>   image_handles;      //
 };
 
 /// \brief Create image by interpreting given memory as an image.
@@ -893,6 +920,132 @@ static uint32_t le_stage_create_animation( le_stage_o *self, le_animation_info *
 // ----------------------------------------------------------------------
 
 static uint32_t le_stage_create_animation_sampler( le_stage_o *self, le_animation_sampler_info *info ) {
+
+	// A le_sampler_o is a vector of keyframes
+	// we build the sampler by loading keyframe data by resolving accessors
+
+	auto &input_accessor  = self->accessors[ info->input_accesstor_idx ];
+	auto &output_accessor = self->accessors[ info->output_accessor_idx ];
+
+	if ( info->interpolation_type == le_animation_sampler_info::InterpolationType::eCubicSpline ) {
+		// cubic spline has three outputs per input
+		assert( input_accessor.count * 3 == output_accessor.count );
+	} else {
+		// linear, step has one output per input
+		assert( input_accessor.count == output_accessor.count );
+	}
+
+	assert( input_accessor.type == le_compound_num_type::eScalar && "animation input accessor type must be scalar (time)" );
+
+	le_animation_sampler_o sampler{};
+
+	auto &keyframes = sampler.keyframes;
+
+	// Build keyframes by iterating over accessors and resolving their data.
+	//
+	// We want to store keyframe data locally, so that the buffer can be discarded, once it
+	// has been uploaded.
+	{
+		// Note that the interpolation type is the same for all
+		// elements within a channel.
+
+		le_num_type          num_type             = output_accessor.component_type;
+		le_compound_num_type output_type          = output_accessor.type;
+		uint32_t             num_output_per_input = 1;
+
+		if ( info->interpolation_type == le_animation_sampler_info::InterpolationType::eCubicSpline ) {
+			num_output_per_input = 3;
+		}
+
+		le_buffer_view_o const &input_buffer_view  = self->buffer_views[ input_accessor.buffer_view_idx ];
+		le_buffer_view_o const &output_buffer_view = self->buffer_views[ output_accessor.buffer_view_idx ];
+
+		le_buffer_o const *input_buffer  = self->buffers[ input_buffer_view.buffer_idx ];
+		le_buffer_o const *output_buffer = self->buffers[ output_buffer_view.buffer_idx ];
+
+		// Calculate input, and output stride, in case these are not given explicitly
+
+		uint32_t input_stride =
+		    input_buffer_view.byte_stride
+		        ? input_buffer_view.byte_stride
+		        : size_of( input_accessor.component_type ) * get_num_components( input_accessor.type );
+
+		uint32_t output_stride =
+		    output_buffer_view.byte_stride
+		        ? output_buffer_view.byte_stride
+		        : size_of( num_type ) * get_num_components( output_type );
+
+		char *input  = static_cast<char *>( input_buffer->mem );
+		char *output = static_cast<char *>( output_buffer->mem );
+
+		input += input_buffer_view.byte_offset;
+		output += output_buffer_view.byte_offset;
+
+		// TODO: check for overflow
+		for ( uint32_t ia = 0; ia != input_accessor.count; ia++ ) {
+			auto input_data  = input + input_accessor.byte_offset;
+			auto output_data = output + output_accessor.byte_offset;
+
+			le_keyframe_o keyframe{};
+			keyframe.compound_num_type = output_type;
+			keyframe.num_type          = num_type;
+
+			float input_time    = *reinterpret_cast<float *>( input_data ); // given in seconds
+			keyframe.delta_time = std::chrono::duration_cast<le_time_unit_t>( std::chrono::duration<float>( input_time ) );
+
+			// For each element in output accessor: load data.
+			//
+			// This generalises to the case when there is just one accessor,
+			// as we assume that the 0 element of an array of type `T` within a union is at
+			// the same offset as the scalar version of type `T` within the union.
+			for ( uint32_t i = 0; i != num_output_per_input; i++ ) {
+
+				switch ( output_type ) {
+				case le_compound_num_type::eScalar:
+					keyframe.data.as_scalar_3[ i ] = *reinterpret_cast<float *>( output_data );
+					break;
+				case le_compound_num_type::eVec2:
+					keyframe.data.as_vec2_3[ i ] = *reinterpret_cast<glm::vec2 *>( output_data );
+					break;
+				case le_compound_num_type::eVec3:
+					keyframe.data.as_vec3_3[ i ] = *reinterpret_cast<glm::vec3 *>( output_data );
+					break;
+				case le_compound_num_type::eVec4:
+					keyframe.data.as_vec4_3[ i ] = *reinterpret_cast<glm::vec4 *>( output_data );
+					break;
+				default:
+					assert( false ); //unreacahble
+				}
+
+				output_data += output_stride;
+			}
+
+			keyframes.emplace_back( keyframe );
+
+			input += input_stride;
+			output += output_stride * num_output_per_input;
+		}
+	}
+
+	// channel maps keyframe to a specific node, and node value.
+
+	// we must sample data from accessors and store it into keyframe
+
+	// Output accessor decides about how many values are loaded and interpolated.
+	// this depends on the type of what the accessor points to.
+
+	// Channel maps the value to a specific node field.
+
+	// Careful: in case of joints and bone animation it can be helpful to
+	// keep accessor data available so that animation can happen on GPU.
+
+	// animation data will always only cover T,R,S, and if it targets a bone
+	// this probably is handled similarly to how a node is handled.
+
+	uint32_t idx = self->animation_samplers.size();
+	self->animation_samplers.emplace_back( sampler );
+	return idx;
+}
 	uint32_t idx = 0;
 	// TODO: implement animation sampler creation
 	return idx;
