@@ -26,6 +26,10 @@
 #include "glm/gtx/quaternion.hpp"
 #include <glm/gtx/matrix_decompose.hpp>
 
+#include <chrono>
+
+using le_time_unit_t = std::chrono::duration<uint64_t, std::ratio<1, 12'000>>; /// 12.000 ticks per second.
+
 // It could be nice if le_mesh_o could live outside of the stage - so that
 // we could use it as a method to generate primitives for example, like spheres etc.
 
