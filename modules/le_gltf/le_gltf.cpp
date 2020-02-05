@@ -815,23 +815,6 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			std::vector<le_animation_channel_info> animation_channel_infos;
 			std::vector<le_animation_sampler_info> animation_sampler_infos;
 
-			// Fill in animation channels for this animation
-
-			cgltf_animation_channel const *const animation_channels_begin = a->channels;
-			auto                                 animation_channels_end   = animation_channels_begin + a->channels_count;
-
-			animation_channel_infos.reserve( a->channels_count );
-
-			for ( auto c = animation_channels_begin; c != animation_channels_end; c++ ) {
-				le_animation_channel_info info{};
-
-				info.node_idx              = nodes_map.at( c->target_node );
-				info.animation_target_type = cgltf_to_le_animation_target_type( c->target_path );
-				info.animation_sampler_idx = animation_samplers_map.at( c->sampler );
-
-				animation_channel_infos.emplace_back( info );
-			}
-
 			// fill in animation samplers for this animation
 
 			cgltf_animation_sampler const *const animation_samplers_begin = a->samplers;
@@ -845,6 +828,41 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				info.interpolation_type  = cgltf_to_le_interpolation_type( s->interpolation );
 
 				animation_sampler_infos.emplace_back( info );
+			}
+
+			// Find animation index in array of animation_samplers.
+			// Behaves like any find method, will return index of element past last element if not found
+			auto find_animation_sampler_idx =
+			    []( cgltf_animation_sampler const *const needle,
+			        cgltf_animation_sampler const *const samplers_begin,
+			        cgltf_animation_sampler const *const samplers_end ) -> uint32_t {
+				uint32_t result = 0;
+				for ( auto s = samplers_begin; s != samplers_end; s++, result++ ) {
+					if ( needle == s ) {
+						return result;
+					}
+				}
+				return result;
+			};
+
+			// Fill in animation channels for this animation
+
+			cgltf_animation_channel const *const animation_channels_begin = a->channels;
+			auto                                 animation_channels_end   = animation_channels_begin + a->channels_count;
+
+			animation_channel_infos.reserve( a->channels_count );
+
+			for ( auto c = animation_channels_begin; c != animation_channels_end; c++ ) {
+				le_animation_channel_info info{};
+
+				info.node_idx              = nodes_map.at( c->target_node );
+				info.animation_target_type = cgltf_to_le_animation_target_type( c->target_path );
+				{
+					uint32_t animation_sampler_idx = find_animation_sampler_idx( c->sampler, a->samplers, a->samplers + a->samplers_count );
+					assert( animation_sampler_idx < a->samplers_count && "animation_sampler must exist in animation's animation_samplers array" );
+					info.animation_sampler_idx = animation_sampler_idx;
+				}
+				animation_channel_infos.emplace_back( info );
 			}
 
 			le_animation_info info{};
