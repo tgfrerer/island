@@ -911,14 +911,6 @@ static void le_node_o_set_scene_bit( le_node_o *node, uint8_t bit ) {
 
 // ----------------------------------------------------------------------
 
-static uint32_t le_stage_create_animation( le_stage_o *self, le_animation_info *info ) {
-	uint32_t idx = 0;
-	// TODO: implement animation creation here
-	return idx;
-}
-
-// ----------------------------------------------------------------------
-
 static uint32_t le_stage_create_animation_sampler( le_stage_o *self, le_animation_sampler_info *info ) {
 
 	// A le_sampler_o is a vector of keyframes
@@ -1046,8 +1038,14 @@ static uint32_t le_stage_create_animation_sampler( le_stage_o *self, le_animatio
 	self->animation_samplers.emplace_back( sampler );
 	return idx;
 }
+
+// ----------------------------------------------------------------------
+
+static uint32_t le_stage_create_animation( le_stage_o *self, le_animation_info *info ) {
 	uint32_t idx = 0;
-	// TODO: implement animation sampler creation
+
+	// add channels for all channelinfos we are given
+
 	return idx;
 }
 
@@ -1183,17 +1181,6 @@ static le::IndexType index_type_from_num_type( le_num_type const &tp ) {
 	// clang-format on
 	assert( false ); // unreachable
 	return le::IndexType::eUint16;
-}
-
-// ----------------------------------------------------------------------
-
-static void traverse_node( le_node_o *parent ) {
-
-	for ( le_node_o *c : parent->children ) {
-		c->global_transform = parent->global_transform * c->local_transform;
-		traverse_node( c );
-		c->global_transform_chached = true;
-	}
 }
 
 // ----------------------------------------------------------------------
@@ -1758,6 +1745,17 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 		} // end for all mesh.primitives
 	}     // end for all meshes
+}
+
+// ----------------------------------------------------------------------
+
+static void traverse_node( le_node_o *parent ) {
+
+	for ( le_node_o *c : parent->children ) {
+		c->global_transform = parent->global_transform * c->local_transform;
+		traverse_node( c );
+		c->global_transform_chached = true;
+	}
 }
 
 // ----------------------------------------------------------------------
