@@ -805,7 +805,8 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 		for ( auto a = animations_begin; a != animations_end; a++ ) {
 
-			if ( a->channels_count ) {
+			if ( 0 == a->channels_count ) {
+				// animations without channels are noops, they can be ignored.
 				continue;
 			}
 
