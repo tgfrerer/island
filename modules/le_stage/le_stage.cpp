@@ -606,7 +606,7 @@ static uint32_t le_stage_create_accessor( le_stage_o *self, le_accessor_info con
 
 	accessor.component_type  = info->component_type;
 	accessor.type            = info->type;
-	accessor.byte_offset     = info->byte_offset;
+	accessor.byte_offset     = uint16_t( info->byte_offset );
 	accessor.count           = info->count;
 	accessor.buffer_view_idx = info->buffer_view_idx;
 	accessor.has_min         = info->has_min;
@@ -1285,7 +1285,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	// -- find the first available camera within the node graph which is
 	// tagged as belonging to the first scene.
 
-	if ( false && !stage->scenes.empty() ) {
+	if ( /* DISABLES CODE */ ( false ) && !stage->scenes.empty() ) {
 		auto primary_scene_id = stage->scenes.front().scene_id;
 
 		le_node_o const *found_camera_node = nullptr;
