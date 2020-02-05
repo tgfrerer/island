@@ -177,6 +177,8 @@ struct le_animation_sampler_info {
 
 struct le_animation_info {
 	const char *               name;
+	le_animation_sampler_info *samplers;
+	uint32_t                   samplers_count;
 	le_animation_channel_info *channels;
 	uint32_t                   channels_count;
 };

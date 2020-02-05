@@ -796,28 +796,10 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 	if ( self->data->animations_count ) {
 		// upload animations
-
 		// for each animation:
-		// -- upload animation samplers
+
 		cgltf_animation const *const animations_begin = self->data->animations;
 		auto                         animations_end   = animations_begin + self->data->animations_count;
-
-		for ( auto a = animations_begin; a != animations_end; a++ ) {
-
-			cgltf_animation_sampler const *const animation_samplers_begin = a->samplers;
-			auto                                 animation_samplers_end   = animation_samplers_begin + a->samplers_count;
-
-			for ( auto s = animation_samplers_begin; s != animation_samplers_end; s++ ) {
-				le_animation_sampler_info info{}; // TODO: fill in sampler_info
-
-				info.input_accesstor_idx = accessor_map.at( s->input );
-				info.output_accessor_idx = accessor_map.at( s->output );
-				info.interpolation_type  = cgltf_to_le_interpolation_type( s->interpolation );
-
-				uint32_t animation_sampler_idx = le_stage_i.create_animation_sampler( stage, &info );
-				animation_samplers_map.insert( {s, animation_sampler_idx} );
-			}
-		}
 
 		// For each animation:
 
@@ -830,6 +812,9 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			// ----------| invariant: this animation has some channels.
 
 			std::vector<le_animation_channel_info> animation_channel_infos;
+			std::vector<le_animation_sampler_info> animation_sampler_infos;
+
+			// Fill in animation channels for this animation
 
 			cgltf_animation_channel const *const animation_channels_begin = a->channels;
 			auto                                 animation_channels_end   = animation_channels_begin + a->channels_count;
@@ -846,15 +831,32 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				animation_channel_infos.emplace_back( info );
 			}
 
-			le_animation_info info{};
-			info.channels       = animation_channel_infos.data();
-			info.channels_count = animation_channel_infos.size();
-			info.name           = a->name;
+			// fill in animation samplers for this animation
 
+			cgltf_animation_sampler const *const animation_samplers_begin = a->samplers;
+			auto                                 animation_samplers_end   = animation_samplers_begin + a->samplers_count;
+
+			for ( auto s = animation_samplers_begin; s != animation_samplers_end; s++ ) {
+				le_animation_sampler_info info{};
+
+				info.input_accesstor_idx = accessor_map.at( s->input );
+				info.output_accessor_idx = accessor_map.at( s->output );
+				info.interpolation_type  = cgltf_to_le_interpolation_type( s->interpolation );
+
+				animation_sampler_infos.emplace_back( info );
+			}
+
+			le_animation_info info{};
+			info.name           = a->name;
+			info.samplers       = animation_sampler_infos.data();
+			info.samplers_count = uint32_t( animation_sampler_infos.size() );
+			info.channels       = animation_channel_infos.data();
+			info.channels_count = uint32_t( animation_channel_infos.size() );
+
+			// - upload animation
 			uint32_t animation_idx = le_stage_i.create_animation( stage, &info );
+			animations_map.insert( {a, animation_idx} );
 		}
-		// - gather animation channels
-		// - upload animation
 	}
 
 	{
