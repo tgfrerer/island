@@ -306,6 +306,7 @@ struct le_scene_o {
 // Owns all the data
 struct le_stage_o {
 	le_renderer_o *                   renderer;        // non-owning
+	le_timebase_o *                   timebase;        // non-owning, optional
 	std::vector<le_scene_o>           scenes;          //
 	std::vector<le_animation_o>       animations;      //
 	std::vector<le_node_o *>          nodes;           // owning
@@ -1847,9 +1848,10 @@ static void le_stage_update( le_stage_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static le_stage_o *le_stage_create( le_renderer_o *renderer ) {
+static le_stage_o *le_stage_create( le_renderer_o *renderer, le_timebase_o *timebase ) {
 	auto self      = new le_stage_o{};
 	self->renderer = renderer;
+	self->timebase = timebase;
 	return self;
 }
 

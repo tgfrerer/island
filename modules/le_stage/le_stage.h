@@ -8,8 +8,10 @@
 extern "C" {
 #endif
 
+struct le_renderer_o; // from le_renderer
+struct le_timebase_o; // from le_timebase
+
 struct le_stage_o;
-struct le_renderer_o;
 struct le_render_module_o;
 struct le_buffer_view_info;
 struct le_accessor_info;
@@ -41,7 +43,7 @@ struct le_stage_api {
 
 	struct le_stage_interface_t {
 
-		le_stage_o *    ( * create                   ) ( le_renderer_o* renderer);
+		le_stage_o *    ( * create                   ) ( le_renderer_o* renderer, le_timebase_o* timebase);
 		void            ( * destroy                  ) ( le_stage_o* self );
 		void            ( * update                   ) ( le_stage_o* self );
 		
@@ -90,8 +92,8 @@ class LeStage : NoCopy, NoMove {
 	le_stage_o *self;
 
   public:
-	LeStage( le_renderer_o *renderer )
-	    : self( le_stage::le_stage_i.create( renderer ) ) {
+	LeStage( le_renderer_o *renderer, le_timebase_o *timebase = nullptr )
+	    : self( le_stage::le_stage_i.create( renderer, timebase ) ) {
 	}
 
 	~LeStage() {
