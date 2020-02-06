@@ -938,7 +938,9 @@ static void le_node_o_set_scene_bit( le_node_o *node, uint8_t bit ) {
 }
 
 // ----------------------------------------------------------------------
-
+// An animation sampler is a vector of keyframes. A keyframe contains a time-mapped
+// target value, together with two optional interpolation value parameters, and
+// an enum signaling the type of interpolation to apply.
 static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o *self, le_animation_sampler_info *info, LeAnimationTargetType const &target_type ) {
 
 	std::vector<le_keyframe_o> keyframes;
@@ -958,6 +960,15 @@ static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o 
 	}
 
 	assert( input_accessor.type == le_compound_num_type::eScalar && "animation input accessor type must be scalar (time)" );
+
+	// We must sample data from accessors and store it into keyframe so that we can
+	// apply it faster.
+
+	// Output accessor decides about how many values are loaded and interpolated.
+	// This depends on the type of what the accessor points to.
+
+	// Animation data will always only cover one of: T,R,S; or a scalar
+	// value (telling us how to interpolate between morph targets).
 
 	// Build keyframes by iterating over accessors and resolving their data.
 	//
@@ -1059,21 +1070,6 @@ static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o 
 		}
 	}
 
-	// channel maps keyframe to a specific node, and node value.
-
-	// we must sample data from accessors and store it into keyframe
-
-	// Output accessor decides about how many values are loaded and interpolated.
-	// this depends on the type of what the accessor points to.
-
-	// Channel maps the value to a specific node field.
-
-	// Careful: in case of joints and bone animation it can be helpful to
-	// keep accessor data available so that animation can happen on GPU.
-
-	// animation data will always only cover T,R,S, and if it targets a bone
-	// this probably is handled similarly to how a node is handled.
-
 	return keyframes;
 }
 
@@ -1088,6 +1084,7 @@ static uint32_t le_stage_create_animation( le_stage_o *self, le_animation_info *
 
 	for ( auto c = channel_infos_begin; c != channel_infos_end; c++ ) {
 
+		// Channel maps an animated value to a specific node field.
 		le_animation_channel_o channel{};
 
 		assert( c->animation_sampler_idx < info->samplers_count );
