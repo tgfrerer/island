@@ -1,0 +1,87 @@
+#include "le_timebase.h"
+
+#include <chrono>
+#include "pal_api_loader/ApiRegistry.hpp"
+
+using Tick     = std::chrono::duration<uint64_t, std::ratio<1, LE_TIME_TICKS_PER_SECOND>>; /// LE_TIME_TICKS_PER_SECOND ticks per second.
+using NanoTime = std::chrono::time_point<std::chrono::steady_clock>;
+
+struct le_timebase_o {
+
+	NanoTime now;                          // time point at update()
+	NanoTime initial_time;                 // time point at reset()
+	Tick     ticks_before_update;          // number of total ticks passed up until last update
+	Tick     ticks_before_previous_update; // number of total ticks passed up until previous update
+
+	bool use_fixed_update_interval;
+	Tick fixed_update_interval; // Given in ticks. Timebase can be fixed, in which case each update adds a fixed value
+};
+
+static void le_timebase_reset( le_timebase_o *self ) {
+
+	self->ticks_before_update          = {}; // should reset to zero
+	self->ticks_before_previous_update = {}; // should reset to zero
+
+	if ( self->use_fixed_update_interval ) {
+		self->now = NanoTime( std::chrono::duration_cast<NanoTime::duration>( Tick( 0 ) ) );
+	} else {
+		self->now = std::chrono::steady_clock::now();
+	}
+
+	self->initial_time = self->now;
+}
+
+// ----------------------------------------------------------------------
+
+static le_timebase_o *le_timebase_create( bool use_fixed_update_interval, uint64_t fixed_ticks_per_update ) {
+	auto self                       = new le_timebase_o();
+	self->use_fixed_update_interval = use_fixed_update_interval;
+	self->fixed_update_interval     = Tick( fixed_ticks_per_update );
+	le_timebase_reset( self );
+	return self;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_timebase_destroy( le_timebase_o *self ) {
+	delete self;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_timebase_update( le_timebase_o *self ) {
+
+	self->ticks_before_previous_update = self->ticks_before_update;
+
+	if ( self->use_fixed_update_interval ) {
+		self->now += std::chrono::duration_cast<NanoTime::duration>( self->fixed_update_interval );
+	} else {
+		self->now = std::chrono::steady_clock::now();
+	}
+
+	self->ticks_before_update = std::chrono::duration_cast<Tick>( self->now - self->initial_time );
+}
+
+// ----------------------------------------------------------------------
+
+static uint64_t le_timebase_get_current_ticks( le_timebase_o *self ) {
+	return self->ticks_before_update.count();
+}
+
+// ----------------------------------------------------------------------
+
+static uint64_t le_timebase_get_ticks_since_last_frame( le_timebase_o *self ) {
+	return ( self->ticks_before_update - self->ticks_before_previous_update ).count();
+}
+
+// ----------------------------------------------------------------------
+
+ISL_API_ATTR void register_le_timebase_api( void *api ) {
+	auto &le_timebase_i                      = static_cast<le_timebase_api *>( api )->le_timebase_i;
+	le_timebase_i.get_current_ticks          = le_timebase_get_current_ticks;
+	le_timebase_i.get_ticks_since_last_frame = le_timebase_get_ticks_since_last_frame;
+	le_timebase_i.reset                      = le_timebase_reset;
+	le_timebase_i.create                     = le_timebase_create;
+	le_timebase_i.destroy                    = le_timebase_destroy;
+	le_timebase_i.update                     = le_timebase_update;
+}
