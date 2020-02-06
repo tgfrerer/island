@@ -159,14 +159,6 @@ struct le_material_o {
 	// materials and pipelines. This allows us to fetch textures
 	// and associated settings quickers.
 	//
-	// Note that any matrices in texture infos will be split into
-	// mat[0], mat[1] and mat[2] and stored in slices of vec3 --
-	// based on our understanding of the uniform layout rules for
-	// std140 this should be fine as the base element size for a
-	// mat3 is a vec3.
-	//
-	// We assume that 3 vec3 are binary compatible
-	// with a mat3.
 	std::vector<le_resource_handle_t>  texture_handles;       // cached: texture handles
 	std::vector<UboTextureParamsSlice> cached_texture_params; // cached: texture parameters from texture_infos
 };
