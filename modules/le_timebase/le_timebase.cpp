@@ -12,9 +12,6 @@ struct le_timebase_o {
 	NanoTime initial_time;                 // time point at reset()
 	Tick     ticks_before_update;          // number of total ticks passed up until last update
 	Tick     ticks_before_previous_update; // number of total ticks passed up until previous update
-
-	bool use_fixed_update_interval;
-	Tick fixed_update_interval; // Given in ticks. Timebase can be fixed, in which case each update adds a fixed value
 };
 
 static void le_timebase_reset( le_timebase_o *self ) {
@@ -22,21 +19,15 @@ static void le_timebase_reset( le_timebase_o *self ) {
 	self->ticks_before_update          = {}; // should reset to zero
 	self->ticks_before_previous_update = {}; // should reset to zero
 
-	if ( self->use_fixed_update_interval ) {
-		self->now = NanoTime( std::chrono::duration_cast<NanoTime::duration>( Tick( 0 ) ) );
-	} else {
-		self->now = std::chrono::steady_clock::now();
-	}
+	self->now = std::chrono::steady_clock::now();
 
 	self->initial_time = self->now;
 }
 
 // ----------------------------------------------------------------------
 
-static le_timebase_o *le_timebase_create( bool use_fixed_update_interval, uint64_t fixed_ticks_per_update ) {
-	auto self                       = new le_timebase_o();
-	self->use_fixed_update_interval = use_fixed_update_interval;
-	self->fixed_update_interval     = Tick( fixed_ticks_per_update );
+static le_timebase_o *le_timebase_create() {
+	auto self = new le_timebase_o();
 	le_timebase_reset( self );
 	return self;
 }
@@ -49,12 +40,12 @@ static void le_timebase_destroy( le_timebase_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_timebase_update( le_timebase_o *self ) {
+static void le_timebase_update( le_timebase_o *self, uint64_t fixed_interval ) {
 
 	self->ticks_before_previous_update = self->ticks_before_update;
 
-	if ( self->use_fixed_update_interval ) {
-		self->now += std::chrono::duration_cast<NanoTime::duration>( self->fixed_update_interval );
+	if ( fixed_interval ) {
+		self->now += std::chrono::duration_cast<NanoTime::duration>( Tick( fixed_interval ) );
 	} else {
 		self->now = std::chrono::steady_clock::now();
 	}

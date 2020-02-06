@@ -33,9 +33,9 @@ struct le_timebase_api {
 
 	struct le_timebase_interface_t {
 
-		le_timebase_o *    ( * create                   ) ( bool use_fixed_update_interval, uint64_t fixed_ticks_per_update );
+		le_timebase_o *    ( * create                   ) ( );
 		void               ( * destroy                  ) ( le_timebase_o* self );
-		void               ( * update                   ) ( le_timebase_o* self );
+		void               ( * update                   ) ( le_timebase_o* self, uint64_t fixed_interval_ticks ); /// set fixed_interval_ticks to 0 for clock-based interval
 		void               ( * reset                    ) ( le_timebase_o* self );
 
 		uint64_t (*get_current_ticks)(le_timebase_o* self);
@@ -66,16 +66,16 @@ class LeTimebase : NoCopy, NoMove {
 	le_timebase_o *self;
 
   public:
-	LeTimebase( bool use_fixed_update_interval = false, uint64_t fixed_ticks_per_update = ( LE_TIME_TICKS_PER_SECOND / 60 ) )
-	    : self( le_timebase::le_timebase_i.create( use_fixed_update_interval, fixed_ticks_per_update ) ) {
+	LeTimebase()
+	    : self( le_timebase::le_timebase_i.create() ) {
 	}
 
 	~LeTimebase() {
 		le_timebase::le_timebase_i.destroy( self );
 	}
 
-	void update() {
-		le_timebase::le_timebase_i.update( self );
+	void update( uint64_t fixed_interval_ticks = 0 ) {
+		le_timebase::le_timebase_i.update( self, fixed_interval_ticks );
 	}
 
 	void reset() {
