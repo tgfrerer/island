@@ -7,6 +7,7 @@
 
 #include "le_camera/le_camera.h"
 #include "le_pixels/le_pixels.h"
+#include "le_timebase/le_timebase.h"
 
 #include "3rdparty/src/spooky/SpookyV2.h"
 
@@ -25,10 +26,6 @@
 #include "glm/ext/matrix_transform.hpp"
 #include "glm/gtx/quaternion.hpp"
 #include <glm/gtx/matrix_decompose.hpp>
-
-#include <chrono>
-
-using le_time_unit_t = std::chrono::duration<uint64_t, std::ratio<1, 12'000>>; /// 12.000 ticks per second.
 
 // It could be nice if le_mesh_o could live outside of the stage - so that
 // we could use it as a method to generate primitives for example, like spheres etc.
@@ -229,7 +226,7 @@ struct le_keyframe_o {
 		eStep,
 		eCubicSpline,
 	};
-	le_time_unit_t       delta_time;        // given in units of 1/12000 seconds.
+	uint64_t             delta_ticks;       // given in units of 1/12000 seconds.
 	Type                 type;              //
 	le_num_type          num_type;          // numeric type
 	le_compound_num_type compound_num_type; // scalar, vec2, vec3, etc.
@@ -248,12 +245,10 @@ struct le_keyframe_o {
 	} data;
 };
 
+/// A channel is a mapping from a sequence of keyframes to a node property
 struct le_animation_channel_o {
-
-	// A channel is a mapping from a sequence of keyframes to a node property
-
-	le_time_unit_t time_offset;                // TODO: time offset for this channel - global placement of this channel in world timeline. default 0
-	le_time_unit_t duration;                   // TODO: duration of this channel, default: end time of last keyframe.
+	uint64_t ticks_offset;                     // TODO: time offset for this channel - global placement of this channel in world timeline. default 0
+	uint64_t ticks_duration;                   // TODO: duration of this channel, default: end time of last keyframe.
 	                                           //
 	std::vector<le_keyframe_o> sampler;        // (non-owning) keyframes for this channel, their time is relative to this channel.
 	                                           //
@@ -271,8 +266,8 @@ struct le_animation_o {
 		eBounce,
 	}; // how this channel should behave when repeating
 
-	bool           is_playing; // current animation state
-	le_time_unit_t start_time; // wall-clock time when animation last started playing
+	bool     is_playing;        // current animation state
+	uint64_t start_delta_ticks; // time when animation last started playing, relative to main clock
 
 	std::vector<le_animation_channel_o> channels;
 };
@@ -1030,8 +1025,8 @@ static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o 
 			keyframe.compound_num_type = compound_type;
 			keyframe.num_type          = num_type;
 
-			float input_time    = *reinterpret_cast<float *>( input_data ); // given in seconds
-			keyframe.delta_time = std::chrono::duration_cast<le_time_unit_t>( std::chrono::duration<float>( input_time ) );
+			float input_time_seconds = *reinterpret_cast<float *>( input_data );
+			keyframe.delta_ticks     = uint64_t( lroundf( LE_TIME_TICKS_PER_SECOND * input_time_seconds ) );
 
 			// For each element in output accessor: load data.
 			//
