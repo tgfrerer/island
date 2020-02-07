@@ -1822,6 +1822,20 @@ static void traverse_node( le_node_o *parent ) {
 	}
 }
 
+template <typename T>
+void lerp_animation_target( float *target, T const &val_previous, T const &val_next, float norm_t ) {
+	T blend = glm::mix( val_previous, val_next, norm_t );
+	memcpy( target, &blend, sizeof( T ) );
+}
+
+// Quaternions need to be slerped instead of mix'ed. They also must be normalised before application.
+template <>
+void lerp_animation_target<glm::quat>( float *target, glm::quat const &val_previous, glm::quat const &val_next, float norm_t ) {
+	glm::quat blend = glm::slerp( val_previous, val_next, norm_t );
+	blend           = glm::normalize( blend );
+	memcpy( target, &blend, sizeof( glm::quat ) );
+}
+
 // ----------------------------------------------------------------------
 
 static void apply_animation_channel( le_animation_channel_o const &channel, uint64_t ticks ) {
@@ -1843,28 +1857,48 @@ static void apply_animation_channel( le_animation_channel_o const &channel, uint
 		next_key++;
 	}
 
+	if ( ticks > next_key->delta_ticks ) {
+		// we're done here.
+
+		// TODO:
+		// we should probably make sure that the target value is
+		// set to the value of the last keyframe, just in case
+		// this channel gets oversampled.
+
+		return;
+	}
+
+	float norm_t = 0.f; // normalised time in domain [previous_key..[next_key
+
+	// -- calculate normalised time.
+
+	norm_t = ( ticks - previous_key->delta_ticks ) /
+	         float( next_key->delta_ticks - previous_key->delta_ticks );
+
+	norm_t = glm::clamp( norm_t, 0.f, 1.f );
+
 	// apply data to node pointed in channel, based on type.
 
 	switch ( channel.target_compound_type ) {
 	case ( le_compound_num_type::eScalar ): {
-		memcpy( channel.target_node_element, &next_key->data, get_num_components( le_compound_num_type::eScalar ) * sizeof( float ) );
+		lerp_animation_target<float>( channel.target_node_element, previous_key->data.as_scalar, next_key->data.as_scalar, norm_t );
 		break;
 	}
 	case ( le_compound_num_type::eVec2 ): {
-		memcpy( channel.target_node_element, &next_key->data, get_num_components( le_compound_num_type::eVec2 ) * sizeof( float ) );
+		lerp_animation_target<glm::vec2>( channel.target_node_element, previous_key->data.as_vec2, next_key->data.as_vec2, norm_t );
 		break;
 	}
 	case ( le_compound_num_type::eVec3 ): {
-		memcpy( channel.target_node_element, &next_key->data, get_num_components( le_compound_num_type::eVec3 ) * sizeof( float ) );
+		lerp_animation_target<glm::vec3>( channel.target_node_element, previous_key->data.as_vec3, next_key->data.as_vec3, norm_t );
 		break;
 	}
 	case ( le_compound_num_type::eVec4 ): {
-		memcpy( channel.target_node_element, &next_key->data, get_num_components( le_compound_num_type::eVec4 ) * sizeof( float ) );
+		lerp_animation_target<glm::vec4>( channel.target_node_element, previous_key->data.as_vec4, next_key->data.as_vec4, norm_t );
 		break;
 	}
 	case ( le_compound_num_type::eQuat4 ): {
 		// note that we distinguish between quat and vec, because interpolation type is different
-		memcpy( channel.target_node_element, &next_key->data, get_num_components( le_compound_num_type::eQuat4 ) * sizeof( float ) );
+		lerp_animation_target<glm::quat>( channel.target_node_element, previous_key->data.as_quat, next_key->data.as_quat, norm_t );
 		break;
 	}
 	default:
