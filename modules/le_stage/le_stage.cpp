@@ -1822,6 +1822,56 @@ static void traverse_node( le_node_o *parent ) {
 	}
 }
 
+static void apply_animation_channel( le_animation_channel_o const &channel, uint64_t ticks ) {
+
+	if ( channel.sampler.size() < 2 ) {
+		return;
+	}
+
+	// -------- invariant: sampler has at least two elements.
+
+	le_keyframe_o const *sampler_begin = channel.sampler.data();
+	le_keyframe_o const *sampler_end   = sampler_begin + channel.sampler.size();
+
+	le_keyframe_o const *previous_key = sampler_begin;
+	le_keyframe_o const *current_key  = sampler_begin + 1;
+
+	while ( ( current_key->delta_ticks < ticks ) && ( current_key + 1 != sampler_end ) ) {
+		std::swap( previous_key, current_key );
+		current_key++;
+	}
+
+	// apply data to node pointed in channel, based on type.
+
+	switch ( channel.target_compound_type ) {
+	case ( le_compound_num_type::eScalar ): {
+		memcpy( channel.target_node_element, &current_key->data, get_num_components( le_compound_num_type::eScalar ) * sizeof( float ) );
+		break;
+	}
+	case ( le_compound_num_type::eVec2 ): {
+		memcpy( channel.target_node_element, &current_key->data, get_num_components( le_compound_num_type::eVec2 ) * sizeof( float ) );
+		break;
+	}
+	case ( le_compound_num_type::eVec3 ): {
+		memcpy( channel.target_node_element, &current_key->data, get_num_components( le_compound_num_type::eVec3 ) * sizeof( float ) );
+		break;
+	}
+	case ( le_compound_num_type::eVec4 ): {
+		memcpy( channel.target_node_element, &current_key->data, get_num_components( le_compound_num_type::eVec4 ) * sizeof( float ) );
+		break;
+	}
+	case ( le_compound_num_type::eQuat4 ): {
+		// note that we distinguish between quat and vec, because interpolation type is different
+		memcpy( channel.target_node_element, &current_key->data, get_num_components( le_compound_num_type::eQuat4 ) * sizeof( float ) );
+		break;
+	}
+	default:
+		break;
+	}
+
+	channel.target_node->local_transform_cached = false;
+}
+
 // ----------------------------------------------------------------------
 
 /// \brief updates scene graph - call this exactly once per frame.
