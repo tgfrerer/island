@@ -1876,6 +1876,25 @@ static void apply_animation_channel( le_animation_channel_o const &channel, uint
 
 /// \brief updates scene graph - call this exactly once per frame.
 static void le_stage_update( le_stage_o *self ) {
+
+	// -- update animations if these exist.
+
+	if ( self->timebase ) {
+		using namespace le_timebase;
+
+		if ( !self->animations.empty() ) {
+			// for each animation: find current keyframe
+
+			for ( auto const &a : self->animations ) {
+				for ( auto const &c : a.channels ) {
+					apply_animation_channel( c, le_timebase_i.get_current_ticks( self->timebase ) );
+				}
+			}
+
+			// apply keyframe value to node.
+		}
+	}
+
 	// -- ensure all nodes have local matrices which reflect their T,R,S properties.
 
 	for ( le_node_o *n : self->nodes ) {
