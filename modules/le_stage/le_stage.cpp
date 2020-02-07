@@ -1931,7 +1931,7 @@ static void le_stage_update( le_stage_o *self ) {
 		}
 	}
 
-	// -- ensure all nodes have local matrices which reflect their T,R,S properties.
+	// -- Ensure all nodes have local matrices which reflect their T,R,S properties.
 
 	for ( le_node_o *n : self->nodes ) {
 		if ( false == n->local_transform_cached ) {
