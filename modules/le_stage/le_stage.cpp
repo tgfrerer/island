@@ -1081,20 +1081,28 @@ static uint32_t le_stage_create_animation( le_stage_o *self, le_animation_info *
 		channel.target_node = self->nodes[ c->node_idx ];
 		switch ( c->animation_target_type ) {
 		case LeAnimationTargetType::eTranslation:
-			channel.target_node_element = &channel.target_node->local_translation[ 0 ];
+			channel.target_node_element  = &channel.target_node->local_translation[ 0 ];
+			channel.target_compound_type = le_compound_num_type::eVec3;
 			break;
 		case LeAnimationTargetType::eScale:
-			channel.target_node_element = &channel.target_node->local_scale[ 0 ];
+			channel.target_node_element  = &channel.target_node->local_scale[ 0 ];
+			channel.target_compound_type = le_compound_num_type::eVec3;
 			break;
 		case LeAnimationTargetType::eRotation:
-			channel.target_node_element = &channel.target_node->local_rotation[ 0 ];
+			channel.target_node_element  = &channel.target_node->local_rotation[ 0 ];
+			channel.target_compound_type = le_compound_num_type::eQuat4;
 			break;
 		case LeAnimationTargetType::eWeights:
+			channel.target_compound_type = le_compound_num_type::eScalar;
 			assert( false ); // TODO: implement morph target weights manipulation
 			break;
 		default:
 			assert( false ); // unreachable
 			break;
+		}
+
+		if ( !channel.sampler.empty() ) {
+			assert( channel.target_compound_type == channel.sampler.front().compound_num_type );
 		}
 
 		animation.channels.emplace_back( channel );
