@@ -483,8 +483,8 @@ static uint32_t le_stage_create_texture( le_stage_o *stage, le_texture_info *inf
 	{
 		// Create a unique handle from image id and sampler id
 
-		char tex_id_str[ 18 ]; // 17 characters 8+8+1, plus one extra character for terminating \0
-		snprintf( tex_id_str, 18, "%08u:%08u", info->image_idx, info->sampler_idx );
+		char tex_id_str[ 32 ]{}; // 31 characters 6+1+6+1+17, plus one extra character for terminating \0
+		snprintf( tex_id_str, 31, "%06u:%06u:%s", info->image_idx, info->sampler_idx, info->name );
 
 		texture.texture_handle = LE_IMAGE_SAMPLER_RESOURCE( tex_id_str );
 
