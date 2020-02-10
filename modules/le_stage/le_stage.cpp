@@ -239,8 +239,8 @@ struct le_keyframe_o {
 
 /// A channel is a mapping from a sequence of keyframes to a node property
 struct le_animation_channel_o {
-	uint64_t ticks_offset;                     // TODO: time offset for this channel - global placement of this channel in world timeline. default 0
-	uint64_t ticks_duration;                   // TODO: duration of this channel, default: end time of last keyframe.
+	uint64_t ticks_offset;                     // time-value for first keyframe
+	uint64_t ticks_duration;                   // time-value for last keyframe
 	                                           //
 	std::vector<le_keyframe_o> sampler;        // (non-owning) keyframes for this channel, their time is relative to this channel.
 	                                           //
