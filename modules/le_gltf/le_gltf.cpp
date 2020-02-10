@@ -358,7 +358,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				info.sampler_idx = default_sampler_idx;
 			}
 			info.image_idx     = images_map.at( t->image );
-			info.name          = t->name;
+			info.name          = t->image->name;
 			uint32_t stage_idx = le_stage_i.create_texture( stage, &info );
 			textures_map.insert( {t, stage_idx} );
 		}
