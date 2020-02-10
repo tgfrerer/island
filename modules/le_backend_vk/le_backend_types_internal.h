@@ -89,8 +89,6 @@ struct le_shader_binding_info {
 	                             // as anything *before* and not including name_hash will be
 	                             // used to calculate hash of a `le_shader_binding_struct`.
 
-	//	char debug_name[ 32 ];
-
 	bool
 	operator<( le_shader_binding_info const &lhs ) const noexcept {
 		return setIndex == lhs.setIndex
