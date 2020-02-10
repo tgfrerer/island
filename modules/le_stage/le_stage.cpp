@@ -258,8 +258,8 @@ struct le_animation_o {
 		eBounce,
 	}; // how this channel should behave when repeating
 
-	bool     is_playing;        // current animation state
-	uint64_t start_delta_ticks; // time when animation last started playing, relative to main clock
+	uint64_t ticks_offset;   // Given in ticks for first keyframe over all channels
+	uint64_t ticks_duration; // Given in ticks for last keyframe over all channels
 
 	std::vector<le_animation_channel_o> channels;
 };
