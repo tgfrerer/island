@@ -1663,6 +1663,8 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 		          << std::flush;
 	}
 
+	std::unordered_map<le_gpso_handle_t *, uint64_t> pipelineCount;
+
 	// associate each primitive with shader matching defines id
 
 	for ( auto &mesh : stage->meshes ) {
@@ -1805,10 +1807,17 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 				}
 
 				primitive.pipeline_state_handle = builder.build();
+				pipelineCount[ primitive.pipeline_state_handle ]++;
 			}
 
 		} // end for all mesh.primitives
 	}     // end for all meshes
+
+	std::cout << "Pipelines in use: \n";
+	for ( auto &p : pipelineCount ) {
+		std::cout << std::hex << p.first << ": " << std::dec << p.second << std::endl;
+	}
+	std::cout << std::flush;
 }
 
 // ----------------------------------------------------------------------
