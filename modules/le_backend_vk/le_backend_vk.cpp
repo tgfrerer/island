@@ -3678,11 +3678,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 									// add an entry for each array element with this binding to setData
 									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
-										DescriptorData descriptorData{
-										    .type          = vk::DescriptorType( b.type ),
-										    .bindingNumber = uint32_t( b.binding ),
-										    .arrayIndex    = uint32_t( arrayIndex ),
-										};
+										DescriptorData descriptorData{};
+										descriptorData.type          = vk::DescriptorType( b.type );
+										descriptorData.bindingNumber = uint32_t( b.binding );
+										descriptorData.arrayIndex    = uint32_t( arrayIndex );
+
 										descriptorData.bufferInfo.range = VK_WHOLE_SIZE;
 
 										setData.emplace_back( std::move( descriptorData ) );
