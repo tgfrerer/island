@@ -3617,7 +3617,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 									}
 
 									// add this binding to list of current bindings
-									argumentState.binding_infos.emplace_back( std::move( b ) );
+									argumentState.binding_infos.push_back( b );
 								}
 							}
 
