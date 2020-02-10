@@ -3531,6 +3531,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				auto header = static_cast<le::CommandHeader *>( dataIt );
 
+				if ( /* DISABLES CODE */ ( false ) ) {
+					// Print the command stream to stdout.
+					debug_print_command( dataIt );
+				}
+
 				switch ( header->info.type ) {
 
 				case le::CommandType::eBindGraphicsPipeline: {
@@ -3541,6 +3546,15 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						using namespace le_backend_vk;
 						// -- potentially compile and create pipeline here, based on current pass and subpass
 						currentPipeline = le_pipeline_manager_i.produce_pipeline( pipelineManager, le_cmd->info.gpsoHandle, pass, subpassIndex );
+
+						if ( /* DISABLES CODE */ ( false ) ) {
+
+							// Print pipeline debug info when a new pipeline gets bound.
+
+							std::cout << "requested pipeline << " << std::hex << le_cmd->info.gpsoHandle << std::endl;
+							debug_print_le_pipeline_layout_info( &currentPipeline.layout_info );
+							std::cout << std::flush;
+						}
 
 						// -- grab current pipeline layout from cache
 						currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );
