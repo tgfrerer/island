@@ -45,12 +45,12 @@ static void le_timebase_update( le_timebase_o *self, uint64_t fixed_interval ) {
 	self->ticks_before_previous_update = self->ticks_before_update;
 
 	if ( fixed_interval ) {
-		self->now += std::chrono::duration_cast<NanoTime::duration>( Tick( fixed_interval ) );
+		self->ticks_before_update += Tick( fixed_interval );
+		self->now = NanoTime( self->initial_time ) + std::chrono::duration_cast<NanoTime::duration>( self->ticks_before_update );
 	} else {
-		self->now = std::chrono::steady_clock::now();
+		self->now                 = std::chrono::steady_clock::now();
+		self->ticks_before_update = std::chrono::duration_cast<Tick>( self->now - self->initial_time );
 	}
-
-	self->ticks_before_update = std::chrono::duration_cast<Tick>( self->now - self->initial_time );
 }
 
 // ----------------------------------------------------------------------
