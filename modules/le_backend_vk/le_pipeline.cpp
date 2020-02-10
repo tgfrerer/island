@@ -371,8 +371,8 @@ inline static uint64_t le_shader_bindings_calculate_hash( le_shader_binding_info
 	le_shader_binding_info const *info_begin = info_vec;
 	auto const                    info_end   = info_vec + info_count;
 
-	for ( auto info = info_begin; info != info_end; info++ ) {
-		hash = SpookyHash::Hash64( &info, offsetof( le_shader_binding_info, name_hash ), hash );
+	for ( le_shader_binding_info const *info = info_begin; info != info_end; info++ ) {
+		hash = SpookyHash::Hash64( info, offsetof( le_shader_binding_info, name_hash ), hash );
 	}
 
 	return hash;
