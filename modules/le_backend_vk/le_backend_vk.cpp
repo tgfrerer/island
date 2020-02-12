@@ -3207,6 +3207,12 @@ void debug_print_le_pipeline_layout_info( le_pipeline_layout_info *info ) {
 	}
 }
 
+static bool is_equal( le_pipeline_and_layout_info_t const &lhs, le_pipeline_and_layout_info_t const &rhs ) {
+	return lhs.pipeline == rhs.pipeline &&
+	       lhs.layout_info.set_layout_count == rhs.layout_info.set_layout_count &&
+	       0 == memcmp( lhs.layout_info.set_layout_keys, rhs.layout_info.set_layout_keys, sizeof( uint64_t ) * lhs.layout_info.set_layout_count );
+}
+
 // ----------------------------------------------------------------------
 // Decode commandStream for each pass (may happen in parallel)
 // translate into vk specific commands.
@@ -3540,26 +3546,28 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				case le::CommandType::eBindGraphicsPipeline: {
 					auto *le_cmd = static_cast<le::CommandBindGraphicsPipeline *>( dataIt );
+
 					if ( pass.type == LE_RENDER_PASS_TYPE_DRAW ) {
 						// at this point, a valid renderpass must be bound
 
 						using namespace le_backend_vk;
 						// -- potentially compile and create pipeline here, based on current pass and subpass
-						currentPipeline = le_pipeline_manager_i.produce_pipeline( pipelineManager, le_cmd->info.gpsoHandle, pass, subpassIndex );
+						auto requestedPipeline = le_pipeline_manager_i.produce_pipeline( pipelineManager, le_cmd->info.gpsoHandle, pass, subpassIndex );
 
 						if ( /* DISABLES CODE */ ( false ) ) {
 
 							// Print pipeline debug info when a new pipeline gets bound.
 
 							std::cout << "requested pipeline << " << std::hex << le_cmd->info.gpsoHandle << std::endl;
-							debug_print_le_pipeline_layout_info( &currentPipeline.layout_info );
+							debug_print_le_pipeline_layout_info( &requestedPipeline.layout_info );
 							std::cout << std::flush;
 						}
 
-						// -- grab current pipeline layout from cache
-						currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );
-
-						{
+						if ( !is_equal( currentPipeline, requestedPipeline ) ) {
+							// update current pipeline
+							currentPipeline = requestedPipeline;
+							// -- grab current pipeline layout from cache
+							currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );
 							// -- update pipelineData - that's the data values for all descriptors which are currently bound
 
 							argumentState.setCount = uint32_t( currentPipeline.layout_info.set_layout_count );
@@ -3621,15 +3629,17 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 								}
 							}
 
-							// -- reset dynamic offsets
-							memset( argumentState.dynamicOffsets.data(), 0, sizeof( uint32_t ) * argumentState.dynamicOffsetCount );
-
-							// we write directly into descriptorsetstate when we update descriptors.
-							// when we bind a pipeline, we update the descriptorsetstate based
-							// on what the pipeline requires.
+							cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, currentPipeline.pipeline );
+						} else {
+							// Re-using previously bound pipeline. We may keep argumentState state as it is.
 						}
 
-						cmd.bindPipeline( vk::PipelineBindPoint::eGraphics, currentPipeline.pipeline );
+						// -- Reset dynamic offsets in argumentState:
+						// we do this regardless of whether pipeline was already bound,
+						// because binding a pipeline should always reset parameters associated
+						// with the pipeline.
+
+						memset( argumentState.dynamicOffsets.data(), 0, sizeof( uint32_t ) * argumentState.dynamicOffsetCount );
 
 					} else {
 						// -- TODO: warn that graphics pipelines may only be bound within
