@@ -246,7 +246,7 @@ struct le_animation_channel_o {
 	                                           //
 	le_compound_num_type target_compound_type; // numeric type for target - we keep this mostly because quaternion requires slerp rather than lerp.
 	le_node_o *          target_node;          // (non-owning) pointer to targeted node						 : how do we deal with deleted nodes?
-	float *              target_node_element;  // (non-owning) pointer to targeted node element (t, r, or s) : how do we deal with deleted nodes?
+	void *               target_node_element;  // (non-owning) pointer to targeted node element (t, r, or s) : how do we deal with deleted nodes?
 };
 
 /// An animation is a collection of channels
@@ -1832,17 +1832,17 @@ static void traverse_node( le_node_o *parent ) {
 }
 
 template <typename T>
-void lerp_animation_target( float *target, T const &val_previous, T const &val_next, float norm_t ) {
+void lerp_animation_target( T *target, T const &val_previous, T const &val_next, float norm_t ) {
 	T blend = glm::mix( val_previous, val_next, norm_t );
-	memcpy( target, &blend, sizeof( T ) );
+	*target = blend;
 }
 
-// Quaternions need to be slerped instead of mix'ed. They also must be normalised before application.
+// Quaternions need to be slerped instead of mixed. They also must be normalised before application.
 template <>
-void lerp_animation_target<glm::quat>( float *target, glm::quat const &val_previous, glm::quat const &val_next, float norm_t ) {
+void lerp_animation_target<glm::quat>( glm::quat *target, glm::quat const &val_previous, glm::quat const &val_next, float norm_t ) {
 	glm::quat blend = glm::slerp( val_previous, val_next, norm_t );
 	blend           = glm::normalize( blend );
-	memcpy( target, &blend, sizeof( glm::quat ) );
+	*target         = blend;
 }
 
 // ----------------------------------------------------------------------
@@ -1890,24 +1890,29 @@ static void apply_animation_channel( le_animation_channel_o const &channel, uint
 
 	switch ( channel.target_compound_type ) {
 	case ( le_compound_num_type::eScalar ): {
-		lerp_animation_target<float>( channel.target_node_element, previous_key->data.as_scalar, next_key->data.as_scalar, norm_t );
+		lerp_animation_target<float>( static_cast<float *>( channel.target_node_element ),
+		                              previous_key->data.as_scalar, next_key->data.as_scalar, norm_t );
 		break;
 	}
 	case ( le_compound_num_type::eVec2 ): {
-		lerp_animation_target<glm::vec2>( channel.target_node_element, previous_key->data.as_vec2, next_key->data.as_vec2, norm_t );
+		lerp_animation_target<glm::vec2>( static_cast<glm::vec2 *>( channel.target_node_element ),
+		                                  previous_key->data.as_vec2, next_key->data.as_vec2, norm_t );
 		break;
 	}
 	case ( le_compound_num_type::eVec3 ): {
-		lerp_animation_target<glm::vec3>( channel.target_node_element, previous_key->data.as_vec3, next_key->data.as_vec3, norm_t );
+		lerp_animation_target<glm::vec3>( static_cast<glm::vec3 *>( channel.target_node_element ),
+		                                  previous_key->data.as_vec3, next_key->data.as_vec3, norm_t );
 		break;
 	}
 	case ( le_compound_num_type::eVec4 ): {
-		lerp_animation_target<glm::vec4>( channel.target_node_element, previous_key->data.as_vec4, next_key->data.as_vec4, norm_t );
+		lerp_animation_target<glm::vec4>( static_cast<glm::vec4 *>( channel.target_node_element ),
+		                                  previous_key->data.as_vec4, next_key->data.as_vec4, norm_t );
 		break;
 	}
 	case ( le_compound_num_type::eQuat4 ): {
 		// note that we distinguish between quat and vec, because interpolation type is different
-		lerp_animation_target<glm::quat>( channel.target_node_element, previous_key->data.as_quat, next_key->data.as_quat, norm_t );
+		lerp_animation_target<glm::quat>( static_cast<glm::quat *>( channel.target_node_element ),
+		                                  previous_key->data.as_quat, next_key->data.as_quat, norm_t );
 		break;
 	}
 	default:
