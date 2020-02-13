@@ -239,9 +239,9 @@ struct le_keyframe_o {
 
 /// A channel is a mapping from a sequence of keyframes to a node property
 struct le_animation_channel_o {
-	uint64_t ticks_offset;                     // time-value for first keyframe
-	uint64_t ticks_duration;                   // time-value for last keyframe
-	                                           //
+	uint64_t ticks_offset;   // Offset (in ticks) of first keyframe
+	uint64_t ticks_duration; // Offset (in ticks) of last keyframe, designating total duration in ticks for this channel, since keyframes are defined as: [0..n[
+	//
 	std::vector<le_keyframe_o> sampler;        // (non-owning) keyframes for this channel, their time is relative to this channel.
 	                                           //
 	le_compound_num_type target_compound_type; // numeric type for target - we keep this mostly because quaternion requires slerp rather than lerp.
@@ -252,14 +252,16 @@ struct le_animation_channel_o {
 /// An animation is a collection of channels
 struct le_animation_o {
 
-	enum class Repeat : uint32_t {
-		eNone,
-		eRepeat,
+	enum class PlaybackMode : uint32_t {
+		eForward = 0,
+		eLoop,
 		eBounce,
 	}; // how this channel should behave when repeating
 
-	uint64_t ticks_offset;   // Given in ticks for first keyframe over all channels
-	uint64_t ticks_duration; // Given in ticks for last keyframe over all channels
+	PlaybackMode playback_mode;
+
+	uint64_t ticks_offset;   // Given in ticks for first keyframe over all channels. number of ticks to wait before starting animation, default 0
+	uint64_t ticks_duration; // Given in ticks for last keyframe over all channels.  number of ticks this animation should run before resetting, default: duration of longest animation channel.
 
 	std::vector<le_animation_channel_o> channels;
 };
@@ -1079,6 +1081,7 @@ static uint32_t le_stage_create_animation( le_stage_o *self, le_animation_info *
 
 		channel.sampler     = le_stage_create_animation_sampler( self, info->samplers + c->animation_sampler_idx, c->animation_target_type );
 		channel.target_node = self->nodes[ c->node_idx ];
+
 		switch ( c->animation_target_type ) {
 		case LeAnimationTargetType::eTranslation:
 			channel.target_node_element  = &channel.target_node->local_translation[ 0 ];
@@ -1102,7 +1105,19 @@ static uint32_t le_stage_create_animation( le_stage_o *self, le_animation_info *
 		}
 
 		if ( !channel.sampler.empty() ) {
+
 			assert( channel.target_compound_type == channel.sampler.front().compound_num_type );
+
+			channel.ticks_offset   = channel.sampler.front().delta_ticks;
+			channel.ticks_duration = channel.sampler.back().delta_ticks;
+
+			// For each animation we must find out when it begins, and how long it lasts.
+			// we use this to skip over animations if they don't fall within our current
+			// time base time, and we also use this to loop/bounce animations depending
+			// on where within the repeat cycle the current animation time base falls.
+
+			animation.ticks_offset   = std::min( channel.ticks_offset, animation.ticks_offset );
+			animation.ticks_duration = std::max( channel.ticks_duration, animation.ticks_duration );
 		}
 
 		animation.channels.emplace_back( channel );
@@ -1932,12 +1947,29 @@ static void le_stage_update( le_stage_o *self ) {
 	if ( self->timebase ) {
 		using namespace le_timebase;
 
+		uint64_t current_ticks = le_timebase_i.get_current_ticks( self->timebase );
+
 		if ( !self->animations.empty() ) {
 			// for each animation: find current keyframe
 
 			for ( auto const &a : self->animations ) {
+
+				uint64_t animation_time = current_ticks - a.ticks_offset;
+
+				switch ( a.playback_mode ) {
+
+				case le_animation_o::PlaybackMode::eForward:
+					break;
+				case le_animation_o::PlaybackMode::eLoop:
+					animation_time = ( animation_time ) % a.ticks_duration;
+					break;
+				case le_animation_o::PlaybackMode::eBounce:
+					animation_time = a.ticks_duration - abs( ( animation_time % ( 2 * a.ticks_duration ) - a.ticks_duration ) );
+					break;
+				}
+
 				for ( auto const &c : a.channels ) {
-					apply_animation_channel( c, le_timebase_i.get_current_ticks( self->timebase ) );
+					apply_animation_channel( c, animation_time );
 				}
 			}
 
