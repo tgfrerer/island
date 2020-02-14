@@ -1262,6 +1262,81 @@ static le::IndexType index_type_from_num_type( le_num_type const &tp ) {
 	return le::IndexType::eUint16;
 }
 
+/// \brief update camera matrices given scene and camera index
+/// \details searches for camera in stage given scene index, and in-scene camera index.
+/// calculates view matrix and projection matrix based on camera type and aspect ratio (w_over_h)
+/// if any of `camera_view_matrix` or `camera_projection_matrix` is nullptr, that value will
+/// not be calculated and updated.
+static bool stage_get_camera( le_stage_o const *stage, uint32_t scene_idx, uint32_t camera_idx, float w_over_h,
+                              glm::mat4 *camera_world_matrix,
+                              glm::mat4 *camera_view_matrix,
+                              glm::mat4 *camera_projection_matrix ) {
+
+	if ( stage->scenes.empty() || scene_idx >= stage->scenes.size() ) {
+		return false;
+	}
+
+	// ---------| invariant: Scene at `scene_idx` exists.
+
+	auto primary_scene_id = stage->scenes[ scene_idx ].scene_id;
+
+	le_node_o const *found_camera_node = nullptr;
+
+	uint32_t camera_count = 0;
+
+	// find first node which has a camera, and which matches our scene id.
+	for ( le_node_o *const node : stage->nodes ) {
+		if ( node->has_camera && ( node->scene_bit_flags & ( 1 << primary_scene_id ) ) ) {
+			if ( camera_idx == camera_count ) {
+				found_camera_node = node;
+				break;
+			} else {
+				camera_count++;
+				continue;
+			}
+		}
+	}
+
+	if ( !found_camera_node ) {
+		return false;
+	}
+
+	// ---------| invariant camera node was found
+
+	// Fetch camera settings based on camera node's camera index.
+	le_camera_settings_o const &camera = stage->camera_settings[ found_camera_node->camera_idx ];
+
+	if ( camera_world_matrix ) {
+		*camera_world_matrix = found_camera_node->global_transform;
+	}
+
+	// Calculate: View Matrix is inverse global transform of the camera's node matrix.
+
+	if ( camera_view_matrix ) {
+		*camera_view_matrix = glm::inverse( found_camera_node->global_transform );
+	}
+
+	// Calculate: Projection Matrix depends on type of camera.
+
+	if ( camera_projection_matrix && camera.type == le_camera_settings_o::Type::ePerspective ) {
+		*camera_projection_matrix =
+		    glm::perspective( camera.data.as_perspective.fov_y_rad,
+		                      w_over_h,
+		                      camera.data.as_perspective.z_near,
+		                      camera.data.as_perspective.z_far );
+	} else if ( camera_projection_matrix && camera.type == le_camera_settings_o::Type::eOrthographic ) {
+		*camera_projection_matrix =
+		    glm::ortho( -camera.data.as_orthographic.x_mag,
+		                +camera.data.as_orthographic.x_mag,
+		                -camera.data.as_orthographic.y_mag,
+		                +camera.data.as_orthographic.y_mag,
+		                camera.data.as_perspective.z_near,
+		                camera.data.as_perspective.z_far );
+	}
+
+	return true; // unreachable
+}
+
 // ----------------------------------------------------------------------
 
 static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) {
@@ -1281,19 +1356,28 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	glm::mat4 camera_projection_matrix = glm::ortho( -0.5f, 0.5f, -0.5f, 0.5f, -1000.f, 1000.f );
 	glm::mat4 camera_view_matrix       = glm::identity<glm::mat4>();
 	glm::mat4 camera_world_matrix      = glm::identity<glm::mat4>(); // global transform for camera node (==inverse view matrix)
-	glm::vec4 camera_in_world_space    = glm::vec4{0, 0, 0, 1};
 
-	{
-		// update camera from interactive camera
+	// update camera from interactive camera
+	// if no stage camera is given, and an interactive camera is available
+	if ( camera ) {
 
 		using namespace le_camera;
 		le_camera_i.set_viewport( camera, viewports[ 0 ] );
 		camera_view_matrix       = le_camera_i.get_view_matrix_glm( camera );
 		camera_projection_matrix = le_camera_i.get_projection_matrix_glm( camera );
 		camera_world_matrix      = glm::inverse( camera_view_matrix );
+	} else {
+		// Attempt to apply first camera from scene if no interactive camera was set.
+		//
+		// FIXME: We should cache position of camera node, otherwise we have to iterate
+		// the full scenegraph to find the camera.
+		stage_get_camera( stage, 0, 0, float( extents.width ) / float( extents.height ),
+		                  &camera_world_matrix,
+		                  &camera_view_matrix,
+		                  &camera_projection_matrix );
 	}
 
-	camera_in_world_space = camera_world_matrix * camera_in_world_space;
+	glm::vec4 camera_in_world_space = camera_world_matrix * glm::vec4{0, 0, 0, 1};
 	camera_in_world_space /= camera_in_world_space.w;
 
 	struct UboMatrices {
@@ -1322,49 +1406,6 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	};
 
 	UboPostProcessing post_processing_params{};
-
-	// -- find the first available camera within the node graph which is
-	// tagged as belonging to the first scene.
-
-	if ( /* DISABLES CODE */ ( false ) && !stage->scenes.empty() ) {
-		auto primary_scene_id = stage->scenes.front().scene_id;
-
-		le_node_o const *found_camera_node = nullptr;
-
-		// find first node which has a camera, and which matches our scene id.
-		for ( le_node_o *const node : stage->nodes ) {
-			if ( node->has_camera && ( node->scene_bit_flags & ( 1 << primary_scene_id ) ) ) {
-				found_camera_node = node;
-				break;
-			}
-		}
-
-		if ( found_camera_node ) {
-			le_camera_settings_o const &camera = stage->camera_settings[ found_camera_node->camera_idx ];
-
-			// view matrix is inverse global camera found_camera_node matrix.
-
-			camera_view_matrix = glm::inverse( found_camera_node->global_transform );
-
-			// projection matrix depends on type of camera.
-
-			if ( camera.type == le_camera_settings_o::Type::ePerspective ) {
-				camera_projection_matrix =
-				    glm::perspective( camera.data.as_perspective.fov_y_rad,
-				                      float( extents.width ) / float( extents.height ),
-				                      camera.data.as_perspective.z_near,
-				                      camera.data.as_perspective.z_far );
-			} else if ( camera.type == le_camera_settings_o::Type::eOrthographic ) {
-				camera_projection_matrix =
-				    glm::ortho( -camera.data.as_orthographic.x_mag,
-				                +camera.data.as_orthographic.x_mag,
-				                -camera.data.as_orthographic.y_mag,
-				                +camera.data.as_orthographic.y_mag,
-				                camera.data.as_perspective.z_near,
-				                camera.data.as_perspective.z_far );
-			}
-		}
-	}
 
 	for ( le_scene_o const &s : stage->scenes ) {
 		for ( le_node_o *n : stage->nodes ) {
