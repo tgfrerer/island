@@ -1710,7 +1710,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 					case ( le_primitive_attribute_info::Type::eTexcoord  ): defines << "HAS_TEXCOORD_"  << num_tex_coords++ <<  "=" << ++location << "," ; break;
 					case ( le_primitive_attribute_info::Type::eColor     ): defines << "HAS_COLORS="    << ++location << "," ; break;
 					case ( le_primitive_attribute_info::Type::eJoints    ): defines << "HAS_JOINTS="    << ++location << "," ; break;
-					case ( le_primitive_attribute_info::Type::eWeights   ): defines << "HAS_WEIGHTS="   << ++location << "," ; break;
+					case ( le_primitive_attribute_info::Type::eJointWeights   ): defines << "HAS_JOINT_WEIGHTS="   << ++location << "," ; break;
 					default: break;
 					}
 				// clang-format on
