@@ -1509,7 +1509,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 	              .setExecuteCallback( draw_params, pass_draw )
 	              .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE,
 	                                   le::ImageAttachmentInfoBuilder()
-	                                       .setColorClearValue( LeClearValue( {0.2f, 0.2f, 0.2f, 1.f} ) )
+	                                       .setColorClearValue( LeClearValue( {0.125f, 0.125f, 0.125f, 1.f} ) )
 	                                       .build() )
 	              .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_STENCIL_IMAGE" ) );
 
