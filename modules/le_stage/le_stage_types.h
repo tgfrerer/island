@@ -108,11 +108,18 @@ struct le_material_info {
 	float emissive_factor[ 3 ];
 };
 
+struct le_morph_target_info_t {
+	le_primitive_attribute_info *attributes;
+	uint32_t                     attributes_count;
+};
+
 struct le_primitive_info {
 	uint32_t                     indices_accessor_idx;
 	bool                         has_indices;
 	le_primitive_attribute_info *attributes;
-	uint32_t                     attribute_count;
+	uint32_t                     attributes_count;
+	le_morph_target_info_t *     morph_targets;
+	uint32_t                     morph_targets_count;
 	uint32_t                     material_idx;
 	bool                         has_material;
 };

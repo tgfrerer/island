@@ -553,7 +553,9 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			le_mesh_info mesh_info;
 
 			struct per_primitive_data_t {
-				std::vector<le_primitive_attribute_info> attribute_infos;
+				std::vector<le_primitive_attribute_info>              attribute_infos;
+				std::vector<std::vector<le_primitive_attribute_info>> morph_targets_data; // array of attributes for each morph target
+				std::vector<le_morph_target_info_t>                   morph_target_infos; // {pointer,count} for each morph target
 			};
 
 			std::vector<le_primitive_info>      primitive_infos;
@@ -563,7 +565,11 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			auto                   primitives_end   = primitives_begin + msh->primitives_count;
 
 			for ( auto prim = primitives_begin; prim != primitives_end; prim++ ) {
-				le_primitive_info     prim_info{};
+				le_primitive_info prim_info{};
+
+				// NOTE: We allocate prim_data explicitly on the heap, so that it
+				// can't get moved, and its address remains valid until we explicitly
+				// delete prim_data after the call to le_stage.
 				per_primitive_data_t *prim_data = new per_primitive_data_t{};
 				per_primitive_data.push_back( prim_data ); // pushing info vec so it may be cleaned up
 
@@ -584,26 +590,70 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 					le_primitive_attribute_info attr_info;
 
 					attr_info.accessor_idx = accessor_map.at( attr->data );
-					attr_info.index        = attr->index;
+					attr_info.index        = uint32_t( attr->index );
 					attr_info.type         = get_primitive_attribute_type_from_cgltf( attr->type );
 					attr_info.name         = attr->name;
 
 					prim_data->attribute_infos.push_back( attr_info );
 				}
 
-				prim_info.attributes      = prim_data->attribute_infos.data();
-				prim_info.attribute_count = prim_data->attribute_infos.size();
+				prim_info.attributes       = prim_data->attribute_infos.data();
+				prim_info.attributes_count = uint32_t( prim_data->attribute_infos.size() );
+
+				// -- Parse morph target data and keep it in memory until per-primitive data
+				// is explicitly deleted after the call to le_stage has been completed.
+
+				cgltf_morph_target const *morph_targets_begin = prim->targets;
+				auto const                morph_targets_end   = morph_targets_begin + prim->targets_count;
+
+				for ( auto mt = morph_targets_begin; mt != morph_targets_end; mt++ ) {
+
+					// For each attribute of morph targets
+					// NOTE: There must be an attribute each for of every non-morph target attributes
+					std::vector<le_primitive_attribute_info> morph_attributes;
+
+					morph_attributes.reserve( mt->attributes_count );
+
+					cgltf_attribute const *attributes_begin = mt->attributes;
+					auto                   attributes_end   = attributes_begin + mt->attributes_count;
+
+					for ( auto attr = attributes_begin; attr != attributes_end; attr++ ) {
+						le_primitive_attribute_info attr_info;
+
+						attr_info.accessor_idx = accessor_map.at( attr->data );
+						attr_info.index        = uint32_t( attr->index );
+						attr_info.type         = get_primitive_attribute_type_from_cgltf( attr->type );
+						attr_info.name         = attr->name;
+
+						morph_attributes.push_back( attr_info );
+					}
+
+					prim_data->morph_targets_data.emplace_back( morph_attributes );
+				}
+
+				// Create infos over morph targets, which means harvesting pointer addresses,
+				// and array sizes.
+
+				for ( auto &morph_target_data : prim_data->morph_targets_data ) {
+					le_morph_target_info_t info{};
+					info.attributes       = morph_target_data.data();
+					info.attributes_count = uint32_t( morph_target_data.size() );
+					prim_data->morph_target_infos.emplace_back( info );
+				}
+
+				prim_info.morph_targets       = prim_data->morph_target_infos.data();
+				prim_info.morph_targets_count = uint32_t( prim_data->morph_target_infos.size() );
 
 				primitive_infos.emplace_back( prim_info );
 			}
 
 			mesh_info.primitives      = primitive_infos.data();
-			mesh_info.primitive_count = primitive_infos.size();
+			mesh_info.primitive_count = uint32_t( primitive_infos.size() );
 
 			uint32_t stage_idx = le_stage_i.create_mesh( stage, &mesh_info );
 			mesh_map.insert( {msh, stage_idx} );
 
-			// Manual cleanup because raw pointer.
+			// Manual cleanup of per-primitive data because raw pointer.
 
 			for ( auto &d : per_primitive_data ) {
 				delete ( d );
