@@ -55,8 +55,8 @@ struct le_stage_api {
 		uint32_t (* create_image_from_memory)( le_stage_o* stage, unsigned char const * image_file_memory, uint32_t image_file_sz, char const * debug_name, uint32_t mip_levels);
 		uint32_t (* create_image_from_file_path)( le_stage_o* stage, char const * image_file_path, char const * debug_name, uint32_t mip_levels);
 
-		uint32_t (*create_sampler)(le_stage_o* stage, LeSamplerInfo* info);
-		uint32_t (*create_texture)(le_stage_o* stage, le_texture_info* info);
+		uint32_t (* create_sampler)(le_stage_o* stage, LeSamplerInfo* info);
+		uint32_t (* create_texture)(le_stage_o* stage, le_texture_info* info);
 
 		uint32_t (* create_buffer)( le_stage_o *stage, void *mem, uint32_t sz, char const *debug_name );
 		uint32_t (* create_buffer_view)( le_stage_o *self, le_buffer_view_info const *info );
