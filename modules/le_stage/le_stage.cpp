@@ -229,18 +229,13 @@ struct le_keyframe_o {
 	Type                 type;              //
 	le_num_type          num_type;          // numeric type
 	le_compound_num_type compound_num_type; // scalar, vec2, vec3, etc.
-	uint16_t             padding;           // padding
+	uint16_t             array_size;        // number of elements used, default must be 1
 	union {                                 //
-		glm::quat as_quat;                  // used for step, linear : xyzw quaternion
-		glm::vec4 as_vec4;                  // used for step, linear
-		glm::vec3 as_vec3;                  // used for step, linear
-		glm::vec2 as_vec2;                  // used for step, linear
-		float     as_scalar;                // used for step, linear
-		glm::quat as_quat_3[ 3 ];           // used for spline       : xyzw quaternion
-		glm::vec4 as_vec4_3[ 3 ];           // used for spline
-		glm::vec3 as_vec3_3[ 3 ];           // used for spline
-		glm::vec2 as_vec2_3[ 3 ];           // used for spline
-		float     as_scalar_3[ 3 ];         // used for spline
+		glm::quat as_quat[ 3 ];             // used for spline       : xyzw quaternion
+		glm::vec4 as_vec4[ 3 ];             // used for spline
+		glm::vec3 as_vec3[ 3 ];             // used for spline
+		glm::vec2 as_vec2[ 3 ];             // used for spline
+		float     as_scalar[ 12 ];          // used for weights
 	} data;
 };
 
@@ -976,24 +971,6 @@ static void le_node_o_set_scene_bit( le_node_o *node, uint8_t bit ) {
 // an enum signaling the type of interpolation to apply.
 static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o *self, le_animation_sampler_info *info, LeAnimationTargetType const &target_type ) {
 
-	std::vector<le_keyframe_o> keyframes;
-
-	// A le_sampler_o is a vector of keyframes
-	// we build the sampler by loading keyframe data by resolving accessors
-
-	auto &input_accessor  = self->accessors[ info->input_accesstor_idx ];
-	auto &output_accessor = self->accessors[ info->output_accessor_idx ];
-
-	if ( info->interpolation_type == le_animation_sampler_info::InterpolationType::eCubicSpline ) {
-		// cubic spline has three outputs per input
-		assert( input_accessor.count * 3 == output_accessor.count );
-	} else {
-		// linear, step has one output per input
-		assert( input_accessor.count == output_accessor.count );
-	}
-
-	assert( input_accessor.type == le_compound_num_type::eScalar && "animation input accessor type must be scalar (time)" );
-
 	// We must sample data from accessors and store it into keyframe so that we can
 	// apply it faster.
 
@@ -1007,100 +984,122 @@ static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o 
 	//
 	// We want to store keyframe data locally, so that the buffer can be discarded, once it
 	// has been uploaded.
+
+	// Note that the interpolation type is the same for all
+	// elements within a channel.
+
+	std::vector<le_keyframe_o> keyframes;
+
+	// A le_sampler_o is a vector of keyframes
+	// we build the sampler by loading keyframe data by resolving accessors
+
+	auto &input_accessor  = self->accessors[ info->input_accesstor_idx ];
+	auto &output_accessor = self->accessors[ info->output_accessor_idx ];
+
 	{
-		// Note that the interpolation type is the same for all
-		// elements within a channel.
-
-		le_compound_num_type compound_type = output_accessor.type;
-
-		if ( target_type == LeAnimationTargetType::eRotation ) {
-
-			assert( get_num_components( compound_type ) == get_num_components( le_compound_num_type::eQuat4 ) );
-
-			// If type is rotation we change the component type to quaternion
-			// so that interpolations can use slerp rather than lerp on this sampler.
-
-			compound_type = le_compound_num_type::eQuat4;
-		}
-
-		le_num_type num_type             = output_accessor.component_type;
-		uint32_t    num_output_per_input = 1;
+		// -- Conformance checking: number of input elements available must match output elements,
+		// based on type of interpolation.
 
 		if ( info->interpolation_type == le_animation_sampler_info::InterpolationType::eCubicSpline ) {
-			num_output_per_input = 3;
+			// cubic spline has a multiple of three outputs per input.
+			assert( ( output_accessor.count / input_accessor.count ) / 3 > 0 );
+		} else {
+			// linear, step has one output per input
+			assert( output_accessor.count % input_accessor.count == 0 );
 		}
 
-		le_buffer_view_o const &input_buffer_view  = self->buffer_views[ input_accessor.buffer_view_idx ];
-		le_buffer_view_o const &output_buffer_view = self->buffer_views[ output_accessor.buffer_view_idx ];
+		assert( input_accessor.type == le_compound_num_type::eScalar && "animation input accessor type must be scalar (time)" );
+		assert( output_accessor.component_type == le_num_type::eFloat && "output num type must be float - other types not yet implemented." );
+	}
 
-		le_buffer_o const *input_buffer  = self->buffers[ input_buffer_view.buffer_idx ];
-		le_buffer_o const *output_buffer = self->buffers[ output_buffer_view.buffer_idx ];
+	le_num_type num_type             = output_accessor.component_type;
+	uint32_t    num_output_per_input = output_accessor.count / input_accessor.count;
 
-		// Calculate input, and output stride, in case these are not given explicitly
+	assert( num_output_per_input > 0 && "There must be at least one output per input." );
 
-		uint32_t input_stride =
-		    input_buffer_view.byte_stride
-		        ? input_buffer_view.byte_stride
-		        : size_of( input_accessor.component_type ) * get_num_components( input_accessor.type );
+	le_compound_num_type compound_type = output_accessor.type;
 
-		uint32_t output_stride =
-		    output_buffer_view.byte_stride
-		        ? output_buffer_view.byte_stride
-		        : size_of( num_type ) * get_num_components( compound_type );
+	if ( target_type == LeAnimationTargetType::eRotation ) {
 
-		char *input  = static_cast<char *>( input_buffer->mem );
-		char *output = static_cast<char *>( output_buffer->mem );
+		assert( get_num_components( compound_type ) == get_num_components( le_compound_num_type::eQuat4 ) );
 
-		input += input_buffer_view.byte_offset;
-		output += output_buffer_view.byte_offset;
+		// If type is rotation we change the component type to quaternion
+		// so that interpolations can use slerp rather than lerp on this sampler.
 
-		// TODO: check for overflow
-		for ( uint32_t ia = 0; ia != input_accessor.count; ia++ ) {
-			auto input_data  = input + input_accessor.byte_offset;
-			auto output_data = output + output_accessor.byte_offset;
+		compound_type = le_compound_num_type::eQuat4;
+	}
 
-			le_keyframe_o keyframe{};
-			keyframe.compound_num_type = compound_type;
-			keyframe.num_type          = num_type;
+	le_buffer_view_o const &input_buffer_view  = self->buffer_views[ input_accessor.buffer_view_idx ];
+	le_buffer_view_o const &output_buffer_view = self->buffer_views[ output_accessor.buffer_view_idx ];
 
-			float input_time_seconds = *reinterpret_cast<float *>( input_data );
-			keyframe.delta_ticks     = uint64_t( lroundf( LE_TIME_TICKS_PER_SECOND * input_time_seconds ) );
+	le_buffer_o const *input_buffer  = self->buffers[ input_buffer_view.buffer_idx ];
+	le_buffer_o const *output_buffer = self->buffers[ output_buffer_view.buffer_idx ];
 
-			// For each element in output accessor: load data.
-			//
-			// This generalises to the case when there is just one accessor,
-			// as we assume that the 0 element of an array of type `T` within a union is at
-			// the same offset as the scalar version of type `T` within the union.
-			for ( uint32_t i = 0; i != num_output_per_input; i++ ) {
+	// Calculate input, and output stride, in case these are not given explicitly
 
-				switch ( compound_type ) {
-				case le_compound_num_type::eScalar:
-					keyframe.data.as_scalar_3[ i ] = *reinterpret_cast<float *>( output_data );
-					break;
-				case le_compound_num_type::eVec2:
-					keyframe.data.as_vec2_3[ i ] = *reinterpret_cast<glm::vec2 *>( output_data );
-					break;
-				case le_compound_num_type::eVec3:
-					keyframe.data.as_vec3_3[ i ] = *reinterpret_cast<glm::vec3 *>( output_data );
-					break;
-				case le_compound_num_type::eVec4:
-					keyframe.data.as_vec4_3[ i ] = *reinterpret_cast<glm::vec4 *>( output_data );
-					break;
-				case le_compound_num_type::eQuat4:
-					keyframe.data.as_quat_3[ i ] = *reinterpret_cast<glm::quat *>( output_data );
-					break;
-				default:
-					assert( false ); //unreacahble
-				}
+	uint32_t input_stride =
+	    input_buffer_view.byte_stride
+	        ? input_buffer_view.byte_stride
+	        : size_of( input_accessor.component_type ) * get_num_components( input_accessor.type );
 
-				output_data += output_stride;
+	uint32_t output_stride =
+	    output_buffer_view.byte_stride
+	        ? output_buffer_view.byte_stride
+	        : size_of( num_type ) * get_num_components( compound_type );
+
+	char *input  = static_cast<char *>( input_buffer->mem );
+	char *output = static_cast<char *>( output_buffer->mem );
+
+	input += input_buffer_view.byte_offset;
+	output += output_buffer_view.byte_offset;
+
+	// TODO: check for overflow
+	for ( uint32_t ia = 0; ia != input_accessor.count; ia++ ) {
+		auto input_data  = input + input_accessor.byte_offset;
+		auto output_data = output + output_accessor.byte_offset;
+
+		le_keyframe_o keyframe{};
+		keyframe.compound_num_type = compound_type;
+		keyframe.num_type          = num_type;
+		keyframe.array_size        = uint16_t( num_output_per_input );
+
+		float input_time_seconds = *reinterpret_cast<float *>( input_data );
+		keyframe.delta_ticks     = uint64_t( lroundf( LE_TIME_TICKS_PER_SECOND * input_time_seconds ) );
+
+		// For each element in output accessor: load data.
+		//
+		// This generalises to the case when there is just one accessor,
+		// as we assume that the 0 element of an array of type `T` within a union is at
+		// the same offset as the scalar version of type `T` within the union.
+		for ( uint32_t i = 0; i != num_output_per_input; i++ ) {
+
+			switch ( compound_type ) {
+			case le_compound_num_type::eScalar:
+				keyframe.data.as_scalar[ i ] = *reinterpret_cast<float *>( output_data );
+				break;
+			case le_compound_num_type::eVec2:
+				keyframe.data.as_vec2[ i ] = *reinterpret_cast<glm::vec2 *>( output_data );
+				break;
+			case le_compound_num_type::eVec3:
+				keyframe.data.as_vec3[ i ] = *reinterpret_cast<glm::vec3 *>( output_data );
+				break;
+			case le_compound_num_type::eVec4:
+				keyframe.data.as_vec4[ i ] = *reinterpret_cast<glm::vec4 *>( output_data );
+				break;
+			case le_compound_num_type::eQuat4:
+				keyframe.data.as_quat[ i ] = *reinterpret_cast<glm::quat *>( output_data );
+				break;
+			default:
+				assert( false ); //unreacahble
 			}
 
-			keyframes.emplace_back( keyframe );
-
-			input += input_stride;
-			output += output_stride * num_output_per_input;
+			output_data += output_stride;
 		}
+
+		keyframes.emplace_back( keyframe );
+
+		input += input_stride;
+		output += output_stride * num_output_per_input;
 	}
 
 	return keyframes;
