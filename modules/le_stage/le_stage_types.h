@@ -52,7 +52,7 @@ struct le_primitive_attribute_info {
 		eTexcoord,
 		eColor,
 		eJoints,
-		eWeights,
+		eJointWeights,
 	};
 
 	uint32_t accessor_idx;

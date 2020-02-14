@@ -158,7 +158,7 @@ static le_primitive_attribute_info::Type get_primitive_attribute_type_from_cgltf
 		    case cgltf_attribute_type_texcoord : return le_primitive_attribute_info::Type::eTexcoord; 
 		    case cgltf_attribute_type_color    : return le_primitive_attribute_info::Type::eColor; 
 		    case cgltf_attribute_type_joints   : return le_primitive_attribute_info::Type::eJoints; 
-		    case cgltf_attribute_type_weights  : return le_primitive_attribute_info::Type::eWeights; 
+		    case cgltf_attribute_type_weights  : return le_primitive_attribute_info::Type::eJointWeights; 
 	}
 	// clang-format on
 
