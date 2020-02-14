@@ -1889,7 +1889,9 @@ static void traverse_node( le_node_o *parent ) {
 template <typename T>
 void lerp_animation_target( T *target, T const &val_previous, T const &val_next, float norm_t ) {
 	T blend = glm::mix( val_previous, val_next, norm_t );
-	*target = blend;
+	if ( target ) {
+		*target = blend;
+	}
 }
 
 // Quaternions need to be slerped instead of mixed. They also must be normalised before application.
@@ -1897,7 +1899,9 @@ template <>
 void lerp_animation_target<glm::quat>( glm::quat *target, glm::quat const &val_previous, glm::quat const &val_next, float norm_t ) {
 	glm::quat blend = glm::slerp( val_previous, val_next, norm_t );
 	blend           = glm::normalize( blend );
-	*target         = blend;
+	if ( target ) {
+		*target = blend;
+	}
 }
 
 // ----------------------------------------------------------------------
