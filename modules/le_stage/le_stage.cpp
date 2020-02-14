@@ -203,6 +203,9 @@ struct le_node_o {
 	glm::quat local_rotation;
 	glm::vec3 local_scale;
 
+	float    weights[ 12 ];
+	uint32_t weights_count;
+
 	char name[ 32 ];
 
 	bool local_transform_cached;   // whether local transform is accurate wrt local[translation|rotation|scale]
@@ -1139,7 +1142,7 @@ static uint32_t le_stage_create_animation( le_stage_o *self, le_animation_info *
 			break;
 		case LeAnimationTargetType::eWeights:
 			channel.target_compound_type = le_compound_num_type::eScalar;
-			assert( false ); // TODO: implement morph target weights manipulation
+			channel.target_node_element  = channel.target_node->weights;
 			break;
 		default:
 			assert( false ); // unreachable
@@ -1989,31 +1992,37 @@ static void apply_animation_channel( le_animation_channel_o const &channel, uint
 
 	// apply data to node pointed in channel, based on type.
 
+	assert( previous_key->array_size == next_key->array_size && "keys must have same array size" );
+
 	switch ( channel.target_compound_type ) {
 	case ( le_compound_num_type::eScalar ): {
-		lerp_animation_target<float>( static_cast<float *>( channel.target_node_element ),
-		                              previous_key->data.as_scalar, next_key->data.as_scalar, norm_t );
+		for ( size_t i = 0; i != previous_key->array_size; i++ ) {
+			// If more than one scalar element, this most likely means that
+			// we're updating weights.
+			lerp_animation_target<float>( static_cast<float *>( channel.target_node_element ) + i,
+			                              previous_key->data.as_scalar[ i ], next_key->data.as_scalar[ i ], norm_t );
+		}
 		break;
 	}
 	case ( le_compound_num_type::eVec2 ): {
 		lerp_animation_target<glm::vec2>( static_cast<glm::vec2 *>( channel.target_node_element ),
-		                                  previous_key->data.as_vec2, next_key->data.as_vec2, norm_t );
+		                                  previous_key->data.as_vec2[ 0 ], next_key->data.as_vec2[ 0 ], norm_t );
 		break;
 	}
 	case ( le_compound_num_type::eVec3 ): {
 		lerp_animation_target<glm::vec3>( static_cast<glm::vec3 *>( channel.target_node_element ),
-		                                  previous_key->data.as_vec3, next_key->data.as_vec3, norm_t );
+		                                  previous_key->data.as_vec3[ 0 ], next_key->data.as_vec3[ 0 ], norm_t );
 		break;
 	}
 	case ( le_compound_num_type::eVec4 ): {
 		lerp_animation_target<glm::vec4>( static_cast<glm::vec4 *>( channel.target_node_element ),
-		                                  previous_key->data.as_vec4, next_key->data.as_vec4, norm_t );
+		                                  previous_key->data.as_vec4[ 0 ], next_key->data.as_vec4[ 0 ], norm_t );
 		break;
 	}
 	case ( le_compound_num_type::eQuat4 ): {
 		// note that we distinguish between quat and vec, because interpolation type is different
 		lerp_animation_target<glm::quat>( static_cast<glm::quat *>( channel.target_node_element ),
-		                                  previous_key->data.as_quat, next_key->data.as_quat, norm_t );
+		                                  previous_key->data.as_quat[ 0 ], next_key->data.as_quat[ 0 ], norm_t );
 		break;
 	}
 	default:
