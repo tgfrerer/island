@@ -1776,21 +1776,21 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 				    builder.withAttributeBindingState();
 
 				// We must group our attributes by bufferviews.
-
-				// only if there is interleaving we have more than one attribute per buffer binding
+				//
+				// Only if there is interleaving we have more than one attribute per buffer binding,
 				// otherwise each binding takes its own buffer.
-
+				//
 				// + We must detect interleaving:
 				// - 1. gltf requirement: if bufferview.byteStride != 0, then there is interleaving.
 				// - 2. if more than one accessor refer to the same bufferview, we have interleaving.
-
-				// + we must group by bufferViews.
-				//   each bufferview will mean one binding - as a bufferview refers to a buffer, and an offset into the buffer
-
+				//
+				// We must group by bufferViews: Each bufferview will mean one binding -
+				// as each bufferview refers to a buffer, and an offset into that buffer
+				//
 				// Q: if there is interleaving, does this mean that two or more accessors refer to the same
 				// bufferview?
-
-				//	+ multiple accessors may refer to the same bufferView, in which case each accessor
+				//
+				// A: yes, in that case multiple accessors may refer to the same bufferView, in which case each accessor
 				//    defines a byteOffset to specify where it starts within the bufferView.
 
 				// Note: iterator is increased in inner do-while loop
@@ -1817,13 +1817,12 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 						// Add attributes until buffer_view_idx changes.
 						// in which case we want to open the next binding.
-
+						//
 						// if the buffer_view_idx doesn't change, this means that we are still within the same
 						// binding, because then we have interleaving.
-
+						//
 						// every accessor mapping the same buffer will go into the same binding number
 						// because that's what the encoder will bind in the end.
-						// if things are interleaved we
 						binding.addAttribute( uint16_t( accessor->byte_offset ),
 						                      accessor->component_type,
 						                      get_num_components( accessor->type ), // calculate number of components
