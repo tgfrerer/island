@@ -163,6 +163,11 @@ struct le_material_o {
 	std::vector<UboTextureParamsSlice> cached_texture_params; // cached: texture parameters from texture_infos
 };
 
+struct le_morph_target_o {
+	std::vector<le_attribute_o> attributes;
+	const char                  name[ 32 ];
+};
+
 struct le_primitive_o {
 	std::vector<uint64_t>             bindings_buffer_offsets; // cached: offset into each buffer_handle when binding
 	std::vector<le_resource_handle_t> bindings_buffer_handles; // cached: bufferviews sorted and grouped based on accessors
@@ -175,6 +180,8 @@ struct le_primitive_o {
 	uint64_t all_defines_hash;                                 // cached: hash over all shader defines
 	                                                           //
 	std::vector<le_attribute_o> attributes;                    // vertex data lookup
+
+	std::vector<le_morph_target_o> morph_targets; // morph targets, if any. each morph target must have same number of attributes, and attribute types must match for each morph target
 
 	uint32_t indices_accessor_idx;
 	uint32_t material_idx;
