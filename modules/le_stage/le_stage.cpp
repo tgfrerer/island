@@ -1809,6 +1809,9 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 		std::string defines = vertex_input_defines_hash_to_defines_str[ shader.second.signature.hash_vertex_input_defines ];
 		defines             = defines + materials_defines_hash_to_defines_str[ shader.second.signature.hash_materials_defines ];
 
+		std::cout << "Creating shader instance using defines: \n\t'-D" << defines << "'" << std::endl
+		          << std::flush;
+
 		shader.second.vert = renderer_i.create_shader_module(
 		    stage->renderer,
 		    "./local_resources/shaders/gltf.vert",
@@ -1817,9 +1820,6 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 		shader.second.frag = renderer_i.create_shader_module(
 		    stage->renderer, "./local_resources/shaders/metallic-roughness.frag",
 		    {le::ShaderStage::eFragment}, defines.c_str() );
-
-		std::cout << "Created shader instance using defines: \n\t'-D" << defines << "'" << std::endl
-		          << std::flush;
 	}
 
 	std::unordered_map<le_gpso_handle_t *, uint64_t> pipelineCount;
@@ -1874,6 +1874,8 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 				primitive.bindings_buffer_handles.clear();
 				primitive.bindings_buffer_offsets.clear();
+
+				// Calculate Attribute Bindings for this PSO.
 
 				auto &abs =
 				    builder.withAttributeBindingState();
