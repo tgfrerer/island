@@ -1702,23 +1702,77 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 			std::stringstream defines;
 
-			uint32_t location       = 0; // location 0 is used for position attribute, which is mandatory.
-			uint32_t num_tex_coords = 0; // keep running tally of number of tex_coord attributes per primitive
+			auto const attr_begin = primitive.attributes.data();
+			auto const attr_end   = attr_begin + primitive.attributes.size();
 
-			for ( auto it : primitive.attributes ) {
+			{
+				// Find out if the primitive has morph targets - as this will
+				// inform the number of locations which each attribute occupies.
+				//
+				uint32_t morph_target_count = uint32_t( primitive.morph_target_count );
+				uint32_t location           = 0; // current location for attribute.
 
-				// clang-format off
-					switch ( it.type ) {
-					case ( le_primitive_attribute_info::Type::eNormal    ): defines << "HAS_NORMALS="   << ++location << "," ; break;
-					case ( le_primitive_attribute_info::Type::eTangent   ): defines << "HAS_TANGENTS="  << ++location << "," ; break;
-					case ( le_primitive_attribute_info::Type::eTexcoord  ): defines << "HAS_TEXCOORD_"  << num_tex_coords++ <<  "=" << ++location << "," ; break;
-					case ( le_primitive_attribute_info::Type::eColor     ): defines << "HAS_COLORS="    << ++location << "," ; break;
-					case ( le_primitive_attribute_info::Type::eJoints    ): defines << "HAS_JOINTS="    << ++location << "," ; break;
-					case ( le_primitive_attribute_info::Type::eJointWeights   ): defines << "HAS_JOINT_WEIGHTS="   << ++location << "," ; break;
-					default: break;
+				// TODO: check number of requested locations against device limits.
+				//
+				// uint32_t max_location = primitive.attributes.size() ;
+				// assert(max_location < 17 && "cannot not bind more than 16 locations.");
+
+				for ( auto attr = attr_begin; attr != attr_end; ) {
+
+					// Find out how how many attibutes of the same type each exist
+					// (this gives us the array size per attribute)
+
+					uint32_t num_array_elements = 0;
+					for ( auto a = attr; a != attr_end && a->type == attr->type; a++, num_array_elements++ ) {
 					}
-				// clang-format on
+
+					switch ( attr->type ) {
+					case ( le_primitive_attribute_info::Type::ePosition ):
+						defines << "LOC_POSITIONS=" << location << ",";
+						defines << "NUM_POSITIONS=" << num_array_elements << ",";
+						if ( num_array_elements > 1 ) {
+							assert( num_array_elements == ( morph_target_count + 1 ) && "number of array elements must match 1 + morph_target_count" );
+						}
+						break;
+					case ( le_primitive_attribute_info::Type::eNormal ):
+						defines << "LOC_NORMALS=" << location << ",";
+						defines << "NUM_NORMALS=" << num_array_elements << ",";
+						if ( num_array_elements > 1 ) {
+							assert( num_array_elements == ( morph_target_count + 1 ) && "number of array elements must match 1 + morph_target_count" );
+						}
+						break;
+					case ( le_primitive_attribute_info::Type::eTangent ):
+						defines << "LOC_TANGENTS=" << location << ",";
+						defines << "NUM_TANGENTS=" << num_array_elements << ",";
+						if ( num_array_elements > 1 ) {
+							assert( num_array_elements == ( morph_target_count + 1 ) && "number of array elements must match 1 + morph_target_count" );
+						}
+						break;
+					case ( le_primitive_attribute_info::Type::eTexcoord ):
+						defines << "LOC_TEXCOORDS=" << location << ",";
+						defines << "NUM_TEXCOORDS=" << num_array_elements << ",";
+						break;
+					case ( le_primitive_attribute_info::Type::eColor ):
+						defines << "LOC_COLORS=" << location << ",";
+						defines << "NUM_COLORS=" << num_array_elements << ",";
+						break;
+					case ( le_primitive_attribute_info::Type::eJoints ):
+						defines << "LOC_JOINTS=" << location << ",";
+						defines << "NUM_JOINTS=" << num_array_elements << ",";
+						break;
+					case ( le_primitive_attribute_info::Type::eJointWeights ):
+						defines << "LOC_JOINT_WEIGHTS=" << location << ",";
+						defines << "NUM_JOINT_WEIGHTS=" << num_array_elements << ",";
+						break;
+					default:
+						break;
+					}
+
+					location += num_array_elements;
+					attr += num_array_elements;
+				}
 			}
+
 			std::string vertex_input_defines = defines.str();
 
 			uint64_t vertex_input_defines_hash = SpookyHash::Hash64( vertex_input_defines.data(),
