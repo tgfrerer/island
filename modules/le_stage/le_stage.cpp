@@ -206,8 +206,8 @@ struct le_node_o {
 	glm::quat local_rotation;
 	glm::vec3 local_scale;
 
-	float    weights[ 12 ];
-	uint32_t weights_count;
+	float weights[ 12 ]; // Morph target weights; These apply to all primitives in meshes associated with this node...
+	//	uint32_t weights_count; // TODO: we must set this via morph target count.
 
 	char name[ 32 ];
 
@@ -1476,6 +1476,26 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 					    .setArgumentData( LE_ARGUMENT_NAME( "UboMatrices" ), &mvp_ubo, sizeof( UboMatrices ) )
 					    .setViewports( 0, 1, &viewports[ 0 ] );
 
+					if ( primitive.morph_target_count > 0 ) {
+
+						// This primitive has morph targets - we must upload the current weigths for the morph targets.
+						//
+						// NOTE: We upload the morph target weights tightly packed -
+						// this means the shader will expext these to be a vec4 of
+						// floats.
+						encoder.setArgumentData( LE_ARGUMENT_NAME( "UboMorphTargetWeights" ), n->weights,
+						                         sizeof( glm::vec4 ) * ( ( primitive.morph_target_count + 3 ) / 4 ) );
+
+						if ( false ) {
+							std::cout << "weights: " << std::dec;
+							for ( auto i = 0; i != primitive.morph_target_count; i++ ) {
+								std::cout << std::setw( 8 ) << n->weights[ i ] << ", ";
+							}
+							std::cout << std::endl
+							          << std::flush;
+						}
+					}
+
 					if ( primitive.has_material ) {
 
 						auto const &material = stage->materials[ primitive.material_idx ];
@@ -1711,6 +1731,10 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 				//
 				uint32_t morph_target_count = uint32_t( primitive.morph_target_count );
 				uint32_t location           = 0; // current location for attribute.
+
+				if ( morph_target_count ) {
+					defines << "MORPH_TARGET_COUNT=" << morph_target_count << ",";
+				}
 
 				// TODO: check number of requested locations against device limits.
 				//
