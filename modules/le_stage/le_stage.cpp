@@ -109,9 +109,17 @@ struct le_accessor_o {
 
 struct le_attribute_o {
 	le_primitive_attribute_info::Type type;
-	std::string                       name;
 	uint32_t                          index;
 	uint32_t                          accessor_idx;
+	union morph_target_union_t {
+		struct morph_target_t {
+			uint16_t idx;       // index of morph target this attribute belongs to
+			uint16_t is_target; // whether this attribute belongs to a morph target
+		} target;
+		uint32_t target_data;
+	} morph;
+
+	std::string name;
 };
 
 struct le_texture_view_o {
