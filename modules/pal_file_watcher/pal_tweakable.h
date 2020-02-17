@@ -89,16 +89,18 @@ struct CbData {
 		uint64_t raw;
 	};
 
-	uint32_t line_num;
-	Type     type;
-	Data     data;
+	uint32_t       line_num;
+	Type           type;
+	Data           data;
+	struct CbData *next; // linked list.
 
 #	define INITIALISER( T, TID )                          \
-	    explicit CbData( uint32_t line_num_, TID param ) { \
-	        line_num = line_num_;                          \
-	        data.T   = param;                              \
-	        type     = Type::T;                            \
-        }
+		explicit CbData( uint32_t line_num_, TID param ) { \
+			line_num = line_num_;                          \
+			data.T   = param;                              \
+			type     = Type::T;                            \
+			next     = nullptr;                            \
+		}
 
 	INITIALISER( u64, uint64_t )
 	INITIALISER( u32, uint32_t )
@@ -117,116 +119,170 @@ static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 	watch.filePath           = file_path;
 	watch.callback_user_data = cb_data;
 
-	watch.callback_fun = []( const char *path, void *user_data ) -> bool {
-		auto cb_data = static_cast<CbData *>( user_data );
+	// Only open source file once per translation unit - we ensure this
+	// by storing all callback data in a linked list, and we're
+	// adding to the end of the linked list if we detect that
+	// there's already an element in the list.
+	//
+	// The callback itself is only added once, but will receive its user_data
+	// parameter containing a linked list of all other tweakable watches for
+	// this file.
+	//
+	// If the file triggers a callback, we go through all elements
+	// in the linked list of callback parameters, and apply the values we
+	// parse from the file at the given line numbers per list item.
+	static CbData *has_previous_cb = nullptr;
 
-		// Open file read-only.
-		// Print line at correct line number.
+	if ( nullptr == has_previous_cb ) {
 
-		std::ifstream file( path, std::ios::in );
+		watch.callback_fun = []( const char *path, void *user_data ) -> bool {
+			auto cb_data = static_cast<CbData *>( user_data );
 
-		if ( !file.is_open() ) {
-			std::cerr << "Unable to open file: " << path << std::endl
-			          << std::flush;
-			return false;
-		}
+			// Open file read-only.
+			// Print line at correct line number.
 
-		// line number  means we must seek until we find the number of newlines
-		// then we may extract the token which sets the value.
+			std::ifstream file( path, std::ios::in );
 
-		size_t current_line_num = 1;
-		while ( file.good() ) {
-			std::string str;
-			std::getline( file, str );
-
-			if ( current_line_num == cb_data->line_num ) {
-
-				// Find chunk which actually designates data:
-
-				auto start = strstr( str.c_str(), "TWEAK" );
-
-				if ( start == nullptr ) {
-					std ::cout << "Could not tweak line: " << std::dec << cb_data->line_num << std::endl
-					           << std::flush;
-					std::cout << "Line contents: " << str << std::endl
-					          << std::flush;
-					return false;
-				}
-
-				CbData::Data old_data;
-				old_data.raw = cb_data->data.raw;
-
-				// Set data based on data type
-				//
-				// note: Whitespace in scanf format string means "zero or many"
-				//
-				switch ( cb_data->type ) {
-				case CbData::Type::u64:
-					sscanf( start, "TWEAK ( %lu ) ", &cb_data->data.u64 );
-				    break;
-				case CbData::Type::i64:
-					sscanf( start, "TWEAK ( %li ) ", &cb_data->data.i64 );
-				    break;
-				case CbData::Type::i32:
-					sscanf( start, "TWEAK ( %d ) ", &cb_data->data.i32 );
-				    break;
-				case CbData::Type::u32:
-					sscanf( start, "TWEAK ( %ud ) ", &cb_data->data.u32 );
-				    break;
-				case CbData::Type::f32:
-					sscanf( start, "TWEAK ( %f ) ", &cb_data->data.f32 );
-				    break;
-				case CbData::Type::f64:
-					sscanf( start, "TWEAK ( %lf ) ", &cb_data->data.f64 );
-				    break;
-				case CbData::Type::b32: {
-					char token[ 6 ];
-					sscanf( start, "TWEAK ( %5c ) ", token );
-					if ( strncmp( token, "true", 4 ) == 0 ) {
-						cb_data->data.b32 = true;
-					} else if ( strncmp( token, "false", 5 ) == 0 ) {
-						cb_data->data.b32 = false;
-					} else {
-						// invalid token
-					}
-
-				} break;
-				} // end switch ( cb_data->type )
-
-				if ( cb_data->data.raw != old_data.raw ) {
-					std::cout << "Applied tweak: " << str << std::endl
-					          << std::flush;
-				}
-
-				break;
+			if ( !file.is_open() ) {
+				std::cerr << "Unable to open file: " << path << std::endl
+				          << std::flush;
+				return false;
 			}
 
-			++current_line_num;
-		} // while ( file.good() )
+			bool tweaks_remaining = true; // whether there are tweaks left to process.
+			                              // we use this flag to signal early exit if
+			                              // we know that there are no more tweaks left.
 
-		file.close();
+			// line number  means we must seek until we find the number of newlines
+			// then we may extract the token which sets the value.
 
-		return true;
-	}; // watch.callback_fun
+			size_t current_line_num = 1;
+			while ( file.good() && tweaks_remaining ) {
+				std::string str;
+				std::getline( file, str );
 
-	return aux_file_watcher_i.add_watch( aux_source_watcher, watch );
+				char const *str_start = str.c_str();
+
+				while ( current_line_num == cb_data->line_num ) {
+
+					// Find chunk which actually designates data:
+
+					str_start = strstr( str_start, "TWEAK" );
+
+					if ( str_start == nullptr ) {
+						std ::cout << "Could not tweak line: " << std::dec << cb_data->line_num << std::endl
+						           << std::flush;
+						std::cout << "Line contents: " << str << std::endl
+						          << std::flush;
+						return false;
+					}
+
+					CbData::Data old_data;
+					old_data.raw = cb_data->data.raw;
+
+					// Set data based on data type
+					//
+					// note: Whitespace in scanf format string means "zero or many"
+					//
+					switch ( cb_data->type ) {
+					case CbData::Type::u64:
+						sscanf( str_start, "TWEAK ( %lu ) ", &cb_data->data.u64 );
+						break;
+					case CbData::Type::i64:
+						sscanf( str_start, "TWEAK ( %li ) ", &cb_data->data.i64 );
+						break;
+					case CbData::Type::i32:
+						sscanf( str_start, "TWEAK ( %d ) ", &cb_data->data.i32 );
+						break;
+					case CbData::Type::u32:
+						sscanf( str_start, "TWEAK ( %ud ) ", &cb_data->data.u32 );
+						break;
+					case CbData::Type::f32:
+						sscanf( str_start, "TWEAK ( %f ) ", &cb_data->data.f32 );
+						break;
+					case CbData::Type::f64:
+						sscanf( str_start, "TWEAK ( %lf ) ", &cb_data->data.f64 );
+						break;
+					case CbData::Type::b32: {
+						char token[ 6 ];
+						sscanf( str_start, "TWEAK ( %5c ) ", token );
+						if ( strncmp( token, "true", 4 ) == 0 ) {
+							cb_data->data.b32 = true;
+						} else if ( strncmp( token, "false", 5 ) == 0 ) {
+							cb_data->data.b32 = false;
+						} else {
+							// invalid token
+						}
+
+					} break;
+					} // end switch ( cb_data->type )
+
+					if ( cb_data->data.raw != old_data.raw && str_start ) {
+						// Applied tweak.
+						long        len = strstr( str_start, ")" ) - str_start;
+						std::string s   = {str_start, str_start + len + 1};
+						std::cout << "Applied tweak at line #" << current_line_num << ": " << s << std::endl
+						          << std::flush;
+					}
+
+					// -- Check if there is a next tweak in our linked list of tweaks.
+					// If yes, we must continue processing the file.
+					// Is it on the same line?
+					//   In that case offset str_start, and process line again
+					//
+					if ( cb_data->next ) {
+						if ( cb_data->next->line_num == cb_data->line_num ) {
+							// We offset `str_start` by one, so that we can begin searching
+							// for the next `TWEAK` token on the same line.
+							cb_data = cb_data->next;
+							str_start++;
+							continue;
+						} else {
+							cb_data = cb_data->next;
+						}
+					} else {
+						// No next element in cb_data.
+						//
+						// We can signal that we're done with this file.
+						tweaks_remaining = false;
+					}
+					break;
+				}
+				current_line_num++;
+
+			} // while ( file.good() )
+
+			file.close();
+
+			return true;
+		}; // watch.callback_fun
+
+		has_previous_cb = cb_data;
+
+		return aux_file_watcher_i.add_watch( aux_source_watcher, watch );
+	} else {
+		// Add to linked list instead of adding a new callback for this file.
+		has_previous_cb->next = cb_data;
+		has_previous_cb       = cb_data;
+		return 0;
+	}
 };
 
-    // ----------------------------------------------------------------------
+	// ----------------------------------------------------------------------
 
 #	define TWEAK( x )                                                                              \
-	    []( auto val, uint32_t line, char const *file_path )                                        \
-	        -> decltype( val ) & {                                                                  \
-	        static CbData cb_data( line, val );                                                     \
-	        static int    val_watch = tweakable_add_watch( &cb_data, file_path );                   \
-	        ( void )val_watch; /* <- this does nothing, only to suppress unused variable warning */ \
-	        return reinterpret_cast<decltype( val ) &>( cb_data.data );                             \
-	    }( x, __LINE__, __FILE__ )
+		[]( auto val, uint32_t line, char const *file_path )                                        \
+		    -> decltype( val ) & {                                                                  \
+			static CbData cb_data( line, val );                                                     \
+			static int    val_watch = tweakable_add_watch( &cb_data, file_path );                   \
+			( void )val_watch; /* <- this does nothing, only to suppress unused variable warning */ \
+			return reinterpret_cast<decltype( val ) &>( cb_data.data );                             \
+		}( x, __LINE__, __FILE__ )
 
-    // ----------------------------------------------------------------------
+	// ----------------------------------------------------------------------
 
 #	define UPDATE_TWEAKS() \
-	    aux_file_watcher_i.poll_notifications( aux_source_watcher )
+		aux_file_watcher_i.poll_notifications( aux_source_watcher )
 
 #else
 
