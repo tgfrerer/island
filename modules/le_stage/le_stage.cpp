@@ -791,14 +791,13 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 			}
 
 			auto attr_sort_criteria = []( le_attribute_o const &lhs, le_attribute_o const &rhs ) -> bool {
-				// sort by type first, then name.
+				// Sort by type first, then index, then morph_target data
 				return ( lhs.type != rhs.type
 				             ? lhs.type < rhs.type
-				             : lhs.name < rhs.name );
+				             : lhs.index != rhs.index
+				                   ? lhs.index < rhs.index
+				                   : lhs.morph.target_data < rhs.morph.target_data );
 			};
-
-			// -- Sort attributes by type so that they are in the correct order for shader bindings.
-			std::sort( primitive.attributes.begin(), primitive.attributes.end(), attr_sort_criteria );
 
 			// -- Parse primitive morph targets (if any)
 			//
@@ -810,9 +809,8 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 			le_morph_target_info_t const *mti_begin = p->morph_targets;
 			auto const                    mti_end   = mti_begin + p->morph_targets_count;
 
-			for ( auto mti = mti_begin; mti != mti_end; mti++ ) {
-
-				le_morph_target_o morph_target{};
+			uint32_t morph_target_idx = 0;
+			for ( auto mti = mti_begin; mti != mti_end; mti++, morph_target_idx++ ) {
 
 				// Iterate over all attributes within current morph target.
 
@@ -824,17 +822,20 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 					if ( attr->name ) {
 						attribute.name = std::string( attr->name );
 					}
-					attribute.index        = attr->index;
-					attribute.accessor_idx = attr->accessor_idx;
-					attribute.type         = attr->type;
-					morph_target.attributes.emplace_back( attribute );
+					attribute.index                  = attr->index;
+					attribute.accessor_idx           = attr->accessor_idx;
+					attribute.type                   = attr->type;
+					attribute.morph.target.is_target = true;
+					attribute.morph.target.idx       = uint16_t( morph_target_idx );
+					primitive.attributes.emplace_back( attribute );
 				}
-
-				// -- Sort attributes by type so that they are in the correct order for shader bindings.
-				std::sort( morph_target.attributes.begin(), morph_target.attributes.end(), attr_sort_criteria );
-
-				primitive.morph_targets.emplace_back( morph_target );
 			}
+
+			primitive.morph_target_count = p->morph_targets_count;
+
+			// -- Sort attributes by type, and morph target, so that they are in
+			//    correct order for shader bindings.
+			std::sort( primitive.attributes.begin(), primitive.attributes.end(), attr_sort_criteria );
 
 			if ( p->has_indices ) {
 				primitive.has_indices          = true;
