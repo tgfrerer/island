@@ -1481,8 +1481,8 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 						// This primitive has morph targets - we must upload the current weigths for the morph targets.
 						//
 						// NOTE: We upload the morph target weights tightly packed -
-						// this means the shader will expext these to be a vec4 of
-						// floats.
+						// this means the shader will receive them as vec4s, which
+						// every 4 floats (if available) grouped together into one vec4.
 						encoder.setArgumentData( LE_ARGUMENT_NAME( "UboMorphTargetWeights" ), n->weights,
 						                         sizeof( glm::vec4 ) * ( ( primitive.morph_target_count + 3 ) / 4 ) );
 
