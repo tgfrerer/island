@@ -227,9 +227,8 @@ static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 
 					// -- Check if there is a next tweak in our linked list of tweaks.
 					// If yes, we must continue processing the file.
-					// Is it on the same line?
-					//   In that case offset str_start, and process line again
-					//
+					//   Is it on the same line?
+					//     In that case offset str_start, and process line again
 					if ( cb_data->next ) {
 						if ( cb_data->next->line_num == cb_data->line_num ) {
 							// We offset `str_start` by one, so that we can begin searching
