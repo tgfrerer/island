@@ -1243,7 +1243,7 @@ static uint32_t le_stage_create_skin( le_stage_o *self, le_skin_info const *info
 		assert( buffView.byte_length = uint32_t( mat_byte_count ) && "Buffer must hold enough bytes of memory for joints matrices" );
 		assert( buf->owns_mem && "Buffer must own its own memory" );
 
-		glm::mat4 *matrices = reinterpret_cast<glm::mat4 *>( static_cast<char *>( buf->mem ) + buffView.byte_offset );
+		glm::mat4 *matrices = reinterpret_cast<glm::mat4 *>( static_cast<char *>( buf->mem ) + buffView.byte_offset + acc.byte_offset );
 		memcpy( skin->inverse_bind_matrices.data(), matrices, mat_byte_count );
 
 	} else {
