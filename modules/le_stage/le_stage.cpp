@@ -185,6 +185,8 @@ struct le_primitive_o {
 	std::vector<le_attribute_o> attributes;                    // attributes (may also contain morph target attributes)
 	                                                           //
 	uint32_t morph_target_count;                               // number of morph targets (default 0)
+	                                                           //
+	uint32_t num_joints_sets;                                  // number of joints sets (for skinning) (default 0)
 
 	uint32_t indices_accessor_idx;
 	uint32_t material_idx;
@@ -855,6 +857,30 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 			if ( p->has_material ) {
 				primitive.has_material = true;
 				primitive.material_idx = p->material_idx;
+			}
+
+			{
+				// -- Calculate the number of joints sets and weights sets used by this
+				// primitve using attribute information. We use this to set aside memory
+				// for joint matrices; Each joints set requires 4 matrices, one mat4 for
+				// each joint. There are 4 joints in a joints set.
+
+				auto count_joints_sets =
+				    std::count_if( primitive.attributes.begin(),
+				                   primitive.attributes.end(),
+				                   []( le_attribute_o const &attr ) {
+					                   return attr.type == le_primitive_attribute_info::Type::eJoints;
+				                   } );
+				auto count_weights_sets =
+				    std::count_if( primitive.attributes.begin(),
+				                   primitive.attributes.end(),
+				                   []( le_attribute_o const &attr ) {
+					                   return attr.type == le_primitive_attribute_info::Type::eJointWeights;
+				                   } );
+
+				assert( count_joints_sets == count_weights_sets && "number of joint weights and joint sets must be identical for mesh." );
+
+				primitive.num_joints_sets = uint32_t( count_joints_sets );
 			}
 
 			mesh.primitives.emplace_back( primitive );
