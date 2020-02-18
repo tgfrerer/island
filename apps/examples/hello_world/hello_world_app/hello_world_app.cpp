@@ -104,7 +104,7 @@ static glm::vec4 lensflareData[] = {
 
 static void hello_world_app_process_ui_events( hello_world_app_o *self );                                                                                                                                                           // ffdecl
 static void reset_camera( hello_world_app_o *self );                                                                                                                                                                                // ffdecl
-static bool initialiseImage( Image &img, char const *path, uint32_t mipLevels = 1, le_pixels_info::TYPE const &pixelType = le_pixels_info::eUInt8, le::Format const &imgFormat = le::Format::eR8G8B8A8Unorm, int numChannels = 4 ); // ffdecl
+static bool initialiseImage( Image &img, char const *path, uint32_t mipLevels = 1, le_pixels_info::Type const &pixelType = le_pixels_info::eUInt8, le::Format const &imgFormat = le::Format::eR8G8B8A8Unorm, int numChannels = 4 ); // ffdecl
 
 // ----------------------------------------------------------------------
 
@@ -164,7 +164,7 @@ static hello_world_app_o *hello_world_app_create() {
 	// load pixels for earth albedo
 
 	initialiseImage( app->imgEarthAlbedo, "./local_resources/images/world_winter.jpg", 10 );
-	initialiseImage( app->imgEarthNight, "./local_resources/images/earth_city_lights_8192_rs.png", 10, le_pixels_info::TYPE::eUInt8, le::Format::eR8Unorm, 1 );
+	initialiseImage( app->imgEarthNight, "./local_resources/images/earth_city_lights_8192_rs.png", 10, le_pixels_info::Type::eUInt8, le::Format::eR8Unorm, 1 );
 	initialiseImage( app->imgEarthClouds, "./local_resources/images/storm_clouds_8k.jpg", 10 );
 	initialiseImage( app->imgEarthNormals, "./local_resources/images/earthNormalMap_8k-sobel.tga", 10, le_pixels_info::eUInt16, le::Format::eR16G16B16A16Unorm );
 
@@ -176,7 +176,7 @@ static hello_world_app_o *hello_world_app_create() {
 
 // ----------------------------------------------------------------------
 // FIXME: miplevels parameter placement is weird.
-static bool initialiseImage( Image &img, char const *path, uint32_t mipLevels, le_pixels_info::TYPE const &pixelType, le::Format const &imgFormat, int numChannels ) {
+static bool initialiseImage( Image &img, char const *path, uint32_t mipLevels, le_pixels_info::Type const &pixelType, le::Format const &imgFormat, int numChannels ) {
 	using namespace le_pixels;
 	img.pixels     = le_pixels_i.create( path, numChannels, pixelType );
 	img.pixelsInfo = le_pixels_i.get_info( img.pixels );
