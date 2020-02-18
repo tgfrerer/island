@@ -223,7 +223,7 @@ struct le_node_o {
 	bool     has_camera;
 	uint32_t camera_idx;
 
-	struct le_skin_o *skin; // optional, non-owning
+	struct le_skin_o *skin; // Optional, non-owning
 
 	uint64_t scene_bit_flags; // one bit for every scene this node is included in
 
