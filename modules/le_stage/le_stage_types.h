@@ -191,15 +191,26 @@ struct le_animation_info {
 	uint32_t                   channels_count;
 };
 
+struct le_skin_info {
+	uint32_t *node_indices;       // joints
+	uint32_t  node_indices_count; // joints count
+	uint32_t  skeleton_node_index;
+	bool      has_skeleton_node_index;
+	uint32_t  inverse_bind_matrices_accessor_idx;
+	bool      has_inverse_bind_matrices_accessor_idx;
+};
+
 struct le_node_info {
 	uint32_t *child_indices;
 	uint32_t  child_indices_count;
 
-	uint32_t mesh; // index into stage's mesh array
-	bool     has_mesh;
-
-	uint32_t camera; // index into stage's camera array
-	bool     has_camera;
+	uint32_t mesh;   // index into stage's mesh   array, only valid if has_mesh   == true
+	uint32_t camera; // index into stage's camera array, only valid if has_camera == true
+	uint32_t skin;   // index into stage's skin   array, only valid if has_skin   == true
+	                 //
+	bool has_mesh;   // whether this node has a mesh
+	bool has_camera; // whether this node has a camera
+	bool has_skin;   // whether this node has a skin
 
 	char *name;
 
