@@ -255,6 +255,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	std::unordered_map<cgltf_scene const *, uint32_t>             scenes_map;
 	std::unordered_map<cgltf_animation_sampler const *, uint32_t> animation_samplers_map;
 	std::unordered_map<cgltf_animation const *, uint32_t>         animations_map;
+	std::unordered_map<cgltf_skin const *, uint32_t>              skins_map;
 
 	uint32_t default_sampler_idx = 0; // id for default sampler, in case texture does not specify sampler.
 
@@ -840,6 +841,59 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 			if ( n.child_indices ) {
 				free( n.child_indices );
+			}
+		}
+	}
+
+	{ // -- upload skin info
+
+		cgltf_skin const *      skins_begin = self->data->skins;
+		cgltf_skin const *const skins_end   = skins_begin + self->data->skins_count;
+
+		for ( auto skin = skins_begin; skin != skins_end; skin++ ) {
+
+			le_skin_info info{};
+
+			if ( skin->skeleton ) {
+				info.has_skeleton_node_index = true;
+				info.skeleton_node_index     = nodes_map.at( skin->skeleton );
+			}
+
+			if ( skin->inverse_bind_matrices ) {
+				info.has_inverse_bind_matrices_accessor_idx = true;
+				info.inverse_bind_matrices_accessor_idx     = accessor_map.at( skin->inverse_bind_matrices );
+			}
+
+			cgltf_node const *const *joints_begin = skin->joints;
+			cgltf_node const *const *joints_end   = skin->joints + skin->joints_count;
+
+			std::vector<uint32_t> joints_indices;
+			joints_indices.reserve( skin->joints_count );
+
+			for ( auto joint = joints_begin; joint != joints_end; joint++ ) {
+				joints_indices.push_back( nodes_map.at( *joint ) );
+			}
+
+			info.node_indices       = joints_indices.data();
+			info.node_indices_count = uint32_t( joints_indices.size() );
+
+			uint32_t skin_idx = le_stage_i.create_skin( stage, &info );
+			skins_map.insert( {skin, skin_idx} );
+		}
+	}
+
+	{
+
+		// Patch nodes which have skins - we must do this after uploading nodes, because
+		// skins themselves refer to nodes, and we can only refer to nodes which we have
+		// already created in stage.
+
+		cgltf_node const *nodes_begin = self->data->nodes;
+		auto              nodes_end   = nodes_begin + self->data->nodes_count;
+
+		for ( auto n = nodes_begin; n != nodes_end; n++ ) {
+			if ( n->skin ) {
+				le_stage_i.node_set_skin( stage, nodes_map.at( n ), skins_map.at( n->skin ) );
 			}
 		}
 	}
