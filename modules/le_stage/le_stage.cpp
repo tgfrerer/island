@@ -200,6 +200,7 @@ struct le_mesh_o {
 
 struct le_node_o {
 	glm::mat4 global_transform;
+	glm::mat4 inverse_global_transform;
 	glm::mat4 local_transform;
 
 	glm::vec3 local_translation;
@@ -1425,7 +1426,7 @@ static bool stage_get_camera( le_stage_o const *stage, uint32_t scene_idx, uint3
 	// Calculate: View Matrix is inverse global transform of the camera's node matrix.
 
 	if ( camera_view_matrix ) {
-		*camera_view_matrix = glm::inverse( found_camera_node->global_transform );
+		*camera_view_matrix = found_camera_node->inverse_global_transform;
 	}
 
 	// Calculate: Projection Matrix depends on type of camera.
@@ -1532,7 +1533,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 					}
 
 					mvp_ubo.modelMatrix  = n->global_transform;
-					mvp_ubo.normalMatrix = glm::transpose( glm::inverse( n->global_transform ) );
+					mvp_ubo.normalMatrix = glm::transpose( n->inverse_global_transform );
 
 					encoder
 					    .bindGraphicsPipeline( primitive.pipeline_state_handle )
@@ -2069,15 +2070,6 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 // ----------------------------------------------------------------------
 
-static void traverse_node( le_node_o *parent ) {
-
-	for ( le_node_o *c : parent->children ) {
-		c->global_transform = parent->global_transform * c->local_transform;
-		traverse_node( c );
-		c->global_transform_chached = true;
-	}
-}
-
 template <typename T>
 void lerp_animation_target( T *target, T const &val_previous, T const &val_next, float norm_t ) {
 	T blend = glm::mix( val_previous, val_next, norm_t );
@@ -2181,6 +2173,18 @@ static void apply_animation_channel( le_animation_channel_o const &channel, uint
 
 // ----------------------------------------------------------------------
 
+static void traverse_node( le_node_o *parent ) {
+
+	for ( le_node_o *c : parent->children ) {
+		c->global_transform         = parent->global_transform * c->local_transform;
+		c->inverse_global_transform = glm::inverse( c->global_transform );
+		traverse_node( c );
+		c->global_transform_chached = true;
+	}
+}
+
+// ----------------------------------------------------------------------
+
 /// \brief updates scene graph - call this exactly once per frame.
 static void le_stage_update( le_stage_o *self ) {
 
@@ -2238,11 +2242,13 @@ static void le_stage_update( le_stage_o *self ) {
 	}
 
 	// -- Update global transform matrices.
+	// -- while we are at it, we also calculate inverse global transforms.
 	// -- recurse over nodes, starting with root nodes of scene.
 
 	for ( le_scene_o const &s : self->scenes ) {
 		for ( le_node_o *n : s.root_nodes ) {
-			n->global_transform = n->local_transform;
+			n->global_transform         = n->local_transform;
+			n->inverse_global_transform = glm::inverse( n->global_transform );
 			traverse_node( n );
 		}
 	}
