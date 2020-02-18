@@ -2184,7 +2184,8 @@ static void apply_animation_channel( le_animation_channel_o const &channel, uint
 /// \brief updates scene graph - call this exactly once per frame.
 static void le_stage_update( le_stage_o *self ) {
 
-	// -- update animations if these exist.
+	// -- update animations if these exist - animations apply to
+	// node's local transforms TRS, W
 
 	if ( self->timebase ) {
 		using namespace le_timebase;
@@ -2219,7 +2220,7 @@ static void le_stage_update( le_stage_o *self ) {
 		}
 	}
 
-	// -- Ensure all nodes have local matrices which reflect their T,R,S properties.
+	// -- Update node's local transform matrices from node's T,R,S properties.
 
 	for ( le_node_o *n : self->nodes ) {
 		if ( false == n->local_transform_cached ) {
@@ -2236,7 +2237,7 @@ static void le_stage_update( le_stage_o *self ) {
 		}
 	}
 
-	// -- we need to update global transform matrices.
+	// -- Update global transform matrices.
 	// -- recurse over nodes, starting with root nodes of scene.
 
 	for ( le_scene_o const &s : self->scenes ) {
