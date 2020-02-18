@@ -1844,12 +1844,12 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 						defines << "NUM_COLORS=" << num_array_elements << ",";
 						break;
 					case ( le_primitive_attribute_info::Type::eJoints ):
-						defines << "LOC_JOINTS=" << location << ",";
-						defines << "NUM_JOINTS=" << num_array_elements << ",";
+						defines << "LOC_JOINT_SETS=" << location << ",";
+						defines << "NUM_JOINT_SETS=" << num_array_elements << ",";
 						break;
 					case ( le_primitive_attribute_info::Type::eJointWeights ):
-						defines << "LOC_JOINT_WEIGHTS=" << location << ",";
-						defines << "NUM_JOINT_WEIGHTS=" << num_array_elements << ",";
+						defines << "LOC_JOINT_WEIGHTS_SET=" << location << ",";
+						defines << "NUM_JOINT_WEIGHTS_SET=" << num_array_elements << ",";
 						break;
 					default:
 						break;
