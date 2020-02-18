@@ -467,7 +467,7 @@ static uint32_t le_stage_create_image_from_file_path( le_stage_o *stage, char co
 
 /// \brief add a sampler to stage, return index to sampler within this stage.
 ///
-static uint32_t le_stage_create_sampler( le_stage_o *stage, LeSamplerInfo *info ) {
+static uint32_t le_stage_create_sampler( le_stage_o *stage, LeSamplerInfo const *info ) {
 
 	uint32_t sampler_idx = uint32_t( stage->samplers.size() );
 
@@ -478,7 +478,7 @@ static uint32_t le_stage_create_sampler( le_stage_o *stage, LeSamplerInfo *info 
 
 /// \brief add a texture to stage, return index to texture within stage.
 ///
-static uint32_t le_stage_create_texture( le_stage_o *stage, le_texture_info *info ) {
+static uint32_t le_stage_create_texture( le_stage_o *stage, le_texture_info const *info ) {
 	uint32_t texture_idx = uint32_t( stage->textures.size() );
 
 	le_texture_o texture{};
@@ -859,7 +859,7 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 /// \brief create nodes graph from list of nodes.
 /// nodes may refer to each other by index via their children property - indices may only refer
 /// to nodes passed within info. you cannot refer to nodes which are already inside the scene graph.
-static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info *info, size_t num_nodes ) {
+static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info const *info, size_t num_nodes ) {
 	uint32_t idx = uint32_t( self->nodes.size() );
 
 	// create all these nodes.
@@ -918,7 +918,7 @@ static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info *info, siz
 
 // ----------------------------------------------------------------------
 
-static uint32_t le_stage_create_camera_settings( le_stage_o *self, le_camera_settings_info *camera_infos, size_t num_cameras ) {
+static uint32_t le_stage_create_camera_settings( le_stage_o *self, le_camera_settings_info const *camera_infos, size_t num_cameras ) {
 
 	le_camera_settings_info const *infos_begin = camera_infos;
 	auto                           infos_end   = infos_begin + num_cameras;
@@ -1114,7 +1114,7 @@ static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o 
 
 // ----------------------------------------------------------------------
 
-static uint32_t le_stage_create_animation( le_stage_o *self, le_animation_info *info ) {
+static uint32_t le_stage_create_animation( le_stage_o *self, le_animation_info const *info ) {
 
 	le_animation_o animation{};
 
