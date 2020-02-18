@@ -220,9 +220,17 @@ struct le_node_o {
 	bool     has_camera;
 	uint32_t camera_idx;
 
+	struct le_skin_o *skin; // optional, non-owning
+
 	uint64_t scene_bit_flags; // one bit for every scene this node is included in
 
 	std::vector<le_node_o *> children; // non-owning
+};
+
+struct le_skin_o {
+	std::vector<le_node_o *> joints;                // non-owning
+	le_node_o *              skeleton;              // optional, if present, this is applied instead of the transform of the node containing the skin.
+	std::vector<glm::mat4>   inverse_bind_matrices; // one per joint
 };
 
 struct le_keyframe_o {
@@ -331,6 +339,7 @@ struct le_stage_o {
 	std::vector<le_texture_o>         textures;        //
 	std::vector<stage_image_o *>      images;          // owning
 	std::vector<le_resource_handle_t> image_handles;   //
+	std::vector<le_skin_o *>          skins;           // owning
 };
 
 /// \brief Create image by interpreting given memory as an image.
@@ -1175,6 +1184,60 @@ static uint32_t le_stage_create_animation( le_stage_o *self, le_animation_info c
 	uint32_t idx = uint32_t( self->animations.size() );
 	self->animations.emplace_back( animation );
 	return idx;
+}
+
+// ----------------------------------------------------------------------
+
+static uint32_t le_stage_create_skin( le_stage_o *self, le_skin_info const *info ) {
+
+	le_skin_o *skin = new le_skin_o{};
+
+	uint32_t const *joint_indices_begin = info->node_indices;
+	uint32_t const *joint_indices_end   = joint_indices_begin + info->node_indices_count;
+
+	for ( auto j = joint_indices_begin; j != joint_indices_end; j++ ) {
+		skin->joints.push_back( self->nodes.at( *j ) );
+	}
+
+	if ( info->has_skeleton_node_index ) {
+		skin->skeleton = self->nodes.at( info->skeleton_node_index );
+	}
+
+	skin->inverse_bind_matrices.resize( info->node_indices_count );
+
+	if ( info->has_inverse_bind_matrices_accessor_idx ) {
+		// we must extract data from accessor and store it locally.
+		auto &acc      = self->accessors.at( info->inverse_bind_matrices_accessor_idx );
+		auto &buffView = self->buffer_views.at( acc.buffer_view_idx );
+		auto &buf      = self->buffers.at( buffView.buffer_idx );
+
+		size_t mat_byte_count = sizeof( glm::mat4 ) * info->node_indices_count;
+
+		assert( buffView.byte_length = uint32_t( mat_byte_count ) && "Buffer must hold enough bytes of memory for joints matrices" );
+		assert( buf->owns_mem && "Buffer must own its own memory" );
+
+		glm::mat4 *matrices = reinterpret_cast<glm::mat4 *>( static_cast<char *>( buf->mem ) + buffView.byte_offset );
+		memcpy( skin->inverse_bind_matrices.data(), matrices, mat_byte_count );
+
+	} else {
+
+		// If no inverse bind matrices were given, this means that the matrices
+		// must be set to identity matrices.
+
+		for ( auto &m : skin->inverse_bind_matrices ) {
+			m = glm::identity<glm::mat4>();
+		}
+	}
+
+	uint32_t skin_idx = uint32_t( self->skins.size() );
+	self->skins.emplace_back( skin );
+	return skin_idx;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_stage_node_set_skin( le_stage_o *self, uint32_t node_idx, uint32_t skin_idx ) {
+	self->nodes.at( node_idx )->skin = self->skins.at( skin_idx );
 }
 
 // ----------------------------------------------------------------------
@@ -2216,6 +2279,10 @@ static void le_stage_destroy( le_stage_o *self ) {
 		delete n;
 	}
 
+	for ( auto &s : self->skins ) {
+		delete s;
+	}
+
 	for ( auto &m : self->materials ) {
 		if ( m.metallic_roughness ) {
 			delete ( m.metallic_roughness->base_color );
@@ -2261,5 +2328,7 @@ ISL_API_ATTR void register_le_stage_api( void *api ) {
 	le_stage_i.create_camera_settings = le_stage_create_camera_settings;
 	le_stage_i.create_nodes           = le_stage_create_nodes;
 	le_stage_i.create_animation       = le_stage_create_animation;
+	le_stage_i.create_skin            = le_stage_create_skin;
+	le_stage_i.node_set_skin          = le_stage_node_set_skin;
 	le_stage_i.create_scene           = le_stage_create_scene;
 }

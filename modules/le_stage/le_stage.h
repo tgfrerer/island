@@ -68,6 +68,10 @@ struct le_stage_api {
 		uint32_t (* create_nodes)( le_stage_o *self, le_node_info const *info, size_t num_nodes );
 		uint32_t (* create_camera_settings) (le_stage_o * self, le_camera_settings_info const * info, size_t num_camera_settings);
 		uint32_t (* create_animation)(le_stage_o* self, le_animation_info const * info);
+		uint32_t (* create_skin)(le_stage_o* self, le_skin_info const * info);
+
+		void     (* node_set_skin)(le_stage_o*, uint32_t node_idx, uint32_t skin_idx);
+
 		uint32_t (* create_scene)( le_stage_o *self, uint32_t *node_idx, uint32_t node_idx_count );
 	};
 
