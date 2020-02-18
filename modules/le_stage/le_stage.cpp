@@ -206,7 +206,7 @@ struct le_node_o {
 	glm::quat local_rotation;
 	glm::vec3 local_scale;
 
-	float weights[ 12 ]; // Morph target weights; These apply to all primitives in meshes associated with this node...
+	float morph_target_weights[ 12 ]; // Morph target weights; These apply to all primitives in meshes associated with this node...
 	//	uint32_t weights_count; // TODO: we must set this via morph target count.
 
 	char name[ 32 ];
@@ -1155,7 +1155,7 @@ static uint32_t le_stage_create_animation( le_stage_o *self, le_animation_info c
 			break;
 		case LeAnimationTargetType::eWeights:
 			channel.target_compound_type = le_compound_num_type::eScalar;
-			channel.target_node_element  = channel.target_node->weights;
+			channel.target_node_element  = channel.target_node->morph_target_weights;
 			break;
 		default:
 			assert( false ); // unreachable
@@ -1546,13 +1546,13 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 						// NOTE: We upload the morph target weights tightly packed -
 						// this means the shader will receive them as vec4s, which
 						// every 4 floats (if available) grouped together into one vec4.
-						encoder.setArgumentData( LE_ARGUMENT_NAME( "UboMorphTargetWeights" ), n->weights,
+						encoder.setArgumentData( LE_ARGUMENT_NAME( "UboMorphTargetWeights" ), n->morph_target_weights,
 						                         sizeof( glm::vec4 ) * ( ( primitive.morph_target_count + 3 ) / 4 ) );
 
 						if ( false ) {
 							std::cout << "weights: " << std::dec;
 							for ( auto i = 0; i != primitive.morph_target_count; i++ ) {
-								std::cout << std::setw( 8 ) << n->weights[ i ] << ", ";
+								std::cout << std::setw( 8 ) << n->morph_target_weights[ i ] << ", ";
 							}
 							std::cout << std::endl
 							          << std::flush;
