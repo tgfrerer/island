@@ -654,12 +654,6 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_settings_
 	} break;
 	}
 
-	// The following settings are not user-hintable, and will get overridden by default
-	if ( self->window ) {
-
-	} else {
-	}
-
 	using namespace le_swapchain_vk;
 	self->swapchainImageFormat = vk::Format( swapchain_i.get_surface_format( self->swapchain )->format );
 	self->swapchainWidth       = swapchain_i.get_image_width( self->swapchain );
