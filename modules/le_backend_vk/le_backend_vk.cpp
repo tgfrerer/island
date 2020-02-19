@@ -3424,13 +3424,31 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					case vk::DescriptorType::eUniformBuffer:        //
 					case vk::DescriptorType::eUniformBufferDynamic: //
 					case vk::DescriptorType::eStorageBuffer:        // fall-through
-						// if buffer must have valid buffer bound
-						argumentsOk &= ( nullptr != a.bufferInfo.buffer );
+						if ( nullptr == a.bufferInfo.buffer ) {
+							// if buffer must have valid buffer bound
+							std::cerr << "ERROR: Buffer argument at set="
+							          << std::dec << setId << ", binding="
+							          << std::dec << a.bindingNumber << ", array_index="
+							          << std::dec << a.arrayIndex << " not set, not valid or missing."
+							          << std::endl
+							          << std::flush;
+							argumentsOk = false;
+						}
 						break;
 					case vk::DescriptorType::eCombinedImageSampler:
 					case vk::DescriptorType::eSampledImage:
 					case vk::DescriptorType::eStorageImage:
 						argumentsOk &= ( nullptr != a.imageInfo.imageView ); // if sampler, must have valid image view
+						if ( nullptr == a.imageInfo.imageView ) {
+							// if image - must have valid imageview bound bound
+							std::cerr << "ERROR: Image argument at set="
+							          << std::dec << setId << ", binding="
+							          << std::dec << a.bindingNumber << ", array_index="
+							          << std::dec << a.arrayIndex << " not set, not valid or missing."
+							          << std::endl
+							          << std::flush;
+							argumentsOk = false;
+						}
 						break;
 					default:
 						// TODO: check arguments for other types of descriptors
@@ -3438,9 +3456,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						break;
 					}
 
-					if ( false == argumentsOk ) {
+					if ( false && false == argumentsOk ) {
 						// TODO: notify that an argument is not OKAY
-						assert( false && "descriptor did not fit template" );
+						assert( false && "Argument state did not fit template" );
 						break;
 					}
 				}
