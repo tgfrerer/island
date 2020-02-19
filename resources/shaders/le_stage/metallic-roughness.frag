@@ -363,7 +363,7 @@ void main()
 #endif
 
 
-#define DEBUG_OUTPUT
+// #define DEBUG_OUTPUT
 // #define DEBUG_NORMAL
 
 #ifndef DEBUG_OUTPUT // no debug
