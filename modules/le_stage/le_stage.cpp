@@ -1659,11 +1659,11 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 							encoder.setArgumentData( LE_ARGUMENT_NAME( "UboMaterialParams" ),
 							                         &material_params_ubo, sizeof( UboMaterialParams ) );
-
-							encoder.setArgumentData( LE_ARGUMENT_NAME( "UboPostProcessing" ),
-							                         &post_processing_params, sizeof( UboPostProcessing ) );
 						}
 					}
+
+					encoder.setArgumentData( LE_ARGUMENT_NAME( "UboPostProcessing" ),
+					                         &post_processing_params, sizeof( UboPostProcessing ) );
 
 					// ---- invariant: primitive has pipeline, bindings.
 
