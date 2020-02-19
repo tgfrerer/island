@@ -1967,12 +1967,12 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 		shader.second.vert = renderer_i.create_shader_module(
 		    stage->renderer,
-		    "./local_resources/shaders/gltf.vert",
+		    "./resources/shaders/le_stage/gltf.vert",
 		    {le::ShaderStage::eVertex}, defines.c_str() );
 
 		shader.second.frag = renderer_i.create_shader_module(
 		    stage->renderer,
-		    "./local_resources/shaders/metallic-roughness.frag",
+		    "./resources/shaders/le_stage/metallic-roughness.frag",
 		    {le::ShaderStage::eFragment}, defines.c_str() );
 	}
 
