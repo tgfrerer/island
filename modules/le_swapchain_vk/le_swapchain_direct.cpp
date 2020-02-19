@@ -3,12 +3,16 @@
 #include "include/internal/le_swapchain_vk_common.h"
 
 #define VULKAN_HPP_NO_SMART_HANDLE
-#define VK_USE_PLATFORM_XLIB_KHR
 #define VK_USE_PLATFORM_XLIB_XRANDR_EXT
+#define VULKAN_HPP_DISABLE_ENHANCED_MODE // because otherwise it will complain about display
 #include <vulkan/vulkan.hpp>
 
 #include <iostream>
 #include <vector>
+#include <assert.h>
+
+#define ASSERT_VK_SUCCESS( x ) \
+	assert( x == vk::Result::eSuccess )
 
 struct SurfaceProperties {
 	vk::SurfaceFormatKHR              windowSurfaceFormat;
@@ -67,10 +71,26 @@ static void swapchain_query_surface_capabilities( le_swapchain_o *base ) {
 	                                           &surfaceProperties.presentSupported );
 
 	// Get list of supported surface formats
-	surfaceProperties.availableSurfaceFormats = self->physicalDevice.getSurfaceFormatsKHR( self->surface );
-	surfaceProperties.surfaceCapabilities     = self->physicalDevice.getSurfaceCapabilitiesKHR( self->surface );
-	surfaceProperties.presentmodes            = self->physicalDevice.getSurfacePresentModesKHR( self->surface );
 
+	{
+		uint32_t num_elements{};
+		auto     result = self->physicalDevice.getSurfaceFormatsKHR( self->surface, &num_elements, nullptr );
+		ASSERT_VK_SUCCESS( result );
+		surfaceProperties.availableSurfaceFormats.resize( num_elements );
+		result = self->physicalDevice.getSurfaceFormatsKHR( self->surface, &num_elements, surfaceProperties.availableSurfaceFormats.data() );
+	}
+	{
+		auto result = self->physicalDevice.getSurfaceCapabilitiesKHR( self->surface, &surfaceProperties.surfaceCapabilities );
+		ASSERT_VK_SUCCESS( result );
+	}
+	{
+		uint32_t num_elements{};
+		auto     result = self->physicalDevice.getSurfacePresentModesKHR( self->surface, &num_elements, nullptr );
+		ASSERT_VK_SUCCESS( result );
+		surfaceProperties.presentmodes.resize( num_elements );
+		result = self->physicalDevice.getSurfacePresentModesKHR( self->surface, &num_elements, surfaceProperties.presentmodes.data() );
+		ASSERT_VK_SUCCESS( result );
+	}
 	size_t selectedSurfaceFormatIndex = 0;
 	auto   preferredSurfaceFormat     = le_format_to_vk( self->mSettings.format_hint );
 
@@ -127,9 +147,15 @@ static vk::PresentModeKHR get_direct_presentmode( const le_swapchain_settings_t:
 // ----------------------------------------------------------------------
 
 static void swapchain_attach_images( le_swapchain_o *base ) {
-	auto self         = static_cast<swp_direct_data_o *const>( base->data );
-	self->mImageRefs  = self->device.getSwapchainImagesKHR( self->swapchainKHR );
-	self->mImagecount = uint32_t( self->mImageRefs.size() );
+	auto self = static_cast<swp_direct_data_o *const>( base->data );
+
+	auto result = self->device.getSwapchainImagesKHR( self->swapchainKHR, &self->mImagecount, nullptr );
+	ASSERT_VK_SUCCESS( result );
+
+	self->mImageRefs.resize( self->mImagecount );
+
+	result = self->device.getSwapchainImagesKHR( self->swapchainKHR, &self->mImagecount, self->mImageRefs.data() );
+	ASSERT_VK_SUCCESS( result );
 }
 
 // ----------------------------------------------------------------------
@@ -228,12 +254,12 @@ static void swapchain_direct_reset( le_swapchain_o *base, const le_swapchain_set
 	    .setClipped( VK_TRUE )
 	    .setOldSwapchain( oldSwapchain );
 
-	self->swapchainKHR = self->device.createSwapchainKHR( swapChainCreateInfo );
+	self->device.createSwapchainKHR( &swapChainCreateInfo, nullptr, &self->swapchainKHR );
 
 	// If an existing swap chain is re-created, destroy the old swap chain
 	// This also cleans up all the presentable images
 	if ( oldSwapchain ) {
-		self->device.destroySwapchainKHR( oldSwapchain );
+		self->device.destroySwapchainKHR( oldSwapchain, nullptr );
 		oldSwapchain = nullptr;
 	}
 
@@ -258,50 +284,62 @@ static le_swapchain_o *swapchain_direct_create( const le_swapchain_vk_api::swapc
 		self->vk_graphics_queue_family_index = vk_device_i.get_default_graphics_queue_family_index( private_backend_vk_i.get_le_device( backend ) );
 	}
 
-	VkResult result;
+	self->x11_display = XOpenDisplay( nullptr );
 
-	{
+	auto phyDevice = vk::PhysicalDevice( self->physicalDevice );
 
-		self->x11_display = XOpenDisplay( nullptr );
+	std::vector<vk::DisplayPropertiesKHR> display_props;
+	uint32_t                              prop_count = 0;
 
-		auto phyDevice  = vk::PhysicalDevice( self->physicalDevice );
-		auto properties = self->physicalDevice.getDisplayPropertiesKHR(); // place properties data
+	auto result = self->physicalDevice.getDisplayPropertiesKHR( &prop_count, nullptr ); // place properties data
 
-		self->display = properties.front().display; // get first display in list
+	ASSERT_VK_SUCCESS( result );
+	display_props.resize( prop_count );
+	result = self->physicalDevice.getDisplayPropertiesKHR( &prop_count, display_props.data() ); // place properties data
+	ASSERT_VK_SUCCESS( result );
 
-		getInstanceProc( self->instance, vkAcquireXlibDisplayEXT );
-		result = vkAcquireXlibDisplayEXT( phyDevice, self->x11_display, self->display );
+	// We want to find out which display is secondary display
+	// but we assume that the primary display will be listed first.
+	self->display = display_props.back().display;
 
-		self->display_mode_properties = phyDevice.getDisplayModePropertiesKHR( self->display );
+	getInstanceProc( self->instance, vkAcquireXlibDisplayEXT );
+	auto vk_result = vkAcquireXlibDisplayEXT( phyDevice, self->x11_display, self->display );
 
-		// let's try to acquire this screen
-
-		{
-			vk::DisplaySurfaceCreateInfoKHR info;
-
-			info
-			    .setFlags( {} )
-			    .setDisplayMode( self->display_mode_properties[ 0 ].displayMode )
-			    .setPlaneIndex( 0 )
-			    .setPlaneStackIndex( 0 )
-			    .setTransform( vk::SurfaceTransformFlagBitsKHR::eRotate90 )
-			    .setGlobalAlpha( 1.f )
-			    .setAlphaMode( vk::DisplayPlaneAlphaFlagBitsKHR::eOpaque )
-			    .setImageExtent( self->display_mode_properties[ 0 ].parameters.visibleRegion );
-
-			auto instance = vk::Instance( self->instance );
-			self->surface = instance.createDisplayPlaneSurfaceKHR( info );
-
-			self->mSwapchainExtent.height = uint32_t( info.imageExtent.height );
-			self->mSwapchainExtent.width  = uint32_t( info.imageExtent.width );
-		}
+	if ( vk_result != VK_SUCCESS ) {
+		std::cerr << "ERROR: Unable to acquire display: '" << display_props.back().displayName << "'" << std::endl
+		          << std::flush;
 	}
 
-	if ( result == VK_SUCCESS ) {
-		std::cout << "Created surface" << std::endl;
-	} else {
-		std::cerr << "Error creating surface" << std::endl;
-		assert( false );
+	assert( vk_result == VK_SUCCESS );
+
+	{
+		uint32_t num_props{};
+		result = phyDevice.getDisplayModePropertiesKHR( self->display, &num_props, nullptr );
+		self->display_mode_properties.resize( num_props );
+		result = phyDevice.getDisplayModePropertiesKHR( self->display, &num_props, self->display_mode_properties.data() );
+	}
+	// let's try to acquire this screen
+
+	{
+		vk::DisplaySurfaceCreateInfoKHR info;
+
+		info
+		    .setFlags( {} )
+		    .setDisplayMode( self->display_mode_properties[ 0 ].displayMode )
+		    .setPlaneIndex( 0 )
+		    .setPlaneStackIndex( 0 )
+		    .setTransform( vk::SurfaceTransformFlagBitsKHR::eRotate90 )
+		    .setGlobalAlpha( 1.f )
+		    .setAlphaMode( vk::DisplayPlaneAlphaFlagBitsKHR::eOpaque )
+		    .setImageExtent( self->display_mode_properties[ 0 ].parameters.visibleRegion );
+
+		auto instance = vk::Instance( self->instance );
+		result        = instance.createDisplayPlaneSurfaceKHR( &info, nullptr, &self->surface );
+
+		ASSERT_VK_SUCCESS( result );
+
+		self->mSwapchainExtent.height = uint32_t( info.imageExtent.height );
+		self->mSwapchainExtent.width  = uint32_t( info.imageExtent.width );
 	}
 
 	swapchain_direct_reset( base, settings );
@@ -317,11 +355,11 @@ static void swapchain_direct_destroy( le_swapchain_o *base ) {
 
 	vk::Device device = self->device;
 
-	device.destroySwapchainKHR( self->swapchainKHR );
+	device.destroySwapchainKHR( self->swapchainKHR, nullptr );
 	self->swapchainKHR = nullptr;
 
 	vk::Instance instance = self->instance;
-	instance.destroySurfaceKHR( self->surface );
+	instance.destroySurfaceKHR( self->surface, nullptr );
 	self->surface = nullptr;
 
 	getInstanceProc( self->instance, vkReleaseDisplayEXT );
@@ -430,10 +468,11 @@ static size_t swapchain_direct_get_swapchain_images_count( le_swapchain_o *base 
 
 static void swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t *, char const ***exts, size_t *num_exts ) {
 
-	static std::array<char const *, 5> extensions = {
+	static std::array<char const *, 6> extensions = {
 	    VK_KHR_DISPLAY_EXTENSION_NAME,
 	    "VK_EXT_direct_mode_display",
 	    "VK_KHR_xlib_surface",
+	    "VK_KHR_surface",
 	    "VK_EXT_acquire_xlib_display",
 	    "VK_EXT_display_surface_counter",
 	};

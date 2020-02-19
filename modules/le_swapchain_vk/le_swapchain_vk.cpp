@@ -117,7 +117,7 @@ void register_le_swapchain_vk_api( void *api_ ) {
 
 	register_le_swapchain_khr_api( api );
 	register_le_swapchain_img_api( api );
-	//	register_le_swapchain_direct_api( api );
+	register_le_swapchain_direct_api( api );
 
 	Registry::loadLibraryPersistently( "libvulkan.so" );
 	Registry::loadLibraryPersistently( "libX11.so" );
