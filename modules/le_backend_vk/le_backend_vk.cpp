@@ -3515,7 +3515,6 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			    case (le::CommandType::eSetLineWidth): std::cout << "eSetLineWidth"; break;
 			    case (le::CommandType::eSetViewport): std::cout << "eSetViewport"; break;
 			    case (le::CommandType::eSetScissor): std::cout << "eSetScissor"; break;
-			    case (le::CommandType::eSetArgumentData): std::cout << "eSetArgumentData"; break;
 			    case (le::CommandType::eBindArgumentBuffer): std::cout << "eBindArgumentBuffer"; break;
 			    case (le::CommandType::eSetArgumentTexture): std::cout << "eSetArgumentTexture"; break;
 			    case (le::CommandType::eSetArgumentImage): std::cout << "eSetArgumentImage"; break;
@@ -3838,53 +3837,6 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					// Since data for scissors *is stored inline*, we increment the typed pointer
 					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
 					cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D *>( le_cmd + 1 ) );
-				} break;
-
-				case le::CommandType::eSetArgumentData: {
-					// we need to store the data for the dynamic binding which was set as an argument to the ubo
-					// this alters our internal state
-					auto *le_cmd = static_cast<le::CommandSetArgumentData *>( dataIt );
-
-					uint64_t argument_name_id = le_cmd->info.argument_name_id;
-
-					// find binding info with name referenced in command
-
-					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [&argument_name_id]( const le_shader_binding_info &e ) -> bool {
-						return e.name_hash == argument_name_id;
-					} );
-
-					if ( b == argumentState.binding_infos.end() ) {
-						std::cout << __FUNCTION__ << "#L" << std::dec << __LINE__ << " : Warning: Invalid argument name id: 0x" << std::hex << argument_name_id << std::endl
-						          << std::flush;
-						break;
-					}
-
-					// ---------| invariant: we found an argument name that matches
-					auto setIndex = b->setIndex;
-					auto binding  = b->binding;
-
-					auto &bindingData = argumentState.setData[ setIndex ][ binding ].bufferInfo;
-
-					bindingData.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
-					bindingData.range  = std::max<uint32_t>( le_cmd->info.range, b->range );
-
-					if ( bindingData.range == 0 ) {
-						// If no range was specified, we must default to VK_WHOLE_SIZE,
-						// as a range setting of 0 is not allowed in Vulkan.
-						bindingData.range = VK_WHOLE_SIZE;
-					}
-
-					// If binding is in fact a dynamic binding, set the corresponding dynamic offset
-					// and set the buffer offset to 0.
-					if ( b->type == enumToNum( vk::DescriptorType::eStorageBufferDynamic ) ||
-					     b->type == enumToNum( vk::DescriptorType::eUniformBufferDynamic ) ) {
-						auto dynamicOffset                            = b->dynamic_offset_idx;
-						bindingData.offset                            = 0;
-						argumentState.dynamicOffsets[ dynamicOffset ] = le_cmd->info.offset;
-					} else {
-						bindingData.offset = le_cmd->info.offset;
-					}
-
 				} break;
 
 				case le::CommandType::eBindArgumentBuffer: {

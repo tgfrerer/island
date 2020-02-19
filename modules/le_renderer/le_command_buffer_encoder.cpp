@@ -321,7 +321,21 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *self,
 }
 
 // ----------------------------------------------------------------------
-// TODO - after uploading we should call bind_argument_buffer and proceed from there.
+
+static void cbe_bind_argument_buffer( le_command_buffer_encoder_o *self, le_resource_handle_t const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range ) {
+
+	auto cmd = EMPLACE_CMD( le::CommandBindArgumentBuffer );
+
+	cmd->info.argument_name_id = argumentName;
+	cmd->info.buffer_id        = bufferId;
+	cmd->info.offset           = offset;
+	cmd->info.range            = range;
+
+	self->mCommandStreamSize += sizeof( le::CommandBindArgumentBuffer );
+	self->mCommandCount++;
+}
+
+// ----------------------------------------------------------------------
 static void cbe_set_argument_data( le_command_buffer_encoder_o *self,
                                    uint64_t                     argumentNameId, // hash id of argument name
                                    void const *                 data,
@@ -333,8 +347,6 @@ static void cbe_set_argument_data( le_command_buffer_encoder_o *self,
 		return;
 
 	// --------| invariant: there are some bytes to set
-
-	auto cmd = EMPLACE_CMD( le::CommandSetArgumentData );
 
 	void *   memAddr;
 	uint64_t bufferOffset = 0;
@@ -350,36 +362,15 @@ static void cbe_set_argument_data( le_command_buffer_encoder_o *self,
 		// -- Store ubo data to scratch allocator
 		memcpy( memAddr, data, numBytes );
 
-		le_resource_handle_t allocatorBufferId = le_allocator_linear_i.get_le_resource_id( allocator );
+		le_resource_handle_t allocatorBuffer = le_allocator_linear_i.get_le_resource_id( allocator );
 
-		cmd->info.argument_name_id = argumentNameId;
-		cmd->info.buffer_id        = allocatorBufferId;
-		cmd->info.offset           = uint32_t( bufferOffset ); // Note: we are assuming offset is never > 4GB, which appears realistic for now
-		cmd->info.range            = uint32_t( numBytes );
+		cbe_bind_argument_buffer( self, allocatorBuffer, argumentNameId, uint32_t( bufferOffset ), uint32_t( numBytes ) );
 
 	} else {
 		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl
 		          << std::flush;
 		return;
 	}
-
-	self->mCommandStreamSize += sizeof( le::CommandSetArgumentData );
-	self->mCommandCount++;
-}
-
-// ----------------------------------------------------------------------
-
-static void cbe_bind_argument_buffer( le_command_buffer_encoder_o *self, le_resource_handle_t const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range ) {
-
-	auto cmd = EMPLACE_CMD( le::CommandBindArgumentBuffer );
-
-	cmd->info.argument_name_id = argumentName;
-	cmd->info.buffer_id        = bufferId;
-	cmd->info.offset           = offset;
-	cmd->info.range            = range;
-
-	self->mCommandStreamSize += sizeof( le::CommandBindArgumentBuffer );
-	self->mCommandCount++;
 }
 
 // ----------------------------------------------------------------------

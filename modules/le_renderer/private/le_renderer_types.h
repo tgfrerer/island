@@ -1376,7 +1376,6 @@ enum class CommandType : uint32_t {
 	eSetLineWidth,
 	eSetViewport,
 	eSetScissor,
-	eSetArgumentData,
 	eBindArgumentBuffer,
 	eSetArgumentTexture,
 	eSetArgumentImage,
@@ -1443,16 +1442,6 @@ struct CommandSetScissor {
 	struct {
 		uint32_t firstScissor;
 		uint32_t scissorCount;
-	} info;
-};
-
-struct CommandSetArgumentData {
-	CommandHeader header = {{{CommandType::eSetArgumentData, sizeof( CommandSetArgumentData )}}};
-	struct {
-		uint64_t             argument_name_id; // const_char_hash id of argument name
-		le_resource_handle_t buffer_id;        // id of buffer that holds data
-		uint32_t             offset;           // offset into buffer
-		uint32_t             range;            // size of argument data in bytes
 	} info;
 };
 
