@@ -1546,9 +1546,42 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 	UboPostProcessing post_processing_params{};
 
+	// We reserve pretty large amount of memory for joints data - so that we
+	// don't have to make allocations inside of the draw loop.
+	std::vector<glm::mat4> joints_data( 256 );
+	std::vector<glm::mat4> joints_normal_data( 256 );
+
 	for ( le_scene_o const &s : stage->scenes ) {
 		for ( le_node_o *n : stage->nodes ) {
+
 			if ( ( n->scene_bit_flags & ( 1 << s.scene_id ) ) && n->has_mesh ) {
+
+				uint32_t joints_count = n->skin ? uint32_t( n->skin->joints.size() ) : 0;
+
+				if ( joints_count ) {
+					// Calculate joints matrices for all given joints.
+
+					glm::mat4 const &rootInv =
+					    n->skin->skeleton
+					        ? n->skin->skeleton->inverse_global_transform
+					        : n->inverse_global_transform;
+
+					for ( size_t i = 0; i != n->skin->joints.size(); i++ ) {
+						joints_data[ i ] =
+						    rootInv *
+						    n->skin->joints[ i ]->global_transform *
+						    n->skin->inverse_bind_matrices[ i ];
+					}
+
+					// Calculate normal joints normals data
+					// FIXME: Check normals calculation: is this correct - do we need this at all?
+					for ( size_t i = 0; i != n->skin->joints.size(); i++ ) {
+						joints_normal_data[ i ] =
+						    rootInv *
+						    glm::transpose( n->skin->joints[ i ]->inverse_global_transform ) *
+						    n->skin->inverse_bind_matrices[ i ];
+					}
+				}
 
 				auto const &mesh = stage->meshes[ n->mesh_idx ];
 				for ( auto const &primitive : mesh.primitives ) {
@@ -1565,6 +1598,12 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 					    .bindGraphicsPipeline( primitive.pipeline_state_handle )
 					    .setArgumentData( LE_ARGUMENT_NAME( "UboMatrices" ), &mvp_ubo, sizeof( UboMatrices ) )
 					    .setViewports( 0, 1, &viewports[ 0 ] );
+
+					if ( primitive.num_joints_sets && joints_count ) {
+						// we must apply joints matrices.
+						encoder.setArgumentData( LE_ARGUMENT_NAME( "UboJointMatrices" ), joints_data.data(), sizeof( glm::mat4 ) * joints_count );
+						encoder.setArgumentData( LE_ARGUMENT_NAME( "UboJointNormalMatrices" ), joints_normal_data.data(), sizeof( glm::mat4 ) * joints_count );
+					}
 
 					if ( primitive.morph_target_count > 0 ) {
 
