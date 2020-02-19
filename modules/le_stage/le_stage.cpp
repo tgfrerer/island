@@ -1971,7 +1971,8 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 		    {le::ShaderStage::eVertex}, defines.c_str() );
 
 		shader.second.frag = renderer_i.create_shader_module(
-		    stage->renderer, "./local_resources/shaders/metallic-roughness.frag",
+		    stage->renderer,
+		    "./local_resources/shaders/metallic-roughness.frag",
 		    {le::ShaderStage::eFragment}, defines.c_str() );
 	}
 
