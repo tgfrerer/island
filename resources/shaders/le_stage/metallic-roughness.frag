@@ -34,7 +34,7 @@ layout (location = 0) in VertexData {
 };
 
 // Uniform Arguments
-layout (set = 0, binding = 0) uniform UboMatrices {
+layout (std140, set = 0, binding = 0) uniform UboMatrices {
     mat4 viewProjectionMatrix; // (projection * view) matrix
     mat4 normalMatrix;
     mat4 modelMatrix;
@@ -42,12 +42,12 @@ layout (set = 0, binding = 0) uniform UboMatrices {
 };
 
 // Uniform Arguments
-layout (set = 0, binding = 1) uniform UboPostProcessing {
+layout (std140, set = 0, binding = 1) uniform UboPostProcessing {
     float exposure;
 } postProcessing;
 
 #if defined(MATERIAL_SPECULARGLOSSINESS) || defined(MATERIAL_METALLICROUGHNESS)
-layout (set = 1, binding = 0) uniform UboMaterialParams {
+layout (std140, set = 1, binding = 0) uniform UboMaterialParams {
     vec4 base_color_factor;
     float metallic_factor;
     float roughness_factor;

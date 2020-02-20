@@ -27,14 +27,14 @@ layout (location = LOC_POSITIONS ) in vec3 a_pos[NUM_POSITIONS];
 #endif
 
 // Uniform Arguments
-layout (set = 0, binding = 0) uniform UboMatrices {
+layout (std140, set = 0, binding = 0) uniform UboMatrices {
 	mat4 viewProjectionMatrix; // (projection * view) matrix
 	mat4 normalMatrix;
 	mat4 modelMatrix;
 	vec3 camera_position; // camera position in world space
 };
 
-layout (set = 0, binding = 1) uniform UboPostProcessing {
+layout (std140, set = 0, binding = 1) uniform UboPostProcessing {
 	float exposure;
 } postProcessing;
 
@@ -42,7 +42,7 @@ layout (set = 0, binding = 1) uniform UboPostProcessing {
 	// we receive morph target weights as an array of vec4's because
 	// if we would use an array of floats this would waste 3 floats 
 	// per array element.
-	layout (set = 0, binding = 2) uniform UboMorphTargetWeights{
+	layout (std140, set = 0, binding = 2) uniform UboMorphTargetWeights{
 		vec4 morphTargetWeights[((MORPH_TARGET_COUNT+3)/4)+1];
 	};
 #	ifdef NUM_JOINT_SETS
@@ -67,7 +67,7 @@ layout (set = 0, binding = 1) uniform UboPostProcessing {
 #include "animation.glsl"
 
 #if defined(MATERIAL_SPECULARGLOSSINESS) || defined(MATERIAL_METALLICROUGHNESS)
-layout (set = 1, binding = 0) uniform UboMaterialParams {
+layout (std140, set = 1, binding = 0) uniform UboMaterialParams {
     vec4 base_color_factor;
     float metallic_factor;
     float roughness_factor;
