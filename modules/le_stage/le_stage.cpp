@@ -1560,7 +1560,14 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 				if ( joints_count ) {
 					// Calculate joints matrices for all given joints.
-
+					//
+					// TODO: if skin has a skeleton, it should be possible to cache skin data -
+					// because it won't change based on what node it is associated to.
+					// A skin ideally only needs to be calculated once, and should be re-used.
+					//
+					// Q: What does GLTF specify must happen if a skin does not specify its skeleton property
+					// A: This is not really well defined.
+					//
 					glm::mat4 const &rootInv =
 					    n->skin->skeleton
 					        ? n->skin->skeleton->inverse_global_transform
