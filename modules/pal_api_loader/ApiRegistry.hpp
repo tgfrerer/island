@@ -20,13 +20,13 @@
 #include <cstddef> // for size_t
 #include <assert.h>
 
-#include "hash_util.h"
-
 #ifdef __cplusplus
 #	define ISL_API_ATTR extern "C"
 #else
 #	define ISL_API_ATTR
 #endif
+
+#include "hash_util.h"
 
 struct pal_api_loader_i;
 struct pal_api_loader_o;
@@ -39,6 +39,9 @@ ISL_API_ATTR void *pal_registry_get_api( uint64_t id, const char *debugName );
 
 // creates
 ISL_API_ATTR void *pal_registry_create_api( uint64_t id, size_t apiStructSize, const char *debugName );
+
+ISL_API_ATTR void        update_argument_name_table( const char *source, uint64_t value );
+ISL_API_ATTR char const *get_argument_name_from_hash( uint64_t value );
 
 #ifdef __cplusplus
 } // extern "C"

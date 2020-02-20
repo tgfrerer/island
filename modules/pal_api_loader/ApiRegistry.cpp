@@ -216,3 +216,67 @@ void Registry::registerApi( pal_api_loader_i *loaderInterface, pal_api_loader_o 
 void Registry::pollForDynamicReload() {
 	file_watcher_i->poll_notifications( file_watcher );
 }
+
+// ----------------------------------------------------------------------
+
+/* Provide storage for a lookup table for uniform arguments - any argument  
+ * set via the LE_ARGUMENT_NAME macro will be placed in this table should
+ * we run in Debug mode. 
+ * 
+ * In Release mode the macro evaluates to a constexpr, and argument ids are 
+ * resolved at compile-time, therefore will not be
+ * placed in table.
+ * 
+ */
+struct ArgumentNameTable {
+	// std::mutex mtx; // TODO: we want to add a mutex so that any modifications to this table are protected when multithreading.
+	std::vector<std::string> names;
+	std::vector<uint64_t>    hashes;
+};
+
+static ArgumentNameTable argument_names_table{};
+
+ISL_API_ATTR void update_argument_name_table( const char *name, uint64_t value ) {
+
+	// find index of entry with current value in table
+
+	uint64_t const *hashes_begin = argument_names_table.hashes.data();
+	auto            hashes_end   = hashes_begin + argument_names_table.hashes.size();
+
+	size_t name_index = 0;
+	for ( auto h = hashes_begin; h != hashes_end; h++, name_index++ ) {
+		if ( *h == value ) {
+			break;
+		}
+	}
+
+	if ( name_index == argument_names_table.names.size() ) {
+		// not found, we must add a new entry
+		argument_names_table.names.push_back( name );
+		argument_names_table.hashes.push_back( value );
+		// std::cout << "Argument: '" << std::setw( 30 ) << source << "' : 0x" << std::hex << value << std::endl
+		//           << std::flush;
+	} else {
+		// entry already exists - test whether the names match
+		assert( argument_names_table.names.at( name_index ) == std::string( name ) && "Possible hash collision, names for hashes don't match!" );
+	}
+};
+
+ISL_API_ATTR char const *get_argument_name_from_hash( uint64_t value ) {
+
+	if ( argument_names_table.hashes.empty() ) {
+		return "<< Argument name table empty. >>";
+	}
+
+	uint64_t const *hashes_begin = argument_names_table.hashes.data();
+	auto            hashes_end   = hashes_begin + argument_names_table.hashes.size();
+
+	size_t name_index = 0;
+	for ( auto h = hashes_begin; h != hashes_end; h++, name_index++ ) {
+		if ( *h == value ) {
+			return argument_names_table.names.at( name_index ).c_str();
+		}
+	}
+
+	return "<< Argument name could not be resolved. >>";
+}
