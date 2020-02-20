@@ -3854,8 +3854,19 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					                       } );
 
 					if ( b == argumentState.binding_infos.end() ) {
-						std::cout << __FUNCTION__ << "#L" << std::dec << __LINE__ << " : Warning: Invalid argument name id: 0x" << std::hex << argument_name_id << std::endl
-						          << std::flush;
+						static uint64_t wrong_argument = argument_name_id;
+						[]( uint64_t argument ) {
+							static uint64_t argument_id_local = 0;
+							if ( argument_id_local == wrong_argument )
+								return;
+							std::cout << "backend_process_frame:"
+							          << char( 0x1B ) << "[38;5;209m"
+							          << " Warning: Invalid argument name: '" << get_argument_name_from_hash( argument ) << "'"
+							          << char( 0x1B ) << "[0m"
+							          << " id: 0x" << std::hex << argument << std::endl
+							          << std::flush;
+							argument_id_local = argument;
+						}( argument_name_id );
 						break;
 					}
 
