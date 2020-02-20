@@ -1573,13 +1573,10 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 						    n->skin->inverse_bind_matrices[ i ];
 					}
 
-					// Calculate normal joints normals data
-					// FIXME: Check normals calculation: is this correct - do we need this at all?
+					// Calculate joints normals data - this is basically calculating the
+					// normal matrix for each of the world transform matrices in each joint.
 					for ( size_t i = 0; i != n->skin->joints.size(); i++ ) {
-						joints_normal_data[ i ] =
-						    rootInv *
-						    glm::transpose( n->skin->joints[ i ]->inverse_global_transform ) *
-						    n->skin->inverse_bind_matrices[ i ];
+						joints_normal_data[ i ] = transpose( inverse( joints_data[ i ] ) );
 					}
 				}
 
