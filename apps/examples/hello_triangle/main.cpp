@@ -16,7 +16,7 @@ int main( int argc, char const *argv[] ) {
 		for ( ;; ) {
 
 #ifdef PLUGINS_DYNAMIC
-			Registry::pollForDynamicReload();
+			le_core_poll_for_module_reloads();
 #endif
 			auto result = HelloTriangleApp.update();
 
