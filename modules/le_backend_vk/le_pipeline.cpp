@@ -14,7 +14,7 @@
 
 #include "le_shader_compiler/le_shader_compiler.h"
 #include "util/spirv-cross/spirv_cross.hpp"
-#include "pal_file_watcher/pal_file_watcher.h" // for watching shader source files
+#include "le_file_watcher/le_file_watcher.h" // for watching shader source files
 #include "3rdparty/src/spooky/SpookyV2.h"      // for hashing renderpass gestalt, so that we can test for *compatible* renderpasses
 
 struct le_shader_module_o {
@@ -41,7 +41,7 @@ struct le_shader_manager_o {
 	std::set<le_shader_module_o *>                                  modifiedShaderModules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
 
 	le_shader_compiler_o *shader_compiler   = nullptr; // owning
-	pal_file_watcher_o *  shaderFileWatcher = nullptr; // owning
+	le_file_watcher_o *  shaderFileWatcher = nullptr; // owning
 };
 
 // NOTE: It might make sense to have one pipeline manager per worker thread, and
@@ -246,9 +246,9 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
 		if ( 0 == self->moduleDependencies.count( s ) ) {
 
 			// this is the first time this file appears on our radar. Let's create a file watcher for it.
-			static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
+			static auto &file_watcher_i = *Registry::getApi<le_file_watcher_i>();
 
-			pal_file_watcher_watch_settings settings;
+			le_file_watcher_watch_settings settings;
 			settings.filePath           = s.c_str();
 			settings.callback_user_data = self;
 			settings.callback_fun       = []( const char *path, void *user_data ) -> bool {
@@ -780,7 +780,7 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o *self, l
 static void le_shader_manager_update_shader_modules( le_shader_manager_o *self ) {
 
 	// -- find out which shader modules have been tainted
-	static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
+	static auto &file_watcher_i = *Registry::getApi<le_file_watcher_i>();
 
 	// this will call callbacks on any watched file objects as a side effect
 	// callbacks will modify le_backend->modifiedShaderModules
@@ -807,7 +807,7 @@ le_shader_manager_o *le_shader_manager_create( VkDevice_T *device ) {
 	self->shader_compiler = compiler_i.create();
 
 	// -- create file watcher for shader files so that changes can be detected
-	static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
+	static auto &file_watcher_i = *Registry::getApi<le_file_watcher_i>();
 	self->shaderFileWatcher     = file_watcher_i.create();
 
 	return self;
@@ -821,7 +821,7 @@ static void le_shader_manager_destroy( le_shader_manager_o *self ) {
 
 	if ( self->shaderFileWatcher ) {
 		// -- destroy file watcher
-		static auto &file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
+		static auto &file_watcher_i = *Registry::getApi<le_file_watcher_i>();
 		file_watcher_i.destroy( self->shaderFileWatcher );
 		self->shaderFileWatcher = nullptr;
 	}

@@ -1,4 +1,4 @@
-#include "pal_file_watcher.h"
+#include "le_file_watcher.h"
 #include <dirent.h>
 #include <iomanip>
 #include <iostream>
@@ -16,7 +16,7 @@
 struct Watch {
 	int                 inotify_watch_handle = -1;
 	int                 padding              = 0;
-	pal_file_watcher_o *watcher_o;
+	le_file_watcher_o *watcher_o;
 	std::string         path;
 	std::string         filename;
 	std::string         basename;
@@ -26,7 +26,7 @@ struct Watch {
 
 // ----------------------------------------------------------------------
 
-struct pal_file_watcher_o {
+struct le_file_watcher_o {
 	int              inotify_socket_handle = -1;
 	int              padding               = 0;
 	std::list<Watch> mWatches;
@@ -34,15 +34,15 @@ struct pal_file_watcher_o {
 
 // ----------------------------------------------------------------------
 
-static pal_file_watcher_o *instance_create() {
-	auto tmp                   = new pal_file_watcher_o();
+static le_file_watcher_o *instance_create() {
+	auto tmp                   = new le_file_watcher_o();
 	tmp->inotify_socket_handle = inotify_init1( IN_NONBLOCK );
 	return tmp;
 }
 
 // ----------------------------------------------------------------------
 
-static void instance_destroy( pal_file_watcher_o *instance ) {
+static void instance_destroy( le_file_watcher_o *instance ) {
 
 	for ( auto &w : instance->mWatches ) {
 		inotify_rm_watch( instance->inotify_socket_handle, w.inotify_watch_handle );
@@ -58,7 +58,7 @@ static void instance_destroy( pal_file_watcher_o *instance ) {
 
 // ----------------------------------------------------------------------
 
-static int add_watch( pal_file_watcher_o *instance, const pal_file_watcher_watch_settings &settings ) noexcept {
+static int add_watch( le_file_watcher_o *instance, const le_file_watcher_watch_settings &settings ) noexcept {
 	Watch tmp;
 
 	auto tmp_path = std::filesystem::canonical( settings.filePath );
@@ -77,7 +77,7 @@ static int add_watch( pal_file_watcher_o *instance, const pal_file_watcher_watch
 
 // ----------------------------------------------------------------------
 
-static bool remove_watch( pal_file_watcher_o *instance, int watch_id ) {
+static bool remove_watch( le_file_watcher_o *instance, int watch_id ) {
 	auto found_watch = std::find_if( instance->mWatches.begin(), instance->mWatches.end(), [=]( const Watch &w ) -> bool { return w.inotify_watch_handle == watch_id; } );
 	if ( found_watch != instance->mWatches.end() ) {
 		std::cout << "Removing inotify watch handle: " << std::hex << found_watch->inotify_watch_handle << std::endl;
@@ -92,7 +92,7 @@ static bool remove_watch( pal_file_watcher_o *instance, int watch_id ) {
 
 // ----------------------------------------------------------------------
 
-static void poll_notifications( pal_file_watcher_o *instance ) {
+static void poll_notifications( le_file_watcher_o *instance ) {
 	static_assert( sizeof( inotify_event ) == sizeof( struct inotify_event ), "must be equal" );
 
 	for ( ;; ) {
@@ -149,9 +149,9 @@ static void poll_notifications( pal_file_watcher_o *instance ) {
 
 // ----------------------------------------------------------------------
 
-LE_MODULE_REGISTER_IMPL( pal_file_watcher, p_api ) {
-	auto  api                = reinterpret_cast<pal_file_watcher_api *>( p_api );
-	auto &api_i              = api->pal_file_watcher_i;
+LE_MODULE_REGISTER_IMPL( le_file_watcher, p_api ) {
+	auto  api                = reinterpret_cast<le_file_watcher_api *>( p_api );
+	auto &api_i              = api->le_file_watcher_i;
 	api_i.create             = instance_create;
 	api_i.destroy            = instance_destroy;
 	api_i.add_watch          = add_watch;

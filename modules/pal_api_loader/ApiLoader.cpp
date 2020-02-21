@@ -6,7 +6,7 @@
 #include <string>
 #include <iostream>
 
-struct pal_file_watcher_o;
+struct le_file_watcher_o;
 
 #define LOG_PREFIX_STR "LOADER"
 
@@ -18,7 +18,7 @@ struct pal_api_loader_o {
 	std::string         mRegisterApiFuncName;
 	std::string         mPath;
 	void *              mLibraryHandle = nullptr;
-	pal_file_watcher_o *mFileWatcher   = nullptr;
+	le_file_watcher_o *mFileWatcher   = nullptr;
 };
 
 // ----------------------------------------------------------------------

@@ -33,7 +33,7 @@
 #	include <stdint.h>
 #	include "pal_api_loader/ApiRegistry.hpp"
 
-#	include "pal_file_watcher/pal_file_watcher.h"
+#	include "le_file_watcher/le_file_watcher.h"
 
 #	include <fstream>
 #	include <iostream>
@@ -42,13 +42,13 @@
 
 // ----------------------------------------------------------------------
 
-static auto &aux_file_watcher_i = *Registry::getApi<pal_file_watcher_i>();
+static auto &aux_file_watcher_i = *Registry::getApi<le_file_watcher_i>();
 
 // ----------------------------------------------------------------------
 // We use `class` here purely for RAAI, to ensure the destructor
 // gets called if the object gets deleted.
 class FileWatcher : NoCopy, NoMove {
-	pal_file_watcher_o *self = aux_file_watcher_i.create();
+	le_file_watcher_o *self = aux_file_watcher_i.create();
 
   public:
 	FileWatcher() = default;
@@ -115,7 +115,7 @@ struct CbData {
 
 static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 
-	pal_file_watcher_watch_settings watch;
+	le_file_watcher_watch_settings watch;
 	watch.filePath           = file_path;
 	watch.callback_user_data = cb_data;
 

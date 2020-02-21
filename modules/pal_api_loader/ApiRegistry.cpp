@@ -1,5 +1,5 @@
 #include "ApiRegistry.h"
-#include "pal_file_watcher/pal_file_watcher.h"
+#include "le_file_watcher/le_file_watcher.h"
 #include "pal_api_loader/ApiLoader.h"
 #include "hash_util.h"
 #include <vector>
@@ -26,7 +26,7 @@ struct ApiStore {
 // names and namehashes, and ptrs get reset...
 static ApiStore apiStore{};
 
-static auto &file_watcher_i = pal_file_watcher_api_i -> pal_file_watcher_i; // pal_file_watcher_api_i provided by pal_file_watcher.h
+static auto &file_watcher_i = le_file_watcher_api_i -> le_file_watcher_i; // le_file_watcher_api_i provided by le_file_watcher.h
 static auto  file_watcher   = file_watcher_i.create();
 
 ISL_API_ATTR void le_core_poll_for_module_reloads() {
@@ -119,7 +119,7 @@ static bool loaderCallback( const char *path, void *user_data_ ) {
 
 static int addWatch( const char *watchedPath_, registry_callback_params_o *settings_ ) {
 
-	pal_file_watcher_watch_settings watchSettings;
+	le_file_watcher_watch_settings watchSettings;
 
 	watchSettings.callback_fun       = loaderCallback;
 	watchSettings.callback_user_data = reinterpret_cast<void *>( settings_ );
