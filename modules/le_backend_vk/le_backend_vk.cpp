@@ -3542,7 +3542,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 			std::vector<vk::Buffer>       vertexInputBindings( maxVertexInputBindings, nullptr );
 			void *                        dataIt = commandStream;
-			le_pipeline_and_layout_info_t currentPipeline;
+			le_pipeline_and_layout_info_t currentPipeline{};
 
 			while ( commandIndex != numCommands ) {
 
