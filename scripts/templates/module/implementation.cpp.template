@@ -1,5 +1,5 @@
 #include "@module_name@.h"
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.h"
 
 
 struct @module_name@_o {
