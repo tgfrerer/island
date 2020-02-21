@@ -3450,7 +3450,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						break;
 					}
 
-					if ( false && false == argumentsOk ) {
+					if ( false == argumentsOk ) {
 						// TODO: notify that an argument is not OKAY
 						assert( false && "Argument state did not fit template" );
 						break;
