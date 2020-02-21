@@ -100,7 +100,7 @@ static bool load_library_persistent( const char *lib_name ) {
 
 static le_module_loader_o *instance_create( const char *path_ ) {
 	le_module_loader_o *tmp = new le_module_loader_o{};
-	tmp->mPath            = path_;
+	tmp->mPath              = path_;
 	return tmp;
 };
 
@@ -142,13 +142,13 @@ static bool register_api( le_module_loader_o *obj, void *api_interface, const ch
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_module_loader, p_api ) {
-	auto  api                      = static_cast<le_module_loader_api *>( p_api );
-	auto &loader_i                 = api->le_module_loader_i;
-	loader_i.create                = instance_create;
-	loader_i.destroy               = instance_destroy;
-	loader_i.load                  = load;
-	loader_i.register_api          = register_api;
-	loader_i.loadLibraryPersistent = load_library_persistent;
+	auto  api                          = static_cast<le_module_loader_api *>( p_api );
+	auto &loader_i                     = api->le_module_loader_i;
+	loader_i.create                    = instance_create;
+	loader_i.destroy                   = instance_destroy;
+	loader_i.load                      = load;
+	loader_i.register_api              = register_api;
+	loader_i.load_library_persistently = load_library_persistent;
 }
 
 // ----------------------------------------------------------------------

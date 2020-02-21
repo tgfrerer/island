@@ -35,6 +35,7 @@
 ISL_API_ATTR void  le_core_poll_for_module_reloads();
 ISL_API_ATTR void *le_core_load_module_static( char const *module_name, void ( *module_reg_fun )( void * ), uint64_t api_size_in_bytes );
 ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_t api_size_in_bytes, bool should_watch );
+ISL_API_ATTR bool  le_core_load_library_persistently( char const *library );
 
 // For debug purposes
 

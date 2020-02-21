@@ -22,8 +22,8 @@ struct ApiStore {
 
 struct loader_callback_params_o {
 	le_module_loader_o *loader;
-	void *            api;
-	std::string       lib_register_fun_name;
+	void *              api;
+	std::string         lib_register_fun_name;
 };
 
 // FIXME: there is a vexing bug with initialisation order when compiling a static version of this app
@@ -40,7 +40,7 @@ static auto  file_watcher   = file_watcher_i.create();
 // need global lifetime can be unloaded once the app unloads.
 struct DeferDelete {
 
-	std::vector<le_module_loader_o *>         loaders; // loaders to clean up
+	std::vector<le_module_loader_o *>       loaders; // loaders to clean up
 	std::vector<loader_callback_params_o *> params;  // callback params to clean up
 
 	~DeferDelete() {
@@ -167,7 +167,7 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 		char api_register_fun_name[ 256 ];
 		snprintf( api_register_fun_name, 255, "le_module_register_%s", module_name );
 
-		std::string       module_path = "./modules/lib" + std::string( module_name ) + ".so";
+		std::string         module_path = "./modules/lib" + std::string( module_name ) + ".so";
 		le_module_loader_o *loader      = module_loader_i.create( module_path.c_str() );
 
 		defer_delete.loaders.push_back( loader ); // add to cleanup list
@@ -194,6 +194,10 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 
 	return api;
 };
+
+ISL_API_ATTR bool le_core_load_library_persistently( char const *library_name ) {
+	return le_module_loader_api_i->le_module_loader_i.load_library_persistently( library_name );
+}
 
 // ----------------------------------------------------------------------
 
