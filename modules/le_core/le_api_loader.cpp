@@ -2,7 +2,7 @@
 
 #include <dlfcn.h>
 #include <link.h>
-
+#include "assert.h"
 #include <string>
 #include <iostream>
 
@@ -129,6 +129,7 @@ static bool register_api( le_module_loader_o *obj, void *api_interface, const ch
 	fptr = reinterpret_cast<register_api_fun_p_t>( dlsym( obj->mLibraryHandle, register_api_fun_name ) );
 	if ( !fptr ) {
 		std::cerr << LOG_PREFIX_STR "ERROR: " << dlerror() << std::endl;
+		assert( false );
 		return false;
 	}
 	// Initialize the API. This means telling the API to populate function

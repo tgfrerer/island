@@ -4,26 +4,17 @@
 #include <stdint.h>
 #include "le_core/le_core.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct le_gltf_o;
 struct le_stage_o;
 
-void register_le_gltf_api( void *api );
-
 // clang-format off
 struct le_gltf_api {
-	static constexpr auto id      = "le_gltf";
-	static constexpr auto pRegFun = register_le_gltf_api;
-
+	
 	struct le_gltf_interface_t {
 
-		le_gltf_o *( *create ) ( char const * file_path );
-		void       ( *destroy )( le_gltf_o *self );
-
-		bool (*import)(le_gltf_o* self, le_stage_o* stage);
+		le_gltf_o *     ( *create  ) ( char const * file_path );
+		void            ( *destroy ) ( le_gltf_o *self );
+		bool            ( *import  ) ( le_gltf_o* self, le_stage_o* stage);
 
 	};
 
@@ -31,18 +22,14 @@ struct le_gltf_api {
 };
 // clang-format on
 
+LE_MODULE( le_gltf );
+LE_MODULE_LOAD_DEFAULT( le_gltf );
+
 #ifdef __cplusplus
-} // extern c
 
 namespace le_gltf {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_gltf_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_gltf_api>();
-#	endif
-
+static const auto &api       = le_gltf_api_i;
 static const auto &le_gltf_i = api -> le_gltf_i;
-
 } // namespace le_gltf
 
 class LeGltf : NoCopy, NoMove {

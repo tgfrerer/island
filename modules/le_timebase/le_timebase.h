@@ -15,48 +15,35 @@
 #include <stdint.h>
 #include "le_core/le_core.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct le_timebase_o;
 struct le_duration_t;
 
 #define LE_TIME_TICKS_PER_SECOND 12000
 
-void register_le_timebase_api( void *api );
-
-// clang-format off
 struct le_timebase_api {
-	static constexpr auto id      = "le_timebase";
-	static constexpr auto pRegFun = register_le_timebase_api;
 
 	struct le_timebase_interface_t {
 
-		le_timebase_o *    ( * create                   ) ( );
-		void               ( * destroy                  ) ( le_timebase_o* self );
-		void               ( * update                   ) ( le_timebase_o* self, uint64_t fixed_interval_ticks ); /// set fixed_interval_ticks to 0 for clock-based interval
-		void               ( * reset                    ) ( le_timebase_o* self );
+		le_timebase_o *( *create )();
+		void ( *destroy )( le_timebase_o *self );
+		void ( *update )( le_timebase_o *self, uint64_t fixed_interval_ticks ); /// set fixed_interval_ticks to 0 for clock-based interval
+		void ( *reset )( le_timebase_o *self );
 
-		uint64_t (*get_current_ticks)(le_timebase_o* self);
-		uint64_t (*get_ticks_since_last_frame)(le_timebase_o* self);
-
+		uint64_t ( *get_current_ticks )( le_timebase_o *self );
+		uint64_t ( *get_ticks_since_last_frame )( le_timebase_o *self );
 	};
 
-	le_timebase_interface_t       le_timebase_i;
+	le_timebase_interface_t le_timebase_i;
 };
 // clang-format on
 
+LE_MODULE( le_timebase );
+LE_MODULE_LOAD_DEFAULT( le_timebase );
+
 #ifdef __cplusplus
-} // extern c
 
 namespace le_timebase {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_timebase_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_timebase_api>();
-#	endif
-
+static const auto &api           = le_timebase_api_i;
 static const auto &le_timebase_i = api -> le_timebase_i;
 
 } // namespace le_timebase

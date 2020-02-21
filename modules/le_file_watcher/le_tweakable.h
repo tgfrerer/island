@@ -42,18 +42,16 @@
 
 // ----------------------------------------------------------------------
 
-static auto &aux_file_watcher_i = *Registry::getApi<le_file_watcher_i>();
-
 // ----------------------------------------------------------------------
 // We use `class` here purely for RAAI, to ensure the destructor
 // gets called if the object gets deleted.
 class FileWatcher : NoCopy, NoMove {
-	le_file_watcher_o *self = aux_file_watcher_i.create();
+	le_file_watcher_o *self = le_file_watcher_api_i->le_file_watcher_i.create();
 
   public:
 	FileWatcher() = default;
 	~FileWatcher() {
-		aux_file_watcher_i.destroy( self );
+		le_file_watcher_api_i->le_file_watcher_i.destroy( self );
 	}
 
 	operator auto() {
@@ -258,7 +256,7 @@ static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 
 		has_previous_cb = cb_data;
 
-		return aux_file_watcher_i.add_watch( aux_source_watcher, watch );
+		return le_file_watcher_api_i->le_file_watcher_i.add_watch( aux_source_watcher, &watch );
 	} else {
 		// Add to linked list instead of adding a new callback for this file.
 		has_previous_cb->next = cb_data;
@@ -281,7 +279,7 @@ static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 	// ----------------------------------------------------------------------
 
 #	define UPDATE_TWEAKS() \
-		aux_file_watcher_i.poll_notifications( aux_source_watcher )
+		le_file_watcher_api_i->le_file_watcher_i.poll_notifications( aux_source_watcher )
 
 #else
 

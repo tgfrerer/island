@@ -67,7 +67,7 @@ static uint64_t le_timebase_get_ticks_since_last_frame( le_timebase_o *self ) {
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_timebase_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_timebase, api ) {
 	auto &le_timebase_i                      = static_cast<le_timebase_api *>( api )->le_timebase_i;
 	le_timebase_i.get_current_ticks          = le_timebase_get_current_ticks;
 	le_timebase_i.get_ticks_since_last_frame = le_timebase_get_ticks_since_last_frame;

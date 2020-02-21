@@ -1009,7 +1009,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_gltf_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_gltf, api ) {
 	auto &le_gltf_i = static_cast<le_gltf_api *>( api )->le_gltf_i;
 
 	le_gltf_i.create  = le_gltf_create;

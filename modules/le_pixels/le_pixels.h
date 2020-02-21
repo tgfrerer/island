@@ -4,13 +4,7 @@
 #include <stdint.h>
 #include "le_core/le_core.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct le_pixels_o;
-
-void register_le_pixels_api( void *api );
 
 struct le_pixels_info {
 	// Note that we store the log2 of the number of Bytes needed to store values of a type
@@ -31,8 +25,6 @@ struct le_pixels_info {
 
 // clang-format off
 struct le_pixels_api {
-	static constexpr auto id      = "le_pixels";
-	static constexpr auto pRegFun = register_le_pixels_api;
 
 	struct le_pixels_interface_t {
 
@@ -50,17 +42,13 @@ struct le_pixels_api {
 	le_pixels_interface_t       le_pixels_i;
 };
 // clang-format on
+LE_MODULE( le_pixels );
+LE_MODULE_LOAD_DEFAULT( le_pixels );
 
 #ifdef __cplusplus
-} // extern c
 
 namespace le_pixels {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_pixels_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_pixels_api>();
-#	endif
-
+static const auto &api         = le_pixels_api_i;
 static const auto &le_pixels_i = api -> le_pixels_i;
 
 } // namespace le_pixels

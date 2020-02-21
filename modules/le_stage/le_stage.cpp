@@ -2382,7 +2382,7 @@ static void le_stage_destroy( le_stage_o *self ) {
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_stage_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_stage, api ) {
 	auto &le_stage_i = static_cast<le_stage_api *>( api )->le_stage_i;
 
 	le_stage_i.create  = le_stage_create;

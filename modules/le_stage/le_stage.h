@@ -4,10 +4,6 @@
 #include <stdint.h>
 #include "le_core/le_core.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct le_renderer_o; // from le_renderer
 struct le_timebase_o; // from le_timebase
 
@@ -28,14 +24,8 @@ struct le_camera_o; // from module::le_camera
 
 struct LeSamplerInfo; // from le_renderer
 
-void register_le_stage_api( void *api );
-
 // clang-format off
 struct le_stage_api {
-
-
-	static constexpr auto id      = "le_stage";
-	static constexpr auto pRegFun = register_le_stage_api;
 
 		struct draw_params_t {
 			le_stage_o* stage;
@@ -79,18 +69,14 @@ struct le_stage_api {
 };
 // clang-format on
 
+LE_MODULE( le_stage );
+LE_MODULE_LOAD_DEFAULT( le_stage );
+
 #ifdef __cplusplus
-} // extern c
 
 namespace le_stage {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_stage_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_stage_api>();
-#	endif
-
+static const auto &api        = le_stage_api_i;
 static const auto &le_stage_i = api -> le_stage_i;
-
 } // namespace le_stage
 
 class LeStage : NoCopy, NoMove {

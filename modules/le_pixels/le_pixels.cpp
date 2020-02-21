@@ -268,7 +268,7 @@ static bool le_pixels_get_info_from_memory( unsigned char const *buffer, size_t 
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_pixels_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_pixels, api ) {
 	auto &le_pixels_i = static_cast<le_pixels_api *>( api )->le_pixels_i;
 
 	le_pixels_i.create             = le_pixels_create_from_file;
