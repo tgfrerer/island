@@ -15,7 +15,7 @@
 #include "le_shader_compiler/le_shader_compiler.h"
 #include "util/spirv-cross/spirv_cross.hpp"
 #include "le_file_watcher/le_file_watcher.h" // for watching shader source files
-#include "3rdparty/src/spooky/SpookyV2.h"      // for hashing renderpass gestalt, so that we can test for *compatible* renderpasses
+#include "3rdparty/src/spooky/SpookyV2.h"    // for hashing renderpass gestalt, so that we can test for *compatible* renderpasses
 
 struct le_shader_module_o {
 	uint64_t                                         hash                = 0;     ///< hash taken from spirv code + hash_file_path + hash_shader_defines
@@ -41,7 +41,7 @@ struct le_shader_manager_o {
 	std::set<le_shader_module_o *>                                  modifiedShaderModules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
 
 	le_shader_compiler_o *shader_compiler   = nullptr; // owning
-	le_file_watcher_o *  shaderFileWatcher = nullptr; // owning
+	le_file_watcher_o *   shaderFileWatcher = nullptr; // owning
 };
 
 // NOTE: It might make sense to have one pipeline manager per worker thread, and
@@ -246,7 +246,6 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
 		if ( 0 == self->moduleDependencies.count( s ) ) {
 
 			// this is the first time this file appears on our radar. Let's create a file watcher for it.
-			static auto &file_watcher_i = *Registry::getApi<le_file_watcher_i>();
 
 			le_file_watcher_watch_settings settings;
 			settings.filePath           = s.c_str();
@@ -258,7 +257,7 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
                 le_pipeline_cache_flag_affected_modules_for_source_path( shader_manager, path );
                 return true;
 			};
-			file_watcher_i.add_watch( self->shaderFileWatcher, settings );
+			le_file_watcher_api_i->le_file_watcher_i.add_watch( self->shaderFileWatcher, &settings );
 		}
 
 		std::cout << std::hex << module << " : " << s << std::endl
@@ -780,11 +779,10 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o *self, l
 static void le_shader_manager_update_shader_modules( le_shader_manager_o *self ) {
 
 	// -- find out which shader modules have been tainted
-	static auto &file_watcher_i = *Registry::getApi<le_file_watcher_i>();
 
 	// this will call callbacks on any watched file objects as a side effect
 	// callbacks will modify le_backend->modifiedShaderModules
-	file_watcher_i.poll_notifications( self->shaderFileWatcher );
+	le_file_watcher_api_i->le_file_watcher_i.poll_notifications( self->shaderFileWatcher );
 
 	// -- update only modules which have been tainted
 
@@ -807,8 +805,7 @@ le_shader_manager_o *le_shader_manager_create( VkDevice_T *device ) {
 	self->shader_compiler = compiler_i.create();
 
 	// -- create file watcher for shader files so that changes can be detected
-	static auto &file_watcher_i = *Registry::getApi<le_file_watcher_i>();
-	self->shaderFileWatcher     = file_watcher_i.create();
+	self->shaderFileWatcher = le_file_watcher_api_i->le_file_watcher_i.create();
 
 	return self;
 }
@@ -818,11 +815,11 @@ le_shader_manager_o *le_shader_manager_create( VkDevice_T *device ) {
 static void le_shader_manager_destroy( le_shader_manager_o *self ) {
 
 	using namespace le_shader_compiler;
+	using namespace le_file_watcher;
 
 	if ( self->shaderFileWatcher ) {
 		// -- destroy file watcher
-		static auto &file_watcher_i = *Registry::getApi<le_file_watcher_i>();
-		file_watcher_i.destroy( self->shaderFileWatcher );
+		le_file_watcher_i.destroy( self->shaderFileWatcher );
 		self->shaderFileWatcher = nullptr;
 	}
 
@@ -1334,6 +1331,8 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 				case vk::DescriptorType::eStorageBufferDynamic:                              //
 					entry.setOffset( base_offset + offsetof( DescriptorData, bufferInfo ) ); // <- point to first element of BufferInfo
 					break;
+				default:
+					assert( false && "invalid descriptor type" );
 				}
 
 				entry.setStride( sizeof( DescriptorData ) );
@@ -1796,7 +1795,7 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_pipeline_vk_api( void *api_ ) {
+void register_le_pipeline_vk_api( void *api_ ) {
 
 	auto le_backend_vk_api_i = static_cast<le_backend_vk_api *>( api_ );
 	{

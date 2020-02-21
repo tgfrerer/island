@@ -589,10 +589,13 @@ static le_resource_info_t get_default_resource_info_for_buffer() {
 	return res;
 }
 
+extern void register_le_rendergraph_api( void *api );            // in le_rendergraph.cpp
+extern void register_le_command_buffer_encoder_api( void *api ); // in le_command_buffer_encoder.cpp
+
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
-	auto  le_renderer_api_i = static_cast<le_renderer_api *>( api_ );
+LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
+	auto  le_renderer_api_i = static_cast<le_renderer_api *>( api );
 	auto &le_renderer_i     = le_renderer_api_i->le_renderer_i;
 
 	le_renderer_i.create                 = renderer_create;
@@ -611,7 +614,7 @@ ISL_API_ATTR void register_le_renderer_api( void *api_ ) {
 	helpers_i.get_default_resource_info_for_image  = get_default_resource_info_for_image;
 
 	// register sub-components of this api
-	register_le_rendergraph_api( api_ );
+	register_le_rendergraph_api( api );
 
-	register_le_command_buffer_encoder_api( api_ );
+	register_le_command_buffer_encoder_api( api );
 }

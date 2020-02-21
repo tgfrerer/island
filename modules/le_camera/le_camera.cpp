@@ -507,7 +507,7 @@ static void camera_controller_set_pivot_distance( le_camera_controller_o *self, 
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_camera_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_camera, api ) {
 	auto &le_camera_i = static_cast<le_camera_api *>( api )->le_camera_i;
 
 	le_camera_i.create                = le_camera_create;

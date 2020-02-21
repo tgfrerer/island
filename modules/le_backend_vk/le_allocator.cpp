@@ -102,7 +102,7 @@ static le_resource_handle_t allocator_get_le_resource_id( le_allocator_o *self )
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_allocator_linear_api( void *api_ ) {
+void register_le_allocator_linear_api( void *api_ ) {
 
 	auto  le_backend_vk_api_i   = static_cast<le_backend_vk_api *>( api_ );
 	auto &le_allocator_linear_i = le_backend_vk_api_i->le_allocator_linear_i;

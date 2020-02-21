@@ -1,19 +1,10 @@
 #ifndef GUARD_le_jobs_H
 #define GUARD_le_jobs_H
 
-#include <stdint.h>
 #include "le_core/le_core.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void register_le_jobs_api( void *api );
 
 // clang-format off
 struct le_jobs_api {
-	static constexpr auto id      = "le_jobs";
-	static constexpr auto pRegFun = register_le_jobs_api;
 
 	struct counter_t;
 
@@ -64,16 +55,13 @@ struct le_jobs_api {
 
 };
 // clang-format on
+LE_MODULE( le_jobs );
+LE_MODULE_LOAD_DEFAULT( le_jobs );
 
 #ifdef __cplusplus
-} // extern c
 
 namespace le_jobs {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_jobs_api>( false ); // note false: this module may not be reloaded.
-#	else
-const auto api = Registry::addApiStatic<le_jobs_api>();
-#	endif
+static const auto &api = le_jobs_api_i;
 
 using counter_t = le_jobs_api::counter_t;
 using job_t     = le_jobs_api::le_job_o;

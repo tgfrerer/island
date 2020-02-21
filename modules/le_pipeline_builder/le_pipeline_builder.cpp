@@ -665,7 +665,7 @@ static void depth_stencil_state_set_max_depth_bounds( le_graphics_pipeline_build
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_pipeline_builder_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_pipeline_builder, api ) {
 
 	{
 		// setup graphics pipeline builder api

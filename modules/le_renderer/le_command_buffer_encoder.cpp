@@ -535,7 +535,7 @@ static le_pipeline_manager_o *cbe_get_pipeline_manager( le_command_buffer_encode
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_command_buffer_encoder_api( void *api_ ) {
+void register_le_command_buffer_encoder_api( void *api_ ) {
 
 	auto &cbe_i = static_cast<le_renderer_api *>( api_ )->le_command_buffer_encoder_i;
 

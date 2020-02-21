@@ -1,13 +1,7 @@
 #ifndef GUARD_le_graphics_pipeline_builder_H
 #define GUARD_le_graphics_pipeline_builder_H
 
-#include "stdint.h"
-#include "stddef.h"
 #include "le_core/le_core.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 struct le_graphics_pipeline_builder_o;
 struct le_shader_module_o;
@@ -40,12 +34,8 @@ enum class CompareOp : uint32_t;
 enum class StencilOp : uint32_t;
 } // namespace le
 
-void register_le_pipeline_builder_api( void *api );
-
 // clang-format off
 struct le_pipeline_builder_api {
-	static constexpr auto id      = "le_pipeline_builder";
-	static constexpr auto pRegFun = register_le_pipeline_builder_api;
 
 	struct le_graphics_pipeline_builder_interface_t {
 
@@ -163,21 +153,17 @@ struct le_pipeline_builder_api {
 };
 // clang-format on
 
+LE_MODULE( le_pipeline_builder );
+LE_MODULE_LOAD_DEFAULT( le_pipeline_builder );
+
 #ifdef __cplusplus
-} // extern c
 
 // ----------------------------------------------------------------------
 
 namespace le_pipeline_builder {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_pipeline_builder_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_pipeline_builder_api>();
-#	endif
-
+static const auto &api                            = le_pipeline_builder_api_i;
 static const auto &le_graphics_pipeline_builder_i = api -> le_graphics_pipeline_builder_i;
 static const auto &le_compute_pipeline_builder_i  = api -> le_compute_pipeline_builder_i;
-
 } // namespace le_pipeline_builder
 
 // ----------------------------------------------------------------------

@@ -545,7 +545,7 @@ static GLFWwindow *window_get_glfw_window( pal_window_o *self ) {
 // ----------------------------------------------------------------------
 
 static int init() {
-	auto result = glfwInit();
+	int result = glfwInit();
 	assert( result == GLFW_TRUE );
 
 	if ( glfwVulkanSupported() ) {
@@ -581,8 +581,7 @@ static void terminate() {
 
 // ----------------------------------------------------------------------
 
-void register_pal_window_api( void *api ) {
-
+LE_MODULE_REGISTER_IMPL( pal_window, api ) {
 	auto windowApi = static_cast<pal_window_api *>( api );
 
 	windowApi->init                                = init;
@@ -613,5 +612,5 @@ void register_pal_window_api( void *api ) {
 	window_settings_i.set_width  = window_settings_set_width;
 	window_settings_i.set_height = window_settings_set_height;
 
-	Registry::loadLibraryPersistently( "libglfw.so" );
+	le_core_load_library_persistently( "libglfw.so" );
 }

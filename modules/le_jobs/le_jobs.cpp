@@ -7,6 +7,7 @@
 #include <list>
 #include <cstdlib> // for malloc
 #include <thread>
+#include "assert.h"
 
 #include "private/lockfree_ring_buffer.h"
 
@@ -568,7 +569,7 @@ static void le_job_manager_run_jobs( le_job_o *jobs, uint32_t num_jobs, counter_
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_jobs_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_jobs, api ) {
 
 	static_cast<le_jobs_api *>( api )->yield                     = le_fiber_yield;
 	static_cast<le_jobs_api *>( api )->get_current_worker_id     = get_current_worker_thread_id;
@@ -577,7 +578,7 @@ ISL_API_ATTR void register_le_jobs_api( void *api ) {
 	static_cast<le_jobs_api *>( api )->terminate                 = le_job_manager_terminate;
 	static_cast<le_jobs_api *>( api )->wait_for_counter_and_free = le_job_manager_wait_for_counter_and_free;
 
-	Registry::loadLibraryPersistently( "libpthread.so" );
+	le_core_load_library_persistently( "libpthread.so" );
 }
 
 // ----------------------------------------------------------------------

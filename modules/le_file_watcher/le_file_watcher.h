@@ -36,4 +36,13 @@ LE_MODULE( le_file_watcher );
 // be statically linked into the core module.
 LE_MODULE_LOAD_STATIC( le_file_watcher );
 
+// ----------------------------------------------------------------------
+
+#ifdef __cplusplus
+namespace le_file_watcher {
+static const auto &api               = le_file_watcher_api_i;
+static const auto &le_file_watcher_i = api -> le_file_watcher_i;
+} // namespace le_file_watcher
+#endif // !__cplusplus
+
 #endif // GUARD_FILE_SYSTEM_H

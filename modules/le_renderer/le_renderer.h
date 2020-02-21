@@ -9,13 +9,6 @@
 
 constexpr uint64_t LE_RENDERPASS_MARKER_EXTERNAL = hash_64_fnv1a_const( "rp-external" );
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void register_le_renderer_api( void *api );
-void register_le_rendergraph_api( void *api );            // in le_rendergraph.cpp
-void register_le_command_buffer_encoder_api( void *api ); // in le_command_buffer_encoder.cpp
 
 struct le_renderer_o;
 struct le_render_module_o;
@@ -31,9 +24,6 @@ struct le_staging_allocator_o; // from backend
 
 // clang-format off
 struct le_renderer_api {
-
-	static constexpr auto id      = "le_renderer";
-	static constexpr auto pRegFun = register_le_renderer_api;
 
 	struct renderer_interface_t {
 		le_renderer_o *                ( *create                                )( );
@@ -164,15 +154,13 @@ struct le_renderer_api {
 };
 // clang-format on
 
+LE_MODULE( le_renderer );
+LE_MODULE_LOAD_DEFAULT( le_renderer );
+
 #ifdef __cplusplus
-} // extern "C"
 
 namespace le_renderer {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_renderer_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_renderer_api>();
-#	endif
+static const auto &api = le_renderer_api_i;
 
 static const auto &renderer_i      = api -> le_renderer_i;
 static const auto &renderpass_i    = api -> le_renderpass_i;

@@ -1,7 +1,6 @@
 #ifndef GUARD_le_camera_H
 #define GUARD_le_camera_H
 
-#include <stdint.h>
 #include "le_core/le_core.h"
 
 #ifdef __cplusplus
@@ -16,7 +15,6 @@
 #		include <glm/fwd.hpp>
 #	endif
 
-extern "C" {
 #endif
 
 struct le_camera_o;
@@ -29,12 +27,8 @@ namespace le {
 struct Viewport;
 }
 
-void register_le_camera_api( void *api );
-
 // clang-format off
 struct le_camera_api {
-	static constexpr auto id      = "le_camera";
-	static constexpr auto pRegFun = register_le_camera_api;
 
 	struct le_camera_interface_t {
 
@@ -78,14 +72,12 @@ struct le_camera_api {
 // clang-format on
 
 #ifdef __cplusplus
-} // extern c
+
+LE_MODULE( le_camera );
+LE_MODULE_LOAD_DEFAULT( le_camera );
 
 namespace le_camera {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_camera_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_camera_api>();
-#	endif
+static const auto &api = le_camera_api_i;
 
 static const auto &le_camera_i            = api -> le_camera_i;
 static const auto &le_camera_controller_i = api -> le_camera_controller_i;

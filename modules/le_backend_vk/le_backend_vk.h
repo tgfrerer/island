@@ -4,16 +4,6 @@
 #include <stdint.h>
 #include "le_core/le_core.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void register_le_backend_vk_api( void *api );
-void register_le_instance_vk_api( void *api );       // for le_instance_vk.cpp
-void register_le_allocator_linear_api( void *api_ ); // for le_allocator.cpp
-void register_le_device_vk_api( void *api );         // for le_device_vk.cpp
-void register_le_pipeline_vk_api( void *api );       // for le_pipeline_vk.cpp
-
 struct le_backend_o;
 struct le_backend_vk_api;
 
@@ -84,8 +74,6 @@ struct le_pipeline_and_layout_info_t {
 };
 
 struct le_backend_vk_api {
-	static constexpr auto id      = "le_backend_vk";
-	static constexpr auto pRegFun = register_le_backend_vk_api;
 
 	// clang-format off
 	struct backend_vk_interface_t {
@@ -228,15 +216,13 @@ struct le_backend_vk_api {
 	mutable le_backend_vk_instance_o *cUniqueInstance = nullptr;
 };
 
+LE_MODULE( le_backend_vk );
+LE_MODULE_LOAD_DEFAULT( le_backend_vk );
+
 #ifdef __cplusplus
-} // extern "C"
 
 namespace le_backend_vk {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_backend_vk_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_backend_vk_api>();
-#	endif
+const auto api = le_backend_vk_api_i;
 
 static const auto &vk_backend_i           = api -> vk_backend_i;
 static const auto &private_backend_vk_i   = api -> private_backend_vk_i;

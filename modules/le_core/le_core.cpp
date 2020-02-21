@@ -218,7 +218,7 @@ struct ArgumentNameTable {
 
 static ArgumentNameTable argument_names_table{};
 
-ISL_API_ATTR void update_argument_name_table( const char *name, uint64_t value ) {
+ISL_API_ATTR void le_update_argument_name_table( const char *name, uint64_t value ) {
 
 	// find index of entry with current value in table
 
@@ -244,7 +244,7 @@ ISL_API_ATTR void update_argument_name_table( const char *name, uint64_t value )
 	}
 };
 
-ISL_API_ATTR char const *get_argument_name_from_hash( uint64_t value ) {
+ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value ) {
 
 	if ( argument_names_table.hashes.empty() ) {
 		return "<< Argument name table empty. >>";

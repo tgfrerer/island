@@ -4318,9 +4318,13 @@ static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
 	return presentSuccessful;
 }
 
-// ----------------------------------------------------------------------
+extern void register_le_instance_vk_api( void *api );       // for le_instance_vk.cpp
+extern void register_le_allocator_linear_api( void *api_ ); // for le_allocator.cpp
+extern void register_le_device_vk_api( void *api );         // for le_device_vk.cpp
+extern void register_le_pipeline_vk_api( void *api );       // for le_pipeline_vk.cpp
 
-ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
+// ----------------------------------------------------------------------
+LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	auto  api_i        = static_cast<le_backend_vk_api *>( api_ );
 	auto &vk_backend_i = api_i->vk_backend_i;
 
@@ -4373,5 +4377,5 @@ ISL_API_ATTR void register_le_backend_vk_api( void *api_ ) {
 		le_instance_vk_i.post_reload_hook( api_i->cUniqueInstance );
 	}
 
-	Registry::loadLibraryPersistently( "libvulkan.so" );
+	le_core_load_library_persistently( "libvulkan.so" );
 }

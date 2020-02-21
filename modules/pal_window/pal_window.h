@@ -4,12 +4,6 @@
 #include <stdint.h>
 #include "le_core/le_core.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void register_pal_window_api( void *api );
-
 struct VkInstance_T;
 struct pal_window_o;
 struct pal_window_settings_o;
@@ -20,9 +14,6 @@ struct LeUiEvent; // declared in le_ui_event.h
 
 // clang-format off
 struct pal_window_api {
-	static constexpr auto id      = "pal_window";
-	static constexpr auto pRegFun = register_pal_window_api;
-
 
 	struct window_settings_interface_t {
 		pal_window_settings_o * ( *create     ) ();
@@ -67,16 +58,14 @@ struct pal_window_api {
 };
 // clang-format on
 
+LE_MODULE( pal_window );
+LE_MODULE_LOAD_DEFAULT( pal_window );
+
 #ifdef __cplusplus
-} // extern "C"
 
 namespace pal_window {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<pal_window_api>( true );
-#	else
-const auto api = Registry::addApiStatic<pal_window_api>();
-#	endif
 
+static const auto &api        = pal_window_api_i;
 static const auto &window_i   = api -> window_i;
 static const auto &settings_i = api -> window_settings_i;
 

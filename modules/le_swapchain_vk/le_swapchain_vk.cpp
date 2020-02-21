@@ -98,7 +98,7 @@ static void swapchain_get_required_vk_device_extensions( const le_swapchain_sett
 
 // ----------------------------------------------------------------------
 
-void register_le_swapchain_vk_api( void *api_ ) {
+LE_MODULE_REGISTER_IMPL( le_swapchain_vk, api_ ) {
 	auto  api         = static_cast<le_swapchain_vk_api *>( api_ );
 	auto &swapchain_i = api->swapchain_i;
 

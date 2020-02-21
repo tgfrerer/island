@@ -532,7 +532,7 @@ static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_sha
 
 // ---------------------------------------------------------------
 
-ISL_API_ATTR void register_le_shader_compiler_api( void *api_ ) {
+LE_MODULE_REGISTER_IMPL( le_shader_compiler, api_ ) {
 	auto  le_shader_compiler_api_i = static_cast<le_shader_compiler_api *>( api_ );
 	auto &compiler_i               = le_shader_compiler_api_i->compiler_i;
 
@@ -544,5 +544,5 @@ ISL_API_ATTR void register_le_shader_compiler_api( void *api_ ) {
 	compiler_i.get_result_includes = le_shader_compilation_result_get_next_includes_path;
 	compiler_i.release_result      = le_shader_compilation_result_detroy;
 
-	Registry::loadLibraryPersistently( "libshaderc_shared.so" );
+	le_core_load_library_persistently( "libshaderc_shared.so" );
 }

@@ -4,20 +4,12 @@
 #include <stdint.h>
 #include "le_core/le_core.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct le_shader_compiler_o;
 struct le_shader_compilation_result_o;
 struct LeShaderStageEnum; // defined in renderer_types.h
 
-void register_le_shader_compiler_api( void *api );
-
 // clang-format off
 struct le_shader_compiler_api {
-    static constexpr auto id      = "le_shader_compiler";
-    static constexpr auto pRegFun = register_le_shader_compiler_api;
 
     struct compiler_interface_t {
 
@@ -40,18 +32,14 @@ struct le_shader_compiler_api {
 };
 // clang-format on
 
+LE_MODULE( le_shader_compiler );
+LE_MODULE_LOAD_DEFAULT( le_shader_compiler );
+
 #ifdef __cplusplus
-} // extern c
 
 namespace le_shader_compiler {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_shader_compiler_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_shader_compiler_api>();
-#	endif
-
+static const auto &api        = le_shader_compiler_api_i;
 static const auto &compiler_i = api -> compiler_i;
-
 } // namespace le_shader_compiler
 
 #endif
