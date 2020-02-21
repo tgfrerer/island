@@ -1,5 +1,4 @@
 #include "le_core/le_core.h"
-
 #include "le_backend_vk/le_backend_vk.h"
 
 #define VMA_USE_STL_CONTAINERS 1
