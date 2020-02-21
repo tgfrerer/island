@@ -3861,7 +3861,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 								return;
 							std::cout << "backend_process_frame:"
 							          << char( 0x1B ) << "[38;5;209m"
-							          << " Warning: Invalid argument name: '" << get_argument_name_from_hash( argument ) << "'"
+							          << " Warning: Invalid argument name: '" << le_get_argument_name_from_hash( argument ) << "'"
 							          << char( 0x1B ) << "[0m"
 							          << " id: 0x" << std::hex << argument << std::endl
 							          << std::flush;
