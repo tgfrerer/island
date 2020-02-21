@@ -1,6 +1,6 @@
 #include "./include/internal/le_swapchain_vk_common.h" // defines struct le_swapchain_o
 #include "le_renderer/private/le_renderer_types.h"     // for swapchain_settings
-
+#include "assert.h"
 // ----------------------------------------------------------------------
 
 static void swapchain_reset( le_swapchain_o *self, const le_swapchain_settings_t *settings ) {
@@ -119,6 +119,6 @@ void register_le_swapchain_vk_api( void *api_ ) {
 	register_le_swapchain_img_api( api );
 	register_le_swapchain_direct_api( api );
 
-	Registry::loadLibraryPersistently( "libvulkan.so" );
-	Registry::loadLibraryPersistently( "libX11.so" );
+	le_core_load_library_persistently( "libvulkan.so" );
+	le_core_load_library_persistently( "libX11.so" );
 }
