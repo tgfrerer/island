@@ -1,14 +1,10 @@
 #ifndef GUARD_LE_RENDERER_H
 #define GUARD_LE_RENDERER_H
 
-#include <stdint.h>
 #include "le_core/le_core.h"
-#include "le_core/hash_util.h" // fixme-we shouldn't do that.
-
 #include "private/le_renderer_types.h"
 
-constexpr uint64_t LE_RENDERPASS_MARKER_EXTERNAL = hash_64_fnv1a_const( "rp-external" );
-
+extern const uint64_t LE_RENDERPASS_MARKER_EXTERNAL; // set in le_renderer.cpp
 
 struct le_renderer_o;
 struct le_render_module_o;

@@ -1,4 +1,5 @@
 #include "le_core/le_core.h"
+#include "le_core/hash_util.h" // fixme-we shouldn't do that.
 
 #include "le_renderer/le_renderer.h"
 
@@ -9,6 +10,8 @@
 #include <iomanip>
 #include <chrono>
 #include <vector>
+
+const uint64_t LE_RENDERPASS_MARKER_EXTERNAL = hash_64_fnv1a_const( "rp-external" );
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
