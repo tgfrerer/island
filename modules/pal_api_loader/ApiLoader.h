@@ -1,6 +1,7 @@
 #ifndef GUARD_API_LOADER_H
 #define GUARD_API_LOADER_H
 
+#include "pal_api_loader/ApiRegistry.h"
 /*
 
 The pal api loader lets us load apis which obey the following protocol:
@@ -22,26 +23,28 @@ table of function pointers which, together, declare the api.
 extern "C" {
 #endif // end __cplusplus
 
-struct pal_api_loader_i;
 struct pal_api_loader_o;
-struct pal_file_watcher_i;
-struct pal_file_watcher_o;
-
-bool pal_register_api_loader_i( pal_api_loader_i *api );
 
 // clang-format off
-struct pal_api_loader_i {
+struct pal_api_loader_api {
 
-	static constexpr auto id      = "pal_api_loader";
-	static constexpr auto pRegFun = pal_register_api_loader_i;
-
+	struct pal_api_loader_interface_t {
 	pal_api_loader_o * ( *create )               ( const char *path_ );
 	void               ( *destroy )              ( pal_api_loader_o *obj );
 	bool               ( *register_api )         ( pal_api_loader_o *obj, void *api_interface, const char *api_registry_name );
 	bool               ( *load )                 ( pal_api_loader_o *obj );
 	bool               ( *loadLibraryPersistent) (const char* libName_);
+	};
+	
+	pal_api_loader_interface_t pal_api_loader_i;
+
 };
 // clang-format on
+
+LE_MODULE( pal_api_loader );
+
+// Apiloader module can only be used as a static module, as it is part of the core.
+LE_MODULE_LOAD_STATIC( pal_api_loader );
 
 // ----------------------------------------------------------------------
 

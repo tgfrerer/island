@@ -3,7 +3,10 @@
 #include <dlfcn.h>
 #include <link.h>
 
+#include <string>
 #include <iostream>
+
+struct pal_file_watcher_o;
 
 #define LOG_PREFIX_STR "LOADER"
 
@@ -11,11 +14,11 @@
 typedef void ( *register_api_fun_p_t )( void * );
 
 struct pal_api_loader_o {
-	const char *        mApiName             = nullptr;
-	const char *        mRegisterApiFuncName = nullptr;
-	const char *        mPath                = nullptr;
-	void *              mLibraryHandle       = nullptr;
-	pal_file_watcher_o *mFileWatcher         = nullptr;
+	std::string         mApiName;
+	std::string         mRegisterApiFuncName;
+	std::string         mPath;
+	void *              mLibraryHandle = nullptr;
+	pal_file_watcher_o *mFileWatcher   = nullptr;
 };
 
 // ----------------------------------------------------------------------
@@ -104,15 +107,15 @@ static pal_api_loader_o *instance_create( const char *path_ ) {
 // ----------------------------------------------------------------------
 
 static void instance_destroy( pal_api_loader_o *obj ) {
-	unload_library( obj->mLibraryHandle, obj->mPath );
+	unload_library( obj->mLibraryHandle, obj->mPath.c_str() );
 	delete obj;
 };
 
 // ----------------------------------------------------------------------
 
 static bool load( pal_api_loader_o *obj ) {
-	unload_library( obj->mLibraryHandle, obj->mPath );
-	obj->mLibraryHandle = load_library( obj->mPath );
+	unload_library( obj->mLibraryHandle, obj->mPath.c_str() );
+	obj->mLibraryHandle = load_library( obj->mPath.c_str() );
 	return ( obj->mLibraryHandle != nullptr );
 }
 
@@ -138,14 +141,15 @@ static bool register_api( pal_api_loader_o *obj, void *api_interface, const char
 
 // ----------------------------------------------------------------------
 
-bool pal_register_api_loader_i( pal_api_loader_i *api ) {
-	api->create                = instance_create;
-	api->destroy               = instance_destroy;
-	api->load                  = load;
-	api->register_api          = register_api;
-	api->loadLibraryPersistent = load_library_persistent;
-	return true;
-};
+LE_MODULE_REGISTER_IMPL( pal_api_loader, p_api ) {
+	auto  api                      = static_cast<pal_api_loader_api *>( p_api );
+	auto &loader_i                 = api->pal_api_loader_i;
+	loader_i.create                = instance_create;
+	loader_i.destroy               = instance_destroy;
+	loader_i.load                  = load;
+	loader_i.register_api          = register_api;
+	loader_i.loadLibraryPersistent = load_library_persistent;
+}
 
 // ----------------------------------------------------------------------
 // LINUX: these methods are to audit runtime dyanmic library linking and loading.

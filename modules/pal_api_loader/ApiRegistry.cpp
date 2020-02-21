@@ -1,6 +1,7 @@
-#include "ApiRegistry.hpp"
+#include "ApiRegistry.h"
 #include "pal_file_watcher/pal_file_watcher.h"
 #include "pal_api_loader/ApiLoader.h"
+#include "hash_util.h"
 #include <vector>
 #include <string>
 #include <stdio.h>
@@ -25,14 +26,12 @@ struct ApiStore {
 // names and namehashes, and ptrs get reset...
 static ApiStore apiStore{};
 
-static auto file_watcher_i = Registry::addApiStatic<pal_file_watcher_i>();
-static auto file_watcher   = file_watcher_i -> create();
+static auto &file_watcher_i = pal_file_watcher_api_i -> pal_file_watcher_i; // pal_file_watcher_api_i provided by pal_file_watcher.h
+static auto  file_watcher   = file_watcher_i.create();
 
-struct dynamic_api_info_o {
-	std::string module_path;
-	std::string modules_dir;
-	std::string register_fun_name;
-};
+ISL_API_ATTR void le_core_poll_for_module_reloads() {
+	file_watcher_i.poll_notifications( file_watcher );
+}
 
 // ----------------------------------------------------------------------
 /// \returns index into apiStore entry for api with given id
@@ -64,7 +63,7 @@ static size_t produce_api_index( uint64_t id, const char *debugName ) {
 
 // ----------------------------------------------------------------------
 
-extern "C" void *pal_registry_get_api( uint64_t id, const char *debugName ) {
+ISL_API_ATTR void *pal_registry_get_api( uint64_t id, const char *debugName ) {
 
 	size_t foundElement = produce_api_index( id, debugName );
 	return apiStore.ptrs[ foundElement ];
@@ -72,7 +71,7 @@ extern "C" void *pal_registry_get_api( uint64_t id, const char *debugName ) {
 
 // ----------------------------------------------------------------------
 
-extern "C" void *pal_registry_create_api( uint64_t id, size_t apiStructSize, const char *debugName ) {
+static void *pal_registry_create_api( uint64_t id, size_t apiStructSize, const char *debugName ) {
 
 	size_t foundElement = produce_api_index( id, debugName );
 
@@ -101,36 +100,24 @@ extern "C" void *pal_registry_create_api( uint64_t id, size_t apiStructSize, con
 
 // ----------------------------------------------------------------------
 
-struct Registry::callback_params_o {
-	pal_api_loader_i *loaderInterface;
-	pal_api_loader_o *loader;
-	void *            api;
-	const char *      lib_register_fun_name;
+struct registry_callback_params_o {
+	pal_api_loader_api const *loaderInterface;
+	pal_api_loader_o *        loader;
+	void *                    api;
+	std::string               lib_register_fun_name;
 };
 
 // ----------------------------------------------------------------------
 
-Registry::callback_params_o *Registry::create_callback_params( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader, void *api, const char *lib_register_fun_name ) {
-	// We create the callback_params object here so that it is not created in the header file.
-	// Creating it here means we force the object to be allocated in this translation unit,
-	// which is the only translation unit in a plugin-based program which is guaranteed not
-	// to be reloaded. Therefore we can assume that any static data in here is persistent,
-	// and that pointers to it remain valid for the duration of the program.
-	auto obj = new callback_params_o{loaderInterface, loader, api, lib_register_fun_name};
-	return obj;
+static bool loaderCallback( const char *path, void *user_data_ ) {
+	auto params = static_cast<registry_callback_params_o *>( user_data_ );
+	params->loaderInterface->pal_api_loader_i.load( params->loader );
+	return params->loaderInterface->pal_api_loader_i.register_api( params->loader, params->api, params->lib_register_fun_name.c_str() );
 }
 
 // ----------------------------------------------------------------------
 
-bool Registry::loaderCallback( const char *path, void *user_data_ ) {
-	auto params = static_cast<Registry::callback_params_o *>( user_data_ );
-	params->loaderInterface->load( params->loader );
-	return params->loaderInterface->register_api( params->loader, params->api, params->lib_register_fun_name );
-}
-
-// ----------------------------------------------------------------------
-
-int Registry::addWatch( const char *watchedPath_, Registry::callback_params_o *settings_ ) {
+static int addWatch( const char *watchedPath_, registry_callback_params_o *settings_ ) {
 
 	pal_file_watcher_watch_settings watchSettings;
 
@@ -138,36 +125,24 @@ int Registry::addWatch( const char *watchedPath_, Registry::callback_params_o *s
 	watchSettings.callback_user_data = reinterpret_cast<void *>( settings_ );
 	watchSettings.filePath           = watchedPath_;
 
-	return file_watcher_i->add_watch( file_watcher, watchSettings );
+	return file_watcher_i.add_watch( file_watcher, watchSettings );
 }
 
 // ----------------------------------------------------------------------
 
-pal_api_loader_i *Registry::getLoaderInterface() {
-	return Registry::addApiStatic<pal_api_loader_i>();
-}
+ISL_API_ATTR void *le_core_add_module_static( char const *module_name, void ( *module_reg_fun )( void * ), uint64_t api_size_in_bytes ) {
+	void *api = pal_registry_create_api( hash_64_fnv1a_const( module_name ), api_size_in_bytes, module_name );
+	module_reg_fun( api );
+	return api;
+};
 
-// ----------------------------------------------------------------------
+struct dynamic_api_info_o {
+	std::string module_path;
+	std::string modules_dir;
+	std::string register_fun_name;
+};
 
-pal_api_loader_o *Registry::createLoader( pal_api_loader_i *loaderInterface_, const char *libPath_ ) {
-	return loaderInterface_->create( libPath_ );
-}
-
-// ----------------------------------------------------------------------
-
-void Registry::loadApi( pal_api_loader_i *loaderInterface_, pal_api_loader_o *loader_ ) {
-	loaderInterface_->load( loader_ );
-}
-
-// ----------------------------------------------------------------------
-
-void Registry::loadLibraryPersistently( pal_api_loader_i *loaderInterface_, const char *libName_ ) {
-	loaderInterface_->loadLibraryPersistent( libName_ );
-}
-
-// ----------------------------------------------------------------------
-
-dynamic_api_info_o *Registry::create_dynamic_api_info( const char *id ) {
+dynamic_api_info_o *create_dynamic_api_info( const char *id ) {
 
 	auto obj = new dynamic_api_info_o();
 
@@ -181,41 +156,44 @@ dynamic_api_info_o *Registry::create_dynamic_api_info( const char *id ) {
 	return obj;
 }
 
-// ----------------------------------------------------------------------
+ISL_API_ATTR void *le_core_add_module_dynamic( char const *module_name, uint64_t api_size_in_bytes, bool should_watch ) {
 
-const char *Registry::dynamic_api_info_get_module_path( const dynamic_api_info_o *info ) {
-	return info->module_path.c_str();
-}
+	uint64_t module_name_hash = hash_64_fnv1a_const( module_name );
 
-// ----------------------------------------------------------------------
+	void *api = pal_registry_get_api( module_name_hash, module_name );
 
-const char *Registry::dynamic_api_info_get_modules_dir( const dynamic_api_info_o *info ) {
-	return info->modules_dir.c_str();
-}
+	if ( api == nullptr ) {
 
-// ----------------------------------------------------------------------
+		char api_register_fun_name[ 256 ];
+		snprintf( api_register_fun_name, 255, "le_module_register_%s", module_name );
 
-const char *Registry::dynamic_api_info_get_register_fun_name( const dynamic_api_info_o *info ) {
-	return info->register_fun_name.c_str();
-}
+		// LE_MODULE_LOAD_STATIC( pal_api_loader ); // we force the api loader module to be loaded at this point.
 
-// ----------------------------------------------------------------------
+		static auto &module_loader_i = pal_api_loader_api_i->pal_api_loader_i;
 
-void Registry::destroy_dynamic_api_info( dynamic_api_info_o *info ) {
-	delete info;
-}
+		dynamic_api_info_o *info   = create_dynamic_api_info( module_name ); // TODO: LEAK
+		pal_api_loader_o *  loader = module_loader_i.create( info->module_path.c_str() );
 
-// ----------------------------------------------------------------------
+		// Important to store api back to table here *before* calling loadApi, as loadApi might recursively add other apis
+		// which would have the effect of allocating more than one copy of the api
+		//
+		api = pal_registry_create_api( hash_64_fnv1a_const( module_name ), api_size_in_bytes, module_name );
 
-void Registry::registerApi( pal_api_loader_i *loaderInterface, pal_api_loader_o *loader, void *api, const char *api_register_fun_name ) {
-	loaderInterface->register_api( loader, api, api_register_fun_name );
-}
+		module_loader_i.load( loader );
+		module_loader_i.register_api( loader, api, api_register_fun_name );
 
-// ----------------------------------------------------------------------
+		// ----
+		if ( should_watch ) {
+			// TODO: leak
+			registry_callback_params_o *callbackParams = new registry_callback_params_o{pal_api_loader_api_i, loader, api, api_register_fun_name};
+			auto                        watchId        = addWatch( info->module_path.c_str(), callbackParams );
+		}
 
-void Registry::pollForDynamicReload() {
-	file_watcher_i->poll_notifications( file_watcher );
-}
+	} else {
+		// TODO: we should warn that this api was already added.
+	}
+	return api;
+};
 
 // ----------------------------------------------------------------------
 

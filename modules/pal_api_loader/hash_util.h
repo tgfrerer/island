@@ -1,7 +1,7 @@
 #ifndef GUARD_LE_HASH_UTIL_H
 #define GUARD_LE_HASH_UTIL_H
 
-#include <stdint.h>
+#include "ApiRegistry.h"
 
 constexpr uint32_t FNV1A_VAL_32_CONST   = 0x811c9dc5;
 constexpr uint32_t FNV1A_PRIME_32_CONST = 0x1000193;
@@ -57,8 +57,6 @@ inline uint32_t hash_32_fnv1a( char const *const input ) noexcept {
 
 #ifndef NDEBUG
 
-ISL_API_ATTR void update_argument_name_table( const char *source, uint64_t value );
-
 // Shader argument names are internally stored / looked up as their hashes.
 // We define alias method for shader argument name so that we may decide to
 // point it to a different hashing algorithm at a later time.
@@ -66,7 +64,7 @@ ISL_API_ATTR void update_argument_name_table( const char *source, uint64_t value
 	static uint64_t hash_value = 0;													\
 	if (hash_value != 0) return hash_value;											\
 	hash_value = hash_64_fnv1a( x );												\
-	update_argument_name_table(x, hash_value);										\
+	le_update_argument_name_table(x, hash_value);								    \
 	return hash_value; }()
 
 #else

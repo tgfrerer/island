@@ -149,13 +149,14 @@ static void poll_notifications( pal_file_watcher_o *instance ) {
 
 // ----------------------------------------------------------------------
 
-void register_file_watcher_api( void *api_p ) {
-	auto api                = reinterpret_cast<pal_file_watcher_i *>( api_p );
-	api->create             = instance_create;
-	api->destroy            = instance_destroy;
-	api->add_watch          = add_watch;
-	api->remove_watch       = remove_watch;
-	api->poll_notifications = poll_notifications;
+LE_MODULE_REGISTER_IMPL( pal_file_watcher, p_api ) {
+	auto  api                = reinterpret_cast<pal_file_watcher_api *>( p_api );
+	auto &api_i              = api->pal_file_watcher_i;
+	api_i.create             = instance_create;
+	api_i.destroy            = instance_destroy;
+	api_i.add_watch          = add_watch;
+	api_i.remove_watch       = remove_watch;
+	api_i.poll_notifications = poll_notifications;
 };
 
 // ----------------------------------------------------------------------
