@@ -1,5 +1,5 @@
 #include "le_bloom_pass.h"
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 #include "le_backend_vk/le_backend_vk.h" // for shader module creation
 

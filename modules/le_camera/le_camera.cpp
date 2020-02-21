@@ -1,5 +1,5 @@
 #include "le_camera.h"
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 #include "le_renderer/private/le_renderer_types.h" // for le::Viewport
 #include "le_ui_event/le_ui_event.h"

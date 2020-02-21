@@ -1,4 +1,4 @@
-#include "ApiLoader.h"
+#include "le_api_loader.h"
 
 #include <dlfcn.h>
 #include <link.h>
@@ -14,10 +14,10 @@ struct le_file_watcher_o;
 typedef void ( *register_api_fun_p_t )( void * );
 
 struct pal_api_loader_o {
-	std::string         mApiName;
-	std::string         mRegisterApiFuncName;
-	std::string         mPath;
-	void *              mLibraryHandle = nullptr;
+	std::string        mApiName;
+	std::string        mRegisterApiFuncName;
+	std::string        mPath;
+	void *             mLibraryHandle = nullptr;
 	le_file_watcher_o *mFileWatcher   = nullptr;
 };
 

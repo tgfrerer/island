@@ -1,5 +1,5 @@
 #include "le_bspline.h"
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 /* B-Spline methods
  *

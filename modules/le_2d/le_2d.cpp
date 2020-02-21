@@ -1,5 +1,5 @@
 #include "le_2d.h"
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.

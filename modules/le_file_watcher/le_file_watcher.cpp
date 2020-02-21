@@ -14,13 +14,13 @@
 // ----------------------------------------------------------------------
 
 struct Watch {
-	int                 inotify_watch_handle = -1;
-	int                 padding              = 0;
+	int                inotify_watch_handle = -1;
+	int                padding              = 0;
 	le_file_watcher_o *watcher_o;
-	std::string         path;
-	std::string         filename;
-	std::string         basename;
-	void *              callback_user_data = nullptr;
+	std::string        path;
+	std::string        filename;
+	std::string        basename;
+	void *             callback_user_data = nullptr;
 	bool ( *callback_fun )( const char *path, void *user_data );
 };
 
@@ -58,17 +58,17 @@ static void instance_destroy( le_file_watcher_o *instance ) {
 
 // ----------------------------------------------------------------------
 
-static int add_watch( le_file_watcher_o *instance, const le_file_watcher_watch_settings &settings ) noexcept {
+static int add_watch( le_file_watcher_o *instance, le_file_watcher_watch_settings const *settings ) noexcept {
 	Watch tmp;
 
-	auto tmp_path = std::filesystem::canonical( settings.filePath );
+	auto tmp_path = std::filesystem::canonical( settings->filePath );
 
 	tmp.path                 = tmp_path;
 	tmp.filename             = tmp_path.filename();
 	tmp.basename             = tmp_path.remove_filename(); // note this changes the path
 	tmp.watcher_o            = instance;
-	tmp.callback_fun         = settings.callback_fun;
-	tmp.callback_user_data   = settings.callback_user_data;
+	tmp.callback_fun         = settings->callback_fun;
+	tmp.callback_user_data   = settings->callback_user_data;
 	tmp.inotify_watch_handle = inotify_add_watch( instance->inotify_socket_handle, tmp.basename.c_str(), IN_CLOSE_WRITE );
 
 	instance->mWatches.emplace_back( std::move( tmp ) );

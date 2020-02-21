@@ -3,7 +3,7 @@
 #endif
 
 #include <stdint.h>
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 // depends on le_backend_vk. le_backend_vk must be loaded before this class is used.
 

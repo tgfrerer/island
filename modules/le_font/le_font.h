@@ -2,7 +2,7 @@
 #define GUARD_le_font_H
 
 #include <stdint.h>
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 #ifndef ISL_ALLOW_GLM_TYPES
 #	define ISL_ALLOW_GLM_TYPES 1

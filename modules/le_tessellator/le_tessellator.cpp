@@ -1,5 +1,5 @@
 #include "le_tessellator.h"
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 #include "./3rdparty/earcut.hpp/include/mapbox/earcut.hpp"
 #include "tesselator.h"

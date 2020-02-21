@@ -1,7 +1,7 @@
 #ifndef GUARD_LE_HASH_UTIL_H
 #define GUARD_LE_HASH_UTIL_H
 
-#include "ApiRegistry.h"
+#include "le_core.h"
 
 constexpr uint32_t FNV1A_VAL_32_CONST   = 0x811c9dc5;
 constexpr uint32_t FNV1A_PRIME_32_CONST = 0x1000193;

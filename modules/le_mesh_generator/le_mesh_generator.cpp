@@ -1,5 +1,5 @@
 #include "le_mesh_generator.h"
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 #include <math.h>
 #include <le_mesh/le_mesh.h>

@@ -1,5 +1,5 @@
 #include "le_pixels.h"
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 #include "3rdparty/stb_image.h"
 #include "assert.h"
 #include <iostream>

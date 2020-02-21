@@ -1,5 +1,5 @@
 #include "le_font.h"
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 #include "3rdparty/stb_truetype.h"
 #include "3rdparty/stb_rect_pack.h"

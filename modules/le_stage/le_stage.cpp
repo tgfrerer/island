@@ -1,5 +1,5 @@
 #include "le_stage.h"
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 #include "le_renderer/le_renderer.h"
 #include "le_stage_types.h"
@@ -2273,7 +2273,10 @@ static void le_stage_update( le_stage_o *self ) {
 
 				uint64_t animation_time = current_ticks - a.ticks_offset;
 
-				switch ( a.playback_mode ) {
+				auto play_mode = le_animation_o::PlaybackMode::eBounce;
+
+				switch ( play_mode ) {
+					//				switch ( a.playback_mode ) {
 
 				case le_animation_o::PlaybackMode::eForward:
 					break;

@@ -2,7 +2,7 @@
 #define GUARD_le_ecs_H
 
 #include <stdint.h>
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 struct le_ecs_o;
 typedef struct EntityId_T *EntityId;

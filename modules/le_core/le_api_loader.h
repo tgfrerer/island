@@ -1,7 +1,7 @@
 #ifndef GUARD_API_LOADER_H
 #define GUARD_API_LOADER_H
 
-#include "pal_api_loader/ApiRegistry.h"
+#include "le_core/le_core.h"
 /*
 
 The pal api loader lets us load apis which obey the following protocol:

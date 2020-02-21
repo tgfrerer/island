@@ -1,9 +1,9 @@
-set ( TARGET pal_api_loader )
+set ( TARGET le_core )
 
-set ( SOURCES ApiLoader.cpp )
-set ( SOURCES ${SOURCES} ApiLoader.h )
-set ( SOURCES ${SOURCES} ApiRegistry.cpp )
-set ( SOURCES ${SOURCES} ApiRegistry.h )
+set ( SOURCES le_api_loader.cpp )
+set ( SOURCES ${SOURCES} le_api_loader.h )
+set ( SOURCES ${SOURCES} le_core.cpp )
+set ( SOURCES ${SOURCES} le_core.h )
 set ( SOURCES ${SOURCES} hash_util.h )
 set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.cpp")
 set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.h")
@@ -34,6 +34,6 @@ target_link_libraries(${TARGET} PRIVATE le_file_watcher)
 target_link_libraries(${TARGET} PUBLIC ${CMAKE_DL_LIBS})
 
 set (PLUGIN_LIBS_DEPENDENCIES ${PLUGIN_LIBS_DEPENDENCIES} le_file_watcher PARENT_SCOPE)
-set (PLUGIN_LIBS_DEPENDENCIES ${PLUGIN_LIBS_DEPENDENCIES} pal_api_loader PARENT_SCOPE)
+set (PLUGIN_LIBS_DEPENDENCIES ${PLUGIN_LIBS_DEPENDENCIES} le_core PARENT_SCOPE)
 
 

@@ -1,5 +1,5 @@
 ﻿#include "le_gltf.h"
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 #include "3rdparty/cgltf/cgltf.h"
 #include "le_stage/le_stage.h"

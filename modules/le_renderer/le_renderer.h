@@ -2,7 +2,7 @@
 #define GUARD_LE_RENDERER_H
 
 #include <stdint.h>
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 #include "private/le_renderer_types.h"
 

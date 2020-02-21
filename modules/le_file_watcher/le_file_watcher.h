@@ -1,7 +1,7 @@
 #ifndef GUARD_FILE_WATCHER_H
 #define GUARD_FILE_WATCHER_H
 
-#include "pal_api_loader/ApiRegistry.h"
+#include "le_core/le_core.h"
 
 struct le_file_watcher_o;
 
@@ -17,7 +17,10 @@ struct le_file_watcher_api {
 	struct le_file_watcher_interface_t{
 		le_file_watcher_o *( *create             )();
 		void                ( *destroy            )( le_file_watcher_o *self );
-		int                 ( *add_watch          )( le_file_watcher_o *self, const le_file_watcher_watch_settings &settings ); /// \return unique id for the watch, -1 if unsuccessful.
+		
+		// returns unique id for the watch, -1 if unsuccessful.
+		int                 ( *add_watch          )( le_file_watcher_o *self, le_file_watcher_watch_settings const *settings );
+		
 		bool                ( *remove_watch       )( le_file_watcher_o *self, int watch_id );
 		void                ( *poll_notifications )( le_file_watcher_o *self);
 	};

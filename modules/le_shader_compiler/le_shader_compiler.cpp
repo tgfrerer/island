@@ -1,4 +1,4 @@
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 /// Note that the shader compiler depends on the shared lib version of libshaderc
 /// this version is available through the LunarG VULKAN SDK,

@@ -1,5 +1,5 @@
 #include "le_imgui.h"
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 #include "3rdparty/include/imgui/imgui.h"
 

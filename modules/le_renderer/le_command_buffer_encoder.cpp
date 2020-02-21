@@ -1,4 +1,4 @@
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/le_renderer_types.h"

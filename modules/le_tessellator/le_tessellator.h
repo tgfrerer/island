@@ -2,7 +2,7 @@
 #define GUARD_le_tessellator_H
 
 #include <stdint.h>
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 #ifdef __cplusplus
 

@@ -84,7 +84,7 @@ include_directories ("${ISLAND_BASE_DIR}")
 include_directories ("${ISLAND_BASE_DIR}/modules")
 
 # These modules are always loaded - they control the plugin system.
-set ( ISLAND_LOADER_MODULES le_file_watcher;pal_api_loader )
+set ( ISLAND_LOADER_MODULES le_file_watcher;le_core )
 
 # These modules form the renderer - if you want to draw graphics, you want these.
 # Note that order matters: dependent modules must be named before their dependencies.

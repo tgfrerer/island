@@ -1,8 +1,9 @@
 #ifndef GUARD_le_graphics_pipeline_builder_H
 #define GUARD_le_graphics_pipeline_builder_H
 
-#include <stdint.h>
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "stdint.h"
+#include "stddef.h"
+#include "le_core/le_core.hpp"
 
 #ifdef __cplusplus
 extern "C" {

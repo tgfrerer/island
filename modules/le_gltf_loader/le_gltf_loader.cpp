@@ -1,5 +1,5 @@
 #include "le_gltf_loader.h"
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 #include "fx/gltf.h"
 

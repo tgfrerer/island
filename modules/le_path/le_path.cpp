@@ -1,5 +1,5 @@
 #include "le_path.h"
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 #include <vector>
 
 #include <cstring>

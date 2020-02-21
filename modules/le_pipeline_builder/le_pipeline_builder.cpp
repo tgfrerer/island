@@ -1,5 +1,5 @@
 #include "le_pipeline_builder.h"
-#include "pal_api_loader/ApiRegistry.hpp"
+#include "le_core/le_core.hpp"
 
 #include "3rdparty/src/spooky/SpookyV2.h"
 
