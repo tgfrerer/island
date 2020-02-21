@@ -21,7 +21,7 @@ struct ApiStore {
 };
 
 struct loader_callback_params_o {
-	pal_api_loader_o *loader;
+	le_module_loader_o *loader;
 	void *            api;
 	std::string       lib_register_fun_name;
 };
@@ -40,13 +40,13 @@ static auto  file_watcher   = file_watcher_i.create();
 // need global lifetime can be unloaded once the app unloads.
 struct DeferDelete {
 
-	std::vector<pal_api_loader_o *>         loaders; // loaders to clean up
+	std::vector<le_module_loader_o *>         loaders; // loaders to clean up
 	std::vector<loader_callback_params_o *> params;  // callback params to clean up
 
 	~DeferDelete() {
 		for ( auto &l : loaders ) {
 			if ( l ) {
-				pal_api_loader_api_i->pal_api_loader_i.destroy( l );
+				le_module_loader_api_i->le_module_loader_i.destroy( l );
 			}
 		}
 		for ( auto &p : params ) {
@@ -136,8 +136,8 @@ static int addWatch( const char *watchedPath, loader_callback_params_o *user_dat
 
 	watchSettings.callback_fun = []( const char *, void *user_data ) -> bool {
 		auto params = static_cast<loader_callback_params_o *>( user_data );
-		pal_api_loader_api_i->pal_api_loader_i.load( params->loader );
-		return pal_api_loader_api_i->pal_api_loader_i.register_api( params->loader, params->api, params->lib_register_fun_name.c_str() );
+		le_module_loader_api_i->le_module_loader_i.load( params->loader );
+		return le_module_loader_api_i->le_module_loader_i.register_api( params->loader, params->api, params->lib_register_fun_name.c_str() );
 	};
 
 	watchSettings.callback_user_data = reinterpret_cast<void *>( user_data );
@@ -162,13 +162,13 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 
 	if ( api == nullptr ) {
 
-		static auto &module_loader_i = pal_api_loader_api_i->pal_api_loader_i;
+		static auto &module_loader_i = le_module_loader_api_i->le_module_loader_i;
 
 		char api_register_fun_name[ 256 ];
 		snprintf( api_register_fun_name, 255, "le_module_register_%s", module_name );
 
 		std::string       module_path = "./modules/lib" + std::string( module_name ) + ".so";
-		pal_api_loader_o *loader      = module_loader_i.create( module_path.c_str() );
+		le_module_loader_o *loader      = module_loader_i.create( module_path.c_str() );
 
 		defer_delete.loaders.push_back( loader ); // add to cleanup list
 

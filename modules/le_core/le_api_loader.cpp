@@ -13,7 +13,7 @@ struct le_file_watcher_o;
 // declare function pointer type to register_fun function
 typedef void ( *register_api_fun_p_t )( void * );
 
-struct pal_api_loader_o {
+struct le_module_loader_o {
 	std::string        mApiName;
 	std::string        mRegisterApiFuncName;
 	std::string        mPath;
@@ -98,22 +98,22 @@ static bool load_library_persistent( const char *lib_name ) {
 
 // ----------------------------------------------------------------------
 
-static pal_api_loader_o *instance_create( const char *path_ ) {
-	pal_api_loader_o *tmp = new pal_api_loader_o{};
+static le_module_loader_o *instance_create( const char *path_ ) {
+	le_module_loader_o *tmp = new le_module_loader_o{};
 	tmp->mPath            = path_;
 	return tmp;
 };
 
 // ----------------------------------------------------------------------
 
-static void instance_destroy( pal_api_loader_o *obj ) {
+static void instance_destroy( le_module_loader_o *obj ) {
 	unload_library( obj->mLibraryHandle, obj->mPath.c_str() );
 	delete obj;
 };
 
 // ----------------------------------------------------------------------
 
-static bool load( pal_api_loader_o *obj ) {
+static bool load( le_module_loader_o *obj ) {
 	unload_library( obj->mLibraryHandle, obj->mPath.c_str() );
 	obj->mLibraryHandle = load_library( obj->mPath.c_str() );
 	return ( obj->mLibraryHandle != nullptr );
@@ -121,7 +121,7 @@ static bool load( pal_api_loader_o *obj ) {
 
 // ----------------------------------------------------------------------
 
-static bool register_api( pal_api_loader_o *obj, void *api_interface, const char *register_api_fun_name ) {
+static bool register_api( le_module_loader_o *obj, void *api_interface, const char *register_api_fun_name ) {
 	// define function pointer we will use to initialise api
 	register_api_fun_p_t fptr;
 
@@ -141,9 +141,9 @@ static bool register_api( pal_api_loader_o *obj, void *api_interface, const char
 
 // ----------------------------------------------------------------------
 
-LE_MODULE_REGISTER_IMPL( pal_api_loader, p_api ) {
-	auto  api                      = static_cast<pal_api_loader_api *>( p_api );
-	auto &loader_i                 = api->pal_api_loader_i;
+LE_MODULE_REGISTER_IMPL( le_module_loader, p_api ) {
+	auto  api                      = static_cast<le_module_loader_api *>( p_api );
+	auto &loader_i                 = api->le_module_loader_i;
 	loader_i.create                = instance_create;
 	loader_i.destroy               = instance_destroy;
 	loader_i.load                  = load;
@@ -155,9 +155,9 @@ LE_MODULE_REGISTER_IMPL( pal_api_loader, p_api ) {
 // LINUX: these methods are to audit runtime dyanmic library linking and loading.
 //
 // To enable, start app with environment variable `LD_AUDIT` set to path of
-// libpal_api_loader.so:
+// lible_module_loader.so:
 //
-//		EXPORT LD_AUDIT=./modules/libpal_api_loader.so
+//		EXPORT LD_AUDIT=./modules/lible_module_loader.so
 
 extern "C" unsigned int
 la_version( unsigned int version ) {

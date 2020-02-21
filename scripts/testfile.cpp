@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "pal_api_loader/hash_util.h"
+#include "le_module_loader/hash_util.h"
 
 // Wraps an enum of `enum_name` in a struct with `struct_name` so
 // that it can be opaquely passed around, then unwrapped.

@@ -23,28 +23,28 @@ table of function pointers which, together, declare the api.
 extern "C" {
 #endif // end __cplusplus
 
-struct pal_api_loader_o;
+struct le_module_loader_o;
 
 // clang-format off
-struct pal_api_loader_api {
+struct le_module_loader_api {
 
-	struct pal_api_loader_interface_t {
-	pal_api_loader_o * ( *create )               ( const char *path_ );
-	void               ( *destroy )              ( pal_api_loader_o *obj );
-	bool               ( *register_api )         ( pal_api_loader_o *obj, void *api_interface, const char *api_registry_name );
-	bool               ( *load )                 ( pal_api_loader_o *obj );
+	struct le_module_loader_interface_t {
+	le_module_loader_o * ( *create )               ( const char *path_ );
+	void               ( *destroy )              ( le_module_loader_o *obj );
+	bool               ( *register_api )         ( le_module_loader_o *obj, void *api_interface, const char *api_registry_name );
+	bool               ( *load )                 ( le_module_loader_o *obj );
 	bool               ( *loadLibraryPersistent) (const char* libName_);
 	};
 	
-	pal_api_loader_interface_t pal_api_loader_i;
+	le_module_loader_interface_t le_module_loader_i;
 
 };
 // clang-format on
 
-LE_MODULE( pal_api_loader );
+LE_MODULE( le_module_loader );
 
 // Apiloader module can only be used as a static module, as it is part of the core.
-LE_MODULE_LOAD_STATIC( pal_api_loader );
+LE_MODULE_LOAD_STATIC( le_module_loader );
 
 // ----------------------------------------------------------------------
 

@@ -270,10 +270,10 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	}
 
 	// Populate indices for default queues - so that default queue may be queried by queue type
-	self->defaultQueueIndices.graphics      = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eGraphics );
-	self->defaultQueueIndices.compute       = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eCompute );
-	self->defaultQueueIndices.transfer      = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eTransfer );
-	self->defaultQueueIndices.sparseBinding = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, ::vk::QueueFlagBits::eSparseBinding );
+	self->defaultQueueIndices.graphics      = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, vk::QueueFlagBits::eGraphics );
+	self->defaultQueueIndices.compute       = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, vk::QueueFlagBits::eCompute );
+	self->defaultQueueIndices.transfer      = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, vk::QueueFlagBits::eTransfer );
+	self->defaultQueueIndices.sparseBinding = findClosestMatchingQueueIndex( self->queuesWithCapabilitiesRequest, vk::QueueFlagBits::eSparseBinding );
 
 	// Query possible depth formats, find the
 	// first format that supports attachment as a depth stencil

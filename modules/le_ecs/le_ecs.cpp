@@ -4,7 +4,7 @@
 #include <array>
 #include <vector>
 #include <bitset>
-#include "pal_api_loader/hash_util.h"
+#include "le_module_loader/hash_util.h"
 
 /* Note
  * 
