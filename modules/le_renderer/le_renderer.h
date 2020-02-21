@@ -2,7 +2,8 @@
 #define GUARD_LE_RENDERER_H
 
 #include <stdint.h>
-#include "le_core/le_core.hpp"
+#include "le_core/le_core.h"
+#include "le_core/hash_util.h" // fixme-we shouldn't do that.
 
 #include "private/le_renderer_types.h"
 

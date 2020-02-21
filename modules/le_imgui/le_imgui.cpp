@@ -1,5 +1,5 @@
 #include "le_imgui.h"
-#include "le_core/le_core.hpp"
+#include "le_core/le_core.h"
 
 #include "3rdparty/include/imgui/imgui.h"
 

@@ -1,5 +1,5 @@
 ﻿#include "le_gltf.h"
-#include "le_core/le_core.hpp"
+#include "le_core/le_core.h"
 
 #include "3rdparty/cgltf/cgltf.h"
 #include "le_stage/le_stage.h"

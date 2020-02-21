@@ -2,7 +2,7 @@
 #define GUARD_le_ecs_H
 
 #include <stdint.h>
-#include "le_core/le_core.hpp"
+#include "le_core/le_core.h"
 
 struct le_ecs_o;
 typedef struct EntityId_T *EntityId;

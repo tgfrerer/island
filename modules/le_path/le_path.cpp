@@ -1,5 +1,5 @@
 #include "le_path.h"
-#include "le_core/le_core.hpp"
+#include "le_core/le_core.h"
 #include <vector>
 
 #include <cstring>

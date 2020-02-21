@@ -31,7 +31,7 @@
 #ifndef NDEBUG
 
 #	include <stdint.h>
-#	include "le_core/le_core.hpp"
+#	include "le_core/le_core.h"
 
 #	include "le_file_watcher/le_file_watcher.h"
 

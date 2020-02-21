@@ -1,5 +1,5 @@
 #include "le_bspline.h"
-#include "le_core/le_core.hpp"
+#include "le_core/le_core.h"
 
 /* B-Spline methods
  *

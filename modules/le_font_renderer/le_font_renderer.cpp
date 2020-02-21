@@ -1,5 +1,5 @@
 #include "le_font_renderer.h"
-#include "le_core/le_core.hpp"
+#include "le_core/le_core.h"
 
 #include "modules/le_renderer/le_renderer.h"
 #include "modules/le_font/le_font.h"

@@ -1,5 +1,5 @@
 #include "le_pipeline_builder.h"
-#include "le_core/le_core.hpp"
+#include "le_core/le_core.h"
 
 #include "3rdparty/src/spooky/SpookyV2.h"
 

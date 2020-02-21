@@ -1,5 +1,5 @@
 #include "le_gltf_loader.h"
-#include "le_core/le_core.hpp"
+#include "le_core/le_core.h"
 
 #include "fx/gltf.h"
 

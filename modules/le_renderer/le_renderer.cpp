@@ -1,4 +1,4 @@
-#include "le_core/le_core.hpp"
+#include "le_core/le_core.h"
 
 #include "le_renderer/le_renderer.h"
 

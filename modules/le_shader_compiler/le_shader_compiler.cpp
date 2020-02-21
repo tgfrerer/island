@@ -1,4 +1,4 @@
-#include "le_core/le_core.hpp"
+#include "le_core/le_core.h"
 
 /// Note that the shader compiler depends on the shared lib version of libshaderc
 /// this version is available through the LunarG VULKAN SDK,

@@ -2,7 +2,7 @@
 #define GUARD_LE_GLTF_LOADER_H
 
 #include <stdint.h>
-#include "le_core/le_core.hpp"
+#include "le_core/le_core.h"
 
 #ifdef __cplusplus
 extern "C" {
