@@ -427,7 +427,7 @@ static void le_font_destroy( le_font_o *self ) {
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_font_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_font, api ) {
 	auto &le_font_i = static_cast<le_font_api *>( api )->le_font_i;
 
 	le_font_i.create                       = le_font_create;

@@ -1,48 +1,17 @@
 #ifndef GUARD_le_ecs_H
 #define GUARD_le_ecs_H
 
-#include <stdint.h>
 #include "le_core/le_core.h"
+#include "assert.h" // FIXME: we shouldn't include this here.
 
 struct le_ecs_o;
 typedef struct EntityId_T *EntityId;
 typedef struct SystemId_T *LeEcsSystemId;
 
-#ifdef __cplusplus
-
-#	define LE_ECS_FLAG_COMPONENT( TypeName )          \
-		struct TypeName {                              \
-			static constexpr auto type_id = #TypeName; \
-		}
-
-#	define LE_ECS_COMPONENT( TypeName ) \
-		struct TypeName {                \
-			static constexpr auto type_id = #TypeName
-
-// Helper macros to define system callback signatures
-#	define LE_ECS_READ_WRITE_PARAMS void const **read_c, void **write_c
-#	define LE_ECS_WRITE_ONLY_PARAMS void const **, void **write_c
-#	define LE_ECS_READ_ONLY_PARAMS void const **read_c, void **
-
-// use this inside a system callback to fetch write parameter
-#	define LE_ECS_GET_WRITE_PARAM( index, param_type ) \
-		static_cast<param_type *>( write_c[ index ] )
-
-// use this inside a system callback to fetch read parameter
-#	define LE_ECS_GET_READ_PARAM( index, param_type ) \
-		static_cast<param_type const *>( read_c[ index ] )
-
-extern "C" {
-#endif
-
-void register_le_ecs_api( void *api );
-
 // clang-format off
 struct le_ecs_api {
-	static constexpr auto id      = "le_ecs";
-	static constexpr auto pRegFun = register_le_ecs_api;
-
-	struct ComponentType {
+	
+struct ComponentType {
 		uint64_t type_hash;   // we want a unique id per type.
 		char const * type_id;
 		uint32_t num_bytes; // number of bytes as in sizeof(), this includes padding.
@@ -72,24 +41,43 @@ struct le_ecs_api {
 
 		void ( *execute_system             )( le_ecs_o *self, LeEcsSystemId system_id ) ;
 
+		
 	};
 
 	le_ecs_interface_t       le_ecs_i;
 };
 // clang-format on
 
+LE_MODULE( le_ecs );
+LE_MODULE_LOAD_DEFAULT( le_ecs );
+
 #ifdef __cplusplus
-} // extern c
+
+#	define LE_ECS_FLAG_COMPONENT( TypeName )          \
+		struct TypeName {                              \
+			static constexpr auto type_id = #TypeName; \
+		}
+
+#	define LE_ECS_COMPONENT( TypeName ) \
+		struct TypeName {                \
+			static constexpr auto type_id = #TypeName
+
+// Helper macros to define system callback signatures
+#	define LE_ECS_READ_WRITE_PARAMS void const **read_c, void **write_c
+#	define LE_ECS_WRITE_ONLY_PARAMS void const **, void **write_c
+#	define LE_ECS_READ_ONLY_PARAMS void const **read_c, void **
+
+// use this inside a system callback to fetch write parameter
+#	define LE_ECS_GET_WRITE_PARAM( index, param_type ) \
+		static_cast<param_type *>( write_c[ index ] )
+
+// use this inside a system callback to fetch read parameter
+#	define LE_ECS_GET_READ_PARAM( index, param_type ) \
+		static_cast<param_type const *>( read_c[ index ] )
 
 namespace le_ecs {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_ecs_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_ecs_api>();
-#	endif
-
+static const auto &api      = le_ecs_api_i;
 static const auto &le_ecs_i = api -> le_ecs_i;
-
 } // namespace le_ecs
 
 class LeEcs : NoCopy, NoMove {

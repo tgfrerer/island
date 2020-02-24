@@ -180,7 +180,7 @@ static void le_bspline_get_vertices_for_polyline( le_bspline_o *self, Vertex con
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_bspline_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_bspline, api ) {
 	auto &le_bspline_i = static_cast<le_bspline_api *>( api )->le_bspline_i;
 
 	le_bspline_i.create                    = le_bspline_create;

@@ -302,7 +302,7 @@ le_render_module_add_bloom_pass(
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_bloom_pass_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_bloom_pass, api ) {
 	auto &api_i = static_cast<le_bloom_pass_api *>( api )->le_bloom_pass_i;
 
 	api_i.le_render_module_add_bloom_pass = le_render_module_add_bloom_pass;

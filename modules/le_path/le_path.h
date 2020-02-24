@@ -7,19 +7,10 @@
  *
 */
 
-#include <stdint.h>
 #include "le_core/le_core.h"
-
-#ifdef __cplusplus
-
-#	include <glm/fwd.hpp>
-
-extern "C" {
-#endif
+#include <glm/fwd.hpp> // TODO: get rid of glm as this is a cpp header.
 
 struct le_path_o;
-
-void register_le_path_api( void *api );
 
 // clang-format off
 struct le_path_api {
@@ -43,10 +34,6 @@ struct le_path_api {
 		LineJoinType line_join_type; // Type of connection between line segments
 		LineCapType  line_cap_type;
 	};
-
-	static constexpr auto id      = "le_path";
-	static constexpr auto pRegFun = register_le_path_api;
-
 
     typedef void contour_vertex_cb (void *user_data, glm::vec2 const& p);
     typedef void contour_quad_bezier_cb(void *user_data, glm::vec2 const& p0, glm::vec2 const& p1, glm::vec2 const& c);
@@ -98,18 +85,14 @@ struct le_path_api {
 };
 // clang-format on
 
+LE_MODULE( le_path );
+LE_MODULE_LOAD_DEFAULT( le_path );
+
 #ifdef __cplusplus
-} // extern c
 
 namespace le_path {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_path_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_path_api>();
-#	endif
-
+static const auto &api       = le_path_api_i;
 static const auto &le_path_i = api -> le_path_i;
-
 } // namespace le_path
 
 namespace le {

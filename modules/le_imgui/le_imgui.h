@@ -1,25 +1,15 @@
 #ifndef GUARD_le_imgui_H
 #define GUARD_le_imgui_H
 
-#include <stdint.h>
 #include "le_core/le_core.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct le_imgui_o;
-
 struct le_renderpass_o;    // declared in le_renderer.h
 struct le_render_module_o; // declared in le_renderer.h
 struct LeUiEvent;          // declared in le_ui_event.h
 
-void register_le_imgui_api( void *api );
-
 // clang-format off
 struct le_imgui_api {
-	static constexpr auto id      = "le_imgui";
-	static constexpr auto pRegFun = register_le_imgui_api;
 
 	struct le_imgui_interface_t {
 
@@ -41,16 +31,13 @@ struct le_imgui_api {
 };
 // clang-format on
 
+LE_MODULE( le_imgui );
+LE_MODULE_LOAD_DEFAULT( le_imgui );
+
 #ifdef __cplusplus
-} // extern c
 
 namespace le_imgui {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_imgui_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_imgui_api>();
-#	endif
-
+static const auto &api        = le_imgui_api_i;
 static const auto &le_imgui_i = api -> le_imgui_i;
 
 } // namespace le_imgui

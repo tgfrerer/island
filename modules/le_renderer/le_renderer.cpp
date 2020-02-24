@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <chrono>
 #include <vector>
+#include "assert.h"
 
 const uint64_t LE_RENDERPASS_MARKER_EXTERNAL = hash_64_fnv1a_const( "rp-external" );
 

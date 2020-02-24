@@ -2731,7 +2731,7 @@ static void le_path_add_from_simplified_svg( le_path_o *self, char const *svg ) 
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_path_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_path, api ) {
 	auto &le_path_i = static_cast<le_path_api *>( api )->le_path_i;
 
 	le_path_i.create          = le_path_create;

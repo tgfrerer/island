@@ -6,7 +6,6 @@
  *
  */
 
-#include <stdint.h>
 #include "le_core/le_core.h"
 
 #ifdef __cplusplus
@@ -21,12 +20,9 @@
 #		include <glm/fwd.hpp>
 #	endif
 
-extern "C" {
 #endif
 
 struct le_bspline_o;
-
-void register_le_bspline_api( void *api );
 
 // clang-format off
 struct le_bspline_api {
@@ -39,10 +35,6 @@ struct le_bspline_api {
 		float y;
 	};
 #endif
-
-
-	static constexpr auto id      = "le_bspline";
-	static constexpr auto pRegFun = register_le_bspline_api;
 
 	struct le_bspline_interface_t {
 
@@ -62,16 +54,13 @@ struct le_bspline_api {
 };
 // clang-format on
 
+LE_MODULE( le_bspline );
+LE_MODULE_LOAD_DEFAULT( le_bspline );
+
 #ifdef __cplusplus
-} // extern c
 
 namespace le_bspline {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_bspline_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_bspline_api>();
-#	endif
-
+static const auto &api          = le_bspline_api_i;
 static const auto &le_bspline_i = api -> le_bspline_i;
 
 } // namespace le_bspline

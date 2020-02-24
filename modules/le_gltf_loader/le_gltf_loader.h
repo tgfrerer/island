@@ -1,7 +1,6 @@
 #ifndef GUARD_LE_GLTF_LOADER_H
 #define GUARD_LE_GLTF_LOADER_H
 
-#include <stdint.h>
 #include "le_core/le_core.h"
 
 #ifdef __cplusplus
@@ -18,14 +17,10 @@ struct GltfUboMvp;
 
 struct le_resource_handle_t;
 
-void register_le_gltf_loader_api( void *api );
-
 // clang-format off
 struct le_gltf_loader_api {
-	static constexpr auto id      = "le_gltf_loader";
-	static constexpr auto pRegFun = register_le_gltf_loader_api;
 
-	struct gltf_document_interface_t {
+	struct le_gltf_loader_interface_t {
 
 		le_gltf_document_o * ( * create                   ) ( );
 		void                 ( * destroy                  ) ( le_gltf_document_o* self );
@@ -37,22 +32,18 @@ struct le_gltf_loader_api {
 		void                 ( *draw                      ) ( le_gltf_document_o *self, le_command_buffer_encoder_o *encoder,  GltfUboMvp const * mvp );
 	};
 
-	gltf_document_interface_t       document_i;
+	le_gltf_loader_interface_t le_gltf_loader_api_i;
 };
 // clang-format on
+LE_MODULE( le_gltf_loader );
+LE_MODULE_LOAD_DEFAULT( le_gltf_loader );
 
 #ifdef __cplusplus
 } // extern c
 
 namespace le_gltf_loader {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_gltf_loader_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_gltf_loader_api>();
-#	endif
-
-static const auto &gltf_document_i = api -> document_i;
-
+static const auto &api             = le_gltf_loader_api_i;
+static const auto &gltf_document_i = api -> le_gltf_loader_api_i;
 } // namespace le_gltf_loader
 
 #endif

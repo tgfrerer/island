@@ -1,21 +1,12 @@
 #ifndef GUARD_le_mesh_generator_H
 #define GUARD_le_mesh_generator_H
 
-#include <stdint.h>
 #include "le_core/le_core.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 struct le_mesh_o;
 
-void register_le_mesh_generator_api( void *api );
-
 // clang-format off
 struct le_mesh_generator_api {
-	static constexpr auto id      = "le_mesh_generator";
-	static constexpr auto pRegFun = register_le_mesh_generator_api;
 
 	struct le_mesh_generator_interface_t {
 
@@ -37,19 +28,14 @@ struct le_mesh_generator_api {
 	le_mesh_generator_interface_t le_mesh_generator_i;
 };
 // clang-format on
+LE_MODULE( le_mesh_generator );
+LE_MODULE_LOAD_DEFAULT( le_mesh_generator );
 
 #ifdef __cplusplus
-} // extern c
 
 namespace le_mesh_generator {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_mesh_generator_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_mesh_generator_api>();
-#	endif
-
+static const auto &api                 = le_mesh_generator_api_i;
 static const auto &le_mesh_generator_i = api -> le_mesh_generator_i;
-
 } // namespace le_mesh_generator
 
 class LeMeshGenerator : NoCopy, NoMove {

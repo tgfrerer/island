@@ -953,7 +953,7 @@ SETTER_IMPLEMENT_CPY( line, vec2f const *, p1 );
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_2d_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_2d, api ) {
 	auto &le_2d_i = static_cast<le_2d_api *>( api )->le_2d_i;
 
 	le_2d_i.create  = le_2d_create;

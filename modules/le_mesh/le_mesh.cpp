@@ -598,7 +598,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_mesh_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_mesh, api ) {
 	auto &le_mesh_i = static_cast<le_mesh_api *>( api )->le_mesh_i;
 
 	le_mesh_i.get_vertices = le_mesh_get_vertices;

@@ -727,8 +727,6 @@ static bool document_load_from_text( le_gltf_document_o *self, const char *path 
 // ----------------------------------------------------------------------
 
 static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *renderer, le_pipeline_manager_o *pipeline_manager ) {
-	static const auto &renderer_i = Registry::getApi<le_renderer_api>()->le_renderer_i;
-
 	using namespace le_renderer;
 
 	for ( auto &p : self->primitives ) {
@@ -788,8 +786,7 @@ static void document_upload_resource_data( le_gltf_document_o *self, le_command_
 // ----------------------------------------------------------------------
 
 static void document_draw( le_gltf_document_o *self, le_command_buffer_encoder_o *encoder, GltfUboMvp const *mvp ) {
-
-	static const auto &encoder_i = Registry::getApi<le_renderer_api>()->le_command_buffer_encoder_i;
+	using namespace le_renderer;
 
 	updateNodeGraph( self->nodeGraph );
 
@@ -841,8 +838,8 @@ static void document_draw( le_gltf_document_o *self, le_command_buffer_encoder_o
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_gltf_loader_api( void *api ) {
-	auto &document_i = static_cast<le_gltf_loader_api *>( api )->document_i;
+LE_MODULE_REGISTER_IMPL( le_gltf_loader, api ) {
+	auto &document_i = static_cast<le_gltf_loader_api *>( api )->le_gltf_loader_api_i;
 
 	document_i.create               = document_create;
 	document_i.destroy              = document_destroy;

@@ -1,24 +1,16 @@
 #ifndef GUARD_le_tessellator_H
 #define GUARD_le_tessellator_H
 
-#include <stdint.h>
 #include "le_core/le_core.h"
 
 #ifdef __cplusplus
-
 #	include <glm/fwd.hpp>
-
-extern "C" {
 #endif
 
 struct le_tessellator_o;
 
-void register_le_tessellator_api( void *api );
-
 // clang-format off
 struct le_tessellator_api {
-	static constexpr auto id      = "le_tessellator";
-	static constexpr auto pRegFun = register_le_tessellator_api;
 
 	typedef uint16_t IndexType;
 
@@ -59,20 +51,15 @@ struct le_tessellator_api {
 };
 // clang-format on
 
+LE_MODULE( le_tessellator );
+LE_MODULE_LOAD_DEFAULT( le_tessellator );
+
 #ifdef __cplusplus
-} // extern c
 
 namespace le_tessellator {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_tessellator_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_tessellator_api>();
-#	endif
-
+static const auto &api              = le_tessellator_api_i;
 static const auto &le_tessellator_i = api -> le_tessellator_i;
-
-using Options = le_tessellator_api::le_tessellator_interface_t::Options;
-
+using Options                       = le_tessellator_api::le_tessellator_interface_t::Options;
 } // namespace le_tessellator
 
 class LeTessellator : NoCopy, NoMove {

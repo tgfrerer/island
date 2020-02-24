@@ -43,7 +43,7 @@ static void le_verlet_apply_constraints( le_verlet_particle_system_o *self, size
 				if ( length2AnchorToB > std::numeric_limits<float>::epsilon() ) {
 					AnchorToB /= sqrtf( length2AnchorToB );
 					glm::vec2 unitNormal{c.follow.bCCW ? -AnchorToB.y : +AnchorToB.y,
-						                 c.follow.bCCW ? +AnchorToB.x : -AnchorToB.x};
+					                     c.follow.bCCW ? +AnchorToB.x : -AnchorToB.x};
 					pos[ c.follow.a ] = pos[ c.follow.b ] + c.follow.distance * unitNormal;
 				} else {
 					// Length anchorToB is 0 -> leave unchanged, as we can't calculate unit normal
@@ -92,7 +92,7 @@ static void le_verlet_add_constraint( le_verlet_particle_system_o *self, Constra
 	} break;
 	default:
 		assert( false );
-	    break;
+		break;
 	}
 
 	self->constraints.emplace_back( std::move( c ) );
@@ -156,7 +156,7 @@ static size_t le_verlet_get_particle_count( le_verlet_particle_system_o *self ) 
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_verlet_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_verlet, api ) {
 	auto &le_verlet_i = static_cast<le_verlet_api *>( api )->le_verlet_i;
 
 	le_verlet_i.create             = le_verlet_create;

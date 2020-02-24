@@ -1,7 +1,6 @@
 #ifndef GUARD_le_font_H
 #define GUARD_le_font_H
 
-#include <stdint.h>
 #include "le_core/le_core.h"
 
 #ifndef ISL_ALLOW_GLM_TYPES
@@ -14,14 +13,8 @@
 #	include <glm/fwd.hpp>
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct le_font_o;
 struct le_path_o;
-
-void register_le_font_api( void *api );
 
 // clang-format off
 struct le_font_api {
@@ -34,9 +27,6 @@ struct le_font_api {
 		float y;
 	};
 #endif
-
-	static constexpr auto id      = "le_font";
-	static constexpr auto pRegFun = register_le_font_api;
 
 	typedef void le_uft8_iterator_cb_t( uint32_t codepoint, void *user_data );
 
@@ -65,16 +55,13 @@ struct le_font_api {
 };
 // clang-format on
 
+LE_MODULE( le_font );
+LE_MODULE_LOAD_DEFAULT( le_font );
+
 #ifdef __cplusplus
-} // extern c
 
 namespace le_font {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_font_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_font_api>();
-#	endif
-
+static const auto &api              = le_font_api_i;
 static const auto &le_font_i        = api -> le_font_i;
 static const auto &le_utf8_iterator = api -> le_utf8_iterator;
 

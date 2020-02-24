@@ -1,7 +1,6 @@
 #ifndef GUARD_le_verlet_H
 #define GUARD_le_verlet_H
 
-#include <stdint.h>
 #include "le_core/le_core.h"
 
 #ifdef __cplusplus
@@ -15,17 +14,12 @@
 #		include <glm/fwd.hpp>
 #	endif
 
-extern "C" {
 #endif
 
 struct le_verlet_particle_system_o;
 
-void register_le_verlet_api( void *api );
-
 // clang-format off
 struct le_verlet_api {
-	static constexpr auto id      = "le_verlet";
-	static constexpr auto pRegFun = register_le_verlet_api;
 
 #ifdef ISL_ALLOW_GLM_TYPES
 	typedef glm::vec2 Vertex;
@@ -100,42 +94,14 @@ struct le_verlet_api {
 };
 // clang-format on
 
+LE_MODULE( le_verlet );
+LE_MODULE_LOAD_DEFAULT( le_verlet );
+
 #ifdef __cplusplus
-} // extern c
-
 namespace le_verlet {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_verlet_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_verlet_api>();
-#	endif
-
+static const auto &api         = le_verlet_api_i;
 static const auto &le_verlet_i = api -> le_verlet_i;
-
 } // namespace le_verlet
-
-//class LeVerlet : NoCopy, NoMove {
-
-//	le_verlet_o *self;
-
-//  public:
-//	LeVerlet()
-//	    : self( le_verlet::le_verlet_i.create() ) {
-//	}
-
-//	~LeVerlet() {
-//		le_verlet::le_verlet_i.destroy( self );
-//	}
-
-//	void update() {
-//		le_verlet::le_verlet_i.update( self );
-//	}
-
-//	operator auto() {
-//		return self;
-//	}
-//};
-
 #endif // __cplusplus
 
 #endif

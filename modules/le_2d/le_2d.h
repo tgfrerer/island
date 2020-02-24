@@ -7,14 +7,10 @@
  * 
  */
 
-#include <stdint.h>
 #include "le_core/le_core.h"
 
 #ifdef __cplusplus
-
 #	include <glm/fwd.hpp>
-
-extern "C" {
 #endif
 
 struct le_2d_o;
@@ -29,12 +25,8 @@ struct le_shader_module_o;
 struct le_pipeline_manager_o;
 struct le_2d_primitive_o;
 
-void register_le_2d_api( void *api );
-
 // clang-format off
 struct le_2d_api {
-	static constexpr auto id      = "le_2d";
-	static constexpr auto pRegFun = register_le_2d_api;
 
 	enum StrokeJoinType : uint32_t { // names for these follow svg standard: https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/stroke-linejoin
 		eStrokeJoinMiter = 0,
@@ -111,16 +103,13 @@ struct le_2d_api {
 };
 // clang-format on
 
+LE_MODULE( le_2d );
+LE_MODULE_LOAD_DEFAULT( le_2d );
+
 #ifdef __cplusplus
-} // extern c
 
 namespace le_2d {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_2d_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_2d_api>();
-#	endif
-
+static const auto &api          = le_2d_api_i;
 static const auto &le_2d_i      = api -> le_2d_i;
 static const auto &le_2d_prim_i = api -> le_2d_primitive_i;
 

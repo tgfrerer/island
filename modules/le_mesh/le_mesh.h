@@ -1,21 +1,12 @@
 #ifndef GUARD_le_mesh_H
 #define GUARD_le_mesh_H
 
-#include <stdint.h>
 #include "le_core/le_core.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 struct le_mesh_o;
 
-void register_le_mesh_api( void *api );
-
 // clang-format off
 struct le_mesh_api {
-	static constexpr auto id      = "le_mesh";
-	static constexpr auto pRegFun = register_le_mesh_api;
 
 	struct le_mesh_interface_t {
 
@@ -40,19 +31,14 @@ struct le_mesh_api {
 	le_mesh_interface_t       le_mesh_i;
 };
 // clang-format on
+LE_MODULE( le_mesh );
+LE_MODULE_LOAD_DEFAULT( le_mesh );
 
 #ifdef __cplusplus
-} // extern c
 
 namespace le_mesh {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_mesh_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_mesh_api>();
-#	endif
-
+const auto         api       = le_mesh_api_i;
 static const auto &le_mesh_i = api -> le_mesh_i;
-
 } // namespace le_mesh
 
 class LeMesh : NoCopy, NoMove {

@@ -149,9 +149,7 @@ static void le_mesh_generator_generate_sphere( le_mesh_o *mesh,
 
 // ----------------------------------------------------------------------
 
-// ----------------------------------------------------------------------
-
-ISL_API_ATTR void register_le_mesh_generator_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_mesh_generator, api ) {
 	auto &le_mesh_generator_i = static_cast<le_mesh_generator_api *>( api )->le_mesh_generator_i;
 
 	le_mesh_generator_i.generate_sphere = le_mesh_generator_generate_sphere;

@@ -252,7 +252,7 @@ bool le_font_renderer_draw_string( le_font_renderer_o *self, le_font_o *font, le
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_font_renderer_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_font_renderer, api ) {
 	auto &i = static_cast<le_font_renderer_api *>( api )->le_font_renderer_i;
 
 	i.create  = le_font_renderer_create;

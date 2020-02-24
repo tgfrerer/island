@@ -4,20 +4,12 @@
 #include <stdint.h>
 #include "le_core/le_core.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 struct le_render_module_o;
 struct le_resource_handle_t;
 struct le_renderer_o;
 
-void register_le_bloom_pass_api( void *api );
-
 // clang-format off
 struct le_bloom_pass_api {
-	static constexpr auto id      = "le_bloom_pass";
-	static constexpr auto pRegFun = register_le_bloom_pass_api;
 
 	struct params_t {
 		struct bloom_params_t {
@@ -42,17 +34,13 @@ struct le_bloom_pass_api {
 // clang-format on
 
 #ifdef __cplusplus
-} // extern c
+
+LE_MODULE( le_bloom_pass );
+LE_MODULE_LOAD_DEFAULT( le_bloom_pass );
 
 namespace le_bloom_pass {
-#	ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<le_bloom_pass_api>( true );
-#	else
-const auto api = Registry::addApiStatic<le_bloom_pass_api>();
-#	endif
-
+static const auto &api             = le_bloom_pass_api_i;
 static const auto &le_bloom_pass_i = api -> le_bloom_pass_i;
-
 } // namespace le_bloom_pass
 
 #endif // __cplusplus

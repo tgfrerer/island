@@ -145,7 +145,7 @@ static void le_tessellator_set_options( le_tessellator_o *self, uint64_t options
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_tessellator_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_tessellator, api ) {
 	auto &le_tessellator_i = static_cast<le_tessellator_api *>( api )->le_tessellator_i;
 
 	le_tessellator_i.create       = le_tessellator_create;
