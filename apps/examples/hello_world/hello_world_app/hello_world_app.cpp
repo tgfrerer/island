@@ -1,6 +1,6 @@
 #include "hello_world_app.h"
 
-#include "pal_window/pal_window.h"
+#include "le_window/le_window.h"
 #include "le_ui_event/le_ui_event.h"
 #include "le_renderer/le_renderer.h"
 
@@ -707,7 +707,7 @@ static bool hello_world_app_update( hello_world_app_o *self ) {
 
 // ----------------------------------------------------------------------
 static void hello_world_app_process_ui_events( hello_world_app_o *self ) {
-	using namespace pal_window;
+	using namespace le_window;
 	uint32_t         numEvents;
 	LeUiEvent const *pEvents;
 	window_i.get_ui_event_queue( self->window, &pEvents, numEvents );

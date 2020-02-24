@@ -975,7 +975,7 @@ struct le_swapchain_settings_t {
 };
 
 struct le_renderer_settings_t {
-	struct pal_window_o *   window = nullptr; // optional;
+	struct le_window_o *   window = nullptr; // optional;
 	le_swapchain_settings_t swapchain_settings{};
 };
 
@@ -1004,7 +1004,7 @@ class RendererInfoBuilder {
 	le_renderer_settings_t &self = info;
 
   public:
-	RendererInfoBuilder( pal_window_o *window = nullptr ) {
+	RendererInfoBuilder( le_window_o *window = nullptr ) {
 		info.window = window;
 	}
 
@@ -1116,7 +1116,7 @@ class RendererInfoBuilder {
 		return mSwapchainInfoBuilder;
 	}
 
-	BUILDER_IMPLEMENT( RendererInfoBuilder, setWindow, pal_window_o *, window, = nullptr )
+	BUILDER_IMPLEMENT( RendererInfoBuilder, setWindow, le_window_o *, window, = nullptr )
 
 	le_renderer_settings_t const &build() {
 

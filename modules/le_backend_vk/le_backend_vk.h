@@ -8,7 +8,7 @@ struct le_backend_o;
 struct le_backend_vk_api;
 
 struct le_swapchain_settings_t;
-struct pal_window_o;
+struct le_window_o;
 
 struct le_backend_vk_instance_o; // defined in le_instance_vk.cpp
 struct le_device_o;              // defined in le_device_vk.cpp
@@ -58,7 +58,7 @@ struct le_backend_vk_settings_t {
 	const char **            requestedDeviceExtensions      = nullptr;
 	uint32_t                 numRequestedDeviceExtensions   = 0;
 	uint32_t                 concurrency_count              = 1;       // number of potential worker threads
-	pal_window_o *           pWindow                        = nullptr; // non-owning, owned by application. Application must outlive backend.
+	le_window_o *           pWindow                        = nullptr; // non-owning, owned by application. Application must outlive backend.
 	le_swapchain_settings_t *pSwapchain_settings            = nullptr; // non-owning, owned by caller of setup method.
 };
 

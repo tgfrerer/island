@@ -1,6 +1,6 @@
 #include "geometry_shader_example_app.h"
 
-#include "pal_window/pal_window.h"
+#include "le_window/le_window.h"
 #include "le_renderer/le_renderer.h"
 
 #include "le_camera/le_camera.h"
@@ -228,7 +228,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 // ----------------------------------------------------------------------
 
 static void geometry_shader_example_app_process_ui_events( geometry_shader_example_app_o *self ) {
-	using namespace pal_window;
+	using namespace le_window;
 	uint32_t           numEvents;
 	le::UiEvent const *pEvents;
 

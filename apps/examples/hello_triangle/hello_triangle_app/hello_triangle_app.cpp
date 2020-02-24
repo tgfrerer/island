@@ -1,6 +1,6 @@
 #include "hello_triangle_app.h"
 
-#include "pal_window/pal_window.h"
+#include "le_window/le_window.h"
 #include "le_renderer/le_renderer.h"
 
 #include "le_camera/le_camera.h"

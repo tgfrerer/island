@@ -7,7 +7,7 @@
 #include "le_backend_vk/le_backend_types_internal.h"
 
 #include "le_swapchain_vk/le_swapchain_vk.h"
-#include "pal_window/pal_window.h"
+#include "le_window/le_window.h"
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/le_renderer_types.h"
 
@@ -410,7 +410,7 @@ struct le_backend_o {
 	le_backend_vk_instance_o *  instance;
 	std::unique_ptr<le::Device> device;
 
-	pal_window_o *  window    = nullptr; // Non-owning
+	le_window_o *  window    = nullptr; // Non-owning
 	le_swapchain_o *swapchain = nullptr; // Owning.
 
 	vk::SurfaceKHR windowSurface = nullptr; // Owning, optional.
@@ -473,7 +473,7 @@ static inline void vk_format_get_is_depth_stencil( vk::Format format_, bool &isD
 
 static vk::SurfaceKHR backend_create_window_surface( le_backend_o *self ) {
 	if ( self->window ) {
-		using namespace pal_window;
+		using namespace le_window;
 		vk::Instance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
 		return window_i.create_surface( self->window, instance );
 	}
@@ -638,7 +638,7 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_settings_
 		if ( self->window ) {
 			// If we're running with a window, we pass through swapchainSettings,
 			// and initialise our swapchain as a regular khr swapchain
-			using namespace pal_window;
+			using namespace le_window;
 
 			swp_settings.width_hint              = window_i.get_surface_width( self->window );
 			swp_settings.height_hint             = window_i.get_surface_height( self->window );

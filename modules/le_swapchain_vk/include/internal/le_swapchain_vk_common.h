@@ -2,6 +2,7 @@
 #define LE_SWAPCHAIN_VK_COMMON_GUARD
 
 #include "le_swapchain_vk/le_swapchain_vk.h"
+
 void register_le_swapchain_khr_api( void *api );    // in le_swapchain_khr.cpp
 void register_le_swapchain_img_api( void *api );    // in le_swapchain_img.cpp
 void register_le_swapchain_direct_api( void *api ); // in le_swapchain_direct.cpp
