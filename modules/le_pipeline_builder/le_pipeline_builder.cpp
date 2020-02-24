@@ -133,7 +133,7 @@ le_graphics_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
 	// set default values
 
 	self->obj->data.inputAssemblyState
-	    .setTopology( ::vk::PrimitiveTopology::eTriangleList )
+	    .setTopology( vk::PrimitiveTopology::eTriangleList )
 	    .setPrimitiveRestartEnable( VK_FALSE );
 
 	self->obj->data.tessellationState
@@ -147,9 +147,9 @@ le_graphics_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
 	self->obj->data.rasterizationInfo
 	    .setDepthClampEnable( VK_FALSE )
 	    .setRasterizerDiscardEnable( VK_FALSE )
-	    .setPolygonMode( ::vk::PolygonMode::eFill )
-	    .setCullMode( ::vk::CullModeFlagBits::eNone )
-	    .setFrontFace( ::vk::FrontFace::eCounterClockwise )
+	    .setPolygonMode( vk::PolygonMode::eFill )
+	    .setCullMode( vk::CullModeFlagBits::eNone )
+	    .setFrontFace( vk::FrontFace::eCounterClockwise )
 	    .setDepthBiasEnable( VK_FALSE )
 	    .setDepthBiasConstantFactor( 0.f )
 	    .setDepthBiasClamp( 0.f )
@@ -157,7 +157,7 @@ le_graphics_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
 	    .setLineWidth( 1.f );
 
 	self->obj->data.multisampleState
-	    .setRasterizationSamples( ::vk::SampleCountFlagBits::e1 )
+	    .setRasterizationSamples( vk::SampleCountFlagBits::e1 )
 	    .setSampleShadingEnable( VK_FALSE )
 	    .setMinSampleShading( 0.f )
 	    .setPSampleMask( nullptr )
@@ -166,10 +166,10 @@ le_graphics_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
 
 	vk::StencilOpState stencilOpState{};
 	stencilOpState
-	    .setFailOp( ::vk::StencilOp::eKeep )
-	    .setPassOp( ::vk::StencilOp::eKeep )
-	    .setDepthFailOp( ::vk::StencilOp::eKeep )
-	    .setCompareOp( ::vk::CompareOp::eNever )
+	    .setFailOp( vk::StencilOp::eKeep )
+	    .setPassOp( vk::StencilOp::eKeep )
+	    .setDepthFailOp( vk::StencilOp::eKeep )
+	    .setCompareOp( vk::CompareOp::eNever )
 	    .setCompareMask( 0 )
 	    .setWriteMask( 0 )
 	    .setReference( 0 );
@@ -177,7 +177,7 @@ le_graphics_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
 	self->obj->data.depthStencilState
 	    .setDepthTestEnable( VK_TRUE )
 	    .setDepthWriteEnable( VK_TRUE )
-	    .setDepthCompareOp( ::vk::CompareOp::eLessOrEqual )
+	    .setDepthCompareOp( vk::CompareOp::eLessOrEqual )
 	    .setDepthBoundsTestEnable( VK_FALSE )
 	    .setStencilTestEnable( VK_FALSE )
 	    .setFront( stencilOpState )
@@ -189,17 +189,17 @@ le_graphics_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
 	for ( auto &blendAttachmentState : self->obj->data.blendAttachmentStates ) {
 		blendAttachmentState
 		    .setBlendEnable( VK_TRUE )
-		    .setColorBlendOp( ::vk::BlendOp::eAdd )
-		    .setAlphaBlendOp( ::vk::BlendOp::eAdd )
-		    .setSrcColorBlendFactor( ::vk::BlendFactor::eSrcAlpha )
-		    .setDstColorBlendFactor( ::vk::BlendFactor::eOneMinusSrcAlpha )
-		    .setSrcAlphaBlendFactor( ::vk::BlendFactor::eOne )
-		    .setDstAlphaBlendFactor( ::vk::BlendFactor::eZero )
+		    .setColorBlendOp( vk::BlendOp::eAdd )
+		    .setAlphaBlendOp( vk::BlendOp::eAdd )
+		    .setSrcColorBlendFactor( vk::BlendFactor::eSrcAlpha )
+		    .setDstColorBlendFactor( vk::BlendFactor::eOneMinusSrcAlpha )
+		    .setSrcAlphaBlendFactor( vk::BlendFactor::eOne )
+		    .setDstAlphaBlendFactor( vk::BlendFactor::eZero )
 		    .setColorWriteMask(
-		        ::vk::ColorComponentFlagBits::eR |
-		        ::vk::ColorComponentFlagBits::eG |
-		        ::vk::ColorComponentFlagBits::eB |
-		        ::vk::ColorComponentFlagBits::eA );
+		        vk::ColorComponentFlagBits::eR |
+		        vk::ColorComponentFlagBits::eG |
+		        vk::ColorComponentFlagBits::eB |
+		        vk::ColorComponentFlagBits::eA );
 	}
 
 	return self;
@@ -474,17 +474,17 @@ static void blend_attachment_state_use_preset( le_graphics_pipeline_builder_o *s
 
 		self->obj->data.blendAttachmentStates[ which_attachment ]
 		    .setBlendEnable( VK_TRUE )
-		    .setColorBlendOp( ::vk::BlendOp::eAdd )
-		    .setAlphaBlendOp( ::vk::BlendOp::eAdd )
-		    .setSrcColorBlendFactor( ::vk::BlendFactor::eSrcAlpha )
-		    .setDstColorBlendFactor( ::vk::BlendFactor::eOneMinusSrcAlpha )
-		    .setSrcAlphaBlendFactor( ::vk::BlendFactor::eOne )
-		    .setDstAlphaBlendFactor( ::vk::BlendFactor::eZero )
+		    .setColorBlendOp( vk::BlendOp::eAdd )
+		    .setAlphaBlendOp( vk::BlendOp::eAdd )
+		    .setSrcColorBlendFactor( vk::BlendFactor::eSrcAlpha )
+		    .setDstColorBlendFactor( vk::BlendFactor::eOneMinusSrcAlpha )
+		    .setSrcAlphaBlendFactor( vk::BlendFactor::eOne )
+		    .setDstAlphaBlendFactor( vk::BlendFactor::eZero )
 		    .setColorWriteMask(
-		        ::vk::ColorComponentFlagBits::eR |
-		        ::vk::ColorComponentFlagBits::eG |
-		        ::vk::ColorComponentFlagBits::eB |
-		        ::vk::ColorComponentFlagBits::eA ) //
+		        vk::ColorComponentFlagBits::eR |
+		        vk::ColorComponentFlagBits::eG |
+		        vk::ColorComponentFlagBits::eB |
+		        vk::ColorComponentFlagBits::eA ) //
 		    ;
 
 	} break;
