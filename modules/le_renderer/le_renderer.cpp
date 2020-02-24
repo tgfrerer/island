@@ -155,18 +155,10 @@ static void renderer_setup( le_renderer_o *self, le_renderer_settings_t const &s
 		self->backend = vk_backend_i.create();
 
 		le_backend_vk_settings_t backend_settings{};
-		backend_settings.pWindow             = settings.window;
-		backend_settings.pSwapchain_settings = &self->swapchain_settings;
-
-		{
-			// TODO: If needed, any additional renderer modules which
-			// request certain extensions need to be queried here,
-			// so that the list of requested extensions for backend
-			// may be appended.
-
-			backend_settings.requestedInstanceExtensions    = nullptr;
-			backend_settings.numRequestedInstanceExtensions = 0;
-		}
+		backend_settings.pWindow                      = settings.window;
+		backend_settings.pSwapchain_settings          = &self->swapchain_settings;
+		backend_settings.requestedDeviceExtensions    = settings.requested_device_extensions;
+		backend_settings.numRequestedDeviceExtensions = settings.requested_device_extensions_count;
 
 #if ( LE_MT > 0 )
 		backend_settings.concurrency_count = LE_MT;

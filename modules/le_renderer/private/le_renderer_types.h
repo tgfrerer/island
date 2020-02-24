@@ -975,7 +975,9 @@ struct le_swapchain_settings_t {
 };
 
 struct le_renderer_settings_t {
-	struct le_window_o *   window = nullptr; // optional;
+	struct le_window_o *    window = nullptr;                  // optional;
+	char const **           requested_device_extensions;       // optional
+	uint32_t                requested_device_extensions_count; //
 	le_swapchain_settings_t swapchain_settings{};
 };
 
@@ -1004,8 +1006,10 @@ class RendererInfoBuilder {
 	le_renderer_settings_t &self = info;
 
   public:
-	RendererInfoBuilder( le_window_o *window = nullptr ) {
-		info.window = window;
+	RendererInfoBuilder( le_window_o *window = nullptr, char const **requested_device_extensions = nullptr, uint32_t requested_device_extensions_count = 0 ) {
+		info.window                            = window;
+		info.requested_device_extensions       = requested_device_extensions;
+		info.requested_device_extensions_count = requested_device_extensions_count;
 	}
 
 	class SwapchainInfoBuilder {

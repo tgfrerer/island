@@ -410,7 +410,7 @@ struct le_backend_o {
 	le_backend_vk_instance_o *  instance;
 	std::unique_ptr<le::Device> device;
 
-	le_window_o *  window    = nullptr; // Non-owning
+	le_window_o *   window    = nullptr; // Non-owning
 	le_swapchain_o *swapchain = nullptr; // Owning.
 
 	vk::SurfaceKHR windowSurface = nullptr; // Owning, optional.
@@ -795,16 +795,17 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 	std::vector<char const *> requestedInstanceExtensions;
 	std::vector<char const *> requestedDeviceExtensions;
 	{
+
 		if ( settings->pWindow ) {
 
 			// -- insert extensions necessary for glfw window
 
-			uint32_t extensionCount         = 0;
-			auto     glfwRequiredExtensions = le::Window( settings->pWindow ).getRequiredVkExtensions( &extensionCount );
+			uint32_t extensionCount           = 0;
+			auto     requiredWindowExtensions = le::Window( settings->pWindow ).getRequiredVkExtensions( &extensionCount );
 
 			requestedInstanceExtensions.insert( requestedInstanceExtensions.end(),
-			                                    glfwRequiredExtensions,
-			                                    glfwRequiredExtensions + extensionCount );
+			                                    requiredWindowExtensions,
+			                                    requiredWindowExtensions + extensionCount );
 		}
 
 		{
@@ -826,18 +827,22 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 		                                    settings->requestedInstanceExtensions + settings->numRequestedInstanceExtensions );
 	}
 	{
+		// -- Insert device extensions requested via renderer.settings
+		if ( settings->requestedDeviceExtensions && settings->numRequestedDeviceExtensions ) {
+			requestedDeviceExtensions.insert( requestedDeviceExtensions.end(),
+			                                  settings->requestedDeviceExtensions,
+			                                  settings->requestedDeviceExtensions + settings->numRequestedDeviceExtensions );
+		}
 
-		{
-			// insert any device extensions requested via the swapchain.
+		// Insert any device extensions requested via the swapchain.
 
-			char const **exts;
-			size_t       num_exts;
+		char const **exts;
+		size_t       num_exts;
 
-			le_swapchain_vk::swapchain_i.get_required_vk_device_extensions( settings->pSwapchain_settings, &exts, &num_exts );
+		le_swapchain_vk::swapchain_i.get_required_vk_device_extensions( settings->pSwapchain_settings, &exts, &num_exts );
 
-			if ( num_exts ) {
-				requestedDeviceExtensions.insert( requestedDeviceExtensions.end(), exts, exts + num_exts );
-			}
+		if ( num_exts ) {
+			requestedDeviceExtensions.insert( requestedDeviceExtensions.end(), exts, exts + num_exts );
 		}
 
 		// -- insert any additionally requested extensions

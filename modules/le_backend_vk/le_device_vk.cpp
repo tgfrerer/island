@@ -235,9 +235,12 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 
 			enabledDeviceExtensionNames.reserve( self->requestedDeviceExtensions.size() );
 
+			std::cout << "Enabled Device Extensions:" << std::endl;
 			for ( auto const &ext : self->requestedDeviceExtensions ) {
 				enabledDeviceExtensionNames.emplace_back( ext.c_str() );
+				std::cout << "\t + " << ext << std::endl;
 			}
+			std::cout << std::flush;
 		}
 
 		vk::DeviceCreateInfo deviceCreateInfo;
