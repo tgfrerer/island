@@ -5,18 +5,12 @@
 [submodule "3rdparty/src/glm"]
 	path = 3rdparty/src/glm
 	url = https://github.com/g-truc/glm
-[submodule "3rdparty/fx-gltf"]
-	path = 3rdparty/src/fx-gltf
-	url = https://github.com/jessey-git/fx-gltf.git
 [submodule "modules/le_tessellator/3rdparty/libtess2"]
 	path = modules/le_tessellator/3rdparty/libtess2
 	url = https://github.com/memononen/libtess2
 [submodule "modules/le_tessellator/3rdparty/earcut.hpp"]
 	path = modules/le_tessellator/3rdparty/earcut.hpp 
 	url = https://github.com/mapbox/earcut.hpp
-[submodule "3rdparty/src/json"]
-	path = 3rdparty/src/json
-	url = https://github.com/nlohmann/json.git
 [submodule "modules/le_gltf/3rdparty/cgltf"]
 	path = modules/le_gltf/3rdparty/cgltf
 	url = https://github.com/jkuhlmann/cgltf.git
