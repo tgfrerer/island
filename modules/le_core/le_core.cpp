@@ -11,19 +11,24 @@
 #include <assert.h>
 
 struct ApiStore {
-	static constexpr size_t        fp_max_bytes = 4096 * 10; // 10 pages of function pointers should be enough
-	std::array<char, fp_max_bytes> fp_storage{};             // byte storage space for function pointers
-	size_t                         fp_used_bytes{};          // number of bytes in use for function pointer usage
-
-	std::vector<std::string> names{};      // debug api names
-	std::vector<uint64_t>    nameHashes{}; // hashed api names (used for lookup)
-	std::vector<void *>      ptrs{};       // pointer to struct holding api for each api name
+	std::vector<std::string> names{};      // Debug api names
+	std::vector<uint64_t>    nameHashes{}; // Hashed api names (used for lookup)
+	std::vector<void *>      ptrs{};       // Pointer to struct holding api for each api name
+	~ApiStore() {
+		// We must free any api struct memory which was been allocated.
+		for ( auto p : ptrs ) {
+			if ( p ) {
+				free( p );
+			}
+		}
+	}
 };
 
 struct loader_callback_params_o {
 	le_module_loader_o *loader;
 	void *              api;
 	std::string         lib_register_fun_name;
+	int                 watch_id;
 };
 
 // FIXME: there is a vexing bug with initialisation order when compiling a static version of this app
@@ -34,6 +39,12 @@ static ApiStore apiStore{};
 
 static auto &file_watcher_i = le_file_watcher_api_i -> le_file_watcher_i; // le_file_watcher_api_i provided by le_file_watcher.h
 static auto  file_watcher   = file_watcher_i.create();
+
+// ----------------------------------------------------------------------
+// Trigger callbacks for change in watched files.
+ISL_API_ATTR void le_core_poll_for_module_reloads() {
+	file_watcher_i.poll_notifications( file_watcher );
+}
 
 // ----------------------------------------------------------------------
 // We use C++ RAII to add pointers to a "kill list" so that objects which
@@ -56,12 +67,6 @@ struct DeferDelete {
 };
 
 static DeferDelete defer_delete; // any elements referenced in this pool will get deleted when program unloads.
-
-// ----------------------------------------------------------------------
-// Trigger callbacks for change in watched files.
-ISL_API_ATTR void le_core_poll_for_module_reloads() {
-	file_watcher_i.poll_notifications( file_watcher );
-}
 
 // ----------------------------------------------------------------------
 /// \returns index into apiStore entry for api with given id
@@ -111,15 +116,8 @@ static void *le_core_create_api( uint64_t id, size_t apiStructSize, const char *
 
 		// api struct has not yet been allocated, we must do so now.
 
-		if ( apiStore.fp_used_bytes + apiStructSize > apiStore.fp_max_bytes ) {
-			std::cerr << __PRETTY_FUNCTION__ << " FATAL ERROR: Out of function pointer memory" << std::endl
-			          << std::flush;
-			assert( false ); // out of function pointer memory
-			exit( -1 );
-		}
-
-		void *apiMemory = ( apiStore.fp_storage.data() + apiStore.fp_used_bytes ); // point to next free space in api store
-		apiStore.fp_used_bytes += apiStructSize;                                   // increase number of used bytes in api store
+		void *apiMemory = calloc( 1, apiStructSize ); // point to next free space in api store
+		assert( apiMemory && "Could not allocate memory for API struct." );
 
 		apiPtr = apiMemory; // Store updated address for api - this address won't change for the
 		                    // duration of the program.
@@ -130,29 +128,13 @@ static void *le_core_create_api( uint64_t id, size_t apiStructSize, const char *
 
 // ----------------------------------------------------------------------
 
-static int addWatch( const char *watchedPath, loader_callback_params_o *user_data ) {
-
-	le_file_watcher_watch_settings watchSettings = {};
-
-	watchSettings.callback_fun = []( const char *, void *user_data ) -> bool {
-		auto params = static_cast<loader_callback_params_o *>( user_data );
-		le_module_loader_api_i->le_module_loader_i.load( params->loader );
-		return le_module_loader_api_i->le_module_loader_i.register_api( params->loader, params->api, params->lib_register_fun_name.c_str() );
-	};
-
-	watchSettings.callback_user_data = reinterpret_cast<void *>( user_data );
-	watchSettings.filePath           = watchedPath;
-
-	return file_watcher_i.add_watch( file_watcher, &watchSettings );
-}
-
-// ----------------------------------------------------------------------
-
 ISL_API_ATTR void *le_core_load_module_static( char const *module_name, void ( *module_reg_fun )( void * ), uint64_t api_size_in_bytes ) {
 	void *api = le_core_create_api( hash_64_fnv1a_const( module_name ), api_size_in_bytes, module_name );
 	module_reg_fun( api );
 	return api;
 };
+
+// ----------------------------------------------------------------------
 
 ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_t api_size_in_bytes, bool should_watch ) {
 
@@ -183,9 +165,25 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 
 		// ----
 		if ( should_watch ) {
-			loader_callback_params_o *callbackParams = new loader_callback_params_o{loader, api, api_register_fun_name};
-			defer_delete.params.push_back( callbackParams ); // add to cleanup list
-			auto watchId = addWatch( module_path.c_str(), callbackParams );
+			loader_callback_params_o *callbackParams = new loader_callback_params_o{};
+			callbackParams->api                      = api;
+			callbackParams->loader                   = loader;
+			callbackParams->lib_register_fun_name    = api_register_fun_name;
+			callbackParams->watch_id                 = 0;
+			defer_delete.params.push_back( callbackParams ); // add to deferred cleanup list
+
+			le_file_watcher_watch_settings watchSettings = {};
+
+			watchSettings.callback_fun = []( const char *, void *user_data ) -> bool {
+				auto params = static_cast<loader_callback_params_o *>( user_data );
+				le_module_loader_api_i->le_module_loader_i.load( params->loader );
+				return le_module_loader_api_i->le_module_loader_i.register_api( params->loader, params->api, params->lib_register_fun_name.c_str() );
+			};
+
+			watchSettings.callback_user_data = reinterpret_cast<void *>( callbackParams );
+			watchSettings.filePath           = module_path.c_str();
+
+			callbackParams->watch_id = file_watcher_i.add_watch( file_watcher, &watchSettings );
 		}
 
 	} else {
@@ -194,6 +192,8 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 
 	return api;
 };
+
+// ----------------------------------------------------------------------
 
 ISL_API_ATTR bool le_core_load_library_persistently( char const *library_name ) {
 	return le_module_loader_api_i->le_module_loader_i.load_library_persistently( library_name );
