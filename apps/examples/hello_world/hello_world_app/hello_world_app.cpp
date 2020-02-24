@@ -59,7 +59,7 @@ struct WorldGeometry {
 };
 
 struct hello_world_app_o {
-	pal::Window  window;
+	le::Window  window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
 
@@ -111,7 +111,7 @@ static bool initialiseImage( Image &img, char const *path, uint32_t mipLevels = 
 static hello_world_app_o *hello_world_app_create() {
 	auto app = new ( hello_world_app_o );
 
-	pal::Window::Settings settings;
+	le::Window::Settings settings;
 	settings
 	    .setWidth( 1920 / 2 )
 	    .setHeight( 1080 / 2 )
@@ -637,7 +637,7 @@ static bool hello_world_app_update( hello_world_app_o *self ) {
 
 	// Polls events for all windows -
 	// This means any window may trigger callbacks for any events they have callbacks registered.
-	pal::Window::pollEvents();
+	le::Window::pollEvents();
 
 	if ( self->window.shouldClose() ) {
 		return false;
@@ -767,13 +767,13 @@ static void hello_world_app_destroy( hello_world_app_o *self ) {
 // ----------------------------------------------------------------------
 
 static void initialize() {
-	pal::Window::init();
+	le::Window::init();
 };
 
 // ----------------------------------------------------------------------
 
 static void terminate() {
-	pal::Window::terminate();
+	le::Window::terminate();
 };
 
 // ----------------------------------------------------------------------

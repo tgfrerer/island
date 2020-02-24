@@ -71,7 +71,7 @@ static const auto &settings_i = api -> window_settings_i;
 
 } // namespace le_window
 
-namespace pal {
+namespace le {
 
 class Window : NoMove, NoCopy {
   public:
@@ -162,7 +162,7 @@ class Window : NoMove, NoCopy {
 	}
 };
 
-} // namespace pal
+} // namespace le
 
 #endif // __cplusplus
 

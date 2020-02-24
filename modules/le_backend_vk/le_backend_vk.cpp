@@ -800,7 +800,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 			// -- insert extensions necessary for glfw window
 
 			uint32_t extensionCount         = 0;
-			auto     glfwRequiredExtensions = pal::Window( settings->pWindow ).getRequiredVkExtensions( &extensionCount );
+			auto     glfwRequiredExtensions = le::Window( settings->pWindow ).getRequiredVkExtensions( &extensionCount );
 
 			requestedInstanceExtensions.insert( requestedInstanceExtensions.end(),
 			                                    glfwRequiredExtensions,

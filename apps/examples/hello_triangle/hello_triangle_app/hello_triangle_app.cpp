@@ -16,7 +16,7 @@
 #include <sstream>
 
 struct hello_triangle_app_o {
-	pal::Window  window;
+	le::Window  window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
 
@@ -26,13 +26,13 @@ struct hello_triangle_app_o {
 // ----------------------------------------------------------------------
 
 static void initialize() {
-	pal::Window::init();
+	le::Window::init();
 };
 
 // ----------------------------------------------------------------------
 
 static void terminate() {
-	pal::Window::terminate();
+	le::Window::terminate();
 };
 
 static void reset_camera( hello_triangle_app_o *self ); // ffdecl.
@@ -42,7 +42,7 @@ static void reset_camera( hello_triangle_app_o *self ); // ffdecl.
 static hello_triangle_app_o *hello_triangle_app_create() {
 	auto app = new ( hello_triangle_app_o );
 
-	pal::Window::Settings settings;
+	le::Window::Settings settings;
 	settings
 	    .setWidth( 1024 )
 	    .setHeight( 1024 )
@@ -147,7 +147,7 @@ static bool hello_triangle_app_update( hello_triangle_app_o *self ) {
 
 	// Polls events for all windows -
 	// This means any window may trigger callbacks for any events they have callbacks registered.
-	pal::Window::pollEvents();
+	le::Window::pollEvents();
 
 	if ( self->window.shouldClose() ) {
 		return false;

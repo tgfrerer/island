@@ -20,7 +20,7 @@
 #include "le_ui_event/le_ui_event.h"
 
 struct imgui_example_app_o {
-	pal::Window  window;
+	le::Window  window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
 
@@ -35,13 +35,13 @@ typedef imgui_example_app_o app_o;
 // ----------------------------------------------------------------------
 
 static void initialize() {
-	pal::Window::init();
+	le::Window::init();
 };
 
 // ----------------------------------------------------------------------
 
 static void terminate() {
-	pal::Window::terminate();
+	le::Window::terminate();
 };
 
 static void reset_camera( imgui_example_app_o *self ); // ffdecl.
@@ -51,7 +51,7 @@ static void reset_camera( imgui_example_app_o *self ); // ffdecl.
 static imgui_example_app_o *imgui_example_app_create() {
 	auto app = new ( imgui_example_app_o );
 
-	pal::Window::Settings settings;
+	le::Window::Settings settings;
 	settings
 	    .setWidth( 1024 )
 	    .setHeight( 1024 )
@@ -145,7 +145,7 @@ static bool imgui_example_app_update( imgui_example_app_o *self ) {
 
 	// Polls events for all windows
 	// Use `self->window.getUIEventQueue()` to fetch events.
-	pal::Window::pollEvents();
+	le::Window::pollEvents();
 
 	if ( self->window.shouldClose() ) {
 		return false;

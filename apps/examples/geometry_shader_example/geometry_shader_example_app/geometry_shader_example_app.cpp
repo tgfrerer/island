@@ -24,7 +24,7 @@ struct le_mouse_event_data_o {
 };
 
 struct geometry_shader_example_app_o {
-	pal::Window  window;
+	le::Window  window;
 	le::Renderer renderer;
 
 	LeCameraController cameraController;
@@ -34,13 +34,13 @@ struct geometry_shader_example_app_o {
 // ----------------------------------------------------------------------
 
 static void initialize() {
-	pal::Window::init();
+	le::Window::init();
 };
 
 // ----------------------------------------------------------------------
 
 static void terminate() {
-	pal::Window::terminate();
+	le::Window::terminate();
 };
 
 static void reset_camera( geometry_shader_example_app_o *self ); // ffdecl.
@@ -50,7 +50,7 @@ static void reset_camera( geometry_shader_example_app_o *self ); // ffdecl.
 static geometry_shader_example_app_o *geometry_shader_example_app_create() {
 	auto app = new ( geometry_shader_example_app_o );
 
-	pal::Window::Settings settings;
+	le::Window::Settings settings;
 	settings
 	    .setWidth( 1920 / 2 )
 	    .setHeight( 1080 / 2 )
@@ -245,7 +245,7 @@ static bool geometry_shader_example_app_update( geometry_shader_example_app_o *s
 
 	// Polls events for all windows -
 	// This means any window may trigger callbacks for any events they have callbacks registered.
-	pal::Window::pollEvents();
+	le::Window::pollEvents();
 
 	if ( self->window.shouldClose() ) {
 		return false;

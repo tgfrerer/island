@@ -16,7 +16,7 @@
 #include <sstream>
 
 struct quad_template_app_o {
-	pal::Window  window;
+	le::Window  window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
 
@@ -26,13 +26,13 @@ struct quad_template_app_o {
 // ----------------------------------------------------------------------
 
 static void initialize() {
-	pal::Window::init();
+	le::Window::init();
 };
 
 // ----------------------------------------------------------------------
 
 static void terminate() {
-	pal::Window::terminate();
+	le::Window::terminate();
 };
 
 // ----------------------------------------------------------------------
@@ -40,7 +40,7 @@ static void terminate() {
 static quad_template_app_o *quad_template_app_create() {
 	auto app = new ( quad_template_app_o );
 
-	pal::Window::Settings settings;
+	le::Window::Settings settings;
 	settings
 	    .setWidth( 1024 )
 	    .setHeight( 1024 )
@@ -98,7 +98,7 @@ static bool quad_template_app_update( quad_template_app_o *self ) {
 
 	// Polls events for all windows
 	// Use `self->window.getUIEventQueue()` to fetch events.
-	pal::Window::pollEvents();
+	le::Window::pollEvents();
 
 	if ( self->window.shouldClose() ) {
 		return false;
