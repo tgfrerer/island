@@ -1,7 +1,7 @@
-set (TARGET pal_window )
+set (TARGET le_window )
 
-set (SOURCES "pal_window.cpp")
-set (SOURCES ${SOURCES} "pal_window.h")
+set (SOURCES "le_window.cpp")
+set (SOURCES ${SOURCES} "le_window.h")
 
 if (${PLUGINS_DYNAMIC})
 

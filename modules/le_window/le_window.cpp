@@ -1,4 +1,4 @@
-#include "pal_window/pal_window.h"
+#include "le_window/le_window.h"
 #include "le_ui_event/le_ui_event.h"
 
 #include "assert.h"
@@ -14,7 +14,7 @@
 
 constexpr size_t EVENT_QUEUE_SIZE = 100; // Only allocate space for 100 events per-frame
 
-struct pal_window_settings_o {
+struct le_window_settings_o {
 	int          width          = 640;
 	int          height         = 480;
 	std::string  title          = "Island default window title";
@@ -29,12 +29,12 @@ struct WindowGeometry {
 	int height = 0;
 };
 
-struct pal_window_o {
+struct le_window_o {
 
 	GLFWwindow *          window   = nullptr;
 	VkSurfaceKHR          mSurface = nullptr;
 	VkExtent2D            mSurfaceExtent{};
-	pal_window_settings_o mSettings{};
+	le_window_settings_o mSettings{};
 	size_t                referenceCount = 0;
 	void *                user_data      = nullptr;
 
@@ -70,7 +70,7 @@ bool event_queue_idx_available( std::atomic<uint32_t> &atomicCounter, uint32_t &
 // ----------------------------------------------------------------------
 static void glfw_window_key_callback( GLFWwindow *glfwWindow, int key, int scancode, int action, int mods ) {
 
-	auto window = static_cast<pal_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
 
 	if ( window->mSettings.useEventsQueue ) {
 
@@ -94,7 +94,7 @@ static void glfw_window_key_callback( GLFWwindow *glfwWindow, int key, int scanc
 // ----------------------------------------------------------------------
 static void glfw_window_character_callback( GLFWwindow *glfwWindow, unsigned int codepoint ) {
 
-	auto window = static_cast<pal_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
 
 	if ( window->mSettings.useEventsQueue ) {
 
@@ -115,7 +115,7 @@ static void glfw_window_character_callback( GLFWwindow *glfwWindow, unsigned int
 // ----------------------------------------------------------------------
 static void glfw_window_cursor_position_callback( GLFWwindow *glfwWindow, double xpos, double ypos ) {
 
-	auto window = static_cast<pal_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
 
 	if ( window->mSettings.useEventsQueue ) {
 
@@ -137,7 +137,7 @@ static void glfw_window_cursor_position_callback( GLFWwindow *glfwWindow, double
 // ----------------------------------------------------------------------
 static void glfw_window_cursor_enter_callback( GLFWwindow *glfwWindow, int entered ) {
 
-	auto window = static_cast<pal_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
 
 	if ( window->mSettings.useEventsQueue ) {
 
@@ -158,7 +158,7 @@ static void glfw_window_cursor_enter_callback( GLFWwindow *glfwWindow, int enter
 // ----------------------------------------------------------------------
 static void glfw_window_mouse_button_callback( GLFWwindow *glfwWindow, int button, int action, int mods ) {
 
-	auto window = static_cast<pal_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
 
 	if ( window->mSettings.useEventsQueue ) {
 
@@ -181,7 +181,7 @@ static void glfw_window_mouse_button_callback( GLFWwindow *glfwWindow, int butto
 // ----------------------------------------------------------------------
 static void glfw_window_scroll_callback( GLFWwindow *glfwWindow, double xoffset, double yoffset ) {
 
-	auto window = static_cast<pal_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
 
 	if ( window->mSettings.useEventsQueue ) {
 
@@ -203,7 +203,7 @@ static void glfw_window_scroll_callback( GLFWwindow *glfwWindow, double xoffset,
 // ----------------------------------------------------------------------
 static void glfw_framebuffer_resize_callback( GLFWwindow *glfwWindow, int width_px, int height_px ) {
 
-	auto window = static_cast<pal_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
 
 	int w = width_px;
 	int h = height_px;
@@ -219,19 +219,19 @@ static void glfw_framebuffer_resize_callback( GLFWwindow *glfwWindow, int width_
 
 // ----------------------------------------------------------------------
 
-static size_t window_get_reference_count( pal_window_o *self ) {
+static size_t window_get_reference_count( le_window_o *self ) {
 	return self->referenceCount;
 }
 
 // ----------------------------------------------------------------------
 
-static void window_increase_reference_count( pal_window_o *self ) {
+static void window_increase_reference_count( le_window_o *self ) {
 	++self->referenceCount;
 }
 
 // ----------------------------------------------------------------------
 
-static void window_decrease_reference_count( pal_window_o *self ) {
+static void window_decrease_reference_count( le_window_o *self ) {
 	--self->referenceCount;
 }
 
@@ -252,7 +252,7 @@ static bool pt2_inside_rect( int x, int y, int left, int top, int width, int hei
 // If more than one monitor is available, the monitor which contains the current
 // window's centre receives the fullscreen window.
 //
-static void window_toggle_fullscreen( pal_window_o *self ) {
+static void window_toggle_fullscreen( le_window_o *self ) {
 
 	auto &g = self->windowGeometry;
 
@@ -305,40 +305,40 @@ static void window_toggle_fullscreen( pal_window_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static pal_window_settings_o *window_settings_create() {
-	pal_window_settings_o *obj = new ( pal_window_settings_o );
+static le_window_settings_o *window_settings_create() {
+	le_window_settings_o *obj = new ( le_window_settings_o );
 	return obj;
 }
 
 // ----------------------------------------------------------------------
 
-static void window_settings_set_title( pal_window_settings_o *self_, const char *title_ ) {
+static void window_settings_set_title( le_window_settings_o *self_, const char *title_ ) {
 	self_->title = std::string( title_ );
 }
 
 // ----------------------------------------------------------------------
 
-static void window_settings_set_width( pal_window_settings_o *self_, int width_ ) {
+static void window_settings_set_width( le_window_settings_o *self_, int width_ ) {
 	self_->width = width_;
 }
 
 // ----------------------------------------------------------------------
 
-static void window_settings_set_height( pal_window_settings_o *self_, int height_ ) {
+static void window_settings_set_height( le_window_settings_o *self_, int height_ ) {
 	self_->height = height_;
 }
 
 // ----------------------------------------------------------------------
 
-static void window_settings_destroy( pal_window_settings_o *self_ ) {
+static void window_settings_destroy( le_window_settings_o *self_ ) {
 	delete self_;
 }
 
 // ----------------------------------------------------------------------
 // Creates a khr surface using glfw - note that ownership is handed over to
-// the caller which must outlive this pal_window_o, and take responsibility
+// the caller which must outlive this le_window_o, and take responsibility
 // of deleting  the surface.
-static VkSurfaceKHR_T *window_create_surface( pal_window_o *self, VkInstance vkInstance ) {
+static VkSurfaceKHR_T *window_create_surface( le_window_o *self, VkInstance vkInstance ) {
 	auto result = glfwCreateWindowSurface( vkInstance, self->window, nullptr, &self->mSurface );
 	if ( result == VK_SUCCESS ) {
 		int tmp_w = 0;
@@ -356,7 +356,7 @@ static VkSurfaceKHR_T *window_create_surface( pal_window_o *self, VkInstance vkI
 
 // ----------------------------------------------------------------------
 
-static uint32_t window_get_surface_width( pal_window_o *self ) {
+static uint32_t window_get_surface_width( le_window_o *self ) {
 	if ( self->mSurface ) {
 		return self->mSurfaceExtent.width;
 	}
@@ -365,7 +365,7 @@ static uint32_t window_get_surface_width( pal_window_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static uint32_t window_get_surface_height( pal_window_o *self ) {
+static uint32_t window_get_surface_height( le_window_o *self ) {
 	if ( self->mSurface ) {
 		return self->mSurfaceExtent.height;
 	}
@@ -374,13 +374,13 @@ static uint32_t window_get_surface_height( pal_window_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static VkSurfaceKHR window_get_vk_surface_khr( pal_window_o *self ) {
+static VkSurfaceKHR window_get_vk_surface_khr( le_window_o *self ) {
 	return self->mSurface;
 }
 
 // ----------------------------------------------------------------------
 
-static void window_set_callbacks( pal_window_o *self ) {
+static void window_set_callbacks( le_window_o *self ) {
 
 	// Note: Callback function address target may have changed after library hot-reload
 	// Problem -- the address of the callback function may have changed
@@ -409,7 +409,7 @@ static void window_set_callbacks( pal_window_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void window_remove_callbacks( pal_window_o *self ) {
+static void window_remove_callbacks( le_window_o *self ) {
 
 	// FIXME: Callback function address target may have changed after library hot-reload
 	// Problem -- the address of the callback function may have changed
@@ -438,7 +438,7 @@ static void window_remove_callbacks( pal_window_o *self ) {
 // ----------------------------------------------------------------------
 // Returns an array of events pending since the last call to this method.
 // Note that calling this method invalidates any values returned from the previous call to this method.
-static void window_get_ui_event_queue( pal_window_o *self, LeUiEvent const **events, uint32_t &numEvents ) {
+static void window_get_ui_event_queue( le_window_o *self, LeUiEvent const **events, uint32_t &numEvents ) {
 
 	if ( false == self->mSettings.useEventsQueue ) {
 		*events   = nullptr;
@@ -470,14 +470,14 @@ static void window_get_ui_event_queue( pal_window_o *self, LeUiEvent const **eve
 
 // ----------------------------------------------------------------------
 
-static pal_window_o *window_create() {
-	auto obj = new pal_window_o();
+static le_window_o *window_create() {
+	auto obj = new le_window_o();
 	return obj;
 }
 
 // ----------------------------------------------------------------------
 
-static void window_setup( pal_window_o *self, const pal_window_settings_o *settings ) {
+static void window_setup( le_window_o *self, const le_window_settings_o *settings ) {
 	if ( settings ) {
 		self->mSettings = *settings;
 	}
@@ -517,7 +517,7 @@ static void window_setup( pal_window_o *self, const pal_window_settings_o *setti
 
 // ----------------------------------------------------------------------
 
-static void window_destroy( pal_window_o *self ) {
+static void window_destroy( le_window_o *self ) {
 
 	if ( self->window ) {
 		window_remove_callbacks( self );
@@ -532,13 +532,13 @@ static void window_destroy( pal_window_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static bool window_should_close( pal_window_o *self ) {
+static bool window_should_close( le_window_o *self ) {
 	return glfwWindowShouldClose( self->window );
 }
 
 // ----------------------------------------------------------------------
 
-static GLFWwindow *window_get_glfw_window( pal_window_o *self ) {
+static GLFWwindow *window_get_glfw_window( le_window_o *self ) {
 	return self->window;
 }
 
@@ -581,8 +581,8 @@ static void terminate() {
 
 // ----------------------------------------------------------------------
 
-LE_MODULE_REGISTER_IMPL( pal_window, api ) {
-	auto windowApi = static_cast<pal_window_api *>( api );
+LE_MODULE_REGISTER_IMPL( le_window, api ) {
+	auto windowApi = static_cast<le_window_api *>( api );
 
 	windowApi->init                                = init;
 	windowApi->terminate                           = terminate;
