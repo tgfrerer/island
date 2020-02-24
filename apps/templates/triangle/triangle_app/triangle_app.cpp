@@ -189,7 +189,7 @@ static void triangle_app_destroy( triangle_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_triangle_app_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( triangle_app, api ) {
 	auto  triangle_app_api_i = static_cast<triangle_app_api *>( api );
 	auto &triangle_app_i     = triangle_app_api_i->triangle_app_i;
 

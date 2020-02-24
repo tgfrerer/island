@@ -28,7 +28,7 @@ static void @module_name@_update( @module_name@_o *self ) {
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_@module_name@_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( @module_name@, api ) {
 	auto &@module_name@_i = static_cast<@module_name@_api *>( api )->@module_name@_i;
 
 	@module_name@_i.create               = @module_name@_create;

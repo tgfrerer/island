@@ -2,24 +2,14 @@
 #define GUARD_quad_template_app_H
 #endif
 
-#include <stdint.h>
 #include "le_core/le_core.h"
 
 // depends on le_backend_vk. le_backend_vk must be loaded before this class is used.
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void register_quad_template_app_api( void *api );
 
 struct quad_template_app_o;
 
 // clang-format off
 struct quad_template_app_api {
-
-	static constexpr auto id      = "quad_template_app";
-	static constexpr auto pRegFun = register_quad_template_app_api;
 
 	struct quad_template_app_interface_t {
 		quad_template_app_o * ( *create               )();
@@ -33,18 +23,14 @@ struct quad_template_app_api {
 };
 // clang-format on
 
+LE_MODULE(quad_template_app);
+LE_MODULE_LOAD_DEFAULT(quad_template_app);
+
 #ifdef __cplusplus
-} // extern "C"
 
 namespace quad_template_app {
-#ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<quad_template_app_api>( true );
-#else
-const auto api = Registry::addApiStatic<quad_template_app_api>();
-#endif
-
+static const auto &api = quad_template_app_api_i;
 static const auto &quad_template_app_i = api -> quad_template_app_i;
-
 } // namespace quad_template_app
 
 class QuadTemplateApp : NoCopy, NoMove {

@@ -133,7 +133,8 @@ static void quad_template_app_destroy( quad_template_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_quad_template_app_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( quad_template_app, api ){
+
 	auto  quad_template_app_api_i = static_cast<quad_template_app_api *>( api );
 	auto &quad_template_app_i     = quad_template_app_api_i->quad_template_app_i;
 
