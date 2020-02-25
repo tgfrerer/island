@@ -2239,20 +2239,21 @@ static void staging_allocator_reset( le_staging_allocator_o *self ) {
 	auto lock   = std::scoped_lock( self->mtx );
 	auto device = vk::Device{self->device};
 
-	// destroy all buffers
-	for ( auto &b : self->buffers ) {
-		device.destroyBuffer( b );
+	assert( self->buffers.size() == self->allocations.size() && self->buffers.size() == self->allocationInfo.size() &&
+	        "buffers, allocations, and allocationInfos sizes must match." );
+
+	// Since buffers were allocated using the VMA allocator,
+	// we cannot delete them directly using the device. We must delete them using the allocator,
+	// so that the allocator can track current allocations.
+
+	auto allocation = self->allocations.begin();
+	for ( auto b = self->buffers.begin(); b != self->buffers.end(); b++, allocation++ ) {
+		vmaUnmapMemory( self->allocator, *allocation );
+		vmaDestroyBuffer( self->allocator, *b, *allocation ); // implicitly calls vmaFreeMemory()
 	}
+
 	self->buffers.clear();
-
-	// free allocations
-
-	for ( auto &a : self->allocations ) {
-		vmaFreeMemory( self->allocator, a );
-	}
 	self->allocations.clear();
-
-	// clear allocation infos.
 	self->allocationInfo.clear();
 }
 
@@ -2273,11 +2274,10 @@ static void staging_allocator_destroy( le_staging_allocator_o *self ) {
 inline void frame_release_binned_resources( BackendFrameData &frame, vk::Device device, VmaAllocator &allocator ) {
 	for ( auto &a : frame.binnedResources ) {
 		if ( a.second.info.isBuffer() ) {
-			device.destroyBuffer( a.second.asBuffer );
+			vmaDestroyBuffer( allocator, a.second.asBuffer, a.second.allocation );
 		} else {
-			device.destroyImage( a.second.asImage );
+			vmaDestroyImage( allocator, a.second.asImage, a.second.allocation );
 		}
-		vmaFreeMemory( allocator, a.second.allocation );
 	}
 	frame.binnedResources.clear();
 }
