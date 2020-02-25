@@ -535,18 +535,24 @@ static void backend_destroy( le_backend_o *self ) {
 			device.destroyDescriptorPool( d );
 		}
 
-		// destroy per-allocator buffers
-		for ( auto &b : frameData.allocatorBuffers ) {
-			device.destroyBuffer( b );
+		{
+			// Destroy linear allocators, and the buffers allocated for them.
+			assert( frameData.allocators.size() == frameData.allocatorBuffers.size() == frameData.allocations.size() == frameData.allocationInfos.size() );
+
+			vk::Buffer *   buffer     = frameData.allocatorBuffers.data();
+			VmaAllocation *allocation = frameData.allocations.data();
+
+			for ( auto allocator = frameData.allocators.begin(); allocator != frameData.allocators.end(); allocator++, buffer++, allocation++ ) {
+				le_allocator_linear_i.destroy( *allocator );
+				vmaDestroyBuffer( self->mAllocator, *buffer, *allocation );
+			}
+
+			frameData.allocators.clear();
+			frameData.allocatorBuffers.clear();
+			frameData.allocations.clear();
+			frameData.allocationInfos.clear();
 		}
 
-		for ( auto &a : frameData.allocators ) {
-			le_allocator_linear_i.destroy( a );
-		}
-		frameData.allocators.clear();
-		frameData.allocationInfos.clear();
-
-		vmaMakePoolAllocationsLost( self->mAllocator, frameData.allocationPool, nullptr );
 		vmaDestroyPool( self->mAllocator, frameData.allocationPool );
 
 		// destroy staging allocator
