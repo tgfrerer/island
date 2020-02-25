@@ -24,6 +24,26 @@ struct le_camera_o; // from module::le_camera
 
 struct LeSamplerInfo; // from le_renderer
 
+/* le_stage provides a scene graph, and playback capability for animations.
+ * 
+ * Create elements inside the stage by calling the le_stage.create* methods.
+ * 
+ * Setup pipeline resources once elements have been added by calling:
+ * 		
+ * 		le_stage.setup_pipelines()
+ * 
+ * To render a scene graph the following methods must be called once per 
+ * frame, in the correct order:
+ * 
+ * 		le_stage.update()
+ * 		le_stage.update_rendermodule()
+ * 		le_stage.draw_into_module()
+ * 
+ * Note that `draw_into_module()` requires a parameter object with the same 
+ * lifetime as the module used to draw.
+ *
+ */
+
 // clang-format off
 struct le_stage_api {
 
@@ -34,7 +54,7 @@ struct le_stage_api {
 
 	struct le_stage_interface_t {
 
-		le_stage_o *    ( * create                   ) ( le_renderer_o* renderer, le_timebase_o* timebase);
+		le_stage_o *    ( * create                   ) ( le_renderer_o* renderer, le_timebase_o* timebase); // timebase is optional
 		void            ( * destroy                  ) ( le_stage_o* self );
 		void            ( * update                   ) ( le_stage_o* self );
 		
