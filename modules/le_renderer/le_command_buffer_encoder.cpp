@@ -521,6 +521,28 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *       self,
 
 // ----------------------------------------------------------------------
 
+static void cbe_create_rtx_geometries( le_command_buffer_encoder_o *self,
+                                       le_rtx_geometry_t const *    p_geometries,
+                                       const uint32_t               geometries_count ) {
+
+	assert( p_geometries && geometries_count > 0 && "must provide geometry data" );
+
+	auto   cmd       = EMPLACE_CMD( le::CommandCreateRtxGeometries );
+	void * data      = cmd + 1;
+	size_t data_size = sizeof( le_rtx_geometry_t ) * geometries_count;
+
+	cmd->info                 = {};
+	cmd->info.geometriesCount = geometries_count;
+	cmd->header.info.size += data_size;
+
+	memcpy( data, p_geometries, data_size );
+
+	self->mCommandStreamSize += cmd->header.info.size;
+	self->mCommandCount++;
+}
+
+// ----------------------------------------------------------------------
+
 static void cbe_get_encoded_data( le_command_buffer_encoder_o *self,
                                   void **                      data,
                                   size_t *                     numBytes,
@@ -565,5 +587,6 @@ void register_le_command_buffer_encoder_api( void *api_ ) {
 	cbe_i.get_encoded_data       = cbe_get_encoded_data;
 	cbe_i.write_to_buffer        = cbe_write_to_buffer;
 	cbe_i.write_to_image         = cbe_write_to_image;
+	cbe_i.create_rtx_geometries  = cbe_create_rtx_geometries;
 	cbe_i.get_pipeline_manager   = cbe_get_pipeline_manager;
 }

@@ -1371,6 +1371,19 @@ struct le_vertex_input_binding_description {
 	};
 };
 
+struct le_rtx_geometry_t {
+	le_resource_handle_t vertex_buffer;
+	uint32_t             vertex_offset; // offset into vertex buffer
+	uint32_t             vertex_count;  // number of vertices
+	uint32_t             vertex_stride; // should default to size_for(vertex_format)
+	le::Format           vertex_format; //
+
+	le_resource_handle_t index_buffer;
+	uint32_t             index_count;
+	uint32_t             indeex_offset;
+	le::IndexType        index_type;
+};
+
 namespace le {
 
 enum class CommandType : uint32_t {
@@ -1379,6 +1392,7 @@ enum class CommandType : uint32_t {
 	eDispatch,
 	eSetLineWidth,
 	eSetViewport,
+	eSetRtxGeometries,
 	eSetScissor,
 	eBindArgumentBuffer,
 	eSetArgumentTexture,
@@ -1438,6 +1452,14 @@ struct CommandSetViewport {
 	struct {
 		uint32_t firstViewport;
 		uint32_t viewportCount;
+	} info;
+};
+
+struct CommandCreateRtxGeometries {
+	CommandHeader header = {{{CommandType::eSetRtxGeometries, sizeof( CommandCreateRtxGeometries )}}};
+	struct {
+		uint32_t geometriesCount;
+		uint32_t padding__;
 	} info;
 };
 
