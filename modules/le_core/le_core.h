@@ -27,11 +27,6 @@
 #	define ISL_API_ATTR
 #endif
 
-//#ifndef LE_DEFINE_HANDLE_GUARD
-//#	define LE_DEFINE_HANDLE( object ) typedef struct object##_T *object;
-//#	define LE_DEFINE_HANDLE_GUARD
-//#endif
-
 ISL_API_ATTR void  le_core_poll_for_module_reloads();
 ISL_API_ATTR void *le_core_load_module_static( char const *module_name, void ( *module_reg_fun )( void * ), uint64_t api_size_in_bytes );
 ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_t api_size_in_bytes, bool should_watch );
@@ -43,6 +38,8 @@ ISL_API_ATTR void        le_update_argument_name_table( const char *source, uint
 ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value );
 
 // ---------- utilities
+
+#define LE_OPAQUE_HANDLE( object ) typedef struct object##_t *object;
 
 #define LE_MODULE_REGISTER_IMPL( x, api ) \
 	ISL_API_ATTR void le_module_register_##x( void *api )
