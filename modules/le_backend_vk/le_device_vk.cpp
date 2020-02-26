@@ -165,6 +165,9 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	// query the gpu for more info about itself
 	self->vkPhysicalDeviceProperties = self->vkPhysicalDevice.getProperties();
 
+	auto properties2          = self->vkPhysicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPropertiesNV>();
+	auto raytracingProperties = properties2.get<vk::PhysicalDeviceRayTracingPropertiesNV>();
+
 	// let's find out the devices' memory properties
 	self->vkPhysicalDeviceMemoryProperties = self->vkPhysicalDevice.getMemoryProperties();
 
