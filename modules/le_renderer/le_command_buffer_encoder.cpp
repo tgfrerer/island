@@ -19,7 +19,30 @@
 #	include "le_jobs/le_jobs.h"
 #endif
 
+// ----------------------------------------------------------------------
+// return allocator offset based on current worker thread index.
+static inline int fetch_allocator_index() {
+#if ( LE_MT > 0 )
+	int result = le_jobs::get_current_worker_id();
+	assert( result >= 0 );
+	return result;
+#else
+	return 0;
+#endif
+}
+
+static inline le_allocator_o *fetch_allocator( le_allocator_o **ppAlloc ) {
+	int             index  = fetch_allocator_index();
+	le_allocator_o *result = *( ppAlloc + index );
+	assert( result );
+	return result;
+}
+
+// ----------------------------------------------------------------------
+
 #define EMPLACE_CMD( x ) new ( &self->mCommandStream[ 0 ] + self->mCommandStreamSize )( x )
+
+// ----------------------------------------------------------------------
 
 struct le_command_buffer_encoder_o {
 	char                    mCommandStream[ 4096 * 512 ]; // 512 pages of memory = 2MB
@@ -228,25 +251,6 @@ static void cbe_bind_index_buffer( le_command_buffer_encoder_o *self,
 
 	self->mCommandStreamSize += cmd->header.info.size;
 	self->mCommandCount++;
-}
-
-// ----------------------------------------------------------------------
-// return allocator offset based on current worker thread index.
-static inline int fetch_allocator_index() {
-#if ( LE_MT > 0 )
-	int result = le_jobs::get_current_worker_id();
-	assert( result >= 0 );
-	return result;
-#else
-	return 0;
-#endif
-}
-
-static inline le_allocator_o *fetch_allocator( le_allocator_o **ppAlloc ) {
-	int             index  = fetch_allocator_index();
-	le_allocator_o *result = *( ppAlloc + index );
-	assert( result );
-	return result;
 }
 
 // ----------------------------------------------------------------------
