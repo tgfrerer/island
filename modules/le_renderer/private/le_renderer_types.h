@@ -150,11 +150,8 @@ enum LeRenderPassType : uint32_t {
 // Note that the pipeline state is different from the actual pipeline, as the
 // pipeline is created, based on a pipeline state and a renderpass.
 //
-struct le_gpso_handle_t;                  // Opaque graphics pipeline state object handle type
-typedef le_gpso_handle_t *le_gpso_handle; // Opaque graphics pipeline state object handle
-
-struct le_cpso_handle_t;                  // Opaque compute pipeline state object handle type
-typedef le_cpso_handle_t *le_cpso_handle; // Opaque compute pipeline state object handle
+LE_OPAQUE_HANDLE( le_gpso_handle ); // Opaque compute pipeline state object handle
+LE_OPAQUE_HANDLE( le_cpso_handle ); // Opaque compute pipeline state object handle
 
 typedef uint32_t LeImageCreateFlags;
 // Codegen <VkImageCreateFlagBits, LeImageCreateFlags, c>

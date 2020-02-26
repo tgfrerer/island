@@ -178,7 +178,7 @@ struct le_primitive_o {
 	uint32_t vertex_count;                                     // cached: number of POSITION vertices, used to figure out draw call param
 	uint32_t index_count;                                      // cached: number of INDICES, if any.
 	                                                           //
-	le_gpso_handle_t *pipeline_state_handle; /* non-owning */  // cached: contains material shaders, and vertex input state
+	le_gpso_handle pipeline_state_handle; /* non-owning */     // cached: contains material shaders, and vertex input state
 	                                                           //
 	uint64_t all_defines_hash;                                 // cached: hash over all shader defines
 	                                                           //
@@ -1980,7 +1980,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 		    {le::ShaderStage::eFragment}, defines.c_str() );
 	}
 
-	std::unordered_map<le_gpso_handle_t *, uint64_t> pipelineCount;
+	std::unordered_map<le_gpso_handle, uint64_t> pipelineCount; // Only used for debug purposes, count number of unique pipelines
 
 	// associate each primitive with shader matching defines id
 
