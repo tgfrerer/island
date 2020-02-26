@@ -1310,6 +1310,9 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 				// set offset based on type of binding, so that template reads from correct data
 
 				switch ( descriptorType ) {
+				case vk::DescriptorType::eAccelerationStructureNV:
+					assert( false && "not yet implemented." ); // note that this type of descriptor may be chained.
+					break;
 				case vk::DescriptorType::eUniformTexelBuffer:
 					assert( false ); // not implemented
 					break;
