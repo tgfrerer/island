@@ -2090,7 +2090,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 			if ( !primitive.pipeline_state_handle ) {
 
-				// We must create a pipeline state object PSO for this primitive.
+				// We must create a graphics pipeline state object (GPSO) for this primitive.
 				// The PSO captures everything needed for a material.
 
 				// We use an uber-shader to render materials; therefore our shader needs to simulate/handle
@@ -2098,7 +2098,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 				// We deactivate missing attributes via the shader preprocessor.
 
 				// -- Precondition: primitive.attributes are pre-sorted by type, then name,
-				// so that name "TEX_COORD_0" appears before "TEX_COORD_1"
+				// so that name "TEX_COORD_0" appears before "TEX_COORD_1",
 				// and normal attributes appear before tangent attributes etc.
 
 				LeGraphicsPipelineBuilder builder( pipeline_manager );
