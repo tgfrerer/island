@@ -1383,7 +1383,107 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 		render_module_i.declare_resource( module, img->handle, img->resource_info );
 	}
 
-	render_module_i.add_renderpass( module, rp );
+	render_module_i
+	    .add_renderpass( module, rp );
+
+#ifdef LE_FEATURE_RTX
+
+	auto cp =
+	    le::RenderPass(
+	        "Create Accel Structures", LeRenderPassType::LE_RENDER_PASS_TYPE_COMPUTE )
+	        .setSetupCallback( stage, []( le_renderpass_o *pRp, void *user_data ) -> bool {
+		        // we need to return false after the first time that this pass has been executed,
+		        // unless we want to update our bottom level acceleration structures.
+
+		        le::RenderPass rp{pRp};
+		        auto           stage = static_cast<le_stage_o *>( user_data );
+
+		        for ( auto &b : stage->buffers ) {
+			        rp.useBufferResource( b->handle, {LeBufferUsageFlagBits::LE_BUFFER_USAGE_TRANSFER_SRC_BIT} );
+		        }
+
+		        // TODO: figure out a way to signal that we don't need to upload/update geometries
+		        return true;
+	        } )
+	        .setExecuteCallback( stage, []( le_command_buffer_encoder_o *encoder, void *user_data ) {
+		        auto stage = static_cast<le_stage_o *>( user_data );
+
+		        // Build geometries by iterating over all primitives in each mesh.
+		        // mesh is referenced by node, and contains n primitives.
+		        // primitive describes geometry, and associated material.
+
+		        using namespace le_renderer;
+		        std::vector<le_rtx_geometry_t> geometries;
+
+		        // clang-format off
+		        auto le_num_type_to_le_index_type = [](le_num_type const & nt)-> le::IndexType{
+			        switch (nt){
+			        case (le_num_type::eU16): return le::IndexType::eUint16;
+			        case (le_num_type::eU32): return le::IndexType::eUint32;
+			        case (le_num_type::eU8): return le::IndexType::eUint8Ext;
+			        default:
+				        assert (false);
+			        }
+					return le::IndexType::eUint16; // unreachable
+		        };
+		        // clang-format on
+
+		        for ( auto &m : stage->meshes ) {
+			        for ( auto &p : m.primitives ) {
+				        le_rtx_geometry_t geo{};
+				        if ( !p.bindings_buffer_handles.empty() ) {
+					        // at least one binding means that the first element, position is available
+					        // and position is all we want anyways.
+
+					        geo.vertex_buffer = p.bindings_buffer_handles.front();
+					        geo.vertex_offset = p.bindings_buffer_offsets.front();
+					        geo.vertex_format = le::Format::eR32G32B32Sfloat; // TODO: get format via attribute[0].accessor
+					        geo.vertex_count  = p.vertex_count;
+
+					        auto const &vertex_accessor = stage->accessors[ p.attributes.front().accessor_idx ];
+
+					        if ( vertex_accessor.component_type == le_num_type::eF32 ) {
+						        switch ( vertex_accessor.type ) {
+						        case ( le_compound_num_type::eVec3 ):
+							        geo.vertex_format = le::Format::eR32G32B32Sfloat;
+							        break;
+						        case ( le_compound_num_type::eVec4 ):
+							        geo.vertex_format = le::Format::eR32G32B32A32Sfloat;
+							        break;
+						        default:
+							        assert( false && "vertex type must be either vec3 or vec4" );
+						        }
+					        } else {
+						        assert( false && "component type other than f32 not implemented" );
+					        }
+
+					        geo.vertex_stride = size_of( vertex_accessor.component_type ) * get_num_components( vertex_accessor.type );
+
+					        if ( p.has_indices && p.index_count ) {
+						        auto const &index_accessor    = stage->accessors[ p.indices_accessor_idx ];
+						        geo.index_type                = le_num_type_to_le_index_type( index_accessor.component_type );
+						        geo.index_count               = p.index_count;
+						        auto const &index_buffer_view = stage->buffer_views[ index_accessor.buffer_view_idx ];
+						        geo.index_buffer              = stage->buffers[ index_buffer_view.buffer_idx ]->handle;
+						        geo.index_offset              = index_buffer_view.byte_offset;
+					        }
+
+					        geometries.emplace_back( geo );
+				        }
+			        }
+		        }
+
+		        encoder_i.create_rtx_geometries( encoder, geometries.data(), uint32_t( geometries.size() ) );
+
+		        // how can we refer back to blas? should we have symbolic handles for acceleration structures too-
+		        // so that we can specify the
+	        } )
+	        .setIsRoot( true ); // TOOD: at present we must force this pass to be root so that it gets executed at all.
+
+	render_module_i
+	    .add_renderpass( module, cp );
+
+#endif
 }
 
 static le::IndexType index_type_from_num_type( le_num_type const &tp ) {
