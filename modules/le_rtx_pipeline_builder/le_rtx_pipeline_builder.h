@@ -6,6 +6,8 @@
 struct le_rtx_pipeline_builder_o;
 struct le_rtx_pso_handle_t; // opaque handle for rtx pipleine
 
+LE_OPAQUE_HANDLE( le_rtx_pso_handle );
+
 // clang-format off
 struct le_rtx_pipeline_builder_api {
 
@@ -13,7 +15,7 @@ struct le_rtx_pipeline_builder_api {
 
 		le_rtx_pipeline_builder_o *    ( * create  ) ( );
 		void                           ( * destroy ) ( le_rtx_pipeline_builder_o* self );
-		le_rtx_pso_handle_t *          ( * build   ) ( le_rtx_pipeline_builder_o* self );
+		le_rtx_pso_handle          ( * build   ) ( le_rtx_pipeline_builder_o* self );
 
 	};
 
