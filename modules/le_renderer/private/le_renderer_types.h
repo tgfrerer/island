@@ -1376,8 +1376,8 @@ struct le_rtx_geometry_t {
 	le::Format           vertex_format; //
 
 	le_resource_handle_t index_buffer;
+	uint32_t             index_offset;
 	uint32_t             index_count;
-	uint32_t             indeex_offset;
 	le::IndexType        index_type;
 };
 
