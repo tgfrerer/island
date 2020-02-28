@@ -33,6 +33,8 @@ struct le_renderer_api {
 		void                           ( *get_swapchain_extent                  )( le_renderer_o* self, uint32_t* p_width, uint32_t* p_height);
 		le_backend_o*                  ( *get_backend                           )( le_renderer_o* self );
 		le_pipeline_manager_o*         ( *get_pipeline_manager                  )( le_renderer_o* self );
+
+		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count);
 	};
 
 	struct helpers_interface_t {

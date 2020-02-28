@@ -129,6 +129,13 @@ static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, c
 
 // ----------------------------------------------------------------------
 
+static le_rtx_blas_info_handle renderer_create_rtx_blas_info_handle( le_renderer_o *self, le_rtx_geometry_t *geometries, uint32_t geometries_count ) {
+	using namespace le_backend_vk;
+	return vk_backend_i.create_rtx_blas_info( self->backend, geometries, geometries_count );
+}
+
+// ----------------------------------------------------------------------
+
 static le_backend_o *renderer_get_backend( le_renderer_o *self ) {
 	return self->backend;
 }
@@ -603,6 +610,8 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.get_swapchain_extent   = renderer_get_swapchain_extent;
 	le_renderer_i.get_pipeline_manager   = renderer_get_pipeline_manager;
 	le_renderer_i.get_backend            = renderer_get_backend;
+
+	le_renderer_i.create_rtx_blas_info = renderer_create_rtx_blas_info_handle;
 
 	auto &helpers_i = le_renderer_api_i->helpers_i;
 

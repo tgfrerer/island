@@ -396,6 +396,28 @@ struct BackendFrameData {
 };
 
 // ----------------------------------------------------------------------
+struct le_rtx_blas_info_o {
+	std::vector<le_rtx_geometry_t> geometries;
+};
+// ----------------------------------------------------------------------
+
+class RtxBlasInfoKillList : NoCopy, NoMove {
+	std::mutex mtx;
+
+	std::vector<le_rtx_blas_info_o *> infos;
+
+  public:
+	~RtxBlasInfoKillList() {
+		auto lck = std::scoped_lock( mtx );
+		for ( auto &el : infos ) {
+			delete el;
+		}
+	}
+	void add_element( le_rtx_blas_info_o *el ) {
+		auto lck = std::scoped_lock( mtx );
+		infos.push_back( el );
+	}
+};
 
 static const vk::BufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =
     vk::BufferUsageFlagBits::eIndexBuffer |
@@ -434,6 +456,8 @@ struct le_backend_o {
 
 	uint32_t queueFamilyIndexGraphics = 0; // inferred during setup
 	uint32_t queueFamilyIndexCompute  = 0; // inferred during setup
+
+	RtxBlasInfoKillList rtx_blas_info_kill_list; // used to keep track rtx_blas_infos.
 
 	struct {
 		std::unordered_map<le_resource_handle_t, AllocatedResourceVk, LeResourceHandleIdentity> allocatedResources; // Allocated resources, indexed by resource name hash
@@ -4328,6 +4352,23 @@ static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
 	return presentSuccessful;
 }
 
+// ----------------------------------------------------------------------
+
+le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o *self, le_rtx_geometry_t const *geometries, uint32_t geometries_count ) {
+
+	auto *blas_info_ptr = new le_rtx_blas_info_o{};
+
+	// Copy geometry information
+	blas_info_ptr->geometries.insert( blas_info_ptr->geometries.end(), geometries, geometries + geometries_count );
+
+	// add to backend's kill list so that all infos associated to handles get cleaned up at the end.
+	self->rtx_blas_info_kill_list.add_element( blas_info_ptr );
+
+	return reinterpret_cast<le_rtx_blas_info_handle>( blas_info_ptr );
+};
+
+// ----------------------------------------------------------------------
+
 extern void register_le_instance_vk_api( void *api );       // for le_instance_vk.cpp
 extern void register_le_allocator_linear_api( void *api_ ); // for le_allocator.cpp
 extern void register_le_device_vk_api( void *api );         // for le_device_vk.cpp
@@ -4357,6 +4398,8 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 
 	vk_backend_i.get_swapchain_resource = backend_get_swapchain_resource;
 	vk_backend_i.get_swapchain_extent   = backend_get_swapchain_extent;
+
+	vk_backend_i.create_rtx_blas_info = backend_create_rtx_blas_info;
 
 	auto &private_backend_i                  = api_i->private_backend_vk_i;
 	private_backend_i.get_vk_device          = backend_get_vk_device;

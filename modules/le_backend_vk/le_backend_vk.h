@@ -25,6 +25,9 @@ struct compute_pipeline_state_o;  // for le_pipeline_builder
 struct le_gpso_handle_t;          // opaque handle representing graphics pipeline state object hash
 struct le_cpso_handle_t;          // opaque handle representing compute  pipeline state object hash
 
+LE_OPAQUE_HANDLE( le_rtx_blas_info_handle ); // handle for backend-managed rtx bottom level acceleration info
+struct le_rtx_geometry_t;
+
 struct VkInstance_T;
 struct VkDevice_T;
 struct VkImage_T;
@@ -58,7 +61,7 @@ struct le_backend_vk_settings_t {
 	const char **            requestedDeviceExtensions      = nullptr;
 	uint32_t                 numRequestedDeviceExtensions   = 0;
 	uint32_t                 concurrency_count              = 1;       // number of potential worker threads
-	le_window_o *           pWindow                        = nullptr; // non-owning, owned by application. Application must outlive backend.
+	le_window_o *            pWindow                        = nullptr; // non-owning, owned by application. Application must outlive backend.
 	le_swapchain_settings_t *pSwapchain_settings            = nullptr; // non-owning, owned by caller of setup method.
 };
 
@@ -100,6 +103,8 @@ struct le_backend_vk_api {
 
 		void                   ( *get_swapchain_extent  ) ( le_backend_o* self, uint32_t * p_width, uint32_t * p_height);
 		le_resource_handle_t   ( *get_swapchain_resource    ) ( le_backend_o* self);
+
+		le_rtx_blas_info_handle( *create_rtx_blas_info )(le_backend_o* self, le_rtx_geometry_t const * geometries, uint32_t geometries_count);	
 	};
 
 	struct private_backend_vk_interface_t {

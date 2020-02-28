@@ -1381,6 +1381,8 @@ struct le_rtx_geometry_t {
 	le::IndexType        index_type;
 };
 
+LE_OPAQUE_HANDLE( le_rtx_blas_info_handle ); // opaque handle to a bottom level acceleration structure info owned by the backend.
+
 namespace le {
 
 enum class CommandType : uint32_t {
