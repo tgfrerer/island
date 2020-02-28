@@ -24,6 +24,7 @@ enum class LeResourceType : uint8_t {
 	eUndefined = 0,
 	eBuffer,
 	eImage,
+	eRtxBlas, // bottom level acceleration resource
 	eImageSampler,
 };
 
@@ -1250,6 +1251,21 @@ class WriteToImageSettingsBuilder {
 
 } // namespace le
 
+struct le_rtx_geometry_t {
+	le_resource_handle_t vertex_buffer;
+	uint32_t             vertex_offset; // offset into vertex buffer
+	uint32_t             vertex_count;  // number of vertices
+	uint32_t             vertex_stride; // should default to size_for(vertex_format)
+	le::Format           vertex_format; //
+
+	le_resource_handle_t index_buffer;
+	uint32_t             index_offset;
+	uint32_t             index_count;
+	le::IndexType        index_type;
+};
+
+LE_OPAQUE_HANDLE( le_rtx_blas_info_handle ); // opaque handle to a bottom level acceleration structure info owned by the backend.
+
 // ----------------------------------------------------------------------
 /// Specifies the intended usage for a resource.
 ///
@@ -1277,10 +1293,15 @@ struct le_resource_info_t {
 		LeBufferUsageFlags usage; // usage flags (LeBufferUsageFlags : uint32_t)
 	};
 
+	struct Blas {
+		le_rtx_blas_info_handle info; // opaque handle, but enough to refer back to original
+	};
+
 	LeResourceType type;
 	union {
 		Buffer buffer;
 		Image  image;
+		Blas   blas;
 	};
 };
 
@@ -1367,21 +1388,6 @@ struct le_vertex_input_binding_description {
 		uint32_t raw_data;
 	};
 };
-
-struct le_rtx_geometry_t {
-	le_resource_handle_t vertex_buffer;
-	uint32_t             vertex_offset; // offset into vertex buffer
-	uint32_t             vertex_count;  // number of vertices
-	uint32_t             vertex_stride; // should default to size_for(vertex_format)
-	le::Format           vertex_format; //
-
-	le_resource_handle_t index_buffer;
-	uint32_t             index_offset;
-	uint32_t             index_count;
-	le::IndexType        index_type;
-};
-
-LE_OPAQUE_HANDLE( le_rtx_blas_info_handle ); // opaque handle to a bottom level acceleration structure info owned by the backend.
 
 namespace le {
 
