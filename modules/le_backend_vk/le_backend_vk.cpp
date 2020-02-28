@@ -58,11 +58,14 @@ constexpr size_t LE_LINEAR_ALLOCATOR_SIZE       = 1u << 24;
 /// backend.
 struct ResourceCreateInfo {
 
+	LeResourceType type;
+
 	// Since this is a union, the first field will for both be VK_STRUCTURE_TYPE
 	// and its value will tell us what type the descriptor represents.
 	union {
-		VkBufferCreateInfo bufferInfo; // | only one of either ever in use
-		VkImageCreateInfo  imageInfo;  // | only one of either ever in use
+		VkBufferCreateInfo      bufferInfo; // | only one of either ever in use
+		VkImageCreateInfo       imageInfo;  // | only one of either ever in use
+		le_rtx_blas_info_handle blasInfo;
 	};
 
 	// Compares two ResourceCreateInfos, returns true if identical, false if not.
@@ -72,42 +75,44 @@ struct ResourceCreateInfo {
 	// rather than the pointer, and the pointer has no guarantee to be alife.
 	bool operator==( const ResourceCreateInfo &rhs ) const {
 
-		if ( bufferInfo.sType == rhs.bufferInfo.sType ) {
-
-			if ( bufferInfo.sType == VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO ) {
-
-				return ( bufferInfo.flags == rhs.bufferInfo.flags &&
-				         bufferInfo.size == rhs.bufferInfo.size &&
-				         bufferInfo.usage == rhs.bufferInfo.usage &&
-				         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode &&
-				         bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
-				         bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices // should not be compared this way
-				);
-
-			} else {
-
-				return ( imageInfo.flags == rhs.imageInfo.flags &&
-				         imageInfo.imageType == rhs.imageInfo.imageType &&
-				         imageInfo.format == rhs.imageInfo.format &&
-				         imageInfo.extent.width == rhs.imageInfo.extent.width &&
-				         imageInfo.extent.height == rhs.imageInfo.extent.height &&
-				         imageInfo.extent.depth == rhs.imageInfo.extent.depth &&
-				         imageInfo.mipLevels == rhs.imageInfo.mipLevels &&
-				         imageInfo.arrayLayers == rhs.imageInfo.arrayLayers &&
-				         imageInfo.samples == rhs.imageInfo.samples &&
-				         imageInfo.tiling == rhs.imageInfo.tiling &&
-				         imageInfo.usage == rhs.imageInfo.usage &&
-				         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
-				         imageInfo.initialLayout == rhs.imageInfo.initialLayout &&
-				         imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
-				         imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices // should not be compared this way
-				);
-			}
-
-		} else {
-			// not the same type of descriptor
+		if ( type != rhs.type ) {
 			return false;
 		}
+
+		if ( isBuffer() ) {
+
+			return ( bufferInfo.flags == rhs.bufferInfo.flags &&
+			         bufferInfo.size == rhs.bufferInfo.size &&
+			         bufferInfo.usage == rhs.bufferInfo.usage &&
+			         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode &&
+			         bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
+			         bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices // should not be compared this way
+			);
+
+		} else if ( isImage() ) {
+
+			return ( imageInfo.flags == rhs.imageInfo.flags &&
+			         imageInfo.imageType == rhs.imageInfo.imageType &&
+			         imageInfo.format == rhs.imageInfo.format &&
+			         imageInfo.extent.width == rhs.imageInfo.extent.width &&
+			         imageInfo.extent.height == rhs.imageInfo.extent.height &&
+			         imageInfo.extent.depth == rhs.imageInfo.extent.depth &&
+			         imageInfo.mipLevels == rhs.imageInfo.mipLevels &&
+			         imageInfo.arrayLayers == rhs.imageInfo.arrayLayers &&
+			         imageInfo.samples == rhs.imageInfo.samples &&
+			         imageInfo.tiling == rhs.imageInfo.tiling &&
+			         imageInfo.usage == rhs.imageInfo.usage &&
+			         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
+			         imageInfo.initialLayout == rhs.imageInfo.initialLayout &&
+			         imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
+			         imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices // should not be compared this way
+			);
+		} else if ( isBlas() ) {
+			return blasInfo == rhs.blasInfo;
+		} else {
+			assert( false && "createInfo must be of known type" );
+		}
+		return false; // unreachable
 	}
 
 	// Greater-than operator returns true if rhs is a subset of this.
@@ -117,50 +122,51 @@ struct ResourceCreateInfo {
 	// Note that we are only fuzzy where it is safe to be so - which is flags.
 	bool operator>=( const ResourceCreateInfo &rhs ) const {
 
-		if ( bufferInfo.sType == rhs.bufferInfo.sType ) {
-
-			if ( bufferInfo.sType == VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO ) {
-
-				return ( bufferInfo.flags == rhs.bufferInfo.flags &&
-				         bufferInfo.size == rhs.bufferInfo.size &&
-				         ( ( bufferInfo.usage & rhs.bufferInfo.usage ) == rhs.bufferInfo.usage ) &&
-				         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode &&
-				         bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
-				         bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices // should not be compared this way
-				);
-
-			} else {
-
-				// For flags to be greater or equal means that all flags from
-				// rhs must be found in lhs:
-				// flags_rhs == (this.flags & flags_rhs)
-
-				// Note this.format, and this.extent passes the test:
-				// a) if this.x is identical with rhs.x,
-				// b) iff this.x is defined, *and* rhs.x is undefined.
-
-				return ( ( ( imageInfo.flags & rhs.imageInfo.flags ) == rhs.imageInfo.flags ) &&
-				         imageInfo.imageType == rhs.imageInfo.imageType &&
-				         ( imageInfo.format == rhs.imageInfo.format || ( imageInfo.format != VK_FORMAT_UNDEFINED && rhs.imageInfo.format == VK_FORMAT_UNDEFINED ) ) &&
-				         ( imageInfo.extent.width == rhs.imageInfo.extent.width || ( imageInfo.extent.width != 0 && rhs.imageInfo.extent.width == 0 ) ) &&
-				         ( imageInfo.extent.height == rhs.imageInfo.extent.height || ( imageInfo.extent.height != 0 && rhs.imageInfo.extent.height == 0 ) ) &&
-				         ( imageInfo.extent.depth == rhs.imageInfo.extent.depth || ( imageInfo.extent.depth != 0 && rhs.imageInfo.extent.depth == 0 ) ) &&
-				         imageInfo.mipLevels >= rhs.imageInfo.mipLevels &&
-				         imageInfo.arrayLayers >= rhs.imageInfo.arrayLayers &&
-				         imageInfo.samples == rhs.imageInfo.samples &&
-				         imageInfo.tiling == rhs.imageInfo.tiling &&
-				         ( ( imageInfo.usage & rhs.imageInfo.usage ) == rhs.imageInfo.usage ) &&
-				         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
-				         imageInfo.initialLayout == rhs.imageInfo.initialLayout &&
-				         imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
-				         ( void * )imageInfo.pQueueFamilyIndices == ( void * )rhs.imageInfo.pQueueFamilyIndices // should not be compared this way
-				);
-			}
-
-		} else {
-			// not the same type of descriptor
+		if ( type != rhs.type ) {
 			return false;
 		}
+
+		if ( isBuffer() ) {
+
+			return ( bufferInfo.flags == rhs.bufferInfo.flags &&
+			         bufferInfo.size == rhs.bufferInfo.size &&
+			         ( ( bufferInfo.usage & rhs.bufferInfo.usage ) == rhs.bufferInfo.usage ) &&
+			         bufferInfo.sharingMode == rhs.bufferInfo.sharingMode &&
+			         bufferInfo.queueFamilyIndexCount == rhs.bufferInfo.queueFamilyIndexCount &&
+			         bufferInfo.pQueueFamilyIndices == rhs.bufferInfo.pQueueFamilyIndices // should not be compared this way
+			);
+
+		} else if ( isImage() ) {
+
+			// For flags to be greater or equal means that all flags from
+			// rhs must be found in lhs:
+			// flags_rhs == (this.flags & flags_rhs)
+
+			// Note this.format, and this.extent passes the test:
+			// a) if this.x is identical with rhs.x,
+			// b) iff this.x is defined, *and* rhs.x is undefined.
+
+			return ( ( ( imageInfo.flags & rhs.imageInfo.flags ) == rhs.imageInfo.flags ) &&
+			         imageInfo.imageType == rhs.imageInfo.imageType &&
+			         ( imageInfo.format == rhs.imageInfo.format || ( imageInfo.format != VK_FORMAT_UNDEFINED && rhs.imageInfo.format == VK_FORMAT_UNDEFINED ) ) &&
+			         ( imageInfo.extent.width == rhs.imageInfo.extent.width || ( imageInfo.extent.width != 0 && rhs.imageInfo.extent.width == 0 ) ) &&
+			         ( imageInfo.extent.height == rhs.imageInfo.extent.height || ( imageInfo.extent.height != 0 && rhs.imageInfo.extent.height == 0 ) ) &&
+			         ( imageInfo.extent.depth == rhs.imageInfo.extent.depth || ( imageInfo.extent.depth != 0 && rhs.imageInfo.extent.depth == 0 ) ) &&
+			         imageInfo.mipLevels >= rhs.imageInfo.mipLevels &&
+			         imageInfo.arrayLayers >= rhs.imageInfo.arrayLayers &&
+			         imageInfo.samples == rhs.imageInfo.samples &&
+			         imageInfo.tiling == rhs.imageInfo.tiling &&
+			         ( ( imageInfo.usage & rhs.imageInfo.usage ) == rhs.imageInfo.usage ) &&
+			         imageInfo.sharingMode == rhs.imageInfo.sharingMode &&
+			         imageInfo.initialLayout == rhs.imageInfo.initialLayout &&
+			         imageInfo.queueFamilyIndexCount == rhs.imageInfo.queueFamilyIndexCount &&
+			         ( void * )imageInfo.pQueueFamilyIndices == ( void * )rhs.imageInfo.pQueueFamilyIndices // should not be compared this way
+			);
+		} else if ( isBlas() ) {
+			return blasInfo == rhs.blasInfo;
+		}
+
+		return false; // unreachable
 	}
 
 	bool operator!=( const ResourceCreateInfo &rhs ) const {
@@ -168,11 +174,15 @@ struct ResourceCreateInfo {
 	}
 
 	bool isBuffer() const {
-		return bufferInfo.sType == VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		return type == LeResourceType::eBuffer;
 	}
 
 	bool isImage() const {
-		return imageInfo.sType == VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+		return type == LeResourceType::eImage;
+	}
+
+	bool isBlas() const {
+		return type == LeResourceType::eRtxBlas;
 	}
 
 	static ResourceCreateInfo from_le_resource_info( const le_resource_info_t &info, uint32_t *pQueueFamilyIndices, uint32_t queueFamilyindexCount );
@@ -237,7 +247,9 @@ inline uint16_t get_sample_count_log_2( uint32_t const &sample_count ) {
 // ----------------------------------------------------------------------
 
 ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_info_t &info, uint32_t *pQueueFamilyIndices, uint32_t queueFamilyIndexCount ) {
-	ResourceCreateInfo res;
+	ResourceCreateInfo res{};
+
+	res.type = info.type;
 
 	switch ( info.type ) {
 	case ( LeResourceType::eBuffer ): {
@@ -269,6 +281,10 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 		    ;
 
 	} break;
+	case ( LeResourceType::eRtxBlas ): {
+		res.blasInfo = info.blas.info;
+		break;
+	}
 	default:
 		assert( false ); // we can only create (allocate) buffer or image resources
 		break;
