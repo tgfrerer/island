@@ -340,8 +340,9 @@ struct AllocatedResourceVk {
 	VmaAllocation     allocation;
 	VmaAllocationInfo allocationInfo;
 	union {
-		VkBuffer asBuffer;
-		VkImage  asImage;
+		VkBuffer                  asBuffer;
+		VkImage                   asImage;
+		VkAccelerationStructureNV asBlas; // bottom level acceleration structure
 	};
 	ResourceCreateInfo info;  // Creation info for resource
 	ResourceState      state; // sync state for resource
@@ -2153,7 +2154,7 @@ le::Format infer_image_format_from_le_image_usage_flags( le_backend_o *self, LeI
 // ----------------------------------------------------------------------
 // Allocates and creates a physical vulkan resource using vmaAlloc given an allocator
 // Returns an AllocatedResourceVk, currently does not do any error checking.
-static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &alloc, const ResourceCreateInfo &resourceInfo ) {
+static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &alloc, const ResourceCreateInfo &resourceInfo, VkDevice vk_device = nullptr ) {
 	AllocatedResourceVk     res{};
 	VmaAllocationCreateInfo allocationCreateInfo{};
 	allocationCreateInfo.flags          = {}; // default flags
@@ -2169,13 +2170,96 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		                          &res.asBuffer,
 		                          &res.allocation,
 		                          &res.allocationInfo );
-	} else {
+	} else if ( resourceInfo.isImage() ) {
 		result = vmaCreateImage( alloc,
 		                         &resourceInfo.imageInfo,
 		                         &allocationCreateInfo,
 		                         &res.asImage,
 		                         &res.allocation,
 		                         &res.allocationInfo );
+	} else if ( resourceInfo.isBlas() ) {
+		// TODO: allocate memory for bottom level acceleration structure.
+
+		assert( vk_device && "blas allocation needs device" );
+		vk::Device device( vk_device );
+
+		auto blas = reinterpret_cast<le_rtx_blas_info_o *>( resourceInfo.blasInfo );
+
+		std::vector<vk::GeometryNV> nv_geom;
+
+		nv_geom.reserve( blas->geometries.size() );
+
+		// Translate geometry info from internal format
+		// to vk::geometryNV format.
+
+		for ( auto &g : blas->geometries ) {
+			vk::GeometryNV geom{};
+			geom
+			    .setGeometryType( vk::GeometryTypeNV::eTriangles )
+			    .geometry.setTriangles(
+			        vk::GeometryTrianglesNV()
+			            .setVertexData( nullptr )
+			            .setVertexOffset( g.vertex_offset )
+			            .setVertexCount( g.vertex_count )
+			            .setVertexStride( g.vertex_stride )
+			            .setVertexFormat( le_format_to_vk( g.vertex_format ) )
+			            .setIndexData( nullptr )
+			            .setIndexOffset( g.index_offset )
+			            .setIndexCount( g.index_count )
+			            .setIndexType( le_index_type_to_vk( g.index_type ) )
+			            .setTransformData( nullptr )
+			            .setTransformOffset( 0 )
+
+			    );
+			nv_geom.emplace_back( geom );
+		}
+
+		// FIXME: this doesn't work- you cannot put pointers to temporary objects into
+		// a struct and hope that it won't get de-allocated: nv_geom is invalid outside
+		// of this scope!
+
+		auto create_info = vk::AccelerationStructureCreateInfoNV()
+
+		                       .setCompactedSize( 0 )
+		                       .setInfo(
+		                           vk::AccelerationStructureInfoNV()
+		                               .setType( vk::AccelerationStructureTypeNV::eBottomLevel )
+		                               .setFlags( {} )
+		                               .setInstanceCount( 0 )
+		                               .setGeometryCount( uint32_t( nv_geom.size() ) )
+		                               .setPGeometries( nv_geom.data() ) );
+
+		auto vk_blas = device.createAccelerationStructureNV( create_info );
+
+		// VK_NV_ray_tracing is a custom extension from Nvidia, not part of core Vulkan API and as such
+		// it's not directly supported by VMA. To use VMA to allocate memory for acceleration structure,
+		// use following steps:
+		//
+		//   Call vkCreateAccelerationStructureNV, get your VkAccelerationStructureNV accelStruct.
+		//
+		//   Call vkGetAccelerationStructureMemoryRequirementsNV, get VkMemoryRequirements2KHR memReq.
+		//
+		//   Fill VmaAllocationCreateInfo allocCreateInfo: set memoryTypeBits = memReq.memoryTypeBits,
+		//   set rest of fields to zero.
+		//
+		//   Call vmaAllocateMemory - pass your memReq.memoryRequirements along with allocCreateInfo,
+		//   get your VmaAllocation alloc and VmaAllocationInfo allocInfo.
+		//
+		//   Call vkBindAccelerationStructureMemoryNV to bind your accelStruct to allocInfo.deviceMemory,
+		//   allocInfo.offset.
+		//
+		// This is all assuming that you do all your memory allocation, mapping, and binding on
+		// one thread. If you use multiple threads, then please note that a memory for different
+		// acceleration structures or regular buffers and images may come from a single device
+		// memory block. Binding is synchronized internally when using functions like vmaCreateBuffer
+		// or vmaBindBufferMemory, but not when you call Vulkan function directly, like
+		// vkBindAccelerationStructureMemoryNV. In that case you need to either protect any
+		// allocation/mapping/binding with a mutex on your own, or use separate custom VmaPool for
+		// your resources used on one thread, or create each such allocation as
+		// VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT.
+
+	} else {
+		assert( false && "Cannot allocate unknown resource type." );
 	}
 	res.info = resourceInfo;
 	assert( result == VK_SUCCESS );
@@ -2483,6 +2567,8 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 			} else if ( resourceInfo.type == LeResourceType::eBuffer ) {
 				resourceInfo.buffer.usage = resource_usage_flags.typed_as.buffer_usage_flags;
+			} else if ( resourceInfo.type == LeResourceType::eRtxBlas ) {
+				// TODO: check if we need to consolidate flags over blas resources, but that is unlikely.
 			} else {
 				assert( false ); // unreachable
 			}
@@ -2757,7 +2843,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				printResourceInfo( resourceId, resourceCreateInfo );
 			}
 
-			auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo );
+			auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice() );
 
 			// Add resource to map of available resources for this frame
 			frame.availableResources.insert_or_assign( resourceId, allocatedResource );

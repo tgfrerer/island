@@ -59,17 +59,41 @@ static bool instance_is_extension_available( le_backend_vk_instance_o *self, cha
 
 // ----------------------------------------------------------------------
 
-#define DECLARE_EXT_PFN( proc )    \
-	static PFN_##proc pfn_##proc { \
-	}
-DECLARE_EXT_PFN( vkSetDebugUtilsObjectNameEXT );
+#define DECLARE_EXT_PFN( proc ) \
+	static PFN_##proc pfn_##proc;
+
+// instance extensions
 DECLARE_EXT_PFN( vkCreateDebugUtilsMessengerEXT );
 DECLARE_EXT_PFN( vkDestroyDebugUtilsMessengerEXT );
+
+// device extensions
+DECLARE_EXT_PFN( vkSetDebugUtilsObjectNameEXT );
+DECLARE_EXT_PFN( vkCreateAccelerationStructureNV );
+
 #undef DECLARE_EXT_PFN
 
 // ----------------------------------------------------------------------
 
 static void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
+
+	// Note that we get proc addresses via the instance for instance extensions as
+	// well as for device extensions. If a device extension gets called via an instance,
+	// this means that the dispatcher deals with calling the device specific function.
+	//
+	// We could store device specific functions in the device and call the direct functions
+	// via device, but that would be very cumbersome, as we would have to re-expose all
+	// relevant device function signatures via some sort of private (backend-internal)
+	// interface.
+	//
+	// The advantage of fetching the device specific function pointers are that it's
+	// quicker to call without having to go through the dispatcher. That's why libraries
+	// such as volk exist <https://github.com/zeux/volk>, but they don't interact nicely
+	// with vulkan-hpp as far as i can see.
+	//
+	// Since most methods that we call are goint to be beefy (like creating
+	// acceleration structures and the like, we don't think it's worth the additional
+	// complexity to re-expose the vulkan headers internally. We might revisit that
+	// once we have fallen out of love with vulkan-hpp, and using volk becomes practical.
 
 #define GET_EXT_PROC_ADDR( proc ) \
 	pfn_##proc = reinterpret_cast<PFN_##proc>( obj->vkInstance.getProcAddr( #proc ) )
@@ -80,10 +104,48 @@ static void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
 		GET_EXT_PROC_ADDR( vkDestroyDebugUtilsMessengerEXT );
 	}
 
+	// device extensions
+
+	GET_EXT_PROC_ADDR( vkCreateAccelerationStructureNV );
+
 #undef GET_EXT_PROC_ADDR
 
 	std::cout << "Patched proc addrs." << std::endl;
 }
+
+// ----------------------------------------------------------------------
+// These method definitions are exported so that vkhpp can call them
+// vkhpp has matching declarations
+// - Note that these methods are not defined as `extern` -
+// their linkage *must not* be local, so that they can be called
+// from other translation units.
+
+VkResult vkSetDebugUtilsObjectNameEXT(
+    VkDevice                             device,
+    const VkDebugUtilsObjectNameInfoEXT *pNameInfo ) {
+	return pfn_vkSetDebugUtilsObjectNameEXT( device, pNameInfo );
+}
+VkResult vkCreateDebugUtilsMessengerEXT(
+    VkInstance                                instance,
+    const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
+    const VkAllocationCallbacks *             pAllocator,
+    VkDebugUtilsMessengerEXT *                pMessenger ) {
+	return pfn_vkCreateDebugUtilsMessengerEXT( instance, pCreateInfo, pAllocator, pMessenger );
+}
+void vkDestroyDebugUtilsMessengerEXT(
+    VkInstance                   instance,
+    VkDebugUtilsMessengerEXT     messenger,
+    const VkAllocationCallbacks *pAllocator ) {
+	pfn_vkDestroyDebugUtilsMessengerEXT( instance, messenger, pAllocator );
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkCreateAccelerationStructureNV(
+    VkDevice                                   device,
+    const VkAccelerationStructureCreateInfoNV *pCreateInfo,
+    const VkAllocationCallbacks *              pAllocator,
+    VkAccelerationStructureNV *                pAccelerationStructure ) {
+	return pfn_vkCreateAccelerationStructureNV( device, pCreateInfo, pAllocator, pAccelerationStructure );
+};
 
 // ----------------------------------------------------------------------
 
@@ -292,32 +354,6 @@ static void instance_post_reload_hook( le_backend_vk_instance_o *obj ) {
 	std::cout << "** Removed debug report callback." << std::endl;
 	create_debug_messenger_callback( obj );
 	std::cout << "** Added new debug report callback." << std::endl;
-}
-
-// ----------------------------------------------------------------------
-// These method definitions are exported so that vkhpp can call them
-// vkhpp has matching declarations
-// - Note that these methods are not defined as `extern` -
-// their linkage *must not* be local, so that they can be called
-// from other translation units.
-
-VkResult vkSetDebugUtilsObjectNameEXT(
-    VkDevice                             device,
-    const VkDebugUtilsObjectNameInfoEXT *pNameInfo ) {
-	return pfn_vkSetDebugUtilsObjectNameEXT( device, pNameInfo );
-}
-VkResult vkCreateDebugUtilsMessengerEXT(
-    VkInstance                                instance,
-    const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
-    const VkAllocationCallbacks *             pAllocator,
-    VkDebugUtilsMessengerEXT *                pMessenger ) {
-	return pfn_vkCreateDebugUtilsMessengerEXT( instance, pCreateInfo, pAllocator, pMessenger );
-}
-void vkDestroyDebugUtilsMessengerEXT(
-    VkInstance                   instance,
-    VkDebugUtilsMessengerEXT     messenger,
-    const VkAllocationCallbacks *pAllocator ) {
-	pfn_vkDestroyDebugUtilsMessengerEXT( instance, messenger, pAllocator );
 }
 
 // ----------------------------------------------------------------------
