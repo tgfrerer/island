@@ -193,7 +193,8 @@ struct le_primitive_o {
 	uint32_t indices_accessor_idx;
 	uint32_t material_idx;
 
-	le_rtx_blas_info_handle rtx_blas_info;
+	le_resource_handle_t rtx_blas_handle;
+	le_resource_info_t   rtx_blas_info;
 
 	bool has_indices;
 	bool has_material;
@@ -902,6 +903,27 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 
 #ifdef LE_FEATURE_RTX
 			{
+
+				{
+					// Calculate name (and subsequently name_hash=id) for rtx_blas handle so that we can refer to it
+					// as a regular symbolic resource.
+					//
+					// FIXME: handle name / id should be more unique, and somehow at least reference the scene, so that
+
+					le_resource_handle_t res{};
+
+					char rtx_blas_resource_name[ 17 ]{};
+					snprintf( rtx_blas_resource_name, sizeof( rtx_blas_resource_name ), "blas_m%04lu_p%04lu", self->meshes.size(), mesh.primitives.size() );
+
+#	if LE_RESOURCE_LABEL_LENGTH > 0
+					snprintf( res.debug_name, LE_RESOURCE_LABEL_LENGTH, "blas_m%04lu_p%04lu", self->meshes.size(), mesh.primitives.size() );
+#	endif
+
+					res.handle.as_handle.name_hash         = SpookyHash::Hash32( rtx_blas_resource_name, sizeof( rtx_blas_resource_name ), 0 );
+					res.handle.as_handle.meta.as_meta.type = LeResourceType::eRtxBlas;
+					primitive.rtx_blas_handle              = res;
+				}
+
 				le_rtx_geometry_t geo{};
 				auto const &      vertex_accessor    = self->accessors[ primitive.attributes.front().accessor_idx ];
 				auto const &      vertex_buffer_view = self->buffer_views[ vertex_accessor.buffer_view_idx ];
@@ -940,7 +962,11 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 				}
 
 				using namespace le_renderer;
-				primitive.rtx_blas_info = renderer_i.create_rtx_blas_info( self->renderer, &geo, 1 );
+				auto               blas_info = renderer_i.create_rtx_blas_info( self->renderer, &geo, 1 );
+				le_resource_info_t resource_info{};
+				resource_info.type      = LeResourceType::eRtxBlas;
+				resource_info.blas.info = blas_info;
+				primitive.rtx_blas_info = std::move( resource_info );
 			}
 #endif
 
@@ -1442,6 +1468,14 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 	//
 	for ( auto &img : stage->images ) {
 		render_module_i.declare_resource( module, img->handle, img->resource_info );
+	}
+
+	// declare rtx blas resources
+
+	for ( auto &msh : stage->meshes ) {
+		for ( auto &p : msh.primitives ) {
+			render_module_i.declare_resource( module, p.rtx_blas_handle, p.rtx_blas_info );
+		}
 	}
 
 	render_module_i
