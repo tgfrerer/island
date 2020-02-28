@@ -189,6 +189,29 @@ struct ResourceCreateInfo {
 };
 
 // ----------------------------------------------------------------------
+struct le_rtx_blas_info_o {
+	std::vector<le_rtx_geometry_t> geometries;
+};
+// ----------------------------------------------------------------------
+
+class RtxBlasInfoKillList : NoCopy, NoMove {
+	std::mutex mtx;
+
+	std::vector<le_rtx_blas_info_o *> infos;
+
+  public:
+	~RtxBlasInfoKillList() {
+		auto lck = std::scoped_lock( mtx );
+		for ( auto &el : infos ) {
+			delete el;
+		}
+	}
+	void add_element( le_rtx_blas_info_o *el ) {
+		auto lck = std::scoped_lock( mtx );
+		infos.push_back( el );
+	}
+};
+// ----------------------------------------------------------------------
 
 static inline const vk::ClearValue &le_clear_value_to_vk( const LeClearValue &lhs ) {
 	static_assert( sizeof( vk::ClearValue ) == sizeof( LeClearValue ), "Clear value type size must be equal between Le and Vk" );
@@ -409,30 +432,6 @@ struct BackendFrameData {
 	std::vector<VmaAllocationInfo> allocationInfos;  // per allocator: one allocationInfo
 
 	le_staging_allocator_o *stagingAllocator; // owning: allocator to large objects to GPU memory
-};
-
-// ----------------------------------------------------------------------
-struct le_rtx_blas_info_o {
-	std::vector<le_rtx_geometry_t> geometries;
-};
-// ----------------------------------------------------------------------
-
-class RtxBlasInfoKillList : NoCopy, NoMove {
-	std::mutex mtx;
-
-	std::vector<le_rtx_blas_info_o *> infos;
-
-  public:
-	~RtxBlasInfoKillList() {
-		auto lck = std::scoped_lock( mtx );
-		for ( auto &el : infos ) {
-			delete el;
-		}
-	}
-	void add_element( le_rtx_blas_info_o *el ) {
-		auto lck = std::scoped_lock( mtx );
-		infos.push_back( el );
-	}
 };
 
 static const vk::BufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =
