@@ -239,6 +239,7 @@ LE_ENUM_TO_VK( SamplerMipmapMode, le_sampler_mipmap_mode_to_vk );
 LE_ENUM_TO_VK( SamplerAddressMode, le_sampler_address_mode_to_vk );
 LE_ENUM_TO_VK( CompareOp, le_compare_op_to_vk );
 LE_ENUM_TO_VK( BorderColor, le_border_color_to_vk );
+LE_ENUM_TO_VK( IndexType, le_index_type_to_vk );
 
 // ----------------------------------------------------------------------
 
@@ -4057,7 +4058,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				case le::CommandType::eBindIndexBuffer: {
 					auto *le_cmd = static_cast<le::CommandBindIndexBuffer *>( dataIt );
 					auto  buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer );
-					cmd.bindIndexBuffer( buffer, le_cmd->info.offset, vk::IndexType( le_cmd->info.indexType ) );
+					cmd.bindIndexBuffer( buffer, le_cmd->info.offset, le_index_type_to_vk( le_cmd->info.indexType ) );
 				} break;
 
 				case le::CommandType::eBindVertexBuffers: {
