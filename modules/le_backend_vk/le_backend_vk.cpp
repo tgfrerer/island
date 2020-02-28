@@ -561,7 +561,9 @@ static void backend_destroy( le_backend_o *self ) {
 
 		{
 			// Destroy linear allocators, and the buffers allocated for them.
-			assert( frameData.allocators.size() == frameData.allocatorBuffers.size() == frameData.allocations.size() == frameData.allocationInfos.size() );
+			assert( frameData.allocatorBuffers.size() == frameData.allocators.size() &&
+			        frameData.allocatorBuffers.size() == frameData.allocations.size() &&
+			        frameData.allocatorBuffers.size() == frameData.allocationInfos.size() );
 
 			vk::Buffer *   buffer     = frameData.allocatorBuffers.data();
 			VmaAllocation *allocation = frameData.allocations.data();
