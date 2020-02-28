@@ -1497,6 +1497,19 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 			        rp.useBufferResource( b->handle, {LeBufferUsageFlagBits::LE_BUFFER_USAGE_TRANSFER_SRC_BIT} );
 		        }
 
+		        // We define acceleration structures by telling the renderer that we want to write to
+		        // the acceleration structure. The renderer will then make sure that the acceleration structure is
+		        // actually allocated by the time the update call happens so that it can be written into.
+
+		        for ( auto &msh : stage->meshes ) {
+			        for ( auto &p : msh.primitives ) {
+				        LeResourceUsageFlags usage{};
+				        usage.type                          = LeResourceType::eRtxBlas;
+				        usage.typed_as.rtx_blas_usage_flags = {LE_RTX_BLAS_USAGE_WRITE_BIT};
+				        rp.useResource( p.rtx_blas_handle, usage );
+			        }
+		        }
+
 		        // TODO: figure out a way to signal that we don't need to upload/update geometries
 		        return true;
 	        } )
