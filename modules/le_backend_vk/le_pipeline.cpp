@@ -1058,7 +1058,7 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description( l
 // Converts a le shader stage enum to a vulkan shader stage flag bit
 // Currently these are kept in sync which means conversion is a simple
 // matter of initialising one from the other.
-static inline vk::ShaderStageFlagBits vk_to_le( const le::ShaderStage &stage ) {
+static inline vk::ShaderStageFlagBits le_to_vk( const le::ShaderStage &stage ) {
 	return vk::ShaderStageFlagBits( stage );
 }
 
@@ -1086,7 +1086,7 @@ static vk::Pipeline le_pipeline_cache_create_pipeline( le_pipeline_manager_o *se
 		vk::PipelineShaderStageCreateInfo info{};
 		info
 		    .setFlags( {} )                    // must be 0 - "reserved for future use"
-		    .setStage( vk_to_le( s->stage ) )  //
+		    .setStage( le_to_vk( s->stage ) )  //
 		    .setModule( s->module )            //
 		    .setPName( "main" )                //
 		    .setPSpecializationInfo( nullptr ) //
@@ -1221,7 +1221,7 @@ static vk::Pipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manag
 	vk::PipelineShaderStageCreateInfo shaderStage{};
 	shaderStage
 	    .setFlags( {} )                                  // must be 0 - "reserved for future use"
-	    .setStage( vk_to_le( pso->shaderStage->stage ) ) //
+	    .setStage( le_to_vk( pso->shaderStage->stage ) ) //
 	    .setModule( pso->shaderStage->module )           //
 	    .setPName( "main" )                              //
 	    .setPSpecializationInfo( nullptr )               // TODO: Use specialisation consts to set workgroup size?
