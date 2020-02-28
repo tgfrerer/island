@@ -2706,13 +2706,21 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			    << " : " << std::setw( 30 ) << "-"
 			    << " : " << std::setw( 30 ) << to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) )
 			    << std::endl;
-		} else {
+		} else if ( info.isImage() ) {
 			std::cout
 			    << " : " << std::dec << std::setw( 4 ) << info.imageInfo.extent.width << " x " << std::setw( 4 ) << info.imageInfo.extent.height
 			    << " : " << std::setw( 30 ) << to_string( vk::Format( info.imageInfo.format ) )
 			    << " : " << std::setw( 30 ) << to_string( vk::ImageUsageFlags( info.imageInfo.usage ) )
 			    << " : " << std::setw( 5 ) << to_string( vk::SampleCountFlags( info.imageInfo.samples ) ) << " samples"
 			    << std::endl;
+		} else if ( info.isBlas() ) {
+			std::cout
+			    << " : " << std::dec << std::setw( 11 ) << ( info.blasInfo )
+			    << " : " << std::setw( 30 ) << "-"
+			    << " : " << std::setw( 30 ) << "-"
+			    << std::endl;
+		} else {
+			std::cout << std::endl;
 		}
 		std::cout << std::flush;
 	};
