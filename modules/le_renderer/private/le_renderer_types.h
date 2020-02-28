@@ -221,12 +221,20 @@ enum LeBufferUsageFlagBits : LeBufferUsageFlags_t {
 };
 // Codegen </VkBufferUsageFlagBits>
 
+typedef uint32_t LeRtxBlasUsageFlags_t;
+LE_WRAP_TYPE_IN_STRUCT( LeRtxBlasUsageFlags_t, LeRtxBlasUsageFlags );
+enum LeRtxBlasUsageFlagBits : LeRtxBlasUsageFlags_t {
+	LE_RTX_BLAS_USAGE_READ_BIT  = 0x00000001,
+	LE_RTX_BLAS_USAGE_WRITE_BIT = 0x00000002,
+};
+
 struct LeResourceUsageFlags {
 	LeResourceType type;
 	union {
-		LeImageUsageFlags  image_usage_flags;
-		LeBufferUsageFlags buffer_usage_flags;
-		uint32_t           raw_data;
+		LeImageUsageFlags   image_usage_flags;
+		LeBufferUsageFlags  buffer_usage_flags;
+		LeRtxBlasUsageFlags rtx_blas_usage_flags;
+		uint32_t            raw_data;
 	} typed_as;
 };
 
