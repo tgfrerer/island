@@ -171,6 +171,8 @@ struct le_material_o {
 	std::vector<UboTextureParamsSlice> cached_texture_params; // cached: texture parameters from texture_infos
 };
 
+// A primitive is a set of triangles sharing the same material.
+// it may optionally be affected by morph targets, and joints.
 struct le_primitive_o {
 	std::vector<uint64_t>             bindings_buffer_offsets; // cached: offset into each buffer_handle when binding
 	std::vector<le_resource_handle_t> bindings_buffer_handles; // cached: bufferviews sorted and grouped based on accessors
@@ -190,6 +192,8 @@ struct le_primitive_o {
 
 	uint32_t indices_accessor_idx;
 	uint32_t material_idx;
+
+	le_rtx_blas_info_handle rtx_blas_info;
 
 	bool has_indices;
 	bool has_material;
@@ -344,6 +348,19 @@ struct le_stage_o {
 	std::vector<le_resource_handle_t> image_handles;   //
 	std::vector<le_skin_o *>          skins;           // owning
 };
+
+// clang-format off
+		        auto le_num_type_to_le_index_type = [](le_num_type const & nt)-> le::IndexType{
+			        switch (nt){
+			        case (le_num_type::eU16): return le::IndexType::eUint16;
+			        case (le_num_type::eU32): return le::IndexType::eUint32;
+			        case (le_num_type::eU8): return le::IndexType::eUint8Ext;
+			        default:
+				        assert (false);
+			        }
+					return le::IndexType::eUint16; // unreachable
+		        };
+// clang-format on
 
 /// \brief Create image by interpreting given memory as an image.
 /// \note  Image memory is decoded via stb_image.
@@ -883,6 +900,50 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 				primitive.num_joints_sets = uint32_t( count_joints_sets );
 			}
 
+#ifdef LE_FEATURE_RTX
+			{
+				le_rtx_geometry_t geo{};
+				auto const &      vertex_accessor    = self->accessors[ primitive.attributes.front().accessor_idx ];
+				auto const &      vertex_buffer_view = self->buffer_views[ vertex_accessor.buffer_view_idx ];
+				auto const &      vertex_buffer      = self->buffers[ vertex_buffer_view.buffer_idx ];
+
+				geo.vertex_buffer = vertex_buffer->handle;
+				geo.vertex_count  = vertex_accessor.count;
+
+				if ( vertex_accessor.component_type == le_num_type::eF32 ) {
+					switch ( vertex_accessor.type ) {
+					case ( le_compound_num_type::eVec3 ):
+						geo.vertex_format = le::Format::eR32G32B32Sfloat;
+						break;
+					case ( le_compound_num_type::eVec4 ):
+						geo.vertex_format = le::Format::eR32G32B32A32Sfloat;
+						break;
+					default:
+						assert( false && "vertex type must be either vec3 or vec4" );
+					}
+				} else {
+					assert( false && "component type other than f32 not implemented" );
+				}
+
+				geo.vertex_offset = vertex_buffer_view.byte_offset + vertex_accessor.byte_offset;
+				geo.vertex_stride = vertex_buffer_view.byte_stride; // CHECK this is valid.
+
+				if ( primitive.has_indices ) {
+					auto &      index_accessor    = self->accessors[ primitive.indices_accessor_idx ];
+					auto const &index_buffer_view = self->buffer_views[ index_accessor.buffer_view_idx ];
+					auto const &index_buffer      = self->buffers[ index_buffer_view.buffer_idx ];
+
+					geo.index_type   = le_num_type_to_le_index_type( index_accessor.component_type );
+					geo.index_count  = index_accessor.count;
+					geo.index_buffer = index_buffer->handle;
+					geo.index_offset = index_buffer_view.byte_offset + index_accessor.byte_offset;
+				}
+
+				using namespace le_renderer;
+				primitive.rtx_blas_info = renderer_i.create_rtx_blas_info( self->renderer, &geo, 1 );
+			}
+#endif
+
 			mesh.primitives.emplace_back( primitive );
 		}
 	}
@@ -1415,65 +1476,17 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 		        using namespace le_renderer;
 		        std::vector<le_rtx_geometry_t> geometries;
 
-		        // clang-format off
-		        auto le_num_type_to_le_index_type = [](le_num_type const & nt)-> le::IndexType{
-			        switch (nt){
-			        case (le_num_type::eU16): return le::IndexType::eUint16;
-			        case (le_num_type::eU32): return le::IndexType::eUint32;
-			        case (le_num_type::eU8): return le::IndexType::eUint8Ext;
-			        default:
-				        assert (false);
-			        }
-					return le::IndexType::eUint16; // unreachable
-		        };
-		        // clang-format on
-
 		        for ( auto &m : stage->meshes ) {
 			        for ( auto &p : m.primitives ) {
-				        le_rtx_geometry_t geo{};
-				        if ( !p.bindings_buffer_handles.empty() ) {
-					        // at least one binding means that the first element, position is available
-					        // and position is all we want anyways.
-
-					        geo.vertex_buffer = p.bindings_buffer_handles.front();
-					        geo.vertex_offset = p.bindings_buffer_offsets.front();
-					        geo.vertex_format = le::Format::eR32G32B32Sfloat; // TODO: get format via attribute[0].accessor
-					        geo.vertex_count  = p.vertex_count;
-
-					        auto const &vertex_accessor = stage->accessors[ p.attributes.front().accessor_idx ];
-
-					        if ( vertex_accessor.component_type == le_num_type::eF32 ) {
-						        switch ( vertex_accessor.type ) {
-						        case ( le_compound_num_type::eVec3 ):
-							        geo.vertex_format = le::Format::eR32G32B32Sfloat;
-							        break;
-						        case ( le_compound_num_type::eVec4 ):
-							        geo.vertex_format = le::Format::eR32G32B32A32Sfloat;
-							        break;
-						        default:
-							        assert( false && "vertex type must be either vec3 or vec4" );
-						        }
-					        } else {
-						        assert( false && "component type other than f32 not implemented" );
-					        }
-
-					        geo.vertex_stride = size_of( vertex_accessor.component_type ) * get_num_components( vertex_accessor.type );
-
-					        if ( p.has_indices && p.index_count ) {
-						        auto const &index_accessor    = stage->accessors[ p.indices_accessor_idx ];
-						        geo.index_type                = le_num_type_to_le_index_type( index_accessor.component_type );
-						        geo.index_count               = p.index_count;
-						        auto const &index_buffer_view = stage->buffer_views[ index_accessor.buffer_view_idx ];
-						        geo.index_buffer              = stage->buffers[ index_buffer_view.buffer_idx ]->handle;
-						        geo.index_offset              = index_buffer_view.byte_offset;
-					        }
-
-					        geometries.emplace_back( geo );
-				        }
 			        }
 		        }
 
-		        encoder_i.create_rtx_geometries( encoder, geometries.data(), uint32_t( geometries.size() ) );
+		        // TODO: here, pass in a vector of handles to blas_info elements, and a vector of handles.
+		        // this is where we build the acceleration structure - this is analog to uploading pixels into
+		        // an image;
+
+		        //
+		        // encoder_i.create_rtx_geometries( encoder,  );
 
 		        // how can we refer back to blas? should we have symbolic handles for acceleration structures too-
 		        // so that we can specify the
