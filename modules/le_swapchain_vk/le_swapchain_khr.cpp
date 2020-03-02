@@ -62,7 +62,8 @@ static void swapchain_query_surface_capabilities( le_swapchain_o *base ) {
 	size_t selectedSurfaceFormatIndex = 0;
 	auto   preferredSurfaceFormat     = le_format_to_vk( self->mSettings.format_hint );
 
-	if ( ( surfaceProperties.availableSurfaceFormats.size() == 1 ) && ( surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format == vk::Format::eUndefined ) ) {
+	if ( ( surfaceProperties.availableSurfaceFormats.size() == 1 ) &&
+	     ( surfaceProperties.availableSurfaceFormats[ selectedSurfaceFormatIndex ].format == vk::Format::eUndefined ) ) {
 
 		// If the surface format list only includes one entry with VK_FORMAT_UNDEFINED,
 		// there is no preferred format, and we must assume vk::Format::eB8G8R8A8Unorm.
