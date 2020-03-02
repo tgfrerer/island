@@ -2958,10 +2958,25 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			auto device = vk::Device( self->device->getVkDevice() );
 
 			vk::DebugUtilsObjectNameInfoEXT nameInfo;
-			nameInfo
-			    .setObjectType( r.first.getResourceType() == LeResourceType::eImage ? vk::ObjectType::eImage : vk::ObjectType::eBuffer )
-			    .setObjectHandle( reinterpret_cast<uint64_t>( r.second.asImage ) )
-			    .setPObjectName( r.first.debug_name );
+
+			nameInfo.setPObjectName( r.first.debug_name );
+
+			switch ( r.first.getResourceType() ) {
+			case LeResourceType::eImage:
+				nameInfo.setObjectType( vk::ObjectType::eImage );
+				nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.asImage ) );
+				break;
+			case LeResourceType::eBuffer:
+				nameInfo.setObjectType( vk::ObjectType::eBuffer );
+				nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.asBuffer ) );
+				break;
+			case LeResourceType::eRtxBlas:
+				nameInfo.setObjectType( vk::ObjectType::eAccelerationStructureNV );
+				nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.asBlas ) );
+				break;
+			default:
+				assert( false && "unknown resource type" );
+			}
 
 			device.setDebugUtilsObjectNameEXT( &nameInfo );
 		}
