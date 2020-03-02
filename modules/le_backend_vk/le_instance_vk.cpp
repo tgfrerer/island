@@ -339,8 +339,9 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 
 	le_backend_vk::api->cUniqueInstance = self;
 
+	patchExtProcAddrs( self );
+
 	if ( SHOULD_USE_VALIDATION_LAYERS ) {
-		patchExtProcAddrs( self );
 		create_debug_messenger_callback( self );
 		std::cout << "VULKAN VALIDATION LAYERS ACTIVE." << std::endl;
 	}
