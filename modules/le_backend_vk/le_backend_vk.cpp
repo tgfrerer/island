@@ -2937,8 +2937,8 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 	auto &backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
 
-	const size_t usedResourcesSize = usedResources.size();
-	for ( size_t i = 0; i != usedResourcesSize; ++i ) {
+	const size_t usedResourcesCount = usedResources.size();
+	for ( size_t i = 0; i != usedResourcesCount; ++i ) {
 
 		le_resource_handle_t const &resourceId   = usedResources[ i ];
 		le_resource_info_t const &  resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
@@ -3045,6 +3045,40 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			}
 		}
 	} // end for all used resources
+
+	{
+		// In case there are acceleration structures with the `build` flag set, we must allocate
+		// a scratch buffer which is large enough to hold the largest fo the acceleration structures
+		// with the build flag set.
+
+		uint64_t scratchbuffer_max_size = 0;
+
+		const size_t usedResourcesCount = usedResources.size();
+		for ( size_t i = 0; i != usedResourcesCount; ++i ) {
+
+			le_resource_handle_t const &resourceId   = usedResources[ i ];
+			le_resource_info_t const &  resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
+
+			if ( resourceInfo.type != LeResourceType::eRtxBlas ||
+			     ( 0 == ( resourceInfo.blas.usage & LE_RTX_BLAS_BUILD_BIT ) ) ) {
+				continue;
+			}
+
+			// --------| invariant: we have a blas resource which needs to be built
+
+			//  we need to find out the space needed for building this resource - this
+			// information was stored with the frame available resource of the same name
+			// when it was allocated. Let's retrieve that.
+
+			auto const &frame_resource = frame.availableResources.at( resourceId );
+
+			scratchbuffer_max_size = std::max<uint64_t>( scratchbuffer_max_size, frame_resource.info.blasInfo.scratch_buffer_sz );
+		}
+
+		if ( scratchbuffer_max_size != 0 ) {
+			// we must allocated a scratch buffer, which needs to be available for exactly one frame.
+		}
+	}
 
 	// If we locked backendResources with a mutex, this would be the right place to release it.
 
