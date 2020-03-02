@@ -2260,33 +2260,6 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 
 		device.bindAccelerationStructureMemoryNV( 1, &bind_info );
 
-		// VK_NV_ray_tracing is a custom extension from Nvidia, not part of core Vulkan API and as such
-		// it's not directly supported by VMA. To use VMA to allocate memory for acceleration structure,
-		// use following steps:
-		//
-		//   Call vkCreateAccelerationStructureNV, get your VkAccelerationStructureNV accelStruct.
-		//
-		//   Call vkGetAccelerationStructureMemoryRequirementsNV, get VkMemoryRequirements2KHR memReq.
-		//
-		//   Fill VmaAllocationCreateInfo allocCreateInfo: set memoryTypeBits = memReq.memoryTypeBits,
-		//   set rest of fields to zero.
-		//
-		//   Call vmaAllocateMemory - pass your memReq.memoryRequirements along with allocCreateInfo,
-		//   get your VmaAllocation alloc and VmaAllocationInfo allocInfo.
-		//
-		//   Call vkBindAccelerationStructureMemoryNV to bind your accelStruct to allocInfo.deviceMemory,
-		//   allocInfo.offset.
-		//
-		// This is all assuming that you do all your memory allocation, mapping, and binding on
-		// one thread. If you use multiple threads, then please note that a memory for different
-		// acceleration structures or regular buffers and images may come from a single device
-		// memory block. Binding is synchronized internally when using functions like vmaCreateBuffer
-		// or vmaBindBufferMemory, but not when you call Vulkan function directly, like
-		// vkBindAccelerationStructureMemoryNV. In that case you need to either protect any
-		// allocation/mapping/binding with a mutex on your own, or use separate custom VmaPool for
-		// your resources used on one thread, or create each such allocation as
-		// VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT.
-
 	} else {
 		assert( false && "Cannot allocate unknown resource type." );
 	}
