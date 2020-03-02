@@ -622,10 +622,18 @@ static void backend_destroy( le_backend_o *self ) {
 	// ownership claim on allocatedResources.
 	for ( auto &a : self->only_backend_allocate_resources_may_access.allocatedResources ) {
 
-		if ( a.second.info.isBuffer() ) {
-			device.destroyBuffer( a.second.asBuffer );
-		} else {
+		switch ( a.second.info.type ) {
+		case LeResourceType::eImage:
 			device.destroyImage( a.second.asImage );
+			break;
+		case LeResourceType::eBuffer:
+			device.destroyBuffer( a.second.asBuffer );
+			break;
+		case LeResourceType::eRtxBlas:
+			device.destroyAccelerationStructureNV( a.second.asBlas );
+			break;
+		default:
+			assert( false && "Unknown resource type" );
 		}
 
 		vmaFreeMemory( self->mAllocator, a.second.allocation );
