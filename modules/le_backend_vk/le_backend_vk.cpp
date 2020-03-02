@@ -60,8 +60,6 @@ struct ResourceCreateInfo {
 
 	LeResourceType type;
 
-	// Since this is a union, the first field will for both be VK_STRUCTURE_TYPE
-	// and its value will tell us what type the descriptor represents.
 	union {
 		VkBufferCreateInfo      bufferInfo; // | only one of either ever in use
 		VkImageCreateInfo       imageInfo;  // | only one of either ever in use
