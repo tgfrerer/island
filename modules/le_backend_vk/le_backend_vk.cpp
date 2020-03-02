@@ -2409,74 +2409,22 @@ inline void frame_release_binned_resources( BackendFrameData &frame, vk::Device 
 }
 
 // ----------------------------------------------------------------------
-// Allocates all physical Vulkan memory resources (Images/Buffers) referenced to by the frame.
 //
-// - If a resource is already available to the backend, the previously allocated resource is
-//   copied into the frame.
-// - If a resource has not yet been seen, it is freshly allocated, then made available to
-//   the frame. It is also copied to the backend, so that the following frames may access it.
-// - If a resource is requested with properties differing from a resource with the same handle
-//   available from the backend, the previous resource is placed in the frame bin for recycling,
-//   and a new resource is allocated and copied to the frame. This resource in the backend is
-//   replaced by the new version, too. (Effectively, the frame has taken ownership of the old
-//   version and keeps it until it disposes of it).
-// - If there are resources in the recycling bin of a frame, these will get freed. Freeing
-//   happens as a first step, so that resources are only freed once the frame has "come around"
-//   and earlier frames which may have still used the old version of the resource have no claim
-//   on the old version of the resource anymore.
-//
-// We are currently not checking for "orphaned" resources (resources which are available in the
-// backend, but not used by the frame) - these could possibly be recycled, too.
-
-static void backend_allocate_resources( le_backend_o *self, BackendFrameData &frame, le_renderpass_o **passes, size_t numRenderPasses ) {
-
-	/*
-	- Frame is only ever allowed to reference frame-local resources.
-	- "Acquire" therefore means we create local copies of backend-wide resource handles.
-	*/
-
-	// -- first it is our holy duty to drop any binned resources which were condemned the last time this frame was active.
-	// It's possible that this was more than two frames ago, depending on how many swapchain images there are.
-
-	frame_release_binned_resources( frame, self->device->getVkDevice(), self->mAllocator );
+static void collect_resource_infos_per_resource(
+    le_renderpass_o const *const *                passes,
+    size_t                                        numRenderPasses,
+    std::vector<le_resource_handle_t> const &     frame_declared_resources_id,   // | pre-declared resources (declared via module)
+    std::vector<le_resource_info_t> const &       frame_declared_resources_info, // | info for each pre-declared resource
+    std::vector<le_resource_handle_t> &           usedResources,
+    std::vector<std::vector<le_resource_info_t>> &usedResourcesInfos ) {
 
 	using namespace le_renderer;
 
-	std::vector<le_resource_handle_t>            usedResources;      // (
-	std::vector<std::vector<le_resource_info_t>> usedResourcesInfos; // ( usedResourceInfos[index] contains vector of usages for usedResource[index]
-
-	// Iterate over all resource declarations in all passes so that we can collect all resources,
-	// and their usage information. Later, we will consolidate their usages so that resources can
-	// be re-used across passes.
-	//
-	// Note that we accumulate all resource infos first, and do consolidation
-	// in a separate step. That way, we can first make sure all flags are combined,
-	// before we make sure to we find a valid image format which matches all uses...
-
-	assert( frame.swapchainWidth == self->swapchainWidth );
-	assert( frame.swapchainHeight == self->swapchainHeight );
-
-	for ( le_renderpass_o **rp = passes; rp != passes + numRenderPasses; rp++ ) {
+	for ( auto rp = passes; rp != passes + numRenderPasses; rp++ ) {
 
 		auto pass_width            = renderpass_i.get_width( *rp );
 		auto pass_height           = renderpass_i.get_height( *rp );
 		auto pass_num_samples_log2 = get_sample_count_log_2( uint32_t( renderpass_i.get_sample_count( *rp ) ) );
-
-		{
-			if ( pass_width == 0 ) {
-				// if zero was chosen this means to use the default extents values for a
-				// renderpass, which is to use the frame's current swapchain extents.
-				pass_width = frame.swapchainWidth;
-				renderpass_i.set_width( *rp, pass_width );
-			}
-
-			if ( pass_height == 0 ) {
-				// if zero was chosen this means to use the default extents values for a
-				// renderpass, which is to use the frame's current swapchain extents.
-				pass_height = frame.swapchainHeight;
-				renderpass_i.set_height( *rp, pass_height );
-			}
-		}
 
 		le_resource_handle_t const *p_resources             = nullptr;
 		LeResourceUsageFlags const *p_resources_usage_flags = nullptr;
@@ -2514,7 +2462,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 				size_t found_resource_index = 0;
 				// search for resource id in vector of declared resources.
-				for ( auto const &id : frame.declared_resources_id ) {
+				for ( auto const &id : frame_declared_resources_id ) {
 					if ( id == resource ) {
 						// resource found, let's use this declared_resource_index.
 						break;
@@ -2522,14 +2470,14 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 					found_resource_index++;
 				}
 
-				if ( found_resource_index == frame.declared_resources_id.size() ) {
+				if ( found_resource_index == frame_declared_resources_id.size() ) {
 					// Nothing found. Insert empty entry
 					usedResources.push_back( resource );
 					usedResourcesInfos.push_back( {} );
 				} else {
 					// Explicitly declared resource found. Insert declaration info.
-					usedResources.push_back( frame.declared_resources_id[ found_resource_index ] );
-					usedResourcesInfos.push_back( {frame.declared_resources_info[ found_resource_index ]} );
+					usedResources.push_back( frame_declared_resources_id[ found_resource_index ] );
+					usedResourcesInfos.push_back( {frame_declared_resources_info[ found_resource_index ]} );
 				}
 			}
 
@@ -2568,6 +2516,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			} else if ( resourceInfo.type == LeResourceType::eBuffer ) {
 				resourceInfo.buffer.usage = resource_usage_flags.typed_as.buffer_usage_flags;
 			} else if ( resourceInfo.type == LeResourceType::eRtxBlas ) {
+				resourceInfo.blas.usage = resource_usage_flags.typed_as.rtx_blas_usage_flags;
 				// TODO: check if we need to consolidate flags over blas resources, but that is unlikely.
 			} else {
 				assert( false ); // unreachable
@@ -2578,233 +2527,392 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		} // end for all resources
 
 	} // end for all passes
+}
 
-	assert( usedResources.size() == usedResourcesInfos.size() );
+// ----------------------------------------------------------------------
 
-	// Consolidate usedResourcesInfos so that the first element in the vector of
-	// resourceInfos for a resource covers all intended usages of a resource.
+static void patch_renderpass_extents(
+    le_renderpass_o **passes,
+    size_t            numRenderPasses,
+    uint32_t          swapchainWidth,
+    uint32_t          swapchainHeight ) {
+	using namespace le_renderer;
 
-	// TODO: if Resource usage changes between passes, (e.g. write-to image, sample-from image)
-	// we must somehow annotate that the image has changed.
-	// This is complicated somehow through the fact that an image
-	// may not actually be written to, as the execute stage is what counts for access to resources.
-	//
-	// There needs to be a pipeline barrier so that resources are transitioned
-	// from their previous usage to their next usage.
+	auto passes_begin = passes;
+	auto passes_end   = passes + numRenderPasses;
 
-	size_t resource_index = 0;
-	for ( auto &resourceInfoVersions : usedResourcesInfos ) {
-
-		if ( resourceInfoVersions.empty() )
-			continue;
-
-		// ---------| invariant: there is at least a first element.
-
-		le_resource_info_t *const       first_info = resourceInfoVersions.data();
-		le_resource_info_t const *const info_end   = first_info + resourceInfoVersions.size();
-
-		switch ( first_info->type ) {
-		case LeResourceType::eBuffer: {
-			// Consolidate into first_info, beginning with the second element
-			for ( auto *info = first_info + 1; info != info_end; info++ ) {
-				first_info->buffer.usage |= info->buffer.usage;
-
-				// Make sure buffer can hold maximum of requested number of bytes.
-				if ( info->buffer.size != 0 && info->buffer.size > first_info->buffer.size ) {
-					first_info->buffer.size = info->buffer.size;
-				}
-			}
-
-			// Now, we must make sure that the buffer info contains sane values.
-
-			// TODO: emit an error message and emit sane defaults if values fail this test.
-			assert( first_info->buffer.usage != 0 );
-			assert( first_info->buffer.size != 0 );
-
-		} break;
-		case LeResourceType::eImage: {
-
-			first_info->image.samplesFlags |= uint32_t( 1 << first_info->image.sample_count_log2 );
-
-			// Consolidate into first_info, beginning with the second element
-			for ( auto *info = first_info + 1; info != info_end; info++ ) {
-
-				// TODO (tim): check how we can enforce correct number of array layers and mip levels
-
-				if ( info->image.arrayLayers > first_info->image.arrayLayers ) {
-					first_info->image.arrayLayers = info->image.arrayLayers;
-				}
-
-				if ( info->image.mipLevels > first_info->image.mipLevels ) {
-					first_info->image.mipLevels = info->image.mipLevels;
-				}
-
-				if ( uint32_t( info->image.imageType ) > uint32_t( first_info->image.imageType ) ) {
-					// this is a bit sketchy.
-					first_info->image.imageType = info->image.imageType;
-				}
-
-				first_info->image.flags |= info->image.flags;
-				first_info->image.usage |= info->image.usage;
-				first_info->image.samplesFlags |= uint32_t( 1 << info->image.sample_count_log2 );
-
-				// If an image format was explictly set, this takes precedence over eUndefined.
-				// Note that we skip this block if both infos have the same format, so if both
-				// infos are eUndefined, format stays undefined.
-
-				if ( info->image.format != le::Format::eUndefined && info->image.format != first_info->image.format ) {
-
-					// ----------| invariant: both formats differ, and second format is not undefined
-
-					if ( first_info->image.format == le::Format::eUndefined ) {
-						first_info->image.format = info->image.format;
-					} else {
-						// Houston, we have a problem!
-						// Two different formats were explicitly specified for this image.
-						assert( false );
-					}
-				}
-
-				// Make sure the image is as large as it needs to be
-
-				if ( info->image.extent.width != 0 && info->image.extent.width > first_info->image.extent.width ) {
-					first_info->image.extent.width = info->image.extent.width;
-				}
-
-				if ( info->image.extent.height != 0 && info->image.extent.height > first_info->image.extent.height ) {
-					first_info->image.extent.height = info->image.extent.height;
-				}
-
-				if ( info->image.extent.depth != 0 && info->image.extent.depth > first_info->image.extent.depth ) {
-					first_info->image.extent.depth = info->image.extent.depth;
-				}
-			}
-
-			// Do a final sanity check to make sure all required fields are valid.
-
-			assert( first_info->image.extent.depth != 0 ); // zero depth is illegal.
-			assert( first_info->image.usage != 0 );        // some kind of usage must be specified.
-
-		} break;
-		default:
-			break;
+	for ( auto rp = passes; rp != passes_end; rp++ ) {
+		auto pass_width  = renderpass_i.get_width( *rp );
+		auto pass_height = renderpass_i.get_height( *rp );
+		if ( pass_width == 0 ) {
+			// if zero was chosen this means to use the default extents values for a
+			// renderpass, which is to use the frame's current swapchain extents.
+			pass_width = swapchainWidth;
+			renderpass_i.set_width( *rp, pass_width );
 		}
-		resource_index++;
+
+		if ( pass_height == 0 ) {
+			// if zero was chosen this means to use the default extents values for a
+			// renderpass, which is to use the frame's current swapchain extents.
+			pass_height = swapchainHeight;
+			renderpass_i.set_height( *rp, pass_height );
+		}
 	}
+}
 
-	// Check if all resources declared in this frame are already available in backend.
-	// If a resource is not available yet, this resource must be allocated.
+// ----------------------------------------------------------------------
 
-	auto printResourceInfo = []( le_resource_handle_t const &handle, ResourceCreateInfo const &info ) {
-		// when printing debug name we test whether the first glyph might be an utf-8 ellispis, in which
-		// case we must add two spaces to make up for the shorter length (in terms of glyphs) of the utf-8
-		// printout.
-		std::cout << ( handle.debug_name[ 0 ] == char( 0xe2 ) ? "  " : "" ) << std::setw( 32 ) << handle.debug_name;
-		if ( info.isBuffer() ) {
-			std::cout
-			    << " : " << std::dec << std::setw( 11 ) << ( info.bufferInfo.size )
-			    << " : " << std::setw( 30 ) << "-"
-			    << " : " << std::setw( 30 ) << to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) )
-			    << std::endl;
-		} else if ( info.isImage() ) {
-			std::cout
-			    << " : " << std::dec << std::setw( 4 ) << info.imageInfo.extent.width << " x " << std::setw( 4 ) << info.imageInfo.extent.height
-			    << " : " << std::setw( 30 ) << to_string( vk::Format( info.imageInfo.format ) )
-			    << " : " << std::setw( 30 ) << to_string( vk::ImageUsageFlags( info.imageInfo.usage ) )
-			    << " : " << std::setw( 5 ) << to_string( vk::SampleCountFlags( info.imageInfo.samples ) ) << " samples"
-			    << std::endl;
-		} else if ( info.isBlas() ) {
-			std::cout
-			    << " : " << std::dec << std::setw( 11 ) << ( info.blasInfo )
-			    << " : " << std::setw( 30 ) << "-"
-			    << " : " << std::setw( 30 ) << "-"
-			    << std::endl;
-		} else {
-			std::cout << std::endl;
-		}
-		std::cout << std::flush;
-	};
+// per resource, combine resource_infos so that first element in resource infos
+// contains superset of all resource_infos available for this particular resource
+static void consolidate_resource_infos(
+    std::vector<le_resource_info_t> &resourceInfoVersions ) {
 
-	auto checkImageFormat = []( le_backend_o *self, le_resource_handle_t const &resource, ResourceCreateInfo *createInfo, LeImageUsageFlags const &usageFlags ) -> bool {
-		// If image format was not specified, we must try to
-		// infer the image format from usage flags.
-		auto inferred_format = infer_image_format_from_le_image_usage_flags( self, usageFlags );
+	if ( resourceInfoVersions.empty() )
+		return;
 
-		if ( inferred_format == le::Format::eUndefined ) {
-			std::cerr << "FATAL: Cannot infer image format, resource underspecified: '" << resource.debug_name << "'" << std::endl
-			          << "Specify usage, or provide explicit format option for resource to fix this error. " << std::endl
-			          << "Consider using le::RenderModule::declareResource()" << std::endl
-			          << std::flush;
+	// ---------| invariant: there is at least a first element.
 
-			assert( false ); // we don't have enough information to infer image format.
-			return false;
-		} else {
-			createInfo->imageInfo.format = VkFormat( le_format_to_vk( inferred_format ) );
+	le_resource_info_t *const       first_info = resourceInfoVersions.data();
+	le_resource_info_t const *const info_end   = first_info + resourceInfoVersions.size();
+
+	switch ( first_info->type ) {
+	case LeResourceType::eBuffer: {
+		// Consolidate into first_info, beginning with the second element
+		for ( auto *info = first_info + 1; info != info_end; info++ ) {
+			first_info->buffer.usage |= info->buffer.usage;
+
+			// Make sure buffer can hold maximum of requested number of bytes.
+			if ( info->buffer.size != 0 && info->buffer.size > first_info->buffer.size ) {
+				first_info->buffer.size = info->buffer.size;
+			}
 		}
 
-		return true;
-	};
+		// Now, we must make sure that the buffer info contains sane values.
 
-	// If image has mip levels, we implicitly add usage transfer src, so that mip maps may be created by blitting.
-	auto checkImageUsageForMipLevels = []( ResourceCreateInfo *createInfo ) {
-		if ( createInfo->imageInfo.mipLevels > 1 ) {
-			createInfo->imageInfo.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+		// TODO: emit an error message and emit sane defaults if values fail this test.
+		assert( first_info->buffer.usage != 0 );
+		assert( first_info->buffer.size != 0 );
+
+	} break;
+	case LeResourceType::eImage: {
+
+		first_info->image.samplesFlags |= uint32_t( 1 << first_info->image.sample_count_log2 );
+
+		// Consolidate into first_info, beginning with the second element
+		for ( auto *info = first_info + 1; info != info_end; info++ ) {
+
+			// TODO (tim): check how we can enforce correct number of array layers and mip levels
+
+			if ( info->image.arrayLayers > first_info->image.arrayLayers ) {
+				first_info->image.arrayLayers = info->image.arrayLayers;
+			}
+
+			if ( info->image.mipLevels > first_info->image.mipLevels ) {
+				first_info->image.mipLevels = info->image.mipLevels;
+			}
+
+			if ( uint32_t( info->image.imageType ) > uint32_t( first_info->image.imageType ) ) {
+				// this is a bit sketchy.
+				first_info->image.imageType = info->image.imageType;
+			}
+
+			first_info->image.flags |= info->image.flags;
+			first_info->image.usage |= info->image.usage;
+			first_info->image.samplesFlags |= uint32_t( 1 << info->image.sample_count_log2 );
+
+			// If an image format was explictly set, this takes precedence over eUndefined.
+			// Note that we skip this block if both infos have the same format, so if both
+			// infos are eUndefined, format stays undefined.
+
+			if ( info->image.format != le::Format::eUndefined && info->image.format != first_info->image.format ) {
+
+				// ----------| invariant: both formats differ, and second format is not undefined
+
+				if ( first_info->image.format == le::Format::eUndefined ) {
+					first_info->image.format = info->image.format;
+				} else {
+					// Houston, we have a problem!
+					// Two different formats were explicitly specified for this image.
+					assert( false );
+				}
+			}
+
+			// Make sure the image is as large as it needs to be
+
+			if ( info->image.extent.width != 0 && info->image.extent.width > first_info->image.extent.width ) {
+				first_info->image.extent.width = info->image.extent.width;
+			}
+
+			if ( info->image.extent.height != 0 && info->image.extent.height > first_info->image.extent.height ) {
+				first_info->image.extent.height = info->image.extent.height;
+			}
+
+			if ( info->image.extent.depth != 0 && info->image.extent.depth > first_info->image.extent.depth ) {
+				first_info->image.extent.depth = info->image.extent.depth;
+			}
 		}
-	};
 
+		// Do a final sanity check to make sure all required fields are valid.
+
+		assert( first_info->image.extent.depth != 0 ); // zero depth is illegal.
+		assert( first_info->image.usage != 0 );        // some kind of usage must be specified.
+
+	} break;
+	case LeResourceType::eRtxBlas: {
+		for ( auto *info = first_info + 1; info != info_end; info++ ) {
+			first_info->blas.usage |= info->blas.usage;
+		}
+		break;
+	}
+	default:
+		break;
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static void insert_msaa_versions(
+    std::vector<le_resource_handle_t> &          usedResources,
+    std::vector<std::vector<le_resource_info_t>> usedResourcesInfos ) {
 	// For each image resource which is specified with versions of additional sample counts
 	// we create additional resource_ids (by patching in the sample count), and add matching
 	// resource info, so that multisample versions of image resources can be allocated dynamically.
 
-	{
-		const size_t usedResourcesSize = usedResources.size();
+	const size_t usedResourcesSize = usedResources.size();
 
-		std::vector<le_resource_handle_t>            msaa_resources;
-		std::vector<std::vector<le_resource_info_t>> msaa_resource_infos;
+	std::vector<le_resource_handle_t>            msaa_resources;
+	std::vector<std::vector<le_resource_info_t>> msaa_resource_infos;
 
-		for ( size_t i = 0; i != usedResourcesSize; ++i ) {
+	for ( size_t i = 0; i != usedResourcesSize; ++i ) {
 
-			le_resource_handle_t &resourceId   = usedResources[ i ];
-			le_resource_info_t &  resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
+		le_resource_handle_t &resourceId = usedResources[ i ];
 
-			if ( resourceId.getResourceType() != LeResourceType::eImage ) {
-				continue;
-			}
+		if ( resourceId.getResourceType() != LeResourceType::eImage ) {
+			continue;
+		}
+		le_resource_info_t &resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
 
-			// --------| invariant: resource is image
+		// --------| invariant: resource is image
 
-			if ( resourceInfo.image.samplesFlags & ~uint32( le::SampleCountFlagBits::e1 ) ) {
+		if ( resourceInfo.image.samplesFlags & ~uint32( le::SampleCountFlagBits::e1 ) ) {
 
-				// TODO: Handle case if same image is requested with more than two
-				// versions.
-				//
-				// We found a resource with flags requesting more than just single sample.
-				// for each flag we must clone the current resource and add to extra resources
+			// TODO: Handle case if same image is requested with more than two
+			// versions.
+			//
+			// We found a resource with flags requesting more than just single sample.
+			// for each flag we must clone the current resource and add to extra resources
 
-				le_resource_handle_t resource_copy      = resourceId;
-				le_resource_info_t   resource_info_copy = resourceInfo;
+			le_resource_handle_t resource_copy      = resourceId;
+			le_resource_info_t   resource_info_copy = resourceInfo;
 
-				uint16_t current_sample_count_log_2 = get_sample_count_log_2( resourceInfo.image.samplesFlags );
+			uint16_t current_sample_count_log_2 = get_sample_count_log_2( resourceInfo.image.samplesFlags );
 
-				resource_copy.handle.as_handle.meta.as_meta.num_samples = current_sample_count_log_2;
-				resource_info_copy.image.sample_count_log2              = current_sample_count_log_2;
+			resource_copy.handle.as_handle.meta.as_meta.num_samples = current_sample_count_log_2;
+			resource_info_copy.image.sample_count_log2              = current_sample_count_log_2;
 
-				msaa_resources.push_back( resource_copy );
-				msaa_resource_infos.push_back( {resource_info_copy} );
+			msaa_resources.push_back( resource_copy );
+			msaa_resource_infos.push_back( {resource_info_copy} );
 
-				// update the original resource to have a single sample.
+			// update the original resource to have a single sample.
 
-				resourceId.handle.as_handle.meta.as_meta.num_samples = 0;
-				resourceInfo.image.sample_count_log2                 = 0;
-			}
+			resourceId.handle.as_handle.meta.as_meta.num_samples = 0;
+			resourceInfo.image.sample_count_log2                 = 0;
+		}
+	}
+
+	// -- Insert additional msaa resources into usedResources
+	// -- Insert additional msaa resource infos into usedResourceInfos
+
+	usedResources.insert( usedResources.end(), msaa_resources.begin(), msaa_resources.end() );
+	usedResourcesInfos.insert( usedResourcesInfos.end(), msaa_resource_infos.begin(), msaa_resource_infos.end() );
+}
+
+// ----------------------------------------------------------------------
+
+void printResourceInfo( le_resource_handle_t const &handle, ResourceCreateInfo const &info ) {
+	// when printing debug name we test whether the first glyph might be an utf-8 ellispis, in which
+	// case we must add two spaces to make up for the shorter length (in terms of glyphs) of the utf-8
+	// printout.
+	std::cout << ( handle.debug_name[ 0 ] == char( 0xe2 ) ? "  " : "" ) << std::setw( 32 ) << handle.debug_name;
+	if ( info.isBuffer() ) {
+		std::cout
+		    << " : " << std::dec << std::setw( 11 ) << ( info.bufferInfo.size )
+		    << " : " << std::setw( 30 ) << "-"
+		    << " : " << std::setw( 30 ) << to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) )
+		    << std::endl;
+	} else if ( info.isImage() ) {
+		std::cout
+		    << " : " << std::dec << std::setw( 4 ) << info.imageInfo.extent.width << " x " << std::setw( 4 ) << info.imageInfo.extent.height
+		    << " : " << std::setw( 30 ) << to_string( vk::Format( info.imageInfo.format ) )
+		    << " : " << std::setw( 30 ) << to_string( vk::ImageUsageFlags( info.imageInfo.usage ) )
+		    << " : " << std::setw( 5 ) << to_string( vk::SampleCountFlags( info.imageInfo.samples ) ) << " samples"
+		    << std::endl;
+	} else if ( info.isBlas() ) {
+		std::cout
+		    << " : " << std::dec << std::setw( 11 ) << ( info.blasInfo.scratch_buffer_sz )
+		    << " : " << std::setw( 30 ) << "-"
+		    << " : " << std::setw( 30 ) << "-"
+		    << std::endl;
+	} else {
+		std::cout << std::endl;
+	}
+	std::cout << std::flush;
+}
+
+// ----------------------------------------------------------------------
+
+bool checkImageFormat( le_backend_o *self, le_resource_handle_t const &resource, LeImageUsageFlags const &usageFlags, ResourceCreateInfo *createInfo ) {
+	// If image format was not specified, we must try to
+	// infer the image format from usage flags.
+	auto inferred_format = infer_image_format_from_le_image_usage_flags( self, usageFlags );
+
+	if ( inferred_format == le::Format::eUndefined ) {
+		std::cerr << "FATAL: Cannot infer image format, resource underspecified: '" << resource.debug_name << "'" << std::endl
+		          << "Specify usage, or provide explicit format option for resource to fix this error. " << std::endl
+		          << "Consider using le::RenderModule::declareResource()" << std::endl
+		          << std::flush;
+
+		assert( false ); // we don't have enough information to infer image format.
+		return false;
+	} else {
+		createInfo->imageInfo.format = VkFormat( le_format_to_vk( inferred_format ) );
+	}
+
+	return true;
+}
+
+// ----------------------------------------------------------------------
+// If image has mip levels, we implicitly add usage: "transfer_src", so that mip maps may be created by blitting.
+void patchImageUsageForMipLevels( ResourceCreateInfo *createInfo ) {
+	if ( createInfo->imageInfo.mipLevels > 1 ) {
+		createInfo->imageInfo.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+	}
+}
+
+// ----------------------------------------------------------------------
+
+void frame_resources_set_debug_names( le_backend_vk_instance_o *instance, VkDevice device_, BackendFrameData::ResourceMap_T &resources ) {
+
+	// We capture the check for extension as a static, as this is not expected to
+	// change for the lifetime of the application, and checking for the extension
+	// on each frame is wasteful.
+	//
+	static bool check_utils_extension_available = le_backend_vk::vk_instance_i.is_extension_available( instance, VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
+
+	if ( !check_utils_extension_available ) {
+		return;
+	}
+
+	// --------| invariant utuls extension is available
+
+	for ( auto const &r : resources ) {
+
+		auto device = vk::Device( device_ );
+
+		vk::DebugUtilsObjectNameInfoEXT nameInfo;
+
+		nameInfo.setPObjectName( r.first.debug_name );
+
+		switch ( r.first.getResourceType() ) {
+		case LeResourceType::eImage:
+			nameInfo.setObjectType( vk::ObjectType::eImage );
+			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.asImage ) );
+			break;
+		case LeResourceType::eBuffer:
+			nameInfo.setObjectType( vk::ObjectType::eBuffer );
+			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.asBuffer ) );
+			break;
+		case LeResourceType::eRtxBlas:
+			nameInfo.setObjectType( vk::ObjectType::eAccelerationStructureNV );
+			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.asBlas ) );
+			break;
+		default:
+			assert( false && "unknown resource type" );
 		}
 
-		// -- Insert additional msaa resources into usedResources
-		// -- Insert additional msaa resource infos into usedResourceInfos
-
-		usedResources.insert( usedResources.end(), msaa_resources.begin(), msaa_resources.end() );
-		usedResourcesInfos.insert( usedResourcesInfos.end(), msaa_resource_infos.begin(), msaa_resource_infos.end() );
+		device.setDebugUtilsObjectNameEXT( &nameInfo );
 	}
+}
+
+// ----------------------------------------------------------------------
+// Allocates all physical Vulkan memory resources (Images/Buffers) referenced to by the frame.
+//
+// - If a resource is already available to the backend, the previously allocated resource is
+//   copied into the frame.
+// - If a resource has not yet been seen, it is freshly allocated, then made available to
+//   the frame. It is also copied to the backend, so that the following frames may access it.
+// - If a resource is requested with properties differing from a resource with the same handle
+//   available from the backend, the previous resource is placed in the frame bin for recycling,
+//   and a new resource is allocated and copied to the frame. This resource in the backend is
+//   replaced by the new version, too. (Effectively, the frame has taken ownership of the old
+//   version and keeps it until it disposes of it).
+// - If there are resources in the recycling bin of a frame, these will get freed. Freeing
+//   happens as a first step, so that resources are only freed once the frame has "come around"
+//   and earlier frames which may have still used the old version of the resource have no claim
+//   on the old version of the resource anymore.
+//
+// We are currently not checking for "orphaned" resources (resources which are available in the
+// backend, but not used by the frame) - these could possibly be recycled, too.
+
+static void backend_allocate_resources( le_backend_o *self, BackendFrameData &frame, le_renderpass_o **passes, size_t numRenderPasses ) {
+
+	/*
+	- Frame is only ever allowed to reference frame-local resources.
+	- "Acquire" therefore means we create local copies of backend-wide resource handles.
+	*/
+
+	// -- first it is our holy duty to drop any binned resources which
+	// were condemned the last time this frame was active.
+	// It's possible that this was more than two frames ago,
+	// depending on how many swapchain images there are.
+	//
+	frame_release_binned_resources( frame, self->device->getVkDevice(), self->mAllocator );
+
+	assert( frame.swapchainWidth == self->swapchainWidth );
+	assert( frame.swapchainHeight == self->swapchainHeight );
+
+	// For all passes - set pass width/height to swapchain width/height if not known.
+	patch_renderpass_extents( passes, numRenderPasses, frame.swapchainWidth, frame.swapchainHeight );
+
+	// Iterate over all resource declarations in all passes so that we can collect all resources,
+	// and their usage information. Later, we will consolidate their usages so that resources can
+	// be re-used across passes.
+	//
+	// Note that we accumulate all resource infos first, and do consolidation
+	// in a separate step. That way, we can first make sure all flags are combined,
+	// before we make sure to we find a valid image format which matches all uses...
+	//
+	std::vector<le_resource_handle_t>            usedResources;      // (
+	std::vector<std::vector<le_resource_info_t>> usedResourcesInfos; // ( usedResourceInfos[index] contains vector of usages for usedResource[index]
+
+	collect_resource_infos_per_resource(
+	    passes, numRenderPasses,
+	    frame.declared_resources_id, frame.declared_resources_info,
+	    usedResources, usedResourcesInfos );
+
+	assert( usedResources.size() == usedResourcesInfos.size() );
+
+	// For each resource, consolidate infos so that the first element in the vector of
+	// resourceInfos for a resource covers all intended usages of a resource.
+	//
+	for ( auto &versions : usedResourcesInfos ) {
+		consolidate_resource_infos( versions );
+	}
+
+	// For each image resource which has versions of additional sample counts
+	// we create additional resource_ids (by patching in the sample count), and add matching
+	// resource info, so that multisample versions of image resources can be allocated dynamically.
+	insert_msaa_versions( usedResources, usedResourcesInfos );
+
+	{
+		// TODO: For each renderpass which has blas resources with `write` usage,
+		// we must allocate a scratch buffer which covers the size of the largest
+		// blas element of this renderpass. We must make sure that only that
+		// renderpass gets access to that scratch buffer.
+	}
+
+	// Check if all resources declared in this frame are already available in backend.
+	// If a resource is not available yet, this resource must be allocated.
 
 	auto &backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
 
@@ -2839,19 +2947,19 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 			if ( resourceCreateInfo.isImage() ) {
 
-				checkImageUsageForMipLevels( &resourceCreateInfo );
+				patchImageUsageForMipLevels( &resourceCreateInfo );
 
 				if ( resourceCreateInfo.imageInfo.format == VK_FORMAT_UNDEFINED ) {
-					checkImageFormat( self, resourceId, &resourceCreateInfo, resourceInfo.image.usage );
+					checkImageFormat( self, resourceId, resourceInfo.image.usage, &resourceCreateInfo );
 				}
 			}
 
-			if ( PRINT_DEBUG_MESSAGES || true ) {
-				std::cout << "Allocating resource: ";
-				printResourceInfo( resourceId, resourceCreateInfo );
-			}
-
 			auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice() );
+
+			if ( PRINT_DEBUG_MESSAGES || true ) {
+				std::cout << "Allocated resource: ";
+				printResourceInfo( resourceId, allocatedResource.info );
+			}
 
 			// Add resource to map of available resources for this frame
 			frame.availableResources.insert_or_assign( resourceId, allocatedResource );
@@ -2887,18 +2995,18 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				// -- allocate a new resource
 
 				if ( resourceCreateInfo.isImage() ) {
-					checkImageUsageForMipLevels( &resourceCreateInfo );
+					patchImageUsageForMipLevels( &resourceCreateInfo );
 					if ( resourceCreateInfo.imageInfo.format == VK_FORMAT_UNDEFINED ) {
-						checkImageFormat( self, resourceId, &resourceCreateInfo, resourceInfo.image.usage );
+						checkImageFormat( self, resourceId, resourceInfo.image.usage, &resourceCreateInfo );
 					}
 				}
 
-				if ( PRINT_DEBUG_MESSAGES || true ) {
-					std::cout << "Re-allocating resource: ";
-					printResourceInfo( resourceId, resourceCreateInfo );
-				}
-
 				auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo );
+
+				if ( PRINT_DEBUG_MESSAGES || true ) {
+					std::cout << "Re-allocated resource: ";
+					printResourceInfo( resourceId, allocatedResource.info );
+				}
 
 				// Add a copy of old resource to recycling bin for this frame, so that
 				// these resources get freed when this frame comes round again.
@@ -2938,42 +3046,12 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		std::cout << std::flush;
 	}
 
-	// We capture the check for extension as a static, as this is not expected to
-	// change for the lifetime of the application, and checking for the extension
-	// on each frame is wasteful.
-	//
-	static bool check_utils_extension_available = le_backend_vk::vk_instance_i.is_extension_available( self->instance, VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
-
-	if ( DEBUG_TAG_RESOURCES && check_utils_extension_available ) {
-		for ( auto const &r : frame.availableResources ) {
-
-			auto device = vk::Device( self->device->getVkDevice() );
-
-			vk::DebugUtilsObjectNameInfoEXT nameInfo;
-
-			nameInfo.setPObjectName( r.first.debug_name );
-
-			switch ( r.first.getResourceType() ) {
-			case LeResourceType::eImage:
-				nameInfo.setObjectType( vk::ObjectType::eImage );
-				nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.asImage ) );
-				break;
-			case LeResourceType::eBuffer:
-				nameInfo.setObjectType( vk::ObjectType::eBuffer );
-				nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.asBuffer ) );
-				break;
-			case LeResourceType::eRtxBlas:
-				nameInfo.setObjectType( vk::ObjectType::eAccelerationStructureNV );
-				nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.asBlas ) );
-				break;
-			default:
-				assert( false && "unknown resource type" );
-			}
-
-			device.setDebugUtilsObjectNameEXT( &nameInfo );
-		}
+	if ( DEBUG_TAG_RESOURCES ) {
+		frame_resources_set_debug_names( self->instance, self->device->getVkDevice(), frame.availableResources );
 	}
 }
+
+// ----------------------------------------------------------------------
 
 // Allocates Samplers and Textures requested by individual passes
 // these are tied to the lifetime of the frame, and will be re-created
@@ -3222,9 +3300,6 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 		frame.declared_resources_id   = {declared_resources, declared_resources + declared_resources_count};
 		frame.declared_resources_info = {declared_resources_infos, declared_resources_infos + declared_resources_count};
 	}
-
-	// Note that at this point memory for scratch buffers for each pass
-	// in this frame has already been allocated, as this happens shortly before executeGraph.
 
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
 
@@ -4488,7 +4563,7 @@ le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o *self, le_rtx
 	// Copy geometry information
 	blas_info_ptr->geometries.insert( blas_info_ptr->geometries.end(), geometries, geometries + geometries_count );
 
-	// add to backend's kill list so that all infos associated to handles get cleaned up at the end.
+	// Add to backend's kill list so that all infos associated to handles get cleaned up at the end.
 	self->rtx_blas_info_kill_list.add_element( blas_info_ptr );
 
 	return reinterpret_cast<le_rtx_blas_info_handle>( blas_info_ptr );
