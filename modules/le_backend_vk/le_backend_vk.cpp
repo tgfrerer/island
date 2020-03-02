@@ -2222,22 +2222,43 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 			nv_geom.emplace_back( geom );
 		}
 
-		// FIXME: this doesn't work- you cannot put pointers to temporary objects into
-		// a struct and hope that it won't get de-allocated: nv_geom is invalid outside
-		// of this scope!
+		auto create_info =
+		    vk::AccelerationStructureCreateInfoNV()
+		        .setCompactedSize( 0 )
+		        .setInfo(
+		            vk::AccelerationStructureInfoNV()
+		                .setType( vk::AccelerationStructureTypeNV::eBottomLevel )
+		                .setFlags( {} )
+		                .setInstanceCount( 0 )
+		                .setGeometryCount( uint32_t( nv_geom.size() ) )
+		                .setPGeometries( nv_geom.data() ) );
 
-		auto create_info = vk::AccelerationStructureCreateInfoNV()
+		res.asBlas = device.createAccelerationStructureNV( create_info );
 
-		                       .setCompactedSize( 0 )
-		                       .setInfo(
-		                           vk::AccelerationStructureInfoNV()
-		                               .setType( vk::AccelerationStructureTypeNV::eBottomLevel )
-		                               .setFlags( {} )
-		                               .setInstanceCount( 0 )
-		                               .setGeometryCount( uint32_t( nv_geom.size() ) )
-		                               .setPGeometries( nv_geom.data() ) );
+		vk::AccelerationStructureMemoryRequirementsInfoNV mem_req_info{};
+		mem_req_info
+		    .setType( vk::AccelerationStructureMemoryRequirementsTypeNV::eObject )
+		    .setAccelerationStructure( res.asBlas );
 
-		auto vk_blas = device.createAccelerationStructureNV( create_info );
+		vk::MemoryRequirements2KHR memReqs             = device.getAccelerationStructureMemoryRequirementsNV( mem_req_info );
+		VkMemoryRequirements       memory_requirements = memReqs.memoryRequirements;
+
+		VmaAllocationCreateInfo alloc_create_info{};
+		alloc_create_info.memoryTypeBits = memReqs.memoryRequirements.memoryTypeBits;
+
+		VkResult result = vmaAllocateMemory( alloc, &memory_requirements, &alloc_create_info, &res.allocation, &res.allocationInfo );
+
+		assert( result == VK_SUCCESS && "Allocation must succeed" );
+
+		vk::BindAccelerationStructureMemoryInfoNV bind_info{};
+		bind_info
+		    .setAccelerationStructure( res.asBlas )
+		    .setMemory( res.allocationInfo.deviceMemory )
+		    .setMemoryOffset( res.allocationInfo.offset )
+		    .setDeviceIndexCount( 0 )
+		    .setPDeviceIndices( nullptr );
+
+		device.bindAccelerationStructureMemoryNV( 1, &bind_info );
 
 		// VK_NV_ray_tracing is a custom extension from Nvidia, not part of core Vulkan API and as such
 		// it's not directly supported by VMA. To use VMA to allocate memory for acceleration structure,
