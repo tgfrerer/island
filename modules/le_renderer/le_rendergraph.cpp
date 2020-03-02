@@ -335,11 +335,11 @@ static void renderpass_add_depth_stencil_attachment( le_renderpass_o *self, le_r
 
 // ----------------------------------------------------------------------
 
-static uint32_t renderpass_get_width( le_renderpass_o *self ) {
+static uint32_t renderpass_get_width( le_renderpass_o const *self ) {
 	return self->width;
 }
 // ----------------------------------------------------------------------
-static uint32_t renderpass_get_height( le_renderpass_o *self ) {
+static uint32_t renderpass_get_height( le_renderpass_o const *self ) {
 	return self->height;
 }
 

@@ -53,8 +53,8 @@ struct le_renderer_api {
 		bool                            ( *has_setup_callback   )( const le_renderpass_o* obj);
 		void                            ( *add_color_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, le_image_attachment_info_t const *info );
 		void                            ( *add_depth_stencil_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, le_image_attachment_info_t const *info );
-		uint32_t                        ( *get_width            )( le_renderpass_o* obj);
-		uint32_t                        ( *get_height           )( le_renderpass_o* obj);
+		uint32_t                        ( *get_width            )( le_renderpass_o const * obj);
+		uint32_t                        ( *get_height           )( le_renderpass_o const * obj);
 		void                            ( *set_width            )( le_renderpass_o* obj, uint32_t width);
 		void                            ( *set_height           )( le_renderpass_o* obj, uint32_t height);
 		void                            ( *set_sample_count     ) (le_renderpass_o* obj, le::SampleCountFlagBits const & sampleCount);
