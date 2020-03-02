@@ -49,6 +49,11 @@ constexpr size_t LE_FRAME_DATA_POOL_BLOCK_SIZE  = 1u << 24; // 16.77 MB
 constexpr size_t LE_FRAME_DATA_POOL_BLOCK_COUNT = 1;
 constexpr size_t LE_LINEAR_ALLOCATOR_SIZE       = 1u << 24;
 
+struct LeRtxBlasCreateInfo {
+	le_rtx_blas_info_handle handle;
+	uint64_t                scratch_buffer_sz; // scratch buffer size for blas handle
+};
+
 // ----------------------------------------------------------------------
 /// ResourceCreateInfo is used internally in to translate Renderer-specific structures
 /// into Vulkan CreateInfos for buffers and images we wish to allocate in Vulkan.
@@ -56,14 +61,15 @@ constexpr size_t LE_LINEAR_ALLOCATOR_SIZE       = 1u << 24;
 /// The ResourceCreateInfo is then stored with the allocation, so that subsequent
 /// requests for resources may check if a requested resource is already available to the
 /// backend.
+///
 struct ResourceCreateInfo {
 
 	LeResourceType type;
 
 	union {
-		VkBufferCreateInfo      bufferInfo; // | only one of either ever in use
-		VkImageCreateInfo       imageInfo;  // | only one of either ever in use
-		le_rtx_blas_info_handle blasInfo;
+		VkBufferCreateInfo  bufferInfo; // | only one of either ever in use
+		VkImageCreateInfo   imageInfo;  // | only one of either ever in use
+		LeRtxBlasCreateInfo blasInfo;
 	};
 
 	// Compares two ResourceCreateInfos, returns true if identical, false if not.
@@ -106,7 +112,8 @@ struct ResourceCreateInfo {
 			         imageInfo.pQueueFamilyIndices == rhs.imageInfo.pQueueFamilyIndices // should not be compared this way
 			);
 		} else if ( isBlas() ) {
-			return blasInfo == rhs.blasInfo;
+			return blasInfo.handle == rhs.blasInfo.handle &&
+			       blasInfo.scratch_buffer_sz == rhs.blasInfo.scratch_buffer_sz;
 		} else {
 			assert( false && "createInfo must be of known type" );
 		}
@@ -161,7 +168,10 @@ struct ResourceCreateInfo {
 			         ( void * )imageInfo.pQueueFamilyIndices == ( void * )rhs.imageInfo.pQueueFamilyIndices // should not be compared this way
 			);
 		} else if ( isBlas() ) {
-			return blasInfo == rhs.blasInfo;
+			// NOTE: we don't compare scratch_buffer_sz, as scratch buffer sz is only available
+			// *after* a resource has been allocated, and cannot therefore tell us anything useful
+			// about whether a resource needs to be re-allocated...
+			return blasInfo.handle == rhs.blasInfo.handle;
 		}
 
 		return false; // unreachable
@@ -304,7 +314,8 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 
 	} break;
 	case ( LeResourceType::eRtxBlas ): {
-		res.blasInfo = info.blas.info;
+		res.blasInfo.handle            = info.blas.info;
+		res.blasInfo.scratch_buffer_sz = 0;
 		break;
 	}
 	default:
@@ -2161,7 +2172,8 @@ le::Format infer_image_format_from_le_image_usage_flags( le_backend_o *self, LeI
 // Allocates and creates a physical vulkan resource using vmaAlloc given an allocator
 // Returns an AllocatedResourceVk, currently does not do any error checking.
 static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &alloc, const ResourceCreateInfo &resourceInfo, VkDevice vk_device = nullptr ) {
-	AllocatedResourceVk     res{};
+	AllocatedResourceVk res{};
+	res.info = resourceInfo;
 	VmaAllocationCreateInfo allocationCreateInfo{};
 	allocationCreateInfo.flags          = {}; // default flags
 	allocationCreateInfo.usage          = VMA_MEMORY_USAGE_GPU_ONLY;
@@ -2189,7 +2201,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		assert( vk_device && "blas allocation needs device" );
 		vk::Device device( vk_device );
 
-		auto blas = reinterpret_cast<le_rtx_blas_info_o *>( resourceInfo.blasInfo );
+		auto blas = reinterpret_cast<le_rtx_blas_info_o *>( resourceInfo.blasInfo.handle );
 
 		std::vector<vk::GeometryNV> nv_geom;
 
@@ -2233,18 +2245,28 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 
 		res.asBlas = device.createAccelerationStructureNV( create_info );
 
-		vk::AccelerationStructureMemoryRequirementsInfoNV mem_req_info{};
-		mem_req_info
+		// Get memory requirements for scratch buffer
+		vk::AccelerationStructureMemoryRequirementsInfoNV scratch_mem_req_info{};
+		scratch_mem_req_info
+		    .setType( vk::AccelerationStructureMemoryRequirementsTypeNV::eBuildScratch )
+		    .setAccelerationStructure( res.asBlas );
+		vk::MemoryRequirements2 scratchMemReqs = device.getAccelerationStructureMemoryRequirementsNV( scratch_mem_req_info );
+
+		// Store memory requirements for scratch buffer into allocation info for this blas element
+		res.info.blasInfo.scratch_buffer_sz = scratchMemReqs.memoryRequirements.size;
+
+		// Get memory requirements for object allocation
+		vk::AccelerationStructureMemoryRequirementsInfoNV obj_mem_req_info{};
+		obj_mem_req_info
 		    .setType( vk::AccelerationStructureMemoryRequirementsTypeNV::eObject )
 		    .setAccelerationStructure( res.asBlas );
 
-		vk::MemoryRequirements2KHR memReqs             = device.getAccelerationStructureMemoryRequirementsNV( mem_req_info );
-		VkMemoryRequirements       memory_requirements = memReqs.memoryRequirements;
-
-		VmaAllocationCreateInfo alloc_create_info{};
+		vk::MemoryRequirements2KHR memReqs                 = device.getAccelerationStructureMemoryRequirementsNV( obj_mem_req_info );
+		VkMemoryRequirements       obj_memory_requirements = memReqs.memoryRequirements;
+		VmaAllocationCreateInfo    alloc_create_info{};
 		alloc_create_info.memoryTypeBits = memReqs.memoryRequirements.memoryTypeBits;
 
-		VkResult result = vmaAllocateMemory( alloc, &memory_requirements, &alloc_create_info, &res.allocation, &res.allocationInfo );
+		VkResult result = vmaAllocateMemory( alloc, &obj_memory_requirements, &alloc_create_info, &res.allocation, &res.allocationInfo );
 
 		assert( result == VK_SUCCESS && "Allocation must succeed" );
 
@@ -2261,7 +2283,6 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 	} else {
 		assert( false && "Cannot allocate unknown resource type." );
 	}
-	res.info = resourceInfo;
 	assert( result == VK_SUCCESS );
 	return res;
 };
