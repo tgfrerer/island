@@ -226,6 +226,7 @@ LE_WRAP_TYPE_IN_STRUCT( LeRtxBlasUsageFlags_t, LeRtxBlasUsageFlags );
 enum LeRtxBlasUsageFlagBits : LeRtxBlasUsageFlags_t {
 	LE_RTX_BLAS_USAGE_READ_BIT  = 0x00000001,
 	LE_RTX_BLAS_USAGE_WRITE_BIT = 0x00000002,
+	LE_RTX_BLAS_BUILD_BIT       = 0x00000004 | LE_RTX_BLAS_USAGE_WRITE_BIT, // build implies write
 };
 
 struct LeResourceUsageFlags {
@@ -1303,6 +1304,7 @@ struct le_resource_info_t {
 
 	struct Blas {
 		le_rtx_blas_info_handle info; // opaque handle, but enough to refer back to original
+		LeRtxBlasUsageFlags     usage;
 	};
 
 	LeResourceType type;
