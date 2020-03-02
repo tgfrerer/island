@@ -69,6 +69,9 @@ DECLARE_EXT_PFN( vkDestroyDebugUtilsMessengerEXT );
 // device extensions
 DECLARE_EXT_PFN( vkSetDebugUtilsObjectNameEXT );
 DECLARE_EXT_PFN( vkCreateAccelerationStructureNV );
+DECLARE_EXT_PFN( vkGetAccelerationStructureMemoryRequirementsNV );
+DECLARE_EXT_PFN( vkBindAccelerationStructureMemoryNV );
+DECLARE_EXT_PFN( vkDestroyAccelerationStructureNV );
 
 #undef DECLARE_EXT_PFN
 
@@ -107,6 +110,9 @@ static void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
 	// device extensions
 
 	GET_EXT_PROC_ADDR( vkCreateAccelerationStructureNV );
+	GET_EXT_PROC_ADDR( vkGetAccelerationStructureMemoryRequirementsNV );
+	GET_EXT_PROC_ADDR( vkBindAccelerationStructureMemoryNV );
+	GET_EXT_PROC_ADDR( vkDestroyAccelerationStructureNV );
 
 #undef GET_EXT_PROC_ADDR
 
@@ -147,6 +153,26 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateAccelerationStructureNV(
 	return pfn_vkCreateAccelerationStructureNV( device, pCreateInfo, pAllocator, pAccelerationStructure );
 };
 
+VKAPI_ATTR void VKAPI_CALL vkGetAccelerationStructureMemoryRequirementsNV(
+    VkDevice                                               device,
+    const VkAccelerationStructureMemoryRequirementsInfoNV *pInfo,
+    VkMemoryRequirements2KHR *                             pMemoryRequirements ) {
+	return pfn_vkGetAccelerationStructureMemoryRequirementsNV( device, pInfo, pMemoryRequirements );
+};
+
+VKAPI_ATTR VkResult VKAPI_CALL vkBindAccelerationStructureMemoryNV(
+    VkDevice                                       device,
+    uint32_t                                       bindInfoCount,
+    const VkBindAccelerationStructureMemoryInfoNV *pBindInfos ) {
+	return pfn_vkBindAccelerationStructureMemoryNV( device, bindInfoCount, pBindInfos );
+};
+
+VKAPI_ATTR void VKAPI_CALL vkDestroyAccelerationStructureNV(
+    VkDevice                     device,
+    VkAccelerationStructureNV    accelerationStructure,
+    const VkAllocationCallbacks *pAllocator ) {
+	pfn_vkDestroyAccelerationStructureNV( device, accelerationStructure, pAllocator );
+};
 // ----------------------------------------------------------------------
 
 static void create_debug_messenger_callback( le_backend_vk_instance_o *obj );  // ffdecl.
