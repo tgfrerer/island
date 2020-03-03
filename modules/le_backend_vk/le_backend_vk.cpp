@@ -789,48 +789,6 @@ static VkPhysicalDevice backend_get_vk_physical_device( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static int32_t backend_allocate_image( le_backend_o *                 self,
-                                       VkImageCreateInfo const *      pImageCreateInfo,
-                                       VmaAllocationCreateInfo const *pAllocationCreateInfo,
-                                       VkImage *                      pImage,
-                                       VmaAllocation *                pAllocation,
-                                       VmaAllocationInfo *            pAllocationInfo ) {
-
-	auto result = vmaCreateImage( self->mAllocator,
-	                              pImageCreateInfo,
-	                              pAllocationCreateInfo,
-	                              pImage,
-	                              pAllocation,
-	                              pAllocationInfo );
-	return result;
-}
-
-// ----------------------------------------------------------------------
-
-static void backend_destroy_image( le_backend_o *self, VkImage image, VmaAllocation allocation ) {
-	vmaDestroyImage( self->mAllocator, image, allocation );
-}
-
-// ----------------------------------------------------------------------
-
-static int32_t backend_allocate_buffer( le_backend_o *                 self,
-                                        VkBufferCreateInfo const *     pBufferCreateInfo,
-                                        VmaAllocationCreateInfo const *pAllocationCreateInfo,
-                                        VkBuffer *                     pBuffer,
-                                        VmaAllocation *                pAllocation,
-                                        VmaAllocationInfo *            pAllocationInfo ) {
-	auto result = vmaCreateBuffer( self->mAllocator, pBufferCreateInfo, pAllocationCreateInfo, pBuffer, pAllocation, pAllocationInfo );
-	return result;
-}
-
-// ----------------------------------------------------------------------
-
-static void backend_destroy_buffer( le_backend_o *self, VkBuffer buffer, VmaAllocation allocation ) {
-	vmaDestroyBuffer( self->mAllocator, buffer, allocation );
-}
-
-// ----------------------------------------------------------------------
-
 static le_device_o *backend_get_le_device( le_backend_o *self ) {
 	return *self->device;
 }
@@ -2166,6 +2124,47 @@ le::Format infer_image_format_from_le_image_usage_flags( le_backend_o *self, LeI
 		format = le::Format::eUndefined;
 	}
 	return format;
+}
+// ----------------------------------------------------------------------
+
+static int32_t backend_allocate_image( le_backend_o *                 self,
+                                       VkImageCreateInfo const *      pImageCreateInfo,
+                                       VmaAllocationCreateInfo const *pAllocationCreateInfo,
+                                       VkImage *                      pImage,
+                                       VmaAllocation *                pAllocation,
+                                       VmaAllocationInfo *            pAllocationInfo ) {
+
+	auto result = vmaCreateImage( self->mAllocator,
+	                              pImageCreateInfo,
+	                              pAllocationCreateInfo,
+	                              pImage,
+	                              pAllocation,
+	                              pAllocationInfo );
+	return result;
+}
+
+// ----------------------------------------------------------------------
+
+static void backend_destroy_image( le_backend_o *self, VkImage image, VmaAllocation allocation ) {
+	vmaDestroyImage( self->mAllocator, image, allocation );
+}
+
+// ----------------------------------------------------------------------
+
+static int32_t backend_allocate_buffer( le_backend_o *                 self,
+                                        VkBufferCreateInfo const *     pBufferCreateInfo,
+                                        VmaAllocationCreateInfo const *pAllocationCreateInfo,
+                                        VkBuffer *                     pBuffer,
+                                        VmaAllocation *                pAllocation,
+                                        VmaAllocationInfo *            pAllocationInfo ) {
+	auto result = vmaCreateBuffer( self->mAllocator, pBufferCreateInfo, pAllocationCreateInfo, pBuffer, pAllocation, pAllocationInfo );
+	return result;
+}
+
+// ----------------------------------------------------------------------
+
+static void backend_destroy_buffer( le_backend_o *self, VkBuffer buffer, VmaAllocation allocation ) {
+	vmaDestroyBuffer( self->mAllocator, buffer, allocation );
 }
 
 // ----------------------------------------------------------------------
