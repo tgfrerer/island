@@ -130,7 +130,8 @@ struct le_renderer_api {
 
 		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, size_t offset, void const* data, size_t numBytes);
 		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, le_write_to_image_settings_t const & writeInfo, void const *data, size_t numBytes );
-		void 						 ( *create_rtx_geometries  )( le_command_buffer_encoder_o *self, le_rtx_geometry_t const* geometries, const uint32_t geometries_count);
+
+		void 						 ( *build_rtx_blas         )( le_command_buffer_encoder_o *self, le_resource_handle_t const* const blas_handles, const uint32_t handles_count);
 
 		le::Extent2D const &         ( *get_extent             ) ( le_command_buffer_encoder_o* self );
 

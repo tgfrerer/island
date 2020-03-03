@@ -4551,6 +4551,79 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					break;
 				}
+				case le::CommandType::eBuildRtxBlas: {
+					auto *le_cmd = static_cast<le::CommandBuildRtxBlas *>( dataIt );
+
+					size_t     num_blas_handles  = le_cmd->info.blas_handles_count;
+					auto const blas_handle_begin = reinterpret_cast<le_resource_handle_t *>( le_cmd + 1 );
+
+					auto const blas_end = blas_handle_begin + num_blas_handles;
+
+					std::vector<vk::GeometryNV> nv_geom;
+
+					for ( auto blas_handle = blas_handle_begin; blas_handle != blas_end; blas_handle++ ) {
+						nv_geom.clear();
+
+						auto const &                allocated_resource        = frame.availableResources.at( *blas_handle );
+						vk::AccelerationStructureNV vk_acceleration_structure = allocated_resource.asBlas;
+						auto                        blas_info                 = reinterpret_cast<le_rtx_blas_info_o *>( allocated_resource.info.blasInfo.handle );
+
+						// Translate geometry info from internal format to vk::geometryNV format.
+						// We do this for each blas, which in turn may have an array of geometries.
+
+						nv_geom.reserve( blas_info->geometries.size() );
+
+						for ( auto &g : blas_info->geometries ) {
+							vk::GeometryNV geom{};
+							geom
+							    .setGeometryType( vk::GeometryTypeNV::eTriangles )
+							    .geometry.setTriangles(
+							        vk::GeometryTrianglesNV()
+							            .setVertexData( frame_data_get_buffer_from_le_resource_id( frame, g.vertex_buffer ) )
+							            .setVertexOffset( g.vertex_offset )
+							            .setVertexCount( g.vertex_count )
+							            .setVertexStride( g.vertex_stride )
+							            .setVertexFormat( le_format_to_vk( g.vertex_format ) )
+							            .setIndexData( g.index_count ? frame_data_get_buffer_from_le_resource_id( frame, g.index_buffer ) : nullptr )
+							            .setIndexOffset( g.index_offset )
+							            .setIndexCount( g.index_count )
+							            .setIndexType( le_index_type_to_vk( g.index_type ) )
+							            .setTransformData( nullptr )
+							            .setTransformOffset( 0 )
+
+							    );
+							nv_geom.emplace_back( geom );
+						}
+
+						vk::AccelerationStructureInfoNV create_info{};
+						create_info
+						    .setType( vk::AccelerationStructureTypeNV::eBottomLevel )
+						    .setFlags( {} )
+						    .setInstanceCount( 0 )
+						    .setGeometryCount( uint32_t( nv_geom.size() ) )
+						    .setPGeometries( nv_geom.data() );
+
+						// FIXME: we need to retrieve the acceleration structure here.
+						cmd.buildAccelerationStructureNV(
+						    &create_info,
+						    nullptr, 0,
+						    false,
+						    vk_acceleration_structure,
+						    nullptr,
+						    frame_data_get_buffer_from_le_resource_id( frame, LE_RTX_SCRATCH_BUFFER_HANDLE ), 0 );
+
+						// Since the scratch buffer is reused across builds, we need a barrier to ensure one build
+						// is finished before starting the next one
+						vk::MemoryBarrier barrier( vk::AccessFlagBits::eAccelerationStructureWriteNV | vk::AccessFlagBits::eAccelerationStructureReadNV,
+						                           vk::AccessFlagBits::eAccelerationStructureWriteNV | vk::AccessFlagBits::eAccelerationStructureReadNV );
+						cmd.pipelineBarrier( vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
+						                     vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
+						                     vk::DependencyFlags(), {barrier}, {}, {} );
+
+					} // end for each blas element in array
+
+					break;
+				}
 				} // end switch header.info.type
 
 				// Move iterator by size of current le_command so that it points

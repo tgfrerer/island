@@ -1408,7 +1408,7 @@ enum class CommandType : uint32_t {
 	eDispatch,
 	eSetLineWidth,
 	eSetViewport,
-	eSetRtxGeometries,
+	eBuildRtxBlas,
 	eSetScissor,
 	eBindArgumentBuffer,
 	eSetArgumentTexture,
@@ -1471,10 +1471,10 @@ struct CommandSetViewport {
 	} info;
 };
 
-struct CommandCreateRtxGeometries {
-	CommandHeader header = {{{CommandType::eSetRtxGeometries, sizeof( CommandCreateRtxGeometries )}}};
+struct CommandBuildRtxBlas {
+	CommandHeader header = {{{CommandType::eBuildRtxBlas, sizeof( CommandBuildRtxBlas )}}};
 	struct {
-		uint32_t geometriesCount;
+		uint32_t blas_handles_count;
 		uint32_t padding__;
 	} info;
 };
