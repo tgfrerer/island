@@ -195,6 +195,7 @@ struct le_primitive_o {
 
 	le_resource_handle_t rtx_blas_handle;
 	le_resource_info_t   rtx_blas_info;
+	bool                 rtx_was_transferred;
 
 	bool has_indices;
 	bool has_material;
@@ -1497,21 +1498,29 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 			        rp.useBufferResource( b->handle, {LeBufferUsageFlagBits::LE_BUFFER_USAGE_TRANSFER_SRC_BIT} );
 		        }
 
+		        // We don't want to execute this pass by default, but needsUpdate switches to
+		        // true if any blas resource needs update, or was not yet uploaded.
+		        bool needsUpdate = false;
+
 		        // We define acceleration structures by telling the renderer that we want to write to
 		        // the acceleration structure. The renderer will then make sure that the acceleration structure is
 		        // actually allocated by the time the update call happens so that it can be written into.
 
 		        for ( auto &msh : stage->meshes ) {
 			        for ( auto &p : msh.primitives ) {
+				        if ( p.rtx_was_transferred ) {
+					        continue;
+				        }
 				        LeResourceUsageFlags usage{};
 				        usage.type                    = LeResourceType::eRtxBlas;
 				        usage.as.rtx_blas_usage_flags = {LE_RTX_BLAS_USAGE_WRITE_BIT};
 				        rp.useResource( p.rtx_blas_handle, usage );
+				        needsUpdate = true;
 			        }
 		        }
 
 		        // TODO: figure out a way to signal that we don't need to upload/update geometries
-		        return true;
+		        return needsUpdate;
 	        } )
 	        .setExecuteCallback( stage, []( le_command_buffer_encoder_o *encoder, void *user_data ) {
 		        auto stage = static_cast<le_stage_o *>( user_data );
