@@ -948,7 +948,7 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 				}
 
 				geo.vertex_offset = vertex_buffer_view.byte_offset + vertex_accessor.byte_offset;
-				geo.vertex_stride = vertex_buffer_view.byte_stride; // CHECK this is valid.
+				geo.vertex_stride = vertex_buffer_view.byte_length / vertex_accessor.count; // CHECK this is valid.
 
 				if ( primitive.has_indices ) {
 					auto &      index_accessor    = self->accessors[ primitive.indices_accessor_idx ];
