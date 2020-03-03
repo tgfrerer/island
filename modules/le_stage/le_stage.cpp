@@ -1880,6 +1880,22 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 		                                  LE_BUFFER_USAGE_VERTEX_BUFFER_BIT} );
 	}
 
+#ifdef LE_FEATURE_RTX
+
+	// TODO: signal that we want to read from bottom level acceleration structures.
+
+	LeResourceUsageFlags usage_flags{};
+	usage_flags.type                    = LeResourceType::eRtxBlas;
+	usage_flags.as.rtx_blas_usage_flags = {LeRtxBlasUsageFlagBits::LE_RTX_BLAS_USAGE_READ_BIT};
+
+	for ( auto const &m : draw_params->stage->meshes ) {
+		for ( auto const &p : m.primitives ) {
+			rp.useResource( p.rtx_blas_handle, usage_flags );
+		}
+	}
+
+#endif
+
 	for ( auto &t : draw_params->stage->textures ) {
 		// We must create texture handles for this renderpass.
 

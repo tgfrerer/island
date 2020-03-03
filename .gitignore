@@ -42,3 +42,5 @@ CMakeLists.txt.user.*
 /scripts/run.log
 /scripts/screenshots/*/**
 /scripts/screenshots/**
+/resources/shaders/khronos-shaders/*
+/apps/.gitignore
