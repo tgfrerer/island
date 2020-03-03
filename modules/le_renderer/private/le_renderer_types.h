@@ -236,7 +236,7 @@ struct LeResourceUsageFlags {
 		LeBufferUsageFlags  buffer_usage_flags;
 		LeRtxBlasUsageFlags rtx_blas_usage_flags;
 		uint32_t            raw_data;
-	} typed_as;
+	} as;
 };
 
 typedef uint32_t LeColorComponentFlags_t;

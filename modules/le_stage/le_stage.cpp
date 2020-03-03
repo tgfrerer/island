@@ -1504,8 +1504,8 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 		        for ( auto &msh : stage->meshes ) {
 			        for ( auto &p : msh.primitives ) {
 				        LeResourceUsageFlags usage{};
-				        usage.type                          = LeResourceType::eRtxBlas;
-				        usage.typed_as.rtx_blas_usage_flags = {LE_RTX_BLAS_USAGE_WRITE_BIT};
+				        usage.type                    = LeResourceType::eRtxBlas;
+				        usage.as.rtx_blas_usage_flags = {LE_RTX_BLAS_USAGE_WRITE_BIT};
 				        rp.useResource( p.rtx_blas_handle, usage );
 			        }
 		        }

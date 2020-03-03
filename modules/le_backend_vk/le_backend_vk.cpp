@@ -1359,19 +1359,19 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 				//
 				if ( usage.type == LeResourceType::eImage ) {
 
-					if ( usage.typed_as.image_usage_flags & LE_IMAGE_USAGE_SAMPLED_BIT ) {
+					if ( usage.as.image_usage_flags & LE_IMAGE_USAGE_SAMPLED_BIT ) {
 
 						requestedState.visible_access = vk::AccessFlagBits::eShaderRead;
 						requestedState.write_stage    = get_stage_flags_based_on_renderpass_type( currentPass.type );
 						requestedState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
 
-					} else if ( usage.typed_as.image_usage_flags & LE_IMAGE_USAGE_STORAGE_BIT ) {
+					} else if ( usage.as.image_usage_flags & LE_IMAGE_USAGE_STORAGE_BIT ) {
 
 						requestedState.visible_access = vk::AccessFlagBits::eShaderRead | vk::AccessFlagBits::eShaderWrite;
 						requestedState.write_stage    = get_stage_flags_based_on_renderpass_type( currentPass.type );
 						requestedState.layout         = vk::ImageLayout::eGeneral;
 
-					} else if ( usage.typed_as.image_usage_flags & LE_IMAGE_USAGE_TRANSFER_DST_BIT ) {
+					} else if ( usage.as.image_usage_flags & LE_IMAGE_USAGE_TRANSFER_DST_BIT ) {
 						// this is an image write operation.
 
 						continue;
@@ -2513,7 +2513,7 @@ static void collect_resource_infos_per_resource(
 
 			if ( resourceInfo.type == LeResourceType::eImage ) {
 
-				resourceInfo.image.usage = resource_usage_flags.typed_as.image_usage_flags;
+				resourceInfo.image.usage = resource_usage_flags.as.image_usage_flags;
 
 				auto &imgInfo   = resourceInfo.image;
 				auto &imgExtent = imgInfo.extent;
@@ -2534,9 +2534,9 @@ static void collect_resource_infos_per_resource(
 				imgExtent.depth = std::max<uint32_t>( imgExtent.depth, 1 );
 
 			} else if ( resourceInfo.type == LeResourceType::eBuffer ) {
-				resourceInfo.buffer.usage = resource_usage_flags.typed_as.buffer_usage_flags;
+				resourceInfo.buffer.usage = resource_usage_flags.as.buffer_usage_flags;
 			} else if ( resourceInfo.type == LeResourceType::eRtxBlas ) {
-				resourceInfo.blas.usage = resource_usage_flags.typed_as.rtx_blas_usage_flags;
+				resourceInfo.blas.usage = resource_usage_flags.as.rtx_blas_usage_flags;
 				// TODO: check if we need to consolidate flags over blas resources, but that is unlikely.
 			} else {
 				assert( false ); // unreachable
@@ -3123,7 +3123,7 @@ static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Devi
 			auto const &r_usage_flags = resource_usage[ i ];
 
 			if ( r_usage_flags.type == LeResourceType::eImage &&
-			     ( r_usage_flags.typed_as.image_usage_flags & ( LE_IMAGE_USAGE_SAMPLED_BIT | LE_IMAGE_USAGE_STORAGE_BIT ) ) ) {
+			     ( r_usage_flags.as.image_usage_flags & ( LE_IMAGE_USAGE_SAMPLED_BIT | LE_IMAGE_USAGE_STORAGE_BIT ) ) ) {
 
 				// We create a default image view for this image and store it with the frame. If no explicit image view
 				// for a particular operation has been specified, this default image view is used.

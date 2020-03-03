@@ -252,16 +252,16 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 
 	switch ( usage_flags.type ) {
 	case LeResourceType::eBuffer: {
-		resourceWillBeReadFrom  = usage_flags.typed_as.buffer_usage_flags & ALL_BUFFER_READ_FLAGS;
-		resourceWillBeWrittenTo = usage_flags.typed_as.buffer_usage_flags & ALL_BUFFER_WRITE_FLAGS;
+		resourceWillBeReadFrom  = usage_flags.as.buffer_usage_flags & ALL_BUFFER_READ_FLAGS;
+		resourceWillBeWrittenTo = usage_flags.as.buffer_usage_flags & ALL_BUFFER_WRITE_FLAGS;
 	} break;
 	case LeResourceType::eImage: {
-		resourceWillBeReadFrom  = usage_flags.typed_as.image_usage_flags & ALL_IMAGE_READ_FLAGS;
-		resourceWillBeWrittenTo = usage_flags.typed_as.image_usage_flags & ALL_IMAGE_WRITE_FLAGS;
+		resourceWillBeReadFrom  = usage_flags.as.image_usage_flags & ALL_IMAGE_READ_FLAGS;
+		resourceWillBeWrittenTo = usage_flags.as.image_usage_flags & ALL_IMAGE_WRITE_FLAGS;
 	} break;
 	case LeResourceType::eRtxBlas: {
-		resourceWillBeReadFrom  = usage_flags.typed_as.rtx_blas_usage_flags & LE_RTX_BLAS_USAGE_READ_BIT;
-		resourceWillBeWrittenTo = usage_flags.typed_as.rtx_blas_usage_flags & LE_RTX_BLAS_USAGE_WRITE_BIT;
+		resourceWillBeReadFrom  = usage_flags.as.rtx_blas_usage_flags & LE_RTX_BLAS_USAGE_READ_BIT;
+		resourceWillBeWrittenTo = usage_flags.as.rtx_blas_usage_flags & LE_RTX_BLAS_USAGE_WRITE_BIT;
 	} break;
 	default:
 		break;
