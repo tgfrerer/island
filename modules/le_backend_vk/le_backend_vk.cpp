@@ -3113,9 +3113,9 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 // ----------------------------------------------------------------------
 
-// Allocates Samplers and Textures requested by individual passes
+// Allocates ImageViews, Samplers and Textures requested by individual passes
 // these are tied to the lifetime of the frame, and will be re-created
-static void frame_allocate_per_pass_resources( BackendFrameData &frame, vk::Device const &device, le_renderpass_o **passes, size_t numRenderPasses ) {
+static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Device const &device, le_renderpass_o **passes, size_t numRenderPasses ) {
 
 	using namespace le_renderer;
 
@@ -3416,7 +3416,7 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 	vk::Device device = self->device->getVkDevice();
 
 	// -- allocate any transient vk objects such as image samplers, and image views
-	frame_allocate_per_pass_resources( frame, device, passes, numRenderPasses );
+	frame_allocate_transient_resources( frame, device, passes, numRenderPasses );
 
 	// create renderpasses - use sync chain to apply implicit syncing for image attachment resources
 	backend_create_renderpasses( frame, device );
