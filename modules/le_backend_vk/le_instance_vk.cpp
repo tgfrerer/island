@@ -72,6 +72,7 @@ DECLARE_EXT_PFN( vkCreateAccelerationStructureNV );
 DECLARE_EXT_PFN( vkGetAccelerationStructureMemoryRequirementsNV );
 DECLARE_EXT_PFN( vkBindAccelerationStructureMemoryNV );
 DECLARE_EXT_PFN( vkDestroyAccelerationStructureNV );
+DECLARE_EXT_PFN( vkCmdBuildAccelerationStructureNV );
 
 #undef DECLARE_EXT_PFN
 
@@ -113,6 +114,7 @@ static void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
 	GET_EXT_PROC_ADDR( vkGetAccelerationStructureMemoryRequirementsNV );
 	GET_EXT_PROC_ADDR( vkBindAccelerationStructureMemoryNV );
 	GET_EXT_PROC_ADDR( vkDestroyAccelerationStructureNV );
+	GET_EXT_PROC_ADDR( vkCmdBuildAccelerationStructureNV );
 
 #undef GET_EXT_PROC_ADDR
 
@@ -173,6 +175,18 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyAccelerationStructureNV(
     const VkAllocationCallbacks *pAllocator ) {
 	pfn_vkDestroyAccelerationStructureNV( device, accelerationStructure, pAllocator );
 };
+VKAPI_ATTR void VKAPI_CALL vkCmdBuildAccelerationStructureNV(
+    VkCommandBuffer                      commandBuffer,
+    const VkAccelerationStructureInfoNV *pInfo,
+    VkBuffer                             instanceData,
+    VkDeviceSize                         instanceOffset,
+    VkBool32                             update,
+    VkAccelerationStructureNV            dst,
+    VkAccelerationStructureNV            src,
+    VkBuffer                             scratch,
+    VkDeviceSize                         scratchOffset ) {
+	pfn_vkCmdBuildAccelerationStructureNV( commandBuffer, pInfo, instanceData, instanceOffset, update, dst, src, scratch, scratchOffset );
+}
 // ----------------------------------------------------------------------
 
 static void create_debug_messenger_callback( le_backend_vk_instance_o *obj );  // ffdecl.
