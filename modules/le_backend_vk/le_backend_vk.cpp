@@ -2889,12 +2889,6 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	//
 	frame_release_binned_resources( frame, self->device->getVkDevice(), self->mAllocator );
 
-	assert( frame.swapchainWidth == self->swapchainWidth );
-	assert( frame.swapchainHeight == self->swapchainHeight );
-
-	// For all passes - set pass width/height to swapchain width/height if not known.
-	patch_renderpass_extents( passes, numRenderPasses, frame.swapchainWidth, frame.swapchainHeight );
-
 	// Iterate over all resource declarations in all passes so that we can collect all resources,
 	// and their usage information. Later, we will consolidate their usages so that resources can
 	// be re-used across passes.
@@ -3345,16 +3339,20 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 			backbufferInfo.mipLevels   = 1;
 			backbufferInfo.arrayLayers = 1;
 		}
+
+		assert( frame.swapchainWidth == self->swapchainWidth );
+		assert( frame.swapchainHeight == self->swapchainHeight );
+
+		// For all passes - set pass width/height to swapchain width/height if not known.
+		patch_renderpass_extents( passes, numRenderPasses, frame.swapchainWidth, frame.swapchainHeight );
 	}
 
-	{
-		// Setup declared resources per frame - These are resources declared using resource infos
-		// which are explicitly declared by user via the rendermodule, but which may or may not be
-		// actually used in the frame.
+	// Setup declared resources per frame - These are resources declared using resource infos
+	// which are explicitly declared by user via the rendermodule, but which may or may not be
+	// actually used in the frame.
 
-		frame.declared_resources_id   = {declared_resources, declared_resources + declared_resources_count};
-		frame.declared_resources_info = {declared_resources_infos, declared_resources_infos + declared_resources_count};
-	}
+	frame.declared_resources_id   = {declared_resources, declared_resources + declared_resources_count};
+	frame.declared_resources_info = {declared_resources_infos, declared_resources_infos + declared_resources_count};
 
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
 
