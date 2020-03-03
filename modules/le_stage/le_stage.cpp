@@ -1522,20 +1522,30 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 		        // TODO: figure out a way to signal that we don't need to upload/update geometries
 		        return needsUpdate;
 	        } )
-	        .setExecuteCallback( stage, []( le_command_buffer_encoder_o *encoder, void *user_data ) {
+	        .setExecuteCallback( stage, []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
 		        auto stage = static_cast<le_stage_o *>( user_data );
+
+		        le::Encoder encoder{encoder_};
 
 		        // Build geometries by iterating over all primitives in each mesh.
 		        // mesh is referenced by node, and contains n primitives.
 		        // primitive describes geometry, and associated material.
 
 		        using namespace le_renderer;
-		        std::vector<le_rtx_geometry_t> geometries;
+		        std::vector<le_resource_handle_t> blas_infos;
+
+		        // collect all handles over all meshes, primitves so that we may build them in a
+		        // next step.
 
 		        for ( auto &m : stage->meshes ) {
 			        for ( auto &p : m.primitives ) {
+				        // build blas for each primitive.
+				        blas_infos.push_back( p.rtx_blas_handle );
+				        p.rtx_was_transferred = true;
 			        }
 		        }
+		        using namespace le_renderer;
+		        encoder_i.build_rtx_blas( encoder_, blas_infos.data(), uint32_t( blas_infos.size() ) );
 
 		        // TODO: here, pass in a vector of handles to blas_info elements, and a vector of handles.
 		        // this is where we build the acceleration structure - this is analog to uploading pixels into
@@ -1546,12 +1556,10 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 
 		        // how can we refer back to blas? should we have symbolic handles for acceleration structures too-
 		        // so that we can specify the
-	        } )
-	        .setIsRoot( true ); // TOOD: at present we must force this pass to be root so that it gets executed at all.
+	        } );
 
 	render_module_i
 	    .add_renderpass( module, cp );
-
 #endif
 }
 
