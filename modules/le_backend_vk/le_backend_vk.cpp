@@ -2195,7 +2195,6 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		                         &res.allocation,
 		                         &res.allocationInfo );
 	} else if ( resourceInfo.isBlas() ) {
-		// TODO: allocate memory for bottom level acceleration structure.
 
 		assert( vk_device && "blas allocation needs device" );
 		vk::Device device( vk_device );
@@ -3041,8 +3040,11 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 	{
 		// In case there are acceleration structures with the `build` flag set, we must allocate
-		// a scratch buffer which is large enough to hold the largest fo the acceleration structures
-		// with the build flag set.
+		// a scratch buffer which is large enough to hold the largest of the acceleration structures
+		// with the build flag set
+
+		// TODO: this should also apply for any acceleration structures which have the `update` flag
+		// set, as updating requires a scratch buffer too.
 
 		uint64_t scratchbuffer_max_size = 0;
 
@@ -3070,6 +3072,16 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 		if ( scratchbuffer_max_size != 0 ) {
 			// we must allocated a scratch buffer, which needs to be available for exactly one frame.
+			le_resource_info_t resourceInfo{};
+			resourceInfo.buffer.size              = uint32_t( scratchbuffer_max_size );
+			resourceInfo.buffer.usage             = {LeBufferUsageFlagBits::LE_BUFFER_USAGE_RAY_TRACING_BIT_NV};
+			resourceInfo.type                     = LeResourceType::eBuffer;
+			ResourceCreateInfo resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo, &self->queueFamilyIndexGraphics, 0 );
+			auto               resource_id        = LE_RTX_SCRATCH_BUFFER_HANDLE;
+			auto               allocated_resource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice() );
+			frame.availableResources.insert_or_assign( resource_id, allocated_resource );
+			// We immediately bin the buffer resource, so that its lifetime is tied to the current frame.
+			frame.binnedResources.insert_or_assign( resource_id, allocated_resource );
 		}
 	}
 
@@ -3386,10 +3398,14 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 				// Set sync state for this resource to value of last elment in the sync chain.
 				res->second.state = resSyncList.back();
 			} else {
-				assert( resId == LE_SWAPCHAIN_IMAGE_HANDLE );
+				assert( resId == LE_SWAPCHAIN_IMAGE_HANDLE ||
+				        resId == LE_RTX_SCRATCH_BUFFER_HANDLE );
 				// Frame local resource must be available as a backend resource,
 				// unless the resource is the swapchain image handle, which is owned and managed
 				// by the swapchain.
+				// Another exception is LE_RTX_SCRATCH_BUFFER, which is a transient resource,
+				// and as such does not end up in backendResources, but starts out directly
+				// as a binned resource.
 				// Otherwise something fishy is going on.
 			}
 		}
