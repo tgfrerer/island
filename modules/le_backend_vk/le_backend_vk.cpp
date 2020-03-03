@@ -2199,7 +2199,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		assert( vk_device && "blas allocation needs device" );
 		vk::Device device( vk_device );
 
-		auto blas = reinterpret_cast<le_rtx_blas_info_o *>( resourceInfo.blasInfo.handle );
+		auto const blas = reinterpret_cast<le_rtx_blas_info_o *>( resourceInfo.blasInfo.handle );
 
 		std::vector<vk::GeometryNV> nv_geom;
 
