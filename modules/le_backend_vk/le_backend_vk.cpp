@@ -358,10 +358,11 @@ struct AllocatedResourceVk {
 	VmaAllocation     allocation;
 	VmaAllocationInfo allocationInfo;
 	union {
-		VkBuffer                  asBuffer;
-		VkImage                   asImage;
-		VkAccelerationStructureNV asBlas; // bottom level acceleration structure
-	};
+		VkBuffer                  buffer;
+		VkImage                   image;
+		VkAccelerationStructureNV blas; // bottom level acceleration structure
+		VkAccelerationStructureNV tlas; // top level acceleration structure
+	} as;
 	ResourceCreateInfo info;  // Creation info for resource
 	ResourceState      state; // sync state for resource
 	uint32_t           padding__;
@@ -624,9 +625,9 @@ static void backend_destroy( le_backend_o *self ) {
 		for ( auto &a : frameData.binnedResources ) {
 
 			if ( a.second.info.isBuffer() ) {
-				device.destroyBuffer( a.second.asBuffer );
+				device.destroyBuffer( a.second.as.buffer );
 			} else {
-				device.destroyImage( a.second.asImage );
+				device.destroyImage( a.second.as.image );
 			}
 
 			vmaFreeMemory( self->mAllocator, a.second.allocation );
@@ -643,13 +644,16 @@ static void backend_destroy( le_backend_o *self ) {
 
 		switch ( a.second.info.type ) {
 		case LeResourceType::eImage:
-			device.destroyImage( a.second.asImage );
+			device.destroyImage( a.second.as.image );
 			break;
 		case LeResourceType::eBuffer:
-			device.destroyBuffer( a.second.asBuffer );
+			device.destroyBuffer( a.second.as.buffer );
 			break;
 		case LeResourceType::eRtxBlas:
-			device.destroyAccelerationStructureNV( a.second.asBlas );
+			device.destroyAccelerationStructureNV( a.second.as.blas );
+			break;
+		case LeResourceType::eRtxTlas:
+			device.destroyAccelerationStructureNV( a.second.as.tlas );
 			break;
 		default:
 			assert( false && "Unknown resource type" );
@@ -1945,7 +1949,7 @@ static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const Backen
 	} else if ( resource.getFlags() == le_resource_handle_t::FlagBits::eIsStaging ) {
 		return frame.stagingAllocator->buffers[ resource.getIndex() ];
 	} else {
-		return frame.availableResources.at( resource ).asBuffer;
+		return frame.availableResources.at( resource ).as.buffer;
 	}
 }
 
@@ -1954,7 +1958,7 @@ static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendF
 
 	assert( resource.getResourceType() == LeResourceType::eImage ); // resource type must be image
 
-	return frame.availableResources.at( resource ).asImage;
+	return frame.availableResources.at( resource ).as.image;
 }
 
 // ----------------------------------------------------------------------
@@ -2194,14 +2198,14 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		result = vmaCreateBuffer( alloc,
 		                          &resourceInfo.bufferInfo,
 		                          &allocationCreateInfo,
-		                          &res.asBuffer,
+		                          &res.as.buffer,
 		                          &res.allocation,
 		                          &res.allocationInfo );
 	} else if ( resourceInfo.isImage() ) {
 		result = vmaCreateImage( alloc,
 		                         &resourceInfo.imageInfo,
 		                         &allocationCreateInfo,
-		                         &res.asImage,
+		                         &res.as.image,
 		                         &res.allocation,
 		                         &res.allocationInfo );
 	} else if ( resourceInfo.isBlas() ) {
@@ -2251,13 +2255,13 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		                .setGeometryCount( uint32_t( nv_geom.size() ) )
 		                .setPGeometries( nv_geom.data() ) );
 
-		res.asBlas = device.createAccelerationStructureNV( create_info );
+		res.as.blas = device.createAccelerationStructureNV( create_info );
 
 		// Get memory requirements for scratch buffer
 		vk::AccelerationStructureMemoryRequirementsInfoNV scratch_mem_req_info{};
 		scratch_mem_req_info
 		    .setType( vk::AccelerationStructureMemoryRequirementsTypeNV::eBuildScratch )
-		    .setAccelerationStructure( res.asBlas );
+		    .setAccelerationStructure( res.as.blas );
 		vk::MemoryRequirements2 scratchMemReqs = device.getAccelerationStructureMemoryRequirementsNV( scratch_mem_req_info );
 
 		// Store memory requirements for scratch buffer into allocation info for this blas element
@@ -2267,7 +2271,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		vk::AccelerationStructureMemoryRequirementsInfoNV obj_mem_req_info{};
 		obj_mem_req_info
 		    .setType( vk::AccelerationStructureMemoryRequirementsTypeNV::eObject )
-		    .setAccelerationStructure( res.asBlas );
+		    .setAccelerationStructure( res.as.blas );
 
 		vk::MemoryRequirements2KHR memReqs                 = device.getAccelerationStructureMemoryRequirementsNV( obj_mem_req_info );
 		VkMemoryRequirements       obj_memory_requirements = memReqs.memoryRequirements;
@@ -2280,7 +2284,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 
 		vk::BindAccelerationStructureMemoryInfoNV bind_info{};
 		bind_info
-		    .setAccelerationStructure( res.asBlas )
+		    .setAccelerationStructure( res.as.blas )
 		    .setMemory( res.allocationInfo.deviceMemory )
 		    .setMemoryOffset( res.allocationInfo.offset )
 		    .setDeviceIndexCount( 0 )
@@ -2429,9 +2433,9 @@ static void staging_allocator_destroy( le_staging_allocator_o *self ) {
 inline void frame_release_binned_resources( BackendFrameData &frame, vk::Device device, VmaAllocator &allocator ) {
 	for ( auto &a : frame.binnedResources ) {
 		if ( a.second.info.isBuffer() ) {
-			vmaDestroyBuffer( allocator, a.second.asBuffer, a.second.allocation );
+			vmaDestroyBuffer( allocator, a.second.as.buffer, a.second.allocation );
 		} else {
-			vmaDestroyImage( allocator, a.second.asImage, a.second.allocation );
+			vmaDestroyImage( allocator, a.second.as.image, a.second.allocation );
 		}
 	}
 	frame.binnedResources.clear();
@@ -2845,15 +2849,15 @@ void frame_resources_set_debug_names( le_backend_vk_instance_o *instance, VkDevi
 		switch ( r.first.getResourceType() ) {
 		case LeResourceType::eImage:
 			nameInfo.setObjectType( vk::ObjectType::eImage );
-			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.asImage ) );
+			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.as.image ) );
 			break;
 		case LeResourceType::eBuffer:
 			nameInfo.setObjectType( vk::ObjectType::eBuffer );
-			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.asBuffer ) );
+			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.as.buffer ) );
 			break;
 		case LeResourceType::eRtxBlas:
 			nameInfo.setObjectType( vk::ObjectType::eAccelerationStructureNV );
-			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.asBlas ) );
+			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.as.blas ) );
 			break;
 		default:
 			assert( false && "unknown resource type" );
@@ -3106,11 +3110,11 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			if ( r.second.info.isBuffer() ) {
 				std::cout << std::setw( 10 ) << "Buffer"
 				          << " : " << std::setw( 30 ) << r.first.debug_name
-				          << " : " << std::setw( 30 ) << r.second.asBuffer << std::endl;
+				          << " : " << std::setw( 30 ) << r.second.as.buffer << std::endl;
 			} else {
 				std::cout << std::setw( 10 ) << "Image"
 				          << " : " << std::setw( 30 ) << r.first.debug_name << "(s:" << r.first.handle.as_handle.meta.as_meta.num_samples << ")"
-				          << " : " << std::setw( 30 ) << r.second.asImage << std::endl;
+				          << " : " << std::setw( 30 ) << r.second.as.image << std::endl;
 			}
 		}
 		std::cout << std::flush;
@@ -3350,7 +3354,7 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 		// TODO: we should be able to query swapchain image info so that we can mark the
 		// swapchain image as a frame available resource.
 
-		frame.availableResources[ LE_SWAPCHAIN_IMAGE_HANDLE ].asImage = swapchain_i.get_image( self->swapchain, frame.swapchainImageIndex );
+		frame.availableResources[ LE_SWAPCHAIN_IMAGE_HANDLE ].as.image = swapchain_i.get_image( self->swapchain, frame.swapchainImageIndex );
 		{
 			auto &backbufferInfo       = frame.availableResources[ LE_SWAPCHAIN_IMAGE_HANDLE ].info.imageInfo;
 			backbufferInfo             = vk::ImageCreateInfo{};
@@ -4575,7 +4579,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						nv_geom.clear();
 
 						auto const &                allocated_resource        = frame.availableResources.at( *blas_handle );
-						vk::AccelerationStructureNV vk_acceleration_structure = allocated_resource.asBlas;
+						vk::AccelerationStructureNV vk_acceleration_structure = allocated_resource.as.blas;
 						auto                        blas_info                 = reinterpret_cast<le_rtx_blas_info_o *>( allocated_resource.info.blasInfo.handle );
 
 						// Translate geometry info from internal format to vk::geometryNV format.
