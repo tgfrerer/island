@@ -3085,6 +3085,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		}
 	} // end for all used resources
 
+	// -- Create rtx acceleration structure scratch buffer
 	{
 		// In case there are acceleration structures with the `build` flag set, we must allocate
 		// a scratch buffer which is large enough to hold the largest of the acceleration structures
@@ -3101,20 +3102,27 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			le_resource_handle_t const &resourceId   = usedResources[ i ];
 			le_resource_info_t const &  resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
 
-			if ( resourceInfo.type != LeResourceType::eRtxBlas ||
-			     ( 0 == ( resourceInfo.blas.usage & LE_RTX_BLAS_BUILD_BIT ) ) ) {
-				continue;
+			if ( resourceInfo.type == LeResourceType::eRtxBlas &&
+			     ( resourceInfo.blas.usage & LE_RTX_BLAS_BUILD_BIT ) ) {
+				//  we need to find out the space needed for building this resource - this
+				// information was stored with the frame available resource of the same name
+				// when it was allocated. Let's retrieve that.
+
+				auto const &frame_resource = frame.availableResources.at( resourceId );
+
+				scratchbuffer_max_size = std::max<uint64_t>( scratchbuffer_max_size, frame_resource.info.blasInfo.scratch_buffer_sz );
+			} else if ( resourceInfo.type == LeResourceType::eRtxTlas &&
+			            ( resourceInfo.tlas.usage & LE_RTX_TLAS_BUILD_BIT ) ) {
+				//  we need to find out the space needed for building this resource - this
+				// information was stored with the frame available resource of the same name
+				// when it was allocated. Let's retrieve that.
+
+				auto const &frame_resource = frame.availableResources.at( resourceId );
+
+				scratchbuffer_max_size = std::max<uint64_t>( scratchbuffer_max_size, frame_resource.info.tlasInfo.scratch_buffer_sz );
 			}
 
 			// --------| invariant: we have a blas resource which needs to be built
-
-			//  we need to find out the space needed for building this resource - this
-			// information was stored with the frame available resource of the same name
-			// when it was allocated. Let's retrieve that.
-
-			auto const &frame_resource = frame.availableResources.at( resourceId );
-
-			scratchbuffer_max_size = std::max<uint64_t>( scratchbuffer_max_size, frame_resource.info.blasInfo.scratch_buffer_sz );
 		}
 
 		if ( scratchbuffer_max_size != 0 ) {
