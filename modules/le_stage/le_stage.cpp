@@ -908,20 +908,12 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 					// Calculate name (and subsequently name_hash=id) for rtx_blas handle so that we can refer to it
 					// as a regular symbolic resource.
 					//
-					// FIXME: handle name / id should be more unique, and somehow at least reference the scene, so that
+					// FIXME: handle name / id should be more unique, and somehow at least reference the scene.
 
-					le_resource_handle_t res{};
+					char rtx_blas_resource_name[ 21 ]{};
+					snprintf( rtx_blas_resource_name, sizeof( rtx_blas_resource_name ), "blas_m%06lu_p%06lu", self->meshes.size(), mesh.primitives.size() );
 
-					char rtx_blas_resource_name[ 17 ]{};
-					snprintf( rtx_blas_resource_name, sizeof( rtx_blas_resource_name ), "blas_m%04lu_p%04lu", self->meshes.size(), mesh.primitives.size() );
-
-#	if LE_RESOURCE_LABEL_LENGTH > 0
-					snprintf( res.debug_name, LE_RESOURCE_LABEL_LENGTH, "blas_m%04lu_p%04lu", self->meshes.size(), mesh.primitives.size() );
-#	endif
-
-					res.handle.as_handle.name_hash         = SpookyHash::Hash32( rtx_blas_resource_name, sizeof( rtx_blas_resource_name ), 0 );
-					res.handle.as_handle.meta.as_meta.type = LeResourceType::eRtxBlas;
-					primitive.rtx_blas_handle              = res;
+					primitive.rtx_blas_handle = LE_RESOURCE( rtx_blas_resource_name, LeResourceType::eRtxBlas );
 				}
 
 				le_rtx_geometry_t geo{};
