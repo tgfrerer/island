@@ -4614,10 +4614,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 						// Since the scratch buffer is reused across builds, we need a barrier to ensure one build
 						// is finished before starting the next one
-						vk::MemoryBarrier barrier( vk::AccessFlagBits::eAccelerationStructureWriteNV | vk::AccessFlagBits::eAccelerationStructureReadNV,
-						                           vk::AccessFlagBits::eAccelerationStructureWriteNV | vk::AccessFlagBits::eAccelerationStructureReadNV );
-						cmd.pipelineBarrier( vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
-						                     vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,
+
+						vk::MemoryBarrier barrier( vk::AccessFlagBits::eAccelerationStructureWriteNV,  // all writes must be visible ...
+						                           vk::AccessFlagBits::eAccelerationStructureReadNV ); // ... before the next read happens,
+						cmd.pipelineBarrier( vk::PipelineStageFlagBits::eAccelerationStructureBuildNV, // and the barrier is limited to the
+						                     vk::PipelineStageFlagBits::eAccelerationStructureBuildNV, // accelerationStructureBuild stage.
 						                     vk::DependencyFlags(), {barrier}, {}, {} );
 
 					} // end for each blas element in array
