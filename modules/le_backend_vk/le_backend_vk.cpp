@@ -2316,6 +2316,63 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 
 		device.bindAccelerationStructureMemoryNV( 1, &bind_info );
 
+	} else if ( resourceInfo.isTlas() ) {
+
+		assert( vk_device && "tlas allocation needs device" );
+		vk::Device device( vk_device );
+
+		auto const tlas = reinterpret_cast<le_rtx_tlas_info_o *>( resourceInfo.tlasInfo.handle );
+
+		assert( tlas && "tlas must be valid." );
+
+		auto create_info =
+		    vk::AccelerationStructureCreateInfoNV()
+		        .setCompactedSize( 0 )
+		        .setInfo(
+		            vk::AccelerationStructureInfoNV()
+		                .setType( vk::AccelerationStructureTypeNV::eTopLevel )
+		                .setFlags( tlas->flags )
+		                .setInstanceCount( tlas->instances_count )
+		                .setGeometryCount( 0 )
+		                .setPGeometries( nullptr ) );
+
+		res.as.tlas = device.createAccelerationStructureNV( create_info );
+
+		// Get memory requirements for scratch buffer
+		vk::AccelerationStructureMemoryRequirementsInfoNV scratch_mem_req_info{};
+		scratch_mem_req_info
+		    .setType( vk::AccelerationStructureMemoryRequirementsTypeNV::eBuildScratch )
+		    .setAccelerationStructure( res.as.tlas );
+		vk::MemoryRequirements2 scratchMemReqs = device.getAccelerationStructureMemoryRequirementsNV( scratch_mem_req_info );
+
+		// Store memory requirements for scratch buffer into allocation info for this blas element
+		res.info.tlasInfo.scratch_buffer_sz = scratchMemReqs.memoryRequirements.size;
+
+		// Get memory requirements for object allocation
+		vk::AccelerationStructureMemoryRequirementsInfoNV obj_mem_req_info{};
+		obj_mem_req_info
+		    .setType( vk::AccelerationStructureMemoryRequirementsTypeNV::eObject )
+		    .setAccelerationStructure( res.as.tlas );
+
+		vk::MemoryRequirements2KHR memReqs                 = device.getAccelerationStructureMemoryRequirementsNV( obj_mem_req_info );
+		VkMemoryRequirements       obj_memory_requirements = memReqs.memoryRequirements;
+		VmaAllocationCreateInfo    alloc_create_info{};
+		alloc_create_info.memoryTypeBits = memReqs.memoryRequirements.memoryTypeBits;
+
+		VkResult result = vmaAllocateMemory( alloc, &obj_memory_requirements, &alloc_create_info, &res.allocation, &res.allocationInfo );
+
+		assert( result == VK_SUCCESS && "Allocation must succeed" );
+
+		vk::BindAccelerationStructureMemoryInfoNV bind_info{};
+		bind_info
+		    .setAccelerationStructure( res.as.tlas )
+		    .setMemory( res.allocationInfo.deviceMemory )
+		    .setMemoryOffset( res.allocationInfo.offset )
+		    .setDeviceIndexCount( 0 )
+		    .setPDeviceIndices( nullptr );
+
+		device.bindAccelerationStructureMemoryNV( 1, &bind_info );
+
 	} else {
 		assert( false && "Cannot allocate unknown resource type." );
 	}
@@ -3137,6 +3194,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			auto               resource_id        = LE_RTX_SCRATCH_BUFFER_HANDLE;
 			auto               allocated_resource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice() );
 			frame.availableResources.insert_or_assign( resource_id, allocated_resource );
+
 			// We immediately bin the buffer resource, so that its lifetime is tied to the current frame.
 			frame.binnedResources.insert_or_assign( resource_id, allocated_resource );
 		}
