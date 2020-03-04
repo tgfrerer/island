@@ -525,7 +525,11 @@ static void cbe_build_rtx_blas( le_command_buffer_encoder_o *     self,
                                 le_resource_handle_t const *const p_blas_handles,
                                 const uint32_t                    handles_count ) {
 
-	assert( p_blas_handles && handles_count > 0 && "must provide handles, and handles_count must be at least 1" );
+	if ( handles_count == 0 || nullptr == p_blas_handles ) {
+		assert( p_blas_handles && handles_count > 0 && "must provide handles, and handles_count must be at least 1" );
+		// no-op: no handles specified to be built.
+		return;
+	}
 
 	auto   cmd       = EMPLACE_CMD( le::CommandBuildRtxBlas );
 	void * data      = cmd + 1;
