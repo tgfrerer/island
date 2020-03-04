@@ -216,7 +216,6 @@ struct le_node_o {
 	glm::vec3 local_scale;
 
 	float morph_target_weights[ 12 ]; // Morph target weights; These apply to all primitives in meshes associated with this node...
-	//	uint32_t weights_count; // TODO: we must set this via morph target count.
 
 	char name[ 32 ];
 
