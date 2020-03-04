@@ -136,6 +136,13 @@ static le_rtx_blas_info_handle renderer_create_rtx_blas_info_handle( le_renderer
 
 // ----------------------------------------------------------------------
 
+static le_rtx_tlas_info_handle renderer_create_rtx_tlas_info_handle( le_renderer_o *self, uint32_t instances_count ) {
+	using namespace le_backend_vk;
+	return vk_backend_i.create_rtx_tlas_info( self->backend, instances_count );
+}
+
+// ----------------------------------------------------------------------
+
 static le_backend_o *renderer_get_backend( le_renderer_o *self ) {
 	return self->backend;
 }
@@ -612,6 +619,7 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.get_backend            = renderer_get_backend;
 
 	le_renderer_i.create_rtx_blas_info = renderer_create_rtx_blas_info_handle;
+	le_renderer_i.create_rtx_tlas_info = renderer_create_rtx_tlas_info_handle;
 
 	auto &helpers_i = le_renderer_api_i->helpers_i;
 

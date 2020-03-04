@@ -177,6 +177,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 
 	assert( usage_flags.type == LeResourceType::eBuffer ||
 	        usage_flags.type == LeResourceType::eImage ||
+	        usage_flags.type == LeResourceType::eRtxTlas ||
 	        usage_flags.type == LeResourceType::eRtxBlas );
 
 	// ---------| Invariant: resource is either an image or buffer
@@ -258,6 +259,10 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 	case LeResourceType::eImage: {
 		resourceWillBeReadFrom  = usage_flags.as.image_usage_flags & ALL_IMAGE_READ_FLAGS;
 		resourceWillBeWrittenTo = usage_flags.as.image_usage_flags & ALL_IMAGE_WRITE_FLAGS;
+	} break;
+	case LeResourceType::eRtxTlas: {
+		resourceWillBeReadFrom  = usage_flags.as.rtx_tlas_usage_flags & LE_RTX_TLAS_USAGE_READ_BIT;
+		resourceWillBeWrittenTo = usage_flags.as.rtx_tlas_usage_flags & LE_RTX_TLAS_USAGE_WRITE_BIT;
 	} break;
 	case LeResourceType::eRtxBlas: {
 		resourceWillBeReadFrom  = usage_flags.as.rtx_blas_usage_flags & LE_RTX_BLAS_USAGE_READ_BIT;

@@ -197,28 +197,37 @@ struct ResourceCreateInfo {
 };
 
 // ----------------------------------------------------------------------
+
+// bottom-level acceleration structure
 struct le_rtx_blas_info_o {
 	std::vector<le_rtx_geometry_t> geometries;
 };
+
+// top-level acceleration structure
+struct le_rtx_tlas_info_o {
+	uint32_t instances_count;
+};
+
 // ----------------------------------------------------------------------
 
-class RtxBlasInfoKillList : NoCopy, NoMove {
-	std::mutex mtx;
-
-	std::vector<le_rtx_blas_info_o *> infos;
+template <typename T>
+class KillList : NoCopy, NoMove {
+	std::mutex       mtx;
+	std::vector<T *> infos;
 
   public:
-	~RtxBlasInfoKillList() {
+	~KillList() {
 		auto lck = std::scoped_lock( mtx );
 		for ( auto &el : infos ) {
 			delete el;
 		}
 	}
-	void add_element( le_rtx_blas_info_o *el ) {
+	void add_element( T *el ) {
 		auto lck = std::scoped_lock( mtx );
 		infos.push_back( el );
 	}
 };
+
 // ----------------------------------------------------------------------
 
 static inline const vk::ClearValue &le_clear_value_to_vk( const LeClearValue &lhs ) {
@@ -483,7 +492,8 @@ struct le_backend_o {
 	uint32_t queueFamilyIndexGraphics = 0; // inferred during setup
 	uint32_t queueFamilyIndexCompute  = 0; // inferred during setup
 
-	RtxBlasInfoKillList rtx_blas_info_kill_list; // used to keep track rtx_blas_infos.
+	KillList<le_rtx_blas_info_o> rtx_blas_info_kill_list; // used to keep track rtx_blas_infos.
+	KillList<le_rtx_tlas_info_o> rtx_tlas_info_kill_list; // used to keep track rtx_blas_infos.
 
 	struct {
 		std::unordered_map<le_resource_handle_t, AllocatedResourceVk, LeResourceHandleIdentity> allocatedResources; // Allocated resources, indexed by resource name hash
@@ -4700,17 +4710,31 @@ static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
 
 le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o *self, le_rtx_geometry_t const *geometries, uint32_t geometries_count ) {
 
-	auto *blas_info_ptr = new le_rtx_blas_info_o{};
+	auto *blas_info = new le_rtx_blas_info_o{};
 
 	// Copy geometry information
-	blas_info_ptr->geometries.insert( blas_info_ptr->geometries.end(), geometries, geometries + geometries_count );
+	blas_info->geometries.insert( blas_info->geometries.end(), geometries, geometries + geometries_count );
 
 	// Add to backend's kill list so that all infos associated to handles get cleaned up at the end.
-	self->rtx_blas_info_kill_list.add_element( blas_info_ptr );
+	self->rtx_blas_info_kill_list.add_element( blas_info );
 
-	return reinterpret_cast<le_rtx_blas_info_handle>( blas_info_ptr );
+	return reinterpret_cast<le_rtx_blas_info_handle>( blas_info );
 };
 
+// ----------------------------------------------------------------------
+
+le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o *self, uint32_t instances_count ) {
+
+	auto *tlas_info = new le_rtx_tlas_info_o{};
+
+	// Copy geometry information
+	tlas_info->instances_count = instances_count;
+
+	// Add to backend's kill list so that all infos associated to handles get cleaned up at the end.
+	self->rtx_tlas_info_kill_list.add_element( tlas_info );
+
+	return reinterpret_cast<le_rtx_tlas_info_handle>( tlas_info );
+};
 // ----------------------------------------------------------------------
 
 extern void register_le_instance_vk_api( void *api );       // for le_instance_vk.cpp
@@ -4744,6 +4768,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.get_swapchain_extent   = backend_get_swapchain_extent;
 
 	vk_backend_i.create_rtx_blas_info = backend_create_rtx_blas_info;
+	vk_backend_i.create_rtx_tlas_info = backend_create_rtx_tlas_info;
 
 	auto &private_backend_i                  = api_i->private_backend_vk_i;
 	private_backend_i.get_vk_device          = backend_get_vk_device;

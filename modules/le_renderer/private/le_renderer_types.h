@@ -24,7 +24,8 @@ enum class LeResourceType : uint8_t {
 	eUndefined = 0,
 	eBuffer,
 	eImage,
-	eRtxBlas, // bottom level acceleration resource
+	eRtxBlas, // bottom level acceleration structure
+	eRtxTlas, // top level acceleration structure
 	eImageSampler,
 };
 
@@ -230,12 +231,21 @@ enum LeRtxBlasUsageFlagBits : LeRtxBlasUsageFlags_t {
 	LE_RTX_BLAS_BUILD_BIT       = 0x00000004 | LE_RTX_BLAS_USAGE_WRITE_BIT, // build implies write
 };
 
+typedef uint32_t LeRtxTlasUsageFlags_t;
+LE_WRAP_TYPE_IN_STRUCT( LeRtxTlasUsageFlags_t, LeRtxTlasUsageFlags );
+enum LeRtxTlasUsageFlagBits : LeRtxBlasUsageFlags_t {
+	LE_RTX_TLAS_USAGE_READ_BIT  = 0x00000001,
+	LE_RTX_TLAS_USAGE_WRITE_BIT = 0x00000002,
+	LE_RTX_TLAS_BUILD_BIT       = 0x00000004 | LE_RTX_TLAS_USAGE_WRITE_BIT, // build implies write
+};
+
 struct LeResourceUsageFlags {
 	LeResourceType type;
 	union {
 		LeImageUsageFlags   image_usage_flags;
 		LeBufferUsageFlags  buffer_usage_flags;
 		LeRtxBlasUsageFlags rtx_blas_usage_flags;
+		LeRtxTlasUsageFlags rtx_tlas_usage_flags;
 		uint32_t            raw_data;
 	} as;
 };
@@ -1275,6 +1285,7 @@ struct le_rtx_geometry_t {
 };
 
 LE_OPAQUE_HANDLE( le_rtx_blas_info_handle ); // opaque handle to a bottom level acceleration structure info owned by the backend.
+LE_OPAQUE_HANDLE( le_rtx_tlas_info_handle ); // opaque handle to a top level acceleration structure info owned by the backend.
 
 // ----------------------------------------------------------------------
 /// Specifies the intended usage for a resource.
@@ -1285,7 +1296,7 @@ LE_OPAQUE_HANDLE( le_rtx_blas_info_handle ); // opaque handle to a bottom level 
 /// \brief Use ImageInfoBuilder, and BufferInfoBuilder to build `resource_info_t`
 struct le_resource_info_t {
 
-	struct Image {
+	struct ImageInfo {
 		LeImageCreateFlags flags;             // creation flags
 		le::ImageType      imageType;         // enum vk::ImageType
 		le::Format         format;            // enum vk::Format
@@ -1298,21 +1309,27 @@ struct le_resource_info_t {
 		uint32_t           samplesFlags;      // bitfield over all variants of this image resource
 	};
 
-	struct Buffer {
+	struct BufferInfo {
 		uint32_t           size;
 		LeBufferUsageFlags usage; // usage flags (LeBufferUsageFlags : uint32_t)
 	};
 
-	struct Blas {
+	struct TlasInfo {
+		le_rtx_tlas_info_handle info; // opaque handle, but enough to refer back to original
+		LeRtxTlasUsageFlags     usage;
+	};
+
+	struct BlasInfo {
 		le_rtx_blas_info_handle info; // opaque handle, but enough to refer back to original
 		LeRtxBlasUsageFlags     usage;
 	};
 
 	LeResourceType type;
 	union {
-		Buffer buffer;
-		Image  image;
-		Blas   blas;
+		BufferInfo buffer;
+		ImageInfo  image;
+		BlasInfo   blas;
+		TlasInfo   tlas;
 	};
 };
 

@@ -26,6 +26,7 @@ struct le_gpso_handle_t;          // opaque handle representing graphics pipelin
 struct le_cpso_handle_t;          // opaque handle representing compute  pipeline state object hash
 
 LE_OPAQUE_HANDLE( le_rtx_blas_info_handle ); // handle for backend-managed rtx bottom level acceleration info
+LE_OPAQUE_HANDLE( le_rtx_tlas_info_handle ); // handle for backend-managed rtx top level acceleration info
 struct le_rtx_geometry_t;
 
 struct VkInstance_T;
@@ -105,6 +106,7 @@ struct le_backend_vk_api {
 		le_resource_handle_t   ( *get_swapchain_resource    ) ( le_backend_o* self);
 
 		le_rtx_blas_info_handle( *create_rtx_blas_info )(le_backend_o* self, le_rtx_geometry_t const * geometries, uint32_t geometries_count);	
+		le_rtx_tlas_info_handle( *create_rtx_tlas_info )(le_backend_o* self,  uint32_t instances_count);	
 	};
 
 	struct private_backend_vk_interface_t {

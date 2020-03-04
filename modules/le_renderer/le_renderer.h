@@ -35,6 +35,7 @@ struct le_renderer_api {
 		le_pipeline_manager_o*         ( *get_pipeline_manager                  )( le_renderer_o* self );
 
 		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count);
+		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count);
 	};
 
 	struct helpers_interface_t {
@@ -394,8 +395,8 @@ class RenderModule {
 // ----------------------------------------------------------------------
 
 class ImageInfoBuilder : NoCopy, NoMove {
-	le_resource_info_t         res = le_renderer::helpers_i.get_default_resource_info_for_image();
-	le_resource_info_t::Image &img = res.image;
+	le_resource_info_t             res = le_renderer::helpers_i.get_default_resource_info_for_image();
+	le_resource_info_t::ImageInfo &img = res.image;
 
   public:
 	// FIXME: This method does not check that the resource_info type is actually image!
@@ -460,8 +461,8 @@ class ImageInfoBuilder : NoCopy, NoMove {
 // ----------------------------------------------------------------------
 
 class BufferInfoBuilder : NoCopy, NoMove {
-	le_resource_info_t          res = le_renderer::helpers_i.get_default_resource_info_for_buffer();
-	le_resource_info_t::Buffer &buf = res.buffer;
+	le_resource_info_t              res = le_renderer::helpers_i.get_default_resource_info_for_buffer();
+	le_resource_info_t::BufferInfo &buf = res.buffer;
 
   public:
 	// FIXME: This method does not check that the resource_info type is actually buffer!
