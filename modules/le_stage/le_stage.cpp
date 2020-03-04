@@ -230,7 +230,9 @@ struct le_node_o {
 
 	struct le_skin_o *skin; // Optional, non-owning
 
-	uint64_t scene_bit_flags; // one bit for every scene this node is included in
+	// TODO: we could use the scene_bit_flags to express affinity,
+	// or whether a node should be used for raytracing for example.
+	uint64_t scene_bit_flags; // one bit for every scene this node is included in -
 
 	std::vector<le_node_o *> children; // non-owning
 };
@@ -327,6 +329,9 @@ struct le_camera_settings_o {
 struct le_scene_o {
 	uint8_t                  scene_id;   // matches scene bit flag in node.
 	std::vector<le_node_o *> root_nodes; // non-owning
+
+	le_resource_handle_t rtx_tlas_handle; // only used for rtx
+	le_resource_info_t   rtx_tlas_info;   // only used for rtx
 };
 
 // Owns all the data
@@ -1510,6 +1515,14 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 			        }
 		        }
 
+		        // Signal that we will want to update top level acceleration structures for this scene.
+		        for ( auto &s : stage->scenes ) {
+			        LeResourceUsageFlags usage{};
+			        usage.type                    = LeResourceType::eRtxTlas;
+			        usage.as.rtx_blas_usage_flags = {LE_RTX_TLAS_USAGE_WRITE_BIT};
+			        rp.useResource( s.rtx_tlas_handle, usage );
+		        }
+
 		        // TODO: figure out a way to signal that we don't need to upload/update geometries
 		        return needsUpdate;
 	        } )
@@ -1525,25 +1538,25 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 		        using namespace le_renderer;
 		        std::vector<le_resource_handle_t> blas_infos;
 
-		        // collect all handles over all meshes, primitves so that we may build them in a
+		        // collect all handles over all meshes, primitives so that we may build them in a
 		        // next step.
 
 		        for ( auto &m : stage->meshes ) {
 			        for ( auto &p : m.primitives ) {
 				        // build blas for each primitive.
-				        blas_infos.push_back( p.rtx_blas_handle );
-				        p.rtx_was_transferred = true;
+				        if ( p.rtx_was_transferred == false ) {
+					        blas_infos.push_back( p.rtx_blas_handle );
+					        p.rtx_was_transferred = true;
+				        }
 			        }
 		        }
 		        using namespace le_renderer;
 		        encoder_i.build_rtx_blas( encoder_, blas_infos.data(), uint32_t( blas_infos.size() ) );
 
-		        // TODO: here, pass in a vector of handles to blas_info elements, and a vector of handles.
-		        // this is where we build the acceleration structure - this is analog to uploading pixels into
-		        // an image;
+		        // here we must build a vector of global transforms and mesh data for each
+		        // node with a mesh.
 
-		        //
-		        // encoder_i.create_rtx_geometries( encoder,  );
+		        // encoder_i.build_rtx_tlas(encoder_, );
 
 		        // how can we refer back to blas? should we have symbolic handles for acceleration structures too-
 		        // so that we can specify the
@@ -2320,6 +2333,45 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 		std::cout << std::hex << p.first << ": " << std::dec << p.second << std::endl;
 	}
 	std::cout << std::flush;
+
+#ifdef LE_FEATURE_RTX
+	{
+		// -- Create top level acceleration structure for each scene.
+
+		// For each TLAS we must know the number of nodes which contribute,
+		// as each node maps to one instance.
+
+		std::vector<uint32_t> node_count_per_scene;
+
+		uint32_t const scenes_count = uint32_t( stage->scenes.size() );
+		node_count_per_scene.resize( scenes_count, 0 );
+
+		// -- Count mesh nodes per scene:
+		for ( auto const &n : stage->nodes ) {
+			if ( n->has_mesh ) {
+				for ( uint32_t i = 0; i != scenes_count; i++ ) {
+					if ( 1 << i & n->scene_bit_flags ) {
+						node_count_per_scene[ i ]++;
+					}
+				}
+			}
+		}
+
+		// Associate a TLAS with each scene.
+		for ( uint32_t i = 0; i != scenes_count; i++ ) {
+			char rtx_tlas_resource_name[ 17 ]{};
+			snprintf( rtx_tlas_resource_name, sizeof( rtx_tlas_resource_name ), "tlas_%08u", i );
+
+			// -- Create top-level accelerator for this scene
+			stage->scenes[ i ].rtx_tlas_handle = LE_RESOURCE( rtx_tlas_resource_name, LeResourceType::eRtxTlas );
+
+			le_resource_info_t resource_info{};
+			resource_info.type               = LeResourceType::eRtxTlas;
+			resource_info.tlas.info          = renderer_i.create_rtx_tlas_info( stage->renderer, 1 );
+			stage->scenes[ i ].rtx_tlas_info = resource_info;
+		}
+	}
+#endif
 }
 
 // ----------------------------------------------------------------------
