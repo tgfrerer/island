@@ -2971,13 +2971,6 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	// resource info, so that multisample versions of image resources can be allocated dynamically.
 	insert_msaa_versions( usedResources, usedResourcesInfos );
 
-	{
-		// TODO: For each renderpass which has blas resources with `write` usage,
-		// we must allocate a scratch buffer which covers the size of the largest
-		// blas element of this renderpass. We must make sure that only that
-		// renderpass gets access to that scratch buffer.
-	}
-
 	// Check if all resources declared in this frame are already available in backend.
 	// If a resource is not available yet, this resource must be allocated.
 
