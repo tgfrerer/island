@@ -1271,6 +1271,9 @@ class WriteToImageSettingsBuilder {
 
 } // namespace le
 
+LE_OPAQUE_HANDLE( le_rtx_blas_info_handle ); // opaque handle to a bottom level acceleration structure info owned by the backend.
+LE_OPAQUE_HANDLE( le_rtx_tlas_info_handle ); // opaque handle to a top level acceleration structure info owned by the backend.
+
 struct le_rtx_geometry_t {
 	le_resource_handle_t vertex_buffer;
 	uint32_t             vertex_offset; // offset into vertex buffer
@@ -1284,8 +1287,25 @@ struct le_rtx_geometry_t {
 	le::IndexType        index_type;
 };
 
-LE_OPAQUE_HANDLE( le_rtx_blas_info_handle ); // opaque handle to a bottom level acceleration structure info owned by the backend.
-LE_OPAQUE_HANDLE( le_rtx_tlas_info_handle ); // opaque handle to a top level acceleration structure info owned by the backend.
+// Ray tracing geometry instance
+struct le_rtx_geometry_instance {
+	float transform[ 12 ]; // transposed, and truncated glm::mat4
+
+	// Note that this bitfield assumes that instanceId will be stored in lower bits
+	// and that mask will be placed in higher bits. The c standard does not define
+	// a layout for bitfields. But this is how the Vulkan spec suggests doing it
+	// anyway.
+
+	uint32_t                instanceId : 24;
+	uint32_t                mask : 8;
+	uint32_t                instanceOffset : 24;
+	uint32_t                flags : 8;
+	le_rtx_blas_info_handle handle;
+
+	// We must enforce that hande has the same size as an uint64_t, as this is
+	// what's internally used by the RTX api for the actual vkAccelerationHandle
+	static_assert( sizeof( handle ) == sizeof( uint64_t ), "size of blas info handle must be 64bit" );
+};
 
 // ----------------------------------------------------------------------
 /// Specifies the intended usage for a resource.
