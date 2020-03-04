@@ -217,12 +217,14 @@ struct ResourceCreateInfo {
 
 // bottom-level acceleration structure
 struct le_rtx_blas_info_o {
-	std::vector<le_rtx_geometry_t> geometries;
+	std::vector<le_rtx_geometry_t>        geometries;
+	vk::BuildAccelerationStructureFlagsNV flags;
 };
 
 // top-level acceleration structure
 struct le_rtx_tlas_info_o {
-	uint32_t instances_count;
+	uint32_t                              instances_count;
+	vk::BuildAccelerationStructureFlagsNV flags;
 };
 
 // ----------------------------------------------------------------------
@@ -2272,7 +2274,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		        .setInfo(
 		            vk::AccelerationStructureInfoNV()
 		                .setType( vk::AccelerationStructureTypeNV::eBottomLevel )
-		                .setFlags( {} )
+		                .setFlags( blas->flags )
 		                .setInstanceCount( 0 )
 		                .setGeometryCount( uint32_t( nv_geom.size() ) )
 		                .setPGeometries( nv_geom.data() ) );
@@ -4653,7 +4655,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						vk::AccelerationStructureInfoNV create_info{};
 						create_info
 						    .setType( vk::AccelerationStructureTypeNV::eBottomLevel )
-						    .setFlags( {} )
+						    .setFlags( blas_info->flags )
 						    .setInstanceCount( 0 )
 						    .setGeometryCount( uint32_t( nv_geom.size() ) )
 						    .setPGeometries( nv_geom.data() );
