@@ -1475,6 +1475,12 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 		}
 	}
 
+	// declare rtx tlas resources
+
+	for ( auto &s : stage->scenes ) {
+		render_module_i.declare_resource( module, s.rtx_tlas_handle, s.rtx_tlas_info );
+	}
+
 	render_module_i
 	    .add_renderpass( module, rp );
 
@@ -2367,8 +2373,8 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 			le_resource_info_t resource_info{};
 			resource_info.type               = LeResourceType::eRtxTlas;
-			resource_info.tlas.info          = renderer_i.create_rtx_tlas_info( stage->renderer, 1 );
-			stage->scenes[ i ].rtx_tlas_info = resource_info;
+			resource_info.tlas.info          = renderer_i.create_rtx_tlas_info( stage->renderer, node_count_per_scene[ i ] );
+			stage->scenes[ i ].rtx_tlas_info = std::move( resource_info );
 		}
 	}
 #endif
