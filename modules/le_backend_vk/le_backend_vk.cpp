@@ -54,6 +54,11 @@ struct LeRtxBlasCreateInfo {
 	uint64_t                scratch_buffer_sz; // scratch buffer size for blas handle
 };
 
+struct LeRtxTlasCreateInfo {
+	le_rtx_tlas_info_handle handle;
+	uint64_t                scratch_buffer_sz; // scratch buffer size for blas handle
+};
+
 // ----------------------------------------------------------------------
 /// ResourceCreateInfo is used internally in to translate Renderer-specific structures
 /// into Vulkan CreateInfos for buffers and images we wish to allocate in Vulkan.
@@ -70,6 +75,7 @@ struct ResourceCreateInfo {
 		VkBufferCreateInfo  bufferInfo; // | only one of either ever in use
 		VkImageCreateInfo   imageInfo;  // | only one of either ever in use
 		LeRtxBlasCreateInfo blasInfo;
+		LeRtxTlasCreateInfo tlasInfo;
 	};
 
 	// Compares two ResourceCreateInfos, returns true if identical, false if not.
@@ -114,6 +120,9 @@ struct ResourceCreateInfo {
 		} else if ( isBlas() ) {
 			return blasInfo.handle == rhs.blasInfo.handle &&
 			       blasInfo.scratch_buffer_sz == rhs.blasInfo.scratch_buffer_sz;
+		} else if ( isTlas() ) {
+			return tlasInfo.handle == rhs.tlasInfo.handle &&
+			       tlasInfo.scratch_buffer_sz == rhs.tlasInfo.scratch_buffer_sz;
 		} else {
 			assert( false && "createInfo must be of known type" );
 		}
@@ -172,6 +181,11 @@ struct ResourceCreateInfo {
 			// *after* a resource has been allocated, and cannot therefore tell us anything useful
 			// about whether a resource needs to be re-allocated...
 			return blasInfo.handle == rhs.blasInfo.handle;
+		} else if ( isTlas() ) {
+			// NOTE: we don't compare scratch_buffer_sz, as scratch buffer sz is only available
+			// *after* a resource has been allocated, and cannot therefore tell us anything useful
+			// about whether a resource needs to be re-allocated...
+			return tlasInfo.handle == rhs.tlasInfo.handle;
 		}
 
 		return false; // unreachable
@@ -191,6 +205,9 @@ struct ResourceCreateInfo {
 
 	bool isBlas() const {
 		return type == LeResourceType::eRtxBlas;
+	}
+	bool isTlas() const {
+		return type == LeResourceType::eRtxTlas;
 	}
 
 	static ResourceCreateInfo from_le_resource_info( const le_resource_info_t &info, uint32_t *pQueueFamilyIndices, uint32_t queueFamilyindexCount );
@@ -325,6 +342,11 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 	case ( LeResourceType::eRtxBlas ): {
 		res.blasInfo.handle            = info.blas.info;
 		res.blasInfo.scratch_buffer_sz = 0;
+		break;
+	}
+	case ( LeResourceType::eRtxTlas ): {
+		res.tlasInfo.handle            = info.tlas.info;
+		res.tlasInfo.scratch_buffer_sz = 0;
 		break;
 	}
 	default:
@@ -2550,7 +2572,8 @@ static void collect_resource_infos_per_resource(
 				resourceInfo.buffer.usage = resource_usage_flags.as.buffer_usage_flags;
 			} else if ( resourceInfo.type == LeResourceType::eRtxBlas ) {
 				resourceInfo.blas.usage = resource_usage_flags.as.rtx_blas_usage_flags;
-				// TODO: check if we need to consolidate flags over blas resources, but that is unlikely.
+			} else if ( resourceInfo.type == LeResourceType::eRtxTlas ) {
+				resourceInfo.tlas.usage = resource_usage_flags.as.rtx_tlas_usage_flags;
 			} else {
 				assert( false ); // unreachable
 			}
@@ -2697,7 +2720,14 @@ static void consolidate_resource_infos(
 		}
 		break;
 	}
+	case LeResourceType::eRtxTlas: {
+		for ( auto *info = first_info + 1; info != info_end; info++ ) {
+			first_info->tlas.usage |= info->tlas.usage;
+		}
+		break;
+	}
 	default:
+		assert( false && "unhandled resource type" );
 		break;
 	}
 }
@@ -2786,6 +2816,12 @@ void printResourceInfo( le_resource_handle_t const &handle, ResourceCreateInfo c
 		    << " : " << std::setw( 30 ) << "-"
 		    << " : " << std::setw( 30 ) << "-"
 		    << std::endl;
+	} else if ( info.isTlas() ) {
+		std::cout
+		    << " : " << std::dec << std::setw( 11 ) << ( info.tlasInfo.scratch_buffer_sz )
+		    << " : " << std::setw( 30 ) << "-"
+		    << " : " << std::setw( 30 ) << "-"
+		    << std::endl;
 	} else {
 		std::cout << std::endl;
 	}
@@ -2858,6 +2894,10 @@ void frame_resources_set_debug_names( le_backend_vk_instance_o *instance, VkDevi
 		case LeResourceType::eRtxBlas:
 			nameInfo.setObjectType( vk::ObjectType::eAccelerationStructureNV );
 			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.as.blas ) );
+			break;
+		case LeResourceType::eRtxTlas:
+			nameInfo.setObjectType( vk::ObjectType::eAccelerationStructureNV );
+			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.as.tlas ) );
 			break;
 		default:
 			assert( false && "unknown resource type" );
