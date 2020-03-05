@@ -1288,7 +1288,7 @@ struct le_rtx_geometry_t {
 };
 
 // Ray tracing geometry instance
-struct le_rtx_geometry_instance {
+struct le_rtx_geometry_instance_t {
 	float transform[ 12 ]; // transposed, and truncated glm::mat4
 
 	// Note that this bitfield assumes that instanceId will be stored in lower bits
@@ -1306,6 +1306,11 @@ struct le_rtx_geometry_instance {
 	// what's internally used by the RTX api for the actual vkAccelerationHandle
 	static_assert( sizeof( handle ) == sizeof( uint64_t ), "size of blas info handle must be 64bit" );
 };
+
+// we must enforce size of le_rtx_geometry instance to be the same as what the spec requires
+// `VkGeometryInstanceNV` to be. Note that VkGeometryInstanceNV is not defined in the header,
+// but described in the spec.
+static_assert( sizeof( le_rtx_geometry_instance_t ) == 64, "rtx_geometry_instance must be 64 bytes in size" );
 
 // ----------------------------------------------------------------------
 /// Specifies the intended usage for a resource.
