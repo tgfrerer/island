@@ -2223,19 +2223,23 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 	VkResult result = VK_SUCCESS;
 
 	if ( resourceInfo.isBuffer() ) {
+
 		result = vmaCreateBuffer( alloc,
 		                          &resourceInfo.bufferInfo,
 		                          &allocationCreateInfo,
 		                          &res.as.buffer,
 		                          &res.allocation,
 		                          &res.allocationInfo );
+
 	} else if ( resourceInfo.isImage() ) {
+
 		result = vmaCreateImage( alloc,
 		                         &resourceInfo.imageInfo,
 		                         &allocationCreateInfo,
 		                         &res.as.image,
 		                         &res.allocation,
 		                         &res.allocationInfo );
+
 	} else if ( resourceInfo.isBlas() ) {
 
 		assert( vk_device && "blas allocation needs device" );
@@ -2287,9 +2291,8 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 
 		// Get memory requirements for scratch buffer
 		vk::AccelerationStructureMemoryRequirementsInfoNV scratch_mem_req_info{};
-		scratch_mem_req_info
-		    .setType( vk::AccelerationStructureMemoryRequirementsTypeNV::eBuildScratch )
-		    .setAccelerationStructure( res.as.blas );
+		scratch_mem_req_info.setType( vk::AccelerationStructureMemoryRequirementsTypeNV::eBuildScratch );
+		scratch_mem_req_info.setAccelerationStructure( res.as.blas );
 		vk::MemoryRequirements2 scratchMemReqs = device.getAccelerationStructureMemoryRequirementsNV( scratch_mem_req_info );
 
 		// Store memory requirements for scratch buffer into allocation info for this blas element
@@ -2297,19 +2300,20 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 
 		// Get memory requirements for object allocation
 		vk::AccelerationStructureMemoryRequirementsInfoNV obj_mem_req_info{};
-		obj_mem_req_info
-		    .setType( vk::AccelerationStructureMemoryRequirementsTypeNV::eObject )
-		    .setAccelerationStructure( res.as.blas );
+		obj_mem_req_info.setType( vk::AccelerationStructureMemoryRequirementsTypeNV::eObject );
+		obj_mem_req_info.setAccelerationStructure( res.as.blas );
 
 		vk::MemoryRequirements2KHR memReqs                 = device.getAccelerationStructureMemoryRequirementsNV( obj_mem_req_info );
 		VkMemoryRequirements       obj_memory_requirements = memReqs.memoryRequirements;
 		VmaAllocationCreateInfo    alloc_create_info{};
 		alloc_create_info.memoryTypeBits = memReqs.memoryRequirements.memoryTypeBits;
 
+		// Allocate memory
 		VkResult result = vmaAllocateMemory( alloc, &obj_memory_requirements, &alloc_create_info, &res.allocation, &res.allocationInfo );
 
 		assert( result == VK_SUCCESS && "Allocation must succeed" );
 
+		// Bind object to allocated memory
 		vk::BindAccelerationStructureMemoryInfoNV bind_info{};
 		bind_info
 		    .setAccelerationStructure( res.as.blas )
@@ -4749,10 +4753,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					break;
 				}
 				case le::CommandType::eBuildRtxTlas: {
-					auto *                      le_cmd       = static_cast<le::CommandBuildRtxTlas *>( dataIt );
-					void *                      payload_addr = le_cmd + 1;
-					le_resource_handle_t const *resources    = static_cast<le_resource_handle_t *>( payload_addr );
-
+					auto *                      le_cmd              = static_cast<le::CommandBuildRtxTlas *>( dataIt );
+					void *                      payload_addr        = le_cmd + 1;
+					le_resource_handle_t const *resources           = static_cast<le_resource_handle_t *>( payload_addr );
 					void *                      scratch_memory_addr = le_cmd->info.staging_buffer_mapped_memory;
 					le_rtx_geometry_instance_t *instances           = static_cast<le_rtx_geometry_instance_t *>( scratch_memory_addr );
 
@@ -4784,7 +4787,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					create_info
 					    .setType( vk::AccelerationStructureTypeNV::eTopLevel )
 					    .setFlags( tlas_info->flags )
-					    .setInstanceCount( instances_count )
+					    .setInstanceCount( uint32_t( instances_count ) )
 					    .setGeometryCount( 0 )
 					    .setPGeometries( nullptr );
 
@@ -4805,10 +4808,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					// Since the scratch buffer is reused across builds, we need a barrier to ensure one build
 					// is finished before starting the next one
 
-					vk::MemoryBarrier barrier( vk::AccessFlagBits::eTransferWrite,                  // all writes must be visible ...
-					                           vk::AccessFlagBits::eAccelerationStructureWriteNV ); // ... before the next read happens,
-					cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer,                      // and the barrier is limited to the
-					                     vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,  // accelerationStructureBuild stage.
+					vk::MemoryBarrier barrier( vk::AccessFlagBits::eTransferWrite,                  // All transfers must be visible ...
+					                           vk::AccessFlagBits::eAccelerationStructureWriteNV ); // ... before we can write to acceleration structures,
+
+					cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer,                     // This affects transfer stage
+					                     vk::PipelineStageFlagBits::eAccelerationStructureBuildNV, // and accelerationStructureBuild stage.
 					                     vk::DependencyFlags(), {barrier}, {}, {} );
 
 					break;
