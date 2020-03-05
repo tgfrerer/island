@@ -73,6 +73,7 @@ DECLARE_EXT_PFN( vkGetAccelerationStructureMemoryRequirementsNV );
 DECLARE_EXT_PFN( vkBindAccelerationStructureMemoryNV );
 DECLARE_EXT_PFN( vkDestroyAccelerationStructureNV );
 DECLARE_EXT_PFN( vkCmdBuildAccelerationStructureNV );
+DECLARE_EXT_PFN( vkGetAccelerationStructureHandleNV );
 
 #undef DECLARE_EXT_PFN
 
@@ -115,6 +116,7 @@ static void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
 	GET_EXT_PROC_ADDR( vkBindAccelerationStructureMemoryNV );
 	GET_EXT_PROC_ADDR( vkDestroyAccelerationStructureNV );
 	GET_EXT_PROC_ADDR( vkCmdBuildAccelerationStructureNV );
+	GET_EXT_PROC_ADDR( vkGetAccelerationStructureHandleNV );
 
 #undef GET_EXT_PROC_ADDR
 
@@ -186,6 +188,13 @@ VKAPI_ATTR void VKAPI_CALL vkCmdBuildAccelerationStructureNV(
     VkBuffer                             scratch,
     VkDeviceSize                         scratchOffset ) {
 	pfn_vkCmdBuildAccelerationStructureNV( commandBuffer, pInfo, instanceData, instanceOffset, update, dst, src, scratch, scratchOffset );
+}
+VKAPI_ATTR VkResult VKAPI_CALL vkGetAccelerationStructureHandleNV(
+    VkDevice                  device,
+    VkAccelerationStructureNV accelerationStructure,
+    size_t                    dataSize,
+    void *                    pData ) {
+	return pfn_vkGetAccelerationStructureHandleNV( device, accelerationStructure, dataSize, pData );
 }
 // ----------------------------------------------------------------------
 
