@@ -4718,7 +4718,6 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						    .setGeometryCount( uint32_t( nv_geom.size() ) )
 						    .setPGeometries( nv_geom.data() );
 
-						// FIXME: we need to retrieve the acceleration structure here.
 						cmd.buildAccelerationStructureNV(
 						    &create_info,
 						    nullptr, 0,
@@ -4757,9 +4756,18 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					for ( size_t i = 0; i != instances_count; i++ ) {
 						// find resource handle for blas resource from frame available resources.
-						VkAccelerationStructureNV blas = frame.availableResources.at( resources[ i ] ).as.blas;
+						VkAccelerationStructureNV vk_blas = frame.availableResources.at( resources[ i ] ).as.blas;
 						// Write to GPU mapped, coherent memory
-						instances[ i ].handle         = reinterpret_cast<uint64_t>( blas );
+
+						// Note that we don't use the vulkan object directly, but must, for rtx,
+						// request a handle from the driver which we can then use instead of the
+						// vulkan object to refer to the bottom level acceleration structure.
+
+						// TODO: we should cache this with the allocated top-level acceleration structure object.
+
+						// Update handle in-place on GPU mapped, coherent memory.
+						device.getAccelerationStructureHandleNV( vk_blas, sizeof( uint64_t ), &instances[ i ].handle ); // the 64 bit handle for the acceleration structure.
+
 						instances[ i ].instanceId     = uint32_t( i ); // FIXME: check if correct - maybe set based on material.
 						instances[ i ].instanceOffset = 0;
 					}
@@ -4778,23 +4786,27 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					    .setGeometryCount( 0 )
 					    .setPGeometries( nullptr );
 
-					// FIXME: this command causes Device loss...
+					VkBuffer instanceBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.staging_buffer_id );
+					VkBuffer scratchBuffer  = frame_data_get_buffer_from_le_resource_id( frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
+
 					cmd.buildAccelerationStructureNV(
 					    &create_info,
-					    frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.staging_buffer_id ),
-					    le_cmd->info.staging_buffer_offset,
+					    instanceBuffer,                     // buffer with instance information
+					    le_cmd->info.staging_buffer_offset, // offset into buffer with instance information
 					    false,
 					    vk_acceleration_structure,
 					    nullptr,
-					    frame_data_get_buffer_from_le_resource_id( frame, LE_RTX_SCRATCH_BUFFER_HANDLE ), 0 );
+					    scratchBuffer, // scratch buffer
+					    0              // offset into scratch buffer
+					);
 
 					// Since the scratch buffer is reused across builds, we need a barrier to ensure one build
 					// is finished before starting the next one
 
-					vk::MemoryBarrier barrier( vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::eAccelerationStructureWriteNV,   // all writes must be visible ...
-					                           vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::eAccelerationStructureWriteNV ); // ... before the next read happens,
-					cmd.pipelineBarrier( vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,                                                     // and the barrier is limited to the
-					                     vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,                                                     // accelerationStructureBuild stage.
+					vk::MemoryBarrier barrier( vk::AccessFlagBits::eTransferWrite,                  // all writes must be visible ...
+					                           vk::AccessFlagBits::eAccelerationStructureWriteNV ); // ... before the next read happens,
+					cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer,                      // and the barrier is limited to the
+					                     vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,  // accelerationStructureBuild stage.
 					                     vk::DependencyFlags(), {barrier}, {}, {} );
 
 					break;
