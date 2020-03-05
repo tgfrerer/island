@@ -4679,9 +4679,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					for ( auto blas_handle = blas_handle_begin; blas_handle != blas_end; blas_handle++ ) {
 						nv_geom.clear();
 
-						auto const &                allocated_resource        = frame.availableResources.at( *blas_handle );
-						vk::AccelerationStructureNV vk_acceleration_structure = allocated_resource.as.blas;
-						auto                        blas_info                 = reinterpret_cast<le_rtx_blas_info_o *>( allocated_resource.info.blasInfo.handle );
+						auto const &              allocated_resource        = frame.availableResources.at( *blas_handle );
+						VkAccelerationStructureNV vk_acceleration_structure = allocated_resource.as.blas;
+						auto                      blas_info                 = reinterpret_cast<le_rtx_blas_info_o *>( allocated_resource.info.blasInfo.handle );
 
 						// Translate geometry info from internal format to vk::geometryNV format.
 						// We do this for each blas, which in turn may have an array of geometries.
