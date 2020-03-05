@@ -266,6 +266,7 @@ static inline constexpr le::Format vk_format_to_le( const vk::Format &format ) n
 
 // ----------------------------------------------------------------------
 
+LE_C_ENUM_TO_VK( BuildAccelerationStructureFlagsNV, le_build_acceleration_structure_flags_to_vk, LeBuildAccelerationStructureFlags_t );
 LE_C_ENUM_TO_VK( ImageUsageFlagBits, le_image_usage_flags_to_vk, LeImageUsageFlags_t );
 LE_C_ENUM_TO_VK( ImageCreateFlags, le_image_create_flags_to_vk, LeImageCreateFlags );
 LE_ENUM_TO_VK( SampleCountFlagBits, le_sample_count_flag_bits_to_vk );
@@ -4893,12 +4894,16 @@ static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
-le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o *self, le_rtx_geometry_t const *geometries, uint32_t geometries_count ) {
+le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o *self, le_rtx_geometry_t const *geometries, uint32_t geometries_count, LeBuildAccelerationStructureFlags const *flags ) {
 
 	auto *blas_info = new le_rtx_blas_info_o{};
 
 	// Copy geometry information
 	blas_info->geometries.insert( blas_info->geometries.end(), geometries, geometries + geometries_count );
+
+	// Store requested flags, but if no build flags requested, at least set the
+	// allowUpdate flag so that primitive geometry may be updated.
+	blas_info->flags = flags ? le_build_acceleration_structure_flags_to_vk( *flags ) : vk::BuildAccelerationStructureFlagBitsNV::eAllowUpdate;
 
 	// Add to backend's kill list so that all infos associated to handles get cleaned up at the end.
 	self->rtx_blas_info_kill_list.add_element( blas_info );
@@ -4908,12 +4913,16 @@ le_rtx_blas_info_handle backend_create_rtx_blas_info( le_backend_o *self, le_rtx
 
 // ----------------------------------------------------------------------
 
-le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o *self, uint32_t instances_count ) {
+le_rtx_tlas_info_handle backend_create_rtx_tlas_info( le_backend_o *self, uint32_t instances_count, LeBuildAccelerationStructureFlags const *flags ) {
 
 	auto *tlas_info = new le_rtx_tlas_info_o{};
 
 	// Copy geometry information
 	tlas_info->instances_count = instances_count;
+
+	// Store requested flags, but if no build flags requested, at least set the
+	// allowUpdate flag so that instance inforamtion such as transforms may be set.
+	tlas_info->flags = flags ? le_build_acceleration_structure_flags_to_vk( *flags ) : vk::BuildAccelerationStructureFlagBitsNV::eAllowUpdate;
 
 	// Add to backend's kill list so that all infos associated to handles get cleaned up at the end.
 	self->rtx_tlas_info_kill_list.add_element( tlas_info );

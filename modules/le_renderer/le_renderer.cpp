@@ -129,16 +129,16 @@ static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, c
 
 // ----------------------------------------------------------------------
 
-static le_rtx_blas_info_handle renderer_create_rtx_blas_info_handle( le_renderer_o *self, le_rtx_geometry_t *geometries, uint32_t geometries_count ) {
+static le_rtx_blas_info_handle renderer_create_rtx_blas_info_handle( le_renderer_o *self, le_rtx_geometry_t *geometries, uint32_t geometries_count, LeBuildAccelerationStructureFlags const *flags ) {
 	using namespace le_backend_vk;
-	return vk_backend_i.create_rtx_blas_info( self->backend, geometries, geometries_count );
+	return vk_backend_i.create_rtx_blas_info( self->backend, geometries, geometries_count, flags );
 }
 
 // ----------------------------------------------------------------------
 
-static le_rtx_tlas_info_handle renderer_create_rtx_tlas_info_handle( le_renderer_o *self, uint32_t instances_count ) {
+static le_rtx_tlas_info_handle renderer_create_rtx_tlas_info_handle( le_renderer_o *self, uint32_t instances_count, LeBuildAccelerationStructureFlags const *flags ) {
 	using namespace le_backend_vk;
-	return vk_backend_i.create_rtx_tlas_info( self->backend, instances_count );
+	return vk_backend_i.create_rtx_tlas_info( self->backend, instances_count, flags );
 }
 
 // ----------------------------------------------------------------------

@@ -34,8 +34,8 @@ struct le_renderer_api {
 		le_backend_o*                  ( *get_backend                           )( le_renderer_o* self );
 		le_pipeline_manager_o*         ( *get_pipeline_manager                  )( le_renderer_o* self );
 
-		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count);
-		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count);
+		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, LeBuildAccelerationStructureFlags const * flags);
+		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count, LeBuildAccelerationStructureFlags const * flags);
 	};
 
 	struct helpers_interface_t {
