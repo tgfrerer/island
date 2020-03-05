@@ -51,12 +51,12 @@ constexpr size_t LE_LINEAR_ALLOCATOR_SIZE       = 1u << 24;
 
 struct LeRtxBlasCreateInfo {
 	le_rtx_blas_info_handle handle;
-	uint64_t                scratch_buffer_sz; // scratch buffer size for blas handle
+	uint64_t                scratch_buffer_sz; // requested scratch buffer size for bottom level acceleration structure
 };
 
 struct LeRtxTlasCreateInfo {
 	le_rtx_tlas_info_handle handle;
-	uint64_t                scratch_buffer_sz; // scratch buffer size for blas handle
+	uint64_t                scratch_buffer_sz; // requested scratch buffer size for top level acceleration structure
 };
 
 // ----------------------------------------------------------------------
