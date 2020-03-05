@@ -4794,6 +4794,16 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					VkBuffer instanceBuffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.staging_buffer_id );
 					VkBuffer scratchBuffer  = frame_data_get_buffer_from_le_resource_id( frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
 
+					// Issue barrier to make sure that transfer to instances buffer is complete
+					// before building top-level acceleration structure
+
+					vk::MemoryBarrier barrier( vk::AccessFlagBits::eTransferWrite,                  // All transfers must be visible ...
+					                           vk::AccessFlagBits::eAccelerationStructureWriteNV ); // ... before we can write to acceleration structures,
+
+					cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer,                     // This affects transfer stage
+					                     vk::PipelineStageFlagBits::eAccelerationStructureBuildNV, // and accelerationStructureBuild stage.
+					                     vk::DependencyFlags(), {barrier}, {}, {} );
+
 					cmd.buildAccelerationStructureNV(
 					    &create_info,
 					    instanceBuffer,                     // buffer with instance information
@@ -4804,16 +4814,6 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					    scratchBuffer, // scratch buffer
 					    0              // offset into scratch buffer
 					);
-
-					// Since the scratch buffer is reused across builds, we need a barrier to ensure one build
-					// is finished before starting the next one
-
-					vk::MemoryBarrier barrier( vk::AccessFlagBits::eTransferWrite,                  // All transfers must be visible ...
-					                           vk::AccessFlagBits::eAccelerationStructureWriteNV ); // ... before we can write to acceleration structures,
-
-					cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer,                     // This affects transfer stage
-					                     vk::PipelineStageFlagBits::eAccelerationStructureBuildNV, // and accelerationStructureBuild stage.
-					                     vk::DependencyFlags(), {barrier}, {}, {} );
 
 					break;
 				}
