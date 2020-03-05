@@ -51,7 +51,11 @@ constexpr size_t LE_LINEAR_ALLOCATOR_SIZE       = 1u << 24;
 
 struct LeRtxBlasCreateInfo {
 	le_rtx_blas_info_handle handle;
-	uint64_t                scratch_buffer_sz; // requested scratch buffer size for bottom level acceleration structure
+	uint64_t                scratch_buffer_sz;     // Requested scratch buffer size for bottom level acceleration structure
+	uint64_t                cached_integer_handle; // Integer handle used by the top-level acceleration structure instances buffer.
+	                                               //   Used to to refer back to this bottom-level acceleration structure.
+	                                               //   Queried via vkGetAccelerationStructureHandleNV after creating the handle.
+	                                               //   This is not my idea, but how the API is laid out...
 };
 
 struct LeRtxTlasCreateInfo {
@@ -2315,6 +2319,11 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		    .setPDeviceIndices( nullptr );
 
 		device.bindAccelerationStructureMemoryNV( 1, &bind_info );
+
+		// Query, and store object integer handle, which is used to refer
+		// to this bottom-level acceleration structure from a top-level
+		// acceleration structure
+		device.getAccelerationStructureHandleNV( res.as.blas, sizeof( res.info.blasInfo.cached_integer_handle ), &res.info.blasInfo.cached_integer_handle );
 
 	} else if ( resourceInfo.isTlas() ) {
 
@@ -4755,21 +4764,14 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					// warning if any blas resource could not be found.
 
 					for ( size_t i = 0; i != instances_count; i++ ) {
-						// find resource handle for blas resource from frame available resources.
-						VkAccelerationStructureNV vk_blas = frame.availableResources.at( resources[ i ] ).as.blas;
-						// Write to GPU mapped, coherent memory
 
 						// Note that we don't use the vulkan object directly, but must, for rtx,
 						// request a handle from the driver which we can then use instead of the
 						// vulkan object to refer to the bottom level acceleration structure.
 
-						// TODO: we should cache this with the allocated top-level acceleration structure object.
-
 						// Update handle in-place on GPU mapped, coherent memory.
-						device.getAccelerationStructureHandleNV( vk_blas, sizeof( uint64_t ), &instances[ i ].handle ); // the 64 bit handle for the acceleration structure.
-
-						instances[ i ].instanceId     = uint32_t( i ); // FIXME: check if correct - maybe set based on material.
-						instances[ i ].instanceOffset = 0;
+						instances[ i ].handle     = frame.availableResources.at( resources[ i ] ).info.blasInfo.cached_integer_handle; // the 64 bit handle for the acceleration structure.
+						instances[ i ].instanceId = uint32_t( i );
 					}
 
 					// Invariant: all instances should be patched right now, we can use the buffer at offset as
