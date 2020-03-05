@@ -958,8 +958,13 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 					geo.index_offset = index_buffer_view.byte_offset + index_accessor.byte_offset;
 				}
 
+				LeBuildAccelerationStructureFlags blas_flags = {LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_NV |
+				                                                LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV};
+
 				using namespace le_renderer;
-				auto               blas_info = renderer_i.create_rtx_blas_info( self->renderer, &geo, 1 );
+				auto blas_info =
+				    renderer_i.create_rtx_blas_info( self->renderer, &geo, 1, &blas_flags );
+
 				le_resource_info_t resource_info{};
 				resource_info.type      = LeResourceType::eRtxBlas;
 				resource_info.blas.info = blas_info;
@@ -2396,9 +2401,15 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 			// -- Create top-level accelerator for this scene
 			stage->scenes[ i ].rtx_tlas_handle = LE_RESOURCE( rtx_tlas_resource_name, LeResourceType::eRtxTlas );
 
+			LeBuildAccelerationStructureFlags tlas_flags =
+			    {LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV |
+			     LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_NV};
+
 			le_resource_info_t resource_info{};
-			resource_info.type               = LeResourceType::eRtxTlas;
-			resource_info.tlas.info          = renderer_i.create_rtx_tlas_info( stage->renderer, node_count_per_scene[ i ] );
+
+			resource_info.type      = LeResourceType::eRtxTlas;
+			resource_info.tlas.info = renderer_i.create_rtx_tlas_info( stage->renderer, node_count_per_scene[ i ], &tlas_flags );
+
 			stage->scenes[ i ].rtx_tlas_info = std::move( resource_info );
 		}
 	}
