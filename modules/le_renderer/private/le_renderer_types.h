@@ -200,6 +200,18 @@ enum LeImageUsageFlagBits : LeImageUsageFlags_t {
 };
 // Codegen </VkImageUsageFlagBits>
 
+typedef uint32_t LeBuildAccelerationStructureFlags_t;
+LE_WRAP_TYPE_IN_STRUCT( LeBuildAccelerationStructureFlags_t, LeBuildAccelerationStructureFlags );
+// Codegen <VkBuildAccelerationStructureFlagBitsNV, LeBuildAccelerationStructureFlags_t, c>
+enum LeBuildAccelerationStructureFlagBitsNV : LeBuildAccelerationStructureFlags_t {
+	LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV      = 0x00000001,
+	LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_NV  = 0x00000002,
+	LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_NV = 0x00000004,
+	LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_NV = 0x00000008,
+	LE_BUILD_ACCELERATION_STRUCTURE_LOW_MEMORY_BIT_NV        = 0x00000010,
+};
+// Codegen </VkBuildAccelerationStructureFlagBitsNV>
+
 typedef uint32_t LeBufferUsageFlags_t;
 LE_WRAP_TYPE_IN_STRUCT( LeBufferUsageFlags_t, LeBufferUsageFlags );
 // Codegen <VkBufferUsageFlagBits, LeBufferUsageFlags_t, c>
