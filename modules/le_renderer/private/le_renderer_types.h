@@ -1450,6 +1450,7 @@ enum class CommandType : uint32_t {
 	eDispatch,
 	eSetLineWidth,
 	eSetViewport,
+	eBuildRtxTlas,
 	eBuildRtxBlas,
 	eSetScissor,
 	eBindArgumentBuffer,
@@ -1510,6 +1511,17 @@ struct CommandSetViewport {
 	struct {
 		uint32_t firstViewport;
 		uint32_t viewportCount;
+	} info;
+};
+
+struct CommandBuildRtxTlas {
+	CommandHeader header = {{{CommandType::eBuildRtxTlas, sizeof( CommandBuildRtxTlas )}}};
+	struct {
+		le_resource_handle_t tlas_handle;
+		uint32_t             geometry_instances_count;     // number of geometry instances for this tlas
+		uint32_t             staging_buffer_offset;        // offset into staging buffer for geometry instance data
+		le_resource_handle_t staging_buffer_id;            // staging buffer which stores geometry instance data
+		void *               staging_buffer_mapped_memory; // address of mapped area on staging buffer.
 	} info;
 };
 

@@ -547,6 +547,53 @@ static void cbe_build_rtx_blas( le_command_buffer_encoder_o *     self,
 
 // ----------------------------------------------------------------------
 
+void cbe_build_rtx_tlas( le_command_buffer_encoder_o *self, le_resource_handle_t const *tlas_handle, le_rtx_geometry_instance_t const *instances, uint32_t instances_count ) {
+
+	auto cmd = EMPLACE_CMD( le::CommandBuildRtxTlas );
+
+	cmd->info                          = {};
+	cmd->info.tlas_handle              = *tlas_handle;
+	cmd->info.geometry_instances_count = instances_count;
+
+	size_t numBytes = sizeof( le_rtx_geometry_instance_t ) * instances_count;
+
+	le_allocator_o *allocator = fetch_allocator( self->ppAllocator );
+	uint64_t        offset    = 0;
+
+	using namespace le_backend_vk; // for le_allocator_linear_i
+
+	// We allocate memory from our scratch allocator, and write geometry instance data into the allocated memory.
+	// since instance data contains le_resource_handles for blas instances these need to be resolved
+	// in the backend when processing the command, and patched into the memory, before that memory
+	// is used to build the tlas.
+
+	// We can access that memory with confidence since that area of memory is associated with that command,
+	// and there will ever only be one thread processing ever processing the command.
+	//
+	// Command buffer encoder writes only to that memory, then its ownership moves - together with the frame -
+	// to the backend, where the backend has exclusive ownership of the memory.
+
+	if ( le_allocator_linear_i.allocate( allocator, numBytes, &cmd->info.staging_buffer_mapped_memory, &offset ) ) {
+
+		// Store geometry instances data in GPU mapped scratch buffer - we will patch
+		// blas references in the backend later, once we know how to resolve them.
+		memcpy( cmd->info.staging_buffer_mapped_memory, instances, numBytes );
+
+		cmd->info.staging_buffer_offset = uint32_t( offset );
+		cmd->info.staging_buffer_id     = le_allocator_linear_i.get_le_resource_id( allocator );
+
+	} else {
+		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl
+		          << std::flush;
+		return;
+	}
+
+	self->mCommandStreamSize += cmd->header.info.size;
+	self->mCommandCount++;
+}
+
+// ----------------------------------------------------------------------
+
 static void cbe_get_encoded_data( le_command_buffer_encoder_o *self,
                                   void **                      data,
                                   size_t *                     numBytes,
