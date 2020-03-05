@@ -1559,13 +1559,38 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 		        using namespace le_renderer;
 		        encoder_i.build_rtx_blas( encoder_, blas_infos.data(), uint32_t( blas_infos.size() ) );
 
-		        // here we must build a vector of global transforms and mesh data for each
-		        // node with a mesh.
+		        {
+			        // Build top level acceleration structures. We build one per scene.
 
-		        // encoder_i.build_rtx_tlas(encoder_, );
+			        size_t scene_index = 0;
+			        for ( auto const &scene : stage->scenes ) {
 
-		        // how can we refer back to blas? should we have symbolic handles for acceleration structures too-
-		        // so that we can specify the
+				        // Collect instance data over all instances for the current scene.
+				        std::vector<le_rtx_geometry_instance_t> instances;
+				        std::vector<le_resource_handle_t>       blas_handles;
+
+				        for ( auto const &n : stage->nodes ) {
+					        if ( ( n->scene_bit_flags & ( 1 << scene_index ) ) && n->has_mesh ) {
+						        le_rtx_geometry_instance_t instance{};
+						        instance.mask           = 0xff;
+						        instance.flags          = 0;
+						        instance.instanceOffset = 0;                                             // TODO: set this to material-specific offset?
+						        instance.instanceId     = 0;                                             // TODO: set this to material?
+						        glm::mat4 transform     = glm::transpose( n->global_transform );         // must transpose so that
+						        memcpy( &instance.transform, &transform, sizeof( instance.transform ) ); // only copy 12 floats
+						        for ( auto const &p : stage->meshes[ n->mesh_idx ].primitives ) {
+							        blas_handles.push_back( p.rtx_blas_handle );
+							        instances.push_back( instance );
+						        }
+					        }
+				        }
+
+				        if ( !instances.empty() ) {
+					        encoder_i.build_rtx_tlas( encoder_, &scene.rtx_tlas_handle, instances.data(), blas_handles.data(), uint32_t( instances.size() ) );
+				        }
+				        scene_index++;
+			        }
+		        }
 	        } );
 
 	render_module_i
