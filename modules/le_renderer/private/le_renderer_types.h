@@ -1296,11 +1296,11 @@ struct le_rtx_geometry_instance_t {
 	// a layout for bitfields. But this is how the Vulkan spec suggests doing it
 	// anyway.
 
-	uint32_t                instanceId : 24;
-	uint32_t                mask : 8;
-	uint32_t                instanceOffset : 24;
-	uint32_t                flags : 8;
-	le_rtx_blas_info_handle handle;
+	uint32_t instanceId : 24;
+	uint32_t mask : 8;
+	uint32_t instanceOffset : 24;
+	uint32_t flags : 8;
+	uint64_t handle; ///< you don't need to fill this in, will get patched by backend
 
 	// We must enforce that hande has the same size as an uint64_t, as this is
 	// what's internally used by the RTX api for the actual vkAccelerationHandle

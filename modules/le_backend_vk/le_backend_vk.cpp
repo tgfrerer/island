@@ -4740,6 +4740,68 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					break;
 				}
+				case le::CommandType::eBuildRtxTlas: {
+					auto *                      le_cmd       = static_cast<le::CommandBuildRtxTlas *>( dataIt );
+					void *                      payload_addr = le_cmd + 1;
+					le_resource_handle_t const *resources    = static_cast<le_resource_handle_t *>( payload_addr );
+
+					void *                      scratch_memory_addr = le_cmd->info.staging_buffer_mapped_memory;
+					le_rtx_geometry_instance_t *instances           = static_cast<le_rtx_geometry_instance_t *>( scratch_memory_addr );
+
+					// Foreach resource, we must patch the corresponding instance
+
+					const size_t instances_count = le_cmd->info.geometry_instances_count;
+
+					// TODO: Error checking: we should skip this command and issue a
+					// warning if any blas resource could not be found.
+
+					for ( size_t i = 0; i != instances_count; i++ ) {
+						// find resource handle for blas resource from frame available resources.
+						VkAccelerationStructureNV blas = frame.availableResources.at( resources[ i ] ).as.blas;
+						// Write to GPU mapped, coherent memory
+						instances[ i ].handle         = reinterpret_cast<uint64_t>( blas );
+						instances[ i ].instanceId     = uint32_t( i ); // FIXME: check if correct - maybe set based on material.
+						instances[ i ].instanceOffset = 0;
+					}
+
+					// Invariant: all instances should be patched right now, we can use the buffer at offset as
+					// instance data to build tlas.
+					auto const &              allocated_resource        = frame.availableResources.at( le_cmd->info.tlas_handle );
+					VkAccelerationStructureNV vk_acceleration_structure = allocated_resource.as.tlas;
+					auto                      tlas_info                 = reinterpret_cast<le_rtx_tlas_info_o *>( allocated_resource.info.tlasInfo.handle );
+
+					vk::AccelerationStructureInfoNV create_info{};
+					create_info
+					    .setType( vk::AccelerationStructureTypeNV::eTopLevel )
+					    .setFlags( tlas_info->flags )
+					    .setInstanceCount( instances_count )
+					    .setGeometryCount( 0 )
+					    .setPGeometries( nullptr );
+
+					// FIXME: this command causes Device loss...
+					cmd.buildAccelerationStructureNV(
+					    &create_info,
+					    frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.staging_buffer_id ),
+					    le_cmd->info.staging_buffer_offset,
+					    false,
+					    vk_acceleration_structure,
+					    nullptr,
+					    frame_data_get_buffer_from_le_resource_id( frame, LE_RTX_SCRATCH_BUFFER_HANDLE ), 0 );
+
+					// Since the scratch buffer is reused across builds, we need a barrier to ensure one build
+					// is finished before starting the next one
+
+					vk::MemoryBarrier barrier( vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::eAccelerationStructureWriteNV,   // all writes must be visible ...
+					                           vk::AccessFlagBits::eAccelerationStructureReadNV | vk::AccessFlagBits::eAccelerationStructureWriteNV ); // ... before the next read happens,
+					cmd.pipelineBarrier( vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,                                                     // and the barrier is limited to the
+					                     vk::PipelineStageFlagBits::eAccelerationStructureBuildNV,                                                     // accelerationStructureBuild stage.
+					                     vk::DependencyFlags(), {barrier}, {}, {} );
+
+					break;
+				}
+				default: {
+					assert( false && "command not handled" );
+				}
 				} // end switch header.info.type
 
 				// Move iterator by size of current le_command so that it points
