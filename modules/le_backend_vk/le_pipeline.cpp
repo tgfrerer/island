@@ -570,10 +570,10 @@ static bool shader_module_check_bindings_valid( le_shader_binding_info const *bi
 // in ascending order.
 //
 // Returns a vector with binding info, combined over all shader stages given.
-// Note: Bindings must not be sparse, otherwise this method will assert(false)
+// Note: Bindings *must not* be sparse, otherwise this method will assert(false)
 //
 //
-static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( le_shader_module_o const *const *shader_stages, size_t numStages ) {
+static std::vector<le_shader_binding_info> shader_modules_merge_bindings( le_shader_module_o const *const *shader_stages, size_t numStages ) {
 
 	// maxNumBindings holds the upper bound for the total number of bindings
 	// assuming no overlaps in bindings between shader stages.
@@ -583,7 +583,7 @@ static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( le_
 
 	std::vector<le_shader_binding_info> all_bindings;
 
-	// insert all bindings into our
+	// accumulate all bindings
 
 	for ( auto s = begin_shader_stages; s != end_shader_stages; s++ ) {
 		all_bindings.insert( all_bindings.end(), ( *s )->bindings.begin(), ( *s )->bindings.end() );
@@ -608,7 +608,7 @@ static std::vector<le_shader_binding_info> shader_modules_get_bindings_list( le_
 
 	std::sort( all_bindings.begin(), all_bindings.end() );
 
-	// -- Combine all bindings, so that elements with common set, binding are kept together.
+	// -- Merge bindings, so that elements with common set, binding number are kept together.
 
 	std::vector<le_shader_binding_info> combined_bindings;
 	le_shader_binding_info *            last_binding = nullptr;
@@ -1377,7 +1377,7 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( le_pipeline_manager_o *self, le_shader_module_o const *const *shader_modules, size_t shader_modules_count ) {
 	le_pipeline_layout_info info{};
 
-	std::vector<le_shader_binding_info> combined_bindings = shader_modules_get_bindings_list( shader_modules, shader_modules_count );
+	std::vector<le_shader_binding_info> combined_bindings = shader_modules_merge_bindings( shader_modules, shader_modules_count );
 
 	// -- Create array of DescriptorSetLayouts
 	std::array<vk::DescriptorSetLayout, 8> vkLayouts{};
