@@ -122,6 +122,7 @@ struct le_renderer_api {
 
 		void                         ( *bind_graphics_pipeline )( le_command_buffer_encoder_o *self, le_gpso_handle pipelineHandle);
 		void                         ( *bind_compute_pipeline  )( le_command_buffer_encoder_o *self, le_cpso_handle pipelineHandle);
+		void                         ( *bind_rtx_pipeline      )( le_command_buffer_encoder_o *self, le_rtxpso_handle pipelineHandle);
 
 		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, le_resource_handle_t const bufferId, uint64_t offset, le::IndexType const & indexType);
 		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, le_resource_handle_t const * pBufferId, uint64_t const * pOffsets );
@@ -550,6 +551,11 @@ class Encoder {
 
 	Encoder &bindGraphicsPipeline( le_gpso_handle pipelineHandle ) {
 		le_renderer::encoder_i.bind_graphics_pipeline( self, pipelineHandle );
+		return *this;
+	}
+
+	Encoder &bindRtxPipeline( le_rtxpso_handle pipelineHandle ) {
+		le_renderer::encoder_i.bind_rtx_pipeline( self, pipelineHandle );
 		return *this;
 	}
 

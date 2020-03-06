@@ -153,8 +153,9 @@ enum LeRenderPassType : uint32_t {
 // Note that the pipeline state is different from the actual pipeline, as the
 // pipeline is created, based on a pipeline state and a renderpass.
 //
-LE_OPAQUE_HANDLE( le_gpso_handle ); // Opaque compute pipeline state object handle
-LE_OPAQUE_HANDLE( le_cpso_handle ); // Opaque compute pipeline state object handle
+LE_OPAQUE_HANDLE( le_gpso_handle );   // Opaque graphics pipeline state object handle
+LE_OPAQUE_HANDLE( le_cpso_handle );   // Opaque compute pipeline state object handle
+LE_OPAQUE_HANDLE( le_rtxpso_handle ); // Opaque rtx pipeline state object handle
 
 typedef uint32_t LeImageCreateFlags;
 // Codegen <VkImageCreateFlagBits, LeImageCreateFlags, c>
@@ -1472,6 +1473,7 @@ enum class CommandType : uint32_t {
 	eBindVertexBuffers,
 	eBindGraphicsPipeline,
 	eBindComputePipeline,
+	eBindRtxPipeline,
 	eWriteToBuffer,
 	eWriteToImage,
 };
@@ -1621,6 +1623,13 @@ struct CommandBindComputePipeline {
 	CommandHeader header = {{{CommandType::eBindComputePipeline, sizeof( CommandBindComputePipeline )}}};
 	struct {
 		le_cpso_handle cpsoHandle;
+	} info;
+};
+
+struct CommandBindRtxPipeline {
+	CommandHeader header = {{{CommandType::eBindRtxPipeline, sizeof( CommandBindRtxPipeline )}}};
+	struct {
+		le_rtxpso_handle rtxpsoHandle;
 	} info;
 };
 
