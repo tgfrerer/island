@@ -526,6 +526,20 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 		bindings.emplace_back( std::move( info ) );
 	}
 
+	// -- Get all storage storage_images in shader
+	for ( auto &resource : resources.acceleration_structures ) {
+		le_shader_binding_info info{};
+
+		info.setIndex   = compiler.get_decoration( resource.id, spv::DecorationDescriptorSet );
+		info.binding    = compiler.get_decoration( resource.id, spv::DecorationBinding );
+		info.type       = vk::DescriptorType::eAccelerationStructureNV;
+		info.count      = 1;
+		info.stage_bits = enumToNum( module->stage );
+		info.name_hash  = hash_64_fnv1a( resource.name.c_str() );
+
+		bindings.emplace_back( std::move( info ) );
+	}
+
 	// Sort bindings - this makes it easier for us to link shader stages together
 	std::sort( bindings.begin(), bindings.end() ); // we're sorting shader bindings by set, binding ASC
 
