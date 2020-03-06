@@ -61,6 +61,10 @@ struct le_pipeline_manager_o {
 	std::vector<compute_pipeline_state_o *> computePSO_list; // indexed by computePSO_handles
 	std::vector<le_cpso_handle>             computePSO_handles;
 
+	std::shared_mutex                   rtxPSO_mtx;  // protecting read/write access
+	std::vector<rtx_pipeline_state_o *> rtxPSO_list; // indexed by computePSO_handles
+	std::vector<le_rtxpso_handle>       rtxPSO_handles;
+
 	std::unordered_map<uint64_t, vk::Pipeline, IdentityHash>            pipelines;
 	std::unordered_map<uint64_t, le_pipeline_layout_info, IdentityHash> pipelineLayoutInfos;
 
@@ -1465,10 +1469,9 @@ graphics_pipeline_state_o *le_pipeline_manager_get_gpso_from_cache( le_pipeline_
 
 	auto       pso              = self->graphicsPSO_list.data();
 	const auto pso_hashes_begin = self->graphicsPSO_handles.data();
-	auto       pso_hash         = pso_hashes_begin;
 	const auto pso_hashes_end   = pso_hashes_begin + self->graphicsPSO_handles.size();
 
-	for ( ; pso_hash != pso_hashes_end; pso_hash++, pso++ ) {
+	for ( auto pso_hash = pso_hashes_begin; pso_hash != pso_hashes_end; pso_hash++, pso++ ) {
 		if ( gpso_hash == *pso_hash ) {
 			self->graphicsPSO_mtx.unlock();
 			return *pso;
@@ -1492,10 +1495,9 @@ compute_pipeline_state_o *le_pipeline_manager_get_cpso_from_cache( le_pipeline_m
 
 	auto       pso              = self->computePSO_list.data();
 	const auto pso_hashes_begin = self->computePSO_handles.data();
-	auto       pso_hash         = pso_hashes_begin;
 	const auto pso_hashes_end   = pso_hashes_begin + self->computePSO_handles.size();
 
-	for ( ; pso_hash != pso_hashes_end; pso_hash++, pso++ ) {
+	for ( auto pso_hash = pso_hashes_begin; pso_hash != pso_hashes_end; pso_hash++, pso++ ) {
 		if ( cpso_hash == *pso_hash ) {
 			self->computePSO_mtx.unlock();
 			return *pso;
@@ -1509,6 +1511,31 @@ compute_pipeline_state_o *le_pipeline_manager_get_cpso_from_cache( le_pipeline_m
 	return nullptr; // could not find pso with given hash
 }
 
+// ----------------------------------------------------------------------
+/// \returns pointer to a computePSO which matches cpsoHash, or `nullptr` if no match
+// READ ACCESS pipelinemanager.computePSO_list
+// READ ACCESS pipelinemanager.computePSO_handles
+rtx_pipeline_state_o *le_pipeline_manager_get_rtxpso_from_cache( le_pipeline_manager_o *self, const le_rtxpso_handle &rtxpso_hash ) {
+
+	self->rtxPSO_mtx.lock_shared();
+
+	auto       pso              = self->rtxPSO_list.data();
+	const auto pso_hashes_begin = self->rtxPSO_handles.data();
+	const auto pso_hashes_end   = pso_hashes_begin + self->rtxPSO_handles.size();
+
+	for ( auto pso_hash = pso_hashes_begin; pso_hash != pso_hashes_end; pso_hash++, pso++ ) {
+		if ( rtxpso_hash == *pso_hash ) {
+			self->rtxPSO_mtx.unlock();
+			return *pso;
+		}
+	}
+
+	// ---------| invariant: No element found
+
+	self->rtxPSO_mtx.unlock();
+
+	return nullptr; // could not find pso with given hash
+}
 // ----------------------------------------------------------------------
 
 /// \brief Creates - or loads a pipeline from cache - based on current pipeline state
@@ -1587,6 +1614,85 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeli
 	}
 
 	return pipeline_and_layout_info;
+}
+
+/// \brief Creates - or loads a pipeline from cache - based on current pipeline state
+/// \note This method may lock the gpso/cpso cache and is therefore costly.
+//
+// + Only the 'command buffer recording'-slice of a frame shall be able to modify the cache.
+//   The cache must be exclusively accessed through this method
+//
+// + NOTE: Access to this method must be sequential - no two frames may access this method
+//   at the same time - and no two renderpasses may access this method at the same time.
+static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( le_pipeline_manager_o *self, le_rtxpso_handle rtxpso_handle ) {
+
+	//	// -- 0. Fetch pso from cache using its hash key
+
+	//	graphics_pipeline_state_o const *pso = le_pipeline_manager_get_gpso_from_cache( self, gpso_handle );
+
+	//	assert( pso );
+
+	//	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
+
+	//	// -- 1. get pipeline layout info for a pipeline with these bindings
+	//	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
+
+	//	uint64_t pipeline_layout_hash = shader_modules_get_pipeline_layout_hash( pso->shaderStages.data(), pso->shaderStages.size() );
+
+	//	auto pl = self->pipelineLayoutInfos.find( pipeline_layout_hash );
+
+	//	if ( pl == self->pipelineLayoutInfos.end() ) {
+
+	//		// this will also create vulkan objects for pipeline layout / descriptor set layout and cache them
+	//		pipeline_and_layout_info.layout_info = le_pipeline_cache_produce_pipeline_layout_info( self, pso->shaderStages.data(), pso->shaderStages.size() );
+
+	//		// store in cache
+	//		self->pipelineLayoutInfos[ pipeline_layout_hash ] = pipeline_and_layout_info.layout_info;
+	//	} else {
+	//		pipeline_and_layout_info.layout_info = pl->second;
+	//	}
+
+	//	// -- 2. get vk pipeline object
+	//	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
+
+	//	uint64_t pipeline_hash = 0;
+	//	{
+	//		// Create a combined hash for pipeline, renderpass, and all contributing shader stages.
+
+	//		uint64_t pso_renderpass_hash_data[ 12 ]       = {}; // we use a c-style array, with an entry count so that this is reliably allocated on the stack and not on the heap.
+	//		uint64_t pso_renderpass_hash_data_num_entries = 0;  // number of entries in pso_renderpass_hash_data
+
+	//		pso_renderpass_hash_data[ 0 ]        = reinterpret_cast<uint64_t>( gpso_handle ); // Hash associated with `pso`
+	//		pso_renderpass_hash_data[ 1 ]        = pass.renderpassHash;                       // Hash for *compatible* renderpass
+	//		pso_renderpass_hash_data_num_entries = 2;
+
+	//		for ( auto const &s : pso->shaderStages ) {
+	//			pso_renderpass_hash_data[ pso_renderpass_hash_data_num_entries++ ] = s->hash; // Module state - may have been recompiled, hash must be current
+	//		}
+
+	//		// -- create combined hash for pipeline, renderpass
+	//		pipeline_hash = SpookyHash::Hash64( pso_renderpass_hash_data, sizeof( uint64_t ) * pso_renderpass_hash_data_num_entries, pipeline_layout_hash );
+	//	}
+
+	//	// -- look up if pipeline with this hash already exists in cache
+	//	auto p = self->pipelines.find( pipeline_hash );
+
+	//	if ( p == self->pipelines.end() ) {
+
+	//		// -- if not, create pipeline in pipeline cache and store / retain it
+	//		pipeline_and_layout_info.pipeline = le_pipeline_cache_create_graphics_pipeline( self, pso, pass, subpass );
+
+	//		std::cout << "New VK Graphics Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
+	//		          << std::flush;
+
+	//		self->pipelines[ pipeline_hash ] = pipeline_and_layout_info.pipeline;
+	//	} else {
+	//		// -- else return pipeline found in hash map
+	//		pipeline_and_layout_info.pipeline = p->second;
+	//	}
+
+	//	return pipeline_and_layout_info;
+	return {};
 }
 
 // ----------------------------------------------------------------------
@@ -1709,6 +1815,32 @@ void le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o
 };
 
 // ----------------------------------------------------------------------
+// This method may get called through the pipeline builder -
+//
+// READ/WRITE ACCESS pipelinemanager.computePSO_list
+// READ/WRITE ACCESS pipelinemanager.computePSO_handles
+//
+// via RECORD in command buffer recording state
+// in SETUP
+void le_pipeline_manager_introduce_rtx_pipeline_state( le_pipeline_manager_o *self, rtx_pipeline_state_o *cpso, le_rtxpso_handle pso_handle ) {
+
+	// we must copy!
+
+	// check if pso is already in cache
+	auto pso = le_pipeline_manager_get_rtxpso_from_cache( self, pso_handle );
+
+	if ( pso == nullptr ) {
+		// not found in cache - add to cache
+		self->rtxPSO_mtx.lock();
+		self->rtxPSO_handles.emplace_back( pso_handle );
+		self->rtxPSO_list.emplace_back( new rtx_pipeline_state_o( *cpso ) ); // note that we copy
+		self->rtxPSO_mtx.unlock();
+	} else {
+		// assert( false ); // pso was already found in cache, this is strange
+	}
+};
+
+// ----------------------------------------------------------------------
 
 static VkPipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_manager_o *self, uint64_t key ) {
 	return self->pipelineLayouts[ key ];
@@ -1813,6 +1945,7 @@ void register_le_pipeline_vk_api( void *api_ ) {
 		i.get_pipeline_layout               = le_pipeline_manager_get_pipeline_layout;
 		i.get_descriptor_set_layout         = le_pipeline_manager_get_descriptor_set_layout;
 		i.produce_graphics_pipeline         = le_pipeline_manager_produce_graphics_pipeline;
+		i.produce_rtx_pipeline              = le_pipeline_manager_produce_rtx_pipeline;
 		i.produce_compute_pipeline          = le_pipeline_manager_produce_compute_pipeline;
 	}
 	{
