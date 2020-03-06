@@ -159,6 +159,7 @@ struct le_pipeline_builder_api {
 		void                            ( * destroy          ) ( le_rtx_pipeline_builder_o* self );
 		void                            ( * add_shader_stage ) ( le_rtx_pipeline_builder_o* self,  le_shader_module_o* shaderStage);
 		le_rtxpso_handle_t*             ( * build            ) ( le_rtx_pipeline_builder_o* self );
+        // TODO: add methods to specify shader groups.
 	};
 
 	le_rtx_pipeline_builder_interface_t le_rtx_pipeline_builder_i;
@@ -223,7 +224,7 @@ class LeRtxPipelineBuilder : NoCopy, NoMove {
 		return le_pipeline_builder::le_rtx_pipeline_builder_i.build( self );
 	}
 
-	LeRtxPipelineBuilder &setShaderStage( le_shader_module_o *shaderModule ) {
+	LeRtxPipelineBuilder &addShaderStage( le_shader_module_o *shaderModule ) {
 		le_pipeline_builder::le_rtx_pipeline_builder_i.add_shader_stage( self, shaderModule );
 		return *this;
 	}
