@@ -179,8 +179,8 @@ struct le_backend_vk_api {
 		void                                     ( *introduce_graphics_pipeline_state ) ( le_pipeline_manager_o *self, graphics_pipeline_state_o* gpso, le_gpso_handle_t* gpsoHandle);
 		void                                     ( *introduce_compute_pipeline_state  ) ( le_pipeline_manager_o *self, compute_pipeline_state_o* cpso, le_cpso_handle_t* cpsoHandle);
 
-		le_pipeline_and_layout_info_t            ( *produce_pipeline                  ) ( le_pipeline_manager_o *self, le_gpso_handle_t* gpsoHandle, const LeRenderPass &pass, uint32_t subpass ) ;
 		le_pipeline_and_layout_info_t            ( *produce_compute_pipeline          ) ( le_pipeline_manager_o *self, le_cpso_handle_t* gpsoHandle);
+		le_pipeline_and_layout_info_t            ( *produce_graphics_pipeline         ) ( le_pipeline_manager_o *self, le_gpso_handle gpsoHandle, const LeRenderPass &pass, uint32_t subpass ) ;
 
 		le_shader_module_o*                      ( *create_shader_module              ) ( le_pipeline_manager_o* self, char const * path, const LeShaderStageEnum& moduleType, char const *macro_definitions);
 		void                                     ( *update_shader_modules             ) ( le_pipeline_manager_o* self );

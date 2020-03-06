@@ -3996,7 +3996,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 						using namespace le_backend_vk;
 						// -- potentially compile and create pipeline here, based on current pass and subpass
-						auto requestedPipeline = le_pipeline_manager_i.produce_pipeline( pipelineManager, le_cmd->info.gpsoHandle, pass, subpassIndex );
+						auto requestedPipeline = le_pipeline_manager_i.produce_graphics_pipeline( pipelineManager, le_cmd->info.gpsoHandle, pass, subpassIndex );
 
 						if ( /* DISABLES CODE */ ( false ) ) {
 

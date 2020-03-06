@@ -1519,7 +1519,7 @@ compute_pipeline_state_o *le_pipeline_manager_get_cpso_from_cache( le_pipeline_m
 //
 // + NOTE: Access to this method must be sequential - no two frames may access this method
 //   at the same time - and no two renderpasses may access this method at the same time.
-static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pipeline_manager_o *self, le_gpso_handle gpso_handle, const LeRenderPass &pass, uint32_t subpass ) {
+static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeline( le_pipeline_manager_o *self, le_gpso_handle gpso_handle, const LeRenderPass &pass, uint32_t subpass ) {
 
 	// -- 0. Fetch pso from cache using its hash key
 
@@ -1812,7 +1812,7 @@ void register_le_pipeline_vk_api( void *api_ ) {
 		i.introduce_compute_pipeline_state  = le_pipeline_manager_introduce_compute_pipeline_state;
 		i.get_pipeline_layout               = le_pipeline_manager_get_pipeline_layout;
 		i.get_descriptor_set_layout         = le_pipeline_manager_get_descriptor_set_layout;
-		i.produce_pipeline                  = le_pipeline_manager_produce_pipeline;
+		i.produce_graphics_pipeline         = le_pipeline_manager_produce_graphics_pipeline;
 		i.produce_compute_pipeline          = le_pipeline_manager_produce_compute_pipeline;
 	}
 	{
