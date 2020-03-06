@@ -1258,6 +1258,71 @@ static vk::Pipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manag
 
 // ----------------------------------------------------------------------
 
+static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o *self, rtx_pipeline_state_o const *pso ) {
+
+	// Fetch vk::PipelineLayout for this pso
+	auto pipelineLayout = le_pipeline_manager_get_pipeline_layout( self, pso->shaderStages.data(), pso->shaderStages.size() );
+
+	std::vector<vk::PipelineShaderStageCreateInfo> pipelineStages;
+	pipelineStages.reserve( pso->shaderStages.size() );
+
+	le_shader_module_o *rayGenModule = nullptr; // We may need the ray gen shader module later
+
+	for ( auto const &shader_stage : pso->shaderStages ) {
+
+		if ( shader_stage->stage == le::ShaderStage::eRaygenBitNv ) {
+			rayGenModule = shader_stage;
+		}
+
+		vk::PipelineShaderStageCreateInfo info{};
+		info
+		    .setFlags( {} )                              // must be 0 - "reserved for future use"
+		    .setStage( le_to_vk( shader_stage->stage ) ) //
+		    .setModule( shader_stage->module )           //
+		    .setPName( "main" )                          //
+		    .setPSpecializationInfo( nullptr )           //
+		    ;
+
+		pipelineStages.emplace_back( info );
+	}
+
+	std::vector<vk::RayTracingShaderGroupCreateInfoNV> shadingGroups;
+
+	shadingGroups.reserve( pso->shaderGroups.size() );
+
+	// Fill in shading groups from pso->groups
+
+	for ( auto const &group : pso->shaderGroups ) {
+		vk::RayTracingShaderGroupCreateInfoNV info;
+		info
+		    .setType( vk::RayTracingShaderGroupTypeNV( group.type ) )
+		    .setGeneralShader( group.generalShader )
+		    .setClosestHitShader( group.closestHitShader )
+		    .setAnyHitShader( group.anyHitShader )
+		    .setIntersectionShader( group.intersectionShader );
+		shadingGroups.emplace_back( std::move( info ) );
+	}
+
+	vk::RayTracingPipelineCreateInfoNV create_info;
+	create_info
+	    .setFlags( {} )
+	    .setStageCount( uint32_t( pipelineStages.size() ) )
+	    .setPStages( pipelineStages.data() )
+	    .setGroupCount( uint32_t( shadingGroups.size() ) )
+	    .setPGroups( shadingGroups.data() )
+	    .setMaxRecursionDepth( 16 ) // TODO: we should probably reduce this,
+	                                // or expose it via the api, but definitely
+	                                // limit it to hardware limit
+	    .setLayout( pipelineLayout )
+	    .setBasePipelineHandle( nullptr )
+	    .setBasePipelineIndex( 0 );
+
+	auto pipeline = self->device.createRayTracingPipelineNV( self->vulkanCache, create_info );
+
+	return pipeline;
+}
+
+// ----------------------------------------------------------------------
 /// \brief returns hash key for given bindings, creates and retains new vkDescriptorSetLayout inside backend if necessary
 static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_manager_o *self, std::vector<le_shader_binding_info> const &bindings, vk::DescriptorSetLayout *layout ) {
 
