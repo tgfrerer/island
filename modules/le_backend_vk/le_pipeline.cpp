@@ -1065,7 +1065,7 @@ static inline vk::ShaderStageFlagBits le_to_vk( const le::ShaderStage &stage ) {
 // ----------------------------------------------------------------------
 // Creates a vulkan graphics pipeline based on a shader state object and a given renderpass and subpass index.
 //
-static vk::Pipeline le_pipeline_cache_create_pipeline( le_pipeline_manager_o *self, graphics_pipeline_state_o const *pso, const LeRenderPass &pass, uint32_t subpass ) {
+static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manager_o *self, graphics_pipeline_state_o const *pso, const LeRenderPass &pass, uint32_t subpass ) {
 
 	std::vector<vk::PipelineShaderStageCreateInfo> pipelineStages;
 	pipelineStages.reserve( pso->shaderStages.size() );
@@ -1574,7 +1574,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_pipeline( le_pi
 	if ( p == self->pipelines.end() ) {
 
 		// -- if not, create pipeline in pipeline cache and store / retain it
-		pipeline_and_layout_info.pipeline = le_pipeline_cache_create_pipeline( self, pso, pass, subpass );
+		pipeline_and_layout_info.pipeline = le_pipeline_cache_create_graphics_pipeline( self, pso, pass, subpass );
 
 		std::cout << "New VK Graphics Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
 		          << std::flush;
