@@ -1813,14 +1813,14 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipelin
 		// We use a fixed-size c-style array to collect all hashes for this pipeline,
 		// and an entry count so that this is reliably allocated on the stack and not on the heap.
 		//
-		uint64_t pso_renderpass_hash_data[ 12 ]       = {};
-		uint64_t pso_renderpass_hash_data_num_entries = 0; // max 12
+		uint64_t hash_data[ 2 ] = {};
+		uint64_t num_entries    = 0; // max 2
 
-		pso_renderpass_hash_data[ pso_renderpass_hash_data_num_entries++ ] = reinterpret_cast<uint64_t>( cpso_handle ); // Hash associated with `pso`
-		pso_renderpass_hash_data[ pso_renderpass_hash_data_num_entries++ ] = pso->shaderStage->hash;                    // Module state - may have been recompiled, hash must be current
+		hash_data[ num_entries++ ] = reinterpret_cast<uint64_t>( cpso_handle ); // Hash associated with `pso`
+		hash_data[ num_entries++ ] = pso->shaderStage->hash;                    // Module state - may have been recompiled, hash must be current
 
-		// -- create combined hash for pipeline, renderpass
-		pipeline_hash = SpookyHash::Hash64( pso_renderpass_hash_data, sizeof( uint64_t ) * pso_renderpass_hash_data_num_entries, pipeline_layout_hash );
+		// -- create combined hash for pipeline, and shader stage
+		pipeline_hash = SpookyHash::Hash64( hash_data, sizeof( uint64_t ) * num_entries, pipeline_layout_hash );
 	}
 
 	// -- look up if pipeline with this hash already exists in cache.
