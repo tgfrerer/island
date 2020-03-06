@@ -1072,22 +1072,22 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 
 	le_shader_module_o *vertexShaderModule = nullptr; // We may need the vertex shader module later
 
-	for ( auto const &s : pso->shaderStages ) {
+	for ( auto const &shader_stage : pso->shaderStages ) {
 
 		// Try to set the vertex shader module pointer while we are at it. We will need it
 		// when figuring out default bindings later, as the Vertex module is used to derive
 		// default attribute bindings.
-		if ( s->stage == le::ShaderStage::eVertex ) {
-			vertexShaderModule = s;
+		if ( shader_stage->stage == le::ShaderStage::eVertex ) {
+			vertexShaderModule = shader_stage;
 		}
 
 		vk::PipelineShaderStageCreateInfo info{};
 		info
-		    .setFlags( {} )                    // must be 0 - "reserved for future use"
-		    .setStage( le_to_vk( s->stage ) )  //
-		    .setModule( s->module )            //
-		    .setPName( "main" )                //
-		    .setPSpecializationInfo( nullptr ) //
+		    .setFlags( {} )                              // must be 0 - "reserved for future use"
+		    .setStage( le_to_vk( shader_stage->stage ) ) //
+		    .setModule( shader_stage->module )           //
+		    .setPName( "main" )                          //
+		    .setPSpecializationInfo( nullptr )           //
 		    ;
 
 		pipelineStages.emplace_back( info );
@@ -1253,6 +1253,7 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 	if ( foundLayout != descriptorSetLayouts.end() ) {
 
 		// -- Layout was found in cache, reuse it.
+
 		*layout = foundLayout->second.vk_descriptor_set_layout;
 
 	} else {
