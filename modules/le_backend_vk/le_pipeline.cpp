@@ -471,7 +471,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 
 		info.setIndex   = compiler.get_decoration( resource.id, spv::DecorationDescriptorSet );
 		info.binding    = compiler.get_decoration( resource.id, spv::DecorationBinding );
-		info.type       = enumToNum( vk::DescriptorType::eCombinedImageSampler ); // Note: sampled_images corresponds to combinedImageSampler, separate_[image|sampler] corresponds to image, and sampler being separate
+		info.type       = vk::DescriptorType::eCombinedImageSampler; // Note: sampled_images corresponds to combinedImageSampler, separate_[image|sampler] corresponds to image, and sampler being separate
 		info.stage_bits = enumToNum( module->stage );
 		info.count      = tp.array.empty() ? 1 : tp.array[ 0 ];
 		info.name_hash  = hash_64_fnv1a( resource.name.c_str() );
@@ -485,7 +485,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 
 		info.setIndex   = compiler.get_decoration( resource.id, spv::DecorationDescriptorSet );
 		info.binding    = compiler.get_decoration( resource.id, spv::DecorationBinding );
-		info.type       = enumToNum( vk::DescriptorType::eUniformBufferDynamic );
+		info.type       = vk::DescriptorType::eUniformBufferDynamic;
 		info.count      = 1;
 		info.stage_bits = enumToNum( module->stage );
 		info.name_hash  = hash_64_fnv1a( resource.name.c_str() );
@@ -500,7 +500,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 
 		info.setIndex   = compiler.get_decoration( resource.id, spv::DecorationDescriptorSet );
 		info.binding    = compiler.get_decoration( resource.id, spv::DecorationBinding );
-		info.type       = enumToNum( vk::DescriptorType::eStorageBufferDynamic );
+		info.type       = vk::DescriptorType::eStorageBufferDynamic;
 		info.count      = 1;
 		info.stage_bits = enumToNum( module->stage );
 		info.name_hash  = hash_64_fnv1a( resource.name.c_str() );
@@ -514,7 +514,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 
 		info.setIndex   = compiler.get_decoration( resource.id, spv::DecorationDescriptorSet );
 		info.binding    = compiler.get_decoration( resource.id, spv::DecorationBinding );
-		info.type       = enumToNum( vk::DescriptorType::eStorageImage );
+		info.type       = vk::DescriptorType::eStorageImage;
 		info.count      = 1;
 		info.stage_bits = enumToNum( module->stage );
 		info.name_hash  = hash_64_fnv1a( resource.name.c_str() );
@@ -1352,9 +1352,9 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 			    .setPDescriptorUpdateEntries( entries.data() )
 			    .setTemplateType( vk::DescriptorUpdateTemplateType::eDescriptorSet )
 			    .setDescriptorSetLayout( *layout )
-			    .setPipelineBindPoint( {} ) // ignored for this template type
-			    .setPipelineLayout( {} )    // ignored for this template type
-			    .setSet( 0 )                // ignored for this template type
+			    .setPipelineBindPoint( {} ) // ignored, since update_template_type is not push_descriptors
+			    .setPipelineLayout( {} )    // ignored, since update_template_type is not push_descriptors
+			    .setSet( 0 )                // ignored, since update_template_type is not push_descriptors
 			    ;
 
 			updateTemplate = self->device.createDescriptorUpdateTemplate( info );

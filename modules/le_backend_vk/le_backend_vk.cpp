@@ -4046,10 +4046,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 										descriptorData.bindingNumber = uint32_t( b.binding );
 										descriptorData.arrayIndex    = uint32_t( arrayIndex );
 
-										if ( b.type == enumToNum( vk::DescriptorType::eStorageBuffer ) ||
-										     b.type == enumToNum( vk::DescriptorType::eUniformBuffer ) ||
-										     b.type == enumToNum( vk::DescriptorType::eStorageBufferDynamic ) ||
-										     b.type == enumToNum( vk::DescriptorType::eUniformBufferDynamic ) ) {
+										if ( b.type == vk::DescriptorType::eStorageBuffer ||
+										     b.type == vk::DescriptorType::eUniformBuffer ||
+										     b.type == vk::DescriptorType::eStorageBufferDynamic ||
+										     b.type == vk::DescriptorType::eUniformBufferDynamic ) {
 
 											descriptorData.bufferInfo.range = b.range;
 										}
@@ -4057,8 +4057,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 										setData.emplace_back( descriptorData );
 									}
 
-									if ( b.type == enumToNum( vk::DescriptorType::eStorageBufferDynamic ) ||
-									     b.type == enumToNum( vk::DescriptorType::eUniformBufferDynamic ) ) {
+									if ( b.type == vk::DescriptorType::eStorageBufferDynamic ||
+									     b.type == vk::DescriptorType::eUniformBufferDynamic ) {
 										assert( b.count != 0 ); // count cannot be 0
 
 										// store dynamic offset index for this element
@@ -4142,8 +4142,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 										setData.emplace_back( std::move( descriptorData ) );
 									}
 
-									if ( b.type == enumToNum( vk::DescriptorType::eStorageBufferDynamic ) ||
-									     b.type == enumToNum( vk::DescriptorType::eUniformBufferDynamic ) ) {
+									if ( b.type == vk::DescriptorType::eStorageBufferDynamic ||
+									     b.type == vk::DescriptorType::eUniformBufferDynamic ) {
 										assert( b.count != 0 ); // count cannot be 0
 
 										// store dynamic offset index for this element
@@ -4322,8 +4322,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					// If binding is in fact a dynamic binding, set the corresponding dynamic offset
 					// and set the buffer offset to 0.
-					if ( b->type == enumToNum( vk::DescriptorType::eStorageBufferDynamic ) ||
-					     b->type == enumToNum( vk::DescriptorType::eUniformBufferDynamic ) ) {
+					if ( b->type == vk::DescriptorType::eStorageBufferDynamic ||
+					     b->type == vk::DescriptorType::eUniformBufferDynamic ) {
 						auto dynamicOffset                            = b->dynamic_offset_idx;
 						bindingData.offset                            = 0;
 						argumentState.dynamicOffsets[ dynamicOffset ] = uint32_t( le_cmd->info.offset );

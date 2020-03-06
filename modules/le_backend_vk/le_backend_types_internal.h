@@ -76,7 +76,8 @@ struct le_shader_binding_info {
 	uint32_t binding;            // Binding index within set
 	                             //
 	uint32_t count;              // Number of elements
-	uint32_t type;               // vkDescriptorType descriptor type
+	                             //
+	vk::DescriptorType type;     // vkDescriptorType descriptor type
 	                             //
 	uint32_t dynamic_offset_idx; // Only used when binding pipeline
 	uint32_t range;              // Only used for ubos (sizeof ubo)
@@ -88,6 +89,8 @@ struct le_shader_binding_info {
 	                             // NOTE: The above field `name_hash` doubles as a marker,
 	                             // as anything *before* and not including name_hash will be
 	                             // used to calculate hash of a `le_shader_binding_struct`.
+
+	static_assert( sizeof( type ) == sizeof( uint32_t ), "type: vk::DescriptorType must be 32bit of size." );
 
 	bool
 	operator<( le_shader_binding_info const &lhs ) const noexcept {
