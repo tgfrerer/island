@@ -12,7 +12,13 @@
 
 #include "le_shader_compiler/le_shader_compiler.h"
 
-#include "shaderc/shaderc.hpp"
+#ifndef NV_EXTENSIONS
+#	define NV_EXTENSIONS
+#	include "shaderc/shaderc.hpp"
+#	undef NV_EXTENSIONS
+#else
+#	include "shaderc/shaderc.hpp"
+#endif
 
 #include "le_renderer/le_renderer.h" // for shader type
 
@@ -77,10 +83,36 @@ static shaderc_shader_kind convert_to_shaderc_shader_kind( const le::ShaderStage
 	case ( le::ShaderStage::eCompute ):
 		result = shaderc_glsl_compute_shader;
 		break;
-	default: {
+	case ( le::ShaderStage::eRaygenBitNv ):
+		result = shaderc_raygen_shader;
+		break;
+	case ( le::ShaderStage::eAnyHitBitNv ):
+		result = shaderc_anyhit_shader;
+		break;
+	case ( le::ShaderStage::eClosestHitBitNv ):
+		result = shaderc_closesthit_shader;
+		break;
+	case ( le::ShaderStage::eMissBitNv ):
+		result = shaderc_miss_shader;
+		break;
+	case ( le::ShaderStage::eIntersectionBitNv ):
+		result = shaderc_intersection_shader;
+		break;
+	case ( le::ShaderStage::eCallableBitNv ):
+		result = shaderc_callable_shader;
+		break;
+	case ( le::ShaderStage::eTaskBitNv ):
+		result = shaderc_task_shader;
+		break;
+	case ( le::ShaderStage::eMeshBitNv ):
+		result = shaderc_mesh_shader;
+		break;
 
+	default: {
 		std::cout << "WARNING: unknown shader type: " << uint32_t( type ) << std::endl
 		          << std::flush;
+
+		assert( false && "unknown shader type" );
 	} break;
 	}
 	return result;
