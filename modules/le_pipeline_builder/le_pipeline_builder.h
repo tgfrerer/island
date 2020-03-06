@@ -3,13 +3,16 @@
 
 #include "le_core/le_core.h"
 
-struct le_graphics_pipeline_builder_o;
 struct le_shader_module_o;
 struct le_pipeline_manager_o;
-struct le_gpso_handle_t; // Opaque handle for graphics pipeline state
 
+LE_OPAQUE_HANDLE( le_gpso_handle );   // Opaque handle for graphics pipeline state
+LE_OPAQUE_HANDLE( le_cpso_handle );   // Opaque handle for compute pipeline state
+LE_OPAQUE_HANDLE( le_rtxpso_handle ); // Opaque handle for rtx pipeline state
+
+struct le_graphics_pipeline_builder_o;
 struct le_compute_pipeline_builder_o;
-struct le_cpso_handle_t; // opaque handle for compute pipeline state
+struct le_rtx_pipeline_builder_o;
 
 struct le_vertex_input_binding_description;
 struct le_vertex_input_attribute_description;
@@ -150,6 +153,15 @@ struct le_pipeline_builder_api {
 	};
 
 	le_compute_pipeline_builder_interface_t le_compute_pipeline_builder_i;
+	    
+    struct le_rtx_pipeline_builder_interface_t {
+		le_rtx_pipeline_builder_o *     ( * create           ) ( le_pipeline_manager_o *pipeline_cache );
+		void                            ( * destroy          ) ( le_rtx_pipeline_builder_o* self );
+		void                            ( * add_shader_stage ) ( le_rtx_pipeline_builder_o* self,  le_shader_module_o* shaderStage);
+		le_rtxpso_handle_t*             ( * build            ) ( le_rtx_pipeline_builder_o* self );
+	};
+
+	le_rtx_pipeline_builder_interface_t le_rtx_pipeline_builder_i;
 };
 // clang-format on
 
@@ -164,6 +176,7 @@ namespace le_pipeline_builder {
 static const auto &api                            = le_pipeline_builder_api_i;
 static const auto &le_graphics_pipeline_builder_i = api -> le_graphics_pipeline_builder_i;
 static const auto &le_compute_pipeline_builder_i  = api -> le_compute_pipeline_builder_i;
+static const auto &le_rtx_pipeline_builder_i      = api -> le_rtx_pipeline_builder_i;
 } // namespace le_pipeline_builder
 
 // ----------------------------------------------------------------------
@@ -187,6 +200,31 @@ class LeComputePipelineBuilder : NoCopy, NoMove {
 
 	LeComputePipelineBuilder &setShaderStage( le_shader_module_o *shaderModule ) {
 		le_pipeline_builder::le_compute_pipeline_builder_i.set_shader_stage( self, shaderModule );
+		return *this;
+	}
+};
+
+// ----------------------------------------------------------------------
+
+class LeRtxPipelineBuilder : NoCopy, NoMove {
+
+	le_rtx_pipeline_builder_o *self;
+
+  public:
+	LeRtxPipelineBuilder( le_pipeline_manager_o *pipelineCache )
+	    : self( le_pipeline_builder::le_rtx_pipeline_builder_i.create( pipelineCache ) ) {
+	}
+
+	~LeRtxPipelineBuilder() {
+		le_pipeline_builder::le_rtx_pipeline_builder_i.destroy( self );
+	}
+
+	le_rtxpso_handle build() {
+		return le_pipeline_builder::le_rtx_pipeline_builder_i.build( self );
+	}
+
+	LeRtxPipelineBuilder &setShaderStage( le_shader_module_o *shaderModule ) {
+		le_pipeline_builder::le_rtx_pipeline_builder_i.add_shader_stage( self, shaderModule );
 		return *this;
 	}
 };

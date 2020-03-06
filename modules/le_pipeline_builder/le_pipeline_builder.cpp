@@ -64,6 +64,11 @@ struct le_compute_pipeline_builder_o {
 	le_pipeline_manager_o *   pipelineCache = nullptr;
 };
 
+struct le_rtx_pipeline_builder_o {
+	rtx_pipeline_state_o * obj           = nullptr;
+	le_pipeline_manager_o *pipelineCache = nullptr;
+};
+
 static le_compute_pipeline_builder_o *le_compute_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
 	auto self           = new le_compute_pipeline_builder_o();
 	self->pipelineCache = pipelineCache;
@@ -96,15 +101,8 @@ static le_cpso_handle le_compute_pipeline_builder_build( le_compute_pipeline_bui
 	le_cpso_handle pipeline_handle = {};
 	using namespace le_backend_vk;
 
-	{
-		// TODO: Include settings data with the hash.
-
-		// constexpr size_t hash_msg_size = sizeof( le_compute_pipeline_builder_data );
-		// uint64_t         hash_value    = SpookyHash::Hash64( &self->obj->data, hash_msg_size, 0 );
-
-		uint64_t hash_value = le_shader_module_i.get_hash( self->obj->shaderStage );
-		pipeline_handle     = reinterpret_cast<le_cpso_handle>( hash_value );
-	}
+	uint64_t hash_value = le_shader_module_i.get_hash( self->obj->shaderStage );
+	pipeline_handle     = reinterpret_cast<le_cpso_handle>( hash_value );
 
 	// Introduce pipeline state object to manager so that it may be cached.
 
@@ -119,6 +117,87 @@ static void le_compute_pipeline_builder_set_shader_stage( le_compute_pipeline_bu
 	assert( self->obj );
 	if ( self->obj ) {
 		self->obj->shaderStage = shaderModule;
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static le_rtx_pipeline_builder_o *le_rtx_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
+	auto self           = new le_rtx_pipeline_builder_o();
+	self->pipelineCache = pipelineCache;
+	self->obj           = new rtx_pipeline_state_o();
+	return self;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_rtx_pipeline_builder_destroy( le_rtx_pipeline_builder_o *self ) {
+	if ( self->obj ) {
+		delete self->obj;
+	}
+	delete self;
+}
+
+// ----------------------------------------------------------------------
+// Builds a hash value from the pipeline state object, that is:
+//	+ pipeline shader stages,
+//  + and associated settings,
+// so that we have a unique fingerprint for this pipeline.
+// The handle contains the hash value and is unique for pipeline
+// state objects with given settings.
+static le_rtxpso_handle le_rtx_pipeline_builder_build( le_rtx_pipeline_builder_o *self ) {
+
+	le_rtxpso_handle pipeline_handle = {};
+
+	using namespace le_backend_vk;
+	{
+		// Calculate hash over all pipeline stages,
+		// and pipeline shader group infos
+
+		uint64_t hash_value{};
+
+		// calculate hash over all shader module hashes.
+
+		std::vector<uint64_t> shader_module_hashes;
+
+		shader_module_hashes.reserve( self->obj->shaderStages.size() );
+		for ( auto const &shader_stage : self->obj->shaderStages ) {
+			shader_module_hashes.emplace_back( le_shader_module_i.get_hash( shader_stage ) );
+		}
+
+		hash_value = SpookyHash::Hash64(
+		    shader_module_hashes.data(),
+		    shader_module_hashes.size() * sizeof( uint64_t ),
+		    hash_value );
+
+		static_assert( std::has_unique_object_representations_v<le_rtx_shader_group_create_info>,
+		               "shader group create info must be tightly packed, so that it may be used"
+		               "for hashing. Otherwise you would end up with noise between the fields"
+		               "invalidating the hash." );
+
+		if ( !self->obj->shaderGroups.empty() ) {
+			hash_value = SpookyHash::Hash64(
+			    self->obj->shaderGroups.data(),
+			    sizeof( le_rtx_shader_group_create_info ) * self->obj->shaderGroups.size(),
+			    hash_value );
+		}
+
+		pipeline_handle = reinterpret_cast<le_rtxpso_handle>( hash_value );
+	}
+
+	// Introduce pipeline state object to manager so that it may be cached.
+
+	le_pipeline_manager_i.introduce_rtx_pipeline_state( self->pipelineCache, self->obj, pipeline_handle );
+
+	return pipeline_handle;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_rtx_pipeline_builder_add_shader_stage( le_rtx_pipeline_builder_o *self, le_shader_module_o *shaderModule ) {
+	assert( self->obj );
+	if ( self->obj ) {
+		self->obj->shaderStages.push_back( shaderModule );
 	}
 }
 
@@ -337,6 +416,10 @@ static le_gpso_handle le_graphics_pipeline_builder_build( le_graphics_pipeline_b
 		hash_value = SpookyHash::Hash64( stageHashEntries, stageHashEntriesUsed * sizeof( uint64_t ), hash_value );
 
 		// -- If pipeline has explicit attribute binding stages that must be factored in with the hash.
+
+		static_assert( std::has_unique_object_representations_v<le_vertex_input_binding_description>,
+		               "vertex input binding descriptrion must be tightly packed, so that it "
+		               "may be hashed (any padding will invalidate hash)." );
 
 		if ( !self->obj->explicitVertexInputBindingDescriptions.empty() ) {
 			hash_value = SpookyHash::Hash64( self->obj->explicitVertexInputBindingDescriptions.data(),
@@ -753,5 +836,14 @@ LE_MODULE_REGISTER_IMPL( le_pipeline_builder, api ) {
 		i.destroy          = le_compute_pipeline_builder_destroy;
 		i.build            = le_compute_pipeline_builder_build;
 		i.set_shader_stage = le_compute_pipeline_builder_set_shader_stage;
+	}
+
+	{
+		// setup compute pipleine builder api
+		auto &i            = static_cast<le_pipeline_builder_api *>( api )->le_rtx_pipeline_builder_i;
+		i.create           = le_rtx_pipeline_builder_create;
+		i.destroy          = le_rtx_pipeline_builder_destroy;
+		i.build            = le_rtx_pipeline_builder_build;
+		i.add_shader_stage = le_rtx_pipeline_builder_add_shader_stage;
 	}
 }
