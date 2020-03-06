@@ -1924,6 +1924,72 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 	using namespace le_renderer;
 
+#ifdef LE_FEATURE_RTX
+
+	{
+
+		auto cp = le::RenderPass( "Stage Rtx", LeRenderPassType::LE_RENDER_PASS_TYPE_COMPUTE )
+		              .setExecuteCallback( draw_params, []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+			              auto draw_params = static_cast<le_stage_api::draw_params_t *>( user_data );
+			              auto camera      = draw_params->camera;
+			              auto stage       = draw_params->stage;
+			              auto encoder     = le::Encoder{encoder_};
+
+			              auto pipeline_manager = encoder.getPipelineManager();
+
+			              static auto rtx_pipeline = []( le_stage_o *stage, le_pipeline_manager_o *pipeline_manager ) {
+				              std::array<le_shader_module_o *, 4> shaders = {
+				                  renderer_i.create_shader_module(
+				                      stage->renderer, "./resources/shaders/le_stage/rtx/raygen.rgen", {le::ShaderStage::eRaygenBitNv}, nullptr ),
+				                  renderer_i.create_shader_module(
+				                      stage->renderer, "./resources/shaders/le_stage/rtx/miss.rmiss", {le::ShaderStage::eMissBitNv}, nullptr ),
+				                  renderer_i.create_shader_module(
+				                      stage->renderer, "./resources/shaders/le_stage/rtx/shadow.rmiss", {le::ShaderStage::eMissBitNv}, nullptr ),
+				                  renderer_i.create_shader_module(
+				                      stage->renderer, "./resources/shaders/le_stage/rtx/closesthit.rchit", {le::ShaderStage::eClosestHitBitNv}, nullptr ),
+				              };
+
+				              // Create rtx pipeline inline.
+
+				              LeRtxPipelineBuilder builder( pipeline_manager );
+
+				              for ( auto const &module : shaders ) {
+					              builder.addShaderStage( module );
+				              }
+
+				              return builder.build();
+			              }( stage, pipeline_manager );
+
+			              encoder.bindRtxPipeline( rtx_pipeline );
+		              } )
+		              .setIsRoot( true );
+
+		{
+			// -- Signal that we want to read from bottom-level acceleration structures.
+			LeResourceUsageFlags usage_flags{};
+			usage_flags.type                    = LeResourceType::eRtxBlas;
+			usage_flags.as.rtx_blas_usage_flags = {LeRtxBlasUsageFlagBits::LE_RTX_BLAS_USAGE_READ_BIT};
+
+			for ( auto const &m : draw_params->stage->meshes ) {
+				for ( auto const &p : m.primitives ) {
+					cp.useResource( p.rtx_blas_handle, usage_flags );
+				}
+			}
+
+			// -- Signal that we want to read from top-level acceleration structures.
+
+			usage_flags.type                    = LeResourceType::eRtxTlas;
+			usage_flags.as.rtx_tlas_usage_flags = {LeRtxTlasUsageFlagBits::LE_RTX_TLAS_USAGE_READ_BIT};
+			for ( auto const &s : draw_params->stage->scenes ) {
+				cp.useResource( s.rtx_tlas_handle, usage_flags );
+			}
+		}
+
+		render_module_i.add_renderpass( module, cp );
+	}
+
+#endif
+
 	auto rp = le::RenderPass( "Stage Draw", LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW )
 	              .setExecuteCallback( draw_params, pass_draw )
 	              .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE,
@@ -1936,22 +2002,6 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 		rp.useBufferResource( b->handle, {LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
 		                                  LE_BUFFER_USAGE_VERTEX_BUFFER_BIT} );
 	}
-
-#ifdef LE_FEATURE_RTX
-
-	// TODO: signal that we want to read from bottom level acceleration structures.
-
-	LeResourceUsageFlags usage_flags{};
-	usage_flags.type                    = LeResourceType::eRtxBlas;
-	usage_flags.as.rtx_blas_usage_flags = {LeRtxBlasUsageFlagBits::LE_RTX_BLAS_USAGE_READ_BIT};
-
-	for ( auto const &m : draw_params->stage->meshes ) {
-		for ( auto const &p : m.primitives ) {
-			rp.useResource( p.rtx_blas_handle, usage_flags );
-		}
-	}
-
-#endif
 
 	for ( auto &t : draw_params->stage->textures ) {
 		// We must create texture handles for this renderpass.
@@ -2413,6 +2463,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 			stage->scenes[ i ].rtx_tlas_info = std::move( resource_info );
 		}
 	}
+
 #endif
 }
 
