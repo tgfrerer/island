@@ -1063,10 +1063,8 @@ static inline vk::ShaderStageFlagBits le_to_vk( const le::ShaderStage &stage ) {
 }
 
 // ----------------------------------------------------------------------
-// Creates a vulkan Pipeline based on a shader state object and a given renderpass and subpass index.
+// Creates a vulkan graphics pipeline based on a shader state object and a given renderpass and subpass index.
 //
-// TODO: Check spec whether shader stages must be sorted by stage flags (vertex first for example)
-// when fed into the create info object. If so, we should make sure to sort before building the object.
 static vk::Pipeline le_pipeline_cache_create_pipeline( le_pipeline_manager_o *self, graphics_pipeline_state_o const *pso, const LeRenderPass &pass, uint32_t subpass ) {
 
 	std::vector<vk::PipelineShaderStageCreateInfo> pipelineStages;
