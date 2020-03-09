@@ -530,6 +530,20 @@ struct le_backend_o {
 	} only_backend_allocate_resources_may_access;                                                                   // Only acquire_physical_resources may read/write
 };
 
+// State of arguments for currently bound pipeline - we keep this here,
+// so that we can update in bulk before draw, or dispatch command is issued.
+//
+struct ArgumentState {
+	uint32_t                                   dynamicOffsetCount = 0;  // count of dynamic elements in current pipeline
+	std::array<uint32_t, 256>                  dynamicOffsets     = {}; // offset for each dynamic element in current pipeline
+	uint32_t                                   setCount           = 0;  // current count of bound descriptorSets (max: 8)
+	std::array<std::vector<DescriptorData>, 8> setData;                 // data per-set
+
+	std::array<vk::DescriptorUpdateTemplate, 8> updateTemplates; // update templates for currently bound descriptor sets
+	std::array<vk::DescriptorSetLayout, 8>      layouts;         // layouts for currently bound descriptor sets
+	std::vector<le_shader_binding_info>         binding_infos;
+};
+
 // ----------------------------------------------------------------------
 
 static inline void vk_format_get_is_depth_stencil( vk::Format format_, bool &isDepth, bool &isStencil ) {
@@ -3640,6 +3654,112 @@ static bool is_equal( le_pipeline_and_layout_info_t const &lhs, le_pipeline_and_
 	       0 == memcmp( lhs.layout_info.set_layout_keys, rhs.layout_info.set_layout_keys, sizeof( uint64_t ) * lhs.layout_info.set_layout_count );
 }
 
+static bool updateArguments( const vk::Device &                          device,
+                             const vk::DescriptorPool &                  descriptorPool_,
+                             const ArgumentState &                       argumentState_,
+                             std::array<std::vector<DescriptorData>, 8> &previousSetData,
+                             vk::DescriptorSet *                         descriptorSets ) {
+
+	// -- allocate descriptors from descriptorpool based on set layout info
+
+	if ( argumentState_.setCount == 0 ) {
+		return true;
+	}
+
+	// ----------| invariant: there are descriptorSets to allocate
+
+	bool argumentsOk = true;
+
+	// -- write data from descriptorSetData into freshly allocated DescriptorSets
+	for ( size_t setId = 0; setId != argumentState_.setCount; ++setId ) {
+
+		// If argumentState contains invalid information (for example if an uniform has not been set yet)
+		// this will lead to SEGFAULT. You must ensure that argumentState contains valid information.
+		//
+		// The most common case for this bug is not providing any data for a uniform used in the shader,
+		// we check for this and skip any argumentStates which have invalid data...
+
+		for ( auto &a : argumentState_.setData[ setId ] ) {
+
+			switch ( a.type ) {
+			case vk::DescriptorType::eStorageBufferDynamic: //
+			case vk::DescriptorType::eUniformBuffer:        //
+			case vk::DescriptorType::eUniformBufferDynamic: //
+			case vk::DescriptorType::eStorageBuffer:        // fall-through
+				if ( nullptr == a.bufferInfo.buffer ) {
+					// if buffer must have valid buffer bound
+					std::cerr << "ERROR: Buffer argument at set="
+					          << std::dec << setId << ", binding="
+					          << std::dec << a.bindingNumber << ", array_index="
+					          << std::dec << a.arrayIndex << " not set, not valid or missing."
+					          << std::endl
+					          << std::flush;
+					argumentsOk = false;
+				}
+				break;
+			case vk::DescriptorType::eCombinedImageSampler:
+			case vk::DescriptorType::eSampledImage:
+			case vk::DescriptorType::eStorageImage:
+				argumentsOk &= ( nullptr != a.imageInfo.imageView ); // if sampler, must have valid image view
+				if ( nullptr == a.imageInfo.imageView ) {
+					// if image - must have valid imageview bound bound
+					std::cerr << "ERROR: Image argument at set="
+					          << std::dec << setId << ", binding="
+					          << std::dec << a.bindingNumber << ", array_index="
+					          << std::dec << a.arrayIndex << " not set, not valid or missing."
+					          << std::endl
+					          << std::flush;
+					argumentsOk = false;
+				}
+				break;
+			default:
+				argumentsOk &= false;
+				// TODO: check arguments for other types of descriptors
+				assert( false && "unhandled descriptor type" );
+				break;
+			}
+
+			if ( false == argumentsOk ) {
+				assert( false && "Argument state did not fit template" );
+				break;
+			}
+		}
+
+		if ( argumentsOk ) {
+
+			// We test the current argument state of descriptors against the currently bound
+			// descriptors - we only (re-)allocate descriptorsets for when we detect a change
+			// within one of these sets.
+
+			if ( previousSetData[ setId ].empty() ||
+			     previousSetData[ setId ] != argumentState_.setData[ setId ] ) {
+
+				vk::DescriptorSetAllocateInfo allocateInfo;
+				allocateInfo.setDescriptorPool( descriptorPool_ )
+				    .setDescriptorSetCount( 1 )
+				    .setPSetLayouts( &argumentState_.layouts[ setId ] );
+
+				// -- allocate descriptorSets based on current layout
+				// and place them in the correct position
+				auto result = device.allocateDescriptorSets( &allocateInfo, &descriptorSets[ setId ] );
+
+				assert( result == vk::Result::eSuccess && "failed to allocate descriptor set" );
+
+				device.updateDescriptorSetWithTemplate( descriptorSets[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
+
+				previousSetData[ setId ] = argumentState_.setData[ setId ];
+			}
+
+		} else {
+			return false;
+		}
+	}
+
+	return argumentsOk;
+};
+
+// ----------------------------------------------------------------------
+
 // ----------------------------------------------------------------------
 // Decode commandStream for each pass (may happen in parallel)
 // translate into vk specific commands.
@@ -3798,17 +3918,6 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		size_t   commandIndex  = 0;
 		uint32_t subpassIndex  = 0;
 
-		struct ArgumentState {
-			uint32_t                                   dynamicOffsetCount = 0;  // count of dynamic elements in current pipeline
-			std::array<uint32_t, 256>                  dynamicOffsets     = {}; // offset for each dynamic element in current pipeline
-			uint32_t                                   setCount           = 0;  // current count of bound descriptorSets (max: 8)
-			std::array<std::vector<DescriptorData>, 8> setData;                 // data per-set
-
-			std::array<vk::DescriptorUpdateTemplate, 8> updateTemplates; // update templates for currently bound descriptor sets
-			std::array<vk::DescriptorSetLayout, 8>      layouts;         // layouts for currently bound descriptor sets
-			std::vector<le_shader_binding_info>         binding_infos;
-		} argumentState;
-
 		vk::PipelineLayout currentPipelineLayout;
 		vk::DescriptorSet  descriptorSets[ VK_MAX_BOUND_DESCRIPTOR_SETS ] = {}; // currently bound descriptorSets (allocated from pool, therefore we must not worry about freeing, and may re-use freely)
 
@@ -3820,108 +3929,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		//
 		std::array<std::vector<DescriptorData>, 8> previousSetData;
 
-		auto updateArguments = []( const vk::Device &                          device,
-		                           const vk::DescriptorPool &                  descriptorPool_,
-		                           const ArgumentState &                       argumentState_,
-		                           std::array<std::vector<DescriptorData>, 8> &previousSetData,
-		                           vk::DescriptorSet *                         descriptorSets ) -> bool {
-			// -- allocate descriptors from descriptorpool based on set layout info
-
-			if ( argumentState_.setCount == 0 ) {
-				return true;
-			}
-
-			// ----------| invariant: there are descriptorSets to allocate
-
-			bool argumentsOk = true;
-
-			// -- write data from descriptorSetData into freshly allocated DescriptorSets
-			for ( size_t setId = 0; setId != argumentState_.setCount; ++setId ) {
-
-				// If argumentState contains invalid information (for example if an uniform has not been set yet)
-				// this will lead to SEGFAULT. You must ensure that argumentState contains valid information.
-				//
-				// The most common case for this bug is not providing any data for a uniform used in the shader,
-				// we check for this and skip any argumentStates which have invalid data...
-
-				for ( auto &a : argumentState_.setData[ setId ] ) {
-
-					switch ( a.type ) {
-					case vk::DescriptorType::eStorageBufferDynamic: //
-					case vk::DescriptorType::eUniformBuffer:        //
-					case vk::DescriptorType::eUniformBufferDynamic: //
-					case vk::DescriptorType::eStorageBuffer:        // fall-through
-						if ( nullptr == a.bufferInfo.buffer ) {
-							// if buffer must have valid buffer bound
-							std::cerr << "ERROR: Buffer argument at set="
-							          << std::dec << setId << ", binding="
-							          << std::dec << a.bindingNumber << ", array_index="
-							          << std::dec << a.arrayIndex << " not set, not valid or missing."
-							          << std::endl
-							          << std::flush;
-							argumentsOk = false;
-						}
-						break;
-					case vk::DescriptorType::eCombinedImageSampler:
-					case vk::DescriptorType::eSampledImage:
-					case vk::DescriptorType::eStorageImage:
-						argumentsOk &= ( nullptr != a.imageInfo.imageView ); // if sampler, must have valid image view
-						if ( nullptr == a.imageInfo.imageView ) {
-							// if image - must have valid imageview bound bound
-							std::cerr << "ERROR: Image argument at set="
-							          << std::dec << setId << ", binding="
-							          << std::dec << a.bindingNumber << ", array_index="
-							          << std::dec << a.arrayIndex << " not set, not valid or missing."
-							          << std::endl
-							          << std::flush;
-							argumentsOk = false;
-						}
-						break;
-					default:
-						// TODO: check arguments for other types of descriptors
-						argumentsOk &= true;
-						break;
-					}
-
-					if ( false == argumentsOk ) {
-						// TODO: notify that an argument is not OKAY
-						assert( false && "Argument state did not fit template" );
-						break;
-					}
-				}
-
-				if ( argumentsOk ) {
-
-					// We test the current argument state of descriptors against the currently bound
-					// descriptors - we only (re-)allocate descriptorsets for when we detect a change
-					// within one of these sets.
-
-					if ( previousSetData[ setId ].empty() ||
-					     previousSetData[ setId ] != argumentState_.setData[ setId ] ) {
-
-						vk::DescriptorSetAllocateInfo allocateInfo;
-						allocateInfo.setDescriptorPool( descriptorPool_ )
-						    .setDescriptorSetCount( 1 )
-						    .setPSetLayouts( &argumentState_.layouts[ setId ] );
-
-						// -- allocate descriptorSets based on current layout
-						// and place them in the correct position
-						auto result = device.allocateDescriptorSets( &allocateInfo, &descriptorSets[ setId ] );
-
-						assert( result == vk::Result::eSuccess && "failed to allocate descriptor set" );
-
-						device.updateDescriptorSetWithTemplate( descriptorSets[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
-
-						previousSetData[ setId ] = argumentState_.setData[ setId ];
-					}
-
-				} else {
-					return false;
-				}
-			}
-
-			return argumentsOk;
-		};
+		ArgumentState argumentState;
 
 		if ( pass.encoder ) {
 			encoder_i.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
