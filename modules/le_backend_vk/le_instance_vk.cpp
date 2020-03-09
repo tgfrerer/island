@@ -74,6 +74,7 @@ DECLARE_EXT_PFN( vkBindAccelerationStructureMemoryNV );
 DECLARE_EXT_PFN( vkDestroyAccelerationStructureNV );
 DECLARE_EXT_PFN( vkCmdBuildAccelerationStructureNV );
 DECLARE_EXT_PFN( vkGetAccelerationStructureHandleNV );
+DECLARE_EXT_PFN( vkCreateRayTracingPipelinesNV );
 
 #undef DECLARE_EXT_PFN
 
@@ -117,6 +118,7 @@ static void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
 	GET_EXT_PROC_ADDR( vkDestroyAccelerationStructureNV );
 	GET_EXT_PROC_ADDR( vkCmdBuildAccelerationStructureNV );
 	GET_EXT_PROC_ADDR( vkGetAccelerationStructureHandleNV );
+	GET_EXT_PROC_ADDR( vkCreateRayTracingPipelinesNV );
 
 #undef GET_EXT_PROC_ADDR
 
@@ -177,6 +179,7 @@ VKAPI_ATTR void VKAPI_CALL vkDestroyAccelerationStructureNV(
     const VkAllocationCallbacks *pAllocator ) {
 	pfn_vkDestroyAccelerationStructureNV( device, accelerationStructure, pAllocator );
 };
+
 VKAPI_ATTR void VKAPI_CALL vkCmdBuildAccelerationStructureNV(
     VkCommandBuffer                      commandBuffer,
     const VkAccelerationStructureInfoNV *pInfo,
@@ -189,6 +192,7 @@ VKAPI_ATTR void VKAPI_CALL vkCmdBuildAccelerationStructureNV(
     VkDeviceSize                         scratchOffset ) {
 	pfn_vkCmdBuildAccelerationStructureNV( commandBuffer, pInfo, instanceData, instanceOffset, update, dst, src, scratch, scratchOffset );
 }
+
 VKAPI_ATTR VkResult VKAPI_CALL vkGetAccelerationStructureHandleNV(
     VkDevice                  device,
     VkAccelerationStructureNV accelerationStructure,
@@ -196,6 +200,17 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetAccelerationStructureHandleNV(
     void *                    pData ) {
 	return pfn_vkGetAccelerationStructureHandleNV( device, accelerationStructure, dataSize, pData );
 }
+
+VKAPI_ATTR VkResult VKAPI_CALL vkCreateRayTracingPipelinesNV(
+    VkDevice                                device,
+    VkPipelineCache                         pipelineCache,
+    uint32_t                                createInfoCount,
+    const VkRayTracingPipelineCreateInfoNV *pCreateInfos,
+    const VkAllocationCallbacks *           pAllocator,
+    VkPipeline *                            pPipelines ) {
+	return pfn_vkCreateRayTracingPipelinesNV( device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
+}
+
 // ----------------------------------------------------------------------
 
 static void create_debug_messenger_callback( le_backend_vk_instance_o *obj );  // ffdecl.
