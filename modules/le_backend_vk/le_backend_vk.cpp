@@ -2141,8 +2141,6 @@ static void backend_create_descriptor_pools( BackendFrameData &frame, vk::Device
 
 	for ( ; frame.descriptorPools.size() < numRenderPasses; ) {
 
-		vk::DescriptorPoolCreateInfo info;
-
 		std::vector<::vk::DescriptorPoolSize> descriptorPoolSizes;
 
 		descriptorPoolSizes.reserve( VK_DESCRIPTOR_TYPE_RANGE_SIZE );
