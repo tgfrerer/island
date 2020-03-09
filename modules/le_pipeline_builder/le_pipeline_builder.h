@@ -13,6 +13,7 @@ LE_OPAQUE_HANDLE( le_rtxpso_handle ); // Opaque handle for rtx pipeline state
 struct le_graphics_pipeline_builder_o;
 struct le_compute_pipeline_builder_o;
 struct le_rtx_pipeline_builder_o;
+struct le_rtx_shader_group_info;
 
 struct le_vertex_input_binding_description;
 struct le_vertex_input_attribute_description;

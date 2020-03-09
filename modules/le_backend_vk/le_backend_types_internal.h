@@ -68,20 +68,9 @@ struct compute_pipeline_state_o {
 	le_shader_module_o *shaderStage; // non-owning; refers opaquely to a compute shader module (or not)
 };
 
-// we use this internally instead of vk::RayTrancingShaderGroupCreateInfoNV because
-// we must hash this as part of getting the hash of the pipeline state.
-// We can and must control that this struct is tightly packed.
-struct le_rtx_shader_group_create_info {
-	VkRayTracingShaderGroupTypeNV type;
-	uint32_t                      generalShader;
-	uint32_t                      closestHitShader;
-	uint32_t                      anyHitShader;
-	uint32_t                      intersectionShader;
-};
-
 struct rtx_pipeline_state_o {
-	std::vector<le_shader_module_o *>            shaderStages; // non-owning, refers to a number of shader modules.
-	std::vector<le_rtx_shader_group_create_info> shaderGroups; // references shader modules from shaderStages by index.
+	std::vector<le_shader_module_o *>     shaderStages; // non-owning, refers to a number of shader modules.
+	std::vector<le_rtx_shader_group_info> shaderGroups; // references shader modules from shaderStages by index.
 };
 
 // This struct must be tightly packed, as a arrays of bindings get hashed

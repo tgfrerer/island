@@ -1296,10 +1296,10 @@ static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o
 		vk::RayTracingShaderGroupCreateInfoNV info;
 		info
 		    .setType( vk::RayTracingShaderGroupTypeNV( group.type ) )
-		    .setGeneralShader( group.generalShader )
-		    .setClosestHitShader( group.closestHitShader )
-		    .setAnyHitShader( group.anyHitShader )
-		    .setIntersectionShader( group.intersectionShader );
+		    .setGeneralShader( group.generalShaderIdx )
+		    .setClosestHitShader( group.closestHitShaderIdx )
+		    .setAnyHitShader( group.anyHitShaderIdx )
+		    .setIntersectionShader( group.intersectionShaderIdx );
 		shadingGroups.emplace_back( std::move( info ) );
 	}
 
@@ -1753,7 +1753,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 
 		// -- mix in hash over shader groups associated with the pso
 
-		pipeline_hash = SpookyHash::Hash64( pso->shaderGroups.data(), pso->shaderGroups.size() * sizeof( le_rtx_shader_group_create_info ), pipeline_hash );
+		pipeline_hash = SpookyHash::Hash64( pso->shaderGroups.data(), pso->shaderGroups.size() * sizeof( le_rtx_shader_group_info ), pipeline_hash );
 	}
 
 	// -- look up if pipeline with this hash already exists in cache

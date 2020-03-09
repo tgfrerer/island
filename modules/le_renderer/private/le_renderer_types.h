@@ -1284,8 +1284,31 @@ class WriteToImageSettingsBuilder {
 
 } // namespace le
 
+namespace le {
+// Codegen <VkRayTracingShaderGroupTypeNV, uint32_t>
+enum class RayTracingShaderGroupTypeNV : uint32_t {
+	eGeneralNv            = 0,
+	eTrianglesHitGroupNv  = 1,
+	eProceduralHitGroupNv = 2,
+};
+// Codegen </VkRayTracingShaderGroupTypeNV>
+} // namespace le
+
 LE_OPAQUE_HANDLE( le_rtx_blas_info_handle ); // opaque handle to a bottom level acceleration structure info owned by the backend.
 LE_OPAQUE_HANDLE( le_rtx_tlas_info_handle ); // opaque handle to a top level acceleration structure info owned by the backend.
+
+static constexpr uint32_t LE_SHADER_UNUSED_NV = ~( 0u );
+
+// we use this internally instead of vk::RayTrancingShaderGroupCreateInfoNV because
+// we must hash this as part of getting the hash of the pipeline state.
+// We can and must control that this struct is tightly packed.
+struct le_rtx_shader_group_info {
+	le::RayTracingShaderGroupTypeNV type;
+	uint32_t                        generalShaderIdx      = LE_SHADER_UNUSED_NV;
+	uint32_t                        closestHitShaderIdx   = LE_SHADER_UNUSED_NV;
+	uint32_t                        anyHitShaderIdx       = LE_SHADER_UNUSED_NV;
+	uint32_t                        intersectionShaderIdx = LE_SHADER_UNUSED_NV;
+};
 
 struct le_rtx_geometry_t {
 	le_resource_handle_t vertex_buffer;

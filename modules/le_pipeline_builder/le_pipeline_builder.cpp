@@ -170,7 +170,7 @@ static le_rtxpso_handle le_rtx_pipeline_builder_build( le_rtx_pipeline_builder_o
 		    shader_module_hashes.size() * sizeof( uint64_t ),
 		    hash_value );
 
-		static_assert( std::has_unique_object_representations_v<le_rtx_shader_group_create_info>,
+		static_assert( std::has_unique_object_representations_v<le_rtx_shader_group_info>,
 		               "shader group create info must be tightly packed, so that it may be used"
 		               "for hashing. Otherwise you would end up with noise between the fields"
 		               "invalidating the hash." );
@@ -178,7 +178,7 @@ static le_rtxpso_handle le_rtx_pipeline_builder_build( le_rtx_pipeline_builder_o
 		if ( !self->obj->shaderGroups.empty() ) {
 			hash_value = SpookyHash::Hash64(
 			    self->obj->shaderGroups.data(),
-			    sizeof( le_rtx_shader_group_create_info ) * self->obj->shaderGroups.size(),
+			    sizeof( le_rtx_shader_group_info ) * self->obj->shaderGroups.size(),
 			    hash_value );
 		}
 
