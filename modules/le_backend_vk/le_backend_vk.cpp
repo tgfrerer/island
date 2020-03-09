@@ -3760,6 +3760,43 @@ static bool updateArguments( const vk::Device &                          device,
 
 // ----------------------------------------------------------------------
 
+static void debug_print_command( void *&cmd ) {
+	std::cout << "cmd: ";
+
+	auto cmd_header = static_cast<le::CommandHeader *>( cmd );
+
+	// clang-format off
+			switch (cmd_header->info.type){
+			    case (le::CommandType::eDrawIndexed): std::cout << "eDrawIndexed"; break;
+			    case (le::CommandType::eDraw): std::cout << "eDraw"; break;
+			    case (le::CommandType::eDispatch): std::cout << "eDispatch"; break;
+			    case (le::CommandType::eSetLineWidth): std::cout << "eSetLineWidth"; break;
+			    case (le::CommandType::eSetViewport): std::cout << "eSetViewport"; break;
+			    case (le::CommandType::eSetScissor): std::cout << "eSetScissor"; break;
+			    case (le::CommandType::eBindArgumentBuffer): std::cout << "eBindArgumentBuffer"; break;
+			    case (le::CommandType::eSetArgumentTexture): std::cout << "eSetArgumentTexture"; break;
+			    case (le::CommandType::eSetArgumentImage): std::cout << "eSetArgumentImage"; break;
+			    case (le::CommandType::eBindIndexBuffer): std::cout << "eBindIndexBuffer"; break;
+			    case (le::CommandType::eBindVertexBuffers): std::cout << "eBindVertexBuffers"; break;
+			    case (le::CommandType::eBindGraphicsPipeline): std::cout << "eBindGraphicsPipeline"; break;
+			    case (le::CommandType::eBindComputePipeline): std::cout << "eBindComputePipeline"; break;
+			    case (le::CommandType::eWriteToBuffer): std::cout << "eWriteToBuffer"; break;
+                case (le::CommandType::eBindRtxPipeline): std::cout << "eBindRtxPipeline" ; break;
+                case (le::CommandType::eBuildRtxTlas): std::cout << "eBuildRtxTlas"; break;
+                case (le::CommandType::eBuildRtxBlas): std::cout << "eBuildRtxBlas"; break;
+			    case (le::CommandType::eWriteToImage): std::cout << "eWriteToImage"; break;
+			}
+	// clang-format on
+
+	if ( cmd_header->info.type == le::CommandType::eBindGraphicsPipeline ) {
+		auto le_cmd = static_cast<le::CommandBindGraphicsPipeline *>( cmd );
+		std::cout << " [" << std::hex << le_cmd->info.gpsoHandle << "]";
+	}
+
+	std::cout << std::endl
+	          << std::flush;
+};
+
 // ----------------------------------------------------------------------
 // Decode commandStream for each pass (may happen in parallel)
 // translate into vk specific commands.
@@ -3942,40 +3979,6 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			//std::cout << "WARNING: pass '" << pass.debugName << "' does not have valid encoder." << std::endl
 			//          << std::flush;
 		}
-
-		auto debug_print_command = []( void *&cmd ) {
-			std::cout << "cmd: ";
-
-			auto cmd_header = static_cast<le::CommandHeader *>( cmd );
-
-			// clang-format off
-			switch (cmd_header->info.type){
-			    case (le::CommandType::eDrawIndexed): std::cout << "eDrawIndexed"; break;
-			    case (le::CommandType::eDraw): std::cout << "eDraw"; break;
-			    case (le::CommandType::eDispatch): std::cout << "eDispatch"; break;
-			    case (le::CommandType::eSetLineWidth): std::cout << "eSetLineWidth"; break;
-			    case (le::CommandType::eSetViewport): std::cout << "eSetViewport"; break;
-			    case (le::CommandType::eSetScissor): std::cout << "eSetScissor"; break;
-			    case (le::CommandType::eBindArgumentBuffer): std::cout << "eBindArgumentBuffer"; break;
-			    case (le::CommandType::eSetArgumentTexture): std::cout << "eSetArgumentTexture"; break;
-			    case (le::CommandType::eSetArgumentImage): std::cout << "eSetArgumentImage"; break;
-			    case (le::CommandType::eBindIndexBuffer): std::cout << "eBindIndexBuffer"; break;
-			    case (le::CommandType::eBindVertexBuffers): std::cout << "eBindVertexBuffers"; break;
-			    case (le::CommandType::eBindGraphicsPipeline): std::cout << "eBindGraphicsPipeline"; break;
-			    case (le::CommandType::eBindComputePipeline): std::cout << "eBindComputePipeline"; break;
-			    case (le::CommandType::eWriteToBuffer): std::cout << "eWriteToBuffer"; break;
-			    case (le::CommandType::eWriteToImage): std::cout << "eWriteToImage"; break;
-			}
-			// clang-format on
-
-			if ( cmd_header->info.type == le::CommandType::eBindGraphicsPipeline ) {
-				auto le_cmd = static_cast<le::CommandBindGraphicsPipeline *>( cmd );
-				std::cout << " [" << std::hex << le_cmd->info.gpsoHandle << "]";
-			}
-
-			std::cout << std::endl
-			          << std::flush;
-		};
 
 		if ( commandStream != nullptr && numCommands > 0 ) {
 
