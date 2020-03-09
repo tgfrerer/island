@@ -1394,7 +1394,7 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 
 				switch ( descriptorType ) {
 				case vk::DescriptorType::eAccelerationStructureNV:
-					assert( false && "not yet implemented." ); // note that this type of descriptor may be chained.
+					entry.setOffset( base_offset + offsetof( DescriptorData, accelerationStructureInfo ) );
 					break;
 				case vk::DescriptorType::eUniformTexelBuffer:
 					assert( false ); // not implemented

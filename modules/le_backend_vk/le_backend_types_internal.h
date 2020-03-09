@@ -151,7 +151,12 @@ struct DescriptorData {
 
 	struct TexelBufferInfo {
 		vk::BufferView bufferView   = nullptr;
-		uint64_t       padding[ 2 ] = {0, 0};
+		uint64_t       padding[ 2 ] = {};
+	};
+
+	struct AccelerationStructureInfo {
+		vk::AccelerationStructureNV accelerationStructure = nullptr;
+		uint64_t                    padding[ 2 ]          = {};
 	};
 
 	vk::DescriptorType type          = vk::DescriptorType::eUniformBufferDynamic; //
@@ -159,10 +164,11 @@ struct DescriptorData {
 	uint32_t           arrayIndex    = 0;                                         // <-- must be in sequence for array elements of same binding
 
 	union {
-		ImageInfo       imageInfo;
-		BufferInfo      bufferInfo;
-		TexelBufferInfo texelBufferInfo;
-		uint64_t        data[ 3 ];
+		ImageInfo                 imageInfo;
+		BufferInfo                bufferInfo;
+		TexelBufferInfo           texelBufferInfo;
+		AccelerationStructureInfo accelerationStructureInfo;
+		uint64_t                  data[ 3 ];
 	};
 
 	bool operator==( DescriptorData const &rhs ) const noexcept {
