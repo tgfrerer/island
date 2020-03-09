@@ -200,6 +200,15 @@ static void le_rtx_pipeline_builder_add_shader_stage( le_rtx_pipeline_builder_o 
 		self->obj->shaderStages.push_back( shaderModule );
 	}
 }
+// ----------------------------------------------------------------------
+
+static void le_rtx_pipeline_builder_add_shader_groups( le_rtx_pipeline_builder_o *self, le_rtx_shader_group_info *info, uint32_t info_count ) {
+	assert( self->obj );
+	if ( self->obj ) {
+		// Insert by copying contents into local vector of shaderGroups
+		self->obj->shaderGroups.insert( self->obj->shaderGroups.end(), info, info + info_count );
+	}
+}
 
 // ----------------------------------------------------------------------
 
@@ -840,10 +849,11 @@ LE_MODULE_REGISTER_IMPL( le_pipeline_builder, api ) {
 
 	{
 		// setup compute pipleine builder api
-		auto &i            = static_cast<le_pipeline_builder_api *>( api )->le_rtx_pipeline_builder_i;
-		i.create           = le_rtx_pipeline_builder_create;
-		i.destroy          = le_rtx_pipeline_builder_destroy;
-		i.build            = le_rtx_pipeline_builder_build;
-		i.add_shader_stage = le_rtx_pipeline_builder_add_shader_stage;
+		auto &i             = static_cast<le_pipeline_builder_api *>( api )->le_rtx_pipeline_builder_i;
+		i.create            = le_rtx_pipeline_builder_create;
+		i.destroy           = le_rtx_pipeline_builder_destroy;
+		i.build             = le_rtx_pipeline_builder_build;
+		i.add_shader_stage  = le_rtx_pipeline_builder_add_shader_stage;
+		i.add_shader_groups = le_rtx_pipeline_builder_add_shader_groups;
 	}
 }
