@@ -1939,62 +1939,21 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			              auto pipeline_manager = encoder.getPipelineManager();
 
 			              static auto rtx_pipeline = []( le_stage_o *stage, le_pipeline_manager_o *pipeline_manager ) {
-				              static constexpr size_t SHADER_GRP_RAYGEN      = 0;
-				              static constexpr size_t SHADER_GRP_MISS        = 1;
-				              static constexpr size_t SHADER_GRP_SHADOW_MISS = 2;
-				              static constexpr size_t SHADER_GRP_CLOSEST_HIT = 3;
-				              //				              static constexpr size_t SHADER_GRP_SHADOW_HIT  = 4;
-				              static constexpr size_t SHADER_GRP_COUNT = 4;
-
-				              static constexpr size_t SHADER_INDEX_RAYGEN      = 0;
-				              static constexpr size_t SHADER_INDEX_MISS        = 1;
-				              static constexpr size_t SHADER_INDEX_SHADOW_MISS = 2;
-				              static constexpr size_t SHADER_INDEX_CLOSEST_HIT = 3;
-
-				              std::array<le_shader_module_o *, 4> shaders = {
-				                  renderer_i.create_shader_module(
-				                      stage->renderer, "./resources/shaders/le_stage/rtx/raygen.rgen", {le::ShaderStage::eRaygenBitNv}, nullptr ),
-				                  renderer_i.create_shader_module(
-				                      stage->renderer, "./resources/shaders/le_stage/rtx/miss.rmiss", {le::ShaderStage::eMissBitNv}, nullptr ),
-				                  renderer_i.create_shader_module(
-				                      stage->renderer, "./resources/shaders/le_stage/rtx/shadow.rmiss", {le::ShaderStage::eMissBitNv}, nullptr ),
-				                  renderer_i.create_shader_module(
-				                      stage->renderer, "./resources/shaders/le_stage/rtx/closesthit.rchit", {le::ShaderStage::eClosestHitBitNv}, nullptr ),
-				              };
+				              auto shader_raygen      = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/raygen.rgen", {le::ShaderStage::eRaygenBitNv}, nullptr );
+				              auto shader_miss        = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/miss.rmiss", {le::ShaderStage::eMissBitNv}, nullptr );
+				              auto shader_shadow_miss = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/shadow.rmiss", {le::ShaderStage::eMissBitNv}, nullptr );
+				              auto shader_closest_hit = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/closesthit.rchit", {le::ShaderStage::eClosestHitBitNv}, nullptr );
 
 				              // Create rtx pipeline inline.
 
 				              LeRtxPipelineBuilder builder( pipeline_manager );
 
-				              for ( auto const &module : shaders ) {
-					              builder.addShaderStage( module );
-				              }
-
 				              // add shader groups.
-
-				              std::vector<le_rtx_shader_group_info> groups( SHADER_GRP_COUNT );
-
-				              // ray generation
-				              groups[ SHADER_GRP_RAYGEN ].type             = le::RayTracingShaderGroupTypeNV::eGeneralNv;
-				              groups[ SHADER_GRP_RAYGEN ].generalShaderIdx = SHADER_INDEX_RAYGEN;
-
-				              // scene miss
-				              groups[ SHADER_GRP_MISS ].type             = le::RayTracingShaderGroupTypeNV::eGeneralNv;
-				              groups[ SHADER_GRP_MISS ].generalShaderIdx = SHADER_INDEX_MISS;
-
-				              // shadow miss
-				              groups[ SHADER_GRP_SHADOW_MISS ].type             = le::RayTracingShaderGroupTypeNV::eGeneralNv;
-				              groups[ SHADER_GRP_SHADOW_MISS ].generalShaderIdx = SHADER_INDEX_SHADOW_MISS;
-
-				              // scene closest hit
-				              groups[ SHADER_GRP_CLOSEST_HIT ].type                = le::RayTracingShaderGroupTypeNV::eTrianglesHitGroupNv;
-				              groups[ SHADER_GRP_CLOSEST_HIT ].closestHitShaderIdx = SHADER_INDEX_CLOSEST_HIT;
-
-				              //				              // shadow closest hit
-				              //				              groups[ SHADER_GRP_SHADOW_HIT ].type                = le::RayTracingShaderGroupTypeNV::eTrianglesHitGroupNv;
-				              //				              groups[ SHADER_GRP_SHADOW_HIT ].closestHitShaderIdx = SHADER_INDEX_SHADOW_MISS;
-
-				              builder.addShaderGroups( groups.data(), uint32_t( groups.size() ) );
+				              builder
+				                  .setShaderGroupRayGen( shader_raygen )
+				                  .addShaderGroupMiss( shader_miss )
+				                  .addShaderGroupMiss( shader_shadow_miss )
+				                  .addShaderGroupTriangleHit( shader_closest_hit, nullptr );
 
 				              return builder.build();
 			              }( stage, pipeline_manager );
