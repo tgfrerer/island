@@ -1332,15 +1332,15 @@ struct le_rtx_geometry_instance_t {
 	// a layout for bitfields. But this is how the Vulkan spec suggests doing it
 	// anyway.
 
-	uint32_t instanceId : 24;
+	uint32_t instanceCustomIndex : 24; // gl_InstanceCustomIndex
 	uint32_t mask : 8;
-	uint32_t instanceOffset : 24;
+	uint32_t instanceOffset : 24; // offset into Shader Binding Table for this instance - points at first hit shader for first geometry for this instance
 	uint32_t flags : 8;
-	uint64_t handle; ///< you don't need to fill this in, will get patched by backend
+	uint64_t blas_handle; ///< you don't need to fill this in, will get patched by backend
 
 	// We must enforce that hande has the same size as an uint64_t, as this is
 	// what's internally used by the RTX api for the actual vkAccelerationHandle
-	static_assert( sizeof( handle ) == sizeof( uint64_t ), "size of blas info handle must be 64bit" );
+	static_assert( sizeof( blas_handle ) == sizeof( uint64_t ), "size of blas info handle must be 64bit" );
 };
 
 // we must enforce size of le_rtx_geometry instance to be the same as what the spec requires

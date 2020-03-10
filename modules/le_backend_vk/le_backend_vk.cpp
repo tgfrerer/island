@@ -4254,7 +4254,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 							// -- reset dynamic offsets
 							memset( argumentState.dynamicOffsets.data(), 0, sizeof( uint32_t ) * argumentState.dynamicOffsetCount );
 
-							// we write directly into descriptorsetstate when we update descriptors.
+							// we write directly into descriptorSetState when we update descriptors.
 							// when we bind a pipeline, we update the descriptorsetstate based
 							// on what the pipeline requires.
 						}
@@ -4867,8 +4867,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// vulkan object to refer to the bottom level acceleration structure.
 
 						// Update handle in-place on GPU mapped, coherent memory.
-						instances[ i ].handle     = frame.availableResources.at( resources[ i ] ).info.blasInfo.cached_integer_handle; // the 64 bit handle for the acceleration structure.
-						instances[ i ].instanceId = uint32_t( i );
+						instances[ i ].blas_handle = frame.availableResources.at( resources[ i ] ).info.blasInfo.cached_integer_handle; // the 64 bit handle for the acceleration structure.
 					}
 
 					// Invariant: all instances should be patched right now, we can use the buffer at offset as

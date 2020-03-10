@@ -1310,7 +1310,7 @@ static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o
 	    .setPStages( pipelineStages.data() )
 	    .setGroupCount( uint32_t( shadingGroups.size() ) )
 	    .setPGroups( shadingGroups.data() )
-	    .setMaxRecursionDepth( 16 ) // TODO: we should probably reduce this,
+	    .setMaxRecursionDepth( 16 ) // FIXME: we should probably reduce this,
 	                                // or expose it via the api, but definitely
 	                                // limit it to hardware limit
 	    .setLayout( pipelineLayout )
@@ -1697,7 +1697,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeli
 }
 
 /// \brief Creates - or loads a pipeline from cache - based on current pipeline state
-/// \note This method may lock the gpso/cpso cache and is therefore costly.
+/// \note This method may lock the pso cache and is therefore costly.
 //
 // + Only the 'command buffer recording'-slice of a frame shall be able to modify the cache.
 //   The cache must be exclusively accessed through this method
@@ -1739,7 +1739,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 	{
 		// Create a hash over shader group data
 
-		std::vector<uint64_t> pso_hash_data; // we use a c-style array, with an entry count so that this is reliably allocated on the stack and not on the heap.
+		std::vector<uint64_t> pso_hash_data;
 		pso_hash_data.reserve( 64 );
 
 		pso_hash_data.emplace_back( reinterpret_cast<uint64_t>( pso_handle ) ); // Hash associated with `pso`

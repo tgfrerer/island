@@ -1577,13 +1577,14 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 				        for ( auto const &n : stage->nodes ) {
 					        if ( ( n->scene_bit_flags & ( 1 << scene_index ) ) && n->has_mesh ) {
 						        le_rtx_geometry_instance_t instance{};
-						        instance.mask           = 0xff;
-						        instance.flags          = 0;
-						        instance.instanceOffset = 0;                                             // TODO: set this to material-specific offset?
-						        instance.instanceId     = 0;                                             // TODO: set this to material?
-						        glm::mat4 transform     = glm::transpose( n->global_transform );         // must transpose so that
+						        instance.mask                = 0xff;
+						        instance.flags               = 0;
+						        instance.instanceOffset      = 0;                                        // TODO: set this to material-specific offset?
+						        instance.instanceCustomIndex = 0;                                        // TODO: set this to material?
+						        glm::mat4 transform          = glm::transpose( n->global_transform );    // must transpose so that
 						        memcpy( &instance.transform, &transform, sizeof( instance.transform ) ); // only copy 12 floats
 						        for ( auto const &p : stage->meshes[ n->mesh_idx ].primitives ) {
+							        // TODO: set instanceCustomIndex based on material...
 							        blas_handles.push_back( p.rtx_blas_handle );
 							        instances.push_back( instance );
 						        }
