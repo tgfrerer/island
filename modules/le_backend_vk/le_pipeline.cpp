@@ -62,7 +62,7 @@ struct le_pipeline_manager_o {
 	std::vector<le_cpso_handle>             computePSO_handles;
 
 	std::shared_mutex                   rtxPSO_mtx;  // protecting read/write access
-	std::vector<rtx_pipeline_state_o *> rtxPSO_list; // indexed by computePSO_handles
+	std::vector<rtx_pipeline_state_o *> rtxPSO_list; // indexed by rtxPSO_handles
 	std::vector<le_rtxpso_handle>       rtxPSO_handles;
 
 	std::unordered_map<uint64_t, vk::Pipeline, IdentityHash>            pipelines;
