@@ -13,10 +13,11 @@
 
 struct le_device_o {
 
-	vk::Device                         vkDevice         = nullptr;
-	vk::PhysicalDevice                 vkPhysicalDevice = nullptr;
-	vk::PhysicalDeviceProperties       vkPhysicalDeviceProperties;
-	vk::PhysicalDeviceMemoryProperties vkPhysicalDeviceMemoryProperties;
+	vk::Device                               vkDevice         = nullptr;
+	vk::PhysicalDevice                       vkPhysicalDevice = nullptr;
+	vk::PhysicalDeviceProperties             vkPhysicalDeviceProperties;
+	vk::PhysicalDeviceMemoryProperties       vkPhysicalDeviceMemoryProperties;
+	vk::PhysicalDeviceRayTracingPropertiesNV raytracingProperties;
 
 	// This may be set externally- it defines how many queues will be created, and what their capabilities must include.
 	// queues will be created so that if no exact fit can be found, a queue will be created from the next available family
@@ -165,8 +166,8 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	// query the gpu for more info about itself
 	self->vkPhysicalDeviceProperties = self->vkPhysicalDevice.getProperties();
 
-	auto properties2          = self->vkPhysicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPropertiesNV>();
-	auto raytracingProperties = properties2.get<vk::PhysicalDeviceRayTracingPropertiesNV>();
+	auto properties2           = self->vkPhysicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPropertiesNV>();
+	self->raytracingProperties = properties2.get<vk::PhysicalDeviceRayTracingPropertiesNV>();
 
 	// let's find out the devices' memory properties
 	self->vkPhysicalDeviceMemoryProperties = self->vkPhysicalDevice.getMemoryProperties();
@@ -349,6 +350,17 @@ const VkPhysicalDeviceMemoryProperties &device_get_vk_physical_device_memory_pro
 
 // ----------------------------------------------------------------------
 
+bool device_get_physical_device_ray_tracing_properties( le_device_o *self, VkPhysicalDeviceRayTracingPropertiesNV *properties ) {
+	*properties = self->raytracingProperties;
+#ifdef LE_FEATURE_RTX
+	return true;
+#else
+	return false;
+#endif
+}
+
+// ----------------------------------------------------------------------
+
 uint32_t device_get_default_graphics_queue_family_index( le_device_o *self_ ) {
 	return self_->queueFamilyIndices[ self_->defaultQueueIndices.graphics ];
 };
@@ -434,20 +446,21 @@ void register_le_device_vk_api( void *api_ ) {
 	auto  api_i    = static_cast<le_backend_vk_api *>( api_ );
 	auto &device_i = api_i->vk_device_i;
 
-	device_i.create                                   = device_create;
-	device_i.destroy                                  = device_destroy;
-	device_i.decrease_reference_count                 = device_decrease_reference_count;
-	device_i.increase_reference_count                 = device_increase_reference_count;
-	device_i.get_reference_count                      = device_get_reference_count;
-	device_i.get_default_graphics_queue_family_index  = device_get_default_graphics_queue_family_index;
-	device_i.get_default_compute_queue_family_index   = device_get_default_compute_queue_family_index;
-	device_i.get_default_graphics_queue               = device_get_default_graphics_queue;
-	device_i.get_default_compute_queue                = device_get_default_compute_queue;
-	device_i.get_default_depth_stencil_format         = device_get_default_depth_stencil_format;
-	device_i.get_vk_physical_device                   = device_get_vk_physical_device;
-	device_i.get_vk_device                            = device_get_vk_device;
-	device_i.get_vk_physical_device_properties        = device_get_vk_physical_device_properties;
-	device_i.get_vk_physical_device_memory_properties = device_get_vk_physical_device_memory_properties;
-	device_i.get_memory_allocation_info               = device_get_memory_allocation_info;
-	device_i.is_extension_available                   = device_is_extension_available;
+	device_i.create                                        = device_create;
+	device_i.destroy                                       = device_destroy;
+	device_i.decrease_reference_count                      = device_decrease_reference_count;
+	device_i.increase_reference_count                      = device_increase_reference_count;
+	device_i.get_reference_count                           = device_get_reference_count;
+	device_i.get_default_graphics_queue_family_index       = device_get_default_graphics_queue_family_index;
+	device_i.get_default_compute_queue_family_index        = device_get_default_compute_queue_family_index;
+	device_i.get_default_graphics_queue                    = device_get_default_graphics_queue;
+	device_i.get_default_compute_queue                     = device_get_default_compute_queue;
+	device_i.get_default_depth_stencil_format              = device_get_default_depth_stencil_format;
+	device_i.get_vk_physical_device                        = device_get_vk_physical_device;
+	device_i.get_vk_device                                 = device_get_vk_device;
+	device_i.get_vk_physical_device_properties             = device_get_vk_physical_device_properties;
+	device_i.get_vk_physical_device_memory_properties      = device_get_vk_physical_device_memory_properties;
+	device_i.get_vk_physical_device_ray_tracing_properties = device_get_physical_device_ray_tracing_properties;
+	device_i.get_memory_allocation_info                    = device_get_memory_allocation_info;
+	device_i.is_extension_available                        = device_is_extension_available;
 }
