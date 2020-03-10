@@ -158,8 +158,13 @@ struct le_pipeline_builder_api {
     struct le_rtx_pipeline_builder_interface_t {
 		le_rtx_pipeline_builder_o *     ( * create           ) ( le_pipeline_manager_o *pipeline_cache );
 		void                            ( * destroy          ) ( le_rtx_pipeline_builder_o* self );
-		void                            ( * add_shader_stage ) ( le_rtx_pipeline_builder_o* self,  le_shader_module_o* shaderStage);
-		void                            ( * add_shader_groups) ( le_rtx_pipeline_builder_o* self,  le_rtx_shader_group_info * shader_groups, uint32_t shader_groups_count);
+
+        void (* set_shader_group_ray_gen)(le_rtx_pipeline_builder_o* self, le_shader_module_o* raygen_shader);
+        void (* add_shader_group_miss)(le_rtx_pipeline_builder_o* self, le_shader_module_o* miss_shader);
+        void (* add_shader_group_callable)(le_rtx_pipeline_builder_o* self, le_shader_module_o* callable_shader);
+        void (* add_shader_group_triangle_hit)(le_rtx_pipeline_builder_o* self, le_shader_module_o* maybe_closest_hit_shader, le_shader_module_o* maybe_any_hit_shader);
+        void (* add_shader_group_procedural_hit)(le_rtx_pipeline_builder_o* self, le_shader_module_o* intersection_shader, le_shader_module_o* maybe_closest_hit_shader, le_shader_module_o* maybe_any_hit_shader);
+
 		le_rtxpso_handle_t*             ( * build            ) ( le_rtx_pipeline_builder_o* self );
         // TODO: add methods to specify shader groups.
 	};
@@ -226,13 +231,25 @@ class LeRtxPipelineBuilder : NoCopy, NoMove {
 		return le_pipeline_builder::le_rtx_pipeline_builder_i.build( self );
 	}
 
-	LeRtxPipelineBuilder &addShaderStage( le_shader_module_o *shaderModule ) {
-		le_pipeline_builder::le_rtx_pipeline_builder_i.add_shader_stage( self, shaderModule );
+	LeRtxPipelineBuilder &setShaderGroupRayGen( le_shader_module_o *raygen_shader ) {
+		le_pipeline_builder::le_rtx_pipeline_builder_i.set_shader_group_ray_gen( self, raygen_shader );
+		return *this;
+	}
+	LeRtxPipelineBuilder &addShaderGroupMiss( le_shader_module_o *miss_shader ) {
+		le_pipeline_builder::le_rtx_pipeline_builder_i.add_shader_group_miss( self, miss_shader );
+		return *this;
+	}
+	LeRtxPipelineBuilder &addShaderGroupCallable( le_shader_module_o *callable_shader ) {
+		le_pipeline_builder::le_rtx_pipeline_builder_i.add_shader_group_callable( self, callable_shader );
 		return *this;
 	}
 
-	LeRtxPipelineBuilder &addShaderGroups( le_rtx_shader_group_info *shader_groups, uint32_t shader_group_count ) {
-		le_pipeline_builder::le_rtx_pipeline_builder_i.add_shader_groups( self, shader_groups, shader_group_count );
+	LeRtxPipelineBuilder &addShaderGroupTriangleHit( le_shader_module_o *maybe_closest_hit_shader, le_shader_module_o *maybe_any_hit_shader ) {
+		le_pipeline_builder::le_rtx_pipeline_builder_i.add_shader_group_triangle_hit( self, maybe_closest_hit_shader, maybe_any_hit_shader );
+		return *this;
+	}
+	LeRtxPipelineBuilder &addShaderGroupProceduralHit( le_shader_module_o *intersection_shader, le_shader_module_o *maybe_closest_hit_shader, le_shader_module_o *maybe_any_hit_shader ) {
+		le_pipeline_builder::le_rtx_pipeline_builder_i.add_shader_group_procedural_hit( self, intersection_shader, maybe_closest_hit_shader, maybe_any_hit_shader );
 		return *this;
 	}
 };

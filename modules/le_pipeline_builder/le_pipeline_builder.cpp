@@ -193,21 +193,73 @@ static le_rtxpso_handle le_rtx_pipeline_builder_build( le_rtx_pipeline_builder_o
 }
 
 // ----------------------------------------------------------------------
-
-static void le_rtx_pipeline_builder_add_shader_stage( le_rtx_pipeline_builder_o *self, le_shader_module_o *shaderModule ) {
+// Adds shader module to pso if not yet encountered
+// returns index into shader modules for this module
+static uint32_t rtx_pipeline_builder_add_shader_module( le_rtx_pipeline_builder_o *self, le_shader_module_o *shaderModule ) {
 	assert( self->obj );
-	if ( self->obj ) {
+
+	if ( nullptr == shaderModule ) {
+		return LE_SHADER_UNUSED_NV;
+	}
+
+	size_t module_idx = 0;
+
+	for ( auto &m : self->obj->shaderStages ) {
+		if ( shaderModule == m ) {
+			break;
+		}
+		module_idx++;
+	}
+
+	if ( module_idx == self->obj->shaderStages.size() ) {
 		self->obj->shaderStages.push_back( shaderModule );
 	}
+
+	return uint32_t( module_idx );
 }
 // ----------------------------------------------------------------------
 
-static void le_rtx_pipeline_builder_add_shader_groups( le_rtx_pipeline_builder_o *self, le_rtx_shader_group_info *info, uint32_t info_count ) {
-	assert( self->obj );
-	if ( self->obj ) {
-		// Insert by copying contents into local vector of shaderGroups
-		self->obj->shaderGroups.insert( self->obj->shaderGroups.end(), info, info + info_count );
-	}
+void le_rtx_pipeline_builder_set_shader_group_ray_gen( le_rtx_pipeline_builder_o *self, le_shader_module_o *raygen_shader ) {
+	assert( raygen_shader && "must specify ray gen shader" );
+	le_rtx_shader_group_info info{};
+	info.type             = le::RayTracingShaderGroupTypeNV::eGeneralNv;
+	info.generalShaderIdx = rtx_pipeline_builder_add_shader_module( self, raygen_shader );
+	self->obj->shaderGroups.emplace_back( info );
+}
+
+void le_rtx_pipeline_builder_add_shader_group_miss( le_rtx_pipeline_builder_o *self, le_shader_module_o *miss_shader ) {
+	assert( miss_shader && "must specify miss shader" );
+	le_rtx_shader_group_info info{};
+	info.type             = le::RayTracingShaderGroupTypeNV::eGeneralNv;
+	info.generalShaderIdx = rtx_pipeline_builder_add_shader_module( self, miss_shader );
+	self->obj->shaderGroups.emplace_back( info );
+}
+
+void le_rtx_pipeline_builder_add_shader_group_callable( le_rtx_pipeline_builder_o *self, le_shader_module_o *callable_shader ) {
+	assert( callable_shader && "must specify callable shader" );
+	le_rtx_shader_group_info info{};
+	info.type             = le::RayTracingShaderGroupTypeNV::eGeneralNv;
+	info.generalShaderIdx = rtx_pipeline_builder_add_shader_module( self, callable_shader );
+	self->obj->shaderGroups.emplace_back( info );
+}
+
+void le_rtx_pipeline_builder_add_shader_group_triangle_hit( le_rtx_pipeline_builder_o *self, le_shader_module_o *maybe_closest_hit_shader, le_shader_module_o *maybe_any_hit_shader ) {
+	assert( ( maybe_any_hit_shader || maybe_closest_hit_shader ) && "must specify at least one of closet hit or any hit shader" );
+	le_rtx_shader_group_info info{};
+	info.type                = le::RayTracingShaderGroupTypeNV::eTrianglesHitGroupNv;
+	info.closestHitShaderIdx = rtx_pipeline_builder_add_shader_module( self, maybe_closest_hit_shader );
+	info.anyHitShaderIdx     = rtx_pipeline_builder_add_shader_module( self, maybe_any_hit_shader );
+	self->obj->shaderGroups.emplace_back( info );
+}
+
+void le_rtx_pipeline_builder_add_shader_group_procedural_hit( le_rtx_pipeline_builder_o *self, le_shader_module_o *intersection_shader, le_shader_module_o *maybe_closest_hit_shader, le_shader_module_o *maybe_any_hit_shader ) {
+	assert( intersection_shader && "must specify intersection shader" );
+	le_rtx_shader_group_info info{};
+	info.type                  = le::RayTracingShaderGroupTypeNV::eProceduralHitGroupNv;
+	info.intersectionShaderIdx = rtx_pipeline_builder_add_shader_module( self, intersection_shader );
+	info.closestHitShaderIdx   = rtx_pipeline_builder_add_shader_module( self, maybe_closest_hit_shader );
+	info.anyHitShaderIdx       = rtx_pipeline_builder_add_shader_module( self, maybe_any_hit_shader );
+	self->obj->shaderGroups.emplace_back( info );
 }
 
 // ----------------------------------------------------------------------
@@ -848,12 +900,15 @@ LE_MODULE_REGISTER_IMPL( le_pipeline_builder, api ) {
 	}
 
 	{
-		// setup compute pipleine builder api
-		auto &i             = static_cast<le_pipeline_builder_api *>( api )->le_rtx_pipeline_builder_i;
-		i.create            = le_rtx_pipeline_builder_create;
-		i.destroy           = le_rtx_pipeline_builder_destroy;
-		i.build             = le_rtx_pipeline_builder_build;
-		i.add_shader_stage  = le_rtx_pipeline_builder_add_shader_stage;
-		i.add_shader_groups = le_rtx_pipeline_builder_add_shader_groups;
+		// setup rtx pipleine builder api
+		auto &i                           = static_cast<le_pipeline_builder_api *>( api )->le_rtx_pipeline_builder_i;
+		i.create                          = le_rtx_pipeline_builder_create;
+		i.destroy                         = le_rtx_pipeline_builder_destroy;
+		i.build                           = le_rtx_pipeline_builder_build;
+		i.set_shader_group_ray_gen        = le_rtx_pipeline_builder_set_shader_group_ray_gen;
+		i.add_shader_group_miss           = le_rtx_pipeline_builder_add_shader_group_miss;
+		i.add_shader_group_callable       = le_rtx_pipeline_builder_add_shader_group_callable;
+		i.add_shader_group_triangle_hit   = le_rtx_pipeline_builder_add_shader_group_triangle_hit;
+		i.add_shader_group_procedural_hit = le_rtx_pipeline_builder_add_shader_group_procedural_hit;
 	}
 }
