@@ -2046,49 +2046,48 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 
 	// -- destroy renderpasses
 
-	{
-		// -- destroy descriptorSetLayouts, and descriptorUpdateTemplates
-		auto descriptor_set_layout_deleter = []( le_descriptor_set_layout_t *e, void *user_data ) {
-			vk::Device *device = static_cast<vk::Device *>( user_data );
-			if ( e->vk_descriptor_set_layout ) {
-				device->destroyDescriptorSetLayout( e->vk_descriptor_set_layout );
-				std::cout << "Destroyed DescriptorSetLayout     : " << std::hex << e->vk_descriptor_set_layout << std::endl
-				          << std::flush;
-			}
-			if ( e->vk_descriptor_update_template ) {
-				device->destroyDescriptorUpdateTemplate( e->vk_descriptor_update_template );
-				std::cout << "Destroyed DescriptorUpdateTemplate: " << std::hex << e->vk_descriptor_update_template << std::endl
-				          << std::flush;
-			}
-		};
-		self->descriptorSetLayouts.iterator( descriptor_set_layout_deleter, &self->device );
-	}
+	// -- destroy descriptorSetLayouts, and descriptorUpdateTemplates
+	self->descriptorSetLayouts.iterator(
+	    []( le_descriptor_set_layout_t *e, void *user_data ) {
+		    vk::Device *device = static_cast<vk::Device *>( user_data );
+		    if ( e->vk_descriptor_set_layout ) {
+			    device->destroyDescriptorSetLayout( e->vk_descriptor_set_layout );
+			    std::cout << "Destroyed VkDescriptorSetLayout     : " << std::hex << e->vk_descriptor_set_layout << std::endl
+			              << std::flush;
+		    }
+		    if ( e->vk_descriptor_update_template ) {
+			    device->destroyDescriptorUpdateTemplate( e->vk_descriptor_update_template );
+			    std::cout << "Destroyed VkDescriptorUpdateTemplate: " << std::hex << e->vk_descriptor_update_template << std::endl
+			              << std::flush;
+		    }
+	    },
+	    &self->device );
 
 	// -- destroy pipelineLayouts
-	std::cout << "Destroying " << self->pipelineLayouts.size() << " PipelineLayouts" << std::endl
-	          << std::flush;
+	self->pipelineLayouts.iterator(
+	    []( vk::PipelineLayout *e, void *user_data ) {
+		    vk::Device *device = static_cast<vk::Device *>( user_data );
+		    device->destroyPipelineLayout( *e );
+		    std::cout << "Destroyed VkPipelineLayout: " << std::hex << *e << std::endl
+		              << std::flush;
+	    },
+	    &self->device );
+	// Clear pipelines before we destroy pipeline cache object.
+	// we must first iterate over all pipeline objects to delete any pipelines
 
-	for ( auto &l : self->pipelineLayouts ) {
-		self->device.destroyPipelineLayout( l.second );
-	}
+	self->pipelines.iterator(
+	    []( VkPipeline *p, void *user_data ) {
+		    auto device = static_cast<vk::Device *>( user_data );
 
-	{
-		// Clear pipelines before we destroy pipeline cache object.
-		// we must first iterate over all pipeline objects to delete any pipelines
+		    device->destroyPipeline( *p );
 
-		auto pipeline_deleter = []( VkPipeline *p, void *user_data ) {
-			auto device = static_cast<vk::Device *>( user_data );
+		    // -- destroy pipelineLayouts
+		    std::cout << "Destroyed VkPipeline: " << std::hex << *p << std::endl
+		              << std::flush;
+	    },
+	    &self->device );
 
-			device->destroyPipeline( *p );
-
-			// -- destroy pipelineLayouts
-			std::cout << "Destroyed Pipeline: " << std::hex << *p << std::endl
-			          << std::flush;
-		};
-
-		self->pipelines.iterator( pipeline_deleter, &self->device );
-		self->pipelines.clear();
-	}
+	self->pipelines.clear();
 
 	if ( self->vulkanCache ) {
 		self->device.destroyPipelineCache( self->vulkanCache );
