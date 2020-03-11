@@ -71,13 +71,12 @@ class HashTable : NoCopy, NoMove {
 			}
 			i++;
 		}
-		mtx.unlock();
 		if ( i != handles.size() ) {
 			// entry already existed - this is strange.
+			mtx.unlock();
 			return false;
 		}
 		// -------| invariant: i == handles.size()
-		mtx.lock(); // we want this exclusively.
 		handles.push_back( handle );
 		objects.emplace_back( new U( *obj ) ); // make a copy
 		mtx.unlock();
