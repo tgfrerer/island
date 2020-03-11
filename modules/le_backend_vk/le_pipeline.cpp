@@ -66,6 +66,7 @@ class HashTable : NoCopy, NoMove {
 			if ( h == handle ) {
 				break;
 			}
+			i++;
 		}
 		mtx.unlock();
 		if ( i != handles.size() ) {
