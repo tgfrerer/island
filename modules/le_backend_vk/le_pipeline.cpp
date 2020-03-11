@@ -182,8 +182,8 @@ struct le_pipeline_manager_o {
 	HashTable<le_cpso_handle, compute_pipeline_state_o>  computePso;
 	HashTable<le_rtxpso_handle, rtx_pipeline_state_o>    rtxPso;
 
-	HashMap<VkPipeline> pipelines;
-	std::unordered_map<uint64_t, le_pipeline_layout_info, IdentityHash> pipelineLayoutInfos;
+	HashMap<VkPipeline>              pipelines;
+	HashMap<le_pipeline_layout_info> pipelineLayoutInfos;
 
 	std::unordered_map<uint64_t, le_descriptor_set_layout_t, IdentityHash> descriptorSetLayouts; // indexed by le_shader_bindings_info[] hash
 	std::unordered_map<uint64_t, vk::PipelineLayout, IdentityHash>         pipelineLayouts;      // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
@@ -1720,17 +1720,16 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeli
 
 	uint64_t pipeline_layout_hash = shader_modules_get_pipeline_layout_hash( pso->shaderStages.data(), pso->shaderStages.size() );
 
-	auto pl = self->pipelineLayoutInfos.find( pipeline_layout_hash );
+	auto pl = self->pipelineLayoutInfos.try_find( pipeline_layout_hash );
 
-	if ( pl == self->pipelineLayoutInfos.end() ) {
-
+	if ( pl ) {
+		pipeline_and_layout_info.layout_info = *pl;
+	} else {
 		// this will also create vulkan objects for pipeline layout / descriptor set layout and cache them
 		pipeline_and_layout_info.layout_info = le_pipeline_cache_produce_pipeline_layout_info( self, pso->shaderStages.data(), pso->shaderStages.size() );
-
 		// store in cache
-		self->pipelineLayoutInfos[ pipeline_layout_hash ] = pipeline_and_layout_info.layout_info;
-	} else {
-		pipeline_and_layout_info.layout_info = pl->second;
+		bool result = self->pipelineLayoutInfos.try_insert( pipeline_layout_hash, &pipeline_and_layout_info.layout_info );
+		assert( result && "pipeline layout info insertion must succeed" );
 	}
 
 	// -- 2. get vk pipeline object
@@ -1799,17 +1798,15 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 
 	uint64_t pipeline_layout_hash = shader_modules_get_pipeline_layout_hash( pso->shaderStages.data(), pso->shaderStages.size() );
 
-	auto pl = self->pipelineLayoutInfos.find( pipeline_layout_hash );
-
-	if ( pl == self->pipelineLayoutInfos.end() ) {
-
+	auto pl = self->pipelineLayoutInfos.try_find( pipeline_layout_hash );
+	if ( pl ) {
+		pipeline_and_layout_info.layout_info = *pl;
+	} else {
 		// this will also create vulkan objects for pipeline layout / descriptor set layout and cache them
 		pipeline_and_layout_info.layout_info = le_pipeline_cache_produce_pipeline_layout_info( self, pso->shaderStages.data(), pso->shaderStages.size() );
-
 		// store in cache
-		self->pipelineLayoutInfos[ pipeline_layout_hash ] = pipeline_and_layout_info.layout_info;
-	} else {
-		pipeline_and_layout_info.layout_info = pl->second;
+		bool result = self->pipelineLayoutInfos.try_insert( pipeline_layout_hash, &pipeline_and_layout_info.layout_info );
+		assert( result && "pipeline layout info insertion must succeed" );
 	}
 
 	// -- 2. get vk pipeline object
@@ -1871,17 +1868,16 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipelin
 	// accumulating over stages.
 	uint64_t pipeline_layout_hash = shader_modules_get_pipeline_layout_hash( &pso->shaderStage, 1 );
 
-	auto pl = self->pipelineLayoutInfos.find( pipeline_layout_hash );
+	auto pl = self->pipelineLayoutInfos.try_find( pipeline_layout_hash );
 
-	if ( pl == self->pipelineLayoutInfos.end() ) {
-
+	if ( pl ) {
+		pipeline_and_layout_info.layout_info = *pl;
+	} else {
 		// this will also create vulkan objects for pipeline layout / descriptor set layout and cache them
 		pipeline_and_layout_info.layout_info = le_pipeline_cache_produce_pipeline_layout_info( self, &pso->shaderStage, 1 );
-
 		// store in cache
-		self->pipelineLayoutInfos[ pipeline_layout_hash ] = pipeline_and_layout_info.layout_info;
-	} else {
-		pipeline_and_layout_info.layout_info = pl->second;
+		bool result = self->pipelineLayoutInfos.try_insert( pipeline_layout_hash, &pipeline_and_layout_info.layout_info );
+		assert( result && "pipeline layout info insertion must succeed" );
 	}
 
 	// -- 2. get vk pipeline object
