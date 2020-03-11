@@ -75,7 +75,7 @@ DECLARE_EXT_PFN( vkDestroyAccelerationStructureNV );
 DECLARE_EXT_PFN( vkCmdBuildAccelerationStructureNV );
 DECLARE_EXT_PFN( vkGetAccelerationStructureHandleNV );
 DECLARE_EXT_PFN( vkCreateRayTracingPipelinesNV );
-
+DECLARE_EXT_PFN( vkGetRayTracingShaderGroupHandlesNV );
 #undef DECLARE_EXT_PFN
 
 // ----------------------------------------------------------------------
@@ -119,6 +119,7 @@ static void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
 	GET_EXT_PROC_ADDR( vkCmdBuildAccelerationStructureNV );
 	GET_EXT_PROC_ADDR( vkGetAccelerationStructureHandleNV );
 	GET_EXT_PROC_ADDR( vkCreateRayTracingPipelinesNV );
+	GET_EXT_PROC_ADDR( vkGetRayTracingShaderGroupHandlesNV );
 
 #undef GET_EXT_PROC_ADDR
 
@@ -211,6 +212,15 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateRayTracingPipelinesNV(
 	return pfn_vkCreateRayTracingPipelinesNV( device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines );
 }
 
+VKAPI_ATTR VkResult VKAPI_CALL vkGetRayTracingShaderGroupHandlesNV(
+    VkDevice   device,
+    VkPipeline pipeline,
+    uint32_t   firstGroup,
+    uint32_t   groupCount,
+    size_t     dataSize,
+    void *     pData ) {
+	return pfn_vkGetRayTracingShaderGroupHandlesNV( device, pipeline, firstGroup, groupCount, dataSize, pData );
+}
 // ----------------------------------------------------------------------
 
 static void create_debug_messenger_callback( le_backend_vk_instance_o *obj );  // ffdecl.
