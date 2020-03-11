@@ -59,8 +59,11 @@ class HashTable : NoCopy, NoMove {
 	std::vector<U *>  objects; // owning, object is copied on add_entry
 
   public:
-	bool add_entry( T const &handle, U *obj ) {
-		mtx.lock_shared();
+	// Insert a new obj into table, object is copied.
+	// return true if successful, false if entry aready existed.
+	// in case return value is false, object was not copied.
+	bool try_insert( T const &handle, U *obj ) {
+		mtx.lock();
 		size_t i = 0;
 		for ( auto const &h : handles ) {
 			if ( h == handle ) {
@@ -81,8 +84,9 @@ class HashTable : NoCopy, NoMove {
 		return true;
 	}
 
-	// Looks up table entry under `needle`, returns nullptr if not found
-	U *const find_by_handle( T const &needle ) {
+	// Looks up table entry under `needle`,
+	// returns nullptr if not found.
+	U *const try_find( T const &needle ) {
 		mtx.lock_shared();
 		U *const *obj = objects.data();
 		for ( auto const &h : handles ) {
@@ -1679,7 +1683,7 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 // READ ACCESS pipelinemanager.graphicsPSO_list
 // READ ACCESS pipelinemanager.graphicsPSO_handles
 graphics_pipeline_state_o *le_pipeline_manager_get_gpso_from_cache( le_pipeline_manager_o *self, const le_gpso_handle &handle ) {
-	return self->graphicsPso.find_by_handle( handle );
+	return self->graphicsPso.try_find( handle );
 }
 
 // ----------------------------------------------------------------------
@@ -1687,7 +1691,7 @@ graphics_pipeline_state_o *le_pipeline_manager_get_gpso_from_cache( le_pipeline_
 // READ ACCESS pipelinemanager.computePSO_list
 // READ ACCESS pipelinemanager.computePSO_handles
 compute_pipeline_state_o *le_pipeline_manager_get_cpso_from_cache( le_pipeline_manager_o *self, const le_cpso_handle &handle ) {
-	return self->computePso.find_by_handle( handle );
+	return self->computePso.try_find( handle );
 }
 
 // ----------------------------------------------------------------------
@@ -1695,7 +1699,7 @@ compute_pipeline_state_o *le_pipeline_manager_get_cpso_from_cache( le_pipeline_m
 // READ ACCESS pipelinemanager.computePSO_list
 // READ ACCESS pipelinemanager.computePSO_handles
 rtx_pipeline_state_o *le_pipeline_manager_get_rtxpso_from_cache( le_pipeline_manager_o *self, const le_rtxpso_handle &handle ) {
-	return self->rtxPso.find_by_handle( handle );
+	return self->rtxPso.try_find( handle );
 }
 // ----------------------------------------------------------------------
 
@@ -1932,7 +1936,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipelin
 // via RECORD in command buffer recording state
 // in SETUP
 void le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_o *self, graphics_pipeline_state_o *pso, le_gpso_handle handle ) {
-	self->graphicsPso.add_entry( handle, pso );
+	return self->graphicsPso.try_insert( handle, pso );
 };
 
 // ----------------------------------------------------------------------
@@ -1944,7 +1948,7 @@ void le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_
 // via RECORD in command buffer recording state
 // in SETUP
 void le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o *self, compute_pipeline_state_o *pso, le_cpso_handle handle ) {
-	self->computePso.add_entry( handle, pso );
+	return self->computePso.try_insert( handle, pso );
 };
 
 // ----------------------------------------------------------------------
@@ -1956,7 +1960,7 @@ void le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o
 // via RECORD in command buffer recording state
 // in SETUP
 void le_pipeline_manager_introduce_rtx_pipeline_state( le_pipeline_manager_o *self, rtx_pipeline_state_o *pso, le_rtxpso_handle handle ) {
-	self->rtxPso.add_entry( handle, pso );
+	return self->rtxPso.try_insert( handle, pso );
 };
 
 // ----------------------------------------------------------------------
