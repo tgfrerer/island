@@ -111,12 +111,18 @@ class HashTable : NoCopy, NoMove {
 		mtx.unlock();
 	}
 
-	~HashTable() {
+	void clear() {
 		mtx.lock();
 		for ( auto &obj : objects ) {
 			delete obj;
 		}
+		handles.clear();
+		objects.clear();
 		mtx.unlock();
+	}
+
+	~HashTable() {
+		clear();
 	}
 };
 
