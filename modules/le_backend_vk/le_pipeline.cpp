@@ -207,8 +207,8 @@ struct le_pipeline_manager_o {
 	HashMap<VkPipeline>              pipelines;
 	HashMap<le_pipeline_layout_info> pipelineLayoutInfos;
 
-	std::unordered_map<uint64_t, vk::PipelineLayout, IdentityHash>         pipelineLayouts;      // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
 	HashMap<le_descriptor_set_layout_t> descriptorSetLayouts;
+	HashMap<vk::PipelineLayout>         pipelineLayouts; // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
 };
 
 // ----------------------------------------------------------------------
@@ -1100,10 +1100,10 @@ static vk::PipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_m
 
 	uint64_t pipelineLayoutHash = shader_modules_get_pipeline_layout_hash( shader_modules, numModules );
 
-	auto foundLayout = self->pipelineLayouts.find( pipelineLayoutHash );
+	auto foundLayout = self->pipelineLayouts.try_find( pipelineLayoutHash );
 
-	if ( foundLayout != self->pipelineLayouts.end() ) {
-		return foundLayout->second;
+	if ( foundLayout ) {
+		return *foundLayout;
 	} else {
 		std::cerr << "ERROR: Could not find pipeline layout with hash: " << std::hex << pipelineLayoutHash << std::endl
 		          << std::flush;
@@ -1676,9 +1676,9 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 
 	// -- Attempt to find this pipelineLayout from cache, if we can't find one, we create and retain it.
 
-	auto found_pl = self->pipelineLayouts.find( info.pipeline_layout_key );
+	auto found_pl = self->pipelineLayouts.try_find( info.pipeline_layout_key );
 
-	if ( found_pl == self->pipelineLayouts.end() ) {
+	if ( nullptr == found_pl ) {
 
 		vk::Device                   device = self->device;
 		vk::PipelineLayoutCreateInfo layoutCreateInfo;
@@ -1689,8 +1689,16 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 		    .setPushConstantRangeCount( 0 )
 		    .setPPushConstantRanges( nullptr );
 
-		// Create vkPipelineLayout and store it in cache.
-		self->pipelineLayouts[ info.pipeline_layout_key ] = device.createPipelineLayout( layoutCreateInfo );
+		// Create vkPipelineLayout
+		vk::PipelineLayout pipelineLayout = device.createPipelineLayout( layoutCreateInfo );
+		// Attempt to store pipeline layout in cache
+		bool result = self->pipelineLayouts.try_insert( info.pipeline_layout_key, &pipelineLayout );
+
+		if ( false == result ) {
+			// If we couldn't store the pipeline layout in cache, we must manually
+			// dispose of be vulkan object, otherwise the cache will take care of cleanup.
+			device.destroyPipelineLayout( pipelineLayout );
+		}
 	}
 
 	return info;
@@ -1984,7 +1992,9 @@ bool le_pipeline_manager_introduce_rtx_pipeline_state( le_pipeline_manager_o *se
 // ----------------------------------------------------------------------
 
 static VkPipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_manager_o *self, uint64_t key ) {
-	return self->pipelineLayouts[ key ];
+	vk::PipelineLayout const *pLayout = self->pipelineLayouts.try_find( key );
+	assert( pLayout && "layout cannot be nullptr" );
+	return *pLayout;
 }
 
 // ----------------------------------------------------------------------
