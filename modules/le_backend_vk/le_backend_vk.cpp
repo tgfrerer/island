@@ -943,7 +943,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 		self->device   = std::make_unique<le::Device>( self->instance, requestedDeviceExtensions.data(), uint32_t( requestedDeviceExtensions.size() ) );
 		self->window   = settings->pWindow;
 
-		self->pipelineCache = le_pipeline_manager_i.create( self->device->getVkDevice() );
+		self->pipelineCache = le_pipeline_manager_i.create( *self->device );
 	}
 
 	{
