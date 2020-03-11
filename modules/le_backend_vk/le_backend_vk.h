@@ -159,8 +159,8 @@ struct le_backend_vk_api {
 		le_device_o *               ( *create                                  ) ( le_backend_vk_instance_o* instance_, const char **extension_names, uint32_t extension_names_count );
 		void                        ( *destroy                                 ) ( le_device_o* self_ );
 
-		void                        ( *decrease_reference_count                ) ( le_device_o* self_ );
-		void                        ( *increase_reference_count                ) ( le_device_o* self_ );
+		le_device_o *			    ( *decrease_reference_count                ) ( le_device_o* self_ );
+		le_device_o *			    ( *increase_reference_count                ) ( le_device_o* self_ );
 		uint32_t                    ( *get_reference_count                     ) ( le_device_o* self_ );
 
 		uint32_t                    ( *get_default_graphics_queue_family_index ) ( le_device_o* self_ );
@@ -309,10 +309,8 @@ class Device : NoCopy, NoMove {
 	}
 
 	~Device() {
+		// Note: this will implicitly destroy once reference count hits 0.
 		le_backend_vk::vk_device_i.decrease_reference_count( self );
-		if ( le_backend_vk::vk_device_i.get_reference_count( self ) == 0 ) {
-			le_backend_vk::vk_device_i.destroy( self );
-		}
 	}
 
 	// copy constructor

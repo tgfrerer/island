@@ -308,14 +308,30 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 
 // ----------------------------------------------------------------------
 
-void device_increase_reference_count( le_device_o *self ) {
+le_device_o *device_increase_reference_count( le_device_o *self ) {
 	++self->referenceCount;
+	return self;
 }
 
 // ----------------------------------------------------------------------
 
-void device_decrease_reference_count( le_device_o *self ) {
+void device_destroy( le_device_o *self ) {
+	self->vkDevice.destroy();
+	delete ( self );
+};
+
+// ----------------------------------------------------------------------
+
+le_device_o *device_decrease_reference_count( le_device_o *self ) {
+
 	--self->referenceCount;
+
+	if ( self->referenceCount == 0 ) {
+		device_destroy( self );
+		return nullptr;
+	} else {
+		return self;
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -434,11 +450,6 @@ static bool device_is_extension_available( le_device_o *self, char const *extens
 }
 
 // ----------------------------------------------------------------------
-
-void device_destroy( le_device_o *self ) {
-	self->vkDevice.destroy();
-	delete ( self );
-};
 
 // ----------------------------------------------------------------------
 
