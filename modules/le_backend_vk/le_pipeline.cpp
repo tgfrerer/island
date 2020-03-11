@@ -2034,21 +2034,23 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 		self->device.destroyPipelineLayout( l.second );
 	}
 
-	// Clear pipelines before we destroy pipeline cache object.
-	// we must first iterate over all pipeline objects to delete any pipelines
+	{
+		// Clear pipelines before we destroy pipeline cache object.
+		// we must first iterate over all pipeline objects to delete any pipelines
 
-	auto pipeline_deleter = []( VkPipeline *p, void *user_data ) {
-		auto device = static_cast<vk::Device *>( user_data );
+		auto pipeline_deleter = []( VkPipeline *p, void *user_data ) {
+			auto device = static_cast<vk::Device *>( user_data );
 
-		device->destroyPipeline( *p );
+			device->destroyPipeline( *p );
 
-		// -- destroy pipelineLayouts
-		std::cout << "Destroyed Pipeline: " << std::hex << *p << std::endl
-		          << std::flush;
-	};
+			// -- destroy pipelineLayouts
+			std::cout << "Destroyed Pipeline: " << std::hex << *p << std::endl
+			          << std::flush;
+		};
 
-	self->pipelines.iterator( pipeline_deleter, &self->device );
-	self->pipelines.clear();
+		self->pipelines.iterator( pipeline_deleter, &self->device );
+		self->pipelines.clear();
+	}
 
 	if ( self->vulkanCache ) {
 		self->device.destroyPipelineCache( self->vulkanCache );
