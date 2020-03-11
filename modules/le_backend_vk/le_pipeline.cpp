@@ -2044,8 +2044,6 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 	// -- destroy any objects which were allocated via Vulkan API - these
 	// need to be destroyed using the device they were allocated from.
 
-	// -- destroy renderpasses
-
 	// -- destroy descriptorSetLayouts, and descriptorUpdateTemplates
 	self->descriptorSetLayouts.iterator(
 	    []( le_descriptor_set_layout_t *e, void *user_data ) {
@@ -2072,22 +2070,22 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 		              << std::flush;
 	    },
 	    &self->device );
+
 	// Clear pipelines before we destroy pipeline cache object.
 	// we must first iterate over all pipeline objects to delete any pipelines
 
 	self->pipelines.iterator(
 	    []( VkPipeline *p, void *user_data ) {
 		    auto device = static_cast<vk::Device *>( user_data );
-
 		    device->destroyPipeline( *p );
-
-		    // -- destroy pipelineLayouts
 		    std::cout << "Destroyed VkPipeline: " << std::hex << *p << std::endl
 		              << std::flush;
 	    },
 	    &self->device );
 
 	self->pipelines.clear();
+
+	// Destroy Pipeline Cache
 
 	if ( self->vulkanCache ) {
 		self->device.destroyPipelineCache( self->vulkanCache );
