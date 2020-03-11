@@ -1577,12 +1577,12 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 				        for ( auto const &n : stage->nodes ) {
 					        if ( ( n->scene_bit_flags & ( 1 << scene_index ) ) && n->has_mesh ) {
 						        le_rtx_geometry_instance_t instance{};
-						        instance.mask                = 0xff;
-						        instance.flags               = 0;
-						        instance.instanceOffset      = 0;                                        // TODO: set this to material-specific offset?
-						        instance.instanceCustomIndex = 0;                                        // TODO: set this to material?
-						        glm::mat4 transform          = glm::transpose( n->global_transform );    // must transpose so that
-						        memcpy( &instance.transform, &transform, sizeof( instance.transform ) ); // only copy 12 floats
+						        instance.mask                                   = 0xff;
+						        instance.flags                                  = 0;
+						        instance.instanceShaderBindingTableRecordOffset = 0;                                     // TODO: set this to material-specific offset, based on array of hit shader groups in pipeline.
+						        instance.instanceCustomIndex                    = 0;                                     // TODO: set this to material?
+						        glm::mat4 transform                             = glm::transpose( n->global_transform ); // must transpose so that
+						        memcpy( &instance.transform, &transform, sizeof( instance.transform ) );                 // only copy 12 floats
 						        for ( auto const &p : stage->meshes[ n->mesh_idx ].primitives ) {
 							        // TODO: set instanceCustomIndex based on material...
 							        blas_handles.push_back( p.rtx_blas_handle );
@@ -1929,38 +1929,68 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 	{
 
-		auto cp = le::RenderPass( "Stage Rtx", LeRenderPassType::LE_RENDER_PASS_TYPE_COMPUTE )
-		              .setExecuteCallback( draw_params, []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-			              auto draw_params = static_cast<le_stage_api::draw_params_t *>( user_data );
-			              auto camera      = draw_params->camera;
-			              auto stage       = draw_params->stage;
-			              auto encoder     = le::Encoder{encoder_};
+		auto rtx_pass =
+		    le::RenderPass( "Stage Rtx", LeRenderPassType::LE_RENDER_PASS_TYPE_COMPUTE )
+		        .setExecuteCallback( draw_params, []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+			        auto draw_params = static_cast<le_stage_api::draw_params_t *>( user_data );
+			        auto camera      = draw_params->camera;
+			        auto stage       = draw_params->stage;
+			        auto encoder     = le::Encoder{encoder_};
 
-			              auto pipeline_manager = encoder.getPipelineManager();
+			        auto pipeline_manager = encoder.getPipelineManager();
 
-			              static auto rtx_pipeline = []( le_stage_o *stage, le_pipeline_manager_o *pipeline_manager ) {
-				              auto shader_raygen      = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/raygen.rgen", {le::ShaderStage::eRaygenBitNv}, nullptr );
-				              auto shader_miss        = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/miss.rmiss", {le::ShaderStage::eMissBitNv}, nullptr );
-				              auto shader_shadow_miss = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/shadow.rmiss", {le::ShaderStage::eMissBitNv}, nullptr );
-				              auto shader_closest_hit = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/closesthit.rchit", {le::ShaderStage::eClosestHitBitNv}, nullptr );
+			        // -- Create rtx pso
+			        static auto rtx_pipeline = []( le_stage_o *stage, le_pipeline_manager_o *pipeline_manager ) {
+				        auto shader_raygen      = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/raygen.rgen", {le::ShaderStage::eRaygenBitNv}, nullptr );
+				        auto shader_miss        = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/miss.rmiss", {le::ShaderStage::eMissBitNv}, nullptr );
+				        auto shader_shadow_miss = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/shadow.rmiss", {le::ShaderStage::eMissBitNv}, nullptr );
+				        auto shader_closest_hit = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/closesthit.rchit", {le::ShaderStage::eClosestHitBitNv}, nullptr );
 
-				              // Create rtx pipeline inline.
+				        // Create rtx pipeline
 
-				              LeRtxPipelineBuilder builder( pipeline_manager );
+				        LeRtxPipelineBuilder builder( pipeline_manager );
 
-				              // add shader groups.
-				              builder
-				                  .setShaderGroupRayGen( shader_raygen )
-				                  .addShaderGroupMiss( shader_miss )
-				                  .addShaderGroupMiss( shader_shadow_miss )
-				                  .addShaderGroupTriangleHit( shader_closest_hit, nullptr );
+				        // add shader groups.
+				        builder
+				            .setShaderGroupRayGen( shader_raygen )                    //
+				            .addShaderGroupTriangleHit( shader_closest_hit, nullptr ) //
+				            .addShaderGroupMiss( shader_miss )                        //
+				            .addShaderGroupMiss( shader_shadow_miss )                 //
+				            ;
 
-				              return builder.build();
-			              }( stage, pipeline_manager );
+				        return builder.build();
+			        }( stage, pipeline_manager );
 
-			              encoder.bindRtxPipeline( rtx_pipeline );
-		              } )
-		              .setIsRoot( true );
+			        // force binding of rtx pso
+			        encoder.bindRtxPipeline( rtx_pipeline );
+
+			        // Size of shaderRecord must be multiple of shaderGroupHandleSize - 16 Byte on my machine.
+			        struct ShaderRecord {
+				        uint32_t handle[ 4 ];   // [shaderGroupHandleSize] handle for hit group (queried via gpu)
+				        uint32_t padding[ 12 ]; // padding (not necessary, but we could add parameters per shader...)
+			        };
+
+			        struct ShaderBindingTable {
+				        ShaderRecord              ray_gen;      // Aligned to multiple of shadergroupBaseAlignment (64 Byte)
+				        std::vector<ShaderRecord> hit_shaders;  // Aligned to multiple of shaderGroupBaseAlignment (64 Byte)
+				                                                // Instance of TLAS refer to their hit shader by
+				                                                // `instanceShaderBindingTableRecordOffset`
+				        std::vector<ShaderRecord> miss_shaders; // aligned to multiple of shaderGroupBaseAlignment (64 Byte)
+			        };
+
+			        /*
+
+                        When we write the binding table, we must first find out the shader record, which is the
+                        size of the largest shader record, rounded up to shaderGroupHandleSize.
+
+                        we then need to find out how many different hit shaders are referenced in TLAS
+                        - and if TLAS refers to BLAS which has more than one geometry. 
+			        
+			        */
+
+			        // encoder.buildSbt();
+		        } )
+		        .setIsRoot( true );
 
 		{
 			// -- Signal that we want to read from bottom-level acceleration structures.
@@ -1970,7 +2000,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 			for ( auto const &m : draw_params->stage->meshes ) {
 				for ( auto const &p : m.primitives ) {
-					cp.useResource( p.rtx_blas_handle, usage_flags );
+					rtx_pass.useResource( p.rtx_blas_handle, usage_flags );
 				}
 			}
 
@@ -1979,39 +2009,38 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			usage_flags.type                    = LeResourceType::eRtxTlas;
 			usage_flags.as.rtx_tlas_usage_flags = {LeRtxTlasUsageFlagBits::LE_RTX_TLAS_USAGE_READ_BIT};
 			for ( auto const &s : draw_params->stage->scenes ) {
-				cp.useResource( s.rtx_tlas_handle, usage_flags );
+				rtx_pass.useResource( s.rtx_tlas_handle, usage_flags );
 			}
 		}
 
-		render_module_i.add_renderpass( module, cp );
+		render_module_i.add_renderpass( module, rtx_pass );
 	}
 
 #endif
 
-	auto rp = le::RenderPass( "Stage Draw", LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW )
-	              .setExecuteCallback( draw_params, pass_draw )
-	              .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE,
-	                                   le::ImageAttachmentInfoBuilder()
-	                                       .setColorClearValue( LeClearValue( {0.125f, 0.125f, 0.125f, 1.f} ) )
-	                                       .build() )
-	              .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_STENCIL_IMAGE" ) );
+	auto stage_draw_pass = le::RenderPass( "Stage Draw", LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW )
+	                           .setExecuteCallback( draw_params, pass_draw )
+	                           .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE,
+	                                                le::ImageAttachmentInfoBuilder()
+	                                                    .setColorClearValue( LeClearValue( {0.125f, 0.125f, 0.125f, 1.f} ) )
+	                                                    .build() )
+	                           .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_STENCIL_IMAGE" ) );
 
 	for ( auto &b : draw_params->stage->buffers ) {
-		rp.useBufferResource( b->handle, {LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
-		                                  LE_BUFFER_USAGE_VERTEX_BUFFER_BIT} );
+		stage_draw_pass.useBufferResource( b->handle, {LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
+		                                               LE_BUFFER_USAGE_VERTEX_BUFFER_BIT} );
 	}
 
 	for ( auto &t : draw_params->stage->textures ) {
 		// We must create texture handles for this renderpass.
-
-		rp.sampleTexture( t.texture_handle,
-		                  {
-		                      draw_params->stage->samplers[ t.sampler_idx ],           // samplerInfo
-		                      {draw_params->stage->images[ t.image_idx ]->handle, {}}, // imageViewInfo
-		                  } );
+		stage_draw_pass.sampleTexture( t.texture_handle,
+		                               {
+		                                   draw_params->stage->samplers[ t.sampler_idx ],           // samplerInfo
+		                                   {draw_params->stage->images[ t.image_idx ]->handle, {}}, // imageViewInfo
+		                               } );
 	}
 
-	render_module_i.add_renderpass( module, rp );
+	render_module_i.add_renderpass( module, stage_draw_pass );
 }
 
 /// \brief initialises pipeline state objects associated with each primitive
