@@ -2827,8 +2827,8 @@ static void consolidate_resource_infos(
 // ----------------------------------------------------------------------
 
 static void insert_msaa_versions(
-    std::vector<le_resource_handle_t> &          usedResources,
-    std::vector<std::vector<le_resource_info_t>> usedResourcesInfos ) {
+    std::vector<le_resource_handle_t> &           usedResources,
+    std::vector<std::vector<le_resource_info_t>> &usedResourcesInfos ) {
 	// For each image resource which is specified with versions of additional sample counts
 	// we create additional resource_ids (by patching in the sample count), and add matching
 	// resource info, so that multisample versions of image resources can be allocated dynamically.
