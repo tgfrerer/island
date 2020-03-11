@@ -139,60 +139,6 @@ static void le_rtx_pipeline_builder_destroy( le_rtx_pipeline_builder_o *self ) {
 }
 
 // ----------------------------------------------------------------------
-// Builds a hash value from the pipeline state object, that is:
-//	+ pipeline shader stages,
-//  + and associated settings,
-// so that we have a unique fingerprint for this pipeline.
-// The handle contains the hash value and is unique for pipeline
-// state objects with given settings.
-static le_rtxpso_handle le_rtx_pipeline_builder_build( le_rtx_pipeline_builder_o *self ) {
-
-	le_rtxpso_handle pipeline_handle = {};
-
-	using namespace le_backend_vk;
-	{
-		// Calculate hash over all pipeline stages,
-		// and pipeline shader group infos
-
-		uint64_t hash_value{};
-
-		// calculate hash over all shader module hashes.
-
-		std::vector<uint64_t> shader_module_hashes;
-
-		shader_module_hashes.reserve( self->obj->shaderStages.size() );
-		for ( auto const &shader_stage : self->obj->shaderStages ) {
-			shader_module_hashes.emplace_back( le_shader_module_i.get_hash( shader_stage ) );
-		}
-
-		hash_value = SpookyHash::Hash64(
-		    shader_module_hashes.data(),
-		    shader_module_hashes.size() * sizeof( uint64_t ),
-		    hash_value );
-
-		static_assert( std::has_unique_object_representations_v<le_rtx_shader_group_info>,
-		               "shader group create info must be tightly packed, so that it may be used"
-		               "for hashing. Otherwise you would end up with noise between the fields"
-		               "invalidating the hash." );
-
-		if ( !self->obj->shaderGroups.empty() ) {
-			hash_value = SpookyHash::Hash64(
-			    self->obj->shaderGroups.data(),
-			    sizeof( le_rtx_shader_group_info ) * self->obj->shaderGroups.size(),
-			    hash_value );
-		}
-
-		pipeline_handle = reinterpret_cast<le_rtxpso_handle>( hash_value );
-	}
-
-	// Introduce pipeline state object to manager so that it may be cached.
-
-	le_pipeline_manager_i.introduce_rtx_pipeline_state( self->pipelineCache, self->obj, pipeline_handle );
-
-	return pipeline_handle;
-}
-
-// ----------------------------------------------------------------------
 // Adds shader module to pso if not yet encountered
 // returns index into shader modules for this module
 static uint32_t rtx_pipeline_builder_add_shader_module( le_rtx_pipeline_builder_o *self, le_shader_module_o *shaderModule ) {
@@ -260,6 +206,59 @@ void le_rtx_pipeline_builder_add_shader_group_procedural_hit( le_rtx_pipeline_bu
 	info.closestHitShaderIdx   = rtx_pipeline_builder_add_shader_module( self, maybe_closest_hit_shader );
 	info.anyHitShaderIdx       = rtx_pipeline_builder_add_shader_module( self, maybe_any_hit_shader );
 	self->obj->shaderGroups.emplace_back( info );
+}
+// ----------------------------------------------------------------------
+// Builds a hash value from the pipeline state object, that is:
+//	+ pipeline shader stages,
+//  + and associated settings,
+// so that we have a unique fingerprint for this pipeline.
+// The handle contains the hash value and is unique for pipeline
+// state objects with given settings.
+static le_rtxpso_handle le_rtx_pipeline_builder_build( le_rtx_pipeline_builder_o *self ) {
+
+	le_rtxpso_handle pipeline_handle = {};
+
+	using namespace le_backend_vk;
+	{
+		// Calculate hash over all pipeline stages,
+		// and pipeline shader group infos
+
+		uint64_t hash_value{};
+
+		// calculate hash over all shader module hashes.
+
+		std::vector<uint64_t> shader_module_hashes;
+
+		shader_module_hashes.reserve( self->obj->shaderStages.size() );
+		for ( auto const &shader_stage : self->obj->shaderStages ) {
+			shader_module_hashes.emplace_back( le_shader_module_i.get_hash( shader_stage ) );
+		}
+
+		hash_value = SpookyHash::Hash64(
+		    shader_module_hashes.data(),
+		    shader_module_hashes.size() * sizeof( uint64_t ),
+		    hash_value );
+
+		static_assert( std::has_unique_object_representations_v<le_rtx_shader_group_info>,
+		               "shader group create info must be tightly packed, so that it may be used"
+		               "for hashing. Otherwise you would end up with noise between the fields"
+		               "invalidating the hash." );
+
+		if ( !self->obj->shaderGroups.empty() ) {
+			hash_value = SpookyHash::Hash64(
+			    self->obj->shaderGroups.data(),
+			    sizeof( le_rtx_shader_group_info ) * self->obj->shaderGroups.size(),
+			    hash_value );
+		}
+
+		pipeline_handle = reinterpret_cast<le_rtxpso_handle>( hash_value );
+	}
+
+	// Introduce pipeline state object to manager so that it may be cached.
+
+	le_pipeline_manager_i.introduce_rtx_pipeline_state( self->pipelineCache, self->obj, pipeline_handle );
+
+	return pipeline_handle;
 }
 
 // ----------------------------------------------------------------------
