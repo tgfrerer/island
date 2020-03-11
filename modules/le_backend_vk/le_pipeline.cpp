@@ -185,8 +185,8 @@ struct le_pipeline_manager_o {
 	HashMap<VkPipeline>              pipelines;
 	HashMap<le_pipeline_layout_info> pipelineLayoutInfos;
 
-	std::unordered_map<uint64_t, le_descriptor_set_layout_t, IdentityHash> descriptorSetLayouts; // indexed by le_shader_bindings_info[] hash
 	std::unordered_map<uint64_t, vk::PipelineLayout, IdentityHash>         pipelineLayouts;      // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
+	HashMap<le_descriptor_set_layout_t> descriptorSetLayouts;
 };
 
 // ----------------------------------------------------------------------
@@ -1465,13 +1465,13 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 	// -- Calculate hash based on le_shader_binding_infos for this set
 	uint64_t set_layout_hash = le_shader_bindings_calculate_hash( bindings.data(), bindings.size() );
 
-	auto foundLayout = descriptorSetLayouts.find( set_layout_hash );
+	auto foundLayout = descriptorSetLayouts.try_find( set_layout_hash );
 
-	if ( foundLayout != descriptorSetLayouts.end() ) {
+	if ( foundLayout ) {
 
 		// -- Layout was found in cache, reuse it.
 
-		*layout = foundLayout->second.vk_descriptor_set_layout;
+		*layout = foundLayout->vk_descriptor_set_layout;
 
 	} else {
 
@@ -1581,7 +1581,9 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 		le_layout_info.binding_info                  = bindings;
 		le_layout_info.vk_descriptor_update_template = updateTemplate;
 
-		descriptorSetLayouts[ set_layout_hash ] = std::move( le_layout_info );
+		bool result = descriptorSetLayouts.try_insert( set_layout_hash, &le_layout_info );
+
+		assert( result && "descriptorSetLayout insertion must be successful" );
 	}
 
 	return set_layout_hash;
@@ -1965,8 +1967,8 @@ static VkPipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_man
 
 // ----------------------------------------------------------------------
 
-static const le_descriptor_set_layout_t &le_pipeline_manager_get_descriptor_set_layout( le_pipeline_manager_o *self, uint64_t setlayout_key ) {
-	return self->descriptorSetLayouts[ setlayout_key ];
+static const le_descriptor_set_layout_t *le_pipeline_manager_get_descriptor_set_layout( le_pipeline_manager_o *self, uint64_t setlayout_key ) {
+	return self->descriptorSetLayouts.try_find( setlayout_key );
 };
 
 // ----------------------------------------------------------------------
@@ -2013,13 +2015,22 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 
 	// -- destroy renderpasses
 
-	// -- destroy descriptorSetLayouts
-
-	std::cout << "Destroying " << self->descriptorSetLayouts.size() << " DescriptorSetLayouts" << std::endl
-	          << std::flush;
-	for ( auto &p : self->descriptorSetLayouts ) {
-		self->device.destroyDescriptorSetLayout( p.second.vk_descriptor_set_layout );
-		self->device.destroyDescriptorUpdateTemplate( p.second.vk_descriptor_update_template );
+	{
+		// -- destroy descriptorSetLayouts, and descriptorUpdateTemplates
+		auto descriptor_set_layout_deleter = []( le_descriptor_set_layout_t *e, void *user_data ) {
+			vk::Device *device = static_cast<vk::Device *>( user_data );
+			if ( e->vk_descriptor_set_layout ) {
+				device->destroyDescriptorSetLayout( e->vk_descriptor_set_layout );
+				std::cout << "Destroyed DescriptorSetLayout     : " << std::hex << e->vk_descriptor_set_layout << std::endl
+				          << std::flush;
+			}
+			if ( e->vk_descriptor_update_template ) {
+				device->destroyDescriptorUpdateTemplate( e->vk_descriptor_update_template );
+				std::cout << "Destroyed DescriptorUpdateTemplate: " << std::hex << e->vk_descriptor_update_template << std::endl
+				          << std::flush;
+			}
+		};
+		self->descriptorSetLayouts.iterator( descriptor_set_layout_deleter, &self->device );
 	}
 
 	// -- destroy pipelineLayouts

@@ -194,7 +194,7 @@ struct le_backend_vk_api {
 		void                                     ( *update_shader_modules             ) ( le_pipeline_manager_o* self );
 
 		struct VkPipelineLayout_T*               ( *get_pipeline_layout               ) ( le_pipeline_manager_o* self, uint64_t pipeline_layout_key);
-		const struct le_descriptor_set_layout_t& ( *get_descriptor_set_layout         ) ( le_pipeline_manager_o* self, uint64_t setlayout_key);
+		const struct le_descriptor_set_layout_t* ( *get_descriptor_set_layout         ) ( le_pipeline_manager_o* self, uint64_t setlayout_key);
 	};
 
 	struct allocator_linear_interface_t {

@@ -4042,17 +4042,17 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 								// look up set layout info via set layout key
 								auto const &set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
 
-								auto const &setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
+								auto const setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
 
 								auto &setData = argumentState.setData[ setId ];
 
-								argumentState.layouts[ setId ]         = setLayoutInfo.vk_descriptor_set_layout;
-								argumentState.updateTemplates[ setId ] = setLayoutInfo.vk_descriptor_update_template;
+								argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
+								argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
 
 								setData.clear();
-								setData.reserve( setLayoutInfo.binding_info.size() );
+								setData.reserve( setLayoutInfo->binding_info.size() );
 
-								for ( auto b : setLayoutInfo.binding_info ) {
+								for ( auto b : setLayoutInfo->binding_info ) {
 
 									// add an entry for each array element with this binding to setData
 									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
@@ -4138,13 +4138,13 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 								auto &setData = argumentState.setData[ setId ];
 
-								argumentState.layouts[ setId ]         = setLayoutInfo.vk_descriptor_set_layout;
-								argumentState.updateTemplates[ setId ] = setLayoutInfo.vk_descriptor_update_template;
+								argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
+								argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
 
 								setData.clear();
-								setData.reserve( setLayoutInfo.binding_info.size() );
+								setData.reserve( setLayoutInfo->binding_info.size() );
 
-								for ( auto b : setLayoutInfo.binding_info ) {
+								for ( auto b : setLayoutInfo->binding_info ) {
 
 									// add an entry for each array element with this binding to setData
 									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
@@ -4218,17 +4218,17 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 								// look up set layout info via set layout key
 								auto const &set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
 
-								auto const &setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
+								auto const setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
 
 								auto &setData = argumentState.setData[ setId ];
 
-								argumentState.layouts[ setId ]         = setLayoutInfo.vk_descriptor_set_layout;
-								argumentState.updateTemplates[ setId ] = setLayoutInfo.vk_descriptor_update_template;
+								argumentState.layouts[ setId ]         = setLayoutInfo->vk_descriptor_set_layout;
+								argumentState.updateTemplates[ setId ] = setLayoutInfo->vk_descriptor_update_template;
 
 								setData.clear();
-								setData.reserve( setLayoutInfo.binding_info.size() );
+								setData.reserve( setLayoutInfo->binding_info.size() );
 
-								for ( auto b : setLayoutInfo.binding_info ) {
+								for ( auto b : setLayoutInfo->binding_info ) {
 
 									// add an entry for each array element with this binding to setData
 									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
