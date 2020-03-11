@@ -194,7 +194,8 @@ class HashMap : NoCopy, NoMove {
 // NOTE: It might make sense to have one pipeline manager per worker thread, and
 //       to consolidate after the frame has been processed.
 struct le_pipeline_manager_o {
-	vk::Device device = nullptr;
+	le_device_o *le_device = nullptr; // arc-owning, increases reference count, decreases on destruction
+	vk::Device   device    = nullptr;
 
 	vk::PipelineCache vulkanCache = nullptr;
 
@@ -2017,9 +2018,13 @@ static void le_pipeline_manager_update_shader_modules( le_pipeline_manager_o *se
 
 // ----------------------------------------------------------------------
 
-static le_pipeline_manager_o *le_pipeline_manager_create( VkDevice_T *device ) {
-	auto self    = new le_pipeline_manager_o();
-	self->device = device;
+static le_pipeline_manager_o *le_pipeline_manager_create( le_device_o *le_device ) {
+	auto self = new le_pipeline_manager_o();
+
+	using namespace le_backend_vk;
+	self->le_device = le_device;
+	vk_device_i.increase_reference_count( le_device );
+	self->device = vk_device_i.get_vk_device( le_device );
 
 	vk::PipelineCacheCreateInfo pipelineCacheInfo;
 	pipelineCacheInfo
@@ -2027,9 +2032,8 @@ static le_pipeline_manager_o *le_pipeline_manager_create( VkDevice_T *device ) {
 	    .setInitialDataSize( 0 )
 	    .setPInitialData( nullptr );
 
-	self->vulkanCache = self->device.createPipelineCache( pipelineCacheInfo );
-
-	self->shaderManager = le_shader_manager_create( device );
+	self->vulkanCache   = self->device.createPipelineCache( pipelineCacheInfo );
+	self->shaderManager = le_shader_manager_create( self->device );
 
 	return self;
 }
@@ -2090,6 +2094,9 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 	if ( self->vulkanCache ) {
 		self->device.destroyPipelineCache( self->vulkanCache );
 	}
+
+	le_backend_vk::vk_device_i.decrease_reference_count( self->le_device );
+	self->le_device = nullptr;
 
 	delete self;
 }
