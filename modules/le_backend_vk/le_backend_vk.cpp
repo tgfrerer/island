@@ -3218,7 +3218,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		}
 
 		if ( scratchbuffer_max_size != 0 ) {
-			// we must allocated a scratch buffer, which needs to be available for exactly one frame.
+			// We must allocate a scratch buffer, which needs to be available for exactly one frame.
 			le_resource_info_t resourceInfo{};
 			resourceInfo.buffer.size              = uint32_t( scratchbuffer_max_size );
 			resourceInfo.buffer.usage             = {LeBufferUsageFlagBits::LE_BUFFER_USAGE_RAY_TRACING_BIT_NV};

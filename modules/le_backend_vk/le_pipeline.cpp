@@ -2012,9 +2012,8 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 	le_shader_manager_destroy( self->shaderManager );
 	self->shaderManager = nullptr;
 
-	// -- destroy any pipeline state objects: graphicsPso, etc.
-	// are destroyed via their HashTable class methods, when
-	// pipelineManager gets destroyed.
+	// -- destroy any objects which were allocated via Vulkan API - these
+	// need to be destroyed using the device they were allocated from.
 
 	// -- destroy renderpasses
 
