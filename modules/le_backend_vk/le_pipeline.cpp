@@ -44,6 +44,66 @@ struct le_shader_manager_o {
 	le_file_watcher_o *   shaderFileWatcher = nullptr; // owning
 };
 
+// A table from `handle` -> `object*`, protected by mutex.
+//
+// Access is internally synchronised.
+//
+// lookup time will deteriorate linearly with number of elements,
+// but cache locality is very good for lookups, so this should work
+// fairly well for small number of resources such as pipelines.
+template <typename T, typename U>
+class HashTable : NoCopy, NoMove {
+
+	std::shared_mutex mtx;
+	std::vector<T>    handles;
+	std::vector<U *>  objects; // owning, object is copied on add_entry
+
+  public:
+	bool add_entry( T const &handle, U *obj ) {
+		mtx.lock_shared();
+		size_t i = 0;
+		for ( auto const &h : handles ) {
+			if ( h == handle ) {
+				break;
+			}
+		}
+		mtx.unlock();
+		if ( i != handles.size() ) {
+			// entry already existed - this is strange.
+			return false;
+		}
+		// -------| invariant: i == handles.size()
+		mtx.lock(); // we want this exclusively.
+		handles.push_back( handle );
+		objects.emplace_back( new U( *obj ) ); // make a copy
+		mtx.unlock();
+		return true;
+	}
+
+	// Looks up table entry under `needle`, returns nullptr if not found
+	U *const find_by_handle( T const &needle ) {
+		mtx.lock_shared();
+		U *const *obj = objects.data();
+		for ( auto const &h : handles ) {
+			if ( h == needle ) {
+				mtx.unlock();
+				return *obj;
+			}
+			obj++;
+		}
+		// --------| Invariant: no handle matching needle found
+		mtx.unlock();
+		return nullptr;
+	}
+	~HashTable() {
+		mtx.lock();
+		for ( auto &obj : objects ) {
+			delete obj;
+		}
+		mtx.unlock();
+	}
+};
+
 // NOTE: It might make sense to have one pipeline manager per worker thread, and
 //       to consolidate after the frame has been processed.
 struct le_pipeline_manager_o {
@@ -53,17 +113,9 @@ struct le_pipeline_manager_o {
 
 	le_shader_manager_o *shaderManager = nullptr; // owning
 
-	std::shared_mutex                        graphicsPSO_mtx;  // protecting read/write access
-	std::vector<graphics_pipeline_state_o *> graphicsPSO_list; // indexed by graphicsPSO_handles
-	std::vector<le_gpso_handle>              graphicsPSO_handles;
-
-	std::shared_mutex                       computePSO_mtx;  // protecting read/write access
-	std::vector<compute_pipeline_state_o *> computePSO_list; // indexed by computePSO_handles
-	std::vector<le_cpso_handle>             computePSO_handles;
-
-	std::shared_mutex                   rtxPSO_mtx;  // protecting read/write access
-	std::vector<rtx_pipeline_state_o *> rtxPSO_list; // indexed by rtxPSO_handles
-	std::vector<le_rtxpso_handle>       rtxPSO_handles;
+	HashTable<le_gpso_handle, graphics_pipeline_state_o> graphicsPso;
+	HashTable<le_cpso_handle, compute_pipeline_state_o>  computePso;
+	HashTable<le_rtxpso_handle, rtx_pipeline_state_o>    rtxPso;
 
 	std::unordered_map<uint64_t, vk::Pipeline, IdentityHash>            pipelines;
 	std::unordered_map<uint64_t, le_pipeline_layout_info, IdentityHash> pipelineLayoutInfos;
@@ -1258,6 +1310,22 @@ static vk::Pipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manag
 
 // ----------------------------------------------------------------------
 
+static vk::RayTracingShaderGroupTypeNV le_to_vk( le::RayTracingShaderGroupType const &tp ) {
+	// clang-format off
+    switch(tp){
+	    case (le::RayTracingShaderGroupType::eTrianglesHitGroupNv  ) : return vk::RayTracingShaderGroupTypeNV::eTrianglesHitGroup;
+	    case (le::RayTracingShaderGroupType::eProceduralHitGroupNv ) : return vk::RayTracingShaderGroupTypeNV::eProceduralHitGroup;
+	    case (le::RayTracingShaderGroupType::eRayGen               ) : return vk::RayTracingShaderGroupTypeNV::eGeneral;
+	    case (le::RayTracingShaderGroupType::eMiss                 ) : return vk::RayTracingShaderGroupTypeNV::eGeneral;
+	    case (le::RayTracingShaderGroupType::eCallable             ) : return vk::RayTracingShaderGroupTypeNV::eGeneral; 
+    }
+	// clang-format on
+	assert( false ); // unreachable
+	return vk::RayTracingShaderGroupTypeNV::eGeneral;
+}
+
+// ----------------------------------------------------------------------
+
 static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o *self, rtx_pipeline_state_o const *pso ) {
 
 	// Fetch vk::PipelineLayout for this pso
@@ -1295,7 +1363,7 @@ static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o
 	for ( auto const &group : pso->shaderGroups ) {
 		vk::RayTracingShaderGroupCreateInfoNV info;
 		info
-		    .setType( vk::RayTracingShaderGroupTypeNV( group.type ) )
+		    .setType( le_to_vk( group.type ) )
 		    .setGeneralShader( group.generalShaderIdx )
 		    .setClosestHitShader( group.closestHitShaderIdx )
 		    .setAnyHitShader( group.anyHitShaderIdx )
@@ -1543,78 +1611,24 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 /// \returns pointer to a graphicsPSO which matches gpsoHash, or `nullptr` if no match
 // READ ACCESS pipelinemanager.graphicsPSO_list
 // READ ACCESS pipelinemanager.graphicsPSO_handles
-graphics_pipeline_state_o *le_pipeline_manager_get_gpso_from_cache( le_pipeline_manager_o *self, const le_gpso_handle &gpso_hash ) {
-
-	self->graphicsPSO_mtx.lock_shared();
-
-	auto       pso              = self->graphicsPSO_list.data();
-	const auto pso_hashes_begin = self->graphicsPSO_handles.data();
-	const auto pso_hashes_end   = pso_hashes_begin + self->graphicsPSO_handles.size();
-
-	for ( auto pso_hash = pso_hashes_begin; pso_hash != pso_hashes_end; pso_hash++, pso++ ) {
-		if ( gpso_hash == *pso_hash ) {
-			self->graphicsPSO_mtx.unlock();
-			return *pso;
-		}
-	}
-
-	// ---------| invariant: no element found
-
-	self->graphicsPSO_mtx.unlock();
-
-	return nullptr; // could not find pso with given hash
+graphics_pipeline_state_o *le_pipeline_manager_get_gpso_from_cache( le_pipeline_manager_o *self, const le_gpso_handle &handle ) {
+	return self->graphicsPso.find_by_handle( handle );
 }
 
 // ----------------------------------------------------------------------
 /// \returns pointer to a computePSO which matches cpsoHash, or `nullptr` if no match
 // READ ACCESS pipelinemanager.computePSO_list
 // READ ACCESS pipelinemanager.computePSO_handles
-compute_pipeline_state_o *le_pipeline_manager_get_cpso_from_cache( le_pipeline_manager_o *self, const le_cpso_handle &cpso_hash ) {
-
-	self->computePSO_mtx.lock_shared();
-
-	auto       pso              = self->computePSO_list.data();
-	const auto pso_hashes_begin = self->computePSO_handles.data();
-	const auto pso_hashes_end   = pso_hashes_begin + self->computePSO_handles.size();
-
-	for ( auto pso_hash = pso_hashes_begin; pso_hash != pso_hashes_end; pso_hash++, pso++ ) {
-		if ( cpso_hash == *pso_hash ) {
-			self->computePSO_mtx.unlock();
-			return *pso;
-		}
-	}
-
-	// ---------| invariant: No element found
-
-	self->computePSO_mtx.unlock();
-
-	return nullptr; // could not find pso with given hash
+compute_pipeline_state_o *le_pipeline_manager_get_cpso_from_cache( le_pipeline_manager_o *self, const le_cpso_handle &handle ) {
+	return self->computePso.find_by_handle( handle );
 }
 
 // ----------------------------------------------------------------------
 /// \returns pointer to a computePSO which matches cpsoHash, or `nullptr` if no match
 // READ ACCESS pipelinemanager.computePSO_list
 // READ ACCESS pipelinemanager.computePSO_handles
-rtx_pipeline_state_o *le_pipeline_manager_get_rtxpso_from_cache( le_pipeline_manager_o *self, const le_rtxpso_handle &rtxpso_hash ) {
-
-	self->rtxPSO_mtx.lock_shared();
-
-	auto       pso              = self->rtxPSO_list.data();
-	const auto pso_hashes_begin = self->rtxPSO_handles.data();
-	const auto pso_hashes_end   = pso_hashes_begin + self->rtxPSO_handles.size();
-
-	for ( auto pso_hash = pso_hashes_begin; pso_hash != pso_hashes_end; pso_hash++, pso++ ) {
-		if ( rtxpso_hash == *pso_hash ) {
-			self->rtxPSO_mtx.unlock();
-			return *pso;
-		}
-	}
-
-	// ---------| invariant: No element found
-
-	self->rtxPSO_mtx.unlock();
-
-	return nullptr; // could not find pso with given hash
+rtx_pipeline_state_o *le_pipeline_manager_get_rtxpso_from_cache( le_pipeline_manager_o *self, const le_rtxpso_handle &handle ) {
+	return self->rtxPso.find_by_handle( handle );
 }
 // ----------------------------------------------------------------------
 
@@ -1851,22 +1865,8 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipelin
 //
 // via RECORD in command buffer recording state
 // in SETUP
-void le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_o *self, graphics_pipeline_state_o *gpso, le_gpso_handle gpsoHandle ) {
-
-	// we must copy!
-
-	// check if pso is already in cache
-	auto pso = le_pipeline_manager_get_gpso_from_cache( self, gpsoHandle );
-
-	if ( pso == nullptr ) {
-		// not found in cache - add to cache
-		self->graphicsPSO_mtx.lock(); // exclusive lock, as we're writing
-		self->graphicsPSO_handles.emplace_back( gpsoHandle );
-		self->graphicsPSO_list.emplace_back( new graphics_pipeline_state_o( *gpso ) ); // note that we copy
-		self->graphicsPSO_mtx.unlock();
-	} else {
-		// assert( false ); // pso was already found in cache, this is strange
-	}
+void le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_o *self, graphics_pipeline_state_o *pso, le_gpso_handle handle ) {
+	self->graphicsPso.add_entry( handle, pso );
 };
 
 // ----------------------------------------------------------------------
@@ -1877,22 +1877,8 @@ void le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_
 //
 // via RECORD in command buffer recording state
 // in SETUP
-void le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o *self, compute_pipeline_state_o *cpso, le_cpso_handle cpsoHandle ) {
-
-	// we must copy!
-
-	// check if pso is already in cache
-	auto pso = le_pipeline_manager_get_cpso_from_cache( self, cpsoHandle );
-
-	if ( pso == nullptr ) {
-		// not found in cache - add to cache
-		self->computePSO_mtx.lock();
-		self->computePSO_handles.emplace_back( cpsoHandle );
-		self->computePSO_list.emplace_back( new compute_pipeline_state_o( *cpso ) ); // note that we copy
-		self->computePSO_mtx.unlock();
-	} else {
-		// assert( false ); // pso was already found in cache, this is strange
-	}
+void le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o *self, compute_pipeline_state_o *pso, le_cpso_handle handle ) {
+	self->computePso.add_entry( handle, pso );
 };
 
 // ----------------------------------------------------------------------
@@ -1903,22 +1889,8 @@ void le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o
 //
 // via RECORD in command buffer recording state
 // in SETUP
-void le_pipeline_manager_introduce_rtx_pipeline_state( le_pipeline_manager_o *self, rtx_pipeline_state_o *cpso, le_rtxpso_handle pso_handle ) {
-
-	// we must copy!
-
-	// check if pso is already in cache
-	auto pso = le_pipeline_manager_get_rtxpso_from_cache( self, pso_handle );
-
-	if ( pso == nullptr ) {
-		// not found in cache - add to cache
-		self->rtxPSO_mtx.lock();
-		self->rtxPSO_handles.emplace_back( pso_handle );
-		self->rtxPSO_list.emplace_back( new rtx_pipeline_state_o( *cpso ) ); // note that we copy
-		self->rtxPSO_mtx.unlock();
-	} else {
-		// assert( false ); // pso was already found in cache, this is strange
-	}
+void le_pipeline_manager_introduce_rtx_pipeline_state( le_pipeline_manager_o *self, rtx_pipeline_state_o *pso, le_rtxpso_handle handle ) {
+	self->rtxPso.add_entry( handle, pso );
 };
 
 // ----------------------------------------------------------------------
@@ -1971,12 +1943,9 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 	le_shader_manager_destroy( self->shaderManager );
 	self->shaderManager = nullptr;
 
-	// -- destroy any pipeline state objects
-	self->graphicsPSO_handles.clear();
-	for ( auto &pPso : self->graphicsPSO_list ) {
-		delete ( pPso );
-	}
-	self->graphicsPSO_list.clear();
+	// -- destroy any pipeline state objects: graphicsPso, etc.
+	// are destroyed via their HashTable class methods, when
+	// pipelineManager gets destroyed.
 
 	// -- destroy renderpasses
 
