@@ -27,7 +27,11 @@ void main()
 	float tmin = 0.001;
 	float tmax = 10000.0;
 
-	traceNV(topLevelAS, rayFlags, cullMask, 0, 0, 0, origin.xyz, tmin, direction.xyz, tmax, 0);
+	traceNV(topLevelAS, rayFlags, cullMask, 
+		/* sbt record offset */ 0, /* this means take the first variant for each geometry */
+		/* sbt record stride */ 0, /* 0 means take the same element for all instance geometries */
+		/* miss index */        0, 
+		origin.xyz, tmin, direction.xyz, tmax, 0);
 
 	imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(hitValue, 0.0));
 }
