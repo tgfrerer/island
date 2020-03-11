@@ -1935,7 +1935,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipelin
 //
 // via RECORD in command buffer recording state
 // in SETUP
-void le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_o *self, graphics_pipeline_state_o *pso, le_gpso_handle handle ) {
+bool le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_o *self, graphics_pipeline_state_o *pso, le_gpso_handle handle ) {
 	return self->graphicsPso.try_insert( handle, pso );
 };
 
@@ -1947,7 +1947,7 @@ void le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_
 //
 // via RECORD in command buffer recording state
 // in SETUP
-void le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o *self, compute_pipeline_state_o *pso, le_cpso_handle handle ) {
+bool le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o *self, compute_pipeline_state_o *pso, le_cpso_handle handle ) {
 	return self->computePso.try_insert( handle, pso );
 };
 
@@ -1959,7 +1959,7 @@ void le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o
 //
 // via RECORD in command buffer recording state
 // in SETUP
-void le_pipeline_manager_introduce_rtx_pipeline_state( le_pipeline_manager_o *self, rtx_pipeline_state_o *pso, le_rtxpso_handle handle ) {
+bool le_pipeline_manager_introduce_rtx_pipeline_state( le_pipeline_manager_o *self, rtx_pipeline_state_o *pso, le_rtxpso_handle handle ) {
 	return self->rtxPso.try_insert( handle, pso );
 };
 
