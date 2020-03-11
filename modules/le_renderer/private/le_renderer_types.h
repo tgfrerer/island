@@ -1285,11 +1285,14 @@ class WriteToImageSettingsBuilder {
 } // namespace le
 
 namespace le {
+
 // Codegen <VkRayTracingShaderGroupTypeNV, uint32_t>
-enum class RayTracingShaderGroupTypeNV : uint32_t {
-	eGeneralNv            = 0,
-	eTrianglesHitGroupNv  = 1,
-	eProceduralHitGroupNv = 2,
+enum class RayTracingShaderGroupType : uint32_t {
+	eRayGen = 0,
+	eTrianglesHitGroupNv,
+	eProceduralHitGroupNv,
+	eMiss,
+	eCallable,
 };
 // Codegen </VkRayTracingShaderGroupTypeNV>
 } // namespace le
@@ -1303,11 +1306,11 @@ static constexpr uint32_t LE_SHADER_UNUSED_NV = ~( 0u );
 // we must hash this as part of getting the hash of the pipeline state.
 // We can and must control that this struct is tightly packed.
 struct le_rtx_shader_group_info {
-	le::RayTracingShaderGroupTypeNV type;
-	uint32_t                        generalShaderIdx      = LE_SHADER_UNUSED_NV;
-	uint32_t                        closestHitShaderIdx   = LE_SHADER_UNUSED_NV;
-	uint32_t                        anyHitShaderIdx       = LE_SHADER_UNUSED_NV;
-	uint32_t                        intersectionShaderIdx = LE_SHADER_UNUSED_NV;
+	le::RayTracingShaderGroupType type;
+	uint32_t                      generalShaderIdx      = LE_SHADER_UNUSED_NV;
+	uint32_t                      closestHitShaderIdx   = LE_SHADER_UNUSED_NV;
+	uint32_t                      anyHitShaderIdx       = LE_SHADER_UNUSED_NV;
+	uint32_t                      intersectionShaderIdx = LE_SHADER_UNUSED_NV;
 };
 
 struct le_rtx_geometry_t {
