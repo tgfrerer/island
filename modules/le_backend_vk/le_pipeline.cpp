@@ -104,6 +104,70 @@ class HashTable : NoCopy, NoMove {
 	}
 };
 
+//
+template <typename T>
+class HashMap : NoCopy, NoMove {
+
+	std::shared_mutex                               mtx;
+	std::unordered_map<uint64_t, T *, IdentityHash> store; // owning
+
+  public:
+	T const *try_find( uint64_t needle ) {
+		mtx.lock_shared();
+		auto e = store.find( needle );
+		if ( e == store.end() ) {
+			mtx.unlock();
+			return nullptr;
+		} else {
+			auto ret = e->second;
+			mtx.unlock();
+			return ret;
+		}
+	}
+	bool try_insert( uint64_t handle, T const *obj ) {
+
+		mtx.lock();
+
+		// we attempt an insertion - a nullptr will go in as a placeholder
+		// because we cannot tell at this point whether the insertion will
+		// be successful.
+		auto result = store.emplace( handle, nullptr );
+
+		if ( result.second ) {
+			// Insertion was successful - replace the placeholder with a copy of the actual object.
+			result.first->second = new T( *obj );
+		}
+
+		mtx.unlock();
+
+		return result.second;
+	}
+
+	typedef void ( *iterator_fun )( T *e, void *user_data );
+
+	void iterator( iterator_fun fun, void *user_data ) {
+		mtx.lock();
+		for ( auto &e : store ) {
+			fun( e.second, user_data );
+		}
+		mtx.unlock();
+	}
+
+	void clear() {
+		mtx.lock();
+		for ( auto &e : store ) {
+			if ( e.second ) {
+				delete e.second;
+			}
+		}
+		store.clear();
+		mtx.unlock();
+	}
+	~HashMap() {
+		clear();
+	}
+};
+
 // NOTE: It might make sense to have one pipeline manager per worker thread, and
 //       to consolidate after the frame has been processed.
 struct le_pipeline_manager_o {
@@ -117,7 +181,7 @@ struct le_pipeline_manager_o {
 	HashTable<le_cpso_handle, compute_pipeline_state_o>  computePso;
 	HashTable<le_rtxpso_handle, rtx_pipeline_state_o>    rtxPso;
 
-	std::unordered_map<uint64_t, vk::Pipeline, IdentityHash>            pipelines;
+	HashMap<VkPipeline> pipelines;
 	std::unordered_map<uint64_t, le_pipeline_layout_info, IdentityHash> pipelineLayoutInfos;
 
 	std::unordered_map<uint64_t, le_descriptor_set_layout_t, IdentityHash> descriptorSetLayouts; // indexed by le_shader_bindings_info[] hash
@@ -1691,20 +1755,21 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeli
 	}
 
 	// -- look up if pipeline with this hash already exists in cache
-	auto p = self->pipelines.find( pipeline_hash );
+	auto p = self->pipelines.try_find( pipeline_hash );
 
-	if ( p == self->pipelines.end() ) {
-
+	if ( p ) {
+		// pipeline exists
+		pipeline_and_layout_info.pipeline = *p;
+	} else {
 		// -- if not, create pipeline in pipeline cache and store / retain it
 		pipeline_and_layout_info.pipeline = le_pipeline_cache_create_graphics_pipeline( self, pso, pass, subpass );
 
 		std::cout << "New VK Graphics Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
 		          << std::flush;
 
-		self->pipelines[ pipeline_hash ] = pipeline_and_layout_info.pipeline;
-	} else {
-		// -- else return pipeline found in hash map
-		pipeline_and_layout_info.pipeline = p->second;
+		bool result = self->pipelines.try_insert( pipeline_hash, &pipeline_and_layout_info.pipeline );
+
+		assert( result && " pipeline insertion must be successful " );
 	}
 
 	return pipeline_and_layout_info;
@@ -1771,20 +1836,21 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 	}
 
 	// -- look up if pipeline with this hash already exists in cache
-	auto p = self->pipelines.find( pipeline_hash );
+	auto p = self->pipelines.try_find( pipeline_hash );
 
-	if ( p == self->pipelines.end() ) {
-
-		// -- if not, create pipeline in pipeline cache and store / retain it
+	if ( p ) {
+		// -- Pipeline was found: return pipeline found in hash map
+		pipeline_and_layout_info.pipeline = *p;
+	} else {
+		// -- Pipeline not found: Create pipeline in pipeline cache and store / retain it
 		pipeline_and_layout_info.pipeline = le_pipeline_cache_create_rtx_pipeline( self, pso );
 
 		std::cout << "New VK RTX Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
 		          << std::flush;
 
-		self->pipelines[ pipeline_hash ] = pipeline_and_layout_info.pipeline;
-	} else {
-		// -- else return pipeline found in hash map
-		pipeline_and_layout_info.pipeline = p->second;
+		bool result = self->pipelines.try_insert( pipeline_hash, &pipeline_and_layout_info.pipeline );
+
+		assert( result && "pipeline insertion must be successful" );
 	}
 
 	return pipeline_and_layout_info;
@@ -1838,9 +1904,12 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipelin
 	}
 
 	// -- look up if pipeline with this hash already exists in cache.
-	auto p = self->pipelines.find( pipeline_hash );
+	auto p = self->pipelines.try_find( pipeline_hash );
 
-	if ( p == self->pipelines.end() ) {
+	if ( p ) {
+		pipeline_and_layout_info.pipeline = *p;
+	} else {
+		// -- else return pipeline found in hash map
 
 		// -- if not, create pipeline in pipeline cache and store / retain it
 		pipeline_and_layout_info.pipeline = le_pipeline_cache_create_compute_pipeline( self, pso );
@@ -1848,10 +1917,8 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipelin
 		std::cout << "New VK Compute Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
 		          << std::flush;
 
-		self->pipelines[ pipeline_hash ] = pipeline_and_layout_info.pipeline;
-	} else {
-		// -- else return pipeline found in hash map
-		pipeline_and_layout_info.pipeline = p->second;
+		bool result = self->pipelines.try_insert( pipeline_hash, &pipeline_and_layout_info.pipeline );
+		assert( result && "insertion must be successful" );
 	}
 
 	return pipeline_and_layout_info;
@@ -1961,13 +2028,25 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 	// -- destroy pipelineLayouts
 	std::cout << "Destroying " << self->pipelineLayouts.size() << " PipelineLayouts" << std::endl
 	          << std::flush;
+
 	for ( auto &l : self->pipelineLayouts ) {
 		self->device.destroyPipelineLayout( l.second );
 	}
 
-	for ( auto &p : self->pipelines ) {
-		self->device.destroyPipeline( p.second );
-	}
+	// Clear pipelines before we destroy pipeline cache object.
+	// we must first iterate over all pipeline objects to delete any pipelines
+
+	auto pipeline_deleter = []( VkPipeline *p, void *user_data ) {
+		auto device = static_cast<vk::Device *>( user_data );
+
+		device->destroyPipeline( *p );
+
+		// -- destroy pipelineLayouts
+		std::cout << "Destroyed Pipeline: " << std::hex << *p << std::endl
+		          << std::flush;
+	};
+
+	self->pipelines.iterator( pipeline_deleter, &self->device );
 	self->pipelines.clear();
 
 	if ( self->vulkanCache ) {
