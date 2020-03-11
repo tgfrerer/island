@@ -1956,10 +1956,6 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipelin
 
 // ----------------------------------------------------------------------
 // This method may get called through the pipeline builder -
-//
-// READ/WRITE ACCESS pipelinemanager.graphicsPSO_list
-// READ/WRITE ACCESS pipelinemanager.graphicsPSO_handles
-//
 // via RECORD in command buffer recording state
 // in SETUP
 bool le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_o *self, graphics_pipeline_state_o *pso, le_gpso_handle handle ) {
@@ -1968,10 +1964,6 @@ bool le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_
 
 // ----------------------------------------------------------------------
 // This method may get called through the pipeline builder -
-//
-// READ/WRITE ACCESS pipelinemanager.computePSO_list
-// READ/WRITE ACCESS pipelinemanager.computePSO_handles
-//
 // via RECORD in command buffer recording state
 // in SETUP
 bool le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o *self, compute_pipeline_state_o *pso, le_cpso_handle handle ) {
@@ -1980,10 +1972,6 @@ bool le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o
 
 // ----------------------------------------------------------------------
 // This method may get called through the pipeline builder -
-//
-// READ/WRITE ACCESS pipelinemanager.computePSO_list
-// READ/WRITE ACCESS pipelinemanager.computePSO_handles
-//
 // via RECORD in command buffer recording state
 // in SETUP
 bool le_pipeline_manager_introduce_rtx_pipeline_state( le_pipeline_manager_o *self, rtx_pipeline_state_o *pso, le_rtxpso_handle handle ) {
