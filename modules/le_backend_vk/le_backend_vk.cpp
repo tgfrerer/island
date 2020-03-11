@@ -4868,10 +4868,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					// warning if any blas resource could not be found.
 
 					for ( size_t i = 0; i != instances_count; i++ ) {
-
-						// Note that we don't use the vulkan object directly, but must, for rtx,
-						// request a handle from the driver which we can then use instead of the
-						// vulkan object to refer to the bottom level acceleration structure.
+						// Note: similarly to blas handles, we could also patch
+						// shaderBindingTable offsets based on rtx pipeline.
 
 						// Update handle in-place on GPU mapped, coherent memory.
 						instances[ i ].blas_handle = frame.availableResources.at( resources[ i ] ).info.blasInfo.cached_integer_handle; // the 64 bit handle for the acceleration structure.
