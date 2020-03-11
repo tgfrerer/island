@@ -99,6 +99,18 @@ class HashTable : NoCopy, NoMove {
 		mtx.unlock();
 		return nullptr;
 	}
+
+	typedef void ( *iterator_fun )( T *e, void *user_data );
+
+	// do something on all objects
+	void iterator( iterator_fun fun, void *user_data ) {
+		mtx.lock();
+		for ( auto &e : objects ) {
+			fun( e.second, user_data );
+		}
+		mtx.unlock();
+	}
+
 	~HashTable() {
 		mtx.lock();
 		for ( auto &obj : objects ) {
@@ -149,6 +161,7 @@ class HashMap : NoCopy, NoMove {
 
 	typedef void ( *iterator_fun )( T *e, void *user_data );
 
+	// do something on all objects
 	void iterator( iterator_fun fun, void *user_data ) {
 		mtx.lock();
 		for ( auto &e : store ) {
