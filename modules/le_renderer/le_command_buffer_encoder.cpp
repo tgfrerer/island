@@ -61,6 +61,7 @@ struct le_shader_binding_table_o {
 	std::vector<shader_record> hit;
 	std::vector<shader_record> miss;
 	std::vector<shader_record> callable;
+	bool                       has_ray_gen;
 
 	// stateful, used so that we can add parameters to the last shader_record
 	shader_record *last_shader_record = nullptr;
@@ -680,6 +681,7 @@ le_shader_binding_table_o *cbe_build_shader_binding_table( le_command_buffer_enc
 
 void sbt_set_ray_gen( le_shader_binding_table_o *sbt, uint32_t shader_group_idx ) {
 	sbt->ray_gen.handle_idx = shader_group_idx;
+	sbt->has_ray_gen        = true;
 	sbt->last_shader_record = &sbt->ray_gen;
 }
 void sbt_add_hit( le_shader_binding_table_o *sbt, uint32_t shader_group_idx ) {
@@ -703,6 +705,15 @@ void sbt_add_f32_param( le_shader_binding_table_o *sbt, float param ) {
 	le_shader_binding_table_o::parameter_t p;
 	p.f32 = param;
 	sbt->last_shader_record->parameters.emplace_back( p );
+}
+le_shader_binding_table_o *sbt_validate( le_shader_binding_table_o *sbt ) {
+
+	assert( sbt && "sbt must be valid handle" );
+	assert( sbt->has_ray_gen && "sbt must have ray_gen shader group" );
+	assert( !sbt->hit.empty() && "sbt must specify at least one hit shader group" );
+	assert( !sbt->miss.empty() && "sbt must specify at least one miss shader group" );
+
+	return sbt;
 }
 // ----------------------------------------------------------------------
 
@@ -744,4 +755,5 @@ void register_le_command_buffer_encoder_api( void *api_ ) {
 	cbe_i.sbt_add_miss      = sbt_add_miss;
 	cbe_i.sbt_add_u32_param = sbt_add_u32_param;
 	cbe_i.sbt_add_f32_param = sbt_add_f32_param;
+	cbe_i.sbt_validate      = sbt_validate;
 }

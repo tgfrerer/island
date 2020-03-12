@@ -155,6 +155,11 @@ struct le_renderer_api {
         void                         ( *sbt_add_miss           )(le_shader_binding_table_o* sbt, uint32_t ray_gen);
         void                         ( *sbt_add_u32_param      )(le_shader_binding_table_o* sbt, uint32_t param);
         void                         ( *sbt_add_f32_param      )(le_shader_binding_table_o* sbt, float param);
+
+        // returns nullptr if shader binding table is in invalid state, otherwise sbt
+        le_shader_binding_table_o*   ( *sbt_validate           )(le_shader_binding_table_o* sbt);
+
+        // NOTE pipeline is implicitly bound, as it is stored with shader binding table (sbt)
 		void                         ( *bind_rtx_pipeline      )( le_command_buffer_encoder_o *self, le_shader_binding_table_o* shader_binding_table);
 
 		le_pipeline_manager_o*       ( *get_pipeline_manager   )( le_command_buffer_encoder_o *self );
