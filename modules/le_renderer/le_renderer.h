@@ -634,6 +634,51 @@ class Encoder {
 		return *this;
 	}
 
+	class ShaderBindingTableBuilder {
+		Encoder const &            parent;
+		le_shader_binding_table_o *sbt = nullptr;
+
+	  public:
+		ShaderBindingTableBuilder( Encoder const &parent_, le_rtxpso_handle pso )
+		    : parent( parent_ )
+		    , sbt( le_renderer::encoder_i.build_sbt( parent.self, pso ) ) {
+		}
+
+		ShaderBindingTableBuilder &setRayGenIdx( uint32_t idx ) {
+			le_renderer::encoder_i.sbt_set_ray_gen( sbt, idx );
+			return *this;
+		}
+
+		ShaderBindingTableBuilder &addCallableIdx( uint32_t idx ) {
+			le_renderer::encoder_i.sbt_add_callable( sbt, idx );
+			return *this;
+		}
+
+		ShaderBindingTableBuilder &addHitIdx( uint32_t idx ) {
+			le_renderer::encoder_i.sbt_add_hit( sbt, idx );
+			return *this;
+		}
+
+		ShaderBindingTableBuilder &addMissIdx( uint32_t idx ) {
+			le_renderer::encoder_i.sbt_add_miss( sbt, idx );
+			return *this;
+		}
+
+		ShaderBindingTableBuilder &addParameterValueU32( uint32_t val ) {
+			le_renderer::encoder_i.sbt_add_u32_param( sbt, val );
+			return *this;
+		}
+
+		ShaderBindingTableBuilder &addParameterValueF32( uint32_t val ) {
+			le_renderer::encoder_i.sbt_add_f32_param( sbt, val );
+			return *this;
+		}
+
+		le_shader_binding_table_o *build() {
+			return le_renderer::encoder_i.sbt_validate( sbt );
+		}
+	};
+
 	le_pipeline_manager_o *getPipelineManager() {
 		return le_renderer::encoder_i.get_pipeline_manager( self );
 	}
