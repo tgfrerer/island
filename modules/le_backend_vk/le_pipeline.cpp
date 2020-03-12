@@ -1705,28 +1705,36 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 }
 
 // ----------------------------------------------------------------------
-/// \returns pointer to a graphicsPSO which matches gpsoHash, or `nullptr` if no match
-// READ ACCESS pipelinemanager.graphicsPSO_list
-// READ ACCESS pipelinemanager.graphicsPSO_handles
-graphics_pipeline_state_o *le_pipeline_manager_get_gpso_from_cache( le_pipeline_manager_o *self, const le_gpso_handle &handle ) {
-	return self->graphicsPso.try_find( handle );
+
+static inline bool le_pipeline_manager_get_pipeline_layout_info(
+    le_pipeline_manager_o *          self,
+    le_shader_module_o const *const *shader_modules,
+    size_t                           shader_modules_count,
+    le_pipeline_layout_info *        pipeline_layout_info,
+    uint64_t *                       pipeline_layout_hash ) {
+
+	bool result = false;
+
+	// Fetch the hash over the pipeline layout. Since there is only one shader
+	// stage for compute, we can take it straight from that stage without
+	// accumulating over stages.
+	*pipeline_layout_hash = shader_modules_get_pipeline_layout_hash( shader_modules, shader_modules_count );
+
+	auto pl = self->pipelineLayoutInfos.try_find( *pipeline_layout_hash );
+
+	if ( pl ) {
+		*pipeline_layout_info = *pl;
+	} else {
+		// this will also create vulkan objects for pipeline layout / descriptor set layout and cache them
+		*pipeline_layout_info = le_pipeline_cache_produce_pipeline_layout_info( self, shader_modules, shader_modules_count );
+		// store in cache
+		bool result = self->pipelineLayoutInfos.try_insert( *pipeline_layout_hash, pipeline_layout_info );
+		assert( result && "pipeline layout info insertion must succeed" );
+	}
+
+	return result;
 }
 
-// ----------------------------------------------------------------------
-/// \returns pointer to a computePSO which matches cpsoHash, or `nullptr` if no match
-// READ ACCESS pipelinemanager.computePSO_list
-// READ ACCESS pipelinemanager.computePSO_handles
-compute_pipeline_state_o *le_pipeline_manager_get_cpso_from_cache( le_pipeline_manager_o *self, const le_cpso_handle &handle ) {
-	return self->computePso.try_find( handle );
-}
-
-// ----------------------------------------------------------------------
-/// \returns pointer to a computePSO which matches cpsoHash, or `nullptr` if no match
-// READ ACCESS pipelinemanager.computePSO_list
-// READ ACCESS pipelinemanager.computePSO_handles
-rtx_pipeline_state_o *le_pipeline_manager_get_rtxpso_from_cache( le_pipeline_manager_o *self, const le_rtxpso_handle &handle ) {
-	return self->rtxPso.try_find( handle );
-}
 // ----------------------------------------------------------------------
 
 /// \brief Creates - or loads a pipeline from cache - based on current pipeline state
@@ -1739,30 +1747,18 @@ rtx_pipeline_state_o *le_pipeline_manager_get_rtxpso_from_cache( le_pipeline_man
 //   at the same time - and no two renderpasses may access this method at the same time.
 static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeline( le_pipeline_manager_o *self, le_gpso_handle gpso_handle, const LeRenderPass &pass, uint32_t subpass ) {
 
-	// -- 0. Fetch pso from cache using its hash key
-
-	graphics_pipeline_state_o const *pso = le_pipeline_manager_get_gpso_from_cache( self, gpso_handle );
-
-	assert( pso );
-
 	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
+
+	// -- 0. Fetch pso from cache using its hash key
+	graphics_pipeline_state_o const *pso = self->graphicsPso.try_find( gpso_handle );
+	assert( pso );
 
 	// -- 1. get pipeline layout info for a pipeline with these bindings
 	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
 
-	uint64_t pipeline_layout_hash = shader_modules_get_pipeline_layout_hash( pso->shaderStages.data(), pso->shaderStages.size() );
-
-	auto pl = self->pipelineLayoutInfos.try_find( pipeline_layout_hash );
-
-	if ( pl ) {
-		pipeline_and_layout_info.layout_info = *pl;
-	} else {
-		// this will also create vulkan objects for pipeline layout / descriptor set layout and cache them
-		pipeline_and_layout_info.layout_info = le_pipeline_cache_produce_pipeline_layout_info( self, pso->shaderStages.data(), pso->shaderStages.size() );
-		// store in cache
-		bool result = self->pipelineLayoutInfos.try_insert( pipeline_layout_hash, &pipeline_and_layout_info.layout_info );
-		assert( result && "pipeline layout info insertion must succeed" );
-	}
+	uint64_t pipeline_layout_hash{};
+	le_pipeline_manager_get_pipeline_layout_info( self, pso->shaderStages.data(), pso->shaderStages.size(),
+	                                              &pipeline_and_layout_info.layout_info, &pipeline_layout_hash );
 
 	// -- 2. get vk pipeline object
 	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
@@ -1820,25 +1816,15 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
 
 	// -- 0. Fetch pso from cache using its hash key
-	rtx_pipeline_state_o const *pso = le_pipeline_manager_get_rtxpso_from_cache( self, pso_handle );
-
+	rtx_pipeline_state_o const *pso = self->rtxPso.try_find( pso_handle );
 	assert( pso );
 
 	// -- 1. get pipeline layout info for a pipeline with these bindings
 	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
 
-	uint64_t pipeline_layout_hash = shader_modules_get_pipeline_layout_hash( pso->shaderStages.data(), pso->shaderStages.size() );
-
-	auto pl = self->pipelineLayoutInfos.try_find( pipeline_layout_hash );
-	if ( pl ) {
-		pipeline_and_layout_info.layout_info = *pl;
-	} else {
-		// this will also create vulkan objects for pipeline layout / descriptor set layout and cache them
-		pipeline_and_layout_info.layout_info = le_pipeline_cache_produce_pipeline_layout_info( self, pso->shaderStages.data(), pso->shaderStages.size() );
-		// store in cache
-		bool result = self->pipelineLayoutInfos.try_insert( pipeline_layout_hash, &pipeline_and_layout_info.layout_info );
-		assert( result && "pipeline layout info insertion must succeed" );
-	}
+	uint64_t pipeline_layout_hash{};
+	le_pipeline_manager_get_pipeline_layout_info( self, pso->shaderStages.data(), pso->shaderStages.size(),
+	                                              &pipeline_and_layout_info.layout_info, &pipeline_layout_hash );
 
 	// -- 2. get vk pipeline object
 	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
@@ -1889,27 +1875,13 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 
 static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipeline( le_pipeline_manager_o *self, le_cpso_handle cpso_handle ) {
 
-	compute_pipeline_state_o const *pso = le_pipeline_manager_get_cpso_from_cache( self, cpso_handle );
+	compute_pipeline_state_o const *pso = self->computePso.try_find( cpso_handle );
 	assert( pso );
 
 	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
+	uint64_t                      pipeline_layout_hash{};
 
-	// Fetch the hash over the pipeline layout. Since there is only one shader
-	// stage for compute, we can take it straight from that stage without
-	// accumulating over stages.
-	uint64_t pipeline_layout_hash = shader_modules_get_pipeline_layout_hash( &pso->shaderStage, 1 );
-
-	auto pl = self->pipelineLayoutInfos.try_find( pipeline_layout_hash );
-
-	if ( pl ) {
-		pipeline_and_layout_info.layout_info = *pl;
-	} else {
-		// this will also create vulkan objects for pipeline layout / descriptor set layout and cache them
-		pipeline_and_layout_info.layout_info = le_pipeline_cache_produce_pipeline_layout_info( self, &pso->shaderStage, 1 );
-		// store in cache
-		bool result = self->pipelineLayoutInfos.try_insert( pipeline_layout_hash, &pipeline_and_layout_info.layout_info );
-		assert( result && "pipeline layout info insertion must succeed" );
-	}
+	le_pipeline_manager_get_pipeline_layout_info( self, &pso->shaderStage, 1, &pipeline_and_layout_info.layout_info, &pipeline_layout_hash );
 
 	// -- 2. get vk pipeline object
 	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
