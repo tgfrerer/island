@@ -205,7 +205,8 @@ struct le_pipeline_manager_o {
 	HashTable<le_cpso_handle, compute_pipeline_state_o>  computePso;
 	HashTable<le_rtxpso_handle, rtx_pipeline_state_o>    rtxPso;
 
-	HashMap<VkPipeline>              pipelines;
+	HashMap<VkPipeline>              pipelines;             // indexed by pipeline_hash
+	HashTable<uint64_t, char *>      rtx_shader_group_data; // indexed by pipeline_hash
 	HashMap<le_pipeline_layout_info> pipelineLayoutInfos;
 
 	HashMap<le_descriptor_set_layout_t> descriptorSetLayouts;
@@ -1811,7 +1812,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeli
 //
 // + NOTE: Access to this method must be sequential - no two frames may access this method
 //   at the same time - and no two renderpasses may access this method at the same time.
-static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( le_pipeline_manager_o *self, le_rtxpso_handle pso_handle ) {
+static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( le_pipeline_manager_o *self, le_rtxpso_handle pso_handle, char **maybe_shader_group_data ) {
 
 	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
 
@@ -1863,11 +1864,61 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 		std::cout << "New VK RTX Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
 		          << std::flush;
 
+		// Store pipeline in pipeline cache
 		bool result = self->pipelines.try_insert( pipeline_hash, &pipeline_and_layout_info.pipeline );
 
 		assert( result && "pipeline insertion must be successful" );
 	}
 
+	if ( maybe_shader_group_data ) {
+
+		// -- shader group data was requested
+
+		auto g = self->rtx_shader_group_data.try_find( pipeline_hash );
+
+		if ( g ) {
+			*maybe_shader_group_data = *g;
+		} else {
+			// If shader group data was not found, we must must query, and store it.
+			using namespace le_backend_vk;
+			VkPhysicalDeviceRayTracingPropertiesNV props;
+			bool                                   result = vk_device_i.get_vk_physical_device_ray_tracing_properties( self->le_device, &props );
+			assert( result && "properties must be successfully acquired." );
+
+			size_t dataSize   = props.shaderGroupHandleSize * pso->shaderGroups.size();
+			size_t bufferSize = dataSize + sizeof( LeShaderGroupDataHeader );
+
+			// Allocate buffer to store handles
+			char *handles = static_cast<char *>( malloc( bufferSize ) );
+
+			// The buffer used to store handles contains a header,
+			// First element is header size,
+
+			LeShaderGroupDataHeader header;
+			header.pipeline_obj                    = pipeline_and_layout_info.pipeline;
+			header.data_byte_count                 = uint32_t( dataSize );
+			header.rtx_shader_group_handle_size    = props.shaderGroupHandleSize;
+			header.rtx_shader_group_base_alignment = props.shaderGroupBaseAlignment;
+
+			memcpy( handles, &header, sizeof( LeShaderGroupDataHeader ) );
+
+			// Retrieve shader group handles from GPU
+			self->device.getRayTracingShaderGroupHandlesNV(
+			    pipeline_and_layout_info.pipeline,
+			    0, uint32_t( pso->shaderGroups.size() ),
+			    dataSize, handles + sizeof( LeShaderGroupDataHeader ) );
+
+			self->rtx_shader_group_data.try_insert( pipeline_hash, &handles );
+
+			// we need to store this buffer with the pipeline - or at least associate is to the pso
+
+			std::cout
+			    << "Queried rtx shader group handles" << std::endl
+			    << std::flush;
+
+			*maybe_shader_group_data = handles;
+		}
+	}
 	return pipeline_and_layout_info;
 }
 
@@ -2046,6 +2097,12 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 	    &self->device );
 
 	self->pipelines.clear();
+
+	self->rtx_shader_group_data.iterator(
+	    []( char **p_buffer, void * ) {
+		    free( *p_buffer );
+	    },
+	    nullptr );
 
 	// Destroy Pipeline Cache
 

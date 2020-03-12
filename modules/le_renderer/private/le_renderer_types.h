@@ -1481,6 +1481,14 @@ struct le_vertex_input_binding_description {
 	};
 };
 
+struct LeShaderGroupDataHeader {
+	uint32_t data_byte_count;                 // number of bytes in use for payload
+	uint32_t rtx_shader_group_handle_size;    // given in bytes
+	uint32_t rtx_shader_group_base_alignment; // given in bytes
+	uint32_t rtx_shader_group_handles_count;  // number of handles in payload, must equal data_byte_count / rtx_shader_group_handle_size
+	void *   pipeline_obj;                    // opaque pipeline object
+};
+
 namespace le {
 
 enum class CommandType : uint32_t {
