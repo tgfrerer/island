@@ -124,7 +124,6 @@ struct le_renderer_api {
 
 		void                         ( *bind_graphics_pipeline )( le_command_buffer_encoder_o *self, le_gpso_handle pipelineHandle);
 		void                         ( *bind_compute_pipeline  )( le_command_buffer_encoder_o *self, le_cpso_handle pipelineHandle);
-		void                         ( *bind_rtx_pipeline      )( le_command_buffer_encoder_o *self, le_rtxpso_handle pipelineHandle);
 
 		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, le_resource_handle_t const bufferId, uint64_t offset, le::IndexType const & indexType);
 		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, le_resource_handle_t const * pBufferId, uint64_t const * pOffsets );
@@ -156,6 +155,8 @@ struct le_renderer_api {
         void                         ( *sbt_add_miss           )(le_shader_binding_table_o* sbt, uint32_t ray_gen);
         void                         ( *sbt_add_u32_param      )(le_shader_binding_table_o* sbt, uint32_t param);
         void                         ( *sbt_add_f32_param      )(le_shader_binding_table_o* sbt, float param);
+		void                         ( *bind_rtx_pipeline      )( le_command_buffer_encoder_o *self, le_shader_binding_table_o* shader_binding_table);
+
 		le_pipeline_manager_o*       ( *get_pipeline_manager   )( le_command_buffer_encoder_o *self );
 		void                         ( *get_encoded_data       )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
 	};
@@ -564,8 +565,8 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &bindRtxPipeline( le_rtxpso_handle pipelineHandle ) {
-		le_renderer::encoder_i.bind_rtx_pipeline( self, pipelineHandle );
+	Encoder &bindRtxPipeline( le_shader_binding_table_o *sbt ) {
+		le_renderer::encoder_i.bind_rtx_pipeline( self, sbt );
 		return *this;
 	}
 

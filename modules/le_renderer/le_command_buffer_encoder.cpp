@@ -3,7 +3,7 @@
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/le_renderer_types.h"
 
-#include "le_backend_vk/le_backend_vk.h"
+#include "le_backend_vk/le_backend_vk.h" // for GPU allocators
 
 #include <cstring>
 #include <iostream>
@@ -450,12 +450,16 @@ static void cbe_bind_graphics_pipeline( le_command_buffer_encoder_o *self, le_gp
 
 // ----------------------------------------------------------------------
 
-static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_rtxpso_handle psoHandle ) {
+static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_binding_table_o *sbt ) {
 
 	// -- insert rtx PSO pointer into command stream
 	auto cmd = EMPLACE_CMD( le::CommandBindRtxPipeline );
 
-	cmd->info.rtxpsoHandle = psoHandle;
+	cmd->info.rtxpsoHandle = sbt->pipeline;
+
+	// TODO: build actual sbt based on data in sbt,
+	// query handles from pipeline manager.
+	// allocate data, point to data.
 
 	self->mCommandStreamSize += sizeof( le::CommandBindRtxPipeline );
 	self->mCommandCount++;
