@@ -1940,7 +1940,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			        auto pipeline_manager = encoder.getPipelineManager();
 
 			        // -- Create rtx pso
-			        static auto rtx_pipeline = []( le_stage_o *stage, le_pipeline_manager_o *pipeline_manager ) {
+			        static le_rtxpso_handle rtx_pipeline = []( le_stage_o *stage, le_pipeline_manager_o *pipeline_manager ) {
 				        auto shader_raygen      = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/raygen.rgen", {le::ShaderStage::eRaygenBitNv}, nullptr );
 				        auto shader_miss        = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/miss.rmiss", {le::ShaderStage::eMissBitNv}, nullptr );
 				        auto shader_shadow_miss = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/shadow.rmiss", {le::ShaderStage::eMissBitNv}, nullptr );
@@ -1952,17 +1952,36 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 				        // add shader groups.
 				        builder
-				            .setShaderGroupRayGen( shader_raygen )                    //
-				            .addShaderGroupTriangleHit( shader_closest_hit, nullptr ) //
-				            .addShaderGroupMiss( shader_miss )                        //
-				            .addShaderGroupMiss( shader_shadow_miss )                 //
+				            .setShaderGroupRayGen( shader_raygen )                    // shader group handles entry 0
+				            .addShaderGroupTriangleHit( shader_closest_hit, nullptr ) // shader group handles entry 1
+				            .addShaderGroupMiss( shader_miss )                        // shader group handles entry 2
+				            .addShaderGroupMiss( shader_shadow_miss )                 // shader group handles entry 3
 				            ;
 
 				        return builder.build();
 			        }( stage, pipeline_manager );
 
-			        // force binding of rtx pso
-			        encoder.bindRtxPipeline( rtx_pipeline );
+			        // At this point we should be able to build the shader binding table for the pipeline.
+			        // The SBT is basically a sequence of:
+			        // 1 RayGen Group
+			        // 1+ Hit Groups
+			        // 1+ Miss Groups
+			        // Each group may have parameters
+
+			        // Shader binding table is built on encoder - this way we can use the encoder's scratch GPU memory
+			        // as SBT memory. SBT is rebuilt every frame.
+
+			        le_shader_binding_table_o *sbt =
+			            le::Encoder::ShaderBindingTableBuilder( encoder, rtx_pipeline )
+			                .setRayGenIdx( 0 )
+			                .addHitIdx( 1 )
+			                .addMissIdx( 2 )
+			                .addMissIdx( 3 )
+			                .build();
+
+			        // shader_binding_table_o* already contains a reference to pipeline,
+			        // which means pipeline does not need to be referenced again.
+			        encoder.bindRtxPipeline( sbt );
 
 			        // Size of shaderRecord must be multiple of shaderGroupHandleSize - 16 Byte on my machine.
 			        struct ShaderRecord {
