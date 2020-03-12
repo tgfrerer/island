@@ -1474,7 +1474,6 @@ static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o
 	    .setBasePipelineIndex( 0 );
 
 	auto pipeline = self->device.createRayTracingPipelineNV( self->vulkanCache, create_info );
-
 	return pipeline;
 }
 
@@ -1818,13 +1817,12 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeli
 //   at the same time - and no two renderpasses may access this method at the same time.
 static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( le_pipeline_manager_o *self, le_rtxpso_handle pso_handle ) {
 
-	// -- 0. Fetch pso from cache using its hash key
+	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
 
+	// -- 0. Fetch pso from cache using its hash key
 	rtx_pipeline_state_o const *pso = le_pipeline_manager_get_rtxpso_from_cache( self, pso_handle );
 
 	assert( pso );
-
-	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
 
 	// -- 1. get pipeline layout info for a pipeline with these bindings
 	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
