@@ -4197,8 +4197,19 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// at this point, a valid renderpass must be bound
 
 						using namespace le_backend_vk;
-						// -- potentially compile and create pipeline here, based on current pass and subpass
-						currentPipeline = le_pipeline_manager_i.produce_rtx_pipeline( pipelineManager, le_cmd->info.rtxpsoHandle );
+
+						// -- fetch pipeline from pipeline cache, also fetch shader group data, so that
+						// we can verify that the current pipeline state matches the pipeline state which
+						// was used to create the pipeline. The pipeline state may change if pipeline gets recompiled.
+
+						char *shader_group_data = nullptr;
+						currentPipeline         = le_pipeline_manager_i.produce_rtx_pipeline( pipelineManager, le_cmd->info.rtxpsoHandle, &shader_group_data );
+
+						assert( shader_group_data && "shader group data must be available" );
+						{
+							auto shader_group_data_header = reinterpret_cast<LeShaderGroupDataHeader *>( shader_group_data );
+							assert( shader_group_data_header->pipeline_obj == currentPipeline.pipeline && "pipeline must not have changed between record, and process stage." );
+						}
 
 						// -- grab current pipeline layout from cache
 						currentPipelineLayout = le_pipeline_manager_i.get_pipeline_layout( pipelineManager, currentPipeline.layout_info.pipeline_layout_key );
