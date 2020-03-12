@@ -1983,31 +1983,11 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			        // which means pipeline does not need to be referenced again.
 			        encoder.bindRtxPipeline( sbt );
 
-			        // Size of shaderRecord must be multiple of shaderGroupHandleSize - 16 Byte on my machine.
-			        struct ShaderRecord {
-				        uint32_t handle[ 4 ];   // [shaderGroupHandleSize] handle for hit group (queried via gpu)
-				        uint32_t padding[ 12 ]; // padding (not necessary, but we could add parameters per shader...)
-			        };
+			        // -- set ray tracing arguments
 
-			        struct ShaderBindingTable {
-				        ShaderRecord              ray_gen;      // Aligned to multiple of shadergroupBaseAlignment (64 Byte)
-				        std::vector<ShaderRecord> hit_shaders;  // Aligned to multiple of shaderGroupBaseAlignment (64 Byte)
-				                                                // Instance of TLAS refer to their hit shader by
-				                                                // `instanceShaderBindingTableRecordOffset`
-				        std::vector<ShaderRecord> miss_shaders; // aligned to multiple of shaderGroupBaseAlignment (64 Byte)
-			        };
+			        // -- call trace rays
 
-			        /*
-
-                        When we write the binding table, we must first find out the shader record, which is the
-                        size of the largest shader record, rounded up to shaderGroupHandleSize.
-
-                        we then need to find out how many different hit shaders are referenced in TLAS
-                        - and if TLAS refers to BLAS which has more than one geometry. 
-			        
-			        */
-
-			        // encoder.buildSbt();
+			        // encoder.traceRays();
 		        } )
 		        .setIsRoot( true );
 
