@@ -100,13 +100,13 @@ class HashTable : NoCopy, NoMove {
 		return nullptr;
 	}
 
-	typedef void ( *iterator_fun )( T *e, void *user_data );
+	typedef void ( *iterator_fun )( U *e, void *user_data );
 
 	// do something on all objects
 	void iterator( iterator_fun fun, void *user_data ) {
 		mtx.lock();
 		for ( auto &e : objects ) {
-			fun( e.second, user_data );
+			fun( e, user_data );
 		}
 		mtx.unlock();
 	}
