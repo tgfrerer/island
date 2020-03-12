@@ -1566,6 +1566,23 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 
 		        {
 			        // Build top level acceleration structures. We build one per scene.
+			        //
+			        // A top-level acceleration structure is the entry point for a ray trace operation.
+			        // There is only one top-level acceleration structure per ray trace call.
+
+			        // A Top-Level acceleration structure has-many instances of bottom-level acceleration structures.
+			        // each instance has-a:
+			        //
+			        //  + transform
+			        //  + instanceShaderBindingTableRecordOffset (which is a record count offset into the hit shader binding table)
+			        //
+			        // We can use instanceShaderBindingTableRecordOffset as a way to record which rtx_material should be associated
+			        // with a particular instance. This can depend on materials.
+			        //
+			        // + in our current setup we have *exactly one* geometry per instance.
+			        //
+			        // This means we don't have to worry about sbt_record_stride and sbt_record_offset inside our raytracing shaders,
+			        // because these values will never be used.
 
 			        size_t scene_index = 0;
 			        for ( auto const &scene : stage->scenes ) {
