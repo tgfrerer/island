@@ -667,6 +667,41 @@ static le_pipeline_manager_o *cbe_get_pipeline_manager( le_command_buffer_encode
 
 // ----------------------------------------------------------------------
 
+le_shader_binding_table_o *cbe_build_shader_binding_table( le_command_buffer_encoder_o *self, le_rtxpso_handle pipeline ) {
+	auto sbt      = new le_shader_binding_table_o{};
+	sbt->pipeline = pipeline;
+	self->shader_binding_tables.emplace_back( sbt );
+	return sbt;
+}
+
+void sbt_set_ray_gen( le_shader_binding_table_o *sbt, uint32_t shader_group_idx ) {
+	sbt->ray_gen.handle_idx = shader_group_idx;
+	sbt->last_shader_record = &sbt->ray_gen;
+}
+void sbt_add_hit( le_shader_binding_table_o *sbt, uint32_t shader_group_idx ) {
+	sbt->hit.push_back( {shader_group_idx, {}} );
+	sbt->last_shader_record = &sbt->hit.back();
+}
+void sbt_add_callable( le_shader_binding_table_o *sbt, uint32_t shader_group_idx ) {
+	sbt->callable.push_back( {shader_group_idx, {}} );
+	sbt->last_shader_record = &sbt->callable.back();
+}
+void sbt_add_miss( le_shader_binding_table_o *sbt, uint32_t shader_group_idx ) {
+	sbt->miss.push_back( {shader_group_idx, {}} );
+	sbt->last_shader_record = &sbt->miss.back();
+}
+void sbt_add_u32_param( le_shader_binding_table_o *sbt, uint32_t param ) {
+	le_shader_binding_table_o::parameter_t p;
+	p.u32 = param;
+	sbt->last_shader_record->parameters.emplace_back( p );
+}
+void sbt_add_f32_param( le_shader_binding_table_o *sbt, float param ) {
+	le_shader_binding_table_o::parameter_t p;
+	p.f32 = param;
+	sbt->last_shader_record->parameters.emplace_back( p );
+}
+// ----------------------------------------------------------------------
+
 void register_le_command_buffer_encoder_api( void *api_ ) {
 
 	auto &cbe_i = static_cast<le_renderer_api *>( api_ )->le_command_buffer_encoder_i;
@@ -697,4 +732,12 @@ void register_le_command_buffer_encoder_api( void *api_ ) {
 	cbe_i.build_rtx_blas         = cbe_build_rtx_blas;
 	cbe_i.build_rtx_tlas         = cbe_build_rtx_tlas;
 	cbe_i.get_pipeline_manager   = cbe_get_pipeline_manager;
+
+	cbe_i.build_sbt         = cbe_build_shader_binding_table;
+	cbe_i.sbt_set_ray_gen   = sbt_set_ray_gen;
+	cbe_i.sbt_add_hit       = sbt_add_hit;
+	cbe_i.sbt_add_callable  = sbt_add_callable;
+	cbe_i.sbt_add_miss      = sbt_add_miss;
+	cbe_i.sbt_add_u32_param = sbt_add_u32_param;
+	cbe_i.sbt_add_f32_param = sbt_add_f32_param;
 }

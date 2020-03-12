@@ -18,6 +18,8 @@ struct le_pipeline_manager_o;
 struct le_allocator_o;         // from backend
 struct le_staging_allocator_o; // from backend
 
+struct le_shader_binding_table_o;
+
 // clang-format off
 struct le_renderer_api {
 
@@ -146,6 +148,14 @@ struct le_renderer_api {
 		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, le_resource_handle_t const textureId, uint64_t argumentName, uint64_t arrayIndex);
 		void                         ( *set_argument_image     )( le_command_buffer_encoder_o *self, le_resource_handle_t const imageId, uint64_t argumentName, uint64_t arrayIndex);
 
+        
+        le_shader_binding_table_o*   ( *build_sbt              )(le_command_buffer_encoder_o* self, le_rtxpso_handle pipeline);
+        void                         ( *sbt_set_ray_gen        )(le_shader_binding_table_o* sbt, uint32_t ray_gen);
+        void                         ( *sbt_add_hit            )(le_shader_binding_table_o* sbt, uint32_t ray_gen);
+        void                         ( *sbt_add_callable       )(le_shader_binding_table_o* sbt, uint32_t ray_gen);
+        void                         ( *sbt_add_miss           )(le_shader_binding_table_o* sbt, uint32_t ray_gen);
+        void                         ( *sbt_add_u32_param      )(le_shader_binding_table_o* sbt, uint32_t param);
+        void                         ( *sbt_add_f32_param      )(le_shader_binding_table_o* sbt, float param);
 		le_pipeline_manager_o*       ( *get_pipeline_manager   )( le_command_buffer_encoder_o *self );
 		void                         ( *get_encoded_data       )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
 	};
