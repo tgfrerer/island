@@ -44,14 +44,39 @@ static inline le_allocator_o *fetch_allocator( le_allocator_o **ppAlloc ) {
 
 // ----------------------------------------------------------------------
 
+struct le_shader_binding_table_o {
+
+	union parameter_t {
+		uint32_t u32;
+		float    f32;
+	};
+
+	struct shader_record {
+		uint32_t                 handle_idx;
+		std::vector<parameter_t> parameters;
+	};
+
+	le_rtxpso_handle           pipeline;
+	shader_record              ray_gen;
+	std::vector<shader_record> hit;
+	std::vector<shader_record> miss;
+	std::vector<shader_record> callable;
+
+	// stateful, used so that we can add parameters to the last shader_record
+	shader_record *last_shader_record = nullptr;
+};
+
+// ----------------------------------------------------------------------
+
 struct le_command_buffer_encoder_o {
-	char                    mCommandStream[ 4096 * 512 ]; // 512 pages of memory = 2MB
-	size_t                  mCommandStreamSize = 0;
-	size_t                  mCommandCount      = 0;
-	le_allocator_o **       ppAllocator        = nullptr; // allocator list is owned by backend, externally
-	le_pipeline_manager_o * pipelineManager    = nullptr;
-	le_staging_allocator_o *stagingAllocator   = nullptr; // Borrowed from backend - used for larger, permanent resources, shared amongst encoders
-	le::Extent2D            extent             = {};      // Renderpass extent, otherwise swapchain extent inferred via renderer, this may be queried by users of encoder.
+	char                                     mCommandStream[ 4096 * 512 ]; // 512 pages of memory = 2MB
+	size_t                                   mCommandStreamSize = 0;
+	size_t                                   mCommandCount      = 0;
+	le_allocator_o **                        ppAllocator        = nullptr; // allocator list is owned by backend, externally
+	le_pipeline_manager_o *                  pipelineManager    = nullptr;
+	le_staging_allocator_o *                 stagingAllocator   = nullptr; // Borrowed from backend - used for larger, permanent resources, shared amongst encoders
+	le::Extent2D                             extent             = {};      // Renderpass extent, otherwise swapchain extent inferred via renderer, this may be queried by users of encoder.
+	std::vector<le_shader_binding_table_o *> shader_binding_tables;        // owning
 };
 
 // ----------------------------------------------------------------------
@@ -72,6 +97,11 @@ static le_command_buffer_encoder_o *cbe_create( le_allocator_o **allocator, le_p
 static void cbe_destroy( le_command_buffer_encoder_o *self ) {
 	//	std::cout << "encoder destroy: " << std::hex << self << std::endl
 	//	          << std::flush;
+
+	for ( auto sbt : self->shader_binding_tables ) {
+		delete ( sbt );
+	}
+
 	delete ( self );
 }
 
