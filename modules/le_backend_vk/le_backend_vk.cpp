@@ -4879,11 +4879,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					// warning if any blas resource could not be found.
 
 					for ( size_t i = 0; i != instances_count; i++ ) {
-						// Note: similarly to blas handles, we could also patch
-						// shaderBindingTable offsets based on rtx pipeline.
-
-						// Update handle in-place on GPU mapped, coherent memory.
-						instances[ i ].blas_handle = frame.availableResources.at( resources[ i ] ).info.blasInfo.cached_integer_handle; // the 64 bit handle for the acceleration structure.
+						// Update blas handles in-place on GPU mapped, coherent memory.
+						//
+						// The 64bit integer handles for bottom level acceleration structures were queried from the GPU when
+						// building bottom level acceleration structures.
+						instances[ i ].blas_handle = frame.availableResources.at( resources[ i ] ).info.blasInfo.cached_integer_handle;
 					}
 
 					// Invariant: all instances should be patched right now, we can use the buffer at offset as
