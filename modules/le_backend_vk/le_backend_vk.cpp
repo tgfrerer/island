@@ -820,7 +820,7 @@ static void backend_reset_swapchain( le_backend_o *self ) {
 /// Each Encoder uses its own virtual buffer for such purposes.
 static le_resource_handle_t declare_resource_virtual_buffer( uint8_t index ) {
 
-	auto resource = LE_RESOURCE( "Encoder-Virtual", LeResourceType::eBuffer ); // virtual resources all have the same id, which means they are not part of the regular roster of resources...
+	auto resource = LE_BUF_RESOURCE( "Encoder-Virtual" ); // virtual resources all have the same id, which means they are not part of the regular roster of resources...
 
 	resource.handle.as_handle.meta.as_meta.index = index; // encoder index
 	resource.handle.as_handle.meta.as_meta.flags = le_resource_handle_t::FlagBits::eIsVirtual;
@@ -3601,14 +3601,12 @@ static le_allocator_o **backend_create_transient_allocators( le_backend_o *self,
 		VmaAllocationInfo allocationInfo;
 
 		VmaAllocationCreateInfo createInfo{};
-		{
-			createInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-			createInfo.pool  = frame.allocationPool; // Since we're allocating from a pool all fields but .flags will be taken from the pool
+		createInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+		createInfo.pool  = frame.allocationPool; // Since we're allocating from a pool all fields but .flags will be taken from the pool
 
-			le_resource_handle_t res = declare_resource_virtual_buffer( uint8_t( i ) );
+		le_resource_handle_t res = declare_resource_virtual_buffer( uint8_t( i ) );
 
-			memcpy( &createInfo.pUserData, &res, sizeof( void * ) ); // store value of i in userData
-		}
+		createInfo.pUserData = &res;
 
 		VkBufferCreateInfo bufferCreateInfo;
 		{

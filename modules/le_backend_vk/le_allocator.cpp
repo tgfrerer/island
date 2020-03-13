@@ -55,7 +55,7 @@ static le_allocator_o *allocator_create( VmaAllocationInfo const *info, uint16_t
 	// -- Fetch resource handle of underlying buffer from VmaAllocation info
 	memcpy( &self->resourceId, &info->pUserData, sizeof( void * ) ); // note we copy pUserData as a value
 
-	self->resourceId = reinterpret_cast<le_resource_handle_t const &>( info->pUserData );
+	self->resourceId = *reinterpret_cast<le_resource_handle_t const *>( info->pUserData );
 
 	allocator_reset( self );
 
