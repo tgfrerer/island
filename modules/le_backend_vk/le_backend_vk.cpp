@@ -4276,7 +4276,13 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 										descriptorData.bindingNumber = uint32_t( b.binding );
 										descriptorData.arrayIndex    = uint32_t( arrayIndex );
 
-										descriptorData.bufferInfo.range = VK_WHOLE_SIZE;
+										if ( b.type == vk::DescriptorType::eStorageBuffer ||
+										     b.type == vk::DescriptorType::eUniformBuffer ||
+										     b.type == vk::DescriptorType::eStorageBufferDynamic ||
+										     b.type == vk::DescriptorType::eUniformBufferDynamic ) {
+
+											descriptorData.bufferInfo.range = b.range;
+										}
 
 										setData.emplace_back( std::move( descriptorData ) );
 									}
