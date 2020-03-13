@@ -4419,6 +4419,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					vk::Buffer sbt_vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, rtx_state.sbt_buffer );
 
+					//					std::cout << "sbt buffer: " << std::hex << sbt_vk_buffer << std::endl
+					//					          << std::flush;
+					//					std::cout << "sbt buffer raygen offset: " << std::dec << rtx_state.ray_gen_sbt_offset << std::endl
+					//					          << std::flush;
+
 					cmd.traceRaysNV(
 					    sbt_vk_buffer,
 					    rtx_state.ray_gen_sbt_offset,
