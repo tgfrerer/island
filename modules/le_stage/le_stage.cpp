@@ -2029,10 +2029,23 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 			        // -- set ray tracing arguments
 
+			        struct CameraPropertiesUBO {
+				        glm::mat4 viewInverse;
+				        glm::mat4 projectionInverse;
+				        glm::vec4 lightPos; //world coords
+			        };
+
+			        CameraPropertiesUBO camera_properties;
+			        camera_properties.viewInverse       = camera_world_matrix;
+			        camera_properties.projectionInverse = glm::inverse( camera_projection_matrix );
+			        camera_properties.lightPos          = glm::vec4( 0, 10, 10, 1 );
 			        // -- call trace rays
 
+			        encoder.setArgumentData( LE_ARGUMENT_NAME( "CameraProperties" ), &camera_properties, sizeof( CameraPropertiesUBO ) );
+			        encoder.setArgumentTlas( LE_ARGUMENT_NAME( "topLevelAS" ), stage->scenes.front().rtx_tlas_handle );
+			        encoder.setArgumentImage( LE_ARGUMENT_NAME( "image" ), RTX_IMAGE_TARGET_HANDLE );
+
 			        encoder.traceRays( extents.width, extents.height );
-			        // encoder.traceRays();
 		        } )
 		        .setIsRoot( true );
 
