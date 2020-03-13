@@ -597,8 +597,11 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 		cmd->info.sbt_buffer          = allocatorBuffer;
 		cmd->info.ray_gen_sbt_offset  = bufferBaseOffset + ray_gen_shader_binding_offset;
 		cmd->info.miss_sbt_offset     = bufferBaseOffset + miss_shader_binding_offset;
+		cmd->info.miss_sbt_stride     = miss_shader_binding_stride;
 		cmd->info.hit_sbt_offset      = bufferBaseOffset + hit_shader_binding_offset;
+		cmd->info.hit_sbt_stride      = hit_shader_binding_stride;
 		cmd->info.callable_sbt_offset = bufferBaseOffset + callable_shader_binding_offset;
+		cmd->info.callable_sbt_stride = callable_shader_binding_stride;
 
 	} else {
 		assert( false && "Could not allocate scratch memory for rtx shader binding table." );

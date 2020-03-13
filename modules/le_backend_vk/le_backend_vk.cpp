@@ -3978,8 +3978,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			le_resource_handle_t sbt_buffer; // shader binding table buffer
 			uint64_t             ray_gen_sbt_offset;
 			uint64_t             miss_sbt_offset;
+			uint64_t             miss_sbt_stride;
 			uint64_t             hit_sbt_offset;
+			uint64_t             hit_sbt_stride;
 			uint64_t             callable_sbt_offset;
+			uint64_t             callable_sbt_stride;
 		};
 
 		RtxState rtx_state{}; // used to keep track of shader binding tables bound with rtx pipelines.
@@ -4297,8 +4300,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						rtx_state.sbt_buffer          = le_cmd->info.sbt_buffer;
 						rtx_state.ray_gen_sbt_offset  = le_cmd->info.ray_gen_sbt_offset;
 						rtx_state.miss_sbt_offset     = le_cmd->info.miss_sbt_offset;
+						rtx_state.miss_sbt_stride     = le_cmd->info.miss_sbt_stride;
 						rtx_state.hit_sbt_offset      = le_cmd->info.hit_sbt_offset;
+						rtx_state.hit_sbt_stride      = le_cmd->info.hit_sbt_stride;
 						rtx_state.callable_sbt_offset = le_cmd->info.callable_sbt_offset;
+						rtx_state.callable_sbt_stride = le_cmd->info.callable_sbt_stride;
 						rtx_state.is_set              = true;
 
 					} else {

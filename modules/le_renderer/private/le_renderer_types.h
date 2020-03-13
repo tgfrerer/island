@@ -1667,8 +1667,11 @@ struct CommandBindRtxPipeline {
 		le_resource_handle_t sbt_buffer;
 		uint64_t             ray_gen_sbt_offset;
 		uint64_t             miss_sbt_offset;
+		uint64_t             miss_sbt_stride;
 		uint64_t             hit_sbt_offset;
+		uint64_t             hit_sbt_stride;
 		uint64_t             callable_sbt_offset;
+		uint64_t             callable_sbt_stride;
 	} info;
 };
 
