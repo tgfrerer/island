@@ -460,100 +460,148 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 
 	using namespace le_backend_vk;
 
-	char *shader_group_data;
-
 	// -- query pipeline for shader group data
 
+	char *shader_group_data = nullptr;
 	le_pipeline_manager_i.produce_rtx_pipeline( self->pipelineManager, sbt->pipeline, &shader_group_data );
 
 	auto sbt_data_header = reinterpret_cast<LeShaderGroupDataHeader *>( shader_group_data );
 
-	{
-		// calculate memory requirements for buffer
+	// Calculate memory requirements for buffer
 
-		uint32_t ray_gen_shader_binding_offset   = 0;
-		uint32_t raygen_shader_binding_stride    = 0;
-		uint32_t ray_gen_shader_max_param_count  = 0;
-		uint32_t miss_shader_binding_offset      = 0;
-		uint32_t miss_shader_binding_stride      = 0;
-		uint32_t miss_shader_max_param_count     = 0;
-		uint32_t hit_shader_binding_offset       = 0;
-		uint32_t hit_shader_binding_stride       = 0;
-		uint32_t hit_shader_max_param_count      = 0;
-		uint32_t callable_shader_binding_offset  = 0;
-		uint32_t callable_shader_binding_stride  = 0;
-		uint32_t callable_shader_max_param_count = 0;
+	uint32_t ray_gen_shader_binding_offset   = 0;
+	uint32_t raygen_shader_binding_stride    = 0;
+	uint32_t ray_gen_shader_max_param_count  = 0;
+	uint32_t miss_shader_binding_offset      = 0;
+	uint32_t miss_shader_binding_stride      = 0;
+	uint32_t miss_shader_max_param_count     = 0;
+	uint32_t hit_shader_binding_offset       = 0;
+	uint32_t hit_shader_binding_stride       = 0;
+	uint32_t hit_shader_max_param_count      = 0;
+	uint32_t callable_shader_binding_offset  = 0;
+	uint32_t callable_shader_binding_stride  = 0;
+	uint32_t callable_shader_max_param_count = 0;
 
-		auto max_params_fun = []( const auto &shader_vec ) -> uint32_t {
-			auto compare_fun = []( const auto &lhs, const auto &rhs ) -> bool {
-				return lhs.parameters.size() < rhs.parameters.size();
-			};
-			if ( shader_vec.empty() ) {
-				return 0;
+	// Returns the maximum number of parameters for a given vector of shader records
+	auto max_params_fun = []( const auto &shader_vec ) -> uint32_t {
+		auto compare_fun = []( const auto &lhs, const auto &rhs ) -> bool {
+			return lhs.parameters.size() < rhs.parameters.size();
+		};
+		if ( shader_vec.empty() ) {
+			return 0;
+		}
+		// ----------| invariant: shader vec is not empty
+		return uint32_t( std::max_element( shader_vec.begin(), shader_vec.end(), compare_fun )->parameters.size() );
+	};
+
+	ray_gen_shader_max_param_count  = uint32_t( sbt->ray_gen.parameters.size() );
+	miss_shader_max_param_count     = max_params_fun( sbt->miss );
+	hit_shader_max_param_count      = max_params_fun( sbt->hit );
+	callable_shader_max_param_count = max_params_fun( sbt->callable );
+
+	// Stride is set per type, and must be a multiple of
+	// sbt_data_header->rtx_shader_group_handle_size - the stride is the same for all
+	// shaders of a type, and is based on the largest stride per type.
+
+	auto round_up_to = []( uint32_t val, uint32_t stride ) -> uint32_t {
+		assert( stride != 0 && "stride must not be zero" );
+		return stride * ( ( val + stride - 1 ) / stride );
+	};
+
+	// Each shader group may have 0..n  parameters inline. Parameters must use 4 Bytes.
+	//
+	// The stride within a shader group buffer is uniform, we must therefore accommodate
+	// for the shader group with the largest paramter count, and make this the stride.
+	//
+	// The stride must be a multiple of shaderGroupHandleSize.
+	//
+	// See Chapter 33.1, Valid Usage for `VkTraceRays()`
+	// "[hit|callable|miss]ShaderBindingStride must be a multiple of ::shaderGroupHandleSize"
+	//
+	uint32_t group_handle_size = sbt_data_header->rtx_shader_group_handle_size;
+
+	raygen_shader_binding_stride   = group_handle_size + round_up_to( ray_gen_shader_max_param_count * sizeof( uint32_t ), group_handle_size );
+	miss_shader_binding_stride     = group_handle_size + round_up_to( miss_shader_max_param_count * sizeof( uint32_t ), group_handle_size );
+	hit_shader_binding_stride      = group_handle_size + round_up_to( hit_shader_max_param_count * sizeof( uint32_t ), group_handle_size );
+	callable_shader_binding_stride = group_handle_size + round_up_to( callable_shader_max_param_count * sizeof( uint32_t ), group_handle_size );
+
+	// -- calculate how much data we will need in total.
+	uint32_t required_byte_count = 0;
+	uint32_t base_alignment      = sbt_data_header->rtx_shader_group_base_alignment;
+
+	// Offsets for each shader group buffer must be multiples of
+	// shaderGroupBaseAlignment.
+	// See Chapter 33.1, Valid Usage for `VkTraceRays()`
+
+	ray_gen_shader_binding_offset = required_byte_count;
+	required_byte_count += round_up_to( raygen_shader_binding_stride, base_alignment );
+	miss_shader_binding_offset = required_byte_count;
+	required_byte_count += round_up_to( uint32_t( miss_shader_binding_stride * sbt->miss.size() ), base_alignment );
+	hit_shader_binding_offset = required_byte_count;
+	required_byte_count += round_up_to( uint32_t( hit_shader_binding_stride * sbt->hit.size() ), base_alignment );
+	callable_shader_binding_offset = required_byte_count;
+	required_byte_count += round_up_to( uint32_t( callable_shader_binding_stride * sbt->callable.size() ), base_alignment );
+
+	//	std::cout << "sbt memory requirement: " << std::dec << required_byte_count << "Bytes" << std::endl
+	//	          << std::flush;
+
+	// -- allocate buffer from scratch memory
+
+	le_allocator_o *allocator = fetch_allocator( self->ppAllocator );
+
+	void *   memAddr          = nullptr;
+	uint64_t bufferBaseOffset = 0;
+
+	// Write shader handles and shader instance parameters to memory buffer, based on shader binding data.
+	auto write_to_buffer = []( char *                                    base_addr,
+	                           uint32_t                                  binding_stride,
+	                           uint32_t                                  handle_size,
+	                           char *                                    group_data,
+	                           le_shader_binding_table_o::shader_record *shader_records,
+	                           size_t                                    shader_records_count ) -> bool {
+		for ( size_t i = 0; i != shader_records_count; i++ ) {
+
+			auto &record = shader_records[ i ];
+
+			char *record_base_address = base_addr + i * binding_stride;
+			memcpy( record_base_address, group_data + record.handle_idx * handle_size, handle_size );
+
+			assert( handle_size + record.parameters.size() * sizeof( uint32_t ) <= binding_stride );
+
+			// store parameters for this shader, if any
+			if ( !record.parameters.empty() ) {
+				memcpy( record_base_address + handle_size, record.parameters.data(), record.parameters.size() * sizeof( uint32_t ) );
 			}
-			// ----------| invariant: shader vec is not empty
-			return uint32_t( std::max_element( shader_vec.begin(), shader_vec.end(), compare_fun )->parameters.size() );
-		};
+		}
+		return true;
+	};
 
-		ray_gen_shader_max_param_count  = uint32_t( sbt->ray_gen.parameters.size() );
-		miss_shader_max_param_count     = max_params_fun( sbt->miss );
-		hit_shader_max_param_count      = max_params_fun( sbt->hit );
-		callable_shader_max_param_count = max_params_fun( sbt->callable );
+	if ( le_allocator_linear_i.allocate( allocator, required_byte_count, &memAddr, &bufferBaseOffset ) ) {
 
-		// Stride is set per type, and must be a multiple of
-		// sbt_data_header->rtx_shader_group_handle_size - the stride is the same for all
-		// shaders of a type, and is based on the largest stride per type.
+		char *base_addr = static_cast<char *>( memAddr );
 
-		auto round_up_to = []( uint32_t val, uint32_t stride ) -> uint32_t {
-			assert( stride != 0 && "stride must not be zero" );
-			return stride * ( ( val + stride - 1 ) / stride );
-		};
+		// first we must make sure that bufferOffset is a multiple of base_alignment
+		assert( 0 == ( bufferBaseOffset % base_alignment ) && "buffer offset must be aligned to shader group base alignment" );
 
-		// Each shader group may have 0..n  parameters inline. Parameters must use 4 Bytes.
-		//
-		// The stride within a shader group buffer is uniform, we must therefore accommodate
-		// for the shader group with the largest paramter count, and make this the stride.
-		//
-		// The stride must be a multiple of shaderGroupHandleSize.
-		//
-		// See Chapter 33.1, Valid Usage for `VkTraceRays()`
-		// "[hit|callable|miss]ShaderBindingStride must be a multiple of ::shaderGroupHandleSize"
-		//
-		uint32_t stride = sbt_data_header->rtx_shader_group_handle_size;
+		// -- write miss shaders to memory
 
-		raygen_shader_binding_stride   = stride + round_up_to( ray_gen_shader_max_param_count * sizeof( uint32_t ), stride );
-		miss_shader_binding_stride     = stride + round_up_to( miss_shader_max_param_count * sizeof( uint32_t ), stride );
-		hit_shader_binding_stride      = stride + round_up_to( hit_shader_max_param_count * sizeof( uint32_t ), stride );
-		callable_shader_binding_stride = stride + round_up_to( callable_shader_max_param_count * sizeof( uint32_t ), stride );
+		write_to_buffer( base_addr + ray_gen_shader_binding_offset, raygen_shader_binding_stride, group_handle_size, shader_group_data, &sbt->ray_gen, 1 );
+		write_to_buffer( base_addr + miss_shader_binding_offset, miss_shader_binding_stride, group_handle_size, shader_group_data, sbt->miss.data(), sbt->miss.size() );
+		write_to_buffer( base_addr + hit_shader_binding_offset, hit_shader_binding_stride, group_handle_size, shader_group_data, sbt->hit.data(), sbt->hit.size() );
+		write_to_buffer( base_addr + callable_shader_binding_offset, callable_shader_binding_stride, group_handle_size, shader_group_data, sbt->callable.data(), sbt->callable.size() );
 
-		// -- calculate how much data we will need in total.
-		uint32_t mem_sz         = 0;
-		uint32_t base_alignment = sbt_data_header->rtx_shader_group_base_alignment;
+		// -- store buffer, and offsets with command info
 
-		// Offsets for each shader group buffer must be multiples of
-		// shaderGroupBaseAlignment.
-		// See Chapter 33.1, Valid Usage for `VkTraceRays()`
+		le_resource_handle_t allocatorBuffer = le_allocator_linear_i.get_le_resource_id( allocator );
 
-		ray_gen_shader_binding_offset = mem_sz;
-		mem_sz += round_up_to( raygen_shader_binding_stride, base_alignment );
-		miss_shader_binding_offset = mem_sz;
-		mem_sz += round_up_to( uint32_t( miss_shader_binding_stride * sbt->miss.size() ), base_alignment );
-		hit_shader_binding_offset = mem_sz;
-		mem_sz += round_up_to( uint32_t( hit_shader_binding_stride * sbt->hit.size() ), base_alignment );
-		callable_shader_binding_offset = mem_sz;
-		mem_sz += round_up_to( uint32_t( callable_shader_binding_stride * sbt->callable.size() ), base_alignment );
+		cmd->info.sbt_buffer          = allocatorBuffer;
+		cmd->info.ray_gen_sbt_offset  = bufferBaseOffset + ray_gen_shader_binding_offset;
+		cmd->info.miss_sbt_offset     = bufferBaseOffset + miss_shader_binding_offset;
+		cmd->info.hit_sbt_offset      = bufferBaseOffset + hit_shader_binding_offset;
+		cmd->info.callable_sbt_offset = bufferBaseOffset + callable_shader_binding_offset;
 
-		std::cout << "sbt memory requirement: " << std::dec << mem_sz << "Bytes" << std::endl
-		          << std::flush;
-
-		// -- allocate buffer from scratch memory,
-
-		// -- store handles, and parameters (if any) in buffer
-
-		// note that you will need to look up from shader_group_data based on index in sbt,
-		// and copy to scratch memory
-
-		// -- store offsets and buffer id with command, so that we can retrieve in backend.
+	} else {
+		assert( false && "Could not allocate scratch memory for rtx shader binding table." );
 	}
 
 	// -- build actual memory for shader binding table
@@ -565,6 +613,8 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 	self->mCommandStreamSize += sizeof( le::CommandBindRtxPipeline );
 	self->mCommandCount++;
 }
+
+// ----------------------------------------------------------------------
 
 static void cbe_bind_compute_pipeline( le_command_buffer_encoder_o *self, le_cpso_handle cpsoHandle ) {
 

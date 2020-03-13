@@ -1664,6 +1664,11 @@ struct CommandBindRtxPipeline {
 	CommandHeader header = {{{CommandType::eBindRtxPipeline, sizeof( CommandBindRtxPipeline )}}};
 	struct {
 		le_rtxpso_handle     rtx_pso_handle;
+		le_resource_handle_t sbt_buffer;
+		uint64_t             ray_gen_sbt_offset;
+		uint64_t             miss_sbt_offset;
+		uint64_t             hit_sbt_offset;
+		uint64_t             callable_sbt_offset;
 	} info;
 };
 
