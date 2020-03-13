@@ -4336,7 +4336,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					if ( argumentState.setCount > 0 ) {
 
-						cmd.bindDescriptorSets( vk::PipelineBindPoint::eCompute,
+						cmd.bindDescriptorSets( vk::PipelineBindPoint::eRayTracingNV,
 						                        currentPipelineLayout,
 						                        0,
 						                        argumentState.setCount,
