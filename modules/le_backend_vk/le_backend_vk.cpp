@@ -3971,7 +3971,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		//
 		std::array<std::vector<DescriptorData>, 8> previousSetData;
 
-		ArgumentState argumentState;
+		ArgumentState argumentState{};
 
 		struct RtxState {
 			bool                 is_set;
