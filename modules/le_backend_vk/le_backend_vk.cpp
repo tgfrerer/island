@@ -4314,6 +4314,51 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				} break;
 
+				case le::CommandType::eTraceRays: {
+					auto *le_cmd = static_cast<le::CommandTraceRays *>( dataIt );
+
+					// -- update descriptorsets via template if tainted
+					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetData, descriptorSets );
+
+					if ( false == argumentsOk ) {
+						break;
+					}
+
+					// --------| invariant: arguments were updated successfully
+
+					if ( argumentState.setCount > 0 ) {
+
+						cmd.bindDescriptorSets( vk::PipelineBindPoint::eCompute,
+						                        currentPipelineLayout,
+						                        0,
+						                        argumentState.setCount,
+						                        descriptorSets,
+						                        argumentState.dynamicOffsetCount,
+						                        argumentState.dynamicOffsets.data() );
+					}
+
+					assert( rtx_state.is_set && "sbt state must have been set before calling traceRays" );
+
+					vk::Buffer sbt_vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, rtx_state.sbt_buffer );
+
+					cmd.traceRaysNV(
+					    sbt_vk_buffer,
+					    rtx_state.ray_gen_sbt_offset,
+					    sbt_vk_buffer,
+					    rtx_state.miss_sbt_offset,
+					    rtx_state.miss_sbt_stride,
+					    sbt_vk_buffer,
+					    rtx_state.hit_sbt_offset,
+					    rtx_state.hit_sbt_stride,
+					    sbt_vk_buffer,
+					    rtx_state.callable_sbt_offset,
+					    rtx_state.callable_sbt_stride,
+					    le_cmd->info.witdth,
+					    le_cmd->info.height,
+					    le_cmd->info.depth //
+					);
+
+				} break;
 				case le::CommandType::eDispatch: {
 					auto *le_cmd = static_cast<le::CommandDispatch *>( dataIt );
 

@@ -1495,6 +1495,7 @@ enum class CommandType : uint32_t {
 	eDrawIndexed,
 	eDraw,
 	eDispatch,
+	eTraceRays,
 	eSetLineWidth,
 	eSetViewport,
 	eBuildRtxTlas,
@@ -1550,6 +1551,16 @@ struct CommandDispatch {
 		uint32_t groupCountX;
 		uint32_t groupCountY;
 		uint32_t groupCountZ;
+		uint32_t __padding__;
+	} info;
+};
+
+struct CommandTraceRays {
+	CommandHeader header = {{{CommandType::eTraceRays, sizeof( CommandTraceRays )}}};
+	struct {
+		uint32_t witdth;
+		uint32_t height;
+		uint32_t depth;
 		uint32_t __padding__;
 	} info;
 };

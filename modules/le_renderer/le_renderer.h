@@ -134,10 +134,6 @@ struct le_renderer_api {
 		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, size_t offset, void const* data, size_t numBytes);
 		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, le_write_to_image_settings_t const & writeInfo, void const *data, size_t numBytes );
 
-		void 						 ( *build_rtx_blas         )( le_command_buffer_encoder_o *self, le_resource_handle_t const* const blas_handles, const uint32_t handles_count);
-
-        // one blas handle per instance
-		void 						 ( *build_rtx_tlas         )( le_command_buffer_encoder_o *self, le_resource_handle_t const* tlas_handle, le_rtx_geometry_instance_t const * instances, le_resource_handle_t const * blas_handles, uint32_t instances_count);
 
 		le::Extent2D const &         ( *get_extent             ) ( le_command_buffer_encoder_o* self );
 
@@ -147,6 +143,9 @@ struct le_renderer_api {
 		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, le_resource_handle_t const textureId, uint64_t argumentName, uint64_t arrayIndex);
 		void                         ( *set_argument_image     )( le_command_buffer_encoder_o *self, le_resource_handle_t const imageId, uint64_t argumentName, uint64_t arrayIndex);
 
+		void 						 ( *build_rtx_blas         )( le_command_buffer_encoder_o *self, le_resource_handle_t const* const blas_handles, const uint32_t handles_count);
+        // one blas handle per instance
+		void 						 ( *build_rtx_tlas         )( le_command_buffer_encoder_o *self, le_resource_handle_t const* tlas_handle, le_rtx_geometry_instance_t const * instances, le_resource_handle_t const * blas_handles, uint32_t instances_count);
         
         le_shader_binding_table_o*   ( *build_sbt              )(le_command_buffer_encoder_o* self, le_rtxpso_handle pipeline);
         void                         ( *sbt_set_ray_gen        )(le_shader_binding_table_o* sbt, uint32_t ray_gen);
@@ -161,6 +160,7 @@ struct le_renderer_api {
 
         // NOTE pipeline is implicitly bound, as it is stored with shader binding table (sbt)
 		void                         ( *bind_rtx_pipeline      )( le_command_buffer_encoder_o *self, le_shader_binding_table_o* shader_binding_table);
+        void                         ( *trace_rays             )( le_command_buffer_encoder_o* self, uint32_t width, uint32_t height, uint32_t depth);
 
 		le_pipeline_manager_o*       ( *get_pipeline_manager   )( le_command_buffer_encoder_o *self );
 		void                         ( *get_encoded_data       )( le_command_buffer_encoder_o *self, void **data, size_t *numBytes, size_t *numCommands );
@@ -547,6 +547,11 @@ class Encoder {
 
 	Encoder &drawIndexed( uint32_t const &indexCount, uint32_t const &instanceCount = 1, uint32_t const &firstIndex = 0, int32_t const &vertexOffset = 0, uint32_t const &firstInstance = 0 ) {
 		le_renderer::encoder_i.draw_indexed( self, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance );
+		return *this;
+	}
+
+	Encoder &traceRays( uint32_t const &width, uint32_t const &height, uint32_t const &depth = 1 ) {
+		le_renderer::encoder_i.trace_rays( self, width, height, depth );
 		return *this;
 	}
 

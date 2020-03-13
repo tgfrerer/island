@@ -135,6 +135,15 @@ static void cbe_dispatch( le_command_buffer_encoder_o *self, uint32_t groupCount
 }
 
 // ----------------------------------------------------------------------
+static void cbe_trace_rays( le_command_buffer_encoder_o *self, uint32_t width, uint32_t height, uint32_t depth ) {
+
+	auto cmd  = EMPLACE_CMD( le::CommandTraceRays ); // placement new!
+	cmd->info = {width, height, depth};
+
+	self->mCommandStreamSize += sizeof( le::CommandTraceRays );
+	self->mCommandCount++;
+}
+// ----------------------------------------------------------------------
 
 static void cbe_draw( le_command_buffer_encoder_o *self,
                       uint32_t                     vertexCount,
@@ -879,6 +888,7 @@ void register_le_command_buffer_encoder_api( void *api_ ) {
 	cbe_i.draw                   = cbe_draw;
 	cbe_i.draw_indexed           = cbe_draw_indexed;
 	cbe_i.dispatch               = cbe_dispatch;
+	cbe_i.trace_rays             = cbe_trace_rays;
 	cbe_i.get_extent             = cbe_get_extent;
 	cbe_i.set_line_width         = cbe_set_line_width;
 	cbe_i.set_viewport           = cbe_set_viewport;
