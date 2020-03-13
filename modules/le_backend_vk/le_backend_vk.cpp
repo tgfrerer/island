@@ -4299,17 +4299,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 							// -- reset dynamic offsets
 							memset( argumentState.dynamicOffsets.data(), 0, sizeof( uint32_t ) * argumentState.dynamicOffsetCount );
-
-							// TODO: set sbt from actual data in scratch vk buffer - we can probably update argument state to this
-							// effect, so that the relevant buffer views are available when calling the traceRays() command sub-
-							// sequently.
-
-							// we write directly into descriptorSetState when we update descriptors.
-							// when we bind a pipeline, we update the descriptorsetstate based
-							// on what the pipeline requires.
 						}
 
 						cmd.bindPipeline( vk::PipelineBindPoint::eRayTracingNV, currentPipeline.pipeline );
+
+						// -- "bind" shader binding table state
 
 						rtx_state.sbt_buffer          = le_cmd->info.sbt_buffer;
 						rtx_state.ray_gen_sbt_offset  = le_cmd->info.ray_gen_sbt_offset;
