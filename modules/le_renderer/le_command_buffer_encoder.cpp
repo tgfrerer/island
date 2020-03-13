@@ -606,12 +606,16 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 		// first we must make sure that bufferOffset is a multiple of base_alignment
 		assert( 0 == ( bufferBaseOffset % base_alignment ) && "buffer offset must be aligned to shader group base alignment" );
 
-		// -- write miss shaders to memory
+		// -- write shader binding table to renderpass scratch buffer.
 
-		write_to_buffer( base_addr + ray_gen_shader_binding_offset, raygen_shader_binding_stride, group_handle_size, shader_group_data, &sbt->ray_gen, 1 );
-		write_to_buffer( base_addr + miss_shader_binding_offset, miss_shader_binding_stride, group_handle_size, shader_group_data, sbt->miss.data(), sbt->miss.size() );
-		write_to_buffer( base_addr + hit_shader_binding_offset, hit_shader_binding_stride, group_handle_size, shader_group_data, sbt->hit.data(), sbt->hit.size() );
-		write_to_buffer( base_addr + callable_shader_binding_offset, callable_shader_binding_stride, group_handle_size, shader_group_data, sbt->callable.data(), sbt->callable.size() );
+		// NOTE: we increase the sbt_buffer_data to the position one past the header,
+		// which is where the payload for the shader buffer data begins.
+		char *shader_group_data_payload = reinterpret_cast<char *>( sbt_data_header + 1 );
+
+		write_to_buffer( base_addr + ray_gen_shader_binding_offset, raygen_shader_binding_stride, group_handle_size, shader_group_data_payload, &sbt->ray_gen, 1 );
+		write_to_buffer( base_addr + miss_shader_binding_offset, miss_shader_binding_stride, group_handle_size, shader_group_data_payload, sbt->miss.data(), sbt->miss.size() );
+		write_to_buffer( base_addr + hit_shader_binding_offset, hit_shader_binding_stride, group_handle_size, shader_group_data_payload, sbt->hit.data(), sbt->hit.size() );
+		write_to_buffer( base_addr + callable_shader_binding_offset, callable_shader_binding_stride, group_handle_size, shader_group_data_payload, sbt->callable.data(), sbt->callable.size() );
 
 		// -- store buffer, and offsets with command info
 
