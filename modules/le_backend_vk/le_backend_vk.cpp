@@ -4597,7 +4597,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					} );
 
 					if ( b == argumentState.binding_infos.end() ) {
-						std::cout << "Warning: Invalid texture argument name id: 0x" << std::hex << argument_name_id << std::endl
+						std::cout << "Warning: Invalid image argument name id: 0x" << std::hex << argument_name_id << std::endl
 						          << std::flush;
 						break;
 					}
