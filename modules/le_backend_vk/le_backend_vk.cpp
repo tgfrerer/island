@@ -3764,8 +3764,54 @@ static bool updateArguments( const vk::Device &                          device,
 
 				assert( result == vk::Result::eSuccess && "failed to allocate descriptor set" );
 
-				device.updateDescriptorSetWithTemplate( descriptorSets[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
+				if ( /* DISABLES CODE */ ( true ) ) {
+					// I wish that this would work - but it appears that accelerator decriptors cannot be updated using templates.
+					device.updateDescriptorSetWithTemplate( descriptorSets[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
+				} else {
+					std::vector<vk::WriteDescriptorSet> write_descriptor_sets;
+					write_descriptor_sets.reserve( argumentState_.setData[ setId ].size() );
 
+					for ( auto &a : argumentState_.setData[ setId ] ) {
+						vk::WriteDescriptorSet w{};
+
+						w
+						    .setDstSet( descriptorSets[ setId ] )
+						    .setDstBinding( a.bindingNumber )
+						    .setDstArrayElement( a.arrayIndex )
+						    .setDescriptorCount( 1 )
+						    .setDescriptorType( a.type ) //
+						    ;
+
+						switch ( a.type ) {
+						case vk::DescriptorType::eSampler:
+						case vk::DescriptorType::eCombinedImageSampler:
+						case vk::DescriptorType::eSampledImage:
+						case vk::DescriptorType::eStorageImage:
+						case vk::DescriptorType::eInputAttachment:
+							w.setPImageInfo( reinterpret_cast<vk::DescriptorImageInfo const *>( &a.imageInfo ) );
+							break;
+						case vk::DescriptorType::eUniformTexelBuffer:
+						case vk::DescriptorType::eStorageTexelBuffer:
+							w.setPTexelBufferView( reinterpret_cast<vk::BufferView const *>( &a.texelBufferInfo ) );
+							break;
+						case vk::DescriptorType::eUniformBuffer:
+						case vk::DescriptorType::eStorageBuffer:
+						case vk::DescriptorType::eUniformBufferDynamic:
+						case vk::DescriptorType::eStorageBufferDynamic:
+							w.setPBufferInfo( reinterpret_cast<vk::DescriptorBufferInfo const *>( &a.bufferInfo ) );
+							break;
+						case vk::DescriptorType::eInlineUniformBlockEXT:
+							assert( false && "inline uniform blocks are not yet supported" );
+							break;
+						case vk::DescriptorType::eAccelerationStructureNV:
+							assert( false && "acceleration structure descriptors are not yet supported." );
+							break;
+						}
+
+						write_descriptor_sets.emplace_back( w );
+					}
+					device.updateDescriptorSets( uint32_t( write_descriptor_sets.size() ), write_descriptor_sets.data(), 0, nullptr );
+				}
 				previousSetData[ setId ] = argumentState_.setData[ setId ];
 			}
 
