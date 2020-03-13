@@ -43,6 +43,8 @@
  * 
 */
 
+constexpr auto RTX_IMAGE_TARGET_HANDLE = LE_IMG_RESOURCE( "rtx_target_img" );
+
 // Wrappers so that we can pass data via opaque pointers across header boundaries
 
 struct glm_vec3_t {
@@ -332,6 +334,8 @@ struct le_scene_o {
 
 	le_resource_handle_t rtx_tlas_handle; // only used for rtx
 	le_resource_info_t   rtx_tlas_info;   // only used for rtx
+
+	le_resource_handle_t rtx_image_target;
 };
 
 // Owns all the data
@@ -2036,15 +2040,16 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			// -- Signal that we want to use an image to write to.
 
 			rtx_pass
-			    .useImageResource( LE_IMG_RESOURCE( "rtx_target_img" ), {LE_IMAGE_USAGE_STORAGE_BIT} ); // write
+			    .useImageResource( RTX_IMAGE_TARGET_HANDLE, {LE_IMAGE_USAGE_STORAGE_BIT} ); // write
 
-			le_resource_info_t rtx_target_info = le::ImageInfoBuilder()
-			                                         .setFormat( le::Format::eR8G8B8A8Uint ) // 1 byte per cell, 1024x1024 cells
-			                                         .setExtent( 1024, 1024 )                // FIXME: size should match image size - or at least camera.
-			                                         .addUsageFlags( {LE_IMAGE_USAGE_STORAGE_BIT | LE_IMAGE_USAGE_SAMPLED_BIT} )
-			                                         .build();
+			le_resource_info_t rtx_target_info =
+			    le::ImageInfoBuilder()
+			        .setFormat( le::Format::eR8G8B8A8Uint ) // 1 byte per cell, 1024x1024 cells
+			        .setExtent( 1024, 1024 )                // FIXME: size should match image size - or at least camera.
+			        .addUsageFlags( {LE_IMAGE_USAGE_STORAGE_BIT | LE_IMAGE_USAGE_SAMPLED_BIT} )
+			        .build();
 
-			render_module_i.declare_resource( module, LE_IMG_RESOURCE( "rtx_target_img" ), rtx_target_info );
+			render_module_i.declare_resource( module, RTX_IMAGE_TARGET_HANDLE, rtx_target_info );
 
 			// -- Signal that we want to read from bottom-level acceleration structures.
 
@@ -2072,13 +2077,15 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 #endif
 
-	auto stage_draw_pass = le::RenderPass( "Stage Draw", LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW )
-	                           .setExecuteCallback( draw_params, pass_draw )
-	                           .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE,
-	                                                le::ImageAttachmentInfoBuilder()
-	                                                    .setColorClearValue( LeClearValue( {0.125f, 0.125f, 0.125f, 1.f} ) )
-	                                                    .build() )
-	                           .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_STENCIL_IMAGE" ) );
+	auto stage_draw_pass =
+	    le::RenderPass( "Stage Draw", LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW )
+	        .setExecuteCallback( draw_params, pass_draw )
+	        .addColorAttachment(
+	            LE_SWAPCHAIN_IMAGE_HANDLE,
+	            le::ImageAttachmentInfoBuilder()
+	                .setColorClearValue( LeClearValue( {0.125f, 0.125f, 0.125f, 1.f} ) )
+	                .build() )
+	        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_STENCIL_IMAGE" ) );
 
 	for ( auto &b : draw_params->stage->buffers ) {
 		stage_draw_pass.useBufferResource( b->handle, {LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
@@ -2087,11 +2094,11 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 	for ( auto &t : draw_params->stage->textures ) {
 		// We must create texture handles for this renderpass.
-		stage_draw_pass.sampleTexture( t.texture_handle,
-		                               {
-		                                   draw_params->stage->samplers[ t.sampler_idx ],           // samplerInfo
-		                                   {draw_params->stage->images[ t.image_idx ]->handle, {}}, // imageViewInfo
-		                               } );
+		stage_draw_pass.sampleTexture(
+		    t.texture_handle, {
+		                          draw_params->stage->samplers[ t.sampler_idx ],           // samplerInfo
+		                          {draw_params->stage->images[ t.image_idx ]->handle, {}}, // imageViewInfo
+		                      } );
 	}
 
 	render_module_i.add_renderpass( module, stage_draw_pass );
