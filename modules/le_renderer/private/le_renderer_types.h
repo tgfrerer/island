@@ -1663,7 +1663,7 @@ struct CommandBindComputePipeline {
 struct CommandBindRtxPipeline {
 	CommandHeader header = {{{CommandType::eBindRtxPipeline, sizeof( CommandBindRtxPipeline )}}};
 	struct {
-		le_rtxpso_handle rtxpsoHandle;
+		le_rtxpso_handle     rtx_pso_handle;
 	} info;
 };
 

@@ -456,7 +456,7 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 	// -- insert rtx PSO pointer into command stream
 	auto cmd = EMPLACE_CMD( le::CommandBindRtxPipeline );
 
-	cmd->info.rtxpsoHandle = sbt->pipeline;
+	cmd->info.rtx_pso_handle = sbt->pipeline;
 
 	using namespace le_backend_vk;
 

@@ -4203,7 +4203,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// was used to create the pipeline. The pipeline state may change if pipeline gets recompiled.
 
 						char *shader_group_data = nullptr;
-						currentPipeline         = le_pipeline_manager_i.produce_rtx_pipeline( pipelineManager, le_cmd->info.rtxpsoHandle, &shader_group_data );
+						currentPipeline         = le_pipeline_manager_i.produce_rtx_pipeline( pipelineManager, le_cmd->info.rtx_pso_handle, &shader_group_data );
 
 						assert( shader_group_data && "shader group data must be available" );
 						{
