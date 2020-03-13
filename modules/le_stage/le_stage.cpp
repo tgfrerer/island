@@ -2009,7 +2009,22 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 		        .setIsRoot( true );
 
 		{
+
+			// -- Signal that we want to use an image to write to.
+
+			rtx_pass
+			    .useImageResource( LE_IMG_RESOURCE( "rtx_target_img" ), {LE_IMAGE_USAGE_STORAGE_BIT} ); // write
+
+			le_resource_info_t rtx_target_info = le::ImageInfoBuilder()
+			                                         .setFormat( le::Format::eR8G8B8A8Uint ) // 1 byte per cell, 1024x1024 cells
+			                                         .setExtent( 1024, 1024 )                // FIXME: size should match image size - or at least camera.
+			                                         .addUsageFlags( {LE_IMAGE_USAGE_STORAGE_BIT | LE_IMAGE_USAGE_SAMPLED_BIT} )
+			                                         .build();
+
+			render_module_i.declare_resource( module, LE_IMG_RESOURCE( "rtx_target_img" ), rtx_target_info );
+
 			// -- Signal that we want to read from bottom-level acceleration structures.
+
 			LeResourceUsageFlags usage_flags{};
 			usage_flags.type                    = LeResourceType::eRtxBlas;
 			usage_flags.as.rtx_blas_usage_flags = {LeRtxBlasUsageFlagBits::LE_RTX_BLAS_USAGE_READ_BIT};
