@@ -4162,7 +4162,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 								// look up set layout info via set layout key
 								auto const &set_layout_key = currentPipeline.layout_info.set_layout_keys[ setId ];
 
-								auto const &setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
+								auto const setLayoutInfo = le_pipeline_manager_i.get_descriptor_set_layout( pipelineManager, set_layout_key );
 
 								auto &setData = argumentState.setData[ setId ];
 
@@ -4177,6 +4177,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 									// add an entry for each array element with this binding to setData
 									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
 										DescriptorData descriptorData{};
+
 										descriptorData.type          = vk::DescriptorType( b.type );
 										descriptorData.bindingNumber = uint32_t( b.binding );
 										descriptorData.arrayIndex    = uint32_t( arrayIndex );
@@ -4272,6 +4273,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 									// add an entry for each array element with this binding to setData
 									for ( size_t arrayIndex = 0; arrayIndex != b.count; arrayIndex++ ) {
 										DescriptorData descriptorData{};
+
 										descriptorData.type          = vk::DescriptorType( b.type );
 										descriptorData.bindingNumber = uint32_t( b.binding );
 										descriptorData.arrayIndex    = uint32_t( arrayIndex );
