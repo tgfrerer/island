@@ -1954,6 +1954,29 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			        auto stage       = draw_params->stage;
 			        auto encoder     = le::Encoder{encoder_};
 
+			        auto extents = encoder.getRenderpassExtent();
+
+			        le::Viewport viewports[ 2 ] = {
+			            {0.f, float( extents.height ), float( extents.width ), -float( extents.height ), -0.f, 1.f}, // negative viewport means to flip y axis in screen space
+			            {0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f},
+			        };
+
+			        // we set projection matrix and view matrix to somehow sensible defaults.
+			        glm::mat4 camera_projection_matrix = glm::ortho( -0.5f, 0.5f, -0.5f, 0.5f, -1000.f, 1000.f );
+			        glm::mat4 camera_view_matrix       = glm::identity<glm::mat4>();
+			        glm::mat4 camera_world_matrix      = glm::identity<glm::mat4>(); // global transform for camera node (==inverse view matrix)
+
+			        // update camera from interactive camera
+			        // if no stage camera is given, and an interactive camera is available
+			        if ( camera ) {
+
+				        using namespace le_camera;
+				        le_camera_i.set_viewport( camera, viewports[ 0 ] );
+				        camera_view_matrix       = le_camera_i.get_view_matrix_glm( camera );
+				        camera_projection_matrix = le_camera_i.get_projection_matrix_glm( camera );
+				        camera_world_matrix      = glm::inverse( camera_view_matrix );
+			        }
+
 			        auto pipeline_manager = encoder.getPipelineManager();
 
 			        // -- Create rtx pso
