@@ -1559,7 +1559,7 @@ struct CommandDispatch {
 struct CommandTraceRays {
 	CommandHeader header = {{{CommandType::eTraceRays, sizeof( CommandTraceRays )}}};
 	struct {
-		uint32_t witdth;
+		uint32_t width;
 		uint32_t height;
 		uint32_t depth;
 		uint32_t __padding__;

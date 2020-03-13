@@ -4428,13 +4428,30 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					    sbt_vk_buffer,
 					    rtx_state.hit_sbt_offset,
 					    rtx_state.hit_sbt_stride,
-					    sbt_vk_buffer,
-					    rtx_state.callable_sbt_offset,
-					    rtx_state.callable_sbt_stride,
-					    le_cmd->info.witdth,
+					    nullptr,
+					    0,
+					    0,
+					    le_cmd->info.width,
 					    le_cmd->info.height,
 					    le_cmd->info.depth //
 					);
+
+					//					cmd.traceRaysNV(
+					//					    sbt_vk_buffer,
+					//					    rtx_state.ray_gen_sbt_offset,
+					//					    sbt_vk_buffer,
+					//					    rtx_state.miss_sbt_offset,
+					//					    rtx_state.miss_sbt_stride,
+					//					    sbt_vk_buffer,
+					//					    rtx_state.hit_sbt_offset,
+					//					    rtx_state.hit_sbt_stride,
+					//					    sbt_vk_buffer,
+					//					    rtx_state.callable_sbt_offset,
+					//					    rtx_state.callable_sbt_stride,
+					//					    le_cmd->info.width,
+					//					    le_cmd->info.height,
+					//					    le_cmd->info.depth //
+					//					);
 
 				} break;
 				case le::CommandType::eDispatch: {
