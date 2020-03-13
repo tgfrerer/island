@@ -3764,11 +3764,21 @@ static bool updateArguments( const vk::Device &                          device,
 
 				assert( result == vk::Result::eSuccess && "failed to allocate descriptor set" );
 
-				if ( /* DISABLES CODE */ ( true ) ) {
+				if ( /* DISABLES CODE */ ( false ) ) {
 					// I wish that this would work - but it appears that accelerator decriptors cannot be updated using templates.
 					device.updateDescriptorSetWithTemplate( descriptorSets[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
 				} else {
+
 					std::vector<vk::WriteDescriptorSet> write_descriptor_sets;
+
+					// We deliberately allocate write descriptor set acceleration structure objects on the heap,
+					// so that the pointer to the object will not change if and when the vector grows.
+					//
+					// This means that we can hand out copies of pointers from this vector without fear from
+					// within the current scope, but also that we must clean up the contents of the vector
+					// manually before leaving the current scope or else we will leak these objects.
+					std::vector<vk::WriteDescriptorSetAccelerationStructureNV *> write_acceleration_structures;
+
 					write_descriptor_sets.reserve( argumentState_.setData[ setId ].size() );
 
 					for ( auto &a : argumentState_.setData[ setId ] ) {
@@ -3804,13 +3814,21 @@ static bool updateArguments( const vk::Device &                          device,
 							assert( false && "inline uniform blocks are not yet supported" );
 							break;
 						case vk::DescriptorType::eAccelerationStructureNV:
-							assert( false && "acceleration structure descriptors are not yet supported." );
+							auto wd                        = new vk::WriteDescriptorSetAccelerationStructureNV{};
+							wd->accelerationStructureCount = 1;
+							wd->pAccelerationStructures    = &a.accelerationStructureInfo.accelerationStructure;
+							w.setPNext( wd );
 							break;
 						}
 
 						write_descriptor_sets.emplace_back( w );
 					}
 					device.updateDescriptorSets( uint32_t( write_descriptor_sets.size() ), write_descriptor_sets.data(), 0, nullptr );
+
+					// We must manually delete any WriteDescriptorSetAccelerationStructureNV objects
+					for ( auto &w : write_acceleration_structures ) {
+						delete ( w );
+					}
 				}
 				previousSetData[ setId ] = argumentState_.setData[ setId ];
 			}
