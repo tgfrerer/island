@@ -76,6 +76,7 @@ DECLARE_EXT_PFN( vkCmdBuildAccelerationStructureNV );
 DECLARE_EXT_PFN( vkGetAccelerationStructureHandleNV );
 DECLARE_EXT_PFN( vkCreateRayTracingPipelinesNV );
 DECLARE_EXT_PFN( vkGetRayTracingShaderGroupHandlesNV );
+DECLARE_EXT_PFN( vkCmdTraceRaysNV );
 #undef DECLARE_EXT_PFN
 
 // ----------------------------------------------------------------------
@@ -120,6 +121,7 @@ static void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
 	GET_EXT_PROC_ADDR( vkGetAccelerationStructureHandleNV );
 	GET_EXT_PROC_ADDR( vkCreateRayTracingPipelinesNV );
 	GET_EXT_PROC_ADDR( vkGetRayTracingShaderGroupHandlesNV );
+	GET_EXT_PROC_ADDR( vkCmdTraceRaysNV );
 
 #undef GET_EXT_PROC_ADDR
 
@@ -221,6 +223,42 @@ VKAPI_ATTR VkResult VKAPI_CALL vkGetRayTracingShaderGroupHandlesNV(
     void *     pData ) {
 	return pfn_vkGetRayTracingShaderGroupHandlesNV( device, pipeline, firstGroup, groupCount, dataSize, pData );
 }
+
+VKAPI_ATTR void VKAPI_CALL vkCmdTraceRaysNV(
+    VkCommandBuffer commandBuffer,
+    VkBuffer        raygenShaderBindingTableBuffer,
+    VkDeviceSize    raygenShaderBindingOffset,
+    VkBuffer        missShaderBindingTableBuffer,
+    VkDeviceSize    missShaderBindingOffset,
+    VkDeviceSize    missShaderBindingStride,
+    VkBuffer        hitShaderBindingTableBuffer,
+    VkDeviceSize    hitShaderBindingOffset,
+    VkDeviceSize    hitShaderBindingStride,
+    VkBuffer        callableShaderBindingTableBuffer,
+    VkDeviceSize    callableShaderBindingOffset,
+    VkDeviceSize    callableShaderBindingStride,
+    uint32_t        width,
+    uint32_t        height,
+    uint32_t        depth ) {
+
+	pfn_vkCmdTraceRaysNV(
+	    commandBuffer,
+	    raygenShaderBindingTableBuffer,
+	    raygenShaderBindingOffset,
+	    missShaderBindingTableBuffer,
+	    missShaderBindingOffset,
+	    missShaderBindingStride,
+	    hitShaderBindingTableBuffer,
+	    hitShaderBindingOffset,
+	    hitShaderBindingStride,
+	    callableShaderBindingTableBuffer,
+	    callableShaderBindingOffset,
+	    callableShaderBindingStride,
+	    width,
+	    height,
+	    depth );
+}
+
 // ----------------------------------------------------------------------
 
 static void create_debug_messenger_callback( le_backend_vk_instance_o *obj );  // ffdecl.
