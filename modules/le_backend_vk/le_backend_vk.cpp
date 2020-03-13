@@ -3717,6 +3717,20 @@ static bool updateArguments( const vk::Device &                          device,
 					argumentsOk = false;
 				}
 				break;
+			case vk::DescriptorType::eAccelerationStructureNV:
+				argumentsOk &= ( nullptr != a.accelerationStructureInfo.accelerationStructure );
+				if ( nullptr == a.accelerationStructureInfo.accelerationStructure ) {
+					// if image - must have valid imageview bound bound
+					std::cerr << "ERROR: Acceleration Structure argument at set="
+					          << std::dec << setId << ", binding="
+					          << std::dec << a.bindingNumber << ", array_index="
+					          << std::dec << a.arrayIndex << " not set, not valid or missing."
+					          << std::endl
+					          << std::flush;
+					argumentsOk = false;
+				}
+
+				break;
 			default:
 				argumentsOk &= false;
 				// TODO: check arguments for other types of descriptors
