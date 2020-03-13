@@ -1915,6 +1915,16 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 			std::cout
 			    << "Queried rtx shader group handles" << std::endl
 			    << std::flush;
+			size_t n_el = props.shaderGroupHandleSize / sizeof( uint32_t );
+
+			uint32_t *debug_handles = reinterpret_cast<uint32_t *>( handles + sizeof( LeShaderGroupDataHeader ) );
+			for ( size_t i = 0; i != pso->shaderGroups.size(); i++ ) {
+				for ( size_t j = 0; j != n_el; j++ ) {
+					std::cout << std::dec << *debug_handles++ << ", ";
+				}
+				std::cout << std::endl
+				          << std::flush;
+			}
 
 			*maybe_shader_group_data = handles;
 		}
