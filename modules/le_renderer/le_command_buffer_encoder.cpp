@@ -447,6 +447,20 @@ static void cbe_set_argument_image( le_command_buffer_encoder_o *self, le_resour
 
 // ----------------------------------------------------------------------
 
+static void cbe_set_argument_tlas( le_command_buffer_encoder_o *self, le_resource_handle_t const tlasId, uint64_t argumentName, uint64_t arrayIndex ) {
+
+	auto cmd = EMPLACE_CMD( le::CommandSetArgumentTlas );
+
+	cmd->info.argument_name_id = argumentName;
+	cmd->info.tlas_id          = tlasId;
+	cmd->info.array_index      = arrayIndex;
+
+	self->mCommandStreamSize += sizeof( le::CommandSetArgumentTlas );
+	self->mCommandCount++;
+}
+
+// ----------------------------------------------------------------------
+
 static void cbe_bind_graphics_pipeline( le_command_buffer_encoder_o *self, le_gpso_handle gpsoHandle ) {
 
 	// -- insert graphics PSO pointer into command stream
@@ -901,6 +915,7 @@ void register_le_command_buffer_encoder_api( void *api_ ) {
 	cbe_i.bind_argument_buffer   = cbe_bind_argument_buffer;
 	cbe_i.set_argument_texture   = cbe_set_argument_texture;
 	cbe_i.set_argument_image     = cbe_set_argument_image;
+	cbe_i.set_argument_tlas      = cbe_set_argument_tlas;
 	cbe_i.bind_graphics_pipeline = cbe_bind_graphics_pipeline;
 	cbe_i.bind_compute_pipeline  = cbe_bind_compute_pipeline;
 	cbe_i.bind_rtx_pipeline      = cbe_bind_rtx_pipeline;

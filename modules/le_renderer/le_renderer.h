@@ -142,6 +142,7 @@ struct le_renderer_api {
 		void                         ( *set_argument_data      )( le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
 		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, le_resource_handle_t const textureId, uint64_t argumentName, uint64_t arrayIndex);
 		void                         ( *set_argument_image     )( le_command_buffer_encoder_o *self, le_resource_handle_t const imageId, uint64_t argumentName, uint64_t arrayIndex);
+		void                         ( *set_argument_tlas      )( le_command_buffer_encoder_o *self, le_resource_handle_t const tlasId, uint64_t argumentName, uint64_t arrayIndex);
 
 		void 						 ( *build_rtx_blas         )( le_command_buffer_encoder_o *self, le_resource_handle_t const* const blas_handles, const uint32_t handles_count);
         // one blas handle per instance
@@ -631,6 +632,11 @@ class Encoder {
 
 	Encoder &setArgumentImage( uint64_t const &argumentName, le_resource_handle_t const &imageId, uint64_t const &arrayIndex = 0 ) {
 		le_renderer::encoder_i.set_argument_image( self, imageId, argumentName, arrayIndex );
+		return *this;
+	}
+
+	Encoder &setArgumentTlas( uint64_t const &argumentName, le_resource_handle_t const &tlasId, uint64_t const &arrayIndex = 0 ) {
+		le_renderer::encoder_i.set_argument_tlas( self, tlasId, argumentName, arrayIndex );
 		return *this;
 	}
 

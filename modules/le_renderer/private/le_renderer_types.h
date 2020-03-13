@@ -1504,6 +1504,7 @@ enum class CommandType : uint32_t {
 	eBindArgumentBuffer,
 	eSetArgumentTexture,
 	eSetArgumentImage,
+	eSetArgumentTlas,
 	eBindIndexBuffer,
 	eBindVertexBuffers,
 	eBindGraphicsPipeline,
@@ -1614,6 +1615,15 @@ struct CommandSetArgumentImage {
 	struct {
 		uint64_t             argument_name_id; // const_char_hash id of argument name
 		le_resource_handle_t image_id;         // image resource id,
+		uint64_t             array_index;      // argument array index (default is 0)
+	} info;
+};
+
+struct CommandSetArgumentTlas {
+	CommandHeader header = {{{CommandType::eSetArgumentTlas, sizeof( CommandSetArgumentTlas )}}};
+	struct {
+		uint64_t             argument_name_id; // const_char_hash id of argument name
+		le_resource_handle_t tlas_id;          // top level acceleration structure resource id,
 		uint64_t             array_index;      // argument array index (default is 0)
 	} info;
 };

@@ -4628,6 +4628,47 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				} break;
 
+				case le::CommandType::eSetArgumentTlas: {
+					auto *   le_cmd           = static_cast<le::CommandSetArgumentTlas *>( dataIt );
+					uint64_t argument_name_id = le_cmd->info.argument_name_id;
+
+					// Find binding info with name referenced in command
+					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [&argument_name_id]( const le_shader_binding_info &e ) -> bool {
+						return e.name_hash == argument_name_id;
+					} );
+
+					if ( b == argumentState.binding_infos.end() ) {
+						std::cout << "Warning: Invalid tlas argument name id: 0x" << std::hex << argument_name_id << std::endl
+						          << std::flush;
+						break;
+					}
+
+					// ---------| invariant: we found an argument name that matches
+					auto setIndex = b->setIndex;
+					auto binding  = b->binding;
+
+					auto &bindingData = argumentState.setData[ setIndex ][ binding ];
+
+					// fetch texture information based on texture id from command
+
+					assert( le_cmd->info.tlas_id.getResourceType() == LeResourceType::eRtxTlas );
+
+					auto found_resource = frame.availableResources.find( le_cmd->info.tlas_id );
+					if ( found_resource == frame.availableResources.end() ) {
+						std::cerr << "Could not find acceleration structure: " << le_cmd->info.tlas_id.debug_name
+						          << " Ignoring top level acceleration structure binding command." << std::endl
+						          << std::flush;
+						break;
+					}
+
+					// ----------| invariant: image view has been found
+
+					bindingData.accelerationStructureInfo.accelerationStructure = found_resource->second.as.tlas;
+					bindingData.type                                            = vk::DescriptorType::eAccelerationStructureNV;
+					bindingData.arrayIndex                                      = uint32_t( le_cmd->info.array_index );
+
+				} break;
+
 				case le::CommandType::eBindIndexBuffer: {
 					auto *le_cmd = static_cast<le::CommandBindIndexBuffer *>( dataIt );
 					auto  buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer );
