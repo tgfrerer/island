@@ -479,14 +479,26 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 	// -- insert rtx PSO pointer into command stream
 	auto cmd = EMPLACE_CMD( le::CommandBindRtxPipeline );
 
-	cmd->info.rtx_pso_handle = sbt->pipeline;
-
 	using namespace le_backend_vk;
 
 	// -- query pipeline for shader group data
 
 	char *shader_group_data = nullptr;
-	le_pipeline_manager_i.produce_rtx_pipeline( self->pipelineManager, sbt->pipeline, &shader_group_data );
+
+	{
+		// Store pipeline information in command buffer stream, as we don't want create pipeline in
+		// backend.
+
+		auto pipeline = le_pipeline_manager_i.produce_rtx_pipeline( self->pipelineManager, sbt->pipeline, &shader_group_data );
+
+		cmd->info.pipeline_native_handle = pipeline.pipeline;
+		cmd->info.pipeline_layout_key    = pipeline.layout_info.pipeline_layout_key;
+
+		static_assert( sizeof( cmd->info.descriptor_set_layout_keys ) == sizeof( uint64_t ) * 8, "must be 8 * 64bit" );
+
+		memcpy( cmd->info.descriptor_set_layout_keys, pipeline.layout_info.set_layout_keys, sizeof( cmd->info.descriptor_set_layout_keys ) );
+		cmd->info.descriptor_set_layout_count = pipeline.layout_info.set_layout_count;
+	}
 
 	auto sbt_data_header = reinterpret_cast<LeShaderGroupDataHeader *>( shader_group_data );
 

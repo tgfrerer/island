@@ -4293,13 +4293,13 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// we can verify that the current pipeline state matches the pipeline state which
 						// was used to create the pipeline. The pipeline state may change if pipeline gets recompiled.
 
-						char *shader_group_data = nullptr;
-						currentPipeline         = le_pipeline_manager_i.produce_rtx_pipeline( pipelineManager, le_cmd->info.rtx_pso_handle, &shader_group_data );
-
-						assert( shader_group_data && "shader group data must be available" );
 						{
-							auto shader_group_data_header = reinterpret_cast<LeShaderGroupDataHeader *>( shader_group_data );
-							assert( shader_group_data_header->pipeline_obj == currentPipeline.pipeline && "pipeline must not have changed between record, and process stage." );
+							currentPipeline.pipeline                        = static_cast<VkPipeline>( le_cmd->info.pipeline_native_handle );
+							currentPipeline.layout_info.pipeline_layout_key = le_cmd->info.pipeline_layout_key;
+
+							memcpy( currentPipeline.layout_info.set_layout_keys, le_cmd->info.descriptor_set_layout_keys, sizeof( currentPipeline.layout_info.set_layout_keys ) );
+
+							currentPipeline.layout_info.set_layout_count = le_cmd->info.descriptor_set_layout_count;
 						}
 
 						// -- grab current pipeline layout from cache

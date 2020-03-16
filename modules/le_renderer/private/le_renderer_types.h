@@ -1684,7 +1684,12 @@ struct CommandBindComputePipeline {
 struct CommandBindRtxPipeline {
 	CommandHeader header = {{{CommandType::eBindRtxPipeline, sizeof( CommandBindRtxPipeline )}}};
 	struct {
-		le_rtxpso_handle     rtx_pso_handle;
+
+		void *   pipeline_native_handle; // handle to native pipeline object, most likely VkPipeline
+		uint64_t pipeline_layout_key;
+		uint64_t descriptor_set_layout_keys[ 8 ];
+		uint64_t descriptor_set_layout_count;
+
 		le_resource_handle_t sbt_buffer;
 		uint64_t             ray_gen_sbt_offset;
 		uint64_t             miss_sbt_offset;
