@@ -481,7 +481,7 @@ struct BackendFrameData {
 	std::vector<VmaAllocation>     allocations;      // per allocator: one allocation
 	std::vector<VmaAllocationInfo> allocationInfos;  // per allocator: one allocationInfo
 
-	le_staging_allocator_o *stagingAllocator; // owning: allocator to large objects to GPU memory
+	le_staging_allocator_o *stagingAllocator; // owning: allocator for large objects to GPU memory
 };
 
 static const vk::BufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =

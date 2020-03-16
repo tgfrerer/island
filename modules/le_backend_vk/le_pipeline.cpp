@@ -1968,9 +1968,9 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipelin
 	auto p = self->pipelines.try_find( pipeline_hash );
 
 	if ( p ) {
+		// -- if yes, return pipeline found in hash map
 		pipeline_and_layout_info.pipeline = *p;
 	} else {
-		// -- else return pipeline found in hash map
 
 		// -- if not, create pipeline in pipeline cache and store / retain it
 		pipeline_and_layout_info.pipeline = le_pipeline_cache_create_compute_pipeline( self, pso );
