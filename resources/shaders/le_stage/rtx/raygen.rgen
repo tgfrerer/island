@@ -2,7 +2,7 @@
 #extension GL_NV_ray_tracing : require
 
 layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
-layout(binding = 1, set = 0, rgba8) uniform image2D image;
+layout(binding = 1, set = 0, r8) uniform image2D image;
 layout(binding = 2, set = 0) uniform CameraProperties 
 {
 	mat4 viewInverse;
@@ -27,7 +27,7 @@ void main()
 	float tmin    = 0.0001;
 	float tmax    = 1000.;
 
-
+	hitValue = vec3(0);
 
 	traceNV(topLevelAS, rayFlags, cullMask, 
 		/* sbt record offset */ 0, /* this means take the first variant for each geometry */
@@ -35,5 +35,5 @@ void main()
 		/* miss index */        0, 
 		origin.xyz, tmin, direction.xyz, tmax, 0);
 
-	imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(hitValue, 0.0));
+	imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(hitValue,0.f));
 }

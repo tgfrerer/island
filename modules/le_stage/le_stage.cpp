@@ -2104,8 +2104,8 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 			le_resource_info_t rtx_target_info =
 			    le::ImageInfoBuilder()
-			        .setFormat( le::Format::eR8G8B8A8Unorm ) // 1 byte per cell, 1024x1024 cells
-			        .setExtent( 1024, 1024 )                 // FIXME: size should match image size - or at least camera.
+			        .setFormat( le::Format::eR8Unorm ) // 1 byte per cell, 1024x1024 cells
+			        .setExtent( 0, 0 )                 // FIXME: size should match image size - or at least camera.
 			        .addUsageFlags( {LE_IMAGE_USAGE_STORAGE_BIT | LE_IMAGE_USAGE_SAMPLED_BIT} )
 			        .build();
 

@@ -54,14 +54,12 @@ void main()
 	vec3 lightVector = normalize(cam.lightPos.xyz);
 	// float dot_product = max(dot(lightVector, normal), 0.2);
 	// hitValue = v0.color * vec3(dot_product);
- 
-	hitValue = vec3(0,0,0);
 
 	// Shadow casting
 	float tmin = 0.001;
-	float tmax = 10000.0;
+	float tmax = 1000.0;
 	vec3 origin = gl_WorldRayOriginNV + gl_WorldRayDirectionNV * gl_HitTNV;
-	shadowed = true;  
+	shadowed = true;
 	// Offset indices to match shadow hit/miss index
 	
 	traceNV(topLevelAS, 
@@ -69,6 +67,6 @@ void main()
 		0xFF, 0, 0, 1, origin, tmin, lightVector, tmax, 2);
 
 	if (shadowed) {
-		hitValue = vec3(1.f);
+		hitValue = vec3(1);
 	}
 }
