@@ -251,6 +251,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	std::unordered_map<cgltf_material const *, uint32_t>          materials_map;
 	std::unordered_map<cgltf_mesh const *, uint32_t>              mesh_map;
 	std::unordered_map<cgltf_camera const *, uint32_t>            camera_map;
+	std::unordered_map<cgltf_light const *, uint32_t>             lights_map;
 	std::unordered_map<cgltf_node const *, uint32_t>              nodes_map;
 	std::unordered_map<cgltf_scene const *, uint32_t>             scenes_map;
 	std::unordered_map<cgltf_animation_sampler const *, uint32_t> animation_samplers_map;
@@ -717,6 +718,41 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 	}
 
 	{
+		// Upload Lights
+
+		cgltf_light const *lights_begin = self->data->lights;
+		auto               lights_end   = lights_begin + self->data->lights_count;
+		for ( auto l = lights_begin; l != lights_end; l++ ) {
+			le_light_info info{};
+			info.name  = l->name;
+			info.range = l->range;
+			// clang-format off
+			switch ( l->type ) {
+			case cgltf_light_type_invalid:
+				assert( false && "light type must be valid" );
+				break;
+			case cgltf_light_type_spot:
+				info.type = le_light_info::LE_LIGHT_TYPE_SPOT;
+				break;
+			case cgltf_light_type_point:
+				info.type = le_light_info::LE_LIGHT_TYPE_POINT;
+				break;
+			case cgltf_light_type_directional:
+				info.type = le_light_info::LE_LIGHT_TYPE_DIRECTIONAL;
+				break;
+			}
+			// clang-format on
+			memcpy( info.color, l->color, sizeof( info.color ) );
+			info.intensity             = l->intensity;
+			info.spot_inner_cone_angle = l->spot_inner_cone_angle;
+			info.spot_outer_cone_angle = l->spot_outer_cone_angle;
+
+			uint32_t light_idx = le_stage_i.create_light( stage, &info );
+			lights_map.insert( {l, light_idx} );
+		}
+	}
+
+	{
 
 		// -- Upload nodes
 
@@ -757,6 +793,13 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				info.has_camera = true;
 			} else {
 				info.has_camera = false;
+			}
+
+			if ( n->light ) {
+				info.light     = lights_map.at( n->light );
+				info.has_light = true;
+			} else {
+				info.has_light = false;
 			}
 
 			// -- Apply transformation calculations:

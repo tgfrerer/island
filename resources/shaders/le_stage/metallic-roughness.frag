@@ -3,6 +3,9 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
 
+#define USE_PUNCTUAL
+#define LIGHT_COUNT 1
+
 //
 // This fragment shader defines a reference implementation for Physically Based Shading of
 // a microfacet surface material defined by a glTF model.
@@ -87,7 +90,9 @@ const int LightType_Point       = 1;
 const int LightType_Spot        = 2;
 
 #ifdef USE_PUNCTUAL
-uniform Light u_Lights[LIGHT_COUNT];
+layout(std140, set=2, binding=0) readonly buffer LightSSBO {
+    Light u_Lights[];
+};
 #endif
 
 #ifdef MATERIAL_SPECULARGLOSSINESS
@@ -318,17 +323,6 @@ void main()
     vec3 normal = getNormal();
     vec3 view = normalize(camera_position - v_position);
 
-    Light light;
-    light.direction    = vec3(0);
-    light.range        = 1000.f;
-    light.color        = vec3(1);
-    light.intensity    = 1000.f;
-    light.position     = vec3(3,10,4);
-    light.innerConeCos = 0.75;
-    light.outerConeCos = 0.75f;
-    light.type         = LightType_Point;
-
-    color += applyPointLight(light, materialInfo, normal, view);
 
 #ifdef USE_PUNCTUAL
     for (int i = 0; i < LIGHT_COUNT; ++i)
@@ -347,6 +341,18 @@ void main()
             color += applySpotLight(light, materialInfo, normal, view);
         }
     }
+#else 
+    Light light;
+    light.direction    = vec3(0);
+    light.range        = 1000.f;
+    light.color        = vec3(1);
+    light.intensity    = 1000.f;
+    light.position     = vec3(3,10,4);
+    light.innerConeCos = 0.75;
+    light.outerConeCos = 0.75f;
+    light.type         = LightType_Point;
+
+    color += applyPointLight(light, materialInfo, normal, view);
 #endif
 
     float ao = 1.0;

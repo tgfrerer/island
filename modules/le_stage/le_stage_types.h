@@ -129,6 +129,24 @@ struct le_mesh_info {
 	uint32_t           primitive_count;
 };
 
+struct le_light_info {
+
+	enum le_light_type : uint32_t {
+		LE_LIGHT_TYPE_INVALID     = 0,
+		LE_LIGHT_TYPE_DIRECTIONAL = 1,
+		LE_LIGHT_TYPE_POINT       = 2,
+		LE_LIGHT_TYPE_SPOT        = 3,
+	};
+
+	char const *  name;
+	float         color[ 3 ];
+	float         intensity;
+	le_light_type type;
+	float         range;
+	float         spot_inner_cone_angle;
+	float         spot_outer_cone_angle;
+};
+
 struct le_camera_settings_info {
 	struct perspective_t {
 		float fov_y_rad;    // vertical firld of view in radians
@@ -206,10 +224,12 @@ struct le_node_info {
 
 	uint32_t mesh;   // index into stage's mesh   array, only valid if has_mesh   == true
 	uint32_t camera; // index into stage's camera array, only valid if has_camera == true
+	uint32_t light;  // index into stage's lights array, only valid if has_light  == true
 	uint32_t skin;   // index into stage's skin   array, only valid if has_skin   == true
 	                 //
 	bool has_mesh;   // whether this node has a mesh
 	bool has_camera; // whether this node has a camera
+	bool has_light;  // whether this node has a light
 	bool has_skin;   // whether this node has a skin
 
 	char *name;

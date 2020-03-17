@@ -230,6 +230,9 @@ struct le_node_o {
 	bool     has_camera;
 	uint32_t camera_idx;
 
+	bool     has_light;
+	uint32_t light_idx;
+
 	struct le_skin_o *skin; // Optional, non-owning
 
 	// TODO: we could use the scene_bit_flags to express affinity,
@@ -328,6 +331,23 @@ struct le_camera_settings_o {
 	} data;
 };
 
+// This struct is used in a tighly packed vector as an ssbo - it must therefore
+// obey the std140 packing rules.
+struct le_light_o {
+	glm::vec3 direction; // we assume light looks into negative -z, just as a camera would
+	float     range;
+
+	glm::vec3 color;
+	float     intensity;
+
+	glm::vec3 position;
+	float     innerConeCos;
+
+	float     outerConeCos;
+	uint32_t  type; // value of le_light_info::le_light_type
+	glm::vec2 padding;
+};
+
 struct le_scene_o {
 	uint8_t                  scene_id;   // matches scene bit flag in node.
 	std::vector<le_node_o *> root_nodes; // non-owning
@@ -336,6 +356,8 @@ struct le_scene_o {
 	le_resource_info_t   rtx_tlas_info;   // only used for rtx
 
 	le_resource_handle_t rtx_image_target;
+
+	std::vector<le_light_o> lights;
 };
 
 // Owns all the data
@@ -347,6 +369,7 @@ struct le_stage_o {
 	std::vector<le_node_o *>          nodes;           // owning
 	std::vector<le_camera_settings_o> camera_settings; //
 	std::vector<le_mesh_o>            meshes;          //
+	std::vector<le_light_info>        lights;          //
 	std::vector<le_material_o>        materials;       //
 	std::vector<le_accessor_o>        accessors;       //
 	std::vector<le_buffer_view_o>     buffer_views;    //
@@ -1016,6 +1039,11 @@ static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info const *inf
 			node->camera_idx = n->camera;
 		}
 
+		if ( n->has_light ) {
+			node->has_light = true;
+			node->light_idx = n->light;
+		}
+
 		if ( n->name ) {
 			strncpy( node->name, n->name, sizeof( node->name ) );
 		}
@@ -1086,6 +1114,16 @@ static uint32_t le_stage_create_camera_settings( le_stage_o *self, le_camera_set
 
 		self->camera_settings.emplace_back( camera );
 	}
+
+	return idx;
+}
+
+// ----------------------------------------------------------------------
+
+static uint32_t le_stage_create_light( le_stage_o *self, le_light_info const *info ) {
+	uint32_t idx = uint32_t( self->lights.size() );
+
+	self->lights.emplace_back( *info );
 
 	return idx;
 }
@@ -1839,6 +1877,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 					encoder
 					    .bindGraphicsPipeline( primitive.pipeline_state_handle )
+					    .setArgumentData( LE_ARGUMENT_NAME( "LightSSBO" ), s.lights.data(), sizeof( le_light_o ) * s.lights.size() )
 					    .setArgumentData( LE_ARGUMENT_NAME( "UboMatrices" ), &mvp_ubo, sizeof( UboMatrices ) )
 					    .setViewports( 0, 1, &viewports[ 0 ] );
 
@@ -2038,7 +2077,13 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			        CameraPropertiesUBO camera_properties;
 			        camera_properties.viewInverse       = camera_world_matrix;
 			        camera_properties.projectionInverse = glm::inverse( camera_projection_matrix );
-			        camera_properties.lightPos          = glm::vec4( 3, 10, 4, 1 );
+
+			        if ( !stage->scenes.front().lights.empty() ) {
+				        camera_properties.lightPos = glm::vec4( stage->scenes.front().lights.front().position, 1 );
+			        } else {
+				        camera_properties.lightPos = glm::vec4{3, 10, 4, 1}; // arbitrary fallback defaults.
+			        }
+
 			        // -- call trace rays
 
 			        encoder.setArgumentData( LE_ARGUMENT_NAME( "CameraProperties" ), &camera_properties, sizeof( CameraPropertiesUBO ) );
@@ -2757,6 +2802,55 @@ static void le_stage_update( le_stage_o *self ) {
 			traverse_node( n );
 		}
 	}
+
+	// -- Update all lights.
+	// -- TODO: it would be nice to have a way to cache this, so that only lights
+	// which have changed need updating.
+
+	for ( auto &s : self->scenes ) {
+		s.lights.clear();
+	}
+
+	size_t num_scenes = self->scenes.size();
+
+	for ( auto const &n : self->nodes ) {
+
+		if ( n->has_light ) {
+			// fetch light, calculate light value
+			// add light to scenes which use the current node.
+
+			le_light_info const &info = self->lights.at( n->light_idx );
+			le_light_o           light{};
+
+			glm::vec4 direction{0, 0, -1, 0};
+			glm::vec4 position{0, 0, 0, 1};
+
+			direction = n->global_transform * direction;
+			position  = n->global_transform * position;
+
+			// clang-format off
+			switch(info.type) {
+				case le_light_info::LE_LIGHT_TYPE_INVALID    : assert(false && "light type must be valid."); break;
+				case le_light_info::LE_LIGHT_TYPE_DIRECTIONAL: light.type = 0; break;
+				case le_light_info::LE_LIGHT_TYPE_POINT      : light.type = 1; break;
+				case le_light_info::LE_LIGHT_TYPE_SPOT       : light.type = 2; break;
+			}
+			// clang-format on
+			light.direction = direction;
+			light.range     = info.range;
+			memcpy( &light.color, info.color, sizeof( light.color ) );
+			light.intensity    = info.intensity * 0.005f;
+			light.position     = position;
+			light.innerConeCos = cosf( info.spot_inner_cone_angle );
+			light.outerConeCos = cosf( info.spot_outer_cone_angle );
+
+			for ( size_t b = 0; b != num_scenes; b++ ) {
+				if ( ( 1 << b ) & n->scene_bit_flags ) {
+					self->scenes[ b ].lights.push_back( light );
+				}
+			}
+		}
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -2837,6 +2931,7 @@ LE_MODULE_REGISTER_IMPL( le_stage, api ) {
 	le_stage_i.create_accessor        = le_stage_create_accessor;
 	le_stage_i.create_material        = le_stage_create_material;
 	le_stage_i.create_mesh            = le_stage_create_mesh;
+	le_stage_i.create_light           = le_stage_create_light;
 	le_stage_i.create_camera_settings = le_stage_create_camera_settings;
 	le_stage_i.create_nodes           = le_stage_create_nodes;
 	le_stage_i.create_animation       = le_stage_create_animation;
