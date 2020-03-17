@@ -2144,7 +2144,8 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 	            le::ImageAttachmentInfoBuilder()
 	                .setColorClearValue( LeClearValue( {0.125f, 0.125f, 0.125f, 1.f} ) )
 	                .build() )
-	        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_STENCIL_IMAGE" ) );
+	        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_STENCIL_IMAGE" ) )
+	        .setSampleCount( le::SampleCountFlagBits::e4 );
 
 	for ( auto &b : draw_params->stage->buffers ) {
 		stage_draw_pass.useBufferResource( b->handle, {LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
