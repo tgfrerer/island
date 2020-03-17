@@ -2655,6 +2655,16 @@ static void collect_resource_infos_per_resource(
 
 					imgExtent.width  = pass_width;
 					imgExtent.height = pass_height;
+				} else if ( imgInfo.usage & LE_IMAGE_USAGE_STORAGE_BIT ) {
+
+					// Set image width and height renderpass height / width if no width / height was specified.
+
+					if ( imgExtent.width == 0 ) {
+						imgExtent.width = pass_width;
+					}
+					if ( imgExtent.height == 0 ) {
+						imgExtent.height = pass_height;
+					}
 				}
 
 				// depth must be at least 1, but may arrive zero-initialised.
