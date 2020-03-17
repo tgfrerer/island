@@ -323,7 +323,7 @@ void main()
     light.range        = 1000.f;
     light.color        = vec3(1);
     light.intensity    = 1000.f;
-    light.position     = vec3(0,10,10);
+    light.position     = vec3(3,10,4);
     light.innerConeCos = 0.75;
     light.outerConeCos = 0.75f;
     light.type         = LightType_Point;

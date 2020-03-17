@@ -1996,10 +1996,10 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 				        // add shader groups.
 				        builder
-				            .setShaderGroupRayGen( shader_raygen )                    // shader group handles entry 0
-				            .addShaderGroupTriangleHit( shader_closest_hit, nullptr ) // shader group handles entry 1
-				            .addShaderGroupMiss( shader_miss )                        // shader group handles entry 2
-				            .addShaderGroupMiss( shader_shadow_miss )                 // shader group handles entry 3
+				            .setShaderGroupRayGen( shader_raygen )                    // shader group handle: ray_gen 0
+				            .addShaderGroupTriangleHit( shader_closest_hit, nullptr ) // shader group handle: hit 0
+				            .addShaderGroupMiss( shader_miss )                        // shader group handle: miss 0
+				            .addShaderGroupMiss( shader_shadow_miss )                 // shader group handle: miss 1
 				            ;
 
 				        return builder.build();
@@ -2038,7 +2038,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			        CameraPropertiesUBO camera_properties;
 			        camera_properties.viewInverse       = camera_world_matrix;
 			        camera_properties.projectionInverse = glm::inverse( camera_projection_matrix );
-			        camera_properties.lightPos          = glm::vec4( 0, 10, 10, 1 );
+			        camera_properties.lightPos          = glm::vec4( 3, 10, 4, 1 );
 			        // -- call trace rays
 
 			        encoder.setArgumentData( LE_ARGUMENT_NAME( "CameraProperties" ), &camera_properties, sizeof( CameraPropertiesUBO ) );
@@ -2047,7 +2047,8 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 			        encoder.traceRays( extents.width, extents.height );
 		        } )
-		        .setIsRoot( true );
+		    //		        .setIsRoot( true )
+		    ;
 
 		{
 

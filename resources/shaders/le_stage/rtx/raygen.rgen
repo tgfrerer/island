@@ -18,14 +18,16 @@ void main()
 	const vec2 inUV = pixelCenter/vec2(gl_LaunchSizeNV.xy);
 	vec2 d = inUV * 2.0 - 1.0;
 
-	vec4 origin = cam.viewInverse * vec4(0,0,0,1);
-	vec4 target = cam.projInverse * vec4(d.x, d.y, 1, 1) ;
+	vec4 origin    = cam.viewInverse * vec4(0,0,0,1);
+	vec4 target    = cam.projInverse * vec4(d.x, d.y, 1, 1) ;
 	vec4 direction = cam.viewInverse*vec4(normalize(target.xyz / target.w), 0) ;
 
-	uint rayFlags = gl_RayFlagsOpaqueNV;
+	uint rayFlags = gl_RayFlagsOpaqueNV ;
 	uint cullMask = 0xff;
-	float tmin = 0.001;
-	float tmax = 10000.0;
+	float tmin    = 0.0001;
+	float tmax    = 1000.;
+
+
 
 	traceNV(topLevelAS, rayFlags, cullMask, 
 		/* sbt record offset */ 0, /* this means take the first variant for each geometry */
