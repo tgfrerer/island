@@ -6,9 +6,11 @@
     uint  u_ ## NAME ## TextureIdx; /* which texture_id*/ \
     uint  u_ ## NAME ## _padding; /* padding because std140 requires vec4 as base-alignment as soon as there is a 3-component element*/ \
 
-#if (defined HAS_NORMAL_MAP)        \
-    || (defined HAS_EMISSIVE_MAP)   \
-    || (defined HAS_BASE_COLOR_MAP)
+#if (defined HAS_NORMAL_MAP                ) \
+    || (defined HAS_EMISSIVE_MAP           ) \
+    || (defined HAS_BASE_COLOR_MAP         ) \
+    || (defined HAS_METALLIC_ROUGHNESS_MAP ) \
+    || (defined HAS_OCCLUSION_MAP          ) 
 
 layout (set=1, binding=1, std140) uniform UboTextureParams {  // base alignment: vec3
     #ifdef HAS_NORMAL_MAP
@@ -42,7 +44,7 @@ layout (set=1, binding=1, std140) uniform UboTextureParams {  // base alignment:
         #ifdef HAS_METALLICROUGHNESS_UV_TRANSFORM
            mat3  u_MetallicRoughnessUVTransform;   
         #endif
-        TEXTURE_COMPONENTS( MetallicRoughness)
+        TEXTURE_COMPONENTS( MetallicRoughness )
     #endif
 };
 
