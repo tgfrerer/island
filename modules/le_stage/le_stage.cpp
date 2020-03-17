@@ -2091,8 +2091,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			        encoder.setArgumentImage( LE_ARGUMENT_NAME( "image" ), RTX_IMAGE_TARGET_HANDLE );
 
 			        encoder.traceRays( extents.width, extents.height );
-		        } )
-		    //		        .setIsRoot( true )
+		        } ) //
 		    ;
 
 		{
