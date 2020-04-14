@@ -5119,8 +5119,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					vk::MemoryBarrier barrier( vk::AccessFlagBits::eTransferWrite,                  // All transfers must be visible ...
 					                           vk::AccessFlagBits::eAccelerationStructureWriteNV ); // ... before we can write to acceleration structures,
 
-					cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer,                     // This affects transfer stage
-					                     vk::PipelineStageFlagBits::eAccelerationStructureBuildNV, // and accelerationStructureBuild stage.
+					cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer,                     // Writes from transfer ...
+					                     vk::PipelineStageFlagBits::eAccelerationStructureBuildNV, // must be visible for accelerationStructureBuild stage.
 					                     vk::DependencyFlags(), {barrier}, {}, {} );
 
 					cmd.buildAccelerationStructureNV(

@@ -798,15 +798,15 @@ void cbe_build_rtx_tlas( le_command_buffer_encoder_o *     self,
 	cmd->info.geometry_instances_count = instances_count;
 
 	// We allocate memory from our scratch allocator, and write geometry instance data into the allocated memory.
-	// since instance data contains le_resource_handles for blas instances these need to be resolved
-	// in the backend when processing the command, and patched into the memory, before that memory
+	// since instance data contains le_resource_handles for blas instances, these need to be resolved
+	// in the backend when processing the command, and patched in-place on GPU visible memory, before that memory
 	// is used to build the tlas.
 
 	// We can access that memory with confidence since that area of memory is associated with that command,
 	// and there will ever only be one thread processing ever processing the command.
 	//
 	// Command buffer encoder writes only to that memory, then its ownership moves - together with the frame -
-	// to the backend, where the backend has exclusive ownership of the memory.
+	// to the backend, where the backend takes over exclusive ownership of the memory.
 
 	size_t gpu_memory_bytes_required = sizeof( le_rtx_geometry_instance_t ) * instances_count;
 
