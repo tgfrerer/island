@@ -1693,13 +1693,16 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 	// we use this to mask out any reads in srcAccess, as it never makes sense to flush reads
 	const auto ANY_WRITE_ACCESS_FLAGS = ( vk::AccessFlagBits::eColorAttachmentWrite |
-	                                      vk::AccessFlagBits::eCommandProcessWriteNVX |
-	                                      vk::AccessFlagBits::eCommandProcessWriteNVX |
 	                                      vk::AccessFlagBits::eDepthStencilAttachmentWrite |
+	                                      vk::AccessFlagBits::eAccelerationStructureWriteKHR |
 	                                      vk::AccessFlagBits::eHostWrite |
 	                                      vk::AccessFlagBits::eMemoryWrite |
 	                                      vk::AccessFlagBits::eShaderWrite |
-	                                      vk::AccessFlagBits::eTransferWrite );
+	                                      vk::AccessFlagBits::eTransferWrite |
+	                                      vk::AccessFlagBits::eAccelerationStructureWriteNV |
+	                                      vk::AccessFlagBits::eAccelerationStructureWriteNV |
+	                                      vk::AccessFlagBits::eCommandPreprocessWriteNV |
+	                                      vk::AccessFlagBits::eTransformFeedbackCounterWriteEXT );
 
 	// for each attachment, we want to keep track of its last used sync state
 	// so that we may know whether to issue a barrier or not.
