@@ -4,7 +4,6 @@
 //       Its sole purpose of being is to create a dependency inversion, so that both these compilation units
 //       may share the same types for creating pipelines.
 
-#define VULKAN_HPP_NO_SMART_HANDLE
 #include <vulkan/vulkan.hpp>
 
 #include <vector>

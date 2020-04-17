@@ -1,5 +1,7 @@
 set (TARGET le_window )
 
+add_compile_definitions(VULKAN_HPP_NO_SMART_HANDLE)
+
 set (SOURCES "le_window.cpp")
 set (SOURCES ${SOURCES} "le_window.h")
 

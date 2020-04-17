@@ -4,7 +4,6 @@
 #include "le_renderer/private/le_renderer_types.h"
 #include "le_backend_vk/util/vk_mem_alloc/vk_mem_alloc.h"
 
-#define VULKAN_HPP_NO_SMART_HANDLE
 #include "vulkan/vulkan.hpp"
 
 /*
