@@ -632,7 +632,9 @@ static uint32_t le_stage_create_buffer( le_stage_o *stage, void *mem, uint32_t s
 		                            .setSize( buffer->size )
 		                            .addUsageFlags( {LE_BUFFER_USAGE_TRANSFER_DST_BIT |
 		                                             LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
-		                                             LE_BUFFER_USAGE_VERTEX_BUFFER_BIT} )
+		                                             LE_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+		                                             LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+		                                             LE_BUFFER_USAGE_RAY_TRACING_BIT_KHR} )
 		                            .build();
 
 		stage->buffer_handles.push_back( res );
@@ -985,8 +987,8 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 					geo.index_offset = index_buffer_view.byte_offset + index_accessor.byte_offset;
 				}
 
-				LeBuildAccelerationStructureFlags blas_flags = {LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_NV |
-				                                                LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV};
+				LeBuildAccelerationStructureFlags blas_flags = {LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR |
+				                                                LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR};
 
 				using namespace le_renderer;
 				auto blas_info =
@@ -2750,7 +2752,7 @@ static void le_stage_update( le_stage_o *self ) {
 
 				uint64_t animation_time = current_ticks - a.ticks_offset;
 
-				auto play_mode = le_animation_o::PlaybackMode::eBounce;
+				auto play_mode = le_animation_o::PlaybackMode::eLoop; // FIXME: make this user-settable
 
 				switch ( play_mode ) {
 					//				switch ( a.playback_mode ) {

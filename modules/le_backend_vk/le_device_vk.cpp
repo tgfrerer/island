@@ -12,11 +12,11 @@
 
 struct le_device_o {
 
-	vk::Device                               vkDevice         = nullptr;
-	vk::PhysicalDevice                       vkPhysicalDevice = nullptr;
-	vk::PhysicalDeviceProperties             vkPhysicalDeviceProperties;
-	vk::PhysicalDeviceMemoryProperties       vkPhysicalDeviceMemoryProperties;
-	vk::PhysicalDeviceRayTracingPropertiesNV raytracingProperties;
+	vk::Device                                vkDevice         = nullptr;
+	vk::PhysicalDevice                        vkPhysicalDevice = nullptr;
+	vk::PhysicalDeviceProperties              vkPhysicalDeviceProperties;
+	vk::PhysicalDeviceMemoryProperties        vkPhysicalDeviceMemoryProperties;
+	vk::PhysicalDeviceRayTracingPropertiesKHR raytracingProperties;
 
 	// This may be set externally- it defines how many queues will be created, and what their capabilities must include.
 	// queues will be created so that if no exact fit can be found, a queue will be created from the next available family
@@ -165,12 +165,78 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	// query the gpu for more info about itself
 	self->vkPhysicalDeviceProperties = self->vkPhysicalDevice.getProperties();
 
-	auto properties2           = self->vkPhysicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPropertiesNV>();
-	self->raytracingProperties = properties2.get<vk::PhysicalDeviceRayTracingPropertiesNV>();
+	auto properties2           = self->vkPhysicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPropertiesKHR>();
+	self->raytracingProperties = properties2.get<vk::PhysicalDeviceRayTracingPropertiesKHR>();
 
 	// let's find out the devices' memory properties
 	self->vkPhysicalDeviceMemoryProperties = self->vkPhysicalDevice.getMemoryProperties();
 
+	const auto &queueFamilyProperties = self->vkPhysicalDevice.getQueueFamilyProperties();
+
+	// See findBestMatchForRequestedQueues for how this tuple is laid out.
+	auto queriedQueueFamilyAndIndex = findBestMatchForRequestedQueues( queueFamilyProperties, self->queuesWithCapabilitiesRequest );
+
+	// Create queues based on queriedQueueFamilyAndIndex
+	std::vector<::vk::DeviceQueueCreateInfo> device_queue_creation_infos;
+	// Consolidate queues by queue family type - this will also sort by queue family type.
+	std::map<uint32_t, uint32_t> queueCountPerFamily; // queueFamily -> count
+
+	for ( const auto &q : queriedQueueFamilyAndIndex ) {
+		// Attempt to insert family to map
+
+		auto insertResult = queueCountPerFamily.insert( {std::get<0>( q ), 1} );
+		if ( false == insertResult.second ) {
+			// Increment count if family entry already existed in map.
+			insertResult.first->second++;
+		}
+	}
+
+	device_queue_creation_infos.reserve( queriedQueueFamilyAndIndex.size() );
+
+	// We must store this in a map so that the pointer stays
+	// alive until we call the api.
+	std::map<uint32_t, std::vector<float>> prioritiesPerFamily;
+
+	for ( auto &q : queueCountPerFamily ) {
+		vk::DeviceQueueCreateInfo queueCreateInfo;
+		const auto &              queueFamily = q.first;
+		const auto &              queueCount  = q.second;
+		prioritiesPerFamily[ queueFamily ].resize( queueCount, 1.f ); // all queues have the same priority, 1.
+		queueCreateInfo
+		    .setQueueFamilyIndex( queueFamily )
+		    .setQueueCount( queueCount )
+		    .setPQueuePriorities( prioritiesPerFamily[ queueFamily ].data() );
+		device_queue_creation_infos.emplace_back( std::move( queueCreateInfo ) );
+	}
+
+	std::vector<const char *> enabledDeviceExtensionNames;
+
+	{
+		// We consolidate all requested device extensions in a set,
+		// so that we can be sure that each of the names requested
+		// is unique.
+
+		auto const extensions_names_end = extension_names + extension_names_count;
+
+		for ( auto ext = extension_names; ext != extensions_names_end; ++ext ) {
+			self->requestedDeviceExtensions.insert( *ext );
+		}
+
+		// We then copy the strings with the names for requested extensions
+		// into this object's storage, so that we can be sure the pointers
+		// will not go stale.
+
+		enabledDeviceExtensionNames.reserve( self->requestedDeviceExtensions.size() );
+
+		std::cout << "Enabled Device Extensions:" << std::endl;
+		for ( auto const &ext : self->requestedDeviceExtensions ) {
+			enabledDeviceExtensionNames.emplace_back( ext.c_str() );
+			std::cout << "\t + " << ext << std::endl;
+		}
+		std::cout << std::flush;
+	}
+
+	// figure out enabled device features
 	// Check which features must be switched on for default operations.
 	// For now, we just make sure we can draw with lines.
 	//
@@ -180,85 +246,48 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	    .setFillModeNonSolid( VK_TRUE ) // allow wireframe drawing
 	    ;
 
-	const auto &queueFamilyProperties = self->vkPhysicalDevice.getQueueFamilyProperties();
+	// Vulkan >= 1.2  have per-version structs
+	//	vk::PhysicalDeviceVulkan11Properties properties11;
+	//	vk::PhysicalDeviceVulkan12Properties properties12;
 
-	// See findBestMatchForRequestedQueues for how this tuple is laid out.
-	auto queriedQueueFamilyAndIndex = findBestMatchForRequestedQueues( queueFamilyProperties, self->queuesWithCapabilitiesRequest );
+	vk::StructureChain<vk::PhysicalDeviceFeatures2,
+	                   vk::PhysicalDeviceVulkan11Features,
+	                   vk::PhysicalDeviceVulkan12Features,
+	                   vk::PhysicalDeviceRayTracingFeaturesKHR>
+	    featuresChain{};
 
-	// Consolidate queues by queue family type - this will also sort by queue family type.
-	{
-		std::map<uint32_t, uint32_t> queueCountPerFamily; // queueFamily -> count
+	featuresChain.get<vk::PhysicalDeviceFeatures2>()
+	    .setFeatures( vk::PhysicalDeviceFeatures()
+	                      .setFillModeNonSolid( true )    // allow drawing as wireframe
+	                      .setRobustBufferAccess( false ) // disable robust buffer access
 
-		for ( const auto &q : queriedQueueFamilyAndIndex ) {
-			// Attempt to insert family to map
+	                  // .setFragmentStoresAndAtomics( true )       // only used for gpu assisted validation layer
+	                  // .setVertexPipelineStoresAndAtomics( true ) // only used with gpu assisted validation layer
+	                  // .setShaderInt64( true )                    // -"-
 
-			auto insertResult = queueCountPerFamily.insert( {std::get<0>( q ), 1} );
-			if ( false == insertResult.second ) {
-				// Increment count if family entry already existed in map.
-				insertResult.first->second++;
-			}
-		}
+	    );
 
-		// Create queues based on queriedQueueFamilyAndIndex
-		std::vector<::vk::DeviceQueueCreateInfo> createInfos;
-		createInfos.reserve( queriedQueueFamilyAndIndex.size() );
+	featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
+	    .setBufferDeviceAddress( true ) // needed for rtx
+	    //	    .setBufferDeviceAddressCaptureReplay( true ) // needed for frame debuggers, when using bufferDeviceAddress
+	    ;
 
-		// We must store this in a map so that the pointer stays
-		// alive until we call the api.
-		std::map<uint32_t, std::vector<float>> prioritiesPerFamily;
+	featuresChain.get<vk::PhysicalDeviceRayTracingFeaturesKHR>()
+	    .setRayTracing( true );
 
-		for ( auto &q : queueCountPerFamily ) {
-			vk::DeviceQueueCreateInfo queueCreateInfo;
-			const auto &              queueFamily = q.first;
-			const auto &              queueCount  = q.second;
-			prioritiesPerFamily[ queueFamily ].resize( queueCount, 1.f ); // all queues have the same priority, 1.
-			queueCreateInfo
-			    .setQueueFamilyIndex( queueFamily )
-			    .setQueueCount( queueCount )
-			    .setPQueuePriorities( prioritiesPerFamily[ queueFamily ].data() );
-			createInfos.emplace_back( std::move( queueCreateInfo ) );
-		}
+	vk::DeviceCreateInfo deviceCreateInfo;
+	deviceCreateInfo
+	    .setPNext( &featuresChain )
+	    .setQueueCreateInfoCount( uint32_t( device_queue_creation_infos.size() ) )
+	    .setPQueueCreateInfos( device_queue_creation_infos.data() )
+	    .setEnabledLayerCount( 0 )
+	    .setPpEnabledLayerNames( nullptr )
+	    .setEnabledExtensionCount( uint32_t( enabledDeviceExtensionNames.size() ) )
+	    .setPpEnabledExtensionNames( enabledDeviceExtensionNames.data() )
+	    .setPEnabledFeatures( nullptr ); // in vulkan >= 1.1 uses next chain to set features
 
-		std::vector<const char *> enabledDeviceExtensionNames;
-
-		{
-			// We consolidate all requested device extensions in a set,
-			// so that we can be sure that each of the names requested
-			// is unique.
-
-			auto const extensions_names_end = extension_names + extension_names_count;
-
-			for ( auto ext = extension_names; ext != extensions_names_end; ++ext ) {
-				self->requestedDeviceExtensions.insert( *ext );
-			}
-
-			// We then copy the strings with the names for requested extensions
-			// into this object's storage, so that we can be sure the pointers
-			// will not go stale.
-
-			enabledDeviceExtensionNames.reserve( self->requestedDeviceExtensions.size() );
-
-			std::cout << "Enabled Device Extensions:" << std::endl;
-			for ( auto const &ext : self->requestedDeviceExtensions ) {
-				enabledDeviceExtensionNames.emplace_back( ext.c_str() );
-				std::cout << "\t + " << ext << std::endl;
-			}
-			std::cout << std::flush;
-		}
-
-		vk::DeviceCreateInfo deviceCreateInfo;
-		deviceCreateInfo
-		    .setQueueCreateInfoCount( uint32_t( createInfos.size() ) )
-		    .setPQueueCreateInfos( createInfos.data() )
-		    .setEnabledLayerCount( 0 )
-		    .setPpEnabledLayerNames( nullptr )
-		    .setEnabledExtensionCount( uint32_t( enabledDeviceExtensionNames.size() ) )
-		    .setPpEnabledExtensionNames( enabledDeviceExtensionNames.data() )
-		    .setPEnabledFeatures( &deviceFeatures );
-
-		// Create device
-		self->vkDevice = self->vkPhysicalDevice.createDevice( deviceCreateInfo );
-	}
+	// Create device
+	self->vkDevice = self->vkPhysicalDevice.createDevice( deviceCreateInfo );
 
 	// Store queue flags, and queue family index per queue into renderer properties,
 	// so that queue capabilities and family index may be queried thereafter.
@@ -365,7 +394,7 @@ const VkPhysicalDeviceMemoryProperties &device_get_vk_physical_device_memory_pro
 
 // ----------------------------------------------------------------------
 
-bool device_get_physical_device_ray_tracing_properties( le_device_o *self, VkPhysicalDeviceRayTracingPropertiesNV *properties ) {
+bool device_get_physical_device_ray_tracing_properties( le_device_o *self, VkPhysicalDeviceRayTracingPropertiesKHR *properties ) {
 	*properties = self->raytracingProperties;
 #ifdef LE_FEATURE_RTX
 	return true;

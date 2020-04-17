@@ -203,15 +203,20 @@ enum LeImageUsageFlagBits : LeImageUsageFlags_t {
 
 typedef uint32_t LeBuildAccelerationStructureFlags_t;
 LE_WRAP_TYPE_IN_STRUCT( LeBuildAccelerationStructureFlags_t, LeBuildAccelerationStructureFlags );
-// Codegen <VkBuildAccelerationStructureFlagBitsNV, LeBuildAccelerationStructureFlags_t, c>
-enum LeBuildAccelerationStructureFlagBitsNV : LeBuildAccelerationStructureFlags_t {
-	LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV      = 0x00000001,
-	LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_NV  = 0x00000002,
-	LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_NV = 0x00000004,
-	LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_NV = 0x00000008,
-	LE_BUILD_ACCELERATION_STRUCTURE_LOW_MEMORY_BIT_NV        = 0x00000010,
+// Codegen <VkBuildAccelerationStructureFlagBitsKHR, LeBuildAccelerationStructureFlags_t, c>
+enum LeBuildAccelerationStructureFlagBitsKHR : LeBuildAccelerationStructureFlags_t {
+	LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR      = 0x00000001,
+	LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR  = 0x00000002,
+	LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR = 0x00000004,
+	LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR = 0x00000008,
+	LE_BUILD_ACCELERATION_STRUCTURE_LOW_MEMORY_BIT_KHR        = 0x00000010,
+	LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV       = LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR,
+	LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_NV   = LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_COMPACTION_BIT_KHR,
+	LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_NV  = LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_TRACE_BIT_KHR,
+	LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_NV  = LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR,
+	LE_BUILD_ACCELERATION_STRUCTURE_LOW_MEMORY_BIT_NV         = LE_BUILD_ACCELERATION_STRUCTURE_LOW_MEMORY_BIT_KHR,
 };
-// Codegen </VkBuildAccelerationStructureFlagBitsNV>
+// Codegen </VkBuildAccelerationStructureFlagBitsKHR>
 
 typedef uint32_t LeBufferUsageFlags_t;
 LE_WRAP_TYPE_IN_STRUCT( LeBufferUsageFlags_t, LeBufferUsageFlags );
@@ -230,7 +235,8 @@ enum LeBufferUsageFlagBits : LeBufferUsageFlags_t {
 	LE_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT         = 0x00000800,
 	LE_BUFFER_USAGE_TRANSFORM_FEEDBACK_COUNTER_BUFFER_BIT_EXT = 0x00001000,
 	LE_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT             = 0x00000200,
-	LE_BUFFER_USAGE_RAY_TRACING_BIT_NV                        = 0x00000400,
+	LE_BUFFER_USAGE_RAY_TRACING_BIT_KHR                       = 0x00000400,
+	LE_BUFFER_USAGE_RAY_TRACING_BIT_NV                        = LE_BUFFER_USAGE_RAY_TRACING_BIT_KHR,
 	LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_EXT             = LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
 	LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR             = LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
 };
@@ -286,14 +292,20 @@ enum class ShaderStage : uint32_t {
 	eCompute                = 0x00000020,
 	eAllGraphics            = 0x0000001F,
 	eAll                    = 0x7FFFFFFF,
-	eRaygenBitNv            = 0x00000100,
-	eAnyHitBitNv            = 0x00000200,
-	eClosestHitBitNv        = 0x00000400,
-	eMissBitNv              = 0x00000800,
-	eIntersectionBitNv      = 0x00001000,
-	eCallableBitNv          = 0x00002000,
+	eRaygenBitKhr           = 0x00000100,
+	eAnyHitBitKhr           = 0x00000200,
+	eClosestHitBitKhr       = 0x00000400,
+	eMissBitKhr             = 0x00000800,
+	eIntersectionBitKhr     = 0x00001000,
+	eCallableBitKhr         = 0x00002000,
 	eTaskBitNv              = 0x00000040,
 	eMeshBitNv              = 0x00000080,
+	eRaygenBitNv            = eRaygenBitKhr,
+	eAnyHitBitNv            = eAnyHitBitKhr,
+	eClosestHitBitNv        = eClosestHitBitKhr,
+	eMissBitNv              = eMissBitKhr,
+	eIntersectionBitNv      = eIntersectionBitKhr,
+	eCallableBitNv          = eCallableBitKhr,
 };
 // Codegen </VkShaderStageFlagBits>
 
@@ -369,8 +381,9 @@ enum class PrimitiveTopology : uint32_t {
 enum class IndexType : uint32_t {
 	eUint16   = 0,
 	eUint32   = 1,
-	eNoneNv   = 1000165000,
+	eNoneKhr  = 1000165000,
 	eUint8Ext = 1000265000,
+	eNoneNv   = eNoneKhr,
 };
 // Codegen </VkIndexType>
 
@@ -1286,15 +1299,14 @@ class WriteToImageSettingsBuilder {
 
 namespace le {
 
-// Codegen <VkRayTracingShaderGroupTypeNV, uint32_t>
 enum class RayTracingShaderGroupType : uint32_t {
 	eRayGen = 0,
-	eTrianglesHitGroupNv,
-	eProceduralHitGroupNv,
+	eTrianglesHitGroup,
+	eProceduralHitGroup,
 	eMiss,
 	eCallable,
 };
-// Codegen </VkRayTracingShaderGroupTypeNV>
+
 } // namespace le
 
 LE_OPAQUE_HANDLE( le_rtx_blas_info_handle ); // opaque handle to a bottom level acceleration structure info owned by the backend.
@@ -1692,12 +1704,16 @@ struct CommandBindRtxPipeline {
 
 		le_resource_handle_t sbt_buffer;
 		uint64_t             ray_gen_sbt_offset;
+		uint64_t             ray_gen_sbt_size;
 		uint64_t             miss_sbt_offset;
 		uint64_t             miss_sbt_stride;
+		uint64_t             miss_sbt_size;
 		uint64_t             hit_sbt_offset;
 		uint64_t             hit_sbt_stride;
+		uint64_t             hit_sbt_size;
 		uint64_t             callable_sbt_offset;
 		uint64_t             callable_sbt_stride;
+		uint64_t             callable_sbt_size;
 	} info;
 };
 

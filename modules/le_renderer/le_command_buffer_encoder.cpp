@@ -504,18 +504,22 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 
 	// Calculate memory requirements for buffer
 
-	uint32_t ray_gen_shader_binding_offset   = 0;
-	uint32_t raygen_shader_binding_stride    = 0;
-	uint32_t ray_gen_shader_max_param_count  = 0;
-	uint32_t miss_shader_binding_offset      = 0;
-	uint32_t miss_shader_binding_stride      = 0;
-	uint32_t miss_shader_max_param_count     = 0;
-	uint32_t hit_shader_binding_offset       = 0;
-	uint32_t hit_shader_binding_stride       = 0;
-	uint32_t hit_shader_max_param_count      = 0;
-	uint32_t callable_shader_binding_offset  = 0;
-	uint32_t callable_shader_binding_stride  = 0;
-	uint32_t callable_shader_max_param_count = 0;
+	uint32_t ray_gen_shader_binding_offset      = 0;
+	uint32_t ray_gen_shader_binding_stride      = 0;
+	uint32_t ray_gen_shader_binding_byte_count  = 0;
+	uint32_t ray_gen_shader_max_param_count     = 0;
+	uint32_t miss_shader_binding_offset         = 0;
+	uint32_t miss_shader_binding_stride         = 0;
+	uint32_t miss_shader_binding_byte_count     = 0;
+	uint32_t miss_shader_max_param_count        = 0;
+	uint32_t hit_shader_binding_offset          = 0;
+	uint32_t hit_shader_binding_stride          = 0;
+	uint32_t hit_shader_binding_byte_count      = 0;
+	uint32_t hit_shader_max_param_count         = 0;
+	uint32_t callable_shader_binding_offset     = 0;
+	uint32_t callable_shader_binding_stride     = 0;
+	uint32_t callable_shader_binding_byte_count = 0;
+	uint32_t callable_shader_max_param_count    = 0;
 
 	// Returns the maximum number of parameters for a given vector of shader records
 	auto max_params_fun = []( const auto &shader_vec ) -> uint32_t {
@@ -555,7 +559,7 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 	//
 	uint32_t group_handle_size = sbt_data_header->rtx_shader_group_handle_size;
 
-	raygen_shader_binding_stride   = group_handle_size + round_up_to( ray_gen_shader_max_param_count * sizeof( uint32_t ), group_handle_size );
+	ray_gen_shader_binding_stride  = group_handle_size + round_up_to( ray_gen_shader_max_param_count * sizeof( uint32_t ), group_handle_size );
 	miss_shader_binding_stride     = group_handle_size + round_up_to( miss_shader_max_param_count * sizeof( uint32_t ), group_handle_size );
 	hit_shader_binding_stride      = group_handle_size + round_up_to( hit_shader_max_param_count * sizeof( uint32_t ), group_handle_size );
 	callable_shader_binding_stride = group_handle_size + round_up_to( callable_shader_max_param_count * sizeof( uint32_t ), group_handle_size );
@@ -568,14 +572,21 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 	// shaderGroupBaseAlignment.
 	// See Chapter 33.1, Valid Usage for `VkTraceRays()`
 
-	ray_gen_shader_binding_offset = required_byte_count;
-	required_byte_count += round_up_to( raygen_shader_binding_stride, base_alignment );
-	miss_shader_binding_offset = required_byte_count;
-	required_byte_count += round_up_to( uint32_t( miss_shader_binding_stride * sbt->miss.size() ), base_alignment );
-	hit_shader_binding_offset = required_byte_count;
-	required_byte_count += round_up_to( uint32_t( hit_shader_binding_stride * sbt->hit.size() ), base_alignment );
-	callable_shader_binding_offset = required_byte_count;
-	required_byte_count += round_up_to( uint32_t( callable_shader_binding_stride * sbt->callable.size() ), base_alignment );
+	ray_gen_shader_binding_offset     = required_byte_count;
+	ray_gen_shader_binding_byte_count = round_up_to( ray_gen_shader_binding_stride, base_alignment );
+	required_byte_count += ray_gen_shader_binding_byte_count;
+
+	miss_shader_binding_offset     = required_byte_count;
+	miss_shader_binding_byte_count = round_up_to( uint32_t( miss_shader_binding_stride * sbt->miss.size() ), base_alignment );
+	required_byte_count += miss_shader_binding_byte_count;
+
+	hit_shader_binding_offset     = required_byte_count;
+	hit_shader_binding_byte_count = round_up_to( uint32_t( hit_shader_binding_stride * sbt->hit.size() ), base_alignment );
+	required_byte_count += hit_shader_binding_byte_count;
+
+	callable_shader_binding_offset     = required_byte_count;
+	callable_shader_binding_byte_count = round_up_to( uint32_t( callable_shader_binding_stride * sbt->callable.size() ), base_alignment );
+	required_byte_count += callable_shader_binding_byte_count;
 
 	//	std::cout << "sbt memory requirement: " << std::dec << required_byte_count << "Bytes" << std::endl
 	//	          << std::flush;
@@ -624,7 +635,7 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 		// which is where the payload for the shader buffer data begins.
 		char *shader_group_data_payload = reinterpret_cast<char *>( sbt_data_header + 1 );
 
-		write_to_buffer( base_addr + ray_gen_shader_binding_offset, raygen_shader_binding_stride, group_handle_size, shader_group_data_payload, &sbt->ray_gen, 1 );
+		write_to_buffer( base_addr + ray_gen_shader_binding_offset, ray_gen_shader_binding_stride, group_handle_size, shader_group_data_payload, &sbt->ray_gen, 1 );
 		write_to_buffer( base_addr + miss_shader_binding_offset, miss_shader_binding_stride, group_handle_size, shader_group_data_payload, sbt->miss.data(), sbt->miss.size() );
 		write_to_buffer( base_addr + hit_shader_binding_offset, hit_shader_binding_stride, group_handle_size, shader_group_data_payload, sbt->hit.data(), sbt->hit.size() );
 		write_to_buffer( base_addr + callable_shader_binding_offset, callable_shader_binding_stride, group_handle_size, shader_group_data_payload, sbt->callable.data(), sbt->callable.size() );
@@ -635,12 +646,16 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 
 		cmd->info.sbt_buffer          = allocatorBuffer;
 		cmd->info.ray_gen_sbt_offset  = bufferBaseOffset + ray_gen_shader_binding_offset;
+		cmd->info.ray_gen_sbt_size    = ray_gen_shader_binding_byte_count;
 		cmd->info.miss_sbt_offset     = bufferBaseOffset + miss_shader_binding_offset;
 		cmd->info.miss_sbt_stride     = miss_shader_binding_stride;
+		cmd->info.miss_sbt_size       = miss_shader_binding_byte_count;
 		cmd->info.hit_sbt_offset      = bufferBaseOffset + hit_shader_binding_offset;
 		cmd->info.hit_sbt_stride      = hit_shader_binding_stride;
+		cmd->info.hit_sbt_size        = hit_shader_binding_byte_count;
 		cmd->info.callable_sbt_offset = bufferBaseOffset + callable_shader_binding_offset;
 		cmd->info.callable_sbt_stride = callable_shader_binding_stride;
+		cmd->info.callable_sbt_size   = callable_shader_binding_byte_count;
 
 	} else {
 		assert( false && "Could not allocate scratch memory for rtx shader binding table." );

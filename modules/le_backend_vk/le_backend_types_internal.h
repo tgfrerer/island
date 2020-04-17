@@ -143,8 +143,8 @@ struct DescriptorData {
 	};
 
 	struct AccelerationStructureInfo {
-		vk::AccelerationStructureNV accelerationStructure = nullptr;
-		uint64_t                    padding[ 2 ]          = {};
+		vk::AccelerationStructureKHR accelerationStructure = nullptr;
+		uint64_t                     padding[ 2 ]          = {};
 	};
 
 	vk::DescriptorType type          = vk::DescriptorType::eUniformBufferDynamic; //

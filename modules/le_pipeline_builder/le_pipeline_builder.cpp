@@ -192,7 +192,7 @@ void le_rtx_pipeline_builder_add_shader_group_callable( le_rtx_pipeline_builder_
 void le_rtx_pipeline_builder_add_shader_group_triangle_hit( le_rtx_pipeline_builder_o *self, le_shader_module_o *maybe_closest_hit_shader, le_shader_module_o *maybe_any_hit_shader ) {
 	assert( ( maybe_any_hit_shader || maybe_closest_hit_shader ) && "must specify at least one of closet hit or any hit shader" );
 	le_rtx_shader_group_info info{};
-	info.type                = le::RayTracingShaderGroupType::eTrianglesHitGroupNv;
+	info.type                = le::RayTracingShaderGroupType::eTrianglesHitGroup;
 	info.closestHitShaderIdx = rtx_pipeline_builder_add_shader_module( self, maybe_closest_hit_shader );
 	info.anyHitShaderIdx     = rtx_pipeline_builder_add_shader_module( self, maybe_any_hit_shader );
 	self->obj->shaderGroups.emplace_back( info );
@@ -201,7 +201,7 @@ void le_rtx_pipeline_builder_add_shader_group_triangle_hit( le_rtx_pipeline_buil
 void le_rtx_pipeline_builder_add_shader_group_procedural_hit( le_rtx_pipeline_builder_o *self, le_shader_module_o *intersection_shader, le_shader_module_o *maybe_closest_hit_shader, le_shader_module_o *maybe_any_hit_shader ) {
 	assert( intersection_shader && "must specify intersection shader" );
 	le_rtx_shader_group_info info{};
-	info.type                  = le::RayTracingShaderGroupType::eProceduralHitGroupNv;
+	info.type                  = le::RayTracingShaderGroupType::eProceduralHitGroup;
 	info.intersectionShaderIdx = rtx_pipeline_builder_add_shader_module( self, intersection_shader );
 	info.closestHitShaderIdx   = rtx_pipeline_builder_add_shader_module( self, maybe_closest_hit_shader );
 	info.anyHitShaderIdx       = rtx_pipeline_builder_add_shader_module( self, maybe_any_hit_shader );
