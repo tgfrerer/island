@@ -4804,7 +4804,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				case le::CommandType::eWriteToImage: {
 
-					// TODO: use sync chain to sync
+					// TODO: Use sync chain to sync
+					// TODO: Allow more than one layer (useful when uploading cubemaps for example.`)
 
 					auto *le_cmd = static_cast<le::CommandWriteToImage *>( dataIt );
 
@@ -4818,8 +4819,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					    .setAspectMask( vk::ImageAspectFlagBits::eColor )
 					    .setBaseMipLevel( le_cmd->info.dst_miplevel )
 					    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we want all miplevels to be in transferDstOptimal.
-					    .setBaseArrayLayer( 0 )
-					    .setLayerCount( 1 );
+					    .setBaseArrayLayer( le_cmd->info.dst_array_layer )
+					    .setLayerCount( 1 ); // TODO: we could optimise our write call by writing to more than one layer at a time.
 
 					{
 						vk::BufferMemoryBarrier bufferTransferBarrier;
@@ -4865,12 +4866,12 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						imageSubresourceLayers
 						    .setAspectMask( vk::ImageAspectFlagBits::eColor )
 						    .setMipLevel( 0 )
-						    .setBaseArrayLayer( 0 )
+						    .setBaseArrayLayer( le_cmd->info.dst_array_layer )
 						    .setLayerCount( 1 );
 
 						vk::BufferImageCopy region;
 						region
-						    .setBufferOffset( 0 )                                       // buffer offset is 0 as staging buffer is a fresh, specially allocated buffer
+						    .setBufferOffset( 0 )                                       // buffer offset is 0, since staging buffer is a fresh, specially allocated buffer
 						    .setBufferRowLength( 0 )                                    // 0 means tightly packed
 						    .setBufferImageHeight( 0 )                                  // 0 means tightly packed
 						    .setImageSubresource( std::move( imageSubresourceLayers ) ) // stored inline

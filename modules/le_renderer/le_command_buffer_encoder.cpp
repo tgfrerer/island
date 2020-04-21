@@ -752,15 +752,16 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *       self,
 
 		assert( writeInfo.num_miplevels != 0 ); // number of miplevels must be at least 1.
 
-		cmd->info.src_buffer_id = stagingBufferId;         // resource id of staging buffer
-		cmd->info.numBytes      = numBytes;                // total number of bytes from staging buffer which need to be synchronised.
-		cmd->info.dst_image_id  = imageId;                 // resouce id for target image resource
-		cmd->info.dst_miplevel  = writeInfo.dst_miplevel;  // default 0, use higher number to manually upload higher mip levels.
-		cmd->info.num_miplevels = writeInfo.num_miplevels; // default is 1, *must not* be 0. More than 1 means to auto-generate these miplevels
-		cmd->info.image_w       = writeInfo.image_w;       // image extent
-		cmd->info.image_h       = writeInfo.image_h;       // image extent
-		cmd->info.offset_h      = writeInfo.offset_h;      // offset into image where to place data
-		cmd->info.offset_w      = writeInfo.offset_w;      // offset into image where to place data
+		cmd->info.src_buffer_id   = stagingBufferId;           // resource id of staging buffer
+		cmd->info.numBytes        = numBytes;                  // total number of bytes from staging buffer which need to be synchronised.
+		cmd->info.dst_image_id    = imageId;                   // resouce id for target image resource
+		cmd->info.dst_miplevel    = writeInfo.dst_miplevel;    // default 0, use higher number to manually upload higher mip levels.
+		cmd->info.dst_array_layer = writeInfo.dst_array_layer; // default 0, use higher number to manually upload to array layer / or mipmap face.
+		cmd->info.num_miplevels   = writeInfo.num_miplevels;   // default is 1, *must not* be 0. More than 1 means to auto-generate these miplevels
+		cmd->info.image_w         = writeInfo.image_w;         // image extent
+		cmd->info.image_h         = writeInfo.image_h;         // image extent
+		cmd->info.offset_h        = writeInfo.offset_h;        // offset into image where to place data
+		cmd->info.offset_w        = writeInfo.offset_w;        // offset into image where to place data
 
 	} else {
 		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl

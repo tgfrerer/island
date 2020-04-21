@@ -1027,12 +1027,13 @@ struct le_renderer_settings_t {
 
 // specifies parameters for an image write operation.
 struct le_write_to_image_settings_t {
-	uint32_t image_w       = 0; // image (slice) width in texels
-	uint32_t image_h       = 0; // image (slice) height in texels
-	int32_t  offset_w      = 0; // offset
-	int32_t  offset_h      = 0; // offset
-	uint32_t dst_miplevel  = 0; // target image mip level to write into
-	uint32_t num_miplevels = 1; // number of miplevels to auto-generate (default 1 - more than one means to auto-generate miplevels)
+	uint32_t image_w         = 0; // image (slice) width in texels
+	uint32_t image_h         = 0; // image (slice) height in texels
+	int32_t  offset_w        = 0; // offset
+	int32_t  offset_h        = 0; // offset
+	uint32_t dst_array_layer = 0; // target array layer to write into - default 0 for non-array, or cube map images.
+	uint32_t dst_miplevel    = 0; // target image mip level to write into
+	uint32_t num_miplevels   = 1; // number of miplevels to auto-generate (default 1 - more than one means to auto-generate miplevels)
 };
 
 namespace le {
@@ -1285,6 +1286,7 @@ class WriteToImageSettingsBuilder {
 	BUILDER_IMPLEMENT( WriteToImageSettingsBuilder, setImageH, uint32_t, image_h, = 0 )
 	BUILDER_IMPLEMENT( WriteToImageSettingsBuilder, setOffsetW, int32_t, offset_w, = 0 )
 	BUILDER_IMPLEMENT( WriteToImageSettingsBuilder, setOffsetH, int32_t, offset_h, = 0 )
+	BUILDER_IMPLEMENT( WriteToImageSettingsBuilder, setArrayLayer, uint32_t, dst_array_layer, = 0 )
 	BUILDER_IMPLEMENT( WriteToImageSettingsBuilder, setDstMiplevel, uint32_t, dst_miplevel, = 0 )
 	BUILDER_IMPLEMENT( WriteToImageSettingsBuilder, setNumMiplevels, uint32_t, num_miplevels, = 1 )
 
@@ -1733,15 +1735,17 @@ struct CommandWriteToImage {
 	CommandHeader header = {{{CommandType::eWriteToImage, sizeof( CommandWriteToImage )}}};
 
 	struct {
-		le_resource_handle_t src_buffer_id; // le buffer id of scratch buffer
-		le_resource_handle_t dst_image_id;  // which resource to write to
-		uint64_t             numBytes;      // number of bytes
-		uint32_t             image_w;       // image width in texels
-		uint32_t             image_h;       // image height in texels
-		int32_t              offset_w;      // offset
-		int32_t              offset_h;      // offset
-		uint32_t             dst_miplevel;  // mip level to write into
-		uint32_t             num_miplevels; // number of miplevels to generate (default 1 - more than one means to auto-generate miplevels)
+		le_resource_handle_t src_buffer_id;   // le buffer id of scratch buffer
+		le_resource_handle_t dst_image_id;    // which resource to write to
+		uint64_t             numBytes;        // number of bytes
+		uint32_t             image_w;         // image width in texels
+		uint32_t             image_h;         // image height in texels
+		int32_t              offset_w;        // offset
+		int32_t              offset_h;        // offset
+		uint32_t             dst_array_layer; // array layer to write into (default 0)
+		uint32_t             dst_miplevel;    // mip level to write into
+		uint32_t             num_miplevels;   // number of miplevels to generate (default 1 - more than one means to auto-generate miplevels)
+		uint32_t             padding;         // unused
 	} info;
 };
 
