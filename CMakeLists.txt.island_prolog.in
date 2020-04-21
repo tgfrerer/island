@@ -1,4 +1,18 @@
-set(PLUGINS_DYNAMIC ON CACHE BOOL "Use dynamic linking for all plugins")
+message(STATUS "Build type: ${CMAKE_BUILD_TYPE}")
+
+# Hot-reloading is enabled by default for debug target, 
+# whilst release target are built as statically linked 
+# binaries by default. 
+# This can be changed on a project-by-project basis, as
+# we only set initial default settings here.
+
+if( CMAKE_BUILD_TYPE STREQUAL "Debug" )
+    # we enable hot-reloading by default for debug target
+    set(PLUGINS_DYNAMIC ON CACHE BOOL "Use dynamic linking for all plugins")
+else()
+    # we disdable hot-reloading by default for release target
+    set(PLUGINS_DYNAMIC OFF CACHE BOOL "Use dynamic linking for all plugins")
+endif()
 
 set ( STATIC_LIBS )
 
