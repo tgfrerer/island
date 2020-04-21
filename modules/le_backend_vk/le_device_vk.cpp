@@ -260,7 +260,7 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	    .setFeatures( vk::PhysicalDeviceFeatures()
 	                      .setFillModeNonSolid( true )    // allow drawing as wireframe
 	                      .setRobustBufferAccess( false ) // disable robust buffer access
-
+	                      .setWideLines( true )
 	                  // .setFragmentStoresAndAtomics( true )       // only used for gpu assisted validation layer
 	                  // .setVertexPipelineStoresAndAtomics( true ) // only used with gpu assisted validation layer
 	                  // .setShaderInt64( true )                    // -"-
