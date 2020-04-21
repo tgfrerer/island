@@ -488,7 +488,9 @@ static const vk::BufferUsageFlags LE_BUFFER_USAGE_FLAGS_SCRATCH =
     vk::BufferUsageFlagBits::eVertexBuffer |
     vk::BufferUsageFlagBits::eUniformBuffer |
     vk::BufferUsageFlagBits::eStorageBuffer |
+#ifdef LE_FEATURE_RTX
     vk::BufferUsageFlagBits::eShaderDeviceAddress |
+#endif
     vk::BufferUsageFlagBits::eTransferSrc;
 
 /// \brief backend data object
@@ -963,7 +965,11 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 		// we do this here, because swapchain might want to already use the allocator.
 
 		VmaAllocatorCreateInfo createInfo{};
-		createInfo.flags                       = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+#ifdef LE_FEATURE_RTX
+		createInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
+#else
+		createInfo.flags = {};
+#endif
 		createInfo.device                      = vkDevice;
 		createInfo.frameInUseCount             = 0;
 		createInfo.physicalDevice              = vkPhysicalDevice;
@@ -3183,6 +3189,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		}
 	} // end for all used resources
 
+#ifdef LE_FEATURE_RTX
 	// -- Create rtx acceleration structure scratch buffer
 	{
 		// In case there are acceleration structures with the `build` flag set, we must allocate
@@ -3238,6 +3245,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			frame.binnedResources.insert_or_assign( resource_id, allocated_resource );
 		}
 	}
+#endif
 
 	// If we locked backendResources with a mutex, this would be the right place to release it.
 
@@ -4405,7 +4413,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					}
 
 				} break;
-
+#ifdef LE_FEATURE_RTX
 				case le::CommandType::eTraceRays: {
 					auto *le_cmd = static_cast<le::CommandTraceRays *>( dataIt );
 
@@ -4455,6 +4463,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					);
 
 				} break;
+#endif
 				case le::CommandType::eDispatch: {
 					auto *le_cmd = static_cast<le::CommandDispatch *>( dataIt );
 
@@ -4715,7 +4724,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					bindingData.arrayIndex = uint32_t( le_cmd->info.array_index );
 
 				} break;
-
+#ifdef LE_FEATURE_RTX
 				case le::CommandType::eSetArgumentTlas: {
 					auto *   le_cmd           = static_cast<le::CommandSetArgumentTlas *>( dataIt );
 					uint64_t argument_name_id = le_cmd->info.argument_name_id;
@@ -4756,7 +4765,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					bindingData.arrayIndex                                      = uint32_t( le_cmd->info.array_index );
 
 				} break;
-
+#endif
 				case le::CommandType::eBindIndexBuffer: {
 					auto *le_cmd = static_cast<le::CommandBindIndexBuffer *>( dataIt );
 					auto  buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer );
@@ -5001,6 +5010,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					break;
 				}
+#ifdef LE_FEATURE_RTX
 				case le::CommandType::eBuildRtxBlas: {
 					auto *le_cmd = static_cast<le::CommandBuildRtxBlas *>( dataIt );
 
@@ -5194,6 +5204,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					break;
 				}
+#endif // LE_FEATURE_RTX
 				default: {
 					assert( false && "command not handled" );
 				}

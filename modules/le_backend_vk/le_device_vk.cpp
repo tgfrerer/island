@@ -267,6 +267,7 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 
 	    );
 
+#ifdef LE_FEATURE_RTX
 	featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
 	    .setBufferDeviceAddress( true ) // needed for rtx
 	    //	    .setBufferDeviceAddressCaptureReplay( true ) // needed for frame debuggers, when using bufferDeviceAddress
@@ -274,6 +275,7 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 
 	featuresChain.get<vk::PhysicalDeviceRayTracingFeaturesKHR>()
 	    .setRayTracing( true );
+#endif
 
 	vk::DeviceCreateInfo deviceCreateInfo;
 	deviceCreateInfo
