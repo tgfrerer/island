@@ -428,8 +428,8 @@ struct BackendFrameData {
 		vk::ImageView imageView;
 	};
 
-	using texture_map_t    = std::unordered_map<le_resource_handle_t, Texture, LeResourceHandleIdentity>;
-	using image_view_map_t = std::unordered_map<le_resource_handle_t, vk::ImageView, LeResourceHandleIdentity>;
+	using texture_map_t = std::unordered_map<le_resource_handle_t, Texture, LeResourceHandleIdentity>;
+	//	using image_view_map_t = std::unordered_map<le_resource_handle_t, vk::ImageView, LeResourceHandleIdentity>;
 	std::unordered_map<le_resource_handle_t, vk::ImageView, LeResourceHandleIdentity> imageViews; // non-owning, references to frame-local textures, cleared on frame fence.
 
 	// With `syncChainTable` and image_attachment_info_o.syncState, we should
@@ -575,6 +575,18 @@ static inline void vk_format_get_is_depth_stencil( vk::Format format_, bool &isD
 	}
 
 	return;
+}
+
+// ----------------------------------------------------------------------
+static inline vk::ImageViewType le_to_vk( le::ImageViewType const &t ) {
+	return vk::ImageViewType( t );
+}
+
+// ----------------------------------------------------------------------
+static inline VkFormat le_to_vk( le::Format const &f ) {
+	// this may change - but for now, we can map vk and le formats directly,
+	// mostly because codegen guarantees that they stay in sync.
+	return VkFormat( f );
 }
 
 // ----------------------------------------------------------------------
@@ -2036,7 +2048,7 @@ static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFra
 	if ( texInfo.imageView.format == le::Format::eUndefined ) {
 		return ( frame_data_get_image_format_from_resource_id( frame, texInfo.imageView.imageId ) );
 	} else {
-		return VkFormat( texInfo.imageView.format );
+		return le_to_vk( texInfo.imageView.format );
 	}
 }
 
@@ -3396,18 +3408,18 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 					    .setAspectMask( get_aspect_flags_from_format( imageFormat ) )
 					    .setBaseMipLevel( 0 )
 					    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
-					    .setBaseArrayLayer( 0 )
-					    .setLayerCount( 1 );
+					    .setBaseArrayLayer( texInfo.imageView.base_array_layer )
+					    .setLayerCount( texInfo.imageView.layer_count );
 
 					// TODO: fill in additional image view create info based on info from pass...
 
 					vk::ImageViewCreateInfo imageViewCreateInfo{};
 					imageViewCreateInfo
-					    .setFlags( {} )
+					    .setFlags( {} ) // no special flags
 					    .setImage( frame_data_get_image_from_le_resource_id( frame, texInfo.imageView.imageId ) )
-					    .setViewType( vk::ImageViewType::e2D )
-					    .setFormat( imageFormat )
-					    .setComponents( {} ) // default component mapping
+					    .setViewType( le_to_vk( texInfo.imageView.image_view_type ) )
+					    .setFormat( imageFormat ) // we got this earlier via texInfo
+					    .setComponents( {} )      // default component mapping
 					    .setSubresourceRange( subresourceRange );
 
 					imageView = device.createImageView( imageViewCreateInfo );

@@ -543,6 +543,18 @@ enum class AttachmentLoadOp : uint32_t {
 };
 // Codegen </VkAttachmentLoadOp>
 
+// Codegen <VkImageViewType, uint32_t>
+enum class ImageViewType : uint32_t {
+	e1D        = 0,
+	e2D        = 1,
+	e3D        = 2,
+	eCube      = 3,
+	e1DArray   = 4,
+	e2DArray   = 5,
+	eCubeArray = 6,
+};
+// Codegen </VkImageViewType>
+
 // Codegen <VkImageType, uint32_t>
 enum class ImageType : uint32_t {
 	e1D = 0,
@@ -979,9 +991,12 @@ struct LeImageSamplerInfo {
 	struct ImageViewInfo {
 		le_resource_handle_t imageId{}; // le image resource id
 		le::Format           format{};  // leave at 0 (undefined) to use format of image referenced by `imageId`
+		le::ImageViewType    image_view_type{le::ImageType::e2D};
+		uint32_t             base_array_layer{0};
+		uint32_t             layer_count{1};
 	};
-	LeSamplerInfo sampler;
-	ImageViewInfo imageView;
+	LeSamplerInfo sampler{};
+	ImageViewInfo imageView{};
 };
 
 struct le_swapchain_settings_t {
@@ -1227,7 +1242,10 @@ class ImageSamplerInfoBuilder {
 		}
 
 		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setImage, le_resource_handle_t, imageId, = {} )
+		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setImageViewType, le::ImageViewType, image_view_type, = le::ImageViewType::e2D )
 		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setFormat, le::Format, format, = le::Format::eUndefined )
+		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setBaseArrayLayer, uint32_t, base_array_layer, = 0 )
+		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setLayerCount, uint32_t, layer_count, = 1 )
 
 		ImageSamplerInfoBuilder &end() {
 			return parent;
