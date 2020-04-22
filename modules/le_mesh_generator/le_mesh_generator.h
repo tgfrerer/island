@@ -22,6 +22,8 @@ struct le_mesh_generator_api {
 		);
 
 		void ( *generate_plane )(le_mesh_o* mesh, float width, float height, uint32_t widthSegments, uint32_t heightSegments);
+    
+        void (* generate_box )(le_mesh_o* mesh, float width, float height, float depth);
 
 	};
 

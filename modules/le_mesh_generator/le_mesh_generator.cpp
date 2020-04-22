@@ -148,10 +148,88 @@ static void le_mesh_generator_generate_sphere( le_mesh_o *mesh,
 }
 
 // ----------------------------------------------------------------------
+// generates box, and stores it into mesh. Note:
+static void le_mesh_generator_generate_box( le_mesh_o *mesh, float width, float height, float depth ) {
+
+	le_mesh::le_mesh_i.clear( mesh );
+
+	// we must generate vertices first.
+	// we should import this via ply and scale it to our needs.
+
+	mesh->vertices.reserve( 4 * 6 );    //
+	mesh->normals.reserve( 4 * 6 );     //
+	mesh->uvs.reserve( 4 * 6 );         //
+	mesh->indices.reserve( 3 * 2 * 6 ); // 2 triangles for each of 6 sides.
+
+	struct cube_data {
+		glm::vec3 vertex;
+		glm::vec3 normal;
+		glm::vec2 tex_coord;
+	};
+
+	// clang-format off
+	cube_data unit_cube[] ={
+	    {{-1.000000f, 1.000000f, -1.000000f}, {0.000000f, 1.000000f, -0.000000f}, {0.875000f, 0.500000f},},
+	    {{1.000000f, 1.000000f, 1.000000f}, {0.000000f, 1.000000f, -0.000000f}, {0.625000f, 0.750000f},},
+	    {{1.000000f, 1.000000f, -1.000000f},{ 0.000000f, 1.000000f, -0.000000f},{ 0.625000f, 0.500000f},},
+	    {{1.000000f, 1.000000f, 1.000000f},{ 0.000000f, -0.000000f, 1.000000f},{ 0.625000f, 0.750000f},},
+	    {{-1.000000f, -1.000000f, 1.000000f},{ 0.000000f, -0.000000f, 1.000000f},{ 0.375000f, 1.000000f},},
+	    {{1.000000f, -1.000000f, 1.000000f},{ 0.000000f, -0.000000f, 1.000000f},{ 0.375000f, 0.750000f},},
+	    {{-1.000000f, 1.000000f, 1.000000f},{ -1.000000f, 0.000000f, 0.000000f},{ 0.625000f, 0.000000f},},
+	    {{-1.000000f, -1.000000f, -1.000000f},{ -1.000000f, 0.000000f, 0.000000f},{ 0.375000f, 0.250000f},},
+	    {{-1.000000f, -1.000000f, 1.000000f},{ -1.000000f, 0.000000f, 0.000000f},{ 0.375000f, 0.000000f},},
+	    {{1.000000f, -1.000000f, -1.000000f},{ 0.000000f, -1.000000f, 0.000000f},{ 0.375000f, 0.500000f},},
+	    {{-1.000000f, -1.000000f, 1.000000f},{ 0.000000f, -1.000000f, 0.000000f},{ 0.125000f, 0.750000f},},
+	    {{-1.000000f, -1.000000f, -1.000000f},{ 0.000000f, -1.000000f, 0.000000f},{ 0.125000f, 0.500000f},},
+	    {{1.000000f, 1.000000f, -1.000000f},{ 1.000000f, -0.000000f, 0.000000f},{ 0.625000f, 0.500000f},},
+	    {{1.000000f, -1.000000f, 1.000000f},{ 1.000000f, -0.000000f, 0.000000f},{ 0.375000f, 0.750000f},},
+	    {{1.000000f, -1.000000f, -1.000000f},{ 1.000000f, -0.000000f, 0.000000f},{ 0.375000f, 0.500000f},},
+	    {{-1.000000f, 1.000000f, -1.000000f},{ 0.000000f, 0.000000f, -1.000000f},{ 0.625000f, 0.250000f},},
+	    {{1.000000f, -1.000000f, -1.000000f},{ 0.000000f, 0.000000f, -1.000000f},{ 0.375000f, 0.500000f},},
+	    {{-1.000000f, -1.000000f, -1.000000f},{ 0.000000f, 0.000000f, -1.000000f},{ 0.375000f, 0.250000f},},
+	    {{-1.000000f, 1.000000f, 1.000000f},{ 0.000000f, 1.000000f, 0.000000f},{ 0.875000f, 0.750000f},},
+	    {{-1.000000f, 1.000000f, 1.000000f},{ 0.000000f, 0.000000f, 1.000000f},{ 0.625000f, 1.000000f},},
+	    {{-1.000000f, 1.000000f, -1.000000f},{ -1.000000f, 0.000000f, 0.000000f},{ 0.625000f, 0.250000f},},
+	    {{1.000000f, -1.000000f, 1.000000f},{ 0.000000f, -1.000000f, 0.000000f},{ 0.375000f, 0.750000f},},
+	    {{1.000000f, 1.000000f, 1.000000f},{ 1.000000f, -0.000000f, 0.000000f},{ 0.625000f, 0.750000f},},
+	    {{1.000000f, 1.000000f, -1.000000f},{ 0.000000f, 0.000000f, -1.000000f},{ 0.625000f, 0.500000f},}};
+	// clang-format on
+
+	// Since our standard cube has extents from -1..1, we must half input scale factor
+	glm::vec3 scale_factor{width * 0.5f, height * 0.5f, depth * 0.5f};
+
+	for ( auto const &v : unit_cube ) {
+		mesh->vertices.emplace_back( v.vertex * scale_factor );
+		mesh->normals.emplace_back( v.normal );
+		mesh->uvs.emplace_back( v.tex_coord );
+	}
+
+	// Set indices for box
+
+	// clang-format off
+	mesh->indices = {
+		0, 1, 2,
+		3, 4, 5,
+		6, 7, 8,
+		9, 10, 11,
+		12, 13, 14,
+		15, 16, 17,
+		0, 18, 1,
+		3, 19, 4,
+		6, 20, 7,
+		9, 21, 10,
+		12, 22, 13,
+		15, 23, 16,
+	};
+	// clang-format on
+}
+
+// ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_mesh_generator, api ) {
 	auto &le_mesh_generator_i = static_cast<le_mesh_generator_api *>( api )->le_mesh_generator_i;
 
 	le_mesh_generator_i.generate_sphere = le_mesh_generator_generate_sphere;
 	le_mesh_generator_i.generate_plane  = le_mesh_generator_generate_plane;
+	le_mesh_generator_i.generate_box    = le_mesh_generator_generate_box;
 }
