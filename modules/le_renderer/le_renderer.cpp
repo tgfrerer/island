@@ -98,8 +98,8 @@ static void renderer_destroy( le_renderer_o *self ) {
 	for ( size_t i = 0; i != self->frames.size(); ++i ) {
 		auto index = ( lastIndex + i ) % self->frames.size();
 		renderer_clear_frame( self, index );
-		// -- FIXME: delete graph builders which we added in create
-		// this is not elegant.
+		// -- FIXME: delete graph builders which we added in create.
+		// This is not elegant.
 		rendergraph_i.destroy( self->frames[ index ].rendergraph );
 	}
 

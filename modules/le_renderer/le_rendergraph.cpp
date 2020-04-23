@@ -151,7 +151,6 @@ static void renderpass_set_execute_callback( le_renderpass_o *self, void *user_d
 }
 
 // ----------------------------------------------------------------------
-// ----------------------------------------------------------------------
 static void renderpass_run_execute_callbacks( le_renderpass_o *self ) {
 	for ( auto const &c : self->executeCallbacks ) {
 		c.fn( self->encoder, c.user_data );
