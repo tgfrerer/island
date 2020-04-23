@@ -374,7 +374,7 @@ struct le_stage_o {
 	std::vector<le_accessor_o>        accessors;       //
 	std::vector<le_buffer_view_o>     buffer_views;    //
 	std::vector<le_buffer_o *>        buffers;         // owning
-	std::vector<LeSamplerInfo>        samplers;        //
+	std::vector<le_sampler_info_t>        samplers;        //
 	std::vector<le_resource_handle_t> buffer_handles;  //
 	std::vector<le_texture_o>         textures;        //
 	std::vector<stage_image_o *>      images;          // owning
@@ -529,7 +529,7 @@ static uint32_t le_stage_create_image_from_file_path( le_stage_o *stage, char co
 
 /// \brief add a sampler to stage, return index to sampler within this stage.
 ///
-static uint32_t le_stage_create_sampler( le_stage_o *stage, LeSamplerInfo const *info ) {
+static uint32_t le_stage_create_sampler( le_stage_o *stage, le_sampler_info_t const *info ) {
 
 	uint32_t sampler_idx = uint32_t( stage->samplers.size() );
 

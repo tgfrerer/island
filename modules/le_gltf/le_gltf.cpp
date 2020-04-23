@@ -313,7 +313,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		{
 			// Sampler used for textures which don't define a sampler.
 			// Spec says: "When undefined, a sampler with repeat wrapping and auto filtering should be used."
-			LeSamplerInfo default_sampler_info{};
+			le_sampler_info_t default_sampler_info{};
 			default_sampler_info.addressModeU = le::SamplerAddressMode::eRepeat;
 			default_sampler_info.addressModeV = le::SamplerAddressMode::eRepeat;
 
@@ -326,7 +326,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		auto           samplers_end   = samplers_begin + self->data->samplers_count;
 
 		for ( auto s = samplers_begin; s != samplers_end; s++ ) {
-			LeSamplerInfo info{};
+			le_sampler_info_t info{};
 
 			info.addressModeU = cgltf_to_le_sampler_address_mode( s->wrap_s );
 			info.addressModeV = cgltf_to_le_sampler_address_mode( s->wrap_t );

@@ -67,7 +67,7 @@ le_render_module_add_bloom_pass(
 
 	struct RenderTarget {
 		le_resource_handle_t image;
-		LeImageSamplerInfo   info;
+		le_image_sampler_info_t   info;
 	};
 
 	struct BlurSettings {
@@ -252,7 +252,7 @@ le_render_module_add_bloom_pass(
 		uint32_t w = width;
 		uint32_t h = height;
 
-		LeImageSamplerInfo source_info = targets_blur_v[ 0 ].info;
+		le_image_sampler_info_t source_info = targets_blur_v[ 0 ].info;
 
 		for ( size_t i = 0; i != 5; i++ ) {
 

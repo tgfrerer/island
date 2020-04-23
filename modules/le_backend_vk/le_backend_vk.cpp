@@ -2044,7 +2044,7 @@ static inline VkFormat frame_data_get_image_format_from_resource_id( BackendFram
 
 // ----------------------------------------------------------------------
 // if specific format for texture was not specified, return format of referenced image
-static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFrameData const &frame, LeImageSamplerInfo const &texInfo ) {
+static inline VkFormat frame_data_get_image_format_from_texture_info( BackendFrameData const &frame, le_image_sampler_info_t const &texInfo ) {
 	if ( texInfo.imageView.format == le::Format::eUndefined ) {
 		return ( frame_data_get_image_format_from_resource_id( frame, texInfo.imageView.imageId ) );
 	} else {
@@ -3379,7 +3379,7 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 		size_t                      textureIdCount = 0;
 		renderpass_i.get_texture_ids( p, &textureIds, &textureIdCount );
 
-		const LeImageSamplerInfo *textureInfos     = nullptr;
+		const le_image_sampler_info_t *textureInfos     = nullptr;
 		size_t                    textureInfoCount = 0;
 		renderpass_i.get_texture_infos( p, &textureInfos, &textureInfoCount );
 

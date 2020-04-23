@@ -593,12 +593,12 @@ struct LeTextureInfo {
                 int magFilter; // enum VkFilter
                                // TODO: add clamp clamp modes etc.
         };
-        struct ImageViewInfo {
+        struct le_image_view_info_t {
                 le_resource_handle_t imageId; // le image resource id
                 le::Format           format;  // leave at 0 (undefined) to use format of image referenced by `imageId`
         };
         SamplerInfo   sampler;
-        ImageViewInfo imageView;
+        le_image_view_info_t imageView;
 };
 
 struct LeClearColorValue {

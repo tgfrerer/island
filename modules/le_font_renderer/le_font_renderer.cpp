@@ -195,7 +195,7 @@ bool le_font_renderer_use_fonts( le_font_renderer_o *self, le_font_o **fonts, si
 			continue;
 		}
 
-		LeImageSamplerInfo font_sampler_info =
+		le_image_sampler_info_t font_sampler_info =
 		    le::ImageSamplerInfoBuilder()
 		        .withImageViewInfo()
 		        .setImage( found_info->font_image )

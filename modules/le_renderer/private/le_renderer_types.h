@@ -969,7 +969,7 @@ enum LeAccessFlagBits : uint32_t {
 typedef uint32_t LeAccessFlags;
 
 // use le::ImageSamplerBuilder to define texture info
-struct LeSamplerInfo {
+struct le_sampler_info_t {
 	le::Filter             magFilter               = le::Filter::eLinear;
 	le::Filter             minFilter               = le::Filter::eLinear;
 	le::SamplerMipmapMode  mipmapMode              = le::SamplerMipmapMode::eLinear;
@@ -987,16 +987,16 @@ struct LeSamplerInfo {
 	bool                   unnormalizedCoordinates = false;
 };
 
-struct LeImageSamplerInfo {
-	struct ImageViewInfo {
+struct le_image_sampler_info_t {
+	struct le_image_view_info_t {
 		le_resource_handle_t imageId{}; // le image resource id
 		le::Format           format{};  // leave at 0 (undefined) to use format of image referenced by `imageId`
 		le::ImageViewType    image_view_type{le::ImageType::e2D};
 		uint32_t             base_array_layer{0};
 		uint32_t             layer_count{1};
 	};
-	LeSamplerInfo sampler{};
-	ImageViewInfo imageView{};
+	le_sampler_info_t    sampler{};
+	le_image_view_info_t imageView{};
 };
 
 struct le_swapchain_settings_t {
@@ -1200,11 +1200,11 @@ class RendererInfoBuilder {
 // ----------------------------------------------------------------------
 
 class ImageSamplerInfoBuilder {
-	LeImageSamplerInfo info{};
+	le_image_sampler_info_t info{};
 
 	class SamplerInfoBuilder {
 		ImageSamplerInfoBuilder &parent;
-		LeSamplerInfo &          self = parent.info.sampler;
+		le_sampler_info_t &      self = parent.info.sampler;
 
 	  public:
 		SamplerInfoBuilder( ImageSamplerInfoBuilder &parent_ )
@@ -1233,8 +1233,8 @@ class ImageSamplerInfoBuilder {
 	};
 
 	class ImageViewInfoBuilder {
-		ImageSamplerInfoBuilder &          parent;
-		LeImageSamplerInfo::ImageViewInfo &self = parent.info.imageView;
+		ImageSamplerInfoBuilder &                      parent;
+		le_image_sampler_info_t::le_image_view_info_t &self = parent.info.imageView;
 
 	  public:
 		ImageViewInfoBuilder( ImageSamplerInfoBuilder &parent_ )
@@ -1259,7 +1259,7 @@ class ImageSamplerInfoBuilder {
 	ImageSamplerInfoBuilder()  = default;
 	~ImageSamplerInfoBuilder() = default;
 
-	ImageSamplerInfoBuilder( LeImageSamplerInfo const &info_ )
+	ImageSamplerInfoBuilder( le_image_sampler_info_t const &info_ )
 	    : info( info_ ) {
 	}
 
@@ -1275,7 +1275,7 @@ class ImageSamplerInfoBuilder {
 		return mSamplerInfoBuilder;
 	}
 
-	LeImageSamplerInfo const &build() {
+	le_image_sampler_info_t const &build() {
 		return info;
 	}
 };

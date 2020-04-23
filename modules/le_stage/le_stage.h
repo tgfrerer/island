@@ -23,7 +23,7 @@ struct le_animation_info;
 struct le_skin_info;
 struct le_camera_o; // from module::le_camera
 
-struct LeSamplerInfo; // from le_renderer
+struct le_sampler_info_t; // from le_renderer
 
 /* le_stage provides a scene graph, and playback capability for animations.
  * 
@@ -67,7 +67,7 @@ struct le_stage_api {
 		uint32_t (* create_image_from_memory)( le_stage_o* stage, unsigned char const * image_file_memory, uint32_t image_file_sz, char const * debug_name, uint32_t mip_levels);
 		uint32_t (* create_image_from_file_path)( le_stage_o* stage, char const * image_file_path, char const * debug_name, uint32_t mip_levels);
 
-		uint32_t (* create_sampler)(le_stage_o* stage, LeSamplerInfo const * info);
+		uint32_t (* create_sampler)(le_stage_o* stage, le_sampler_info_t const * info);
 		uint32_t (* create_texture)(le_stage_o* stage, le_texture_info const * info);
 
 		uint32_t (* create_buffer      )( le_stage_o* self, void *mem, uint32_t sz, char const *debug_name );

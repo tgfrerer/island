@@ -82,10 +82,10 @@ struct le_renderer_api {
 
 		// TODO: not too sure about the nomenclature of this
 		// Note that this method implicitly marks the image resource referenced in LeTextureInfo for read access.
-		void                         ( *sample_texture        )(le_renderpass_o* obj, le_resource_handle_t texture_name, const LeImageSamplerInfo* info);
+		void                         ( *sample_texture        )(le_renderpass_o* obj, le_resource_handle_t texture_name, const le_image_sampler_info_t* info);
 
 		void                         ( *get_texture_ids       )(le_renderpass_o* obj, const le_resource_handle_t ** pIds, uint64_t* count);
-		void                         ( *get_texture_infos     )(le_renderpass_o* obj, const LeImageSamplerInfo** pInfos, uint64_t* count);
+		void                         ( *get_texture_infos     )(le_renderpass_o* obj, const le_image_sampler_info_t** pInfos, uint64_t* count);
 	};
 
 	struct rendermodule_interface_t {
@@ -354,7 +354,7 @@ class RenderPass {
 		return *this;
 	}
 
-	RenderPass &sampleTexture( le_resource_handle_t textureName, const LeImageSamplerInfo &texInfo ) {
+	RenderPass &sampleTexture( le_resource_handle_t textureName, const le_image_sampler_info_t &texInfo ) {
 		le_renderer::renderpass_i.sample_texture( self, textureName, &texInfo );
 		return *this;
 	}
