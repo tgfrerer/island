@@ -419,7 +419,7 @@ static void cbe_set_argument_data( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_argument_texture( le_command_buffer_encoder_o *self, le_resource_handle_t const textureId, uint64_t argumentName, uint64_t arrayIndex ) {
+static void cbe_set_argument_texture( le_command_buffer_encoder_o *self, le_texture_handle const textureId, uint64_t argumentName, uint64_t arrayIndex ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandSetArgumentTexture );
 

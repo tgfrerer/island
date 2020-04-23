@@ -67,8 +67,8 @@ struct le_renderpass_o {
 	std::vector<le_image_attachment_info_t> imageAttachments;    // settings for image attachments (may be color/or depth)
 	std::vector<le_resource_handle_t>       attachmentResources; // kept in sync with imageAttachments, one resource per attachment
 
-	std::vector<le_resource_handle_t> textureIds;   // imageSampler resource infos
-	std::vector<le_image_sampler_info_t>   textureInfos; // kept in sync with texture id: info for corresponding texture id
+	std::vector<le_texture_handle> textureIds;   // imageSampler resource infos
+	std::vector<le_image_sampler_info_t> textureInfos; // kept in sync with texture id: info for corresponding texture id
 
 	le_renderer_api::pfn_renderpass_setup_t callbackSetup            = nullptr;
 	void *                                  setup_callback_user_data = nullptr;
@@ -288,7 +288,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 }
 
 // ----------------------------------------------------------------------
-static void renderpass_sample_texture( le_renderpass_o *self, le_resource_handle_t texture, le_image_sampler_info_t const *textureInfo ) {
+static void renderpass_sample_texture( le_renderpass_o *self, le_texture_handle texture, le_image_sampler_info_t const *textureInfo ) {
 
 	// -- store texture info so that backend can create resources
 
@@ -407,7 +407,7 @@ static void renderpass_get_image_attachments( const le_renderpass_o *self, le_im
 	*numAttachments = self->imageAttachments.size();
 }
 
-static void renderpass_get_texture_ids( le_renderpass_o *self, const le_resource_handle_t **ids, uint64_t *count ) {
+static void renderpass_get_texture_ids( le_renderpass_o *self, le_texture_handle const **ids, uint64_t *count ) {
 	*ids   = self->textureIds.data();
 	*count = self->textureIds.size();
 };

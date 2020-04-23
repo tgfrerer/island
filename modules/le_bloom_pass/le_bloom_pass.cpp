@@ -19,6 +19,8 @@ le_render_module_add_blit_pass(
     le_resource_handle_t const &input,
     le_resource_handle_t const &output ) {
 
+	static auto SRC_TEX_UNIT_0 = le::Renderer::produceTextureHandle( "src_tex_unit_0" );
+
 	auto pass_blit_exec = []( le_command_buffer_encoder_o *encoder_, void * ) {
 		le::Encoder encoder{encoder_};
 		auto *      pm = encoder.getPipelineManager();
@@ -36,13 +38,13 @@ le_render_module_add_blit_pass(
 
 		encoder
 		    .bindGraphicsPipeline( pipeline )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0" ) )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), SRC_TEX_UNIT_0 )
 		    .draw( 4 );
 	};
 
 	auto passBlit =
 	    le::RenderPass( "blit", LE_RENDER_PASS_TYPE_DRAW )
-	        .sampleTexture( LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0" ), le::ImageSamplerInfoBuilder( input ).build() )
+	        .sampleTexture( SRC_TEX_UNIT_0, le::ImageSamplerInfoBuilder( input ).build() )
 	        .addColorAttachment( output )
 	        .setExecuteCallback( nullptr, pass_blit_exec ) //
 	    ;
@@ -62,12 +64,21 @@ le_render_module_add_bloom_pass(
 
 	// we must introduce all transient resources
 
-	static auto texInput            = LE_IMAGE_SAMPLER_RESOURCE( "input_tex" );
+	using namespace le_renderer;
+
+	static auto TEX_INPUT        = le::Renderer::produceTextureHandle( "input_tex" );
+	static auto SRC_TEX_UNIT_0   = le::Renderer::produceTextureHandle( "src_tex_unit_0" );
+	static auto SRC_TEX_UNIT_0_0 = le::Renderer::produceTextureHandle( "src_tex_unit_0.0" );
+	static auto SRC_TEX_UNIT_0_1 = le::Renderer::produceTextureHandle( "src_tex_unit_0.1" );
+	static auto SRC_TEX_UNIT_0_2 = le::Renderer::produceTextureHandle( "src_tex_unit_0.2" );
+	static auto SRC_TEX_UNIT_0_3 = le::Renderer::produceTextureHandle( "src_tex_unit_0.3" );
+	static auto SRC_TEX_UNIT_0_4 = le::Renderer::produceTextureHandle( "src_tex_unit_0.4" );
+
 	static auto samplerInfoImgInput = le::ImageSamplerInfoBuilder( input ).build();
 
 	struct RenderTarget {
-		le_resource_handle_t image;
-		le_image_sampler_info_t   info;
+		le_resource_handle_t    image;
+		le_image_sampler_info_t info;
 	};
 
 	struct BlurSettings {
@@ -148,7 +159,7 @@ le_render_module_add_bloom_pass(
 
 		encoder
 		    .bindGraphicsPipeline( pipeline )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), texInput )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), TEX_INPUT )
 		    .setArgumentData( LE_ARGUMENT_NAME( "Params" ), &params->luma_threshold, sizeof( le_bloom_pass_api::params_t::luma_threshold_params_t ) )
 		    .draw( 4 );
 	};
@@ -193,7 +204,7 @@ le_render_module_add_bloom_pass(
 
 		encoder
 		    .bindGraphicsPipeline( pipeline )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0" ) )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), SRC_TEX_UNIT_0 )
 		    .setArgumentData( LE_ARGUMENT_NAME( "BlurParams" ), &blur_params, sizeof( BlurParams ) )
 		    .draw( 4 );
 	};
@@ -223,11 +234,11 @@ le_render_module_add_bloom_pass(
 
 		encoder
 		    .bindGraphicsPipeline( pipeline )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.0" ), 0 )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.1" ), 1 )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.2" ), 2 )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.3" ), 3 )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.4" ), 4 )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), SRC_TEX_UNIT_0_0, 0 )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), SRC_TEX_UNIT_0_1, 1 )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), SRC_TEX_UNIT_0_2, 2 )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), SRC_TEX_UNIT_0_3, 3 )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit_0" ), SRC_TEX_UNIT_0_4, 4 )
 		    .setArgumentData( LE_ARGUMENT_NAME( "Params" ), &params->bloom, sizeof( le_bloom_pass_api::params_t::bloom_params_t ) )
 		    .draw( 4 );
 	};
@@ -238,7 +249,7 @@ le_render_module_add_bloom_pass(
 
 	auto passHighPass =
 	    le::RenderPass( "high_pass", LE_RENDER_PASS_TYPE_DRAW )
-	        .sampleTexture( texInput, samplerInfoImgInput )
+	        .sampleTexture( TEX_INPUT, samplerInfoImgInput )
 	        .addColorAttachment( targets_blur_v[ 0 ].image, LOAD_CLEAR )
 	        .setWidth( width / 2 )
 	        .setHeight( height / 2 )
@@ -264,8 +275,8 @@ le_render_module_add_bloom_pass(
 
 			auto passBlurHorizontal =
 			    le::RenderPass( pass_name, LE_RENDER_PASS_TYPE_DRAW )
-			        .sampleTexture( LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0" ), source_info ) // read
-			        .addColorAttachment( targets_blur_h[ i ].image, LOAD_DONT_CARE )             // write
+			        .sampleTexture( SRC_TEX_UNIT_0, source_info )                    // read
+			        .addColorAttachment( targets_blur_h[ i ].image, LOAD_DONT_CARE ) // write
 			        .setWidth( w )
 			        .setHeight( h )
 			        .setExecuteCallback( &BlurSettingsH[ i ], blur_render_fun );
@@ -274,8 +285,8 @@ le_render_module_add_bloom_pass(
 
 			auto passBlurVertical =
 			    le::RenderPass( pass_name, LE_RENDER_PASS_TYPE_DRAW )
-			        .sampleTexture( LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0" ), targets_blur_h[ i ].info ) // read
-			        .addColorAttachment( targets_blur_v[ i ].image, LOAD_DONT_CARE )                          // write
+			        .sampleTexture( SRC_TEX_UNIT_0, targets_blur_h[ i ].info )       // read
+			        .addColorAttachment( targets_blur_v[ i ].image, LOAD_DONT_CARE ) // write
 			        .setWidth( w )
 			        .setHeight( h )
 			        .setExecuteCallback( &BlurSettingsV[ i ], blur_render_fun );
@@ -288,11 +299,11 @@ le_render_module_add_bloom_pass(
 
 		auto passCombine =
 		    le::RenderPass( "bloom_combine", LE_RENDER_PASS_TYPE_DRAW )
-		        .sampleTexture( LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.0" ), targets_blur_v[ 0 ].info )
-		        .sampleTexture( LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.1" ), targets_blur_v[ 1 ].info )
-		        .sampleTexture( LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.2" ), targets_blur_v[ 2 ].info )
-		        .sampleTexture( LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.3" ), targets_blur_v[ 3 ].info )
-		        .sampleTexture( LE_IMAGE_SAMPLER_RESOURCE( "src_tex_unit_0.4" ), targets_blur_v[ 4 ].info )
+		        .sampleTexture( SRC_TEX_UNIT_0_0, targets_blur_v[ 0 ].info )
+		        .sampleTexture( SRC_TEX_UNIT_0_1, targets_blur_v[ 1 ].info )
+		        .sampleTexture( SRC_TEX_UNIT_0_2, targets_blur_v[ 2 ].info )
+		        .sampleTexture( SRC_TEX_UNIT_0_3, targets_blur_v[ 3 ].info )
+		        .sampleTexture( SRC_TEX_UNIT_0_4, targets_blur_v[ 4 ].info )
 		        .addColorAttachment( output, LOAD_LOAD ) // color attachment
 		        .setExecuteCallback( params, combine_render_fun );
 

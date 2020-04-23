@@ -10,6 +10,7 @@ struct le_render_module_o;
 struct le_renderpass_o;
 struct le_command_buffer_encoder_o;
 struct le_resource_handle_t;
+struct le_texture_handle_t;
 
 // clang-format off
 struct le_font_renderer_api {
@@ -38,7 +39,7 @@ struct le_font_renderer_api {
 
 		bool (*draw_string)( le_font_renderer_o* self, le_font_o* font, le_command_buffer_encoder_o* encoder, draw_string_info_t  & info );
 
-		le_resource_handle_t * (* get_font_image_sampler )( le_font_renderer_o* self, le_font_o* font );
+		le_texture_handle_t  * (* get_font_image_sampler )( le_font_renderer_o* self, le_font_o* font );
 		le_resource_handle_t * (* get_font_image         )( le_font_renderer_o* self, le_font_o* font );
 
 	};

@@ -18,7 +18,7 @@ struct font_info_t {
 	le_font_o *          font; // non-owning
 	le_resource_handle_t font_image;
 	le_resource_info_t   font_atlas_info;
-	le_resource_handle_t font_image_sampler;
+	le_texture_handle    font_image_sampler;
 	bool                 atlas_uploaded;
 	bool                 sampler_created;
 };
@@ -79,7 +79,7 @@ void le_font_renderer_add_font( le_font_renderer_o *self, le_font_o *font ) {
 	auto info = font_info_t( {font,
 	                          LE_IMG_RESOURCE( img_atlas_name ),
 	                          font_atlas_info,
-	                          LE_IMAGE_SAMPLER_RESOURCE( img_sampler_name ),
+	                          le::Renderer::produceTextureHandle( img_sampler_name ),
 	                          false,
 	                          false} );
 
@@ -87,11 +87,11 @@ void le_font_renderer_add_font( le_font_renderer_o *self, le_font_o *font ) {
 }
 
 // ----------------------------------------------------------------------
-le_resource_handle_t *le_font_renderer_get_font_image_sampler( le_font_renderer_o *self, le_font_o *font ) {
+le_texture_handle le_font_renderer_get_font_image_sampler( le_font_renderer_o *self, le_font_o *font ) {
 
 	for ( auto &f : self->fonts_info ) {
 		if ( f.font == font ) {
-			return &f.font_image_sampler;
+			return f.font_image_sampler;
 		}
 	}
 
@@ -242,7 +242,7 @@ bool le_font_renderer_draw_string( le_font_renderer_o *self, le_font_o *font, le
 	    .bindGraphicsPipeline( pipeline )
 	    .setArgumentData( LE_ARGUMENT_NAME( "Extents" ), &no_mvp_ubo, sizeof( NoMvpUbo ) ) //
 	    .setVertexData( vertices.data(), sizeof( glm::vec4 ) * vertices.size(), 0 )
-	    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), *le_font_renderer_get_font_image_sampler( self, font ) )
+	    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), le_font_renderer_get_font_image_sampler( self, font ) )
 	    .setArgumentData( LE_ARGUMENT_NAME( "VertexColor" ), &info.color, sizeof( info.color ) )
 	    .draw( uint32_t( vertices.size() ) ) //
 	    ;

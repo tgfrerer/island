@@ -34,11 +34,18 @@ struct le_renderer_api {
 		le_resource_handle_t           ( *get_swapchain_resource                )( le_renderer_o* self );
 		void                           ( *get_swapchain_extent                  )( le_renderer_o* self, uint32_t* p_width, uint32_t* p_height);
 		le_backend_o*                  ( *get_backend                           )( le_renderer_o* self );
+
 		le_pipeline_manager_o*         ( *get_pipeline_manager                  )( le_renderer_o* self );
+
+        struct le_texture_handle_store_t * le_texture_handle_store = nullptr;
+        le_texture_handle        ( *produce_texture_handle                )(char const * maybe_name );
+        char const *                   ( *texture_handle_get_name               )(le_texture_handle handle);
 
 		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, LeBuildAccelerationStructureFlags const * flags);
 		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count, LeBuildAccelerationStructureFlags const * flags);
 	};
+
+
 
 	struct helpers_interface_t {
 		le_resource_info_t (*get_default_resource_info_for_image)();
@@ -82,10 +89,10 @@ struct le_renderer_api {
 
 		// TODO: not too sure about the nomenclature of this
 		// Note that this method implicitly marks the image resource referenced in LeTextureInfo for read access.
-		void                         ( *sample_texture        )(le_renderpass_o* obj, le_resource_handle_t texture_name, const le_image_sampler_info_t* info);
+		void                         ( *sample_texture        )(le_renderpass_o* obj, le_texture_handle texture, const le_image_sampler_info_t* info);
 
-		void                         ( *get_texture_ids       )(le_renderpass_o* obj, const le_resource_handle_t ** pIds, uint64_t* count);
-		void                         ( *get_texture_infos     )(le_renderpass_o* obj, const le_image_sampler_info_t** pInfos, uint64_t* count);
+		void                         ( *get_texture_ids       )(le_renderpass_o* obj, le_texture_handle const ** pIds, uint64_t* count);
+		void                         ( *get_texture_infos     )(le_renderpass_o* obj, le_image_sampler_info_t const ** pInfos, uint64_t* count);
 	};
 
 	struct rendermodule_interface_t {
@@ -140,7 +147,7 @@ struct le_renderer_api {
 		void                         ( *bind_argument_buffer   )( le_command_buffer_encoder_o *self, le_resource_handle_t const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range );
 
 		void                         ( *set_argument_data      )( le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
-		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, le_resource_handle_t const textureId, uint64_t argumentName, uint64_t arrayIndex);
+		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, le_texture_handle const textureId, uint64_t argumentName, uint64_t arrayIndex);
 		void                         ( *set_argument_image     )( le_command_buffer_encoder_o *self, le_resource_handle_t const imageId, uint64_t argumentName, uint64_t arrayIndex);
 		void                         ( *set_argument_tlas      )( le_command_buffer_encoder_o *self, le_resource_handle_t const tlasId, uint64_t argumentName, uint64_t arrayIndex);
 
@@ -236,6 +243,10 @@ class Renderer {
 
 	le_pipeline_manager_o *getPipelineManager() const {
 		return le_renderer::renderer_i.get_pipeline_manager( self );
+	}
+
+	static le_texture_handle produceTextureHandle( char const *maybe_name ) {
+		return le_renderer::renderer_i.produce_texture_handle( maybe_name );
 	}
 
 	operator auto() {
@@ -354,7 +365,7 @@ class RenderPass {
 		return *this;
 	}
 
-	RenderPass &sampleTexture( le_resource_handle_t textureName, const le_image_sampler_info_t &texInfo ) {
+	RenderPass &sampleTexture( le_texture_handle textureName, const le_image_sampler_info_t &texInfo ) {
 		le_renderer::renderpass_i.sample_texture( self, textureName, &texInfo );
 		return *this;
 	}
@@ -625,7 +636,7 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &setArgumentTexture( uint64_t const &argumentName, le_resource_handle_t const &textureId, uint64_t const &arrayIndex = 0 ) {
+	Encoder &setArgumentTexture( uint64_t const &argumentName, le_texture_handle const &textureId, uint64_t const &arrayIndex = 0 ) {
 		le_renderer::encoder_i.set_argument_texture( self, textureId, argumentName, arrayIndex );
 		return *this;
 	}

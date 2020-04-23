@@ -17,8 +17,7 @@
 #include <array>
 #include <vector>
 
-constexpr le_resource_handle_t IMGUI_IMG_SAMPLER_HANDLE = LE_IMAGE_SAMPLER_RESOURCE( "ImguiDefaultFontTexture" );
-constexpr le_resource_handle_t IMGUI_IMG_HANDLE         = LE_IMG_RESOURCE( "ImguiDefaultFontImage" );
+constexpr le_resource_handle_t IMGUI_IMG_HANDLE = LE_IMG_RESOURCE( "ImguiDefaultFontImage" );
 
 struct FontTextureInfo {
 	uint8_t *pixels      = nullptr;
@@ -36,6 +35,7 @@ struct le_imgui_o {
 	ImGuiContext *        imguiContext            = nullptr;
 	FontTextureInfo       imguiTexture            = {};
 	le_mouse_event_data_o mouse_state             = {};
+	le_texture_handle     texture_font            = {};
 	bool                  areResourcesInitialised = false; // whether resources were initialised
 };
 
@@ -45,6 +45,7 @@ static le_imgui_o *le_imgui_create() {
 	auto self = new le_imgui_o();
 
 	self->imguiContext = ImGui::CreateContext( nullptr );
+	self->texture_font = le::Renderer::produceTextureHandle( "ImguiDefaultFontTexture" );
 
 	return self;
 }
@@ -154,7 +155,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *
 	// We want to save the raw value in the pointer, because if we passed in a
 	// pointer to the name of the texture, the texture may have changed.
 	// for this to work, we first cast to uint64_t, then cast to void*
-	io.Fonts->TexID = ( void * )( uint64_t const & )IMGUI_IMG_SAMPLER_HANDLE;
+	io.Fonts->TexID = static_cast<void *>( self->texture_font );
 
 	// Keyboard mapping. ImGui will use those indices to peek into the io.KeysDown[] array.
 	io.KeyMap[ ImGuiKey_Tab ]        = uint32_t( LeUiEvent::NamedKey::eTab );
@@ -194,7 +195,7 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 	// TODO: We must implement a safeguard in renderpass which checks
 	// resources, and makes sure that each resource is declared consistently.
 	//
-	rp.sampleTexture( IMGUI_IMG_SAMPLER_HANDLE, {{le::Filter::eLinear, le::Filter::eLinear}, {IMGUI_IMG_HANDLE, {}}} );
+	rp.sampleTexture( self->texture_font, {{le::Filter::eLinear, le::Filter::eLinear}, {IMGUI_IMG_HANDLE, {}}} );
 
 	rp.setExecuteCallback( self, []( le_command_buffer_encoder_o *p_encoder, void *user_data ) {
 		auto encoder = le::Encoder{p_encoder};
@@ -258,10 +259,10 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 			    .bindGraphicsPipeline( psoImgui )
 			    .setViewports( 0, 1, &viewports[ 0 ] )
 			    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &ortho_projection, sizeof( glm::mat4 ) )
-			    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), IMGUI_IMG_SAMPLER_HANDLE, 0 ) //
+			    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), imgui->texture_font, 0 ) //
 			    ;
 
-			le_resource_handle_t currentTexture = IMGUI_IMG_SAMPLER_HANDLE; // we check this for changes so that we don't have to switch state that often.
+			le_texture_handle currentTexture = imgui->texture_font; // we check this for changes so that we don't have to switch state that often.
 
 			ImVec4 currentClipRect{};
 
@@ -285,7 +286,7 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 					static_assert( sizeof( le::Rect2D ) == sizeof( ImVec4 ), "clip rect size must match for direct assignment" );
 
 					// -- update bound texture, but only if texture different from currently bound texture
-					le_resource_handle_t const nextTexture = reinterpret_cast<le_resource_handle_t const &>( im_cmd.TextureId );
+					le_texture_handle const nextTexture = reinterpret_cast<le_texture_handle>( im_cmd.TextureId );
 					if ( nextTexture != currentTexture ) {
 						encoder.setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), nextTexture, 0 );
 						currentTexture = nextTexture;

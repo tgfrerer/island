@@ -428,7 +428,7 @@ struct BackendFrameData {
 		vk::ImageView imageView;
 	};
 
-	using texture_map_t = std::unordered_map<le_resource_handle_t, Texture, LeResourceHandleIdentity>;
+	using texture_map_t = std::unordered_map<le_texture_handle, Texture>;
 	//	using image_view_map_t = std::unordered_map<le_resource_handle_t, vk::ImageView, LeResourceHandleIdentity>;
 	std::unordered_map<le_resource_handle_t, vk::ImageView, LeResourceHandleIdentity> imageViews; // non-owning, references to frame-local textures, cleared on frame fence.
 
@@ -3375,12 +3375,12 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 		auto &p = passes[ p_idx ];
 
 		// Get all texture names for this pass
-		const le_resource_handle_t *textureIds     = nullptr;
-		size_t                      textureIdCount = 0;
+		const le_texture_handle *textureIds     = nullptr;
+		size_t                   textureIdCount = 0;
 		renderpass_i.get_texture_ids( p, &textureIds, &textureIdCount );
 
 		const le_image_sampler_info_t *textureInfos     = nullptr;
-		size_t                    textureInfoCount = 0;
+		size_t                         textureInfoCount = 0;
 		renderpass_i.get_texture_infos( p, &textureInfos, &textureInfoCount );
 
 		assert( textureIdCount == textureInfoCount ); // texture info and -id count must be identical, as there is a 1:1 relationship
@@ -3390,7 +3390,7 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 			// -- find out if texture with this name has already been alloacted.
 			// -- if not, allocate
 
-			const le_resource_handle_t textureId = textureIds[ i ];
+			const le_texture_handle textureId = textureIds[ i ];
 
 			if ( frame.textures_per_pass[ p_idx ].find( textureId ) == frame.textures_per_pass[ p_idx ].end() ) {
 				// -- we need to allocate a new texture
@@ -3685,13 +3685,13 @@ static bool is_equal( le_pipeline_and_layout_info_t const &lhs, le_pipeline_and_
 
 static bool updateArguments( const vk::Device &                          device,
                              const vk::DescriptorPool &                  descriptorPool_,
-                             const ArgumentState &                       argumentState_,
+                             const ArgumentState &                       argumentState,
                              std::array<std::vector<DescriptorData>, 8> &previousSetData,
                              vk::DescriptorSet *                         descriptorSets ) {
 
 	// -- allocate descriptors from descriptorpool based on set layout info
 
-	if ( argumentState_.setCount == 0 ) {
+	if ( argumentState.setCount == 0 ) {
 		return true;
 	}
 
@@ -4695,7 +4695,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					auto foundTex = frame.textures_per_pass[ passIndex ].find( le_cmd->info.texture_id );
 					if ( foundTex == frame.textures_per_pass[ passIndex ].end() ) {
-						std::cerr << "Could not find requested texture: " << le_cmd->info.texture_id.debug_name << " Ignoring texture binding command." << std::endl
+						using namespace le_renderer;
+						std::cerr << "Could not find requested texture: "
+						          << renderer_i.texture_handle_get_name( le_cmd->info.texture_id )
+						          << " Ignoring texture binding command." << std::endl
 						          << std::flush;
 						break;
 					}

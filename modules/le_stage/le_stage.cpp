@@ -72,10 +72,10 @@ struct stage_image_o {
 };
 
 struct le_texture_o {
-	uint32_t             image_idx;
-	uint32_t             sampler_idx;
-	le_resource_handle_t texture_handle;
-	std::string          name;
+	uint32_t          image_idx;
+	uint32_t          sampler_idx;
+	le_texture_handle texture_handle;
+	std::string       name;
 };
 
 struct le_buffer_o {
@@ -169,7 +169,7 @@ struct le_material_o {
 	// materials and pipelines. This allows us to fetch textures
 	// and associated settings quickers.
 	//
-	std::vector<le_resource_handle_t>  texture_handles;       // cached: texture handles
+	std::vector<le_texture_handle>     texture_handles;       // cached: texture handles
 	std::vector<UboTextureParamsSlice> cached_texture_params; // cached: texture parameters from texture_infos
 };
 
@@ -374,7 +374,7 @@ struct le_stage_o {
 	std::vector<le_accessor_o>        accessors;       //
 	std::vector<le_buffer_view_o>     buffer_views;    //
 	std::vector<le_buffer_o *>        buffers;         // owning
-	std::vector<le_sampler_info_t>        samplers;        //
+	std::vector<le_sampler_info_t>    samplers;        //
 	std::vector<le_resource_handle_t> buffer_handles;  //
 	std::vector<le_texture_o>         textures;        //
 	std::vector<stage_image_o *>      images;          // owning
@@ -556,17 +556,9 @@ static uint32_t le_stage_create_texture( le_stage_o *stage, le_texture_info cons
 		// Create a unique handle from image id and sampler id
 
 		char tex_id_str[ 32 ]{}; // 31 characters 6+1+6+1+17, plus one extra character for terminating \0
-		snprintf( tex_id_str, 31, "%06u:%06u:%s", info->image_idx, info->sampler_idx, info->name );
+		snprintf( tex_id_str, 31, "%05u:%05u:%s", info->image_idx, info->sampler_idx, info->name );
 
-		texture.texture_handle = LE_IMAGE_SAMPLER_RESOURCE( tex_id_str );
-
-#if LE_RESOURCE_LABEL_LENGTH > 0
-		if ( info->name ) {
-			strncpy( texture.texture_handle.debug_name, info->name, LE_RESOURCE_LABEL_LENGTH );
-		} else {
-			strncpy( texture.texture_handle.debug_name, tex_id_str, LE_RESOURCE_LABEL_LENGTH );
-		}
-#endif
+		texture.texture_handle = le::Renderer::produceTextureHandle( tex_id_str );
 	}
 
 	stage->textures.emplace_back( texture );

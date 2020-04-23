@@ -26,8 +26,9 @@ enum class LeResourceType : uint8_t {
 	eImage,
 	eRtxBlas, // bottom level acceleration structure
 	eRtxTlas, // top level acceleration structure
-	eImageSampler,
 };
+
+LE_OPAQUE_HANDLE( le_texture_handle );
 
 struct le_resource_handle_t {
 
@@ -129,10 +130,6 @@ struct LeResourceHandleIdentity {
 
 constexpr le_resource_handle_t LE_IMG_RESOURCE( const char *str ) noexcept {
 	return LE_RESOURCE( str, LeResourceType::eImage );
-}
-
-constexpr le_resource_handle_t LE_IMAGE_SAMPLER_RESOURCE( const char *str ) noexcept {
-	return LE_RESOURCE( str, LeResourceType::eImageSampler );
 }
 
 constexpr le_resource_handle_t LE_BUF_RESOURCE( const char *str ) noexcept {
@@ -1636,9 +1633,9 @@ struct CommandSetScissor {
 struct CommandSetArgumentTexture {
 	CommandHeader header = {{{CommandType::eSetArgumentTexture, sizeof( CommandSetArgumentTexture )}}};
 	struct {
-		uint64_t             argument_name_id; // const_char_hash id of argument name
-		le_resource_handle_t texture_id;       // texture id, hash of texture name
-		uint64_t             array_index;      // argument array index (default is 0)
+		uint64_t                argument_name_id; // const_char_hash id of argument name
+		le_texture_handle texture_id;       // texture id, hash of texture name
+		uint64_t                array_index;      // argument array index (default is 0)
 	} info;
 };
 
