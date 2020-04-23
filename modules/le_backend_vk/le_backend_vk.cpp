@@ -3699,8 +3699,20 @@ static bool updateArguments( const vk::Device &                          device,
 
 	bool argumentsOk = true;
 
+	auto get_argument_name = [&argumentState]( size_t set_id, uint32_t binding_number ) -> char const * {
+		for ( auto const &b : argumentState.binding_infos ) {
+			if ( b.binding == binding_number && b.setIndex == set_id ) {
+				return le_get_argument_name_from_hash( b.name_hash );
+			}
+		}
+
+		// ---------| invariant: not found
+
+		return nullptr;
+	};
+
 	// -- write data from descriptorSetData into freshly allocated DescriptorSets
-	for ( size_t setId = 0; setId != argumentState_.setCount; ++setId ) {
+	for ( size_t setId = 0; setId != argumentState.setCount; ++setId ) {
 
 		// If argumentState contains invalid information (for example if an uniform has not been set yet)
 		// this will lead to SEGFAULT. You must ensure that argumentState contains valid information.
@@ -3708,7 +3720,7 @@ static bool updateArguments( const vk::Device &                          device,
 		// The most common case for this bug is not providing any data for a uniform used in the shader,
 		// we check for this and skip any argumentStates which have invalid data...
 
-		for ( auto &a : argumentState_.setData[ setId ] ) {
+		for ( auto &a : argumentState.setData[ setId ] ) {
 
 			switch ( a.type ) {
 			case vk::DescriptorType::eStorageBufferDynamic: //
@@ -3717,7 +3729,8 @@ static bool updateArguments( const vk::Device &                          device,
 			case vk::DescriptorType::eStorageBuffer:        // fall-through
 				if ( nullptr == a.bufferInfo.buffer ) {
 					// if buffer must have valid buffer bound
-					std::cerr << "ERROR: Buffer argument at set="
+
+					std::cerr << "ERROR: Buffer argument '" << get_argument_name( setId, a.bindingNumber ) << "', at set="
 					          << std::dec << setId << ", binding="
 					          << std::dec << a.bindingNumber << ", array_index="
 					          << std::dec << a.arrayIndex << " not set, not valid or missing."
@@ -3732,7 +3745,7 @@ static bool updateArguments( const vk::Device &                          device,
 				argumentsOk &= ( nullptr != a.imageInfo.imageView ); // if sampler, must have valid image view
 				if ( nullptr == a.imageInfo.imageView ) {
 					// if image - must have valid imageview bound bound
-					std::cerr << "ERROR: Image argument at set="
+					std::cerr << "ERROR: Image argument '" << get_argument_name( setId, a.bindingNumber ) << "', at set="
 					          << std::dec << setId << ", binding="
 					          << std::dec << a.bindingNumber << ", array_index="
 					          << std::dec << a.arrayIndex << " not set, not valid or missing."
@@ -3745,7 +3758,7 @@ static bool updateArguments( const vk::Device &                          device,
 				argumentsOk &= ( nullptr != a.accelerationStructureInfo.accelerationStructure );
 				if ( nullptr == a.accelerationStructureInfo.accelerationStructure ) {
 					// if image - must have valid imageview bound bound
-					std::cerr << "ERROR: Acceleration Structure argument at set="
+					std::cerr << "ERROR: Acceleration Structure argument '" << get_argument_name( setId, a.bindingNumber ) << "', at set="
 					          << std::dec << setId << ", binding="
 					          << std::dec << a.bindingNumber << ", array_index="
 					          << std::dec << a.arrayIndex << " not set, not valid or missing."
@@ -3775,12 +3788,12 @@ static bool updateArguments( const vk::Device &                          device,
 			// within one of these sets.
 
 			if ( previousSetData[ setId ].empty() ||
-			     previousSetData[ setId ] != argumentState_.setData[ setId ] ) {
+			     previousSetData[ setId ] != argumentState.setData[ setId ] ) {
 
 				vk::DescriptorSetAllocateInfo allocateInfo;
 				allocateInfo.setDescriptorPool( descriptorPool_ )
 				    .setDescriptorSetCount( 1 )
-				    .setPSetLayouts( &argumentState_.layouts[ setId ] );
+				    .setPSetLayouts( &argumentState.layouts[ setId ] );
 
 				// -- allocate descriptorSets based on current layout
 				// and place them in the correct position
@@ -3790,7 +3803,7 @@ static bool updateArguments( const vk::Device &                          device,
 
 				if ( /* DISABLES CODE */ ( false ) ) {
 					// I wish that this would work - but it appears that accelerator decriptors cannot be updated using templates.
-					device.updateDescriptorSetWithTemplate( descriptorSets[ setId ], argumentState_.updateTemplates[ setId ], argumentState_.setData[ setId ].data() );
+					device.updateDescriptorSetWithTemplate( descriptorSets[ setId ], argumentState.updateTemplates[ setId ], argumentState.setData[ setId ].data() );
 				} else {
 
 					std::vector<vk::WriteDescriptorSet> write_descriptor_sets;
@@ -3803,9 +3816,9 @@ static bool updateArguments( const vk::Device &                          device,
 					// manually before leaving the current scope or else we will leak these objects.
 					std::vector<vk::WriteDescriptorSetAccelerationStructureKHR *> write_acceleration_structures;
 
-					write_descriptor_sets.reserve( argumentState_.setData[ setId ].size() );
+					write_descriptor_sets.reserve( argumentState.setData[ setId ].size() );
 
-					for ( auto &a : argumentState_.setData[ setId ] ) {
+					for ( auto &a : argumentState.setData[ setId ] ) {
 						vk::WriteDescriptorSet w{};
 
 						w
@@ -3854,7 +3867,7 @@ static bool updateArguments( const vk::Device &                          device,
 						delete ( w );
 					}
 				}
-				previousSetData[ setId ] = argumentState_.setData[ setId ];
+				previousSetData[ setId ] = argumentState.setData[ setId ];
 			}
 
 		} else {
