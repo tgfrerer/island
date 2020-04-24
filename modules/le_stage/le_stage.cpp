@@ -622,11 +622,15 @@ static uint32_t le_stage_create_buffer( le_stage_o *stage, void *mem, uint32_t s
 
 		buffer->resource_info = le::BufferInfoBuilder()
 		                            .setSize( buffer->size )
-		                            .addUsageFlags( {LE_BUFFER_USAGE_TRANSFER_DST_BIT |
-		                                             LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
-		                                             LE_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-		                                             LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-		                                             LE_BUFFER_USAGE_RAY_TRACING_BIT_KHR} )
+		                            .addUsageFlags( { LE_BUFFER_USAGE_TRANSFER_DST_BIT |
+		                                              LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
+		                                              LE_BUFFER_USAGE_VERTEX_BUFFER_BIT
+#ifdef LE_FEATURE_RTX
+		                                              |
+		                                              LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+		                                              LE_BUFFER_USAGE_RAY_TRACING_BIT_KHR
+#endif
+		                            } )
 		                            .build();
 
 		stage->buffer_handles.push_back( res );
