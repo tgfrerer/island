@@ -2849,6 +2849,21 @@ static void le_stage_update( le_stage_o *self ) {
 			}
 		}
 	}
+
+	// We must add a default light if a scene does not have any lights at all
+	{
+		le_light_o default_light{};
+		default_light.type      = 0; // directional
+		default_light.intensity = 5.f;
+		default_light.direction = glm::normalize( glm::vec3{ 0.1, -2, -1 } );
+		default_light.color     = glm::vec3{ 1, 1, 1 };
+
+		for ( auto &s : self->scenes ) {
+			if ( s.lights.empty() ) {
+				s.lights.push_back( default_light );
+			}
+		}
+	}
 }
 
 // ----------------------------------------------------------------------
