@@ -261,9 +261,8 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	                      .setFillModeNonSolid( true )    // allow drawing as wireframe
 	                      .setWideLines( true )           // require enable wide lines
 	                      .setRobustBufferAccess( false ) // disable robust buffer access
-
-	                  // .setFragmentStoresAndAtomics( true )       // only used for gpu assisted validation layer
-	                  // .setVertexPipelineStoresAndAtomics( true ) // only used with gpu assisted validation layer
+	                      .setVertexPipelineStoresAndAtomics( true )
+	                      .setFragmentStoresAndAtomics( true )
 	                  // .setShaderInt64( true )                    // -"-
 
 	    );
