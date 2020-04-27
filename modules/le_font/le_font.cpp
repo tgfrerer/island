@@ -108,25 +108,25 @@ static void le_font_add_paths_for_glyph( le_font_o const *self, le_path_o *path,
 		switch ( pp->type ) {
 		case STBTT_vmove:
 			// a move signals the start of a new glyph
-			p0 = *offset + scale * glm::vec2{pp->x + kern_advance, -pp->y};
+			p0 = *offset + scale * glm::vec2{ pp->x + kern_advance, -pp->y };
 			le_path_i.move_to( path, &p0 );
 			break;
 		case STBTT_vline:
 			// line from last position to this pos
-			p0 = *offset + scale * glm::vec2{pp->x + kern_advance, -pp->y};
+			p0 = *offset + scale * glm::vec2{ pp->x + kern_advance, -pp->y };
 			le_path_i.line_to( path, &p0 );
 			break;
 		case STBTT_vcurve:
 			// quadratic bezier to pos
-			p0 = *offset + scale * glm::vec2{pp->x + kern_advance, -pp->y};
-			p1 = *offset + scale * glm::vec2{pp->cx + kern_advance, -pp->cy};
+			p0 = *offset + scale * glm::vec2{ pp->x + kern_advance, -pp->y };
+			p1 = *offset + scale * glm::vec2{ pp->cx + kern_advance, -pp->cy };
 			le_path_i.quad_bezier_to( path, &p0, &p1 );
 			break;
 		case STBTT_vcubic:
 			// cubic bezier to pos
-			p0 = *offset + scale * glm::vec2{pp->x + kern_advance, -pp->y};
-			p1 = *offset + scale * glm::vec2{pp->cx + kern_advance, -pp->cy};
-			p2 = *offset + scale * glm::vec2{pp->cx1 + kern_advance, -pp->cy1};
+			p0 = *offset + scale * glm::vec2{ pp->x + kern_advance, -pp->y };
+			p1 = *offset + scale * glm::vec2{ pp->cx + kern_advance, -pp->cy };
+			p2 = *offset + scale * glm::vec2{ pp->cx1 + kern_advance, -pp->cy1 };
 			le_path_i.cubic_bezier_to( path, &p0, &p1, &p2 );
 			break;
 		}
@@ -150,7 +150,7 @@ static le_font_o *le_font_create( char const *font_filename, float font_size ) {
 	bool loadOk{};
 
 	auto data  = load_file( font_filename, &loadOk );
-	self->data = {data.data(), data.data() + data.size()};
+	self->data = { data.data(), data.data() + data.size() };
 
 	if ( loadOk ) {
 		stbtt_InitFont( &self->info, self->data.data(), 0 );
@@ -370,13 +370,13 @@ static size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float 
 
 			glm::vec4 *vtx = vertices + vertex_offset + num_vertices;
 
-			vtx[ 0 ] = {quad.x0, quad.y0, quad.s0, quad.t0}; // top-left
-			vtx[ 1 ] = {quad.x0, quad.y1, quad.s0, quad.t1}; // bottom-left
-			vtx[ 2 ] = {quad.x1, quad.y1, quad.s1, quad.t1}; // bottom-right
+			vtx[ 0 ] = { quad.x0, quad.y0, quad.s0, quad.t0 }; // top-left
+			vtx[ 1 ] = { quad.x0, quad.y1, quad.s0, quad.t1 }; // bottom-left
+			vtx[ 2 ] = { quad.x1, quad.y1, quad.s1, quad.t1 }; // bottom-right
 
-			vtx[ 3 ] = {quad.x1, quad.y0, quad.s1, quad.t0}; // top-right
-			vtx[ 4 ] = {quad.x0, quad.y0, quad.s0, quad.t0}; // top-left
-			vtx[ 5 ] = {quad.x1, quad.y1, quad.s1, quad.t1}; // bottom-right
+			vtx[ 3 ] = { quad.x1, quad.y0, quad.s1, quad.t0 }; // top-right
+			vtx[ 4 ] = { quad.x0, quad.y0, quad.s0, quad.t0 }; // top-left
+			vtx[ 5 ] = { quad.x1, quad.y1, quad.s1, quad.t1 }; // bottom-right
 
 			num_vertices += 6;
 		}

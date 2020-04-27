@@ -279,7 +279,7 @@ static shaderc_include_result *le_shaderc_include_result_create( void *      use
 	if ( false == loadSuccess ) {
 
 		// Store error message instead of file contents.
-		const std::string error_message{"Could not load file specified: '" + fileData->path.string() + "'"};
+		const std::string error_message{ "Could not load file specified: '" + fileData->path.string() + "'" };
 
 		fileData->contents.assign( error_message.begin(), error_message.end() );
 	}

@@ -22,7 +22,7 @@ struct le_device_o {
 	// queues will be created so that if no exact fit can be found, a queue will be created from the next available family
 	// which closest fits requested capabilities.
 	//
-	std::vector<vk::QueueFlags> queuesWithCapabilitiesRequest = {vk::QueueFlagBits::eGraphics, vk::QueueFlagBits::eCompute};
+	std::vector<vk::QueueFlags> queuesWithCapabilitiesRequest = { vk::QueueFlagBits::eGraphics, vk::QueueFlagBits::eCompute };
 	std::vector<uint32_t>       queueFamilyIndices;
 	std::vector<vk::Queue>      queues;
 
@@ -184,7 +184,7 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	for ( const auto &q : queriedQueueFamilyAndIndex ) {
 		// Attempt to insert family to map
 
-		auto insertResult = queueCountPerFamily.insert( {std::get<0>( q ), 1} );
+		auto insertResult = queueCountPerFamily.insert( { std::get<0>( q ), 1 } );
 		if ( false == insertResult.second ) {
 			// Increment count if family entry already existed in map.
 			insertResult.first->second++;
@@ -322,7 +322,7 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	    vk::Format::eD32Sfloat,
 	    vk::Format::eD24UnormS8Uint,
 	    vk::Format::eD16Unorm,
-	    vk::Format::eD16UnormS8Uint};
+	    vk::Format::eD16UnormS8Uint };
 
 	for ( auto &format : depthFormats ) {
 		vk::FormatProperties formatProps = self->vkPhysicalDevice.getFormatProperties( format );
@@ -432,7 +432,7 @@ VkQueue device_get_default_compute_queue( le_device_o *self_ ) {
 // ----------------------------------------------------------------------
 
 VkFormatEnum device_get_default_depth_stencil_format( le_device_o *self ) {
-	return {self->defaultDepthStencilFormat};
+	return { self->defaultDepthStencilFormat };
 }
 
 // ----------------------------------------------------------------------
@@ -451,7 +451,7 @@ static bool device_get_memory_allocation_info( le_device_o *               self,
 
 	const auto &physicalMemProperties = self->vkPhysicalDeviceMemoryProperties;
 
-	const vk::MemoryPropertyFlags memProps{reinterpret_cast<const vk::MemoryPropertyFlags &>( memPropsRef )};
+	const vk::MemoryPropertyFlags memProps{ reinterpret_cast<const vk::MemoryPropertyFlags &>( memPropsRef ) };
 
 	// Find an available memory type that satisfies the requested properties.
 	uint32_t memoryTypeIndex;

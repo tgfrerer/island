@@ -342,7 +342,7 @@ static bool swapchain_khr_present( le_swapchain_o *base, VkQueue queue_, VkSemap
 
 	vk::PresentInfoKHR presentInfo;
 
-	auto renderCompleteSemaphore = vk::Semaphore{renderCompleteSemaphore_};
+	auto renderCompleteSemaphore = vk::Semaphore{ renderCompleteSemaphore_ };
 
 	presentInfo
 	    .setWaitSemaphoreCount( 1 )

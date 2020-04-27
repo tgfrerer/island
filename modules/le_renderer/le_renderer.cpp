@@ -70,8 +70,7 @@ struct le_texture_handle_store_t {
 	std::mutex                         mtx;
 };
 
-
-static le_texture_handle_store_t *texture_handle_library{nullptr};
+static le_texture_handle_store_t *texture_handle_library{ nullptr };
 
 // ----------------------------------------------------------------------
 
@@ -116,7 +115,7 @@ static le_texture_handle renderer_produce_texture_handle( char const *maybe_name
 		auto found_el = std::find_if(
 		    texture_handle_library->texture_handles.begin(),
 		    texture_handle_library->texture_handles.end(),
-		    [maybe_name]( le_texture_handle_t *rhs ) -> bool {
+		    [ maybe_name ]( le_texture_handle_t *rhs ) -> bool {
 			    return rhs->debug_name == maybe_name;
 		    } );
 		if ( found_el != texture_handle_library->texture_handles.end() ) {
@@ -128,7 +127,7 @@ static le_texture_handle renderer_produce_texture_handle( char const *maybe_name
 
 	// If no name was given, there is no way for the handle already to exist;
 	// we must return a new entry
-	auto handle = new le_texture_handle_t{maybe_name};
+	auto handle = new le_texture_handle_t{ maybe_name };
 	texture_handle_library->texture_handles.push_back( handle );
 
 	return handle;
@@ -508,7 +507,7 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 		vk_backend_i.update_shader_modules( static_cast<le_backend_o *>( backend ) );
 	};
 
-	le_jobs::job_t      j{update_shader_modules_fun, self->backend};
+	le_jobs::job_t      j{ update_shader_modules_fun, self->backend };
 	le_jobs::counter_t *shader_counter;
 
 	le_jobs::run_jobs( &j, 1, &shader_counter );
@@ -575,9 +574,9 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 		clear_frame_params.renderer    = self;
 		clear_frame_params.frame_index = ( index + 1 ) % numFrames;
 
-		jobs[ 0 ] = {process_frame_fun, &process_frame_params};
-		jobs[ 1 ] = {clear_frame_fun, &clear_frame_params};
-		jobs[ 2 ] = {record_frame_fun, &record_frame_params};
+		jobs[ 0 ] = { process_frame_fun, &process_frame_params };
+		jobs[ 1 ] = { clear_frame_fun, &clear_frame_params };
+		jobs[ 2 ] = { record_frame_fun, &record_frame_params };
 
 		le_jobs::counter_t *counter;
 
@@ -647,7 +646,7 @@ static le_resource_info_t get_default_resource_info_for_image() {
 		img.extent.width      = 0;
 		img.extent.height     = 0;
 		img.extent.depth      = 1;
-		img.usage             = {LE_IMAGE_USAGE_SAMPLED_BIT};
+		img.usage             = { LE_IMAGE_USAGE_SAMPLED_BIT };
 		img.mipLevels         = 1;
 		img.sample_count_log2 = 0; // 0 means 1, as (1 << 0 == 1)
 		img.imageType         = le::ImageType::e2D;
@@ -663,7 +662,7 @@ static le_resource_info_t get_default_resource_info_for_buffer() {
 	le_resource_info_t res;
 	res.type         = LeResourceType::eBuffer;
 	res.buffer.size  = 0;
-	res.buffer.usage = {LE_BUFFER_USAGE_TRANSFER_DST_BIT};
+	res.buffer.usage = { LE_BUFFER_USAGE_TRANSFER_DST_BIT };
 	return res;
 }
 

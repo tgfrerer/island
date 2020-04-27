@@ -23,13 +23,13 @@ struct triangle_app_api {
 };
 // clang-format on
 
-LE_MODULE(triangle_app);
-LE_MODULE_LOAD_DEFAULT(triangle_app);
+LE_MODULE( triangle_app );
+LE_MODULE_LOAD_DEFAULT( triangle_app );
 
 #ifdef __cplusplus
 
 namespace triangle_app {
-static const auto &api = triangle_app_api_i;
+static const auto &api            = triangle_app_api_i;
 static const auto &triangle_app_i = api -> triangle_app_i;
 } // namespace triangle_app
 

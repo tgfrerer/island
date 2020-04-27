@@ -89,7 +89,7 @@ static le_gltf_o *le_gltf_create( char const *path ) {
 		return nullptr;
 	}
 
-	self->gltf_file_path = std::filesystem::path{path};
+	self->gltf_file_path = std::filesystem::path{ path };
 
 	return self;
 }
@@ -285,7 +285,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 				// We need to know the file basename, because the file path is most likely relative.
 
-				std::filesystem::path img_path{img->uri};
+				std::filesystem::path img_path{ img->uri };
 
 				if ( img_path.is_relative() ) {
 					img_path = self->gltf_file_path.parent_path() / img_path;
@@ -304,7 +304,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 				assert( false && "image must either have inline data or provide an uri" );
 			}
 
-			images_map.insert( {img, stage_idx} );
+			images_map.insert( { img, stage_idx } );
 		}
 	}
 
@@ -340,7 +340,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 			// add sampler to stage
 			uint32_t stage_idx = le_stage_i.create_sampler( stage, &info );
-			samplers_map.insert( {s, stage_idx} );
+			samplers_map.insert( { s, stage_idx } );
 		}
 	}
 
@@ -362,7 +362,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			info.image_idx     = images_map.at( t->image );
 			info.name          = t->image->name;
 			uint32_t stage_idx = le_stage_i.create_texture( stage, &info );
-			textures_map.insert( {t, stage_idx} );
+			textures_map.insert( { t, stage_idx } );
 		}
 	}
 
@@ -378,7 +378,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		for ( auto b = buffers_begin; b != buffers_end; b++, ++i ) {
 			snprintf( debug_name, 32, "glTF_buffer_%d", i );
 			uint32_t stage_idx = le_stage_i.create_buffer( stage, b->data, uint32_t( b->size ), debug_name );
-			buffer_map.insert( {b, stage_idx} );
+			buffer_map.insert( { b, stage_idx } );
 		}
 	}
 	{
@@ -396,7 +396,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			info.type        = get_le_buffer_view_type_from_cgltf( bv->type );
 
 			uint32_t stage_idx = le_stage_i.create_buffer_view( stage, &info );
-			buffer_view_map.insert( {bv, stage_idx} );
+			buffer_view_map.insert( { bv, stage_idx } );
 		}
 	}
 	{
@@ -435,7 +435,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			}
 
 			uint32_t stage_idx = le_stage_i.create_accessor( stage, &info );
-			accessor_map.insert( {a, stage_idx} );
+			accessor_map.insert( { a, stage_idx } );
 		}
 	}
 
@@ -450,7 +450,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		std::vector<le_pbr_metallic_roughness_info *> metallic_roughness_infos;
 		std::vector<le_pbr_metallic_roughness_info *> specular_glossiness_infos;
 
-		auto create_texture_view_info = [&]( const cgltf_texture_view &tv ) -> le_texture_view_info * {
+		auto create_texture_view_info = [ & ]( const cgltf_texture_view &tv ) -> le_texture_view_info * {
 			auto tex_view_info = new le_texture_view_info{};
 			texture_view_infos.push_back( tex_view_info );
 
@@ -521,7 +521,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			// Create stage resources via api call
 
 			uint32_t material_idx = le_stage_i.create_material( stage, &info );
-			materials_map.insert( {m, material_idx} );
+			materials_map.insert( { m, material_idx } );
 		}
 
 		// Cleanup temporary objects
@@ -653,7 +653,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			mesh_info.primitive_count = uint32_t( primitive_infos.size() );
 
 			uint32_t stage_idx = le_stage_i.create_mesh( stage, &mesh_info );
-			mesh_map.insert( {msh, stage_idx} );
+			mesh_map.insert( { msh, stage_idx } );
 
 			// Manual cleanup of per-primitive data because raw pointer.
 
@@ -713,7 +713,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		// our camera_map accordingly.
 
 		for ( auto c = cameras_begin; c != cameras_end; c++ ) {
-			camera_map.insert( {c, camera_idx++} );
+			camera_map.insert( { c, camera_idx++ } );
 		}
 	}
 
@@ -748,7 +748,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			info.spot_outer_cone_angle = l->spot_outer_cone_angle;
 
 			uint32_t light_idx = le_stage_i.create_light( stage, &info );
-			lights_map.insert( {l, light_idx} );
+			lights_map.insert( { l, light_idx } );
 		}
 	}
 
@@ -769,7 +769,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 		{
 			uint32_t i = 0;
 			for ( auto n = nodes_begin; n != nodes_end; n++, i++ ) {
-				nodes_map.insert( {n, i} );
+				nodes_map.insert( { n, i } );
 			}
 		}
 
@@ -921,7 +921,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			info.node_indices_count = uint32_t( joints_indices.size() );
 
 			uint32_t skin_idx = le_stage_i.create_skin( stage, &info );
-			skins_map.insert( {skin, skin_idx} );
+			skins_map.insert( { skin, skin_idx } );
 		}
 	}
 
@@ -1021,7 +1021,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 
 			// - upload animation
 			uint32_t animation_idx = le_stage_i.create_animation( stage, &info );
-			animations_map.insert( {a, animation_idx} );
+			animations_map.insert( { a, animation_idx } );
 		}
 	}
 
@@ -1043,7 +1043,7 @@ static bool le_gltf_import( le_gltf_o *self, le_stage_o *stage ) {
 			}
 
 			uint32_t scene_idx = le_stage_i.create_scene( stage, nodes_info.data(), uint32_t( nodes_info.size() ) );
-			scenes_map.insert( {s, scene_idx} );
+			scenes_map.insert( { s, scene_idx } );
 		}
 	}
 

@@ -23,13 +23,13 @@ struct quad_template_app_api {
 };
 // clang-format on
 
-LE_MODULE(quad_template_app);
-LE_MODULE_LOAD_DEFAULT(quad_template_app);
+LE_MODULE( quad_template_app );
+LE_MODULE_LOAD_DEFAULT( quad_template_app );
 
 #ifdef __cplusplus
 
 namespace quad_template_app {
-static const auto &api = quad_template_app_api_i;
+static const auto &api                 = quad_template_app_api_i;
 static const auto &quad_template_app_i = api -> quad_template_app_i;
 } // namespace quad_template_app
 

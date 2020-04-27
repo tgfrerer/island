@@ -180,7 +180,7 @@ bool LeEcs::system_add_read_component( LeEcsSystemId system_id ) {
 
 template <typename T>
 bool LeEcs::system_add_read_component( LeEcsSystemId system_id ) {
-	constexpr le_ecs_api::ComponentType ct{hash_64_fnv1a_const( T::type_id ), T::type_id, sizeof( T )};
+	constexpr le_ecs_api::ComponentType ct{ hash_64_fnv1a_const( T::type_id ), T::type_id, sizeof( T ) };
 	return le_ecs::le_ecs_i.system_add_read_component( self, system_id, ct );
 }
 
@@ -188,7 +188,7 @@ bool LeEcs::system_add_read_component( LeEcsSystemId system_id ) {
 
 template <typename T>
 bool LeEcs::system_add_write_component( LeEcsSystemId system_id ) {
-	constexpr le_ecs_api::ComponentType ct{hash_64_fnv1a_const( T::type_id ), T::type_id, sizeof( T )};
+	constexpr le_ecs_api::ComponentType ct{ hash_64_fnv1a_const( T::type_id ), T::type_id, sizeof( T ) };
 	return le_ecs::le_ecs_i.system_add_write_component( self, system_id, ct );
 }
 
@@ -203,14 +203,14 @@ bool LeEcs::entity_add_component( EntityId entity_id, const T &&component ) {
 
 	constexpr uint32_t component_size = uint32_t( sizeof( A ) - sizeof( int ) );
 
-	constexpr le_ecs_api::ComponentType ct{hash_64_fnv1a_const( T::type_id ), T::type_id, component_size};
+	constexpr le_ecs_api::ComponentType ct{ hash_64_fnv1a_const( T::type_id ), T::type_id, component_size };
 
 	// Allocate memory inside the ECS for our component.
 
 	void *mem = le_ecs::le_ecs_i.entity_add_component( self, entity_id, ct );
 
 	if ( ct.num_bytes != 0 && nullptr != mem ) {
-		new ( mem )( T ){component}; // placement new
+		new ( mem )( T ){ component }; // placement new
 		return true;
 	} else {
 		// ERROR
@@ -230,7 +230,7 @@ void LeEcs::entity_remove_component( EntityId entity_id ) {
 
 	constexpr uint32_t component_size = uint32_t( sizeof( A ) - sizeof( int ) );
 
-	constexpr le_ecs_api::ComponentType ct{hash_64_fnv1a_const( T::type_id ), T::type_id, component_size};
+	constexpr le_ecs_api::ComponentType ct{ hash_64_fnv1a_const( T::type_id ), T::type_id, component_size };
 
 	le_ecs::le_ecs_i.entity_remove_component( self, entity_id, ct );
 }

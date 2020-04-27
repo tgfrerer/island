@@ -39,8 +39,8 @@ le_font_renderer_o *le_font_renderer_create( le_renderer_o *renderer ) {
 
 	using namespace le_renderer;
 
-	self->shader_font_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/le_font.vert", {le::ShaderStage::eVertex}, "NO_MVP" );
-	self->shader_font_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/le_font.frag", {le::ShaderStage::eFragment}, "" );
+	self->shader_font_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/le_font.vert", { le::ShaderStage::eVertex }, "NO_MVP" );
+	self->shader_font_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/le_font.frag", { le::ShaderStage::eFragment }, "" );
 
 	return self;
 }
@@ -76,12 +76,12 @@ void le_font_renderer_add_font( le_font_renderer_o *self, le_font_o *font ) {
 	        .setFormat( le::Format::eR8Unorm )
 	        .build();
 
-	auto info = font_info_t( {font,
-	                          LE_IMG_RESOURCE( img_atlas_name ),
-	                          font_atlas_info,
-	                          le::Renderer::produceTextureHandle( img_sampler_name ),
-	                          false,
-	                          false} );
+	auto info = font_info_t( { font,
+	                           LE_IMG_RESOURCE( img_atlas_name ),
+	                           font_atlas_info,
+	                           le::Renderer::produceTextureHandle( img_sampler_name ),
+	                           false,
+	                           false } );
 
 	self->fonts_info.push_front( info );
 }
@@ -121,13 +121,13 @@ bool le_font_renderer_setup_resources( le_font_renderer_o *self, le_render_modul
 	auto resource_upload_pass =
 	    le::RenderPass( "uploadImage", LE_RENDER_PASS_TYPE_TRANSFER )
 	        .setSetupCallback( self, []( le_renderpass_o *rp_, void *user_data ) -> bool {
-		        le::RenderPass rp{rp_};
+		        le::RenderPass rp{ rp_ };
 
 		        auto self         = static_cast<le_font_renderer_o *>( user_data );
 		        bool needs_upload = false; // If any atlasses need upload this must flip to true.
 
 		        for ( auto &fnt : self->fonts_info ) {
-			        rp.useImageResource( fnt.font_image, {LE_IMAGE_USAGE_TRANSFER_DST_BIT} );
+			        rp.useImageResource( fnt.font_image, { LE_IMAGE_USAGE_TRANSFER_DST_BIT } );
 			        needs_upload |= !fnt.atlas_uploaded;
 		        }
 
@@ -136,7 +136,7 @@ bool le_font_renderer_setup_resources( le_font_renderer_o *self, le_render_modul
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
 		        auto self = static_cast<le_font_renderer_o *>( user_data );
 
-		        le::Encoder encoder{encoder_};
+		        le::Encoder encoder{ encoder_ };
 
 		        for ( auto &fnt : self->fonts_info ) {
 
@@ -214,7 +214,7 @@ bool le_font_renderer_use_fonts( le_font_renderer_o *self, le_font_o **fonts, si
 
 bool le_font_renderer_draw_string( le_font_renderer_o *self, le_font_o *font, le_command_buffer_encoder_o *encoder_, draw_string_info_t &info ) {
 
-	le::Encoder encoder{encoder_};
+	le::Encoder encoder{ encoder_ };
 
 	auto extents = encoder.getRenderpassExtent();
 
@@ -236,7 +236,7 @@ bool le_font_renderer_draw_string( le_font_renderer_o *self, le_font_o *font, le
 		glm::vec4 screen_extents;
 	} no_mvp_ubo;
 
-	no_mvp_ubo.screen_extents = {0, 0, float( extents.width ), float( extents.height )};
+	no_mvp_ubo.screen_extents = { 0, 0, float( extents.width ), float( extents.height ) };
 
 	encoder
 	    .bindGraphicsPipeline( pipeline )

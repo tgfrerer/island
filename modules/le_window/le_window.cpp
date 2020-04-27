@@ -31,16 +31,16 @@ struct WindowGeometry {
 
 struct le_window_o {
 
-	GLFWwindow *          window   = nullptr;
-	VkSurfaceKHR          mSurface = nullptr;
-	VkExtent2D            mSurfaceExtent{};
+	GLFWwindow *         window   = nullptr;
+	VkSurfaceKHR         mSurface = nullptr;
+	VkExtent2D           mSurfaceExtent{};
 	le_window_settings_o mSettings{};
-	size_t                referenceCount = 0;
-	void *                user_data      = nullptr;
+	size_t               referenceCount = 0;
+	void *               user_data      = nullptr;
 
-	uint32_t                                               eventQueueBack = 0;      // Event queue currently used to record events
-	std::array<std::atomic<uint32_t>, 2>                   numEventsForQueue{0, 0}; // Counter for events per queue (works as arena allocator marker for events queue)
-	std::array<std::array<LeUiEvent, EVENT_QUEUE_SIZE>, 2> eventQueue;              // Events queue is double-bufferd, flip happens on `get_event_queue`
+	uint32_t                                               eventQueueBack = 0;        // Event queue currently used to record events
+	std::array<std::atomic<uint32_t>, 2>                   numEventsForQueue{ 0, 0 }; // Counter for events per queue (works as arena allocator marker for events queue)
+	std::array<std::array<LeUiEvent, EVENT_QUEUE_SIZE>, 2> eventQueue;                // Events queue is double-bufferd, flip happens on `get_event_queue`
 
 	WindowGeometry windowGeometry{};
 	bool           isFullscreen = false;

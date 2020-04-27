@@ -16,7 +16,7 @@
 #include <sstream>
 
 struct hello_triangle_app_o {
-	le::Window  window;
+	le::Window   window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
 
@@ -67,16 +67,16 @@ static hello_triangle_app_o *hello_triangle_app_create() {
 
 static void reset_camera( hello_triangle_app_o *self ) {
 	auto extent = self->renderer.getSwapchainExtent();
-	self->camera.setViewport( {0, 0, float( extent.width ), float( extent.height ), 0.f, 1.f} );
+	self->camera.setViewport( { 0, 0, float( extent.width ), float( extent.height ), 0.f, 1.f } );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
-	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
+	glm::mat4 camMatrix = glm::lookAt( glm::vec3{ 0, 0, self->camera.getUnitDistance() }, glm::vec3{ 0 }, glm::vec3{ 0, 1, 0 } );
 	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
 }
 
 // ----------------------------------------------------------------------
 
 static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
-	auto rp  = le::RenderPass{pRp};
+	auto rp  = le::RenderPass{ pRp };
 	auto app = static_cast<hello_triangle_app_o *>( user_data );
 
 	rp
@@ -90,10 +90,10 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 
 static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
 	auto        app = static_cast<hello_triangle_app_o *>( user_data );
-	le::Encoder encoder{encoder_};
+	le::Encoder encoder{ encoder_ };
 
 	auto extent = encoder.getRenderpassExtent();
-	app->camera.setViewport( {0, 0, float( extent.width ), float( extent.height )} );
+	app->camera.setViewport( { 0, 0, float( extent.width ), float( extent.height ) } );
 
 	// data as it is laid out in the ubo for the shader
 	struct MatrixStackUbo_t {
@@ -121,15 +121,15 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		mvp.projection = reinterpret_cast<glm::mat4 const &>( *app->camera.getProjectionMatrix() );
 
 		glm::vec3 hello_trianglePositions[] = {
-		    {-50, -50, 0},
-		    {50, -50, 0},
-		    {0, 50, 0},
+		    { -50, -50, 0 },
+		    { 50, -50, 0 },
+		    { 0, 50, 0 },
 		};
 
 		glm::vec4 hello_triangleColors[] = {
-		    {1, 0, 0, 1.f},
-		    {0, 1, 0, 1.f},
-		    {0, 0, 1, 1.f},
+		    { 1, 0, 0, 1.f },
+		    { 0, 1, 0, 1.f },
+		    { 0, 0, 1, 1.f },
 		};
 
 		encoder

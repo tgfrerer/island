@@ -320,7 +320,7 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 		res.bufferInfo = vk::BufferCreateInfo()
 		                     .setFlags( {} )
 		                     .setSize( info.buffer.size )
-		                     .setUsage( vk::BufferUsageFlags{info.buffer.usage} ) // FIXME: we need to call an explicit le -> vk conversion
+		                     .setUsage( vk::BufferUsageFlags{ info.buffer.usage } ) // FIXME: we need to call an explicit le -> vk conversion
 		                     .setSharingMode( vk::SharingMode::eExclusive )
 		                     .setQueueFamilyIndexCount( queueFamilyIndexCount )
 		                     .setPQueueFamilyIndices( pQueueFamilyIndices );
@@ -329,19 +329,19 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 	case ( LeResourceType::eImage ): {
 		auto const &img = info.image;
 		res.imageInfo   = vk::ImageCreateInfo()
-		                    .setFlags( le_image_create_flags_to_vk( img.flags ) )                 //
-		                    .setImageType( le_image_type_to_vk( img.imageType ) )                 //
-		                    .setFormat( le_format_to_vk( img.format ) )                           //
-		                    .setExtent( {img.extent.width, img.extent.height, img.extent.depth} ) //
-		                    .setMipLevels( img.mipLevels )                                        //
-		                    .setArrayLayers( img.arrayLayers )                                    //
-		                    .setSamples( le_sample_count_log_2_to_vk( img.sample_count_log2 ) )   //
-		                    .setTiling( le_image_tiling_to_vk( img.tiling ) )                     //
-		                    .setUsage( le_image_usage_flags_to_vk( img.usage ) )                  //
-		                    .setSharingMode( vk::SharingMode::eExclusive )                        // hardcoded to Exclusive - no sharing between queues
-		                    .setQueueFamilyIndexCount( queueFamilyIndexCount )                    //
-		                    .setPQueueFamilyIndices( pQueueFamilyIndices )                        //
-		                    .setInitialLayout( vk::ImageLayout::eUndefined )                      // must be either pre-initialised, or undefined (most likely)
+		                    .setFlags( le_image_create_flags_to_vk( img.flags ) )                   //
+		                    .setImageType( le_image_type_to_vk( img.imageType ) )                   //
+		                    .setFormat( le_format_to_vk( img.format ) )                             //
+		                    .setExtent( { img.extent.width, img.extent.height, img.extent.depth } ) //
+		                    .setMipLevels( img.mipLevels )                                          //
+		                    .setArrayLayers( img.arrayLayers )                                      //
+		                    .setSamples( le_sample_count_log_2_to_vk( img.sample_count_log2 ) )     //
+		                    .setTiling( le_image_tiling_to_vk( img.tiling ) )                       //
+		                    .setUsage( le_image_usage_flags_to_vk( img.usage ) )                    //
+		                    .setSharingMode( vk::SharingMode::eExclusive )                          // hardcoded to Exclusive - no sharing between queues
+		                    .setQueueFamilyIndexCount( queueFamilyIndexCount )                      //
+		                    .setPQueueFamilyIndices( pQueueFamilyIndices )                          //
+		                    .setInitialLayout( vk::ImageLayout::eUndefined )                        // must be either pre-initialised, or undefined (most likely)
 		    ;
 
 	} break;
@@ -1060,7 +1060,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 		frameData.frameFence               = vkDevice.createFence( {} ); // fence starts out as "signalled"
 		frameData.semaphorePresentComplete = vkDevice.createSemaphore( {} );
 		frameData.semaphoreRenderComplete  = vkDevice.createSemaphore( {} );
-		frameData.commandPool              = vkDevice.createCommandPool( {vk::CommandPoolCreateFlagBits::eTransient, self->device->getDefaultGraphicsQueueFamilyIndex()} );
+		frameData.commandPool              = vkDevice.createCommandPool( { vk::CommandPoolCreateFlagBits::eTransient, self->device->getDefaultGraphicsQueueFamilyIndex() } );
 
 		{
 			// -- set up an allocation pool for each frame
@@ -1168,7 +1168,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 			// track resource state before entering a subpass
 
 			auto &previousSyncState = syncChain.back();
-			auto  beforeFirstUse{previousSyncState};
+			auto  beforeFirstUse{ previousSyncState };
 
 			if ( currentAttachment->loadOp == vk::AttachmentLoadOp::eLoad ) {
 				// we must now specify which stages need to be visible for which coming memory access
@@ -1197,7 +1197,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 			// track resource state before subpass
 
 			auto &previousSyncState = syncChain.back();
-			auto  beforeSubpass{previousSyncState};
+			auto  beforeSubpass{ previousSyncState };
 
 			if ( image_attachment_info.loadOp == le::AttachmentLoadOp::eLoad ) {
 				// resource.loadOp most be LOAD
@@ -1293,7 +1293,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 			// track resource state before entering a subpass
 
 			auto &previousSyncState = syncChain.back();
-			auto  beforeFirstUse{previousSyncState};
+			auto  beforeFirstUse{ previousSyncState };
 
 			currentAttachment->initialStateOffset = uint16_t( syncChain.size() );
 			syncChain.emplace_back( std::move( beforeFirstUse ) ); // attachment initial state for a renderpass - may be loaded/cleared on first use
@@ -1304,7 +1304,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 			// track resource state before subpass
 
 			auto &previousSyncState = syncChain.back();
-			auto  beforeSubpass{previousSyncState};
+			auto  beforeSubpass{ previousSyncState };
 
 			{
 				// load op is either CLEAR, or DONT_CARE
@@ -1503,7 +1503,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		const auto &id        = syncChainPair.first;
 		auto &      syncChain = syncChainPair.second;
 
-		auto finalState{syncChain.back()};
+		auto finalState{ syncChain.back() };
 
 		if ( id == backbufferImageHandle ) {
 			finalState.write_stage    = vk::PipelineStageFlagBits::eBottomOfPipe;
@@ -1534,7 +1534,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 	SyncChainMap max_sync_index;
 
-	auto insert_if_greater = [&max_sync_index]( le_resource_handle_t const &key, uint32_t value ) {
+	auto insert_if_greater = [ &max_sync_index ]( le_resource_handle_t const &key, uint32_t value ) {
 		// Updates map entry to highest value
 		auto &element = max_sync_index[ key ];
 		element       = std::max( element, value );
@@ -1598,7 +1598,7 @@ static bool backend_poll_frame_fence( le_backend_o *self, size_t frameIndex ) {
 	// auto result = device.getFenceStatus( {frame.frameFence} );
 
 	// NOTE: this may block.
-	auto result = device.waitForFences( {frame.frameFence}, true, 1000'000'000 );
+	auto result = device.waitForFences( { frame.frameFence }, true, 1000'000'000 );
 
 	if ( result != vk::Result::eSuccess ) {
 		return false;
@@ -1626,7 +1626,7 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 	// -------- Invariant: fence has been crossed, all resources protected by fence
 	//          can now be claimed back.
 
-	device.resetFences( {frame.frameFence} );
+	device.resetFences( { frame.frameFence } );
 
 	// -- reset all frame-local sub-allocators
 	for ( auto &alloc : frame.allocators ) {
@@ -2524,7 +2524,7 @@ static bool staging_allocator_map( le_staging_allocator_o *self, uint64_t numByt
 /// Frees all allocations held by the staging allocator given in `self`
 static void staging_allocator_reset( le_staging_allocator_o *self ) {
 	auto lock   = std::scoped_lock( self->mtx );
-	auto device = vk::Device{self->device};
+	auto device = vk::Device{ self->device };
 
 	assert( self->buffers.size() == self->allocations.size() && self->buffers.size() == self->allocationInfo.size() &&
 	        "buffers, allocations, and allocationInfos sizes must match." );
@@ -2638,7 +2638,7 @@ static void collect_resource_infos_per_resource(
 				} else {
 					// Explicitly declared resource found. Insert declaration info.
 					usedResources.push_back( frame_declared_resources_id[ found_resource_index ] );
-					usedResourcesInfos.push_back( {frame_declared_resources_info[ found_resource_index ]} );
+					usedResourcesInfos.push_back( { frame_declared_resources_info[ found_resource_index ] } );
 				}
 			}
 
@@ -2890,7 +2890,7 @@ static void insert_msaa_versions(
 			resource_info_copy.image.sample_count_log2              = current_sample_count_log_2;
 
 			msaa_resources.push_back( resource_copy );
-			msaa_resource_infos.push_back( {resource_info_copy} );
+			msaa_resource_infos.push_back( { resource_info_copy } );
 
 			// update the original resource to have a single sample.
 
@@ -3246,7 +3246,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			// We must allocate a scratch buffer, which needs to be available for exactly one frame.
 			le_resource_info_t resourceInfo{};
 			resourceInfo.buffer.size              = uint32_t( scratchbuffer_max_size );
-			resourceInfo.buffer.usage             = {LE_BUFFER_USAGE_RAY_TRACING_BIT_KHR | LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT};
+			resourceInfo.buffer.usage             = { LE_BUFFER_USAGE_RAY_TRACING_BIT_KHR | LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT };
 			resourceInfo.type                     = LeResourceType::eBuffer;
 			ResourceCreateInfo resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo, &self->queueFamilyIndexGraphics, 0 );
 			auto               resource_id        = LE_RTX_SCRATCH_BUFFER_HANDLE;
@@ -3536,8 +3536,8 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 	// which are explicitly declared by user via the rendermodule, but which may or may not be
 	// actually used in the frame.
 
-	frame.declared_resources_id   = {declared_resources, declared_resources + declared_resources_count};
-	frame.declared_resources_info = {declared_resources_infos, declared_resources_infos + declared_resources_count};
+	frame.declared_resources_id   = { declared_resources, declared_resources + declared_resources_count };
+	frame.declared_resources_info = { declared_resources_infos, declared_resources_infos + declared_resources_count };
 
 	backend_allocate_resources( self, frame, passes, numRenderPasses );
 
@@ -3545,7 +3545,7 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 	// from current entry in frame.availableResources resource map.
 	frame.syncChainTable.clear();
 	for ( auto const &res : frame.availableResources ) {
-		frame.syncChainTable.insert( {res.first, {res.second.state}} );
+		frame.syncChainTable.insert( { res.first, { res.second.state } } );
 	}
 
 	// -- build sync chain for each resource, create explicit sync barrier requests for resources
@@ -3699,7 +3699,7 @@ static bool updateArguments( const vk::Device &                          device,
 
 	bool argumentsOk = true;
 
-	auto get_argument_name = [&argumentState]( size_t set_id, uint32_t binding_number ) -> char const * {
+	auto get_argument_name = [ &argumentState ]( size_t set_id, uint32_t binding_number ) -> char const * {
 		for ( auto const &b : argumentState.binding_infos ) {
 			if ( b.binding == binding_number && b.setIndex == set_id ) {
 				return le_get_argument_name_from_hash( b.name_hash );
@@ -3942,7 +3942,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 	// TODO: (parallelize) when going wide, there needs to be a commandPool for each execution context so that
 	// command buffer generation may be free-threaded.
 	auto numCommandBuffers = uint32_t( frame.passes.size() );
-	auto cmdBufs           = device.allocateCommandBuffers( {frame.commandPool, vk::CommandBufferLevel::ePrimary, numCommandBuffers} );
+	auto cmdBufs           = device.allocateCommandBuffers( { frame.commandPool, vk::CommandBufferLevel::ePrimary, numCommandBuffers } );
 
 	std::array<vk::ClearValue, 16> clearValues{};
 
@@ -3957,7 +3957,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 		// create frame buffer, based on swapchain and renderpass
 
-		cmd.begin( {::vk::CommandBufferUsageFlagBits::eOneTimeSubmit} );
+		cmd.begin( { ::vk::CommandBufferUsageFlagBits::eOneTimeSubmit } );
 
 		{
 
@@ -4042,8 +4042,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					    stateFinal.write_stage,                                                                                       // dstStage
 					    {},
 					    {},
-					    {},                   // buffer: host write -> transfer read
-					    {imageLayoutTransfer} // image: transfer layout
+					    {},                     // buffer: host write -> transfer read
+					    { imageLayoutTransfer } // image: transfer layout
 					);
 				}
 			} // end for all explicit sync ops.
@@ -4060,7 +4060,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 			renderPassBeginInfo
 			    .setRenderPass( pass.renderPass )
 			    .setFramebuffer( pass.framebuffer )
-			    .setRenderArea( vk::Rect2D( {0, 0}, {pass.width, pass.height} ) )
+			    .setRenderArea( vk::Rect2D( { 0, 0 }, { pass.width, pass.height } ) )
 			    .setClearValueCount( pass.numColorAttachments + pass.numDepthStencilAttachments )
 			    .setPClearValues( clearValues.data() );
 
@@ -4472,10 +4472,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					//					          << std::flush;
 
 					// buffer, offset, stride, size
-					vk::StridedBufferRegionKHR sbt_ray_gen{sbt_vk_buffer, rtx_state.ray_gen_sbt_offset, 0, rtx_state.ray_gen_sbt_size};
-					vk::StridedBufferRegionKHR sbt_miss{sbt_vk_buffer, rtx_state.miss_sbt_offset, rtx_state.miss_sbt_stride, rtx_state.miss_sbt_size};
-					vk::StridedBufferRegionKHR sbt_hit{sbt_vk_buffer, rtx_state.hit_sbt_offset, rtx_state.hit_sbt_stride, rtx_state.hit_sbt_size};
-					vk::StridedBufferRegionKHR sbt_callable{sbt_vk_buffer, rtx_state.callable_sbt_offset, rtx_state.callable_sbt_stride, rtx_state.callable_sbt_size};
+					vk::StridedBufferRegionKHR sbt_ray_gen{ sbt_vk_buffer, rtx_state.ray_gen_sbt_offset, 0, rtx_state.ray_gen_sbt_size };
+					vk::StridedBufferRegionKHR sbt_miss{ sbt_vk_buffer, rtx_state.miss_sbt_offset, rtx_state.miss_sbt_stride, rtx_state.miss_sbt_size };
+					vk::StridedBufferRegionKHR sbt_hit{ sbt_vk_buffer, rtx_state.hit_sbt_offset, rtx_state.hit_sbt_stride, rtx_state.hit_sbt_size };
+					vk::StridedBufferRegionKHR sbt_callable{ sbt_vk_buffer, rtx_state.callable_sbt_offset, rtx_state.callable_sbt_stride, rtx_state.callable_sbt_size };
 
 					cmd.traceRaysKHR(
 					    sbt_ray_gen,
@@ -4596,7 +4596,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					// find binding info with name referenced in command
 
 					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(),
-					                       [&argument_name_id]( const le_shader_binding_info &e ) -> bool {
+					                       [ &argument_name_id ]( const le_shader_binding_info &e ) -> bool {
 						                       return e.name_hash == argument_name_id;
 					                       } );
 
@@ -4652,7 +4652,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					uint64_t argument_name_id = le_cmd->info.argument_name_id;
 
 					// Find binding info with name referenced in command
-					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [&argument_name_id]( const le_shader_binding_info &e ) -> bool {
+					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info &e ) -> bool {
 						return e.name_hash == argument_name_id;
 					} );
 
@@ -4717,7 +4717,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					uint64_t argument_name_id = le_cmd->info.argument_name_id;
 
 					// Find binding info with name referenced in command
-					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [&argument_name_id]( const le_shader_binding_info &e ) -> bool {
+					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info &e ) -> bool {
 						return e.name_hash == argument_name_id;
 					} );
 
@@ -4758,7 +4758,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					uint64_t argument_name_id = le_cmd->info.argument_name_id;
 
 					// Find binding info with name referenced in command
-					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [&argument_name_id]( const le_shader_binding_info &e ) -> bool {
+					auto b = std::find_if( argumentState.binding_infos.begin(), argumentState.binding_infos.end(), [ &argument_name_id ]( const le_shader_binding_info &e ) -> bool {
 						return e.name_hash == argument_name_id;
 					} );
 
@@ -4877,8 +4877,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						    vk::PipelineStageFlagBits::eTransfer,
 						    {},
 						    {},
-						    {bufferTransferBarrier},          // buffer: host write -> transfer read
-						    {imageLayoutToTransferDstOptimal} // image: prepare for transfer write
+						    { bufferTransferBarrier },          // buffer: host write -> transfer read
+						    { imageLayoutToTransferDstOptimal } // image: prepare for transfer write
 						);
 					}
 
@@ -4903,8 +4903,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						    .setBufferRowLength( 0 )                                    // 0 means tightly packed
 						    .setBufferImageHeight( 0 )                                  // 0 means tightly packed
 						    .setImageSubresource( std::move( imageSubresourceLayers ) ) // stored inline
-						    .setImageOffset( {le_cmd->info.offset_w, le_cmd->info.offset_h, 0} )
-						    .setImageExtent( {le_cmd->info.image_w, le_cmd->info.image_h, 1} );
+						    .setImageOffset( { le_cmd->info.offset_w, le_cmd->info.offset_h, 0 } )
+						    .setImageExtent( { le_cmd->info.image_w, le_cmd->info.image_h, 1 } );
 
 						cmd.copyBufferToImage( srcBuffer, dstImage, vk::ImageLayout::eTransferDstOptimal, 1, &region );
 					}
@@ -4932,9 +4932,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						    .setSrcQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 						    .setDstQueueFamilyIndex( VK_QUEUE_FAMILY_IGNORED )
 						    .setImage( dstImage )
-						    .setSubresourceRange( {vk::ImageAspectFlagBits::eColor, base_miplevel, 1, 0, 1} );
+						    .setSubresourceRange( { vk::ImageAspectFlagBits::eColor, base_miplevel, 1, 0, 1 } );
 
-						cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, {prepareBlit} );
+						cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, { prepareBlit } );
 
 						// Now blit from the srcMipLevel to dstMipLevel
 
@@ -4956,14 +4956,14 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 							vk::ImageBlit region;
 
-							vk::Offset3D offsetZero = {0, 0, 0};
-							vk::Offset3D offsetSrc  = {srcImgWidth, srcImgHeight, 1};
-							vk::Offset3D offsetDst  = {dstImgWidth, dstImgHeight, 1};
+							vk::Offset3D offsetZero = { 0, 0, 0 };
+							vk::Offset3D offsetSrc  = { srcImgWidth, srcImgHeight, 1 };
+							vk::Offset3D offsetDst  = { dstImgWidth, dstImgHeight, 1 };
 							region
-							    .setSrcSubresource( {vk::ImageAspectFlagBits::eColor, srcMipLevel, 0, 1} )
-							    .setDstSubresource( {vk::ImageAspectFlagBits::eColor, dstMipLevel, 0, 1} )
-							    .setSrcOffsets( {offsetZero, offsetSrc} )
-							    .setDstOffsets( {offsetZero, offsetDst} )
+							    .setSrcSubresource( { vk::ImageAspectFlagBits::eColor, srcMipLevel, 0, 1 } )
+							    .setDstSubresource( { vk::ImageAspectFlagBits::eColor, dstMipLevel, 0, 1 } )
+							    .setSrcOffsets( { offsetZero, offsetSrc } )
+							    .setDstOffsets( { offsetZero, offsetDst } )
 							    //
 							    ;
 
@@ -4983,7 +4983,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 							    .setImage( dstImage )
 							    .setSubresourceRange( rangeDstMipLevel );
 
-							cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, {finishBlit} );
+							cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer, {}, {}, {}, { finishBlit } );
 
 							// Store this miplevel image's dimensions for next iteration
 							srcImgHeight = dstImgHeight;
@@ -5032,8 +5032,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						    vk::PipelineStageFlagBits::eFragmentShader,
 						    {},
 						    {},
-						    {},                              // buffers: nothing to do
-						    {imageLayoutToShaderReadOptimal} // images: prepare for shader read
+						    {},                                // buffers: nothing to do
+						    { imageLayoutToShaderReadOptimal } // images: prepare for shader read
 						);
 					}
 
@@ -5073,11 +5073,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 							vk::Buffer index_buffer  = frame_data_get_buffer_from_le_resource_id( frame, g.index_buffer );
 
 							vk::DeviceOrHostAddressConstKHR vertex_addr =
-							    device.getBufferAddress( {vertex_buffer} ) + g.vertex_offset;
+							    device.getBufferAddress( { vertex_buffer } ) + g.vertex_offset;
 
 							vk::DeviceOrHostAddressConstKHR index_addr =
 							    g.index_count
-							        ? device.getBufferAddress( {index_buffer} ) + g.index_offset
+							        ? device.getBufferAddress( { index_buffer } ) + g.index_offset
 							        : 0;
 
 							vk::AccelerationStructureGeometryTrianglesDataKHR triangles_data{};
@@ -5094,7 +5094,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 							geometry
 							    .setFlags( vk::GeometryFlagBitsKHR::eOpaque )
 							    .setGeometryType( vk::GeometryTypeKHR::eTriangles )
-							    .setGeometry( {triangles_data} );
+							    .setGeometry( { triangles_data } );
 
 							geometries.emplace_back( geometry );
 
@@ -5122,7 +5122,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 						vk::DeviceOrHostAddressKHR scratchData;
 						//  We get the device address by querying from the buffer.
-						scratchData = device.getBufferAddress( {scratchBuffer} );
+						scratchData = device.getBufferAddress( { scratchBuffer } );
 
 						vk::AccelerationStructureBuildGeometryInfoKHR info;
 						info
@@ -5146,7 +5146,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						    vk::AccessFlagBits::eAccelerationStructureReadKHR );                        // ... before the next read happens,
 						cmd.pipelineBarrier( vk::PipelineStageFlagBits::eAccelerationStructureBuildKHR, // and the barrier is limited to the
 						                     vk::PipelineStageFlagBits::eAccelerationStructureBuildKHR, // accelerationStructureBuild stage.
-						                     vk::DependencyFlags(), {barrier}, {}, {} );
+						                     vk::DependencyFlags(), { barrier }, {}, {} );
 
 					} // end for each blas element in array
 
@@ -5188,7 +5188,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					cmd.pipelineBarrier( vk::PipelineStageFlagBits::eTransfer,                      // Writes from transfer ...
 					                     vk::PipelineStageFlagBits::eAccelerationStructureBuildKHR, // must be visible for accelerationStructureBuild stage.
-					                     vk::DependencyFlags(), {barrier}, {}, {} );
+					                     vk::DependencyFlags(), { barrier }, {}, {} );
 
 					// instances information is encoded via buffer, but that buffer is also available as host memory,
 					// because it is held in staging_buffer_mapped_memory...
@@ -5196,9 +5196,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					VkBuffer scratchBuffer  = frame_data_get_buffer_from_le_resource_id( frame, LE_RTX_SCRATCH_BUFFER_HANDLE );
 
 					vk::DeviceOrHostAddressConstKHR instanceBufferDeviceAddress =
-					    device.getBufferAddress( {instanceBuffer} ) + le_cmd->info.staging_buffer_offset;
+					    device.getBufferAddress( { instanceBuffer } ) + le_cmd->info.staging_buffer_offset;
 
-					vk::AccelerationStructureGeometryKHR khr_instances_data{vk::GeometryTypeKHR::eInstances};
+					vk::AccelerationStructureGeometryKHR khr_instances_data{ vk::GeometryTypeKHR::eInstances };
 					khr_instances_data.geometry.instances.setArrayOfPointers( false );
 					khr_instances_data.geometry.instances.setData( instanceBufferDeviceAddress );
 					khr_instances_data.setFlags( vk::GeometryFlagBitsKHR::eOpaque );
@@ -5208,7 +5208,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					//  we get the device address by querying from the buffer.
 					vk::DeviceOrHostAddressKHR scratchData =
-					    device.getBufferAddress( {scratchBuffer} );
+					    device.getBufferAddress( { scratchBuffer } );
 
 					vk::AccelerationStructureBuildGeometryInfoKHR info{};
 					info.setType( vk::AccelerationStructureTypeKHR::eTopLevel )
@@ -5285,7 +5285,7 @@ static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
 
 	auto &frame = self->mFrames[ frameIndex ];
 
-	std::array<::vk::PipelineStageFlags, 1> wait_dst_stage_mask = {{::vk::PipelineStageFlagBits::eColorAttachmentOutput}};
+	std::array<::vk::PipelineStageFlags, 1> wait_dst_stage_mask = { { ::vk::PipelineStageFlagBits::eColorAttachmentOutput } };
 
 	vk::SubmitInfo submitInfo;
 	submitInfo
@@ -5297,9 +5297,9 @@ static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
 	    .setSignalSemaphoreCount( 1 )
 	    .setPSignalSemaphores( &frame.semaphoreRenderComplete );
 
-	auto queue = vk::Queue{self->device->getDefaultGraphicsQueue()};
+	auto queue = vk::Queue{ self->device->getDefaultGraphicsQueue() };
 
-	queue.submit( {submitInfo}, frame.frameFence );
+	queue.submit( { submitInfo }, frame.frameFence );
 
 	using namespace le_swapchain_vk;
 

@@ -20,14 +20,14 @@
 #include "le_ui_event/le_ui_event.h"
 
 struct imgui_example_app_o {
-	le::Window  window;
+	le::Window   window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
 
-	glm::vec4 backgroundColor{0, 0, 0, 1};
+	glm::vec4 backgroundColor{ 0, 0, 0, 1 };
 
 	le_imgui_o *gui;
-	LeCamera camera;
+	LeCamera    camera;
 };
 
 typedef imgui_example_app_o app_o;
@@ -75,9 +75,9 @@ static imgui_example_app_o *imgui_example_app_create() {
 static void reset_camera( imgui_example_app_o *self ) {
 	le::Extent2D extents{};
 	self->renderer.getSwapchainExtent( &extents.width, &extents.height );
-	self->camera.setViewport( {0, 0, float( extents.width ), float( extents.height ), 0.f, 1.f} );
+	self->camera.setViewport( { 0, 0, float( extents.width ), float( extents.height ), 0.f, 1.f } );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
-	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
+	glm::mat4 camMatrix = glm::lookAt( glm::vec3{ 0, 0, self->camera.getUnitDistance() }, glm::vec3{ 0 }, glm::vec3{ 0, 1, 0 } );
 	self->camera.setViewMatrixGlm( camMatrix );
 }
 
@@ -85,12 +85,12 @@ static void reset_camera( imgui_example_app_o *self ) {
 
 static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
 	auto        app = static_cast<imgui_example_app_o *>( user_data );
-	le::Encoder encoder{encoder_};
+	le::Encoder encoder{ encoder_ };
 
 	auto extents = encoder.getRenderpassExtent();
 
 	le::Viewport viewports[ 1 ] = {
-	    {0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f},
+	    { 0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f },
 	};
 
 	app->camera.setViewport( viewports[ 0 ] );
@@ -120,15 +120,15 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	mvp.projection = app->camera.getProjectionMatrixGlm();
 
 	glm::vec3 imgui_examplePositions[] = {
-	    {-50, -50, 0},
-	    {50, -50, 0},
-	    {0, 50, 0},
+	    { -50, -50, 0 },
+	    { 50, -50, 0 },
+	    { 0, 50, 0 },
 	};
 
 	glm::vec4 imgui_exampleColors[] = {
-	    {1, 0, 0, 1.f},
-	    {0, 1, 0, 1.f},
-	    {0, 0, 1, 1.f},
+	    { 1, 0, 0, 1.f },
+	    { 0, 1, 0, 1.f },
+	    { 0, 0, 1, 1.f },
 	};
 
 	encoder
@@ -181,7 +181,7 @@ static bool imgui_example_app_update( imgui_example_app_o *self ) {
 		}
 
 		if ( ImGui::Button( "White Background" ) ) {
-			self->backgroundColor = {1, 1, 1, 1};
+			self->backgroundColor = { 1, 1, 1, 1 };
 		}
 
 		ImGui::End(); // end window
@@ -190,7 +190,7 @@ static bool imgui_example_app_update( imgui_example_app_o *self ) {
 
 		passToScreen
 		    .setSetupCallback( self, []( le_renderpass_o *pRp, void *user_data ) {
-			    auto rp  = le::RenderPass{pRp};
+			    auto rp  = le::RenderPass{ pRp };
 			    auto app = static_cast<imgui_example_app_o *>( user_data );
 
 			    // Attachment resource info may be further specialised using ImageInfoBuilder().

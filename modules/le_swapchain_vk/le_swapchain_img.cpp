@@ -142,7 +142,7 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settin
 			assert( imgAllocationResult == VK_SUCCESS );
 		}
 
-		frame.frameFence = self->device.createFence( {::vk::FenceCreateFlagBits::eSignaled} );
+		frame.frameFence = self->device.createFence( { ::vk::FenceCreateFlagBits::eSignaled } );
 
 		self->transferFrames.emplace_back( frame );
 	}
@@ -172,7 +172,7 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settin
 			// copy == transfer image to buffer memory
 			vk::CommandBuffer &cmdPresent = frame.cmdPresent;
 
-			cmdPresent.begin( {::vk::CommandBufferUsageFlags()} );
+			cmdPresent.begin( { ::vk::CommandBufferUsageFlags() } );
 
 			auto imgMemBarrier =
 			    vk::ImageMemoryBarrier()
@@ -183,9 +183,9 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settin
 			        .setSrcQueueFamilyIndex( self->vk_graphics_queue_family_index ) // < TODO: queue ownership: graphics -> transfer
 			        .setDstQueueFamilyIndex( self->vk_graphics_queue_family_index ) // < TODO: queue ownership: graphics -> transfer
 			        .setImage( frame.image )
-			        .setSubresourceRange( {::vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1} );
+			        .setSubresourceRange( { ::vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } );
 
-			cmdPresent.pipelineBarrier( ::vk::PipelineStageFlagBits::eAllCommands, ::vk::PipelineStageFlagBits::eTransfer, ::vk::DependencyFlags(), {}, {}, {imgMemBarrier} );
+			cmdPresent.pipelineBarrier( ::vk::PipelineStageFlagBits::eAllCommands, ::vk::PipelineStageFlagBits::eTransfer, ::vk::DependencyFlags(), {}, {}, { imgMemBarrier } );
 
 			::vk::ImageSubresourceLayers imgSubResource;
 			imgSubResource
@@ -200,14 +200,14 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settin
 			    .setBufferRowLength( self->mSwapchainExtent.width )
 			    .setBufferImageHeight( self->mSwapchainExtent.height )
 			    .setImageSubresource( imgSubResource )
-			    .setImageOffset( {0} )
+			    .setImageOffset( { 0 } )
 			    .setImageExtent( self->mSwapchainExtent );
 
 			// TODO: here we must wait for the buffer read event to have been signalled - because that means that the buffer
 			// is available for writing again. Perhaps we should use a buffer which is not persistently mapped, if that's faster.
 
 			// image must be transferred to a buffer - we can then read from this buffer.
-			cmdPresent.copyImageToBuffer( frame.image, ::vk::ImageLayout::eTransferSrcOptimal, frame.buffer, {imgCopy} );
+			cmdPresent.copyImageToBuffer( frame.image, ::vk::ImageLayout::eTransferSrcOptimal, frame.buffer, { imgCopy } );
 			cmdPresent.end();
 		}
 		{
@@ -216,7 +216,7 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settin
 
 			::vk::CommandBuffer &cmdAcquire = frame.cmdAcquire;
 
-			cmdAcquire.begin( {::vk::CommandBufferUsageFlags()} );
+			cmdAcquire.begin( { ::vk::CommandBufferUsageFlags() } );
 
 			auto barrierReadToAcquire =
 			    vk::ImageMemoryBarrier()
@@ -227,9 +227,9 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settin
 			        .setSrcQueueFamilyIndex( self->vk_graphics_queue_family_index ) // < TODO: queue ownership: transfer -> graphics
 			        .setDstQueueFamilyIndex( self->vk_graphics_queue_family_index ) // < TODO: queue ownership: transfer -> graphics
 			        .setImage( frame.image )
-			        .setSubresourceRange( {::vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1} );
+			        .setSubresourceRange( { ::vk::ImageAspectFlagBits::eColor, 0, 1, 0, 1 } );
 
-			cmdAcquire.pipelineBarrier( ::vk::PipelineStageFlagBits::eAllCommands, ::vk::PipelineStageFlagBits::eColorAttachmentOutput, ::vk::DependencyFlags(), {}, {}, {barrierReadToAcquire} );
+			cmdAcquire.pipelineBarrier( ::vk::PipelineStageFlagBits::eAllCommands, ::vk::PipelineStageFlagBits::eColorAttachmentOutput, ::vk::DependencyFlags(), {}, {}, { barrierReadToAcquire } );
 
 			cmdAcquire.end();
 		}
@@ -335,7 +335,7 @@ static void swapchain_img_destroy( le_swapchain_o *base ) {
 
 		auto imageIndex = ( self->mImageIndex ) % self->mImagecount;
 
-		auto fenceWaitResult = self->device.waitForFences( {self->transferFrames[ imageIndex ].frameFence}, VK_TRUE, 100'000'000 );
+		auto fenceWaitResult = self->device.waitForFences( { self->transferFrames[ imageIndex ].frameFence }, VK_TRUE, 100'000'000 );
 
 		if ( fenceWaitResult != ::vk::Result::eSuccess ) {
 			assert( false ); // waiting for fence took too long.
@@ -385,13 +385,13 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 	// acquire next image, signal semaphore
 	imageIndex = ( self->mImageIndex + 1 ) % self->mImagecount;
 
-	auto fenceWaitResult = self->device.waitForFences( {self->transferFrames[ imageIndex ].frameFence}, VK_TRUE, 100'000'000 );
+	auto fenceWaitResult = self->device.waitForFences( { self->transferFrames[ imageIndex ].frameFence }, VK_TRUE, 100'000'000 );
 
 	if ( fenceWaitResult != ::vk::Result::eSuccess ) {
 		assert( false ); // waiting for fence took too long.
 	}
 
-	self->device.resetFences( {self->transferFrames[ imageIndex ].frameFence} );
+	self->device.resetFences( { self->transferFrames[ imageIndex ].frameFence } );
 
 	self->mImageIndex = imageIndex;
 
@@ -423,9 +423,9 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 
 	// The number of array elements must correspond to the number of wait semaphores, as each
 	// mask specifies what the semaphore is waiting for.
-	std::array<::vk::PipelineStageFlags, 1> wait_dst_stage_mask = {::vk::PipelineStageFlagBits::eTransfer};
+	std::array<::vk::PipelineStageFlags, 1> wait_dst_stage_mask = { ::vk::PipelineStageFlagBits::eTransfer };
 
-	auto presentCompleteSemaphore = vk::Semaphore{semaphorePresentComplete};
+	auto presentCompleteSemaphore = vk::Semaphore{ semaphorePresentComplete };
 
 	::vk::SubmitInfo submitInfo;
 	submitInfo
@@ -450,7 +450,7 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 
 		using namespace le_backend_vk;
 		auto le_device_o = private_backend_vk_i.get_le_device( self->backend );
-		auto queue       = vk::Queue{vk_device_i.get_default_graphics_queue( le_device_o )};
+		auto queue       = vk::Queue{ vk_device_i.get_default_graphics_queue( le_device_o ) };
 
 		queue.submit( 1, &submitInfo, nullptr );
 	}
@@ -466,7 +466,7 @@ static bool swapchain_img_present( le_swapchain_o *base, VkQueue queue_, VkSemap
 
 	vk::PipelineStageFlags wait_dst_stage_mask = ::vk::PipelineStageFlagBits::eColorAttachmentOutput;
 
-	auto renderCompleteSemaphore = vk::Semaphore{renderCompleteSemaphore_};
+	auto renderCompleteSemaphore = vk::Semaphore{ renderCompleteSemaphore_ };
 
 	vk::SubmitInfo submitInfo;
 	submitInfo
@@ -481,8 +481,8 @@ static bool swapchain_img_present( le_swapchain_o *base, VkQueue queue_, VkSemap
 	// Todo: submit to transfer queue, not main queue, if possible
 
 	{
-		vk::Queue queue{queue_};
-		queue.submit( {submitInfo}, self->transferFrames[ *pImageIndex ].frameFence );
+		vk::Queue queue{ queue_ };
+		queue.submit( { submitInfo }, self->transferFrames[ *pImageIndex ].frameFence );
 	}
 
 	return true;

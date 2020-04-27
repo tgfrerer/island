@@ -266,7 +266,7 @@ static uint64_t le_shader_module_get_hash( le_shader_module_o *module ) {
 // Returns the stage for a given shader module
 static LeShaderStageEnum le_shader_module_get_stage( le_shader_module_o *module ) {
 	assert( module != nullptr );
-	return {module->stage};
+	return { module->stage };
 }
 
 // ----------------------------------------------------------------------
@@ -873,9 +873,9 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o *self, l
 	}
 
 	std::vector<uint32_t> spirv_code;
-	std::set<std::string> includesSet{{module->filepath}}; // let first element be the original source file path
+	std::set<std::string> includesSet{ { module->filepath } }; // let first element be the original source file path
 
-	translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), {module->stage}, module->filepath.c_str(), spirv_code, includesSet, module->macro_defines );
+	translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), { module->stage }, module->filepath.c_str(), spirv_code, includesSet, module->macro_defines );
 
 	if ( spirv_code.empty() ) {
 		// no spirv code available, bail out.
@@ -886,7 +886,7 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o *self, l
 	module->hash_shader_defines = SpookyHash::Hash64( module->macro_defines.data(), module->macro_defines.size(), 0 );
 
 	// -- check spirv code hash against module spirv hash
-	uint64_t path_and_shader_defines_hash_data[ 2 ] = {module->hash_file_path, module->hash_shader_defines};
+	uint64_t path_and_shader_defines_hash_data[ 2 ] = { module->hash_file_path, module->hash_shader_defines };
 	uint64_t path_and_shader_defines_hash           = SpookyHash::Hash64( path_and_shader_defines_hash_data, sizeof( path_and_shader_defines_hash_data ), 0 );
 
 	uint64_t hash_of_module = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), path_and_shader_defines_hash );
@@ -1027,7 +1027,7 @@ static le_shader_module_o *le_shader_manager_create_shader_module( le_shader_man
 	// -- Make sure the file contains spir-v code.
 
 	std::vector<uint32_t> spirv_code;
-	std::set<std::string> includesSet = {{canonical_path_as_string}}; // let first element be the source file path
+	std::set<std::string> includesSet = { { canonical_path_as_string } }; // let first element be the source file path
 
 	std::string macro_defines = macro_defines_ ? std::string( macro_defines_ ) : "";
 
@@ -1044,7 +1044,7 @@ static le_shader_module_o *le_shader_manager_create_shader_module( le_shader_man
 	module->hash_file_path      = SpookyHash::Hash64( module->filepath.string().data(), module->filepath.string().size(), 0 );
 	module->hash_shader_defines = SpookyHash::Hash64( module->macro_defines.data(), module->macro_defines.size(), 0 );
 
-	uint64_t path_and_shader_defines_hash_data[ 2 ] = {module->hash_file_path, module->hash_shader_defines};
+	uint64_t path_and_shader_defines_hash_data[ 2 ] = { module->hash_file_path, module->hash_shader_defines };
 	uint64_t path_and_shader_defines_hash           = SpookyHash::Hash64( path_and_shader_defines_hash_data, sizeof( path_and_shader_defines_hash_data ), 0 );
 
 	module->hash = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), path_and_shader_defines_hash );
@@ -1052,7 +1052,7 @@ static le_shader_module_o *le_shader_manager_create_shader_module( le_shader_man
 	{
 		// -- Check if module is already present in render module cache.
 
-		auto found_module = std::find_if( self->shaderModules.begin(), self->shaderModules.end(), [module]( const le_shader_module_o *m ) -> bool {
+		auto found_module = std::find_if( self->shaderModules.begin(), self->shaderModules.end(), [ module ]( const le_shader_module_o *m ) -> bool {
 			return module->hash == m->hash;
 		} );
 
@@ -1316,20 +1316,20 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 	    .setLogicOp( ::vk::LogicOp::eClear )
 	    .setAttachmentCount( pass.numColorAttachments )
 	    .setPAttachments( pso->data.blendAttachmentStates.data() )
-	    .setBlendConstants( {{0.f, 0.f, 0.f, 0.f}} );
+	    .setBlendConstants( { { 0.f, 0.f, 0.f, 0.f } } );
 
 	// Viewport and Scissor are tracked as dynamic states, and although this object will not
 	// get used, we must still fulfill the contract of providing a valid object to vk.
 	//
-	static vk::PipelineViewportStateCreateInfo defaultViewportState{vk::PipelineViewportStateCreateFlags(), 1, nullptr, 1, nullptr};
+	static vk::PipelineViewportStateCreateInfo defaultViewportState{ vk::PipelineViewportStateCreateFlags(), 1, nullptr, 1, nullptr };
 
 	// We will allways keep Scissor, Viewport and LineWidth as dynamic states,
 	// otherwise we might have way too many pipelines flying around.
-	std::array<vk::DynamicState, 3> dynamicStates = {{
+	std::array<vk::DynamicState, 3> dynamicStates = { {
 	    vk::DynamicState::eScissor,
 	    vk::DynamicState::eViewport,
 	    vk::DynamicState::eLineWidth,
-	}};
+	} };
 
 	vk::PipelineDynamicStateCreateInfo dynamicState;
 	dynamicState
@@ -1635,7 +1635,7 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 		for ( auto it = combined_bindings.begin(); it != combined_bindings.end(); ) {
 
 			// Find next element with different set id
-			auto itN = std::find_if( it, combined_bindings.end(), [&set_idx]( const le_shader_binding_info &el ) -> bool {
+			auto itN = std::find_if( it, combined_bindings.end(), [ &set_idx ]( const le_shader_binding_info &el ) -> bool {
 				return el.setIndex != set_idx;
 			} );
 

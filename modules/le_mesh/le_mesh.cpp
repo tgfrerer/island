@@ -179,7 +179,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 
 	// - Make sure file exists
 
-	std::filesystem::path file_path{file_path_};
+	std::filesystem::path file_path{ file_path_ };
 
 	if ( !std::filesystem::exists( file_path ) ) {
 		std::cerr << "File not found: '" << file_path << "'";
@@ -255,7 +255,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 		return false;
 	}
 
-	static auto DELIMS{"\n\0"};
+	static auto DELIMS{ "\n\0" };
 	char *      c_save_ptr; //< we use the re-entrant version of strtok, for which state is stored in here
 
 	// --------| invariant: file was loaded.
@@ -581,7 +581,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 		if ( element_archetype->type == Element::Type::eUnknown ) {
 			// Not implemented yet.
 
-			auto skip_lines = [&]( char const *c, Element const *archetype ) {
+			auto skip_lines = [ & ]( char const *c, Element const *archetype ) {
 				for ( uint32_t i = 0; i != archetype->num_elements && c != nullptr; ++i ) {
 					c = strtok_r( nullptr, DELIMS, &c_save_ptr );
 				}

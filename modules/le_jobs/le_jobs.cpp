@@ -19,7 +19,7 @@ extern "C" int  asm_switch( le_fiber_o *to, le_fiber_o *from, int switch_to_gues
 extern "C" void asm_fetch_default_control_words( uint64_t * );
 
 struct le_jobs_api::counter_t {
-	std::atomic<uint32_t> data{0};
+	std::atomic<uint32_t> data{ 0 };
 };
 
 using counter_t = le_jobs_api::counter_t;
@@ -558,7 +558,7 @@ static void le_job_manager_run_jobs( le_job_o *jobs, uint32_t num_jobs, counter_
 		// Note that we must store a pointer to counter with each job,
 		// which is why we must allocate job objects for each job.
 		// Jobs are freed when
-		lockfree_ring_buffer_push( job_manager->job_queue, new le_job_o{j->fun_ptr, j->fun_param, counter} );
+		lockfree_ring_buffer_push( job_manager->job_queue, new le_job_o{ j->fun_ptr, j->fun_param, counter } );
 	}
 
 	// store address back into parameter, so that caller knows about our counter.

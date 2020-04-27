@@ -426,19 +426,19 @@ size_t node_graph_append_children_from_gltf_nodes( std::vector<Node> &nodegraph,
 		glm::mat4x4 localTransform = reinterpret_cast<glm::mat4 const &>( gltfNode.matrix ); // TODO: apply TRS if available
 
 		localTransform =
-		    glm::translate( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( gltfNode.translation ) ) *
+		    glm::translate( glm::mat4{ 1 }, reinterpret_cast<const glm::vec3 &>( gltfNode.translation ) ) *
 		    glm::toMat4( reinterpret_cast<const glm::quat &>( gltfNode.rotation ) ) *
-		    glm::scale( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( gltfNode.scale ) ) * localTransform;
+		    glm::scale( glm::mat4{ 1 }, reinterpret_cast<const glm::vec3 &>( gltfNode.scale ) ) * localTransform;
 
-		glm::vec3 skew{0};
-		glm::vec4 perspective{0};
+		glm::vec3 skew{ 0 };
+		glm::vec4 perspective{ 0 };
 		glm::decompose( localTransform, node.localScale, node.localRotation, node.localTranslation, skew, perspective );
 
 		// TEST: localTransformNew must be the same again as localTransform
 		glm::mat4 localTransformNew =
-		    glm::translate( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( node.localTranslation ) ) *
+		    glm::translate( glm::mat4{ 1 }, reinterpret_cast<const glm::vec3 &>( node.localTranslation ) ) *
 		    glm::toMat4( reinterpret_cast<const glm::quat &>( node.localRotation ) ) *
-		    glm::scale( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( node.localScale ) );
+		    glm::scale( glm::mat4{ 1 }, reinterpret_cast<const glm::vec3 &>( node.localScale ) );
 
 		float const *a        = &localTransform[ 0 ][ 0 ];
 		float const *b        = &localTransformNew[ 0 ][ 0 ];
@@ -503,9 +503,9 @@ void updateNodeGraph( std::vector<Node> &nodes ) {
 	size_t          numOps            = 0;
 
 	glm::mat4 parentMatrix =
-	    glm::translate( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( parent->localTranslation ) ) *
+	    glm::translate( glm::mat4{ 1 }, reinterpret_cast<const glm::vec3 &>( parent->localTranslation ) ) *
 	    glm::toMat4( reinterpret_cast<const glm::quat &>( parent->localRotation ) ) *
-	    glm::scale( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( parent->localScale ) );
+	    glm::scale( glm::mat4{ 1 }, reinterpret_cast<const glm::vec3 &>( parent->localScale ) );
 
 	// initialise all global transforms to identity
 	for ( Node *child = parent; child != endNodeRange; child++ ) {
@@ -534,9 +534,9 @@ void updateNodeGraph( std::vector<Node> &nodes ) {
 				numChildren = parent->numChildren;
 				// calculate local transform matrix for parent.
 				parentMatrix =
-				    glm::translate( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( parent->localTranslation ) ) *
+				    glm::translate( glm::mat4{ 1 }, reinterpret_cast<const glm::vec3 &>( parent->localTranslation ) ) *
 				    glm::toMat4( reinterpret_cast<const glm::quat &>( parent->localRotation ) ) *
-				    glm::scale( glm::mat4{1}, reinterpret_cast<const glm::vec3 &>( parent->localScale ) );
+				    glm::scale( glm::mat4{ 1 }, reinterpret_cast<const glm::vec3 &>( parent->localScale ) );
 			}
 
 		} else {
@@ -599,9 +599,9 @@ static bool document_load_from_text( le_gltf_document_o *self, const char *path 
 		le_resource_info_t resourceInfo;
 		resourceInfo.type         = LeResourceType::eBuffer;
 		resourceInfo.buffer.size  = uint32_t( geometryDataSize );
-		resourceInfo.buffer.usage = {LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
-		                             LE_BUFFER_USAGE_VERTEX_BUFFER_BIT |
-		                             LE_BUFFER_USAGE_TRANSFER_DST_BIT};
+		resourceInfo.buffer.usage = { LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
+		                              LE_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+		                              LE_BUFFER_USAGE_TRANSFER_DST_BIT };
 		self->bufferResourceInfos.emplace_back( resourceInfo );
 	}
 
@@ -734,8 +734,8 @@ static void document_setup_resources( le_gltf_document_o *self, le_renderer_o *r
 		// Cache buffer lookups for primitives
 
 		{
-			auto shader_module_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.vert", {le::ShaderStage::eVertex}, "" );
-			auto shader_module_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.frag", {le::ShaderStage::eFragment}, "" );
+			auto shader_module_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.vert", { le::ShaderStage::eVertex }, "" );
+			auto shader_module_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/pbr.frag", { le::ShaderStage::eFragment }, "" );
 
 			p.pso = LeGraphicsPipelineBuilder( pipeline_manager )
 			            .addShaderStage( shader_module_frag )

@@ -67,7 +67,7 @@ struct le_renderpass_o {
 	std::vector<le_image_attachment_info_t> imageAttachments;    // settings for image attachments (may be color/or depth)
 	std::vector<le_resource_handle_t>       attachmentResources; // kept in sync with imageAttachments, one resource per attachment
 
-	std::vector<le_texture_handle> textureIds;   // imageSampler resource infos
+	std::vector<le_texture_handle>       textureIds;   // imageSampler resource infos
 	std::vector<le_image_sampler_info_t> textureInfos; // kept in sync with texture id: info for corresponding texture id
 
 	le_renderer_api::pfn_renderpass_setup_t callbackSetup            = nullptr;
@@ -147,7 +147,7 @@ static void renderpass_set_setup_callback( le_renderpass_o *self, void *user_dat
 // ----------------------------------------------------------------------
 
 static void renderpass_set_execute_callback( le_renderpass_o *self, void *user_data, le_renderer_api::pfn_renderpass_execute_t callback ) {
-	self->executeCallbacks.push_back( {callback, user_data} );
+	self->executeCallbacks.push_back( { callback, user_data } );
 }
 
 // ----------------------------------------------------------------------
@@ -303,7 +303,7 @@ static void renderpass_sample_texture( le_renderpass_o *self, le_texture_handle 
 	//	self->textureImageIds.push_back( textureInfo->imageView.imageId );
 	self->textureInfos.push_back( *textureInfo ); // store a copy of info
 
-	LeResourceUsageFlags required_flags{LeResourceType::eImage, {{LeImageUsageFlagBits::LE_IMAGE_USAGE_SAMPLED_BIT}}};
+	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { { LeImageUsageFlagBits::LE_IMAGE_USAGE_SAMPLED_BIT } } };
 
 	// -- Mark image resource referenced by texture as used for reading
 	renderpass_use_resource( self, textureInfo->imageView.imageId, required_flags );
@@ -318,7 +318,7 @@ static void renderpass_add_color_attachment( le_renderpass_o *self, le_resource_
 
 	// Make sure that this imgage can be used as a color attachment,
 	// even if user forgot to specify the flag.
-	LeResourceUsageFlags required_flags{LeResourceType::eImage, {{LeImageUsageFlagBits::LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT}}};
+	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { { LeImageUsageFlagBits::LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT } } };
 
 	renderpass_use_resource( self, image_id, required_flags );
 }
@@ -332,7 +332,7 @@ static void renderpass_add_depth_stencil_attachment( le_renderpass_o *self, le_r
 
 	// Make sure that this image can be used as a depth stencil attachment,
 	// even if user forgot to specify the flag.
-	LeResourceUsageFlags required_flags{LeResourceType::eImage, {{LeImageUsageFlagBits::LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT}}};
+	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { { LeImageUsageFlagBits::LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT } } };
 
 	renderpass_use_resource( self, image_id, required_flags );
 }
@@ -839,7 +839,7 @@ static void rendergraph_build( le_rendergraph_o *self, size_t frame_number ) {
 	// Associate sort indices to tasks
 	tasks_calculate_sort_indices( tasks.data(), tasks.size(), self->sortIndices.data() );
 
-	auto printPassList = [&]() -> void {
+	auto printPassList = [ & ]() -> void {
 		for ( size_t i = 0; i != self->sortIndices.size(); ++i ) {
 			std::cout << "Pass: " << std::dec << std::setw( 3 ) << i << " sort order : " << std::setw( 12 ) << self->sortIndices[ i ] << " : "
 			          << self->passes[ i ]->debugName
@@ -1009,11 +1009,11 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 				// Set default scissor and viewport to full extent.
 
 				le::Rect2D default_scissor[ 1 ] = {
-				    {0, 0, pass_extents.width, pass_extents.height},
+				    { 0, 0, pass_extents.width, pass_extents.height },
 				};
 
 				le::Viewport default_viewport[ 1 ] = {
-				    {0.f, 0.f, float( pass_extents.width ), float( pass_extents.height ), 0.f, 1.f},
+				    { 0.f, 0.f, float( pass_extents.width ), float( pass_extents.height ), 0.f, 1.f },
 				};
 
 				// setup encoder default viewport and scissor to extent

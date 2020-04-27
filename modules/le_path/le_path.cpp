@@ -517,10 +517,10 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 			r = glm::normalize( b_sub.c1 - b_sub.p0 );
 		}
 
-		glm::vec2 s = {r.y, -r.x};
+		glm::vec2 s = { r.y, -r.x };
 
 		// Define a coordinate basis built on the first two points, b0, and b1
-		glm::mat2 const basis = {r, s};
+		glm::mat2 const basis = { r, s };
 
 		float s3 = 3 * fabsf( ( basis * ( b_sub.p1 - b_sub.p0 ) ).y );
 
@@ -581,7 +581,7 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 			// are better represented as straight lines.
 
 			if ( c_start == 1 || c_start == 3 ) {
-				CurveSegment line{Line()};
+				CurveSegment line{ Line() };
 				line.asLine.p0 = b.p0;
 				line.asLine.p1 = b.p1;
 				curves.push_back( line );
@@ -607,7 +607,7 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 
 				bezier_subdivide( b, t1_p, &b_0, nullptr );
 
-				CurveSegment line{Line()};
+				CurveSegment line{ Line() };
 				line.asLine.p0 = b_0.p0;
 				line.asLine.p1 = b_0.p1;
 
@@ -621,7 +621,7 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 
 				bezier_subdivide( b, t1_m, nullptr, &b_0 );
 
-				CurveSegment line{Line()};
+				CurveSegment line{ Line() };
 				line.asLine.p0 = b_0.p0;
 				line.asLine.p1 = b_0.p1;
 
@@ -652,7 +652,7 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 			if ( c_start == 3 ) {
 				bezier_subdivide( b, t2_p, &b_0, nullptr );
 
-				CurveSegment line{Line()};
+				CurveSegment line{ Line() };
 				line.asLine.p0 = b.p0;
 				line.asLine.p1 = b_0.p1;
 
@@ -661,7 +661,7 @@ static void split_cubic_bezier_into_monotonous_sub_segments( CubicBezier &b, std
 
 			if ( c_end == 3 ) {
 				bezier_subdivide( b, t2_m, nullptr, &b_0 );
-				CurveSegment line{Line()};
+				CurveSegment line{ Line() };
 				line.asLine.p0 = b_0.p0;
 				line.asLine.p1 = b_0.p1;
 
@@ -694,10 +694,10 @@ static void flatten_cubic_bezier_segment_to( Polyline &         polyline,
 
 		// create a coordinate basis based on the first point, and the first control point
 		glm::vec2 r = glm::normalize( b.c1 - b.p0 );
-		glm::vec2 s = {r.y, -r.x};
+		glm::vec2 s = { r.y, -r.x };
 
 		// Define a coordinate basis built on the first two points, b0, and b1
-		glm::mat2 const basis = {r, s};
+		glm::mat2 const basis = { r, s };
 
 		glm::vec2 P2 = basis * ( b.c2 - b.p0 );
 
@@ -789,9 +789,9 @@ static glm::vec2 get_arc_tangent_at_normalised_t( glm::vec2 const &p0, // end po
 	//
 	// See: <https://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter>
 	//
-	glm::vec2 x_axis{cosf( phi ), sinf( phi )};
-	glm::vec2 y_axis{-x_axis.y, x_axis.x};
-	glm::mat2 basis{x_axis, y_axis};
+	glm::vec2 x_axis{ cosf( phi ), sinf( phi ) };
+	glm::vec2 y_axis{ -x_axis.y, x_axis.x };
+	glm::mat2 basis{ x_axis, y_axis };
 	glm::mat2 inv_basis = glm::transpose( basis );
 
 	glm::vec2 x_ = basis * ( ( p0 - p1 ) / 2.f ); // "x dash"
@@ -799,7 +799,7 @@ static glm::vec2 get_arc_tangent_at_normalised_t( glm::vec2 const &p0, // end po
 	float x_sq = x_.x * x_.x;
 	float y_sq = x_.y * x_.y;
 
-	glm::vec2 r    = glm::vec2{fabsf( radii.x ), fabsf( radii.y )}; // TODO: make sure radius is large enough.
+	glm::vec2 r    = glm::vec2{ fabsf( radii.x ), fabsf( radii.y ) }; // TODO: make sure radius is large enough.
 	float     rxsq = r.x * r.x;
 	float     rysq = r.y * r.y;
 
@@ -829,7 +829,7 @@ static glm::vec2 get_arc_tangent_at_normalised_t( glm::vec2 const &p0, // end po
 		c_ = sqrtf( fabsf( sqrt_term ) ) * sqrt_sign *
 		     glm::vec2( ( r.x * x_.y ) / r.y, ( -r.y * x_.x ) / r.x );
 	} else {
-		c_ = glm::vec2{0};
+		c_ = glm::vec2{ 0 };
 	}
 
 	glm::vec2 u = glm::normalize( ( x_ - c_ ) / r );
@@ -837,7 +837,7 @@ static glm::vec2 get_arc_tangent_at_normalised_t( glm::vec2 const &p0, // end po
 
 	// Note that it's important to take the oriented, and not just the absolute angle here.
 	//
-	float theta_1     = glm::orientedAngle( glm::vec2{1, 0}, u );
+	float theta_1     = glm::orientedAngle( glm::vec2{ 1, 0 }, u );
 	float theta_delta = fmodf( glm::orientedAngle( u, v ), glm::two_pi<float>() );
 
 	// No Sweep: Angles must be decreasing
@@ -853,7 +853,7 @@ static glm::vec2 get_arc_tangent_at_normalised_t( glm::vec2 const &p0, // end po
 	// --------- | Invariant: delta_theta is not zero.
 
 	float     theta   = theta_1 + theta_delta * t;
-	glm::vec2 tangent = inv_basis * ( r * glm::vec2{-sinf( theta ), cosf( theta )} );
+	glm::vec2 tangent = inv_basis * ( r * glm::vec2{ -sinf( theta ), cosf( theta ) } );
 
 	if ( sweep ) {
 		return tangent;
@@ -891,9 +891,9 @@ static void flatten_arc_to( Polyline &       polyline,
 	//
 	// See: <https://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter>
 	//
-	glm::vec2 x_axis{cosf( phi ), sinf( phi )};
-	glm::vec2 y_axis{-x_axis.y, x_axis.x};
-	glm::mat2 basis{x_axis, y_axis};
+	glm::vec2 x_axis{ cosf( phi ), sinf( phi ) };
+	glm::vec2 y_axis{ -x_axis.y, x_axis.x };
+	glm::mat2 basis{ x_axis, y_axis };
 	glm::mat2 inv_basis = glm::transpose( basis );
 
 	glm::vec2 x_ = basis * ( ( p0 - p1 ) / 2.f ); // "x dash"
@@ -901,7 +901,7 @@ static void flatten_arc_to( Polyline &       polyline,
 	float x_sq = x_.x * x_.x;
 	float y_sq = x_.y * x_.y;
 
-	glm::vec2 r    = glm::vec2{fabsf( radii.x ), fabsf( radii.y )}; // TODO: make sure radius is large enough.
+	glm::vec2 r    = glm::vec2{ fabsf( radii.x ), fabsf( radii.y ) }; // TODO: make sure radius is large enough.
 	float     rxsq = r.x * r.x;
 	float     rysq = r.y * r.y;
 
@@ -931,7 +931,7 @@ static void flatten_arc_to( Polyline &       polyline,
 		c_ = sqrtf( fabsf( sqrt_term ) ) * sqrt_sign *
 		     glm::vec2( ( r.x * x_.y ) / r.y, ( -r.y * x_.x ) / r.x );
 	} else {
-		c_ = glm::vec2{0};
+		c_ = glm::vec2{ 0 };
 	}
 
 	glm::vec2 c = inv_basis * c_ + ( ( p0 + p1 ) / 2.f );
@@ -941,7 +941,7 @@ static void flatten_arc_to( Polyline &       polyline,
 
 	// Note that it's important to take the oriented, and not just the absolute angle here.
 	//
-	float theta_1     = glm::orientedAngle( glm::vec2{1, 0}, u );
+	float theta_1     = glm::orientedAngle( glm::vec2{ 1, 0 }, u );
 	float theta_delta = fmodf( glm::orientedAngle( u, v ), glm::two_pi<float>() );
 
 	// No Sweep: Angles must be decreasing
@@ -964,7 +964,7 @@ static void flatten_arc_to( Polyline &       polyline,
 	float theta_end = theta_1 + theta_delta;
 
 	glm::vec2 prev_pt = polyline.vertices.back();
-	glm::vec2 n       = glm::vec2{cosf( theta ), sinf( theta )};
+	glm::vec2 n       = glm::vec2{ cosf( theta ), sinf( theta ) };
 
 	// We are much more likely to break ealier - but we add a counter as an upper bound
 	// to this loop to minimise getting trapped in an endless loop in case of some NaN
@@ -972,7 +972,7 @@ static void flatten_arc_to( Polyline &       polyline,
 	//
 	for ( size_t i = 0; i <= 1000; i++ ) {
 
-		float r_length = glm::dot( glm::vec2{fabsf( n.x ), fabsf( n.y )}, glm::abs( inv_basis * radii ) );
+		float r_length = glm::dot( glm::vec2{ fabsf( n.x ), fabsf( n.y ) }, glm::abs( inv_basis * radii ) );
 
 		float angle_offset = acosf( 1 - ( tolerance / r_length ) );
 
@@ -982,7 +982,7 @@ static void flatten_arc_to( Polyline &       polyline,
 			theta = std::min( theta + angle_offset, theta_end );
 		}
 
-		n = {cosf( theta ), sinf( theta )};
+		n = { cosf( theta ), sinf( theta ) };
 
 		glm::vec2 arc_pt = r * n;
 		arc_pt           = inv_basis * arc_pt + c;
@@ -990,7 +990,7 @@ static void flatten_arc_to( Polyline &       polyline,
 		polyline.vertices.push_back( arc_pt );
 		polyline.total_distance += glm::distance( arc_pt, prev_pt );
 		polyline.distances.push_back( polyline.total_distance );
-		polyline.tangents.push_back( inv_basis * ( r * glm::vec2{-sinf( theta ), cosf( theta )} ) );
+		polyline.tangents.push_back( inv_basis * ( r * glm::vec2{ -sinf( theta ), cosf( theta ) } ) );
 		prev_pt = arc_pt;
 
 		if ( !sweep && theta <= theta_end ) {
@@ -1073,7 +1073,7 @@ static void generate_offset_outline_line_to( std::vector<glm::vec2> &outline, gl
 	}
 
 	glm::vec2 r = glm::normalize( p1 - p0 );
-	glm::vec2 s = {r.y, -r.x};
+	glm::vec2 s = { r.y, -r.x };
 
 	outline.push_back( p0 + offset * s );
 
@@ -1091,7 +1091,7 @@ static void generate_offset_outline_cubic_bezier_segment_to( std::vector<glm::ve
 
 	CubicBezier b = b_;
 
-	float determinant = dot( b.p1, {-b.p0.y, b.p0.x} );
+	float determinant = dot( b.p1, { -b.p0.y, b.p0.x } );
 	if ( fabsf( determinant ) <= std::numeric_limits<float>::epsilon() ) {
 		// start point equals end point - we must not consider this curve segment.
 		return;
@@ -1108,7 +1108,7 @@ static void generate_offset_outline_cubic_bezier_segment_to( std::vector<glm::ve
 		r = glm::normalize( b.c2 - b.p0 );
 	}
 
-	glm::vec2 s = {r.y, -r.x};
+	glm::vec2 s = { r.y, -r.x };
 
 	glm::vec2 pt = b.p0 + offset * s;
 
@@ -1117,7 +1117,7 @@ static void generate_offset_outline_cubic_bezier_segment_to( std::vector<glm::ve
 	for ( int i = 0; i < 1000; i++ ) {
 
 		// Define a coordinate basis built on the first two points, b0, and b1
-		glm::mat2 const basis = {r, s};
+		glm::mat2 const basis = { r, s };
 
 		glm::vec2 P1 = basis * ( ( b.p0 != b.c1 ) ? ( b.c1 - b.p0 ) : ( b.c2 - b.p0 ) );
 		glm::vec2 P2 = basis * ( ( b.p0 != b.c1 ) ? ( b.c2 - b.p0 ) : ( b.p1 - b.p0 ) );
@@ -1151,7 +1151,7 @@ static void generate_offset_outline_cubic_bezier_segment_to( std::vector<glm::ve
 		if ( t < 1.f ) {
 
 			r = glm::normalize( b.c1 - b.p0 );
-			s = {r.y, -r.x};
+			s = { r.y, -r.x };
 
 			pt = b.p0 + offset * s;
 
@@ -1180,7 +1180,7 @@ static void generate_offset_outline_cubic_bezier_segment_to( std::vector<glm::ve
 	// Tangent is derivative of Bezier curve at `t` == 1.f.
 	glm::vec2 tangent = cubic_bezier_derivative( 1.f, b_.p0, b_.c1, b_.c2, b_.p1 );
 
-	pt = b_.p1 - offset * glm::normalize( glm::vec2{-tangent.y, tangent.x} );
+	pt = b_.p1 - offset * glm::normalize( glm::vec2{ -tangent.y, tangent.x } );
 	outline.emplace_back( pt );
 }
 
@@ -1198,7 +1198,7 @@ static void generate_offset_outline_line_to( std::vector<glm::vec2> &vertices_l,
 	}
 
 	glm::vec2 t = glm::normalize( p1 - p0 ); // tangent == current line direction
-	glm::vec2 n = glm::vec2{-t.y, t.x};      // normal onto current line
+	glm::vec2 n = glm::vec2{ -t.y, t.x };    // normal onto current line
 
 	vertices_l.push_back( p0 + n * line_weight * -0.5f );
 	vertices_r.push_back( p0 + n * line_weight * 0.5f );
@@ -1274,9 +1274,9 @@ static void generate_offset_outline_arc_to( std::vector<glm::vec2> &outline_l,
 	//
 	// See: <https://www.w3.org/TR/SVG/implnote.html#ArcConversionEndpointToCenter>
 	//
-	glm::vec2 x_axis{cosf( phi ), sinf( phi )};
-	glm::vec2 y_axis{-x_axis.y, x_axis.x};
-	glm::mat2 basis{x_axis, y_axis};
+	glm::vec2 x_axis{ cosf( phi ), sinf( phi ) };
+	glm::vec2 y_axis{ -x_axis.y, x_axis.x };
+	glm::mat2 basis{ x_axis, y_axis };
 	glm::mat2 inv_basis = glm::transpose( basis );
 
 	glm::vec2 x_ = basis * ( ( p0 - p1 ) / 2.f ); // "x dash"
@@ -1284,7 +1284,7 @@ static void generate_offset_outline_arc_to( std::vector<glm::vec2> &outline_l,
 	float x_sq = x_.x * x_.x;
 	float y_sq = x_.y * x_.y;
 
-	glm::vec2 r    = glm::vec2{fabsf( radii_.x ), fabsf( radii_.y )}; // TODO: make sure radius is large enough.
+	glm::vec2 r    = glm::vec2{ fabsf( radii_.x ), fabsf( radii_.y ) }; // TODO: make sure radius is large enough.
 	float     rxsq = r.x * r.x;
 	float     rysq = r.y * r.y;
 
@@ -1314,7 +1314,7 @@ static void generate_offset_outline_arc_to( std::vector<glm::vec2> &outline_l,
 		c_ = sqrtf( fabsf( sqrt_term ) ) * sqrt_sign *
 		     glm::vec2( ( r.x * x_.y ) / r.y, ( -r.y * x_.x ) / r.x );
 	} else {
-		c_ = glm::vec2{0};
+		c_ = glm::vec2{ 0 };
 	}
 
 	glm::vec2 c = inv_basis * c_ + ( ( p0 + p1 ) / 2.f );
@@ -1324,7 +1324,7 @@ static void generate_offset_outline_arc_to( std::vector<glm::vec2> &outline_l,
 
 	// Note that it's important to take the oriented, and not just the absolute angle here.
 	//
-	float theta_1     = glm::orientedAngle( glm::vec2{1, 0}, u );
+	float theta_1     = glm::orientedAngle( glm::vec2{ 1, 0 }, u );
 	float theta_delta = fmodf( glm::orientedAngle( u, v ), glm::two_pi<float>() );
 
 	// No Sweep: Angles must be decreasing
@@ -1346,10 +1346,10 @@ static void generate_offset_outline_arc_to( std::vector<glm::vec2> &outline_l,
 	float theta     = theta_1;
 	float theta_end = theta_1 + theta_delta;
 
-	glm::vec2 n = glm::vec2{cosf( theta ), sinf( theta )};
+	glm::vec2 n = glm::vec2{ cosf( theta ), sinf( theta ) };
 
 	float const offset  = line_weight * 0.5f;
-	glm::vec2   p1_perp = glm::normalize( glm::vec2{r.y, r.x} * n );
+	glm::vec2   p1_perp = glm::normalize( glm::vec2{ r.y, r.x } * n );
 
 	glm::vec2 p_far  = c + inv_basis * ( n * r - p1_perp * offset );
 	glm::vec2 p_near = c + inv_basis * ( n * r + p1_perp * offset );
@@ -1367,7 +1367,7 @@ static void generate_offset_outline_arc_to( std::vector<glm::vec2> &outline_l,
 		// calculation formula for a circle, and some mathematical intuition.
 		// It is, in short, not proven to be correct.
 		//
-		float r_length = glm::dot( glm::vec2{fabsf( n.x ), fabsf( n.y )}, glm::abs( r ) + glm::abs( p1_perp * offset ) );
+		float r_length = glm::dot( glm::vec2{ fabsf( n.x ), fabsf( n.y ) }, glm::abs( r ) + glm::abs( p1_perp * offset ) );
 
 		float angle_offset = acosf( 1 - ( tolerance / r_length ) );
 
@@ -1377,7 +1377,7 @@ static void generate_offset_outline_arc_to( std::vector<glm::vec2> &outline_l,
 			theta = std::min( theta + angle_offset, theta_end );
 		}
 
-		n = {cosf( theta ), sinf( theta )};
+		n = { cosf( theta ), sinf( theta ) };
 
 		glm::vec2 arc_pt = r * n;
 		arc_pt           = inv_basis * arc_pt + c;
@@ -1397,7 +1397,7 @@ static void generate_offset_outline_arc_to( std::vector<glm::vec2> &outline_l,
 		// `offset` is how far we want to move outwards/inwards at the ellipse point p1,
 		// in direction p1_perp. So that p1_perp has unit length, we must normalize it.
 		//
-		p1_perp = glm::normalize( glm::vec2{r.y, r.x} * n );
+		p1_perp = glm::normalize( glm::vec2{ r.y, r.x } * n );
 
 		p_far  = c + inv_basis * ( n * r - p1_perp * offset );
 		p_near = c + inv_basis * ( n * r + p1_perp * offset );
@@ -1534,7 +1534,7 @@ static void tessellate_joint( std::vector<glm::vec2> &  triangles,
                               PathCommand const *       cmd_next ) {
 
 	float     offset = sa->width * 0.5f;
-	glm::vec2 n      = glm::vec2{-t.y, t.x}; // normal onto current line
+	glm::vec2 n      = glm::vec2{ -t.y, t.x }; // normal onto current line
 
 	glm::vec2 p1 = cmd->p;
 	glm::vec2 p2 = cmd_next->p;
@@ -1575,7 +1575,7 @@ static void tessellate_joint( std::vector<glm::vec2> &  triangles,
 		return;
 	}
 
-	glm::vec2 n1 = glm::vec2{-t1.y, t1.x}; // normal onto next line
+	glm::vec2 n1 = glm::vec2{ -t1.y, t1.x }; // normal onto next line
 
 	// If angles are identical, we should not add a joint
 	if ( glm::isNull( t1 - t, 0.001f ) ) {
@@ -1644,7 +1644,7 @@ static void tessellate_joint( std::vector<glm::vec2> &  triangles,
 		// centre point is p1
 
 		glm::vec2 n_left  = n;
-		glm::vec2 n_right = {cosf( angle ), sinf( angle )};
+		glm::vec2 n_right = { cosf( angle ), sinf( angle ) };
 
 		for ( size_t i = 0; i != angle_num_segments - 1; ++i ) {
 
@@ -1654,7 +1654,7 @@ static void tessellate_joint( std::vector<glm::vec2> &  triangles,
 
 			angle += angle_resolution * rotation_direction;
 			n_left  = n_right;
-			n_right = {cosf( angle ), sinf( angle )};
+			n_right = { cosf( angle ), sinf( angle ) };
 		}
 
 		n_right = n1;
@@ -1702,7 +1702,7 @@ static void draw_cap_round( std::vector<glm::vec2> &triangles, glm::vec2 const &
 static void draw_cap_square( std::vector<glm::vec2> &triangles, glm::vec2 const &p1, glm::vec2 const &n, stroke_attribute_t const *sa ) {
 	float offset = sa->width * 0.5f;
 
-	glm::vec2 tangent = {-n.y, n.x};
+	glm::vec2 tangent = { -n.y, n.x };
 
 	triangles.push_back( p1 - tangent * offset - offset * n );
 	triangles.push_back( p1 + offset * n );
@@ -2021,11 +2021,11 @@ bool le_path_tessellate_thick_contour( le_path_o *self, size_t contour_index, le
 			get_path_endpoint_tangents( contour.commands, tangent_tail, tangent_head );
 
 			if ( stroke_attributes->line_cap_type == stroke_attribute_t::LineCapType::eLineCapRound ) {
-				draw_cap_round( triangles, head->p, {-tangent_head.y, tangent_head.x}, stroke_attributes );
-				draw_cap_round( triangles, tail->p, {tangent_tail.y, -tangent_tail.x}, stroke_attributes );
+				draw_cap_round( triangles, head->p, { -tangent_head.y, tangent_head.x }, stroke_attributes );
+				draw_cap_round( triangles, tail->p, { tangent_tail.y, -tangent_tail.x }, stroke_attributes );
 			} else if ( stroke_attributes->line_cap_type == stroke_attribute_t::LineCapType::eLineCapSquare ) {
-				draw_cap_square( triangles, head->p, {tangent_head.y, -tangent_head.x}, stroke_attributes );
-				draw_cap_square( triangles, tail->p, {-tangent_tail.y, tangent_tail.x}, stroke_attributes );
+				draw_cap_square( triangles, head->p, { tangent_head.y, -tangent_head.x }, stroke_attributes );
+				draw_cap_square( triangles, tail->p, { -tangent_tail.y, tangent_tail.x }, stroke_attributes );
 			}
 		}
 	}
@@ -2302,21 +2302,21 @@ static void le_path_line_vert_to( le_path_o *self, float py ) {
 
 static void le_path_quad_bezier_to( le_path_o *self, glm::vec2 const *p, glm::vec2 const *c1 ) {
 	assert( !self->contours.empty() ); //contour must exist
-	self->contours.back().commands.emplace_back( *p, PathCommand::Data::AsQuadBezier{*c1} );
+	self->contours.back().commands.emplace_back( *p, PathCommand::Data::AsQuadBezier{ *c1 } );
 }
 
 // ----------------------------------------------------------------------
 
 static void le_path_cubic_bezier_to( le_path_o *self, glm::vec2 const *p, glm::vec2 const *c1, glm::vec2 const *c2 ) {
 	assert( !self->contours.empty() ); //subpath must exist
-	self->contours.back().commands.emplace_back( *p, PathCommand::Data::AsCubicBezier{*c1, *c2} );
+	self->contours.back().commands.emplace_back( *p, PathCommand::Data::AsCubicBezier{ *c1, *c2 } );
 }
 
 // ----------------------------------------------------------------------
 
 static void le_path_arc_to( le_path_o *self, glm::vec2 const *p, glm::vec2 const *radii, float phi, bool large_arc, bool sweep ) {
 	assert( !self->contours.empty() ); //subpath must exist
-	self->contours.back().commands.emplace_back( *p, PathCommand::Data::AsArc{*radii, phi, large_arc, sweep} );
+	self->contours.back().commands.emplace_back( *p, PathCommand::Data::AsArc{ *radii, phi, large_arc, sweep } );
 }
 
 // ----------------------------------------------------------------------
@@ -2328,18 +2328,18 @@ static void le_path_close_path( le_path_o *self ) {
 // ----------------------------------------------------------------------
 
 static void le_path_ellipse( le_path_o *self, glm::vec2 const *centre, float r_x, float r_y ) {
-	glm::vec2 radii = glm::vec2{r_x, r_y};
+	glm::vec2 radii = glm::vec2{ r_x, r_y };
 
-	glm::vec2 a0 = *centre + glm::vec2{r_x, 0};
+	glm::vec2 a0 = *centre + glm::vec2{ r_x, 0 };
 	le_path_move_to( self, &a0 );
 
-	glm::vec2 a1 = *centre + glm::vec2{0, r_y};
+	glm::vec2 a1 = *centre + glm::vec2{ 0, r_y };
 	le_path_arc_to( self, &a1, &radii, 0, true, false );
 
-	glm::vec2 a2 = *centre + glm::vec2{-r_x, 0};
+	glm::vec2 a2 = *centre + glm::vec2{ -r_x, 0 };
 	le_path_arc_to( self, &a2, &radii, 0, true, false );
 
-	glm::vec2 a3 = *centre + glm::vec2{0, -r_y};
+	glm::vec2 a3 = *centre + glm::vec2{ 0, -r_y };
 	le_path_arc_to( self, &a3, &radii, 0, true, false );
 
 	le_path_arc_to( self, &a0, &radii, 0, true, false );

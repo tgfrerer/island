@@ -53,7 +53,7 @@ static void le_tessellator_destroy( le_tessellator_o *self ) {
 
 static void le_tessellator_add_polyline( le_tessellator_o *self, Point const *const pPoints, size_t const &pointCount ) {
 	// Add new contour
-	self->contours.insert( self->contours.end(), {pPoints, pPoints + pointCount} );
+	self->contours.insert( self->contours.end(), { pPoints, pPoints + pointCount } );
 
 	// append to vertices
 	self->vertices.insert( self->vertices.end(), pPoints, pPoints + pointCount );

@@ -78,7 +78,7 @@ static int add_watch( le_file_watcher_o *instance, le_file_watcher_watch_setting
 // ----------------------------------------------------------------------
 
 static bool remove_watch( le_file_watcher_o *instance, int watch_id ) {
-	auto found_watch = std::find_if( instance->mWatches.begin(), instance->mWatches.end(), [=]( const Watch &w ) -> bool { return w.inotify_watch_handle == watch_id; } );
+	auto found_watch = std::find_if( instance->mWatches.begin(), instance->mWatches.end(), [ = ]( const Watch &w ) -> bool { return w.inotify_watch_handle == watch_id; } );
 	if ( found_watch != instance->mWatches.end() ) {
 		std::cout << "Removing inotify watch handle: " << std::hex << found_watch->inotify_watch_handle << std::endl;
 		inotify_rm_watch( instance->inotify_socket_handle, found_watch->inotify_watch_handle );

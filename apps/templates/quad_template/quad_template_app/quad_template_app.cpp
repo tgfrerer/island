@@ -16,7 +16,7 @@
 #include <sstream>
 
 struct quad_template_app_o {
-	le::Window  window;
+	le::Window   window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
 
@@ -57,7 +57,7 @@ static quad_template_app_o *quad_template_app_create() {
 // ----------------------------------------------------------------------
 
 static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
-	auto rp  = le::RenderPass{pRp};
+	auto rp  = le::RenderPass{ pRp };
 	auto app = static_cast<quad_template_app_o *>( user_data );
 
 	// Attachment resource info may be further specialised using ImageInfoBuilder().
@@ -74,7 +74,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 
 static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
 	auto        app = static_cast<quad_template_app_o *>( user_data );
-	le::Encoder encoder{encoder_};
+	le::Encoder encoder{ encoder_ };
 
 	// Draw main scene
 
@@ -133,7 +133,7 @@ static void quad_template_app_destroy( quad_template_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-LE_MODULE_REGISTER_IMPL( quad_template_app, api ){
+LE_MODULE_REGISTER_IMPL( quad_template_app, api ) {
 
 	auto  quad_template_app_api_i = static_cast<quad_template_app_api *>( api );
 	auto &quad_template_app_i     = quad_template_app_api_i->quad_template_app_i;

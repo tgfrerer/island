@@ -24,7 +24,7 @@ struct le_mouse_event_data_o {
 };
 
 struct geometry_shader_example_app_o {
-	le::Window  window;
+	le::Window   window;
 	le::Renderer renderer;
 
 	LeCameraController cameraController;
@@ -60,10 +60,10 @@ static geometry_shader_example_app_o *geometry_shader_example_app_create() {
 	app->window.setup( settings );
 
 	app->renderer.setup( le::RendererInfoBuilder( app->window )
-							 .withSwapchain()
-							 .setFormatHint( le::Format::eB8G8R8A8Unorm )
-							 .end()
-							 .build() );
+	                         .withSwapchain()
+	                         .setFormatHint( le::Format::eB8G8R8A8Unorm )
+	                         .end()
+	                         .build() );
 
 	// -- Declare graphics pipeline state objects
 
@@ -76,9 +76,9 @@ static geometry_shader_example_app_o *geometry_shader_example_app_create() {
 
 static void reset_camera( geometry_shader_example_app_o *self ) {
 	auto renderpassExtent = self->renderer.getSwapchainExtent();
-	self->camera.setViewport( {0, 0, float( renderpassExtent.width ), float( renderpassExtent.height ), 0.f, 1.f} );
+	self->camera.setViewport( { 0, 0, float( renderpassExtent.width ), float( renderpassExtent.height ), 0.f, 1.f } );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
-	glm::mat4 camMatrix = glm::lookAt( glm::vec3{0, 0, self->camera.getUnitDistance()}, glm::vec3{0}, glm::vec3{0, 1, 0} );
+	glm::mat4 camMatrix = glm::lookAt( glm::vec3{ 0, 0, self->camera.getUnitDistance() }, glm::vec3{ 0 }, glm::vec3{ 0, 1, 0 } );
 	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
 }
 
@@ -87,7 +87,7 @@ static void reset_camera( geometry_shader_example_app_o *self ) {
 typedef bool ( *renderpass_setup )( le_renderpass_o *pRp, void *user_data );
 
 static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
-	auto rp  = le::RenderPass{pRp};
+	auto rp  = le::RenderPass{ pRp };
 	auto app = static_cast<geometry_shader_example_app_o *>( user_data );
 
 	rp
@@ -101,7 +101,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 
 static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
 	auto        app = static_cast<geometry_shader_example_app_o *>( user_data );
-	le::Encoder encoder{encoder_};
+	le::Encoder encoder{ encoder_ };
 
 	struct MatrixStackUbo_t {
 		glm::mat4 model;
@@ -110,7 +110,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	};
 
 	auto extent = encoder.getRenderpassExtent();
-	app->camera.setViewport( {0, 0, float( extent.width ), float( extent.height )} );
+	app->camera.setViewport( { 0, 0, float( extent.width ), float( extent.height ) } );
 
 	// Draw main scene
 	if ( true ) {
@@ -153,30 +153,30 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		mvp.projection = reinterpret_cast<glm::mat4 const &>( *app->camera.getProjectionMatrix() );
 
 		glm::vec3 trianglePositions[] = {
-		    {-50, 50, 0},
-		    {-50, -50, 0},
-		    {50, 50, 0},
-		    {50, -50, 0},
+		    { -50, 50, 0 },
+		    { -50, -50, 0 },
+		    { 50, 50, 0 },
+		    { 50, -50, 0 },
 		};
 
 		constexpr float size_scale                    = 0.25;
 		glm::vec4       geometry_shader_exampleData[] = {
-			{3, 0.0, 0.0, 400 * size_scale}, //< flare point
-			{0, 0.1, 0.1, 200 * size_scale},
-			{0, 0.9, 0.9, 120 * size_scale},
-			{0, 1.0, 1.0, 300 * size_scale},
-			{0, 1.2, 1.2, 120 * size_scale},
-			{0, 1.5, 1.5, 30 * size_scale},
-			{1, 0.3, 0.3, 650 * size_scale},
-			{1, 0.5, 0.5, 300 * size_scale}, ///< screen centre
-			{1, 1.1, 1.1, 1300 * size_scale},
-			{1, 2.5, 2.5, 2300 * size_scale},
-			{2, 1.0, 1.0, 500 * size_scale},
-			{2, 1.0, 1.1, 400 * size_scale},
-			{2, 1.0, 1.2, 400 * size_scale},
-			{2, 1.0, 1.5, 500 * size_scale},
-			{2, 1.0, 2.5, 400 * size_scale},
-		};
+            { 3, 0.0, 0.0, 400 * size_scale }, //< flare point
+            { 0, 0.1, 0.1, 200 * size_scale },
+            { 0, 0.9, 0.9, 120 * size_scale },
+            { 0, 1.0, 1.0, 300 * size_scale },
+            { 0, 1.2, 1.2, 120 * size_scale },
+            { 0, 1.5, 1.5, 30 * size_scale },
+            { 1, 0.3, 0.3, 650 * size_scale },
+            { 1, 0.5, 0.5, 300 * size_scale }, ///< screen centre
+            { 1, 1.1, 1.1, 1300 * size_scale },
+            { 1, 2.5, 2.5, 2300 * size_scale },
+            { 2, 1.0, 1.0, 500 * size_scale },
+            { 2, 1.0, 1.1, 400 * size_scale },
+            { 2, 1.0, 1.2, 400 * size_scale },
+            { 2, 1.0, 1.5, 500 * size_scale },
+            { 2, 1.0, 2.5, 400 * size_scale },
+        };
 
 		struct GeometryShaderExampleParams {
 			// uCanvas:
@@ -188,7 +188,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 			float                                        uHowClose;
 		};
 
-		glm::vec4 sourceInCameraSpace = mvp.view * glm::vec4{0, 0, -1000, 1.f};
+		glm::vec4 sourceInCameraSpace = mvp.view * glm::vec4{ 0, 0, -1000, 1.f };
 		glm::vec4 sourceInClipSpace   = mvp.projection * sourceInCameraSpace;
 		sourceInClipSpace             = sourceInClipSpace / sourceInClipSpace.w; // Normalise
 

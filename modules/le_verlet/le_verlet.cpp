@@ -42,8 +42,8 @@ static void le_verlet_apply_constraints( le_verlet_particle_system_o *self, size
 				// We test against 0 so that there cannot be a division by zero
 				if ( length2AnchorToB > std::numeric_limits<float>::epsilon() ) {
 					AnchorToB /= sqrtf( length2AnchorToB );
-					glm::vec2 unitNormal{c.follow.bCCW ? -AnchorToB.y : +AnchorToB.y,
-					                     c.follow.bCCW ? +AnchorToB.x : -AnchorToB.x};
+					glm::vec2 unitNormal{ c.follow.bCCW ? -AnchorToB.y : +AnchorToB.y,
+					                      c.follow.bCCW ? +AnchorToB.x : -AnchorToB.x };
 					pos[ c.follow.a ] = pos[ c.follow.b ] + c.follow.distance * unitNormal;
 				} else {
 					// Length anchorToB is 0 -> leave unchanged, as we can't calculate unit normal

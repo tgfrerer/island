@@ -128,7 +128,7 @@ static void cbe_set_line_width( le_command_buffer_encoder_o *self, float lineWid
 static void cbe_dispatch( le_command_buffer_encoder_o *self, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ ) {
 
 	auto cmd  = EMPLACE_CMD( le::CommandDispatch ); // placement new!
-	cmd->info = {groupCountX, groupCountY, groupCountZ, 0};
+	cmd->info = { groupCountX, groupCountY, groupCountZ, 0 };
 
 	self->mCommandStreamSize += sizeof( le::CommandDispatch );
 	self->mCommandCount++;
@@ -138,7 +138,7 @@ static void cbe_dispatch( le_command_buffer_encoder_o *self, uint32_t groupCount
 static void cbe_trace_rays( le_command_buffer_encoder_o *self, uint32_t width, uint32_t height, uint32_t depth ) {
 
 	auto cmd  = EMPLACE_CMD( le::CommandTraceRays ); // placement new!
-	cmd->info = {width, height, depth};
+	cmd->info = { width, height, depth };
 
 	self->mCommandStreamSize += sizeof( le::CommandTraceRays );
 	self->mCommandCount++;
@@ -152,7 +152,7 @@ static void cbe_draw( le_command_buffer_encoder_o *self,
                       uint32_t                     firstInstance ) {
 
 	auto cmd  = EMPLACE_CMD( le::CommandDraw ); // placement new!
-	cmd->info = {vertexCount, instanceCount, firstVertex, firstInstance};
+	cmd->info = { vertexCount, instanceCount, firstVertex, firstInstance };
 
 	self->mCommandStreamSize += sizeof( le::CommandDraw );
 	self->mCommandCount++;
@@ -195,7 +195,7 @@ static void cbe_set_viewport( le_command_buffer_encoder_o *self,
 	void * data     = ( cmd + 1 ); // note: this increments a le::CommandSetViewport pointer by one time its object size, then gets the address
 	size_t dataSize = sizeof( le::Viewport ) * viewportCount;
 
-	cmd->info = {firstViewport, viewportCount};
+	cmd->info = { firstViewport, viewportCount };
 	cmd->header.info.size += dataSize; // we must increase the size of this command by its payload size
 
 	if ( /* DISABLES CODE */ ( true ) ) {
@@ -239,7 +239,7 @@ static void cbe_set_scissor( le_command_buffer_encoder_o *self,
 	void * data     = ( cmd + 1 );
 	size_t dataSize = sizeof( le::Rect2D ) * scissorCount;
 
-	cmd->info = {firstScissor, scissorCount};
+	cmd->info = { firstScissor, scissorCount };
 	cmd->header.info.size += dataSize; // we must increase the size of this command by its payload size
 
 	memcpy( data, pScissors, dataSize );
@@ -268,7 +268,7 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self,
 	void *dataBuffers = ( cmd + 1 );
 	void *dataOffsets = ( static_cast<char *>( dataBuffers ) + dataBuffersSize ); // start address for offset data
 
-	cmd->info = {firstBinding, bindingCount, static_cast<le_resource_handle_t *>( dataBuffers ), static_cast<uint64_t *>( dataOffsets )};
+	cmd->info = { firstBinding, bindingCount, static_cast<le_resource_handle_t *>( dataBuffers ), static_cast<uint64_t *>( dataOffsets ) };
 	cmd->header.info.size += dataBuffersSize + dataOffsetsSize; // we must increase the size of this command by its payload size
 
 	memcpy( dataBuffers, pBuffers, dataBuffersSize );
@@ -287,7 +287,7 @@ static void cbe_bind_index_buffer( le_command_buffer_encoder_o *self,
 	auto cmd = EMPLACE_CMD( le::CommandBindIndexBuffer );
 
 	// Note: indexType==0 means uint16, indexType==1 means uint32
-	cmd->info = {buffer, offset, indexType, 0};
+	cmd->info = { buffer, offset, indexType, 0 };
 
 	self->mCommandStreamSize += cmd->header.info.size;
 	self->mCommandCount++;
@@ -893,15 +893,15 @@ void sbt_set_ray_gen( le_shader_binding_table_o *sbt, uint32_t shader_group_idx 
 	sbt->last_shader_record = &sbt->ray_gen;
 }
 void sbt_add_hit( le_shader_binding_table_o *sbt, uint32_t shader_group_idx ) {
-	sbt->hit.push_back( {shader_group_idx, {}} );
+	sbt->hit.push_back( { shader_group_idx, {} } );
 	sbt->last_shader_record = &sbt->hit.back();
 }
 void sbt_add_callable( le_shader_binding_table_o *sbt, uint32_t shader_group_idx ) {
-	sbt->callable.push_back( {shader_group_idx, {}} );
+	sbt->callable.push_back( { shader_group_idx, {} } );
 	sbt->last_shader_record = &sbt->callable.back();
 }
 void sbt_add_miss( le_shader_binding_table_o *sbt, uint32_t shader_group_idx ) {
-	sbt->miss.push_back( {shader_group_idx, {}} );
+	sbt->miss.push_back( { shader_group_idx, {} } );
 	sbt->last_shader_record = &sbt->miss.back();
 }
 void sbt_add_u32_param( le_shader_binding_table_o *sbt, uint32_t param ) {

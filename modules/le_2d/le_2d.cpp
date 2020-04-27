@@ -32,7 +32,7 @@ struct le_2d_o {
 struct node_data_t {
 	vec2f origin;           //x,y
 	float ccw_rotation = 0; // rotation in ccw around z axis, anchored at position
-	float scale{1};
+	float scale{ 1 };
 };
 
 struct material_data_t {
@@ -133,19 +133,19 @@ static void generate_geometry_line( std::vector<VertexData2D> &geometry, glm::ve
 	auto p_norm = glm::normalize( p_vec );
 
 	// Line offset: rotate p_norm 90 deg ccw
-	glm::vec2 off = {-p_norm.y, p_norm.x};
+	glm::vec2 off = { -p_norm.y, p_norm.x };
 
 	// Line thickness will be twice offset, therefore we scale offset by half line thickness
 
 	off *= 0.5f * thickness; // scale line by thickness
 
-	geometry.push_back( {p0 + off, {0.f, 0.f}, colour} );
-	geometry.push_back( {p0 - off, {0.f, 1.f}, colour} );
-	geometry.push_back( {p1 + off, {1.f, 0.f}, colour} );
+	geometry.push_back( { p0 + off, { 0.f, 0.f }, colour } );
+	geometry.push_back( { p0 - off, { 0.f, 1.f }, colour } );
+	geometry.push_back( { p1 + off, { 1.f, 0.f }, colour } );
 
-	geometry.push_back( {p0 - off, {0.f, 1.f}, colour} );
-	geometry.push_back( {p1 - off, {1.f, 1.f}, colour} );
-	geometry.push_back( {p1 + off, {1.f, 0.f}, colour} );
+	geometry.push_back( { p0 - off, { 0.f, 1.f }, colour } );
+	geometry.push_back( { p1 - off, { 1.f, 1.f }, colour } );
+	geometry.push_back( { p1 + off, { 1.f, 0.f }, colour } );
 }
 
 // ----------------------------------------------------------------------
@@ -159,11 +159,11 @@ static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, 
 	// ---------| invariant: angle difference is not too close to zero
 
 	float     t = angle_start_rad;
-	glm::vec2 n{cosf( t ), sinf( t )};
+	glm::vec2 n{ cosf( t ), sinf( t ) };
 
 	float const offset = thickness * 0.5f;
 
-	glm::vec2 p1_perp = glm::normalize( glm::vec2{radii.y, radii.x} * -n );
+	glm::vec2 p1_perp = glm::normalize( glm::vec2{ radii.y, radii.x } * -n );
 
 	glm::vec2 p0_far  = n * radii + p1_perp * offset;
 	glm::vec2 p0_near = n * radii - p1_perp * offset;
@@ -175,11 +175,11 @@ static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, 
 		// correct curvature for the ellipse offset segment on the outide.
 		//
 
-		float r_length = glm::dot( glm::vec2{fabsf( n.x ), fabsf( n.y )}, radii + glm::abs( p1_perp * offset ) );
+		float r_length = glm::dot( glm::vec2{ fabsf( n.x ), fabsf( n.y ) }, radii + glm::abs( p1_perp * offset ) );
 
 		float angle_offset = acosf( 1.f - ( tolerance / r_length ) );
 		t                  = std::min( t + angle_offset, angle_end_rad );
-		n                  = {cosf( t ), sinf( t )};
+		n                  = { cosf( t ), sinf( t ) };
 
 		// p1_perp is a normalized vector which is perpendicular to the tangent
 		// of the ellipse at point p1.
@@ -197,18 +197,18 @@ static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, 
 		// in direction p1_perp. So that p1_perp has unit length, we must normalize it.
 		//
 
-		p1_perp = glm::normalize( glm::vec2{radii.y, radii.x} * -n );
+		p1_perp = glm::normalize( glm::vec2{ radii.y, radii.x } * -n );
 
 		glm::vec2 p1_far  = n * radii + p1_perp * offset;
 		glm::vec2 p1_near = n * radii - p1_perp * offset;
 
-		geometry.push_back( {p0_far, {0.f, 0.f}, colour} );
-		geometry.push_back( {p0_near, {0.f, 1.f}, colour} );
-		geometry.push_back( {p1_far, {1.f, 0.f}, colour} );
+		geometry.push_back( { p0_far, { 0.f, 0.f }, colour } );
+		geometry.push_back( { p0_near, { 0.f, 1.f }, colour } );
+		geometry.push_back( { p1_far, { 1.f, 0.f }, colour } );
 
-		geometry.push_back( {p0_near, {0.f, 1.f}, colour} );
-		geometry.push_back( {p1_near, {1.f, 1.f}, colour} );
-		geometry.push_back( {p1_far, {1.f, 0.f}, colour} );
+		geometry.push_back( { p0_near, { 0.f, 1.f }, colour } );
+		geometry.push_back( { p1_near, { 1.f, 1.f }, colour } );
+		geometry.push_back( { p1_far, { 1.f, 0.f }, colour } );
 
 		std::swap( p0_far, p1_far );
 		std::swap( p0_near, p1_near );
@@ -226,16 +226,16 @@ static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, floa
 	// --------| invariant: It should be possible to generate circle geometry.
 
 	VertexData2D v_c{};
-	v_c.pos      = {0.f, 0.f};
-	v_c.texCoord = {0.5, 0.5};
+	v_c.pos      = { 0.f, 0.f };
+	v_c.texCoord = { 0.5, 0.5 };
 	v_c.color    = color;
 
 	float     arc_angle = angle_start_rad;
-	glm::vec2 n{cosf( arc_angle ), sinf( arc_angle )};
+	glm::vec2 n{ cosf( arc_angle ), sinf( arc_angle ) };
 
 	VertexData2D v{};
 	v.pos      = radii * n;
-	v.texCoord = glm::vec2{0.5, 0.5} + 0.5f * n;
+	v.texCoord = glm::vec2{ 0.5, 0.5 } + 0.5f * n;
 	v.color    = color;
 
 	for ( int i = 0; i != 1000; ++i ) {
@@ -246,14 +246,14 @@ static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, floa
 		/* The maths for this are based on the intuition that an ellipse is 
 		 * a scaled circle.
 		 */
-		float r_length = glm::dot( glm::vec2{fabsf( n.x ), fabsf( n.y )}, radii );
+		float r_length = glm::dot( glm::vec2{ fabsf( n.x ), fabsf( n.y ) }, radii );
 
 		float angle_offset = acosf( 1.f - ( tolerance / r_length ) );
 		arc_angle          = std::min( arc_angle + angle_offset, angle_end_rad );
-		n                  = {cosf( arc_angle ), sinf( arc_angle )};
+		n                  = { cosf( arc_angle ), sinf( arc_angle ) };
 
 		v.pos      = radii * n;
-		v.texCoord = glm::vec2{0.5, 0.5} + 0.5f * n;
+		v.texCoord = glm::vec2{ 0.5, 0.5 } + 0.5f * n;
 
 		geometry.push_back( v ); // current vertex
 
@@ -405,9 +405,9 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 			// TODO: what do we want to set for tex coordinate?
 
 			for ( size_t i = 0; i + 2 < num_indices; ) {
-				geometry.push_back( {vertices[ indices[ i++ ] ], {1, 0}, color} );
-				geometry.push_back( {vertices[ indices[ i++ ] ], {0, 1}, color} );
-				geometry.push_back( {vertices[ indices[ i++ ] ], {1, 1}, color} );
+				geometry.push_back( { vertices[ indices[ i++ ] ], { 1, 0 }, color } );
+				geometry.push_back( { vertices[ indices[ i++ ] ], { 0, 1 }, color } );
+				geometry.push_back( { vertices[ indices[ i++ ] ], { 1, 1 }, color } );
 			}
 
 			le_tessellator_i.destroy( tess );
@@ -447,9 +447,9 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 					if ( r != r_end ) {
 
-						geometry.push_back( {*l_prev, {1, 0}, color} );
-						geometry.push_back( {*r_prev, {0, 1}, color} );
-						geometry.push_back( {*r, {1, 1}, color} );
+						geometry.push_back( { *l_prev, { 1, 0 }, color } );
+						geometry.push_back( { *r_prev, { 0, 1 }, color } );
+						geometry.push_back( { *r, { 1, 1 }, color } );
 
 						r_prev = r;
 						r++;
@@ -457,9 +457,9 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 					if ( l != l_end ) {
 
-						geometry.push_back( {*l_prev, {1, 0}, color} );
-						geometry.push_back( {*r_prev, {0, 1}, color} );
-						geometry.push_back( {*l, {1, 1}, color} );
+						geometry.push_back( { *l_prev, { 1, 0 }, color } );
+						geometry.push_back( { *r_prev, { 0, 1 }, color } );
+						geometry.push_back( { *l, { 1, 1 }, color } );
 
 						l_prev = l;
 						l++;
@@ -497,9 +497,9 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 				assert( num_vertices % 3 == 0 ); // vertices count must be divisible by 3
 
 				for ( ; ( v != v_end ); ) {
-					geometry.push_back( {*v++, {1, 0}, color} );
-					geometry.push_back( {*v++, {0, 1}, color} );
-					geometry.push_back( {*v++, {1, 1}, color} );
+					geometry.push_back( { *v++, { 1, 0 }, color } );
+					geometry.push_back( { *v++, { 0, 1 }, color } );
+					geometry.push_back( { *v++, { 1, 1 }, color } );
 				}
 			}
 		} break;
@@ -542,9 +542,9 @@ static void generate_geometry_path( std::vector<VertexData2D> &geometry, le_path
 	// TODO: what do we want to set for tex coordinate?
 
 	for ( size_t i = 0; i + 2 < num_indices; ) {
-		geometry.push_back( {vertices[ indices[ i++ ] ], {0, 0}, color} );
-		geometry.push_back( {vertices[ indices[ i++ ] ], {0, 0}, color} );
-		geometry.push_back( {vertices[ indices[ i++ ] ], {0, 0}, color} );
+		geometry.push_back( { vertices[ indices[ i++ ] ], { 0, 0 }, color } );
+		geometry.push_back( { vertices[ indices[ i++ ] ], { 0, 0 }, color } );
+		geometry.push_back( { vertices[ indices[ i++ ] ], { 0, 0 }, color } );
 	}
 
 	le_tessellator_i.destroy( tess );
@@ -567,9 +567,9 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 		auto const &circle = p->data.as_circle;
 
 		if ( p->material.filled ) {
-			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), {circle.radius, circle.radius}, circle.tolerance, p->material.color );
+			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), { circle.radius, circle.radius }, circle.tolerance, p->material.color );
 		} else {
-			generate_geometry_outline_arc( geometry, 0, glm::two_pi<float>(), {circle.radius, circle.radius}, p->material.stroke_weight, circle.tolerance, p->material.color );
+			generate_geometry_outline_arc( geometry, 0, glm::two_pi<float>(), { circle.radius, circle.radius }, p->material.stroke_weight, circle.tolerance, p->material.color );
 		}
 
 	} break;
@@ -615,13 +615,13 @@ static void le_2d_draw_primitive( le_command_buffer_encoder_o *encoder_, le_2d_p
 
 	// --------| Invariant: there is geometry to draw
 
-	le::Encoder encoder{encoder_};
+	le::Encoder encoder{ encoder_ };
 
 	// We must apply the primitive node's transform.
 
-	glm::mat4 local_transform{1}; // identity matrix
+	glm::mat4 local_transform{ 1 }; // identity matrix
 
-	local_transform = glm::translate( local_transform, {p->node.origin.x, p->node.origin.y, 0.f} );
+	local_transform = glm::translate( local_transform, { p->node.origin.x, p->node.origin.y, 0.f } );
 	local_transform = v_p_matrix * local_transform;
 
 	encoder
@@ -640,11 +640,11 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 	 * are issued.
 	 */
 
-	le::Encoder encoder{self->encoder};
+	le::Encoder encoder{ self->encoder };
 	auto *      pm = encoder.getPipelineManager();
 
-	static le_shader_module_o *vert = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/2d_primitives.vert", {le::ShaderStage::eVertex}, "" );
-	static le_shader_module_o *frag = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/2d_primitives.frag", {le::ShaderStage::eFragment}, "" );
+	static le_shader_module_o *vert = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/2d_primitives.vert", { le::ShaderStage::eVertex }, "" );
+	static le_shader_module_o *frag = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/2d_primitives.frag", { le::ShaderStage::eFragment }, "" );
 
 	// clang-format off
 	static auto pipeline =
@@ -689,8 +689,8 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 		// set a negative height for viewport so that +Y goes up, rather than down.
 
 		le::Viewport viewports[ 2 ] = {
-		    {0.f, float( extents.height ), float( extents.width ), -float( extents.height ), 0.f, 1.f},
-		    {0.f, 0, float( extents.width ), float( extents.height ), 0.f, 1.f},
+		    { 0.f, float( extents.height ), float( extents.width ), -float( extents.height ), 0.f, 1.f },
+		    { 0.f, 0, float( extents.width ), float( extents.height ), 0.f, 1.f },
 		};
 
 		encoder.setViewports( 0, 1, viewports + 1 );
@@ -772,7 +772,7 @@ static le_2d_primitive_o *le_2d_primitive_create_ellipse( le_2d_o *context ) {
 
 	auto &obj = p->data.as_ellipse;
 
-	obj.radii     = {0.f, 0.f};
+	obj.radii     = { 0.f, 0.f };
 	obj.tolerance = 0.5;
 
 	return p;
@@ -787,7 +787,7 @@ static le_2d_primitive_o *le_2d_primitive_create_arc( le_2d_o *context ) {
 
 	auto &obj = p->data.as_arc;
 
-	obj.radii           = {0.f, 0.f};
+	obj.radii           = { 0.f, 0.f };
 	obj.tolerance       = 0.5;
 	obj.angle_start_rad = 0;
 	obj.angle_end_rad   = glm::two_pi<float>();

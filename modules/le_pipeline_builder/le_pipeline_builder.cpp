@@ -412,16 +412,16 @@ void le_graphics_pipeline_builder_attribute_set_is_normalized( le_graphics_pipel
 
 static void le_graphics_pipeline_builder_set_vertex_input_attribute_descriptions( le_graphics_pipeline_builder_o *self, le_vertex_input_attribute_description *p_input_attribute_descriptions, size_t count ) {
 	self->obj->explicitVertexAttributeDescriptions =
-	    {p_input_attribute_descriptions,
-	     p_input_attribute_descriptions + count};
+	    { p_input_attribute_descriptions,
+	      p_input_attribute_descriptions + count };
 }
 
 // ----------------------------------------------------------------------
 
 static void le_graphics_pipeline_builder_set_vertex_input_binding_descriptions( le_graphics_pipeline_builder_o *self, le_vertex_input_binding_description *p_input_binding_descriptions, size_t count ) {
 	self->obj->explicitVertexInputBindingDescriptions =
-	    {p_input_binding_descriptions,
-	     p_input_binding_descriptions + count};
+	    { p_input_binding_descriptions,
+	      p_input_binding_descriptions + count };
 }
 
 // ----------------------------------------------------------------------

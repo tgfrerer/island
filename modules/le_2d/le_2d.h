@@ -192,7 +192,7 @@ class Le2D : NoCopy, NoMove {
 		}
 	};
 
-	CircleBuilder mCircleBuilder{*this};
+	CircleBuilder mCircleBuilder{ *this };
 
 	CircleBuilder &circle() {
 		return mCircleBuilder.create();
@@ -248,7 +248,7 @@ class Le2D : NoCopy, NoMove {
 		}
 	};
 
-	EllipseBuilder mEllipseBuilder{*this};
+	EllipseBuilder mEllipseBuilder{ *this };
 
 	EllipseBuilder &ellipse() {
 		return mEllipseBuilder.create();
@@ -306,7 +306,7 @@ class Le2D : NoCopy, NoMove {
 		}
 	};
 
-	ArcBuilder mArcBuilder{*this};
+	ArcBuilder mArcBuilder{ *this };
 
 	ArcBuilder &arc() {
 		return mArcBuilder.create();
@@ -357,7 +357,7 @@ class Le2D : NoCopy, NoMove {
 		}
 	};
 
-	LineBuilder mLineBuilder{*this};
+	LineBuilder mLineBuilder{ *this };
 
 	LineBuilder &line() {
 		return mLineBuilder.create();
@@ -469,7 +469,7 @@ class Le2D : NoCopy, NoMove {
 		}
 	};
 
-	PathBuilder mPathBuilder{*this};
+	PathBuilder mPathBuilder{ *this };
 
 	PathBuilder &path() {
 		return mPathBuilder.create();

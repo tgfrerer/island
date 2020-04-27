@@ -82,7 +82,7 @@ static void le_imgui_end_frame( le_imgui_o *self ) {
 ///
 static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *p_render_module, float display_width, float display_height ) {
 
-	auto module = le::RenderModule{p_render_module};
+	auto module = le::RenderModule{ p_render_module };
 
 	if ( self->areResourcesInitialised ) {
 
@@ -92,7 +92,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *
 
 		auto fontImgInfo = le::ImageInfoBuilder()
 		                       .setExtent( uint32_t( self->imguiTexture.width ), uint32_t( self->imguiTexture.height ) )
-		                       .setUsageFlags( {LE_IMAGE_USAGE_TRANSFER_DST_BIT} )
+		                       .setUsageFlags( { LE_IMAGE_USAGE_TRANSFER_DST_BIT } )
 		                       .setFormat( le::Format::eR8G8B8A8Unorm )
 		                       .build(); // create resource for imgui font texture if it does not yet exist.
 
@@ -117,7 +117,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *
 	// Declare font image resource
 	auto fontImgInfo = le::ImageInfoBuilder()
 	                       .setExtent( uint32_t( self->imguiTexture.width ), uint32_t( self->imguiTexture.height ) )
-	                       .setUsageFlags( {LE_IMAGE_USAGE_TRANSFER_DST_BIT} )
+	                       .setUsageFlags( { LE_IMAGE_USAGE_TRANSFER_DST_BIT } )
 	                       .setFormat( le::Format::eR8G8B8A8Unorm )
 	                       .build(); // create resource for imgui font texture if it does not yet exist.
 
@@ -125,17 +125,17 @@ static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *
 
 	// Upload resources
 
-	le::RenderPass pass{"imguiSetup", LE_RENDER_PASS_TYPE_TRANSFER};
+	le::RenderPass pass{ "imguiSetup", LE_RENDER_PASS_TYPE_TRANSFER };
 
 	pass
-	    .useImageResource( IMGUI_IMG_HANDLE, {LE_IMAGE_USAGE_TRANSFER_DST_BIT} )
+	    .useImageResource( IMGUI_IMG_HANDLE, { LE_IMAGE_USAGE_TRANSFER_DST_BIT } )
 	    .setExecuteCallback( self, []( le_command_buffer_encoder_o *p_encoder, void *user_data ) {
 		    auto imgui = static_cast<le_imgui_o *>( user_data );
 
 		    // Tell encoder to upload imgui image - but only once
 		    if ( false == imgui->imguiTexture.wasUploaded ) {
 
-			    le::Encoder encoder{p_encoder};
+			    le::Encoder encoder{ p_encoder };
 			    size_t      numBytes = size_t( imgui->imguiTexture.width ) * size_t( imgui->imguiTexture.height ) * 4;
 
 			    auto writeInfo = le::WriteToImageSettingsBuilder()
@@ -190,15 +190,15 @@ static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *
 
 static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 
-	auto rp = le::RenderPass{p_rp};
+	auto rp = le::RenderPass{ p_rp };
 
 	// TODO: We must implement a safeguard in renderpass which checks
 	// resources, and makes sure that each resource is declared consistently.
 	//
-	rp.sampleTexture( self->texture_font, {{le::Filter::eLinear, le::Filter::eLinear}, {IMGUI_IMG_HANDLE, {}}} );
+	rp.sampleTexture( self->texture_font, { { le::Filter::eLinear, le::Filter::eLinear }, { IMGUI_IMG_HANDLE, {} } } );
 
 	rp.setExecuteCallback( self, []( le_command_buffer_encoder_o *p_encoder, void *user_data ) {
-		auto encoder = le::Encoder{p_encoder};
+		auto encoder = le::Encoder{ p_encoder };
 		auto imgui   = static_cast<le_imgui_o *>( user_data );
 
 		// Fetch pipeline Manager so that we can create pipeline,
@@ -211,8 +211,8 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 
 		// TODO: we should not have to call into backend this way - there must be a way for encoder to
 		// be self-sufficient, i.e. not depend on renderer in any way.
-		static auto imguiVertShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.vert", {le::ShaderStage::eVertex}, nullptr );
-		static auto imguiFragShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.frag", {le::ShaderStage::eFragment}, nullptr );
+		static auto imguiVertShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.vert", { le::ShaderStage::eVertex }, nullptr );
+		static auto imguiFragShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.frag", { le::ShaderStage::eFragment }, nullptr );
 
 		// Attribute input via imGUI:
 		//
@@ -241,14 +241,14 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 		// We patch display size as late as possible - here is the best place, since we know extents
 		// of the renderpass into which the gui will be drawn.
 		ImGuiIO &io    = ImGui::GetIO();
-		io.DisplaySize = {float( extents.width ), float( extents.height )};
+		io.DisplaySize = { float( extents.width ), float( extents.height ) };
 
 		ImDrawData *drawData = ImGui::GetDrawData();
 		if ( drawData ) {
 			// draw imgui
 
 			le::Viewport viewports[ 1 ] = {
-			    {0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f},
+			    { 0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f },
 			};
 
 			auto ortho_projection = glm::ortho( 0.f, float( extents.width ), 0.f, float( extents.height ) );
@@ -359,7 +359,7 @@ void le_imgui_process_events( le_imgui_o *self, LeUiEvent const *events, size_t 
 		} break;
 		case LeUiEvent::Type::eCursorPosition: {
 			auto &e                      = event->cursorPosition;
-			self->mouse_state.cursor_pos = {float( e.x ), float( e.y )};
+			self->mouse_state.cursor_pos = { float( e.x ), float( e.y ) };
 		} break;
 		case LeUiEvent::Type::eCursorEnter: {
 			auto &e = event->cursorEnter;
@@ -384,7 +384,7 @@ void le_imgui_process_events( le_imgui_o *self, LeUiEvent const *events, size_t 
 		// If a mouse press event came, always pass it as "mouse held this frame", so we don't miss click-release events that are shorter than 1 frame.
 		io.MouseDown[ i ] = self->mouse_state.buttonState[ i ];
 	}
-	io.MousePos = {self->mouse_state.cursor_pos.x, self->mouse_state.cursor_pos.y};
+	io.MousePos = { self->mouse_state.cursor_pos.x, self->mouse_state.cursor_pos.y };
 }
 
 // ----------------------------------------------------------------------

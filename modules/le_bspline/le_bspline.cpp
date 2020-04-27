@@ -50,17 +50,17 @@ static void le_bspline_set_closed( le_bspline_o *self, bool closed ) {
 }
 // ----------------------------------------------------------------------
 static void le_bspline_set_points( le_bspline_o *self, Vertex const *points, size_t const num_points ) {
-	self->points = {points, points + num_points};
+	self->points = { points, points + num_points };
 }
 
 // ----------------------------------------------------------------------
 static void le_bspline_set_knots( le_bspline_o *self, float const *knots, size_t const num_knots ) {
-	self->knots = {knots, knots + num_knots};
+	self->knots = { knots, knots + num_knots };
 }
 
 // ----------------------------------------------------------------------
 static void le_bspline_set_weights( le_bspline_o *self, float const *weights, size_t const num_weights ) {
-	self->weight = {weights, weights + num_weights};
+	self->weight = { weights, weights + num_weights };
 }
 
 // ----------------------------------------------------------------------
@@ -113,7 +113,7 @@ static bool le_bspline_trace( le_bspline_o *self, size_t resolution ) {
 	}
 	// ---------| invariant: number of knots is number of points + degree + 1
 
-	size_t domain[ 2 ] = {self->degree, self->knots.size() - ( self->degree + 1 )};
+	size_t domain[ 2 ] = { self->degree, self->knots.size() - ( self->degree + 1 ) };
 	float  low         = self->knots[ domain[ 0 ] ];
 	float  high        = self->knots[ domain[ 1 ] - 1 ];
 

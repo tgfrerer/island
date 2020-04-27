@@ -941,8 +941,8 @@ struct LeClearValue {
 
 struct le_image_attachment_info_t {
 
-	static constexpr LeClearValue DefaultClearValueColor        = {{{{{0.f, 0.f, 0.f, 0.f}}}}};
-	static constexpr LeClearValue DefaultClearValueDepthStencil = {{{{{1.f, 0}}}}};
+	static constexpr LeClearValue DefaultClearValueColor        = { { { { { 0.f, 0.f, 0.f, 0.f } } } } };
+	static constexpr LeClearValue DefaultClearValueDepthStencil = { { { { { 1.f, 0 } } } } };
 
 	le::AttachmentLoadOp  loadOp  = le::AttachmentLoadOp::eClear;  //
 	le::AttachmentStoreOp storeOp = le::AttachmentStoreOp::eStore; //
@@ -988,9 +988,9 @@ struct le_image_sampler_info_t {
 	struct le_image_view_info_t {
 		le_resource_handle_t imageId{}; // le image resource id
 		le::Format           format{};  // leave at 0 (undefined) to use format of image referenced by `imageId`
-		le::ImageViewType    image_view_type{le::ImageType::e2D};
-		uint32_t             base_array_layer{0};
-		uint32_t             layer_count{1};
+		le::ImageViewType    image_view_type{ le::ImageType::e2D };
+		uint32_t             base_array_layer{ 0 };
+		uint32_t             layer_count{ 1 };
 	};
 	le_sampler_info_t    sampler{};
 	le_image_view_info_t imageView{};
@@ -1150,9 +1150,9 @@ class RendererInfoBuilder {
 			}
 		};
 
-		DirectSwapchainInfoBuilder mDirectSwapchainInfoBuilder{*this}; // order matters, last one will be default, because initialisation overwrites.
-		ImgSwapchainInfoBuilder    mImgSwapchainInfoBuilder{*this};    // order matters, last one will be default, because initialisation overwrites.
-		KhrSwapchainInfoBuilder    mKhrSwapchainInfoBuilder{*this};    // order matters, last one will be default, because initialisation overwrites.
+		DirectSwapchainInfoBuilder mDirectSwapchainInfoBuilder{ *this }; // order matters, last one will be default, because initialisation overwrites.
+		ImgSwapchainInfoBuilder    mImgSwapchainInfoBuilder{ *this };    // order matters, last one will be default, because initialisation overwrites.
+		KhrSwapchainInfoBuilder    mKhrSwapchainInfoBuilder{ *this };    // order matters, last one will be default, because initialisation overwrites.
 
 		KhrSwapchainInfoBuilder &withKhrSwapchain() {
 			return mKhrSwapchainInfoBuilder;
@@ -1171,7 +1171,7 @@ class RendererInfoBuilder {
 		}
 	};
 
-	SwapchainInfoBuilder mSwapchainInfoBuilder{*this};
+	SwapchainInfoBuilder mSwapchainInfoBuilder{ *this };
 
 	SwapchainInfoBuilder &withSwapchain() {
 		return mSwapchainInfoBuilder;
@@ -1249,8 +1249,8 @@ class ImageSamplerInfoBuilder {
 		}
 	};
 
-	SamplerInfoBuilder   mSamplerInfoBuilder{*this};
-	ImageViewInfoBuilder mImageViewInfoBuilder{*this};
+	SamplerInfoBuilder   mSamplerInfoBuilder{ *this };
+	ImageViewInfoBuilder mImageViewInfoBuilder{ *this };
 
   public:
 	ImageSamplerInfoBuilder()  = default;
@@ -1554,7 +1554,7 @@ struct CommandHeader {
 };
 
 struct CommandDrawIndexed {
-	CommandHeader header = {{{CommandType::eDrawIndexed, sizeof( CommandDrawIndexed )}}};
+	CommandHeader header = { { { CommandType::eDrawIndexed, sizeof( CommandDrawIndexed ) } } };
 	struct {
 		uint32_t indexCount;
 		uint32_t instanceCount;
@@ -1566,7 +1566,7 @@ struct CommandDrawIndexed {
 };
 
 struct CommandDraw {
-	CommandHeader header = {{{CommandType::eDraw, sizeof( CommandDraw )}}};
+	CommandHeader header = { { { CommandType::eDraw, sizeof( CommandDraw ) } } };
 	struct {
 		uint32_t vertexCount;
 		uint32_t instanceCount;
@@ -1576,7 +1576,7 @@ struct CommandDraw {
 };
 
 struct CommandDispatch {
-	CommandHeader header = {{{CommandType::eDispatch, sizeof( CommandDispatch )}}};
+	CommandHeader header = { { { CommandType::eDispatch, sizeof( CommandDispatch ) } } };
 	struct {
 		uint32_t groupCountX;
 		uint32_t groupCountY;
@@ -1586,7 +1586,7 @@ struct CommandDispatch {
 };
 
 struct CommandTraceRays {
-	CommandHeader header = {{{CommandType::eTraceRays, sizeof( CommandTraceRays )}}};
+	CommandHeader header = { { { CommandType::eTraceRays, sizeof( CommandTraceRays ) } } };
 	struct {
 		uint32_t width;
 		uint32_t height;
@@ -1596,7 +1596,7 @@ struct CommandTraceRays {
 };
 
 struct CommandSetViewport {
-	CommandHeader header = {{{CommandType::eSetViewport, sizeof( CommandSetViewport )}}};
+	CommandHeader header = { { { CommandType::eSetViewport, sizeof( CommandSetViewport ) } } };
 	struct {
 		uint32_t firstViewport;
 		uint32_t viewportCount;
@@ -1604,7 +1604,7 @@ struct CommandSetViewport {
 };
 
 struct CommandBuildRtxTlas {
-	CommandHeader header = {{{CommandType::eBuildRtxTlas, sizeof( CommandBuildRtxTlas )}}};
+	CommandHeader header = { { { CommandType::eBuildRtxTlas, sizeof( CommandBuildRtxTlas ) } } };
 	struct {
 		le_resource_handle_t tlas_handle;
 		uint32_t             geometry_instances_count;     // number of geometry instances for this tlas
@@ -1615,7 +1615,7 @@ struct CommandBuildRtxTlas {
 };
 
 struct CommandBuildRtxBlas {
-	CommandHeader header = {{{CommandType::eBuildRtxBlas, sizeof( CommandBuildRtxBlas )}}};
+	CommandHeader header = { { { CommandType::eBuildRtxBlas, sizeof( CommandBuildRtxBlas ) } } };
 	struct {
 		uint32_t blas_handles_count;
 		uint32_t padding__;
@@ -1623,7 +1623,7 @@ struct CommandBuildRtxBlas {
 };
 
 struct CommandSetScissor {
-	CommandHeader header = {{{CommandType::eSetScissor, sizeof( CommandSetScissor )}}};
+	CommandHeader header = { { { CommandType::eSetScissor, sizeof( CommandSetScissor ) } } };
 	struct {
 		uint32_t firstScissor;
 		uint32_t scissorCount;
@@ -1631,16 +1631,16 @@ struct CommandSetScissor {
 };
 
 struct CommandSetArgumentTexture {
-	CommandHeader header = {{{CommandType::eSetArgumentTexture, sizeof( CommandSetArgumentTexture )}}};
+	CommandHeader header = { { { CommandType::eSetArgumentTexture, sizeof( CommandSetArgumentTexture ) } } };
 	struct {
-		uint64_t                argument_name_id; // const_char_hash id of argument name
+		uint64_t          argument_name_id; // const_char_hash id of argument name
 		le_texture_handle texture_id;       // texture id, hash of texture name
-		uint64_t                array_index;      // argument array index (default is 0)
+		uint64_t          array_index;      // argument array index (default is 0)
 	} info;
 };
 
 struct CommandSetArgumentImage {
-	CommandHeader header = {{{CommandType::eSetArgumentImage, sizeof( CommandSetArgumentImage )}}};
+	CommandHeader header = { { { CommandType::eSetArgumentImage, sizeof( CommandSetArgumentImage ) } } };
 	struct {
 		uint64_t             argument_name_id; // const_char_hash id of argument name
 		le_resource_handle_t image_id;         // image resource id,
@@ -1649,7 +1649,7 @@ struct CommandSetArgumentImage {
 };
 
 struct CommandSetArgumentTlas {
-	CommandHeader header = {{{CommandType::eSetArgumentTlas, sizeof( CommandSetArgumentTlas )}}};
+	CommandHeader header = { { { CommandType::eSetArgumentTlas, sizeof( CommandSetArgumentTlas ) } } };
 	struct {
 		uint64_t             argument_name_id; // const_char_hash id of argument name
 		le_resource_handle_t tlas_id;          // top level acceleration structure resource id,
@@ -1659,7 +1659,7 @@ struct CommandSetArgumentTlas {
 
 // -- bind a buffer to a ssbo shader argument
 struct CommandBindArgumentBuffer {
-	CommandHeader header = {{{CommandType::eBindArgumentBuffer, sizeof( CommandBindArgumentBuffer )}}};
+	CommandHeader header = { { { CommandType::eBindArgumentBuffer, sizeof( CommandBindArgumentBuffer ) } } };
 	struct {
 		uint64_t             argument_name_id; // const_char_hash id of argument name
 		le_resource_handle_t buffer_id;        // id of buffer that holds data
@@ -1669,7 +1669,7 @@ struct CommandBindArgumentBuffer {
 };
 
 struct CommandSetLineWidth {
-	CommandHeader header = {{{CommandType::eSetLineWidth, sizeof( CommandSetLineWidth )}}};
+	CommandHeader header = { { { CommandType::eSetLineWidth, sizeof( CommandSetLineWidth ) } } };
 	struct {
 		float    width;
 		uint32_t reserved; // padding
@@ -1677,7 +1677,7 @@ struct CommandSetLineWidth {
 };
 
 struct CommandBindVertexBuffers {
-	CommandHeader header = {{{CommandType::eBindVertexBuffers, sizeof( CommandBindVertexBuffers )}}};
+	CommandHeader header = { { { CommandType::eBindVertexBuffers, sizeof( CommandBindVertexBuffers ) } } };
 	struct {
 		uint32_t              firstBinding;
 		uint32_t              bindingCount;
@@ -1687,7 +1687,7 @@ struct CommandBindVertexBuffers {
 };
 
 struct CommandBindIndexBuffer {
-	CommandHeader header = {{{CommandType::eBindIndexBuffer, sizeof( CommandBindIndexBuffer )}}};
+	CommandHeader header = { { { CommandType::eBindIndexBuffer, sizeof( CommandBindIndexBuffer ) } } };
 	struct {
 		le_resource_handle_t buffer; // buffer id
 		uint64_t             offset;
@@ -1697,21 +1697,21 @@ struct CommandBindIndexBuffer {
 };
 
 struct CommandBindGraphicsPipeline {
-	CommandHeader header = {{{CommandType::eBindGraphicsPipeline, sizeof( CommandBindGraphicsPipeline )}}};
+	CommandHeader header = { { { CommandType::eBindGraphicsPipeline, sizeof( CommandBindGraphicsPipeline ) } } };
 	struct {
 		le_gpso_handle gpsoHandle;
 	} info;
 };
 
 struct CommandBindComputePipeline {
-	CommandHeader header = {{{CommandType::eBindComputePipeline, sizeof( CommandBindComputePipeline )}}};
+	CommandHeader header = { { { CommandType::eBindComputePipeline, sizeof( CommandBindComputePipeline ) } } };
 	struct {
 		le_cpso_handle cpsoHandle;
 	} info;
 };
 
 struct CommandBindRtxPipeline {
-	CommandHeader header = {{{CommandType::eBindRtxPipeline, sizeof( CommandBindRtxPipeline )}}};
+	CommandHeader header = { { { CommandType::eBindRtxPipeline, sizeof( CommandBindRtxPipeline ) } } };
 	struct {
 
 		void *   pipeline_native_handle; // handle to native pipeline object, most likely VkPipeline
@@ -1735,7 +1735,7 @@ struct CommandBindRtxPipeline {
 };
 
 struct CommandWriteToBuffer {
-	CommandHeader header = {{{CommandType::eWriteToBuffer, sizeof( CommandWriteToBuffer )}}};
+	CommandHeader header = { { { CommandType::eWriteToBuffer, sizeof( CommandWriteToBuffer ) } } };
 	struct {
 		le_resource_handle_t src_buffer_id; // le buffer id of scratch buffer
 		le_resource_handle_t dst_buffer_id; // which resource to write to
@@ -1747,7 +1747,7 @@ struct CommandWriteToBuffer {
 };
 
 struct CommandWriteToImage {
-	CommandHeader header = {{{CommandType::eWriteToImage, sizeof( CommandWriteToImage )}}};
+	CommandHeader header = { { { CommandType::eWriteToImage, sizeof( CommandWriteToImage ) } } };
 
 	struct {
 		le_resource_handle_t src_buffer_id;   // le buffer id of scratch buffer

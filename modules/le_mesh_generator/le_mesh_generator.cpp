@@ -106,7 +106,7 @@ static void le_mesh_generator_generate_sphere( le_mesh_o *mesh,
 			// See:
 			// <https://computergraphics.stackexchange.com/questions/5498/compute-sphere-tangent-for-normal-mapping>
 
-			tangent = glm::normalize( glm::cross( {0, 1, 0}, vertex ) );
+			tangent = glm::normalize( glm::cross( { 0, 1, 0 }, vertex ) );
 
 			// Store vertex data
 			mesh->uvs.emplace_back( u, 1 - v );
@@ -196,7 +196,7 @@ static void le_mesh_generator_generate_box( le_mesh_o *mesh, float width, float 
 	// clang-format on
 
 	// Since our standard cube has extents from -1..1, we must half input scale factor
-	glm::vec3 scale_factor{width * 0.5f, height * 0.5f, depth * 0.5f};
+	glm::vec3 scale_factor{ width * 0.5f, height * 0.5f, depth * 0.5f };
 
 	for ( auto const &v : unit_cube ) {
 		mesh->vertices.emplace_back( v.vertex * scale_factor );

@@ -28,8 +28,8 @@ struct le_mouse_event_data_o {
 struct le_camera_o {
 	glm::mat4                view_matrix{};
 	glm::mat4                projection_matrix{};
-	float                    fovRadians{glm::radians( 60.f )}; // field of view angle (in radians)
-	le::Viewport             viewport{};                       // current camera viewport
+	float                    fovRadians{ glm::radians( 60.f ) }; // field of view angle (in radians)
+	le::Viewport             viewport{};                         // current camera viewport
 	float                    nearClip = 10.f;
 	float                    farClip  = 10000.f;
 	std::array<glm::vec4, 6> frustumPlane;                 // right,top,far,left,bottom,near
@@ -237,7 +237,7 @@ static float camera_get_fov_radians( le_camera_o *self ) {
 // ----------------------------------------------------------------------
 
 static void camera_controller_set_contol_rect( le_camera_controller_o *self, float x, float y, float w, float h ) {
-	self->controlRect = {x, y, w, h};
+	self->controlRect = { x, y, w, h };
 }
 
 // ----------------------------------------------------------------------
@@ -252,10 +252,10 @@ void camera_orbit_xy( le_camera_o *camera, glm::mat4 const &world_to_cam_start, 
 	// first we must transform into the pivot point
 	// the pivot point is a point which is at normdistance from the camera in negative z
 
-	auto pivot        = glm::translate( world_to_cam_start, glm::vec3{0, 0, -pivotDistance} );
-	pivot             = glm::rotate( pivot, signedAnglesRad.x, glm::vec3{0, 1, 0} );
-	pivot             = glm::rotate( pivot, signedAnglesRad.y, glm::vec3{1, 0, 0} );
-	auto world_to_cam = glm::translate( pivot, glm::vec3{0, 0, pivotDistance} );
+	auto pivot        = glm::translate( world_to_cam_start, glm::vec3{ 0, 0, -pivotDistance } );
+	pivot             = glm::rotate( pivot, signedAnglesRad.x, glm::vec3{ 0, 1, 0 } );
+	pivot             = glm::rotate( pivot, signedAnglesRad.y, glm::vec3{ 1, 0, 0 } );
+	auto world_to_cam = glm::translate( pivot, glm::vec3{ 0, 0, pivotDistance } );
 
 	camera->view_matrix = glm::inverse( world_to_cam );
 }
@@ -266,9 +266,9 @@ void camera_orbit_z( le_camera_o *camera, glm::mat4 const &world_to_cam_start, g
 	// first we must transform into the pivot point
 	// the pivot point is a point which is at normdistance from the camera in negative z
 
-	auto pivot        = glm::translate( world_to_cam_start, glm::vec3{0, 0, -pivotDistance} );
-	pivot             = glm::rotate( pivot, cameraAngleRad.z, glm::vec3{0, 0, 1} );
-	auto world_to_cam = glm::translate( pivot, glm::vec3{0, 0, pivotDistance} );
+	auto pivot        = glm::translate( world_to_cam_start, glm::vec3{ 0, 0, -pivotDistance } );
+	pivot             = glm::rotate( pivot, cameraAngleRad.z, glm::vec3{ 0, 0, 1 } );
+	auto world_to_cam = glm::translate( pivot, glm::vec3{ 0, 0, pivotDistance } );
 
 	camera->view_matrix = glm::inverse( world_to_cam );
 }
@@ -277,12 +277,12 @@ void camera_orbit_z( le_camera_o *camera, glm::mat4 const &world_to_cam_start, g
 
 void camera_translate_xy( le_camera_o *camera, glm::mat4 const &world_to_cam_start, glm::vec3 const &signedNorm, float movement_speed, float pivotDistance ) {
 
-	float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
+	float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
 	movement_speed *= distance_to_origin;
 
-	auto pivot        = glm::translate( world_to_cam_start, glm::vec3{0, 0, -pivotDistance} );
-	pivot             = glm::translate( pivot, movement_speed * glm::vec3{signedNorm.x, signedNorm.y, 0} );
-	auto world_to_cam = glm::translate( pivot, glm::vec3{0, 0, pivotDistance} );
+	auto pivot        = glm::translate( world_to_cam_start, glm::vec3{ 0, 0, -pivotDistance } );
+	pivot             = glm::translate( pivot, movement_speed * glm::vec3{ signedNorm.x, signedNorm.y, 0 } );
+	auto world_to_cam = glm::translate( pivot, glm::vec3{ 0, 0, pivotDistance } );
 
 	camera->view_matrix = glm::inverse( world_to_cam );
 }
@@ -291,12 +291,12 @@ void camera_translate_xy( le_camera_o *camera, glm::mat4 const &world_to_cam_sta
 
 void camera_translate_z( le_camera_o *camera, glm::mat4 const &world_to_cam_start, glm::vec3 const &signedNorm, float movement_speed, float pivotDistance ) {
 
-	float distance_to_origin = glm::distance( glm::vec4{0, 0, 0, 1}, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
+	float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
 	movement_speed *= distance_to_origin;
 
-	auto pivot          = glm::translate( world_to_cam_start, glm::vec3{0, 0, -pivotDistance} );
-	pivot               = glm::translate( pivot, movement_speed * glm::vec3{0, 0, signedNorm.z} );
-	auto world_to_cam   = glm::translate( pivot, glm::vec3{0, 0, pivotDistance} );
+	auto pivot          = glm::translate( world_to_cam_start, glm::vec3{ 0, 0, -pivotDistance } );
+	pivot               = glm::translate( pivot, movement_speed * glm::vec3{ 0, 0, signedNorm.z } );
+	auto world_to_cam   = glm::translate( pivot, glm::vec3{ 0, 0, pivotDistance } );
 	camera->view_matrix = glm::inverse( world_to_cam );
 }
 
@@ -305,8 +305,8 @@ void camera_translate_z( le_camera_o *camera, glm::mat4 const &world_to_cam_star
 static void camera_controller_update_camera( le_camera_controller_o *controller, le_camera_o *camera, const std::vector<LeUiEvent const *> &events ) {
 
 	// Centre point of the mouse control rectangle
-	glm::vec2 controlRectCentre{0.5f * ( controller->controlRect[ 0 ] + controller->controlRect[ 2 ] ),
-	                            0.5f * ( controller->controlRect[ 1 ] + controller->controlRect[ 3 ] )};
+	glm::vec2 controlRectCentre{ 0.5f * ( controller->controlRect[ 0 ] + controller->controlRect[ 2 ] ),
+	                             0.5f * ( controller->controlRect[ 1 ] + controller->controlRect[ 3 ] ) };
 
 	// Distance 1/3 of small edge of control rectangle
 	float controlCircleRadius = std::min( controller->controlRect[ 2 ], controller->controlRect[ 3 ] ) / 3.f;
@@ -330,7 +330,7 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 		switch ( event->event ) {
 		case ( LeUiEvent::Type::eCursorPosition ): {
 			auto &e                = event->cursorPosition;
-			mouse_state.cursor_pos = {e.x, e.y};
+			mouse_state.cursor_pos = { e.x, e.y };
 		} break;
 		case ( LeUiEvent::Type::eKey ): {
 			auto &e = event->key;

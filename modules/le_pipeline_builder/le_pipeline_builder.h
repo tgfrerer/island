@@ -264,10 +264,10 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 
 	class AttributeBindingState {
 		LeGraphicsPipelineBuilder &parent;
-		uint8_t                    mBindingNumber{0};
-		uint8_t                    mNextBindingNumber{0};
-		uint8_t                    mLocation{0};
-		uint8_t                    mNextLocation{0};
+		uint8_t                    mBindingNumber{ 0 };
+		uint8_t                    mNextBindingNumber{ 0 };
+		uint8_t                    mLocation{ 0 };
+		uint8_t                    mNextLocation{ 0 };
 
 		friend class Attribute;
 
@@ -338,7 +338,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 				}
 			};
 
-			AttributeDescriptor mAttributeState{*this, mLocation};
+			AttributeDescriptor mAttributeState{ *this, mLocation };
 
 			AttributeBindingState &end() {
 				return parent;
@@ -362,7 +362,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 			}
 		};
 
-		BindingState mBindingState{*this, mBindingNumber, mLocation, mNextLocation};
+		BindingState mBindingState{ *this, mBindingNumber, mLocation, mNextLocation };
 
 		BindingState &addBinding() {
 			mBindingNumber = mNextBindingNumber++;
@@ -385,7 +385,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		}
 	};
 
-	AttributeBindingState mAttributeBindingState{*this};
+	AttributeBindingState mAttributeBindingState{ *this };
 
 	class InputAssemblyState {
 		LeGraphicsPipelineBuilder &parent;
@@ -412,7 +412,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		}
 	};
 
-	InputAssemblyState mInputAssembly{*this};
+	InputAssemblyState mInputAssembly{ *this };
 
 	class DepthStencilState {
 		LeGraphicsPipelineBuilder &parent;
@@ -469,7 +469,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		}
 	};
 
-	DepthStencilState mDepthStencilState{*this};
+	DepthStencilState mDepthStencilState{ *this };
 
 	class DepthStencilOpFront {
 		LeGraphicsPipelineBuilder &parent;
@@ -526,7 +526,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		}
 	};
 
-	DepthStencilOpFront mDepthStencilOpFront{*this};
+	DepthStencilOpFront mDepthStencilOpFront{ *this };
 
 	class DepthStencilOpBack {
 		LeGraphicsPipelineBuilder &parent;
@@ -583,7 +583,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		}
 	};
 
-	DepthStencilOpBack mDepthStencilOpBack{*this};
+	DepthStencilOpBack mDepthStencilOpBack{ *this };
 
 	class MultiSampleState {
 		LeGraphicsPipelineBuilder &parent;
@@ -628,7 +628,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		}
 	};
 
-	MultiSampleState mMultiSampleState{*this};
+	MultiSampleState mMultiSampleState{ *this };
 
 	class TessellationState {
 		LeGraphicsPipelineBuilder &parent;
@@ -649,7 +649,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		}
 	};
 
-	TessellationState mTessellationState{*this};
+	TessellationState mTessellationState{ *this };
 
 	class RasterizationState {
 		LeGraphicsPipelineBuilder &parent;
@@ -724,7 +724,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		}
 	};
 
-	RasterizationState mRasterizationState{*this};
+	RasterizationState mRasterizationState{ *this };
 
 	class AttachmentBlendState {
 		LeGraphicsPipelineBuilder &parent;
@@ -796,7 +796,7 @@ class LeGraphicsPipelineBuilder : NoCopy, NoMove {
 		friend class LeGraphicsPipelineBuilder;
 	};
 
-	AttachmentBlendState mAttachmentBlendState{*this};
+	AttachmentBlendState mAttachmentBlendState{ *this };
 
   public:
 	LeGraphicsPipelineBuilder( le_pipeline_manager_o *pipelineCache )

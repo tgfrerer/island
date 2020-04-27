@@ -224,7 +224,7 @@ class Renderer {
 	}
 
 	le_shader_module_o *createShaderModule( char const *path, const le::ShaderStage &moduleType, char const *macro_definitions = nullptr ) const {
-		return le_renderer::renderer_i.create_shader_module( self, path, {moduleType}, macro_definitions );
+		return le_renderer::renderer_i.create_shader_module( self, path, { moduleType }, macro_definitions );
 	}
 
 	le_resource_handle_t getSwapchainResource() const {
@@ -346,12 +346,12 @@ class RenderPass {
 	}
 
 	RenderPass &useImageResource( le_resource_handle_t resource_id, const LeImageUsageFlags &usage_flags ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, {LeResourceType::eImage, {{usage_flags}}} );
+		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eImage, { { usage_flags } } } );
 		return *this;
 	}
 
 	RenderPass &useBufferResource( le_resource_handle_t resource_id, const LeBufferUsageFlags &usage_flags ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, {LeResourceType::eBuffer, {{usage_flags}}} );
+		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eBuffer, { { usage_flags } } } );
 		return *this;
 	}
 

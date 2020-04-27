@@ -476,8 +476,8 @@ static uint32_t le_stage_create_image_from_memory(
 		    le::ImageInfoBuilder()
 		        .setExtent( img->info.width, img->info.height, img->info.depth )
 		        .setFormat( imageFormat )
-		        .setUsageFlags( {LeImageUsageFlagBits::LE_IMAGE_USAGE_SAMPLED_BIT |
-		                         LeImageUsageFlagBits::LE_IMAGE_USAGE_TRANSFER_DST_BIT} )
+		        .setUsageFlags( { LeImageUsageFlagBits::LE_IMAGE_USAGE_SAMPLED_BIT |
+		                          LeImageUsageFlagBits::LE_IMAGE_USAGE_TRANSFER_DST_BIT } )
 		        .setMipLevels( mip_levels )
 		        .build();
 
@@ -546,7 +546,7 @@ static uint32_t le_stage_create_texture( le_stage_o *stage, le_texture_info cons
 	le_texture_o texture{};
 
 	if ( info->name ) {
-		texture.name = std::string{info->name};
+		texture.name = std::string{ info->name };
 	}
 
 	texture.image_idx   = info->image_idx;
@@ -780,9 +780,9 @@ static le_texture_view_o *create_texture_view( le_texture_view_info const *info 
 		tex->has_transform    = true;
 		tex->transform_uv_set = src_tex->transform->uv_set;
 		tex->transform =
-		    glm::translate( glm::identity<glm::mat4>(), glm::vec3{src_tex->transform->offset[ 0 ], src_tex->transform->offset[ 1 ], 0} ) * // translate
-		    glm::rotate( glm::identity<glm::mat4>(), src_tex->transform->rotation, glm::vec3{0.f, 0.f, 1.f} ) *                            // rotate
-		    glm::scale( glm::identity<glm::mat4>(), glm::vec3{src_tex->transform->scale[ 0 ], src_tex->transform->scale[ 1 ], 0} );        // scale
+		    glm::translate( glm::identity<glm::mat4>(), glm::vec3{ src_tex->transform->offset[ 0 ], src_tex->transform->offset[ 1 ], 0 } ) * // translate
+		    glm::rotate( glm::identity<glm::mat4>(), src_tex->transform->rotation, glm::vec3{ 0.f, 0.f, 1.f } ) *                            // rotate
+		    glm::scale( glm::identity<glm::mat4>(), glm::vec3{ src_tex->transform->scale[ 0 ], src_tex->transform->scale[ 1 ], 0 } );        // scale
 	} else {
 		tex->has_transform = false;
 	}
@@ -983,8 +983,8 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 					geo.index_offset = index_buffer_view.byte_offset + index_accessor.byte_offset;
 				}
 
-				LeBuildAccelerationStructureFlags blas_flags = {LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR |
-				                                                LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR};
+				LeBuildAccelerationStructureFlags blas_flags = { LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR |
+				                                                 LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR };
 
 				using namespace le_renderer;
 				auto blas_info =
@@ -1022,7 +1022,7 @@ static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info const *inf
 		le_node_o *node = new le_node_o{};
 
 		node->local_scale       = n->local_scale->data;
-		node->local_rotation    = glm::quat{n->local_rotation->data};
+		node->local_rotation    = glm::quat{ n->local_rotation->data };
 		node->local_translation = n->local_translation->data;
 
 		node->local_transform = n->local_transform->data;
@@ -1423,7 +1423,7 @@ static uint32_t le_stage_create_scene( le_stage_o *self, uint32_t *node_idx, uin
 
 /// \brief
 static bool pass_xfer_setup_resources( le_renderpass_o *pRp, void *user_data ) {
-	le::RenderPass rp{pRp};
+	le::RenderPass rp{ pRp };
 	auto           stage = static_cast<le_stage_o *>( user_data );
 
 	bool needsUpload = false;
@@ -1431,14 +1431,14 @@ static bool pass_xfer_setup_resources( le_renderpass_o *pRp, void *user_data ) {
 	for ( auto &b : stage->buffers ) {
 		needsUpload |= !b->was_transferred;
 		if ( !b->was_transferred ) {
-			rp.useBufferResource( b->handle, {LE_BUFFER_USAGE_TRANSFER_DST_BIT} );
+			rp.useBufferResource( b->handle, { LE_BUFFER_USAGE_TRANSFER_DST_BIT } );
 		}
 	}
 
 	for ( auto &img : stage->images ) {
 		needsUpload |= !img->was_transferred;
 		if ( !img->was_transferred ) {
-			rp.useImageResource( img->handle, {LE_IMAGE_USAGE_TRANSFER_DST_BIT} );
+			rp.useImageResource( img->handle, { LE_IMAGE_USAGE_TRANSFER_DST_BIT } );
 		}
 	}
 
@@ -1449,7 +1449,7 @@ static bool pass_xfer_setup_resources( le_renderpass_o *pRp, void *user_data ) {
 
 static void pass_xfer_resources( le_command_buffer_encoder_o *encoder_, void *user_data ) {
 	auto stage   = static_cast<le_stage_o *>( user_data );
-	auto encoder = le::Encoder{encoder_};
+	auto encoder = le::Encoder{ encoder_ };
 
 	for ( auto &b : stage->buffers ) {
 		if ( !b->was_transferred ) {
@@ -1538,11 +1538,11 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 		        // we need to return false after the first time that this pass has been executed,
 		        // unless we want to update our bottom level acceleration structures.
 
-		        le::RenderPass rp{pRp};
+		        le::RenderPass rp{ pRp };
 		        auto           stage = static_cast<le_stage_o *>( user_data );
 
 		        for ( auto &b : stage->buffers ) {
-			        rp.useBufferResource( b->handle, {LeBufferUsageFlagBits::LE_BUFFER_USAGE_TRANSFER_SRC_BIT} );
+			        rp.useBufferResource( b->handle, { LeBufferUsageFlagBits::LE_BUFFER_USAGE_TRANSFER_SRC_BIT } );
 		        }
 
 		        // We don't want to execute this pass by default, but needsUpdate switches to
@@ -1560,7 +1560,7 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 				        }
 				        LeResourceUsageFlags usage{};
 				        usage.type                    = LeResourceType::eRtxBlas;
-				        usage.as.rtx_blas_usage_flags = {LE_RTX_BLAS_USAGE_WRITE_BIT};
+				        usage.as.rtx_blas_usage_flags = { LE_RTX_BLAS_USAGE_WRITE_BIT };
 				        rp.useResource( p.rtx_blas_handle, usage );
 				        needsUpdate = true;
 			        }
@@ -1570,7 +1570,7 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 		        for ( auto &s : stage->scenes ) {
 			        LeResourceUsageFlags usage{};
 			        usage.type                    = LeResourceType::eRtxTlas;
-			        usage.as.rtx_blas_usage_flags = {LE_RTX_TLAS_USAGE_WRITE_BIT};
+			        usage.as.rtx_blas_usage_flags = { LE_RTX_TLAS_USAGE_WRITE_BIT };
 			        rp.useResource( s.rtx_tlas_handle, usage );
 		        }
 
@@ -1580,7 +1580,7 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 	        .setExecuteCallback( stage, []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
 		        auto stage = static_cast<le_stage_o *>( user_data );
 
-		        le::Encoder encoder{encoder_};
+		        le::Encoder encoder{ encoder_ };
 
 		        // Build geometries by iterating over all primitives in each mesh.
 		        // mesh is referenced by node, and contains n primitives.
@@ -1757,13 +1757,13 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	auto draw_params = static_cast<le_stage_api::draw_params_t *>( user_data );
 	auto camera      = draw_params->camera;
 	auto stage       = draw_params->stage;
-	auto encoder     = le::Encoder{encoder_};
+	auto encoder     = le::Encoder{ encoder_ };
 
 	auto extents = encoder.getRenderpassExtent();
 
 	le::Viewport viewports[ 2 ] = {
-	    {0.f, float( extents.height ), float( extents.width ), -float( extents.height ), -0.f, 1.f}, // negative viewport means to flip y axis in screen space
-	    {0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f},
+	    { 0.f, float( extents.height ), float( extents.width ), -float( extents.height ), -0.f, 1.f }, // negative viewport means to flip y axis in screen space
+	    { 0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f },
 	};
 
 	// we set projection matrix and view matrix to somehow sensible defaults.
@@ -1791,7 +1791,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 		                  &camera_projection_matrix );
 	}
 
-	glm::vec4 camera_in_world_space = camera_world_matrix * glm::vec4{0, 0, 0, 1};
+	glm::vec4 camera_in_world_space = camera_world_matrix * glm::vec4{ 0, 0, 0, 1 };
 	camera_in_world_space /= camera_in_world_space.w;
 
 	struct UboMatrices {
@@ -1806,9 +1806,9 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	mvp_ubo.camera_position      = camera_in_world_space;
 
 	struct UboMaterialParams {
-		glm::vec4 base_color_factor{1, 1, 1, 1}; // 4*4 = 16 byte alignment, which is largest alignment, and as such forms the struct's base alignment
-		float     metallic_factor{1};            // 4 byte alignment, must be at mulitple of 4
-		float     roughness_factor{1};           // 4 byte alignment, must be at multiple of 4
+		glm::vec4 base_color_factor{ 1, 1, 1, 1 }; // 4*4 = 16 byte alignment, which is largest alignment, and as such forms the struct's base alignment
+		float     metallic_factor{ 1 };            // 4 byte alignment, must be at mulitple of 4
+		float     roughness_factor{ 1 };           // 4 byte alignment, must be at multiple of 4
 	};
 
 	// static_assert(offsetof(UboMaterialParams,metallic_factor)%sizeof(UboMaterialParams::metallic_factor)==0, "must be at offset which is multiple of its size.");
@@ -1816,7 +1816,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	UboMaterialParams material_params_ubo{};
 
 	struct UboPostProcessing {
-		float exposure{1.f};
+		float exposure{ 1.f };
 	};
 
 	UboPostProcessing post_processing_params{};
@@ -1993,13 +1993,13 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			        auto draw_params = static_cast<le_stage_api::draw_params_t *>( user_data );
 			        auto camera      = draw_params->camera;
 			        auto stage       = draw_params->stage;
-			        auto encoder     = le::Encoder{encoder_};
+			        auto encoder     = le::Encoder{ encoder_ };
 
 			        auto extents = encoder.getRenderpassExtent();
 
 			        le::Viewport viewports[ 2 ] = {
-			            {0.f, float( extents.height ), float( extents.width ), -float( extents.height ), -0.f, 1.f}, // negative viewport means to flip y axis in screen space
-			            {0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f},
+			            { 0.f, float( extents.height ), float( extents.width ), -float( extents.height ), -0.f, 1.f }, // negative viewport means to flip y axis in screen space
+			            { 0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f },
 			        };
 
 			        // we set projection matrix and view matrix to somehow sensible defaults.
@@ -2022,10 +2022,10 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 			        // -- Create rtx pso
 			        static le_rtxpso_handle rtx_pipeline = []( le_stage_o *stage, le_pipeline_manager_o *pipeline_manager ) {
-				        auto shader_raygen      = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/raygen.rgen", {le::ShaderStage::eRaygenBitNv}, nullptr );
-				        auto shader_miss        = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/miss.rmiss", {le::ShaderStage::eMissBitNv}, nullptr );
-				        auto shader_shadow_miss = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/shadow.rmiss", {le::ShaderStage::eMissBitNv}, nullptr );
-				        auto shader_closest_hit = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/closesthit.rchit", {le::ShaderStage::eClosestHitBitNv}, nullptr );
+				        auto shader_raygen      = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/raygen.rgen", { le::ShaderStage::eRaygenBitNv }, nullptr );
+				        auto shader_miss        = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/miss.rmiss", { le::ShaderStage::eMissBitNv }, nullptr );
+				        auto shader_shadow_miss = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/shadow.rmiss", { le::ShaderStage::eMissBitNv }, nullptr );
+				        auto shader_closest_hit = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/closesthit.rchit", { le::ShaderStage::eClosestHitBitNv }, nullptr );
 
 				        // Create rtx pipeline
 
@@ -2079,7 +2079,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			        if ( !stage->scenes.front().lights.empty() ) {
 				        camera_properties.lightPos = glm::vec4( stage->scenes.front().lights.front().position, 1 );
 			        } else {
-				        camera_properties.lightPos = glm::vec4{3, 10, 4, 1}; // arbitrary fallback defaults.
+				        camera_properties.lightPos = glm::vec4{ 3, 10, 4, 1 }; // arbitrary fallback defaults.
 			        }
 
 			        // -- call trace rays
@@ -2097,13 +2097,13 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			// -- Signal that we want to use an image to write to.
 
 			rtx_pass
-			    .useImageResource( RTX_IMAGE_TARGET_HANDLE, {LE_IMAGE_USAGE_STORAGE_BIT} ); // write
+			    .useImageResource( RTX_IMAGE_TARGET_HANDLE, { LE_IMAGE_USAGE_STORAGE_BIT } ); // write
 
 			le_resource_info_t rtx_target_info =
 			    le::ImageInfoBuilder()
 			        .setFormat( le::Format::eR8Unorm ) // 1 byte per cell, 1024x1024 cells
 			        .setExtent( 0, 0 )                 // FIXME: size should match image size - or at least camera.
-			        .addUsageFlags( {LE_IMAGE_USAGE_STORAGE_BIT | LE_IMAGE_USAGE_SAMPLED_BIT} )
+			        .addUsageFlags( { LE_IMAGE_USAGE_STORAGE_BIT | LE_IMAGE_USAGE_SAMPLED_BIT } )
 			        .build();
 
 			render_module_i.declare_resource( module, RTX_IMAGE_TARGET_HANDLE, rtx_target_info );
@@ -2112,7 +2112,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 			LeResourceUsageFlags usage_flags{};
 			usage_flags.type                    = LeResourceType::eRtxBlas;
-			usage_flags.as.rtx_blas_usage_flags = {LeRtxBlasUsageFlagBits::LE_RTX_BLAS_USAGE_READ_BIT};
+			usage_flags.as.rtx_blas_usage_flags = { LeRtxBlasUsageFlagBits::LE_RTX_BLAS_USAGE_READ_BIT };
 
 			for ( auto const &m : draw_params->stage->meshes ) {
 				for ( auto const &p : m.primitives ) {
@@ -2123,7 +2123,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			// -- Signal that we want to read from top-level acceleration structures.
 
 			usage_flags.type                    = LeResourceType::eRtxTlas;
-			usage_flags.as.rtx_tlas_usage_flags = {LeRtxTlasUsageFlagBits::LE_RTX_TLAS_USAGE_READ_BIT};
+			usage_flags.as.rtx_tlas_usage_flags = { LeRtxTlasUsageFlagBits::LE_RTX_TLAS_USAGE_READ_BIT };
 			for ( auto const &s : draw_params->stage->scenes ) {
 				rtx_pass.useResource( s.rtx_tlas_handle, usage_flags );
 			}
@@ -2140,22 +2140,22 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 	        .addColorAttachment(
 	            LE_SWAPCHAIN_IMAGE_HANDLE,
 	            le::ImageAttachmentInfoBuilder()
-	                .setColorClearValue( LeClearValue( {0.125f, 0.125f, 0.125f, 1.f} ) )
+	                .setColorClearValue( LeClearValue( { 0.125f, 0.125f, 0.125f, 1.f } ) )
 	                .build() )
 	        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_STENCIL_IMAGE" ) )
 	        .setSampleCount( le::SampleCountFlagBits::e4 );
 
 	for ( auto &b : draw_params->stage->buffers ) {
-		stage_draw_pass.useBufferResource( b->handle, {LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
-		                                               LE_BUFFER_USAGE_VERTEX_BUFFER_BIT} );
+		stage_draw_pass.useBufferResource( b->handle, { LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
+		                                                LE_BUFFER_USAGE_VERTEX_BUFFER_BIT } );
 	}
 
 	for ( auto &t : draw_params->stage->textures ) {
 		// We must create texture handles for this renderpass.
 		stage_draw_pass.sampleTexture(
 		    t.texture_handle, {
-		                          draw_params->stage->samplers[ t.sampler_idx ],           // samplerInfo
-		                          {draw_params->stage->images[ t.image_idx ]->handle, {}}, // imageViewInfo
+		                          draw_params->stage->samplers[ t.sampler_idx ],             // samplerInfo
+		                          { draw_params->stage->images[ t.image_idx ]->handle, {} }, // imageViewInfo
 		                      } );
 	}
 
@@ -2215,7 +2215,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 		uint32_t num_textures = 0;
 
-		auto add_texture = [&]( char const *texture_name, const le_texture_view_o *tex_info ) {
+		auto add_texture = [ & ]( char const *texture_name, const le_texture_view_o *tex_info ) {
 			defines << "HAS_" << texture_name << "_MAP,";
 
 			material.texture_handles.push_back( stage->textures[ tex_info->texture_id ].texture_handle );
@@ -2273,7 +2273,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 		uint64_t    defines_hash = SpookyHash::Hash64( defines_str.data(), defines_str.size(), 0 );
 
 		defines_hash_at_material_idx.push_back( defines_hash );
-		materials_defines_hash_to_defines_str.insert( {defines_hash, std::move( defines_str )} );
+		materials_defines_hash_to_defines_str.insert( { defines_hash, std::move( defines_str ) } );
 	}
 
 	// -- Then build a map of all vertex input defines per primitive
@@ -2365,7 +2365,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 			                                                         vertex_input_defines.size(), 0 );
 
 			// Store shader defines string if not yet present
-			vertex_input_defines_hash_to_defines_str.insert( {vertex_input_defines_hash, std::move( vertex_input_defines )} );
+			vertex_input_defines_hash_to_defines_str.insert( { vertex_input_defines_hash, std::move( vertex_input_defines ) } );
 
 			// Build a shader defines signature from vertex input defines and materials defines for this primitive.
 			// We will use this later to look up the correct shader for the primitive.
@@ -2381,7 +2381,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 			// Inserting an element with null shader module pointers prepares for the next step, where
 			// we will iterate through the map of unique shader signatures, and instantiate shaders
 			// based on signatures.
-			shader_map.insert( {primitive.all_defines_hash, {signature, nullptr, nullptr}} );
+			shader_map.insert( { primitive.all_defines_hash, { signature, nullptr, nullptr } } );
 		}
 	}
 
@@ -2401,12 +2401,12 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 		shader.second.vert = renderer_i.create_shader_module(
 		    stage->renderer,
 		    "./resources/shaders/le_stage/gltf.vert",
-		    {le::ShaderStage::eVertex}, defines.c_str() );
+		    { le::ShaderStage::eVertex }, defines.c_str() );
 
 		shader.second.frag = renderer_i.create_shader_module(
 		    stage->renderer,
 		    "./resources/shaders/le_stage/metallic-roughness.frag",
-		    {le::ShaderStage::eFragment}, defines.c_str() );
+		    { le::ShaderStage::eFragment }, defines.c_str() );
 	}
 
 	std::unordered_map<le_gpso_handle, uint64_t> pipelineCount; // Only used for debug purposes, count number of unique pipelines
@@ -2598,8 +2598,8 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 			stage->scenes[ i ].rtx_tlas_handle = LE_RESOURCE( rtx_tlas_resource_name, LeResourceType::eRtxTlas );
 
 			LeBuildAccelerationStructureFlags tlas_flags =
-			    {LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV |
-			     LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_NV};
+			    { LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV |
+			      LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_NV };
 
 			le_resource_info_t resource_info{};
 
@@ -2820,8 +2820,8 @@ static void le_stage_update( le_stage_o *self ) {
 			le_light_info const &info = self->lights.at( n->light_idx );
 			le_light_o           light{};
 
-			glm::vec4 direction{0, 0, -1, 0};
-			glm::vec4 position{0, 0, 0, 1};
+			glm::vec4 direction{ 0, 0, -1, 0 };
+			glm::vec4 position{ 0, 0, 0, 1 };
 
 			direction = n->global_transform * direction;
 			position  = n->global_transform * position;

@@ -218,7 +218,7 @@ static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 					if ( cb_data->data.raw != old_data.raw && str_start ) {
 						// Applied tweak.
 						long        len = strstr( str_start, ")" ) - str_start;
-						std::string s   = {str_start, str_start + len + 1};
+						std::string s   = { str_start, str_start + len + 1 };
 						std::cout << "Applied tweak at line #" << current_line_num << ": " << s << std::endl
 						          << std::flush;
 					}
