@@ -3,6 +3,9 @@
 # list apps you want to test
 
 apps_list=("
+    test_cubemap:Island-TestCubemap
+    test_rtx:Island-TestRtx
+    test_cgltf:Island-TestCgltf
     test_path_appear:Island-TestPathAppear
     test_2d_watchface:Island-Test2DWatchface
     test_2d_thick_lines:Island-Test2DThickLines
@@ -119,7 +122,7 @@ build_app(){
 	mkdir -p $build_dir
 	pushd $build_dir
 	
-	cmake --config ../.. -GNinja
+	cmake --config ../.. -DCMAKE_BUILD_TYPE=Release -GNinja
 	
 	# we store the timestamp of the last built app executable
 	local previous_hash=0
