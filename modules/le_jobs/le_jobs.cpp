@@ -578,7 +578,7 @@ LE_MODULE_REGISTER_IMPL( le_jobs, api ) {
 	static_cast<le_jobs_api *>( api )->terminate                 = le_job_manager_terminate;
 	static_cast<le_jobs_api *>( api )->wait_for_counter_and_free = le_job_manager_wait_for_counter_and_free;
 
-	le_core_load_library_persistently( "libpthread.so" );
+	//	le_core_load_library_persistently( "libpthread.so" );
 }
 
 // ----------------------------------------------------------------------
