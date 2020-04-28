@@ -62,8 +62,7 @@ struct FrameData {
 };
 
 struct le_texture_handle_t {
-	le_image_sampler_info_t image_sampler_info;
-	std::string             debug_name; // only used for debug
+	std::string debug_name;
 };
 
 struct le_texture_handle_store_t {
@@ -103,14 +102,10 @@ static le_renderer_o *renderer_create() {
 	return obj;
 }
 
-// ----------------------------------------------------------------------
-
 // creates a new handle if no name was given, or given name was not found in list of current handles.
-static le_texture_handle renderer_produce_texture_handle( char const *maybe_name, le_image_sampler_info_t const *info ) {
+static le_texture_handle renderer_produce_texture_handle( char const *maybe_name ) {
 
 	// TODO: use shared mutex.
-
-	assert( info && "info for texture must be specified" );
 
 	// lock renderer for reading/writing
 	std::scoped_lock lock( texture_handle_library->mtx );
@@ -132,13 +127,11 @@ static le_texture_handle renderer_produce_texture_handle( char const *maybe_name
 
 	// If no name was given, there is no way for the handle already to exist;
 	// we must return a new entry
-	auto handle = new le_texture_handle_t{ *info, maybe_name };
+	auto handle = new le_texture_handle_t{ maybe_name };
 	texture_handle_library->texture_handles.push_back( handle );
 
 	return handle;
 }
-
-// ----------------------------------------------------------------------
 
 static char const *texture_handle_get_name( le_texture_handle texture ) {
 	if ( texture && !texture->debug_name.empty() ) {
@@ -146,14 +139,6 @@ static char const *texture_handle_get_name( le_texture_handle texture ) {
 	} else {
 		return nullptr;
 	}
-}
-
-// ----------------------------------------------------------------------
-
-// NOTE: we don't use static linkage for this method as we want to make it available
-// in le_rendergraph.cpp
-le_image_sampler_info_t const *le_texture_handle_get_texture_info( le_texture_handle const texture ) {
-	return &texture->image_sampler_info;
 }
 
 // ----------------------------------------------------------------------
