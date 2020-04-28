@@ -6,8 +6,6 @@
 
 /*
 
-  // TODO: rename this to le_core
-
   Registry is a global, canonical, table of apis, indexed through their type.
 
   The registry may be included from any compilation unit / .cpp file,
