@@ -287,8 +287,10 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 	}
 }
 
+extern le_image_sampler_info_t const *le_texture_handle_get_texture_info( le_texture_handle const texture );
+
 // ----------------------------------------------------------------------
-static void renderpass_sample_texture( le_renderpass_o *self, le_texture_handle texture, le_image_sampler_info_t const *textureInfo ) {
+static void renderpass_sample_texture( le_renderpass_o *self, le_texture_handle texture ) {
 
 	// -- store texture info so that backend can create resources
 
@@ -300,13 +302,15 @@ static void renderpass_sample_texture( le_renderpass_o *self, le_texture_handle 
 
 	// -- Add texture info to list of texture infos for this frame
 	self->textureIds.push_back( texture );
-	//	self->textureImageIds.push_back( textureInfo->imageView.imageId );
-	self->textureInfos.push_back( *textureInfo ); // store a copy of info
+
+	le_image_sampler_info_t const *texture_info = le_texture_handle_get_texture_info( texture );
+
+	self->textureInfos.push_back( *texture_info ); // store a copy of info
 
 	LeResourceUsageFlags required_flags{ LeResourceType::eImage, { { LeImageUsageFlagBits::LE_IMAGE_USAGE_SAMPLED_BIT } } };
 
 	// -- Mark image resource referenced by texture as used for reading
-	renderpass_use_resource( self, textureInfo->imageView.imageId, required_flags );
+	renderpass_use_resource( self, texture_info->imageView.imageId, required_flags );
 }
 
 // ----------------------------------------------------------------------

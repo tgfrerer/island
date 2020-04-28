@@ -38,8 +38,8 @@ struct le_renderer_api {
 		le_pipeline_manager_o*         ( *get_pipeline_manager                  )( le_renderer_o* self );
 
         struct le_texture_handle_store_t * le_texture_handle_store = nullptr;
-        le_texture_handle        ( *produce_texture_handle                )(char const * maybe_name );
-        char const *                   ( *texture_handle_get_name               )(le_texture_handle handle);
+        le_texture_handle              ( *produce_texture_handle                )( char const * maybe_name, le_image_sampler_info_t const *info );
+        char const *                   ( *texture_handle_get_name               )( le_texture_handle handle );
 
 		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, LeBuildAccelerationStructureFlags const * flags);
 		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count, LeBuildAccelerationStructureFlags const * flags);
@@ -89,7 +89,7 @@ struct le_renderer_api {
 
 		// TODO: not too sure about the nomenclature of this
 		// Note that this method implicitly marks the image resource referenced in LeTextureInfo for read access.
-		void                         ( *sample_texture        )(le_renderpass_o* obj, le_texture_handle texture, const le_image_sampler_info_t* info);
+		void                         ( *sample_texture        )(le_renderpass_o* obj, le_texture_handle texture);
 
 		void                         ( *get_texture_ids       )(le_renderpass_o* obj, le_texture_handle const ** pIds, uint64_t* count);
 		void                         ( *get_texture_infos     )(le_renderpass_o* obj, le_image_sampler_info_t const ** pInfos, uint64_t* count);
@@ -245,8 +245,8 @@ class Renderer {
 		return le_renderer::renderer_i.get_pipeline_manager( self );
 	}
 
-	static le_texture_handle produceTextureHandle( char const *maybe_name ) {
-		return le_renderer::renderer_i.produce_texture_handle( maybe_name );
+	static le_texture_handle produceTextureHandle( char const *maybe_name, le_image_sampler_info_t const &info ) {
+		return le_renderer::renderer_i.produce_texture_handle( maybe_name, &info );
 	}
 
 	operator auto() {
@@ -365,8 +365,8 @@ class RenderPass {
 		return *this;
 	}
 
-	RenderPass &sampleTexture( le_texture_handle textureName, const le_image_sampler_info_t &texInfo ) {
-		le_renderer::renderpass_i.sample_texture( self, textureName, &texInfo );
+	RenderPass &sampleTexture( le_texture_handle textureName ) {
+		le_renderer::renderpass_i.sample_texture( self, textureName );
 		return *this;
 	}
 
