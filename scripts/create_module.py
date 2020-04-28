@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 from argparse import ArgumentParser
 from os import path
@@ -41,7 +41,7 @@ print("Module directory: %s" % module_dir)
 def process_file(in_file_path, out_file_path, replacements):
 	with open(in_file_path) as infile, open(out_file_path, 'w') as outfile:
 	    for line in infile:
-	        for src, target in replacements.iteritems():
+	        for src, target in replacements.items():
 	            line = line.replace(src, target)
 	        outfile.write(line)
 
@@ -55,8 +55,7 @@ else:
 	# create directory for storing the module
 	makedirs(module_dir)
 	source_dir = ("%s/templates/module/" %  script_dir)
-	replacements = {'@module_name@': module_name, 
-				    '@module_name_camelcase_capitalised@': module_name_camelcase_capitalised}
+	replacements = {'@module_name@': module_name, '@module_name_camelcase_capitalised@': module_name_camelcase_capitalised}
 	# process files from the template 
 	process_file("%s/CMakeLists.txt.template" % source_dir    , "%s/CMakeLists.txt" % (module_dir             ), replacements)
 	process_file("%s/implementation.cpp.template" % source_dir, "%s/%s.cpp"         % (module_dir, module_name), replacements)
