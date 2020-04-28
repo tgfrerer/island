@@ -2273,6 +2273,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		                          &res.as.buffer,
 		                          &res.allocation,
 		                          &res.allocationInfo );
+		assert( result == VK_SUCCESS );
 
 	} else if ( resourceInfo.isImage() ) {
 
@@ -2282,7 +2283,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		                         &res.as.image,
 		                         &res.allocation,
 		                         &res.allocationInfo );
-
+		assert( result == VK_SUCCESS );
 	} else if ( resourceInfo.isBlas() ) {
 
 		assert( vk_device && "blas allocation needs device" );
