@@ -1394,6 +1394,7 @@ struct le_resource_info_t {
 		le::ImageType      imageType;         // enum vk::ImageType
 		le::Format         format;            // enum vk::Format
 		le::Extent3D       extent;            //
+		le::Extent3D       extent_from_pass;  // used to calculate fallback extent if no extent given for all instances of the same image resource
 		uint32_t           mipLevels;         //
 		uint32_t           arrayLayers;       //
 		uint32_t           sample_count_log2; // sample count as log2, 0 means 1, 1 means 2, 2 means 4...

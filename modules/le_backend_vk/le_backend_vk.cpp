@@ -2659,6 +2659,8 @@ static void collect_resource_infos_per_resource(
 				auto &imgInfo   = resourceInfo.image;
 				auto &imgExtent = imgInfo.extent;
 
+				imgInfo.extent_from_pass = { pass_width, pass_height, 1 };
+
 				if ( imgInfo.usage & ( LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT ) ) {
 
 					imgInfo.mipLevels         = 1;
@@ -2669,16 +2671,6 @@ static void collect_resource_infos_per_resource(
 
 					imgExtent.width  = pass_width;
 					imgExtent.height = pass_height;
-				} else if ( imgInfo.usage & LE_IMAGE_USAGE_STORAGE_BIT ) {
-
-					// Set image width and height renderpass height / width if no width / height was specified.
-
-					if ( imgExtent.width == 0 ) {
-						imgExtent.width = pass_width;
-					}
-					if ( imgExtent.height == 0 ) {
-						imgExtent.height = pass_height;
-					}
 				}
 
 				// depth must be at least 1, but may arrive zero-initialised.
@@ -2811,23 +2803,29 @@ static void consolidate_resource_infos(
 
 			// Make sure the image is as large as it needs to be
 
-			if ( info->image.extent.width != 0 && info->image.extent.width > first_info->image.extent.width ) {
-				first_info->image.extent.width = info->image.extent.width;
-			}
+			first_info->image.extent.width  = std::max( first_info->image.extent.width, info->image.extent.width );
+			first_info->image.extent.height = std::max( first_info->image.extent.height, info->image.extent.height );
+			first_info->image.extent.depth  = std::max( first_info->image.extent.depth, info->image.extent.depth );
 
-			if ( info->image.extent.height != 0 && info->image.extent.height > first_info->image.extent.height ) {
-				first_info->image.extent.height = info->image.extent.height;
-			}
+			first_info->image.extent_from_pass.width  = std::max( first_info->image.extent_from_pass.width, info->image.extent_from_pass.width );
+			first_info->image.extent_from_pass.height = std::max( first_info->image.extent_from_pass.height, info->image.extent_from_pass.height );
+			first_info->image.extent_from_pass.depth  = std::max( first_info->image.extent_from_pass.depth, info->image.extent_from_pass.depth );
+		}
 
-			if ( info->image.extent.depth != 0 && info->image.extent.depth > first_info->image.extent.depth ) {
-				first_info->image.extent.depth = info->image.extent.depth;
-			}
+		// If extents for first_info are zero, this means extents have not been explicitly specified.
+		// We therefore will fall back to setting extents from pass extents.
+
+		if ( first_info->image.extent.width == 0 ||
+		     first_info->image.extent.height == 0 ||
+		     first_info->image.extent.depth == 0 ) {
+			first_info->image.extent = first_info->image.extent_from_pass;
 		}
 
 		// Do a final sanity check to make sure all required fields are valid.
 
-		assert( first_info->image.extent.depth != 0 ); // zero depth is illegal.
-		assert( first_info->image.usage != 0 );        // some kind of usage must be specified.
+		assert( first_info->image.extent.width * first_info->image.extent.height * first_info->image.extent.depth != 0 &&
+		        "Extents with zero volume are illegal. You must specify depth, width, and height to be > 0" ); // Extents with zero volume are illegal.
+		assert( first_info->image.usage != 0 );                                                                // Some kind of usage must be specified.
 
 	} break;
 	case LeResourceType::eRtxBlas: {
