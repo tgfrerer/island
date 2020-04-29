@@ -149,7 +149,7 @@ static void le_resource_manager_update( le_resource_manager_o *manager, le_rende
 static void le_resource_manager_add_item( le_resource_manager_o *     self,
                                           le_resource_handle_t const *image_handle,
                                           le_resource_info_t const *  image_info,
-                                          char const **               image_paths ) {
+                                          char const *const *         image_paths ) {
 
 	le_resource_manager_o::resource_item_t item{};
 
