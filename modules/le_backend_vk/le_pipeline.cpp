@@ -1615,7 +1615,7 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 
 // ----------------------------------------------------------------------
 // Calculates pipeline layout info by first consolidating all bindings
-// over all referenced modules, and then ordering these by descriptor sets.
+// over all referenced shader modules, and then ordering these by descriptor sets.
 //
 static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( le_pipeline_manager_o *self, le_shader_module_o const *const *shader_modules, size_t shader_modules_count ) {
 	le_pipeline_layout_info info{};
