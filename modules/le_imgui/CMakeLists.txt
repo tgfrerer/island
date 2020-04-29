@@ -29,3 +29,4 @@ else()
 endif()
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
+source_group(${TARGET} FILES ${SOURCES})

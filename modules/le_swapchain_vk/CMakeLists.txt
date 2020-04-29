@@ -37,4 +37,4 @@ endif()
 set (LINKER_FLAGS -Wl,--whole-archive vulkan X11 -Wl,--no-whole-archive )
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
-#include_directories("/usr/local/include")
+source_group(${TARGET} FILES ${SOURCES})

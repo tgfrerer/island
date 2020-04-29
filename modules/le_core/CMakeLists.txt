@@ -8,7 +8,6 @@ set ( SOURCES ${SOURCES} hash_util.h )
 set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.cpp")
 set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.h")
 
-
 if (${PLUGINS_DYNAMIC})
 
     add_library(${TARGET} SHARED ${SOURCES})
@@ -36,4 +35,4 @@ target_link_libraries(${TARGET} PUBLIC ${CMAKE_DL_LIBS})
 set (PLUGIN_LIBS_DEPENDENCIES ${PLUGIN_LIBS_DEPENDENCIES} le_file_watcher PARENT_SCOPE)
 set (PLUGIN_LIBS_DEPENDENCIES ${PLUGIN_LIBS_DEPENDENCIES} le_core PARENT_SCOPE)
 
-
+source_group(${TARGET} FILES ${SOURCES})

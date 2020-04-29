@@ -32,3 +32,4 @@ endif()
 # set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
+source_group(${TARGET} FILES ${SOURCES})

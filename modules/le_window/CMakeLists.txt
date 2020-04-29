@@ -44,3 +44,4 @@ set (LINKER_FLAGS -Wl,--whole-archive glfw -Wl,--no-whole-archive)
 set (LINKER_FLAGS ${LINKER_FLAGS} vulkan)
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
+source_group(${TARGET} FILES ${SOURCES})
