@@ -429,7 +429,7 @@ struct BackendFrameData {
 	};
 
 	using texture_map_t = std::unordered_map<le_texture_handle, Texture>;
-	//	using image_view_map_t = std::unordered_map<le_resource_handle_t, vk::ImageView, LeResourceHandleIdentity>;
+
 	std::unordered_map<le_resource_handle_t, vk::ImageView, LeResourceHandleIdentity> imageViews; // non-owning, references to frame-local textures, cleared on frame fence.
 
 	// With `syncChainTable` and image_attachment_info_o.syncState, we should
@@ -3369,9 +3369,9 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 
 	// Create Samplers for all images which are used as Textures
 	//
-	for ( size_t p_idx = 0; p_idx != numRenderPasses; ++p_idx ) {
+	for ( size_t pass_idx = 0; pass_idx != numRenderPasses; ++pass_idx ) {
 
-		auto &p = passes[ p_idx ];
+		auto &p = passes[ pass_idx ];
 
 		// Get all texture names for this pass
 		const le_texture_handle *textureIds     = nullptr;
@@ -3391,7 +3391,7 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 
 			const le_texture_handle textureId = textureIds[ i ];
 
-			if ( frame.textures_per_pass[ p_idx ].find( textureId ) == frame.textures_per_pass[ p_idx ].end() ) {
+			if ( frame.textures_per_pass[ pass_idx ].find( textureId ) == frame.textures_per_pass[ pass_idx ].end() ) {
 				// -- we need to allocate a new texture
 
 				auto &texInfo = textureInfos[ i ];
@@ -3473,7 +3473,7 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 				tex.imageView = imageView;
 				tex.sampler   = sampler;
 
-				frame.textures_per_pass[ p_idx ][ textureId ] = tex;
+				frame.textures_per_pass[ pass_idx ][ textureId ] = tex;
 			} else {
 				// The frame already has an element with such a texture id.
 				assert( false && "texture must have been defined multiple times using identical id within the same renderpass." );
