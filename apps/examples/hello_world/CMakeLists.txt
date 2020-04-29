@@ -25,7 +25,7 @@ add_island_module(le_pipeline_builder)
 add_island_module(le_camera)
 add_island_module(le_mesh)
 add_island_module(le_mesh_generator)
-add_island_module(le_pixels)
+add_island_module(le_resource_manager)
 
 # Main application c++ file. Not much to see there,
 set (SOURCES main.cpp)

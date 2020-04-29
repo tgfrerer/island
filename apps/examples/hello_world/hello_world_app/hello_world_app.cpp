@@ -10,6 +10,7 @@
 #include "le_mesh/le_mesh.h"
 #include "le_mesh_generator/le_mesh_generator.h"
 
+#include "le_resource_manager/le_resource_manager.h"
 #include "le_pixels/le_pixels.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
@@ -27,24 +28,6 @@
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
-struct Image : NoCopy, NoMove {
-	le_resource_handle_t imageHandle{};
-	le_resource_info_t   imageInfo{};
-	le_resource_handle_t imageSampler{};
-	le_pixels_o *        pixels; // owned
-	le_pixels_info       pixelsInfo;
-	uint32_t             numMipLevels = 1;
-	bool                 wasLoaded{};
-
-	~Image() {
-
-		if ( pixels ) {
-			using namespace le_pixels;
-			le_pixels_i.destroy( pixels );
-		}
-	}
-};
-
 struct WorldGeometry {
 	le_resource_handle_t    vertex_buffer_handle = LE_BUF_RESOURCE( "WORLD_VERTICES" );
 	le_resource_info_t      vertex_buffer_info   = {};
@@ -58,6 +41,11 @@ struct WorldGeometry {
 	bool                    wasLoaded            = false;
 };
 
+constexpr le_resource_handle_t imgEarthAlbedo  = LE_IMG_RESOURCE( "imgEarthAlbedo" );
+constexpr le_resource_handle_t imgEarthNight   = LE_IMG_RESOURCE( "imgEarthNight" );
+constexpr le_resource_handle_t imgEarthClouds  = LE_IMG_RESOURCE( "ImgEarthClouds" );
+constexpr le_resource_handle_t imgEarthNormals = LE_IMG_RESOURCE( "ImgEarthNormals" );
+
 struct hello_world_app_o {
 	le::Window   window;
 	le::Renderer renderer;
@@ -67,10 +55,13 @@ struct hello_world_app_o {
 	LeCamera           camera;
 	LeMesh             sphereMesh;
 
-	Image         imgEarthAlbedo;
-	Image         imgEarthNight;
-	Image         imgEarthClouds;
-	Image         imgEarthNormals;
+	le_texture_handle texEarthAlbedo;
+	le_texture_handle texEarthNight;
+	le_texture_handle texEarthClouds;
+	le_texture_handle texEarthNormals;
+
+	LeResourceManager resource_manager;
+
 	WorldGeometry worldGeometry;
 	NanoTime      timeStamp{};
 	double        timeDelta{};       // time since last frame, in s
@@ -102,9 +93,8 @@ static glm::vec4 lensflareData[] = {
 
 // ----------------------------------------------------------------------
 
-static void hello_world_app_process_ui_events( hello_world_app_o *self );                                                                                                                                                           // ffdecl
-static void reset_camera( hello_world_app_o *self );                                                                                                                                                                                // ffdecl
-static bool initialiseImage( Image &img, char const *path, uint32_t mipLevels = 1, le_pixels_info::Type const &pixelType = le_pixels_info::eUInt8, le::Format const &imgFormat = le::Format::eR8G8B8A8Unorm, int numChannels = 4 ); // ffdecl
+static void hello_world_app_process_ui_events( hello_world_app_o *self ); // ffdecl
+static void reset_camera( hello_world_app_o *self );                      // ffdecl
 
 // ----------------------------------------------------------------------
 
@@ -163,35 +153,28 @@ static hello_world_app_o *hello_world_app_create() {
 
 	// load pixels for earth albedo
 
-	initialiseImage( app->imgEarthAlbedo, "./local_resources/images/world_winter.jpg", 10 );
-	initialiseImage( app->imgEarthNight, "./local_resources/images/earth_city_lights_8192_rs.png", 10, le_pixels_info::Type::eUInt8, le::Format::eR8Unorm, 1 );
-	initialiseImage( app->imgEarthClouds, "./local_resources/images/storm_clouds_8k.jpg", 10 );
-	initialiseImage( app->imgEarthNormals, "./local_resources/images/earthNormalMap_8k-sobel.tga", 10, le_pixels_info::eUInt16, le::Format::eR16G16B16A16Unorm );
+	const char *image_paths[] = {
+	    "./local_resources/images/world_winter.jpg",
+	    "./local_resources/images/earth_city_lights_8192_rs.png",
+	    "./local_resources/images/storm_clouds_8k.jpg",
+	    "./local_resources/images/earthNormalMap_8k-sobel.tga",
+	};
+
+	app->resource_manager.add_item( imgEarthAlbedo, le::ImageInfoBuilder().setMipLevels( 10 ).build(), image_paths + 0 );
+	app->resource_manager.add_item( imgEarthNight, le::ImageInfoBuilder().setMipLevels( 10 ).setFormat( le::Format::eR8Unorm ).build(), image_paths + 1 );
+	app->resource_manager.add_item( imgEarthClouds, le::ImageInfoBuilder().setMipLevels( 10 ).build(), image_paths + 2 );
+	app->resource_manager.add_item( imgEarthNormals, le::ImageInfoBuilder().setMipLevels( 10 ).setFormat( le::Format::eR16G16B16A16Unorm ).build(), image_paths + 3 );
+
+	// initialise texture handles
+	app->texEarthAlbedo  = le::Renderer::produceTextureHandle( "texEarthAlbedo" );
+	app->texEarthNight   = le::Renderer::produceTextureHandle( "texEarthNight" );
+	app->texEarthClouds  = le::Renderer::produceTextureHandle( "texEarthClouds" );
+	app->texEarthNormals = le::Renderer::produceTextureHandle( "texEarthNormals" );
 
 	// initialise app timer
 	app->timeStamp = std::chrono::high_resolution_clock::now();
 
 	return app;
-}
-
-// ----------------------------------------------------------------------
-// FIXME: miplevels parameter placement is weird.
-static bool initialiseImage( Image &img, char const *path, uint32_t mipLevels, le_pixels_info::Type const &pixelType, le::Format const &imgFormat, int numChannels ) {
-	using namespace le_pixels;
-	img.pixels     = le_pixels_i.create( path, numChannels, pixelType );
-	img.pixelsInfo = le_pixels_i.get_info( img.pixels );
-
-	// store earth albedo image handle
-	img.imageHandle = LE_IMG_RESOURCE( path );
-	img.imageInfo   = le::ImageInfoBuilder()
-	                    .setFormat( imgFormat )
-	                    .setExtent( img.pixelsInfo.width, img.pixelsInfo.height )
-	                    .addUsageFlags( { LE_IMAGE_USAGE_TRANSFER_DST_BIT } ) // mipmapped image is copied to internally, must have transfer dst flag set
-	                    .setMipLevels( mipLevels )
-	                    .build();
-	img.numMipLevels = mipLevels;
-	img.imageSampler = LE_IMAGE_SAMPLER_RESOURCE( ( std::string( path ) + "_tex" ).c_str() );
-	return true;
 }
 
 // ----------------------------------------------------------------------
@@ -276,21 +259,11 @@ static bool pass_resource_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto app = static_cast<hello_world_app_o *>( user_data );
 
 	rp
-	    .useImageResource( app->imgEarthAlbedo.imageHandle, { LE_IMAGE_USAGE_TRANSFER_DST_BIT } )
-	    .useImageResource( app->imgEarthNight.imageHandle, { LE_IMAGE_USAGE_TRANSFER_DST_BIT } )
-	    .useImageResource( app->imgEarthNormals.imageHandle, { LE_IMAGE_USAGE_TRANSFER_DST_BIT } )
-	    .useImageResource( app->imgEarthClouds.imageHandle, { LE_IMAGE_USAGE_TRANSFER_DST_BIT } )
 	    .useBufferResource( app->worldGeometry.vertex_buffer_handle, { LE_BUFFER_USAGE_TRANSFER_DST_BIT } )
 	    .useBufferResource( app->worldGeometry.index_buffer_handle, { LE_BUFFER_USAGE_TRANSFER_DST_BIT } ) //
 	    ;
 
-	return !app->worldGeometry.wasLoaded ||
-	       !app->imgEarthNight.wasLoaded ||
-	       !app->imgEarthAlbedo.wasLoaded ||
-	       !app->imgEarthNormals.wasLoaded ||
-	       !app->imgEarthNight.wasLoaded ||
-	       !app->imgEarthClouds.wasLoaded //
-	    ;
+	return !app->worldGeometry.wasLoaded;
 }
 
 // ----------------------------------------------------------------------
@@ -341,34 +314,6 @@ static void pass_resource_exec( le_command_buffer_encoder_o *encoder_, void *use
 
 		geom.wasLoaded = true;
 	}
-
-	auto uploadImage = [ & ]( Image &img ) {
-		if ( false == img.wasLoaded ) {
-			using namespace le_pixels;
-			auto pixelsData = le_pixels_i.get_data( img.pixels );
-
-			auto wi = le::WriteToImageSettingsBuilder()
-			              .setImageH( img.pixelsInfo.height )
-			              .setImageW( img.pixelsInfo.width )
-			              .setNumMiplevels( img.numMipLevels )
-			              .build();
-
-			encoder.writeToImage( img.imageHandle,
-			                      wi,
-			                      pixelsData,
-			                      img.pixelsInfo.byte_count );
-
-			le_pixels_i.destroy( img.pixels ); // Free pixels memory
-			img.pixels = nullptr;              // Mark pixels memory as freed, otherwise Image.destroy() will double-free!
-
-			img.wasLoaded = true;
-		}
-	};
-
-	uploadImage( app->imgEarthAlbedo );
-	uploadImage( app->imgEarthNormals );
-	uploadImage( app->imgEarthNight );
-	uploadImage( app->imgEarthClouds );
 }
 
 // ----------------------------------------------------------------------
@@ -380,7 +325,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto texInfoAlbedo =
 	    le::ImageSamplerInfoBuilder()
 	        .withImageViewInfo()
-	        .setImage( app->imgEarthAlbedo.imageHandle )
+	        .setImage( imgEarthAlbedo )
 	        .end()
 	        .withSamplerInfo()
 	        .setAddressModeU( le::SamplerAddressMode::eRepeat )
@@ -392,7 +337,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto texInfoNight =
 	    le::ImageSamplerInfoBuilder()
 	        .withImageViewInfo()
-	        .setImage( app->imgEarthNight.imageHandle )
+	        .setImage( imgEarthNight )
 	        .end()
 	        .withSamplerInfo()
 	        .setAddressModeU( le::SamplerAddressMode::eRepeat )
@@ -404,7 +349,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto texInfoClouds =
 	    le::ImageSamplerInfoBuilder()
 	        .withImageViewInfo()
-	        .setImage( app->imgEarthClouds.imageHandle )
+	        .setImage( imgEarthClouds )
 	        .end()
 	        .withSamplerInfo()
 	        .setAddressModeU( le::SamplerAddressMode::eRepeat )
@@ -416,7 +361,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto texInfoNormals =
 	    le::ImageSamplerInfoBuilder()
 	        .withImageViewInfo()
-	        .setImage( app->imgEarthNormals.imageHandle )
+	        .setImage( imgEarthNormals )
 	        .end()
 	        .withSamplerInfo()
 	        .setAddressModeU( le::SamplerAddressMode::eRepeat )
@@ -428,10 +373,10 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	rp
 	    .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE, le::ImageAttachmentInfoBuilder().setLoadOp( le::AttachmentLoadOp::eClear ).build() ) // color attachment
 	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER" ) )
-	    .sampleTexture( app->imgEarthAlbedo.imageSampler, texInfoAlbedo )
-	    .sampleTexture( app->imgEarthNight.imageSampler, texInfoNight )
-	    .sampleTexture( app->imgEarthNormals.imageSampler, texInfoNormals )
-	    .sampleTexture( app->imgEarthClouds.imageSampler, texInfoClouds )
+	    .sampleTexture( app->texEarthAlbedo, texInfoAlbedo )
+	    .sampleTexture( app->texEarthNight, texInfoNight )
+	    .sampleTexture( app->texEarthNormals, texInfoNormals )
+	    .sampleTexture( app->texEarthClouds, texInfoClouds )
 	    .useBufferResource( app->worldGeometry.vertex_buffer_handle, { LE_BUFFER_USAGE_VERTEX_BUFFER_BIT } )
 	    .useBufferResource( app->worldGeometry.index_buffer_handle, { LE_BUFFER_USAGE_INDEX_BUFFER_BIT } )
 
@@ -532,10 +477,10 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		encoder
 		    .setArgumentData( LE_ARGUMENT_NAME( "CameraParams" ), &cameraParams, sizeof( CameraParams ) )
 		    .setArgumentData( LE_ARGUMENT_NAME( "ModelParams" ), &earthParams, sizeof( ModelParams ) )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), app->imgEarthAlbedo.imageSampler )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_1" ), app->imgEarthNormals.imageSampler )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_2" ), app->imgEarthNight.imageSampler )
-		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_clouds" ), app->imgEarthClouds.imageSampler )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), app->texEarthAlbedo )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_1" ), app->texEarthNormals )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_2" ), app->texEarthNight )
+		    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_clouds" ), app->texEarthClouds )
 		    .drawIndexed( uint32_t( app->worldGeometry.indexCount ) ) //
 		    ;
 
@@ -581,7 +526,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		//		std::cout << "Hit? " << ( hit ? "true  " : " false " ) << ", distance: " << howClose << std::endl
 		//		          << std::flush;
 
-		if ( !hit && fabsf( howClose ) > 1000.f ) {
+		if ( false && !hit && fabsf( howClose ) > 1000.f ) {
 
 			struct LensflareParams {
 				// uCanvas:
@@ -670,6 +615,9 @@ static bool hello_world_app_update( hello_world_app_o *self ) {
 
 	le::RenderModule mainModule{};
 	{
+
+		self->resource_manager.update( mainModule );
+
 		le::RenderPass resourcePass( "resources", LE_RENDER_PASS_TYPE_TRANSFER );
 		resourcePass
 		    .setSetupCallback( self, pass_resource_setup )
@@ -688,12 +636,7 @@ static bool hello_world_app_update( hello_world_app_o *self ) {
 		    .addRenderPass( renderPassFinal );
 		mainModule
 		    .declareResource( self->worldGeometry.index_buffer_handle, self->worldGeometry.index_buffer_info )
-		    .declareResource( self->worldGeometry.vertex_buffer_handle, self->worldGeometry.vertex_buffer_info )
-		    .declareResource( self->imgEarthNight.imageHandle, self->imgEarthNight.imageInfo )
-		    .declareResource( self->imgEarthAlbedo.imageHandle, self->imgEarthAlbedo.imageInfo )
-		    .declareResource( self->imgEarthNormals.imageHandle, self->imgEarthNormals.imageInfo )
-		    .declareResource( self->imgEarthClouds.imageHandle, self->imgEarthClouds.imageInfo ) //
-		    ;
+		    .declareResource( self->worldGeometry.vertex_buffer_handle, self->worldGeometry.vertex_buffer_info );
 	}
 
 	// Update will call all rendercallbacks in this module.
@@ -778,7 +721,7 @@ static void terminate() {
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_hello_world_app_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( hello_world_app, api ) {
 	auto  hello_world_app_api_i = static_cast<hello_world_app_api *>( api );
 	auto &hello_world_app_i     = hello_world_app_api_i->hello_world_app_i;
 
