@@ -263,8 +263,9 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	                      .setRobustBufferAccess( false ) // disable robust buffer access
 	                      .setVertexPipelineStoresAndAtomics( true )
 	                      .setFragmentStoresAndAtomics( true )
-	                  // .setShaderInt64( true )                    // -"-
-
+	                      .setSampleRateShading( true ) // enable so that we can use sampleShadingEnable
+	                      .setGeometryShader( true )    // we want geometry shaders
+	                                                    // .setShaderInt64( true )
 	    );
 
 #ifdef LE_FEATURE_RTX
