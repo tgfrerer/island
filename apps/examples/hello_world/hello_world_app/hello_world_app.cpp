@@ -526,7 +526,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		//		std::cout << "Hit? " << ( hit ? "true  " : " false " ) << ", distance: " << howClose << std::endl
 		//		          << std::flush;
 
-		if ( false && !hit && fabsf( howClose ) > 1000.f ) {
+		if ( !hit && fabsf( howClose ) > 1000.f ) {
 
 			struct LensflareParams {
 				// uCanvas:
