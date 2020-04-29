@@ -548,6 +548,11 @@ struct ArgumentState {
 	std::vector<le_shader_binding_info>         binding_infos;
 };
 
+struct DescriptorSetState {
+	vk::DescriptorSetLayout     setLayout;
+	std::vector<DescriptorData> setData;
+};
+
 // ----------------------------------------------------------------------
 
 static inline void vk_format_get_is_depth_stencil( vk::Format format_, bool &isDepth, bool &isStencil ) {
@@ -3125,7 +3130,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				patchImageUsageForMipLevels( &resourceCreateInfo );
 
 				if ( resourceCreateInfo.imageInfo.format == VK_FORMAT_UNDEFINED ) {
-					checkImageFormat( self, resourceId, resourceInfo.image.usage, &resourceCreateInfo );
+					inferImageFormat( self, resourceId, resourceInfo.image.usage, &resourceCreateInfo );
 				}
 			}
 
@@ -3172,7 +3177,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				if ( resourceCreateInfo.isImage() ) {
 					patchImageUsageForMipLevels( &resourceCreateInfo );
 					if ( resourceCreateInfo.imageInfo.format == VK_FORMAT_UNDEFINED ) {
-						checkImageFormat( self, resourceId, resourceInfo.image.usage, &resourceCreateInfo );
+						inferImageFormat( self, resourceId, resourceInfo.image.usage, &resourceCreateInfo );
 					}
 				}
 
@@ -3682,11 +3687,11 @@ static bool is_equal( le_pipeline_and_layout_info_t const &lhs, le_pipeline_and_
 	       0 == memcmp( lhs.layout_info.set_layout_keys, rhs.layout_info.set_layout_keys, sizeof( uint64_t ) * lhs.layout_info.set_layout_count );
 }
 
-static bool updateArguments( const vk::Device &                          device,
-                             const vk::DescriptorPool &                  descriptorPool_,
-                             const ArgumentState &                       argumentState,
-                             std::array<std::vector<DescriptorData>, 8> &previousSetData,
-                             vk::DescriptorSet *                         descriptorSets ) {
+static bool updateArguments( const vk::Device &                 device,
+                             const vk::DescriptorPool &         descriptorPool_,
+                             const ArgumentState &              argumentState,
+                             std::array<DescriptorSetState, 8> &previousSetData,
+                             vk::DescriptorSet *                descriptorSets ) {
 
 	// -- allocate descriptors from descriptorpool based on set layout info
 
@@ -3786,8 +3791,17 @@ static bool updateArguments( const vk::Device &                          device,
 			// descriptors - we only (re-)allocate descriptorsets for when we detect a change
 			// within one of these sets.
 
-			if ( previousSetData[ setId ].empty() ||
-			     previousSetData[ setId ] != argumentState.setData[ setId ] ) {
+			// FIXME: there is a subtle bug here - if setData is the same between arguments we
+			// should theoretically be able to recycle the descriptorset - but beware! If the
+			// decriptorset requires a different layout, then you must re-allocate. This can
+			// happen when descriptors differ in usage flags, for example (vertex|fragment vs. vertex)
+			// -- in such a case the parameters are the same between two descriptorSets,
+			// but the descriptorSetLayouts will be different, and you must allcate the matching
+			// descriptorSet.
+
+			if ( previousSetData[ setId ].setData.empty() ||
+			     previousSetData[ setId ].setData != argumentState.setData[ setId ] ||
+			     previousSetData[ setId ].setLayout != argumentState.layouts[ setId ] ) {
 
 				vk::DescriptorSetAllocateInfo allocateInfo;
 				allocateInfo.setDescriptorPool( descriptorPool_ )
@@ -3866,7 +3880,8 @@ static bool updateArguments( const vk::Device &                          device,
 						delete ( w );
 					}
 				}
-				previousSetData[ setId ] = argumentState.setData[ setId ];
+				previousSetData[ setId ].setData   = argumentState.setData[ setId ];
+				previousSetData[ setId ].setLayout = argumentState.layouts[ setId ];
 			}
 
 		} else {
@@ -4083,7 +4098,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		// for different accessors, only with different dynamic binding offsets.
 		//
 		//
-		std::array<std::vector<DescriptorData>, 8> previousSetData;
+		std::array<DescriptorSetState, 8> previousSetState; ///< currently bound descriptorSetLayout+Data for each set
 
 		ArgumentState argumentState{};
 
@@ -4150,7 +4165,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 							// Print pipeline debug info when a new pipeline gets bound.
 
-							std::cout << "requested pipeline << " << std::hex << le_cmd->info.gpsoHandle << std::endl;
+							std::cout << "Requested pipeline: " << std::hex << le_cmd->info.gpsoHandle << std::endl;
 							debug_print_le_pipeline_layout_info( &requestedPipeline.layout_info );
 							std::cout << std::flush;
 						}
@@ -4492,7 +4507,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto *le_cmd = static_cast<le::CommandDispatch *>( dataIt );
 
 					// -- update descriptorsets via template if tainted
-					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetData, descriptorSets );
+					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
 
 					if ( false == argumentsOk ) {
 						break;
@@ -4518,7 +4533,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto *le_cmd = static_cast<le::CommandDraw *>( dataIt );
 
 					// -- update descriptorsets via template if tainted
-					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetData, descriptorSets );
+					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
 
 					if ( false == argumentsOk ) {
 						break;
@@ -4544,7 +4559,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto *le_cmd = static_cast<le::CommandDrawIndexed *>( dataIt );
 
 					// -- update descriptorsets via template if tainted
-					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetData, descriptorSets );
+					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
 
 					if ( false == argumentsOk ) {
 						break;
