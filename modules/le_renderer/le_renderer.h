@@ -38,7 +38,7 @@ struct le_renderer_api {
 		le_pipeline_manager_o*         ( *get_pipeline_manager                  )( le_renderer_o* self );
 
         struct le_texture_handle_store_t * le_texture_handle_store = nullptr;
-        le_texture_handle        ( *produce_texture_handle                )(char const * maybe_name );
+        le_texture_handle              ( *produce_texture_handle                )(char const * maybe_name );
         char const *                   ( *texture_handle_get_name               )(le_texture_handle handle);
 
 		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, LeBuildAccelerationStructureFlags const * flags);
