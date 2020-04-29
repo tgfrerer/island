@@ -142,6 +142,26 @@ static void le_resource_manager_update( le_resource_manager_o *manager, le_rende
 	render_module_i.add_renderpass( module, renderPassTransfer );
 }
 
+static void infer_from_le_format( le::Format const &format, uint32_t *num_channels, le_pixels_info::Type *pixels_type ) {
+	switch ( format ) {
+	case le::Format::eUndefined: // deliberate fall-through
+	case le::Format::eR8G8B8A8Unorm:
+		*num_channels = 4;
+		*pixels_type  = le_pixels_info::Type::eUInt8;
+		return;
+	case le::Format::eR8Unorm:
+		*num_channels = 1;
+		*pixels_type  = le_pixels_info::Type::eUInt8;
+		return;
+	case le::Format::eR16G16B16A16Unorm:
+		*num_channels = 4;
+		*pixels_type  = le_pixels_info::Type::eUInt16;
+		return;
+	default:
+		assert( false && "Unhandled image format." );
+	}
+}
+
 // ----------------------------------------------------------------------
 // NOTE: You must provide an array of paths in image_paths, and the
 // array's size must match `image_info.image.arrayLayers`
@@ -169,7 +189,13 @@ static void le_resource_manager_add_item( le_resource_manager_o *     self,
 		layer_data.path         = std::string{ image_paths[ i ] };
 		layer_data.was_uploaded = false;
 
-		layer_data.pixels = le_pixels::le_pixels_i.create( layer_data.path.c_str(), 4, le_pixels_info::Type::eUInt8 );
+		// we must find out the pixels type from image info format
+		uint32_t             num_channels = 0;
+		le_pixels_info::Type pixels_type{};
+
+		infer_from_le_format( item.image_info.image.format, &num_channels, &pixels_type );
+
+		layer_data.pixels = le_pixels::le_pixels_i.create( layer_data.path.c_str(), num_channels, pixels_type );
 
 		if ( extents_inferred ) {
 			auto info                           = le_pixels::le_pixels_i.get_info( layer_data.pixels );
