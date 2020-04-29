@@ -157,17 +157,34 @@ static void le_resource_manager_add_item( le_resource_manager_o *     self,
 	item.image_info   = *image_info;
 	item.image_layers.reserve( image_info->image.arrayLayers );
 
+	bool extents_inferred = false;
+	if ( item.image_info.image.extent.width == 0 ||
+	     item.image_info.image.extent.height == 0 ||
+	     item.image_info.image.extent.depth == 0 ) {
+		extents_inferred = true;
+	}
+
 	for ( size_t i = 0; i != item.image_info.image.arrayLayers; ++i ) {
 		le_resource_manager_o::image_data_layer_t layer_data{};
 		layer_data.path         = std::string{ image_paths[ i ] };
 		layer_data.was_uploaded = false;
 
-		layer_data.pixels = nullptr; // TODO: should we load image here immediately?
-		// FIXME: pixels paramter need to be inferred via image parameters
 		layer_data.pixels = le_pixels::le_pixels_i.create( layer_data.path.c_str(), 4, le_pixels_info::Type::eUInt8 );
+
+		if ( extents_inferred ) {
+			auto info                           = le_pixels::le_pixels_i.get_info( layer_data.pixels );
+			item.image_info.image.extent.depth  = std::max( item.image_info.image.extent.depth, info.depth );
+			item.image_info.image.extent.width  = std::max( item.image_info.image.extent.width, info.width );
+			item.image_info.image.extent.height = std::max( item.image_info.image.extent.height, info.height );
+		}
 
 		item.image_layers.emplace_back( layer_data );
 	}
+
+	assert( item.image_info.image.extent.width != 0 &&
+	        item.image_info.image.extent.height != 0 &&
+	        item.image_info.image.extent.depth != 0 &&
+	        "Image extents for resource are not valid." );
 
 	self->resources.emplace_back( item );
 }
