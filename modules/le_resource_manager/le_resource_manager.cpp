@@ -95,7 +95,7 @@ static void execTransferPass( le_command_buffer_encoder_o *pEncoder, void *user_
 
 			// --------| invariant: layer was not yet uploaded.
 
-			for ( uint32_t mip_level = 0; mip_level != num_mip_levels; mip_level++ ) {
+			for ( uint32_t mip_level = 0; mip_level != 1; mip_level++ ) {
 
 				assert( mip_level == 0 && "mip level greater than 0 not implemented" );
 				uint32_t width  = image_width >> mip_level;
@@ -105,7 +105,7 @@ static void execTransferPass( le_command_buffer_encoder_o *pEncoder, void *user_
 				le_write_to_image_settings_t write_info =
 				    le::WriteToImageSettingsBuilder()
 				        .setDstMiplevel( mip_level )
-				        .setNumMiplevels( 1 )
+				        .setNumMiplevels( num_mip_levels )
 				        .setArrayLayer( layer ) // faces are indexed: +x, -x, +y, -y, +z, -z
 				        .setImageH( height )
 				        .setImageW( width )
