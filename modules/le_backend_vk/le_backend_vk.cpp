@@ -2907,7 +2907,7 @@ static void insert_msaa_versions(
 
 // ----------------------------------------------------------------------
 
-void printResourceInfo( le_resource_handle_t const &handle, ResourceCreateInfo const &info ) {
+static void printResourceInfo( le_resource_handle_t const &handle, ResourceCreateInfo const &info ) {
 	// when printing debug name we test whether the first glyph might be an utf-8 ellispis, in which
 	// case we must add two spaces to make up for the shorter length (in terms of glyphs) of the utf-8
 	// printout.
@@ -2945,7 +2945,7 @@ void printResourceInfo( le_resource_handle_t const &handle, ResourceCreateInfo c
 
 // ----------------------------------------------------------------------
 
-bool checkImageFormat( le_backend_o *self, le_resource_handle_t const &resource, LeImageUsageFlags const &usageFlags, ResourceCreateInfo *createInfo ) {
+static bool inferImageFormat( le_backend_o *self, le_resource_handle_t const &resource, LeImageUsageFlags const &usageFlags, ResourceCreateInfo *createInfo ) {
 	// If image format was not specified, we must try to
 	// infer the image format from usage flags.
 	auto inferred_format = infer_image_format_from_le_image_usage_flags( self, usageFlags );
@@ -2967,7 +2967,7 @@ bool checkImageFormat( le_backend_o *self, le_resource_handle_t const &resource,
 
 // ----------------------------------------------------------------------
 // If image has mip levels, we implicitly add usage: "transfer_src", so that mip maps may be created by blitting.
-void patchImageUsageForMipLevels( ResourceCreateInfo *createInfo ) {
+static void patchImageUsageForMipLevels( ResourceCreateInfo *createInfo ) {
 	if ( createInfo->imageInfo.mipLevels > 1 ) {
 		createInfo->imageInfo.usage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 	}
@@ -2975,7 +2975,7 @@ void patchImageUsageForMipLevels( ResourceCreateInfo *createInfo ) {
 
 // ----------------------------------------------------------------------
 
-void frame_resources_set_debug_names( le_backend_vk_instance_o *instance, VkDevice device_, BackendFrameData::ResourceMap_T &resources ) {
+static void frame_resources_set_debug_names( le_backend_vk_instance_o *instance, VkDevice device_, BackendFrameData::ResourceMap_T &resources ) {
 
 	// We capture the check for extension as a static, as this is not expected to
 	// change for the lifetime of the application, and checking for the extension
