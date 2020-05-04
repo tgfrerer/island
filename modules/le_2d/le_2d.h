@@ -86,6 +86,8 @@ struct le_2d_api {
 		void (*path_arc_to)(le_2d_primitive_o* p, glm::vec2 const * p1, glm::vec2 const * radii, float phi, bool large_arc, bool sweep);
 		void (*path_ellipse)(le_2d_primitive_o* p, glm::vec2 const * centre, float r_x, float r_y);
 
+        void (*path_hobby)(le_2d_primitive_o* p);
+
 		void (*path_add_from_simplified_svg)(le_2d_primitive_o* p, char const * svg);
 
 		#undef SETTER_DECLARE
@@ -391,6 +393,11 @@ class Le2D : NoCopy, NoMove {
 
 		PathBuilder &close() {
 			le_2d::le_2d_prim_i.path_close( self );
+			return *this;
+		}
+
+		PathBuilder &hobby() {
+			le_2d::le_2d_prim_i.path_hobby( self );
 			return *this;
 		}
 

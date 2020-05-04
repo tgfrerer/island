@@ -876,6 +876,14 @@ static void le_2d_primitive_path_arc_to( le_2d_primitive_o *p, vec2f const *pos,
 
 // ----------------------------------------------------------------------
 
+static void le_2d_primitive_path_hobby( le_2d_primitive_o *p ) {
+	assert( p->type == le_2d_primitive_o::Type::ePath );
+	auto &obj = p->data.as_path;
+	le_path::le_path_i.hobby( obj.path );
+}
+
+// ----------------------------------------------------------------------
+
 static void le_2d_primitive_path_ellipse( le_2d_primitive_o *p, vec2f const *centre, float r_x, float r_y ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
 	auto &obj = p->data.as_path;
@@ -989,6 +997,7 @@ LE_MODULE_REGISTER_IMPL( le_2d, api ) {
 	le_2d_primitive_i.path_add_from_simplified_svg = le_2d_primitive_path_add_from_simplified_svg;
 	le_2d_primitive_i.path_set_tolerance           = le_2d_primitive_path_set_tolerance;
 	le_2d_primitive_i.path_close                   = le_2d_primitive_path_close;
+	le_2d_primitive_i.path_hobby                   = le_2d_primitive_path_hobby;
 	le_2d_primitive_i.create_path                  = le_2d_primitive_create_path;
 
 	le_2d_primitive_i.create_arc     = le_2d_primitive_create_arc;

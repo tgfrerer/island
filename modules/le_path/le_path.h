@@ -50,6 +50,8 @@ struct le_path_api {
 		void        (* arc_to                    ) ( le_path_o* self, glm::vec2 const* p, glm::vec2 const * radii, float phi, bool large_arc, bool sweep);
 		void        (* close                     ) ( le_path_o* self);
 
+        void        (* hobby                     ) ( le_path_o* self );
+
 		// macro - style commands which resolve to a series of subcommands from above
 
 		void        (* ellipse                   ) ( le_path_o* self, glm::vec2 const* centre, float r_x, float r_y );

@@ -9,6 +9,7 @@
 #include "glm.hpp"
 #include "glm/gtx/vector_query.hpp"
 #include "glm/gtx/vector_angle.hpp"
+#include "glm/gtx/rotate_vector.hpp"
 
 using stroke_attribute_t = le_path_api::stroke_attribute_t;
 
@@ -119,6 +120,83 @@ struct InflectionData {
 	float t_1;
 	float t_2;
 };
+
+// Thomas Algorithm, also known as tridiagonal matrix solver algorithm,
+// implemented based on video lecture by Prof. Dr. Edmund Weitz, see:
+// <https://www.youtube.com/watch?v=0oUo1d6PpGU>
+//
+// This implementation follows the naming convention used in the Wikipedia
+// entry, <https://en.m.wikipedia.org/wiki/Tridiagonal_matrix_algorithm>
+// with the important difference that our arrays are zero-indexed, so as to
+// follow the c/cpp convention.
+//
+// Note: Parameters a, b, c, d are arrays of length count. a[0], and c[n] are not used,
+// result must be an array of length count.
+//
+template <typename T>
+inline static void thomas( T const *a, T const *b, T const *c, T const *d, size_t const count, T *result ) {
+
+	// We copy, so that we don't overwrite given paramter data.
+	//
+	std::vector<T> c_prime( count );
+	std::vector<T> d_prime( count );
+
+	size_t i           = 0;
+	T      denominator = b[ i ];
+	c_prime[ i ]       = c[ i ] / denominator;
+	d_prime[ i ]       = d[ i ] / denominator;
+
+	for ( i = 1; i != count; ++i ) {
+		denominator  = b[ i ] - c_prime[ i - 1 ] * a[ i ];
+		c_prime[ i ] = c[ i ] / denominator;
+		d_prime[ i ] = ( d[ i ] - d_prime[ i - 1 ] * a[ i ] ) / denominator;
+	}
+
+	int n       = count - 1;
+	result[ n ] = d_prime[ n ];
+
+	for ( n = count - 2; n >= 0; n-- ) {
+		result[ n ] = d_prime[ n ] - c_prime[ n ] * result[ n + 1 ];
+	}
+}
+
+// Note that we expect value a[0] to contain the value from the top right corner of the "almost tridiagonal" matrix,
+// and that we expect c[count-1] to contain the value for the bottom left corner of the almost tridiagonal matrix.
+template <typename T>
+inline static void sherman_morrisson_woodbury( T const *a, T const *b, T const *c, T const *d, size_t const count, T *result ) {
+
+	std::vector<T> u( count, 0 );
+	std::vector<T> v( count, 0 );
+
+	u[ 0 ]         = 1;
+	u[ count - 1 ] = 1;
+
+	auto const &s = a[ 0 ];         // note: a[0] not used by thomas algorithm
+	auto const &t = c[ count - 1 ]; // note: c[count-1] not used by thomas algorithm
+
+	v[ count - 1 ] = s;
+	v[ 0 ]         = t;
+
+	std::vector<T> b_dash{ b, b + count };
+
+	b_dash[ 0 ] -= t;
+	b_dash[ count - 1 ] -= s;
+
+	std::vector<T> Td( count );
+	std::vector<T> Tu( count );
+
+	thomas( a, b_dash.data(), c, d, count, Td.data() );
+	thomas( a, b_dash.data(), c, u.data(), count, Tu.data() );
+
+	const T factor = ( t * Td[ 0 ] +
+	                   s * Td[ count - 1 ] ) /
+	                 ( 1 + t * Tu[ 0 ] +
+	                   s * Tu[ count - 1 ] );
+
+	for ( size_t i = 0; i != count; i++ ) {
+		result[ i ] = Td[ i ] - factor * Tu[ i ];
+	}
+}
 
 // ----------------------------------------------------------------------
 
@@ -2324,6 +2402,127 @@ static void le_path_arc_to( le_path_o *self, glm::vec2 const *p, glm::vec2 const
 static void le_path_close_path( le_path_o *self ) {
 	self->contours.back().commands.emplace_back( PathCommand::eClosePath, glm::vec2{} );
 }
+static inline float rho( float a, float b ) {
+	// see video for formula
+	float sa  = sin( a );
+	float sb  = sin( b );
+	float ca  = cos( a );
+	float cb  = cos( b );
+	float s5  = sqrt( 5.f );
+	float num = 4.f + sqrt( 8.f ) * ( sa - sb / 16.f ) * ( sb - sa / 16.f ) * ( ca - cb );
+	float den = 2.f + ( s5 - 1.f ) * ca + ( 3.f - s5 ) * cb;
+	return num / den;
+}
+
+// hobby algorithm for a closed path onto path commands.
+// this effectively changes all commands to type cubic bezier, and
+// will set their control points to optimise for best curvature.
+static void path_commands_apply_hobby_closed( std::vector<PathCommand> &commands ) {
+	// note that last command will be the close command - all other commands are legit.
+
+	// We expect a list of path commands with the following pattern:
+	//
+	// m, p(0), p(1), p(2), p(n), p(0), close
+	//
+	// Note that the last element is purely a flag, and the first element
+	// only contains a moveto instruction.
+
+	size_t count = commands.size() - 2; // we remove the close flag from the count, and the last, doubled vertex
+
+	std::vector<float>     D( count );
+	std::vector<glm::vec2> delta( count ); // vector between points
+
+	for ( size_t i = 0; i != count; i++ ) {
+		size_t j   = ( i + 1 ) % count; // next point wrapped around
+		delta[ i ] = commands[ j ].p - commands[ i ].p;
+		D[ i ]     = glm::length( delta[ i ] );
+	}
+
+	std::vector<float> gamma( count ); // angles for directions between points (relative to x-axis)
+
+	for ( size_t i = 0; i != count; i++ ) {
+		size_t    k          = ( i + count - 1 ) % count; // index for previous point, wrapped around
+		glm::vec2 delta_norm = delta[ k ] / D[ k ];       // normalise delta, implicitly means x = sin(a), y = cos(a)
+		delta_norm.y *= -1;                               // flip sign on y
+		// rotate so that x-axis is previous direction
+		glm::vec2 d_rot =
+		    delta[ i ] *
+		    glm::mat2{
+		        { delta_norm.x, -delta_norm.y }, // first column : cos, -sin
+		        { delta_norm.y, delta_norm.x },  // second column: sin, cos
+		    };
+		gamma[ i ] = atan2( d_rot.y, d_rot.x ); // capture angles
+	}
+
+	std::vector<float> alpha( count );
+	std::vector<float> beta( count );
+
+	{
+		// Calculate alpha (and implicitly beta) via the sherman-morrisson-woodbury
+		// formula.
+
+		std::vector<float> a( count );
+		std::vector<float> b( count );
+		std::vector<float> c( count );
+		std::vector<float> d( count );
+
+		for ( size_t i = 0; i != count; i++ ) {
+			size_t j = ( i + 1 ) % count;         // previous point, wrapped
+			size_t k = ( i + count - 1 ) % count; // next point, wrapped
+			a[ i ]   = 1.f / D[ k ];
+			b[ i ]   = ( 2.f * D[ k ] + 2.f * D[ i ] ) / ( D[ k ] * D[ i ] );
+			c[ i ]   = 1.f / D[ i ];
+			d[ i ]   = -( 2.f * gamma[ i ] * D[ i ] + gamma[ j ] * D[ k ] ) / ( D[ k ] * D[ i ] );
+		}
+
+		sherman_morrisson_woodbury( a.data(), b.data(), c.data(), d.data(),
+		                            alpha.size(), alpha.data() );
+
+		// beta can be calculated via gamma, and alpha
+
+		for ( size_t i = 0; i != count; i++ ) {
+			size_t j  = ( i + 1 ) % count; // next index, wrapped
+			beta[ i ] = -gamma[ j ] - alpha[ j ];
+		}
+	}
+
+	for ( size_t i = 0; i != count; i++ ) {
+		float a = rho( alpha[ i ], beta[ i ] ) * D[ i ] / 3.f; // velocity function "rho"
+		float b = rho( beta[ i ], alpha[ i ] ) * D[ i ] / 3.f; // velocity function in the other direction, "sigma"
+
+		auto &c = commands[ 1 + i ];
+
+		c.data.as_cubic_bezier.c1 = commands[ i ].p + a * glm::normalize( glm::rotate( delta[ i ], alpha[ i ] ) );
+		c.data.as_cubic_bezier.c2 = commands[ i + 1 ].p - b * glm::normalize( glm::rotate( delta[ i ], -beta[ i ] ) );
+
+		c.type = PathCommand::Type::eCubicBezierTo;
+	}
+}
+
+// Applies the hobby algorithm on the last contour.
+//
+// any commands in the contour will be interpreted as plain points, and
+// the contour will be transformed into cubic beziers, with freshly
+// calculated control points.
+// Depending on whether the contour has a `close` command as the last
+// element, the open or the closed version of the hobby algorithm is
+// applied.
+static void le_path_apply_hobby_on_last_contour( le_path_o *self ) {
+
+	if ( self->contours.empty() ) {
+		return;
+	}
+
+	// ----------| invariant: there is a last contour
+
+	auto &commands = self->contours.back().commands;
+
+	if ( commands.back().type == PathCommand::Type::eClosePath ) {
+		path_commands_apply_hobby_closed( commands );
+	} else {
+		assert( false && "not implemented - open hobby algo" );
+	}
+}
 
 // ----------------------------------------------------------------------
 
@@ -2743,6 +2942,7 @@ LE_MODULE_REGISTER_IMPL( le_path, api ) {
 	le_path_i.arc_to          = le_path_arc_to;
 	le_path_i.close           = le_path_close_path;
 
+	le_path_i.hobby   = le_path_apply_hobby_on_last_contour;
 	le_path_i.ellipse = le_path_ellipse;
 
 	le_path_i.add_from_simplified_svg = le_path_add_from_simplified_svg;
