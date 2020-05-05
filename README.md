@@ -10,9 +10,9 @@ The API is under active development, expect lots of change. As such, there are n
 
 * **Native code hot-reloading**: An Island project is made from independent c/cpp modules, each of which can be tweaked, and re-compiled at runtime, and will be automatically hot-reloaded. The same happens with changes in shader source files. Because of Island's modular architecture, recompilation & reload often takes less than 1 second, all the while the project keeps running.
 
-* **Fast compile times**: Because of Island's highly modular architecture, it compiles quickly, especially on multi-core systems. On my development machine, compilation from scratch for the whole codebase usually takes less than 6 seconds.
+* **Fast compile times**: Because of Island's highly modular architecture, everything compiles swiftly, especially on multi-core systems. Typically, compilation from scratch for the whole codebase takes less than 6 seconds, and (re)compilation of the app module takes less than a second.
 
-* **Static release binaries**: Island is highly modular and dynamic when run in debug, but compiles into a single, optimised static binary for release. 
+* **Static release binaries**: While Island is highly modular and dynamic when run in debug, it can compile into a single, optimised static binary for release. 
 
 * **Shader code debugging**: Shader GLSL code may be hot-reloaded too. Any change in shader files triggers a recompile, and pipelines are automatically rebuilt if needed. Shaders may include other shaders via `#include` directives. Error messages will point at file, and line number, and include a listing highlighting any problematic line in context.
 
@@ -28,11 +28,11 @@ The API is under active development, expect lots of change. As such, there are n
 
 * **2d drawing context**: Draw thick lines and curves using a module which does the maths for you.
 
-* **Framegraph**: Resources are allocated on-demand and synchronised automatically using a framegraph system. The framegraph generates `.dot` files in debug mode, which can be visualised with graphviz.
+* **Framegraph**: Resources are allocated on-demand and synchronised automatically using a framegraph system. Most resource properties are *inferred* automatically, reducing the bureaucracy of dealing with modern graphics APIs. The framegraph generates `.dot` files in debug mode, which can be visualised with graphviz.
 
-* **glTF** Island wraps cgltf for gltf file import, and it's own `le_stage` module can display and render most features of gltf files: pbrt materials, vertex animations, morph targets, and skinning.
+* **glTF** Island wraps cgltf for gltf file import, and the `le_stage` module can display and render most features found in gltf files: pbrt materials, vertex animations, morph targets, and skinning.
 
-* **Job-system**: Parallel workloads can be implemented using the `le_jobs` module, which implements a job system using co-routines.
+* **Job-system**: Parallel workloads can be implemented using the `le_jobs` module, which implements a job system using co-routines. Backend and render modules are designed to minimise resource contention.
 
 ## Tools
 + Project generator
