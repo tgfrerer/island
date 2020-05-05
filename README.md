@@ -6,29 +6,35 @@ Island is written for rapid protoyping and tweaking. It allows code hot-reloadin
 
 The API is under active development, expect lots of change. As such, there are no promises that it might be ready or fit for any purpose, and the code here is released in the hope that you might find it entertaining or instructive.
 
-## Why?
-
-Because it is there.
-
 ## Main Features:
 
-+ C/C++ code hot-reloading
-+ GLSL hot-reloading and debugging 
-+ GLSL code allows `#include` directive, debug messages, and hot-reloading are `#include` aware
-+ Near-instant in-code parameter tweaks
-+ Automatic resource allocation/resolution via Framegraph system
-+ Minimal effort to add multisampling/depth passes to renderpasses
-+ Vulkan backend
-	+ Dynamic GPU resource management/allocation
-	+ Dynamic pipeline generation and caching
-	+ Dynamic descriptor management and caching
-	+ Automatic synchronisation
+* **Native code hot-reloading**: An Island project is made from independent c/cpp modules, each of which can be tweaked, and re-compiled at runtime, and will be automatically hot-reloaded. The same happens with changes in shader source files. Because of Island's modular architecture, recompilation & reload often takes less than 1 second, all the while the project keeps running.
 
-+ Straight-to-video, image sequence or screen rendering
-+ Compiles to a single static binary with Release target
-+ Vulkan validation layers loaded by default for Debug target
+* **Fast compile times**: Because of Island's highly modular architecture, it compiles quickly, especially on multi-core systems. On my development machine, compilation from scratch for the whole codebase usually takes less than 6 seconds.
 
-## Things that make life easier
+* **Static release binaries**: Island is highly modular and dynamic when run in debug, but compiles into a single, optimised static binary for release. 
+
+* **Shader code debugging**: Shader GLSL code may be hot-reloaded too. Any change in shader files triggers a recompile, and pipelines are automatically rebuilt if needed. Shaders may include other shaders via `#include` directives. Error messages will point at file, and line number, and include a listing highlighting any problematic line in context.
+
+* **Vulkan backend**: Island uses a Vulkan backend, which, on Linux, allows you to experiment with new GPU features as soon as they are released. Vulkan resources are automatically synchronised, and only allocated on demand. Pipelines are compiled and recompiled when needed. When compiled in Debug mode, Vulkan validation layers are loaded by default.
+
+* **GPU ray tracing** Island supports RTX via the Khronos Vulkan raytracing extensions. Creating acceleration structures and shader binding tables is automated and simplified as much as possible. Ray tracing shaders can be hot-reloaded.
+
+* **Code tweaks**: Near-instant in-code paramter tweaks.
+
+* **Straight to video**: Island can render straight to screen using the direct rendering backend, or use any number of available options for a window-based vulkan swapchain. It's also easy to render straight to an mp4 file, or an image sequence without showing a window.
+
+* **Multisampling**: minimal effort to enable multisampling, import images, fonts
+
+* **2d drawing context**: Draw thick lines and curves using a module which does the maths for you.
+
+* **Framegraph**: Resources are allocated on-demand and synchronised automatically using a framegraph system. The framegraph generates `.dot` files in debug mode, which can be visualised with graphviz.
+
+* **glTF** Island wraps cgltf for gltf file import, and it's own `le_stage` module can display and render most features of gltf files: pbrt materials, vertex animations, morph targets, and skinning.
+
+* **Job-system**: Parallel workloads can be implemented using the `le_jobs` module, which implements a job system using co-routines.
+
+## Tools
 + Project generator
 + Module scaffold generator
 
@@ -50,8 +56,6 @@ Because it is there.
 | `le_font` | `stb_font` | truetype glyph sdf, geometry and texture atlas based typesetting |
 | `le_pipeline_builder` | - | build vulkan pipelines | 
 
-Island is highly modular and dynamic when run in debug, but compiles
-into a single, optimised static binary for release. 
 
 Similarly, debug builds will automatically load Vulkan debug layers,
 while release builds won't.
@@ -67,7 +71,7 @@ Island depends on a baseline of common development tools: CMake, gcc, git
 
 ## Install Vulkan SDK 
 
-### Current Vulkan SDK >= `1.1.92.0`
+### Vulkan SDK >= `1.1.92.0`
 
 I recommend to install the Vulkan SDK via the Ubuntu package manager.
 Follow the installation instructions via:
