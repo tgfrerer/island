@@ -131,7 +131,7 @@ struct InflectionData {
 // follow the c/cpp convention.
 //
 // Note: Parameters a, b, c, d are arrays of length count. a[0], and c[n] are not used,
-// result must be an array of length count.
+// `result` must be an array of length `count`.
 //
 template <typename T>
 inline static void thomas( T const *a, T const *b, T const *c, T const *d, size_t const count, T *result ) {
@@ -160,8 +160,10 @@ inline static void thomas( T const *a, T const *b, T const *c, T const *d, size_
 	}
 }
 
-// Note that we expect value a[0] to contain the value from the top right corner of the "almost tridiagonal" matrix,
-// and that we expect c[count-1] to contain the value for the bottom left corner of the almost tridiagonal matrix.
+// Note that we expect value a[0] to contain the value from the
+// top right corner of the "almost tridiagonal" matrix,
+// and that we expect c[count-1] to contain the value from the
+// bottom left corner of the "almost tridiagonal" matrix.
 template <typename T>
 inline static void sherman_morrisson_woodbury( T const *a, T const *b, T const *c, T const *d, size_t const count, T *result ) {
 
@@ -2402,6 +2404,9 @@ static void le_path_arc_to( le_path_o *self, glm::vec2 const *p, glm::vec2 const
 static void le_path_close_path( le_path_o *self ) {
 	self->contours.back().commands.emplace_back( PathCommand::eClosePath, glm::vec2{} );
 }
+
+// ----------------------------------------------------------------------
+
 static inline float rho( float a, float b ) {
 	// see video for formula
 	float sa  = sin( a );
@@ -2478,8 +2483,7 @@ static void path_commands_apply_hobby_closed( std::vector<PathCommand> &commands
 		sherman_morrisson_woodbury( a.data(), b.data(), c.data(), d.data(),
 		                            alpha.size(), alpha.data() );
 
-		// beta can be calculated via gamma, and alpha
-
+		// beta = -1 * ( gamma + alpha )
 		for ( size_t i = 0; i != count; i++ ) {
 			size_t j  = ( i + 1 ) % count; // next index, wrapped
 			beta[ i ] = -gamma[ j ] - alpha[ j ];
