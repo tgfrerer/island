@@ -2419,8 +2419,8 @@ static inline float rho( float a, float b ) {
 	return num / den;
 }
 
-// hobby algorithm for a closed path onto path commands.
-// this effectively changes all commands to type cubic bezier, and
+// Apply hobby algorithm for a closed path onto path commands.
+// This effectively changes all commands to type cubic bezier, and
 // will set their control points to optimise for best curvature.
 static void path_commands_apply_hobby_closed( std::vector<PathCommand> &commands ) {
 	// note that last command will be the close command - all other commands are legit.
@@ -2503,6 +2503,97 @@ static void path_commands_apply_hobby_closed( std::vector<PathCommand> &commands
 	}
 }
 
+// Apply hobby algorithm for a closed path onto path commands.
+// This effectively changes all commands to type cubic bezier, and
+// will set their control points to optimise for best curvature.
+static void path_commands_apply_hobby_open( std::vector<PathCommand> &commands ) {
+	// note that last command will be the close command - all other commands are legit.
+
+	// We expect a list of path commands with the following pattern:
+	//
+	// m, p(0), p(1), p(2), p(n)
+	//
+	// Note that the last element is purely a flag, and the first element
+	// only contains a moveto instruction.
+
+	int count = commands.size() - 1; // we remove the close flag from the count, and the last, doubled vertex
+
+	std::vector<float>     D( count );
+	std::vector<glm::vec2> delta( count ); // vector between points
+
+	for ( int i = 0; i < count; i++ ) {
+		delta[ i ] = commands[ i + 1 ].p - commands[ i ].p;
+		D[ i ]     = glm::length( delta[ i ] );
+	}
+
+	std::vector<float> gamma( count + 1 ); // angles for directions between points (relative to x-axis)
+
+	for ( int i = 1; i < count; i++ ) {
+		glm::vec2 delta_norm = delta[ i - 1 ] / D[ i - 1 ]; // normalise delta, this implicitly means x = sin(a), y = cos(a)
+		delta_norm.y *= -1;                                 // flip sign on y
+		// rotate so that x-axis is previous direction
+		glm::vec2 d_rot =
+		    delta[ i ] *
+		    glm::mat2{
+		        { delta_norm.x, -delta_norm.y }, // first column : cos, -sin
+		        { delta_norm.y, delta_norm.x },  // second column: sin, cos
+		    };
+		gamma[ i ] = atan2( d_rot.y, d_rot.x ); // capture angles
+	}
+
+	std::vector<float> alpha( count + 1 );
+	std::vector<float> beta( count );
+
+	{
+		// Calculate alpha (and implicitly beta)
+		// via the Thomas algorithm.
+
+		std::vector<float> a( count + 1 );
+		std::vector<float> b( count + 1 );
+		std::vector<float> c( count + 1 );
+		std::vector<float> d( count + 1 );
+
+		for ( int i = 1; i < count; i++ ) {
+			a[ i ] = 1 / D[ i - 1 ];
+			b[ i ] = ( 2 * D[ i - 1 ] + 2 * D[ i ] ) / ( D[ i - 1 ] * D[ i ] );
+			c[ i ] = 1 / D[ i ];
+			d[ i ] = -( 2 * gamma[ i ] * D[ i ] +
+			            gamma[ i + 1 ] * D[ i - 1 ] ) /
+			         ( D[ i - 1 ] * D[ i ] );
+		}
+
+		float const omega = 0.f;
+
+		b[ 0 ]     = 2 + omega;
+		c[ 0 ]     = 2 * omega + 1;
+		d[ 0 ]     = -c[ 0 ] * gamma[ 1 ];
+		a[ count ] = 2 * omega + 1;
+		b[ count ] = 2 + omega;
+		d[ count ] = 0;
+
+		thomas( a.data(), b.data(), c.data(), d.data(),
+		        alpha.size(), alpha.data() );
+
+		// beta = -1 * ( gamma + alpha )
+		for ( int i = 0; i < count - 1; i++ ) {
+			beta[ i ] = -gamma[ i + 1 ] - alpha[ i + 1 ];
+		}
+		beta[ count - 1 ] = -alpha[ count ];
+	}
+
+	for ( int i = 0; i < count; i++ ) {
+		float a = rho( alpha[ i ], beta[ i ] ) * D[ i ] / 3.f; // velocity function "rho"
+		float b = rho( beta[ i ], alpha[ i ] ) * D[ i ] / 3.f; // velocity function in the other direction, "sigma"
+
+		auto &c = commands[ 1 + i ];
+
+		c.data.as_cubic_bezier.c1 = commands[ i ].p + a * glm::normalize( glm::rotate( delta[ i ], alpha[ i ] ) );
+		c.data.as_cubic_bezier.c2 = commands[ i + 1 ].p - b * glm::normalize( glm::rotate( delta[ i ], -beta[ i ] ) );
+
+		c.type = PathCommand::Type::eCubicBezierTo;
+	}
+}
+
 // Applies the hobby algorithm on the last contour.
 //
 // any commands in the contour will be interpreted as plain points, and
@@ -2524,7 +2615,7 @@ static void le_path_apply_hobby_on_last_contour( le_path_o *self ) {
 	if ( commands.back().type == PathCommand::Type::eClosePath ) {
 		path_commands_apply_hobby_closed( commands );
 	} else {
-		assert( false && "not implemented - open hobby algo" );
+		path_commands_apply_hobby_open( commands );
 	}
 }
 
