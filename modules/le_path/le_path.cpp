@@ -2654,24 +2654,37 @@ static size_t le_path_get_num_contours( le_path_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_path_get_vertices_for_polyline( le_path_o *self, size_t const &polyline_index, glm::vec2 const **vertices, size_t *numVertices ) {
+static bool le_path_get_vertices_for_polyline( le_path_o *self, size_t const &polyline_index, glm::vec2 *vertices, size_t *numVertices ) {
+	bool success = false;
 	assert( polyline_index < self->polylines.size() );
 
 	auto const &polyline = self->polylines[ polyline_index ];
 
-	*vertices    = polyline.vertices.data();
+	if ( polyline.vertices.size() <= *numVertices ) {
+		memcpy( vertices, polyline.vertices.data(),
+		        sizeof( decltype( polyline.vertices )::value_type ) * polyline.vertices.size() );
+		success = true;
+	}
+
 	*numVertices = polyline.vertices.size();
+	return success;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_path_get_tangents_for_polyline( le_path_o *self, size_t const &polyline_index, glm::vec2 const **tangents, size_t *numTangents ) {
+static bool le_path_get_tangents_for_polyline( le_path_o *self, size_t const &polyline_index, glm::vec2 *tangents, size_t *numTangents ) {
+	bool success = false;
 	assert( polyline_index < self->polylines.size() );
 
 	auto const &polyline = self->polylines[ polyline_index ];
+	if ( polyline.tangents.size() <= *numTangents ) {
+		memcpy( tangents, polyline.tangents.data(),
+		        sizeof( decltype( polyline.tangents )::value_type ) * polyline.tangents.size() );
+		success = true;
+	}
 
-	*tangents    = polyline.tangents.data();
 	*numTangents = polyline.tangents.size();
+	return success;
 }
 
 // ----------------------------------------------------------------------
