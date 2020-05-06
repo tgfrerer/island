@@ -2407,8 +2407,9 @@ static void le_path_close_path( le_path_o *self ) {
 
 // ----------------------------------------------------------------------
 
+// "velocity function" for hobby algorithm.
+// See videos linked under <http://weitz.de/hobby/> for details
 static inline float rho( float a, float b ) {
-	// see video for formula
 	float sa  = sin( a );
 	float sb  = sin( b );
 	float ca  = cos( a );
