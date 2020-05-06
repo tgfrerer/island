@@ -4457,7 +4457,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto *le_cmd = static_cast<le::CommandTraceRays *>( dataIt );
 
 					// -- update descriptorsets via template if tainted
-					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetData, descriptorSets );
+					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
 
 					if ( false == argumentsOk ) {
 						break;
