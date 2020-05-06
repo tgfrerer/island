@@ -297,14 +297,18 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 		le_path_i.flatten( path, tolerance );
 
+		size_t                 num_used_vertices = 1024;
+		std::vector<glm::vec2> vertices( num_used_vertices );
+
 		size_t const num_polylines = le_path_i.get_num_polylines( path );
 		for ( size_t i = 0; i != num_polylines; ++i ) {
-			glm::vec2 const *line_vertices = nullptr;
-			size_t           num_vertices;
-			le_path_i.get_vertices_for_polyline( path, i, &line_vertices, &num_vertices );
-			auto *p_prev = line_vertices + 0;
-			for ( size_t j = 1; j != num_vertices; ++j ) {
-				glm::vec2 const *p_cur = line_vertices + j;
+			num_used_vertices = vertices.size();
+			while ( false == le_path_i.get_vertices_for_polyline( path, i, vertices.data(), &num_used_vertices ) ) {
+				vertices.resize( num_used_vertices );
+			}
+			auto const *p_prev = vertices.data();
+			for ( size_t j = 1; j != num_used_vertices; ++j ) {
+				glm::vec2 const *p_cur = vertices.data() + j;
 				generate_geometry_line( geometry, *p_prev, *p_cur, stroke_weight, color );
 				p_prev = p_cur;
 			}
@@ -482,16 +486,12 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 				stroke_attribs.line_join_type = to_path_enum( material.stroke_join_type );
 				stroke_attribs.line_cap_type  = to_path_enum( material.stroke_cap_type );
 
-				bool vertices_large_enough = le_path_i.tessellate_thick_contour( path, i, &stroke_attribs, v_data, &num_vertices );
-
-				if ( !vertices_large_enough ) {
+				while ( false == le_path_i.tessellate_thick_contour( path, i, &stroke_attribs, v_data, &num_vertices ) ) {
 					vertices.resize( num_vertices );
 					v_data = vertices.data();
-					le_path_i.tessellate_thick_contour( path, i, &stroke_attribs, v_data, &num_vertices );
 				}
 
-				glm::vec2 const *v = v_data;
-
+				glm::vec2 const *      v     = v_data;
 				glm::vec2 const *const v_end = v_data + num_vertices;
 
 				assert( num_vertices % 3 == 0 ); // vertices count must be divisible by 3
@@ -522,11 +522,18 @@ static void generate_geometry_path( std::vector<VertexData2D> &geometry, le_path
 	// le_tessellator_i.set_options( tess, le_tessellator::Options::bitConstrainedDelaunayTriangulation );
 	// le_tessellator_i.set_options( tess, le_tessellator::Options::bitUseEarcutTessellator );
 
+	size_t                 num_used_vertices = 1024;
+	std::vector<glm::vec2> line_vertices( num_used_vertices );
+
 	for ( size_t i = 0; i != num_polylines; ++i ) {
-		glm::vec2 const *line_vertices = nullptr;
-		size_t           num_vertices;
-		le_path_i.get_vertices_for_polyline( path, i, &line_vertices, &num_vertices );
-		le_tessellator_i.add_polyline( tess, line_vertices, num_vertices );
+
+		num_used_vertices = line_vertices.size();
+
+		while ( false == le_path_i.get_vertices_for_polyline( path, i, line_vertices.data(), &num_used_vertices ) ) {
+			line_vertices.resize( num_used_vertices );
+		}
+
+		le_tessellator_i.add_polyline( tess, line_vertices.data(), num_used_vertices );
 	}
 
 	le_tessellator_i.tessellate( tess );
@@ -662,7 +669,7 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 			.withRasterizationState()
 //				.setPolygonMode(le::PolygonMode::eLine)
 //				.setCullMode(le::CullModeFlagBits::eBack)
-//				.setFrontFace(le::FrontFace::eClockwise)
+//				.setFrontFace(le::FrontFace::eCounterClockwise)
 			.end()
 	        .build();
 	// clang-format on
@@ -740,7 +747,7 @@ static le_2d_primitive_o *le_2d_allocate_primitive( le_2d_o *self ) {
 
 	p->material.color            = 0xffffffff;
 	p->material.stroke_weight    = 1.f;
-	p->material.filled           = true;
+	p->material.filled           = false;
 	p->material.stroke_cap_type  = StrokeCapType::eStrokeCapRound;
 	p->material.stroke_join_type = StrokeJoinType::eStrokeJoinRound;
 
