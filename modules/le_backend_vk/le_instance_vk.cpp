@@ -65,8 +65,10 @@ static bool instance_is_extension_available( le_backend_vk_instance_o *self, cha
 DECLARE_EXT_PFN( vkCreateDebugUtilsMessengerEXT );
 DECLARE_EXT_PFN( vkDestroyDebugUtilsMessengerEXT );
 
-// device extensions - for ray tracing
 DECLARE_EXT_PFN( vkSetDebugUtilsObjectNameEXT );
+
+// device extensions - for ray tracing
+#ifdef LE_FEATURE_RTX
 DECLARE_EXT_PFN( vkGetBufferDeviceAddress );
 DECLARE_EXT_PFN( vkCreateAccelerationStructureKHR );
 DECLARE_EXT_PFN( vkGetAccelerationStructureMemoryRequirementsKHR );
@@ -77,11 +79,15 @@ DECLARE_EXT_PFN( vkGetAccelerationStructureDeviceAddressKHR );
 DECLARE_EXT_PFN( vkCreateRayTracingPipelinesKHR );
 DECLARE_EXT_PFN( vkGetRayTracingShaderGroupHandlesKHR );
 DECLARE_EXT_PFN( vkCmdTraceRaysKHR );
+#endif
 
+#ifdef LE_FEATURE_MESH_SHADER_NV
 // device extensions for mesh shaders
 DECLARE_EXT_PFN( vkCmdDrawMeshTasksNV );
 DECLARE_EXT_PFN( vkCmdDrawMeshTasksIndirectNV );
 DECLARE_EXT_PFN( vkCmdDrawMeshTasksIndirectCountNV );
+#endif
+
 #undef DECLARE_EXT_PFN
 
 // ----------------------------------------------------------------------
