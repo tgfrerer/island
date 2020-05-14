@@ -163,6 +163,10 @@ class Path : NoCopy, NoMove {
 		return *this;
 	}
 
+	void hobby() {
+		le_path::le_path_i.hobby( self );
+	}
+
 	void close() {
 		le_path::le_path_i.close( self );
 	}
