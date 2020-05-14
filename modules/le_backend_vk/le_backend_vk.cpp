@@ -4581,6 +4581,32 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					cmd.drawIndexed( le_cmd->info.indexCount, le_cmd->info.instanceCount, le_cmd->info.firstIndex, le_cmd->info.vertexOffset, le_cmd->info.firstInstance );
 				} break;
 
+				case le::CommandType::eDrawMeshTasks: {
+					auto *le_cmd = static_cast<le::CommandDrawMeshTasks *>( dataIt );
+
+					// -- update descriptorsets via template if tainted
+					bool argumentsOk = updateArguments( device, descriptorPool, argumentState, previousSetState, descriptorSets );
+
+					if ( false == argumentsOk ) {
+						break;
+					}
+
+					// --------| invariant: arguments were updated successfully
+
+					if ( argumentState.setCount > 0 ) {
+
+						cmd.bindDescriptorSets( vk::PipelineBindPoint::eGraphics,
+						                        currentPipelineLayout,
+						                        0,
+						                        argumentState.setCount,
+						                        descriptorSets,
+						                        argumentState.dynamicOffsetCount,
+						                        argumentState.dynamicOffsets.data() );
+					}
+
+					cmd.drawMeshTasksNV( le_cmd->info.taskCount, le_cmd->info.firstTask );
+				} break;
+
 				case le::CommandType::eSetLineWidth: {
 					auto *le_cmd = static_cast<le::CommandSetLineWidth *>( dataIt );
 					cmd.setLineWidth( le_cmd->info.width );

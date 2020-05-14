@@ -236,24 +236,15 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 		std::cout << std::flush;
 	}
 
-	// figure out enabled device features
-	// Check which features must be switched on for default operations.
-	// For now, we just make sure we can draw with lines.
-	//
-	// TODO: We should add settings to renderer which specify required device features
-	vk::PhysicalDeviceFeatures deviceFeatures = self->vkPhysicalDevice.getFeatures();
-	deviceFeatures
-	    .setFillModeNonSolid( VK_TRUE ) // allow wireframe drawing
-	    ;
+	// Vulkan >= 1.2  has per-version structs
 
-	// Vulkan >= 1.2  have per-version structs
-	//	vk::PhysicalDeviceVulkan11Properties properties11;
-	//	vk::PhysicalDeviceVulkan12Properties properties12;
-
-	vk::StructureChain<vk::PhysicalDeviceFeatures2,
-	                   vk::PhysicalDeviceVulkan11Features,
-	                   vk::PhysicalDeviceVulkan12Features,
-	                   vk::PhysicalDeviceRayTracingFeaturesKHR>
+	vk::StructureChain<
+	    vk::PhysicalDeviceFeatures2,
+	    vk::PhysicalDeviceVulkan11Features,
+	    vk::PhysicalDeviceVulkan12Features,
+	    vk::PhysicalDeviceRayTracingFeaturesKHR, // Optional, based on #define
+	    vk::PhysicalDeviceMeshShaderFeaturesNV   // Optional, based on #define
+	    >
 	    featuresChain{};
 
 	featuresChain.get<vk::PhysicalDeviceFeatures2>()
@@ -276,6 +267,16 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 
 	featuresChain.get<vk::PhysicalDeviceRayTracingFeaturesKHR>()
 	    .setRayTracing( true );
+#else
+	featuresChain.unlink<vk::PhysicalDeviceRayTracingFeaturesKHR>();
+#endif
+
+#ifdef LE_FEATURE_MESH_SHADER_NV
+	featuresChain.get<vk::PhysicalDeviceMeshShaderFeaturesNV>()
+	    .setMeshShader( true )
+	    .setTaskShader( true );
+#else
+	featuresChain.unlink<vk::PhysicalDeviceMeshShaderFeaturesNV>();
 #endif
 
 	vk::DeviceCreateInfo deviceCreateInfo;

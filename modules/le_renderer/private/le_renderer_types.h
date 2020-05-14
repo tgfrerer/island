@@ -1524,6 +1524,7 @@ namespace le {
 enum class CommandType : uint32_t {
 	eDrawIndexed,
 	eDraw,
+	eDrawMeshTasks,
 	eDispatch,
 	eTraceRays,
 	eSetLineWidth,
@@ -1573,6 +1574,14 @@ struct CommandDraw {
 		uint32_t instanceCount;
 		uint32_t firstVertex;
 		uint32_t firstInstance;
+	} info;
+};
+
+struct CommandDrawMeshTasks {
+	CommandHeader header = { { { CommandType::eDrawMeshTasks, sizeof( CommandDrawMeshTasks ) } } };
+	struct {
+		uint32_t taskCount;
+		uint32_t firstTask;
 	} info;
 };
 

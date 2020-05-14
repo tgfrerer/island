@@ -1246,7 +1246,7 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 		    .setStage( le_to_vk( shader_stage->stage ) ) //
 		    .setModule( shader_stage->module )           //
 		    .setPName( "main" )                          //
-		    .setPSpecializationInfo( nullptr )           //
+		    .setPSpecializationInfo( nullptr )           // TODO: set specialisation constants
 		    ;
 
 		pipelineStages.emplace_back( info );
@@ -1255,37 +1255,44 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 	std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;        // Where to get data from
 	std::vector<vk::VertexInputAttributeDescription> vertexInputAttributeDescriptions; // How it feeds into the shader's vertex inputs
 
-	if ( pso->explicitVertexInputBindingDescriptions.empty() ) {
-		// Default: use vertex input schema based on shader reflection
-		vertexBindingDescriptions        = vertexShaderModule->vertexBindingDescriptions;
-		vertexInputAttributeDescriptions = vertexShaderModule->vertexAttributeDescriptions;
-	} else {
-		// Use vertex input schema based on explicit user input
-		// which was stored in `backend_create_grapics_pipeline_state_object`
-		vertexBindingDescriptions.reserve( pso->explicitVertexInputBindingDescriptions.size() );
-		vertexInputAttributeDescriptions.reserve( pso->explicitVertexAttributeDescriptions.size() );
+	if ( vertexShaderModule != nullptr ) {
 
-		// Create vertex input binding descriptions
-		for ( auto const &b : pso->explicitVertexInputBindingDescriptions ) {
+		// We only add vertex attribute bindings if the pipeline contains a vertex stage.
+		// If it doesn't, then it is most likely a task/mesh shader pipeline which skips
+		// vertex assembly.
 
-			vk::VertexInputBindingDescription bindingDescription;
-			bindingDescription
-			    .setBinding( b.binding )
-			    .setStride( b.stride )
-			    .setInputRate( vk_input_rate_from_le_input_rate( b.input_rate ) );
+		if ( pso->explicitVertexInputBindingDescriptions.empty() ) {
+			// Default: use vertex input schema based on shader reflection
+			vertexBindingDescriptions        = vertexShaderModule->vertexBindingDescriptions;
+			vertexInputAttributeDescriptions = vertexShaderModule->vertexAttributeDescriptions;
+		} else {
+			// Use vertex input schema based on explicit user input
+			// which was stored in `backend_create_graphics_pipeline_state_object`
+			vertexBindingDescriptions.reserve( pso->explicitVertexInputBindingDescriptions.size() );
+			vertexInputAttributeDescriptions.reserve( pso->explicitVertexAttributeDescriptions.size() );
 
-			vertexBindingDescriptions.emplace_back( std::move( bindingDescription ) );
-		}
+			// Create vertex input binding descriptions
+			for ( auto const &b : pso->explicitVertexInputBindingDescriptions ) {
 
-		for ( auto const &a : pso->explicitVertexAttributeDescriptions ) {
-			vk::VertexInputAttributeDescription attributeDescription;
-			attributeDescription
-			    .setLocation( a.location )
-			    .setBinding( a.binding )
-			    .setOffset( a.binding_offset )
-			    .setFormat( vk_format_from_le_vertex_input_attribute_description( a ) );
+				vk::VertexInputBindingDescription bindingDescription;
+				bindingDescription
+				    .setBinding( b.binding )
+				    .setStride( b.stride )
+				    .setInputRate( vk_input_rate_from_le_input_rate( b.input_rate ) );
 
-			vertexInputAttributeDescriptions.emplace_back( std::move( attributeDescription ) );
+				vertexBindingDescriptions.emplace_back( std::move( bindingDescription ) );
+			}
+
+			for ( auto const &a : pso->explicitVertexAttributeDescriptions ) {
+				vk::VertexInputAttributeDescription attributeDescription;
+				attributeDescription
+				    .setLocation( a.location )
+				    .setBinding( a.binding )
+				    .setOffset( a.binding_offset )
+				    .setFormat( vk_format_from_le_vertex_input_attribute_description( a ) );
+
+				vertexInputAttributeDescriptions.emplace_back( std::move( attributeDescription ) );
+			}
 		}
 	}
 
@@ -1404,9 +1411,9 @@ static vk::RayTracingShaderGroupTypeKHR le_to_vk( le::RayTracingShaderGroupType 
     switch(tp){
 	    case (le::RayTracingShaderGroupType::eTrianglesHitGroup  ) : return vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup;
 	    case (le::RayTracingShaderGroupType::eProceduralHitGroup ) : return vk::RayTracingShaderGroupTypeKHR::eProceduralHitGroup;
-	    case (le::RayTracingShaderGroupType::eRayGen               ) : return vk::RayTracingShaderGroupTypeKHR::eGeneral;
-	    case (le::RayTracingShaderGroupType::eMiss                 ) : return vk::RayTracingShaderGroupTypeKHR::eGeneral;
-	    case (le::RayTracingShaderGroupType::eCallable             ) : return vk::RayTracingShaderGroupTypeKHR::eGeneral; 
+	    case (le::RayTracingShaderGroupType::eRayGen             ) : return vk::RayTracingShaderGroupTypeKHR::eGeneral;
+	    case (le::RayTracingShaderGroupType::eMiss               ) : return vk::RayTracingShaderGroupTypeKHR::eGeneral;
+	    case (le::RayTracingShaderGroupType::eCallable           ) : return vk::RayTracingShaderGroupTypeKHR::eGeneral; 
     }
 	// clang-format on
 	assert( false ); // unreachable

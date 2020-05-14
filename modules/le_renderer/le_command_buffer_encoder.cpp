@@ -182,6 +182,17 @@ static void cbe_draw_indexed( le_command_buffer_encoder_o *self,
 }
 
 // ----------------------------------------------------------------------
+static void cbe_draw_mesh_tasks( le_command_buffer_encoder_o *self,
+                                 uint32_t                     taskCount,
+                                 uint32_t                     firstTask ) {
+
+	auto cmd  = EMPLACE_CMD( le::CommandDrawMeshTasks ); // placement new!
+	cmd->info = { taskCount, firstTask };
+
+	self->mCommandStreamSize += sizeof( le::CommandDrawMeshTasks );
+	self->mCommandCount++;
+}
+// ----------------------------------------------------------------------
 
 static void cbe_set_viewport( le_command_buffer_encoder_o *self,
                               uint32_t                     firstViewport,
@@ -933,6 +944,7 @@ void register_le_command_buffer_encoder_api( void *api_ ) {
 	cbe_i.destroy                = cbe_destroy;
 	cbe_i.draw                   = cbe_draw;
 	cbe_i.draw_indexed           = cbe_draw_indexed;
+	cbe_i.draw_mesh_tasks        = cbe_draw_mesh_tasks;
 	cbe_i.dispatch               = cbe_dispatch;
 	cbe_i.trace_rays             = cbe_trace_rays;
 	cbe_i.get_extent             = cbe_get_extent;

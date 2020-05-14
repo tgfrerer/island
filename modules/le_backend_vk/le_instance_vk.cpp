@@ -65,7 +65,7 @@ static bool instance_is_extension_available( le_backend_vk_instance_o *self, cha
 DECLARE_EXT_PFN( vkCreateDebugUtilsMessengerEXT );
 DECLARE_EXT_PFN( vkDestroyDebugUtilsMessengerEXT );
 
-// device extensions
+// device extensions - for ray tracing
 DECLARE_EXT_PFN( vkSetDebugUtilsObjectNameEXT );
 DECLARE_EXT_PFN( vkGetBufferDeviceAddress );
 DECLARE_EXT_PFN( vkCreateAccelerationStructureKHR );
@@ -77,6 +77,11 @@ DECLARE_EXT_PFN( vkGetAccelerationStructureDeviceAddressKHR );
 DECLARE_EXT_PFN( vkCreateRayTracingPipelinesKHR );
 DECLARE_EXT_PFN( vkGetRayTracingShaderGroupHandlesKHR );
 DECLARE_EXT_PFN( vkCmdTraceRaysKHR );
+
+// device extensions for mesh shaders
+DECLARE_EXT_PFN( vkCmdDrawMeshTasksNV );
+DECLARE_EXT_PFN( vkCmdDrawMeshTasksIndirectNV );
+DECLARE_EXT_PFN( vkCmdDrawMeshTasksIndirectCountNV );
 #undef DECLARE_EXT_PFN
 
 // ----------------------------------------------------------------------
@@ -111,10 +116,9 @@ static void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
 		GET_EXT_PROC_ADDR( vkDestroyDebugUtilsMessengerEXT );
 	}
 
-	// device extensions
-
+	// device extensions for ray tracing
+#ifdef LE_FEATURE_RTX
 	GET_EXT_PROC_ADDR( vkGetBufferDeviceAddress );
-
 	GET_EXT_PROC_ADDR( vkCreateAccelerationStructureKHR );
 	GET_EXT_PROC_ADDR( vkGetAccelerationStructureMemoryRequirementsKHR );
 	GET_EXT_PROC_ADDR( vkBindAccelerationStructureMemoryKHR );
@@ -124,6 +128,15 @@ static void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
 	GET_EXT_PROC_ADDR( vkCreateRayTracingPipelinesKHR );
 	GET_EXT_PROC_ADDR( vkGetRayTracingShaderGroupHandlesKHR );
 	GET_EXT_PROC_ADDR( vkCmdTraceRaysKHR );
+#endif
+
+	// device extensions for task/mesh shaders
+#ifdef LE_FEATURE_MESH_SHADER_NV
+
+	GET_EXT_PROC_ADDR( vkCmdDrawMeshTasksNV );
+	GET_EXT_PROC_ADDR( vkCmdDrawMeshTasksIndirectNV );
+	GET_EXT_PROC_ADDR( vkCmdDrawMeshTasksIndirectCountNV );
+#endif
 
 #undef GET_EXT_PROC_ADDR
 
@@ -155,6 +168,8 @@ void vkDestroyDebugUtilsMessengerEXT(
     const VkAllocationCallbacks *pAllocator ) {
 	pfn_vkDestroyDebugUtilsMessengerEXT( instance, messenger, pAllocator );
 }
+
+#ifdef LE_FEATURE_RTX
 
 VKAPI_ATTR VkDeviceAddress VKAPI_CALL vkGetBufferDeviceAddress(
     VkDevice                         device,
@@ -236,7 +251,37 @@ VKAPI_ATTR void VKAPI_CALL vkCmdTraceRaysKHR(
     uint32_t                        depth ) {
 	return pfn_vkCmdTraceRaysKHR( commandBuffer, pRaygenShaderBindingTable, pMissShaderBindingTable, pHitShaderBindingTable, pCallableShaderBindingTable, width, height, depth );
 }
+#endif
 
+#ifdef LE_FEATURE_MESH_SHADER_NV // mesh shader method prototypes
+
+VKAPI_ATTR void VKAPI_CALL vkCmdDrawMeshTasksNV(
+    VkCommandBuffer commandBuffer,
+    uint32_t        taskCount,
+    uint32_t        firstTask ) {
+	pfn_vkCmdDrawMeshTasksNV( commandBuffer, taskCount, firstTask );
+}
+
+VKAPI_ATTR void VKAPI_CALL vkCmdDrawMeshTasksIndirectNV(
+    VkCommandBuffer commandBuffer,
+    VkBuffer        buffer,
+    VkDeviceSize    offset,
+    uint32_t        drawCount,
+    uint32_t        stride ) {
+	pfn_vkCmdDrawMeshTasksIndirectNV( commandBuffer, buffer, offset, drawCount, stride );
+}
+
+VKAPI_ATTR void VKAPI_CALL vkCmdDrawMeshTasksIndirectCountNV(
+    VkCommandBuffer commandBuffer,
+    VkBuffer        buffer,
+    VkDeviceSize    offset,
+    VkBuffer        countBuffer,
+    VkDeviceSize    countBufferOffset,
+    uint32_t        maxDrawCount,
+    uint32_t        stride ) {
+	pfn_vkCmdDrawMeshTasksIndirectCountNV( commandBuffer, buffer, offset, countBuffer, countBufferOffset, maxDrawCount, stride );
+}
+#endif
 // ----------------------------------------------------------------------
 
 static void create_debug_messenger_callback( le_backend_vk_instance_o *obj );  // ffdecl.
