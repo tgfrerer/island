@@ -414,31 +414,16 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 
 	std::vector<const char *> instanceLayerNames = {};
 
-	vk::ValidationFeaturesEXT validationFeatures;
-	validationFeatures
-	    .setPNext( nullptr )
-	    .setEnabledValidationFeatureCount( uint32_t( sizeof( enabledValidationFeatures ) / sizeof( vk::ValidationFeatureEnableEXT ) ) )
-	    .setPEnabledValidationFeatures( enabledValidationFeatures )
-	    .setDisabledValidationFeatureCount( uint32_t( sizeof( disabledValidationFeatures ) / sizeof( vk::ValidationFeatureDisableEXT ) ) )
-	    .setPDisabledValidationFeatures( disabledValidationFeatures );
 
 	if ( SHOULD_USE_VALIDATION_LAYERS ) {
 		instanceLayerNames.push_back( "VK_LAYER_KHRONOS_validation" );
 		std::cout << "Debug instance layers added." << std::endl;
 	}
 
-	vk::DebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo;
-	debugMessengerCreateInfo
-	    .setPNext( SHOULD_USE_VALIDATION_LAYERS ? &validationFeatures : nullptr )
-	    .setFlags( {} )
-	    .setMessageSeverity( ~vk::DebugUtilsMessageSeverityFlagsEXT() ) // everything.
-	    .setMessageType( ~vk::DebugUtilsMessageTypeFlagsEXT() )         // everything.
-	    .setPfnUserCallback( debugUtilsMessengerCallback )
-	    .setPUserData( nullptr );
 
 	vk::InstanceCreateInfo info;
 	info.setFlags( {} )
-	    .setPNext( &debugMessengerCreateInfo ) // We add a debug messenger object to instance creation to get creation-time debug info
+	    .setPNext( nullptr ) // We add a debug messenger object to instance creation to get creation-time debug info
 	    .setPApplicationInfo( &appInfo )
 	    .setEnabledLayerCount( uint32_t( instanceLayerNames.size() ) )
 	    .setPpEnabledLayerNames( instanceLayerNames.data() )
