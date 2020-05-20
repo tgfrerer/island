@@ -143,7 +143,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 	encoder
 	    .bindGraphicsPipeline( pipelineTriangle )
-	    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MvpUbo ) )
+	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo ) )
 	    .setVertexData( trianglePositions, sizeof( trianglePositions ), 0 )
 	    .setVertexData( triangleColors, sizeof( triangleColors ), 1 )
 	    .draw( 3 );

@@ -18,7 +18,7 @@ layout (location = 0) out VertexData {
 
 
 // arguments
-layout (set = 0, binding = 0) uniform MatrixStack 
+layout (set = 0, binding = 0) uniform Mvp 
 {
 	mat4 modelMatrix;
 	mat4 viewMatrix;

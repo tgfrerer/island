@@ -713,12 +713,14 @@ static void backend_destroy( le_backend_o *self ) {
 		case LeResourceType::eBuffer:
 			device.destroyBuffer( a.second.as.buffer );
 			break;
+#ifdef LE_FEATURE_RTX
 		case LeResourceType::eRtxBlas:
 			device.destroyAccelerationStructureKHR( a.second.as.blas );
 			break;
 		case LeResourceType::eRtxTlas:
 			device.destroyAccelerationStructureKHR( a.second.as.tlas );
 			break;
+#endif
 		default:
 			assert( false && "Unknown resource type" );
 		}
@@ -2291,6 +2293,7 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		assert( result == VK_SUCCESS );
 	} else if ( resourceInfo.isBlas() ) {
 
+#ifdef LE_FEATURE_RTX
 		assert( vk_device && "blas allocation needs device" );
 		vk::Device device( vk_device );
 
@@ -2362,9 +2365,12 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		device_address_info.setAccelerationStructure( res.as.blas );
 
 		res.info.blasInfo.device_address = device.getAccelerationStructureAddressKHR( device_address_info );
-
+#else
+		assert( false && "backend compiled without RTX features, but RTX feature requested." );
+#endif
 	} else if ( resourceInfo.isTlas() ) {
 
+#ifdef LE_FEATURE_RTX
 		assert( vk_device && "tlas allocation needs device" );
 		vk::Device device( vk_device );
 
@@ -2425,6 +2431,9 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 		    .setPDeviceIndices( nullptr );
 
 		device.bindAccelerationStructureMemoryKHR( 1, &bind_info );
+#else
+		assert( false && "backend compiled without RTX features, but RTX feature requested." );
+#endif
 
 	} else {
 		assert( false && "Cannot allocate unknown resource type." );
@@ -4590,6 +4599,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					if ( false == argumentsOk ) {
 						break;
 					}
+#ifdef LE_FEATURE_MESH_SHADER_NV
 
 					// --------| invariant: arguments were updated successfully
 
@@ -4605,6 +4615,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					}
 
 					cmd.drawMeshTasksNV( le_cmd->info.taskCount, le_cmd->info.firstTask );
+#else
+					break;
+#endif
 				} break;
 
 				case le::CommandType::eSetLineWidth: {

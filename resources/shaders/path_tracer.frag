@@ -11,7 +11,7 @@ layout (location = 0) out vec4 outFragColor;
 #include "analytical_ops.glsl"
 
 // arguments
-layout (set = 0, binding = 0) uniform MatrixStack 
+layout (set = 0, binding = 0) uniform Mvp 
 {
 	mat4 modelMatrix;
 	mat4 viewMatrix;

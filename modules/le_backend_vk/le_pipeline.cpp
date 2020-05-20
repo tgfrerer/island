@@ -1821,8 +1821,8 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeli
 // + NOTE: Access to this method must be sequential - no two frames may access this method
 //   at the same time - and no two renderpasses may access this method at the same time.
 static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( le_pipeline_manager_o *self, le_rtxpso_handle pso_handle, char **maybe_shader_group_data ) {
-
 	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
+#ifdef LE_FEATURE_RTX
 
 	// -- 0. Fetch pso from cache using its hash key
 	rtx_pipeline_state_o const *pso = self->rtxPso.try_find( pso_handle );
@@ -1937,6 +1937,9 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 			*maybe_shader_group_data = handles;
 		}
 	}
+#else
+	assert( false && "backend compiled without RTX features, but RTX feature requested." );
+#endif
 	return pipeline_and_layout_info;
 }
 

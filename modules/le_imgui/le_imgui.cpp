@@ -258,7 +258,7 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 			encoder
 			    .bindGraphicsPipeline( psoImgui )
 			    .setViewports( 0, 1, &viewports[ 0 ] )
-			    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &ortho_projection, sizeof( glm::mat4 ) )
+			    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &ortho_projection, sizeof( glm::mat4 ) )
 			    .setArgumentTexture( LE_ARGUMENT_NAME( "tex_unit_0" ), imgui->texture_font, 0 ) //
 			    ;
 

@@ -133,7 +133,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 	encoder
 	    .bindGraphicsPipeline( pipelineImguiExample )
-	    .setArgumentData( LE_ARGUMENT_NAME( "MatrixStack" ), &mvp, sizeof( MvpUbo ) )
+	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo ) )
 	    .setVertexData( imgui_examplePositions, sizeof( imgui_examplePositions ), 0 )
 	    .setVertexData( imgui_exampleColors, sizeof( imgui_exampleColors ), 1 )
 	    .draw( 3 );
