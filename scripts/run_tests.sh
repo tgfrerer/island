@@ -3,54 +3,57 @@
 # list apps you want to test
 
 apps_list=("
-    test_cubemap:Island-TestCubemap
-    test_rtx:Island-TestRtx
-    test_cgltf:Island-TestCgltf
-    test_path_appear:Island-TestPathAppear
-    test_2d_watchface:Island-Test2DWatchface
-    test_2d_thick_lines:Island-Test2DThickLines
-    test_2d:Island-Test2D
-    test_mt_rendering:Island-TestMtRendering
-	test_jobs:Island-TestJobs
-	blob_wave:Island-BlobWave
-	aeon:Island-Aeon
-	bb_spectrum:Island-BbSpectrum
-	fourier_blob:Island-FourierBlob
-	langtons_loops:Island-LangtonsLoops
-	physarum:Island-Physarum
-	quad_bezier:Island-QuadBezier
-	show_font:Island-ShowFont
-	test_blob:Island-TestBlob
-	test_blob_refraction:Island-TestBlobRefraction
-	test_bloom:Island-TestBloom
-	test_compute:Island-TestCompute
-	test_dependency_tracker:Test_Dependency_Tracker
-	test_depth_draw:Island-TestDepthDraw
-	test_ecs:Island-TestEcs
-	test_font:Island-TestFont
-	test_font_path:Island-TestFontPath
-	test_font_refraction:Island-TestFontRefraction
-	test_glsl_include:Island-TestGlslInclude
-	test_img_attachment:Island-TestImgAttachment
-	test_img_swapchain:Island-TestImgSwapchain
-	test_mesh_generator:Island-TestMeshGenerator
-	test_mipmaps:Island-TestMipMaps
-	test_multisample:Island-TestMultisample
-	test_outline:Island-TestOutline
-	test_paintbrush:Island-TestPaintbrush
-	test_param:Island-TestParam
-	test_path:Island-TestPath
-	test_path_render:Island-TestPathRender
-	test_ping_pong:Island-TestPingPong
-	test_ply:Island-TestPly
-	test_poisson_blur:Island-TestPoissonBlur
-	test_resolve:Island-TestResolve
-	test_sdf:Island-TestSdf
-	test_setup_pass:Island-TestSetupPass
-	test_trails:Island-TestTrails
-	test_turntable:Island-TestTurntable
-	test_verlet:Island-TestVerlet
-	workbench:Island-WorkbenchApp
+    dev/test_cubemap:Island-TestCubemap
+    dev/test_rtx:Island-TestRtx
+    dev/test_cgltf:Island-TestCgltf
+    dev/test_path_appear:Island-TestPathAppear
+    dev/test_2d_watchface:Island-Test2DWatchface
+    dev/test_2d_thick_lines:Island-Test2DThickLines
+    dev/test_2d:Island-Test2D
+    dev/test_mt_rendering:Island-TestMtRendering
+	dev/test_jobs:Island-TestJobs
+	dev/blob_wave:Island-BlobWave
+	dev/aeon:Island-Aeon
+	dev/bb_spectrum:Island-BbSpectrum
+	dev/fourier_blob:Island-FourierBlob
+	dev/langtons_loops:Island-LangtonsLoops
+	dev/physarum:Island-Physarum
+	dev/quad_bezier:Island-QuadBezier
+	dev/show_font:Island-ShowFont
+	dev/test_blob:Island-TestBlob
+	dev/test_blob_refraction:Island-TestBlobRefraction
+	dev/test_bloom:Island-TestBloom
+	dev/test_compute:Island-TestCompute
+	dev/test_dependency_tracker:Test_Dependency_Tracker
+	dev/test_depth_draw:Island-TestDepthDraw
+	dev/test_ecs:Island-TestEcs
+	dev/test_font:Island-TestFont
+	dev/test_font_path:Island-TestFontPath
+	dev/test_font_refraction:Island-TestFontRefraction
+	dev/test_glsl_include:Island-TestGlslInclude
+	dev/test_img_attachment:Island-TestImgAttachment
+	dev/test_img_swapchain:Island-TestImgSwapchain
+	dev/test_mesh_generator:Island-TestMeshGenerator
+	dev/test_mipmaps:Island-TestMipMaps
+	dev/test_multisample:Island-TestMultisample
+	dev/test_outline:Island-TestOutline
+	dev/test_paintbrush:Island-TestPaintbrush
+	dev/test_param:Island-TestParam
+	dev/test_path:Island-TestPath
+	dev/test_path_render:Island-TestPathRender
+	dev/test_ping_pong:Island-TestPingPong
+	dev/test_ply:Island-TestPly
+	dev/test_poisson_blur:Island-TestPoissonBlur
+	dev/test_resolve:Island-TestResolve
+	dev/test_sdf:Island-TestSdf
+	dev/test_setup_pass:Island-TestSetupPass
+	dev/test_trails:Island-TestTrails
+	dev/test_turntable:Island-TestTurntable
+	dev/test_verlet:Island-TestVerlet
+	dev/test_blob_trails:Island-TestBlobTrails
+    examples/hello_world:Island-HelloWorld
+    examples/hello_triangle:Island-HelloTriangle
+    examples/geometry_shader_example:Island-GeometryShaderExample
 ")
 
 TAKE_SCREENSHOTS=0
@@ -107,7 +110,7 @@ run_app(){
 	env VK_INSTANCE_LAYERS=VK_LAYER_LUNARG_screenshot VK_SCREENSHOT_FRAMES="60" ./${app_name} &
 	local app_pid=$! 
 	
-	sleep 4
+	sleep 7
 	kill -s TERM $app_pid
 	local return_code=$?
 	popd
@@ -174,7 +177,7 @@ process_app(){
 	IFS=: read -ra app_names -d '' <<<"$1"
 	local app_dir=${app_names[0]}
 	local app_name=${app_names[1]}
-	local app_base_dir="../apps/dev/$app_dir"
+	local app_base_dir="../apps/$app_dir"
 
 	if [ -d $app_base_dir ] 
 	then
