@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.7.2)
 set (CMAKE_CXX_STANDARD 20)
 
-set (PROJECT_NAME "Island-GeometryShaderExamples")
+set (PROJECT_NAME "Island-GeometryShaderExample")
 
 project (${PROJECT_NAME})
 
@@ -22,6 +22,7 @@ add_subdirectory (geometry_shader_example_app)
 # Specify any optional modules from the standard framework here
 add_island_module(le_pipeline_builder)
 add_island_module(le_camera)
+add_island_module(le_mesh_generator)
 
 # Main application c++ file. Not much to see there,
 set (SOURCES main.cpp)

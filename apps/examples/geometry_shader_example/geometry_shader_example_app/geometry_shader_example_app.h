@@ -5,21 +5,10 @@
 #include <stdint.h>
 #include "le_core/le_core.h"
 
-// depends on le_backend_vk. le_backend_vk must be loaded before this class is used.
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void register_geometry_shader_example_app_api( void *api );
-
 struct geometry_shader_example_app_o;
 
 // clang-format off
 struct geometry_shader_example_app_api {
-
-	static constexpr auto id      = "geometry_shader_example_app";
-	static constexpr auto pRegFun = register_geometry_shader_example_app_api;
 
 	struct geometry_shader_example_app_interface_t {
 		geometry_shader_example_app_o * ( *create              )();
@@ -33,16 +22,13 @@ struct geometry_shader_example_app_api {
 };
 // clang-format on
 
+LE_MODULE( geometry_shader_example_app );
+LE_MODULE_LOAD_DEFAULT( geometry_shader_example_app );
+
 #ifdef __cplusplus
-} // extern "C"
 
 namespace geometry_shader_example_app {
-#ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<geometry_shader_example_app_api>( true );
-#else
-const auto api = Registry::addApiStatic<geometry_shader_example_app_api>();
-#endif
-
+static const auto &api                           = geometry_shader_example_app_api_i;
 static const auto &geometry_shader_example_app_i = api -> geometry_shader_example_app_i;
 
 } // namespace geometry_shader_example_app
