@@ -272,9 +272,18 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 #endif
 
 #ifdef LE_FEATURE_MESH_SHADER_NV
+
 	featuresChain.get<vk::PhysicalDeviceMeshShaderFeaturesNV>()
 	    .setMeshShader( true )
 	    .setTaskShader( true );
+
+	// We require 8 bit integers, and 16 bit floats for when we use mesh shaders -
+	// because most use cases will want to make use of these.
+
+	featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
+	    .setShaderInt8( true )
+	    .setShaderFloat16( true );
+
 #else
 	featuresChain.unlink<vk::PhysicalDeviceMeshShaderFeaturesNV>();
 #endif
