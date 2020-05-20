@@ -1498,8 +1498,9 @@ static void generate_offset_outline_arc_to( std::vector<glm::vec2> &outline_l,
 
 // Generate vertices for path outline by flattening first left, then right
 // offset outline. Offsetting cubic bezier curves is based on the T. F. Hain
-// paper from 2005.
-//
+// paper from 2005:
+// "Fast, Precise Flattening of Cubic Bézier Segment Offset Curves"
+// <https://doi.org/10.1016/j.cag.2005.08.002>
 static bool le_path_generate_offset_outline_for_contour(
     le_path_o *self, size_t contour_index,
     float      line_weight,
