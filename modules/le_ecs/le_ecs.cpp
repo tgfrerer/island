@@ -478,7 +478,7 @@ static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id ) {
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_le_ecs_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( le_ecs, api ) {
 	auto &le_ecs_i = static_cast<le_ecs_api *>( api )->le_ecs_i;
 
 	le_ecs_i.create  = le_ecs_create;
