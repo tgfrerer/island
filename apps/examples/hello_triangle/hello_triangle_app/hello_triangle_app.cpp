@@ -2,9 +2,9 @@
 
 #include "le_window/le_window.h"
 #include "le_renderer/le_renderer.h"
-
-#include "le_camera/le_camera.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
+#include "le_camera/le_camera.h"
+#include "le_ui_event/le_ui_event.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -14,14 +14,18 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <vector>
 
 struct hello_triangle_app_o {
 	le::Window   window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
 
-	LeCamera camera;
+	LeCamera           camera;
+	LeCameraController cameraController;
 };
+
+typedef hello_triangle_app_o app_o;
 
 // ----------------------------------------------------------------------
 
@@ -35,53 +39,56 @@ static void terminate() {
 	le::Window::terminate();
 };
 
-static void reset_camera( hello_triangle_app_o *self ); // ffdecl.
+static void app_reset_camera( app_o *self ); // ffdecl.
 
 // ----------------------------------------------------------------------
 
-static hello_triangle_app_o *hello_triangle_app_create() {
-	auto app = new ( hello_triangle_app_o );
+static app_o *app_create() {
+	auto app = new ( app_o );
 
 	le::Window::Settings settings;
 	settings
 	    .setWidth( 1024 )
 	    .setHeight( 1024 )
-	    .setTitle( "Island // HelloTriangleApp" );
+	    .setTitle( "IslΛnd // HelloTriangleApp" );
 
 	// create a new window
 	app->window.setup( settings );
 
 	app->renderer.setup( le::RendererInfoBuilder( app->window ).build() );
 
-	// -- Declare graphics pipeline state objects
-
-	{
-		// set up the camera
-		reset_camera( app );
-	}
+	// Set up the camera
+	app_reset_camera( app );
 
 	return app;
 }
 
 // ----------------------------------------------------------------------
 
-static void reset_camera( hello_triangle_app_o *self ) {
-	auto extent = self->renderer.getSwapchainExtent();
-	self->camera.setViewport( { 0, 0, float( extent.width ), float( extent.height ), 0.f, 1.f } );
+static void app_reset_camera( app_o *self ) {
+	le::Extent2D extents{};
+	self->renderer.getSwapchainExtent( &extents.width, &extents.height );
+	self->camera.setViewport( { 0, 0, float( extents.width ), float( extents.height ), 0.f, 1.f } );
 	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
 	glm::mat4 camMatrix = glm::lookAt( glm::vec3{ 0, 0, self->camera.getUnitDistance() }, glm::vec3{ 0 }, glm::vec3{ 0, 1, 0 } );
-	self->camera.setViewMatrix( reinterpret_cast<float const *>( &camMatrix ) );
+	self->camera.setViewMatrixGlm( camMatrix );
 }
+
+// ----------------------------------------------------------------------
+
+typedef bool ( *renderpass_setup )( le_renderpass_o *pRp, void *user_data );
 
 // ----------------------------------------------------------------------
 
 static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto rp  = le::RenderPass{ pRp };
-	auto app = static_cast<hello_triangle_app_o *>( user_data );
+	auto app = static_cast<app_o *>( user_data );
+
+	// Attachment may be further specialised using le::ImageAttachmentInfoBuilder().
 
 	rp
-	    .addColorAttachment( app->renderer.getSwapchainResource() ) // color attachment
-	    .setIsRoot( true );
+	    .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE, le::ImageAttachmentInfoBuilder().build() ) // color attachment
+	    ;
 
 	return true;
 }
@@ -89,84 +96,139 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 // ----------------------------------------------------------------------
 
 static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto        app = static_cast<hello_triangle_app_o *>( user_data );
+	auto        app = static_cast<app_o *>( user_data );
 	le::Encoder encoder{ encoder_ };
 
-	auto extent = encoder.getRenderpassExtent();
-	app->camera.setViewport( { 0, 0, float( extent.width ), float( extent.height ) } );
+	auto extents = encoder.getRenderpassExtent();
 
-	// data as it is laid out in the ubo for the shader
-	struct MvpUbo_t {
+	le::Viewport viewports[ 1 ] = {
+	    { 0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f },
+	};
+
+	app->camera.setViewport( viewports[ 0 ] );
+
+	// Data as it is laid out in the shader ubo.
+	// Be careful to respect std430 or std140 layout
+	// depending on what you specify in the
+	// shader.
+	struct MvpUbo {
 		glm::mat4 model;
 		glm::mat4 view;
 		glm::mat4 projection;
 	};
 
 	// Draw main scene
-	if ( true ) {
 
-		static auto shaderVert = app->renderer.createShaderModule( "./resources/shaders/default.vert", le::ShaderStage::eVertex );
-		static auto shaderFrag = app->renderer.createShaderModule( "./resources/shaders/default.frag", le::ShaderStage::eFragment );
+	static auto shaderVert = app->renderer.createShaderModule( "./local_resources/shaders/default.vert", le::ShaderStage::eVertex );
+	static auto shaderFrag = app->renderer.createShaderModule( "./local_resources/shaders/default.frag", le::ShaderStage::eFragment );
 
-		static auto pipelineHelloTriangle =
-		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-		        .addShaderStage( shaderVert )
-		        .addShaderStage( shaderFrag )
-		        .build();
+	static auto pipelineHelloTriangle =
+	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+	        .addShaderStage( shaderVert )
+	        .addShaderStage( shaderFrag )
+	        .build();
 
-		MvpUbo_t mvp;
-		mvp.model      = glm::mat4( 1.f ); // identity matrix
-		mvp.model      = glm::scale( mvp.model, glm::vec3( 4.5 ) );
-		mvp.view       = reinterpret_cast<glm::mat4 const &>( *app->camera.getViewMatrix() );
-		mvp.projection = reinterpret_cast<glm::mat4 const &>( *app->camera.getProjectionMatrix() );
+	MvpUbo mvp;
+	mvp.model      = glm::mat4( 1.f ); // identity matrix
+	mvp.model      = glm::scale( mvp.model, glm::vec3( 4.5 ) );
+	mvp.view       = app->camera.getViewMatrixGlm();
+	mvp.projection = app->camera.getProjectionMatrixGlm();
 
-		glm::vec3 hello_trianglePositions[] = {
-		    { -50, -50, 0 },
-		    { 50, -50, 0 },
-		    { 0, 50, 0 },
-		};
+	glm::vec3 vertexPositions[] = {
+	    { -50, -50, 0 },
+	    { 50, -50, 0 },
+	    { 0, 50, 0 },
+	};
 
-		glm::vec4 hello_triangleColors[] = {
-		    { 1, 0, 0, 1.f },
-		    { 0, 1, 0, 1.f },
-		    { 0, 0, 1, 1.f },
-		};
+	glm::vec4 vertexColors[] = {
+	    { 1, 0, 0, 1.f },
+	    { 0, 1, 0, 1.f },
+	    { 0, 0, 1, 1.f },
+	};
 
-		encoder
-		    .bindGraphicsPipeline( pipelineHelloTriangle )
-		    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo_t ) )
-		    .setVertexData( hello_trianglePositions, sizeof( hello_trianglePositions ), 0 )
-		    .setVertexData( hello_triangleColors, sizeof( hello_triangleColors ), 1 )
-		    .draw( 3 );
+	encoder
+	    .bindGraphicsPipeline( pipelineHelloTriangle )
+	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo ) )
+	    .setVertexData( vertexPositions, sizeof( vertexPositions ), 0 )
+	    .setVertexData( vertexColors, sizeof( vertexColors ), 1 )
+	    .draw( 3 );
+}
+
+// ----------------------------------------------------------------------
+static void app_process_ui_events( app_o *self ) {
+	using namespace le_window;
+	uint32_t         numEvents;
+	LeUiEvent const *pEvents;
+	window_i.get_ui_event_queue( self->window, &pEvents, numEvents );
+
+	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
+
+	bool wantsToggle = false;
+
+	for ( auto &event : events ) {
+		switch ( event.event ) {
+		case ( LeUiEvent::Type::eKey ): {
+			auto &e = event.key;
+			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
+				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
+					wantsToggle ^= true;
+				} else if ( e.key == LeUiEvent::NamedKey::eC ) {
+					float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
+					self->cameraController.setPivotDistance( distance_to_origin );
+				} else if ( e.key == LeUiEvent::NamedKey::eX ) {
+					self->cameraController.setPivotDistance( 0 );
+				} else if ( e.key == LeUiEvent::NamedKey::eZ ) {
+					app_reset_camera( self );
+					float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
+					self->cameraController.setPivotDistance( distance_to_origin );
+				}
+
+			} // if ButtonAction == eRelease
+
+		} break;
+		default:
+			// do nothing
+			break;
+		}
+	}
+
+	auto swapchainExtent = self->renderer.getSwapchainExtent();
+
+	self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
+	self->cameraController.processEvents( self->camera, events.data(), events.size() );
+
+	if ( wantsToggle ) {
+		self->window.toggleFullscreen();
 	}
 }
 
 // ----------------------------------------------------------------------
 
-static bool hello_triangle_app_update( hello_triangle_app_o *self ) {
+static bool app_update( app_o *self ) {
 
-	// Polls events for all windows -
-	// This means any window may trigger callbacks for any events they have callbacks registered.
+	// Polls events for all windows
+	// Use `self->window.getUIEventQueue()` to fetch events.
 	le::Window::pollEvents();
 
 	if ( self->window.shouldClose() ) {
 		return false;
 	}
 
-	using namespace le_renderer;
+	// update interactive camera using mouse data
+	app_process_ui_events( self );
 
 	le::RenderModule mainModule{};
 	{
 
-		le::RenderPass renderPassFinal( "root", LE_RENDER_PASS_TYPE_DRAW );
-		renderPassFinal.setSetupCallback( self, pass_main_setup );
-		renderPassFinal.setExecuteCallback( self, pass_main_exec );
+		auto renderPassFinal =
+		    le::RenderPass( "root", LE_RENDER_PASS_TYPE_DRAW )
+		        .setSetupCallback( self, pass_main_setup )
+		        .setExecuteCallback( self, pass_main_exec ) //
+		    ;
 
 		mainModule.addRenderPass( renderPassFinal );
 	}
 
-	// Update will call all rendercallbacks in this module.
-	// the RECORD phase is guaranteed to execute - all rendercallbacks will get called.
 	self->renderer.update( mainModule );
 
 	self->frame_counter++;
@@ -176,21 +238,21 @@ static bool hello_triangle_app_update( hello_triangle_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void hello_triangle_app_destroy( hello_triangle_app_o *self ) {
+static void app_destroy( app_o *self ) {
 
 	delete ( self ); // deletes camera
 }
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_hello_triangle_app_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( hello_triangle_app, api ) {
 	auto  hello_triangle_app_api_i = static_cast<hello_triangle_app_api *>( api );
 	auto &hello_triangle_app_i     = hello_triangle_app_api_i->hello_triangle_app_i;
 
 	hello_triangle_app_i.initialize = initialize;
 	hello_triangle_app_i.terminate  = terminate;
 
-	hello_triangle_app_i.create  = hello_triangle_app_create;
-	hello_triangle_app_i.destroy = hello_triangle_app_destroy;
-	hello_triangle_app_i.update  = hello_triangle_app_update;
+	hello_triangle_app_i.create  = app_create;
+	hello_triangle_app_i.destroy = app_destroy;
+	hello_triangle_app_i.update  = app_update;
 }

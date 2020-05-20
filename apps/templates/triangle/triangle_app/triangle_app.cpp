@@ -2,9 +2,9 @@
 
 #include "le_window/le_window.h"
 #include "le_renderer/le_renderer.h"
-
-#include "le_camera/le_camera.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
+#include "le_camera/le_camera.h"
+#include "le_ui_event/le_ui_event.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -14,13 +14,15 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <vector>
 
 struct triangle_app_o {
 	le::Window   window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
 
-	LeCamera camera;
+	LeCamera           camera;
+	LeCameraController cameraController;
 };
 
 typedef triangle_app_o app_o;
@@ -37,12 +39,12 @@ static void terminate() {
 	le::Window::terminate();
 };
 
-static void reset_camera( triangle_app_o *self ); // ffdecl.
+static void app_reset_camera( app_o *self ); // ffdecl.
 
 // ----------------------------------------------------------------------
 
-static triangle_app_o *triangle_app_create() {
-	auto app = new ( triangle_app_o );
+static app_o *app_create() {
+	auto app = new ( app_o );
 
 	le::Window::Settings settings;
 	settings
@@ -56,14 +58,14 @@ static triangle_app_o *triangle_app_create() {
 	app->renderer.setup( le::RendererInfoBuilder( app->window ).build() );
 
 	// Set up the camera
-	reset_camera( app );
+	app_reset_camera( app );
 
 	return app;
 }
 
 // ----------------------------------------------------------------------
 
-static void reset_camera( triangle_app_o *self ) {
+static void app_reset_camera( app_o *self ) {
 	le::Extent2D extents{};
 	self->renderer.getSwapchainExtent( &extents.width, &extents.height );
 	self->camera.setViewport( { 0, 0, float( extents.width ), float( extents.height ), 0.f, 1.f } );
@@ -80,7 +82,7 @@ typedef bool ( *renderpass_setup )( le_renderpass_o *pRp, void *user_data );
 
 static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto rp  = le::RenderPass{ pRp };
-	auto app = static_cast<triangle_app_o *>( user_data );
+	auto app = static_cast<app_o *>( user_data );
 
 	// Attachment may be further specialised using le::ImageAttachmentInfoBuilder().
 
@@ -94,7 +96,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 // ----------------------------------------------------------------------
 
 static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto        app = static_cast<triangle_app_o *>( user_data );
+	auto        app = static_cast<app_o *>( user_data );
 	le::Encoder encoder{ encoder_ };
 
 	auto extents = encoder.getRenderpassExtent();
@@ -105,7 +107,10 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 	app->camera.setViewport( viewports[ 0 ] );
 
-	// Data as it is laid out in the shader ubo
+	// Data as it is laid out in the shader ubo.
+	// Be careful to respect std430 or std140 layout
+	// depending on what you specify in the
+	// shader.
 	struct MvpUbo {
 		glm::mat4 model;
 		glm::mat4 view;
@@ -114,8 +119,8 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 	// Draw main scene
 
-	static auto shaderVert = app->renderer.createShaderModule( "./resources/shaders/default.vert", le::ShaderStage::eVertex );
-	static auto shaderFrag = app->renderer.createShaderModule( "./resources/shaders/default.frag", le::ShaderStage::eFragment );
+	static auto shaderVert = app->renderer.createShaderModule( "./local_resources/shaders/default.vert", le::ShaderStage::eVertex );
+	static auto shaderFrag = app->renderer.createShaderModule( "./local_resources/shaders/default.frag", le::ShaderStage::eFragment );
 
 	static auto pipelineTriangle =
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
@@ -129,13 +134,13 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	mvp.view       = app->camera.getViewMatrixGlm();
 	mvp.projection = app->camera.getProjectionMatrixGlm();
 
-	glm::vec3 trianglePositions[] = {
+	glm::vec3 vertexPositions[] = {
 	    { -50, -50, 0 },
 	    { 50, -50, 0 },
 	    { 0, 50, 0 },
 	};
 
-	glm::vec4 triangleColors[] = {
+	glm::vec4 vertexColors[] = {
 	    { 1, 0, 0, 1.f },
 	    { 0, 1, 0, 1.f },
 	    { 0, 0, 1, 1.f },
@@ -144,14 +149,62 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	encoder
 	    .bindGraphicsPipeline( pipelineTriangle )
 	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo ) )
-	    .setVertexData( trianglePositions, sizeof( trianglePositions ), 0 )
-	    .setVertexData( triangleColors, sizeof( triangleColors ), 1 )
+	    .setVertexData( vertexPositions, sizeof( vertexPositions ), 0 )
+	    .setVertexData( vertexColors, sizeof( vertexColors ), 1 )
 	    .draw( 3 );
 }
 
 // ----------------------------------------------------------------------
+static void app_process_ui_events( app_o *self ) {
+	using namespace le_window;
+	uint32_t         numEvents;
+	LeUiEvent const *pEvents;
+	window_i.get_ui_event_queue( self->window, &pEvents, numEvents );
 
-static bool triangle_app_update( triangle_app_o *self ) {
+	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
+
+	bool wantsToggle = false;
+
+	for ( auto &event : events ) {
+		switch ( event.event ) {
+		case ( LeUiEvent::Type::eKey ): {
+			auto &e = event.key;
+			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
+				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
+					wantsToggle ^= true;
+				} else if ( e.key == LeUiEvent::NamedKey::eC ) {
+					float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
+					self->cameraController.setPivotDistance( distance_to_origin );
+				} else if ( e.key == LeUiEvent::NamedKey::eX ) {
+					self->cameraController.setPivotDistance( 0 );
+				} else if ( e.key == LeUiEvent::NamedKey::eZ ) {
+					app_reset_camera( self );
+					float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, glm::inverse( self->camera.getViewMatrixGlm() ) * glm::vec4( 0, 0, 0, 1 ) );
+					self->cameraController.setPivotDistance( distance_to_origin );
+				}
+
+			} // if ButtonAction == eRelease
+
+		} break;
+		default:
+			// do nothing
+			break;
+		}
+	}
+
+	auto swapchainExtent = self->renderer.getSwapchainExtent();
+
+	self->cameraController.setControlRect( 0, 0, float( swapchainExtent.width ), float( swapchainExtent.height ) );
+	self->cameraController.processEvents( self->camera, events.data(), events.size() );
+
+	if ( wantsToggle ) {
+		self->window.toggleFullscreen();
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static bool app_update( app_o *self ) {
 
 	// Polls events for all windows
 	// Use `self->window.getUIEventQueue()` to fetch events.
@@ -160,6 +213,9 @@ static bool triangle_app_update( triangle_app_o *self ) {
 	if ( self->window.shouldClose() ) {
 		return false;
 	}
+
+	// update interactive camera using mouse data
+	app_process_ui_events( self );
 
 	le::RenderModule mainModule{};
 	{
@@ -182,7 +238,7 @@ static bool triangle_app_update( triangle_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void triangle_app_destroy( triangle_app_o *self ) {
+static void app_destroy( app_o *self ) {
 
 	delete ( self ); // deletes camera
 }
@@ -196,7 +252,7 @@ LE_MODULE_REGISTER_IMPL( triangle_app, api ) {
 	triangle_app_i.initialize = initialize;
 	triangle_app_i.terminate  = terminate;
 
-	triangle_app_i.create  = triangle_app_create;
-	triangle_app_i.destroy = triangle_app_destroy;
-	triangle_app_i.update  = triangle_app_update;
+	triangle_app_i.create  = app_create;
+	triangle_app_i.destroy = app_destroy;
+	triangle_app_i.update  = app_update;
 }

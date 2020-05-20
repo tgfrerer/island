@@ -2,24 +2,14 @@
 #define GUARD_hello_triangle_app_H
 #endif
 
-#include <stdint.h>
 #include "le_core/le_core.h"
 
 // depends on le_backend_vk. le_backend_vk must be loaded before this class is used.
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-void register_hello_triangle_app_api( void *api );
 
 struct hello_triangle_app_o;
 
 // clang-format off
 struct hello_triangle_app_api {
-
-	static constexpr auto id      = "hello_triangle_app";
-	static constexpr auto pRegFun = register_hello_triangle_app_api;
 
 	struct hello_triangle_app_interface_t {
 		hello_triangle_app_o * ( *create               )();
@@ -33,18 +23,14 @@ struct hello_triangle_app_api {
 };
 // clang-format on
 
+LE_MODULE( hello_triangle_app );
+LE_MODULE_LOAD_DEFAULT( hello_triangle_app );
+
 #ifdef __cplusplus
-} // extern "C"
 
 namespace hello_triangle_app {
-#ifdef PLUGINS_DYNAMIC
-const auto api = Registry::addApiDynamic<hello_triangle_app_api>( true );
-#else
-const auto api = Registry::addApiStatic<hello_triangle_app_api>();
-#endif
-
+static const auto &api            = hello_triangle_app_api_i;
 static const auto &hello_triangle_app_i = api -> hello_triangle_app_i;
-
 } // namespace hello_triangle_app
 
 class HelloTriangleApp : NoCopy, NoMove {

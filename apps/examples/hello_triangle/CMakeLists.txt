@@ -3,7 +3,14 @@ set (CMAKE_CXX_STANDARD 20)
 
 set (PROJECT_NAME "Island-HelloTriangle")
 
+# Set global property (all targets are impacted)
+set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CMAKE_COMMAND} -E time")
+set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK "${CMAKE_COMMAND} -E time")
+
 project (${PROJECT_NAME})
+
+# set to number of worker threads if you wish to use multi-threaded rendering
+# add_compile_definitions( LE_MT=4 )
 
 # Point this to the base directory of your Island installation
 set (ISLAND_BASE_DIR "${PROJECT_SOURCE_DIR}/../../../")
@@ -20,7 +27,6 @@ include ("${ISLAND_BASE_DIR}CMakeLists.txt.island_prolog.in")
 add_subdirectory (hello_triangle_app)
 
 # Specify any optional modules from the standard framework here
-add_island_module(le_pipeline_builder)
 add_island_module(le_camera)
 
 # Main application c++ file. Not much to see there,
@@ -28,3 +34,6 @@ set (SOURCES main.cpp)
 
 # Sets up Island framework linkage and housekeeping, based on user selections
 include ("${ISLAND_BASE_DIR}CMakeLists.txt.island_epilog.in")
+
+# (optional) create a link to local resources
+execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/resources ${CMAKE_BINARY_DIR}/local_resources )
