@@ -1,4 +1,4 @@
-# Project Island
+# Project Island 🌋🐎 
 
 Project Island is an experimental Vulkan renderer/engine for Linux, written in C/C++.
 
