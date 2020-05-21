@@ -2,9 +2,11 @@
 
 Project Island is an experimental Vulkan renderer/engine for Linux, written in C/C++.
 
-Island is written for rapid protoyping and tweaking. It allows hot-reloading wherever possible: for GLSL shaders and for all native C/CPP code, including its own core modules. The codebase aims to be strictly separated into independent modules, to make it very fast to compile in parallel.
+Island is written from the ground up for rapid protoyping and tweaking. It allows hot-reloading wherever possible: for GLSL shaders and for all native C/CPP code, including its own core modules. The codebase aims to be strictly isolated into independent modules, which make it very fast to compile in parallel.
 
-**Note** The API is under active development, expect lots of change. As such, there are no promises that it might be ready or fit for any purpose, and the code here is released in the hope that you might find it entertaining or instructive.
+**Note** The API is under active development, expect lots of change. As such, there are no promises that it might be ready or fit for any purpose, and the code here is released in the hope that you might find it entertaining or instructive. 
+
+The main motivation for writing Island is to experiment with a modern rendering API (Vulkan), and to learn by trying out ideas around modern realtime-rendering.
 
 ## Main Features:
 
@@ -71,21 +73,23 @@ a current Vulkan SDK installed.
 
 ## Depencencies
 
-Island depends on a few common development tools: CMake, gcc, git. These are commonly present already on a development machine.
+Island depends on a few common development tools: CMake, gcc, git, ninja. These are commonly present already on a development machine.
 
 ## Install Vulkan SDK 
 
 ### Vulkan SDK >= `1.1.92.0`
 
-I recommend to install the Vulkan SDK via the Ubuntu package manager.
+I recommend to install the Vulkan SDK via a package manager.
 Follow the installation instructions via:
 <https://vulkan.lunarg.com/sdk/home#linux>.
 
+    ```bash
     wget -qO - http://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
     sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.1.92-bionic.list http://packages.lunarg.com/vulkan/1.1.92/lunarg-vulkan-1.1.92-bionic.list
     sudo apt update
 
     sudo apt-get install vulkan-lunarg-sdk
+    ```
 
 ### Manual Vulkan SDK install and legacy Vulkan SDK installation
 
@@ -93,12 +97,31 @@ Older Vulkan SDKs did not come with a Ubuntu package, and required
 some extra steps to set up. These steps are documented in a [separate
 readme](legacy_sdk_installation_instructions.md). 
 
-## Island compilation
+## Building an Island project
 
-*Remember to update submodules before building*
+If you freshly cloned the island repository, remember to update submodules before proceeding.
 
     git submodule init
-    git submodule update
+    git submodule update --depth=1
 
-The CMAKE parameter `PLUGINS_DYNAMIC` lets you choose whether to compile Island as a static binary, or as a thin module with dynamic plugins. Unless you change this parameter, Debug builds will be built thin/dynamic for hot-reloading, and Release builds will produce a single static binary. 
+Then move to the directory of the island project which you want to compile
 
+    cd apps/examples/hello_triangle/
+
+Build using CMake:
+
+    mkdir build
+    cd build
+    cmake -G Ninja ..
+    ninja
+
+Run your new Island Application: 
+
+    ./Island-HelloTriangle
+
+**Note**: The CMAKE parameter `PLUGINS_DYNAMIC` lets you choose whether to compile Island as a static binary, or as a thin module with dynamic plugins. Unless you change this parameter, Debug builds will be built thin/dynamic for hot-reloading, and Release builds will produce a single static binary. 
+
+
+## Integrated Development Environment support
+
+I recommend using the freely available [QT Creator](https://download.qt.io/official_releases/qtcreator/) IDE, it allows you to directly open CMake project files, and integrates seamlessly with the Island workflow. Alternative IDEs are of course available, and as long as they support CMake project files, should work.
