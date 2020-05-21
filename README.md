@@ -157,8 +157,8 @@ readme](legacy_sdk_installation_instructions.md).
 
 ## Building an Island project
 
-If you freshly cloned the island repository, remember to update
-submodules before proceeding.
+🚨 If you freshly cloned the island repository, remember to update
+submodules before proceeding.🚨
 
     git submodule init
     git submodule update --depth=1
