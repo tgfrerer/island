@@ -14,8 +14,6 @@ Island is written for rapid protoyping and tweaking. It allows hot-reloading whe
 
 * **Static release binaries**: While Island is highly modular and dynamic when run in debug, it can compile into a single, optimised static binary for release. 
 
-* **Shader code debugging**: Shader GLSL code may be hot-reloaded too. Any change in shader files triggers a recompile, and (Vulkan) pipelines are automatically rebuilt if needed. Shaders may include other shaders via `#include` directives. Error messages will point at file and line number, and include a brief listing with problematic lines highlighted in context.
-
 * **Vulkan backend**: Island uses a Vulkan backend, which, on Linux, allows you to experiment with GPU features as soon as they are released. The renderer takes care of most of the bureaucracy which comes with modern APIs: Vulkan resources are automatically synchronised, and only allocated on demand. Pipelines are compiled and recompiled when needed. When compiled in Debug mode, Vulkan validation layers are loaded by default.
 
 * **Framegraph**: Resources are allocated on-demand and synchronised automatically using a framegraph system. Most resource properties are *inferred* automatically, reducing the bureaucracy of dealing with modern graphics APIs. The framegraph generates `.dot` files in debug mode, which can be visualised with graphviz.
@@ -24,11 +22,13 @@ Island is written for rapid protoyping and tweaking. It allows hot-reloading whe
 
 * **GPU mesh shaders** gives you - optional - access to Nvidia-specific extensions for mesh and task shaders. These can be used in regular graphics pipelines.
 
-* **Code tweaks**: Near-instant in-code paramter tweaks 
+* **Shader code debugging**: Shader GLSL code may be hot-reloaded too. Any change in shader files triggers a recompile, and (Vulkan) pipelines are automatically rebuilt if needed. Shaders may include other shaders via `#include` directives. Error messages will point at file and line number, and include a brief listing with problematic lines highlighted in context.
+
+* **Code tweaks**: Near-instant in-code parameter tweaks (no need to compile)
 
 * **Straight to video**: Island can render straight to screen using the direct rendering backend, or use any number of available options for a window-based vulkan swapchain. It's also easy to render straight to an mp4 file, or an image sequence without showing a window, by selecting the appropriate `le_swapchain` specialisation.
 
-* **Multisampling**: minimal effort to enable multisampling, import images, fonts
+* **Helpers**: minimal effort to enable multisampling, import images, fonts
 
 * **2d drawing context**: Draw thick lines and curves using `le_paths`, which specialises in 2d meshes. This module implements a useful subset of the SVG command palette, and has some extras like the option to apply to hobby algorithm to open and closed bezier curves for automatic smoothing.
 
@@ -38,30 +38,31 @@ Island is written for rapid protoyping and tweaking. It allows hot-reloading whe
 
 ## Tools
 
-+ Project generator: Generates scaffolding for new apps, based on templates
++ Project generator: Generates scaffolding for new apps, based on project templates
 + Module scaffold generator: Generates scaffolding for new modules.
 
 ## Examples 
 
-* TODO:
-- show screenshot for each example, and short description
-- show basic usage example
+Island comes with a number of examples. No collection of examples would be complete without a [hello triangle](apps/examples/hello_triangle/) example, and a [hello world](apps/examples/hello_world/) example.
+
+![Hello triangle example](apps/examples/hello_triangle/screenshot.png)
+![Hello world example](apps/examples/hello_world/screenshot.jpg)
 
 ## Island includes the following helper modules: 
 
 | Module | wraps | Description | 
 | --- | :---: | --- | 
 | `le_camera` | - | interactive, mouse controlled camera |
-| `le_path` | - | draw svg-style paths, can parse simplified SVG strings | 
-| `le_tessellator` | earcut/libtess | dynamic choice of tessellation lib |
+| `le_path` | - | draw svg-style paths, parse simplified SVG-style path command lists | 
+| `le_tessellator` | `earcut`/`libtess` | dynamic choice of tessellation lib |
 | `le_imgui` | `imgui` | graphical user interface |
 | `le_pixels` | `stb_image` | load image files |
 | `le_font` | `stb_font` | truetype glyph sdf, geometry and texture atlas based typesetting |
-| `le_pipeline_builder` | - | build vulkan pipelines | 
-
-
-Similarly, debug builds will automatically load Vulkan debug layers,
-while release builds won't.
+| `le_pipeline_builder` | - | build graphics, and compute pipelines | 
+| `le_2d` | - | simplified 2d drawing context |
+| `le_gltf` | cgltf | load and parse glTF 2.0 files |
+| `le_jobs` | - | fiber-based job system | 
+| `le_ecs` | - | entity-component-system | 
 
 # Installation instructions
 
@@ -70,7 +71,7 @@ a current Vulkan SDK installed.
 
 ## Depencencies
 
-Island depends on a baseline of common development tools: CMake, gcc, git 
+Island depends on a few common development tools: CMake, gcc, git. These are commonly present already on a development machine.
 
 ## Install Vulkan SDK 
 
@@ -99,5 +100,5 @@ readme](legacy_sdk_installation_instructions.md).
     git submodule init
     git submodule update
 
-The CMAKE parameter `PLUGINS_DYNAMIC` lets you choose whether to compile Island as a static binary, or as a thin module with dynamic plugins. I recommend dynamic plugins for debug, and deactivating the option for release builds.
+The CMAKE parameter `PLUGINS_DYNAMIC` lets you choose whether to compile Island as a static binary, or as a thin module with dynamic plugins. Unless you change this parameter, Debug builds will be built thin/dynamic for hot-reloading, and Release builds will produce a single static binary. 
 
