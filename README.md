@@ -83,13 +83,13 @@ I recommend to install the Vulkan SDK via a package manager.
 Follow the installation instructions via:
 <https://vulkan.lunarg.com/sdk/home#linux>.
 
-    ```bash
+```bash
     wget -qO - http://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
     sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.1.92-bionic.list http://packages.lunarg.com/vulkan/1.1.92/lunarg-vulkan-1.1.92-bionic.list
     sudo apt update
 
     sudo apt-get install vulkan-lunarg-sdk
-    ```
+```
 
 ### Manual Vulkan SDK install and legacy Vulkan SDK installation
 
@@ -124,4 +124,4 @@ Run your new Island Application:
 
 ## Integrated Development Environment support
 
-I recommend using the freely available [QT Creator](https://download.qt.io/official_releases/qtcreator/) IDE, it allows you to directly open CMake project files, and integrates seamlessly with the Island workflow. Alternative IDEs are of course available, and as long as they support CMake project files, should work.
+I recommend using the freely available [QT Creator](https://download.qt.io/official_releases/qtcreator/) IDE, it allows you to directly open CMake project files, and integrates pretty seamlessly with the Island workflow: running, hot-reloading, then setting a breakpoint, and then stepping whilst inspecting state in the debugger just works. Alternative IDEs are of course available, and as long as they support CMake project files, should work.
