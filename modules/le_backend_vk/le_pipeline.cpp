@@ -1422,6 +1422,7 @@ static vk::RayTracingShaderGroupTypeKHR le_to_vk( le::RayTracingShaderGroupType 
 
 // ----------------------------------------------------------------------
 
+#ifdef LE_FEATURE_RTX
 static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o *self, rtx_pipeline_state_o const *pso ) {
 
 	// Fetch vk::PipelineLayout for this pso
@@ -1485,6 +1486,7 @@ static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o
 	assert( vk::Result::eSuccess == result.result );
 	return result.value;
 }
+#endif
 
 // ----------------------------------------------------------------------
 
