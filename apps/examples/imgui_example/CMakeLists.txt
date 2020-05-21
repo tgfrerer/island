@@ -3,6 +3,10 @@ set (CMAKE_CXX_STANDARD 20)
 
 set (PROJECT_NAME "Island-ImguiExample")
 
+# Set global property (all targets are impacted)
+# set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CMAKE_COMMAND} -E time")
+# set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK "${CMAKE_COMMAND} -E time")
+
 project (${PROJECT_NAME})
 
 # Point this to the base directory of your Island installation

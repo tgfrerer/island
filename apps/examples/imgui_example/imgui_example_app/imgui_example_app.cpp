@@ -166,7 +166,7 @@ static bool imgui_example_app_update( imgui_example_app_o *self ) {
 	le::RenderModule mainModule{};
 	{
 
-		le_imgui::le_imgui_i.setup_gui_resources( self->gui, mainModule, float( swapchainWidth ), float( swapchainHeight ) );
+		le_imgui::le_imgui_i.setup_resources( self->gui, mainModule, float( swapchainWidth ), float( swapchainHeight ) );
 
 		le::RenderPass passToScreen( "root", LE_RENDER_PASS_TYPE_DRAW );
 
@@ -209,7 +209,7 @@ static bool imgui_example_app_update( imgui_example_app_o *self ) {
 		    .setExecuteCallback( self, pass_main_exec ) //
 		    ;
 
-		le_imgui::le_imgui_i.draw_gui( self->gui, passToScreen );
+		le_imgui::le_imgui_i.draw( self->gui, passToScreen );
 
 		mainModule.addRenderPass( passToScreen );
 	}
@@ -235,7 +235,7 @@ static void imgui_example_app_destroy( imgui_example_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void register_imgui_example_app_api( void *api ) {
+LE_MODULE_REGISTER_IMPL( imgui_example_app, api ) {
 	auto  imgui_example_app_api_i = static_cast<imgui_example_app_api *>( api );
 	auto &imgui_example_app_i     = imgui_example_app_api_i->imgui_example_app_i;
 
