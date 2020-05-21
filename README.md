@@ -81,11 +81,12 @@ with.
 * **Helpers**: minimal effort to enable multisampling, import images,
   fonts
 
-* **2d drawing context**: Draw thick lines and curves using
-  `le_paths`, which specialises in 2d meshes. This module implements
-  a useful subset of the SVG command palette, and has some extras like
-  the option to apply to hobby algorithm to open and closed bezier
-  curves for automatic smoothing.
+* **2d drawing context**: Draw thick lines and curves using `le_paths`, which
+  specialises in 2d meshes. This module implements a useful subset of the SVG
+  command palette, and has some extras like the option to apply to Hobby
+  algorithm to open and closed bezier curves for automatic smoothing. Thick
+  Bézier curves are tessellated and drawn using an algorithm outlined by T. F.
+  Hain.
 
 * **glTF** Island wraps cgltf for gltf file import, and the `le_stage`
   module can display and render most features found in gltf files:
@@ -147,12 +148,6 @@ depends on the Vulkan SDK.
 I recommend to install the Vulkan SDK via a package manager. Follow
 the installation instructions via:
 <https://vulkan.lunarg.com/sdk/home#linux>.
-
-    wget -qO - http://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
-    sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.1.92-bionic.list http://packages.lunarg.com/vulkan/1.1.92/lunarg-vulkan-1.1.92-bionic.list
-    sudo apt update
-
-    sudo apt-get install vulkan-lunarg-sdk
 
 ### Manual Vulkan SDK install and legacy Vulkan SDK installation
 
