@@ -3,11 +3,9 @@
 Project Island is an experimental Vulkan renderer/engine for Linux,
 written in C/C++.
 
-Island is written from the ground up for rapid protoyping and
-tweaking. It allows hot-reloading wherever possible: for GLSL shaders
-and for all native C/CPP code, including its own core modules. The
-codebase aims to be strictly isolated into independent modules, which
-make it very fast to compile in parallel.
+Island is written for rapid protoyping and tweaking. That's why it allows
+hot-reloading wherever possible: for GLSL shaders and for all its C/CPP source
+code, including its own core modules. Each module aims to be strictly isolated, which makes the codebase fast to compile, especially in parallel.
 
 **Note** The API is under active development, expect lots of change.
 As such, there are no promises that it might be ready or fit for any
@@ -21,17 +19,14 @@ with.
 
 ## Main Features:
 
-* **Native code hot-reloading**: An Island project is made from
-  isolated c/cpp modules, each of which can be tweaked, re-compiled at
-  runtime, and automatically hot-reloaded. The same happens with
-  changes in shader source files. Because of Island's modular
-  architecture, recompilation & reload often takes less than 1 second,
-  while the project keeps running.
+* **Native code hot-reloading**: An Island project is made from isolated c/cpp
+  modules, each of which can be tweaked, re-compiled at runtime, and
+  automatically hot-reloaded. The same applies to GLSL shader source files. Because
+  of Island's modular architecture, recompilation & reload often takes less
+  than 1 second, while the project keeps running.
 
-* **Fast compile times**: Because of Island's highly modular
-  architecture, everything compiles swiftly, especially on multi-core
-  systems. Typically, compilation from scratch for the whole codebase
-  takes less than 6 seconds, and (re)compilation of an app module
+* **Fast compile times**: Typically, compilation from scratch for the whole
+  codebase takes less than 6 seconds, and (re)compilation of an app module
   takes less than a second.
 
 * **Static release binaries**: While Island is highly modular and
@@ -42,16 +37,19 @@ with.
   allows you to experiment with GPU features as soon as they are
   released. The renderer takes care of most of the bureaucracy which
   comes with modern APIs: Vulkan resources are automatically
-  synchronised, and only allocated on demand. Pipelines are compiled
+  synchronised, and only allocated on demand. Most resource properties
+  are *inferred* automatically. Pipelines are compiled
   and recompiled when needed. When compiled in Debug mode, Vulkan
   validation layers are loaded by default.
 
-* **Framegraph**: Resources are allocated on-demand and synchronised
-  automatically using a framegraph system. Most resource properties
-  are *inferred* automatically, reducing the bureaucracy of dealing
-  with modern graphics APIs. The framegraph generates `.dot` files in
-  debug mode, which can be visualised with graphviz.
+* **Framegraph**: Renderpasses are executed on-demand and synchronised
+  automatically using a framegraph system. If a renderpass is detected to have
+  no effect on the final image, it is automatically pruned. For Debug targets, the framegraph
+  generates `.dot` files, which can be visualised with graphviz. 
 
+  ![graphviz-screenshot](resources/readme/graph_screenshot.png)
+
+  
 * **GPU ray tracing** Island supports RTX via the *Khronos Vulkan
   raytracing extensions*. Creating acceleration structures and shader
   binding tables is automated and simplified as much as possible. Ray
@@ -83,20 +81,22 @@ with.
 
 * **2d drawing context**: Draw thick lines and curves using `le_paths`, which
   specialises in 2d meshes. This module implements a useful subset of the SVG
-  command palette, and has some extras like the option to apply to Hobby
-  algorithm to open and closed bezier curves for automatic smoothing. Thick
-  Bézier curves are tessellated and drawn using an algorithm outlined by T. F.
-  Hain.
+  command palette, and has some extras like the option to smooth open or closed
+  Bézier curves by applying the [Hobby algorithm][hobby]. Thick Bézier curves
+  are tessellated and drawn using [an algorithm outlined by T. F. Hain][hain].
 
-* **glTF** Island wraps cgltf for gltf file import, and the `le_stage`
-  module can display and render most features found in gltf files:
-  pbrt materials, vertex animations, morph target animations, and
-  skinning animations.
+* **glTF** Island wraps [cgltf][cgltf-link] for gltf file import, and the `le_stage` module
+  can display and render most features found in gltf files: pbrt materials,
+  vertex animations, morph target animations, and skinning animations.
 
 * **Job-system**: Parallel workloads can be implemented using the
   `le_jobs` module, which implements a job system using co-routines.
   Both backend and render modules are designed to minimise resource
   contention.
+
+[hain]: https://doi.org/10.1016/j.cag.2005.08.002
+[hobby]: http://weitz.de/hobby/
+[cgltf-link]: https://github.com/jkuhlmann/cgltf
 
 ## Tools
 
