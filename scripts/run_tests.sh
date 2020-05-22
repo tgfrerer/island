@@ -54,6 +54,7 @@ apps_list=("
     examples/hello_world:Island-HelloWorld
     examples/hello_triangle:Island-HelloTriangle
     examples/geometry_shader_example:Island-GeometryShaderExample
+    examples/imgui_example:Island-ImguiExample
 ")
 
 TAKE_SCREENSHOTS=0
