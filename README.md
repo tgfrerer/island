@@ -19,6 +19,16 @@ with.
 
 ## Main Features:
 
+* **Vulkan backend**: Island has a Vulkan rendering backend, which, on
+  Linux, allows access to new and experimental GPU features soon after
+  they are released. The renderer takes care of most of the
+  bureaucracy which comes with modern APIs: Vulkan resources are
+  automatically synchronised, and only allocated on demand. Most
+  resource properties are *inferred* automatically based on the
+  context of how the resource is being used. Pipelines are compiled
+  and recompiled when needed. When compiled in Debug mode, Vulkan
+  validation layers are loaded by default.
+
 * **Hot-reloading**: An Island project is made from isolated c/cpp
   modules, each of which can be tweaked, re-compiled at runtime, and
   automatically hot-reloaded. The same applies to GLSL shader source
@@ -33,16 +43,6 @@ with.
 * **Static release binaries**: While Island is highly modular and
   dynamic when run in debug, it can compile into a single, optimised
   static binary for release. 
-  
-* **Vulkan backend**: Island has a Vulkan rendering backend, which, on
-  Linux, allows access to new and experimental GPU features soon after
-  they are released. The renderer takes care of most of the
-  bureaucracy which comes with modern APIs: Vulkan resources are
-  automatically synchronised, and only allocated on demand. Most
-  resource properties are *inferred* automatically based on the
-  context of how the resource is being used. Pipelines are compiled
-  and recompiled when needed. When compiled in Debug mode, Vulkan
-  validation layers are loaded by default.
 
 * **Rendergraph**: Rendering is structured using renderpasses.
   Renderpasses are executed on-demand and synchronised automatically
