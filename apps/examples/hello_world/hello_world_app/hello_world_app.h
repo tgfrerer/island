@@ -5,8 +5,6 @@
 #include <stdint.h>
 #include "le_core/le_core.h"
 
-// depends on le_backend_vk. le_backend_vk must be loaded before this class is used.
-
 struct hello_world_app_o;
 
 // clang-format off
