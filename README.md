@@ -126,7 +126,7 @@ world](apps/examples/hello_world/) example.
 | `le_font` | `stb_font` | truetype glyph sdf, geometry and texture atlas based typesetting |
 | `le_pipeline_builder` | - | build graphics, and compute pipelines | 
 | `le_2d` | - | simplified 2d drawing context |
-| `le_gltf` | cgltf | load and parse glTF 2.0 files |
+| `le_gltf` | `cgltf` | load and parse glTF 2.0 files |
 | `le_jobs` | - | fiber-based job system | 
 | `le_ecs` | - | entity-component-system | 
 
@@ -157,14 +157,14 @@ readme](legacy_sdk_installation_instructions.md).
 
 ## Building an Island project
 
-🚨 If you freshly cloned the island repository, remember to update
+🚨 If you freshly cloned the Island repository, remember to update
 submodules before proceeding.🚨
 
     git submodule init
     git submodule update --depth=1
 
-Then move to the directory of the island project which you want to
-compile
+Then move to the directory of the Island project which you want to
+compile:
 
     cd apps/examples/hello_triangle/
 
