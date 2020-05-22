@@ -12,43 +12,46 @@ As such, there are no promises that it might be ready or fit for any
 purpose, and the code here is released in the hope that you might find
 it entertaining or instructive. 
 
-The main motivation for writing Island was to experiment with a modern
+**Purpose** The main motivation for writing Island was to experiment with a modern
 rendering API (Vulkan), to learn by trying out ideas around modern
-realtime-rendering, and to have a framework to create visual essays
+realtime-rendering, and to have a framework to create [visual experiments](http://instagram.com/tgfrerer)
 with.
 
 ## Main Features:
 
-* **Native code hot-reloading**: An Island project is made from isolated c/cpp
+* **Hot-reloading**: An Island project is made from isolated c/cpp
   modules, each of which can be tweaked, re-compiled at runtime, and
-  automatically hot-reloaded. The same applies to GLSL shader source files. Because
-  of Island's modular architecture, recompilation & reload often takes less
-  than 1 second, while the project keeps running.
+  automatically hot-reloaded. The same applies to GLSL shader source
+  files.
 
-* **Fast compile times**: Typically, compilation from scratch for the whole
-  codebase takes less than 6 seconds, and (re)compilation of an app module
-  takes less than a second.
+* **Fast compile times**:  Because of Island's modular architecture,
+  recompilation & reload often takes less than 1 second, while the
+  project keeps running. Typically, compilation from scratch for the
+  whole codebase takes less than 6 seconds, and (re)compilation of an
+  app module takes less than a second.
 
 * **Static release binaries**: While Island is highly modular and
   dynamic when run in debug, it can compile into a single, optimised
   static binary for release. 
-
-* **Vulkan backend**: Island uses a Vulkan backend, which, on Linux,
-  allows you to experiment with GPU features as soon as they are
-  released. The renderer takes care of most of the bureaucracy which
-  comes with modern APIs: Vulkan resources are automatically
-  synchronised, and only allocated on demand. Most resource properties
-  are *inferred* automatically. Pipelines are compiled
+  
+* **Vulkan backend**: Island has a Vulkan rendering backend, which, on
+  Linux, allows access to new and experimental GPU features soon after
+  they are released. The renderer takes care of most of the
+  bureaucracy which comes with modern APIs: Vulkan resources are
+  automatically synchronised, and only allocated on demand. Most
+  resource properties are *inferred* automatically based on the
+  context of how the resource is being used. Pipelines are compiled
   and recompiled when needed. When compiled in Debug mode, Vulkan
   validation layers are loaded by default.
 
-* **Framegraph**: Renderpasses are executed on-demand and synchronised
-  automatically using a framegraph system. If a renderpass is detected to have
-  no effect on the final image, it is automatically pruned. For Debug targets, the framegraph
-  generates `.dot` files, which can be visualised with graphviz. 
+* **Rendergraph**: Rendering is structured using renderpasses.
+  Renderpasses are executed on-demand and synchronised automatically
+  by evaluating a rendergraph. If a renderpass is detected to have no
+  effect on the final image, it is automatically pruned. For Debug
+  targets, the framegraph generates `.dot` files, which can be
+  visualised using graphviz.  
 
   ![graphviz-screenshot](resources/readme/graph_screenshot.png)
-
   
 * **GPU ray tracing** Island supports RTX via the *Khronos Vulkan
   raytracing extensions*. Creating acceleration structures and shader
@@ -66,8 +69,8 @@ with.
   at file and line number, and include a brief listing with
   problematic lines highlighted in context.
 
-* **Code tweaks**: Near-instant in-code parameter tweaks (no need to
-  compile)
+* **Code tweaks**: Near-instant in-code parameter tweaks for Debug
+  builds (no need to recompile) by using a special `TWEAK()` macro.
 
 * **Straight to video**: Island can render straight to screen using
   the direct rendering backend, or use any number of available options
@@ -79,15 +82,17 @@ with.
 * **Helpers**: minimal effort to enable multisampling, import images,
   fonts
 
-* **2d drawing context**: Draw thick lines and curves using `le_paths`, which
-  specialises in 2d meshes. This module implements a useful subset of the SVG
-  command palette, and has some extras like the option to smooth open or closed
-  Bézier curves by applying the [Hobby algorithm][hobby]. Thick Bézier curves
-  are tessellated and drawn using [an algorithm outlined by T. F. Hain][hain].
+* **2d drawing context**: Draw thick lines and curves using
+  `le_paths`, which specialises in 2d meshes. This module implements
+  a useful subset of the SVG command palette, and has some extras like
+  the option to smooth open or closed Bézier curves by applying the
+  [Hobby algorithm][hobby]. Thick Bézier curves are tessellated and
+  drawn using [an algorithm outlined by T. F. Hain][hain].
 
-* **glTF** Island wraps [cgltf][cgltf-link] for gltf file import, and the `le_stage` module
-  can display and render most features found in gltf files: pbrt materials,
-  vertex animations, morph target animations, and skinning animations.
+* **glTF** Island wraps [cgltf][cgltf-link] for gltf file import, and
+  the `le_stage` module can display and render most features found in
+  gltf 2.0 files: pbrt materials, vertex animations, morph target
+  animations, and skinning animations.
 
 * **Job-system**: Parallel workloads can be implemented using the
   `le_jobs` module, which implements a job system using co-routines.
