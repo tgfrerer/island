@@ -105,9 +105,9 @@ with.
 
 ## Tools
 
-+ Project generator: Generates scaffolding for new apps, based on
-  project templates
-+ Module scaffold generator: Generates scaffolding for new modules.
++ [Project generator][app-generator]: Generates scaffolding for new apps, based
+  on project templates
++ [Module generator][module-generator]: Generates scaffolding for new modules.
 
 ## Examples 
 
@@ -119,26 +119,48 @@ world](apps/examples/hello_world/) example.
 ![Hello triangle example](apps/examples/hello_triangle/screenshot.png)
 ![Hello world example](apps/examples/hello_world/screenshot.jpg)
 
-## Island includes the following helper modules: 
+## Modules
 
-| Module | wraps | Description | 
+Island projects can be built by combining any number of island modules. Each
+module aims to do **one thing well**, and to play nice with others. Some
+modules provide their functionality by wrapping well-known external libraries,
+some are written entirely from scratch. Some of the most useful modules are
+listed here:
+
+| Module | Wraps | Description | 
 | --- | :---: | --- | 
 | `le_camera` | - | interactive, mouse controlled camera |
 | `le_path` | - | draw svg-style paths, parse simplified SVG-style path command lists | 
-| `le_tessellator` | `earcut`/`libtess` | dynamic choice of tessellation lib |
-| `le_imgui` | `imgui` | graphical user interface |
-| `le_pixels` | `stb_image` | load image files |
-| `le_font` | `stb_font` | truetype glyph sdf, geometry and texture atlas based typesetting |
+| `le_tessellator` | [earcut][link-earcut], [libtess][link-libtess] | dynamic choice of tessellation lib |
+| `le_imgui` | [imgui][link-imgui] | graphical user interface |
+| `le_pixels` | [stb image][link-stb_image] | load image files |
+| `le_font` | [stb truetype][link-stb_truetype] | truetype glyph sdf, geometry and texture atlas based typesetting |
 | `le_pipeline_builder` | - | build graphics, and compute pipelines | 
-| `le_2d` | - | simplified 2d drawing context |
-| `le_gltf` | `cgltf` | load and parse glTF 2.0 files |
+| `le_rtx_pipeline_builder` | - | build Khronos RTX raytracing pipelines | 
+| `le_2d` | - | provides simplified 2d drawing context |
+| `le_gltf` | [cgltf][link-cgltf] | load and parse glTF 2.0 files |
 | `le_jobs` | - | fiber-based job system | 
 | `le_ecs` | - | entity-component-system | 
+
+To add a module, specify it in the application's `CMakeLists.txt` file. Modules
+may depend on other modules, and the build system will automatically include
+these dependencies. You can write your own modules - and there is a [module
+template generator][module-generator] which provides you with a scaffold to
+start from.
+
+[link-imgui]: https://github.com/ocornut/imgui
+[link-earcut]: https://github.com/mapbox/earcut.hpp
+[link-libtess]: https://github.com/memononen/libtess2
+[link-stb_image]: https://github.com/nothings/stb/blob/master/stb_image.h
+[link-stb_truetype]: https://github.com/nothings/stb/blob/master/stb_truetype.h
+[link-cgltf]: https://github.com/nothings/stb/blob/master/stb_truetype.h
+[module-generator]: scripts/create_module.py
+[app-generator]: scripts/create_app.py
 
 # Installation instructions
 
 Island should run out of the box on a modern Linux system with
-a current Vulkan SDK installed. 
+the current Vulkan SDK installed.
 
 ## Depencencies
 
