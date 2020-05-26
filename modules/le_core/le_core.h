@@ -6,16 +6,16 @@
 
 /*
 
-  Registry is a global, canonical, table of apis, indexed through their type.
+  The core at heart is a global, canonical, table of apis,
+  indexed via a hash of their name.
 
-  The registry may be included from any compilation unit / .cpp file,
-  in order to get hold of the current function pointers to api methods.
+  The core may be included from any compilation unit / .cpp file,
+  so that any module may query the api of other currently loaded
+  modules.
 
-  Indexing by type works via lookup of a `static const char* id`
-  field, which each api must provide. As this is effectively
-  an immutable pointer to a string literal, the pointer address
-  will be available for the duration of the program, and it is assumed
-  to be unique.
+  When a module gets reloaded, the function pointers in the corresponding
+  table entry are updated, and subsequent queries to the table entry will
+  return updated function pointers. 
 
 */
 

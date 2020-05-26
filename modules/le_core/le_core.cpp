@@ -11,11 +11,11 @@
 #include <assert.h>
 
 struct ApiStore {
-	std::vector<std::string> names{};      // Debug api names
+	std::vector<std::string> names{};      // api names (used for debugging)
 	std::vector<uint64_t>    nameHashes{}; // Hashed api names (used for lookup)
 	std::vector<void *>      ptrs{};       // Pointer to struct holding api for each api name
 	~ApiStore() {
-		// We must free any api struct memory which was been allocated.
+		// We must free any api table entry for which memory was been allocated.
 		for ( auto p : ptrs ) {
 			if ( p ) {
 				free( p );
@@ -31,17 +31,13 @@ struct loader_callback_params_o {
 	int                 watch_id;
 };
 
-// FIXME: there is a vexing bug with initialisation order when compiling a static version of this app
-// -- ApiStore is first written to and then initialised again - no idea why this happens. Because fp_used_bytes
-// is not reset this is mitigated, as apis registered after the very first won't overwrite the very first, but the
-// names and namehashes, and ptrs get reset...
 static ApiStore apiStore{};
 
 static auto &file_watcher_i = le_file_watcher_api_i -> le_file_watcher_i; // le_file_watcher_api_i provided by le_file_watcher.h
 static auto  file_watcher   = file_watcher_i.create();
 
 // ----------------------------------------------------------------------
-// Trigger callbacks for change in watched files.
+// Trigger callbacks in case change was detected in watched files.
 ISL_API_ATTR void le_core_poll_for_module_reloads() {
 	file_watcher_i.poll_notifications( file_watcher );
 }
@@ -66,7 +62,7 @@ struct DeferDelete {
 	}
 };
 
-static DeferDelete defer_delete; // any elements referenced in this pool will get deleted when program unloads.
+static DeferDelete defer_delete; // Any elements referenced in this pool will get deleted when program unloads.
 
 // ----------------------------------------------------------------------
 /// \returns index into apiStore entry for api with given id
@@ -211,7 +207,7 @@ ISL_API_ATTR bool le_core_load_library_persistently( char const *library_name ) 
  * 
  */
 struct ArgumentNameTable {
-	// std::mutex mtx; // TODO: we want to add a mutex so that any modifications to this table are protected when multithreading.
+	// std::mutex mtx; // TODO: consider: do we want to add a mutex so that any modifications to this table are protected when multithreading?
 	std::vector<std::string> names;
 	std::vector<uint64_t>    hashes;
 };
