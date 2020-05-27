@@ -141,7 +141,7 @@ constexpr static le_resource_handle_t LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESO
 
 enum LeRenderPassType : uint32_t {
 	LE_RENDER_PASS_TYPE_UNDEFINED = 0,
-	LE_RENDER_PASS_TYPE_DRAW      = 1, // << most common case, should be 0
+	LE_RENDER_PASS_TYPE_DRAW      = 1,
 	LE_RENDER_PASS_TYPE_TRANSFER  = 2,
 	LE_RENDER_PASS_TYPE_COMPUTE   = 3,
 };
