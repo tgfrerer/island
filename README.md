@@ -149,6 +149,8 @@ listed here:
 | `le_rtx_pipeline_builder` | - | build Khronos RTX raytracing pipelines | 
 | `le_2d` | - | simplified 2d drawing context |
 | `le_gltf` | [cgltf][link-cgltf] | load and parse glTF 2.0 files |
+| `le_stage` | - | render 3d scenes, display animations | 
+| `le_timebase` | - | timekeeping, canonical clock for animations | 
 | `le_jobs` | - | fiber-based job system | 
 | `le_ecs` | - | entity-component-system | 
 | `le_shader_compiler` | [shaderc][link-shaderc] | compile glsl shaders to SPIR-V | 
