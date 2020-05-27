@@ -1,5 +1,21 @@
 #include "hello_triangle_app/hello_triangle_app.h"
 
+/*
+
+Not much to see here - main.cpp works as a stub.
+
+Its main purpose is to load the main application module, and to
+sustain the main `update()` loop.
+
+For each iteration of the main loop, we're calling `update()` on the
+application. This goes on until the application's `update()` method
+returns `false`.
+
+If hot-reloading is activated (via the `PLUGINS_DYNAMIC` compiler
+flag) we're additionally checking if any modules need to be reloaded.
+
+*/
+
 // ----------------------------------------------------------------------
 
 int main( int argc, char const *argv[] ) {
