@@ -220,6 +220,10 @@ class Renderer {
 		le_renderer::renderer_i.setup( self, settings );
 	}
 
+	void setup( le_window_o *window ) {
+		le_renderer::renderer_i.setup( self, le::RendererInfoBuilder( window ).build() );
+	}
+
 	void update( le_render_module_o *module ) {
 		le_renderer::renderer_i.update( self, module );
 	}
