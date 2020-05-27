@@ -119,6 +119,11 @@ world](apps/examples/hello_world/) example.
 ![Hello triangle example](apps/examples/hello_triangle/screenshot.png)
 ![Hello world example](apps/examples/hello_world/screenshot.jpg)
 
+ ![geometry shader example](apps/examples/geometry_shader_example/screenshot.jpg) [geometry shader example](apps/examples/geometry_shader_example/) | ![ImGui Example](apps/examples/imgui_example/screenshot.png) [imgui example](apps/examples/imgui_example/)
+ :---: | :---: 
+
+More examples to come.
+
 ## Modules
 
 Island projects can be built by combining any number of island modules. Each
@@ -131,16 +136,22 @@ listed here:
 | --- | :---: | --- | 
 | `le_camera` | - | interactive, mouse controlled camera |
 | `le_path` | - | draw svg-style paths, parse simplified SVG-style path command lists | 
-| `le_tessellator` | [earcut][link-earcut], [libtess][link-libtess] | dynamic choice of tessellation lib |
+| `le_tessellator` | [earcut][link-earcut], [libtess][link-libtess] | tessellation; dynamic choice of tessellation backend |
 | `le_imgui` | [imgui][link-imgui] | graphical user interface |
 | `le_pixels` | [stb image][link-stb_image] | load image files |
 | `le_font` | [stb truetype][link-stb_truetype] | truetype glyph sdf, geometry and texture atlas based typesetting |
 | `le_pipeline_builder` | - | build graphics, and compute pipelines | 
 | `le_rtx_pipeline_builder` | - | build Khronos RTX raytracing pipelines | 
-| `le_2d` | - | provides simplified 2d drawing context |
+| `le_2d` | - | simplified 2d drawing context |
 | `le_gltf` | [cgltf][link-cgltf] | load and parse glTF 2.0 files |
 | `le_jobs` | - | fiber-based job system | 
 | `le_ecs` | - | entity-component-system | 
+| `le_shader_compiler` | [shaderc][link-shaderc] | compile glsl shaders to SPIR-V | 
+| `le_window` | [glfw][link-glfw] | window i/o system | 
+| `le_swapchain` | - | windowed, direct, or straight-to-video output | 
+| `le_renderer` | - | record command buffers, evaluate rendergraphs |
+| `le_backend` | - | interact with GPU via Vulkan, manage GPU resources |
+
 
 To add a module, specify it in the application's `CMakeLists.txt` file. Modules
 may depend on other modules, and the build system will automatically include
@@ -156,6 +167,8 @@ start from.
 [link-cgltf]: https://github.com/nothings/stb/blob/master/stb_truetype.h
 [module-generator]: scripts/create_module.py
 [app-generator]: scripts/create_app.py
+[link-shaderc]: https://github.com/google/shaderc/
+[link-glfw]: https://github.com/glfw/glfw
 
 # Installation instructions
 
@@ -206,11 +219,11 @@ Run your new Island Application:
 
     ./Island-HelloTriangle
 
-**Note**: The CMAKE parameter `PLUGINS_DYNAMIC` lets you choose
-whether to compile Island as a static binary, or as a thin module with
-dynamic plugins. Unless you change this parameter, Debug builds will
-be built thin/dynamic for hot-reloading, and Release builds will
-produce a single static binary. 
+**Note**: The CMAKE parameter `PLUGINS_DYNAMIC` lets you choose whether to
+compile Island as a static binary, or as a thin module with dynamic plugins.
+Unless you change this parameter, Debug builds will be built thin/dynamic with
+hot-reloading enabled, and Release builds will produce a single static binary
+with hot-reloading disabled. 
 
 
 ## Integrated Development Environment support
