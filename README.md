@@ -9,14 +9,14 @@ code, GLSL shader code, even the renderer's own core modules. Each
 module aims to be strictly isolated, which makes the codebase **fast
 to compile**, especially in parallel.
 
-**Note** The API is under active development, expect lots of change. As such,
-there are no promises that it might be ready or fit for any purpose, and the
-code here is released in the hope that you might find it entertaining or
-instructive. 
+**Note** The API is under active development, expect lots of change.
+As such, there are no promises that it might be ready or fit for any
+purpose, and the code here is released in the hope that you might find
+it interesting. 
 
 The initial motivation for writing Island was to experiment with
-a modern rendering API (Vulkan), to learn by trying out ideas around modern
-realtime-rendering, and to have a framework to create [visual
+a modern rendering API (Vulkan), to learn by trying out ideas around
+modern realtime-rendering, and to have a framework to create [visual
 experiments](http://instagram.com/tgfrerer) with.
 
 ## Main Features:
@@ -122,10 +122,7 @@ world](apps/examples/hello_world/) example.
 ![Hello triangle example](apps/examples/hello_triangle/screenshot.png)
 ![Hello world example](apps/examples/hello_world/screenshot.jpg)
 
- ![geometry shader example](apps/examples/geometry_shader_example/screenshot.jpg) [geometry shader example](apps/examples/geometry_shader_example/) | ![ImGui Example](apps/examples/imgui_example/screenshot.png) [imgui example](apps/examples/imgui_example/)
- :---: | :---: 
-
-More examples to come.
+A full list of examples can be found [here](apps/examples/). More examples to come.
 
 ## Modules
 
