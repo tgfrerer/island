@@ -1,21 +1,23 @@
 # Project Island 🌋🐎 
 
-Project Island is an experimental Vulkan renderer/engine for Linux,
+Project Island is an experimental **Vulkan** renderer/proto-engine for Linux,
 written in C/C++.
 
-Island is written for rapid protoyping and tweaking. That's why it allows
-hot-reloading wherever possible: for GLSL shaders and for all its C/CPP source
-code, including its own core modules. Each module aims to be strictly isolated, which makes the codebase fast to compile, especially in parallel.
+Island is written for **rapid protoyping and tweaking**. That's why it
+allows **hot-reloading** wherever possible: for c/c++ application
+code, GLSL shader code, even the renderer's own core modules. Each
+module aims to be strictly isolated, which makes the codebase **fast
+to compile**, especially in parallel.
 
-**Note** The API is under active development, expect lots of change.
-As such, there are no promises that it might be ready or fit for any
-purpose, and the code here is released in the hope that you might find
-it entertaining or instructive. 
+**Note** The API is under active development, expect lots of change. As such,
+there are no promises that it might be ready or fit for any purpose, and the
+code here is released in the hope that you might find it entertaining or
+instructive. 
 
-**Purpose** The main motivation for writing Island was to experiment with a modern
-rendering API (Vulkan), to learn by trying out ideas around modern
-realtime-rendering, and to have a framework to create [visual experiments](http://instagram.com/tgfrerer)
-with.
+The initial motivation for writing Island was to experiment with
+a modern rendering API (Vulkan), to learn by trying out ideas around modern
+realtime-rendering, and to have a framework to create [visual
+experiments](http://instagram.com/tgfrerer) with.
 
 ## Main Features:
 
@@ -48,8 +50,8 @@ with.
   Renderpasses are executed on-demand and synchronised automatically
   by evaluating a rendergraph. If a renderpass is detected to have no
   effect on the final image, it is automatically pruned. For Debug
-  targets, the framegraph generates `.dot` files, which can be
-  visualised using graphviz.  
+  targets, the rendergraph generates `.dot` files, which can be drawn
+  using graphviz.  
 
   ![graphviz-screenshot](resources/readme/graph_screenshot.png)
   
@@ -84,9 +86,9 @@ with.
 
 * **2d drawing context**: Draw thick lines and curves using
   `le_paths`, which specialises in 2d meshes. This module implements
-  a useful subset of the SVG command palette, and has some extras like
-  the option to smooth open or closed Bézier curves by applying the
-  [Hobby algorithm][hobby]. Thick Bézier curves are tessellated and
+  a useful subset of the SVG command palette, and includes some extras
+  like for example a command to smoothen open or closed Bézier curves
+  by applying the [Hobby algorithm][hobby]. Thick Bézier curves are
   drawn using [an algorithm outlined by T. F. Hain][hain].
 
 * **glTF** Island wraps [cgltf][cgltf-link] for gltf file import, and
@@ -94,10 +96,10 @@ with.
   gltf 2.0 files: pbrt materials, vertex animations, morph target
   animations, and skinning animations.
 
-* **Job-system**: Parallel workloads can be implemented using the
-  `le_jobs` module, which implements a job system using co-routines.
-  Both backend and render modules are designed to minimise resource
-  contention.
+* **Job-system**: Cooperatively parallel workloads can be implemented
+  using the `le_jobs` module, which implements a job system using
+  coroutine-like fibers. Both backend and render modules are designed
+  to minimise resource contention.
 
 [hain]: https://doi.org/10.1016/j.cag.2005.08.002
 [hobby]: http://weitz.de/hobby/
@@ -105,9 +107,10 @@ with.
 
 ## Tools
 
-+ [Project generator][app-generator]: Generates scaffolding for new apps, based
-  on project templates
-+ [Module generator][module-generator]: Generates scaffolding for new modules.
++ [Project generator][app-generator]: Generates scaffolding for new
+  apps, based on project templates
++ [Module generator][module-generator]: Generates scaffolding for new
+  modules.
 
 ## Examples 
 
@@ -126,10 +129,12 @@ More examples to come.
 
 ## Modules
 
-Island projects can be built by combining any number of island modules. Each
-module aims to do **one thing well**, and to play nice with others. Some
-modules provide their functionality by wrapping well-known external libraries,
-some are written entirely from scratch. Some of the most useful modules are
+Island projects can be built by combining any number of island
+modules. Each module aims to do **one thing well**, and to play nice
+with others. Modules are automatically hot-reloaded, if a change is
+detected and hot-reloading is active. Some modules provide their
+functionality by wrapping well-known external libraries, some are
+written entirely from scratch. Some of the most useful modules are
 listed here:
 
 | Module | Wraps | Description | 
@@ -151,7 +156,6 @@ listed here:
 | `le_swapchain` | - | windowed, direct, or straight-to-video output | 
 | `le_renderer` | - | record command buffers, evaluate rendergraphs |
 | `le_backend` | - | interact with GPU via Vulkan, manage GPU resources |
-
 
 To add a module, specify it in the application's `CMakeLists.txt` file. Modules
 may depend on other modules, and the build system will automatically include
@@ -226,7 +230,7 @@ hot-reloading enabled, and Release builds will produce a single static binary
 with hot-reloading disabled. 
 
 
-## Integrated Development Environment support
+## IDE support
 
 I recommend using the freely available [QT
 Creator](https://download.qt.io/official_releases/qtcreator/) IDE, it
