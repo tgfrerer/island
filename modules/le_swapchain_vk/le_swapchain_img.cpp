@@ -1,5 +1,6 @@
 #include "le_backend_vk/le_backend_vk.h"
 
+#define VULKAN_HPP_DISABLE_IMPLICIT_RESULT_VALUE_CAST
 #define VULKAN_HPP_NO_SMART_HANDLE
 #include <vulkan/vulkan.hpp>
 

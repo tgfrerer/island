@@ -375,6 +375,16 @@ public:
 		return id;
 	}
 
+	bool operator==(const uint32_t &other) const
+	{
+		return id == other;
+	}
+
+	bool operator!=(const uint32_t &other) const
+	{
+		return id != other;
+	}
+
 	bool operator==(const TypedID &other) const
 	{
 		return id == other.id;

@@ -3,6 +3,7 @@
 
 #include "util/vk_mem_alloc/vk_mem_alloc.h" // for allocation
 
+#define VULKAN_HPP_DISABLE_IMPLICIT_RESULT_VALUE_CAST
 #include "le_backend_vk/le_backend_types_internal.h" // includes vulkan.hpp
 
 #include "le_swapchain_vk/le_swapchain_vk.h"
@@ -2159,9 +2160,7 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 		}
 	}
 }
-
 // ----------------------------------------------------------------------
-
 static void backend_create_descriptor_pools( BackendFrameData &frame, vk::Device &device, size_t numRenderPasses ) {
 
 	// Make sure that there is one descriptorpool for every renderpass.
@@ -2180,9 +2179,9 @@ static void backend_create_descriptor_pools( BackendFrameData &frame, vk::Device
 
 		std::vector<::vk::DescriptorPoolSize> descriptorPoolSizes;
 
-		descriptorPoolSizes.reserve( VK_DESCRIPTOR_TYPE_RANGE_SIZE );
+		descriptorPoolSizes.reserve( (VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT - VK_DESCRIPTOR_TYPE_SAMPLER + 1) );
 
-		for ( size_t i = VK_DESCRIPTOR_TYPE_BEGIN_RANGE; i != VK_DESCRIPTOR_TYPE_BEGIN_RANGE + VK_DESCRIPTOR_TYPE_RANGE_SIZE; ++i ) {
+		for ( size_t i = VK_DESCRIPTOR_TYPE_SAMPLER; i != VK_DESCRIPTOR_TYPE_SAMPLER + (VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT - VK_DESCRIPTOR_TYPE_SAMPLER + 1); ++i ) {
 			descriptorPoolSizes.emplace_back( ::vk::DescriptorType( i ), 1000 ); // 1000 descriptors of each type
 		}
 
@@ -3740,7 +3739,7 @@ static bool updateArguments( const vk::Device &                 device,
 			case vk::DescriptorType::eUniformBuffer:        //
 			case vk::DescriptorType::eUniformBufferDynamic: //
 			case vk::DescriptorType::eStorageBuffer:        // fall-through
-				if ( nullptr == a.bufferInfo.buffer ) {
+				if (!a.bufferInfo.buffer ) {
 					// if buffer must have valid buffer bound
 
 					std::cerr << "ERROR: Buffer argument '" << get_argument_name( setId, a.bindingNumber ) << "', at set="
@@ -3755,8 +3754,8 @@ static bool updateArguments( const vk::Device &                 device,
 			case vk::DescriptorType::eCombinedImageSampler:
 			case vk::DescriptorType::eSampledImage:
 			case vk::DescriptorType::eStorageImage:
-				argumentsOk &= ( nullptr != a.imageInfo.imageView ); // if sampler, must have valid image view
-				if ( nullptr == a.imageInfo.imageView ) {
+				argumentsOk &= ( !a.imageInfo.imageView ); // if sampler, must have valid image view
+				if ( !a.imageInfo.imageView ) {
 					// if image - must have valid imageview bound bound
 					std::cerr << "ERROR: Image argument '" << get_argument_name( setId, a.bindingNumber ) << "', at set="
 					          << std::dec << setId << ", binding="
@@ -3768,8 +3767,8 @@ static bool updateArguments( const vk::Device &                 device,
 				}
 				break;
 			case vk::DescriptorType::eAccelerationStructureKHR:
-				argumentsOk &= ( nullptr != a.accelerationStructureInfo.accelerationStructure );
-				if ( nullptr == a.accelerationStructureInfo.accelerationStructure ) {
+				argumentsOk &= ( !a.accelerationStructureInfo.accelerationStructure );
+				if ( !a.accelerationStructureInfo.accelerationStructure ) {
 					// if image - must have valid imageview bound bound
 					std::cerr << "ERROR: Acceleration Structure argument '" << get_argument_name( setId, a.bindingNumber ) << "', at set="
 					          << std::dec << setId << ", binding="

@@ -5,6 +5,7 @@
 
 #include "le_renderer/private/le_renderer_types.h" // for le_vertex_input_attribute_description le_vertex_input_binding_description
 
+#define VULKAN_HPP_DISABLE_IMPLICIT_RESULT_VALUE_CAST
 #include "le_backend_vk/le_backend_vk.h" // for access to pipeline state object cache
 #include "le_backend_vk/le_backend_types_internal.h"
 

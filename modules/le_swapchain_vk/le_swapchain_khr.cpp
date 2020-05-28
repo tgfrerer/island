@@ -3,6 +3,7 @@
 #include "include/internal/le_swapchain_vk_common.h"
 
 #define VULKAN_HPP_NO_SMART_HANDLE
+#define VULKAN_HPP_DISABLE_IMPLICIT_RESULT_VALUE_CAST
 #include <vulkan/vulkan.hpp>
 
 #include <iostream>

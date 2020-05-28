@@ -1372,7 +1372,7 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 	    ;
 
 	auto pipeline = self->device.createGraphicsPipeline( self->vulkanCache, gpi );
-	return pipeline;
+	return pipeline.value;
 }
 
 // ----------------------------------------------------------------------
@@ -1401,7 +1401,7 @@ static vk::Pipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manag
 	    ;
 
 	auto pipeline = self->device.createComputePipeline( self->vulkanCache, cpi );
-	return pipeline;
+	return pipeline.value;
 }
 
 // ----------------------------------------------------------------------

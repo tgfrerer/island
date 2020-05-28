@@ -1,6 +1,7 @@
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_backend_types_internal.h"
 
+#define VULKAN_HPP_DISABLE_IMPLICIT_RESULT_VALUE_CAST
 #include "vulkan/vulkan.hpp"
 
 #include <iostream>

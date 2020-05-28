@@ -4,6 +4,7 @@
 //       Its sole purpose of being is to create a dependency inversion, so that both these compilation units
 //       may share the same types for creating pipelines.
 
+#define VULKAN_HPP_DISABLE_IMPLICIT_RESULT_VALUE_CAST
 #include <vulkan/vulkan.hpp>
 
 #include <vector>

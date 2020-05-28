@@ -1,16 +1,13 @@
 #include "le_mesh.h"
 #include "le_core/le_core.h"
 
-#include <math.h>
+#include <cmath>
 #include <vector>
-#include <experimental/filesystem> // for file loading
+#include <filesystem> // for file loading
 #include <iostream>                // for file loading
 #include <fstream>                 // for file loading
 #include <iomanip>                 // for file loading
 
-namespace std {
-using namespace experimental;
-}
 
 #include <cstring>
 
