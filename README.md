@@ -231,10 +231,22 @@ with hot-reloading disabled.
 
 ## IDE support
 
-I recommend using the freely available [QT
-Creator](https://download.qt.io/official_releases/qtcreator/) IDE, it
-allows you to directly open CMake project files, and integrates pretty
-seamlessly with the Island workflow: running, hot-reloading, then
-setting a breakpoint, and then stepping whilst inspecting state in the
-debugger just works. Alternative IDEs are of course available, and as
-long as they support CMake project files, should work.
+I recommend using the freely available [QT Creator][qt_creator] IDE, it allows
+you to directly open CMake project files, and integrates pretty seamlessly with
+the Island workflow: running, hot-reloading, then setting a breakpoint, and
+then stepping whilst inspecting state in the debugger just works. Alternative
+IDEs are of course available, and as long as they support CMake project files,
+should work. When running an Island app with the debugger in Qt Creator, it's
+important to check that `Run in terminal` is **disabled** - this can be
+specified in the Run Settings dialog.
+
+[qt_creator]: https://download.qt.io/official_releases/qtcreator/ 
+
+## Acknowledgements
+
+I would like to thank the folks at [our machinery][our_machinery] for
+their wonderful [blog posts][our_mach_blog] on engine architecture and hot
+reloading, these were a big initial inspiration for this project. 
+
+[our_machinery]: https://ourmachinery.com/ 
+[our_mach_blog]: https://ourmachinery.com/post/little-machines-working-together-part-1/
