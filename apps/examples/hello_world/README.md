@@ -4,7 +4,7 @@
 
 Renders an interactive globe, and lens flares. 
 
-Note how the cloud layer parallax effect works: the cloud texure uv coordinates are calculated in the fragment shader via ray-sphere intersection so that the coulds appear floating above the globe.
+Note how the cloud layer parallax effect works: the cloud texture uv coordinates are calculated in the fragment shader via ray-sphere intersection so that the coulds appear floating above the globe.
 
 ## Camera controls:
 
