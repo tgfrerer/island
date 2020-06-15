@@ -264,7 +264,7 @@ class RenderPass {
 	le_renderpass_o *self;
 
   public:
-	RenderPass( const char *name_, const LeRenderPassType &type_ )
+	RenderPass( const char *name_, const LeRenderPassType &type_ = LE_RENDER_PASS_TYPE_DRAW )
 	    : self( le_renderer::renderpass_i.create( name_, type_ ) ) {
 	}
 
@@ -360,10 +360,10 @@ class RenderPass {
 		return *this;
 	}
 
-	RenderPass &useResource( le_resource_handle_t resource_id, const LeResourceUsageFlags &usage_flags ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, usage_flags );
-		return *this;
-	}
+	//	RenderPass &useResource( le_resource_handle_t resource_id, const LeResourceUsageFlags &usage_flags ) {
+	//		le_renderer::renderpass_i.use_resource( self, resource_id, usage_flags );
+	//		return *this;
+	//	}
 
 	RenderPass &setIsRoot( bool isRoot = true ) {
 		le_renderer::renderpass_i.set_is_root( self, isRoot );
