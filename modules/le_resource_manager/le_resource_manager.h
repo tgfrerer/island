@@ -37,7 +37,7 @@ keeps track of uploaded images.
 
     // In app.update():
 
-    LeResourceManager.update(render_module);
+    self->resource_manager.update(render_module);
 
 Call update with the rendermodule you want to use the resources with.
 
