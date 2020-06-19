@@ -128,7 +128,7 @@ static le_texture_handle renderer_produce_texture_handle( char const *maybe_name
 
 	// If no name was given, there is no way for the handle already to exist;
 	// we must return a new entry
-	auto handle = new le_texture_handle_t{ maybe_name };
+	auto handle = new le_texture_handle_t{};
 	texture_handle_library->texture_handles.push_back( handle );
 
 	return handle;
