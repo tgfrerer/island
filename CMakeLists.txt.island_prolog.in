@@ -163,3 +163,21 @@ macro (depends_on_island_module MODULE_NAME)
     set (STATIC_LIBS ${STATIC_LIBS})
 
 endmacro(depends_on_island_module)
+
+macro(add_dynamic_linker_flags)
+    
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        
+        # IMPORTANT: --no-gnu-unique for gcc compiler
+        #
+        # This compiler flag is neccesary as otherwise the library may get compiled
+        # with some symbols exported as UNIQUE, which implicitly makes this library
+        # un-closeable. This means, any calls to `dlclose` on this library, once
+        # loaded, will have no effect, and autoreload for this library will not work
+        # as the first version of the library will remain resident.
+        
+        target_compile_options (${TARGET} PUBLIC --no-gnu-unique)
+        
+    endif()
+    
+endmacro(add_dynamic_linker_flags)
