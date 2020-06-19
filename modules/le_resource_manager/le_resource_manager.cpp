@@ -105,6 +105,7 @@ static void execTransferPass( le_command_buffer_encoder_o *pEncoder, void *user_
 				        .setArrayLayer( layer ) // faces are indexed: +x, -x, +y, -y, +z, -z
 				        .setImageH( height )
 				        .setImageW( width )
+				        .setImageD( depth )
 				        .build();
 
 				auto     pixels    = r.image_layers[ layer ].pixels;

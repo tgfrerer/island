@@ -772,8 +772,10 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *       self,
 		cmd->info.num_miplevels   = writeInfo.num_miplevels;   // default is 1, *must not* be 0. More than 1 means to auto-generate these miplevels
 		cmd->info.image_w         = writeInfo.image_w;         // image extent
 		cmd->info.image_h         = writeInfo.image_h;         // image extent
-		cmd->info.offset_h        = writeInfo.offset_h;        // offset into image where to place data
-		cmd->info.offset_w        = writeInfo.offset_w;        // offset into image where to place data
+		cmd->info.image_d         = writeInfo.image_d;         // image depth
+		cmd->info.offset_x        = writeInfo.offset_x;        // x offset into image where to place data
+		cmd->info.offset_y        = writeInfo.offset_y;        // y offset into image where to place data
+		cmd->info.offset_z        = writeInfo.offset_z;        // z offset into target image
 
 	} else {
 		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl
