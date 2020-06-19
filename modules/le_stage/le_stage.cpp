@@ -1559,20 +1559,14 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 				        if ( p.rtx_was_transferred ) {
 					        continue;
 				        }
-				        LeResourceUsageFlags usage{};
-				        usage.type                    = LeResourceType::eRtxBlas;
-				        usage.as.rtx_blas_usage_flags = { LE_RTX_BLAS_USAGE_WRITE_BIT };
-				        rp.useResource( p.rtx_blas_handle, usage );
+				        rp.useRtxBlasResource( p.rtx_blas_handle, { LE_RTX_BLAS_USAGE_WRITE_BIT } );
 				        needsUpdate = true;
 			        }
 		        }
 
 		        // Signal that we will want to update top level acceleration structures for this scene.
 		        for ( auto &s : stage->scenes ) {
-			        LeResourceUsageFlags usage{};
-			        usage.type                    = LeResourceType::eRtxTlas;
-			        usage.as.rtx_blas_usage_flags = { LE_RTX_TLAS_USAGE_WRITE_BIT };
-			        rp.useResource( s.rtx_tlas_handle, usage );
+			        rp.useRtxBlasResource( s.rtx_tlas_handle, { LE_RTX_TLAS_USAGE_WRITE_BIT } );
 		        }
 
 		        // TODO: figure out a way to signal that we don't need to upload/update geometries
@@ -2111,22 +2105,16 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 			// -- Signal that we want to read from bottom-level acceleration structures.
 
-			LeResourceUsageFlags usage_flags{};
-			usage_flags.type                    = LeResourceType::eRtxBlas;
-			usage_flags.as.rtx_blas_usage_flags = { LeRtxBlasUsageFlagBits::LE_RTX_BLAS_USAGE_READ_BIT };
-
 			for ( auto const &m : draw_params->stage->meshes ) {
 				for ( auto const &p : m.primitives ) {
-					rtx_pass.useResource( p.rtx_blas_handle, usage_flags );
+					rtx_pass.useRtxBlasResource( p.rtx_blas_handle, { LE_RTX_BLAS_USAGE_READ_BIT } );
 				}
 			}
 
 			// -- Signal that we want to read from top-level acceleration structures.
 
-			usage_flags.type                    = LeResourceType::eRtxTlas;
-			usage_flags.as.rtx_tlas_usage_flags = { LeRtxTlasUsageFlagBits::LE_RTX_TLAS_USAGE_READ_BIT };
 			for ( auto const &s : draw_params->stage->scenes ) {
-				rtx_pass.useResource( s.rtx_tlas_handle, usage_flags );
+				rtx_pass.useRtxTlasResource( s.rtx_tlas_handle, { LE_RTX_TLAS_USAGE_READ_BIT } );
 			}
 		}
 
