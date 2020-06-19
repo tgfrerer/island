@@ -3306,10 +3306,15 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 
 	using namespace le_renderer;
 
-	// Create imageviews for all available resources which are of type image
-	// and which have usage sampled or storage.
+	// Only for compute passes: Create imageviews for all available
+	// resources which are of type image and which have usage
+	// sampled or storage.
 	//
 	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
+
+		if ( renderpass_i.get_type( *p ) != LeRenderPassType::LE_RENDER_PASS_TYPE_COMPUTE ) {
+			continue;
+		}
 
 		const le_resource_handle_t *resources      = nullptr;
 		const LeResourceUsageFlags *resource_usage = nullptr;
