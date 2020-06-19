@@ -370,8 +370,8 @@ class RenderPass {
 		return *this;
 	}
 
-	RenderPass &sampleTexture( le_texture_handle textureName, const le_image_sampler_info_t &texInfo ) {
-		le_renderer::renderpass_i.sample_texture( self, textureName, &texInfo );
+	RenderPass &sampleTexture( le_texture_handle textureName, const le_image_sampler_info_t &imageSamplerInfo ) {
+		le_renderer::renderpass_i.sample_texture( self, textureName, &imageSamplerInfo );
 		return *this;
 	}
 
