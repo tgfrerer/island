@@ -12,6 +12,7 @@
 #include <vector>
 #include "assert.h"
 #include <mutex>
+#include <algorithm>
 
 const uint64_t LE_RENDERPASS_MARKER_EXTERNAL = hash_64_fnv1a_const( "rp-external" );
 

@@ -10,6 +10,7 @@
 #include <iomanip>
 #include <assert.h>
 #include <vector>
+#include <algorithm>
 
 #ifndef LE_MT
 #	define LE_MT 0
