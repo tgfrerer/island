@@ -360,10 +360,17 @@ class RenderPass {
 		return *this;
 	}
 
-	//	RenderPass &useResource( le_resource_handle_t resource_id, const LeResourceUsageFlags &usage_flags ) {
-	//		le_renderer::renderpass_i.use_resource( self, resource_id, usage_flags );
-	//		return *this;
-	//	}
+#	ifdef LE_FEATURE_RTX
+	RenderPass &useRtxBlasResource( le_resource_handle_t resource_id, const LeRtxBlasUsageFlags &usage_flags ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eRtxBlas, { { usage_flags } } } );
+		return *this;
+	}
+
+	RenderPass &useRtxTlasResource( le_resource_handle_t resource_id, const LeRtxTlasUsageFlags &usage_flags ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eRtxTlas, { { usage_flags } } } );
+		return *this;
+	}
+#	endif
 
 	RenderPass &setIsRoot( bool isRoot = true ) {
 		le_renderer::renderpass_i.set_is_root( self, isRoot );
