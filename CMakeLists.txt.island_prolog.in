@@ -63,14 +63,8 @@ if (REQUIRES_ISLAND_CORE)
     # add glm include directory to includes search path - this is because glm's internals require glm's include directory to be globally accessible :(
     include_directories(${ISLAND_BASE_DIR}/3rdparty/include/glm)
 
-    # add gltf include directory to search path
-    execute_process(COMMAND ln -sfn ${ISLAND_BASE_DIR}/3rdparty/src/fx-gltf/include/fx ${ISLAND_BASE_DIR}/3rdparty/include/fx )
-
     # include 3rdparty includes directory
     include_directories(${ISLAND_BASE_DIR}/3rdparty/include)
-
-    # create a link to json header-only library
-    # execute_process(COMMAND ln -sfn ${ISLAND_BASE_DIR}/3rdparty/src/json/single_include/nlohmann ${ISLAND_BASE_DIR}/3rdparty/include/nlohmann )
 
     # create a link to shared resources
     execute_process(COMMAND ln -sfn ${ISLAND_BASE_DIR}/resources ${CMAKE_BINARY_DIR}/resources )
