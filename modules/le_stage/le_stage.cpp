@@ -2071,6 +2071,10 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			        camera_properties.viewInverse       = camera_world_matrix;
 			        camera_properties.projectionInverse = glm::inverse( camera_projection_matrix );
 
+			        if ( stage->scenes.empty() ) {
+				        return;
+			        }
+
 			        if ( !stage->scenes.front().lights.empty() ) {
 				        camera_properties.lightPos = glm::vec4( stage->scenes.front().lights.front().position, 1 );
 			        } else {
