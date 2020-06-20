@@ -264,7 +264,7 @@ class RenderPass {
 	le_renderpass_o *self;
 
   public:
-	RenderPass( const char *name_, const LeRenderPassType &type_ )
+	RenderPass( const char *name_, const LeRenderPassType &type_ = LE_RENDER_PASS_TYPE_DRAW )
 	    : self( le_renderer::renderpass_i.create( name_, type_ ) ) {
 	}
 
@@ -360,18 +360,25 @@ class RenderPass {
 		return *this;
 	}
 
-	RenderPass &useResource( le_resource_handle_t resource_id, const LeResourceUsageFlags &usage_flags ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, usage_flags );
+#	ifdef LE_FEATURE_RTX
+	RenderPass &useRtxBlasResource( le_resource_handle_t resource_id, const LeRtxBlasUsageFlags &usage_flags ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eRtxBlas, { { usage_flags } } } );
 		return *this;
 	}
+
+	RenderPass &useRtxTlasResource( le_resource_handle_t resource_id, const LeRtxTlasUsageFlags &usage_flags ) {
+		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eRtxTlas, { { usage_flags } } } );
+		return *this;
+	}
+#	endif
 
 	RenderPass &setIsRoot( bool isRoot = true ) {
 		le_renderer::renderpass_i.set_is_root( self, isRoot );
 		return *this;
 	}
 
-	RenderPass &sampleTexture( le_texture_handle textureName, const le_image_sampler_info_t &texInfo ) {
-		le_renderer::renderpass_i.sample_texture( self, textureName, &texInfo );
+	RenderPass &sampleTexture( le_texture_handle textureName, const le_image_sampler_info_t &imageSamplerInfo ) {
+		le_renderer::renderpass_i.sample_texture( self, textureName, &imageSamplerInfo );
 		return *this;
 	}
 

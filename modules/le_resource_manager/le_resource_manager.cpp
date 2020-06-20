@@ -25,12 +25,8 @@ struct le_resource_manager_o {
 	std::vector<resource_item_t> resources;
 };
 
-// TODO: we need a way to set the correct data for resource_items inside the reource manager.
-// + instantiate resource manager with app
-// + upload images via resource manager with app
-// + add destructor for resource manager
-// we need to add a way to remove resources from the manager, so that we don't just leak resources
-// once we have uploaded them.
+// TODO:
+// * add a method to remove resources from the manager
 
 // ----------------------------------------------------------------------
 static bool setupTransferPass( le_renderpass_o *pRp, void *user_data ) {
@@ -109,7 +105,9 @@ static void execTransferPass( le_command_buffer_encoder_o *pEncoder, void *user_
 				        .setArrayLayer( layer ) // faces are indexed: +x, -x, +y, -y, +z, -z
 				        .setImageH( height )
 				        .setImageW( width )
+				        .setImageD( depth )
 				        .build();
+
 				auto     pixels    = r.image_layers[ layer ].pixels;
 				auto     info      = le_pixels_i.get_info( pixels );
 				uint32_t num_bytes = info.byte_count; // TODO: make sure to get correct byte count for mip level, or compressed image.
@@ -127,7 +125,7 @@ static void execTransferPass( le_command_buffer_encoder_o *pEncoder, void *user_
 static void le_resource_manager_update( le_resource_manager_o *manager, le_render_module_o *module ) {
 	using namespace le_renderer;
 
-	// TODO: load any images if you detect that their source on disk has changed.
+	// TODO: reload any images if you detect that their source on disk has changed.
 
 	for ( auto &r : manager->resources ) {
 		render_module_i.declare_resource( module, r.image_handle, r.image_info );
@@ -141,6 +139,8 @@ static void le_resource_manager_update( le_resource_manager_o *manager, le_rende
 
 	render_module_i.add_renderpass( module, renderPassTransfer );
 }
+
+// ----------------------------------------------------------------------
 
 static void infer_from_le_format( le::Format const &format, uint32_t *num_channels, le_pixels_info::Type *pixels_type ) {
 	switch ( format ) {
@@ -238,6 +238,8 @@ static void le_resource_manager_destroy( le_resource_manager_o *self ) {
 	}
 	delete ( self );
 }
+
+// ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_resource_manager, api ) {
 	auto &le_resource_manager_i = static_cast<le_resource_manager_api *>( api )->le_resource_manager_i;

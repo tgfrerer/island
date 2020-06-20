@@ -2934,7 +2934,7 @@ static void printResourceInfo( le_resource_handle_t const &handle, ResourceCreat
 		    << std::endl;
 	} else if ( info.isImage() ) {
 		std::cout
-		    << " : " << std::dec << std::setw( 4 ) << info.imageInfo.extent.width << " x " << std::setw( 4 ) << info.imageInfo.extent.height
+		    << " : " << std::dec << std::setw( 4 ) << info.imageInfo.extent.width << " x " << std::setw( 4 ) << info.imageInfo.extent.height << " x " << std::setw( 4 ) << info.imageInfo.extent.depth
 		    << " : " << std::setw( 30 ) << to_string( vk::Format( info.imageInfo.format ) )
 		    << " : " << std::setw( 30 ) << to_string( vk::ImageUsageFlags( info.imageInfo.usage ) )
 		    << " : " << std::setw( 5 ) << to_string( vk::SampleCountFlags( info.imageInfo.samples ) ) << " samples"
@@ -3306,10 +3306,15 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 
 	using namespace le_renderer;
 
-	// Create imageviews for all available resources which are of type image
-	// and which have usage sampled or storage.
+	// Only for compute passes: Create imageviews for all available
+	// resources which are of type image and which have usage
+	// sampled or storage.
 	//
 	for ( auto p = passes; p != passes + numRenderPasses; p++ ) {
+
+		if ( renderpass_i.get_type( *p ) != LeRenderPassType::LE_RENDER_PASS_TYPE_COMPUTE ) {
+			continue;
+		}
 
 		const le_resource_handle_t *resources      = nullptr;
 		const LeResourceUsageFlags *resource_usage = nullptr;
@@ -4901,7 +4906,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					    .setBaseMipLevel( le_cmd->info.dst_miplevel )
 					    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we want all miplevels to be in transferDstOptimal.
 					    .setBaseArrayLayer( le_cmd->info.dst_array_layer )
-					    .setLayerCount( 1 ); // TODO: we could optimise our write call by writing to more than one layer at a time.
+					    .setLayerCount( VK_REMAINING_ARRAY_LAYERS ); // we want the range to encompass all layers
 
 					{
 						vk::BufferMemoryBarrier bufferTransferBarrier;
@@ -4956,8 +4961,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						    .setBufferRowLength( 0 )                                    // 0 means tightly packed
 						    .setBufferImageHeight( 0 )                                  // 0 means tightly packed
 						    .setImageSubresource( std::move( imageSubresourceLayers ) ) // stored inline
-						    .setImageOffset( { le_cmd->info.offset_w, le_cmd->info.offset_h, 0 } )
-						    .setImageExtent( { le_cmd->info.image_w, le_cmd->info.image_h, 1 } );
+						    .setImageOffset( { le_cmd->info.offset_x, le_cmd->info.offset_y, le_cmd->info.offset_z } )
+						    .setImageExtent( { le_cmd->info.image_w, le_cmd->info.image_h, le_cmd->info.image_d } );
 
 						cmd.copyBufferToImage( srcBuffer, dstImage, vk::ImageLayout::eTransferDstOptimal, 1, &region );
 					}

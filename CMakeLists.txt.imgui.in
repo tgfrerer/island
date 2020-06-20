@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.7.2)
-set (CMAKE_CXX_STANDARD 20)
+set (CMAKE_CXX_STANDARD 17)
 
 # This file will be processed with CMake's configure_file command.
 #
@@ -24,13 +24,19 @@ set_target_properties( ${TARGET}
         PROPERTIES PUBLIC_HEADER "imconfig.h;imgui.h"
 	)
 
-# IMPORTANT: --no-gnu-unique
-#            This compiler flag is neccesary as otherwise the library may get compiled
-#            with some symbols exported as UNIQUE, which implicitly makes this library
-#            un-closeable. This means, any calls to `dlclose` on this library, once
-#            loaded, will have no effect, and autoreload for this library will not work
-#            as the first version of the library will remain resident.
-target_compile_options (${TARGET} PUBLIC --no-gnu-unique)
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    
+    # IMPORTANT: --no-gnu-unique for gcc compiler
+    #
+    # This compiler flag is neccesary as otherwise the library may get compiled
+    # with some symbols exported as UNIQUE, which implicitly makes this library
+    # un-closeable. This means, any calls to `dlclose` on this library, once
+    # loaded, will have no effect, and autoreload for this library will not work
+    # as the first version of the library will remain resident.
+    
+    target_compile_options (${TARGET} PUBLIC --no-gnu-unique)
+   
+endif()
 
 install(TARGETS ${TARGET}
         ARCHIVE

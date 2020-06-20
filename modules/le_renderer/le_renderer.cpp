@@ -12,6 +12,7 @@
 #include <vector>
 #include "assert.h"
 #include <mutex>
+#include <algorithm>
 
 const uint64_t LE_RENDERPASS_MARKER_EXTERNAL = hash_64_fnv1a_const( "rp-external" );
 
@@ -125,9 +126,12 @@ static le_texture_handle renderer_produce_texture_handle( char const *maybe_name
 
 	// --------| invariant: no name given, or name not found.
 
-	// If no name was given, there is no way for the handle already to exist;
-	// we must return a new entry
-	auto handle = new le_texture_handle_t{ maybe_name };
+	auto handle =
+	    maybe_name
+	        ? new le_texture_handle_t{ maybe_name } // If name was not found, we must create a new entry.
+	        : new le_texture_handle_t{};            // If no name was given, there is no way for the handle already to exist;
+	                                                // we must return a new unnamed entry.
+
 	texture_handle_library->texture_handles.push_back( handle );
 
 	return handle;

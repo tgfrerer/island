@@ -24,7 +24,7 @@ struct le_window_api {
 	};
 
 	struct window_interface_t {
-		le_window_o *  ( *create             ) ( );
+		le_window_o *   ( *create             ) ( );
 		void            ( *setup              ) ( le_window_o * self, const le_window_settings_o* );
 		void            ( *destroy            ) ( le_window_o * self);
 

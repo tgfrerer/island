@@ -10,6 +10,8 @@
 #include <unordered_map>
 #include "string.h" // for memcpy
 #include <filesystem>
+#include <iostream>
+#include <iomanip>
 
 #define GLM_FORCE_RIGHT_HANDED // glTF uses right handed coordinate system, and we're following its lead.
 #define GLM_ENABLE_EXPERIMENTAL
@@ -85,6 +87,7 @@ static le_gltf_o *le_gltf_create( char const *path ) {
 		}
 
 	} else {
+		std::cerr << "ERROR: could not load or parse file at path :'" << path << "'" << std::flush;
 		le_gltf_destroy( self );
 		return nullptr;
 	}
