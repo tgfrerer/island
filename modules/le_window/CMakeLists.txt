@@ -1,3 +1,12 @@
+
+# glfw
+set( GLFW_BUILD_EXAMPLES  OFF CACHE INTERNAL "" )
+set( GLFW_BUILD_TESTS     OFF CACHE INTERNAL "" )
+set( GLFW_BUILD_DOCS      OFF CACHE INTERNAL "" )
+set( GLFW_INSTALL         OFF CACHE INTERNAL "" )
+set( BUILD_SHARED_LIBS ON)
+add_subdirectory( 3rdparty/glfw )
+
 set (TARGET le_window )
 
 add_compile_definitions(VULKAN_HPP_NO_SMART_HANDLE)
