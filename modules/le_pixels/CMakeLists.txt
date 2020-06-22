@@ -8,7 +8,6 @@ set (SOURCES ${SOURCES} "3rdparty/stb_image_implementation.cpp")
 if (${PLUGINS_DYNAMIC})
 
     add_library(${TARGET} SHARED ${SOURCES})
-
     
     add_dynamic_linker_flags()
     
