@@ -1,7 +1,6 @@
 #ifndef GUARD_le_pixels_H
 #define GUARD_le_pixels_H
 
-#include <stdint.h>
 #include "le_core/le_core.h"
 
 struct le_pixels_o;
@@ -77,6 +76,7 @@ class Pixels : NoCopy, NoMove {
 	}
 };
 } //end namespace le
+
 #endif // __cplusplus
 
 #endif
