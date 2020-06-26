@@ -68,6 +68,9 @@ ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value );
 
 #ifdef __cplusplus
 
+ISL_API_ATTR void  core_set_callback_forwarder_addr( void *lookup_addr );
+ISL_API_ATTR void *core_get_callback_forwarder_addr(); // return pointer to function
+
 // ----------- c++ specific utilities
 
 struct NoCopy {

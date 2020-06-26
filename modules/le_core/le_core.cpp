@@ -24,6 +24,71 @@ struct ApiStore {
 	}
 };
 
+
+void *target_func_addr[ 4 ] = {};
+
+/*
+
+Okay, this works, now what's the next step? we must make sure that there's a way to define more than one
+callback - there needs to be a way to look up the address of the callback from a phone book.
+
+we get something like this:
+
+0x7ffff7f87624  <+    4>        48 8b 05 5d e9 00 00  mov    0xe95d(%rip),%rax        # 0x7ffff7f95f88
+0x7ffff7f8762b  <+   11>        5d                    pop    %rbp
+0x7ffff7f8762c  <+   12>        ff 20                 jmpq   *(%rax)
+
+
+*/
+
+// clang-format off
+extern "C" void trampoline_func() {
+
+
+// if we had a sled into this function,
+// this would mean that we could use the entry address
+// into the function to calculate an offset.
+
+asm(R"ASM(
+	
+	movq  $0, %rbx
+	jmp sled_end
+	movq  $0x8, %rbx
+	jmp sled_end
+	movq  $0xf, %rbx
+	jmp sled_end
+	movq  $10, %rbx
+	jmp sled_end
+	movq  $18, %rbx
+	jmp sled_end
+
+sled_end:
+)ASM");
+
+	asm( R"ASM(
+
+.text
+
+    /*pop %%rbp*/
+    add %%rbx, %%rax
+    jmp *%0
+
+)ASM" :
+      : "m" ( target_func_addr[0] )
+    );
+};
+// clang-format on
+
+// TODO: rename - this sets the target address
+void core_set_callback_forwarder_addr( void *addr ) {
+	target_func_addr[ 1 ] = addr;
+}
+
+// TODO: add number of parameter
+void *core_get_callback_forwarder_addr() {
+	return ( char * )&trampoline_func + ( 4 + 12 * 1 );
+};
+
 struct loader_callback_params_o {
 	le_module_loader_o *loader;
 	void *              api;
