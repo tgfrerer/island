@@ -8,7 +8,6 @@ set (SOURCES ${SOURCES} "le_window.h")
 if (${PLUGINS_DYNAMIC})
 
     add_library( ${TARGET} SHARED ${SOURCES} )
-
     
     add_dynamic_linker_flags()
 
@@ -27,13 +26,13 @@ else()
 
 endif()
 
-# This plugin depends on glfw - we must make sure that glfw will not be re-loaded
-# when this plugin unloads, which means that we must somehow force the dynamic linker
+# This module depends on glfw - we must make sure that glfw will not be re-loaded
+# when this module unloads, which means that we must somehow force the dynamic linker
 # to include it in the main program already, which means even if our plugin unloads
 # the library, the reference count in the linker for glfw will not be zero,
 # and glfw will not be unloaded recursively
 #
-# This is done in the ApiLoader.cpp - by explicitly loading glfw and specifying RTLD_NODELETE
+# This is done in le_api_loader.cpp - by explicitly loading glfw and specifying RTLD_NODELETE
 
 set (LINKER_FLAGS -Wl,--whole-archive glfw -Wl,--no-whole-archive)
 set (LINKER_FLAGS ${LINKER_FLAGS} vulkan)

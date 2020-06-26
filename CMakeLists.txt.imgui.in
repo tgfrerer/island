@@ -9,6 +9,8 @@ set (CMAKE_CXX_STANDARD 17)
 # We use this to substitute PLUGINS_DYNAMIC, so that the correct 
 # version of the library (static/shared) will be built.
 
+project(ImGui)
+
 set (TARGET imgui)
 set (SOURCES "imgui.cpp" "imgui_demo.cpp" "imgui_draw.cpp" "imgui_widgets.cpp")
 
