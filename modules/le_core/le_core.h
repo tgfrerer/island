@@ -68,8 +68,12 @@ ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value );
 
 #ifdef __cplusplus
 
-ISL_API_ATTR void  core_set_callback_forwarder_addr( void *lookup_addr );
-ISL_API_ATTR void *core_get_callback_forwarder_addr(); // return pointer to function
+/// return: function pointer which can be used as callback,
+/// params: p_function_pointer: pointer to function pointer which you with to execute
+///         (you may read this as "address of pointer to function which you wish to execute")
+///         This secondary level of indirection is necessary so that we can pass addresses
+///         to api entries.
+ISL_API_ATTR void *core_get_callback_forwarder_addr( void *p_function_pointer );
 
 // ----------- c++ specific utilities
 

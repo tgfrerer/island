@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <array>
 #include <assert.h>
+#include <atomic>
 
 struct ApiStore {
 	std::vector<std::string> names{};      // api names (used for debugging)
@@ -24,8 +25,10 @@ struct ApiStore {
 	}
 };
 
+#define CORE_MAX_CALLBACK_FORWARDERS 8
 
-void *target_func_addr[ 4 ] = {};
+void *                target_func_addr[ CORE_MAX_CALLBACK_FORWARDERS ] = {};
+std::atomic<uint32_t> USED_CALLBACK_FORWARDERS                         = 0; // number of callbacks
 
 /*
 
@@ -38,55 +41,89 @@ we get something like this:
 0x7ffff7f8762b  <+   11>        5d                    pop    %rbp
 0x7ffff7f8762c  <+   12>        ff 20                 jmpq   *(%rax)
 
-
 */
 
 // clang-format off
 extern "C" void trampoline_func() {
 
+// What follows is a sled, which, depending on how far into it the call is entered,
+// tells us which index to look up from the global phone directory of function
+// pointers.
 
-// if we had a sled into this function,
-// this would mean that we could use the entry address
-// into the function to calculate an offset.
+// we're not allowed to manipulate the stack,
+// because that's where parameters for the function we're trampolining
+// are sitting.
 
 asm(R"ASM(
 	
-	movq  $0, %rbx
+	push %rbx
+	movq  $0x00, %rbx
 	jmp sled_end
+	
+	push %rbx	
 	movq  $0x8, %rbx
 	jmp sled_end
-	movq  $0xf, %rbx
+
+	push %rbx
+	movq  $0x10, %rbx
 	jmp sled_end
-	movq  $10, %rbx
+
+	push %rbx
+	movq  $0x18, %rbx
 	jmp sled_end
-	movq  $18, %rbx
+
+	push %rbx
+	movq  $0x20, %rbx
+	jmp sled_end
+
+	push %rbx
+	movq  $0x28, %rbx
+	jmp sled_end
+
+	push %rbx
+	movq  $0x30, %rbx
+	jmp sled_end
+
+	push %rbx
+	movq  $0x38, %rbx
 	jmp sled_end
 
 sled_end:
+
 )ASM");
 
 	asm( R"ASM(
 
 .text
 
-    /*pop %%rbp*/
-    add %%rbx, %%rax
-    jmp *%0
+    addq    %%rbx, %%rax
+    movq    %0, %%rax
+    movq    (%%rax), %%rax
+    pop     %%rbx                   /* restore rbx register - only rax register is clobbered by the trampoline, but that should be okay. */
+    jmpq    *%%rax
 
-)ASM" :
-      : "m" ( target_func_addr[0] )
+)ASM" : /* empty input operands */
+      : "m" ( target_func_addr[0] ) // note that offset into this array happens via sled above, which manipulates rbx register.
+      : 
     );
 };
 // clang-format on
 
-// TODO: rename - this sets the target address
-void core_set_callback_forwarder_addr( void *addr ) {
-	target_func_addr[ 1 ] = addr;
-}
+void *core_get_callback_forwarder_addr( void *callback_addr ) {
+	// note post-increment: we're interested in value before increment,
+	// but increment is atomic, and therefore we can guarantee that
+	// another call to this method will not end up with the same forwarder_idx
+	uint32_t forwarder_idx = USED_CALLBACK_FORWARDERS++;
 
-// TODO: add number of parameter
-void *core_get_callback_forwarder_addr() {
-	return ( char * )&trampoline_func + ( 4 + 12 * 1 );
+	// Make sure we're not overshooting
+	assert( USED_CALLBACK_FORWARDERS < CORE_MAX_CALLBACK_FORWARDERS );
+
+	target_func_addr[ forwarder_idx ] = callback_addr;
+
+	// +8 bytes to jump over the `push rbp` instruction
+	// each sled entry is 10 bytes in size, therefore
+	// we control the value of the rbx register
+	return ( char * )&trampoline_func + ( 8 + 10 * forwarder_idx );
 };
 
 struct loader_callback_params_o {
