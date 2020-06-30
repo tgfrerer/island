@@ -201,6 +201,7 @@ static void glfw_window_scroll_callback( GLFWwindow *glfwWindow, double xoffset,
 }
 
 // ----------------------------------------------------------------------
+
 static void glfw_framebuffer_resize_callback( GLFWwindow *glfwWindow, int width_px, int height_px ) {
 
 	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
@@ -374,12 +375,6 @@ static uint32_t window_get_surface_height( le_window_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static VkSurfaceKHR window_get_vk_surface_khr( le_window_o *self ) {
-	return self->mSurface;
-}
-
-// ----------------------------------------------------------------------
-
 static void window_set_callbacks( le_window_o *self ) {
 
 	// Note: Callback function address target may have changed after library hot-reload
@@ -397,35 +392,18 @@ static void window_set_callbacks( le_window_o *self ) {
 	// This problem arises mostly because each window within GLFW may have its own
 	// callbacks - which means, each GLFW window would have to be patched after hot-reloading.
 
-	glfwSetKeyCallback( self->window, glfw_window_key_callback );
-	glfwSetCharCallback( self->window, glfw_window_character_callback );
-	glfwSetCursorPosCallback( self->window, glfw_window_cursor_position_callback );
-	glfwSetCursorEnterCallback( self->window, glfw_window_cursor_enter_callback );
-	glfwSetMouseButtonCallback( self->window, glfw_window_mouse_button_callback );
-	glfwSetScrollCallback( self->window, glfw_window_scroll_callback );
-
-	glfwSetFramebufferSizeCallback( self->window, glfw_framebuffer_resize_callback );
+	glfwSetKeyCallback( self->window, ( GLFWkeyfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_key_callback_addr ) );
+	glfwSetCharCallback( self->window, ( GLFWcharfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_char_callback_addr ) );
+	glfwSetCursorPosCallback( self->window, ( GLFWcursorposfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_cursor_pos_callback_addr ) );
+	glfwSetCursorEnterCallback( self->window, ( GLFWcursorenterfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_cursor_enter_callback_addr ) );
+	glfwSetMouseButtonCallback( self->window, ( GLFWmousebuttonfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_mouse_button_callback_addr ) );
+	glfwSetScrollCallback( self->window, ( GLFWscrollfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_scroll_callback_addr ) );
+	glfwSetFramebufferSizeCallback( self->window, ( GLFWframebuffersizefun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_framebuffer_size_callback_addr ) );
 }
 
 // ----------------------------------------------------------------------
 
 static void window_remove_callbacks( le_window_o *self ) {
-
-	// FIXME: Callback function address target may have changed after library hot-reload
-	// Problem -- the address of the callback function may have changed
-	// after the library was reloaded, and we would have to go through
-	// all windows to patch the callback function.
-	//
-	// We could make sure that there is a forwarder which has a constant
-	// address, and which calls, in turn, a method which we can patch during
-	// reload.
-	//
-	// The forwarder function would have to live somewhere permanent.
-	// Could this be a function object inside registry?
-	//
-	// This problem arises mostly because each window within GLFW may have its own
-	// callbacks - which means, each GLFW window would have to be patched after hot-reloading.
-
 	glfwSetKeyCallback( self->window, nullptr );
 	glfwSetCharCallback( self->window, nullptr );
 	glfwSetCursorPosCallback( self->window, nullptr );
@@ -611,6 +589,15 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	window_settings_i.set_title  = window_settings_set_title;
 	window_settings_i.set_width  = window_settings_set_width;
 	window_settings_i.set_height = window_settings_set_height;
+
+	auto &callbacks_i                               = windowApi->window_callbacks_i;
+	callbacks_i.glfw_key_callback_addr              = ( void * )glfw_window_key_callback;
+	callbacks_i.glfw_char_callback_addr             = ( void * )glfw_window_character_callback;
+	callbacks_i.glfw_cursor_pos_callback_addr       = ( void * )glfw_window_cursor_position_callback;
+	callbacks_i.glfw_cursor_enter_callback_addr     = ( void * )glfw_window_cursor_enter_callback;
+	callbacks_i.glfw_mouse_button_callback_addr     = ( void * )glfw_window_mouse_button_callback;
+	callbacks_i.glfw_scroll_callback_addr           = ( void * )glfw_window_scroll_callback;
+	callbacks_i.glfw_framebuffer_size_callback_addr = ( void * )glfw_framebuffer_resize_callback;
 
 	le_core_load_library_persistently( "libglfw.so" );
 }

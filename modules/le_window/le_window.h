@@ -46,6 +46,16 @@ struct le_window_api {
 
 	};
 
+    struct window_callbacks_interface_t {
+        void * glfw_key_callback_addr;
+        void * glfw_char_callback_addr;
+        void * glfw_cursor_pos_callback_addr;
+        void * glfw_cursor_enter_callback_addr;
+        void * glfw_mouse_button_callback_addr;
+        void * glfw_scroll_callback_addr;
+        void * glfw_framebuffer_size_callback_addr; 
+    };
+
 	int           ( *init                       ) ();
 	void          ( *terminate                  ) ();
 	void          ( *pollEvents                 ) ();
@@ -53,8 +63,9 @@ struct le_window_api {
 	const char ** ( *get_required_vk_instance_extensions ) ( uint32_t *count );
 
 
-	window_interface_t          window_i;
-	window_settings_interface_t window_settings_i;
+	window_interface_t           window_i;
+	window_settings_interface_t  window_settings_i;
+    window_callbacks_interface_t window_callbacks_i;
 };
 // clang-format on
 
