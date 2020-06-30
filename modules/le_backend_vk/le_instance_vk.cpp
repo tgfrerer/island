@@ -290,8 +290,8 @@ VKAPI_ATTR void VKAPI_CALL vkCmdDrawMeshTasksIndirectCountNV(
 #endif
 // ----------------------------------------------------------------------
 
-static void create_debug_messenger_callback( le_backend_vk_instance_o *obj );  // ffdecl.
-static void destroy_debug_messenger_callback( le_backend_vk_instance_o *obj ); // ffdecl.
+//static void create_debug_messenger_callback( le_backend_vk_instance_o *obj );  // ffdecl.
+//static void destroy_debug_messenger_callback( le_backend_vk_instance_o *obj ); // ffdecl.
 
 static VkBool32 debugUtilsMessengerCallback(
     VkDebugUtilsMessageSeverityFlagBitsEXT      messageSeverity,
@@ -420,12 +420,10 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 
 	std::vector<const char *> instanceLayerNames = {};
 
-
 	if ( SHOULD_USE_VALIDATION_LAYERS ) {
 		instanceLayerNames.push_back( "VK_LAYER_KHRONOS_validation" );
 		std::cout << "Debug instance layers added." << std::endl;
 	}
-
 
 	vk::InstanceCreateInfo info;
 	info.setFlags( {} )
@@ -476,7 +474,7 @@ static bool instance_is_extension_available( le_backend_vk_instance_o *self, cha
 // ----------------------------------------------------------------------
 
 static void instance_post_reload_hook( le_backend_vk_instance_o *obj ) {
-	std::cout << "** post reload hook triggered." << std::endl;
+	std::cout << "**  post reload hook triggered." << std::endl;
 	patchExtProcAddrs( obj );
 	destroy_debug_messenger_callback( obj );
 	std::cout << "** Removed debug report callback." << std::endl;
