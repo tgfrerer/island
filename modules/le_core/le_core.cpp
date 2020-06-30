@@ -10,9 +10,10 @@
 #include <array>
 #include <assert.h>
 #include <atomic>
+#include <algorithm>
 
 struct ApiStore {
-	std::vector<std::string> names{};      // api names (used for debugging)
+	std::vector<std::string> names{};      // Api names (used for debugging)
 	std::vector<uint64_t>    nameHashes{}; // Hashed api names (used for lookup)
 	std::vector<void *>      ptrs{};       // Pointer to struct holding api for each api name
 	~ApiStore() {
@@ -23,107 +24,6 @@ struct ApiStore {
 			}
 		}
 	}
-};
-
-#define CORE_MAX_CALLBACK_FORWARDERS 8
-
-void *                target_func_addr[ CORE_MAX_CALLBACK_FORWARDERS ] = {};
-std::atomic<uint32_t> USED_CALLBACK_FORWARDERS                         = 0; // number of callbacks
-
-/*
-
-Okay, this works, now what's the next step? we must make sure that there's a way to define more than one
-callback - there needs to be a way to look up the address of the callback from a phone book.
-
-we get something like this:
-
-0x7ffff7f87624  <+    4>        48 8b 05 5d e9 00 00  mov    0xe95d(%rip),%rax        # 0x7ffff7f95f88
-0x7ffff7f8762b  <+   11>        5d                    pop    %rbp
-0x7ffff7f8762c  <+   12>        ff 20                 jmpq   *(%rax)
-
-*/
-
-// clang-format off
-extern "C" void trampoline_func() {
-
-// What follows is a sled, which, depending on how far into it the call is entered,
-// tells us which index to look up from the global phone directory of function
-// pointers.
-
-// we're not allowed to manipulate the stack,
-// because that's where parameters for the function we're trampolining
-// are sitting.
-
-asm(R"ASM(
-	
-	push %rbx
-	movq  $0x00, %rbx
-	jmp sled_end
-	
-	push %rbx	
-	movq  $0x8, %rbx
-	jmp sled_end
-
-	push %rbx
-	movq  $0x10, %rbx
-	jmp sled_end
-
-	push %rbx
-	movq  $0x18, %rbx
-	jmp sled_end
-
-	push %rbx
-	movq  $0x20, %rbx
-	jmp sled_end
-
-	push %rbx
-	movq  $0x28, %rbx
-	jmp sled_end
-
-	push %rbx
-	movq  $0x30, %rbx
-	jmp sled_end
-
-	push %rbx
-	movq  $0x38, %rbx
-	jmp sled_end
-
-sled_end:
-
-)ASM");
-
-	asm( R"ASM(
-
-.text
-
-    addq    %%rbx, %%rax
-    movq    %0, %%rax
-    movq    (%%rax), %%rax
-    pop     %%rbx                   /* restore rbx register - only rax register is clobbered by the trampoline, but that should be okay. */
-    jmpq    *%%rax
-
-)ASM" : /* empty input operands */
-      : "m" ( target_func_addr[0] ) // note that offset into this array happens via sled above, which manipulates rbx register.
-      : 
-    );
-};
-// clang-format on
-
-void *core_get_callback_forwarder_addr( void *callback_addr ) {
-	// note post-increment: we're interested in value before increment,
-	// but increment is atomic, and therefore we can guarantee that
-	// another call to this method will not end up with the same forwarder_idx
-	uint32_t forwarder_idx = USED_CALLBACK_FORWARDERS++;
-
-	// Make sure we're not overshooting
-	assert( USED_CALLBACK_FORWARDERS < CORE_MAX_CALLBACK_FORWARDERS );
-
-	target_func_addr[ forwarder_idx ] = callback_addr;
-
-	// +8 bytes to jump over the `push rbp` instruction
-	// each sled entry is 10 bytes in size, therefore
-	// we control the value of the rbx register
-	return ( char * )&trampoline_func + ( 8 + 10 * forwarder_idx );
 };
 
 struct loader_callback_params_o {
@@ -316,6 +216,8 @@ struct ArgumentNameTable {
 
 static ArgumentNameTable argument_names_table{};
 
+// ----------------------------------------------------------------------
+
 ISL_API_ATTR void le_update_argument_name_table( const char *name, uint64_t value ) {
 
 	// find index of entry with current value in table
@@ -342,6 +244,8 @@ ISL_API_ATTR void le_update_argument_name_table( const char *name, uint64_t valu
 	}
 };
 
+// ----------------------------------------------------------------------
+
 ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value ) {
 
 	if ( argument_names_table.hashes.empty() ) {
@@ -360,3 +264,71 @@ ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value ) {
 
 	return "<< Argument name could not be resolved. >>";
 }
+
+// ----------------------------------------------------------------------
+
+// Maximum number of available callback forwarders.
+// Note: run `python create_sled.py > sled.asm` after changing.
+#define CORE_MAX_CALLBACK_FORWARDERS 32
+
+void *                target_func_addr[ CORE_MAX_CALLBACK_FORWARDERS ] = {};
+std::atomic<uint32_t> USED_CALLBACK_FORWARDERS                         = 0;
+
+// clang-format off
+extern "C" void trampoline_func() {
+
+    // What follows is a sled, which, depending on how far into it the call is entered,
+    // tells us which index to look up from the global phone directory of function
+    // pointers.
+
+    // Auto-generated via the python script, see CORE_MAX_CALLBACK_FORWARDERS above
+    #include "sled.asm" 
+
+asm( R"ASM(
+.text
+    addq    %%rbx, %%rax
+    movq    %0, %%rax
+    movq    (%%rax), %%rax
+    pop     %%rbx                   /* restore rbx register */
+    jmpq    *%%rax
+)ASM" : /* empty input operands */
+      : "m" ( target_func_addr[0] ) // note that offset into this array
+                                    // happens via sled above, which manipulates rbx register.
+    );
+};
+// clang-format on
+
+// ----------------------------------------------------------------------
+
+void *core_get_callback_forwarder_addr( void *callback_addr ) {
+
+	uint32_t current_index = USED_CALLBACK_FORWARDERS++; // post-increment
+
+	// Make sure we're not overshooting
+	assert( USED_CALLBACK_FORWARDERS < CORE_MAX_CALLBACK_FORWARDERS );
+
+	target_func_addr[ current_index ] = callback_addr;
+
+	// Size of sled depends on how close it is placed to the `sled_end` label:
+	//
+	// If it is within 128 bytes, (that's the last 13 entries) it will be 10 bytes
+	// in length, all other sled entries will be 13 bytes in length.
+	// This is because the jmp instruction is 2Bytes of machine code for
+	// short jmp (`eb xx`), and 5 Bytes (`e9 xx xx xx xx` ) for near jmp.
+
+	int num_large_jumps = 0;
+	int num_small_jumps = 0;
+
+	int start_addr = std::min( 0, 13 - CORE_MAX_CALLBACK_FORWARDERS );
+
+	int val         = start_addr + int( current_index );
+	num_large_jumps = std::max( 0, std::min( val, 0 ) - start_addr );
+	num_small_jumps = std::max( 0, val );
+
+	return ( char * )&trampoline_func +
+	       ( 8 +                     // Jump over first push rbp instruction
+	         10 * num_small_jumps +  // Last 13 entries: 10B each
+	         13 * num_large_jumps ); // Any other entry: 13B each
+};
+
+// ----------------------------------------------------------------------
