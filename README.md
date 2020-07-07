@@ -151,7 +151,7 @@ listed here:
 | `le_jobs` | - | fiber-based job system | 
 | `le_ecs` | - | entity-component-system | 
 | `le_shader_compiler` | [shaderc][link-shaderc] | compile glsl shaders to SPIR-V | 
-| `le_window` | [glfw][link-glfw] | window i/o system | 
+| `le_window` | [glfw][glfw] | window i/o system | 
 | `le_swapchain` | - | windowed, direct, or straight-to-video output | 
 | `le_renderer` | - | record command buffers, evaluate rendergraphs |
 | `le_backend` | - | interact with GPU via Vulkan, manage GPU resources |
@@ -171,7 +171,6 @@ start from.
 [module-generator]: scripts/create_module.py
 [app-generator]: scripts/create_app.py
 [link-shaderc]: https://github.com/google/shaderc/
-[link-glfw]: https://github.com/glfw/glfw
 
 # Installation instructions
 
@@ -182,7 +181,11 @@ the current Vulkan SDK installed.
 
 Island depends on a few common development tools: CMake, gcc, git,
 ninja. These are commonly found on a development machine. Island also
-depends on the Vulkan SDK.
+depends on [GLFW][glfw] (which can be installed via the package
+manager `apt-get install libglfw3-dev` or similar on current Linux
+distributions), and the Vulkan SDK.
+
+[glfw]: https://github.com/glfw/glfw
 
 ## Install Vulkan SDK 
 
@@ -228,7 +231,6 @@ Unless you change this parameter, Debug builds will be built thin/dynamic with
 hot-reloading enabled, and Release builds will produce a single static binary
 with hot-reloading disabled. 
 
-
 ## IDE support
 
 I recommend using the freely available [QT Creator][qt_creator] IDE, it allows
@@ -241,6 +243,26 @@ important to check that `Run in terminal` is **disabled** - this can be
 specified in the Run Settings dialog.
 
 [qt_creator]: https://download.qt.io/official_releases/qtcreator/ 
+
+## Auto-recompilation on save using `entr`
+
+If you prefer to work without an IDE, but wish a setup where apps get
+recompiled as soon as a source file changes, the following Linux-based
+setup is pretty nice: 
+
+```bash
+    cd apps/examples/hello_triangle
+    mkdir build
+    cd build
+    cmake -G Ninja ..
+    # and then 
+    git ls-files ../.. | entr ninja & ```
+```
+
+`entr(1)` is a great utility, which runs a command on file change.
+This causes ninja to run as soon as any of the files checked into the
+github repo at `hello_triangle` change.
+
 
 ## Acknowledgements
 
