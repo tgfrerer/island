@@ -309,12 +309,34 @@ void *core_get_callback_forwarder_addr( void *callback_addr ) {
 
 	target_func_addr[ current_index ] = callback_addr;
 
-	// Size of sled depends on how close it is placed to the `sled_end` label:
+#if defined( __clang__ ) && ( defined __amd64__ )
+
+	// Clang will issue one type of jmp call: the 5 Bytes `e9 xx xx xx xx` type.
+	// Clang will not issue an ENDBR instruction at the beginning of the method,
+	// therefore we only need to skip 4 bytes to reach the first element of our
+	// sled.
+
+	return ( char * )&trampoline_func +
+	       ( 4 +                   // Jump over first push rbp instruction
+	         13 * current_index ); // Any entry: 13B each
+
+#elif ( defined( __GNUC__ ) || defined( __GNUG__ ) ) && ( defined __amd64__ )
+
+	// For GCC, the size of sled entry depends on how close it is placed to the
+	// `sled_end` label:
+	//
+	// GNU GCC will issue two types of jmp calls - depending on how
+	// close we are to the target of the jmp.
+	//
 	//
 	// If it is within 128 bytes, (that's the last 13 entries) it will be 10 bytes
 	// in length, all other sled entries will be 13 bytes in length.
 	// This is because the jmp instruction is 2Bytes of machine code for
 	// short jmp (`eb xx`), and 5 Bytes (`e9 xx xx xx xx` ) for near jmp.
+	//
+	// Additionally, gnu gcc will also issue an `endbr` instruction at the start
+	// of the method, meaning we will have to skip 8 bytes to reach the first element
+	// of our sled.
 
 	int num_large_jumps = 0;
 	int num_small_jumps = 0;
@@ -329,6 +351,9 @@ void *core_get_callback_forwarder_addr( void *callback_addr ) {
 	       ( 8 +                     // Jump over first push rbp instruction
 	         10 * num_small_jumps +  // Last 13 entries: 10B each
 	         13 * num_large_jumps ); // Any other entry: 13B each
+#else
+	assert( false && "missing implementation of callback_forwarder_addr for this compiler." );
+#endif
 };
 
 // ----------------------------------------------------------------------
