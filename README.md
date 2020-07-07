@@ -256,7 +256,7 @@ setup is pretty nice:
     cd build
     cmake -G Ninja ..
     # and then 
-    git ls-files ../.. | entr ninja & ```
+    git ls-files ../.. | entr ninja &
 ```
 
 `entr(1)` is a great utility, which runs a command on file change.
