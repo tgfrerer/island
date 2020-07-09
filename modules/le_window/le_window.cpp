@@ -376,22 +376,6 @@ static uint32_t window_get_surface_height( le_window_o *self ) {
 // ----------------------------------------------------------------------
 
 static void window_set_callbacks( le_window_o *self ) {
-
-	// Note: Callback function address target may have changed after library hot-reload
-	// Problem -- the address of the callback function may have changed
-	// after the library was reloaded, and we would have to go through
-	// all windows to patch the callback function.
-	//
-	// We could make sure that there is a forwarder which has a constant
-	// address, and which calls, in turn, a method which we can patch during
-	// reload.
-	//
-	// The forwarder function would have to live somewhere permanent.
-	// Could this be a function object inside registry?
-	//
-	// This problem arises mostly because each window within GLFW may have its own
-	// callbacks - which means, each GLFW window would have to be patched after hot-reloading.
-
 	glfwSetKeyCallback( self->window, ( GLFWkeyfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_key_callback_addr ) );
 	glfwSetCharCallback( self->window, ( GLFWcharfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_char_callback_addr ) );
 	glfwSetCursorPosCallback( self->window, ( GLFWcursorposfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_cursor_pos_callback_addr ) );
