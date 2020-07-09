@@ -583,5 +583,7 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	callbacks_i.glfw_scroll_callback_addr           = ( void * )glfw_window_scroll_callback;
 	callbacks_i.glfw_framebuffer_size_callback_addr = ( void * )glfw_framebuffer_resize_callback;
 
+#if defined PLUGINS_DYNAMIC
 	le_core_load_library_persistently( "libglfw.so" );
+#endif
 }

@@ -2,7 +2,11 @@ set( GLFW_BUILD_EXAMPLES  OFF CACHE INTERNAL "" )
 set( GLFW_BUILD_TESTS     OFF CACHE INTERNAL "" )
 set( GLFW_BUILD_DOCS      OFF CACHE INTERNAL "" )
 set( GLFW_INSTALL         OFF CACHE INTERNAL "" )
-set( BUILD_SHARED_LIBS ON)
+
+if (${PLUGINS_DYNAMIC})
+    set( BUILD_SHARED_LIBS ON)
+endif()
+
 add_subdirectory( 3rdparty/glfw )
 
 set (TARGET le_window )
