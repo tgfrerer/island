@@ -1207,6 +1207,8 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description( l
 			}
 		}
 	    break;
+    default:
+        assert(false);
 	}
 
 	assert(false); // abandon all hope
@@ -1406,6 +1408,7 @@ static vk::Pipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manag
 
 // ----------------------------------------------------------------------
 
+#ifdef LE_FEATURE_RTX
 static vk::RayTracingShaderGroupTypeKHR le_to_vk( le::RayTracingShaderGroupType const &tp ) {
 	// clang-format off
     switch(tp){
@@ -1422,7 +1425,6 @@ static vk::RayTracingShaderGroupTypeKHR le_to_vk( le::RayTracingShaderGroupType 
 
 // ----------------------------------------------------------------------
 
-#ifdef LE_FEATURE_RTX
 static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o *self, rtx_pipeline_state_o const *pso ) {
 
 	// Fetch vk::PipelineLayout for this pso
