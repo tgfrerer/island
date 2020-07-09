@@ -1566,7 +1566,7 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 
 		        // Signal that we will want to update top level acceleration structures for this scene.
 		        for ( auto &s : stage->scenes ) {
-			        rp.useRtxBlasResource( s.rtx_tlas_handle, { LE_RTX_TLAS_USAGE_WRITE_BIT } );
+			        rp.useRtxTlasResource( s.rtx_tlas_handle, { LE_RTX_TLAS_USAGE_WRITE_BIT } );
 		        }
 
 		        // TODO: figure out a way to signal that we don't need to upload/update geometries
