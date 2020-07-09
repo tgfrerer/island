@@ -361,12 +361,12 @@ class RenderPass {
 	}
 
 #	ifdef LE_FEATURE_RTX
-	RenderPass &useRtxBlasResource( le_resource_handle_t resource_id, const LeRtxBlasUsageFlags &usage_flags ) {
+	RenderPass &useRtxBlasResource( le_resource_handle_t resource_id, const LeRtxBlasUsageFlags &usage_flags = { LE_RTX_BLAS_USAGE_READ_BIT } ) {
 		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eRtxBlas, { { usage_flags } } } );
 		return *this;
 	}
 
-	RenderPass &useRtxTlasResource( le_resource_handle_t resource_id, const LeRtxTlasUsageFlags &usage_flags ) {
+	RenderPass &useRtxTlasResource( le_resource_handle_t resource_id, const LeRtxTlasUsageFlags &usage_flags = { LE_RTX_TLAS_USAGE_READ_BIT } ) {
 		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eRtxTlas, { { usage_flags } } } );
 		return *this;
 	}
