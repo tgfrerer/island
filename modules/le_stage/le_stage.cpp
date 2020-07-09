@@ -2111,14 +2111,14 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 			for ( auto const &m : draw_params->stage->meshes ) {
 				for ( auto const &p : m.primitives ) {
-					rtx_pass.useRtxBlasResource( p.rtx_blas_handle, { LE_RTX_BLAS_USAGE_READ_BIT } );
+					rtx_pass.useRtxBlasResource( p.rtx_blas_handle );
 				}
 			}
 
 			// -- Signal that we want to read from top-level acceleration structures.
 
 			for ( auto const &s : draw_params->stage->scenes ) {
-				rtx_pass.useRtxTlasResource( s.rtx_tlas_handle, { LE_RTX_TLAS_USAGE_READ_BIT } );
+				rtx_pass.useRtxTlasResource( s.rtx_tlas_handle );
 			}
 		}
 
