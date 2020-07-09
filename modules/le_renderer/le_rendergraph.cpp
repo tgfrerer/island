@@ -179,6 +179,8 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 	        usage_flags.type == LeResourceType::eRtxTlas ||
 	        usage_flags.type == LeResourceType::eRtxBlas );
 
+	assert( resource_id.getResourceType() == usage_flags.type && "usage flags must match resource type" );
+
 	// ---------| Invariant: resource is either an image or buffer
 
 	size_t resource_idx    = 0; // index of matching resource
