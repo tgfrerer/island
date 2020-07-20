@@ -1,11 +1,11 @@
 language: cpp
 compiler: 
     - gcc
+os: linux
+dist: bionic
 
-matrix: 
+jobs: 
     include: 
-        - os: linux
-          dist: bionic
 script: 
         - scripts/ci/run_tests.sh    
 
