@@ -1,0 +1,14 @@
+language: cpp
+compiler: 
+    - gcc
+
+matrix: 
+    include: 
+        - os: linux
+          dist: bionic
+script: 
+        - scripts/ci/run_tests.sh    
+
+git:
+    depth: 2
+
