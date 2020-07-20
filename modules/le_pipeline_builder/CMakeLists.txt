@@ -1,9 +1,5 @@
 set (TARGET le_pipeline_builder)
 
-add_compile_definitions(LE_FEATURE_RTX)
-add_compile_definitions(VK_ENABLE_BETA_EXTENSIONS=1) # we need this for raytracing features
-add_compile_definitions(VULKAN_HPP_NO_SMART_HANDLE)
-
 set (SOURCES "le_pipeline_builder.cpp")
 set (SOURCES ${SOURCES} "le_pipeline_builder.h")
 
