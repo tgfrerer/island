@@ -68,7 +68,7 @@ ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value );
 
 #ifdef __cplusplus
 
-#	ifdef PLUGINS_DYNAMIC
+#	ifdef PLUGINS_DYNAMIC__DISABLED
 
 /// return: immovable function pointer which can be used as callback, even with hot-reloading.
 ///         calls via this pointer will be forwarded to the current address of the callback
