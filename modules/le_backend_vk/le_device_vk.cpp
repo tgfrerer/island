@@ -254,7 +254,9 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	                      .setFragmentStoresAndAtomics( true )
 	                      .setSampleRateShading( true ) // enable so that we can use sampleShadingEnable
 	                      .setGeometryShader( true )    // we want geometry shaders
-	                      .setShaderInt16( true ) );
+	                      .setShaderInt16( true )       //
+	                      .setShaderFloat64( true )     //
+	    );
 
 #ifdef LE_FEATURE_RTX
 	featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
@@ -278,12 +280,17 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	// because most use cases will want to make use of these.
 
 	featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
-	    .setShaderInt8( true )
-	    .setShaderFloat16( true );
+	    .setShaderInt8( true )    //
+	    .setShaderFloat16( true ) //
+	    ;
 
 #else
 	featuresChain.unlink<vk::PhysicalDeviceMeshShaderFeaturesNV>();
 #endif
+
+	featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
+	    .setShaderInt8( true )
+	    .setShaderFloat16( true );
 
 	vk::DeviceCreateInfo deviceCreateInfo;
 	deviceCreateInfo
