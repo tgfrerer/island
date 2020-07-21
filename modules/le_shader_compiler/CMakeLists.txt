@@ -28,11 +28,8 @@ else()
 
     set (LINKER_FLAGS ${LINKER_FLAGS} pthread)
 
-#    set (LINKER_FLAGS  ${LINKER_FLAGS} -Wl,--whole-archive shaderc_combined -Wl,--no-whole-archive)
-
     include(FindPkgConfig)
     pkg_check_modules(shaderc REQUIRED IMPORTED_TARGET shaderc_combined)
-
     set (LINKER_FLAGS  ${LINKER_FLAGS} PkgConfig::shaderc )
 
 endif()
