@@ -300,7 +300,7 @@ asm( R"ASM(
 
 // ----------------------------------------------------------------------
 
-void *core_get_callback_forwarder_addr( void *callback_addr ) {
+void *le_core_get_callback_forwarder_addr( void *callback_addr ) {
 
 	uint32_t current_index = USED_CALLBACK_FORWARDERS++; // post-increment
 
