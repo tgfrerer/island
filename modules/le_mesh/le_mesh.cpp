@@ -3,14 +3,10 @@
 
 #include <math.h>
 #include <vector>
-#include <experimental/filesystem> // for file loading
-#include <iostream>                // for file loading
-#include <fstream>                 // for file loading
-#include <iomanip>                 // for file loading
-
-namespace std {
-using namespace experimental;
-}
+#include <filesystem> // for file loading
+#include <iostream>   // for file loading
+#include <fstream>    // for file loading
+#include <iomanip>    // for file loading
 
 #include <cstring>
 
