@@ -576,5 +576,7 @@ LE_MODULE_REGISTER_IMPL( le_shader_compiler, api_ ) {
 	compiler_i.get_result_includes = le_shader_compilation_result_get_next_includes_path;
 	compiler_i.release_result      = le_shader_compilation_result_detroy;
 
+#ifdef PLUGINS_DYNAMIC
 	le_core_load_library_persistently( "libshaderc_shared.so" );
+#endif
 }

@@ -3,13 +3,6 @@ set (TARGET le_shader_compiler)
 set (SOURCES "le_shader_compiler.cpp")
 set (SOURCES ${SOURCES} "le_shader_compiler.h")
 
-#set (LIB_SHADERC_DIR $ENV{VULKAN_SDK}/lib/libshaderc/)
-
-# NOTE: We're linking shaderc from this system's Vulkan SDK directory
-#link_directories(${LIB_SHADERC_DIR})
-
-# NOTE: We're using the shaderc headers from this system's Vulkan SDK directory
-#include_directories($ENV{VULKAN_SDK}/include/)
 
 if (${PLUGINS_DYNAMIC})
 
@@ -35,7 +28,12 @@ else()
 
     set (LINKER_FLAGS ${LINKER_FLAGS} pthread)
 
-    set (LINKER_FLAGS  ${LINKER_FLAGS} -Wl,--whole-archive shaderc_combined -Wl,--no-whole-archive)
+#    set (LINKER_FLAGS  ${LINKER_FLAGS} -Wl,--whole-archive shaderc_combined -Wl,--no-whole-archive)
+
+    include(FindPkgConfig)
+    pkg_check_modules(shaderc REQUIRED IMPORTED_TARGET shaderc_combined)
+
+    set (LINKER_FLAGS  ${LINKER_FLAGS} PkgConfig::shaderc )
 
 endif()
 
