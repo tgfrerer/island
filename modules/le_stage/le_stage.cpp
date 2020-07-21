@@ -2017,10 +2017,10 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 			        // -- Create rtx pso
 			        static le_rtxpso_handle rtx_pipeline = []( le_stage_o *stage, le_pipeline_manager_o *pipeline_manager ) {
-				        auto shader_raygen      = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/raygen.rgen", { le::ShaderStage::eRaygenBitNv }, nullptr );
-				        auto shader_miss        = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/miss.rmiss", { le::ShaderStage::eMissBitNv }, nullptr );
-				        auto shader_shadow_miss = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/shadow.rmiss", { le::ShaderStage::eMissBitNv }, nullptr );
-				        auto shader_closest_hit = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/closesthit.rchit", { le::ShaderStage::eClosestHitBitNv }, nullptr );
+				        auto shader_raygen      = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/raygen.rgen", { le::ShaderStage::eRaygenBitKhr }, nullptr );
+				        auto shader_miss        = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/miss.rmiss", { le::ShaderStage::eMissBitKhr }, nullptr );
+				        auto shader_shadow_miss = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/shadow.rmiss", { le::ShaderStage::eMissBitKhr }, nullptr );
+				        auto shader_closest_hit = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/closesthit.rchit", { le::ShaderStage::eClosestHitBitKhr }, nullptr );
 
 				        // Create rtx pipeline
 
