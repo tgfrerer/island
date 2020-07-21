@@ -10,8 +10,7 @@ set (SOURCES ${SOURCES} "include/internal/le_swapchain_vk_common.h")
 if (${PLUGINS_DYNAMIC})
 
     add_library(${TARGET} SHARED ${SOURCES})
-
-    
+   
     add_dynamic_linker_flags()
 
     target_compile_definitions(${TARGET} PUBLIC "PLUGINS_DYNAMIC=1")

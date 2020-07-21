@@ -2,9 +2,10 @@
 #include "le_renderer/private/le_renderer_types.h"
 #include "include/internal/le_swapchain_vk_common.h"
 
-#define VULKAN_HPP_NO_SMART_HANDLE
 #define VK_USE_PLATFORM_XLIB_XRANDR_EXT
-#define VULKAN_HPP_DISABLE_ENHANCED_MODE // because otherwise it will complain about display
+#define VULKAN_HPP_DISABLE_ENHANCED_MODE
+#define VULKAN_HPP_NO_SMART_HANDLE
+#define VULKAN_HPP_DISABLE_IMPLICIT_RESULT_VALUE_CAST
 #include <vulkan/vulkan.hpp>
 
 #include <iostream>

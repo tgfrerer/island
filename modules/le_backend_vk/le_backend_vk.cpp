@@ -774,7 +774,7 @@ static void backend_create_swapchain( le_backend_o *self, le_swapchain_settings_
 
 	case le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN: {
 		using namespace le_swapchain_vk;
-		// Create an image swapchain
+		// Create a windowless swapchain
 		self->swapchain = swapchain_i.create( api->swapchain_direct_i, self, &swp_settings );
 	} break;
 
@@ -2169,21 +2169,39 @@ static void backend_create_descriptor_pools( BackendFrameData &frame, vk::Device
 	// if we're suddenly rendering more frames, we will add additional
 	// descriptorPools.
 
-	// at this point it would be nice to have an idea for each renderpass
+	// At this point it would be nice to have an idea for each renderpass
 	// on how many descriptors to expect, but we cannot know that realistically
 	// without going through the command buffer... yuck.
 
-	// this is why we're creating space for a generous amount of descriptors
+	// This is why we're creating space for a generous amount of descriptors
 	// hoping we're not running out when assembling the command buffer.
+
+	constexpr VkDescriptorType DESCRIPTOR_TYPES[] = {
+	    VK_DESCRIPTOR_TYPE_SAMPLER,
+	    VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+	    VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+	    VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+	    VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER,
+	    VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER,
+	    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+	    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+	    VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+	    VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC,
+	    VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+	    VK_DESCRIPTOR_TYPE_INLINE_UNIFORM_BLOCK_EXT,
+	    VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR,
+	};
+
+	constexpr size_t DESCRIPTOR_TYPE_COUNT = sizeof( DESCRIPTOR_TYPES ) / sizeof( VkDescriptorType );
 
 	for ( ; frame.descriptorPools.size() < numRenderPasses; ) {
 
-		std::vector<::vk::DescriptorPoolSize> descriptorPoolSizes;
+		std::vector<vk::DescriptorPoolSize> descriptorPoolSizes;
 
-		descriptorPoolSizes.reserve( VK_DESCRIPTOR_TYPE_RANGE_SIZE );
+		descriptorPoolSizes.reserve( DESCRIPTOR_TYPE_COUNT );
 
-		for ( size_t i = VK_DESCRIPTOR_TYPE_BEGIN_RANGE; i != VK_DESCRIPTOR_TYPE_BEGIN_RANGE + VK_DESCRIPTOR_TYPE_RANGE_SIZE; ++i ) {
-			descriptorPoolSizes.emplace_back( ::vk::DescriptorType( i ), 1000 ); // 1000 descriptors of each type
+		for ( size_t i = 0; i != DESCRIPTOR_TYPE_COUNT; ++i ) {
+			descriptorPoolSizes.emplace_back( vk::DescriptorType( DESCRIPTOR_TYPES[ i ] ), 1000 ); // 1000 descriptors of each type
 		}
 
 		::vk::DescriptorPoolCreateInfo descriptorPoolCreateInfo;

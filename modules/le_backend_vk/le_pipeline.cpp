@@ -1373,8 +1373,10 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 	    .setBasePipelineIndex( 0 )                                 // -1 signals not to use a base pipeline index
 	    ;
 
-	auto pipeline = self->device.createGraphicsPipeline( self->vulkanCache, gpi );
-	return pipeline;
+	auto creation_result = self->device.createGraphicsPipeline( self->vulkanCache, gpi );
+
+	assert( creation_result.result == vk::Result::eSuccess && "pipeline must be created successfully" );
+	return creation_result.value;
 }
 
 // ----------------------------------------------------------------------
@@ -1402,8 +1404,10 @@ static vk::Pipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manag
 	    .setBasePipelineIndex( 0 ) // -1 signals not to use base pipeline index
 	    ;
 
-	auto pipeline = self->device.createComputePipeline( self->vulkanCache, cpi );
-	return pipeline;
+	auto creation_result = self->device.createComputePipeline( self->vulkanCache, cpi );
+	assert( creation_result.result == vk::Result::eSuccess && "pipeline must be created successfully" );
+
+	return creation_result.value;
 }
 
 // ----------------------------------------------------------------------
