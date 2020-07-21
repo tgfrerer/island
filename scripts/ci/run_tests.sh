@@ -4,6 +4,9 @@
 
 apps_list=("
 	examples/hello_triangle:Island-HelloTriangle
+	examples/lut_grading_example:Island-LutGradingExample
+	examples/geometry_shader_example:Island-GeometryShaderExample
+	examples/imgui_example:Island-ImguiExample		
 ")
 
 # examples/lut_grading_example:Island-LutGradingExample
