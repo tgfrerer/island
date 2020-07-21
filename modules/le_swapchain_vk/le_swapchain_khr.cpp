@@ -2,7 +2,6 @@
 #include "le_renderer/private/le_renderer_types.h"
 #include "include/internal/le_swapchain_vk_common.h"
 
-#define VULKAN_HPP_NO_SMART_HANDLE
 #include <vulkan/vulkan.hpp>
 
 #include <iostream>

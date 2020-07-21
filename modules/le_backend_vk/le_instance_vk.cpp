@@ -1,6 +1,5 @@
 #include "le_backend_vk/le_backend_vk.h"
-
-#include <vulkan/vulkan.hpp>
+#include "le_backend_vk/le_backend_types_internal.h"
 
 #include <iostream>
 #include <iomanip>
