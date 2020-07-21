@@ -1,6 +1,7 @@
 language: cpp
 compiler: 
     - gcc
+    - clang
 os: linux
 dist: focal
 
@@ -16,3 +17,4 @@ script:
     - cat build.log
 git:
     depth: 2
+
