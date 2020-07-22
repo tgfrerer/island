@@ -294,7 +294,7 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 
 	vk::DeviceCreateInfo deviceCreateInfo;
 	deviceCreateInfo
-	    .setPNext( &featuresChain )
+	    .setPNext( &featuresChain.get<vk::PhysicalDeviceFeatures2>() )
 	    .setQueueCreateInfoCount( uint32_t( device_queue_creation_infos.size() ) )
 	    .setPQueueCreateInfos( device_queue_creation_infos.data() )
 	    .setEnabledLayerCount( 0 )
