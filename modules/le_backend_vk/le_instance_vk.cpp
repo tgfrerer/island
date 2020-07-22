@@ -33,7 +33,7 @@ struct le_backend_vk_instance_o {
 static const vk::ValidationFeatureEnableEXT enabledValidationFeatures[] = {
     // vk::ValidationFeatureEnableEXT::eGpuAssisted,
     // vk::ValidationFeatureEnableEXT::eGpuAssistedReserveBindingSlot,
-    vk::ValidationFeatureEnableEXT::eBestPractices,
+    // vk::ValidationFeatureEnableEXT::eBestPractices,
 };
 
 /* 
@@ -345,17 +345,9 @@ static void create_debug_messenger_callback( le_backend_vk_instance_o *obj ) {
 		return;
 	}
 
-	vk::ValidationFeaturesEXT validationFeatures;
-	validationFeatures
-	    .setPNext( nullptr )
-	    .setEnabledValidationFeatureCount( uint32_t( sizeof( enabledValidationFeatures ) / sizeof( vk::ValidationFeatureEnableEXT ) ) )
-	    .setPEnabledValidationFeatures( enabledValidationFeatures )
-	    .setDisabledValidationFeatureCount( uint32_t( sizeof( disabledValidationFeatures ) / sizeof( vk::ValidationFeatureDisableEXT ) ) )
-	    .setPDisabledValidationFeatures( disabledValidationFeatures );
-
 	vk::DebugUtilsMessengerCreateInfoEXT debugMessengerCreateInfo;
 	debugMessengerCreateInfo
-	    .setPNext( SHOULD_USE_VALIDATION_LAYERS ? &validationFeatures : nullptr )
+	    .setPNext( nullptr )
 	    .setFlags( {} )
 	    .setMessageSeverity( ~vk::DebugUtilsMessageSeverityFlagsEXT() ) // everything.
 	    .setMessageType( ~vk::DebugUtilsMessageTypeFlagsEXT() )         // everything.
@@ -424,9 +416,17 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 		std::cout << "Debug instance layers added." << std::endl;
 	}
 
+	vk::ValidationFeaturesEXT validationFeatures;
+	validationFeatures
+	    .setPNext( nullptr )
+	    .setEnabledValidationFeatureCount( uint32_t( sizeof( enabledValidationFeatures ) / sizeof( vk::ValidationFeatureEnableEXT ) ) )
+	    .setPEnabledValidationFeatures( enabledValidationFeatures )
+	    .setDisabledValidationFeatureCount( uint32_t( sizeof( disabledValidationFeatures ) / sizeof( vk::ValidationFeatureDisableEXT ) ) )
+	    .setPDisabledValidationFeatures( disabledValidationFeatures );
+
 	vk::InstanceCreateInfo info;
 	info.setFlags( {} )
-	    .setPNext( nullptr ) // We add a debug messenger object to instance creation to get creation-time debug info
+	    .setPNext( SHOULD_USE_VALIDATION_LAYERS ? &validationFeatures : nullptr ) // We add a debug messenger object to instance creation to get creation-time debug info
 	    .setPApplicationInfo( &appInfo )
 	    .setEnabledLayerCount( uint32_t( instanceLayerNames.size() ) )
 	    .setPpEnabledLayerNames( instanceLayerNames.data() )
