@@ -472,14 +472,12 @@ static void shader_options_parse_macro_definitions_string( shaderc_compile_optio
 
 // ---------------------------------------------------------------
 
-static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_shader_compiler_o *self, const char *sourceFileText,
-                                                                          size_t sourceFileNumBytes, const LeShaderStageEnum &shaderType,
-                                                                          const char *original_file_path,
-                                                                          char const *macroDefinitionsStr, size_t macroDefinitionsStrSz ) {
+static bool le_shader_compiler_compile_source( le_shader_compiler_o *self, const char *sourceFileText,
+                                               size_t sourceFileNumBytes, const LeShaderStageEnum &shaderType,
+                                               const char *original_file_path,
+                                               char const *macroDefinitionsStr, size_t macroDefinitionsStrSz, le_shader_compilation_result_o *result ) {
 
 	auto shaderKind = convert_to_shaderc_shader_kind( shaderType );
-
-	auto result = le_shader_compilation_result_create();
 
 	// Make a copy of compiler options so that we can add callback pointers only for
 	// this compilation.
@@ -487,19 +485,21 @@ static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_sha
 
 	shader_options_parse_macro_definitions_string( local_options, macroDefinitionsStr, macroDefinitionsStrSz );
 
-	shaderc_compile_options_set_include_callbacks( local_options,
-	                                               le_shaderc_include_result_create,
-	                                               le_shaderc_include_result_destroy,
-	                                               &result->includes );
+	shaderc_compile_options_set_include_callbacks(
+	    local_options,
+	    le_shaderc_include_result_create,
+	    le_shaderc_include_result_destroy,
+	    &result->includes );
 
-	// -- First preprocess GLSL source
-	auto preprocessorResult = shaderc_compile_into_preprocessed_text(
-	    self->compiler, sourceFileText, sourceFileNumBytes, shaderKind,
-	    original_file_path, "main",
-	    local_options );
+	shaderc_compile_options_set_target_env( local_options, shaderc_target_env_vulkan, shaderc_env_version_vulkan_1_2 );
+	shaderc_compile_options_set_target_spirv( local_options, shaderc_spirv_version_1_5 );
 
-	// -- Free local compiler options - this will also free any pointers to our callbacks.
-	shaderc_compile_options_release( local_options );
+	// -- Preprocess GLSL source - this will expand macros and includes
+	auto preprocessorResult =
+	    shaderc_compile_into_preprocessed_text(
+	        self->compiler, sourceFileText, sourceFileNumBytes, shaderKind,
+	        original_file_path, "main",
+	        local_options );
 
 	// Setup iterator for include paths so that it points to the first element
 	// in the sorted set of inlcude paths
@@ -508,15 +508,14 @@ static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_sha
 	// can be set to the start position.
 	result->includes.paths_it = result->includes.paths.begin();
 
-	// If preprocessor step was not successful - return preprocessor result
-	// to upkeep the promise of always returning a result object.
 	if ( shaderc_result_get_compilation_status( preprocessorResult ) != shaderc_compilation_status_success ) {
-
+		// If preprocessor step was not successful - return preprocessor result
+		// to keep the promise of always returning a result object.
 		std::cerr << "ERROR: Shader preprocessor failed: " << std::endl
 		          << shaderc_result_get_error_message( preprocessorResult ) << std::flush;
-
 		result->result = preprocessorResult;
-		return result;
+		shaderc_compile_options_release( local_options );
+		return false;
 	}
 
 	// ---------| Invariant: Preprocessor step was successful
@@ -526,12 +525,14 @@ static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_sha
 	auto preprocessorTextNumBytes = shaderc_result_get_length( preprocessorResult );
 
 	// -- Compile preprocessed GLSL into SPIRV
-	result->result = shaderc_compile_into_spv( self->compiler,
-	                                           preprocessorText, preprocessorTextNumBytes,
-	                                           shaderKind,
-	                                           original_file_path,
-	                                           "main",
-	                                           self->options );
+	result->result =
+	    shaderc_compile_into_spv(
+	        self->compiler,
+	        preprocessorText, preprocessorTextNumBytes,
+	        shaderKind,
+	        original_file_path,
+	        "main",
+	        local_options );
 
 	// -- Print error message with context if compilation failed
 	if ( shaderc_result_get_compilation_status( result->result ) != shaderc_compilation_status_success ) {
@@ -539,10 +540,9 @@ static le_shader_compilation_result_o *le_shader_compiler_compile_source( le_sha
 		le_shader_compiler_print_error_context( err_msg, preprocessorText, original_file_path );
 	}
 
-	// -- free preprocessor compilation result
-	shaderc_result_release( preprocessorResult );
+	shaderc_compile_options_release( local_options );
 
-	return result;
+	return true;
 }
 
 // ---------------------------------------------------------------
@@ -551,13 +551,15 @@ LE_MODULE_REGISTER_IMPL( le_shader_compiler, api_ ) {
 	auto  le_shader_compiler_api_i = static_cast<le_shader_compiler_api *>( api_ );
 	auto &compiler_i               = le_shader_compiler_api_i->compiler_i;
 
-	compiler_i.create              = le_shader_compiler_create;
-	compiler_i.destroy             = le_shader_compiler_destroy;
-	compiler_i.compile_source      = le_shader_compiler_compile_source;
-	compiler_i.get_result_bytes    = le_shader_compilation_result_get_result_bytes;
-	compiler_i.get_result_success  = le_shader_compilation_result_get_result_success;
-	compiler_i.get_result_includes = le_shader_compilation_result_get_next_includes_path;
-	compiler_i.release_result      = le_shader_compilation_result_detroy;
+	compiler_i.create         = le_shader_compiler_create;
+	compiler_i.destroy        = le_shader_compiler_destroy;
+	compiler_i.compile_source = le_shader_compiler_compile_source;
+
+	compiler_i.result_create       = le_shader_compilation_result_create;
+	compiler_i.result_get_bytes    = le_shader_compilation_result_get_result_bytes;
+	compiler_i.result_get_success  = le_shader_compilation_result_get_result_success;
+	compiler_i.result_get_includes = le_shader_compilation_result_get_next_includes_path;
+	compiler_i.result_destroy      = le_shader_compilation_result_detroy;
 
 #ifdef PLUGINS_DYNAMIC
 	le_core_load_library_persistently( "libshaderc_shared.so" );

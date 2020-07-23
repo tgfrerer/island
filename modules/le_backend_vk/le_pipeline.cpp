@@ -321,32 +321,36 @@ static void translate_to_spirv_code( le_shader_compiler_o *shader_compiler, void
 		spirvCode.resize( numBytes / 4 );
 		memcpy( spirvCode.data(), raw_data, numBytes );
 	} else {
-		// ----------| Invariant: Data is not SPIRV - is it GLSL, perhaps?
 
-		using namespace le_shader_compiler; // for compiler_i
+		// ----------| Invariant: Data is not SPIRV, it still needs to be compiled
 
-		auto compileResult = compiler_i.compile_source( shader_compiler, static_cast<const char *>( raw_data ), numBytes,
-		                                                moduleType, original_file_name, shaderDefines.c_str(), shaderDefines.size() );
+		using namespace le_shader_compiler;
 
-		if ( compiler_i.get_result_success( compileResult ) == true ) {
+		auto compilation_result = compiler_i.result_create();
+
+		compiler_i.compile_source(
+		    shader_compiler, static_cast<const char *>( raw_data ), numBytes,
+		    moduleType, original_file_name, shaderDefines.c_str(), shaderDefines.size(), compilation_result );
+
+		if ( compiler_i.result_get_success( compilation_result ) == true ) {
 			const char *addr;
 			size_t      res_sz;
-			compiler_i.get_result_bytes( compileResult, &addr, &res_sz );
+			compiler_i.result_get_bytes( compilation_result, &addr, &res_sz );
 			spirvCode.resize( res_sz / 4 );
 			memcpy( spirvCode.data(), addr, res_sz );
 
 			// -- grab a list of includes which this compilation unit depends on:
-			const char *pStr;
+			const char *pStr  = nullptr;
 			size_t      strSz = 0;
 
-			while ( compiler_i.get_result_includes( compileResult, &pStr, &strSz ) ) {
+			while ( compiler_i.result_get_includes( compilation_result, &pStr, &strSz ) ) {
 				// -- update set of includes for this module
 				includesSet.emplace( pStr, strSz );
 			}
 		}
 
 		// Release compile result object
-		compiler_i.release_result( compileResult );
+		compiler_i.result_destroy( compilation_result );
 	}
 }
 
