@@ -1,24 +1,7 @@
 #include "le_core/le_core.h"
-
-/// Note that the shader compiler depends on the shared lib version of libshaderc
-/// this version is available through the LunarG VULKAN SDK,
-///
-/// But may have to be compiled manually for older versions of the SDK.
-///
-/// For this, go to $VULKAN_SDK, edit `build_tools.sh` so that, in method `buildShaderc`,
-/// build type says: `-DCMAKE_BUILD_TYPE=Release`,
-/// then let it create an additional symlink:
-/// ln -sf "$PWD"/build/libshaderc/libshaderc_shared.so "${LIBDIR}"/libshaderc
-
 #include "le_shader_compiler/le_shader_compiler.h"
 
-#ifndef NV_EXTENSIONS
-#	define NV_EXTENSIONS
-#	include "shaderc/shaderc.hpp"
-#	undef NV_EXTENSIONS
-#else
-#	include "shaderc/shaderc.hpp"
-#endif
+#include "shaderc/shaderc.hpp"
 
 #include "le_renderer/le_renderer.h" // for shader type
 
