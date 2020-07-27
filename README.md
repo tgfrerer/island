@@ -182,19 +182,20 @@ the current Vulkan SDK installed.
 
 Island depends on a few common development tools: CMake, gcc, git,
 ninja. These are commonly found on a development machine. Island also
-depends on [GLFW][glfw] (which can be installed via the package
-manager `apt-get install libglfw3-dev` or similar on current Linux
-distributions), and the Vulkan SDK.
-
-[glfw]: https://github.com/glfw/glfw
+depends on the Vulkan SDK.
 
 ## Install Vulkan SDK 
 
 ### Vulkan SDK >= `1.1.92.0`
 
-I recommend to install the Vulkan SDK via a package manager. Follow
-the installation instructions via:
+I recommend to install the latest Vulkan SDK via a package manager.
+Follow the installation instructions via:
 <https://vulkan.lunarg.com/sdk/home#linux>.
+
+### Arch Linux (Manjaro)
+
+On Arch Linux, I recommend installing the following packages via
+pacman: `shaderc vulkan-devel ninja cmake`.
 
 ### Manual Vulkan SDK install and legacy Vulkan SDK installation
 
@@ -260,9 +261,9 @@ setup is pretty nice:
     git ls-files ../.. | entr ninja &
 ```
 
-`entr(1)` is a great utility, which runs a command on file change.
-This causes ninja to run as soon as any of the files checked into the
-github repo at `hello_triangle` change.
+`entr(1)` is a great utility, which runs a command on file change. The
+last line of the above script causes `ninja` to run as soon as any of
+the files checked into the github repo at `hello_triangle` change.
 
 
 ## Acknowledgements
