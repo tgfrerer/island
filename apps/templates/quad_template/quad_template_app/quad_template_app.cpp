@@ -3,8 +3,8 @@
 #include "le_window/le_window.h"
 #include "le_renderer/le_renderer.h"
 
-#include "le_camera/le_camera.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
+#include "le_ui_event/le_ui_event.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -14,14 +14,16 @@
 #include <iostream>
 #include <memory>
 #include <sstream>
+#include <vector>
 
 struct quad_template_app_o {
 	le::Window   window;
 	le::Renderer renderer;
 	uint64_t     frame_counter = 0;
-
-	LeCamera camera;
+	glm::vec2    mouse_pos;
 };
+
+typedef quad_template_app_o app_o;
 
 // ----------------------------------------------------------------------
 
@@ -76,20 +78,72 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	auto        app = static_cast<quad_template_app_o *>( user_data );
 	le::Encoder encoder{ encoder_ };
 
+	auto extents = encoder.getRenderpassExtent();
+
 	// Draw main scene
 
 	static auto shaderVert = app->renderer.createShaderModule( "./local_resources/shaders/fullscreen.vert", le::ShaderStage::eVertex );
 	static auto shaderFrag = app->renderer.createShaderModule( "./local_resources/shaders/fullscreen.frag", le::ShaderStage::eFragment );
 
-	static auto pipelineQuadTemplate =
+	static auto pipelineFullscreenQuad =
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 	        .addShaderStage( shaderVert )
 	        .addShaderStage( shaderFrag )
 	        .build();
 
+	struct ShaderParams {
+		glm::vec2 u_mouse;
+		glm::vec2 u_resolution;
+		float     u_time;
+	};
+
+	ShaderParams params{};
+	params.u_resolution = glm::vec2( extents.width, extents.height );
+	params.u_mouse      = app->mouse_pos / params.u_resolution;
+	params.u_time       = app->frame_counter / 60.f; // we assume 60fps
+
 	encoder
-	    .bindGraphicsPipeline( pipelineQuadTemplate )
+	    .bindGraphicsPipeline( pipelineFullscreenQuad )
+	    .setArgumentData( LE_ARGUMENT_NAME( "Params" ), &params, sizeof( ShaderParams ) )
 	    .draw( 4 );
+}
+
+// ----------------------------------------------------------------------
+
+static void app_process_ui_events( app_o *self ) {
+	using namespace le_window;
+	uint32_t         numEvents;
+	LeUiEvent const *pEvents;
+	window_i.get_ui_event_queue( self->window, &pEvents, numEvents );
+
+	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
+
+	bool wantsToggle = false;
+
+	for ( auto &event : events ) {
+		switch ( event.event ) {
+		case ( LeUiEvent::Type::eKey ): {
+			auto &e = event.key;
+			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
+				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
+					wantsToggle ^= true;
+				}
+			}
+		} break;
+		case ( LeUiEvent::Type::eCursorPosition ): {
+			auto &e         = event.cursorPosition;
+			self->mouse_pos = glm::vec2{ e.x, e.y };
+			break;
+		}
+		default:
+			// do nothing
+			break;
+		}
+	}
+
+	if ( wantsToggle ) {
+		self->window.toggleFullscreen();
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -103,6 +157,10 @@ static bool quad_template_app_update( quad_template_app_o *self ) {
 	if ( self->window.shouldClose() ) {
 		return false;
 	}
+
+	// Process user interface events such as mouse, keyboard
+	app_process_ui_events( self );
+
 
 	le::RenderModule mainModule{};
 	{
