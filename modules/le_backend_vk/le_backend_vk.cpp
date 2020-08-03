@@ -3951,6 +3951,9 @@ static void debug_print_command( void *&cmd ) {
                 case (le::CommandType::eBuildRtxTlas): std::cout << "eBuildRtxTlas"; break;
                 case (le::CommandType::eBuildRtxBlas): std::cout << "eBuildRtxBlas"; break;
 			    case (le::CommandType::eWriteToImage): std::cout << "eWriteToImage"; break;
+                case(le::CommandType::eDrawMeshTasks): std::cout << "eDrawMeshTasks"; break;
+                case(le::CommandType::eTraceRays): std::cout << "eTraceRays"; break;
+                case(le::CommandType::eSetArgumentTlas): std::cout << "eSetArgumentTlas"; break;
 			}
 	// clang-format on
 
