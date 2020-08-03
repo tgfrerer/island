@@ -66,8 +66,6 @@ ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value );
 		LE_MODULE_LOAD_STATIC( x )
 #endif
 
-#ifdef __cplusplus
-
 // Callback forwarding is a technique for hiding target address changes
 // from libraries which trigger callbacks.
 // This is dependent on low-level implementation details, and therefore
@@ -77,8 +75,7 @@ ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value );
 // Read more about callback forwarding here:
 // <https://poniesandlight.co.uk/reflect/callbacks_and_hot_reloading/>
 //
-#	ifdef LE_CALLBACK_FORWARDING_ENABLED
-
+#if !defined( NDEBUG ) && defined( __x86_64__ )
 /// return: immovable function pointer which can be used as callback, even with hot-reloading.
 ///         calls via this pointer will be forwarded to the current address of the callback
 ///         funtion, without the caller noticing anything about it.
@@ -87,16 +84,16 @@ ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value );
 ///         as callback entries. Api entries get automatically updated when an api is reloaded.
 ISL_API_ATTR void *le_core_get_callback_forwarder_addr( void *p_function_pointer );
 
-#		define le_core_forward_callback( x ) \
-			le_core_get_callback_forwarder_addr( ( void * )&x )
-#	else
+#	define le_core_forward_callback( x ) \
+		le_core_get_callback_forwarder_addr( ( void * )&x )
+#else
 
-#		define le_core_forward_callback( x ) \
-			( x )
-
-#	endif
+#	define le_core_forward_callback( x ) \
+		( x )
+#endif
 
 // ----------- c++ specific utilities
+#ifdef __cplusplus
 
 struct NoCopy {
 

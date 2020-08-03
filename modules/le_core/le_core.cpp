@@ -11,6 +11,9 @@
 #include <assert.h>
 #include <atomic>
 #include <algorithm>
+#include <sys/mman.h>
+#include <string.h> // for memcpy
+#include <unistd.h>
 
 struct ApiStore {
 	std::vector<std::string> names{};      // Api names (used for debugging)
@@ -265,38 +268,119 @@ ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value ) {
 	return "<< Argument name could not be resolved. >>";
 }
 
-// ----------------------------------------------------------------------
+// callback forwarding --------------------------------------------------
 
-// Maximum number of available callback forwarders.
-// Note: run `python create_sled.py > sled.asm` after changing.
-#define CORE_MAX_CALLBACK_FORWARDERS 32
+#if !defined( NDEBUG ) && defined( __x86_64__ )
 
-void *                target_func_addr[ CORE_MAX_CALLBACK_FORWARDERS ] = {};
-std::atomic<uint32_t> USED_CALLBACK_FORWARDERS                         = 0;
+static size_t const PAGE_SIZE = sysconf( _SC_PAGESIZE );
+// Maximum number of available callback forwarders. we can add more if needed
+// by adding extra pages of 'plt' tables and and offset tables.
+static size_t const CORE_MAX_CALLBACK_FORWARDERS = PAGE_SIZE / 16;
 
-// clang-format off
-extern "C" void trampoline_func() {
+/// Callback forwarding works via a virtual plt/got table:
+///
+/// First, we allocate two pages, a top page and a bottom page.
+/// The top page contains trampoline functions. Each trampoline
+/// function entry is identical. Each has a corresponding got entry
+/// which is addressed rip-relative.
+///
+/// The top page with the trampoline entries has execution permissions,
+/// but is set to have no write permissions once the two pages have
+/// been initialised.
+///
+/// Since we make sure that each entry in the plt table is 16 bytes
+/// in size, and each entry has the exact same offset (of exactly one page)
+/// we can place entries in the .got at 16 byte intervals.
+///
+///
+///     | plt entry   (9 Bytes)      xx xx xx xx xx xx xx | --.        --- top (plt) page
+///     | plt entry   (9 Bytes)      xx xx xx xx xx xx xx |   | --.
+///     | plt entry   (9 Bytes)      xx xx xx xx xx xx xx |   |   |
+///     | plt entry   (9 Bytes)      xx xx xx xx xx xx xx |   |   |
+///     | ..                                              |   |   |
+///     | got entry 0 (8 Bytes)   xx xx xx xx xx xx xx xx | <-"   |    --- bottom (got) page
+///     | got entry 1 (8 Bytes)   xx xx xx xx xx xx xx xx |     <-"
+///     | got entry 2 (8 Bytes)   xx xx xx xx xx xx xx xx |
+///     | got entry 3 (8 Bytes)   xx xx xx xx xx xx xx xx |
+///
+/// The plt page contains identical code for each plt entry.
+///
+/// It indirectly loads the jmp address pointed to in the
+/// corresponding got entry:
+///
+///     mov rax, [rip + offset] // offset is 4096-7: page_size(4096B) - this instruction size (which is 7bytes).
+///     jmp [rax]
+///
+/// Note that in the last assembly instruction $rax gets dereferenced again.
+///
+/// This means that what we want to store a fixed address of the callback
+/// function pointer in the got. Typically, this will be an entry from an
+/// api interface struct which is automatically updated when the module
+/// to which it points reloads.
+///
 
-    // What follows is a sled, which, depending on how far into it the call is entered,
-    // tells us which index to look up from the global phone directory of function
-    // pointers.
+class PltGot {
+	void * plt_got;
+	size_t plt_got_sz;
+	char * plt_page;
+	char * got_page;
 
-    // Auto-generated via the python script, see CORE_MAX_CALLBACK_FORWARDERS above
-    #include "sled.asm" 
+  public:
+	PltGot() {
+		// map plt and got page.
 
-asm( R"ASM(
-.text
-    addq    %%rbx, %%rax
-    movq    %0, %%rax
-    movq    (%%rax), %%rax
-    pop     %%rbx                   /* restore rbx register */
-    jmpq    *%%rax
-)ASM" : /* empty input operands */
-      : "m" ( target_func_addr[0] ) // note that offset into this array
-                                    // happens via sled above, which manipulates rbx register.
-    );
+		plt_got_sz = PAGE_SIZE * 2;
+		plt_got    = mmap( NULL, plt_got_sz, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0 );
+		assert( plt_got != MAP_FAILED && "Map did not succeed" );
+
+		plt_page = static_cast<char *>( plt_got );
+		got_page = plt_page + PAGE_SIZE;
+
+		// We fill the first page with trampoline thunks - this is program code.
+		// It only works for amd64 systems.
+
+		uint8_t thunk[ 16 ] = {
+		    // mov rax      , [rip + offset]
+		    0x48, 0x8b, 0x05, 0x00, 0x00, 0x00, 0x00,
+		    // jmp [rax]
+		    0xff, 0x20,
+		    // filler to 16B
+		    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
+		int32_t *offset = ( int32_t * )( thunk + 3 ); // get address of offset inside thunk
+
+		*offset = PAGE_SIZE; // set offset to one page.
+		*offset -= 7;        // as the current instruction has 7 bytes, we must subtract 7 from the offset value.
+
+		for ( size_t i = 0; i != CORE_MAX_CALLBACK_FORWARDERS; i++ ) {
+			memcpy( plt_page + 16 * i, thunk, 16 );
+		}
+
+		// now we set permissions for this page to be exec + read only.
+		// We keep read/write for the second page, as second page will
+		// contain the got, which we might want to update externally.
+
+		mprotect( plt_got, PAGE_SIZE, PROT_READ | PROT_EXEC );
+	};
+
+	void *plt_at( size_t index ) {
+		assert( index < CORE_MAX_CALLBACK_FORWARDERS && "callback plt index out of bounds" );
+		return plt_page + ( index * 16 );
+	}
+
+	void *got_at( size_t index ) {
+		assert( index < CORE_MAX_CALLBACK_FORWARDERS && "callback got index out of bounds" );
+		return got_page + ( index * 16 );
+	}
+
+	~PltGot() {
+		int result = munmap( plt_got, plt_got_sz );
+		assert( result != -1 && "unmap failed" );
+	};
 };
-// clang-format on
+
+static PltGot         CALLBACK_PLT_GOT{};
+std::atomic<uint32_t> USED_CALLBACK_FORWARDERS = 0;
 
 // ----------------------------------------------------------------------
 
@@ -307,53 +391,12 @@ void *le_core_get_callback_forwarder_addr( void *callback_addr ) {
 	// Make sure we're not overshooting
 	assert( USED_CALLBACK_FORWARDERS < CORE_MAX_CALLBACK_FORWARDERS );
 
-	target_func_addr[ current_index ] = callback_addr;
+	void *got_addr = CALLBACK_PLT_GOT.got_at( current_index );
 
-#if defined( __clang__ ) && ( defined __amd64__ )
+	// copy value of callback pointer into got table
+	memcpy( got_addr, &callback_addr, sizeof( void * ) );
 
-	// Clang will issue one type of jmp call: the 5 Bytes `e9 xx xx xx xx` type.
-	// Clang will not issue an ENDBR instruction at the beginning of the method,
-	// therefore we only need to skip 4 bytes to reach the first element of our
-	// sled.
-
-	return ( char * )&trampoline_func +
-	       ( 4 +                   // Jump over first push rbp instruction
-	         13 * current_index ); // Any entry: 13B each
-
-#elif ( defined( __GNUC__ ) || defined( __GNUG__ ) ) && ( defined __amd64__ )
-
-	// For GCC, the size of sled entry depends on how close it is placed to the
-	// `sled_end` label:
-	//
-	// GNU GCC will issue two types of jmp calls - depending on how
-	// close we are to the target of the jmp.
-	//
-	//
-	// If it is within 128 bytes, (that's the last 13 entries) it will be 10 bytes
-	// in length, all other sled entries will be 13 bytes in length.
-	// This is because the jmp instruction is 2Bytes of machine code for
-	// short jmp (`eb xx`), and 5 Bytes (`e9 xx xx xx xx` ) for near jmp.
-	//
-	// Additionally, gnu gcc will also issue an `endbr` instruction at the start
-	// of the method, meaning we will have to skip 8 bytes to reach the first element
-	// of our sled.
-
-	int num_large_jumps = 0;
-	int num_small_jumps = 0;
-
-	int start_addr = std::min( 0, 13 - CORE_MAX_CALLBACK_FORWARDERS );
-
-	int val         = start_addr + int( current_index );
-	num_large_jumps = std::max( 0, std::min( val, 0 ) - start_addr );
-	num_small_jumps = std::max( 0, val );
-
-	return ( char * )&trampoline_func +
-	       ( 8 +                     // Jump over first push rbp instruction
-	         10 * num_small_jumps +  // Last 13 entries: 10B each
-	         13 * num_large_jumps ); // Any other entry: 13B each
-#else
-	assert( false && "missing implementation of callback_forwarder_addr for this compiler." );
-#endif
+	return CALLBACK_PLT_GOT.plt_at( current_index );
 };
-
-// ----------------------------------------------------------------------
+#endif
+// end callback forwarding-----------------------------------------------
