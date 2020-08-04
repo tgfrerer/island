@@ -131,8 +131,8 @@ struct InflectionData {
 // with the important difference that our arrays are zero-indexed, so as to
 // follow the c/cpp convention.
 //
-// Note: Parameters a, b, c, d are arrays of length count. a[0], and c[n] are not used,
-// `result` must be an array of length `count`.
+// Note: Parameters a, b, c, d are arrays of length `count`. a[0], and c[n]
+// are not used, `result` must be an array of length `count`.
 //
 template <typename T>
 inline static void thomas( T const *a, T const *b, T const *c, T const *d, size_t const count, T *result ) {
