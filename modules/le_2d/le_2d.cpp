@@ -31,9 +31,10 @@ struct le_2d_o {
 };
 
 struct node_data_t {
+	// application order: t,r,s
 	vec2f translation{ 0 }; //x,y
-	float ccw_rotation = 0; // rotation in ccw around z axis, anchored at position
 	vec2f scale{ 1 };
+	float rotation_ccw = 0; // rotation in ccw around z axis, around point at translation
 };
 
 struct material_data_t {
@@ -738,7 +739,7 @@ static le_2d_primitive_o *le_2d_allocate_primitive( le_2d_o *self ) {
 
 	p->node.scale        = vec2f{ 1 };
 	p->node.translation  = vec2f{ 0 };
-	p->node.ccw_rotation = 0;
+	p->node.rotation_ccw = 0;
 
 	p->material.color            = 0xffffffff;
 	p->material.stroke_weight    = 1.f;

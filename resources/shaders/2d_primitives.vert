@@ -12,7 +12,6 @@ layout (set = 0, binding = 0) uniform Mvp
 // inputs (vertex attributes)
 layout (location = 0) in vec2 inPos;
 layout (location = 1) in vec2 inTexCoord;
-layout (location = 2) in vec4 inColor;
 
 // outputs 
 layout (location = 0) out vec4 outColor;
@@ -28,6 +27,6 @@ out gl_PerVertex
 void main()
 {
 	outTexCoord = inTexCoord;
-	outColor = inColor;
+	outColor = vec4(1);
 	gl_Position = modelViewProjectionMatrix * vec4(inPos,0,1);
 }
