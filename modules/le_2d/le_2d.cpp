@@ -31,9 +31,9 @@ struct le_2d_o {
 };
 
 struct node_data_t {
-	vec2f origin;           //x,y
+	vec2f translation{ 0 }; //x,y
 	float ccw_rotation = 0; // rotation in ccw around z axis, anchored at position
-	float scale{ 1 };
+	vec2f scale{ 1 };
 };
 
 struct material_data_t {
@@ -55,10 +55,10 @@ struct ellipse_data_t {
 };
 
 struct arc_data_t {
-	glm::vec2 radii; // radius x, radius y
-	float     angle_start_rad;
-	float     angle_end_rad;
-	float     tolerance;
+	vec2f radii; // radius x, radius y
+	float angle_start_rad;
+	float angle_end_rad;
+	float tolerance;
 };
 
 struct path_data_t {
@@ -657,7 +657,7 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 
 	encoder
 	    .bindGraphicsPipeline( pipeline )
-	    .setLineWidth( 1.5f );
+	    .setLineWidth( 1.0f );
 
 	// Calculate view projection matrix
 	// for 2D, this will be a simple orthographic projection, which means that the view matrix
@@ -736,8 +736,8 @@ static void le_2d_destroy( le_2d_o *self ) {
 static le_2d_primitive_o *le_2d_allocate_primitive( le_2d_o *self ) {
 	le_2d_primitive_o *p = new le_2d_primitive_o();
 
-	p->node.scale        = 1;
-	p->node.origin       = {};
+	p->node.scale        = vec2f{ 1 };
+	p->node.translation  = vec2f{ 0 };
 	p->node.ccw_rotation = 0;
 
 	p->material.color            = 0xffffffff;
@@ -911,7 +911,7 @@ static void le_2d_primitive_path_set_tolerance( le_2d_primitive_o *p, float tole
 // ----------------------------------------------------------------------
 
 static void le_2d_primitive_set_node_position( le_2d_primitive_o *p, vec2f const *pos ) {
-	p->node.origin = *pos;
+	p->node.translation = *pos;
 }
 
 static void le_2d_primitive_set_stroke_weight( le_2d_primitive_o *p, float weight ) {
