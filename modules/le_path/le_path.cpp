@@ -2770,16 +2770,16 @@ static void le_path_ellipse( le_path_o *self, glm::vec2 const *centre, float r_x
 	glm::vec2 a0 = *centre + glm::vec2{ r_x, 0 };
 	le_path_move_to( self, &a0 );
 
-	glm::vec2 a1 = *centre + glm::vec2{ 0, r_y };
-	le_path_arc_to( self, &a1, &radii, 0, true, false );
+	glm::vec2 a1 = *centre + glm::vec2{ 0, -r_y };
+	le_path_arc_to( self, &a1, &radii, 0, false, false );
 
 	glm::vec2 a2 = *centre + glm::vec2{ -r_x, 0 };
-	le_path_arc_to( self, &a2, &radii, 0, true, false );
+	le_path_arc_to( self, &a2, &radii, 0, false, false );
 
-	glm::vec2 a3 = *centre + glm::vec2{ 0, -r_y };
-	le_path_arc_to( self, &a3, &radii, 0, true, false );
+	glm::vec2 a3 = *centre + glm::vec2{ 0, r_y };
+	le_path_arc_to( self, &a3, &radii, 0, false, false );
 
-	le_path_arc_to( self, &a0, &radii, 0, true, false );
+	le_path_arc_to( self, &a0, &radii, 0, false, false );
 
 	le_path_close_path( self );
 }
