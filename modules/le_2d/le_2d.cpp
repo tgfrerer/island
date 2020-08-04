@@ -611,33 +611,6 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 	}
 }
 
-static void le_2d_draw_primitive( le_command_buffer_encoder_o *encoder_, le_2d_primitive_o *p, glm::mat4 const &v_p_matrix ) {
-
-	std::vector<VertexData2D> geometry;
-
-	generate_geometry_for_primitive( p, geometry );
-
-	if ( geometry.empty() ) {
-		return;
-	}
-
-	// --------| Invariant: there is geometry to draw
-
-	le::Encoder encoder{ encoder_ };
-
-	// We must apply the primitive node's transform.
-
-	glm::mat4 local_transform{ 1 }; // identity matrix
-
-	local_transform = glm::translate( local_transform, { p->node.origin.x, p->node.origin.y, 0.f } );
-	local_transform = v_p_matrix * local_transform;
-
-	encoder
-	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &local_transform, sizeof( glm::mat4 ) )
-	    .setVertexData( geometry.data(), sizeof( VertexData2D ) * geometry.size(), 0 )
-	    .draw( uint32_t( geometry.size() ) );
-}
-
 // ----------------------------------------------------------------------
 
 static void le_2d_draw_primitives( le_2d_o const *self ) {
@@ -705,7 +678,28 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 	}
 
 	for ( auto &p : self->primitives ) {
-		le_2d_draw_primitive( self->encoder, p, ortho_projection );
+
+		std::vector<VertexData2D> geometry;
+
+		generate_geometry_for_primitive( p, geometry );
+
+		if ( geometry.empty() ) {
+			return;
+		}
+
+		// --------| Invariant: there is geometry to draw
+
+		// We must apply the primitive node's transform.
+
+		glm::mat4 local_transform{ 1 }; // identity matrix
+
+		local_transform = glm::translate( local_transform, { p->node.translation.x, p->node.translation.y, 0.f } );
+		local_transform = ortho_projection * local_transform;
+
+		encoder
+		    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &local_transform, sizeof( glm::mat4 ) )
+		    .setVertexData( geometry.data(), sizeof( VertexData2D ) * geometry.size(), 0 )
+		    .draw( uint32_t( geometry.size() ) );
 	}
 }
 
