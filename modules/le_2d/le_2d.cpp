@@ -38,11 +38,11 @@ struct node_data_t {
 };
 
 struct material_data_t {
-	uint32_t       color;
 	StrokeCapType  stroke_cap_type;
 	StrokeJoinType stroke_join_type;
 	float          stroke_weight;
-	bool           filled;
+	uint32_t       filled; // used as boolean
+	uint32_t       color;
 };
 
 struct circle_data_t {
@@ -84,7 +84,6 @@ struct le_2d_primitive_o {
 	};
 
 	Type            type;
-	node_data_t     node;
 	material_data_t material;
 
 	union {
@@ -93,8 +92,9 @@ struct le_2d_primitive_o {
 		arc_data_t     as_arc;
 		line_data_t    as_line;
 		path_data_t    as_path;
+	} data = {};
 
-	} data;
+	node_data_t node;
 };
 
 // ----------------------------------------------------------------------
@@ -118,12 +118,19 @@ struct Mvp {
 struct VertexData2D {
 	glm::vec2 pos;
 	glm::vec2 texCoord;
+};
+
+// per-instance data for a primitive
+struct InstanceData2D {
+	glm::vec2 scale;
+	glm::vec2 translation;
+	float     rotation_ccw;
 	uint32_t  color;
 };
 
 // ----------------------------------------------------------------------
 
-static void generate_geometry_line( std::vector<VertexData2D> &geometry, glm::vec2 const &p0, glm::vec2 const &p1, float thickness, uint32_t colour ) {
+static void generate_geometry_line( std::vector<VertexData2D> &geometry, glm::vec2 const &p0, glm::vec2 const &p1, float thickness ) {
 	if ( p0 == p1 ) {
 		// return empty if line cannot be generated.
 		return;
@@ -141,18 +148,18 @@ static void generate_geometry_line( std::vector<VertexData2D> &geometry, glm::ve
 
 	off *= 0.5f * thickness; // scale line by thickness
 
-	geometry.push_back( { p0 + off, { 0.f, 0.f }, colour } );
-	geometry.push_back( { p0 - off, { 0.f, 1.f }, colour } );
-	geometry.push_back( { p1 + off, { 1.f, 0.f }, colour } );
+	geometry.push_back( { p0 + off, { 0.f, 0.f } } );
+	geometry.push_back( { p0 - off, { 0.f, 1.f } } );
+	geometry.push_back( { p1 + off, { 1.f, 0.f } } );
 
-	geometry.push_back( { p0 - off, { 0.f, 1.f }, colour } );
-	geometry.push_back( { p1 - off, { 1.f, 1.f }, colour } );
-	geometry.push_back( { p1 + off, { 1.f, 0.f }, colour } );
+	geometry.push_back( { p0 - off, { 0.f, 1.f } } );
+	geometry.push_back( { p1 - off, { 1.f, 1.f } } );
+	geometry.push_back( { p1 + off, { 1.f, 0.f } } );
 }
 
 // ----------------------------------------------------------------------
 
-static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, float thickness, float tolerance, uint32_t colour ) {
+static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, float thickness, float tolerance ) {
 
 	if ( std::numeric_limits<float>::epsilon() > angle_end_rad - angle_start_rad ) {
 		return;
@@ -204,13 +211,13 @@ static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, 
 		glm::vec2 p1_far  = n * radii + p1_perp * offset;
 		glm::vec2 p1_near = n * radii - p1_perp * offset;
 
-		geometry.push_back( { p0_far, { 0.f, 0.f }, colour } );
-		geometry.push_back( { p0_near, { 0.f, 1.f }, colour } );
-		geometry.push_back( { p1_far, { 1.f, 0.f }, colour } );
+		geometry.push_back( { p0_far, { 0.f, 0.f } } );
+		geometry.push_back( { p0_near, { 0.f, 1.f } } );
+		geometry.push_back( { p1_far, { 1.f, 0.f } } );
 
-		geometry.push_back( { p0_near, { 0.f, 1.f }, colour } );
-		geometry.push_back( { p1_near, { 1.f, 1.f }, colour } );
-		geometry.push_back( { p1_far, { 1.f, 0.f }, colour } );
+		geometry.push_back( { p0_near, { 0.f, 1.f } } );
+		geometry.push_back( { p1_near, { 1.f, 1.f } } );
+		geometry.push_back( { p1_far, { 1.f, 0.f } } );
 
 		std::swap( p0_far, p1_far );
 		std::swap( p0_near, p1_near );
@@ -223,14 +230,13 @@ static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, 
 
 // ----------------------------------------------------------------------
 
-static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, float tolerance, uint32_t color ) {
+static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, float tolerance ) {
 
 	// --------| invariant: It should be possible to generate circle geometry.
 
 	VertexData2D v_c{};
 	v_c.pos      = { 0.f, 0.f };
 	v_c.texCoord = { 0.5, 0.5 };
-	v_c.color    = color;
 
 	float     arc_angle = angle_start_rad;
 	glm::vec2 n{ cosf( arc_angle ), sinf( arc_angle ) };
@@ -238,7 +244,6 @@ static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, floa
 	VertexData2D v{};
 	v.pos      = radii * n;
 	v.texCoord = glm::vec2{ 0.5, 0.5 } + 0.5f * n;
-	v.color    = color;
 
 	for ( int i = 0; i != 1000; ++i ) {
 
@@ -292,8 +297,7 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 	using namespace le_path;
 
-	float    stroke_weight = material.stroke_weight;
-	uint32_t color         = material.color;
+	float stroke_weight = material.stroke_weight;
 
 	if ( stroke_weight < 2.f ) {
 
@@ -311,7 +315,7 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 			auto const *p_prev = vertices.data();
 			for ( size_t j = 1; j != num_used_vertices; ++j ) {
 				glm::vec2 const *p_cur = vertices.data() + j;
-				generate_geometry_line( geometry, *p_prev, *p_cur, stroke_weight, color );
+				generate_geometry_line( geometry, *p_prev, *p_cur, stroke_weight );
 				p_prev = p_cur;
 			}
 		}
@@ -354,7 +358,7 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 				for ( size_t j = 1; j != all_vertices.size(); ++j ) {
 					glm::vec2 const p_cur = all_vertices[ j ];
-					generate_geometry_line( geometry, p_prev, p_cur, 2.f, color );
+					generate_geometry_line( geometry, p_prev, p_cur, 2.f );
 					p_prev = p_cur;
 				}
 			}
@@ -411,9 +415,9 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 			// TODO: what do we want to set for tex coordinate?
 
 			for ( size_t i = 0; i + 2 < num_indices; ) {
-				geometry.push_back( { vertices[ indices[ i++ ] ], { 1, 0 }, color } );
-				geometry.push_back( { vertices[ indices[ i++ ] ], { 0, 1 }, color } );
-				geometry.push_back( { vertices[ indices[ i++ ] ], { 1, 1 }, color } );
+				geometry.push_back( { vertices[ indices[ i++ ] ], { 1, 0 } } );
+				geometry.push_back( { vertices[ indices[ i++ ] ], { 0, 1 } } );
+				geometry.push_back( { vertices[ indices[ i++ ] ], { 1, 1 } } );
 			}
 
 			le_tessellator_i.destroy( tess );
@@ -453,9 +457,9 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 					if ( r != r_end ) {
 
-						geometry.push_back( { *l_prev, { 1, 0 }, color } );
-						geometry.push_back( { *r_prev, { 0, 1 }, color } );
-						geometry.push_back( { *r, { 1, 1 }, color } );
+						geometry.push_back( { *l_prev, { 1, 0 } } );
+						geometry.push_back( { *r_prev, { 0, 1 } } );
+						geometry.push_back( { *r, { 1, 1 } } );
 
 						r_prev = r;
 						r++;
@@ -463,9 +467,9 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 					if ( l != l_end ) {
 
-						geometry.push_back( { *l_prev, { 1, 0 }, color } );
-						geometry.push_back( { *r_prev, { 0, 1 }, color } );
-						geometry.push_back( { *l, { 1, 1 }, color } );
+						geometry.push_back( { *l_prev, { 1, 0 } } );
+						geometry.push_back( { *r_prev, { 0, 1 } } );
+						geometry.push_back( { *l, { 1, 1 } } );
 
 						l_prev = l;
 						l++;
@@ -499,9 +503,9 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 				assert( num_vertices % 3 == 0 ); // vertices count must be divisible by 3
 
 				for ( ; ( v != v_end ); ) {
-					geometry.push_back( { *v++, { 1, 0 }, color } );
-					geometry.push_back( { *v++, { 0, 1 }, color } );
-					geometry.push_back( { *v++, { 1, 1 }, color } );
+					geometry.push_back( { *v++, { 1, 0 } } );
+					geometry.push_back( { *v++, { 0, 1 } } );
+					geometry.push_back( { *v++, { 1, 1 } } );
 				}
 			}
 		} break;
@@ -510,7 +514,7 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 }
 
 // Generates triangles by tessellating what's contained within path
-static void generate_geometry_path( std::vector<VertexData2D> &geometry, le_path_o *path, float tolerance, uint32_t color ) {
+static void generate_geometry_path( std::vector<VertexData2D> &geometry, le_path_o *path, float tolerance ) {
 
 	using namespace le_path;
 	using namespace le_tessellator;
@@ -551,9 +555,9 @@ static void generate_geometry_path( std::vector<VertexData2D> &geometry, le_path
 	// TODO: what do we want to set for tex coordinate?
 
 	for ( size_t i = 0; i + 2 < num_indices; ) {
-		geometry.push_back( { vertices[ indices[ i++ ] ], { 0, 0 }, color } );
-		geometry.push_back( { vertices[ indices[ i++ ] ], { 0, 0 }, color } );
-		geometry.push_back( { vertices[ indices[ i++ ] ], { 0, 0 }, color } );
+		geometry.push_back( { vertices[ indices[ i++ ] ], { 0, 0 } } );
+		geometry.push_back( { vertices[ indices[ i++ ] ], { 0, 0 } } );
+		geometry.push_back( { vertices[ indices[ i++ ] ], { 0, 0 } } );
 	}
 
 	le_tessellator_i.destroy( tess );
@@ -568,7 +572,7 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 		// generate geometry for line
 		auto const &line = p->data.as_line;
 
-		generate_geometry_line( geometry, line.p0, line.p1, p->material.stroke_weight, p->material.color );
+		generate_geometry_line( geometry, line.p0, line.p1, p->material.stroke_weight );
 
 	} break;
 	case le_2d_primitive_o::Type::eCircle: {
@@ -576,32 +580,32 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 		auto const &circle = p->data.as_circle;
 
 		if ( p->material.filled ) {
-			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), { circle.radius, circle.radius }, circle.tolerance, p->material.color );
+			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), { circle.radius, circle.radius }, circle.tolerance );
 		} else {
-			generate_geometry_outline_arc( geometry, 0, glm::two_pi<float>(), { circle.radius, circle.radius }, p->material.stroke_weight, circle.tolerance, p->material.color );
+			generate_geometry_outline_arc( geometry, 0, glm::two_pi<float>(), { circle.radius, circle.radius }, p->material.stroke_weight, circle.tolerance );
 		}
 
 	} break;
 	case le_2d_primitive_o::Type::eEllipse: {
 		auto const &ellipse = p->data.as_ellipse;
 		if ( p->material.filled ) {
-			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), ellipse.radii, ellipse.tolerance, p->material.color );
+			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), ellipse.radii, ellipse.tolerance );
 		} else {
-			generate_geometry_outline_arc( geometry, 0, glm::two_pi<float>(), ellipse.radii, p->material.stroke_weight, ellipse.tolerance, p->material.color );
+			generate_geometry_outline_arc( geometry, 0, glm::two_pi<float>(), ellipse.radii, p->material.stroke_weight, ellipse.tolerance );
 		}
 	} break;
 	case le_2d_primitive_o::Type::eArc: {
 		auto const &arc = p->data.as_arc;
 		if ( p->material.filled ) {
-			generate_geometry_ellipse( geometry, arc.angle_start_rad, arc.angle_end_rad, arc.radii, arc.tolerance, p->material.color );
+			generate_geometry_ellipse( geometry, arc.angle_start_rad, arc.angle_end_rad, arc.radii, arc.tolerance );
 		} else {
-			generate_geometry_outline_arc( geometry, arc.angle_start_rad, arc.angle_end_rad, arc.radii, p->material.stroke_weight, arc.tolerance, p->material.color );
+			generate_geometry_outline_arc( geometry, arc.angle_start_rad, arc.angle_end_rad, arc.radii, p->material.stroke_weight, arc.tolerance );
 		}
 	} break;
 	case le_2d_primitive_o::Type::ePath: {
 		auto const &path = p->data.as_path;
 		if ( p->material.filled ) {
-			generate_geometry_path( geometry, path.path, path.tolerance, p->material.color );
+			generate_geometry_path( geometry, path.path, path.tolerance );
 		} else {
 			generate_geometry_outline_path( geometry, path.path, path.tolerance, p->material );
 		}
@@ -638,7 +642,6 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 	                .setInputRate( le_vertex_input_rate::ePerVertex )
 	                .addAttribute( offsetof( VertexData2D, pos ), le_num_type::eF32, 2 )
 	                .addAttribute( offsetof( VertexData2D, texCoord ), le_num_type::eF32, 2 )
-	                .addAttribute( offsetof( VertexData2D, color ), le_num_type::eU8, 4, true )
 	            .end()
 	        .end()
 			.withRasterizationState()
