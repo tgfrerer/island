@@ -6,6 +6,9 @@ depends_on_island_module(le_tessellator)
 set (SOURCES "le_2d.cpp")
 set (SOURCES ${SOURCES} "le_2d.h")
 
+set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.cpp")
+set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.h")
+
 if (${PLUGINS_DYNAMIC})
 
     add_library(${TARGET} SHARED ${SOURCES})

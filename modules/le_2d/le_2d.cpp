@@ -1,5 +1,6 @@
 #include "le_2d.h"
 #include "le_core/le_core.h"
+#include "3rdparty/src/spooky/SpookyV2.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -11,6 +12,8 @@
 #include <iomanip>
 #include <vector>
 #include <algorithm>
+#include <atomic>
+#include <string.h> // for memset, memcpy
 
 #include "le_renderer/le_renderer.h"
 
@@ -38,11 +41,11 @@ struct node_data_t {
 };
 
 struct material_data_t {
-	StrokeCapType  stroke_cap_type;
-	StrokeJoinType stroke_join_type;
-	float          stroke_weight;
-	uint32_t       filled; // used as boolean
-	uint32_t       color;
+	StrokeCapType  stroke_cap_type;  // hashed
+	StrokeJoinType stroke_join_type; // hashed
+	float          stroke_weight;    // hashed
+	uint32_t       filled;           // hashed, used as boolean
+	uint32_t       color;            // *not* hashed
 };
 
 struct circle_data_t {
@@ -83,8 +86,7 @@ struct le_2d_primitive_o {
 		ePath,
 	};
 
-	Type            type;
-	material_data_t material;
+	Type type;
 
 	union {
 		circle_data_t  as_circle;
@@ -92,10 +94,25 @@ struct le_2d_primitive_o {
 		arc_data_t     as_arc;
 		line_data_t    as_line;
 		path_data_t    as_path;
+		char           as_data[ 24 ];
 	} data = {};
 
+	material_data_t material;
+
 	node_data_t node;
+
+	uint64_t hash;
 };
+
+void le_2d_primitive_update_hash( le_2d_primitive_o *obj ) {
+	// We can hash everything until `material.color` in one go, as
+	// the top of the struct is tightly packed.
+	//
+	// Every primive is zero-initialised, meaning unused bytes in
+	// `le_2d_primitive_o.data` are initialised to zero, and the hash is
+	// therefore predictable.
+	obj->hash = SpookyHash::Hash32( &obj->type, offsetof( le_2d_primitive_o, material.color ), 0 );
+}
 
 // ----------------------------------------------------------------------
 
@@ -121,9 +138,9 @@ struct VertexData2D {
 };
 
 // per-instance data for a primitive
-struct InstanceData2D {
-	glm::vec2 scale;
+struct PrimitiveInstanceData2D {
 	glm::vec2 translation;
+	glm::vec2 scale;
 	float     rotation_ccw;
 	uint32_t  color;
 };
@@ -617,8 +634,8 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 }
 
 // ----------------------------------------------------------------------
-
-static void le_2d_draw_primitives( le_2d_o const *self ) {
+// internal method, only triggered if le_2d is destroyed.
+static void le_2d_draw_primitives( le_2d_o *self ) {
 
 	/* We might want to do some sorting, and optimising here
 	 * Sort by pipeline for example. Also, issue draw commands
@@ -643,6 +660,13 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 	                .addAttribute( offsetof( VertexData2D, pos ), le_num_type::eF32, 2 )
 	                .addAttribute( offsetof( VertexData2D, texCoord ), le_num_type::eF32, 2 )
 	            .end()
+                .addBinding(sizeof(PrimitiveInstanceData2D))
+                    .setInputRate(le_vertex_input_rate::ePerInstance)
+                    .addAttribute( offsetof( PrimitiveInstanceData2D, translation), le_num_type::eF32, 2)
+                    .addAttribute( offsetof( PrimitiveInstanceData2D, scale), le_num_type::eF32, 2)
+                    .addAttribute( offsetof( PrimitiveInstanceData2D, rotation_ccw), le_num_type::eF32, 1 )
+                    .addAttribute( offsetof( PrimitiveInstanceData2D, color), le_num_type::eU32, 1 )
+                .end()
 	        .end()
 			.withRasterizationState()
 //				.setPolygonMode(le::PolygonMode::eLine)
@@ -681,29 +705,98 @@ static void le_2d_draw_primitives( le_2d_o const *self ) {
 		encoder.setViewports( 0, 1, viewports + 1 );
 	}
 
+	encoder
+	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &ortho_projection, sizeof( glm::mat4 ) );
+
+	// Update sort key for all primitives
+
 	for ( auto &p : self->primitives ) {
+		le_2d_primitive_update_hash( p );
+	}
 
-		std::vector<VertexData2D> geometry;
+	// Now, we do essentially run-length encoding.
 
-		generate_geometry_for_primitive( p, geometry );
+	std::vector<std::vector<VertexData2D>> geometry_data;
+	std::vector<PrimitiveInstanceData2D>   per_instance_data;
+	per_instance_data.reserve( self->primitives.size() );
 
-		if ( geometry.empty() ) {
-			return;
+	struct InstancedDraw {
+		uint32_t geometry_data_index; // which geometry
+		uint32_t instance_data_index; // first index for instance data
+		uint32_t instance_count;      // number of instances with same geometry
+	};
+
+	std::vector<InstancedDraw> instanced_draws;
+
+	uint32_t previous_hash = 0;
+
+	for ( auto const &p : self->primitives ) {
+
+		if ( instanced_draws.empty() ) {
+
+			std::vector<VertexData2D> geometry;
+
+			generate_geometry_for_primitive( p, geometry );
+			geometry_data.emplace_back( geometry );
+
+			PrimitiveInstanceData2D instance_data{};
+			instance_data.color        = p->material.color;
+			instance_data.rotation_ccw = p->node.rotation_ccw;
+			instance_data.scale        = p->node.scale;
+			instance_data.translation  = p->node.translation;
+
+			per_instance_data.emplace_back( instance_data );
+
+			instanced_draws.push_back( { 0, 0, 1 } );
+			previous_hash = p->hash;
+			continue;
 		}
 
-		// --------| Invariant: there is geometry to draw
+		uint32_t hash = p->hash;
 
-		// We must apply the primitive node's transform.
+		if ( hash != previous_hash ) {
 
-		glm::mat4 local_transform{ 1 }; // identity matrix
+			instanced_draws.push_back( { uint32_t( geometry_data.size() ),
+			                             uint32_t( per_instance_data.size() ),
+			                             1 } );
+			// geometry has changed.
 
-		local_transform = glm::translate( local_transform, { p->node.translation.x, p->node.translation.y, 0.f } );
-		local_transform = ortho_projection * local_transform;
+			std::vector<VertexData2D> geometry;
+
+			generate_geometry_for_primitive( p, geometry );
+			geometry_data.emplace_back( geometry );
+
+			PrimitiveInstanceData2D instance_data{};
+			instance_data.color        = p->material.color;
+			instance_data.rotation_ccw = p->node.rotation_ccw;
+			instance_data.scale        = p->node.scale;
+			instance_data.translation  = p->node.translation;
+
+			per_instance_data.emplace_back( instance_data );
+
+			previous_hash = hash;
+		} else {
+
+			PrimitiveInstanceData2D instance_data{};
+			instance_data.color        = p->material.color;
+			instance_data.rotation_ccw = p->node.rotation_ccw;
+			instance_data.scale        = p->node.scale;
+			instance_data.translation  = p->node.translation;
+
+			per_instance_data.emplace_back( instance_data );
+
+			instanced_draws.back().instance_count++;
+		}
+	}
+
+	for ( auto &d : instanced_draws ) {
+
+		auto &geom = geometry_data[ d.geometry_data_index ];
 
 		encoder
-		    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &local_transform, sizeof( glm::mat4 ) )
-		    .setVertexData( geometry.data(), sizeof( VertexData2D ) * geometry.size(), 0 )
-		    .draw( uint32_t( geometry.size() ) );
+		    .setVertexData( geom.data(), sizeof( VertexData2D ) * geom.size(), 0 )
+		    .setVertexData( per_instance_data.data() + d.instance_data_index, d.instance_count * sizeof( PrimitiveInstanceData2D ), 1 )
+		    .draw( uint32_t( geom.size() ), d.instance_count );
 	}
 }
 
@@ -740,6 +833,7 @@ static void le_2d_destroy( le_2d_o *self ) {
 static le_2d_primitive_o *le_2d_allocate_primitive( le_2d_o *self ) {
 	le_2d_primitive_o *p = new le_2d_primitive_o();
 
+	p->hash              = 0;
 	p->node.scale        = vec2f{ 1 };
 	p->node.translation  = vec2f{ 0 };
 	p->node.rotation_ccw = 0;
@@ -749,6 +843,8 @@ static le_2d_primitive_o *le_2d_allocate_primitive( le_2d_o *self ) {
 	p->material.filled           = false;
 	p->material.stroke_cap_type  = StrokeCapType::eStrokeCapRound;
 	p->material.stroke_join_type = StrokeJoinType::eStrokeJoinRound;
+
+	memset( p->data.as_data, 0, sizeof( p->data ) );
 
 	self->primitives.push_back( p );
 
