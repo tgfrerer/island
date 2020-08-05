@@ -117,6 +117,13 @@ struct le_renderer_api {
 	};
 
 	struct command_buffer_encoder_interface_t {
+
+        /// Used to optionally capture transient binding state from command buffers
+        struct buffer_binding_info_o {
+             le_resource_handle_t resource;
+   	         uint64_t             offset;
+        };
+
 		le_command_buffer_encoder_o *( *create                 )( le_allocator_o **allocator, le_pipeline_manager_o* pipeline_cache, le_staging_allocator_o* stagingAllocator, le::Extent2D const& extent );
 		void                         ( *destroy                )( le_command_buffer_encoder_o *obj );
 
@@ -136,9 +143,8 @@ struct le_renderer_api {
 		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, le_resource_handle_t const bufferId, uint64_t offset, le::IndexType const & indexType);
 		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, le_resource_handle_t const * pBufferId, uint64_t const * pOffsets );
 
-		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, le::IndexType const & indexType );
-		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint32_t bindingIndex );
-
+		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, le::IndexType const & indexType, buffer_binding_info_o* optional_binding_info_readback );
+		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint32_t bindingIndex, buffer_binding_info_o* optional_transient_binding_info_readback );
 		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, size_t offset, void const* data, size_t numBytes);
 		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, le_write_to_image_settings_t const & writeInfo, void const *data, size_t numBytes );
 
@@ -153,7 +159,7 @@ struct le_renderer_api {
 		void                         ( *set_argument_tlas      )( le_command_buffer_encoder_o *self, le_resource_handle_t const tlasId, uint64_t argumentName, uint64_t arrayIndex);
 
 		void 						 ( *build_rtx_blas         )( le_command_buffer_encoder_o *self, le_resource_handle_t const* const blas_handles, const uint32_t handles_count);
-        // one blas handle per instance
+        // one blas handle per rtx geometry instance
 		void 						 ( *build_rtx_tlas         )( le_command_buffer_encoder_o *self, le_resource_handle_t const* tlas_handle, le_rtx_geometry_instance_t const * instances, le_resource_handle_t const * blas_handles, uint32_t instances_count);
         
         le_shader_binding_table_o*   ( *build_sbt              )(le_command_buffer_encoder_o* self, le_rtxpso_handle pipeline);
@@ -626,15 +632,15 @@ class Encoder {
 
 	/// \brief Set index data directly by uploading data via GPU scratch buffer
 	/// \note if either `data == nullptr`, or numBytes == 0, this method call has no effect.
-	Encoder &setIndexData( void const *data, uint64_t const &numBytes, IndexType const &indexType = IndexType::eUint16 ) {
-		le_renderer::encoder_i.set_index_data( self, data, numBytes, indexType );
+	Encoder &setIndexData( void const *data, uint64_t const &numBytes, IndexType const &indexType = IndexType::eUint16, le_renderer_api::command_buffer_encoder_interface_t::buffer_binding_info_o *transient_buffer_info_readback = nullptr ) {
+		le_renderer::encoder_i.set_index_data( self, data, numBytes, indexType, transient_buffer_info_readback );
 		return *this;
 	}
 
 	/// \brief Set vertex data directly by uploading data via GPU scratch buffer
 	/// \note if either `data == nullptr`, or numBytes == 0, this method call has no effect.
-	Encoder &setVertexData( void const *data, uint64_t const &numBytes, uint32_t const &bindingIndex ) {
-		le_renderer::encoder_i.set_vertex_data( self, data, numBytes, bindingIndex );
+	Encoder &setVertexData( void const *data, uint64_t const &numBytes, uint32_t const &bindingIndex, le_renderer_api::command_buffer_encoder_interface_t::buffer_binding_info_o *transient_buffer_info_readback = nullptr ) {
+		le_renderer::encoder_i.set_vertex_data( self, data, numBytes, bindingIndex, transient_buffer_info_readback );
 		return *this;
 	}
 

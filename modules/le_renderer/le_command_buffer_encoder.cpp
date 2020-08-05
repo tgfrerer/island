@@ -307,10 +307,11 @@ static void cbe_bind_index_buffer( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_vertex_data( le_command_buffer_encoder_o *self,
-                                 void const *                 data,
-                                 uint64_t                     numBytes,
-                                 uint32_t                     bindingIndex ) {
+static void cbe_set_vertex_data( le_command_buffer_encoder_o *                                               self,
+                                 void const *                                                                data,
+                                 uint64_t                                                                    numBytes,
+                                 uint32_t                                                                    bindingIndex,
+                                 le_renderer_api::command_buffer_encoder_interface_t::buffer_binding_info_o *readback ) {
 
 	// -- Allocate data on scratch buffer
 	// -- Upload data via scratch allocator
@@ -335,6 +336,12 @@ static void cbe_set_vertex_data( le_command_buffer_encoder_o *self,
 		le_resource_handle_t allocatorBufferId = le_allocator_linear_i.get_le_resource_id( allocator );
 
 		cbe_bind_vertex_buffers( self, bindingIndex, 1, &allocatorBufferId, &bufferOffset );
+
+		if ( readback ) {
+			readback->offset   = bufferOffset;
+			readback->resource = allocatorBufferId;
+		}
+
 	} else {
 		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl
 		          << std::flush;
@@ -343,10 +350,11 @@ static void cbe_set_vertex_data( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_index_data( le_command_buffer_encoder_o *self,
-                                void const *                 data,
-                                uint64_t                     numBytes,
-                                le::IndexType const &        indexType ) {
+static void cbe_set_index_data( le_command_buffer_encoder_o *                                               self,
+                                void const *                                                                data,
+                                uint64_t                                                                    numBytes,
+                                le::IndexType const &                                                       indexType,
+                                le_renderer_api::command_buffer_encoder_interface_t::buffer_binding_info_o *readback ) {
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
 
@@ -370,6 +378,12 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *self,
 
 		// -- Bind index buffer to scratch allocator
 		cbe_bind_index_buffer( self, allocatorBufferId, bufferOffset, indexType );
+
+		if ( readback ) {
+			readback->offset   = bufferOffset;
+			readback->resource = allocatorBufferId;
+		}
+
 	} else {
 		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl
 		          << std::flush;
