@@ -650,6 +650,20 @@ static void blend_attachment_state_use_preset( le_graphics_pipeline_builder_o *s
 		    ;
 
 	} break;
+	case le::AttachmentBlendPreset::eMultiply: {
+
+		self->obj->data.blendAttachmentStates[ which_attachment ]
+		    .setBlendEnable( VK_TRUE )
+		    .setColorBlendOp( vk::BlendOp::eAdd )
+		    .setSrcColorBlendFactor( vk::BlendFactor::eDstColor )
+		    .setDstColorBlendFactor( vk::BlendFactor::eOneMinusSrcAlpha ) //
+		    .setColorWriteMask(
+		        vk::ColorComponentFlagBits::eR |
+		        vk::ColorComponentFlagBits::eG |
+		        vk::ColorComponentFlagBits::eB ) //
+		    ;
+
+	} break;
 	case le::AttachmentBlendPreset::eCopy: {
 
 		self->obj->data.blendAttachmentStates[ which_attachment ]

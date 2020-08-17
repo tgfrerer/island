@@ -496,6 +496,7 @@ enum class BlendOp : uint32_t {
 enum class AttachmentBlendPreset : uint32_t {
 	ePremultipliedAlpha = 0,
 	eAdd,
+	eMultiply,
 	eCopy,
 };
 
