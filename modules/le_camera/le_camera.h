@@ -42,7 +42,7 @@ struct le_camera_api {
 		le::Viewport const & ( * get_viewport         ) ( le_camera_o* self);
 		void             ( * set_fov_radians          ) ( le_camera_o* self, float fov_radians);
 		float            ( * get_fov_radians          ) ( le_camera_o* self );
-		float const *    ( * get_view_matrix          ) ( le_camera_o* self);
+		void             ( * get_view_matrix          ) ( le_camera_o* self, float * p_matrix_4x4 );
 
 #if ( ISL_ALLOW_GLM_TYPES == 1 )
 		void              (* set_view_matrix_glm       )( le_camera_o* self, glm::mat4 const & view_matrix);
@@ -50,7 +50,7 @@ struct le_camera_api {
 		glm::mat4 const & (* get_projection_matrix_glm )( le_camera_o* self);
 #endif
 
-		float const *    ( * get_projection_matrix    ) ( le_camera_o* self );
+		void             ( * get_projection_matrix    ) ( le_camera_o* self, float * p_matrix_4x4 );
 		float            ( * get_unit_distance        ) ( le_camera_o* self );
 		void             ( * set_clip_distances       ) ( le_camera_o* self, float nearClip, float farClip);
 		void             ( * get_clip_distances       ) ( le_camera_o* self, float *nearClip, float *farClip);
@@ -119,12 +119,12 @@ class LeCamera : NoMove {
 
 #	endif
 
-	float const *getViewMatrix() const {
-		return le_camera::le_camera_i.get_view_matrix( self );
+	void getViewMatrix( float *p_matrix_4x4 ) const {
+		return le_camera::le_camera_i.get_view_matrix( self, p_matrix_4x4 );
 	}
 
-	float const *getProjectionMatrix() const {
-		return le_camera::le_camera_i.get_projection_matrix( self );
+	void getProjectionMatrix( float *p_matrix_4x4 ) const {
+		return le_camera::le_camera_i.get_projection_matrix( self, p_matrix_4x4 );
 	}
 
 	void setViewMatrix( float const *viewMatrix ) {

@@ -5,6 +5,7 @@
 #include "le_ui_event/le_ui_event.h"
 
 #include <array>
+#include <string.h> // for memcpy
 
 #define GLM_ENABLE_EXPERIMENTAL
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
@@ -63,7 +64,7 @@ struct le_camera_controller_o {
 
 // ----------------------------------------------------------------------
 
-static float const *camera_get_projection_matrix( le_camera_o *self ); // ffdecl.
+static void camera_get_projection_matrix( le_camera_o *self, float p_matrix[ 16 ] );
 
 // ----------------------------------------------------------------------
 
@@ -75,12 +76,12 @@ static void update_frustum_planes( le_camera_o *self ) {
 
 	// invariant : frustum planes are dirty and must be re-calculated.
 
+	glm::mat4 pM;
+
 	if ( self->projectionMatrixDirty ) {
 		// Force recalculation of projection matrix if dirty
-		camera_get_projection_matrix( self );
+		camera_get_projection_matrix( self, &pM[ 0 ][ 0 ] );
 	}
-
-	glm::mat4 pM = self->projection_matrix;
 
 	auto fP = std::array<glm::vec4, 6>{};
 
@@ -137,8 +138,8 @@ static bool camera_get_sphere_in_frustum( le_camera_o *self, float const *pSpher
 
 // ----------------------------------------------------------------------
 
-static float const *camera_get_view_matrix( le_camera_o *self ) {
-	return reinterpret_cast<float const *>( &self->view_matrix );
+static void camera_get_view_matrix( le_camera_o *self, float *p_matrix ) {
+	memcpy( p_matrix, &self->view_matrix, sizeof( float ) * 16 );
 }
 
 // ----------------------------------------------------------------------
@@ -188,8 +189,9 @@ static glm::mat4 const &camera_get_projection_matrix_glm( le_camera_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static float const *camera_get_projection_matrix( le_camera_o *self ) {
-	return reinterpret_cast<float const *>( &camera_get_projection_matrix_glm( self ) );
+static void camera_get_projection_matrix( le_camera_o *self, float *p_matrix ) {
+	camera_get_projection_matrix_glm( self );
+	memcpy( p_matrix, &self->projection_matrix, sizeof( float ) * 16 );
 }
 
 // ----------------------------------------------------------------------
