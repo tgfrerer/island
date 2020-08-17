@@ -1569,7 +1569,6 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 			        rp.useRtxTlasResource( s.rtx_tlas_handle, { LE_RTX_TLAS_USAGE_WRITE_BIT } );
 		        }
 
-		        // TODO: figure out a way to signal that we don't need to upload/update geometries
 		        return needsUpdate;
 	        } )
 	        .setExecuteCallback( stage, []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
@@ -2008,9 +2007,9 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 				        using namespace le_camera;
 				        le_camera_i.set_viewport( camera, viewports[ 0 ] );
-				        camera_view_matrix       = le_camera_i.get_view_matrix_glm( camera );
-				        camera_projection_matrix = le_camera_i.get_projection_matrix_glm( camera );
-				        camera_world_matrix      = glm::inverse( camera_view_matrix );
+				        le_camera_i.get_view_matrix( camera, &camera_view_matrix[ 0 ][ 0 ] );
+				        le_camera_i.get_projection_matrix( camera, &camera_projection_matrix[ 0 ][ 0 ] );
+				        camera_world_matrix = glm::inverse( camera_view_matrix );
 			        }
 
 			        auto pipeline_manager = encoder.getPipelineManager();
@@ -2018,9 +2017,9 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			        // -- Create rtx pso
 			        static le_rtxpso_handle rtx_pipeline = []( le_stage_o *stage, le_pipeline_manager_o *pipeline_manager ) {
 				        auto shader_raygen      = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/raygen.rgen", { le::ShaderStage::eRaygenBitKhr }, nullptr );
+				        auto shader_closest_hit = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/closesthit.rchit", { le::ShaderStage::eClosestHitBitKhr }, nullptr );
 				        auto shader_miss        = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/miss.rmiss", { le::ShaderStage::eMissBitKhr }, nullptr );
 				        auto shader_shadow_miss = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/shadow.rmiss", { le::ShaderStage::eMissBitKhr }, nullptr );
-				        auto shader_closest_hit = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/closesthit.rchit", { le::ShaderStage::eClosestHitBitKhr }, nullptr );
 
 				        // Create rtx pipeline
 
@@ -2101,7 +2100,6 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			le_resource_info_t rtx_target_info =
 			    le::ImageInfoBuilder()
 			        .setFormat( le::Format::eR8Unorm ) // 1 byte per cell, 1024x1024 cells
-			        .setExtent( 0, 0 )                 // FIXME: size should match image size - or at least camera.
 			        .addUsageFlags( { LE_IMAGE_USAGE_STORAGE_BIT | LE_IMAGE_USAGE_SAMPLED_BIT } )
 			        .build();
 
