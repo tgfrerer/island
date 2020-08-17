@@ -51,6 +51,7 @@ struct le_graphics_pipeline_builder_data {
 	vk::PipelineMultisampleStateCreateInfo   multisampleState{};
 	vk::PipelineDepthStencilStateCreateInfo  depthStencilState{};
 
+	std::array<float, 4>                                                        blend_factor_constants{}; // only used with blend factors referencing constant color|alpha
 	std::array<vk::PipelineColorBlendAttachmentState, VK_MAX_COLOR_ATTACHMENTS> blendAttachmentStates{};
 };
 

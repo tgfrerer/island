@@ -1329,7 +1329,7 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 	    .setLogicOp( ::vk::LogicOp::eClear )
 	    .setAttachmentCount( pass.numColorAttachments )
 	    .setPAttachments( pso->data.blendAttachmentStates.data() )
-	    .setBlendConstants( { { 0.f, 0.f, 0.f, 0.f } } );
+	    .setBlendConstants( pso->data.blend_factor_constants );
 
 	// Viewport and Scissor are tracked as dynamic states, and although this object will not
 	// get used, we must still fulfill the contract of providing a valid object to vk.
