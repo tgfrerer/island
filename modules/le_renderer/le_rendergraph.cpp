@@ -841,15 +841,6 @@ static void rendergraph_build( le_rendergraph_o *self, size_t frame_number ) {
 	// Associate sort indices to tasks
 	tasks_calculate_sort_indices( tasks.data(), tasks.size(), self->sortIndices.data() );
 
-	auto printPassList = [ & ]() -> void {
-		for ( size_t i = 0; i != self->sortIndices.size(); ++i ) {
-			std::cout << "Pass: " << std::dec << std::setw( 3 ) << i << " sort order : " << std::setw( 12 ) << self->sortIndices[ i ] << " : "
-			          << self->passes[ i ]->debugName
-			          << std::endl
-			          << std::flush;
-		}
-	};
-
 #if ( DEBUG_GENERATE_DOT_GRAPH )
 	{
 		// We must check if the renderpass has somehow changed - if we detect change, save out a new .dot file.
@@ -884,6 +875,14 @@ static void rendergraph_build( le_rendergraph_o *self, size_t frame_number ) {
 #endif
 
 #if ( PRINT_DEBUG_MESSAGES )
+	auto printPassList = [ & ]() -> void {
+		for ( size_t i = 0; i != self->sortIndices.size(); ++i ) {
+			std::cout << "Pass: " << std::dec << std::setw( 3 ) << i << " sort order : " << std::setw( 12 ) << self->sortIndices[ i ] << " : "
+			          << self->passes[ i ]->debugName
+			          << std::endl
+			          << std::flush;
+		}
+	};
 	printPassList();
 #endif
 
