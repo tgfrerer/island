@@ -1032,10 +1032,11 @@ struct le_swapchain_settings_t {
 };
 
 struct le_renderer_settings_t {
-	struct le_window_o *    window = nullptr;                  // optional;
-	char const **           requested_device_extensions;       // optional
-	uint32_t                requested_device_extensions_count; //
-	le_swapchain_settings_t swapchain_settings{};
+	struct le_window_o *    window                            = nullptr; // optional;
+	char const **           requested_device_extensions       = nullptr; // optional
+	uint32_t                requested_device_extensions_count = 0;       //
+	le_swapchain_settings_t swapchain_settings[ 16 ]          = {};
+	size_t                  num_swapchain_settings            = 0;
 };
 
 // specifies parameters for an image write operation.
@@ -1061,94 +1062,105 @@ using Presentmode = le_swapchain_settings_t::khr_settings_t::Presentmode;
 		return *this;                                                               \
 	}
 
+#define P_BUILDER_IMPLEMENT( builder, method_name, param_type, param, default_value ) \
+	constexpr builder &method_name( param_type param default_value ) {                \
+		self->param = param;                                                          \
+		return *this;                                                                 \
+	}
 class RendererInfoBuilder {
-	le_renderer_settings_t  info{};
-	le_renderer_settings_t &self = info;
+	le_renderer_settings_t   info{};
+	le_renderer_settings_t & self               = info;
+	le_swapchain_settings_t *swapchain_settings = nullptr;
 
   public:
-	RendererInfoBuilder( le_window_o *window = nullptr, char const **requested_device_extensions = nullptr, uint32_t requested_device_extensions_count = 0 ) {
+	RendererInfoBuilder( le_window_o *window = nullptr, char const **requested_device_extensions = nullptr, uint32_t requested_device_extensions_count = 0 )
+	    : swapchain_settings( info.swapchain_settings ) {
 		info.window                            = window;
 		info.requested_device_extensions       = requested_device_extensions;
 		info.requested_device_extensions_count = requested_device_extensions_count;
 	}
 
 	class SwapchainInfoBuilder {
-		RendererInfoBuilder &    parent;
-		le_swapchain_settings_t &self = parent.info.swapchain_settings;
+		RendererInfoBuilder &     parent;
+		le_swapchain_settings_t *&self;
 
 	  public:
 		SwapchainInfoBuilder( RendererInfoBuilder &parent_ )
-		    : parent( parent_ ) {
+		    : parent( parent_ )
+		    , self( parent.swapchain_settings ) {
 		}
 
 		SwapchainInfoBuilder &setType( le_swapchain_settings_t::Type type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN ) {
-			self.type = type;
+			self->type = type;
 
 			switch ( type ) {
 			case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN:
-				self.khr_settings = {};
+				self->khr_settings = {};
 				break;
 			case le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN:
-				self.khr_settings = {}; // TODO
+				self->khr_settings = {}; // TODO
 				break;
 			case le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN:
-				self.img_settings = {};
+				self->img_settings = {};
 				break;
 			}
 
 			return *this;
 		}
 
-		BUILDER_IMPLEMENT( SwapchainInfoBuilder, setWidthHint, uint32_t, width_hint, = 640 )
-		BUILDER_IMPLEMENT( SwapchainInfoBuilder, setHeightHint, uint32_t, height_hint, = 480 )
-		BUILDER_IMPLEMENT( SwapchainInfoBuilder, setImagecountHint, uint32_t, imagecount_hint, = 3 )
-		BUILDER_IMPLEMENT( SwapchainInfoBuilder, setFormatHint, le::Format, format_hint, = le::Format::eR8G8B8A8Unorm )
+		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setWidthHint, uint32_t, width_hint, = 640 )
+		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setHeightHint, uint32_t, height_hint, = 480 )
+		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setImagecountHint, uint32_t, imagecount_hint, = 3 )
+		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setFormatHint, le::Format, format_hint, = le::Format::eR8G8B8A8Unorm )
 
 		class KhrSwapchainInfoBuilder {
 			SwapchainInfoBuilder &                   parent;
-			le_swapchain_settings_t::khr_settings_t &self = parent.self.khr_settings;
+			le_swapchain_settings_t::khr_settings_t &self;
 
 		  public:
 			KhrSwapchainInfoBuilder( SwapchainInfoBuilder &parent_ )
-			    : parent( parent_ ) {
+			    : parent( parent_ )
+			    , self( parent.self->khr_settings ) {
 			}
 
 			BUILDER_IMPLEMENT( KhrSwapchainInfoBuilder, setPresentmode, le::Presentmode, presentmode_hint, = le::Presentmode::eFifo )
 
 			SwapchainInfoBuilder &end() {
-				parent.parent.info.swapchain_settings.type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN;
+				parent.parent.swapchain_settings->type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN;
 				return parent;
 			}
 		};
 
 		class DirectSwapchainInfoBuilder {
 			SwapchainInfoBuilder &                   parent;
-			le_swapchain_settings_t::khr_settings_t &self = parent.self.khr_settings;
+			le_swapchain_settings_t::khr_settings_t &self;
 
 		  public:
 			DirectSwapchainInfoBuilder( SwapchainInfoBuilder &parent_ )
-			    : parent( parent_ ) {
+			    : parent( parent_ )
+			    , self( parent.self->khr_settings ) {
 			}
 
 			BUILDER_IMPLEMENT( DirectSwapchainInfoBuilder, setPresentmode, le::Presentmode, presentmode_hint, = le::Presentmode::eFifo )
 
 			SwapchainInfoBuilder &end() {
-				parent.parent.info.swapchain_settings.type = le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN;
+				parent.parent.info.swapchain_settings->type = le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN;
 				return parent;
 			}
 		};
 
 		class ImgSwapchainInfoBuilder {
 			SwapchainInfoBuilder &                   parent;
-			le_swapchain_settings_t::img_settings_t &self = parent.self.img_settings;
+			le_swapchain_settings_t::img_settings_t &self;
 
 		  public:
 			ImgSwapchainInfoBuilder( SwapchainInfoBuilder &parent_ )
-			    : parent( parent_ ) {
+			    : parent( parent_ )
+			    , self( parent.self->img_settings ) {
 			}
 
 			SwapchainInfoBuilder &end() {
-				parent.parent.info.swapchain_settings.type = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
+				parent.parent.info.swapchain_settings->type = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
 				return parent;
 			}
 		};
@@ -1170,6 +1182,8 @@ class RendererInfoBuilder {
 		}
 
 		RendererInfoBuilder &end() {
+			parent.swapchain_settings++;
+			parent.info.num_swapchain_settings++;
 			return parent;
 		}
 	};
@@ -1187,11 +1201,11 @@ class RendererInfoBuilder {
 		// Do some checks:
 		// + If no window was specified, then force image swapchain as a fallback.
 
-		if ( self.swapchain_settings.type == le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN && self.window == nullptr ) {
-			// We must force an image swapchain as a fallback.
-			self.swapchain_settings.type         = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
-			self.swapchain_settings.img_settings = {}; // apply default image swapchain settings.
-		}
+		//		if ( self.swapchain_settings.type == le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN && self.window == nullptr ) {
+		//			// We must force an image swapchain as a fallback.
+		//			self.swapchain_settings.type         = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
+		//			self.swapchain_settings.img_settings = {}; // apply default image swapchain settings.
+		//		}
 
 		return info;
 	}
@@ -1316,6 +1330,7 @@ class WriteToImageSettingsBuilder {
 };
 
 #undef BUILDER_IMPLEMENT
+#undef P_BUILDER_IMPLEMENT
 
 } // namespace le
 
