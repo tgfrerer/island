@@ -469,14 +469,14 @@ static bool swapchain_img_present( le_swapchain_o *base, VkQueue queue_, VkSemap
 	vk::SubmitInfo submitInfo;
 	submitInfo
 	    .setWaitSemaphoreCount( 1 )
-	    .setPWaitSemaphores( &renderCompleteSemaphore ) // these are the renderComplete semaphores
+	    .setPWaitSemaphores( &renderCompleteSemaphore ) // the render complete semaphore tells us that the image has been written
 	    .setPWaitDstStageMask( &wait_dst_stage_mask )
 	    .setCommandBufferCount( 1 )
 	    .setPCommandBuffers( &self->transferFrames[ *pImageIndex ].cmdPresent ) // copies image to buffer
 	    .setSignalSemaphoreCount( 0 )
 	    .setPSignalSemaphores( nullptr );
 
-	// Todo: submit to transfer queue, not main queue, if possible
+	// Todo: submit to this to a transfer queue, not main queue, if possible
 
 	{
 		vk::Queue queue{ queue_ };
