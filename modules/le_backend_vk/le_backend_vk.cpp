@@ -407,6 +407,14 @@ struct le_staging_allocator_o {
 
 // ------------------------------------------------------------
 
+struct swapchain_state_t {
+	vk::Semaphore presentComplete    = nullptr;
+	uint32_t      image_idx          = uint32_t( ~0 );
+	uint32_t      surface_width      = 0;
+	uint32_t      surface_height     = 0;
+	bool          present_successful = false;
+};
+
 // Herein goes all data which is associated with the current frame.
 // Backend keeps track of multiple frames, exactly one per renderer::FrameData frame.
 //
@@ -414,13 +422,11 @@ struct le_staging_allocator_o {
 // frame only operates only on its own memory, it will never see contention
 // with other threads processing other frames concurrently.
 struct BackendFrameData {
-	vk::Fence                      frameFence               = nullptr;
-	vk::Semaphore                  semaphoreRenderComplete  = nullptr;
-	vk::Semaphore                  semaphorePresentComplete = nullptr;
-	vk::CommandPool                commandPool              = nullptr;
-	uint32_t                       swapchainImageIndex      = uint32_t( ~0 );
-	uint32_t                       swapchainWidth           = 0; // Swapchain may be resized, therefore it needs to be stored with frame
-	uint32_t                       swapchainHeight          = 0; // Swapchain may be resized, therefore it needs to be stored with frame
+	vk::Fence       frameFence              = nullptr; // protects the frame - cpu waits on gpu to pass fence before deleting/recycling frame
+	vk::Semaphore   semaphoreRenderComplete = nullptr; // one per frame - signals that frame has completed rendering
+	vk::CommandPool commandPool             = nullptr;
+
+	std::vector<swapchain_state_t> swapchain_state;
 	std::vector<vk::CommandBuffer> commandBuffers;
 
 	struct Texture {
@@ -499,14 +505,18 @@ struct le_backend_o {
 	le_backend_vk_instance_o *  instance;
 	std::unique_ptr<le::Device> device;
 
-	le_window_o *   window    = nullptr; // Non-owning
-	le_swapchain_o *swapchain = nullptr; // Owning.
+	le_window_o *                 window = nullptr; // Non-owning
+	std::vector<le_swapchain_o *> swapchains;       // Owning.
 
 	vk::SurfaceKHR windowSurface = nullptr; // Owning, optional.
 
 	// Default color formats are inferred during setup() based on
 	// swapchain surface (color) and device properties (depth/stencil)
-	vk::Format swapchainImageFormat                = {}; ///< default image format used for swapchain (backbuffer image must be in this format)
+	std::vector<vk::Format>           swapchainImageFormat; ///< default image format used for swapchain (backbuffer image must be in this format)
+	std::vector<uint32_t>             swapchainWidth;       ///< swapchain width gathered when setting/resetting swapchain
+	std::vector<uint32_t>             swapchainHeight;      ///< swapchain height gathered when setting/resetting swapchain
+	std::vector<le_resource_handle_t> swapchain_resources;  ///< resource handle for image associated with each swapchain
+
 	le::Format defaultFormatColorAttachment        = {}; ///< default image format used for color attachments
 	le::Format defaultFormatDepthStencilAttachment = {}; ///< default image format used for depth stencil attachments
 	le::Format defaultFormatSampledImage           = {}; ///< default image format used for sampled images
@@ -519,9 +529,6 @@ struct le_backend_o {
 	le_pipeline_manager_o *pipelineCache = nullptr;
 
 	VmaAllocator mAllocator = nullptr;
-
-	uint32_t swapchainWidth  = 0; ///< swapchain width gathered when setting/resetting swapchain
-	uint32_t swapchainHeight = 0; ///< swapchain height gathered when setting/resetting swapchain
 
 	uint32_t queueFamilyIndexGraphics = 0; // inferred during setup
 	uint32_t queueFamilyIndexCompute  = 0; // inferred during setup
@@ -639,11 +646,11 @@ static void backend_destroy( le_backend_o *self ) {
 	// and the allocator must still be alive for the swapchain to free objects
 	// alloacted through it.
 
-	if ( self->swapchain ) {
+	for ( auto &s : self->swapchains ) {
 		using namespace le_swapchain_vk;
-		swapchain_i.destroy( self->swapchain );
-		self->swapchain = nullptr;
+		swapchain_i.destroy( s );
 	}
+	self->swapchains.clear();
 
 	for ( auto &frameData : self->mFrames ) {
 
@@ -652,7 +659,12 @@ static void backend_destroy( le_backend_o *self ) {
 		// -- destroy per-frame data
 
 		device.destroyFence( frameData.frameFence );
-		device.destroySemaphore( frameData.semaphorePresentComplete );
+
+		for ( auto &swapchain_state : frameData.swapchain_state ) {
+			device.destroySemaphore( swapchain_state.presentComplete );
+		}
+		frameData.swapchain_state.clear();
+
 		device.destroySemaphore( frameData.semaphoreRenderComplete );
 		device.destroyCommandPool( frameData.commandPool );
 
@@ -750,86 +762,85 @@ static void backend_destroy( le_backend_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void backend_create_swapchain( le_backend_o *self, le_swapchain_settings_t *swapchainSettings_ ) {
-
-	le_swapchain_settings_t swp_settings{};
-
-	if ( swapchainSettings_ ) {
-		swp_settings = *swapchainSettings_;
-	}
-
-	// Set default settings if not user specified for certain swapchain settings
-
-	if ( swp_settings.imagecount_hint == 0 ) {
-		swp_settings.imagecount_hint = 3;
-	}
-
-	switch ( swp_settings.type ) {
-
-	case le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN: {
-		using namespace le_swapchain_vk;
-		// Create an image swapchain
-		self->swapchain = swapchain_i.create( api->swapchain_img_i, self, &swp_settings );
-	} break;
-
-	case le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN: {
-		using namespace le_swapchain_vk;
-		// Create a windowless swapchain
-		self->swapchain = swapchain_i.create( api->swapchain_direct_i, self, &swp_settings );
-	} break;
-
-	case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN: {
-		using namespace le_swapchain_vk;
-
-		if ( self->window ) {
-			// If we're running with a window, we pass through swapchainSettings,
-			// and initialise our swapchain as a regular khr swapchain
-			using namespace le_window;
-
-			swp_settings.width_hint              = window_i.get_surface_width( self->window );
-			swp_settings.height_hint             = window_i.get_surface_height( self->window );
-			swp_settings.khr_settings.vk_surface = self->windowSurface; // we need this so that swapchain can query surface capabilities
-
-			self->swapchain = swapchain_i.create( le_swapchain_vk::api->swapchain_khr_i, self, &swp_settings );
-
-		} else {
-			// cannot run a khr swapchain without a window.
-		}
-
-	} break;
-	}
+static void backend_create_swapchains( le_backend_o *self, uint32_t num_settings, le_swapchain_settings_t *settings ) {
 
 	using namespace le_swapchain_vk;
-	self->swapchainImageFormat = vk::Format( swapchain_i.get_surface_format( self->swapchain )->format );
-	self->swapchainWidth       = swapchain_i.get_image_width( self->swapchain );
-	self->swapchainHeight      = swapchain_i.get_image_height( self->swapchain );
+
+	assert( num_settings && "num_settings must not be zero" );
+
+	for ( size_t i = 0; i != num_settings; i++, settings++ ) {
+		le_swapchain_o *swapchain = nullptr;
+
+		switch ( settings->type ) {
+
+		case le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN: {
+			// Create an image swapchain
+			swapchain = swapchain_i.create( api->swapchain_img_i, self, settings );
+		} break;
+		case le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN: {
+			// Create a windowless swapchain
+			swapchain = swapchain_i.create( api->swapchain_direct_i, self, settings );
+		} break;
+		case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN: {
+
+			if ( self->window ) {
+				// If we're running with a window, we pass through swapchainSettings,
+				// and initialise our swapchain as a regular khr swapchain
+				using namespace le_window;
+
+				le_swapchain_settings_t tmp_settings = *settings;
+
+				tmp_settings.width_hint              = window_i.get_surface_width( self->window );
+				tmp_settings.height_hint             = window_i.get_surface_height( self->window );
+				tmp_settings.khr_settings.vk_surface = self->windowSurface; // we need this so that swapchain can query surface capabilities
+
+				swapchain = swapchain_i.create( le_swapchain_vk::api->swapchain_khr_i, self, &tmp_settings );
+
+			} else {
+				// cannot run a khr swapchain without a window.
+			}
+		} break;
+		}
+
+		assert( swapchain );
+
+		self->swapchainImageFormat.push_back( vk::Format( swapchain_i.get_surface_format( swapchain )->format ) );
+		self->swapchainWidth.push_back( swapchain_i.get_image_width( swapchain ) );
+		self->swapchainHeight.push_back( swapchain_i.get_image_height( swapchain ) );
+
+		self->swapchains.push_back( swapchain );
+	}
 }
 
 // ----------------------------------------------------------------------
 
 static size_t backend_get_num_swapchain_images( le_backend_o *self ) {
-	assert( self->swapchain );
+	assert( !self->swapchains.empty() );
 	using namespace le_swapchain_vk;
-	return swapchain_i.get_images_count( self->swapchain );
+	return swapchain_i.get_images_count( self->swapchains[ 0 ] );
 }
 
 // ----------------------------------------------------------------------
 // Returns the current swapchain width and height.
 // Both values are cached, and re-calculated whenever the swapchain is set / or reset.
-static void backend_get_swapchain_extent( le_backend_o *self, uint32_t *p_width, uint32_t *p_height ) {
-	*p_width  = self->swapchainWidth;
-	*p_height = self->swapchainHeight;
+static void backend_get_swapchain_extent( le_backend_o *self, uint32_t index, uint32_t *p_width, uint32_t *p_height ) {
+	*p_width  = self->swapchainWidth[ index ];
+	*p_height = self->swapchainHeight[ index ];
 }
 
 // ----------------------------------------------------------------------
 
-static void backend_reset_swapchain( le_backend_o *self ) {
+static void backend_reset_swapchain( le_backend_o *self, uint32_t index ) {
 	using namespace le_swapchain_vk;
 
-	swapchain_i.reset( self->swapchain, nullptr );
+	assert( index < self->swapchains.size() );
+
+	swapchain_i.reset( self->swapchains[ index ], nullptr );
+
 	// We must update our cached values for swapchain dimensions if the swapchain was reset.
-	self->swapchainWidth  = swapchain_i.get_image_width( self->swapchain );
-	self->swapchainHeight = swapchain_i.get_image_height( self->swapchain );
+
+	self->swapchainWidth[ index ]  = swapchain_i.get_image_width( self->swapchains[ index ] );
+	self->swapchainHeight[ index ] = swapchain_i.get_image_height( self->swapchains[ index ] );
 }
 
 // ----------------------------------------------------------------------
@@ -851,7 +862,8 @@ static le_resource_handle_t declare_resource_virtual_buffer( uint8_t index ) {
 
 // ----------------------------------------------------------------------
 
-static le_resource_handle_t backend_get_swapchain_resource( le_backend_o * ) {
+static le_resource_handle_t backend_get_swapchain_resource( le_backend_o *self, uint32_t index ) {
+	self->swapchain_resources[ index ];
 	return LE_SWAPCHAIN_IMAGE_HANDLE;
 }
 
@@ -1000,7 +1012,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 
 	// -- create swapchain if requested
 
-	backend_create_swapchain( self, settings->pSwapchain_settings );
+	backend_create_swapchains( self, settings->num_swapchain_settings, settings->pSwapchain_settings );
 
 	// -- setup backend memory objects
 
@@ -1058,16 +1070,35 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 
 	assert( vkDevice ); // device must come from somewhere! It must have been introduced to backend before, or backend must create device used by everyone else...
 
+	self->swapchain_resources.reserve( self->swapchains.size() );
+
+	for ( size_t j = 0; j != self->swapchains.size(); j++ ) {
+		char res_name[ 50 ];
+		snprintf( res_name, sizeof( res_name ), "Le_Swapchain_Image_Handle[%lu]", j );
+		auto resource_handle = LE_IMG_RESOURCE( res_name );
+		self->swapchain_resources.emplace_back( resource_handle );
+	}
+
+	assert( !self->swapchain_resources.empty() && "swapchain_resources must not be empty" );
+	assert( self->swapchain_resources[ 0 ] == LE_SWAPCHAIN_IMAGE_HANDLE && "constexpr resource handle and generated resource handle must match. check whether printf pattern above matches LE_SWAPCHAIN_IMAGE_HANDLE" );
+
 	for ( size_t i = 0; i != frameCount; ++i ) {
 
 		// -- Set up per-frame resources
 
 		BackendFrameData frameData{};
 
-		frameData.frameFence               = vkDevice.createFence( {} ); // fence starts out as "signalled"
-		frameData.semaphorePresentComplete = vkDevice.createSemaphore( {} );
-		frameData.semaphoreRenderComplete  = vkDevice.createSemaphore( {} );
-		frameData.commandPool              = vkDevice.createCommandPool( { vk::CommandPoolCreateFlagBits::eTransient, self->device->getDefaultGraphicsQueueFamilyIndex() } );
+		frameData.swapchain_state.resize( self->swapchains.size() );
+
+		{
+			for ( auto &state : frameData.swapchain_state ) {
+				state.presentComplete = vkDevice.createSemaphore( {} );
+			}
+		}
+
+		frameData.frameFence              = vkDevice.createFence( {} ); // fence starts out as "signalled"
+		frameData.semaphoreRenderComplete = vkDevice.createSemaphore( {} );
+		frameData.commandPool             = vkDevice.createCommandPool( { vk::CommandPoolCreateFlagBits::eTransient, self->device->getDefaultGraphicsQueueFamilyIndex() } );
 
 		{
 			// -- set up an allocation pool for each frame
@@ -1105,7 +1136,9 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 
 		using namespace le_backend_vk;
 
-		self->defaultFormatColorAttachment        = vk_format_to_le( self->swapchainImageFormat );
+		assert( !self->swapchainImageFormat.empty() && "must have at least one swapchain image format available." );
+
+		self->defaultFormatColorAttachment        = vk_format_to_le( self->swapchainImageFormat[ 0 ] );
 		self->defaultFormatDepthStencilAttachment = vk_format_to_le( vk_device_i.get_default_depth_stencil_format( *self->device ) );
 
 		// We hard-code default format for sampled images, since this is the most likely
@@ -3533,40 +3566,52 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 
 	auto &frame = self->mFrames[ frameIndex ];
 
-	{
+	// TODO: (multi-window) we want to make sure to only reset the swapchains which fail image acquisition.
+
+	for ( size_t i = 0; i != self->swapchains.size(); ++i ) {
 		// Acquire swapchain image
 
 		using namespace le_swapchain_vk;
 
-		if ( !swapchain_i.acquire_next_image( self->swapchain, frame.semaphorePresentComplete, frame.swapchainImageIndex ) ) {
+		if ( !swapchain_i.acquire_next_image(
+		         self->swapchains[ i ],
+		         frame.swapchain_state[ i ].presentComplete,
+		         frame.swapchain_state[ i ].image_idx ) ) {
 			return false;
 		}
 
 		// ----------| invariant: swapchain acquisition successful.
 
-		frame.swapchainWidth  = swapchain_i.get_image_width( self->swapchain );
-		frame.swapchainHeight = swapchain_i.get_image_height( self->swapchain );
+		frame.swapchain_state[ i ].surface_width  = swapchain_i.get_image_width( self->swapchains[ i ] );
+		frame.swapchain_state[ i ].surface_height = swapchain_i.get_image_height( self->swapchains[ i ] );
 
 		// TODO: we should be able to query swapchain image info so that we can mark the
 		// swapchain image as a frame available resource.
 
-		frame.availableResources[ LE_SWAPCHAIN_IMAGE_HANDLE ].as.image = swapchain_i.get_image( self->swapchain, frame.swapchainImageIndex );
+		auto const &img_resource_handle = self->swapchain_resources[ i ];
+
+		frame.availableResources[ img_resource_handle ].as.image = swapchain_i.get_image( self->swapchains[ i ], frame.swapchain_state[ i ].image_idx );
 		{
-			auto &backbufferInfo       = frame.availableResources[ LE_SWAPCHAIN_IMAGE_HANDLE ].info.imageInfo;
+			auto &backbufferInfo       = frame.availableResources[ img_resource_handle ].info.imageInfo;
 			backbufferInfo             = vk::ImageCreateInfo{};
-			backbufferInfo.extent      = vk::Extent3D( frame.swapchainWidth, frame.swapchainHeight, 1 );
-			backbufferInfo.format      = VkFormat( self->swapchainImageFormat );
+			backbufferInfo.extent      = vk::Extent3D( frame.swapchain_state[ i ].surface_width, frame.swapchain_state[ i ].surface_height, 1 );
+			backbufferInfo.format      = VkFormat( self->swapchainImageFormat[ i ] );
 			backbufferInfo.usage       = VkImageUsageFlags( vk::ImageUsageFlagBits::eColorAttachment );
 			backbufferInfo.mipLevels   = 1;
 			backbufferInfo.arrayLayers = 1;
 		}
-
-		assert( frame.swapchainWidth == self->swapchainWidth );
-		assert( frame.swapchainHeight == self->swapchainHeight );
-
-		// For all passes - set pass width/height to swapchain width/height if not known.
-		patch_renderpass_extents( passes, numRenderPasses, frame.swapchainWidth, frame.swapchainHeight );
 	}
+
+	// For all passes - set pass width/height to swapchain width/height if not known.
+
+	assert( !frame.swapchain_state.empty() && "frame.swapchains_state must not be empty" );
+
+	// Only extents of swapchain[0] are used to infer extents for renderpasses which lack extents info
+	patch_renderpass_extents(
+	    passes,
+	    numRenderPasses,
+	    frame.swapchain_state[ 0 ].surface_width,
+	    frame.swapchain_state[ 0 ].surface_height );
 
 	// Setup declared resources per frame - These are resources declared using resource infos
 	// which are explicitly declared by user via the rendermodule, but which may or may not be
@@ -3608,8 +3653,10 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 				// Set sync state for this resource to value of last elment in the sync chain.
 				res->second.state = resSyncList.back();
 			} else {
-				assert( resId == LE_SWAPCHAIN_IMAGE_HANDLE ||
+
+				assert( std::find( self->swapchain_resources.begin(), self->swapchain_resources.end(), resId ) != self->swapchain_resources.end() ||
 				        resId == LE_RTX_SCRATCH_BUFFER_HANDLE );
+
 				// Frame local resource must be available as a backend resource,
 				// unless the resource is the swapchain image handle, which is owned and managed
 				// by the swapchain.
@@ -5364,12 +5411,20 @@ static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
 
 	auto &frame = self->mFrames[ frameIndex ];
 
-	std::array<::vk::PipelineStageFlags, 1> wait_dst_stage_mask = { { ::vk::PipelineStageFlagBits::eColorAttachmentOutput } };
+	std::vector<::vk::PipelineStageFlags> wait_dst_stage_mask(
+	    frame.swapchain_state.size(), { vk::PipelineStageFlagBits::eColorAttachmentOutput } );
+
+	std::vector<vk::Semaphore> present_complete_semaphores;
+	present_complete_semaphores.reserve( frame.swapchain_state.size() );
+
+	for ( auto const &swp : frame.swapchain_state ) {
+		present_complete_semaphores.push_back( swp.presentComplete );
+	}
 
 	vk::SubmitInfo submitInfo;
 	submitInfo
-	    .setWaitSemaphoreCount( 1 )
-	    .setPWaitSemaphores( &frame.semaphorePresentComplete )
+	    .setWaitSemaphoreCount( uint32_t( present_complete_semaphores.size() ) )
+	    .setPWaitSemaphores( present_complete_semaphores.data() )
 	    .setPWaitDstStageMask( wait_dst_stage_mask.data() )
 	    .setCommandBufferCount( uint32_t( frame.commandBuffers.size() ) )
 	    .setPCommandBuffers( frame.commandBuffers.data() )
@@ -5382,9 +5437,23 @@ static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
 
 	using namespace le_swapchain_vk;
 
-	bool presentSuccessful = swapchain_i.present( self->swapchain, self->device->getDefaultGraphicsQueue(), frame.semaphoreRenderComplete, &frame.swapchainImageIndex );
+	bool overall_result = true;
 
-	return presentSuccessful;
+	for ( size_t i = 0; i != self->swapchains.size(); i++ ) {
+
+		bool result =
+		    swapchain_i.present(
+		        self->swapchains[ i ],
+		        self->device->getDefaultGraphicsQueue(),
+		        frame.semaphoreRenderComplete,
+		        &frame.swapchain_state[ i ].image_idx );
+
+		frame.swapchain_state[ i ].present_successful = result;
+
+		overall_result &= result;
+	}
+
+	return overall_result;
 }
 
 // ----------------------------------------------------------------------

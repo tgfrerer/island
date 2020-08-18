@@ -69,6 +69,7 @@ struct le_backend_vk_settings_t {
 	uint32_t                 concurrency_count              = 1;       // number of potential worker threads
 	le_window_o *            pWindow                        = nullptr; // non-owning, owned by application. Application must outlive backend.
 	le_swapchain_settings_t *pSwapchain_settings            = nullptr; // non-owning, owned by caller of setup method.
+	uint32_t                 num_swapchain_settings         = 1;       // must be set by caller of setup method - tells us how many pSwapchain_settings to expect.
 };
 
 struct le_pipeline_layout_info {
@@ -98,7 +99,7 @@ struct le_backend_vk_api {
 		bool                   ( *dispatch_frame             ) ( le_backend_o *self, size_t frameIndex );
 
 		size_t                 ( *get_num_swapchain_images   ) ( le_backend_o *self );
-		void                   ( *reset_swapchain            ) ( le_backend_o *self );
+		void                   ( *reset_swapchain            ) ( le_backend_o *self, uint32_t index );
 		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex);
 		le_staging_allocator_o*( *get_staging_allocator      ) ( le_backend_o* self, size_t frameIndex);
 
@@ -107,8 +108,8 @@ struct le_backend_vk_api {
 
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
 
-		void                   ( *get_swapchain_extent  ) ( le_backend_o* self, uint32_t * p_width, uint32_t * p_height);
-		le_resource_handle_t   ( *get_swapchain_resource    ) ( le_backend_o* self);
+		void                   ( *get_swapchain_extent  ) ( le_backend_o* self, uint32_t index, uint32_t * p_width, uint32_t * p_height);
+		le_resource_handle_t   ( *get_swapchain_resource    ) ( le_backend_o* self, uint32_t index );
 
 		le_rtx_blas_info_handle( *create_rtx_blas_info )(le_backend_o* self, le_rtx_geometry_t const * geometries, uint32_t geometries_count, struct LeBuildAccelerationStructureFlags const * flags);
 		le_rtx_tlas_info_handle( *create_rtx_tlas_info )(le_backend_o* self,  uint32_t instances_count, struct LeBuildAccelerationStructureFlags const * flags);

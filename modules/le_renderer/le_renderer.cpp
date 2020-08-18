@@ -79,10 +79,10 @@ struct le_renderer_o {
 	uint64_t      swapchainDirty = false;
 	le_backend_o *backend        = nullptr; // Owned, created in setup
 
-	std::vector<FrameData>  frames;
-	size_t                  numSwapchainImages = 0;
-	size_t                  currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
-	le_swapchain_settings_t swapchain_settings{};              // default swapchain settings
+	std::vector<FrameData>               frames;
+	size_t                               numSwapchainImages = 0;
+	size_t                               currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
+	std::vector<le_swapchain_settings_t> swapchain_settings{};              // default swapchain settings
 };
 
 static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ); // ffdecl
@@ -231,7 +231,10 @@ static void renderer_setup( le_renderer_o *self, le_renderer_settings_t const &s
 
 	// We store swapchain settings with the renderer so that we can pass
 	// backend a permanent pointer to it.
-	self->swapchain_settings = settings.swapchain_settings;
+	self->swapchain_settings.insert(
+	    self->swapchain_settings.begin(),
+	    settings.swapchain_settings,
+	    settings.swapchain_settings + settings.num_swapchain_settings );
 
 	{
 		// Set up the backend
@@ -241,7 +244,8 @@ static void renderer_setup( le_renderer_o *self, le_renderer_settings_t const &s
 
 		le_backend_vk_settings_t backend_settings{};
 		backend_settings.pWindow                      = settings.window;
-		backend_settings.pSwapchain_settings          = &self->swapchain_settings;
+		backend_settings.pSwapchain_settings          = self->swapchain_settings.data();
+		backend_settings.num_swapchain_settings       = self->swapchain_settings.size();
 		backend_settings.requestedDeviceExtensions    = settings.requested_device_extensions;
 		backend_settings.numRequestedDeviceExtensions = settings.requested_device_extensions_count;
 
@@ -387,10 +391,21 @@ static const FrameData::State &renderer_acquire_backend_resources( le_renderer_o
 	le_resource_info_t const *  declared_resources_infos;
 	size_t                      declared_resources_count = 0;
 
-	rendergraph_i.get_declared_resources( frame.rendergraph, &declared_resources, &declared_resources_infos, &declared_resources_count );
+	rendergraph_i.get_declared_resources(
+	    frame.rendergraph,
+	    &declared_resources,
+	    &declared_resources_infos,
+	    &declared_resources_count );
 
-	auto acquireSuccess = vk_backend_i.acquire_physical_resources( self->backend, frameIndex, passes, numRenderPasses,
-	                                                               declared_resources, declared_resources_infos, declared_resources_count );
+	auto acquireSuccess =
+	    vk_backend_i.acquire_physical_resources(
+	        self->backend,
+	        frameIndex,
+	        passes,
+	        numRenderPasses,
+	        declared_resources,
+	        declared_resources_infos,
+	        declared_resources_count );
 
 	frame.meta.time_acquire_frame_end = std::chrono::high_resolution_clock::now();
 
@@ -481,16 +496,16 @@ static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
-static le_resource_handle_t renderer_get_swapchain_resource( le_renderer_o *self ) {
+static le_resource_handle_t renderer_get_swapchain_resource( le_renderer_o *self, uint32_t index ) {
 	using namespace le_backend_vk; // for rendergraph_i
-	return vk_backend_i.get_swapchain_resource( self->backend );
+	return vk_backend_i.get_swapchain_resource( self->backend, index );
 }
 
 // ----------------------------------------------------------------------
 
-static void renderer_get_swapchain_extent( le_renderer_o *self, uint32_t *p_width, uint32_t *p_height ) {
+static void renderer_get_swapchain_extent( le_renderer_o *self, uint32_t index, uint32_t *p_width, uint32_t *p_height ) {
 	using namespace le_backend_vk; // for swapchain
-	vk_backend_i.get_swapchain_extent( self->backend, p_width, p_height );
+	vk_backend_i.get_swapchain_extent( self->backend, index, p_width, p_height );
 }
 
 // ----------------------------------------------------------------------
@@ -628,7 +643,8 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 			}
 		}
 
-		vk_backend_i.reset_swapchain( self->backend );
+		// TODO: (multi-window) we should only reset the which failed acquisition
+		vk_backend_i.reset_swapchain( self->backend, 0 );
 
 		self->swapchainDirty = false;
 	}

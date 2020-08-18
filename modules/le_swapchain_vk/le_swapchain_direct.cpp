@@ -329,7 +329,7 @@ static le_swapchain_o *swapchain_direct_create( const le_swapchain_vk_api::swapc
 		    .setDisplayMode( self->display_mode_properties[ 0 ].displayMode )
 		    .setPlaneIndex( 0 )
 		    .setPlaneStackIndex( 0 )
-		    .setTransform( vk::SurfaceTransformFlagBitsKHR::eRotate90 )
+		    .setTransform( vk::SurfaceTransformFlagBitsKHR::eIdentity )
 		    .setGlobalAlpha( 1.f )
 		    .setAlphaMode( vk::DisplayPlaneAlphaFlagBitsKHR::eOpaque )
 		    .setImageExtent( self->display_mode_properties[ 0 ].parameters.visibleRegion );

@@ -136,7 +136,7 @@ constexpr le_resource_handle_t LE_BUF_RESOURCE( const char *str ) noexcept {
 	return LE_RESOURCE( str, LeResourceType::eBuffer );
 }
 
-constexpr static le_resource_handle_t LE_SWAPCHAIN_IMAGE_HANDLE    = LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle" );    // opaque handle swapchain image
+constexpr static le_resource_handle_t LE_SWAPCHAIN_IMAGE_HANDLE    = LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[0]" ); // opaque handle swapchain image
 constexpr static le_resource_handle_t LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
 
 enum LeRenderPassType : uint32_t {

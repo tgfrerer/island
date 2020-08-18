@@ -31,8 +31,8 @@ struct le_renderer_api {
         le_shader_module_o*            ( *create_shader_module                  )( le_renderer_o *self, char const *path, const LeShaderStageEnum& mtype, char const * macro_definitions );
 
 		/// returns the resource handle for the current swapchain image
-		le_resource_handle_t           ( *get_swapchain_resource                )( le_renderer_o* self );
-		void                           ( *get_swapchain_extent                  )( le_renderer_o* self, uint32_t* p_width, uint32_t* p_height);
+		le_resource_handle_t           ( *get_swapchain_resource                )( le_renderer_o* self, uint32_t index );
+		void                           ( *get_swapchain_extent                  )( le_renderer_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height );
 		le_backend_o*                  ( *get_backend                           )( le_renderer_o* self );
 
 		le_pipeline_manager_o*         ( *get_pipeline_manager                  )( le_renderer_o* self );
@@ -238,17 +238,17 @@ class Renderer {
 		return le_renderer::renderer_i.create_shader_module( self, path, { moduleType }, macro_definitions );
 	}
 
-	le_resource_handle_t getSwapchainResource() const {
-		return le_renderer::renderer_i.get_swapchain_resource( self );
+	le_resource_handle_t getSwapchainResource( uint32_t index = 0 ) const {
+		return le_renderer::renderer_i.get_swapchain_resource( self, index );
 	}
 
-	void getSwapchainExtent( uint32_t *pWidth, uint32_t *pHeight ) const {
-		le_renderer::renderer_i.get_swapchain_extent( self, pWidth, pHeight );
+	void getSwapchainExtent( uint32_t *pWidth, uint32_t *pHeight, uint32_t index = 0 ) const {
+		le_renderer::renderer_i.get_swapchain_extent( self, index, pWidth, pHeight );
 	}
 
 	const le::Extent2D getSwapchainExtent() const {
 		le::Extent2D result;
-		le_renderer::renderer_i.get_swapchain_extent( self, &result.width, &result.height );
+		le_renderer::renderer_i.get_swapchain_extent( self, 0, &result.width, &result.height );
 		return result;
 	}
 
