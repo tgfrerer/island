@@ -34,6 +34,7 @@ static const vk::ValidationFeatureEnableEXT enabledValidationFeatures[] = {
     // vk::ValidationFeatureEnableEXT::eGpuAssisted,
     // vk::ValidationFeatureEnableEXT::eGpuAssistedReserveBindingSlot,
     // vk::ValidationFeatureEnableEXT::eBestPractices,
+    // vk::ValidationFeatureEnableEXT::eDebugPrintf,
 };
 
 /* 

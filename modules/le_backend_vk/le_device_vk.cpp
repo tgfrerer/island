@@ -239,9 +239,15 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	vk::StructureChain<
 	    vk::PhysicalDeviceFeatures2,
 	    vk::PhysicalDeviceVulkan11Features,
-	    vk::PhysicalDeviceVulkan12Features,
-	    vk::PhysicalDeviceRayTracingFeaturesKHR, // Optional, based on #define
-	    vk::PhysicalDeviceMeshShaderFeaturesNV   // Optional, based on #define
+	    vk::PhysicalDeviceVulkan12Features
+#ifdef LE_FEATURE_RTX
+	    ,
+	    vk::PhysicalDeviceRayTracingFeaturesKHR // Optional, based on #define
+#endif
+#ifdef LE_FEATURE_RTX
+	    ,
+	    vk::PhysicalDeviceMeshShaderFeaturesNV // Optional, based on #define
+#endif
 	    >
 	    featuresChain{};
 
@@ -266,8 +272,6 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 
 	featuresChain.get<vk::PhysicalDeviceRayTracingFeaturesKHR>()
 	    .setRayTracing( true );
-#else
-	featuresChain.unlink<vk::PhysicalDeviceRayTracingFeaturesKHR>();
 #endif
 
 #ifdef LE_FEATURE_MESH_SHADER_NV
@@ -283,9 +287,6 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	    .setShaderInt8( true )    //
 	    .setShaderFloat16( true ) //
 	    ;
-
-#else
-	featuresChain.unlink<vk::PhysicalDeviceMeshShaderFeaturesNV>();
 #endif
 
 	featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
