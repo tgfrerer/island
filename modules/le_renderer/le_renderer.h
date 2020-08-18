@@ -246,9 +246,9 @@ class Renderer {
 		le_renderer::renderer_i.get_swapchain_extent( self, index, pWidth, pHeight );
 	}
 
-	const le::Extent2D getSwapchainExtent() const {
+	const le::Extent2D getSwapchainExtent( uint32_t index = 0 ) const {
 		le::Extent2D result;
-		le_renderer::renderer_i.get_swapchain_extent( self, 0, &result.width, &result.height );
+		le_renderer::renderer_i.get_swapchain_extent( self, index, &result.width, &result.height );
 		return result;
 	}
 
