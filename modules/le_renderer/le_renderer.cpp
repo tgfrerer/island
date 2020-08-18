@@ -243,7 +243,6 @@ static void renderer_setup( le_renderer_o *self, le_renderer_settings_t const &s
 		self->backend = vk_backend_i.create();
 
 		le_backend_vk_settings_t backend_settings{};
-		backend_settings.pWindow                      = settings.window;
 		backend_settings.pSwapchain_settings          = self->swapchain_settings.data();
 		backend_settings.num_swapchain_settings       = self->swapchain_settings.size();
 		backend_settings.requestedDeviceExtensions    = settings.requested_device_extensions;

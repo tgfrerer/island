@@ -408,11 +408,13 @@ struct le_staging_allocator_o {
 // ------------------------------------------------------------
 
 struct swapchain_state_t {
-	vk::Semaphore presentComplete    = nullptr;
-	uint32_t      image_idx          = uint32_t( ~0 );
-	uint32_t      surface_width      = 0;
-	uint32_t      surface_height     = 0;
-	bool          present_successful = false;
+	vk::Semaphore presentComplete = nullptr;
+	vk::Semaphore renderComplete  = nullptr;
+
+	uint32_t image_idx          = uint32_t( ~0 );
+	uint32_t surface_width      = 0;
+	uint32_t surface_height     = 0;
+	bool     present_successful = false;
 };
 
 // Herein goes all data which is associated with the current frame.
@@ -422,9 +424,8 @@ struct swapchain_state_t {
 // frame only operates only on its own memory, it will never see contention
 // with other threads processing other frames concurrently.
 struct BackendFrameData {
-	vk::Fence       frameFence              = nullptr; // protects the frame - cpu waits on gpu to pass fence before deleting/recycling frame
-	vk::Semaphore   semaphoreRenderComplete = nullptr; // one per frame - signals that frame has completed rendering
-	vk::CommandPool commandPool             = nullptr;
+	vk::Fence       frameFence  = nullptr; // protects the frame - cpu waits on gpu to pass fence before deleting/recycling frame
+	vk::CommandPool commandPool = nullptr;
 
 	std::vector<swapchain_state_t> swapchain_state;
 	std::vector<vk::CommandBuffer> commandBuffers;
@@ -505,10 +506,9 @@ struct le_backend_o {
 	le_backend_vk_instance_o *  instance;
 	std::unique_ptr<le::Device> device;
 
-	le_window_o *                 window = nullptr; // Non-owning
-	std::vector<le_swapchain_o *> swapchains;       // Owning.
+	std::vector<le_swapchain_o *> swapchains; // Owning.
 
-	vk::SurfaceKHR windowSurface = nullptr; // Owning, optional.
+	std::vector<vk::SurfaceKHR> windowSurfaces; // owning. one per window swapchain.
 
 	// Default color formats are inferred during setup() based on
 	// swapchain surface (color) and device properties (depth/stencil)
@@ -603,23 +603,30 @@ static inline VkFormat le_to_vk( le::Format const &f ) {
 
 // ----------------------------------------------------------------------
 
-static vk::SurfaceKHR backend_create_window_surface( le_backend_o *self ) {
-	if ( self->window ) {
-		using namespace le_window;
-		vk::Instance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
-		return window_i.create_surface( self->window, instance );
-	}
-	return nullptr;
+static void backend_create_window_surface( le_backend_o *self, le_swapchain_settings_t *settings ) {
+
+	assert( settings->type == le_swapchain_settings_t::LE_KHR_SWAPCHAIN );
+	assert( settings->khr_settings.window );
+
+	using namespace le_window;
+	vk::Instance instance             = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
+	settings->khr_settings.vk_surface = window_i.create_surface( settings->khr_settings.window, instance );
+
+	assert( settings->khr_settings.vk_surface );
+
+	self->windowSurfaces.emplace_back( settings->khr_settings.vk_surface );
 }
 
 // ----------------------------------------------------------------------
-static void backend_destroy_window_surface( le_backend_o *self ) {
-	if ( self->windowSurface ) {
+
+static void backend_destroy_window_surfaces( le_backend_o *self ) {
+	for ( auto &surface : self->windowSurfaces ) {
 		vk::Instance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
-		instance.destroySurfaceKHR( self->windowSurface );
-		std::cout << "Surface was destroyed." << std::endl
+		instance.destroySurfaceKHR( surface );
+		std::cout << "Surface destroyed." << std::endl
 		          << std::flush;
 	}
+	self->windowSurfaces.clear();
 }
 
 // ----------------------------------------------------------------------
@@ -662,10 +669,10 @@ static void backend_destroy( le_backend_o *self ) {
 
 		for ( auto &swapchain_state : frameData.swapchain_state ) {
 			device.destroySemaphore( swapchain_state.presentComplete );
+			device.destroySemaphore( swapchain_state.renderComplete );
 		}
 		frameData.swapchain_state.clear();
 
-		device.destroySemaphore( frameData.semaphoreRenderComplete );
 		device.destroyCommandPool( frameData.commandPool );
 
 		for ( auto &d : frameData.descriptorPools ) {
@@ -748,7 +755,7 @@ static void backend_destroy( le_backend_o *self ) {
 	}
 
 	// destroy window surface if there was a window surface
-	backend_destroy_window_surface( self );
+	backend_destroy_window_surfaces( self );
 
 	// we must delete the device which was allocated from an instance
 	// before we destroy the instance.
@@ -782,23 +789,8 @@ static void backend_create_swapchains( le_backend_o *self, uint32_t num_settings
 			swapchain = swapchain_i.create( api->swapchain_direct_i, self, settings );
 		} break;
 		case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN: {
-
-			if ( self->window ) {
-				// If we're running with a window, we pass through swapchainSettings,
-				// and initialise our swapchain as a regular khr swapchain
-				using namespace le_window;
-
-				le_swapchain_settings_t tmp_settings = *settings;
-
-				tmp_settings.width_hint              = window_i.get_surface_width( self->window );
-				tmp_settings.height_hint             = window_i.get_surface_height( self->window );
-				tmp_settings.khr_settings.vk_surface = self->windowSurface; // we need this so that swapchain can query surface capabilities
-
-				swapchain = swapchain_i.create( le_swapchain_vk::api->swapchain_khr_i, self, &tmp_settings );
-
-			} else {
-				// cannot run a khr swapchain without a window.
-			}
+			backend_create_window_surface( self, settings );
+			swapchain = swapchain_i.create( le_swapchain_vk::api->swapchain_khr_i, self, settings );
 		} break;
 		}
 
@@ -912,17 +904,14 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 	std::vector<char const *> requestedDeviceExtensions;
 	{
 
-		if ( settings->pWindow ) {
+		// -- insert extensions necessary for glfw window
 
-			// -- insert extensions necessary for glfw window
+		uint32_t extensionCount           = 0;
+		auto     requiredWindowExtensions = le::Window::getRequiredVkExtensions( &extensionCount );
 
-			uint32_t extensionCount           = 0;
-			auto     requiredWindowExtensions = le::Window( settings->pWindow ).getRequiredVkExtensions( &extensionCount );
-
-			requestedInstanceExtensions.insert( requestedInstanceExtensions.end(),
-			                                    requiredWindowExtensions,
-			                                    requiredWindowExtensions + extensionCount );
-		}
+		requestedInstanceExtensions.insert( requestedInstanceExtensions.end(),
+		                                    requiredWindowExtensions,
+		                                    requiredWindowExtensions + extensionCount );
 
 		{
 			// insert any instance extensions requested via the swapchain.
@@ -972,10 +961,8 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 	using namespace le_backend_vk;
 	{
 
-		self->instance = vk_instance_i.create( requestedInstanceExtensions.data(), uint32_t( requestedInstanceExtensions.size() ) );
-		self->device   = std::make_unique<le::Device>( self->instance, requestedDeviceExtensions.data(), uint32_t( requestedDeviceExtensions.size() ) );
-		self->window   = settings->pWindow;
-
+		self->instance      = vk_instance_i.create( requestedInstanceExtensions.data(), uint32_t( requestedInstanceExtensions.size() ) );
+		self->device        = std::make_unique<le::Device>( self->instance, requestedDeviceExtensions.data(), uint32_t( requestedDeviceExtensions.size() ) );
 		self->pipelineCache = le_pipeline_manager_i.create( *self->device );
 	}
 
@@ -983,9 +970,6 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 		// -- query rtx properties, and store them with backend
 		self->device->getRaytracingProperties( &static_cast<VkPhysicalDeviceRayTracingPropertiesKHR &>( self->ray_tracing_props ) );
 	}
-
-	// -- create window surface if requested
-	self->windowSurface = backend_create_window_surface( self );
 
 	vk::Device         vkDevice         = self->device->getVkDevice();
 	vk::PhysicalDevice vkPhysicalDevice = self->device->getVkPhysicalDevice();
@@ -1093,12 +1077,12 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 		{
 			for ( auto &state : frameData.swapchain_state ) {
 				state.presentComplete = vkDevice.createSemaphore( {} );
+				state.renderComplete  = vkDevice.createSemaphore( {} );
 			}
 		}
 
-		frameData.frameFence              = vkDevice.createFence( {} ); // fence starts out as "signalled"
-		frameData.semaphoreRenderComplete = vkDevice.createSemaphore( {} );
-		frameData.commandPool             = vkDevice.createCommandPool( { vk::CommandPoolCreateFlagBits::eTransient, self->device->getDefaultGraphicsQueueFamilyIndex() } );
+		frameData.frameFence  = vkDevice.createFence( {} ); // fence starts out as "signalled"
+		frameData.commandPool = vkDevice.createCommandPool( { vk::CommandPoolCreateFlagBits::eTransient, self->device->getDefaultGraphicsQueueFamilyIndex() } );
 
 		{
 			// -- set up an allocation pool for each frame
@@ -5417,8 +5401,12 @@ static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
 	std::vector<vk::Semaphore> present_complete_semaphores;
 	present_complete_semaphores.reserve( frame.swapchain_state.size() );
 
+	std::vector<vk::Semaphore> render_complete_semaphores;
+	render_complete_semaphores.reserve( frame.swapchain_state.size() );
+
 	for ( auto const &swp : frame.swapchain_state ) {
 		present_complete_semaphores.push_back( swp.presentComplete );
+		render_complete_semaphores.push_back( swp.renderComplete );
 	}
 
 	vk::SubmitInfo submitInfo;
@@ -5428,8 +5416,8 @@ static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
 	    .setPWaitDstStageMask( wait_dst_stage_mask.data() )
 	    .setCommandBufferCount( uint32_t( frame.commandBuffers.size() ) )
 	    .setPCommandBuffers( frame.commandBuffers.data() )
-	    .setSignalSemaphoreCount( 1 )
-	    .setPSignalSemaphores( &frame.semaphoreRenderComplete );
+	    .setSignalSemaphoreCount( uint32( render_complete_semaphores.size() ) )
+	    .setPSignalSemaphores( render_complete_semaphores.data() );
 
 	auto queue = vk::Queue{ self->device->getDefaultGraphicsQueue() };
 
@@ -5445,7 +5433,7 @@ static bool backend_dispatch_frame( le_backend_o *self, size_t frameIndex ) {
 		    swapchain_i.present(
 		        self->swapchains[ i ],
 		        self->device->getDefaultGraphicsQueue(),
-		        frame.semaphoreRenderComplete,
+		        render_complete_semaphores[ i ],
 		        &frame.swapchain_state[ i ].image_idx );
 
 		frame.swapchain_state[ i ].present_successful = result;

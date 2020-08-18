@@ -67,7 +67,6 @@ struct le_backend_vk_settings_t {
 	const char **            requestedDeviceExtensions      = nullptr;
 	uint32_t                 numRequestedDeviceExtensions   = 0;
 	uint32_t                 concurrency_count              = 1;       // number of potential worker threads
-	le_window_o *            pWindow                        = nullptr; // non-owning, owned by application. Application must outlive backend.
 	le_swapchain_settings_t *pSwapchain_settings            = nullptr; // non-owning, owned by caller of setup method.
 	uint32_t                 num_swapchain_settings         = 1;       // must be set by caller of setup method - tells us how many pSwapchain_settings to expect.
 };

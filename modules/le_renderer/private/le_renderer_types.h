@@ -1015,6 +1015,7 @@ struct le_swapchain_settings_t {
 		};
 		Presentmode            presentmode_hint = Presentmode::eFifo;
 		struct VkSurfaceKHR_T *vk_surface;
+		struct le_window_o *   window;
 	};
 	struct img_settings_t {
 	};
@@ -1032,11 +1033,10 @@ struct le_swapchain_settings_t {
 };
 
 struct le_renderer_settings_t {
-	struct le_window_o *    window                            = nullptr; // optional;
 	char const **           requested_device_extensions       = nullptr; // optional
 	uint32_t                requested_device_extensions_count = 0;       //
 	le_swapchain_settings_t swapchain_settings[ 16 ]          = {};
-	size_t                  num_swapchain_settings            = 0;
+	size_t                  num_swapchain_settings            = 1;
 };
 
 // specifies parameters for an image write operation.
@@ -1075,9 +1075,9 @@ class RendererInfoBuilder {
   public:
 	RendererInfoBuilder( le_window_o *window = nullptr, char const **requested_device_extensions = nullptr, uint32_t requested_device_extensions_count = 0 )
 	    : swapchain_settings( info.swapchain_settings ) {
-		info.window                            = window;
-		info.requested_device_extensions       = requested_device_extensions;
-		info.requested_device_extensions_count = requested_device_extensions_count;
+		info.swapchain_settings->khr_settings.window = window;
+		info.requested_device_extensions             = requested_device_extensions;
+		info.requested_device_extensions_count       = requested_device_extensions_count;
 	}
 
 	class SwapchainInfoBuilder {
@@ -1124,6 +1124,11 @@ class RendererInfoBuilder {
 			}
 
 			BUILDER_IMPLEMENT( KhrSwapchainInfoBuilder, setPresentmode, le::Presentmode, presentmode_hint, = le::Presentmode::eFifo )
+
+			KhrSwapchainInfoBuilder &setWindow( le_window_o *window = nullptr ) {
+				this->parent.parent.swapchain_settings->khr_settings.window = window;
+				return *this;
+			}
 
 			SwapchainInfoBuilder &end() {
 				parent.parent.swapchain_settings->type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN;
@@ -1182,8 +1187,10 @@ class RendererInfoBuilder {
 		}
 
 		RendererInfoBuilder &end() {
+			if ( parent.swapchain_settings != &parent.info.swapchain_settings[ 0 ] ) {
+				parent.info.num_swapchain_settings++;
+			}
 			parent.swapchain_settings++;
-			parent.info.num_swapchain_settings++;
 			return parent;
 		}
 	};
@@ -1193,8 +1200,6 @@ class RendererInfoBuilder {
 	SwapchainInfoBuilder &withSwapchain() {
 		return mSwapchainInfoBuilder;
 	}
-
-	BUILDER_IMPLEMENT( RendererInfoBuilder, setWindow, le_window_o *, window, = nullptr )
 
 	le_renderer_settings_t const &build() {
 

@@ -1,6 +1,7 @@
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_renderer/private/le_renderer_types.h"
 #include "include/internal/le_swapchain_vk_common.h"
+#include "le_window/le_window.h"
 
 #include <vulkan/vulkan.hpp>
 
@@ -17,6 +18,7 @@ struct SurfaceProperties {
 
 struct khr_data_o {
 	le_swapchain_settings_t mSettings                      = {};
+	le_window_o *           window                         = nullptr;
 	le_backend_o *          backend                        = nullptr;
 	uint32_t                mImagecount                    = 0;
 	uint32_t                mImageIndex                    = uint32_t( ~0 ); // current image index
@@ -135,6 +137,13 @@ static void swapchain_khr_reset( le_swapchain_o *base, const le_swapchain_settin
 
 	if ( settings_ ) {
 		self->mSettings = *settings_;
+	}
+
+	{
+		using namespace le_window;
+
+		self->mSettings.width_hint  = window_i.get_surface_width( self->mSettings.khr_settings.window );
+		self->mSettings.height_hint = window_i.get_surface_height( self->mSettings.khr_settings.window );
 	}
 
 	// `settings_` may have been a nullptr in which case this operation is only valid
