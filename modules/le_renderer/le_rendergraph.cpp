@@ -977,15 +977,49 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 	// encoder extents if these cannot be initialised via renderpass extents.
 	//
 	// Note that this does not change the renderpass extents.
-	le::Extent2D swapchain_extent{};
-	vk_backend_i.get_swapchain_extent( backend, 0, &swapchain_extent.width, &swapchain_extent.height );
+	// le::Extent2D swapchain_extent{};
+
+	uint32_t num_swapchain_images = 3; // gets updated as a side-effect of backend_i.get_swapchain_info()
+
+	std::vector<le_resource_handle_t> swapchain_images;
+	std::vector<uint32_t>             swapchain_image_width;
+	std::vector<uint32_t>             swapchain_image_height;
+
+	do {
+		swapchain_images.resize( num_swapchain_images );
+		swapchain_image_height.resize( num_swapchain_images );
+		swapchain_image_width.resize( num_swapchain_images );
+	} while ( false ==
+	          vk_backend_i.get_swapchain_info(
+	              backend,
+	              &num_swapchain_images,
+	              swapchain_image_width.data(),
+	              swapchain_image_height.data(),
+	              swapchain_images.data() ) );
+
+	// --------| invariant: - num_swapchain_images holds correct number of swapchain images,
+	//                      - swapchain image info is available in swapchain_image[s|_width|_height]
+
+	auto find_matching_resource =
+	    []( std::vector<le_resource_handle_t> const &attachments,
+	        std::vector<le_resource_handle_t> const &resources,
+	        const uint32_t &                         num_resources ) -> uint32_t {
+		for ( auto const &attachment : attachments ) {
+			for ( uint32_t j = 0; j != num_resources; j++ ) {
+				if ( resources[ j ] == attachment ) {
+					return j;
+					break;
+				}
+			}
+		}
+		return 0;
+	};
 
 	// Create one encoder per pass, and then record commands by calling the execute callback.
 
 	const size_t numPasses = self->passes.size();
 
 	for ( size_t i = 0; i != numPasses; ++i ) {
-
 		auto &pass       = self->passes[ i ];
 		auto &sort_index = self->sortIndices[ i ]; // passes with same sort_index may execute in parallel.
 
@@ -999,9 +1033,19 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 		if ( !pass->executeCallbacks.empty() ) {
 
 			le::Extent2D pass_extents{
-			    pass->width != 0 ? pass->width : swapchain_extent.width,   // Use pass extent unless it is 0, otherwise revert to swapchain_extent
-			    pass->height != 0 ? pass->height : swapchain_extent.height // Use pass extent unless it is 0, otherwise revert to swapchain_extent
+			    pass->width,
+			    pass->height,
 			};
+
+			if ( pass_extents.width == 0 || pass_extents.height == 0 ) {
+				// we must infer pass width and pass height
+
+				// check if any of our pass image attachments matches a swapchain resource
+				uint32_t matching_swapchain_idx = find_matching_resource( pass->attachmentResources, swapchain_images, num_swapchain_images ); // default to zero
+
+				pass->width = pass_extents.width = swapchain_image_width[ matching_swapchain_idx ];
+				pass->height = pass_extents.height = swapchain_image_height[ matching_swapchain_idx ];
+			}
 
 			pass->encoder = encoder_i.create( ppAllocators, pipelineCache, stagingAllocator, pass_extents ); // NOTE: we must manually track the lifetime of encoder!
 
