@@ -1363,7 +1363,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 // each renderpass contains offsets into sync chain for given resource used by renderpass.
 // resource sync state for images used as renderpass attachments is chosen so that they
 // can be implicitly synced using subpass dependencies.
-static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses, const le_resource_handle_t &backbufferImageHandle ) {
+static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses, const std::vector<le_resource_handle_t> &backbufferImageHandles ) {
 
 	// A pipeline barrier is defined as a combination of EXECUTION dependency and MEMORY dependency:
 	//
@@ -1390,13 +1390,13 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 	auto &syncChainTable = frame.syncChainTable;
 
-	{
+	for ( auto &swapchain_image : backbufferImageHandles ) {
 
 		// -- backbuffer has their sync state changed outside of our frame graph
 		// because submitting to the swapchain changes its sync state.
 		// We must adjust the backbuffer sync-chain table to account for this.
 
-		auto backbufferIt = syncChainTable.find( backbufferImageHandle );
+		auto backbufferIt = syncChainTable.find( swapchain_image );
 		if ( backbufferIt != syncChainTable.end() ) {
 			auto &backbufferState          = backbufferIt->second.front();
 			backbufferState.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
@@ -1529,7 +1529,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 		auto finalState{ syncChain.back() };
 
-		if ( id == backbufferImageHandle ) {
+		if ( std::find( backbufferImageHandles.begin(), backbufferImageHandles.end(), id ) != backbufferImageHandles.end() ) {
 			finalState.write_stage    = vk::PipelineStageFlagBits::eBottomOfPipe;
 			finalState.visible_access = vk::AccessFlagBits::eMemoryRead;
 			finalState.layout         = vk::ImageLayout::ePresentSrcKHR;
@@ -3615,7 +3615,7 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 
 	// -- build sync chain for each resource, create explicit sync barrier requests for resources
 	// which cannot be impliciltly synced.
-	frame_track_resource_state( frame, passes, numRenderPasses, LE_SWAPCHAIN_IMAGE_HANDLE );
+	frame_track_resource_state( frame, passes, numRenderPasses, self->swapchain_resources );
 
 	// At this point we know the state for each resource at the end of the sync chain.
 	// this state will be the initial state for the resource
