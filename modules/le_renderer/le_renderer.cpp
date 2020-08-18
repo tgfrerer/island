@@ -642,8 +642,7 @@ static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) 
 			}
 		}
 
-		// TODO: (multi-window) we should only reset the which failed acquisition
-		vk_backend_i.reset_swapchain( self->backend, 0 );
+		vk_backend_i.reset_failed_swapchains( self->backend );
 
 		self->swapchainDirty = false;
 	}

@@ -99,6 +99,7 @@ struct le_backend_vk_api {
 
 		size_t                 ( *get_num_swapchain_images   ) ( le_backend_o *self );
 		void                   ( *reset_swapchain            ) ( le_backend_o *self, uint32_t index );
+		void                   ( *reset_failed_swapchains    ) ( le_backend_o *self );
 		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex);
 		le_staging_allocator_o*( *get_staging_allocator      ) ( le_backend_o* self, size_t frameIndex);
 
@@ -107,8 +108,10 @@ struct le_backend_vk_api {
 
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
 
-		void                   ( *get_swapchain_extent  ) ( le_backend_o* self, uint32_t index, uint32_t * p_width, uint32_t * p_height);
+		void                   ( *get_swapchain_extent      ) ( le_backend_o* self, uint32_t index, uint32_t * p_width, uint32_t * p_height );
 		le_resource_handle_t   ( *get_swapchain_resource    ) ( le_backend_o* self, uint32_t index );
+		uint32_t			   ( *get_swapchain_count       ) ( le_backend_o* self );
+		bool                   ( *get_swapchain_info        ) ( le_backend_o* self, uint32_t *count, uint32_t* p_width, uint32_t * p_height, le_resource_handle_t* p_handlle );
 
 		le_rtx_blas_info_handle( *create_rtx_blas_info )(le_backend_o* self, le_rtx_geometry_t const * geometries, uint32_t geometries_count, struct LeBuildAccelerationStructureFlags const * flags);
 		le_rtx_tlas_info_handle( *create_rtx_tlas_info )(le_backend_o* self,  uint32_t instances_count, struct LeBuildAccelerationStructureFlags const * flags);

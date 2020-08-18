@@ -822,6 +822,38 @@ static void backend_get_swapchain_extent( le_backend_o *self, uint32_t index, ui
 
 // ----------------------------------------------------------------------
 
+bool backend_get_swapchain_info( le_backend_o *self, uint32_t *count, uint32_t *p_width, uint32_t *p_height, le_resource_handle_t *p_handle ) {
+
+	if ( *count < self->swapchain_resources.size() ) {
+		*count = self->swapchain_resources.size();
+		return false;
+	}
+
+	// ---------| invariant: count is equal or larger than number of swapchain resources
+
+	size_t num_items = *count = self->swapchain_resources.size();
+
+	memcpy( p_width, self->swapchainWidth.data(), sizeof( uint32_t ) * num_items );
+	memcpy( p_height, self->swapchainHeight.data(), sizeof( uint32_t ) * num_items );
+	memcpy( p_handle, self->swapchain_resources.data(), sizeof( le_resource_handle_t ) * num_items );
+
+	return true;
+}
+// ----------------------------------------------------------------------
+
+static le_resource_handle_t backend_get_swapchain_resource( le_backend_o *self, uint32_t index ) {
+	self->swapchain_resources[ index ];
+	return LE_SWAPCHAIN_IMAGE_HANDLE;
+}
+
+// ----------------------------------------------------------------------
+
+static uint32_t backend_get_swapchain_count( le_backend_o *self ) {
+	return self->swapchain_resources.size();
+}
+
+// ----------------------------------------------------------------------
+
 static void backend_reset_swapchain( le_backend_o *self, uint32_t index ) {
 	using namespace le_swapchain_vk;
 
@@ -829,12 +861,29 @@ static void backend_reset_swapchain( le_backend_o *self, uint32_t index ) {
 
 	swapchain_i.reset( self->swapchains[ index ], nullptr );
 
+	std::cout << "NOTICE: Resetting swapchain with index: " << index << std::flush << std::endl;
+
 	// We must update our cached values for swapchain dimensions if the swapchain was reset.
 
 	self->swapchainWidth[ index ]  = swapchain_i.get_image_width( self->swapchains[ index ] );
 	self->swapchainHeight[ index ] = swapchain_i.get_image_height( self->swapchains[ index ] );
 }
 
+// ----------------------------------------------------------------------
+/// \brief reset any swapchains for which at least one swapchain_state
+/// did not present successfully
+static void backend_reset_failed_swapchains( le_backend_o *self ) {
+	using namespace le_swapchain_vk;
+
+	for ( uint32_t i = 0; i != self->swapchains.size(); ++i ) {
+		for ( auto const &f : self->mFrames ) {
+			if ( false == f.swapchain_state[ i ].present_successful ) {
+				backend_reset_swapchain( self, i );
+				break;
+			}
+		}
+	}
+}
 // ----------------------------------------------------------------------
 
 /// \brief Declare a resource as a virtual buffer
@@ -850,13 +899,6 @@ static le_resource_handle_t declare_resource_virtual_buffer( uint8_t index ) {
 	resource.handle.as_handle.meta.as_meta.flags = le_resource_handle_t::FlagBits::eIsVirtual;
 
 	return resource;
-}
-
-// ----------------------------------------------------------------------
-
-static le_resource_handle_t backend_get_swapchain_resource( le_backend_o *self, uint32_t index ) {
-	self->swapchain_resources[ index ];
-	return LE_SWAPCHAIN_IMAGE_HANDLE;
 }
 
 // ----------------------------------------------------------------------
@@ -913,13 +955,13 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 		                                    requiredWindowExtensions,
 		                                    requiredWindowExtensions + extensionCount );
 
-		{
+		for ( size_t i = 0; i != settings->num_swapchain_settings; ++i ) {
 			// insert any instance extensions requested via the swapchain.
 
 			char const **exts;
 			size_t       num_exts;
 
-			le_swapchain_vk::swapchain_i.get_required_vk_instance_extensions( settings->pSwapchain_settings, &exts, &num_exts );
+			le_swapchain_vk::swapchain_i.get_required_vk_instance_extensions( settings->pSwapchain_settings + i, &exts, &num_exts );
 
 			if ( num_exts ) {
 				requestedInstanceExtensions.insert( requestedInstanceExtensions.end(), exts, exts + num_exts );
@@ -3550,19 +3592,32 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 
 	auto &frame = self->mFrames[ frameIndex ];
 
-	// TODO: (multi-window) we want to make sure to only reset the swapchains which fail image acquisition.
+	// We try to acquire all images, even if one of the acquisitions fails.
+	//
+	// This is so that the every semaphore for presentComplete is correctly
+	// waited upon.
+
+	bool acquire_success = true;
+
+	using namespace le_swapchain_vk;
 
 	for ( size_t i = 0; i != self->swapchains.size(); ++i ) {
-		// Acquire swapchain image
-
-		using namespace le_swapchain_vk;
-
 		if ( !swapchain_i.acquire_next_image(
 		         self->swapchains[ i ],
 		         frame.swapchain_state[ i ].presentComplete,
 		         frame.swapchain_state[ i ].image_idx ) ) {
-			return false;
+			acquire_success = false;
 		}
+	}
+
+	if ( !acquire_success ) {
+		return false;
+	}
+
+	// ----------| invariant: swapchain image acquisition was successful.
+
+	for ( size_t i = 0; i != self->swapchains.size(); ++i ) {
+		// Acquire swapchain image
 
 		// ----------| invariant: swapchain acquisition successful.
 
@@ -5501,6 +5556,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 	vk_backend_i.setup                      = backend_setup;
 	vk_backend_i.get_num_swapchain_images   = backend_get_num_swapchain_images;
 	vk_backend_i.reset_swapchain            = backend_reset_swapchain;
+	vk_backend_i.reset_failed_swapchains    = backend_reset_failed_swapchains;
 	vk_backend_i.get_transient_allocators   = backend_get_transient_allocators;
 	vk_backend_i.get_staging_allocator      = backend_get_staging_allocator;
 	vk_backend_i.poll_frame_fence           = backend_poll_frame_fence;
@@ -5515,6 +5571,8 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 
 	vk_backend_i.get_swapchain_resource = backend_get_swapchain_resource;
 	vk_backend_i.get_swapchain_extent   = backend_get_swapchain_extent;
+	vk_backend_i.get_swapchain_count    = backend_get_swapchain_count;
+	vk_backend_i.get_swapchain_info     = backend_get_swapchain_info;
 
 	vk_backend_i.create_rtx_blas_info = backend_create_rtx_blas_info;
 	vk_backend_i.create_rtx_tlas_info = backend_create_rtx_tlas_info;
