@@ -75,10 +75,14 @@ experiments](http://instagram.com/tgfrerer) with.
 * **Code tweaks**: Near-instant in-code parameter tweaks for Debug
   builds (no need to recompile) by using a special `TWEAK()` macro.
 
+* **Multi-Window** Island allows you to hoop up multiple swapchains to
+  a single application. This is particularly useful for multi-window
+  scenarios. See [example][example-multiwindow]
+  
 * **Straight to video**: Island can render straight to screen using
-  the direct rendering backend, or use any number of available options
-  for a window-based vulkan swapchain. It's also easy to render
-  straight to an mp4 file, or an image sequence without showing
+  the direct rendering swapchain, or use any number of available
+  options for a window-based vulkan swapchain. It's also easy to
+  render straight to an mp4 file, or an image sequence without showing
   a window, by selecting the appropriate `le_swapchain`
   specialisation.
 
@@ -105,6 +109,7 @@ experiments](http://instagram.com/tgfrerer) with.
 [hain]: https://doi.org/10.1016/j.cag.2005.08.002
 [hobby]: http://weitz.de/hobby/
 [cgltf-link]: https://github.com/jkuhlmann/cgltf
+[example-multiwindow]: apps/examples/multi_window_example/
 
 ## Tools
 

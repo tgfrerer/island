@@ -82,11 +82,8 @@ static multi_window_example_app_o *app_create() {
 	        .end()
 	        .end()
 	        .addSwapchain()
-	        .setFormatHint( le::Format::eG8B8G8R8422Unorm )
-	        .setImagecountHint( 2 )
 	        .asWindowSwapchain()
 	        .setWindow( app->window_1 )
-
 	        .end()
 	        .end()
 	        .build() );
