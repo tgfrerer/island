@@ -290,7 +290,7 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 		};
 
 		char cmd[ 1024 ]{};
-		sprintf( cmd, commandLines[ 3 ], self->mSwapchainExtent.width, self->mSwapchainExtent.height, timestamp_tag.str().c_str() );
+		snprintf( cmd, sizeof( cmd ), commandLines[ 3 ], self->mSwapchainExtent.width, self->mSwapchainExtent.height, timestamp_tag.str().c_str() );
 
 		std::cout << "Pipe command line string: '" << cmd << "'" << std::endl
 		          << std::flush;
