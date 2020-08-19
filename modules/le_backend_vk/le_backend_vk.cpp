@@ -842,8 +842,7 @@ bool backend_get_swapchain_info( le_backend_o *self, uint32_t *count, uint32_t *
 // ----------------------------------------------------------------------
 
 static le_resource_handle_t backend_get_swapchain_resource( le_backend_o *self, uint32_t index ) {
-	self->swapchain_resources[ index ];
-	return LE_SWAPCHAIN_IMAGE_HANDLE;
+	return self->swapchain_resources[ index ];
 }
 
 // ----------------------------------------------------------------------
