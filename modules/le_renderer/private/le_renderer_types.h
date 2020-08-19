@@ -1096,16 +1096,17 @@ class RendererInfoBuilder {
 		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setFormatHint, le::Format, format_hint, = le::Format::eR8G8B8A8Unorm )
 
 		class KhrSwapchainInfoBuilder {
-			SwapchainInfoBuilder &                   parent;
-			le_swapchain_settings_t::khr_settings_t &self;
+			SwapchainInfoBuilder &parent;
 
 		  public:
 			KhrSwapchainInfoBuilder( SwapchainInfoBuilder &parent_ )
-			    : parent( parent_ )
-			    , self( parent.self->khr_settings ) {
+			    : parent( parent_ ) {
 			}
 
-			BUILDER_IMPLEMENT( KhrSwapchainInfoBuilder, setPresentmode, le::Presentmode, presentmode_hint, = le::Presentmode::eFifo )
+			KhrSwapchainInfoBuilder &setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
+				this->parent.parent.swapchain_settings->khr_settings.presentmode_hint = presentmode_hint;
+				return *this;
+			}
 
 			KhrSwapchainInfoBuilder &setWindow( le_window_o *window = nullptr ) {
 				this->parent.parent.swapchain_settings->khr_settings.window = window;
@@ -1128,10 +1129,13 @@ class RendererInfoBuilder {
 			    , self( parent.self->khr_settings ) {
 			}
 
-			BUILDER_IMPLEMENT( DirectSwapchainInfoBuilder, setPresentmode, le::Presentmode, presentmode_hint, = le::Presentmode::eFifo )
+			DirectSwapchainInfoBuilder &setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
+				this->parent.parent.swapchain_settings->khr_settings.presentmode_hint = presentmode_hint;
+				return *this;
+			}
 
 			SwapchainInfoBuilder &end() {
-				parent.parent.info.swapchain_settings->type = le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN;
+				parent.parent.swapchain_settings->type = le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN;
 				return parent;
 			}
 		};
@@ -1147,7 +1151,7 @@ class RendererInfoBuilder {
 			}
 
 			SwapchainInfoBuilder &end() {
-				parent.parent.info.swapchain_settings->type = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
+				parent.parent.swapchain_settings->type = le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN;
 				return parent;
 			}
 		};
