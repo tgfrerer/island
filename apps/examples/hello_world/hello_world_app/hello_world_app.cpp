@@ -111,13 +111,13 @@ static hello_world_app_o *hello_world_app_create() {
 	app->window.setup( settings );
 
 	auto rendererInfo = le::RendererInfoBuilder()
-	                        .setWindow( app->window )
-	                        .withSwapchain()
+	                        .addSwapchain()
 	                        .setFormatHint( le::Format::eB8G8R8A8Unorm )
 	                        .setWidthHint( 1920 )
 	                        .setHeightHint( 1080 )
 	                        .setImagecountHint( 3 )
-	                        .withKhrSwapchain()
+	                        .asWindowSwapchain()
+	                        .setWindow( app->window )
 	                        .setPresentmode( le::Presentmode::eFifo )
 	                        .end()
 	                        .end()

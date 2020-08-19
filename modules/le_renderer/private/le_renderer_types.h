@@ -1090,24 +1090,6 @@ class RendererInfoBuilder {
 		    , self( parent.swapchain_settings ) {
 		}
 
-		SwapchainInfoBuilder &setType( le_swapchain_settings_t::Type type = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN ) {
-			self->type = type;
-
-			switch ( type ) {
-			case le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN:
-				self->khr_settings = {};
-				break;
-			case le_swapchain_settings_t::Type::LE_DIRECT_SWAPCHAIN:
-				self->khr_settings = {}; // TODO
-				break;
-			case le_swapchain_settings_t::Type::LE_IMG_SWAPCHAIN:
-				self->img_settings = {};
-				break;
-			}
-
-			return *this;
-		}
-
 		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setWidthHint, uint32_t, width_hint, = 640 )
 		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setHeightHint, uint32_t, height_hint, = 480 )
 		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setImagecountHint, uint32_t, imagecount_hint, = 3 )
@@ -1174,15 +1156,15 @@ class RendererInfoBuilder {
 		ImgSwapchainInfoBuilder    mImgSwapchainInfoBuilder{ *this };    // order matters, last one will be default, because initialisation overwrites.
 		KhrSwapchainInfoBuilder    mKhrSwapchainInfoBuilder{ *this };    // order matters, last one will be default, because initialisation overwrites.
 
-		KhrSwapchainInfoBuilder &withKhrSwapchain() {
+		KhrSwapchainInfoBuilder &asWindowSwapchain() {
 			return mKhrSwapchainInfoBuilder;
 		}
 
-		ImgSwapchainInfoBuilder &withImgSwapchain() {
+		ImgSwapchainInfoBuilder &asImgSwapchain() {
 			return mImgSwapchainInfoBuilder;
 		}
 
-		DirectSwapchainInfoBuilder &withDirectSwapchain() {
+		DirectSwapchainInfoBuilder &asDirectSwapchain() {
 			return mDirectSwapchainInfoBuilder;
 		}
 
@@ -1197,7 +1179,7 @@ class RendererInfoBuilder {
 
 	SwapchainInfoBuilder mSwapchainInfoBuilder{ *this };
 
-	SwapchainInfoBuilder &withSwapchain() {
+	SwapchainInfoBuilder &addSwapchain() {
 		return mSwapchainInfoBuilder;
 	}
 
