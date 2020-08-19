@@ -6,7 +6,6 @@ apps_list=("
     examples/lut_grading_example:Island-LutGradingExample
     examples/hello_world:Island-HelloWorld
     examples/hello_triangle:Island-HelloTriangle
-    examples/geometry_shader_example:Island-GeometryShaderExample
     examples/imgui_example:Island-ImguiExample
     dev/test_cubemap:Island-TestCubemap
     dev/test_rtx:Island-TestRtx
