@@ -185,11 +185,12 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 
 	size_t resource_idx    = 0; // index of matching resource
 	size_t resources_count = self->resources.size();
-	for ( le_resource_handle_t *res = self->resources.data(); resource_idx != resources_count; res++, resource_idx++ ) {
+	for ( le_resource_handle_t *res = self->resources.data(); resource_idx != resources_count; res++ ) {
 		if ( *res == resource_id ) {
 			// found a match
 			break;
 		}
+		resource_idx++;
 	}
 
 	if ( resource_idx == resources_count ) {
