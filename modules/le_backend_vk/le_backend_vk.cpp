@@ -415,6 +415,7 @@ struct swapchain_state_t {
 	uint32_t surface_width      = 0;
 	uint32_t surface_height     = 0;
 	bool     present_successful = false;
+	bool     acquire_successful = false;
 };
 
 // Herein goes all data which is associated with the current frame.
@@ -876,7 +877,8 @@ static void backend_reset_failed_swapchains( le_backend_o *self ) {
 
 	for ( uint32_t i = 0; i != self->swapchains.size(); ++i ) {
 		for ( auto const &f : self->mFrames ) {
-			if ( false == f.swapchain_state[ i ].present_successful ) {
+			if ( false == f.swapchain_state[ i ].present_successful ||
+				 false == f.swapchain_state[ i ].acquire_successful ) {
 				backend_reset_swapchain( self, i );
 				break;
 			}
@@ -3605,7 +3607,10 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 		         self->swapchains[ i ],
 		         frame.swapchain_state[ i ].presentComplete,
 		         frame.swapchain_state[ i ].image_idx ) ) {
-			acquire_success = false;
+			acquire_success                               = false;
+			frame.swapchain_state[ i ].acquire_successful = false;
+		} else {
+			frame.swapchain_state[ i ].acquire_successful = true;
 		}
 	}
 
