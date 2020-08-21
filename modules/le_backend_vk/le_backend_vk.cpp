@@ -878,7 +878,7 @@ static void backend_reset_failed_swapchains( le_backend_o *self ) {
 	for ( uint32_t i = 0; i != self->swapchains.size(); ++i ) {
 		for ( auto const &f : self->mFrames ) {
 			if ( false == f.swapchain_state[ i ].present_successful ||
-				 false == f.swapchain_state[ i ].acquire_successful ) {
+			     false == f.swapchain_state[ i ].acquire_successful ) {
 				backend_reset_swapchain( self, i );
 				break;
 			}
@@ -5002,7 +5002,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				case le::CommandType::eWriteToImage: {
 
 					// TODO: Use sync chain to sync
-					// TODO: Allow more than one layer (useful when uploading cubemaps for example.`)
+					// TODO: we can only write to linear images - we must find a way to make our image tiled
 
 					auto *le_cmd = static_cast<le::CommandWriteToImage *>( dataIt );
 
