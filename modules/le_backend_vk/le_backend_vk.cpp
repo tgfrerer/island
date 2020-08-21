@@ -1524,8 +1524,11 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 					} else if ( usage.as.image_usage_flags & LE_IMAGE_USAGE_TRANSFER_DST_BIT ) {
 						// this is an image write operation.
+						requestedState.visible_access = vk::AccessFlagBits::eShaderRead;
+						requestedState.layout         = vk::ImageLayout::eShaderReadOnlyOptimal;
+						requestedState.write_stage    = vk::PipelineStageFlagBits::eVertexShader;
 
-						continue;
+						//						continue;
 
 						// TODO: implement - and make sure we're still compatible with the barriers inserted
 						// when processing le::CommandType::eWriteToImage.
@@ -4161,9 +4164,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					rangeAllMiplevels
 					    .setAspectMask( vk::ImageAspectFlagBits::eColor )
 					    .setBaseMipLevel( 0 )
-					    .setLevelCount( 1 ) // we want all miplevels to be in transferDstOptimal.
+					    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we want all miplevels to be in transferDstOptimal.
 					    .setBaseArrayLayer( 0 )
-					    .setLayerCount( 1 );
+					    .setLayerCount( VK_REMAINING_ARRAY_LAYERS );
 
 					vk::ImageMemoryBarrier imageLayoutTransfer;
 					imageLayoutTransfer
