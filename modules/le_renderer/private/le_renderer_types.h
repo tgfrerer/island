@@ -1024,7 +1024,7 @@ struct le_swapchain_settings_t {
 	uint32_t   width_hint      = 640;
 	uint32_t   height_hint     = 480;
 	uint32_t   imagecount_hint = 3;
-	le::Format format_hint     = le::Format::eR8G8B8A8Unorm; // preferred surface format
+	le::Format format_hint     = le::Format::eB8G8R8A8Unorm; // preferred surface format
 
 	union {
 		khr_settings_t khr_settings{};
@@ -1093,7 +1093,7 @@ class RendererInfoBuilder {
 		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setWidthHint, uint32_t, width_hint, = 640 )
 		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setHeightHint, uint32_t, height_hint, = 480 )
 		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setImagecountHint, uint32_t, imagecount_hint, = 3 )
-		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setFormatHint, le::Format, format_hint, = le::Format::eR8G8B8A8Unorm )
+		P_BUILDER_IMPLEMENT( SwapchainInfoBuilder, setFormatHint, le::Format, format_hint, = le::Format::eB8G8R8A8Unorm )
 
 		class KhrSwapchainInfoBuilder {
 			SwapchainInfoBuilder &parent;
