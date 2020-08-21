@@ -155,13 +155,24 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	vk::Instance instance   = vk_instance_i.get_vk_instance( instance_ );
 	auto         deviceList = instance.enumeratePhysicalDevices();
 
-	// CONSIDER: find the best appropriate GPU
-	// Select a physical device (GPU) from the above queried list of options.
-	// For now, we assume the first one to be the best one.
 	self->vkPhysicalDevice = deviceList.front();
 
-	// query the gpu for more info about itself
+	// If there are more than one physical devices are available, find the
+	// first device which is a dedicated GPU, if none of these can be found,
+	// fall back to the first physical device.
+
+	for ( auto d = deviceList.begin() + 1; d != deviceList.end(); d++ ) {
+		auto props = d->getProperties();
+		if ( props.deviceType == vk::PhysicalDeviceType::eDiscreteGpu ) {
+			self->vkPhysicalDevice = *d;
+			break;
+		}
+	}
+
 	self->vkPhysicalDeviceProperties = self->vkPhysicalDevice.getProperties();
+
+	std::cout << "Selected GPU: " << self->vkPhysicalDeviceProperties.deviceName << std::endl
+	          << std::flush;
 
 	auto properties2           = self->vkPhysicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPropertiesKHR>();
 	self->raytracingProperties = properties2.get<vk::PhysicalDeviceRayTracingPropertiesKHR>();
