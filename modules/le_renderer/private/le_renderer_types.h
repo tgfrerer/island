@@ -1018,6 +1018,7 @@ struct le_swapchain_settings_t {
 		struct le_window_o *   window;
 	};
 	struct img_settings_t {
+		char const *pipe_cmd; // command used to save images - will receive stream of images via stdin
 	};
 
 	Type       type            = LE_KHR_SWAPCHAIN;
@@ -1148,6 +1149,11 @@ class RendererInfoBuilder {
 			ImgSwapchainInfoBuilder( SwapchainInfoBuilder &parent_ )
 			    : parent( parent_ )
 			    , self( parent.self->img_settings ) {
+			}
+
+			ImgSwapchainInfoBuilder &setPipeCmd( char const *pipe_cmd = "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 isl%s_%%03d.png" ) {
+				parent.parent.swapchain_settings->img_settings.pipe_cmd = pipe_cmd;
+				return *this;
 			}
 
 			SwapchainInfoBuilder &end() {

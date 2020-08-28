@@ -36,7 +36,8 @@ struct img_data_o {
 	vk::CommandPool            vkCommandPool;                  // Command pool from wich we allocate present and acquire command buffers
 	le_backend_o *             backend = nullptr;              // Not owned. Backend owns swapchain.
 	std::vector<TransferFrame> transferFrames;                 //
-	FILE *                     ffmpeg_pipe = nullptr;          // Pipe to ffmpeg. Owned. must be closed if opened
+	FILE *                     pipe = nullptr;                 // Pipe to ffmpeg. Owned. must be closed if opened
+	std::string                pipe_cmd;                       // command line
 };
 
 // ----------------------------------------------------------------------
@@ -245,6 +246,7 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 	self->windowSurfaceFormat.format     = le_format_to_vk( self->mSettings.format_hint );
 	self->windowSurfaceFormat.colorSpace = vk::ColorSpaceKHR::eSrgbNonlinear;
 	self->mImageIndex                    = uint32_t( ~0 );
+	self->pipe_cmd                       = std::string( settings->img_settings.pipe_cmd );
 	{
 
 		using namespace le_backend_vk;
@@ -290,21 +292,26 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 		};
 
 		char cmd[ 1024 ]{};
-		snprintf( cmd, sizeof( cmd ), commandLines[ 3 ], self->mSwapchainExtent.width, self->mSwapchainExtent.height, timestamp_tag.str().c_str() );
 
-		std::cout << "Pipe command line string: '" << cmd << "'" << std::endl
+		if ( self->pipe_cmd.empty() ) {
+			snprintf( cmd, sizeof( cmd ), commandLines[ 3 ], self->mSwapchainExtent.width, self->mSwapchainExtent.height, timestamp_tag.str().c_str() );
+		} else {
+			snprintf( cmd, sizeof( cmd ), self->pipe_cmd.c_str(), self->mSwapchainExtent.width, self->mSwapchainExtent.height, timestamp_tag.str().c_str() );
+		}
+
+		std::cout << "Image swapchain opening pipe using command line: '" << cmd << "'" << std::endl
 		          << std::flush;
 
 		// Open pipe to ffmpeg's stdin in binary write mode
-		self->ffmpeg_pipe = popen( cmd, "w" );
+		self->pipe = popen( cmd, "w" );
 
-		if ( self->ffmpeg_pipe == nullptr ) {
+		if ( self->pipe == nullptr ) {
 
 			std::cout << " ***** ERROR: Could not open pipe. Additionally, strerror reports:" << strerror( errno ) << std::endl
 			          << std::flush;
 		}
 
-		assert( self->ffmpeg_pipe != nullptr );
+		assert( self->pipe != nullptr );
 	}
 	return base;
 }
@@ -317,9 +324,9 @@ static void swapchain_img_destroy( le_swapchain_o *base ) {
 
 	// close ffmpeg pipe handle
 
-	if ( self->ffmpeg_pipe ) {
-		pclose( self->ffmpeg_pipe );
-		self->ffmpeg_pipe = nullptr; // mark as closed
+	if ( self->pipe ) {
+		pclose( self->pipe );
+		self->pipe = nullptr; // mark as closed
 	}
 
 	using namespace le_backend_vk;
@@ -396,14 +403,14 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 	// We only want to write out images which have made the round-trip
 	// the first n images will be black...
 	if ( self->totalImages > self->mImagecount ) {
-		if ( self->ffmpeg_pipe ) {
+		if ( self->pipe ) {
 			// TODO: we should be able to do the write on the back thread.
 			// the back thread must signal that it is complete with writing
 			// before the next present command is executed.
 
 			// Write out frame contents to ffmpeg via pipe.
 			auto const &frame = self->transferFrames[ imageIndex ];
-			fwrite( frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4, 1, self->ffmpeg_pipe );
+			fwrite( frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4, 1, self->pipe );
 
 		} else {
 			char file_name[ 1024 ];
