@@ -35,7 +35,7 @@ execute_process(COMMAND
 function (build_imgui)
     # n.b. configure_file will replace any cmake variables it finds in the file with their values.
     
-    configure_file("${ISLAND_BASE_DIR}CMakeLists.txt.imgui.in" ${ISLAND_BASE_DIR}/modules/le_imgui/imgui/CMakeLists.txt @ONLY)
+    configure_file("${ISLAND_BASE_DIR}CMakeLists.txt.imgui.in" ${ISLAND_BASE_DIR}/modules/le_imgui/3rdparty/imgui/CMakeLists.txt @ONLY)
 
 endfunction(build_imgui)
 
