@@ -285,7 +285,7 @@ All Examples are working now:
 
 
 Install Lunar SDK from https://vulkan.lunarg.com/
-*imgui* is disabled for now cmake was looping because of this
+*imgui* has been moved as a part of the le_imgui module  
 *glm* is not symbolically linked. src/glm is added as a include folder
 *Vulkan* - cmake doesn't detect the VULKAN_SDK env variable for some reason. - Path is hardcoded for now
 *resources* - are not symbolically linked 

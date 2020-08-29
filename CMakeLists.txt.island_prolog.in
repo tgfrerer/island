@@ -33,24 +33,21 @@ execute_process(COMMAND
   ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 function (build_imgui)
-    # n.b. configure_file will replace any cmake variables it finds in the file with their values.
-    
+    # n.b. configure_file will replace any cmake variables it finds in the file with their values.    
     configure_file("${ISLAND_BASE_DIR}CMakeLists.txt.imgui.in" ${ISLAND_BASE_DIR}/modules/le_imgui/3rdparty/imgui/CMakeLists.txt @ONLY)
-
 endfunction(build_imgui)
 
 
-function (link_resources)
-
+function (link_resources src dst)
     # create a link to local resources
     if (WIN32)
-        if (EXISTS "${CMAKE_BINARY_DIR}/local_resources}")
-            message(STATUS "local resources exists ${CMAKE_BINARY_DIR}")
+        if (EXISTS "${dst}")
+            message(STATUS "local resources exists ${dst}")
         else()    
-            get_filename_component(real_path "${CMAKE_BINARY_DIR}/local_resources" REALPATH)
+            get_filename_component(real_path "${dst}" REALPATH)
             string(REPLACE "/" "\\" target_path "${real_path}")
 
-            get_filename_component(real_path "${PROJECT_SOURCE_DIR}/resources" REALPATH)
+            get_filename_component(real_path "${src}" REALPATH)
             string(REPLACE "/" "\\" src_path "${real_path}")
 
             execute_process(COMMAND cmd /C mklink /J "${target_path}" "${src_path}" 
@@ -58,7 +55,6 @@ function (link_resources)
                 OUTPUT_VARIABLE link_output)
             message(STATUS "creating symbolic link ${target_path} ${src_path} ${link_output} ${link_result}")
         endif()    
-        set_target_properties(${PROJECT_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
         
     else()
         execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/resources ${CMAKE_BINARY_DIR}/local_resources )
@@ -69,42 +65,30 @@ endfunction(link_resources)
 if (REQUIRES_ISLAND_CORE)
 
     build_imgui()
-
-    # link glm source directory into includes directory
     
-    #execute_process(COMMAND ln -sfn ${ISLAND_BASE_DIR}/3rdparty/src/glm/glm ${ISLAND_BASE_DIR}/3rdparty/include/glm )
-
-    # add glm include directory to includes search path - this is because glm's internals require glm's include directory to be globally accessible :(
+    # add glm include directory to includes search path 
     include_directories(${ISLAND_BASE_DIR}/3rdparty/src/glm/)
 
-    # include 3rdparty includes directory
-    include_directories(${ISLAND_BASE_DIR}/3rdparty/include)
-
-    IF (WIN32)
-        include_directories("c:/Work/VulkanSDK/1.2.148.1/include")
-        link_directories("c:/Work/VulkanSDK/1.2.148.1/Lib")
-    ENDIF()
-
     # create a link to shared resources
-    #execute_process(COMMAND ln -sfn ${ISLAND_BASE_DIR}/resources ${CMAKE_BINARY_DIR}/resources )
-
-    # create a link to 3rd party library binaries so that app can find them.
-    #execute_process(COMMAND ln -sfn ${ISLAND_BASE_DIR}/3rdparty/libs ${CMAKE_BINARY_DIR}/libs )
-
+    link_resources(${ISLAND_BASE_DIR}/resources ${CMAKE_BINARY_DIR}/resources )
+    
     #  DEPRECATED: Uncomment this if you wish not to use the ubuntu package `lunarg-vulkan-sdk`.
     ## Check if a local copy of the Vulkan SDK exists, and the environment VULKAN_SDK points to it.
     ## If yes, use this directory for header includes, and linking
-    #  set (VULKAN_SDK_ENV $ENV{VULKAN_SDK})
-    #  if (EXISTS ${VULKAN_SDK_ENV})
-    #
-    #      #include vulkan from SDK installation directory
-    #      include_directories(${VULKAN_SDK_ENV}/include/)
-    #
-    #      # NOTE: We're linking Vulkan from this system's Vulkan SDK directory
-    #      link_directories(${VULKAN_SDK_ENV}/lib)
-    #
-    #  endif(EXISTS ${VULKAN_SDK_ENV})
+    ## we need this on windows
 
+    if (WIN32)
+        set (VULKAN_SDK_ENV $ENV{VULKAN_SDK})
+        if (EXISTS ${VULKAN_SDK_ENV})
+    
+        #include vulkan from SDK installation directory
+        include_directories(${VULKAN_SDK_ENV}/include/)
+    
+        # NOTE: We're linking Vulkan from this system's Vulkan SDK directory
+        link_directories(${VULKAN_SDK_ENV}/lib)
+    
+        endif(EXISTS ${VULKAN_SDK_ENV})
+    endif()
 endif()
 
 include_directories ("${ISLAND_BASE_DIR}")

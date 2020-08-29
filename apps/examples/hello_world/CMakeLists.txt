@@ -34,4 +34,5 @@ set (SOURCES main.cpp)
 include ("${ISLAND_BASE_DIR}CMakeLists.txt.island_epilog.in")
 
 # create a link to local resources
-link_resources()
+link_resources(${PROJECT_SOURCE_DIR}/resources ${CMAKE_BINARY_DIR}/local_resources)
+set_target_properties(${PROJECT_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
