@@ -1,7 +1,7 @@
 #include "le_imgui.h"
 #include "le_core/le_core.h"
 
-#include "3rdparty/include/imgui/imgui.h"
+#include "imgui.h"
 
 #include "le_renderer/le_renderer.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
@@ -11,8 +11,8 @@
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
-#include "glm.hpp"
-#include "gtc/matrix_transform.hpp"
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
 
 #include <array>
 #include <vector>

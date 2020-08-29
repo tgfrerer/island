@@ -281,7 +281,9 @@ reloading, these were a big initial inspiration for this project.
 [our_mach_blog]: https://ourmachinery.com/post/little-machines-working-together-part-1/
 
 ## Windows changes and caveats
-Compute and Hello World examples are working for now
+All Examples are working now:
+
+
 Install Lunar SDK from https://vulkan.lunarg.com/
 *imgui* is disabled for now cmake was looping because of this
 *glm* is not symbolically linked. src/glm is added as a include folder

@@ -1,12 +1,15 @@
+add_subdirectory( 3rdparty/imgui )
+
 set (TARGET le_imgui)
 
 set (SOURCES "le_imgui.cpp")
 set (SOURCES ${SOURCES} "le_imgui.h")
 
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/imgui/)
+
 if (${PLUGINS_DYNAMIC})
 
     add_library(${TARGET} SHARED ${SOURCES})
-
     
     add_dynamic_linker_flags()
     
@@ -23,5 +26,8 @@ else()
 
 endif()
 
+set (LINKER_FLAGS ${LINKER_FLAGS} imgui)
+
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
+
 source_group(${TARGET} FILES ${SOURCES})

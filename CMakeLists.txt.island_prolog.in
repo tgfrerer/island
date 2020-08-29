@@ -35,28 +35,8 @@ execute_process(COMMAND
 function (build_imgui)
     # n.b. configure_file will replace any cmake variables it finds in the file with their values.
     
-    configure_file("${ISLAND_BASE_DIR}CMakeLists.txt.imgui.in" ${ISLAND_BASE_DIR}/3rdparty/src/imgui/CMakeLists.txt @ONLY)
+    configure_file("${ISLAND_BASE_DIR}CMakeLists.txt.imgui.in" ${ISLAND_BASE_DIR}/modules/le_imgui/imgui/CMakeLists.txt @ONLY)
 
-    execute_process(
-        COMMAND mkdir -p 3rdparty/src/imgui/build
-        WORKING_DIRECTORY "${ISLAND_BASE_DIR}"
-        )
-
-    if (WIN32)
-        message(STATUS "Imgui needs to be added to the project")
-    else()
-    
-    execute_process(
-        COMMAND "${CMAKE_COMMAND}" -G "${CMAKE_GENERATOR}" -DCMAKE_INSTALL_PREFIX=${ISLAND_BASE_DIR}/3rdparty ..
-        WORKING_DIRECTORY "${ISLAND_BASE_DIR}/3rdparty/src/imgui/build"
-        )
-    execute_process(
-            #COMMAND "${CMAKE_COMMAND}" --build . --target install
-            #WORKING_DIRECTORY "${ISLAND_BASE_DIR}/3rdparty/src/imgui/build"
-            )
-    endif()
-
-    link_directories(${ISLAND_BASE_DIR}/3rdparty/libs/imgui)
 endfunction(build_imgui)
 
 
