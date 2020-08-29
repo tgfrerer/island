@@ -279,3 +279,29 @@ reloading, these were a big initial inspiration for this project.
 
 [our_machinery]: https://ourmachinery.com/ 
 [our_mach_blog]: https://ourmachinery.com/post/little-machines-working-together-part-1/
+
+## Windows changes and caveats
+Compute and Hello World examples are working for now
+Install Lunar SDK from https://vulkan.lunarg.com/
+*imgui* is disabled for now cmake was looping because of this
+*glm* is not symbolically linked. src/glm is added as a include folder
+*Vulkan* - cmake doesn't detect the VULKAN_SDK env variable for some reason. - Path is hardcoded for now
+*resources* - are not symbolically linked 
+*lib* folder is not symbolically linked
+
+* le_device_vk i disabled 
+```cpp
+featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
+	    //    .setShaderInt8( true )
+	    //    .setShaderFloat( true )
+```
+As it was failing on my nvidia 1070
+
+* le_instance_vk - i commented out the enabledValidationFeature array as it's empty and vs doesn't want to compile it
+* le_pipeline - vs complains about path to string conversions and missing sstream
+* le_api_load - was just made to compile for now but it won't do much 
+* le_file_watcher - put under define all linux stuff. pending on adding windows stuff
+* le_jobs - added empty functions as vs x64 doesn't compile inline asm
+* le_rendergraph - fixed executable path functionality for windows
+* le_swapchain_direct - removed x11 display from windows
+* le_swapchain_img - disabled pipe functionality

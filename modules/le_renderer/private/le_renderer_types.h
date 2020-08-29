@@ -989,7 +989,7 @@ struct le_image_sampler_info_t {
 	struct le_image_view_info_t {
 		le_resource_handle_t imageId{}; // le image resource id
 		le::Format           format{};  // leave at 0 (undefined) to use format of image referenced by `imageId`
-		le::ImageViewType    image_view_type{ le::ImageType::e2D };
+		le::ImageViewType    image_view_type{ le::ImageViewType::e2D };
 		uint32_t             base_array_layer{ 0 };
 		uint32_t             layer_count{ 1 };
 	};

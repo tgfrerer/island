@@ -16,8 +16,9 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
 #define GLM_ENABLE_EXPERIMENTAL
-#include "glm.hpp"
-#include "gtc/matrix_transform.hpp"
+
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtx/string_cast.hpp"
 
 #include <iostream>
@@ -25,6 +26,15 @@
 #include <sstream>
 #include <vector>
 #include <chrono>
+#include <array>
+
+#if defined(_MSC_VER)
+#define ALIGNED_(x) __declspec(align(x))
+#else
+#if defined(__GNUC__)
+#define ALIGNED_(x) __attribute__ ((aligned(x)))
+#endif
+#endif
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
@@ -409,9 +419,9 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	};
 
 	struct ModelParams {
-		__attribute__( ( aligned( 16 ) ) ) glm::mat4 model;
-		__attribute__( ( aligned( 16 ) ) ) glm::vec4 sunInEyeSpace;
-		__attribute__( ( aligned( 16 ) ) ) glm::vec4 worldCentreInEyeSpace;
+		ALIGNED_(16) glm::mat4 model;
+		ALIGNED_(16) glm::vec4 sunInEyeSpace;
+		ALIGNED_(16) glm::vec4 worldCentreInEyeSpace;
 	};
 
 	// Draw main scene
@@ -533,9 +543,9 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 				// .x -> global canvas height (in pixels)
 				// .y -> global canvas width (in pixels)
 				// .z -> identity distance, that is the distance at which canvas is rendered 1:1
-				__attribute__( ( aligned( 16 ) ) ) glm::vec3 uCanvas;
-				__attribute__( ( aligned( 16 ) ) ) glm::vec3 uLensflareSource; ///< source of flare in screen space
-				float                                        uHowClose;
+				ALIGNED_(16) glm::vec3 uCanvas;
+				ALIGNED_(16) glm::vec3 uLensflareSource; ///< source of flare in screen space
+				float        uHowClose;
 			};
 
 			static auto pipelineLensflares =
@@ -709,13 +719,13 @@ static void hello_world_app_destroy( hello_world_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void initialize() {
+static void app_initialize() {
 	le::Window::init();
 };
 
 // ----------------------------------------------------------------------
 
-static void terminate() {
+static void app_terminate() {
 	le::Window::terminate();
 };
 
@@ -725,8 +735,8 @@ LE_MODULE_REGISTER_IMPL( hello_world_app, api ) {
 	auto  hello_world_app_api_i = static_cast<hello_world_app_api *>( api );
 	auto &hello_world_app_i     = hello_world_app_api_i->hello_world_app_i;
 
-	hello_world_app_i.initialize = initialize;
-	hello_world_app_i.terminate  = terminate;
+	hello_world_app_i.initialize = app_initialize;
+	hello_world_app_i.terminate  = app_terminate;
 
 	hello_world_app_i.create  = hello_world_app_create;
 	hello_world_app_i.destroy = hello_world_app_destroy;

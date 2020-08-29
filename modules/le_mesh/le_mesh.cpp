@@ -12,6 +12,11 @@
 
 #include "le_mesh_types.h" //
 
+#ifdef _WIN32
+	# define __PRETTY_FUNCTION__ __FUNCSIG__
+	# define strtok_r strtok_s
+#endif// 
+
 // ----------------------------------------------------------------------
 
 static le_mesh_o *le_mesh_create() {

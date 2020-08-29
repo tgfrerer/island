@@ -24,6 +24,10 @@
 
 #include <memory>
 
+#ifdef _WIN32
+	#define __PRETTY_FUNCTION__ __FUNCSIG__
+#endif //
+
 #ifndef PRINT_DEBUG_MESSAGES
 #	define PRINT_DEBUG_MESSAGES false
 #endif
@@ -295,6 +299,7 @@ vk::SampleCountFlagBits le_sample_count_log_2_to_vk( uint32_t sample_count_log2 
 	static_assert( uint32_t( vk::SampleCountFlagBits::e8 ) == 1 << 3, "SampleCountFlagBits conversion failed." );
 	static_assert( uint32_t( vk::SampleCountFlagBits::e16 ) == 1 << 4, "SampleCountFlagBits conversion failed." );
 	static_assert( uint32_t( vk::SampleCountFlagBits::e32 ) == 1 << 5, "SampleCountFlagBits conversion failed." );
+	static_assert( uint32_t( vk::SampleCountFlagBits::e64 ) == 1 << 6, "SampleCountFlagBits conversion failed." );
 
 	return vk::SampleCountFlagBits( 1 << sample_count_log2 );
 }

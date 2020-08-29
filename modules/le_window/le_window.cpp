@@ -507,9 +507,14 @@ static GLFWwindow *window_get_glfw_window( le_window_o *self ) {
 // ----------------------------------------------------------------------
 
 static int init() {
+#ifdef _MSC_VER
+	glfwWindowHint(GLFW_RESIZABLE, 1);
+	glfwWindowHint(GLFW_DECORATED, 1);
+#endif
 	int result = glfwInit();
 	assert( result == GLFW_TRUE );
 
+	
 	if ( glfwVulkanSupported() ) {
 		std::cout << "Vulkan supported." << std::endl;
 	} else {
@@ -536,7 +541,7 @@ static void pollEvents() {
 
 // ----------------------------------------------------------------------
 
-static void terminate() {
+static void le_terminate() {
 	glfwTerminate();
 	std::cout << "Glfw was terminated." << std::endl;
 }
@@ -547,7 +552,7 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	auto windowApi = static_cast<le_window_api *>( api );
 
 	windowApi->init                                = init;
-	windowApi->terminate                           = terminate;
+	windowApi->terminate                           = le_terminate;
 	windowApi->pollEvents                          = pollEvents;
 	windowApi->get_required_vk_instance_extensions = get_required_vk_instance_extensions;
 

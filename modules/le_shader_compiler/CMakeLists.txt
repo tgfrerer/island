@@ -26,16 +26,26 @@ else()
 
     add_library(${TARGET} STATIC ${SOURCES})
 
-    set (LINKER_FLAGS ${LINKER_FLAGS} pthread)
+    if (WIN32)
+    else()
+        set (LINKER_FLAGS ${LINKER_FLAGS} pthread)
+    endif()
+
 
     include(FindPkgConfig)
-    pkg_check_modules(shaderc REQUIRED IMPORTED_TARGET shaderc_combined)
-    set (LINKER_FLAGS  ${LINKER_FLAGS} PkgConfig::shaderc )
-
+    if (WIN32)
+        set (LINKER_FLAGS  ${LINKER_FLAGS} shaderc_shared )
+    else()    
+        pkg_check_modules(shaderc REQUIRED IMPORTED_TARGET shaderc_combined)
+        set (LINKER_FLAGS  ${LINKER_FLAGS} PkgConfig::shaderc )
+    endif()
 endif()
 
 
-set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
+if (WIN32)
+else()
+    set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
+endif()
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 

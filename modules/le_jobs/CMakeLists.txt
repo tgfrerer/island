@@ -14,7 +14,11 @@ if (${PLUGINS_DYNAMIC})
     
     target_compile_definitions(${TARGET}  PUBLIC "PLUGINS_DYNAMIC")
 
-    set (LINKER_FLAGS ${LINKER_FLAGS} -Wl,--whole-archive pthread -Wl,--no-whole-archive )
+
+    if (WIN32)
+    else()
+        set (LINKER_FLAGS ${LINKER_FLAGS} -Wl,--whole-archive pthread -Wl,--no-whole-archive )
+    endif()
 
 else()
 
@@ -22,7 +26,12 @@ else()
 
     add_static_lib( ${TARGET} )
 
-     target_link_libraries(${TARGET} PRIVATE pthread)
+    if (WIN32)
+    else()
+        target_link_libraries(${TARGET} PRIVATE pthread)
+    endif()
+
+    
 endif()
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})

@@ -12,6 +12,9 @@ else()
     add_library(${TARGET} STATIC ${SOURCES})
 endif()
 
-target_link_libraries(${TARGET} stdc++fs)
+if (WIN32)
+else()
+    target_link_libraries(${TARGET} stdc++fs)
+endif()
 
 source_group(${TARGET} FILES ${SOURCES})

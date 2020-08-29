@@ -11,6 +11,7 @@
 
 #include <filesystem> // for parsing shader source file paths
 #include <fstream>    // for reading shader source files
+#include <sstream>
 #include <cstring>    // for memcpy
 #include <vector>
 #include <set>
@@ -248,7 +249,7 @@ static shaderc_include_result *le_shaderc_include_result_create( void *      use
 	if ( requestedFileExists ) {
 		requested_source_path = std::filesystem::canonical( requested_source_path );
 
-		includesList->paths.insert( requested_source_path );
+		includesList->paths.insert( requested_source_path.string() );
 		fileData->path = requested_source_path;
 
 		// -- load file contents into fileData
@@ -270,7 +271,7 @@ static shaderc_include_result *le_shaderc_include_result_create( void *      use
 	self->user_data          = fileData;
 	self->content            = fileData->contents.data();
 	self->content_length     = fileData->contents.size();
-	self->source_name        = fileData->path.c_str();
+	self->source_name        = fileData->path.string().c_str();
 	self->source_name_length = fileData->path.string().size();
 
 	return self;

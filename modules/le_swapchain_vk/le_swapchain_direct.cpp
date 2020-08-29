@@ -2,7 +2,10 @@
 #include "le_renderer/private/le_renderer_types.h"
 #include "include/internal/le_swapchain_vk_common.h"
 
-#define VK_USE_PLATFORM_XLIB_XRANDR_EXT
+#ifndef _MSC_VER
+	#define VK_USE_PLATFORM_XLIB_XRANDR_EXT
+#endif
+
 #define VULKAN_HPP_DISABLE_ENHANCED_MODE
 #define VULKAN_HPP_NO_SMART_HANDLE
 #define VULKAN_HPP_DISABLE_IMPLICIT_RESULT_VALUE_CAST
@@ -43,7 +46,13 @@ struct swp_direct_data_o {
 	vk::Instance                              instance                       = nullptr;
 	vk::Device                                device                         = nullptr;
 	vk::PhysicalDevice                        physicalDevice                 = nullptr;
-	Display *                                 x11_display                    = nullptr;
+
+#ifdef _MSC_VER
+
+#else
+	Display*                                 x11_display                    = nullptr;
+#endif
+
 	vk::DisplayKHR                            display                        = nullptr;
 	vk::SurfaceKHR                            surface                        = nullptr;
 	std::vector<vk::DisplayModePropertiesKHR> display_mode_properties        = {};
@@ -285,8 +294,10 @@ static le_swapchain_o *swapchain_direct_create( const le_swapchain_vk_api::swapc
 		self->vk_graphics_queue_family_index = vk_device_i.get_default_graphics_queue_family_index( private_backend_vk_i.get_le_device( backend ) );
 	}
 
+#ifdef _MSC_VER
+#else
 	self->x11_display = XOpenDisplay( nullptr );
-
+#endif
 	auto phyDevice = vk::PhysicalDevice( self->physicalDevice );
 
 	std::vector<vk::DisplayPropertiesKHR> display_props;
@@ -303,6 +314,9 @@ static le_swapchain_o *swapchain_direct_create( const le_swapchain_vk_api::swapc
 	// but we assume that the primary display will be listed first.
 	self->display = display_props.back().display;
 
+#ifdef _MSC_VER
+#else
+
 	getInstanceProc( self->instance, vkAcquireXlibDisplayEXT );
 	auto vk_result = vkAcquireXlibDisplayEXT( phyDevice, self->x11_display, self->display );
 
@@ -312,6 +326,7 @@ static le_swapchain_o *swapchain_direct_create( const le_swapchain_vk_api::swapc
 	}
 
 	assert( vk_result == VK_SUCCESS );
+#endif 
 
 	{
 		uint32_t num_props{};
@@ -366,8 +381,10 @@ static void swapchain_direct_destroy( le_swapchain_o *base ) {
 	getInstanceProc( self->instance, vkReleaseDisplayEXT );
 	vkReleaseDisplayEXT( self->physicalDevice, self->display );
 
+#ifdef _MSC_VER
+#else
 	XCloseDisplay( self->x11_display );
-
+#endif
 	delete self; // delete object's data
 	delete base; // delete object
 }

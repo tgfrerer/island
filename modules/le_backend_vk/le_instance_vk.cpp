@@ -3,6 +3,7 @@
 
 #include <iostream>
 #include <iomanip>
+#include <sstream>
 #include <set>
 #include <string>
 
@@ -30,12 +31,12 @@ struct le_backend_vk_instance_o {
  * layer. (The following are otherwise disabled by default)
  * 
  */
-static const vk::ValidationFeatureEnableEXT enabledValidationFeatures[] = {
-    // vk::ValidationFeatureEnableEXT::eGpuAssisted,
-    // vk::ValidationFeatureEnableEXT::eGpuAssistedReserveBindingSlot,
-    // vk::ValidationFeatureEnableEXT::eBestPractices,
-    // vk::ValidationFeatureEnableEXT::eDebugPrintf,
-};
+//static const vk::ValidationFeatureEnableEXT enabledValidationFeatures[] = {
+// vk::ValidationFeatureEnableEXT::eGpuAssisted,
+// vk::ValidationFeatureEnableEXT::eGpuAssistedReserveBindingSlot,
+// vk::ValidationFeatureEnableEXT::eBestPractices,
+// vk::ValidationFeatureEnableEXT::eDebugPrintf,
+//};
 
 /* 
  * Specify which validation layers to disable within Khronos validation
@@ -420,8 +421,8 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 	vk::ValidationFeaturesEXT validationFeatures;
 	validationFeatures
 	    .setPNext( nullptr )
-	    .setEnabledValidationFeatureCount( uint32_t( sizeof( enabledValidationFeatures ) / sizeof( vk::ValidationFeatureEnableEXT ) ) )
-	    .setPEnabledValidationFeatures( enabledValidationFeatures )
+	    //.setEnabledValidationFeatureCount( uint32_t( sizeof( enabledValidationFeatures ) / sizeof( vk::ValidationFeatureEnableEXT ) ) )
+	    //.setPEnabledValidationFeatures( enabledValidationFeatures )
 	    .setDisabledValidationFeatureCount( uint32_t( sizeof( disabledValidationFeatures ) / sizeof( vk::ValidationFeatureDisableEXT ) ) )
 	    .setPDisabledValidationFeatures( disabledValidationFeatures );
 

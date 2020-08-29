@@ -10,10 +10,16 @@
 #include <iostream>
 #include <iomanip>
 #include <filesystem>
+#include <sstream>
+#include <array>
 
 #include "le_renderer/private/le_renderer_types.h"
 
-#include <unistd.h> // for getexepath
+#ifdef _MSC_VER
+	#include <Windows.h>
+#else
+	#include <unistd.h> // for getexepath
+#endif 
 
 #include "3rdparty/src/spooky/SpookyV2.h" // for calculating rendergraph hash
 
@@ -569,8 +575,22 @@ static void tasks_calculate_sort_indices( Task const *const tasks, const size_t 
 
 // returns path to current executable.
 std::filesystem::path getexepath() {
-	char    result[ 1024 ];
+	char    result[1024] = {0};
+
+#ifdef _MSC_VER
+		
+	// When NULL is passed to GetModuleHandle, the handle of the exe itself is returned
+	HMODULE hModule = GetModuleHandle(NULL);
+	if (hModule != NULL)
+	{
+		// Use GetModuleFileName() with module handle to get the path
+		GetModuleFileName(hModule, result, (sizeof(result)));
+	}
+	size_t count = strnlen_s(result, sizeof(result));
+#else
 	ssize_t count = readlink( "/proc/self/exe", result, 1024 );
+#endif
+
 	return std::string( result, ( count > 0 ) ? size_t( count ) : 0 );
 }
 
@@ -755,12 +775,12 @@ generate_dot_file_for_rendergraph(
 	char filename[ 32 ] = "graph.dot";
 
 	std::filesystem::path full_path = exe_path.parent_path() / filename;
-	write_to_file( full_path.c_str(), os );
+	write_to_file( full_path.string().c_str(), os );
 
 	snprintf( filename, sizeof( filename ), "graph_%08zu.dot", frame_number );
 
 	full_path = exe_path.parent_path() / filename;
-	write_to_file( full_path.c_str(), os );
+	write_to_file( full_path.string().c_str(), os );
 
 	return true;
 };

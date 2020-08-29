@@ -12,6 +12,10 @@
 #include <vector>
 #include <algorithm>
 
+#ifdef _WIN32
+#define __PRETTY_FUNCTION__ __FUNCSIG__
+#endif// 
+
 #ifndef LE_MT
 #	define LE_MT 0
 #endif

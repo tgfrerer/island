@@ -8,6 +8,7 @@
 #include <iostream>
 #include <iomanip>
 #include <fstream>
+#include <sstream>
 #include <ctime>
 
 struct TransferFrame {
@@ -301,6 +302,9 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 
 		std::cout << "Image swapchain opening pipe using command line: '" << cmd << "'" << std::endl
 		          << std::flush;
+#ifdef _MSC_VER
+
+#else
 
 		// Open pipe to ffmpeg's stdin in binary write mode
 		self->pipe = popen( cmd, "w" );
@@ -312,6 +316,7 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 		}
 
 		assert( self->pipe != nullptr );
+#endif // _MSC_VER
 	}
 	return base;
 }
@@ -325,7 +330,11 @@ static void swapchain_img_destroy( le_swapchain_o *base ) {
 	// close ffmpeg pipe handle
 
 	if ( self->pipe ) {
+#ifdef _MSC_VER
+
+#else
 		pclose( self->pipe );
+#endif//
 		self->pipe = nullptr; // mark as closed
 	}
 

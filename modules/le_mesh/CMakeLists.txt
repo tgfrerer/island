@@ -21,7 +21,10 @@ else()
 
 endif()
 
-set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
+if (WIN32)
+else()
+    set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
+endif()
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 

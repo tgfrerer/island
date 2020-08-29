@@ -5,8 +5,8 @@
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
-#include "glm.hpp"
-#include "gtc/matrix_transform.hpp"
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/gtx/string_cast.hpp"
 
@@ -49,13 +49,13 @@ struct compute_example_app_o {
 
 // ----------------------------------------------------------------------
 
-static void initialize() {
+static void app_initialize() {
 	le::Window::init();
 };
 
 // ----------------------------------------------------------------------
 
-static void terminate() {
+static void app_terminate() {
 	le::Window::terminate();
 };
 
@@ -430,8 +430,8 @@ LE_MODULE_REGISTER_IMPL( compute_example_app, api ) {
 	auto  compute_example_app_api_i = static_cast<compute_example_app_api *>( api );
 	auto &compute_example_app_i     = compute_example_app_api_i->compute_example_app_i;
 
-	compute_example_app_i.initialize = initialize;
-	compute_example_app_i.terminate  = terminate;
+	compute_example_app_i.initialize = app_initialize;
+	compute_example_app_i.terminate  = app_terminate;
 
 	compute_example_app_i.create  = compute_example_app_create;
 	compute_example_app_i.destroy = compute_example_app_destroy;

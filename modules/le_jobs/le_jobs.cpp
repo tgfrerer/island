@@ -281,7 +281,13 @@ static void le_fiber_yield() {
 /* Called when a fiber exits
  * Note this gets called from asm_call_fiber_exit, not directly.
  */
-extern "C" void __attribute__( ( __noreturn__ ) ) fiber_exit( le_fiber_o *host_fiber, le_fiber_o *guest_fiber ) {
+#ifdef _MSC_VER
+#define ATTR_NO_RETURN __declspec(noreturn)
+#else
+#define ATTR_NO_RETURN __attribute__( ( __noreturn__ ) )
+#endif // _MSC_VER
+
+extern "C" void  ATTR_NO_RETURN fiber_exit( le_fiber_o *host_fiber, le_fiber_o *guest_fiber ) {
 
 	if ( guest_fiber->job_complete_counter ) {
 		--guest_fiber->job_complete_counter->data;
@@ -440,11 +446,14 @@ static void le_job_manager_initialize( size_t num_threads ) {
 		w->thread = std::thread( le_worker_thread_loop, w );
 
 		auto      pthread = w->thread.native_handle();
+#ifdef _MSC_VER
+
+#else
 		cpu_set_t mask;
 		CPU_ZERO( &mask );
 		CPU_SET( i + 1, &mask );
 		pthread_setaffinity_np( pthread, sizeof( mask ), &mask );
-
+#endif//
 		// Thread in static ledger of threads so that
 		// we may retrieve thread-ids later.
 		static_worker_threads[ i ] = w;
@@ -583,7 +592,7 @@ LE_MODULE_REGISTER_IMPL( le_jobs, api ) {
 
 // ----------------------------------------------------------------------
 
-#ifdef __x86_64
+#if defined (__x86_64)
 
 // General assembly reference: https://www.felixcloutier.com/x86/
 
@@ -611,7 +620,7 @@ LE_MODULE_REGISTER_IMPL( le_jobs, api ) {
  * word.
  *
  */
-asm( R"ASM(
+__asm( R"ASM(
 
 .text
 .globl asm_switch
@@ -686,7 +695,11 @@ asm_switch:
 static_assert( offsetof( le_fiber_o, job_param ) == 8, "job_param must be at correct offset for asm_switch to capture it." );
 
 #else
-#	error must implement asm_switch for your cpu architecture.
+//#	error must implement asm_switch for your cpu architecture.
+extern "C" int  asm_switch(le_fiber_o * to, le_fiber_o * from, int switch_to_guest)
+{
+	return 0;
+}
 #endif
 
 // ----------------------------------------------------------------------
@@ -715,7 +728,11 @@ asm_call_fiber_exit:
 
 )ASM" );
 #else
-#	error must implement asm_call_fiber_exit for your cpu architecture.
+//#	error must implement asm_call_fiber_exit for your cpu architecture.
+extern "C" void asm_call_fiber_exit(void)
+{
+}
+
 #endif
 
 #ifdef __x86_64
@@ -736,5 +753,12 @@ asm_fetch_default_control_words:
 
 )ASM" );
 #else
-#	error must implement asm_fetch_default_control_words for your cpu architecture.
+//#	error must implement asm_fetch_default_control_words for your cpu architecture.
+extern "C" void asm_fetch_default_control_words(uint64_t*)
+{
+
+}
 #endif
+
+
+

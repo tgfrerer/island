@@ -28,7 +28,12 @@ else()
 
 endif()
 
-set (LINKER_FLAGS -Wl,--whole-archive vulkan X11 -Wl,--no-whole-archive )
+if (WIN32)
+    set (LINKER_FLAGS vulkan-1)
+else()
+    set (LINKER_FLAGS -Wl,--whole-archive vulkan X11 -Wl,--no-whole-archive )
+endif()
+
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
 source_group(${TARGET} FILES ${SOURCES})
