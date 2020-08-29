@@ -1,6 +1,6 @@
 [submodule "3rdparty/src/imgui"]
 	ignore = all
-	path = modules/le_imgui/imgui
+	path = modules/le_imgui/3rdparty/imgui
 	url = https://github.com/ocornut/imgui
 [submodule "3rdparty/src/glm"]
 	path = 3rdparty/src/glm
