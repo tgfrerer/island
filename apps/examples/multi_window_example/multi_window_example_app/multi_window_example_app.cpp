@@ -12,8 +12,8 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
 #define GLM_ENABLE_EXPERIMENTAL
-#include "glm.hpp"
-#include "gtc/matrix_transform.hpp"
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
 
 #include <iostream>
 #include <memory>
@@ -40,13 +40,13 @@ struct multi_window_example_app_o {
 
 // ----------------------------------------------------------------------
 
-static void initialize() {
+static void app_initialize() {
 	le::Window::init();
 };
 
 // ----------------------------------------------------------------------
 
-static void terminate() {
+static void app_terminate() {
 	le::Window::terminate();
 };
 
@@ -447,8 +447,8 @@ LE_MODULE_REGISTER_IMPL( multi_window_example_app, api ) {
 	auto  multi_window_example_app_api_i = static_cast<multi_window_example_app_api *>( api );
 	auto &multi_window_example_app_i     = multi_window_example_app_api_i->multi_window_example_app_i;
 
-	multi_window_example_app_i.initialize = initialize;
-	multi_window_example_app_i.terminate  = terminate;
+	multi_window_example_app_i.initialize = app_initialize;
+	multi_window_example_app_i.terminate  = app_terminate;
 
 	multi_window_example_app_i.create  = app_create;
 	multi_window_example_app_i.destroy = app_destroy;

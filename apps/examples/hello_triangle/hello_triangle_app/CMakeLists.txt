@@ -1,4 +1,7 @@
 set (TARGET hello_triangle_app)
+set (PROJECT_NAME "hello_triangle_app")
+
+project (${PROJECT_NAME})
 
 set (SOURCES "hello_triangle_app.cpp")
 set (SOURCES ${SOURCES} "hello_triangle_app.h")
@@ -25,3 +28,6 @@ endif()
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
 source_group(${TARGET} FILES ${SOURCES})
+
+# create a link to local resources
+link_resources()

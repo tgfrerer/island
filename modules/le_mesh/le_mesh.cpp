@@ -256,7 +256,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 		return false;
 	}
 
-	static auto DELIMS{ "\n\0" };
+	static auto DELIMS{ "\r\n\0" };
 	char *      c_save_ptr; //< we use the re-entrant version of strtok, for which state is stored in here
 
 	// --------| invariant: file was loaded.
