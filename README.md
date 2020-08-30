@@ -287,9 +287,8 @@ All Examples are working now:
 Install Lunar SDK from https://vulkan.lunarg.com/
 *imgui* has been moved as a part of the le_imgui module  
 *glm* is not symbolically linked. src/glm is added as a include folder
-*Vulkan* - cmake doesn't detect the VULKAN_SDK env variable for some reason. - Path is hardcoded for now
-*resources* - are not symbolically linked 
-*lib* folder is not symbolically linked
+*resources* - are now symbolically linked 
+*lib* folder is not no longer needed
 
 * le_device_vk i disabled 
 ```cpp
@@ -297,6 +296,8 @@ featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
 	    //    .setShaderInt8( true )
 	    //    .setShaderFloat( true )
 ```
+I guess we need to interogate the driver if they are supported?
+
 As it was failing on my nvidia 1070
 
 * le_instance_vk - i commented out the enabledValidationFeature array as it's empty and vs doesn't want to compile it
