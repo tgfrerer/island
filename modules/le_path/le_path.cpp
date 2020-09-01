@@ -7,7 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 
-#include "glm.hpp"
+#include "glm/glm.hpp"
 #include "glm/gtx/vector_query.hpp"
 #include "glm/gtx/vector_angle.hpp"
 #include "glm/gtx/rotate_vector.hpp"

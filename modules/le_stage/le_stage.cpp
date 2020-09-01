@@ -23,7 +23,7 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
 #define GLM_ENABLE_EXPERIMENTAL
-#include "glm.hpp"
+#include "glm/glm.hpp"
 #include "glm/ext/matrix_transform.hpp"
 #include "glm/gtx/quaternion.hpp"
 #include <glm/gtx/matrix_decompose.hpp>
