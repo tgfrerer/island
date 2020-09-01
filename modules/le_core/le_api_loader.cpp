@@ -43,9 +43,9 @@ static void unload_library( void *handle_, const char *path ) {
 			auto error = GetLastError();
 #else
 			auto error = dlerror();
-#endif
 			fprintf( stderr, "[ %-20.20s ] %10s %-20s: handle: %p, error: %s\n", LOG_PREFIX_STR, "ERROR", "dlclose", handle_, error );
 			fflush( stderr );
+#endif
 		}
 
 #ifdef _MSC_VER
