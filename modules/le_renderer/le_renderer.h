@@ -714,7 +714,7 @@ class Encoder {
 			return *this;
 		}
 
-		ShaderBindingTableBuilder &addParameterValueF32( uint32_t val ) {
+		ShaderBindingTableBuilder &addParameterValueF32( float val ) {
 			le_renderer::encoder_i.sbt_add_f32_param( sbt, val );
 			return *this;
 		}
