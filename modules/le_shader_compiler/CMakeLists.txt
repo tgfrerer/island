@@ -13,7 +13,12 @@ if (${PLUGINS_DYNAMIC})
 
     target_compile_definitions(${TARGET} PUBLIC "PLUGINS_DYNAMIC=1")
 
-    set (LINKER_FLAGS  ${LINKER_FLAGS} -Wl,--whole-archive shaderc_shared.so -Wl,--no-whole-archive)
+    if (WIN32)
+        set (LINKER_FLAGS  ${LINKER_FLAGS} shaderc_shared )
+    else()    
+        set (LINKER_FLAGS  ${LINKER_FLAGS} -Wl,--whole-archive shaderc_shared.so -Wl,--no-whole-archive)
+    endif()
+
 else()
 
     # Set additional search directory for static linker - where it may find
@@ -32,13 +37,15 @@ else()
     endif()
 
 
-    include(FindPkgConfig)
+    
     if (WIN32)
         set (LINKER_FLAGS  ${LINKER_FLAGS} shaderc_shared )
     else()    
+        include(FindPkgConfig)
         pkg_check_modules(shaderc REQUIRED IMPORTED_TARGET shaderc_combined)
         set (LINKER_FLAGS  ${LINKER_FLAGS} PkgConfig::shaderc )
     endif()
+
 endif()
 
 
