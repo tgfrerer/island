@@ -173,6 +173,7 @@ static bool imgui_example_app_update( imgui_example_app_o *self ) {
 		le_imgui::le_imgui_i.begin_frame( self->gui );
 
 		ImGui::ShowMetricsWindow();
+		ImGui::ShowDemoWindow();
 
 		ImGui::Begin( "Background Color Chooser" ); // begin window
 
@@ -193,12 +194,12 @@ static bool imgui_example_app_update( imgui_example_app_o *self ) {
 			    auto rp  = le::RenderPass{ pRp };
 			    auto app = static_cast<imgui_example_app_o *>( user_data );
 
-			    // Attachment resource info may be further specialised using ImageInfoBuilder().
-			    // Attachment clear color, load and store op may be set via le_image_attachment_info_t.
+			    // Attachment resource info may be further specialised using le::ImageAttachmentInfoBuilder().
 
-			    auto info = le::ImageAttachmentInfoBuilder()
-			                    .setColorClearValue( reinterpret_cast<LeClearValue &>( app->backgroundColor ) )
-			                    .build();
+			    auto info =
+			        le::ImageAttachmentInfoBuilder()
+			            .setColorClearValue( reinterpret_cast<LeClearValue &>( app->backgroundColor ) )
+			            .build();
 
 			    rp
 			        .addColorAttachment( app->renderer.getSwapchainResource(), info ) // color attachment
