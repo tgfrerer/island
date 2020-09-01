@@ -38,26 +38,31 @@ function (build_imgui)
 endfunction(build_imgui)
 
 
-function (link_resources src dst)
+function (link_resources param_target param_link_name)
     # create a link to local resources
     if (WIN32)
-        if (EXISTS "${dst}")
-            message(STATUS "local resources exists ${dst}")
+        if (EXISTS "${param_link_name}")
+            message(STATUS "local resources exists ${param_link_name}")
         else()    
-            get_filename_component(real_path "${dst}" REALPATH)
+            get_filename_component(real_path "${param_link_name}" REALPATH)
             string(REPLACE "/" "\\" target_path "${real_path}")
 
-            get_filename_component(real_path "${src}" REALPATH)
+            get_filename_component(real_path "${param_target}" REALPATH)
             string(REPLACE "/" "\\" src_path "${real_path}")
 
             execute_process(COMMAND cmd /C mklink /J "${target_path}" "${src_path}" 
                 RESULT_VARIABLE link_result 
                 OUTPUT_VARIABLE link_output)
-            message(STATUS "creating symbolic link ${target_path} ${src_path} ${link_output} ${link_result}")
+            message(STATUS "created symbolic link ${target_path} ${src_path} ${link_output} ${link_result}")
         endif()    
         
     else()
-        execute_process(COMMAND ln -sfn ${PROJECT_SOURCE_DIR}/resources ${CMAKE_BINARY_DIR}/local_resources )
+        if (EXISTS "${param_link_name}")
+            message(STATUS "local resources exists ${param_link_name}")
+        else()
+            execute_process(COMMAND ln -sfn ${param_target} ${param_link_name} )
+            message(STATUS "created symbolic link ${param_target} ${param_link_name}")
+        endif()
     endif()
 
 endfunction(link_resources)
