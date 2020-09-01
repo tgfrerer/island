@@ -45,3 +45,8 @@ CMakeLists.txt.user.*
 /resources/shaders/khronos-shaders/*
 /apps/.gitignore
 /apps/examples/*/screenshot.png
+**/.vs/**/*
+apps/examples/hello_world/resources/images/earth_clouds.jpg
+apps/examples/hello_world/resources/images/images.tar.gz
+apps/examples/hello_world/resources/images/white.tga
+apps/examples/hello_world/resources/images/world_winter.jpg
