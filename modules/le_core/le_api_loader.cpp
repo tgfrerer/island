@@ -1,10 +1,10 @@
 #include "le_api_loader.h"
 
 #ifdef _MSC_VER
-	#include <windows.h>
+#	include <windows.h>
 #else
-	#include <dlfcn.h>
-	#include <link.h>
+#	include <dlfcn.h>
+#	include <link.h>
 #endif // !_WIN32
 
 #include "assert.h"
@@ -29,23 +29,22 @@ struct le_module_loader_o {
 // ----------------------------------------------------------------------
 
 static void unload_library( void *handle_, const char *path ) {
-	if ( handle_ ) 
-	{
+	if ( handle_ ) {
 #ifdef _MSC_VER
-		auto result = FreeLibrary(static_cast<HMODULE>(handle_));
+		auto result = FreeLibrary( static_cast<HMODULE>( handle_ ) );
 #else
 		auto result = dlclose( handle_ );
-#endif//
+#endif //
 
 		fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p \n", LOG_PREFIX_STR, "", "Close Module", path, handle_ );
 
 		if ( result ) {
 #ifdef _MSC_VER
 			auto error = GetLastError();
-#else 
+#else
 			auto error = dlerror();
 #endif
-			fprintf( stderr, "[ %-20.20s ] %10s %-20s: handle: %p, error: %s\n", LOG_PREFIX_STR, "ERROR", "dlclose", handle_, error);
+			fprintf( stderr, "[ %-20.20s ] %10s %-20s: handle: %p, error: %s\n", LOG_PREFIX_STR, "ERROR", "dlclose", handle_, error );
 			fflush( stderr );
 		}
 
@@ -60,7 +59,6 @@ static void unload_library( void *handle_, const char *path ) {
 #endif
 		handle_ = nullptr;
 	}
-
 }
 
 // ----------------------------------------------------------------------
@@ -71,17 +69,15 @@ static void *load_library( const char *lib_name ) {
 	fflush( stdout );
 
 #ifdef _MSC_VER
-	void* handle = LoadLibrary(lib_name);
-	if (handle == NULL) {
+	void *handle = LoadLibrary( lib_name );
+	if ( handle == NULL ) {
 		auto loadResult = GetLastError();
 		std::cerr << "ERROR: " << loadResult << std::endl
-			<< std::flush;		
-		exit(1);
-	}
-	else
-	{
-		fprintf(stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p\n", LOG_PREFIX_STR, "OK", "Loaded Module", lib_name, handle);
-		fflush(stdout);
+		          << std::flush;
+		exit( 1 );
+	} else {
+		fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p\n", LOG_PREFIX_STR, "OK", "Loaded Module", lib_name, handle );
+		fflush( stdout );
 	}
 #else
 
@@ -96,7 +92,7 @@ static void *load_library( const char *lib_name ) {
 		fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p\n", LOG_PREFIX_STR, "OK", "Loaded Module", lib_name, handle );
 		fflush( stdout );
 	}
-#endif 
+#endif
 	return handle;
 }
 
@@ -104,6 +100,9 @@ static void *load_library( const char *lib_name ) {
 
 static bool load_library_persistent( const char *lib_name ) {
 
+#ifdef _MSC_VER
+	void *lib_handle = nullptr;
+#else
 	// We persistently load symbols for libraries upon which our plugins depend -
 	// and make sure these are loaded with the NO_DELETE flag so that dependent
 	// libraries will not be reloaded if a module which uses the library is unloaded.
@@ -115,9 +114,6 @@ static bool load_library_persistent( const char *lib_name ) {
 
 	// FIXME: what we expect: if a library is already loaded, we should get a valid handle
 	// what we get: always nullptr
-#ifdef _MSC_VER
-	void* lib_handle = 0;
-#else
 	void *lib_handle = dlopen( lib_name, RTLD_NOLOAD | RTLD_GLOBAL | RTLD_NODELETE );
 	if ( !lib_handle ) {
 		lib_handle = dlopen( lib_name, RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
@@ -168,13 +164,13 @@ static bool register_api( le_module_loader_o *obj, void *api_interface, const ch
 #ifdef _MSC_VER
 	FARPROC fp;
 
-	fp = GetProcAddress((HINSTANCE)obj->mLibraryHandle, register_api_fun_name);
-	if (!fp) {
+	fp = GetProcAddress( ( HINSTANCE )obj->mLibraryHandle, register_api_fun_name );
+	if ( !fp ) {
 		std::cerr << LOG_PREFIX_STR "ERROR: " << GetLastError() << std::endl;
-		assert(false);
+		assert( false );
 		return false;
 	}
-	return (void*)(intptr_t)fp;
+	return ( void * )( intptr_t )fp;
 
 #else
 	fptr = reinterpret_cast<register_api_fun_p_t>( dlsym( obj->mLibraryHandle, register_api_fun_name ) );
@@ -183,7 +179,7 @@ static bool register_api( le_module_loader_o *obj, void *api_interface, const ch
 		assert( false );
 		return false;
 	}
-#endif 
+#endif
 	// Initialize the API. This means telling the API to populate function
 	// pointers inside the struct which we are passing as parameter.
 	fprintf( stderr, "[ %-20.20s ] %10s %-20s: %s\n", LOG_PREFIX_STR, "", "Register Module", register_api_fun_name );
@@ -212,9 +208,7 @@ LE_MODULE_REGISTER_IMPL( le_module_loader, p_api ) {
 //
 //		EXPORT LD_AUDIT=./modules/lible_module_loader.so
 
-#ifndef  _MSC_VER
-
-
+#ifndef _MSC_VER
 
 extern "C" unsigned int
 la_version( unsigned int version ) {
