@@ -32,11 +32,6 @@ execute_process(COMMAND
   OUTPUT_VARIABLE ISLAND_GIT_SHA1
   ERROR_QUIET OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-function (build_imgui)
-    # n.b. configure_file will replace any cmake variables it finds in the file with their values.    
-    configure_file("${ISLAND_BASE_DIR}CMakeLists.txt.imgui.in" ${ISLAND_BASE_DIR}/modules/le_imgui/3rdparty/imgui/CMakeLists.txt @ONLY)
-endfunction(build_imgui)
-
 
 function (link_resources param_target param_link_name)
     # create a link to local resources
@@ -69,8 +64,6 @@ endfunction(link_resources)
 
 if (REQUIRES_ISLAND_CORE)
 
-    build_imgui()
-    
     # add glm include directory to includes search path 
     include_directories(${ISLAND_BASE_DIR}/3rdparty/src/glm/)
 

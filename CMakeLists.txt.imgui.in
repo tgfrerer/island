@@ -48,3 +48,5 @@ install(TARGETS ${TARGET}
 	PUBLIC_HEADER
 	    DESTINATION include/${TARGET}
 	)
+
+source_group(${TARGET} FILES ${SOURCES})
