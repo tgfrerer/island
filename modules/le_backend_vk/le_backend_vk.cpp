@@ -5618,5 +5618,7 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 		le_instance_vk_i.post_reload_hook( api_i->cUniqueInstance );
 	}
 
+#ifdef PLUGINS_DYNAMIC
 	le_core_load_library_persistently( "libvulkan.so" );
+#endif
 }

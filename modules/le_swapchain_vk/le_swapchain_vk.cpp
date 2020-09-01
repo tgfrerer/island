@@ -119,6 +119,8 @@ LE_MODULE_REGISTER_IMPL( le_swapchain_vk, api_ ) {
 	register_le_swapchain_img_api( api );
 	register_le_swapchain_direct_api( api );
 
+#ifdef PLUGINS_DYNAMIC
 	le_core_load_library_persistently( "libvulkan.so" );
 	le_core_load_library_persistently( "libX11.so" );
+#endif
 }
