@@ -303,7 +303,7 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 		std::cout << "Image swapchain opening pipe using command line: '" << cmd << "'" << std::endl
 		          << std::flush;
 #ifdef _MSC_VER
-
+		// todo: implement windows-specific solution 
 #else
 
 		// Open pipe to ffmpeg's stdin in binary write mode
