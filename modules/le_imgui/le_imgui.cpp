@@ -400,5 +400,7 @@ LE_MODULE_REGISTER_IMPL( le_imgui, api ) {
 	le_imgui_i.setup_resources = le_imgui_setup_gui_resources;
 	le_imgui_i.draw            = le_imgui_draw_gui;
 
+#if defined( PLUGINS_DYNAMIC )
 	le_core_load_library_persistently( "libimgui.so" );
+#endif
 }
