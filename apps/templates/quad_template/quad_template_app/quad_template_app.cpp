@@ -27,13 +27,13 @@ typedef quad_template_app_o app_o;
 
 // ----------------------------------------------------------------------
 
-static void initialize() {
+static void app_initialize() {
 	le::Window::init();
 };
 
 // ----------------------------------------------------------------------
 
-static void terminate() {
+static void app_terminate() {
 	le::Window::terminate();
 };
 
@@ -196,8 +196,8 @@ LE_MODULE_REGISTER_IMPL( quad_template_app, api ) {
 	auto  quad_template_app_api_i = static_cast<quad_template_app_api *>( api );
 	auto &quad_template_app_i     = quad_template_app_api_i->quad_template_app_i;
 
-	quad_template_app_i.initialize = initialize;
-	quad_template_app_i.terminate  = terminate;
+	quad_template_app_i.initialize = app_initialize;
+	quad_template_app_i.terminate  = app_terminate;
 
 	quad_template_app_i.create  = quad_template_app_create;
 	quad_template_app_i.destroy = quad_template_app_destroy;

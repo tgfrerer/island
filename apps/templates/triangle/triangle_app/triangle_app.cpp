@@ -29,13 +29,13 @@ typedef triangle_app_o app_o;
 
 // ----------------------------------------------------------------------
 
-static void initialize() {
+static void app_initialize() {
 	le::Window::init();
 };
 
 // ----------------------------------------------------------------------
 
-static void terminate() {
+static void app_terminate() {
 	le::Window::terminate();
 };
 
@@ -249,8 +249,8 @@ LE_MODULE_REGISTER_IMPL( triangle_app, api ) {
 	auto  triangle_app_api_i = static_cast<triangle_app_api *>( api );
 	auto &triangle_app_i     = triangle_app_api_i->triangle_app_i;
 
-	triangle_app_i.initialize = initialize;
-	triangle_app_i.terminate  = terminate;
+	triangle_app_i.initialize = app_initialize;
+	triangle_app_i.terminate  = app_terminate;
 
 	triangle_app_i.create  = app_create;
 	triangle_app_i.destroy = app_destroy;
