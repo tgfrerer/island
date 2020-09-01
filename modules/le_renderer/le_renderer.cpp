@@ -669,6 +669,7 @@ static le_resource_info_t get_default_resource_info_for_image() {
 		img.sample_count_log2 = 0; // 0 means 1, as (1 << 0 == 1)
 		img.imageType         = le::ImageType::e2D;
 		img.tiling            = le::ImageTiling::eOptimal;
+		img.samplesFlags	  = 0;
 	}
 
 	return res;

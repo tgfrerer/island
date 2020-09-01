@@ -12,6 +12,11 @@
 
 #include "le_mesh_types.h" //
 
+#ifdef _WIN32
+	# define __PRETTY_FUNCTION__ __FUNCSIG__
+	# define strtok_r strtok_s
+#endif// 
+
 // ----------------------------------------------------------------------
 
 static le_mesh_o *le_mesh_create() {
@@ -251,7 +256,7 @@ static bool le_mesh_load_from_ply_file( le_mesh_o *self, char const *file_path_ 
 		return false;
 	}
 
-	static auto DELIMS{ "\n\0" };
+	static auto DELIMS{ "\r\n\0" };
 	char *      c_save_ptr; //< we use the re-entrant version of strtok, for which state is stored in here
 
 	// --------| invariant: file was loaded.

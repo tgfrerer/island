@@ -45,8 +45,14 @@ endif()
 #
 # This is done in le_api_loader.cpp - by explicitly loading glfw and specifying RTLD_NODELETE
 
-set (LINKER_FLAGS -Wl,--whole-archive glfw -Wl,--no-whole-archive)
-set (LINKER_FLAGS ${LINKER_FLAGS} vulkan)
+
+if (WIN32)
+    set (LINKER_FLAGS ${LINKER_FLAGS} vulkan-1 glfw)
+else()
+    set (LINKER_FLAGS -Wl,--whole-archive glfw -Wl,--no-whole-archive)
+    set (LINKER_FLAGS ${LINKER_FLAGS} vulkan)
+endif()
+
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
 source_group(${TARGET} FILES ${SOURCES})

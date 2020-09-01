@@ -1,15 +1,19 @@
 #include "le_file_watcher.h"
-#include <dirent.h>
 #include <iomanip>
 #include <iostream>
-#include <sys/inotify.h>
-#include <unistd.h>
 #include <bitset>
 #include <stdio.h>
 #include <string>
 #include <list>
 #include <filesystem>
 #include <algorithm>
+
+#ifndef _MSC_VER
+	#include <dirent.h>
+	#include <sys/inotify.h>
+	#include <unistd.h>
+#endif // !_MSC_VER
+
 
 // ----------------------------------------------------------------------
 
@@ -35,8 +39,15 @@ struct le_file_watcher_o {
 // ----------------------------------------------------------------------
 
 static le_file_watcher_o *instance_create() {
-	auto tmp                   = new le_file_watcher_o();
+	auto tmp = new le_file_watcher_o();
+
+#ifdef _MSC_VER
+
+
+#else
+	
 	tmp->inotify_socket_handle = inotify_init1( IN_NONBLOCK );
+#endif //
 	return tmp;
 }
 
@@ -44,6 +55,10 @@ static le_file_watcher_o *instance_create() {
 
 static void instance_destroy( le_file_watcher_o *instance ) {
 
+#ifdef _MSC_VER
+
+
+#else
 	for ( auto &w : instance->mWatches ) {
 		inotify_rm_watch( instance->inotify_socket_handle, w.inotify_watch_handle );
 	}
@@ -53,7 +68,10 @@ static void instance_destroy( le_file_watcher_o *instance ) {
 		std::cout << "Closing inotify instance file handle: " << std::hex << instance->inotify_socket_handle << std::endl;
 		close( instance->inotify_socket_handle );
 	}
+#endif
+
 	delete ( instance );
+
 }
 
 // ----------------------------------------------------------------------
@@ -63,14 +81,19 @@ static int add_watch( le_file_watcher_o *instance, le_file_watcher_watch_setting
 
 	auto tmp_path = std::filesystem::canonical( settings->filePath );
 
-	tmp.path                 = tmp_path;
-	tmp.filename             = tmp_path.filename();
-	tmp.basename             = tmp_path.remove_filename(); // note this changes the path
+	tmp.path                 = tmp_path.string();
+	tmp.filename             = tmp_path.filename().string();
+	tmp.basename             = tmp_path.remove_filename().string(); // note this changes the path
 	tmp.watcher_o            = instance;
 	tmp.callback_fun         = settings->callback_fun;
 	tmp.callback_user_data   = settings->callback_user_data;
-	tmp.inotify_watch_handle = inotify_add_watch( instance->inotify_socket_handle, tmp.basename.c_str(), IN_CLOSE_WRITE );
 
+#ifdef _MSC_VER
+
+
+#else
+	tmp.inotify_watch_handle = inotify_add_watch( instance->inotify_socket_handle, tmp.basename.c_str(), IN_CLOSE_WRITE );
+#endif
 	instance->mWatches.emplace_back( std::move( tmp ) );
 	return tmp.inotify_watch_handle;
 }
@@ -78,6 +101,9 @@ static int add_watch( le_file_watcher_o *instance, le_file_watcher_watch_setting
 // ----------------------------------------------------------------------
 
 static bool remove_watch( le_file_watcher_o *instance, int watch_id ) {
+#ifdef _MSC_VER
+	return false;
+#else
 	auto found_watch = std::find_if( instance->mWatches.begin(), instance->mWatches.end(), [ = ]( const Watch &w ) -> bool { return w.inotify_watch_handle == watch_id; } );
 	if ( found_watch != instance->mWatches.end() ) {
 		std::cout << "Removing inotify watch handle: " << std::hex << found_watch->inotify_watch_handle << std::endl;
@@ -88,11 +114,16 @@ static bool remove_watch( le_file_watcher_o *instance, int watch_id ) {
 		std::cout << "WARNING: " << __FUNCTION__ << ": could not find and thus remove watch with id:" << watch_id << std::endl;
 		return false;
 	}
+#endif 
 };
 
 // ----------------------------------------------------------------------
 
 static void poll_notifications( le_file_watcher_o *instance ) {
+#ifdef _MSC_VER
+
+
+#else
 	static_assert( sizeof( inotify_event ) == sizeof( struct inotify_event ), "must be equal" );
 
 	for ( ;; ) {
@@ -145,6 +176,7 @@ static void poll_notifications( le_file_watcher_o *instance ) {
 			break;
 		}
 	}
+#endif // 
 }
 
 // ----------------------------------------------------------------------

@@ -1,7 +1,9 @@
 #include "le_mesh_generator.h"
 #include "le_core/le_core.h"
 
+#define _USE_MATH_DEFINES
 #include <math.h>
+
 #include <le_mesh/le_mesh.h>
 #include <le_mesh/le_mesh_types.h>
 

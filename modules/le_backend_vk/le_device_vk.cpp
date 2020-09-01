@@ -8,6 +8,10 @@
 #include <set>
 #include <map>
 
+#ifdef _WIN32
+#	define __PRETTY_FUNCTION__ __FUNCSIG__
+#endif //
+
 struct le_device_o {
 
 	vk::Device                                vkDevice         = nullptr;
@@ -300,9 +304,11 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	    ;
 #endif
 
+//ms I had to disable this on my nvidia 1070 as it was failing 
 	featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
-	    .setShaderInt8( true )
-	    .setShaderFloat16( true );
+	    //    .setShaderInt8( true )
+	    //    .setShaderFloat16( true )
+	    ;
 
 	vk::DeviceCreateInfo deviceCreateInfo;
 	deviceCreateInfo

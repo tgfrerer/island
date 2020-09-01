@@ -8,8 +8,8 @@
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
-#include "glm.hpp"
-#include "gtc/matrix_transform.hpp"
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
 
 #include <iostream>
 #include <memory>
@@ -30,13 +30,13 @@ typedef hello_triangle_app_o app_o;
 
 // ----------------------------------------------------------------------
 
-static void initialize() {
+static void app_initialize() {
 	le::Window::init();
 };
 
 // ----------------------------------------------------------------------
 
-static void terminate() {
+static void app_terminate() {
 	le::Window::terminate();
 };
 
@@ -262,8 +262,8 @@ LE_MODULE_REGISTER_IMPL( hello_triangle_app, api ) {
 	auto  hello_triangle_app_api_i = static_cast<hello_triangle_app_api *>( api );
 	auto &hello_triangle_app_i     = hello_triangle_app_api_i->hello_triangle_app_i;
 
-	hello_triangle_app_i.initialize = initialize;
-	hello_triangle_app_i.terminate  = terminate;
+	hello_triangle_app_i.initialize = app_initialize;
+	hello_triangle_app_i.terminate  = app_terminate;
 
 	hello_triangle_app_i.create  = app_create;
 	hello_triangle_app_i.destroy = app_destroy;

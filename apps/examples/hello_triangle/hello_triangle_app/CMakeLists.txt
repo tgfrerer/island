@@ -1,4 +1,7 @@
 set (TARGET hello_triangle_app)
+set (PROJECT_NAME "hello_triangle_app")
+
+project (${PROJECT_NAME})
 
 set (SOURCES "hello_triangle_app.cpp")
 set (SOURCES ${SOURCES} "hello_triangle_app.h")

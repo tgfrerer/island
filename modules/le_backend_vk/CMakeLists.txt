@@ -54,9 +54,13 @@ else()
 
 endif()
 
-set (LINKER_FLAGS ${LINKER_FLAGS} -Wl,--whole-archive vulkan -Wl,--no-whole-archive )
-set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
-
+IF (WIN32)
+    set (LINKER_FLAGS vulkan-1)
+ELSE()
+    set (LINKER_FLAGS ${LINKER_FLAGS} -Wl,--whole-archive vulkan -Wl,--no-whole-archive )
+    set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
+ENDIF()    
+    
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
 source_group(${TARGET} FILES ${SOURCES})

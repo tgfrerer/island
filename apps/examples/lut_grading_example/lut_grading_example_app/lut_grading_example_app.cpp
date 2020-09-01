@@ -27,13 +27,13 @@ struct lut_grading_example_app_o {
 
 // ----------------------------------------------------------------------
 
-static void initialize() {
+static void app_initialize() {
 	le::Window::init();
 };
 
 // ----------------------------------------------------------------------
 
-static void terminate() {
+static void app_terminate() {
 	le::Window::terminate();
 };
 
@@ -210,8 +210,8 @@ LE_MODULE_REGISTER_IMPL( lut_grading_example_app, api ) {
 	auto  lut_grading_example_app_api_i = static_cast<lut_grading_example_app_api *>( api );
 	auto &lut_grading_example_app_i     = lut_grading_example_app_api_i->lut_grading_example_app_i;
 
-	lut_grading_example_app_i.initialize = initialize;
-	lut_grading_example_app_i.terminate  = terminate;
+	lut_grading_example_app_i.initialize = app_initialize;
+	lut_grading_example_app_i.terminate  = app_terminate;
 
 	lut_grading_example_app_i.create  = lut_grading_example_app_create;
 	lut_grading_example_app_i.destroy = lut_grading_example_app_destroy;

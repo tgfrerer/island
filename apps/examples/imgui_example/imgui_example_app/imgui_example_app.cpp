@@ -8,14 +8,14 @@
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
-#include "glm.hpp"
-#include "gtc/matrix_transform.hpp"
+#include "glm/glm.hpp"
+#include "glm/gtc/matrix_transform.hpp"
 
 #include <iostream>
 #include <memory>
 #include <sstream>
 #include "le_imgui/le_imgui.h"
-#include "3rdparty/include/imgui/imgui.h"
+#include "le_imgui/3rdparty/imgui/imgui.h"
 
 #include "le_ui_event/le_ui_event.h"
 
@@ -34,13 +34,13 @@ typedef imgui_example_app_o app_o;
 
 // ----------------------------------------------------------------------
 
-static void initialize() {
+static void app_initialize() {
 	le::Window::init();
 };
 
 // ----------------------------------------------------------------------
 
-static void terminate() {
+static void app_terminate() {
 	le::Window::terminate();
 };
 
@@ -239,8 +239,8 @@ LE_MODULE_REGISTER_IMPL( imgui_example_app, api ) {
 	auto  imgui_example_app_api_i = static_cast<imgui_example_app_api *>( api );
 	auto &imgui_example_app_i     = imgui_example_app_api_i->imgui_example_app_i;
 
-	imgui_example_app_i.initialize = initialize;
-	imgui_example_app_i.terminate  = terminate;
+	imgui_example_app_i.initialize = app_initialize;
+	imgui_example_app_i.terminate  = app_terminate;
 
 	imgui_example_app_i.create  = imgui_example_app_create;
 	imgui_example_app_i.destroy = imgui_example_app_destroy;

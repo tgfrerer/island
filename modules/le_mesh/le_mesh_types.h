@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 #include <vector>
-#include "glm.hpp"
+#include "glm/glm.hpp"
 
 struct le_mesh_o {
 	std::vector<uint16_t>  indices;  // list of indices

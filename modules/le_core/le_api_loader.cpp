@@ -1,7 +1,12 @@
 #include "le_api_loader.h"
 
-#include <dlfcn.h>
-#include <link.h>
+#ifdef _MSC_VER
+	#include <windows.h>
+#else
+	#include <dlfcn.h>
+	#include <link.h>
+#endif // !_WIN32
+
 #include "assert.h"
 #include <string>
 #include <iostream>
@@ -24,22 +29,38 @@ struct le_module_loader_o {
 // ----------------------------------------------------------------------
 
 static void unload_library( void *handle_, const char *path ) {
-	if ( handle_ ) {
+	if ( handle_ ) 
+	{
+#ifdef _MSC_VER
+		auto result = FreeLibrary(static_cast<HMODULE>(handle_));
+#else
 		auto result = dlclose( handle_ );
+#endif//
 
 		fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p \n", LOG_PREFIX_STR, "", "Close Module", path, handle_ );
 
 		if ( result ) {
-			fprintf( stderr, "[ %-20.20s ] %10s %-20s: handle: %p, error: %s\n", LOG_PREFIX_STR, "ERROR", "dlclose", handle_, dlerror() );
+#ifdef _MSC_VER
+			auto error = GetLastError();
+#else 
+			auto error = dlerror();
+#endif
+			fprintf( stderr, "[ %-20.20s ] %10s %-20s: handle: %p, error: %s\n", LOG_PREFIX_STR, "ERROR", "dlclose", handle_, error);
 			fflush( stderr );
 		}
+
+#ifdef _MSC_VER
+
+#else
 		auto handle = dlopen( path, RTLD_NOLOAD );
 		if ( handle ) {
 			std::cerr << LOG_PREFIX_STR "ERROR dlclose: '" << path << "', "
 			          << "handle " << std::hex << ( void * )handle << " staying resident.";
 		}
+#endif
 		handle_ = nullptr;
 	}
+
 }
 
 // ----------------------------------------------------------------------
@@ -48,6 +69,21 @@ static void *load_library( const char *lib_name ) {
 
 	// fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s\n", LOG_PREFIX_STR, "", "Load Module", lib_name );
 	fflush( stdout );
+
+#ifdef _MSC_VER
+	void* handle = LoadLibrary(lib_name);
+	if (handle == NULL) {
+		auto loadResult = GetLastError();
+		std::cerr << "ERROR: " << loadResult << std::endl
+			<< std::flush;		
+		exit(1);
+	}
+	else
+	{
+		fprintf(stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p\n", LOG_PREFIX_STR, "OK", "Loaded Module", lib_name, handle);
+		fflush(stdout);
+	}
+#else
 
 	void *handle = dlopen( lib_name, RTLD_LAZY | RTLD_LOCAL );
 
@@ -60,7 +96,7 @@ static void *load_library( const char *lib_name ) {
 		fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p\n", LOG_PREFIX_STR, "OK", "Loaded Module", lib_name, handle );
 		fflush( stdout );
 	}
-
+#endif 
 	return handle;
 }
 
@@ -79,7 +115,9 @@ static bool load_library_persistent( const char *lib_name ) {
 
 	// FIXME: what we expect: if a library is already loaded, we should get a valid handle
 	// what we get: always nullptr
-
+#ifdef _MSC_VER
+	void* lib_handle = 0;
+#else
 	void *lib_handle = dlopen( lib_name, RTLD_NOLOAD | RTLD_GLOBAL | RTLD_NODELETE );
 	if ( !lib_handle ) {
 		lib_handle = dlopen( lib_name, RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
@@ -93,6 +131,7 @@ static bool load_library_persistent( const char *lib_name ) {
 			fflush( stdout );
 		}
 	}
+#endif
 	return ( lib_handle != nullptr );
 }
 
@@ -124,14 +163,27 @@ static bool load( le_module_loader_o *obj ) {
 static bool register_api( le_module_loader_o *obj, void *api_interface, const char *register_api_fun_name ) {
 	// define function pointer we will use to initialise api
 	register_api_fun_p_t fptr;
-
 	// load function pointer to initialisation method
+
+#ifdef _MSC_VER
+	FARPROC fp;
+
+	fp = GetProcAddress((HINSTANCE)obj->mLibraryHandle, register_api_fun_name);
+	if (!fp) {
+		std::cerr << LOG_PREFIX_STR "ERROR: " << GetLastError() << std::endl;
+		assert(false);
+		return false;
+	}
+	return (void*)(intptr_t)fp;
+
+#else
 	fptr = reinterpret_cast<register_api_fun_p_t>( dlsym( obj->mLibraryHandle, register_api_fun_name ) );
 	if ( !fptr ) {
 		std::cerr << LOG_PREFIX_STR "ERROR: " << dlerror() << std::endl;
 		assert( false );
 		return false;
 	}
+#endif 
 	// Initialize the API. This means telling the API to populate function
 	// pointers inside the struct which we are passing as parameter.
 	fprintf( stderr, "[ %-20.20s ] %10s %-20s: %s\n", LOG_PREFIX_STR, "", "Register Module", register_api_fun_name );
@@ -159,6 +211,10 @@ LE_MODULE_REGISTER_IMPL( le_module_loader, p_api ) {
 // lible_module_loader.so:
 //
 //		EXPORT LD_AUDIT=./modules/lible_module_loader.so
+
+#ifndef  _MSC_VER
+
+
 
 extern "C" unsigned int
 la_version( unsigned int version ) {
@@ -199,3 +255,5 @@ la_objsearch( const char *name, uintptr_t *cookie, unsigned int flag ) {
 
 	return const_cast<char *>( name );
 }
+
+#endif // ! _MSC_VER
