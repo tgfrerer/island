@@ -170,8 +170,9 @@ static bool register_api( le_module_loader_o *obj, void *api_interface, const ch
 		assert( false );
 		return false;
 	}
-	return ( void * )( intptr_t )fp;
-
+	fptr = ( register_api_fun_p_t )fp;
+	( *fptr )( api_interface );
+	return true;
 #else
 	fptr = reinterpret_cast<register_api_fun_p_t>( dlsym( obj->mLibraryHandle, register_api_fun_name ) );
 	if ( !fptr ) {
@@ -179,13 +180,13 @@ static bool register_api( le_module_loader_o *obj, void *api_interface, const ch
 		assert( false );
 		return false;
 	}
-#endif
 	// Initialize the API. This means telling the API to populate function
 	// pointers inside the struct which we are passing as parameter.
 	fprintf( stderr, "[ %-20.20s ] %10s %-20s: %s\n", LOG_PREFIX_STR, "", "Register Module", register_api_fun_name );
 
 	( *fptr )( api_interface );
 	return true;
+#endif
 }
 
 // ----------------------------------------------------------------------
