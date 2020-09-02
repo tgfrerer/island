@@ -153,7 +153,9 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 		char api_register_fun_name[ 256 ];
 		snprintf( api_register_fun_name, 255, "le_module_register_%s", module_name );
 
-		std::string         module_path = "./modules/lib" + std::string( module_name ) + ".so";
+#ifdef WIN32
+
+		std::string         module_path = "./" + std::string( module_name ) + ".dll";
 		le_module_loader_o *loader      = module_loader_i.create( module_path.c_str() );
 
 		defer_delete.loaders.push_back( loader ); // add to cleanup list
@@ -190,6 +192,45 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 			callbackParams->watch_id = file_watcher_i.add_watch( file_watcher, &watchSettings );
 		}
 
+#else
+
+		std::string         module_path = "./modules/lib" + std::string( module_name ) + ".so";
+		le_module_loader_o *loader      = module_loader_i.create( module_path.c_str() );
+
+		defer_delete.loaders.push_back( loader ); // add to cleanup list
+
+		// Important to store api back to table here *before* calling loadApi,
+		// as loadApi might recursively add other apis
+		// which would have the effect of allocating more than one copy of the api
+		//
+		api = le_core_create_api( hash_64_fnv1a_const( module_name ), api_size_in_bytes, module_name );
+
+		module_loader_i.load( loader );
+		module_loader_i.register_api( loader, api, api_register_fun_name );
+
+		// ----
+		if ( should_watch ) {
+			loader_callback_params_o *callbackParams = new loader_callback_params_o{};
+			callbackParams->api                      = api;
+			callbackParams->loader                   = loader;
+			callbackParams->lib_register_fun_name    = api_register_fun_name;
+			callbackParams->watch_id                 = 0;
+			defer_delete.params.push_back( callbackParams ); // add to deferred cleanup list
+
+			le_file_watcher_watch_settings watchSettings = {};
+
+			watchSettings.callback_fun = []( const char *, void *user_data ) -> bool {
+				auto params = static_cast<loader_callback_params_o *>( user_data );
+				le_module_loader_api_i->le_module_loader_i.load( params->loader );
+				return le_module_loader_api_i->le_module_loader_i.register_api( params->loader, params->api, params->lib_register_fun_name.c_str() );
+			};
+
+			watchSettings.callback_user_data = reinterpret_cast<void *>( callbackParams );
+			watchSettings.filePath           = module_path.c_str();
+
+			callbackParams->watch_id = file_watcher_i.add_watch( file_watcher, &watchSettings );
+		}
+#endif
 	} else {
 		// TODO: we should warn that this api was already added.
 	}
