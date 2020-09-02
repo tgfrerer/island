@@ -14,9 +14,9 @@
 #include <string.h> // for memcpy
 
 #ifndef _WIN32
-	#include <sys/mman.h>
-	#include <unistd.h>
-#endif 
+#	include <sys/mman.h>
+#	include <unistd.h>
+#endif
 
 struct ApiStore {
 	std::vector<std::string> names{};      // Api names (used for debugging)
