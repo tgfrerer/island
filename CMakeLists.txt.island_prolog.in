@@ -174,5 +174,14 @@ macro(add_dynamic_linker_flags)
         target_compile_options (${TARGET} PUBLIC --no-gnu-unique)
         
     endif()
+
+    if (WIN32 AND NOT ${TARGET} MATCHES "le_core")
+
+        # on windows we must link all libaries with le_core so that they can find 
+        # le_core's exported functions which are used for loading module apis.
+
+        target_link_libraries(${TARGET} PRIVATE "le_core" )
+    endif()
+
     
 endmacro(add_dynamic_linker_flags)
