@@ -56,16 +56,16 @@ ISL_API_ATTR DLL_CORE_API char const *le_get_argument_name_from_hash( uint64_t v
 	ISL_API_ATTR DLL_EXPORT_PREFIX void le_module_register_##x( void * ); \
 	static char const *                 le_module_name_##x = #x
 
-#define LE_MODULE_LOAD_DYNAMIC( x )                                                              \
-	extern "C" static x##_api const *x##_api_i = ( x##_api const * )le_core_load_module_dynamic( \
-	    le_module_name_##x,                                                                      \
-	    sizeof( x##_api ),                                                                       \
+#define LE_MODULE_LOAD_DYNAMIC( x )                                                   \
+	static x##_api const *x##_api_i = ( x##_api const * )le_core_load_module_dynamic( \
+	    le_module_name_##x,                                                           \
+	    sizeof( x##_api ),                                                            \
 	    true )
 
-#define LE_MODULE_LOAD_STATIC( x )                                                              \
-	extern "C" static x##_api const *x##_api_i = ( x##_api const * )le_core_load_module_static( \
-	    le_module_name_##x,                                                                     \
-	    le_module_register_##x,                                                                 \
+#define LE_MODULE_LOAD_STATIC( x )                                                   \
+	static x##_api const *x##_api_i = ( x##_api const * )le_core_load_module_static( \
+	    le_module_name_##x,                                                          \
+	    le_module_register_##x,                                                      \
 	    sizeof( x##_api ) )
 
 #ifdef PLUGINS_DYNAMIC
