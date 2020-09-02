@@ -2,6 +2,8 @@ set (TARGET le_pipeline_builder)
 
 set (SOURCES "le_pipeline_builder.cpp")
 set (SOURCES ${SOURCES} "le_pipeline_builder.h")
+set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.cpp")
+set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.h")
 
 if (${PLUGINS_DYNAMIC})
 
