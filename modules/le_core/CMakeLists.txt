@@ -11,11 +11,11 @@ set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.h")
 if (${PLUGINS_DYNAMIC})
 
     add_library(${TARGET} SHARED ${SOURCES})
-
-    
+       
     add_dynamic_linker_flags()
 
     target_compile_definitions(${TARGET} PUBLIC "PLUGINS_DYNAMIC=1")
+    target_compile_definitions(${TARGET} PUBLIC "DLL_CORE_EXPORTS")
 
 else()
 

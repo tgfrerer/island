@@ -19,43 +19,53 @@
 
 */
 
+#if defined( WIN32 ) && defined( PLUGINS_DYNAMIC )
+#	ifdef DLL_CORE_EXPORTS
+#		define DLL_CORE_API __declspec( dllexport )
+#	else
+#		define DLL_CORE_API __declspec( dllimport )
+#	endif
+#	define DLL_EXPORT_PREFIX __declspec( dllexport )
+#else
+#	define DLL_CORE_API
+#	define DLL_EXPORT_PREFIX
+#endif
+
 #ifdef __cplusplus
 #	define ISL_API_ATTR extern "C"
 #else
 #	define ISL_API_ATTR
 #endif
 
-ISL_API_ATTR void  le_core_poll_for_module_reloads();
-ISL_API_ATTR void *le_core_load_module_static( char const *module_name, void ( *module_reg_fun )( void * ), uint64_t api_size_in_bytes );
-ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_t api_size_in_bytes, bool should_watch );
-ISL_API_ATTR bool  le_core_load_library_persistently( char const *library );
+ISL_API_ATTR DLL_CORE_API void le_core_poll_for_module_reloads();
+ISL_API_ATTR DLL_CORE_API void *le_core_load_module_static( char const *module_name, void ( *module_reg_fun )( void * ), uint64_t api_size_in_bytes );
+ISL_API_ATTR DLL_CORE_API void *le_core_load_module_dynamic( char const *module_name, uint64_t api_size_in_bytes, bool should_watch );
+ISL_API_ATTR DLL_CORE_API bool  le_core_load_library_persistently( char const *library );
 
 // For debug purposes
 
-ISL_API_ATTR void        le_update_argument_name_table( const char *source, uint64_t value );
-ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value );
+ISL_API_ATTR DLL_CORE_API void le_update_argument_name_table( const char *source, uint64_t value );
+ISL_API_ATTR DLL_CORE_API char const *le_get_argument_name_from_hash( uint64_t value );
 
 // ---------- utilities
-
-#define LE_OPAQUE_HANDLE( object ) typedef struct object##_t *object;
 
 #define LE_MODULE_REGISTER_IMPL( x, api ) \
 	ISL_API_ATTR void le_module_register_##x( void *api )
 
-#define LE_MODULE( x )                                   \
-	ISL_API_ATTR void  le_module_register_##x( void * ); \
-	static char const *le_module_name_##x = #x
+#define LE_MODULE( x )                                                    \
+	ISL_API_ATTR DLL_EXPORT_PREFIX void le_module_register_##x( void * ); \
+	static char const *                 le_module_name_##x = #x
 
-#define LE_MODULE_LOAD_DYNAMIC( x )                                                   \
-	static x##_api const *x##_api_i = ( x##_api const * )le_core_load_module_dynamic( \
-	    le_module_name_##x,                                                           \
-	    sizeof( x##_api ),                                                            \
+#define LE_MODULE_LOAD_DYNAMIC( x )                                                              \
+	extern "C" static x##_api const *x##_api_i = ( x##_api const * )le_core_load_module_dynamic( \
+	    le_module_name_##x,                                                                      \
+	    sizeof( x##_api ),                                                                       \
 	    true )
 
-#define LE_MODULE_LOAD_STATIC( x )                                                   \
-	static x##_api const *x##_api_i = ( x##_api const * )le_core_load_module_static( \
-	    le_module_name_##x,                                                          \
-	    le_module_register_##x,                                                      \
+#define LE_MODULE_LOAD_STATIC( x )                                                              \
+	extern "C" static x##_api const *x##_api_i = ( x##_api const * )le_core_load_module_static( \
+	    le_module_name_##x,                                                                     \
+	    le_module_register_##x,                                                                 \
 	    sizeof( x##_api ) )
 
 #ifdef PLUGINS_DYNAMIC
@@ -65,6 +75,8 @@ ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value );
 #	define LE_MODULE_LOAD_DEFAULT( x ) \
 		LE_MODULE_LOAD_STATIC( x )
 #endif
+
+#define LE_OPAQUE_HANDLE( object ) typedef struct object##_t *object;
 
 // Callback forwarding is a technique for hiding target address changes
 // from libraries which trigger callbacks.
