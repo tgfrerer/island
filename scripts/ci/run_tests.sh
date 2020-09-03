@@ -117,6 +117,7 @@ process_app(){
 			echo "${app_name} BUILD FAILED: " >> build.err
 			echo "--------------" >> build.err
 			cat build.log >> build.err
+            cat build.err
 			return 1
 		fi
 
