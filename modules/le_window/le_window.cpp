@@ -447,7 +447,7 @@ static void window_setup( le_window_o *self, const le_window_settings_o *setting
 	// TODO: implement GLFW window hints, based on settings.
 	// See: http://www.glfw.org/docs/latest/window_guide.html#window_hints
 	glfwWindowHint( GLFW_FLOATING, GLFW_TRUE ); // < window is created so that it is always on top.
-	glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE); // < window is initially not visible
+	glfwWindowHint( GLFW_VISIBLE, GLFW_FALSE ); // < window is initially not visible
 	glfwWindowHint( GLFW_CLIENT_API, GLFW_NO_API );
 
 	self->window = glfwCreateWindow( self->mSettings.width, self->mSettings.height, self->mSettings.title.c_str(), self->mSettings.monitor, nullptr );
@@ -465,7 +465,7 @@ static void window_setup( le_window_o *self, const le_window_settings_o *setting
 		glfwGetMonitorPos( monitors[ 1 ], &windowX, &windowY );
 
 		int left, top, right, bottom;
-		glfwGetWindowFrameSize(self->window, &left, &top, &right, &bottom);
+		glfwGetWindowFrameSize( self->window, &left, &top, &right, &bottom );
 
 		windowX += left;
 		windowY += top;
@@ -516,7 +516,6 @@ static int init() {
 	int result = glfwInit();
 	assert( result == GLFW_TRUE );
 
-	
 	if ( glfwVulkanSupported() ) {
 		std::cout << "Vulkan supported." << std::endl;
 	} else {
