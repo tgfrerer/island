@@ -1,7 +1,10 @@
 set ( TARGET le_file_watcher )
 
-set ( SOURCES "le_file_watcher.cpp" )
-set ( SOURCES ${SOURCES} "le_file_watcher.h" )
+
+set ( SOURCES "le_file_watcher.h" )
+
+set ( SOURCES ${SOURCES} "le_file_watcher_win32.cpp" )
+set ( SOURCES ${SOURCES} "le_file_watcher_linux.cpp" )
 
 
 if (${PLUGINS_DYNAMIC})

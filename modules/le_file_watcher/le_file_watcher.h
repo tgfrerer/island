@@ -3,6 +3,12 @@
 
 #include "le_core/le_core.h"
 
+#if defined( __linux__ )
+#	define LE_FILE_WATCHER_IMPL_LINUX
+#elif defined( _WIN32 )
+#	define LE_FILE_WATCHER_IMPL_WIN32
+#endif
+
 struct le_file_watcher_o;
 
 struct le_file_watcher_watch_settings {
