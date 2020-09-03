@@ -72,8 +72,10 @@ static void *load_library( const char *lib_name ) {
 	void *handle = LoadLibrary( lib_name );
 	if ( handle == NULL ) {
 		auto loadResult = GetLastError();
-		std::cerr << "ERROR: " << loadResult << std::endl
-		          << std::flush;
+
+		fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, result: %ul\n", LOG_PREFIX_STR, "ERROR", "Loading Module", lib_name, loadResult );
+		fflush( stdout );
+
 		exit( 1 );
 	} else {
 		fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p\n", LOG_PREFIX_STR, "OK", "Loaded Module", lib_name, handle );
