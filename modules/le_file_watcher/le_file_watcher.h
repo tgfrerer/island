@@ -34,7 +34,7 @@ LE_MODULE( le_file_watcher );
 
 // File watcher can only be loaded as a static module - it will always
 // be statically linked into the core module.
-LE_MODULE_LOAD_STATIC( le_file_watcher );
+LE_MODULE_LOAD_DEFAULT( le_file_watcher );
 
 // ----------------------------------------------------------------------
 

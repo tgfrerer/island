@@ -146,6 +146,11 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 
 	void *api = le_core_get_api( module_name_hash, module_name );
 
+	if ( module_name_hash == hash_64_fnv1a_const( "le_file_watcher" ) ) {
+		// To answer that age-old question: No-one watches the watcher.
+		should_watch = false;
+	}
+
 	if ( api == nullptr ) {
 
 		static auto &module_loader_i = le_module_loader_api_i->le_module_loader_i;
