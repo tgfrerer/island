@@ -1,13 +1,15 @@
 # Project Island 🌋🐎 [![Build Status](https://travis-ci.com/tgfrerer/island.svg?branch=wip)](https://travis-ci.com/tgfrerer/island)
 
 Project Island is an experimental **Vulkan** renderer/proto-engine for Linux,
-written in C/C++.
+written in C/C++. 
 
 Island is written for **rapid protoyping and tweaking**. That's why it
 allows **hot-reloading** wherever possible: for c/c++ application
 code, GLSL shader code, even the renderer's own core modules. Each
 module aims to be strictly isolated, which makes the codebase **fast
 to compile**, especially in parallel.
+
+Now with experimental support for [Windows 10](#experimental-windows-10-support).
 
 ## Main Features:
 
@@ -166,6 +168,7 @@ start from.
 [module-generator]: scripts/create_module.py
 [app-generator]: scripts/create_app.py
 [link-shaderc]: https://github.com/google/shaderc/
+[glfw]: https://github.com/glfw/glfw
 
 # Installation instructions
 
@@ -190,10 +193,6 @@ Follow the installation instructions via:
 
 On Arch Linux, I recommend installing the following packages via
 pacman: `shaderc vulkan-devel ninja cmake`.
-
-## Experimental Windows 10 support
-
-Island can compile and run natively on Microsoft Windows - with some caveats. Progress of the Windows port and Windows-specific build instructions etc. are tracked in a [separate readme][readme-win].
 
 ## Building an Island project
 
@@ -256,6 +255,10 @@ setup is pretty nice:
 `entr(1)` is a great utility, which runs a command on file change. The
 last line of the above script causes `ninja` to run as soon as any of
 the files checked into the github repo at `hello_triangle` change.
+
+## Experimental Windows 10 support
+
+Island can compile and run natively on Microsoft Windows - with some caveats. Progress of the Windows port and Windows-specific build instructions etc. are tracked in a [separate readme][readme-win].
 
 ## Caveats
 
