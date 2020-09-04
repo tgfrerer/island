@@ -125,9 +125,6 @@ static int file_watcher_add_watch( le_file_watcher_o *instance, le_file_watcher_
 	// First we want to find out if there is already a watch for the directory
 	auto file_path = std::filesystem::canonical( settings->filePath );
 
-	std::cout << "Adding watch for: '" << file_path.string() << "'" << std::endl
-	          << std::flush;
-
 	auto           file_name          = file_path.filename().string();
 	auto           file_basename      = std::filesystem::path( file_path ).remove_filename().string();
 	uint64_t const file_basename_hash = hash_64_fnv1a( file_basename.c_str() );
@@ -259,6 +256,7 @@ static void CALLBACK watch_callback( DWORD dwErrorCode, DWORD dwNumberOfBytesTra
 	do {
 		pNotify = ( PFILE_NOTIFY_INFORMATION )&watch->buffer[ offset ];
 		offset += pNotify->NextEntryOffset;
+
 
 		int count =
 		    WideCharToMultiByte( CP_ACP, 0, pNotify->FileName,
