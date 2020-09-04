@@ -9,7 +9,7 @@ code, GLSL shader code, even the renderer's own core modules. Each
 module aims to be strictly isolated, which makes the codebase **fast
 to compile**, especially in parallel.
 
-Now with experimental support for [Windows 10](#experimental-windows-10-support).
+Now with [experimental support for Windows 10](#experimental-windows-10-support).
 
 ## Main Features:
 
