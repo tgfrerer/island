@@ -12,9 +12,10 @@
 #include <filesystem> // for parsing shader source file paths
 #include <fstream>    // for reading shader source files
 #include <sstream>
-#include <cstring>    // for memcpy
+#include <cstring> // for memcpy
 #include <vector>
 #include <set>
+#include <regex>
 
 struct le_shader_compiler_o {
 	shaderc_compiler_t        compiler;
@@ -24,8 +25,8 @@ struct le_shader_compiler_o {
 // ---------------------------------------------------------------
 
 struct FileData {
-	std::filesystem::path path;     /// path to file
-	std::vector<char>     contents; /// contents of file
+	std::string       path_str; /// path to file, as std::string
+	std::vector<char> contents; /// contents of file
 };
 
 // We keep IncludesList as a struct, using it as an abstract handle
@@ -250,20 +251,20 @@ static shaderc_include_result *le_shaderc_include_result_create( void *      use
 		requested_source_path = std::filesystem::canonical( requested_source_path );
 
 		includesList->paths.insert( requested_source_path.string() );
-		fileData->path = requested_source_path;
+		fileData->path_str = requested_source_path.string();
 
 		// -- load file contents into fileData
-		fileData->contents = load_file( fileData->path, &loadSuccess );
+		fileData->contents = load_file( requested_source_path, &loadSuccess );
 
 	} else {
 		// Empty path is understood as a signal in shaderc: failed inclusion
-		fileData->path = "";
+		fileData->path_str = "";
 	}
 
 	if ( false == loadSuccess ) {
 
 		// Store error message instead of file contents.
-		const std::string error_message{ "Could not load file specified: '" + fileData->path.string() + "'" };
+		const std::string error_message{ "Could not load file specified: '" + fileData->path_str + "'" };
 
 		fileData->contents.assign( error_message.begin(), error_message.end() );
 	}
@@ -271,8 +272,8 @@ static shaderc_include_result *le_shaderc_include_result_create( void *      use
 	self->user_data          = fileData;
 	self->content            = fileData->contents.data();
 	self->content_length     = fileData->contents.size();
-	self->source_name        = fileData->path.string().c_str();
-	self->source_name_length = fileData->path.string().size();
+	self->source_name        = fileData->path_str.c_str();
+	self->source_name_length = fileData->path_str.size();
 
 	return self;
 }
@@ -315,12 +316,32 @@ static inline bool checkForLineNumberModifier( const std::string &line, uint32_t
 
 static void le_shader_compiler_print_error_context( const char *errMsg, const std::string &shaderSource, const std::string &sourceFileName ) {
 
-	std::string errorFileName( 255, '\0' ); // Will contain the name of the file which contains the error
-	uint32_t    lineNumber = 0;             // Will contain error line number after successful parse
+	std::string errorFileName;  // Will contain the name of the file which contains the error
+	uint32_t    lineNumber = 0; // Will contain error line number after successful parse
+	bool        scanResult = false;
+	/*
+	
+	errMsg has the form:  "./triangle.frag:28: error: '' :  syntax error"
+	
+	Or, on Windows:
 
-	// Error string will has the form:  "triangle.frag:28: error: '' :  syntax error"
-	auto scanResult = sscanf( errMsg, "%[^:]:%d:", errorFileName.data(), &lineNumber );
-	errorFileName.shrink_to_fit();
+	C:\Users\tim\Documents\dev\island\apps\examples\hello_triangle\resources\shaders\default.frag:24: error: 'vertexColor2' : no such field in structure
+	C:\Users\tim\Documents\dev\island\apps\examples\hello_triangle\resources\shaders\default.frag:24: error: 'assign' :  cannot convert from 'layout( location=0) in block{ in highp 2-component vector of float texCoord,  in highp 4-component vector of float vertexColor}' to 'layout( location=0) out highp 4-component vector of float'
+		
+	Note that on Windows, the colon ':' character may be part of the file path, as in "c:\", we therefore 
+	use a slightly more involved regular expression instead of sscanf.
+	
+	*/
+
+	{
+		std::cmatch cm;
+		scanResult = std::regex_search( errMsg, cm, std::regex( R"regex((.*?):(\d+):\s*error:.*)regex" ) );
+
+		if ( scanResult ) {
+			errorFileName = cm[ 1 ].str();
+			lineNumber    = std::stoul( cm[ 2 ].str() );
+		}
+	}
 
 	auto errorFilePath  = std::filesystem::canonical( std::filesystem::path( errorFileName ) );
 	auto sourceFilePath = std::filesystem::canonical( std::filesystem::path( sourceFileName ) );
@@ -341,7 +362,7 @@ static void le_shader_compiler_print_error_context( const char *errMsg, const st
 	std::istringstream sourceCode( shaderSource );
 	std::string        currentLine;
 
-	if ( scanResult != std::char_traits<char>::eof() ) {
+	if ( scanResult ) {
 
 		std::getline( sourceCode, currentLine );
 
