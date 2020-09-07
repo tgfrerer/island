@@ -161,13 +161,6 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 #ifdef WIN32
 		std::string         module_path = "./" + std::string( module_name ) + ".dll";
 		le_module_loader_o *loader      = module_loader_i.create( module_path.c_str() );
-
-		// since windows does not allow us to overwrite build artifacts, 
-		// we must come up with a different strategy for hot-reloading dlls.
-		// for now, this means it does not make much sense to watch these 
-		// artifacts, and so we're disabling watching them.
-		should_watch = false; 
-
 #else
 		std::string         module_path = "./modules/lib" + std::string( module_name ) + ".so";
 		le_module_loader_o *loader      = module_loader_i.create( module_path.c_str() );
