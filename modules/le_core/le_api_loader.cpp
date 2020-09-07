@@ -29,36 +29,35 @@ struct le_module_loader_o {
 // ----------------------------------------------------------------------
 
 static void unload_library( void *handle_, const char *path ) {
-	if ( handle_ ) {
 #ifdef _MSC_VER
+	if ( handle_ ) {
 		auto result = FreeLibrary( static_cast<HMODULE>( handle_ ) );
+		fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p \n", LOG_PREFIX_STR, "", "Close Module", path, handle_ );
+
+		if ( 0 == result ) {
+			auto error = GetLastError();
+			fprintf( stderr, "[ %-20.20s ] %10s %-20s: handle: %p, error: %ul\n", LOG_PREFIX_STR, "ERROR", "FreeLibrary", handle_, error );
+		}
+	}
 #else
+	if ( handle_ ) {
 		auto result = dlclose( handle_ );
-#endif //
 
 		fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p \n", LOG_PREFIX_STR, "", "Close Module", path, handle_ );
 
 		if ( result ) {
-#ifdef _MSC_VER
-			auto error = GetLastError();
-#else
 			auto error = dlerror();
 			fprintf( stderr, "[ %-20.20s ] %10s %-20s: handle: %p, error: %s\n", LOG_PREFIX_STR, "ERROR", "dlclose", handle_, error );
 			fflush( stderr );
-#endif
 		}
 
-#ifdef _MSC_VER
-
-#else
 		auto handle = dlopen( path, RTLD_NOLOAD );
 		if ( handle ) {
 			std::cerr << LOG_PREFIX_STR "ERROR dlclose: '" << path << "', "
 			          << "handle " << std::hex << ( void * )handle << " staying resident.";
 		}
-#endif
-		handle_ = nullptr;
 	}
+#endif
 }
 
 // ----------------------------------------------------------------------
@@ -66,7 +65,7 @@ static void unload_library( void *handle_, const char *path ) {
 static void *load_library( const char *lib_name ) {
 
 	// fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s\n", LOG_PREFIX_STR, "", "Load Module", lib_name );
-	fflush( stdout );
+	// fflush( stdout );
 
 #ifdef _MSC_VER
 	void *handle = LoadLibrary( lib_name );
@@ -81,6 +80,7 @@ static void *load_library( const char *lib_name ) {
 		fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p\n", LOG_PREFIX_STR, "OK", "Loaded Module", lib_name, handle );
 		fflush( stdout );
 	}
+	return handle;
 #else
 
 	void *handle = dlopen( lib_name, RTLD_LAZY | RTLD_LOCAL );
@@ -94,8 +94,8 @@ static void *load_library( const char *lib_name ) {
 		fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p\n", LOG_PREFIX_STR, "OK", "Loaded Module", lib_name, handle );
 		fflush( stdout );
 	}
-#endif
 	return handle;
+#endif
 }
 
 // ----------------------------------------------------------------------
@@ -104,6 +104,7 @@ static bool load_library_persistent( const char *lib_name ) {
 
 #ifdef _MSC_VER
 	void *lib_handle = nullptr;
+	return false;
 #else
 	// We persistently load symbols for libraries upon which our plugins depend -
 	// and make sure these are loaded with the NO_DELETE flag so that dependent
@@ -129,8 +130,8 @@ static bool load_library_persistent( const char *lib_name ) {
 			fflush( stdout );
 		}
 	}
-#endif
 	return ( lib_handle != nullptr );
+#endif
 }
 
 // ----------------------------------------------------------------------
