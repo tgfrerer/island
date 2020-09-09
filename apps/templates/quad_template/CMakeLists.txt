@@ -31,3 +31,5 @@ include ("${ISLAND_BASE_DIR}CMakeLists.txt.island_epilog.in")
 
 # create a link to local resources
 link_resources(${PROJECT_SOURCE_DIR}/resources ${CMAKE_BINARY_DIR}/local_resources)
+
+source_group(${PROJECT_NAME} FILES ${SOURCES})
