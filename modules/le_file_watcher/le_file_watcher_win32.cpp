@@ -16,27 +16,6 @@
 #	include <array>
 #	include "le_core/hash_util.h"
 
-/*
-
-TODO:
-
-While this works for a rough POC, there are a couple of issues with it: 
-
-While on linux, creating a watch for a directory which is already watched does not create another watch,
-on windows each watch is created, and will get triggered. Linux uses an internal cache for watches. We
-should do so, too.
-
-Since our api watches files, this means that we end up with a trigger for each file 
-which is in a directory, which is not what we want, because the number of messages explodes as soon 
-as we have plenty of files per directory.
-
-We want an architecture where we internally have a list of watched directories, and each directory has 
-a list of watched files. If a directory triggers, we find if the file that did the trigger is on our
-list of watched files, and if it is, we trigger the callback.
-
-
-*/
-
 // ----------------------------------------------------------------------
 
 struct WatchedDirectory {
@@ -60,6 +39,7 @@ struct WatchedDirectory {
 struct watch_data_t {
 	std::string path;
 	std::string filename;
+	uint64_t    filename_hash = 0;
 	std::string basename;
 	int         handle             = -1; // per-file_watcher unique handle
 	void *      callback_user_data = nullptr;
@@ -169,6 +149,7 @@ static int file_watcher_add_watch( le_file_watcher_o *instance, le_file_watcher_
 		watch_data.path               = file_path.string();
 		watch_data.basename           = file_basename;
 		watch_data.filename           = file_name;
+		watch_data.filename_hash      = hash_64_fnv1a( file_name.c_str() );
 		watch_data.callback_fun       = settings->callback_fun;
 		watch_data.callback_user_data = settings->callback_user_data;
 		int watch_handle              = ++instance->last_watch_handle;
@@ -237,7 +218,7 @@ static bool file_watcher_remove_watch( le_file_watcher_o *instance, int watch_id
 };
 
 // ----------------------------------------------------------------------
-// when a callback gets tiggered, we filter against all
+// when a callback gets triggered, we filter against all
 // watchdata elements in the vector matching the directory hash
 static void CALLBACK watch_callback( DWORD dwErrorCode, DWORD dwNumberOfBytesTransfered, LPOVERLAPPED lpOverlapped ) {
 	char                     callback_filename[ MAX_PATH ];
@@ -253,36 +234,87 @@ static void CALLBACK watch_callback( DWORD dwErrorCode, DWORD dwNumberOfBytesTra
 		return;
 	}
 
+	// Filter all file callbacks which match FILE_ACTION_MODIFIED
+	//
+	// Store filename hash in vector, so that we can filter later.
+	//
+	std::vector<uint64_t> callback_file_name_hashes;
+
 	do {
 		pNotify = ( PFILE_NOTIFY_INFORMATION )&watch->buffer[ offset ];
 		offset += pNotify->NextEntryOffset;
 
+		if ( pNotify->Action != FILE_ACTION_MODIFIED ) {
+			continue;
+		}
 
-		int count =
+		int callback_filename_size =
 		    WideCharToMultiByte( CP_ACP, 0, pNotify->FileName,
 		                         pNotify->FileNameLength / sizeof( WCHAR ),
 		                         callback_filename, MAX_PATH - 1, NULL, NULL );
 
-		callback_filename[ count ] = '\0';
+		callback_filename[ callback_filename_size ] = '\0';
 
-		size_t idx = watch->watcher->get_watch_data_idx_for_hash( watch->directory_name_hash );
+		callback_file_name_hashes.push_back( hash_64_fnv1a( callback_filename ) );
 
-		if ( idx < watch->watcher->watch_data.size() ) {
+	} while ( pNotify->NextEntryOffset != 0 );
+
+	// We now have a ordered vector of filename hashes for all files that have
+	// changed in this directory.
+	//
+	// The vector will most probably contain duplicates. We are, however, only
+	// interested in the *last* occurrance of each value, because we want to trigger
+	// a callback as late in time as possible. Other than that, we want to
+	// preserve the order of our vector.
+
+	{
+		// Filter file name hashes:
+		//
+		// We only want to keep the last occurrance of each value.
+
+		std::vector<uint64_t> c;
+		c.reserve( callback_file_name_hashes.size() );
+
+		for ( auto c_e = callback_file_name_hashes.rbegin();
+		      c_e != callback_file_name_hashes.rend(); c_e++ ) {
+			// add element to c, but only if element was not in c already.
+			if ( c.end() == std::find( c.begin(), c.end(), *c_e ) ) {
+				c.emplace_back( *c_e );
+			};
+		}
+
+		std::reverse( c.begin(), c.end() );
+
+		callback_file_name_hashes = c;
+	}
+
+	size_t idx = watch->watcher->get_watch_data_idx_for_hash( watch->directory_name_hash );
+
+	if ( idx < watch->watcher->watch_data.size() ) {
+
+		for ( auto const &filename_hash : callback_file_name_hashes ) {
+
+			// For each file - trigger all callbacks that respond to this file.
+			//
+			// Note that there may be more than one callback responding to a
+			// file, as it's possible to register multiple callbacks to a file.
 
 			for ( auto const &w : watch->watcher->watch_data[ idx ] ) {
-				// go through all watches and match against the file name
-				if ( 0 == strncmp( callback_filename, w.filename.c_str(), count ) ) {
+				// Go through all watches and match against the file name
+				if ( w.filename_hash == filename_hash ) {
 					( *w.callback_fun )( w.path.c_str(), w.callback_user_data );
 				}
 			}
 		}
+	}
 
-	} while ( pNotify->NextEntryOffset != 0 );
-
-	// we must re-issue watch
+	// We must re-issue watch, so that system knows to keep on the
+	// lookout for changes.
 
 	refresh_watch( watch );
 }
+
+// ----------------------------------------------------------------------
 
 static void refresh_watch( WatchedDirectory *watch_dir ) {
 
