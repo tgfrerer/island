@@ -51,7 +51,7 @@ static app_o *app_create() {
 	settings
 	    .setWidth( 1024 )
 	    .setHeight( 1024 )
-	    .setTitle( "IslΛnd // HelloTriangleApp" );
+	    .setTitle( "Island // HelloTriangleApp" );
 
 	// create a new window
 	app->window.setup( settings );
