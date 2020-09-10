@@ -15,6 +15,7 @@
 #	include "assert.h"
 #	include <string>
 #	include <iostream>
+#	include <filesystem>
 
 struct le_file_watcher_o;
 
@@ -32,6 +33,7 @@ struct le_module_loader_o {
 };
 
 bool grab_and_drop_pdb_handle( char const *path ); // ffdecl
+bool delete_old_artifacts( char const *path );     //ffdecl
 
 // ----------------------------------------------------------------------
 
@@ -44,8 +46,11 @@ static void unload_library( void *handle_, const char *path ) {
 			auto error = GetLastError();
 			fprintf( stderr, "[ %-20.20s ] %10s %-20s: handle: %p, error: %ul\n", LOG_PREFIX_STR, "ERROR", "FreeLibrary", handle_, error );
 		} else {
-			grab_and_drop_pdb_handle( path );
-			// delete_old_pdb
+			if ( grab_and_drop_pdb_handle( path ) ) {
+				delete_old_artifacts( path );
+			} else {
+					fprintf( stderr, "[ %-20.20s ] %10s %-20s: %s\n", LOG_PREFIX_STR, "ERROR", "DropHandles", "Could not drop pdb handles." );
+			}
 		}
 	}
 }
@@ -133,7 +138,435 @@ LE_MODULE_REGISTER_IMPL( le_module_loader, p_api ) {
 	loader_i.load_library_persistently = load_library_persistent;
 }
 
+// Windows - specific: we must provide with a method to wrest the stale pdb file
+// from the visual studio debugger's hands, if it is running.
+
+constexpr ULONG STATUS_INFO_LENGTH_MISMATCH   = 0xc0000004;
+constexpr ULONG STATUS_INSUFFICIENT_RESOURCES = 0xC000009A;
+constexpr ULONG STATUS_BUFFER_OVERFLOW        = 0x80000005;
+#    define SystemHandleInformation 16
+
+#    define ObjectNameInformation 1
+#    define ObjectAllTypesInformation 3
+
+typedef NTSTATUS( NTAPI *_NtQuerySystemInformation )(
+    ULONG  SystemInformationClass,
+    PVOID  SystemInformation,
+    ULONG  SystemInformationLength,
+    PULONG ReturnLength );
+typedef NTSTATUS( NTAPI *_NtDuplicateObject )(
+    HANDLE      SourceProcessHandle,
+    HANDLE      SourceHandle,
+    HANDLE      TargetProcessHandle,
+    PHANDLE     TargetHandle,
+    ACCESS_MASK DesiredAccess,
+    ULONG       Attributes,
+    ULONG       Options );
+typedef NTSTATUS( NTAPI *_NtQueryObject )(
+    HANDLE ObjectHandle,
+    ULONG  ObjectInformationClass,
+    PVOID  ObjectInformation,
+    ULONG  ObjectInformationLength,
+    PULONG ReturnLength );
+
+typedef struct _SYSTEM_HANDLE {
+	ULONG       ProcessId;
+	BYTE        ObjectTypeNumber;
+	BYTE        Flags;
+	USHORT      Handle;
+	PVOID       Object;
+	ACCESS_MASK GrantedAccess;
+} SYSTEM_HANDLE, *PSYSTEM_HANDLE;
+
+typedef struct _SYSTEM_HANDLE_INFORMATION {
+	ULONG         HandleCount;
+	SYSTEM_HANDLE Handles[ 1 ];
+} SYSTEM_HANDLE_INFORMATION, *PSYSTEM_HANDLE_INFORMATION;
+
+//
+typedef struct _OBJECT_TYPE_INFORMATION {
+	UNICODE_STRING  TypeName;
+	ULONG           TotalNumberOfObjects;
+	ULONG           TotalNumberOfHandles;
+	ULONG           TotalPagedPoolUsage;
+	ULONG           TotalNonPagedPoolUsage;
+	ULONG           TotalNamePoolUsage;
+	ULONG           TotalHandleTableUsage;
+	ULONG           HighWaterNumberOfObjects;
+	ULONG           HighWaterNumberOfHandles;
+	ULONG           HighWaterPagedPoolUsage;
+	ULONG           HighWaterNonPagedPoolUsage;
+	ULONG           HighWaterNamePoolUsage;
+	ULONG           HighWaterHandleTableUsage;
+	ULONG           InvalidAttributes;
+	GENERIC_MAPPING GenericMapping;
+	ULONG           ValidAccessMask;
+	BOOLEAN         SecurityRequired;
+	BOOLEAN         MaintainHandleCount;
+	UCHAR           TypeIndex; // since WINBLUE
+	CHAR            ReservedByte;
+	ULONG           PoolType;
+	ULONG           DefaultPagedPoolCharge;
+	ULONG           DefaultNonPagedPoolCharge;
+} OBJECT_TYPE_INFORMATION, *POBJECT_TYPE_INFORMATION;
+
+// sanity check
+static_assert( sizeof( PUBLIC_OBJECT_TYPE_INFORMATION ) == sizeof( OBJECT_TYPE_INFORMATION ), "size must match" );
+
+typedef struct _OBJECT_ALL_INFORMATION {
+	ULONG                   NumberOfObjectsTypes;
+	OBJECT_TYPE_INFORMATION ObjectTypeInformation[ 1 ];
+} OBJECT_ALL_INFORMATION, *POBJECT_ALL_INFORMATION;
+
+PVOID GetLibraryProcAddress( LPCSTR LibraryName, LPCSTR ProcName ) {
+	HMODULE module = GetModuleHandleA( LibraryName );
+	return module ? GetProcAddress( module, ProcName ) : NULL;
+}
+
+// We use some RAII to keep sane with all the handles flying around.
+// Handles are wrapped in a custom unique_ptr<>, for which this is
+// the deleter Functor.
+struct HandleDeleter {
+	void operator()( HANDLE *h ) {
+		if ( h ) {
+			CloseHandle( *h );
+		}
+		delete ( h );
+	};
+};
+
+// ----------------------------------------------------------------------
+
+UCHAR get_file_handle_object_type_index( HANDLE processHandle ) {
+
+	// Find TypeIndex for handles which are labelled "File",
+	// so that we may filter file handles more easily
+	// by TypeIndex.
+
+	constexpr auto FILE_LABEL = L"File";
+
+	ULONG             resultLength = 1024;
+	std::vector<BYTE> objInformation;
+
+	LONG query_result = 0;
+
+	while ( objInformation.size() < resultLength ) {
+
+		objInformation.resize( resultLength );
+
+		query_result = NtQueryObject(
+		    processHandle,
+		    ( OBJECT_INFORMATION_CLASS )ObjectAllTypesInformation,
+		    objInformation.data(),
+		    ULONG( objInformation.size() ),
+		    &resultLength );
+	}
+
+	BYTE * data         = objInformation.data();
+	BYTE * data_end     = data + objInformation.size();
+	size_t num_elements = ( ( POBJECT_ALL_INFORMATION )( data ) )->NumberOfObjectsTypes;
+	data                = ( BYTE * )( ( POBJECT_ALL_INFORMATION )( data ) )->ObjectTypeInformation;
+
+	POBJECT_TYPE_INFORMATION info;
+	for ( size_t i = 0; data != data_end && i != num_elements; i++ ) {
+
+		info = ( POBJECT_TYPE_INFORMATION )( data );
+
+		if ( 0 == wcsncmp( FILE_LABEL, info->TypeName.Buffer, info->TypeName.Length / 2 ) ) {
+			return info->TypeIndex;
+			break;
+		}
+
+		// What a mess, but thankfully there was some information to be found about how these
+		// Object Information Records are presented to the caller:
+		// https://www.geoffchappell.com/studies/windows/km/ntoskrnl/api/ob/obquery/type.htm
+		//
+		// We must round up to the next multiple of 8, which is what ( ( x + 7 ) >> 3 ) << 3 ) does.
+		size_t offset = ( ( sizeof( OBJECT_TYPE_INFORMATION ) + info->TypeName.MaximumLength + 7 ) >> 3 ) << 3;
+		data += offset;
+	}
+
+	return 0;
+}
+
+// ----------------------------------------------------------------------
+
+bool close_handles_held_by_process_id( ULONG process_id, wchar_t const *needle_suffix ) {
+
+	// Grab function pointers to methods which we will need from ntdll.
+
+	static _NtQuerySystemInformation NtQuerySystemInformation = ( _NtQuerySystemInformation )GetLibraryProcAddress( "ntdll.dll", "NtQuerySystemInformation" );
+	static _NtDuplicateObject        NtDuplicateObject        = ( _NtDuplicateObject )GetLibraryProcAddress( "ntdll.dll", "NtDuplicateObject" );
+	static _NtQueryObject            NtQueryObject            = ( _NtQueryObject )GetLibraryProcAddress( "ntdll.dll", "NtQueryObject" );
+
+	// Duplicate process based on process_id, so that we can query the process.
+	std::unique_ptr<HANDLE, HandleDeleter> pHandle( new HANDLE( OpenProcess( PROCESS_DUP_HANDLE, FALSE, process_id ) ) );
+
+	if ( !pHandle ) {
+		printf( "Could not open PID %d! (Don't try to open a system process.)\n", process_id );
+		return false;
+	}
+
+	// Find out all file handles held by the process.
+
+	// Handle type index given for handle of type file in this process.
+	// We assume that this value is the same over all processes,
+	// and doesn't change for the lifetime of this program.
+	static UCHAR const FILE_HANDLE_OBJECT_TYPE_INDEX = get_file_handle_object_type_index( *pHandle.get() );
+
+	// Find Object Type Index which is given to Objects of type File,
+	// by finding the first object labelled File, and taking note of its
+	// Type Index.
+
+	std::vector<BYTE> buf;
+	ULONG             ReturnLength = 1024;
+	NTSTATUS          status       = STATUS_INFO_LENGTH_MISMATCH;
+
+	while ( buf.size() < ReturnLength || status == STATUS_INFO_LENGTH_MISMATCH ) {
+		buf.resize( ReturnLength );
+		status = NtQuerySystemInformation( SystemHandleInformation, buf.data(), ReturnLength, &ReturnLength );
+		if ( status == STATUS_INSUFFICIENT_RESOURCES ) {
+			exit( 1 );
+		}
+	}
+
+	PSYSTEM_HANDLE_INFORMATION pshti = ( PSYSTEM_HANDLE_INFORMATION )( buf.data() );
+
+	ULONG_PTR NumberOfHandles = pshti->HandleCount;
+
+	if ( NumberOfHandles == 0 ) {
+		return L"";
+	}
+
+	_SYSTEM_HANDLE *sys_handle = pshti->Handles;
+	auto const      handle_end = sys_handle + NumberOfHandles;
+
+	for ( ; sys_handle != handle_end; sys_handle++ ) {
+
+		// Filter for handles which are held by the given processId
+		if ( sys_handle->ProcessId != process_id ) {
+			continue;
+		}
+
+		// Filter for handles of type file
+		if ( sys_handle->ObjectTypeNumber != FILE_HANDLE_OBJECT_TYPE_INDEX ) {
+			continue;
+		}
+
+		// Query the object name (unless it has an access of
+		//   0x0012019f, on which NtQueryObject could hang.
+		if ( sys_handle->GrantedAccess == 0x0012019f ) {
+			continue;
+		}
+
+		if ( sys_handle->GrantedAccess == 0x00120189 ) {
+			continue;
+		}
+
+		std::unique_ptr<HANDLE, HandleDeleter> pFileHandle( new HANDLE );
+
+		// Duplicate the handle so we can query it.
+		if ( !NT_SUCCESS( NtDuplicateObject(
+		         *pHandle,
+		         ( void * )sys_handle->Handle,
+		         GetCurrentProcess(),
+		         pFileHandle.get(),
+		         0,
+		         0,
+		         0 ) ) ) {
+			printf( "[%#x] Error!\n", sys_handle->Handle );
+			continue;
+		}
+
+		// Query the object name.
+		std::vector<BYTE> objectName;
+		{
+			ULONG objectNameSize = 16;
+
+			while ( objectName.size() < objectNameSize ) {
+				objectName.resize( objectNameSize );
+
+				auto status =
+				    NtQueryObject(
+				        *pFileHandle,
+				        ObjectNameInformation,
+				        objectName.data(),
+				        ULONG( objectName.size() ),
+				        &objectNameSize );
+
+				if ( status != STATUS_BUFFER_OVERFLOW ) {
+					break;
+				}
+			}
+		}
+		PUNICODE_STRING name_info = PUNICODE_STRING( objectName.data() );
+
+		const auto needle_len       = wcslen( needle_suffix );
+		const auto needle_num_bytes = needle_len * sizeof( wchar_t );
+
+		if ( name_info->Length < needle_num_bytes ) {
+			continue;
+		}
+
+		auto hay_tail = name_info->Buffer + ( name_info->Length / 2 ) - needle_len;
+
+		if ( 0 == wcsncmp( needle_suffix, hay_tail, needle_len ) ) {
+
+			pFileHandle.reset( new HANDLE );
+
+			if ( !NT_SUCCESS( NtDuplicateObject(
+			         *pHandle,
+			         ( void * )sys_handle->Handle,
+			         GetCurrentProcess(),
+			         pFileHandle.get(),
+			         0,
+			         FALSE,
+			         DUPLICATE_CLOSE_SOURCE // This means to close the source handle when duplicating, effectively taking ownership of the handle.
+			         ) ) ) {
+
+				printf( "[%#x] Error in Duplicate Handle!\n", sys_handle->Handle );
+				fflush( stdout );
+				continue;
+			}
+
+			// Forcibly close the handle - drop it.
+			pFileHandle.reset();
+
+			// printf( "Closed handle: [0x%04x]: %.*S\r\n", sys_handle->Handle, name_info->Length / 2, name_info->Buffer );
+			// fflush( stdout );
+			return true;
+		}
+	};
+
+	return false;
+}
+
+// ----------------------------------------------------------------------
+
+std::vector<DWORD> enumerate_processes_holding_handle_to_file( PCWSTR file_path, wchar_t const *suffix ) {
+
+	std::vector<DWORD> result;
+
+	DWORD dwSession;
+	WCHAR szSessionKey[ CCH_RM_SESSION_KEY + 1 ] = { 0 };
+	DWORD dwError                                = RmStartSession( &dwSession, 0, szSessionKey );
+	//wprintf(L"RmStartSession returned %d\n", dwError);
+	if ( dwError != ERROR_SUCCESS ) {
+		return {};
+	}
+
+	dwError = RmRegisterResources( dwSession, 1, &file_path, 0, NULL, 0, NULL );
+	//wprintf(L"RmRegisterResources(%ls) returned %d\n", pszFile, dwError);
+	if ( dwError == ERROR_SUCCESS ) {
+		DWORD dwReason;
+
+		UINT            nProcInfoNeeded;
+		UINT            nProcInfo = 10;
+		RM_PROCESS_INFO rgpi[ 10 ];
+
+		dwError = RmGetList( dwSession, &nProcInfoNeeded, &nProcInfo, rgpi, &dwReason );
+		//wprintf(L"RmGetList returned %d\n", dwError);
+
+		if ( dwError == ERROR_SUCCESS ) {
+
+			//wprintf( L"RmGetList returned %d infos (%d needed)\n", nProcInfo, nProcInfoNeeded );
+
+			for ( UINT i = 0; i < nProcInfo; i++ ) {
+
+				//wprintf( L"%d.ApplicationType = %d\n", i, rgpi[ i ].ApplicationType );
+				//wprintf( L"%d.strAppName = %ls\n", i, rgpi[ i ].strAppName );
+				//wprintf( L"%d.Process.dwProcessId = %d\n", i, rgpi[ i ].Process.dwProcessId );
+
+				HANDLE hProcess = OpenProcess( PROCESS_QUERY_LIMITED_INFORMATION, FALSE, rgpi[ i ].Process.dwProcessId );
+
+				if ( hProcess ) {
+
+					FILETIME ftCreate, ftExit, ftKernel, ftUser;
+					if ( GetProcessTimes( hProcess, &ftCreate, &ftExit, &ftKernel, &ftUser ) &&
+					     CompareFileTime( &rgpi[ i ].Process.ProcessStartTime, &ftCreate ) == 0 ) {
+						WCHAR sz[ MAX_PATH ];
+						DWORD cch = MAX_PATH;
+						if ( QueryFullProcessImageNameW( hProcess, 0, sz, &cch ) && cch <= MAX_PATH ) {
+							//wprintf( L"  = %ls\n", sz );
+							result.push_back( rgpi[ i ].Process.dwProcessId );
+						}
+					}
+					CloseHandle( hProcess );
+				}
+			}
+		}
+	}
+	RmEndSession( dwSession );
+
+	return result;
+}
+
+// ----------------------------------------------------------------------
+
 bool grab_and_drop_pdb_handle( char const *path ) {
+
+	// convert path to wstring
+
+	auto file_path = std::filesystem::canonical( path );
+
+	if ( file_path.extension() == ".dll" ) {
+		file_path.replace_extension( ".pdb.old" );
+	} else {
+		return false;
+	}
+
+	size_t path_len = strlen( file_path.string().c_str() );
+
+	std::wstring path_wstr;
+	path_wstr.resize( path_len );
+
+	MultiByteToWideChar( CP_UTF8, MB_PRECOMPOSED, file_path.string().c_str(), int( path_len ), path_wstr.data(), int( path_wstr.size() ) );
+
+	auto handle_suffix = L".pdb.old";
+
+	auto process_ids = enumerate_processes_holding_handle_to_file( path_wstr.c_str(), handle_suffix );
+
+	if ( process_ids.empty() ) {
+		return true;
+	}
+
+	for ( auto const &process_id : process_ids ) {
+		if ( false == close_handles_held_by_process_id( process_id, handle_suffix ) ) {
+			// error: we could not close handle for some reason. abort mission.
+			return false;
+		};
+	}
+
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
+bool delete_old_artifacts( char const *path ) {
+
+	// Attempts to delete a "${path}.dll.old", and "${path}.pdb.old" file
+	// where ${path} is basename of path, e.g. path == './le_renderer'
+
+	auto pdb_file_path = std::filesystem::canonical( path );
+
+	if ( pdb_file_path.extension() == ".dll" ) {
+		pdb_file_path.replace_extension( ".pdb.old" );
+	} else {
+		return false;
+	}
+
+	{
+		// delete old pdb file now that all handles to it have been dropped.
+		auto result = CreateFile( pdb_file_path.string().c_str(), GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, NULL );
+		CloseHandle( result );
+	}
+	{
+		// Delete old dll
+		auto dll_file_path = std::filesystem::canonical( path );
+		dll_file_path.replace_extension( ".dll.old" );
+		auto result = CreateFile( dll_file_path.string().c_str(), GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_FLAG_DELETE_ON_CLOSE, NULL );
+		CloseHandle( result );
+	}
 
 	return true;
 }
