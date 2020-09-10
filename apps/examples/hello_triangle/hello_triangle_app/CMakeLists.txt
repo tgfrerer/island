@@ -10,7 +10,6 @@ if (${PLUGINS_DYNAMIC})
 
     add_library(${TARGET} SHARED ${SOURCES})
 
-    
     add_dynamic_linker_flags()
 
     target_compile_definitions(${TARGET}  PUBLIC "PLUGINS_DYNAMIC")
@@ -26,5 +25,6 @@ else()
 endif()
 
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
+
 
 source_group(${TARGET} FILES ${SOURCES})
