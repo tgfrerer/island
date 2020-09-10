@@ -103,7 +103,6 @@ static void *load_library( const char *lib_name ) {
 static bool load_library_persistent( const char *lib_name ) {
 
 #ifdef _MSC_VER
-	void *lib_handle = nullptr;
 	return false;
 #else
 	// We persistently load symbols for libraries upon which our plugins depend -
