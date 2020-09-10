@@ -339,7 +339,7 @@ static VkBool32 debugUtilsMessengerCallback(
 
 static void create_debug_messenger_callback( le_backend_vk_instance_o *obj ) {
 
-	if ( !SHOULD_USE_VALIDATION_LAYERS ) {
+	if ( false == SHOULD_USE_VALIDATION_LAYERS ) {
 		return;
 	}
 
@@ -363,7 +363,7 @@ static void create_debug_messenger_callback( le_backend_vk_instance_o *obj ) {
 
 static void destroy_debug_messenger_callback( le_backend_vk_instance_o *obj ) {
 
-	if ( !SHOULD_USE_VALIDATION_LAYERS ) {
+	if ( false == SHOULD_USE_VALIDATION_LAYERS ) {
 		return;
 	}
 
@@ -394,7 +394,7 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 
 	// -- create a vector of unique requested instance extension names
 
-	if ( SHOULD_USE_VALIDATION_LAYERS ) {
+	if ( true == SHOULD_USE_VALIDATION_LAYERS ) {
 		self->instanceExtensionSet.insert( VK_EXT_DEBUG_UTILS_EXTENSION_NAME );
 	}
 
@@ -413,7 +413,7 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 
 	std::vector<const char *> instanceLayerNames = {};
 
-	if ( SHOULD_USE_VALIDATION_LAYERS ) {
+	if ( true == SHOULD_USE_VALIDATION_LAYERS ) {
 		instanceLayerNames.push_back( "VK_LAYER_KHRONOS_validation" );
 		std::cout << "Debug instance layers added." << std::endl;
 	}
