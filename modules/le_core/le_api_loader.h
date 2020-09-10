@@ -19,6 +19,13 @@ table of function pointers which, together, declare the api.
 
 */
 
+#if defined( __linux__ )
+#	define LE_API_LOADER_IMPL_LINUX
+#elif defined( _WIN32 )
+#	define LE_API_LOADER_IMPL_WIN32
+#endif
+
+
 #ifdef __cplusplus
 extern "C" {
 #endif // end __cplusplus

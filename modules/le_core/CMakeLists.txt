@@ -1,7 +1,9 @@
 set ( TARGET le_core )
 
-set ( SOURCES le_api_loader.cpp )
-set ( SOURCES ${SOURCES} le_api_loader.h )
+
+set ( SOURCES le_api_loader.h )
+set ( SOURCES ${SOURCES} le_api_loader_linux.cpp )
+set ( SOURCES ${SOURCES} le_api_loader_win32.cpp )
 set ( SOURCES ${SOURCES} le_core.cpp )
 set ( SOURCES ${SOURCES} le_core.h )
 set ( SOURCES ${SOURCES} hash_util.h )
