@@ -1,0 +1,12 @@
+# This file is only used on Windows, so that we may clean
+# up after ourselves.
+if(EXISTS ${FileToCheck})
+  # message(STATUS "${FileToCheck} exists.")
+  FILE ( RENAME ${FileToCheck} ${FileToCheck}.old )
+  # note that we only *attempt* to remove the old file, it's okay if we don't succeed in case 
+  # another process still holds onto the file (which may be the case for .dll files while hot-
+  # reloading.)
+  FILE ( REMOVE ${FileToCheck}.old )
+else()
+  # message(STATUS "${FileToCheck} doesn't exist.")
+endif()

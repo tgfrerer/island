@@ -177,10 +177,36 @@ macro(add_dynamic_linker_flags)
 
     if (WIN32 AND NOT ${TARGET} MATCHES "le_core")
 
+        # On windows, when hot-reloading, we must make sure we can actually write 
+        # our artifacts even if the program is running. To be sure, we attempt to
+        # first move any old artifacts which may still be in use by renaming them.
+        # 
+        set(TARGET_ARTIFACT "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${TARGET}")
+        
+        add_custom_command(TARGET ${TARGET} 
+                           PRE_LINK
+                           COMMAND ${CMAKE_COMMAND}
+                               -DFileToCheck=${TARGET_ARTIFACT}.dll
+                               -P ${ISLAND_BASE_DIR}/CMakeLists.txt.rename_artifact.in
+                           COMMENT "Checking if ${TARGET_ARTIFACT}.dll exists...")
+
+        add_custom_command(TARGET ${TARGET} 
+                           PRE_LINK
+                           COMMAND ${CMAKE_COMMAND}
+                               -DFileToCheck=${TARGET_ARTIFACT}.pdb
+                               -P ${ISLAND_BASE_DIR}/CMakeLists.txt.rename_artifact.in
+                           COMMENT "Checking if ${TARGET_ARTIFACT}.pdb exists...")
+
+        # additionally, we don't want incremental linking, because that will 
+        # fail anyway, for it won't be able to find the last version of the .dll, 
+        # since we've just removed it.
+        set_target_properties(${TARGET} PROPERTIES LINK_FLAGS "/INCREMENTAL:NO")
+
         # on windows we must link all libaries with le_core so that they can find 
         # le_core's exported functions which are used for loading module apis.
 
         target_link_libraries(${TARGET} PRIVATE "le_core" )
+
     endif()
 
     
