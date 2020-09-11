@@ -211,14 +211,14 @@ static bool app_update( app_o *self ) {
 	// Update interactive camera using mouse inputs
 	app_process_ui_events( self );
 
-	// We use RenderModules to give the renderer a top-level overview
+	// We use a RenderModule to give the renderer a top-level overview
 	// of how we wish to do rendering.
 	//
-	// Out key tool for structure is a RenderPass, which represents
+	// Our key tool for structure is a RenderPass, which represents
 	// a collection of resource inputs (images, buffers) and resource
 	// outputs (color attachments, depth attachments).
 	// By connecting their outputs to one or more subsequent RenderPass
-	// inputs, RenderPasseses can form a graph which the renderer must
+	// inputs, RenderPasseses can form a graph, which the renderer must
 	// respect.
 	//
 	// A key image resource is `LE_SWAPCHAIN_IMAGE_HANDLE` - whatever
