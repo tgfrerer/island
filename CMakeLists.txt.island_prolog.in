@@ -187,6 +187,7 @@ macro(add_dynamic_linker_flags)
                            PRE_LINK
                            COMMAND ${CMAKE_COMMAND}
                                -DFileToCheck=${TARGET_ARTIFACT}.dll
+                               -DMethod=Rename
                                -P ${ISLAND_BASE_DIR}/CMakeLists.txt.rename_artifact.in
                            COMMENT "Checking if ${TARGET_ARTIFACT}.dll exists...")
 
@@ -194,8 +195,28 @@ macro(add_dynamic_linker_flags)
                            PRE_LINK
                            COMMAND ${CMAKE_COMMAND}
                                -DFileToCheck=${TARGET_ARTIFACT}.pdb
+                               -DMethod=Rename
                                -P ${ISLAND_BASE_DIR}/CMakeLists.txt.rename_artifact.in
                            COMMENT "Checking if ${TARGET_ARTIFACT}.pdb exists...")
+
+        # To signal to the hot-reloading file watcher that a re-compile has occured,
+        # we touch a flag file which shares the same basename as the artifact, and 
+        # has the file ending ".flag" - We want to update this only at the very end 
+        # of the build process to make sure that all file writing operations have 
+        # completed - if we watch the .dll directly there is a chance that the hot-
+        # reloading mechanism gets triggered mutliple times because the .dll may get
+        # accessed a couple of times during the build process.
+        # 
+        # by using a flag file which we touch only once at the end of the build we
+        # whould have a fairly atomic marker by which to tell whether the build 
+        # process has truly completed.
+        add_custom_command(TARGET ${TARGET} 
+                           POST_BUILD
+                           COMMAND ${CMAKE_COMMAND}
+                               -DFileToCheck=${TARGET_ARTIFACT}.flag
+                               -DMethod=Touch
+                               -P ${ISLAND_BASE_DIR}/CMakeLists.txt.rename_artifact.in
+                           COMMENT "Touchting ${TARGET_ARTIFACT}.flag")
 
         # additionally, we don't want incremental linking, because that will 
         # fail anyway, for it won't be able to find the last version of the .dll, 

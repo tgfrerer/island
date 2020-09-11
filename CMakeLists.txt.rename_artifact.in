@@ -1,12 +1,24 @@
-# This file is only used on Windows, so that we may clean
-# up after ourselves.
-if(EXISTS ${FileToCheck})
-  # message(STATUS "${FileToCheck} exists.")
-  FILE ( RENAME ${FileToCheck} ${FileToCheck}.old )
-  # note that we only *attempt* to remove the old file, it's okay if we don't succeed in case 
-  # another process still holds onto the file (which may be the case for .dll files while hot-
-  # reloading.)
-  FILE ( REMOVE ${FileToCheck}.old )
-else()
-  # message(STATUS "${FileToCheck} doesn't exist.")
+# This file is only used on Windows, so that we may clean up after ourselves.
+# 
+# This script is called from CMakeLists.txt.island_prolog - doing so appears to 
+# be the only way to ensure that any FILE EXISTS checks happen at compile time
+# and not at configure time.
+
+if (${Method} MATCHES Rename)
+	
+	if(EXISTS ${FileToCheck})
+	  # message(STATUS "${FileToCheck} exists.")
+	  FILE ( RENAME ${FileToCheck} ${FileToCheck}.old )
+	  # note that we only *attempt* to remove the old file, it's okay if we don't succeed in case 
+	  # another process still holds onto the file (which may be the case for .dll files while hot-
+	  # reloading.)
+	  FILE ( REMOVE ${FileToCheck}.old )
+	else()
+	  # message(STATUS "${FileToCheck} doesn't exist.")
+	endif()
+
+elseif (${Method} MATCHES Touch)
+
+	  FILE ( TOUCH ${FileToCheck} )
+
 endif()
