@@ -57,7 +57,7 @@ $Action = {
                 Write-Host $text -ForegroundColor Yellow
                 Write-Host (ninja -C $Buildpath )
                 Write-Host "Done." -ForegroundColor Yellow
-                $cursor_pos = $host.UI.RawUI.CursorPosition
+                $global:cursor_pos = $host.UI.RawUI.CursorPosition
             }
         }
         'Created' { "CREATED"}
@@ -65,16 +65,15 @@ $Action = {
         'Renamed' { 
             If($Name -match '\.cpp$' -Or $Name -match '\.h$'){
                 $text = "File {0} was changed" -f  $Name
-                Write-Host "Buildpath: '$Buildpath'"
                 Write-Host $text -ForegroundColor Yellow
                 Write-Host (ninja -C $Buildpath )
                 Write-Host "Done." -ForegroundColor Yellow
-                $cursor_pos = $host.UI.RawUI.CursorPosition
+                $global:cursor_pos = $host.UI.RawUI.CursorPosition
             }
         }
         default { 
          Write-Host $_ -ForegroundColor Red -BackgroundColor White 
-         $cursor_pos = $host.UI.RawUI.CursorPosition
+         $global:cursor_pos = $host.UI.RawUI.CursorPosition
         }
     }
 }
@@ -90,6 +89,9 @@ $handlers = . {
 Write-Host "Starting hot-reloading watcher. Ctrl+C to quit." -ForegroundColor Green
 Write-Host "Buildpath: $Buildpath"
 Write-Host "Watching for changes in '.cpp' and '.h' files in $PathToMonitor"
+
+$host.UI.RawUI.CursorSize = 0
+
 $global:cursor_pos = $host.UI.RawUI.CursorPosition
 
 try
@@ -99,12 +101,12 @@ try
     do
     {
         Wait-Event -Timeout 1
-        $old_cursor = $host.UI.RawUI.CursorPosition 
-        $host.UI.RawUI.CursorPosition = $cursor_pos
+        $global:old_cursor = $host.UI.RawUI.CursorPosition
+        $host.UI.RawUI.CursorPosition = New-Object System.Management.Automation.Host.Coordinates ($global:cursor_pos.X+1), $global:cursor_pos.Y
         Write-Host $progress_indicator[$idx] -NoNewline -ForegroundColor Blue
+        $host.UI.RawUI.CursorPosition = $global:old_cursor
         $idx++
         $idx %= 8
-        $host.UI.RawUI.CursorPosition = $old_cursor
         
     } while ($true)
 }
@@ -122,4 +124,5 @@ finally
     $FileSystemWatcher.EnableRaisingEvents = $false
     $FileSystemWatcher.Dispose()
     Write-Host "Event Handler disabled." -ForegroundColor Green
+    $host.UI.RawUI.CursorSize = 100
 }
