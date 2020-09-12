@@ -8,11 +8,22 @@ if (${Method} MATCHES Rename)
 	
 	if(EXISTS ${FileToCheck})
 	  # message(STATUS "${FileToCheck} exists.")
-	  FILE ( RENAME ${FileToCheck} ${FileToCheck}.old )
+
+	  STRING ( RANDOM rand_str )
+
+	  get_filename_component(dir_name ${FileToCheck} DIRECTORY )
+	  get_filename_component(file_name_without_longest_extension ${FileToCheck} NAME_WE )
+	  get_filename_component(file_name_longest_extension ${FileToCheck} EXT )
+
+	  set ( generated_file_name "${dir_name}${file_name_without_longest_extension}_${rand_str}${file_name_longest_extension}.old")
+
+	  # message(STATUS "Generated filename: '${generated_file_name}'")
+
+	  FILE ( RENAME ${FileToCheck} ${generated_file_name} )
 	  # note that we only *attempt* to remove the old file, it's okay if we don't succeed in case 
 	  # another process still holds onto the file (which may be the case for .dll files while hot-
 	  # reloading.)
-	  FILE ( REMOVE ${FileToCheck}.old )
+	  FILE ( REMOVE ${generated_file_name} )
 	else()
 	  # message(STATUS "${FileToCheck} doesn't exist.")
 	endif()

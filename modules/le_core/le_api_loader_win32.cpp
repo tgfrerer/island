@@ -312,7 +312,7 @@ bool close_handles_held_by_process_id( ULONG process_id, wchar_t const *needle_s
 	// Handle type index given for handle of type file in this process.
 	// We assume that this value is the same over all processes,
 	// and doesn't change for the lifetime of this program.
-	static UCHAR const FILE_HANDLE_OBJECT_TYPE_INDEX = get_file_handle_object_type_index( *pHandle.get() );
+	UCHAR const FILE_HANDLE_OBJECT_TYPE_INDEX = get_file_handle_object_type_index( *pHandle.get() );
 
 	// Find Object Type Index which is given to Objects of type File,
 	// by finding the first object labelled File, and taking note of its
@@ -348,11 +348,6 @@ bool close_handles_held_by_process_id( ULONG process_id, wchar_t const *needle_s
 			continue;
 		}
 
-		// Filter for handles of type file
-		if ( sys_handle->ObjectTypeNumber != FILE_HANDLE_OBJECT_TYPE_INDEX ) {
-			continue;
-		}
-
 		// Query the object name (unless it has an access of
 		//   0x0012019f, on which NtQueryObject could hang.
 		if ( sys_handle->GrantedAccess == 0x0012019f ) {
@@ -362,6 +357,12 @@ bool close_handles_held_by_process_id( ULONG process_id, wchar_t const *needle_s
 		if ( sys_handle->GrantedAccess == 0x00120189 ) {
 			continue;
 		}
+
+		// Filter for handles of type file
+		if ( sys_handle->ObjectTypeNumber != FILE_HANDLE_OBJECT_TYPE_INDEX ) {
+			continue;
+		}
+
 
 		std::unique_ptr<HANDLE, HandleDeleter> pFileHandle( new HANDLE );
 
@@ -373,9 +374,10 @@ bool close_handles_held_by_process_id( ULONG process_id, wchar_t const *needle_s
 		         pFileHandle.get(),
 		         0,
 		         0,
-		         0 ) ) ) {
-			printf( "[%#x] Error!\n", sys_handle->Handle );
-			continue;
+		          0) ) ) {
+			printf( "Warning: NtDuplicateObject: could not duplicate process handle [%#x]\n", sys_handle->Handle );
+			fflush( stdout );
+			return false;
 		}
 
 		// Query the object name.
@@ -424,15 +426,18 @@ bool close_handles_held_by_process_id( ULONG process_id, wchar_t const *needle_s
 			         DUPLICATE_CLOSE_SOURCE // This means to close the source handle when duplicating, effectively taking ownership of the handle.
 			         ) ) ) {
 
-				printf( "[%#x] Error in Duplicate Handle!\n", sys_handle->Handle );
+				printf( "Error: Could not duplicate Handle [%#x] \n", sys_handle->Handle );
 				fflush( stdout );
 				continue;
 			}
 
 			// Forcibly close the handle - drop it.
+			//
+			// Note that this does not yet delete the handle - it just means that we took ownership 
+			// away from the processes which held the handle.
 			pFileHandle.reset();
 
-			// printf( "Closed handle: [0x%04x]: %.*S\r\n", sys_handle->Handle, name_info->Length / 2, name_info->Buffer );
+			// printf( "Dropped handle: [0x%04x]: %.*S\r\n", sys_handle->Handle, name_info->Length / 2, name_info->Buffer );
 			// fflush( stdout );
 			return true;
 		}
