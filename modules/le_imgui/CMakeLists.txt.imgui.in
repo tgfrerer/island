@@ -2,10 +2,10 @@ cmake_minimum_required(VERSION 3.7.2)
 set (CMAKE_CXX_STANDARD 17)
 
 # This file will be processed with CMake's configure_file command.
-#
+# 
 # Only variables tagged with @VARIABLE@ will be substituted, as the
 # configure_file command is called with the `@ONLY` option.
-#
+# 
 # We use this to substitute PLUGINS_DYNAMIC, so that the correct 
 # version of the library (static/shared) will be built.
 
@@ -40,13 +40,13 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
    
 endif()
 
-install(TARGETS ${TARGET}
-        ARCHIVE
-            DESTINATION libs/${TARGET}
-        LIBRARY
-            DESTINATION libs/${TARGET}
-	PUBLIC_HEADER
-	    DESTINATION include/${TARGET}
-	)
+# install(TARGETS ${TARGET}
+#         ARCHIVE
+#             DESTINATION modules/${TARGET}
+#         LIBRARY
+#             DESTINATION modules/${TARGET}
+# 	PUBLIC_HEADER
+# 	    DESTINATION include/${TARGET}
+# 	)
 
 source_group(${TARGET} FILES ${SOURCES})

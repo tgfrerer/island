@@ -1,6 +1,7 @@
 
 # n.b. configure_file will replace any cmake variables it finds in the file with their values.    
-configure_file("${ISLAND_BASE_DIR}CMakeLists.txt.imgui.in" ${ISLAND_BASE_DIR}/modules/le_imgui/3rdparty/imgui/CMakeLists.txt @ONLY)
+configure_file("CMakeLists.txt.imgui.in" ${ISLAND_BASE_DIR}/modules/le_imgui/3rdparty/imgui/CMakeLists.txt @ONLY)
+configure_file("imconfig.h" ${ISLAND_BASE_DIR}/modules/le_imgui/3rdparty/imgui/imconfig.h COPYONLY)
 
 add_subdirectory( 3rdparty/imgui )
 

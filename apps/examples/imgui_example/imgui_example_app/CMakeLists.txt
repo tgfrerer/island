@@ -6,11 +6,10 @@ set (SOURCES ${SOURCES} "imgui_example_app.h")
 if (${PLUGINS_DYNAMIC})
 
     add_library(${TARGET} SHARED ${SOURCES})
-
     
     add_dynamic_linker_flags()
 
-    target_compile_definitions(${TARGET}  PUBLIC "PLUGINS_DYNAMIC")
+    target_compile_definitions( ${TARGET} PUBLIC "PLUGINS_DYNAMIC")
 
 else()
 
