@@ -11,4 +11,7 @@ install:
     .\VulkanSDK.exe /S
 
 build_script:
-- sh: scripts/ci/run_rests.sh
+- sh: >-
+    echo "building..."
+    
+    ./scripts/ci/run_rests.sh
