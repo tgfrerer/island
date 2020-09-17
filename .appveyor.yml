@@ -1,0 +1,14 @@
+version: 0.0.{build}
+image: Visual Studio 2019
+platform: x64
+clone_depth: 1
+environment:
+  VULKAN_SDK: c:\VulkanSDK\1.2.148.1
+install:
+- sh: >-
+    curl -L --silent --show-error --output VulkanSDK.exe https://sdk.lunarg.com/sdk/download/1.2.148.1/windows/VulkanSDK-1.2.148.1-Installer.exe?u=
+
+    .\VulkanSDK.exe /S
+
+build_script:
+- sh: scripts/ci/run_rests.sh
