@@ -859,7 +859,7 @@ static le_2d_primitive_o *le_2d_primitive_create_circle( le_2d_o *context ) {
 	p->type   = le_2d_primitive_o::Type::eCircle;
 	auto &obj = p->data.as_circle;
 
-	obj.radius    = 0.f;
+	obj.radius    = 100.f;
 	obj.tolerance = 0.5f;
 
 	return p;

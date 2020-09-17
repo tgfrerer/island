@@ -7,6 +7,9 @@ apps_list=("
     examples/hello_world:Island-HelloWorld
     examples/hello_triangle:Island-HelloTriangle
     examples/imgui_example:Island-ImguiExample
+    examples/compute_example:Island-ComputeExample
+    examples/multi_window_example:Island-MultiWindowExample
+    dev/test_blob_polygon:Island-TestBlobPolygon
     dev/test_cubemap:Island-TestCubemap
     dev/test_rtx:Island-TestRtx
     dev/test_cgltf:Island-TestCgltf
