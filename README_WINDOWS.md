@@ -65,7 +65,7 @@ would typically type to get the autoreload watcher running:
 
 ```
 
-This assumes that your build folder is at `
+This assumes that your build folder is at `${YOUR_ISLAND_BASE_DIR}\apps\examples\hello_triangle\out\build\x64-Debug\`
 
  
 ## Installation instructions
