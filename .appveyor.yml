@@ -9,6 +9,8 @@ install:
     curl -L --silent --show-error --output VulkanSDK.exe https://sdk.lunarg.com/sdk/download/1.2.148.1/windows/VulkanSDK-1.2.148.1-Installer.exe?u=
 
     .\VulkanSDK.exe /S
+    
+    echo "install script complete."
 
 build_script:
 - sh: >-
