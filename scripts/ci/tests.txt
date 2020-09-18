@@ -1,0 +1,5 @@
+examples/hello_world:Island-HelloWorld
+examples/hello_triangle:Island-HelloTriangle
+examples/lut_grading_example:Island-LutGradingExample
+examples/multi_window_example:Island-MultiWindowExample
+examples/imgui_example:Island-ImguiExample
