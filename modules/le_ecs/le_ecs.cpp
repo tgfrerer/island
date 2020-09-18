@@ -345,7 +345,7 @@ static bool le_ecs_system_add_read_component( le_ecs_o *self, LeEcsSystemId syst
 
 // ----------------------------------------------------------------------
 
-// adds a component type as a read parameter to system
+// adds a component type as a write parameter to system
 static bool le_ecs_system_add_write_component( le_ecs_o *self, LeEcsSystemId system_id, ComponentType const &component_type ) {
 
 	// check if component type exists as a type in ecs - we do this by finding it's index.
@@ -432,7 +432,7 @@ static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id ) {
 			// use a specific type of component.
 
 			// -- find out which components were present
-			// -- inrease component_iterators for these components by 1
+			// -- increase component_iterators for these components by 1
 
 			for ( size_t i = 0; i != types_count; ++i ) {
 				if ( matching_components[ i ] ) {

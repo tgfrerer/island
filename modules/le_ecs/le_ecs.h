@@ -39,6 +39,9 @@ struct ComponentType {
 		bool (* system_add_write_component )( le_ecs_o *self, LeEcsSystemId system_id, ComponentType const &component_type );
 		bool (* system_add_read_component  )( le_ecs_o *self, LeEcsSystemId system_id, ComponentType const &component_type );
 
+		// TODO: we should probaly name all write components read/write components,
+		// as it appears that write implies read.
+
 		void ( *execute_system             )( le_ecs_o *self, LeEcsSystemId system_id ) ;
 
 		
@@ -61,6 +64,9 @@ LE_MODULE_LOAD_DEFAULT( le_ecs );
 #	define LE_ECS_COMPONENT( TypeName ) \
 		struct TypeName {                \
 			static constexpr auto type_id = #TypeName
+
+#	define LE_ECS_COMPONENT_CLOSE() \
+		}
 
 // Helper macros to define system callback signatures
 #	define LE_ECS_READ_WRITE_PARAMS void const **read_c, void **write_c
