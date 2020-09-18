@@ -1,4 +1,4 @@
-# Project Island 🌋🐎 [![Build Status](https://travis-ci.com/tgfrerer/island.svg?branch=wip)](https://travis-ci.com/tgfrerer/island)
+# Project Island 🌋🐎 
 
 Project Island is an experimental **Vulkan** renderer/proto-engine for Linux,
 written in C/C++. 
@@ -10,6 +10,9 @@ module aims to be strictly isolated, which makes the codebase **fast
 to compile**, especially in parallel.
 
 Now with [experimental support for Windows 10](#experimental-windows-10-support).
+
+[![Build Status](https://travis-ci.com/tgfrerer/island.svg?branch=wip)](https://travis-ci.com/tgfrerer/island)
+[![Build status](https://ci.appveyor.com/api/projects/status/v68ft8y1ekb27j61?svg=true)](https://ci.appveyor.com/project/tgfrerer/island)
 
 ## Main Features:
 
