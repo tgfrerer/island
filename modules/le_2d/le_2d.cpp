@@ -803,9 +803,12 @@ static void le_2d_draw_primitives( le_2d_o *self ) {
 // ----------------------------------------------------------------------
 
 static void le_2d_destroy( le_2d_o *self ) {
-	//	std::cout << "destroy 2d ctx: " << std::dec << self->id << std::flush << std::endl;
+
+	// We draw all primtives which have been attached to this 2d context.
 
 	le_2d_draw_primitives( self );
+
+	// Clean up
 
 	for ( auto &p : self->primitives ) {
 

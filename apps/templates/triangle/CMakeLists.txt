@@ -13,7 +13,7 @@ project (${PROJECT_NAME})
 # add_compile_definitions( LE_MT=4 )
 
 # Vulkan Validation layers are enabled by default for Debug builds.
-# Uncomment the next line to disable loading Vulkan Validation Layers for Debug builds.
+# Uncomment the next line to disable loading Vulkan Validation Layers.
 # add_compile_definitions( SHOULD_USE_VALIDATION_LAYERS=false )
 
 # Point this to the base directory of your Island installation

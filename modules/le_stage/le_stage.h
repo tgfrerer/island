@@ -55,14 +55,14 @@ struct le_stage_api {
 
 	struct le_stage_interface_t {
 
-		le_stage_o *    ( * create                   ) ( le_renderer_o* renderer, le_timebase_o* timebase); // timebase is optional
-		void            ( * destroy                  ) ( le_stage_o* self );
-		void            ( * update                   ) ( le_stage_o* self );
+		le_stage_o *    ( * create  ) ( le_renderer_o* renderer, le_timebase_o* timebase); // timebase is optional
+		void            ( * destroy ) ( le_stage_o* self );
+		void            ( * update  ) ( le_stage_o* self );
 		
-		void			( * update_rendermodule )(le_stage_o* self, le_render_module_o* module);
+		void	            ( * update_rendermodule )(le_stage_o* self, le_render_module_o* module);
 		void            ( * draw_into_module )(draw_params_t* self, le_render_module_o* module);
 
-		void            ( * setup_pipelines)(le_stage_o* self);
+		void     (* setup_pipelines)(le_stage_o* self);
 
 		uint32_t (* create_image_from_memory)( le_stage_o* stage, unsigned char const * image_file_memory, uint32_t image_file_sz, char const * debug_name, uint32_t mip_levels);
 		uint32_t (* create_image_from_file_path)( le_stage_o* stage, char const * image_file_path, char const * debug_name, uint32_t mip_levels);

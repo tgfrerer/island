@@ -149,7 +149,7 @@ struct le_light_info {
 
 struct le_camera_settings_info {
 	struct perspective_t {
-		float fov_y_rad;    // vertical firld of view in radians
+		float fov_y_rad;    // vertical field of view in radians
 		float aspect_ratio; // width/height
 		float z_far;
 		float z_near;
