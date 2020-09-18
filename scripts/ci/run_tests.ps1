@@ -1,4 +1,4 @@
-$global:ScriptPath = Split-Path $MyInvocation.InvocationName
+$global:ScriptPath = $PSScriptRoot
 $global:IslandBasePath = Convert-Path "$ScriptPath\..\.."
 $global:IslandAppsPath = Convert-Path "$IslandBasePath\apps"
 
