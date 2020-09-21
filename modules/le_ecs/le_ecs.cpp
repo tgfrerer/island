@@ -6,18 +6,17 @@
 #include <vector>
 #include <bitset>
 #include "assert.h"
+#include <algorithm>
 
 /* Note
  * 
- * This ECS has a major shortcoming when it comes to removing entities. 
+ * Because we don't use sparse storage for our component data, we must iterate
+ * over all entities previous to the entity which we want to manipulate (seek).
  * 
- * Since we don't have a level of indirection and entity ids are directly 
- * mapped to indices into the entities vector, as soon as you remove an
- * entity at position n, all entities now have wrong IDs.
+ * Generally, this is not all too bad, as systems will iterate over entities naturally. 
  * 
- * When we remove an entity, we must first iterate over all previous 
- * entities that use the same components so that we can find the correct 
- * offset in the compnent_storage vector to remove that entity.
+ * But removing entities becomes rather costly, as each entity removal operation means 
+ * a seek for each component data type affected, plus a vector erase operation.
  *
  */
 
@@ -32,6 +31,11 @@ using ComponentType   = le_ecs_api::ComponentType;        //
 using ComponentFilter = std::bitset<MAX_COMPONENT_TYPES>; // each bit corresponds to a component type and an index in le_ecs_o::components
 // if bit is set this means that entity has-a component of this type
 
+struct Entity {
+	uint64_t        id; //unique id
+	ComponentFilter filter;
+};
+
 struct System {
 	ComponentFilter readComponents;  // read always before write
 	ComponentFilter writeComponents; //
@@ -44,9 +48,10 @@ struct System {
 };
 
 struct le_ecs_o {
-	std::vector<ComponentType>    component_types;   // index corresponds to ComponentFilter[index]
-	std::vector<ComponentStorage> component_storage; // one store per component type
-	std::vector<ComponentFilter>  entities;          // each entity may be different, index corresponds to entity ID
+	uint64_t                      next_entity_id = 0; // next available entity index (internal)
+	std::vector<ComponentType>    component_types;    // index corresponds to ComponentFilter[index]
+	std::vector<ComponentStorage> component_storage;  // one store per component type
+	std::vector<Entity>           entities;           // each entity may be different, index corresponds to entity ID
 	std::vector<System>           systems;
 };
 
@@ -65,14 +70,18 @@ static void le_ecs_destroy( le_ecs_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static size_t get_index_from_entity_id( EntityId id ) {
-	return reinterpret_cast<size_t>( id );
-}
+static inline size_t get_index_from_entity_id( le_ecs_o const *self, EntityId id ) {
+	Entity search_entity;
+	search_entity.id = reinterpret_cast<size_t>( id );
 
-// ----------------------------------------------------------------------
+	auto lower = std::lower_bound( self->entities.begin(), self->entities.end(), search_entity,
+	                               []( Entity const &lhs, Entity const &rhs )
+	                                   -> bool { return lhs.id < rhs.id; } );
 
-static EntityId get_entity_id_from_index( size_t idx ) {
-	return reinterpret_cast<EntityId>( idx );
+	assert( lower != self->entities.end() &&
+	        lower->id == search_entity.id );
+
+	return lower - self->entities.begin();
 }
 
 // ----------------------------------------------------------------------
@@ -99,12 +108,12 @@ size_t le_ecs_find_component_type_index( le_ecs_o const *self, ComponentType con
 
 // ----------------------------------------------------------------------
 // Iterate over all entities, accumulating offset for component at storage_index
-inline uint32_t get_offset( std::vector<ComponentFilter> const &entities, size_t e_idx, size_t storage_index, uint32_t stride ) {
+inline uint32_t seek_offset( std::vector<Entity> const &entities, size_t e_idx, size_t storage_index, uint32_t stride ) {
 
 	uint32_t offset = 0;
 
 	for ( size_t i = 0; i != e_idx; ++i ) {
-		if ( entities[ i ].test( storage_index ) ) {
+		if ( entities[ i ].filter.test( storage_index ) ) {
 			offset += stride;
 		}
 	}
@@ -119,7 +128,7 @@ inline uint32_t get_offset( std::vector<ComponentFilter> const &entities, size_t
 static void *le_ecs_entity_add_component( le_ecs_o *self, EntityId entity_id, ComponentType const &component_type ) {
 
 	// Find if entity exists
-	size_t e_idx = get_index_from_entity_id( entity_id );
+	size_t e_idx = get_index_from_entity_id( self, entity_id );
 
 	if ( e_idx >= self->entities.size() ) {
 		// ERROR: entity does not exist.
@@ -146,7 +155,7 @@ static void *le_ecs_entity_add_component( le_ecs_o *self, EntityId entity_id, Co
 
 	if ( 0 == component_type.num_bytes ) {
 		// If component type is empty (a flag-only component), then we set the flag and return early.
-		entity[ storage_index ] = true;
+		entity.filter[ storage_index ] = true;
 		return nullptr; // signal that no memory has been allocated.
 	}
 
@@ -156,15 +165,15 @@ static void *le_ecs_entity_add_component( le_ecs_o *self, EntityId entity_id, Co
 	bool     needs_allocation = true;
 	uint32_t offset           = 0;
 
-	if ( entity.test( storage_index ) ) {
+	if ( entity.filter.test( storage_index ) ) {
 		// A component of this type was already present - we must return
 		// the current memory address for the component, and make sure
 		// not to allocate any more memory.
 		needs_search     = true;
 		needs_allocation = false;
 	} else {
-		entity[ storage_index ] = true;
-		needs_allocation        = true;
+		entity.filter[ storage_index ] = true;
+		needs_allocation               = true;
 	}
 
 	// If our entity is the last entity in the list of entities,
@@ -180,7 +189,7 @@ static void *le_ecs_entity_add_component( le_ecs_o *self, EntityId entity_id, Co
 	if ( needs_search == false ) {
 		offset = uint32_t( component_storage.size() );
 	} else {
-		offset = get_offset( self->entities, e_idx, storage_index, self->component_types[ storage_index ].num_bytes );
+		offset = seek_offset( self->entities, e_idx, storage_index, self->component_types[ storage_index ].num_bytes );
 	}
 
 	if ( needs_allocation ) {
@@ -203,7 +212,7 @@ static void entity_at_index_remove_component( le_ecs_o *self, size_t e_idx, Comp
 
 	auto &entity = self->entities.at( e_idx );
 
-	if ( false == entity[ storage_index ] ) {
+	if ( false == entity.filter[ storage_index ] ) {
 		return;
 	}
 
@@ -217,14 +226,14 @@ static void entity_at_index_remove_component( le_ecs_o *self, size_t e_idx, Comp
 		// so that we may skip over it when deleting the data for our component.
 		uint32_t stride = component_type.num_bytes;
 
-		uint32_t offset = get_offset( self->entities, e_idx, storage_index, stride );
+		uint32_t offset = seek_offset( self->entities, e_idx, storage_index, stride );
 
 		auto &storage = self->component_storage[ storage_index ].storage;
 		storage.erase( storage.begin() + offset, storage.begin() + offset + stride );
 	}
 
 	// -- Remove flag which indicates that component is part of entity
-	entity[ storage_index ] = false;
+	entity.filter[ storage_index ] = false;
 }
 
 // ----------------------------------------------------------------------
@@ -232,7 +241,7 @@ static void entity_at_index_remove_component( le_ecs_o *self, size_t e_idx, Comp
 static void le_ecs_entity_remove_component( le_ecs_o *self, EntityId entity_id, ComponentType const &component_type ) {
 
 	// Find if entity exists
-	size_t e_idx = get_index_from_entity_id( entity_id );
+	size_t e_idx = get_index_from_entity_id( self, entity_id );
 
 	if ( e_idx >= self->entities.size() ) {
 		// ERROR: entity does not exist.
@@ -245,8 +254,12 @@ static void le_ecs_entity_remove_component( le_ecs_o *self, EntityId entity_id, 
 // ----------------------------------------------------------------------
 // create a new, empty entity
 static EntityId le_ecs_entity_create( le_ecs_o *self ) {
-	self->entities.push_back( {} ); // add a new, empty entity
-	return get_entity_id_from_index( self->entities.size() - 1 );
+	size_t this_entity_id = self->next_entity_id;
+	self->next_entity_id++;
+	Entity new_entity{};
+	new_entity.id = this_entity_id;
+	self->entities.emplace_back( new_entity ); // add a new, empty entity
+	return reinterpret_cast<EntityId>( this_entity_id );
 }
 
 // ----------------------------------------------------------------------
@@ -254,7 +267,7 @@ static EntityId le_ecs_entity_create( le_ecs_o *self ) {
 // this first removes any components, then the entity entry.
 static void le_ecs_entity_remove( le_ecs_o *self, EntityId entity_id ) {
 	// Find if entity exists
-	size_t e_idx = get_index_from_entity_id( entity_id );
+	size_t e_idx = get_index_from_entity_id( self, entity_id );
 
 	if ( e_idx >= self->entities.size() ) {
 		// ERROR: entity does not exist.
@@ -266,15 +279,15 @@ static void le_ecs_entity_remove( le_ecs_o *self, EntityId entity_id ) {
 	// -- iterate to correct position at all components which use this entity
 
 	for ( uint32_t i = 0; i != MAX_COMPONENT_TYPES; ++i ) {
-		if ( entity[ i ] ) {
+		if ( entity.filter[ i ] ) {
 			entity_at_index_remove_component( self, e_idx, self->component_types[ i ] );
 		}
-		if ( entity.none() ) {
+		if ( entity.filter.none() ) {
 			break;
 		}
 	}
 
-	assert( entity.none() && "entity must have no components left" );
+	assert( entity.filter.none() && "entity must have no components left" );
 
 	self->entities.erase( self->entities.begin() + uint32_t( e_idx ) );
 }
@@ -414,7 +427,7 @@ static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id ) {
 
 		// We must test if all required components are present in current entity.
 
-		auto matching_components = ( e & ( required_components ) );
+		auto matching_components = ( e.filter & ( required_components ) );
 
 		if ( matching_components == 0 ) {
 			// if no needed components are present, we can safely jump over this entity.
