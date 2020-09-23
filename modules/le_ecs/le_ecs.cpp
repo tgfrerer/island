@@ -142,9 +142,27 @@ inline uint32_t seek_offset( std::vector<Entity> const &entities, size_t e_idx, 
 }
 
 // ----------------------------------------------------------------------
-// TODO: if entity is not at end of entities list,
-// then we must iterate to the correct position for the component
-// and insert it there.
+
+static size_t le_ecs_produce_component_type_index( le_ecs_o *self, ComponentType const &component_type ) {
+
+	size_t storage_index = le_ecs_find_component_type_index( self, component_type );
+
+	if ( storage_index == self->component_types.size() ) {
+
+		// Component storage for this component type does not yet exist, we must add it
+
+		self->component_types.push_back( component_type );
+		self->component_storage.push_back( {} );
+
+		if ( component_type.num_bytes > 0 ) {
+			self->component_storage.back().storage.reserve( 4096 ); // reserve 1 page of memory, just in case.
+		}
+	}
+	return storage_index;
+}
+
+// ----------------------------------------------------------------------
+
 static void *le_ecs_entity_add_component( le_ecs_o *self, EntityId entity_id, ComponentType const &component_type ) {
 
 	// Find if entity exists
@@ -158,24 +176,11 @@ static void *le_ecs_entity_add_component( le_ecs_o *self, EntityId entity_id, Co
 	auto &entity = self->entities.at( e_idx );
 
 	// -- Does component of this type already exist in component storage?
-
-	size_t storage_index = le_ecs_find_component_type_index( self, component_type );
-
-	if ( storage_index == self->component_types.size() ) {
-
-		// component storage for this component type does not yet exist, we must add it
-
-		self->component_types.push_back( component_type );
-		self->component_storage.push_back( {} );
-
-		if ( component_type.num_bytes > 0 ) {
-			self->component_storage.back().storage.reserve( 4096 ); // reserve 1 page of memory, just in case.
-		}
-	}
+	size_t component_type_index = le_ecs_produce_component_type_index( self, component_type );
 
 	if ( 0 == component_type.num_bytes ) {
 		// If component type is empty (a flag-only component), then we set the flag and return early.
-		entity.filter[ storage_index ] = true;
+		entity.filter[ component_type_index ] = true;
 		return nullptr; // signal that no memory has been allocated.
 	}
 
@@ -185,15 +190,15 @@ static void *le_ecs_entity_add_component( le_ecs_o *self, EntityId entity_id, Co
 	bool     needs_allocation = true;
 	uint32_t offset           = 0;
 
-	if ( entity.filter.test( storage_index ) ) {
+	if ( entity.filter.test( component_type_index ) ) {
 		// A component of this type was already present - we must return
 		// the current memory address for the component, and make sure
 		// not to allocate any more memory.
 		needs_search     = true;
 		needs_allocation = false;
 	} else {
-		entity.filter[ storage_index ] = true;
-		needs_allocation               = true;
+		entity.filter[ component_type_index ] = true;
+		needs_allocation                      = true;
 	}
 
 	// If our entity is the last entity in the list of entities,
@@ -204,12 +209,12 @@ static void *le_ecs_entity_add_component( le_ecs_o *self, EntityId entity_id, Co
 		needs_search = false;
 	}
 
-	auto &component_storage = self->component_storage[ storage_index ].storage;
+	auto &component_storage = self->component_storage[ component_type_index ].storage;
 
 	if ( needs_search == false ) {
 		offset = uint32_t( component_storage.size() );
 	} else {
-		offset = seek_offset( self->entities, e_idx, storage_index, self->component_types[ storage_index ].num_bytes );
+		offset = seek_offset( self->entities, e_idx, component_type_index, self->component_types[ component_type_index ].num_bytes );
 	}
 
 	if ( needs_allocation ) {
@@ -349,12 +354,7 @@ static bool le_ecs_system_add_read_component( le_ecs_o *self, LeEcsSystemId syst
 
 	// check if component type exists as a type in ecs - we do this by finding it's index.
 
-	size_t storage_index = le_ecs_find_component_type_index( self, component_type );
-
-	if ( storage_index == self->component_types.size() ) {
-		assert( false ); // no components of this type exists - this can happen if no component of such type has ever been added to any entity.
-		return false;
-	}
+	size_t storage_index = le_ecs_produce_component_type_index( self, component_type );
 
 	// --------| invariant: storage type was found
 
@@ -383,11 +383,7 @@ static bool le_ecs_system_add_write_component( le_ecs_o *self, LeEcsSystemId sys
 
 	// check if component type exists as a type in ecs - we do this by finding it's index.
 
-	size_t storage_index = le_ecs_find_component_type_index( self, component_type );
-
-	if ( storage_index == self->component_types.size() ) {
-		return false;
-	}
+	size_t storage_index = le_ecs_produce_component_type_index( self, component_type );
 
 	// --------| invariant: storage type was found
 
