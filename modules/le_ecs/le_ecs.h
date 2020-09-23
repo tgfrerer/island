@@ -11,7 +11,7 @@ typedef struct SystemId_T *LeEcsSystemId;
 // clang-format off
 struct le_ecs_api {
 	
-struct ComponentType {
+    struct ComponentType {
 		uint64_t type_hash;   // we want a unique id per type.
 		char const * type_id;
 		uint32_t num_bytes; // number of bytes as in sizeof(), this includes padding.
@@ -87,7 +87,6 @@ static const auto &le_ecs_i = api -> le_ecs_i;
 } // namespace le_ecs
 
 class LeEcs : NoCopy, NoMove {
-
 	le_ecs_o *self;
 
   public:
