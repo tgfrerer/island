@@ -17,7 +17,7 @@ struct ComponentType {
 		uint32_t num_bytes; // number of bytes as in sizeof(), this includes padding.
 	};
 
-	typedef void ( *system_fn )( void const **read_params, void **write_params, void* user_data );
+	typedef void ( *system_fn )( EntityId entity, void const **read_params, void **write_params, void* user_data );
 
 	struct le_ecs_interface_t {
 
@@ -69,9 +69,9 @@ LE_MODULE_LOAD_DEFAULT( le_ecs );
 		}
 
 // Helper macros to define system callback signatures
-#	define LE_ECS_READ_WRITE_PARAMS void const **read_c, void **write_c
-#	define LE_ECS_WRITE_ONLY_PARAMS void const **, void **write_c
-#	define LE_ECS_READ_ONLY_PARAMS void const **read_c, void **
+#	define LE_ECS_READ_WRITE_PARAMS EntityId entity, void const **read_c, void **write_c
+#	define LE_ECS_WRITE_ONLY_PARAMS EntityId entity, void const **, void **write_c
+#	define LE_ECS_READ_ONLY_PARAMS EntityId entity, void const **read_c, void **
 
 // use this inside a system callback to fetch write parameter
 #	define LE_ECS_GET_WRITE_PARAM( index, param_type ) \

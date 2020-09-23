@@ -74,14 +74,23 @@ static inline size_t get_index_from_entity_id( le_ecs_o const *self, EntityId id
 	Entity search_entity;
 	search_entity.id = reinterpret_cast<size_t>( id );
 
-	auto lower = std::lower_bound( self->entities.begin(), self->entities.end(), search_entity,
-	                               []( Entity const &lhs, Entity const &rhs )
-	                                   -> bool { return lhs.id < rhs.id; } );
+	auto found_element = std::lower_bound(
+	    self->entities.begin(), self->entities.end(), search_entity,
+	    []( Entity const &lhs, Entity const &rhs )
+	        -> bool { return lhs.id < rhs.id; } );
 
-	assert( lower != self->entities.end() &&
-	        lower->id == search_entity.id );
+	assert( found_element != self->entities.end() &&
+	        found_element->id == search_entity.id );
 
-	return lower - self->entities.begin();
+	// index is pointer diff found_element - start
+
+	return ( found_element - self->entities.begin() );
+}
+
+// ----------------------------------------------------------------------
+
+static inline EntityId entity_get_entity_id( Entity const &e ) {
+	return reinterpret_cast<EntityId>( e.id );
 }
 
 // ----------------------------------------------------------------------
@@ -476,7 +485,7 @@ static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id ) {
 
 		// this is where we call the function
 
-		system.fn( read_containers.data(), write_containers.data(), system.user_data );
+		system.fn( entity_get_entity_id( e ), read_containers.data(), write_containers.data(), system.user_data );
 
 		// now we must increase component iterators for all elements which were
 		// named in required_components
