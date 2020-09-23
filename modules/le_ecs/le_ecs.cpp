@@ -11,13 +11,24 @@
 /* Note
  * 
  * Because we don't use sparse storage for our component data, we must iterate
- * over all entities previous to the entity which we want to manipulate (seek).
+ * over all entities previous to the entity which we want to access (seek).
  * 
- * Generally, this is not all too bad, as systems will iterate over entities naturally. 
+ * Generally, this is not all too bad, as systems will iterate over entities in sequence. 
  * 
  * But removing entities becomes rather costly, as each entity removal operation means 
- * a seek for each component data type affected, plus a vector erase operation.
+ * a seek for each component data type affected, plus one or more vector erase operations.
  *
+ * 
+ * CAVEAT:
+ * 
+ * Do not add or remove components from within systems, as this will invalidate arrays.
+ * This effectively means: Do not access the le_ecs_i interface from within a system 
+ * callback. 
+ * 
+ * this is a common limitation of ECS and a strategy around this is to record any changes
+ * which you may want to apply from iniside the system, and apply these changes from the 
+ * main (controlling) thread. This works similar to a command buffer. 
+ *  
  */
 
 struct ComponentStorage {
