@@ -98,15 +98,20 @@ class LeEcs : NoCopy, NoMove {
 		le_ecs::le_ecs_i.destroy( self );
 	}
 
-	inline EntityId create_entity();
+	// -- entity
 
-	inline void remove_entity( EntityId entity );
+	inline EntityId create_entity();
+	inline void     remove_entity( EntityId entity );
+
+	// -- component
 
 	template <typename T>
 	inline bool entity_add_component( EntityId entity_id, const T &&component );
 
 	template <typename T>
 	inline void entity_remove_component( EntityId entity_id );
+
+	// -- systems
 
 	inline LeEcsSystemId create_system();
 
@@ -125,6 +130,8 @@ class LeEcs : NoCopy, NoMove {
 	inline bool system_add_write_component( LeEcsSystemId system_id );
 
 	inline void update_system( LeEcsSystemId system_id );
+
+	// -- ecs
 
 	inline operator auto() {
 		return self;
