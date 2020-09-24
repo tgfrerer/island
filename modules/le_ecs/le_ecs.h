@@ -111,6 +111,31 @@ class LeEcs : NoCopy, NoMove {
 	template <typename T>
 	inline void entity_remove_component( EntityId entity_id );
 
+	class EntityBuilder {
+		LeEcs &  parent;
+		EntityId id;
+
+	  public:
+		EntityBuilder( LeEcs &parent_ )
+		    : parent( parent_ )
+		    , id( parent.create_entity() ) {
+		}
+
+		template <typename T>
+		EntityBuilder &add_component( const T &&component ) {
+			parent.entity_add_component( id, static_cast<const T &&>( component ) );
+			return *this;
+		}
+
+		EntityId build() {
+			return id;
+		}
+	};
+
+	EntityBuilder entity() {
+		return static_cast<EntityBuilder &&>( EntityBuilder{ *this } );
+	}
+
 	// -- systems
 
 	inline LeEcsSystemId create_system();
@@ -131,9 +156,52 @@ class LeEcs : NoCopy, NoMove {
 
 	inline void update_system( LeEcsSystemId system_id );
 
+	class SystemBuilder {
+		LeEcs &       parent;
+		LeEcsSystemId id;
+
+	  public:
+		SystemBuilder( LeEcs &parent_ )
+		    : parent( parent_ )
+		    , id( parent.create_system() ) {
+		}
+
+		template <typename T>
+		SystemBuilder &add_read_components() {
+			assert( parent.system_add_read_component<T>( id ) );
+			return *this;
+		}
+
+		template <typename R, typename S, typename... T>
+		SystemBuilder &add_read_components() {
+			parent.system_add_read_component<R, S, T...>( id );
+			return *this;
+		}
+
+		template <typename T>
+		SystemBuilder &add_write_components() {
+			assert( parent.system_add_write_component<T>( id ) );
+			return *this;
+		}
+
+		template <typename R, typename S, typename... T>
+		SystemBuilder &add_write_components() {
+			parent.system_add_write_component<R, S, T...>( id );
+			return *this;
+		}
+
+		LeEcsSystemId build() {
+			return id;
+		}
+	};
+
+	SystemBuilder system() {
+		return static_cast<SystemBuilder &&>( SystemBuilder( *this ) );
+	};
+
 	// -- ecs
 
-	inline operator auto() {
+	inline operator le_ecs_o *() {
 		return self;
 	}
 };
