@@ -257,10 +257,29 @@ bool LeEcs::system_add_read_component( LeEcsSystemId system_id ) {
 }
 
 // ----------------------------------------------------------------------
+// Fetches component type struct for component - this should happen at
+// compile time.
+template <typename T>
+constexpr le_ecs_api::ComponentType const le_ecs_get_component_type() {
+	// Note that this calculates the correct size for flag structs, which are empty.
+	// - in c++ empty structs may use memory, whilst in c, they have zero size.
+	//
+	// we force a c-style size calculation by pretending to extend the empty struct by an int,
+	// then removing the size of int. This will give us the correct size 0 for
+	// empty structs.
+	struct A : T {
+		int i;
+	};
+	constexpr uint32_t                  component_size = uint32_t( sizeof( A ) - sizeof( int ) );
+	constexpr le_ecs_api::ComponentType ct{ hash_64_fnv1a_const( T::type_id ), T::type_id, component_size };
+	return static_cast<le_ecs_api::ComponentType const>( ct );
+}
+
+// ----------------------------------------------------------------------
 
 template <typename T>
 bool LeEcs::system_add_read_component( LeEcsSystemId system_id ) {
-	constexpr le_ecs_api::ComponentType ct{ hash_64_fnv1a_const( T::type_id ), T::type_id, sizeof( T ) };
+	constexpr auto ct = le_ecs_get_component_type<T>();
 	return le_ecs::le_ecs_i.system_add_read_component( self, system_id, ct );
 }
 
@@ -268,7 +287,7 @@ bool LeEcs::system_add_read_component( LeEcsSystemId system_id ) {
 
 template <typename T>
 bool LeEcs::system_add_write_component( LeEcsSystemId system_id ) {
-	constexpr le_ecs_api::ComponentType ct{ hash_64_fnv1a_const( T::type_id ), T::type_id, sizeof( T ) };
+	constexpr auto ct = le_ecs_get_component_type<T>();
 	return le_ecs::le_ecs_i.system_add_write_component( self, system_id, ct );
 }
 
@@ -277,17 +296,9 @@ bool LeEcs::system_add_write_component( LeEcsSystemId system_id ) {
 template <typename T>
 bool LeEcs::entity_add_component( EntityId entity_id, const T &&component ) {
 
-	struct A : T {
-		int i;
-	};
-
-	constexpr uint32_t component_size = uint32_t( sizeof( A ) - sizeof( int ) );
-
-	constexpr le_ecs_api::ComponentType ct{ hash_64_fnv1a_const( T::type_id ), T::type_id, component_size };
-
 	// Allocate memory inside the ECS for our component.
-
-	void *mem = le_ecs::le_ecs_i.entity_component_at( self, entity_id, ct );
+	constexpr auto ct  = le_ecs_get_component_type<T>();
+	void *         mem = le_ecs::le_ecs_i.entity_component_at( self, entity_id, ct );
 
 	if ( ct.num_bytes != 0 && nullptr != mem ) {
 		new ( mem )( T ){ component }; // placement new
@@ -303,15 +314,7 @@ bool LeEcs::entity_add_component( EntityId entity_id, const T &&component ) {
 
 template <typename T>
 void LeEcs::entity_remove_component( EntityId entity_id ) {
-
-	struct A : T {
-		int i;
-	};
-
-	constexpr uint32_t component_size = uint32_t( sizeof( A ) - sizeof( int ) );
-
-	constexpr le_ecs_api::ComponentType ct{ hash_64_fnv1a_const( T::type_id ), T::type_id, component_size };
-
+	constexpr auto ct = le_ecs_get_component_type<T>();
 	le_ecs::le_ecs_i.entity_remove_component( self, entity_id, ct );
 }
 #endif // __cplusplus
