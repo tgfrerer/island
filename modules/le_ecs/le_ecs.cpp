@@ -62,7 +62,7 @@ struct le_ecs_o {
 	uint64_t                      next_entity_id = 0; // next available entity index (internal)
 	std::vector<ComponentType>    component_types;    // index corresponds to ComponentFilter[index]
 	std::vector<ComponentStorage> component_storage;  // one store per component type
-	std::vector<Entity>           entities;           // each entity may be different, index corresponds to entity ID
+	std::vector<Entity>           entities;           // each entity may be different, index corresponds to entity ID, sorted by entity.id
 	std::vector<System>           systems;
 };
 
@@ -162,8 +162,10 @@ static size_t le_ecs_produce_component_type_index( le_ecs_o *self, ComponentType
 }
 
 // ----------------------------------------------------------------------
-
-static void *le_ecs_entity_add_component( le_ecs_o *self, EntityId entity_id, ComponentType const &component_type ) {
+// access component storage for entity based on component type
+// if entity doesn't yet have storage for given component type, storage is created.
+// if component type is not yet known to ecs the component type is added to list of known component types.
+static void *le_ecs_entity_component_at( le_ecs_o *self, EntityId entity_id, ComponentType const &component_type ) {
 
 	// Find if entity exists
 	size_t e_idx = get_index_from_entity_id( self, entity_id );
@@ -515,7 +517,7 @@ LE_MODULE_REGISTER_IMPL( le_ecs, api ) {
 
 	le_ecs_i.entity_create           = le_ecs_entity_create;
 	le_ecs_i.entity_remove           = le_ecs_entity_remove;
-	le_ecs_i.entity_add_component    = le_ecs_entity_add_component;
+	le_ecs_i.entity_component_at     = le_ecs_entity_component_at;
 	le_ecs_i.entity_remove_component = le_ecs_entity_remove_component;
 
 	le_ecs_i.system_create              = le_ecs_system_create;

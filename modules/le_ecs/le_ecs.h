@@ -30,7 +30,7 @@ struct le_ecs_api {
 		// Returns pointer to data allocated for component.
 		// Store data to ecs using this pointer.
 		// This may re-allocate component storage, and invalidate pointers and iterators to components held inside the ecs.
-		void* ( *entity_add_component      )( le_ecs_o *self, EntityId entity_id, ComponentType const & component_type );
+		void* ( *entity_component_at       )( le_ecs_o *self, EntityId entity_id, ComponentType const & component_type );
 		void  ( *entity_remove_component   )( le_ecs_o *self, EntityId entity_id, ComponentType const & component_type );
 
 		LeEcsSystemId  ( *system_create    )( le_ecs_o *self );
@@ -287,7 +287,7 @@ bool LeEcs::entity_add_component( EntityId entity_id, const T &&component ) {
 
 	// Allocate memory inside the ECS for our component.
 
-	void *mem = le_ecs::le_ecs_i.entity_add_component( self, entity_id, ct );
+	void *mem = le_ecs::le_ecs_i.entity_component_at( self, entity_id, ct );
 
 	if ( ct.num_bytes != 0 && nullptr != mem ) {
 		new ( mem )( T ){ component }; // placement new
