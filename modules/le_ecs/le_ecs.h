@@ -136,6 +136,10 @@ class LeEcs : NoCopy, NoMove {
 		return static_cast<EntityBuilder &&>( EntityBuilder{ *this } );
 	}
 
+	// Access data for component of a given entity
+	template <typename T>
+	T &entity_component_get( EntityId entity_id );
+
 	// -- systems
 
 	inline LeEcsSystemId create_system();
@@ -207,6 +211,24 @@ class LeEcs : NoCopy, NoMove {
 };
 
 // ----------------------------------------------------------------------
+// Fetches component type struct for component - this should happen at
+// compile time.
+template <typename T>
+constexpr le_ecs_api::ComponentType const le_ecs_get_component_type() {
+	// Note that this calculates the correct size for flag structs, which are empty.
+	// - in c++ empty structs may use memory, whilst in c, they have zero size.
+	//
+	// we force a c-style size calculation by pretending to extend the empty struct by an int,
+	// then removing the size of int. This will give us the correct size 0 for
+	// empty structs.
+	struct A : T {
+		int i;
+	};
+	constexpr uint32_t                  component_size = uint32_t( sizeof( A ) - sizeof( int ) );
+	constexpr le_ecs_api::ComponentType ct{ hash_64_fnv1a_const( T::type_id ), T::type_id, component_size };
+	return static_cast<le_ecs_api::ComponentType const>( ct );
+}
+// ----------------------------------------------------------------------
 
 EntityId LeEcs::create_entity() {
 	return le_ecs::le_ecs_i.entity_create( self );
@@ -218,6 +240,10 @@ void LeEcs::remove_entity( EntityId entity ) {
 	le_ecs::le_ecs_i.entity_remove( self, entity );
 }
 
+template <typename T>
+T &LeEcs::entity_component_get( EntityId entity_id ) {
+	return *static_cast<T *>( le_ecs::le_ecs_i.entity_component_at( self, entity_id, le_ecs_get_component_type<T>() ) );
+};
 // ----------------------------------------------------------------------
 
 LeEcsSystemId LeEcs::create_system() {
@@ -254,25 +280,6 @@ bool LeEcs::system_add_read_component( LeEcsSystemId system_id ) {
 	result &= system_add_read_component<R>( system_id );
 	result &= system_add_read_component<S, T...>( system_id );
 	return result;
-}
-
-// ----------------------------------------------------------------------
-// Fetches component type struct for component - this should happen at
-// compile time.
-template <typename T>
-constexpr le_ecs_api::ComponentType const le_ecs_get_component_type() {
-	// Note that this calculates the correct size for flag structs, which are empty.
-	// - in c++ empty structs may use memory, whilst in c, they have zero size.
-	//
-	// we force a c-style size calculation by pretending to extend the empty struct by an int,
-	// then removing the size of int. This will give us the correct size 0 for
-	// empty structs.
-	struct A : T {
-		int i;
-	};
-	constexpr uint32_t                  component_size = uint32_t( sizeof( A ) - sizeof( int ) );
-	constexpr le_ecs_api::ComponentType ct{ hash_64_fnv1a_const( T::type_id ), T::type_id, component_size };
-	return static_cast<le_ecs_api::ComponentType const>( ct );
 }
 
 // ----------------------------------------------------------------------
