@@ -55,7 +55,6 @@ struct System {
 	std::vector<size_t> write_component_indices; // indices into component storage/component type
 
 	system_fn fn; // we must cast params back to struct of entities' components
-	void *    user_data;
 };
 
 struct le_ecs_o {
@@ -89,7 +88,6 @@ static inline size_t get_index_from_entity_id( le_ecs_o const *self, EntityId id
 	    self->entities.begin(), self->entities.end(), search_entity,
 	    []( Entity const &lhs, Entity const &rhs )
 	        -> bool { return lhs.id < rhs.id; } );
-
 
 	// index is pointer diff found_element - start
 
@@ -326,14 +324,13 @@ static LeEcsSystemId le_ecs_system_create( le_ecs_o *self ) {
 	    {},
 	    {},
 	    {},
-	    nullptr,
 	} );
 	return get_system_id_from_index( self->systems.size() - 1 );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_ecs_system_set_method( le_ecs_o *self, LeEcsSystemId system_id, system_fn fn, void *user_data ) {
+static void le_ecs_system_set_method( le_ecs_o *self, LeEcsSystemId system_id, system_fn fn ) {
 
 	size_t system_index = get_index_from_sytem_id( system_id );
 
@@ -343,8 +340,7 @@ static void le_ecs_system_set_method( le_ecs_o *self, LeEcsSystemId system_id, s
 
 	auto &system = self->systems[ system_index ];
 
-	system.fn        = fn;
-	system.user_data = user_data;
+	system.fn = fn;
 }
 
 // ----------------------------------------------------------------------
@@ -407,7 +403,7 @@ static bool le_ecs_system_add_write_component( le_ecs_o *self, LeEcsSystemId sys
 
 // ----------------------------------------------------------------------
 
-static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id ) {
+static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id, void *user_data = nullptr ) {
 
 	// Filter all entities - we only want those which provide all the component types which our system
 	// cares about.
@@ -492,7 +488,7 @@ static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id ) {
 
 		// this is where we call the function
 
-		system.fn( entity_get_entity_id( e ), read_containers.data(), write_containers.data(), system.user_data );
+		system.fn( entity_get_entity_id( e ), read_containers.data(), write_containers.data(), user_data );
 
 		// now we must increase component iterators for all elements which were
 		// named in required_components

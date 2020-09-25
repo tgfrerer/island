@@ -35,14 +35,14 @@ struct le_ecs_api {
 
 		LeEcsSystemId  ( *system_create    )( le_ecs_o *self );
 
-		void (* system_set_method          )( le_ecs_o*self, LeEcsSystemId system_id, system_fn fn, void * user_data);
+		void (* system_set_method          )( le_ecs_o*self, LeEcsSystemId system_id, system_fn fn);
 		bool (* system_add_write_component )( le_ecs_o *self, LeEcsSystemId system_id, ComponentType const &component_type );
 		bool (* system_add_read_component  )( le_ecs_o *self, LeEcsSystemId system_id, ComponentType const &component_type );
 
 		// TODO: we should probaly name all write components read/write components,
 		// as it appears that write implies read.
 
-		void ( *execute_system             )( le_ecs_o *self, LeEcsSystemId system_id ) ;
+		void ( *execute_system             )( le_ecs_o *self, LeEcsSystemId system_id, void* user_data ) ;
 
 		
 	};
@@ -144,7 +144,7 @@ class LeEcs : NoCopy, NoMove {
 
 	inline LeEcsSystemId create_system();
 
-	inline void system_set_method( LeEcsSystemId system_id, le_ecs_api::system_fn fn, void *user_data );
+	inline void system_set_method( LeEcsSystemId system_id, le_ecs_api::system_fn fn );
 
 	template <typename T>
 	inline bool system_add_read_component( LeEcsSystemId system_id );
@@ -158,7 +158,7 @@ class LeEcs : NoCopy, NoMove {
 	template <typename R, typename S, typename... T>
 	inline bool system_add_write_component( LeEcsSystemId system_id );
 
-	inline void update_system( LeEcsSystemId system_id );
+	inline void update_system( LeEcsSystemId system_id, void *user_data );
 
 	class SystemBuilder {
 		LeEcs &       parent;
@@ -252,14 +252,14 @@ LeEcsSystemId LeEcs::create_system() {
 
 // ----------------------------------------------------------------------
 
-void LeEcs::system_set_method( LeEcsSystemId system_id, le_ecs_api::system_fn fn, void *user_data ) {
-	le_ecs::le_ecs_i.system_set_method( self, system_id, fn, user_data );
+void LeEcs::system_set_method( LeEcsSystemId system_id, le_ecs_api::system_fn fn ) {
+	le_ecs::le_ecs_i.system_set_method( self, system_id, fn );
 }
 
 // ----------------------------------------------------------------------
 
-void LeEcs::update_system( LeEcsSystemId system_id ) {
-	le_ecs::le_ecs_i.execute_system( self, system_id );
+void LeEcs::update_system( LeEcsSystemId system_id, void *user_data ) {
+	le_ecs::le_ecs_i.execute_system( self, system_id, user_data );
 }
 
 // ----------------------------------------------------------------------
