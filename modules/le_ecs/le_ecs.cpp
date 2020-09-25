@@ -90,8 +90,6 @@ static inline size_t get_index_from_entity_id( le_ecs_o const *self, EntityId id
 	    []( Entity const &lhs, Entity const &rhs )
 	        -> bool { return lhs.id < rhs.id; } );
 
-	assert( found_element != self->entities.end() &&
-	        found_element->id == search_entity.id );
 
 	// index is pointer diff found_element - start
 
