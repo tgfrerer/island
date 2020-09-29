@@ -172,7 +172,8 @@ class LeEcs : NoCopy, NoMove {
 
 		template <typename T>
 		SystemBuilder &add_read_components() {
-			assert( parent.system_add_read_component<T>( id ) );
+			auto result = parent.system_add_read_component<T>( id );
+			assert( result );
 			return *this;
 		}
 
@@ -184,7 +185,8 @@ class LeEcs : NoCopy, NoMove {
 
 		template <typename T>
 		SystemBuilder &add_write_components() {
-			assert( parent.system_add_write_component<T>( id ) );
+			auto result = parent.system_add_write_component<T>( id );
+			assert( result );
 			return *this;
 		}
 

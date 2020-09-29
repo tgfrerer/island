@@ -408,7 +408,7 @@ static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id, void
 	// Filter all entities - we only want those which provide all the component types which our system
 	// cares about.
 
-	// System's function is called on matching components which together form part of an entity.
+	// The System's function is called on matching components which together form part of an entity.
 	// Function call happens repeatedly over all matching entities.
 
 	auto &system = self->systems.at( get_index_from_sytem_id( system_id ) );
@@ -487,7 +487,6 @@ static void le_ecs_execute_system( le_ecs_o *self, LeEcsSystemId system_id, void
 		}
 
 		// this is where we call the function
-
 		system.fn( entity_get_entity_id( e ), read_containers.data(), write_containers.data(), user_data );
 
 		// now we must increase component iterators for all elements which were
