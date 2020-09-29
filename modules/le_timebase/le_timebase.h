@@ -16,7 +16,6 @@
 #include "le_core/le_core.h"
 
 struct le_timebase_o;
-struct le_duration_t;
 
 #define LE_TIME_TICKS_PER_SECOND 12000
 
