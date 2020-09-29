@@ -7,7 +7,8 @@ apps_list=("
 	examples/hello_triangle:Island-HelloTriangle
 	examples/lut_grading_example:Island-LutGradingExample
 	examples/multi_window_example:Island-MultiWindowExample
-	examples/imgui_example:Island-ImguiExample		
+	examples/imgui_example:Island-ImguiExample
+	examples/asterisks:Island-Asterisks
 ")
 
 tempfiles=( )
