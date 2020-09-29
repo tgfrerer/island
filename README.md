@@ -112,7 +112,7 @@ Now with [experimental support for Windows 10](#experimental-windows-10-support)
 + [Module generator][module-generator]: Generates scaffolding for new
   modules.
 
-## Examples 
+## Examples ([more examples](apps/examples/))
 
 Island comes with a number of examples. No collection of examples
 would be complete without a [hello
