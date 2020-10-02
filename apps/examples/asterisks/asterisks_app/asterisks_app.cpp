@@ -1246,7 +1246,7 @@ static bool app_update( app_o *self ) {
 
 		if ( self->game_state == GameState::eGameOver &&
 		     original_game_state == GameState::ePlaying ) {
-			std::cout << "Game Over" << std::endl;
+			std::cout << "Game Over. Final score: " << std::dec << self->score << "." << std::endl;
 		}
 
 		if ( self->game_state == GameState::eNextLevel &&
