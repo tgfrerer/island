@@ -50,7 +50,7 @@ struct le_window_o {
 // Check if there is an available index to write at given an event counter and sets
 // eventIdx as a side-effect.
 // Returns false if no index in the queue is available for writing.
-// Returns true and an available index as a side-effect in eventIdx.
+// Returns true and an available index as a side-effect in eventIdx otherwise.
 //
 // Note that we limit the return value `eventIdx` to EVENT_QUEUE_SIZE-1
 bool event_queue_idx_available( std::atomic<uint32_t> &atomicCounter, uint32_t &eventIdx ) {
