@@ -17,3 +17,6 @@
 [submodule "modules/le_window/3rdparty/glfw"]
 	path = modules/le_window/3rdparty/glfw
 	url = https://github.com/glfw/glfw.git
+[submodule "modules/le_midi/3rdparty/rtmidi"]
+	path = modules/le_midi/3rdparty/rtmidi
+	url = https://github.com/thestk/rtmidi.git
