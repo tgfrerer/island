@@ -132,7 +132,7 @@ macro(add_island_module MODULE_NAME)
         set( LOADED_MODULES_LIST ${LOADED_MODULES_LIST} ${MODULE_NAME} CACHE INTERNAL "loaded_modules_list" )        
         load_island_module(${MODULE_NAME})        
     else()
-        message(STATUS "[ NOTE ] Rejecting extra module request: `${MODULE_NAME}` - Module already present."  )
+        message(STATUS "[ NOTE ] Rejecting add_island_module request: `${MODULE_NAME}` - Module already present."  )
     endif()
 
 endmacro(add_island_module)
