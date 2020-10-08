@@ -113,6 +113,24 @@ static le_parameter_o *le_parameter_store_get_parameter( le_parameter_store_o *s
 	return &it->second;
 }
 
+// ----------------------------------------------------------------------
+// Search for given parameter, based on its address.
+// return parameter name if found, nullptr if not found.
+static char const *le_parameter_store_get_name( le_parameter_store_o *self, le_parameter_o *param ) {
+	auto it = self->store.begin();
+	for ( ; it != self->store.end(); it++ ) {
+		if ( &it->second == param ) {
+			break;
+		}
+	}
+	if ( it == self->store.end() ) {
+		return nullptr;
+	}
+	return it->first.c_str();
+}
+
+// ----------------------------------------------------------------------
+
 static le_parameter_o *le_parameter_store_add_parameter( le_parameter_store_o *self, char const *name ) {
 	return &self->store[ name ];
 }
@@ -158,4 +176,5 @@ LE_MODULE_REGISTER_IMPL( le_parameter_store, api ) {
 
 	le_parameter_store_i.add_parameter = le_parameter_store_add_parameter;
 	le_parameter_store_i.get_parameter = le_parameter_store_get_parameter;
+	le_parameter_store_i.get_name      = le_parameter_store_get_name;
 }

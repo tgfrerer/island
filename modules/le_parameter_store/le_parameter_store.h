@@ -58,6 +58,7 @@ struct le_parameter_store_api {
         le_parameter_o* (*get_parameter)(le_parameter_store_o* self, char const* name); // may return nullptr, if parameter not found.
         le_parameter_o* (*add_parameter)(le_parameter_store_o* self, char const* name);
 
+        char const *    (*get_name)(le_parameter_store_o* self, le_parameter_o* param); // may return nullptr if not found
 	};
 
 	le_parameter_interface_t       le_parameter_i;
@@ -98,6 +99,7 @@ class Parameter {
 		self = other.self;
 		return *this;
 	}
+
 	float *setFloat( float const &&val ) {
 		return le_parameter_store::le_parameter_i.set_float( self, static_cast<float const &&>( val ) );
 	}
@@ -123,6 +125,10 @@ class Parameter {
 	bool *asBool() {
 		return le_parameter_store::le_parameter_i.as_bool( self );
 	}
+
+	operator auto() const {
+		return self;
+	}
 };
 
 class LeParameterStore : NoCopy, NoMove {
@@ -144,6 +150,10 @@ class LeParameterStore : NoCopy, NoMove {
 
 	le_parameter_o *addParameter( char const *name ) {
 		return le_parameter_store::le_parameter_store_i.add_parameter( self, name );
+	}
+
+	char const *getName( le_parameter_o *param ) {
+		return le_parameter_store::le_parameter_store_i.get_name( self, param );
 	}
 
 	operator auto() {
