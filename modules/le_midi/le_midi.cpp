@@ -241,13 +241,33 @@ void le_midi_get_messages_functional( le_midi_o *self, void *p_std_function ) {
 
 // ----------------------------------------------------------------------
 
+bool le_midi_send_message( le_midi_o *self, uint8_t const *message, size_t msg_size ) {
+
+	if ( nullptr == self->midi_out ) {
+		std::cout << "midi out not found - cannot send midi message" << std::endl;
+		return false;
+	}
+
+	if ( !self->midi_out->isPortOpen() ) {
+		std::cout << "midi port not open - cannot send midi message" << std::endl;
+		return false;
+	}
+
+	self->midi_out->sendMessage( message, msg_size );
+
+	return true;
+}
+
+// ----------------------------------------------------------------------
+
 LE_MODULE_REGISTER_IMPL( le_midi, api ) {
-	auto &le_midi_i         = static_cast<le_midi_api *>( api )->le_midi_i;
-	le_midi_i.create        = le_midi_create;
-	le_midi_i.destroy       = le_midi_destroy;
-	le_midi_i.swap          = le_midi_swap;
-	le_midi_i.get_messages  = le_midi_get_messages;
-	le_midi_i.open_midi_in  = le_midi_open_midi_in;
-	le_midi_i.open_midi_out = le_midi_open_midi_out;
+	auto &le_midi_i                   = static_cast<le_midi_api *>( api )->le_midi_i;
+	le_midi_i.create                  = le_midi_create;
+	le_midi_i.destroy                 = le_midi_destroy;
+	le_midi_i.swap                    = le_midi_swap;
+	le_midi_i.get_messages            = le_midi_get_messages;
 	le_midi_i.get_messages_functional = le_midi_get_messages_functional;
+	le_midi_i.open_midi_in            = le_midi_open_midi_in;
+	le_midi_i.open_midi_out           = le_midi_open_midi_out;
+	le_midi_i.send_message            = le_midi_send_message;
 }

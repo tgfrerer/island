@@ -43,9 +43,11 @@ struct le_midi_api {
 		le_midi_o *    ( * create        ) ( );
 		void           ( * destroy       ) ( le_midi_o* self );
 		void           ( * swap          ) ( le_midi_o* self );
-        void           ( * get_messages  ) ( le_midi_o *self, le_midi_iterator_cb callback, void *user_data );
         bool           ( * open_midi_out ) ( le_midi_o *self, char const *selected_port_name );
         bool           ( * open_midi_in  ) ( le_midi_o *self, char const *selected_port_name );
+
+        void           ( * get_messages  ) ( le_midi_o *self, le_midi_iterator_cb callback, void *user_data );
+        bool           ( * send_message  ) ( le_midi_o* self, uint8_t const * msg, size_t msg_size );
 
         void           ( * get_messages_functional  ) ( le_midi_o *self, void * p_std_function);
 	};
@@ -95,6 +97,10 @@ class LeMidi : NoCopy, NoMove {
 
 	bool open_midi_out( char const *selected_port_name ) {
 		return le_midi::le_midi_i.open_midi_out( self, selected_port_name );
+	}
+
+	bool send_message( uint8_t const *message, size_t msg_size ) {
+		return le_midi::le_midi_i.send_message( self, message, msg_size );
 	}
 
 	operator auto() {
