@@ -1,6 +1,7 @@
 #include "le_parameter_store.h"
 #include "le_core/le_core.h"
 #include <unordered_map>
+#include "assert.h"
 #include <string>
 
 // Implement load from file: jsmn
@@ -135,6 +136,74 @@ static le_parameter_o *le_parameter_store_add_parameter( le_parameter_store_o *s
 	return &self->store[ name ];
 }
 
+void print_entry( FILE *file, std::string const &name, le_parameter_o const &param ) {
+	static const char *types_strings[ 5 ] = {
+	    "Unknown",
+	    "Float",
+	    "U32",
+	    "I32",
+	    "Bool",
+	};
+	fprintf( file, "\n\t\"%s\": {", name.c_str() );
+	fprintf( file, "\n\t\t\"type\":\"%s\",", types_strings[ param.type ] );
+
+	switch ( param.type ) {
+	case Type::eFloat: {
+		fprintf( file, "\n\t\t\"value\":\"%A\",", *param.value.as_float );
+		break;
+	}
+	case Type::eU32: {
+		fprintf( file, "\n\t\t\"value\":\"%ul\",", *param.value.as_u32 );
+		break;
+	}
+	case Type::eI32: {
+		fprintf( file, "\n\t\t\"value\":\"%i\",", *param.value.as_i32 );
+		break;
+	}
+	case Type::eBool: {
+		fprintf( file, "\n\t\t\"value\":\"%s\",", *param.value.as_bool ? "True" : "False" );
+		break;
+	}
+	default:
+		assert( false && "cannot serialize parameter of type eUnknown" );
+		break;
+	}
+
+	fputs( "\n\t}", file );
+}
+
+// ----------------------------------------------------------------------
+
+static bool le_parameter_store_save_to_file( le_parameter_store_o *self, char const *file_path ) {
+
+	auto file = fopen( file_path, "w" );
+
+	if ( nullptr == file ) {
+		assert( false && "file could not be opened for writing." );
+		return false;
+	}
+
+	// ----------| invariant: file is not nullptr
+
+	fputs( "{", file );
+
+	auto a = self->store.cbegin();
+
+	if ( a != self->store.cend() ) {
+		print_entry( file, a->first, a->second );
+		a++;
+	}
+
+	for ( ; a != self->store.cend(); a++ ) {
+		fputs( ",", file );
+		print_entry( file, a->first, a->second );
+	}
+
+	fputs( "\n}", file );
+
+	fclose( file );
+	return true;
+}
 // ----------------------------------------------------------------------
 
 static le_parameter_store_o *le_parameter_store_create() {
@@ -177,4 +246,5 @@ LE_MODULE_REGISTER_IMPL( le_parameter_store, api ) {
 	le_parameter_store_i.add_parameter = le_parameter_store_add_parameter;
 	le_parameter_store_i.get_parameter = le_parameter_store_get_parameter;
 	le_parameter_store_i.get_name      = le_parameter_store_get_name;
+	le_parameter_store_i.save_to_file  = le_parameter_store_save_to_file;
 }

@@ -59,6 +59,9 @@ struct le_parameter_store_api {
         le_parameter_o* (*add_parameter)(le_parameter_store_o* self, char const* name);
 
         char const *    (*get_name)(le_parameter_store_o* self, le_parameter_o* param); // may return nullptr if not found
+
+        bool (*save_to_file)(le_parameter_store_o* self, char const * file_path);
+
 	};
 
 	le_parameter_interface_t       le_parameter_i;
@@ -162,6 +165,10 @@ class LeParameterStore : NoCopy, NoMove {
 
 	char const *getName( le_parameter_o *param ) {
 		return le_parameter_store::le_parameter_store_i.get_name( self, param );
+	}
+
+	bool saveToFile( char const *file_path ) {
+		return le_parameter_store::le_parameter_store_i.save_to_file( self, file_path );
 	}
 
 	operator auto() {
