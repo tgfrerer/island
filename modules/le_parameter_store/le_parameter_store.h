@@ -77,25 +77,25 @@ static const auto &le_parameter_store_i = api -> le_parameter_store_i;
 static const auto &le_parameter_i       = api -> le_parameter_i;
 } // namespace le_parameter_store
 
-class Parameter {
+class LeParameter {
 	le_parameter_o *self;
 
   public:
-	Parameter( le_parameter_o *param_ )
+	LeParameter( le_parameter_o *param_ )
 	    : self( param_ ){};
-	Parameter()  = delete;
-	~Parameter() = default;
+	LeParameter()  = delete;
+	~LeParameter() = default;
 	// There we go: rule of 5
-	Parameter( Parameter const &other )
+	LeParameter( LeParameter const &other )
 	    : self( other.self ){};
-	Parameter( Parameter &&other )
+	LeParameter( LeParameter &&other )
 	    : self( other.self ) {
 	}
-	Parameter &operator=( Parameter const &other ) {
+	LeParameter &operator=( LeParameter const &other ) {
 		self = other.self;
 		return *this;
 	}
-	Parameter &operator=( Parameter const &&other ) {
+	LeParameter &operator=( LeParameter const &&other ) {
 		self = other.self;
 		return *this;
 	}
@@ -124,6 +124,14 @@ class Parameter {
 	}
 	bool *asBool() {
 		return le_parameter_store::le_parameter_i.as_bool( self );
+	}
+
+	le_parameter_store_api::Type getType() {
+		return le_parameter_store::le_parameter_i.get_type( self );
+	}
+
+	void setType( le_parameter_store_api::Type type ) {
+		le_parameter_store::le_parameter_i.set_type( self, type );
 	}
 
 	operator auto() const {
