@@ -46,6 +46,8 @@ struct le_midi_api {
         void           ( * get_messages  ) ( le_midi_o *self, le_midi_iterator_cb callback, void *user_data );
         bool           ( * open_midi_out ) ( le_midi_o *self, char const *selected_port_name );
         bool           ( * open_midi_in  ) ( le_midi_o *self, char const *selected_port_name );
+
+        void           ( * get_messages_functional  ) ( le_midi_o *self, void * p_std_function);
 	};
 
 	le_midi_interface_t       le_midi_i;
@@ -81,6 +83,10 @@ class LeMidi : NoCopy, NoMove {
 
 	void get_messages( le_midi_api::le_midi_iterator_cb callback, void *user_data ) {
 		le_midi::le_midi_i.get_messages( self, callback, user_data );
+	}
+
+	void get_messages( void *p_std_function ) {
+		le_midi::le_midi_i.get_messages_functional( self, p_std_function );
 	}
 
 	bool open_midi_in( char const *selected_port_name ) {

@@ -3,6 +3,7 @@
 #include "3rdparty/rtmidi/RtMidi.h"
 #include <vector>
 #include <string.h>
+#include <functional>
 
 // A midi message blob contains:
 // 4B .. length of the blob in bytes
@@ -216,6 +217,29 @@ void le_midi_get_messages( le_midi_o *self, le_midi_api::le_midi_iterator_cb cal
 }
 
 // ----------------------------------------------------------------------
+// This is an iterator method - this is publicly available
+// note that this version passes a pointer to a std::function
+//
+void le_midi_get_messages_functional( le_midi_o *self, void *p_std_function ) {
+
+	auto &buffer = self->buffers[ self->front_buffer ];
+	if ( buffer.size == 0 || buffer.data.size() == 0 ) {
+		return;
+	}
+	// ---------| invariant: buffer.size is not null
+	// iterate over all data
+
+	unsigned char *b = buffer.data.data();
+
+	while ( *b != 0 ) {
+		auto msg      = reinterpret_cast<le_midi_message_blob const *>( b );
+		auto callback = *static_cast<std::function<void( double delta_t, unsigned char const *message, size_t num_message_bytes )> *>( p_std_function );
+		callback( msg->time_delta, msg->buffer_data, msg->size - sizeof( le_midi_message_blob ) );
+		b += msg->size;
+	}
+}
+
+// ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_midi, api ) {
 	auto &le_midi_i         = static_cast<le_midi_api *>( api )->le_midi_i;
@@ -225,4 +249,5 @@ LE_MODULE_REGISTER_IMPL( le_midi, api ) {
 	le_midi_i.get_messages  = le_midi_get_messages;
 	le_midi_i.open_midi_in  = le_midi_open_midi_in;
 	le_midi_i.open_midi_out = le_midi_open_midi_out;
+	le_midi_i.get_messages_functional = le_midi_get_messages_functional;
 }
