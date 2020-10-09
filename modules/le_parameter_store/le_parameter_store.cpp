@@ -149,19 +149,27 @@ void print_entry( FILE *file, std::string const &name, le_parameter_o const &par
 
 	switch ( param.type ) {
 	case Type::eFloat: {
-		fprintf( file, "\n\t\t\"value\":\"%A\",", *param.value.as_float );
+		fprintf( file, "\n\t\t\"value\":\"%A\",", param.value.as_float[ 0 ] );
+		fprintf( file, "\n\t\t\"min_value\":\"%A\",", param.value.as_float[ 1 ] );
+		fprintf( file, "\n\t\t\"max_value\":\"%A\"", param.value.as_float[ 2 ] );
 		break;
 	}
 	case Type::eU32: {
-		fprintf( file, "\n\t\t\"value\":\"%ul\",", *param.value.as_u32 );
+		fprintf( file, "\n\t\t\"value\":\"%u\",", param.value.as_u32[ 0 ] );
+		fprintf( file, "\n\t\t\"min_value\":\"%u\",", param.value.as_u32[ 1 ] );
+		fprintf( file, "\n\t\t\"max_value\":\"%u\"", param.value.as_u32[ 2 ] );
 		break;
 	}
 	case Type::eI32: {
-		fprintf( file, "\n\t\t\"value\":\"%i\",", *param.value.as_i32 );
+		fprintf( file, "\n\t\t\"value\":\"%i\",", param.value.as_i32[ 0 ] );
+		fprintf( file, "\n\t\t\"min_value\":\"%i\",", param.value.as_i32[ 1 ] );
+		fprintf( file, "\n\t\t\"max_value\":\"%i\"", param.value.as_i32[ 2 ] );
 		break;
 	}
 	case Type::eBool: {
-		fprintf( file, "\n\t\t\"value\":\"%s\",", *param.value.as_bool ? "True" : "False" );
+		fprintf( file, "\n\t\t\"value\":\"%s\",", param.value.as_bool[ 0 ] ? "True" : "False" );
+		fprintf( file, "\n\t\t\"min_value\":\"%s\",", param.value.as_bool[ 1 ] ? "True" : "False" );
+		fprintf( file, "\n\t\t\"max_value\":\"%s\"", param.value.as_bool[ 2 ] ? "True" : "False" );
 		break;
 	}
 	default:
