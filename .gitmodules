@@ -20,3 +20,6 @@
 [submodule "modules/le_midi/3rdparty/rtmidi"]
 	path = modules/le_midi/3rdparty/rtmidi
 	url = https://github.com/thestk/rtmidi.git
+[submodule "modules/le_parameter_store/3rdparty/jsmn"]
+	path = modules/le_parameter_store/3rdparty/jsmn
+	url = git@github.com:zserge/jsmn.git
