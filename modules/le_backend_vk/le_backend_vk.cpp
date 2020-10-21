@@ -961,6 +961,7 @@ static inline uint32_t getMemoryIndexForGraphicsScratchBuffer( VmaAllocator cons
 }
 
 static inline uint32_t getMemoryIndexForGraphicsStagingBuffer( VmaAllocator const &allocator, uint32_t queueFamilyGraphics ) {
+
 	// Find memory index for staging buffer - we do this by pretending to create
 	// an allocation.
 
@@ -1102,8 +1103,8 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 	self->queueFamilyIndexGraphics = self->device->getDefaultGraphicsQueueFamilyIndex();
 	self->queueFamilyIndexCompute  = self->device->getDefaultComputeQueueFamilyIndex();
 
-	uint32_t memIndexScratchBufferGraphics = getMemoryIndexForGraphicsScratchBuffer( self->mAllocator, self->queueFamilyIndexGraphics );
-	uint32_t memIndexStagingBufferGraphics = getMemoryIndexForGraphicsStagingBuffer( self->mAllocator, self->queueFamilyIndexGraphics );
+	uint32_t memIndexScratchBufferGraphics = getMemoryIndexForGraphicsScratchBuffer( self->mAllocator, self->queueFamilyIndexGraphics ); // used for transient command buffer allocations
+	uint32_t memIndexStagingBufferGraphics = getMemoryIndexForGraphicsStagingBuffer( self->mAllocator, self->queueFamilyIndexGraphics ); // used to stage transfers to persistent memory
 
 	assert( vkDevice ); // device must come from somewhere! It must have been introduced to backend before, or backend must create device used by everyone else...
 
