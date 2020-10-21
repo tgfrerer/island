@@ -1107,17 +1107,19 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 
 	assert( vkDevice ); // device must come from somewhere! It must have been introduced to backend before, or backend must create device used by everyone else...
 
-	self->swapchain_resources.reserve( self->swapchains.size() );
+	{
+		self->swapchain_resources.reserve( self->swapchains.size() );
 
-	for ( size_t j = 0; j != self->swapchains.size(); j++ ) {
-		char res_name[ 50 ];
-		snprintf( res_name, sizeof( res_name ), "Le_Swapchain_Image_Handle[%lu]", j );
-		auto resource_handle = LE_IMG_RESOURCE( res_name );
-		self->swapchain_resources.emplace_back( resource_handle );
+		for ( size_t j = 0; j != self->swapchains.size(); j++ ) {
+			char res_name[ 50 ];
+			snprintf( res_name, sizeof( res_name ), "Le_Swapchain_Image_Handle[%lu]", j );
+			auto resource_handle = LE_IMG_RESOURCE( res_name );
+			self->swapchain_resources.emplace_back( resource_handle );
+		}
+
+		assert( !self->swapchain_resources.empty() && "swapchain_resources must not be empty" );
+		assert( self->swapchain_resources[ 0 ] == LE_SWAPCHAIN_IMAGE_HANDLE && "constexpr resource handle and generated resource handle must match. check whether printf pattern above matches LE_SWAPCHAIN_IMAGE_HANDLE" );
 	}
-
-	assert( !self->swapchain_resources.empty() && "swapchain_resources must not be empty" );
-	assert( self->swapchain_resources[ 0 ] == LE_SWAPCHAIN_IMAGE_HANDLE && "constexpr resource handle and generated resource handle must match. check whether printf pattern above matches LE_SWAPCHAIN_IMAGE_HANDLE" );
 
 	for ( size_t i = 0; i != frameCount; ++i ) {
 
@@ -1183,8 +1185,6 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 		// to infer it.
 		self->defaultFormatSampledImage = le::Format::eR8G8B8A8Unorm;
 	}
-
-	// CHECK: this is where we used to create the vulkan pipeline cache object
 }
 
 // Add image attachments to leRenderPass

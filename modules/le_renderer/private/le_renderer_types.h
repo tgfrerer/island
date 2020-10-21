@@ -1121,13 +1121,11 @@ class RendererInfoBuilder {
 		};
 
 		class DirectSwapchainInfoBuilder {
-			SwapchainInfoBuilder &                   parent;
-			le_swapchain_settings_t::khr_settings_t &self;
+			SwapchainInfoBuilder &parent;
 
 		  public:
 			DirectSwapchainInfoBuilder( SwapchainInfoBuilder &parent_ )
-			    : parent( parent_ )
-			    , self( parent.self->khr_settings ) {
+			    : parent( parent_ ) {
 			}
 
 			DirectSwapchainInfoBuilder &setPresentmode( le::Presentmode presentmode_hint = le::Presentmode::eFifo ) {
@@ -1142,13 +1140,12 @@ class RendererInfoBuilder {
 		};
 
 		class ImgSwapchainInfoBuilder {
-			SwapchainInfoBuilder &                   parent;
-			le_swapchain_settings_t::img_settings_t &self;
+			SwapchainInfoBuilder &parent;
+
 
 		  public:
 			ImgSwapchainInfoBuilder( SwapchainInfoBuilder &parent_ )
-			    : parent( parent_ )
-			    , self( parent.self->img_settings ) {
+			    : parent( parent_ ) {
 			}
 
 			ImgSwapchainInfoBuilder &setPipeCmd( char const *pipe_cmd = "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 isl%s_%%03d.png" ) {
