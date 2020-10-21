@@ -1039,17 +1039,18 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 
 		char const **exts;
 		size_t       num_exts;
+		for ( size_t i = 0; i != settings->num_swapchain_settings; ++i ) {
+			le_swapchain_vk::swapchain_i.get_required_vk_device_extensions( settings->pSwapchain_settings + i, &exts, &num_exts );
 
-		le_swapchain_vk::swapchain_i.get_required_vk_device_extensions( settings->pSwapchain_settings, &exts, &num_exts );
+			if ( num_exts ) {
+				requestedDeviceExtensions.insert( requestedDeviceExtensions.end(), exts, exts + num_exts );
+			}
 
-		if ( num_exts ) {
-			requestedDeviceExtensions.insert( requestedDeviceExtensions.end(), exts, exts + num_exts );
+			// -- insert any additionally requested extensions
+			requestedDeviceExtensions.insert( requestedDeviceExtensions.end(),
+			                                  settings->requestedDeviceExtensions,
+			                                  settings->requestedDeviceExtensions + settings->numRequestedDeviceExtensions );
 		}
-
-		// -- insert any additionally requested extensions
-		requestedDeviceExtensions.insert( requestedDeviceExtensions.end(),
-		                                  settings->requestedDeviceExtensions,
-		                                  settings->requestedDeviceExtensions + settings->numRequestedDeviceExtensions );
 	}
 
 	// -- initialise backend
