@@ -937,6 +937,53 @@ static le_allocator_o **backend_create_transient_allocators( le_backend_o *self,
 
 // ----------------------------------------------------------------------
 
+static inline uint32_t getMemoryIndexForGraphicsScratchBuffer( VmaAllocator const &allocator, uint32_t queueFamilyGraphics ) {
+
+	// Find memory index for scratch buffer - we do this by pretending to create
+	// an allocation.
+
+	vk::BufferCreateInfo bufferInfo{};
+	bufferInfo
+	    .setFlags( {} )
+	    .setSize( 1 )
+	    .setUsage( LE_BUFFER_USAGE_FLAGS_SCRATCH )
+	    .setSharingMode( vk::SharingMode::eExclusive )
+	    .setQueueFamilyIndexCount( 1 )
+	    .setPQueueFamilyIndices( &queueFamilyGraphics );
+
+	VmaAllocationCreateInfo allocInfo{};
+	allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+	allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+
+	uint32_t memIndexScratchBufferGraphics = 0;
+	vmaFindMemoryTypeIndexForBufferInfo( allocator, &reinterpret_cast<VkBufferCreateInfo &>( bufferInfo ), &allocInfo, &memIndexScratchBufferGraphics );
+	return memIndexScratchBufferGraphics;
+}
+
+static inline uint32_t getMemoryIndexForGraphicsStagingBuffer( VmaAllocator const &allocator, uint32_t queueFamilyGraphics ) {
+	// Find memory index for staging buffer - we do this by pretending to create
+	// an allocation.
+
+	vk::BufferCreateInfo bufferInfo{};
+	bufferInfo
+	    .setFlags( {} )
+	    .setSize( 1 )
+	    .setUsage( vk::BufferUsageFlagBits::eTransferSrc )
+	    .setSharingMode( vk::SharingMode::eExclusive )
+	    .setQueueFamilyIndexCount( 1 )
+	    .setPQueueFamilyIndices( &queueFamilyGraphics );
+
+	VmaAllocationCreateInfo allocInfo{};
+	allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
+	allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+	uint32_t memIndexStagingBufferGraphics = 0;
+	vmaFindMemoryTypeIndexForBufferInfo( allocator, &reinterpret_cast<VkBufferCreateInfo &>( bufferInfo ), &allocInfo, &memIndexStagingBufferGraphics );
+	return memIndexStagingBufferGraphics;
+}
+
+// ----------------------------------------------------------------------
+
 static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *settings ) {
 
 	assert( settings );
@@ -1055,50 +1102,8 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 	self->queueFamilyIndexGraphics = self->device->getDefaultGraphicsQueueFamilyIndex();
 	self->queueFamilyIndexCompute  = self->device->getDefaultComputeQueueFamilyIndex();
 
-	uint32_t memIndexScratchBufferGraphics = 0;
-	uint32_t memIndexStagingBufferGraphics = 0;
-	{
-
-		{
-			// Find memory index for scratch buffer - we do this by pretending to create
-			// an allocation.
-
-			vk::BufferCreateInfo bufferInfo{};
-			bufferInfo
-			    .setFlags( {} )
-			    .setSize( 1 )
-			    .setUsage( LE_BUFFER_USAGE_FLAGS_SCRATCH )
-			    .setSharingMode( vk::SharingMode::eExclusive )
-			    .setQueueFamilyIndexCount( 1 )
-			    .setPQueueFamilyIndices( &self->queueFamilyIndexGraphics );
-
-			VmaAllocationCreateInfo allocInfo{};
-			allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-			allocInfo.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-
-			vmaFindMemoryTypeIndexForBufferInfo( self->mAllocator, &reinterpret_cast<VkBufferCreateInfo &>( bufferInfo ), &allocInfo, &memIndexScratchBufferGraphics );
-		}
-
-		{
-			// Find memory index for staging buffer - we do this by pretending to create
-			// an allocation.
-
-			vk::BufferCreateInfo bufferInfo{};
-			bufferInfo
-			    .setFlags( {} )
-			    .setSize( 1 )
-			    .setUsage( vk::BufferUsageFlagBits::eTransferSrc )
-			    .setSharingMode( vk::SharingMode::eExclusive )
-			    .setQueueFamilyIndexCount( 1 )
-			    .setPQueueFamilyIndices( &self->queueFamilyIndexGraphics );
-
-			VmaAllocationCreateInfo allocInfo{};
-			allocInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
-			allocInfo.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-			vmaFindMemoryTypeIndexForBufferInfo( self->mAllocator, &reinterpret_cast<VkBufferCreateInfo &>( bufferInfo ), &allocInfo, &memIndexStagingBufferGraphics );
-		}
-	}
+	uint32_t memIndexScratchBufferGraphics = getMemoryIndexForGraphicsScratchBuffer( self->mAllocator, self->queueFamilyIndexGraphics );
+	uint32_t memIndexStagingBufferGraphics = getMemoryIndexForGraphicsStagingBuffer( self->mAllocator, self->queueFamilyIndexGraphics );
 
 	assert( vkDevice ); // device must come from somewhere! It must have been introduced to backend before, or backend must create device used by everyone else...
 
