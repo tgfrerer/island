@@ -16,10 +16,10 @@
 #include "le_renderer/private/le_renderer_types.h"
 
 #ifdef _MSC_VER
-	#include <Windows.h>
+#	include <Windows.h>
 #else
-	#include <unistd.h> // for getexepath
-#endif 
+#	include <unistd.h> // for getexepath
+#endif
 
 #include "3rdparty/src/spooky/SpookyV2.h" // for calculating rendergraph hash
 
@@ -61,8 +61,8 @@ struct le_renderpass_o {
 	uint32_t                ref_count    = 0;                           // reference count (we're following an intrusive shared pointer pattern)
 	uint64_t                id           = 0;                           // hash of name
 	uint64_t                sort_key     = 0;                           //
-	uint32_t                width        = 0;                           ///< width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
-	uint32_t                height       = 0;                           ///< height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
+	uint32_t                width        = 0;                           // < width  in pixels, must be identical for all attachments, default:0 means current frame.swapchainWidth
+	uint32_t                height       = 0;                           // < height in pixels, must be identical for all attachments, default:0 means current frame.swapchainHeight
 	le::SampleCountFlagBits sample_count = le::SampleCountFlagBits::e1; // < SampleCount for all attachments.
 	uint32_t                isRoot       = false;                       // whether pass *must* be processed
 
@@ -575,18 +575,17 @@ static void tasks_calculate_sort_indices( Task const *const tasks, const size_t 
 
 // returns path to current executable.
 std::filesystem::path getexepath() {
-	char    result[1024] = {0};
+	char result[ 1024 ] = { 0 };
 
 #ifdef _MSC_VER
-		
+
 	// When NULL is passed to GetModuleHandle, the handle of the exe itself is returned
-	HMODULE hModule = GetModuleHandle(NULL);
-	if (hModule != NULL)
-	{
+	HMODULE hModule = GetModuleHandle( NULL );
+	if ( hModule != NULL ) {
 		// Use GetModuleFileName() with module handle to get the path
-		GetModuleFileName(hModule, result, (sizeof(result)));
+		GetModuleFileName( hModule, result, ( sizeof( result ) ) );
 	}
-	size_t count = strnlen_s(result, sizeof(result));
+	size_t count = strnlen_s( result, sizeof( result ) );
 #else
 	ssize_t count = readlink( "/proc/self/exe", result, 1024 );
 #endif
