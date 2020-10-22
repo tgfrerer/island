@@ -38,10 +38,10 @@ struct le_parameter_store_api {
         Type (*get_type)(le_parameter_o* parameter);
         void (*set_type)(le_parameter_o* parameter, Type type);
         
-        float*    (*set_float)( le_parameter_o *self, float val    );
-        uint32_t* (*set_u32  )( le_parameter_o *self, uint32_t val );
-        int32_t*  (*set_i32  )( le_parameter_o *self, int32_t val  );
-        bool*     (*set_bool )( le_parameter_o *self, bool val     );
+        float*    (*set_float)( le_parameter_o *self, float    val, float    val_min, float    val_max);
+        uint32_t* (*set_u32  )( le_parameter_o *self, uint32_t val, uint32_t val_min, uint32_t val_max);
+        int32_t*  (*set_i32  )( le_parameter_o *self, int32_t  val, int32_t  val_min, int32_t  val_max);
+        bool*     (*set_bool )( le_parameter_o *self, bool     val );
 
         float*    (*as_float)( le_parameter_o *self); // may return nullptr if wrong type 
         uint32_t* (*as_u32  )( le_parameter_o *self); // may return nullptr if wrong type 
@@ -104,14 +104,26 @@ class LeParameter {
 		return *this;
 	}
 
-	float *setFloat( float const &&val ) {
-		return le_parameter_store::le_parameter_i.set_float( self, static_cast<float const &&>( val ) );
+	float *setFloat( float const &&val, float const &&val_min = 0.f, float const &&val_max = 1.f ) {
+		return le_parameter_store::le_parameter_i
+		    .set_float( self,
+		                static_cast<float const &&>( val ),
+		                static_cast<float const &&>( val_min ),
+		                static_cast<float const &&>( val_max ) );
 	}
-	int32_t *setI32( int32_t const &&val ) {
-		return le_parameter_store::le_parameter_i.set_i32( self, static_cast<int32_t const &&>( val ) );
+	int32_t *setI32( int32_t const &&val, int32_t const &&val_min = INT32_MIN, int32_t const &&val_max = INT32_MAX ) {
+		return le_parameter_store::le_parameter_i
+		    .set_i32( self,
+		              static_cast<int32_t const &&>( val ),
+		              static_cast<int32_t const &&>( val_min ),
+		              static_cast<int32_t const &&>( val_max ) );
 	}
-	uint32_t *setU32( uint32_t const &&val ) {
-		return le_parameter_store::le_parameter_i.set_u32( self, static_cast<uint32_t const &&>( val ) );
+	uint32_t *setU32( uint32_t const &&val, uint32_t const &&val_min = 0, uint32_t const &&val_max = UINT32_MAX ) {
+		return le_parameter_store::le_parameter_i
+		    .set_u32( self,
+		              static_cast<uint32_t const &&>( val ),
+		              static_cast<uint32_t const &&>( val_min ),
+		              static_cast<uint32_t const &&>( val_max ) );
 	}
 	bool *setBool( bool const &&val ) {
 		return le_parameter_store::le_parameter_i.set_bool( self, static_cast<bool const &&>( val ) );

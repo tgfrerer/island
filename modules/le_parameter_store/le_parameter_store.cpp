@@ -3,8 +3,9 @@
 #include <unordered_map>
 #include "assert.h"
 #include <string>
-#include <fstream>  // for file loading
-#include <iostream> // for file loading
+#include <fstream>    // for file loading
+#include <iostream>   // for file loading
+#include <filesystem> // to test whether file exists
 #include <vector>
 
 #define JSMN_STATIC
@@ -33,34 +34,34 @@ struct le_parameter_o {
 	Data value; // value, range_min, range_max
 };
 
-static float *le_parameter_set_float( le_parameter_o *self, float val ) {
+static float *le_parameter_set_float( le_parameter_o *self, float val, float val_min = 0.f, float val_max = 1.f ) {
 	if ( nullptr == self ) {
 		return nullptr;
 	}
 	self->type                = Type::eFloat;
 	self->value.as_float[ 0 ] = val;
-	self->value.as_float[ 1 ] = 0.0;
-	self->value.as_float[ 2 ] = 1.f;
+	self->value.as_float[ 1 ] = val_min;
+	self->value.as_float[ 2 ] = val_max;
 	return &self->value.as_float[ 0 ];
 }
-static uint32_t *le_parameter_set_u32( le_parameter_o *self, uint32_t val ) {
+static uint32_t *le_parameter_set_u32( le_parameter_o *self, uint32_t val, uint32_t val_min = 0, uint32_t val_max = UINT32_MAX ) {
 	if ( nullptr == self ) {
 		return nullptr;
 	}
 	self->type              = Type::eU32;
 	self->value.as_u32[ 0 ] = val;
-	self->value.as_u32[ 1 ] = 0;
-	self->value.as_u32[ 2 ] = UINT32_MAX;
+	self->value.as_u32[ 1 ] = val_min;
+	self->value.as_u32[ 2 ] = val_max;
 	return &self->value.as_u32[ 0 ];
 }
-static int32_t *le_parameter_set_i32( le_parameter_o *self, int32_t val ) {
+static int32_t *le_parameter_set_i32( le_parameter_o *self, int32_t val, int32_t val_min = INT32_MIN, int32_t val_max = INT32_MAX ) {
 	if ( nullptr == self ) {
 		return nullptr;
 	}
 	self->type              = Type::eI32;
 	self->value.as_i32[ 0 ] = val;
-	self->value.as_i32[ 1 ] = INT32_MIN;
-	self->value.as_i32[ 2 ] = INT32_MAX;
+	self->value.as_i32[ 1 ] = val_min;
+	self->value.as_i32[ 2 ] = val_max;
 	return &self->value.as_i32[ 0 ];
 }
 static bool *le_parameter_set_bool( le_parameter_o *self, bool val ) {
@@ -266,6 +267,13 @@ static bool le_parameter_store_load_from_file( le_parameter_store_o *self, char 
 		}
 
 		return token_str;
+	};
+
+	// ----------
+
+	if ( false == std::filesystem::exists( file_path ) ) {
+		std::cerr << "File '" << file_path << "' not found." << std::endl;
+		return false;
 	};
 
 	// ----------
