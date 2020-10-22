@@ -31,6 +31,7 @@ struct le_renderer_api {
         le_shader_module_o*            ( *create_shader_module                  )( le_renderer_o *self, char const *path, const LeShaderStageEnum& mtype, char const * macro_definitions );
 
 		/// returns the image resource handle for a swapchain at given index
+		uint32_t                       ( *get_swapchain_count                   )( le_renderer_o* self);
 		le_resource_handle_t           ( *get_swapchain_resource                )( le_renderer_o* self, uint32_t index );
 		void                           ( *get_swapchain_extent                  )( le_renderer_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height );
 		le_backend_o*                  ( *get_backend                           )( le_renderer_o* self );
@@ -236,6 +237,10 @@ class Renderer {
 
 	le_shader_module_o *createShaderModule( char const *path, const le::ShaderStage &moduleType, char const *macro_definitions = nullptr ) const {
 		return le_renderer::renderer_i.create_shader_module( self, path, { moduleType }, macro_definitions );
+	}
+
+	uint32_t getSwapchainCount() const {
+		return le_renderer::renderer_i.get_swapchain_count( self );
 	}
 
 	le_resource_handle_t getSwapchainResource( uint32_t index = 0 ) const {

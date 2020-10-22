@@ -495,6 +495,13 @@ static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex ) {
 
 // ----------------------------------------------------------------------
 
+static uint32_t renderer_get_swapchain_count( le_renderer_o *self ) {
+	using namespace le_backend_vk; // for rendergraph_i
+	return vk_backend_i.get_swapchain_count( self->backend );
+}
+
+// ----------------------------------------------------------------------
+
 static le_resource_handle_t renderer_get_swapchain_resource( le_renderer_o *self, uint32_t index ) {
 	using namespace le_backend_vk; // for rendergraph_i
 	return vk_backend_i.get_swapchain_resource( self->backend, index );
@@ -669,7 +676,7 @@ static le_resource_info_t get_default_resource_info_for_image() {
 		img.sample_count_log2 = 0; // 0 means 1, as (1 << 0 == 1)
 		img.imageType         = le::ImageType::e2D;
 		img.tiling            = le::ImageTiling::eOptimal;
-		img.samplesFlags	  = 0;
+		img.samplesFlags      = 0;
 	}
 
 	return res;
@@ -699,6 +706,7 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.setup                  = renderer_setup;
 	le_renderer_i.update                 = renderer_update;
 	le_renderer_i.create_shader_module   = renderer_create_shader_module;
+	le_renderer_i.get_swapchain_count    = renderer_get_swapchain_count;
 	le_renderer_i.get_swapchain_resource = renderer_get_swapchain_resource;
 	le_renderer_i.get_swapchain_extent   = renderer_get_swapchain_extent;
 	le_renderer_i.get_pipeline_manager   = renderer_get_pipeline_manager;
