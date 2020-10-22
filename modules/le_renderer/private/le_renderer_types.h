@@ -136,7 +136,28 @@ constexpr le_resource_handle_t LE_BUF_RESOURCE( const char *str ) noexcept {
 	return LE_RESOURCE( str, LeResourceType::eBuffer );
 }
 
-constexpr static le_resource_handle_t LE_SWAPCHAIN_IMAGE_HANDLE    = LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[0]" ); // opaque handle swapchain image
+constexpr static le_resource_handle_t LE_SWAPCHAIN_IMAGE_HANDLE  = LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[0]" ); // default opaque swapchain image handle
+constexpr static uint32_t             LE_SWAPCHAIN_HANDLES_COUNT = 16;
+
+constexpr static le_resource_handle_t LE_SWAPCHAIN_IMAGE_HANDLES[ LE_SWAPCHAIN_HANDLES_COUNT ] = {
+    LE_SWAPCHAIN_IMAGE_HANDLE,
+    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[1]" ),
+    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[2]" ),
+    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[3]" ),
+    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[4]" ),
+    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[5]" ),
+    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[6]" ),
+    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[7]" ),
+    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[8]" ),
+    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[9]" ),
+    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[10]" ),
+    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[11]" ),
+    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[12]" ),
+    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[13]" ),
+    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[14]" ),
+    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[15]" ),
+};
+
 constexpr static le_resource_handle_t LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
 
 enum LeRenderPassType : uint32_t {
@@ -278,7 +299,6 @@ enum LeColorComponentFlagBits : LeColorComponentFlags_t {
 // Codegen </VkColorComponentFlagBits>
 
 namespace le {
-
 // Codegen <VkShaderStageFlagBits, uint32_t, cpp, ShaderStage>
 enum class ShaderStage : uint32_t {
 	eVertex                 = 0x00000001,
@@ -311,7 +331,6 @@ enum class ShaderStage : uint32_t {
 LE_WRAP_TYPE_IN_STRUCT( le::ShaderStage, LeShaderStageEnum );
 
 namespace le {
-
 // Codegen <VkFrontFace, uint32_t>
 enum class FrontFace : uint32_t {
 	eCounterClockwise = 0,
@@ -941,7 +960,6 @@ struct LeClearValue {
 };
 
 struct le_image_attachment_info_t {
-
 	static constexpr LeClearValue DefaultClearValueColor        = { { { { { 0.f, 0.f, 0.f, 0.f } } } } };
 	static constexpr LeClearValue DefaultClearValueDepthStencil = { { { { { 1.f, 0 } } } } };
 
@@ -1054,7 +1072,6 @@ struct le_write_to_image_settings_t {
 };
 
 namespace le {
-
 using Presentmode = le_swapchain_settings_t::khr_settings_t::Presentmode;
 
 #define BUILDER_IMPLEMENT( builder, method_name, param_type, param, default_value ) \
@@ -1334,7 +1351,6 @@ class WriteToImageSettingsBuilder {
 } // namespace le
 
 namespace le {
-
 enum class RayTracingShaderGroupType : uint32_t {
 	eRayGen = 0,
 	eTrianglesHitGroup,
@@ -1407,7 +1423,6 @@ static_assert( sizeof( le_rtx_geometry_instance_t ) == 64, "rtx_geometry_instanc
 ///
 /// \brief Use ImageInfoBuilder, and BufferInfoBuilder to build `resource_info_t`
 struct le_resource_info_t {
-
 	struct ImageInfo {
 		LeImageCreateFlags flags;             // creation flags
 		le::ImageType      imageType;         // enum vk::ImageType
@@ -1539,7 +1554,6 @@ struct LeShaderGroupDataHeader {
 };
 
 namespace le {
-
 enum class CommandType : uint32_t {
 	eDrawIndexed,
 	eDraw,
