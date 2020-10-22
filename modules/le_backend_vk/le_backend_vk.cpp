@@ -1136,13 +1136,11 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 	assert( vkDevice ); // device must come from somewhere! It must have been introduced to backend before, or backend must create device used by everyone else...
 
 	{
+		assert( self->swapchains.size() <= LE_SWAPCHAIN_HANDLES_COUNT && "cannot have more than a LE_SWAPCHAIN_HANDLES_COUNT swapchains" );
 		self->swapchain_resources.reserve( self->swapchains.size() );
 
 		for ( size_t j = 0; j != self->swapchains.size(); j++ ) {
-			char res_name[ 50 ];
-			snprintf( res_name, sizeof( res_name ), "Le_Swapchain_Image_Handle[%lu]", j );
-			auto resource_handle = LE_IMG_RESOURCE( res_name );
-			self->swapchain_resources.emplace_back( resource_handle );
+			self->swapchain_resources.emplace_back( LE_SWAPCHAIN_IMAGE_HANDLES[ j ] );
 		}
 
 		assert( !self->swapchain_resources.empty() && "swapchain_resources must not be empty" );
