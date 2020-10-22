@@ -1215,6 +1215,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 	}
 }
 
+// ----------------------------------------------------------------------
 // Add image attachments to leRenderPass
 // Update syncchain for images affected.
 static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRenderPass &currentPass, BackendFrameData &frame, le::SampleCountFlagBits const &sampleCount ) {
@@ -1249,10 +1250,11 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 		vk_format_get_is_depth_stencil( attachmentFormat, isDepth, isStencil );
 		bool isDepthStencil = isDepth || isStencil;
 
-		AttachmentInfo *currentAttachment = currentPass.attachments +
-		                                    currentPass.numColorAttachments +
-		                                    currentPass.numDepthStencilAttachments +
-		                                    currentPass.numResolveAttachments;
+		AttachmentInfo *currentAttachment =
+		    currentPass.attachments +
+		    currentPass.numColorAttachments +
+		    currentPass.numDepthStencilAttachments +
+		    currentPass.numResolveAttachments;
 
 		if ( isDepthStencil ) {
 			currentPass.numDepthStencilAttachments++;
