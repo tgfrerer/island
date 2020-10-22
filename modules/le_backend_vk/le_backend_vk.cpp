@@ -985,7 +985,114 @@ static inline uint32_t getMemoryIndexForGraphicsStagingBuffer( VmaAllocator cons
 
 // ----------------------------------------------------------------------
 
+typedef void ( *pfn_get_required_vk_extensions )( const le_swapchain_settings_t *settings, char const ***exts, size_t *num_exts );
+
+// ----------------------------------------------------------------------
+
+static void collect_requested_swapchain_extensions(
+    le_swapchain_settings_t *      swapchain_settings,
+    uint32_t                       swapchain_settings_count,
+    pfn_get_required_vk_extensions get_extensions_func,
+    std::vector<char const *> &    requested_extensions ) {
+
+	auto const swapchain_settings_end = swapchain_settings + swapchain_settings_count;
+
+	for ( auto settings = swapchain_settings; settings != swapchain_settings_end; settings++ ) {
+
+		char const **exts;
+		size_t       num_exts;
+		get_extensions_func( settings, &exts, &num_exts );
+
+		if ( num_exts ) {
+			requested_extensions.insert( requested_extensions.end(), exts, exts + num_exts );
+		}
+	}
+}
+
+// ----------------------------------------------------------------------
+
+static std::vector<char const *> collect_requested_instance_extensions( le_backend_vk_settings_t const *settings ) {
+	std::vector<char const *> requestedInstanceExtensions;
+
+	// -- insert extensions necessary for glfw window
+
+	uint32_t extensionCount           = 0;
+	auto     requiredWindowExtensions = le::Window::getRequiredVkExtensions( &extensionCount );
+
+	requestedInstanceExtensions.insert( requestedInstanceExtensions.end(),
+	                                    requiredWindowExtensions,
+	                                    requiredWindowExtensions + extensionCount );
+
+	// -- insert any instance extensions requested for swapchains
+	collect_requested_swapchain_extensions(
+	    settings->pSwapchain_settings, settings->num_swapchain_settings,
+	    le_swapchain_vk::swapchain_i.get_required_vk_instance_extensions, requestedInstanceExtensions );
+
+	return requestedInstanceExtensions;
+}
+
+// ----------------------------------------------------------------------
+
+static std::vector<char const *> collect_requested_device_extensions( le_backend_vk_settings_t const *settings ) {
+	std::vector<char const *> requestedDeviceExtensions;
+
+	// -- insert device extensions requested via renderer.settings
+
+	if ( settings->requestedDeviceExtensions && settings->numRequestedDeviceExtensions ) {
+		requestedDeviceExtensions.insert(
+		    requestedDeviceExtensions.end(),
+		    settings->requestedDeviceExtensions,
+		    settings->requestedDeviceExtensions + settings->numRequestedDeviceExtensions );
+	}
+
+	// -- insert any device extensions requested via the swapchain.
+
+	collect_requested_swapchain_extensions(
+	    settings->pSwapchain_settings, settings->num_swapchain_settings,
+	    le_swapchain_vk::swapchain_i.get_required_vk_device_extensions, requestedDeviceExtensions );
+
+	// -- insert any additionally requested extensions
+
+	requestedDeviceExtensions.insert(
+	    requestedDeviceExtensions.end(),
+	    settings->requestedDeviceExtensions,
+	    settings->requestedDeviceExtensions + settings->numRequestedDeviceExtensions );
+
+	return requestedDeviceExtensions;
+}
+
+// ----------------------------------------------------------------------
+
+static void backend_initialise( le_backend_o *self, std::vector<char const *> requested_instance_extensions, std::vector<char const *> requested_device_extensions ) {
+	using namespace le_backend_vk;
+	self->instance      = vk_instance_i.create( requested_instance_extensions.data(), uint32_t( requested_instance_extensions.size() ) );
+	self->device        = std::make_unique<le::Device>( self->instance, requested_device_extensions.data(), uint32_t( requested_device_extensions.size() ) );
+	self->pipelineCache = le_pipeline_manager_i.create( *self->device );
+}
+// ----------------------------------------------------------------------
+
+static void backend_create_main_allocator( VkInstance instance, VkPhysicalDevice physical_device, VkDevice device, VmaAllocator *allocator ) {
+	VmaAllocatorCreateInfo createInfo{};
+	createInfo.flags = {
+#ifdef LE_FEATURE_RTX
+	    VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT
+#endif
+	};
+
+	createInfo.device                      = device;
+	createInfo.frameInUseCount             = 0;
+	createInfo.physicalDevice              = physical_device;
+	createInfo.preferredLargeHeapBlockSize = 0; // set to default, currently 256 MB
+	createInfo.instance                    = instance;
+
+	vmaCreateAllocator( &createInfo, allocator );
+}
+
+// ----------------------------------------------------------------------
+
 static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *settings ) {
+
+	using namespace le_backend_vk;
 
 	assert( settings );
 	if ( settings == nullptr ) {
@@ -994,102 +1101,21 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 		exit( 1 );
 	}
 
-	// -- collect requested instance extension names from swapchain, window system
-
-	std::vector<char const *> requestedInstanceExtensions;
-	std::vector<char const *> requestedDeviceExtensions;
-	{
-
-		// -- insert extensions necessary for glfw window
-
-		uint32_t extensionCount           = 0;
-		auto     requiredWindowExtensions = le::Window::getRequiredVkExtensions( &extensionCount );
-
-		requestedInstanceExtensions.insert( requestedInstanceExtensions.end(),
-		                                    requiredWindowExtensions,
-		                                    requiredWindowExtensions + extensionCount );
-
-		for ( size_t i = 0; i != settings->num_swapchain_settings; ++i ) {
-			// insert any instance extensions requested via the swapchain.
-
-			char const **exts;
-			size_t       num_exts;
-
-			le_swapchain_vk::swapchain_i.get_required_vk_instance_extensions( settings->pSwapchain_settings + i, &exts, &num_exts );
-
-			if ( num_exts ) {
-				requestedInstanceExtensions.insert( requestedInstanceExtensions.end(), exts, exts + num_exts );
-			}
-		}
-
-		// -- insert any additionally requested extensions
-		requestedInstanceExtensions.insert( requestedInstanceExtensions.end(),
-		                                    settings->requestedInstanceExtensions,
-		                                    settings->requestedInstanceExtensions + settings->numRequestedInstanceExtensions );
-	}
-	{
-		// -- Insert device extensions requested via renderer.settings
-		if ( settings->requestedDeviceExtensions && settings->numRequestedDeviceExtensions ) {
-			requestedDeviceExtensions.insert( requestedDeviceExtensions.end(),
-			                                  settings->requestedDeviceExtensions,
-			                                  settings->requestedDeviceExtensions + settings->numRequestedDeviceExtensions );
-		}
-
-		// Insert any device extensions requested via the swapchain.
-
-		char const **exts;
-		size_t       num_exts;
-		for ( size_t i = 0; i != settings->num_swapchain_settings; ++i ) {
-			le_swapchain_vk::swapchain_i.get_required_vk_device_extensions( settings->pSwapchain_settings + i, &exts, &num_exts );
-
-			if ( num_exts ) {
-				requestedDeviceExtensions.insert( requestedDeviceExtensions.end(), exts, exts + num_exts );
-			}
-
-			// -- insert any additionally requested extensions
-			requestedDeviceExtensions.insert( requestedDeviceExtensions.end(),
-			                                  settings->requestedDeviceExtensions,
-			                                  settings->requestedDeviceExtensions + settings->numRequestedDeviceExtensions );
-		}
-	}
-
 	// -- initialise backend
 
-	using namespace le_backend_vk;
-	{
-
-		self->instance      = vk_instance_i.create( requestedInstanceExtensions.data(), uint32_t( requestedInstanceExtensions.size() ) );
-		self->device        = std::make_unique<le::Device>( self->instance, requestedDeviceExtensions.data(), uint32_t( requestedDeviceExtensions.size() ) );
-		self->pipelineCache = le_pipeline_manager_i.create( *self->device );
-	}
-
-	{
-		// -- query rtx properties, and store them with backend
-		self->device->getRaytracingProperties( &static_cast<VkPhysicalDeviceRayTracingPropertiesKHR &>( self->ray_tracing_props ) );
-	}
+	backend_initialise( self, collect_requested_instance_extensions( settings ), collect_requested_device_extensions( settings ) );
 
 	vk::Device         vkDevice         = self->device->getVkDevice();
 	vk::PhysicalDevice vkPhysicalDevice = self->device->getVkPhysicalDevice();
 	vk::Instance       vkInstance       = vk_instance_i.get_vk_instance( self->instance );
 
-	{
-		// -- Create allocator for backend vulkan memory
-		// we do this here, because swapchain might want to already use the allocator.
+	// -- query rtx properties, and store them with backend
+	self->device->getRaytracingProperties( &static_cast<VkPhysicalDeviceRayTracingPropertiesKHR &>( self->ray_tracing_props ) );
 
-		VmaAllocatorCreateInfo createInfo{};
-#ifdef LE_FEATURE_RTX
-		createInfo.flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT;
-#else
-		createInfo.flags = {};
-#endif
-		createInfo.device                      = vkDevice;
-		createInfo.frameInUseCount             = 0;
-		createInfo.physicalDevice              = vkPhysicalDevice;
-		createInfo.preferredLargeHeapBlockSize = 0; // set to default, currently 256 MB
-		createInfo.instance                    = vkInstance;
+	// -- Create allocator for backend vulkan memory
+	// we do this here, because swapchain might want to already use the allocator.
 
-		vmaCreateAllocator( &createInfo, &self->mAllocator );
-	}
+	backend_create_main_allocator( vkInstance, vkPhysicalDevice, vkDevice, &self->mAllocator );
 
 	// -- create swapchain if requested
 
