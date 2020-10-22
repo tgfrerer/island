@@ -1076,9 +1076,12 @@ class RendererInfoBuilder {
   public:
 	RendererInfoBuilder( le_window_o *window = nullptr, char const **requested_device_extensions = nullptr, uint32_t requested_device_extensions_count = 0 )
 	    : swapchain_settings( info.swapchain_settings ) {
-		info.swapchain_settings->khr_settings.window = window;
-		info.requested_device_extensions             = requested_device_extensions;
-		info.requested_device_extensions_count       = requested_device_extensions_count;
+		if ( window != nullptr ) {
+			info.swapchain_settings->khr_settings.window = window;
+			info.swapchain_settings->type                = le_swapchain_settings_t::Type::LE_KHR_SWAPCHAIN;
+		}
+		info.requested_device_extensions       = requested_device_extensions;
+		info.requested_device_extensions_count = requested_device_extensions_count;
 	}
 
 	class SwapchainInfoBuilder {
@@ -1142,13 +1145,14 @@ class RendererInfoBuilder {
 		class ImgSwapchainInfoBuilder {
 			SwapchainInfoBuilder &parent;
 
+			static constexpr auto default_pipe_cmd = "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -preset fast -y -pix_fmt yuv420p isl%s.mp4";
 
 		  public:
 			ImgSwapchainInfoBuilder( SwapchainInfoBuilder &parent_ )
 			    : parent( parent_ ) {
 			}
 
-			ImgSwapchainInfoBuilder &setPipeCmd( char const *pipe_cmd = "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 isl%s_%%03d.png" ) {
+			ImgSwapchainInfoBuilder &setPipeCmd( char const *pipe_cmd = default_pipe_cmd ) {
 				parent.parent.swapchain_settings->img_settings.pipe_cmd = pipe_cmd;
 				return *this;
 			}
@@ -1168,6 +1172,7 @@ class RendererInfoBuilder {
 		}
 
 		ImgSwapchainInfoBuilder &asImgSwapchain() {
+			mImgSwapchainInfoBuilder.setPipeCmd();
 			return mImgSwapchainInfoBuilder;
 		}
 
