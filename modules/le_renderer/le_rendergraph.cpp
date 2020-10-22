@@ -174,6 +174,16 @@ static inline bool vector_contains( const std::vector<T> &haystack, const T &nee
 	return haystack.end() != std::find( haystack.begin(), haystack.end(), needle );
 }
 
+static inline bool resource_is_a_swapchain_handle( const le_resource_handle_t &resource_id ) {
+	auto const handle_end = LE_SWAPCHAIN_IMAGE_HANDLES + LE_SWAPCHAIN_HANDLES_COUNT;
+	for ( auto handle = LE_SWAPCHAIN_IMAGE_HANDLES; handle != handle_end; handle++ ) {
+		if ( resource_id == *handle ) {
+			return true;
+		}
+	}
+	return false;
+}
+
 // ----------------------------------------------------------------------
 // Associate a resource with a renderpass.
 // Data containted in `resource_info` decides whether the resource
@@ -288,10 +298,13 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 	}
 
 	if ( resourceWillBeWrittenTo ) {
-		if ( resource_id == LE_SWAPCHAIN_IMAGE_HANDLE ) {
-			// A request to write to swapchain automatically turns a pass into a root pass.
+
+		if ( usage_flags.type == LeResourceType::eImage &&
+		     resource_is_a_swapchain_handle( resource_id ) ) {
+			// A request to write to swapchain image automatically turns a pass into a root pass.
 			self->isRoot = true;
 		}
+
 		access_flags |= LeAccessFlagBits::eLeAccessFlagBitWrite;
 	}
 }
