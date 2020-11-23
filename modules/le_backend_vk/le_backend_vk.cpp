@@ -3546,7 +3546,7 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 					    .setBaseMipLevel( 0 )
 					    .setLevelCount( VK_REMAINING_MIP_LEVELS ) // we set VK_REMAINING_MIP_LEVELS which activates all mip levels remaining.
 					    .setBaseArrayLayer( texInfo.imageView.base_array_layer )
-					    .setLayerCount( texInfo.imageView.layer_count );
+					    .setLayerCount( VK_REMAINING_ARRAY_LAYERS ); // FIXME: texInfo.imageView.layer_count must be 6 if imageView.type is cubemap
 
 					// TODO: fill in additional image view create info based on info from pass...
 
