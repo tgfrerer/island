@@ -665,12 +665,16 @@ static le_resource_info_t get_default_resource_info_for_image() {
 	res.type = LeResourceType::eImage;
 	{
 		auto &img             = res.image;
+		img                         = {};
 		img.flags             = 0;
 		img.format            = le::Format::eUndefined;
 		img.arrayLayers       = 1;
 		img.extent.width      = 0;
 		img.extent.height     = 0;
 		img.extent.depth      = 1;
+		img.extent_from_pass.width  = 0;
+		img.extent_from_pass.height = 0;
+		img.extent_from_pass.depth  = 1;
 		img.usage             = { LE_IMAGE_USAGE_SAMPLED_BIT };
 		img.mipLevels         = 1;
 		img.sample_count_log2 = 0; // 0 means 1, as (1 << 0 == 1)
