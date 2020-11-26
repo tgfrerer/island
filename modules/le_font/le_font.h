@@ -40,7 +40,7 @@ struct le_font_api {
 		bool                 ( * create_atlas               ) ( le_font_o* self );
 		bool                 ( * get_atlas                  ) ( le_font_o* self, uint8_t const ** pixels, uint32_t * width, uint32_t * height, uint32_t *pix_stride_in_bytes );
 		size_t				 ( * draw_utf8_string           ) ( le_font_o *self, const char *str, float* x_pos, float* y_pos, glm::vec4 *vertices, size_t max_vertices, size_t vertex_offset );
-		float                ( * get_scale_for_pixel_height ) ( le_font_o* self, float height_in_pixels);
+		float                ( * get_scale_for_pixel_height ) ( le_font_o const * self, float height_in_pixels);
 
 		uint8_t*             ( * create_codepoint_sdf_bitmap  ) ( le_font_o* self, float scale, int codepoint, int padding, unsigned char onedge_value, float pixel_dist_scale, int *width, int *height, int *xoff, int *yoff);
 		void                 ( * destroy_codepoint_sdf_bitmap ) ( le_font_o* self, uint8_t * bitmap);

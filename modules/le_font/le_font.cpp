@@ -387,7 +387,7 @@ static size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float 
 
 // ----------------------------------------------------------------------
 
-static float le_font_get_scale_for_pixels_height( le_font_o *self, float height_in_pixels ) {
+static float le_font_get_scale_for_pixels_height( le_font_o const *self, float height_in_pixels ) {
 	return stbtt_ScaleForPixelHeight( &self->info, height_in_pixels );
 }
 
