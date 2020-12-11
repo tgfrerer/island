@@ -63,6 +63,10 @@ class Pixels : NoCopy, NoMove {
 	    : self( le_pixels::le_pixels_i.create( path, numChannelsRequested, type ) ) {
 	}
 
+	Pixels(unsigned char const * buffer, size_t buffer_byte_count, int const &numChannelsRequested = 0, le_pixels_info::Type const &type = le_pixels_info::eUInt8 )
+	    : self( le_pixels::le_pixels_i.create_from_memory(buffer, buffer_byte_count, numChannelsRequested, type ) ) {
+	}
+
 	~Pixels() {
 		le_pixels::le_pixels_i.destroy( self );
 	}
