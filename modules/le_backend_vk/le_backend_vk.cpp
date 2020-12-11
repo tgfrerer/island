@@ -309,7 +309,11 @@ vk::SampleCountFlagBits le_sample_count_log_2_to_vk( uint32_t sample_count_log2 
 // returns log2 of number of samples, so that number of samples can be
 // calculated as `num_samples = 1 << log2_num_samples`
 inline uint16_t get_sample_count_log_2( uint32_t const &sample_count ) {
+#if defined(_MSC_VER)
+	auto lz = __lzcnt( sample_count );
+#else
 	auto lz = __builtin_clz( sample_count );
+#endif
 	return 31 - lz;
 }
 
