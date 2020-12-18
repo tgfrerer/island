@@ -39,8 +39,8 @@ le_font_renderer_o *le_font_renderer_create( le_renderer_o *renderer ) {
 
 	using namespace le_renderer;
 
-	self->shader_font_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/le_font.vert", { le::ShaderStage::eVertex }, "NO_MVP" );
-	self->shader_font_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/le_font.frag", { le::ShaderStage::eFragment }, "" );
+	self->shader_font_vert = renderer_i.create_shader_module( renderer, "./local_resources/shaders/le_font.vert", { le::ShaderStage::eVertex }, "NO_MVP" );
+	self->shader_font_frag = renderer_i.create_shader_module( renderer, "./local_resources/shaders/le_font.frag", { le::ShaderStage::eFragment }, "" );
 
 	return self;
 }
@@ -76,12 +76,14 @@ void le_font_renderer_add_font( le_font_renderer_o *self, le_font_o *font ) {
 	        .setFormat( le::Format::eR8Unorm )
 	        .build();
 
-	auto info = font_info_t( { font,
-	                           LE_IMG_RESOURCE( img_atlas_name ),
-	                           font_atlas_info,
-	                           le::Renderer::produceTextureHandle( img_sampler_name ),
-	                           false,
-	                           false } );
+	auto info =
+	    font_info_t(
+	        { font,
+	          LE_IMG_RESOURCE( img_atlas_name ),
+	          font_atlas_info,
+	          le::Renderer::produceTextureHandle( img_sampler_name ),
+	          false,
+	          false } );
 
 	self->fonts_info.push_front( info );
 }
