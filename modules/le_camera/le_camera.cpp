@@ -36,6 +36,7 @@ struct le_camera_o {
 	std::array<glm::vec4, 6> frustumPlane;                 // right,top,far,left,bottom,near
 	bool                     projectionMatrixDirty = true; // whenever fovRadians changes, or viewport changes, this means that the projection matrix needs to be recalculated.
 	bool                     frustumPlanesDirty    = true; // whenever projection matrix changes frustum planes must be re-calculated
+	bool                     isOrthographic        = false;
 };
 
 struct le_camera_controller_o {
@@ -176,12 +177,27 @@ static void camera_set_clip_distances( le_camera_o *self, float nearClip, float 
 	self->frustumPlanesDirty    = true;
 }
 
+static void camera_set_is_orthographic( le_camera_o *self, bool is_orthographic ) {
+	self->isOrthographic        = is_orthographic;
+	self->projectionMatrixDirty = true;
+	self->frustumPlanesDirty    = true;
+}
 // ----------------------------------------------------------------------
 
 static glm::mat4 const &camera_get_projection_matrix_glm( le_camera_o *self ) {
 	if ( self->projectionMatrixDirty ) {
 		// cache projection matrix calculation
-		self->projection_matrix     = glm::perspective( self->fovRadians, float( self->viewport.width ) / fabsf( self->viewport.height ), self->nearClip, self->farClip );
+		if ( self->isOrthographic ) {
+			self->projection_matrix =
+			    glm::ortho( self->viewport.x,
+			                self->viewport.x + self->viewport.width,
+			                self->viewport.y,
+			                self->viewport.y + self->viewport.height,
+			                self->nearClip,
+			                self->farClip );
+		} else {
+			self->projection_matrix = glm::perspective( self->fovRadians, float( self->viewport.width ) / fabsf( self->viewport.height ), self->nearClip, self->farClip );
+		}
 		self->projectionMatrixDirty = false;
 	}
 	return self->projection_matrix;
@@ -527,6 +543,7 @@ LE_MODULE_REGISTER_IMPL( le_camera, api ) {
 	le_camera_i.get_clip_distances    = camera_get_clip_distances;
 	le_camera_i.set_clip_distances    = camera_set_clip_distances;
 	le_camera_i.get_sphere_in_frustum = camera_get_sphere_in_frustum;
+	le_camera_i.set_is_orthographic   = camera_set_is_orthographic;
 
 #if ISL_ALLOW_GLM_TYPES == 1
 	le_camera_i.set_view_matrix_glm       = camera_set_view_matrix_glm;

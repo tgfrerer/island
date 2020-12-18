@@ -43,6 +43,7 @@ struct le_camera_api {
 		void             ( * set_fov_radians          ) ( le_camera_o* self, float fov_radians);
 		float            ( * get_fov_radians          ) ( le_camera_o* self );
 		void             ( * get_view_matrix          ) ( le_camera_o* self, float * p_matrix_4x4 );
+        void             ( * set_is_orthographic      ) ( le_camera_o* self, bool is_ortographic);
 
 #if ( ISL_ALLOW_GLM_TYPES == 1 )
 		void              (* set_view_matrix_glm       )( le_camera_o* self, glm::mat4 const & view_matrix);
@@ -147,6 +148,9 @@ class LeCamera : NoMove {
 		le_camera::le_camera_i.set_fov_radians( self, fov_radians );
 	}
 
+	void setIsOrthographic( bool is_orthographic ) {
+		le_camera::le_camera_i.set_is_orthographic( self, is_orthographic );
+	}
 	float getFovRadians() {
 		return le_camera::le_camera_i.get_fov_radians( self );
 	}
