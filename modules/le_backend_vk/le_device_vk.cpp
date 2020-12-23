@@ -18,7 +18,7 @@ struct le_device_o {
 	vk::PhysicalDevice                        vkPhysicalDevice = nullptr;
 	vk::PhysicalDeviceProperties              vkPhysicalDeviceProperties;
 	vk::PhysicalDeviceMemoryProperties        vkPhysicalDeviceMemoryProperties;
-	vk::PhysicalDeviceRayTracingPropertiesKHR raytracingProperties;
+	vk::PhysicalDeviceRayTracingPipelinePropertiesKHR raytracingProperties;
 
 	// This may be set externally- it defines how many queues will be created, and what their capabilities must include.
 	// queues will be created so that if no exact fit can be found, a queue will be created from the next available family
@@ -178,8 +178,8 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	std::cout << "Selected GPU: " << self->vkPhysicalDeviceProperties.deviceName << std::endl
 	          << std::flush;
 
-	auto properties2           = self->vkPhysicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPropertiesKHR>();
-	self->raytracingProperties = properties2.get<vk::PhysicalDeviceRayTracingPropertiesKHR>();
+	auto properties2           = self->vkPhysicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
+	self->raytracingProperties = properties2.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
 
 	// let's find out the devices' memory properties
 	self->vkPhysicalDeviceMemoryProperties = self->vkPhysicalDevice.getMemoryProperties();
@@ -429,7 +429,7 @@ const VkPhysicalDeviceMemoryProperties &device_get_vk_physical_device_memory_pro
 
 // ----------------------------------------------------------------------
 
-bool device_get_physical_device_ray_tracing_properties( le_device_o *self, VkPhysicalDeviceRayTracingPropertiesKHR *properties ) {
+bool device_get_physical_device_ray_tracing_properties( le_device_o *self, VkPhysicalDeviceRayTracingPipelinePropertiesKHR *properties ) {
 	*properties = self->raytracingProperties;
 #ifdef LE_FEATURE_RTX
 	return true;
