@@ -9,13 +9,16 @@ init:
 environment:
   VULKAN_SDK: c:\VulkanSDK\1.2.162.0
 install:
-- pwsh: "$vk_sdk_install_path = \"C:\\projects\\vk_sdk_download\"\n\nif ( -not (Test-Path -Path $vk_sdk_install_path -PathType any )) { \n\"Vulkan SDK install folder not found\"\nmkdir $vk_sdk_install_path\n\ncd $vk_sdk_install_path\n\ncurl -L --show-error --output VulkanSDK.exe \"https://www.dropbox.com/s/hhk3brlral121kn/VulkanSDK.exe?dl=1\"\n\n} else {\n\"Using Installer from cache.\"\ncd $vk_sdk_install_path\n}\n\n./VulkanSDK.exe /S"
-cache: C:\projects\vk_sdk_download -> scripts\ci\vk_ver.txt
+- cmd: >-
+    if not exist VulkanSDK.exe curl -L --silent --show-error --output VulkanSDK.exe https://www.dropbox.com/s/hhk3brlral121kn/VulkanSDK.exe?dl=1
+
+    VulkanSDK.exe /S
+
+cache: VulkanSDK.exe
 build_script:
 - ps: >-
     git submodule init
 
     git submodule update --depth=1
-
 
     & "c:\projects\island\scripts\ci\run_tests.ps1"
