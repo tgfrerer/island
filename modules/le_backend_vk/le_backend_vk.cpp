@@ -531,7 +531,7 @@ struct le_backend_o {
 	le::Format defaultFormatDepthStencilAttachment = {}; ///< default image format used for depth stencil attachments
 	le::Format defaultFormatSampledImage           = {}; ///< default image format used for sampled images
 
-	vk::PhysicalDeviceRayTracingPropertiesKHR ray_tracing_props{};
+	vk::PhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_props{};
 
 	// Siloed per-frame memory
 	std::vector<BackendFrameData> mFrames;
@@ -1114,7 +1114,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 	vk::Instance       vkInstance       = vk_instance_i.get_vk_instance( self->instance );
 
 	// -- query rtx properties, and store them with backend
-	self->device->getRaytracingProperties( &static_cast<VkPhysicalDeviceRayTracingPropertiesKHR &>( self->ray_tracing_props ) );
+	self->device->getRaytracingProperties( &static_cast<VkPhysicalDeviceRayTracingPipelinePropertiesKHR &>( self->ray_tracing_props ) );
 
 	// -- Create allocator for backend vulkan memory
 	// we do this here, because swapchain might want to already use the allocator.
