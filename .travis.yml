@@ -8,9 +8,11 @@ dist: focal
 before_script:
     - sudo apt-get -y install ninja-build wget xorg-dev
     - wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
-    - sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.2.141-bionic.list https://packages.lunarg.com/vulkan/1.2.141/lunarg-vulkan-1.2.141-bionic.list
+    - sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.2.162-focal.list https://packages.lunarg.com/vulkan/1.2.162/lunarg-vulkan-1.2.162-focal.list
     - sudo apt-get -qq update
     - sudo apt-get -y install vulkan-sdk
+
+
 
 script: 
     - scripts/ci/run_tests.sh    
