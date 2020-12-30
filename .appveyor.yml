@@ -7,9 +7,9 @@ clone_depth: 1
 init:
 - cmd: call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
 environment:
-  VULKAN_SDK: c:\VulkanSDK\1.2.148.1
+  VULKAN_SDK: c:\VulkanSDK\1.2.162.0
 install:
-- pwsh: "$vk_sdk_install_path = \"C:\\projects\\vk_sdk_download\"\n\nif ( -not (Test-Path -Path $vk_sdk_install_path -PathType any )) { \n\"Vulkan SDK install folder not found\"\nmkdir $vk_sdk_install_path\n\ncd $vk_sdk_install_path\n\ncurl -L --show-error --output VulkanSDK.exe \"https://www.dropbox.com/s/w8u1gfyth9mvc81/VulkanSDK.exe?dl=1\"\n\n} else {\n\"Using Installer from cache.\"\ncd $vk_sdk_install_path\n}\n\n./VulkanSDK.exe /S"
+- pwsh: "$vk_sdk_install_path = \"C:\\projects\\vk_sdk_download\"\n\nif ( -not (Test-Path -Path $vk_sdk_install_path -PathType any )) { \n\"Vulkan SDK install folder not found\"\nmkdir $vk_sdk_install_path\n\ncd $vk_sdk_install_path\n\ncurl -L --show-error --output VulkanSDK.exe \"https://www.dropbox.com/s/hhk3brlral121kn/VulkanSDK.exe?dl=1\"\n\n} else {\n\"Using Installer from cache.\"\ncd $vk_sdk_install_path\n}\n\n./VulkanSDK.exe /S"
 cache: C:\projects\vk_sdk_download -> scripts\ci\vk_ver.txt
 build_script:
 - ps: >-
