@@ -42,16 +42,16 @@ static inline vk::Format le_format_to_vk( const le::Format &format ) noexcept {
 }
 
 // ----------------------------------------------------------------------
+static void vk_result_assert_success( vk::Result const &&result ) {
+	if ( result != vk::Result::eSuccess ) {
+		std::cerr << "Error: Vulkan operation returned: " << vk::to_string( result ) << ", but we expected vk::Result::eSuccess"
+		          << std::endl;
+	}
+	assert( result == vk::Result::eSuccess && "Vulkan operation must succeed" );
+};
+// ----------------------------------------------------------------------
 
 static void swapchain_query_surface_capabilities( le_swapchain_o *base ) {
-
-	auto vk_result_assert_success = []( vk::Result const &&result ) {
-		if ( result != vk::Result::eSuccess ) {
-			std::cerr << "Error: Vulkan operation returned: " << vk::to_string( result ) << ", but we expected vk::Result::eSuccess"
-			          << std::endl;
-		}
-		assert( result == vk::Result::eSuccess && "Vulkan operation must succeed" );
-	};
 
 	// we need to find out if the current physical device supports PRESENT
 
