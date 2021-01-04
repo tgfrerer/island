@@ -12,6 +12,7 @@
 #include "glm/gtc/matrix_transform.hpp"
 
 #include <algorithm> // for min/max
+#include <stdio.h>
 
 static void
 le_render_module_add_blit_pass(
