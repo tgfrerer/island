@@ -1902,7 +1902,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 		} else {
 			// If shader group data was not found, we must must query, and store it.
 			using namespace le_backend_vk;
-			VkPhysicalDeviceRayTracingPropertiesKHR props;
+			VkPhysicalDeviceRayTracingPipelinePropertiesKHR props;
 			bool                                    result = vk_device_i.get_vk_physical_device_ray_tracing_properties( self->le_device, &props );
 			assert( result && "properties must be successfully acquired." );
 
