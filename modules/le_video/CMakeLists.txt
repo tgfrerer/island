@@ -2,6 +2,7 @@ set(TARGET le_video)
 
 # list modules this module depends on
 depends_on_island_module(le_resource_manager)
+depends_on_island_module(le_pixels)
 
 SET(CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty)
 

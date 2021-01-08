@@ -1,5 +1,7 @@
 build
 CMakeLists.txt.user
+.idea/
+cmake-build-*/
 /libs/**
 /3rdparty/include/**
 /3rdparty/libs/**

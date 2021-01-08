@@ -1,15 +1,20 @@
 #ifndef GUARD_le_video_H
 #define GUARD_le_video_H
 
+#include <string>
+
 #include "le_core/le_core.h"
 
 struct le_video_o;
 
 // clang-format off
-struct le_video_create_params {
-    char const *handle_name;
-    char const *file_path;
+struct le_video_load_params {
+    char const *file_path{};
+    le::Format output_format{le::Format::eR8G8B8Uint};
 };
+
+// forward declaration
+struct le_video_item_t;
 
 struct le_video_api {
 
@@ -18,9 +23,11 @@ struct le_video_api {
 		le_video_o *         ( * create                   ) ( );
 		void                 ( * destroy                  ) ( le_video_o* self );
 		void                 ( * update                   ) ( le_video_o* self );
-        le_resource_handle_t ( * add_item                 ) ( le_video_o* self, const le_video_create_params& params );
-
+        bool                 ( * load                     ) ( le_video_o* self, const le_video_load_params &params );
+        void                 ( * play                     ) ( le_video_o* self );
 	};
+
+    int           ( *init                       ) ();
 
 	le_video_interface_t       le_video_i;
 };
@@ -36,16 +43,23 @@ static const auto &api        = le_video_api_i;
 static const auto &le_video_i = api -> le_video_i;
 } // namespace le_video
 
-class LeVideo : NoCopy, NoMove {
+namespace le {
+
+class Video : NoCopy, NoMove {
 
 	le_video_o *self;
 
   public:
-	LeVideo()
+
+	static int init(){
+		return le_video::api->init();
+	}
+
+	Video()
 	    : self( le_video::le_video_i.create() ) {
 	}
 
-	~LeVideo() {
+	~Video() {
 		le_video::le_video_i.destroy( self );
 	}
 
@@ -53,14 +67,16 @@ class LeVideo : NoCopy, NoMove {
 		le_video::le_video_i.update( self );
 	}
 
-	le_resource_handle_t add_item( char const *handle_name, char const *file_path ) {
-		return le_video::le_video_i.add_item( self, { handle_name, file_path } );
+	bool load( const std::string& path){
+        return le_video::le_video_i.load( self, {path.c_str()});
 	}
 
 	operator auto() {
 		return self;
 	}
 };
+
+} // namespace le
 
 #endif // __cplusplus
 

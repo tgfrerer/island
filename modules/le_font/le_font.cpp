@@ -24,8 +24,8 @@ struct UnicodeRange {
 
 struct le_font_o {
 	// members
-	static constexpr uint16_t                                      PIXELS_WIDTH  = 512;
-	static constexpr uint16_t                                      PIXELS_HEIGHT = 256;
+	static constexpr uint16_t                                      PIXELS_WIDTH  = 512 * 2;
+	static constexpr uint16_t                                      PIXELS_HEIGHT = 256 * 2;
 	static constexpr uint16_t                                      PIXELS_BPP    = 1; // bytes per pixels
 	stbtt_fontinfo                                                 info;
 	std::vector<uint8_t>                                           data;                     // ttf file data
@@ -349,6 +349,8 @@ static size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float 
 
 			if ( range == end_ranges || cp < range->start_range ) {
 				// could not find codepoint in known ranges.
+				assert( false && "could not find codepoint" );
+
 				continue;
 			}
 

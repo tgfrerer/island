@@ -309,7 +309,11 @@ vk::SampleCountFlagBits le_sample_count_log_2_to_vk( uint32_t sample_count_log2 
 // returns log2 of number of samples, so that number of samples can be
 // calculated as `num_samples = 1 << log2_num_samples`
 inline uint16_t get_sample_count_log_2( uint32_t const &sample_count ) {
+#if defined(_MSC_VER)
+	auto lz = __lzcnt( sample_count );
+#else
 	auto lz = __builtin_clz( sample_count );
+#endif
 	return 31 - lz;
 }
 
@@ -527,7 +531,7 @@ struct le_backend_o {
 	le::Format defaultFormatDepthStencilAttachment = {}; ///< default image format used for depth stencil attachments
 	le::Format defaultFormatSampledImage           = {}; ///< default image format used for sampled images
 
-	vk::PhysicalDeviceRayTracingPropertiesKHR ray_tracing_props{};
+	vk::PhysicalDeviceRayTracingPipelinePropertiesKHR ray_tracing_props{};
 
 	// Siloed per-frame memory
 	std::vector<BackendFrameData> mFrames;
@@ -1110,7 +1114,7 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *setting
 	vk::Instance       vkInstance       = vk_instance_i.get_vk_instance( self->instance );
 
 	// -- query rtx properties, and store them with backend
-	self->device->getRaytracingProperties( &static_cast<VkPhysicalDeviceRayTracingPropertiesKHR &>( self->ray_tracing_props ) );
+	self->device->getRaytracingProperties( &static_cast<VkPhysicalDeviceRayTracingPipelinePropertiesKHR &>( self->ray_tracing_props ) );
 
 	// -- Create allocator for backend vulkan memory
 	// we do this here, because swapchain might want to already use the allocator.

@@ -45,6 +45,14 @@ static inline vk::Format le_format_to_vk( const le::Format &format ) noexcept {
 
 static void swapchain_query_surface_capabilities( le_swapchain_o *base ) {
 
+	auto vk_result_assert_success = []( vk::Result const &&result ) {
+		if ( result != vk::Result::eSuccess ) {
+			std::cerr << "Error: Vulkan operation returned: " << vk::to_string( result ) << ", but we expected vk::Result::eSuccess"
+			          << std::endl;
+		}
+		assert( result == vk::Result::eSuccess && "Vulkan operation must succeed" );
+	};
+
 	// we need to find out if the current physical device supports PRESENT
 
 	auto self = static_cast<khr_data_o *const>( base->data );
@@ -54,26 +62,23 @@ static void swapchain_query_surface_capabilities( le_swapchain_o *base ) {
 	const auto &settings          = self->mSettings.khr_settings;
 	auto &      surfaceProperties = self->mSurfaceProperties;
 
-	vk::Result result =
-	    self->physicalDevice.getSurfaceSupportKHR(
-	        self->vk_graphics_queue_family_index,
-	        settings.vk_surface,
-	        &surfaceProperties.presentSupported );
-
-	assert( result == vk::Result::eSuccess );
+	vk_result_assert_success( self->physicalDevice.getSurfaceSupportKHR(
+	    self->vk_graphics_queue_family_index,
+	    settings.vk_surface,
+	    &surfaceProperties.presentSupported ) );
 
 	// Get list of supported surface formats
 	{
 		uint32_t count = 0;
-		self->physicalDevice.getSurfaceFormatsKHR( settings.vk_surface, &count, nullptr );
+
+		vk_result_assert_success( self->physicalDevice.getSurfaceFormatsKHR( settings.vk_surface, &count, nullptr ) );
 		surfaceProperties.availableSurfaceFormats.resize( count );
-		self->physicalDevice.getSurfaceFormatsKHR( settings.vk_surface, &count, surfaceProperties.availableSurfaceFormats.data() );
+		vk_result_assert_success( self->physicalDevice.getSurfaceFormatsKHR( settings.vk_surface, &count, surfaceProperties.availableSurfaceFormats.data() ) );
 
-		self->physicalDevice.getSurfaceCapabilitiesKHR( settings.vk_surface, &surfaceProperties.surfaceCapabilities );
-
-		self->physicalDevice.getSurfacePresentModesKHR( settings.vk_surface, &count, nullptr );
+		vk_result_assert_success( self->physicalDevice.getSurfaceCapabilitiesKHR( settings.vk_surface, &surfaceProperties.surfaceCapabilities ) );
+		vk_result_assert_success( self->physicalDevice.getSurfacePresentModesKHR( settings.vk_surface, &count, nullptr ) );
 		surfaceProperties.presentmodes.resize( count );
-		self->physicalDevice.getSurfacePresentModesKHR( settings.vk_surface, &count, surfaceProperties.presentmodes.data() );
+		vk_result_assert_success( self->physicalDevice.getSurfacePresentModesKHR( settings.vk_surface, &count, surfaceProperties.presentmodes.data() ) );
 	}
 
 	size_t selectedSurfaceFormatIndex = 0;
@@ -130,14 +135,21 @@ static vk::PresentModeKHR get_khr_presentmode( const le_swapchain_settings_t::kh
 	return vk::PresentModeKHR::eFifo;
 }
 
+static void check_vk_result( vk::Result &&result ) {
+	if ( result != vk::Result::eSuccess ) {
+		std::cerr << "Error: Vulkan operation returned: " << vk::to_string( result ) << ", but we expected vk::Result::eSuccess"
+		          << std::endl;
+	}
+	assert( result == vk::Result::eSuccess && "Vulkan operation must succeed" );
+};
 // ----------------------------------------------------------------------
 
 static void swapchain_attach_images( le_swapchain_o *base ) {
 	auto self = static_cast<khr_data_o *const>( base->data );
-	self->device.getSwapchainImagesKHR( self->swapchainKHR, &self->mImagecount, nullptr );
+	check_vk_result( self->device.getSwapchainImagesKHR( self->swapchainKHR, &self->mImagecount, nullptr ) );
 	if ( self->mImagecount ) {
 		self->mImageRefs.resize( self->mImagecount );
-		self->device.getSwapchainImagesKHR( self->swapchainKHR, &self->mImagecount, self->mImageRefs.data() );
+		check_vk_result( self->device.getSwapchainImagesKHR( self->swapchainKHR, &self->mImagecount, self->mImageRefs.data() ) );
 	}
 }
 

@@ -195,7 +195,7 @@ static void le_resource_manager_add_item( le_resource_manager_o *     self,
 
 		infer_from_le_format( item.image_info.image.format, &num_channels, &pixels_type );
 
-		layer_data.pixels = le_pixels::le_pixels_i.create( layer_data.path.c_str(), num_channels, pixels_type );
+		layer_data.pixels = le_pixels::le_pixels_i.create_from_file( layer_data.path.c_str(), num_channels, pixels_type );
 
 		if ( extents_inferred ) {
 			auto info                           = le_pixels::le_pixels_i.get_info( layer_data.pixels );
