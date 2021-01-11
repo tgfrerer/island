@@ -3,7 +3,7 @@
 #include "include/internal/le_swapchain_vk_common.h"
 
 #ifndef _MSC_VER
-	#define VK_USE_PLATFORM_XLIB_XRANDR_EXT
+#	define VK_USE_PLATFORM_XLIB_XRANDR_EXT
 #endif
 
 #define VULKAN_HPP_DISABLE_ENHANCED_MODE
@@ -33,29 +33,29 @@ struct SurfaceProperties {
 	static auto procName = reinterpret_cast<PFN_##procName>( vkGetDeviceProcAddr( instance, #procName ) )
 
 struct swp_direct_data_o {
-	le_swapchain_settings_t                   mSettings                      = {};
-	le_backend_o *                            backend                        = nullptr;
-	uint32_t                                  mImagecount                    = 0;
-	uint32_t                                  mImageIndex                    = uint32_t( ~0 ); // current image index
-	vk::SwapchainKHR                          swapchainKHR                   = nullptr;
-	vk::Extent2D                              mSwapchainExtent               = {};
-	vk::PresentModeKHR                        mPresentMode                   = vk::PresentModeKHR::eFifo;
-	uint32_t                                  vk_graphics_queue_family_index = 0;
-	SurfaceProperties                         mSurfaceProperties             = {};
-	std::vector<vk::Image>                    mImageRefs                     = {}; // owned by SwapchainKHR, don't delete
-	vk::Instance                              instance                       = nullptr;
-	vk::Device                                device                         = nullptr;
-	vk::PhysicalDevice                        physicalDevice                 = nullptr;
+	le_swapchain_settings_t mSettings                      = {};
+	le_backend_o *          backend                        = nullptr;
+	uint32_t                mImagecount                    = 0;
+	uint32_t                mImageIndex                    = uint32_t( ~0 ); // current image index
+	vk::SwapchainKHR        swapchainKHR                   = nullptr;
+	vk::Extent2D            mSwapchainExtent               = {};
+	vk::PresentModeKHR      mPresentMode                   = vk::PresentModeKHR::eFifo;
+	uint32_t                vk_graphics_queue_family_index = 0;
+	SurfaceProperties       mSurfaceProperties             = {};
+	std::vector<vk::Image>  mImageRefs                     = {}; // owned by SwapchainKHR, don't delete
+	vk::Instance            instance                       = nullptr;
+	vk::Device              device                         = nullptr;
+	vk::PhysicalDevice      physicalDevice                 = nullptr;
 
 #ifdef _MSC_VER
 
 #else
-	Display*                                 x11_display                    = nullptr;
+	Display *x11_display = nullptr;
 #endif
 
-	vk::DisplayKHR                            display                        = nullptr;
-	vk::SurfaceKHR                            surface                        = nullptr;
-	std::vector<vk::DisplayModePropertiesKHR> display_mode_properties        = {};
+	vk::DisplayKHR                            display                 = nullptr;
+	vk::SurfaceKHR                            surface                 = nullptr;
+	std::vector<vk::DisplayModePropertiesKHR> display_mode_properties = {};
 };
 
 // ----------------------------------------------------------------------
@@ -64,6 +64,15 @@ static inline vk::Format le_format_to_vk( const le::Format &format ) noexcept {
 	return vk::Format( format );
 }
 
+// ----------------------------------------------------------------------
+
+static inline void vk_result_assert_success( vk::Result const &&result ) {
+	if ( result != vk::Result::eSuccess ) {
+		std::cerr << "Error: Vulkan operation returned: " << vk::to_string( result ) << ", but we expected vk::Result::eSuccess"
+		          << std::endl;
+	}
+	assert( result == vk::Result::eSuccess && "Vulkan operation must succeed" );
+}
 // ----------------------------------------------------------------------
 
 static void swapchain_query_surface_capabilities( le_swapchain_o *base ) {
@@ -76,9 +85,11 @@ static void swapchain_query_surface_capabilities( le_swapchain_o *base ) {
 
 	auto &surfaceProperties = self->mSurfaceProperties;
 
-	self->physicalDevice.getSurfaceSupportKHR( self->vk_graphics_queue_family_index,
-	                                           self->surface,
-	                                           &surfaceProperties.presentSupported );
+	vk_result_assert_success(
+	    self->physicalDevice.getSurfaceSupportKHR(
+	        self->vk_graphics_queue_family_index,
+	        self->surface,
+	        &surfaceProperties.presentSupported ) );
 
 	// Get list of supported surface formats
 
@@ -264,7 +275,7 @@ static void swapchain_direct_reset( le_swapchain_o *base, const le_swapchain_set
 	    .setClipped( VK_TRUE )
 	    .setOldSwapchain( oldSwapchain );
 
-	self->device.createSwapchainKHR( &swapChainCreateInfo, nullptr, &self->swapchainKHR );
+	vk_result_assert_success( self->device.createSwapchainKHR( &swapChainCreateInfo, nullptr, &self->swapchainKHR ) );
 
 	// If an existing swap chain is re-created, destroy the old swap chain
 	// This also cleans up all the presentable images
@@ -296,7 +307,7 @@ static le_swapchain_o *swapchain_direct_create( const le_swapchain_vk_api::swapc
 
 #ifdef _MSC_VER
 #else
-	self->x11_display = XOpenDisplay( nullptr );
+	self->x11_display    = XOpenDisplay( nullptr );
 #endif
 	auto phyDevice = vk::PhysicalDevice( self->physicalDevice );
 
@@ -326,7 +337,7 @@ static le_swapchain_o *swapchain_direct_create( const le_swapchain_vk_api::swapc
 	}
 
 	assert( vk_result == VK_SUCCESS );
-#endif 
+#endif
 
 	{
 		uint32_t num_props{};

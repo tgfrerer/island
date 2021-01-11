@@ -309,7 +309,7 @@ vk::SampleCountFlagBits le_sample_count_log_2_to_vk( uint32_t sample_count_log2 
 // returns log2 of number of samples, so that number of samples can be
 // calculated as `num_samples = 1 << log2_num_samples`
 inline uint16_t get_sample_count_log_2( uint32_t const &sample_count ) {
-#if defined(_MSC_VER)
+#if defined( _MSC_VER )
 	auto lz = __lzcnt( sample_count );
 #else
 	auto lz = __builtin_clz( sample_count );
@@ -3126,6 +3126,14 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o *instance,
 
 	// --------| invariant utuls extension is available
 
+	auto vk_result_assert_success = []( vk::Result const &&result ) {
+		if ( result != vk::Result::eSuccess ) {
+			std::cerr << "Error: Vulkan operation returned: " << vk::to_string( result ) << ", but we expected vk::Result::eSuccess"
+			          << std::endl;
+		}
+		assert( result == vk::Result::eSuccess && "Vulkan operation must succeed" );
+	};
+
 	for ( auto const &r : resources ) {
 
 		auto device = vk::Device( device_ );
@@ -3155,7 +3163,7 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o *instance,
 			assert( false && "unknown resource type" );
 		}
 
-		device.setDebugUtilsObjectNameEXT( &nameInfo );
+		vk_result_assert_success( device.setDebugUtilsObjectNameEXT( &nameInfo ) );
 	}
 }
 
