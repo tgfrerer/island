@@ -202,6 +202,44 @@ enum LeImageCreateFlagBits : LeImageCreateFlags {
 };
 // Codegen </VkImageCreateFlagBits>
 
+typedef uint32_t LeAccessFlags_t;
+LE_WRAP_TYPE_IN_STRUCT( LeAccessFlags_t, LeAccessFlags );
+// Codegen <VkAccessFlagBits, LeAccessFlags_t, c>
+enum LeAccessFlagBits : LeAccessFlags_t {
+	LE_ACCESS_INDIRECT_COMMAND_READ_BIT                     = 0x00000001,
+	LE_ACCESS_INDEX_READ_BIT                                = 0x00000002,
+	LE_ACCESS_VERTEX_ATTRIBUTE_READ_BIT                     = 0x00000004,
+	LE_ACCESS_UNIFORM_READ_BIT                              = 0x00000008,
+	LE_ACCESS_INPUT_ATTACHMENT_READ_BIT                     = 0x00000010,
+	LE_ACCESS_SHADER_READ_BIT                               = 0x00000020,
+	LE_ACCESS_SHADER_WRITE_BIT                              = 0x00000040,
+	LE_ACCESS_COLOR_ATTACHMENT_READ_BIT                     = 0x00000080,
+	LE_ACCESS_COLOR_ATTACHMENT_WRITE_BIT                    = 0x00000100,
+	LE_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT             = 0x00000200,
+	LE_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT            = 0x00000400,
+	LE_ACCESS_TRANSFER_READ_BIT                             = 0x00000800,
+	LE_ACCESS_TRANSFER_WRITE_BIT                            = 0x00001000,
+	LE_ACCESS_HOST_READ_BIT                                 = 0x00002000,
+	LE_ACCESS_HOST_WRITE_BIT                                = 0x00004000,
+	LE_ACCESS_MEMORY_READ_BIT                               = 0x00008000,
+	LE_ACCESS_MEMORY_WRITE_BIT                              = 0x00010000,
+	LE_ACCESS_TRANSFORM_FEEDBACK_WRITE_BIT_EXT              = 0x02000000,
+	LE_ACCESS_TRANSFORM_FEEDBACK_COUNTER_READ_BIT_EXT       = 0x04000000,
+	LE_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT      = 0x08000000,
+	LE_ACCESS_CONDITIONAL_RENDERING_READ_BIT_EXT            = 0x00100000,
+	LE_ACCESS_COLOR_ATTACHMENT_READ_NONCOHERENT_BIT_EXT     = 0x00080000,
+	LE_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR           = 0x00200000,
+	LE_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR          = 0x00400000,
+	LE_ACCESS_SHADING_RATE_IMAGE_READ_BIT_NV                = 0x00800000,
+	LE_ACCESS_FRAGMENT_DENSITY_MAP_READ_BIT_EXT             = 0x01000000,
+	LE_ACCESS_COMMAND_PREPROCESS_READ_BIT_NV                = 0x00020000,
+	LE_ACCESS_COMMAND_PREPROCESS_WRITE_BIT_NV               = 0x00040000,
+	LE_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NV            = LE_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR,
+	LE_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV           = LE_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
+	LE_ACCESS_FRAGMENT_SHADING_RATE_ATTACHMENT_READ_BIT_KHR = LE_ACCESS_SHADING_RATE_IMAGE_READ_BIT_NV,
+};
+// Codegen </VkAccessFlagBits>
+
 typedef uint32_t LeImageUsageFlags_t;
 LE_WRAP_TYPE_IN_STRUCT( LeImageUsageFlags_t, LeImageUsageFlags );
 // Codegen <VkImageUsageFlagBits, LeImageUsageFlags_t, c>
@@ -628,42 +666,6 @@ enum class ImageTiling : uint32_t {
 };
 // Codegen </VkImageTiling>
 
-// Codegen <VkAccessFlagBits, uint32_t, cpp,AccessFlagBits>
-enum class AccessFlagBits : uint32_t {
-	eIndirectCommandRead                     = 0x00000001,
-	eIndexRead                               = 0x00000002,
-	eVertexAttributeRead                     = 0x00000004,
-	eUniformRead                             = 0x00000008,
-	eInputAttachmentRead                     = 0x00000010,
-	eShaderRead                              = 0x00000020,
-	eShaderWrite                             = 0x00000040,
-	eColorAttachmentRead                     = 0x00000080,
-	eColorAttachmentWrite                    = 0x00000100,
-	eDepthStencilAttachmentRead              = 0x00000200,
-	eDepthStencilAttachmentWrite             = 0x00000400,
-	eTransferRead                            = 0x00000800,
-	eTransferWrite                           = 0x00001000,
-	eHostRead                                = 0x00002000,
-	eHostWrite                               = 0x00004000,
-	eMemoryRead                              = 0x00008000,
-	eMemoryWrite                             = 0x00010000,
-	eTransformFeedbackWriteBitExt            = 0x02000000,
-	eTransformFeedbackCounterReadBitExt      = 0x04000000,
-	eTransformFeedbackCounterWriteBitExt     = 0x08000000,
-	eConditionalRenderingReadBitExt          = 0x00100000,
-	eColorAttachmentReadNoncoherentBitExt    = 0x00080000,
-	eAccelerationStructureReadBitKhr         = 0x00200000,
-	eAccelerationStructureWriteBitKhr        = 0x00400000,
-	eShadingRateImageReadBitNv               = 0x00800000,
-	eFragmentDensityMapReadBitExt            = 0x01000000,
-	eCommandPreprocessReadBitNv              = 0x00020000,
-	eCommandPreprocessWriteBitNv             = 0x00040000,
-	eAccelerationStructureReadBitNv          = eAccelerationStructureReadBitKhr,
-	eAccelerationStructureWriteBitNv         = eAccelerationStructureWriteBitKhr,
-	eFragmentShadingRateAttachmentReadBitKhr = eShadingRateImageReadBitNv,
-};
-// Codegen </VkAccessFlagBits>
-
 // Codegen <VkFormat>
 enum class Format {
 	eUndefined                               = 0,
@@ -1019,14 +1021,14 @@ static constexpr le_image_attachment_info_t LeDepthAttachmentInfo() {
 	return info;
 }
 
-enum LeResourceAccessFlagBits : uint32_t {
+typedef uint32_t LeResourceAccessFlags_t;
+LE_WRAP_TYPE_IN_STRUCT( LeResourceAccessFlags_t, LeResourceAccessFlags );
+enum LeResourceAccessFlagBits : LeResourceAccessFlags_t {
 	eLeResourceAccessFlagBitUndefined  = 0x0,
 	eLeResourceAccessFlagBitRead       = 0x1 << 0,
 	eLeResourceAccessFlagBitWrite      = 0x1 << 1,
 	eLeResourceAccessFlagBitsReadWrite = eLeResourceAccessFlagBitRead | eLeResourceAccessFlagBitWrite,
 };
-
-typedef uint32_t LeAccessFlags;
 
 // use le::ImageSamplerBuilder to define texture info
 struct le_sampler_info_t {
