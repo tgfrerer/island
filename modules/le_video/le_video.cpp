@@ -4,21 +4,19 @@
 
 #include <le_renderer/le_renderer.h>
 #include <le_pixels/le_pixels.h>
-#include <cstring>
+#include <le_resource_manager/le_resource_manager.h>
 
 #include "le_video.h"
 #include "le_core/le_core.h"
 
 struct le_video_o {
 	libvlc_instance_t *    libvlc = nullptr;
+	le_resource_manager_o *resource_manager;
 	libvlc_media_player_t *player = nullptr;
 	le_video_load_params   load_params{};
 	le_pixels_o *          pixels;
-	// 	unsigned               width    = 0;
-	//	unsigned               height   = 0;
-	//	unsigned               bpp      = 0;
-	uint64_t duration = 0;
-	//    char* buffer
+	le_resource_handle_t   image_handle;
+	uint64_t               duration = 0;
 };
 
 //struct le_video_item_t {
@@ -43,21 +41,26 @@ static void le_terminate() {
 
 static le_video_o *le_video_create() {
 	auto self = new le_video_o();
+	return self;
+}
 
-	self->libvlc = libvlc;
+static bool le_video_setup( le_video_o *self, le_resource_manager_o *resource_manager ) {
+
+	self->libvlc           = libvlc;
+	self->resource_manager = resource_manager;
 
 	if ( !self->libvlc ) {
 		std::cerr << "Error no VLC context set" << std::endl;
-		return self;
+		return false;
 	}
 
-	return self;
+	return true;
 }
 
 // ----------------------------------------------------------------------
 
 static void le_video_destroy( le_video_o *self ) {
-	delete self->pixels;
+	le_pixels::le_pixels_i.destroy( self->pixels );
 	delete self;
 }
 
@@ -98,7 +101,7 @@ static le_video_o *to_video( void *ptr ) {
 
 static void *cb_lock( void *opaque, void **planes ) {
 	auto video = to_video( opaque );
-	*planes    = le_pixels_api_i->le_pixels_i.get_data( video->pixels );
+	*planes    = le_pixels::le_pixels_i.get_data( video->pixels );
 	std::cout << "Got a frame" << std::endl;
 	return video->pixels;
 }
@@ -127,29 +130,28 @@ static void le_video_update( le_video_o *self ) {
 }
 
 static bool le_video_load( le_video_o *self, const le_video_load_params &params ) {
-    if ( !std::filesystem::exists( params.file_path ) ) {
-        std::cerr << "Video does not exist '" << params.file_path << "'" << std::endl;
-        return false;
-    }
+	if ( !std::filesystem::exists( params.file_path ) ) {
+		std::cerr << "Video does not exist '" << params.file_path << "'" << std::endl;
+		return false;
+	}
 
 	const char *chroma;
 	unsigned    num_channels = 0;
 
 	switch ( params.output_format ) {
 	case le::Format::eR8G8B8Uint:
-		chroma = "RV32";
+		chroma       = "RV32";
 		num_channels = 3;
 		break;
 	case le::Format::eR8G8B8A8Uint:
-        chroma = "RGBA";
-        num_channels = 4;
-        break;
+		chroma       = "RGBA";
+		num_channels = 4;
+		break;
 	default:
-        // TODO more formats
-        std::cerr << "[le_video] Only eR8G8B8A8Uint or eR8G8B8A8Uint video output format is supported" << std::endl;
-        return false;
-    }
-
+		// TODO more formats
+		std::cerr << "[le_video] Only eR8G8B8A8Uint or eR8G8B8A8Uint video output format is supported" << std::endl;
+		return false;
+	}
 
 	auto media = libvlc_media_new_path( self->libvlc, params.file_path );
 
@@ -178,6 +180,15 @@ static bool le_video_load( le_video_o *self, const le_video_load_params &params 
 
 	libvlc_media_player_play( self->player );
 
+	self->image_handle = LE_IMG_RESOURCE( params.file_path );
+	auto image_info =
+	    le::ImageInfoBuilder()
+	        .setImageType( le::ImageType::e2D )
+	        .setExtent( width, height )
+	        .build();
+
+	//	le_resource_manager::api
+
 	libvlc_media_release( media );
 
 	return true;
@@ -192,6 +203,7 @@ LE_MODULE_REGISTER_IMPL( le_video, api ) {
 	auto &le_video_i   = videoApi->le_video_i;
 	le_video_i.create  = le_video_create;
 	le_video_i.destroy = le_video_destroy;
+	le_video_i.setup   = le_video_setup;
 	le_video_i.update  = le_video_update;
 	le_video_i.load    = le_video_load;
 	//	le_video_i.add_item = le_video_add_item;

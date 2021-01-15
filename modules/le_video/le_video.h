@@ -15,12 +15,14 @@ struct le_video_load_params {
 
 // forward declaration
 struct le_video_item_t;
+struct le_resource_manager_o;
+
 
 struct le_video_api {
 
 	struct le_video_interface_t {
-
-		le_video_o *         ( * create                   ) ( );
+        le_video_o *         ( * create                   ) (  );
+		bool                 ( * setup                    ) ( le_video_o* self, le_resource_manager_o* resource_manager );
 		void                 ( * destroy                  ) ( le_video_o* self );
 		void                 ( * update                   ) ( le_video_o* self );
         bool                 ( * load                     ) ( le_video_o* self, const le_video_load_params &params );
@@ -50,8 +52,7 @@ class Video : NoCopy, NoMove {
 	le_video_o *self;
 
   public:
-
-	static int init(){
+	static int init() {
 		return le_video::api->init();
 	}
 
@@ -63,12 +64,16 @@ class Video : NoCopy, NoMove {
 		le_video::le_video_i.destroy( self );
 	}
 
+	bool setup( le_resource_manager_o *resource_manager ) {
+		return le_video::le_video_i.setup( self, resource_manager );
+	}
+
 	void update() {
 		le_video::le_video_i.update( self );
 	}
 
-	bool load( const std::string& path){
-        return le_video::le_video_i.load( self, {path.c_str()});
+	bool load( const std::string &path ) {
+		return le_video::le_video_i.load( self, { path.c_str() } );
 	}
 
 	operator auto() {

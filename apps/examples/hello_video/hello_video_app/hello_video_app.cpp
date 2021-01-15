@@ -6,7 +6,7 @@
 #include "le_camera/le_camera.h"
 #include "le_ui_event/le_ui_event.h"
 #include "le_video/le_video.h"
-
+#include "le_resource_manager/le_resource_manager.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -25,7 +25,9 @@ struct hello_video_app_o {
 
 	LeCamera           camera;
 	LeCameraController cameraController;
-	le::Video          video;
+	LeResourceManager  resource_manager;
+
+	le::Video video;
 };
 
 typedef hello_video_app_o app_o;
@@ -61,7 +63,8 @@ static app_o *app_create() {
 
 	app->renderer.setup( le::RendererInfoBuilder( app->window ).build() );
 
-	app->video.load("./local_resources/test.mp4");
+	app->video.setup( app->resource_manager );
+	app->video.load( "./local_resources/test.mp4" );
 
 	// Set up the camera
 	app_reset_camera( app );

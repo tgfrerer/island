@@ -166,10 +166,10 @@ static void infer_from_le_format( le::Format const &format, uint32_t *num_channe
 // NOTE: You must provide an array of paths in image_paths, and the
 // array's size must match `image_info.image.arrayLayers`
 // Most meta-data about the image file is loaded via image_info
-static void le_resource_manager_add_item( le_resource_manager_o *     self,
-                                          le_resource_handle_t const *image_handle,
-                                          le_resource_info_t const *  image_info,
-                                          char const *const *         image_paths ) {
+static void le_resource_manager_add_item_filepaths( le_resource_manager_o *     self,
+                                                    le_resource_handle_t const *image_handle,
+                                                    le_resource_info_t const *  image_info,
+                                                    char const *const *         image_paths ) {
 
 	le_resource_manager_o::resource_item_t item{};
 
@@ -217,6 +217,12 @@ static void le_resource_manager_add_item( le_resource_manager_o *     self,
 
 // ----------------------------------------------------------------------
 
+void le_resource_manager_add_item_pixels( le_resource_manager_o *self, le_resource_handle_t const *image_handle, le_resource_info_t const *image_info, const le_pixels_o ** ) {
+    // TODO, merge this with filepaths code
+}
+
+// ----------------------------------------------------------------------
+
 static le_resource_manager_o *le_resource_manager_create() {
 	auto self = new le_resource_manager_o{};
 	return self;
@@ -244,8 +250,9 @@ static void le_resource_manager_destroy( le_resource_manager_o *self ) {
 LE_MODULE_REGISTER_IMPL( le_resource_manager, api ) {
 	auto &le_resource_manager_i = static_cast<le_resource_manager_api *>( api )->le_resource_manager_i;
 
-	le_resource_manager_i.create   = le_resource_manager_create;
-	le_resource_manager_i.destroy  = le_resource_manager_destroy;
-	le_resource_manager_i.update   = le_resource_manager_update;
-	le_resource_manager_i.add_item = le_resource_manager_add_item;
+	le_resource_manager_i.create             = le_resource_manager_create;
+	le_resource_manager_i.destroy            = le_resource_manager_destroy;
+	le_resource_manager_i.update             = le_resource_manager_update;
+	le_resource_manager_i.add_item_filepaths = le_resource_manager_add_item_filepaths;
+	le_resource_manager_i.add_item_pixels    = le_resource_manager_add_item_pixels;
 }
