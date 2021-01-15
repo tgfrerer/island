@@ -4703,16 +4703,18 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					if ( argumentState.setCount > 0 ) {
 
-						cmd.bindDescriptorSets( vk::PipelineBindPoint::eCompute,
-						                        currentPipelineLayout,
-						                        0,
-						                        argumentState.setCount,
-						                        descriptorSets,
-						                        argumentState.dynamicOffsetCount,
-						                        argumentState.dynamicOffsets.data() );
+						cmd.bindDescriptorSets(
+						    vk::PipelineBindPoint::eCompute,
+						    currentPipelineLayout,
+						    0,
+						    argumentState.setCount,
+						    descriptorSets,
+						    argumentState.dynamicOffsetCount,
+						    argumentState.dynamicOffsets.data() );
 					}
 
 					cmd.dispatch( le_cmd->info.groupCountX, le_cmd->info.groupCountY, le_cmd->info.groupCountZ );
+
 				} break;
 				case le::CommandType::eBufferMemoryBarrier: {
 					auto *                  le_cmd = static_cast<le::CommandBufferMemoryBarrier *>( dataIt );

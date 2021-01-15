@@ -13,8 +13,8 @@
 #include <algorithm>
 
 #ifdef _WIN32
-#define __PRETTY_FUNCTION__ __FUNCSIG__
-#endif// 
+#	define __PRETTY_FUNCTION__ __FUNCSIG__
+#endif //
 
 #ifndef LE_MT
 #	define LE_MT 0
@@ -164,7 +164,7 @@ static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o *self,
 static void cbe_trace_rays( le_command_buffer_encoder_o *self, uint32_t width, uint32_t height, uint32_t depth ) {
 
 	auto cmd  = EMPLACE_CMD( le::CommandTraceRays ); // placement new!
-	cmd->info = { width, height, depth };
+	cmd->info = { width, height, depth, 0 };
 
 	self->mCommandStreamSize += sizeof( le::CommandTraceRays );
 	self->mCommandCount++;
