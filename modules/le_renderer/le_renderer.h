@@ -133,6 +133,7 @@ struct le_renderer_api {
 		void                         ( *draw_mesh_tasks        )( le_command_buffer_encoder_o *self, uint32_t taskCount, uint32_t fistTask);
 
 		void                         (* dispatch               )( le_command_buffer_encoder_o *self, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ );
+		void						 (* buffer_memory_barrier  )( le_command_buffer_encoder_o *self, LePipelineStageFlags const &srcStageMask, LePipelineStageFlags const &dstStageMask, LeAccessFlags const & dstAccessMask, le_resource_handle_t const &buffer, uint64_t const & offset, uint64_t const & range );
 
 		void                         ( *set_line_width         )( le_command_buffer_encoder_o *self, float line_width_ );
 		void                         ( *set_viewport           )( le_command_buffer_encoder_o *self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport *pViewports );
@@ -568,6 +569,18 @@ class Encoder {
 
 	Extent2D const &getRenderpassExtent() {
 		return le_renderer::encoder_i.get_extent( self );
+	}
+
+	Encoder &bufferMemoryBarrier(
+	    LePipelineStageFlags const &srcStageMask,
+	    LePipelineStageFlags const &dstStageMask,
+	    LeAccessFlags const &       dstAccessMask,
+	    le_resource_handle_t const &buffer,
+	    uint64_t const &            offset = 0,
+	    uint64_t const &            range  = ~( 0ull ) ) {
+		// todo:fill in
+		le_renderer::encoder_i.buffer_memory_barrier( self, srcStageMask, dstStageMask, dstAccessMask, buffer, offset, range );
+		return *this;
 	}
 
 	Encoder &dispatch( const uint32_t &groupCountX = 1, const uint32_t &groupCountY = 1, const uint32_t &groupCountZ = 1 ) {

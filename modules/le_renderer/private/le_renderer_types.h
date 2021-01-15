@@ -240,6 +240,42 @@ enum LeAccessFlagBits : LeAccessFlags_t {
 };
 // Codegen </VkAccessFlagBits>
 
+typedef uint32_t LePipelineStageFlags_t;
+LE_WRAP_TYPE_IN_STRUCT( LePipelineStageFlags_t, LePipelineStageFlags );
+// Codegen <VkPipelineStageFlagBits, LePipelineStageFlags_t, c>
+enum LePipelineStageFlagBits : LePipelineStageFlags_t {
+	LE_PIPELINE_STAGE_TOP_OF_PIPE_BIT                          = 0x00000001,
+	LE_PIPELINE_STAGE_DRAW_INDIRECT_BIT                        = 0x00000002,
+	LE_PIPELINE_STAGE_VERTEX_INPUT_BIT                         = 0x00000004,
+	LE_PIPELINE_STAGE_VERTEX_SHADER_BIT                        = 0x00000008,
+	LE_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT          = 0x00000010,
+	LE_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT       = 0x00000020,
+	LE_PIPELINE_STAGE_GEOMETRY_SHADER_BIT                      = 0x00000040,
+	LE_PIPELINE_STAGE_FRAGMENT_SHADER_BIT                      = 0x00000080,
+	LE_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT                 = 0x00000100,
+	LE_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT                  = 0x00000200,
+	LE_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT              = 0x00000400,
+	LE_PIPELINE_STAGE_COMPUTE_SHADER_BIT                       = 0x00000800,
+	LE_PIPELINE_STAGE_TRANSFER_BIT                             = 0x00001000,
+	LE_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT                       = 0x00002000,
+	LE_PIPELINE_STAGE_HOST_BIT                                 = 0x00004000,
+	LE_PIPELINE_STAGE_ALL_GRAPHICS_BIT                         = 0x00008000,
+	LE_PIPELINE_STAGE_ALL_COMMANDS_BIT                         = 0x00010000,
+	LE_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT               = 0x01000000,
+	LE_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT            = 0x00040000,
+	LE_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR     = 0x02000000,
+	LE_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR               = 0x00200000,
+	LE_PIPELINE_STAGE_SHADING_RATE_IMAGE_BIT_NV                = 0x00400000,
+	LE_PIPELINE_STAGE_TASK_SHADER_BIT_NV                       = 0x00080000,
+	LE_PIPELINE_STAGE_MESH_SHADER_BIT_NV                       = 0x00100000,
+	LE_PIPELINE_STAGE_FRAGMENT_DENSITY_PROCESS_BIT_EXT         = 0x00800000,
+	LE_PIPELINE_STAGE_COMMAND_PREPROCESS_BIT_NV                = 0x00020000,
+	LE_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV                = LE_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+	LE_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV      = LE_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+	LE_PIPELINE_STAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR = LE_PIPELINE_STAGE_SHADING_RATE_IMAGE_BIT_NV,
+};
+// Codegen </VkPipelineStageFlagBits>
+
 typedef uint32_t LeImageUsageFlags_t;
 LE_WRAP_TYPE_IN_STRUCT( LeImageUsageFlags_t, LeImageUsageFlags );
 // Codegen <VkImageUsageFlagBits, LeImageUsageFlags_t, c>
@@ -1605,6 +1641,7 @@ enum class CommandType : uint32_t {
 	eDraw,
 	eDrawMeshTasks,
 	eDispatch,
+	eBufferMemoryBarrier,
 	eTraceRays,
 	eSetLineWidth,
 	eSetViewport,
@@ -1671,6 +1708,19 @@ struct CommandDispatch {
 		uint32_t groupCountY;
 		uint32_t groupCountZ;
 		uint32_t __padding__;
+	} info;
+};
+
+struct CommandBufferMemoryBarrier {
+	CommandHeader header = { { { CommandType::eBufferMemoryBarrier, sizeof( CommandBufferMemoryBarrier ) } } };
+	struct {
+		LePipelineStageFlags srcStageMask;
+		LePipelineStageFlags dstStageMask;
+		LeAccessFlags        dstAccessMask;
+		le_resource_handle_t buffer;
+		uint64_t             offset;
+		uint64_t             range;
+
 	} info;
 };
 

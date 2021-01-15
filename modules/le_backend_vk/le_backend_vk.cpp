@@ -611,6 +611,14 @@ static inline VkFormat le_to_vk( le::Format const &f ) {
 	return VkFormat( f );
 }
 
+static inline vk::PipelineStageFlags le_to_vk( LePipelineStageFlags const &f ) {
+	return vk::PipelineStageFlags( f );
+}
+
+static inline vk::AccessFlags le_to_vk( LeAccessFlags const &f ) {
+	return vk::AccessFlags( f );
+}
+
 // ----------------------------------------------------------------------
 
 static void backend_create_window_surface( le_backend_o *self, le_swapchain_settings_t *settings ) {
@@ -4706,7 +4714,22 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					cmd.dispatch( le_cmd->info.groupCountX, le_cmd->info.groupCountY, le_cmd->info.groupCountZ );
 				} break;
+				case le::CommandType::eBufferMemoryBarrier: {
+					auto *                  le_cmd = static_cast<le::CommandBufferMemoryBarrier *>( dataIt );
+					vk::BufferMemoryBarrier bufferMemoryBarrier{};
+					bufferMemoryBarrier
+					    .setBuffer( frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer ) )
+					    .setSize( le_cmd->info.range )
+					    .setOffset( le_cmd->info.offset )
+					    .setDstAccessMask( le_to_vk( le_cmd->info.dstAccessMask ) ) //
+					    ;
 
+					cmd.pipelineBarrier(
+					    le_to_vk( le_cmd->info.srcStageMask ),
+					    le_to_vk( le_cmd->info.dstStageMask ),
+					    {}, {}, { bufferMemoryBarrier }, {} );
+
+				} break;
 				case le::CommandType::eDraw: {
 					auto *le_cmd = static_cast<le::CommandDraw *>( dataIt );
 
