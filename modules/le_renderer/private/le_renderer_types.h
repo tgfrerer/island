@@ -975,11 +975,11 @@ static constexpr le_image_attachment_info_t LeDepthAttachmentInfo() {
 	return info;
 }
 
-enum LeAccessFlagBits : uint32_t {
-	eLeAccessFlagBitUndefined  = 0x0,
-	eLeAccessFlagBitRead       = 0x1 << 0,
-	eLeAccessFlagBitWrite      = 0x1 << 1,
-	eLeAccessFlagBitsReadWrite = eLeAccessFlagBitRead | eLeAccessFlagBitWrite,
+enum LeResourceAccessFlagBits : uint32_t {
+	eLeResourceAccessFlagBitUndefined  = 0x0,
+	eLeResourceAccessFlagBitRead       = 0x1 << 0,
+	eLeResourceAccessFlagBitWrite      = 0x1 << 1,
+	eLeResourceAccessFlagBitsReadWrite = eLeResourceAccessFlagBitRead | eLeResourceAccessFlagBitWrite,
 };
 
 typedef uint32_t LeAccessFlags;
