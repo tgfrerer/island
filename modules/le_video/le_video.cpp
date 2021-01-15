@@ -98,7 +98,8 @@ static le_video_o *to_video( void *ptr ) {
 
 static void *cb_lock( void *opaque, void **planes ) {
 	auto video = to_video( opaque );
-	*planes    = le_pixels_api_i->le_pixels_i.get_data(video->pixels);
+	*planes    = le_pixels_api_i->le_pixels_i.get_data( video->pixels );
+	std::cout << "Got a frame" << std::endl;
 	return video->pixels;
 }
 
@@ -126,20 +127,32 @@ static void le_video_update( le_video_o *self ) {
 }
 
 static bool le_video_load( le_video_o *self, const le_video_load_params &params ) {
-	// TODO convert formats
-	if ( params.output_format != le::Format::eR8G8B8Uint ) {
-		std::cerr << "Only eR8G8B8A8Uint video output format is supported" << std::endl;
-		return false;
-	}
+    if ( !std::filesystem::exists( params.file_path ) ) {
+        std::cerr << "Video does not exist '" << params.file_path << "'" << std::endl;
+        return false;
+    }
 
-	if ( !std::filesystem::exists( params.file_path ) ) {
-		std::cerr << "Video does not exist '" << params.file_path << "'" << std::endl;
-		return false;
-	}
+	const char *chroma;
+	unsigned    num_channels = 0;
+
+	switch ( params.output_format ) {
+	case le::Format::eR8G8B8Uint:
+		chroma = "RV32";
+		num_channels = 3;
+		break;
+	case le::Format::eR8G8B8A8Uint:
+        chroma = "RGBA";
+        num_channels = 4;
+        break;
+	default:
+        // TODO more formats
+        std::cerr << "[le_video] Only eR8G8B8A8Uint or eR8G8B8A8Uint video output format is supported" << std::endl;
+        return false;
+    }
+
 
 	auto media = libvlc_media_new_path( self->libvlc, params.file_path );
 
-	//
 	// libvlc_media_add_option(media, ":avcodec-hw=none");
 	libvlc_media_parse( media );
 	//	libvlc_media_parse_with_options(media, )
@@ -160,7 +173,7 @@ static bool le_video_load( le_video_o *self, const le_video_load_params &params 
 
 	//VLC_CODEC_RGBA
 	// "RV32"
-	libvlc_video_set_format( self->player, "RGBA", width, height, width * 4 );
+	libvlc_video_set_format( self->player, chroma, width, height, width * 4 );
 	//	libvlc_video_set_format_callbacks( self->player, cb_format, cb_cleanup );
 
 	libvlc_media_player_play( self->player );

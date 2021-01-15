@@ -49,6 +49,16 @@ static inline vk::Format le_format_to_vk( const le::Format &format ) noexcept {
 
 // ----------------------------------------------------------------------
 
+static inline void vk_result_assert_success( vk::Result const &&result ) {
+	if ( result != vk::Result::eSuccess ) {
+		std::cerr << "Error: Vulkan operation returned: " << vk::to_string( result ) << ", but we expected vk::Result::eSuccess"
+		          << std::endl;
+	}
+	assert( result == vk::Result::eSuccess && "Vulkan operation must succeed" );
+}
+
+// ----------------------------------------------------------------------
+
 static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settings_t *settings_ ) {
 
 	auto self = static_cast<img_data_o *const>( base->data );
@@ -425,7 +435,7 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 
 	// The number of array elements must correspond to the number of wait semaphores, as each
 	// mask specifies what the semaphore is waiting for.
-	std::array<::vk::PipelineStageFlags, 1> wait_dst_stage_mask = { ::vk::PipelineStageFlagBits::eTransfer };
+	// std::array<::vk::PipelineStageFlags, 1> wait_dst_stage_mask = { ::vk::PipelineStageFlagBits::eTransfer };
 
 	auto presentCompleteSemaphore = vk::Semaphore{ semaphorePresentComplete };
 
@@ -454,7 +464,7 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 		auto le_device_o = private_backend_vk_i.get_le_device( self->backend );
 		auto queue       = vk::Queue{ vk_device_i.get_default_graphics_queue( le_device_o ) };
 
-		queue.submit( 1, &submitInfo, nullptr );
+		vk_result_assert_success( queue.submit( 1, &submitInfo, nullptr ) );
 	}
 
 	return true;

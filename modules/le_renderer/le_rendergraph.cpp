@@ -215,7 +215,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 		// Note that we don't immediately set the access flag,
 		// as the correct access flag is calculated based on resource_info
 		// after this block.
-		self->resources_access_flags.push_back( LeAccessFlagBits::eLeAccessFlagBitUndefined );
+		self->resources_access_flags.push_back( LeResourceAccessFlagBits::eLeResourceAccessFlagBitUndefined );
 		self->resources_usage.push_back( usage_flags );
 	} else {
 
@@ -294,7 +294,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 	LeAccessFlags &access_flags = self->resources_access_flags[ resource_idx ];
 
 	if ( resourceWillBeReadFrom ) {
-		access_flags |= LeAccessFlagBits::eLeAccessFlagBitRead;
+		access_flags |= LeResourceAccessFlagBits::eLeResourceAccessFlagBitRead;
 	}
 
 	if ( resourceWillBeWrittenTo ) {
@@ -305,7 +305,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 			self->isRoot = true;
 		}
 
-		access_flags |= LeAccessFlagBits::eLeAccessFlagBitWrite;
+		access_flags |= LeResourceAccessFlagBits::eLeResourceAccessFlagBitWrite;
 	}
 }
 
@@ -851,8 +851,8 @@ static void rendergraph_build( le_rendergraph_o *self, size_t frame_number ) {
 
 			// --------| invariant: uniqueHandles[res_idx] is valid
 
-			task.reads |= ( ( access_flags & LeAccessFlagBits::eLeAccessFlagBitRead ) << res_idx );
-			task.writes |= ( ( ( access_flags & LeAccessFlagBits::eLeAccessFlagBitWrite ) >> 1 ) << res_idx );
+			task.reads |= ( ( access_flags & LeResourceAccessFlagBits::eLeResourceAccessFlagBitRead ) << res_idx );
+			task.writes |= ( ( ( access_flags & LeResourceAccessFlagBits::eLeResourceAccessFlagBitWrite ) >> 1 ) << res_idx );
 		}
 
 		if ( p->isRoot ) {
