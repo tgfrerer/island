@@ -202,20 +202,95 @@ enum LeImageCreateFlagBits : LeImageCreateFlags {
 };
 // Codegen </VkImageCreateFlagBits>
 
+typedef uint32_t LeAccessFlags_t;
+LE_WRAP_TYPE_IN_STRUCT( LeAccessFlags_t, LeAccessFlags );
+// Codegen <VkAccessFlagBits, LeAccessFlags_t, c>
+enum LeAccessFlagBits : LeAccessFlags_t {
+	LE_ACCESS_INDIRECT_COMMAND_READ_BIT                     = 0x00000001,
+	LE_ACCESS_INDEX_READ_BIT                                = 0x00000002,
+	LE_ACCESS_VERTEX_ATTRIBUTE_READ_BIT                     = 0x00000004,
+	LE_ACCESS_UNIFORM_READ_BIT                              = 0x00000008,
+	LE_ACCESS_INPUT_ATTACHMENT_READ_BIT                     = 0x00000010,
+	LE_ACCESS_SHADER_READ_BIT                               = 0x00000020,
+	LE_ACCESS_SHADER_WRITE_BIT                              = 0x00000040,
+	LE_ACCESS_COLOR_ATTACHMENT_READ_BIT                     = 0x00000080,
+	LE_ACCESS_COLOR_ATTACHMENT_WRITE_BIT                    = 0x00000100,
+	LE_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT             = 0x00000200,
+	LE_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT            = 0x00000400,
+	LE_ACCESS_TRANSFER_READ_BIT                             = 0x00000800,
+	LE_ACCESS_TRANSFER_WRITE_BIT                            = 0x00001000,
+	LE_ACCESS_HOST_READ_BIT                                 = 0x00002000,
+	LE_ACCESS_HOST_WRITE_BIT                                = 0x00004000,
+	LE_ACCESS_MEMORY_READ_BIT                               = 0x00008000,
+	LE_ACCESS_MEMORY_WRITE_BIT                              = 0x00010000,
+	LE_ACCESS_TRANSFORM_FEEDBACK_WRITE_BIT_EXT              = 0x02000000,
+	LE_ACCESS_TRANSFORM_FEEDBACK_COUNTER_READ_BIT_EXT       = 0x04000000,
+	LE_ACCESS_TRANSFORM_FEEDBACK_COUNTER_WRITE_BIT_EXT      = 0x08000000,
+	LE_ACCESS_CONDITIONAL_RENDERING_READ_BIT_EXT            = 0x00100000,
+	LE_ACCESS_COLOR_ATTACHMENT_READ_NONCOHERENT_BIT_EXT     = 0x00080000,
+	LE_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR           = 0x00200000,
+	LE_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR          = 0x00400000,
+	LE_ACCESS_SHADING_RATE_IMAGE_READ_BIT_NV                = 0x00800000,
+	LE_ACCESS_FRAGMENT_DENSITY_MAP_READ_BIT_EXT             = 0x01000000,
+	LE_ACCESS_COMMAND_PREPROCESS_READ_BIT_NV                = 0x00020000,
+	LE_ACCESS_COMMAND_PREPROCESS_WRITE_BIT_NV               = 0x00040000,
+	LE_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NV            = LE_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_KHR,
+	LE_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV           = LE_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_KHR,
+	LE_ACCESS_FRAGMENT_SHADING_RATE_ATTACHMENT_READ_BIT_KHR = LE_ACCESS_SHADING_RATE_IMAGE_READ_BIT_NV,
+};
+// Codegen </VkAccessFlagBits>
+
+typedef uint32_t LePipelineStageFlags_t;
+LE_WRAP_TYPE_IN_STRUCT( LePipelineStageFlags_t, LePipelineStageFlags );
+// Codegen <VkPipelineStageFlagBits, LePipelineStageFlags_t, c>
+enum LePipelineStageFlagBits : LePipelineStageFlags_t {
+	LE_PIPELINE_STAGE_TOP_OF_PIPE_BIT                          = 0x00000001,
+	LE_PIPELINE_STAGE_DRAW_INDIRECT_BIT                        = 0x00000002,
+	LE_PIPELINE_STAGE_VERTEX_INPUT_BIT                         = 0x00000004,
+	LE_PIPELINE_STAGE_VERTEX_SHADER_BIT                        = 0x00000008,
+	LE_PIPELINE_STAGE_TESSELLATION_CONTROL_SHADER_BIT          = 0x00000010,
+	LE_PIPELINE_STAGE_TESSELLATION_EVALUATION_SHADER_BIT       = 0x00000020,
+	LE_PIPELINE_STAGE_GEOMETRY_SHADER_BIT                      = 0x00000040,
+	LE_PIPELINE_STAGE_FRAGMENT_SHADER_BIT                      = 0x00000080,
+	LE_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT                 = 0x00000100,
+	LE_PIPELINE_STAGE_LATE_FRAGMENT_TESTS_BIT                  = 0x00000200,
+	LE_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT              = 0x00000400,
+	LE_PIPELINE_STAGE_COMPUTE_SHADER_BIT                       = 0x00000800,
+	LE_PIPELINE_STAGE_TRANSFER_BIT                             = 0x00001000,
+	LE_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT                       = 0x00002000,
+	LE_PIPELINE_STAGE_HOST_BIT                                 = 0x00004000,
+	LE_PIPELINE_STAGE_ALL_GRAPHICS_BIT                         = 0x00008000,
+	LE_PIPELINE_STAGE_ALL_COMMANDS_BIT                         = 0x00010000,
+	LE_PIPELINE_STAGE_TRANSFORM_FEEDBACK_BIT_EXT               = 0x01000000,
+	LE_PIPELINE_STAGE_CONDITIONAL_RENDERING_BIT_EXT            = 0x00040000,
+	LE_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR     = 0x02000000,
+	LE_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR               = 0x00200000,
+	LE_PIPELINE_STAGE_SHADING_RATE_IMAGE_BIT_NV                = 0x00400000,
+	LE_PIPELINE_STAGE_TASK_SHADER_BIT_NV                       = 0x00080000,
+	LE_PIPELINE_STAGE_MESH_SHADER_BIT_NV                       = 0x00100000,
+	LE_PIPELINE_STAGE_FRAGMENT_DENSITY_PROCESS_BIT_EXT         = 0x00800000,
+	LE_PIPELINE_STAGE_COMMAND_PREPROCESS_BIT_NV                = 0x00020000,
+	LE_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_NV                = LE_PIPELINE_STAGE_RAY_TRACING_SHADER_BIT_KHR,
+	LE_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV      = LE_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_KHR,
+	LE_PIPELINE_STAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR = LE_PIPELINE_STAGE_SHADING_RATE_IMAGE_BIT_NV,
+};
+// Codegen </VkPipelineStageFlagBits>
+
 typedef uint32_t LeImageUsageFlags_t;
 LE_WRAP_TYPE_IN_STRUCT( LeImageUsageFlags_t, LeImageUsageFlags );
 // Codegen <VkImageUsageFlagBits, LeImageUsageFlags_t, c>
 enum LeImageUsageFlagBits : LeImageUsageFlags_t {
-	LE_IMAGE_USAGE_TRANSFER_SRC_BIT             = 0x00000001,
-	LE_IMAGE_USAGE_TRANSFER_DST_BIT             = 0x00000002,
-	LE_IMAGE_USAGE_SAMPLED_BIT                  = 0x00000004,
-	LE_IMAGE_USAGE_STORAGE_BIT                  = 0x00000008,
-	LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT         = 0x00000010,
-	LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT = 0x00000020,
-	LE_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT     = 0x00000040,
-	LE_IMAGE_USAGE_INPUT_ATTACHMENT_BIT         = 0x00000080,
-	LE_IMAGE_USAGE_SHADING_RATE_IMAGE_BIT_NV    = 0x00000100,
-	LE_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT = 0x00000200,
+	LE_IMAGE_USAGE_TRANSFER_SRC_BIT                         = 0x00000001,
+	LE_IMAGE_USAGE_TRANSFER_DST_BIT                         = 0x00000002,
+	LE_IMAGE_USAGE_SAMPLED_BIT                              = 0x00000004,
+	LE_IMAGE_USAGE_STORAGE_BIT                              = 0x00000008,
+	LE_IMAGE_USAGE_COLOR_ATTACHMENT_BIT                     = 0x00000010,
+	LE_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT             = 0x00000020,
+	LE_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT                 = 0x00000040,
+	LE_IMAGE_USAGE_INPUT_ATTACHMENT_BIT                     = 0x00000080,
+	LE_IMAGE_USAGE_SHADING_RATE_IMAGE_BIT_NV                = 0x00000100,
+	LE_IMAGE_USAGE_FRAGMENT_DENSITY_MAP_BIT_EXT             = 0x00000200,
+	LE_IMAGE_USAGE_FRAGMENT_SHADING_RATE_ATTACHMENT_BIT_KHR = LE_IMAGE_USAGE_SHADING_RATE_IMAGE_BIT_NV,
 };
 // Codegen </VkImageUsageFlagBits>
 
@@ -240,23 +315,25 @@ typedef uint32_t LeBufferUsageFlags_t;
 LE_WRAP_TYPE_IN_STRUCT( LeBufferUsageFlags_t, LeBufferUsageFlags );
 // Codegen <VkBufferUsageFlagBits, LeBufferUsageFlags_t, c>
 enum LeBufferUsageFlagBits : LeBufferUsageFlags_t {
-	LE_BUFFER_USAGE_TRANSFER_SRC_BIT                          = 0x00000001,
-	LE_BUFFER_USAGE_TRANSFER_DST_BIT                          = 0x00000002,
-	LE_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT                  = 0x00000004,
-	LE_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT                  = 0x00000008,
-	LE_BUFFER_USAGE_UNIFORM_BUFFER_BIT                        = 0x00000010,
-	LE_BUFFER_USAGE_STORAGE_BUFFER_BIT                        = 0x00000020,
-	LE_BUFFER_USAGE_INDEX_BUFFER_BIT                          = 0x00000040,
-	LE_BUFFER_USAGE_VERTEX_BUFFER_BIT                         = 0x00000080,
-	LE_BUFFER_USAGE_INDIRECT_BUFFER_BIT                       = 0x00000100,
-	LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT                 = 0x00020000,
-	LE_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT         = 0x00000800,
-	LE_BUFFER_USAGE_TRANSFORM_FEEDBACK_COUNTER_BUFFER_BIT_EXT = 0x00001000,
-	LE_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT             = 0x00000200,
-	LE_BUFFER_USAGE_RAY_TRACING_BIT_KHR                       = 0x00000400,
-	LE_BUFFER_USAGE_RAY_TRACING_BIT_NV                        = LE_BUFFER_USAGE_RAY_TRACING_BIT_KHR,
-	LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_EXT             = LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
-	LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR             = LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+	LE_BUFFER_USAGE_TRANSFER_SRC_BIT                                     = 0x00000001,
+	LE_BUFFER_USAGE_TRANSFER_DST_BIT                                     = 0x00000002,
+	LE_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT                             = 0x00000004,
+	LE_BUFFER_USAGE_STORAGE_TEXEL_BUFFER_BIT                             = 0x00000008,
+	LE_BUFFER_USAGE_UNIFORM_BUFFER_BIT                                   = 0x00000010,
+	LE_BUFFER_USAGE_STORAGE_BUFFER_BIT                                   = 0x00000020,
+	LE_BUFFER_USAGE_INDEX_BUFFER_BIT                                     = 0x00000040,
+	LE_BUFFER_USAGE_VERTEX_BUFFER_BIT                                    = 0x00000080,
+	LE_BUFFER_USAGE_INDIRECT_BUFFER_BIT                                  = 0x00000100,
+	LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT                            = 0x00020000,
+	LE_BUFFER_USAGE_TRANSFORM_FEEDBACK_BUFFER_BIT_EXT                    = 0x00000800,
+	LE_BUFFER_USAGE_TRANSFORM_FEEDBACK_COUNTER_BUFFER_BIT_EXT            = 0x00001000,
+	LE_BUFFER_USAGE_CONDITIONAL_RENDERING_BIT_EXT                        = 0x00000200,
+	LE_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR = 0x00080000,
+	LE_BUFFER_USAGE_ACCELERATION_STRUCTURE_STORAGE_BIT_KHR               = 0x00100000,
+	LE_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR                         = 0x00000400,
+	LE_BUFFER_USAGE_RAY_TRACING_BIT_NV                                   = LE_BUFFER_USAGE_SHADER_BINDING_TABLE_BIT_KHR,
+	LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_EXT                        = LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+	LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT_KHR                        = LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
 };
 // Codegen </VkBufferUsageFlagBits>
 
@@ -453,6 +530,8 @@ enum class BorderColor : uint32_t {
 	eIntOpaqueBlack        = 3,
 	eFloatOpaqueWhite      = 4,
 	eIntOpaqueWhite        = 5,
+	eFloatCustomExt        = 1000287003,
+	eIntCustomExt          = 1000287004,
 };
 // Codegen </VkBorderColor>
 
@@ -523,6 +602,7 @@ enum class AttachmentBlendPreset : uint32_t {
 enum class AttachmentStoreOp : uint32_t {
 	eStore    = 0,
 	eDontCare = 1,
+	eNoneQcom = 1000301000,
 };
 // Codegen </VkAttachmentStoreOp>
 
@@ -865,6 +945,8 @@ enum class Format {
 	eAstc10x10SfloatBlockExt                 = 1000066011,
 	eAstc12x10SfloatBlockExt                 = 1000066012,
 	eAstc12x12SfloatBlockExt                 = 1000066013,
+	eA4R4G4B4UnormPack16Ext                  = 1000340000,
+	eA4B4G4R4UnormPack16Ext                  = 1000340001,
 	eG8B8G8R8422UnormKhr                     = eG8B8G8R8422Unorm,
 	eB8G8R8G8422UnormKhr                     = eB8G8R8G8422Unorm,
 	eG8B8R83Plane420UnormKhr                 = eG8B8R83Plane420Unorm,
@@ -975,14 +1057,14 @@ static constexpr le_image_attachment_info_t LeDepthAttachmentInfo() {
 	return info;
 }
 
-enum LeResourceAccessFlagBits : uint32_t {
+typedef uint32_t LeResourceAccessFlags_t;
+LE_WRAP_TYPE_IN_STRUCT( LeResourceAccessFlags_t, LeResourceAccessFlags );
+enum LeResourceAccessFlagBits : LeResourceAccessFlags_t {
 	eLeResourceAccessFlagBitUndefined  = 0x0,
 	eLeResourceAccessFlagBitRead       = 0x1 << 0,
 	eLeResourceAccessFlagBitWrite      = 0x1 << 1,
 	eLeResourceAccessFlagBitsReadWrite = eLeResourceAccessFlagBitRead | eLeResourceAccessFlagBitWrite,
 };
-
-typedef uint32_t LeAccessFlags;
 
 // use le::ImageSamplerBuilder to define texture info
 struct le_sampler_info_t {
@@ -1559,6 +1641,7 @@ enum class CommandType : uint32_t {
 	eDraw,
 	eDrawMeshTasks,
 	eDispatch,
+	eBufferMemoryBarrier,
 	eTraceRays,
 	eSetLineWidth,
 	eSetViewport,
@@ -1625,6 +1708,19 @@ struct CommandDispatch {
 		uint32_t groupCountY;
 		uint32_t groupCountZ;
 		uint32_t __padding__;
+	} info;
+};
+
+struct CommandBufferMemoryBarrier {
+	CommandHeader header = { { { CommandType::eBufferMemoryBarrier, sizeof( CommandBufferMemoryBarrier ) } } };
+	struct {
+		LePipelineStageFlags srcStageMask;
+		LePipelineStageFlags dstStageMask;
+		LeAccessFlags        dstAccessMask;
+		le_resource_handle_t buffer;
+		uint64_t             offset;
+		uint64_t             range;
+
 	} info;
 };
 

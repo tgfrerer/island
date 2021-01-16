@@ -66,9 +66,9 @@ struct le_renderpass_o {
 	le::SampleCountFlagBits sample_count = le::SampleCountFlagBits::e1; // < SampleCount for all attachments.
 	uint32_t                isRoot       = false;                       // whether pass *must* be processed
 
-	std::vector<le_resource_handle_t> resources;              // all resources used in this pass
-	std::vector<LeAccessFlags>        resources_access_flags; // access flags for all resources, in sync with resources
-	std::vector<LeResourceUsageFlags> resources_usage;        // declared usage for each resource, in sync with resources
+	std::vector<le_resource_handle_t>  resources;              // all resources used in this pass
+	std::vector<LeResourceAccessFlags> resources_access_flags; // access flags for all resources, in sync with resources
+	std::vector<LeResourceUsageFlags>  resources_usage;        // declared usage for each resource, in sync with resources
 
 	std::vector<le_image_attachment_info_t> imageAttachments;    // settings for image attachments (may be color/or depth)
 	std::vector<le_resource_handle_t>       attachmentResources; // kept in sync with imageAttachments, one resource per attachment
@@ -215,7 +215,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 		// Note that we don't immediately set the access flag,
 		// as the correct access flag is calculated based on resource_info
 		// after this block.
-		self->resources_access_flags.push_back( LeResourceAccessFlagBits::eLeResourceAccessFlagBitUndefined );
+		self->resources_access_flags.push_back( { LeResourceAccessFlagBits::eLeResourceAccessFlagBitUndefined } );
 		self->resources_usage.push_back( usage_flags );
 	} else {
 
@@ -291,7 +291,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 	}
 
 	// update access flags
-	LeAccessFlags &access_flags = self->resources_access_flags[ resource_idx ];
+	LeResourceAccessFlags &access_flags = self->resources_access_flags[ resource_idx ];
 
 	if ( resourceWillBeReadFrom ) {
 		access_flags |= LeResourceAccessFlagBits::eLeResourceAccessFlagBitRead;
@@ -832,8 +832,8 @@ static void rendergraph_build( le_rendergraph_o *self, size_t frame_number ) {
 		const size_t numResources = p->resources.size();
 
 		for ( size_t i = 0; i != numResources; i++ ) {
-			auto const &         resource_handle = p->resources[ i ];
-			LeAccessFlags const &access_flags    = p->resources_access_flags[ i ];
+			auto const &                 resource_handle = p->resources[ i ];
+			LeResourceAccessFlags const &access_flags    = p->resources_access_flags[ i ];
 
 			size_t res_idx = 0; // unique resource id (monotonic, non-sparse, index into bitfield)
 			for ( auto r = uniqueHandles.data(); res_idx != numUniqueResources; res_idx++, r++ ) {

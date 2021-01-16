@@ -13,8 +13,8 @@
 #include <algorithm>
 
 #ifdef _WIN32
-#define __PRETTY_FUNCTION__ __FUNCSIG__
-#endif// 
+#	define __PRETTY_FUNCTION__ __FUNCSIG__
+#endif //
 
 #ifndef LE_MT
 #	define LE_MT 0
@@ -139,11 +139,32 @@ static void cbe_dispatch( le_command_buffer_encoder_o *self, uint32_t groupCount
 	self->mCommandCount++;
 }
 
+static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o *self,
+                                       LePipelineStageFlags const & srcStageMask,
+                                       LePipelineStageFlags const & dstStageMask,
+                                       LeAccessFlags const &        dstAccessMask,
+                                       le_resource_handle_t const & buffer,
+                                       uint64_t const &             offset,
+                                       uint64_t const &             range ) {
+
+	auto cmd = EMPLACE_CMD( le::CommandBufferMemoryBarrier ); // placement new!
+
+	cmd->info.srcStageMask  = srcStageMask;
+	cmd->info.dstStageMask  = dstStageMask;
+	cmd->info.dstAccessMask = dstAccessMask;
+	cmd->info.buffer        = buffer;
+	cmd->info.offset        = offset;
+	cmd->info.range         = range;
+
+	self->mCommandStreamSize += sizeof( le::CommandBufferMemoryBarrier );
+	self->mCommandCount++;
+}
+
 // ----------------------------------------------------------------------
 static void cbe_trace_rays( le_command_buffer_encoder_o *self, uint32_t width, uint32_t height, uint32_t depth ) {
 
 	auto cmd  = EMPLACE_CMD( le::CommandTraceRays ); // placement new!
-	cmd->info = { width, height, depth };
+	cmd->info = { width, height, depth, 0 };
 
 	self->mCommandStreamSize += sizeof( le::CommandTraceRays );
 	self->mCommandCount++;
@@ -967,6 +988,7 @@ void register_le_command_buffer_encoder_api( void *api_ ) {
 	cbe_i.draw_indexed           = cbe_draw_indexed;
 	cbe_i.draw_mesh_tasks        = cbe_draw_mesh_tasks;
 	cbe_i.dispatch               = cbe_dispatch;
+	cbe_i.buffer_memory_barrier  = cbe_buffer_memory_barrier;
 	cbe_i.trace_rays             = cbe_trace_rays;
 	cbe_i.get_extent             = cbe_get_extent;
 	cbe_i.set_line_width         = cbe_set_line_width;
