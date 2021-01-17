@@ -18,7 +18,8 @@ struct le_resource_item_t {
 		bool             pixels_owner = false;
 		std::atomic_bool was_uploaded{ false };
 
-		image_data_layer_t(){}
+		image_data_layer_t() {
+		}
 
 		image_data_layer_t( const le_resource_item_t::image_data_layer_t &src ) {
 			pixels       = src.pixels;
@@ -239,7 +240,7 @@ static le_resource_item_t *le_resource_manager_add_item_filepaths( le_resource_m
 	infer_from_le_format( image_info->image.format, &num_channels, &pixels_type );
 
 	for ( size_t i = 0; i < pixels.size(); ++i ) {
-		le_pixels::le_pixels_i.create_from_file( image_paths[ i ], num_channels, pixels_type );
+		pixels[ i ] = le_pixels::le_pixels_i.create_from_file( image_paths[ i ], num_channels, pixels_type );
 	}
 	return le_resource_manager_add_item_pixels( self, image_handle, image_info, pixels.data(), true );
 }
@@ -247,6 +248,9 @@ static le_resource_item_t *le_resource_manager_add_item_filepaths( le_resource_m
 // ----------------------------------------------------------------------
 
 static void le_resource_manager_update_pixels( le_resource_manager_o *self, le_resource_item_t *image_handle, le_pixels_o ** = nullptr ) {
+	for ( auto &layer : image_handle->image_layers ) {
+		layer.was_uploaded = false;
+	}
 }
 
 // ----------------------------------------------------------------------

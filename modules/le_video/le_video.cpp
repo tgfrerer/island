@@ -10,13 +10,14 @@
 #include "le_core/le_core.h"
 
 struct le_video_o {
-	libvlc_instance_t *    libvlc = nullptr;
-	le_resource_manager_o *resource_manager;
-	libvlc_media_player_t *player = nullptr;
-	le_video_load_params   load_params{};
-	le_pixels_o *          pixels;
-	le_resource_item_t *   resource_handle;
-	uint64_t               duration = 0;
+	libvlc_instance_t *         libvlc = nullptr;
+	le_resource_manager_o *     resource_manager;
+	const le_resource_handle_t *image_handle;
+	libvlc_media_player_t *     player = nullptr;
+	le_video_load_params        load_params{};
+	le_pixels_o *               pixels;
+	le_resource_item_t *        resource_handle;
+	uint64_t                    duration = 0;
 };
 
 //struct le_video_item_t {
@@ -44,10 +45,11 @@ static le_video_o *le_video_create() {
 	return self;
 }
 
-static bool le_video_setup( le_video_o *self, le_resource_manager_o *resource_manager ) {
+static bool le_video_setup( le_video_o *self, le_resource_manager_o *resource_manager, le_resource_handle_t const *image_handle ) {
 
 	self->libvlc           = libvlc;
 	self->resource_manager = resource_manager;
+	self->image_handle     = image_handle;
 
 	if ( !self->libvlc ) {
 		std::cerr << "Error no VLC context set" << std::endl;
@@ -103,11 +105,15 @@ static bool le_video_load( le_video_o *self, const le_video_load_params &params 
 	unsigned    num_channels = 0;
 
 	switch ( params.output_format ) {
-	case le::Format::eR8G8B8Uint:
+		//    case le::Format::eR8G8Uint:
+		//        chroma       = "RV32";
+		//        num_channels = 2;
+		//		break;
+	case le::Format::eR8G8B8Unorm:
 		chroma       = "RV32";
 		num_channels = 3;
 		break;
-	case le::Format::eR8G8B8A8Uint:
+	case le::Format::eR8G8B8A8Unorm:
 		chroma       = "RGBA";
 		num_channels = 4;
 		break;
@@ -144,14 +150,13 @@ static bool le_video_load( le_video_o *self, const le_video_load_params &params 
 
 	libvlc_media_player_play( self->player );
 
-	auto image_handle = LE_IMG_RESOURCE( params.file_path );
 	auto image_info =
 	    le::ImageInfoBuilder()
 	        .setImageType( le::ImageType::e2D )
 	        .setExtent( width, height )
 	        .build();
 
-	self->resource_handle = le_resource_manager::le_resource_manager_i.add_item_pixels( self->resource_manager, &image_handle, &image_info, &self->pixels, false );
+	self->resource_handle = le_resource_manager::le_resource_manager_i.add_item_pixels( self->resource_manager, self->image_handle, &image_info, &self->pixels, false );
 
 	libvlc_media_release( media );
 

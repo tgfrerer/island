@@ -10,7 +10,7 @@ struct le_video_o;
 // clang-format off
 struct le_video_load_params {
     char const *file_path{};
-    le::Format output_format{le::Format::eR8G8B8Uint};
+    le::Format output_format{le::Format::eR8G8B8Unorm};
 };
 
 // forward declaration
@@ -22,7 +22,7 @@ struct le_video_api {
 
 	struct le_video_interface_t {
         le_video_o *         ( * create                   ) (  );
-		bool                 ( * setup                    ) ( le_video_o* self, le_resource_manager_o* resource_manager );
+		bool                 ( * setup                    ) ( le_video_o* self, le_resource_manager_o* resource_manager, le_resource_handle_t const * image_handle );
 		void                 ( * destroy                  ) ( le_video_o* self );
 		void                 ( * update                   ) ( le_video_o* self );
         bool                 ( * load                     ) ( le_video_o* self, const le_video_load_params &params );
@@ -64,8 +64,8 @@ class Video : NoCopy, NoMove {
 		le_video::le_video_i.destroy( self );
 	}
 
-	bool setup( le_resource_manager_o *resource_manager ) {
-		return le_video::le_video_i.setup( self, resource_manager );
+	bool setup( le_resource_manager_o *resource_manager, le_resource_handle_t const &image_handle ) {
+		return le_video::le_video_i.setup( self, resource_manager, &image_handle );
 	}
 
 	void update() {

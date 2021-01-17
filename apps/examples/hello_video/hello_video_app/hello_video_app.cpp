@@ -30,6 +30,8 @@ struct hello_video_app_o {
 	le::Video video;
 };
 
+constexpr le_resource_handle_t VIDEO_HANDLE = LE_IMG_RESOURCE( "video" );
+
 typedef hello_video_app_o app_o;
 
 // ----------------------------------------------------------------------
@@ -54,8 +56,8 @@ static app_o *app_create() {
 
 	le::Window::Settings settings;
 	settings
-	    .setWidth( 1024 )
-	    .setHeight( 1024 )
+	    .setWidth( 1280 )
+	    .setHeight( 720 )
 	    .setTitle( "Island // HelloVideoApp" );
 
 	// create a new window
@@ -63,7 +65,7 @@ static app_o *app_create() {
 
 	app->renderer.setup( le::RendererInfoBuilder( app->window ).build() );
 
-	app->video.setup( app->resource_manager );
+	app->video.setup( app->resource_manager, VIDEO_HANDLE );
 	app->video.load( "./local_resources/test.mp4" );
 
 	// Set up the camera
@@ -75,12 +77,12 @@ static app_o *app_create() {
 // ----------------------------------------------------------------------
 
 static void app_reset_camera( app_o *self ) {
-	le::Extent2D extents{};
-	self->renderer.getSwapchainExtent( &extents.width, &extents.height );
-	self->camera.setViewport( { 0, 0, float( extents.width ), float( extents.height ), 0.f, 1.f } );
-	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
-	glm::mat4 camMatrix = glm::lookAt( glm::vec3{ 0, 0, self->camera.getUnitDistance() }, glm::vec3{ 0 }, glm::vec3{ 0, 1, 0 } );
-	self->camera.setViewMatrixGlm( camMatrix );
+	//	le::Extent2D extents{};
+	//	self->renderer.getSwapchainExtent( &extents.width, &extents.height );
+	//	self->camera.setViewport( { 0, 0, float( extents.width ), float( extents.height ), 0.f, 1.f } );
+	//	self->camera.setFovRadians( glm::radians( 60.f ) ); // glm::radians converts degrees to radians
+	//	glm::mat4 camMatrix = glm::lookAt( glm::vec3{ 0, 0, self->camera.getUnitDistance() }, glm::vec3{ 0 }, glm::vec3{ 0, 1, 0 } );
+	//	self->camera.setViewMatrixGlm( camMatrix );
 }
 
 // ----------------------------------------------------------------------
@@ -103,62 +105,82 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 // ----------------------------------------------------------------------
 
 static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto        app = static_cast<app_o *>( user_data );
+	auto app = static_cast<app_o *>( user_data );
+
 	le::Encoder encoder{ encoder_ };
 
-	auto extents = encoder.getRenderpassExtent();
+	static auto shaderVert = app->renderer.createShaderModule( "./local_resources/shaders/fullscreen.vert", le::ShaderStage::eVertex );
+	static auto shaderFrag = app->renderer.createShaderModule( "./local_resources/shaders/fullscreen.frag", le::ShaderStage::eFragment );
 
-	le::Viewport viewports[ 1 ] = {
-	    { 0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f },
-	};
+	static auto video_texture = le::Renderer::produceTextureHandle( "video" );
 
-	app->camera.setViewport( viewports[ 0 ] );
-
-	// Data as it is laid out in the shader ubo.
-	// Be careful to respect std430 or std140 layout
-	// depending on what you specify in the
-	// shader.
-	struct MvpUbo {
-		glm::mat4 model;
-		glm::mat4 view;
-		glm::mat4 projection;
-	};
-
-	// Draw main scene
-
-	static auto shaderVert = app->renderer.createShaderModule( "./local_resources/shaders/default.vert", le::ShaderStage::eVertex );
-	static auto shaderFrag = app->renderer.createShaderModule( "./local_resources/shaders/default.frag", le::ShaderStage::eFragment );
-
-	static auto pipelineHelloVideo =
+	static auto pipelineHelloVideoExample =
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 	        .addShaderStage( shaderVert )
 	        .addShaderStage( shaderFrag )
 	        .build();
 
-	MvpUbo mvp;
-	mvp.model      = glm::mat4( 1.f ); // identity matrix
-	mvp.model      = glm::scale( mvp.model, glm::vec3( 4.5 ) );
-	mvp.view       = app->camera.getViewMatrixGlm();
-	mvp.projection = app->camera.getProjectionMatrixGlm();
-
-	glm::vec3 vertexPositions[] = {
-	    { -50, -50, 0 },
-	    { 50, -50, 0 },
-	    { 0, 50, 0 },
-	};
-
-	glm::vec4 vertexColors[] = {
-	    { 1, 0, 0, 1.f },
-	    { 0, 1, 0, 1.f },
-	    { 0, 0, 1, 1.f },
-	};
-
 	encoder
-	    .bindGraphicsPipeline( pipelineHelloVideo )
-	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo ) )
-	    .setVertexData( vertexPositions, sizeof( vertexPositions ), 0 )
-	    .setVertexData( vertexColors, sizeof( vertexColors ), 1 )
-	    .draw( 3 );
+	    .bindGraphicsPipeline( pipelineHelloVideoExample )
+	    .setArgumentTexture( LE_ARGUMENT_NAME( "src_video" ), video_texture )
+	    .draw( 4 );
+
+	//	auto        app = static_cast<app_o *>( user_data );
+	//	le::Encoder encoder{ encoder_ };
+	//
+	//	auto extents = encoder.getRenderpassExtent();
+	//
+	//	le::Viewport viewports[ 1 ] = {
+	//	    { 0.f, 0.f, float( extents.width ), float( extents.height ), 0.f, 1.f },
+	//	};
+	//
+	//	app->camera.setViewport( viewports[ 0 ] );
+	//
+	//	// Data as it is laid out in the shader ubo.
+	//	// Be careful to respect std430 or std140 layout
+	//	// depending on what you specify in the
+	//	// shader.
+	//	struct MvpUbo {
+	//		glm::mat4 model;
+	//		glm::mat4 view;
+	//		glm::mat4 projection;
+	//	};
+	//
+	//	// Draw main scene
+	//
+	//	static auto shaderVert = app->renderer.createShaderModule( "./local_resources/shaders/fullscreen.vert", le::ShaderStage::eVertex );
+	//	static auto shaderFrag = app->renderer.createShaderModule( "./local_resources/shaders/fullscreen.frag", le::ShaderStage::eFragment );
+	//
+	//	static auto pipelineHelloVideo =
+	//	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
+	//	        .addShaderStage( shaderVert )
+	//	        .addShaderStage( shaderFrag )
+	//	        .build();
+	//
+	//	MvpUbo mvp;
+	//	mvp.model      = glm::mat4( 1.f ); // identity matrix
+	//	mvp.model      = glm::scale( mvp.model, glm::vec3( 4.5 ) );
+	//	mvp.view       = app->camera.getViewMatrixGlm();
+	//	mvp.projection = app->camera.getProjectionMatrixGlm();
+	//
+	//	glm::vec3 vertexPositions[] = {
+	//	    { -50, -50, 0 },
+	//	    { 50, -50, 0 },
+	//	    { 0, 50, 0 },
+	//	};
+	//
+	//	glm::vec4 vertexColors[] = {
+	//	    { 1, 0, 0, 1.f },
+	//	    { 0, 1, 0, 1.f },
+	//	    { 0, 0, 1, 1.f },
+	//	};
+	//
+	//	encoder
+	//	    .bindGraphicsPipeline( pipelineHelloVideo )
+	//	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo ) )
+	//	    .setVertexData( vertexPositions, sizeof( vertexPositions ), 0 )
+	//	    .setVertexData( vertexColors, sizeof( vertexColors ), 1 )
+	//	    .draw( 3 );
 }
 
 // ----------------------------------------------------------------------
@@ -224,11 +246,21 @@ static bool app_update( app_o *self ) {
 	// update interactive camera using mouse data
 	app_process_ui_events( self );
 
+	static auto video_texture = le::Renderer::produceTextureHandle( "video" );
+
 	le::RenderModule mainModule{};
 	{
 
+		auto video_tex_info =
+		    le::ImageSamplerInfoBuilder()
+		        .withImageViewInfo()
+		        .setImage( VIDEO_HANDLE )
+		        .end()
+		        .build();
+
 		auto renderPassFinal =
 		    le::RenderPass( "root", LE_RENDER_PASS_TYPE_DRAW )
+		        .sampleTexture( video_texture, video_tex_info ) // Declare texture name: color lut image
 		        .setSetupCallback( self, pass_main_setup )
 		        .setExecuteCallback( self, pass_main_exec ) //
 		    ;
