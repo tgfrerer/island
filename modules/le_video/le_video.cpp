@@ -15,7 +15,7 @@ struct le_video_o {
 	libvlc_media_player_t *player = nullptr;
 	le_video_load_params   load_params{};
 	le_pixels_o *          pixels;
-	le_resource_handle_t   image_handle;
+	le_resource_item_t *   resource_handle;
 	uint64_t               duration = 0;
 };
 
@@ -70,57 +70,21 @@ static le_video_o *to_video( void *ptr ) {
 	return static_cast<le_video_o *>( ptr );
 }
 
-//unsigned cb_format( void **opaque, char *chroma,
-//                    unsigned *width, unsigned *height,
-//                    unsigned *pitches,
-//                    unsigned *lines ) {
-//
-//	//	chroma = "RGBA";
-//	auto player = to_video( *opaque );
-//
-//	unsigned w = *width;
-//	unsigned h = *height;
-//
-//	if ( w != player->width || h != player->height ) {
-//		// allocate pixels
-////        size_t pixels =
-//	}
-//
-//	std::cout << chroma << " - " << w << " - " << h << std::endl;
-//
-//	//	char* target_format = "RGBA";
-//	//	chroma = target_format;
-//
-//	strcpy( chroma, "RGBA" );
-//
-//	return 1;
-//}
-//
-//void cb_cleanup( void *opaque ) {
-//}
-
 static void *cb_lock( void *opaque, void **planes ) {
 	auto video = to_video( opaque );
-	*planes    = le_pixels::le_pixels_i.get_data( video->pixels );
-	std::cout << "Got a frame" << std::endl;
+	le_pixels::le_pixels_i.lock( video->pixels );
+	*planes = le_pixels::le_pixels_i.get_data( video->pixels );
 	return video->pixels;
 }
 
-// get the argb image and save it to a file
 static void cb_unlock( void *opaque, void *picture, void *const *planes ) {
 	auto video = to_video( opaque );
-	//	struct context *ctx        = ( context * )opaque;
-	//	unsigned char * data       = ( unsigned char * )*planes;
-	//	static int      frameCount = 1;
-	//
-	//	QImage image( data, VIDEO_WIDTH, VIDEO_HEIGHT, QImage::Format_ARGB32 );
-	//	image.save( QString( "frame_%1.png" ).arg( frameCount++ ) );
-	//
-	//	ctx->mutex.unlock();
+	le_pixels::le_pixels_i.unlock( video->pixels );
 }
 
 static void cb_display( void *opaque, void *picture ) {
 	auto video = to_video( opaque );
+	le_resource_manager::le_resource_manager_i.update_pixels( video->resource_manager, video->resource_handle, nullptr );
 }
 
 // ----------------------------------------------------------------------
@@ -180,14 +144,14 @@ static bool le_video_load( le_video_o *self, const le_video_load_params &params 
 
 	libvlc_media_player_play( self->player );
 
-	self->image_handle = LE_IMG_RESOURCE( params.file_path );
+	auto image_handle = LE_IMG_RESOURCE( params.file_path );
 	auto image_info =
 	    le::ImageInfoBuilder()
 	        .setImageType( le::ImageType::e2D )
 	        .setExtent( width, height )
 	        .build();
 
-	le_resource_manager::le_resource_manager_i.add_item_pixels( self->resource_manager, &self->image_handle, &image_info, &self->pixels );
+	self->resource_handle = le_resource_manager::le_resource_manager_i.add_item_pixels( self->resource_manager, &image_handle, &image_info, &self->pixels, false );
 
 	libvlc_media_release( media );
 

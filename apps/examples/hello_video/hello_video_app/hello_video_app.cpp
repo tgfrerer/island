@@ -95,9 +95,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 
 	// Attachment may be further specialised using le::ImageAttachmentInfoBuilder().
 
-	rp
-	    .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE, le::ImageAttachmentInfoBuilder().build() ) // color attachment
-	    ;
+	rp.addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE, le::ImageAttachmentInfoBuilder().build() );
 
 	return true;
 }

@@ -37,6 +37,8 @@ struct le_pixels_api {
 
 		le_pixels_info   ( * get_info ) ( le_pixels_o* self );
 		void *           ( * get_data ) ( le_pixels_o* self );
+        void             ( * lock ) ( le_pixels_o* self );
+        void             ( * unlock ) ( le_pixels_o* self );
 	};
 
 	le_pixels_interface_t       le_pixels_i;
@@ -82,6 +84,14 @@ class Pixels : NoCopy, NoMove {
 
 	auto getInfo() noexcept {
 		return le_pixels::le_pixels_i.get_info( self );
+	}
+
+	void lock() {
+		le_pixels::le_pixels_i.lock( self );
+	}
+
+	void unlock() {
+		le_pixels::le_pixels_i.unlock( self );
 	}
 };
 } //end namespace le

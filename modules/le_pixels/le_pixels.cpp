@@ -6,11 +6,14 @@
 #include <iostream>
 #include <iomanip>
 
+#include <mutex>
+
 struct le_pixels_o {
 	// members
-	void *         image_data = nullptr;
-//	std::string    file_path;
+	void *image_data = nullptr;
+	//	std::string    file_path;
 	le_pixels_info info{};
+	std::mutex     mtx;
 };
 
 // ----------------------------------------------------------------------
@@ -216,6 +219,18 @@ static void *le_pixels_get_data( le_pixels_o *self ) {
 
 // ----------------------------------------------------------------------
 
+static void le_pixels_lock( le_pixels_o *self ) {
+	self->mtx.lock();
+}
+
+// ----------------------------------------------------------------------
+
+static void le_pixels_unlock( le_pixels_o *self ) {
+	self->mtx.unlock();
+}
+
+// ----------------------------------------------------------------------
+
 static bool le_pixels_get_info_from_source( image_source_info_t const &source, le_pixels_info *info ) {
 
 	if ( info == nullptr ) {
@@ -321,4 +336,6 @@ LE_MODULE_REGISTER_IMPL( le_pixels, api ) {
 	le_pixels_i.destroy  = le_pixels_destroy;
 	le_pixels_i.get_data = le_pixels_get_data;
 	le_pixels_i.get_info = le_pixels_get_info;
+	le_pixels_i.lock     = le_pixels_lock;
+	le_pixels_i.unlock   = le_pixels_unlock;
 }

@@ -74,6 +74,7 @@ when you specify the image info for the resource
 #include "le_core/le_core.h"
 
 struct le_resource_manager_o;
+struct le_resource_item_t;
 struct le_render_module_o;   // ffdecl. (from le_renderer)
 struct le_resource_handle_t; // ffdecl. (from le_renderer)
 struct le_resource_info_t;   // ffdecl. (from le_renderer)
@@ -87,9 +88,9 @@ struct le_resource_manager_api {
 		le_resource_manager_o *  ( * create    ) ( );
 		void                     ( * destroy   ) ( le_resource_manager_o* self );
 		void                     ( * update    ) ( le_resource_manager_o* self, le_render_module_o* module );
-        void                     ( * add_item_filepaths  ) ( le_resource_manager_o* self, le_resource_handle_t const * image_handle, le_resource_info_t const * image_info, char const * const * arr_image_paths);
-        void                     ( * add_item_pixels  ) ( le_resource_manager_o* self, le_resource_handle_t const * image_handle, le_resource_info_t const * image_info, le_pixels_o**);
-
+        le_resource_item_t*      ( * add_item_filepaths  ) ( le_resource_manager_o* self, le_resource_handle_t const * image_handle, le_resource_info_t const * image_info, char const * const * arr_image_paths);
+        le_resource_item_t*      ( * add_item_pixels  ) ( le_resource_manager_o* self, le_resource_handle_t const * image_handle, le_resource_info_t const * image_info, le_pixels_o**, bool take_ownership);
+        void                     ( * update_pixels  ) ( le_resource_manager_o* self, le_resource_item_t* image_handle, le_pixels_o** pixels);
 	};
 
 	le_resource_manager_interface_t       le_resource_manager_i;
@@ -123,13 +124,17 @@ class LeResourceManager : NoCopy, NoMove {
 		le_resource_manager::le_resource_manager_i.update( self, module );
 	}
 
-	void add_item( le_resource_handle_t const &image_handle, le_resource_info_t const &image_info, char const *const *arr_image_paths ) {
+    le_resource_item_t *add_item( le_resource_handle_t const &image_handle, le_resource_info_t const &image_info, char const *const *arr_image_paths ) {
 		le_resource_manager::le_resource_manager_i.add_item_filepaths( self, &image_handle, &image_info, arr_image_paths );
 	}
 
-    void add_item( le_resource_handle_t const &image_handle, le_resource_info_t const &image_info, le_pixels_o** pixels ) {
-        le_resource_manager::le_resource_manager_i.add_item_pixels( self, &image_handle, &image_info, pixels );
-    }
+    le_resource_item_t *add_item( le_resource_handle_t const &image_handle, le_resource_info_t const &image_info, le_pixels_o **pixels, bool take_ownership = false ) {
+		le_resource_manager::le_resource_manager_i.add_item_pixels( self, &image_handle, &image_info, pixels, take_ownership );
+	}
+
+	void update_pixels( le_resource_item_t * image_layer, le_pixels_o **pixels = nullptr ) {
+		le_resource_manager::le_resource_manager_i.update_pixels( self, image_layer, pixels );
+	}
 
 	operator auto() {
 		return self;
