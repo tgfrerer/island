@@ -12,8 +12,8 @@ struct le_resource_manager_o {
 
 	struct image_data_layer_t {
 		le_pixels_o *pixels;
-		std::string  path;
-		bool         was_uploaded = false;
+		// std::string  path;
+		bool was_uploaded = false;
 	};
 
 	struct resource_item_t {
@@ -163,14 +163,9 @@ static void infer_from_le_format( le::Format const &format, uint32_t *num_channe
 }
 
 // ----------------------------------------------------------------------
-// NOTE: You must provide an array of paths in image_paths, and the
-// array's size must match `image_info.image.arrayLayers`
-// Most meta-data about the image file is loaded via image_info
-static void le_resource_manager_add_item_filepaths( le_resource_manager_o *     self,
-                                                    le_resource_handle_t const *image_handle,
-                                                    le_resource_info_t const *  image_info,
-                                                    char const *const *         image_paths ) {
 
+void le_resource_manager_add_item_pixels( le_resource_manager_o *self, le_resource_handle_t const *image_handle, le_resource_info_t const *image_info, le_pixels_o **pixels ) {
+	// TODO, merge this with filepaths code
 	le_resource_manager_o::resource_item_t item{};
 
 	item.image_handle = *image_handle;
@@ -186,16 +181,10 @@ static void le_resource_manager_add_item_filepaths( le_resource_manager_o *     
 
 	for ( size_t i = 0; i != item.image_info.image.arrayLayers; ++i ) {
 		le_resource_manager_o::image_data_layer_t layer_data{};
-		layer_data.path         = std::string{ image_paths[ i ] };
+		// layer_data.path         = std::string{ image_paths[ i ] };
 		layer_data.was_uploaded = false;
 
-		// we must find out the pixels type from image info format
-		uint32_t             num_channels = 0;
-		le_pixels_info::Type pixels_type{};
-
-		infer_from_le_format( item.image_info.image.format, &num_channels, &pixels_type );
-
-		layer_data.pixels = le_pixels::le_pixels_i.create_from_file( layer_data.path.c_str(), num_channels, pixels_type );
+		layer_data.pixels = pixels[ i ];
 
 		if ( extents_inferred ) {
 			auto info                           = le_pixels::le_pixels_i.get_info( layer_data.pixels );
@@ -216,9 +205,26 @@ static void le_resource_manager_add_item_filepaths( le_resource_manager_o *     
 }
 
 // ----------------------------------------------------------------------
+// NOTE: You must provide an array of paths in image_paths, and the
+// array's size must match `image_info.image.arrayLayers`
+// Most meta-data about the image file is loaded via image_info
+static void le_resource_manager_add_item_filepaths( le_resource_manager_o *     self,
+                                                    le_resource_handle_t const *image_handle,
+                                                    le_resource_info_t const *  image_info,
+                                                    char const *const *         image_paths ) {
 
-void le_resource_manager_add_item_pixels( le_resource_manager_o *self, le_resource_handle_t const *image_handle, le_resource_info_t const *image_info, const le_pixels_o ** ) {
-    // TODO, merge this with filepaths code
+	std::vector<le_pixels_o *> pixels( image_info->image.arrayLayers );
+
+	// we must find out the pixels type from image info format
+	uint32_t             num_channels = 0;
+	le_pixels_info::Type pixels_type{};
+
+	infer_from_le_format( image_info->image.format, &num_channels, &pixels_type );
+
+	for ( size_t i = 0; i < pixels.size(); ++i ) {
+		le_pixels::le_pixels_i.create_from_file( image_paths[ i ], num_channels, pixels_type );
+	}
+	le_resource_manager_add_item_pixels( self, image_handle, image_info, pixels.data() );
 }
 
 // ----------------------------------------------------------------------

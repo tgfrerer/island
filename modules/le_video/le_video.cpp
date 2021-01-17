@@ -187,7 +187,7 @@ static bool le_video_load( le_video_o *self, const le_video_load_params &params 
 	        .setExtent( width, height )
 	        .build();
 
-	//	le_resource_manager::api
+	le_resource_manager::le_resource_manager_i.add_item_pixels( self->resource_manager, &self->image_handle, &image_info, &self->pixels );
 
 	libvlc_media_release( media );
 
