@@ -125,11 +125,11 @@ class LeResourceManager : NoCopy, NoMove {
 	}
 
     le_resource_item_t *add_item( le_resource_handle_t const &image_handle, le_resource_info_t const &image_info, char const *const *arr_image_paths ) {
-		le_resource_manager::le_resource_manager_i.add_item_filepaths( self, &image_handle, &image_info, arr_image_paths );
+		return le_resource_manager::le_resource_manager_i.add_item_filepaths( self, &image_handle, &image_info, arr_image_paths );
 	}
 
     le_resource_item_t *add_item( le_resource_handle_t const &image_handle, le_resource_info_t const &image_info, le_pixels_o **pixels, bool take_ownership = false ) {
-		le_resource_manager::le_resource_manager_i.add_item_pixels( self, &image_handle, &image_info, pixels, take_ownership );
+		return le_resource_manager::le_resource_manager_i.add_item_pixels( self, &image_handle, &image_info, pixels, take_ownership );
 	}
 
 	void update_pixels( le_resource_item_t * image_layer, le_pixels_o **pixels = nullptr ) {

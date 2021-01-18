@@ -13,5 +13,6 @@ layout (set = 0, binding = 0) uniform sampler2D src_video;
 layout (location = 0) out vec4 outFragColor;
 
 void main(){
-    outFragColor = texture(src_video, inTexCoord.xy);
+    vec4 col = texture(src_video, inTexCoord.xy);
+    outFragColor = vec4(col.b, col.g, col.r, col.a);
 }

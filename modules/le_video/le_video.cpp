@@ -137,7 +137,7 @@ static bool le_video_load( le_video_o *self, const le_video_load_params &params 
 
 	self->pixels = le_pixels::le_pixels_i.create( int( width ), int( height ), 4, le_pixels_info::eUInt8 );
 
-	std::cout << "[VIDEO INFO] '" << params.file_path << " '" << width << "x" << height << " " << self->duration << "ms" << std::endl;
+	std::cout << "[VIDEO INFO] '" << params.file_path << "' " << width << "x" << height << " " << self->duration << "ms, resource handle: " << self->image_handle->debug_name << std::endl;
 
 	// set callbacks
 

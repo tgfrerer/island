@@ -309,7 +309,7 @@ vk::SampleCountFlagBits le_sample_count_log_2_to_vk( uint32_t sample_count_log2 
 // returns log2 of number of samples, so that number of samples can be
 // calculated as `num_samples = 1 << log2_num_samples`
 inline uint16_t get_sample_count_log_2( uint32_t const &sample_count ) {
-#if defined(_MSC_VER)
+#if defined( _MSC_VER )
 	auto lz = __lzcnt( sample_count );
 #else
 	auto lz = __builtin_clz( sample_count );
@@ -3264,7 +3264,6 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 			// Resource does not yet exist, we must allocate this resource and add it to the backend.
 			// Then add a reference to it to the current frame.
-
 			if ( resourceCreateInfo.isImage() ) {
 
 				patchImageUsageForMipLevels( &resourceCreateInfo );

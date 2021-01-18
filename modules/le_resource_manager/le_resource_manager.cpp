@@ -16,7 +16,7 @@ struct le_resource_item_t {
 		// std::string  path;
 		le_pixels_o *    pixels       = nullptr;
 		bool             pixels_owner = false;
-		std::atomic_bool was_uploaded{ false };
+		std::atomic_bool was_uploaded = false;
 
 		image_data_layer_t() {
 		}
@@ -24,7 +24,7 @@ struct le_resource_item_t {
 		image_data_layer_t( const le_resource_item_t::image_data_layer_t &src ) {
 			pixels       = src.pixels;
 			pixels_owner = src.pixels_owner;
-			was_uploaded = src.was_uploaded.operator bool();
+			was_uploaded = bool(src.was_uploaded);
 		}
 	};
 
@@ -211,7 +211,7 @@ static le_resource_item_t *le_resource_manager_add_item_pixels( le_resource_mana
 			item.image_info.image.extent.height = std::max( item.image_info.image.extent.height, info.height );
 		}
 
-		item.image_layers.push_back( std::move( layer_data ) );
+		item.image_layers.push_back( layer_data );
 	}
 
 	assert( item.image_info.image.extent.width != 0 &&
@@ -219,7 +219,7 @@ static le_resource_item_t *le_resource_manager_add_item_pixels( le_resource_mana
 	        item.image_info.image.extent.depth != 0 &&
 	        "Image extents for resource are not valid." );
 
-	return &self->resources.emplace_back( std::move( item ) );
+	return &self->resources.emplace_back( item );
 }
 
 // ----------------------------------------------------------------------

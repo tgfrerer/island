@@ -112,7 +112,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	static auto shaderVert = app->renderer.createShaderModule( "./local_resources/shaders/fullscreen.vert", le::ShaderStage::eVertex );
 	static auto shaderFrag = app->renderer.createShaderModule( "./local_resources/shaders/fullscreen.frag", le::ShaderStage::eFragment );
 
-	static auto video_texture = le::Renderer::produceTextureHandle( "video" );
+	static auto video_texture = le::Renderer::produceTextureHandle( "videoli" );
 
 	static auto pipelineHelloVideoExample =
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
@@ -246,10 +246,11 @@ static bool app_update( app_o *self ) {
 	// update interactive camera using mouse data
 	app_process_ui_events( self );
 
-	static auto video_texture = le::Renderer::produceTextureHandle( "video" );
+	static auto video_texture = le::Renderer::produceTextureHandle( "videoli" );
 
 	le::RenderModule mainModule{};
 	{
+		self->resource_manager.update( mainModule );
 
 		auto video_tex_info =
 		    le::ImageSamplerInfoBuilder()
@@ -260,9 +261,10 @@ static bool app_update( app_o *self ) {
 
 		auto renderPassFinal =
 		    le::RenderPass( "root", LE_RENDER_PASS_TYPE_DRAW )
-		        .sampleTexture( video_texture, video_tex_info ) // Declare texture name: color lut image
-		        .setSetupCallback( self, pass_main_setup )
-		        .setExecuteCallback( self, pass_main_exec ) //
+		        //		                        .setSetupCallback( self, pass_main_setup )
+		        .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE )
+		        .sampleTexture( video_texture, video_tex_info ) // Declare texture video
+		        .setExecuteCallback( self, pass_main_exec )     //
 		    ;
 
 		mainModule.addRenderPass( renderPassFinal );
