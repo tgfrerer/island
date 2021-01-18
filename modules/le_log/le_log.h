@@ -1,0 +1,98 @@
+#ifndef GUARD_le_log_H
+#define GUARD_le_log_H
+
+#include <utility>
+#include <cstdarg>
+#include <string>
+
+#include "le_core/le_core.h"
+
+namespace le_log {
+enum class Level : uint8_t {
+	DEBUG = 0,
+	INFO  = 1,
+	WARN  = 2,
+	ERROR = 3
+};
+}
+
+class le_log_module_o;
+
+// clang-format off
+struct le_log_api {
+    void              ( * set_level  ) ( le_log_module_o* module, le_log::Level level);
+    void              ( * debug      ) ( const le_log_module_o* module, const char* msg, ...);
+    void              ( * info       ) ( const le_log_module_o* module, const char* msg, ...);
+    void              ( * warn       ) ( const le_log_module_o* module, const char* msg, ...);
+    void              ( * error      ) ( const le_log_module_o* module, const char* msg, ...);
+    le_log_module_o*  ( * get_module ) ( const char* name);
+};
+// clang-format on
+
+LE_MODULE( le_log );
+LE_MODULE_LOAD_DEFAULT( le_log );
+
+#ifdef __cplusplus
+
+namespace le_log {
+static const auto &api = le_log_api_i;
+
+static void set_level( const Level &level ) {
+	api->set_level( nullptr, level );
+}
+
+template <class... Args>
+inline void debug( const std::string &msg, Args &&...args ) {
+	api->debug( nullptr, msg.c_str(), std::forward<Args>( args )... );
+}
+
+template <class... Args>
+inline void info( const std::string &msg, Args &&...args ) {
+	api->info( nullptr, msg.c_str(), std::forward<Args>( args )... );
+}
+
+template <class... Args>
+inline void warn( const std::string &msg, Args &&...args ) {
+	api->warn( nullptr, msg.c_str(), std::forward<Args>( args )... );
+}
+
+template <class... Args>
+inline void error( const std::string &msg, Args &&...args ) {
+	api->error( nullptr, msg.c_str(), std::forward<Args>( args )... );
+}
+
+// --------------------------------------------------
+
+le_log_module_o *get_module( const std::string &name ) {
+	return api->get_module( name.c_str() );
+}
+
+static void set_level( le_log_module_o *module, const Level &level ) {
+	api->set_level( module, level );
+}
+
+template <class... Args>
+inline void debug( const le_log_module_o *module, const std::string &msg, Args &&...args ) {
+	api->debug( module, msg.c_str(), std::forward<Args>( args )... );
+}
+
+template <class... Args>
+inline void info( const le_log_module_o *module, const std::string &msg, Args &&...args ) {
+	api->info( module, msg.c_str(), std::forward<Args>( args )... );
+}
+
+template <class... Args>
+inline void warn( const le_log_module_o *module, const std::string &msg, Args &&...args ) {
+	api->warn( module, msg.c_str(), std::forward<Args>( args )... );
+}
+
+template <class... Args>
+inline void error( const le_log_module_o *module, const std::string &msg, Args &&...args ) {
+	api->error( module, msg.c_str(), std::forward<Args>( args )... );
+}
+
+} // namespace le_log
+
+#endif // __cplusplus
+
+#endif
