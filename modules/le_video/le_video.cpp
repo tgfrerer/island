@@ -1,6 +1,8 @@
 #include <vlc/vlc.h>
 #include <iostream>
 #include <filesystem>
+#include <atomic>
+#include <thread>
 
 #include <le_renderer/le_renderer.h>
 #include <le_pixels/le_pixels.h>
@@ -19,7 +21,7 @@ struct le_video_o {
 	le_pixels_o *               pixels          = nullptr;
 	le_resource_item_t *        resource_handle = nullptr;
 	uint64_t                    duration        = 0;
-	le_log_module_o *           log             = le_log::get_module( "le_video" );
+	std::atomic_bool            loop            = false;
 };
 
 //struct le_video_item_t {
@@ -28,16 +30,22 @@ struct le_video_o {
 //};
 
 static libvlc_instance_t *libvlc;
+static le_log_module_o *  log;
 
 static int init() {
+	log    = le_log::get_module( "le_video" );
 	libvlc = libvlc_new( 0, nullptr );
-	std::cout << "VLC instance created." << std::endl;
+	if ( !libvlc ) {
+		le_log::error( log, "could not initialize" );
+	} else {
+		le_log::info( log, "initialized" );
+	}
 	return libvlc != nullptr;
 }
 
 static void le_terminate() {
 	libvlc_release( libvlc );
-	std::cout << "VLC instance terminated." << std::endl;
+	le_log::info( log, "terminated" );
 }
 
 // ----------------------------------------------------------------------
@@ -68,9 +76,9 @@ static void le_video_destroy( le_video_o *self ) {
 	delete self;
 }
 
-// ------------------------------------------------------- CALLBACKS
+// ------------------------------------------------------- CALLBACKS (all these happen on their own thread)
 
-static le_video_o *to_video( void *ptr ) {
+inline le_video_o *to_video( void *ptr ) {
 	return static_cast<le_video_o *>( ptr );
 }
 
@@ -91,6 +99,9 @@ static void cb_display( void *opaque, void *picture ) {
 	le_resource_manager::le_resource_manager_i.update_pixels( video->resource_manager, video->resource_handle, nullptr );
 }
 
+// forward declare this one because we need some core video player functions
+static void cb_evt( const libvlc_event_t *event, void *opaque );
+
 // ----------------------------------------------------------------------
 
 static void le_video_update( le_video_o *self ) {
@@ -99,7 +110,7 @@ static void le_video_update( le_video_o *self ) {
 
 static bool le_video_load( le_video_o *self, const le_video_load_params &params ) {
 	if ( !std::filesystem::exists( params.file_path ) ) {
-		le_log::error( self->log, "Videofile does not exist '%s'", params.file_path );
+		le_log::error( log, "Videofile does not exist '%s'", params.file_path );
 		return false;
 	}
 
@@ -121,7 +132,7 @@ static bool le_video_load( le_video_o *self, const le_video_load_params &params 
 		break;
 	default:
 		// TODO more formats
-		le_log::error( self->log, "Only eR8G8B8A8Uint or eR8G8B8A8Uint video output format is supported" );
+		le_log::error( log, "Only eR8G8B8A8Uint or eR8G8B8A8Uint video output format is supported" );
 		return false;
 	}
 
@@ -139,18 +150,20 @@ static bool le_video_load( le_video_o *self, const le_video_load_params &params 
 
 	self->pixels = le_pixels::le_pixels_i.create( int( width ), int( height ), 4, le_pixels_info::eUInt8 );
 
-	le_log::info( self->log, "loaded '%s' %dx%d - %dms", params.file_path, width, height, self->duration );
+	le_log::info( log, "loaded '%s' %dx%d - %dms", params.file_path, width, height, self->duration );
 
 	// set callbacks
-
 	libvlc_video_set_callbacks( self->player, cb_lock, cb_unlock, cb_display, self );
 
-	//VLC_CODEC_RGBA
-	// "RV32"
-	libvlc_video_set_format( self->player, chroma, width, height, width * 4 );
-	//	libvlc_video_set_format_callbacks( self->player, cb_format, cb_cleanup );
+	auto                  event_manager = libvlc_media_player_event_manager( self->player );
+	static libvlc_event_e event_types[] = { libvlc_MediaPlayerEncounteredError, libvlc_MediaPlayerPositionChanged,
+	                                        libvlc_MediaPlayerEndReached, libvlc_MediaPlayerLengthChanged,
+	                                        libvlc_MediaPlayerSeekableChanged, libvlc_MediaPlayerStopped };
+	for ( auto event : event_types ) {
+		libvlc_event_attach( event_manager, event, cb_evt, self );
+	}
 
-	libvlc_media_player_play( self->player );
+	libvlc_video_set_format( self->player, chroma, width, height, width * 4 );
 
 	auto image_info =
 	    le::ImageInfoBuilder()
@@ -167,15 +180,60 @@ static bool le_video_load( le_video_o *self, const le_video_load_params &params 
 
 // ----------------------------------------------------------------------
 
+static void le_video_play( le_video_o *self ) {
+	libvlc_media_player_play( self->player );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_video_pause( le_video_o *self ) {
+	libvlc_media_player_pause( self->player );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_video_set_loop( le_video_o *self, bool state ) {
+	self->loop = state;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_video_set_position( le_video_o *self, int64_t position ) {
+	auto percent = position / float( self->duration );
+	libvlc_media_player_set_position( self->player, percent );
+}
+
+// ----------------------------------------------------------------------
+
+static void cb_evt( const libvlc_event_t *event, void *opaque ) {
+	auto video = to_video( opaque );
+	switch ( event->type ) {
+	case libvlc_MediaPlayerEndReached:
+		//		if ( video->loop ) {
+		//			le_video_play( video );
+		//			le_video_set_position( video, 0 );
+		//		}
+		break;
+	case libvlc_MediaPlayerPositionChanged:
+		break;
+		//le_log::info( log, "%d", event->u.media_player_time_changed.new_time );
+	}
+}
+
+// ----------------------------------------------------------------------
+
 LE_MODULE_REGISTER_IMPL( le_video, api ) {
 	auto videoApi  = static_cast<le_video_api *>( api );
 	videoApi->init = init;
 
-	auto &le_video_i   = videoApi->le_video_i;
-	le_video_i.create  = le_video_create;
-	le_video_i.destroy = le_video_destroy;
-	le_video_i.setup   = le_video_setup;
-	le_video_i.update  = le_video_update;
-	le_video_i.load    = le_video_load;
-	//	le_video_i.add_item = le_video_add_item;
+	auto &le_video_i        = videoApi->le_video_i;
+	le_video_i.create       = le_video_create;
+	le_video_i.destroy      = le_video_destroy;
+	le_video_i.setup        = le_video_setup;
+	le_video_i.update       = le_video_update;
+	le_video_i.load         = le_video_load;
+	le_video_i.play         = le_video_play;
+	le_video_i.pause        = le_video_pause;
+	le_video_i.set_position = le_video_set_position;
+	le_video_i.set_loop     = le_video_set_loop;
 }

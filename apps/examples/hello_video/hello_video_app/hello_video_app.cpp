@@ -60,7 +60,8 @@ static app_o *app_create() {
 
 	app->video.setup( app->resource_manager, VIDEO_HANDLE );
 	app->video.load( "./local_resources/test.mp4" );
-	le_log::info( app->log, "Loaded Video" );
+	app->video.set_loop( true );
+	app->video.play();
 
 	return app;
 }
@@ -105,8 +106,11 @@ static void app_process_ui_events( app_o *self ) {
 		case ( LeUiEvent::Type::eKey ): {
 			auto &e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
+
 				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
 					wantsToggle ^= true;
+				} else if ( e.key == LeUiEvent::NamedKey::eSpace ) {
+					self->video.pause();
 				}
 
 			} // if ButtonAction == eRelease
@@ -135,7 +139,6 @@ static bool app_update( app_o *self ) {
 		return false;
 	}
 
-	// update interactive camera using mouse data
 	app_process_ui_events( self );
 
 	static auto video_texture = le::Renderer::produceTextureHandle( "video" );

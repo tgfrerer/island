@@ -7,17 +7,16 @@
 
 struct le_video_o;
 
-// clang-format off
 struct le_video_load_params {
-    char const *file_path{};
-    le::Format output_format{le::Format::eR8G8B8Unorm};
+	char const *file_path{};
+	le::Format  output_format{ le::Format::eR8G8B8Unorm };
 };
 
 // forward declaration
 struct le_video_item_t;
 struct le_resource_manager_o;
 
-
+// clang-format off
 struct le_video_api {
 
 	struct le_video_interface_t {
@@ -27,7 +26,10 @@ struct le_video_api {
 		void                 ( * update                   ) ( le_video_o* self );
         bool                 ( * load                     ) ( le_video_o* self, const le_video_load_params &params );
         void                 ( * play                     ) ( le_video_o* self );
-	};
+        void                 ( * pause                    ) ( le_video_o* self );
+        void                 ( * set_position             ) ( le_video_o* self, int64_t from );
+        void                 ( * set_loop                 ) ( le_video_o* self, bool state );
+    };
 
     int           ( *init                       ) ();
 
@@ -74,6 +76,22 @@ class Video : NoCopy, NoMove {
 
 	bool load( const std::string &path ) {
 		return le_video::le_video_i.load( self, { path.c_str() } );
+	}
+
+	void play() {
+		le_video::le_video_i.play( self );
+	}
+
+	void pause() {
+		le_video::le_video_i.pause( self );
+	}
+
+	void set_position( int64_t millis ) {
+		le_video::le_video_i.set_position( self, millis );
+	}
+
+	void set_loop( bool state ) {
+        le_video::le_video_i.set_loop(self, state);
 	}
 
 	operator auto() {
