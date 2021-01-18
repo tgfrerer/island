@@ -8,16 +8,18 @@
 
 #include "le_video.h"
 #include "le_core/le_core.h"
+#include "le_log/le_log.h"
 
 struct le_video_o {
-	libvlc_instance_t *         libvlc = nullptr;
-	le_resource_manager_o *     resource_manager;
-	const le_resource_handle_t *image_handle;
-	libvlc_media_player_t *     player = nullptr;
+	libvlc_instance_t *         libvlc           = nullptr;
+	le_resource_manager_o *     resource_manager = nullptr;
+	const le_resource_handle_t *image_handle     = nullptr;
+	libvlc_media_player_t *     player           = nullptr;
 	le_video_load_params        load_params{};
-	le_pixels_o *               pixels;
-	le_resource_item_t *        resource_handle;
-	uint64_t                    duration = 0;
+	le_pixels_o *               pixels          = nullptr;
+	le_resource_item_t *        resource_handle = nullptr;
+	uint64_t                    duration        = 0;
+	le_log_module_o *           log             = le_log::get_module( "le_video" );
 };
 
 //struct le_video_item_t {
@@ -97,7 +99,7 @@ static void le_video_update( le_video_o *self ) {
 
 static bool le_video_load( le_video_o *self, const le_video_load_params &params ) {
 	if ( !std::filesystem::exists( params.file_path ) ) {
-		std::cerr << "Video does not exist '" << params.file_path << "'" << std::endl;
+		le_log::error( self->log, "Videofile does not exist '%s'", params.file_path );
 		return false;
 	}
 
@@ -119,7 +121,7 @@ static bool le_video_load( le_video_o *self, const le_video_load_params &params 
 		break;
 	default:
 		// TODO more formats
-		std::cerr << "[le_video] Only eR8G8B8A8Uint or eR8G8B8A8Uint video output format is supported" << std::endl;
+		le_log::error( self->log, "Only eR8G8B8A8Uint or eR8G8B8A8Uint video output format is supported" );
 		return false;
 	}
 
@@ -137,7 +139,7 @@ static bool le_video_load( le_video_o *self, const le_video_load_params &params 
 
 	self->pixels = le_pixels::le_pixels_i.create( int( width ), int( height ), 4, le_pixels_info::eUInt8 );
 
-	std::cout << "[VIDEO INFO] '" << params.file_path << "' " << width << "x" << height << " " << self->duration << "ms, resource handle: " << self->image_handle->debug_name << std::endl;
+	le_log::info( self->log, "loaded '%s' %dx%d - %dms", params.file_path, width, height, self->duration );
 
 	// set callbacks
 
