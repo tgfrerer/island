@@ -11,23 +11,28 @@ struct le_log_module_o {
 	std::atomic_int log_level = 1;
 };
 
+struct le_log_context_o {
+	le_log_module_o                                    module_default;
+	std::unordered_map<std::string, le_log_module_o *> modules;
+	std::mutex                                         mtx;
+};
+
+static le_log_context_o *ctx;
+
 static le_log_module_o *le_log_module_default() {
-	static auto module = new le_log_module_o();
-	return module;
+	return &ctx->module_default;
 }
 
 static le_log_module_o *le_log_get_module( const char *name ) {
-	static std::unordered_map<std::string, le_log_module_o *> modules;
-	static std::mutex                                         mtx;
 
-	std::scoped_lock g( mtx );
-	if ( modules.find( name ) == modules.end() ) {
-		auto module     = new le_log_module_o();
-		module->name    = name;
-		modules[ name ] = module;
+	std::scoped_lock g( ctx->mtx );
+	if ( ctx->modules.find( name ) == ctx->modules.end() ) {
+		auto module          = new le_log_module_o();
+		module->name         = name;
+		ctx->modules[ name ] = module;
 		return module;
 	}
-	return modules[ name ];
+	return ctx->modules[ name ];
 }
 
 static void le_log_set_level( le_log_module_o *module, le_log::Level level ) {
@@ -91,4 +96,10 @@ LE_MODULE_REGISTER_IMPL( le_log, api ) {
 	le_api->error      = le_log_implementation<le_log::Level::ERROR>;
 	le_api->get_module = le_log_get_module;
 	le_api->set_level  = le_log_set_level;
+
+	if ( !le_api->context ) {
+		le_api->context = new le_log_context_o();
+	}
+
+	ctx = le_api->context;
 }
