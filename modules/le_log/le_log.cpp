@@ -24,6 +24,9 @@ static le_log_module_o *le_log_module_default() {
 }
 
 static le_log_module_o *le_log_get_module( const char *name ) {
+	if ( !name || !name[ 0 ] ) {
+		return le_log_module_default();
+	}
 
 	std::scoped_lock g( ctx->mtx );
 	if ( ctx->modules.find( name ) == ctx->modules.end() ) {
