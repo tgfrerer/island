@@ -16,20 +16,20 @@ struct le_log_api {
 		ERROR = 3
 	};
 
+    le_log_context_o* context = nullptr;
+
+    struct le_log_module_interface_t {
+        le_log_module_o *( *get_module )(const char *name);
+
         void ( *set_level  )(le_log_module_o *module, Level level);
 
         void ( *debug      )(const le_log_module_o *module, const char *msg, ...);
-
         void ( *info       )(const le_log_module_o *module, const char *msg, ...);
-
         void ( *warn       )(const le_log_module_o *module, const char *msg, ...);
-
         void ( *error      )(const le_log_module_o *module, const char *msg, ...);
 
-        le_log_module_o *( *get_module )(const char *name);
     };
 
-    le_log_context_o* context = nullptr;
     le_log_module_interface_t   le_log_module_i;
 };
 // clang-format on
