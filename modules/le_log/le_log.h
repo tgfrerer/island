@@ -40,8 +40,11 @@ LE_MODULE_LOAD_DEFAULT( le_log );
 #ifdef __cplusplus
 
 namespace le_log {
-static const auto &api = le_log_api_i;
+
 using Level = le_log_api::Level;
+
+static const auto &api      = le_log_api_i;
+static const auto &le_log_i = api -> le_log_module_i;
 
 static void set_level( const Level &level ) {
 	api->le_log_module_i.set_level( nullptr, level );
