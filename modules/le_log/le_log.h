@@ -17,20 +17,22 @@ struct le_log_context_o;
 
 // clang-format off
 struct le_log_api {
+    struct le_log_module_interface_t{
+        void ( *set_level  )(le_log_module_o *module, le_log::Level level);
 
-    void ( *set_level  )(le_log_module_o *module, le_log::Level level);
+        void ( *debug      )(const le_log_module_o *module, const char *msg, ...);
 
-    void ( *debug      )(const le_log_module_o *module, const char *msg, ...);
+        void ( *info       )(const le_log_module_o *module, const char *msg, ...);
 
-    void ( *info       )(const le_log_module_o *module, const char *msg, ...);
+        void ( *warn       )(const le_log_module_o *module, const char *msg, ...);
 
-    void ( *warn       )(const le_log_module_o *module, const char *msg, ...);
+        void ( *error      )(const le_log_module_o *module, const char *msg, ...);
 
-    void ( *error      )(const le_log_module_o *module, const char *msg, ...);
-
-    le_log_module_o *( *get_module )(const char *name);
+        le_log_module_o *( *get_module )(const char *name);
+    };
 
     le_log_context_o* context = nullptr;
+    le_log_module_interface_t   le_log_module_i;
 };
 // clang-format on
 
@@ -43,57 +45,57 @@ namespace le_log {
 static const auto &api = le_log_api_i;
 
 static void set_level( const Level &level ) {
-	api->set_level( nullptr, level );
+	api->le_log_module_i.set_level( nullptr, level );
 }
 
 template <class... Args>
 inline void debug( const char *msg, Args &&...args ) {
-	api->debug( nullptr, msg, static_cast<Args &&>( args )... );
+	api->le_log_module_i.debug( nullptr, msg, static_cast<Args &&>( args )... );
 }
 
 template <class... Args>
 inline void info( const char *msg, Args &&...args ) {
-	api->info( nullptr, msg, static_cast<Args &&>( args )... );
+	api->le_log_module_i.info( nullptr, msg, static_cast<Args &&>( args )... );
 }
 
 template <class... Args>
 inline void warn( const char *msg, Args &&...args ) {
-	api->warn( nullptr, msg, static_cast<Args &&>( args )... );
+	api->le_log_module_i.warn( nullptr, msg, static_cast<Args &&>( args )... );
 }
 
 template <class... Args>
 inline void error( const char *msg, Args &&...args ) {
-	api->error( nullptr, msg, static_cast<Args &&>( args )... );
+	api->le_log_module_i.error( nullptr, msg, static_cast<Args &&>( args )... );
 }
 
 // --------------------------------------------------
 
 le_log_module_o *get_module( const char *name ) {
-	return api->get_module( name );
+	return api->le_log_module_i.get_module( name );
 }
 
 static void set_level( le_log_module_o *module, const Level &level ) {
-	api->set_level( module, level );
+	api->le_log_module_i.set_level( module, level );
 }
 
 template <class... Args>
 inline void debug( const le_log_module_o *module, const char *msg, Args &&...args ) {
-	api->debug( module, msg, static_cast<Args &&>( args )... );
+	api->le_log_module_i.debug( module, msg, static_cast<Args &&>( args )... );
 }
 
 template <class... Args>
 inline void info( const le_log_module_o *module, const char *msg, Args &&...args ) {
-	api->info( module, msg, static_cast<Args &&>( args )... );
+	api->le_log_module_i.info( module, msg, static_cast<Args &&>( args )... );
 }
 
 template <class... Args>
 inline void warn( const le_log_module_o *module, const char *msg, Args &&...args ) {
-	api->warn( module, msg, static_cast<Args &&>( args )... );
+	api->le_log_module_i.warn( module, msg, static_cast<Args &&>( args )... );
 }
 
 template <class... Args>
 inline void error( const le_log_module_o *module, const char *msg, Args &&...args ) {
-	api->error( module, msg, static_cast<Args &&>( args )... );
+	api->le_log_module_i.error( module, msg, static_cast<Args &&>( args )... );
 }
 
 } // namespace le_log

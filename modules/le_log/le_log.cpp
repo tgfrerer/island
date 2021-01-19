@@ -92,13 +92,14 @@ static void le_log_implementation( const le_log_module_o *module, const char *ms
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_log, api ) {
-	auto le_api        = static_cast<le_log_api *>( api );
-	le_api->debug      = le_log_implementation<le_log::Level::DEBUG>;
-	le_api->info       = le_log_implementation<le_log::Level::INFO>;
-	le_api->warn       = le_log_implementation<le_log::Level::WARN>;
-	le_api->error      = le_log_implementation<le_log::Level::ERROR>;
-	le_api->get_module = le_log_get_module;
-	le_api->set_level  = le_log_set_level;
+	auto  le_api               = static_cast<le_log_api *>( api );
+	auto &le_api_module_i      = le_api->le_log_module_i;
+	le_api_module_i.debug      = le_log_implementation<le_log::Level::DEBUG>;
+	le_api_module_i.info       = le_log_implementation<le_log::Level::INFO>;
+	le_api_module_i.warn       = le_log_implementation<le_log::Level::WARN>;
+	le_api_module_i.error      = le_log_implementation<le_log::Level::ERROR>;
+	le_api_module_i.get_module = le_log_get_module;
+	le_api_module_i.set_level  = le_log_set_level;
 
 	if ( !le_api->context ) {
 		le_api->context = new le_log_context_o();
