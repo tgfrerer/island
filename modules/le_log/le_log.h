@@ -72,7 +72,7 @@ inline void error( const char *msg, Args &&...args ) {
 
 // --------------------------------------------------
 
-le_log_module_o *get_module( const char *name ) {
+static le_log_module_o *get_module( const char *name ) {
 	return api->le_log_module_i.get_module( name );
 }
 
