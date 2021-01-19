@@ -295,6 +295,7 @@ static void le_resource_manager_destroy( le_resource_manager_o *self ) {
 			}
 		}
 	}
+	self->resources.clear();
 	delete ( self );
 }
 

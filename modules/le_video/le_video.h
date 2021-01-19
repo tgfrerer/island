@@ -13,26 +13,27 @@ struct le_video_load_params {
 };
 
 // forward declaration
-struct le_video_item_t;
 struct le_resource_manager_o;
 
 // clang-format off
 struct le_video_api {
 
 	struct le_video_interface_t {
-        le_video_o *         ( * create                   ) (  );
+		le_video_o *         ( * create                   ) (  );
 		bool                 ( * setup                    ) ( le_video_o* self, le_resource_manager_o* resource_manager, le_resource_handle_t const * image_handle );
 		void                 ( * destroy                  ) ( le_video_o* self );
 		void                 ( * update                   ) ( le_video_o* self );
-        bool                 ( * load                     ) ( le_video_o* self, const le_video_load_params &params );
-        void                 ( * play                     ) ( le_video_o* self );
-        void                 ( * pause                    ) ( le_video_o* self );
-        void                 ( * set_position             ) ( le_video_o* self, int64_t from );
-        void                 ( * set_loop                 ) ( le_video_o* self, bool state );
-    };
+		bool                 ( * load                     ) ( le_video_o* self, const le_video_load_params &params );
+		void                 ( * play                     ) ( le_video_o* self );
+		void                 ( * pause                    ) ( le_video_o* self );
+		void                 ( * set_position             ) ( le_video_o* self, int64_t from );
+		void                 ( * set_loop                 ) ( le_video_o* self, bool state );
+	};
 
-    int           ( *init                       ) ();
+	int           ( *init                       ) ();
+	void          ( *terminate                  ) ();
 
+	void*                      le_video_context{nullptr};
 	le_video_interface_t       le_video_i;
 };
 // clang-format on
@@ -56,6 +57,10 @@ class Video : NoCopy, NoMove {
   public:
 	static int init() {
 		return le_video::api->init();
+	}
+
+	static void terminate() {
+		le_video::api->terminate();
 	}
 
 	Video()
@@ -91,7 +96,7 @@ class Video : NoCopy, NoMove {
 	}
 
 	void set_loop( bool state ) {
-        le_video::le_video_i.set_loop(self, state);
+		le_video::le_video_i.set_loop( self, state );
 	}
 
 	operator auto() {
