@@ -2,8 +2,8 @@
 #define GUARD_le_log_H
 
 #include <utility>
-#include <cstdarg>
-#include <string>
+//#include <cstdarg>
+//#include <string>
 
 #include "le_core/le_core.h"
 
@@ -42,29 +42,29 @@ static void set_level( const Level &level ) {
 }
 
 template <class... Args>
-inline void debug( const std::string &msg, Args &&...args ) {
-	api->debug( nullptr, msg.c_str(), std::forward<Args>( args )... );
+inline void debug(const char* msg, Args &&...args ) {
+	api->debug( nullptr, msg, static_cast<Args&&>( args )... );
 }
 
 template <class... Args>
-inline void info( const std::string &msg, Args &&...args ) {
-	api->info( nullptr, msg.c_str(), std::forward<Args>( args )... );
+inline void info(const char* msg, Args &&...args ) {
+	api->info( nullptr, msg, static_cast<Args&&>( args )... );
 }
 
 template <class... Args>
-inline void warn( const std::string &msg, Args &&...args ) {
-	api->warn( nullptr, msg.c_str(), std::forward<Args>( args )... );
+inline void warn(const char* msg, Args &&...args ) {
+	api->warn( nullptr, msg, static_cast<Args&&>( args )... );
 }
 
 template <class... Args>
-inline void error( const std::string &msg, Args &&...args ) {
-	api->error( nullptr, msg.c_str(), std::forward<Args>( args )... );
+inline void error(const char* msg, Args &&...args ) {
+	api->error( nullptr, msg, static_cast<Args&&>( args )... );
 }
 
 // --------------------------------------------------
 
-le_log_module_o *get_module( const std::string &name ) {
-	return api->get_module( name.c_str() );
+le_log_module_o *get_module( const char* name ) {
+	return api->get_module( name );
 }
 
 static void set_level( le_log_module_o *module, const Level &level ) {
@@ -72,23 +72,23 @@ static void set_level( le_log_module_o *module, const Level &level ) {
 }
 
 template <class... Args>
-inline void debug( const le_log_module_o *module, const std::string &msg, Args &&...args ) {
-	api->debug( module, msg.c_str(), std::forward<Args>( args )... );
+inline void debug( const le_log_module_o *module,const char* msg, Args &&...args ) {
+	api->debug( module, msg, static_cast<Args&&>( args )... );
 }
 
 template <class... Args>
-inline void info( const le_log_module_o *module, const std::string &msg, Args &&...args ) {
-	api->info( module, msg.c_str(), std::forward<Args>( args )... );
+inline void info( const le_log_module_o *module,const char* msg, Args &&...args ) {
+	api->info( module, msg, static_cast<Args&&>( args )... );
 }
 
 template <class... Args>
-inline void warn( const le_log_module_o *module, const std::string &msg, Args &&...args ) {
-	api->warn( module, msg.c_str(), std::forward<Args>( args )... );
+inline void warn( const le_log_module_o *module,const char* msg, Args &&...args ) {
+	api->warn( module, msg, static_cast<Args&&>( args )... );
 }
 
 template <class... Args>
-inline void error( const le_log_module_o *module, const std::string &msg, Args &&...args ) {
-	api->error( module, msg.c_str(), std::forward<Args>( args )... );
+inline void error( const le_log_module_o *module,const char* msg, Args &&...args ) {
+	api->error( module, msg, static_cast<Args&&>( args )... );
 }
 
 } // namespace le_log

@@ -4,6 +4,7 @@
 #include <atomic>
 #include <mutex>
 #include <unordered_map>
+#include <cstdarg>
 
 struct le_log_module_o {
 	std::string     name      = "DEFAULT";
