@@ -9,7 +9,7 @@ struct le_log_context_o;
 // clang-format off
 struct le_log_api {
 
-	enum class Level : uint8_t {
+	enum class Level : int {
 		DEBUG = 0,
 		INFO  = 1,
 		WARN  = 2,
