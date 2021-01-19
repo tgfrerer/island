@@ -29,13 +29,16 @@ struct le_pixels_api {
 
 		bool (* get_info_from_memory ) ( unsigned char const * buffer, size_t buffer_byte_count, le_pixels_info * info);
 		bool (* get_info_from_file   ) ( char const * file_name, le_pixels_info * info);
-
+        le_pixels_o *    ( * create )(int width, int height, int num_channels_requested, le_pixels_info::Type type );
 		le_pixels_o *    ( * create_from_memory )( unsigned char const * buffer, size_t buffer_byte_count, int num_channels_requested, le_pixels_info::Type type);
-		le_pixels_o *    ( * create   ) ( char const * file_path, int num_channels_requested, le_pixels_info::Type type);
+		le_pixels_o *    ( * create_from_file   ) ( char const * file_path, int num_channels_requested, le_pixels_info::Type type);
 		void             ( * destroy  ) ( le_pixels_o* self );
 
 		le_pixels_info   ( * get_info ) ( le_pixels_o* self );
 		void *           ( * get_data ) ( le_pixels_o* self );
+
+		void             ( * lock ) ( le_pixels_o* self );
+		void             ( * unlock ) ( le_pixels_o* self );
 	};
 
 	le_pixels_interface_t       le_pixels_i;
@@ -60,7 +63,7 @@ class Pixels : NoCopy, NoMove {
 
   public:
 	Pixels( char const *path, int const &numChannelsRequested = 0, le_pixels_info::Type const &type = le_pixels_info::eUInt8 )
-	    : self( le_pixels::le_pixels_i.create( path, numChannelsRequested, type ) ) {
+	    : self( le_pixels::le_pixels_i.create_from_file( path, numChannelsRequested, type ) ) {
 	}
 
 	~Pixels() {
