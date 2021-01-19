@@ -79,6 +79,8 @@ static void le_log_printf( const le_log_channel_o *module, le::Log::Level level,
 
 	vfprintf( file, msg, args );
 	fprintf( file, "\n" );
+
+	fflush( file );
 }
 
 template <le::Log::Level level>
