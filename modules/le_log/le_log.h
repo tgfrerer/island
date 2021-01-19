@@ -3,22 +3,20 @@
 
 #include "le_core/le_core.h"
 
-namespace le_log {
-enum class Level : uint8_t {
-	DEBUG = 0,
-	INFO  = 1,
-	WARN  = 2,
-	ERROR = 3
-};
-}
-
 struct le_log_module_o;
 struct le_log_context_o;
 
 // clang-format off
 struct le_log_api {
-    struct le_log_module_interface_t{
-        void ( *set_level  )(le_log_module_o *module, le_log::Level level);
+
+	enum class Level : uint8_t {
+		DEBUG = 0,
+		INFO  = 1,
+		WARN  = 2,
+		ERROR = 3
+	};
+
+        void ( *set_level  )(le_log_module_o *module, Level level);
 
         void ( *debug      )(const le_log_module_o *module, const char *msg, ...);
 
@@ -43,6 +41,7 @@ LE_MODULE_LOAD_DEFAULT( le_log );
 
 namespace le_log {
 static const auto &api = le_log_api_i;
+using Level = le_log_api::Level;
 
 static void set_level( const Level &level ) {
 	api->le_log_module_i.set_level( nullptr, level );
