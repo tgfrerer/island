@@ -59,7 +59,7 @@ class Log {
 	}
 
 	Log( char const *channel_name )
-	    : channel( api->get_channel( nullptr ) ) {
+	    : channel( api->get_channel( channel_name ) ) {
 	}
 
 	inline void set_level( const Level &level ) {
