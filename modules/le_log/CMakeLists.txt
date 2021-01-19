@@ -1,17 +1,17 @@
-set (TARGET @module_name@)
+set (TARGET le_log)
 
 # list modules this module depends on
 # depends_on_island_module(le_path)
 
-set (SOURCES "@module_name@.cpp")
-set (SOURCES ${SOURCES} "@module_name@.h")
+set (SOURCES "le_log.cpp")
+set (SOURCES ${SOURCES} "le_log.h")
 
 if (${PLUGINS_DYNAMIC})
 
     add_library(${TARGET} SHARED ${SOURCES})
 
     add_dynamic_linker_flags()
-  
+
     target_compile_definitions(${TARGET}  PUBLIC "PLUGINS_DYNAMIC")
 
 else()
@@ -22,8 +22,6 @@ else()
 
 endif()
 
-# set (LINKER_FLAGS ${LINKER_FLAGS} stdc++fs)
-
-target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
+target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS} )
 
 source_group(${TARGET} FILES ${SOURCES})
