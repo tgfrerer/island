@@ -30,22 +30,22 @@ struct le_video_o {
 //};
 
 static libvlc_instance_t *libvlc;
-static le_log_module_o *  log;
+//static le_log_module_o *  log;
 
 static int init() {
-	log    = le_log::get_module( "le_video" );
+//	log    = le::get_module( "le_video" );
 	libvlc = libvlc_new( 0, nullptr );
-	if ( !libvlc ) {
-		le_log::error( log, "could not initialize" );
-	} else {
-		le_log::info( log, "initialized" );
-	}
+//	if ( !libvlc ) {
+//		le_log::error( log, "could not initialize" );
+//	} else {
+//		le_log::info( log, "initialized" );
+//	}
 	return libvlc != nullptr;
 }
 
 static void le_terminate() {
 	libvlc_release( libvlc );
-	le_log::info( log, "terminated" );
+//	le_log::info( log, "terminated" );
 }
 
 // ----------------------------------------------------------------------
@@ -110,7 +110,7 @@ static void le_video_update( le_video_o *self ) {
 
 static bool le_video_load( le_video_o *self, const le_video_load_params &params ) {
 	if ( !std::filesystem::exists( params.file_path ) ) {
-		le_log::error( log, "Videofile does not exist '%s'", params.file_path );
+//		le_log::error( log, "Videofile does not exist '%s'", params.file_path );
 		return false;
 	}
 
@@ -132,7 +132,7 @@ static bool le_video_load( le_video_o *self, const le_video_load_params &params 
 		break;
 	default:
 		// TODO more formats
-		le_log::error( log, "Only eR8G8B8A8Uint or eR8G8B8A8Uint video output format is supported" );
+//		le_log::error( log, "Only eR8G8B8A8Uint or eR8G8B8A8Uint video output format is supported" );
 		return false;
 	}
 
@@ -150,7 +150,7 @@ static bool le_video_load( le_video_o *self, const le_video_load_params &params 
 
 	self->pixels = le_pixels::le_pixels_i.create( int( width ), int( height ), 4, le_pixels_info::eUInt8 );
 
-	le_log::info( log, "loaded '%s' %dx%d - %dms", params.file_path, width, height, self->duration );
+//	le_log::info( log, "loaded '%s' %dx%d - %dms", params.file_path, width, height, self->duration );
 
 	// set callbacks
 	libvlc_video_set_callbacks( self->player, cb_lock, cb_unlock, cb_display, self );
