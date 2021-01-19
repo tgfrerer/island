@@ -39,7 +39,7 @@ LE_MODULE_LOAD_DEFAULT( le_log );
 
 #ifdef __cplusplus
 
-namespace le_log {
+namespace le::Log {
 
 using Level = le_log_api::Level;
 
@@ -100,7 +100,7 @@ inline void error( const le_log_module_o *module, const char *msg, Args &&...arg
 	api->le_log_module_i.error( module, msg, static_cast<Args &&>( args )... );
 }
 
-} // namespace le_log
+} // namespace le::Log
 
 #endif // __cplusplus
 
