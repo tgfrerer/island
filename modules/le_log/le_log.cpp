@@ -65,7 +65,7 @@ static void le_log_printf( const le_log_channel_o *module, le::Log::Level level,
 		module = le_log_module_default();
 	}
 
-	if ( module->log_level > static_cast<std::underlying_type<le::Log::Level>::type>( level ) ) {
+	if ( int( level ) < module->log_level ) {
 		return;
 	}
 
