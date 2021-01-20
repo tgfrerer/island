@@ -22,6 +22,7 @@ else()
 
 endif()
 
+target_include_directories(${TARGET} PUBLIC ${MODULE_LOCATIONS_LIST})
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
 source_group(${TARGET} FILES ${SOURCES})

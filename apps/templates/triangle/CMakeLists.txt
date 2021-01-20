@@ -27,8 +27,10 @@ set(REQUIRES_ISLAND_CORE ON )
 include ("${ISLAND_BASE_DIR}CMakeLists.txt.island_prolog.in")
 
 # Add application module, and (optional) any other private
-# island modules which should not be part of the shared framework.
 add_subdirectory (triangle_app)
+
+# Add custom module search paths
+# add_island_module_location(${CMAKE_CURRENT_SOURCE_DIR}/modules)
 
 # Specify any optional modules from the standard framework here
 add_island_module(le_camera)

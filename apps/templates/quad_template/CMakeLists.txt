@@ -26,8 +26,10 @@ set(REQUIRES_ISLAND_CORE ON )
 # Loads Island framework, based on selected Island modules from above
 include ("${ISLAND_BASE_DIR}CMakeLists.txt.island_prolog.in")
 
+# Add custom module search paths
+# add_island_module_location(${CMAKE_CURRENT_SOURCE_DIR}/modules)
+
 # Add application module, and (optional) any other private
-# island modules which should not be part of the shared framework.
 add_subdirectory (quad_template_app)
 
 # Specify any optional modules from the standard framework here
