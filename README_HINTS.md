@@ -36,12 +36,14 @@ You get *Known-Good* versions for all your Island app dependencies.
 If you create a `my_island_project` git repository, and then add to it [the main island repository](https://github.com/tgfrerer/island.git) as a git submodule, this allows you to store a *Known Good* version of Island with your app. If someone else then clones your project and (checks out all submodules recursively) they will get exaclty the right versions of Island and any other dependencies.
 
 
-# Hint 2: Extra Custom Modules!
+# Hint 3: Extra Custom Modules!
 
 Sometimes the [modules coming pre-packaged](./modules) with Island are not enough - either you want to use your own modules library or you might want to use modules, made available from other folks. 
 
-This is possible via the `add_island_module_location()` macro which you can call from your app's `CMakeLists.txt` file. [Example](https://github.com/tgfrerer/island/blob/47b8d92e1f90d6df999d38751bd915b585238fa5/apps/examples/hello_triangle/CMakeLists.txt#L30). You can add one or more paths so that these will be scanned additionally when Island searches for modules. 
+This is possible via the `add_island_module_location()` macro which you can call from your app's `CMakeLists.txt` file. See [Example](https://github.com/tgfrerer/island/blob/47b8d92e1f90d6df999d38751bd915b585238fa5/apps/examples/hello_triangle/CMakeLists.txt#L30). You can add one or more paths so that these will be scanned additionally when Island searches for modules. 
 
-Then, call `add_island_module(my_extra_module_name)` to add your custom module just as you would add any Island core module. If you're using Qt Creator, you should see the module added to your source file view immediately.
+Then, call `add_island_module(my_extra_module_name)` to add your custom module, just as you would add any Island core module. Similarly to how it's done [here](https://github.com/tgfrerer/island/blob/47b8d92e1f90d6df999d38751bd915b585238fa5/apps/examples/hello_triangle/CMakeLists.txt#L43), but in your app's `CMakeLists.txt` file. If you're using Qt Creator, you should see the module added to your source file view immediately as soon as you save the `CMakeLists.txt` file.
 
-Similarly to checking in the main Island repository as a submodule to your app repository (See: Hint 1), adding extra module source directories as submodules can help you keep track of extra modules used for a particular project.
+## Bonus extra hint: 
+
+Similarly to checking in the main Island repository as a submodule to your app repository (See: [Hint 1](#hint-1-build-island-out-of-tree)), adding extra module source directories as submodules can help you keep track of extra modules used for a particular project.
