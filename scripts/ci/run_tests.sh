@@ -3,6 +3,7 @@
 # list apps you want to test
 
 apps_list=("
+	examples/test_log:Island-TestLog
 	examples/hello_world:Island-HelloWorld
 	examples/hello_triangle:Island-HelloTriangle
 	examples/lut_grading_example:Island-LutGradingExample

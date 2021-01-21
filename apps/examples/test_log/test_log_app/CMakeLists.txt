@@ -1,7 +1,7 @@
-set (TARGET quad_template_app)
+set (TARGET test_log_app)
 
-set (SOURCES "quad_template_app.cpp")
-set (SOURCES ${SOURCES} "quad_template_app.h")
+set (SOURCES "test_log_app.cpp")
+set (SOURCES ${SOURCES} "test_log_app.h")
 
 if (${PLUGINS_DYNAMIC})
 
@@ -22,7 +22,6 @@ else()
 
 endif()
 
-target_include_directories(${TARGET} PUBLIC ${MODULE_LOCATIONS_LIST})
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
 
 source_group(${TARGET} FILES ${SOURCES})
