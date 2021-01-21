@@ -92,13 +92,14 @@ endif()
 # include the island base directory
 include_directories ("${ISLAND_BASE_DIR}")
 
-# keep this include to not break backwards compatibility with projects that did not use MODULE_LOCATIONS_LIST yet
+# keep this include to not break backwards compatibility with projects that did not 
+# use MODULE_LOCATIONS_LIST yet
 include_directories ("${ISLAND_BASE_DIR}/modules")
 
 # These modules are always loaded - they control the plugin system.
 set ( ISLAND_LOADER_MODULES le_file_watcher;le_core )
 
-# These modules form the renderer - if you want to draw graphics, you want these.
+# These modules from the renderer - if you want to draw graphics, you want these.
 # Note that order matters: dependent modules must be named before their dependencies.
 set ( CORE_ISLAND_MODULES le_pipeline_builder;le_window;le_backend_vk;le_swapchain_vk;le_renderer;le_jobs;le_shader_compiler)
 
