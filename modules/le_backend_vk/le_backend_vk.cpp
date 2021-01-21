@@ -4046,6 +4046,9 @@ static bool updateArguments( const vk::Device &                 device,
 						case vk::DescriptorType::eInlineUniformBlockEXT:
 							assert( false && "inline uniform blocks are not yet supported" );
 							break;
+						case vk::DescriptorType::eAccelerationStructureNV:
+							assert( false && "NV acceleration structures are not supported anymore. Use KHR acceleration structures." );
+							break;
 						case vk::DescriptorType::eAccelerationStructureKHR:
 							auto wd                        = new vk::WriteDescriptorSetAccelerationStructureKHR{};
 							wd->accelerationStructureCount = 1;
@@ -4087,6 +4090,7 @@ static void debug_print_command( void *&cmd ) {
 			    case (le::CommandType::eDrawIndexed): std::cout << "eDrawIndexed"; break;
 			    case (le::CommandType::eDraw): std::cout << "eDraw"; break;
 			    case (le::CommandType::eDispatch): std::cout << "eDispatch"; break;
+			    case (le::CommandType::eBufferMemoryBarrier): std::cout << "eBufferMemoryBarrier"; break;
 			    case (le::CommandType::eSetLineWidth): std::cout << "eSetLineWidth"; break;
 			    case (le::CommandType::eSetViewport): std::cout << "eSetViewport"; break;
 			    case (le::CommandType::eSetScissor): std::cout << "eSetScissor"; break;
