@@ -17,9 +17,6 @@ if (PLUGINS_DYNAMIC)
     target_compile_definitions(${PROJECT_NAME} PUBLIC "PLUGINS_DYNAMIC=1")
 endif()
 
-# add module include directories
-include_directories("$<BUILD_INTERFACE:${MODULE_LOCATIONS_LIST}>")
-
 # we need to link in the dynamic linking library so we can use dynamic linking
 target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
 

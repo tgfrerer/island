@@ -125,14 +125,11 @@ endif()
 # Adds a directory to the modules locations
 macro(add_island_module_location MODULE_LOCATION)
     set( MODULE_LOCATIONS_LIST ${MODULE_LOCATIONS_LIST} ${MODULE_LOCATION} CACHE INTERNAL "module_locations_list" )
+    include_directories("${MODULE_LOCATIONS_LIST}")
 endmacro()
 
 # Loads a requested module
 macro(load_island_module MODULE_NAME)
-
-    # add all module directories to the include path of the module,
-    # due to macro scope this will only apply to the current module
-    include_directories(${MODULE_LOCATIONS_LIST})
 
     # look for the module in all given locations
     set( MODULE_LOCATION )
