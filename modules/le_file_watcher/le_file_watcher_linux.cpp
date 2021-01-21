@@ -67,16 +67,24 @@ static void instance_destroy( le_file_watcher_o *instance ) {
 static int add_watch( le_file_watcher_o *instance, le_file_watcher_watch_settings const *settings ) noexcept {
 	Watch tmp;
 
-	auto tmp_path = std::filesystem::canonical( settings->filePath );
+	std::filesystem::path tmp_path = std::filesystem::canonical( settings->filePath );
 
-	tmp.path               = tmp_path.string();
-	tmp.filename           = tmp_path.filename().string();
-	tmp.basename           = tmp_path.remove_filename().string(); // note this changes the path
+	uint32_t mask = IN_CLOSE_WRITE;
+
+	tmp.path = tmp_path.string();
+	if ( std::filesystem::is_directory( tmp_path ) ) {
+		//		mask |= IN_CREATE; // looks like a create also triggers a close write
+		mask |= IN_DELETE;
+		tmp.basename = tmp_path.string();
+	} else {
+		tmp.filename = tmp_path.filename().string();
+		tmp.basename = tmp_path.remove_filename().string(); // note this changes the path
+	}
 	tmp.watcher_o          = instance;
 	tmp.callback_fun       = settings->callback_fun;
 	tmp.callback_user_data = settings->callback_user_data;
 
-	tmp.inotify_watch_handle = inotify_add_watch( instance->inotify_socket_handle, tmp.basename.c_str(), IN_CLOSE_WRITE );
+	tmp.inotify_watch_handle = inotify_add_watch( instance->inotify_socket_handle, tmp.basename.c_str(), mask );
 
 	instance->mWatches.emplace_back( std::move( tmp ) );
 	return tmp.inotify_watch_handle;
@@ -125,14 +133,14 @@ static void poll_notifications( le_file_watcher_o *instance ) {
 				const char *prev_filename = nullptr; // store previous filename to declutter printout
 
 				// Only trigger on close-write
-				if ( ev->mask & IN_CLOSE_WRITE ) {
+				if ( ev->mask & IN_CLOSE_WRITE || ev->mask & IN_DELETE ) {
 
 					// We trigger *all* callbacks which watch the current file path
 					// For this, we must iterate through all watches and filter the
 					// ones which watch the event's file.
 					for ( auto const &w : instance->mWatches ) {
 
-						if ( w.inotify_watch_handle == ev->wd && w.filename == path ) {
+						if ( w.inotify_watch_handle == ev->wd && ( w.filename.empty() || w.filename == path ) ) {
 
 							// Only print notice if it is for another filename:
 							if ( prev_filename != path.c_str() ) {
@@ -142,7 +150,7 @@ static void poll_notifications( le_file_watcher_o *instance ) {
 							}
 
 							// Trigger Callback.
-							( *w.callback_fun )( w.path.c_str(), w.callback_user_data );
+							( *w.callback_fun )( ( w.basename / std::filesystem::path( path ) ).c_str(), w.callback_user_data );
 						}
 					}
 				}
