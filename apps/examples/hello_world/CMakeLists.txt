@@ -13,7 +13,7 @@ set(REQUIRES_ISLAND_LOADER ON )
 set(REQUIRES_ISLAND_CORE ON )
 
 # Loads Island framework, based on selected Island modules from above
-include ("${ISLAND_BASE_DIR}CMakeLists.txt.island_prolog.in")
+include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_prolog.in")
 
 # Add application module, and (optional) any other private
 # island modules which should not be part of the shared framework.
@@ -31,7 +31,7 @@ add_island_module(le_resource_manager)
 set (SOURCES main.cpp)
 
 # Sets up Island framework linkage and housekeeping, based on user selections
-include ("${ISLAND_BASE_DIR}CMakeLists.txt.island_epilog.in")
+include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_epilog.in")
 
 # create a link to local resources
 link_resources(${PROJECT_SOURCE_DIR}/resources ${CMAKE_BINARY_DIR}/local_resources)
