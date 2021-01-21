@@ -129,6 +129,8 @@ macro(add_island_module_location MODULE_LOCATION)
 endmacro()
 
 # Loads a requested module
+# Note that this method is only called in epilog - this is a mechanism to make sure 
+# we have a consolidated, unique list of modules by the time we load modules.
 macro(load_island_module MODULE_NAME)
 
     # look for the module in all given locations
