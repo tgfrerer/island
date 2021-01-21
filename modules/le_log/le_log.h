@@ -40,79 +40,78 @@ LE_MODULE_LOAD_DEFAULT( le_log );
 
 #ifdef __cplusplus
 
-namespace le {
+namespace le_log {
 
 static const auto &api              = le_log_api_i;
 static const auto &le_log_channel_i = api -> le_log_channel_i;
+} // namespace le_log
 
-class Log {
+class LeLog {
 	le_log_channel_o *channel;
 
   public:
 	using Level = le_log_api::Level;
-	Log()
-	    : channel( api->get_channel( nullptr ) ) {
+	LeLog()
+	    : channel( le_log::api->get_channel( nullptr ) ) {
 	}
 
-	Log( le_log_channel_o *channel_ )
+	LeLog( le_log_channel_o *channel_ )
 	    : channel( channel_ ) {
 	}
 
-	Log( char const *channel_name )
-	    : channel( api->get_channel( channel_name ) ) {
+	LeLog( char const *channel_name )
+	    : channel( le_log::api->get_channel( channel_name ) ) {
 	}
 
 	inline void set_level( const Level &level ) {
-		le_log_channel_i.set_level( channel, level );
+		le_log::le_log_channel_i.set_level( channel, level );
 	}
 
 	template <class... Args>
 	inline void debug( const char *msg, Args &&...args ) {
-		le_log_channel_i.debug( channel, msg, static_cast<Args &&>( args )... );
+		le_log::le_log_channel_i.debug( channel, msg, static_cast<Args &&>( args )... );
 	}
 
 	template <class... Args>
 	inline void info( const char *msg, Args &&...args ) {
-		le_log_channel_i.info( channel, msg, static_cast<Args &&>( args )... );
+		le_log::le_log_channel_i.info( channel, msg, static_cast<Args &&>( args )... );
 	}
 
 	template <class... Args>
 	inline void warn( const char *msg, Args &&...args ) {
-		le_log_channel_i.warn( channel, msg, static_cast<Args &&>( args )... );
+		le_log::le_log_channel_i.warn( channel, msg, static_cast<Args &&>( args )... );
 	}
 
 	template <class... Args>
 	inline void error( const char *msg, Args &&...args ) {
-		le_log_channel_i.error( channel, msg, static_cast<Args &&>( args )... );
+		le_log::le_log_channel_i.error( channel, msg, static_cast<Args &&>( args )... );
 	}
 };
 // ----------------------------------------------------------------------
 
-static inline void log_set_level( const Log::Level &level ) {
-	le_log_channel_i.set_level( nullptr, level );
+static inline void le_log_set_level( const LeLog::Level &level ) {
+	le_log::le_log_channel_i.set_level( nullptr, level );
 }
 
 template <typename... Args>
-static inline void log_debug( const char *msg, Args &&...args ) {
-	le_log_channel_i.debug( nullptr, msg, static_cast<Args &&>( args )... );
+static inline void le_log_debug( const char *msg, Args &&...args ) {
+	le_log::le_log_channel_i.debug( nullptr, msg, static_cast<Args &&>( args )... );
 }
 
 template <typename... Args>
-static inline void log_info( const char *msg, Args &&...args ) {
-	le_log_channel_i.info( nullptr, msg, static_cast<Args &&>( args )... );
+static inline void le_log_info( const char *msg, Args &&...args ) {
+	le_log::le_log_channel_i.info( nullptr, msg, static_cast<Args &&>( args )... );
 }
 
 template <typename... Args>
-static inline void log_warn( const char *msg, Args &&...args ) {
-	le_log_channel_i.warn( nullptr, msg, static_cast<Args &&>( args )... );
+static inline void le_log_warn( const char *msg, Args &&...args ) {
+	le_log::le_log_channel_i.warn( nullptr, msg, static_cast<Args &&>( args )... );
 }
 
 template <typename... Args>
-static inline void log_error( const char *msg, Args &&...args ) {
-	le_log_channel_i.error( nullptr, msg, static_cast<Args &&>( args )... );
+static inline void le_log_error( const char *msg, Args &&...args ) {
+	le_log::le_log_channel_i.error( nullptr, msg, static_cast<Args &&>( args )... );
 }
-
-} // namespace le
 
 #endif // __cplusplus
 

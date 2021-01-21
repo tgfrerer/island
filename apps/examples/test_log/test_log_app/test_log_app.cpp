@@ -33,12 +33,12 @@ static test_log_app_o *test_log_app_create() {
 
 static bool test_log_app_update( test_log_app_o *self ) {
 
-	auto logger_2 = le::Log( "logger_2" );
-	logger_2.set_level( le::Log::Level::INFO );
+	auto logger_2 = LeLog( "logger_2" );
+	logger_2.set_level( LeLog::Level::INFO );
 	logger_2.info( "Logger_2 says hello from frame: %d", self->frame_counter );
 	std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
 
-	auto app_logger = le::Log( self->logger );
+	auto app_logger = LeLog( self->logger );
 	app_logger.warn( "oops a warning from the app logger" );
 	std::this_thread::sleep_for( std::chrono::milliseconds( 100 ) );
 	app_logger.error( "now an error even." );
