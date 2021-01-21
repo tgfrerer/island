@@ -4087,6 +4087,7 @@ static void debug_print_command( void *&cmd ) {
 			    case (le::CommandType::eDrawIndexed): std::cout << "eDrawIndexed"; break;
 			    case (le::CommandType::eDraw): std::cout << "eDraw"; break;
 			    case (le::CommandType::eDispatch): std::cout << "eDispatch"; break;
+			    case (le::CommandType::eBufferMemoryBarrier): std::cout << "eBufferMemoryBarrier"; break;
 			    case (le::CommandType::eSetLineWidth): std::cout << "eSetLineWidth"; break;
 			    case (le::CommandType::eSetViewport): std::cout << "eSetViewport"; break;
 			    case (le::CommandType::eSetScissor): std::cout << "eSetScissor"; break;
