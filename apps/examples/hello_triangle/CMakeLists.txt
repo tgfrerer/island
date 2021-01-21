@@ -26,15 +26,21 @@ set(REQUIRES_ISLAND_CORE ON )
 # Loads Island framework, based on selected Island modules from above
 include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_prolog.in")
 
+# Add custom module search paths
+# add_island_module_location(${PROJECT_SOURCE_DIR}/../../modules)
+
+# Main application c++ file. Not much to see there,
+set (SOURCES main.cpp)
+
 # Add application module, and (optional) any other private
 # island modules which should not be part of the shared framework.
 add_subdirectory (hello_triangle_app)
 
-# Specify any optional modules from the standard framework here
+# Specify any used modules here - you may reference any module 
+# found in the default Island modules/ directory, or found in any 
+# directories you specified via `add_island_module_location` above.
+#
 add_island_module(le_camera)
-
-# Main application c++ file. Not much to see there,
-set (SOURCES main.cpp)
 
 # Sets up Island framework linkage and housekeeping, based on user selections
 include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_epilog.in")

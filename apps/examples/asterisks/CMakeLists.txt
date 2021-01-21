@@ -13,7 +13,7 @@ project (${PROJECT_NAME})
 # add_compile_definitions( LE_MT=4 )
 
 # Vulkan Validation layers are enabled by default for Debug builds.
-# Uncomment the next line to disable loading Vulkan Validation Layers for Debug builds.
+# Uncomment the next line to disable loading Vulkan Validation Layers.
 # add_compile_definitions( SHOULD_USE_VALIDATION_LAYERS=false )
 
 # Point this to the base directory of your Island installation
@@ -26,16 +26,22 @@ set(REQUIRES_ISLAND_CORE ON )
 # Loads Island framework, based on selected Island modules from above
 include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_prolog.in")
 
+# Add custom module search paths
+# add_island_module_location(${PROJECT_SOURCE_DIR}/../../modules)
+
+# Main application c++ file. Not much to see there,
+set (SOURCES main.cpp)
+
 # Add application module, and (optional) any other private
 # island modules which should not be part of the shared framework.
 add_subdirectory (asterisks_app)
 
-# Specify any optional modules from the standard framework here
+# Specify any used modules here - you may reference any module 
+# found in the default Island modules/ directory, or found in any 
+# directories you specified via `add_island_module_location` above.
+#
 add_island_module(le_camera)
 add_island_module(le_ecs)
-
-# Main application c++ file. Not much to see there,
-set (SOURCES main.cpp)
 
 # Sets up Island framework linkage and housekeeping, based on user selections
 include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_epilog.in")

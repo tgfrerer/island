@@ -13,7 +13,7 @@ project (${PROJECT_NAME})
 # add_compile_definitions( LE_MT=4 )
 
 # Vulkan Validation layers are enabled by default for Debug builds.
-# Uncomment the next line to disable loading Vulkan Validation Layers for Debug builds.
+# Uncomment the next line to disable loading Vulkan Validation Layers.
 # add_compile_definitions( SHOULD_USE_VALIDATION_LAYERS=false )
 
 # Point this to the base directory of your Island installation
@@ -29,19 +29,25 @@ include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_prolog.in")
 # Add custom module search paths
 # add_island_module_location(${CMAKE_CURRENT_SOURCE_DIR}/modules)
 
-# Add application module, and (optional) any other private
-add_subdirectory (quad_template_app)
-
-# Specify any optional modules from the standard framework here
-add_island_module(le_camera)
-
 # Main application c++ file. Not much to see there,
 set (SOURCES main.cpp)
+
+# Add application module, and (optionally) any other private
+# island modules which should not be part of the shared framework.
+add_subdirectory (quad_template_app)
+
+# Specify any used modules here - you may reference any module 
+# found in the default Island modules/ directory, or found in any 
+# directories you specified via `add_island_module_location` above.
+#
+add_island_module(le_camera)
 
 # Sets up Island framework linkage and housekeeping, based on user selections
 include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_epilog.in")
 
 # create a link to local resources
 link_resources(${PROJECT_SOURCE_DIR}/resources ${CMAKE_BINARY_DIR}/local_resources)
+
+set_target_properties(${PROJECT_NAME} PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
 
 source_group(${PROJECT_NAME} FILES ${SOURCES})
