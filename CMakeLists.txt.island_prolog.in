@@ -89,12 +89,27 @@ if (REQUIRES_ISLAND_CORE)
     endif()
 endif()
 
+# Adds a directory to the modules locations
+macro(add_island_module_location MODULE_LOCATION)
+    set( MODULE_LOCATIONS_LIST ${MODULE_LOCATIONS_LIST} ${MODULE_LOCATION} CACHE INTERNAL "module_locations_list" )
+    include_directories("${MODULE_LOCATIONS_LIST}")
+endmacro()
+
+
 # include the island base directory
 include_directories ("${ISLAND_BASE_DIR}")
 
-# keep this include to not break backwards compatibility with projects that did not 
-# use MODULE_LOCATIONS_LIST yet
-include_directories ("${ISLAND_BASE_DIR}/modules")
+# We will store all possible module locations in this list, if the same module exists in multiple locations, the last one will be used
+set ( MODULE_LOCATIONS_LIST CACHE INTERNAL "module_locations_list")
+
+# Set default island module location
+add_island_module_location("${ISLAND_BASE_DIR}/modules")
+
+# We will store all requested module names in this list, and then load modules based on this list
+set ( MODULES_LIST )
+
+# We will store all loaded module names in this global list, so that we can make sure that modules don't get loaded more than once.
+set ( LOADED_MODULES_LIST CACHE INTERNAL "loaded_modules_list" )
 
 # These modules are always loaded - they control the plugin system.
 set ( ISLAND_LOADER_MODULES le_file_watcher;le_core )
@@ -102,15 +117,6 @@ set ( ISLAND_LOADER_MODULES le_file_watcher;le_core )
 # These modules from the renderer - if you want to draw graphics, you want these.
 # Note that order matters: dependent modules must be named before their dependencies.
 set ( CORE_ISLAND_MODULES le_pipeline_builder;le_window;le_backend_vk;le_swapchain_vk;le_renderer;le_jobs;le_shader_compiler)
-
-# We will store all requested module names in this list, and then load modules based on this list
-set ( MODULES_LIST )
-
-# We will store all possible module locations in this list, if the same module exists in multiple locations, the last one will be used
-set ( MODULE_LOCATIONS_LIST "${ISLAND_BASE_DIR}/modules/" CACHE INTERNAL "module_locations_list")
-
-# We will store all loaded module names in this global list, so that we can make sure that modules don't get loaded more than once.
-set ( LOADED_MODULES_LIST CACHE INTERNAL "loaded_modules_list" )
 
 # Add required modules to modules list based on user flags
 #
@@ -121,12 +127,6 @@ endif()
 if (REQUIRES_ISLAND_CORE)
    list (APPEND MODULES_LIST ${CORE_ISLAND_MODULES})
 endif()
-
-# Adds a directory to the modules locations
-macro(add_island_module_location MODULE_LOCATION)
-    set( MODULE_LOCATIONS_LIST ${MODULE_LOCATIONS_LIST} ${MODULE_LOCATION} CACHE INTERNAL "module_locations_list" )
-    include_directories("${MODULE_LOCATIONS_LIST}")
-endmacro()
 
 # Loads a requested module
 # Note that this method is only called in epilog - this is a mechanism to make sure 
