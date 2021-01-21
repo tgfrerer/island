@@ -4046,6 +4046,9 @@ static bool updateArguments( const vk::Device &                 device,
 						case vk::DescriptorType::eInlineUniformBlockEXT:
 							assert( false && "inline uniform blocks are not yet supported" );
 							break;
+						case vk::DescriptorType::eAccelerationStructureNV:
+							assert( false && "NV acceleration structures are not supported anymore. Use KHR acceleration structures." );
+							break;
 						case vk::DescriptorType::eAccelerationStructureKHR:
 							auto wd                        = new vk::WriteDescriptorSetAccelerationStructureKHR{};
 							wd->accelerationStructureCount = 1;
