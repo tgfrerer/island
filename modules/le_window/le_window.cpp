@@ -205,8 +205,7 @@ static void glfw_window_scroll_callback( GLFWwindow *glfwWindow, double xoffset,
 // ----------------------------------------------------------------------
 static void glfw_window_drop_callback( GLFWwindow *glfwWindow, int count_paths, char const **utf8_paths ) {
 
-	auto        window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
-	static auto logger = LeLog( "window" );
+	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
 
 	if ( window->mSettings.useEventsQueue ) {
 
