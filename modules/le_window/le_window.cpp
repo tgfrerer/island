@@ -240,7 +240,6 @@ static void glfw_window_drop_callback( GLFWwindow *glfwWindow, int count_paths, 
 				if ( str.empty() ) {
 					std::cout << "oi" << std::endl;
 				} else {
-					logger.info( "file [%d]: '%s'", i, str.c_str() );
 				}
 
 				window->eventStringData[ queueIdx ].push_front( str );
@@ -251,7 +250,6 @@ static void glfw_window_drop_callback( GLFWwindow *glfwWindow, int count_paths, 
 			drop.paths_utf8 = window->eventStringPtr[ queueIdx ].front().data();
 
 		} else {
-			logger.error( "surpassed high watermark" );
 			// we're over the high - watermark for events, we should probably print a warning.
 		}
 	}
