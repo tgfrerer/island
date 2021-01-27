@@ -144,6 +144,7 @@ struct LeUiEvent {
 		eCursorEnter    = 1 << 3,
 		eMouseButton    = 1 << 4,
 		eScroll         = 1 << 5,
+		eDrop           = 1 << 6,
 	};
 
 	struct KeyEvent {
@@ -176,7 +177,12 @@ struct LeUiEvent {
 		double x_offset;
 		double y_offset;
 	};
-
+	
+	struct DropEvent{
+		char const * * paths_utf8;
+		uint64_t paths_count;
+	};
+	
 	Type event;
 
 	union {
@@ -186,6 +192,7 @@ struct LeUiEvent {
 		CursorEnterEvent    cursorEnter;
 		MouseButtonEvent    mouseButton;
 		ScrollEvent         scroll;
+		DropEvent drop;
 	};
 };
 

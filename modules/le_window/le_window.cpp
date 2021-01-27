@@ -5,12 +5,11 @@
 #include <iostream>
 #include <vector>
 #include <array>
+#include <forward_list>
+#include <atomic>
 
 #define GLFW_INCLUDE_VULKAN
 #include "GLFW/glfw3.h"
-
-#include <vector>
-#include <atomic>
 
 constexpr size_t EVENT_QUEUE_SIZE = 100; // Only allocate space for 100 events per-frame
 
@@ -41,6 +40,9 @@ struct le_window_o {
 	uint32_t                                               eventQueueBack = 0;        // Event queue currently used to record events
 	std::array<std::atomic<uint32_t>, 2>                   numEventsForQueue{ 0, 0 }; // Counter for events per queue (works as arena allocator marker for events queue)
 	std::array<std::array<LeUiEvent, EVENT_QUEUE_SIZE>, 2> eventQueue;                // Events queue is double-bufferd, flip happens on `get_event_queue`
+
+	std::array<std::forward_list<std::string>, 2>               eventStringData; // string data associated with events per queue. vector of strings gets deleted on flip.
+	std::array<std::forward_list<std::vector<char const *>>, 2> eventStringPtr;  // ptrs to string data associated with events per queue. gets deleted on flip.
 
 	WindowGeometry windowGeometry{};
 	bool           isFullscreen = false;
@@ -200,6 +202,61 @@ static void glfw_window_scroll_callback( GLFWwindow *glfwWindow, double xoffset,
 	}
 }
 
+// ----------------------------------------------------------------------
+static void glfw_window_drop_callback( GLFWwindow *glfwWindow, int count_paths, char const **utf8_paths ) {
+
+	auto        window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	static auto logger = LeLog( "window" );
+
+	if ( window->mSettings.useEventsQueue ) {
+
+		uint32_t queueIdx = window->eventQueueBack;
+		uint32_t eventIdx = 0;
+
+		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
+			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
+			event.event = LeUiEvent::Type::eDrop;
+
+			auto &drop = event.drop;
+
+			drop.paths_count = count_paths;
+
+			// Allocate strings for the current event, store them in a container tied
+			// to and with the same lifetime as the back event queue:
+			// eventStringData[queueIdx].
+			//
+			// Then collect pointers for all strings tied to the current event.
+			//
+			// This is so that we can hand out an array of `char const *`.
+			// the vector of pointers itself needs to live somewhere: it
+			// will get moved to a container tied to and with the same
+			// lifetime as the back event queue: `eventStringPtr[queueIdx]`
+			//
+			std::vector<char const *> str_ptrs;
+
+			for ( int i = 0; i != count_paths; i++ ) {
+
+				std::string str = utf8_paths[ i ];
+
+				if ( str.empty() ) {
+					std::cout << "oi" << std::endl;
+				} else {
+					logger.info( "file [%d]: '%s'", i, str.c_str() );
+				}
+
+				window->eventStringData[ queueIdx ].push_front( str );
+				str_ptrs.push_back( window->eventStringData[ queueIdx ].front().c_str() );
+			}
+
+			window->eventStringPtr[ queueIdx ].push_front( str_ptrs );
+			drop.paths_utf8 = window->eventStringPtr[ queueIdx ].front().data();
+
+		} else {
+			logger.error( "surpassed high watermark" );
+			// we're over the high - watermark for events, we should probably print a warning.
+		}
+	}
+}
 // ----------------------------------------------------------------------
 
 static void glfw_framebuffer_resize_callback( GLFWwindow *glfwWindow, int width_px, int height_px ) {
@@ -383,6 +440,7 @@ static void window_set_callbacks( le_window_o *self ) {
 	glfwSetMouseButtonCallback( self->window, ( GLFWmousebuttonfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_mouse_button_callback_addr ) );
 	glfwSetScrollCallback( self->window, ( GLFWscrollfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_scroll_callback_addr ) );
 	glfwSetFramebufferSizeCallback( self->window, ( GLFWframebuffersizefun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_framebuffer_size_callback_addr ) );
+	glfwSetDropCallback( self->window, ( GLFWdropfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_drop_callback_addr ) );
 }
 
 // ----------------------------------------------------------------------
@@ -400,6 +458,8 @@ static void window_remove_callbacks( le_window_o *self ) {
 // ----------------------------------------------------------------------
 // Returns an array of events pending since the last call to this method.
 // Note that calling this method invalidates any values returned from the previous call to this method.
+//
+// You must only call this method once per Frame.
 static void window_get_ui_event_queue( le_window_o *self, LeUiEvent const **events, uint32_t &numEvents ) {
 
 	if ( false == self->mSettings.useEventsQueue ) {
@@ -422,8 +482,14 @@ static void window_get_ui_event_queue( le_window_o *self, LeUiEvent const **even
 	// released, as the event counter for the back queue is reset at the next step.
 	// This is not elegant, but otherwise we must mutex for all event callbacks...
 
-	// Clear new back event queue
-	self->numEventsForQueue[ self->eventQueueBack ] = 0;
+	// Clear new back event queue so that ist may accept new event data.
+	{
+		self->numEventsForQueue[ self->eventQueueBack ] = 0;
+
+		// Free any strings that were associated with events from this queue.
+		self->eventStringData[ self->eventQueueBack ].clear();
+		self->eventStringPtr[ self->eventQueueBack ].clear();
+	}
 
 	// Hand out front events queue
 	*events   = self->eventQueue[ eventQueueFront ].data();
@@ -588,6 +654,7 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	callbacks_i.glfw_mouse_button_callback_addr     = ( void * )glfw_window_mouse_button_callback;
 	callbacks_i.glfw_scroll_callback_addr           = ( void * )glfw_window_scroll_callback;
 	callbacks_i.glfw_framebuffer_size_callback_addr = ( void * )glfw_framebuffer_resize_callback;
+	callbacks_i.glfw_drop_callback_addr             = ( void * )glfw_window_drop_callback;
 
 #if defined PLUGINS_DYNAMIC
 	le_core_load_library_persistently( "libglfw.so" );

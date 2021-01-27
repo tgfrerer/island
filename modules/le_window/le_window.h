@@ -54,6 +54,7 @@ struct le_window_api {
         void * glfw_mouse_button_callback_addr;
         void * glfw_scroll_callback_addr;
         void * glfw_framebuffer_size_callback_addr; 
+        void * glfw_drop_callback_addr; 
     };
 
 	int           ( *init                       ) ();
