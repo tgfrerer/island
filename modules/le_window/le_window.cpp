@@ -1,12 +1,13 @@
 #include "le_window/le_window.h"
 #include "le_ui_event/le_ui_event.h"
+#include "le_log/le_log.h"
 
 #include "assert.h"
-#include <iostream>
 #include <vector>
 #include <array>
 #include <forward_list>
 #include <atomic>
+#include <string>
 
 #define GLFW_INCLUDE_VULKAN
 #include "GLFW/glfw3.h"
@@ -205,7 +206,8 @@ static void glfw_window_scroll_callback( GLFWwindow *glfwWindow, double xoffset,
 // ----------------------------------------------------------------------
 static void glfw_window_drop_callback( GLFWwindow *glfwWindow, int count_paths, char const **utf8_paths ) {
 
-	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto        window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	static auto logger = LeLog( "le_window" );
 
 	if ( window->mSettings.useEventsQueue ) {
 
@@ -237,10 +239,7 @@ static void glfw_window_drop_callback( GLFWwindow *glfwWindow, int count_paths, 
 
 				std::string str = utf8_paths[ i ];
 
-				if ( str.empty() ) {
-					std::cout << "oi" << std::endl;
-				} else {
-				}
+				logger.debug( "dropped path [%d]: '%s'", i, str.c_str() );
 
 				window->eventStringData[ queueIdx ].push_front( str );
 				str_ptrs.push_back( window->eventStringData[ queueIdx ].front().c_str() );
@@ -250,6 +249,7 @@ static void glfw_window_drop_callback( GLFWwindow *glfwWindow, int count_paths, 
 			drop.paths_utf8 = window->eventStringPtr[ queueIdx ].front().data();
 
 		} else {
+			logger.warn( "surpassed high watermark" );
 			// we're over the high - watermark for events, we should probably print a warning.
 		}
 	}
@@ -258,7 +258,8 @@ static void glfw_window_drop_callback( GLFWwindow *glfwWindow, int count_paths, 
 
 static void glfw_framebuffer_resize_callback( GLFWwindow *glfwWindow, int width_px, int height_px ) {
 
-	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto        window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	static auto logger = LeLog( "le_window" );
 
 	int w = width_px;
 	int h = height_px;
@@ -268,8 +269,7 @@ static void glfw_framebuffer_resize_callback( GLFWwindow *glfwWindow, int width_
 	window->mSurfaceExtent.width  = uint32_t( w );
 	window->mSurfaceExtent.height = uint32_t( h );
 
-	//	std::cout << "\t* Framebuffer resized callback: " << std::dec << w << ", " << h << std::endl
-	//	          << std::flush;
+	logger.info( "framebuffer resized callback (w:% 5d, h:% 5d)", w, h );
 };
 
 // ----------------------------------------------------------------------
@@ -394,16 +394,17 @@ static void window_settings_destroy( le_window_settings_o *self_ ) {
 // the caller which must outlive this le_window_o, and take responsibility
 // of deleting  the surface.
 static VkSurfaceKHR_T *window_create_surface( le_window_o *self, VkInstance vkInstance ) {
-	auto result = glfwCreateWindowSurface( vkInstance, self->window, nullptr, &self->mSurface );
+	auto        result = glfwCreateWindowSurface( vkInstance, self->window, nullptr, &self->mSurface );
+	static auto logger = LeLog( "le_window" );
 	if ( result == VK_SUCCESS ) {
 		int tmp_w = 0;
 		int tmp_h = 0;
 		glfwGetFramebufferSize( self->window, &tmp_w, &tmp_h );
 		self->mSurfaceExtent.height = uint32_t( tmp_h );
 		self->mSurfaceExtent.width  = uint32_t( tmp_w );
-		std::cout << "Created surface" << std::endl;
+		logger.debug( "Created surface" );
 	} else {
-		std::cerr << "Error creating surface" << std::endl;
+		logger.debug( "Error creating surface" );
 		return nullptr;
 	}
 	return self->mSurface;
@@ -458,13 +459,12 @@ static void window_remove_callbacks( le_window_o *self ) {
 //
 // You must only call this method once per Frame.
 static void window_get_ui_event_queue( le_window_o *self, LeUiEvent const **events, uint32_t &numEvents ) {
+	static auto logger = LeLog( "le_window" );
 
 	if ( false == self->mSettings.useEventsQueue ) {
 		*events   = nullptr;
 		numEvents = 0;
-
-		std::cout << "WARNING: Querying ui event queue when event queue not in use. Use window.settings to enable events queue." << std::endl
-		          << std::flush;
+		logger.warn( "Querying ui event queue when event queue not in use. Use window.settings to enable events queue." );
 		return;
 	}
 
@@ -579,10 +579,12 @@ static int init() {
 	int result = glfwInit();
 	assert( result == GLFW_TRUE );
 
+	static auto logger = LeLog( "le_window" );
+
 	if ( glfwVulkanSupported() ) {
-		std::cout << "Vulkan supported." << std::endl;
+		logger.debug( "Vulkan supported." );
 	} else {
-		std::cout << "Vulkan not supported." << std::endl;
+		logger.error( "Vulkan not supported." );
 	}
 
 	return result;
@@ -606,8 +608,9 @@ static void pollEvents() {
 // ----------------------------------------------------------------------
 
 static void le_terminate() {
+	static auto logger = LeLog( "le_window" );
 	glfwTerminate();
-	std::cout << "Glfw was terminated." << std::endl;
+	logger.debug( "Glfw was terminated." );
 }
 
 // ----------------------------------------------------------------------

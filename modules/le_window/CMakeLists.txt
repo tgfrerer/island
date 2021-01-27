@@ -11,6 +11,8 @@ add_subdirectory( 3rdparty/glfw )
 
 set (TARGET le_window )
 
+depends_on_island_module(le_log)
+
 add_compile_definitions(VULKAN_HPP_NO_SMART_HANDLE)
 
 set (SOURCES "le_window.cpp")
