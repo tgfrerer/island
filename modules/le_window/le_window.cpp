@@ -50,8 +50,8 @@ struct le_window_o {
 };
 
 // ----------------------------------------------------------------------
-// Check if there is an available index to write at given an event counter and sets
-// eventIdx as a side-effect.
+// Check if there is an available index to write at, given an event counter,
+// and set eventIdx as a side-effect.
 // Returns false if no index in the queue is available for writing.
 // Returns true and an available index as a side-effect in eventIdx otherwise.
 //
