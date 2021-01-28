@@ -74,6 +74,10 @@ class Pixels : NoCopy, NoMove {
 	auto getInfo() noexcept {
 		return le_pixels::le_pixels_i.get_info( self );
 	}
+
+	bool isValid() noexcept {
+		return ( self );
+	}
 };
 } //end namespace le
 
