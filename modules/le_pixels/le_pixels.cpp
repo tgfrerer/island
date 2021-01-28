@@ -40,7 +40,7 @@ struct image_source_info_t {
 
 static void le_pixels_destroy( le_pixels_o *self ) {
 
-	if ( self->image_data ) {
+	if ( self && self->image_data ) {
 		stbi_image_free( self->image_data );
 		self->image_data = nullptr;
 	}
