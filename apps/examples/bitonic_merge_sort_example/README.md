@@ -1,11 +1,11 @@
 # GPU Bitonic Merge Sort Example (Vulkan Compute)
 
+Applies a parallel sorting algorithm to a given buffer of pixel data. 
+
 |  Before | After  |
-:---: | :---
+:---: | :---:
 ![screenshot](resources/images/jonatan-pie-GQIGk5L1Ppk-unsplash.jpg) | ![screenshot](screenshot.jpg)
 | Initial image | Image after 55 of 190 steps |
-
-Applies a parallel sorting algorithm to a given buffer of pixel data. 
 
 The algorithm runs on the GPU via compute shaders. Pixels are sorted by perceptual brightness, via the [Oklab colorspace](https://bottosson.github.io/posts/oklab/). 
 
