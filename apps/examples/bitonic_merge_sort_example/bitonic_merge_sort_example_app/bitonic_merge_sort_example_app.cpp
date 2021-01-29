@@ -228,11 +228,11 @@ static void pass_noise_execute( le_command_buffer_encoder_o *encoder_, void *use
 	std::vector<uint32_t> buffer_initial_data;
 	buffer_initial_data.reserve( app->pixels_data->w * app->pixels_data->h * app->pixels_data->num_channels );
 
-	//	srandom( 10 ); // use the same random seed so that you can compare outputs and debug synchronisation issues.
+	// srand( 10 ); // use the same random seed so that you can compare outputs and debug synchronisation issues.
 
 	for ( uint32_t y = 0; y != app->pixels_data->h; y++ ) {
 		for ( uint32_t x = 0; x != app->pixels_data->w; x++ ) {
-			buffer_initial_data.push_back( random() % UINT_MAX ); // R
+			buffer_initial_data.push_back( rand() % UINT_MAX ); // R
 		}
 	}
 
