@@ -17,6 +17,7 @@
 #include <memory>
 #include <sstream>
 #include <vector>
+#include <stdlib.h> // for random
 
 struct pixels_data_t {
 	le_resource_handle_t handle;
