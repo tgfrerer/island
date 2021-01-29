@@ -10,6 +10,7 @@ apps_list=("
 	examples/multi_window_example:Island-MultiWindowExample
 	examples/imgui_example:Island-ImguiExample
 	examples/asterisks:Island-Asterisks
+	examples/bitonic_merge_sort_example:Island-BitonicMergeSortExample
 ")
 
 tempfiles=( )
