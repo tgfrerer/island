@@ -1,7 +1,7 @@
 #version 450 core
 
 // This shader built after a technique introduced in:
-// http://www.saschawillems.de/?page_id=2122
+// https://www.saschawillems.de/blog/2016/08/13/vulkan-tutorial-on-rendering-a-fullscreen-quad-without-buffers/
 
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_shading_language_420pack : enable
