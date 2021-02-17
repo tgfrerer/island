@@ -22,12 +22,13 @@ struct le_log_api {
 
     struct le_log_channel_interface_t {
 
-        void ( *set_level  )(le_log_channel_o *module, Level level);
+        // Set the log level for a given channel - Messages below the given level will be ignored. 
+        void ( *set_level  )(le_log_channel_o *channel, Level level);
 
-        void ( *debug      )(const le_log_channel_o *module, const char *msg, ...);
-        void ( *info       )(const le_log_channel_o *module, const char *msg, ...);
-        void ( *warn       )(const le_log_channel_o *module, const char *msg, ...);
-        void ( *error      )(const le_log_channel_o *module, const char *msg, ...);
+        void ( *debug      )(const le_log_channel_o *channel, const char *msg, ...);
+        void ( *info       )(const le_log_channel_o *channel, const char *msg, ...);
+        void ( *warn       )(const le_log_channel_o *channel, const char *msg, ...);
+        void ( *error      )(const le_log_channel_o *channel, const char *msg, ...);
 
     };
 

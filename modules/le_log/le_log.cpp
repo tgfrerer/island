@@ -12,37 +12,37 @@ struct le_log_channel_o {
 };
 
 struct le_log_context_o {
-	le_log_channel_o                                    module_default;
-	std::unordered_map<std::string, le_log_channel_o *> modules;
+	le_log_channel_o                                    channel_default;
+	std::unordered_map<std::string, le_log_channel_o *> channels;
 	std::mutex                                          mtx;
 };
 
 static le_log_context_o *ctx;
 
-static le_log_channel_o *le_log_module_default() {
-	return &ctx->module_default;
+static le_log_channel_o *le_log_channel_default() {
+	return &ctx->channel_default;
 }
 
 static le_log_channel_o *le_log_get_module( const char *name ) {
 	if ( !name || !name[ 0 ] ) {
-		return le_log_module_default();
+		return le_log_channel_default();
 	}
 
 	std::scoped_lock g( ctx->mtx );
-	if ( ctx->modules.find( name ) == ctx->modules.end() ) {
-		auto module          = new le_log_channel_o();
-		module->name         = name;
-		ctx->modules[ name ] = module;
+	if ( ctx->channels.find( name ) == ctx->channels.end() ) {
+		auto module           = new le_log_channel_o();
+		module->name          = name;
+		ctx->channels[ name ] = module;
 		return module;
 	}
-	return ctx->modules[ name ];
+	return ctx->channels[ name ];
 }
 
-static void le_log_set_level( le_log_channel_o *module, LeLog::Level level ) {
-	if ( !module ) {
-		module = le_log_module_default();
+static void le_log_set_level( le_log_channel_o *channel, LeLog::Level level ) {
+	if ( !channel ) {
+		channel = le_log_channel_default();
 	}
-	module->log_level = static_cast<std::underlying_type<LeLog::Level>::type>( level );
+	channel->log_level = static_cast<std::underlying_type<LeLog::Level>::type>( level );
 }
 
 static const char *le_log_level_name( LeLog::Level level ) {
@@ -59,13 +59,13 @@ static const char *le_log_level_name( LeLog::Level level ) {
 	return "";
 }
 
-static void le_log_printf( const le_log_channel_o *module, LeLog::Level level, const char *msg, va_list args ) {
+static void le_log_printf( const le_log_channel_o *channel, LeLog::Level level, const char *msg, va_list args ) {
 
-	if ( !module ) {
-		module = le_log_module_default();
+	if ( !channel ) {
+		channel = le_log_channel_default();
 	}
 
-	if ( int( level ) < module->log_level ) {
+	if ( int( level ) < channel->log_level ) {
 		return;
 	}
 
@@ -75,7 +75,7 @@ static void le_log_printf( const le_log_channel_o *module, LeLog::Level level, c
 		file = stderr;
 	}
 
-	fprintf( file, "[ %-10s | %-7s ] ", module->name.c_str(), le_log_level_name( level ) );
+	fprintf( file, "[ %-10s | %-7s ] ", channel->name.c_str(), le_log_level_name( level ) );
 
 	vfprintf( file, msg, args );
 	fprintf( file, "\n" );
@@ -84,10 +84,10 @@ static void le_log_printf( const le_log_channel_o *module, LeLog::Level level, c
 }
 
 template <LeLog::Level level>
-static void le_log_implementation( const le_log_channel_o *module, const char *msg, ... ) {
+static void le_log_implementation( const le_log_channel_o *channel, const char *msg, ... ) {
 	va_list arglist;
 	va_start( arglist, msg );
-	le_log_printf( module, level, msg, arglist );
+	le_log_printf( channel, level, msg, arglist );
 	va_end( arglist );
 }
 
