@@ -3,6 +3,34 @@
 
 #include "le_core/le_core.h"
 
+#define LE_LOG_LEVEL_DEBUG 0
+#define LE_LOG_LEVEL_INFO 1
+#define LE_LOG_LEVEL_WARN 2
+#define LE_LOG_LEVEL_ERROR 4
+
+#ifdef NDEBUG
+//
+// If we're compiling for Release, the minimum log level is automatically set
+// so that anything below `LE_LOG_LEVEL` is a no-op. The default value for
+// `LE_LOG_LEVEL` is 2, which means only Warnings and Errors will be
+// processed and potentially displayed with applications compiled using the
+// Release target.
+//
+// If you want to explicitly override `LE_LOG_LEVEL`, do can this in you app's
+// CMakeLists.txt file, by adding the directive:
+//
+// `add_compile_definitions( LE_LOG_LEVEL=0 )`
+//
+// The above sets `LE_LOG_LEVEL` explicitly to `0` and therefore forces logging
+// for all messages even in Release mode. Override `LE_LOG_LEVEL` to `5` to
+// explicitly and globally disable all logging.
+
+#	ifndef LE_LOG_LEVEL
+#		define LE_LOG_LEVEL 2
+#	endif
+
+#endif
+
 struct le_log_channel_o;
 struct le_log_context_o;
 
@@ -10,10 +38,10 @@ struct le_log_context_o;
 struct le_log_api {
 
 	enum class Level : int {
-		DEBUG = 0,
-		INFO  = 1,
-		WARN  = 2,
-		ERROR = 3
+		DEBUG = LE_LOG_LEVEL_DEBUG,
+		INFO  = LE_LOG_LEVEL_INFO,
+		WARN  = LE_LOG_LEVEL_WARN,
+		ERROR = LE_LOG_LEVEL_ERROR,
 	};
 
     le_log_context_o* context = nullptr;
@@ -25,10 +53,10 @@ struct le_log_api {
         // Set the log level for a given channel - Messages below the given level will be ignored. 
         void ( *set_level  )(le_log_channel_o *channel, Level level);
 
-        void ( *debug      )(const le_log_channel_o *channel, const char *msg, ...);
-        void ( *info       )(const le_log_channel_o *channel, const char *msg, ...);
-        void ( *warn       )(const le_log_channel_o *channel, const char *msg, ...);
-        void ( *error      )(const le_log_channel_o *channel, const char *msg, ...);
+        void ( *debug )(const le_log_channel_o *channel, const char *msg, ...);
+        void ( *info  )(const le_log_channel_o *channel, const char *msg, ...);
+        void ( *warn  )(const le_log_channel_o *channel, const char *msg, ...);
+        void ( *error )(const le_log_channel_o *channel, const char *msg, ...);
 
     };
 
@@ -70,22 +98,30 @@ class LeLog {
 
 	template <class... Args>
 	inline void debug( const char *msg, Args &&...args ) {
+#	if ( !defined NDEBUG ) || LE_LOG_LEVEL <= LE_LOG_LEVEL_DEBUG
 		le_log::le_log_channel_i.debug( channel, msg, static_cast<Args &&>( args )... );
+#	endif
 	}
 
 	template <class... Args>
 	inline void info( const char *msg, Args &&...args ) {
+#	if ( !defined NDEBUG ) || LE_LOG_LEVEL <= LE_LOG_LEVEL_INFO
 		le_log::le_log_channel_i.info( channel, msg, static_cast<Args &&>( args )... );
+#	endif
 	}
 
 	template <class... Args>
 	inline void warn( const char *msg, Args &&...args ) {
+#	if ( !defined NDEBUG ) || LE_LOG_LEVEL <= LE_LOG_LEVEL_WARN
 		le_log::le_log_channel_i.warn( channel, msg, static_cast<Args &&>( args )... );
+#	endif
 	}
 
 	template <class... Args>
 	inline void error( const char *msg, Args &&...args ) {
+#	if ( !defined NDEBUG ) || LE_LOG_LEVEL <= LE_LOG_LEVEL_ERROR
 		le_log::le_log_channel_i.error( channel, msg, static_cast<Args &&>( args )... );
+#	endif
 	}
 };
 // ----------------------------------------------------------------------
@@ -96,22 +132,30 @@ static inline void le_log_set_level( const LeLog::Level &level ) {
 
 template <typename... Args>
 static inline void le_log_debug( const char *msg, Args &&...args ) {
+#	if ( !defined NDEBUG ) || LE_LOG_LEVEL <= LE_LOG_LEVEL_DEBUG
 	le_log::le_log_channel_i.debug( nullptr, msg, static_cast<Args &&>( args )... );
+#	endif
 }
 
 template <typename... Args>
 static inline void le_log_info( const char *msg, Args &&...args ) {
+#	if ( !defined NDEBUG ) || LE_LOG_LEVEL <= LE_LOG_LEVEL_INFO
 	le_log::le_log_channel_i.info( nullptr, msg, static_cast<Args &&>( args )... );
+#	endif
 }
 
 template <typename... Args>
 static inline void le_log_warn( const char *msg, Args &&...args ) {
+#	if ( !defined NDEBUG ) || LE_LOG_LEVEL <= LE_LOG_LEVEL_WARN
 	le_log::le_log_channel_i.warn( nullptr, msg, static_cast<Args &&>( args )... );
+#	endif
 }
 
 template <typename... Args>
 static inline void le_log_error( const char *msg, Args &&...args ) {
+#	if ( !defined NDEBUG ) || LE_LOG_LEVEL <= LE_LOG_LEVEL_ERROR
 	le_log::le_log_channel_i.error( nullptr, msg, static_cast<Args &&>( args )... );
+#	endif
 }
 
 #endif // __cplusplus
