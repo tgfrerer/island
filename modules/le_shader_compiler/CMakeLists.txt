@@ -3,14 +3,10 @@ set (TARGET le_shader_compiler)
 set (SOURCES "le_shader_compiler.cpp")
 set (SOURCES ${SOURCES} "le_shader_compiler.h")
 
-
 if (${PLUGINS_DYNAMIC})
 
     add_library(${TARGET} SHARED ${SOURCES})
-
-    
     add_dynamic_linker_flags()
-
     target_compile_definitions(${TARGET} PUBLIC "PLUGINS_DYNAMIC=1")
 
     if (WIN32)
@@ -25,8 +21,6 @@ else()
     # libshaderc_shared.so
     set (PLUGIN_LINK_DIRS ${PLUGIN_LINK_DIRS} ${LIB_SHADERC_DIR} PARENT_SCOPE)
 
-    # Adding a static library means to also add a linker dependency for our target
-    # to the library.
     add_static_lib( ${TARGET} )
 
     add_library(${TARGET} STATIC ${SOURCES})
@@ -38,11 +32,10 @@ else()
         include(FindPkgConfig)
         pkg_check_modules(shaderc REQUIRED IMPORTED_TARGET shaderc)
         set (LINKER_FLAGS  ${LINKER_FLAGS} PkgConfig::shaderc )
-        message(STATUS ${LINKER_FLAGS}) 
+        # message(STATUS ${LINKER_FLAGS}) 
     endif()
 
 endif()
-
 
 if (WIN32)
 else()
