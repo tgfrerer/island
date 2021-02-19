@@ -159,15 +159,15 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 		snprintf( api_register_fun_name, 255, "le_module_register_%s", module_name );
 
 #ifdef WIN32
-		// On Windows, we dont directly watch the .dll - but we watch a matching .flag file 
-		// for updates. This is allows us to make sure that all write operations to the .dll 
-		// are complete before we trigger a reload. If we watch the .dll directly, the 
+		// On Windows, we dont directly watch the .dll - but we watch a matching .flag file
+		// for updates. This allows us to make sure that all write operations to the .dll
+		// are complete before we trigger a reload. If we watched the .dll directly, the
 		// directory watcher may report multiple file modification events during the build
 		// process, which will trigger the hot-reloading mechanism multiple times for the
-		// same library (for example if the file is being written into in multiple steps). 
+		// same library (for example if the file is being written into in multiple steps).
 		//
 		// By using a .flag file we can make sure that we're subscribing to an atomic event
-		// which only gets triggered once the build is finished and the .flag file gets 
+		// which only gets triggered once the build is finished and the .flag file gets
 		// touch'ed by the build scripts to signal successful completion of the build.
 		std::string         module_path = "./" + std::string( module_name ) + ".dll";
 		std::string         module_watch_path = "./" + std::string( module_name ) + ".flag";

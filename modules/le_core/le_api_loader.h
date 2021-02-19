@@ -25,7 +25,6 @@ table of function pointers which, together, declare the api.
 #	define LE_API_LOADER_IMPL_WIN32
 #endif
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif // end __cplusplus
@@ -36,10 +35,10 @@ struct le_module_loader_o;
 struct le_module_loader_api {
 
 	struct le_module_loader_interface_t {
-	le_module_loader_o * ( *create )               ( const char *path_ );
-	void               ( *destroy )              ( le_module_loader_o *obj );
-	bool               ( *register_api )         ( le_module_loader_o *obj, void *api_interface, const char *api_registry_name );
-	bool               ( *load )                 ( le_module_loader_o *obj );
+	le_module_loader_o * ( *create )                 ( const char *path_ );
+	void               ( *destroy )                  ( le_module_loader_o *obj );
+	bool               ( *register_api )             ( le_module_loader_o *obj, void *api_interface, const char *api_registry_name );
+	bool               ( *load )                     ( le_module_loader_o *obj );
 	bool               ( *load_library_persistently) (const char* libName_);
 	};
 	

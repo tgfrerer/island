@@ -407,7 +407,7 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
                 le_pipeline_cache_flag_affected_modules_for_source_path( shader_manager, path );
                 return true;
 			};
-			le_file_watcher_api_i->le_file_watcher_i.add_watch( self->shaderFileWatcher, &settings );
+			le_file_watcher::le_file_watcher_i.add_watch( self->shaderFileWatcher, &settings );
 		}
 
 		std::cout << std::hex << module << " : " << s << std::endl
@@ -946,7 +946,7 @@ static void le_shader_manager_update_shader_modules( le_shader_manager_o *self )
 
 	// this will call callbacks on any watched file objects as a side effect
 	// callbacks will modify le_backend->modifiedShaderModules
-	le_file_watcher_api_i->le_file_watcher_i.poll_notifications( self->shaderFileWatcher );
+	le_file_watcher::le_file_watcher_i.poll_notifications( self->shaderFileWatcher );
 
 	// -- update only modules which have been tainted
 
@@ -969,7 +969,7 @@ le_shader_manager_o *le_shader_manager_create( VkDevice_T *device ) {
 	self->shader_compiler = compiler_i.create();
 
 	// -- create file watcher for shader files so that changes can be detected
-	self->shaderFileWatcher = le_file_watcher_api_i->le_file_watcher_i.create();
+	self->shaderFileWatcher = le_file_watcher::le_file_watcher_i.create();
 
 	return self;
 }
