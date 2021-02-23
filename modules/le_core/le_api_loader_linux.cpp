@@ -8,10 +8,13 @@
 #	include "assert.h"
 #	include <string>
 #	include <iostream>
+#	include "le_log/le_log.h"
+#	include <cstdarg>
+#	include <stdio.h>
 
 struct le_file_watcher_o;
 
-#	define LOG_PREFIX_STR "LOADER"
+#	define LOG_PREFIX_STR "loader"
 
 // declare function pointer type to register_fun function
 typedef void ( *register_api_fun_p_t )( void * );
@@ -26,22 +29,68 @@ struct le_module_loader_o {
 
 // ----------------------------------------------------------------------
 
+static le_log_channel_o *get_logger( le_log_channel_o **logger ) {
+	// First, initialise logger to nullptr so that we can test against this when the logger module gets loaded.
+	*logger = nullptr;
+	// Next call will initialise logger by calling into this library.
+	*logger = le_log::api->get_channel( LOG_PREFIX_STR );
+	return *logger;
+};
+
+static le_log_channel_o *logger = get_logger( &logger );
+
+// ----------------------------------------------------------------------
+
+static void log_printf( FILE *f_out, const char *msg, ... ) {
+	fprintf( f_out, "[ %-20.20s ] ", LOG_PREFIX_STR );
+	va_list arglist;
+	va_start( arglist, msg );
+	vfprintf( f_out, msg, arglist );
+	va_end( arglist );
+	fprintf( f_out, "\n" );
+	if ( f_out == stderr ) {
+		fflush( f_out );
+	}
+}
+
+template <typename... Args>
+static void log_info( const char *msg, Args &&...args ) {
+	if ( logger ) {
+		le_log::le_log_channel_i.info( logger, msg, std::move( args )... );
+	} else {
+		log_printf( stdout, msg, args... );
+	}
+}
+
+// ----------------------------------------------------------------------
+template <typename... Args>
+static void log_error( const char *msg, Args &&...args ) {
+	if ( logger ) {
+		le_log::le_log_channel_i.error( logger, msg, std::move( args )... );
+	} else {
+		log_printf( stderr, msg, args... );
+	}
+}
+
+// ----------------------------------------------------------------------
+
 static void unload_library( void *handle_, const char *path ) {
 	if ( handle_ ) {
 		auto result = dlclose( handle_ );
 
-		fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p \n", LOG_PREFIX_STR, "", "Close Module", path, handle_ );
+		// we must detect whether the module that was unloaded was the logger module -
+		// in which case we can't log using the logger module.
+
+		log_info( " %10s %-20s: %-50s, handle: %p ", "", "Close Module", path, handle_ );
 
 		if ( result ) {
 			auto error = dlerror();
-			fprintf( stderr, "[ %-20.20s ] %10s %-20s: handle: %p, error: %s\n", LOG_PREFIX_STR, "ERROR", "dlclose", handle_, error );
-			fflush( stderr );
+			log_error( "%10s %-20s: handle: %p, error: %s", "ERROR", "dlclose", handle_, error );
 		}
 
 		auto handle = dlopen( path, RTLD_NOLOAD );
 		if ( handle ) {
-			std::cerr << LOG_PREFIX_STR "ERROR dlclose: '" << path << "', "
-			          << "handle " << std::hex << ( void * )handle << " staying resident.";
+			log_error( "ERROR dlclose: '%s'', handle: %p staying resident", path, ( void * )handle );
 		}
 	}
 }
@@ -50,19 +99,14 @@ static void unload_library( void *handle_, const char *path ) {
 
 static void *load_library( const char *lib_name ) {
 
-	// fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s\n", LOG_PREFIX_STR, "", "Load Module", lib_name );
-	// fflush( stdout );
-
 	void *handle = dlopen( lib_name, RTLD_LAZY | RTLD_LOCAL );
 
 	if ( !handle ) {
 		auto loadResult = dlerror();
-		std::cerr << "ERROR: " << loadResult << std::endl
-		          << std::flush;
+		log_error( "FATAL ERROR: %s", loadResult );
 		exit( 1 );
 	} else {
-		fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p\n", LOG_PREFIX_STR, "OK", "Loaded Module", lib_name, handle );
-		fflush( stdout );
+		log_info( "[%-10s] %-20s: %-50s, handle: %p", "OK", "Loaded Module", lib_name, handle );
 	}
 	return handle;
 }
@@ -86,12 +130,10 @@ static bool load_library_persistent( const char *lib_name ) {
 		lib_handle = dlopen( lib_name, RTLD_NOW | RTLD_GLOBAL | RTLD_NODELETE );
 		if ( !lib_handle ) {
 			auto loadResult = dlerror();
-			fprintf( stderr, "[ %-20.20s ] %10s %-20s: %-50s, result: %s\n", LOG_PREFIX_STR, "ERROR", "Load Library", lib_name, loadResult );
-			fflush( stderr );
+			log_error( "[%-10s] %-20s: %-50s, result: %s", "ERROR", "Load Library", lib_name, loadResult );
 			exit( 1 );
 		} else {
-			fprintf( stdout, "[ %-20.20s ] %10s %-20s: %-50s, handle: %p\n", LOG_PREFIX_STR, "", "Keep Library", lib_name, lib_handle );
-			fflush( stdout );
+			log_info( "[%-10s] %-20s: %-50s, handle: %p", "OK", "Keep Library", lib_name, lib_handle );
 		}
 	}
 	return ( lib_handle != nullptr );
@@ -128,13 +170,13 @@ static bool register_api( le_module_loader_o *obj, void *api_interface, const ch
 	// load function pointer to initialisation method
 	fptr = reinterpret_cast<register_api_fun_p_t>( dlsym( obj->mLibraryHandle, register_api_fun_name ) );
 	if ( !fptr ) {
-		std::cerr << LOG_PREFIX_STR "ERROR: " << dlerror() << std::endl;
+		log_error( "ERROR: '%s'", dlerror() );
 		assert( false );
 		return false;
 	}
 	// Initialize the API. This means telling the API to populate function
 	// pointers inside the struct which we are passing as parameter.
-	fprintf( stderr, "[ %-20.20s ] %10s %-20s: %s\n", LOG_PREFIX_STR, "", "Register Module", register_api_fun_name );
+	log_info( "Register Module: '%s'", register_api_fun_name );
 
 	( *fptr )( api_interface );
 	return true;
