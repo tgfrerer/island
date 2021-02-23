@@ -34,7 +34,8 @@ struct ApiStore {
 
 struct loader_callback_params_o {
 	le_module_loader_o *loader;
-	void *              api;
+	void *              api;      // address of api interface struct
+	size_t              api_size; // api interface struct size in bytes
 	std::string         lib_register_fun_name;
 	int                 watch_id;
 };
@@ -163,6 +164,12 @@ static void *le_core_create_api( uint64_t id, size_t apiStructSize, const char *
 
 // ----------------------------------------------------------------------
 
+static void le_core_reset_api( void *api, size_t api_size ) {
+	memset( api, 0, api_size ); // blank out all entries.
+}
+
+// ----------------------------------------------------------------------
+
 ISL_API_ATTR void *le_core_load_module_static( char const *module_name, void ( *module_reg_fun )( void * ), uint64_t api_size_in_bytes ) {
 	void *api = le_core_create_api( hash_64_fnv1a_const( module_name ), api_size_in_bytes, module_name );
 	module_reg_fun( api );
@@ -227,12 +234,14 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 			callbackParams->loader                   = loader;
 			callbackParams->lib_register_fun_name    = api_register_fun_name;
 			callbackParams->watch_id                 = 0;
+			callbackParams->api_size                 = api_size_in_bytes;
 			defer_delete().params.push_back( callbackParams ); // add to deferred cleanup list
 
 			le_file_watcher_watch_settings watchSettings = {};
 
 			watchSettings.callback_fun = []( const char *, void *user_data ) -> bool {
 				auto params = static_cast<loader_callback_params_o *>( user_data );
+				le_core_reset_api( params->api, params->api_size );
 				module_loader_i.load( params->loader );
 				return module_loader_i.register_api( params->loader, params->api, params->lib_register_fun_name.c_str() );
 			};
