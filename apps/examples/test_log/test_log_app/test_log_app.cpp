@@ -34,7 +34,7 @@ static test_log_app_o *test_log_app_create() {
 static bool test_log_app_update( test_log_app_o *self ) {
 
 	auto logger_2 = LeLog( "logger_2" );
-	logger_2.set_level( LeLog::Level::INFO );
+	logger_2.set_level( LeLog::Level::eInfo );
 	logger_2.info( "Logger_2 says hello from frame: %d", self->frame_counter );
 	std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
 

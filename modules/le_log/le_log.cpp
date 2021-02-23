@@ -47,13 +47,13 @@ static void le_log_set_level( le_log_channel_o *channel, LeLog::Level level ) {
 
 static const char *le_log_level_name( LeLog::Level level ) {
 	switch ( level ) {
-	case LeLog::Level::DEBUG:
+	case LeLog::Level::eDebug:
 		return "DEBUG";
-	case LeLog::Level::INFO:
+	case LeLog::Level::eInfo:
 		return "INFO";
-	case LeLog::Level::WARN:
+	case LeLog::Level::eWarn:
 		return "WARN";
-	case LeLog::Level::ERROR:
+	case LeLog::Level::eError:
 		return "ERROR";
 	}
 	return "";
@@ -71,7 +71,7 @@ static void le_log_printf( const le_log_channel_o *channel, LeLog::Level level, 
 
 	auto file = stdout;
 
-	if ( level == LeLog::Level::ERROR ) {
+	if ( level == LeLog::Level::eError ) {
 		file = stderr;
 	}
 
@@ -98,10 +98,10 @@ LE_MODULE_REGISTER_IMPL( le_log, api ) {
 	le_api->get_channel = le_log_get_module;
 
 	auto &le_api_channel_i     = le_api->le_log_channel_i;
-	le_api_channel_i.debug     = le_log_implementation<LeLog::Level::DEBUG>;
-	le_api_channel_i.info      = le_log_implementation<LeLog::Level::INFO>;
-	le_api_channel_i.warn      = le_log_implementation<LeLog::Level::WARN>;
-	le_api_channel_i.error     = le_log_implementation<LeLog::Level::ERROR>;
+	le_api_channel_i.debug     = le_log_implementation<LeLog::Level::eDebug>;
+	le_api_channel_i.info      = le_log_implementation<LeLog::Level::eInfo>;
+	le_api_channel_i.warn      = le_log_implementation<LeLog::Level::eWarn>;
+	le_api_channel_i.error     = le_log_implementation<LeLog::Level::eError>;
 	le_api_channel_i.set_level = le_log_set_level;
 
 	if ( !le_api->context ) {

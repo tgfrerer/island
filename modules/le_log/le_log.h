@@ -38,10 +38,10 @@ struct le_log_context_o;
 struct le_log_api {
 
 	enum class Level : int {
-		DEBUG = LE_LOG_LEVEL_DEBUG,
-		INFO  = LE_LOG_LEVEL_INFO,
-		WARN  = LE_LOG_LEVEL_WARN,
-		ERROR = LE_LOG_LEVEL_ERROR,
+		eDebug = LE_LOG_LEVEL_DEBUG,
+		eInfo  = LE_LOG_LEVEL_INFO,
+		eWarn  = LE_LOG_LEVEL_WARN,
+		eError = LE_LOG_LEVEL_ERROR,
 	};
 
     le_log_context_o* context = nullptr;
