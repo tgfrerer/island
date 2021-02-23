@@ -40,9 +40,15 @@ struct loader_callback_params_o {
 };
 
 static ApiStore apiStore{};
+static le_file_watcher_api const *get_le_file_watcher_api() {
+	static auto api = ( le_file_watcher_api const * )
+	    le_core_load_module_static(
+	        le_module_name_le_file_watcher,
+	        le_module_register_le_file_watcher,
+	        sizeof( le_file_watcher_api ) );
+	return api;
+}
 
-static auto &file_watcher_i = le_file_watcher_api_i -> le_file_watcher_i; // le_file_watcher_api_i provided by le_file_watcher.h
-static auto  file_watcher   = file_watcher_i.create();
 static le_module_loader_api const *get_module_loader_api() {
 	static auto api = ( le_module_loader_api const * )
 	    le_core_load_module_static(
@@ -52,10 +58,16 @@ static le_module_loader_api const *get_module_loader_api() {
 	return api;
 }
 
+le_file_watcher_o *get_file_watcher() {
+	static auto file_watcher = get_le_file_watcher_api()->le_file_watcher_i.create();
+	return file_watcher;
+}
+
 // ----------------------------------------------------------------------
 // Trigger callbacks in case change was detected in watched files.
 ISL_API_ATTR void le_core_poll_for_module_reloads() {
-	file_watcher_i.poll_notifications( file_watcher );
+	static auto file_watcher_i = get_le_file_watcher_api()->le_file_watcher_i;
+	file_watcher_i.poll_notifications( get_file_watcher() );
 }
 
 // ----------------------------------------------------------------------
@@ -218,7 +230,8 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 			watchSettings.callback_user_data = reinterpret_cast<void *>( callbackParams );
 			watchSettings.filePath           = module_watch_path.c_str();
 
-			callbackParams->watch_id = file_watcher_i.add_watch( file_watcher, &watchSettings );
+			static auto le_file_watcher_i = get_le_file_watcher_api()->le_file_watcher_i;
+			callbackParams->watch_id      = le_file_watcher_i.add_watch( get_file_watcher(), &watchSettings );
 		}
 
 	} else {
