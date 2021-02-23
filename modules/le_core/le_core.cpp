@@ -46,14 +46,6 @@ static ApiStore &apiStore() {
 	return obj;
 };
 
-static le_file_watcher_api const *get_le_file_watcher_api() {
-	static auto api = ( le_file_watcher_api const * )
-	    le_core_load_module_static(
-	        le_module_name_le_file_watcher,
-	        le_module_register_le_file_watcher,
-	        sizeof( le_file_watcher_api ) );
-	return api;
-}
 
 static le_module_loader_api const *get_module_loader_api() {
 	static auto api = ( le_module_loader_api const * )
@@ -63,6 +55,15 @@ static le_module_loader_api const *get_module_loader_api() {
 	        sizeof( le_module_loader_api ) );
 	return api;
 }
+
+static le_file_watcher_api const *get_le_file_watcher_api() {
+	static auto api = ( le_file_watcher_api const * )
+	    le_core_load_module_dynamic(
+	        le_module_name_le_file_watcher,
+	        sizeof( le_file_watcher_api ),false );
+	return api;
+}
+
 
 le_file_watcher_o *get_file_watcher() {
 	static auto file_watcher = get_le_file_watcher_api()->le_file_watcher_i.create();
