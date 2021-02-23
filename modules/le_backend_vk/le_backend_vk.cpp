@@ -26,6 +26,7 @@
 
 #ifdef _WIN32
 #	define __PRETTY_FUNCTION__ __FUNCSIG__
+#include <intrin.h> // for __lzcnt
 #endif //
 
 #ifndef PRINT_DEBUG_MESSAGES
