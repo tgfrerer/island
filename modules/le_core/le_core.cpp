@@ -39,7 +39,13 @@ struct loader_callback_params_o {
 	int                 watch_id;
 };
 
-static ApiStore apiStore{};
+// We use a function here because this means lazy, but deterministic initialisation.
+// see also: <http://www.cs.technion.ac.il/users/yechiel/c++-faq/static-init-order.html>
+static ApiStore &apiStore() {
+	static ApiStore obj;
+	return obj;
+};
+
 static le_file_watcher_api const *get_le_file_watcher_api() {
 	static auto api = ( le_file_watcher_api const * )
 	    le_core_load_module_static(
@@ -102,18 +108,18 @@ static size_t produce_api_index( uint64_t id, const char *debugName ) {
 
 	size_t foundElement = 0;
 
-	for ( const auto &n : apiStore.nameHashes ) {
+	for ( const auto &n : apiStore().nameHashes ) {
 		if ( n == id ) {
 			break;
 		}
 		++foundElement;
 	}
 
-	if ( foundElement == apiStore.nameHashes.size() ) {
+	if ( foundElement == apiStore().nameHashes.size() ) {
 		// no element found, we need to add an element
-		apiStore.nameHashes.emplace_back( id );
-		apiStore.ptrs.emplace_back( nullptr );    // initialise to nullptr
-		apiStore.names.emplace_back( debugName ); // implicitly creates a string
+		apiStore().nameHashes.emplace_back( id );
+		apiStore().ptrs.emplace_back( nullptr );    // initialise to nullptr
+		apiStore().names.emplace_back( debugName ); // implicitly creates a string
 	}
 
 	// --------| invariant: foundElement points to correct element
@@ -126,7 +132,7 @@ static size_t produce_api_index( uint64_t id, const char *debugName ) {
 static void *le_core_get_api( uint64_t id, const char *debugName ) {
 
 	size_t foundElement = produce_api_index( id, debugName );
-	return apiStore.ptrs[ foundElement ];
+	return apiStore().ptrs[ foundElement ];
 }
 
 // ----------------------------------------------------------------------
@@ -135,7 +141,7 @@ static void *le_core_create_api( uint64_t id, size_t apiStructSize, const char *
 
 	size_t foundElement = produce_api_index( id, debugName );
 
-	auto &apiPtr = apiStore.ptrs[ foundElement ];
+	auto &apiPtr = apiStore().ptrs[ foundElement ];
 
 	if ( apiPtr == nullptr ) {
 
