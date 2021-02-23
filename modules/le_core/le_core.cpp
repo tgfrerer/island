@@ -97,7 +97,10 @@ struct DeferDelete {
 	}
 };
 
-static DeferDelete defer_delete; // Any elements referenced in this pool will get deleted when program unloads.
+static DeferDelete &defer_delete() {
+	static DeferDelete obj{};
+	return obj;
+}
 
 // ----------------------------------------------------------------------
 /// \returns index into apiStore entry for api with given id
@@ -205,7 +208,7 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 		le_module_loader_o *loader            = module_loader_i.create( module_path.c_str() );
 #endif
 
-		defer_delete.loaders.push_back( loader ); // add to cleanup list
+		defer_delete().loaders.push_back( loader ); // add to cleanup list
 
 		// Important to store api back to table here *before* calling loadApi,
 		// as loadApi might recursively add other apis
@@ -223,7 +226,7 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 			callbackParams->loader                   = loader;
 			callbackParams->lib_register_fun_name    = api_register_fun_name;
 			callbackParams->watch_id                 = 0;
-			defer_delete.params.push_back( callbackParams ); // add to deferred cleanup list
+			defer_delete().params.push_back( callbackParams ); // add to deferred cleanup list
 
 			le_file_watcher_watch_settings watchSettings = {};
 
