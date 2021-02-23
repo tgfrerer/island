@@ -48,14 +48,12 @@ static void log_printf( FILE *f_out, const char *msg, ... ) {
 	vfprintf( f_out, msg, arglist );
 	va_end( arglist );
 	fprintf( f_out, "\n" );
-	if ( f_out == stderr ) {
-		fflush( f_out );
-	}
+	fflush( f_out );
 }
 
 template <typename... Args>
 static void log_info( const char *msg, Args &&...args ) {
-	if ( logger ) {
+	if ( logger && le_log::le_log_channel_i.info ) {
 		le_log::le_log_channel_i.info( logger, msg, std::move( args )... );
 	} else {
 		log_printf( stdout, msg, args... );
@@ -65,7 +63,7 @@ static void log_info( const char *msg, Args &&...args ) {
 // ----------------------------------------------------------------------
 template <typename... Args>
 static void log_error( const char *msg, Args &&...args ) {
-	if ( logger ) {
+	if ( logger && le_log::le_log_channel_i.error ) {
 		le_log::le_log_channel_i.error( logger, msg, std::move( args )... );
 	} else {
 		log_printf( stderr, msg, args... );
@@ -81,7 +79,7 @@ static void unload_library( void *handle_, const char *path ) {
 		// we must detect whether the module that was unloaded was the logger module -
 		// in which case we can't log using the logger module.
 
-		log_info( " %10s %-20s: %-50s, handle: %p ", "", "Close Module", path, handle_ );
+		log_info( "[%-10s] %-20s: %-50s, handle: %p ", "OK", "Close Module", path, handle_ );
 
 		if ( result ) {
 			auto error = dlerror();
