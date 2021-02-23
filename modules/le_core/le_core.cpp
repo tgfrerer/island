@@ -43,6 +43,14 @@ static ApiStore apiStore{};
 
 static auto &file_watcher_i = le_file_watcher_api_i -> le_file_watcher_i; // le_file_watcher_api_i provided by le_file_watcher.h
 static auto  file_watcher   = file_watcher_i.create();
+static le_module_loader_api const *get_module_loader_api() {
+	static auto api = ( le_module_loader_api const * )
+	    le_core_load_module_static(
+	        le_module_name_le_module_loader,
+	        le_module_register_le_module_loader,
+	        sizeof( le_module_loader_api ) );
+	return api;
+}
 
 // ----------------------------------------------------------------------
 // Trigger callbacks in case change was detected in watched files.
@@ -59,9 +67,10 @@ struct DeferDelete {
 	std::vector<loader_callback_params_o *> params;  // callback params to clean up
 
 	~DeferDelete() {
+		static auto module_loader_i = get_module_loader_api()->le_module_loader_i;
 		for ( auto &l : loaders ) {
 			if ( l ) {
-				le_module_loader_api_i->le_module_loader_i.destroy( l );
+				module_loader_i.destroy( l );
 			}
 		}
 		for ( auto &p : params ) {
@@ -151,9 +160,9 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 		should_watch = false;
 	}
 
-	if ( api == nullptr ) {
+	static auto module_loader_i = get_module_loader_api()->le_module_loader_i;
 
-		static auto &module_loader_i = le_module_loader_api_i->le_module_loader_i;
+	if ( api == nullptr ) {
 
 		char api_register_fun_name[ 256 ];
 		snprintf( api_register_fun_name, 255, "le_module_register_%s", module_name );
@@ -169,13 +178,13 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 		// By using a .flag file we can make sure that we're subscribing to an atomic event
 		// which only gets triggered once the build is finished and the .flag file gets
 		// touch'ed by the build scripts to signal successful completion of the build.
-		std::string         module_path = "./" + std::string( module_name ) + ".dll";
+		std::string         module_path       = "./" + std::string( module_name ) + ".dll";
 		std::string         module_watch_path = "./" + std::string( module_name ) + ".flag";
-		le_module_loader_o *loader      = module_loader_i.create( module_path.c_str() );
+		le_module_loader_o *loader            = module_loader_i.create( module_path.c_str() );
 #else
-		std::string         module_path = "./modules/lib" + std::string( module_name ) + ".so";
+		std::string         module_path       = "./modules/lib" + std::string( module_name ) + ".so";
 		std::string         module_watch_path = module_path;
-		le_module_loader_o *loader      = module_loader_i.create( module_path.c_str() );
+		le_module_loader_o *loader            = module_loader_i.create( module_path.c_str() );
 #endif
 
 		defer_delete.loaders.push_back( loader ); // add to cleanup list
@@ -202,8 +211,8 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 
 			watchSettings.callback_fun = []( const char *, void *user_data ) -> bool {
 				auto params = static_cast<loader_callback_params_o *>( user_data );
-				le_module_loader_api_i->le_module_loader_i.load( params->loader );
-				return le_module_loader_api_i->le_module_loader_i.register_api( params->loader, params->api, params->lib_register_fun_name.c_str() );
+				module_loader_i.load( params->loader );
+				return module_loader_i.register_api( params->loader, params->api, params->lib_register_fun_name.c_str() );
 			};
 
 			watchSettings.callback_user_data = reinterpret_cast<void *>( callbackParams );
@@ -222,7 +231,8 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 // ----------------------------------------------------------------------
 
 ISL_API_ATTR bool le_core_load_library_persistently( char const *library_name ) {
-	return le_module_loader_api_i->le_module_loader_i.load_library_persistently( library_name );
+	static auto module_loader_i = get_module_loader_api()->le_module_loader_i;
+	return module_loader_i.load_library_persistently( library_name );
 }
 
 // ----------------------------------------------------------------------

@@ -49,9 +49,6 @@ struct le_module_loader_api {
 
 LE_MODULE( le_module_loader );
 
-// Apiloader module can only be used as a static module, as it is part of the core.
-LE_MODULE_LOAD_STATIC( le_module_loader );
-
 // ----------------------------------------------------------------------
 
 #ifdef __cplusplus
