@@ -3,6 +3,7 @@
 #include "le_file_watcher/le_file_watcher.h"
 #include "hash_util.h"
 #include <vector>
+#include <unordered_map>
 #include <string>
 #include <stdio.h>
 #include <iostream>
