@@ -32,6 +32,13 @@ struct ApiStore {
 	}
 };
 
+// We use a function here because this means lazy, but deterministic initialisation.
+// see also: <http://www.cs.technion.ac.il/users/yechiel/c++-faq/static-init-order.html>
+static ApiStore &apiStore() {
+	static ApiStore obj;
+	return obj;
+};
+
 ISL_API_ATTR void **le_core_produce_dictionary_entry( uint64_t key ) {
 	static std::unordered_map<uint64_t, void *> store{};
 	return &store[ key ];
@@ -44,14 +51,6 @@ struct loader_callback_params_o {
 	std::string         lib_register_fun_name;
 	int                 watch_id;
 };
-
-// We use a function here because this means lazy, but deterministic initialisation.
-// see also: <http://www.cs.technion.ac.il/users/yechiel/c++-faq/static-init-order.html>
-static ApiStore &apiStore() {
-	static ApiStore obj;
-	return obj;
-};
-
 
 static le_module_loader_api const *get_module_loader_api() {
 	static auto api = ( le_module_loader_api const * )
@@ -66,10 +65,9 @@ static le_file_watcher_api const *get_le_file_watcher_api() {
 	static auto api = ( le_file_watcher_api const * )
 	    le_core_load_module_dynamic(
 	        le_module_name_le_file_watcher,
-	        sizeof( le_file_watcher_api ),false );
+	        sizeof( le_file_watcher_api ), false );
 	return api;
 }
-
 
 le_file_watcher_o *get_file_watcher() {
 	static auto file_watcher = get_le_file_watcher_api()->le_file_watcher_i.create();
