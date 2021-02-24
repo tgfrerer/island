@@ -1,3 +1,4 @@
+#include "le_core/le_core.h"
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_backend_vk/le_backend_types_internal.h"
 #include "le_log/le_log.h"
@@ -395,9 +396,10 @@ static void destroy_debug_messenger_callback( le_backend_vk_instance_o *obj ) {
 
 le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, uint32_t numExtensionNames_ ) {
 
-	auto self = new le_backend_vk_instance_o();
+	static_assert( VK_HEADER_VERSION >= 162, "Wrong VK_HEADER_VERSION!" );
 
-	static_assert( VK_HEADER_VERSION >= 121, "Wrong VK_HEADER_VERSION!" );
+	auto        self   = new le_backend_vk_instance_o();
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	vk::ApplicationInfo appInfo;
 	appInfo
@@ -405,7 +407,7 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 	    .setApplicationVersion( VK_MAKE_VERSION( 0, 0, 0 ) )
 	    .setPEngineName( "Island" )
 	    .setEngineVersion( VK_MAKE_VERSION( 0, 1, 0 ) )
-	    .setApiVersion( VK_MAKE_VERSION( 1, 2, 135 ) );
+	    .setApiVersion( VK_MAKE_VERSION( 1, 2, 162 ) );
 
 	// -- create a vector of unique requested instance extension names
 
