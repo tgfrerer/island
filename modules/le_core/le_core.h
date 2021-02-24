@@ -42,6 +42,10 @@ ISL_API_ATTR DLL_CORE_API void *le_core_load_module_static( char const *module_n
 ISL_API_ATTR DLL_CORE_API void *le_core_load_module_dynamic( char const *module_name, uint64_t api_size_in_bytes, bool should_watch );
 ISL_API_ATTR DLL_CORE_API bool  le_core_load_library_persistently( char const *library );
 
+// A globally available, persistent key-pointer store. Use this to store pointers which you want to keep
+// across module reloads, for example.
+ISL_API_ATTR DLL_CORE_API void **le_core_produce_dictionary_entry( uint64_t key );
+
 // For debug purposes
 
 ISL_API_ATTR DLL_CORE_API void le_update_argument_name_table( const char *source, uint64_t value );

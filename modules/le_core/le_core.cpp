@@ -32,6 +32,11 @@ struct ApiStore {
 	}
 };
 
+ISL_API_ATTR void **le_core_produce_dictionary_entry( uint64_t key ) {
+	static std::unordered_map<uint64_t, void *> store{};
+	return &store[ key ];
+}
+
 struct loader_callback_params_o {
 	le_module_loader_o *loader;
 	void *              api;      // address of api interface struct

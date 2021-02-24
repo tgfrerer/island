@@ -5651,8 +5651,11 @@ LE_MODULE_REGISTER_IMPL( le_backend_vk, api_ ) {
 
 	auto &le_instance_vk_i = api_i->vk_instance_i;
 
-	if ( api_i->cUniqueInstance != nullptr ) {
-		le_instance_vk_i.post_reload_hook( api_i->cUniqueInstance );
+	//
+	auto unique_instance = *le_core_produce_dictionary_entry( hash_64_fnv1a_const( "le_backend_instance_o" ) );
+
+	if ( unique_instance ) {
+		le_instance_vk_i.post_reload_hook( static_cast<le_backend_vk_instance_o *>( unique_instance ) );
 	}
 
 #ifdef PLUGINS_DYNAMIC

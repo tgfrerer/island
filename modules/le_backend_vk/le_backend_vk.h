@@ -231,8 +231,6 @@ struct le_backend_vk_api {
 	staging_allocator_interface_t   le_staging_allocator_i;
 
 	private_backend_vk_interface_t private_backend_vk_i;
-
-	mutable le_backend_vk_instance_o *cUniqueInstance = nullptr;
 };
 
 LE_MODULE( le_backend_vk );

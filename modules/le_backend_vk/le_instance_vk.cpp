@@ -452,7 +452,8 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 
 	self->vkInstance = vk::createInstance( info );
 
-	le_backend_vk::api->cUniqueInstance = self;
+	// store a reference to into our central dictionary
+	*le_core_produce_dictionary_entry( hash_64_fnv1a_const( "le_backend_instance_o" ) ) = self;
 
 	patchExtProcAddrs( self );
 
