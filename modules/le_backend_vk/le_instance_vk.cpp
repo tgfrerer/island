@@ -1,11 +1,14 @@
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_backend_vk/le_backend_types_internal.h"
+#include "le_log/le_log.h"
 
 #include <iostream>
 #include <iomanip>
 #include <sstream>
 #include <set>
 #include <string>
+
+static constexpr auto LOGGER_LABEL = "le_instance_vk";
 
 // Automatically disable Validation Layers for Release Builds
 
@@ -147,7 +150,8 @@ static void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
 
 #undef GET_EXT_PROC_ADDR
 
-	std::cout << "Patched proc addrs." << std::endl;
+	static auto logger = LeLog( LOGGER_LABEL );
+	logger.debug( "Patched proc addrs." );
 }
 
 // ----------------------------------------------------------------------
@@ -328,10 +332,21 @@ static VkBool32 debugUtilsMessengerCallback(
 		shouldBailout |= VK_TRUE;
 	}
 
-	std::ostringstream os;
-	os << "[ " << std::left << std::setw( 10 ) << msgType << " | " << std::setw( 7 ) << logLevel << " ] " << pCallbackData->pMessage << std::endl;
-	std::cout << os.str();
-	std::cout << std::flush;
+	static auto logger = le_log_api_i->get_channel( LOGGER_LABEL );
+
+	auto log_fun = le_log_api_i->le_log_channel_i.error;
+
+	if ( messageSeverity < VK_DEBUG_UTILS_MESSAGE_SEVERITY_INFO_BIT_EXT ) {
+		log_fun = le_log_api_i->le_log_channel_i.debug;
+	} else if ( messageSeverity < VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT ) {
+		log_fun = le_log_api_i->le_log_channel_i.info;
+	} else if ( messageSeverity < VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT ) {
+		log_fun = le_log_api_i->le_log_channel_i.warn;
+	} else {
+		// keep logger == error
+	}
+
+	log_fun( logger, "vk validation: {%10s | %7s} %s", msgType.c_str(), logLevel.c_str(), pCallbackData->pMessage );
 
 	return shouldBailout;
 }
@@ -415,7 +430,7 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 
 	if ( true == SHOULD_USE_VALIDATION_LAYERS ) {
 		instanceLayerNames.push_back( "VK_LAYER_KHRONOS_validation" );
-		std::cout << "Debug instance layers added." << std::endl;
+		logger.info( "Debug instance layers added." );
 	}
 
 	vk::ValidationFeaturesEXT validationFeatures;
@@ -443,21 +458,21 @@ le_backend_vk_instance_o *instance_create( const char **extensionNamesArray_, ui
 
 	if ( SHOULD_USE_VALIDATION_LAYERS ) {
 		create_debug_messenger_callback( self );
-		std::cout << "VULKAN VALIDATION LAYERS ACTIVE." << std::endl;
+		logger.info( "Vulkan Validation Layers Active." );
 	}
+	logger.info( "Instance created." );
 
-	std::cout << "Instance created." << std::endl;
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
 static void instance_destroy( le_backend_vk_instance_o *obj ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 	destroy_debug_messenger_callback( obj );
 	obj->vkInstance.destroy();
 	delete ( obj );
-	std::cout << "Instance destroyed." << std::endl
-	          << std::flush;
+	logger.info( "Instance destroyed." );
 }
 
 // ----------------------------------------------------------------------
@@ -475,12 +490,13 @@ static bool instance_is_extension_available( le_backend_vk_instance_o *self, cha
 // ----------------------------------------------------------------------
 
 static void instance_post_reload_hook( le_backend_vk_instance_o *obj ) {
-	std::cout << "**  post reload hook triggered." << std::endl;
+	static auto logger = LeLog( LOGGER_LABEL );
+	logger.debug( "post reload hook triggered." );
 	patchExtProcAddrs( obj );
 	destroy_debug_messenger_callback( obj );
-	std::cout << "** Removed debug report callback." << std::endl;
+	logger.debug( "Removed debug report callback." );
 	create_debug_messenger_callback( obj );
-	std::cout << "** Added new debug report callback." << std::endl;
+	logger.debug( "Added new debug report callback." );
 }
 
 // ----------------------------------------------------------------------

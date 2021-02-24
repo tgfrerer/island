@@ -1,15 +1,12 @@
 #include "le_core/le_core.h"
 #include "le_backend_vk/le_backend_vk.h"
-
-#include "util/vk_mem_alloc/vk_mem_alloc.h" // for allocation
-
+#include "le_log/le_log.h"
+#include "util/vk_mem_alloc/vk_mem_alloc.h"          // for allocation
 #include "le_backend_vk/le_backend_types_internal.h" // includes vulkan.hpp
-
 #include "le_swapchain_vk/le_swapchain_vk.h"
 #include "le_window/le_window.h"
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/le_renderer_types.h"
-
 #include "3rdparty/src/spooky/SpookyV2.h" // for hashing renderpass gestalt
 
 #include <vector>
@@ -22,12 +19,14 @@
 #include <atomic>
 #include <mutex>
 
+static constexpr auto LOGGER_LABEL = "le_backend";
+
 #include <memory>
 
 #ifdef _WIN32
 #	define __PRETTY_FUNCTION__ __FUNCSIG__
-#include <intrin.h> // for __lzcnt
-#endif //
+#	include <intrin.h> // for __lzcnt
+#endif
 
 #ifndef PRINT_DEBUG_MESSAGES
 #	define PRINT_DEBUG_MESSAGES false
@@ -639,11 +638,12 @@ static void backend_create_window_surface( le_backend_o *self, le_swapchain_sett
 // ----------------------------------------------------------------------
 
 static void backend_destroy_window_surfaces( le_backend_o *self ) {
+	static auto logger = LeLog( LOGGER_LABEL );
+
 	for ( auto &surface : self->windowSurfaces ) {
 		vk::Instance instance = le_backend_vk::vk_instance_i.get_vk_instance( self->instance );
 		instance.destroySurfaceKHR( surface );
-		std::cout << "Surface destroyed." << std::endl
-		          << std::flush;
+		logger.debug( "Surface destroyed" );
 	}
 	self->windowSurfaces.clear();
 }
@@ -1825,6 +1825,7 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 
 static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &device ) {
 
+	static auto logger = LeLog( LOGGER_LABEL );
 	// NOTE: we might be able to simplify this along the lines of
 	// <https://github.com/Tobski/simple_vulkan_synchronization>
 	// <https://github.com/gwihlidal/vk-sync-rs>
@@ -1878,14 +1879,8 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		vk::AccessFlags        dstAccessToExternalFlags;
 
 		if ( PRINT_DEBUG_MESSAGES ) {
-
-			std::cout << "* Renderpass: '" << pass.debugName << "'" << std::endl;
-
-			std::cout << std::setw( 30 ) << "Attachment"
-			          << " : " << std::setw( 30 ) << "Layout initial"
-			          << " : " << std::setw( 30 ) << "Layout subpass"
-			          << " : " << std::setw( 30 ) << "Layout final"
-			          << std::endl;
+			logger.info( "* Renderpass: '%s'", pass.debugName.c_str() );
+			logger.info( " %40s : %30s : %30s : %30s", "Attachment", "Layout initial", "Layout subpass", "Layout final" );
 		}
 
 		auto const attachments_end = pass.attachments +
@@ -1918,16 +1913,14 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 			    .setFinalLayout( syncFinal.layout );
 
 			if ( PRINT_DEBUG_MESSAGES ) {
-
-				std::cout << std::setw( 30 ) << attachment->resource_id.debug_name << "(s:" << attachment->resource_id.getNumSamples() << ")"
-				          << " : " << std::setw( 30 ) << vk::to_string( syncInitial.layout )
-				          << " : " << std::setw( 30 ) << vk::to_string( syncSubpass.layout )
-				          << " : " << std::setw( 30 ) << vk::to_string( syncFinal.layout )
-				          << std::setw( 30 ) << "sync chain indices"
-				          << " : " << std::setw( 4 ) << std::dec << attachment->initialStateOffset
-				          << " : " << std::setw( 4 ) << std::dec << attachment->initialStateOffset + 1
-				          << " : " << std::setw( 4 ) << std::dec << attachment->finalStateOffset
-				          << std::endl;
+				logger.info( " %30s (s: %4d) : %30s : %30s : %30s | sync chain indices: %4d : %4d : %4d",
+				             attachment->resource_id.debug_name, attachment->resource_id.getNumSamples(),
+				             vk::to_string( syncInitial.layout ).c_str(),
+				             vk::to_string( syncSubpass.layout ).c_str(),
+				             vk::to_string( syncFinal.layout ).c_str(),
+				             attachment->initialStateOffset,
+				             attachment->initialStateOffset + 1,
+				             attachment->finalStateOffset );
 			}
 
 			attachments.emplace_back( attachmentDescription );
@@ -1962,11 +1955,6 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 			}
 		}
 
-		if ( PRINT_DEBUG_MESSAGES ) {
-			std::cout << std::endl
-			          << std::flush;
-		}
-
 		std::vector<vk::SubpassDescription> subpasses;
 		subpasses.reserve( 1 );
 
@@ -1990,19 +1978,17 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 		{
 			if ( PRINT_DEBUG_MESSAGES && false ) {
 
-				std::cout << "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass [0]" << std::endl;
-				std::cout << "\t srcStage: " << vk::to_string( srcStageFromExternalFlags ) << std::endl;
-				std::cout << "\t dstStage: " << vk::to_string( dstStageFromExternalFlags ) << std::endl;
-				std::cout << "\tsrcAccess: " << vk::to_string( srcAccessFromExternalFlags ) << std::endl;
-				std::cout << "\tdstAccess: " << vk::to_string( dstAccessFromExternalFlags ) << std::endl
-				          << std::endl;
+				logger.info( "Subpass Dependency: VK_SUBPASS_EXTERNAL to subpass [0]" );
+				logger.info( "\t srcStage: %s", vk::to_string( srcStageFromExternalFlags ).c_str() );
+				logger.info( "\t dstStage: %s", vk::to_string( dstStageFromExternalFlags ).c_str() );
+				logger.info( "\tsrcAccess: %s", vk::to_string( srcAccessFromExternalFlags ).c_str() );
+				logger.info( "\tdstAccess: %s", vk::to_string( dstAccessFromExternalFlags ).c_str() );
 
-				std::cout << "Subpass Dependency: subpass [0] to VK_SUBPASS_EXTERNAL:" << std::endl;
-				std::cout << "\t srcStage: " << vk::to_string( srcStageToExternalFlags ) << std::endl;
-				std::cout << "\t dstStage: " << vk::to_string( dstStageToExternalFlags ) << std::endl;
-				std::cout << "\tsrcAccess: " << vk::to_string( srcAccessToExternalFlags ) << std::endl;
-				std::cout << "\tdstAccess: " << vk::to_string( dstAccessToExternalFlags ) << std::endl
-				          << std::endl;
+				logger.info( "Subpass Dependency: subpass [0] to VK_SUBPASS_EXTERNAL:" );
+				logger.info( "\t srcStage: %s", vk::to_string( srcStageToExternalFlags ).c_str() );
+				logger.info( "\t dstStage: %s", vk::to_string( dstStageToExternalFlags ).c_str() );
+				logger.info( "\tsrcAccess: %s", vk::to_string( srcAccessToExternalFlags ).c_str() );
+				logger.info( "\tdstAccess: %s", vk::to_string( dstAccessToExternalFlags ).c_str() );
 			}
 
 			vk::SubpassDependency externalToSubpassDependency;
@@ -3054,6 +3040,7 @@ static void insert_msaa_versions(
 // ----------------------------------------------------------------------
 
 static void printResourceInfo( le_resource_handle_t const &handle, ResourceCreateInfo const &info ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 	// when printing debug name we test whether the first glyph might be an utf-8 ellispis, in which
 	// case we must add two spaces to make up for the shorter length (in terms of glyphs) of the utf-8
 	// printout.
@@ -3198,6 +3185,7 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o *instance,
 
 static void backend_allocate_resources( le_backend_o *self, BackendFrameData &frame, le_renderpass_o **passes, size_t numRenderPasses ) {
 
+	static auto logger = LeLog( LOGGER_LABEL );
 	/*
 	- Frame is only ever allowed to reference frame-local resources.
 	- "Acquire" therefore means we create local copies of backend-wide resource handles.
@@ -3286,7 +3274,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice() );
 
 			if ( PRINT_DEBUG_MESSAGES || true ) {
-				std::cout << "Allocated resource: ";
+				logger.info( "Allocated resource: " );
 				printResourceInfo( resourceId, allocatedResource.info );
 			}
 
@@ -3333,7 +3321,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo );
 
 				if ( PRINT_DEBUG_MESSAGES || true ) {
-					std::cout << "Re-allocated resource: ";
+					logger.info( "Re-allocated resource: " );
 					printResourceInfo( resourceId, allocatedResource.info );
 				}
 
@@ -3415,19 +3403,20 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	// If we locked backendResources with a mutex, this would be the right place to release it.
 
 	if ( PRINT_DEBUG_MESSAGES ) {
-		std::cout << "Available Resources: " << std::endl
-		          << std::setw( 10 ) << "Type"
-		          << " : " << std::setw( 30 ) << "debugName"
-		          << " : " << std::setw( 30 ) << "Vk Handle : " << std::endl;
+		logger.info( "Available Resources" );
+		logger.info( "%10s : %38s : %30s", "Type", "debugName", "Vk Handle" );
 		for ( auto const &r : frame.availableResources ) {
 			if ( r.second.info.isBuffer() ) {
-				std::cout << std::setw( 10 ) << "Buffer"
-				          << " : " << std::setw( 30 ) << r.first.debug_name
-				          << " : " << std::setw( 30 ) << r.second.as.buffer << std::endl;
+				logger.info( "%10s : %37s : %30p",
+				             "Buffer",
+				             r.first.debug_name,
+				             r.second.as.buffer );
 			} else {
-				std::cout << std::setw( 10 ) << "Image"
-				          << " : " << std::setw( 30 ) << r.first.debug_name << "(s:" << r.first.handle.as_handle.meta.as_meta.num_samples << ")"
-				          << " : " << std::setw( 30 ) << r.second.as.image << std::endl;
+				logger.info( "%10s : %30s (s: %2d) : %30p",
+				             "Image",
+				             r.first.debug_name,
+				             1 << r.first.handle.as_handle.meta.as_meta.num_samples,
+				             r.second.as.buffer );
 			}
 		}
 		std::cout << std::flush;
@@ -3859,9 +3848,10 @@ static le_staging_allocator_o *backend_get_staging_allocator( le_backend_o *self
 }
 
 void debug_print_le_pipeline_layout_info( le_pipeline_layout_info *info ) {
-	std::cout << "pipeline layout: " << std::hex << info->pipeline_layout_key << std::endl;
+	static auto logger = LeLog( LOGGER_LABEL );
+	logger.debug( "pipeline layout: %x", info->pipeline_layout_key );
 	for ( size_t i = 0; i != info->set_layout_count; i++ ) {
-		std::cout << "set layout key : " << std::hex << info->set_layout_keys[ i ] << std::endl;
+		logger.debug( "set layout key : %x", info->set_layout_keys[ i ] );
 	}
 }
 
@@ -3877,6 +3867,7 @@ static bool updateArguments( const vk::Device &                 device,
                              std::array<DescriptorSetState, 8> &previousSetData,
                              vk::DescriptorSet *                descriptorSets ) {
 
+	static auto logger = LeLog( LOGGER_LABEL );
 	// -- allocate descriptors from descriptorpool based on set layout info
 
 	if ( argumentState.setCount == 0 ) {
@@ -3917,13 +3908,11 @@ static bool updateArguments( const vk::Device &                 device,
 			case vk::DescriptorType::eStorageBuffer:        // fall-through
 				if ( nullptr == a.bufferInfo.buffer ) {
 					// if buffer must have valid buffer bound
-
-					std::cerr << "ERROR: Buffer argument '" << get_argument_name( setId, a.bindingNumber ) << "', at set="
-					          << std::dec << setId << ", binding="
-					          << std::dec << a.bindingNumber << ", array_index="
-					          << std::dec << a.arrayIndex << " not set, not valid or missing."
-					          << std::endl
-					          << std::flush;
+					logger.error( "Buffer argument '%s', at set=%d, binding=%d, array_index=%d not set, not valid, or missing.",
+					              get_argument_name( setId, a.bindingNumber ),
+					              setId,
+					              a.bindingNumber,
+					              a.arrayIndex );
 					argumentsOk = false;
 				}
 				break;
@@ -3932,26 +3921,24 @@ static bool updateArguments( const vk::Device &                 device,
 			case vk::DescriptorType::eStorageImage:
 				argumentsOk &= ( nullptr != a.imageInfo.imageView ); // if sampler, must have valid image view
 				if ( nullptr == a.imageInfo.imageView ) {
-					// if image - must have valid imageview bound bound
-					std::cerr << "ERROR: Image argument '" << get_argument_name( setId, a.bindingNumber ) << "', at set="
-					          << std::dec << setId << ", binding="
-					          << std::dec << a.bindingNumber << ", array_index="
-					          << std::dec << a.arrayIndex << " not set, not valid or missing."
-					          << std::endl
-					          << std::flush;
+					// if image - must have valid imageview bound
+					logger.error( "Image argument '%s', at set=%d, binding=%d, array_index=%d not set, not valid, or missing.",
+					              get_argument_name( setId, a.bindingNumber ),
+					              setId,
+					              a.bindingNumber,
+					              a.arrayIndex );
 					argumentsOk = false;
 				}
 				break;
 			case vk::DescriptorType::eAccelerationStructureKHR:
 				argumentsOk &= ( nullptr != a.accelerationStructureInfo.accelerationStructure );
 				if ( nullptr == a.accelerationStructureInfo.accelerationStructure ) {
-					// if image - must have valid imageview bound bound
-					std::cerr << "ERROR: Acceleration Structure argument '" << get_argument_name( setId, a.bindingNumber ) << "', at set="
-					          << std::dec << setId << ", binding="
-					          << std::dec << a.bindingNumber << ", array_index="
-					          << std::dec << a.arrayIndex << " not set, not valid or missing."
-					          << std::endl
-					          << std::flush;
+					// if image - must have valid acceleration structure bound
+					logger.error( "Acceleration Structure argument '%s', at set=%d, binding=%d, array_index=%d not set, not valid, or missing.",
+					              get_argument_name( setId, a.bindingNumber ),
+					              setId,
+					              a.bindingNumber,
+					              a.arrayIndex );
 					argumentsOk = false;
 				}
 
@@ -4127,9 +4114,10 @@ static void debug_print_command( void *&cmd ) {
 // translate into vk specific commands.
 static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
+	static auto logger = LeLog( LOGGER_LABEL );
+
 	if ( PRINT_DEBUG_MESSAGES ) {
-		std::cout << "** Process Frame #" << std::dec << std::setw( 8 ) << frameIndex << " **" << std::endl
-		          << std::flush;
+		logger.debug( "** Process Frame #%8d **", frameIndex );
 	}
 
 	using namespace le_renderer;   // for encoder
@@ -4167,8 +4155,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		{
 
 			if ( PRINT_DEBUG_MESSAGES ) {
-				std::cout << "Renderpass: '" << pass.debugName << "'" << std::endl
-				          << std::flush;
+				logger.debug( "Renderpass '%s'", pass.debugName );
 			}
 
 			// -- Issue sync barriers for all resources which require explicit sync.
@@ -4195,30 +4182,18 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					if ( PRINT_DEBUG_MESSAGES ) {
 
-						//
 						// --------| invariant: barrier is active.
 
 						// print out sync chain for sampled image
-						std::cout << "\t Explicit Barrier for: " << op.resource_id.debug_name << "(s:" << op.resource_id.getNumSamples() << ")" << std::endl;
-
-						std::cout << "\t " << std::setw( 3 ) << "#"
-						          << " : " << std::setw( 30 ) << "visible_access"
-						          << " : " << std::setw( 30 ) << "write_stage"
-						          << " : "
-						          << "layout" << std::endl;
+						logger.debug( "\t Explicit Barrier for: %s (s: %d)", op.resource_id.debug_name, 1 << op.resource_id.getNumSamples() );
+						logger.debug( "\t % 3s : % 30s : % 30s : % 10s", "#", "visible_access", "write_stage", "layout" );
 
 						auto const &syncChain = frame.syncChainTable.at( op.resource_id );
 
 						for ( size_t i = op.sync_chain_offset_initial; i <= op.sync_chain_offset_final; i++ ) {
 							auto const &s = syncChain[ i ];
-
-							std::cout << "\t " << std::setw( 3 ) << std::dec << i
-							          << " : " << std::setw( 30 ) << to_string( s.visible_access )
-							          << " : " << std::setw( 30 ) << to_string( s.write_stage )
-							          << " : " << to_string( s.layout ) << std::endl;
+							logger.debug( "\t % 3d : % 30s : % 30s : % 10s", i, to_string( s.visible_access ), to_string( s.write_stage ), to_string( s.layout ) );
 						}
-
-						std::cout << std::flush;
 					}
 
 					auto dstImage = frame_data_get_image_from_le_resource_id( frame, op.resource_id );
@@ -4356,9 +4331,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 							// Print pipeline debug info when a new pipeline gets bound.
 
-							std::cout << "Requested pipeline: " << std::hex << le_cmd->info.gpsoHandle << std::endl;
+							logger.debug( "Requested pipeline: %x ", le_cmd->info.gpsoHandle );
 							debug_print_le_pipeline_layout_info( &requestedPipeline.layout_info );
-							std::cout << std::flush;
 						}
 
 						if ( !is_equal( currentPipeline, requestedPipeline ) ) {
@@ -4858,12 +4832,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 							static uint64_t argument_id_local = 0;
 							if ( argument_id_local == wrong_argument )
 								return;
-							std::cout << "backend_process_frame:"
-							          << char( 0x1B ) << "[38;5;209m"
-							          << " Warning: Invalid argument name: '" << le_get_argument_name_from_hash( argument ) << "'"
-							          << char( 0x1B ) << "[0m"
-							          << " id: 0x" << std::hex << argument << std::endl
-							          << std::flush;
+							logger.warn( "process_frame: \x1b[38;5;209mInvalid argument name: '%s'\x1b[0m id: %x", le_get_argument_name_from_hash( argument ), argument );
 							argument_id_local = argument;
 						}( argument_name_id );
 						break;
@@ -4909,8 +4878,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					} );
 
 					if ( b == argumentState.binding_infos.end() ) {
-						std::cout << "Warning: Invalid texture argument name id: 0x" << std::hex << argument_name_id << std::endl
-						          << std::flush;
+						logger.warn( "Invalid texture argument name id: %x", argument_name_id );
 						break;
 					}
 
@@ -4948,10 +4916,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto foundTex = frame.textures_per_pass[ passIndex ].find( le_cmd->info.texture_id );
 					if ( foundTex == frame.textures_per_pass[ passIndex ].end() ) {
 						using namespace le_renderer;
-						std::cerr << "Could not find requested texture: "
-						          << renderer_i.texture_handle_get_name( le_cmd->info.texture_id )
-						          << " Ignoring texture binding command." << std::endl
-						          << std::flush;
+						logger.error( "Could not find requested texture: '%s', ignoring texture binding command",
+						              renderer_i.texture_handle_get_name( le_cmd->info.texture_id ) );
 						break;
 					}
 
@@ -4974,8 +4940,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					} );
 
 					if ( b == argumentState.binding_infos.end() ) {
-						std::cout << "Warning: Invalid image argument name id: 0x" << std::hex << argument_name_id << std::endl
-						          << std::flush;
+						logger.warn( "Warning: Invalid image argument name id: %x", argument_name_id );
 						break;
 					}
 
@@ -4989,8 +4954,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					auto foundImgView = frame.imageViews.find( le_cmd->info.image_id );
 					if ( foundImgView == frame.imageViews.end() ) {
-						std::cerr << "Could not find image view for image: " << le_cmd->info.image_id.debug_name << " Ignoring image binding command." << std::endl
-						          << std::flush;
+						logger.error( "Could not find image view for image: '%s', ignoring image binding command.",
+						              le_cmd->info.image_id.debug_name );
 						break;
 					}
 
@@ -5015,8 +4980,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					} );
 
 					if ( b == argumentState.binding_infos.end() ) {
-						std::cout << "Warning: Invalid tlas argument name id: 0x" << std::hex << argument_name_id << std::endl
-						          << std::flush;
+						logger.warn( "Invalid tlas argument name id: %x", argument_name_id );
 						break;
 					}
 
@@ -5032,9 +4996,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					auto found_resource = frame.availableResources.find( le_cmd->info.tlas_id );
 					if ( found_resource == frame.availableResources.end() ) {
-						std::cerr << "Could not find acceleration structure: " << le_cmd->info.tlas_id.debug_name
-						          << " Ignoring top level acceleration structure binding command." << std::endl
-						          << std::flush;
+						logger.error( "Could not find acceleration structure: '%s'. Ignoring top level acceleration structure binding command.", le_cmd->info.tlas_id.debug_name );
 						break;
 					}
 

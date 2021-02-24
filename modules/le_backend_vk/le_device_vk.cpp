@@ -1,5 +1,6 @@
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_backend_types_internal.h"
+#include "le_log/le_log.h"
 
 #include <iostream>
 #include <iomanip>
@@ -8,16 +9,18 @@
 #include <set>
 #include <map>
 
+static constexpr auto LOGGER_LABEL = "le_backend";
+
 #ifdef _WIN32
 #	define __PRETTY_FUNCTION__ __FUNCSIG__
 #endif //
 
 struct le_device_o {
 
-	vk::Device                                vkDevice         = nullptr;
-	vk::PhysicalDevice                        vkPhysicalDevice = nullptr;
-	vk::PhysicalDeviceProperties              vkPhysicalDeviceProperties;
-	vk::PhysicalDeviceMemoryProperties        vkPhysicalDeviceMemoryProperties;
+	vk::Device                                        vkDevice         = nullptr;
+	vk::PhysicalDevice                                vkPhysicalDevice = nullptr;
+	vk::PhysicalDeviceProperties                      vkPhysicalDeviceProperties;
+	vk::PhysicalDeviceMemoryProperties                vkPhysicalDeviceMemoryProperties;
 	vk::PhysicalDeviceRayTracingPipelinePropertiesKHR raytracingProperties;
 
 	// This may be set externally- it defines how many queues will be created, and what their capabilities must include.
@@ -67,7 +70,8 @@ uint32_t findClosestMatchingQueueIndex( const std::vector<vk::QueueFlags> &queue
 	// ---------| invariant: no queue found
 
 	if ( flags & vk::QueueFlagBits::eGraphics ) {
-		std::cerr << "Could not find queue family index matching: " << vk::to_string( flags );
+		static auto logger = LeLog( LOGGER_LABEL );
+		logger.error( "Could not find queue family index matching: '%s'", vk::to_string( flags ).c_str() );
 	}
 
 	return ~( uint32_t( 0 ) );
@@ -81,9 +85,11 @@ uint32_t findClosestMatchingQueueIndex( const std::vector<vk::QueueFlags> &queue
 ///        2.. index of queue from props vector (used to keep queue indices
 //             consistent between requested queues and queues you will render to)
 std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQueues( const std::vector<vk::QueueFamilyProperties> &props, const std::vector<::vk::QueueFlags> &reqProps ) {
-	std::vector<std::tuple<uint32_t, uint32_t, size_t>> result;
 
-	std::vector<uint32_t> usedQueues( props.size(), ~( uint32_t( 0 ) ) ); // last used queue, per queue family (initialised at -1)
+	static auto logger = LeLog( LOGGER_LABEL );
+
+	std::vector<std::tuple<uint32_t, uint32_t, size_t>> result;
+	std::vector<uint32_t>                               usedQueues( props.size(), ~( uint32_t( 0 ) ) ); // last used queue, per queue family (initialised at -1)
 
 	size_t reqIdx = 0; // original index for requested queue
 	for ( const auto &flags : reqProps ) {
@@ -104,9 +110,9 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 					foundMatch  = true;
 					foundFamily = familyIndex;
 					foundIndex  = usedQueues[ familyIndex ] + 1;
-					std::cout << "Found dedicated queue matching: " << ::vk::to_string( flags ) << std::endl;
+					logger.info( "Found dedicated queue matching: '%s'", vk::to_string( flags ) );
 				} else {
-					std::cout << "No more dedicated queues available matching: " << ::vk::to_string( flags ) << std::endl;
+					logger.info( "No more dedicated queues available matching: '%s'", vk::to_string( flags ).c_str() );
 				}
 				break;
 			}
@@ -128,7 +134,7 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 						foundMatch  = true;
 						foundFamily = familyIndex;
 						foundIndex  = usedQueues[ familyIndex ] + 1;
-						std::cout << "Found versatile queue matching: " << ::vk::to_string( flags ) << std::endl;
+						logger.info( "Found versatile queue matching: '%s'", vk::to_string( flags ).c_str() );
 					}
 					break;
 				}
@@ -139,7 +145,7 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 			result.emplace_back( foundFamily, foundIndex, reqIdx );
 			usedQueues[ foundFamily ] = foundIndex; // mark this queue as used
 		} else {
-			std::cerr << "No available queue matching requirement: " << ::vk::to_string( flags ) << std::endl;
+			logger.error( "No available queue matching requirement: '%s'", vk::to_string( flags ).c_str() );
 		}
 
 		++reqIdx;
@@ -151,6 +157,8 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 // ----------------------------------------------------------------------
 
 le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **extension_names, uint32_t extension_names_count ) {
+
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	le_device_o *self = new le_device_o{};
 
@@ -175,8 +183,7 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 
 	self->vkPhysicalDeviceProperties = self->vkPhysicalDevice.getProperties();
 
-	std::cout << "Selected GPU: " << self->vkPhysicalDeviceProperties.deviceName << std::endl
-	          << std::flush;
+	logger.info( "Selected GPU: %s", self->vkPhysicalDeviceProperties.deviceName );
 
 	auto properties2           = self->vkPhysicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
 	self->raytracingProperties = properties2.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
@@ -241,12 +248,11 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 
 		enabledDeviceExtensionNames.reserve( self->requestedDeviceExtensions.size() );
 
-		std::cout << "Enabled Device Extensions:" << std::endl;
+		logger.info( "Enabled Device Extensions:" );
 		for ( auto const &ext : self->requestedDeviceExtensions ) {
 			enabledDeviceExtensionNames.emplace_back( ext.c_str() );
-			std::cout << "\t + " << ext << std::endl;
+			logger.info( "\t + %s", ext.c_str() );
 		}
-		std::cout << std::flush;
 	}
 
 	// Vulkan >= 1.2  has per-version structs
@@ -304,7 +310,7 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	    ;
 #endif
 
-//ms I had to disable this on my nvidia 1070 as it was failing 
+	//ms I had to disable this on my nvidia 1070 as it was failing
 	featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
 	    //    .setShaderInt8( true )
 	    //    .setShaderFloat16( true )
@@ -495,8 +501,8 @@ static bool device_get_memory_allocation_info( le_device_o *               self,
 		}
 	}
 	if ( memoryTypeIndex >= physicalMemProperties.memoryTypeCount ) {
-		std::cout << "ERROR " << __PRETTY_FUNCTION__ << ": MemoryTypeIndex not found" << std::endl;
-		std::cout << std::flush;
+		static auto logger = LeLog( LOGGER_LABEL );
+		logger.error( "%s: MemoryTypeIndex not found", __PRETTY_FUNCTION__ );
 		return false;
 	}
 
