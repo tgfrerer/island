@@ -116,7 +116,7 @@ set ( ISLAND_LOADER_MODULES le_file_watcher;le_core )
 
 # These modules from the renderer - if you want to draw graphics, you want these.
 # Note that order matters: dependent modules must be named before their dependencies.
-set ( CORE_ISLAND_MODULES le_pipeline_builder;le_window;le_backend_vk;le_swapchain_vk;le_renderer;le_jobs;le_shader_compiler)
+set ( CORE_ISLAND_MODULES le_log;le_pipeline_builder;le_window;le_backend_vk;le_swapchain_vk;le_renderer;le_jobs;le_shader_compiler)
 
 # Add required modules to modules list based on user flags
 #
