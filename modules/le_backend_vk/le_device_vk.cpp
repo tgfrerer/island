@@ -110,7 +110,7 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 					foundMatch  = true;
 					foundFamily = familyIndex;
 					foundIndex  = usedQueues[ familyIndex ] + 1;
-					logger.info( "Found dedicated queue matching: '%s'", vk::to_string( flags ) );
+					logger.info( "Found dedicated queue matching: '%s'", vk::to_string( flags ).c_str() );
 				} else {
 					logger.info( "No more dedicated queues available matching: '%s'", vk::to_string( flags ).c_str() );
 				}

@@ -4155,7 +4155,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		{
 
 			if ( PRINT_DEBUG_MESSAGES ) {
-				logger.debug( "Renderpass '%s'", pass.debugName );
+				logger.debug( "Renderpass '%s'", pass.debugName.c_str() );
 			}
 
 			// -- Issue sync barriers for all resources which require explicit sync.
@@ -4192,7 +4192,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 						for ( size_t i = op.sync_chain_offset_initial; i <= op.sync_chain_offset_final; i++ ) {
 							auto const &s = syncChain[ i ];
-							logger.debug( "\t % 3d : % 30s : % 30s : % 10s", i, to_string( s.visible_access ), to_string( s.write_stage ), to_string( s.layout ) );
+							logger.debug( "\t % 3d : % 30s : % 30s : % 10s", i,
+							              to_string( s.visible_access ).c_str(),
+							              to_string( s.write_stage ).c_str(),
+							              to_string( s.layout ).c_str() );
 						}
 					}
 
