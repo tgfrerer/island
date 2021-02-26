@@ -13,6 +13,8 @@
 #include <atomic>
 #include <algorithm>
 #include <string.h> // for memcpy
+#include <memory>
+#include <mutex>
 
 #ifndef _WIN32
 #	include <sys/mman.h>
@@ -243,11 +245,11 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 
 			le_file_watcher_watch_settings watchSettings = {};
 
-			watchSettings.callback_fun = []( const char *, void *user_data ) -> bool {
+			watchSettings.callback_fun = []( const char *, void *user_data ) {
 				auto params = static_cast<loader_callback_params_o *>( user_data );
 				le_core_reset_api( params->api, params->api_size );
 				module_loader_i.load( params->loader );
-				return module_loader_i.register_api( params->loader, params->api, params->lib_register_fun_name.c_str() );
+				module_loader_i.register_api( params->loader, params->api, params->lib_register_fun_name.c_str() );
 			};
 
 			watchSettings.callback_user_data = reinterpret_cast<void *>( callbackParams );
@@ -343,11 +345,6 @@ ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value ) {
 
 #if !defined( NDEBUG ) && defined( __x86_64__ )
 
-static size_t const PAGE_SIZE = sysconf( _SC_PAGESIZE );
-// Maximum number of available callback forwarders. we can add more if needed
-// by adding extra pages of 'plt' tables and and offset tables.
-static size_t const CORE_MAX_CALLBACK_FORWARDERS = PAGE_SIZE / 16;
-
 /// Callback forwarding works via a virtual plt/got table:
 ///
 /// First, we allocate two pages, a top page and a bottom page.
@@ -364,15 +361,15 @@ static size_t const CORE_MAX_CALLBACK_FORWARDERS = PAGE_SIZE / 16;
 /// we can place entries in the .got at 16 byte intervals.
 ///
 ///
-///     | plt entry   (9 Bytes)      xx xx xx xx xx xx xx | --.        --- top (plt) page
-///     | plt entry   (9 Bytes)      xx xx xx xx xx xx xx |   | --.
-///     | plt entry   (9 Bytes)      xx xx xx xx xx xx xx |   |   |
-///     | plt entry   (9 Bytes)      xx xx xx xx xx xx xx |   |   |
-///     | ..                                              |   |   |
-///     | got entry 0 (8 Bytes)   xx xx xx xx xx xx xx xx | <-"   |    --- bottom (got) page
-///     | got entry 1 (8 Bytes)   xx xx xx xx xx xx xx xx |     <-"
-///     | got entry 2 (8 Bytes)   xx xx xx xx xx xx xx xx |
-///     | got entry 3 (8 Bytes)   xx xx xx xx xx xx xx xx |
+///     | plt entry   (16 Bytes)      xx xx xx xx xx xx xx | --.        --- top (plt) page
+///     | plt entry   (16 Bytes)      xx xx xx xx xx xx xx |   | --.
+///     | plt entry   (16 Bytes)      xx xx xx xx xx xx xx |   |   |
+///     | plt entry   (16 Bytes)      xx xx xx xx xx xx xx |   |   |
+///     | ..                                               |   |   |
+///     | got entry 0 (16 Bytes)   xx xx xx xx xx xx xx xx | <-"   |    --- bottom (got) page
+///     | got entry 1 (16 Bytes)   xx xx xx xx xx xx xx xx |     <-"
+///     | got entry 2 (16 Bytes)   xx xx xx xx xx xx xx xx |
+///     | got entry 3 (16 Bytes)   xx xx xx xx xx xx xx xx |
 ///
 /// The plt page contains identical code for each plt entry.
 ///
@@ -391,14 +388,28 @@ static size_t const CORE_MAX_CALLBACK_FORWARDERS = PAGE_SIZE / 16;
 ///
 
 class PltGot {
-	void * plt_got;
-	size_t plt_got_sz;
-	char * plt_page;
-	char * got_page;
+	void *       plt_got      = nullptr;
+	size_t       plt_got_sz   = 0;
+	char *       plt_page     = nullptr;
+	char *       got_page     = nullptr;
+	uint32_t     used_entries = 0;
+	const size_t PAGE_SIZE;
+	const size_t MAX_CALLBACK_FORWARDERS_PER_PAGE;
+
+	void *plt_at( size_t index ) {
+		assert( index < MAX_CALLBACK_FORWARDERS_PER_PAGE && "callback plt index out of bounds" );
+		return plt_page + ( index * 16 );
+	}
+
+	void *got_at( size_t index ) {
+		assert( index < MAX_CALLBACK_FORWARDERS_PER_PAGE && "callback got index out of bounds" );
+		return got_page + ( index * 16 );
+	}
 
   public:
-	PltGot() {
-		// map plt and got page.
+	PltGot()
+	    : PAGE_SIZE( sysconf( _SC_PAGESIZE ) )
+	    , MAX_CALLBACK_FORWARDERS_PER_PAGE( PAGE_SIZE / 16 ) {
 
 		plt_got_sz = PAGE_SIZE * 2;
 		plt_got    = mmap( NULL, plt_got_sz, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0 );
@@ -423,7 +434,7 @@ class PltGot {
 		*offset = PAGE_SIZE; // set offset to one page.
 		*offset -= 7;        // as the current instruction has 7 bytes, we must subtract 7 from the offset value.
 
-		for ( size_t i = 0; i != CORE_MAX_CALLBACK_FORWARDERS; i++ ) {
+		for ( size_t i = 0; i != MAX_CALLBACK_FORWARDERS_PER_PAGE; i++ ) {
 			memcpy( plt_page + 16 * i, thunk, 16 );
 		}
 
@@ -434,40 +445,63 @@ class PltGot {
 		mprotect( plt_got, PAGE_SIZE, PROT_READ | PROT_EXEC );
 	};
 
-	void *plt_at( size_t index ) {
-		assert( index < CORE_MAX_CALLBACK_FORWARDERS && "callback plt index out of bounds" );
-		return plt_page + ( index * 16 );
-	}
-
-	void *got_at( size_t index ) {
-		assert( index < CORE_MAX_CALLBACK_FORWARDERS && "callback got index out of bounds" );
-		return got_page + ( index * 16 );
-	}
-
 	~PltGot() {
 		int result = munmap( plt_got, plt_got_sz );
 		assert( result != -1 && "unmap failed" );
 	};
+
+	bool new_entry( void **plt, void **got ) {
+		auto entry = used_entries++;
+		if ( entry > MAX_CALLBACK_FORWARDERS_PER_PAGE ) {
+			return false;
+		}
+		*plt = plt_at( entry );
+		*got = got_at( entry );
+		return true;
+	}
+
+  private:
+	// Intrusive list.
+	friend class PltGotForwardList;
+	std::unique_ptr<PltGot> list_next;
 };
 
-static PltGot         CALLBACK_PLT_GOT{};
-std::atomic<uint32_t> USED_CALLBACK_FORWARDERS = 0;
+// We use our own intrusive list - this is so that we can enforce thread safety
+// and automatic destruction of plt got table entries.
+class PltGotForwardList {
+	std::mutex              mtx;
+	std::unique_ptr<PltGot> list;
+
+  public:
+	void next_entry( void **plt, void **got ) {
+		auto lck = std::unique_lock( mtx );
+		while ( list.get() == nullptr || list.get()->new_entry( plt, got ) == false ) {
+			auto new_entry = std::make_unique<PltGot>();
+			std::swap( new_entry->list_next, list );
+			std::swap( list, new_entry );
+		}
+	}
+};
 
 // ----------------------------------------------------------------------
 
 void *le_core_get_callback_forwarder_addr_impl( void *callback_addr ) {
 
-	uint32_t current_index = USED_CALLBACK_FORWARDERS++; // post-increment
+	// let's allocate more of these as we need them - we can store them in a vector
+	// and only ever use the last one.
 
-	// Make sure we're not overshooting
-	assert( USED_CALLBACK_FORWARDERS < CORE_MAX_CALLBACK_FORWARDERS );
+	static PltGotForwardList plt_got{};
 
-	void *got_addr = CALLBACK_PLT_GOT.got_at( current_index );
+	void *plt_addr = nullptr;
+	void *got_addr = nullptr;
+
+	plt_got.next_entry( &plt_addr, &got_addr );
 
 	// copy value of callback pointer into got table
 	memcpy( got_addr, &callback_addr, sizeof( void * ) );
 
-	return CALLBACK_PLT_GOT.plt_at( current_index );
+	return plt_addr;
 };
+
 #endif
 // end callback forwarding-----------------------------------------------
