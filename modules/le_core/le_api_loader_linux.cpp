@@ -56,7 +56,9 @@ static void log_debug( const char *msg, Args &&...args ) {
 	if ( logger && le_log::le_log_channel_i.info ) {
 		le_log::le_log_channel_i.debug( logger, msg, std::move( args )... );
 	} else {
+#	if defined( LE_LOG_LEVEL ) && ( LE_LOG_LEVEL <= LE_LOG_DEBUG )
 		log_printf( stdout, msg, args... );
+#	endif
 	}
 }
 
@@ -140,7 +142,7 @@ static bool load_library_persistent( const char *lib_name ) {
 			log_error( "[%-10s] %-20s: %-50s, result: %s", "ERROR", "Load Library", lib_name, loadResult );
 			exit( 1 );
 		} else {
-			log_info( "[%-10s] %-20s: %-50s, handle: %p", "OK", "Keep Library", lib_name, lib_handle );
+			log_debug( "[%-10s] %-20s: %-50s, handle: %p", "OK", "Keep Library", lib_name, lib_handle );
 		}
 	}
 	return ( lib_handle != nullptr );
@@ -183,7 +185,7 @@ static bool register_api( le_module_loader_o *obj, void *api_interface, const ch
 	}
 	// Initialize the API. This means telling the API to populate function
 	// pointers inside the struct which we are passing as parameter.
-	log_info( "Register Module: '%s'", register_api_fun_name );
+	log_debug( "Register Module: '%s'", register_api_fun_name );
 
 	( *fptr )( api_interface );
 	return true;

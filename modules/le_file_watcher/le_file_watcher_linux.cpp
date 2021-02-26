@@ -59,7 +59,7 @@ static void instance_destroy( le_file_watcher_o *instance ) {
 	instance->mWatches.clear();
 
 	if ( instance->inotify_socket_handle > 0 ) {
-		logger.info( "Closing inotify instance file handle: %p", instance->inotify_socket_handle );
+		logger.debug( "Closing inotify instance file handle: %p", instance->inotify_socket_handle );
 		close( instance->inotify_socket_handle );
 	}
 
@@ -92,7 +92,7 @@ static bool remove_watch( le_file_watcher_o *instance, int watch_id ) {
 	static auto logger      = LeLog( LOGGER_LABEL );
 	auto        found_watch = std::find_if( instance->mWatches.begin(), instance->mWatches.end(), [ = ]( const Watch &w ) -> bool { return w.inotify_watch_handle == watch_id; } );
 	if ( found_watch != instance->mWatches.end() ) {
-		logger.info( "Removing inotify watch handle: %p", found_watch->inotify_watch_handle );
+		logger.debug( "Removing inotify watch handle: %p", found_watch->inotify_watch_handle );
 		inotify_rm_watch( instance->inotify_socket_handle, found_watch->inotify_watch_handle );
 		instance->mWatches.erase( found_watch );
 		return true;

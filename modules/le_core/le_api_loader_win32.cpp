@@ -61,6 +61,15 @@ static void log_printf( FILE *f_out, const char *msg, ... ) {
 }
 
 template <typename... Args>
+static void log_debug( const char *msg, Args &&...args ) {
+	if ( logger && le_log::le_log_channel_i.info ) {
+		le_log::le_log_channel_i.debug( logger, msg, std::move( args )... );
+	} else {
+		log_printf( stdout, msg, args... );
+	}
+}
+
+template <typename... Args>
 static void log_info( const char *msg, Args &&...args ) {
 	if ( logger && le_log::le_log_channel_i.info ) {
 		le_log::le_log_channel_i.info( logger, msg, std::move( args )... );
@@ -87,7 +96,7 @@ static void unload_library( void *handle_, const char *path ) {
 		// we must detect whether the module that was unloaded was the logger module -
 		// in which case we can't log using the logger module.
 
-		log_info( "[%-10s] %-20s: %-50s, handle: %p ", "OK", "Close Module", path, handle_ );
+		log_debug( "[%-10s] %-20s: %-50s, handle: %p ", "OK", "Close Module", path, handle_ );
 
 		if ( 0 == result ) {
 			auto error = GetLastError();
@@ -164,7 +173,7 @@ static bool register_api( le_module_loader_o *obj, void *api_interface, const ch
 
 	// Initialize the API. This means telling the API to populate function
 	// pointers inside the struct which we are passing as parameter.
-	log_info( "Register Module: '%s'", register_api_fun_name );
+	log_debug( "Register Module: '%s'", register_api_fun_name );
 
 	fptr = ( register_api_fun_p_t )fp;
 	( *fptr )( api_interface );
