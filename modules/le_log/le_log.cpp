@@ -8,8 +8,12 @@
 #include <cstdarg>
 
 struct le_log_channel_o {
-	std::string     name      = "DEFAULT";
+	std::string name = "DEFAULT";
+#if defined( LE_LOG_LEVEL )
+	std::atomic_int log_level = LE_LOG_LEVEL;
+#else
 	std::atomic_int log_level = 1;
+#endif
 };
 
 struct le_log_context_o {
