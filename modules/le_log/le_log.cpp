@@ -76,7 +76,7 @@ static void le_log_printf( const le_log_channel_o *channel, LeLog::Level level, 
 		file = stderr;
 	}
 
-	fprintf( file, "[ %-10s | %-7s ] ", channel->name.c_str(), le_log_level_name( level ) );
+	fprintf( file, "[ %-25s | %-7s ] ", channel->name.c_str(), le_log_level_name( level ) );
 
 	vfprintf( file, msg, args );
 	fprintf( file, "\n" );
