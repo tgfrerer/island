@@ -34,6 +34,7 @@
 #	include "le_core/le_core.h"
 
 #	include "le_file_watcher/le_file_watcher.h"
+#	include "le_log/le_log.h"
 
 #	include <fstream>
 #	include <iostream>
@@ -133,7 +134,7 @@ static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 
 	if ( nullptr == has_previous_cb ) {
 
-		watch.callback_fun = []( const char *path, void *user_data ) -> bool {
+		watch.callback_fun = []( const char *path, void *user_data ) -> void {
 			auto cb_data = static_cast<CbData *>( user_data );
 
 			// Open file read-only.
@@ -142,9 +143,9 @@ static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 			std::ifstream file( path, std::ios::in );
 
 			if ( !file.is_open() ) {
-				std::cerr << "Unable to open file: " << path << std::endl
-				          << std::flush;
-				return false;
+
+				LeLog( "le_tweakable" ).error( "Unable to open file: '%'", path );
+				return;
 			}
 
 			bool tweaks_remaining = true; // whether there are tweaks left to process.
@@ -161,6 +162,8 @@ static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 
 				char const *str_start = str.c_str();
 
+				static auto logger = LeLog( "le_tweakable" );
+
 				while ( current_line_num == cb_data->line_num ) {
 
 					// Find chunk which actually designates data:
@@ -168,11 +171,9 @@ static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 					str_start = strstr( str_start, "TWEAK" );
 
 					if ( str_start == nullptr ) {
-						std ::cout << "Could not tweak line: " << std::dec << cb_data->line_num << std::endl
-						           << std::flush;
-						std::cout << "Line contents: " << str << std::endl
-						          << std::flush;
-						return false;
+						logger.warn( "Could not tweak line %d.", cb_data->line_num );
+						logger.warn( "Line contents: '%s'", str.c_str() );
+						return;
 					}
 
 					CbData::Data old_data;
@@ -219,8 +220,7 @@ static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 						// Applied tweak.
 						long        len = strstr( str_start, ")" ) - str_start;
 						std::string s   = { str_start, str_start + len + 1 };
-						std::cout << "Applied tweak at line #" << current_line_num << ": " << s << std::endl
-						          << std::flush;
+						logger.info( "Applied tweak at line #", current_line_num );
 					}
 
 					// -- Check if there is a next tweak in our linked list of tweaks.
@@ -250,8 +250,6 @@ static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 			} // while ( file.good() )
 
 			file.close();
-
-			return true;
 		}; // watch.callback_fun
 
 		has_previous_cb = cb_data;
