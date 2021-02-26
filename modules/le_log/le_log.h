@@ -44,8 +44,6 @@ struct le_log_api {
 		eError = LE_LOG_LEVEL_ERROR,
 	};
 
-    le_log_context_o* context = nullptr;
-
     le_log_channel_o *( * get_channel )(const char *name);
 
     struct le_log_channel_interface_t {

@@ -1,5 +1,6 @@
 #include "le_log.h"
 #include "le_core/le_core.h"
+#include "le_core/hash_util.h"
 
 #include <atomic>
 #include <mutex>
@@ -104,9 +105,11 @@ LE_MODULE_REGISTER_IMPL( le_log, api ) {
 	le_api_channel_i.error     = le_log_implementation<LeLog::Level::eError>;
 	le_api_channel_i.set_level = le_log_set_level;
 
-	if ( !le_api->context ) {
-		le_api->context = new le_log_context_o();
+	auto fallback_context_addr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "le_log_context_fallback" ) );
+
+	if ( *fallback_context_addr == nullptr ) {
+		*fallback_context_addr = new le_log_context_o();
 	}
 
-	ctx = le_api->context;
+	ctx = static_cast<le_log_context_o *>( *fallback_context_addr );
 }
