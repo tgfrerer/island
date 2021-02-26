@@ -42,13 +42,22 @@ static le_log_channel_o *logger = get_logger( &logger );
 // ----------------------------------------------------------------------
 
 static void log_printf( FILE *f_out, const char *msg, ... ) {
-	fprintf( f_out, "[ %20s ] ", LOG_PREFIX_STR );
+	fprintf( f_out, "[ %-35s ] ", LOG_PREFIX_STR );
 	va_list arglist;
 	va_start( arglist, msg );
 	vfprintf( f_out, msg, arglist );
 	va_end( arglist );
 	fprintf( f_out, "\n" );
 	fflush( f_out );
+}
+
+template <typename... Args>
+static void log_debug( const char *msg, Args &&...args ) {
+	if ( logger && le_log::le_log_channel_i.info ) {
+		le_log::le_log_channel_i.debug( logger, msg, std::move( args )... );
+	} else {
+		log_printf( stdout, msg, args... );
+	}
 }
 
 template <typename... Args>
@@ -79,7 +88,7 @@ static void unload_library( void *handle_, const char *path ) {
 		// we must detect whether the module that was unloaded was the logger module -
 		// in which case we can't log using the logger module.
 
-		log_info( "[%-10s] %-20s: %-50s, handle: %p ", "OK", "Close Module", path, handle_ );
+		log_debug( "[%-10s] %-20s: %-50s, handle: %p ", "OK", "Close Module", path, handle_ );
 
 		if ( result ) {
 			auto error = dlerror();

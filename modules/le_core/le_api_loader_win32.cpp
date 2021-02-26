@@ -51,7 +51,7 @@ static le_log_channel_o *logger = get_logger( &logger );
 // ----------------------------------------------------------------------
 
 static void log_printf( FILE *f_out, const char *msg, ... ) {
-	fprintf( f_out, "[ %-20.20s ] ", LOG_PREFIX_STR );
+	fprintf( f_out, "[ %-35s ] ", LOG_PREFIX_STR );
 	va_list arglist;
 	va_start( arglist, msg );
 	vfprintf( f_out, msg, arglist );

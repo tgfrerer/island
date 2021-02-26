@@ -27,7 +27,7 @@ static constexpr auto LOGGER_LABEL = "le_rendergraph";
 #include "3rdparty/src/spooky/SpookyV2.h" // for calculating rendergraph hash
 
 #ifndef PRINT_DEBUG_MESSAGES
-#	define PRINT_DEBUG_MESSAGES true
+#	define PRINT_DEBUG_MESSAGES false
 #endif
 
 #ifndef DEBUG_GENERATE_DOT_GRAPH
@@ -982,7 +982,7 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 		logger.info( "Render graph: " );
 		for ( const auto &pass : self->passes ) {
 
-			logger.info( "renderpass: '%30s', sort_key: %x", pass->debugName.c_str(), pass->sort_key );
+			logger.info( "renderpass: '%s', sort_key: %x", pass->debugName.c_str(), pass->sort_key );
 			le_image_attachment_info_t const *pImageAttachments   = nullptr;
 			le_resource_handle_t const *      pResources          = nullptr;
 			size_t                            numImageAttachments = 0;
