@@ -312,8 +312,6 @@ ISL_API_ATTR void le_update_argument_name_table( const char *name, uint64_t valu
 		// not found, we must add a new entry
 		argument_names_table.names.push_back( name );
 		argument_names_table.hashes.push_back( value );
-		// std::cout << "Argument: '" << std::setw( 30 ) << source << "' : 0x" << std::hex << value << std::endl
-		//           << std::flush;
 	} else {
 		// entry already exists - test whether the names match
 		assert( argument_names_table.names.at( name_index ) == std::string( name ) && "Possible hash collision, names for hashes don't match!" );
