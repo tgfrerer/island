@@ -183,7 +183,7 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 
 	self->vkPhysicalDeviceProperties = self->vkPhysicalDevice.getProperties();
 
-	logger.info( "Selected GPU: %s", self->vkPhysicalDeviceProperties.deviceName );
+	logger.info( "Selected GPU: %s", self->vkPhysicalDeviceProperties.deviceName.data() );
 
 	auto properties2           = self->vkPhysicalDevice.getProperties2<vk::PhysicalDeviceProperties2, vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
 	self->raytracingProperties = properties2.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
