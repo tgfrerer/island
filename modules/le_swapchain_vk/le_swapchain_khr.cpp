@@ -386,7 +386,8 @@ static size_t swapchain_khr_get_swapchain_images_count( le_swapchain_o *base ) {
 
 static bool swapchain_khr_present( le_swapchain_o *base, VkQueue queue_, VkSemaphore renderCompleteSemaphore_, uint32_t *pImageIndex ) {
 
-	auto self = static_cast<khr_data_o *const>( base->data );
+	static auto logger = LeLog( LOGGER_LABEL );
+	auto        self   = static_cast<khr_data_o *const>( base->data );
 
 	vk::PresentInfoKHR presentInfo;
 
@@ -404,8 +405,7 @@ static bool swapchain_khr_present( le_swapchain_o *base, VkQueue queue_, VkSemap
 
 	if ( vk::Result( result ) == vk::Result::eErrorOutOfDateKHR ) {
 		// FIXME: handle swapchain resize event properly
-		//		std::cout << "Out of date detected - this most commonly indicates surface resize." << std::endl
-		//		          << std::flush;
+		logger.warn( "Out of date detected - this commonly indicates surface resize" );
 		return false;
 	}
 
