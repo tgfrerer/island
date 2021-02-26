@@ -831,7 +831,7 @@ static std::vector<le_shader_binding_info> shader_modules_merge_bindings( le_sha
 						last_binding->name_hash = b.name_hash;
 						logger.warn( "Name for binding at set: %d, location: %d did not match.", b.setIndex, b.binding );
 						logger.warn( "Affected files:\n%s",
-						             get_filepaths_affected_by_message( begin_shader_stages, end_shader_stages, uint32_t( b.stage_bits | last_binding->stage_bits ) ) );
+						             get_filepaths_affected_by_message( begin_shader_stages, end_shader_stages, uint32_t( b.stage_bits | last_binding->stage_bits ) ).c_str() );
 					}
 				}
 
