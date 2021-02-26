@@ -4,12 +4,15 @@
 #include "include/internal/le_swapchain_vk_common.h"
 #include "le_renderer/private/le_renderer_types.h" // for le_swapchain_settings_t, and le::Format
 #include "le_backend_vk/util/vk_mem_alloc/vk_mem_alloc.h"
+#include "le_log/le_log.h"
 
 #include <iostream>
 #include <iomanip>
 #include <fstream>
 #include <sstream>
 #include <ctime>
+
+static constexpr auto LOGGER_LABEL = "le_swapchain_img";
 
 struct TransferFrame {
 	vk::Image         image            = nullptr; // Owned. Handle to image
@@ -50,9 +53,9 @@ static inline vk::Format le_format_to_vk( const le::Format &format ) noexcept {
 // ----------------------------------------------------------------------
 
 static inline void vk_result_assert_success( vk::Result const &&result ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 	if ( result != vk::Result::eSuccess ) {
-		std::cerr << "Error: Vulkan operation returned: " << vk::to_string( result ) << ", but we expected vk::Result::eSuccess"
-		          << std::endl;
+		logger.warn( "Vulkan operation returned: %s, but we expected vk::Result::eSuccess", vk::to_string( result ).c_str() );
 	}
 	assert( result == vk::Result::eSuccess && "Vulkan operation must succeed" );
 }
@@ -240,9 +243,10 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settin
 // ----------------------------------------------------------------------
 
 static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchain_interface_t &interface, le_backend_o *backend, const le_swapchain_settings_t *settings ) {
-	auto base  = new le_swapchain_o( interface );
-	base->data = new img_data_o{};
-	auto self  = static_cast<img_data_o *>( base->data );
+	static auto logger = LeLog( LOGGER_LABEL );
+	auto        base   = new le_swapchain_o( interface );
+	base->data         = new img_data_o{};
+	auto self          = static_cast<img_data_o *>( base->data );
 
 	self->backend                        = backend;
 	self->windowSurfaceFormat.format     = le_format_to_vk( self->mSettings.format_hint );
@@ -300,8 +304,7 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 			snprintf( cmd, sizeof( cmd ), self->pipe_cmd.c_str(), self->mSwapchainExtent.width, self->mSwapchainExtent.height, timestamp_tag.str().c_str() );
 		}
 
-		std::cout << "Image swapchain opening pipe using command line: '" << cmd << "'" << std::endl
-		          << std::flush;
+		logger.info( "Image swapchain opening pipe using command line: '%s'", cmd );
 #ifdef _MSC_VER
 		// todo: implement windows-specific solution
 #else
@@ -310,8 +313,7 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 		self->pipe = popen( cmd, "w" );
 
 		if ( self->pipe == nullptr ) {
-			std::cout << " ***** ERROR: Could not open pipe. Additionally, strerror reports:" << strerror( errno ) << std::endl
-			          << std::flush;
+			logger.error( "Could not open pipe. Additionally, strerror reports: $s", strerror( errno ) );
 		}
 
 		assert( self->pipe != nullptr );
@@ -388,6 +390,7 @@ static void swapchain_img_destroy( le_swapchain_o *base ) {
 // ----------------------------------------------------------------------
 
 static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore semaphorePresentComplete, uint32_t &imageIndex ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	auto self = static_cast<img_data_o *const>( base->data );
 	// This method will return the next avaliable vk image index for this swapchain, possibly
@@ -424,10 +427,10 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 			sprintf( file_name, "isl_%08d.rgba", self->totalImages );
 			auto const &  frame = self->transferFrames[ imageIndex ];
 			std::ofstream myfile( file_name, std::ios::out | std::ios::binary );
-			myfile.write( ( char * )frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4 );
+			myfile.write( ( char * )frame.bufferAllocationInfo.pMappedData,
+			              self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4 );
 			myfile.close();
-			std::cout << "Wrote Image: " << file_name << std::endl
-			          << std::flush;
+			logger.info( "Wrote Image: %s", file_name );
 		}
 	}
 

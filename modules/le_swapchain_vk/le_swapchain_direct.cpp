@@ -1,6 +1,7 @@
 #include "le_backend_vk/le_backend_vk.h"
 #include "le_renderer/private/le_renderer_types.h"
 #include "include/internal/le_swapchain_vk_common.h"
+#include "le_log/le_log.h"
 
 #ifndef _MSC_VER
 #	define VK_USE_PLATFORM_XLIB_XRANDR_EXT
@@ -17,6 +18,8 @@
 
 #define ASSERT_VK_SUCCESS( x ) \
 	assert( x == vk::Result::eSuccess )
+
+static constexpr auto LOGGER_LABEL = "le_swapchain_direct";
 
 struct SurfaceProperties {
 	vk::SurfaceFormatKHR              windowSurfaceFormat;
@@ -67,9 +70,10 @@ static inline vk::Format le_format_to_vk( const le::Format &format ) noexcept {
 // ----------------------------------------------------------------------
 
 static inline void vk_result_assert_success( vk::Result const &&result ) {
+	static auto logger = LeLog( LOGGER_LABEL );
+
 	if ( result != vk::Result::eSuccess ) {
-		std::cerr << "Error: Vulkan operation returned: " << vk::to_string( result ) << ", but we expected vk::Result::eSuccess"
-		          << std::endl;
+		logger.error( "Vulkan operation returned: %s, but we expected vk::Result::eSuccess", vk::to_string( result ).c_str() );
 	}
 	assert( result == vk::Result::eSuccess && "Vulkan operation must succeed" );
 }
@@ -189,6 +193,7 @@ static inline auto clamp( const T &val_, const T &min_, const T &max_ ) {
 // ----------------------------------------------------------------------
 
 static void swapchain_direct_reset( le_swapchain_o *base, const le_swapchain_settings_t *settings_ ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	auto self = static_cast<swp_direct_data_o *const>( base->data );
 
@@ -232,10 +237,10 @@ static void swapchain_direct_reset( le_swapchain_o *base, const le_swapchain_set
 	}
 
 	if ( self->mPresentMode != presentModeHint ) {
-		std::cout << "WARNING: Could not switch to selected Swapchain Present Mode ("
-		          << vk::to_string( presentModeHint ) << "), "
-		          << "falling back to: " << vk::to_string( self->mPresentMode ) << std::endl
-		          << std::flush;
+		logger.warn(
+		    "Could not switch to selected Swapchain Present Mode (%s), falling back to: %s",
+		    vk::to_string( presentModeHint ).c_str(),
+		    vk::to_string( self->mPresentMode ).c_str() );
 	}
 
 	self->mImagecount = clamp( self->mSettings.imagecount_hint,
@@ -243,8 +248,7 @@ static void swapchain_direct_reset( le_swapchain_o *base, const le_swapchain_set
 	                           surfaceCapabilities.maxImageCount );
 
 	if ( self->mImagecount != self->mSettings.imagecount_hint ) {
-		std::cout << " WARNING: Swapchain: Number of swapchain images was adjusted to: " << self->mImagecount << std::endl
-		          << std::flush;
+		logger.warn( "Number of swapchain images was adjusted to: %d", self->mImagecount );
 	}
 
 	vk::SurfaceTransformFlagBitsKHR preTransform;
@@ -291,6 +295,8 @@ static void swapchain_direct_reset( le_swapchain_o *base, const le_swapchain_set
 
 static le_swapchain_o *swapchain_direct_create( const le_swapchain_vk_api::swapchain_interface_t &interface, le_backend_o *backend, const le_swapchain_settings_t *settings ) {
 
+	static auto logger = LeLog( LOGGER_LABEL );
+
 	auto base  = new le_swapchain_o( interface );
 	base->data = new swp_direct_data_o{};
 	auto self  = static_cast<swp_direct_data_o *>( base->data );
@@ -332,8 +338,7 @@ static le_swapchain_o *swapchain_direct_create( const le_swapchain_vk_api::swapc
 	auto vk_result = vkAcquireXlibDisplayEXT( phyDevice, self->x11_display, self->display );
 
 	if ( vk_result != VK_SUCCESS ) {
-		std::cerr << "ERROR: Unable to acquire display: '" << display_props.back().displayName << "'" << std::endl
-		          << std::flush;
+		logger.error( "Unable to acquire display: %s", display_props.back().displayName );
 	}
 
 	assert( vk_result == VK_SUCCESS );
