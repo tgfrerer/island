@@ -666,6 +666,8 @@ static const char *to_str( const AttachmentStoreOp &lhs ) {
 		return "Store";
 	case AttachmentStoreOp::eDontCare:
 		return "DontCare";
+	case AttachmentStoreOp::eNoneQcom:
+		return "NoneQcom";
 	}
 	return "";
 }
