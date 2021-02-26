@@ -2,7 +2,7 @@
 #include "le_shader_compiler/le_shader_compiler.h"
 
 #include "shaderc/shaderc.hpp"
-
+#include "le_log/le_log.h"
 #include "le_renderer/le_renderer.h" // for shader type
 
 #include <iomanip>
@@ -16,6 +16,8 @@
 #include <vector>
 #include <set>
 #include <regex>
+
+static constexpr auto LOGGER_LABEL = "le_shader_compiler";
 
 struct le_shader_compiler_o {
 	shaderc_compiler_t        compiler;
@@ -47,6 +49,8 @@ struct le_shader_compilation_result_o {
 // ---------------------------------------------------------------
 
 static shaderc_shader_kind convert_to_shaderc_shader_kind( const le::ShaderStage &type ) {
+	static auto logger = LeLog( LOGGER_LABEL );
+
 	shaderc_shader_kind result{};
 
 	switch ( type ) {
@@ -94,9 +98,7 @@ static shaderc_shader_kind convert_to_shaderc_shader_kind( const le::ShaderStage
 		break;
 
 	default: {
-		std::cout << "WARNING: unknown shader type: " << uint32_t( type ) << std::endl
-		          << std::flush;
-
+		logger.warn( "Unknown shader type %d", uint32_t( ( type ) ) );
 		assert( false && "unknown shader type" );
 	} break;
 	}
@@ -173,11 +175,10 @@ static le_shader_compiler_o *le_shader_compiler_create() {
 // ---------------------------------------------------------------
 
 static void le_shader_compiler_destroy( le_shader_compiler_o *self ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 	shaderc_compile_options_release( self->options );
 	shaderc_compiler_release( self->compiler );
-
-	std::cout << "Destroyed shader compiler" << std::endl
-	          << std::flush;
+	logger.info( "Destroyed shader compiler" );
 	delete self;
 }
 
@@ -186,6 +187,7 @@ static void le_shader_compiler_destroy( le_shader_compiler_o *self ) {
 /// \details loads file given by filepath and returns a vector of chars if successful
 /// \note    returns an empty vector if not successful
 static std::vector<char> load_file( const std::filesystem::path &file_path, bool *success ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	std::vector<char> contents;
 
@@ -193,8 +195,7 @@ static std::vector<char> load_file( const std::filesystem::path &file_path, bool
 	std::ifstream file( file_path, std::ios::in | std::ios::binary | std::ios::ate );
 
 	if ( !file.is_open() ) {
-		std::cerr << "Unable to open file: " << std::filesystem::canonical( file_path ) << std::endl
-		          << std::flush;
+		logger.error( "Unable to open file: '%s'", std::filesystem::canonical( file_path ).c_str() );
 		*success = false;
 		return contents;
 	}
@@ -315,8 +316,10 @@ static inline bool checkForLineNumberModifier( const std::string &line, uint32_t
 // ---------------------------------------------------------------
 
 static void le_shader_compiler_print_error_context( const char *errMsg, const std::string &shaderSource, const std::string &sourceFileName ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	std::string errorFileName;  // Will contain the name of the file which contains the error
+	std::string errorMessage;   // Will contain error message
 	uint32_t    lineNumber = 0; // Will contain error line number after successful parse
 	bool        scanResult = false;
 	/*
@@ -335,28 +338,25 @@ static void le_shader_compiler_print_error_context( const char *errMsg, const st
 
 	{
 		std::cmatch cm;
-		scanResult = std::regex_search( errMsg, cm, std::regex( R"regex((.*?):(\d+):\s*error:.*)regex" ) );
+		scanResult = std::regex_search( errMsg, cm, std::regex( R"regex((.*?):(\d+):\s*error:(.*))regex" ) );
 
 		if ( scanResult ) {
 			errorFileName = cm[ 1 ].str();
 			lineNumber    = std::stoul( cm[ 2 ].str() );
+			errorMessage  = cm[ 3 ].str();
 		}
 	}
 
 	auto errorFilePath  = std::filesystem::canonical( std::filesystem::path( errorFileName ) );
 	auto sourceFilePath = std::filesystem::canonical( std::filesystem::path( sourceFileName ) );
 
-	std::cerr << "ERROR: Shader module compilation failed." << std::endl;
+	logger.error( "Shader module compilation failed." );
 	if ( errorFilePath != sourceFilePath ) {
 		// error happened in include file.
-
-		std::cerr << sourceFileName << " contains error in included file:" << std::endl
-		          << errMsg
-		          << std::flush;
+		logger.error( "%s contains error in included file:", std::filesystem::relative( std::filesystem::path( sourceFileName ) ).c_str() );
+		logger.error( "%s:%d : %s", std::filesystem::relative( errorFilePath ).c_str(), lineNumber, errorMessage.c_str() );
 	} else {
-		std::cerr
-		    << errMsg
-		    << std::flush;
+		logger.error( "%s:%d : %s", std::filesystem::relative( errorFilePath ).c_str(), lineNumber, errorMessage.c_str() );
 	}
 
 	std::istringstream sourceCode( shaderSource );
@@ -394,11 +394,11 @@ static void le_shader_compiler_print_error_context( const char *errMsg, const st
 						sourceContext << char( 0x1B ) << "[0m";
 					}
 
-					std::cout << sourceContext.str() << std::endl;
+					logger.error( "%s", sourceContext.str().c_str() );
 				}
 
 				if ( currentLineNumber >= lineNumber + 2 ) {
-					std::cout << std::endl; // add line break for better readability
+					logger.error( "" ); // add line break for better readability
 					break;
 				}
 			}
@@ -406,22 +406,19 @@ static void le_shader_compiler_print_error_context( const char *errMsg, const st
 			++currentLineNumber;
 		}
 	}
-
-	std::cout << std::flush;
 }
 
 // ---------------------------------------------------------------
 
 static inline void debug_print_macro_definition( char const *def_start, size_t def_sz, char const *val_start, size_t val_sz ) {
+#ifndef NDEBUG
 	char def_str[ 256 ]{};
 	char val_str[ 256 ]{};
 
 	snprintf( def_str, def_sz + 1, "%s", def_start );
 	snprintf( val_str, val_sz + 1, "%s", val_start );
-
-#ifndef NDEBUG
-	std::cout << "Inserting macro #define '" << def_str << "', value: '" << val_str << "'" << std::endl
-	          << std::flush;
+	static auto logger = LeLog( LOGGER_LABEL );
+	logger.info( "Inserting macro #define '%s', value: '%s'", def_str, val_str );
 #endif
 }
 
@@ -497,7 +494,9 @@ static void shader_options_parse_macro_definitions_string( shaderc_compile_optio
 static bool le_shader_compiler_compile_source( le_shader_compiler_o *self, const char *sourceFileText,
                                                size_t sourceFileNumBytes, const LeShaderStageEnum &shaderType,
                                                const char *original_file_path,
-                                               char const *macroDefinitionsStr, size_t macroDefinitionsStrSz, le_shader_compilation_result_o *result ) {
+                                               char const *macroDefinitionsStr, size_t macroDefinitionsStrSz,
+                                               le_shader_compilation_result_o *result ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	auto shaderKind = convert_to_shaderc_shader_kind( shaderType );
 
@@ -533,8 +532,20 @@ static bool le_shader_compiler_compile_source( le_shader_compiler_o *self, const
 	if ( shaderc_result_get_compilation_status( preprocessorResult ) != shaderc_compilation_status_success ) {
 		// If preprocessor step was not successful - return preprocessor result
 		// to keep the promise of always returning a result object.
-		std::cerr << "ERROR: Shader preprocessor failed: " << std::endl
-		          << shaderc_result_get_error_message( preprocessorResult ) << std::flush;
+		{
+			char const *errMsg = shaderc_result_get_error_message( preprocessorResult );
+			std::cmatch cm;
+			bool        scanResult = std::regex_search( errMsg, cm, std::regex( R"regex((.*?):(\d+):\s*error: ?(.*))regex" ) );
+
+			if ( scanResult ) {
+				auto errorFileName = cm[ 1 ].str();
+				auto lineNumber    = std::stoul( cm[ 2 ].str() );
+				auto errorMessage  = cm[ 3 ].str();
+				logger.error( "Shader preprocessor failed: %s:%d",
+				              std::filesystem::relative( std::filesystem::path( errorFileName ) ).c_str(), lineNumber );
+				logger.error( "%s", errorMessage.c_str() );
+			}
+		}
 		result->result = preprocessorResult;
 		shaderc_compile_options_release( local_options );
 		return false;

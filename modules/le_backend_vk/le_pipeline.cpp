@@ -16,7 +16,10 @@
 #include "le_shader_compiler/le_shader_compiler.h"
 #include "util/spirv-cross/spirv_cross.hpp"
 #include "le_file_watcher/le_file_watcher.h" // for watching shader source files
-#include "3rdparty/src/spooky/SpookyV2.h"    // for hashing renderpass gestalt, so that we can test for *compatible* renderpasses
+#include "le_log/le_log.h"
+#include "3rdparty/src/spooky/SpookyV2.h" // for hashing renderpass gestalt, so that we can test for *compatible* renderpasses
+
+static constexpr auto LOGGER_LABEL = "le_pipeline";
 
 struct le_shader_module_o {
 	uint64_t                                         hash                = 0;     ///< hash taken from spirv code + hash_file_path + hash_shader_defines
@@ -220,20 +223,19 @@ struct le_pipeline_manager_o {
 /// \note    returns an empty vector if not successful
 static std::vector<char> load_file( const std::filesystem::path &file_path, bool *success ) {
 
+	static auto       logger = LeLog( LOGGER_LABEL );
 	std::vector<char> contents;
 
 	size_t        fileSize = 0;
 	std::ifstream file( file_path, std::ios::in | std::ios::binary | std::ios::ate );
 
 	if ( !file.is_open() ) {
-		std::cerr << "Unable to open file: " << std::filesystem::canonical( file_path ) << std::endl
-		          << std::flush;
+		logger.error( "Unable to open file: '%s'", std::filesystem::canonical( file_path ).c_str() );
 		*success = false;
 		return contents;
 	}
 
-	//	std::cout << "OK Opened file:" << std::filesystem::canonical( file_path ) << std::endl
-	//	          << std::flush;
+	logger.debug( "Opened file : '%s'", std::filesystem::canonical( ( file_path ) ).c_str() );
 
 	// ----------| invariant: file is open
 
@@ -364,10 +366,11 @@ static void le_pipeline_cache_flag_affected_modules_for_source_path( le_shader_m
 	// find all modules from dependencies set
 	// insert into list of modified modules.
 
+	static auto logger = LeLog( LOGGER_LABEL );
+
 	if ( 0 == self->moduleDependencies.count( shader_source_file_path ) ) {
 		// -- no matching dependencies.
-		std::cout << "Shader code update detected, but no modules using shader source file: " << shader_source_file_path << std::endl
-		          << std::flush;
+		logger.info( "Shader code update detected, but no modules using shader source file: '%s'", shader_source_file_path );
 		return;
 	}
 
@@ -386,9 +389,9 @@ static void le_pipeline_cache_flag_affected_modules_for_source_path( le_shader_m
 
 static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shader_manager_o *self, le_shader_module_o *module, std::set<std::string> &sourcePaths ) {
 
-	// To be able to tell quick which modules need to be recompiled if a source file changes,
+	// To be able to tell quickly which modules need to be recompiled if a source file changes,
 	// we build a table from source file -> array of modules
-
+	static auto logger = LeLog( LOGGER_LABEL );
 	for ( const auto &s : sourcePaths ) {
 
 		// If no previous entry for this source path existed, we must insert a watch for this path
@@ -410,8 +413,7 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
 			le_file_watcher::le_file_watcher_i.add_watch( self->shaderFileWatcher, &settings );
 		}
 
-		std::cout << std::hex << module << " : " << s << std::endl
-		          << std::flush;
+		logger.info( "Shader module (%p) : '%s'", module, std::filesystem::relative( s ).c_str() );
 
 		self->moduleDependencies[ s ].insert( module );
 	}
@@ -739,6 +741,7 @@ static bool shader_module_check_bindings_valid( le_shader_binding_info const *bi
 //
 static std::vector<le_shader_binding_info> shader_modules_merge_bindings( le_shader_module_o const *const *shader_stages, size_t numStages ) {
 
+	static auto logger = LeLog( LOGGER_LABEL );
 	// maxNumBindings holds the upper bound for the total number of bindings
 	// assuming no overlaps in bindings between shader stages.
 
@@ -823,14 +826,9 @@ static std::vector<le_shader_binding_info> shader_modules_merge_bindings( le_sha
 
 					if ( b.stage_bits < last_binding->stage_bits ) {
 						last_binding->name_hash = b.name_hash;
-						std::cout
-						    << "Warning: Name for binding at Set: '"
-						    << std::dec << b.setIndex << "', location: '"
-						    << std::dec << b.binding << "' did not match."
-						    << std::endl
-						    << "Affected files : " << std::endl
-						    << get_filepaths_affected_by_message( begin_shader_stages, end_shader_stages, uint32_t( b.stage_bits | last_binding->stage_bits ) )
-						    << std::flush;
+						logger.warn( "Name for binding at set: %d, location: %d did not match.", b.setIndex, b.binding );
+						logger.warn( "Affected files:\n%s",
+						             get_filepaths_affected_by_message( begin_shader_stages, end_shader_stages, uint32_t( b.stage_bits | last_binding->stage_bits ) ) );
 					}
 				}
 
@@ -1769,6 +1767,7 @@ static inline bool le_pipeline_manager_get_pipeline_layout_info(
 //   at the same time - and no two renderpasses may access this method at the same time.
 static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeline( le_pipeline_manager_o *self, le_gpso_handle gpso_handle, const LeRenderPass &pass, uint32_t subpass ) {
 
+	static auto                   logger                   = LeLog( LOGGER_LABEL );
 	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
 
 	// -- 0. Fetch pso from cache using its hash key
@@ -1813,12 +1812,8 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeli
 	} else {
 		// -- if not, create pipeline in pipeline cache and store / retain it
 		pipeline_and_layout_info.pipeline = le_pipeline_cache_create_graphics_pipeline( self, pso, pass, subpass );
-
-		std::cout << "New VK Graphics Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
-		          << std::flush;
-
+		logger.info( "New VK Graphics Pipeline created: %p", pipeline_hash );
 		bool result = self->pipelines.try_insert( pipeline_hash, &pipeline_and_layout_info.pipeline );
-
 		assert( result && " pipeline insertion must be successful " );
 	}
 
@@ -1837,6 +1832,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
 #ifdef LE_FEATURE_RTX
 
+	static auto logger = LeLog( LOGGER_LABEL );
 	// -- 0. Fetch pso from cache using its hash key
 	rtx_pipeline_state_o const *pso = self->rtxPso.try_find( pso_handle );
 	assert( pso );
@@ -1882,8 +1878,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 		// -- Pipeline not found: Create pipeline in pipeline cache and store / retain it
 		pipeline_and_layout_info.pipeline = le_pipeline_cache_create_rtx_pipeline( self, pso );
 
-		std::cout << "New VK RTX Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
-		          << std::flush;
+		logger.info( "New VK RTX Graphics Pipeline created: %p", pipeline_hash );
 
 		// Store pipeline in pipeline cache
 		bool result = self->pipelines.try_insert( pipeline_hash, &pipeline_and_layout_info.pipeline );
@@ -1903,7 +1898,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 			// If shader group data was not found, we must must query, and store it.
 			using namespace le_backend_vk;
 			VkPhysicalDeviceRayTracingPipelinePropertiesKHR props;
-			bool                                    result = vk_device_i.get_vk_physical_device_ray_tracing_properties( self->le_device, &props );
+			bool                                            result = vk_device_i.get_vk_physical_device_ray_tracing_properties( self->le_device, &props );
 			assert( result && "properties must be successfully acquired." );
 
 			size_t dataSize   = props.shaderGroupHandleSize * pso->shaderGroups.size();
@@ -1960,7 +1955,8 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 
 static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipeline( le_pipeline_manager_o *self, le_cpso_handle cpso_handle ) {
 
-	compute_pipeline_state_o const *pso = self->computePso.try_find( cpso_handle );
+	static auto                     logger = LeLog( LOGGER_LABEL );
+	compute_pipeline_state_o const *pso    = self->computePso.try_find( cpso_handle );
 	assert( pso );
 
 	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
@@ -1968,7 +1964,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipelin
 
 	le_pipeline_manager_get_pipeline_layout_info( self, &pso->shaderStage, 1, &pipeline_and_layout_info.layout_info, &pipeline_layout_hash );
 
-	// -- 2. get vk pipeline object
+	// -- Get vk pipeline object
 	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
 
 	uint64_t pipeline_hash = 0;
@@ -1995,13 +1991,9 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipelin
 		// -- if yes, return pipeline found in hash map
 		pipeline_and_layout_info.pipeline = *p;
 	} else {
-
 		// -- if not, create pipeline in pipeline cache and store / retain it
 		pipeline_and_layout_info.pipeline = le_pipeline_cache_create_compute_pipeline( self, pso );
-
-		std::cout << "New VK Compute Pipeline created: 0x" << std::hex << pipeline_hash << std::endl
-		          << std::flush;
-
+		logger.info( "New VK Compute Pipeline created: %p", pipeline_hash );
 		bool result = self->pipelines.try_insert( pipeline_hash, &pipeline_and_layout_info.pipeline );
 		assert( result && "insertion must be successful" );
 	}
@@ -2085,6 +2077,8 @@ static le_pipeline_manager_o *le_pipeline_manager_create( le_device_o *le_device
 
 static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 
+	static auto logger = LeLog( LOGGER_LABEL );
+
 	le_shader_manager_destroy( self->shaderManager );
 	self->shaderManager = nullptr;
 
@@ -2097,13 +2091,11 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 		    vk::Device *device = static_cast<vk::Device *>( user_data );
 		    if ( e->vk_descriptor_set_layout ) {
 			    device->destroyDescriptorSetLayout( e->vk_descriptor_set_layout );
-			    std::cout << "Destroyed VkDescriptorSetLayout     : " << std::hex << e->vk_descriptor_set_layout << std::endl
-			              << std::flush;
+			    logger.info( "Destroyed VkDescriptorSetLayout: %p", e->vk_descriptor_set_layout );
 		    }
 		    if ( e->vk_descriptor_update_template ) {
 			    device->destroyDescriptorUpdateTemplate( e->vk_descriptor_update_template );
-			    std::cout << "Destroyed VkDescriptorUpdateTemplate: " << std::hex << e->vk_descriptor_update_template << std::endl
-			              << std::flush;
+			    logger.info( "Destroyed VkDescriptorUpdateTemplate: %p", e->vk_descriptor_update_template );
 		    }
 	    },
 	    &self->device );
@@ -2113,8 +2105,7 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 	    []( vk::PipelineLayout *e, void *user_data ) {
 		    vk::Device *device = static_cast<vk::Device *>( user_data );
 		    device->destroyPipelineLayout( *e );
-		    std::cout << "Destroyed VkPipelineLayout: " << std::hex << *e << std::endl
-		              << std::flush;
+		    logger.info( "Destroyed VkPipelineLayout: %p", *e );
 	    },
 	    &self->device );
 
@@ -2125,8 +2116,7 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 	    []( VkPipeline *p, void *user_data ) {
 		    auto device = static_cast<vk::Device *>( user_data );
 		    device->destroyPipeline( *p );
-		    std::cout << "Destroyed VkPipeline: " << std::hex << *p << std::endl
-		              << std::flush;
+		    logger.info( "Destroyed VkPipeline: %p", *p );
 	    },
 	    &self->device );
 

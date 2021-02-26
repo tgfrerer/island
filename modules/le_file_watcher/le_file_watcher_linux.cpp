@@ -14,7 +14,9 @@
 #	include <dirent.h>
 #	include <sys/inotify.h>
 #	include <unistd.h>
+#	include "le_log/le_log.h"
 
+static constexpr auto LOGGER_LABEL = "le_file_watcher_linux";
 
 // ----------------------------------------------------------------------
 
@@ -49,13 +51,15 @@ static le_file_watcher_o *instance_create() {
 
 static void instance_destroy( le_file_watcher_o *instance ) {
 
+	static auto logger = LeLog( LOGGER_LABEL );
+
 	for ( auto &w : instance->mWatches ) {
 		inotify_rm_watch( instance->inotify_socket_handle, w.inotify_watch_handle );
 	}
 	instance->mWatches.clear();
 
 	if ( instance->inotify_socket_handle > 0 ) {
-		std::cout << "Closing inotify instance file handle: " << std::hex << instance->inotify_socket_handle << std::endl;
+		logger.info( "Closing inotify instance file handle: %p", instance->inotify_socket_handle );
 		close( instance->inotify_socket_handle );
 	}
 
@@ -85,14 +89,15 @@ static int add_watch( le_file_watcher_o *instance, le_file_watcher_watch_setting
 // ----------------------------------------------------------------------
 
 static bool remove_watch( le_file_watcher_o *instance, int watch_id ) {
-	auto found_watch = std::find_if( instance->mWatches.begin(), instance->mWatches.end(), [ = ]( const Watch &w ) -> bool { return w.inotify_watch_handle == watch_id; } );
+	static auto logger      = LeLog( LOGGER_LABEL );
+	auto        found_watch = std::find_if( instance->mWatches.begin(), instance->mWatches.end(), [ = ]( const Watch &w ) -> bool { return w.inotify_watch_handle == watch_id; } );
 	if ( found_watch != instance->mWatches.end() ) {
-		std::cout << "Removing inotify watch handle: " << std::hex << found_watch->inotify_watch_handle << std::endl;
+		logger.info( "Removing inotify watch handle: %p", found_watch->inotify_watch_handle );
 		inotify_rm_watch( instance->inotify_socket_handle, found_watch->inotify_watch_handle );
 		instance->mWatches.erase( found_watch );
 		return true;
 	} else {
-		std::cout << "WARNING: " << __FUNCTION__ << ": could not find and thus remove watch with id:" << watch_id << std::endl;
+		logger.error( "%s : Could not find and thus remove watch with id: 0x%x", __PRETTY_FUNCTION__, watch_id );
 		return false;
 	}
 };
@@ -101,6 +106,7 @@ static bool remove_watch( le_file_watcher_o *instance, int watch_id ) {
 
 static void poll_notifications( le_file_watcher_o *instance ) {
 	static_assert( sizeof( inotify_event ) == sizeof( struct inotify_event ), "must be equal" );
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	for ( ;; ) {
 
@@ -136,8 +142,7 @@ static void poll_notifications( le_file_watcher_o *instance ) {
 
 							// Only print notice if it is for another filename:
 							if ( prev_filename != path.c_str() ) {
-								std::cout << "Watch triggered for: " << path << " [" << w.basename << "]" << std::endl
-								          << std::flush;
+								logger.info( "Watch triggered for: '%s' [%s]", path.c_str(), w.basename.c_str() );
 								prev_filename = path.c_str();
 							}
 
