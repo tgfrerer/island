@@ -338,7 +338,7 @@ static void le_shader_compiler_print_error_context( const char *errMsg, const st
 
 	{
 		std::cmatch cm;
-		scanResult = std::regex_search( errMsg, cm, std::regex( R"regex((.*?):(\d+):\s*error:(.*))regex" ) );
+		scanResult = std::regex_search( errMsg, cm, std::regex( R"regex((.*?):(\d+):\s*error: ?(.*))regex" ) );
 
 		if ( scanResult ) {
 			errorFileName = cm[ 1 ].str();
