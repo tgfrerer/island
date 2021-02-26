@@ -14,6 +14,9 @@
 #include <array>
 
 #include "le_renderer/private/le_renderer_types.h"
+#include "le_log/le_log.h"
+
+static constexpr auto LOGGER_LABEL = "le_rendergraph";
 
 #ifdef _MSC_VER
 #	include <Windows.h>
@@ -24,7 +27,7 @@
 #include "3rdparty/src/spooky/SpookyV2.h" // for calculating rendergraph hash
 
 #ifndef PRINT_DEBUG_MESSAGES
-#	define PRINT_DEBUG_MESSAGES false
+#	define PRINT_DEBUG_MESSAGES true
 #endif
 
 #ifndef DEBUG_GENERATE_DOT_GRAPH
@@ -190,6 +193,8 @@ static inline bool resource_is_a_swapchain_handle( const le_resource_handle_t &r
 // is used for read, write, or read/write.
 static void renderpass_use_resource( le_renderpass_o *self, const le_resource_handle_t &resource_id, LeResourceUsageFlags const &usage_flags ) {
 
+	static auto logger = LeLog( LOGGER_LABEL );
+
 	assert( usage_flags.type == LeResourceType::eBuffer ||
 	        usage_flags.type == LeResourceType::eImage ||
 	        usage_flags.type == LeResourceType::eRtxTlas ||
@@ -221,9 +226,10 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 
 		// Resource already exists.
 
-		std::cerr << "FATAL: Resource '" << resource_id.debug_name << "' declared more than once for renderpass : '"
-		          << self->debugName << "'. There can only be one declaration per resource per renderpass." << std::endl
-		          << std::flush;
+		logger.error( "FATAL: Resource '%s' declared more than once for renderpass : '%s'. "
+		              "There can only be one declaration per resource per renderpass.",
+		              resource_id.debug_name,
+		              self->debugName.c_str() );
 
 		assert( false );
 	}
@@ -621,6 +627,7 @@ generate_dot_file_for_rendergraph(
     Task const *          tasks,
     size_t                frame_number ) {
 
+	static auto           logger   = LeLog( LOGGER_LABEL );
 	std::filesystem::path exe_path = getexepath();
 
 	std::ostringstream os;
@@ -777,8 +784,7 @@ generate_dot_file_for_rendergraph(
 		fprintf( out_file, "%s\n", os.str().c_str() );
 		fclose( out_file );
 
-		std::cout << "Generated .dot file: '" << filename << "'" << std::endl
-		          << std::flush;
+		logger.info( "Generated .dot file: '%s'", filename );
 	};
 
 	// We write to two files: "graph.dot",
@@ -810,6 +816,8 @@ generate_dot_file_for_rendergraph(
 // sort index for each corresponding renderpass.
 //
 static void rendergraph_build( le_rendergraph_o *self, size_t frame_number ) {
+
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	// We must express our list of passes as a list of tasks.
 	// A task holds two bitfields, the bitfield names are: `read` and `write`.
@@ -910,10 +918,7 @@ static void rendergraph_build( le_rendergraph_o *self, size_t frame_number ) {
 #if ( PRINT_DEBUG_MESSAGES )
 	auto printPassList = [ & ]() -> void {
 		for ( size_t i = 0; i != self->sortIndices.size(); ++i ) {
-			std::cout << "Pass: " << std::dec << std::setw( 3 ) << i << " sort order : " << std::setw( 12 ) << self->sortIndices[ i ] << " : "
-			          << self->passes[ i ]->debugName
-			          << std::endl
-			          << std::flush;
+			logger.info( "Pass : %3d sort order: %12d : %s ", i, self->sortIndices[ i ], self->passes[ i ]->debugName.c_str() );
 		}
 	};
 	printPassList();
@@ -952,8 +957,7 @@ static void rendergraph_build( le_rendergraph_o *self, size_t frame_number ) {
 		std::swap( self->sortIndices, consolidated_sort_indices );
 
 #if ( PRINT_DEBUG_MESSAGES )
-		std::cout << "* Consolidated Pass List *" << std::endl
-		          << std::flush;
+		logger.info( "* Consolidated Pass List *" );
 		printPassList();
 #endif
 	}
@@ -971,28 +975,25 @@ static void rendergraph_build( le_rendergraph_o *self, size_t frame_number ) {
 /// We could possibly go wide when recording renderpasses, with one context per renderpass.
 static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_backend_o *backend ) {
 
+	static auto logger = LeLog( LOGGER_LABEL );
+
 	if ( PRINT_DEBUG_MESSAGES ) {
 		std::ostringstream msg;
-		msg << std::endl
-		    << std::endl;
-		msg << "Render graph: " << std::endl;
-
+		logger.info( "Render graph: " );
 		for ( const auto &pass : self->passes ) {
-			msg << "renderpass: '" << pass->debugName << "' , sort_key: " << pass->sort_key << std::endl;
 
+			logger.info( "renderpass: '%30s', sort_key: %x", pass->debugName.c_str(), pass->sort_key );
 			le_image_attachment_info_t const *pImageAttachments   = nullptr;
 			le_resource_handle_t const *      pResources          = nullptr;
 			size_t                            numImageAttachments = 0;
 			renderpass_get_image_attachments( pass, &pImageAttachments, &pResources, &numImageAttachments );
 
 			for ( size_t i = 0; i != numImageAttachments; ++i ) {
-				msg << "\t Attachment: '" << pResources[ i ].debug_name << std::endl; //"', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'" << std::endl;
-				msg << "\t load : " << std::setw( 10 ) << to_str( pImageAttachments[ i ].loadOp ) << std::endl;
-				msg << "\t store: " << std::setw( 10 ) << to_str( pImageAttachments[ i ].storeOp ) << std::endl
-				    << std::endl;
+				logger.info( "\t Attachment: '%s'", pResources[ i ].debug_name ); //"', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'"
+				logger.info( "\t load : %10s", to_str( pImageAttachments[ i ].loadOp ) );
+				logger.info( "\t store: %10s", to_str( pImageAttachments[ i ].storeOp ) );
 			}
 		}
-		std::cout << msg.str();
 	}
 
 	using namespace le_renderer;
