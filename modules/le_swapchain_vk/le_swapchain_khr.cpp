@@ -2,6 +2,7 @@
 #include "le_renderer/private/le_renderer_types.h"
 #include "include/internal/le_swapchain_vk_common.h"
 #include "le_window/le_window.h"
+#include "le_log/le_log.h"
 
 #define VULKAN_HPP_DISABLE_ENHANCED_MODE
 #define VULKAN_HPP_NO_SMART_HANDLE
@@ -10,6 +11,8 @@
 
 #include <iostream>
 #include <vector>
+
+static constexpr auto LOGGER_LABEL = "le_swapchain_khr";
 
 struct SurfaceProperties {
 	vk::SurfaceFormatKHR              windowSurfaceFormat;
@@ -43,9 +46,9 @@ static inline vk::Format le_format_to_vk( const le::Format &format ) noexcept {
 
 // ----------------------------------------------------------------------
 static void vk_result_assert_success( vk::Result const &&result ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 	if ( result != vk::Result::eSuccess ) {
-		std::cerr << "Error: Vulkan operation returned: " << vk::to_string( result ) << ", but we expected vk::Result::eSuccess"
-		          << std::endl;
+		logger.error( "Vulkan operation returned: %s, but we expected vk::Result::eSuccess", to_string( result ).c_str() );
 	}
 	assert( result == vk::Result::eSuccess && "Vulkan operation must succeed" );
 };
@@ -136,9 +139,9 @@ static vk::PresentModeKHR get_khr_presentmode( const le_swapchain_settings_t::kh
 }
 
 static void check_vk_result( vk::Result &&result ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 	if ( result != vk::Result::eSuccess ) {
-		std::cerr << "Error: Vulkan operation returned: " << vk::to_string( result ) << ", but we expected vk::Result::eSuccess"
-		          << std::endl;
+		logger.error( "Vulkan operation returned: %s, but we expected vk::Result::eSuccess", to_string( result ).c_str() );
 	}
 	assert( result == vk::Result::eSuccess && "Vulkan operation must succeed" );
 };
@@ -164,7 +167,8 @@ static inline auto clamp( const T &val_, const T &min_, const T &max_ ) {
 
 static void swapchain_khr_reset( le_swapchain_o *base, const le_swapchain_settings_t *settings_ ) {
 
-	auto self = static_cast<khr_data_o *>( base->data );
+	static auto logger = LeLog( LOGGER_LABEL );
+	auto        self   = static_cast<khr_data_o *>( base->data );
 
 	if ( settings_ ) {
 		self->mSettings = *settings_;
@@ -213,10 +217,9 @@ static void swapchain_khr_reset( le_swapchain_o *base, const le_swapchain_settin
 	}
 
 	if ( self->mPresentMode != presentModeHint ) {
-		std::cout << "WARNING: Could not switch to selected Swapchain Present Mode ("
-		          << vk::to_string( presentModeHint ) << "), "
-		          << "falling back to: " << vk::to_string( self->mPresentMode ) << std::endl
-		          << std::flush;
+		logger.warn( "Coult Could not switch to selected Swapchain Present Mode (%s), falling back to: %s",
+		             vk::to_string( presentModeHint ).c_str(),
+		             vk::to_string( self->mPresentMode ).c_str() );
 	}
 
 	self->mImagecount = clamp( self->mSettings.imagecount_hint,
@@ -224,8 +227,7 @@ static void swapchain_khr_reset( le_swapchain_o *base, const le_swapchain_settin
 	                           surfaceCapabilities.maxImageCount );
 
 	if ( self->mImagecount != self->mSettings.imagecount_hint ) {
-		std::cout << " WARNING: Swapchain: Number of swapchain images was adjusted to: " << self->mImagecount << std::endl
-		          << std::flush;
+		logger.warn( "Swapchain: Number of swapchain images was adjusted to: %d ", self->mImagecount );
 	}
 
 	vk::SurfaceTransformFlagBitsKHR preTransform;
