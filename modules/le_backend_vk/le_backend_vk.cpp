@@ -874,12 +874,13 @@ static uint32_t backend_get_swapchain_count( le_backend_o *self ) {
 
 static void backend_reset_swapchain( le_backend_o *self, uint32_t index ) {
 	using namespace le_swapchain_vk;
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	assert( index < self->swapchains.size() );
 
 	swapchain_i.reset( self->swapchains[ index ], nullptr );
 
-	std::cout << "NOTICE: Resetting swapchain with index: " << index << std::flush << std::endl;
+	logger.info( "Resetting swapchain with index: %d", index );
 
 	// We must update our cached values for swapchain dimensions if the swapchain was reset.
 
@@ -1481,6 +1482,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 	// + Layout transform (if final layout differs)
 	//
 	//- NOTE texture image resources *must* be explicitly synchronised:
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	auto &syncChainTable = frame.syncChainTable;
 
@@ -1496,8 +1498,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 			backbufferState.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
 			backbufferState.visible_access = vk::AccessFlagBits( 0 );                           // semaphore took care of availability - we can assume memory is already available
 		} else {
-			std::cout << "WARNING: no reference to backbuffer found in renderpasses" << std::endl
-			          << std::flush;
+			logger.warn( "No reference to backbuffer found in renderpass" );
 		}
 	}
 
@@ -1733,6 +1734,8 @@ static bool backend_poll_frame_fence( le_backend_o *self, size_t frameIndex ) {
 /// \preliminary: frame fence must have been crossed.
 static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 
+	static auto logger = LeLog( LOGGER_LABEL );
+
 	using namespace le_backend_vk;
 
 	auto &     frame  = self->mFrames[ frameIndex ];
@@ -1794,7 +1797,7 @@ static bool backend_clear_frame( le_backend_o *self, size_t frameIndex ) {
 				break;
 
 			case AbstractPhysicalResource::eUndefined:
-				std::cout << __PRETTY_FUNCTION__ << ": abstract physical resource has unknown type (" << std::hex << r.type << ") and cannot be deleted. leaking..." << std::flush;
+				logger.warn( "%s: abstract physical resource has unknown type (%p) and cannot be deleted. leaking...", __PRETTY_FUNCTION__, r.type );
 				break;
 			}
 		}
@@ -3041,53 +3044,46 @@ static void insert_msaa_versions(
 
 static void printResourceInfo( le_resource_handle_t const &handle, ResourceCreateInfo const &info ) {
 	static auto logger = LeLog( LOGGER_LABEL );
-	// when printing debug name we test whether the first glyph might be an utf-8 ellispis, in which
-	// case we must add two spaces to make up for the shorter length (in terms of glyphs) of the utf-8
-	// printout.
-	std::cout << ( handle.debug_name[ 0 ] == char( 0xe2 ) ? "  " : "" ) << std::setw( 32 ) << handle.debug_name;
 	if ( info.isBuffer() ) {
-		std::cout
-		    << " : " << std::dec << std::setw( 11 ) << ( info.bufferInfo.size )
-		    << " : " << std::setw( 30 ) << "-"
-		    << " : " << std::setw( 30 ) << to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) )
-		    << std::endl;
+		logger.info( "% 32s : %11d : %30s : %30s", handle.debug_name, info.bufferInfo.size, "-", to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) ).c_str() );
 	} else if ( info.isImage() ) {
-		std::cout
-		    << " : " << std::dec << std::setw( 4 ) << info.imageInfo.extent.width << " x " << std::setw( 4 ) << info.imageInfo.extent.height << " x " << std::setw( 4 ) << info.imageInfo.extent.depth
-		    << " : " << std::setw( 30 ) << to_string( vk::Format( info.imageInfo.format ) )
-		    << " : " << std::setw( 30 ) << to_string( vk::ImageUsageFlags( info.imageInfo.usage ) )
-		    << " : " << std::setw( 5 ) << to_string( vk::SampleCountFlags( info.imageInfo.samples ) ) << " samples"
-		    << std::endl;
+		logger.info( "% 32s : %4dx%4x%4 : %30s : %30s : %5s samples",
+		             handle.debug_name,
+		             info.imageInfo.extent.width,
+		             info.imageInfo.extent.height,
+		             info.imageInfo.extent.depth,
+		             to_string( vk::Format( info.imageInfo.format ) ).c_str(),
+		             to_string( vk::ImageUsageFlags( info.imageInfo.usage ) ).c_str(),
+		             to_string( vk::SampleCountFlags( info.imageInfo.samples ) ).c_str() );
 	} else if ( info.isBlas() ) {
-		std::cout
-		    << " : " << std::dec << std::setw( 11 ) << ( info.blasInfo.scratch_buffer_sz )
-		    << " : " << std::setw( 30 ) << "-"
-		    << " : " << std::setw( 30 ) << "-"
-		    << std::endl;
+		logger.info( "% 32s : %11d : %30s : %30s",
+		             handle.debug_name,
+		             info.blasInfo.scratch_buffer_sz,
+		             "-",
+		             "-" );
 	} else if ( info.isTlas() ) {
-		std::cout
-		    << " : " << std::dec << std::setw( 11 ) << ( info.tlasInfo.scratch_buffer_sz )
-		    << " : " << std::setw( 30 ) << "-"
-		    << " : " << std::setw( 30 ) << "-"
-		    << std::endl;
-	} else {
-		std::cout << std::endl;
+		logger.info( "% 32s : %11d : %30s : %30s",
+		             handle.debug_name,
+		             info.tlasInfo.scratch_buffer_sz,
+		             "-",
+		             "-" );
 	}
-	std::cout << std::flush;
 }
 
 // ----------------------------------------------------------------------
 
 static bool inferImageFormat( le_backend_o *self, le_resource_handle_t const &resource, LeImageUsageFlags const &usageFlags, ResourceCreateInfo *createInfo ) {
+
+	static auto logger = LeLog( LOGGER_LABEL );
+
 	// If image format was not specified, we must try to
 	// infer the image format from usage flags.
 	auto inferred_format = infer_image_format_from_le_image_usage_flags( self, usageFlags );
 
 	if ( inferred_format == le::Format::eUndefined ) {
-		std::cerr << "FATAL: Cannot infer image format, resource underspecified: '" << resource.debug_name << "'" << std::endl
-		          << "Specify usage, or provide explicit format option for resource to fix this error. " << std::endl
-		          << "Consider using le::RenderModule::declareResource()" << std::endl
-		          << std::flush;
+		logger.error( "Fatal: Cannot infer image format, resource underspecified: '%s'", resource.debug_name );
+		logger.error( "Specify usage, or provide explicit format option for resource to fix this error. " );
+		logger.error( "Consider using le::RenderModule::declareResource()" );
 
 		assert( false ); // we don't have enough information to infer image format.
 		return false;
@@ -3109,6 +3105,7 @@ static void patchImageUsageForMipLevels( ResourceCreateInfo *createInfo ) {
 // ----------------------------------------------------------------------
 
 static void frame_resources_set_debug_names( le_backend_vk_instance_o *instance, VkDevice device_, BackendFrameData::ResourceMap_T &resources ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	// We capture the check for extension as a static, as this is not expected to
 	// change for the lifetime of the application, and checking for the extension
@@ -3124,8 +3121,7 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o *instance,
 
 	auto vk_result_assert_success = []( vk::Result const &&result ) {
 		if ( result != vk::Result::eSuccess ) {
-			std::cerr << "Error: Vulkan operation returned: " << vk::to_string( result ) << ", but we expected vk::Result::eSuccess"
-			          << std::endl;
+			logger.error( "Vulkan operation returned: '%s', but we expected vk::Result::eSuccess.", vk::to_string( result ).c_str() );
 		}
 		assert( result == vk::Result::eSuccess && "Vulkan operation must succeed" );
 	};
@@ -3419,7 +3415,6 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				             r.second.as.buffer );
 			}
 		}
-		std::cout << std::flush;
 	}
 
 	if ( DEBUG_TAG_RESOURCES ) {
@@ -3434,6 +3429,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Device const &device, le_renderpass_o **passes, size_t numRenderPasses ) {
 
 	using namespace le_renderer;
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	// Only for compute passes: Create imageviews for all available
 	// resources which are of type image and which have usage
@@ -3476,8 +3472,7 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 				// If the format is still undefined at this point, we can only throw our hands up in the air...
 				//
 				if ( imageFormat == vk::Format::eUndefined ) {
-					std::cout << "WARNING: Cannot create default view for image '" << r.debug_name << "', as format is undefined" << std::endl
-					          << std::flush;
+					logger.warn( "Cannot create default view for image: '%s;, as format is unspecified", r.debug_name );
 					continue;
 				}
 
@@ -4069,44 +4064,45 @@ static bool updateArguments( const vk::Device &                 device,
 // ----------------------------------------------------------------------
 
 static void debug_print_command( void *&cmd ) {
-	std::cout << "cmd: ";
+	static auto        logger = LeLog( LOGGER_LABEL );
+	std::ostringstream os;
+	os << "cmd: ";
 
 	auto cmd_header = static_cast<le::CommandHeader *>( cmd );
 
 	// clang-format off
 			switch (cmd_header->info.type){
-			    case (le::CommandType::eDrawIndexed): std::cout << "eDrawIndexed"; break;
-			    case (le::CommandType::eDraw): std::cout << "eDraw"; break;
-			    case (le::CommandType::eDispatch): std::cout << "eDispatch"; break;
-			    case (le::CommandType::eBufferMemoryBarrier): std::cout << "eBufferMemoryBarrier"; break;
-			    case (le::CommandType::eSetLineWidth): std::cout << "eSetLineWidth"; break;
-			    case (le::CommandType::eSetViewport): std::cout << "eSetViewport"; break;
-			    case (le::CommandType::eSetScissor): std::cout << "eSetScissor"; break;
-			    case (le::CommandType::eBindArgumentBuffer): std::cout << "eBindArgumentBuffer"; break;
-			    case (le::CommandType::eSetArgumentTexture): std::cout << "eSetArgumentTexture"; break;
-			    case (le::CommandType::eSetArgumentImage): std::cout << "eSetArgumentImage"; break;
-			    case (le::CommandType::eBindIndexBuffer): std::cout << "eBindIndexBuffer"; break;
-			    case (le::CommandType::eBindVertexBuffers): std::cout << "eBindVertexBuffers"; break;
-			    case (le::CommandType::eBindGraphicsPipeline): std::cout << "eBindGraphicsPipeline"; break;
-			    case (le::CommandType::eBindComputePipeline): std::cout << "eBindComputePipeline"; break;
-			    case (le::CommandType::eWriteToBuffer): std::cout << "eWriteToBuffer"; break;
-                case (le::CommandType::eBindRtxPipeline): std::cout << "eBindRtxPipeline" ; break;
-                case (le::CommandType::eBuildRtxTlas): std::cout << "eBuildRtxTlas"; break;
-                case (le::CommandType::eBuildRtxBlas): std::cout << "eBuildRtxBlas"; break;
-			    case (le::CommandType::eWriteToImage): std::cout << "eWriteToImage"; break;
-                case(le::CommandType::eDrawMeshTasks): std::cout << "eDrawMeshTasks"; break;
-                case(le::CommandType::eTraceRays): std::cout << "eTraceRays"; break;
-                case(le::CommandType::eSetArgumentTlas): std::cout << "eSetArgumentTlas"; break;
+			    case (le::CommandType::eDrawIndexed): os << "eDrawIndexed"; break;
+			    case (le::CommandType::eDraw): os << "eDraw"; break;
+			    case (le::CommandType::eDispatch): os << "eDispatch"; break;
+			    case (le::CommandType::eBufferMemoryBarrier): os << "eBufferMemoryBarrier"; break;
+			    case (le::CommandType::eSetLineWidth): os << "eSetLineWidth"; break;
+			    case (le::CommandType::eSetViewport): os << "eSetViewport"; break;
+			    case (le::CommandType::eSetScissor): os << "eSetScissor"; break;
+			    case (le::CommandType::eBindArgumentBuffer): os << "eBindArgumentBuffer"; break;
+			    case (le::CommandType::eSetArgumentTexture): os << "eSetArgumentTexture"; break;
+			    case (le::CommandType::eSetArgumentImage): os << "eSetArgumentImage"; break;
+			    case (le::CommandType::eBindIndexBuffer): os << "eBindIndexBuffer"; break;
+			    case (le::CommandType::eBindVertexBuffers): os << "eBindVertexBuffers"; break;
+			    case (le::CommandType::eBindGraphicsPipeline): os << "eBindGraphicsPipeline"; break;
+			    case (le::CommandType::eBindComputePipeline): os << "eBindComputePipeline"; break;
+			    case (le::CommandType::eWriteToBuffer): os << "eWriteToBuffer"; break;
+                case (le::CommandType::eBindRtxPipeline): os << "eBindRtxPipeline" ; break;
+                case (le::CommandType::eBuildRtxTlas): os << "eBuildRtxTlas"; break;
+                case (le::CommandType::eBuildRtxBlas): os << "eBuildRtxBlas"; break;
+			    case (le::CommandType::eWriteToImage): os << "eWriteToImage"; break;
+                case(le::CommandType::eDrawMeshTasks): os << "eDrawMeshTasks"; break;
+                case(le::CommandType::eTraceRays): os << "eTraceRays"; break;
+                case(le::CommandType::eSetArgumentTlas): os << "eSetArgumentTlas"; break;
 			}
 	// clang-format on
 
 	if ( cmd_header->info.type == le::CommandType::eBindGraphicsPipeline ) {
 		auto le_cmd = static_cast<le::CommandBindGraphicsPipeline *>( cmd );
-		std::cout << " [" << std::hex << le_cmd->info.gpsoHandle << "]";
+		os << " [" << std::hex << le_cmd->info.gpsoHandle << "]";
 	}
 
-	std::cout << std::endl
-	          << std::flush;
+	logger.info( "%s", os.str().c_str() );
 };
 
 // ----------------------------------------------------------------------
@@ -4292,13 +4288,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		if ( pass.encoder ) {
 			encoder_i.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
 		} else {
-
 			// This is legit behaviour for draw passes which are used only to clear attachments,
 			// in which case they don't need to include any draw commands.
-
-			// assert( false );
-			//std::cout << "WARNING: pass '" << pass.debugName << "' does not have valid encoder." << std::endl
-			//          << std::flush;
 		}
 
 		if ( commandStream != nullptr && numCommands > 0 ) {
