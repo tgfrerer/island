@@ -13,7 +13,7 @@ struct le_file_watcher_o;
 
 struct le_file_watcher_watch_settings {
 	const char *filePath                                             = nullptr;
-	bool ( *callback_fun )( const char *file_path, void *user_data ) = nullptr;
+	void ( *callback_fun )( const char *file_path, void *user_data ) = nullptr;
 	void *callback_user_data                                         = nullptr;
 };
 

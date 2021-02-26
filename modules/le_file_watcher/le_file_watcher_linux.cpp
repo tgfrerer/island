@@ -28,7 +28,7 @@ struct Watch {
 	std::string        filename;
 	std::string        basename;
 	void *             callback_user_data = nullptr;
-	bool ( *callback_fun )( const char *path, void *user_data );
+	void ( *callback_fun )( const char *path, void *user_data );
 };
 
 // ----------------------------------------------------------------------

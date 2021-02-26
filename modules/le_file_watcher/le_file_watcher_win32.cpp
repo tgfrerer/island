@@ -43,7 +43,7 @@ struct watch_data_t {
 	std::string basename;
 	int         handle             = -1; // per-file_watcher unique handle
 	void *      callback_user_data = nullptr;
-	bool ( *callback_fun )( const char *path, void *user_data );
+	void ( *callback_fun )( const char *path, void *user_data );
 };
 
 // ----------------------------------------------------------------------

@@ -220,6 +220,10 @@ struct le_backend_vk_api {
 		LeShaderStageEnum ( * get_stage                  ) ( le_shader_module_o* module );
 	};
 
+	struct private_shader_file_watcher_interface_t {
+		void * on_callback_addr;
+	};
+
 	// clang-format on
 
 	allocator_linear_interface_t    le_allocator_linear_i;
@@ -230,7 +234,8 @@ struct le_backend_vk_api {
 	shader_module_interface_t       le_shader_module_i;
 	staging_allocator_interface_t   le_staging_allocator_i;
 
-	private_backend_vk_interface_t private_backend_vk_i;
+	private_backend_vk_interface_t          private_backend_vk_i;
+	private_shader_file_watcher_interface_t private_shader_file_watcher_i;
 };
 
 LE_MODULE( le_backend_vk );

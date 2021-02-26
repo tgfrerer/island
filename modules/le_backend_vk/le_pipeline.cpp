@@ -386,6 +386,15 @@ static void le_pipeline_cache_flag_affected_modules_for_source_path( le_shader_m
 };
 
 // ----------------------------------------------------------------------
+static void le_shader_file_watcher_on_callback( const char *path, void *user_data ) {
+	auto shader_manager = static_cast<le_shader_manager_o *>( user_data );
+	// call a method on backend to tell it that the file path has changed.
+	// backend to figure out which modules are affected.
+	static auto logger = LeLog( LOGGER_LABEL );
+	logger.info( "Callback triggered for path %s", path );
+	le_pipeline_cache_flag_affected_modules_for_source_path( shader_manager, path );
+}
+// ----------------------------------------------------------------------
 
 static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shader_manager_o *self, le_shader_module_o *module, std::set<std::string> &sourcePaths ) {
 
@@ -403,13 +412,7 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
 			le_file_watcher_watch_settings settings;
 			settings.filePath           = s.c_str();
 			settings.callback_user_data = self;
-			settings.callback_fun       = []( const char *path, void *user_data ) -> bool {
-                auto shader_manager = static_cast<le_shader_manager_o *>( user_data );
-                // call a method on backend to tell it that the file path has changed.
-                // backend to figure out which modules are affected.
-                le_pipeline_cache_flag_affected_modules_for_source_path( shader_manager, path );
-                return true;
-			};
+			settings.callback_fun       = ( void ( * )( char const *, void * ) )( le_core_forward_callback( le_backend_vk_api_i->private_shader_file_watcher_i.on_callback_addr ) );
 			le_file_watcher::le_file_watcher_i.add_watch( self->shaderFileWatcher, &settings );
 		}
 
@@ -2166,5 +2169,11 @@ void register_le_pipeline_vk_api( void *api_ ) {
 		auto &i     = le_backend_vk_api_i->le_shader_module_i;
 		i.get_hash  = le_shader_module_get_hash;
 		i.get_stage = le_shader_module_get_stage;
+	}
+	{
+		// Store callback address with api so that callback gets automatically forwarded to the correct
+		// address when backend reloads : see le_core.h / callback forwarding
+		auto &i            = le_backend_vk_api_i->private_shader_file_watcher_i;
+		i.on_callback_addr = ( void * )le_shader_file_watcher_on_callback;
 	}
 }
