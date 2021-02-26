@@ -93,17 +93,12 @@ static le_command_buffer_encoder_o *cbe_create( le_allocator_o **allocator, le_p
 	self->pipelineManager  = pipelineManager;
 	self->stagingAllocator = stagingAllocator;
 	self->extent           = extent;
-	//	std::cout << "encoder create : " << std::hex << self << std::endl
-	//	          << std::flush;
 	return self;
 };
 
 // ----------------------------------------------------------------------
 
 static void cbe_destroy( le_command_buffer_encoder_o *self ) {
-	//	std::cout << "encoder destroy: " << std::hex << self << std::endl
-	//	          << std::flush;
-
 	for ( auto sbt : self->shader_binding_tables ) {
 		delete ( sbt );
 	}
