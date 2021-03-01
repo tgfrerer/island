@@ -1096,15 +1096,15 @@ static le_shader_module_o *le_shader_manager_create_shader_module( le_shader_man
 // called via decoder / produce_frame -
 static vk::PipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_manager_o *self, le_shader_module_o const *const *shader_modules, size_t numModules ) {
 
-	uint64_t pipelineLayoutHash = shader_modules_get_pipeline_layout_hash( shader_modules, numModules );
+	static auto logger             = LeLog( LOGGER_LABEL );
+	uint64_t    pipelineLayoutHash = shader_modules_get_pipeline_layout_hash( shader_modules, numModules );
 
 	auto foundLayout = self->pipelineLayouts.try_find( pipelineLayoutHash );
 
 	if ( foundLayout ) {
 		return *foundLayout;
 	} else {
-		std::cerr << "ERROR: Could not find pipeline layout with hash: " << std::hex << pipelineLayoutHash << std::endl
-		          << std::flush;
+		logger.error( "Could not find pipeline layout with hash: %x", pipelineLayoutHash );
 		assert( false );
 		return nullptr;
 	}
