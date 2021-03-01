@@ -491,8 +491,8 @@ static le_gpso_handle le_graphics_pipeline_builder_build( le_graphics_pipeline_b
 			                                 hash_value );
 		}
 
-		// Cast hash_value to a pipeline handle, so we can use the type system with it
-		// its value, of course, is still equivalent to hash_value.
+		// Cast hash_value to a pipeline handle, so we can use the type system with it.
+		// Its value, of course, is still equivalent to hash_value.
 
 		pipeline_handle = reinterpret_cast<le_gpso_handle>( hash_value );
 

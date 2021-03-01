@@ -23,9 +23,9 @@ static constexpr auto LOGGER_LABEL = "le_pipeline";
 
 struct le_shader_module_o {
 	uint64_t                                         hash                = 0;     ///< hash taken from spirv code + hash_shader_defines
-	std::string                                      macro_defines       = "";    ///< #defines to pass to shader compiler
 	uint64_t                                         hash_shader_defines = 0;     ///< hash taken from shader defines string
 	uint64_t                                         hash_pipelinelayout = 0;     ///< hash taken from descriptors over all sets
+	std::string                                      macro_defines       = "";    ///< #defines to pass to shader compiler
 	std::vector<le_shader_binding_info>              bindings;                    ///< info for each binding, sorted asc.
 	std::vector<uint32_t>                            spirv    = {};               ///< spirv source code for this module
 	std::filesystem::path                            filepath = {};               ///< path to source file
