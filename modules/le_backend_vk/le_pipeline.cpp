@@ -200,6 +200,8 @@ struct le_pipeline_manager_o {
 	le_device_o *le_device = nullptr; // arc-owning, increases reference count, decreases on destruction
 	vk::Device   device    = nullptr;
 
+	std::mutex mtx;
+
 	vk::PipelineCache vulkanCache = nullptr;
 
 	le_shader_manager_o *shaderManager = nullptr; // owning: does it make sense to have a shader manager additionally to the pipeline manager?
@@ -1758,7 +1760,12 @@ static inline bool le_pipeline_manager_get_pipeline_layout_info(
 //
 // + NOTE: Access to this method must be sequential - no two frames may access this method
 //   at the same time - and no two renderpasses may access this method at the same time.
-static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeline( le_pipeline_manager_o *self, le_gpso_handle gpso_handle, const LeRenderPass &pass, uint32_t subpass ) {
+static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeline(
+    le_pipeline_manager_o *self,
+    le_gpso_handle         gpso_handle,
+    const LeRenderPass &pass, uint32_t subpass ) {
+
+	auto lock = std::unique_lock( self->mtx ); // Enforce sequentiality via scoped lock: no two renderpasses may access cache concurrently.
 
 	static auto                   logger                   = LeLog( LOGGER_LABEL );
 	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
