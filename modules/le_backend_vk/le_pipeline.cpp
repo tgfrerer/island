@@ -22,10 +22,9 @@
 static constexpr auto LOGGER_LABEL = "le_pipeline";
 
 struct le_shader_module_o {
-	uint64_t                                         hash                = 0;     ///< hash taken from spirv code + hash_file_path + hash_shader_defines
-	uint64_t                                         hash_file_path      = 0;     ///< hash taken from filepath (canonical)
+	uint64_t                                         hash                = 0;     ///< hash taken from spirv code + hash_shader_defines
 	std::string                                      macro_defines       = "";    ///< #defines to pass to shader compiler
-	uint64_t                                         hash_shader_defines = 0;     /// hash taken from shader defines string
+	uint64_t                                         hash_shader_defines = 0;     ///< hash taken from shader defines string
 	uint64_t                                         hash_pipelinelayout = 0;     ///< hash taken from descriptors over all sets
 	std::vector<le_shader_binding_info>              bindings;                    ///< info for each binding, sorted asc.
 	std::vector<uint32_t>                            spirv    = {};               ///< spirv source code for this module
@@ -203,7 +202,7 @@ struct le_pipeline_manager_o {
 
 	vk::PipelineCache vulkanCache = nullptr;
 
-	le_shader_manager_o *shaderManager = nullptr; // owning
+	le_shader_manager_o *shaderManager = nullptr; // owning: does it make sense to have a shader manager additionally to the pipeline manager?
 
 	HashTable<le_gpso_handle, graphics_pipeline_state_o> graphicsPso;
 	HashTable<le_cpso_handle, compute_pipeline_state_o>  computePso;
@@ -888,14 +887,10 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o *self, l
 		return;
 	}
 
-	module->hash_file_path      = SpookyHash::Hash64( module->filepath.string().data(), module->filepath.string().size(), 0 );
 	module->hash_shader_defines = SpookyHash::Hash64( module->macro_defines.data(), module->macro_defines.size(), 0 );
 
 	// -- check spirv code hash against module spirv hash
-	uint64_t path_and_shader_defines_hash_data[ 2 ] = { module->hash_file_path, module->hash_shader_defines };
-	uint64_t path_and_shader_defines_hash           = SpookyHash::Hash64( path_and_shader_defines_hash_data, sizeof( path_and_shader_defines_hash_data ), 0 );
-
-	uint64_t hash_of_module = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), path_and_shader_defines_hash );
+	uint64_t hash_of_module = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module->hash_shader_defines );
 
 	if ( hash_of_module == module->hash ) {
 		// spirv code identical, no update needed, bail out.
@@ -1047,13 +1042,8 @@ static le_shader_module_o *le_shader_manager_create_shader_module( le_shader_man
 	module->filepath      = canonical_path_as_string;
 	module->macro_defines = macro_defines;
 
-	module->hash_file_path      = SpookyHash::Hash64( module->filepath.string().data(), module->filepath.string().size(), 0 );
 	module->hash_shader_defines = SpookyHash::Hash64( module->macro_defines.data(), module->macro_defines.size(), 0 );
-
-	uint64_t path_and_shader_defines_hash_data[ 2 ] = { module->hash_file_path, module->hash_shader_defines };
-	uint64_t path_and_shader_defines_hash           = SpookyHash::Hash64( path_and_shader_defines_hash_data, sizeof( path_and_shader_defines_hash_data ), 0 );
-
-	module->hash = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), path_and_shader_defines_hash );
+	module->hash                = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module->hash_shader_defines );
 
 	{
 		// -- Check if module is already present in render module cache.
