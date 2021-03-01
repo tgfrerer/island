@@ -1721,14 +1721,12 @@ static le_pipeline_layout_info le_pipeline_cache_produce_pipeline_layout_info( l
 
 // ----------------------------------------------------------------------
 
-static inline bool le_pipeline_manager_get_pipeline_layout_info(
+static inline void le_pipeline_manager_produce_pipeline_layout_info(
     le_pipeline_manager_o *          self,
     le_shader_module_o const *const *shader_modules,
     size_t                           shader_modules_count,
     le_pipeline_layout_info *        pipeline_layout_info,
     uint64_t *                       pipeline_layout_hash ) {
-
-	bool result = false;
 
 	// Fetch the hash over the pipeline layout. Since there is only one shader
 	// stage for compute, we can take it straight from that stage without
@@ -1746,8 +1744,6 @@ static inline bool le_pipeline_manager_get_pipeline_layout_info(
 		bool result = self->pipelineLayoutInfos.try_insert( *pipeline_layout_hash, pipeline_layout_info );
 		assert( result && "pipeline layout info insertion must succeed" );
 	}
-
-	return result;
 }
 
 // ----------------------------------------------------------------------
@@ -1778,8 +1774,8 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeli
 	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
 
 	uint64_t pipeline_layout_hash{};
-	le_pipeline_manager_get_pipeline_layout_info( self, pso->shaderStages.data(), pso->shaderStages.size(),
-	                                              &pipeline_and_layout_info.layout_info, &pipeline_layout_hash );
+	le_pipeline_manager_produce_pipeline_layout_info( self, pso->shaderStages.data(), pso->shaderStages.size(),
+	                                                  &pipeline_and_layout_info.layout_info, &pipeline_layout_hash );
 
 	// -- 2. get vk pipeline object
 	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
@@ -1962,7 +1958,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipelin
 	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
 	uint64_t                      pipeline_layout_hash{};
 
-	le_pipeline_manager_get_pipeline_layout_info( self, &pso->shaderStage, 1, &pipeline_and_layout_info.layout_info, &pipeline_layout_hash );
+	le_pipeline_manager_produce_pipeline_layout_info( self, &pso->shaderStage, 1, &pipeline_and_layout_info.layout_info, &pipeline_layout_hash );
 
 	// -- Get vk pipeline object
 	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
