@@ -413,7 +413,7 @@ static void le_shader_file_watcher_on_callback( const char *path, void *user_dat
 	// call a method on backend to tell it that the file path has changed.
 	// backend to figure out which modules are affected.
 	static auto logger = LeLog( LOGGER_LABEL );
-	logger.info( "Callback triggered for path %s", path );
+	logger.info( "Source file update detected: '%s'", path );
 	le_pipeline_cache_flag_affected_modules_for_source_path( shader_manager, path );
 }
 // ----------------------------------------------------------------------
