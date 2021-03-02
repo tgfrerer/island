@@ -77,7 +77,7 @@ inline uint32_t hash_32_fnv1a( char const *const input ) noexcept {
 #endif
 
 // ----------------------------------------------------------------------
-// Returns itself value of key as hash value; useful if you
+// Returns value of key itself as hash value; useful if you
 // want to enforce key and hash value to be identical.
 struct IdentityHash {
 	auto const &operator()( const uint64_t &key_ ) const noexcept {
