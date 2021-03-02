@@ -18,6 +18,8 @@ struct le_pipeline_manager_o;
 struct le_allocator_o;         // from backend
 struct le_staging_allocator_o; // from backend
 
+LE_OPAQUE_HANDLE( le_shader_module_handle );
+
 struct le_shader_binding_table_o;
 
 // clang-format off
@@ -28,7 +30,7 @@ struct le_renderer_api {
 		void                           ( *destroy                               )( le_renderer_o *obj );
 		void                           ( *setup                                 )( le_renderer_o *obj, le_renderer_settings_t const & settings );
 		void                           ( *update                                )( le_renderer_o *obj, le_render_module_o *module );
-        le_shader_module_o*            ( *create_shader_module                  )( le_renderer_o *self, char const *path, const LeShaderStageEnum& mtype, char const * macro_definitions );
+        le_shader_module_handle        ( *create_shader_module                  )( le_renderer_o *self, char const *path, const LeShaderStageEnum& mtype, char const * macro_definitions , uint64_t shader_module_key);
 
 		/// returns the image resource handle for a swapchain at given index
 		uint32_t                       ( *get_swapchain_count                   )( le_renderer_o* self);
@@ -236,8 +238,8 @@ class Renderer {
 		le_renderer::renderer_i.update( self, module );
 	}
 
-	le_shader_module_o *createShaderModule( char const *path, const le::ShaderStage &moduleType, char const *macro_definitions = nullptr ) const {
-		return le_renderer::renderer_i.create_shader_module( self, path, { moduleType }, macro_definitions );
+	le_shader_module_handle createShaderModule( char const *path, const le::ShaderStage &moduleType, char const *macro_definitions = nullptr, uint64_t shader_module_key = 0 ) const {
+		return le_renderer::renderer_i.create_shader_module( self, path, { moduleType }, macro_definitions, shader_module_key );
 	}
 
 	uint32_t getSwapchainCount() const {

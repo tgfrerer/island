@@ -1,5 +1,6 @@
 #include "le_pipeline_builder.h"
 #include "le_core/le_core.h"
+#include "le_log/le_log.h"
 
 #include "3rdparty/src/spooky/SpookyV2.h"
 
@@ -11,6 +12,8 @@
 #include <array>
 #include <vector>
 #include <mutex>
+
+static constexpr auto LOGGER_LABEL = "le_pipeline_builder";
 
 /*
 
@@ -97,23 +100,15 @@ static void le_compute_pipeline_builder_destroy( le_compute_pipeline_builder_o *
 // The handle contains the hash value and is unique for pipeline
 // state objects with given settings.
 static le_cpso_handle le_compute_pipeline_builder_build( le_compute_pipeline_builder_o *self ) {
-
-	le_cpso_handle pipeline_handle = {};
 	using namespace le_backend_vk;
-
-	uint64_t hash_value = le_shader_module_i.get_hash( self->obj->shaderStage );
-	pipeline_handle     = reinterpret_cast<le_cpso_handle>( hash_value );
-
-	// Introduce pipeline state object to manager so that it may be cached.
-
-	le_pipeline_manager_i.introduce_compute_pipeline_state( self->pipelineCache, self->obj, pipeline_handle );
-
+	le_cpso_handle pipeline_handle;
+	le_pipeline_manager_i.introduce_compute_pipeline_state( self->pipelineCache, self->obj, &pipeline_handle );
 	return pipeline_handle;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_compute_pipeline_builder_set_shader_stage( le_compute_pipeline_builder_o *self, le_shader_module_o *shaderModule ) {
+static void le_compute_pipeline_builder_set_shader_stage( le_compute_pipeline_builder_o *self, le_shader_module_handle shaderModule ) {
 	assert( self->obj );
 	if ( self->obj ) {
 		self->obj->shaderStage = shaderModule;
@@ -141,7 +136,7 @@ static void le_rtx_pipeline_builder_destroy( le_rtx_pipeline_builder_o *self ) {
 // ----------------------------------------------------------------------
 // Adds shader module to pso if not yet encountered
 // returns index into shader modules for this module
-static uint32_t rtx_pipeline_builder_add_shader_module( le_rtx_pipeline_builder_o *self, le_shader_module_o *shaderModule ) {
+static uint32_t rtx_pipeline_builder_add_shader_module( le_rtx_pipeline_builder_o *self, le_shader_module_handle shaderModule ) {
 	assert( self->obj );
 
 	if ( nullptr == shaderModule ) {
@@ -165,7 +160,7 @@ static uint32_t rtx_pipeline_builder_add_shader_module( le_rtx_pipeline_builder_
 }
 // ----------------------------------------------------------------------
 
-void le_rtx_pipeline_builder_set_shader_group_ray_gen( le_rtx_pipeline_builder_o *self, le_shader_module_o *raygen_shader ) {
+void le_rtx_pipeline_builder_set_shader_group_ray_gen( le_rtx_pipeline_builder_o *self, le_shader_module_handle raygen_shader ) {
 	assert( raygen_shader && "must specify ray gen shader" );
 	le_rtx_shader_group_info info{};
 	info.type             = le::RayTracingShaderGroupType::eRayGen;
@@ -173,7 +168,7 @@ void le_rtx_pipeline_builder_set_shader_group_ray_gen( le_rtx_pipeline_builder_o
 	self->obj->shaderGroups.emplace_back( info );
 }
 
-void le_rtx_pipeline_builder_add_shader_group_miss( le_rtx_pipeline_builder_o *self, le_shader_module_o *miss_shader ) {
+void le_rtx_pipeline_builder_add_shader_group_miss( le_rtx_pipeline_builder_o *self, le_shader_module_handle miss_shader ) {
 	assert( miss_shader && "must specify miss shader" );
 	le_rtx_shader_group_info info{};
 	info.type             = le::RayTracingShaderGroupType::eMiss;
@@ -181,7 +176,7 @@ void le_rtx_pipeline_builder_add_shader_group_miss( le_rtx_pipeline_builder_o *s
 	self->obj->shaderGroups.emplace_back( info );
 }
 
-void le_rtx_pipeline_builder_add_shader_group_callable( le_rtx_pipeline_builder_o *self, le_shader_module_o *callable_shader ) {
+void le_rtx_pipeline_builder_add_shader_group_callable( le_rtx_pipeline_builder_o *self, le_shader_module_handle callable_shader ) {
 	assert( callable_shader && "must specify callable shader" );
 	le_rtx_shader_group_info info{};
 	info.type             = le::RayTracingShaderGroupType::eCallable;
@@ -189,7 +184,7 @@ void le_rtx_pipeline_builder_add_shader_group_callable( le_rtx_pipeline_builder_
 	self->obj->shaderGroups.emplace_back( info );
 }
 
-void le_rtx_pipeline_builder_add_shader_group_triangle_hit( le_rtx_pipeline_builder_o *self, le_shader_module_o *maybe_closest_hit_shader, le_shader_module_o *maybe_any_hit_shader ) {
+void le_rtx_pipeline_builder_add_shader_group_triangle_hit( le_rtx_pipeline_builder_o *self, le_shader_module_handle maybe_closest_hit_shader, le_shader_module_handle maybe_any_hit_shader ) {
 	assert( ( maybe_any_hit_shader || maybe_closest_hit_shader ) && "must specify at least one of closet hit or any hit shader" );
 	le_rtx_shader_group_info info{};
 	info.type                = le::RayTracingShaderGroupType::eTrianglesHitGroup;
@@ -198,7 +193,7 @@ void le_rtx_pipeline_builder_add_shader_group_triangle_hit( le_rtx_pipeline_buil
 	self->obj->shaderGroups.emplace_back( info );
 }
 
-void le_rtx_pipeline_builder_add_shader_group_procedural_hit( le_rtx_pipeline_builder_o *self, le_shader_module_o *intersection_shader, le_shader_module_o *maybe_closest_hit_shader, le_shader_module_o *maybe_any_hit_shader ) {
+void le_rtx_pipeline_builder_add_shader_group_procedural_hit( le_rtx_pipeline_builder_o *self, le_shader_module_handle intersection_shader, le_shader_module_handle maybe_closest_hit_shader, le_shader_module_handle maybe_any_hit_shader ) {
 	assert( intersection_shader && "must specify intersection shader" );
 	le_rtx_shader_group_info info{};
 	info.type                  = le::RayTracingShaderGroupType::eProceduralHitGroup;
@@ -219,44 +214,10 @@ static le_rtxpso_handle le_rtx_pipeline_builder_build( le_rtx_pipeline_builder_o
 	le_rtxpso_handle pipeline_handle = {};
 
 	using namespace le_backend_vk;
-	{
-		// Calculate hash over all pipeline stages,
-		// and pipeline shader group infos
-
-		uint64_t hash_value{};
-
-		// calculate hash over all shader module hashes.
-
-		std::vector<uint64_t> shader_module_hashes;
-
-		shader_module_hashes.reserve( self->obj->shaderStages.size() );
-		for ( auto const &shader_stage : self->obj->shaderStages ) {
-			shader_module_hashes.emplace_back( le_shader_module_i.get_hash( shader_stage ) );
-		}
-
-		hash_value = SpookyHash::Hash64(
-		    shader_module_hashes.data(),
-		    shader_module_hashes.size() * sizeof( uint64_t ),
-		    hash_value );
-
-		static_assert( std::has_unique_object_representations_v<le_rtx_shader_group_info>,
-		               "shader group create info must be tightly packed, so that it may be used"
-		               "for hashing. Otherwise you would end up with noise between the fields"
-		               "invalidating the hash." );
-
-		if ( !self->obj->shaderGroups.empty() ) {
-			hash_value = SpookyHash::Hash64(
-			    self->obj->shaderGroups.data(),
-			    sizeof( le_rtx_shader_group_info ) * self->obj->shaderGroups.size(),
-			    hash_value );
-		}
-
-		pipeline_handle = reinterpret_cast<le_rtxpso_handle>( hash_value );
-	}
 
 	// Introduce pipeline state object to manager so that it may be cached.
 
-	le_pipeline_manager_i.introduce_rtx_pipeline_state( self->pipelineCache, self->obj, pipeline_handle );
+	le_pipeline_manager_i.introduce_rtx_pipeline_state( self->pipelineCache, self->obj, &pipeline_handle );
 
 	return pipeline_handle;
 }
@@ -448,65 +409,14 @@ static void le_graphics_pipeline_builder_destroy( le_graphics_pipeline_builder_o
 // Return pipeline hash
 static le_gpso_handle le_graphics_pipeline_builder_build( le_graphics_pipeline_builder_o *self ) {
 
-	le_gpso_handle pipeline_handle = {};
-
-	{
-		constexpr size_t hash_msg_size = sizeof( le_graphics_pipeline_builder_data );
-		uint64_t         hash_value    = SpookyHash::Hash64( &self->obj->data, hash_msg_size, 0 );
-		// Calculate a meta-hash over shader stage hash entries so that we can
-		// detect if a shader component has changed
-		//
-		// Rather than a std::vector, we use a plain-c array to collect hash entries
-		// for all stages, because we don't want to allocate anything on the heap,
-		// and local fixed-size c-arrays are cheap.
-
-		constexpr size_t maxShaderStages = 8;                 // we assume a maximum number of shader entries
-		uint64_t         stageHashEntries[ maxShaderStages ]; // array of stage hashes for further hashing
-		uint64_t         stageHashEntriesUsed = 0;            // number of used shader stage hash entries
-
-		for ( auto const &module : self->obj->shaderStages ) {
-			using namespace le_backend_vk;
-			stageHashEntries[ stageHashEntriesUsed++ ] = le_shader_module_i.get_hash( module );
-			assert( stageHashEntriesUsed <= maxShaderStages ); // We're gonna need a bigger boat.
-		}
-
-		// Mix in the meta-hash over shader stages with the previous hash over pipeline state
-		// which gives the complete hash representing a pipeline state object.
-
-		hash_value = SpookyHash::Hash64( stageHashEntries, stageHashEntriesUsed * sizeof( uint64_t ), hash_value );
-
-		// -- If pipeline has explicit attribute binding stages that must be factored in with the hash.
-
-		static_assert( std::has_unique_object_representations_v<le_vertex_input_binding_description>,
-		               "vertex input binding descriptrion must be tightly packed, so that it "
-		               "may be hashed (any padding will invalidate hash)." );
-
-		if ( !self->obj->explicitVertexInputBindingDescriptions.empty() ) {
-			hash_value = SpookyHash::Hash64( self->obj->explicitVertexInputBindingDescriptions.data(),
-			                                 self->obj->explicitVertexInputBindingDescriptions.size() * sizeof( le_vertex_input_binding_description ),
-			                                 hash_value );
-
-			hash_value = SpookyHash::Hash64( self->obj->explicitVertexAttributeDescriptions.data(),
-			                                 self->obj->explicitVertexAttributeDescriptions.size() * sizeof( le_vertex_input_attribute_description ),
-			                                 hash_value );
-		}
-
-		// Cast hash_value to a pipeline handle, so we can use the type system with it.
-		// Its value, of course, is still equivalent to hash_value.
-
-		pipeline_handle = reinterpret_cast<le_gpso_handle>( hash_value );
-
-		assert( ( uint64_t )pipeline_handle == hash_value );
-	}
-
-	// Add pipeline state object to the shared store
+	le_gpso_handle pipeline_handle;
 
 	// Note that the pipeline_manager makes a copy of the pso object before returning
 	// from `introduce_graphics_pipeline_state` if it wants to keep it, which means
 	// we don't have to worry about keeping self->obj alife.
 
 	using namespace le_backend_vk;
-	le_pipeline_manager_i.introduce_graphics_pipeline_state( self->pipelineCache, self->obj, pipeline_handle );
+	le_pipeline_manager_i.introduce_graphics_pipeline_state( self->pipelineCache, self->obj, &pipeline_handle );
 
 	return pipeline_handle;
 }
@@ -516,25 +426,29 @@ static le_gpso_handle le_graphics_pipeline_builder_build( le_graphics_pipeline_b
 //
 // If shader module with the given shader stage already exists in pso,
 // overwrite old entry, otherwise add new shader module.
-static void le_graphics_pipeline_builder_add_shader_stage( le_graphics_pipeline_builder_o *self, struct le_shader_module_o *shaderModule ) {
+static void le_graphics_pipeline_builder_add_shader_stage( le_graphics_pipeline_builder_o *self, le_shader_module_handle shaderModule ) {
+
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	using namespace le_backend_vk;
 
-	auto givenShaderStage = le_shader_module_i.get_stage( shaderModule );
+	auto givenShaderStage = le_shader_module_i.get_stage( self->pipelineCache, shaderModule );
 
-	bool wasInserted = false;
-	for ( auto &s : self->obj->shaderStages ) {
-		if ( givenShaderStage == le_shader_module_i.get_stage( s ) ) {
-			// PSO has a previous module which refers to the same shader stage as our given shaderModule.
-			// We need to overwrite the shader module pointer with the given pointer.
-			s           = shaderModule;
-			wasInserted = true;
+	size_t i = 0;
+	for ( ; i != self->obj->shaderStagePerModule.size(); i++ ) {
+		if ( givenShaderStage == self->obj->shaderStagePerModule[ i ] ) {
+			// This pipeline builder has already had a shader for the given stage.
+			// we must warn about this.
+			self->obj->shaderModules[ i ] = shaderModule;
+			logger.warn( "Overwriting shader stage for shader module %x", shaderModule );
+			break;
 		}
 	}
 
 	// No entry for such shader stage yet, we add a new shader module
-	if ( false == wasInserted ) {
-		self->obj->shaderStages.push_back( shaderModule );
+	if ( i == self->obj->shaderStagePerModule.size() ) {
+		self->obj->shaderModules.push_back( shaderModule );
+		self->obj->shaderStagePerModule.push_back( givenShaderStage );
 	}
 }
 

@@ -19,7 +19,7 @@ struct le_staging_allocator_o;
 struct le_resource_handle_t; // defined in renderer_types
 
 struct le_pipeline_manager_o;
-struct le_shader_module_o;
+//struct le_shader_module_o;
 
 struct graphics_pipeline_state_o; // for le_pipeline_builder
 struct compute_pipeline_state_o;  // for le_pipeline_builder
@@ -28,6 +28,7 @@ struct rtx_pipeline_state_o;      // for le_pipeline_builder
 LE_OPAQUE_HANDLE( le_gpso_handle );
 LE_OPAQUE_HANDLE( le_cpso_handle );
 LE_OPAQUE_HANDLE( le_rtxpso_handle );
+LE_OPAQUE_HANDLE( le_shader_module_handle );
 
 LE_OPAQUE_HANDLE( le_rtx_blas_info_handle ); // handle for backend-managed rtx bottom level acceleration info
 LE_OPAQUE_HANDLE( le_rtx_tlas_info_handle ); // handle for backend-managed rtx top level acceleration info
@@ -103,7 +104,7 @@ struct le_backend_vk_api {
 		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex);
 		le_staging_allocator_o*( *get_staging_allocator      ) ( le_backend_o* self, size_t frameIndex);
 
-		le_shader_module_o*    ( *create_shader_module       ) ( le_backend_o* self, char const * path, const LeShaderStageEnum& moduleType, char const * macro_definitions);
+		le_shader_module_handle( *create_shader_module       ) ( le_backend_o* self, char const * path, const LeShaderStageEnum& moduleType, char const * macro_definitions, uint64_t shader_module_key);
 		void                   ( *update_shader_modules      ) ( le_backend_o* self );
 
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
@@ -185,16 +186,18 @@ struct le_backend_vk_api {
 		le_pipeline_manager_o*                   ( *create                            ) ( le_device_o * device        );
 		void                                     ( *destroy                           ) ( le_pipeline_manager_o* self );
 
-		bool                                     ( *introduce_graphics_pipeline_state ) ( le_pipeline_manager_o *self, graphics_pipeline_state_o* gpso, le_gpso_handle gpsoHandle);
-		bool                                     ( *introduce_compute_pipeline_state  ) ( le_pipeline_manager_o *self, compute_pipeline_state_o* cpso, le_cpso_handle cpsoHandle);
-		bool                                     ( *introduce_rtx_pipeline_state      ) ( le_pipeline_manager_o *self, rtx_pipeline_state_o* cpso, le_rtxpso_handle cpsoHandle);
+		bool                                     ( *introduce_graphics_pipeline_state ) ( le_pipeline_manager_o *self, graphics_pipeline_state_o* gpso, le_gpso_handle *gpsoHandle);
+		bool                                     ( *introduce_compute_pipeline_state  ) ( le_pipeline_manager_o *self, compute_pipeline_state_o* cpso, le_cpso_handle *cpsoHandle);
+		bool                                     ( *introduce_rtx_pipeline_state      ) ( le_pipeline_manager_o *self, rtx_pipeline_state_o* cpso, le_rtxpso_handle *cpsoHandle);
 
 		le_pipeline_and_layout_info_t            ( *produce_graphics_pipeline         ) ( le_pipeline_manager_o *self, le_gpso_handle gpsoHandle, const LeRenderPass &pass, uint32_t subpass ) ;
 		le_pipeline_and_layout_info_t            ( *produce_rtx_pipeline              ) ( le_pipeline_manager_o *self, le_rtxpso_handle rtxpsoHandle, char ** shader_group_data);
 		le_pipeline_and_layout_info_t            ( *produce_compute_pipeline          ) ( le_pipeline_manager_o *self, le_cpso_handle cpsoHandle);
 
-		le_shader_module_o*                      ( *create_shader_module              ) ( le_pipeline_manager_o* self, char const * path, const LeShaderStageEnum& moduleType, char const *macro_definitions);
+		le_shader_module_handle                  ( *create_shader_module              ) ( le_pipeline_manager_o* self, char const * path, const LeShaderStageEnum& moduleType, char const *macro_definitions, uint64_t shader_module_key);
 		void                                     ( *update_shader_modules             ) ( le_pipeline_manager_o* self );
+
+        bool                                     ( *graphics_pipeline_add_shader_stage )(le_pipeline_manager_o* self, le_gpso_handle gpsoHandle, le_shader_module_handle shader_stage);
 
 		struct VkPipelineLayout_T*               ( *get_pipeline_layout               ) ( le_pipeline_manager_o* self, uint64_t pipeline_layout_key);
 		const struct le_descriptor_set_layout_t* ( *get_descriptor_set_layout         ) ( le_pipeline_manager_o* self, uint64_t setlayout_key);
@@ -216,8 +219,7 @@ struct le_backend_vk_api {
 	};
 
 	struct shader_module_interface_t {
-		uint64_t          ( * get_hash                   ) ( le_shader_module_o* module );
-		LeShaderStageEnum ( * get_stage                  ) ( le_shader_module_o* module );
+		LeShaderStageEnum ( * get_stage ) ( le_pipeline_manager_o* manager, le_shader_module_handle module );
 	};
 
 	struct private_shader_file_watcher_interface_t {

@@ -193,9 +193,9 @@ static void renderer_destroy( le_renderer_o *self ) {
 // ----------------------------------------------------------------------
 /// \brief declare a shader module which can be used to create a pipeline
 /// \returns a shader module handle, or nullptr upon failure
-static le_shader_module_o *renderer_create_shader_module( le_renderer_o *self, char const *path, const LeShaderStageEnum &moduleType, char const *macro_definitions ) {
+static le_shader_module_handle renderer_create_shader_module( le_renderer_o *self, char const *path, const LeShaderStageEnum &moduleType, char const *macro_definitions, uint64_t shader_module_key ) {
 	using namespace le_backend_vk;
-	return vk_backend_i.create_shader_module( self->backend, path, moduleType, macro_definitions );
+	return vk_backend_i.create_shader_module( self->backend, path, moduleType, macro_definitions, shader_module_key );
 }
 
 // ----------------------------------------------------------------------
@@ -664,23 +664,23 @@ static le_resource_info_t get_default_resource_info_for_image() {
 
 	res.type = LeResourceType::eImage;
 	{
-		auto &img             = res.image;
+		auto &img                   = res.image;
 		img                         = {};
-		img.flags             = 0;
-		img.format            = le::Format::eUndefined;
-		img.arrayLayers       = 1;
-		img.extent.width      = 0;
-		img.extent.height     = 0;
-		img.extent.depth      = 1;
+		img.flags                   = 0;
+		img.format                  = le::Format::eUndefined;
+		img.arrayLayers             = 1;
+		img.extent.width            = 0;
+		img.extent.height           = 0;
+		img.extent.depth            = 1;
 		img.extent_from_pass.width  = 0;
 		img.extent_from_pass.height = 0;
 		img.extent_from_pass.depth  = 1;
-		img.usage             = { LE_IMAGE_USAGE_SAMPLED_BIT };
-		img.mipLevels         = 1;
-		img.sample_count_log2 = 0; // 0 means 1, as (1 << 0 == 1)
-		img.imageType         = le::ImageType::e2D;
-		img.tiling            = le::ImageTiling::eOptimal;
-		img.samplesFlags      = 0;
+		img.usage                   = { LE_IMAGE_USAGE_SAMPLED_BIT };
+		img.mipLevels               = 1;
+		img.sample_count_log2       = 0; // 0 means 1, as (1 << 0 == 1)
+		img.imageType               = le::ImageType::e2D;
+		img.tiling                  = le::ImageTiling::eOptimal;
+		img.samplesFlags            = 0;
 	}
 
 	return res;

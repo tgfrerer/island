@@ -21,8 +21,8 @@ constexpr uint8_t VK_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color 
 #define LE_WRAP_ENUM_IN_STRUCT( enum_name, struct_name ) \
 	struct struct_name {                                 \
 		enum_name data;                                  \
-		operator const enum_name &() const {             \
-			return data;                                 \
+		          operator const enum_name &() const {   \
+            return data;                       \
 		}                                                \
 		operator enum_name &() {                         \
 			return data;                                 \
@@ -58,18 +58,21 @@ struct le_graphics_pipeline_builder_data {
 struct graphics_pipeline_state_o {
 	le_graphics_pipeline_builder_data data{};
 
-	std::vector<le_shader_module_o *> shaderStages; // non-owning; refers opaquely to shader modules (or not)
+	bool is_cached = false; // dirty flag- will be set false if any of its modules updates
+
+	std::vector<le_shader_module_handle> shaderModules;        // non-owning; refers opaquely to shader modules (or not)
+	std::vector<le::ShaderStage>         shaderStagePerModule; // refers to shader module handle of same index
 
 	std::vector<le_vertex_input_attribute_description> explicitVertexAttributeDescriptions;    // only used if contains values, otherwise use from vertex shader reflection
 	std::vector<le_vertex_input_binding_description>   explicitVertexInputBindingDescriptions; // only used if contains values, otherwise use from vertex shader reflection
 };
 
 struct compute_pipeline_state_o {
-	le_shader_module_o *shaderStage; // non-owning; refers opaquely to a compute shader module (or not)
+	le_shader_module_handle shaderStage; // non-owning; refers opaquely to a compute shader module (or not)
 };
 
 struct rtx_pipeline_state_o {
-	std::vector<le_shader_module_o *>     shaderStages; // non-owning, refers to a number of shader modules.
+	std::vector<le_shader_module_handle>  shaderStages; // non-owning, refers to a number of shader modules.
 	std::vector<le_rtx_shader_group_info> shaderGroups; // references shader modules from shaderStages by index.
 };
 

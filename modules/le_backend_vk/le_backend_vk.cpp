@@ -5476,9 +5476,9 @@ static void backend_update_shader_modules( le_backend_o *self ) {
 }
 
 // ----------------------------------------------------------------------
-static le_shader_module_o *backend_create_shader_module( le_backend_o *self, char const *path, const LeShaderStageEnum &moduleType, char const *macro_definitions ) {
+static le_shader_module_handle backend_create_shader_module( le_backend_o *self, char const *path, const LeShaderStageEnum &moduleType, char const *macro_definitions, uint64_t shader_module_key ) {
 	using namespace le_backend_vk;
-	return le_pipeline_manager_i.create_shader_module( self->pipelineCache, path, moduleType, macro_definitions );
+	return le_pipeline_manager_i.create_shader_module( self->pipelineCache, path, moduleType, macro_definitions, shader_module_key );
 }
 
 // ----------------------------------------------------------------------
