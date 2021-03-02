@@ -57,9 +57,9 @@ static const char *le_log_level_name( LeLog::Level level ) {
 	case LeLog::Level::eInfo:
 		return "INFO";
 	case LeLog::Level::eWarn:
-		return "WARN";
+		return "\x1b[38;5;220mWARN\x1b[0m   ";
 	case LeLog::Level::eError:
-		return "ERROR";
+		return "\x1b[38;5;209mERROR\x1b[0m  ";
 	}
 	return "";
 }
