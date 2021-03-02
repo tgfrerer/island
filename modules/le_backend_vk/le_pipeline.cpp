@@ -184,12 +184,20 @@ class HashMap : NoCopy, NoMove {
 	}
 };
 
+struct ProtectedModuleDependencies {
+	std::mutex                                                         mtx;
+	std::unordered_map<std::string, std::set<le_shader_module_handle>> moduleDependencies; // map 'canonical shader source file path, watch_id' -> [shader modules]
+	std::unordered_map<std::string, int>                               moduleWatchIds;
+};
+
 struct le_shader_manager_o {
 	vk::Device device = nullptr;
 
-	HashMap<le_shader_module_handle, le_shader_module_o>               shaderModules;         // OWNING. Stores all shader modules used in backend, indexed via shader_module_handle
-	std::unordered_map<std::string, std::set<le_shader_module_handle>> moduleDependencies;    // map 'canonical shader source file path' -> [shader modules]
-	std::set<le_shader_module_handle>                                  modifiedShaderModules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
+	HashMap<le_shader_module_handle, le_shader_module_o> shaderModules; // OWNING. Stores all shader modules used in backend, indexed via shader_module_handle
+
+	ProtectedModuleDependencies protected_module_dependencies; // must lock mutex before using.
+
+	std::set<le_shader_module_handle> modifiedShaderModules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
 
 	le_shader_compiler_o *shader_compiler        = nullptr; // owning
 	le_file_watcher_o *   shaderFileWatcher      = nullptr; // owning
@@ -380,7 +388,9 @@ static void le_pipeline_cache_flag_affected_modules_for_source_path( le_shader_m
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	if ( 0 == self->moduleDependencies.count( shader_source_file_path ) ) {
+	auto lck = std::unique_lock( self->protected_module_dependencies.mtx );
+
+	if ( 0 == self->protected_module_dependencies.moduleDependencies.count( shader_source_file_path ) ) {
 		// -- no matching dependencies.
 		logger.info( "Shader code update detected, but no modules using shader source file: '%s'", shader_source_file_path );
 		return;
@@ -388,7 +398,7 @@ static void le_pipeline_cache_flag_affected_modules_for_source_path( le_shader_m
 
 	// ---------| invariant: at least one module depends on this shader source file.
 
-	auto const &moduleDependencies = self->moduleDependencies[ shader_source_file_path ];
+	auto const &moduleDependencies = self->protected_module_dependencies.moduleDependencies[ shader_source_file_path ];
 
 	// -- add all affected modules to the set of modules which depend on this shader source file.
 
@@ -408,29 +418,67 @@ static void le_shader_file_watcher_on_callback( const char *path, void *user_dat
 }
 // ----------------------------------------------------------------------
 
+// Thread-safety: needs exclusive access to shader_manager->moduleDependencies for full duration
+// We use a lock for this reason.
 static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shader_manager_o *self, le_shader_module_handle module, std::set<std::string> &sourcePaths ) {
 
 	// To be able to tell quickly which modules need to be recompiled if a source file changes,
-	// we build a table from source file -> array of modules
+	// we build map from source file to modules which depend on the source file.
+	//
+	// we do this by, for each new module, we record all its source files, and we store
+	// a reference back to the module.
+	//
 	static auto logger = LeLog( LOGGER_LABEL );
+	auto        lck    = std::unique_lock( self->protected_module_dependencies.mtx );
+
 	for ( const auto &s : sourcePaths ) {
 
 		// If no previous entry for this source path existed, we must insert a watch for this path
 		// the watch will call a backend method which figures out how many modules were affected.
-		if ( 0 == self->moduleDependencies.count( s ) ) {
+		if ( 0 == self->protected_module_dependencies.moduleDependencies.count( s ) ) {
 
 			// this is the first time this file appears on our radar. Let's create a file watcher for it.
 
 			le_file_watcher_watch_settings settings;
-			settings.filePath           = s.c_str();
-			settings.callback_user_data = self;
-			settings.callback_fun       = ( void ( * )( char const *, void * ) )( le_core_forward_callback( le_backend_vk_api_i->private_shader_file_watcher_i.on_callback_addr ) );
-			le_file_watcher::le_file_watcher_i.add_watch( self->shaderFileWatcher, &settings );
+			settings.filePath                                       = s.c_str();
+			settings.callback_user_data                             = self;
+			settings.callback_fun                                   = ( void ( * )( char const *, void * ) )( le_core_forward_callback( le_backend_vk_api_i->private_shader_file_watcher_i.on_callback_addr ) );
+			auto watch_id                                           = le_file_watcher::le_file_watcher_i.add_watch( self->shaderFileWatcher, &settings );
+			self->protected_module_dependencies.moduleWatchIds[ s ] = watch_id;
 		}
 
 		logger.info( "Shader module (%p) : '%s'", module, std::filesystem::relative( s ).c_str() );
 
-		self->moduleDependencies[ s ].insert( module );
+		self->protected_module_dependencies.moduleDependencies[ s ].insert( module );
+	}
+}
+
+// Thread-safety: needs exclusive access to shader_manager->moduleDependencies for full duration.
+// We use a lock for this reason.
+static void le_pipeline_cache_remove_module_from_dependencies( le_shader_manager_o *self, le_shader_module_handle module ) {
+	// iterate over all module dependencies in shader manager, remove the module.
+	// then remove any file watchers which have only zero modules left.
+	auto lck = std::unique_lock( self->protected_module_dependencies.mtx );
+
+	for ( auto d = self->protected_module_dependencies.moduleDependencies.begin();
+	      d != self->protected_module_dependencies.moduleDependencies.end(); ) {
+		// if we find module, we remove it.
+		auto it = d->second.find( module );
+		if ( it != d->second.end() ) {
+			d->second.erase( it );
+		}
+		// if there are no more modules in the entry this means that this file doesn't need to be
+		// watched anymore.
+		if ( d->second.empty() ) {
+			int watch_id = self->protected_module_dependencies.moduleWatchIds[ d->first ];
+			le_file_watcher::le_file_watcher_i.remove_watch( self->shaderFileWatcher, watch_id );
+			// remove watcher handle
+			self->protected_module_dependencies.moduleWatchIds.erase( d->first );
+			// remove file entry
+			d = self->protected_module_dependencies.moduleDependencies.erase( d ); // must do this because we're erasing from within
+		} else {
+			d++;
+		}
 	}
 }
 
@@ -932,6 +980,7 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o *self, l
 	// -- update module hash
 	module->hash = hash_of_module;
 
+	le_pipeline_cache_remove_module_from_dependencies( self, handle );
 	// -- update additional include paths, if necessary.
 	le_pipeline_cache_set_module_dependencies_for_watched_file( self, handle, includesSet );
 
@@ -1116,7 +1165,27 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 	}
 
 	// -- retain module in shader manager
-	self->shaderModules.try_insert( ( le_shader_module_handle & )handle_name, &module );
+	if ( false == self->shaderModules.try_insert( handle, &module ) ) {
+
+		// -- invariant : module could not bei inserted.
+		le_shader_module_o *m = self->shaderModules.try_find( handle );
+
+		if ( nullptr == m ) {
+			logger.warn( "Could not overwrite shader module %p", handle_name );
+			self->device.destroyShaderModule( module.module );
+			return handle;
+		}
+
+		// -- invariant: we found previous shader module
+		le_pipeline_cache_remove_module_from_dependencies( self, handle );
+
+		// we must swap the two shader modules
+		auto old_module = *m;
+		*m              = module;
+
+		// and delete the old module
+		self->device.destroyShaderModule( old_module.module );
+	}
 
 	// -- add all source files for this file to the list of watched
 	//    files that point back to this module
