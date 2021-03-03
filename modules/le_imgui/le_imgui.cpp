@@ -211,8 +211,8 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 
 		// TODO: we should not have to call into backend this way - there must be a way for encoder to
 		// be self-sufficient, i.e. not depend on renderer in any way.
-		static auto imguiVertShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.vert", { le::ShaderStage::eVertex }, "", hash_64_fnv1a_const( "imgui_vert_shader" ) );
-		static auto imguiFragShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.frag", { le::ShaderStage::eFragment }, "", hash_64_fnv1a_const( "imgui_frag_shader" ) );
+		static auto imguiVertShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.vert", { le::ShaderStage::eVertex }, "", LE_SHADER_MODULE_HANDLE( "imgui_vert_shader" ) );
+		static auto imguiFragShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.frag", { le::ShaderStage::eFragment }, "", LE_SHADER_MODULE_HANDLE( "imgui_frag_shader" ) );
 
 		// Attribute input via imGUI:
 		//

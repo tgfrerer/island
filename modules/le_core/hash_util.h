@@ -76,6 +76,9 @@ inline uint32_t hash_32_fnv1a( char const *const input ) noexcept {
 
 #endif
 
+#define LE_SHADER_MODULE_HANDLE( x ) \
+	reinterpret_cast<struct le_shader_module_handle_t *>( hash_64_fnv1a_const( x ) )
+
 // ----------------------------------------------------------------------
 // Returns value of key itself as hash value; useful if you
 // want to enforce key and hash value to be identical.

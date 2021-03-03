@@ -193,9 +193,9 @@ static void renderer_destroy( le_renderer_o *self ) {
 // ----------------------------------------------------------------------
 /// \brief declare a shader module which can be used to create a pipeline
 /// \returns a shader module handle, or nullptr upon failure
-static le_shader_module_handle renderer_create_shader_module( le_renderer_o *self, char const *path, const LeShaderStageEnum &moduleType, char const *macro_definitions, uint64_t shader_module_key ) {
+static le_shader_module_handle renderer_create_shader_module( le_renderer_o *self, char const *path, const LeShaderStageEnum &moduleType, char const *macro_definitions, le_shader_module_handle handle ) {
 	using namespace le_backend_vk;
-	return vk_backend_i.create_shader_module( self->backend, path, moduleType, macro_definitions, shader_module_key );
+	return vk_backend_i.create_shader_module( self->backend, path, moduleType, macro_definitions, handle );
 }
 
 // ----------------------------------------------------------------------

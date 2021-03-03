@@ -1079,8 +1079,8 @@ static void le_shader_manager_destroy( le_shader_manager_o *self ) {
 	delete self;
 }
 
-static uint64_t le_shader_manager_get_next_available_handle( le_shader_manager_o *self ) {
-	return self->modules_count_plus_one++;
+static le_shader_module_handle le_shader_manager_get_next_available_handle( le_shader_manager_o *self ) {
+	return reinterpret_cast<le_shader_module_handle>( self->modules_count_plus_one++ );
 }
 
 // ----------------------------------------------------------------------
@@ -1093,7 +1093,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
     char const *             path,
     const LeShaderStageEnum &moduleType,
     char const *             macro_defines_,
-    uint64_t                 handle_name ) {
+    le_shader_module_handle  handle ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -1101,8 +1101,8 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 
 	// if handle_name == 0, then this means that this module does not have an explicit name,
 	// we will give it a running number from the shader_manager.
-	if ( handle_name == 0 ) {
-		handle_name = le_shader_manager_get_next_available_handle( self );
+	if ( handle == nullptr ) {
+		handle = le_shader_manager_get_next_available_handle( self );
 	}
 
 	bool loadSuccessful = false;
@@ -1113,8 +1113,6 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 		assert( false && "file loading was unsuccessful" );
 		return nullptr;
 	}
-
-	le_shader_module_handle handle = ( le_shader_module_handle & )( handle_name );
 
 	// ---------| invariant: load was successful
 
@@ -1171,7 +1169,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 		le_shader_module_o *m = self->shaderModules.try_find( handle );
 
 		if ( nullptr == m ) {
-			logger.warn( "Could not overwrite shader module %p", handle_name );
+			logger.warn( "Could not overwrite shader module %p", handle );
 			self->device.destroyShaderModule( module.module );
 			return handle;
 		}
@@ -2236,8 +2234,8 @@ static const le_descriptor_set_layout_t *le_pipeline_manager_get_descriptor_set_
 
 // ----------------------------------------------------------------------
 
-static le_shader_module_handle le_pipeline_manager_create_shader_module( le_pipeline_manager_o *self, char const *path, const LeShaderStageEnum &moduleType, char const *macro_definitions, uint64_t shader_module_key ) {
-	return le_shader_manager_create_shader_module( self->shaderManager, path, moduleType, macro_definitions, shader_module_key );
+static le_shader_module_handle le_pipeline_manager_create_shader_module( le_pipeline_manager_o *self, char const *path, const LeShaderStageEnum &moduleType, char const *macro_definitions, le_shader_module_handle handle ) {
+	return le_shader_manager_create_shader_module( self->shaderManager, path, moduleType, macro_definitions, handle );
 }
 
 // ----------------------------------------------------------------------
