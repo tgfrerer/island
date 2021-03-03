@@ -498,6 +498,8 @@ static bool le_shader_compiler_compile_source( le_shader_compiler_o *self, const
                                                le_shader_compilation_result_o *result ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
+	logger.info( "Compiling shader file: '%s'", original_file_path );
+
 	auto shaderKind = convert_to_shaderc_shader_kind( shaderType );
 
 	// Make a copy of compiler options so that we can add callback pointers only for
