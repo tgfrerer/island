@@ -26,8 +26,8 @@ struct font_info_t {
 struct le_font_renderer_o {
 	std::forward_list<font_info_t> fonts_info;
 	std::atomic<size_t>            counter          = {};
-	le_shader_module_o *           shader_font_vert = nullptr;
-	le_shader_module_o *           shader_font_frag = nullptr;
+	le_shader_module_handle        shader_font_vert = nullptr;
+	le_shader_module_handle        shader_font_frag = nullptr;
 };
 
 using draw_string_info_t = le_font_renderer_api::draw_string_info_t;
@@ -39,8 +39,8 @@ le_font_renderer_o *le_font_renderer_create( le_renderer_o *renderer ) {
 
 	using namespace le_renderer;
 
-	self->shader_font_vert = renderer_i.create_shader_module( renderer, "./local_resources/shaders/le_font.vert", { le::ShaderStage::eVertex }, "NO_MVP" );
-	self->shader_font_frag = renderer_i.create_shader_module( renderer, "./local_resources/shaders/le_font.frag", { le::ShaderStage::eFragment }, "" );
+	self->shader_font_vert = renderer_i.create_shader_module( renderer, "./local_resources/shaders/le_font.vert", { le::ShaderStage::eVertex }, "NO_MVP", LE_SHADER_MODULE_HANDLE( "le_font_default_shader_vert" ) );
+	self->shader_font_frag = renderer_i.create_shader_module( renderer, "./local_resources/shaders/le_font.frag", { le::ShaderStage::eFragment }, "", LE_SHADER_MODULE_HANDLE( "le_font_default_shader_frag" ) );
 
 	return self;
 }
