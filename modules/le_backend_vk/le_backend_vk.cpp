@@ -3047,7 +3047,7 @@ static void printResourceInfo( le_resource_handle_t const &handle, ResourceCreat
 	if ( info.isBuffer() ) {
 		logger.info( "% 32s : %11d : %30s : %30s", handle.debug_name, info.bufferInfo.size, "-", to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) ).c_str() );
 	} else if ( info.isImage() ) {
-		logger.info( "% 32s : %4dx%4x%4 : %30s : %30s : %5s samples",
+		logger.info( "% 32s : %4dx%4dx%4d : %30s : %30s : %5s samples",
 		             handle.debug_name,
 		             info.imageInfo.extent.width,
 		             info.imageInfo.extent.height,
