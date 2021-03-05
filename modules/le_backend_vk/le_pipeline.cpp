@@ -1286,6 +1286,14 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description( l
 		case 1: return vk::Format::eR32Uint;
 		}
 	    break;
+	case le_num_type::eULong:
+		switch ( d.vecsize ) {
+		case 4: return vk::Format::eR64G64B64A64Uint;
+		case 3: return vk::Format::eR64G64B64Uint;
+		case 2: return vk::Format::eR64G64Uint;
+		case 1: return vk::Format::eR64Uint;
+		}
+	    break;
 	case le_num_type::eChar:  // fall through to uChar
 	case le_num_type::eUChar:
 		if (d.isNormalised){
