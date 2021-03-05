@@ -461,7 +461,7 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
 // We use a lock for this reason.
 static void le_pipeline_cache_remove_module_from_dependencies( le_shader_manager_o *self, le_shader_module_handle module ) {
 	// iterate over all module dependencies in shader manager, remove the module.
-	// then remove any file watchers which have only zero modules left.
+	// then remove any file watchers which have no modules left.
 	auto lck = std::unique_lock( self->protected_module_dependencies.mtx );
 
 	for ( auto d = self->protected_module_dependencies.moduleDependencies.begin();
@@ -1132,20 +1132,22 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 
 	translate_to_spirv_code( self->shader_compiler, raw_file_data.data(), raw_file_data.size(), moduleType, path, spirv_code, includesSet, macro_defines );
 
-	// FIXME: we need to check spirv code is ok, that compilation succeeded.
-
 	le_shader_module_o module{};
-
-	module.stage         = moduleType;
-	module.filepath      = canonical_path_as_string;
-	module.macro_defines = macro_defines;
-
+	module.stage               = moduleType;
+	module.filepath            = canonical_path_as_string;
+	module.macro_defines       = macro_defines;
 	module.hash_shader_defines = SpookyHash::Hash64( module.macro_defines.data(), module.macro_defines.size(), 0 );
 	module.hash                = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module.hash_shader_defines );
+	module.spirv               = std::move( spirv_code );
 
-	// ---------| invariant: no previous module with this hash exists
+	le_shader_module_o *m = self->shaderModules.try_find( handle );
 
-	module.spirv = std::move( spirv_code );
+	if ( m && m->hash == module.hash ) {
+		// A module with the same handle already exists, and it has the same hash: no more work to do.
+		return handle;
+	}
+
+	//----------| Invariant: there is either no old module, or the old module does not match our new module.
 
 	shader_module_update_reflection( &module );
 
@@ -1155,38 +1157,31 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 		assert( false );
 		return nullptr;
 	}
-
 	// ----------| invariant: bindings sanity check passed
 
-	{
-		// -- create vulkan shader object
-		// flags must be 0 (reserved for future use), size is given in bytes
-		vk::ShaderModuleCreateInfo createInfo( vk::ShaderModuleCreateFlags(), module.spirv.size() * sizeof( uint32_t ), module.spirv.data() );
+	vk::ShaderModuleCreateInfo createInfo( vk::ShaderModuleCreateFlags(), module.spirv.size() * sizeof( uint32_t ), module.spirv.data() );
+	module.module = self->device.createShaderModule( createInfo );
+	logger.info( "Vk shader module created %p", module.module );
 
-		module.module = self->device.createShaderModule( createInfo );
-	}
-
-	// -- retain module in shader manager
-	if ( false == self->shaderModules.try_insert( handle, &module ) ) {
-
-		// -- invariant : module could not bei inserted.
-		le_shader_module_o *m = self->shaderModules.try_find( handle );
-
-		if ( nullptr == m ) {
-			logger.warn( "Could not overwrite shader module %p", handle );
+	if ( m == nullptr ) {
+		// there is no prior module - let's create a module and try to retain it in shader manager
+		if ( false == self->shaderModules.try_insert( handle, &module ) ) {
+			logger.error( "Could not retain shader module" );
 			self->device.destroyShaderModule( module.module );
-			return handle;
+			logger.debug( "Vk shader module destroyed %p", module.module );
+			return nullptr;
 		}
+	} else {
 
-		// -- invariant: we found previous shader module
 		le_pipeline_cache_remove_module_from_dependencies( self, handle );
 
-		// we must swap the two shader modules
+		// -- invariant: the old module has a different hash than our new module.
+		// we must swap the two ...
 		auto old_module = *m;
 		*m              = module;
-
-		// and delete the old module
+		// ... and delete the old module
 		self->device.destroyShaderModule( old_module.module );
+		logger.debug( "Vk shader module destroyed %p", old_module.module );
 	}
 
 	// -- add all source files for this file to the list of watched
