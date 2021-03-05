@@ -15,6 +15,9 @@
 #	include <sys/inotify.h>
 #	include <unistd.h>
 #	include "le_log/le_log.h"
+#	include <unordered_map>
+#	include <mutex>
+#	include <cassert>
 
 static constexpr auto LOGGER_LABEL = "le_file_watcher_linux";
 
@@ -22,8 +25,9 @@ static constexpr auto LOGGER_LABEL = "le_file_watcher_linux";
 
 struct Watch {
 	int                inotify_watch_handle = -1;
+	int                unique_watch_id      = -1;
 	int                padding              = 0;
-	le_file_watcher_o *watcher_o;
+	le_file_watcher_o *watcher_o            = nullptr; // Non-owning: Weak pointer back to instance
 	std::string        path;
 	std::string        filename;
 	std::string        basename;
@@ -34,9 +38,11 @@ struct Watch {
 // ----------------------------------------------------------------------
 
 struct le_file_watcher_o {
-	int              inotify_socket_handle = -1;
-	int              padding               = 0;
-	std::list<Watch> mWatches;
+	std::mutex mtx;
+	int        inotify_socket_handle = -1;
+	int        next_unique_watch_id  = 0;
+
+	std::unordered_map<int, std::unordered_map<int, Watch>> mWatches; // indexed by inotify_watch_handle, then unique_watch_id
 };
 
 // ----------------------------------------------------------------------
@@ -54,7 +60,8 @@ static void instance_destroy( le_file_watcher_o *instance ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	for ( auto &w : instance->mWatches ) {
-		inotify_rm_watch( instance->inotify_socket_handle, w.inotify_watch_handle );
+		int result = inotify_rm_watch( instance->inotify_socket_handle, w.first );
+		assert( result == 0 );
 	}
 	instance->mWatches.clear();
 
@@ -71,7 +78,10 @@ static void instance_destroy( le_file_watcher_o *instance ) {
 static int add_watch( le_file_watcher_o *instance, le_file_watcher_watch_settings const *settings ) noexcept {
 	Watch tmp;
 
-	auto tmp_path = std::filesystem::canonical( settings->filePath );
+	auto lock = std::unique_lock( instance->mtx );
+
+	static auto logger   = LeLog( LOGGER_LABEL );
+	auto        tmp_path = std::filesystem::canonical( settings->filePath );
 
 	tmp.path               = tmp_path.string();
 	tmp.filename           = tmp_path.filename().string();
@@ -81,20 +91,49 @@ static int add_watch( le_file_watcher_o *instance, le_file_watcher_watch_setting
 	tmp.callback_user_data = settings->callback_user_data;
 
 	tmp.inotify_watch_handle = inotify_add_watch( instance->inotify_socket_handle, tmp.basename.c_str(), IN_CLOSE_WRITE );
+	tmp.unique_watch_id      = instance->next_unique_watch_id++;
 
-	instance->mWatches.emplace_back( std::move( tmp ) );
-	return tmp.inotify_watch_handle;
+	logger.debug( "Added inotify watch handle: %d, '%s'", tmp.unique_watch_id, tmp.path.c_str() );
+
+	instance->mWatches[ tmp.inotify_watch_handle ][ tmp.unique_watch_id ] = tmp;
+
+	return tmp.unique_watch_id;
 }
 
 // ----------------------------------------------------------------------
 
 static bool remove_watch( le_file_watcher_o *instance, int watch_id ) {
-	static auto logger      = LeLog( LOGGER_LABEL );
-	auto        found_watch = std::find_if( instance->mWatches.begin(), instance->mWatches.end(), [ = ]( const Watch &w ) -> bool { return w.inotify_watch_handle == watch_id; } );
-	if ( found_watch != instance->mWatches.end() ) {
-		logger.debug( "Removing inotify watch handle: %p", found_watch->inotify_watch_handle );
-		inotify_rm_watch( instance->inotify_socket_handle, found_watch->inotify_watch_handle );
-		instance->mWatches.erase( found_watch );
+	static auto logger = LeLog( LOGGER_LABEL );
+	auto        lock   = std::unique_lock( instance->mtx );
+
+	auto found_inotify_watch =
+	    std::find_if( instance->mWatches.begin(), instance->mWatches.end(),
+	                  [ & ]( std::pair<int, std::unordered_map<int, Watch>> const &w ) -> bool {
+		                  return w.second.find( watch_id ) != w.second.end();
+	                  } );
+
+	if ( found_inotify_watch != instance->mWatches.end() ) {
+
+		auto &inotify_watch_entry = found_inotify_watch->second;
+		// Remove entry with current watch_id
+		auto found_watch = inotify_watch_entry.find( watch_id );
+
+		logger.debug( "Removing watch handle: %d, '%s'", watch_id, found_watch->second.path.c_str() );
+
+		// remove the watch with this particular id.
+		inotify_watch_entry.erase( found_watch );
+
+		if ( inotify_watch_entry.empty() ) {
+			// we must only remove the inotify watch if we are the only ones who use this inotify handle.
+			// no more files left for this watch.
+			logger.info( "Removing inotify watch. socket_handle: %d, watch_hanle: %d", instance->inotify_socket_handle, found_inotify_watch->first );
+			int result = inotify_rm_watch( instance->inotify_socket_handle, found_inotify_watch->first );
+			if ( result != 0 ) {
+				logger.error( "inotify rm watch error: %d", result );
+			}
+			instance->mWatches.erase( found_inotify_watch );
+		}
+
 		return true;
 	} else {
 		logger.error( "%s : Could not find and thus remove watch with id: 0x%x", __PRETTY_FUNCTION__, watch_id );
@@ -132,22 +171,22 @@ static void poll_notifications( le_file_watcher_o *instance ) {
 
 				// Only trigger on close-write
 				if ( ev->mask & IN_CLOSE_WRITE ) {
-
-					// We trigger *all* callbacks which watch the current file path
-					// For this, we must iterate through all watches and filter the
-					// ones which watch the event's file.
-					for ( auto const &w : instance->mWatches ) {
-
-						if ( w.inotify_watch_handle == ev->wd && w.filename == path ) {
-
-							// Only print notice if it is for another filename:
-							if ( prev_filename != path.c_str() ) {
-								logger.info( "Watch triggered for: '%s' [%s]", path.c_str(), w.basename.c_str() );
-								prev_filename = path.c_str();
+					// first make sure there are any watches for this inotify file handle
+					auto found_watches = instance->mWatches.find( ev->wd );
+					if ( found_watches != instance->mWatches.end() ) {
+						// We trigger *all* callbacks which watch the current file path
+						// For this, we must iterate through all watches and filter the
+						// ones which watch the event's file.
+						for ( auto const &w : found_watches->second ) {
+							if ( w.second.filename == path ) {
+								// Only print notice if it is for a new filename:
+								if ( prev_filename != path.c_str() ) {
+									logger.info( "Watch triggered for: '%s' [%s]", path.c_str(), w.second.basename.c_str() );
+									prev_filename = path.c_str();
+								}
+								// Trigger Callback.
+								( *w.second.callback_fun )( w.second.path.c_str(), w.second.callback_user_data );
 							}
-
-							// Trigger Callback.
-							( *w.callback_fun )( w.path.c_str(), w.callback_user_data );
 						}
 					}
 				}
