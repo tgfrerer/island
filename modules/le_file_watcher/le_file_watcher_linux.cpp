@@ -147,6 +147,12 @@ static void poll_notifications( le_file_watcher_o *instance ) {
 	static_assert( sizeof( inotify_event ) == sizeof( struct inotify_event ), "must be equal" );
 	static auto logger = LeLog( LOGGER_LABEL );
 
+	// FIXME: This could deadlock if we added or removed watches from within callbacks.
+	//
+	// We could get away with this if we place the instance in polling state before evaluating this loop.
+	// when in polling state, add_watch, and remove_watch would then buffer all changes.
+	// once we complete evaluating this loop, we could apply the buffered add, and remove operations.
+
 	for ( ;; ) {
 
 		alignas( inotify_event ) char buffer[ sizeof( inotify_event ) + NAME_MAX + 1 ];
@@ -172,6 +178,7 @@ static void poll_notifications( le_file_watcher_o *instance ) {
 				// Only trigger on close-write
 				if ( ev->mask & IN_CLOSE_WRITE ) {
 					// first make sure there are any watches for this inotify file handle
+					auto lck           = std::unique_lock( instance->mtx );
 					auto found_watches = instance->mWatches.find( ev->wd );
 					if ( found_watches != instance->mWatches.end() ) {
 						// We trigger *all* callbacks which watch the current file path
