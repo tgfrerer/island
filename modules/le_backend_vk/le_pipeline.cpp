@@ -413,7 +413,7 @@ static void le_shader_file_watcher_on_callback( const char *path, void *user_dat
 	// call a method on backend to tell it that the file path has changed.
 	// backend to figure out which modules are affected.
 	static auto logger = LeLog( LOGGER_LABEL );
-	logger.info( "Source file update detected: '%s'", path );
+	logger.debug( "Source file update detected: '%s'", path );
 	le_pipeline_cache_flag_affected_modules_for_source_path( shader_manager, path );
 }
 // ----------------------------------------------------------------------
@@ -431,6 +431,10 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
 	static auto logger = LeLog( LOGGER_LABEL );
 	auto        lck    = std::unique_lock( self->protected_module_dependencies.mtx );
 
+	if ( !sourcePaths.empty() ) {
+		logger.debug( "Shader module (%p):", module );
+	}
+
 	for ( const auto &s : sourcePaths ) {
 
 		// If no previous entry for this source path existed, we must insert a watch for this path
@@ -447,7 +451,7 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
 			self->protected_module_dependencies.moduleWatchIds[ s ] = watch_id;
 		}
 
-		logger.info( "Shader module (%p) : '%s'", module, std::filesystem::relative( s ).c_str() );
+		logger.debug( "\t + '%s'", std::filesystem::relative( s ).c_str() );
 
 		self->protected_module_dependencies.moduleDependencies[ s ].insert( module );
 	}
