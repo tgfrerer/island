@@ -18,6 +18,7 @@
 #	include <unordered_map>
 #	include <mutex>
 #	include <cassert>
+#	include <atomic>
 
 static constexpr auto LOGGER_LABEL = "le_file_watcher_linux";
 
@@ -38,11 +39,16 @@ struct Watch {
 // ----------------------------------------------------------------------
 
 struct le_file_watcher_o {
-	std::mutex mtx;
-	int        inotify_socket_handle = -1;
-	int        next_unique_watch_id  = 0;
+	std::mutex       mtx;
+	int              inotify_socket_handle = -1;
+	std::atomic<int> next_unique_watch_id  = 0;
 
 	std::unordered_map<int, std::unordered_map<int, Watch>> mWatches; // indexed by inotify_watch_handle, then unique_watch_id
+
+	std::mutex         deferred_remove_mtx;
+	std::vector<int>   deferred_remove_ids; // ids to remove when possible.
+	std::mutex         deferred_add_watch_mtx;
+	std::vector<Watch> deferred_add_watch; // ids to add as soon as possible.
 };
 
 // ----------------------------------------------------------------------
@@ -75,13 +81,25 @@ static void instance_destroy( le_file_watcher_o *instance ) {
 
 // ----------------------------------------------------------------------
 
+static void store_watch( le_file_watcher_o *instance, Watch const &watch ) {
+
+	static auto logger = LeLog( LOGGER_LABEL );
+	{
+		auto lock = std::unique_lock( instance->mtx, std::defer_lock );
+		if ( lock.try_lock() ) {
+			instance->mWatches[ watch.inotify_watch_handle ][ watch.unique_watch_id ] = watch;
+			logger.debug( "Added inotify watch handle: %d, '%s'", watch.unique_watch_id, watch.path.c_str() );
+		} else {
+			auto lock = std::unique_lock( instance->deferred_add_watch_mtx );
+			instance->deferred_add_watch.push_back( watch );
+		}
+	}
+}
+
 static int add_watch( le_file_watcher_o *instance, le_file_watcher_watch_settings const *settings ) noexcept {
 	Watch tmp;
 
-	auto lock = std::unique_lock( instance->mtx );
-
-	static auto logger   = LeLog( LOGGER_LABEL );
-	auto        tmp_path = std::filesystem::canonical( settings->filePath );
+	auto tmp_path = std::filesystem::canonical( settings->filePath );
 
 	tmp.path               = tmp_path.string();
 	tmp.filename           = tmp_path.filename().string();
@@ -93,9 +111,7 @@ static int add_watch( le_file_watcher_o *instance, le_file_watcher_watch_setting
 	tmp.inotify_watch_handle = inotify_add_watch( instance->inotify_socket_handle, tmp.basename.c_str(), IN_CLOSE_WRITE );
 	tmp.unique_watch_id      = instance->next_unique_watch_id++;
 
-	logger.debug( "Added inotify watch handle: %d, '%s'", tmp.unique_watch_id, tmp.path.c_str() );
-
-	instance->mWatches[ tmp.inotify_watch_handle ][ tmp.unique_watch_id ] = tmp;
+	store_watch( instance, tmp );
 
 	return tmp.unique_watch_id;
 }
@@ -104,41 +120,52 @@ static int add_watch( le_file_watcher_o *instance, le_file_watcher_watch_setting
 
 static bool remove_watch( le_file_watcher_o *instance, int watch_id ) {
 	static auto logger = LeLog( LOGGER_LABEL );
-	auto        lock   = std::unique_lock( instance->mtx );
+	auto        lock   = std::unique_lock( instance->mtx, std::defer_lock );
 
-	auto found_inotify_watch =
-	    std::find_if( instance->mWatches.begin(), instance->mWatches.end(),
-	                  [ & ]( std::pair<int, std::unordered_map<int, Watch>> const &w ) -> bool {
-		                  return w.second.find( watch_id ) != w.second.end();
-	                  } );
+	if ( lock.try_lock() ) {
 
-	if ( found_inotify_watch != instance->mWatches.end() ) {
+		auto found_inotify_watch =
+		    std::find_if( instance->mWatches.begin(), instance->mWatches.end(),
+		                  [ & ]( std::pair<int, std::unordered_map<int, Watch>> const &w ) -> bool {
+			                  return w.second.find( watch_id ) != w.second.end();
+		                  } );
 
-		auto &inotify_watch_entry = found_inotify_watch->second;
-		// Remove entry with current watch_id
-		auto found_watch = inotify_watch_entry.find( watch_id );
+		if ( found_inotify_watch != instance->mWatches.end() ) {
 
-		logger.debug( "Removing watch handle: %d, '%s'", watch_id, found_watch->second.path.c_str() );
+			auto &inotify_watch_entry = found_inotify_watch->second;
+			// Remove entry with current watch_id
+			auto found_watch = inotify_watch_entry.find( watch_id );
 
-		// remove the watch with this particular id.
-		inotify_watch_entry.erase( found_watch );
+			logger.debug( "Removing watch handle: %d, '%s'", watch_id, found_watch->second.path.c_str() );
 
-		if ( inotify_watch_entry.empty() ) {
-			// we must only remove the inotify watch if we are the only ones who use this inotify handle.
-			// no more files left for this watch.
-			logger.info( "Removing inotify watch. socket_handle: %d, watch_hanle: %d", instance->inotify_socket_handle, found_inotify_watch->first );
-			int result = inotify_rm_watch( instance->inotify_socket_handle, found_inotify_watch->first );
-			if ( result != 0 ) {
-				logger.error( "inotify rm watch error: %d", result );
+			// remove the watch with this particular id.
+			inotify_watch_entry.erase( found_watch );
+
+			if ( inotify_watch_entry.empty() ) {
+				// we must only remove the inotify watch if we are the only ones who use this inotify handle.
+				// no more files left for this watch.
+				logger.info( "Removing inotify watch. socket_handle: %d, watch_handle: %d", instance->inotify_socket_handle, found_inotify_watch->first );
+				int result = inotify_rm_watch( instance->inotify_socket_handle, found_inotify_watch->first );
+				if ( result != 0 ) {
+					logger.error( "inotify rm watch error: %d", result );
+				}
+				instance->mWatches.erase( found_inotify_watch );
 			}
-			instance->mWatches.erase( found_inotify_watch );
+
+			return true;
+		} else {
+			logger.error( "%s : Could not find and thus remove watch with id: 0x%x", __PRETTY_FUNCTION__, watch_id );
+			return false;
 		}
 
-		return true;
 	} else {
-		logger.error( "%s : Could not find and thus remove watch with id: 0x%x", __PRETTY_FUNCTION__, watch_id );
+		// we cannot lock this lock. this means quite likely, that we've been asked
+		// to remove a watch by a callback which was triggered by a watch itself.
+		auto lock = std::unique_lock( instance->deferred_remove_mtx );
+		instance->deferred_remove_ids.push_back( watch_id );
 		return false;
 	}
+	return false;
 };
 
 // ----------------------------------------------------------------------
@@ -146,12 +173,6 @@ static bool remove_watch( le_file_watcher_o *instance, int watch_id ) {
 static void poll_notifications( le_file_watcher_o *instance ) {
 	static_assert( sizeof( inotify_event ) == sizeof( struct inotify_event ), "must be equal" );
 	static auto logger = LeLog( LOGGER_LABEL );
-
-	// FIXME: This could deadlock if we added or removed watches from within callbacks.
-	//
-	// We could get away with this if we place the instance in polling state before evaluating this loop.
-	// when in polling state, add_watch, and remove_watch would then buffer all changes.
-	// once we complete evaluating this loop, we could apply the buffered add, and remove operations.
 
 	for ( ;; ) {
 
@@ -197,6 +218,20 @@ static void poll_notifications( le_file_watcher_o *instance ) {
 						}
 					}
 				}
+			}
+			if ( !instance->deferred_remove_ids.empty() ) {
+				auto lock = std::unique_lock( instance->deferred_remove_mtx );
+				for ( auto &w : instance->deferred_remove_ids ) {
+					remove_watch( instance, w );
+				}
+				instance->deferred_remove_ids.clear();
+			}
+			if ( !instance->deferred_add_watch.empty() ) {
+				auto lock = std::unique_lock( instance->deferred_add_watch_mtx );
+				for ( auto &w : instance->deferred_add_watch ) {
+					store_watch( instance, w );
+				}
+				instance->deferred_add_watch.clear();
 			}
 
 		} else {
