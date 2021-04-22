@@ -58,8 +58,6 @@ struct le_graphics_pipeline_builder_data {
 struct graphics_pipeline_state_o {
 	le_graphics_pipeline_builder_data data{};
 
-	bool is_cached = false; // dirty flag- will be set false if any of its modules updates
-
 	std::vector<le_shader_module_handle> shaderModules;        // non-owning; refers opaquely to shader modules (or not)
 	std::vector<le::ShaderStage>         shaderStagePerModule; // refers to shader module handle of same index
 
