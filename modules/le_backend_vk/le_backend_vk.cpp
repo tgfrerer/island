@@ -4009,9 +4009,6 @@ static bool updateArguments( const vk::Device &                 device,
 						    ;
 
 						switch ( a.type ) {
-						case vk::DescriptorType::eMutableVALVE:
-							assert( false && "Mutable descriptor not supported." );
-							break;
 						case vk::DescriptorType::eSampler:
 						case vk::DescriptorType::eCombinedImageSampler:
 						case vk::DescriptorType::eSampledImage:
@@ -4035,12 +4032,12 @@ static bool updateArguments( const vk::Device &                 device,
 						case vk::DescriptorType::eAccelerationStructureNV:
 							assert( false && "NV acceleration structures are not supported anymore. Use KHR acceleration structures." );
 							break;
-						case vk::DescriptorType::eAccelerationStructureKHR: {
+						case vk::DescriptorType::eAccelerationStructureKHR:
 							auto wd                        = new vk::WriteDescriptorSetAccelerationStructureKHR{};
 							wd->accelerationStructureCount = 1;
 							wd->pAccelerationStructures    = &a.accelerationStructureInfo.accelerationStructure;
 							w.setPNext( wd );
-						} break;
+							break;
 						}
 
 						write_descriptor_sets.emplace_back( w );
