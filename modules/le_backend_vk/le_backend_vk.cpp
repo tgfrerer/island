@@ -4032,12 +4032,14 @@ static bool updateArguments( const vk::Device &                 device,
 						case vk::DescriptorType::eAccelerationStructureNV:
 							assert( false && "NV acceleration structures are not supported anymore. Use KHR acceleration structures." );
 							break;
-						case vk::DescriptorType::eAccelerationStructureKHR:
+						case vk::DescriptorType::eAccelerationStructureKHR: {
 							auto wd                        = new vk::WriteDescriptorSetAccelerationStructureKHR{};
 							wd->accelerationStructureCount = 1;
 							wd->pAccelerationStructures    = &a.accelerationStructureInfo.accelerationStructure;
 							w.setPNext( wd );
-							break;
+						} break;
+						default:
+							assert( false && "Unhandled descriptor Type" );
 						}
 
 						write_descriptor_sets.emplace_back( w );
