@@ -2694,7 +2694,7 @@ static void staging_allocator_destroy( le_staging_allocator_o *self ) {
 // ----------------------------------------------------------------------
 
 // Frees any resources which are marked for being recycled in the current frame.
-inline void frame_release_binned_resources( BackendFrameData &frame, vk::Device device, VmaAllocator &allocator ) {
+inline void frame_release_binned_resources( BackendFrameData &frame, VmaAllocator &allocator ) {
 	for ( auto &a : frame.binnedResources ) {
 		if ( a.second.info.isBuffer() ) {
 			vmaDestroyBuffer( allocator, a.second.as.buffer, a.second.allocation );
@@ -3192,7 +3192,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	// It's possible that this was more than two frames ago,
 	// depending on how many swapchain images there are.
 	//
-	frame_release_binned_resources( frame, self->device->getVkDevice(), self->mAllocator );
+	frame_release_binned_resources( frame, self->mAllocator );
 
 	// Iterate over all resource declarations in all passes so that we can collect all resources,
 	// and their usage information. Later, we will consolidate their usages so that resources can
