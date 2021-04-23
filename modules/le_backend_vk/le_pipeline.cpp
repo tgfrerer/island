@@ -628,28 +628,50 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 
 		size_t input_count = spv_module.input_variable_count;
 
+		struct AttributeBindingDescription {
+			vk::VertexInputAttributeDescription attribute;
+			vk::VertexInputBindingDescription   binding;
+			std::string                         name;
+		};
+
+		std::vector<AttributeBindingDescription> input_descriptions;
+		input_descriptions.reserve( input_count );
+
 		for ( size_t i = 0; i != input_count; i++ ) {
 			auto &input = spv_module.input_variables[ i ];
 			if ( input->location != uint32_t( ~0 ) ) {
-				std::string                         attribute_name = input->name;
-				vk::VertexInputAttributeDescription attr_descr;
-				vk::VertexInputBindingDescription   binding_descr;
-				attr_descr
+
+				input_descriptions.emplace_back();
+				auto &d = input_descriptions.back();
+
+				d.name = input->name;
+				d.attribute
 				    .setBinding( input->location )                                    // by default, one binding per location
 				    .setLocation( input->location )                                   // by default, one binding per location
 				    .setOffset( 0 )                                                   // non-interleaved means offset must be 0
 				    .setFormat( vk_format_from_spv_reflect_format( input->format ) ); // derive format from spv type
-				binding_descr
+				d.binding
 				    .setBinding( input->location )
 				    .setInputRate( vk::VertexInputRate::eVertex )
 				    .setStride( byte_stride_from_spv_type_description( input->type_description->traits.numeric ) );
-
-				vertexAttributeDescriptions.emplace_back( std::move( attr_descr ) );
-				vertexBindingDescriptions.emplace_back( std::move( binding_descr ) );
-				vertexAttributeNames.emplace_back( std::move( attribute_name ) );
 			}
 		}
 
+		std::sort(
+		    input_descriptions.begin(), input_descriptions.end(),
+		    []( AttributeBindingDescription const &lhs, AttributeBindingDescription const &rhs ) -> bool {
+			    return lhs.attribute.location < rhs.attribute.location;
+		    } );
+
+		for ( auto &d : input_descriptions ) {
+			vertexAttributeDescriptions.emplace_back( std::move( d.attribute ) );
+			vertexBindingDescriptions.emplace_back( std::move( d.binding ) );
+			vertexAttributeNames.emplace_back( std::move( d.name ) );
+		}
+
+		input_descriptions.clear();
+
+#ifndef NDEBUG
 		constexpr bool CHECK_LOCATIONS_ARE_CONSECUTIVE = true;
 		// TODO: Find out: are shader inputs sorted by location - is this guaranteed?
 		//       In which case we wouldn't need the following check anymore
@@ -663,6 +685,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 				}
 			}
 		}
+#endif
 
 		// Store vertex input info with module
 		module->vertexAttributeDescriptions = std::move( vertexAttributeDescriptions );
