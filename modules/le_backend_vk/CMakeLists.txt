@@ -1,10 +1,11 @@
 set (TARGET le_backend_vk)
 
-add_compile_definitions(VK_ENABLE_BETA_EXTENSIONS=1) # we need this for raytracing features
+# add_compile_definitions(VMA_USE_STL_CONTAINERS=1)
+
+# add_compile_definitions(VK_ENABLE_BETA_EXTENSIONS=1) # we need this for raytracing features
 add_compile_definitions(VULKAN_HPP_NO_SMART_HANDLE)
 add_compile_definitions(VULKAN_HPP_DISABLE_IMPLICIT_RESULT_VALUE_CAST)
 
-#add_compile_definitions(VMA_USE_STL_CONTAINERS=1)
 
 set (SOURCES "le_backend_vk.cpp")
 set (SOURCES ${SOURCES} "le_backend_vk.h")
@@ -17,17 +18,8 @@ set (SOURCES ${SOURCES} "le_allocator.cpp")
 set (SOURCES ${SOURCES} "util/vk_mem_alloc/vk_mem_alloc.h")
 set (SOURCES ${SOURCES} "util/vk_mem_alloc/vk_mem_alloc.cpp")
 
-set (SOURCES ${SOURCES} "util/spirv-cross/GLSL.std.450.h")
-set (SOURCES ${SOURCES} "util/spirv-cross/spirv_common.hpp")
-set (SOURCES ${SOURCES} "util/spirv-cross/spirv.hpp")
-set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cross.hpp")
-set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cross.cpp")
-set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cfg.hpp")
-set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cfg.cpp")
-set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cross_parsed_ir.cpp")
-set (SOURCES ${SOURCES} "util/spirv-cross/spirv_cross_parsed_ir.hpp")
-set (SOURCES ${SOURCES} "util/spirv-cross/spirv_parser.hpp")
-set (SOURCES ${SOURCES} "util/spirv-cross/spirv_parser.cpp")
+set (SOURCES ${SOURCES} "util/spirv_reflect/spirv_reflect.h")
+set (SOURCES ${SOURCES} "util/spirv_reflect/spirv_reflect.c")
 
 set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.cpp")
 set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.h")
