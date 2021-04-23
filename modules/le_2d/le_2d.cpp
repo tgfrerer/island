@@ -728,7 +728,7 @@ static void le_2d_draw_primitives( le_2d_o *self ) {
 
 	std::vector<InstancedDraw> instanced_draws;
 
-	uint32_t previous_hash = 0;
+	uint64_t previous_hash = 0;
 
 	for ( auto const &p : self->primitives ) {
 

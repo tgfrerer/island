@@ -750,7 +750,7 @@ generate_dot_file_for_rendergraph(
 
 			// now we must find any subsequent tasks which read from this resource.
 
-			BitField res_filter = 1 << res_idx;
+			BitField res_filter = uint64_t(1) << res_idx;
 
 			for ( size_t k = i + 1; k != self->passes.size(); k++ ) {
 				if ( ( tasks[ k ].reads & res_filter ).any() ||
