@@ -370,25 +370,19 @@ static bool compute_example_app_update( compute_example_app_o *self ) {
 	{
 		// This pass will typically only get executed once - it will upload
 		// buffers .
-		le::RenderPass passInitialise( "initialise", LE_RENDER_PASS_TYPE_TRANSFER );
-
-		passInitialise
-		    .setSetupCallback( self, pass_initialise_setup )
-		    .setExecuteCallback( self, pass_initialise_exec );
-
-		le::RenderPass passCompute( "compute", LE_RENDER_PASS_TYPE_COMPUTE );
-
-		passCompute
-		    .setSetupCallback( self, pass_compute_setup )
-		    .setExecuteCallback( self, pass_compute_exec ) //
-		    ;
-
-		le::RenderPass passDraw( "draw", LE_RENDER_PASS_TYPE_DRAW );
-
-		passDraw
-		    .setSetupCallback( self, pass_draw_setup )
-		    .setExecuteCallback( self, pass_draw_exec ) //
-		    .setSampleCount( le::SampleCountFlagBits::e8 );
+		auto passInitialise =
+		    le::RenderPass( "initialise", LE_RENDER_PASS_TYPE_TRANSFER )
+		        .setSetupCallback( self, pass_initialise_setup )
+		        .setExecuteCallback( self, pass_initialise_exec );
+		auto passCompute =
+		    le::RenderPass( "compute", LE_RENDER_PASS_TYPE_COMPUTE )
+		        .setSetupCallback( self, pass_compute_setup )
+		        .setExecuteCallback( self, pass_compute_exec );
+		auto passDraw =
+		    le::RenderPass( "draw", LE_RENDER_PASS_TYPE_DRAW )
+		        .setSetupCallback( self, pass_draw_setup )
+		        .setExecuteCallback( self, pass_draw_exec )
+		        .setSampleCount( le::SampleCountFlagBits::e8 );
 
 		mainModule
 		    .addRenderPass( passInitialise )
