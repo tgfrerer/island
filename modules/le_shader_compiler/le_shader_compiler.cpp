@@ -141,12 +141,11 @@ static void le_shader_compilation_result_detroy( le_shader_compilation_result_o 
 
 // ---------------------------------------------------------------
 
-static void le_shader_compilation_result_get_result_bytes( le_shader_compilation_result_o *res, const char **pAddr, size_t *pNumBytes ) {
-
+static void le_shader_compilation_result_get_result_bytes( le_shader_compilation_result_o *res, const char **p_spir_v_bytes, size_t *pNumBytes ) {
 	assert( res->result );
 
-	*pAddr     = shaderc_result_get_bytes( res->result );
-	*pNumBytes = shaderc_result_get_length( res->result );
+	*p_spir_v_bytes = shaderc_result_get_bytes( res->result );
+	*pNumBytes      = shaderc_result_get_length( res->result );
 }
 
 // ---------------------------------------------------------------

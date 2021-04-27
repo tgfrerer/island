@@ -26,7 +26,9 @@ struct le_shader_compiler_api {
 		/// \note   lifetime of any pointers is tied to life-time of result object
 		bool                            (* result_get_includes   ) ( le_shader_compilation_result_o* res, const char** pPath, size_t* pStrSz);
 		bool                            (* result_get_success    ) ( le_shader_compilation_result_o* res);
-		void                            (* result_get_bytes      ) ( le_shader_compilation_result_o* res, const char** pAddr, size_t* pNumBytes);
+
+        // pAddr receives a pointer to spir-v binary code - this is guaranteed to be castable to uint32_t. 
+		void                            (* result_get_bytes      ) ( le_shader_compilation_result_o* res, const char** p_spir_v_bytes, size_t* pNumBytes);
 
 		void                            (* result_destroy        ) ( le_shader_compilation_result_o* res);
     };
