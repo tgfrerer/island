@@ -1,8 +1,6 @@
 #include "le_bloom_pass.h"
 #include "le_core/le_core.h"
 
-#include "le_backend_vk/le_backend_vk.h" // for shader module creation
-
 #include "le_renderer/le_renderer.h"
 #include "le_pipeline_builder/le_pipeline_builder.h"
 
@@ -26,16 +24,17 @@ le_render_module_add_blit_pass(
 		le::Encoder encoder{ encoder_ };
 		auto *      pm = encoder.getPipelineManager();
 
-		static auto quadVert = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/fullscreenQuad.vert", { le::ShaderStage::eVertex }, "", LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) );
-		static auto blitFrag = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/fullscreenQuad.frag", { le::ShaderStage::eFragment }, "", LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_frag" ) );
+		static auto quadVert = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eVertex ).setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" ).setPreviousHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) ).build();
+		static auto blitFrag = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/fullscreenQuad.frag" ).setPreviousHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_frag" ) ).build();
 
-		static auto pipeline = LeGraphicsPipelineBuilder( pm )
-		                           .addShaderStage( quadVert )
-		                           .addShaderStage( blitFrag )
-		                           .withAttachmentBlendState()
-		                           .setBlendEnable( false ) // we don't want any blending, just a straight copy.
-		                           .end()
-		                           .build();
+		static auto pipeline =
+		    LeGraphicsPipelineBuilder( pm )
+		        .addShaderStage( quadVert )
+		        .addShaderStage( blitFrag )
+		        .withAttachmentBlendState()
+		        .setBlendEnable( false ) // we don't want any blending, just a straight copy.
+		        .end()
+		        .build();
 
 		encoder
 		    .bindGraphicsPipeline( pipeline )
@@ -145,9 +144,10 @@ le_render_module_add_bloom_pass(
 			params = static_cast<le_bloom_pass_api::params_t *>( user_data );
 		}
 
-		auto *      pm           = encoder.getPipelineManager();
-		static auto quadVert     = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/fullscreenQuad.vert", { le::ShaderStage::eVertex }, "", LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) );
-		static auto highPassFrag = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/luminosity_high_pass.frag", { le::ShaderStage::eFragment }, "", LE_SHADER_MODULE_HANDLE( "le_luminosity_high_pass_frag" ) );
+		auto *pm = encoder.getPipelineManager();
+
+		static auto quadVert     = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eVertex ).setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" ).setPreviousHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) ).build();
+		static auto highPassFrag = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/luminosity_high_pass.frag" ).setPreviousHandle( LE_SHADER_MODULE_HANDLE( "le_luminosity_high_pass_frag" ) ).build();
 
 		static auto pipeline =
 		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
@@ -181,13 +181,14 @@ le_render_module_add_bloom_pass(
 		    "KERNEL_RADIUS=11",
 		};
 
-		static auto                    quadVert           = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/fullscreenQuad.vert", { le::ShaderStage::eVertex }, "", LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) );
+		static auto quadVert = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eVertex ).setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" ).setPreviousHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) ).build();
+
 		static le_shader_module_handle gaussianBlurFrag[] = {
-		    le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/blur.frag", { le::ShaderStage::eFragment }, BLUR_KERNEL_DEFINES[ 0 ], LE_SHADER_MODULE_HANDLE( "le_blur_kernel_0_frag" ) ),
-		    le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/blur.frag", { le::ShaderStage::eFragment }, BLUR_KERNEL_DEFINES[ 1 ], LE_SHADER_MODULE_HANDLE( "le_blur_kernel_1_frag" ) ),
-		    le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/blur.frag", { le::ShaderStage::eFragment }, BLUR_KERNEL_DEFINES[ 2 ], LE_SHADER_MODULE_HANDLE( "le_blur_kernel_2_frag" ) ),
-		    le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/blur.frag", { le::ShaderStage::eFragment }, BLUR_KERNEL_DEFINES[ 3 ], LE_SHADER_MODULE_HANDLE( "le_blur_kernel_3_frag" ) ),
-		    le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/blur.frag", { le::ShaderStage::eFragment }, BLUR_KERNEL_DEFINES[ 4 ], LE_SHADER_MODULE_HANDLE( "le_blur_kernel_4_frag" ) ),
+		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 0 ] ).setPreviousHandle( LE_SHADER_MODULE_HANDLE( "le_blur_kernel_0_frag" ) ).build(),
+		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 1 ] ).setPreviousHandle( LE_SHADER_MODULE_HANDLE( "le_blur_kernel_1_frag" ) ).build(),
+		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 2 ] ).setPreviousHandle( LE_SHADER_MODULE_HANDLE( "le_blur_kernel_2_frag" ) ).build(),
+		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 3 ] ).setPreviousHandle( LE_SHADER_MODULE_HANDLE( "le_blur_kernel_3_frag" ) ).build(),
+		    LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/blur.frag" ).setSourceDefinesString( BLUR_KERNEL_DEFINES[ 4 ] ).setPreviousHandle( LE_SHADER_MODULE_HANDLE( "le_blur_kernel_4_frag" ) ).build(),
 		};
 
 		struct BlurParams {
@@ -221,8 +222,8 @@ le_render_module_add_bloom_pass(
 		}
 
 		auto *      pm              = encoder.getPipelineManager();
-		static auto quadVert        = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/fullscreenQuad.vert", { le::ShaderStage::eVertex }, "", LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) );
-		static auto quadCombineFrag = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/ue_bloom_combine.frag", { le::ShaderStage::eFragment }, "", LE_SHADER_MODULE_HANDLE( "le_ue_bloom_combine_frag" ) );
+		static auto quadVert        = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eVertex ).setSourceFilePath( "./resources/shaders/fullscreenQuad.vert" ).setPreviousHandle( LE_SHADER_MODULE_HANDLE( "le_fullscreen_quad_vert" ) ).build();
+		static auto quadCombineFrag = LeShaderModuleBuilder( pm ).setShaderStage( le::ShaderStage::eFragment ).setSourceFilePath( "./resources/shaders/ue_bloom_combine.frag" ).setPreviousHandle( LE_SHADER_MODULE_HANDLE( "le_ue_bloom_combine_frag" ) ).build();
 
 		static auto pipeline =
 		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
