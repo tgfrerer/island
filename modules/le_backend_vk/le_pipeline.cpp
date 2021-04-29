@@ -1067,9 +1067,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	// This method gets called through the renderer - it is assumed during the setup stage.
-
-	// if handle_name == 0, then this means that this module does not have an explicit name,
+	// If handle_name == 0, then this means that this module does not have an explicit name,
 	// we will give it a running number from the shader_manager.
 	if ( handle == nullptr ) {
 		handle = le_shader_manager_get_next_available_handle( self );

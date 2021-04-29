@@ -239,8 +239,8 @@ class Renderer {
 	}
 
 	/// \brief create shader module
-	/// \return opaque shader module handle. pass this handle as `shader_module_key` to force re-using the same shader name
-	/// \param shader_module_key
+	/// \return opaque shader module handle.
+	/// \param handle [optional] : shader module handle re-use this handle if set.
 	le_shader_module_handle createShaderModule( char const *path, const le::ShaderStage &moduleType, char const *macro_definitions = nullptr, le_shader_module_handle handle = nullptr ) const {
 		return le_renderer::renderer_i.create_shader_module( self, path, { moduleType }, macro_definitions, handle );
 	}
