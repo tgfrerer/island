@@ -28,12 +28,12 @@
 #include <chrono>
 #include <array>
 
-#if defined(_MSC_VER)
-#define ALIGNED_(x) __declspec(align(x))
+#if defined( _MSC_VER )
+#	define ALIGNED_( x ) __declspec( align( x ) )
 #else
-#if defined(__GNUC__)
-#define ALIGNED_(x) __attribute__ ((aligned(x)))
-#endif
+#	if defined( __GNUC__ )
+#		define ALIGNED_( x ) __attribute__( ( aligned( x ) ) )
+#	endif
 #endif
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
@@ -419,9 +419,12 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	};
 
 	struct ModelParams {
-		ALIGNED_(16) glm::mat4 model;
-		ALIGNED_(16) glm::vec4 sunInEyeSpace;
-		ALIGNED_(16) glm::vec4 worldCentreInEyeSpace;
+		ALIGNED_( 16 )
+		glm::mat4 model;
+		ALIGNED_( 16 )
+		glm::vec4 sunInEyeSpace;
+		ALIGNED_( 16 )
+		glm::vec4 worldCentreInEyeSpace;
 	};
 
 	// Draw main scene
@@ -453,8 +456,17 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 		static auto pipelineEarthAlbedo =
 		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-		        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/earth_albedo.vert", le::ShaderStage::eVertex ) )
-		        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/earth_albedo.frag", le::ShaderStage::eFragment ) )
+		        .addShaderStage(
+		            LeShaderModuleBuilder( encoder.getPipelineManager() )
+		                .setShaderStage( le::ShaderStage::eVertex )
+		                .setSourceFilePath( "./local_resources/shaders/earth_albedo.vert" )
+		                .build() )
+		        .addShaderStage(
+		            LeShaderModuleBuilder( encoder.getPipelineManager() )
+		                .setShaderStage( le::ShaderStage::eFragment )
+		                .setSourceFilePath( "./local_resources/shaders/earth_albedo.frag" )
+		                .build() )
+
 		        .withRasterizationState()
 		        .setPolygonMode( le::PolygonMode::eFill )
 		        .setCullMode( le::CullModeFlagBits::eBack )
@@ -498,8 +510,17 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 		static auto pipelineEarthAtmosphere =
 		    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-		        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/earth_atmosphere.vert", le::ShaderStage::eVertex ) )
-		        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/earth_atmosphere.frag", le::ShaderStage::eFragment ) )
+		        .addShaderStage(
+		            LeShaderModuleBuilder( encoder.getPipelineManager() )
+		                .setShaderStage( le::ShaderStage::eVertex )
+		                .setSourceFilePath( "./local_resources/shaders/earth_atmosphere.vert" )
+		                .build() )
+		        .addShaderStage(
+		            LeShaderModuleBuilder( encoder.getPipelineManager() )
+		                .setShaderStage( le::ShaderStage::eFragment )
+		                .setSourceFilePath( "./local_resources/shaders/earth_atmosphere.frag" )
+		                .build() )
+
 		        .withRasterizationState()
 		        .setPolygonMode( le::PolygonMode::eFill )
 		        .setCullMode( le::CullModeFlagBits::eBack )
@@ -543,16 +564,31 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 				// .x -> global canvas height (in pixels)
 				// .y -> global canvas width (in pixels)
 				// .z -> identity distance, that is the distance at which canvas is rendered 1:1
-				ALIGNED_(16) glm::vec3 uCanvas;
-				ALIGNED_(16) glm::vec3 uLensflareSource; ///< source of flare in screen space
-				float        uHowClose;
+				ALIGNED_( 16 )
+				glm::vec3 uCanvas;
+				ALIGNED_( 16 )
+				glm::vec3 uLensflareSource; ///< source of flare in screen space
+				float     uHowClose;
 			};
 
 			static auto pipelineLensflares =
 			    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-			        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/lensflare.vert", le::ShaderStage::eVertex ) )
-			        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/lensflare.frag", le::ShaderStage::eFragment ) )
-			        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/lensflare.geom", le::ShaderStage::eGeometry ) )
+			        .addShaderStage(
+			            LeShaderModuleBuilder( encoder.getPipelineManager() )
+			                .setShaderStage( le::ShaderStage::eVertex )
+			                .setSourceFilePath( "./local_resources/shaders/lensflare.vert" )
+			                .build() )
+			        .addShaderStage(
+			            LeShaderModuleBuilder( encoder.getPipelineManager() )
+			                .setShaderStage( le::ShaderStage::eFragment )
+			                .setSourceFilePath( "./local_resources/shaders/lensflare.frag" )
+			                .build() )
+			        .addShaderStage(
+			            LeShaderModuleBuilder( encoder.getPipelineManager() )
+			                .setShaderStage( le::ShaderStage::eGeometry )
+			                .setSourceFilePath( "./local_resources/shaders/lensflare.geom" )
+			                .build() )
+
 			        .withRasterizationState()
 			        .setPolygonMode( le::PolygonMode::eFill )
 			        .setCullMode( le::CullModeFlagBits::eNone )

@@ -96,6 +96,9 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 // ----------------------------------------------------------------------
 
 static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+
+	// Draw main scene
+
 	auto        app = static_cast<app_o *>( user_data );
 	le::Encoder encoder{ encoder_ };
 
@@ -117,11 +120,20 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		glm::mat4 projection;
 	};
 
-	// Draw main scene
+	// Create shader modules 
+	static auto shaderVert =
+	    LeShaderModuleBuilder( encoder.getPipelineManager() )
+	        .setShaderStage( le::ShaderStage::eVertex )
+	        .setSourceFilePath( "./local_resources/shaders/default.vert" )
+	        .build();
+	
+	static auto shaderFrag =
+	    LeShaderModuleBuilder( encoder.getPipelineManager() )
+	        .setSourceFilePath( "./local_resources/shaders/default.frag" )
+	        .setShaderStage( le::ShaderStage::eFragment )
+	        .build();
 
-	static auto shaderVert = app->renderer.createShaderModule( "./local_resources/shaders/default.vert", le::ShaderStage::eVertex );
-	static auto shaderFrag = app->renderer.createShaderModule( "./local_resources/shaders/default.frag", le::ShaderStage::eFragment );
-
+	// Create a pipeline using these shader modules
 	static auto pipelineTriangle =
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 	        .addShaderStage( shaderVert )

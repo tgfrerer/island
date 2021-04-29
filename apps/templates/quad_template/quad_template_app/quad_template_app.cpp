@@ -82,8 +82,18 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 	// Draw main scene
 
-	static auto shaderVert = app->renderer.createShaderModule( "./local_resources/shaders/fullscreen.vert", le::ShaderStage::eVertex );
-	static auto shaderFrag = app->renderer.createShaderModule( "./local_resources/shaders/fullscreen.frag", le::ShaderStage::eFragment );
+	static auto shaderVert =
+	    LeShaderModuleBuilder( encoder.getPipelineManager() )
+	        .setShaderStage( le::ShaderStage::eVertex )
+	        .setSourceFilePath( "./local_resources/shaders/fullscreen.vert" )
+	        .build();
+	
+	static auto shaderFrag =
+	    LeShaderModuleBuilder( encoder.getPipelineManager() )
+	        .setSourceFilePath( "./local_resources/shaders/fullscreen.frag" )
+	        .setShaderStage( le::ShaderStage::eFragment )
+	        .build();
+
 
 	static auto pipelineFullscreenQuad =
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )

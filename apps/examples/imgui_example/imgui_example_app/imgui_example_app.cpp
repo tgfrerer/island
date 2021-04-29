@@ -108,13 +108,18 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 	// Draw main scene
 
-	static auto shaderVert = app->renderer.createShaderModule( "./resources/shaders/default.vert", le::ShaderStage::eVertex );
-	static auto shaderFrag = app->renderer.createShaderModule( "./resources/shaders/default.frag", le::ShaderStage::eFragment );
-
 	static auto pipelineImguiExample =
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-	        .addShaderStage( shaderVert )
-	        .addShaderStage( shaderFrag )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eVertex )
+	                .setSourceFilePath( "./resources/shaders/default.vert" )
+	                .build() )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eFragment )
+	                .setSourceFilePath( "./resources/shaders/default.frag" )
+	                .build() )
 	        .build();
 
 	MvpUbo mvp;

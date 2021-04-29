@@ -152,8 +152,17 @@ static void pass_to_window_0( le_command_buffer_encoder_o *encoder_, void *user_
 
 	static auto pipelineDefault =
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-	        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/default.vert", le::ShaderStage::eVertex ) )
-	        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/default.frag", le::ShaderStage::eFragment ) )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eVertex )
+	                .setSourceFilePath( "./local_resources/shaders/default.vert" )
+	                .build() )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eFragment )
+	                .setSourceFilePath( "./local_resources/shaders/default.frag" )
+	                .build() )
+
 	        .withRasterizationState()
 	        .setPolygonMode( le::PolygonMode::eFill )
 	        .setCullMode( le::CullModeFlagBits::eBack )
@@ -242,8 +251,18 @@ static void pass_to_window_1( le_command_buffer_encoder_o *encoder_, void *user_
 
 	static auto pipelineWireframe =
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-	        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/default.vert", le::ShaderStage::eVertex ) )
-	        .addShaderStage( app->renderer.createShaderModule( "./local_resources/shaders/default.frag", le::ShaderStage::eFragment, "SHOW_MONO_COLOUR" ) )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eVertex )
+	                .setSourceFilePath( "./local_resources/shaders/default.vert" )
+	                .build() )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eFragment )
+	                .setSourceFilePath( "./local_resources/shaders/default.frag" )
+	                .setSourceDefinesString( "SHOW_MONO_COLOUR" )
+	                .build() )
+
 	        .withRasterizationState()
 	        .setPolygonMode( le::PolygonMode::eLine )
 	        .setCullMode( le::CullModeFlagBits::eBack )

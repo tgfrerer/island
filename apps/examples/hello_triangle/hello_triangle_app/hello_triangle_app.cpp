@@ -141,10 +141,10 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 	app->camera.setViewport( viewports[ 0 ] );
 
-    // Data as it is laid out in the shader ubo. Be careful to respect
-    // std430 or std140 layout here, depending on what you have
-    // specified in the shader.
-    //
+	// Data as it is laid out in the shader ubo. Be careful to respect
+	// std430 or std140 layout here, depending on what you have
+	// specified in the shader.
+	//
 	struct MvpUbo {
 		glm::mat4 model;
 		glm::mat4 view;
@@ -153,17 +153,22 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 	// Draw main scene ---
 
-    // Note the `static` keyword in the following statements. This
-    // means that shader modules will only be created the very first
-    // time, or if the application gets hot-reloaded.
-
-	static auto shaderVert = app->renderer.createShaderModule( "./local_resources/shaders/default.vert", le::ShaderStage::eVertex );
-	static auto shaderFrag = app->renderer.createShaderModule( "./local_resources/shaders/default.frag", le::ShaderStage::eFragment );
+	// Note the `static` keyword in the following statements. This
+	// means that shader modules will only be created the very first
+	// time, or if the application gets hot-reloaded.
 
 	static auto pipelineHelloTriangle =
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-	        .addShaderStage( shaderVert )
-	        .addShaderStage( shaderFrag )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eVertex )
+	                .setSourceFilePath( "./local_resources/shaders/default.vert" )
+	                .build() )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eFragment )
+	                .setSourceFilePath( "./local_resources/shaders/default.frag" )
+	                .build() )
 	        .build();
 
 	MvpUbo mvp;
@@ -184,11 +189,11 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	    { 0, 0, 1, 1.f },
 	};
 
-    // Note that instead of binding buffers for vertices, we use
-    // setVertexData to provide vertex positiona and color data for
-    // the draw command inline. This is generally a passable choice
-    // for small, frequently changing geometry data.
-    
+	// Note that instead of binding buffers for vertices, we use
+	// setVertexData to provide vertex positiona and color data for
+	// the draw command inline. This is generally a passable choice
+	// for small, frequently changing geometry data.
+
 	encoder
 	    .bindGraphicsPipeline( pipelineHelloTriangle )
 	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo ) )

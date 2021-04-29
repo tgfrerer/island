@@ -107,19 +107,16 @@ static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *
 
 	ImGuiIO &io = ImGui::GetIO();
 
-	uint8_t *pixels = nullptr;
 	io.Fonts->AddFontFromFileTTF( "./resources/fonts/IBMPlexSans-Regular.otf", 20.0f, nullptr, io.Fonts->GetGlyphRangesDefault() );
 	io.Fonts->GetTexDataAsRGBA32( &self->imguiTexture.pixels, &self->imguiTexture.width, &self->imguiTexture.height );
 
-	//	self->imguiTexture.pixels_data.resize( self->imguiTexture.width * self->imguiTexture.height * 4u );
-	//	memcpy( self->imguiTexture.pixels_data.data(), pixels, self->imguiTexture.pixels_data.size() );
-
 	// Declare font image resource
-	auto fontImgInfo = le::ImageInfoBuilder()
-	                       .setExtent( uint32_t( self->imguiTexture.width ), uint32_t( self->imguiTexture.height ) )
-	                       .setUsageFlags( { LE_IMAGE_USAGE_TRANSFER_DST_BIT } )
-	                       .setFormat( le::Format::eR8G8B8A8Unorm )
-	                       .build(); // create resource for imgui font texture if it does not yet exist.
+	auto fontImgInfo =
+	    le::ImageInfoBuilder()
+	        .setExtent( uint32_t( self->imguiTexture.width ), uint32_t( self->imguiTexture.height ) )
+	        .setUsageFlags( { LE_IMAGE_USAGE_TRANSFER_DST_BIT } )
+	        .setFormat( le::Format::eR8G8B8A8Unorm )
+	        .build(); // create resource for imgui font texture if it does not yet exist.
 
 	module.declareResource( IMGUI_IMG_HANDLE, fontImgInfo );
 
@@ -211,8 +208,8 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 
 		// TODO: we should not have to call into backend this way - there must be a way for encoder to
 		// be self-sufficient, i.e. not depend on renderer in any way.
-		static auto imguiVertShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.vert", { le::ShaderStage::eVertex }, "", LE_SHADER_MODULE_HANDLE( "imgui_vert_shader" ) );
-		static auto imguiFragShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.frag", { le::ShaderStage::eFragment }, "", LE_SHADER_MODULE_HANDLE( "imgui_frag_shader" ) );
+		// static auto imguiVertShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.vert", { le::ShaderStage::eVertex }, "", LE_SHADER_MODULE_HANDLE( "imgui_vert_shader" ) );
+		// static auto imguiFragShader = le_backend_vk::le_pipeline_manager_i.create_shader_module( pipelineManager, "./resources/shaders/imgui.fragy", { le::ShaderStage::eFragment }, "", LE_SHADER_MODULE_HANDLE( "imgui_frag_shader" ) );
 
 		// Attribute input via imGUI:
 		//
@@ -222,19 +219,28 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 		//	  ImU32   col;
 		// };
 		//
-		// clang-format off
-		static auto psoImgui = LeGraphicsPipelineBuilder( pipelineManager )
-		                           .addShaderStage( imguiFragShader )
-		                           .addShaderStage( imguiVertShader )
-		                           .withAttributeBindingState()
-										.addBinding( sizeof( ImDrawVert ) )
-											.addAttribute( offsetof( ImDrawVert, pos ), le_num_type::eFloat , 2 )
-											.addAttribute( offsetof( ImDrawVert, uv  ), le_num_type::eFloat , 2 )
-											.addAttribute( offsetof( ImDrawVert, col ), le_num_type::eChar  , 4, true )
-										.end()
-		                           .end()
-		                           .build();
-		// clang-format on
+		static auto psoImgui =
+		    LeGraphicsPipelineBuilder( pipelineManager )
+		        .addShaderStage(
+		            LeShaderModuleBuilder( pipelineManager )
+		                .setShaderStage( le::ShaderStage::eVertex )
+		                .setSourceFilePath( "./resources/shaders/imgui.vert" )
+		                .setPreviousHandle( LE_SHADER_MODULE_HANDLE( "imgui_vert_shader" ) )
+		                .build() )
+		        .addShaderStage(
+		            LeShaderModuleBuilder( pipelineManager )
+		                .setShaderStage( le::ShaderStage::eFragment )
+		                .setSourceFilePath( "./resources/shaders/imgui.frag" )
+		                .setPreviousHandle( LE_SHADER_MODULE_HANDLE( "imgui_frag_shader" ) )
+		                .build() )
+		        .withAttributeBindingState()
+		        .addBinding( sizeof( ImDrawVert ) )
+		        .addAttribute( offsetof( ImDrawVert, pos ), le_num_type::eFloat, 2 )
+		        .addAttribute( offsetof( ImDrawVert, uv ), le_num_type::eFloat, 2 )
+		        .addAttribute( offsetof( ImDrawVert, col ), le_num_type::eChar, 4, true )
+		        .end()
+		        .end()
+		        .build();
 
 		auto extents = encoder.getRenderpassExtent();
 
@@ -376,6 +382,8 @@ void le_imgui_process_events( le_imgui_o *self, LeUiEvent const *events, size_t 
 			io.MouseWheel += float( e.y_offset );
 
 		} break;
+		default:
+			break;
 		} // end switch event->event
 	}
 

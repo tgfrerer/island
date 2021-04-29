@@ -323,14 +323,14 @@ static void pass_sort_execute( le_command_buffer_encoder_o *encoder_, void *user
 		return os.str();
 	}( workgroup_size_x );
 
-	static auto compute_shader =
-	    app->renderer.createShaderModule(
-	        "./local_resources/shaders/compute.glsl",
-	        le::ShaderStage::eCompute, defines_str.c_str() );
-
 	static auto pipeline =
 	    LeComputePipelineBuilder( encoder.getPipelineManager() )
-	        .setShaderStage( compute_shader )
+	        .setShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eCompute )
+	                .setSourceFilePath( "./local_resources/shaders/compute.glsl" )
+	                .setSourceDefinesString( defines_str.c_str() )
+	                .build() )
 	        .build();
 
 	struct Parameters {
@@ -462,8 +462,6 @@ static void pass_draw_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	auto        app = static_cast<bitonic_merge_sort_example_app_o *>( user_data );
 	le::Encoder encoder{ encoder_ };
 
-	auto extents = encoder.getRenderpassExtent();
-
 	// Draw main scene
 
 	static std::string defines_str = []( app_o *app ) -> std::string {
@@ -472,16 +470,19 @@ static void pass_draw_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		return os.str();
 	}( app );
 
-	static auto shaderVert = app->renderer.createShaderModule( "./local_resources/shaders/fullscreen.vert", le::ShaderStage::eVertex );
-	static auto shaderFrag =
-	    app->renderer.createShaderModule(
-	        "./local_resources/shaders/fullscreen.frag",
-	        le::ShaderStage::eFragment, defines_str.c_str() );
-
 	static auto pipelineFullscreenQuad =
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-	        .addShaderStage( shaderVert )
-	        .addShaderStage( shaderFrag )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eVertex )
+	                .setSourceFilePath( "./local_resources/shaders/fullscreen.vert" )
+	                .build() )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eFragment )
+	                .setSourceFilePath( "./local_resources/shaders/fullscreen.frag" )
+	                .setSourceDefinesString( defines_str.c_str() )
+	                .build() )
 	        .build();
 
 	encoder

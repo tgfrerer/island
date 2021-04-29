@@ -484,26 +484,36 @@ static void render_pass_main_exec( le_command_buffer_encoder_o *encoder_, void *
 
 	// -- Set up pipelines
 
-	static auto shaderVert = app->renderer.createShaderModule( "./local_resources/shaders/default.vert", le::ShaderStage::eVertex );
-	static auto shaderFrag = app->renderer.createShaderModule( "./local_resources/shaders/default.frag", le::ShaderStage::eFragment );
-
 	static auto pipeline_background =
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-	        .addShaderStage( shaderVert )
-	        .addShaderStage( shaderFrag )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eVertex )
+	                .setSourceFilePath( "./local_resources/shaders/default.vert" )
+	                .build() )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eFragment )
+	                .setSourceFilePath( "./local_resources/shaders/default.frag" )
+	                .build() )
 	        .withInputAssemblyState()
 	        .end()
 	        .withRasterizationState()
 	        .end()
 	        .build();
 
-	static auto shader_line_art_vert = app->renderer.createShaderModule( "./local_resources/shaders/line_art.vert", le::ShaderStage::eVertex );
-	static auto shader_line_art_frag = app->renderer.createShaderModule( "./local_resources/shaders/line_art.frag", le::ShaderStage::eFragment );
-
 	static auto pipeline_line_art =
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-	        .addShaderStage( shader_line_art_frag )
-	        .addShaderStage( shader_line_art_vert )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eVertex )
+	                .setSourceFilePath( "./local_resources/shaders/line_art.vert" )
+	                .build() )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eFragment )
+	                .setSourceFilePath( "./local_resources/shaders/line_art.frag" )
+	                .build() )
 	        .withInputAssemblyState()
 	        .setTopology( le::PrimitiveTopology::eLineList )
 	        .end()

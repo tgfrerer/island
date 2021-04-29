@@ -190,15 +190,16 @@ static void pass_compute_exec( le_command_buffer_encoder_o *encoder_, void *user
 	auto        app = static_cast<compute_example_app_o *>( user_data );
 	le::Encoder encoder{ encoder_ };
 
-	static auto gerstnerWavesCompute =
-	    app->renderer.createShaderModule( "./local_resources/shaders/compute.glsl", le::ShaderStage::eCompute );
-
 	// Compute pipelines are delightfully simple to set up - they only need to
 	// know about their one shader stage.
 
 	static auto psoCompute =
 	    LeComputePipelineBuilder( encoder.getPipelineManager() )
-	        .setShaderStage( gerstnerWavesCompute )
+	        .setShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eCompute )
+	                .setSourceFilePath( "./local_resources/shaders/compute.glsl" )
+	                .build() )
 	        .build();
 
 	// The only uniform we want to upload to the shader is the current time tick value, so we
@@ -255,13 +256,18 @@ static void pass_draw_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 	// Draw main scene
 
-	static auto shaderVert = app->renderer.createShaderModule( "./local_resources/shaders/default.vert", le::ShaderStage::eVertex );
-	static auto shaderFrag = app->renderer.createShaderModule( "./local_resources/shaders/default.frag", le::ShaderStage::eFragment );
-
 	static auto psoDefaultGraphics =
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-	        .addShaderStage( shaderVert )
-	        .addShaderStage( shaderFrag )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eVertex )
+	                .setSourceFilePath( "./local_resources/shaders/default.vert" )
+	                .build() )
+	        .addShaderStage(
+	            LeShaderModuleBuilder( encoder.getPipelineManager() )
+	                .setShaderStage( le::ShaderStage::eFragment )
+	                .setSourceFilePath( "./local_resources/shaders/default.frag" )
+	                .build() )
 	        .withInputAssemblyState()
 	        .setTopology( le::PrimitiveTopology::eTriangleList )
 	        .end()

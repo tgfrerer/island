@@ -166,13 +166,18 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o *self ) {
 
 		        // Draw main scene
 
-		        static auto shaderVert = app->renderer.createShaderModule( "./local_resources/shaders/fullscreen.vert", le::ShaderStage::eVertex );
-		        static auto shaderFrag = app->renderer.createShaderModule( "./local_resources/shaders/fullscreen.frag", le::ShaderStage::eFragment );
-
 		        static auto pipelineLutGradingExample =
 		            LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
-		                .addShaderStage( shaderVert )
-		                .addShaderStage( shaderFrag )
+		                .addShaderStage(
+		                    LeShaderModuleBuilder( encoder.getPipelineManager() )
+		                        .setShaderStage( le::ShaderStage::eVertex )
+		                        .setSourceFilePath( "./local_resources/shaders/fullscreen.vert" )
+		                        .build() )
+		                .addShaderStage(
+		                    LeShaderModuleBuilder( encoder.getPipelineManager() )
+		                        .setShaderStage( le::ShaderStage::eFragment )
+		                        .setSourceFilePath( "./local_resources/shaders/fullscreen.frag" )
+		                        .build() )
 		                .build();
 
 		        static auto src_image_texture = le::Renderer::produceTextureHandle( "src_image" );
