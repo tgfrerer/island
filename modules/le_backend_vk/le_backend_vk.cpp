@@ -5472,6 +5472,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 }
 
 // ----------------------------------------------------------------------
+// This method gets called once per frame (via renderer.update()) in order
+// to poll shader modules for updates
 static void backend_update_shader_modules( le_backend_o *self ) {
 	using namespace le_backend_vk;
 	le_pipeline_manager_i.update_shader_modules( self->pipelineCache );
