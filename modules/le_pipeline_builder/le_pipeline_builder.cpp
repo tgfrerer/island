@@ -506,12 +506,6 @@ static void input_assembly_state_set_toplogy( le_graphics_pipeline_builder_o *se
 
 // ----------------------------------------------------------------------
 
-static void blend_attachment_state_set_blend_enable( le_graphics_pipeline_builder_o *self, size_t which_attachment, const bool &enable ) {
-	self->obj->data.blendAttachmentStates[ which_attachment ].setBlendEnable( enable );
-}
-
-// ----------------------------------------------------------------------
-
 static vk::BlendOp le_blend_op_to_vk( const le::BlendOp &rhs ) {
 	return vk::BlendOp( rhs );
 }
