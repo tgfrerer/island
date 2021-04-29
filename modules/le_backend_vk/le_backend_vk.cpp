@@ -5478,9 +5478,9 @@ static void backend_update_shader_modules( le_backend_o *self ) {
 }
 
 // ----------------------------------------------------------------------
-static le_shader_module_handle backend_create_shader_module( le_backend_o *self, char const *path, const LeShaderStageEnum &moduleType, char const *macro_definitions, le_shader_module_handle handle ) {
+static le_shader_module_handle backend_create_shader_module( le_backend_o *self, char const *path, const LeShaderSourceLanguageEnum &shader_source_language, const LeShaderStageEnum &moduleType, char const *macro_definitions, le_shader_module_handle handle ) {
 	using namespace le_backend_vk;
-	return le_pipeline_manager_i.create_shader_module( self->pipelineCache, path, moduleType, macro_definitions, handle );
+	return le_pipeline_manager_i.create_shader_module( self->pipelineCache, path, shader_source_language, moduleType, macro_definitions, handle );
 }
 
 // ----------------------------------------------------------------------

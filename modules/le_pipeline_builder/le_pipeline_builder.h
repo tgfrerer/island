@@ -11,6 +11,8 @@ LE_OPAQUE_HANDLE( le_cpso_handle );          // Opaque handle for compute pipeli
 LE_OPAQUE_HANDLE( le_rtxpso_handle );        // Opaque handle for rtx pipeline state
 LE_OPAQUE_HANDLE( le_shader_module_handle ); // Opaque handle for shader module
 
+struct le_shader_module_builder_o;
+
 struct le_graphics_pipeline_builder_o;
 struct le_compute_pipeline_builder_o;
 struct le_rtx_pipeline_builder_o;
@@ -37,6 +39,8 @@ enum class CullModeFlagBits : uint32_t;
 enum class SampleCountFlagBits : uint32_t;
 enum class CompareOp : uint32_t;
 enum class StencilOp : uint32_t;
+enum class ShaderStage : uint32_t;
+enum class ShaderSourceLanguage : uint32_t;
 } // namespace le
 
 // clang-format off
@@ -171,6 +175,20 @@ struct le_pipeline_builder_api {
 	};
 
 	le_rtx_pipeline_builder_interface_t le_rtx_pipeline_builder_i;
+
+    struct le_shader_module_builder_interface_t {
+        le_shader_module_builder_o * (*create )  ( le_pipeline_manager_o* pipeline_cache);
+        void ( *destroy)                         ( le_shader_module_builder_o* self);
+        void ( *set_source_file_path )           ( le_shader_module_builder_o* self, char const * source_file_path);
+        void ( *set_source_defines_string )      ( le_shader_module_builder_o* self, char const * source_defines_string);
+        void ( *set_shader_stage )               ( le_shader_module_builder_o* self, le::ShaderStage const & shader_stage);
+        void ( *set_source_language )            ( le_shader_module_builder_o* self, le::ShaderSourceLanguage const & shader_source_language);
+        void ( *set_previous_handle )            ( le_shader_module_builder_o* self, le_shader_module_handle previous_handle);
+        le_shader_module_handle (* build  )      ( le_shader_module_builder_o* self);
+    };
+
+    le_shader_module_builder_interface_t le_shader_module_builder_i;
+
 };
 // clang-format on
 
@@ -186,6 +204,7 @@ static const auto &api                            = le_pipeline_builder_api_i;
 static const auto &le_graphics_pipeline_builder_i = api -> le_graphics_pipeline_builder_i;
 static const auto &le_compute_pipeline_builder_i  = api -> le_compute_pipeline_builder_i;
 static const auto &le_rtx_pipeline_builder_i      = api -> le_rtx_pipeline_builder_i;
+static const auto &le_shader_module_builder_i     = api -> le_shader_module_builder_i;
 } // namespace le_pipeline_builder
 
 // ----------------------------------------------------------------------

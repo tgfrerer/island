@@ -56,6 +56,7 @@ struct VmaAllocationCreateInfo;
 struct VmaAllocationInfo;
 
 struct LeShaderStageEnum;
+struct LeShaderSourceLanguageEnum;
 enum class LeResourceType : uint8_t;
 
 struct VkFormatEnum; // wrapper around `vk::Format`. Defined in <le_backend_types_internal.h>
@@ -104,7 +105,7 @@ struct le_backend_vk_api {
 		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex);
 		le_staging_allocator_o*( *get_staging_allocator      ) ( le_backend_o* self, size_t frameIndex);
 
-		le_shader_module_handle( *create_shader_module       ) ( le_backend_o* self, char const * path, const LeShaderStageEnum& moduleType, char const * macro_definitions, le_shader_module_handle handle);
+		le_shader_module_handle( *create_shader_module       ) ( le_backend_o* self, char const * path, const LeShaderSourceLanguageEnum& shader_source_languag, econst LeShaderStageEnum& moduleType, char const * macro_definitions, le_shader_module_handle handle);
 		void                   ( *update_shader_modules      ) ( le_backend_o* self );
 
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
@@ -194,7 +195,7 @@ struct le_backend_vk_api {
 		le_pipeline_and_layout_info_t            ( *produce_rtx_pipeline              ) ( le_pipeline_manager_o *self, le_rtxpso_handle rtxpsoHandle, char ** shader_group_data);
 		le_pipeline_and_layout_info_t            ( *produce_compute_pipeline          ) ( le_pipeline_manager_o *self, le_cpso_handle cpsoHandle);
 
-		le_shader_module_handle                  ( *create_shader_module              ) ( le_pipeline_manager_o* self, char const * path, const LeShaderStageEnum& moduleType, char const *macro_definitions, le_shader_module_handle handle);
+		le_shader_module_handle                  ( *create_shader_module              ) ( le_pipeline_manager_o* self, char const * path, const LeShaderSourceLanguageEnum& shader_source_language, const LeShaderStageEnum& moduleType, char const *macro_definitions, le_shader_module_handle handle);
 		void                                     ( *update_shader_modules             ) ( le_pipeline_manager_o* self );
 
         bool                                     ( *graphics_pipeline_add_shader_stage )(le_pipeline_manager_o* self, le_gpso_handle gpsoHandle, le_shader_module_handle shader_stage);

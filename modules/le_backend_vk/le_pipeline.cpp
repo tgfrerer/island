@@ -35,8 +35,9 @@ struct le_shader_module_o {
 	std::vector<std::string>                         vertexAttributeNames;        ///< (used for debug only) name for vertex attribute
 	std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions; ///< descriptions gathered from reflection if shader type is vertex
 	std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;   ///< descriptions gathered from reflection if shader type is vertex
-	VkShaderModule                                   module = nullptr;
-	le::ShaderStage                                  stage  = {};
+	VkShaderModule                                   module          = nullptr;
+	le::ShaderStage                                  stage           = {};
+	le::ShaderSourceLanguage                         source_language = le::ShaderSourceLanguage::eDefault;
 };
 
 // A table from `handle` -> `object*`, protected by mutex.
@@ -333,14 +334,15 @@ static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 /// \brief translate a binary blob into spirv code if possible
 /// \details Blob may be raw spirv data, or glsl data
 static void translate_to_spirv_code(
-    le_shader_compiler_o * shader_compiler,
-    void *                 raw_data,
-    size_t                 numBytes,
-    LeShaderStageEnum      moduleType,
-    const char *           original_file_name,
-    std::vector<uint32_t> &spirvCode,
-    std::set<std::string> &includesSet,
-    std::string const &    shaderDefines ) {
+    le_shader_compiler_o *     shader_compiler,
+    void *                     raw_data,
+    size_t                     numBytes,
+    LeShaderSourceLanguageEnum shader_source_language,
+    LeShaderStageEnum          moduleType,
+    const char *               original_file_name,
+    std::vector<uint32_t> &    spirvCode,
+    std::set<std::string> &    includesSet,
+    std::string const &        shaderDefines ) {
 
 	if ( check_is_data_spirv( raw_data, numBytes ) ) {
 		spirvCode.resize( numBytes / 4 );
@@ -1059,11 +1061,12 @@ static le_shader_module_handle le_shader_manager_get_next_available_handle( le_s
 /// ideally, this method is only allowed to be called in the setup phase.
 ///
 static le_shader_module_handle le_shader_manager_create_shader_module(
-    le_shader_manager_o *    self,
-    char const *             path,
-    const LeShaderStageEnum &moduleType,
-    char const *             macro_defines_,
-    le_shader_module_handle  handle ) {
+    le_shader_manager_o *             self,
+    char const *                      path,
+    const LeShaderSourceLanguageEnum &shader_source_language,
+    const LeShaderStageEnum &         moduleType,
+    char const *                      macro_defines_,
+    le_shader_module_handle           handle ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -1094,7 +1097,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 
 	std::string macro_defines = macro_defines_ ? std::string( macro_defines_ ) : "";
 
-	translate_to_spirv_code( self->shader_compiler, raw_file_data.data(), raw_file_data.size(), moduleType, path, spirv_code, includesSet, macro_defines );
+	translate_to_spirv_code( self->shader_compiler, raw_file_data.data(), raw_file_data.size(), shader_source_language, moduleType, path, spirv_code, includesSet, macro_defines );
 
 	le_shader_module_o module{};
 	module.stage               = moduleType;
@@ -1103,6 +1106,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 	module.hash_shader_defines = SpookyHash::Hash64( module.macro_defines.data(), module.macro_defines.size(), 0 );
 	module.hash                = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module.hash_shader_defines );
 	module.spirv               = std::move( spirv_code );
+	module.source_language     = shader_source_language;
 
 	le_shader_module_o *m = self->shaderModules.try_find( handle );
 

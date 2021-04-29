@@ -72,6 +72,46 @@ struct le_rtx_pipeline_builder_o {
 	le_pipeline_manager_o *pipelineCache = nullptr;
 };
 
+// ----------------------------------------------------------------------
+
+struct le_shader_module_builder_o {
+	le_pipeline_manager_o *  pipeline_manager       = nullptr;
+	std::string              source_file_path       = {};
+	std::string              source_defines_string  = {};
+	le::ShaderStage          shader_stage           = le::ShaderStage{};
+	le::ShaderSourceLanguage shader_source_language = le::ShaderSourceLanguage::eDefault;
+	le_shader_module_handle  previous_handle        = nullptr;
+};
+static le_shader_module_builder_o *le_shader_module_builder_create( le_pipeline_manager_o *pipeline_cache ) {
+	auto self              = new le_shader_module_builder_o{};
+	self->pipeline_manager = pipeline_cache;
+	return self;
+}
+static void le_shader_module_builder_destroy( le_shader_module_builder_o *self ) {
+	delete self;
+}
+static void le_shader_module_builder_set_source_file_path( le_shader_module_builder_o *self, char const *source_file_path ) {
+	self->source_file_path = source_file_path;
+}
+static void le_shader_module_builder_set_source_defines_string( le_shader_module_builder_o *self, char const *source_defines_string ) {
+	self->source_defines_string = source_defines_string;
+}
+static void le_shader_module_builder_set_shader_stage( le_shader_module_builder_o *self, le::ShaderStage const &shader_stage ) {
+	self->shader_stage = shader_stage;
+}
+static void le_shader_module_builder_set_source_language( le_shader_module_builder_o *self, le::ShaderSourceLanguage const &shader_source_language ) {
+	self->shader_source_language = shader_source_language;
+}
+static void le_shader_module_builder_set_previous_handle( le_shader_module_builder_o *self, le_shader_module_handle previous_handle ) {
+	self->previous_handle = previous_handle;
+}
+static le_shader_module_handle le_shader_module_builder_build( le_shader_module_builder_o *self ) {
+	using namespace le_backend_vk;
+	return le_pipeline_manager_i.create_shader_module( self->pipeline_manager, self->source_file_path.c_str(), { self->shader_stage }, self->source_defines_string.c_str(), self->previous_handle );
+}
+
+// ----------------------------------------------------------------------
+
 static le_compute_pipeline_builder_o *le_compute_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
 	auto self           = new le_compute_pipeline_builder_o();
 	self->pipelineCache = pipelineCache;
@@ -837,5 +877,18 @@ LE_MODULE_REGISTER_IMPL( le_pipeline_builder, api ) {
 		i.add_shader_group_callable       = le_rtx_pipeline_builder_add_shader_group_callable;
 		i.add_shader_group_triangle_hit   = le_rtx_pipeline_builder_add_shader_group_triangle_hit;
 		i.add_shader_group_procedural_hit = le_rtx_pipeline_builder_add_shader_group_procedural_hit;
+	}
+
+	{
+		// setup shader module builder api
+		auto &i                     = static_cast<le_pipeline_builder_api *>( api )->le_shader_module_builder_i;
+		i.create                    = le_shader_module_builder_create;
+		i.destroy                   = le_shader_module_builder_destroy;
+		i.set_source_file_path      = le_shader_module_builder_set_source_file_path;
+		i.set_source_defines_string = le_shader_module_builder_set_source_defines_string;
+		i.set_shader_stage          = le_shader_module_builder_set_shader_stage;
+		i.set_source_language       = le_shader_module_builder_set_source_language;
+		i.set_previous_handle       = le_shader_module_builder_set_previous_handle;
+		i.build                     = le_shader_module_builder_build;
 	}
 }

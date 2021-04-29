@@ -404,10 +404,18 @@ enum class ShaderStage : uint32_t {
 	eCallableBitNv          = eCallableBitKhr,
 };
 // Codegen </VkShaderStageFlagBits>
-
 } // namespace le
-
 LE_WRAP_TYPE_IN_STRUCT( le::ShaderStage, LeShaderStageEnum );
+
+namespace le {
+enum class ShaderSourceLanguage : uint32_t {
+	eGlsl    = 0,
+	eHlsl    = 1,
+	eSpirv   = 2,
+	eDefault = eGlsl,
+};
+} // namespace le
+LE_WRAP_TYPE_IN_STRUCT( le::ShaderSourceLanguage, LeShaderSourceLanguageEnum );
 
 namespace le {
 // Codegen <VkFrontFace, uint32_t>
