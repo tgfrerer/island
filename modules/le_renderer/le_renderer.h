@@ -30,7 +30,6 @@ struct le_renderer_api {
 		void                           ( *destroy                               )( le_renderer_o *obj );
 		void                           ( *setup                                 )( le_renderer_o *obj, le_renderer_settings_t const & settings );
 		void                           ( *update                                )( le_renderer_o *obj, le_render_module_o *module );
-        le_shader_module_handle        ( *create_shader_module                  )( le_renderer_o *self, char const *path, const LeShaderStageEnum& mtype, char const * macro_definitions , le_shader_module_handle handle);
 
 		/// returns the image resource handle for a swapchain at given index
 		uint32_t                       ( *get_swapchain_count                   )( le_renderer_o* self);
