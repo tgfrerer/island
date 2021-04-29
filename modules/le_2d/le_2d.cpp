@@ -646,8 +646,8 @@ static void le_2d_draw_primitives( le_2d_o *self ) {
 	le::Encoder encoder{ self->encoder };
 	auto *      pm = encoder.getPipelineManager();
 
-	static auto vert = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/2d_primitives.vert", { le::ShaderStage::eVertex }, "", LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_vert" ) );
-	static auto frag = le_backend_vk::le_pipeline_manager_i.create_shader_module( pm, "./resources/shaders/2d_primitives.frag", { le::ShaderStage::eFragment }, "", LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_frag" ) );
+	static auto vert = LeShaderModuleBuilder( pm ).setSourceFilePath( "./resources/shaders/2d_primitives.vert" ).setShaderStage( le::ShaderStage::eVertex ).setPreviousHandle( LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_vert" ) ).build();
+	static auto frag = LeShaderModuleBuilder( pm ).setSourceFilePath( "./resources/shaders/2d_primitives.frag" ).setShaderStage( le::ShaderStage::eFragment ).setPreviousHandle( LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_frag" ) ).build();
 
 	// clang-format off
 	static auto pipeline =

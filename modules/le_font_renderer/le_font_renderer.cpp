@@ -38,9 +38,10 @@ le_font_renderer_o *le_font_renderer_create( le_renderer_o *renderer ) {
 	auto self = new le_font_renderer_o();
 
 	using namespace le_renderer;
+	auto pm = le_renderer_api_i->le_renderer_i.get_pipeline_manager( renderer );
 
-	self->shader_font_vert = renderer_i.create_shader_module( renderer, "./resources/shaders/le_font.vert", { le::ShaderStage::eVertex }, "NO_MVP", LE_SHADER_MODULE_HANDLE( "le_font_default_shader_vert" ) );
-	self->shader_font_frag = renderer_i.create_shader_module( renderer, "./resources/shaders/le_font.frag", { le::ShaderStage::eFragment }, "", LE_SHADER_MODULE_HANDLE( "le_font_default_shader_frag" ) );
+	self->shader_font_vert = LeShaderModuleBuilder( pm ).setSourceFilePath( "./resources/shaders/le_font.vert" ).setShaderStage( le::ShaderStage::eVertex ).setSourceDefinesString( "NO_MVP" ).setPreviousHandle( LE_SHADER_MODULE_HANDLE( "le_font_default_shader_vert" ) ).build();
+	self->shader_font_frag = LeShaderModuleBuilder( pm ).setSourceFilePath( "./resources/shaders/le_font.frag" ).setShaderStage( le::ShaderStage::eFragment ).setPreviousHandle( LE_SHADER_MODULE_HANDLE( "le_font_default_shader_frag" ) ).build();
 
 	return self;
 }
