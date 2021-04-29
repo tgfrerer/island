@@ -191,14 +191,6 @@ static void renderer_destroy( le_renderer_o *self ) {
 }
 
 // ----------------------------------------------------------------------
-/// \brief declare a shader module which can be used to create a pipeline
-/// \returns a shader module handle, or nullptr upon failure
-static le_shader_module_handle renderer_create_shader_module( le_renderer_o *self, char const *path, const LeShaderStageEnum &moduleType, char const *macro_definitions, le_shader_module_handle handle ) {
-	using namespace le_backend_vk;
-	return vk_backend_i.create_shader_module( self->backend, path, moduleType, macro_definitions, handle );
-}
-
-// ----------------------------------------------------------------------
 
 static le_rtx_blas_info_handle renderer_create_rtx_blas_info_handle( le_renderer_o *self, le_rtx_geometry_t *geometries, uint32_t geometries_count, LeBuildAccelerationStructureFlags const *flags ) {
 	using namespace le_backend_vk;
@@ -709,7 +701,6 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.destroy                = renderer_destroy;
 	le_renderer_i.setup                  = renderer_setup;
 	le_renderer_i.update                 = renderer_update;
-	le_renderer_i.create_shader_module   = renderer_create_shader_module;
 	le_renderer_i.get_swapchain_count    = renderer_get_swapchain_count;
 	le_renderer_i.get_swapchain_resource = renderer_get_swapchain_resource;
 	le_renderer_i.get_swapchain_extent   = renderer_get_swapchain_extent;
