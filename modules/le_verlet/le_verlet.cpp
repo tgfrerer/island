@@ -2,7 +2,7 @@
 #include "le_core/le_core.h"
 
 #include <vector>
-#include <glm.hpp>
+#include "glm/glm.hpp"
 
 typedef le_verlet_api::Constraint Constraint;
 static constexpr float            cSTIFFNESS = 0.01445f;
