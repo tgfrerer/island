@@ -674,9 +674,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 		input_descriptions.clear();
 
 #ifndef NDEBUG
-		constexpr bool CHECK_LOCATIONS_ARE_CONSECUTIVE = true;
-		// TODO: Find out: are shader inputs sorted by location - is this guaranteed?
-		//       In which case we wouldn't need the following check anymore
+		constexpr bool CHECK_LOCATIONS_ARE_CONSECUTIVE = false;
 		if ( CHECK_LOCATIONS_ARE_CONSECUTIVE ) {
 			// Ensure that locations are sorted asc, and there are no holes.
 			if ( vertexAttributeDescriptions.size() > 1 ) {
@@ -930,7 +928,7 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o *self, l
 	std::vector<uint32_t> spirv_code;
 	std::set<std::string> includesSet{ { module->filepath.string() } }; // let first element be the original source file path
 
-	translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), { module->stage }, module->filepath.string().c_str(), spirv_code, includesSet, module->macro_defines );
+	translate_to_spirv_code( self->shader_compiler, source_text.data(), source_text.size(), { module->source_language }, { module->stage }, module->filepath.string().c_str(), spirv_code, includesSet, module->macro_defines );
 
 	if ( spirv_code.empty() ) {
 		// no spirv code available, bail out.
@@ -2209,8 +2207,8 @@ static const le_descriptor_set_layout_t *le_pipeline_manager_get_descriptor_set_
 
 // ----------------------------------------------------------------------
 
-static le_shader_module_handle le_pipeline_manager_create_shader_module( le_pipeline_manager_o *self, char const *path, const LeShaderStageEnum &moduleType, char const *macro_definitions, le_shader_module_handle handle ) {
-	return le_shader_manager_create_shader_module( self->shaderManager, path, moduleType, macro_definitions, handle );
+static le_shader_module_handle le_pipeline_manager_create_shader_module( le_pipeline_manager_o *self, char const *path, const LeShaderSourceLanguageEnum &shader_source_language, const LeShaderStageEnum &moduleType, char const *macro_definitions, le_shader_module_handle handle ) {
+	return le_shader_manager_create_shader_module( self->shaderManager, path, shader_source_language, moduleType, macro_definitions, handle );
 }
 
 // ----------------------------------------------------------------------

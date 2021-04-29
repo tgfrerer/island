@@ -209,6 +209,49 @@ static const auto &le_shader_module_builder_i     = api -> le_shader_module_buil
 
 // ----------------------------------------------------------------------
 
+class LeShaderModuleBuilder : NoCopy, NoMove {
+
+	le_shader_module_builder_o *self;
+
+  public:
+	LeShaderModuleBuilder( le_pipeline_manager_o *pipelineCache )
+	    : self( le_pipeline_builder::le_shader_module_builder_i.create( pipelineCache ) ) {
+	}
+
+	~LeShaderModuleBuilder() {
+		le_pipeline_builder::le_shader_module_builder_i.destroy( self );
+	}
+
+	le_shader_module_handle_t *build() {
+		return le_pipeline_builder::le_shader_module_builder_i.build( self );
+	}
+
+	LeShaderModuleBuilder &setSourceFilePath( char const *source_file_path ) {
+		le_pipeline_builder::le_shader_module_builder_i.set_source_file_path( self, source_file_path );
+		return *this;
+	}
+
+	LeShaderModuleBuilder &setSourceDefinesString( char const *source_defines_string ) {
+		le_pipeline_builder::le_shader_module_builder_i.set_source_defines_string( self, source_defines_string );
+		return *this;
+	}
+
+	LeShaderModuleBuilder &setShaderStage( le::ShaderStage const &shaderStage ) {
+		le_pipeline_builder::le_shader_module_builder_i.set_shader_stage( self, shaderStage );
+		return *this;
+	}
+	LeShaderModuleBuilder &setSourceLanguage( le::ShaderSourceLanguage const &shader_source_language ) {
+		le_pipeline_builder::le_shader_module_builder_i.set_source_language( self, shader_source_language );
+		return *this;
+	}
+
+	LeShaderModuleBuilder &setPreviousHandle( le_shader_module_handle previous_handle ) {
+		le_pipeline_builder::le_shader_module_builder_i.set_previous_handle( self, previous_handle );
+		return *this;
+	}
+};
+// ----------------------------------------------------------------------
+
 class LeComputePipelineBuilder : NoCopy, NoMove {
 
 	le_compute_pipeline_builder_o *self;

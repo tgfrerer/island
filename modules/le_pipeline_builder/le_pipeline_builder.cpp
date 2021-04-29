@@ -107,7 +107,7 @@ static void le_shader_module_builder_set_previous_handle( le_shader_module_build
 }
 static le_shader_module_handle le_shader_module_builder_build( le_shader_module_builder_o *self ) {
 	using namespace le_backend_vk;
-	return le_pipeline_manager_i.create_shader_module( self->pipeline_manager, self->source_file_path.c_str(), { self->shader_stage }, self->source_defines_string.c_str(), self->previous_handle );
+	return le_pipeline_manager_i.create_shader_module( self->pipeline_manager, self->source_file_path.c_str(), { self->shader_source_language }, { self->shader_stage }, self->source_defines_string.c_str(), self->previous_handle );
 }
 
 // ----------------------------------------------------------------------
