@@ -105,7 +105,7 @@ struct le_backend_vk_api {
 		le_allocator_o**       ( *get_transient_allocators   ) ( le_backend_o* self, size_t frameIndex);
 		le_staging_allocator_o*( *get_staging_allocator      ) ( le_backend_o* self, size_t frameIndex);
 
-		le_shader_module_handle( *create_shader_module       ) ( le_backend_o* self, char const * path, const LeShaderSourceLanguageEnum& shader_source_languag, econst LeShaderStageEnum& moduleType, char const * macro_definitions, le_shader_module_handle handle);
+		le_shader_module_handle( *create_shader_module       ) ( le_backend_o* self, char const * path, const LeShaderSourceLanguageEnum& shader_source_language, const LeShaderStageEnum& moduleType, char const * macro_definitions, le_shader_module_handle handle);
 		void                   ( *update_shader_modules      ) ( le_backend_o* self );
 
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
