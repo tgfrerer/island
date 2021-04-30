@@ -202,9 +202,9 @@ struct le_shader_manager_o {
 
 	std::set<le_shader_module_handle> modifiedShaderModules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
 
-	le_shader_compiler_o *shader_compiler        = nullptr; // owning
-	le_file_watcher_o *   shaderFileWatcher      = nullptr; // owning
-	std::atomic<uint64_t> modules_count_plus_one = { 1 };   // we begin at 1, so that zero indicates undefined
+	le_shader_compiler_o *shader_compiler   = nullptr; // owning
+	le_file_watcher_o *   shaderFileWatcher = nullptr; // owning
+	std::atomic<uint64_t> modules_count     = { 0 };   // zero as handle means unset (first available handle will be 1, as pre-increment)
 };
 
 // NOTE: It might make sense to have one pipeline manager per worker thread, and
@@ -1050,7 +1050,7 @@ static void le_shader_manager_destroy( le_shader_manager_o *self ) {
 }
 
 static le_shader_module_handle le_shader_manager_get_next_available_handle( le_shader_manager_o *self ) {
-	return reinterpret_cast<le_shader_module_handle>( self->modules_count_plus_one++ );
+	return reinterpret_cast<le_shader_module_handle>( ++self->modules_count );
 }
 
 // ----------------------------------------------------------------------
