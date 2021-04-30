@@ -333,7 +333,7 @@ static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 
 /// \brief translate a binary blob into spirv code if possible
 /// \details Blob may be raw spirv data, or glsl data
-static void translate_to_spirv_code(
+static bool translate_to_spirv_code(
     le_shader_compiler_o *     shader_compiler,
     void *                     raw_data,
     size_t                     numBytes,
@@ -344,9 +344,12 @@ static void translate_to_spirv_code(
     std::set<std::string> &    includesSet,
     std::string const &        shaderDefines ) {
 
+	bool result = false;
+
 	if ( check_is_data_spirv( raw_data, numBytes ) ) {
 		spirvCode.resize( numBytes / 4 );
 		memcpy( spirvCode.data(), raw_data, numBytes );
+		result = true;
 	} else {
 
 		// ----------| Invariant: Data is not SPIRV, it still needs to be compiled
@@ -356,8 +359,14 @@ static void translate_to_spirv_code(
 		auto compilation_result = compiler_i.result_create();
 
 		compiler_i.compile_source(
-		    shader_compiler, static_cast<const char *>( raw_data ), numBytes,
-		    moduleType, original_file_name, shaderDefines.c_str(), shaderDefines.size(), compilation_result );
+		    shader_compiler,
+		    static_cast<const char *>( raw_data ), numBytes,
+		    shader_source_language,
+		    moduleType,
+		    original_file_name,
+		    shaderDefines.c_str(),
+		    shaderDefines.size(),
+		    compilation_result );
 
 		if ( compiler_i.result_get_success( compilation_result ) == true ) {
 			const char *addr;
@@ -374,11 +383,15 @@ static void translate_to_spirv_code(
 				// -- update set of includes for this module
 				includesSet.emplace( pStr, strSz );
 			}
+			result = true;
+		} else {
+			result = false;
 		}
 
 		// Release compile result object
 		compiler_i.result_destroy( compilation_result );
 	}
+	return result;
 }
 
 // ----------------------------------------------------------------------

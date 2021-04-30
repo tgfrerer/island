@@ -488,13 +488,28 @@ static void shader_options_parse_macro_definitions_string( shaderc_compile_optio
 	}
 }
 
+static shaderc_source_language to_shader_c( LeShaderSourceLanguageEnum const &shader_source_language ) {
+	// clang-format off
+    switch(shader_source_language.data){
+        case le::ShaderSourceLanguage::eGlsl: return shaderc_source_language::shaderc_source_language_glsl;
+        case le::ShaderSourceLanguage::eHlsl: return shaderc_source_language::shaderc_source_language_hlsl;
+        default:                              return shaderc_source_language::shaderc_source_language_glsl;
+    }
+	// clang-format on
+}
+
 // ---------------------------------------------------------------
 
-static bool le_shader_compiler_compile_source( le_shader_compiler_o *self, const char *sourceFileText,
-                                               size_t sourceFileNumBytes, const LeShaderStageEnum &shaderType,
-                                               const char *original_file_path,
-                                               char const *macroDefinitionsStr, size_t macroDefinitionsStrSz,
-                                               le_shader_compilation_result_o *result ) {
+static bool le_shader_compiler_compile_source(
+    le_shader_compiler_o *            self,
+    const char *                      sourceFileText,
+    size_t                            sourceFileNumBytes,
+    const LeShaderSourceLanguageEnum &shader_source_language,
+    const LeShaderStageEnum &         shaderType,
+    const char *                      original_file_path,
+    char const *                      macroDefinitionsStr,
+    size_t                            macroDefinitionsStrSz,
+    le_shader_compilation_result_o *  result ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	logger.info( "Compiling shader file: '%s'", original_file_path );
@@ -504,6 +519,8 @@ static bool le_shader_compiler_compile_source( le_shader_compiler_o *self, const
 	// Make a copy of compiler options so that we can add callback pointers only for
 	// this compilation.
 	auto local_options = shaderc_compile_options_clone( self->options );
+
+	shaderc_compile_options_set_source_language( local_options, to_shader_c( shader_source_language ) );
 
 	shader_options_parse_macro_definitions_string( local_options, macroDefinitionsStr, macroDefinitionsStrSz );
 
@@ -542,8 +559,7 @@ static bool le_shader_compiler_compile_source( le_shader_compiler_o *self, const
 				auto errorFileName = cm[ 1 ].str();
 				auto lineNumber    = std::stoul( cm[ 2 ].str() );
 				auto errorMessage  = cm[ 3 ].str();
-				logger.error( "Shader preprocessor failed: %s:%d",
-				              std::filesystem::relative( std::filesystem::path( errorFileName ) ).c_str(), lineNumber );
+				logger.error( "Shader preprocessor failed: %s:%d", std::filesystem::relative( std::filesystem::path( errorFileName ) ).c_str(), lineNumber );
 				logger.error( "%s", errorMessage.c_str() );
 			}
 		}
