@@ -754,6 +754,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 
 /// \brief compare sorted bindings and raise the alarm if two successive bindings alias locations
 static bool shader_module_check_bindings_valid( le_shader_binding_info const *bindings, size_t numBindings ) {
+	static auto logger = LeLog( LOGGER_LABEL );
 
 	// -- perform sanity check on bindings - bindings must be unique:
 	// (location+binding cannot be shared between shader uniforms)
@@ -770,10 +771,8 @@ static bool shader_module_check_bindings_valid( le_shader_binding_info const *bi
 
 		if ( b->setIndex == b_prev->setIndex &&
 		     b->binding == b_prev->binding ) {
-			std::cerr << "ERROR: Illegal shader bindings detected, rejecting shader."
-			          << std::endl
-			          << "Duplicate bindings for set: " << b->setIndex << ", binding: " << b->binding
-			          << std::endl;
+			logger.error( "Illegal shader bindings detected, rejecting shader." );
+			logger.error( "Duplicate bindings for set: %d, binding %d", b->setIndex, b->binding );
 			return false;
 		}
 
