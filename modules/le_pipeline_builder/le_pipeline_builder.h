@@ -183,7 +183,7 @@ struct le_pipeline_builder_api {
         void ( *set_source_defines_string )      ( le_shader_module_builder_o* self, char const * source_defines_string);
         void ( *set_shader_stage )               ( le_shader_module_builder_o* self, le::ShaderStage const & shader_stage);
         void ( *set_source_language )            ( le_shader_module_builder_o* self, le::ShaderSourceLanguage const & shader_source_language);
-        void ( *set_previous_handle )            ( le_shader_module_builder_o* self, le_shader_module_handle previous_handle);
+        void ( *set_handle )            ( le_shader_module_builder_o* self, le_shader_module_handle previous_handle);
         le_shader_module_handle (* build  )      ( le_shader_module_builder_o* self);
     };
 
@@ -245,8 +245,8 @@ class LeShaderModuleBuilder : NoCopy, NoMove {
 		return *this;
 	}
 
-	LeShaderModuleBuilder &setPreviousHandle( le_shader_module_handle previous_handle ) {
-		le_pipeline_builder::le_shader_module_builder_i.set_previous_handle( self, previous_handle );
+	LeShaderModuleBuilder &setHandle( le_shader_module_handle previous_handle ) {
+		le_pipeline_builder::le_shader_module_builder_i.set_handle( self, previous_handle );
 		return *this;
 	}
 };

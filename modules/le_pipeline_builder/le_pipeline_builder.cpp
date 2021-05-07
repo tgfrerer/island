@@ -102,7 +102,7 @@ static void le_shader_module_builder_set_shader_stage( le_shader_module_builder_
 static void le_shader_module_builder_set_source_language( le_shader_module_builder_o *self, le::ShaderSourceLanguage const &shader_source_language ) {
 	self->shader_source_language = shader_source_language;
 }
-static void le_shader_module_builder_set_previous_handle( le_shader_module_builder_o *self, le_shader_module_handle previous_handle ) {
+static void le_shader_module_builder_set_handle( le_shader_module_builder_o *self, le_shader_module_handle previous_handle ) {
 	self->previous_handle = previous_handle;
 }
 static le_shader_module_handle le_shader_module_builder_build( le_shader_module_builder_o *self ) {
@@ -882,7 +882,7 @@ LE_MODULE_REGISTER_IMPL( le_pipeline_builder, api ) {
 		i.set_source_defines_string = le_shader_module_builder_set_source_defines_string;
 		i.set_shader_stage          = le_shader_module_builder_set_shader_stage;
 		i.set_source_language       = le_shader_module_builder_set_source_language;
-		i.set_previous_handle       = le_shader_module_builder_set_previous_handle;
+		i.set_handle       = le_shader_module_builder_set_handle;
 		i.build                     = le_shader_module_builder_build;
 	}
 }
