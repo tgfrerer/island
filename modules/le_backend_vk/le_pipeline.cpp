@@ -231,6 +231,191 @@ struct le_pipeline_manager_o {
 	HashMap<uint64_t, vk::PipelineLayout>         pipelineLayouts; // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
 };
 
+static vk::Format vk_format_from_spv_reflect_format( SpvReflectFormat const &format ) {
+	// clang-format off
+	switch (format)
+	{
+		case SPV_REFLECT_FORMAT_UNDEFINED           : return  vk::Format(VK_FORMAT_UNDEFINED);
+		case SPV_REFLECT_FORMAT_R32_UINT            : return  vk::Format(VK_FORMAT_R32_UINT);
+		case SPV_REFLECT_FORMAT_R32_SINT            : return  vk::Format(VK_FORMAT_R32_SINT);
+		case SPV_REFLECT_FORMAT_R32_SFLOAT          : return  vk::Format(VK_FORMAT_R32_SFLOAT);
+		case SPV_REFLECT_FORMAT_R32G32_UINT         : return  vk::Format(VK_FORMAT_R32G32_UINT);
+		case SPV_REFLECT_FORMAT_R32G32_SINT         : return  vk::Format(VK_FORMAT_R32G32_SINT);
+		case SPV_REFLECT_FORMAT_R32G32_SFLOAT       : return  vk::Format(VK_FORMAT_R32G32_SFLOAT);
+		case SPV_REFLECT_FORMAT_R32G32B32_UINT      : return  vk::Format(VK_FORMAT_R32G32B32_UINT);
+		case SPV_REFLECT_FORMAT_R32G32B32_SINT      : return  vk::Format(VK_FORMAT_R32G32B32_SINT);
+		case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT    : return  vk::Format(VK_FORMAT_R32G32B32_SFLOAT);
+		case SPV_REFLECT_FORMAT_R32G32B32A32_UINT   : return  vk::Format(VK_FORMAT_R32G32B32A32_UINT);
+		case SPV_REFLECT_FORMAT_R32G32B32A32_SINT   : return  vk::Format(VK_FORMAT_R32G32B32A32_SINT);
+		case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT : return  vk::Format(VK_FORMAT_R32G32B32A32_SFLOAT);
+		case SPV_REFLECT_FORMAT_R64_UINT            : return  vk::Format(VK_FORMAT_R64_UINT);
+		case SPV_REFLECT_FORMAT_R64_SINT            : return  vk::Format(VK_FORMAT_R64_SINT);
+		case SPV_REFLECT_FORMAT_R64_SFLOAT          : return  vk::Format(VK_FORMAT_R64_SFLOAT);
+		case SPV_REFLECT_FORMAT_R64G64_UINT         : return  vk::Format(VK_FORMAT_R64G64_UINT);
+		case SPV_REFLECT_FORMAT_R64G64_SINT         : return  vk::Format(VK_FORMAT_R64G64_SINT);
+		case SPV_REFLECT_FORMAT_R64G64_SFLOAT       : return  vk::Format(VK_FORMAT_R64G64_SFLOAT);
+		case SPV_REFLECT_FORMAT_R64G64B64_UINT      : return  vk::Format(VK_FORMAT_R64G64B64_UINT);
+		case SPV_REFLECT_FORMAT_R64G64B64_SINT      : return  vk::Format(VK_FORMAT_R64G64B64_SINT);
+		case SPV_REFLECT_FORMAT_R64G64B64_SFLOAT    : return  vk::Format(VK_FORMAT_R64G64B64_SFLOAT);
+		case SPV_REFLECT_FORMAT_R64G64B64A64_UINT   : return  vk::Format(VK_FORMAT_R64G64B64A64_UINT);
+		case SPV_REFLECT_FORMAT_R64G64B64A64_SINT   : return  vk::Format(VK_FORMAT_R64G64B64A64_SINT);
+		case SPV_REFLECT_FORMAT_R64G64B64A64_SFLOAT : return  vk::Format(VK_FORMAT_R64G64B64A64_SFLOAT);
+		default	                                    : assert(false); return vk::Format();
+	} // clang-format on
+}
+
+static uint32_t byte_stride_from_spv_type_description( SpvReflectNumericTraits const &traits ) {
+
+	uint32_t unit_size = traits.scalar.width / 8;
+
+	assert( unit_size != 0 );
+
+	uint32_t result = unit_size;
+	result          = std::max<uint32_t>( result, unit_size * traits.vector.component_count );
+	result          = std::max<uint32_t>( result, unit_size * traits.matrix.column_count * traits.matrix.row_count );
+	result          = std::max<uint32_t>( result, traits.matrix.stride );
+
+	return result;
+}
+
+static vk::DescriptorType descriptor_type_from_spv_descriptor_type( SpvReflectDescriptorType const &spv_descriptor_type ) {
+	// clang-format off
+	switch(spv_descriptor_type)
+	{
+		case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER                    : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_SAMPLER);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER     : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE              : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE              : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER       : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER       : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER             : // Deliberate fall-through: we make all uniform buffers dynamic.
+		case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC     : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER             : // Deliberate fall-through: we make storage buffers dynamic.
+		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC     : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT           : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT);
+		case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
+        default: assert(false); return vk::DescriptorType();
+	}
+	// clang-format on
+}
+
+// ----------------------------------------------------------------------
+
+static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_vertex_input_rate &input_rate ) {
+	switch ( input_rate ) {
+	case ( le_vertex_input_rate::ePerInstance ):
+		return vk::VertexInputRate::eInstance;
+	case ( le_vertex_input_rate::ePerVertex ):
+		return vk::VertexInputRate::eVertex;
+	}
+	assert( false ); // something's wrong: control should never come here, switch needs to cover all cases.
+	return vk::VertexInputRate::eVertex;
+}
+
+// ----------------------------------------------------------------------
+
+// clang-format off
+/// \returns corresponding vk::Format for a given le_input_attribute_description struct
+static inline vk::Format vk_format_from_le_vertex_input_attribute_description( le_vertex_input_attribute_description const & d){
+
+	if ( d.vecsize == 0 || d.vecsize > 4 ){
+		assert(false); // vecsize must be between 1 and 4
+		return vk::Format::eUndefined;
+	}
+
+	switch ( d.type ) {
+	case le_num_type::eFloat:
+		switch ( d.vecsize ) {
+		case 4: return vk::Format::eR32G32B32A32Sfloat;
+		case 3: return vk::Format::eR32G32B32Sfloat;
+		case 2: return vk::Format::eR32G32Sfloat;
+		case 1: return vk::Format::eR32Sfloat;
+		}
+	    break;
+	case le_num_type::eHalf:
+		switch ( d.vecsize ) {
+		case 4: return vk::Format::eR16G16B16A16Sfloat;
+		case 3: return vk::Format::eR16G16B16Sfloat;
+		case 2: return vk::Format::eR16G16Sfloat;
+		case 1: return vk::Format::eR16Sfloat;
+		}
+	    break;
+	case le_num_type::eUShort: // fall through to eShort
+	case le_num_type::eShort:
+		if (d.isNormalised){
+			switch ( d.vecsize ) {
+			case 4: return vk::Format::eR16G16B16A16Unorm;
+			case 3: return vk::Format::eR16G16B16Unorm;
+			case 2: return vk::Format::eR16G16Unorm;
+			case 1: return vk::Format::eR16Unorm;
+			}
+		}else{
+			switch ( d.vecsize ) {
+			case 4: return vk::Format::eR16G16B16A16Uint;
+			case 3: return vk::Format::eR16G16B16Uint;
+			case 2: return vk::Format::eR16G16Uint;
+			case 1: return vk::Format::eR16Uint;
+			}
+		}
+	    break;
+	case le_num_type::eInt:
+		switch ( d.vecsize ) {
+		case 4: return vk::Format::eR32G32B32A32Sint;
+		case 3: return vk::Format::eR32G32B32Sint;
+		case 2: return vk::Format::eR32G32Sint;
+		case 1: return vk::Format::eR32Sint;
+		}
+	    break;
+	case le_num_type::eUInt:
+		switch ( d.vecsize ) {
+		case 4: return vk::Format::eR32G32B32A32Uint;
+		case 3: return vk::Format::eR32G32B32Uint;
+		case 2: return vk::Format::eR32G32Uint;
+		case 1: return vk::Format::eR32Uint;
+		}
+	    break;
+	case le_num_type::eULong:
+		switch ( d.vecsize ) {
+		case 4: return vk::Format::eR64G64B64A64Uint;
+		case 3: return vk::Format::eR64G64B64Uint;
+		case 2: return vk::Format::eR64G64Uint;
+		case 1: return vk::Format::eR64Uint;
+		}
+	    break;
+	case le_num_type::eChar:  // fall through to uChar
+	case le_num_type::eUChar:
+		if (d.isNormalised){
+			switch ( d.vecsize ) {
+			case 4: return vk::Format::eR8G8B8A8Unorm;
+			case 3: return vk::Format::eR8G8B8Unorm;
+			case 2: return vk::Format::eR8G8Unorm;
+			case 1: return vk::Format::eR8Unorm;
+			}
+		} else {
+			switch ( d.vecsize ) {
+			case 4: return vk::Format::eR8G8B8A8Uint;
+			case 3: return vk::Format::eR8G8B8Uint;
+			case 2: return vk::Format::eR8G8Uint;
+			case 1: return vk::Format::eR8Uint;
+			}
+		}
+	    break;
+    default:
+        assert(false);
+	}
+
+	assert(false); // abandon all hope
+	return vk::Format::eUndefined;
+}
+// clang-format on
+
+// Converts a le shader stage enum to a vulkan shader stage flag bit
+// Currently these are kept in sync which means conversion is a simple
+// matter of initialising one from the other.
+static inline vk::ShaderStageFlagBits le_to_vk( const le::ShaderStage &stage ) {
+	return vk::ShaderStageFlagBits( stage );
+}
+
 // ----------------------------------------------------------------------
 /// \brief   file loader utility method
 /// \details loads file given by filepath and returns a vector of chars if successful
@@ -547,74 +732,6 @@ inline static uint64_t le_shader_bindings_calculate_hash( le_shader_binding_info
 	}
 
 	return hash;
-}
-
-static vk::Format vk_format_from_spv_reflect_format( SpvReflectFormat const &format ) {
-	// clang-format off
-	switch (format)
-	{
-		case SPV_REFLECT_FORMAT_UNDEFINED           : return  vk::Format(VK_FORMAT_UNDEFINED);
-		case SPV_REFLECT_FORMAT_R32_UINT            : return  vk::Format(VK_FORMAT_R32_UINT);
-		case SPV_REFLECT_FORMAT_R32_SINT            : return  vk::Format(VK_FORMAT_R32_SINT);
-		case SPV_REFLECT_FORMAT_R32_SFLOAT          : return  vk::Format(VK_FORMAT_R32_SFLOAT);
-		case SPV_REFLECT_FORMAT_R32G32_UINT         : return  vk::Format(VK_FORMAT_R32G32_UINT);
-		case SPV_REFLECT_FORMAT_R32G32_SINT         : return  vk::Format(VK_FORMAT_R32G32_SINT);
-		case SPV_REFLECT_FORMAT_R32G32_SFLOAT       : return  vk::Format(VK_FORMAT_R32G32_SFLOAT);
-		case SPV_REFLECT_FORMAT_R32G32B32_UINT      : return  vk::Format(VK_FORMAT_R32G32B32_UINT);
-		case SPV_REFLECT_FORMAT_R32G32B32_SINT      : return  vk::Format(VK_FORMAT_R32G32B32_SINT);
-		case SPV_REFLECT_FORMAT_R32G32B32_SFLOAT    : return  vk::Format(VK_FORMAT_R32G32B32_SFLOAT);
-		case SPV_REFLECT_FORMAT_R32G32B32A32_UINT   : return  vk::Format(VK_FORMAT_R32G32B32A32_UINT);
-		case SPV_REFLECT_FORMAT_R32G32B32A32_SINT   : return  vk::Format(VK_FORMAT_R32G32B32A32_SINT);
-		case SPV_REFLECT_FORMAT_R32G32B32A32_SFLOAT : return  vk::Format(VK_FORMAT_R32G32B32A32_SFLOAT);
-		case SPV_REFLECT_FORMAT_R64_UINT            : return  vk::Format(VK_FORMAT_R64_UINT);
-		case SPV_REFLECT_FORMAT_R64_SINT            : return  vk::Format(VK_FORMAT_R64_SINT);
-		case SPV_REFLECT_FORMAT_R64_SFLOAT          : return  vk::Format(VK_FORMAT_R64_SFLOAT);
-		case SPV_REFLECT_FORMAT_R64G64_UINT         : return  vk::Format(VK_FORMAT_R64G64_UINT);
-		case SPV_REFLECT_FORMAT_R64G64_SINT         : return  vk::Format(VK_FORMAT_R64G64_SINT);
-		case SPV_REFLECT_FORMAT_R64G64_SFLOAT       : return  vk::Format(VK_FORMAT_R64G64_SFLOAT);
-		case SPV_REFLECT_FORMAT_R64G64B64_UINT      : return  vk::Format(VK_FORMAT_R64G64B64_UINT);
-		case SPV_REFLECT_FORMAT_R64G64B64_SINT      : return  vk::Format(VK_FORMAT_R64G64B64_SINT);
-		case SPV_REFLECT_FORMAT_R64G64B64_SFLOAT    : return  vk::Format(VK_FORMAT_R64G64B64_SFLOAT);
-		case SPV_REFLECT_FORMAT_R64G64B64A64_UINT   : return  vk::Format(VK_FORMAT_R64G64B64A64_UINT);
-		case SPV_REFLECT_FORMAT_R64G64B64A64_SINT   : return  vk::Format(VK_FORMAT_R64G64B64A64_SINT);
-		case SPV_REFLECT_FORMAT_R64G64B64A64_SFLOAT : return  vk::Format(VK_FORMAT_R64G64B64A64_SFLOAT);
-		default	                                    : assert(false); return vk::Format();
-	} // clang-format on
-}
-
-static uint32_t byte_stride_from_spv_type_description( SpvReflectNumericTraits const &traits ) {
-
-	uint32_t unit_size = traits.scalar.width / 8;
-
-	assert( unit_size != 0 );
-
-	uint32_t result = unit_size;
-	result          = std::max<uint32_t>( result, unit_size * traits.vector.component_count );
-	result          = std::max<uint32_t>( result, unit_size * traits.matrix.column_count * traits.matrix.row_count );
-	result          = std::max<uint32_t>( result, traits.matrix.stride );
-
-	return result;
-}
-
-static vk::DescriptorType descriptor_type_from_spv_descriptor_type( SpvReflectDescriptorType const &spv_descriptor_type ) {
-	// clang-format off
-	switch(spv_descriptor_type)
-	{
-		case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLER                    : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_SAMPLER);
-		case SPV_REFLECT_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER     : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER);
-		case SPV_REFLECT_DESCRIPTOR_TYPE_SAMPLED_IMAGE              : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE);
-		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_IMAGE              : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_STORAGE_IMAGE);
-		case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER       : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_UNIFORM_TEXEL_BUFFER);
-		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER       : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_STORAGE_TEXEL_BUFFER);
-		case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER             : // Deliberate fall-through: we make all uniform buffers dynamic.
-		case SPV_REFLECT_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC     : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC);
-		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER             : // Deliberate fall-through: we make storage buffers dynamic.
-		case SPV_REFLECT_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC     : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_STORAGE_BUFFER_DYNAMIC);
-		case SPV_REFLECT_DESCRIPTOR_TYPE_INPUT_ATTACHMENT           : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT);
-		case SPV_REFLECT_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR : return vk::DescriptorType( VK_DESCRIPTOR_TYPE_ACCELERATION_STRUCTURE_KHR);
-        default: assert(false); return vk::DescriptorType();
-	}
-	// clang-format on
 }
 
 static void shader_module_update_reflection( le_shader_module_o *module ) {
@@ -1186,123 +1303,6 @@ static vk::PipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_m
 		assert( false );
 		return nullptr;
 	}
-}
-
-// ----------------------------------------------------------------------
-
-static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_vertex_input_rate &input_rate ) {
-	switch ( input_rate ) {
-	case ( le_vertex_input_rate::ePerInstance ):
-		return vk::VertexInputRate::eInstance;
-	case ( le_vertex_input_rate::ePerVertex ):
-		return vk::VertexInputRate::eVertex;
-	}
-	assert( false ); // something's wrong: control should never come here, switch needs to cover all cases.
-	return vk::VertexInputRate::eVertex;
-}
-
-// ----------------------------------------------------------------------
-
-// clang-format off
-/// \returns corresponding vk::Format for a given le_input_attribute_description struct
-static inline vk::Format vk_format_from_le_vertex_input_attribute_description( le_vertex_input_attribute_description const & d){
-
-	if ( d.vecsize == 0 || d.vecsize > 4 ){
-		assert(false); // vecsize must be between 1 and 4
-		return vk::Format::eUndefined;
-	}
-
-	switch ( d.type ) {
-	case le_num_type::eFloat:
-		switch ( d.vecsize ) {
-		case 4: return vk::Format::eR32G32B32A32Sfloat;
-		case 3: return vk::Format::eR32G32B32Sfloat;
-		case 2: return vk::Format::eR32G32Sfloat;
-		case 1: return vk::Format::eR32Sfloat;
-		}
-	    break;
-	case le_num_type::eHalf:
-		switch ( d.vecsize ) {
-		case 4: return vk::Format::eR16G16B16A16Sfloat;
-		case 3: return vk::Format::eR16G16B16Sfloat;
-		case 2: return vk::Format::eR16G16Sfloat;
-		case 1: return vk::Format::eR16Sfloat;
-		}
-	    break;
-	case le_num_type::eUShort: // fall through to eShort
-	case le_num_type::eShort:
-		if (d.isNormalised){
-			switch ( d.vecsize ) {
-			case 4: return vk::Format::eR16G16B16A16Unorm;
-			case 3: return vk::Format::eR16G16B16Unorm;
-			case 2: return vk::Format::eR16G16Unorm;
-			case 1: return vk::Format::eR16Unorm;
-			}
-		}else{
-			switch ( d.vecsize ) {
-			case 4: return vk::Format::eR16G16B16A16Uint;
-			case 3: return vk::Format::eR16G16B16Uint;
-			case 2: return vk::Format::eR16G16Uint;
-			case 1: return vk::Format::eR16Uint;
-			}
-		}
-	    break;
-	case le_num_type::eInt:
-		switch ( d.vecsize ) {
-		case 4: return vk::Format::eR32G32B32A32Sint;
-		case 3: return vk::Format::eR32G32B32Sint;
-		case 2: return vk::Format::eR32G32Sint;
-		case 1: return vk::Format::eR32Sint;
-		}
-	    break;
-	case le_num_type::eUInt:
-		switch ( d.vecsize ) {
-		case 4: return vk::Format::eR32G32B32A32Uint;
-		case 3: return vk::Format::eR32G32B32Uint;
-		case 2: return vk::Format::eR32G32Uint;
-		case 1: return vk::Format::eR32Uint;
-		}
-	    break;
-	case le_num_type::eULong:
-		switch ( d.vecsize ) {
-		case 4: return vk::Format::eR64G64B64A64Uint;
-		case 3: return vk::Format::eR64G64B64Uint;
-		case 2: return vk::Format::eR64G64Uint;
-		case 1: return vk::Format::eR64Uint;
-		}
-	    break;
-	case le_num_type::eChar:  // fall through to uChar
-	case le_num_type::eUChar:
-		if (d.isNormalised){
-			switch ( d.vecsize ) {
-			case 4: return vk::Format::eR8G8B8A8Unorm;
-			case 3: return vk::Format::eR8G8B8Unorm;
-			case 2: return vk::Format::eR8G8Unorm;
-			case 1: return vk::Format::eR8Unorm;
-			}
-		} else {
-			switch ( d.vecsize ) {
-			case 4: return vk::Format::eR8G8B8A8Uint;
-			case 3: return vk::Format::eR8G8B8Uint;
-			case 2: return vk::Format::eR8G8Uint;
-			case 1: return vk::Format::eR8Uint;
-			}
-		}
-	    break;
-    default:
-        assert(false);
-	}
-
-	assert(false); // abandon all hope
-	return vk::Format::eUndefined;
-}
-// clang-format on
-
-// Converts a le shader stage enum to a vulkan shader stage flag bit
-// Currently these are kept in sync which means conversion is a simple
-// matter of initialising one from the other.
-static inline vk::ShaderStageFlagBits le_to_vk( const le::ShaderStage &stage ) {
-	return vk::ShaderStageFlagBits( stage );
 }
 
 // ----------------------------------------------------------------------
