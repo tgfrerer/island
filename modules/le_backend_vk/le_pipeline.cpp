@@ -1778,6 +1778,11 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 
 	info.pipeline_layout_key = shader_modules_get_pipeline_layout_hash( self->shaderManager, shader_modules, shader_modules_count );
 
+	static_assert( sizeof( std::underlying_type<vk::ShaderStageFlagBits>::type ) == sizeof( uint32_t ), "ShaderStageFlagBits must be same size as uint32_t" );
+
+	vk::ShaderStageFlags active_shader_stages;
+	info.active_vk_shader_stages = uint32_t( active_shader_stages );
+
 	// -- Attempt to find this pipelineLayout from cache, if we can't find one, we create and retain it.
 
 	auto found_pl = self->pipelineLayouts.try_find( info.pipeline_layout_key );

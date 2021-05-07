@@ -3853,7 +3853,8 @@ void debug_print_le_pipeline_layout_info( le_pipeline_layout_info *info ) {
 static bool is_equal( le_pipeline_and_layout_info_t const &lhs, le_pipeline_and_layout_info_t const &rhs ) {
 	return lhs.pipeline == rhs.pipeline &&
 	       lhs.layout_info.set_layout_count == rhs.layout_info.set_layout_count &&
-	       0 == memcmp( lhs.layout_info.set_layout_keys, rhs.layout_info.set_layout_keys, sizeof( uint64_t ) * lhs.layout_info.set_layout_count );
+	       0 == memcmp( lhs.layout_info.set_layout_keys, rhs.layout_info.set_layout_keys, sizeof( uint64_t ) * lhs.layout_info.set_layout_count ) &&
+	       lhs.layout_info.active_vk_shader_stages == rhs.layout_info.active_vk_shader_stages;
 }
 
 static bool updateArguments( const vk::Device &                 device,

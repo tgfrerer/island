@@ -74,9 +74,10 @@ struct le_backend_vk_settings_t {
 };
 
 struct le_pipeline_layout_info {
-	uint64_t pipeline_layout_key  = 0;  // handle to pipeline layout
-	uint64_t set_layout_keys[ 8 ] = {}; // maximum number of DescriptorSets is 8
-	uint64_t set_layout_count     = 0;  // number of actually used DescriptorSetLayouts for this layout
+	uint64_t pipeline_layout_key     = 0;  // handle to pipeline layout
+	uint64_t set_layout_keys[ 8 ]    = {}; // maximum number of DescriptorSets is 8
+	uint64_t set_layout_count        = 0;  // number of actually used DescriptorSetLayouts for this layout
+	uint32_t active_vk_shader_stages = 0;  // bitfield of VkShaderStageFlagBits
 };
 
 struct le_pipeline_and_layout_info_t {
