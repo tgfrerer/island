@@ -4082,6 +4082,7 @@ static void debug_print_command( void *&cmd ) {
 			    case (le::CommandType::eSetLineWidth): os << "eSetLineWidth"; break;
 			    case (le::CommandType::eSetViewport): os << "eSetViewport"; break;
 			    case (le::CommandType::eSetScissor): os << "eSetScissor"; break;
+			    case (le::CommandType::eSetPushConstantData): os << "eSetPushConstantData"; break;
 			    case (le::CommandType::eBindArgumentBuffer): os << "eBindArgumentBuffer"; break;
 			    case (le::CommandType::eSetArgumentTexture): os << "eSetArgumentTexture"; break;
 			    case (le::CommandType::eSetArgumentImage): os << "eSetArgumentImage"; break;
@@ -4257,7 +4258,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		size_t   commandIndex  = 0;
 		uint32_t subpassIndex  = 0;
 
-		vk::PipelineLayout currentPipelineLayout;
+		vk::PipelineLayout currentPipelineLayout                          = nullptr;
 		vk::DescriptorSet  descriptorSets[ VK_MAX_BOUND_DESCRIPTOR_SETS ] = {}; // currently bound descriptorSets (allocated from pool, therefore we must not worry about freeing, and may re-use freely)
 
 		// We store currently bound descriptors so that we only allocate new DescriptorSets
@@ -4808,6 +4809,15 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					// of le_cmd by 1 to reach the next slot in the stream, where the data is stored.
 					cmd.setScissor( le_cmd->info.firstScissor, le_cmd->info.scissorCount, reinterpret_cast<vk::Rect2D *>( le_cmd + 1 ) );
 				} break;
+
+				case le::CommandType::eSetPushConstantData: {
+					if ( currentPipelineLayout ) {
+						auto *               le_cmd               = static_cast<le::CommandSetPushConstantData *>( dataIt );
+						vk::ShaderStageFlags active_shader_stages = vk::ShaderStageFlags( currentPipeline.layout_info.active_vk_shader_stages );
+						cmd.pushConstants( currentPipelineLayout, active_shader_stages, 0, le_cmd->info.num_bytes, ( le_cmd + 1 ) ); // Note that we fetch inline data at (le_cmd + 1)
+					}
+					break;
+				}
 
 				case le::CommandType::eBindArgumentBuffer: {
 					// we need to store the data for the dynamic binding which was set as an argument to the ubo

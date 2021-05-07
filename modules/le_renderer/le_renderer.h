@@ -148,9 +148,11 @@ struct le_renderer_api {
 
 		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, le::IndexType const & indexType, buffer_binding_info_o* optional_binding_info_readback );
 		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint32_t bindingIndex, buffer_binding_info_o* optional_transient_binding_info_readback );
+
 		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, size_t offset, void const* data, size_t numBytes);
 		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, le_write_to_image_settings_t const & writeInfo, void const *data, size_t numBytes );
 
+        void                         ( *set_push_constant_data )( le_command_buffer_encoder_o* self, void const *data, uint64_t numBytes);
 
 		le::Extent2D const &         ( *get_extent             ) ( le_command_buffer_encoder_o* self );
 
@@ -656,6 +658,11 @@ class Encoder {
 	/// \note if either `data == nullptr`, or numBytes == 0, this method call has no effect.
 	Encoder &setVertexData( void const *data, uint64_t const &numBytes, uint32_t const &bindingIndex, le_renderer_api::command_buffer_encoder_interface_t::buffer_binding_info_o *transient_buffer_info_readback = nullptr ) {
 		le_renderer::encoder_i.set_vertex_data( self, data, numBytes, bindingIndex, transient_buffer_info_readback );
+		return *this;
+	}
+
+	Encoder &setPushConstantData( void const *data, uint64_t const &numBytes ) {
+		le_renderer::encoder_i.set_push_constant_data( self, data, numBytes );
 		return *this;
 	}
 

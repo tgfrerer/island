@@ -1664,6 +1664,7 @@ enum class CommandType : uint32_t {
 	eSetArgumentTexture,
 	eSetArgumentImage,
 	eSetArgumentTlas,
+	eSetPushConstantData,
 	eBindIndexBuffer,
 	eBindVertexBuffers,
 	eBindGraphicsPipeline,
@@ -1751,6 +1752,13 @@ struct CommandSetViewport {
 	struct {
 		uint32_t firstViewport;
 		uint32_t viewportCount;
+	} info;
+};
+
+struct CommandSetPushConstantData {
+	CommandHeader header = { { { CommandType::eSetPushConstantData, sizeof( CommandSetPushConstantData ) } } };
+	struct {
+		uint64_t num_bytes;
 	} info;
 };
 

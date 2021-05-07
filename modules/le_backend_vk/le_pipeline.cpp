@@ -35,9 +35,10 @@ struct le_shader_module_o {
 	std::vector<std::string>                         vertexAttributeNames;        ///< (used for debug only) name for vertex attribute
 	std::vector<vk::VertexInputAttributeDescription> vertexAttributeDescriptions; ///< descriptions gathered from reflection if shader type is vertex
 	std::vector<vk::VertexInputBindingDescription>   vertexBindingDescriptions;   ///< descriptions gathered from reflection if shader type is vertex
-	VkShaderModule                                   module          = nullptr;
-	le::ShaderStage                                  stage           = {};
-	le::ShaderSourceLanguage                         source_language = le::ShaderSourceLanguage::eDefault;
+	VkShaderModule                                   module                    = nullptr;
+	le::ShaderStage                                  stage                     = {};
+	uint64_t                                         push_constant_buffer_size = 0; ///< number of bytes for push constant buffer, zero indicates no push constant buffer in use.
+	le::ShaderSourceLanguage                         source_language           = le::ShaderSourceLanguage::eDefault;
 };
 
 // A table from `handle` -> `object*`, protected by mutex.
@@ -721,6 +722,26 @@ static uint64_t shader_modules_get_pipeline_layout_hash( le_shader_manager_o *sh
 	return SpookyHash::Hash64( pipeline_layout_hash_data, numModules * sizeof( uint64_t ), 0 );
 }
 
+// Collect push_constant block sizes, and shader stages for all given shaders.
+//
+//
+// Re: push_constant block sizes:
+// Realistically, you should make sure that all shader modules declare the same push constant block, as
+// we don't support per-shader stage push constants, because on Desktop GPUs we don't expect push constant
+// broadcasting to be much more costly than to set push constants individually per shader stage. It is also
+// considerably simpler to implement, as we don't have to keep track of whether push constant ranges declared
+// in different shader stages are aliasing.
+static void shader_modules_collect_info( le_shader_manager_o *shader_manager, le_shader_module_handle const *shader_modules, size_t numModules, size_t *push_constant_buffer_size_max, vk::ShaderStageFlags *shader_stage_flags ) {
+	for ( le_shader_module_handle const *s = shader_modules, *s_end = shader_modules + numModules; s != s_end; s++ ) {
+		auto p_module = ( shader_manager->shaderModules.try_find( *s ) );
+		assert( p_module && "shader module was not found" );
+		if ( p_module ) {
+			*push_constant_buffer_size_max = std::max<uint64_t>( p_module->push_constant_buffer_size, *push_constant_buffer_size_max );
+			*shader_stage_flags |= le_to_vk( p_module->stage );
+		}
+	}
+}
+
 inline static uint64_t le_shader_bindings_calculate_hash( le_shader_binding_info const *info_vec, size_t info_count ) {
 	uint64_t hash = 0;
 
@@ -736,6 +757,7 @@ inline static uint64_t le_shader_bindings_calculate_hash( le_shader_binding_info
 
 static void shader_module_update_reflection( le_shader_module_o *module ) {
 
+	static auto                         logger = LeLog( LOGGER_LABEL );
 	std::vector<le_shader_binding_info> bindings; // <- gets stored in module at end
 
 	SpvReflectShaderModule spv_module;
@@ -859,6 +881,19 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 
 	// -- calculate hash over bindings
 	module->hash_pipelinelayout = le_shader_bindings_calculate_hash( bindings.data(), bindings.size() );
+
+	// -- calculate hash over push constant range - if any
+
+	if ( spv_module.push_constant_block_count > 0 ) {
+
+		if ( spv_module.push_constant_block_count != 1 ) {
+			logger.error( "Push constant block count must be either 0 or 1, but is %d.", spv_module.push_constant_block_count );
+			assert( false && "push constannt block count must be either 0 or 1" );
+		}
+
+		module->push_constant_buffer_size = spv_module.push_constant_blocks[ 0 ].size;
+		module->hash_pipelinelayout       = SpookyHash::Hash64( &module->push_constant_buffer_size, sizeof( uint64_t ), module->hash_pipelinelayout );
+	}
 
 	// -- store bindings with module
 	module->bindings = std::move( bindings );
@@ -1776,18 +1811,27 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 		}
 	}
 
-	info.pipeline_layout_key = shader_modules_get_pipeline_layout_hash( self->shaderManager, shader_modules, shader_modules_count );
+	// -- Collect data over all shader stages: push_constant buffer size, active shader stages
 
 	static_assert( sizeof( std::underlying_type<vk::ShaderStageFlagBits>::type ) == sizeof( uint32_t ), "ShaderStageFlagBits must be same size as uint32_t" );
 
 	vk::ShaderStageFlags active_shader_stages;
+	uint64_t             push_constant_buffer_size = 0;
+	shader_modules_collect_info( self->shaderManager, shader_modules, shader_modules_count, &push_constant_buffer_size, &active_shader_stages );
 	info.active_vk_shader_stages = uint32_t( active_shader_stages );
 
 	// -- Attempt to find this pipelineLayout from cache, if we can't find one, we create and retain it.
+	info.pipeline_layout_key = shader_modules_get_pipeline_layout_hash( self->shaderManager, shader_modules, shader_modules_count );
 
 	auto found_pl = self->pipelineLayouts.try_find( info.pipeline_layout_key );
 
 	if ( nullptr == found_pl ) {
+
+		vk::PushConstantRange push_constant_range;
+		push_constant_range
+		    .setOffset( 0 )
+		    .setSize( push_constant_buffer_size )
+		    .setStageFlags( active_shader_stages );
 
 		vk::Device                   device = self->device;
 		vk::PipelineLayoutCreateInfo layoutCreateInfo;
@@ -1795,8 +1839,8 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 		    .setFlags( vk::PipelineLayoutCreateFlags() ) // "reserved for future use"
 		    .setSetLayoutCount( uint32_t( info.set_layout_count ) )
 		    .setPSetLayouts( vkLayouts.data() )
-		    .setPushConstantRangeCount( 0 )
-		    .setPPushConstantRanges( nullptr );
+		    .setPushConstantRangeCount( push_constant_buffer_size ? 1 : 0 )
+		    .setPPushConstantRanges( push_constant_buffer_size ? &push_constant_range : nullptr );
 
 		// Create vkPipelineLayout
 		vk::PipelineLayout pipelineLayout = device.createPipelineLayout( layoutCreateInfo );

@@ -822,6 +822,24 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *       self,
 }
 
 // ----------------------------------------------------------------------
+static void cbe_set_push_constant_data( le_command_buffer_encoder_o *self, void const *src_data, uint64_t num_bytes ) {
+
+	auto cmd = EMPLACE_CMD( le::CommandSetPushConstantData ); // placement new!
+
+	// We point data to the next available position in the data stream
+	// so that we can store the data for push constants inline.
+	void *data = ( cmd + 1 ); // one after size of command struct
+
+	cmd->info = { num_bytes };
+	cmd->header.info.size += num_bytes; // we must increase the size of this command by its payload size
+
+	// copy data into command stream
+	memcpy( data, src_data, num_bytes );
+
+	self->mCommandStreamSize += cmd->header.info.size;
+	self->mCommandCount++;
+}
+// ----------------------------------------------------------------------
 
 static void cbe_build_rtx_blas( le_command_buffer_encoder_o *     self,
                                 le_resource_handle_t const *const p_blas_handles,
@@ -1004,6 +1022,7 @@ void register_le_command_buffer_encoder_api( void *api_ ) {
 	cbe_i.get_encoded_data       = cbe_get_encoded_data;
 	cbe_i.write_to_buffer        = cbe_write_to_buffer;
 	cbe_i.write_to_image         = cbe_write_to_image;
+	cbe_i.set_push_constant_data = cbe_set_push_constant_data;
 	cbe_i.build_rtx_blas         = cbe_build_rtx_blas;
 	cbe_i.build_rtx_tlas         = cbe_build_rtx_tlas;
 	cbe_i.get_pipeline_manager   = cbe_get_pipeline_manager;
