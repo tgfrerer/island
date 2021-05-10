@@ -304,8 +304,8 @@ static void pass_sort_execute( le_command_buffer_encoder_o *encoder_, void *user
 
 	size_t n = app->pixels_data->w * app->pixels_data->h;
 
-	size_t max_workgroup_size = 1024; // TODO: Calculate this based on *queried* hardware limits.
-	size_t workgroup_size_x   = 1;
+	uint32_t max_workgroup_size = 1024; // TODO: Calculate this based on *queried* hardware limits.
+	uint32_t workgroup_size_x   = 1;
 
 	// Adjust workgroup_size_x to get as close to max_workgroup_size as possible.
 	if ( n < max_workgroup_size * 2 ) {
@@ -314,22 +314,13 @@ static void pass_sort_execute( le_command_buffer_encoder_o *encoder_, void *user
 		workgroup_size_x = max_workgroup_size;
 	}
 
-	// Tell shader our selected `workgroup_size_x`, which
-	// will become the shader's `local_size_x`.
-	//
-	static std::string defines_str = []( uint32_t const &local_size_x ) -> std::string {
-		std::ostringstream os;
-		os << "LOCAL_SIZE_X=" << local_size_x;
-		return os.str();
-	}( workgroup_size_x );
-
 	static auto pipeline =
 	    LeComputePipelineBuilder( encoder.getPipelineManager() )
 	        .setShaderStage(
 	            LeShaderModuleBuilder( encoder.getPipelineManager() )
 	                .setShaderStage( le::ShaderStage::eCompute )
 	                .setSourceFilePath( "./local_resources/shaders/compute.glsl" )
-	                .setSourceDefinesString( defines_str.c_str() )
+	                .setSpecializationConstant( 1, workgroup_size_x )
 	                .build() )
 	        .build();
 

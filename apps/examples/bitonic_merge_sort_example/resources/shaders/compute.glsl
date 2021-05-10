@@ -9,12 +9,9 @@
 #extension GL_ARB_shading_language_420pack : enable
 
 // Note that there exist hardware limits - look these up for your GPU via https://vulkan.gpuinfo.org/
-// sizeof(local_value[LOCAL_SIZE_X*2]) : Must be <= maxComputeSharedMemorySize
-// LOCAL_SIZE_X  		               : Must be <= maxComputeWorkGroupInvocations
+// sizeof(local_value[]) : Must be <= maxComputeSharedMemorySize
+// local_size_x          : Must be <= maxComputeWorkGroupInvocations
 
-#ifndef LOCAL_SIZE_X 
-#define LOCAL_SIZE_X 1
-#endif 
 
 // ENUM for uniform::Parameters.algorithm:
 #define eLocalBitonicMergeSortExample      0
@@ -22,8 +19,7 @@
 #define eBigFlip       2
 #define eBigDisperse   3
 
-
-layout (local_size_x = LOCAL_SIZE_X ) in; // Note hardware limit mentioned above!
+layout(local_size_x_id = 1) in; // Set value for local_size_x via specialization constant with id 1
 
 layout (set=0, binding = 0) buffer SortData 
 {
@@ -40,7 +36,7 @@ layout (set=0, binding=1) uniform Parameters {
 
 // Workgroup local memory. We use this to minimise round-trips to global memory.
 // It allows us to evaluate a sorting network of up to 1024 with one shader invocation.
-shared uint local_value[LOCAL_SIZE_X * 2];
+shared uint local_value[gl_WorkGroupSize.x * 2];
 
 // OK Lab color space via Björn Ottosson: 
 // https://bottosson.github.io/posts/oklab/
