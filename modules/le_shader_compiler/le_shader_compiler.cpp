@@ -340,17 +340,19 @@ static void le_shader_compiler_print_error_context( const char *errMsg, const st
 		scanResult = std::regex_search( errMsg, cm, std::regex( R"regex((.*?):(\d+):\s*error: ?(.*))regex" ) );
 
 		if ( scanResult ) {
-			errorFileName = cm[ 1 ].str();
+			errorFileName = cm[ 1 ].str() != "0" ? cm[ 1 ].str() : "";
 			lineNumber    = std::stoul( cm[ 2 ].str() );
 			errorMessage  = cm[ 3 ].str();
 		}
 	}
 
-	auto errorFilePath  = std::filesystem::canonical( std::filesystem::path( errorFileName ) );
-	auto sourceFilePath = std::filesystem::canonical( std::filesystem::path( sourceFileName ) );
+	std::filesystem::path errorFilePath  = errorFileName.empty() ? "" : std::filesystem::canonical( std::filesystem::path( errorFileName ) );
+	std::filesystem::path sourceFilePath = std::filesystem::canonical( std::filesystem::path( sourceFileName ) );
 
 	logger.error( "Shader module compilation failed." );
-	if ( errorFilePath != sourceFilePath ) {
+	if ( errorFilePath.empty() ) {
+		logger.error( "%s:%d : %s", std::filesystem::relative( sourceFilePath ).c_str(), lineNumber, errorMessage.c_str() );
+	} else if ( errorFilePath != sourceFilePath ) {
 		// error happened in include file.
 		logger.error( "%s contains error in included file:", std::filesystem::relative( std::filesystem::path( sourceFileName ) ).c_str() );
 		logger.error( "%s:%d : %s", std::filesystem::relative( errorFilePath ).c_str(), lineNumber, errorMessage.c_str() );
