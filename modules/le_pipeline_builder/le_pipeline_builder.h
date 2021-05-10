@@ -177,14 +177,15 @@ struct le_pipeline_builder_api {
 	le_rtx_pipeline_builder_interface_t le_rtx_pipeline_builder_i;
 
     struct le_shader_module_builder_interface_t {
-        le_shader_module_builder_o * (*create )  ( le_pipeline_manager_o* pipeline_cache);
-        void ( *destroy)                         ( le_shader_module_builder_o* self);
-        void ( *set_source_file_path )           ( le_shader_module_builder_o* self, char const * source_file_path);
-        void ( *set_source_defines_string )      ( le_shader_module_builder_o* self, char const * source_defines_string);
-        void ( *set_shader_stage )               ( le_shader_module_builder_o* self, le::ShaderStage const & shader_stage);
-        void ( *set_source_language )            ( le_shader_module_builder_o* self, le::ShaderSourceLanguage const & shader_source_language);
-        void ( *set_handle )            ( le_shader_module_builder_o* self, le_shader_module_handle previous_handle);
-        le_shader_module_handle (* build  )      ( le_shader_module_builder_o* self);
+        le_shader_module_builder_o * (*create ) ( le_pipeline_manager_o* pipeline_cache);
+        void ( *destroy)                        ( le_shader_module_builder_o* self);
+        void ( *set_source_file_path )          ( le_shader_module_builder_o* self, char const * source_file_path);
+        void ( *set_source_defines_string )     ( le_shader_module_builder_o* self, char const * source_defines_string);
+        void ( *set_shader_stage )              ( le_shader_module_builder_o* self, le::ShaderStage const & shader_stage);
+        void ( *set_source_language )           ( le_shader_module_builder_o* self, le::ShaderSourceLanguage const & shader_source_language);
+        void ( *set_specialization_constant )   ( le_shader_module_builder_o* self, uint32_t id, void const * data, uint32_t size);
+        void ( *set_handle )                    ( le_shader_module_builder_o* self, le_shader_module_handle previous_handle);
+        le_shader_module_handle (* build  )     ( le_shader_module_builder_o* self);
     };
 
     le_shader_module_builder_interface_t le_shader_module_builder_i;
@@ -240,8 +241,20 @@ class LeShaderModuleBuilder : NoCopy, NoMove {
 		le_pipeline_builder::le_shader_module_builder_i.set_shader_stage( self, shaderStage );
 		return *this;
 	}
+
 	LeShaderModuleBuilder &setSourceLanguage( le::ShaderSourceLanguage const &shader_source_language ) {
 		le_pipeline_builder::le_shader_module_builder_i.set_source_language( self, shader_source_language );
+		return *this;
+	}
+
+	template <typename T>
+	LeShaderModuleBuilder &setSpecializationConstant( uint32_t constant_id, T const &value ) {
+		le_pipeline_builder::le_shader_module_builder_i.set_specialization_constant( self, constant_id, &value, 4 );
+		return *this;
+	}
+	template <bool>
+	LeShaderModuleBuilder &setSpecializationConstant( uint32_t constant_id, bool const &value ) {
+		le_pipeline_builder::le_shader_module_builder_i.set_specialization_constant( self, constant_id, &value, 4 );
 		return *this;
 	}
 

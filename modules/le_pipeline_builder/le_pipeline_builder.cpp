@@ -12,6 +12,7 @@
 #include <array>
 #include <vector>
 #include <mutex>
+#include <map>
 
 static constexpr auto LOGGER_LABEL = "le_pipeline_builder";
 
@@ -75,12 +76,13 @@ struct le_rtx_pipeline_builder_o {
 // ----------------------------------------------------------------------
 
 struct le_shader_module_builder_o {
-	le_pipeline_manager_o *  pipeline_manager       = nullptr;
-	std::string              source_file_path       = {};
-	std::string              source_defines_string  = {};
-	le::ShaderStage          shader_stage           = le::ShaderStage{};
-	le::ShaderSourceLanguage shader_source_language = le::ShaderSourceLanguage::eDefault;
-	le_shader_module_handle  previous_handle        = nullptr;
+	le_pipeline_manager_o *               pipeline_manager       = nullptr;
+	std::string                           source_file_path       = {};
+	std::string                           source_defines_string  = {};
+	le::ShaderStage                       shader_stage           = le::ShaderStage{};
+	le::ShaderSourceLanguage              shader_source_language = le::ShaderSourceLanguage::eDefault;
+	le_shader_module_handle               previous_handle        = nullptr;
+	std::map<uint32_t, std::vector<char>> specialisation_map;
 };
 static le_shader_module_builder_o *le_shader_module_builder_create( le_pipeline_manager_o *pipeline_cache ) {
 	auto self              = new le_shader_module_builder_o{};
@@ -105,9 +107,41 @@ static void le_shader_module_builder_set_source_language( le_shader_module_build
 static void le_shader_module_builder_set_handle( le_shader_module_builder_o *self, le_shader_module_handle previous_handle ) {
 	self->previous_handle = previous_handle;
 }
+static void le_shader_module_builder_set_specialization_constant( le_shader_module_builder_o *self, uint32_t id, void const *value, uint32_t size ) {
+	auto &entry = self->specialisation_map[ id ];
+	entry       = std::vector<char>( size );
+	memcpy( entry.data(), value, size );
+}
 static le_shader_module_handle le_shader_module_builder_build( le_shader_module_builder_o *self ) {
 	using namespace le_backend_vk;
-	return le_pipeline_manager_i.create_shader_module( self->pipeline_manager, self->source_file_path.c_str(), { self->shader_source_language }, { self->shader_stage }, self->source_defines_string.c_str(), self->previous_handle );
+
+	// We must flatten specialization constant data and entries, if any.
+
+	std::vector<char>                     sp_data;
+	std::vector<VkSpecializationMapEntry> sp_info;
+
+	for ( auto &e : self->specialisation_map ) {
+		uint32_t                 offset = sp_data.size();
+		VkSpecializationMapEntry info;
+		info.constantID = e.first;
+		info.size       = e.second.size();
+		info.offset     = offset;
+
+		sp_info.emplace_back( info );
+		sp_data.insert( sp_data.end(), e.second.begin(), e.second.end() );
+	}
+
+	return le_pipeline_manager_i.create_shader_module(
+	    self->pipeline_manager,
+	    self->source_file_path.c_str(),
+	    { self->shader_source_language },
+	    { self->shader_stage },
+	    self->source_defines_string.c_str(),
+	    self->previous_handle,
+	    sp_info.data(),
+	    sp_info.size(),
+	    sp_data.data(),
+	    sp_data.size() );
 }
 
 // ----------------------------------------------------------------------
@@ -875,14 +909,15 @@ LE_MODULE_REGISTER_IMPL( le_pipeline_builder, api ) {
 
 	{
 		// setup shader module builder api
-		auto &i                     = static_cast<le_pipeline_builder_api *>( api )->le_shader_module_builder_i;
-		i.create                    = le_shader_module_builder_create;
-		i.destroy                   = le_shader_module_builder_destroy;
-		i.set_source_file_path      = le_shader_module_builder_set_source_file_path;
-		i.set_source_defines_string = le_shader_module_builder_set_source_defines_string;
-		i.set_shader_stage          = le_shader_module_builder_set_shader_stage;
-		i.set_source_language       = le_shader_module_builder_set_source_language;
-		i.set_handle       = le_shader_module_builder_set_handle;
-		i.build                     = le_shader_module_builder_build;
+		auto &i                       = static_cast<le_pipeline_builder_api *>( api )->le_shader_module_builder_i;
+		i.create                      = le_shader_module_builder_create;
+		i.destroy                     = le_shader_module_builder_destroy;
+		i.set_source_file_path        = le_shader_module_builder_set_source_file_path;
+		i.set_source_defines_string   = le_shader_module_builder_set_source_defines_string;
+		i.set_shader_stage            = le_shader_module_builder_set_shader_stage;
+		i.set_source_language         = le_shader_module_builder_set_source_language;
+		i.set_specialization_constant = le_shader_module_builder_set_specialization_constant;
+		i.set_handle                  = le_shader_module_builder_set_handle;
+		i.build                       = le_shader_module_builder_build;
 	}
 }

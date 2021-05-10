@@ -24,6 +24,11 @@
 
 static constexpr auto LOGGER_LABEL = "le_pipeline";
 
+struct specialization_map_info_t {
+	std::vector<vk::SpecializationMapEntry> entries;
+	std::vector<char>                       data;
+};
+
 struct le_shader_module_o {
 	uint64_t                                         hash                = 0;     ///< hash taken from spirv code + hash_shader_defines
 	uint64_t                                         hash_shader_defines = 0;     ///< hash taken from shader defines string
@@ -39,6 +44,7 @@ struct le_shader_module_o {
 	le::ShaderStage                                  stage                     = {};
 	uint64_t                                         push_constant_buffer_size = 0; ///< number of bytes for push constant buffer, zero indicates no push constant buffer in use.
 	le::ShaderSourceLanguage                         source_language           = le::ShaderSourceLanguage::eDefault;
+	specialization_map_info_t                        specialization_map_info; ///< information concerning specialization constants for this shader stage
 };
 
 // A table from `handle` -> `object*`, protected by mutex.
@@ -430,7 +436,7 @@ static std::vector<char> load_file( const std::filesystem::path &file_path, bool
 	std::ifstream file( file_path, std::ios::in | std::ios::binary | std::ios::ate );
 
 	if ( !file.is_open() ) {
-		logger.error( "Unable to open file: '%s'", std::filesystem::canonical( file_path ).c_str() );
+		logger.error( "Unable to open file: '%s'", file_path.c_str() );
 		*success = false;
 		return contents;
 	}
@@ -1228,7 +1234,11 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
     const LeShaderSourceLanguageEnum &shader_source_language,
     const LeShaderStageEnum &         moduleType,
     char const *                      macro_defines_,
-    le_shader_module_handle           handle ) {
+    le_shader_module_handle           handle,
+    VkSpecializationMapEntry const *  specialization_map_entries,
+    uint32_t                          specialization_map_entries_count,
+    void *                            specialization_map_data,
+    uint32_t                          specialization_map_data_num_bytes ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -1261,18 +1271,36 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 
 	translate_to_spirv_code( self->shader_compiler, raw_file_data.data(), raw_file_data.size(), shader_source_language, moduleType, path, spirv_code, includesSet, macro_defines );
 
+	// We include specialization data into hash calculation for this module, because specialization data
+	// is stored with the module, and therefore it contributes to the module's phenotype.
+	//
+	uint64_t hash_specialization_constants = 0;
+
+	if ( specialization_map_entries_count != 0 ) {
+		hash_specialization_constants = SpookyHash::Hash64( specialization_map_data, specialization_map_data_num_bytes, hash_specialization_constants );
+		hash_specialization_constants = SpookyHash::Hash64( specialization_map_entries, sizeof( vk::SpecializationMapEntry ) * specialization_map_entries_count, hash_specialization_constants );
+	}
+
 	le_shader_module_o module{};
 	module.stage               = moduleType;
 	module.filepath            = canonical_path_as_string;
 	module.macro_defines       = macro_defines;
-	module.hash_shader_defines = SpookyHash::Hash64( module.macro_defines.data(), module.macro_defines.size(), 0 );
+	module.hash_shader_defines = SpookyHash::Hash64( module.macro_defines.data(), module.macro_defines.size(), hash_specialization_constants );
 	module.hash                = SpookyHash::Hash64( spirv_code.data(), spirv_code.size() * sizeof( uint32_t ), module.hash_shader_defines );
 	module.spirv               = std::move( spirv_code );
 	module.source_language     = shader_source_language;
+	module.specialization_map_info.data.assign(
+	    static_cast<char *>( specialization_map_data ),
+	    static_cast<char *>( specialization_map_data ) + specialization_map_data_num_bytes );
+	module.specialization_map_info.entries.assign(
+	    reinterpret_cast<vk::SpecializationMapEntry const *>( specialization_map_entries ),
+	    reinterpret_cast<vk::SpecializationMapEntry const *>( specialization_map_entries ) + specialization_map_entries_count );
 
-	le_shader_module_o *m = self->shaderModules.try_find( handle );
+	static_assert( sizeof( vk::SpecializationMapEntry ) == sizeof( VkSpecializationMapEntry ), "SpecializationMapEntry must be of same size, whether using vkhpp or not." );
 
-	if ( m && m->hash == module.hash ) {
+	le_shader_module_o *cached_module = self->shaderModules.try_find( handle );
+
+	if ( cached_module && cached_module->hash == module.hash ) {
 		// A module with the same handle already exists, and it has the same hash: no more work to do.
 		return handle;
 	}
@@ -1293,9 +1321,10 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 	module.module = self->device.createShaderModule( createInfo );
 	logger.info( "Vk shader module created %p", module.module );
 
-	if ( m == nullptr ) {
+	if ( cached_module == nullptr ) {
 		// there is no prior module - let's create a module and try to retain it in shader manager
-		if ( false == self->shaderModules.try_insert( handle, &module ) ) {
+		bool insert_successful = self->shaderModules.try_insert( handle, &module );
+		if ( !insert_successful ) {
 			logger.error( "Could not retain shader module" );
 			self->device.destroyShaderModule( module.module );
 			logger.debug( "Vk shader module destroyed %p", module.module );
@@ -1307,8 +1336,8 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 
 		// -- invariant: the old module has a different hash than our new module.
 		// we must swap the two ...
-		auto old_module = *m;
-		*m              = module;
+		auto old_module = *cached_module;
+		*cached_module  = module;
 		// ... and delete the old module
 		self->device.destroyShaderModule( old_module.module );
 		logger.debug( "Vk shader module destroyed %p", old_module.module );
@@ -1348,6 +1377,9 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 	std::vector<vk::PipelineShaderStageCreateInfo> pipelineStages;
 	pipelineStages.reserve( pso->shaderModules.size() );
 
+	std::vector<vk::SpecializationInfo *> p_specialization_infos;
+	p_specialization_infos.reserve( pso->shaderModules.size() );
+
 	le_shader_module_o *vertexShaderModule = nullptr; // We may need the vertex shader module later
 
 	for ( auto const &shader_stage : pso->shaderModules ) {
@@ -1362,13 +1394,29 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 			vertexShaderModule = s;
 		}
 
+		// Create a new (potentially unused) entry for specialization info
+		p_specialization_infos.emplace_back( nullptr );
+		vk::SpecializationInfo *&p_specialization_info = p_specialization_infos.back();
+
+		// Fetch specialization constant data from shader
+		// associate it with p_specialization_info
+
+		if ( !s->specialization_map_info.entries.empty() ) {
+			p_specialization_info = new ( vk::SpecializationInfo );
+			p_specialization_info
+			    ->setMapEntryCount( s->specialization_map_info.entries.size() )
+			    .setPMapEntries( s->specialization_map_info.entries.data() )
+			    .setDataSize( s->specialization_map_info.data.size() )
+			    .setPData( s->specialization_map_info.data.data() );
+		}
+
 		vk::PipelineShaderStageCreateInfo info{};
 		info
-		    .setFlags( {} )                    // must be 0 - "reserved for future use"
-		    .setStage( le_to_vk( s->stage ) )  //
-		    .setModule( s->module )            //
-		    .setPName( "main" )                //
-		    .setPSpecializationInfo( nullptr ) // TODO: set specialisation constants
+		    .setFlags( {} )                                  // must be 0 - "reserved for future use"
+		    .setStage( le_to_vk( s->stage ) )                //
+		    .setModule( s->module )                          //
+		    .setPName( "main" )                              //
+		    .setPSpecializationInfo( p_specialization_info ) // set specialisation constants, if any
 		    ;
 
 		pipelineStages.emplace_back( info );
@@ -1491,9 +1539,15 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 	    .setSubpass( subpass )                                     //
 	    .setBasePipelineHandle( nullptr )                          //
 	    .setBasePipelineIndex( 0 )                                 // -1 signals not to use a base pipeline index
+
 	    ;
 
 	auto creation_result = self->device.createGraphicsPipeline( self->vulkanCache, gpi );
+
+	for ( auto &p_spec : p_specialization_infos ) {
+		delete ( p_spec );
+	}
+	p_specialization_infos.clear();
 
 	assert( creation_result.result == vk::Result::eSuccess && "pipeline must be created successfully" );
 	return creation_result.value;
@@ -1508,13 +1562,23 @@ static vk::Pipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manag
 	auto s              = self->shaderManager->shaderModules.try_find( pso->shaderStage );
 	assert( s && "shader module could not be found" );
 
+	vk::SpecializationInfo *p_specialization_info = nullptr;
+	if ( !s->specialization_map_info.entries.empty() ) {
+		p_specialization_info = new ( vk::SpecializationInfo );
+		p_specialization_info
+		    ->setMapEntryCount( s->specialization_map_info.entries.size() )
+		    .setPMapEntries( s->specialization_map_info.entries.data() )
+		    .setDataSize( s->specialization_map_info.data.size() )
+		    .setPData( s->specialization_map_info.data.data() );
+	}
+
 	vk::PipelineShaderStageCreateInfo shaderStage{};
 	shaderStage
-	    .setFlags( {} )                    // must be 0 - "reserved for future use"
-	    .setStage( le_to_vk( s->stage ) )  //
-	    .setModule( s->module )            //
-	    .setPName( "main" )                //
-	    .setPSpecializationInfo( nullptr ) // TODO: Use specialisation consts to set workgroup size?
+	    .setFlags( {} )                                  // must be 0 - "reserved for future use"
+	    .setStage( le_to_vk( s->stage ) )                //
+	    .setModule( s->module )                          //
+	    .setPName( "main" )                              //
+	    .setPSpecializationInfo( p_specialization_info ) // Set specialization info (useful for setting workgroup size for example)
 	    ;
 
 	vk::ComputePipelineCreateInfo cpi;
@@ -1529,6 +1593,7 @@ static vk::Pipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manag
 	auto creation_result = self->device.createComputePipeline( self->vulkanCache, cpi );
 	assert( creation_result.result == vk::Result::eSuccess && "pipeline must be created successfully" );
 
+	delete ( p_specialization_info );
 	return creation_result.value;
 }
 
@@ -2268,8 +2333,28 @@ static const le_descriptor_set_layout_t *le_pipeline_manager_get_descriptor_set_
 
 // ----------------------------------------------------------------------
 
-static le_shader_module_handle le_pipeline_manager_create_shader_module( le_pipeline_manager_o *self, char const *path, const LeShaderSourceLanguageEnum &shader_source_language, const LeShaderStageEnum &moduleType, char const *macro_definitions, le_shader_module_handle handle ) {
-	return le_shader_manager_create_shader_module( self->shaderManager, path, shader_source_language, moduleType, macro_definitions, handle );
+static le_shader_module_handle le_pipeline_manager_create_shader_module(
+    le_pipeline_manager_o *           self,
+    char const *                      path,
+    const LeShaderSourceLanguageEnum &shader_source_language,
+    const LeShaderStageEnum &         moduleType,
+    char const *                      macro_definitions,
+    le_shader_module_handle           handle,
+    VkSpecializationMapEntry const *  specialization_map_entries,
+    uint32_t                          specialization_map_entries_count,
+    void *                            specialization_map_data,
+    uint32_t                          specialization_map_data_num_bytes ) {
+	return le_shader_manager_create_shader_module(
+	    self->shaderManager,
+	    path,
+	    shader_source_language,
+	    moduleType,
+	    macro_definitions,
+	    handle,
+	    specialization_map_entries,
+	    specialization_map_entries_count,
+	    specialization_map_data,
+	    specialization_map_data_num_bytes );
 }
 
 // ----------------------------------------------------------------------
