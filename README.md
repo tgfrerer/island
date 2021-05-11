@@ -6,10 +6,10 @@ Project Island is an experimental **Vulkan** renderer/proto-engine for
 Linux and Windows, written in C/C++. 
 
 Island is written for **rapid protoyping and tweaking**. That's why it
-allows **hot-reloading** wherever possible: for c/c++ application
-code, GLSL and HLSL shader code, even the renderer's own core modules.
-Each module aims to be strictly isolated, which makes the codebase
-**fast to compile**, especially in parallel.
+allows **hot-reloading** wherever possible: for **C/C++** application
+code, **GLSL** or **HLSL** shader code, even the renderer's own core
+modules. Each module aims to be strictly isolated, which makes the
+codebase **fast to compile**, especially in parallel.
 
 [![Build Status](https://travis-ci.com/tgfrerer/island.svg?branch=wip)](https://travis-ci.com/tgfrerer/island)
 [![Build status](https://ci.appveyor.com/api/projects/status/v68ft8y1ekb27j61?svg=true)](https://ci.appveyor.com/project/tgfrerer/island)
@@ -29,10 +29,10 @@ Each module aims to be strictly isolated, which makes the codebase
   problematic lines highlighted in context.
 
 * **Fast compile times**:  Because of Island's modular architecture,
-  a recompilation & reload cycle often takes less than 1 second, while
-  the project keeps running. Typically, compilation from scratch for
-  the whole codebase takes less than 5 seconds, and (re)compilation of
-  and hot-reload of an app module takes less than a second.
+  a recompilation & reload cycle typically takes less than 1 second,
+  while the application keeps running. Compiling the whole codebase
+  from scratch should take less than 5 seconds when using LLVM on an
+  average multi-core machine.
 
 * **Code tweaks**: Near-instant in-code parameter tweaks for Debug
   builds (no need to recompile) by using a special `TWEAK()` macro.
@@ -40,11 +40,11 @@ Each module aims to be strictly isolated, which makes the codebase
 * **Vulkan backend**: Island has a Vulkan rendering backend, which, on
   Linux, allows access to new and experimental GPU features soon after
   they are released. The renderer takes care of most of the
-  bureaucracy which comes with modern APIs: Vulkan resources are
-  automatically synchronised, and only allocated on demand. Most
+  bureaucracy which comes with modern APIs: Vulkan **resources are
+  automatically synchronised**, and only allocated when needed. Most
   resource properties are *inferred* automatically based on the
   context of how the resource is being used. Pipelines are compiled
-  and recompiled when needed. When compiled in Debug mode, Vulkan
+  and recompiled on demand. When compiled in Debug mode, Vulkan
   validation layers are loaded by default.
 
 * **Rendergraph- based Architecture**: Rendering is structured using
