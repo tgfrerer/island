@@ -10,7 +10,7 @@ layout (location = 0) in vec2 inTexCoord;
 layout (location = 0) out vec4 outFragColor;
 
 // uniforms
-layout (set = 0, binding = 0) uniform Params
+layout (push_constant) uniform Params
 {
 	vec2 u_mouse;
 	vec2 u_resolution;

@@ -85,15 +85,16 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	static auto shaderVert =
 	    LeShaderModuleBuilder( encoder.getPipelineManager() )
 	        .setShaderStage( le::ShaderStage::eVertex )
-	        .setSourceFilePath( "./local_resources/shaders/fullscreen.vert" )
-	        .build();
-	
-	static auto shaderFrag =
-	    LeShaderModuleBuilder( encoder.getPipelineManager() )
-	        .setSourceFilePath( "./local_resources/shaders/fullscreen.frag" )
-	        .setShaderStage( le::ShaderStage::eFragment )
+	        .setSourceFilePath( "./local_resources/shaders/glsl/fullscreen.vert" )
+	        .setSourceLanguage( le::ShaderSourceLanguage::eGlsl )
 	        .build();
 
+	static auto shaderFrag =
+	    LeShaderModuleBuilder( encoder.getPipelineManager() )
+	        .setShaderStage( le::ShaderStage::eFragment )
+	        .setSourceFilePath( "./local_resources/shaders/glsl/fullscreen.frag" )
+	        .setSourceLanguage( le::ShaderSourceLanguage::eGlsl )
+	        .build();
 
 	static auto pipelineFullscreenQuad =
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
@@ -114,7 +115,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 	encoder
 	    .bindGraphicsPipeline( pipelineFullscreenQuad )
-	    .setArgumentData( LE_ARGUMENT_NAME( "Params" ), &params, sizeof( ShaderParams ) )
+	    .setPushConstantData( &params, sizeof( ShaderParams ) )
 	    .draw( 4 );
 }
 
