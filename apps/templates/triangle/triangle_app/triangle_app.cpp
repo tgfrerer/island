@@ -120,21 +120,23 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 		glm::mat4 projection;
 	};
 
-	// Create shader modules 
+	// Create shader modules
 	static auto shaderVert =
 	    LeShaderModuleBuilder( encoder.getPipelineManager() )
 	        .setShaderStage( le::ShaderStage::eVertex )
-	        .setSourceFilePath( "./local_resources/shaders/default.vert" )
+	        .setSourceFilePath( "./local_resources/shaders/glsl/default.vert" )
+	        .setSourceLanguage( le::ShaderSourceLanguage::eGlsl )
 	        .build();
-	
+
 	static auto shaderFrag =
 	    LeShaderModuleBuilder( encoder.getPipelineManager() )
-	        .setSourceFilePath( "./local_resources/shaders/default.frag" )
 	        .setShaderStage( le::ShaderStage::eFragment )
+	        .setSourceFilePath( "./local_resources/shaders/glsl/default.frag" )
+	        .setSourceLanguage( le::ShaderSourceLanguage::eGlsl )
 	        .build();
 
 	// Create a pipeline using these shader modules
-	static auto pipelineTriangle =
+	static auto pipelineDefault =
 	    LeGraphicsPipelineBuilder( encoder.getPipelineManager() )
 	        .addShaderStage( shaderVert )
 	        .addShaderStage( shaderFrag )
@@ -159,7 +161,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 	};
 
 	encoder
-	    .bindGraphicsPipeline( pipelineTriangle )
+	    .bindGraphicsPipeline( pipelineDefault )
 	    .setArgumentData( LE_ARGUMENT_NAME( "Mvp" ), &mvp, sizeof( MvpUbo ) )
 	    .setVertexData( vertexPositions, sizeof( vertexPositions ), 0 )
 	    .setVertexData( vertexColors, sizeof( vertexColors ), 1 )

@@ -16,7 +16,6 @@ layout (location = 0) out VertexData {
 	vec4 vertexColor;
 } outData;
 
-
 // arguments
 layout (set = 0, binding = 0) uniform Mvp {
 	mat4 modelMatrix;
@@ -30,6 +29,16 @@ out gl_PerVertex {
     vec4 gl_Position;
 };
 
+#if 0 // Example push constants
+	layout(push_constant) PushConstants {
+		float4 color;
+		uint frame_counter;
+	} pushConstants;
+#endif
+
+#if 0 // Example specialization constant
+	layout(constant_id =1) const float s_const = 0.5f;
+#endif 
 
 
 void main() {
