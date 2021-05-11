@@ -7,7 +7,7 @@ clone_depth: 1
 init:
 - cmd: call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
 environment:
-  VULKAN_SDK: c:\VulkanSDK\1.2.162.0
+  VULKAN_SDK: c:\VulkanSDK\1.2.176.1
 install:
 - cmd: >-
     if not exist VulkanSDK.exe curl -L --silent --show-error --output VulkanSDK.exe https://www.dropbox.com/s/hhk3brlral121kn/VulkanSDK.exe?dl=1
