@@ -83,11 +83,11 @@ This assumes that your build folder is at `${YOUR_ISLAND_BASE_DIR}\apps\examples
 - [x] File watcher ported to Windows
 - [x] Shader-hot-reloading works
 - [x] Hot-reloading for native code needs some thought
-- [ ] le_jobs needs porting - implementation should use Windows' own
+- [ ] `le_jobs` needs porting - implementation should use Windows' own
   [Fiber API](https://nullprogram.com/blog/2019/03/28/) 
 - [ ] swapchain direct - needs porting for windows, provided driver
   allows direct rendering
 - [ ] image swapchain needs porting - we can't pipe to ffmpeg like we
-  did on linux - or can we?
+  did on Linux - or can we?
 
 

@@ -1,15 +1,13 @@
 # Project Island 🌋🐎 
 
-Project Island is an experimental **Vulkan** renderer/proto-engine for Linux,
-written in C/C++. 
+Project Island is an experimental **Vulkan** renderer/proto-engine for
+Linux and Windows, written in C/C++. 
 
 Island is written for **rapid protoyping and tweaking**. That's why it
 allows **hot-reloading** wherever possible: for c/c++ application
-code, GLSL shader code, even the renderer's own core modules. Each
-module aims to be strictly isolated, which makes the codebase **fast
-to compile**, especially in parallel.
-
-Now with [experimental support for Windows 10](#experimental-windows-10-support).
+code, GLSL and HLSL shader code, even the renderer's own core modules.
+Each module aims to be strictly isolated, which makes the codebase
+**fast to compile**, especially in parallel.
 
 [![Build Status](https://travis-ci.com/tgfrerer/island.svg?branch=wip)](https://travis-ci.com/tgfrerer/island)
 [![Build status](https://ci.appveyor.com/api/projects/status/v68ft8y1ekb27j61?svg=true)](https://ci.appveyor.com/project/tgfrerer/island)
@@ -28,18 +26,17 @@ Now with [experimental support for Windows 10](#experimental-windows-10-support)
 
 * **Hot-reloading**: An Island project is made from isolated c/cpp
   modules, each of which can be tweaked, re-compiled at runtime, and
-  automatically hot-reloaded. The same applies to GLSL shader source
-  files.
+  automatically hot-reloaded. The same applies to shader source files.
 
 * **Fast compile times**:  Because of Island's modular architecture,
   recompilation & reload often takes less than 1 second, while the
   project keeps running. Typically, compilation from scratch for the
-  whole codebase takes less than 6 seconds, and (re)compilation of an
+  whole codebase takes less than 5 seconds, and (re)compilation of an
   app module takes less than a second.
 
 * **Static release binaries**: While Island is highly modular and
-  dynamic when run in debug, it can compile into a single, optimised
-  static binary for release. 
+  dynamic when compiled for Debug, it can compile into a single,
+  optimised static binary for Release. 
 
 * **Rendergraph**: Rendering is structured using renderpasses.
   Renderpasses are executed on-demand and synchronised automatically
@@ -59,17 +56,18 @@ Now with [experimental support for Windows 10](#experimental-windows-10-support)
   Nvidia-specific extensions for mesh and task shaders. These can be
   used in regular graphics pipelines.
 
-* **Shader code debugging**: Shader GLSL code may be hot-reloaded too.
-  Any change in shader files triggers a recompile, and (Vulkan)
-  pipelines are automatically rebuilt if needed. Shaders may include
-  other shaders via `#include` directives. Error messages will point
-  at file and line number, and include a brief listing with
+* **Shader code debugging**: Shader code may be hot-reloaded too.
+  Island supports shader code hot-reloading for HLSL, GLSL, or SPIR-V
+  shader source files. Any change in these files triggers a recompile,
+  and (Vulkan) pipelines are automatically rebuilt if needed.
+  HLSL/GLSL Shaders may use `#include` directives. Error messages will
+  point at file and line number, and include a brief listing with
   problematic lines highlighted in context.
 
 * **Code tweaks**: Near-instant in-code parameter tweaks for Debug
   builds (no need to recompile) by using a special `TWEAK()` macro.
 
-* **Multi-Window** Island allows you to hoop up multiple swapchains to
+* **Multi-Window** Island allows you to hook up multiple swapchains to
   a single application. This is particularly useful for multi-window
   scenarios. See [example][example-multiwindow]
   
@@ -175,8 +173,9 @@ start from.
 
 # Installation instructions
 
-Island should run out of the box on a modern Linux system with
-the current Vulkan SDK installed.
+Island should run out of the box on a modern Linux system with the
+current Vulkan SDK and build tools installed. For Windows, build
+instructions are collected in a [separate readme][readme-win].
 
 ## Depencencies
 
@@ -261,7 +260,9 @@ the files checked into the github repo at `hello_triangle` change.
 
 ## Experimental Windows 10 support
 
-Island can compile and run natively on Microsoft Windows - with some caveats. Progress of the Windows port and Windows-specific build instructions etc. are tracked in a [separate readme][readme-win].
+Island can compile and run natively on Microsoft Windows - with some
+caveats. Progress of the Windows port and Windows-specific build
+instructions etc. are tracked in a [separate readme][readme-win].
 
 ## Caveats
 
