@@ -10,11 +10,11 @@ environment:
   VULKAN_SDK: c:\VulkanSDK\1.2.176.1
 install:
 - cmd: >-
-    if not exist VulkanSDK_1.2.176.exe curl -L --silent --show-error --output VulkanSDK.exe https://www.dropbox.com/s/hhk3brlral121kn/VulkanSDK.exe?dl=1
+    if not exist VulkanSDK_1_2_176_1.exe curl -L --silent --show-error --output VulkanSDK_1_2_176_1.exe https://www.dropbox.com/s/hhk3brlral121kn/VulkanSDK.exe?dl=1
 
-    VulkanSDK_1.2.176.exe /S
+    VulkanSDK_1_2_176_1.exe /S
 
-cache: VulkanSDK_1.2.176.exe
+cache: VulkanSDK_1_2_176_1.exe
 build_script:
 - ps: >-
     git submodule init
