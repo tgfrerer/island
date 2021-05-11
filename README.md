@@ -14,6 +14,27 @@ Each module aims to be strictly isolated, which makes the codebase
 
 ## Main Features:
 
+* **Hot-reloading**: An Island project is made from isolated c/cpp
+  modules, each of which can be tweaked, re-compiled at runtime, and
+  automatically hot-reloaded. The same applies to shader source files.
+
+* **Shader Hot-reloading**: Shader code may be hot-reloaded too.
+  Island supports shader code hot-reloading for HLSL, GLSL, or SPIR-V
+  shader source files. Any change in these files triggers a recompile,
+  and (Vulkan) pipelines are automatically rebuilt if needed.
+  HLSL/GLSL Shaders may use `#include` directives. Error messages will
+  point at file and line number, and include a brief listing with
+  problematic lines highlighted in context.
+
+* **Fast compile times**:  Because of Island's modular architecture,
+  a recompilation & reload cycle often takes less than 1 second, while
+  the project keeps running. Typically, compilation from scratch for
+  the whole codebase takes less than 5 seconds, and (re)compilation of
+  and hot-reload of an app module takes less than a second.
+
+* **Code tweaks**: Near-instant in-code parameter tweaks for Debug
+  builds (no need to recompile) by using a special `TWEAK()` macro.
+
 * **Vulkan backend**: Island has a Vulkan rendering backend, which, on
   Linux, allows access to new and experimental GPU features soon after
   they are released. The renderer takes care of most of the
@@ -24,48 +45,18 @@ Each module aims to be strictly isolated, which makes the codebase
   and recompiled when needed. When compiled in Debug mode, Vulkan
   validation layers are loaded by default.
 
-* **Hot-reloading**: An Island project is made from isolated c/cpp
-  modules, each of which can be tweaked, re-compiled at runtime, and
-  automatically hot-reloaded. The same applies to shader source files.
-
-* **Fast compile times**:  Because of Island's modular architecture,
-  recompilation & reload often takes less than 1 second, while the
-  project keeps running. Typically, compilation from scratch for the
-  whole codebase takes less than 5 seconds, and (re)compilation of an
-  app module takes less than a second.
-
-* **Static release binaries**: While Island is highly modular and
-  dynamic when compiled for Debug, it can compile into a single,
-  optimised static binary for Release. 
-
-* **Rendergraph**: Rendering is structured using renderpasses.
-  Renderpasses are executed on-demand and synchronised automatically
-  by evaluating a rendergraph. If a renderpass is detected to have no
-  effect on the final image, it is automatically pruned. For Debug
-  targets, the rendergraph generates `.dot` files, which can be drawn
-  using graphviz.  
+* **Rendergraph- based Architecture**: Rendering is structured using
+  renderpasses. Renderpasses are executed on-demand and synchronised
+  automatically by evaluating a rendergraph. If a renderpass is
+  detected to have no effect on the final image, it is automatically
+  pruned. For Debug targets, the rendergraph generates `.dot` files,
+  which can be drawn using graphviz.  
 
   ![graphviz-screenshot](resources/readme/graph_screenshot.png)
   
-* **GPU ray tracing** Island supports RTX via the *Khronos Vulkan
-  raytracing extensions*. Creating acceleration structures and shader
-  binding tables is automated and simplified as much as possible. Ray
-  tracing shaders can be hot-reloaded.
-
-* **GPU mesh shaders** gives you - optional - access to
-  Nvidia-specific extensions for mesh and task shaders. These can be
-  used in regular graphics pipelines.
-
-* **Shader code debugging**: Shader code may be hot-reloaded too.
-  Island supports shader code hot-reloading for HLSL, GLSL, or SPIR-V
-  shader source files. Any change in these files triggers a recompile,
-  and (Vulkan) pipelines are automatically rebuilt if needed.
-  HLSL/GLSL Shaders may use `#include` directives. Error messages will
-  point at file and line number, and include a brief listing with
-  problematic lines highlighted in context.
-
-* **Code tweaks**: Near-instant in-code parameter tweaks for Debug
-  builds (no need to recompile) by using a special `TWEAK()` macro.
+* **Static release binaries**: While Island is highly modular and
+  dynamic when compiled for Debug, it can compile into a single,
+  optimised static binary for Release. 
 
 * **Multi-Window** Island allows you to hook up multiple swapchains to
   a single application. This is particularly useful for multi-window
@@ -97,6 +88,15 @@ Each module aims to be strictly isolated, which makes the codebase
   using the `le_jobs` module, which implements a job system using
   coroutine-like fibers. Both backend and render modules are designed
   to minimise resource contention.
+
+* **GPU ray tracing** Island supports RTX via the *Khronos Vulkan
+  raytracing extensions*. Creating acceleration structures and shader
+  binding tables is automated and simplified as much as possible. Ray
+  tracing shaders can be hot-reloaded.
+
+* **GPU mesh shaders** gives you - optional - access to
+  Nvidia-specific extensions for mesh and task shaders. These can be
+  used in regular graphics pipelines.
 
 [hain]: https://doi.org/10.1016/j.cag.2005.08.002
 [hobby]: http://weitz.de/hobby/
