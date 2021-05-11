@@ -8,8 +8,10 @@ Linux and Windows, written in C/C++.
 Island is written for **rapid protoyping and tweaking**. That's why it
 allows **hot-reloading** wherever possible: for **C/C++** application
 code, **GLSL** or **HLSL** shader code, even the renderer's own core
-modules. Each module aims to be strictly isolated, which makes the
-codebase **fast to compile**, especially in parallel.
+modules. 
+
+Each module aims to be strictly isolated, which makes the codebase
+**fast to compile**, especially in parallel.
 
 [![Build Status](https://travis-ci.com/tgfrerer/island.svg?branch=wip)](https://travis-ci.com/tgfrerer/island)
 [![Build status](https://ci.appveyor.com/api/projects/status/v68ft8y1ekb27j61?svg=true)](https://ci.appveyor.com/project/tgfrerer/island)
@@ -18,15 +20,15 @@ codebase **fast to compile**, especially in parallel.
 
 * **Hot-reloading**: An Island project is made from isolated c/cpp
   modules, each of which can be tweaked, re-compiled at runtime, and
-  automatically hot-reloaded. The same applies to shader source files.
+  automatically hot-reloaded.
 
-* **Shader Hot-reloading**: Shader code may be hot-reloaded too.
-  Island supports shader code hot-reloading for HLSL, GLSL, or SPIR-V
-  shader source files. Any change in these files triggers a recompile,
-  and (Vulkan) pipelines are automatically rebuilt if needed.
-  HLSL/GLSL Shaders may use `#include` directives. Error messages will
-  point at file and line number, and include a brief listing with
-  problematic lines highlighted in context.
+* **Shader Hot-reloading**: Island supports shader code hot-reloading
+  for HLSL, GLSL, or SPIR-V shader source files. Shader files are
+  automatically watched, and any change triggers a recompile, with
+  (Vulkan) pipelines automatically rebuilt if needed. HLSL/GLSL
+  Shaders may use `#include` directives. Error messages (if any) will
+  point at shader file and line number, and include a brief listing
+  with problematic lines highlighted in context.
 
 * **Fast compile times**:  Because of Island's modular architecture,
   a recompilation & reload cycle typically takes less than 1 second,
