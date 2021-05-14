@@ -54,16 +54,20 @@ constexpr size_t LE_LINEAR_ALLOCATOR_SIZE       = 1u << 24;
 
 struct LeRtxBlasCreateInfo {
 	le_rtx_blas_info_handle handle;
-	uint64_t                scratch_buffer_sz; // Requested scratch buffer size for bottom level acceleration structure
-	uint64_t                device_address;    // 64bit address used by the top-level acceleration structure instances buffer.
-	                                           // Used to to refer back to this bottom-level acceleration structure.
-	                                           // Queried via vkGetAccelerationStructureDeviceAddressKHR after creating the acceleration structure.
-	                                           // This is not my idea, but how the API is laid out...
+	uint64_t                buffer_size;
+	uint64_t                scratch_buffer_size; // Requested scratch buffer size for bottom level acceleration structure
+	uint64_t                device_address;      // 64bit address used by the top-level acceleration structure instances buffer.
+	VkBuffer                buffer;              // buffer used to store acceleration structure in device memory
+	                                             // Used to to refer back to this bottom-level acceleration structure.
+	                                             // Queried via vkGetAccelerationStructureDeviceAddressKHR after creating the acceleration structure.
+	                                             // This is not my idea, but how the API is laid out...
 };
 
 struct LeRtxTlasCreateInfo {
 	le_rtx_tlas_info_handle handle;
-	uint64_t                scratch_buffer_sz; // requested scratch buffer size for top level acceleration structure
+	uint64_t                buffer_size;
+	uint64_t                scratch_buffer_size; // requested scratch buffer size for top level acceleration structure
+	VkBuffer                buffer;              // buffer used to store acceleration structure
 };
 
 // ----------------------------------------------------------------------
@@ -126,10 +130,13 @@ struct ResourceCreateInfo {
 			);
 		} else if ( isBlas() ) {
 			return blasInfo.handle == rhs.blasInfo.handle &&
-			       blasInfo.scratch_buffer_sz == rhs.blasInfo.scratch_buffer_sz;
+			       blasInfo.scratch_buffer_size == rhs.blasInfo.scratch_buffer_size &&
+			       blasInfo.buffer_size == rhs.blasInfo.buffer_size;
 		} else if ( isTlas() ) {
 			return tlasInfo.handle == rhs.tlasInfo.handle &&
-			       tlasInfo.scratch_buffer_sz == rhs.tlasInfo.scratch_buffer_sz;
+			       tlasInfo.scratch_buffer_size == rhs.tlasInfo.scratch_buffer_size &&
+			       tlasInfo.buffer_size == rhs.tlasInfo.buffer_size;
+			;
 		} else {
 			assert( false && "createInfo must be of known type" );
 		}
@@ -355,13 +362,15 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 
 	} break;
 	case ( LeResourceType::eRtxBlas ): {
-		res.blasInfo.handle            = info.blas.info;
-		res.blasInfo.scratch_buffer_sz = 0;
+		res.blasInfo.handle              = info.blas.info;
+		res.blasInfo.scratch_buffer_size = 0;
+		res.blasInfo.buffer_size         = 0;
 		break;
 	}
 	case ( LeResourceType::eRtxTlas ): {
-		res.tlasInfo.handle            = info.tlas.info;
-		res.tlasInfo.scratch_buffer_sz = 0;
+		res.tlasInfo.handle              = info.tlas.info;
+		res.tlasInfo.scratch_buffer_size = 0;
+		res.tlasInfo.buffer_size         = 0;
 		break;
 	}
 	default:
@@ -2384,6 +2393,7 @@ static void backend_destroy_buffer( le_backend_o *self, VkBuffer buffer, VmaAllo
 // Allocates and creates a physical vulkan resource using vmaAlloc given an allocator
 // Returns an AllocatedResourceVk, currently does not do any error checking.
 static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &alloc, const ResourceCreateInfo &resourceInfo, VkDevice vk_device = nullptr ) {
+	static auto         logger = LeLog( LOGGER_LABEL );
 	AllocatedResourceVk res{};
 	res.info = resourceInfo;
 	VmaAllocationCreateInfo allocationCreateInfo{};
@@ -2415,69 +2425,93 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 	} else if ( resourceInfo.isBlas() ) {
 
 #ifdef LE_FEATURE_RTX
+
+		// Allocate bottom level ray tracing acceleration structure
+
 		assert( vk_device && "blas allocation needs device" );
 		vk::Device device( vk_device );
 
 		auto const blas = reinterpret_cast<le_rtx_blas_info_o *>( resourceInfo.blasInfo.handle );
 
-		std::vector<vk::AccelerationStructureCreateGeometryTypeInfoKHR> geom_infos;
-		geom_infos.reserve( blas->geometries.size() );
+		std::vector<vk::AccelerationStructureGeometryKHR> geometries;
+		std::vector<uint32_t>                             primitive_counts;
+
+		geometries.reserve( blas->geometries.size() );
+		primitive_counts.reserve( geometries.size() );
+
 		for ( auto const &g : blas->geometries ) {
-			vk::AccelerationStructureCreateGeometryTypeInfoKHR geom_info{};
-			geom_info.setGeometryType( vk::GeometryTypeKHR::eTriangles )
-			    .setMaxPrimitiveCount( g.index_count ? g.index_count / 3 : g.vertex_count / 3 )
+
+			vk::AccelerationStructureGeometryTrianglesDataKHR t_data{};
+			t_data
+			    .setMaxVertex( g.vertex_count - 1 ) // highest index of a vertex that will be accessed by build command
 			    .setIndexType( le_index_type_to_vk( g.index_type ) )
-			    .setMaxVertexCount( g.vertex_count )
-			    .setVertexFormat( le_format_to_vk( g.vertex_format ) )
-			    .setAllowsTransforms( false );
-			geom_infos.emplace_back( geom_info );
+			    .setVertexFormat( le_format_to_vk( g.vertex_format ) );
+
+			vk::AccelerationStructureGeometryDataKHR g_data{};
+			g_data
+			    .setInstances( 1 )
+			    .setTriangles( t_data );
+
+			vk::AccelerationStructureGeometryKHR geom{};
+			geom
+			    .setFlags( vk::GeometryFlagBitsKHR::eOpaque )
+			    .setGeometryType( vk::GeometryTypeKHR::eTriangles )
+			    .setGeometry( g_data );
+
+			geometries.push_back( geom );
+
+			primitive_counts.push_back( g.index_count ? g.index_count / 3 : g.vertex_count / 3 );
 		}
 
-		auto create_info =
-		    vk::AccelerationStructureCreateInfoKHR()
-		        .setCompactedSize( 0 ) // only used if this acceleration structure is the target of a compacting copy, must be 0 otherwise
-		        .setType( vk::AccelerationStructureTypeKHR::eBottomLevel )
-		        .setFlags( blas->flags )
-		        .setMaxGeometryCount( uint32( geom_infos.size() ) )
-		        .setPGeometryInfos( geom_infos.data() )
-		        .setDeviceAddress( 0 ); // only used if rayTracingAccelerationStructureCaptureReplay being used
+		vk::AccelerationStructureBuildGeometryInfoKHR build_info{};
+
+		build_info
+		    .setType( vk::AccelerationStructureTypeKHR::eBottomLevel )
+		    .setGeometries( geometries );
+		vk::AccelerationStructureBuildSizesInfoKHR build_sizes =
+		    device.getAccelerationStructureBuildSizesKHR(
+		        vk::AccelerationStructureBuildTypeKHR::eDevice, build_info, primitive_counts );
+
+		vk::BufferCreateInfo bufferInfo{};
+		bufferInfo
+		    .setFlags( vk::BufferCreateFlags{} )
+		    .setSize( build_sizes.accelerationStructureSize )
+		    .setUsage( vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR )
+		    .setSharingMode( vk::SharingMode::eExclusive )
+		    .setQueueFamilyIndexCount( 0 )
+		    .setPQueueFamilyIndices( 0 );
+
+		{
+			result =
+			    vmaCreateBuffer(
+			        alloc,
+			        &static_cast<VkBufferCreateInfo &>( bufferInfo ),
+			        &allocationCreateInfo,
+			        &res.info.blasInfo.buffer,
+			        &res.allocation,
+			        &res.allocationInfo );
+
+			assert( result == VkResult::VK_SUCCESS );
+		}
+
+		vk::AccelerationStructureCreateInfoKHR create_info{};
+		create_info
+		    .setCreateFlags( vk::AccelerationStructureCreateFlagsKHR() )
+		    .setBuffer( res.info.blasInfo.buffer )
+		    .setOffset( 0 ) // must be a multiple of 256 : vkSpec
+		    .setSize( build_sizes.accelerationStructureSize )
+		    .setType( vk::AccelerationStructureTypeKHR::eBottomLevel )
+		    .setDeviceAddress( 0 ) // if 0, this means no specific device address requested
+		    ;
 
 		res.as.blas = device.createAccelerationStructureKHR( create_info );
 
-		// Get memory requirements for scratch buffer
-		vk::AccelerationStructureMemoryRequirementsInfoKHR scratch_mem_req_info{};
-		scratch_mem_req_info.setType( vk::AccelerationStructureMemoryRequirementsTypeKHR::eBuildScratch );
-		scratch_mem_req_info.setAccelerationStructure( res.as.blas );
-		vk::MemoryRequirements2 scratchMemReqs = device.getAccelerationStructureMemoryRequirementsKHR( scratch_mem_req_info );
+		logger.info( "Created acceleration structure '%p' with size: %d, scratch size: %d", res.as.blas, build_sizes.accelerationStructureSize, build_sizes.buildScratchSize );
+
+		res.info.blasInfo.buffer_size = build_sizes.accelerationStructureSize;
 
 		// Store memory requirements for scratch buffer into allocation info for this blas element
-		res.info.blasInfo.scratch_buffer_sz = scratchMemReqs.memoryRequirements.size;
-
-		// Get memory requirements for object allocation
-		vk::AccelerationStructureMemoryRequirementsInfoKHR obj_mem_req_info{};
-		obj_mem_req_info.setType( vk::AccelerationStructureMemoryRequirementsTypeKHR::eObject );
-		obj_mem_req_info.setAccelerationStructure( res.as.blas );
-
-		vk::MemoryRequirements2KHR memReqs                 = device.getAccelerationStructureMemoryRequirementsKHR( obj_mem_req_info );
-		VkMemoryRequirements       obj_memory_requirements = memReqs.memoryRequirements;
-		VmaAllocationCreateInfo    alloc_create_info{};
-		alloc_create_info.memoryTypeBits = memReqs.memoryRequirements.memoryTypeBits;
-
-		// Allocate memory
-		VkResult result = vmaAllocateMemory( alloc, &obj_memory_requirements, &alloc_create_info, &res.allocation, &res.allocationInfo );
-
-		assert( result == VK_SUCCESS && "Allocation must succeed" );
-
-		// Bind object to allocated memory
-		vk::BindAccelerationStructureMemoryInfoKHR bind_info{};
-		bind_info
-		    .setAccelerationStructure( res.as.blas )
-		    .setMemory( res.allocationInfo.deviceMemory )
-		    .setMemoryOffset( res.allocationInfo.offset )
-		    .setDeviceIndexCount( 0 )
-		    .setPDeviceIndices( nullptr );
-
-		device.bindAccelerationStructureMemoryKHR( 1, &bind_info );
+		res.info.blasInfo.scratch_buffer_size = build_sizes.buildScratchSize;
 
 		// Query, and store object integer handle, which is used to refer
 		// to this bottom-level acceleration structure from a top-level
@@ -2492,6 +2526,9 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 	} else if ( resourceInfo.isTlas() ) {
 
 #ifdef LE_FEATURE_RTX
+
+		// Allocate top level ray tracing allocation structure
+
 		assert( vk_device && "tlas allocation needs device" );
 		vk::Device device( vk_device );
 
@@ -2499,59 +2536,65 @@ static inline AllocatedResourceVk allocate_resource_vk( const VmaAllocator &allo
 
 		assert( tlas && "tlas must be valid." );
 
-		vk::AccelerationStructureCreateGeometryTypeInfoKHR instances_info{};
-		instances_info.setGeometryType( vk::GeometryTypeKHR::eInstances )
-		    .setMaxPrimitiveCount( uint32_t( tlas->instances_count ) ) // number of instances
-		    .setIndexType( {} )                                        // only used for trianges geometry type
-		    .setMaxVertexCount( {} )                                   // only used for triangles geometry type
-		    .setVertexFormat( {} )                                     // only used for triangles geometry type
-		    .setAllowsTransforms( true );                              // true: enable per-instance transforms
+		vk::AccelerationStructureBuildGeometryInfoKHR build_info{};
 
-		auto create_info =
-		    vk::AccelerationStructureCreateInfoKHR()
-		        .setCompactedSize( 0 ) // only used if this acceleration structure is the target of a compacting copy, must be 0 otherwise
-		        .setType( vk::AccelerationStructureTypeKHR::eTopLevel )
-		        .setFlags( tlas->flags )
-		        .setMaxGeometryCount( 1 )             // number of instances_info
-		        .setPGeometryInfos( &instances_info ) // instances_info
-		        .setDeviceAddress( 0 );               // only used if rayTracingAccelerationStructureCaptureReplay being used
+		vk::AccelerationStructureGeometryInstancesDataKHR instances_data{};
+
+		vk::AccelerationStructureGeometryDataKHR geometry_data{};
+		geometry_data.setInstances( instances_data );
+
+		vk::AccelerationStructureGeometryKHR geom{};
+		geom
+		    .setGeometryType( vk::GeometryTypeKHR::eInstances )
+		    .setGeometry( geometry_data );
+
+		build_info
+		    .setType( vk::AccelerationStructureTypeKHR::eTopLevel )
+		    .setMode( vk::BuildAccelerationStructureModeKHR::eBuild )
+		    .setGeometries( geom );
+
+		vk::AccelerationStructureBuildSizesInfoKHR build_sizes =
+		    device.getAccelerationStructureBuildSizesKHR(
+		        vk::AccelerationStructureBuildTypeKHR::eDevice, build_info, tlas->instances_count );
+
+		vk::BufferCreateInfo bufferInfo{};
+		bufferInfo
+		    .setFlags( vk::BufferCreateFlags{} )
+		    .setSize( build_sizes.accelerationStructureSize )
+		    .setUsage( vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR )
+		    .setSharingMode( vk::SharingMode::eExclusive )
+		    .setQueueFamilyIndexCount( 0 )
+		    .setPQueueFamilyIndices( 0 );
+
+		{
+			result =
+			    vmaCreateBuffer(
+			        alloc,
+			        &static_cast<VkBufferCreateInfo &>( bufferInfo ),
+			        &allocationCreateInfo,
+			        &res.info.tlasInfo.buffer,
+			        &res.allocation,
+			        &res.allocationInfo );
+
+			assert( result == VkResult::VK_SUCCESS );
+		}
+
+		vk::AccelerationStructureCreateInfoKHR create_info{};
+		create_info
+		    .setCreateFlags( vk::AccelerationStructureCreateFlagsKHR() )
+		    .setBuffer( res.info.tlasInfo.buffer )
+		    .setOffset( 0 )
+		    .setSize( build_sizes.accelerationStructureSize )
+		    .setType( vk::AccelerationStructureTypeKHR::eTopLevel )
+		    .setDeviceAddress( 0 ) // if 0, this means no specific device address requested
+		    ;
 
 		res.as.tlas = device.createAccelerationStructureKHR( create_info );
 
-		// Get memory requirements for scratch buffer
-		vk::AccelerationStructureMemoryRequirementsInfoKHR scratch_mem_req_info{};
-		scratch_mem_req_info
-		    .setType( vk::AccelerationStructureMemoryRequirementsTypeKHR::eBuildScratch )
-		    .setAccelerationStructure( res.as.tlas );
-		vk::MemoryRequirements2 scratchMemReqs = device.getAccelerationStructureMemoryRequirementsKHR( scratch_mem_req_info );
+		// Store memory requirements for scratch buffer into allocation info for this tlas element
+		res.info.tlasInfo.scratch_buffer_size = build_sizes.buildScratchSize;
+		res.info.tlasInfo.buffer_size         = build_sizes.accelerationStructureSize;
 
-		// Store memory requirements for scratch buffer into allocation info for this blas element
-		res.info.tlasInfo.scratch_buffer_sz = scratchMemReqs.memoryRequirements.size;
-
-		// Get memory requirements for object allocation
-		vk::AccelerationStructureMemoryRequirementsInfoKHR obj_mem_req_info{};
-		obj_mem_req_info
-		    .setType( vk::AccelerationStructureMemoryRequirementsTypeKHR::eObject )
-		    .setAccelerationStructure( res.as.tlas );
-
-		vk::MemoryRequirements2KHR memReqs                 = device.getAccelerationStructureMemoryRequirementsKHR( obj_mem_req_info );
-		VkMemoryRequirements       obj_memory_requirements = memReqs.memoryRequirements;
-		VmaAllocationCreateInfo    alloc_create_info{};
-		alloc_create_info.memoryTypeBits = memReqs.memoryRequirements.memoryTypeBits;
-
-		VkResult result = vmaAllocateMemory( alloc, &obj_memory_requirements, &alloc_create_info, &res.allocation, &res.allocationInfo );
-
-		assert( result == VK_SUCCESS && "Allocation must succeed" );
-
-		vk::BindAccelerationStructureMemoryInfoKHR bind_info{};
-		bind_info
-		    .setAccelerationStructure( res.as.tlas )
-		    .setMemory( res.allocationInfo.deviceMemory )
-		    .setMemoryOffset( res.allocationInfo.offset )
-		    .setDeviceIndexCount( 0 )
-		    .setPDeviceIndices( nullptr );
-
-		device.bindAccelerationStructureMemoryKHR( 1, &bind_info );
 #else
 		assert( false && "backend compiled without RTX features, but RTX feature requested." );
 #endif
@@ -3047,7 +3090,7 @@ static void printResourceInfo( le_resource_handle_t const &handle, ResourceCreat
 	if ( info.isBuffer() ) {
 		logger.info( "% 32s : %11d : %30s : %30s", handle.debug_name, info.bufferInfo.size, "-", to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) ).c_str() );
 	} else if ( info.isImage() ) {
-		logger.info( "% 32s : %4dx%4dx%4d : %30s : %30s : %5s samples",
+		logger.info( "% 32s : %dx%dx%d : %30s : %30s : %5s samples",
 		             handle.debug_name,
 		             info.imageInfo.extent.width,
 		             info.imageInfo.extent.height,
@@ -3056,16 +3099,16 @@ static void printResourceInfo( le_resource_handle_t const &handle, ResourceCreat
 		             to_string( vk::ImageUsageFlags( info.imageInfo.usage ) ).c_str(),
 		             to_string( vk::SampleCountFlags( info.imageInfo.samples ) ).c_str() );
 	} else if ( info.isBlas() ) {
-		logger.info( "% 32s : %11d : %30s : %30s",
+		logger.info( "% 32s : %11d : (%28d) : %30s",
 		             handle.debug_name,
-		             info.blasInfo.scratch_buffer_sz,
-		             "-",
+		             info.blasInfo.buffer_size,
+		             info.blasInfo.scratch_buffer_size,
 		             "-" );
 	} else if ( info.isTlas() ) {
-		logger.info( "% 32s : %11d : %30s : %30s",
+		logger.info( "% 32s : %11d : (%28d) : %30s",
 		             handle.debug_name,
-		             info.tlasInfo.scratch_buffer_sz,
-		             "-",
+		             info.tlasInfo.buffer_size,
+		             info.tlasInfo.scratch_buffer_size,
 		             "-" );
 	}
 }
@@ -3270,7 +3313,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			auto allocatedResource = allocate_resource_vk( self->mAllocator, resourceCreateInfo, self->device->getVkDevice() );
 
 			if ( PRINT_DEBUG_MESSAGES || true ) {
-				logger.info( "Allocated resource: " );
+				//				logger.info( "Allocated resource: " );
 				printResourceInfo( resourceId, allocatedResource.info );
 			}
 
@@ -3364,7 +3407,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 				auto const &frame_resource = frame.availableResources.at( resourceId );
 
-				scratchbuffer_max_size = std::max<uint64_t>( scratchbuffer_max_size, frame_resource.info.blasInfo.scratch_buffer_sz );
+				scratchbuffer_max_size = std::max<uint64_t>( scratchbuffer_max_size, frame_resource.info.blasInfo.scratch_buffer_size );
 			} else if ( resourceInfo.type == LeResourceType::eRtxTlas &&
 			            ( resourceInfo.tlas.usage & LE_RTX_TLAS_BUILD_BIT ) ) {
 				//  we need to find out the space needed for building this resource - this
@@ -3373,7 +3416,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 				auto const &frame_resource = frame.availableResources.at( resourceId );
 
-				scratchbuffer_max_size = std::max<uint64_t>( scratchbuffer_max_size, frame_resource.info.tlasInfo.scratch_buffer_sz );
+				scratchbuffer_max_size = std::max<uint64_t>( scratchbuffer_max_size, frame_resource.info.tlasInfo.scratch_buffer_size );
 			}
 
 			// --------| invariant: we have a blas resource which needs to be built
@@ -3383,7 +3426,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			// We must allocate a scratch buffer, which needs to be available for exactly one frame.
 			le_resource_info_t resourceInfo{};
 			resourceInfo.buffer.size              = uint32_t( scratchbuffer_max_size );
-			resourceInfo.buffer.usage             = { LE_BUFFER_USAGE_RAY_TRACING_BIT_KHR | LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT };
+			resourceInfo.buffer.usage             = { LE_BUFFER_USAGE_STORAGE_BUFFER_BIT | LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT };
 			resourceInfo.type                     = LeResourceType::eBuffer;
 			ResourceCreateInfo resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo, &self->queueFamilyIndexGraphics, 0 );
 			auto               resource_id        = LE_RTX_SCRATCH_BUFFER_HANDLE;
@@ -4464,7 +4507,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 										descriptorData.bindingNumber = uint32_t( b.binding );
 										descriptorData.arrayIndex    = uint32_t( arrayIndex );
 
-										descriptorData.bufferInfo.range = VK_WHOLE_SIZE;
+										descriptorData.bufferInfo.range = b.range;
 
 										setData.emplace_back( std::move( descriptorData ) );
 									}
@@ -4595,16 +4638,20 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 						// -- "bind" shader binding table state
 
-						rtx_state.sbt_buffer          = le_cmd->info.sbt_buffer;
-						rtx_state.ray_gen_sbt_offset  = le_cmd->info.ray_gen_sbt_offset;
+						rtx_state.sbt_buffer = le_cmd->info.sbt_buffer;
+
+						VkBuffer vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.sbt_buffer );
+						uint64_t offset    = device.getBufferAddress( { vk_buffer } );
+
+						rtx_state.ray_gen_sbt_offset  = offset + le_cmd->info.ray_gen_sbt_offset;
 						rtx_state.ray_gen_sbt_size    = le_cmd->info.ray_gen_sbt_size;
-						rtx_state.miss_sbt_offset     = le_cmd->info.miss_sbt_offset;
+						rtx_state.miss_sbt_offset     = offset + le_cmd->info.miss_sbt_offset;
 						rtx_state.miss_sbt_stride     = le_cmd->info.miss_sbt_stride;
 						rtx_state.miss_sbt_size       = le_cmd->info.miss_sbt_size;
-						rtx_state.hit_sbt_offset      = le_cmd->info.hit_sbt_offset;
+						rtx_state.hit_sbt_offset      = offset + le_cmd->info.hit_sbt_offset;
 						rtx_state.hit_sbt_stride      = le_cmd->info.hit_sbt_stride;
 						rtx_state.hit_sbt_size        = le_cmd->info.hit_sbt_size;
-						rtx_state.callable_sbt_offset = le_cmd->info.callable_sbt_offset;
+						rtx_state.callable_sbt_offset = offset + le_cmd->info.callable_sbt_offset;
 						rtx_state.callable_sbt_stride = le_cmd->info.callable_sbt_stride;
 						rtx_state.callable_sbt_size   = le_cmd->info.callable_sbt_size;
 						rtx_state.is_set              = true;
@@ -4641,7 +4688,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					assert( rtx_state.is_set && "sbt state must have been set before calling traceRays" );
 
-					vk::Buffer sbt_vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, rtx_state.sbt_buffer );
+					// vk::Buffer sbt_vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, rtx_state.sbt_buffer );
 
 					//					std::cout << "sbt buffer: " << std::hex << sbt_vk_buffer << std::endl
 					//					          << std::flush;
@@ -4649,10 +4696,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					//					          << std::flush;
 
 					// buffer, offset, stride, size
-					vk::StridedBufferRegionKHR sbt_ray_gen{ sbt_vk_buffer, rtx_state.ray_gen_sbt_offset, 0, rtx_state.ray_gen_sbt_size };
-					vk::StridedBufferRegionKHR sbt_miss{ sbt_vk_buffer, rtx_state.miss_sbt_offset, rtx_state.miss_sbt_stride, rtx_state.miss_sbt_size };
-					vk::StridedBufferRegionKHR sbt_hit{ sbt_vk_buffer, rtx_state.hit_sbt_offset, rtx_state.hit_sbt_stride, rtx_state.hit_sbt_size };
-					vk::StridedBufferRegionKHR sbt_callable{ sbt_vk_buffer, rtx_state.callable_sbt_offset, rtx_state.callable_sbt_stride, rtx_state.callable_sbt_size };
+					vk::StridedDeviceAddressRegionKHR sbt_ray_gen{ rtx_state.ray_gen_sbt_offset, rtx_state.ray_gen_sbt_size, rtx_state.ray_gen_sbt_size };
+					vk::StridedDeviceAddressRegionKHR sbt_miss{ rtx_state.miss_sbt_offset, rtx_state.miss_sbt_stride, rtx_state.miss_sbt_size };
+					vk::StridedDeviceAddressRegionKHR sbt_hit{ rtx_state.hit_sbt_offset, rtx_state.hit_sbt_stride, rtx_state.hit_sbt_size };
+					vk::StridedDeviceAddressRegionKHR sbt_callable{ rtx_state.callable_sbt_offset, rtx_state.callable_sbt_stride, rtx_state.callable_sbt_size };
 
 					cmd.traceRaysKHR(
 					    sbt_ray_gen,
@@ -4852,7 +4899,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto &bindingData = argumentState.setData[ setIndex ][ binding ].bufferInfo;
 
 					bindingData.buffer = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.buffer_id );
-					bindingData.range  = std::min<uint64_t>( le_cmd->info.range, b->range ); // CHECK: use range from binding to limit range...
+					bindingData.range  = le_cmd->info.range;
 
 					if ( bindingData.range == 0 ) {
 
@@ -5283,8 +5330,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						std::vector<vk::AccelerationStructureGeometryKHR> geometries;
 						geometries.reserve( blas_info->geometries.size() );
 
-						std::vector<vk::AccelerationStructureBuildOffsetInfoKHR> offset_infos;
-						offset_infos.reserve( blas_info->geometries.size() );
+						std::vector<vk::AccelerationStructureBuildRangeInfoKHR> build_ranges;
+						build_ranges.reserve( blas_info->geometries.size() );
 
 						for ( auto const &g : blas_info->geometries ) {
 
@@ -5305,6 +5352,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 							triangles_data
 							    .setVertexFormat( le_format_to_vk( g.vertex_format ) )
 							    .setVertexData( vertex_addr )
+							    .setMaxVertex( g.vertex_count - 1 ) // highest index of a vertex that will be accessed via build command
 							    .setVertexStride( g.vertex_stride )
 							    .setIndexType( le_index_type_to_vk( g.index_type ) )
 							    .setIndexData( index_addr )
@@ -5319,27 +5367,26 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 							geometries.emplace_back( geometry );
 
-							vk::AccelerationStructureBuildOffsetInfoKHR offset_info{};
+							vk::AccelerationStructureBuildRangeInfoKHR build_range{};
 							if ( g.index_count ) {
 								// indexed geometry
-								offset_info
+								build_range
 								    .setPrimitiveCount( g.index_count / 3 )
 								    .setPrimitiveOffset( 0 )
 								    .setFirstVertex( 0 )
 								    .setTransformOffset( 0 );
 							} else {
 								// non-indexed geometry
-								offset_info.setPrimitiveCount( g.vertex_count / 3 )
+								build_range.setPrimitiveCount( g.vertex_count / 3 )
 								    .setPrimitiveOffset( 0 )
 								    .setFirstVertex( 0 )
 								    .setTransformOffset( 0 );
 							}
 
-							offset_infos.emplace_back( offset_info );
+							build_ranges.emplace_back( build_range );
 						}
 
-						vk::AccelerationStructureGeometryKHR const *       pGeometries  = geometries.data();
-						vk::AccelerationStructureBuildOffsetInfoKHR const *pOffsetInfos = offset_infos.data();
+						vk::AccelerationStructureBuildRangeInfoKHR const *pBuildRangeInfos = build_ranges.data();
 
 						vk::DeviceOrHostAddressKHR scratchData;
 						//  We get the device address by querying from the buffer.
@@ -5347,17 +5394,16 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 						vk::AccelerationStructureBuildGeometryInfoKHR info;
 						info
+						    .setMode( vk::BuildAccelerationStructureModeKHR::eBuild )
 						    .setType( vk::AccelerationStructureTypeKHR::eBottomLevel )
 						    .setFlags( blas_info->flags )
-						    .setUpdate( false )
 						    .setSrcAccelerationStructure( nullptr )
 						    .setDstAccelerationStructure( vk_acceleration_structure )
-						    .setGeometryArrayOfPointers( false )
 						    .setGeometryCount( uint32_t( geometries.size() ) )
-						    .setPpGeometries( &pGeometries )
+						    .setGeometries( geometries )
 						    .setScratchData( scratchData );
 
-						cmd.buildAccelerationStructureKHR( 1, &info, &pOffsetInfos );
+						cmd.buildAccelerationStructuresKHR( 1, &info, &pBuildRangeInfos );
 
 						// Since the scratch buffer is reused across builds, we need a barrier to ensure one build
 						// is finished before starting the next one
@@ -5419,13 +5465,15 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					vk::DeviceOrHostAddressConstKHR instanceBufferDeviceAddress =
 					    device.getBufferAddress( { instanceBuffer } ) + le_cmd->info.staging_buffer_offset;
 
-					vk::AccelerationStructureGeometryKHR khr_instances_data{ vk::GeometryTypeKHR::eInstances };
+					vk::AccelerationStructureGeometryKHR khr_instances_data;
+					khr_instances_data.setGeometryType( vk::GeometryTypeKHR::eInstances );
+					khr_instances_data.setFlags( vk::GeometryFlagBitsKHR::eOpaque );
+					khr_instances_data.geometry           = vk::AccelerationStructureGeometryDataKHR{};
+					khr_instances_data.geometry.instances = vk::AccelerationStructureGeometryInstancesDataKHR{};
 					khr_instances_data.geometry.instances.setArrayOfPointers( false );
 					khr_instances_data.geometry.instances.setData( instanceBufferDeviceAddress );
-					khr_instances_data.setFlags( vk::GeometryFlagBitsKHR::eOpaque );
 
 					// Take pointer to array of khr_instances - we will need one further indirection because reasons.
-					vk::AccelerationStructureGeometryKHR *pKhrInstancesData = &khr_instances_data;
 
 					//  we get the device address by querying from the buffer.
 					vk::DeviceOrHostAddressKHR scratchData =
@@ -5434,15 +5482,13 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					vk::AccelerationStructureBuildGeometryInfoKHR info{};
 					info.setType( vk::AccelerationStructureTypeKHR::eTopLevel )
 					    .setFlags( tlas_info->flags )
-					    .setUpdate( false )
 					    .setSrcAccelerationStructure( {} )
+					    .setMode( vk::BuildAccelerationStructureModeKHR::eBuild )
 					    .setDstAccelerationStructure( vk_acceleration_structure )
-					    .setGeometryArrayOfPointers( false ) // False: &pInstances is a pointer to a pointer to an array
-					    .setGeometryCount( 1 )               // only one top level acceleration structure
-					    .setPpGeometries( &pKhrInstancesData )
+					    .setGeometries( khr_instances_data )
 					    .setScratchData( scratchData );
 
-					vk::AccelerationStructureBuildOffsetInfoKHR buildOffsets{};
+					vk::AccelerationStructureBuildRangeInfoKHR buildOffsets{};
 					buildOffsets
 					    .setPrimitiveCount( tlas_info->instances_count ) // This is where we set the number of instances.
 					    .setPrimitiveOffset( 0 )                         // spec states: must be a multiple of 16?!!
@@ -5450,7 +5496,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					    .setTransformOffset( 0 ) //
 					    ;
 					auto pBuildOffsets = &buildOffsets;
-					cmd.buildAccelerationStructureKHR( 1, &info, &pBuildOffsets );
+
+					cmd.buildAccelerationStructuresKHR( 1, &info, &pBuildOffsets );
 
 					break;
 				}

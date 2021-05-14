@@ -263,7 +263,8 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	    vk::PhysicalDeviceVulkan12Features
 #ifdef LE_FEATURE_RTX
 	    ,
-	    vk::PhysicalDeviceRayTracingFeaturesKHR // Optional, based on #define
+	    vk::PhysicalDeviceRayTracingPipelineFeaturesKHR, // Optional, based on #define
+	    vk::PhysicalDeviceAccelerationStructureFeaturesKHR
 #endif
 #ifdef LE_FEATURE_RTX
 	    ,
@@ -289,10 +290,15 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
 	    .setBufferDeviceAddress( true ) // needed for rtx
 	    //	    .setBufferDeviceAddressCaptureReplay( true ) // needed for frame debuggers, when using bufferDeviceAddress
+
 	    ;
 
-	featuresChain.get<vk::PhysicalDeviceRayTracingFeaturesKHR>()
-	    .setRayTracing( true );
+	featuresChain.get<vk::PhysicalDeviceRayTracingPipelineFeaturesKHR>()
+	    .setRayTracingPipeline( true );
+
+	featuresChain.get<vk::PhysicalDeviceAccelerationStructureFeaturesKHR>()
+	    .setAccelerationStructure( true );
+
 #endif
 
 #ifdef LE_FEATURE_MESH_SHADER_NV

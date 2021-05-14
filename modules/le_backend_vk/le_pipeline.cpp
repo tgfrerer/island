@@ -1624,21 +1624,24 @@ static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o
 	std::vector<vk::PipelineShaderStageCreateInfo> pipelineStages;
 	pipelineStages.reserve( pso->shaderStages.size() );
 
-	le_shader_module_o *rayGenModule = nullptr; // We may need the ray gen shader module later
+	le_shader_module_handle rayGenModule = nullptr; // We may need the ray gen shader module later
 
 	for ( auto const &shader_stage : pso->shaderStages ) {
 
-		if ( shader_stage->stage == le::ShaderStage::eRaygenBitKhr ) {
+		auto s = self->shaderManager->shaderModules.try_find( shader_stage );
+		assert( s && "could not find shader module" );
+
+		if ( s->stage == le::ShaderStage::eRaygenBitKhr ) {
 			rayGenModule = shader_stage;
 		}
 
 		vk::PipelineShaderStageCreateInfo info{};
 		info
-		    .setFlags( {} )                              // must be 0 - "reserved for future use"
-		    .setStage( le_to_vk( shader_stage->stage ) ) //
-		    .setModule( shader_stage->module )           //
-		    .setPName( "main" )                          //
-		    .setPSpecializationInfo( nullptr )           //
+		    .setFlags( {} )                    // must be 0 - "reserved for future use"
+		    .setStage( le_to_vk( s->stage ) )  //
+		    .setModule( s->module )            //
+		    .setPName( "main" )                //
+		    .setPSpecializationInfo( nullptr ) //
 		    ;
 
 		pipelineStages.emplace_back( info );
@@ -1668,14 +1671,14 @@ static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o
 	    .setPStages( pipelineStages.data() )
 	    .setGroupCount( uint32_t( shadingGroups.size() ) )
 	    .setPGroups( shadingGroups.data() )
-	    .setMaxRecursionDepth( 16 ) // FIXME: we should probably reduce this,
-	                                // or expose it via the api, but definitely
-	                                // limit it to hardware limit
+	    .setMaxPipelineRayRecursionDepth( 16 ) // FIXME: we should probably reduce this,
+	                                           // or expose it via the api, but definitely
+	                                           // limit it to hardware limit
 	    .setLayout( pipelineLayout )
 	    .setBasePipelineHandle( nullptr )
 	    .setBasePipelineIndex( 0 );
 
-	auto result = self->device.createRayTracingPipelineKHR( self->vulkanCache, create_info );
+	auto result = self->device.createRayTracingPipelineKHR( nullptr, self->vulkanCache, create_info );
 	assert( vk::Result::eSuccess == result.result );
 	return result.value;
 }
@@ -2047,8 +2050,8 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
 
 	uint64_t pipeline_layout_hash{};
-	le_pipeline_manager_get_pipeline_layout_info( self, pso->shaderStages.data(), pso->shaderStages.size(),
-	                                              &pipeline_and_layout_info.layout_info, &pipeline_layout_hash );
+	le_pipeline_manager_produce_pipeline_layout_info( self, pso->shaderStages.data(), pso->shaderStages.size(),
+	                                                  &pipeline_and_layout_info.layout_info, &pipeline_layout_hash );
 
 	// -- 2. get vk pipeline object
 	// we try to fetch it from the cache first, if it doesn't exist, we must create it, and add it to the cache.
@@ -2062,7 +2065,9 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 
 		pso_hash_data.emplace_back( reinterpret_cast<uint64_t>( pso_handle ) ); // Hash associated with `pso`
 
-		for ( auto const &s : pso->shaderStages ) {
+		for ( auto const &shader_stage : pso->shaderStages ) {
+			auto s = self->shaderManager->shaderModules.try_find( shader_stage );
+			assert( s && "could not find shader module" );
 			pso_hash_data.emplace_back( s->hash ); // Module state - may have been recompiled, hash must be current
 		}
 
@@ -2124,12 +2129,14 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 
 			memcpy( handles, &header, sizeof( LeShaderGroupDataHeader ) );
 
-			// Retrieve shader group handles from GPU
-			self->device.getRayTracingShaderGroupHandlesKHR(
-			    pipeline_and_layout_info.pipeline,
-			    0, uint32_t( pso->shaderGroups.size() ),
-			    dataSize, handles + sizeof( LeShaderGroupDataHeader ) );
-
+			{
+				// Retrieve shader group handles from GPU
+				auto success = self->device.getRayTracingShaderGroupHandlesKHR(
+				    pipeline_and_layout_info.pipeline,
+				    0, uint32_t( pso->shaderGroups.size() ),
+				    dataSize, handles + sizeof( LeShaderGroupDataHeader ) );
+				assert( success == vk::Result::eSuccess );
+			}
 			self->rtx_shader_group_data.try_insert( pipeline_hash, &handles );
 
 			// we need to store this buffer with the pipeline - or at least associate is to the pso

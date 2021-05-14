@@ -2,7 +2,6 @@ set (TARGET le_backend_vk)
 
 # add_compile_definitions(VMA_USE_STL_CONTAINERS=1)
 
-# add_compile_definitions(VK_ENABLE_BETA_EXTENSIONS=1) # we need this for raytracing features
 add_compile_definitions(VULKAN_HPP_NO_SMART_HANDLE)
 add_compile_definitions(VULKAN_HPP_DISABLE_IMPLICIT_RESULT_VALUE_CAST)
 

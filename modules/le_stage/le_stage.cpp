@@ -623,13 +623,14 @@ static uint32_t le_stage_create_buffer( le_stage_o *stage, void *mem, uint32_t s
 
 		buffer->resource_info = le::BufferInfoBuilder()
 		                            .setSize( buffer->size )
-		                            .addUsageFlags( { LE_BUFFER_USAGE_TRANSFER_DST_BIT |
-		                                              LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
-		                                              LE_BUFFER_USAGE_VERTEX_BUFFER_BIT
+		                            .addUsageFlags( {
+		                                LE_BUFFER_USAGE_TRANSFER_DST_BIT |
+		                                LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
+		                                LE_BUFFER_USAGE_VERTEX_BUFFER_BIT
 #ifdef LE_FEATURE_RTX
-		                                              |
-		                                              LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
-		                                              LE_BUFFER_USAGE_RAY_TRACING_BIT_KHR
+		                                |
+		                                LE_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT |
+		                                LE_BUFFER_USAGE_ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_BIT_KHR // we need this so that we can use this buffer to build acceleration structure
 #endif
 		                            } )
 		                            .build();
@@ -855,9 +856,9 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 				// Sort by type first, then index, then morph_target data
 				return ( lhs.type != rhs.type
 				             ? lhs.type < rhs.type
-				             : lhs.index != rhs.index
-				                   ? lhs.index < rhs.index
-				                   : lhs.morph.target_data < rhs.morph.target_data );
+				         : lhs.index != rhs.index
+				             ? lhs.index < rhs.index
+				             : lhs.morph.target_data < rhs.morph.target_data );
 			};
 
 			// -- Parse primitive morph targets (if any)
@@ -1820,6 +1821,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	std::vector<glm::mat4> joints_data( 256 );
 	std::vector<glm::mat4> joints_normal_data( 256 );
 
+	//if ( false )
 	for ( le_scene_o const &s : stage->scenes ) {
 		for ( le_node_o *n : stage->nodes ) {
 
@@ -2016,10 +2018,10 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 			        // -- Create rtx pso
 			        static le_rtxpso_handle rtx_pipeline = []( le_stage_o *stage, le_pipeline_manager_o *pipeline_manager ) {
-				        auto shader_raygen      = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/raygen.rgen", { le::ShaderStage::eRaygenBitKhr }, nullptr );
-				        auto shader_closest_hit = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/closesthit.rchit", { le::ShaderStage::eClosestHitBitKhr }, nullptr );
-				        auto shader_miss        = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/miss.rmiss", { le::ShaderStage::eMissBitKhr }, nullptr );
-				        auto shader_shadow_miss = renderer_i.create_shader_module( stage->renderer, "./resources/shaders/le_stage/rtx/shadow.rmiss", { le::ShaderStage::eMissBitKhr }, nullptr );
+				        auto shader_raygen      = LeShaderModuleBuilder( pipeline_manager ).setSourceFilePath( "./resources/shaders/le_stage/rtx/raygen.rgen" ).setShaderStage( le::ShaderStage::eRaygenBitKhr ).build();
+				        auto shader_closest_hit = LeShaderModuleBuilder( pipeline_manager ).setSourceFilePath( "./resources/shaders/le_stage/rtx/closesthit.rchit" ).setShaderStage( le::ShaderStage::eClosestHitBitKhr ).build();
+				        auto shader_miss        = LeShaderModuleBuilder( pipeline_manager ).setSourceFilePath( "./resources/shaders/le_stage/rtx/miss.rmiss" ).setShaderStage( le::ShaderStage::eMissBitKhr ).build();
+				        auto shader_shadow_miss = LeShaderModuleBuilder( pipeline_manager ).setSourceFilePath( "./resources/shaders/le_stage/rtx/shadow.rmiss" ).setShaderStage( le::ShaderStage::eMissBitKhr ).build();
 
 				        // Create rtx pipeline
 
@@ -2177,8 +2179,8 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 	struct shader_programs {
 		shader_defines_signature signature;
-		le_shader_module_o *     vert;
-		le_shader_module_o *     frag;
+		le_shader_module_handle  vert;
+		le_shader_module_handle  frag;
 	};
 
 	std::unordered_map<uint64_t, shader_programs, IdentityHash> shader_map;
@@ -2389,15 +2391,8 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 		std::cout << "Creating shader instance using defines: \n\t'-D" << defines << "'" << std::endl
 		          << std::flush;
 
-		shader.second.vert = renderer_i.create_shader_module(
-		    stage->renderer,
-		    "./resources/shaders/le_stage/gltf.vert",
-		    { le::ShaderStage::eVertex }, defines.c_str() );
-
-		shader.second.frag = renderer_i.create_shader_module(
-		    stage->renderer,
-		    "./resources/shaders/le_stage/metallic-roughness.frag",
-		    { le::ShaderStage::eFragment }, defines.c_str() );
+		shader.second.vert = LeShaderModuleBuilder( pipeline_manager ).setSourceFilePath( "./resources/shaders/le_stage/gltf.vert" ).setShaderStage( le::ShaderStage::eVertex ).setSourceDefinesString( defines.c_str() ).build();
+		shader.second.frag = LeShaderModuleBuilder( pipeline_manager ).setSourceFilePath( "./resources/shaders/le_stage/metallic-roughness.frag" ).setShaderStage( le::ShaderStage::eFragment ).setSourceDefinesString( defines.c_str() ).build();
 	}
 
 	std::unordered_map<le_gpso_handle, uint64_t> pipelineCount; // Only used for debug purposes, count number of unique pipelines
@@ -2423,8 +2418,8 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 				LeGraphicsPipelineBuilder builder( pipeline_manager );
 
-				le_shader_module_o *shader_frag{};
-				le_shader_module_o *shader_vert{};
+				le_shader_module_handle shader_frag{};
+				le_shader_module_handle shader_vert{};
 
 				auto shaders = shader_map.find( primitive.all_defines_hash );
 
@@ -2589,8 +2584,8 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 			stage->scenes[ i ].rtx_tlas_handle = LE_RESOURCE( rtx_tlas_resource_name, LeResourceType::eRtxTlas );
 
 			LeBuildAccelerationStructureFlags tlas_flags =
-			    { LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV |
-			      LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_NV };
+			    { LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR |
+			      LE_BUILD_ACCELERATION_STRUCTURE_PREFER_FAST_BUILD_BIT_KHR };
 
 			le_resource_info_t resource_info{};
 
