@@ -130,7 +130,6 @@ static void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
 
 	// device extensions for ray tracing
 #ifdef LE_FEATURE_RTX
-	//	GET_EXT_PROC_ADDR( vkGetBufferDeviceAddress );
 	GET_EXT_PROC_ADDR( vkCmdBuildAccelerationStructuresKHR );
 	GET_EXT_PROC_ADDR( vkCreateAccelerationStructureKHR );
 	GET_EXT_PROC_ADDR( vkDestroyAccelerationStructureKHR );
@@ -196,20 +195,6 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateAccelerationStructureKHR(
     VkAccelerationStructureKHR *                pAccelerationStructure ) {
 	return pfn_vkCreateAccelerationStructureKHR( device, pCreateInfo, pAllocator, pAccelerationStructure );
 };
-
-//VKAPI_ATTR void VKAPI_CALL vkGetAccelerationStructureMemoryRequirementsKHR(
-//    VkDevice                                                device,
-//    const VkAccelerationStructureMemoryRequirementsInfoNV *pInfo,
-//    VkMemoryRequirements2KHR *                              pMemoryRequirements ) {
-//	return pfn_vkGetAccelerationStructureMemoryRequirementsKHR( device, pInfo, pMemoryRequirements );
-//};
-
-//VKAPI_ATTR VkResult VKAPI_CALL vkBindAccelerationStructureMemoryKHR(
-//    VkDevice                                        device,
-//    uint32_t                                        bindInfoCount,
-//    const VkBindAccelerationStructureMemoryInfoKHR *pBindInfos ) {
-//	return pfn_vkBindAccelerationStructureMemoryKHR( device, bindInfoCount, pBindInfos );
-//};
 
 VKAPI_ATTR void VKAPI_CALL vkDestroyAccelerationStructureKHR(
     VkDevice                     device,
