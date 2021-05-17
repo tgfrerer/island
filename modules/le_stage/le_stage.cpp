@@ -1,5 +1,6 @@
 #include "le_stage.h"
 #include "le_core/le_core.h"
+#include "le_log/le_log.h"
 
 #include "le_renderer/le_renderer.h"
 #include "le_stage_types.h"
@@ -44,7 +45,8 @@
  * 
 */
 
-constexpr auto RTX_IMAGE_TARGET_HANDLE = LE_IMG_RESOURCE( "rtx_target_img" );
+static constexpr auto RTX_IMAGE_TARGET_HANDLE = LE_IMG_RESOURCE( "rtx_target_img" );
+static constexpr auto LOGGER_LABEL            = "le_backend";
 
 // Wrappers so that we can pass data via opaque pointers across header boundaries
 
@@ -1754,7 +1756,8 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	auto stage       = draw_params->stage;
 	auto encoder     = le::Encoder{ encoder_ };
 
-	auto extents = encoder.getRenderpassExtent();
+	static auto logger  = LeLog( LOGGER_LABEL );
+	auto        extents = encoder.getRenderpassExtent();
 
 	le::Viewport viewports[ 2 ] = {
 	    { 0.f, float( extents.height ), float( extents.width ), -float( extents.height ), -0.f, 1.f }, // negative viewport means to flip y axis in screen space
@@ -1862,7 +1865,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 				for ( auto const &primitive : mesh.primitives ) {
 
 					if ( !primitive.pipeline_state_handle ) {
-						std::cerr << "missing pipeline state object for primitive - did you call setup_pipelines on the stage after adding the mesh/primitive?" << std::endl;
+						logger.error( "missing pipeline state object for primitive - did you call setup_pipelines on the stage after adding the mesh/primitive?" );
 						continue;
 					}
 
@@ -1892,12 +1895,12 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 						                         sizeof( glm::vec4 ) * ( ( primitive.morph_target_count + 3 ) / 4 ) );
 
 						if ( false ) {
-							std::cout << "weights: " << std::dec;
+							std::ostringstream os;
+							os << "weights: " << std::dec;
 							for ( auto i = 0; i != primitive.morph_target_count; i++ ) {
-								std::cout << std::setw( 8 ) << n->morph_target_weights[ i ] << ", ";
+								os << std::setw( 8 ) << n->morph_target_weights[ i ] << ", ";
 							}
-							std::cout << std::endl
-							          << std::flush;
+							logger.info( os.str().c_str() );
 						}
 					}
 
@@ -2162,6 +2165,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 	using namespace le_renderer;
 
+	static auto            logger           = LeLog( LOGGER_LABEL );
 	le_pipeline_manager_o *pipeline_manager = renderer_i.get_pipeline_manager( stage->renderer );
 
 	// First, collect all possible shader define permutations based on shader #defines.
@@ -2388,8 +2392,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 		std::string defines = vertex_input_defines_hash_to_defines_str[ shader.second.signature.hash_vertex_input_defines ];
 		defines             = defines + materials_defines_hash_to_defines_str[ shader.second.signature.hash_materials_defines ];
 
-		std::cout << "Creating shader instance using defines: \n\t'-D" << defines << "'" << std::endl
-		          << std::flush;
+		logger.info( "Creating shader instance using defines: \n\t'-D%s'", defines.c_str() );
 
 		shader.second.vert = LeShaderModuleBuilder( pipeline_manager ).setSourceFilePath( "./resources/shaders/le_stage/gltf.vert" ).setShaderStage( le::ShaderStage::eVertex ).setSourceDefinesString( defines.c_str() ).build();
 		shader.second.frag = LeShaderModuleBuilder( pipeline_manager ).setSourceFilePath( "./resources/shaders/le_stage/metallic-roughness.frag" ).setShaderStage( le::ShaderStage::eFragment ).setSourceDefinesString( defines.c_str() ).build();
@@ -2546,11 +2549,10 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 		} // end for all mesh.primitives
 	}     // end for all meshes
 
-	std::cout << "Pipelines in use: \n";
+	logger.info( "Pipelines in use:" );
 	for ( auto &p : pipelineCount ) {
-		std::cout << std::hex << p.first << ": " << std::dec << p.second << std::endl;
+		logger.info( "%x : %d", p.first, p.second );
 	}
-	std::cout << std::flush;
 
 #ifdef LE_FEATURE_RTX
 	{
@@ -2705,7 +2707,6 @@ static void apply_animation_channel( le_animation_channel_o const &channel, uint
 // ----------------------------------------------------------------------
 
 static void traverse_node( le_node_o *parent ) {
-
 	for ( le_node_o *c : parent->children ) {
 		c->global_transform         = parent->global_transform * c->local_transform;
 		c->inverse_global_transform = glm::inverse( c->global_transform );
@@ -2745,7 +2746,7 @@ static void le_stage_update( le_stage_o *self ) {
 					animation_time = ( animation_time ) % a.ticks_duration;
 					break;
 				case le_animation_o::PlaybackMode::eBounce:
-					animation_time = a.ticks_duration - abs( ( animation_time % ( 2 * a.ticks_duration ) - a.ticks_duration ) );
+					animation_time = a.ticks_duration - ( animation_time % ( 2 * a.ticks_duration ) - a.ticks_duration );
 					break;
 				}
 

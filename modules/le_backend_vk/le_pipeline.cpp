@@ -2141,18 +2141,16 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 
 			// we need to store this buffer with the pipeline - or at least associate is to the pso
 
-			std::cout
-			    << "Queried rtx shader group handles" << std::endl
-			    << std::flush;
+			logger.info( "Queried rtx shader group handles:" );
 			size_t n_el = props.shaderGroupHandleSize / sizeof( uint32_t );
 
 			uint32_t *debug_handles = reinterpret_cast<uint32_t *>( handles + sizeof( LeShaderGroupDataHeader ) );
 			for ( size_t i = 0; i != pso->shaderGroups.size(); i++ ) {
+				std::ostringstream os;
 				for ( size_t j = 0; j != n_el; j++ ) {
-					std::cout << std::dec << *debug_handles++ << ", ";
+					os << std::dec << *debug_handles++ << ", ";
 				}
-				std::cout << std::endl
-				          << std::flush;
+				logger.info( os.str().c_str() );
 			}
 
 			*maybe_shader_group_data = handles;
