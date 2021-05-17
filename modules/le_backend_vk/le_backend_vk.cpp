@@ -740,6 +740,7 @@ static void backend_destroy( le_backend_o *self ) {
 			} else {
 				device.destroyImage( a.second.as.image );
 			}
+#ifdef LE_FEATURE_RTX
 			if ( a.second.info.isBlas() ) {
 				device.destroyBuffer( a.second.info.blasInfo.buffer );
 				device.destroyAccelerationStructureKHR( a.second.as.blas );
@@ -748,7 +749,7 @@ static void backend_destroy( le_backend_o *self ) {
 				device.destroyBuffer( a.second.info.tlasInfo.buffer );
 				device.destroyAccelerationStructureKHR( a.second.as.tlas );
 			}
-
+#endif
 			vmaFreeMemory( self->mAllocator, a.second.allocation );
 		}
 		frameData.binnedResources.clear();
