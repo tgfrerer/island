@@ -57,7 +57,7 @@ struct LeRtxBlasCreateInfo {
 	uint64_t                buffer_size;
 	uint64_t                scratch_buffer_size; // Requested scratch buffer size for bottom level acceleration structure
 	uint64_t                device_address;      // 64bit address used by the top-level acceleration structure instances buffer.
-	VkBuffer                buffer;              // buffer used to store acceleration structure in device memory
+	VkBuffer                buffer;              // OWNING : buffer used to store acceleration structure in device memory
 	                                             // Used to to refer back to this bottom-level acceleration structure.
 	                                             // Queried via vkGetAccelerationStructureDeviceAddressKHR after creating the acceleration structure.
 	                                             // This is not my idea, but how the API is laid out...
@@ -67,7 +67,7 @@ struct LeRtxTlasCreateInfo {
 	le_rtx_tlas_info_handle handle;
 	uint64_t                buffer_size;
 	uint64_t                scratch_buffer_size; // requested scratch buffer size for top level acceleration structure
-	VkBuffer                buffer;              // buffer used to store acceleration structure
+	VkBuffer                buffer;              // OWNING: buffer used to store acceleration structure
 };
 
 // ----------------------------------------------------------------------
@@ -740,6 +740,14 @@ static void backend_destroy( le_backend_o *self ) {
 			} else {
 				device.destroyImage( a.second.as.image );
 			}
+			if ( a.second.info.isBlas() ) {
+				device.destroyBuffer( a.second.info.blasInfo.buffer );
+				device.destroyAccelerationStructureKHR( a.second.as.blas );
+			}
+			if ( a.second.info.isTlas() ) {
+				device.destroyBuffer( a.second.info.tlasInfo.buffer );
+				device.destroyAccelerationStructureKHR( a.second.as.tlas );
+			}
 
 			vmaFreeMemory( self->mAllocator, a.second.allocation );
 		}
@@ -762,9 +770,11 @@ static void backend_destroy( le_backend_o *self ) {
 			break;
 #ifdef LE_FEATURE_RTX
 		case LeResourceType::eRtxBlas:
+			device.destroyBuffer( a.second.info.blasInfo.buffer );
 			device.destroyAccelerationStructureKHR( a.second.as.blas );
 			break;
 		case LeResourceType::eRtxTlas:
+			device.destroyBuffer( a.second.info.tlasInfo.buffer );
 			device.destroyAccelerationStructureKHR( a.second.as.tlas );
 			break;
 #endif
@@ -3401,25 +3411,13 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 			if ( resourceInfo.type == LeResourceType::eRtxBlas &&
 			     ( resourceInfo.blas.usage & LE_RTX_BLAS_BUILD_BIT ) ) {
-				//  we need to find out the space needed for building this resource - this
-				// information was stored with the frame available resource of the same name
-				// when it was allocated. Let's retrieve that.
-
 				auto const &frame_resource = frame.availableResources.at( resourceId );
-
-				scratchbuffer_max_size = std::max<uint64_t>( scratchbuffer_max_size, frame_resource.info.blasInfo.scratch_buffer_size );
+				scratchbuffer_max_size     = std::max<uint64_t>( scratchbuffer_max_size, frame_resource.info.blasInfo.scratch_buffer_size );
 			} else if ( resourceInfo.type == LeResourceType::eRtxTlas &&
 			            ( resourceInfo.tlas.usage & LE_RTX_TLAS_BUILD_BIT ) ) {
-				//  we need to find out the space needed for building this resource - this
-				// information was stored with the frame available resource of the same name
-				// when it was allocated. Let's retrieve that.
-
 				auto const &frame_resource = frame.availableResources.at( resourceId );
-
-				scratchbuffer_max_size = std::max<uint64_t>( scratchbuffer_max_size, frame_resource.info.tlasInfo.scratch_buffer_size );
+				scratchbuffer_max_size     = std::max<uint64_t>( scratchbuffer_max_size, frame_resource.info.tlasInfo.scratch_buffer_size );
 			}
-
-			// --------| invariant: we have a blas resource which needs to be built
 		}
 
 		if ( scratchbuffer_max_size != 0 ) {
