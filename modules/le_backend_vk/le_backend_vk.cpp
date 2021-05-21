@@ -943,13 +943,13 @@ static le_resource_handle_t declare_resource_virtual_buffer( uint8_t index ) {
 
 // ----------------------------------------------------------------------
 
-static VkDevice backend_get_vk_device( le_backend_o *self ) {
+static VkDevice backend_get_vk_device( le_backend_o const *self ) {
 	return self->device->getVkDevice();
 };
 
 // ----------------------------------------------------------------------
 
-static VkPhysicalDevice backend_get_vk_physical_device( le_backend_o *self ) {
+static VkPhysicalDevice backend_get_vk_physical_device( le_backend_o const *self ) {
 	return self->device->getVkPhysicalDevice();
 };
 
@@ -1124,7 +1124,7 @@ static void backend_create_main_allocator( VkInstance instance, VkPhysicalDevice
 
 // ----------------------------------------------------------------------
 
-static void backend_setup( le_backend_o *self, le_backend_vk_settings_t *settings ) {
+static void backend_setup( le_backend_o *self, le_backend_vk_settings_t const *settings ) {
 
 	using namespace le_backend_vk;
 

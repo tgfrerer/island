@@ -93,7 +93,7 @@ struct le_backend_vk_api {
 		le_backend_o *         ( *create                     ) ( );
 		void                   ( *destroy                    ) ( le_backend_o *self );
 
-		void                   ( *setup                      ) ( le_backend_o *self, le_backend_vk_settings_t *settings );
+		void                   ( *setup                      ) ( le_backend_o *self, le_backend_vk_settings_t const *settings );
 
 		bool                   ( *poll_frame_fence           ) ( le_backend_o* self, size_t frameIndex);
 		bool                   ( *clear_frame                ) ( le_backend_o *self, size_t frameIndex );
@@ -114,7 +114,7 @@ struct le_backend_vk_api {
 
 		void                   ( *get_swapchain_extent      ) ( le_backend_o* self, uint32_t index, uint32_t * p_width, uint32_t * p_height );
 		le_resource_handle_t   ( *get_swapchain_resource    ) ( le_backend_o* self, uint32_t index );
-		uint32_t			   ( *get_swapchain_count       ) ( le_backend_o* self );
+		uint32_t			      ( *get_swapchain_count       ) ( le_backend_o* self );
 		bool                   ( *get_swapchain_info        ) ( le_backend_o* self, uint32_t *count, uint32_t* p_width, uint32_t * p_height, le_resource_handle_t* p_handlle );
 
 		le_rtx_blas_info_handle( *create_rtx_blas_info )(le_backend_o* self, le_rtx_geometry_t const * geometries, uint32_t geometries_count, struct LeBuildAccelerationStructureFlags const * flags);
@@ -124,8 +124,8 @@ struct le_backend_vk_api {
 	struct private_backend_vk_interface_t {
 		le_device_o*              ( *get_le_device            )(le_backend_o* self);
 		le_backend_vk_instance_o* ( *get_instance             )(le_backend_o* self);
-		VkDevice_T*               ( *get_vk_device            )(le_backend_o* self);
-		VkPhysicalDevice_T*       ( *get_vk_physical_device   )(le_backend_o* self);
+		VkDevice_T*               ( *get_vk_device            )(le_backend_o const * self);
+		VkPhysicalDevice_T*       ( *get_vk_physical_device   )(le_backend_o const * self);
 
 		int32_t ( *allocate_image )
 		(
