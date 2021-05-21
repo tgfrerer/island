@@ -72,9 +72,26 @@ static le_file_watcher_api const *get_le_file_watcher_api() {
 	return api;
 }
 
+// Wrapper used to ensure file watcher object gets deleted once
+// this module unloads (at program exit) otherwise we would
+// leak the object.
+class FileWatcherWrapper : NoCopy, NoMove {
+	le_file_watcher_o *self = get_le_file_watcher_api()->le_file_watcher_i.create();
+
+  public:
+	FileWatcherWrapper() {
+	}
+	~FileWatcherWrapper() {
+		get_le_file_watcher_api()->le_file_watcher_i.destroy( self );
+	}
+	le_file_watcher_o *get() {
+		return self;
+	};
+};
+
 le_file_watcher_o *get_file_watcher() {
-	static auto file_watcher = get_le_file_watcher_api()->le_file_watcher_i.create();
-	return file_watcher;
+	static FileWatcherWrapper file_watcher{};
+	return file_watcher.get();
 }
 
 // ----------------------------------------------------------------------
