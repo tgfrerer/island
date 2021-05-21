@@ -12,6 +12,14 @@
 #define GLFW_INCLUDE_VULKAN
 #include "GLFW/glfw3.h"
 
+#if defined( __linux__ )
+#	define GLFW_EXPOSE_NATIVE_X11
+#	define GLFW_EXPOSE_NATIVE_WAYLAND
+#elif defined( _WIN32 )
+#	define GLFW_EXPOSE_NATIVE_WIN32
+#endif
+#include "GLFW/glfw3native.h"
+
 constexpr size_t EVENT_QUEUE_SIZE = 100; // Only allocate space for 100 events per-frame
 
 struct le_window_settings_o {
@@ -573,6 +581,23 @@ static GLFWwindow *window_get_glfw_window( le_window_o *self ) {
 	return self->window;
 }
 
+// Returns a void *. It is the platform specific:
+// + Windows HWND,
+// + Xcb xcb_window_t,
+// + Xlib Window / Drawable,
+// + Wayland wl_surface*,
+// + or Android ANativeWindow*.
+static void *window_get_os_native_window_handle( le_window_o *self ) {
+
+#if defined( __linux__ )
+	//	void *window = ( void * )glfwGetWaylandWindow( self->window );
+	void *window = ( void * )glfwGetX11Window( self->window );
+	return window;
+#elif defined( _WIN32 )
+	return ( void * )glfwGetWin32Window( self->window );
+#endif
+}
+
 // ----------------------------------------------------------------------
 
 static int init() {
@@ -623,18 +648,19 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	windowApi->pollEvents                          = pollEvents;
 	windowApi->get_required_vk_instance_extensions = get_required_vk_instance_extensions;
 
-	auto &window_i                    = windowApi->window_i;
-	window_i.create                   = window_create;
-	window_i.destroy                  = window_destroy;
-	window_i.setup                    = window_setup;
-	window_i.should_close             = window_should_close;
-	window_i.get_surface_width        = window_get_surface_width;
-	window_i.get_surface_height       = window_get_surface_height;
-	window_i.create_surface           = window_create_surface;
-	window_i.increase_reference_count = window_increase_reference_count;
-	window_i.decrease_reference_count = window_decrease_reference_count;
-	window_i.get_reference_count      = window_get_reference_count;
-	window_i.get_glfw_window          = window_get_glfw_window;
+	auto &window_i                       = windowApi->window_i;
+	window_i.create                      = window_create;
+	window_i.destroy                     = window_destroy;
+	window_i.setup                       = window_setup;
+	window_i.should_close                = window_should_close;
+	window_i.get_surface_width           = window_get_surface_width;
+	window_i.get_surface_height          = window_get_surface_height;
+	window_i.create_surface              = window_create_surface;
+	window_i.increase_reference_count    = window_increase_reference_count;
+	window_i.decrease_reference_count    = window_decrease_reference_count;
+	window_i.get_reference_count         = window_get_reference_count;
+	window_i.get_glfw_window             = window_get_glfw_window;
+	window_i.get_os_native_window_handle = window_get_os_native_window_handle;
 
 	window_i.toggle_fullscreen  = window_toggle_fullscreen;
 	window_i.get_ui_event_queue = window_get_ui_event_queue;

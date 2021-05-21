@@ -44,6 +44,8 @@ struct le_window_api {
 		// Note that calling this method invalidates any values returned in the previous call to this method.
 		void            ( *get_ui_event_queue )(le_window_o* self, LeUiEvent const ** events, uint32_t& numEvents);
 
+        // Return an OS-specific handle for the given window
+        void *          ( *get_os_native_window_handle)(le_window_o* self);
 	};
 
     struct window_callbacks_interface_t {
