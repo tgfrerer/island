@@ -268,7 +268,7 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR bool le_core_load_library_persistently( char const *library_name ) {
+ISL_API_ATTR void *le_core_load_library_persistently( char const *library_name ) {
 	static auto module_loader_i = get_module_loader_api()->le_module_loader_i;
 	return module_loader_i.load_library_persistently( library_name );
 }

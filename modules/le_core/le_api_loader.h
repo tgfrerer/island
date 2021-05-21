@@ -39,7 +39,7 @@ struct le_module_loader_api {
 	void               ( *destroy )                  ( le_module_loader_o *obj );
 	bool               ( *register_api )             ( le_module_loader_o *obj, void *api_interface, const char *api_registry_name );
 	bool               ( *load )                     ( le_module_loader_o *obj );
-	bool               ( *load_library_persistently) (const char* libName_);
+	void *             ( *load_library_persistently) (const char* libName_);
 	};
 	
 	le_module_loader_interface_t le_module_loader_i;

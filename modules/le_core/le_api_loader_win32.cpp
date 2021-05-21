@@ -128,8 +128,8 @@ static void *load_library( const char *lib_name ) {
 
 // ----------------------------------------------------------------------
 
-static bool load_library_persistent( const char *lib_name ) {
-	return false;
+static void *load_library_persistent( const char *lib_name ) {
+	return nullptr;
 }
 
 // ----------------------------------------------------------------------

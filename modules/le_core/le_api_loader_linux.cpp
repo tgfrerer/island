@@ -122,7 +122,7 @@ static void *load_library( const char *lib_name ) {
 
 // ----------------------------------------------------------------------
 
-static bool load_library_persistent( const char *lib_name ) {
+static void *load_library_persistent( const char *lib_name ) {
 	// We persistently load symbols for libraries upon which our plugins depend -
 	// and make sure these are loaded with the NO_DELETE flag so that dependent
 	// libraries will not be reloaded if a module which uses the library is unloaded.
@@ -145,7 +145,7 @@ static bool load_library_persistent( const char *lib_name ) {
 			log_debug( "[%-10s] %-20s: %-50s, handle: %p", "OK", "Keep Library", lib_name, lib_handle );
 		}
 	}
-	return ( lib_handle != nullptr );
+	return lib_handle;
 }
 
 // ----------------------------------------------------------------------
