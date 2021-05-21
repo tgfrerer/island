@@ -4151,6 +4151,17 @@ static void debug_print_command( void *&cmd ) {
 	logger.info( "%s", os.str().c_str() );
 };
 
+// convert 0xrrggbbaa color to float color
+constexpr static std::array<float, 4> hex_rgba_to_float_colour( uint32_t const &hex ) {
+	std::array<float, 4> result{
+	    ( hex >> 24 ) / 255.f,
+	    ( ( hex >> 16 ) & 0xff ) / 255.f,
+	    ( ( hex >> 8 ) & 0xff ) / 255.f,
+	    ( ( hex )&0xff ) / 255.f,
+	};
+	return result;
+}
+
 // ----------------------------------------------------------------------
 // Decode commandStream for each pass (may happen in parallel)
 // translate into vk specific commands.
@@ -4164,6 +4175,8 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 	using namespace le_renderer;   // for encoder
 	using namespace le_backend_vk; // for device
+
+	bool should_insert_debug_labels = true; // whether we want to insert debug labels into the command stream (useful for renderdoc)
 
 	auto &frame = self->mFrames[ frameIndex ];
 
@@ -4193,6 +4206,32 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		// create frame buffer, based on swapchain and renderpass
 
 		cmd.begin( { ::vk::CommandBufferUsageFlagBits::eOneTimeSubmit } );
+
+		if ( should_insert_debug_labels ) {
+			vk::DebugUtilsLabelEXT labelInfo;
+			labelInfo.pLabelName = pass.debugName.c_str();
+
+			static constexpr auto LE_COLOUR_LIGHTBLUE    = hex_rgba_to_float_colour( 0x61BBEFFF );
+			static constexpr auto LE_COLOUR_GREENY_BLUE  = hex_rgba_to_float_colour( 0x4EC9B0FF );
+			static constexpr auto LE_COLOUR_BRICK_ORANGE = hex_rgba_to_float_colour( 0xCE4B0EFF );
+			static constexpr auto LE_COLOUR_PALE_PEACH   = hex_rgba_to_float_colour( 0xFFDBA3FF );
+
+			switch ( pass.type ) {
+			case LeRenderPassType::LE_RENDER_PASS_TYPE_COMPUTE:
+				labelInfo.setColor( LE_COLOUR_LIGHTBLUE );
+				break;
+			case LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW:
+				labelInfo.setColor( LE_COLOUR_GREENY_BLUE );
+				break;
+			case LeRenderPassType::LE_RENDER_PASS_TYPE_TRANSFER:
+				labelInfo.setColor( LE_COLOUR_BRICK_ORANGE );
+				break;
+			default:
+				break;
+			}
+
+			cmd.beginDebugUtilsLabelEXT( labelInfo );
+		}
 
 		{
 
@@ -5517,6 +5556,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		// non-draw passes don't need renderpasses.
 		if ( pass.type == LE_RENDER_PASS_TYPE_DRAW && pass.renderPass ) {
 			cmd.endRenderPass();
+		}
+
+		if ( should_insert_debug_labels ) {
+			cmd.endDebugUtilsLabelEXT();
 		}
 
 		cmd.end();

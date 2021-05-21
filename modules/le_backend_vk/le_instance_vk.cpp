@@ -69,6 +69,13 @@ static bool instance_is_extension_available( le_backend_vk_instance_o *self, cha
 // instance extensions
 DECLARE_EXT_PFN( vkCreateDebugUtilsMessengerEXT );
 DECLARE_EXT_PFN( vkDestroyDebugUtilsMessengerEXT );
+DECLARE_EXT_PFN( vkSetDebugUtilsObjectTagEXT );
+DECLARE_EXT_PFN( vkQueueBeginDebugUtilsLabelEXT );
+DECLARE_EXT_PFN( vkQueueEndDebugUtilsLabelEXT );
+DECLARE_EXT_PFN( vkQueueInsertDebugUtilsLabelEXT );
+DECLARE_EXT_PFN( vkCmdBeginDebugUtilsLabelEXT );
+DECLARE_EXT_PFN( vkCmdEndDebugUtilsLabelEXT );
+DECLARE_EXT_PFN( vkCmdInsertDebugUtilsLabelEXT );
 
 DECLARE_EXT_PFN( vkSetDebugUtilsObjectNameEXT );
 
@@ -126,6 +133,13 @@ static void patchExtProcAddrs( le_backend_vk_instance_o *obj ) {
 		GET_EXT_PROC_ADDR( vkSetDebugUtilsObjectNameEXT );
 		GET_EXT_PROC_ADDR( vkCreateDebugUtilsMessengerEXT );
 		GET_EXT_PROC_ADDR( vkDestroyDebugUtilsMessengerEXT );
+		GET_EXT_PROC_ADDR( vkSetDebugUtilsObjectTagEXT );
+		GET_EXT_PROC_ADDR( vkQueueBeginDebugUtilsLabelEXT );
+		GET_EXT_PROC_ADDR( vkQueueEndDebugUtilsLabelEXT );
+		GET_EXT_PROC_ADDR( vkQueueInsertDebugUtilsLabelEXT );
+		GET_EXT_PROC_ADDR( vkCmdBeginDebugUtilsLabelEXT );
+		GET_EXT_PROC_ADDR( vkCmdEndDebugUtilsLabelEXT );
+		GET_EXT_PROC_ADDR( vkCmdInsertDebugUtilsLabelEXT );
 	}
 
 	// device extensions for ray tracing
@@ -166,6 +180,11 @@ VkResult vkSetDebugUtilsObjectNameEXT(
     const VkDebugUtilsObjectNameInfoEXT *pNameInfo ) {
 	return pfn_vkSetDebugUtilsObjectNameEXT( device, pNameInfo );
 }
+VkResult vkSetDebugUtilsObjectTagEXT(
+    VkDevice                            device,
+    const VkDebugUtilsObjectTagInfoEXT *pTagInfo ) {
+	return pfn_vkSetDebugUtilsObjectTagEXT( device, pTagInfo );
+}
 VkResult vkCreateDebugUtilsMessengerEXT(
     VkInstance                                instance,
     const VkDebugUtilsMessengerCreateInfoEXT *pCreateInfo,
@@ -179,7 +198,34 @@ void vkDestroyDebugUtilsMessengerEXT(
     const VkAllocationCallbacks *pAllocator ) {
 	pfn_vkDestroyDebugUtilsMessengerEXT( instance, messenger, pAllocator );
 }
-
+void vkQueueBeginDebugUtilsLabelEXT(
+    VkQueue                     queue,
+    const VkDebugUtilsLabelEXT *pLabelInfo ) {
+	pfn_vkQueueBeginDebugUtilsLabelEXT( queue, pLabelInfo );
+}
+void vkQueueEndDebugUtilsLabelEXT(
+    VkQueue queue ) {
+	pfn_vkQueueEndDebugUtilsLabelEXT( queue );
+}
+void vkQueueInsertDebugUtilsLabelEXT(
+    VkQueue                     queue,
+    const VkDebugUtilsLabelEXT *pLabelInfo ) {
+	pfn_vkQueueInsertDebugUtilsLabelEXT( queue, pLabelInfo );
+}
+void vkCmdBeginDebugUtilsLabelEXT(
+    VkCommandBuffer             commandBuffer,
+    const VkDebugUtilsLabelEXT *pLabelInfo ) {
+	pfn_vkCmdBeginDebugUtilsLabelEXT( commandBuffer, pLabelInfo );
+}
+void vkCmdEndDebugUtilsLabelEXT(
+    VkCommandBuffer commandBuffer ) {
+	pfn_vkCmdEndDebugUtilsLabelEXT( commandBuffer );
+}
+void vkCmdInsertDebugUtilsLabelEXT(
+    VkCommandBuffer             commandBuffer,
+    const VkDebugUtilsLabelEXT *pLabelInfo ) {
+	pfn_vkCmdInsertDebugUtilsLabelEXT( commandBuffer, pLabelInfo );
+}
 #ifdef LE_FEATURE_RTX
 
 //VKAPI_ATTR VkDeviceAddress VKAPI_CALL vkGetBufferDeviceAddress(
