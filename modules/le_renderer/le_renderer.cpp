@@ -79,10 +79,10 @@ struct le_renderer_o {
 	uint64_t      swapchainDirty = false;
 	le_backend_o *backend        = nullptr; // Owned, created in setup
 
-	std::vector<FrameData>               frames;
-	size_t                               numSwapchainImages = 0;
-	size_t                               currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
-	std::vector<le_swapchain_settings_t> swapchain_settings{};              // default swapchain settings
+	std::vector<FrameData> frames;
+	size_t                 numSwapchainImages = 0;
+	size_t                 currentFrameNumber = size_t( ~0 ); // ever increasing number of current frame
+	le_renderer_settings_t settings;
 };
 
 static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ); // ffdecl
@@ -223,11 +223,8 @@ static void renderer_setup( le_renderer_o *self, le_renderer_settings_t const &s
 
 	// We store swapchain settings with the renderer so that we can pass
 	// backend a permanent pointer to it.
-	self->swapchain_settings.insert(
-	    self->swapchain_settings.begin(),
-	    settings.swapchain_settings,
-	    settings.swapchain_settings + settings.num_swapchain_settings );
 
+	self->settings = settings;
 	{
 		// Set up the backend
 
@@ -235,8 +232,8 @@ static void renderer_setup( le_renderer_o *self, le_renderer_settings_t const &s
 		self->backend = vk_backend_i.create();
 
 		le_backend_vk_settings_t backend_settings{};
-		backend_settings.pSwapchain_settings          = self->swapchain_settings.data();
-		backend_settings.num_swapchain_settings       = self->swapchain_settings.size();
+		backend_settings.pSwapchain_settings          = self->settings.swapchain_settings;
+		backend_settings.num_swapchain_settings       = self->settings.num_swapchain_settings;
 		backend_settings.requestedDeviceExtensions    = settings.requested_device_extensions;
 		backend_settings.numRequestedDeviceExtensions = settings.requested_device_extensions_count;
 
@@ -263,6 +260,12 @@ static void renderer_setup( le_renderer_o *self, le_renderer_settings_t const &s
 	}
 
 	self->currentFrameNumber = 0;
+}
+
+// ----------------------------------------------------------------------
+
+static le_renderer_settings_t const *renderer_get_settings( le_renderer_o *self ) {
+	return &self->settings;
 }
 
 // ----------------------------------------------------------------------
@@ -701,6 +704,7 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.destroy                = renderer_destroy;
 	le_renderer_i.setup                  = renderer_setup;
 	le_renderer_i.update                 = renderer_update;
+	le_renderer_i.get_settings           = renderer_get_settings;
 	le_renderer_i.get_swapchain_count    = renderer_get_swapchain_count;
 	le_renderer_i.get_swapchain_resource = renderer_get_swapchain_resource;
 	le_renderer_i.get_swapchain_extent   = renderer_get_swapchain_extent;

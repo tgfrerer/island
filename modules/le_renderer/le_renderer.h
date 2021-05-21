@@ -31,6 +31,8 @@ struct le_renderer_api {
 		void                           ( *setup                                 )( le_renderer_o *obj, le_renderer_settings_t const & settings );
 		void                           ( *update                                )( le_renderer_o *obj, le_render_module_o *module );
 
+        le_renderer_settings_t const * ( *get_settings                          )( le_renderer_o* self );
+
 		/// returns the image resource handle for a swapchain at given index
 		uint32_t                       ( *get_swapchain_count                   )( le_renderer_o* self);
 		le_resource_handle_t           ( *get_swapchain_resource                )( le_renderer_o* self, uint32_t index );
@@ -237,6 +239,10 @@ class Renderer {
 
 	void update( le_render_module_o *module ) {
 		le_renderer::renderer_i.update( self, module );
+	}
+
+	le_renderer_settings_t const &getSettings() const noexcept {
+		return *le_renderer::renderer_i.get_settings( self );
 	}
 
 	uint32_t getSwapchainCount() const {
