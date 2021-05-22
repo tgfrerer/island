@@ -1,14 +1,19 @@
 #include "le_pixels.h"
 #include "le_core/le_core.h"
 #include "3rdparty/stb_image.h"
-#include "assert.h"
+
+#include <cassert>
 #include <iostream>
 #include <iomanip>
 
+#include <mutex>
+
 struct le_pixels_o {
 	// members
-	void *         image_data = nullptr;
+	void *image_data = nullptr;
+	//	std::string    file_path;
 	le_pixels_info info{};
+	std::mutex     mtx;
 };
 
 // ----------------------------------------------------------------------
@@ -19,6 +24,7 @@ struct image_source_info_t {
 		eUndefined = 0,
 		eBuffer    = 1,
 		eFile      = 2,
+		eAllocate  = 3
 	};
 
 	union {
@@ -29,6 +35,10 @@ struct image_source_info_t {
 		struct {
 			char const *file_path;
 		} as_file;
+		struct {
+			int width;
+			int height;
+		} as_allocate;
 	} data;
 
 	Type                 type;
@@ -64,6 +74,22 @@ static le_pixels_o *le_pixels_create( image_source_info_t const &info ) {
 	int num_channels;
 	int num_channels_in_file;
 
+	// depending on type info has to be filled before or after the pixels allocation, could also be a standalone utility function
+	const auto fill_info = [ & ] {
+		if ( info.requested_num_channels == 0 ) {
+			num_channels = num_channels_in_file;
+		} else {
+			num_channels = info.requested_num_channels;
+		}
+
+		self->info.bpp          = 8 * get_num_bytes_for_type( info.requested_pixel_type ) * uint32_t( num_channels ); // note * 8, since we're returning *bits* per pixel!
+		self->info.width        = uint32_t( width );
+		self->info.height       = uint32_t( height );
+		self->info.depth        = 1;
+		self->info.num_channels = uint32_t( num_channels );
+		self->info.byte_count   = ( self->info.bpp / 8 ) * ( self->info.width * self->info.height * self->info.depth );
+	};
+
 	if ( info.type == image_source_info_t::Type::eBuffer ) {
 
 		switch ( info.requested_pixel_type ) {
@@ -77,6 +103,8 @@ static le_pixels_o *le_pixels_create( image_source_info_t const &info ) {
 			self->image_data = stbi_loadf_from_memory( info.data.as_buffer.buffer, info.data.as_buffer.buffer_num_bytes, &width, &height, &num_channels_in_file, info.requested_num_channels );
 			break;
 		}
+
+		fill_info();
 
 	} else if ( info.type == image_source_info_t::Type::eFile ) {
 
@@ -92,14 +120,19 @@ static le_pixels_o *le_pixels_create( image_source_info_t const &info ) {
 			break;
 		}
 
+		fill_info();
+
+	} else if ( info.type == image_source_info_t::Type::eAllocate ) {
+
+		width  = info.data.as_allocate.width;
+		height = info.data.as_allocate.height;
+
+		fill_info();
+
+		self->image_data = calloc( self->info.byte_count, 1 );
+
 	} else {
 		assert( false ); // unreachable
-	}
-
-	if ( info.requested_num_channels == 0 ) {
-		num_channels = num_channels_in_file;
-	} else {
-		num_channels = info.requested_num_channels;
 	}
 
 	if ( !self->image_data ) {
@@ -107,8 +140,11 @@ static le_pixels_o *le_pixels_create( image_source_info_t const &info ) {
 		if ( info.type == image_source_info_t::Type::eFile ) {
 			std::cerr << "ERROR: Could not load image from file: " << info.data.as_file.file_path << std::endl
 			          << std::flush;
-		} else {
+		} else if ( info.type == image_source_info_t::Type::eBuffer ) {
 			std::cerr << "ERROR: Could not load image from buffer at address: " << std::hex << info.data.as_buffer.buffer << std::endl
+			          << std::flush;
+		} else {
+			std::cerr << "ERROR: Could not allocate pixels " << std::endl
 			          << std::flush;
 		}
 
@@ -123,14 +159,21 @@ static le_pixels_o *le_pixels_create( image_source_info_t const &info ) {
 
 	// ----------| invariant: load was successful
 
-	self->info.bpp          = 8 * get_num_bytes_for_type( info.requested_pixel_type ) * uint32_t( num_channels ); // note * 8, since we're returning *bits* per pixel!
-	self->info.width        = uint32_t( width );
-	self->info.height       = uint32_t( height );
-	self->info.depth        = 1;
-	self->info.num_channels = uint32_t( num_channels );
-	self->info.byte_count   = ( self->info.bpp / 8 ) * ( self->info.width * self->info.height * self->info.depth );
-
 	return self;
+}
+
+// ----------------------------------------------------------------------
+
+static le_pixels_o *le_pixels_create( int width, int height, int num_channels_requested = 4, le_pixels_info::Type type = le_pixels_info::Type::eUInt8 ) {
+
+	image_source_info_t info{};
+
+	info.type                   = image_source_info_t::Type::eAllocate;
+	info.data.as_allocate       = { width, height };
+	info.requested_pixel_type   = type;
+	info.requested_num_channels = num_channels_requested;
+
+	return le_pixels_create( info );
 }
 
 // ----------------------------------------------------------------------
@@ -172,6 +215,18 @@ static le_pixels_info le_pixels_get_info( le_pixels_o *self ) {
 
 static void *le_pixels_get_data( le_pixels_o *self ) {
 	return self->image_data;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_pixels_lock( le_pixels_o *self ) {
+	self->mtx.lock();
+}
+
+// ----------------------------------------------------------------------
+
+static void le_pixels_unlock( le_pixels_o *self ) {
+	self->mtx.unlock();
 }
 
 // ----------------------------------------------------------------------
@@ -271,7 +326,8 @@ static bool le_pixels_get_info_from_memory( unsigned char const *buffer, size_t 
 LE_MODULE_REGISTER_IMPL( le_pixels, api ) {
 	auto &le_pixels_i = static_cast<le_pixels_api *>( api )->le_pixels_i;
 
-	le_pixels_i.create             = le_pixels_create_from_file;
+	le_pixels_i.create             = le_pixels_create;
+	le_pixels_i.create_from_file   = le_pixels_create_from_file;
 	le_pixels_i.create_from_memory = le_pixels_create_from_memory;
 
 	le_pixels_i.get_info_from_memory = le_pixels_get_info_from_memory;
@@ -280,4 +336,6 @@ LE_MODULE_REGISTER_IMPL( le_pixels, api ) {
 	le_pixels_i.destroy  = le_pixels_destroy;
 	le_pixels_i.get_data = le_pixels_get_data;
 	le_pixels_i.get_info = le_pixels_get_info;
+	le_pixels_i.lock     = le_pixels_lock;
+	le_pixels_i.unlock   = le_pixels_unlock;
 }

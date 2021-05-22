@@ -6,23 +6,34 @@
 #include <string>
 #include <vector>
 #include <assert.h>
+#include <atomic>
+#include <map>
+
 // ----------------------------------------------------------------------
 
-struct le_resource_manager_o {
-
+struct le_resource_item_t {
 	struct image_data_layer_t {
-		le_pixels_o *pixels;
-		std::string  path;
-		bool         was_uploaded = false;
+		// std::string  path;
+		le_pixels_o *    pixels       = nullptr;
+		bool             pixels_owner = false;
+		std::atomic_bool was_uploaded = false;
+
+		image_data_layer_t() = default;
+
+		image_data_layer_t( const le_resource_item_t::image_data_layer_t &src ) {
+			pixels       = src.pixels;
+			pixels_owner = src.pixels_owner;
+			was_uploaded = bool( src.was_uploaded );
+		}
 	};
 
-	struct resource_item_t {
-		le_resource_handle_t            image_handle;
-		le_resource_info_t              image_info;
-		std::vector<image_data_layer_t> image_layers; // must have at least one element
-	};
+	le_resource_handle_t            image_handle;
+	le_resource_info_t              image_info;
+	std::vector<image_data_layer_t> image_layers; // must have at least one element
+};
 
-	std::vector<resource_item_t> resources;
+struct le_resource_manager_o {
+	std::vector<le_resource_item_t> resources;
 };
 
 // TODO:
@@ -108,12 +119,20 @@ static void execTransferPass( le_command_buffer_encoder_o *pEncoder, void *user_
 				        .setImageD( depth )
 				        .build();
 
-				auto     pixels    = r.image_layers[ layer ].pixels;
+				auto pixels       = r.image_layers[ layer ].pixels;
+				auto pixels_owner = r.image_layers[ layer ].pixels_owner;
+
+				if ( !pixels_owner )
+					le_pixels_i.lock( pixels );
+
 				auto     info      = le_pixels_i.get_info( pixels );
 				uint32_t num_bytes = info.byte_count; // TODO: make sure to get correct byte count for mip level, or compressed image.
 				void *   bytes     = le_pixels_i.get_data( pixels );
 
 				encoder.writeToImage( r.image_handle, write_info, bytes, num_bytes );
+
+				if ( !pixels_owner )
+					le_pixels_i.unlock( pixels );
 			}
 			r.image_layers[ layer ].was_uploaded = true;
 		}
@@ -163,19 +182,28 @@ static void infer_from_le_format( le::Format const &format, uint32_t *num_channe
 }
 
 // ----------------------------------------------------------------------
-// NOTE: You must provide an array of paths in image_paths, and the
-// array's size must match `image_info.image.arrayLayers`
-// Most meta-data about the image file is loaded via image_info
-static void le_resource_manager_add_item( le_resource_manager_o *     self,
-                                          le_resource_handle_t const *image_handle,
-                                          le_resource_info_t const *  image_info,
-                                          char const *const *         image_paths ) {
 
-	le_resource_manager_o::resource_item_t item{};
+static le_resource_item_t *le_resource_manager_get_item( le_resource_manager_o *self, const le_resource_handle_t &resource_handle ) {
+	// TODO: consider a lookup table
+	for ( auto &item : self->resources ) {
+		if ( item.image_handle == resource_handle ) {
+			return &item;
+		}
+	}
+	return nullptr;
+}
+
+// ----------------------------------------------------------------------
+
+static void le_resource_manager_add_item_pixels( le_resource_manager_o *self, le_resource_handle_t const *image_handle, le_resource_info_t const *image_info, le_pixels_o **pixels, bool is_owner = false ) {
+	// TODO, merge this with filepaths code
+	assert( le_resource_manager_get_item( self, *image_handle ) == nullptr );
+
+	le_resource_item_t item{};
 
 	item.image_handle = *image_handle;
 	item.image_info   = *image_info;
-	item.image_layers.reserve( image_info->image.arrayLayers );
+	//item.image_layers.reserve( image_info->image.arrayLayers );
 
 	bool extents_inferred = false;
 	if ( item.image_info.image.extent.width == 0 ||
@@ -185,17 +213,12 @@ static void le_resource_manager_add_item( le_resource_manager_o *     self,
 	}
 
 	for ( size_t i = 0; i != item.image_info.image.arrayLayers; ++i ) {
-		le_resource_manager_o::image_data_layer_t layer_data{};
-		layer_data.path         = std::string{ image_paths[ i ] };
+		le_resource_item_t::image_data_layer_t layer_data{};
+		// layer_data.path         = std::string{ image_paths[ i ] };
 		layer_data.was_uploaded = false;
 
-		// we must find out the pixels type from image info format
-		uint32_t             num_channels = 0;
-		le_pixels_info::Type pixels_type{};
-
-		infer_from_le_format( item.image_info.image.format, &num_channels, &pixels_type );
-
-		layer_data.pixels = le_pixels::le_pixels_i.create( layer_data.path.c_str(), num_channels, pixels_type );
+		layer_data.pixels       = pixels[ i ];
+		layer_data.pixels_owner = is_owner;
 
 		if ( extents_inferred ) {
 			auto info                           = le_pixels::le_pixels_i.get_info( layer_data.pixels );
@@ -204,7 +227,7 @@ static void le_resource_manager_add_item( le_resource_manager_o *     self,
 			item.image_info.image.extent.height = std::max( item.image_info.image.extent.height, info.height );
 		}
 
-		item.image_layers.emplace_back( layer_data );
+		item.image_layers.push_back( layer_data );
 	}
 
 	assert( item.image_info.image.extent.width != 0 &&
@@ -213,6 +236,42 @@ static void le_resource_manager_add_item( le_resource_manager_o *     self,
 	        "Image extents for resource are not valid." );
 
 	self->resources.emplace_back( item );
+}
+
+// ----------------------------------------------------------------------
+// NOTE: You must provide an array of paths in image_paths, and the
+// array's size must match `image_info.image.arrayLayers`
+// Most meta-data about the image file is loaded via image_info
+static void le_resource_manager_add_item_filepaths( le_resource_manager_o *     self,
+                                                    le_resource_handle_t const *image_handle,
+                                                    le_resource_info_t const *  image_info,
+                                                    char const *const *         image_paths ) {
+
+	std::vector<le_pixels_o *> pixels( image_info->image.arrayLayers );
+
+	// we must find out the pixels type from image info format
+	uint32_t             num_channels = 0;
+	le_pixels_info::Type pixels_type{};
+
+	infer_from_le_format( image_info->image.format, &num_channels, &pixels_type );
+
+	for ( size_t i = 0; i < pixels.size(); ++i ) {
+		pixels[ i ] = le_pixels::le_pixels_i.create_from_file( image_paths[ i ], num_channels, pixels_type );
+	}
+	le_resource_manager_add_item_pixels( self, image_handle, image_info, pixels.data(), true );
+}
+
+// ----------------------------------------------------------------------
+
+static void le_resource_manager_update_pixels( le_resource_manager_o *self, le_resource_handle_t const *image_handle, le_pixels_o ** = nullptr ) {
+	auto item = le_resource_manager_get_item( self, *image_handle );
+	if ( !item )
+		return;
+
+	// TODO: use the new pixels if provided
+	for ( auto &layer : item->image_layers ) {
+		layer.was_uploaded = false;
+	}
 }
 
 // ----------------------------------------------------------------------
@@ -230,12 +289,13 @@ static void le_resource_manager_destroy( le_resource_manager_o *self ) {
 
 	for ( auto &r : self->resources ) {
 		for ( auto &l : r.image_layers ) {
-			if ( l.pixels ) {
+			if ( l.pixels_owner && l.pixels ) {
 				le_pixels_i.destroy( l.pixels );
 				l.pixels = nullptr;
 			}
 		}
 	}
+	self->resources.clear();
 	delete ( self );
 }
 
@@ -244,8 +304,10 @@ static void le_resource_manager_destroy( le_resource_manager_o *self ) {
 LE_MODULE_REGISTER_IMPL( le_resource_manager, api ) {
 	auto &le_resource_manager_i = static_cast<le_resource_manager_api *>( api )->le_resource_manager_i;
 
-	le_resource_manager_i.create   = le_resource_manager_create;
-	le_resource_manager_i.destroy  = le_resource_manager_destroy;
-	le_resource_manager_i.update   = le_resource_manager_update;
-	le_resource_manager_i.add_item = le_resource_manager_add_item;
+	le_resource_manager_i.create             = le_resource_manager_create;
+	le_resource_manager_i.destroy            = le_resource_manager_destroy;
+	le_resource_manager_i.update             = le_resource_manager_update;
+	le_resource_manager_i.add_item_filepaths = le_resource_manager_add_item_filepaths;
+	le_resource_manager_i.add_item_pixels    = le_resource_manager_add_item_pixels;
+	le_resource_manager_i.update_pixels      = le_resource_manager_update_pixels;
 }
