@@ -94,7 +94,8 @@ static le_renderer_o *renderer_create() {
 
 	texture_handle_library = new le_texture_handle_store_t();
 	// we store back into the api, so that it will survive reload of this module.
-	const_cast<le_renderer_api *>( le_renderer_api_i )->le_renderer_i.le_texture_handle_store = texture_handle_library;
+	void **texture_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "texture_handle_library" ) );
+	*texture_handle_library_ptr       = texture_handle_library;
 
 #if ( LE_MT > 0 )
 	le_jobs::initialize( LE_MT );
@@ -173,7 +174,8 @@ static void renderer_destroy( le_renderer_o *self ) {
 
 		texture_handle_library = nullptr;
 
-		const_cast<le_renderer_api *>( le_renderer_api_i )->le_renderer_i.le_texture_handle_store = nullptr;
+		void **texture_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "texture_handle_library" ) );
+		*texture_handle_library_ptr       = nullptr;
 	}
 
 	if ( self->backend ) {
@@ -722,9 +724,11 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	helpers_i.get_default_resource_info_for_buffer = get_default_resource_info_for_buffer;
 	helpers_i.get_default_resource_info_for_image  = get_default_resource_info_for_image;
 
-	if ( le_renderer_i.le_texture_handle_store ) {
-		texture_handle_library = le_renderer_i.le_texture_handle_store;
+	void **texture_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "texture_handle_library" ) );
+	if ( *texture_handle_library_ptr ) {
+		texture_handle_library = static_cast<le_texture_handle_store_t *>( *texture_handle_library_ptr );
 	}
+
 	// register sub-components of this api
 	register_le_rendergraph_api( api );
 
