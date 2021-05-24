@@ -43,6 +43,8 @@ static ApiStore &apiStore() {
 };
 
 ISL_API_ATTR void **le_core_produce_dictionary_entry( uint64_t key ) {
+	static std::mutex                           mtx;
+	std::scoped_lock                            lock( mtx );
 	static std::unordered_map<uint64_t, void *> store{};
 	return &store[ key ];
 }
@@ -302,9 +304,8 @@ ISL_API_ATTR void *le_core_load_library_persistently( char const *library_name )
  * 
  */
 struct ArgumentNameTable {
-	// std::mutex mtx; // TODO: consider: do we want to add a mutex so that any modifications to this table are protected when multithreading?
-	std::vector<std::string> names;
-	std::vector<uint64_t>    hashes;
+	std::mutex                                mtx;
+	std::unordered_map<uint64_t, std::string> map;
 };
 
 static ArgumentNameTable argument_names_table{};
@@ -315,23 +316,13 @@ ISL_API_ATTR void le_update_argument_name_table( const char *name, uint64_t valu
 
 	// find index of entry with current value in table
 
-	uint64_t const *hashes_begin = argument_names_table.hashes.data();
-	auto            hashes_end   = hashes_begin + argument_names_table.hashes.size();
+	std::scoped_lock lock( argument_names_table.mtx );
 
-	size_t name_index = 0;
-	for ( auto h = hashes_begin; h != hashes_end; h++, name_index++ ) {
-		if ( *h == value ) {
-			break;
-		}
-	}
+	auto result = argument_names_table.map.insert( { value, name } );
 
-	if ( name_index == argument_names_table.names.size() ) {
-		// not found, we must add a new entry
-		argument_names_table.names.push_back( name );
-		argument_names_table.hashes.push_back( value );
-	} else {
-		// entry already exists - test whether the names match
-		assert( argument_names_table.names.at( name_index ) == std::string( name ) && "Possible hash collision, names for hashes don't match!" );
+	if ( !result.second ) {
+		// insertion did not take place
+		assert( result.first->second == std::string( name ) && "Possible hash collision, names for hashes don't match!" );
 	}
 };
 
@@ -339,21 +330,18 @@ ISL_API_ATTR void le_update_argument_name_table( const char *name, uint64_t valu
 
 ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value ) {
 
-	if ( argument_names_table.hashes.empty() ) {
+	std::scoped_lock lock( argument_names_table.mtx );
+	if ( argument_names_table.map.empty() ) {
 		return "<< Argument name table empty. >>";
 	}
 
-	uint64_t const *hashes_begin = argument_names_table.hashes.data();
-	auto            hashes_end   = hashes_begin + argument_names_table.hashes.size();
+	auto const &e = argument_names_table.map.find( value );
+	if ( e == argument_names_table.map.end() ) {
+		return "<< Argument name could not be resolved. >>";
 
-	size_t name_index = 0;
-	for ( auto h = hashes_begin; h != hashes_end; h++, name_index++ ) {
-		if ( *h == value ) {
-			return argument_names_table.names.at( name_index ).c_str();
-		}
+	} else {
+		return e->second.c_str();
 	}
-
-	return "<< Argument name could not be resolved. >>";
 }
 
 // callback forwarding --------------------------------------------------
