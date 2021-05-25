@@ -26,23 +26,23 @@ struct le_shader_binding_table_o;
 struct le_renderer_api {
 
 	struct renderer_interface_t {
-		le_renderer_o *                ( *create                                )( );
-		void                           ( *destroy                               )( le_renderer_o *obj );
-		void                           ( *setup                                 )( le_renderer_o *obj, le_renderer_settings_t const & settings );
-		void                           ( *update                                )( le_renderer_o *obj, le_render_module_o *module );
+		le_renderer_o *                ( *create                  )( );
+		void                           ( *destroy                 )( le_renderer_o *obj );
+		void                           ( *setup                   )( le_renderer_o *obj, le_renderer_settings_t const & settings );
+		void                           ( *update                  )( le_renderer_o *obj, le_render_module_o *module );
 
-        le_renderer_settings_t const * ( *get_settings                          )( le_renderer_o* self );
+        le_renderer_settings_t const * ( *get_settings            )( le_renderer_o* self );
 
 		/// returns the image resource handle for a swapchain at given index
-		uint32_t                       ( *get_swapchain_count                   )( le_renderer_o* self);
-		le_resource_handle_t           ( *get_swapchain_resource                )( le_renderer_o* self, uint32_t index );
-		void                           ( *get_swapchain_extent                  )( le_renderer_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height );
-		le_backend_o*                  ( *get_backend                           )( le_renderer_o* self );
+		uint32_t                       ( *get_swapchain_count     )( le_renderer_o* self);
+		le_resource_handle_t           ( *get_swapchain_resource  )( le_renderer_o* self, uint32_t index );
+		void                           ( *get_swapchain_extent    )( le_renderer_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height );
+		le_backend_o*                  ( *get_backend             )( le_renderer_o* self );
 
-		le_pipeline_manager_o*         ( *get_pipeline_manager                  )( le_renderer_o* self );
+		le_pipeline_manager_o*         ( *get_pipeline_manager    )( le_renderer_o* self );
 
-        le_texture_handle              ( *produce_texture_handle                )(char const * maybe_name );
-        char const *                   ( *texture_handle_get_name               )(le_texture_handle handle);
+        le_texture_handle              ( *produce_texture_handle  )(char const * maybe_name );
+        char const *                   ( *texture_handle_get_name )(le_texture_handle handle);
 
 		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, LeBuildAccelerationStructureFlags const * flags);
 		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count, LeBuildAccelerationStructureFlags const * flags);
@@ -72,7 +72,7 @@ struct le_renderer_api {
 		void                            ( *set_height           )( le_renderpass_o* obj, uint32_t height);
 		void                            ( *set_sample_count     ) (le_renderpass_o* obj, le::SampleCountFlagBits const & sampleCount);
 		le::SampleCountFlagBits const & ( *get_sample_count     ) (const le_renderpass_o* obj ); 
-        void                            ( *set_execute_callback )( le_renderpass_o *obj, void *user_data, pfn_renderpass_execute_t render_fun );
+		void                            ( *set_execute_callback )( le_renderpass_o *obj, void *user_data, pfn_renderpass_execute_t render_fun );
 		bool                            ( *has_execute_callback )( const le_renderpass_o* obj);
 		void                            ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle_t& resource_id, const LeResourceUsageFlags &usage_flags);
 		void                            ( *set_is_root          )( le_renderpass_o *obj, bool is_root );

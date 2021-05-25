@@ -76,6 +76,8 @@ inline uint32_t hash_32_fnv1a( char const *const input ) noexcept {
 
 #endif
 
+// allow user to explicitly set shader module handle - this is only useful when
+// you want to hard-code the shader module handle within the shader module builder.
 #define LE_SHADER_MODULE_HANDLE( x ) \
 	reinterpret_cast<struct le_shader_module_handle_t *>( hash_64_fnv1a_const( x ) )
 
