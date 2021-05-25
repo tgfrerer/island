@@ -12,6 +12,7 @@
 #include <vector>
 #include "assert.h"
 #include <mutex>
+#include <unordered_map>
 #include <algorithm>
 
 const uint64_t LE_RENDERPASS_MARKER_EXTERNAL = hash_64_fnv1a_const( "rp-external" );
@@ -67,11 +68,11 @@ struct le_texture_handle_t {
 };
 
 struct le_texture_handle_store_t {
-	std::vector<le_texture_handle_t *> texture_handles;
-	std::mutex                         mtx;
+	std::unordered_multimap<std::string, le_texture_handle_t> texture_handles;
+	std::mutex                                                mtx;
 };
 
-static le_texture_handle_store_t *texture_handle_library{ nullptr };
+static le_texture_handle_store_t *texture_handle_library = nullptr;
 
 // ----------------------------------------------------------------------
 
@@ -104,39 +105,42 @@ static le_renderer_o *renderer_create() {
 	return obj;
 }
 
+// ----------------------------------------------------------------------
+
 // creates a new handle if no name was given, or given name was not found in list of current handles.
 static le_texture_handle renderer_produce_texture_handle( char const *maybe_name ) {
 
-	// TODO: use shared mutex.
-
-	// lock renderer for reading/writing
+	// lock handle library for reading/writing
 	std::scoped_lock lock( texture_handle_library->mtx );
 
-	if ( maybe_name ) {
+	le_texture_handle handle;
 
-		auto found_el = std::find_if(
-		    texture_handle_library->texture_handles.begin(),
-		    texture_handle_library->texture_handles.end(),
-		    [ maybe_name ]( le_texture_handle_t *rhs ) -> bool {
-			    return rhs->debug_name == maybe_name;
-		    } );
-		if ( found_el != texture_handle_library->texture_handles.end() ) {
-			return *found_el;
+	if ( maybe_name ) {
+		// if a string was given, search for multimap and see if we can find something.
+		auto it = texture_handle_library->texture_handles.find( maybe_name );
+		if ( it == texture_handle_library->texture_handles.end() ) {
+			// not found, insert a new element
+			handle = &texture_handle_library->texture_handles.emplace( maybe_name, le_texture_handle_t( { maybe_name } ) )->second;
+		} else {
+			// found, return a pointer to the found element
+			handle = &it->second;
 		}
+	} else {
+		// no name given: handle is set to address of newly inserted element
+		// As this is a multimap, there can be any number of textures with the same
+		// key "unnamed" in the map.
+		handle = &texture_handle_library->texture_handles.emplace( "unnamed", le_texture_handle_t{} )->second;
 	}
 
-	// --------| invariant: no name given, or name not found.
-
-	auto handle =
-	    maybe_name
-	        ? new le_texture_handle_t{ maybe_name } // If name was not found, we must create a new entry.
-	        : new le_texture_handle_t{};            // If no name was given, there is no way for the handle already to exist;
-	                                                // we must return a new unnamed entry.
-
-	texture_handle_library->texture_handles.push_back( handle );
+	// handle is a pointer to the element in the container, and as such it is
+	// guaranteed to stay valid, even through rehashesof the texture_handles
+	// container, because that's a guarantee that maps give us in c++, until
+	// the element gets erased.
 
 	return handle;
 }
+
+// ----------------------------------------------------------------------
 
 static char const *texture_handle_get_name( le_texture_handle texture ) {
 	if ( texture && !texture->debug_name.empty() ) {
@@ -165,10 +169,6 @@ static void renderer_destroy( le_renderer_o *self ) {
 	self->frames.clear();
 
 	if ( texture_handle_library ) {
-
-		for ( auto &h : texture_handle_library->texture_handles ) {
-			delete ( h );
-		}
 
 		delete ( texture_handle_library );
 
@@ -713,11 +713,11 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.get_pipeline_manager   = renderer_get_pipeline_manager;
 	le_renderer_i.get_backend            = renderer_get_backend;
 
+	le_renderer_i.produce_texture_handle  = renderer_produce_texture_handle;
 	le_renderer_i.texture_handle_get_name = texture_handle_get_name;
 
-	le_renderer_i.produce_texture_handle = renderer_produce_texture_handle;
-	le_renderer_i.create_rtx_blas_info   = renderer_create_rtx_blas_info_handle;
-	le_renderer_i.create_rtx_tlas_info   = renderer_create_rtx_tlas_info_handle;
+	le_renderer_i.create_rtx_blas_info = renderer_create_rtx_blas_info_handle;
+	le_renderer_i.create_rtx_tlas_info = renderer_create_rtx_tlas_info_handle;
 
 	auto &helpers_i = le_renderer_api_i->helpers_i;
 
