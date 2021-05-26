@@ -37,14 +37,21 @@ struct le_resource_handle_data_t {
 
 struct le_resource_handle_data_hash {
 
-	static constexpr uint64_t FNV1A_PRIME_64_CONST = 0x100000001b3;
+	//	static constexpr uint64_t FNV1A_PRIME_64_CONST = 0x100000001b3;
 
 	inline uint64_t operator()( le_resource_handle_data_t const &key ) const noexcept {
-		uint64_t hash = ( uint64_t )key.reference_handle;
+		uint64_t hash = FNV1A_VAL_64_CONST;
 
-		uint8_t value = key.num_samples;
-		hash          = hash ^ value;
-		hash          = hash * FNV1A_PRIME_64_CONST;
+		uint8_t value = 0;
+		for ( int i = 0; i != 8; i++ ) {
+			value = ( ( uint64_t )key.reference_handle >> ( i * 8 ) ) & 0xff;
+			hash  = hash ^ value;
+			hash  = hash * FNV1A_PRIME_64_CONST;
+		}
+
+		value = key.num_samples;
+		hash  = hash ^ value;
+		hash  = hash * FNV1A_PRIME_64_CONST;
 
 		value = key.flags;
 		hash  = hash ^ value;
