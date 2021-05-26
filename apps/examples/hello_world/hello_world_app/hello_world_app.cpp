@@ -39,22 +39,22 @@
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
 struct WorldGeometry {
-	le_resource_handle_t    vertex_buffer_handle = LE_BUF_RESOURCE( "WORLD_VERTICES" );
+	le_buf_resource_handle  vertex_buffer_handle = LE_BUF_RESOURCE( "WORLD_VERTICES" );
 	le_resource_info_t      vertex_buffer_info   = {};
 	std::array<uint64_t, 4> buffer_offsets       = {};
 	size_t                  vertexDataByteCount  = {}; // total byte count of vertex data
 	size_t                  vertexCount          = 0;  // number of Vertices
-	le_resource_handle_t    index_buffer_handle  = LE_BUF_RESOURCE( "WORLD_INDICES" );
+	le_buf_resource_handle  index_buffer_handle  = LE_BUF_RESOURCE( "WORLD_INDICES" );
 	le_resource_info_t      index_buffer_info    = {};
 	size_t                  indexDataByteCount   = {};
 	size_t                  indexCount           = {}; // number of indices
 	bool                    wasLoaded            = false;
 };
 
-constexpr le_resource_handle_t imgEarthAlbedo  = LE_IMG_RESOURCE( "imgEarthAlbedo" );
-constexpr le_resource_handle_t imgEarthNight   = LE_IMG_RESOURCE( "imgEarthNight" );
-constexpr le_resource_handle_t imgEarthClouds  = LE_IMG_RESOURCE( "ImgEarthClouds" );
-constexpr le_resource_handle_t imgEarthNormals = LE_IMG_RESOURCE( "ImgEarthNormals" );
+static le_img_resource_handle imgEarthAlbedo  = LE_IMG_RESOURCE( "imgEarthAlbedo" );
+static le_img_resource_handle imgEarthNight   = LE_IMG_RESOURCE( "imgEarthNight" );
+static le_img_resource_handle imgEarthClouds  = LE_IMG_RESOURCE( "ImgEarthClouds" );
+static le_img_resource_handle imgEarthNormals = LE_IMG_RESOURCE( "ImgEarthNormals" );
 
 struct hello_world_app_o {
 	le::Window   window;
@@ -380,6 +380,8 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	        .end()
 	        .build();
 
+	static le_img_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = app->renderer.getSwapchainResource();
+
 	rp
 	    .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE, le::ImageAttachmentInfoBuilder().setLoadOp( le::AttachmentLoadOp::eClear ).build() ) // color attachment
 	    .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_BUFFER" ) )
@@ -388,9 +390,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	    .sampleTexture( app->texEarthNormals, texInfoNormals )
 	    .sampleTexture( app->texEarthClouds, texInfoClouds )
 	    .useBufferResource( app->worldGeometry.vertex_buffer_handle, { LE_BUFFER_USAGE_VERTEX_BUFFER_BIT } )
-	    .useBufferResource( app->worldGeometry.index_buffer_handle, { LE_BUFFER_USAGE_INDEX_BUFFER_BIT } )
-
-	    ;
+	    .useBufferResource( app->worldGeometry.index_buffer_handle, { LE_BUFFER_USAGE_INDEX_BUFFER_BIT } );
 
 	return true;
 }
@@ -482,7 +482,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 		// We use the same buffer for the whole mesh, but at different offsets.
 		// offsets are held by app->worldGeometry.buffer_offsets
-		le_resource_handle_t buffers[ 4 ] = {
+		le_buf_resource_handle buffers[ 4 ] = {
 		    app->worldGeometry.vertex_buffer_handle, // position
 		    app->worldGeometry.vertex_buffer_handle, // normal
 		    app->worldGeometry.vertex_buffer_handle, // uv

@@ -17,7 +17,7 @@
 #include <array>
 #include <vector>
 
-constexpr le_resource_handle_t IMGUI_IMG_HANDLE = LE_IMG_RESOURCE( "ImguiDefaultFontImage" );
+static le_img_resource_handle IMGUI_IMG_HANDLE = LE_IMG_RESOURCE( "ImguiDefaultFontImage" );
 
 struct FontTextureInfo {
 	uint8_t *pixels      = nullptr;

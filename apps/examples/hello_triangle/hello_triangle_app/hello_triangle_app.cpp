@@ -230,6 +230,7 @@ static bool app_update( app_o *self ) {
 	// you draw into this resource will end up on screen. Only
 	// renderpasses which contribute to this resource will get
 	// executed.
+	static le_img_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = self->renderer.getSwapchainResource();
 
 	le::RenderModule mainModule{};
 	{

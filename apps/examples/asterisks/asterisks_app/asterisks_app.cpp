@@ -1277,6 +1277,8 @@ static bool app_update( app_o *self ) {
 
 	// Setup rendergraph
 
+	static le_img_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = self->renderer.getSwapchainResource();
+
 	le::RenderModule mainModule{};
 	{
 

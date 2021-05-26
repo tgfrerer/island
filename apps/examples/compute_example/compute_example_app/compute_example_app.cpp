@@ -26,10 +26,10 @@
 constexpr size_t cNumDataElements = 64;
 
 struct GpuMeshData {
-	le_resource_handle_t vertex_handle;
-	le_resource_handle_t index_handle;
-	uint32_t             vertex_num_bytes;
-	uint32_t             index_num_bytes;
+	le_buf_resource_handle vertex_handle;
+	le_buf_resource_handle index_handle;
+	uint32_t               vertex_num_bytes;
+	uint32_t               index_num_bytes;
 };
 
 struct compute_example_app_o {

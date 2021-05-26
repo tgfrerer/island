@@ -20,12 +20,12 @@
 #include <stdlib.h> // for random
 
 struct pixels_data_t {
-	le_resource_handle_t handle;
-	uint32_t             w;                 // let's make sure that w is a power of 2
-	uint32_t             h;                 // make sure that h is a power of 2
-	uint32_t             num_channels;      // channels per pixel - by default let's have rgba, that's 4.
-	uint32_t             bytes_per_channel; // bytes per channel - that's 4 for float channels
-	bool                 unsorted;          // true means this buffer needs to be re-initialised.
+	le_buf_resource_handle handle;
+	uint32_t               w;                 // let's make sure that w is a power of 2
+	uint32_t               h;                 // make sure that h is a power of 2
+	uint32_t               num_channels;      // channels per pixel - by default let's have rgba, that's 4.
+	uint32_t               bytes_per_channel; // bytes per channel - that's 4 for float channels
+	bool                   unsorted;          // true means this buffer needs to be re-initialised.
 };
 
 // State of playback if we're slow-mo'ing
@@ -496,6 +496,8 @@ static bool bitonic_merge_sort_example_app_update( bitonic_merge_sort_example_ap
 
 	// Process user interface events such as mouse, keyboard
 	app_process_ui_events( self );
+
+	static le_img_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = self->renderer.getSwapchainResource();
 
 	le::RenderModule mainModule{};
 	{
