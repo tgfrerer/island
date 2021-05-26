@@ -34,6 +34,19 @@ LE_OPAQUE_HANDLE( le_buf_resource_handle );
 LE_OPAQUE_HANDLE( le_blas_resource_handle );
 LE_OPAQUE_HANDLE( le_tlas_resource_handle );
 
+struct le_resource_handle_t {
+	struct le_resource_handle_data_t *data;
+};
+
+struct le_img_resource_handle_t : le_resource_handle_t {
+};
+struct le_buf_resource_handle_t : le_resource_handle_t {
+};
+struct le_blas_resource_handle_t : le_resource_handle_t {
+};
+struct le_tlas_resource_handle_t : le_resource_handle_t {
+};
+
 enum LeRenderPassType : uint32_t {
 	LE_RENDER_PASS_TYPE_UNDEFINED = 0,
 	LE_RENDER_PASS_TYPE_DRAW      = 1,

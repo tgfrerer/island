@@ -69,17 +69,4 @@ struct le_resource_handle_data_hash {
 	}
 };
 
-struct le_resource_handle_t {
-	le_resource_handle_data_t data;
-};
-
-struct le_img_resource_handle_t : le_resource_handle_t {
-};
-struct le_buf_resource_handle_t : le_resource_handle_t {
-};
-struct le_blas_resource_handle_t : le_resource_handle_t {
-};
-struct le_tlas_resource_handle_t : le_resource_handle_t {
-};
-
 #endif

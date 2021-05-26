@@ -201,7 +201,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 	        usage_flags.type == LeResourceType::eRtxTlas ||
 	        usage_flags.type == LeResourceType::eRtxBlas );
 
-	assert( resource_id->data.type == usage_flags.type && "usage flags must match resource type" );
+	assert( resource_id->data->type == usage_flags.type && "usage flags must match resource type" );
 
 	// ---------| Invariant: resource is either an image or buffer
 
@@ -229,7 +229,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 
 		logger.error( "FATAL: Resource '%s' declared more than once for renderpass : '%s'. "
 		              "There can only be one declaration per resource per renderpass.",
-		              resource_id->data.debug_name.c_str(),
+		              resource_id->data->debug_name.c_str(),
 		              self->debugName.c_str() );
 
 		assert( false );
@@ -673,7 +673,7 @@ generate_dot_file_for_rendergraph(
 		for ( size_t j = 0; j != p->resources.size(); j++ ) {
 			os << "<td cellpadding='3' port=\"";
 			auto const &r = p->resources[ j ];
-			os << r->data.debug_name << "\">";
+			os << r->data->debug_name << "\">";
 
 			{
 				auto const needle = r;
@@ -689,9 +689,9 @@ generate_dot_file_for_rendergraph(
 				// if resource is being written to, then underline resource name
 
 				if ( tasks[ i ].writes[ res_idx ] ) {
-					os << "<u>" << r->data.debug_name << "</u>";
+					os << "<u>" << r->data->debug_name << "</u>";
 				} else {
-					os << "" << r->data.debug_name << "";
+					os << "" << r->data->debug_name << "";
 				}
 			}
 
@@ -767,10 +767,10 @@ generate_dot_file_for_rendergraph(
 				     ( tasks[ k ].writes & tasks[ k ].reads & res_filter ).any() ) {
 
 					os << "\"" << p->debugName << "\":"
-					   << "\"" << needle->data.debug_name << "\""
+					   << "\"" << needle->data->debug_name << "\""
 					   << ":s"
 					   << " -> \"" << self->passes[ k ]->debugName << "\":"
-					   << "\"" << needle->data.debug_name << "\""
+					   << "\"" << needle->data->debug_name << "\""
 					   << ":n"
 					   << ( self->sortIndices[ k ] == ( ~0u ) ? "[style=dashed]" : "" )
 					   << ";" << std::endl;
@@ -1007,7 +1007,7 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 			renderpass_get_image_attachments( pass, &pImageAttachments, &pResources, &numImageAttachments );
 
 			for ( size_t i = 0; i != numImageAttachments; ++i ) {
-				logger.info( "\t Attachment: '%s'", pResources[ i ]->data.debug_name.c_str() ); //"', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'"
+				logger.info( "\t Attachment: '%s'", pResources[ i ]->data->debug_name.c_str() ); //"', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'"
 				logger.info( "\t load : %10s", to_str( pImageAttachments[ i ].loadOp ) );
 				logger.info( "\t store: %10s", to_str( pImageAttachments[ i ].storeOp ) );
 			}

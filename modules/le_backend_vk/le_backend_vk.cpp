@@ -1275,7 +1275,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 		//
 
 		le_img_resource_handle img_resource = le_renderer::renderer_i.produce_img_resource_handle(
-		    pResources[ i ]->data.debug_name.c_str(), numSamplesLog2, numSamplesLog2 ? pResources[ i ] : nullptr );
+		    pResources[ i ]->data->debug_name.c_str(), numSamplesLog2, numSamplesLog2 ? pResources[ i ] : nullptr );
 
 		auto &syncChain = frame.syncChainTable[ img_resource ];
 
@@ -1698,7 +1698,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 		for ( auto &op : p.explicit_sync_ops ) {
 
-			if ( op.resource->data.type != LeResourceType::eImage ) {
+			if ( op.resource->data->type != LeResourceType::eImage ) {
 				continue;
 			}
 
@@ -1943,7 +1943,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 			if ( PRINT_DEBUG_MESSAGES ) {
 				logger.info( " %30s (s: %4d) : %30s : %30s : %30s | sync chain indices: %4d : %4d : %4d",
-				             attachment->resource->data.debug_name.c_str(), attachment->resource->data.num_samples,
+				             attachment->resource->data->debug_name.c_str(), attachment->resource->data->num_samples,
 				             vk::to_string( syncInitial.layout ).c_str(),
 				             vk::to_string( syncSubpass.layout ).c_str(),
 				             vk::to_string( syncFinal.layout ).c_str(),
@@ -2151,10 +2151,10 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 /// otherwise, fetch from frame available resources based on an id lookup.
 static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData &frame, const le_buf_resource_handle &buffer ) {
 
-	if ( buffer->data.flags == le_resource_handle_data_t::FlagBits::eIsVirtual ) {
-		return frame.allocatorBuffers[ buffer->data.index ];
-	} else if ( buffer->data.flags == le_resource_handle_data_t::FlagBits::eIsStaging ) {
-		return frame.stagingAllocator->buffers[ buffer->data.index ];
+	if ( buffer->data->flags == le_resource_handle_data_t::FlagBits::eIsVirtual ) {
+		return frame.allocatorBuffers[ buffer->data->index ];
+	} else if ( buffer->data->flags == le_resource_handle_data_t::FlagBits::eIsStaging ) {
+		return frame.stagingAllocator->buffers[ buffer->data->index ];
 	} else {
 		return frame.availableResources.at( buffer ).as.buffer;
 	}
@@ -2783,7 +2783,7 @@ static void collect_resource_infos_per_resource(
 			le_resource_handle const &  resource             = p_resources[ i ];             // Resource handle
 			LeResourceUsageFlags const &resource_usage_flags = p_resources_usage_flags[ i ]; // Resource usage flags
 
-			assert( resource_usage_flags.type == resource->data.type ); // Resource Usage Flags must be for matching resource type.
+			assert( resource_usage_flags.type == resource->data->type ); // Resource Usage Flags must be for matching resource type.
 
 			// Test whether a resource with this id is already in usedResources -
 			// if not, resource_index will be identical to usedResource vector size,
@@ -3049,7 +3049,7 @@ static void insert_msaa_versions(
 
 		le_resource_handle &resource = usedResources[ i ];
 
-		if ( resource->data.type != LeResourceType::eImage ) {
+		if ( resource->data->type != LeResourceType::eImage ) {
 			continue;
 		}
 		le_resource_info_t &resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
@@ -3068,7 +3068,7 @@ static void insert_msaa_versions(
 
 			le_resource_handle resource_copy =
 			    le_renderer::renderer_i.produce_img_resource_handle(
-			        resource->data.debug_name.c_str(), current_sample_count_log_2,
+			        resource->data->debug_name.c_str(), current_sample_count_log_2,
 			        static_cast<le_img_resource_handle>( resource ) );
 
 			le_resource_info_t resource_info_copy = resourceInfo;
@@ -3096,10 +3096,10 @@ static void insert_msaa_versions(
 static void printResourceInfo( le_resource_handle const &handle, ResourceCreateInfo const &info ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	if ( info.isBuffer() ) {
-		logger.info( "% 32s : %11d : %30s : %30s", handle->data.debug_name.c_str(), info.bufferInfo.size, "-", to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) ).c_str() );
+		logger.info( "% 32s : %11d : %30s : %30s", handle->data->debug_name.c_str(), info.bufferInfo.size, "-", to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) ).c_str() );
 	} else if ( info.isImage() ) {
 		logger.info( "% 32s : %dx%dx%d : %30s : %30s : %5s samples",
-		             handle->data.debug_name.c_str(),
+		             handle->data->debug_name.c_str(),
 		             info.imageInfo.extent.width,
 		             info.imageInfo.extent.height,
 		             info.imageInfo.extent.depth,
@@ -3108,13 +3108,13 @@ static void printResourceInfo( le_resource_handle const &handle, ResourceCreateI
 		             to_string( vk::SampleCountFlags( info.imageInfo.samples ) ).c_str() );
 	} else if ( info.isBlas() ) {
 		logger.info( "% 32s : %11d : (%28d) : %30s",
-		             handle->data.debug_name.c_str(),
+		             handle->data->debug_name.c_str(),
 		             info.blasInfo.buffer_size,
 		             info.blasInfo.scratch_buffer_size,
 		             "-" );
 	} else if ( info.isTlas() ) {
 		logger.info( "% 32s : %11d : (%28d) : %30s",
-		             handle->data.debug_name.c_str(),
+		             handle->data->debug_name.c_str(),
 		             info.tlasInfo.buffer_size,
 		             info.tlasInfo.scratch_buffer_size,
 		             "-" );
@@ -3132,7 +3132,7 @@ static bool inferImageFormat( le_backend_o *self, le_img_resource_handle const &
 	auto inferred_format = infer_image_format_from_le_image_usage_flags( self, usageFlags );
 
 	if ( inferred_format == le::Format::eUndefined ) {
-		logger.error( "Fatal: Cannot infer image format, resource underspecified: '%s'", resource->data.debug_name.c_str() );
+		logger.error( "Fatal: Cannot infer image format, resource underspecified: '%s'", resource->data->debug_name.c_str() );
 		logger.error( "Specify usage, or provide explicit format option for resource to fix this error. " );
 		logger.error( "Consider using le::RenderModule::declareResource()" );
 
@@ -3183,9 +3183,9 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o *instance,
 
 		vk::DebugUtilsObjectNameInfoEXT nameInfo;
 
-		nameInfo.setPObjectName( r.first->data.debug_name.c_str() );
+		nameInfo.setPObjectName( r.first->data->debug_name.c_str() );
 
-		switch ( r.first->data.type ) {
+		switch ( r.first->data->type ) {
 		case LeResourceType::eImage:
 			nameInfo.setObjectType( vk::ObjectType::eImage );
 			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.as.image ) );
@@ -3444,13 +3444,13 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			if ( r.second.info.isBuffer() ) {
 				logger.info( "%10s : %37s : %30p",
 				             "Buffer",
-				             r.first->data.debug_name.c_str(),
+				             r.first->data->debug_name.c_str(),
 				             r.second.as.buffer );
 			} else {
 				logger.info( "%10s : %30s (s: %2d) : %30p",
 				             "Image",
-				             r.first->data.debug_name.c_str(),
-				             1 << r.first->data.num_samples,
+				             r.first->data->debug_name.c_str(),
+				             1 << r.first->data->num_samples,
 				             r.second.as.buffer );
 			}
 		}
@@ -3514,7 +3514,7 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 				// If the format is still undefined at this point, we can only throw our hands up in the air...
 				//
 				if ( imageFormat == vk::Format::eUndefined ) {
-					logger.warn( "Cannot create default view for image: '%s;, as format is unspecified", r->data.debug_name.c_str() );
+					logger.warn( "Cannot create default view for image: '%s;, as format is unspecified", r->data->debug_name.c_str() );
 					continue;
 				}
 
@@ -4180,8 +4180,11 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 	using namespace le_renderer;   // for encoder
 	using namespace le_backend_vk; // for device
 
+#ifdef NDEBUG
+	bool should_insert_debug_labels = false; // whether we want to insert debug labels into the command stream (useful for renderdoc)
+#else
 	bool should_insert_debug_labels = true; // whether we want to insert debug labels into the command stream (useful for renderdoc)
-
+#endif
 	auto &frame = self->mFrames[ frameIndex ];
 
 	vk::Device device = self->device->getVkDevice();
@@ -4270,7 +4273,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// --------| invariant: barrier is active.
 
 						// print out sync chain for sampled image
-						logger.debug( "\t Explicit Barrier for: %s (s: %d)", op.resource->data.debug_name.c_str(), 1 << op.resource->data.num_samples );
+						logger.debug( "\t Explicit Barrier for: %s (s: %d)", op.resource->data->debug_name.c_str(), 1 << op.resource->data->num_samples );
 						logger.debug( "\t % 3s : % 30s : % 30s : % 10s", "#", "visible_access", "write_stage", "layout" );
 
 						auto const &syncChain = frame.syncChainTable.at( op.resource );
@@ -5052,7 +5055,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto foundImgView = frame.imageViews.find( le_cmd->info.image_id );
 					if ( foundImgView == frame.imageViews.end() ) {
 						logger.error( "Could not find image view for image: '%s', ignoring image binding command.",
-						              le_cmd->info.image_id->data.debug_name.c_str() );
+						              le_cmd->info.image_id->data->debug_name.c_str() );
 						break;
 					}
 
