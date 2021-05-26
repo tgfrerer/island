@@ -6,6 +6,9 @@
 #include <string>
 #include <vector>
 #include <assert.h>
+
+#include "le_renderer/private/le_resource_handle_t.inl"
+
 // ----------------------------------------------------------------------
 
 struct le_resource_manager_o {
@@ -17,7 +20,7 @@ struct le_resource_manager_o {
 	};
 
 	struct resource_item_t {
-		le_resource_handle_t            image_handle;
+		le_img_resource_handle          image_handle;
 		le_resource_info_t              image_info;
 		std::vector<image_data_layer_t> image_layers; // must have at least one element
 	};
@@ -166,10 +169,10 @@ static void infer_from_le_format( le::Format const &format, uint32_t *num_channe
 // NOTE: You must provide an array of paths in image_paths, and the
 // array's size must match `image_info.image.arrayLayers`
 // Most meta-data about the image file is loaded via image_info
-static void le_resource_manager_add_item( le_resource_manager_o *     self,
-                                          le_resource_handle_t const *image_handle,
-                                          le_resource_info_t const *  image_info,
-                                          char const *const *         image_paths ) {
+static void le_resource_manager_add_item( le_resource_manager_o *       self,
+                                          le_img_resource_handle const *image_handle,
+                                          le_resource_info_t const *    image_info,
+                                          char const *const *           image_paths ) {
 
 	le_resource_manager_o::resource_item_t item{};
 

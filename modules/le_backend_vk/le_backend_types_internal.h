@@ -197,7 +197,7 @@ struct AttachmentInfo {
 		eDepthStencilAttachment,
 		eResolveAttachment,
 	};
-	le_resource_handle_t    resource_id{};      ///< which resource to look up for resource state
+	le_img_resource_handle  resource;           ///< which resource to look up for resource state
 	vk::Format              format;             ///
 	vk::AttachmentLoadOp    loadOp;             ///
 	vk::AttachmentStoreOp   storeOp;            ///
@@ -227,10 +227,10 @@ struct LeRenderPass {
 	struct le_command_buffer_encoder_o *encoder;
 
 	struct ExplicitSyncOp {
-		le_resource_handle_t resource_id;               // image used as texture, or buffer resource used in this pass
-		uint32_t             sync_chain_offset_initial; // offset when entering this pass
-		uint32_t             sync_chain_offset_final;   // offset when this pass has completed
-		uint32_t             active;
+		le_resource_handle resource;                  // image used as texture, or buffer resource used in this pass
+		uint32_t           sync_chain_offset_initial; // offset when entering this pass
+		uint32_t           sync_chain_offset_final;   // offset when this pass has completed
+		uint32_t           active;
 	};
 
 	std::string                 debugName;         // Debug name for renderpass

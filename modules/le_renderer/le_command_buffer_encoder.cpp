@@ -12,6 +12,8 @@
 #include <vector>
 #include <algorithm>
 
+#include "le_renderer/private/le_resource_handle_t.inl"
+
 #ifdef _WIN32
 #	define __PRETTY_FUNCTION__ __FUNCSIG__
 #endif //
@@ -134,13 +136,13 @@ static void cbe_dispatch( le_command_buffer_encoder_o *self, uint32_t groupCount
 	self->mCommandCount++;
 }
 
-static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o *self,
-                                       LePipelineStageFlags const & srcStageMask,
-                                       LePipelineStageFlags const & dstStageMask,
-                                       LeAccessFlags const &        dstAccessMask,
-                                       le_resource_handle_t const & buffer,
-                                       uint64_t const &             offset,
-                                       uint64_t const &             range ) {
+static void cbe_buffer_memory_barrier( le_command_buffer_encoder_o * self,
+                                       LePipelineStageFlags const &  srcStageMask,
+                                       LePipelineStageFlags const &  dstStageMask,
+                                       LeAccessFlags const &         dstAccessMask,
+                                       le_buf_resource_handle const &buffer,
+                                       uint64_t const &              offset,
+                                       uint64_t const &              range ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandBufferMemoryBarrier ); // placement new!
 
@@ -282,11 +284,11 @@ static void cbe_set_scissor( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 
-static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self,
-                                     uint32_t                     firstBinding,
-                                     uint32_t                     bindingCount,
-                                     le_resource_handle_t const * pBuffers,
-                                     uint64_t const *             pOffsets ) {
+static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o * self,
+                                     uint32_t                      firstBinding,
+                                     uint32_t                      bindingCount,
+                                     le_buf_resource_handle const *pBuffers,
+                                     uint64_t const *              pOffsets ) {
 
 	// NOTE: pBuffers will hold ids for virtual buffers, we must match these
 	// in the backend to actual vulkan buffer ids.
@@ -294,13 +296,13 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self,
 
 	auto cmd = EMPLACE_CMD( le::CommandBindVertexBuffers ); // placement new!
 
-	size_t dataBuffersSize = ( sizeof( le_resource_handle_t ) ) * bindingCount;
+	size_t dataBuffersSize = ( sizeof( le_resource_handle ) ) * bindingCount;
 	size_t dataOffsetsSize = ( sizeof( uint64_t ) ) * bindingCount;
 
 	void *dataBuffers = ( cmd + 1 );
 	void *dataOffsets = ( static_cast<char *>( dataBuffers ) + dataBuffersSize ); // start address for offset data
 
-	cmd->info = { firstBinding, bindingCount, static_cast<le_resource_handle_t *>( dataBuffers ), static_cast<uint64_t *>( dataOffsets ) };
+	cmd->info = { firstBinding, bindingCount, static_cast<le_buf_resource_handle *>( dataBuffers ), static_cast<uint64_t *>( dataOffsets ) };
 	cmd->header.info.size += dataBuffersSize + dataOffsetsSize; // we must increase the size of this command by its payload size
 
 	memcpy( dataBuffers, pBuffers, dataBuffersSize );
@@ -312,7 +314,7 @@ static void cbe_bind_vertex_buffers( le_command_buffer_encoder_o *self,
 
 // ----------------------------------------------------------------------
 static void cbe_bind_index_buffer( le_command_buffer_encoder_o *self,
-                                   le_resource_handle_t const   buffer,
+                                   le_buf_resource_handle const buffer,
                                    uint64_t                     offset,
                                    le::IndexType const &        indexType ) {
 
@@ -353,7 +355,7 @@ static void cbe_set_vertex_data( le_command_buffer_encoder_o *                  
 
 		memcpy( memAddr, data, numBytes );
 
-		le_resource_handle_t allocatorBufferId = le_allocator_linear_i.get_le_resource_id( allocator );
+		le_buf_resource_handle allocatorBufferId = le_allocator_linear_i.get_le_resource_id( allocator );
 
 		cbe_bind_vertex_buffers( self, bindingIndex, 1, &allocatorBufferId, &bufferOffset );
 
@@ -394,7 +396,7 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *                   
 		// -- Upload data via scratch allocator
 		memcpy( memAddr, data, numBytes );
 
-		le_resource_handle_t allocatorBufferId = le_allocator_linear_i.get_le_resource_id( allocator );
+		le_buf_resource_handle allocatorBufferId = le_allocator_linear_i.get_le_resource_id( allocator );
 
 		// -- Bind index buffer to scratch allocator
 		cbe_bind_index_buffer( self, allocatorBufferId, bufferOffset, indexType );
@@ -412,7 +414,7 @@ static void cbe_set_index_data( le_command_buffer_encoder_o *                   
 
 // ----------------------------------------------------------------------
 
-static void cbe_bind_argument_buffer( le_command_buffer_encoder_o *self, le_resource_handle_t const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range ) {
+static void cbe_bind_argument_buffer( le_command_buffer_encoder_o *self, le_buf_resource_handle const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandBindArgumentBuffer );
 
@@ -452,7 +454,7 @@ static void cbe_set_argument_data( le_command_buffer_encoder_o *self,
 		// -- Store ubo data to scratch allocator
 		memcpy( memAddr, data, numBytes );
 
-		le_resource_handle_t allocatorBuffer = le_allocator_linear_i.get_le_resource_id( allocator );
+		le_buf_resource_handle allocatorBuffer = le_allocator_linear_i.get_le_resource_id( allocator );
 
 		cbe_bind_argument_buffer( self, allocatorBuffer, argumentNameId, uint32_t( bufferOffset ), uint32_t( numBytes ) );
 
@@ -479,7 +481,7 @@ static void cbe_set_argument_texture( le_command_buffer_encoder_o *self, le_text
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_argument_image( le_command_buffer_encoder_o *self, le_resource_handle_t const imageId, uint64_t argumentName, uint64_t arrayIndex ) {
+static void cbe_set_argument_image( le_command_buffer_encoder_o *self, le_img_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandSetArgumentImage );
 
@@ -493,7 +495,7 @@ static void cbe_set_argument_image( le_command_buffer_encoder_o *self, le_resour
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_argument_tlas( le_command_buffer_encoder_o *self, le_resource_handle_t const tlasId, uint64_t argumentName, uint64_t arrayIndex ) {
+static void cbe_set_argument_tlas( le_command_buffer_encoder_o *self, le_resource_handle const tlasId, uint64_t argumentName, uint64_t arrayIndex ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandSetArgumentTlas );
 
@@ -688,7 +690,7 @@ static void cbe_bind_rtx_pipeline( le_command_buffer_encoder_o *self, le_shader_
 
 		// -- store buffer, and offsets with command info
 
-		le_resource_handle_t allocatorBuffer = le_allocator_linear_i.get_le_resource_id( allocator );
+		le_buf_resource_handle allocatorBuffer = le_allocator_linear_i.get_le_resource_id( allocator );
 
 		cmd->info.sbt_buffer          = allocatorBuffer;
 		cmd->info.ray_gen_sbt_offset  = bufferBaseOffset + ray_gen_shader_binding_offset;
@@ -732,13 +734,13 @@ static void cbe_bind_compute_pipeline( le_command_buffer_encoder_o *self, le_cps
 
 // ----------------------------------------------------------------------
 
-static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_resource_handle_t const &resourceId, size_t offset, void const *data, size_t numBytes ) {
+static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_buf_resource_handle const &dst_buffer, size_t offset, void const *data, size_t numBytes ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandWriteToBuffer );
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
-	void *               memAddr;
-	le_resource_handle_t srcResourceId;
+	void *                 memAddr;
+	le_buf_resource_handle srcResourceId;
 
 	// -- Allocate memory using staging allocator
 	//
@@ -755,7 +757,7 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_resource_
 		cmd->info.src_offset    = 0; // staging allocator will give us a fresh buffer, and src memory will be placed at its start
 		cmd->info.dst_offset    = offset;
 		cmd->info.numBytes      = numBytes;
-		cmd->info.dst_buffer_id = resourceId;
+		cmd->info.dst_buffer_id = dst_buffer;
 	} else {
 		std::cerr << "ERROR " << __PRETTY_FUNCTION__ << " could not allocate " << numBytes << " Bytes." << std::endl
 		          << std::flush;
@@ -769,20 +771,18 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_resource_
 // ----------------------------------------------------------------------
 
 static void cbe_write_to_image( le_command_buffer_encoder_o *       self,
-                                le_resource_handle_t const &        imageId,
+                                le_img_resource_handle const &      dst_img,
                                 le_write_to_image_settings_t const &writeInfo,
                                 void const *                        data,
                                 size_t                              numBytes ) {
-
-	assert( imageId.handle.as_handle.meta.as_meta.type == LeResourceType::eImage );
 
 	// ----------| invariant: resource info represents an image
 
 	auto cmd = EMPLACE_CMD( le::CommandWriteToImage );
 
 	using namespace le_backend_vk; // for le_allocator_linear_i
-	void *               memAddr;
-	le_resource_handle_t stagingBufferId;
+	void *                 memAddr;
+	le_buf_resource_handle stagingBufferId;
 
 	// -- Allocate memory using staging allocator
 	//
@@ -800,7 +800,7 @@ static void cbe_write_to_image( le_command_buffer_encoder_o *       self,
 
 		cmd->info.src_buffer_id   = stagingBufferId;           // resource id of staging buffer
 		cmd->info.numBytes        = numBytes;                  // total number of bytes from staging buffer which need to be synchronised.
-		cmd->info.dst_image_id    = imageId;                   // resouce id for target image resource
+		cmd->info.dst_image_id    = dst_img;                   // resouce id for target image resource
 		cmd->info.dst_miplevel    = writeInfo.dst_miplevel;    // default 0, use higher number to manually upload higher mip levels.
 		cmd->info.dst_array_layer = writeInfo.dst_array_layer; // default 0, use higher number to manually upload to array layer / or mipmap face.
 		cmd->info.num_miplevels   = writeInfo.num_miplevels;   // default is 1, *must not* be 0. More than 1 means to auto-generate these miplevels
@@ -841,9 +841,9 @@ static void cbe_set_push_constant_data( le_command_buffer_encoder_o *self, void 
 }
 // ----------------------------------------------------------------------
 
-static void cbe_build_rtx_blas( le_command_buffer_encoder_o *     self,
-                                le_resource_handle_t const *const p_blas_handles,
-                                const uint32_t                    handles_count ) {
+static void cbe_build_rtx_blas( le_command_buffer_encoder_o *   self,
+                                le_resource_handle const *const p_blas_handles,
+                                const uint32_t                  handles_count ) {
 
 	if ( handles_count == 0 || nullptr == p_blas_handles ) {
 		assert( p_blas_handles && handles_count > 0 && "must provide handles, and handles_count must be at least 1" );
@@ -853,7 +853,7 @@ static void cbe_build_rtx_blas( le_command_buffer_encoder_o *     self,
 
 	auto   cmd       = EMPLACE_CMD( le::CommandBuildRtxBlas );
 	void * data      = cmd + 1;
-	size_t data_size = sizeof( le_resource_handle_t ) * handles_count;
+	size_t data_size = sizeof( le_resource_handle ) * handles_count;
 
 	cmd->info                    = {};
 	cmd->info.blas_handles_count = handles_count;
@@ -868,9 +868,9 @@ static void cbe_build_rtx_blas( le_command_buffer_encoder_o *     self,
 // ----------------------------------------------------------------------
 
 void cbe_build_rtx_tlas( le_command_buffer_encoder_o *     self,
-                         le_resource_handle_t const *      tlas_handle,
+                         le_resource_handle const *        tlas_handle,
                          le_rtx_geometry_instance_t const *instances,
-                         le_resource_handle_t const *      blas_handles,
+                         le_resource_handle const *        blas_handles,
                          uint32_t                          instances_count ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandBuildRtxTlas );
@@ -916,7 +916,7 @@ void cbe_build_rtx_tlas( le_command_buffer_encoder_o *     self,
 	// VkAccelerationStructureHandles in the backend, where the names of the actual objects
 	// are known.
 
-	size_t payload_size = sizeof( le_resource_handle_t ) * instances_count;
+	size_t payload_size = sizeof( le_resource_handle ) * instances_count;
 	cmd->header.info.size += payload_size;
 
 	void *memAddr = cmd + 1; // move to position just after command

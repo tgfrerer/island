@@ -19,6 +19,8 @@
 #include <atomic>
 #include <mutex>
 
+#include "le_renderer/private/le_resource_handle_t.inl"
+
 static constexpr auto LOGGER_LABEL = "le_backend";
 
 #include <memory>
@@ -456,28 +458,28 @@ struct BackendFrameData {
 
 	using texture_map_t = std::unordered_map<le_texture_handle, Texture>;
 
-	std::unordered_map<le_resource_handle_t, vk::ImageView, LeResourceHandleIdentity> imageViews; // non-owning, references to frame-local textures, cleared on frame fence.
+	std::unordered_map<le_img_resource_handle, vk::ImageView> imageViews; // non-owning, references to frame-local textures, cleared on frame fence.
 
 	// With `syncChainTable` and image_attachment_info_o.syncState, we should
 	// be able to create renderpasses. Each resource has a sync chain, and each attachment_info
 	// has a struct which holds indices into the sync chain telling us where to look
 	// up the sync state for a resource at different stages of renderpass construction.
-	std::unordered_map<le_resource_handle_t, std::vector<ResourceState>, LeResourceHandleIdentity> syncChainTable;
+	std::unordered_map<le_resource_handle, std::vector<ResourceState>> syncChainTable;
 
 	static_assert( sizeof( VkBuffer ) == sizeof( VkImageView ) && sizeof( VkBuffer ) == sizeof( VkImage ), "size of AbstractPhysicalResource components must be identical" );
 
 	// Map from renderer resource id to physical resources - only contains resources this frame uses.
 	// Q: Does this table actually own the resources?
 	// A: It must not: as it is used to map external resources as well.
-	std::unordered_map<le_resource_handle_t, AbstractPhysicalResource, LeResourceHandleIdentity> physicalResources;
+	std::unordered_map<le_resource_handle, AbstractPhysicalResource> physicalResources;
 
 	/// \brief vk resources retained and destroyed with BackendFrameData
 	std::forward_list<AbstractPhysicalResource> ownedResources;
 
 	/// \brief if user provides explicit resource info, we collect this here, so that we can make sure
 	/// that any inferred resourceInfo is compatible with what the user selected.
-	std::vector<le_resource_handle_t> declared_resources_id;   // | pre-declared resources (declared via module)
-	std::vector<le_resource_info_t>   declared_resources_info; // | pre-declared resources (declared via module)
+	std::vector<le_resource_handle> declared_resources_id;   // | pre-declared resources (declared via module)
+	std::vector<le_resource_info_t> declared_resources_info; // | pre-declared resources (declared via module)
 
 	std::vector<LeRenderPass>  passes;
 	std::vector<texture_map_t> textures_per_pass; // non-owning, references to frame-local textures, cleared on frame fence.
@@ -494,7 +496,7 @@ struct BackendFrameData {
 
 	 */
 
-	typedef std::unordered_map<le_resource_handle_t, AllocatedResourceVk, LeResourceHandleIdentity> ResourceMap_T;
+	typedef std::unordered_map<le_resource_handle, AllocatedResourceVk> ResourceMap_T;
 
 	ResourceMap_T availableResources; // resources this frame may use
 	ResourceMap_T binnedResources;    // resources to delete when this frame comes round to clear()
@@ -531,10 +533,10 @@ struct le_backend_o {
 
 	// Default color formats are inferred during setup() based on
 	// swapchain surface (color) and device properties (depth/stencil)
-	std::vector<vk::Format>           swapchainImageFormat; ///< default image format used for swapchain (backbuffer image must be in this format)
-	std::vector<uint32_t>             swapchainWidth;       ///< swapchain width gathered when setting/resetting swapchain
-	std::vector<uint32_t>             swapchainHeight;      ///< swapchain height gathered when setting/resetting swapchain
-	std::vector<le_resource_handle_t> swapchain_resources;  ///< resource handle for image associated with each swapchain
+	std::vector<vk::Format>             swapchainImageFormat; ///< default image format used for swapchain (backbuffer image must be in this format)
+	std::vector<uint32_t>               swapchainWidth;       ///< swapchain width gathered when setting/resetting swapchain
+	std::vector<uint32_t>               swapchainHeight;      ///< swapchain height gathered when setting/resetting swapchain
+	std::vector<le_img_resource_handle> swapchain_resources;  ///< resource handle for image associated with each swapchain
 
 	le::Format defaultFormatColorAttachment        = {}; ///< default image format used for color attachments
 	le::Format defaultFormatDepthStencilAttachment = {}; ///< default image format used for depth stencil attachments
@@ -556,8 +558,8 @@ struct le_backend_o {
 	KillList<le_rtx_tlas_info_o> rtx_tlas_info_kill_list; // used to keep track rtx_blas_infos.
 
 	struct {
-		std::unordered_map<le_resource_handle_t, AllocatedResourceVk, LeResourceHandleIdentity> allocatedResources; // Allocated resources, indexed by resource name hash
-	} only_backend_allocate_resources_may_access;                                                                   // Only acquire_physical_resources may read/write
+		std::unordered_map<le_resource_handle, AllocatedResourceVk> allocatedResources; // Allocated resources, indexed by resource name hash
+	} only_backend_allocate_resources_may_access;                                       // Only acquire_physical_resources may read/write
 };
 
 // State of arguments for currently bound pipeline - we keep this here,
@@ -861,7 +863,7 @@ static void backend_get_swapchain_extent( le_backend_o *self, uint32_t index, ui
 
 // ----------------------------------------------------------------------
 
-bool backend_get_swapchain_info( le_backend_o *self, uint32_t *count, uint32_t *p_width, uint32_t *p_height, le_resource_handle_t *p_handle ) {
+bool backend_get_swapchain_info( le_backend_o *self, uint32_t *count, uint32_t *p_width, uint32_t *p_height, le_img_resource_handle *p_handle ) {
 
 	if ( *count < self->swapchain_resources.size() ) {
 		*count = self->swapchain_resources.size();
@@ -874,13 +876,13 @@ bool backend_get_swapchain_info( le_backend_o *self, uint32_t *count, uint32_t *
 
 	memcpy( p_width, self->swapchainWidth.data(), sizeof( uint32_t ) * num_items );
 	memcpy( p_height, self->swapchainHeight.data(), sizeof( uint32_t ) * num_items );
-	memcpy( p_handle, self->swapchain_resources.data(), sizeof( le_resource_handle_t ) * num_items );
+	memcpy( p_handle, self->swapchain_resources.data(), sizeof( le_resource_handle ) * num_items );
 
 	return true;
 }
 // ----------------------------------------------------------------------
 
-static le_resource_handle_t backend_get_swapchain_resource( le_backend_o *self, uint32_t index ) {
+static le_img_resource_handle backend_get_swapchain_resource( le_backend_o *self, uint32_t index ) {
 	return self->swapchain_resources[ index ];
 }
 
@@ -931,12 +933,10 @@ static void backend_reset_failed_swapchains( le_backend_o *self ) {
 /// Vulkan buffer backing. Instead, they use their Frame's buffer for storage. Virtual buffers
 /// are used to store Frame-local transient data such as values for shader parameters.
 /// Each Encoder uses its own virtual buffer for such purposes.
-static le_resource_handle_t declare_resource_virtual_buffer( uint8_t index ) {
+static le_buf_resource_handle declare_resource_virtual_buffer( uint8_t index ) {
 
-	auto resource = LE_BUF_RESOURCE( "Encoder-Virtual" ); // virtual resources all have the same id, which means they are not part of the regular roster of resources...
-
-	resource.handle.as_handle.meta.as_meta.index = index; // encoder index
-	resource.handle.as_handle.meta.as_meta.flags = le_resource_handle_t::FlagBits::eIsVirtual;
+	le_buf_resource_handle resource =
+	    le_renderer::renderer_i.produce_buf_resource_handle( "Encoder-Virtual", le_resource_handle_data_t::FlagBits::eIsVirtual, index );
 
 	return resource;
 }
@@ -1170,15 +1170,15 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t const *s
 	assert( vkDevice ); // device must come from somewhere! It must have been introduced to backend before, or backend must create device used by everyone else...
 
 	{
-		assert( self->swapchains.size() <= LE_SWAPCHAIN_HANDLES_COUNT && "cannot have more than a LE_SWAPCHAIN_HANDLES_COUNT swapchains" );
 		self->swapchain_resources.reserve( self->swapchains.size() );
+		char swapchain_name[ 64 ];
 
-		for ( size_t j = 0; j != self->swapchains.size(); j++ ) {
-			self->swapchain_resources.emplace_back( LE_SWAPCHAIN_IMAGE_HANDLES[ j ] );
+		for ( uint32_t j = 0; j != self->swapchains.size(); j++ ) {
+			snprintf( swapchain_name, sizeof( swapchain_name ), "Le_Swapchain_Image_Handle[%d]", j );
+			self->swapchain_resources.emplace_back( le_renderer::renderer_i.produce_img_resource_handle( swapchain_name, 0, nullptr ) );
 		}
 
 		assert( !self->swapchain_resources.empty() && "swapchain_resources must not be empty" );
-		assert( self->swapchain_resources[ 0 ] == LE_SWAPCHAIN_IMAGE_HANDLE && "constexpr resource handle and generated resource handle must match. check whether printf pattern above matches LE_SWAPCHAIN_IMAGE_HANDLE" );
 	}
 
 	for ( size_t i = 0; i != frameCount; ++i ) {
@@ -1260,23 +1260,26 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 	auto numSamplesLog2 = get_sample_count_log_2( uint32_t( sampleCount ) );
 
 	le_image_attachment_info_t const *pImageAttachments   = nullptr;
-	le_resource_handle_t const *      pResources          = nullptr;
+	le_img_resource_handle const *    pResources          = nullptr;
 	size_t                            numImageAttachments = 0;
 
 	renderpass_i.get_image_attachments( pass, &pImageAttachments, &pResources, &numImageAttachments );
 	for ( size_t i = 0; i != numImageAttachments; ++i ) {
 
-		auto        image_resource_id     = pResources[ i ];
 		auto const &image_attachment_info = pImageAttachments[ i ];
 
 		// We patch the number of samples into resource ID so that lookups
 		// go to the correct version of the resource.
 
-		image_resource_id.handle.as_handle.meta.as_meta.num_samples = numSamplesLog2;
+		// we only refer to a parent resource if the resource reports that is is in fact mutlisampled
+		//
 
-		auto &syncChain = frame.syncChainTable[ image_resource_id ];
+		le_img_resource_handle img_resource = le_renderer::renderer_i.produce_img_resource_handle(
+		    pResources[ i ]->data.debug_name.c_str(), numSamplesLog2, numSamplesLog2 ? pResources[ i ] : nullptr );
 
-		vk::Format attachmentFormat = vk::Format( frame.availableResources[ image_resource_id ].info.imageInfo.format );
+		auto &syncChain = frame.syncChainTable[ img_resource ];
+
+		vk::Format attachmentFormat = vk::Format( frame.availableResources[ img_resource ].info.imageInfo.format );
 
 		bool isDepth = false, isStencil = false;
 		vk_format_get_is_depth_stencil( attachmentFormat, isDepth, isStencil );
@@ -1296,12 +1299,12 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 			currentAttachment->type = AttachmentInfo::Type::eColorAttachment;
 		}
 
-		currentAttachment->resource_id = image_resource_id;
-		currentAttachment->format      = attachmentFormat;
-		currentAttachment->numSamples  = le_sample_count_flag_bits_to_vk( sampleCount );
-		currentAttachment->loadOp      = le_attachment_load_op_to_vk( image_attachment_info.loadOp );
-		currentAttachment->storeOp     = le_attachment_store_op_to_vk( image_attachment_info.storeOp );
-		currentAttachment->clearValue  = le_clear_value_to_vk( image_attachment_info.clearValue );
+		currentAttachment->resource   = img_resource;
+		currentAttachment->format     = attachmentFormat;
+		currentAttachment->numSamples = le_sample_count_flag_bits_to_vk( sampleCount );
+		currentAttachment->loadOp     = le_attachment_load_op_to_vk( image_attachment_info.loadOp );
+		currentAttachment->storeOp    = le_attachment_store_op_to_vk( image_attachment_info.storeOp );
+		currentAttachment->clearValue = le_clear_value_to_vk( image_attachment_info.clearValue );
 
 		{
 			// track resource state before entering a subpass
@@ -1396,17 +1399,18 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 
 	for ( size_t i = 0; i != numImageAttachments; ++i ) {
 
-		auto        image_resource_id     = pResources[ i ];
 		auto const &image_attachment_info = pImageAttachments[ i ];
 
 		// We patch the number of samples into resource ID so that lookups
 		// go to the correct version of the resource.
 
-		image_resource_id.handle.as_handle.meta.as_meta.num_samples = 0; // hard-coded to zero, resolve attachment *must* have one single sample only.
+		// FIXME:
+		//		le_img_resource_handle img_resource = le_renderer::renderer_i.produce_img_resource_handle(
+		//		    pResources[ i ]->data.debug_name.c_str(), 0, pResources[ i ] ); // hard-code num samples to zero, as resolve attachment *must* have one single sample only.
+		le_img_resource_handle img_resource = pResources[ i ];
+		auto &                 syncChain    = frame.syncChainTable[ img_resource ];
 
-		auto &syncChain = frame.syncChainTable[ image_resource_id ];
-
-		vk::Format attachmentFormat = vk::Format( frame.availableResources[ image_resource_id ].info.imageInfo.format );
+		vk::Format attachmentFormat = vk::Format( frame.availableResources[ img_resource ].info.imageInfo.format );
 
 		bool isDepth = false, isStencil = false;
 		vk_format_get_is_depth_stencil( attachmentFormat, isDepth, isStencil );
@@ -1420,13 +1424,13 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 		// we're dealing with a resolve attachment here.
 		currentPass.numResolveAttachments++;
 
-		currentAttachment->resource_id = image_resource_id;
-		currentAttachment->format      = attachmentFormat;
-		currentAttachment->numSamples  = vk::SampleCountFlagBits::e1; // this is a requirement for resolve passes.
-		currentAttachment->loadOp      = vk::AttachmentLoadOp::eDontCare;
-		currentAttachment->storeOp     = le_attachment_store_op_to_vk( image_attachment_info.storeOp );
-		currentAttachment->clearValue  = le_clear_value_to_vk( image_attachment_info.clearValue );
-		currentAttachment->type        = AttachmentInfo::Type::eResolveAttachment;
+		currentAttachment->resource   = img_resource;
+		currentAttachment->format     = attachmentFormat;
+		currentAttachment->numSamples = vk::SampleCountFlagBits::e1; // this is a requirement for resolve passes.
+		currentAttachment->loadOp     = vk::AttachmentLoadOp::eDontCare;
+		currentAttachment->storeOp    = le_attachment_store_op_to_vk( image_attachment_info.storeOp );
+		currentAttachment->clearValue = le_clear_value_to_vk( image_attachment_info.clearValue );
+		currentAttachment->type       = AttachmentInfo::Type::eResolveAttachment;
 
 		{
 			// track resource state before entering a subpass
@@ -1478,7 +1482,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 // each renderpass contains offsets into sync chain for given resource used by renderpass.
 // resource sync state for images used as renderpass attachments is chosen so that they
 // can be implicitly synced using subpass dependencies.
-static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses, const std::vector<le_resource_handle_t> &backbufferImageHandles ) {
+static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o **ppPasses, size_t numRenderPasses, const std::vector<le_img_resource_handle> &backbufferImageHandles ) {
 
 	// A pipeline barrier is defined as a combination of EXECUTION dependency and MEMORY dependency:
 	//
@@ -1512,7 +1516,9 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		// because submitting to the swapchain changes its sync state.
 		// We must adjust the backbuffer sync-chain table to account for this.
 
-		auto backbufferIt = syncChainTable.find( swapchain_image );
+		le_img_resource_handle backbuffer = swapchain_image;
+
+		auto backbufferIt = syncChainTable.find( backbuffer );
 		if ( backbufferIt != syncChainTable.end() ) {
 			auto &backbufferState          = backbufferIt->second.front();
 			backbufferState.write_stage    = vk::PipelineStageFlagBits::eColorAttachmentOutput; // we need this, since semaphore waits on this stage
@@ -1557,7 +1563,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 		// attachments.
 		//
 		{
-			le_resource_handle_t const *resources       = nullptr;
+			le_resource_handle const *  resources       = nullptr;
 			LeResourceUsageFlags const *resources_usage = nullptr;
 			size_t                      resources_count = 0;
 			renderpass_i.get_used_resources( *pass, &resources, &resources_usage, &resources_count );
@@ -1571,7 +1577,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 				LeRenderPass::ExplicitSyncOp syncOp{};
 
-				syncOp.resource_id               = resource;
+				syncOp.resource                  = resource;
 				syncOp.active                    = true;
 				syncOp.sync_chain_offset_initial = uint32_t( syncChain.size() - 1 );
 
@@ -1672,11 +1678,11 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 	//
 	// Note that only resources of type image may be implicitly synced.
 
-	typedef std::unordered_map<le_resource_handle_t, uint32_t, LeResourceHandleIdentity> SyncChainMap;
+	typedef std::unordered_map<le_resource_handle, uint32_t> SyncChainMap;
 
 	SyncChainMap max_sync_index;
 
-	auto insert_if_greater = [ &max_sync_index ]( le_resource_handle_t const &key, uint32_t value ) {
+	auto insert_if_greater = [ &max_sync_index ]( le_resource_handle const &key, uint32_t value ) {
 		// Updates map entry to highest value
 		auto &element = max_sync_index[ key ];
 		element       = std::max( element, value );
@@ -1692,7 +1698,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 		for ( auto &op : p.explicit_sync_ops ) {
 
-			if ( op.resource_id.getResourceType() != LeResourceType::eImage ) {
+			if ( op.resource->data.type != LeResourceType::eImage ) {
 				continue;
 			}
 
@@ -1704,7 +1710,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 			// We can skip checks for buffer barriers, as we assume they are
 			// all needed.
 
-			auto found_it = max_sync_index.find( op.resource_id );
+			auto found_it = max_sync_index.find( op.resource );
 			if ( found_it != max_sync_index.end() && found_it->second >= op.sync_chain_offset_final ) {
 				// found an element, and current index is already higher than barrier index.
 				op.active = false;
@@ -1712,7 +1718,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 				// no element found, or max index is smaller.
 				op.active = true;
 				// store the current max index, then.
-				max_sync_index[ op.resource_id ] = op.sync_chain_offset_final;
+				max_sync_index[ op.resource ] = op.sync_chain_offset_final;
 			}
 		}
 
@@ -1724,7 +1730,7 @@ static void frame_track_resource_state( BackendFrameData &frame, le_renderpass_o
 
 		for ( size_t a = 0; a != numAttachments; a++ ) {
 			auto const &attachmentInfo = p.attachments[ a ];
-			insert_if_greater( attachmentInfo.resource_id, attachmentInfo.finalStateOffset );
+			insert_if_greater( attachmentInfo.resource, attachmentInfo.finalStateOffset );
 		}
 	}
 }
@@ -1913,7 +1919,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 		for ( AttachmentInfo const *attachment = pass.attachments; attachment != attachments_end; attachment++ ) {
 
-			auto &syncChain = syncChainTable.at( attachment->resource_id );
+			auto &syncChain = syncChainTable.at( attachment->resource );
 
 			const auto &syncInitial = syncChain.at( attachment->initialStateOffset );
 			const auto &syncSubpass = syncChain.at( attachment->initialStateOffset + 1 );
@@ -1937,7 +1943,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 			if ( PRINT_DEBUG_MESSAGES ) {
 				logger.info( " %30s (s: %4d) : %30s : %30s : %30s | sync chain indices: %4d : %4d : %4d",
-				             attachment->resource_id.debug_name, attachment->resource_id.getNumSamples(),
+				             attachment->resource->data.debug_name.c_str(), attachment->resource->data.num_samples,
 				             vk::to_string( syncInitial.layout ).c_str(),
 				             vk::to_string( syncSubpass.layout ).c_str(),
 				             vk::to_string( syncFinal.layout ).c_str(),
@@ -2143,33 +2149,31 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 /// - allocatorBuffers[index] if transient,
 /// - stagingAllocator.buffers[index] if staging,
 /// otherwise, fetch from frame available resources based on an id lookup.
-static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData &frame, const le_resource_handle_t &resource ) {
+static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData &frame, const le_buf_resource_handle &buffer ) {
 
-	assert( resource.getResourceType() == LeResourceType::eBuffer ); // resource type must be buffer
-
-	if ( resource.getFlags() == le_resource_handle_t::FlagBits::eIsVirtual ) {
-		return frame.allocatorBuffers[ resource.getIndex() ];
-	} else if ( resource.getFlags() == le_resource_handle_t::FlagBits::eIsStaging ) {
-		return frame.stagingAllocator->buffers[ resource.getIndex() ];
+	if ( buffer->data.flags == le_resource_handle_data_t::FlagBits::eIsVirtual ) {
+		return frame.allocatorBuffers[ buffer->data.index ];
+	} else if ( buffer->data.flags == le_resource_handle_data_t::FlagBits::eIsStaging ) {
+		return frame.stagingAllocator->buffers[ buffer->data.index ];
 	} else {
-		return frame.availableResources.at( resource ).as.buffer;
+		return frame.availableResources.at( buffer ).as.buffer;
 	}
 }
 
 // ----------------------------------------------------------------------
-static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendFrameData &frame, const le_resource_handle_t &resource ) {
-
-	assert( resource.getResourceType() == LeResourceType::eImage ); // resource type must be image
-
-	return frame.availableResources.at( resource ).as.image;
+static inline vk::Image frame_data_get_image_from_le_resource_id( const BackendFrameData &frame, const le_img_resource_handle &img ) {
+	return frame.availableResources.at( img ).as.image;
 }
 
 // ----------------------------------------------------------------------
-static inline VkFormat frame_data_get_image_format_from_resource_id( BackendFrameData const &frame, const le_resource_handle_t &resource ) {
+static inline VkFormat frame_data_get_image_format_from_resource_id( BackendFrameData const &frame, const le_img_resource_handle &img ) {
+	return frame.availableResources.at( img ).info.imageInfo.format;
+}
 
-	assert( resource.getResourceType() == LeResourceType::eImage ); // resource type must be image
+// ----------------------------------------------------------------------
 
-	return frame.availableResources.at( resource ).info.imageInfo.format;
+static inline AllocatedResourceVk const &frame_data_get_allocated_resource_from_resource_id( BackendFrameData &frame, const le_resource_handle &rsp ) {
+	return frame.availableResources.at( rsp );
 }
 
 // ----------------------------------------------------------------------
@@ -2236,7 +2240,7 @@ static void backend_create_frame_buffers( BackendFrameData &frame, vk::Device &d
 
 			vk::ImageViewCreateInfo imageViewCreateInfo;
 			imageViewCreateInfo
-			    .setImage( frame_data_get_image_from_le_resource_id( frame, attachment->resource_id ) )
+			    .setImage( frame_data_get_image_from_le_resource_id( frame, attachment->resource ) )
 			    .setViewType( vk::ImageViewType::e2D )
 			    .setFormat( attachment->format )
 			    .setComponents( {} ) // default-constructor '{}' means identity
@@ -2642,7 +2646,7 @@ static le_staging_allocator_o *staging_allocator_create( VmaAllocator const vmaA
 // TRANSFER_SRC are set for usage flags.
 //
 // Staging memory is typically cache coherent, ie. does not need to be flushed.
-static bool staging_allocator_map( le_staging_allocator_o *self, uint64_t numBytes, void **pData, le_resource_handle_t *resource_handle ) {
+static bool staging_allocator_map( le_staging_allocator_o *self, uint64_t numBytes, void **pData, le_buf_resource_handle *resource_handle ) {
 
 	auto lock = std::scoped_lock( self->mtx );
 
@@ -2650,22 +2654,25 @@ static bool staging_allocator_map( le_staging_allocator_o *self, uint64_t numByt
 	VkBuffer          buffer;     // handle to buffer (returned from vmaMemAlloc)
 	VmaAllocationInfo allocationInfo;
 
-	VkBufferCreateInfo bufferCreateInfo = vk::BufferCreateInfo()
-	                                          .setSize( numBytes )
-	                                          .setSharingMode( vk::SharingMode::eExclusive )
-	                                          .setUsage( vk::BufferUsageFlagBits::eTransferSrc );
+	VkBufferCreateInfo bufferCreateInfo =
+	    vk::BufferCreateInfo()
+	        .setSize( numBytes )
+	        .setSharingMode( vk::SharingMode::eExclusive )
+	        .setUsage( vk::BufferUsageFlagBits::eTransferSrc );
 
 	VmaAllocationCreateInfo allocationCreateInfo{};
 	allocationCreateInfo.flags          = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 	allocationCreateInfo.usage          = VMA_MEMORY_USAGE_CPU_ONLY;
 	allocationCreateInfo.preferredFlags = VK_MEMORY_PROPERTY_HOST_COHERENT_BIT;
 
-	auto result = vmaCreateBuffer( self->allocator,
-	                               &bufferCreateInfo,
-	                               &allocationCreateInfo,
-	                               &buffer,
-	                               &allocation,
-	                               &allocationInfo );
+	auto result =
+	    vmaCreateBuffer(
+	        self->allocator,
+	        &bufferCreateInfo,
+	        &allocationCreateInfo,
+	        &buffer,
+	        &allocation,
+	        &allocationInfo );
 
 	assert( result == VK_SUCCESS );
 
@@ -2673,34 +2680,22 @@ static bool staging_allocator_map( le_staging_allocator_o *self, uint64_t numByt
 		return false;
 	}
 
+	//---------- | Invariant: create buffer was successful.
+
 	{
 		// -- Now store our allocation in the allocations vectors.
-		//
-		// We need to lock the mutex as we are updating all vectors
-		// and this might lead to re-allocations.
-		//
-		// Other encoders might also want to map memory, and
-		// they will have to wait for whichever operation in
-		// process to finish.
-
 		size_t allocationIndex = self->allocations.size();
 
 		self->allocations.push_back( allocation );
 		self->allocationInfo.push_back( allocationInfo );
 		self->buffers.push_back( buffer );
 
-		// Virtual resources all share the same id,
-		// but their meta data is different.
-		auto resource = LE_BUF_RESOURCE( "Le-Staging-Buffer" );
-
-		// We store the allocation index in the resource handle meta data
-		// so that the correct buffer for this handle can be retrieved later.
-		resource.handle.as_handle.meta.as_meta.index = uint16_t( allocationIndex );
-		resource.handle.as_handle.meta.as_meta.flags = le_resource_handle_t::FlagBits::eIsStaging;
-
-		// Store the handle for this resource so that the caller
-		// may receive it.
-		*resource_handle = resource;
+		// Staging resources share the same name, but their allocation index is different.
+		//
+		// The staging index makes sure the correct buffer for this handle can be retrieved later.
+		*resource_handle = le_renderer::renderer_i.produce_buf_resource_handle(
+		    "Le-Staging-Buffer",
+		    le_resource_handle_data_t::FlagBits::eIsStaging, allocationIndex );
 	}
 
 	// Map memory so that it may be written to
@@ -2764,9 +2759,9 @@ inline void frame_release_binned_resources( BackendFrameData &frame, VmaAllocato
 static void collect_resource_infos_per_resource(
     le_renderpass_o const *const *                passes,
     size_t                                        numRenderPasses,
-    std::vector<le_resource_handle_t> const &     frame_declared_resources_id,   // | pre-declared resources (declared via module)
+    std::vector<le_resource_handle> const &       frame_declared_resources_id,   // | pre-declared resources (declared via module)
     std::vector<le_resource_info_t> const &       frame_declared_resources_info, // | info for each pre-declared resource
-    std::vector<le_resource_handle_t> &           usedResources,
+    std::vector<le_resource_handle> &             usedResources,
     std::vector<std::vector<le_resource_info_t>> &usedResourcesInfos ) {
 
 	using namespace le_renderer;
@@ -2777,7 +2772,7 @@ static void collect_resource_infos_per_resource(
 		auto pass_height           = renderpass_i.get_height( *rp );
 		auto pass_num_samples_log2 = get_sample_count_log_2( uint32_t( renderpass_i.get_sample_count( *rp ) ) );
 
-		le_resource_handle_t const *p_resources             = nullptr;
+		le_resource_handle const *  p_resources             = nullptr;
 		LeResourceUsageFlags const *p_resources_usage_flags = nullptr;
 		size_t                      resources_count         = 0;
 
@@ -2785,10 +2780,10 @@ static void collect_resource_infos_per_resource(
 
 		for ( size_t i = 0; i != resources_count; ++i ) {
 
-			le_resource_handle_t const &resource             = p_resources[ i ];             // Resource handle
+			le_resource_handle const &  resource             = p_resources[ i ];             // Resource handle
 			LeResourceUsageFlags const &resource_usage_flags = p_resources_usage_flags[ i ]; // Resource usage flags
 
-			assert( resource_usage_flags.type == resource.getResourceType() ); // Resource Usage Flags must be for matching resource type.
+			assert( resource_usage_flags.type == resource->data.type ); // Resource Usage Flags must be for matching resource type.
 
 			// Test whether a resource with this id is already in usedResources -
 			// if not, resource_index will be identical to usedResource vector size,
@@ -3039,7 +3034,7 @@ static void consolidate_resource_infos(
 // ----------------------------------------------------------------------
 
 static void insert_msaa_versions(
-    std::vector<le_resource_handle_t> &           usedResources,
+    std::vector<le_resource_handle> &             usedResources,
     std::vector<std::vector<le_resource_info_t>> &usedResourcesInfos ) {
 	// For each image resource which is specified with versions of additional sample counts
 	// we create additional resource_ids (by patching in the sample count), and add matching
@@ -3047,14 +3042,14 @@ static void insert_msaa_versions(
 
 	const size_t usedResourcesSize = usedResources.size();
 
-	std::vector<le_resource_handle_t>            msaa_resources;
+	std::vector<le_resource_handle>              msaa_resources;
 	std::vector<std::vector<le_resource_info_t>> msaa_resource_infos;
 
 	for ( size_t i = 0; i != usedResourcesSize; ++i ) {
 
-		le_resource_handle_t &resourceId = usedResources[ i ];
+		le_resource_handle &resource = usedResources[ i ];
 
-		if ( resourceId.getResourceType() != LeResourceType::eImage ) {
+		if ( resource->data.type != LeResourceType::eImage ) {
 			continue;
 		}
 		le_resource_info_t &resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
@@ -3069,21 +3064,23 @@ static void insert_msaa_versions(
 			// We found a resource with flags requesting more than just single sample.
 			// for each flag we must clone the current resource and add to extra resources
 
-			le_resource_handle_t resource_copy      = resourceId;
-			le_resource_info_t   resource_info_copy = resourceInfo;
-
 			uint16_t current_sample_count_log_2 = get_sample_count_log_2( resourceInfo.image.samplesFlags );
 
-			resource_copy.handle.as_handle.meta.as_meta.num_samples = current_sample_count_log_2;
-			resource_info_copy.image.sample_count_log2              = current_sample_count_log_2;
+			le_resource_handle resource_copy =
+			    le_renderer::renderer_i.produce_img_resource_handle(
+			        resource->data.debug_name.c_str(), current_sample_count_log_2,
+			        static_cast<le_img_resource_handle>( resource ) );
+
+			le_resource_info_t resource_info_copy = resourceInfo;
+
+			// patch original resource info to note 1 sample - we do this because
+			// we can't patch the resource handle itself, and we want resource handle and info to be in sync.
+			// by creating a new handle with the correct sample count, and copying its info,
+			// then altering the original sample count, we have two versions of the image, each with an info element in sync.
+			resourceInfo.image.sample_count_log2 = 0;
 
 			msaa_resources.push_back( resource_copy );
 			msaa_resource_infos.push_back( { resource_info_copy } );
-
-			// update the original resource to have a single sample.
-
-			resourceId.handle.as_handle.meta.as_meta.num_samples = 0;
-			resourceInfo.image.sample_count_log2                 = 0;
 		}
 	}
 
@@ -3096,13 +3093,13 @@ static void insert_msaa_versions(
 
 // ----------------------------------------------------------------------
 
-static void printResourceInfo( le_resource_handle_t const &handle, ResourceCreateInfo const &info ) {
+static void printResourceInfo( le_resource_handle const &handle, ResourceCreateInfo const &info ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	if ( info.isBuffer() ) {
-		logger.info( "% 32s : %11d : %30s : %30s", handle.debug_name, info.bufferInfo.size, "-", to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) ).c_str() );
+		logger.info( "% 32s : %11d : %30s : %30s", handle->data.debug_name.c_str(), info.bufferInfo.size, "-", to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) ).c_str() );
 	} else if ( info.isImage() ) {
 		logger.info( "% 32s : %dx%dx%d : %30s : %30s : %5s samples",
-		             handle.debug_name,
+		             handle->data.debug_name.c_str(),
 		             info.imageInfo.extent.width,
 		             info.imageInfo.extent.height,
 		             info.imageInfo.extent.depth,
@@ -3111,13 +3108,13 @@ static void printResourceInfo( le_resource_handle_t const &handle, ResourceCreat
 		             to_string( vk::SampleCountFlags( info.imageInfo.samples ) ).c_str() );
 	} else if ( info.isBlas() ) {
 		logger.info( "% 32s : %11d : (%28d) : %30s",
-		             handle.debug_name,
+		             handle->data.debug_name.c_str(),
 		             info.blasInfo.buffer_size,
 		             info.blasInfo.scratch_buffer_size,
 		             "-" );
 	} else if ( info.isTlas() ) {
 		logger.info( "% 32s : %11d : (%28d) : %30s",
-		             handle.debug_name,
+		             handle->data.debug_name.c_str(),
 		             info.tlasInfo.buffer_size,
 		             info.tlasInfo.scratch_buffer_size,
 		             "-" );
@@ -3126,7 +3123,7 @@ static void printResourceInfo( le_resource_handle_t const &handle, ResourceCreat
 
 // ----------------------------------------------------------------------
 
-static bool inferImageFormat( le_backend_o *self, le_resource_handle_t const &resource, LeImageUsageFlags const &usageFlags, ResourceCreateInfo *createInfo ) {
+static bool inferImageFormat( le_backend_o *self, le_img_resource_handle const &resource, LeImageUsageFlags const &usageFlags, ResourceCreateInfo *createInfo ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -3135,7 +3132,7 @@ static bool inferImageFormat( le_backend_o *self, le_resource_handle_t const &re
 	auto inferred_format = infer_image_format_from_le_image_usage_flags( self, usageFlags );
 
 	if ( inferred_format == le::Format::eUndefined ) {
-		logger.error( "Fatal: Cannot infer image format, resource underspecified: '%s'", resource.debug_name );
+		logger.error( "Fatal: Cannot infer image format, resource underspecified: '%s'", resource->data.debug_name.c_str() );
 		logger.error( "Specify usage, or provide explicit format option for resource to fix this error. " );
 		logger.error( "Consider using le::RenderModule::declareResource()" );
 
@@ -3186,9 +3183,9 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o *instance,
 
 		vk::DebugUtilsObjectNameInfoEXT nameInfo;
 
-		nameInfo.setPObjectName( r.first.debug_name );
+		nameInfo.setPObjectName( r.first->data.debug_name.c_str() );
 
-		switch ( r.first.getResourceType() ) {
+		switch ( r.first->data.type ) {
 		case LeResourceType::eImage:
 			nameInfo.setObjectType( vk::ObjectType::eImage );
 			nameInfo.setObjectHandle( reinterpret_cast<uint64_t>( r.second.as.image ) );
@@ -3256,7 +3253,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	// in a separate step. That way, we can first make sure all flags are combined,
 	// before we make sure to we find a valid image format which matches all uses...
 	//
-	std::vector<le_resource_handle_t>            usedResources;      // (
+	std::vector<le_resource_handle>              usedResources;      // (
 	std::vector<std::vector<le_resource_info_t>> usedResourcesInfos; // ( usedResourceInfos[index] contains vector of usages for usedResource[index]
 
 	collect_resource_infos_per_resource(
@@ -3286,14 +3283,14 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 	const size_t usedResourcesCount = usedResources.size();
 	for ( size_t i = 0; i != usedResourcesCount; ++i ) {
 
-		le_resource_handle_t const &resourceId   = usedResources[ i ];
-		le_resource_info_t const &  resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
+		le_resource_handle const &resource     = usedResources[ i ];
+		le_resource_info_t const &resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
 
 		// See if a resource with this id is already available to the frame
 		// This may be the case with a swapchain image resource for example,
 		// as it is allocated and managed from within the swapchain, not here.
 		//
-		if ( frame.availableResources.find( resourceId ) != frame.availableResources.end() ) {
+		if ( frame.availableResources.find( resource ) != frame.availableResources.end() ) {
 			// Resource is already available to and present in the frame.
 			continue;
 		}
@@ -3304,7 +3301,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		// if that is not the chase, check if the resource is available to the frame.
 
 		auto       resourceCreateInfo = ResourceCreateInfo::from_le_resource_info( resourceInfo, &self->queueFamilyIndexGraphics, 0 );
-		auto       foundIt            = backendResources.find( resourceId );
+		auto       foundIt            = backendResources.find( resource );
 		const bool resourceIdNotFound = ( foundIt == backendResources.end() );
 
 		if ( resourceIdNotFound ) {
@@ -3317,7 +3314,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				patchImageUsageForMipLevels( &resourceCreateInfo );
 
 				if ( resourceCreateInfo.imageInfo.format == VK_FORMAT_UNDEFINED ) {
-					inferImageFormat( self, resourceId, resourceInfo.image.usage, &resourceCreateInfo );
+					inferImageFormat( self, static_cast<le_img_resource_handle>( resource ), resourceInfo.image.usage, &resourceCreateInfo );
 				}
 			}
 
@@ -3325,15 +3322,15 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 			if ( PRINT_DEBUG_MESSAGES || true ) {
 				//				logger.info( "Allocated resource: " );
-				printResourceInfo( resourceId, allocatedResource.info );
+				printResourceInfo( resource, allocatedResource.info );
 			}
 
 			// Add resource to map of available resources for this frame
-			frame.availableResources.insert_or_assign( resourceId, allocatedResource );
+			frame.availableResources.insert_or_assign( resource, allocatedResource );
 
 			// Add this newly allocated resource to the backend so that the following frames
 			// may use it, too
-			backendResources.insert_or_assign( resourceId, allocatedResource );
+			backendResources.insert_or_assign( resource, allocatedResource );
 
 		} else {
 
@@ -3351,7 +3348,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				// -- found info is either equal or a superset
 
 				// Add a copy of this resource allocation to the current frame.
-				frame.availableResources.emplace( resourceId, foundIt->second );
+				frame.availableResources.emplace( resource, foundIt->second );
 
 			} else {
 
@@ -3364,7 +3361,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				if ( resourceCreateInfo.isImage() ) {
 					patchImageUsageForMipLevels( &resourceCreateInfo );
 					if ( resourceCreateInfo.imageInfo.format == VK_FORMAT_UNDEFINED ) {
-						inferImageFormat( self, resourceId, resourceInfo.image.usage, &resourceCreateInfo );
+						inferImageFormat( self, static_cast<le_img_resource_handle>( resource ), resourceInfo.image.usage, &resourceCreateInfo );
 					}
 				}
 
@@ -3372,7 +3369,7 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 
 				if ( PRINT_DEBUG_MESSAGES || true ) {
 					logger.info( "Re-allocated resource: " );
-					printResourceInfo( resourceId, allocatedResource.info );
+					printResourceInfo( resource, allocatedResource.info );
 				}
 
 				// Add a copy of old resource to recycling bin for this frame, so that
@@ -3380,14 +3377,14 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 				//
 				// We don't immediately delete the resources, as in-flight (preceding) frames
 				// might still be using them.
-				frame.binnedResources.try_emplace( resourceId, foundIt->second );
+				frame.binnedResources.try_emplace( resource, foundIt->second );
 
 				// add the new version of the resource to frame available resources
-				frame.availableResources.insert_or_assign( resourceId, allocatedResource );
+				frame.availableResources.insert_or_assign( resource, allocatedResource );
 
 				// Remove old version of resource from backend, and
 				// add new version of resource to backend
-				backendResources.insert_or_assign( resourceId, allocatedResource );
+				backendResources.insert_or_assign( resource, allocatedResource );
 			}
 		}
 	} // end for all used resources
@@ -3407,8 +3404,8 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 		const size_t usedResourcesCount = usedResources.size();
 		for ( size_t i = 0; i != usedResourcesCount; ++i ) {
 
-			le_resource_handle_t const &resourceId   = usedResources[ i ];
-			le_resource_info_t const &  resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
+			le_resource_handle const &resourceId   = usedResources[ i ];
+			le_resource_info_t const &resourceInfo = usedResourcesInfos[ i ][ 0 ]; ///< consolidated resource info for this resource over all passes
 
 			if ( resourceInfo.type == LeResourceType::eRtxBlas &&
 			     ( resourceInfo.blas.usage & LE_RTX_BLAS_BUILD_BIT ) ) {
@@ -3447,13 +3444,13 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			if ( r.second.info.isBuffer() ) {
 				logger.info( "%10s : %37s : %30p",
 				             "Buffer",
-				             r.first.debug_name,
+				             r.first->data.debug_name.c_str(),
 				             r.second.as.buffer );
 			} else {
 				logger.info( "%10s : %30s (s: %2d) : %30p",
 				             "Image",
-				             r.first.debug_name,
-				             1 << r.first.handle.as_handle.meta.as_meta.num_samples,
+				             r.first->data.debug_name.c_str(),
+				             1 << r.first->data.num_samples,
 				             r.second.as.buffer );
 			}
 		}
@@ -3483,18 +3480,18 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 			continue;
 		}
 
-		const le_resource_handle_t *resources      = nullptr;
+		const le_resource_handle *  resources      = nullptr;
 		const LeResourceUsageFlags *resource_usage = nullptr;
 		size_t                      resource_count = 0;
 
 		renderpass_i.get_used_resources( *p, &resources, &resource_usage, &resource_count );
 
 		for ( size_t i = 0; i != resource_count; ++i ) {
-			auto const &r             = resources[ i ];
 			auto const &r_usage_flags = resource_usage[ i ];
 
 			if ( r_usage_flags.type == LeResourceType::eImage &&
 			     ( r_usage_flags.as.image_usage_flags & ( LE_IMAGE_USAGE_SAMPLED_BIT | LE_IMAGE_USAGE_STORAGE_BIT ) ) ) {
+				auto const &r = static_cast<le_img_resource_handle>( resources[ i ] );
 
 				// We create a default image view for this image and store it with the frame. If no explicit image view
 				// for a particular operation has been specified, this default image view is used.
@@ -3509,12 +3506,15 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 				// unspecified formats which get automatically inferred, in which case we want
 				// to set the format to whatever was inferred when the image was allocated and placed
 				// in available resources.
-				vk::Format imageFormat = vk::Format( frame_data_get_image_format_from_resource_id( frame, r ) );
+
+				AllocatedResourceVk const &vk_resource_info = frame_data_get_allocated_resource_from_resource_id( frame, r );
+
+				vk::Format imageFormat = vk::Format( vk_resource_info.info.imageInfo.format );
 
 				// If the format is still undefined at this point, we can only throw our hands up in the air...
 				//
 				if ( imageFormat == vk::Format::eUndefined ) {
-					logger.warn( "Cannot create default view for image: '%s;, as format is unspecified", r.debug_name );
+					logger.warn( "Cannot create default view for image: '%s;, as format is unspecified", r->data.debug_name.c_str() );
 					continue;
 				}
 
@@ -3529,7 +3529,7 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 				vk::ImageViewCreateInfo imageViewCreateInfo{};
 				imageViewCreateInfo
 				    .setFlags( {} )
-				    .setImage( frame_data_get_image_from_le_resource_id( frame, r ) )
+				    .setImage( vk_resource_info.as.image )
 				    .setViewType( vk::ImageViewType::e2D )
 				    .setFormat( imageFormat )
 				    .setComponents( {} ) // default component mapping
@@ -3671,13 +3671,13 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 // This is one of the most important methods of backend -
 // where we associate virtual with physical resources, allocate physical
 // resources as needed, and keep track of sync state of physical resources.
-static bool backend_acquire_physical_resources( le_backend_o *              self,
-                                                size_t                      frameIndex,
-                                                le_renderpass_o **          passes,
-                                                size_t                      numRenderPasses,
-                                                le_resource_handle_t const *declared_resources,
-                                                le_resource_info_t const *  declared_resources_infos,
-                                                size_t const &              declared_resources_count ) {
+static bool backend_acquire_physical_resources( le_backend_o *            self,
+                                                size_t                    frameIndex,
+                                                le_renderpass_o **        passes,
+                                                size_t                    numRenderPasses,
+                                                le_resource_handle const *declared_resources,
+                                                le_resource_info_t const *declared_resources_infos,
+                                                size_t const &            declared_resources_count ) {
 
 	auto &frame = self->mFrames[ frameIndex ];
 
@@ -3768,6 +3768,8 @@ static bool backend_acquire_physical_resources( le_backend_o *              self
 	// this state will be the initial state for the resource
 
 	{
+
+		static le_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
 		// Update final sync state for each pre-existing backend resource.
 		auto &backendResources = self->only_backend_allocate_resources_may_access.allocatedResources;
 		for ( auto const &tbl : frame.syncChainTable ) {
@@ -3844,9 +3846,11 @@ static le_allocator_o **backend_create_transient_allocators( le_backend_o *self,
 		createInfo.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 		createInfo.pool  = frame.allocationPool; // Since we're allocating from a pool all fields but .flags will be taken from the pool
 
-		le_resource_handle_t res = declare_resource_virtual_buffer( uint8_t( i ) );
+		le_buf_resource_handle res = declare_resource_virtual_buffer( uint8_t( i ) );
 
-		createInfo.pUserData = &res;
+		// FIXME: we cannot copy all the information for the resource specialisation, as it is wider than 64 bits
+		// and puserdata only gives us space for 64 bits.
+		createInfo.pUserData = res;
 
 		VkBufferCreateInfo bufferCreateInfo;
 		{
@@ -4253,7 +4257,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 				// ---------| invariant: barrier is active.
 
-				auto const &syncChain = frame.syncChainTable[ op.resource_id ];
+				auto const &syncChain = frame.syncChainTable[ op.resource ];
 
 				auto const &stateInitial = syncChain[ op.sync_chain_offset_initial ];
 				auto const &stateFinal   = syncChain[ op.sync_chain_offset_final ];
@@ -4266,10 +4270,10 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// --------| invariant: barrier is active.
 
 						// print out sync chain for sampled image
-						logger.debug( "\t Explicit Barrier for: %s (s: %d)", op.resource_id.debug_name, 1 << op.resource_id.getNumSamples() );
+						logger.debug( "\t Explicit Barrier for: %s (s: %d)", op.resource->data.debug_name.c_str(), 1 << op.resource->data.num_samples );
 						logger.debug( "\t % 3s : % 30s : % 30s : % 10s", "#", "visible_access", "write_stage", "layout" );
 
-						auto const &syncChain = frame.syncChainTable.at( op.resource_id );
+						auto const &syncChain = frame.syncChainTable.at( op.resource );
 
 						for ( size_t i = op.sync_chain_offset_initial; i <= op.sync_chain_offset_final; i++ ) {
 							auto const &s = syncChain[ i ];
@@ -4280,7 +4284,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						}
 					}
 
-					auto dstImage = frame_data_get_image_from_le_resource_id( frame, op.resource_id );
+					auto dstImage = frame_data_get_image_from_le_resource_id( frame, static_cast<le_img_resource_handle>( op.resource ) );
 
 					vk::ImageSubresourceRange rangeAllMiplevels;
 					rangeAllMiplevels
@@ -4353,22 +4357,23 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 		ArgumentState argumentState{};
 
 		struct RtxState {
-			bool                 is_set;
-			le_resource_handle_t sbt_buffer; // shader binding table buffer
-			uint64_t             ray_gen_sbt_offset;
-			uint64_t             ray_gen_sbt_size;
-			uint64_t             miss_sbt_offset;
-			uint64_t             miss_sbt_stride;
-			uint64_t             miss_sbt_size;
-			uint64_t             hit_sbt_offset;
-			uint64_t             hit_sbt_stride;
-			uint64_t             hit_sbt_size;
-			uint64_t             callable_sbt_offset;
-			uint64_t             callable_sbt_stride;
-			uint64_t             callable_sbt_size;
+			bool               is_set;
+			le_resource_handle sbt_buffer; // shader binding table buffer
+			uint64_t           ray_gen_sbt_offset;
+			uint64_t           ray_gen_sbt_size;
+			uint64_t           miss_sbt_offset;
+			uint64_t           miss_sbt_stride;
+			uint64_t           miss_sbt_size;
+			uint64_t           hit_sbt_offset;
+			uint64_t           hit_sbt_stride;
+			uint64_t           hit_sbt_size;
+			uint64_t           callable_sbt_offset;
+			uint64_t           callable_sbt_stride;
+			uint64_t           callable_sbt_size;
 		};
 
-		RtxState rtx_state{}; // used to keep track of shader binding tables bound with rtx pipelines.
+		RtxState                      rtx_state{};                                                                      // used to keep track of shader binding tables bound with rtx pipelines.
+		static le_buf_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
 
 		if ( pass.encoder ) {
 			encoder_i.get_encoded_data( pass.encoder, &commandStream, &dataSize, &numCommands );
@@ -5047,7 +5052,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto foundImgView = frame.imageViews.find( le_cmd->info.image_id );
 					if ( foundImgView == frame.imageViews.end() ) {
 						logger.error( "Could not find image view for image: '%s', ignoring image binding command.",
-						              le_cmd->info.image_id.debug_name );
+						              le_cmd->info.image_id->data.debug_name.c_str() );
 						break;
 					}
 
@@ -5350,7 +5355,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto *le_cmd = static_cast<le::CommandBuildRtxBlas *>( dataIt );
 
 					size_t     num_blas_handles  = le_cmd->info.blas_handles_count;
-					auto const blas_handle_begin = reinterpret_cast<le_resource_handle_t *>( le_cmd + 1 );
+					auto const blas_handle_begin = reinterpret_cast<le_resource_handle *>( le_cmd + 1 );
 
 					auto const blas_end = blas_handle_begin + num_blas_handles;
 
@@ -5460,7 +5465,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 				case le::CommandType::eBuildRtxTlas: {
 					auto *                      le_cmd              = static_cast<le::CommandBuildRtxTlas *>( dataIt );
 					void *                      payload_addr        = le_cmd + 1;
-					le_resource_handle_t const *resources           = static_cast<le_resource_handle_t *>( payload_addr );
+					le_resource_handle const *  resources           = static_cast<le_resource_handle *>( payload_addr );
 					void *                      scratch_memory_addr = le_cmd->info.staging_buffer_mapped_memory;
 					le_rtx_geometry_instance_t *instances           = static_cast<le_rtx_geometry_instance_t *>( scratch_memory_addr );
 

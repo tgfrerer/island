@@ -14,9 +14,9 @@
 
 static void
 le_render_module_add_blit_pass(
-    le_render_module_o *        module,
-    le_resource_handle_t const &input,
-    le_resource_handle_t const &output ) {
+    le_render_module_o *          module,
+    le_img_resource_handle const &input,
+    le_img_resource_handle const &output ) {
 
 	static auto SRC_TEX_UNIT_0 = le::Renderer::produceTextureHandle( "src_tex_unit_0" );
 
@@ -55,12 +55,12 @@ le_render_module_add_blit_pass(
 
 static void
 le_render_module_add_bloom_pass(
-    le_render_module_o *         module,
-    le_resource_handle_t const & input,
-    le_resource_handle_t const & output,
-    uint32_t const &             width,
-    uint32_t const &             height,
-    le_bloom_pass_api::params_t *params ) {
+    le_render_module_o *          module,
+    le_img_resource_handle const &input,
+    le_img_resource_handle const &output,
+    uint32_t const &              width,
+    uint32_t const &              height,
+    le_bloom_pass_api::params_t * params ) {
 
 	// we must introduce all transient resources
 
@@ -77,7 +77,7 @@ le_render_module_add_bloom_pass(
 	static auto samplerInfoImgInput = le::ImageSamplerInfoBuilder( input ).build();
 
 	struct RenderTarget {
-		le_resource_handle_t    image;
+		le_img_resource_handle  image;
 		le_image_sampler_info_t info;
 	};
 

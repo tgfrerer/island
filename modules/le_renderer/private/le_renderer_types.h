@@ -20,7 +20,9 @@
 
 #define LE_RESOURCE_LABEL_LENGTH 32 // (no-hotreload) set to zero to disable storing name (for debug printouts) with resource handles
 
-enum class LeResourceType : uint8_t {
+LE_OPAQUE_HANDLE( le_texture_handle );
+
+enum class LeResourceType : uint32_t {
 	eUndefined = 0,
 	eBuffer,
 	eImage,
@@ -28,137 +30,140 @@ enum class LeResourceType : uint8_t {
 	eRtxTlas, // top level acceleration structure
 };
 
-LE_OPAQUE_HANDLE( le_texture_handle );
+//struct le_resource_handle {
 
-struct le_resource_handle_t {
+//	enum FlagBits : uint8_t {
+//		eIsVirtual = 1u << 0,
+//		eIsStaging = 1u << 1,
+//	};
 
-	enum FlagBits : uint8_t {
-		eIsVirtual = 1u << 0,
-		eIsStaging = 1u << 1,
-	};
+//	union Meta {
+//		struct Data {
+//			LeResourceType type;
+//			uint8_t        flags; // used for virtual resources: staging or virtual
+//			union {
+//				uint16_t num_samples; // If used as image : refers to number of samples (stored as log_2 values, where 0 means 1, 1 means 2..)
+//				uint16_t index;       // If used as buffer: refers to index of staging buffer or allocator buffer, depending on type
+//			};
+//		} as_meta;
+//		uint32_t as_data;
+//	};
 
-	union Meta {
-		struct Data {
-			LeResourceType type;
-			uint8_t        flags; // used for virtual resources: staging or virtual
-			union {
-				uint16_t num_samples; // If used as image : refers to number of samples (stored as log_2 values, where 0 means 1, 1 means 2..)
-				uint16_t index;       // If used as buffer: refers to index of staging buffer or allocator buffer, depending on type
-			};
-		} as_meta;
-		uint32_t as_data;
-	};
+//	union Handle {
+//		struct Data {
+//			uint32_t name_hash; // 32b
+//			Meta     meta;      // 32b
+//		} as_handle;
 
-	union Handle {
-		struct Data {
-			uint32_t name_hash; // 32b
-			Meta     meta;      // 32b
-		} as_handle;
+//		uint64_t as_data;
+//	} handle; // end union handle_data
 
-		uint64_t as_data;
-	} handle; // end union handle_data
+//	inline const LeResourceType &getResourceType() const noexcept {
+//		return handle.as_handle.meta.as_meta.type;
+//	}
 
-	inline const LeResourceType &getResourceType() const noexcept {
-		return handle.as_handle.meta.as_meta.type;
-	}
+//	inline const uint16_t &getNumSamples() const noexcept {
+//		return handle.as_handle.meta.as_meta.num_samples;
+//	}
 
-	inline const uint16_t &getNumSamples() const noexcept {
-		return handle.as_handle.meta.as_meta.num_samples;
-	}
+//	inline const uint16_t &getIndex() const noexcept {
+//		return handle.as_handle.meta.as_meta.index;
+//	}
 
-	inline const uint16_t &getIndex() const noexcept {
-		return handle.as_handle.meta.as_meta.index;
-	}
+//	inline const uint8_t &getFlags() const noexcept {
+//		return handle.as_handle.meta.as_meta.flags;
+//	}
 
-	inline const uint8_t &getFlags() const noexcept {
-		return handle.as_handle.meta.as_meta.flags;
-	}
+//	inline operator uint64_t() const noexcept {
+//		return handle.as_data;
+//	}
 
-	inline operator uint64_t() const noexcept {
-		return handle.as_data;
-	}
+//#if LE_RESOURCE_LABEL_LENGTH > 0
+//	char debug_name[ LE_RESOURCE_LABEL_LENGTH ];
+//#else
+//	char const *debug_name = "unknown";
+//#endif
+//};
 
-#if LE_RESOURCE_LABEL_LENGTH > 0
-	char debug_name[ LE_RESOURCE_LABEL_LENGTH ];
-#else
-	char const *debug_name = "unknown";
-#endif
-};
+//static inline bool operator==( le_resource_handle const &lhs, le_resource_handle const &rhs ) noexcept {
+//	return lhs.handle.as_data == rhs.handle.as_data;
+//}
 
-static inline bool operator==( le_resource_handle_t const &lhs, le_resource_handle_t const &rhs ) noexcept {
-	return lhs.handle.as_data == rhs.handle.as_data;
-}
+//static inline bool operator!=( le_resource_handle const &lhs, le_resource_handle const &rhs ) noexcept {
+//	return !( lhs == rhs );
+//}
 
-static inline bool operator!=( le_resource_handle_t const &lhs, le_resource_handle_t const &rhs ) noexcept {
-	return !( lhs == rhs );
-}
+//constexpr le_resource_handle LE_RESOURCE( const char *const str, const LeResourceType tp ) noexcept {
+//	le_resource_handle h{};
+//	h.handle.as_handle.name_hash         = hash_32_fnv1a_const( str );
+//	h.handle.as_handle.meta.as_meta.type = tp;
 
-constexpr le_resource_handle_t LE_RESOURCE( const char *const str, const LeResourceType tp ) noexcept {
-	le_resource_handle_t h{};
-	h.handle.as_handle.name_hash         = hash_32_fnv1a_const( str );
-	h.handle.as_handle.meta.as_meta.type = tp;
+//#if ( LE_RESOURCE_LABEL_LENGTH > 0 )
+//	auto c = str;
+//	int  i = 0;
+//	while ( *c != '\0' ) {
+//		if ( i == LE_RESOURCE_LABEL_LENGTH - 1 ) {
+//			// If given string is longer than length reserved for label, we must
+//			// push everything forward, and insert at the end, so that the label
+//			// is more likely to contain the most significant elements.
+//			for ( int j = 0; j != LE_RESOURCE_LABEL_LENGTH - 2; ++j ) { h.debug_name[ j ] = h.debug_name[ j + 1 ];
+//				h.debug_name[ 0 ] = char( 0xE2 ); // 0xE2 0x80 0xA6 -- utf-8 ellipsis
+//				h.debug_name[ 1 ] = char( 0x80 );
+//				h.debug_name[ 2 ] = char( 0xA6 );
+//			}
+//			i = LE_RESOURCE_LABEL_LENGTH - 2;
+//		}
+//		h.debug_name[ i++ ] = *c++;
+//	}
+//#else
+//	h.debug_name           = str;
+//#endif
+//	return h;
+//}
 
-#if ( LE_RESOURCE_LABEL_LENGTH > 0 )
-	auto c = str;
-	int  i = 0;
-	while ( *c != '\0' ) {
-		if ( i == LE_RESOURCE_LABEL_LENGTH - 1 ) {
-			// If given string is longer than length reserved for label, we must
-			// push everything forward, and insert at the end, so that the label
-			// is more likely to contain the most significant elements.
-			for ( int j = 0; j != LE_RESOURCE_LABEL_LENGTH - 2; ++j ) {
-				h.debug_name[ j ] = h.debug_name[ j + 1 ];
-				h.debug_name[ 0 ] = char( 0xE2 ); // 0xE2 0x80 0xA6 -- utf-8 ellipsis
-				h.debug_name[ 1 ] = char( 0x80 );
-				h.debug_name[ 2 ] = char( 0xA6 );
-			}
-			i = LE_RESOURCE_LABEL_LENGTH - 2;
-		}
-		h.debug_name[ i++ ] = *c++;
-	}
-#else
-	h.debug_name           = str;
-#endif
-	return h;
-}
+//struct LeResourceHandleIdentity {
+//	inline uint64_t operator()( const le_resource_handle &key_ ) const noexcept {
+//		return key_.handle.as_data;
+//	}
+//};
 
-struct LeResourceHandleIdentity {
-	inline uint64_t operator()( const le_resource_handle_t &key_ ) const noexcept {
-		return key_.handle.as_data;
-	}
-};
+//constexpr le_resource_handle LE_IMG_RESOURCE( const char *str ) noexcept {
+//	return LE_RESOURCE( str, LeResourceType::eImage );
+//}
 
-constexpr le_resource_handle_t LE_IMG_RESOURCE( const char *str ) noexcept {
-	return LE_RESOURCE( str, LeResourceType::eImage );
-}
+//constexpr le_resource_handle LE_BUF_RESOURCE( const char *str ) noexcept {
+//	return LE_RESOURCE( str, LeResourceType::eBuffer );
+//}
 
-constexpr le_resource_handle_t LE_BUF_RESOURCE( const char *str ) noexcept {
-	return LE_RESOURCE( str, LeResourceType::eBuffer );
-}
+//constexpr static le_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE  = LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[0]" ); // default opaque swapchain image handle
+//constexpr static uint32_t             LE_SWAPCHAIN_HANDLES_COUNT = 16;
 
-constexpr static le_resource_handle_t LE_SWAPCHAIN_IMAGE_HANDLE  = LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[0]" ); // default opaque swapchain image handle
-constexpr static uint32_t             LE_SWAPCHAIN_HANDLES_COUNT = 16;
+//constexpr static le_resource_handle LE_SWAPCHAIN_IMAGE_HANDLES[ LE_SWAPCHAIN_HANDLES_COUNT ] = {
+//    LE_SWAPCHAIN_IMAGE_HANDLE,
+//    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[1]" ),
+//    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[2]" ),
+//    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[3]" ),
+//    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[4]" ),
+//    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[5]" ),
+//    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[6]" ),
+//    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[7]" ),
+//    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[8]" ),
+//    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[9]" ),
+//    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[10]" ),
+//    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[11]" ),
+//    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[12]" ),
+//    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[13]" ),
+//    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[14]" ),
+//    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[15]" ),
+//};
 
-constexpr static le_resource_handle_t LE_SWAPCHAIN_IMAGE_HANDLES[ LE_SWAPCHAIN_HANDLES_COUNT ] = {
-    LE_SWAPCHAIN_IMAGE_HANDLE,
-    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[1]" ),
-    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[2]" ),
-    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[3]" ),
-    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[4]" ),
-    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[5]" ),
-    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[6]" ),
-    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[7]" ),
-    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[8]" ),
-    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[9]" ),
-    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[10]" ),
-    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[11]" ),
-    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[12]" ),
-    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[13]" ),
-    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[14]" ),
-    LE_IMG_RESOURCE( "Le_Swapchain_Image_Handle[15]" ),
-};
+//constexpr static le_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
 
-constexpr static le_resource_handle_t LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
+LE_OPAQUE_HANDLE( le_resource_handle );
+LE_OPAQUE_HANDLE( le_img_resource_handle );
+LE_OPAQUE_HANDLE( le_buf_resource_handle );
+LE_OPAQUE_HANDLE( le_blas_resource_handle );
+LE_OPAQUE_HANDLE( le_tlas_resource_handle );
 
 enum LeRenderPassType : uint32_t {
 	LE_RENDER_PASS_TYPE_UNDEFINED = 0,
@@ -1099,11 +1104,11 @@ struct le_sampler_info_t {
 
 struct le_image_sampler_info_t {
 	struct le_image_view_info_t {
-		le_resource_handle_t imageId{}; // le image resource id
-		le::Format           format{};  // leave at 0 (undefined) to use format of image referenced by `imageId`
-		le::ImageViewType    image_view_type{ le::ImageViewType::e2D };
-		uint32_t             base_array_layer{ 0 };
-		uint32_t             layer_count{ 1 };
+		le_img_resource_handle imageId{}; // le image resource id
+		le::Format             format{};  // leave at 0 (undefined) to use format of image referenced by `imageId`
+		le::ImageViewType      image_view_type{ le::ImageViewType::e2D };
+		uint32_t               base_array_layer{ 0 };
+		uint32_t               layer_count{ 1 };
 	};
 	le_sampler_info_t    sampler{};
 	le_image_view_info_t imageView{};
@@ -1365,7 +1370,7 @@ class ImageSamplerInfoBuilder {
 		    : parent( parent_ ) {
 		}
 
-		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setImage, le_resource_handle_t, imageId, = {} )
+		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setImage, le_img_resource_handle, imageId, = {} )
 		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setImageViewType, le::ImageViewType, image_view_type, = le::ImageViewType::e2D )
 		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setFormat, le::Format, format, = le::Format::eUndefined )
 		BUILDER_IMPLEMENT( ImageViewInfoBuilder, setBaseArrayLayer, uint32_t, base_array_layer, = 0 )
@@ -1387,7 +1392,7 @@ class ImageSamplerInfoBuilder {
 	    : info( info_ ) {
 	}
 
-	ImageSamplerInfoBuilder( le_resource_handle_t const &image_resource ) {
+	ImageSamplerInfoBuilder( le_img_resource_handle const &image_resource ) {
 		info.imageView.imageId = image_resource;
 	}
 
@@ -1472,16 +1477,16 @@ struct le_rtx_shader_group_info {
 };
 
 struct le_rtx_geometry_t {
-	le_resource_handle_t vertex_buffer;
-	uint32_t             vertex_offset; // offset into vertex buffer
-	uint32_t             vertex_count;  // number of vertices
-	uint32_t             vertex_stride; // should default to size_for(vertex_format)
-	le::Format           vertex_format; //
+	le_buf_resource_handle vertex_buffer;
+	uint32_t               vertex_offset; // offset into vertex buffer
+	uint32_t               vertex_count;  // number of vertices
+	uint32_t               vertex_stride; // should default to size_for(vertex_format)
+	le::Format             vertex_format; //
 
-	le_resource_handle_t index_buffer;
-	uint32_t             index_offset;
-	uint32_t             index_count;
-	le::IndexType        index_type;
+	le_buf_resource_handle index_buffer;
+	uint32_t               index_offset;
+	uint32_t               index_count;
+	le::IndexType          index_type;
 };
 
 // Ray tracing geometry instance
@@ -1727,12 +1732,12 @@ struct CommandDispatch {
 struct CommandBufferMemoryBarrier {
 	CommandHeader header = { { { CommandType::eBufferMemoryBarrier, sizeof( CommandBufferMemoryBarrier ) } } };
 	struct {
-		LePipelineStageFlags srcStageMask;
-		LePipelineStageFlags dstStageMask;
-		LeAccessFlags        dstAccessMask;
-		le_resource_handle_t buffer;
-		uint64_t             offset;
-		uint64_t             range;
+		LePipelineStageFlags   srcStageMask;
+		LePipelineStageFlags   dstStageMask;
+		LeAccessFlags          dstAccessMask;
+		le_buf_resource_handle buffer;
+		uint64_t               offset;
+		uint64_t               range;
 
 	} info;
 };
@@ -1765,11 +1770,11 @@ struct CommandSetPushConstantData {
 struct CommandBuildRtxTlas {
 	CommandHeader header = { { { CommandType::eBuildRtxTlas, sizeof( CommandBuildRtxTlas ) } } };
 	struct {
-		le_resource_handle_t tlas_handle;
-		uint32_t             geometry_instances_count;     // number of geometry instances for this tlas
-		uint32_t             staging_buffer_offset;        // offset into staging buffer for geometry instance data
-		le_resource_handle_t staging_buffer_id;            // staging buffer which stores geometry instance data
-		void *               staging_buffer_mapped_memory; // address of mapped area on staging buffer.
+		le_resource_handle tlas_handle;
+		uint32_t           geometry_instances_count;     // number of geometry instances for this tlas
+		uint32_t           staging_buffer_offset;        // offset into staging buffer for geometry instance data
+		le_resource_handle staging_buffer_id;            // staging buffer which stores geometry instance data
+		void *             staging_buffer_mapped_memory; // address of mapped area on staging buffer.
 	} info;
 };
 
@@ -1801,18 +1806,18 @@ struct CommandSetArgumentTexture {
 struct CommandSetArgumentImage {
 	CommandHeader header = { { { CommandType::eSetArgumentImage, sizeof( CommandSetArgumentImage ) } } };
 	struct {
-		uint64_t             argument_name_id; // const_char_hash id of argument name
-		le_resource_handle_t image_id;         // image resource id,
-		uint64_t             array_index;      // argument array index (default is 0)
+		uint64_t               argument_name_id; // const_char_hash id of argument name
+		le_img_resource_handle image_id;         // image resource id,
+		uint64_t               array_index;      // argument array index (default is 0)
 	} info;
 };
 
 struct CommandSetArgumentTlas {
 	CommandHeader header = { { { CommandType::eSetArgumentTlas, sizeof( CommandSetArgumentTlas ) } } };
 	struct {
-		uint64_t             argument_name_id; // const_char_hash id of argument name
-		le_resource_handle_t tlas_id;          // top level acceleration structure resource id,
-		uint64_t             array_index;      // argument array index (default is 0)
+		uint64_t           argument_name_id; // const_char_hash id of argument name
+		le_resource_handle tlas_id;          // top level acceleration structure resource id,
+		uint64_t           array_index;      // argument array index (default is 0)
 	} info;
 };
 
@@ -1820,10 +1825,10 @@ struct CommandSetArgumentTlas {
 struct CommandBindArgumentBuffer {
 	CommandHeader header = { { { CommandType::eBindArgumentBuffer, sizeof( CommandBindArgumentBuffer ) } } };
 	struct {
-		uint64_t             argument_name_id; // const_char_hash id of argument name
-		le_resource_handle_t buffer_id;        // id of buffer that holds data
-		uint64_t             offset;           // offset into buffer
-		uint64_t             range;            // size of argument data in bytes
+		uint64_t               argument_name_id; // const_char_hash id of argument name
+		le_buf_resource_handle buffer_id;        // id of buffer that holds data
+		uint64_t               offset;           // offset into buffer
+		uint64_t               range;            // size of argument data in bytes
 	} info;
 };
 
@@ -1838,20 +1843,20 @@ struct CommandSetLineWidth {
 struct CommandBindVertexBuffers {
 	CommandHeader header = { { { CommandType::eBindVertexBuffers, sizeof( CommandBindVertexBuffers ) } } };
 	struct {
-		uint32_t              firstBinding;
-		uint32_t              bindingCount;
-		le_resource_handle_t *pBuffers;
-		uint64_t *            pOffsets;
+		uint32_t                firstBinding;
+		uint32_t                bindingCount;
+		le_buf_resource_handle *pBuffers;
+		uint64_t *              pOffsets;
 	} info;
 };
 
 struct CommandBindIndexBuffer {
 	CommandHeader header = { { { CommandType::eBindIndexBuffer, sizeof( CommandBindIndexBuffer ) } } };
 	struct {
-		le_resource_handle_t buffer; // buffer id
-		uint64_t             offset;
-		le::IndexType        indexType;
-		uint32_t             padding;
+		le_buf_resource_handle buffer; // buffer id
+		uint64_t               offset;
+		le::IndexType          indexType;
+		uint32_t               padding;
 	} info;
 };
 
@@ -1878,29 +1883,29 @@ struct CommandBindRtxPipeline {
 		uint64_t descriptor_set_layout_keys[ 8 ];
 		uint64_t descriptor_set_layout_count;
 
-		le_resource_handle_t sbt_buffer;
-		uint64_t             ray_gen_sbt_offset;
-		uint64_t             ray_gen_sbt_size;
-		uint64_t             miss_sbt_offset;
-		uint64_t             miss_sbt_stride;
-		uint64_t             miss_sbt_size;
-		uint64_t             hit_sbt_offset;
-		uint64_t             hit_sbt_stride;
-		uint64_t             hit_sbt_size;
-		uint64_t             callable_sbt_offset;
-		uint64_t             callable_sbt_stride;
-		uint64_t             callable_sbt_size;
+		le_buf_resource_handle sbt_buffer;
+		uint64_t               ray_gen_sbt_offset;
+		uint64_t               ray_gen_sbt_size;
+		uint64_t               miss_sbt_offset;
+		uint64_t               miss_sbt_stride;
+		uint64_t               miss_sbt_size;
+		uint64_t               hit_sbt_offset;
+		uint64_t               hit_sbt_stride;
+		uint64_t               hit_sbt_size;
+		uint64_t               callable_sbt_offset;
+		uint64_t               callable_sbt_stride;
+		uint64_t               callable_sbt_size;
 	} info;
 };
 
 struct CommandWriteToBuffer {
 	CommandHeader header = { { { CommandType::eWriteToBuffer, sizeof( CommandWriteToBuffer ) } } };
 	struct {
-		le_resource_handle_t src_buffer_id; // le buffer id of scratch buffer
-		le_resource_handle_t dst_buffer_id; // which resource to write to
-		uint64_t             src_offset;    // offset in scratch buffer where to find source data
-		uint64_t             dst_offset;    // offset where to write to in target resource
-		uint64_t             numBytes;      // number of bytes
+		le_buf_resource_handle src_buffer_id; // le buffer id of scratch buffer
+		le_buf_resource_handle dst_buffer_id; // which resource to write to
+		uint64_t               src_offset;    // offset in scratch buffer where to find source data
+		uint64_t               dst_offset;    // offset where to write to in target resource
+		uint64_t               numBytes;      // number of bytes
 
 	} info;
 };
@@ -1909,19 +1914,19 @@ struct CommandWriteToImage {
 	CommandHeader header = { { { CommandType::eWriteToImage, sizeof( CommandWriteToImage ) } } };
 
 	struct {
-		le_resource_handle_t src_buffer_id;   // le buffer id of scratch buffer
-		le_resource_handle_t dst_image_id;    // which resource to write to
-		uint64_t             numBytes;        // number of bytes
-		uint32_t             image_w;         // target region width in texels
-		uint32_t             image_h;         // target region height in texels
-		uint32_t             image_d;         // target region depth in texels - (default 1), must not be 0
-		int32_t              offset_x;        // target offset x
-		int32_t              offset_y;        // target offset y
-		int32_t              offset_z;        // target offset z
-		uint32_t             dst_array_layer; // array layer to write into (default 0)
-		uint32_t             dst_miplevel;    // mip level to write into
-		uint32_t             num_miplevels;   // number of miplevels to generate (default 1 - more than one means to auto-generate miplevels)
-		uint32_t             padding;         // unused
+		le_buf_resource_handle src_buffer_id;   // le buffer id of scratch buffer
+		le_img_resource_handle dst_image_id;    // which resource to write to
+		uint64_t               numBytes;        // number of bytes
+		uint32_t               image_w;         // target region width in texels
+		uint32_t               image_h;         // target region height in texels
+		uint32_t               image_d;         // target region depth in texels - (default 1), must not be 0
+		int32_t                offset_x;        // target offset x
+		int32_t                offset_y;        // target offset y
+		int32_t                offset_z;        // target offset z
+		uint32_t               dst_array_layer; // array layer to write into (default 0)
+		uint32_t               dst_miplevel;    // mip level to write into
+		uint32_t               num_miplevels;   // number of miplevels to generate (default 1 - more than one means to auto-generate miplevels)
+		uint32_t               padding;         // unused
 	} info;
 };
 

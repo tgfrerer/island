@@ -30,6 +30,14 @@ LE_OPAQUE_HANDLE( le_cpso_handle );
 LE_OPAQUE_HANDLE( le_rtxpso_handle );
 LE_OPAQUE_HANDLE( le_shader_module_handle );
 
+LE_OPAQUE_HANDLE( le_resource_handle );
+LE_OPAQUE_HANDLE( le_img_resource_handle );
+LE_OPAQUE_HANDLE( le_buf_resource_handle );
+LE_OPAQUE_HANDLE( le_tlas_resource_handle );
+LE_OPAQUE_HANDLE( le_blas_resource_handle );
+
+LE_OPAQUE_HANDLE( le_cpso_handle );
+LE_OPAQUE_HANDLE( le_cpso_handle );
 LE_OPAQUE_HANDLE( le_rtx_blas_info_handle ); // handle for backend-managed rtx bottom level acceleration info
 LE_OPAQUE_HANDLE( le_rtx_tlas_info_handle ); // handle for backend-managed rtx top level acceleration info
 struct le_rtx_geometry_t;
@@ -58,7 +66,7 @@ struct VmaAllocationInfo;
 
 struct LeShaderStageEnum;
 struct LeShaderSourceLanguageEnum;
-enum class LeResourceType : uint8_t;
+//enum class LeResourceType : uint8_t;
 
 struct VkFormatEnum; // wrapper around `vk::Format`. Defined in <le_backend_types_internal.h>
 
@@ -98,7 +106,7 @@ struct le_backend_vk_api {
 		bool                   ( *poll_frame_fence           ) ( le_backend_o* self, size_t frameIndex);
 		bool                   ( *clear_frame                ) ( le_backend_o *self, size_t frameIndex );
 		void                   ( *process_frame              ) ( le_backend_o *self, size_t frameIndex );
-		bool                   ( *acquire_physical_resources ) ( le_backend_o *self, size_t frameIndex, le_renderpass_o **passes, size_t numRenderPasses, le_resource_handle_t const * declared_resources, le_resource_info_t const * declared_resources_infos, size_t const & declared_resources_count );
+		bool                   ( *acquire_physical_resources ) ( le_backend_o *self, size_t frameIndex, le_renderpass_o **passes, size_t numRenderPasses, le_resource_handle const * declared_resources, le_resource_info_t const * declared_resources_infos, size_t const & declared_resources_count );
 		bool                   ( *dispatch_frame             ) ( le_backend_o *self, size_t frameIndex );
 
 		size_t                 ( *get_num_swapchain_images   ) ( le_backend_o *self );
@@ -113,9 +121,9 @@ struct le_backend_vk_api {
 		le_pipeline_manager_o* ( *get_pipeline_cache         ) ( le_backend_o* self);
 
 		void                   ( *get_swapchain_extent      ) ( le_backend_o* self, uint32_t index, uint32_t * p_width, uint32_t * p_height );
-		le_resource_handle_t   ( *get_swapchain_resource    ) ( le_backend_o* self, uint32_t index );
-		uint32_t			      ( *get_swapchain_count       ) ( le_backend_o* self );
-		bool                   ( *get_swapchain_info        ) ( le_backend_o* self, uint32_t *count, uint32_t* p_width, uint32_t * p_height, le_resource_handle_t* p_handlle );
+		le_img_resource_handle ( *get_swapchain_resource    ) ( le_backend_o* self, uint32_t index );
+		uint32_t               ( *get_swapchain_count       ) ( le_backend_o* self );
+		bool                   ( *get_swapchain_info        ) ( le_backend_o* self, uint32_t *count, uint32_t* p_width, uint32_t * p_height, le_img_resource_handle * p_handlle );
 
 		le_rtx_blas_info_handle( *create_rtx_blas_info )(le_backend_o* self, le_rtx_geometry_t const * geometries, uint32_t geometries_count, struct LeBuildAccelerationStructureFlags const * flags);
 		le_rtx_tlas_info_handle( *create_rtx_tlas_info )(le_backend_o* self,  uint32_t instances_count, struct LeBuildAccelerationStructureFlags const * flags);
@@ -211,14 +219,14 @@ struct le_backend_vk_api {
 		void                    ( *destroy              ) ( le_allocator_o* self );
 		bool                    ( *allocate             ) ( le_allocator_o* self, uint64_t numBytes, void ** pData, uint64_t* bufferOffset);
 		void                    ( *reset                ) ( le_allocator_o* self );
-		le_resource_handle_t    ( *get_le_resource_id   ) ( le_allocator_o* self );
+		le_buf_resource_handle  ( *get_le_resource_id   ) ( le_allocator_o* self );
 	};
 
 	struct staging_allocator_interface_t {
 		le_staging_allocator_o* ( *create  )( VmaAllocator_T* const vmaAlloc, VkDevice_T* const device );
 		void                    ( *destroy )( le_staging_allocator_o* self ) ;
 		void                    ( *reset   )( le_staging_allocator_o* self );
-		bool                    ( *map     )( le_staging_allocator_o* self, uint64_t numBytes, void **pData, le_resource_handle_t *resource_handle );
+		bool                    ( *map     )( le_staging_allocator_o* self, uint64_t numBytes, void **pData, le_buf_resource_handle *resource_handle );
 	};
 
 	struct shader_module_interface_t {

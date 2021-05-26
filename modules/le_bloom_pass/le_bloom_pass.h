@@ -5,7 +5,7 @@
 #include "le_core/le_core.h"
 
 struct le_render_module_o;
-struct le_resource_handle_t;
+LE_OPAQUE_HANDLE( le_img_resource_handle );
 struct le_renderer_o;
 
 // clang-format off
@@ -25,8 +25,8 @@ struct le_bloom_pass_api {
 	};
 
 	struct le_bloom_pass_interface_t {
-		void (* le_render_module_add_bloom_pass)(le_render_module_o* module, le_resource_handle_t const & input, le_resource_handle_t const & output, uint32_t const & width, uint32_t const & height, params_t* params);
-		void (* le_render_module_add_blit_pass)(le_render_module_o* module, le_resource_handle_t const & input, le_resource_handle_t const & output);	
+		void (* le_render_module_add_bloom_pass)(le_render_module_o* module, le_img_resource_handle const & input, le_img_resource_handle const & output, uint32_t const & width, uint32_t const & height, params_t* params);
+		void (* le_render_module_add_blit_pass)(le_render_module_o* module, le_img_resource_handle const & input, le_img_resource_handle const & output);	
 	};
 
 	le_bloom_pass_interface_t       le_bloom_pass_i;

@@ -11,9 +11,6 @@
 #include <memory>
 #include <sstream>
 
-constexpr le_resource_handle_t SRC_IMG_HANDLE       = LE_IMG_RESOURCE( "src_image" );
-constexpr le_resource_handle_t COLOR_LUT_IMG_HANDLE = LE_IMG_RESOURCE( "color_lut_image" );
-
 struct lut_grading_example_app_o {
 	le::Window   window;
 	le::Renderer renderer;
@@ -22,7 +19,9 @@ struct lut_grading_example_app_o {
 	float    mouse_x_normalised = 0.5; // current mouse x control point, normalised over width of window
 	uint32_t mouse_button_state = 0;   // state of all mouse buttons - this uint32 is used as an array of 32 bools, really.
 
-	LeResourceManager resource_manager;
+	LeResourceManager      resource_manager;
+	le_img_resource_handle SRC_IMG_HANDLE;
+	le_img_resource_handle COLOR_LUT_IMG_HANDLE;
 };
 
 // ----------------------------------------------------------------------
@@ -68,9 +67,12 @@ static lut_grading_example_app_o *lut_grading_example_app_create() {
 	        .setExtent( 64, 64, 64 )
 	        .build();
 
+	app->COLOR_LUT_IMG_HANDLE = le::Renderer::produceImageHandle( "lut_image" );
+	app->SRC_IMG_HANDLE       = le::Renderer::produceImageHandle( "source_image" );
+
 	// Instruct resource manager to load data for images from given path
-	app->resource_manager.add_item( COLOR_LUT_IMG_HANDLE, image_info_color_lut_texture, &hald_lut );
-	app->resource_manager.add_item( SRC_IMG_HANDLE, le::ImageInfoBuilder().build(), &src_image_path );
+	app->resource_manager.add_item( app->COLOR_LUT_IMG_HANDLE, image_info_color_lut_texture, &hald_lut );
+	app->resource_manager.add_item( app->SRC_IMG_HANDLE, le::ImageInfoBuilder().build(), &src_image_path );
 
 	return app;
 }
@@ -134,7 +136,7 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o *self ) {
 	auto lut_tex_info =
 	    le::ImageSamplerInfoBuilder()
 	        .withImageViewInfo()
-	        .setImage( COLOR_LUT_IMG_HANDLE )
+	        .setImage( self->COLOR_LUT_IMG_HANDLE )
 	        .setImageViewType( le::ImageViewType::e3D )
 	        .end()
 	        .withSamplerInfo()
@@ -148,16 +150,18 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o *self ) {
 	auto src_imag_tex_info =
 	    le::ImageSamplerInfoBuilder()
 	        .withImageViewInfo()
-	        .setImage( SRC_IMG_HANDLE )
+	        .setImage( self->SRC_IMG_HANDLE )
 	        .end()
 	        .build();
+
+	static le_img_resource_handle SWAPCHAIN_IMG = self->renderer.getSwapchainResource();
 
 	// Note that callbacks for renderpasses are given inline here - but
 	// you could just as well pass function pointers instead of lambdas
 	// To see how, look at the other examples.
 	auto renderPassMain =
 	    le::RenderPass( "main" )
-	        .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE )
+	        .addColorAttachment( SWAPCHAIN_IMG )
 	        .sampleTexture( lut_image_texture, lut_tex_info )      // Declare texture name: color lut image
 	        .sampleTexture( src_image_texture, src_imag_tex_info ) // Declare texture name: src image
 	        .setExecuteCallback( self, []( le_command_buffer_encoder_o *encoder_, void *user_data ) {

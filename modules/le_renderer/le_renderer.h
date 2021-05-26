@@ -20,6 +20,12 @@ struct le_staging_allocator_o; // from backend
 
 LE_OPAQUE_HANDLE( le_shader_module_handle );
 
+#define LE_BUF_RESOURCE( x ) \
+	le_renderer::renderer_i.produce_buf_resource_handle( ( x ), 0, 0 )
+
+#define LE_IMG_RESOURCE( x ) \
+	le_renderer::renderer_i.produce_img_resource_handle( ( x ), 0, 0 )
+
 struct le_shader_binding_table_o;
 
 // clang-format off
@@ -35,7 +41,7 @@ struct le_renderer_api {
 
 		/// returns the image resource handle for a swapchain at given index
 		uint32_t                       ( *get_swapchain_count     )( le_renderer_o* self);
-		le_resource_handle_t           ( *get_swapchain_resource  )( le_renderer_o* self, uint32_t index );
+		le_img_resource_handle         ( *get_swapchain_resource  )( le_renderer_o* self, uint32_t index );
 		void                           ( *get_swapchain_extent    )( le_renderer_o* self, uint32_t index, uint32_t* p_width, uint32_t* p_height );
 		le_backend_o*                  ( *get_backend             )( le_renderer_o* self );
 
@@ -43,6 +49,12 @@ struct le_renderer_api {
 
         le_texture_handle              ( *produce_texture_handle  )(char const * maybe_name );
         char const *                   ( *texture_handle_get_name )(le_texture_handle handle);
+
+        le_buf_resource_handle (*produce_buf_resource_handle)(char const * maybe_name, uint8_t flags, uint16_t index);
+        le_img_resource_handle (*produce_img_resource_handle)(char const * maybe_name, uint8_t num_samples, le_img_resource_handle reference_handle);
+
+        le_tlas_resource_handle (*produce_tlas_resource_handle)(char const * maybe_name);
+        le_blas_resource_handle (*produce_blas_resource_handle)(char const * maybe_name);
 
 		le_rtx_blas_info_handle        ( *create_rtx_blas_info ) (le_renderer_o* self, le_rtx_geometry_t* geometries, uint32_t geometries_count, LeBuildAccelerationStructureFlags const * flags);
 		le_rtx_tlas_info_handle        ( *create_rtx_tlas_info ) (le_renderer_o* self, uint32_t instances_count, LeBuildAccelerationStructureFlags const * flags);
@@ -64,8 +76,8 @@ struct le_renderer_api {
 		le_renderpass_o *               ( *clone                )( const le_renderpass_o *obj );
         void                            ( *set_setup_callback   )( le_renderpass_o *obj, void *user_data, pfn_renderpass_setup_t setup_fun );
 		bool                            ( *has_setup_callback   )( const le_renderpass_o* obj);
-		void                            ( *add_color_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, le_image_attachment_info_t const *info );
-		void                            ( *add_depth_stencil_attachment )( le_renderpass_o *obj, le_resource_handle_t resource_id, le_image_attachment_info_t const *info );
+		void                            ( *add_color_attachment )( le_renderpass_o *obj, le_img_resource_handle resource_id, le_image_attachment_info_t const *info );
+		void                            ( *add_depth_stencil_attachment )( le_renderpass_o *obj, le_img_resource_handle resource_id, le_image_attachment_info_t const *info );
 		uint32_t                        ( *get_width            )( le_renderpass_o const * obj);
 		uint32_t                        ( *get_height           )( le_renderpass_o const * obj);
 		void                            ( *set_width            )( le_renderpass_o* obj, uint32_t width);
@@ -74,17 +86,19 @@ struct le_renderer_api {
 		le::SampleCountFlagBits const & ( *get_sample_count     ) (const le_renderpass_o* obj ); 
 		void                            ( *set_execute_callback )( le_renderpass_o *obj, void *user_data, pfn_renderpass_execute_t render_fun );
 		bool                            ( *has_execute_callback )( const le_renderpass_o* obj);
-		void                            ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle_t& resource_id, const LeResourceUsageFlags &usage_flags);
+		void                            ( *use_img_resource         )( le_renderpass_o *obj, const le_img_resource_handle& resource_id, const LeResourceUsageFlags &usage_flags);
+		void                            ( *use_buf_resource         )( le_renderpass_o *obj, const le_buf_resource_handle& resource_id, const LeResourceUsageFlags &usage_flags);
+		void                            ( *use_resource         )( le_renderpass_o *obj, const le_resource_handle& resource_id, const LeResourceUsageFlags &usage_flags);
 		void                            ( *set_is_root          )( le_renderpass_o *obj, bool is_root );
 		bool                            ( *get_is_root          )( const le_renderpass_o *obj);
 		void                            ( *set_sort_key         )( le_renderpass_o *obj, uint64_t sort_key);
 		uint64_t                        ( *get_sort_key         )( const le_renderpass_o *obj);
-		void                            ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle_t const **pResourceIds, LeResourceUsageFlags const **pResourcesUsage, size_t *count );
+		void                            ( *get_used_resources   )( const le_renderpass_o *obj, le_resource_handle const **pResourceIds, LeResourceUsageFlags const **pResourcesUsage, size_t *count );
 		const char*                     ( *get_debug_name       )( const le_renderpass_o* obj );
 		uint64_t                        ( *get_id               )( const le_renderpass_o* obj );
 		LeRenderPassType                ( *get_type             )( const le_renderpass_o* obj );
 		le_command_buffer_encoder_o*    ( *steal_encoder        )( le_renderpass_o* obj );
-		void                            ( *get_image_attachments)(const le_renderpass_o* obj, const le_image_attachment_info_t** pAttachments, const le_resource_handle_t** pResourceIds, size_t* numAttachments);
+		void                            ( *get_image_attachments)(const le_renderpass_o* obj, const le_image_attachment_info_t** pAttachments, const le_img_resource_handle ** pResourceIds, size_t* numAttachments);
 
 		// Reference counting
 		void (*ref_inc)(le_renderpass_o* self);
@@ -103,7 +117,7 @@ struct le_renderer_api {
 		void                 ( *destroy          )( le_render_module_o *self );
 		void                 ( *add_renderpass   )( le_render_module_o *self, le_renderpass_o *rp );
 		void                 ( *setup_passes     )( le_render_module_o *self, le_rendergraph_o *gb );
-		void                 ( *declare_resource )( le_render_module_o *self, le_resource_handle_t const & resource_id, le_resource_info_t const & info);
+		void                 ( *declare_resource )( le_render_module_o *self, le_resource_handle const & resource_id, le_resource_info_t const & info);
 	};
 
 	// Graph builder builds a graph for a module
@@ -116,14 +130,14 @@ struct le_renderer_api {
 		void                 ( *execute                ) ( le_rendergraph_o *self, size_t frameIndex, le_backend_o *backend );
 
 		void                 ( *get_passes             ) ( le_rendergraph_o *self, le_renderpass_o ***pPasses, size_t *pNumPasses );
-		void                 ( *get_declared_resources ) ( le_rendergraph_o *self, le_resource_handle_t const **p_resource_handles, le_resource_info_t const **p_resource_infos, size_t *p_resource_count );
+		void                 ( *get_declared_resources ) ( le_rendergraph_o *self, le_resource_handle const **p_resource_handles, le_resource_info_t const **p_resource_infos, size_t *p_resource_count );
 	};
 
 	struct command_buffer_encoder_interface_t {
 
         /// Used to optionally capture transient binding state from command buffers
         struct buffer_binding_info_o {
-             le_resource_handle_t resource;
+             le_resource_handle resource;
    	         uint64_t             offset;
         };
 
@@ -135,7 +149,7 @@ struct le_renderer_api {
 		void                         ( *draw_mesh_tasks        )( le_command_buffer_encoder_o *self, uint32_t taskCount, uint32_t fistTask);
 
 		void                         (* dispatch               )( le_command_buffer_encoder_o *self, uint32_t groupCountX, uint32_t groupCountY, uint32_t groupCountZ );
-		void						 (* buffer_memory_barrier  )( le_command_buffer_encoder_o *self, LePipelineStageFlags const &srcStageMask, LePipelineStageFlags const &dstStageMask, LeAccessFlags const & dstAccessMask, le_resource_handle_t const &buffer, uint64_t const & offset, uint64_t const & range );
+		void						    (* buffer_memory_barrier  )( le_command_buffer_encoder_o *self, LePipelineStageFlags const &srcStageMask, LePipelineStageFlags const &dstStageMask, LeAccessFlags const & dstAccessMask, le_buf_resource_handle const &buffer, uint64_t const & offset, uint64_t const & range );
 
 		void                         ( *set_line_width         )( le_command_buffer_encoder_o *self, float line_width_ );
 		void                         ( *set_viewport           )( le_command_buffer_encoder_o *self, uint32_t firstViewport, const uint32_t viewportCount, const le::Viewport *pViewports );
@@ -144,29 +158,30 @@ struct le_renderer_api {
 		void                         ( *bind_graphics_pipeline )( le_command_buffer_encoder_o *self, le_gpso_handle pipelineHandle);
 		void                         ( *bind_compute_pipeline  )( le_command_buffer_encoder_o *self, le_cpso_handle pipelineHandle);
 
-		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, le_resource_handle_t const bufferId, uint64_t offset, le::IndexType const & indexType);
-		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, le_resource_handle_t const * pBufferId, uint64_t const * pOffsets );
+		void                         ( *bind_index_buffer      )( le_command_buffer_encoder_o *self, le_buf_resource_handle const bufferId, uint64_t offset, le::IndexType const & indexType);
+		void                         ( *bind_vertex_buffers    )( le_command_buffer_encoder_o *self, uint32_t firstBinding, uint32_t bindingCount, le_buf_resource_handle const * pBufferId, uint64_t const * pOffsets );
 
 		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, le::IndexType const & indexType, buffer_binding_info_o* optional_binding_info_readback );
 		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint32_t bindingIndex, buffer_binding_info_o* optional_transient_binding_info_readback );
 
-		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, size_t offset, void const* data, size_t numBytes);
-		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_resource_handle_t const& resourceId, le_write_to_image_settings_t const & writeInfo, void const *data, size_t numBytes );
+		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_buf_resource_handle const& dst_buffer, size_t offset, void const* data, size_t numBytes);
+		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_img_resource_handle const& dst_img, le_write_to_image_settings_t const & writeInfo, void const *data, size_t numBytes );
 
         void                         ( *set_push_constant_data )( le_command_buffer_encoder_o* self, void const *data, uint64_t numBytes);
 
 		le::Extent2D const &         ( *get_extent             ) ( le_command_buffer_encoder_o* self );
 
-		void                         ( *bind_argument_buffer   )( le_command_buffer_encoder_o *self, le_resource_handle_t const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range );
+		void                         ( *bind_argument_buffer   )( le_command_buffer_encoder_o *self, le_buf_resource_handle const bufferId, uint64_t argumentName, uint64_t offset, uint64_t range );
 
 		void                         ( *set_argument_data      )( le_command_buffer_encoder_o *self, uint64_t argumentNameId, void const * data, size_t numBytes);
 		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, le_texture_handle const textureId, uint64_t argumentName, uint64_t arrayIndex);
-		void                         ( *set_argument_image     )( le_command_buffer_encoder_o *self, le_resource_handle_t const imageId, uint64_t argumentName, uint64_t arrayIndex);
-		void                         ( *set_argument_tlas      )( le_command_buffer_encoder_o *self, le_resource_handle_t const tlasId, uint64_t argumentName, uint64_t arrayIndex);
+		void                         ( *set_argument_image     )( le_command_buffer_encoder_o *self, le_img_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex);
 
-		void 						 ( *build_rtx_blas         )( le_command_buffer_encoder_o *self, le_resource_handle_t const* const blas_handles, const uint32_t handles_count);
+		void                         ( *set_argument_tlas      )( le_command_buffer_encoder_o *self, le_resource_handle const tlasId, uint64_t argumentName, uint64_t arrayIndex);
+
+		void 						 ( *build_rtx_blas         )( le_command_buffer_encoder_o *self, le_resource_handle const* const blas_handles, const uint32_t handles_count);
         // one blas handle per rtx geometry instance
-		void 						 ( *build_rtx_tlas         )( le_command_buffer_encoder_o *self, le_resource_handle_t const* tlas_handle, le_rtx_geometry_instance_t const * instances, le_resource_handle_t const * blas_handles, uint32_t instances_count);
+		void 						 ( *build_rtx_tlas         )( le_command_buffer_encoder_o *self, le_resource_handle const* tlas_handle, le_rtx_geometry_instance_t const * instances, le_resource_handle const * blas_handles, uint32_t instances_count);
         
         le_shader_binding_table_o*   ( *build_sbt              )(le_command_buffer_encoder_o* self, le_rtxpso_handle pipeline);
         void                         ( *sbt_set_ray_gen        )(le_shader_binding_table_o* sbt, uint32_t ray_gen);
@@ -248,7 +263,7 @@ class Renderer {
 		return le_renderer::renderer_i.get_swapchain_count( self );
 	}
 
-	le_resource_handle_t getSwapchainResource( uint32_t index = 0 ) const {
+	le_img_resource_handle getSwapchainResource( uint32_t index = 0 ) const {
 		return le_renderer::renderer_i.get_swapchain_resource( self, index );
 	}
 
@@ -268,6 +283,14 @@ class Renderer {
 
 	static le_texture_handle produceTextureHandle( char const *maybe_name ) {
 		return le_renderer::renderer_i.produce_texture_handle( maybe_name );
+	}
+
+	static le_img_resource_handle produceImageHandle( char const *maybe_name ) {
+		return le_renderer::renderer_i.produce_img_resource_handle( maybe_name, 0, nullptr );
+	}
+
+	static le_buf_resource_handle produceBufferHandle( char const *maybe_name ) {
+		return le_renderer::renderer_i.produce_buf_resource_handle( maybe_name, 0, 0 );
 	}
 
 	operator auto() {
@@ -354,35 +377,35 @@ class RenderPass {
 	/// \brief Adds a resource as an image attachment to the renderpass.
 	/// \details resource is used for ColorAttachment and Write access, unless otherwise specified.
 	///          Use an le_image_attachment_info_t struct to specialise parameters, such as LOAD_OP, CLEAR_OP, and Clear/Load Color.
-	RenderPass &addColorAttachment( const le_resource_handle_t &      resource_id,
+	RenderPass &addColorAttachment( const le_img_resource_handle &    resource_id,
 	                                const le_image_attachment_info_t &attachmentInfo = le_image_attachment_info_t() ) {
 		le_renderer::renderpass_i.add_color_attachment( self, resource_id, &attachmentInfo );
 		return *this;
 	}
 
-	RenderPass &addDepthStencilAttachment( const le_resource_handle_t &      resource_id,
+	RenderPass &addDepthStencilAttachment( const le_img_resource_handle &    resource_id,
 	                                       const le_image_attachment_info_t &attachmentInfo = LeDepthAttachmentInfo() ) {
 		le_renderer::renderpass_i.add_depth_stencil_attachment( self, resource_id, &attachmentInfo );
 		return *this;
 	}
 
-	RenderPass &useImageResource( le_resource_handle_t resource_id, const LeImageUsageFlags &usage_flags ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eImage, { { usage_flags } } } );
+	RenderPass &useImageResource( le_img_resource_handle resource_id, const LeImageUsageFlags &usage_flags ) {
+		le_renderer::renderpass_i.use_img_resource( self, resource_id, { LeResourceType::eImage, { { usage_flags } } } );
 		return *this;
 	}
 
-	RenderPass &useBufferResource( le_resource_handle_t resource_id, const LeBufferUsageFlags &usage_flags ) {
-		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eBuffer, { { usage_flags } } } );
+	RenderPass &useBufferResource( le_buf_resource_handle resource_id, const LeBufferUsageFlags &usage_flags ) {
+		le_renderer::renderpass_i.use_buf_resource( self, resource_id, { LeResourceType::eBuffer, { { usage_flags } } } );
 		return *this;
 	}
 
 #	ifdef LE_FEATURE_RTX
-	RenderPass &useRtxBlasResource( le_resource_handle_t resource_id, const LeRtxBlasUsageFlags &usage_flags = { LE_RTX_BLAS_USAGE_READ_BIT } ) {
+	RenderPass &useRtxBlasResource( le_resource_handle resource_id, const LeRtxBlasUsageFlags &usage_flags = { LE_RTX_BLAS_USAGE_READ_BIT } ) {
 		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eRtxBlas, { { usage_flags } } } );
 		return *this;
 	}
 
-	RenderPass &useRtxTlasResource( le_resource_handle_t resource_id, const LeRtxTlasUsageFlags &usage_flags = { LE_RTX_TLAS_USAGE_READ_BIT } ) {
+	RenderPass &useRtxTlasResource( le_resource_handle resource_id, const LeRtxTlasUsageFlags &usage_flags = { LE_RTX_TLAS_USAGE_READ_BIT } ) {
 		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eRtxTlas, { { usage_flags } } } );
 		return *this;
 	}
@@ -446,7 +469,7 @@ class RenderModule {
 		return *this;
 	}
 
-	RenderModule &declareResource( le_resource_handle_t const &resource_id, le_resource_info_t const &info ) {
+	RenderModule &declareResource( le_resource_handle const &resource_id, le_resource_info_t const &info ) {
 		le_renderer::render_module_i.declare_resource( self, resource_id, info );
 		return *this;
 	}
@@ -576,12 +599,12 @@ class Encoder {
 	}
 
 	Encoder &bufferMemoryBarrier(
-	    LePipelineStageFlags const &srcStageMask,
-	    LePipelineStageFlags const &dstStageMask,
-	    LeAccessFlags const &       dstAccessMask,
-	    le_resource_handle_t const &buffer,
-	    uint64_t const &            offset = 0,
-	    uint64_t const &            range  = ~( 0ull ) ) {
+	    LePipelineStageFlags const &  srcStageMask,
+	    LePipelineStageFlags const &  dstStageMask,
+	    LeAccessFlags const &         dstAccessMask,
+	    le_buf_resource_handle const &buffer,
+	    uint64_t const &              offset = 0,
+	    uint64_t const &              range  = ~( 0ull ) ) {
 		// todo:fill in
 		le_renderer::encoder_i.buffer_memory_barrier( self, srcStageMask, dstStageMask, dstAccessMask, buffer, offset, range );
 		return *this;
@@ -642,12 +665,12 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &bindIndexBuffer( le_resource_handle_t const &bufferId, uint64_t const &offset, IndexType const &indexType = IndexType::eUint16 ) {
+	Encoder &bindIndexBuffer( le_buf_resource_handle const &bufferId, uint64_t const &offset, IndexType const &indexType = IndexType::eUint16 ) {
 		le_renderer::encoder_i.bind_index_buffer( self, bufferId, offset, indexType );
 		return *this;
 	}
 
-	Encoder &bindVertexBuffers( uint32_t const &firstBinding, uint32_t const &bindingCount, le_resource_handle_t const *pBufferId, uint64_t const *pOffsets ) {
+	Encoder &bindVertexBuffers( uint32_t const &firstBinding, uint32_t const &bindingCount, le_buf_resource_handle const *pBufferId, uint64_t const *pOffsets ) {
 		le_renderer::encoder_i.bind_vertex_buffers( self, firstBinding, bindingCount, pBufferId, pOffsets );
 		return *this;
 	}
@@ -671,13 +694,13 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &writeToBuffer( le_resource_handle_t const &resourceId, size_t const &byteOffset, void const *data, size_t const &numBytes ) {
-		le_renderer::encoder_i.write_to_buffer( self, resourceId, byteOffset, data, numBytes );
+	Encoder &writeToBuffer( le_buf_resource_handle const &dstBuffer, size_t const &byteOffset, void const *data, size_t const &numBytes ) {
+		le_renderer::encoder_i.write_to_buffer( self, dstBuffer, byteOffset, data, numBytes );
 		return *this;
 	}
 
-	Encoder &writeToImage( le_resource_handle_t const &resourceId, le_write_to_image_settings_t const &writeInfo, void const *data, size_t const &numBytes ) {
-		le_renderer::encoder_i.write_to_image( self, resourceId, writeInfo, data, numBytes );
+	Encoder &writeToImage( le_img_resource_handle const &dstImg, le_write_to_image_settings_t const &writeInfo, void const *data, size_t const &numBytes ) {
+		le_renderer::encoder_i.write_to_image( self, dstImg, writeInfo, data, numBytes );
 		return *this;
 	}
 
@@ -691,17 +714,17 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &setArgumentImage( uint64_t const &argumentName, le_resource_handle_t const &imageId, uint64_t const &arrayIndex = 0 ) {
+	Encoder &setArgumentImage( uint64_t const &argumentName, le_img_resource_handle const &imageId, uint64_t const &arrayIndex = 0 ) {
 		le_renderer::encoder_i.set_argument_image( self, imageId, argumentName, arrayIndex );
 		return *this;
 	}
 
-	Encoder &setArgumentTlas( uint64_t const &argumentName, le_resource_handle_t const &tlasId, uint64_t const &arrayIndex = 0 ) {
+	Encoder &setArgumentTlas( uint64_t const &argumentName, le_resource_handle const &tlasId, uint64_t const &arrayIndex = 0 ) {
 		le_renderer::encoder_i.set_argument_tlas( self, tlasId, argumentName, arrayIndex );
 		return *this;
 	}
 
-	Encoder &bindArgumentBuffer( uint64_t const &argumentName, le_resource_handle_t const &bufferId, uint64_t const &offset = 0, uint64_t const &range = ( ~0ULL ) ) {
+	Encoder &bindArgumentBuffer( uint64_t const &argumentName, le_buf_resource_handle const &bufferId, uint64_t const &offset = 0, uint64_t const &range = ( ~0ULL ) ) {
 		le_renderer::encoder_i.bind_argument_buffer( self, bufferId, argumentName, offset, range );
 		return *this;
 	}
