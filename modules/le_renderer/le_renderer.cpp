@@ -75,14 +75,72 @@ struct le_texture_handle_store_t {
 	std::mutex                                                mtx;
 };
 
-static le_texture_handle_store_t *texture_handle_library = nullptr;
-
 struct le_resource_handle_store_t {
 	std::unordered_multimap<le_resource_handle_data_t, le_resource_handle_t, le_resource_handle_data_hash> resource_handles;
 	std::mutex                                                                                             mtx;
 };
 
-static le_resource_handle_store_t *resource_handle_library = nullptr;
+static le_texture_handle_store_t *get_texture_handle_library( bool erase = false ) {
+
+	static le_texture_handle_store_t *texture_handle_library = nullptr;
+
+	if ( erase ) {
+		delete texture_handle_library;
+		void **texture_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "texture_handle_library" ) );
+		*texture_handle_library_ptr       = nullptr; // null pointer stored in global store
+		texture_handle_library            = nullptr; // null pointer stored local store
+		return nullptr;                              // return nullptr
+	}
+
+	if ( texture_handle_library ) {
+		return texture_handle_library;
+	}
+
+	// ----------| Invariant: not yet in local store
+	void **texture_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "texture_handle_library" ) );
+
+	if ( *texture_handle_library_ptr ) {
+		// Found in global store
+		texture_handle_library = static_cast<le_texture_handle_store_t *>( *texture_handle_library_ptr );
+	} else {
+		// Not yet available in global store - create & make available
+		texture_handle_library      = new le_texture_handle_store_t{};
+		*texture_handle_library_ptr = texture_handle_library;
+	}
+
+	return texture_handle_library;
+}
+
+static le_resource_handle_store_t *get_resource_handle_library( bool erase = false ) {
+	static le_resource_handle_store_t *resource_handle_library = nullptr;
+
+	if ( erase ) {
+		delete resource_handle_library;
+		void **resource_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "resource_handle_library" ) );
+		*resource_handle_library_ptr       = nullptr; // null pointer stored in global store
+		resource_handle_library            = nullptr; // null pointer stored in local store
+		return nullptr;                               // return nullptr
+	}
+
+	if ( resource_handle_library ) {
+		return resource_handle_library;
+	}
+
+	// ----------| Invariant: not yet in local store
+	void **resource_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "resource_handle_library" ) );
+
+	if ( *resource_handle_library_ptr ) {
+		// Found in global store
+		resource_handle_library = static_cast<le_resource_handle_store_t *>( *resource_handle_library_ptr );
+	} else {
+		// Not yet available in global store - create & make available.
+		resource_handle_library      = new le_resource_handle_store_t();
+		*resource_handle_library_ptr = resource_handle_library;
+	}
+
+	return resource_handle_library;
+}
+
 // ----------------------------------------------------------------------
 
 struct le_renderer_o {
@@ -102,16 +160,6 @@ static void renderer_clear_frame( le_renderer_o *self, size_t frameIndex ); // f
 static le_renderer_o *renderer_create() {
 	auto obj = new le_renderer_o();
 
-	texture_handle_library = new le_texture_handle_store_t();
-	// we store back into the api, so that it will survive reload of this module.
-	void **texture_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "texture_handle_library" ) );
-	*texture_handle_library_ptr       = texture_handle_library;
-
-	resource_handle_library = new le_resource_handle_store_t();
-	// we store back into the api, so that it will survive reload of this module.
-	void **resource_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "resource_handle_library" ) );
-	*resource_handle_library_ptr       = resource_handle_library;
-
 #if ( LE_MT > 0 )
 	le_jobs::initialize( LE_MT );
 #endif
@@ -125,7 +173,8 @@ static le_renderer_o *renderer_create() {
 static le_texture_handle renderer_produce_texture_handle( char const *maybe_name ) {
 
 	// lock handle library for reading/writing
-	std::scoped_lock lock( texture_handle_library->mtx );
+	static le_texture_handle_store_t *texture_handle_library = get_texture_handle_library();
+	std::scoped_lock                  lock( texture_handle_library->mtx );
 
 	le_texture_handle handle;
 
@@ -173,34 +222,36 @@ le_resource_handle renderer_produce_resource_handle(
     uint16_t              index            = 0,
     le_resource_handle    reference_handle = nullptr ) {
 
+	static le_resource_handle_store_t *resource_handle_library = get_resource_handle_library();
 	// lock handle library for reading/writing
 	std::scoped_lock lock( resource_handle_library->mtx );
 
 	le_resource_handle handle;
 
-	le_resource_handle_data_t data;
-	data.debug_name       = std::string( maybe_name );
-	data.flags            = flags;
-	data.num_samples      = num_samples;
-	data.reference_handle = reference_handle;
-	data.type             = resource_type;
-	data.index            = index;
+	le_resource_handle_data_t *p_data = new le_resource_handle_data_t{};
+	p_data->debug_name                = std::string( maybe_name );
+	p_data->flags                     = flags;
+	p_data->num_samples               = num_samples;
+	p_data->reference_handle          = reference_handle;
+	p_data->type                      = resource_type;
+	p_data->index                     = index;
 
 	if ( maybe_name ) {
 		// if a string was given, search for multimap and see if we can find something.
-		auto it = resource_handle_library->resource_handles.find( data );
+		auto it = resource_handle_library->resource_handles.find( *p_data );
 		if ( it == resource_handle_library->resource_handles.end() ) {
 			// not found, insert a new element
-			handle = &resource_handle_library->resource_handles.insert( { data, le_resource_handle_t{ data } } )->second;
+			handle = &resource_handle_library->resource_handles.emplace( *p_data, le_resource_handle_t{ p_data } )->second;
 		} else {
 			// found, return a pointer to the found element
 			handle = &it->second;
+			delete ( p_data );
 		}
 	} else {
 		// no name given: handle is set to address of newly inserted element
 		// As this is a multimap, there can be any number of textures with the same
 		// key "unnamed" in the map.
-		handle = &resource_handle_library->resource_handles.insert( { data, le_resource_handle_t{ data } } )->second;
+		handle = &resource_handle_library->resource_handles.emplace( *p_data, le_resource_handle_t{ p_data } )->second;
 	}
 
 	// handle is a pointer to the element in the container, and as such it is
@@ -247,24 +298,19 @@ static void renderer_destroy( le_renderer_o *self ) {
 
 	self->frames.clear();
 
-	if ( texture_handle_library ) {
+	// Delete texture handle library
+	get_texture_handle_library( false );
 
-		delete ( texture_handle_library );
-
-		texture_handle_library = nullptr;
-
-		void **texture_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "texture_handle_library" ) );
-		*texture_handle_library_ptr       = nullptr;
-	}
-
-	if ( resource_handle_library ) {
-
-		delete ( resource_handle_library );
-
-		resource_handle_library = nullptr;
-
-		void **resource_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "resource_handle_library" ) );
-		*resource_handle_library_ptr       = nullptr;
+	{
+		le_resource_handle_store_t *resource_handle_library = get_resource_handle_library();
+		if ( resource_handle_library ) {
+			// we must deallocate manually allocated data for resource handles
+			for ( auto &e : resource_handle_library->resource_handles ) {
+				delete ( e.second.data );
+			}
+			// Delete static pointer to resource handle library
+			get_resource_handle_library( true );
+		}
 	}
 
 	if ( self->backend ) {
@@ -817,16 +863,6 @@ LE_MODULE_REGISTER_IMPL( le_renderer, api ) {
 	le_renderer_i.produce_buf_resource_handle  = renderer_produce_buf_resource_handle;
 	le_renderer_i.produce_tlas_resource_handle = renderer_produce_tlas_resource_handle;
 	le_renderer_i.produce_blas_resource_handle = renderer_produce_blas_resource_handle;
-
-	void **texture_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "texture_handle_library" ) );
-	if ( *texture_handle_library_ptr ) {
-		texture_handle_library = static_cast<le_texture_handle_store_t *>( *texture_handle_library_ptr );
-	}
-
-	void **resource_handle_library_ptr = le_core_produce_dictionary_entry( hash_64_fnv1a_const( "resource_handle_library" ) );
-	if ( *resource_handle_library_ptr ) {
-		resource_handle_library = static_cast<le_resource_handle_store_t *>( *resource_handle_library_ptr );
-	}
 
 	// register sub-components of this api
 	register_le_rendergraph_api( api );
