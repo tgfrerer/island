@@ -2694,9 +2694,25 @@ static bool staging_allocator_map( le_staging_allocator_o *self, uint64_t numByt
 		// Staging resources share the same name, but their allocation index is different.
 		//
 		// The staging index makes sure the correct buffer for this handle can be retrieved later.
-		*resource_handle = le_renderer::renderer_i.produce_buf_resource_handle(
-		    "Le-Staging-Buffer",
-		    le_buf_resource_usage_flags_t::eIsStaging, allocationIndex );
+
+		static std::vector<le_buf_resource_handle> staging_buffers;
+
+		// We locally cache the names of all the index-specialised
+		// staging buffers on first use, so that we don't have to look them
+		// up in the renderer's resource library on every frame.
+		//
+		if ( allocationIndex < staging_buffers.size() ) {
+			staging_buffers.reserve( allocationIndex );
+		}
+		while ( staging_buffers.size() < self->allocations.size() ) {
+			size_t index = staging_buffers.size();
+			staging_buffers.emplace_back(
+			    le_renderer::renderer_i.produce_buf_resource_handle(
+			        "Le-Staging-Buffer",
+			        le_buf_resource_usage_flags_t::eIsStaging, index ) );
+		}
+
+		*resource_handle = staging_buffers[ allocationIndex ];
 	}
 
 	// Map memory so that it may be written to
