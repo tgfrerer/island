@@ -23,6 +23,8 @@ struct le_animation_info;
 struct le_skin_info;
 struct le_camera_o; // from module::le_camera
 
+LE_OPAQUE_HANDLE( le_img_resource_handle );
+
 struct le_sampler_info_t; // from le_renderer
 
 /* le_stage provides a scene graph, and playback capability for animations.
@@ -59,8 +61,8 @@ struct le_stage_api {
 		void            ( * destroy ) ( le_stage_o* self );
 		void            ( * update  ) ( le_stage_o* self );
 		
-		void	            ( * update_rendermodule )(le_stage_o* self, le_render_module_o* module);
-		void            ( * draw_into_module )(draw_params_t* self, le_render_module_o* module);
+		void	        ( * update_rendermodule )(le_stage_o* self, le_render_module_o* module);
+		void            ( * draw_into_module )(draw_params_t* self, le_render_module_o* module, le_img_resource_handle color_attachment_image, le_img_resource_handle depth_stencil_attachment_image );
 
 		void     (* setup_pipelines)(le_stage_o* self);
 

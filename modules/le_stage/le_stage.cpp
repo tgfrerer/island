@@ -45,7 +45,7 @@
  * 
 */
 
-static constexpr auto RTX_IMAGE_TARGET_HANDLE = LE_IMG_RESOURCE( "rtx_target_img" );
+static const auto     RTX_IMAGE_TARGET_HANDLE = LE_IMG_RESOURCE( "rtx_target_img" );
 static constexpr auto LOGGER_LABEL            = "le_backend";
 
 // Wrappers so that we can pass data via opaque pointers across header boundaries
@@ -68,8 +68,8 @@ struct stage_image_o {
 	le_pixels_o *  pixels;
 	le_pixels_info info;
 
-	le_resource_handle_t handle;
-	le_resource_info_t   resource_info;
+	le_img_resource_handle handle;
+	le_resource_info_t     resource_info;
 
 	bool was_transferred;
 };
@@ -82,12 +82,12 @@ struct le_texture_o {
 };
 
 struct le_buffer_o {
-	void *               mem;    // nullptr if not owning
-	le_resource_handle_t handle; // renderer resource handle
-	le_resource_info_t   resource_info;
-	uint32_t             size;            // number of bytes
-	bool                 was_transferred; // whether this buffer was transferred to gpu already
-	bool                 owns_mem;        // true if sole owner of memory pointed to in mem
+	void *                 mem;    // nullptr if not owning
+	le_buf_resource_handle handle; // renderer resource handle
+	le_resource_info_t     resource_info;
+	uint32_t               size;            // number of bytes
+	bool                   was_transferred; // whether this buffer was transferred to gpu already
+	bool                   owns_mem;        // true if sole owner of memory pointed to in mem
 };
 
 struct le_buffer_view_o {
@@ -179,28 +179,28 @@ struct le_material_o {
 // A primitive is a set of triangles sharing the same material.
 // it may optionally be affected by morph targets, and joints.
 struct le_primitive_o {
-	std::vector<uint64_t>             bindings_buffer_offsets; // cached: offset into each buffer_handle when binding
-	std::vector<le_resource_handle_t> bindings_buffer_handles; // cached: bufferviews sorted and grouped based on accessors
-	                                                           //
-	uint32_t vertex_count;                                     // cached: number of POSITION vertices, used to figure out draw call param
-	uint32_t index_count;                                      // cached: number of INDICES, if any.
-	                                                           //
-	le_gpso_handle pipeline_state_handle; /* non-owning */     // cached: contains material shaders, and vertex input state
-	                                                           //
-	uint64_t all_defines_hash;                                 // cached: hash over all shader defines
-	                                                           //
-	std::vector<le_attribute_o> attributes;                    // attributes (may also contain morph target attributes)
-	                                                           //
-	uint32_t morph_target_count;                               // number of morph targets (default 0)
-	                                                           //
-	uint32_t num_joints_sets;                                  // number of joints sets (for skinning) (default 0)
+	std::vector<uint64_t>               bindings_buffer_offsets; // cached: offset into each buffer_handle when binding
+	std::vector<le_buf_resource_handle> bindings_buffer_handles; // cached: bufferviews sorted and grouped based on accessors
+	                                                             //
+	uint32_t vertex_count;                                       // cached: number of POSITION vertices, used to figure out draw call param
+	uint32_t index_count;                                        // cached: number of INDICES, if any.
+	                                                             //
+	le_gpso_handle pipeline_state_handle; /* non-owning */       // cached: contains material shaders, and vertex input state
+	                                                             //
+	uint64_t all_defines_hash;                                   // cached: hash over all shader defines
+	                                                             //
+	std::vector<le_attribute_o> attributes;                      // attributes (may also contain morph target attributes)
+	                                                             //
+	uint32_t morph_target_count;                                 // number of morph targets (default 0)
+	                                                             //
+	uint32_t num_joints_sets;                                    // number of joints sets (for skinning) (default 0)
 
 	uint32_t indices_accessor_idx;
 	uint32_t material_idx;
 
-	le_resource_handle_t rtx_blas_handle;
-	le_resource_info_t   rtx_blas_info;
-	bool                 rtx_was_transferred;
+	le_blas_resource_handle rtx_blas_handle;
+	le_resource_info_t      rtx_blas_info;
+	bool                    rtx_was_transferred;
 
 	bool has_indices;
 	bool has_material;
@@ -355,34 +355,34 @@ struct le_scene_o {
 	uint8_t                  scene_id;   // matches scene bit flag in node.
 	std::vector<le_node_o *> root_nodes; // non-owning
 
-	le_resource_handle_t rtx_tlas_handle; // only used for rtx
-	le_resource_info_t   rtx_tlas_info;   // only used for rtx
+	le_tlas_resource_handle rtx_tlas_handle; // only used for rtx
+	le_resource_info_t      rtx_tlas_info;   // only used for rtx
 
-	le_resource_handle_t rtx_image_target;
+	le_img_resource_handle rtx_image_target;
 
 	std::vector<le_light_o> lights;
 };
 
 // Owns all the data
 struct le_stage_o {
-	le_renderer_o *                   renderer;        // non-owning
-	le_timebase_o *                   timebase;        // non-owning, optional
-	std::vector<le_scene_o>           scenes;          //
-	std::vector<le_animation_o>       animations;      //
-	std::vector<le_node_o *>          nodes;           // owning
-	std::vector<le_camera_settings_o> camera_settings; //
-	std::vector<le_mesh_o>            meshes;          //
-	std::vector<le_light_info>        lights;          //
-	std::vector<le_material_o>        materials;       //
-	std::vector<le_accessor_o>        accessors;       //
-	std::vector<le_buffer_view_o>     buffer_views;    //
-	std::vector<le_buffer_o *>        buffers;         // owning
-	std::vector<le_sampler_info_t>    samplers;        //
-	std::vector<le_resource_handle_t> buffer_handles;  //
-	std::vector<le_texture_o>         textures;        //
-	std::vector<stage_image_o *>      images;          // owning
-	std::vector<le_resource_handle_t> image_handles;   //
-	std::vector<le_skin_o *>          skins;           // owning
+	le_renderer_o *                     renderer;        // non-owning
+	le_timebase_o *                     timebase;        // non-owning, optional
+	std::vector<le_scene_o>             scenes;          //
+	std::vector<le_animation_o>         animations;      //
+	std::vector<le_node_o *>            nodes;           // owning
+	std::vector<le_camera_settings_o>   camera_settings; //
+	std::vector<le_mesh_o>              meshes;          //
+	std::vector<le_light_info>          lights;          //
+	std::vector<le_material_o>          materials;       //
+	std::vector<le_accessor_o>          accessors;       //
+	std::vector<le_buffer_view_o>       buffer_views;    //
+	std::vector<le_buffer_o *>          buffers;         // owning
+	std::vector<le_sampler_info_t>      samplers;        //
+	std::vector<le_buf_resource_handle> buffer_handles;  //
+	std::vector<le_texture_o>           textures;        //
+	std::vector<stage_image_o *>        images;          // owning
+	std::vector<le_img_resource_handle> image_handles;   //
+	std::vector<le_skin_o *>            skins;           // owning
 };
 
 // clang-format off
@@ -418,10 +418,7 @@ static uint32_t le_stage_create_image_from_memory(
 
 	using namespace le_pixels;
 
-	le_resource_handle_t res;
-
-	res.handle.as_handle.meta.as_meta.type = LeResourceType::eImage;
-	res.handle.as_handle.name_hash         = SpookyHash::Hash32( image_file_memory, image_file_sz, 0 );
+	le_img_resource_handle res = LE_IMG_RESOURCE( "" ); // force unique handle
 
 #if LE_RESOURCE_LABEL_LENGTH > 0
 	if ( debug_name ) {
@@ -578,8 +575,6 @@ static uint32_t le_stage_create_buffer( le_stage_o *stage, void *mem, uint32_t s
 
 	assert( stage->buffers.size() == stage->buffer_handles.size() );
 
-	le_resource_handle_t res{};
-
 #if LE_RESOURCE_LABEL_LENGTH > 0
 	if ( debug_name ) {
 		// Copy debug name if such was given, and handle has debug name field.
@@ -587,8 +582,7 @@ static uint32_t le_stage_create_buffer( le_stage_o *stage, void *mem, uint32_t s
 	}
 #endif
 
-	res.handle.as_handle.name_hash         = SpookyHash::Hash32( mem, sz, 0 );
-	res.handle.as_handle.meta.as_meta.type = LeResourceType::eBuffer;
+	le_buf_resource_handle res = LE_BUF_RESOURCE( "" ); // force unique handle
 
 	uint32_t buffer_handle_idx = 0;
 	for ( auto &h : stage->buffer_handles ) {
@@ -1978,7 +1972,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 /// knows which resources are needed to render the stage.
 /// There are two resource types which potentially need uploading: buffers,
 /// and images.
-static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_params, le_render_module_o *module ) {
+static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_params, le_render_module_o *module, le_img_resource_handle color_attachment_image, le_img_resource_handle depth_stencil_attachment_image ) {
 
 	using namespace le_renderer;
 
@@ -2134,12 +2128,15 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 	    le::RenderPass( "Stage Draw", LeRenderPassType::LE_RENDER_PASS_TYPE_DRAW )
 	        .setExecuteCallback( draw_params, pass_draw )
 	        .addColorAttachment(
-	            LE_SWAPCHAIN_IMAGE_HANDLE,
+	            color_attachment_image,
 	            le::ImageAttachmentInfoBuilder()
 	                .setColorClearValue( LeClearValue( { 0.125f, 0.125f, 0.125f, 1.f } ) )
 	                .build() )
-	        .addDepthStencilAttachment( LE_IMG_RESOURCE( "DEPTH_STENCIL_IMAGE" ) )
 	        .setSampleCount( le::SampleCountFlagBits::e4 );
+
+	if ( depth_stencil_attachment_image ) {
+		stage_draw_pass.addDepthStencilAttachment( depth_stencil_attachment_image );
+	}
 
 	for ( auto &b : draw_params->stage->buffers ) {
 		stage_draw_pass.useBufferResource( b->handle, { LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
