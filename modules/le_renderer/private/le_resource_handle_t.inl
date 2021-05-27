@@ -21,20 +21,26 @@ struct le_img_resource_usage_flags_t {
 };
 
 struct le_resource_handle_data_t {
-	LeResourceType        type;                       // type controls which of the following fields are used.
-	uint8_t               num_samples      = 0;       // number of samples log 2 if image
-	uint8_t               flags            = 0;       // bitfield of either buffer - or img_resource_useage_flags;
-	uint16_t              index            = 0;       // allocator index if virtual buffer
-	le_resource_handle_t *reference_handle = nullptr; // if auto-generated from another handle, we keep a reference to the parent.
-	std::string           debug_name;
+	LeResourceType        type;                        // type controls which of the following fields are used.
+	uint8_t               num_samples      = 0;        // number of samples log 2 if image
+	uint8_t               flags            = 0;        // bitfield of either buffer - or img_resource_useage_flags;
+	uint16_t              index            = 0;        // allocator index if virtual buffer
+	le_resource_handle_t *reference_handle = nullptr;  // if auto-generated from another handle, we keep a reference to the parent.
+	char                  debug_name[ 48 ] = { '\0' }; // space for 47 chars + \0
 
 	bool operator==( le_resource_handle_data_t const &rhs ) const noexcept {
+
+		for ( char const *c = debug_name, *d = rhs.debug_name; *c != 0; c++, d++ ) {
+			if ( *c != *d ) {
+				return false;
+			}
+		}
+
 		return type == rhs.type &&
 		       num_samples == rhs.num_samples &&
 		       flags == rhs.flags &&
 		       index == rhs.index &&
-		       reference_handle == rhs.reference_handle &&
-		       debug_name == rhs.debug_name;
+		       reference_handle == rhs.reference_handle;
 	}
 	bool operator!=( le_resource_handle_data_t const &rhs ) const noexcept {
 		return !operator==( rhs );
@@ -75,12 +81,10 @@ struct le_resource_handle_data_hash {
 		hash  = hash ^ value;
 		hash  = hash * FNV1A_PRIME_64_CONST;
 
-		if ( !key.debug_name.empty() ) {
-			for ( char const *i = key.debug_name.c_str(); *i != 0; ++i ) {
-				uint8_t value = static_cast<const uint8_t &>( *i );
-				hash          = hash ^ value;
-				hash          = hash * FNV1A_PRIME_64_CONST;
-			}
+		for ( char const *i = key.debug_name; *i != 0; ++i ) {
+			uint8_t value = static_cast<const uint8_t &>( *i );
+			hash          = hash ^ value;
+			hash          = hash * FNV1A_PRIME_64_CONST;
 		}
 		return hash;
 	}

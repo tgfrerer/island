@@ -1942,7 +1942,7 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 
 			if ( PRINT_DEBUG_MESSAGES ) {
 				logger.info( " %30s (s: %4d) : %30s : %30s : %30s | sync chain indices: %4d : %4d : %4d",
-				             attachment->resource->data->debug_name.c_str(), attachment->resource->data->num_samples,
+				             attachment->resource->data->debug_name, attachment->resource->data->num_samples,
 				             vk::to_string( syncInitial.layout ).c_str(),
 				             vk::to_string( syncSubpass.layout ).c_str(),
 				             vk::to_string( syncFinal.layout ).c_str(),
@@ -3094,13 +3094,14 @@ static void insert_msaa_versions(
 static void printResourceInfo( le_resource_handle const &handle, ResourceCreateInfo const &info ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	if ( info.isBuffer() ) {
-		logger.info( "% 32s : %11d : %30s : %30s", handle->data->debug_name.c_str(), info.bufferInfo.size, "-", to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) ).c_str() );
+		logger.info( "% 32s : %11d : %30s : %30s", handle->data->debug_name, info.bufferInfo.size, "-", to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) ).c_str() );
 	} else if ( info.isImage() ) {
-		logger.info( "% 32s : %dx%dx%d : %30s : %30s : %5s samples",
-		             !handle->data->debug_name.empty()
-		                 ? handle->data->debug_name.c_str()
+		logger.info( "%p, % 32s : %dx%dx%d : %30s : %30s : %5s samples",
+		             handle,
+		             !( handle->data->debug_name[ 0 ] == '\0' )
+		                 ? handle->data->debug_name
 		             : handle->data->reference_handle
-		                 ? handle->data->reference_handle->data->debug_name.c_str()
+		                 ? handle->data->reference_handle->data->debug_name
 		                 : "unnamed",
 		             info.imageInfo.extent.width,
 		             info.imageInfo.extent.height,
@@ -3110,13 +3111,13 @@ static void printResourceInfo( le_resource_handle const &handle, ResourceCreateI
 		             to_string( vk::SampleCountFlags( info.imageInfo.samples ) ).c_str() );
 	} else if ( info.isBlas() ) {
 		logger.info( "% 32s : %11d : (%28d) : %30s",
-		             handle->data->debug_name.c_str(),
+		             handle->data->debug_name,
 		             info.blasInfo.buffer_size,
 		             info.blasInfo.scratch_buffer_size,
 		             "-" );
 	} else if ( info.isTlas() ) {
 		logger.info( "% 32s : %11d : (%28d) : %30s",
-		             handle->data->debug_name.c_str(),
+		             handle->data->debug_name,
 		             info.tlasInfo.buffer_size,
 		             info.tlasInfo.scratch_buffer_size,
 		             "-" );
@@ -3134,7 +3135,7 @@ static bool inferImageFormat( le_backend_o *self, le_img_resource_handle const &
 	auto inferred_format = infer_image_format_from_le_image_usage_flags( self, usageFlags );
 
 	if ( inferred_format == le::Format::eUndefined ) {
-		logger.error( "Fatal: Cannot infer image format, resource underspecified: '%s'", resource->data->debug_name.c_str() );
+		logger.error( "Fatal: Cannot infer image format, resource underspecified: '%s'", resource->data->debug_name );
 		logger.error( "Specify usage, or provide explicit format option for resource to fix this error. " );
 		logger.error( "Consider using le::RenderModule::declareResource()" );
 
@@ -3185,7 +3186,7 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o *instance,
 
 		vk::DebugUtilsObjectNameInfoEXT nameInfo;
 
-		nameInfo.setPObjectName( r.first->data->debug_name.c_str() );
+		nameInfo.setPObjectName( r.first->data->debug_name );
 
 		switch ( r.first->data->type ) {
 		case LeResourceType::eImage:
@@ -3446,12 +3447,12 @@ static void backend_allocate_resources( le_backend_o *self, BackendFrameData &fr
 			if ( r.second.info.isBuffer() ) {
 				logger.info( "%10s : %37s : %30p",
 				             "Buffer",
-				             r.first->data->debug_name.c_str(),
+				             r.first->data->debug_name,
 				             r.second.as.buffer );
 			} else {
 				logger.info( "%10s : %30s (s: %2d) : %30p",
 				             "Image",
-				             r.first->data->debug_name.c_str(),
+				             r.first->data->debug_name,
 				             1 << r.first->data->num_samples,
 				             r.second.as.buffer );
 			}
@@ -3516,7 +3517,7 @@ static void frame_allocate_transient_resources( BackendFrameData &frame, vk::Dev
 				// If the format is still undefined at this point, we can only throw our hands up in the air...
 				//
 				if ( imageFormat == vk::Format::eUndefined ) {
-					logger.warn( "Cannot create default view for image: '%s;, as format is unspecified", r->data->debug_name.c_str() );
+					logger.warn( "Cannot create default view for image: '%s;, as format is unspecified", r->data->debug_name );
 					continue;
 				}
 
@@ -4275,7 +4276,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 						// --------| invariant: barrier is active.
 
 						// print out sync chain for sampled image
-						logger.debug( "\t Explicit Barrier for: %s (s: %d)", op.resource->data->debug_name.c_str(), 1 << op.resource->data->num_samples );
+						logger.debug( "\t Explicit Barrier for: %s (s: %d)", op.resource->data->debug_name, 1 << op.resource->data->num_samples );
 						logger.debug( "\t % 3s : % 30s : % 30s : % 10s", "#", "visible_access", "write_stage", "layout" );
 
 						auto const &syncChain = frame.syncChainTable.at( op.resource );
@@ -5057,7 +5058,7 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					auto foundImgView = frame.imageViews.find( le_cmd->info.image_id );
 					if ( foundImgView == frame.imageViews.end() ) {
 						logger.error( "Could not find image view for image: '%s', ignoring image binding command.",
-						              le_cmd->info.image_id->data->debug_name.c_str() );
+						              le_cmd->info.image_id->data->debug_name );
 						break;
 					}
 

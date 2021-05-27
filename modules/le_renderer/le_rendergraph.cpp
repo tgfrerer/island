@@ -222,7 +222,7 @@ static void renderpass_use_resource( le_renderpass_o *self, const le_resource_ha
 
 		logger.error( "FATAL: Resource '%s' declared more than once for renderpass : '%s'. "
 		              "There can only be one declaration per resource per renderpass.",
-		              resource_id->data->debug_name.c_str(),
+		              resource_id->data->debug_name,
 		              self->debugName.c_str() );
 
 		assert( false );
@@ -1000,7 +1000,7 @@ static void rendergraph_execute( le_rendergraph_o *self, size_t frameIndex, le_b
 			renderpass_get_image_attachments( pass, &pImageAttachments, &pResources, &numImageAttachments );
 
 			for ( size_t i = 0; i != numImageAttachments; ++i ) {
-				logger.info( "\t Attachment: '%s'", pResources[ i ]->data->debug_name.c_str() ); //"', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'"
+				logger.info( "\t Attachment: '%s'", pResources[ i ]->data->debug_name ); //"', last written to in pass: '" << pass_id_to_handle[ attachment->source_id ] << "'"
 				logger.info( "\t load : %10s", to_str( pImageAttachments[ i ].loadOp ) );
 				logger.info( "\t store: %10s", to_str( pImageAttachments[ i ].storeOp ) );
 			}
