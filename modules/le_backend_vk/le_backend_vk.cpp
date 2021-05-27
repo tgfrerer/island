@@ -1278,11 +1278,13 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 		// The "original" image resource will then be mapped to a resolve attachment further down.
 		//
 		if ( numSamplesLog2 != 0 ) {
-			img_resource = le_renderer::renderer_i.produce_img_resource_handle( "", numSamplesLog2, img_resource, 0 );
+			img_resource = le_renderer::renderer_i.produce_img_resource_handle(
+			    img_resource->data->debug_name, numSamplesLog2, img_resource, 0 );
 		}
 
 		auto &syncChain = frame.syncChainTable[ img_resource ];
 
+		assert( !syncChain.empty() && "SyncChain must not be empty" );
 		vk::Format attachmentFormat = vk::Format( frame.availableResources[ img_resource ].info.imageInfo.format );
 
 		bool isDepth = false, isStencil = false;
@@ -3067,14 +3069,13 @@ static void insert_msaa_versions(
 
 			le_resource_handle resource_copy =
 			    le_renderer::renderer_i.produce_img_resource_handle(
-			        "", current_sample_count_log_2, static_cast<le_img_resource_handle>( resource ), 0 );
+			        resource->data->debug_name, current_sample_count_log_2, static_cast<le_img_resource_handle>( resource ), 0 );
 
 			le_resource_info_t resource_info_copy = resourceInfo;
 
-			// patch original resource info to note 1 sample - we do this because
-			// we can't patch the resource handle itself, and we want resource handle and info to be in sync.
-			// by creating a new handle with the correct sample count, and copying its info,
-			// then altering the original sample count, we have two versions of the image, each with an info element in sync.
+			// Patch original resource info to note 1 sample - we do this because
+			// handle and info must be in sync.
+			//
 			resourceInfo.image.sample_count_log2 = 0;
 
 			msaa_resources.push_back( resource_copy );
