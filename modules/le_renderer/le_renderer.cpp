@@ -15,6 +15,7 @@
 #include <unordered_map>
 #include <algorithm>
 #include <string>
+#include <cstring> // for memcpy
 
 #include "le_renderer/private/le_resource_handle_t.inl"
 
@@ -229,14 +230,14 @@ le_resource_handle renderer_produce_resource_handle(
 	le_resource_handle handle;
 
 	le_resource_handle_data_t *p_data = new le_resource_handle_data_t{};
-	p_data->debug_name                = std::string( maybe_name );
 	p_data->flags                     = flags;
 	p_data->num_samples               = num_samples;
 	p_data->reference_handle          = reference_handle;
 	p_data->type                      = resource_type;
 	p_data->index                     = index;
 
-	if ( maybe_name ) {
+	if ( maybe_name && maybe_name[ 0 ] != '\0' ) {
+		memcpy( p_data->debug_name, maybe_name, sizeof( p_data->debug_name ) );
 		// if a string was given, search for multimap and see if we can find something.
 		auto it = resource_handle_library->resource_handles.find( *p_data );
 		if ( it == resource_handle_library->resource_handles.end() ) {
