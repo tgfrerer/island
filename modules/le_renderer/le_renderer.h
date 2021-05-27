@@ -24,7 +24,7 @@ LE_OPAQUE_HANDLE( le_shader_module_handle );
 	le_renderer::renderer_i.produce_buf_resource_handle( ( x ), 0, 0 )
 
 #define LE_IMG_RESOURCE( x ) \
-	le_renderer::renderer_i.produce_img_resource_handle( ( x ), 0, 0 )
+	le_renderer::renderer_i.produce_img_resource_handle( ( x ), 0, 0, 0 )
 
 struct le_shader_binding_table_o;
 
