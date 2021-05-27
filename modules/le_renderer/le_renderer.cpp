@@ -263,9 +263,9 @@ le_resource_handle renderer_produce_resource_handle(
 }
 
 static le_img_resource_handle renderer_produce_img_resource_handle( char const *maybe_name, uint8_t num_samples,
-                                                                    le_img_resource_handle reference_handle ) {
+                                                                    le_img_resource_handle reference_handle, uint8_t flags ) {
 	return static_cast<le_img_resource_handle>(
-	    renderer_produce_resource_handle( maybe_name, LeResourceType::eImage, num_samples, 0, 0,
+	    renderer_produce_resource_handle( maybe_name, LeResourceType::eImage, num_samples, flags, 0,
 	                                      static_cast<le_resource_handle>( reference_handle ) ) );
 }
 
@@ -628,21 +628,21 @@ static void renderer_dispatch_frame( le_renderer_o *self, size_t frameIndex ) {
 // ----------------------------------------------------------------------
 
 static uint32_t renderer_get_swapchain_count( le_renderer_o *self ) {
-	using namespace le_backend_vk; // for rendergraph_i
+	using namespace le_backend_vk;
 	return vk_backend_i.get_swapchain_count( self->backend );
 }
 
 // ----------------------------------------------------------------------
 
 static le_img_resource_handle renderer_get_swapchain_resource( le_renderer_o *self, uint32_t index ) {
-	using namespace le_backend_vk; // for rendergraph_i
+	using namespace le_backend_vk;
 	return vk_backend_i.get_swapchain_resource( self->backend, index );
 }
 
 // ----------------------------------------------------------------------
 
 static void renderer_get_swapchain_extent( le_renderer_o *self, uint32_t index, uint32_t *p_width, uint32_t *p_height ) {
-	using namespace le_backend_vk; // for swapchain
+	using namespace le_backend_vk;
 	vk_backend_i.get_swapchain_extent( self->backend, index, p_width, p_height );
 }
 
@@ -650,7 +650,7 @@ static void renderer_get_swapchain_extent( le_renderer_o *self, uint32_t index, 
 
 static void renderer_update( le_renderer_o *self, le_render_module_o *module_ ) {
 
-	using namespace le_backend_vk; // for vk_backend_i
+	using namespace le_backend_vk;
 
 	const auto &index     = self->currentFrameNumber;
 	const auto &numFrames = self->frames.size();

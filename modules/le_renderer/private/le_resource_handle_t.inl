@@ -5,16 +5,26 @@
 #include <string>
 #include <le_renderer/le_renderer.h>
 
-struct le_resource_handle_data_t {
-	LeResourceType type;
+struct le_buf_resource_usage_flags_t {
 	enum FlagBits : uint8_t {
 		eIsUnset   = 0,
 		eIsVirtual = 1u << 0,
 		eIsStaging = 1u << 1,
 	};
+};
+
+struct le_img_resource_usage_flags_t {
+	enum FlagBits : uint8_t {
+		eIsUnset = 0,
+		eIsRoot  = 1u << 0, // whether image, when used as a render target, is flagged as a root resource to the rendergraph
+	};
+};
+
+struct le_resource_handle_data_t {
+	LeResourceType        type;                       // type controls which of the following fields are used.
 	uint8_t               num_samples      = 0;       // number of samples log 2 if image
-	uint8_t               flags            = 0;       // used for buffer resources: staging or virtual
-	uint16_t              index            = 0;       // index if virtual buffer
+	uint8_t               flags            = 0;       // bitfield of either buffer - or img_resource_useage_flags;
+	uint16_t              index            = 0;       // allocator index if virtual buffer
 	le_resource_handle_t *reference_handle = nullptr; // if auto-generated from another handle, we keep a reference to the parent.
 	std::string           debug_name;
 

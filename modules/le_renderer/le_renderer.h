@@ -51,7 +51,7 @@ struct le_renderer_api {
         char const *                   ( *texture_handle_get_name )(le_texture_handle handle);
 
         le_buf_resource_handle (*produce_buf_resource_handle)(char const * maybe_name, uint8_t flags, uint16_t index);
-        le_img_resource_handle (*produce_img_resource_handle)(char const * maybe_name, uint8_t num_samples, le_img_resource_handle reference_handle);
+        le_img_resource_handle (*produce_img_resource_handle)(char const * maybe_name, uint8_t num_samples, le_img_resource_handle reference_handle, uint8_t flags);
 
         le_tlas_resource_handle (*produce_tlas_resource_handle)(char const * maybe_name);
         le_blas_resource_handle (*produce_blas_resource_handle)(char const * maybe_name);
@@ -286,7 +286,7 @@ class Renderer {
 	}
 
 	static le_img_resource_handle produceImageHandle( char const *maybe_name ) {
-		return le_renderer::renderer_i.produce_img_resource_handle( maybe_name, 0, nullptr );
+		return le_renderer::renderer_i.produce_img_resource_handle( maybe_name, 0, nullptr, 0 );
 	}
 
 	static le_buf_resource_handle produceBufferHandle( char const *maybe_name ) {

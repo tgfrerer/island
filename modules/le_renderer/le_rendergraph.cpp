@@ -177,15 +177,8 @@ static inline bool vector_contains( const std::vector<T> &haystack, const T &nee
 	return haystack.end() != std::find( haystack.begin(), haystack.end(), needle );
 }
 
-static inline bool resource_is_a_swapchain_handle( const le_img_resource_handle &resource_id ) {
-	////	auto const handle_end = LE_SWAPCHAIN_IMAGE_HANDLES + LE_SWAPCHAIN_HANDLES_COUNT;
-	////	for ( auto handle = LE_SWAPCHAIN_IMAGE_HANDLES; handle != handle_end; handle++ ) {
-	////		if ( resource_id == *handle ) {
-	////			return true;
-	////		}
-	////	}
-	//	return false;
-	return true; // FIXME: re-implement this
+static inline bool resource_is_a_swapchain_handle( const le_img_resource_handle &handle ) {
+	return handle->data->flags == le_img_resource_usage_flags_t::eIsRoot;
 }
 
 // ----------------------------------------------------------------------

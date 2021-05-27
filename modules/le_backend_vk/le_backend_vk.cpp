@@ -7,6 +7,7 @@
 #include "le_window/le_window.h"
 #include "le_renderer/le_renderer.h"
 #include "le_renderer/private/le_renderer_types.h"
+#include "le_renderer/private/le_resource_handle_t.inl"
 #include "3rdparty/src/spooky/SpookyV2.h" // for hashing renderpass gestalt
 
 #include <vector>
@@ -18,8 +19,6 @@
 #include <set>
 #include <atomic>
 #include <mutex>
-
-#include "le_renderer/private/le_resource_handle_t.inl"
 
 static constexpr auto LOGGER_LABEL = "le_backend";
 
@@ -936,7 +935,7 @@ static void backend_reset_failed_swapchains( le_backend_o *self ) {
 static le_buf_resource_handle declare_resource_virtual_buffer( uint8_t index ) {
 
 	le_buf_resource_handle resource =
-	    le_renderer::renderer_i.produce_buf_resource_handle( "Encoder-Virtual", le_resource_handle_data_t::FlagBits::eIsVirtual, index );
+	    le_renderer::renderer_i.produce_buf_resource_handle( "Encoder-Virtual", le_buf_resource_usage_flags_t::eIsVirtual, index );
 
 	return resource;
 }
@@ -1175,7 +1174,9 @@ static void backend_setup( le_backend_o *self, le_backend_vk_settings_t const *s
 
 		for ( uint32_t j = 0; j != self->swapchains.size(); j++ ) {
 			snprintf( swapchain_name, sizeof( swapchain_name ), "Le_Swapchain_Image_Handle[%d]", j );
-			self->swapchain_resources.emplace_back( le_renderer::renderer_i.produce_img_resource_handle( swapchain_name, 0, nullptr ) );
+			self->swapchain_resources.emplace_back(
+			    le_renderer::renderer_i.produce_img_resource_handle(
+			        swapchain_name, 0, nullptr, le_img_resource_usage_flags_t::eIsRoot ) );
 		}
 
 		assert( !self->swapchain_resources.empty() && "swapchain_resources must not be empty" );
@@ -1268,14 +1269,17 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 
 		auto const &image_attachment_info = pImageAttachments[ i ];
 
-		// We patch the number of samples into resource ID so that lookups
-		// go to the correct version of the resource.
+		le_img_resource_handle img_resource = pResources[ i ];
 
-		// we only refer to a parent resource if the resource reports that is is in fact mutlisampled
+		// If we're dealing with a multisampled renderpass, the color attachments must be mapped
+		// to "virtual" image resources which share everything with the original image resource
+		// apart from the sample count.
 		//
-
-		le_img_resource_handle img_resource = le_renderer::renderer_i.produce_img_resource_handle(
-		    pResources[ i ]->data->debug_name.c_str(), numSamplesLog2, numSamplesLog2 ? pResources[ i ] : nullptr );
+		// The "original" image resource will then be mapped to a resolve attachment further down.
+		//
+		if ( numSamplesLog2 != 0 ) {
+			img_resource = le_renderer::renderer_i.produce_img_resource_handle( "", numSamplesLog2, img_resource, 0 );
+		}
 
 		auto &syncChain = frame.syncChainTable[ img_resource ];
 
@@ -1392,21 +1396,16 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 		return;
 	}
 
-	// ----------| invariant: this is multisampled renderpass.
+	// ----------| invariant: this is a multisampled renderpass.
 
-	// We must add resolve attachments.
-	// each image attachment from the renderpass receives a resolve attachment.
+	// We must add resolve attachments for each image, so that
+	// each image at sample_count_log2 == 0 is placed into a resolve
+	// attachment.
 
 	for ( size_t i = 0; i != numImageAttachments; ++i ) {
 
 		auto const &image_attachment_info = pImageAttachments[ i ];
 
-		// We patch the number of samples into resource ID so that lookups
-		// go to the correct version of the resource.
-
-		// FIXME:
-		//		le_img_resource_handle img_resource = le_renderer::renderer_i.produce_img_resource_handle(
-		//		    pResources[ i ]->data.debug_name.c_str(), 0, pResources[ i ] ); // hard-code num samples to zero, as resolve attachment *must* have one single sample only.
 		le_img_resource_handle img_resource = pResources[ i ];
 		auto &                 syncChain    = frame.syncChainTable[ img_resource ];
 
@@ -2151,9 +2150,9 @@ static void backend_create_renderpasses( BackendFrameData &frame, vk::Device &de
 /// otherwise, fetch from frame available resources based on an id lookup.
 static inline vk::Buffer frame_data_get_buffer_from_le_resource_id( const BackendFrameData &frame, const le_buf_resource_handle &buffer ) {
 
-	if ( buffer->data->flags == le_resource_handle_data_t::FlagBits::eIsVirtual ) {
+	if ( buffer->data->flags == uint8_t( le_buf_resource_usage_flags_t::eIsVirtual ) ) {
 		return frame.allocatorBuffers[ buffer->data->index ];
-	} else if ( buffer->data->flags == le_resource_handle_data_t::FlagBits::eIsStaging ) {
+	} else if ( buffer->data->flags == uint8_t( le_buf_resource_usage_flags_t::eIsStaging ) ) {
 		return frame.stagingAllocator->buffers[ buffer->data->index ];
 	} else {
 		return frame.availableResources.at( buffer ).as.buffer;
@@ -2695,7 +2694,7 @@ static bool staging_allocator_map( le_staging_allocator_o *self, uint64_t numByt
 		// The staging index makes sure the correct buffer for this handle can be retrieved later.
 		*resource_handle = le_renderer::renderer_i.produce_buf_resource_handle(
 		    "Le-Staging-Buffer",
-		    le_resource_handle_data_t::FlagBits::eIsStaging, allocationIndex );
+		    le_buf_resource_usage_flags_t::eIsStaging, allocationIndex );
 	}
 
 	// Map memory so that it may be written to
@@ -3068,8 +3067,7 @@ static void insert_msaa_versions(
 
 			le_resource_handle resource_copy =
 			    le_renderer::renderer_i.produce_img_resource_handle(
-			        resource->data->debug_name.c_str(), current_sample_count_log_2,
-			        static_cast<le_img_resource_handle>( resource ) );
+			        "", current_sample_count_log_2, static_cast<le_img_resource_handle>( resource ), 0 );
 
 			le_resource_info_t resource_info_copy = resourceInfo;
 
@@ -3099,7 +3097,11 @@ static void printResourceInfo( le_resource_handle const &handle, ResourceCreateI
 		logger.info( "% 32s : %11d : %30s : %30s", handle->data->debug_name.c_str(), info.bufferInfo.size, "-", to_string( vk::BufferUsageFlags( info.bufferInfo.usage ) ).c_str() );
 	} else if ( info.isImage() ) {
 		logger.info( "% 32s : %dx%dx%d : %30s : %30s : %5s samples",
-		             handle->data->debug_name.c_str(),
+		             !handle->data->debug_name.empty()
+		                 ? handle->data->debug_name.c_str()
+		             : handle->data->reference_handle
+		                 ? handle->data->reference_handle->data->debug_name.c_str()
+		                 : "unnamed",
 		             info.imageInfo.extent.width,
 		             info.imageInfo.extent.height,
 		             info.imageInfo.extent.depth,
