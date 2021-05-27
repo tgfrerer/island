@@ -1652,11 +1652,11 @@ struct CommandSetPushConstantData {
 struct CommandBuildRtxTlas {
 	CommandHeader header = { { { CommandType::eBuildRtxTlas, sizeof( CommandBuildRtxTlas ) } } };
 	struct {
-		le_resource_handle tlas_handle;
-		uint32_t           geometry_instances_count;     // number of geometry instances for this tlas
-		uint32_t           staging_buffer_offset;        // offset into staging buffer for geometry instance data
-		le_resource_handle staging_buffer_id;            // staging buffer which stores geometry instance data
-		void *             staging_buffer_mapped_memory; // address of mapped area on staging buffer.
+		le_tlas_resource_handle tlas_handle;
+		uint32_t                geometry_instances_count;     // number of geometry instances for this tlas
+		uint32_t                staging_buffer_offset;        // offset into staging buffer for geometry instance data
+		le_buf_resource_handle  staging_buffer_id;            // staging buffer which stores geometry instance data
+		void *                  staging_buffer_mapped_memory; // address of mapped area on staging buffer.
 	} info;
 };
 
@@ -1697,9 +1697,9 @@ struct CommandSetArgumentImage {
 struct CommandSetArgumentTlas {
 	CommandHeader header = { { { CommandType::eSetArgumentTlas, sizeof( CommandSetArgumentTlas ) } } };
 	struct {
-		uint64_t           argument_name_id; // const_char_hash id of argument name
-		le_resource_handle tlas_id;          // top level acceleration structure resource id,
-		uint64_t           array_index;      // argument array index (default is 0)
+		uint64_t                argument_name_id; // const_char_hash id of argument name
+		le_tlas_resource_handle tlas_id;          // top level acceleration structure resource id,
+		uint64_t                array_index;      // argument array index (default is 0)
 	} info;
 };
 

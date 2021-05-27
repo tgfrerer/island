@@ -941,7 +941,7 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 					char rtx_blas_resource_name[ 21 ]{};
 					snprintf( rtx_blas_resource_name, sizeof( rtx_blas_resource_name ), "blas_m%06lu_p%06lu", self->meshes.size(), mesh.primitives.size() );
 
-					primitive.rtx_blas_handle = LE_RESOURCE( rtx_blas_resource_name, LeResourceType::eRtxBlas );
+					primitive.rtx_blas_handle = le_renderer::renderer_i.produce_blas_resource_handle( rtx_blas_resource_name );
 				}
 
 				le_rtx_geometry_t geo{};
@@ -1578,7 +1578,7 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 		        // primitive describes geometry, and associated material.
 
 		        using namespace le_renderer;
-		        std::vector<le_resource_handle_t> blas_infos;
+		        std::vector<le_blas_resource_handle> blas_infos;
 
 		        // collect all handles over all meshes, primitives so that we may build them in a
 		        // next step.
@@ -1620,7 +1620,7 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 
 				        // Collect instance data over all instances for the current scene.
 				        std::vector<le_rtx_geometry_instance_t> instances;
-				        std::vector<le_resource_handle_t>       blas_handles;
+				        std::vector<le_blas_resource_handle>    blas_handles;
 
 				        for ( auto const &n : stage->nodes ) {
 					        if ( ( n->scene_bit_flags & ( 1 << scene_index ) ) && n->has_mesh ) {
@@ -2580,7 +2580,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 			snprintf( rtx_tlas_resource_name, sizeof( rtx_tlas_resource_name ), "tlas_%08u", i );
 
 			// -- Create top-level accelerator for this scene
-			stage->scenes[ i ].rtx_tlas_handle = LE_RESOURCE( rtx_tlas_resource_name, LeResourceType::eRtxTlas );
+			stage->scenes[ i ].rtx_tlas_handle = le_renderer::renderer_i.produce_tlas_resource_handle( rtx_tlas_resource_name );
 
 			LeBuildAccelerationStructureFlags tlas_flags =
 			    { LE_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_KHR |

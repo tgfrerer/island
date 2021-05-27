@@ -177,11 +177,11 @@ struct le_renderer_api {
 		void                         ( *set_argument_texture   )( le_command_buffer_encoder_o *self, le_texture_handle const textureId, uint64_t argumentName, uint64_t arrayIndex);
 		void                         ( *set_argument_image     )( le_command_buffer_encoder_o *self, le_img_resource_handle const imageId, uint64_t argumentName, uint64_t arrayIndex);
 
-		void                         ( *set_argument_tlas      )( le_command_buffer_encoder_o *self, le_resource_handle const tlasId, uint64_t argumentName, uint64_t arrayIndex);
+		void                         ( *set_argument_tlas      )( le_command_buffer_encoder_o *self, le_tlas_resource_handle const tlasId, uint64_t argumentName, uint64_t arrayIndex);
 
-		void 						 ( *build_rtx_blas         )( le_command_buffer_encoder_o *self, le_resource_handle const* const blas_handles, const uint32_t handles_count);
+		void 						 ( *build_rtx_blas         )( le_command_buffer_encoder_o *self, le_blas_resource_handle const* const blas_handles, const uint32_t handles_count);
         // one blas handle per rtx geometry instance
-		void 						 ( *build_rtx_tlas         )( le_command_buffer_encoder_o *self, le_resource_handle const* tlas_handle, le_rtx_geometry_instance_t const * instances, le_resource_handle const * blas_handles, uint32_t instances_count);
+		void 						 ( *build_rtx_tlas         )( le_command_buffer_encoder_o *self, le_tlas_resource_handle const* tlas_handle, le_rtx_geometry_instance_t const * instances, le_blas_resource_handle const * blas_handles, uint32_t instances_count);
         
         le_shader_binding_table_o*   ( *build_sbt              )(le_command_buffer_encoder_o* self, le_rtxpso_handle pipeline);
         void                         ( *sbt_set_ray_gen        )(le_shader_binding_table_o* sbt, uint32_t ray_gen);
@@ -719,7 +719,7 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &setArgumentTlas( uint64_t const &argumentName, le_resource_handle const &tlasId, uint64_t const &arrayIndex = 0 ) {
+	Encoder &setArgumentTlas( uint64_t const &argumentName, le_tlas_resource_handle const &tlasId, uint64_t const &arrayIndex = 0 ) {
 		le_renderer::encoder_i.set_argument_tlas( self, tlasId, argumentName, arrayIndex );
 		return *this;
 	}

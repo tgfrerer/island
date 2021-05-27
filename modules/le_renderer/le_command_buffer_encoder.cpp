@@ -495,7 +495,7 @@ static void cbe_set_argument_image( le_command_buffer_encoder_o *self, le_img_re
 
 // ----------------------------------------------------------------------
 
-static void cbe_set_argument_tlas( le_command_buffer_encoder_o *self, le_resource_handle const tlasId, uint64_t argumentName, uint64_t arrayIndex ) {
+static void cbe_set_argument_tlas( le_command_buffer_encoder_o *self, le_tlas_resource_handle const tlasId, uint64_t argumentName, uint64_t arrayIndex ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandSetArgumentTlas );
 
@@ -841,9 +841,9 @@ static void cbe_set_push_constant_data( le_command_buffer_encoder_o *self, void 
 }
 // ----------------------------------------------------------------------
 
-static void cbe_build_rtx_blas( le_command_buffer_encoder_o *   self,
-                                le_resource_handle const *const p_blas_handles,
-                                const uint32_t                  handles_count ) {
+static void cbe_build_rtx_blas( le_command_buffer_encoder_o *        self,
+                                le_blas_resource_handle const *const p_blas_handles,
+                                const uint32_t                       handles_count ) {
 
 	if ( handles_count == 0 || nullptr == p_blas_handles ) {
 		assert( p_blas_handles && handles_count > 0 && "must provide handles, and handles_count must be at least 1" );
@@ -868,9 +868,9 @@ static void cbe_build_rtx_blas( le_command_buffer_encoder_o *   self,
 // ----------------------------------------------------------------------
 
 void cbe_build_rtx_tlas( le_command_buffer_encoder_o *     self,
-                         le_resource_handle const *        tlas_handle,
+                         le_tlas_resource_handle const *   tlas_handle,
                          le_rtx_geometry_instance_t const *instances,
-                         le_resource_handle const *        blas_handles,
+                         le_blas_resource_handle const *   blas_handles,
                          uint32_t                          instances_count ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandBuildRtxTlas );

@@ -3250,11 +3250,16 @@ static void frame_resources_set_debug_names( le_backend_vk_instance_o *instance,
 
 static void backend_allocate_resources( le_backend_o *self, BackendFrameData &frame, le_renderpass_o **passes, size_t numRenderPasses ) {
 
-	static auto logger = LeLog( LOGGER_LABEL );
 	/*
 	- Frame is only ever allowed to reference frame-local resources.
 	- "Acquire" therefore means we create local copies of backend-wide resource handles.
 	*/
+
+	static auto logger = LeLog( LOGGER_LABEL );
+
+#ifdef LE_FEATURE_RTX
+	static le_resource_handle LE_RTX_SCRATCH_BUFFER_HANDLE = LE_BUF_RESOURCE( "le_rtx_scratch_buffer_handle" ); // opaque handle for rtx scratch buffer
+#endif
 
 	// -- first it is our holy duty to drop any binned resources which
 	// were condemned the last time this frame was active.
@@ -5108,11 +5113,9 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 
 					// fetch texture information based on texture id from command
 
-					assert( le_cmd->info.tlas_id.getResourceType() == LeResourceType::eRtxTlas );
-
 					auto found_resource = frame.availableResources.find( le_cmd->info.tlas_id );
 					if ( found_resource == frame.availableResources.end() ) {
-						logger.error( "Could not find acceleration structure: '%s'. Ignoring top level acceleration structure binding command.", le_cmd->info.tlas_id.debug_name );
+						logger.error( "Could not find acceleration structure: '%s'. Ignoring top level acceleration structure binding command.", le_cmd->info.tlas_id->data->debug_name );
 						break;
 					}
 
