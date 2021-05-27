@@ -2,7 +2,6 @@
 #define LE_RESOURCE_HANDLE_T_INL
 
 #include <stdint.h>
-#include <string>
 #include <le_renderer/le_renderer.h>
 
 struct le_buf_resource_usage_flags_t {
@@ -28,7 +27,8 @@ struct le_resource_handle_data_t {
 	le_resource_handle_t *reference_handle = nullptr;  // if auto-generated from another handle, we keep a reference to the parent.
 	char                  debug_name[ 48 ] = { '\0' }; // space for 47 chars + \0
 
-	bool operator==( le_resource_handle_data_t const &rhs ) const noexcept {
+	bool
+	operator==( le_resource_handle_data_t const &rhs ) const noexcept {
 
 		for ( char const *c = debug_name, *d = rhs.debug_name; *c != 0; c++, d++ ) {
 			if ( *c != *d ) {
@@ -58,33 +58,20 @@ struct le_resource_handle_data_hash {
 	inline uint64_t operator()( le_resource_handle_data_t const &key ) const noexcept {
 		uint64_t hash = FNV1A_VAL_64_CONST;
 
-		uint8_t value = 0;
-		for ( int i = 0; i != 8; i++ ) {
-			value = ( ( uint64_t )key.reference_handle >> ( i * 8 ) ) & 0xff;
-			hash  = hash ^ value;
+		uint8_t     value;
+		char const *key_data_begin = reinterpret_cast<char const *>( &key );
+		char const *key_data_end   = key_data_begin + offsetof( le_resource_handle_data_t, debug_name );
+
+		for ( char const *i = key_data_begin; i != key_data_end; ++i ) {
+			value = static_cast<uint8_t const &>( *i );
+			hash  = hash ^ ( *i );
 			hash  = hash * FNV1A_PRIME_64_CONST;
 		}
 
-		value = key.num_samples;
-		hash  = hash ^ value;
-		hash  = hash * FNV1A_PRIME_64_CONST;
-
-		value = key.flags;
-		hash  = hash ^ value;
-		hash  = hash * FNV1A_PRIME_64_CONST;
-
-		value = ( key.index >> 8 ) & 0xff;
-		hash  = hash ^ value;
-		hash  = hash * FNV1A_PRIME_64_CONST;
-
-		value = key.index & 0xff;
-		hash  = hash ^ value;
-		hash  = hash * FNV1A_PRIME_64_CONST;
-
-		for ( char const *i = key.debug_name; *i != 0; ++i ) {
-			uint8_t value = static_cast<const uint8_t &>( *i );
-			hash          = hash ^ value;
-			hash          = hash * FNV1A_PRIME_64_CONST;
+		for ( char const *i = key_data_end; *i != 0; ++i ) {
+			value = static_cast<uint8_t const &>( *i );
+			hash  = hash ^ value;
+			hash  = hash * FNV1A_PRIME_64_CONST;
 		}
 		return hash;
 	}
