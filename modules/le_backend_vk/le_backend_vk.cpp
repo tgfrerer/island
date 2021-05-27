@@ -1285,6 +1285,7 @@ static void le_renderpass_add_attachments( le_renderpass_o const *pass, LeRender
 		auto &syncChain = frame.syncChainTable[ img_resource ];
 
 		assert( !syncChain.empty() && "SyncChain must not be empty" );
+
 		vk::Format attachmentFormat = vk::Format( frame.availableResources[ img_resource ].info.imageInfo.format );
 
 		bool isDepth = false, isStencil = false;
@@ -3075,9 +3076,6 @@ static void insert_msaa_versions(
 
 		if ( resourceInfo.image.samplesFlags & ~uint32( le::SampleCountFlagBits::e1 ) ) {
 
-			// TODO: Handle case if same image is requested with more than two
-			// versions.
-			//
 			// We found a resource with flags requesting more than just single sample.
 			// for each flag we must clone the current resource and add to extra resources
 
@@ -3868,8 +3866,6 @@ static le_allocator_o **backend_create_transient_allocators( le_backend_o *self,
 
 		le_buf_resource_handle res = declare_resource_virtual_buffer( uint8_t( i ) );
 
-		// FIXME: we cannot copy all the information for the resource specialisation, as it is wider than 64 bits
-		// and puserdata only gives us space for 64 bits.
 		createInfo.pUserData = res;
 
 		VkBufferCreateInfo bufferCreateInfo;
