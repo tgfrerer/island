@@ -15,12 +15,12 @@
 #include "glm/vec4.hpp"
 
 struct font_info_t {
-	le_font_o *          font; // non-owning
-	le_resource_handle_t font_image;
-	le_resource_info_t   font_atlas_info;
-	le_texture_handle    font_image_sampler;
-	bool                 atlas_uploaded;
-	bool                 sampler_created;
+	le_font_o *            font; // non-owning
+	le_img_resource_handle font_image;
+	le_resource_info_t     font_atlas_info;
+	le_texture_handle      font_image_sampler;
+	bool                   atlas_uploaded;
+	bool                   sampler_created;
 };
 
 struct le_font_renderer_o {
@@ -98,21 +98,21 @@ le_texture_handle le_font_renderer_get_font_image_sampler( le_font_renderer_o *s
 		}
 	}
 
-	// ----------| invariant: Image sampler has not been found, otherwise we'd have returned early.
+	// ----------| Invariant: Font has not been found, otherwise we'd have returned early.
 
 	return nullptr;
 }
 
 // ----------------------------------------------------------------------
-le_resource_handle_t *le_font_renderer_get_font_image( le_font_renderer_o *self, le_font_o *font ) {
+le_img_resource_handle le_font_renderer_get_font_image( le_font_renderer_o *self, le_font_o *font ) {
 
 	for ( auto &f : self->fonts_info ) {
 		if ( f.font == font ) {
-			return &f.font_image;
+			return f.font_image;
 		}
 	}
 
-	// ----------| invariant: Image sampler has not been found, otherwise we'd have returned early.
+	// ----------| Invariant: Font has not been found, otherwise we'd have returned early.
 
 	return nullptr;
 }
