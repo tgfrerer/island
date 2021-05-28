@@ -5139,9 +5139,25 @@ static void backend_process_frame( le_backend_o *self, size_t frameIndex ) {
 					uint32_t firstBinding = le_cmd->info.firstBinding;
 					uint32_t numBuffers   = le_cmd->info.bindingCount;
 
-					// translate le_buffers to vk_buffers
-					for ( uint32_t b = 0; b != numBuffers; ++b ) {
-						vertexInputBindings[ b + firstBinding ] = frame_data_get_buffer_from_le_resource_id( frame, le_cmd->info.pBuffers[ b ] );
+					assert( numBuffers && "must at least have one buffer to bind." );
+
+					// Bind vertex buffers by looking up le resources and matching them with their corresponding
+					// vk resources.
+					// We optimise for the likely case that the same resource is given a number of times:
+					// we cache the last lookup of a vk_resource, and if the same le_resource is requested again,
+					// we can use the cached value instead of having to do a lookup.
+
+					le_buf_resource_handle le_buffer    = le_cmd->info.pBuffers[ 0 ];
+					vk::Buffer             vk_buffer    = frame_data_get_buffer_from_le_resource_id( frame, le_buffer );
+					vertexInputBindings[ firstBinding ] = vk_buffer;
+
+					for ( uint32_t b = 1; b != numBuffers; ++b ) {
+						le_buf_resource_handle next_buffer = le_cmd->info.pBuffers[ b ];
+						if ( next_buffer != le_buffer ) {
+							le_buffer = next_buffer;
+							vk_buffer = frame_data_get_buffer_from_le_resource_id( frame, le_buffer );
+						}
+						vertexInputBindings[ b + firstBinding ] = vk_buffer;
 					}
 
 					cmd.bindVertexBuffers( le_cmd->info.firstBinding, le_cmd->info.bindingCount, &vertexInputBindings[ firstBinding ], le_cmd->info.pOffsets );
