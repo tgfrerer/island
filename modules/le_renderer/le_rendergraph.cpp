@@ -1,6 +1,6 @@
 #include "le_renderer.h"
 
-#include "le_backend_vk/le_backend_vk.h"
+#include "le_backend_vk.h"
 
 #include <vector>
 #include <string>
@@ -13,9 +13,9 @@
 #include <sstream>
 #include <array>
 
-#include "le_renderer/private/le_resource_handle_t.inl"
+#include "private/le_resource_handle_t.inl"
 
-#include "le_log/le_log.h"
+#include "le_log.h"
 
 static constexpr auto LOGGER_LABEL = "le_rendergraph";
 

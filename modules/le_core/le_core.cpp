@@ -1,6 +1,6 @@
 #include "le_core.h"
-#include "le_core/le_api_loader.h"
-#include "le_file_watcher/le_file_watcher.h"
+#include "le_api_loader.h"
+#include "le_file_watcher.h"
 #include "hash_util.h"
 #include <vector>
 #include <unordered_map>

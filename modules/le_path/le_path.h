@@ -7,7 +7,7 @@
  *
 */
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 #include <glm/fwd.hpp> // TODO: get rid of glm as this is a cpp header.
 
 struct le_path_o;

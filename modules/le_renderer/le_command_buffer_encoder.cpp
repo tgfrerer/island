@@ -1,9 +1,9 @@
-#include "le_core/le_core.h"
+#include "le_core.h"
 
-#include "le_renderer/le_renderer.h"
-#include "le_renderer/private/le_renderer_types.h"
+#include "le_renderer.h"
+#include "private/le_renderer_types.h"
 
-#include "le_backend_vk/le_backend_vk.h" // for GPU allocators
+#include "le_backend_vk.h" // for GPU allocators
 
 #include <cstring>
 #include <iostream>
@@ -12,7 +12,7 @@
 #include <vector>
 #include <algorithm>
 
-#include "le_renderer/private/le_resource_handle_t.inl"
+#include "private/le_resource_handle_t.inl"
 
 #ifdef _WIN32
 #	define __PRETTY_FUNCTION__ __FUNCSIG__

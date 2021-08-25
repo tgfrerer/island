@@ -2,7 +2,7 @@
 #define GUARD_le_stage_H
 
 #include <stdint.h>
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct le_renderer_o; // from le_renderer
 struct le_timebase_o; // from le_timebase

@@ -1,5 +1,10 @@
 set (TARGET le_camera)
 
+# list modules this module depends on
+depends_on_island_module(le_core)
+depends_on_island_module(le_renderer)
+depends_on_island_module(le_ui_event)
+
 set (SOURCES "le_camera.cpp")
 set (SOURCES ${SOURCES} "le_camera.h")
 

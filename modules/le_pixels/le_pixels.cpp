@@ -1,5 +1,5 @@
 #include "le_pixels.h"
-#include "le_core/le_core.h"
+#include "le_core.h"
 #include "3rdparty/stb_image.h"
 #include "assert.h"
 #include <iostream>

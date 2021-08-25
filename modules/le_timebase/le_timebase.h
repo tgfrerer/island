@@ -13,7 +13,7 @@
  */
 
 #include <stdint.h>
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct le_timebase_o;
 

@@ -1,13 +1,13 @@
-#include "le_core/le_core.h"
-#include "le_backend_vk/le_backend_vk.h"
-#include "le_log/le_log.h"
-#include "util/vk_mem_alloc/vk_mem_alloc.h"          // for allocation
-#include "le_backend_vk/le_backend_types_internal.h" // includes vulkan.hpp
-#include "le_swapchain_vk/le_swapchain_vk.h"
-#include "le_window/le_window.h"
-#include "le_renderer/le_renderer.h"
-#include "le_renderer/private/le_renderer_types.h"
-#include "le_renderer/private/le_resource_handle_t.inl"
+#include "le_core.h"
+#include "le_backend_vk.h"
+#include "le_log.h"
+#include "util/vk_mem_alloc/vk_mem_alloc.h" // for allocation
+#include "le_backend_types_internal.h"      // includes vulkan.hpp
+#include "le_swapchain_vk.h"
+#include "le_window.h"
+#include "le_renderer.h"
+#include "private/le_renderer_types.h"
+#include "private/le_resource_handle_t.inl"
 #include "3rdparty/src/spooky/SpookyV2.h" // for hashing renderpass gestalt
 
 #include <vector>

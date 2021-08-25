@@ -16,7 +16,7 @@ endif()
 
 set ( STATIC_LIBS )
 
-set ( PLUGIN_LIBS_DEPENDENCIES "")
+set ( PLUGIN_LIBS_DEPENDENCIES "" CACHE INTERNAL "plugins_libs_dependencies" )
 set ( PLUGIN_LINK_DIRS "")
 
 # specify output directory
@@ -70,10 +70,9 @@ if (REQUIRES_ISLAND_CORE)
     # create a link to shared resources
     link_resources(${ISLAND_BASE_DIR}/resources ${CMAKE_BINARY_DIR}/resources )
     
-    #  DEPRECATED: Uncomment this if you wish not to use the ubuntu package `lunarg-vulkan-sdk`.
-    ## Check if a local copy of the Vulkan SDK exists, and the environment VULKAN_SDK points to it.
-    ## If yes, use this directory for header includes, and linking
-    ## we need this on windows
+    # Windows - only: 
+    # Check if a local copy of the Vulkan SDK exists, and the environment VULKAN_SDK points to it.
+    # If yes, use this directory for header includes, and linking.
 
     if (WIN32)
         set (VULKAN_SDK_ENV $ENV{VULKAN_SDK})
@@ -87,17 +86,19 @@ if (REQUIRES_ISLAND_CORE)
     
         endif(EXISTS ${VULKAN_SDK_ENV})
     endif()
+
 endif()
 
 # Adds a directory to the modules locations
 macro(add_island_module_location MODULE_LOCATION)
     set( MODULE_LOCATIONS_LIST ${MODULE_LOCATIONS_LIST} ${MODULE_LOCATION} CACHE INTERNAL "module_locations_list" )
-    include_directories("${MODULE_LOCATIONS_LIST}")
+    # include_directories( "${MODULE_LOCATIONS_LIST}")
 endmacro()
 
 
 # include the island base directory
 include_directories ("${ISLAND_BASE_DIR}")
+include_directories ("${ISLAND_BASE_DIR}/modules/le_core")
 
 # We will store all possible module locations in this list, if the same module exists in multiple locations, the last one will be used
 set ( MODULE_LOCATIONS_LIST CACHE INTERNAL "module_locations_list")
@@ -128,9 +129,17 @@ if (REQUIRES_ISLAND_CORE)
    list (APPEND MODULES_LIST ${CORE_ISLAND_MODULES})
 endif()
 
-# Loads a requested module
-# Note that this method is only called in epilog - this is a mechanism to make sure 
-# we have a consolidated, unique list of modules by the time we load modules.
+macro(print_current_includes)
+    get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+    foreach(dir ${dirs})
+        message(STATUS "dir='${dir}'")
+    endforeach()
+endmacro()
+
+
+# Loads a requested module - note that this may recursively 
+# trigger loading more modules, as modules are added via 
+# add_subdirectory, which evaluates their cmake.txt file.
 macro(load_island_module MODULE_NAME)
 
     # look for the module in all given locations
@@ -144,7 +153,33 @@ macro(load_island_module MODULE_NAME)
 
     if( MODULE_LOCATION )
         message(STATUS "Loading module  : ${MODULE_NAME}")
+        
+        include_directories( "${MODULE_LOCATION}")
+        # message(STATUS "[ NOTE ] Include Directory: ${MODULE_LOCATION} " )
         add_subdirectory (${MODULE_LOCATION} ${MODULE_NAME})
+    else()
+        message( SEND_ERROR "Module not found  : ${MODULE_NAME}")
+    endif()
+endmacro()
+
+# Adds header includes for requested module - this may get called recursively
+# (if a module loads its dependent modules)
+# in which case it executes in the scope of the current module.
+macro(include_island_module MODULE_NAME)
+
+    # look for the module in all given locations
+    set( MODULE_LOCATION )
+    foreach( LOCATION ${MODULE_LOCATIONS_LIST} )
+        set( CURRENT_LOCATION "${LOCATION}/${MODULE_NAME}" )
+        if( EXISTS ${CURRENT_LOCATION} )
+            set( MODULE_LOCATION ${CURRENT_LOCATION} )
+        endif()
+    endforeach()
+
+    if( MODULE_LOCATION )
+        message(STATUS "    Including module  : ${MODULE_NAME}")
+        
+        include_directories( "${MODULE_LOCATION}")
     else()
         message( SEND_ERROR "Module not found  : ${MODULE_NAME}")
     endif()
@@ -160,6 +195,7 @@ macro(add_island_module MODULE_NAME)
         set( LOADED_MODULES_LIST ${LOADED_MODULES_LIST} ${MODULE_NAME} CACHE INTERNAL "loaded_modules_list" )        
         load_island_module(${MODULE_NAME})        
     else()
+        include_island_module(${MODULE_NAME})
         # message(STATUS "[ NOTE ] Rejecting add_island_module request: `${MODULE_NAME}` - Module already present."  )
     endif()
 

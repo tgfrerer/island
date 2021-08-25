@@ -1,5 +1,5 @@
 #include "le_jobs.h"
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 #include <atomic>
 #include <mutex>
@@ -282,12 +282,12 @@ static void le_fiber_yield() {
  * Note this gets called from asm_call_fiber_exit, not directly.
  */
 #ifdef _MSC_VER
-#define ATTR_NO_RETURN __declspec(noreturn)
+#	define ATTR_NO_RETURN __declspec( noreturn )
 #else
-#define ATTR_NO_RETURN __attribute__( ( __noreturn__ ) )
+#	define ATTR_NO_RETURN __attribute__( ( __noreturn__ ) )
 #endif // _MSC_VER
 
-extern "C" void  ATTR_NO_RETURN fiber_exit( le_fiber_o *host_fiber, le_fiber_o *guest_fiber ) {
+extern "C" void ATTR_NO_RETURN fiber_exit( le_fiber_o *host_fiber, le_fiber_o *guest_fiber ) {
 
 	if ( guest_fiber->job_complete_counter ) {
 		--guest_fiber->job_complete_counter->data;
@@ -445,7 +445,7 @@ static void le_job_manager_initialize( size_t num_threads ) {
 
 		w->thread = std::thread( le_worker_thread_loop, w );
 
-		auto      pthread = w->thread.native_handle();
+		auto pthread = w->thread.native_handle();
 #ifdef _MSC_VER
 
 #else
@@ -453,9 +453,9 @@ static void le_job_manager_initialize( size_t num_threads ) {
 		CPU_ZERO( &mask );
 		CPU_SET( i + 1, &mask );
 		pthread_setaffinity_np( pthread, sizeof( mask ), &mask );
-#endif//
-		// Thread in static ledger of threads so that
-		// we may retrieve thread-ids later.
+#endif //                                         \
+    // Thread in static ledger of threads so that \
+    // we may retrieve thread-ids later.
 		static_worker_threads[ i ] = w;
 	}
 
@@ -592,7 +592,7 @@ LE_MODULE_REGISTER_IMPL( le_jobs, api ) {
 
 // ----------------------------------------------------------------------
 
-#if defined (__x86_64)
+#if defined( __x86_64 )
 
 // General assembly reference: https://www.felixcloutier.com/x86/
 
@@ -696,8 +696,7 @@ static_assert( offsetof( le_fiber_o, job_param ) == 8, "job_param must be at cor
 
 #else
 //#	error must implement asm_switch for your cpu architecture.
-extern "C" int  asm_switch(le_fiber_o * to, le_fiber_o * from, int switch_to_guest)
-{
+extern "C" int asm_switch( le_fiber_o *to, le_fiber_o *from, int switch_to_guest ) {
 	return 0;
 }
 #endif
@@ -729,8 +728,7 @@ asm_call_fiber_exit:
 )ASM" );
 #else
 //#	error must implement asm_call_fiber_exit for your cpu architecture.
-extern "C" void asm_call_fiber_exit(void)
-{
+extern "C" void asm_call_fiber_exit( void ) {
 }
 
 #endif
@@ -754,11 +752,6 @@ asm_fetch_default_control_words:
 )ASM" );
 #else
 //#	error must implement asm_fetch_default_control_words for your cpu architecture.
-extern "C" void asm_fetch_default_control_words(uint64_t*)
-{
-
+extern "C" void asm_fetch_default_control_words( uint64_t * ) {
 }
 #endif
-
-
-

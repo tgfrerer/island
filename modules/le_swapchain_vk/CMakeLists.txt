@@ -1,5 +1,10 @@
 set (TARGET le_swapchain_vk)
 
+# list modules this module depends on
+depends_on_island_module(le_core)
+depends_on_island_module(le_window)
+depends_on_island_module(le_log)
+
 set (SOURCES "le_swapchain_vk.h")
 set (SOURCES ${SOURCES} "le_swapchain_vk.cpp")
 set (SOURCES ${SOURCES} "le_swapchain_khr.cpp")

@@ -14,7 +14,7 @@
 #	include <dirent.h>
 #	include <sys/inotify.h>
 #	include <unistd.h>
-#	include "le_log/le_log.h"
+#	include "le_log.h"
 #	include <unordered_map>
 #	include <mutex>
 #	include <cassert>

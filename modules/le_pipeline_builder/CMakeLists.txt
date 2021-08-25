@@ -1,5 +1,11 @@
 set (TARGET le_pipeline_builder)
 
+# list modules this module depends on
+depends_on_island_module(le_backend_vk)
+depends_on_island_module(le_renderer)
+depends_on_island_module(le_log)
+
+
 set (SOURCES "le_pipeline_builder.cpp")
 set (SOURCES ${SOURCES} "le_pipeline_builder.h")
 set (SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.cpp")

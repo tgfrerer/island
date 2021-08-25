@@ -1,10 +1,10 @@
-#include "le_backend_vk/le_backend_vk.h"
+#include "le_backend_vk.h"
 #include <vulkan/vulkan.hpp>
 
 #include "include/internal/le_swapchain_vk_common.h"
-#include "le_renderer/private/le_renderer_types.h" // for le_swapchain_settings_t, and le::Format
-#include "le_backend_vk/util/vk_mem_alloc/vk_mem_alloc.h"
-#include "le_log/le_log.h"
+#include "private/le_renderer_types.h" // for le_swapchain_settings_t, and le::Format
+#include "util/vk_mem_alloc/vk_mem_alloc.h"
+#include "le_log.h"
 
 #include <iostream>
 #include <iomanip>

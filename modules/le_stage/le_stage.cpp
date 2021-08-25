@@ -1,14 +1,14 @@
 #include "le_stage.h"
-#include "le_core/le_core.h"
-#include "le_log/le_log.h"
+#include "le_core.h"
+#include "le_log.h"
 
-#include "le_renderer/le_renderer.h"
+#include "le_renderer.h"
 #include "le_stage_types.h"
-#include "le_pipeline_builder/le_pipeline_builder.h"
+#include "le_pipeline_builder.h"
 
-#include "le_camera/le_camera.h"
-#include "le_pixels/le_pixels.h"
-#include "le_timebase/le_timebase.h"
+#include "le_camera.h"
+#include "le_pixels.h"
+#include "le_timebase.h"
 
 #include "3rdparty/src/spooky/SpookyV2.h"
 

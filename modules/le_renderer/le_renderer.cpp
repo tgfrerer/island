@@ -1,10 +1,10 @@
-#include "le_core/le_core.h"
-#include "le_core/hash_util.h" // fixme-we shouldn't do that.
+#include "le_core.h"
+#include "hash_util.h" // fixme-we shouldn't do that.
 
-#include "le_renderer/le_renderer.h"
+#include "le_renderer.h"
 
-#include "le_backend_vk/le_backend_vk.h"
-#include "le_swapchain_vk/le_swapchain_vk.h"
+#include "le_backend_vk.h"
+#include "le_swapchain_vk.h"
 
 #include <iostream>
 #include <iomanip>
@@ -17,13 +17,13 @@
 #include <string>
 #include <cstring> // for memcpy
 
-#include "le_renderer/private/le_resource_handle_t.inl"
+#include "private/le_resource_handle_t.inl"
 
 const uint64_t LE_RENDERPASS_MARKER_EXTERNAL = hash_64_fnv1a_const( "rp-external" );
 
 using NanoTime = std::chrono::time_point<std::chrono::high_resolution_clock>;
 
-#include "le_jobs/le_jobs.h"
+#include "le_jobs.h"
 
 #ifndef LE_MT
 #	define LE_MT 0

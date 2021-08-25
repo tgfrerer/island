@@ -7,7 +7,7 @@
 #include <vulkan/vulkan.hpp>
 
 #include <vector>
-#include "le_renderer/private/le_renderer_types.h" // for `le_vertex_input_attribute_description`, `le_vertex_input_binding_description`, `le_resource_handle`, `LeRenderPassType`
+#include "private/le_renderer_types.h" // for `le_vertex_input_attribute_description`, `le_vertex_input_binding_description`, `le_resource_handle`, `LeRenderPassType`
 
 constexpr uint8_t VK_MAX_BOUND_DESCRIPTOR_SETS = 8;
 constexpr uint8_t VK_MAX_COLOR_ATTACHMENTS     = 16; // maximum number of color attachments to a renderpass

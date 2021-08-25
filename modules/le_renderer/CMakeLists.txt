@@ -1,5 +1,12 @@
 set (TARGET le_renderer)
 
+# list modules this module depends on
+depends_on_island_module(le_backend_vk)
+depends_on_island_module(le_swapchain_vk)
+depends_on_island_module(le_jobs)
+depends_on_island_module(le_log)
+
+
 set (SOURCES "le_renderer.cpp")
 set (SOURCES ${SOURCES} "le_renderer.h")
 set (SOURCES ${SOURCES} "private/le_renderer_types.h")

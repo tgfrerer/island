@@ -2,7 +2,7 @@
 #define LE_RESOURCE_HANDLE_T_INL
 
 #include <stdint.h>
-#include <le_renderer/le_renderer.h>
+#include "le_renderer.h"
 
 struct le_buf_resource_usage_flags_t {
 	enum FlagBits : uint8_t {

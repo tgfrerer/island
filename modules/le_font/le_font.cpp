@@ -1,5 +1,4 @@
 #include "le_font.h"
-#include "le_core/le_core.h"
 
 #include "3rdparty/stb_truetype.h"
 #include "3rdparty/stb_rect_pack.h"
@@ -14,7 +13,7 @@
 #include <glm/vec2.hpp>
 #include <glm/vec4.hpp>
 
-#include "modules/le_path/le_path.h" // for get_path_for_glyph
+#include "le_path.h" // for get_path_for_glyph
 
 struct UnicodeRange {
 	uint32_t                      start_range;

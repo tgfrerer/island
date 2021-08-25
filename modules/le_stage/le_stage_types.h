@@ -1,7 +1,7 @@
 #ifndef LE_STAGE_TYPES_GUARD
 #define LE_STAGE_TYPES_GUARD
 
-#include "le_renderer/private/le_renderer_types.h"
+#include "private/le_renderer_types.h"
 
 enum class le_buffer_view_type : uint8_t {
 	eUndefined = 0,

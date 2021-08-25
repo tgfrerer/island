@@ -1,7 +1,7 @@
 #ifndef GUARD_le_log_H
 #define GUARD_le_log_H
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 #define LE_LOG_LEVEL_DEBUG 0
 #define LE_LOG_LEVEL_INFO 1

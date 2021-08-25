@@ -1,9 +1,9 @@
-#include "le_core/le_core.h"
-#include "le_shader_compiler/le_shader_compiler.h"
+#include "le_core.h"
+#include "le_shader_compiler.h"
 
 #include "shaderc/shaderc.hpp"
-#include "le_log/le_log.h"
-#include "le_renderer/le_renderer.h" // for shader type
+#include "le_log.h"
+#include "le_renderer.h" // for shader type
 
 #include <iomanip>
 #include <iostream>

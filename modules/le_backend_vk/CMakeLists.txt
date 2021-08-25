@@ -1,5 +1,15 @@
 set (TARGET le_backend_vk)
 
+
+# list modules this module depends on
+depends_on_island_module(le_core)
+depends_on_island_module(le_log)
+depends_on_island_module(le_shader_compiler)
+depends_on_island_module(le_file_watcher)
+depends_on_island_module(le_window)
+depends_on_island_module(le_swapchain_vk)
+depends_on_island_module(le_renderer)
+
 # add_compile_definitions(VMA_USE_STL_CONTAINERS=1)
 
 add_compile_definitions(VULKAN_HPP_NO_SMART_HANDLE)
@@ -41,5 +51,6 @@ ELSE()
 ENDIF()    
     
 target_link_libraries(${TARGET} PUBLIC ${LINKER_FLAGS})
+
 
 source_group(${TARGET} FILES ${SOURCES})

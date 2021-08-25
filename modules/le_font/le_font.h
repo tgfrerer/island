@@ -1,7 +1,7 @@
 #ifndef GUARD_le_font_H
 #define GUARD_le_font_H
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 #ifndef ISL_ALLOW_GLM_TYPES
 #	define ISL_ALLOW_GLM_TYPES 1

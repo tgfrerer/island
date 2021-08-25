@@ -1,7 +1,7 @@
 #ifndef GUARD_FILE_WATCHER_H
 #define GUARD_FILE_WATCHER_H
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 #if defined( __linux__ )
 #	define LE_FILE_WATCHER_IMPL_LINUX

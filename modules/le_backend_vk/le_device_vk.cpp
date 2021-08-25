@@ -1,6 +1,6 @@
-#include "le_backend_vk/le_backend_vk.h"
+#include "le_backend_vk.h"
 #include "le_backend_types_internal.h"
-#include "le_log/le_log.h"
+#include "le_log.h"
 
 #include <iostream>
 #include <iomanip>

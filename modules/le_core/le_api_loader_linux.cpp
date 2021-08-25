@@ -8,7 +8,7 @@
 #	include "assert.h"
 #	include <string>
 #	include <iostream>
-#	include "le_log/le_log.h"
+#	include "le_log.h"
 #	include <cstdarg>
 #	include <stdio.h>
 

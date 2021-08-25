@@ -1,7 +1,6 @@
 #include "le_timebase.h"
 
 #include <chrono>
-#include "le_core/le_core.h"
 
 using Tick     = std::chrono::duration<uint64_t, std::ratio<1, LE_TIME_TICKS_PER_SECOND>>; /// LE_TIME_TICKS_PER_SECOND ticks per second.
 using NanoTime = std::chrono::time_point<std::chrono::steady_clock>;

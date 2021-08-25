@@ -2,7 +2,7 @@
 #define GUARD_LE_BACKEND_VK_H
 
 #include <stdint.h>
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct le_backend_o;
 struct le_backend_vk_api;

@@ -1,7 +1,7 @@
 #ifndef GUARD_LE_RENDERER_H
 #define GUARD_LE_RENDERER_H
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 #include "private/le_renderer_types.h"
 
 extern const uint64_t LE_RENDERPASS_MARKER_EXTERNAL; // set in le_renderer.cpp

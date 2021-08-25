@@ -1,5 +1,10 @@
 set (TARGET le_shader_compiler)
 
+# list modules this module depends on
+depends_on_island_module(le_log)
+depends_on_island_module(le_renderer)
+
+
 set (SOURCES "le_shader_compiler.cpp")
 set (SOURCES ${SOURCES} "le_shader_compiler.h")
 

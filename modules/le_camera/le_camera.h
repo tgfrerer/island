@@ -1,7 +1,7 @@
 #ifndef GUARD_le_camera_H
 #define GUARD_le_camera_H
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 #ifdef __cplusplus
 

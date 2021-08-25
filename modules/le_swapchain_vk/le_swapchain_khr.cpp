@@ -1,8 +1,8 @@
-#include "le_backend_vk/le_backend_vk.h"
-#include "le_renderer/private/le_renderer_types.h"
+#include "le_backend_vk.h"
+#include "private/le_renderer_types.h"
 #include "include/internal/le_swapchain_vk_common.h"
-#include "le_window/le_window.h"
-#include "le_log/le_log.h"
+#include "le_window.h"
+#include "le_log.h"
 
 #define VULKAN_HPP_DISABLE_ENHANCED_MODE
 #define VULKAN_HPP_NO_SMART_HANDLE

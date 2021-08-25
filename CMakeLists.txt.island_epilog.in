@@ -4,6 +4,8 @@ foreach( M IN LISTS MODULES_LIST )
     add_island_module(${M})
 endforeach()
 
+# print_current_includes()
+
 # NOTE: provide paths for libraries which are used by modules, 
 # but not available via system search paths
 # these were set via PARENT_SCOPE from the plugin CMake files.
@@ -23,8 +25,12 @@ target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PLUGIN_LIBS_DEPENDENCIES})
 target_link_libraries(${PROJECT_NAME} PRIVATE ${STATIC_LIBS})
 
-message(STATUS "Static libraries: ${STATIC_LIBS}")
-message(STATUS "Loaded modules  : ${LOADED_MODULES_LIST}")
+
+message(STATUS "Static libraries : ${STATIC_LIBS}")
+message(STATUS "Loaded modules   : ${LOADED_MODULES_LIST}")
+
+# Libraries against which we dynamically link our main application:
+message(STATUS "Libs dependencies: ${PLUGIN_LIBS_DEPENDENCIES}")
 
 ##################################################################################
 # OPTIONAL - Use Vulkan Validation Layers compiled from source -

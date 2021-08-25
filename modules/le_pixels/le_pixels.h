@@ -1,7 +1,7 @@
 #ifndef GUARD_le_pixels_H
 #define GUARD_le_pixels_H
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct le_pixels_o;
 

@@ -1,7 +1,7 @@
 #ifndef GUARD_le_jobs_H
 #define GUARD_le_jobs_H
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 // clang-format off
 struct le_jobs_api {

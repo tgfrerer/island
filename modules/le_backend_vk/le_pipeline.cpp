@@ -1,5 +1,5 @@
-#include "le_backend_vk/le_backend_vk.h"
-#include "le_backend_vk/le_backend_types_internal.h"
+#include "le_backend_vk.h"
+#include "le_backend_types_internal.h"
 
 #include <iostream>
 #include <iomanip>
@@ -14,12 +14,12 @@
 #include <shared_mutex>
 #include <atomic>
 
-#include "le_shader_compiler/le_shader_compiler.h"
+#include "le_shader_compiler.h"
 
 #include "util/spirv_reflect/spirv_reflect.h"
 
-#include "le_file_watcher/le_file_watcher.h" // for watching shader source files
-#include "le_log/le_log.h"
+#include "le_file_watcher.h" // for watching shader source files
+#include "le_log.h"
 #include "3rdparty/src/spooky/SpookyV2.h" // for hashing renderpass gestalt, so that we can test for *compatible* renderpasses
 
 static constexpr auto LOGGER_LABEL = "le_pipeline";

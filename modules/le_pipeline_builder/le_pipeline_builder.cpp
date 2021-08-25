@@ -1,13 +1,13 @@
 #include "le_pipeline_builder.h"
-#include "le_core/le_core.h"
-#include "le_log/le_log.h"
+#include "le_core.h"
+#include "le_log.h"
 
 #include "3rdparty/src/spooky/SpookyV2.h"
 
-#include "le_renderer/private/le_renderer_types.h" // for le_vertex_input_attribute_description le_vertex_input_binding_description
+#include "private/le_renderer_types.h" // for le_vertex_input_attribute_description le_vertex_input_binding_description
 
-#include "le_backend_vk/le_backend_vk.h" // for access to pipeline state object cache
-#include "le_backend_vk/le_backend_types_internal.h"
+#include "le_backend_vk.h" // for access to pipeline state object cache
+#include "le_backend_types_internal.h"
 
 #include <array>
 #include <vector>

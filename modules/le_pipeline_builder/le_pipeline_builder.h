@@ -1,7 +1,7 @@
 #ifndef GUARD_le_graphics_pipeline_builder_H
 #define GUARD_le_graphics_pipeline_builder_H
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct le_shader_module_o;
 struct le_pipeline_manager_o;

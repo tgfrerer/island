@@ -1,6 +1,6 @@
-#include "le_window/le_window.h"
-#include "le_ui_event/le_ui_event.h"
-#include "le_log/le_log.h"
+#include "le_window.h"
+#include "le_ui_event.h"
+#include "le_log.h"
 
 #include "assert.h"
 #include <vector>

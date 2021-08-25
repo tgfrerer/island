@@ -3,7 +3,7 @@
 
 #include <stdint.h>
 
-#include "le_core/hash_util.h"
+#include "hash_util.h"
 
 // Wraps a type (also may also be an enum) in a struct with `struct_name` so
 // that it can be opaquely passed around, then unwrapped.

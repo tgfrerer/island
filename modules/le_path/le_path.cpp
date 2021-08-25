@@ -1,5 +1,4 @@
 #include "le_path.h"
-#include "le_core/le_core.h"
 #include <vector>
 #include <algorithm>
 
@@ -204,7 +203,8 @@ inline static void sherman_morrisson_woodbury( T const *a, T const *b, T const *
 // ----------------------------------------------------------------------
 
 inline static float clamp( float val, float range_min, float range_max ) {
-	return val < range_min ? range_min : val > range_max ? range_max : val;
+	return val < range_min ? range_min : val > range_max ? range_max
+	                                                     : val;
 }
 
 // ----------------------------------------------------------------------

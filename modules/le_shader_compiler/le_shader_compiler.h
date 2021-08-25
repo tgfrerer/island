@@ -2,7 +2,7 @@
 #define GUARD_LE_SHADER_COMPILER_H
 
 #include <stdint.h>
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct le_shader_compiler_o;
 struct le_shader_compilation_result_o;

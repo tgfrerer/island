@@ -1,5 +1,5 @@
 #include "./include/internal/le_swapchain_vk_common.h" // defines struct le_swapchain_o
-#include "le_renderer/private/le_renderer_types.h"     // for swapchain_settings
+#include "private/le_renderer_types.h"                 // for swapchain_settings
 #include "assert.h"
 // ----------------------------------------------------------------------
 

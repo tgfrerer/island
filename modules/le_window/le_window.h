@@ -2,7 +2,7 @@
 #define GUARD_PAL_WINDOW_H
 
 #include <stdint.h>
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct VkInstance_T;
 struct le_window_o;
