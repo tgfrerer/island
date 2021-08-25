@@ -1491,6 +1491,7 @@ enum class le_num_type : uint8_t {
 	eF16 = eHalf,
 };
 
+// returns number of bytes needed to store given num_type
 constexpr uint32_t size_of( le_num_type const &tp ) {
 	return ( 1 << ( uint8_t( tp ) & 0b11 ) );
 }

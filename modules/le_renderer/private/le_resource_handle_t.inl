@@ -47,13 +47,7 @@ struct le_resource_handle_data_t {
 	}
 };
 
-// FIXME: we need an equality operator for this.
-
-// todo: use fnvhash
-
 struct le_resource_handle_data_hash {
-
-	//	static constexpr uint64_t FNV1A_PRIME_64_CONST = 0x100000001b3;
 
 	inline uint64_t operator()( le_resource_handle_data_t const &key ) const noexcept {
 		uint64_t hash = FNV1A_VAL_64_CONST;

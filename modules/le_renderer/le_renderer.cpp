@@ -197,7 +197,7 @@ static le_texture_handle renderer_produce_texture_handle( char const *maybe_name
 	}
 
 	// handle is a pointer to the element in the container, and as such it is
-	// guaranteed to stay valid, even through rehashesof the texture_handles
+	// guaranteed to stay valid, even through rehashes of the texture_handles
 	// container, because that's a guarantee that maps give us in c++, until
 	// the element gets erased.
 
@@ -256,7 +256,7 @@ le_resource_handle renderer_produce_resource_handle(
 	}
 
 	// handle is a pointer to the element in the container, and as such it is
-	// guaranteed to stay valid, even through rehashesof the texture_handles
+	// guaranteed to stay valid, even through rehashes of the resource_handle_library
 	// container, because that's a guarantee that maps give us in c++, until
 	// the element gets erased.
 
