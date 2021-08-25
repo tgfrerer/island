@@ -164,7 +164,7 @@ struct le_renderer_api {
 		void                         ( *set_index_data         )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, le::IndexType const & indexType, buffer_binding_info_o* optional_binding_info_readback );
 		void                         ( *set_vertex_data        )( le_command_buffer_encoder_o *self, void const *data, uint64_t numBytes, uint32_t bindingIndex, buffer_binding_info_o* optional_transient_binding_info_readback );
 
-		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_buf_resource_handle const& dst_buffer, size_t offset, void const* data, size_t numBytes);
+		void                         ( *write_to_buffer        )( le_command_buffer_encoder_o *self, le_buf_resource_handle const& dst_buffer, size_t dst_offset, void const* data, size_t numBytes);
 		void                         ( *write_to_image         )( le_command_buffer_encoder_o *self, le_img_resource_handle const& dst_img, le_write_to_image_settings_t const & writeInfo, void const *data, size_t numBytes );
 
         void                         ( *set_push_constant_data )( le_command_buffer_encoder_o* self, void const *data, uint64_t numBytes);
@@ -694,8 +694,8 @@ class Encoder {
 		return *this;
 	}
 
-	Encoder &writeToBuffer( le_buf_resource_handle const &dstBuffer, size_t const &byteOffset, void const *data, size_t const &numBytes ) {
-		le_renderer::encoder_i.write_to_buffer( self, dstBuffer, byteOffset, data, numBytes );
+	Encoder &writeToBuffer( le_buf_resource_handle const &dstBuffer, size_t const &byteOffsetDst, void const *data, size_t const &numBytes ) {
+		le_renderer::encoder_i.write_to_buffer( self, dstBuffer, byteOffsetDst, data, numBytes );
 		return *this;
 	}
 

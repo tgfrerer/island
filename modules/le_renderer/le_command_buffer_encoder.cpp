@@ -734,7 +734,7 @@ static void cbe_bind_compute_pipeline( le_command_buffer_encoder_o *self, le_cps
 
 // ----------------------------------------------------------------------
 
-static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_buf_resource_handle const &dst_buffer, size_t offset, void const *data, size_t numBytes ) {
+static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_buf_resource_handle const &dst_buffer, size_t dst_offset, void const *data, size_t numBytes ) {
 
 	auto cmd = EMPLACE_CMD( le::CommandWriteToBuffer );
 
@@ -755,7 +755,7 @@ static void cbe_write_to_buffer( le_command_buffer_encoder_o *self, le_buf_resou
 
 		cmd->info.src_buffer_id = srcResourceId;
 		cmd->info.src_offset    = 0; // staging allocator will give us a fresh buffer, and src memory will be placed at its start
-		cmd->info.dst_offset    = offset;
+		cmd->info.dst_offset    = dst_offset;
 		cmd->info.numBytes      = numBytes;
 		cmd->info.dst_buffer_id = dst_buffer;
 	} else {
