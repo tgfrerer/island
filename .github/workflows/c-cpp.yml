@@ -16,9 +16,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - uses: seanmiddleditch/gha-setup-ninja@master
     - name: Install Vulkan SDK
       uses: humbletim/setup-vulkan-sdk@v1.0.3
-    - name: configure
+    - name: run_tests
       run: ./scripts/ci/run_tests.sh
       
       
