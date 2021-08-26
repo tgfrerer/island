@@ -19,6 +19,11 @@ jobs:
     - uses: seanmiddleditch/gha-setup-ninja@master
     - name: Install Vulkan SDK
       uses: humbletim/setup-vulkan-sdk@v1.0.3
+    - name: install dependencies
+      shell: bash
+      run: |
+        sudo apt-get install -y wget xorg-dev
+    
     - name: run_tests
       run: ./scripts/ci/run_tests.sh
       
