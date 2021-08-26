@@ -21,7 +21,7 @@ jobs:
       shell: bash
       run: 
         sudo apt-get install -y libxinerama-dev libxcursor-dev libxi-dev libxrandr-dev;
-        wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add -
+        wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add - ;
         sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.2.176-focal.list https://packages.lunarg.com/vulkan/1.2.176/lunarg-vulkan-1.2.176-focal.list;
         sudo apt-get -qq update;
         sudo apt-get -y install vulkan-sdk
