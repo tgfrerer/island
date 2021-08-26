@@ -1,6 +1,9 @@
 set (TARGET le_2d)
 
 depends_on_island_module(le_path)
+depends_on_island_module(le_pipeline_builder)
+depends_on_island_module(le_shader_compiler)
+depends_on_island_module(le_renderer)
 depends_on_island_module(le_tessellator)
 
 set (SOURCES "le_2d.cpp")

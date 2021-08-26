@@ -17,7 +17,6 @@
 
 #include "le_renderer.h"
 
-#include "le_backend_vk.h"             // for shader module creation
 #include "le_pipeline_builder.h" // for pipeline creation
 
 #include "le_tessellator.h"
