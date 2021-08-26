@@ -21,9 +21,10 @@ jobs:
       shell: bash
       run: |
         sudo apt-get install -y libxinerama-dev libxcursor-dev libxi-dev libxrandr-dev shaderc
-    
-    - name: Install Vulkan SDK
-      uses: humbletim/setup-vulkan-sdk@v1.0.3
+        sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.2.176-focal.list https://packages.lunarg.com/vulkan/1.2.176/lunarg-vulkan-1.2.176-focal.list
+        sudo apt-get -qq update
+        sudo apt-get -y install vulkan-sdk
+
     - name: run_tests
       run: ./scripts/ci/run_tests.sh
       
