@@ -20,7 +20,7 @@ jobs:
     - name: install dependencies
       shell: bash
       run: |
-        sudo apt-get install -y libxinerama-dev
+        sudo apt-get install -y libxinerama-dev libxcursor-dev
     
     - name: Install Vulkan SDK
       uses: humbletim/setup-vulkan-sdk@v1.0.3
