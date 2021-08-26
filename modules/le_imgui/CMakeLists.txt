@@ -1,3 +1,6 @@
+depends_on_island_module(le_pipeline_builder)
+depends_on_island_module(le_renderer)
+depends_on_island_module(le_ui_event)
 
 # n.b. configure_file will replace any cmake variables it finds in the file with their values.    
 configure_file("CMakeLists.txt.imgui.in" ${ISLAND_BASE_DIR}/modules/le_imgui/3rdparty/imgui/CMakeLists.txt @ONLY)
