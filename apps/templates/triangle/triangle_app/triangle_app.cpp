@@ -1,10 +1,10 @@
 #include "triangle_app.h"
 
-#include "le_window/le_window.h"
-#include "le_renderer/le_renderer.h"
-#include "le_pipeline_builder/le_pipeline_builder.h"
-#include "le_camera/le_camera.h"
-#include "le_ui_event/le_ui_event.h"
+#include "le_window.h"
+#include "le_renderer.h"
+#include "le_pipeline_builder.h"
+#include "le_camera.h"
+#include "le_ui_event.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -85,7 +85,7 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 	auto app = static_cast<app_o *>( user_data );
 
 	// Attachment may be further specialised using le::ImageAttachmentInfoBuilder().
-	static le_img_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = self->renderer.getSwapchainResource();
+	static le_img_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = app->renderer.getSwapchainResource();
 	
 	rp
 	    .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE, le::ImageAttachmentInfoBuilder().build() ) // color attachment

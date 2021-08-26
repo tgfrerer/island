@@ -2,7 +2,7 @@
 #define GUARD_triangle_app_H
 #endif
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct triangle_app_o;
 
