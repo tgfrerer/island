@@ -7,7 +7,7 @@
  * 
  */
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 #ifdef __cplusplus
 #	include <glm/fwd.hpp>

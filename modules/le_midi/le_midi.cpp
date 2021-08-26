@@ -1,5 +1,5 @@
 #include "le_midi.h"
-#include "le_core/le_core.h"
+#include "le_core.h"
 #include "3rdparty/rtmidi/RtMidi.h"
 #include <vector>
 #include <string.h>

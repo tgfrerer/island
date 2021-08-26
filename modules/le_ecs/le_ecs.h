@@ -1,7 +1,7 @@
 #ifndef GUARD_le_ecs_H
 #define GUARD_le_ecs_H
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 #include "assert.h" // FIXME: we shouldn't include this here.
 
 struct le_ecs_o;

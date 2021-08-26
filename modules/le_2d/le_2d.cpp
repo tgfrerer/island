@@ -1,5 +1,5 @@
 #include "le_2d.h"
-#include "le_core/le_core.h"
+#include "le_core.h"
 #include "3rdparty/src/spooky/SpookyV2.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
@@ -15,13 +15,13 @@
 #include <atomic>
 #include <string.h> // for memset, memcpy
 
-#include "le_renderer/le_renderer.h"
+#include "le_renderer.h"
 
-#include "le_backend_vk/le_backend_vk.h"             // for shader module creation
-#include "le_pipeline_builder/le_pipeline_builder.h" // for pipeline creation
+#include "le_backend_vk.h"             // for shader module creation
+#include "le_pipeline_builder.h" // for pipeline creation
 
-#include "le_tessellator/le_tessellator.h"
-#include "le_path/le_path.h"
+#include "le_tessellator.h"
+#include "le_path.h"
 
 using vec2f          = glm::vec2;
 using StrokeCapType  = le_2d_api::StrokeCapType;

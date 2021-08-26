@@ -16,7 +16,7 @@
 #	include <string>
 #	include <iostream>
 #	include <filesystem>
-#	include "le_log/le_log.h"
+#	include "le_log.h"
 
 struct le_file_watcher_o;
 

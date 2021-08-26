@@ -1,5 +1,5 @@
 #include "le_parameter_store.h"
-#include "le_core/le_core.h"
+#include "le_core.h"
 #include <unordered_map>
 #include "assert.h"
 #include <string>

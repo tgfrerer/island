@@ -1,13 +1,13 @@
 #include "le_imgui.h"
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 #include "imgui.h"
 
-#include "le_renderer/le_renderer.h"
-#include "le_pipeline_builder/le_pipeline_builder.h"
-#include "le_ui_event/le_ui_event.h"
+#include "le_renderer.h"
+#include "le_pipeline_builder.h"
+#include "le_ui_event.h"
 
-#include "le_backend_vk/le_backend_vk.h" // for pipeline_manager
+#include "le_backend_vk.h" // for pipeline_manager
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.

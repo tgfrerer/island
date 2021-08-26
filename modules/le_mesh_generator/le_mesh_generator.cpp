@@ -1,11 +1,11 @@
 #include "le_mesh_generator.h"
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-#include <le_mesh/le_mesh.h>
-#include <le_mesh/le_mesh_types.h>
+#include <le_mesh.h>
+#include <le_mesh_types.h>
 
 static void le_mesh_generator_generate_plane( le_mesh_o *mesh,
                                               float      width,

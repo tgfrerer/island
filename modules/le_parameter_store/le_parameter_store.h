@@ -1,7 +1,7 @@
 #ifndef GUARD_le_parameter_store_H
 #define GUARD_le_parameter_store_H
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct le_parameter_store_o;
 struct le_parameter_o;

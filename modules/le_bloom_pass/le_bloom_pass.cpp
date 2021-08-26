@@ -1,8 +1,8 @@
 #include "le_bloom_pass.h"
-#include "le_core/le_core.h"
+#include "le_core.h"
 
-#include "le_renderer/le_renderer.h"
-#include "le_pipeline_builder/le_pipeline_builder.h"
+#include "le_renderer.h"
+#include "le_pipeline_builder.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.

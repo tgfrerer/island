@@ -1,7 +1,7 @@
 #ifndef GUARD_le_font_renderer_H
 #define GUARD_le_font_renderer_H
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct le_font_renderer_o;
 struct le_font_o;

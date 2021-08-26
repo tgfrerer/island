@@ -1,7 +1,7 @@
 #ifndef GUARD_le_mesh_H
 #define GUARD_le_mesh_H
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct le_mesh_o;
 

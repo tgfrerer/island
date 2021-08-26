@@ -1,7 +1,7 @@
 #ifndef GUARD_le_imgui_H
 #define GUARD_le_imgui_H
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct le_imgui_o;
 struct le_renderpass_o;    // declared in le_renderer.h

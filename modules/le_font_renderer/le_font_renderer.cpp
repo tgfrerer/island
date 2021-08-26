@@ -1,9 +1,9 @@
 #include "le_font_renderer.h"
-#include "le_core/le_core.h"
+#include "le_core.h"
 
-#include "modules/le_renderer/le_renderer.h"
-#include "modules/le_font/le_font.h"
-#include "modules/le_pipeline_builder/le_pipeline_builder.h"
+#include "le_renderer.h"
+#include "le_font.h"
+#include "le_pipeline_builder.h"
 
 #include <forward_list>
 #include <cstdio>

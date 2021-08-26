@@ -23,7 +23,7 @@
 #endif
 
 #if ( LE_MT > 0 )
-#	include "le_jobs/le_jobs.h"
+#	include "le_jobs.h"
 #endif
 
 // ----------------------------------------------------------------------

@@ -1,6 +1,6 @@
 #include "le_rtx_pipeline_builder.h"
-#include "le_core/le_core.h"
-#include "le_renderer/private/le_renderer_types.h"
+#include "le_core.h"
+#include "private/le_renderer_types.h"
 /*
 
 Here is what we need to do to allocate memory using the vma memory allocator:

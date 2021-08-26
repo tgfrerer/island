@@ -2,7 +2,7 @@
 #define GUARD_le_bloom_pass_H
 
 #include <stdint.h>
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct le_render_module_o;
 LE_OPAQUE_HANDLE( le_img_resource_handle );

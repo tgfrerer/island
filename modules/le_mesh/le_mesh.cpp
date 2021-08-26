@@ -1,5 +1,5 @@
 #include "le_mesh.h"
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 #include <math.h>
 #include <vector>

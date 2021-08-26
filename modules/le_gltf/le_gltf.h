@@ -2,7 +2,7 @@
 #define GUARD_le_gltf_H
 
 #include <stdint.h>
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct le_gltf_o;
 struct le_stage_o;

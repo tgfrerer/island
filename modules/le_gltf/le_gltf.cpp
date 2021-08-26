@@ -1,9 +1,9 @@
 ﻿#include "le_gltf.h"
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 #include "3rdparty/cgltf/cgltf.h"
-#include "le_stage/le_stage.h"
-#include "le_stage/le_stage_types.h"
+#include "le_stage.h"
+#include "le_stage_types.h"
 
 #include <vector>
 #include <string>

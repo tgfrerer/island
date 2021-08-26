@@ -1,13 +1,13 @@
 #include "le_resource_manager.h"
-#include "le_core/le_core.h"
-#include "le_renderer/le_renderer.h"
-#include "le_pixels/le_pixels.h"
+#include "le_core.h"
+#include "le_renderer.h"
+#include "le_pixels.h"
 
 #include <string>
 #include <vector>
 #include <assert.h>
 
-#include "le_renderer/private/le_resource_handle_t.inl"
+#include "private/le_resource_handle_t.inl"
 
 // ----------------------------------------------------------------------
 

@@ -1,7 +1,7 @@
 #ifndef GUARD_le_tessellator_H
 #define GUARD_le_tessellator_H
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 #ifdef __cplusplus
 #	include <glm/fwd.hpp>

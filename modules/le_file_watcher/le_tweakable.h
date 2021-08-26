@@ -31,10 +31,10 @@
 #ifndef NDEBUG
 
 #	include <stdint.h>
-#	include "le_core/le_core.h"
+#	include "le_core.h"
 
-#	include "le_file_watcher/le_file_watcher.h"
-#	include "le_log/le_log.h"
+#	include "le_file_watcher.h"
+#	include "le_log.h"
 
 #	include <fstream>
 #	include <iostream>

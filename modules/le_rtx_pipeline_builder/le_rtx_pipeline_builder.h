@@ -1,7 +1,7 @@
 #ifndef GUARD_le_rtx_pipeline_builder_H
 #define GUARD_le_rtx_pipeline_builder_H
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct le_rtx_pipeline_builder_o;
 struct le_rtx_pso_handle_t; // opaque handle for rtx pipleine

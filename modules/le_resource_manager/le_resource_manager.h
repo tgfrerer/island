@@ -71,7 +71,7 @@ when you specify the image info for the resource
 
 */
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct le_resource_manager_o;
 struct le_render_module_o; // ffdecl. (from le_renderer)
