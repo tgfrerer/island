@@ -19,10 +19,6 @@ jobs:
     - name: Install Vulkan SDK
       uses: humbletim/setup-vulkan-sdk@v1.0.3
     - name: configure
-      run: ./configure
-    - name: make
-      run: make
-    - name: make check
-      run: make check
-    - name: make distcheck
-      run: make distcheck
+      run: ./scripts/ci/run_tests.sh
+      
+      
