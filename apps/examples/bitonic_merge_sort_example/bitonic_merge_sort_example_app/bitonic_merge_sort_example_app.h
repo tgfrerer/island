@@ -2,7 +2,7 @@
 #define GUARD_bitonic_merge_sort_example_app_H
 #endif
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct bitonic_merge_sort_example_app_o;
 

@@ -1,5 +1,5 @@
 #include "test_log_app.h"
-#include "le_log/le_log.h"
+#include "le_log.h"
 
 #include <chrono>
 #include <thread>

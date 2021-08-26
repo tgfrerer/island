@@ -32,20 +32,24 @@ include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_prolog.in")
 # Main application c++ file. Not much to see there,
 set (SOURCES main.cpp)
 
-# Add application module, and (optional) any other private
-# island modules which should not be part of the shared framework.
-add_subdirectory (hello_world_app)
-
 # Specify any used modules here - you may reference any module 
 # found in the default Island modules/ directory, or found in any 
 # directories you specified via `add_island_module_location` above.
 #
-add_island_module(le_ui_event)
-add_island_module(le_pipeline_builder)
-add_island_module(le_camera)
-add_island_module(le_mesh)
-add_island_module(le_mesh_generator)
-add_island_module(le_resource_manager)
+depends_on_island_module(le_window)
+depends_on_island_module(le_ui_event)
+depends_on_island_module(le_renderer)
+depends_on_island_module(le_pipeline_builder)
+depends_on_island_module(le_camera)
+
+depends_on_island_module(le_mesh)
+depends_on_island_module(le_mesh_generator)
+depends_on_island_module(le_resource_manager)
+depends_on_island_module(le_pixels)
+
+# Add application module, and (optional) any other private
+# island modules which should not be part of the shared framework.
+add_subdirectory (hello_world_app)
 
 # Sets up Island framework linkage and housekeeping, based on user selections
 include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_epilog.in")

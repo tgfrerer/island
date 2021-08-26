@@ -1,10 +1,10 @@
 #include "asterisks_app.h"
 
-#include "le_window/le_window.h"
-#include "le_renderer/le_renderer.h"
-#include "le_pipeline_builder/le_pipeline_builder.h"
-#include "le_camera/le_camera.h"
-#include "le_ui_event/le_ui_event.h"
+#include "le_window.h"
+#include "le_renderer.h"
+#include "le_pipeline_builder.h"
+#include "le_camera.h"
+#include "le_ui_event.h"
 #include "hershey.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
@@ -13,7 +13,7 @@
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/random.hpp"
 
-#include "le_ecs/le_ecs.h"
+#include "le_ecs.h"
 
 #include <iostream>
 #include <memory>

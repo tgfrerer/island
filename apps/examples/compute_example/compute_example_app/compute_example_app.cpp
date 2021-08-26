@@ -1,7 +1,7 @@
 #include "compute_example_app.h"
 
-#include "le_window/le_window.h"
-#include "le_renderer/le_renderer.h"
+#include "le_window.h"
+#include "le_renderer.h"
 
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE // vulkan clip space is from 0 to 1
 #define GLM_FORCE_RIGHT_HANDED      // glTF uses right handed coordinate system, and we're following its lead.
@@ -10,18 +10,18 @@
 #define GLM_ENABLE_EXPERIMENTAL
 #include "glm/gtx/string_cast.hpp"
 
-#include "le_camera/le_camera.h"
-#include "le_pipeline_builder/le_pipeline_builder.h"
+#include "le_camera.h"
+#include "le_pipeline_builder.h"
 
-#include "le_mesh_generator/le_mesh_generator.h"
-#include "le_mesh/le_mesh.h"
+#include "le_mesh_generator.h"
+#include "le_mesh.h"
 
 #include <iostream>
 #include <memory>
 #include <sstream>
 #include <vector>
 
-#include "le_ui_event/le_ui_event.h"
+#include "le_ui_event.h"
 
 constexpr size_t cNumDataElements = 64;
 

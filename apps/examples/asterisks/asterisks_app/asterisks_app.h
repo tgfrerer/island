@@ -2,7 +2,7 @@
 #define GUARD_asterisks_app_H
 #endif
 
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct asterisks_app_o;
 

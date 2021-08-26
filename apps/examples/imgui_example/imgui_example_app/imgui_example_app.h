@@ -3,7 +3,7 @@
 #endif
 
 #include <stdint.h>
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct imgui_example_app_o;
 

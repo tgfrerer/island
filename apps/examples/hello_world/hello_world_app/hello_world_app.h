@@ -3,7 +3,7 @@
 #endif
 
 #include <stdint.h>
-#include "le_core/le_core.h"
+#include "le_core.h"
 
 struct hello_world_app_o;
 

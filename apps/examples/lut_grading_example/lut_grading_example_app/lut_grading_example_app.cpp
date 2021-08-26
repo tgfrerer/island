@@ -1,11 +1,11 @@
 #include "lut_grading_example_app.h"
 
-#include "le_window/le_window.h"
-#include "le_renderer/le_renderer.h"
-#include "le_pipeline_builder/le_pipeline_builder.h"
-#include "le_pixels/le_pixels.h" // only needed for static build
-#include "le_resource_manager/le_resource_manager.h"
-#include "le_ui_event/le_ui_event.h"
+#include "le_window.h"
+#include "le_renderer.h"
+#include "le_pipeline_builder.h"
+#include "le_pixels.h" // only needed for static build
+#include "le_resource_manager.h"
+#include "le_ui_event.h"
 
 #include <iostream>
 #include <memory>

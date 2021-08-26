@@ -31,15 +31,22 @@ include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_prolog.in")
 # Main application c++ file. Not much to see there,
 set (SOURCES main.cpp)
 
-# Add application module, and (optional) any other private
-# island modules which should not be part of the shared framework.
-add_subdirectory (bitonic_merge_sort_example_app)
-
 # Specify any used modules here - you may reference any module 
 # found in the default Island modules/ directory, or found in any 
 # directories you specified via `add_island_module_location` above.
 #
-add_island_module(le_pixels)
+depends_on_island_module(le_window)
+depends_on_island_module(le_ui_event)
+depends_on_island_module(le_renderer)
+depends_on_island_module(le_pipeline_builder)
+depends_on_island_module(le_camera)
+
+depends_on_island_module(le_pixels)
+depends_on_island_module(le_log)
+
+# Add application module, and (optional) any other private
+# island modules which should not be part of the shared framework.
+add_subdirectory (bitonic_merge_sort_example_app)
 
 # Sets up Island framework linkage and housekeeping, based on user selections
 include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_epilog.in")
