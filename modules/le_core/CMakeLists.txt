@@ -9,7 +9,7 @@ set ( SOURCES ${SOURCES} le_api_loader_linux.cpp )
 set ( SOURCES ${SOURCES} le_api_loader_win32.cpp )
 set ( SOURCES ${SOURCES} le_core.cpp )
 set ( SOURCES ${SOURCES} le_core.h )
-set ( SOURCES ${SOURCES} hash_util.h )
+set ( SOURCES ${SOURCES} le_hash_util.h )
 set ( SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.cpp")
 set ( SOURCES ${SOURCES} "${ISLAND_BASE_DIR}/3rdparty/src/spooky/SpookyV2.h")
 

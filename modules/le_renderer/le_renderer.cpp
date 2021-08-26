@@ -1,5 +1,5 @@
 #include "le_core.h"
-#include "hash_util.h" // fixme-we shouldn't do that.
+#include "le_hash_util.h" // fixme-we shouldn't do that.
 
 #include "le_renderer.h"
 

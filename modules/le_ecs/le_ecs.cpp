@@ -1,6 +1,6 @@
 #include "le_ecs.h"
 #include "le_core.h"
-#include "hash_util.h"
+#include "le_hash_util.h"
 
 #include <array>
 #include <vector>
