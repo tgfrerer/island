@@ -1,5 +1,18 @@
 set (TARGET bitonic_merge_sort_example_app)
 
+# Specify any used modules here - you may reference any module 
+# found in the default Island modules/ directory, or found in any 
+# directories you specified via `add_island_module_location` above.
+#
+depends_on_island_module(le_window)
+depends_on_island_module(le_ui_event)
+depends_on_island_module(le_renderer)
+depends_on_island_module(le_pipeline_builder)
+depends_on_island_module(le_camera)
+
+depends_on_island_module(le_pixels)
+depends_on_island_module(le_log)
+
 set (SOURCES "bitonic_merge_sort_example_app.cpp")
 set (SOURCES ${SOURCES} "bitonic_merge_sort_example_app.h")
 
