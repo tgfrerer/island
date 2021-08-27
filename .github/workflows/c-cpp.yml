@@ -18,10 +18,11 @@ jobs:
     steps:
     
     - name: Run Tests
+      shell: powershell
       run: |
           $Env:VULKAN_SDK = "C:/VulkanSDK/1.2.182.0"
           $Env:Path += ";C:/VulkanSDK/1.2.182.0/Bin"
-          call "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
+          Invoke-Environment "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
           ./scripts/ci/run_tests.ps1
           
     - name: Setup Vulkan
