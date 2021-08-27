@@ -23,6 +23,8 @@ jobs:
       run: |
           $Env:VULKAN_SDK = "C:/VulkanSDK/1.2.182.0"
           $Env:Path += ";C:/VulkanSDK/1.2.182.0/Bin"
+          $Env:CC = "cl"
+          $Env:CXX = "cl"
           function Invoke-Environment {
               param
               (
