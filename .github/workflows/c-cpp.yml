@@ -16,15 +16,18 @@ jobs:
     runs-on: windows-latest 
      
     steps:
+    - name: Set Compiler Environment
+      uses: lukka/set-shell-env@v1
+      with:
+        CXX: cl.exe
+        CC: cl.exe
     - uses: actions/checkout@v2
     - uses: seanmiddleditch/gha-setup-ninja@master
     - name: Run Tests
       shell: powershell
       run: |
           $Env:VULKAN_SDK = "C:/VulkanSDK/1.2.182.0"
-          $Env:Path += ";C:/VulkanSDK/1.2.182.0/Bin"
-          $Env:CC = "cl"
-          $Env:CXX = "cl"
+          $Env:Path += "C:/VulkanSDK/1.2.182.0/Bin"
           function Invoke-Environment {
               param
               (
