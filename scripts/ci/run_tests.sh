@@ -35,11 +35,12 @@ error() {
 build_app(){
 	local build_dir=$1
 	local app_name=$2
+    local build_type=$3
 
 	mkdir -p $build_dir
 	pushd $build_dir
 	
-	cmake ../.. -DCMAKE_BUILD_TYPE=Release -GNinja
+	cmake ../.. -DCMAKE_BUILD_TYPE=${build_type} -GNinja
 	
 	# we store the timestamp of the last built app executable
 	local previous_hash=0
@@ -89,35 +90,36 @@ build_app(){
 process_app(){
 	FILE_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 	IFS=: read -ra app_names -d '' <<<"$1"
+    local build_type="$2"
 	local app_dir=${app_names[0]}
 	local app_name=${app_names[1]}
 	local app_base_dir="$FILE_DIR/../../apps/$app_dir"
 
 	if [ -d $app_base_dir ] 
 	then
-		local build_dir="${app_base_dir}/build/Desktop-Test"
+		local build_dir="${app_base_dir}/build/Desktop-Test_${build_type}"
 
-		build_app $build_dir $app_name &>build.log
+		build_app $build_dir $app_name $build_type &>build.log
 		local build_result=$?
 
 		# echo "BUILD result: ${build_result}" 
 
 		if test $build_result -eq 2 
 		then
-			echo -n "[  ==  ]       : ${app_name}"
+			printf "[  ==  ] %- 10s: %s\n" ${build_type} ${app_name}
 			return 0 
 		elif test $build_result -ne 0 
 			then
-			echo -n "[ FAIL ] Build : ${app_name}"
+			printf "[ FAIL ] %- 10s: %s\n" ${build_type} ${app_name}
 			echo "--------------" >> build.err
-			echo "${app_name} BUILD FAILED: " >> build.err
+			echo "${build_type} ${app_name} BUILD FAILED: " >> build.err
 			echo "--------------" >> build.err
 			cat build.log >> build.err
             cat build.err
 			return 1
 		fi
 
-		echo -n "[  OK  ] Build : ${app_name}"
+		printf "[  OK  ] %- 10s: %s\n" ${build_type} ${app_name}
 
 	else 
 		echo "directory not found: '${app_base_dir}'"
@@ -154,5 +156,6 @@ git submodule update --depth=1
 
 for a in "${arr[@]}"; do 
 	b=`echo $a | tr -d [:space:]`; 
-	process_app $b
+	process_app $b Debug
+	process_app $b Release
 done
