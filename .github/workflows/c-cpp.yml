@@ -1,0 +1,32 @@
+
+
+
+name: C/C++ CI
+
+on:
+  push:
+    branches: [ wip ]
+  pull_request:
+    branches: [ wip ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - uses: seanmiddleditch/gha-setup-ninja@master
+    - name: install dependencies
+      shell: bash
+      run: 
+        sudo apt-get install -y libxinerama-dev libxcursor-dev libxi-dev libxrandr-dev;
+        wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add - ;
+        sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.2.176-focal.list https://packages.lunarg.com/vulkan/1.2.176/lunarg-vulkan-1.2.176-focal.list;
+        sudo apt-get -qq update;
+        sudo apt-get -y install vulkan-sdk
+
+    - name: run_tests
+      run: ./scripts/ci/run_tests.sh
+      
+      

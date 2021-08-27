@@ -1,5 +1,17 @@
 set (TARGET triangle_app)
 
+# Specify any used modules here - you may reference any module 
+# found in the default Island modules/ directory, or found in any 
+# directories you specified via `add_island_module_location` above.
+#
+depends_on_island_module(le_window)
+depends_on_island_module(le_ui_event)
+depends_on_island_module(le_renderer)
+depends_on_island_module(le_pipeline_builder)
+depends_on_island_module(le_camera)
+
+
+
 set (SOURCES "triangle_app.cpp")
 set (SOURCES ${SOURCES} "triangle_app.h")
 

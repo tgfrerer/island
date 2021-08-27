@@ -32,18 +32,6 @@ include ("${ISLAND_BASE_DIR}/CMakeLists.txt.island_prolog.in")
 # Main application c++ file. Not much to see there.
 set (SOURCES main.cpp)
 
-# Specify any used modules here - you may reference any module 
-# found in the default Island modules/ directory, or found in any 
-# directories you specified via `add_island_module_location` 
-#
-depends_on_island_module(le_window)
-depends_on_island_module(le_ui_event)
-depends_on_island_module(le_renderer)
-depends_on_island_module(le_pipeline_builder)
-depends_on_island_module(le_camera)
-depends_on_island_module(le_mesh)
-depends_on_island_module(le_mesh_generator)
-
 # Add application module, and (optional) any other private
 # island modules which should not be part of the shared framework.
 add_subdirectory (compute_example_app)
