@@ -13,7 +13,7 @@ modules.
 Each module aims to be strictly isolated, which makes the codebase
 **fast to compile**, especially in parallel.
 
-[![Build Status](https://travis-ci.com/tgfrerer/island.svg?branch=wip)](https://travis-ci.com/tgfrerer/island)
+[![C/C++ CI](https://github.com/tgfrerer/island/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/tgfrerer/island/actions/workflows/c-cpp.yml)
 [![Build status](https://ci.appveyor.com/api/projects/status/v68ft8y1ekb27j61?svg=true)](https://ci.appveyor.com/project/tgfrerer/island)
 
 ## Main Features:
