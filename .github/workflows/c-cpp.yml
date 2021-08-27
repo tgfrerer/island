@@ -7,49 +7,44 @@ on:
   pull_request:
     branches: [ wip ]
 
+
 jobs:
 
-  build_windows:
-    
-    runs-on: windows-latest 
-     
+  job:
+    name: ${{ matrix.name }}-build-and-test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        name: [ubuntu-latest-g++, windows-latest-cl.exe, ubuntu-latest-clang++]
+        # For Windows msvc, for Linux let's use the clang compiler, and gcc.
+        include:
+          - name: windows-latest-cl.exe
+            os: windows-latest
+            cxx: cl.exe
+            cc: cl.exe
+          - name: ubuntu-latest-clang++
+            os: ubuntu-latest
+            cxx: clang++
+            cc: clang
+          - name: ubuntu-latest-g++
+            os: ubuntu-latest
+            cxx: g++
+            cc: gcc
+
     steps:
-    - name: Setup Vulkan
+    
+    - uses: actions/checkout@v2
+        
+    - name: (Windows) Setup Vulkan
+      if: startsWith(matrix.name, 'windows'
       run: |
           Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/1.2.182.0/windows/VulkanSDK-1.2.182.0-Installer.exe" -OutFile VulkanSDK.exe
           $installer = Start-Process -FilePath VulkanSDK.exe -Wait -PassThru -ArgumentList @("/S");
           $installer.WaitForExit();
-    - name: Set VCvars
-      uses: ilammy/msvc-dev-cmd@v1
-
-    - name: Set Compiler Environment
-      uses: lukka/set-shell-env@v1
-      with:
-        CXX: cl.exe
-        CC: cl.exe
-    
-    - uses: actions/checkout@v2
-
-    - uses: seanmiddleditch/gha-setup-ninja@master
-    
-    - name: Run Tests
-      shell: powershell
-      run: |
-          $Env:VULKAN_SDK = "C:/VulkanSDK/1.2.182.0"
-          $Env:Path += "C:/VulkanSDK/1.2.182.0/Bin"
-          git submodule init
-          git submodule update --depth=1
-          & ./scripts/ci/run_tests.ps1      
-
-
-  build_linux:
-
-    runs-on: ubuntu-latest
-
-    steps:
-    - uses: actions/checkout@v2
-    - uses: seanmiddleditch/gha-setup-ninja@master
-    - name: install dependencies
+          
+    - name: (Linux) Setup Vulkan
+      if: startsWith(matrix.name, 'ubuntu')
       shell: bash
       run: 
         sudo apt-get install -y libxinerama-dev libxcursor-dev libxi-dev libxrandr-dev;
@@ -57,8 +52,29 @@ jobs:
         sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.2.182-focal.list https://packages.lunarg.com/vulkan/1.2.182/lunarg-vulkan-1.2.182-focal.list;
         sudo apt-get -qq update;
         sudo apt-get -y install vulkan-sdk
+        
+    - name: (Windows) Set VCvars
+      if: startsWith(matrix.name, 'windows')
+      uses: ilammy/msvc-dev-cmd@v1
 
-    - name: Run Tests
+    - name: Set Compiler Environment
+      uses: lukka/set-shell-env@v1
+      with:
+        CXX: ${{ matrix.cxx }}
+        CC: ${{ matrix.cc }}
+        
+    - name: Setup Ninja
+      uses: seanmiddleditch/gha-setup-ninja@master
+    
+    - name: Windows Integration Tests
+      if: startsWith(matrix.name, 'windows')
+      shell: powershell
+      run: |
+          $Env:VULKAN_SDK = "C:/VulkanSDK/1.2.182.0"
+          $Env:Path += "C:/VulkanSDK/1.2.182.0/Bin"
+          git submodule init
+          git submodule update --depth=1
+          & ./scripts/ci/run_tests.ps1      
+    - name: (Linux) Run Tests
+      if: startsWith(matrix.name, 'ubuntu')
       run: ./scripts/ci/run_tests.sh
-      
-      
