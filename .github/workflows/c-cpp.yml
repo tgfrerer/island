@@ -16,6 +16,7 @@ jobs:
     runs-on: windows-latest 
      
     steps:
+    - uses: ilammy/msvc-dev-cmd@v
     - name: Set Compiler Environment
       uses: lukka/set-shell-env@v1
       with:
@@ -28,23 +29,6 @@ jobs:
       run: |
           $Env:VULKAN_SDK = "C:/VulkanSDK/1.2.182.0"
           $Env:Path += "C:/VulkanSDK/1.2.182.0/Bin"
-          function Invoke-Environment {
-              param
-              (
-                 # Any cmd shell command, normally a configuration batch file.
-        
-                 [Parameter(Mandatory=$true)]
-                 [string] $Command
-              )    
-          
-              $Command = "`"" + $Command + "`""
-              cmd /c "$Command > nul 2>&1 && set" | . { process {
-                if ($_ -match '^([^=]+)=(.*)') {
-                  [System.Environment]::SetEnvironmentVariable($matches[1], $matches[2])        
-                }
-              }}
-          }
-          Invoke-Environment "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
           & ./scripts/ci/run_tests.ps1
           
     - name: Setup Vulkan
