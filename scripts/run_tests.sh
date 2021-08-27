@@ -195,11 +195,11 @@ process_app(){
 
 		if test $build_result -eq 2 
 		then
-			echo -n "[  ==  ]       : ${app_name}"
+			printf "[  ==  ] %- 10s: %s\n" "Build" ${app_name}
 			return 0 
 		elif test $build_result -ne 0 
 			then
-			echo -n "[ FAIL ] Build : ${app_name}"
+			printf "[ FAIL ] %- 10s: %s\n" "Build" ${app_name}
 			echo "--------------" >> build.err
 			echo "${app_name} BUILD FAILED: " >> build.err
 			echo "--------------" >> build.err
@@ -207,7 +207,7 @@ process_app(){
 			return 1
 		fi
 
-		echo -n "[  OK  ] Build : ${app_name}"
+		printf "[  OK  ] %- 10s: %s\n" "Build" ${app_name}
 
 		# we return early if screenshots have not been requested explicitly
 		if [[ $TAKE_SCREENSHOTS != 1 ]];
@@ -219,7 +219,7 @@ process_app(){
 
 		if test $? -ne 0 
 		then
-			echo -n "[ FAIL ] Run   : ${app_name}"
+			printf "[ FAIL ] %- 10s: %s\n" "Run" ${app_name}
 			echo "--------------" >> run.err
 			echo "${app_name} RUN FAILED: " >> run.err
 			echo "--------------" >> run.err
@@ -227,7 +227,7 @@ process_app(){
 			return 1
 		fi
 
-		echo -n "[  OK  ] Run   : ${app_name}"
+		printf "[  OK  ] %- 10s: %s\n" "Run" ${app_name}
 
 		copy_screenshot $build_dir $app_name
 
