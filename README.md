@@ -14,7 +14,6 @@ Each module aims to be strictly isolated, which makes the codebase
 **fast to compile**, especially in parallel.
 
 [![C/C++ CI](https://github.com/tgfrerer/island/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/tgfrerer/island/actions/workflows/c-cpp.yml)
-[![Build status](https://ci.appveyor.com/api/projects/status/v68ft8y1ekb27j61?svg=true)](https://ci.appveyor.com/project/tgfrerer/island)
 
 ## Main Features:
 
@@ -158,11 +157,11 @@ listed here:
 | `le_renderer` | - | record command buffers, evaluate rendergraphs |
 | `le_backend` | - | interact with GPU via Vulkan, manage GPU resources |
 
-To add a module, specify it in the application's `CMakeLists.txt` file. Modules
-may depend on other modules, and the build system will automatically include
-these dependencies. You can write your own modules - and there is a [module
-template generator][module-generator] which provides you with a scaffold to
-start from.
+To use a module, name it as a dependency in your applidation module's
+`CMakeLists.txt` file; modules may depend on other modules, and the build
+system will automatically include these dependencies. You can write your own
+modules - and there is a [module template generator][module-generator] which
+provides you with a scaffold to start from.
 
 [link-imgui]: https://github.com/ocornut/imgui
 [link-earcut]: https://github.com/mapbox/earcut.hpp
@@ -262,7 +261,7 @@ setup is pretty nice:
 last line of the above script causes `ninja` to run as soon as any of
 the files checked into the github repo at `hello_triangle` change.
 
-## Experimental Windows 10 support
+## Windows 10 support
 
 Island can compile and run natively on Microsoft Windows - with some
 caveats. Progress of the Windows port and Windows-specific build
