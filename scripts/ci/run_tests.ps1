@@ -25,7 +25,7 @@ function Invoke-Build {
 
     # pwd
 
-    cmake -G Ninja -DCC="cl" -DCXX="cl" -DCMAKE_BUILD_TYPE="${BuildType}" ..
+    cmake -G Ninja -DCMAKE_BUILD_TYPE="${BuildType}" ..
     ninja
 
     if ($? -ne $True) { 
