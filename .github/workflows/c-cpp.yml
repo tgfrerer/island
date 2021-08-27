@@ -16,7 +16,7 @@ jobs:
     runs-on: windows-latest 
      
     steps:
-    - uses: ilammy/msvc-dev-cmd@v
+    - uses: ilammy/msvc-dev-cmd@v1
     - name: Set Compiler Environment
       uses: lukka/set-shell-env@v1
       with:
