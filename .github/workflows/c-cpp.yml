@@ -16,6 +16,12 @@ jobs:
     runs-on: windows-latest 
      
     steps:
+    - name: Setup Vulkan
+      run: |
+          Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/1.2.182.0/windows/VulkanSDK-1.2.182.0-Installer.exe" -OutFile VulkanSDK.exe
+          $installer = Start-Process -FilePath VulkanSDK.exe -Wait -PassThru -ArgumentList @("/S");
+          $installer.WaitForExit();
+    
     - uses: ilammy/msvc-dev-cmd@v1
     - name: Set Compiler Environment
       uses: lukka/set-shell-env@v1
@@ -31,12 +37,6 @@ jobs:
           $Env:Path += "C:/VulkanSDK/1.2.182.0/Bin"
           & ./scripts/ci/run_tests.ps1
           
-    - name: Setup Vulkan
-      run: |
-          Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/1.2.182.0/windows/VulkanSDK-1.2.182.0-Installer.exe" -OutFile VulkanSDK.exe
-          $installer = Start-Process -FilePath VulkanSDK.exe -Wait -PassThru -ArgumentList @("/S");
-          $installer.WaitForExit();
-    
 
 
   build_linux:
