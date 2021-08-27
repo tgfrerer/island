@@ -1,6 +1,4 @@
 
-
-
 name: C/C++ CI
 
 on:
@@ -10,7 +8,41 @@ on:
     branches: [ wip ]
 
 jobs:
-  build:
+
+  build_windows:
+    
+    runs-on: windows-latest 
+     
+    steps:
+    - name: Setup Vulkan
+      run: |
+          Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/1.2.182.0/windows/VulkanSDK-1.2.182.0-Installer.exe" -OutFile VulkanSDK.exe
+          $installer = Start-Process -FilePath VulkanSDK.exe -Wait -PassThru -ArgumentList @("/S");
+          $installer.WaitForExit();
+    - name: Set VCvars
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Set Compiler Environment
+      uses: lukka/set-shell-env@v1
+      with:
+        CXX: cl.exe
+        CC: cl.exe
+    
+    - uses: actions/checkout@v2
+
+    - uses: seanmiddleditch/gha-setup-ninja@master
+    
+    - name: Run Tests
+      shell: powershell
+      run: |
+          $Env:VULKAN_SDK = "C:/VulkanSDK/1.2.182.0"
+          $Env:Path += "C:/VulkanSDK/1.2.182.0/Bin"
+          git submodule init
+          git submodule update --depth=1
+          & ./scripts/ci/run_tests.ps1      
+
+
+  build_linux:
 
     runs-on: ubuntu-latest
 
@@ -22,11 +54,11 @@ jobs:
       run: 
         sudo apt-get install -y libxinerama-dev libxcursor-dev libxi-dev libxrandr-dev;
         wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | sudo apt-key add - ;
-        sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.2.176-focal.list https://packages.lunarg.com/vulkan/1.2.176/lunarg-vulkan-1.2.176-focal.list;
+        sudo wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.2.182-focal.list https://packages.lunarg.com/vulkan/1.2.182/lunarg-vulkan-1.2.182-focal.list;
         sudo apt-get -qq update;
         sudo apt-get -y install vulkan-sdk
 
-    - name: run_tests
+    - name: Run Tests
       run: ./scripts/ci/run_tests.sh
       
       
