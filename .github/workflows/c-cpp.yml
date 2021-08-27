@@ -17,6 +17,7 @@ jobs:
      
     steps:
     - uses: actions/checkout@v2
+    - uses: seanmiddleditch/gha-setup-ninja@master
     - name: Run Tests
       shell: powershell
       run: |
