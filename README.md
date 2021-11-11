@@ -188,7 +188,7 @@ depends on the Vulkan SDK.
 
 ## Install Vulkan SDK 
 
-### Vulkan SDK >= `1.1.92.0`
+### Vulkan SDK >= `1.2.175`
 
 I recommend to install the latest Vulkan SDK via a package manager.
 Follow the installation instructions via:
