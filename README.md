@@ -15,7 +15,7 @@ multicore machine, and incremental builds often take < 1s.
 
 To achieve this aim, Island is structured into strictly separated modules,
 which can be dropped in or out during development, while for Release, you can
-build a single, statically liked and optimised binary.
+build a single, statically linked and optimised binary.
 
 
 [![C/C++ CI](https://github.com/tgfrerer/island/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/tgfrerer/island/actions/workflows/c-cpp.yml)
