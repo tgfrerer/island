@@ -2,7 +2,7 @@
 
 # Project Island 🌋🐎 
 
-Project Island is an experimental **Vulkan** renderer/proto-engine for
+Project Island is an experimental **Vulkan** Renderer for
 Linux and Windows, written in C/C++. 
 
 Island is written for **rapid protoyping and tweaking**. That's why it
@@ -10,8 +10,13 @@ allows **hot-reloading** wherever possible: for **C/C++** application
 code, **GLSL** or **HLSL** shader code, even the renderer's own core
 modules. 
 
-Each module aims to be strictly isolated, which makes the codebase
-**fast to compile**, especially in parallel.
+Island is **fast to compile**. A full rebuild should take < 5s on a moderate
+multicore machine, and incremental builds often take < 1s. 
+
+To achieve this aim, Island is structured into strictly separated modules,
+which can be dropped in or out during development, while for Release, you can
+build a single, statically liked and optimised binary.
+
 
 [![C/C++ CI](https://github.com/tgfrerer/island/actions/workflows/c-cpp.yml/badge.svg)](https://github.com/tgfrerer/island/actions/workflows/c-cpp.yml)
 
@@ -269,7 +274,7 @@ instructions etc. are tracked in a [separate readme][readme-win].
 
 ## Caveats
 
-**Note** The API is under active development, expect lots of change.
+**Note** Island's API is under active development, expect lots of change.
 As such, there are no promises that it might be ready or fit for any
 purpose, and the code here is released in the hope that you might find
 it interesting. 
