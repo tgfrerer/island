@@ -11,6 +11,7 @@
 #include <filesystem> // for parsing shader source file paths
 #include <fstream>    // for reading shader source files
 #include <cstring>    // for memcpy
+#include <mutex>
 #include <shared_mutex>
 #include <atomic>
 
