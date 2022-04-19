@@ -258,13 +258,10 @@ static void swapchain_khr_reset( le_swapchain_o *base, const le_swapchain_settin
 	    .setClipped( VK_TRUE )
 	    .setOldSwapchain( oldSwapchain );
 
-	//	self->device.createSwapchainKHR( &swapChainCreateInfo, nullptr, &self->swapchainKHR );
-	{
-		VkSwapchainCreateInfoKHR info = swapChainCreateInfo;
-		VkSwapchainKHR           swapchain;
-		vkCreateSwapchainKHR( self->device, &info, nullptr, &swapchain );
-		self->swapchainKHR = swapchain;
-	}
+	auto result = self->device.createSwapchainKHR( &swapChainCreateInfo, nullptr, &self->swapchainKHR );
+
+	assert( result == vk::Result::eSuccess );
+
 	// If an existing swap chain is re-created, destroy the old swap chain
 	// This also cleans up all the presentable images
 	if ( oldSwapchain ) {

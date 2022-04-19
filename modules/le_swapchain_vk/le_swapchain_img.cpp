@@ -92,20 +92,21 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settin
 			// Allocate space for an image which can hold a render surface
 
 			VkImageCreateInfo imageCreateInfo =
-			    vk::ImageCreateInfo()
-			        .setImageType( ::vk::ImageType::e2D )
-			        .setFormat( self->windowSurfaceFormat.format )
-			        .setExtent( self->mSwapchainExtent )
-			        .setMipLevels( 1 )
-			        .setArrayLayers( 1 )
-			        .setSamples( vk::SampleCountFlagBits::e1 )
-			        .setTiling( vk::ImageTiling::eOptimal )
-			        .setUsage( vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc )
-			        .setSharingMode( ::vk::SharingMode::eExclusive )
-			        .setQueueFamilyIndexCount( 1 )
-			        .setPQueueFamilyIndices( &self->vk_graphics_queue_family_index )
-			        .setInitialLayout( ::vk::ImageLayout::eUndefined ) //
-			    ;
+			    static_cast<VkImageCreateInfo&>(
+			        vk::ImageCreateInfo()
+			            .setImageType( ::vk::ImageType::e2D )
+			            .setFormat( self->windowSurfaceFormat.format )
+			            .setExtent( self->mSwapchainExtent )
+			            .setMipLevels( 1 )
+			            .setArrayLayers( 1 )
+			            .setSamples( vk::SampleCountFlagBits::e1 )
+			            .setTiling( vk::ImageTiling::eOptimal )
+			            .setUsage( vk::ImageUsageFlagBits::eColorAttachment | vk::ImageUsageFlagBits::eTransferSrc )
+			            .setSharingMode( ::vk::SharingMode::eExclusive )
+			            .setQueueFamilyIndexCount( 1 )
+			            .setPQueueFamilyIndices( &self->vk_graphics_queue_family_index )
+			            .setInitialLayout( ::vk::ImageLayout::eUndefined ) //
+			    );
 
 			VmaAllocationCreateInfo allocationCreateInfo{};
 			allocationCreateInfo.flags          = VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
@@ -130,12 +131,13 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settin
 			using namespace le_backend_vk;
 
 			VkBufferCreateInfo bufferCreateInfo =
-			    vk::BufferCreateInfo()
-			        .setPQueueFamilyIndices( &self->vk_graphics_queue_family_index )
-			        .setQueueFamilyIndexCount( 1 )
-			        .setUsage( vk::BufferUsageFlagBits::eTransferDst )
-			        .setSize( imgSize ) //
-			    ;
+			    static_cast<VkBufferCreateInfo&>(
+			        vk::BufferCreateInfo()
+			            .setPQueueFamilyIndices( &self->vk_graphics_queue_family_index )
+			            .setQueueFamilyIndexCount( 1 )
+			            .setUsage( vk::BufferUsageFlagBits::eTransferDst )
+			            .setSize( imgSize ) //
+			    );
 
 			VmaAllocationCreateInfo allocationCreateInfo{};
 			allocationCreateInfo.flags          = VMA_ALLOCATION_CREATE_MAPPED_BIT;

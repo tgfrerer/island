@@ -334,32 +334,36 @@ ResourceCreateInfo ResourceCreateInfo::from_le_resource_info( const le_resource_
 
 	switch ( info.type ) {
 	case ( LeResourceType::eBuffer ): {
-		res.bufferInfo = vk::BufferCreateInfo()
-		                     .setFlags( {} )
-		                     .setSize( info.buffer.size )
-		                     .setUsage( vk::BufferUsageFlags{ info.buffer.usage } ) // FIXME: we need to call an explicit le -> vk conversion
-		                     .setSharingMode( vk::SharingMode::eExclusive )
-		                     .setQueueFamilyIndexCount( queueFamilyIndexCount )
-		                     .setPQueueFamilyIndices( pQueueFamilyIndices );
+		res.bufferInfo =
+		    static_cast<VkBufferCreateInfo&>(
+		        ( vk::BufferCreateInfo()
+		              .setFlags( {} )
+		              .setSize( info.buffer.size )
+		              .setUsage( vk::BufferUsageFlags{ info.buffer.usage } ) // FIXME: we need to call an explicit le -> vk conversion
+		              .setSharingMode( vk::SharingMode::eExclusive )
+		              .setQueueFamilyIndexCount( queueFamilyIndexCount )
+		              .setPQueueFamilyIndices( pQueueFamilyIndices ) ) );
 
 	} break;
 	case ( LeResourceType::eImage ): {
-		auto const &img = info.image;
-		res.imageInfo   = vk::ImageCreateInfo()
-		                    .setFlags( le_image_create_flags_to_vk( img.flags ) )                   //
-		                    .setImageType( le_image_type_to_vk( img.imageType ) )                   //
-		                    .setFormat( le_format_to_vk( img.format ) )                             //
-		                    .setExtent( { img.extent.width, img.extent.height, img.extent.depth } ) //
-		                    .setMipLevels( img.mipLevels )                                          //
-		                    .setArrayLayers( img.arrayLayers )                                      //
-		                    .setSamples( le_sample_count_log_2_to_vk( img.sample_count_log2 ) )     //
-		                    .setTiling( le_image_tiling_to_vk( img.tiling ) )                       //
-		                    .setUsage( le_image_usage_flags_to_vk( img.usage ) )                    //
-		                    .setSharingMode( vk::SharingMode::eExclusive )                          // hardcoded to Exclusive - no sharing between queues
-		                    .setQueueFamilyIndexCount( queueFamilyIndexCount )                      //
-		                    .setPQueueFamilyIndices( pQueueFamilyIndices )                          //
-		                    .setInitialLayout( vk::ImageLayout::eUndefined )                        // must be either pre-initialised, or undefined (most likely)
-		    ;
+		auto const& img = info.image;
+		res.imageInfo =
+		    static_cast<VkImageCreateInfo&>(
+		        vk::ImageCreateInfo()
+		            .setFlags( le_image_create_flags_to_vk( img.flags ) )                   //
+		            .setImageType( le_image_type_to_vk( img.imageType ) )                   //
+		            .setFormat( le_format_to_vk( img.format ) )                             //
+		            .setExtent( { img.extent.width, img.extent.height, img.extent.depth } ) //
+		            .setMipLevels( img.mipLevels )                                          //
+		            .setArrayLayers( img.arrayLayers )                                      //
+		            .setSamples( le_sample_count_log_2_to_vk( img.sample_count_log2 ) )     //
+		            .setTiling( le_image_tiling_to_vk( img.tiling ) )                       //
+		            .setUsage( le_image_usage_flags_to_vk( img.usage ) )                    //
+		            .setSharingMode( vk::SharingMode::eExclusive )                          // hardcoded to Exclusive - no sharing between queues
+		            .setQueueFamilyIndexCount( queueFamilyIndexCount )                      //
+		            .setPQueueFamilyIndices( pQueueFamilyIndices )                          //
+		            .setInitialLayout( vk::ImageLayout::eUndefined )                        // must be either pre-initialised, or undefined (most likely)
+		    );
 
 	} break;
 	case ( LeResourceType::eRtxBlas ): {

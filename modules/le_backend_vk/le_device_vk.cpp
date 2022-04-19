@@ -430,19 +430,19 @@ VkPhysicalDevice device_get_vk_physical_device( le_device_o *self_ ) {
 // ----------------------------------------------------------------------
 
 const VkPhysicalDeviceProperties &device_get_vk_physical_device_properties( le_device_o *self ) {
-	return self->vkPhysicalDeviceProperties;
+	return static_cast<VkPhysicalDeviceProperties &>( self->vkPhysicalDeviceProperties );
 }
 
 // ----------------------------------------------------------------------
 
 const VkPhysicalDeviceMemoryProperties &device_get_vk_physical_device_memory_properties( le_device_o *self ) {
-	return self->vkPhysicalDeviceMemoryProperties;
+	return static_cast<VkPhysicalDeviceMemoryProperties &>( self->vkPhysicalDeviceMemoryProperties );
 }
 
 // ----------------------------------------------------------------------
 
 bool device_get_physical_device_ray_tracing_properties( le_device_o *self, VkPhysicalDeviceRayTracingPipelinePropertiesKHR *properties ) {
-	*properties = self->raytracingProperties;
+	*properties = static_cast<VkPhysicalDeviceRayTracingPipelinePropertiesKHR &>( self->raytracingProperties );
 #ifdef LE_FEATURE_RTX
 	return true;
 #else
