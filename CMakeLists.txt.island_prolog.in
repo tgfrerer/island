@@ -14,7 +14,8 @@ else()
     set(PLUGINS_DYNAMIC OFF CACHE BOOL "Use dynamic linking for all plugins")
 endif()
 
-set ( STATIC_LIBS )
+set ( STATIC_LIBRARIES "" CACHE INTERNAL "static_libraries" )
+set ( DEPENDENCY_DEPTH 0 CACHE INTERNAL "current depth in dependency hierarchy" )
 
 set ( PLUGIN_LIBS_DEPENDENCIES "" CACHE INTERNAL "plugins_libs_dependencies" )
 set ( PLUGIN_LINK_DIRS "")
@@ -62,10 +63,46 @@ function (link_resources param_target param_link_name)
 
 endfunction(link_resources)
 
+# Adds a directory to the modules locations
+macro(add_island_module_location MODULE_LOCATION)
+    set( MODULE_LOCATIONS_LIST ${MODULE_LOCATIONS_LIST} ${MODULE_LOCATION} CACHE INTERNAL "module_locations_list" )
+    # include_directories( "${MODULE_LOCATIONS_LIST}")
+endmacro()
+
+function(include_using_absolute_path TMP_INCLUDE_PATH)
+    get_filename_component(TMP_INCLUDE_PATH_ABS ${TMP_INCLUDE_PATH} REALPATH BASE_DIR ${ISLAND_BASE_DIR})
+    include_directories(${TMP_INCLUDE_PATH_ABS})
+endfunction()
+
+# include the island base directory
+include_using_absolute_path("${ISLAND_BASE_DIR}")
+
+include_using_absolute_path("${ISLAND_BASE_DIR}/modules/le_core") 
+
+# We will store all possible module locations in this list, if the same module exists in multiple locations, the last one will be used
+set ( MODULE_LOCATIONS_LIST CACHE INTERNAL "module_locations_list")
+
+# Set default island module location
+add_island_module_location("${ISLAND_BASE_DIR}/modules")
+
+# We will store all requested module names in this list, and then load modules based on this list
+set ( MODULES_LIST )
+
+# We will store all loaded module names in this global list, so that we can make sure that modules don't get loaded more than once.
+set ( LOADED_MODULES_LIST CACHE INTERNAL "loaded_modules_list" )
+
+# These modules are always loaded - they control the plugin system.
+set ( ISLAND_LOADER_MODULES le_log;le_file_watcher;le_core )
+
+# These modules from the renderer - if you want to draw graphics, you want these.
+# Note that order matters: dependent modules must be named before their dependencies.
+set ( CORE_ISLAND_MODULES le_pipeline_builder;le_window;le_backend_vk;le_renderer;le_swapchain_vk;le_jobs;le_shader_compiler)
+
+
 if (REQUIRES_ISLAND_CORE)
 
     # add glm include directory to includes search path 
-    include_directories(${ISLAND_BASE_DIR}/3rdparty/src/glm/)
+    include_using_absolute_path("${ISLAND_BASE_DIR}/3rdparty/src/glm/")
 
     # create a link to shared resources
     link_resources(${ISLAND_BASE_DIR}/resources ${CMAKE_BINARY_DIR}/resources )
@@ -89,36 +126,6 @@ if (REQUIRES_ISLAND_CORE)
 
 endif()
 
-# Adds a directory to the modules locations
-macro(add_island_module_location MODULE_LOCATION)
-    set( MODULE_LOCATIONS_LIST ${MODULE_LOCATIONS_LIST} ${MODULE_LOCATION} CACHE INTERNAL "module_locations_list" )
-    # include_directories( "${MODULE_LOCATIONS_LIST}")
-endmacro()
-
-
-# include the island base directory
-include_directories ("${ISLAND_BASE_DIR}")
-include_directories ("${ISLAND_BASE_DIR}/modules/le_core")
-
-# We will store all possible module locations in this list, if the same module exists in multiple locations, the last one will be used
-set ( MODULE_LOCATIONS_LIST CACHE INTERNAL "module_locations_list")
-
-# Set default island module location
-add_island_module_location("${ISLAND_BASE_DIR}/modules")
-
-# We will store all requested module names in this list, and then load modules based on this list
-set ( MODULES_LIST )
-
-# We will store all loaded module names in this global list, so that we can make sure that modules don't get loaded more than once.
-set ( LOADED_MODULES_LIST CACHE INTERNAL "loaded_modules_list" )
-
-# These modules are always loaded - they control the plugin system.
-set ( ISLAND_LOADER_MODULES le_file_watcher;le_core;le_log )
-
-# These modules from the renderer - if you want to draw graphics, you want these.
-# Note that order matters: dependent modules must be named before their dependencies.
-set ( CORE_ISLAND_MODULES le_log;le_pipeline_builder;le_window;le_backend_vk;le_swapchain_vk;le_renderer;le_jobs;le_shader_compiler)
-
 # Add required modules to modules list based on user flags
 #
 if (REQUIRES_ISLAND_LOADER)
@@ -129,62 +136,74 @@ if (REQUIRES_ISLAND_CORE)
    list (APPEND MODULES_LIST ${CORE_ISLAND_MODULES})
 endif()
 
+
+# ----------------------------------------------------------------------
+
 macro(print_current_includes)
-    get_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} PROPERTY INCLUDE_DIRECTORIES)
+    message(STATUS "${TMP_INDENT}includes for ${CMAKE_CURRENT_SOURCE_DIR}:")
+    get_directory_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} INCLUDE_DIRECTORIES)
     foreach(dir ${dirs})
-        message(STATUS "dir='${dir}'")
+        message(STATUS "${TMP_INDENT}include='${dir}'")
     endforeach()
+    message(STATUS "${TMP_INDENT}\n")
 endmacro()
 
 
+# ----------------------------------------------------------------------
+# find module - set MODULE_LOCATION in the function's parent scope to
+# any found location. MODULE_LOCATION is set to "" if nothing is found.
+function(find_module MODULE_LOCATION MODULE_NAME )
+    # look for the module in all given locations
+    set( MODULE_LOCATION "" PARENT_SCOPE)
+    foreach( LOCATION ${MODULE_LOCATIONS_LIST} )
+        set( CURRENT_LOCATION "${LOCATION}/${MODULE_NAME}" )
+        if( EXISTS ${CURRENT_LOCATION} )
+            get_filename_component(CURRENT_LOCATION ${CURRENT_LOCATION} REALPATH BASE_DIR ${ISLAND_BASE_DIR})
+            set( MODULE_LOCATION ${CURRENT_LOCATION} PARENT_SCOPE)
+        endif()
+    endforeach()
+endfunction()
+
+
+# ----------------------------------------------------------------------
 # Loads a requested module - note that this may recursively 
 # trigger loading more modules, as modules are added via 
 # add_subdirectory, which evaluates their cmake.txt file.
-macro(load_island_module MODULE_NAME)
+macro(include_island_module MODULE_NAME SHOULD_ADD)
 
-    # look for the module in all given locations
-    set( MODULE_LOCATION )
-    foreach( LOCATION ${MODULE_LOCATIONS_LIST} )
-        set( CURRENT_LOCATION "${LOCATION}/${MODULE_NAME}" )
-        if( EXISTS ${CURRENT_LOCATION} )
-            set( MODULE_LOCATION ${CURRENT_LOCATION} )
+    find_module(MODULE_LOCATION ${MODULE_NAME} ) # sets MODULE_LOCATION
+    
+    # message(STATUS "${TMP_INDENT}Module location : ${MODULE_LOCATION}")
+
+    if( MODULE_LOCATION ) 
+        set ( TMP_INDENT "")
+        string(REPEAT "  " ${DEPENDENCY_DEPTH} TMP_INDENT)
+
+
+        get_directory_property(dirs DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR} INCLUDE_DIRECTORIES)
+
+        if (NOT ${MODULE_LOCATION} IN_LIST dirs)
+            message(STATUS "${TMP_INDENT}Loading module  : ${MODULE_NAME}")
+            include_directories( "${MODULE_LOCATION}")
+            # message(STATUS "${TMP_INDENT}+++ Adding include : ${MODULE_LOCATION}")
         endif()
-    endforeach()
 
-    if( MODULE_LOCATION )
-        message(STATUS "Loading module  : ${MODULE_NAME}")
-        
-        include_directories( "${MODULE_LOCATION}")
-        # message(STATUS "[ NOTE ] Include Directory: ${MODULE_LOCATION} " )
-        add_subdirectory (${MODULE_LOCATION} ${MODULE_NAME})
+        # set_directory_properties()
+        if ( ${SHOULD_ADD} )
+            message(STATUS "${TMP_INDENT}Adding subdirectory  : ${MODULE_LOCATION}")
+            add_subdirectory( ${MODULE_LOCATION} ${MODULE_NAME} )
+        endif()
+
+        # print_current_includes()
+
     else()
         message( SEND_ERROR "Module not found  : ${MODULE_NAME}")
     endif()
+
 endmacro()
 
-# Adds header includes for requested module - this may get called recursively
-# (if a module loads its dependent modules)
-# in which case it executes in the scope of the current module.
-macro(include_island_module MODULE_NAME)
 
-    # look for the module in all given locations
-    set( MODULE_LOCATION )
-    foreach( LOCATION ${MODULE_LOCATIONS_LIST} )
-        set( CURRENT_LOCATION "${LOCATION}/${MODULE_NAME}" )
-        if( EXISTS ${CURRENT_LOCATION} )
-            set( MODULE_LOCATION ${CURRENT_LOCATION} )
-        endif()
-    endforeach()
-
-    if( MODULE_LOCATION )
-        message(STATUS "    Including module  : ${MODULE_NAME}")
-        
-        include_directories( "${MODULE_LOCATION}")
-    else()
-        message( SEND_ERROR "Module not found  : ${MODULE_NAME}")
-    endif()
-endmacro()
-
+# ----------------------------------------------------------------------
 # Call this macro from other modules to establish a dependency.
 # Adds a module name to list of requested modules, 
 # checks whether a module was already requested to prevent duplicates.
@@ -193,35 +212,48 @@ macro(add_island_module MODULE_NAME)
     if (NOT ${MODULE_NAME} IN_LIST LOADED_MODULES_LIST)
         # prepend module name to loaded_modules_list in global scope
         set( LOADED_MODULES_LIST ${LOADED_MODULES_LIST} ${MODULE_NAME} CACHE INTERNAL "loaded_modules_list" )        
-        load_island_module(${MODULE_NAME})        
+        include_island_module( ${MODULE_NAME} TRUE )
     else()
-        include_island_module(${MODULE_NAME})
+        include_island_module( ${MODULE_NAME} FALSE )
         # message(STATUS "[ NOTE ] Rejecting add_island_module request: `${MODULE_NAME}` - Module already present."  )
     endif()
 
 endmacro(add_island_module)
 
+# ----------------------------------------------------------------------
+
 macro(add_static_lib LIB_NAME)
 
-    if (NOT ${LIB_NAME} IN_LIST STATIC_LIBS)
-        set (STATIC_LIBS ${STATIC_LIBS} ${LIB_NAME} PARENT_SCOPE)
+    if (NOT ${LIB_NAME} IN_LIST STATIC_LIBRARIES})
+        set ( STATIC_LIBRARIES ${LIB_NAME} $CACHE{STATIC_LIBRARIES} CACHE INTERNAL "static_libraries" )
+        # message( STATUS "${TMP_INDENT}>>> Static libs: ${STATIC_LIBRARIES}")
     else()
-        set (STATIC_LIBS ${STATIC_LIBS} PARENT_SCOPE)
-        # message(STATUS "[ NOTE ] Rejecting extra static lib addition: `${LIB_NAME}` - lib already present."  )
+        # set (STATIC_LIBRARIES ${STATIC_LIBRARIES} PARENT_SCOPE)
+        message( STATUS "[ NOTE ] Rejecting extra static lib addition: `${LIB_NAME}` - lib already present."  )
     endif()
 
 endmacro(add_static_lib LIB_NAME)
 
+# ----------------------------------------------------------------------
+
 macro (depends_on_island_module MODULE_NAME)
-    set (STORED_STATIC_LIBS ${STATIC_LIBS} )
-    set (STATIC_LIBS ${STATIC_LIBS} ${TARGET})
+    math( EXPR TMP_DEPENDENCY_DEPTH "$CACHE{DEPENDENCY_DEPTH}+1")
+    set ( DEPENDENCY_DEPTH ${TMP_DEPENDENCY_DEPTH} CACHE INTERNAL "current depth in dependency hierarchy" )
+    
+    set ( TMP_INDENT "")
+    string(REPEAT "  " ${DEPENDENCY_DEPTH} TMP_INDENT)
+
+    get_filename_component(THIS_MODULE_NAME ${CMAKE_CURRENT_SOURCE_DIR} NAME_WE )
+    message(STATUS "${TMP_INDENT}*** ${THIS_MODULE_NAME} Depends on Module: ${MODULE_NAME}")
 
     add_island_module(${MODULE_NAME})
-    
-    # message(STATUS "*** Current static libs: ${STATIC_LIBS}")
-    set (STATIC_LIBS ${STATIC_LIBS})
 
+    math( EXPR TMP_DEPENDENCY_DEPTH "$CACHE{DEPENDENCY_DEPTH}-1")
+    set ( DEPENDENCY_DEPTH ${TMP_DEPENDENCY_DEPTH} CACHE INTERNAL "current depth in dependency hierarchy" )
 endmacro(depends_on_island_module)
+
+
+# ----------------------------------------------------------------------
 
 macro(add_dynamic_linker_flags)
     
@@ -296,3 +328,11 @@ macro(add_dynamic_linker_flags)
 
     
 endmacro(add_dynamic_linker_flags)
+
+# ----------------------------------------------------------------------
+
+
+# Load all modules which where requested
+foreach( M IN LISTS MODULES_LIST )
+    add_island_module(${M})
+endforeach()

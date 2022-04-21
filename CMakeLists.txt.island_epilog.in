@@ -1,8 +1,4 @@
 
-# Load all modules which where requested
-foreach( M IN LISTS MODULES_LIST )
-    add_island_module(${M})
-endforeach()
 
 # print_current_includes()
 
@@ -22,11 +18,21 @@ endif()
 # we need to link in the dynamic linking library so we can use dynamic linking
 target_link_libraries(${PROJECT_NAME} PRIVATE ${CMAKE_DL_LIBS})
 
+# target_link_libraries("${ISLAND_BASE_DIR}modules/le_renderer" "${ISLAND_BASE_DIR}modules/le_log")
+
 target_link_libraries(${PROJECT_NAME} PRIVATE ${PLUGIN_LIBS_DEPENDENCIES})
-target_link_libraries(${PROJECT_NAME} PRIVATE ${STATIC_LIBS})
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    # this is only needed for the GNU linker - it will force the linker to check all libraries for symbols,
+    # not just the ones that are specified before a given library. 
+    # more modern (and faster) linkers such as lld (llvm) or mold won't need this.
+   target_link_libraries(${PROJECT_NAME} PRIVATE "-Wl,--start-group" $CACHE{STATIC_LIBRARIES} "-Wl,--end-group" )
+else()
+   target_link_libraries(${PROJECT_NAME} PRIVATE $CACHE{STATIC_LIBRARIES} )
+endif()
 
 
-message(STATUS "Static libraries : ${STATIC_LIBS}")
+message(STATUS "Static libraries : $CACHE{STATIC_LIBRARIES}")
 message(STATUS "Loaded modules   : ${LOADED_MODULES_LIST}")
 
 # Libraries against which we dynamically link our main application:

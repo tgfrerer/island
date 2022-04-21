@@ -12,7 +12,7 @@ if (${PLUGINS_DYNAMIC})
     target_compile_definitions(${TARGET}  PUBLIC "PLUGINS_DYNAMIC")
 else()
     add_library(${TARGET} STATIC ${SOURCES})
-    set (STATIC_LIBS ${STATIC_LIBS} ${TARGET} PARENT_SCOPE)
+    add_static_lib(${TARGET})
 	add_static_lib( ${TARGET} )
 endif()
 
