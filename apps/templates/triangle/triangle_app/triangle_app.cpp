@@ -39,11 +39,11 @@ static void app_terminate() {
 	le::Window::terminate();
 };
 
-static void app_reset_camera( app_o *self ); // ffdecl.
+static void app_reset_camera( app_o* self ); // ffdecl.
 
 // ----------------------------------------------------------------------
 
-static app_o *app_create() {
+static app_o* app_create() {
 	auto app = new ( app_o );
 
 	le::Window::Settings settings;
@@ -65,7 +65,7 @@ static app_o *app_create() {
 
 // ----------------------------------------------------------------------
 
-static void app_reset_camera( app_o *self ) {
+static void app_reset_camera( app_o* self ) {
 	le::Extent2D extents{};
 	self->renderer.getSwapchainExtent( &extents.width, &extents.height );
 	self->camera.setViewport( { 0, 0, float( extents.width ), float( extents.height ), 0.f, 1.f } );
@@ -76,17 +76,17 @@ static void app_reset_camera( app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-typedef bool ( *renderpass_setup )( le_renderpass_o *pRp, void *user_data );
+typedef bool ( *renderpass_setup )( le_renderpass_o* pRp, void* user_data );
 
 // ----------------------------------------------------------------------
 
-static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
+static bool pass_main_setup( le_renderpass_o* pRp, void* user_data ) {
 	auto rp  = le::RenderPass{ pRp };
-	auto app = static_cast<app_o *>( user_data );
+	auto app = static_cast<app_o*>( user_data );
 
 	// Attachment may be further specialised using le::ImageAttachmentInfoBuilder().
 	static le_img_resource_handle LE_SWAPCHAIN_IMAGE_HANDLE = app->renderer.getSwapchainResource();
-	
+
 	rp
 	    .addColorAttachment( LE_SWAPCHAIN_IMAGE_HANDLE, le::ImageAttachmentInfoBuilder().build() ) // color attachment
 	    ;
@@ -96,11 +96,11 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 
 // ----------------------------------------------------------------------
 
-static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
+static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
 
 	// Draw main scene
 
-	auto        app = static_cast<app_o *>( user_data );
+	auto        app = static_cast<app_o*>( user_data );
 	le::Encoder encoder{ encoder_ };
 
 	auto extents = encoder.getRenderpassExtent();
@@ -170,20 +170,20 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 }
 
 // ----------------------------------------------------------------------
-static void app_process_ui_events( app_o *self ) {
+static void app_process_ui_events( app_o* self ) {
 	using namespace le_window;
 	uint32_t         numEvents;
-	LeUiEvent const *pEvents;
+	LeUiEvent const* pEvents;
 	window_i.get_ui_event_queue( self->window, &pEvents, numEvents );
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
 	bool wantsToggle = false;
 
-	for ( auto &event : events ) {
+	for ( auto& event : events ) {
 		switch ( event.event ) {
 		case ( LeUiEvent::Type::eKey ): {
-			auto &e = event.key;
+			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
 				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
 					wantsToggle ^= true;
@@ -219,7 +219,7 @@ static void app_process_ui_events( app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static bool app_update( app_o *self ) {
+static bool app_update( app_o* self ) {
 
 	// Polls events for all windows
 	// Use `self->window.getUIEventQueue()` to fetch events.
@@ -253,7 +253,7 @@ static bool app_update( app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void app_destroy( app_o *self ) {
+static void app_destroy( app_o* self ) {
 
 	delete ( self ); // deletes camera
 }
@@ -261,8 +261,8 @@ static void app_destroy( app_o *self ) {
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( triangle_app, api ) {
-	auto  triangle_app_api_i = static_cast<triangle_app_api *>( api );
-	auto &triangle_app_i     = triangle_app_api_i->triangle_app_i;
+	auto  triangle_app_api_i = static_cast<triangle_app_api*>( api );
+	auto& triangle_app_i     = triangle_app_api_i->triangle_app_i;
 
 	triangle_app_i.initialize = app_initialize;
 	triangle_app_i.terminate  = app_terminate;

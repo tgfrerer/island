@@ -14,7 +14,7 @@
 
 using Type = le_parameter_store_api::Type;
 
-static const char *PARAMETER_TYPE_AS_STRING[ 5 ] = {
+static const char* PARAMETER_TYPE_AS_STRING[ 5 ] = {
     "Unknown",
     "Float",
     "U32",
@@ -34,7 +34,7 @@ struct le_parameter_o {
 	Data value; // value, range_min, range_max
 };
 
-static float *le_parameter_set_float( le_parameter_o *self, float val, float val_min = 0.f, float val_max = 1.f ) {
+static float* le_parameter_set_float( le_parameter_o* self, float val, float val_min = 0.f, float val_max = 1.f ) {
 	if ( nullptr == self ) {
 		return nullptr;
 	}
@@ -44,7 +44,7 @@ static float *le_parameter_set_float( le_parameter_o *self, float val, float val
 	self->value.as_float[ 2 ] = val_max;
 	return &self->value.as_float[ 0 ];
 }
-static uint32_t *le_parameter_set_u32( le_parameter_o *self, uint32_t val, uint32_t val_min = 0, uint32_t val_max = UINT32_MAX ) {
+static uint32_t* le_parameter_set_u32( le_parameter_o* self, uint32_t val, uint32_t val_min = 0, uint32_t val_max = UINT32_MAX ) {
 	if ( nullptr == self ) {
 		return nullptr;
 	}
@@ -54,7 +54,7 @@ static uint32_t *le_parameter_set_u32( le_parameter_o *self, uint32_t val, uint3
 	self->value.as_u32[ 2 ] = val_max;
 	return &self->value.as_u32[ 0 ];
 }
-static int32_t *le_parameter_set_i32( le_parameter_o *self, int32_t val, int32_t val_min = INT32_MIN, int32_t val_max = INT32_MAX ) {
+static int32_t* le_parameter_set_i32( le_parameter_o* self, int32_t val, int32_t val_min = INT32_MIN, int32_t val_max = INT32_MAX ) {
 	if ( nullptr == self ) {
 		return nullptr;
 	}
@@ -64,7 +64,7 @@ static int32_t *le_parameter_set_i32( le_parameter_o *self, int32_t val, int32_t
 	self->value.as_i32[ 2 ] = val_max;
 	return &self->value.as_i32[ 0 ];
 }
-static bool *le_parameter_set_bool( le_parameter_o *self, bool val ) {
+static bool* le_parameter_set_bool( le_parameter_o* self, bool val ) {
 	if ( nullptr == self ) {
 		return nullptr;
 	}
@@ -75,37 +75,37 @@ static bool *le_parameter_set_bool( le_parameter_o *self, bool val ) {
 	return &self->value.as_bool[ 0 ];
 }
 // Note: getters will return nullptr if type does not match internal parameter type.
-static float *le_parameter_as_float( le_parameter_o *self ) {
+static float* le_parameter_as_float( le_parameter_o* self ) {
 	if ( nullptr == self || self->type != Type::eFloat ) {
 		return nullptr;
 	}
 	return &self->value.as_float[ 0 ];
 }
-static uint32_t *le_parameter_as_u32( le_parameter_o *self ) {
+static uint32_t* le_parameter_as_u32( le_parameter_o* self ) {
 	if ( nullptr == self || self->type != Type::eU32 ) {
 		return nullptr;
 	}
 	return &self->value.as_u32[ 0 ];
 }
-static int32_t *le_parameter_as_i32( le_parameter_o *self ) {
+static int32_t* le_parameter_as_i32( le_parameter_o* self ) {
 	if ( nullptr == self || self->type != Type::eI32 ) {
 		return nullptr;
 	}
 	return &self->value.as_i32[ 0 ];
 }
-static bool *le_parameter_as_bool( le_parameter_o *self ) {
+static bool* le_parameter_as_bool( le_parameter_o* self ) {
 	if ( nullptr == self || self->type != Type::eBool ) {
 		return nullptr;
 	}
 	return &self->value.as_bool[ 0 ];
 }
-static void le_parameter_set_type( le_parameter_o *self, Type type ) {
+static void le_parameter_set_type( le_parameter_o* self, Type type ) {
 	if ( nullptr == self ) {
 		return;
 	}
 	self->type = type;
 }
-static Type le_parameter_get_type( le_parameter_o *self ) {
+static Type le_parameter_get_type( le_parameter_o* self ) {
 	if ( nullptr == self ) {
 		return Type::eUnknown;
 	}
@@ -119,7 +119,7 @@ struct le_parameter_store_o {
 
 // ----------------------------------------------------------------------
 
-static le_parameter_o *le_parameter_store_get_parameter( le_parameter_store_o *self, char const *name ) {
+static le_parameter_o* le_parameter_store_get_parameter( le_parameter_store_o* self, char const* name ) {
 	auto it = self->store.find( name );
 	if ( it == self->store.end() ) {
 		return nullptr;
@@ -130,7 +130,7 @@ static le_parameter_o *le_parameter_store_get_parameter( le_parameter_store_o *s
 // ----------------------------------------------------------------------
 // Search for given parameter, based on its address.
 // return parameter name if found, nullptr if not found.
-static char const *le_parameter_store_get_name( le_parameter_store_o *self, le_parameter_o *param ) {
+static char const* le_parameter_store_get_name( le_parameter_store_o* self, le_parameter_o* param ) {
 	auto it = self->store.begin();
 	for ( ; it != self->store.end(); it++ ) {
 		if ( &it->second == param ) {
@@ -145,13 +145,13 @@ static char const *le_parameter_store_get_name( le_parameter_store_o *self, le_p
 
 // ----------------------------------------------------------------------
 
-static le_parameter_o *le_parameter_store_add_parameter( le_parameter_store_o *self, char const *name ) {
+static le_parameter_o* le_parameter_store_add_parameter( le_parameter_store_o* self, char const* name ) {
 	return &self->store[ name ];
 }
 
 // ----------------------------------------------------------------------
 
-void print_entry( FILE *file, std::string const &name, le_parameter_o const &param ) {
+void print_entry( FILE* file, std::string const& name, le_parameter_o const& param ) {
 	fprintf( file, "\n\t\"%s\": {", name.c_str() );
 	fprintf( file, "\n\t\t\"type\":\"%s\",", PARAMETER_TYPE_AS_STRING[ param.type ] );
 
@@ -190,7 +190,7 @@ void print_entry( FILE *file, std::string const &name, le_parameter_o const &par
 
 // ----------------------------------------------------------------------
 
-static inline bool le_parameter_set_value_from_string_view( le_parameter_o &tmp_param, std::string_view const &value_str, size_t value_idx ) {
+static inline bool le_parameter_set_value_from_string_view( le_parameter_o& tmp_param, std::string_view const& value_str, size_t value_idx ) {
 
 	if ( value_str.empty() ) {
 		return false;
@@ -220,7 +220,7 @@ static inline bool le_parameter_set_value_from_string_view( le_parameter_o &tmp_
 };
 // ----------------------------------------------------------------------
 
-static bool le_parameter_store_load_from_file( le_parameter_store_o *self, char const *file_path ) {
+static bool le_parameter_store_load_from_file( le_parameter_store_o* self, char const* file_path ) {
 
 	// ----------
 
@@ -228,7 +228,7 @@ static bool le_parameter_store_load_from_file( le_parameter_store_o *self, char 
 	    []( std::vector<jsmntok_t>::iterator const begin,
 	        std::vector<jsmntok_t>::iterator const end,
 	        std::vector<jsmntok_t>::iterator const parent,
-	        std::vector<int> &                     children )
+	        std::vector<int>&                      children )
 	    -> bool {
 		children.clear();
 
@@ -250,7 +250,7 @@ static bool le_parameter_store_load_from_file( le_parameter_store_o *self, char 
 	// ----------
 
 	static auto get_token_string =
-	    []( std::string const &                    contents,
+	    []( std::string const&                     contents,
 	        std::vector<jsmntok_t>::iterator const it,
 	        int                                    expected_children )
 	    -> std::string_view {
@@ -314,15 +314,15 @@ static bool le_parameter_store_load_from_file( le_parameter_store_o *self, char 
 
 	/*
 
-    For a parameter file, we expect the following structure:
+	For a parameter file, we expect the following structure:
 
-    + (1) top-level object
-        + (0..n) string (parameter name)
-            + object (parameter container)
-               + string ("type"     ): string, one of ["U32"|"I32"|"Float"|"Bool"]            
-               + string ("value"    ): string based on type, 'True|False' in case of Bool
-               + string ("min_value"): string based on type, 'True|False' in case of Bool
-               + string ("max_value"): string based on type, 'True|False' in case of Bool
+	+ (1) top-level object
+	    + (0..n) string (parameter name)
+	        + object (parameter container)
+	           + string ("type"     ): string, one of ["U32"|"I32"|"Float"|"Bool"]
+	           + string ("value"    ): string based on type, 'True|False' in case of Bool
+	           + string ("min_value"): string based on type, 'True|False' in case of Bool
+	           + string ("max_value"): string based on type, 'True|False' in case of Bool
 
 	*/
 
@@ -336,7 +336,7 @@ static bool le_parameter_store_load_from_file( le_parameter_store_o *self, char 
 
 	// `children` now contains indices for children of the main object
 
-	for ( auto &param_idx : parameters ) {
+	for ( auto& param_idx : parameters ) {
 
 		std::string_view parameter_name( contents.c_str() + tokens[ param_idx ].start,
 		                                 tokens[ param_idx ].end - tokens[ param_idx ].start );
@@ -411,7 +411,7 @@ static bool le_parameter_store_load_from_file( le_parameter_store_o *self, char 
 		}
 
 		bool success = true;
-		for ( auto const &prop : properties ) {
+		for ( auto const& prop : properties ) {
 
 			auto prop_str = get_token_string( contents, tokens.begin() + prop, 1 );
 
@@ -477,7 +477,7 @@ static bool le_parameter_store_load_from_file( le_parameter_store_o *self, char 
 
 // ----------------------------------------------------------------------
 
-static bool le_parameter_store_save_to_file( le_parameter_store_o *self, char const *file_path ) {
+static bool le_parameter_store_save_to_file( le_parameter_store_o* self, char const* file_path ) {
 
 	auto file = fopen( file_path, "w" );
 
@@ -509,14 +509,14 @@ static bool le_parameter_store_save_to_file( le_parameter_store_o *self, char co
 }
 // ----------------------------------------------------------------------
 
-static le_parameter_store_o *le_parameter_store_create() {
+static le_parameter_store_o* le_parameter_store_create() {
 	auto self = new le_parameter_store_o();
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_parameter_store_destroy( le_parameter_store_o *self ) {
+static void le_parameter_store_destroy( le_parameter_store_o* self ) {
 	delete self;
 }
 
@@ -525,7 +525,7 @@ static void le_parameter_store_destroy( le_parameter_store_o *self ) {
 LE_MODULE_REGISTER_IMPL( le_parameter_store, api ) {
 
 	// -- parameter
-	auto &le_parameter_i = static_cast<le_parameter_store_api *>( api )->le_parameter_i;
+	auto& le_parameter_i = static_cast<le_parameter_store_api*>( api )->le_parameter_i;
 
 	le_parameter_i.as_bool  = le_parameter_as_bool;
 	le_parameter_i.as_float = le_parameter_as_float;
@@ -541,7 +541,7 @@ LE_MODULE_REGISTER_IMPL( le_parameter_store, api ) {
 	le_parameter_i.set_type = le_parameter_set_type;
 
 	// -- parameter store
-	auto &le_parameter_store_i = static_cast<le_parameter_store_api *>( api )->le_parameter_store_i;
+	auto& le_parameter_store_i = static_cast<le_parameter_store_api*>( api )->le_parameter_store_i;
 
 	le_parameter_store_i.create  = le_parameter_store_create;
 	le_parameter_store_i.destroy = le_parameter_store_destroy;

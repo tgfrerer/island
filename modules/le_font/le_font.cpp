@@ -38,7 +38,7 @@ struct le_font_o {
 /// \brief   file loader utility method
 /// \details loads file given by filepath and returns a vector of chars if successful
 /// \note    returns an empty vector if not successful
-static std::vector<char> load_file( const std::filesystem::path &file_path, bool *success ) {
+static std::vector<char> load_file( const std::filesystem::path& file_path, bool* success ) {
 
 	std::vector<char> contents;
 
@@ -81,11 +81,11 @@ typedef glm::vec2 Vertex;
 
 // ----------------------------------------------------------------------
 
-static void le_font_add_paths_for_glyph( le_font_o const *self, le_path_o *path, int32_t const codepoint, float const scale, glm::vec2 *offset, int32_t const codepoint_prev ) {
-	stbtt_vertex *pp_arr   = nullptr;
+static void le_font_add_paths_for_glyph( le_font_o const* self, le_path_o* path, int32_t const codepoint, float const scale, glm::vec2* offset, int32_t const codepoint_prev ) {
+	stbtt_vertex* pp_arr   = nullptr;
 	int           pp_count = stbtt_GetCodepointShape( &self->info, codepoint, &pp_arr );
 
-	stbtt_vertex const *const pp_end = pp_arr + pp_count;
+	stbtt_vertex const* const pp_end = pp_arr + pp_count;
 
 	using namespace le_path;
 
@@ -141,7 +141,7 @@ static void le_font_add_paths_for_glyph( le_font_o const *self, le_path_o *path,
 
 // ----------------------------------------------------------------------
 
-static le_font_o *le_font_create( char const *font_filename, float font_size ) {
+static le_font_o* le_font_create( char const* font_filename, float font_size ) {
 	auto self = new le_font_o();
 
 	/* prepare font */
@@ -166,7 +166,7 @@ static le_font_o *le_font_create( char const *font_filename, float font_size ) {
 // ----------------------------------------------------------------------
 
 // Creates - (or re-creates) texture atlas for a given font
-static bool le_font_create_atlas( le_font_o *self ) {
+static bool le_font_create_atlas( le_font_o* self ) {
 	if ( false == self->has_texture_atlas ) {
 
 		stbtt_pack_context pack_context{};
@@ -174,7 +174,7 @@ static bool le_font_create_atlas( le_font_o *self ) {
 
 		stbtt_PackSetOversampling( &pack_context, 2, 1 );
 
-		auto pack_uniform_range = []( stbtt_pack_context *ctx, unsigned char const *font_data, float font_size, uint32_t start_range, uint32_t end_range ) -> UnicodeRange {
+		auto pack_uniform_range = []( stbtt_pack_context* ctx, unsigned char const* font_data, float font_size, uint32_t start_range, uint32_t end_range ) -> UnicodeRange {
 			UnicodeRange r;
 			r.start_range = start_range;
 			r.end_range   = end_range;
@@ -229,7 +229,7 @@ static inline uint8_t count_leading_bits( uint8_t in ) {
 // Runs until it meets '\0' (end of c-string) character.
 // Returns true on success, false if the last codepoint was not completely
 // parsed.
-static bool le_utf8_iterator( char const *str, void *user_data, le_font_api::le_uft8_iterator_cb_t cb ) {
+static bool le_utf8_iterator( char const* str, void* user_data, le_font_api::le_uft8_iterator_cb_t cb ) {
 	static constexpr uint8_t mask_bits[] = {
 	    0b00000000,
 	    0b10000000,
@@ -243,12 +243,12 @@ static bool le_utf8_iterator( char const *str, void *user_data, le_font_api::le_
 
 	uint32_t code_point = 0;
 
-	for ( char const *c = str; *c != '\0'; c++ ) {
+	for ( char const* c = str; *c != '\0'; c++ ) {
 
 		uint8_t cur_byte = uint8_t( *c );
 
 		if ( cur_byte & 0x80 ) {
-			//This codepoint is from beyond the ASCII range.
+			// This codepoint is from beyond the ASCII range.
 
 			// Let's count the leading '1' bits.
 			uint8_t leading_bit_count = count_leading_bits( cur_byte );
@@ -298,15 +298,15 @@ static bool le_utf8_iterator( char const *str, void *user_data, le_font_api::le_
 //
 // If vertex data was written, x_pos and y_pos will be updated to the current
 // advance of the virtual text cursor.
-static size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float *x_pos, float *y_pos, glm::vec4 *vertices, size_t max_vertices, size_t vertex_offset ) {
+static size_t le_font_draw_utf8_string( le_font_o* self, const char* str, float* x_pos, float* y_pos, glm::vec4* vertices, size_t max_vertices, size_t vertex_offset ) {
 
 	size_t glyph_count = 0;
 
 	std::vector<uint32_t> codepoints;
 	codepoints.reserve( max_vertices / 6 );
 
-	le_utf8_iterator( str, &codepoints, []( uint32_t cp, void *user_data ) {
-		auto &cps = *static_cast<std::vector<uint32_t> *>( user_data );
+	le_utf8_iterator( str, &codepoints, []( uint32_t cp, void* user_data ) {
+		auto& cps = *static_cast<std::vector<uint32_t>*>( user_data );
 		cps.push_back( uint32_t( cp ) );
 	} );
 
@@ -328,7 +328,7 @@ static size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float 
 	{
 		stbtt_aligned_quad quad{};
 
-		for ( auto const &cp : codepoints ) {
+		for ( auto const& cp : codepoints ) {
 
 			if ( cp == '\n' ) {
 				*y_pos = y_anchor + int( ( ++num_newlines ) * self->font_size * 1.2f ); // We increase y position - assumed line height 1.2, aligned to pixels,
@@ -339,8 +339,8 @@ static size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float 
 			// we must check that our codepoint is contained within a range of
 			// available codepoints from the current font.
 
-			UnicodeRange *            range      = self->unicode_ranges.data();
-			UnicodeRange const *const end_ranges = range + self->unicode_ranges.size();
+			UnicodeRange*             range      = self->unicode_ranges.data();
+			UnicodeRange const* const end_ranges = range + self->unicode_ranges.size();
 
 			while ( range != end_ranges && cp > range->end_range ) {
 				range++;
@@ -369,7 +369,7 @@ static size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float 
 			// Our return vertices will be x/y s/t per-vertex
 			// (we store texture coordinates per vertex in .zw coordinates to save bandwidth)
 
-			glm::vec4 *vtx = vertices + vertex_offset + num_vertices;
+			glm::vec4* vtx = vertices + vertex_offset + num_vertices;
 
 			vtx[ 0 ] = { quad.x0, quad.y0, quad.s0, quad.t0 }; // top-left
 			vtx[ 1 ] = { quad.x0, quad.y1, quad.s0, quad.t1 }; // bottom-left
@@ -388,13 +388,13 @@ static size_t le_font_draw_utf8_string( le_font_o *self, const char *str, float 
 
 // ----------------------------------------------------------------------
 
-static float le_font_get_scale_for_pixels_height( le_font_o const *self, float height_in_pixels ) {
+static float le_font_get_scale_for_pixels_height( le_font_o const* self, float height_in_pixels ) {
 	return stbtt_ScaleForPixelHeight( &self->info, height_in_pixels );
 }
 
 // ----------------------------------------------------------------------
 
-static bool le_font_get_atlas( le_font_o *self, uint8_t const **pixels, uint32_t *width, uint32_t *height, uint32_t *pix_stride_in_bytes ) {
+static bool le_font_get_atlas( le_font_o* self, uint8_t const** pixels, uint32_t* width, uint32_t* height, uint32_t* pix_stride_in_bytes ) {
 
 	if ( false == self->has_texture_atlas ) {
 		return false;
@@ -410,26 +410,26 @@ static bool le_font_get_atlas( le_font_o *self, uint8_t const **pixels, uint32_t
 
 // ----------------------------------------------------------------------
 
-static uint8_t *le_font_create_codepoint_sdf_bitmap( le_font_o *self, float scale, int codepoint, int padding, unsigned char onedge_value, float pixel_dist_scale, int *width, int *height, int *xoff, int *yoff ) {
+static uint8_t* le_font_create_codepoint_sdf_bitmap( le_font_o* self, float scale, int codepoint, int padding, unsigned char onedge_value, float pixel_dist_scale, int* width, int* height, int* xoff, int* yoff ) {
 	return stbtt_GetCodepointSDF( &self->info, scale, codepoint, padding, onedge_value, pixel_dist_scale, width, height, xoff, yoff );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_font_destroy_codepoint_sdf_bitmap( le_font_o *self, uint8_t *bitmap ) {
+static void le_font_destroy_codepoint_sdf_bitmap( le_font_o* self, uint8_t* bitmap ) {
 	stbtt_FreeSDF( bitmap, &self->info );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_font_destroy( le_font_o *self ) {
+static void le_font_destroy( le_font_o* self ) {
 	delete self;
 }
 
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_font, api ) {
-	auto &le_font_i = static_cast<le_font_api *>( api )->le_font_i;
+	auto& le_font_i = static_cast<le_font_api*>( api )->le_font_i;
 
 	le_font_i.create                       = le_font_create;
 	le_font_i.destroy                      = le_font_destroy;
@@ -442,6 +442,6 @@ LE_MODULE_REGISTER_IMPL( le_font, api ) {
 
 	le_font_i.draw_utf8_string = le_font_draw_utf8_string;
 
-	auto &utf8_iterator = static_cast<le_font_api *>( api )->le_utf8_iterator;
+	auto& utf8_iterator = static_cast<le_font_api*>( api )->le_utf8_iterator;
 	utf8_iterator       = le_utf8_iterator;
 }

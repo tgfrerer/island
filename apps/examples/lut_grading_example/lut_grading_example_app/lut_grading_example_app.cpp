@@ -38,7 +38,7 @@ static void app_terminate() {
 
 // ----------------------------------------------------------------------
 
-static lut_grading_example_app_o *lut_grading_example_app_create() {
+static lut_grading_example_app_o* lut_grading_example_app_create() {
 	auto app = new ( lut_grading_example_app_o );
 
 	le::Window::Settings settings;
@@ -52,11 +52,11 @@ static lut_grading_example_app_o *lut_grading_example_app_create() {
 
 	app->renderer.setup( le::RendererInfoBuilder( app->window ).build() );
 
-	char const *hald_lut =
+	char const* hald_lut =
 	    "./local_resources/images/night_from_day.png";
 	//	    "./local_resources/images/hald_8_identity.png";  // pass-through
 
-	char const *src_image_path =
+	char const* src_image_path =
 	    "./local_resources/images/revolt-97ZPiaJbDuA-unsplash.jpg";
 
 	// Provide additional information for 3D LUT Image:
@@ -77,9 +77,9 @@ static lut_grading_example_app_o *lut_grading_example_app_create() {
 	return app;
 }
 
-static void app_process_ui_events( lut_grading_example_app_o *self ) {
+static void app_process_ui_events( lut_grading_example_app_o* self ) {
 
-	le::UiEvent const *events;
+	le::UiEvent const* events;
 	uint32_t           num_events;
 
 	uint32_t swapchain_width;
@@ -113,7 +113,7 @@ static void app_process_ui_events( lut_grading_example_app_o *self ) {
 
 // ----------------------------------------------------------------------
 // This method gets updated once per frame
-static bool lut_grading_example_app_update( lut_grading_example_app_o *self ) {
+static bool lut_grading_example_app_update( lut_grading_example_app_o* self ) {
 
 	// Polls events for all windows to see if we need to close window
 	le::Window::pollEvents();
@@ -164,8 +164,8 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o *self ) {
 	        .addColorAttachment( SWAPCHAIN_IMG )
 	        .sampleTexture( lut_image_texture, lut_tex_info )      // Declare texture name: color lut image
 	        .sampleTexture( src_image_texture, src_imag_tex_info ) // Declare texture name: src image
-	        .setExecuteCallback( self, []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-		        auto        app = static_cast<lut_grading_example_app_o *>( user_data );
+	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+		        auto        app = static_cast<lut_grading_example_app_o*>( user_data );
 		        le::Encoder encoder{ encoder_ };
 
 		        // Draw main scene
@@ -207,7 +207,7 @@ static bool lut_grading_example_app_update( lut_grading_example_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void lut_grading_example_app_destroy( lut_grading_example_app_o *self ) {
+static void lut_grading_example_app_destroy( lut_grading_example_app_o* self ) {
 
 	delete ( self );
 }
@@ -216,8 +216,8 @@ static void lut_grading_example_app_destroy( lut_grading_example_app_o *self ) {
 
 LE_MODULE_REGISTER_IMPL( lut_grading_example_app, api ) {
 
-	auto  lut_grading_example_app_api_i = static_cast<lut_grading_example_app_api *>( api );
-	auto &lut_grading_example_app_i     = lut_grading_example_app_api_i->lut_grading_example_app_i;
+	auto  lut_grading_example_app_api_i = static_cast<lut_grading_example_app_api*>( api );
+	auto& lut_grading_example_app_i     = lut_grading_example_app_api_i->lut_grading_example_app_i;
 
 	lut_grading_example_app_i.initialize = app_initialize;
 	lut_grading_example_app_i.terminate  = app_terminate;

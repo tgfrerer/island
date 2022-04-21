@@ -7,7 +7,7 @@
 #include <le_mesh.h>
 #include <le_mesh_types.h>
 
-static void le_mesh_generator_generate_plane( le_mesh_o *mesh,
+static void le_mesh_generator_generate_plane( le_mesh_o* mesh,
                                               float      width,
                                               float      height,
                                               uint32_t   numWidthSegments,
@@ -48,7 +48,7 @@ static void le_mesh_generator_generate_plane( le_mesh_o *mesh,
 
 // ----------------------------------------------------------------------
 // Adapted from: https://github.com/mrdoob/three.js/blob/dev/src/geometries/SphereGeometry.js
-static void le_mesh_generator_generate_sphere( le_mesh_o *mesh,
+static void le_mesh_generator_generate_sphere( le_mesh_o* mesh,
                                                float      radius,
                                                uint32_t   widthSegments,
                                                uint32_t   heightSegments,
@@ -151,7 +151,7 @@ static void le_mesh_generator_generate_sphere( le_mesh_o *mesh,
 
 // ----------------------------------------------------------------------
 // generates box, and stores it into mesh. Note:
-static void le_mesh_generator_generate_box( le_mesh_o *mesh, float width, float height, float depth ) {
+static void le_mesh_generator_generate_box( le_mesh_o* mesh, float width, float height, float depth ) {
 
 	le_mesh::le_mesh_i.clear( mesh );
 
@@ -200,7 +200,7 @@ static void le_mesh_generator_generate_box( le_mesh_o *mesh, float width, float 
 	// Since our standard cube has extents from -1..1, we must half input scale factor
 	glm::vec3 scale_factor{ width * 0.5f, height * 0.5f, depth * 0.5f };
 
-	for ( auto const &v : unit_cube ) {
+	for ( auto const& v : unit_cube ) {
 		mesh->vertices.emplace_back( v.vertex * scale_factor );
 		mesh->normals.emplace_back( v.normal );
 		mesh->uvs.emplace_back( v.tex_coord );
@@ -229,7 +229,7 @@ static void le_mesh_generator_generate_box( le_mesh_o *mesh, float width, float 
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_mesh_generator, api ) {
-	auto &le_mesh_generator_i = static_cast<le_mesh_generator_api *>( api )->le_mesh_generator_i;
+	auto& le_mesh_generator_i = static_cast<le_mesh_generator_api*>( api )->le_mesh_generator_i;
 
 	le_mesh_generator_i.generate_sphere = le_mesh_generator_generate_sphere;
 	le_mesh_generator_i.generate_plane  = le_mesh_generator_generate_plane;

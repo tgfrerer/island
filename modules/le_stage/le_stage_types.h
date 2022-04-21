@@ -58,11 +58,11 @@ struct le_primitive_attribute_info {
 	uint32_t accessor_idx;
 	uint32_t index;
 	Type     type;
-	char *   name;
+	char*    name;
 };
 
 struct le_texture_info {
-	char *   name;
+	char*    name;
 	uint32_t image_idx;
 	uint32_t sampler_idx;
 };
@@ -80,12 +80,12 @@ struct le_texture_view_info {
 
 	float scale;
 
-	le_texture_transform_info *transform; // optional
+	le_texture_transform_info* transform; // optional
 };
 
 struct le_pbr_metallic_roughness_info {
-	le_texture_view_info *base_color_texture_view;
-	le_texture_view_info *metallic_roughness_texture_view;
+	le_texture_view_info* base_color_texture_view;
+	le_texture_view_info* metallic_roughness_texture_view;
 
 	float base_color_factor[ 4 ];
 	float metallic_factor;
@@ -97,35 +97,35 @@ struct le_pbr_specular_glossiness_info {
 };
 
 struct le_material_info {
-	char const *name;
+	char const* name;
 
-	le_pbr_metallic_roughness_info * pbr_metallic_roughness_info;
-	le_pbr_specular_glossiness_info *pbr_specular_glossiness_info;
-	le_texture_view_info *           normal_texture_view_info;
-	le_texture_view_info *           occlusion_texture_view_info;
-	le_texture_view_info *           emissive_texture_view_info;
+	le_pbr_metallic_roughness_info*  pbr_metallic_roughness_info;
+	le_pbr_specular_glossiness_info* pbr_specular_glossiness_info;
+	le_texture_view_info*            normal_texture_view_info;
+	le_texture_view_info*            occlusion_texture_view_info;
+	le_texture_view_info*            emissive_texture_view_info;
 
 	float emissive_factor[ 3 ];
 };
 
 struct le_morph_target_info_t {
-	le_primitive_attribute_info *attributes;
+	le_primitive_attribute_info* attributes;
 	uint32_t                     attributes_count;
 };
 
 struct le_primitive_info {
 	uint32_t                     indices_accessor_idx;
 	bool                         has_indices;
-	le_primitive_attribute_info *attributes;
+	le_primitive_attribute_info* attributes;
 	uint32_t                     attributes_count;
-	le_morph_target_info_t *     morph_targets;
+	le_morph_target_info_t*      morph_targets;
 	uint32_t                     morph_targets_count;
 	uint32_t                     material_idx;
 	bool                         has_material;
 };
 
 struct le_mesh_info {
-	le_primitive_info *primitives;
+	le_primitive_info* primitives;
 	uint32_t           primitive_count;
 };
 
@@ -138,7 +138,7 @@ struct le_light_info {
 		LE_LIGHT_TYPE_SPOT        = 3,
 	};
 
-	char const *  name;
+	char const*   name;
 	float         color[ 3 ];
 	float         intensity;
 	le_light_type type;
@@ -202,15 +202,15 @@ struct le_animation_sampler_info {
 };
 
 struct le_animation_info {
-	const char *               name;
-	le_animation_sampler_info *samplers;
+	const char*                name;
+	le_animation_sampler_info* samplers;
 	uint32_t                   samplers_count;
-	le_animation_channel_info *channels;
+	le_animation_channel_info* channels;
 	uint32_t                   channels_count;
 };
 
 struct le_skin_info {
-	uint32_t *node_indices;       // joints
+	uint32_t* node_indices;       // joints
 	uint32_t  node_indices_count; // joints count
 	uint32_t  skeleton_node_index;
 	bool      has_skeleton_node_index;
@@ -219,7 +219,7 @@ struct le_skin_info {
 };
 
 struct le_node_info {
-	uint32_t *child_indices;
+	uint32_t* child_indices;
 	uint32_t  child_indices_count;
 
 	uint32_t mesh;   // index into stage's mesh   array, only valid if has_mesh   == true
@@ -232,12 +232,12 @@ struct le_node_info {
 	bool has_light;  // whether this node has a light
 	bool has_skin;   // whether this node has a skin
 
-	char *name;
+	char* name;
 
-	struct glm_mat4_t *local_transform;
-	struct glm_vec3_t *local_translation;
-	struct glm_quat_t *local_rotation;
-	struct glm_vec3_t *local_scale;
+	struct glm_mat4_t* local_transform;
+	struct glm_vec3_t* local_translation;
+	struct glm_quat_t* local_rotation;
+	struct glm_vec3_t* local_scale;
 };
 
 #endif

@@ -7,7 +7,7 @@
 
 // depends on le_backend_vk. le_backend_vk must be loaded before this class is used.
 
-void register_multi_window_example_app_api( void *api );
+void register_multi_window_example_app_api( void* api );
 
 struct multi_window_example_app_o;
 
@@ -36,15 +36,15 @@ LE_MODULE_LOAD_DEFAULT( multi_window_example_app );
 #ifdef __cplusplus
 namespace multi_window_example_app {
 
-static const auto &api = multi_window_example_app_api_i;
+static const auto& api = multi_window_example_app_api_i;
 
-static const auto &multi_window_example_app_i = api -> multi_window_example_app_i;
+static const auto& multi_window_example_app_i = api -> multi_window_example_app_i;
 
 } // namespace multi_window_example_app
 
 class MultiWindowExampleApp : NoCopy, NoMove {
 
-	multi_window_example_app_o *self;
+	multi_window_example_app_o* self;
 
   public:
 	MultiWindowExampleApp()

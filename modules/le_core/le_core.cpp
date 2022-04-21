@@ -24,7 +24,7 @@
 struct ApiStore {
 	std::vector<std::string> names{};      // Api names (used for debugging)
 	std::vector<uint64_t>    nameHashes{}; // Hashed api names (used for lookup)
-	std::vector<void *>      ptrs{};       // Pointer to struct holding api for each api name
+	std::vector<void*>       ptrs{};       // Pointer to struct holding api for each api name
 	~ApiStore() {
 		// We must free any api table entry for which memory was been allocated.
 		for ( auto p : ptrs ) {
@@ -37,28 +37,28 @@ struct ApiStore {
 
 // We use a function here because this means lazy, but deterministic initialisation.
 // see also: <http://www.cs.technion.ac.il/users/yechiel/c++-faq/static-init-order.html>
-static ApiStore &apiStore() {
+static ApiStore& apiStore() {
 	static ApiStore obj;
 	return obj;
 };
 
-ISL_API_ATTR void **le_core_produce_dictionary_entry( uint64_t key ) {
-	static std::mutex                           mtx;
-	std::scoped_lock                            lock( mtx );
-	static std::unordered_map<uint64_t, void *> store{};
+ISL_API_ATTR void** le_core_produce_dictionary_entry( uint64_t key ) {
+	static std::mutex                          mtx;
+	std::scoped_lock                           lock( mtx );
+	static std::unordered_map<uint64_t, void*> store{};
 	return &store[ key ];
 }
 
 struct loader_callback_params_o {
-	le_module_loader_o *loader;
-	void *              api;      // address of api interface struct
+	le_module_loader_o* loader;
+	void*               api;      // address of api interface struct
 	size_t              api_size; // api interface struct size in bytes
 	std::string         lib_register_fun_name;
 	int                 watch_id;
 };
 
-static le_module_loader_api const *get_module_loader_api() {
-	static auto api = ( le_module_loader_api const * )
+static le_module_loader_api const* get_module_loader_api() {
+	static auto api = ( le_module_loader_api const* )
 	    le_core_load_module_static(
 	        le_module_name_le_module_loader,
 	        le_module_register_le_module_loader,
@@ -66,8 +66,8 @@ static le_module_loader_api const *get_module_loader_api() {
 	return api;
 }
 
-static le_file_watcher_api const *get_le_file_watcher_api() {
-	static auto api = ( le_file_watcher_api const * )
+static le_file_watcher_api const* get_le_file_watcher_api() {
+	static auto api = ( le_file_watcher_api const* )
 	    le_core_load_module_dynamic(
 	        le_module_name_le_file_watcher,
 	        sizeof( le_file_watcher_api ), false );
@@ -78,7 +78,7 @@ static le_file_watcher_api const *get_le_file_watcher_api() {
 // this module unloads (at program exit) otherwise we would
 // leak the object.
 class FileWatcherWrapper : NoCopy, NoMove {
-	le_file_watcher_o *self = get_le_file_watcher_api()->le_file_watcher_i.create();
+	le_file_watcher_o* self = get_le_file_watcher_api()->le_file_watcher_i.create();
 
   public:
 	FileWatcherWrapper() {
@@ -86,12 +86,12 @@ class FileWatcherWrapper : NoCopy, NoMove {
 	~FileWatcherWrapper() {
 		get_le_file_watcher_api()->le_file_watcher_i.destroy( self );
 	}
-	le_file_watcher_o *get() {
+	le_file_watcher_o* get() {
 		return self;
 	};
 };
 
-le_file_watcher_o *get_file_watcher() {
+le_file_watcher_o* get_file_watcher() {
 	static FileWatcherWrapper file_watcher{};
 	return file_watcher.get();
 }
@@ -108,23 +108,23 @@ ISL_API_ATTR void le_core_poll_for_module_reloads() {
 // need global lifetime can be unloaded once the app unloads.
 struct DeferDelete {
 
-	std::vector<le_module_loader_o *>       loaders; // loaders to clean up
-	std::vector<loader_callback_params_o *> params;  // callback params to clean up
+	std::vector<le_module_loader_o*>       loaders; // loaders to clean up
+	std::vector<loader_callback_params_o*> params;  // callback params to clean up
 
 	~DeferDelete() {
 		static auto module_loader_i = get_module_loader_api()->le_module_loader_i;
-		for ( auto &l : loaders ) {
+		for ( auto& l : loaders ) {
 			if ( l ) {
 				module_loader_i.destroy( l );
 			}
 		}
-		for ( auto &p : params ) {
+		for ( auto& p : params ) {
 			delete p;
 		}
 	}
 };
 
-static DeferDelete &defer_delete() {
+static DeferDelete& defer_delete() {
 	static DeferDelete obj{};
 	return obj;
 }
@@ -134,11 +134,11 @@ static DeferDelete &defer_delete() {
 /// \param id        Hashed api name string
 /// \param debugName Api name string for debug purposes
 /// \note  In case a given id is not found in apiStore, a new entry is appended to apiStore
-static size_t produce_api_index( uint64_t id, const char *debugName ) {
+static size_t produce_api_index( uint64_t id, const char* debugName ) {
 
 	size_t foundElement = 0;
 
-	for ( const auto &n : apiStore().nameHashes ) {
+	for ( const auto& n : apiStore().nameHashes ) {
 		if ( n == id ) {
 			break;
 		}
@@ -159,7 +159,7 @@ static size_t produce_api_index( uint64_t id, const char *debugName ) {
 
 // ----------------------------------------------------------------------
 
-static void *le_core_get_api( uint64_t id, const char *debugName ) {
+static void* le_core_get_api( uint64_t id, const char* debugName ) {
 
 	size_t foundElement = produce_api_index( id, debugName );
 	return apiStore().ptrs[ foundElement ];
@@ -167,17 +167,17 @@ static void *le_core_get_api( uint64_t id, const char *debugName ) {
 
 // ----------------------------------------------------------------------
 
-static void *le_core_create_api( uint64_t id, size_t apiStructSize, const char *debugName ) {
+static void* le_core_create_api( uint64_t id, size_t apiStructSize, const char* debugName ) {
 
 	size_t foundElement = produce_api_index( id, debugName );
 
-	auto &apiPtr = apiStore().ptrs[ foundElement ];
+	auto& apiPtr = apiStore().ptrs[ foundElement ];
 
 	if ( apiPtr == nullptr ) {
 
 		// api struct has not yet been allocated, we must do so now.
 
-		void *apiMemory = calloc( 1, apiStructSize ); // allocate space for api pointers on heap
+		void* apiMemory = calloc( 1, apiStructSize ); // allocate space for api pointers on heap
 		assert( apiMemory && "Could not allocate memory for API struct." );
 
 		apiPtr = apiMemory; // Store updated address for api - this address won't change for the
@@ -189,25 +189,25 @@ static void *le_core_create_api( uint64_t id, size_t apiStructSize, const char *
 
 // ----------------------------------------------------------------------
 
-static void le_core_reset_api( void *api, size_t api_size ) {
+static void le_core_reset_api( void* api, size_t api_size ) {
 	memset( api, 0, api_size ); // blank out all entries.
 }
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void *le_core_load_module_static( char const *module_name, void ( *module_reg_fun )( void * ), uint64_t api_size_in_bytes ) {
-	void *api = le_core_create_api( hash_64_fnv1a_const( module_name ), api_size_in_bytes, module_name );
+ISL_API_ATTR void* le_core_load_module_static( char const* module_name, void ( *module_reg_fun )( void* ), uint64_t api_size_in_bytes ) {
+	void* api = le_core_create_api( hash_64_fnv1a_const( module_name ), api_size_in_bytes, module_name );
 	module_reg_fun( api );
 	return api;
 };
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_t api_size_in_bytes, bool should_watch ) {
+ISL_API_ATTR void* le_core_load_module_dynamic( char const* module_name, uint64_t api_size_in_bytes, bool should_watch ) {
 
 	uint64_t module_name_hash = hash_64_fnv1a_const( module_name );
 
-	void *api = le_core_get_api( module_name_hash, module_name );
+	void* api = le_core_get_api( module_name_hash, module_name );
 
 	if ( module_name_hash == hash_64_fnv1a_const( "le_file_watcher" ) ) {
 		// To answer that age-old question: No-one watches the watcher.
@@ -234,11 +234,11 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 		// touch'ed by the build scripts to signal successful completion of the build.
 		std::string         module_path       = "./" + std::string( module_name ) + ".dll";
 		std::string         module_watch_path = "./" + std::string( module_name ) + ".flag";
-		le_module_loader_o *loader            = module_loader_i.create( module_path.c_str() );
+		le_module_loader_o* loader            = module_loader_i.create( module_path.c_str() );
 #else
 		std::string         module_path       = "./modules/lib" + std::string( module_name ) + ".so";
 		std::string         module_watch_path = module_path;
-		le_module_loader_o *loader            = module_loader_i.create( module_path.c_str() );
+		le_module_loader_o* loader            = module_loader_i.create( module_path.c_str() );
 #endif
 
 		defer_delete().loaders.push_back( loader ); // add to cleanup list
@@ -254,7 +254,7 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 
 		// ----
 		if ( should_watch ) {
-			loader_callback_params_o *callbackParams = new loader_callback_params_o{};
+			loader_callback_params_o* callbackParams = new loader_callback_params_o{};
 			callbackParams->api                      = api;
 			callbackParams->loader                   = loader;
 			callbackParams->lib_register_fun_name    = api_register_fun_name;
@@ -264,14 +264,14 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 
 			le_file_watcher_watch_settings watchSettings = {};
 
-			watchSettings.callback_fun = []( const char *, void *user_data ) {
-				auto params = static_cast<loader_callback_params_o *>( user_data );
+			watchSettings.callback_fun = []( const char*, void* user_data ) {
+				auto params = static_cast<loader_callback_params_o*>( user_data );
 				le_core_reset_api( params->api, params->api_size );
 				module_loader_i.load( params->loader );
 				module_loader_i.register_api( params->loader, params->api, params->lib_register_fun_name.c_str() );
 			};
 
-			watchSettings.callback_user_data = reinterpret_cast<void *>( callbackParams );
+			watchSettings.callback_user_data = reinterpret_cast<void*>( callbackParams );
 			watchSettings.filePath           = module_watch_path.c_str();
 
 			static auto le_file_watcher_i = get_le_file_watcher_api()->le_file_watcher_i;
@@ -287,21 +287,21 @@ ISL_API_ATTR void *le_core_load_module_dynamic( char const *module_name, uint64_
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void *le_core_load_library_persistently( char const *library_name ) {
+ISL_API_ATTR void* le_core_load_library_persistently( char const* library_name ) {
 	static auto module_loader_i = get_module_loader_api()->le_module_loader_i;
 	return module_loader_i.load_library_persistently( library_name );
 }
 
 // ----------------------------------------------------------------------
 
-/* Provide storage for a lookup table for uniform arguments - any argument  
+/* Provide storage for a lookup table for uniform arguments - any argument
  * set via the LE_ARGUMENT_NAME macro will be placed in this table should
- * we run in Debug mode. 
- * 
- * In Release mode the macro evaluates to a constexpr, and argument ids are 
+ * we run in Debug mode.
+ *
+ * In Release mode the macro evaluates to a constexpr, and argument ids are
  * resolved at compile-time, therefore will not be
  * placed in table.
- * 
+ *
  */
 struct ArgumentNameTable {
 	std::mutex                                mtx;
@@ -312,7 +312,7 @@ static ArgumentNameTable argument_names_table{};
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR void le_update_argument_name_table( const char *name, uint64_t value ) {
+ISL_API_ATTR void le_update_argument_name_table( const char* name, uint64_t value ) {
 
 	// find index of entry with current value in table
 
@@ -328,14 +328,14 @@ ISL_API_ATTR void le_update_argument_name_table( const char *name, uint64_t valu
 
 // ----------------------------------------------------------------------
 
-ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value ) {
+ISL_API_ATTR char const* le_get_argument_name_from_hash( uint64_t value ) {
 
 	std::scoped_lock lock( argument_names_table.mtx );
 	if ( argument_names_table.map.empty() ) {
 		return "<< Argument name table empty. >>";
 	}
 
-	auto const &e = argument_names_table.map.find( value );
+	auto const& e = argument_names_table.map.find( value );
 	if ( e == argument_names_table.map.end() ) {
 		return "<< Argument name could not be resolved. >>";
 
@@ -391,20 +391,20 @@ ISL_API_ATTR char const *le_get_argument_name_from_hash( uint64_t value ) {
 ///
 
 class PltGot {
-	void *       plt_got      = nullptr;
+	void*        plt_got      = nullptr;
 	size_t       plt_got_sz   = 0;
-	char *       plt_page     = nullptr;
-	char *       got_page     = nullptr;
+	char*        plt_page     = nullptr;
+	char*        got_page     = nullptr;
 	uint32_t     used_entries = 0;
 	const size_t PAGE_SIZE;
 	const size_t MAX_CALLBACK_FORWARDERS_PER_PAGE;
 
-	void *plt_at( size_t index ) {
+	void* plt_at( size_t index ) {
 		assert( index < MAX_CALLBACK_FORWARDERS_PER_PAGE && "callback plt index out of bounds" );
 		return plt_page + ( index * 16 );
 	}
 
-	void *got_at( size_t index ) {
+	void* got_at( size_t index ) {
 		assert( index < MAX_CALLBACK_FORWARDERS_PER_PAGE && "callback got index out of bounds" );
 		return got_page + ( index * 16 );
 	}
@@ -418,7 +418,7 @@ class PltGot {
 		plt_got    = mmap( NULL, plt_got_sz, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0 );
 		assert( plt_got != MAP_FAILED && "Map did not succeed" );
 
-		plt_page = static_cast<char *>( plt_got );
+		plt_page = static_cast<char*>( plt_got );
 		got_page = plt_page + PAGE_SIZE;
 
 		// We fill the first page with trampoline thunks - this is program code.
@@ -432,7 +432,7 @@ class PltGot {
 		    // filler to 16B
 		    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
-		int32_t *offset = ( int32_t * )( thunk + 3 ); // get address of offset inside thunk
+		int32_t* offset = ( int32_t* )( thunk + 3 ); // get address of offset inside thunk
 
 		*offset = PAGE_SIZE; // set offset to one page.
 		*offset -= 7;        // as the current instruction has 7 bytes, we must subtract 7 from the offset value.
@@ -453,7 +453,7 @@ class PltGot {
 		assert( result != -1 && "unmap failed" );
 	};
 
-	bool new_entry( void **plt, void **got ) {
+	bool new_entry( void** plt, void** got ) {
 		auto entry = used_entries++;
 		if ( entry > MAX_CALLBACK_FORWARDERS_PER_PAGE ) {
 			return false;
@@ -476,7 +476,7 @@ class PltGotForwardList {
 	std::unique_ptr<PltGot> list;
 
   public:
-	void next_entry( void **plt, void **got ) {
+	void next_entry( void** plt, void** got ) {
 		auto lck = std::unique_lock( mtx );
 		while ( list.get() == nullptr || list.get()->new_entry( plt, got ) == false ) {
 			auto new_entry = std::make_unique<PltGot>();
@@ -488,20 +488,20 @@ class PltGotForwardList {
 
 // ----------------------------------------------------------------------
 
-void *le_core_get_callback_forwarder_addr_impl( void *callback_addr ) {
+void* le_core_get_callback_forwarder_addr_impl( void* callback_addr ) {
 
 	// let's allocate more of these as we need them - we can store them in a vector
 	// and only ever use the last one.
 
 	static PltGotForwardList plt_got{};
 
-	void *plt_addr = nullptr;
-	void *got_addr = nullptr;
+	void* plt_addr = nullptr;
+	void* got_addr = nullptr;
 
 	plt_got.next_entry( &plt_addr, &got_addr );
 
 	// copy value of callback pointer into got table
-	memcpy( got_addr, &callback_addr, sizeof( void * ) );
+	memcpy( got_addr, &callback_addr, sizeof( void* ) );
 
 	return plt_addr;
 };

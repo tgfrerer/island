@@ -28,13 +28,13 @@ LE_MODULE_LOAD_DEFAULT( imgui_example_app );
 #ifdef __cplusplus
 
 namespace imgui_example_app {
-static const auto &api                 = imgui_example_app_api_i;
-static const auto &imgui_example_app_i = api -> imgui_example_app_i;
+static const auto& api                 = imgui_example_app_api_i;
+static const auto& imgui_example_app_i = api -> imgui_example_app_i;
 } // namespace imgui_example_app
 
 class ImguiExampleApp : NoCopy, NoMove {
 
-	imgui_example_app_o *self;
+	imgui_example_app_o* self;
 
   public:
 	ImguiExampleApp()

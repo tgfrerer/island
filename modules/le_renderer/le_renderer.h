@@ -217,14 +217,14 @@ LE_MODULE_LOAD_DEFAULT( le_renderer );
 #ifdef __cplusplus
 
 namespace le_renderer {
-static const auto &api = le_renderer_api_i;
+static const auto& api = le_renderer_api_i;
 
-static const auto &renderer_i      = api -> le_renderer_i;
-static const auto &renderpass_i    = api -> le_renderpass_i;
-static const auto &render_module_i = api -> le_render_module_i;
-static const auto &rendergraph_i   = api -> le_rendergraph_i;
-static const auto &encoder_i       = api -> le_command_buffer_encoder_i;
-static const auto &helpers_i       = api -> helpers_i;
+static const auto& renderer_i      = api -> le_renderer_i;
+static const auto& renderpass_i    = api -> le_renderpass_i;
+static const auto& render_module_i = api -> le_render_module_i;
+static const auto& rendergraph_i   = api -> le_rendergraph_i;
+static const auto& encoder_i       = api -> le_command_buffer_encoder_i;
+static const auto& helpers_i       = api -> helpers_i;
 
 } // namespace le_renderer
 
@@ -232,7 +232,7 @@ namespace le {
 
 class Renderer {
 
-	le_renderer_o *self;
+	le_renderer_o* self;
 
   public:
 	Renderer()
@@ -243,19 +243,19 @@ class Renderer {
 		le_renderer::renderer_i.destroy( self );
 	}
 
-	void setup( le_renderer_settings_t const &settings ) {
+	void setup( le_renderer_settings_t const& settings ) {
 		le_renderer::renderer_i.setup( self, settings );
 	}
 
-	void setup( le_window_o *window ) {
+	void setup( le_window_o* window ) {
 		le_renderer::renderer_i.setup( self, le::RendererInfoBuilder( window ).build() );
 	}
 
-	void update( le_render_module_o *module ) {
+	void update( le_render_module_o* module ) {
 		le_renderer::renderer_i.update( self, module );
 	}
 
-	le_renderer_settings_t const &getSettings() const noexcept {
+	le_renderer_settings_t const& getSettings() const noexcept {
 		return *le_renderer::renderer_i.get_settings( self );
 	}
 
@@ -267,7 +267,7 @@ class Renderer {
 		return le_renderer::renderer_i.get_swapchain_resource( self, index );
 	}
 
-	void getSwapchainExtent( uint32_t *pWidth, uint32_t *pHeight, uint32_t index = 0 ) const {
+	void getSwapchainExtent( uint32_t* pWidth, uint32_t* pHeight, uint32_t index = 0 ) const {
 		le_renderer::renderer_i.get_swapchain_extent( self, index, pWidth, pHeight );
 	}
 
@@ -277,19 +277,19 @@ class Renderer {
 		return result;
 	}
 
-	le_pipeline_manager_o *getPipelineManager() const {
+	le_pipeline_manager_o* getPipelineManager() const {
 		return le_renderer::renderer_i.get_pipeline_manager( self );
 	}
 
-	static le_texture_handle produceTextureHandle( char const *maybe_name ) {
+	static le_texture_handle produceTextureHandle( char const* maybe_name ) {
 		return le_renderer::renderer_i.produce_texture_handle( maybe_name );
 	}
 
-	static le_img_resource_handle produceImageHandle( char const *maybe_name ) {
+	static le_img_resource_handle produceImageHandle( char const* maybe_name ) {
 		return le_renderer::renderer_i.produce_img_resource_handle( maybe_name, 0, nullptr, 0 );
 	}
 
-	static le_buf_resource_handle produceBufferHandle( char const *maybe_name ) {
+	static le_buf_resource_handle produceBufferHandle( char const* maybe_name ) {
 		return le_renderer::renderer_i.produce_buf_resource_handle( maybe_name, 0, 0 );
 	}
 
@@ -300,21 +300,21 @@ class Renderer {
 
 class RenderPass {
 
-	le_renderpass_o *self;
+	le_renderpass_o* self;
 
   public:
-	RenderPass( const char *name_, const LeRenderPassType &type_ = LE_RENDER_PASS_TYPE_DRAW )
+	RenderPass( const char* name_, const LeRenderPassType& type_ = LE_RENDER_PASS_TYPE_DRAW )
 	    : self( le_renderer::renderpass_i.create( name_, type_ ) ) {
 	}
 
-	RenderPass( const char *name_, const LeRenderPassType &type_, le_renderer_api::pfn_renderpass_setup_t fun_setup, le_renderer_api::pfn_renderpass_execute_t fun_exec, void *user_data )
+	RenderPass( const char* name_, const LeRenderPassType& type_, le_renderer_api::pfn_renderpass_setup_t fun_setup, le_renderer_api::pfn_renderpass_execute_t fun_exec, void* user_data )
 	    : self( le_renderer::renderpass_i.create( name_, type_ ) ) {
 		le_renderer::renderpass_i.set_setup_callback( self, user_data, fun_setup );
 		le_renderer::renderpass_i.set_execute_callback( self, user_data, fun_exec );
 	}
 
 	// Create facade from pointer
-	RenderPass( le_renderpass_o *self_ )
+	RenderPass( le_renderpass_o* self_ )
 	    : self( self_ ) {
 		le_renderer::renderpass_i.ref_inc( self );
 	}
@@ -329,26 +329,26 @@ class RenderPass {
 	}
 
 	// Copy constructor
-	RenderPass( RenderPass const &rhs )
+	RenderPass( RenderPass const& rhs )
 	    : self( rhs.self ) {
 		le_renderer::renderpass_i.ref_inc( self );
 	}
 
 	// Copy assignment
-	RenderPass &operator=( RenderPass const &rhs ) {
+	RenderPass& operator=( RenderPass const& rhs ) {
 		self = rhs.self;
 		le_renderer::renderpass_i.ref_inc( self );
 		return *this;
 	}
 
 	// Move constructor
-	RenderPass( RenderPass &&rhs ) noexcept
+	RenderPass( RenderPass&& rhs ) noexcept
 	    : self( rhs.self ) {
 		rhs.self = nullptr;
 	}
 
 	// Move assignment
-	RenderPass &operator=( RenderPass &&rhs ) {
+	RenderPass& operator=( RenderPass&& rhs ) {
 		self     = rhs.self;
 		rhs.self = nullptr;
 		return *this;
@@ -362,12 +362,12 @@ class RenderPass {
 		return self;
 	}
 
-	RenderPass &setSetupCallback( void *user_data, le_renderer_api::pfn_renderpass_setup_t fun ) {
+	RenderPass& setSetupCallback( void* user_data, le_renderer_api::pfn_renderpass_setup_t fun ) {
 		le_renderer::renderpass_i.set_setup_callback( self, user_data, fun );
 		return *this;
 	}
 
-	RenderPass &setExecuteCallback( void *user_data, le_renderer_api::pfn_renderpass_execute_t fun ) {
+	RenderPass& setExecuteCallback( void* user_data, le_renderer_api::pfn_renderpass_execute_t fun ) {
 		le_renderer::renderpass_i.set_execute_callback( self, user_data, fun );
 		return *this;
 	}
@@ -377,61 +377,61 @@ class RenderPass {
 	/// \brief Adds a resource as an image attachment to the renderpass.
 	/// \details resource is used for ColorAttachment and Write access, unless otherwise specified.
 	///          Use an le_image_attachment_info_t struct to specialise parameters, such as LOAD_OP, CLEAR_OP, and Clear/Load Color.
-	RenderPass &addColorAttachment( const le_img_resource_handle &    resource_id,
-	                                const le_image_attachment_info_t &attachmentInfo = le_image_attachment_info_t() ) {
+	RenderPass& addColorAttachment( const le_img_resource_handle&     resource_id,
+	                                const le_image_attachment_info_t& attachmentInfo = le_image_attachment_info_t() ) {
 		le_renderer::renderpass_i.add_color_attachment( self, resource_id, &attachmentInfo );
 		return *this;
 	}
 
-	RenderPass &addDepthStencilAttachment( const le_img_resource_handle &    resource_id,
-	                                       const le_image_attachment_info_t &attachmentInfo = LeDepthAttachmentInfo() ) {
+	RenderPass& addDepthStencilAttachment( const le_img_resource_handle&     resource_id,
+	                                       const le_image_attachment_info_t& attachmentInfo = LeDepthAttachmentInfo() ) {
 		le_renderer::renderpass_i.add_depth_stencil_attachment( self, resource_id, &attachmentInfo );
 		return *this;
 	}
 
-	RenderPass &useImageResource( le_img_resource_handle resource_id, const LeImageUsageFlags &usage_flags ) {
+	RenderPass& useImageResource( le_img_resource_handle resource_id, const LeImageUsageFlags& usage_flags ) {
 		le_renderer::renderpass_i.use_img_resource( self, resource_id, { LeResourceType::eImage, { { usage_flags } } } );
 		return *this;
 	}
 
-	RenderPass &useBufferResource( le_buf_resource_handle resource_id, const LeBufferUsageFlags &usage_flags ) {
+	RenderPass& useBufferResource( le_buf_resource_handle resource_id, const LeBufferUsageFlags& usage_flags ) {
 		le_renderer::renderpass_i.use_buf_resource( self, resource_id, { LeResourceType::eBuffer, { { usage_flags } } } );
 		return *this;
 	}
 
 #	ifdef LE_FEATURE_RTX
-	RenderPass &useRtxBlasResource( le_resource_handle resource_id, const LeRtxBlasUsageFlags &usage_flags = { LE_RTX_BLAS_USAGE_READ_BIT } ) {
+	RenderPass& useRtxBlasResource( le_resource_handle resource_id, const LeRtxBlasUsageFlags& usage_flags = { LE_RTX_BLAS_USAGE_READ_BIT } ) {
 		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eRtxBlas, { { usage_flags } } } );
 		return *this;
 	}
 
-	RenderPass &useRtxTlasResource( le_resource_handle resource_id, const LeRtxTlasUsageFlags &usage_flags = { LE_RTX_TLAS_USAGE_READ_BIT } ) {
+	RenderPass& useRtxTlasResource( le_resource_handle resource_id, const LeRtxTlasUsageFlags& usage_flags = { LE_RTX_TLAS_USAGE_READ_BIT } ) {
 		le_renderer::renderpass_i.use_resource( self, resource_id, { LeResourceType::eRtxTlas, { { usage_flags } } } );
 		return *this;
 	}
 #	endif
 
-	RenderPass &setIsRoot( bool isRoot = true ) {
+	RenderPass& setIsRoot( bool isRoot = true ) {
 		le_renderer::renderpass_i.set_is_root( self, isRoot );
 		return *this;
 	}
 
-	RenderPass &sampleTexture( le_texture_handle textureName, const le_image_sampler_info_t &imageSamplerInfo ) {
+	RenderPass& sampleTexture( le_texture_handle textureName, const le_image_sampler_info_t& imageSamplerInfo ) {
 		le_renderer::renderpass_i.sample_texture( self, textureName, &imageSamplerInfo );
 		return *this;
 	}
 
-	RenderPass &setWidth( uint32_t width ) {
+	RenderPass& setWidth( uint32_t width ) {
 		le_renderer::renderpass_i.set_width( self, width );
 		return *this;
 	}
 
-	RenderPass &setHeight( uint32_t height ) {
+	RenderPass& setHeight( uint32_t height ) {
 		le_renderer::renderpass_i.set_height( self, height );
 		return *this;
 	}
 
-	RenderPass &setSampleCount( le::SampleCountFlagBits const &sampleCount ) {
+	RenderPass& setSampleCount( le::SampleCountFlagBits const& sampleCount ) {
 		le_renderer::renderpass_i.set_sample_count( self, sampleCount );
 		return *this;
 	}
@@ -441,7 +441,7 @@ class RenderPass {
 
 class RenderModule {
 
-	le_render_module_o *self;
+	le_render_module_o* self;
 	bool                is_reference = false;
 
   public:
@@ -449,7 +449,7 @@ class RenderModule {
 	    : self( le_renderer::render_module_i.create() ) {
 	}
 
-	RenderModule( le_render_module_o *self_ )
+	RenderModule( le_render_module_o* self_ )
 	    : self( self_ )
 	    , is_reference( true ) {
 	}
@@ -464,12 +464,12 @@ class RenderModule {
 		return self;
 	}
 
-	RenderModule &addRenderPass( le_renderpass_o *renderpass ) {
+	RenderModule& addRenderPass( le_renderpass_o* renderpass ) {
 		le_renderer::render_module_i.add_renderpass( self, renderpass );
 		return *this;
 	}
 
-	RenderModule &declareResource( le_resource_handle const &resource_id, le_resource_info_t const &info ) {
+	RenderModule& declareResource( le_resource_handle const& resource_id, le_resource_info_t const& info ) {
 		le_renderer::render_module_i.declare_resource( self, resource_id, info );
 		return *this;
 	}
@@ -479,64 +479,64 @@ class RenderModule {
 
 class ImageInfoBuilder : NoCopy, NoMove {
 	le_resource_info_t             res = le_renderer::helpers_i.get_default_resource_info_for_image();
-	le_resource_info_t::ImageInfo &img = res.image;
+	le_resource_info_t::ImageInfo& img = res.image;
 
   public:
 	// FIXME: This method does not check that the resource_info type is actually image!
-	ImageInfoBuilder( const le_resource_info_t &info )
+	ImageInfoBuilder( const le_resource_info_t& info )
 	    : res( info ) {
 	}
 	ImageInfoBuilder()  = default;
 	~ImageInfoBuilder() = default;
 
-	ImageInfoBuilder &setFormat( Format format ) {
+	ImageInfoBuilder& setFormat( Format format ) {
 		img.format = format;
 		return *this;
 	}
 
-	ImageInfoBuilder &setCreateFlags( uint32_t flags = 0 ) {
+	ImageInfoBuilder& setCreateFlags( uint32_t flags = 0 ) {
 		img.flags = flags;
 		return *this;
 	}
 
-	ImageInfoBuilder &setArrayLayers( uint32_t arrayLayers = 1 ) {
+	ImageInfoBuilder& setArrayLayers( uint32_t arrayLayers = 1 ) {
 		img.arrayLayers = arrayLayers;
 		return *this;
 	}
 
-	ImageInfoBuilder &setExtent( uint32_t width, uint32_t height, uint32_t depth = 1 ) {
+	ImageInfoBuilder& setExtent( uint32_t width, uint32_t height, uint32_t depth = 1 ) {
 		img.extent.width  = width;
 		img.extent.height = height;
 		img.extent.depth  = depth;
 		return *this;
 	}
 
-	ImageInfoBuilder &setUsageFlags( LeImageUsageFlags const &usageFlagBits ) {
+	ImageInfoBuilder& setUsageFlags( LeImageUsageFlags const& usageFlagBits ) {
 		img.usage = usageFlagBits;
 		return *this;
 	}
 
-	ImageInfoBuilder &addUsageFlags( LeImageUsageFlags const &usageFlagBits ) {
+	ImageInfoBuilder& addUsageFlags( LeImageUsageFlags const& usageFlagBits ) {
 		img.usage |= usageFlagBits;
 		return *this;
 	}
 
-	ImageInfoBuilder &setMipLevels( uint32_t mipLevels = 1 ) {
+	ImageInfoBuilder& setMipLevels( uint32_t mipLevels = 1 ) {
 		img.mipLevels = mipLevels;
 		return *this;
 	}
 
-	ImageInfoBuilder &setImageType( le::ImageType const &imageType = le::ImageType::e2D ) {
+	ImageInfoBuilder& setImageType( le::ImageType const& imageType = le::ImageType::e2D ) {
 		img.imageType = imageType;
 		return *this;
 	}
 
-	ImageInfoBuilder &setImageTiling( le::ImageTiling const &imageTiling = le::ImageTiling::eOptimal ) {
+	ImageInfoBuilder& setImageTiling( le::ImageTiling const& imageTiling = le::ImageTiling::eOptimal ) {
 		img.tiling = imageTiling;
 		return *this;
 	}
 
-	const le_resource_info_t &build() {
+	const le_resource_info_t& build() {
 		return res;
 	}
 };
@@ -545,33 +545,33 @@ class ImageInfoBuilder : NoCopy, NoMove {
 
 class BufferInfoBuilder : NoCopy, NoMove {
 	le_resource_info_t              res = le_renderer::helpers_i.get_default_resource_info_for_buffer();
-	le_resource_info_t::BufferInfo &buf = res.buffer;
+	le_resource_info_t::BufferInfo& buf = res.buffer;
 
   public:
 	// FIXME: This method does not check that the resource_info type is actually buffer!
-	BufferInfoBuilder( const le_resource_info_t &info )
+	BufferInfoBuilder( const le_resource_info_t& info )
 	    : res( info ) {
 	}
 
 	BufferInfoBuilder()  = default;
 	~BufferInfoBuilder() = default;
 
-	BufferInfoBuilder &setSize( uint32_t size ) {
+	BufferInfoBuilder& setSize( uint32_t size ) {
 		buf.size = size;
 		return *this;
 	}
 
-	BufferInfoBuilder &setUsageFlags( LeBufferUsageFlags const &usageFlagBits ) {
+	BufferInfoBuilder& setUsageFlags( LeBufferUsageFlags const& usageFlagBits ) {
 		buf.usage = usageFlagBits;
 		return *this;
 	}
 
-	BufferInfoBuilder &addUsageFlags( LeBufferUsageFlags const &usageFlagBits ) {
+	BufferInfoBuilder& addUsageFlags( LeBufferUsageFlags const& usageFlagBits ) {
 		buf.usage |= usageFlagBits;
 		return *this;
 	}
 
-	const le_resource_info_t &build() {
+	const le_resource_info_t& build() {
 		return res;
 	}
 };
@@ -580,13 +580,13 @@ class BufferInfoBuilder : NoCopy, NoMove {
 
 class Encoder {
 
-	le_command_buffer_encoder_o *self = nullptr;
+	le_command_buffer_encoder_o* self = nullptr;
 
   public:
 	Encoder()  = delete;
 	~Encoder() = default;
 
-	Encoder( le_command_buffer_encoder_o *self_ )
+	Encoder( le_command_buffer_encoder_o* self_ )
 	    : self( self_ ) {
 	}
 
@@ -594,187 +594,187 @@ class Encoder {
 		return self;
 	}
 
-	Extent2D const &getRenderpassExtent() {
+	Extent2D const& getRenderpassExtent() {
 		return le_renderer::encoder_i.get_extent( self );
 	}
 
-	Encoder &bufferMemoryBarrier(
-	    LePipelineStageFlags const &  srcStageMask,
-	    LePipelineStageFlags const &  dstStageMask,
-	    LeAccessFlags const &         dstAccessMask,
-	    le_buf_resource_handle const &buffer,
-	    uint64_t const &              offset = 0,
-	    uint64_t const &              range  = ~( 0ull ) ) {
+	Encoder& bufferMemoryBarrier(
+	    LePipelineStageFlags const&   srcStageMask,
+	    LePipelineStageFlags const&   dstStageMask,
+	    LeAccessFlags const&          dstAccessMask,
+	    le_buf_resource_handle const& buffer,
+	    uint64_t const&               offset = 0,
+	    uint64_t const&               range  = ~( 0ull ) ) {
 		// todo:fill in
 		le_renderer::encoder_i.buffer_memory_barrier( self, srcStageMask, dstStageMask, dstAccessMask, buffer, offset, range );
 		return *this;
 	}
 
-	Encoder &dispatch( const uint32_t &groupCountX = 1, const uint32_t &groupCountY = 1, const uint32_t &groupCountZ = 1 ) {
+	Encoder& dispatch( const uint32_t& groupCountX = 1, const uint32_t& groupCountY = 1, const uint32_t& groupCountZ = 1 ) {
 		le_renderer::encoder_i.dispatch( self, groupCountX, groupCountY, groupCountZ );
 		return *this;
 	}
 
-	Encoder &draw( const uint32_t &vertexCount, const uint32_t &instanceCount = 1, const uint32_t &firstVertex = 0, const uint32_t &firstInstance = 0 ) {
+	Encoder& draw( const uint32_t& vertexCount, const uint32_t& instanceCount = 1, const uint32_t& firstVertex = 0, const uint32_t& firstInstance = 0 ) {
 		le_renderer::encoder_i.draw( self, vertexCount, instanceCount, firstVertex, firstInstance );
 		return *this;
 	}
 
-	Encoder &drawIndexed( uint32_t const &indexCount, uint32_t const &instanceCount = 1, uint32_t const &firstIndex = 0, int32_t const &vertexOffset = 0, uint32_t const &firstInstance = 0 ) {
+	Encoder& drawIndexed( uint32_t const& indexCount, uint32_t const& instanceCount = 1, uint32_t const& firstIndex = 0, int32_t const& vertexOffset = 0, uint32_t const& firstInstance = 0 ) {
 		le_renderer::encoder_i.draw_indexed( self, indexCount, instanceCount, firstIndex, vertexOffset, firstInstance );
 		return *this;
 	}
 
-	Encoder &drawMeshTasks( const uint32_t &taskCount, const uint32_t &firstTask = 0 ) {
+	Encoder& drawMeshTasks( const uint32_t& taskCount, const uint32_t& firstTask = 0 ) {
 		le_renderer::encoder_i.draw_mesh_tasks( self, taskCount, firstTask );
 		return *this;
 	}
 
-	Encoder &traceRays( uint32_t const &width, uint32_t const &height, uint32_t const &depth = 1 ) {
+	Encoder& traceRays( uint32_t const& width, uint32_t const& height, uint32_t const& depth = 1 ) {
 		le_renderer::encoder_i.trace_rays( self, width, height, depth );
 		return *this;
 	}
 
-	Encoder &setLineWidth( float const &lineWidth ) {
+	Encoder& setLineWidth( float const& lineWidth ) {
 		le_renderer::encoder_i.set_line_width( self, lineWidth );
 		return *this;
 	}
 
-	Encoder &setViewports( uint32_t firstViewport, const uint32_t &viewportCount, const le::Viewport *pViewports ) {
+	Encoder& setViewports( uint32_t firstViewport, const uint32_t& viewportCount, const le::Viewport* pViewports ) {
 		le_renderer::encoder_i.set_viewport( self, firstViewport, viewportCount, pViewports );
 		return *this;
 	}
 
-	Encoder &setScissors( uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D *pScissors ) {
+	Encoder& setScissors( uint32_t firstScissor, const uint32_t scissorCount, const le::Rect2D* pScissors ) {
 		le_renderer::encoder_i.set_scissor( self, firstScissor, scissorCount, pScissors );
 		return *this;
 	}
 
-	Encoder &bindGraphicsPipeline( le_gpso_handle pipelineHandle ) {
+	Encoder& bindGraphicsPipeline( le_gpso_handle pipelineHandle ) {
 		le_renderer::encoder_i.bind_graphics_pipeline( self, pipelineHandle );
 		return *this;
 	}
 
-	Encoder &bindRtxPipeline( le_shader_binding_table_o *sbt ) {
+	Encoder& bindRtxPipeline( le_shader_binding_table_o* sbt ) {
 		le_renderer::encoder_i.bind_rtx_pipeline( self, sbt );
 		return *this;
 	}
 
-	Encoder &bindComputePipeline( le_cpso_handle pipelineHandle ) {
+	Encoder& bindComputePipeline( le_cpso_handle pipelineHandle ) {
 		le_renderer::encoder_i.bind_compute_pipeline( self, pipelineHandle );
 		return *this;
 	}
 
-	Encoder &bindIndexBuffer( le_buf_resource_handle const &bufferId, uint64_t const &offset, IndexType const &indexType = IndexType::eUint16 ) {
+	Encoder& bindIndexBuffer( le_buf_resource_handle const& bufferId, uint64_t const& offset, IndexType const& indexType = IndexType::eUint16 ) {
 		le_renderer::encoder_i.bind_index_buffer( self, bufferId, offset, indexType );
 		return *this;
 	}
 
-	Encoder &bindVertexBuffers( uint32_t const &firstBinding, uint32_t const &bindingCount, le_buf_resource_handle const *pBufferId, uint64_t const *pOffsets ) {
+	Encoder& bindVertexBuffers( uint32_t const& firstBinding, uint32_t const& bindingCount, le_buf_resource_handle const* pBufferId, uint64_t const* pOffsets ) {
 		le_renderer::encoder_i.bind_vertex_buffers( self, firstBinding, bindingCount, pBufferId, pOffsets );
 		return *this;
 	}
 
 	/// \brief Set index data directly by uploading data via GPU scratch buffer
 	/// \note if either `data == nullptr`, or numBytes == 0, this method call has no effect.
-	Encoder &setIndexData( void const *data, uint64_t const &numBytes, IndexType const &indexType = IndexType::eUint16, le_renderer_api::command_buffer_encoder_interface_t::buffer_binding_info_o *transient_buffer_info_readback = nullptr ) {
+	Encoder& setIndexData( void const* data, uint64_t const& numBytes, IndexType const& indexType = IndexType::eUint16, le_renderer_api::command_buffer_encoder_interface_t::buffer_binding_info_o* transient_buffer_info_readback = nullptr ) {
 		le_renderer::encoder_i.set_index_data( self, data, numBytes, indexType, transient_buffer_info_readback );
 		return *this;
 	}
 
 	/// \brief Set vertex data directly by uploading data via GPU scratch buffer
 	/// \note if either `data == nullptr`, or numBytes == 0, this method call has no effect.
-	Encoder &setVertexData( void const *data, uint64_t const &numBytes, uint32_t const &bindingIndex, le_renderer_api::command_buffer_encoder_interface_t::buffer_binding_info_o *transient_buffer_info_readback = nullptr ) {
+	Encoder& setVertexData( void const* data, uint64_t const& numBytes, uint32_t const& bindingIndex, le_renderer_api::command_buffer_encoder_interface_t::buffer_binding_info_o* transient_buffer_info_readback = nullptr ) {
 		le_renderer::encoder_i.set_vertex_data( self, data, numBytes, bindingIndex, transient_buffer_info_readback );
 		return *this;
 	}
 
-	Encoder &setPushConstantData( void const *data, uint64_t const &numBytes ) {
+	Encoder& setPushConstantData( void const* data, uint64_t const& numBytes ) {
 		le_renderer::encoder_i.set_push_constant_data( self, data, numBytes );
 		return *this;
 	}
 
-	Encoder &writeToBuffer( le_buf_resource_handle const &dstBuffer, size_t const &byteOffsetDst, void const *data, size_t const &numBytes ) {
+	Encoder& writeToBuffer( le_buf_resource_handle const& dstBuffer, size_t const& byteOffsetDst, void const* data, size_t const& numBytes ) {
 		le_renderer::encoder_i.write_to_buffer( self, dstBuffer, byteOffsetDst, data, numBytes );
 		return *this;
 	}
 
-	Encoder &writeToImage( le_img_resource_handle const &dstImg, le_write_to_image_settings_t const &writeInfo, void const *data, size_t const &numBytes ) {
+	Encoder& writeToImage( le_img_resource_handle const& dstImg, le_write_to_image_settings_t const& writeInfo, void const* data, size_t const& numBytes ) {
 		le_renderer::encoder_i.write_to_image( self, dstImg, writeInfo, data, numBytes );
 		return *this;
 	}
 
-	Encoder &setArgumentData( uint64_t const &argumentNameId, void const *data, size_t const &numBytes ) {
+	Encoder& setArgumentData( uint64_t const& argumentNameId, void const* data, size_t const& numBytes ) {
 		le_renderer::encoder_i.set_argument_data( self, argumentNameId, data, numBytes );
 		return *this;
 	}
 
-	Encoder &setArgumentTexture( uint64_t const &argumentName, le_texture_handle const &textureId, uint64_t const &arrayIndex = 0 ) {
+	Encoder& setArgumentTexture( uint64_t const& argumentName, le_texture_handle const& textureId, uint64_t const& arrayIndex = 0 ) {
 		le_renderer::encoder_i.set_argument_texture( self, textureId, argumentName, arrayIndex );
 		return *this;
 	}
 
-	Encoder &setArgumentImage( uint64_t const &argumentName, le_img_resource_handle const &imageId, uint64_t const &arrayIndex = 0 ) {
+	Encoder& setArgumentImage( uint64_t const& argumentName, le_img_resource_handle const& imageId, uint64_t const& arrayIndex = 0 ) {
 		le_renderer::encoder_i.set_argument_image( self, imageId, argumentName, arrayIndex );
 		return *this;
 	}
 
-	Encoder &setArgumentTlas( uint64_t const &argumentName, le_tlas_resource_handle const &tlasId, uint64_t const &arrayIndex = 0 ) {
+	Encoder& setArgumentTlas( uint64_t const& argumentName, le_tlas_resource_handle const& tlasId, uint64_t const& arrayIndex = 0 ) {
 		le_renderer::encoder_i.set_argument_tlas( self, tlasId, argumentName, arrayIndex );
 		return *this;
 	}
 
-	Encoder &bindArgumentBuffer( uint64_t const &argumentName, le_buf_resource_handle const &bufferId, uint64_t const &offset = 0, uint64_t const &range = ( ~0ULL ) ) {
+	Encoder& bindArgumentBuffer( uint64_t const& argumentName, le_buf_resource_handle const& bufferId, uint64_t const& offset = 0, uint64_t const& range = ( ~0ULL ) ) {
 		le_renderer::encoder_i.bind_argument_buffer( self, bufferId, argumentName, offset, range );
 		return *this;
 	}
 
 	class ShaderBindingTableBuilder {
-		Encoder const &            parent;
-		le_shader_binding_table_o *sbt = nullptr;
+		Encoder const&             parent;
+		le_shader_binding_table_o* sbt = nullptr;
 
 	  public:
-		ShaderBindingTableBuilder( Encoder const &parent_, le_rtxpso_handle pso )
+		ShaderBindingTableBuilder( Encoder const& parent_, le_rtxpso_handle pso )
 		    : parent( parent_ )
 		    , sbt( le_renderer::encoder_i.build_sbt( parent.self, pso ) ) {
 		}
 
-		ShaderBindingTableBuilder &setRayGenIdx( uint32_t idx ) {
+		ShaderBindingTableBuilder& setRayGenIdx( uint32_t idx ) {
 			le_renderer::encoder_i.sbt_set_ray_gen( sbt, idx );
 			return *this;
 		}
 
-		ShaderBindingTableBuilder &addCallableIdx( uint32_t idx ) {
+		ShaderBindingTableBuilder& addCallableIdx( uint32_t idx ) {
 			le_renderer::encoder_i.sbt_add_callable( sbt, idx );
 			return *this;
 		}
 
-		ShaderBindingTableBuilder &addHitIdx( uint32_t idx ) {
+		ShaderBindingTableBuilder& addHitIdx( uint32_t idx ) {
 			le_renderer::encoder_i.sbt_add_hit( sbt, idx );
 			return *this;
 		}
 
-		ShaderBindingTableBuilder &addMissIdx( uint32_t idx ) {
+		ShaderBindingTableBuilder& addMissIdx( uint32_t idx ) {
 			le_renderer::encoder_i.sbt_add_miss( sbt, idx );
 			return *this;
 		}
 
-		ShaderBindingTableBuilder &addParameterValueU32( uint32_t val ) {
+		ShaderBindingTableBuilder& addParameterValueU32( uint32_t val ) {
 			le_renderer::encoder_i.sbt_add_u32_param( sbt, val );
 			return *this;
 		}
 
-		ShaderBindingTableBuilder &addParameterValueF32( float val ) {
+		ShaderBindingTableBuilder& addParameterValueF32( float val ) {
 			le_renderer::encoder_i.sbt_add_f32_param( sbt, val );
 			return *this;
 		}
 
-		le_shader_binding_table_o *build() {
+		le_shader_binding_table_o* build() {
 			return le_renderer::encoder_i.sbt_validate( sbt );
 		}
 	};
 
-	le_pipeline_manager_o *getPipelineManager() {
+	le_pipeline_manager_o* getPipelineManager() {
 		return le_renderer::encoder_i.get_pipeline_manager( self );
 	}
 };

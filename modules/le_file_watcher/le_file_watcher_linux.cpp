@@ -28,12 +28,12 @@ struct Watch {
 	int                inotify_watch_handle = -1;
 	int                unique_watch_id      = -1;
 	int                padding              = 0;
-	le_file_watcher_o *watcher_o            = nullptr; // Non-owning: Weak pointer back to instance
+	le_file_watcher_o* watcher_o            = nullptr; // Non-owning: Weak pointer back to instance
 	std::string        path;
 	std::string        filename;
 	std::string        basename;
-	void *             callback_user_data = nullptr;
-	void ( *callback_fun )( const char *path, void *user_data );
+	void*              callback_user_data = nullptr;
+	void ( *callback_fun )( const char* path, void* user_data );
 };
 
 // ----------------------------------------------------------------------
@@ -53,7 +53,7 @@ struct le_file_watcher_o {
 
 // ----------------------------------------------------------------------
 
-static le_file_watcher_o *instance_create() {
+static le_file_watcher_o* instance_create() {
 	auto tmp                   = new le_file_watcher_o();
 	tmp->inotify_socket_handle = inotify_init1( IN_NONBLOCK );
 	return tmp;
@@ -61,11 +61,11 @@ static le_file_watcher_o *instance_create() {
 
 // ----------------------------------------------------------------------
 
-static void instance_destroy( le_file_watcher_o *instance ) {
+static void instance_destroy( le_file_watcher_o* instance ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	for ( auto &w : instance->mWatches ) {
+	for ( auto& w : instance->mWatches ) {
 		int result = inotify_rm_watch( instance->inotify_socket_handle, w.first );
 		assert( result == 0 );
 	}
@@ -81,7 +81,7 @@ static void instance_destroy( le_file_watcher_o *instance ) {
 
 // ----------------------------------------------------------------------
 
-static void store_watch( le_file_watcher_o *instance, Watch const &watch ) {
+static void store_watch( le_file_watcher_o* instance, Watch const& watch ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 	{
@@ -96,7 +96,7 @@ static void store_watch( le_file_watcher_o *instance, Watch const &watch ) {
 	}
 }
 
-static int add_watch( le_file_watcher_o *instance, le_file_watcher_watch_settings const *settings ) noexcept {
+static int add_watch( le_file_watcher_o* instance, le_file_watcher_watch_settings const* settings ) noexcept {
 	Watch tmp;
 
 	auto tmp_path = std::filesystem::canonical( settings->filePath );
@@ -118,7 +118,7 @@ static int add_watch( le_file_watcher_o *instance, le_file_watcher_watch_setting
 
 // ----------------------------------------------------------------------
 
-static bool remove_watch( le_file_watcher_o *instance, int watch_id ) {
+static bool remove_watch( le_file_watcher_o* instance, int watch_id ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	auto        lock   = std::unique_lock( instance->mtx, std::defer_lock );
 
@@ -126,13 +126,13 @@ static bool remove_watch( le_file_watcher_o *instance, int watch_id ) {
 
 		auto found_inotify_watch =
 		    std::find_if( instance->mWatches.begin(), instance->mWatches.end(),
-		                  [ & ]( std::pair<int, std::unordered_map<int, Watch>> const &w ) -> bool {
+		                  [ & ]( std::pair<int, std::unordered_map<int, Watch>> const& w ) -> bool {
 			                  return w.second.find( watch_id ) != w.second.end();
 		                  } );
 
 		if ( found_inotify_watch != instance->mWatches.end() ) {
 
-			auto &inotify_watch_entry = found_inotify_watch->second;
+			auto& inotify_watch_entry = found_inotify_watch->second;
 			// Remove entry with current watch_id
 			auto found_watch = inotify_watch_entry.find( watch_id );
 
@@ -170,7 +170,7 @@ static bool remove_watch( le_file_watcher_o *instance, int watch_id ) {
 
 // ----------------------------------------------------------------------
 
-static void poll_notifications( le_file_watcher_o *instance ) {
+static void poll_notifications( le_file_watcher_o* instance ) {
 	static_assert( sizeof( inotify_event ) == sizeof( struct inotify_event ), "must be equal" );
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -182,10 +182,10 @@ static void poll_notifications( le_file_watcher_o *instance ) {
 
 		if ( ret > 0 ) {
 
-			inotify_event *ev = nullptr;
+			inotify_event* ev = nullptr;
 			for ( ssize_t i = 0; i < ret; i += ev->len + sizeof( struct inotify_event ) ) {
 
-				ev = reinterpret_cast<inotify_event *>( buffer + i );
+				ev = reinterpret_cast<inotify_event*>( buffer + i );
 
 				if ( !ev->len ) {
 					// if there is no filename to compare with, there is no need to check this against
@@ -194,7 +194,7 @@ static void poll_notifications( le_file_watcher_o *instance ) {
 				}
 
 				std::string path          = ev->name;
-				const char *prev_filename = nullptr; // store previous filename to declutter printout
+				const char* prev_filename = nullptr; // store previous filename to declutter printout
 
 				// Only trigger on close-write
 				if ( ev->mask & IN_CLOSE_WRITE ) {
@@ -205,7 +205,7 @@ static void poll_notifications( le_file_watcher_o *instance ) {
 						// We trigger *all* callbacks which watch the current file path
 						// For this, we must iterate through all watches and filter the
 						// ones which watch the event's file.
-						for ( auto const &w : found_watches->second ) {
+						for ( auto const& w : found_watches->second ) {
 							if ( w.second.filename == path ) {
 								// Only print notice if it is for a new filename:
 								if ( prev_filename != path.c_str() ) {
@@ -221,14 +221,14 @@ static void poll_notifications( le_file_watcher_o *instance ) {
 			}
 			if ( !instance->deferred_remove_ids.empty() ) {
 				auto lock = std::unique_lock( instance->deferred_remove_mtx );
-				for ( auto &w : instance->deferred_remove_ids ) {
+				for ( auto& w : instance->deferred_remove_ids ) {
 					remove_watch( instance, w );
 				}
 				instance->deferred_remove_ids.clear();
 			}
 			if ( !instance->deferred_add_watch.empty() ) {
 				auto lock = std::unique_lock( instance->deferred_add_watch_mtx );
-				for ( auto &w : instance->deferred_add_watch ) {
+				for ( auto& w : instance->deferred_add_watch ) {
 					store_watch( instance, w );
 				}
 				instance->deferred_add_watch.clear();
@@ -243,8 +243,8 @@ static void poll_notifications( le_file_watcher_o *instance ) {
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_file_watcher, p_api ) {
-	auto  api                = reinterpret_cast<le_file_watcher_api *>( p_api );
-	auto &api_i              = api->le_file_watcher_i;
+	auto  api                = reinterpret_cast<le_file_watcher_api*>( p_api );
+	auto& api_i              = api->le_file_watcher_i;
 	api_i.create             = instance_create;
 	api_i.destroy            = instance_destroy;
 	api_i.add_watch          = add_watch;

@@ -39,11 +39,11 @@
 // The stage is the owner of the scene graph
 //
 
-/* 
+/*
  * We need a method which allows us to upload resources. This method needs to be called
  * once before we do any rendering of scenes from a particular gltf instance.
- * 
-*/
+ *
+ */
 
 static const auto     RTX_IMAGE_TARGET_HANDLE = LE_IMG_RESOURCE( "rtx_target_img" );
 static constexpr auto LOGGER_LABEL            = "le_backend";
@@ -65,7 +65,7 @@ struct glm_mat4_t {
 };
 
 struct stage_image_o {
-	le_pixels_o *  pixels;
+	le_pixels_o*   pixels;
 	le_pixels_info info;
 
 	le_img_resource_handle handle;
@@ -82,7 +82,7 @@ struct le_texture_o {
 };
 
 struct le_buffer_o {
-	void *                 mem;    // nullptr if not owning
+	void*                  mem;    // nullptr if not owning
 	le_buf_resource_handle handle; // renderer resource handle
 	le_resource_info_t     resource_info;
 	uint32_t               size;            // number of bytes
@@ -139,8 +139,8 @@ struct le_texture_view_o {
 };
 
 struct le_material_pbr_metallic_roughness_o {
-	le_texture_view_o *base_color;
-	le_texture_view_o *metallic_roughness;
+	le_texture_view_o* base_color;
+	le_texture_view_o* metallic_roughness;
 
 	float base_color_factor[ 4 ];
 	float metallic_factor;
@@ -162,10 +162,10 @@ struct le_material_o {
 	};
 
 	std::string                           name;
-	le_texture_view_o *                   normal_texture;
-	le_texture_view_o *                   occlusion_texture;
-	le_texture_view_o *                   emissive_texture;
-	le_material_pbr_metallic_roughness_o *metallic_roughness;
+	le_texture_view_o*                    normal_texture;
+	le_texture_view_o*                    occlusion_texture;
+	le_texture_view_o*                    emissive_texture;
+	le_material_pbr_metallic_roughness_o* metallic_roughness;
 	glm::vec3                             emissive_factor;
 
 	// We initialise the following two elements when we set up our
@@ -236,19 +236,19 @@ struct le_node_o {
 	bool     has_light;
 	uint32_t light_idx;
 
-	struct le_skin_o *skin; // Optional, non-owning
+	struct le_skin_o* skin; // Optional, non-owning
 
 	// TODO: we could use the scene_bit_flags to express affinity,
 	// or whether a node should be used for raytracing for example.
 	uint64_t scene_bit_flags; // one bit for every scene this node is included in -
 
-	std::vector<le_node_o *> children; // non-owning
+	std::vector<le_node_o*> children; // non-owning
 };
 
 struct le_skin_o {
-	std::vector<le_node_o *> joints;                // non-owning
-	le_node_o *              skeleton;              // optional, if present, this is applied instead of the transform of the node containing the skin.
-	std::vector<glm::mat4>   inverse_bind_matrices; // one per joint
+	std::vector<le_node_o*> joints;                // non-owning
+	le_node_o*              skeleton;              // optional, if present, this is applied instead of the transform of the node containing the skin.
+	std::vector<glm::mat4>  inverse_bind_matrices; // one per joint
 };
 
 struct le_keyframe_o {
@@ -279,8 +279,8 @@ struct le_animation_channel_o {
 	std::vector<le_keyframe_o> sampler;        // (non-owning) keyframes for this channel, their time is relative to this channel.
 	                                           //
 	le_compound_num_type target_compound_type; // numeric type for target - we keep this mostly because quaternion requires slerp rather than lerp.
-	le_node_o *          target_node;          // (non-owning) pointer to targeted node						 : how do we deal with deleted nodes?
-	void *               target_node_element;  // (non-owning) pointer to targeted node element (t, r, or s) : how do we deal with deleted nodes?
+	le_node_o*           target_node;          // (non-owning) pointer to targeted node						 : how do we deal with deleted nodes?
+	void*                target_node_element;  // (non-owning) pointer to targeted node element (t, r, or s) : how do we deal with deleted nodes?
 };
 
 /// An animation is a collection of channels
@@ -352,8 +352,8 @@ struct le_light_o {
 };
 
 struct le_scene_o {
-	uint8_t                  scene_id;   // matches scene bit flag in node.
-	std::vector<le_node_o *> root_nodes; // non-owning
+	uint8_t                 scene_id;   // matches scene bit flag in node.
+	std::vector<le_node_o*> root_nodes; // non-owning
 
 	le_tlas_resource_handle rtx_tlas_handle; // only used for rtx
 	le_resource_info_t      rtx_tlas_info;   // only used for rtx
@@ -365,24 +365,24 @@ struct le_scene_o {
 
 // Owns all the data
 struct le_stage_o {
-	le_renderer_o *                     renderer;        // non-owning
-	le_timebase_o *                     timebase;        // non-owning, optional
+	le_renderer_o*                      renderer;        // non-owning
+	le_timebase_o*                      timebase;        // non-owning, optional
 	std::vector<le_scene_o>             scenes;          //
 	std::vector<le_animation_o>         animations;      //
-	std::vector<le_node_o *>            nodes;           // owning
+	std::vector<le_node_o*>             nodes;           // owning
 	std::vector<le_camera_settings_o>   camera_settings; //
 	std::vector<le_mesh_o>              meshes;          //
 	std::vector<le_light_info>          lights;          //
 	std::vector<le_material_o>          materials;       //
 	std::vector<le_accessor_o>          accessors;       //
 	std::vector<le_buffer_view_o>       buffer_views;    //
-	std::vector<le_buffer_o *>          buffers;         // owning
+	std::vector<le_buffer_o*>           buffers;         // owning
 	std::vector<le_sampler_info_t>      samplers;        //
 	std::vector<le_buf_resource_handle> buffer_handles;  //
 	std::vector<le_texture_o>           textures;        //
-	std::vector<stage_image_o *>        images;          // owning
+	std::vector<stage_image_o*>         images;          // owning
 	std::vector<le_img_resource_handle> image_handles;   //
-	std::vector<le_skin_o *>            skins;           // owning
+	std::vector<le_skin_o*>             skins;           // owning
 };
 
 // clang-format off
@@ -405,10 +405,10 @@ struct le_stage_o {
 ///        0 means generate the full mip chain, any other number limits
 ///        the number of mip levels.
 static uint32_t le_stage_create_image_from_memory(
-    le_stage_o *         stage,
-    unsigned char const *image_file_memory,
+    le_stage_o*          stage,
+    unsigned char const* image_file_memory,
     uint32_t             image_file_sz,
-    char const *         debug_name,
+    char const*          debug_name,
     uint32_t             mip_levels_ ) {
 
 	assert( image_file_memory && "must point to memory" );
@@ -428,7 +428,7 @@ static uint32_t le_stage_create_image_from_memory(
 #endif
 
 	uint32_t image_handle_idx = 0;
-	for ( auto &h : stage->image_handles ) {
+	for ( auto& h : stage->image_handles ) {
 		if ( h == res ) {
 			break;
 		}
@@ -437,7 +437,7 @@ static uint32_t le_stage_create_image_from_memory(
 
 	if ( image_handle_idx == stage->image_handles.size() ) {
 
-		stage_image_o *img = new stage_image_o{};
+		stage_image_o* img = new stage_image_o{};
 
 		// We want to find out whether this image uses a 16 bit type.
 		// further, if this image uses a single channel, we are fine with it,
@@ -490,12 +490,12 @@ static uint32_t le_stage_create_image_from_memory(
 
 /// \brief create image by loading file at given filepath into memory,
 /// then handing over to `create_image_from_memory`
-static uint32_t le_stage_create_image_from_file_path( le_stage_o *stage, char const *image_file_path, char const *debug_name, uint32_t mip_levels ) {
+static uint32_t le_stage_create_image_from_file_path( le_stage_o* stage, char const* image_file_path, char const* debug_name, uint32_t mip_levels ) {
 
-	void * image_file_memory = nullptr;
+	void*  image_file_memory = nullptr;
 	size_t image_file_sz     = 0;
 
-	FILE *file = fopen( image_file_path, "r" );
+	FILE* file = fopen( image_file_path, "r" );
 	assert( file );
 
 	{
@@ -516,7 +516,7 @@ static uint32_t le_stage_create_image_from_file_path( le_stage_o *stage, char co
 	uint32_t result =
 	    le_stage_create_image_from_memory(
 	        stage,
-	        static_cast<unsigned char const *>( image_file_memory ),
+	        static_cast<unsigned char const*>( image_file_memory ),
 	        uint32_t( image_file_sz ), debug_name, mip_levels );
 
 	free( image_file_memory );
@@ -529,7 +529,7 @@ static uint32_t le_stage_create_image_from_file_path( le_stage_o *stage, char co
 
 /// \brief add a sampler to stage, return index to sampler within this stage.
 ///
-static uint32_t le_stage_create_sampler( le_stage_o *stage, le_sampler_info_t const *info ) {
+static uint32_t le_stage_create_sampler( le_stage_o* stage, le_sampler_info_t const* info ) {
 
 	uint32_t sampler_idx = uint32_t( stage->samplers.size() );
 
@@ -540,7 +540,7 @@ static uint32_t le_stage_create_sampler( le_stage_o *stage, le_sampler_info_t co
 
 /// \brief add a texture to stage, return index to texture within stage.
 ///
-static uint32_t le_stage_create_texture( le_stage_o *stage, le_texture_info const *info ) {
+static uint32_t le_stage_create_texture( le_stage_o* stage, le_texture_info const* info ) {
 	uint32_t texture_idx = uint32_t( stage->textures.size() );
 
 	le_texture_o texture{};
@@ -568,7 +568,7 @@ static uint32_t le_stage_create_texture( le_stage_o *stage, le_texture_info cons
 
 /// \brief Add a buffer to stage, return index to buffer within this stage.
 ///
-static uint32_t le_stage_create_buffer( le_stage_o *stage, void *mem, uint32_t sz, char const *debug_name ) {
+static uint32_t le_stage_create_buffer( le_stage_o* stage, void* mem, uint32_t sz, char const* debug_name ) {
 
 	assert( mem && "must point to memory" );
 	assert( sz && "must have size > 0" );
@@ -585,7 +585,7 @@ static uint32_t le_stage_create_buffer( le_stage_o *stage, void *mem, uint32_t s
 	le_buf_resource_handle res = LE_BUF_RESOURCE( "" ); // force unique handle
 
 	uint32_t buffer_handle_idx = 0;
-	for ( auto &h : stage->buffer_handles ) {
+	for ( auto& h : stage->buffer_handles ) {
 		if ( h == res ) {
 			break;
 		}
@@ -599,7 +599,7 @@ static uint32_t le_stage_create_buffer( le_stage_o *stage, void *mem, uint32_t s
 		// Buffer with this hash was not yet seen before
 		// - we must allocate a new buffer.
 
-		le_buffer_o *buffer = new le_buffer_o{};
+		le_buffer_o* buffer = new le_buffer_o{};
 
 		buffer->handle = res;
 		buffer->mem    = malloc( sz );
@@ -639,7 +639,7 @@ static uint32_t le_stage_create_buffer( le_stage_o *stage, void *mem, uint32_t s
 }
 
 /// \brief add buffer view to stage, return index of added buffer view inside of stage
-static uint32_t le_stage_create_buffer_view( le_stage_o *self, le_buffer_view_info const *info ) {
+static uint32_t le_stage_create_buffer_view( le_stage_o* self, le_buffer_view_info const* info ) {
 	le_buffer_view_o view{};
 
 	view.buffer_idx  = info->buffer_idx;
@@ -656,7 +656,7 @@ static uint32_t le_stage_create_buffer_view( le_stage_o *self, le_buffer_view_in
 /// \brief add accessor to stage, return index of newly added accessor as it appears in stage.
 /// since this refers to buffers and bufferviews, any buffers and bufferviews referred to must
 /// already be stored within the stage.
-static uint32_t le_stage_create_accessor( le_stage_o *self, le_accessor_info const *info ) {
+static uint32_t le_stage_create_accessor( le_stage_o* self, le_accessor_info const* info ) {
 
 	le_accessor_o accessor{};
 
@@ -689,7 +689,7 @@ static uint32_t le_stage_create_accessor( le_stage_o *self, le_accessor_info con
 		//
 
 		le_buffer_view_o src_buffer_view = self->buffer_views[ accessor.buffer_view_idx ];
-		le_buffer_o *    src_buffer      = self->buffers[ src_buffer_view.buffer_idx ];
+		le_buffer_o*     src_buffer      = self->buffers[ src_buffer_view.buffer_idx ];
 
 		// Duplicate memory referred to in bufferview into new buffer, so that we may
 		// update its contents.
@@ -698,7 +698,7 @@ static uint32_t le_stage_create_accessor( le_stage_o *self, le_accessor_info con
 		uint32_t dst_buffer_idx =
 		    le_stage_create_buffer(
 		        self,
-		        static_cast<char *>( src_buffer->mem ) + src_buffer_view.byte_offset,
+		        static_cast<char*>( src_buffer->mem ) + src_buffer_view.byte_offset,
 		        src_buffer_view.byte_length,
 		        "" );
 
@@ -716,18 +716,18 @@ static uint32_t le_stage_create_accessor( le_stage_o *self, le_accessor_info con
 		// -- Now substitute sparse data by seeking to sparse data indices
 		// and patching data from sparse data source.
 
-		le_buffer_o *dst_buffer = self->buffers[ dst_buffer_idx ];
+		le_buffer_o* dst_buffer = self->buffers[ dst_buffer_idx ];
 
 		// First fetch indices which need substitution
 
 		le_buffer_view_o   indices_buffer_view = self->buffer_views[ info->sparse_accessor.indices_buffer_view_idx ];
-		le_buffer_o const *indices_buffer      = self->buffers[ indices_buffer_view.buffer_idx ];
+		le_buffer_o const* indices_buffer      = self->buffers[ indices_buffer_view.buffer_idx ];
 
 		le_buffer_view_o   sparse_data_view   = self->buffer_views[ info->sparse_accessor.values_buffer_view_idx ];
-		le_buffer_o const *sparse_data_buffer = self->buffers[ sparse_data_view.buffer_idx ];
+		le_buffer_o const* sparse_data_buffer = self->buffers[ sparse_data_view.buffer_idx ];
 
-		char *const index_ptr       = static_cast<char *>( indices_buffer->mem ) + indices_buffer_view.byte_offset;
-		void *const sparse_data_src = static_cast<char *>( sparse_data_buffer->mem ) + sparse_data_view.byte_offset;
+		char* const index_ptr       = static_cast<char*>( indices_buffer->mem ) + indices_buffer_view.byte_offset;
+		void* const sparse_data_src = static_cast<char*>( sparse_data_buffer->mem ) + sparse_data_view.byte_offset;
 
 		uint32_t stride       = view_info.byte_stride;
 		uint32_t index_stride = size_of( info->sparse_accessor.indices_component_type );
@@ -737,15 +737,15 @@ static uint32_t le_stage_create_accessor( le_stage_o *self, le_accessor_info con
 			uint32_t dst_index = 0;
 
 			if ( info->sparse_accessor.indices_component_type == le_num_type::eU16 ) {
-				dst_index = static_cast<uint16_t const &>( index_ptr[ index_stride * src_index ] );
+				dst_index = static_cast<uint16_t const&>( index_ptr[ index_stride * src_index ] );
 			} else if ( info->sparse_accessor.indices_component_type == le_num_type::eU32 ) {
-				dst_index = static_cast<uint32_t const &>( index_ptr[ index_stride * src_index ] );
+				dst_index = static_cast<uint32_t const&>( index_ptr[ index_stride * src_index ] );
 			} else {
 				assert( false && "index type must be one of u16 or u32" );
 			}
 
-			memcpy( static_cast<char *>( dst_buffer->mem ) + stride * dst_index, // change in dest at sparse index
-			        static_cast<char *>( sparse_data_src ) + stride * src_index, // from data
+			memcpy( static_cast<char*>( dst_buffer->mem ) + stride * dst_index, // change in dest at sparse index
+			        static_cast<char*>( sparse_data_src ) + stride * src_index, // from data
 			        stride );
 		}
 
@@ -760,13 +760,13 @@ static uint32_t le_stage_create_accessor( le_stage_o *self, le_accessor_info con
 
 /// \brief create textureview from `le_texture_view_info*`
 /// \return nullptr if info was nullptr
-static le_texture_view_o *create_texture_view( le_texture_view_info const *info ) {
+static le_texture_view_o* create_texture_view( le_texture_view_info const* info ) {
 
 	if ( nullptr == info ) {
 		return nullptr;
 	}
 
-	auto const &src_tex = info;
+	auto const& src_tex = info;
 	auto        tex     = new le_texture_view_o{};
 
 	tex->uv_set = src_tex->uv_set;
@@ -789,7 +789,7 @@ static le_texture_view_o *create_texture_view( le_texture_view_info const *info 
 };
 
 /// \brief add material to stage, return index of newly created material as it appears in stage
-static uint32_t le_stage_create_material( le_stage_o *stage, le_material_info const *info ) {
+static uint32_t le_stage_create_material( le_stage_o* stage, le_material_info const* info ) {
 	uint32_t      idx = uint32_t( stage->materials.size() );
 	le_material_o material{};
 
@@ -799,7 +799,7 @@ static uint32_t le_stage_create_material( le_stage_o *stage, le_material_info co
 
 	if ( info->pbr_metallic_roughness_info ) {
 		material.metallic_roughness = new le_material_pbr_metallic_roughness_o{};
-		auto &src_mr_info           = info->pbr_metallic_roughness_info;
+		auto& src_mr_info           = info->pbr_metallic_roughness_info;
 
 		material.metallic_roughness->metallic_factor  = src_mr_info->metallic_factor;
 		material.metallic_roughness->roughness_factor = src_mr_info->roughness_factor;
@@ -822,19 +822,19 @@ static uint32_t le_stage_create_material( le_stage_o *stage, le_material_info co
 }
 
 /// \brief add mesh to stage, return index of newly added mesh as it appears in stage.
-static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info ) {
+static uint32_t le_stage_create_mesh( le_stage_o* self, le_mesh_info const* info ) {
 
 	le_mesh_o mesh;
 
 	{
-		le_primitive_info const *primitive_info_begin = info->primitives;
+		le_primitive_info const* primitive_info_begin = info->primitives;
 		auto                     primitive_infos_end  = primitive_info_begin + info->primitive_count;
 
 		for ( auto p = primitive_info_begin; p != primitive_infos_end; p++ ) {
 
 			le_primitive_o primitive{};
 
-			le_primitive_attribute_info const *attr_info_begin = p->attributes;
+			le_primitive_attribute_info const* attr_info_begin = p->attributes;
 			auto                               attr_info_end   = attr_info_begin + p->attributes_count;
 
 			for ( auto attr = attr_info_begin; attr != attr_info_end; attr++ ) {
@@ -848,7 +848,7 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 				primitive.attributes.emplace_back( attribute );
 			}
 
-			auto attr_sort_criteria = []( le_attribute_o const &lhs, le_attribute_o const &rhs ) -> bool {
+			auto attr_sort_criteria = []( le_attribute_o const& lhs, le_attribute_o const& rhs ) -> bool {
 				// Sort by type first, then index, then morph_target data
 				return ( lhs.type != rhs.type
 				             ? lhs.type < rhs.type
@@ -864,7 +864,7 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 			// TODO: conformance checking: number and type or attributes must be the same
 			// for each morph target for a given primitive.
 			//
-			le_morph_target_info_t const *mti_begin = p->morph_targets;
+			le_morph_target_info_t const* mti_begin = p->morph_targets;
 			auto const                    mti_end   = mti_begin + p->morph_targets_count;
 
 			uint32_t morph_target_idx = 0;
@@ -872,7 +872,7 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 
 				// Iterate over all attributes within current morph target.
 
-				le_primitive_attribute_info const *attr_info_begin = mti->attributes;
+				le_primitive_attribute_info const* attr_info_begin = mti->attributes;
 				auto                               attr_info_end   = attr_info_begin + mti->attributes_count;
 
 				for ( auto attr = attr_info_begin; attr != attr_info_end; attr++ ) {
@@ -914,13 +914,13 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 				auto count_joints_sets =
 				    std::count_if( primitive.attributes.begin(),
 				                   primitive.attributes.end(),
-				                   []( le_attribute_o const &attr ) {
+				                   []( le_attribute_o const& attr ) {
 					                   return attr.type == le_primitive_attribute_info::Type::eJoints;
 				                   } );
 				auto count_weights_sets =
 				    std::count_if( primitive.attributes.begin(),
 				                   primitive.attributes.end(),
-				                   []( le_attribute_o const &attr ) {
+				                   []( le_attribute_o const& attr ) {
 					                   return attr.type == le_primitive_attribute_info::Type::eJointWeights;
 				                   } );
 
@@ -945,9 +945,9 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 				}
 
 				le_rtx_geometry_t geo{};
-				auto const &      vertex_accessor    = self->accessors[ primitive.attributes.front().accessor_idx ];
-				auto const &      vertex_buffer_view = self->buffer_views[ vertex_accessor.buffer_view_idx ];
-				auto const &      vertex_buffer      = self->buffers[ vertex_buffer_view.buffer_idx ];
+				auto const&       vertex_accessor    = self->accessors[ primitive.attributes.front().accessor_idx ];
+				auto const&       vertex_buffer_view = self->buffer_views[ vertex_accessor.buffer_view_idx ];
+				auto const&       vertex_buffer      = self->buffers[ vertex_buffer_view.buffer_idx ];
 
 				geo.vertex_buffer = vertex_buffer->handle;
 				geo.vertex_count  = vertex_accessor.count;
@@ -971,9 +971,9 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 				geo.vertex_stride = vertex_buffer_view.byte_length / vertex_accessor.count; // CHECK this is valid.
 
 				if ( primitive.has_indices ) {
-					auto &      index_accessor    = self->accessors[ primitive.indices_accessor_idx ];
-					auto const &index_buffer_view = self->buffer_views[ index_accessor.buffer_view_idx ];
-					auto const &index_buffer      = self->buffers[ index_buffer_view.buffer_idx ];
+					auto&       index_accessor    = self->accessors[ primitive.indices_accessor_idx ];
+					auto const& index_buffer_view = self->buffer_views[ index_accessor.buffer_view_idx ];
+					auto const& index_buffer      = self->buffers[ index_buffer_view.buffer_idx ];
 
 					geo.index_type   = le_num_type_to_le_index_type( index_accessor.component_type );
 					geo.index_count  = index_accessor.count;
@@ -1007,17 +1007,17 @@ static uint32_t le_stage_create_mesh( le_stage_o *self, le_mesh_info const *info
 /// \brief create nodes graph from list of nodes.
 /// nodes may refer to each other by index via their children property - indices may only refer
 /// to nodes passed within info. you cannot refer to nodes which are already inside the scene graph.
-static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info const *info, size_t num_nodes ) {
+static uint32_t le_stage_create_nodes( le_stage_o* self, le_node_info const* info, size_t num_nodes ) {
 	uint32_t idx = uint32_t( self->nodes.size() );
 
 	// create all these nodes.
 	self->nodes.reserve( self->nodes.size() + num_nodes );
 
-	le_node_info const *n_begin = info;
+	le_node_info const* n_begin = info;
 	auto                n_end   = n_begin + num_nodes;
 
 	for ( auto n = n_begin; n != n_end; n++ ) {
-		le_node_o *node = new le_node_o{};
+		le_node_o* node = new le_node_o{};
 
 		node->local_scale       = n->local_scale->data;
 		node->local_rotation    = glm::quat{ n->local_rotation->data };
@@ -1055,7 +1055,7 @@ static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info const *inf
 
 		if ( info[ i ].child_indices && info[ i ].child_indices_count ) {
 
-			uint32_t const *ci_begin = info[ i ].child_indices;
+			uint32_t const* ci_begin = info[ i ].child_indices;
 			auto            ci_end   = ci_begin + info[ i ].child_indices_count;
 
 			self->nodes[ i + idx ]->children.reserve( info[ i ].child_indices_count );
@@ -1071,9 +1071,9 @@ static uint32_t le_stage_create_nodes( le_stage_o *self, le_node_info const *inf
 
 // ----------------------------------------------------------------------
 
-static uint32_t le_stage_create_camera_settings( le_stage_o *self, le_camera_settings_info const *camera_infos, size_t num_cameras ) {
+static uint32_t le_stage_create_camera_settings( le_stage_o* self, le_camera_settings_info const* camera_infos, size_t num_cameras ) {
 
-	le_camera_settings_info const *infos_begin = camera_infos;
+	le_camera_settings_info const* infos_begin = camera_infos;
 	auto                           infos_end   = infos_begin + num_cameras;
 
 	uint32_t idx = uint32_t( self->camera_settings.size() );
@@ -1087,7 +1087,7 @@ static uint32_t le_stage_create_camera_settings( le_stage_o *self, le_camera_set
 		switch ( info->type ) {
 		case ( le_camera_settings_info::Type::ePerspective ): {
 			camera.type            = le_camera_settings_o::Type::ePerspective;
-			auto &persp_cam        = camera.data.as_perspective;
+			auto& persp_cam        = camera.data.as_perspective;
 			persp_cam.fov_y_rad    = info->data.as_perspective.fov_y_rad;
 			persp_cam.aspect_ratio = info->data.as_perspective.aspect_ratio;
 			persp_cam.z_far        = info->data.as_perspective.z_far;
@@ -1096,7 +1096,7 @@ static uint32_t le_stage_create_camera_settings( le_stage_o *self, le_camera_set
 		}
 		case ( le_camera_settings_info::Type::eOrthographic ): {
 			camera.type      = le_camera_settings_o::Type::eOrthographic;
-			auto &ortho_cam  = camera.data.as_orthographic;
+			auto& ortho_cam  = camera.data.as_orthographic;
 			ortho_cam.x_mag  = info->data.as_orthographic.x_mag;
 			ortho_cam.y_mag  = info->data.as_orthographic.y_mag;
 			ortho_cam.z_far  = info->data.as_orthographic.z_far;
@@ -1116,7 +1116,7 @@ static uint32_t le_stage_create_camera_settings( le_stage_o *self, le_camera_set
 
 // ----------------------------------------------------------------------
 
-static uint32_t le_stage_create_light( le_stage_o *self, le_light_info const *info ) {
+static uint32_t le_stage_create_light( le_stage_o* self, le_light_info const* info ) {
 	uint32_t idx = uint32_t( self->lights.size() );
 
 	self->lights.emplace_back( *info );
@@ -1126,11 +1126,11 @@ static uint32_t le_stage_create_light( le_stage_o *self, le_light_info const *in
 
 // ----------------------------------------------------------------------
 
-static void le_node_o_set_scene_bit( le_node_o *node, uint8_t bit ) {
+static void le_node_o_set_scene_bit( le_node_o* node, uint8_t bit ) {
 
 	node->scene_bit_flags |= ( 1 << bit );
 
-	for ( le_node_o *n : node->children ) {
+	for ( le_node_o* n : node->children ) {
 		le_node_o_set_scene_bit( n, bit );
 	}
 }
@@ -1139,7 +1139,7 @@ static void le_node_o_set_scene_bit( le_node_o *node, uint8_t bit ) {
 // An animation sampler is a vector of keyframes. A keyframe contains a time-mapped
 // target value, together with two optional interpolation value parameters, and
 // an enum signaling the type of interpolation to apply.
-static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o *self, le_animation_sampler_info *info, LeAnimationTargetType const &target_type ) {
+static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o* self, le_animation_sampler_info* info, LeAnimationTargetType const& target_type ) {
 
 	// We must sample data from accessors and store it into keyframe so that we can
 	// apply it faster.
@@ -1163,8 +1163,8 @@ static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o 
 	// A le_sampler_o is a vector of keyframes
 	// we build the sampler by loading keyframe data by resolving accessors
 
-	auto &input_accessor  = self->accessors[ info->input_accesstor_idx ];
-	auto &output_accessor = self->accessors[ info->output_accessor_idx ];
+	auto& input_accessor  = self->accessors[ info->input_accesstor_idx ];
+	auto& output_accessor = self->accessors[ info->output_accessor_idx ];
 
 	{
 		// -- Conformance checking: number of input elements available must match output elements,
@@ -1199,11 +1199,11 @@ static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o 
 		compound_type = le_compound_num_type::eQuat4;
 	}
 
-	le_buffer_view_o const &input_buffer_view  = self->buffer_views[ input_accessor.buffer_view_idx ];
-	le_buffer_view_o const &output_buffer_view = self->buffer_views[ output_accessor.buffer_view_idx ];
+	le_buffer_view_o const& input_buffer_view  = self->buffer_views[ input_accessor.buffer_view_idx ];
+	le_buffer_view_o const& output_buffer_view = self->buffer_views[ output_accessor.buffer_view_idx ];
 
-	le_buffer_o const *input_buffer  = self->buffers[ input_buffer_view.buffer_idx ];
-	le_buffer_o const *output_buffer = self->buffers[ output_buffer_view.buffer_idx ];
+	le_buffer_o const* input_buffer  = self->buffers[ input_buffer_view.buffer_idx ];
+	le_buffer_o const* output_buffer = self->buffers[ output_buffer_view.buffer_idx ];
 
 	// Calculate input, and output stride, in case these are not given explicitly
 
@@ -1217,8 +1217,8 @@ static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o 
 	        ? output_buffer_view.byte_stride
 	        : size_of( num_type ) * get_num_components( compound_type );
 
-	char *input  = static_cast<char *>( input_buffer->mem );
-	char *output = static_cast<char *>( output_buffer->mem );
+	char* input  = static_cast<char*>( input_buffer->mem );
+	char* output = static_cast<char*>( output_buffer->mem );
 
 	input += input_buffer_view.byte_offset;
 	output += output_buffer_view.byte_offset;
@@ -1233,7 +1233,7 @@ static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o 
 		keyframe.num_type          = num_type;
 		keyframe.array_size        = uint16_t( num_output_per_input );
 
-		float input_time_seconds = *reinterpret_cast<float *>( input_data );
+		float input_time_seconds = *reinterpret_cast<float*>( input_data );
 		keyframe.delta_ticks     = uint64_t( lroundf( LE_TIME_TICKS_PER_SECOND * input_time_seconds ) );
 
 		// For each element in output accessor: load data.
@@ -1245,22 +1245,22 @@ static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o 
 
 			switch ( compound_type ) {
 			case le_compound_num_type::eScalar:
-				keyframe.data.as_scalar[ i ] = *reinterpret_cast<float *>( output_data );
+				keyframe.data.as_scalar[ i ] = *reinterpret_cast<float*>( output_data );
 				break;
 			case le_compound_num_type::eVec2:
-				keyframe.data.as_vec2[ i ] = *reinterpret_cast<glm::vec2 *>( output_data );
+				keyframe.data.as_vec2[ i ] = *reinterpret_cast<glm::vec2*>( output_data );
 				break;
 			case le_compound_num_type::eVec3:
-				keyframe.data.as_vec3[ i ] = *reinterpret_cast<glm::vec3 *>( output_data );
+				keyframe.data.as_vec3[ i ] = *reinterpret_cast<glm::vec3*>( output_data );
 				break;
 			case le_compound_num_type::eVec4:
-				keyframe.data.as_vec4[ i ] = *reinterpret_cast<glm::vec4 *>( output_data );
+				keyframe.data.as_vec4[ i ] = *reinterpret_cast<glm::vec4*>( output_data );
 				break;
 			case le_compound_num_type::eQuat4:
-				keyframe.data.as_quat[ i ] = *reinterpret_cast<glm::quat *>( output_data );
+				keyframe.data.as_quat[ i ] = *reinterpret_cast<glm::quat*>( output_data );
 				break;
 			default:
-				assert( false ); //unreacahble
+				assert( false ); // unreacahble
 			}
 
 			output_data += output_stride;
@@ -1277,12 +1277,12 @@ static std::vector<le_keyframe_o> le_stage_create_animation_sampler( le_stage_o 
 
 // ----------------------------------------------------------------------
 
-static uint32_t le_stage_create_animation( le_stage_o *self, le_animation_info const *info ) {
+static uint32_t le_stage_create_animation( le_stage_o* self, le_animation_info const* info ) {
 
 	le_animation_o animation{};
 
-	le_animation_channel_info const *const channel_infos_begin = info->channels;
-	le_animation_channel_info const *const channel_infos_end   = info->channels + info->channels_count;
+	le_animation_channel_info const* const channel_infos_begin = info->channels;
+	le_animation_channel_info const* const channel_infos_end   = info->channels + info->channels_count;
 
 	for ( auto c = channel_infos_begin; c != channel_infos_end; c++ ) {
 
@@ -1342,12 +1342,12 @@ static uint32_t le_stage_create_animation( le_stage_o *self, le_animation_info c
 
 // ----------------------------------------------------------------------
 
-static uint32_t le_stage_create_skin( le_stage_o *self, le_skin_info const *info ) {
+static uint32_t le_stage_create_skin( le_stage_o* self, le_skin_info const* info ) {
 
-	le_skin_o *skin = new le_skin_o{};
+	le_skin_o* skin = new le_skin_o{};
 
-	uint32_t const *joint_indices_begin = info->node_indices;
-	uint32_t const *joint_indices_end   = joint_indices_begin + info->node_indices_count;
+	uint32_t const* joint_indices_begin = info->node_indices;
+	uint32_t const* joint_indices_end   = joint_indices_begin + info->node_indices_count;
 
 	for ( auto j = joint_indices_begin; j != joint_indices_end; j++ ) {
 		skin->joints.push_back( self->nodes.at( *j ) );
@@ -1361,16 +1361,16 @@ static uint32_t le_stage_create_skin( le_stage_o *self, le_skin_info const *info
 
 	if ( info->has_inverse_bind_matrices_accessor_idx ) {
 		// we must extract data from accessor and store it locally.
-		auto &acc      = self->accessors.at( info->inverse_bind_matrices_accessor_idx );
-		auto &buffView = self->buffer_views.at( acc.buffer_view_idx );
-		auto &buf      = self->buffers.at( buffView.buffer_idx );
+		auto& acc      = self->accessors.at( info->inverse_bind_matrices_accessor_idx );
+		auto& buffView = self->buffer_views.at( acc.buffer_view_idx );
+		auto& buf      = self->buffers.at( buffView.buffer_idx );
 
 		size_t mat_byte_count = sizeof( glm::mat4 ) * info->node_indices_count;
 
 		assert( buffView.byte_length = uint32_t( mat_byte_count ) && "Buffer must hold enough bytes of memory for joints matrices" );
 		assert( buf->owns_mem && "Buffer must own its own memory" );
 
-		glm::mat4 *matrices = reinterpret_cast<glm::mat4 *>( static_cast<char *>( buf->mem ) + buffView.byte_offset + acc.byte_offset );
+		glm::mat4* matrices = reinterpret_cast<glm::mat4*>( static_cast<char*>( buf->mem ) + buffView.byte_offset + acc.byte_offset );
 		memcpy( skin->inverse_bind_matrices.data(), matrices, mat_byte_count );
 
 	} else {
@@ -1378,7 +1378,7 @@ static uint32_t le_stage_create_skin( le_stage_o *self, le_skin_info const *info
 		// If no inverse bind matrices were given, this means that the matrices
 		// must be set to identity matrices.
 
-		for ( auto &m : skin->inverse_bind_matrices ) {
+		for ( auto& m : skin->inverse_bind_matrices ) {
 			m = glm::identity<glm::mat4>();
 		}
 	}
@@ -1390,20 +1390,20 @@ static uint32_t le_stage_create_skin( le_stage_o *self, le_skin_info const *info
 
 // ----------------------------------------------------------------------
 
-static void le_stage_node_set_skin( le_stage_o *self, uint32_t node_idx, uint32_t skin_idx ) {
+static void le_stage_node_set_skin( le_stage_o* self, uint32_t node_idx, uint32_t skin_idx ) {
 	self->nodes.at( node_idx )->skin = self->skins.at( skin_idx );
 }
 
 // ----------------------------------------------------------------------
 
-static uint32_t le_stage_create_scene( le_stage_o *self, uint32_t *node_idx, uint32_t node_idx_count ) {
+static uint32_t le_stage_create_scene( le_stage_o* self, uint32_t* node_idx, uint32_t node_idx_count ) {
 	le_scene_o scene;
 
 	uint32_t idx   = uint32_t( self->scenes.size() );
 	scene.scene_id = uint8_t( idx );
 	scene.root_nodes.reserve( node_idx_count );
 
-	uint32_t const *node_idx_begin = node_idx;
+	uint32_t const* node_idx_begin = node_idx;
 	auto            node_idx_end   = node_idx_begin + node_idx_count;
 
 	for ( auto n = node_idx_begin; n != node_idx_end; n++ ) {
@@ -1420,20 +1420,20 @@ static uint32_t le_stage_create_scene( le_stage_o *self, uint32_t *node_idx, uin
 // ----------------------------------------------------------------------
 
 /// \brief
-static bool pass_xfer_setup_resources( le_renderpass_o *pRp, void *user_data ) {
+static bool pass_xfer_setup_resources( le_renderpass_o* pRp, void* user_data ) {
 	le::RenderPass rp{ pRp };
-	auto           stage = static_cast<le_stage_o *>( user_data );
+	auto           stage = static_cast<le_stage_o*>( user_data );
 
 	bool needsUpload = false;
 
-	for ( auto &b : stage->buffers ) {
+	for ( auto& b : stage->buffers ) {
 		needsUpload |= !b->was_transferred;
 		if ( !b->was_transferred ) {
 			rp.useBufferResource( b->handle, { LE_BUFFER_USAGE_TRANSFER_DST_BIT } );
 		}
 	}
 
-	for ( auto &img : stage->images ) {
+	for ( auto& img : stage->images ) {
 		needsUpload |= !img->was_transferred;
 		if ( !img->was_transferred ) {
 			rp.useImageResource( img->handle, { LE_IMAGE_USAGE_TRANSFER_DST_BIT } );
@@ -1445,11 +1445,11 @@ static bool pass_xfer_setup_resources( le_renderpass_o *pRp, void *user_data ) {
 
 // ----------------------------------------------------------------------
 
-static void pass_xfer_resources( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto stage   = static_cast<le_stage_o *>( user_data );
+static void pass_xfer_resources( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+	auto stage   = static_cast<le_stage_o*>( user_data );
 	auto encoder = le::Encoder{ encoder_ };
 
-	for ( auto &b : stage->buffers ) {
+	for ( auto& b : stage->buffers ) {
 		if ( !b->was_transferred ) {
 
 			// upload buffer
@@ -1463,10 +1463,10 @@ static void pass_xfer_resources( le_command_buffer_encoder_o *encoder_, void *us
 		}
 	}
 
-	for ( auto &img : stage->images ) {
+	for ( auto& img : stage->images ) {
 		if ( !img->was_transferred && img->pixels ) {
 			using namespace le_pixels;
-			void *pix_data = le_pixels_i.get_data( img->pixels );
+			void* pix_data = le_pixels_i.get_data( img->pixels );
 
 			auto write_info = le::WriteToImageSettingsBuilder()
 			                      .setImageW( img->info.width )
@@ -1489,7 +1489,7 @@ static void pass_xfer_resources( le_command_buffer_encoder_o *encoder_, void *us
 /// knows which resources are needed to render the stage.
 /// There are two resource types which potentially need uploading: buffers,
 /// and images.
-static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o *module ) {
+static void le_stage_update_render_module( le_stage_o* stage, le_render_module_o* module ) {
 
 	using namespace le_renderer;
 
@@ -1500,27 +1500,27 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 
 	// declare buffers
 	//
-	for ( auto &b : stage->buffers ) {
+	for ( auto& b : stage->buffers ) {
 		render_module_i.declare_resource( module, b->handle, b->resource_info );
 	}
 
 	// declare images
 	//
-	for ( auto &img : stage->images ) {
+	for ( auto& img : stage->images ) {
 		render_module_i.declare_resource( module, img->handle, img->resource_info );
 	}
 
 	// declare rtx blas resources
 
-	for ( auto &msh : stage->meshes ) {
-		for ( auto &p : msh.primitives ) {
+	for ( auto& msh : stage->meshes ) {
+		for ( auto& p : msh.primitives ) {
 			render_module_i.declare_resource( module, p.rtx_blas_handle, p.rtx_blas_info );
 		}
 	}
 
 	// declare rtx tlas resources
 
-	for ( auto &s : stage->scenes ) {
+	for ( auto& s : stage->scenes ) {
 		render_module_i.declare_resource( module, s.rtx_tlas_handle, s.rtx_tlas_info );
 	}
 
@@ -1532,14 +1532,14 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 	auto cp =
 	    le::RenderPass(
 	        "Create Accel Structures", LeRenderPassType::LE_RENDER_PASS_TYPE_COMPUTE )
-	        .setSetupCallback( stage, []( le_renderpass_o *pRp, void *user_data ) -> bool {
+	        .setSetupCallback( stage, []( le_renderpass_o* pRp, void* user_data ) -> bool {
 		        // we need to return false after the first time that this pass has been executed,
 		        // unless we want to update our bottom level acceleration structures.
 
 		        le::RenderPass rp{ pRp };
-		        auto           stage = static_cast<le_stage_o *>( user_data );
+		        auto           stage = static_cast<le_stage_o*>( user_data );
 
-		        for ( auto &b : stage->buffers ) {
+		        for ( auto& b : stage->buffers ) {
 			        rp.useBufferResource( b->handle, { LeBufferUsageFlagBits::LE_BUFFER_USAGE_TRANSFER_SRC_BIT } );
 		        }
 
@@ -1551,8 +1551,8 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 		        // the acceleration structure. The renderer will then make sure that the acceleration structure is
 		        // actually allocated by the time the update call happens so that it can be written into.
 
-		        for ( auto &msh : stage->meshes ) {
-			        for ( auto &p : msh.primitives ) {
+		        for ( auto& msh : stage->meshes ) {
+			        for ( auto& p : msh.primitives ) {
 				        if ( p.rtx_was_transferred ) {
 					        continue;
 				        }
@@ -1562,14 +1562,14 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 		        }
 
 		        // Signal that we will want to update top level acceleration structures for this scene.
-		        for ( auto &s : stage->scenes ) {
+		        for ( auto& s : stage->scenes ) {
 			        rp.useRtxTlasResource( s.rtx_tlas_handle, { LE_RTX_TLAS_USAGE_WRITE_BIT } );
 		        }
 
 		        return needsUpdate;
 	        } )
-	        .setExecuteCallback( stage, []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-		        auto stage = static_cast<le_stage_o *>( user_data );
+	        .setExecuteCallback( stage, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+		        auto stage = static_cast<le_stage_o*>( user_data );
 
 		        le::Encoder encoder{ encoder_ };
 
@@ -1583,8 +1583,8 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 		        // collect all handles over all meshes, primitives so that we may build them in a
 		        // next step.
 
-		        for ( auto &m : stage->meshes ) {
-			        for ( auto &p : m.primitives ) {
+		        for ( auto& m : stage->meshes ) {
+			        for ( auto& p : m.primitives ) {
 				        // build blas for each primitive.
 				        if ( p.rtx_was_transferred == false ) {
 					        blas_infos.push_back( p.rtx_blas_handle );
@@ -1616,13 +1616,13 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 			        // because these values will never be used.
 
 			        size_t scene_index = 0;
-			        for ( auto const &scene : stage->scenes ) {
+			        for ( auto const& scene : stage->scenes ) {
 
 				        // Collect instance data over all instances for the current scene.
 				        std::vector<le_rtx_geometry_instance_t> instances;
 				        std::vector<le_blas_resource_handle>    blas_handles;
 
-				        for ( auto const &n : stage->nodes ) {
+				        for ( auto const& n : stage->nodes ) {
 					        if ( ( n->scene_bit_flags & ( 1 << scene_index ) ) && n->has_mesh ) {
 						        le_rtx_geometry_instance_t instance{};
 						        instance.mask                                   = 0xff;
@@ -1631,7 +1631,7 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 						        instance.instanceCustomIndex                    = 0;                                     // TODO: set this to material?
 						        glm::mat4 transform                             = glm::transpose( n->global_transform ); // must transpose so that
 						        memcpy( &instance.transform, &transform, sizeof( instance.transform ) );                 // only copy 12 floats
-						        for ( auto const &p : stage->meshes[ n->mesh_idx ].primitives ) {
+						        for ( auto const& p : stage->meshes[ n->mesh_idx ].primitives ) {
 							        // TODO: set instanceCustomIndex based on material...
 							        blas_handles.push_back( p.rtx_blas_handle );
 							        instances.push_back( instance );
@@ -1652,7 +1652,7 @@ static void le_stage_update_render_module( le_stage_o *stage, le_render_module_o
 #endif
 }
 
-static le::IndexType index_type_from_num_type( le_num_type const &tp ) {
+static le::IndexType index_type_from_num_type( le_num_type const& tp ) {
 
 	// clang-format off
 	switch (tp)
@@ -1672,10 +1672,10 @@ static le::IndexType index_type_from_num_type( le_num_type const &tp ) {
 /// calculates view matrix and projection matrix based on camera type and aspect ratio (w_over_h)
 /// if any of `camera_view_matrix` or `camera_projection_matrix` is nullptr, that value will
 /// not be calculated and updated.
-static bool stage_get_camera( le_stage_o const *stage, uint32_t scene_idx, uint32_t camera_idx, float w_over_h,
-                              glm::mat4 *camera_world_matrix,
-                              glm::mat4 *camera_view_matrix,
-                              glm::mat4 *camera_projection_matrix ) {
+static bool stage_get_camera( le_stage_o const* stage, uint32_t scene_idx, uint32_t camera_idx, float w_over_h,
+                              glm::mat4* camera_world_matrix,
+                              glm::mat4* camera_view_matrix,
+                              glm::mat4* camera_projection_matrix ) {
 
 	if ( stage->scenes.empty() || scene_idx >= stage->scenes.size() ) {
 		return false;
@@ -1685,12 +1685,12 @@ static bool stage_get_camera( le_stage_o const *stage, uint32_t scene_idx, uint3
 
 	auto primary_scene_id = stage->scenes[ scene_idx ].scene_id;
 
-	le_node_o const *found_camera_node = nullptr;
+	le_node_o const* found_camera_node = nullptr;
 
 	uint32_t camera_count = 0;
 
 	// find first node which has a camera, and which matches our scene id.
-	for ( le_node_o *const node : stage->nodes ) {
+	for ( le_node_o* const node : stage->nodes ) {
 		if ( node->has_camera && ( node->scene_bit_flags & ( 1 << primary_scene_id ) ) ) {
 			if ( camera_idx == camera_count ) {
 				found_camera_node = node;
@@ -1709,7 +1709,7 @@ static bool stage_get_camera( le_stage_o const *stage, uint32_t scene_idx, uint3
 	// ---------| invariant camera node was found
 
 	// Fetch camera settings based on camera node's camera index.
-	le_camera_settings_o const &camera = stage->camera_settings[ found_camera_node->camera_idx ];
+	le_camera_settings_o const& camera = stage->camera_settings[ found_camera_node->camera_idx ];
 
 	if ( camera_world_matrix ) {
 		*camera_world_matrix = found_camera_node->global_transform;
@@ -1744,8 +1744,8 @@ static bool stage_get_camera( le_stage_o const *stage, uint32_t scene_idx, uint3
 
 // ----------------------------------------------------------------------
 
-static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto draw_params = static_cast<le_stage_api::draw_params_t *>( user_data );
+static void pass_draw( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+	auto draw_params = static_cast<le_stage_api::draw_params_t*>( user_data );
 	auto camera      = draw_params->camera;
 	auto stage       = draw_params->stage;
 	auto encoder     = le::Encoder{ encoder_ };
@@ -1818,9 +1818,9 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 	std::vector<glm::mat4> joints_data( 256 );
 	std::vector<glm::mat4> joints_normal_data( 256 );
 
-	//if ( false )
-	for ( le_scene_o const &s : stage->scenes ) {
-		for ( le_node_o *n : stage->nodes ) {
+	// if ( false )
+	for ( le_scene_o const& s : stage->scenes ) {
+		for ( le_node_o* n : stage->nodes ) {
 
 			if ( ( n->scene_bit_flags & ( 1 << s.scene_id ) ) && n->has_mesh ) {
 
@@ -1836,7 +1836,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 					// Q: What does GLTF specify must happen if a skin does not specify its skeleton property
 					// A: This is not really well defined.
 					//
-					glm::mat4 const &rootInv =
+					glm::mat4 const& rootInv =
 					    n->skin->skeleton
 					        ? n->skin->skeleton->inverse_global_transform
 					        : n->inverse_global_transform;
@@ -1855,8 +1855,8 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 					}
 				}
 
-				auto const &mesh = stage->meshes[ n->mesh_idx ];
-				for ( auto const &primitive : mesh.primitives ) {
+				auto const& mesh = stage->meshes[ n->mesh_idx ];
+				for ( auto const& primitive : mesh.primitives ) {
 
 					if ( !primitive.pipeline_state_handle ) {
 						logger.error( "missing pipeline state object for primitive - did you call setup_pipelines on the stage after adding the mesh/primitive?" );
@@ -1900,12 +1900,12 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 					if ( primitive.has_material ) {
 
-						auto const &material = stage->materials[ primitive.material_idx ];
+						auto const& material = stage->materials[ primitive.material_idx ];
 
 						{
 							// bind all textures
 							uint32_t tex_id = 0;
-							for ( auto const &tex : material.texture_handles ) {
+							for ( auto const& tex : material.texture_handles ) {
 								encoder.setArgumentTexture( LE_ARGUMENT_NAME( "src_tex_unit" ), tex, tex_id++ );
 							}
 						}
@@ -1918,8 +1918,8 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 						}
 
 						if ( material.metallic_roughness ) {
-							auto &      mr         = material.metallic_roughness;
-							auto const &base_color = mr->base_color_factor;
+							auto&       mr         = material.metallic_roughness;
+							auto const& base_color = mr->base_color_factor;
 
 							material_params_ubo.base_color_factor =
 							    glm::vec4( base_color[ 0 ],
@@ -1946,9 +1946,9 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 
 					if ( primitive.has_indices ) {
 
-						auto &indices_accessor = stage->accessors[ primitive.indices_accessor_idx ];
-						auto &buffer_view      = stage->buffer_views[ indices_accessor.buffer_view_idx ];
-						auto &buffer           = stage->buffers[ buffer_view.buffer_idx ];
+						auto& indices_accessor = stage->accessors[ primitive.indices_accessor_idx ];
+						auto& buffer_view      = stage->buffer_views[ indices_accessor.buffer_view_idx ];
+						auto& buffer           = stage->buffers[ buffer_view.buffer_idx ];
 
 						encoder.bindIndexBuffer( buffer->handle,
 						                         buffer_view.byte_offset,
@@ -1972,7 +1972,7 @@ static void pass_draw( le_command_buffer_encoder_o *encoder_, void *user_data ) 
 /// knows which resources are needed to render the stage.
 /// There are two resource types which potentially need uploading: buffers,
 /// and images.
-static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_params, le_render_module_o *module, le_img_resource_handle color_attachment_image, le_img_resource_handle depth_stencil_attachment_image ) {
+static void le_stage_draw_into_render_module( le_stage_api::draw_params_t* draw_params, le_render_module_o* module, le_img_resource_handle color_attachment_image, le_img_resource_handle depth_stencil_attachment_image ) {
 
 	using namespace le_renderer;
 
@@ -1982,8 +1982,8 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 		auto rtx_pass =
 		    le::RenderPass( "Stage Rtx", LeRenderPassType::LE_RENDER_PASS_TYPE_COMPUTE )
-		        .setExecuteCallback( draw_params, []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-			        auto draw_params = static_cast<le_stage_api::draw_params_t *>( user_data );
+		        .setExecuteCallback( draw_params, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+			        auto draw_params = static_cast<le_stage_api::draw_params_t*>( user_data );
 			        auto camera      = draw_params->camera;
 			        auto stage       = draw_params->stage;
 			        auto encoder     = le::Encoder{ encoder_ };
@@ -2014,7 +2014,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			        auto pipeline_manager = encoder.getPipelineManager();
 
 			        // -- Create rtx pso
-			        static le_rtxpso_handle rtx_pipeline = []( le_stage_o *stage, le_pipeline_manager_o *pipeline_manager ) {
+			        static le_rtxpso_handle rtx_pipeline = []( le_stage_o* stage, le_pipeline_manager_o* pipeline_manager ) {
 				        auto shader_raygen      = LeShaderModuleBuilder( pipeline_manager ).setSourceFilePath( "./resources/shaders/le_stage/rtx/raygen.rgen" ).setShaderStage( le::ShaderStage::eRaygenBitKhr ).build();
 				        auto shader_closest_hit = LeShaderModuleBuilder( pipeline_manager ).setSourceFilePath( "./resources/shaders/le_stage/rtx/closesthit.rchit" ).setShaderStage( le::ShaderStage::eClosestHitBitKhr ).build();
 				        auto shader_miss        = LeShaderModuleBuilder( pipeline_manager ).setSourceFilePath( "./resources/shaders/le_stage/rtx/miss.rmiss" ).setShaderStage( le::ShaderStage::eMissBitKhr ).build();
@@ -2045,7 +2045,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			        // Shader binding table is built on encoder - this way we can use the encoder's scratch GPU memory
 			        // as SBT memory. SBT is rebuilt every frame.
 
-			        le_shader_binding_table_o *sbt =
+			        le_shader_binding_table_o* sbt =
 			            le::Encoder::ShaderBindingTableBuilder( encoder, rtx_pipeline )
 			                .setRayGenIdx( 0 )
 			                .addHitIdx( 1 )
@@ -2062,7 +2062,7 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 			        struct CameraPropertiesUBO {
 				        glm::mat4 viewInverse;
 				        glm::mat4 projectionInverse;
-				        glm::vec4 lightPos; //world coords
+				        glm::vec4 lightPos; // world coords
 			        };
 
 			        CameraPropertiesUBO camera_properties;
@@ -2106,15 +2106,15 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 
 			// -- Signal that we want to read from bottom-level acceleration structures.
 
-			for ( auto const &m : draw_params->stage->meshes ) {
-				for ( auto const &p : m.primitives ) {
+			for ( auto const& m : draw_params->stage->meshes ) {
+				for ( auto const& p : m.primitives ) {
 					rtx_pass.useRtxBlasResource( p.rtx_blas_handle );
 				}
 			}
 
 			// -- Signal that we want to read from top-level acceleration structures.
 
-			for ( auto const &s : draw_params->stage->scenes ) {
+			for ( auto const& s : draw_params->stage->scenes ) {
 				rtx_pass.useRtxTlasResource( s.rtx_tlas_handle );
 			}
 		}
@@ -2138,12 +2138,12 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 		stage_draw_pass.addDepthStencilAttachment( depth_stencil_attachment_image );
 	}
 
-	for ( auto &b : draw_params->stage->buffers ) {
+	for ( auto& b : draw_params->stage->buffers ) {
 		stage_draw_pass.useBufferResource( b->handle, { LE_BUFFER_USAGE_INDEX_BUFFER_BIT |
 		                                                LE_BUFFER_USAGE_VERTEX_BUFFER_BIT } );
 	}
 
-	for ( auto &t : draw_params->stage->textures ) {
+	for ( auto& t : draw_params->stage->textures ) {
 		// We must create texture handles for this renderpass.
 		stage_draw_pass.sampleTexture(
 		    t.texture_handle, {
@@ -2158,12 +2158,12 @@ static void le_stage_draw_into_render_module( le_stage_api::draw_params_t *draw_
 /// \brief initialises pipeline state objects associated with each primitive
 /// \details pipeline contains materials, vertex and index binding information on each primitive.
 /// this will also cache handles for vertex and index data with each primitive.
-static void le_stage_setup_pipelines( le_stage_o *stage ) {
+static void le_stage_setup_pipelines( le_stage_o* stage ) {
 
 	using namespace le_renderer;
 
 	static auto            logger           = LeLog( LOGGER_LABEL );
-	le_pipeline_manager_o *pipeline_manager = renderer_i.get_pipeline_manager( stage->renderer );
+	le_pipeline_manager_o* pipeline_manager = renderer_i.get_pipeline_manager( stage->renderer );
 
 	// First, collect all possible shader define permutations based on shader #defines.
 	// since this will control how many instances of our shader we must send to the shader compiler.
@@ -2190,26 +2190,26 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 	defines_hash_at_material_idx.reserve( stage->materials.size() );
 
-	for ( auto &material : stage->materials ) {
+	for ( auto& material : stage->materials ) {
 
 		/** -- Update material properties - cache material texture transform matrices.
-		*  
-		* For each texture, we add a define, and we cache the texture handle and the associated 
-		* texture info data with the material. 
-		* 
-		* For the material ubos we combine these so that all material data can be uploded in a 
-		* single ubo.
-		* 
-		* We do this so that the material has a local cache of all the information
-		* it needs when it gets bound on a primitive.
-		*
-		*/
+		 *
+		 * For each texture, we add a define, and we cache the texture handle and the associated
+		 * texture info data with the material.
+		 *
+		 * For the material ubos we combine these so that all material data can be uploded in a
+		 * single ubo.
+		 *
+		 * We do this so that the material has a local cache of all the information
+		 * it needs when it gets bound on a primitive.
+		 *
+		 */
 
 		std::stringstream defines;
 
 		uint32_t num_textures = 0;
 
-		auto add_texture = [ & ]( char const *texture_name, const le_texture_view_o *tex_info ) {
+		auto add_texture = [ & ]( char const* texture_name, const le_texture_view_o* tex_info ) {
 			defines << "HAS_" << texture_name << "_MAP,";
 
 			material.texture_handles.push_back( stage->textures[ tex_info->texture_id ].texture_handle );
@@ -2272,9 +2272,9 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 	// -- Then build a map of all vertex input defines per primitive
 
-	for ( auto &mesh : stage->meshes ) {
+	for ( auto& mesh : stage->meshes ) {
 
-		for ( auto &primitive : mesh.primitives ) {
+		for ( auto& primitive : mesh.primitives ) {
 
 			std::stringstream defines;
 
@@ -2384,7 +2384,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 	// Create shaders from unique defines
 
-	for ( auto &shader : shader_map ) {
+	for ( auto& shader : shader_map ) {
 
 		std::string defines = vertex_input_defines_hash_to_defines_str[ shader.second.signature.hash_vertex_input_defines ];
 		defines             = defines + materials_defines_hash_to_defines_str[ shader.second.signature.hash_materials_defines ];
@@ -2399,9 +2399,9 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 	// associate each primitive with shader matching defines id
 
-	for ( auto &mesh : stage->meshes ) {
+	for ( auto& mesh : stage->meshes ) {
 
-		for ( auto &primitive : mesh.primitives ) {
+		for ( auto& primitive : mesh.primitives ) {
 
 			if ( !primitive.pipeline_state_handle ) {
 
@@ -2450,7 +2450,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 
 				// Calculate Attribute Bindings for this PSO.
 
-				auto &abs =
+				auto& abs =
 				    builder.withAttributeBindingState();
 
 				// We must group our attributes by bufferviews.
@@ -2474,11 +2474,11 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 				// Note: iterator is increased in inner do-while loop
 				for ( auto it = primitive.attributes.begin(); it != primitive.attributes.end(); ) {
 
-					le_accessor_o const *accessor        = &stage->accessors[ it->accessor_idx ];
-					auto const &         buffer_view     = stage->buffer_views[ accessor->buffer_view_idx ];
+					le_accessor_o const* accessor        = &stage->accessors[ it->accessor_idx ];
+					auto const&          buffer_view     = stage->buffer_views[ accessor->buffer_view_idx ];
 					uint32_t             buffer_view_idx = accessor->buffer_view_idx;
 
-					auto &binding = abs.addBinding( uint16_t( buffer_view.byte_stride ) );
+					auto& binding = abs.addBinding( uint16_t( buffer_view.byte_stride ) );
 
 					// If no explicit buffer_view.byte_stride was given, we accumulate each accessor's
 					// storage size so that we can set the stride of the binding based on the sum total
@@ -2547,7 +2547,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 	}     // end for all meshes
 
 	logger.info( "Pipelines in use:" );
-	for ( auto &p : pipelineCount ) {
+	for ( auto& p : pipelineCount ) {
 		logger.info( "%x : %d", p.first, p.second );
 	}
 
@@ -2564,7 +2564,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 		node_count_per_scene.resize( scenes_count, 0 );
 
 		// -- Count mesh nodes per scene:
-		for ( auto const &n : stage->nodes ) {
+		for ( auto const& n : stage->nodes ) {
 			if ( n->has_mesh ) {
 				for ( uint32_t i = 0; i != scenes_count; i++ ) {
 					if ( 1 << i & n->scene_bit_flags ) {
@@ -2601,7 +2601,7 @@ static void le_stage_setup_pipelines( le_stage_o *stage ) {
 // ----------------------------------------------------------------------
 
 template <typename T>
-void lerp_animation_target( T *target, T const &val_previous, T const &val_next, float norm_t ) {
+void lerp_animation_target( T* target, T const& val_previous, T const& val_next, float norm_t ) {
 	T blend = glm::mix( val_previous, val_next, norm_t );
 	if ( target ) {
 		*target = blend;
@@ -2610,7 +2610,7 @@ void lerp_animation_target( T *target, T const &val_previous, T const &val_next,
 
 // Quaternions need to be slerped instead of mixed. They also must be normalised before application.
 template <>
-void lerp_animation_target<glm::quat>( glm::quat *target, glm::quat const &val_previous, glm::quat const &val_next, float norm_t ) {
+void lerp_animation_target<glm::quat>( glm::quat* target, glm::quat const& val_previous, glm::quat const& val_next, float norm_t ) {
 	glm::quat blend = glm::slerp( val_previous, val_next, norm_t );
 	blend           = glm::normalize( blend );
 	if ( target ) {
@@ -2620,7 +2620,7 @@ void lerp_animation_target<glm::quat>( glm::quat *target, glm::quat const &val_p
 
 // ----------------------------------------------------------------------
 
-static void apply_animation_channel( le_animation_channel_o const &channel, uint64_t ticks ) {
+static void apply_animation_channel( le_animation_channel_o const& channel, uint64_t ticks ) {
 
 	if ( channel.sampler.size() < 2 ) {
 		return;
@@ -2628,11 +2628,11 @@ static void apply_animation_channel( le_animation_channel_o const &channel, uint
 
 	// -------- invariant: sampler has at least two elements.
 
-	le_keyframe_o const *sampler_begin = channel.sampler.data();
-	le_keyframe_o const *sampler_end   = sampler_begin + channel.sampler.size();
+	le_keyframe_o const* sampler_begin = channel.sampler.data();
+	le_keyframe_o const* sampler_end   = sampler_begin + channel.sampler.size();
 
-	le_keyframe_o const *previous_key = sampler_begin;
-	le_keyframe_o const *next_key     = sampler_begin + 1;
+	le_keyframe_o const* previous_key = sampler_begin;
+	le_keyframe_o const* next_key     = sampler_begin + 1;
 
 	while ( ( next_key->delta_ticks < ticks ) && ( next_key + 1 != sampler_end ) ) {
 		std::swap( previous_key, next_key );
@@ -2668,29 +2668,29 @@ static void apply_animation_channel( le_animation_channel_o const &channel, uint
 		for ( size_t i = 0; i != previous_key->array_size; i++ ) {
 			// If more than one scalar element, this most likely means that
 			// we're updating weights.
-			lerp_animation_target<float>( static_cast<float *>( channel.target_node_element ) + i,
+			lerp_animation_target<float>( static_cast<float*>( channel.target_node_element ) + i,
 			                              previous_key->data.as_scalar[ i ], next_key->data.as_scalar[ i ], norm_t );
 		}
 		break;
 	}
 	case ( le_compound_num_type::eVec2 ): {
-		lerp_animation_target<glm::vec2>( static_cast<glm::vec2 *>( channel.target_node_element ),
+		lerp_animation_target<glm::vec2>( static_cast<glm::vec2*>( channel.target_node_element ),
 		                                  previous_key->data.as_vec2[ 0 ], next_key->data.as_vec2[ 0 ], norm_t );
 		break;
 	}
 	case ( le_compound_num_type::eVec3 ): {
-		lerp_animation_target<glm::vec3>( static_cast<glm::vec3 *>( channel.target_node_element ),
+		lerp_animation_target<glm::vec3>( static_cast<glm::vec3*>( channel.target_node_element ),
 		                                  previous_key->data.as_vec3[ 0 ], next_key->data.as_vec3[ 0 ], norm_t );
 		break;
 	}
 	case ( le_compound_num_type::eVec4 ): {
-		lerp_animation_target<glm::vec4>( static_cast<glm::vec4 *>( channel.target_node_element ),
+		lerp_animation_target<glm::vec4>( static_cast<glm::vec4*>( channel.target_node_element ),
 		                                  previous_key->data.as_vec4[ 0 ], next_key->data.as_vec4[ 0 ], norm_t );
 		break;
 	}
 	case ( le_compound_num_type::eQuat4 ): {
 		// note that we distinguish between quat and vec, because interpolation type is different
-		lerp_animation_target<glm::quat>( static_cast<glm::quat *>( channel.target_node_element ),
+		lerp_animation_target<glm::quat>( static_cast<glm::quat*>( channel.target_node_element ),
 		                                  previous_key->data.as_quat[ 0 ], next_key->data.as_quat[ 0 ], norm_t );
 		break;
 	}
@@ -2703,8 +2703,8 @@ static void apply_animation_channel( le_animation_channel_o const &channel, uint
 
 // ----------------------------------------------------------------------
 
-static void traverse_node( le_node_o *parent ) {
-	for ( le_node_o *c : parent->children ) {
+static void traverse_node( le_node_o* parent ) {
+	for ( le_node_o* c : parent->children ) {
 		c->global_transform         = parent->global_transform * c->local_transform;
 		c->inverse_global_transform = glm::inverse( c->global_transform );
 		traverse_node( c );
@@ -2715,7 +2715,7 @@ static void traverse_node( le_node_o *parent ) {
 // ----------------------------------------------------------------------
 
 /// \brief updates scene graph - call this exactly once per frame.
-static void le_stage_update( le_stage_o *self ) {
+static void le_stage_update( le_stage_o* self ) {
 
 	// -- update animations if these exist - animations apply to
 	// node's local transforms TRS, W
@@ -2728,7 +2728,7 @@ static void le_stage_update( le_stage_o *self ) {
 		if ( !self->animations.empty() ) {
 			// for each animation: find current keyframe
 
-			for ( auto const &a : self->animations ) {
+			for ( auto const& a : self->animations ) {
 
 				uint64_t animation_time = current_ticks - a.ticks_offset;
 
@@ -2747,7 +2747,7 @@ static void le_stage_update( le_stage_o *self ) {
 					break;
 				}
 
-				for ( auto const &c : a.channels ) {
+				for ( auto const& c : a.channels ) {
 					apply_animation_channel( c, animation_time );
 				}
 			}
@@ -2758,7 +2758,7 @@ static void le_stage_update( le_stage_o *self ) {
 
 	// -- Update node's local transform matrices from node's T,R,S properties.
 
-	for ( le_node_o *n : self->nodes ) {
+	for ( le_node_o* n : self->nodes ) {
 		if ( false == n->local_transform_cached ) {
 
 			glm::mat4 m =
@@ -2777,8 +2777,8 @@ static void le_stage_update( le_stage_o *self ) {
 	// -- while we are at it, we also calculate inverse global transforms.
 	// -- recurse over nodes, starting with root nodes of scene.
 
-	for ( le_scene_o const &s : self->scenes ) {
-		for ( le_node_o *n : s.root_nodes ) {
+	for ( le_scene_o const& s : self->scenes ) {
+		for ( le_node_o* n : s.root_nodes ) {
 			n->global_transform         = n->local_transform;
 			n->inverse_global_transform = glm::inverse( n->global_transform );
 			traverse_node( n );
@@ -2789,19 +2789,19 @@ static void le_stage_update( le_stage_o *self ) {
 	// -- TODO: it would be nice to have a way to cache this, so that only lights
 	// which have changed need updating.
 
-	for ( auto &s : self->scenes ) {
+	for ( auto& s : self->scenes ) {
 		s.lights.clear();
 	}
 
 	size_t num_scenes = self->scenes.size();
 
-	for ( auto const &n : self->nodes ) {
+	for ( auto const& n : self->nodes ) {
 
 		if ( n->has_light ) {
 			// fetch light, calculate light value
 			// add light to scenes which use the current node.
 
-			le_light_info const &info = self->lights.at( n->light_idx );
+			le_light_info const& info = self->lights.at( n->light_idx );
 			le_light_o           light{};
 
 			glm::vec4 direction{ 0, 0, -1, 0 };
@@ -2842,7 +2842,7 @@ static void le_stage_update( le_stage_o *self ) {
 		default_light.direction = glm::normalize( glm::vec3{ 0.1, -2, -1 } );
 		default_light.color     = glm::vec3{ 1, 1, 1 };
 
-		for ( auto &s : self->scenes ) {
+		for ( auto& s : self->scenes ) {
 			if ( s.lights.empty() ) {
 				s.lights.push_back( default_light );
 			}
@@ -2852,7 +2852,7 @@ static void le_stage_update( le_stage_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static le_stage_o *le_stage_create( le_renderer_o *renderer, le_timebase_o *timebase ) {
+static le_stage_o* le_stage_create( le_renderer_o* renderer, le_timebase_o* timebase ) {
 	auto self      = new le_stage_o{};
 	self->renderer = renderer;
 	self->timebase = timebase;
@@ -2861,9 +2861,9 @@ static le_stage_o *le_stage_create( le_renderer_o *renderer, le_timebase_o *time
 
 // ----------------------------------------------------------------------
 
-static void le_stage_destroy( le_stage_o *self ) {
+static void le_stage_destroy( le_stage_o* self ) {
 
-	for ( auto &img : self->images ) {
+	for ( auto& img : self->images ) {
 		if ( img->pixels ) {
 			le_pixels::le_pixels_i.destroy( img->pixels );
 			img->pixels = nullptr;
@@ -2871,22 +2871,22 @@ static void le_stage_destroy( le_stage_o *self ) {
 		delete img;
 	}
 
-	for ( auto &b : self->buffers ) {
+	for ( auto& b : self->buffers ) {
 		if ( b->owns_mem && b->mem && b->size ) {
 			free( b->mem );
 		}
 		delete b;
 	}
 
-	for ( auto &n : self->nodes ) {
+	for ( auto& n : self->nodes ) {
 		delete n;
 	}
 
-	for ( auto &s : self->skins ) {
+	for ( auto& s : self->skins ) {
 		delete s;
 	}
 
-	for ( auto &m : self->materials ) {
+	for ( auto& m : self->materials ) {
 		if ( m.metallic_roughness ) {
 			delete ( m.metallic_roughness->base_color );
 			delete ( m.metallic_roughness->metallic_roughness );
@@ -2906,7 +2906,7 @@ static void le_stage_destroy( le_stage_o *self ) {
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_stage, api ) {
-	auto &le_stage_i = static_cast<le_stage_api *>( api )->le_stage_i;
+	auto& le_stage_i = static_cast<le_stage_api*>( api )->le_stage_i;
 
 	le_stage_i.create  = le_stage_create;
 	le_stage_i.destroy = le_stage_destroy;

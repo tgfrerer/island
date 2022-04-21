@@ -14,7 +14,7 @@
 struct le_resource_manager_o {
 
 	struct image_data_layer_t {
-		le_pixels_o *pixels;
+		le_pixels_o* pixels;
 		std::string  path;
 		bool         was_uploaded = false;
 	};
@@ -32,9 +32,9 @@ struct le_resource_manager_o {
 // * add a method to remove resources from the manager
 
 // ----------------------------------------------------------------------
-static bool setupTransferPass( le_renderpass_o *pRp, void *user_data ) {
+static bool setupTransferPass( le_renderpass_o* pRp, void* user_data ) {
 	le::RenderPass rp{ pRp };
-	auto           manager = static_cast<le_resource_manager_o const *>( user_data );
+	auto           manager = static_cast<le_resource_manager_o const*>( user_data );
 
 	if ( manager->resources.empty() ) {
 		return false;
@@ -44,11 +44,11 @@ static bool setupTransferPass( le_renderpass_o *pRp, void *user_data ) {
 
 	bool needsTransfer = false;
 
-	for ( auto const &r : manager->resources ) {
+	for ( auto const& r : manager->resources ) {
 
 		bool uses_resource = false;
 
-		for ( auto const &layer : r.image_layers ) {
+		for ( auto const& layer : r.image_layers ) {
 			if ( layer.was_uploaded == false ) {
 				uses_resource = true;
 				break;
@@ -65,9 +65,9 @@ static bool setupTransferPass( le_renderpass_o *pRp, void *user_data ) {
 }
 
 // ----------------------------------------------------------------------
-static void execTransferPass( le_command_buffer_encoder_o *pEncoder, void *user_data ) {
+static void execTransferPass( le_command_buffer_encoder_o* pEncoder, void* user_data ) {
 	le::Encoder encoder{ pEncoder };
-	auto        manager = static_cast<le_resource_manager_o *>( user_data );
+	auto        manager = static_cast<le_resource_manager_o*>( user_data );
 
 	// we will probably end up with a number of write operations which will all target the same image resource,
 	// but will write into different aspects of memory associated with the resource.
@@ -76,7 +76,7 @@ static void execTransferPass( le_command_buffer_encoder_o *pEncoder, void *user_
 
 	using namespace le_pixels;
 
-	for ( auto &r : manager->resources ) {
+	for ( auto& r : manager->resources ) {
 
 		uint32_t const num_layers     = uint32_t( r.image_layers.size() );
 		uint32_t const image_width    = r.image_info.image.extent.width;
@@ -114,7 +114,7 @@ static void execTransferPass( le_command_buffer_encoder_o *pEncoder, void *user_
 				auto     pixels    = r.image_layers[ layer ].pixels;
 				auto     info      = le_pixels_i.get_info( pixels );
 				uint32_t num_bytes = info.byte_count; // TODO: make sure to get correct byte count for mip level, or compressed image.
-				void *   bytes     = le_pixels_i.get_data( pixels );
+				void*    bytes     = le_pixels_i.get_data( pixels );
 
 				encoder.writeToImage( r.image_handle, write_info, bytes, num_bytes );
 			}
@@ -125,12 +125,12 @@ static void execTransferPass( le_command_buffer_encoder_o *pEncoder, void *user_
 
 // ----------------------------------------------------------------------
 
-static void le_resource_manager_update( le_resource_manager_o *manager, le_render_module_o *module ) {
+static void le_resource_manager_update( le_resource_manager_o* manager, le_render_module_o* module ) {
 	using namespace le_renderer;
 
 	// TODO: reload any images if you detect that their source on disk has changed.
 
-	for ( auto &r : manager->resources ) {
+	for ( auto& r : manager->resources ) {
 		render_module_i.declare_resource( module, r.image_handle, r.image_info );
 	}
 
@@ -145,7 +145,7 @@ static void le_resource_manager_update( le_resource_manager_o *manager, le_rende
 
 // ----------------------------------------------------------------------
 
-static void infer_from_le_format( le::Format const &format, uint32_t *num_channels, le_pixels_info::Type *pixels_type ) {
+static void infer_from_le_format( le::Format const& format, uint32_t* num_channels, le_pixels_info::Type* pixels_type ) {
 	switch ( format ) {
 	case le::Format::eUndefined: // deliberate fall-through
 	case le::Format::eR8G8B8A8Unorm:
@@ -169,10 +169,10 @@ static void infer_from_le_format( le::Format const &format, uint32_t *num_channe
 // NOTE: You must provide an array of paths in image_paths, and the
 // array's size must match `image_info.image.arrayLayers`
 // Most meta-data about the image file is loaded via image_info
-static void le_resource_manager_add_item( le_resource_manager_o *       self,
-                                          le_img_resource_handle const *image_handle,
-                                          le_resource_info_t const *    image_info,
-                                          char const *const *           image_paths ) {
+static void le_resource_manager_add_item( le_resource_manager_o*        self,
+                                          le_img_resource_handle const* image_handle,
+                                          le_resource_info_t const*     image_info,
+                                          char const* const*            image_paths ) {
 
 	le_resource_manager_o::resource_item_t item{};
 
@@ -220,19 +220,19 @@ static void le_resource_manager_add_item( le_resource_manager_o *       self,
 
 // ----------------------------------------------------------------------
 
-static le_resource_manager_o *le_resource_manager_create() {
+static le_resource_manager_o* le_resource_manager_create() {
 	auto self = new le_resource_manager_o{};
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_resource_manager_destroy( le_resource_manager_o *self ) {
+static void le_resource_manager_destroy( le_resource_manager_o* self ) {
 
 	using namespace le_pixels;
 
-	for ( auto &r : self->resources ) {
-		for ( auto &l : r.image_layers ) {
+	for ( auto& r : self->resources ) {
+		for ( auto& l : r.image_layers ) {
 			if ( l.pixels ) {
 				le_pixels_i.destroy( l.pixels );
 				l.pixels = nullptr;
@@ -245,7 +245,7 @@ static void le_resource_manager_destroy( le_resource_manager_o *self ) {
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_resource_manager, api ) {
-	auto &le_resource_manager_i = static_cast<le_resource_manager_api *>( api )->le_resource_manager_i;
+	auto& le_resource_manager_i = static_cast<le_resource_manager_api*>( api )->le_resource_manager_i;
 
 	le_resource_manager_i.create   = le_resource_manager_create;
 	le_resource_manager_i.destroy  = le_resource_manager_destroy;

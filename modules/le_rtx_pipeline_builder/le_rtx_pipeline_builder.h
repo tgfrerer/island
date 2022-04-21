@@ -29,13 +29,13 @@ LE_MODULE_LOAD_DEFAULT( le_rtx_pipeline_builder );
 #ifdef __cplusplus
 
 namespace le_rtx_pipeline_builder {
-static const auto &api                       = le_rtx_pipeline_builder_api_i;
-static const auto &le_rtx_pipeline_builder_i = api -> le_rtx_pipeline_builder_i;
+static const auto& api                       = le_rtx_pipeline_builder_api_i;
+static const auto& le_rtx_pipeline_builder_i = api -> le_rtx_pipeline_builder_i;
 } // namespace le_rtx_pipeline_builder
 
 class LeRtxPipelineBuilder : NoCopy, NoMove {
 
-	le_rtx_pipeline_builder_o *self;
+	le_rtx_pipeline_builder_o* self;
 
   public:
 	LeRtxPipelineBuilder()

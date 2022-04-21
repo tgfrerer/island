@@ -79,9 +79,9 @@ LE_MODULE_LOAD_DEFAULT( le_window );
 
 namespace le_window {
 
-static const auto &api        = le_window_api_i;
-static const auto &window_i   = api -> window_i;
-static const auto &settings_i = api -> window_settings_i;
+static const auto& api        = le_window_api_i;
+static const auto& window_i   = api -> window_i;
+static const auto& settings_i = api -> window_settings_i;
 
 } // namespace le_window
 
@@ -90,7 +90,7 @@ namespace le {
 class Window : NoMove, NoCopy {
   public:
 	class Settings {
-		le_window_settings_o *self = nullptr;
+		le_window_settings_o* self = nullptr;
 
 	  public:
 		Settings()
@@ -101,33 +101,33 @@ class Window : NoMove, NoCopy {
 			le_window::settings_i.destroy( self );
 		}
 
-		Settings &setWidth( int width_ ) {
+		Settings& setWidth( int width_ ) {
 			le_window::settings_i.set_width( self, width_ );
 			return *this;
 		}
-		Settings &setHeight( int height_ ) {
+		Settings& setHeight( int height_ ) {
 			le_window::settings_i.set_height( self, height_ );
 			return *this;
 		}
-		Settings &setTitle( const char *title_ ) {
+		Settings& setTitle( const char* title_ ) {
 			le_window::settings_i.set_title( self, title_ );
 			return *this;
 		}
 
-		operator const le_window_settings_o *() const {
+		operator const le_window_settings_o*() const {
 			return self;
 		}
 	};
 
   public:
-	le_window_o *self = nullptr;
+	le_window_o* self = nullptr;
 
 	Window()
 	    : self( le_window::window_i.create() ) {
 		le_window::window_i.increase_reference_count( self );
 	}
 
-	Window( le_window_o *ref )
+	Window( le_window_o* ref )
 	    : self( ref ) {
 		le_window::window_i.increase_reference_count( self );
 	}
@@ -139,7 +139,7 @@ class Window : NoMove, NoCopy {
 		}
 	}
 
-	void setup( const Settings &settings = {} ) {
+	void setup( const Settings& settings = {} ) {
 		le_window::window_i.setup( self, settings );
 	}
 
@@ -151,7 +151,7 @@ class Window : NoMove, NoCopy {
 		le_window::window_i.toggle_fullscreen( self );
 	}
 
-	void getUIEventQueue( LeUiEvent const **events, uint32_t &numEvents ) {
+	void getUIEventQueue( LeUiEvent const** events, uint32_t& numEvents ) {
 		le_window::window_i.get_ui_event_queue( self, events, numEvents );
 	}
 
@@ -171,7 +171,7 @@ class Window : NoMove, NoCopy {
 		le_window::api->pollEvents();
 	}
 
-	static const char **getRequiredVkExtensions( uint32_t *count ) {
+	static const char** getRequiredVkExtensions( uint32_t* count ) {
 		return le_window::api->get_required_vk_instance_extensions( count );
 	}
 };

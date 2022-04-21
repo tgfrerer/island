@@ -23,13 +23,13 @@ struct le_timebase_api {
 
 	struct le_timebase_interface_t {
 
-		le_timebase_o *( *create )();
-		void ( *destroy )( le_timebase_o *self );
-		void ( *update )( le_timebase_o *self, uint64_t fixed_interval_ticks ); /// set fixed_interval_ticks to 0 for clock-based interval
-		void ( *reset )( le_timebase_o *self );
+		le_timebase_o* ( *create )();
+		void ( *destroy )( le_timebase_o* self );
+		void ( *update )( le_timebase_o* self, uint64_t fixed_interval_ticks ); /// set fixed_interval_ticks to 0 for clock-based interval
+		void ( *reset )( le_timebase_o* self );
 
-		uint64_t ( *get_current_ticks )( le_timebase_o *self );
-		uint64_t ( *get_ticks_since_last_frame )( le_timebase_o *self );
+		uint64_t ( *get_current_ticks )( le_timebase_o* self );
+		uint64_t ( *get_ticks_since_last_frame )( le_timebase_o* self );
 	};
 
 	le_timebase_interface_t le_timebase_i;
@@ -42,14 +42,14 @@ LE_MODULE_LOAD_DEFAULT( le_timebase );
 #ifdef __cplusplus
 
 namespace le_timebase {
-static const auto &api           = le_timebase_api_i;
-static const auto &le_timebase_i = api -> le_timebase_i;
+static const auto& api           = le_timebase_api_i;
+static const auto& le_timebase_i = api -> le_timebase_i;
 
 } // namespace le_timebase
 
 class LeTimebase : NoCopy, NoMove {
 
-	le_timebase_o *self;
+	le_timebase_o* self;
 
   public:
 	LeTimebase()

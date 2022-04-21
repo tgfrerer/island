@@ -30,7 +30,7 @@ struct imgui_example_app_o {
 
 	glm::vec4 backgroundColor{ 0, 0, 0, 1 };
 
-	le_imgui_o *gui;
+	le_imgui_o* gui;
 	LeCamera    camera;
 };
 
@@ -48,11 +48,11 @@ static void app_terminate() {
 	le::Window::terminate();
 };
 
-static void reset_camera( imgui_example_app_o *self ); // ffdecl.
+static void reset_camera( imgui_example_app_o* self ); // ffdecl.
 
 // ----------------------------------------------------------------------
 
-static imgui_example_app_o *imgui_example_app_create() {
+static imgui_example_app_o* imgui_example_app_create() {
 	auto app = new ( imgui_example_app_o );
 
 	le::Window::Settings settings;
@@ -76,7 +76,7 @@ static imgui_example_app_o *imgui_example_app_create() {
 
 // ----------------------------------------------------------------------
 
-static void reset_camera( imgui_example_app_o *self ) {
+static void reset_camera( imgui_example_app_o* self ) {
 	le::Extent2D extents{};
 	self->renderer.getSwapchainExtent( &extents.width, &extents.height );
 	self->camera.setViewport( { 0, 0, float( extents.width ), float( extents.height ), 0.f, 1.f } );
@@ -87,8 +87,8 @@ static void reset_camera( imgui_example_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto        app = static_cast<imgui_example_app_o *>( user_data );
+static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+	auto        app = static_cast<imgui_example_app_o*>( user_data );
 	le::Encoder encoder{ encoder_ };
 
 	auto extents = encoder.getRenderpassExtent();
@@ -150,7 +150,7 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 // ----------------------------------------------------------------------
 
-static bool imgui_example_app_update( imgui_example_app_o *self ) {
+static bool imgui_example_app_update( imgui_example_app_o* self ) {
 
 	// Polls events for all windows
 	// Use `self->window.getUIEventQueue()` to fetch events.
@@ -163,7 +163,7 @@ static bool imgui_example_app_update( imgui_example_app_o *self ) {
 	{
 		// -- Process UI events
 
-		LeUiEvent const *events;
+		LeUiEvent const* events;
 		uint32_t         numEvents = 0;
 		self->window.getUIEventQueue( &events, numEvents );
 		le_imgui::le_imgui_i.process_events( self->gui, events, numEvents );
@@ -199,15 +199,15 @@ static bool imgui_example_app_update( imgui_example_app_o *self ) {
 		le_imgui::le_imgui_i.end_frame( self->gui );
 
 		passToScreen
-		    .setSetupCallback( self, []( le_renderpass_o *pRp, void *user_data ) {
+		    .setSetupCallback( self, []( le_renderpass_o* pRp, void* user_data ) {
 			    auto rp  = le::RenderPass{ pRp };
-			    auto app = static_cast<imgui_example_app_o *>( user_data );
+			    auto app = static_cast<imgui_example_app_o*>( user_data );
 
 			    // Attachment resource info may be further specialised using le::ImageAttachmentInfoBuilder().
 
 			    auto info =
 			        le::ImageAttachmentInfoBuilder()
-			            .setColorClearValue( reinterpret_cast<LeClearValue &>( app->backgroundColor ) )
+			            .setColorClearValue( reinterpret_cast<LeClearValue&>( app->backgroundColor ) )
 			            .build();
 
 			    rp
@@ -233,7 +233,7 @@ static bool imgui_example_app_update( imgui_example_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void imgui_example_app_destroy( imgui_example_app_o *self ) {
+static void imgui_example_app_destroy( imgui_example_app_o* self ) {
 
 	if ( self->gui ) {
 		le_imgui::le_imgui_i.destroy( self->gui );
@@ -246,8 +246,8 @@ static void imgui_example_app_destroy( imgui_example_app_o *self ) {
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( imgui_example_app, api ) {
-	auto  imgui_example_app_api_i = static_cast<imgui_example_app_api *>( api );
-	auto &imgui_example_app_i     = imgui_example_app_api_i->imgui_example_app_i;
+	auto  imgui_example_app_api_i = static_cast<imgui_example_app_api*>( api );
+	auto& imgui_example_app_i     = imgui_example_app_api_i->imgui_example_app_i;
 
 	imgui_example_app_i.initialize = app_initialize;
 	imgui_example_app_i.terminate  = app_terminate;

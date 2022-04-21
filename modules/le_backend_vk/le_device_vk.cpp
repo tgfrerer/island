@@ -48,7 +48,7 @@ struct le_device_o {
 
 // ----------------------------------------------------------------------
 
-uint32_t findClosestMatchingQueueIndex( const std::vector<vk::QueueFlags> &queueFlags_, const vk::QueueFlags &flags ) {
+uint32_t findClosestMatchingQueueIndex( const std::vector<vk::QueueFlags>& queueFlags_, const vk::QueueFlags& flags ) {
 
 	// Find out the queue family index for a queue best matching the given flags.
 	// We use this to find out the index of the Graphics Queue for example.
@@ -84,7 +84,7 @@ uint32_t findClosestMatchingQueueIndex( const std::vector<vk::QueueFlags> &queue
 ///        1.. index within queue family
 ///        2.. index of queue from props vector (used to keep queue indices
 //             consistent between requested queues and queues you will render to)
-std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQueues( const std::vector<vk::QueueFamilyProperties> &props, const std::vector<::vk::QueueFlags> &reqProps ) {
+std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQueues( const std::vector<vk::QueueFamilyProperties>& props, const std::vector<::vk::QueueFlags>& reqProps ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -92,7 +92,7 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 	std::vector<uint32_t>                               usedQueues( props.size(), ~( uint32_t( 0 ) ) ); // last used queue, per queue family (initialised at -1)
 
 	size_t reqIdx = 0; // original index for requested queue
-	for ( const auto &flags : reqProps ) {
+	for ( const auto& flags : reqProps ) {
 
 		// best match is a queue which does exclusively what we want
 		bool     foundMatch  = false;
@@ -156,11 +156,11 @@ std::vector<std::tuple<uint32_t, uint32_t, size_t>> findBestMatchForRequestedQue
 
 // ----------------------------------------------------------------------
 
-le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **extension_names, uint32_t extension_names_count ) {
+le_device_o* device_create( le_backend_vk_instance_o* instance_, const char** extension_names, uint32_t extension_names_count ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	le_device_o *self = new le_device_o{};
+	le_device_o* self = new le_device_o{};
 
 	using namespace le_backend_vk;
 
@@ -191,7 +191,7 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	// let's find out the devices' memory properties
 	self->vkPhysicalDeviceMemoryProperties = self->vkPhysicalDevice.getMemoryProperties();
 
-	const auto &queueFamilyProperties = self->vkPhysicalDevice.getQueueFamilyProperties();
+	const auto& queueFamilyProperties = self->vkPhysicalDevice.getQueueFamilyProperties();
 
 	// See findBestMatchForRequestedQueues for how this tuple is laid out.
 	auto queriedQueueFamilyAndIndex = findBestMatchForRequestedQueues( queueFamilyProperties, self->queuesWithCapabilitiesRequest );
@@ -201,7 +201,7 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	// Consolidate queues by queue family type - this will also sort by queue family type.
 	std::map<uint32_t, uint32_t> queueCountPerFamily; // queueFamily -> count
 
-	for ( const auto &q : queriedQueueFamilyAndIndex ) {
+	for ( const auto& q : queriedQueueFamilyAndIndex ) {
 		// Attempt to insert family to map
 
 		auto insertResult = queueCountPerFamily.insert( { std::get<0>( q ), 1 } );
@@ -217,10 +217,10 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	// alive until we call the api.
 	std::map<uint32_t, std::vector<float>> prioritiesPerFamily;
 
-	for ( auto &q : queueCountPerFamily ) {
+	for ( auto& q : queueCountPerFamily ) {
 		vk::DeviceQueueCreateInfo queueCreateInfo;
-		const auto &              queueFamily = q.first;
-		const auto &              queueCount  = q.second;
+		const auto&               queueFamily = q.first;
+		const auto&               queueCount  = q.second;
 		prioritiesPerFamily[ queueFamily ].resize( queueCount, 1.f ); // all queues have the same priority, 1.
 		queueCreateInfo
 		    .setQueueFamilyIndex( queueFamily )
@@ -229,7 +229,7 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 		device_queue_creation_infos.emplace_back( std::move( queueCreateInfo ) );
 	}
 
-	std::vector<const char *> enabledDeviceExtensionNames;
+	std::vector<const char*> enabledDeviceExtensionNames;
 
 	{
 		// We consolidate all requested device extensions in a set,
@@ -249,7 +249,7 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 		enabledDeviceExtensionNames.reserve( self->requestedDeviceExtensions.size() );
 
 		logger.info( "Enabled Device Extensions:" );
-		for ( auto const &ext : self->requestedDeviceExtensions ) {
+		for ( auto const& ext : self->requestedDeviceExtensions ) {
 			enabledDeviceExtensionNames.emplace_back( ext.c_str() );
 			logger.info( "\t + %s", ext.c_str() );
 		}
@@ -316,7 +316,7 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	    ;
 #endif
 
-	//ms I had to disable this on my nvidia 1070 as it was failing
+	// ms I had to disable this on my nvidia 1070 as it was failing
 	featuresChain.get<vk::PhysicalDeviceVulkan12Features>()
 	    //    .setShaderInt8( true )
 	    //    .setShaderFloat16( true )
@@ -343,10 +343,10 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	self->queues.resize( queriedQueueFamilyAndIndex.size() );
 
 	// Fetch queue handle into mQueue, matching indices with the original queue request vector
-	for ( auto &q : queriedQueueFamilyAndIndex ) {
-		const auto &queueFamilyIndex                    = std::get<0>( q );
-		const auto &queueIndex                          = std::get<1>( q );
-		const auto &requestedQueueIndex                 = std::get<2>( q );
+	for ( auto& q : queriedQueueFamilyAndIndex ) {
+		const auto& queueFamilyIndex                    = std::get<0>( q );
+		const auto& queueIndex                          = std::get<1>( q );
+		const auto& requestedQueueIndex                 = std::get<2>( q );
 		self->queues[ requestedQueueIndex ]             = self->vkDevice.getQueue( queueFamilyIndex, queueIndex );
 		self->queueFamilyIndices[ requestedQueueIndex ] = queueFamilyIndex;
 	}
@@ -369,7 +369,7 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 	    vk::Format::eD16Unorm,
 	    vk::Format::eD16UnormS8Uint };
 
-	for ( auto &format : depthFormats ) {
+	for ( auto& format : depthFormats ) {
 		vk::FormatProperties formatProps = self->vkPhysicalDevice.getFormatProperties( format );
 		// Format must support depth stencil attachment for optimal tiling
 		if ( formatProps.optimalTilingFeatures & vk::FormatFeatureFlagBits::eDepthStencilAttachment ) {
@@ -383,21 +383,21 @@ le_device_o *device_create( le_backend_vk_instance_o *instance_, const char **ex
 
 // ----------------------------------------------------------------------
 
-le_device_o *device_increase_reference_count( le_device_o *self ) {
+le_device_o* device_increase_reference_count( le_device_o* self ) {
 	++self->referenceCount;
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-void device_destroy( le_device_o *self ) {
+void device_destroy( le_device_o* self ) {
 	self->vkDevice.destroy();
 	delete ( self );
 };
 
 // ----------------------------------------------------------------------
 
-le_device_o *device_decrease_reference_count( le_device_o *self ) {
+le_device_o* device_decrease_reference_count( le_device_o* self ) {
 
 	--self->referenceCount;
 
@@ -411,38 +411,38 @@ le_device_o *device_decrease_reference_count( le_device_o *self ) {
 
 // ----------------------------------------------------------------------
 
-uint32_t device_get_reference_count( le_device_o *self ) {
+uint32_t device_get_reference_count( le_device_o* self ) {
 	return self->referenceCount;
 }
 
 // ----------------------------------------------------------------------
 
-VkDevice device_get_vk_device( le_device_o *self_ ) {
+VkDevice device_get_vk_device( le_device_o* self_ ) {
 	return self_->vkDevice;
 }
 
 // ----------------------------------------------------------------------
 
-VkPhysicalDevice device_get_vk_physical_device( le_device_o *self_ ) {
+VkPhysicalDevice device_get_vk_physical_device( le_device_o* self_ ) {
 	return self_->vkPhysicalDevice;
 }
 
 // ----------------------------------------------------------------------
 
-const VkPhysicalDeviceProperties &device_get_vk_physical_device_properties( le_device_o *self ) {
-	return static_cast<VkPhysicalDeviceProperties &>( self->vkPhysicalDeviceProperties );
+const VkPhysicalDeviceProperties& device_get_vk_physical_device_properties( le_device_o* self ) {
+	return static_cast<VkPhysicalDeviceProperties&>( self->vkPhysicalDeviceProperties );
 }
 
 // ----------------------------------------------------------------------
 
-const VkPhysicalDeviceMemoryProperties &device_get_vk_physical_device_memory_properties( le_device_o *self ) {
-	return static_cast<VkPhysicalDeviceMemoryProperties &>( self->vkPhysicalDeviceMemoryProperties );
+const VkPhysicalDeviceMemoryProperties& device_get_vk_physical_device_memory_properties( le_device_o* self ) {
+	return static_cast<VkPhysicalDeviceMemoryProperties&>( self->vkPhysicalDeviceMemoryProperties );
 }
 
 // ----------------------------------------------------------------------
 
-bool device_get_physical_device_ray_tracing_properties( le_device_o *self, VkPhysicalDeviceRayTracingPipelinePropertiesKHR *properties ) {
-	*properties = static_cast<VkPhysicalDeviceRayTracingPipelinePropertiesKHR &>( self->raytracingProperties );
+bool device_get_physical_device_ray_tracing_properties( le_device_o* self, VkPhysicalDeviceRayTracingPipelinePropertiesKHR* properties ) {
+	*properties = static_cast<VkPhysicalDeviceRayTracingPipelinePropertiesKHR&>( self->raytracingProperties );
 #ifdef LE_FEATURE_RTX
 	return true;
 #else
@@ -452,41 +452,41 @@ bool device_get_physical_device_ray_tracing_properties( le_device_o *self, VkPhy
 
 // ----------------------------------------------------------------------
 
-uint32_t device_get_default_graphics_queue_family_index( le_device_o *self_ ) {
+uint32_t device_get_default_graphics_queue_family_index( le_device_o* self_ ) {
 	return self_->queueFamilyIndices[ self_->defaultQueueIndices.graphics ];
 };
 
 // ----------------------------------------------------------------------
 
-uint32_t device_get_default_compute_queue_family_index( le_device_o *self_ ) {
+uint32_t device_get_default_compute_queue_family_index( le_device_o* self_ ) {
 	return self_->queueFamilyIndices[ self_->defaultQueueIndices.compute ];
 }
 
 // ----------------------------------------------------------------------
 
-VkQueue device_get_default_graphics_queue( le_device_o *self_ ) {
+VkQueue device_get_default_graphics_queue( le_device_o* self_ ) {
 	return self_->queues[ self_->defaultQueueIndices.graphics ];
 }
 
 // ----------------------------------------------------------------------
 
-VkQueue device_get_default_compute_queue( le_device_o *self_ ) {
+VkQueue device_get_default_compute_queue( le_device_o* self_ ) {
 	return self_->queues[ self_->defaultQueueIndices.compute ];
 }
 
 // ----------------------------------------------------------------------
 
-VkFormatEnum device_get_default_depth_stencil_format( le_device_o *self ) {
+VkFormatEnum device_get_default_depth_stencil_format( le_device_o* self ) {
 	return { self->defaultDepthStencilFormat };
 }
 
 // ----------------------------------------------------------------------
 
 // get memory allocation info for best matching memory type that matches any of the type bits and flags
-static bool device_get_memory_allocation_info( le_device_o *               self,
-                                               const VkMemoryRequirements &memReqs,
-                                               const VkFlags &             memPropsRef,
-                                               VkMemoryAllocateInfo *      pMemoryAllocationInfo ) {
+static bool device_get_memory_allocation_info( le_device_o*                self,
+                                               const VkMemoryRequirements& memReqs,
+                                               const VkFlags&              memPropsRef,
+                                               VkMemoryAllocateInfo*       pMemoryAllocationInfo ) {
 
 	if ( !memReqs.size ) {
 		pMemoryAllocationInfo->allocationSize  = 0;
@@ -494,9 +494,9 @@ static bool device_get_memory_allocation_info( le_device_o *               self,
 		return true;
 	}
 
-	const auto &physicalMemProperties = self->vkPhysicalDeviceMemoryProperties;
+	const auto& physicalMemProperties = self->vkPhysicalDeviceMemoryProperties;
 
-	const vk::MemoryPropertyFlags memProps{ reinterpret_cast<const vk::MemoryPropertyFlags &>( memPropsRef ) };
+	const vk::MemoryPropertyFlags memProps{ reinterpret_cast<const vk::MemoryPropertyFlags&>( memPropsRef ) };
 
 	// Find an available memory type that satisfies the requested properties.
 	uint32_t memoryTypeIndex;
@@ -520,7 +520,7 @@ static bool device_get_memory_allocation_info( le_device_o *               self,
 
 // ----------------------------------------------------------------------
 
-static bool device_is_extension_available( le_device_o *self, char const *extension_name ) {
+static bool device_is_extension_available( le_device_o* self, char const* extension_name ) {
 	return self->requestedDeviceExtensions.find( extension_name ) != self->requestedDeviceExtensions.end();
 }
 
@@ -528,9 +528,9 @@ static bool device_is_extension_available( le_device_o *self, char const *extens
 
 // ----------------------------------------------------------------------
 
-void register_le_device_vk_api( void *api_ ) {
-	auto  api_i    = static_cast<le_backend_vk_api *>( api_ );
-	auto &device_i = api_i->vk_device_i;
+void register_le_device_vk_api( void* api_ ) {
+	auto  api_i    = static_cast<le_backend_vk_api*>( api_ );
+	auto& device_i = api_i->vk_device_i;
 
 	device_i.create                                        = device_create;
 	device_i.destroy                                       = device_destroy;

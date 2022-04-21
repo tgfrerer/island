@@ -24,7 +24,7 @@ static constexpr auto LOGGER_LABEL = "le_pipeline_builder";
   When a pipeline state object is built, the hash for the pipeline state object is calculated.
   - if this hash already exists in the cache, we return the hash
   - if this hash does not exist in the cache, we must store the pipeline object in the cache,
-	then return the hash.
+    then return the hash.
 
   Where does the cache live? It must be accessible to the backend, since the backend compiles pipelines
   based on the pipeline state objects.
@@ -35,48 +35,48 @@ static constexpr auto LOGGER_LABEL = "le_pipeline_builder";
   Thread safety:
 
   - multiple renderpasses may write to or read from pso cache (read mostly happens to hash_ids)
-	- access here is looking whether pso with hash is already in cache
-	- if not, write to the cache
+    - access here is looking whether pso with hash is already in cache
+    - if not, write to the cache
   - multiple frames may access pso cache: when processing commandbuffers
-	- lookup pso hashes for index
-	- read from pso state based on found hash index
+    - lookup pso hashes for index
+    - read from pso state based on found hash index
   - Write access is therefore only if there is a new pso and it must be added to the cache.
 
   - we need to protect access to pso cache so that its thread safe
-	- consider using a shared_mutex - either: multiple readers - or one single writer
+    - consider using a shared_mutex - either: multiple readers - or one single writer
 
-	a pipeline builder *must* be associated with a backend, so that we can
-	write pso data back to the backend's cache.
+    a pipeline builder *must* be associated with a backend, so that we can
+    write pso data back to the backend's cache.
 
-	does this mean that the pipeline builder is an object inside the backend api?
-	it is strongly suggested.
+    does this mean that the pipeline builder is an object inside the backend api?
+    it is strongly suggested.
 
 */
 
-static constexpr inline vk::PrimitiveTopology le_to_vk( const le::PrimitiveTopology &lhs ) noexcept {
+static constexpr inline vk::PrimitiveTopology le_to_vk( const le::PrimitiveTopology& lhs ) noexcept {
 	return vk::PrimitiveTopology( lhs );
 }
 
 // contains everything (except renderpass/subpass) needed to create a pipeline in the backend
 struct le_graphics_pipeline_builder_o {
-	graphics_pipeline_state_o *obj           = nullptr;
-	le_pipeline_manager_o *    pipelineCache = nullptr;
+	graphics_pipeline_state_o* obj           = nullptr;
+	le_pipeline_manager_o*     pipelineCache = nullptr;
 };
 
 struct le_compute_pipeline_builder_o {
-	compute_pipeline_state_o *obj           = nullptr;
-	le_pipeline_manager_o *   pipelineCache = nullptr;
+	compute_pipeline_state_o* obj           = nullptr;
+	le_pipeline_manager_o*    pipelineCache = nullptr;
 };
 
 struct le_rtx_pipeline_builder_o {
-	rtx_pipeline_state_o * obj           = nullptr;
-	le_pipeline_manager_o *pipelineCache = nullptr;
+	rtx_pipeline_state_o*  obj           = nullptr;
+	le_pipeline_manager_o* pipelineCache = nullptr;
 };
 
 // ----------------------------------------------------------------------
 
 struct le_shader_module_builder_o {
-	le_pipeline_manager_o *               pipeline_manager       = nullptr;
+	le_pipeline_manager_o*                pipeline_manager       = nullptr;
 	std::string                           source_file_path       = {};
 	std::string                           source_defines_string  = {};
 	le::ShaderStage                       shader_stage           = le::ShaderStage{};
@@ -84,35 +84,35 @@ struct le_shader_module_builder_o {
 	le_shader_module_handle               previous_handle        = nullptr;
 	std::map<uint32_t, std::vector<char>> specialisation_map;
 };
-static le_shader_module_builder_o *le_shader_module_builder_create( le_pipeline_manager_o *pipeline_cache ) {
+static le_shader_module_builder_o* le_shader_module_builder_create( le_pipeline_manager_o* pipeline_cache ) {
 	auto self              = new le_shader_module_builder_o{};
 	self->pipeline_manager = pipeline_cache;
 	return self;
 }
-static void le_shader_module_builder_destroy( le_shader_module_builder_o *self ) {
+static void le_shader_module_builder_destroy( le_shader_module_builder_o* self ) {
 	delete self;
 }
-static void le_shader_module_builder_set_source_file_path( le_shader_module_builder_o *self, char const *source_file_path ) {
+static void le_shader_module_builder_set_source_file_path( le_shader_module_builder_o* self, char const* source_file_path ) {
 	self->source_file_path = source_file_path;
 }
-static void le_shader_module_builder_set_source_defines_string( le_shader_module_builder_o *self, char const *source_defines_string ) {
+static void le_shader_module_builder_set_source_defines_string( le_shader_module_builder_o* self, char const* source_defines_string ) {
 	self->source_defines_string = source_defines_string;
 }
-static void le_shader_module_builder_set_shader_stage( le_shader_module_builder_o *self, le::ShaderStage const &shader_stage ) {
+static void le_shader_module_builder_set_shader_stage( le_shader_module_builder_o* self, le::ShaderStage const& shader_stage ) {
 	self->shader_stage = shader_stage;
 }
-static void le_shader_module_builder_set_source_language( le_shader_module_builder_o *self, le::ShaderSourceLanguage const &shader_source_language ) {
+static void le_shader_module_builder_set_source_language( le_shader_module_builder_o* self, le::ShaderSourceLanguage const& shader_source_language ) {
 	self->shader_source_language = shader_source_language;
 }
-static void le_shader_module_builder_set_handle( le_shader_module_builder_o *self, le_shader_module_handle previous_handle ) {
+static void le_shader_module_builder_set_handle( le_shader_module_builder_o* self, le_shader_module_handle previous_handle ) {
 	self->previous_handle = previous_handle;
 }
-static void le_shader_module_builder_set_specialization_constant( le_shader_module_builder_o *self, uint32_t id, void const *value, uint32_t size ) {
-	auto &entry = self->specialisation_map[ id ];
+static void le_shader_module_builder_set_specialization_constant( le_shader_module_builder_o* self, uint32_t id, void const* value, uint32_t size ) {
+	auto& entry = self->specialisation_map[ id ];
 	entry       = std::vector<char>( size );
 	memcpy( entry.data(), value, size );
 }
-static le_shader_module_handle le_shader_module_builder_build( le_shader_module_builder_o *self ) {
+static le_shader_module_handle le_shader_module_builder_build( le_shader_module_builder_o* self ) {
 	using namespace le_backend_vk;
 
 	// We must flatten specialization constant data and entries, if any.
@@ -120,7 +120,7 @@ static le_shader_module_handle le_shader_module_builder_build( le_shader_module_
 	std::vector<char>                     sp_data;
 	std::vector<VkSpecializationMapEntry> sp_info;
 
-	for ( auto &e : self->specialisation_map ) {
+	for ( auto& e : self->specialisation_map ) {
 		uint32_t                 offset = sp_data.size();
 		VkSpecializationMapEntry info;
 		info.constantID = e.first;
@@ -146,7 +146,7 @@ static le_shader_module_handle le_shader_module_builder_build( le_shader_module_
 
 // ----------------------------------------------------------------------
 
-static le_compute_pipeline_builder_o *le_compute_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
+static le_compute_pipeline_builder_o* le_compute_pipeline_builder_create( le_pipeline_manager_o* pipelineCache ) {
 	auto self           = new le_compute_pipeline_builder_o();
 	self->pipelineCache = pipelineCache;
 	self->obj           = new compute_pipeline_state_o();
@@ -159,7 +159,7 @@ static le_compute_pipeline_builder_o *le_compute_pipeline_builder_create( le_pip
 
 // ----------------------------------------------------------------------
 
-static void le_compute_pipeline_builder_destroy( le_compute_pipeline_builder_o *self ) {
+static void le_compute_pipeline_builder_destroy( le_compute_pipeline_builder_o* self ) {
 	if ( self->obj ) {
 		delete self->obj;
 	}
@@ -173,7 +173,7 @@ static void le_compute_pipeline_builder_destroy( le_compute_pipeline_builder_o *
 // so that we have a unique fingerprint for this pipeline.
 // The handle contains the hash value and is unique for pipeline
 // state objects with given settings.
-static le_cpso_handle le_compute_pipeline_builder_build( le_compute_pipeline_builder_o *self ) {
+static le_cpso_handle le_compute_pipeline_builder_build( le_compute_pipeline_builder_o* self ) {
 	using namespace le_backend_vk;
 	le_cpso_handle pipeline_handle;
 	le_pipeline_manager_i.introduce_compute_pipeline_state( self->pipelineCache, self->obj, &pipeline_handle );
@@ -182,7 +182,7 @@ static le_cpso_handle le_compute_pipeline_builder_build( le_compute_pipeline_bui
 
 // ----------------------------------------------------------------------
 
-static void le_compute_pipeline_builder_set_shader_stage( le_compute_pipeline_builder_o *self, le_shader_module_handle shaderModule ) {
+static void le_compute_pipeline_builder_set_shader_stage( le_compute_pipeline_builder_o* self, le_shader_module_handle shaderModule ) {
 	assert( self->obj );
 	if ( self->obj ) {
 		self->obj->shaderStage = shaderModule;
@@ -191,7 +191,7 @@ static void le_compute_pipeline_builder_set_shader_stage( le_compute_pipeline_bu
 
 // ----------------------------------------------------------------------
 
-static le_rtx_pipeline_builder_o *le_rtx_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
+static le_rtx_pipeline_builder_o* le_rtx_pipeline_builder_create( le_pipeline_manager_o* pipelineCache ) {
 	auto self           = new le_rtx_pipeline_builder_o();
 	self->pipelineCache = pipelineCache;
 	self->obj           = new rtx_pipeline_state_o();
@@ -200,7 +200,7 @@ static le_rtx_pipeline_builder_o *le_rtx_pipeline_builder_create( le_pipeline_ma
 
 // ----------------------------------------------------------------------
 
-static void le_rtx_pipeline_builder_destroy( le_rtx_pipeline_builder_o *self ) {
+static void le_rtx_pipeline_builder_destroy( le_rtx_pipeline_builder_o* self ) {
 	if ( self->obj ) {
 		delete self->obj;
 	}
@@ -210,7 +210,7 @@ static void le_rtx_pipeline_builder_destroy( le_rtx_pipeline_builder_o *self ) {
 // ----------------------------------------------------------------------
 // Adds shader module to pso if not yet encountered
 // returns index into shader modules for this module
-static uint32_t rtx_pipeline_builder_add_shader_module( le_rtx_pipeline_builder_o *self, le_shader_module_handle shaderModule ) {
+static uint32_t rtx_pipeline_builder_add_shader_module( le_rtx_pipeline_builder_o* self, le_shader_module_handle shaderModule ) {
 	assert( self->obj );
 
 	if ( nullptr == shaderModule ) {
@@ -219,7 +219,7 @@ static uint32_t rtx_pipeline_builder_add_shader_module( le_rtx_pipeline_builder_
 
 	size_t module_idx = 0;
 
-	for ( auto &m : self->obj->shaderStages ) {
+	for ( auto& m : self->obj->shaderStages ) {
 		if ( shaderModule == m ) {
 			break;
 		}
@@ -234,7 +234,7 @@ static uint32_t rtx_pipeline_builder_add_shader_module( le_rtx_pipeline_builder_
 }
 // ----------------------------------------------------------------------
 
-void le_rtx_pipeline_builder_set_shader_group_ray_gen( le_rtx_pipeline_builder_o *self, le_shader_module_handle raygen_shader ) {
+void le_rtx_pipeline_builder_set_shader_group_ray_gen( le_rtx_pipeline_builder_o* self, le_shader_module_handle raygen_shader ) {
 	assert( raygen_shader && "must specify ray gen shader" );
 	le_rtx_shader_group_info info{};
 	info.type             = le::RayTracingShaderGroupType::eRayGen;
@@ -242,7 +242,7 @@ void le_rtx_pipeline_builder_set_shader_group_ray_gen( le_rtx_pipeline_builder_o
 	self->obj->shaderGroups.emplace_back( info );
 }
 
-void le_rtx_pipeline_builder_add_shader_group_miss( le_rtx_pipeline_builder_o *self, le_shader_module_handle miss_shader ) {
+void le_rtx_pipeline_builder_add_shader_group_miss( le_rtx_pipeline_builder_o* self, le_shader_module_handle miss_shader ) {
 	assert( miss_shader && "must specify miss shader" );
 	le_rtx_shader_group_info info{};
 	info.type             = le::RayTracingShaderGroupType::eMiss;
@@ -250,7 +250,7 @@ void le_rtx_pipeline_builder_add_shader_group_miss( le_rtx_pipeline_builder_o *s
 	self->obj->shaderGroups.emplace_back( info );
 }
 
-void le_rtx_pipeline_builder_add_shader_group_callable( le_rtx_pipeline_builder_o *self, le_shader_module_handle callable_shader ) {
+void le_rtx_pipeline_builder_add_shader_group_callable( le_rtx_pipeline_builder_o* self, le_shader_module_handle callable_shader ) {
 	assert( callable_shader && "must specify callable shader" );
 	le_rtx_shader_group_info info{};
 	info.type             = le::RayTracingShaderGroupType::eCallable;
@@ -258,7 +258,7 @@ void le_rtx_pipeline_builder_add_shader_group_callable( le_rtx_pipeline_builder_
 	self->obj->shaderGroups.emplace_back( info );
 }
 
-void le_rtx_pipeline_builder_add_shader_group_triangle_hit( le_rtx_pipeline_builder_o *self, le_shader_module_handle maybe_closest_hit_shader, le_shader_module_handle maybe_any_hit_shader ) {
+void le_rtx_pipeline_builder_add_shader_group_triangle_hit( le_rtx_pipeline_builder_o* self, le_shader_module_handle maybe_closest_hit_shader, le_shader_module_handle maybe_any_hit_shader ) {
 	assert( ( maybe_any_hit_shader || maybe_closest_hit_shader ) && "must specify at least one of closet hit or any hit shader" );
 	le_rtx_shader_group_info info{};
 	info.type                = le::RayTracingShaderGroupType::eTrianglesHitGroup;
@@ -267,7 +267,7 @@ void le_rtx_pipeline_builder_add_shader_group_triangle_hit( le_rtx_pipeline_buil
 	self->obj->shaderGroups.emplace_back( info );
 }
 
-void le_rtx_pipeline_builder_add_shader_group_procedural_hit( le_rtx_pipeline_builder_o *self, le_shader_module_handle intersection_shader, le_shader_module_handle maybe_closest_hit_shader, le_shader_module_handle maybe_any_hit_shader ) {
+void le_rtx_pipeline_builder_add_shader_group_procedural_hit( le_rtx_pipeline_builder_o* self, le_shader_module_handle intersection_shader, le_shader_module_handle maybe_closest_hit_shader, le_shader_module_handle maybe_any_hit_shader ) {
 	assert( intersection_shader && "must specify intersection shader" );
 	le_rtx_shader_group_info info{};
 	info.type                  = le::RayTracingShaderGroupType::eProceduralHitGroup;
@@ -283,7 +283,7 @@ void le_rtx_pipeline_builder_add_shader_group_procedural_hit( le_rtx_pipeline_bu
 // so that we have a unique fingerprint for this pipeline.
 // The handle contains the hash value and is unique for pipeline
 // state objects with given settings.
-static le_rtxpso_handle le_rtx_pipeline_builder_build( le_rtx_pipeline_builder_o *self ) {
+static le_rtxpso_handle le_rtx_pipeline_builder_build( le_rtx_pipeline_builder_o* self ) {
 
 	le_rtxpso_handle pipeline_handle = {};
 
@@ -298,8 +298,8 @@ static le_rtxpso_handle le_rtx_pipeline_builder_build( le_rtx_pipeline_builder_o
 
 // ----------------------------------------------------------------------
 
-static le_graphics_pipeline_builder_o *
-le_graphics_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
+static le_graphics_pipeline_builder_o*
+le_graphics_pipeline_builder_create( le_pipeline_manager_o* pipelineCache ) {
 	auto self = new le_graphics_pipeline_builder_o();
 
 	self->pipelineCache = pipelineCache;
@@ -360,7 +360,7 @@ le_graphics_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
 	    .setMaxDepthBounds( 0.f );
 
 	// Default values for color blend state: premultiplied alpha
-	for ( auto &blendAttachmentState : self->obj->data.blendAttachmentStates ) {
+	for ( auto& blendAttachmentState : self->obj->data.blendAttachmentStates ) {
 		blendAttachmentState
 		    .setBlendEnable( VK_TRUE )
 		    .setColorBlendOp( vk::BlendOp::eAdd )
@@ -381,7 +381,7 @@ le_graphics_pipeline_builder_create( le_pipeline_manager_o *pipelineCache ) {
 
 // ----------------------------------------------------------------------
 
-void le_graphics_pipeline_builder_add_binding( le_graphics_pipeline_builder_o *self, uint8_t binding_number ) {
+void le_graphics_pipeline_builder_add_binding( le_graphics_pipeline_builder_o* self, uint8_t binding_number ) {
 	le_vertex_input_binding_description binding;
 	binding.stride     = 0;
 	binding.binding    = binding_number;
@@ -392,19 +392,19 @@ void le_graphics_pipeline_builder_add_binding( le_graphics_pipeline_builder_o *s
 
 // ----------------------------------------------------------------------
 
-void le_graphics_pipeline_builder_set_binding_input_rate( le_graphics_pipeline_builder_o *self, uint8_t binding_number, const le_vertex_input_rate &input_rate ) {
+void le_graphics_pipeline_builder_set_binding_input_rate( le_graphics_pipeline_builder_o* self, uint8_t binding_number, const le_vertex_input_rate& input_rate ) {
 	self->obj->explicitVertexInputBindingDescriptions[ binding_number ].input_rate = input_rate;
 }
 
 // ----------------------------------------------------------------------
 
-void le_graphics_pipeline_builder_set_binding_stride( le_graphics_pipeline_builder_o *self, uint8_t binding_number, uint16_t stride ) {
+void le_graphics_pipeline_builder_set_binding_stride( le_graphics_pipeline_builder_o* self, uint8_t binding_number, uint16_t stride ) {
 	self->obj->explicitVertexInputBindingDescriptions[ binding_number ].stride = stride;
 }
 
 // ----------------------------------------------------------------------
 
-void le_graphics_pipeline_builder_binding_add_attribute( le_graphics_pipeline_builder_o *self, uint8_t binding_number, uint8_t attribute_number ) {
+void le_graphics_pipeline_builder_binding_add_attribute( le_graphics_pipeline_builder_o* self, uint8_t binding_number, uint8_t attribute_number ) {
 	le_vertex_input_attribute_description attribute;
 
 	attribute.binding        = binding_number;
@@ -421,31 +421,31 @@ void le_graphics_pipeline_builder_binding_add_attribute( le_graphics_pipeline_bu
 
 // ----------------------------------------------------------------------
 
-void le_graphics_pipeline_builder_attribute_set_offset( le_graphics_pipeline_builder_o *self, uint8_t attribute_location, uint16_t offset ) {
+void le_graphics_pipeline_builder_attribute_set_offset( le_graphics_pipeline_builder_o* self, uint8_t attribute_location, uint16_t offset ) {
 	self->obj->explicitVertexAttributeDescriptions[ attribute_location ].binding_offset = offset;
 }
 
 // ----------------------------------------------------------------------
 
-void le_graphics_pipeline_builder_attribute_set_type( le_graphics_pipeline_builder_o *self, uint8_t attribute_location, const le_num_type &type ) {
+void le_graphics_pipeline_builder_attribute_set_type( le_graphics_pipeline_builder_o* self, uint8_t attribute_location, const le_num_type& type ) {
 	self->obj->explicitVertexAttributeDescriptions[ attribute_location ].type = type;
 }
 
 // ----------------------------------------------------------------------
 
-void le_graphics_pipeline_builder_attribute_set_vec_size( le_graphics_pipeline_builder_o *self, uint8_t attribute_location, uint8_t vec_size ) {
+void le_graphics_pipeline_builder_attribute_set_vec_size( le_graphics_pipeline_builder_o* self, uint8_t attribute_location, uint8_t vec_size ) {
 	self->obj->explicitVertexAttributeDescriptions[ attribute_location ].vecsize = vec_size;
 }
 
 // ----------------------------------------------------------------------
 
-void le_graphics_pipeline_builder_attribute_set_is_normalized( le_graphics_pipeline_builder_o *self, uint8_t attribute_location, bool is_normalized ) {
+void le_graphics_pipeline_builder_attribute_set_is_normalized( le_graphics_pipeline_builder_o* self, uint8_t attribute_location, bool is_normalized ) {
 	self->obj->explicitVertexAttributeDescriptions[ attribute_location ].isNormalised = is_normalized;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_graphics_pipeline_builder_set_vertex_input_attribute_descriptions( le_graphics_pipeline_builder_o *self, le_vertex_input_attribute_description *p_input_attribute_descriptions, size_t count ) {
+static void le_graphics_pipeline_builder_set_vertex_input_attribute_descriptions( le_graphics_pipeline_builder_o* self, le_vertex_input_attribute_description* p_input_attribute_descriptions, size_t count ) {
 	self->obj->explicitVertexAttributeDescriptions =
 	    { p_input_attribute_descriptions,
 	      p_input_attribute_descriptions + count };
@@ -453,7 +453,7 @@ static void le_graphics_pipeline_builder_set_vertex_input_attribute_descriptions
 
 // ----------------------------------------------------------------------
 
-static void le_graphics_pipeline_builder_set_vertex_input_binding_descriptions( le_graphics_pipeline_builder_o *self, le_vertex_input_binding_description *p_input_binding_descriptions, size_t count ) {
+static void le_graphics_pipeline_builder_set_vertex_input_binding_descriptions( le_graphics_pipeline_builder_o* self, le_vertex_input_binding_description* p_input_binding_descriptions, size_t count ) {
 	self->obj->explicitVertexInputBindingDescriptions =
 	    { p_input_binding_descriptions,
 	      p_input_binding_descriptions + count };
@@ -461,16 +461,16 @@ static void le_graphics_pipeline_builder_set_vertex_input_binding_descriptions( 
 
 // ----------------------------------------------------------------------
 
-static void le_graphics_pipeline_builder_set_multisample_info( le_graphics_pipeline_builder_o *self, const VkPipelineMultisampleStateCreateInfo &multisampleInfo ) {
+static void le_graphics_pipeline_builder_set_multisample_info( le_graphics_pipeline_builder_o* self, const VkPipelineMultisampleStateCreateInfo& multisampleInfo ) {
 	self->obj->data.multisampleState = multisampleInfo;
 }
 
-static void le_graphics_pipeline_builder_set_depth_stencil_info( le_graphics_pipeline_builder_o *self, const VkPipelineDepthStencilStateCreateInfo &depthStencilInfo ) {
+static void le_graphics_pipeline_builder_set_depth_stencil_info( le_graphics_pipeline_builder_o* self, const VkPipelineDepthStencilStateCreateInfo& depthStencilInfo ) {
 	self->obj->data.depthStencilState = depthStencilInfo;
 }
 // ----------------------------------------------------------------------
 
-static void le_graphics_pipeline_builder_destroy( le_graphics_pipeline_builder_o *self ) {
+static void le_graphics_pipeline_builder_destroy( le_graphics_pipeline_builder_o* self ) {
 	if ( self->obj ) {
 		delete self->obj;
 	}
@@ -481,7 +481,7 @@ static void le_graphics_pipeline_builder_destroy( le_graphics_pipeline_builder_o
 
 // Calculate pipeline info hash, and add pipeline info to shared store if not yet seen.
 // Return pipeline hash
-static le_gpso_handle le_graphics_pipeline_builder_build( le_graphics_pipeline_builder_o *self ) {
+static le_gpso_handle le_graphics_pipeline_builder_build( le_graphics_pipeline_builder_o* self ) {
 
 	le_gpso_handle pipeline_handle;
 
@@ -500,7 +500,7 @@ static le_gpso_handle le_graphics_pipeline_builder_build( le_graphics_pipeline_b
 //
 // If shader module with the given shader stage already exists in pso,
 // overwrite old entry, otherwise add new shader module.
-static void le_graphics_pipeline_builder_add_shader_stage( le_graphics_pipeline_builder_o *self, le_shader_module_handle shaderModule ) {
+static void le_graphics_pipeline_builder_add_shader_stage( le_graphics_pipeline_builder_o* self, le_shader_module_handle shaderModule ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -528,23 +528,23 @@ static void le_graphics_pipeline_builder_add_shader_stage( le_graphics_pipeline_
 
 // ----------------------------------------------------------------------
 
-static void input_assembly_state_set_primitive_restart_enable( le_graphics_pipeline_builder_o *self, uint32_t const &primitiveRestartEnable ) {
+static void input_assembly_state_set_primitive_restart_enable( le_graphics_pipeline_builder_o* self, uint32_t const& primitiveRestartEnable ) {
 	self->obj->data.inputAssemblyState.setPrimitiveRestartEnable( primitiveRestartEnable );
 }
 
 // ----------------------------------------------------------------------
 
-static void input_assembly_state_set_toplogy( le_graphics_pipeline_builder_o *self, le::PrimitiveTopology const &topology ) {
+static void input_assembly_state_set_toplogy( le_graphics_pipeline_builder_o* self, le::PrimitiveTopology const& topology ) {
 	self->obj->data.inputAssemblyState.setTopology( le_to_vk( topology ) );
 }
 
 // ----------------------------------------------------------------------
 
-static vk::BlendOp le_blend_op_to_vk( const le::BlendOp &rhs ) {
+static vk::BlendOp le_blend_op_to_vk( const le::BlendOp& rhs ) {
 	return vk::BlendOp( rhs );
 }
 
-static vk::BlendFactor le_blend_factor_to_vk( const le::BlendFactor &rhs ) {
+static vk::BlendFactor le_blend_factor_to_vk( const le::BlendFactor& rhs ) {
 	return vk::BlendFactor( rhs );
 }
 
@@ -552,46 +552,46 @@ static vk::ColorComponentFlags le_color_component_flags_to_vk( LeColorComponentF
 	return vk::ColorComponentFlags( rhs );
 }
 
-static void blend_attachment_state_set_blend_enable( le_graphics_pipeline_builder_o *self, size_t which_attachment, bool blendEnable ) {
+static void blend_attachment_state_set_blend_enable( le_graphics_pipeline_builder_o* self, size_t which_attachment, bool blendEnable ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
 	    .setBlendEnable( blendEnable );
 }
 
-static void blend_attachment_state_set_color_blend_op( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendOp &blendOp ) {
+static void blend_attachment_state_set_color_blend_op( le_graphics_pipeline_builder_o* self, size_t which_attachment, const le::BlendOp& blendOp ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
 	    .setColorBlendOp( le_blend_op_to_vk( blendOp ) );
 }
 
-static void blend_attachment_state_set_alpha_blend_op( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendOp &blendOp ) {
+static void blend_attachment_state_set_alpha_blend_op( le_graphics_pipeline_builder_o* self, size_t which_attachment, const le::BlendOp& blendOp ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
 	    .setAlphaBlendOp( le_blend_op_to_vk( blendOp ) );
 }
 
-static void blend_attachment_state_set_src_color_blend_factor( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor ) {
+static void blend_attachment_state_set_src_color_blend_factor( le_graphics_pipeline_builder_o* self, size_t which_attachment, const le::BlendFactor& blendFactor ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
 	    .setSrcColorBlendFactor( le_blend_factor_to_vk( blendFactor ) );
 }
-static void blend_attachment_state_set_dst_color_blend_factor( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor ) {
+static void blend_attachment_state_set_dst_color_blend_factor( le_graphics_pipeline_builder_o* self, size_t which_attachment, const le::BlendFactor& blendFactor ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
 	    .setDstColorBlendFactor( le_blend_factor_to_vk( blendFactor ) );
 }
 
-static void blend_attachment_state_set_src_alpha_blend_factor( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor ) {
+static void blend_attachment_state_set_src_alpha_blend_factor( le_graphics_pipeline_builder_o* self, size_t which_attachment, const le::BlendFactor& blendFactor ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
 	    .setSrcAlphaBlendFactor( le_blend_factor_to_vk( blendFactor ) );
 }
 
-static void blend_attachment_state_set_dst_alpha_blend_factor( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::BlendFactor &blendFactor ) {
+static void blend_attachment_state_set_dst_alpha_blend_factor( le_graphics_pipeline_builder_o* self, size_t which_attachment, const le::BlendFactor& blendFactor ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
 	    .setDstAlphaBlendFactor( le_blend_factor_to_vk( blendFactor ) );
 }
 
-static void blend_attachment_state_set_color_write_mask( le_graphics_pipeline_builder_o *self, size_t which_attachment, const LeColorComponentFlags &write_mask ) {
+static void blend_attachment_state_set_color_write_mask( le_graphics_pipeline_builder_o* self, size_t which_attachment, const LeColorComponentFlags& write_mask ) {
 	self->obj->data.blendAttachmentStates[ which_attachment ]
 	    .setColorWriteMask( le_color_component_flags_to_vk( write_mask ) );
 }
 
-static void blend_attachment_state_use_preset( le_graphics_pipeline_builder_o *self, size_t which_attachment, const le::AttachmentBlendPreset &preset ) {
+static void blend_attachment_state_use_preset( le_graphics_pipeline_builder_o* self, size_t which_attachment, const le::AttachmentBlendPreset& preset ) {
 
 	switch ( preset ) {
 
@@ -657,148 +657,148 @@ static void blend_attachment_state_use_preset( le_graphics_pipeline_builder_o *s
 
 // ----------------------------------------------------------------------
 
-static inline vk::PolygonMode le_polygon_mode_to_vk( le::PolygonMode const &mode ) {
+static inline vk::PolygonMode le_polygon_mode_to_vk( le::PolygonMode const& mode ) {
 	return vk::PolygonMode( mode );
 }
 
-static inline vk::CullModeFlagBits le_cull_mode_to_vk( le::CullModeFlagBits const &cull_mode ) {
+static inline vk::CullModeFlagBits le_cull_mode_to_vk( le::CullModeFlagBits const& cull_mode ) {
 	return vk::CullModeFlagBits( cull_mode );
 }
 
-static inline vk::FrontFace le_front_face_to_vk( le::FrontFace const &front_face ) {
+static inline vk::FrontFace le_front_face_to_vk( le::FrontFace const& front_face ) {
 	return vk::FrontFace( front_face );
 }
 
-static void tessellation_state_set_patch_control_points( le_graphics_pipeline_builder_o *self, uint32_t count ) {
+static void tessellation_state_set_patch_control_points( le_graphics_pipeline_builder_o* self, uint32_t count ) {
 	self->obj->data.tessellationState.setPatchControlPoints( count );
 }
 
-static void rasterization_state_set_depth_clamp_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+static void rasterization_state_set_depth_clamp_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
 	self->obj->data.rasterizationInfo.setDepthClampEnable( enable );
 }
-static void rasterization_state_set_rasterizer_discard_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+static void rasterization_state_set_rasterizer_discard_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
 	self->obj->data.rasterizationInfo.setRasterizerDiscardEnable( enable );
 }
-static void rasterization_state_set_polygon_mode( le_graphics_pipeline_builder_o *self, le::PolygonMode const &polygon_mode ) {
+static void rasterization_state_set_polygon_mode( le_graphics_pipeline_builder_o* self, le::PolygonMode const& polygon_mode ) {
 	self->obj->data.rasterizationInfo.setPolygonMode( le_polygon_mode_to_vk( polygon_mode ) );
 }
-static void rasterization_state_set_cull_mode( le_graphics_pipeline_builder_o *self, le::CullModeFlagBits const &cull_mode_flag_bits ) {
+static void rasterization_state_set_cull_mode( le_graphics_pipeline_builder_o* self, le::CullModeFlagBits const& cull_mode_flag_bits ) {
 	self->obj->data.rasterizationInfo.setCullMode( le_cull_mode_to_vk( cull_mode_flag_bits ) );
 }
-static void rasterization_state_set_front_face( le_graphics_pipeline_builder_o *self, le::FrontFace const &front_face ) {
+static void rasterization_state_set_front_face( le_graphics_pipeline_builder_o* self, le::FrontFace const& front_face ) {
 	self->obj->data.rasterizationInfo.setFrontFace( le_front_face_to_vk( front_face ) );
 }
-static void rasterization_state_set_depth_bias_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+static void rasterization_state_set_depth_bias_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
 	self->obj->data.rasterizationInfo.setDepthBiasEnable( enable );
 }
-static void rasterization_state_set_depth_bias_constant_factor( le_graphics_pipeline_builder_o *self, float const &factor ) {
+static void rasterization_state_set_depth_bias_constant_factor( le_graphics_pipeline_builder_o* self, float const& factor ) {
 	self->obj->data.rasterizationInfo.setDepthBiasConstantFactor( factor );
 }
-static void rasterization_state_set_depth_bias_clamp( le_graphics_pipeline_builder_o *self, float const &clamp ) {
+static void rasterization_state_set_depth_bias_clamp( le_graphics_pipeline_builder_o* self, float const& clamp ) {
 	self->obj->data.rasterizationInfo.setDepthBiasClamp( clamp );
 }
-static void rasterization_state_set_depth_bias_slope_factor( le_graphics_pipeline_builder_o *self, float const &factor ) {
+static void rasterization_state_set_depth_bias_slope_factor( le_graphics_pipeline_builder_o* self, float const& factor ) {
 	self->obj->data.rasterizationInfo.setDepthBiasSlopeFactor( factor );
 }
-static void rasterization_state_set_line_width( le_graphics_pipeline_builder_o *self, float const &line_width ) {
+static void rasterization_state_set_line_width( le_graphics_pipeline_builder_o* self, float const& line_width ) {
 	self->obj->data.rasterizationInfo.setLineWidth( line_width );
 }
 
 // ----------------------------------------------------------------------
-static inline vk::SampleCountFlagBits le_sample_count_flags_to_vk( le::SampleCountFlagBits const &rhs ) {
+static inline vk::SampleCountFlagBits le_sample_count_flags_to_vk( le::SampleCountFlagBits const& rhs ) {
 	return vk::SampleCountFlagBits( rhs );
 }
 
-static void multisample_state_set_rasterization_samples( le_graphics_pipeline_builder_o *self, le::SampleCountFlagBits const &num_samples ) {
+static void multisample_state_set_rasterization_samples( le_graphics_pipeline_builder_o* self, le::SampleCountFlagBits const& num_samples ) {
 	self->obj->data.multisampleState.setRasterizationSamples( le_sample_count_flags_to_vk( num_samples ) );
 }
 
-static void multisample_state_set_sample_shading_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+static void multisample_state_set_sample_shading_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
 	self->obj->data.multisampleState.setSampleShadingEnable( enable );
 }
-static void multisample_state_set_min_sample_shading( le_graphics_pipeline_builder_o *self, float const &min_sample_shading ) {
+static void multisample_state_set_min_sample_shading( le_graphics_pipeline_builder_o* self, float const& min_sample_shading ) {
 	self->obj->data.multisampleState.setMinSampleShading( min_sample_shading );
 }
-static void multisample_state_set_alpha_to_coverage_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+static void multisample_state_set_alpha_to_coverage_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
 	self->obj->data.multisampleState.setAlphaToCoverageEnable( enable );
 }
-static void multisample_state_set_alpha_to_one_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+static void multisample_state_set_alpha_to_one_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
 	self->obj->data.multisampleState.setAlphaToOneEnable( enable );
 }
 
 // ----------------------------------------------------------------------
 
-static inline vk::StencilOp le_stencil_op_state_to_vk( le::StencilOp const &rhs ) {
+static inline vk::StencilOp le_stencil_op_state_to_vk( le::StencilOp const& rhs ) {
 	return vk::StencilOp( rhs );
 }
 
-static inline vk::CompareOp le_compare_op_to_vk( le::CompareOp const &rhs ) {
+static inline vk::CompareOp le_compare_op_to_vk( le::CompareOp const& rhs ) {
 	return vk::CompareOp( rhs );
 }
 
-static void stencil_op_state_front_set_fail_op( le_graphics_pipeline_builder_o *self, le::StencilOp const &op ) {
+static void stencil_op_state_front_set_fail_op( le_graphics_pipeline_builder_o* self, le::StencilOp const& op ) {
 	self->obj->data.depthStencilState.front.setFailOp( le_stencil_op_state_to_vk( op ) );
 }
-static void stencil_op_state_front_set_pass_op( le_graphics_pipeline_builder_o *self, le::StencilOp const &op ) {
+static void stencil_op_state_front_set_pass_op( le_graphics_pipeline_builder_o* self, le::StencilOp const& op ) {
 	self->obj->data.depthStencilState.front.setPassOp( le_stencil_op_state_to_vk( op ) );
 }
-static void stencil_op_state_front_set_depth_fail_op( le_graphics_pipeline_builder_o *self, le::StencilOp const &op ) {
+static void stencil_op_state_front_set_depth_fail_op( le_graphics_pipeline_builder_o* self, le::StencilOp const& op ) {
 	self->obj->data.depthStencilState.front.setDepthFailOp( le_stencil_op_state_to_vk( op ) );
 }
-static void stencil_op_state_front_set_compare_op( le_graphics_pipeline_builder_o *self, le::CompareOp const &op ) {
+static void stencil_op_state_front_set_compare_op( le_graphics_pipeline_builder_o* self, le::CompareOp const& op ) {
 	self->obj->data.depthStencilState.front.setCompareOp( le_compare_op_to_vk( op ) );
 }
-static void stencil_op_state_front_set_compare_mask( le_graphics_pipeline_builder_o *self, uint32_t const &mask ) {
+static void stencil_op_state_front_set_compare_mask( le_graphics_pipeline_builder_o* self, uint32_t const& mask ) {
 	self->obj->data.depthStencilState.front.setCompareMask( mask );
 }
-static void stencil_op_state_front_set_write_mask( le_graphics_pipeline_builder_o *self, uint32_t const &mask ) {
+static void stencil_op_state_front_set_write_mask( le_graphics_pipeline_builder_o* self, uint32_t const& mask ) {
 	self->obj->data.depthStencilState.front.setWriteMask( mask );
 }
-static void stencil_op_state_front_set_reference( le_graphics_pipeline_builder_o *self, uint32_t const &reference ) {
+static void stencil_op_state_front_set_reference( le_graphics_pipeline_builder_o* self, uint32_t const& reference ) {
 	self->obj->data.depthStencilState.front.setReference( reference );
 }
 
-static void stencil_op_state_back_set_fail_op( le_graphics_pipeline_builder_o *self, le::StencilOp const &op ) {
+static void stencil_op_state_back_set_fail_op( le_graphics_pipeline_builder_o* self, le::StencilOp const& op ) {
 	self->obj->data.depthStencilState.back.setFailOp( le_stencil_op_state_to_vk( op ) );
 }
-static void stencil_op_state_back_set_pass_op( le_graphics_pipeline_builder_o *self, le::StencilOp const &op ) {
+static void stencil_op_state_back_set_pass_op( le_graphics_pipeline_builder_o* self, le::StencilOp const& op ) {
 	self->obj->data.depthStencilState.back.setPassOp( le_stencil_op_state_to_vk( op ) );
 }
-static void stencil_op_state_back_set_depth_fail_op( le_graphics_pipeline_builder_o *self, le::StencilOp const &op ) {
+static void stencil_op_state_back_set_depth_fail_op( le_graphics_pipeline_builder_o* self, le::StencilOp const& op ) {
 	self->obj->data.depthStencilState.back.setDepthFailOp( le_stencil_op_state_to_vk( op ) );
 }
-static void stencil_op_state_back_set_compare_op( le_graphics_pipeline_builder_o *self, le::CompareOp const &op ) {
+static void stencil_op_state_back_set_compare_op( le_graphics_pipeline_builder_o* self, le::CompareOp const& op ) {
 	self->obj->data.depthStencilState.back.setCompareOp( le_compare_op_to_vk( op ) );
 }
-static void stencil_op_state_back_set_compare_mask( le_graphics_pipeline_builder_o *self, uint32_t const &mask ) {
+static void stencil_op_state_back_set_compare_mask( le_graphics_pipeline_builder_o* self, uint32_t const& mask ) {
 	self->obj->data.depthStencilState.back.setCompareMask( mask );
 }
-static void stencil_op_state_back_set_write_mask( le_graphics_pipeline_builder_o *self, uint32_t const &mask ) {
+static void stencil_op_state_back_set_write_mask( le_graphics_pipeline_builder_o* self, uint32_t const& mask ) {
 	self->obj->data.depthStencilState.back.setWriteMask( mask );
 }
-static void stencil_op_state_back_set_reference( le_graphics_pipeline_builder_o *self, uint32_t const &reference ) {
+static void stencil_op_state_back_set_reference( le_graphics_pipeline_builder_o* self, uint32_t const& reference ) {
 	self->obj->data.depthStencilState.back.setReference( reference );
 }
 
-static void depth_stencil_state_set_depth_test_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+static void depth_stencil_state_set_depth_test_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
 	self->obj->data.depthStencilState.setDepthTestEnable( enable );
 }
-static void depth_stencil_state_set_depth_write_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+static void depth_stencil_state_set_depth_write_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
 	self->obj->data.depthStencilState.setDepthWriteEnable( enable );
 }
-static void depth_stencil_state_set_depth_compare_op( le_graphics_pipeline_builder_o *self, le::CompareOp const &compare_op ) {
+static void depth_stencil_state_set_depth_compare_op( le_graphics_pipeline_builder_o* self, le::CompareOp const& compare_op ) {
 	self->obj->data.depthStencilState.setDepthCompareOp( le_compare_op_to_vk( compare_op ) );
 }
-static void depth_stencil_state_set_depth_bounds_test_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+static void depth_stencil_state_set_depth_bounds_test_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
 	self->obj->data.depthStencilState.setDepthBoundsTestEnable( enable );
 }
-static void depth_stencil_state_set_stencil_test_enable( le_graphics_pipeline_builder_o *self, bool const &enable ) {
+static void depth_stencil_state_set_stencil_test_enable( le_graphics_pipeline_builder_o* self, bool const& enable ) {
 	self->obj->data.depthStencilState.setStencilTestEnable( enable );
 }
-static void depth_stencil_state_set_min_depth_bounds( le_graphics_pipeline_builder_o *self, float const &min_bounds ) {
+static void depth_stencil_state_set_min_depth_bounds( le_graphics_pipeline_builder_o* self, float const& min_bounds ) {
 	self->obj->data.depthStencilState.setMinDepthBounds( min_bounds );
 }
-static void depth_stencil_state_set_max_depth_bounds( le_graphics_pipeline_builder_o *self, float const &max_bounds ) {
+static void depth_stencil_state_set_max_depth_bounds( le_graphics_pipeline_builder_o* self, float const& max_bounds ) {
 	self->obj->data.depthStencilState.setMaxDepthBounds( max_bounds );
 }
 
@@ -808,7 +808,7 @@ LE_MODULE_REGISTER_IMPL( le_pipeline_builder, api ) {
 
 	{
 		// setup graphics pipeline builder api
-		auto &i = static_cast<le_pipeline_builder_api *>( api )->le_graphics_pipeline_builder_i;
+		auto& i = static_cast<le_pipeline_builder_api*>( api )->le_graphics_pipeline_builder_i;
 
 		i.create                                  = le_graphics_pipeline_builder_create;
 		i.destroy                                 = le_graphics_pipeline_builder_destroy;
@@ -887,7 +887,7 @@ LE_MODULE_REGISTER_IMPL( le_pipeline_builder, api ) {
 
 	{
 		// setup compute pipleine builder api
-		auto &i            = static_cast<le_pipeline_builder_api *>( api )->le_compute_pipeline_builder_i;
+		auto& i            = static_cast<le_pipeline_builder_api*>( api )->le_compute_pipeline_builder_i;
 		i.create           = le_compute_pipeline_builder_create;
 		i.destroy          = le_compute_pipeline_builder_destroy;
 		i.build            = le_compute_pipeline_builder_build;
@@ -896,7 +896,7 @@ LE_MODULE_REGISTER_IMPL( le_pipeline_builder, api ) {
 
 	{
 		// setup rtx pipleine builder api
-		auto &i                           = static_cast<le_pipeline_builder_api *>( api )->le_rtx_pipeline_builder_i;
+		auto& i                           = static_cast<le_pipeline_builder_api*>( api )->le_rtx_pipeline_builder_i;
 		i.create                          = le_rtx_pipeline_builder_create;
 		i.destroy                         = le_rtx_pipeline_builder_destroy;
 		i.build                           = le_rtx_pipeline_builder_build;
@@ -909,7 +909,7 @@ LE_MODULE_REGISTER_IMPL( le_pipeline_builder, api ) {
 
 	{
 		// setup shader module builder api
-		auto &i                       = static_cast<le_pipeline_builder_api *>( api )->le_shader_module_builder_i;
+		auto& i                       = static_cast<le_pipeline_builder_api*>( api )->le_shader_module_builder_i;
 		i.create                      = le_shader_module_builder_create;
 		i.destroy                     = le_shader_module_builder_destroy;
 		i.set_source_file_path        = le_shader_module_builder_set_source_file_path;

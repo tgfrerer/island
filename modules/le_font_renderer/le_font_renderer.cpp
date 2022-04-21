@@ -15,7 +15,7 @@
 #include "glm/vec4.hpp"
 
 struct font_info_t {
-	le_font_o *            font; // non-owning
+	le_font_o*             font; // non-owning
 	le_img_resource_handle font_image;
 	le_resource_info_t     font_atlas_info;
 	le_texture_handle      font_image_sampler;
@@ -34,7 +34,7 @@ using draw_string_info_t = le_font_renderer_api::draw_string_info_t;
 
 // ----------------------------------------------------------------------
 
-le_font_renderer_o *le_font_renderer_create( le_renderer_o *renderer ) {
+le_font_renderer_o* le_font_renderer_create( le_renderer_o* renderer ) {
 	auto self = new le_font_renderer_o();
 
 	using namespace le_renderer;
@@ -48,12 +48,12 @@ le_font_renderer_o *le_font_renderer_create( le_renderer_o *renderer ) {
 
 // ----------------------------------------------------------------------
 
-void le_font_renderer_destroy( le_font_renderer_o *self ) {
+void le_font_renderer_destroy( le_font_renderer_o* self ) {
 	delete self;
 }
 
 // ----------------------------------------------------------------------
-void le_font_renderer_add_font( le_font_renderer_o *self, le_font_o *font ) {
+void le_font_renderer_add_font( le_font_renderer_o* self, le_font_o* font ) {
 
 	char img_sampler_name[ 32 ] = "";
 	char img_atlas_name[ 32 ]   = "";
@@ -64,7 +64,7 @@ void le_font_renderer_add_font( le_font_renderer_o *self, le_font_o *font ) {
 	snprintf( img_sampler_name, sizeof( img_sampler_name ), "fr_s_%08zu", number );
 
 	using namespace le_font;
-	uint8_t const *pixels_data;
+	uint8_t const* pixels_data;
 	uint32_t       atlas_width, atlas_height, atlas_stride;
 
 	le_font_i.create_atlas( font );
@@ -90,9 +90,9 @@ void le_font_renderer_add_font( le_font_renderer_o *self, le_font_o *font ) {
 }
 
 // ----------------------------------------------------------------------
-le_texture_handle le_font_renderer_get_font_image_sampler( le_font_renderer_o *self, le_font_o *font ) {
+le_texture_handle le_font_renderer_get_font_image_sampler( le_font_renderer_o* self, le_font_o* font ) {
 
-	for ( auto &f : self->fonts_info ) {
+	for ( auto& f : self->fonts_info ) {
 		if ( f.font == font ) {
 			return f.font_image_sampler;
 		}
@@ -104,9 +104,9 @@ le_texture_handle le_font_renderer_get_font_image_sampler( le_font_renderer_o *s
 }
 
 // ----------------------------------------------------------------------
-le_img_resource_handle le_font_renderer_get_font_image( le_font_renderer_o *self, le_font_o *font ) {
+le_img_resource_handle le_font_renderer_get_font_image( le_font_renderer_o* self, le_font_o* font ) {
 
-	for ( auto &f : self->fonts_info ) {
+	for ( auto& f : self->fonts_info ) {
 		if ( f.font == font ) {
 			return f.font_image;
 		}
@@ -119,29 +119,29 @@ le_img_resource_handle le_font_renderer_get_font_image( le_font_renderer_o *self
 
 // ----------------------------------------------------------------------
 
-bool le_font_renderer_setup_resources( le_font_renderer_o *self, le_render_module_o *module ) {
+bool le_font_renderer_setup_resources( le_font_renderer_o* self, le_render_module_o* module ) {
 
 	auto resource_upload_pass =
 	    le::RenderPass( "uploadImage", LE_RENDER_PASS_TYPE_TRANSFER )
-	        .setSetupCallback( self, []( le_renderpass_o *rp_, void *user_data ) -> bool {
+	        .setSetupCallback( self, []( le_renderpass_o* rp_, void* user_data ) -> bool {
 		        le::RenderPass rp{ rp_ };
 
-		        auto self         = static_cast<le_font_renderer_o *>( user_data );
+		        auto self         = static_cast<le_font_renderer_o*>( user_data );
 		        bool needs_upload = false; // If any atlasses need upload this must flip to true.
 
-		        for ( auto &fnt : self->fonts_info ) {
+		        for ( auto& fnt : self->fonts_info ) {
 			        rp.useImageResource( fnt.font_image, { LE_IMAGE_USAGE_TRANSFER_DST_BIT } );
 			        needs_upload |= !fnt.atlas_uploaded;
 		        }
 
 		        return needs_upload;
 	        } )
-	        .setExecuteCallback( self, []( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-		        auto self = static_cast<le_font_renderer_o *>( user_data );
+	        .setExecuteCallback( self, []( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+		        auto self = static_cast<le_font_renderer_o*>( user_data );
 
 		        le::Encoder encoder{ encoder_ };
 
-		        for ( auto &fnt : self->fonts_info ) {
+		        for ( auto& fnt : self->fonts_info ) {
 
 			        if ( fnt.atlas_uploaded ) {
 				        continue;
@@ -151,7 +151,7 @@ bool le_font_renderer_setup_resources( le_font_renderer_o *self, le_render_modul
 
 			        using namespace le_font;
 
-			        uint8_t const *pixels_data;
+			        uint8_t const* pixels_data;
 			        uint32_t       pix_stride;
 			        le_font_i.get_atlas( fnt.font, &pixels_data, &write_settings.image_w, &write_settings.image_h, &pix_stride );
 
@@ -167,7 +167,7 @@ bool le_font_renderer_setup_resources( le_font_renderer_o *self, le_render_modul
 	render_module_i.add_renderpass( module, resource_upload_pass );
 
 	// -- make resource names visible to rendergraph
-	for ( auto &fnt : self->fonts_info ) {
+	for ( auto& fnt : self->fonts_info ) {
 		render_module_i.declare_resource( module, fnt.font_image, fnt.font_atlas_info );
 	}
 
@@ -176,16 +176,16 @@ bool le_font_renderer_setup_resources( le_font_renderer_o *self, le_render_modul
 
 // ----------------------------------------------------------------------
 
-bool le_font_renderer_use_fonts( le_font_renderer_o *self, le_font_o **fonts, size_t num_fonts, le_renderpass_o *pass ) {
+bool le_font_renderer_use_fonts( le_font_renderer_o* self, le_font_o** fonts, size_t num_fonts, le_renderpass_o* pass ) {
 
 	for ( size_t i = 0; i != num_fonts; ++i ) {
 
-		le_font_o const *f          = fonts[ i ];
-		font_info_t *    found_info = nullptr;
+		le_font_o const* f          = fonts[ i ];
+		font_info_t*     found_info = nullptr;
 
 		// -- Find info entry for this font
 
-		for ( auto &info : self->fonts_info ) {
+		for ( auto& info : self->fonts_info ) {
 			if ( info.font == f ) {
 				found_info = &info;
 				break;
@@ -215,7 +215,7 @@ bool le_font_renderer_use_fonts( le_font_renderer_o *self, le_font_o **fonts, si
 
 // ----------------------------------------------------------------------
 
-bool le_font_renderer_draw_string( le_font_renderer_o *self, le_font_o *font, le_command_buffer_encoder_o *encoder_, draw_string_info_t &info ) {
+bool le_font_renderer_draw_string( le_font_renderer_o* self, le_font_o* font, le_command_buffer_encoder_o* encoder_, draw_string_info_t& info ) {
 
 	le::Encoder encoder{ encoder_ };
 
@@ -256,7 +256,7 @@ bool le_font_renderer_draw_string( le_font_renderer_o *self, le_font_o *font, le
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_font_renderer, api ) {
-	auto &i = static_cast<le_font_renderer_api *>( api )->le_font_renderer_i;
+	auto& i = static_cast<le_font_renderer_api*>( api )->le_font_renderer_i;
 
 	i.create  = le_font_renderer_create;
 	i.destroy = le_font_renderer_destroy;

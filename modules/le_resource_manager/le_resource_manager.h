@@ -41,12 +41,12 @@ keeps track of uploaded images.
 
 Call update with the rendermodule you want to use the resources with.
 
-* * * 
-    
+* * *
+
 If you want to upload multiple layers for images - for cubemap images for example -
 you can specify multiple paths. NOTE you must specify the number of image array layers
 when you specify the image info for the resource
-    
+
     // In app.setup():
 
         auto cube_image = LE_IMG_RESOURCE( "cube_image" );
@@ -57,7 +57,7 @@ when you specify the image info for the resource
                 .setCreateFlags( LE_IMAGE_CREATE_CUBE_COMPATIBLE_BIT )
                 .setArrayLayers( 6 )
                 .build();
-    
+
         char const *paths[] = {
             "./local_resources/cubemap/0.png",
             "./local_resources/cubemap/1.png",
@@ -66,7 +66,7 @@ when you specify the image info for the resource
             "./local_resources/cubemap/4.png",
             "./local_resources/cubemap/5.png",
         };
-        
+
         app->resource_manager.add_item( cube_image, image_info, paths );
 
 */
@@ -101,13 +101,13 @@ LE_MODULE_LOAD_DEFAULT( le_resource_manager );
 #ifdef __cplusplus
 
 namespace le_resource_manager {
-static const auto &api                   = le_resource_manager_api_i;
-static const auto &le_resource_manager_i = api -> le_resource_manager_i;
+static const auto& api                   = le_resource_manager_api_i;
+static const auto& le_resource_manager_i = api -> le_resource_manager_i;
 } // namespace le_resource_manager
 
 class LeResourceManager : NoCopy, NoMove {
 
-	le_resource_manager_o *self;
+	le_resource_manager_o* self;
 
   public:
 	LeResourceManager()
@@ -118,11 +118,11 @@ class LeResourceManager : NoCopy, NoMove {
 		le_resource_manager::le_resource_manager_i.destroy( self );
 	}
 
-	void update( le_render_module_o *module ) {
+	void update( le_render_module_o* module ) {
 		le_resource_manager::le_resource_manager_i.update( self, module );
 	}
 
-	void add_item( le_img_resource_handle const &image_handle, le_resource_info_t const &image_info, char const *const *arr_image_paths ) {
+	void add_item( le_img_resource_handle const& image_handle, le_resource_info_t const& image_info, char const* const* arr_image_paths ) {
 		le_resource_manager::le_resource_manager_i.add_item( self, &image_handle, &image_info, arr_image_paths );
 	}
 

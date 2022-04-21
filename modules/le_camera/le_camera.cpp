@@ -46,7 +46,7 @@ struct le_camera_controller_o {
 	float pivotDistance    = 0;     // if we set pivotdistance to 0 this means that the camera rotates around its own axes, other values make the camera rotate around a pivot point
 	bool  pivotDistanceSet = false; // if not set, will initialsise by distance (camera -> world origin) on first update
 
-	//float movement_speed = 1000; //
+	// float movement_speed = 1000; //
 
 	enum Mode {
 		eNeutral = 0,
@@ -65,11 +65,11 @@ struct le_camera_controller_o {
 
 // ----------------------------------------------------------------------
 
-static void camera_get_projection_matrix( le_camera_o *self, float p_matrix[ 16 ] );
+static void camera_get_projection_matrix( le_camera_o* self, float p_matrix[ 16 ] );
 
 // ----------------------------------------------------------------------
 
-static void update_frustum_planes( le_camera_o *self ) {
+static void update_frustum_planes( le_camera_o* self ) {
 
 	if ( false == self->frustumPlanesDirty ) {
 		return;
@@ -117,7 +117,7 @@ static void update_frustum_planes( le_camera_o *self ) {
 // Calculates whether a sphere (given centre in camera space, and radius) is contained
 // within the frustum. The calculation is conservative, meaning a sphere intersecting the
 // frustum partially will pass the test.
-static bool camera_get_sphere_in_frustum( le_camera_o *self, float const *pSphereCentreInCameraSpaceFloat3, float sphereRadius_ ) {
+static bool camera_get_sphere_in_frustum( le_camera_o* self, float const* pSphereCentreInCameraSpaceFloat3, float sphereRadius_ ) {
 	bool inFrustum = true;
 
 	update_frustum_planes( self );
@@ -139,52 +139,52 @@ static bool camera_get_sphere_in_frustum( le_camera_o *self, float const *pSpher
 
 // ----------------------------------------------------------------------
 
-static void camera_get_view_matrix( le_camera_o *self, float *p_matrix ) {
+static void camera_get_view_matrix( le_camera_o* self, float* p_matrix ) {
 	memcpy( p_matrix, &self->view_matrix, sizeof( float ) * 16 );
 }
 
 // ----------------------------------------------------------------------
 
-static glm::mat4 const &camera_get_view_matrix_glm( le_camera_o *self ) {
+static glm::mat4 const& camera_get_view_matrix_glm( le_camera_o* self ) {
 	return self->view_matrix;
 }
 
 // ----------------------------------------------------------------------
 
-static void camera_set_view_matrix( le_camera_o *self, float const *viewMatrix ) {
-	self->view_matrix = *reinterpret_cast<glm::mat4 const *>( viewMatrix );
+static void camera_set_view_matrix( le_camera_o* self, float const* viewMatrix ) {
+	self->view_matrix = *reinterpret_cast<glm::mat4 const*>( viewMatrix );
 }
 
 // ----------------------------------------------------------------------
 
-static void camera_set_view_matrix_glm( le_camera_o *self, glm::mat4 const &viewMatrix ) {
+static void camera_set_view_matrix_glm( le_camera_o* self, glm::mat4 const& viewMatrix ) {
 	self->view_matrix = viewMatrix;
 }
 
 // ----------------------------------------------------------------------
 
-static void camera_get_clip_distances( le_camera_o *self, float *nearClip, float *farClip ) {
+static void camera_get_clip_distances( le_camera_o* self, float* nearClip, float* farClip ) {
 	*nearClip = self->nearClip;
 	*farClip  = self->farClip;
 }
 
 // ----------------------------------------------------------------------
 
-static void camera_set_clip_distances( le_camera_o *self, float nearClip, float farClip ) {
+static void camera_set_clip_distances( le_camera_o* self, float nearClip, float farClip ) {
 	self->nearClip              = nearClip;
 	self->farClip               = farClip;
 	self->projectionMatrixDirty = true;
 	self->frustumPlanesDirty    = true;
 }
 
-static void camera_set_is_orthographic( le_camera_o *self, bool is_orthographic ) {
+static void camera_set_is_orthographic( le_camera_o* self, bool is_orthographic ) {
 	self->isOrthographic        = is_orthographic;
 	self->projectionMatrixDirty = true;
 	self->frustumPlanesDirty    = true;
 }
 // ----------------------------------------------------------------------
 
-static glm::mat4 const &camera_get_projection_matrix_glm( le_camera_o *self ) {
+static glm::mat4 const& camera_get_projection_matrix_glm( le_camera_o* self ) {
 	if ( self->projectionMatrixDirty ) {
 		// cache projection matrix calculation
 		if ( self->isOrthographic ) {
@@ -205,40 +205,40 @@ static glm::mat4 const &camera_get_projection_matrix_glm( le_camera_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void camera_get_projection_matrix( le_camera_o *self, float *p_matrix ) {
+static void camera_get_projection_matrix( le_camera_o* self, float* p_matrix ) {
 	camera_get_projection_matrix_glm( self );
 	memcpy( p_matrix, &self->projection_matrix, sizeof( float ) * 16 );
 }
 
 // ----------------------------------------------------------------------
 
-static float camera_get_unit_distance( le_camera_o *self ) {
+static float camera_get_unit_distance( le_camera_o* self ) {
 	return fabsf( self->viewport.height ) / ( 2.f * tanf( self->fovRadians * 0.5f ) );
 }
 
 // ----------------------------------------------------------------------
 
 /// rect is defined as x,y,w,h
-static bool is_inside_rect( const glm::vec2 &pt, std::array<float, 4> const &rect ) noexcept {
+static bool is_inside_rect( const glm::vec2& pt, std::array<float, 4> const& rect ) noexcept {
 	return ( pt.x >= rect[ 0 ] && pt.x <= ( rect[ 0 ] + rect[ 2 ] ) && pt.y >= rect[ 1 ] && pt.y <= ( rect[ 1 ] + rect[ 3 ] ) );
 }
 
 // ----------------------------------------------------------------------
 
-static void camera_set_viewport( le_camera_o *self, le::Viewport const &viewport ) {
+static void camera_set_viewport( le_camera_o* self, le::Viewport const& viewport ) {
 	self->viewport              = viewport;
 	self->projectionMatrixDirty = true;
 }
 
 // ----------------------------------------------------------------------
 
-static le::Viewport const &camera_get_viewport( le_camera_o *self ) {
+static le::Viewport const& camera_get_viewport( le_camera_o* self ) {
 	return self->viewport;
 }
 
 // ----------------------------------------------------------------------
 
-static void camera_set_fov_radians( le_camera_o *self, float fov_radians ) {
+static void camera_set_fov_radians( le_camera_o* self, float fov_radians ) {
 	if ( fabsf( fov_radians - self->fovRadians ) > std::numeric_limits<float>().epsilon() ) {
 		self->projectionMatrixDirty = true;
 		self->frustumPlanesDirty    = true;
@@ -248,13 +248,13 @@ static void camera_set_fov_radians( le_camera_o *self, float fov_radians ) {
 
 // ----------------------------------------------------------------------
 
-static float camera_get_fov_radians( le_camera_o *self ) {
+static float camera_get_fov_radians( le_camera_o* self ) {
 	return self->fovRadians;
 }
 
 // ----------------------------------------------------------------------
 
-static void camera_controller_set_contol_rect( le_camera_controller_o *self, float x, float y, float w, float h ) {
+static void camera_controller_set_contol_rect( le_camera_controller_o* self, float x, float y, float w, float h ) {
 	self->controlRect = { x, y, w, h };
 }
 
@@ -262,7 +262,7 @@ static void camera_controller_set_contol_rect( le_camera_controller_o *self, flo
 
 // Orbits a camera around xy axis
 // based on signed normalised xy
-void camera_orbit_xy( le_camera_o *camera, glm::mat4 const &world_to_cam_start, glm::vec3 const &signedAnglesRad, float pivotDistance ) {
+void camera_orbit_xy( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedAnglesRad, float pivotDistance ) {
 	// process normal logic for cursor position
 
 	// build a quaternion based on rotation around x, rotation around y
@@ -280,7 +280,7 @@ void camera_orbit_xy( le_camera_o *camera, glm::mat4 const &world_to_cam_start, 
 
 // ----------------------------------------------------------------------
 
-void camera_orbit_z( le_camera_o *camera, glm::mat4 const &world_to_cam_start, glm::vec3 const &cameraAngleRad, float pivotDistance ) {
+void camera_orbit_z( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& cameraAngleRad, float pivotDistance ) {
 	// first we must transform into the pivot point
 	// the pivot point is a point which is at normdistance from the camera in negative z
 
@@ -293,7 +293,7 @@ void camera_orbit_z( le_camera_o *camera, glm::mat4 const &world_to_cam_start, g
 
 // ----------------------------------------------------------------------
 
-void camera_translate_xy( le_camera_o *camera, glm::mat4 const &world_to_cam_start, glm::vec3 const &signedNorm, float movement_speed, float pivotDistance ) {
+void camera_translate_xy( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
 
 	float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
 	movement_speed *= distance_to_origin;
@@ -307,7 +307,7 @@ void camera_translate_xy( le_camera_o *camera, glm::mat4 const &world_to_cam_sta
 
 // ----------------------------------------------------------------------
 
-void camera_translate_z( le_camera_o *camera, glm::mat4 const &world_to_cam_start, glm::vec3 const &signedNorm, float movement_speed, float pivotDistance ) {
+void camera_translate_z( le_camera_o* camera, glm::mat4 const& world_to_cam_start, glm::vec3 const& signedNorm, float movement_speed, float pivotDistance ) {
 
 	float distance_to_origin = glm::distance( glm::vec4{ 0, 0, 0, 1 }, world_to_cam_start * glm::vec4( 0, 0, 0, 1 ) );
 	movement_speed *= distance_to_origin;
@@ -320,7 +320,7 @@ void camera_translate_z( le_camera_o *camera, glm::mat4 const &world_to_cam_star
 
 // ----------------------------------------------------------------------
 
-static void camera_controller_update_camera( le_camera_controller_o *controller, le_camera_o *camera, const std::vector<LeUiEvent const *> &events ) {
+static void camera_controller_update_camera( le_camera_controller_o* controller, le_camera_o* camera, const std::vector<LeUiEvent const*>& events ) {
 
 	// Centre point of the mouse control rectangle
 	glm::vec2 controlRectCentre{ 0.5f * ( controller->controlRect[ 0 ] + controller->controlRect[ 2 ] ),
@@ -341,17 +341,17 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 		controller->pivotDistanceSet = true;
 	}
 
-	for ( auto const &event : events ) {
+	for ( auto const& event : events ) {
 
 		// -- accumulate mouse state
 
 		switch ( event->event ) {
 		case ( LeUiEvent::Type::eCursorPosition ): {
-			auto &e                = event->cursorPosition;
+			auto& e                = event->cursorPosition;
 			mouse_state.cursor_pos = { e.x, e.y };
 		} break;
 		case ( LeUiEvent::Type::eKey ): {
-			auto &e = event->key;
+			auto& e = event->key;
 			if ( e.key == LeUiEvent::NamedKey::eLeftShift ) {
 				if ( e.action == LeUiEvent::ButtonAction::ePress ) {
 					mouse_state.modKeyMask |= le_mouse_event_data_o::ModKeyFlag::MOD_KEY_FLAG_LEFT_SHIFT;
@@ -367,7 +367,7 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 			}
 		} break;
 		case ( LeUiEvent::Type::eMouseButton ): {
-			auto &e = event->mouseButton;
+			auto& e = event->mouseButton;
 			if ( e.action == LeUiEvent::ButtonAction::ePress ) {
 				// set appropriate button flag
 				mouse_state.buttonState |= ( 1 << e.button );
@@ -465,11 +465,11 @@ static void camera_controller_update_camera( le_camera_controller_o *controller,
 
 // ----------------------------------------------------------------------
 
-static void camera_controller_process_events( le_camera_controller_o *controller, le_camera_o *camera, LeUiEvent const *events, size_t numEvents ) {
+static void camera_controller_process_events( le_camera_controller_o* controller, le_camera_o* camera, LeUiEvent const* events, size_t numEvents ) {
 
-	LeUiEvent const *const events_end = events + numEvents;
+	LeUiEvent const* const events_end = events + numEvents;
 
-	std::vector<LeUiEvent const *> filtered_events;
+	std::vector<LeUiEvent const*> filtered_events;
 
 	filtered_events.reserve( numEvents );
 
@@ -484,20 +484,20 @@ static void camera_controller_process_events( le_camera_controller_o *controller
 
 // ----------------------------------------------------------------------
 
-static le_camera_o *le_camera_create() {
+static le_camera_o* le_camera_create() {
 	auto self = new le_camera_o();
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_camera_destroy( le_camera_o *self ) {
+static void le_camera_destroy( le_camera_o* self ) {
 	delete self;
 }
 
 // ----------------------------------------------------------------------
 
-static le_camera_o *le_camera_clone( le_camera_o const *self ) {
+static le_camera_o* le_camera_clone( le_camera_o const* self ) {
 	auto clone = new le_camera_o();
 	*clone     = *self;
 	return clone;
@@ -505,20 +505,20 @@ static le_camera_o *le_camera_clone( le_camera_o const *self ) {
 
 // ----------------------------------------------------------------------
 
-static le_camera_controller_o *camera_controller_create() {
+static le_camera_controller_o* camera_controller_create() {
 	auto self = new le_camera_controller_o();
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-static void camera_controller_destroy( le_camera_controller_o *self ) {
+static void camera_controller_destroy( le_camera_controller_o* self ) {
 	delete self;
 }
 
 // ----------------------------------------------------------------------
 
-static void camera_controller_set_pivot_distance( le_camera_controller_o *self, float pivotDistance ) {
+static void camera_controller_set_pivot_distance( le_camera_controller_o* self, float pivotDistance ) {
 	self->pivotDistanceSet = true;
 	self->pivotDistance    = pivotDistance;
 }
@@ -526,7 +526,7 @@ static void camera_controller_set_pivot_distance( le_camera_controller_o *self, 
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_camera, api ) {
-	auto &le_camera_i = static_cast<le_camera_api *>( api )->le_camera_i;
+	auto& le_camera_i = static_cast<le_camera_api*>( api )->le_camera_i;
 
 	le_camera_i.create                = le_camera_create;
 	le_camera_i.destroy               = le_camera_destroy;
@@ -551,7 +551,7 @@ LE_MODULE_REGISTER_IMPL( le_camera, api ) {
 	le_camera_i.get_projection_matrix_glm = camera_get_projection_matrix_glm;
 #endif
 
-	auto &le_camera_controller_i = static_cast<le_camera_api *>( api )->le_camera_controller_i;
+	auto& le_camera_controller_i = static_cast<le_camera_api*>( api )->le_camera_controller_i;
 
 	le_camera_controller_i.create             = camera_controller_create;
 	le_camera_controller_i.destroy            = camera_controller_destroy;

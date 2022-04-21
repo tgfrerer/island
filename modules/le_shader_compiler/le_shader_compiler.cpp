@@ -42,13 +42,13 @@ struct IncludesList {
 // ---------------------------------------------------------------
 
 struct le_shader_compilation_result_o {
-	shaderc_compilation_result *result = nullptr;
+	shaderc_compilation_result* result = nullptr;
 	IncludesList                includes;
 };
 
 // ---------------------------------------------------------------
 
-static shaderc_shader_kind convert_to_shaderc_shader_kind( const le::ShaderStage &type ) {
+static shaderc_shader_kind convert_to_shaderc_shader_kind( const le::ShaderStage& type ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	shaderc_shader_kind result{};
@@ -107,7 +107,7 @@ static shaderc_shader_kind convert_to_shaderc_shader_kind( const le::ShaderStage
 
 // ---------------------------------------------------------------
 
-static bool le_shader_compilation_result_get_next_includes_path( le_shader_compilation_result_o *self, const char **str, size_t *strSz ) {
+static bool le_shader_compilation_result_get_next_includes_path( le_shader_compilation_result_o* self, const char** str, size_t* strSz ) {
 
 	if ( self->includes.paths_it != self->includes.paths.end() ) {
 
@@ -125,14 +125,14 @@ static bool le_shader_compilation_result_get_next_includes_path( le_shader_compi
 
 // ---------------------------------------------------------------
 
-static le_shader_compilation_result_o *le_shader_compilation_result_create() {
+static le_shader_compilation_result_o* le_shader_compilation_result_create() {
 	auto obj = new le_shader_compilation_result_o{};
 	return obj;
 }
 
 // ---------------------------------------------------------------
 
-static void le_shader_compilation_result_detroy( le_shader_compilation_result_o *self ) {
+static void le_shader_compilation_result_detroy( le_shader_compilation_result_o* self ) {
 	if ( self->result != nullptr ) {
 		shaderc_result_release( self->result );
 	}
@@ -141,7 +141,7 @@ static void le_shader_compilation_result_detroy( le_shader_compilation_result_o 
 
 // ---------------------------------------------------------------
 
-static void le_shader_compilation_result_get_result_bytes( le_shader_compilation_result_o *res, const char **p_spir_v_bytes, size_t *pNumBytes ) {
+static void le_shader_compilation_result_get_result_bytes( le_shader_compilation_result_o* res, const char** p_spir_v_bytes, size_t* pNumBytes ) {
 	assert( res->result );
 
 	*p_spir_v_bytes = shaderc_result_get_bytes( res->result );
@@ -150,14 +150,14 @@ static void le_shader_compilation_result_get_result_bytes( le_shader_compilation
 
 // ---------------------------------------------------------------
 /// \brief returns true if compilation was a success, false otherwise
-static bool le_shader_compilation_result_get_result_success( le_shader_compilation_result_o *res ) {
+static bool le_shader_compilation_result_get_result_success( le_shader_compilation_result_o* res ) {
 	assert( res->result );
 	return shaderc_result_get_compilation_status( res->result ) == shaderc_compilation_status_success;
 }
 
 // ---------------------------------------------------------------
 
-static le_shader_compiler_o *le_shader_compiler_create() {
+static le_shader_compiler_o* le_shader_compiler_create() {
 	auto obj      = new le_shader_compiler_o();
 	obj->compiler = shaderc_compiler_initialize();
 
@@ -173,7 +173,7 @@ static le_shader_compiler_o *le_shader_compiler_create() {
 
 // ---------------------------------------------------------------
 
-static void le_shader_compiler_destroy( le_shader_compiler_o *self ) {
+static void le_shader_compiler_destroy( le_shader_compiler_o* self ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	shaderc_compile_options_release( self->options );
 	shaderc_compiler_release( self->compiler );
@@ -185,7 +185,7 @@ static void le_shader_compiler_destroy( le_shader_compiler_o *self ) {
 /// \brief   file loader utility method
 /// \details loads file given by filepath and returns a vector of chars if successful
 /// \note    returns an empty vector if not successful
-static std::vector<char> load_file( const std::filesystem::path &file_path, bool *success ) {
+static std::vector<char> load_file( const std::filesystem::path& file_path, bool* success ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	std::vector<char> contents;
@@ -224,14 +224,14 @@ static std::vector<char> load_file( const std::filesystem::path &file_path, bool
 
 // ---------------------------------------------------------------
 
-static shaderc_include_result *le_shaderc_include_result_create( void *      user_data,
-                                                                 const char *requested_source,
+static shaderc_include_result* le_shaderc_include_result_create( void*       user_data,
+                                                                 const char* requested_source,
                                                                  int         type,
-                                                                 const char *requesting_source,
+                                                                 const char* requesting_source,
                                                                  size_t      include_depth ) {
 
 	auto self         = new shaderc_include_result();
-	auto includesList = reinterpret_cast<IncludesList *>( user_data );
+	auto includesList = reinterpret_cast<IncludesList*>( user_data );
 
 	std::filesystem::path requested_source_path;
 
@@ -280,10 +280,10 @@ static shaderc_include_result *le_shaderc_include_result_create( void *      use
 
 // ---------------------------------------------------------------
 
-static void le_shaderc_include_result_destroy( void *user_data, shaderc_include_result *self ) {
+static void le_shaderc_include_result_destroy( void* user_data, shaderc_include_result* self ) {
 
 	// --cleanup include result
-	auto fileData = reinterpret_cast<FileData *>( self->user_data );
+	auto fileData = reinterpret_cast<FileData*>( self->user_data );
 	delete fileData;
 
 	delete self;
@@ -291,7 +291,7 @@ static void le_shaderc_include_result_destroy( void *user_data, shaderc_include_
 
 // ---------------------------------------------------------------
 
-static inline bool checkForLineNumberModifier( const std::string &line, uint32_t &lineNumber, std::string &currentFilename, std::string &lastFilename ) {
+static inline bool checkForLineNumberModifier( const std::string& line, uint32_t& lineNumber, std::string& currentFilename, std::string& lastFilename ) {
 
 	if ( line.find( "#line", 0 ) != 0 )
 		return false;
@@ -314,7 +314,7 @@ static inline bool checkForLineNumberModifier( const std::string &line, uint32_t
 
 // ---------------------------------------------------------------
 
-static void le_shader_compiler_print_error_context( const char *errMsg, const std::string &shaderSource, const std::string &sourceFileName ) {
+static void le_shader_compiler_print_error_context( const char* errMsg, const std::string& shaderSource, const std::string& sourceFileName ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	std::string errorFileName;  // Will contain the name of the file which contains the error
@@ -322,17 +322,17 @@ static void le_shader_compiler_print_error_context( const char *errMsg, const st
 	uint32_t    lineNumber = 0; // Will contain error line number after successful parse
 	bool        scanResult = false;
 	/*
-	
+
 	errMsg has the form:  "./triangle.frag:28: error: '' :  syntax error"
-	
+
 	Or, on Windows:
 
 	C:\Users\tim\Documents\dev\island\apps\examples\hello_triangle\resources\shaders\default.frag:24: error: 'vertexColor2' : no such field in structure
 	C:\Users\tim\Documents\dev\island\apps\examples\hello_triangle\resources\shaders\default.frag:24: error: 'assign' :  cannot convert from 'layout( location=0) in block{ in highp 2-component vector of float texCoord,  in highp 4-component vector of float vertexColor}' to 'layout( location=0) out highp 4-component vector of float'
-		
-	Note that on Windows, the colon ':' character may be part of the file path, as in "c:\", we therefore 
+
+	Note that on Windows, the colon ':' character may be part of the file path, as in "c:\", we therefore
 	use a slightly more involved regular expression instead of sscanf.
-	
+
 	*/
 
 	{
@@ -411,7 +411,7 @@ static void le_shader_compiler_print_error_context( const char *errMsg, const st
 
 // ---------------------------------------------------------------
 
-static inline void debug_print_macro_definition( char const *def_start, size_t def_sz, char const *val_start, size_t val_sz ) {
+static inline void debug_print_macro_definition( char const* def_start, size_t def_sz, char const* val_start, size_t val_sz ) {
 #ifndef NDEBUG
 	char def_str[ 256 ]{};
 	char val_str[ 256 ]{};
@@ -430,21 +430,21 @@ static inline void debug_print_macro_definition( char const *def_start, size_t d
 // Options given as a string + length
 // Options string format: "value=12,value_a,value_a=TRUE,,"
 //
-static void shader_options_parse_macro_definitions_string( shaderc_compile_options *options, char const *macroDefinitionsStr, size_t macroDefinitionsStrSz ) {
+static void shader_options_parse_macro_definitions_string( shaderc_compile_options* options, char const* macroDefinitionsStr, size_t macroDefinitionsStrSz ) {
 
 	// macroDefinitionsStr   = "value=12,value_a,value_a=TRUE,,";
 	// macroDefinitionsStrSz = strlen( macroDefinitionsStr );
 
-	const char *      c       = macroDefinitionsStr;
-	const char *const str_end = c + macroDefinitionsStrSz;
+	const char*       c       = macroDefinitionsStr;
+	const char* const str_end = c + macroDefinitionsStrSz;
 
 	if ( macroDefinitionsStr && macroDefinitionsStrSz != 0 ) {
 
 		// ',' or end of string: triggers new macro being issued.
 		// '=' : triggers end of macro definition, start of macro value
 
-		char const *def_start = macroDefinitionsStr; // start of definition string slice
-		char const *val_start = nullptr;             // start of value string (may be nullptr)
+		char const* def_start = macroDefinitionsStr; // start of definition string slice
+		char const* val_start = nullptr;             // start of value string (may be nullptr)
 		size_t      def_sz    = 0;                   // number or characters used for definition (must be >0)
 		size_t      val_sz    = 0;                   // number of characters used for value (may be 0)
 
@@ -490,7 +490,7 @@ static void shader_options_parse_macro_definitions_string( shaderc_compile_optio
 	}
 }
 
-static shaderc_source_language to_shader_c( LeShaderSourceLanguageEnum const &shader_source_language ) {
+static shaderc_source_language to_shader_c( LeShaderSourceLanguageEnum const& shader_source_language ) {
 	// clang-format off
     switch(shader_source_language.data){
         case le::ShaderSourceLanguage::eGlsl: return shaderc_source_language::shaderc_source_language_glsl;
@@ -503,15 +503,15 @@ static shaderc_source_language to_shader_c( LeShaderSourceLanguageEnum const &sh
 // ---------------------------------------------------------------
 
 static bool le_shader_compiler_compile_source(
-    le_shader_compiler_o *            self,
-    const char *                      sourceFileText,
+    le_shader_compiler_o*             self,
+    const char*                       sourceFileText,
     size_t                            sourceFileNumBytes,
-    const LeShaderSourceLanguageEnum &shader_source_language,
-    const LeShaderStageEnum &         shaderType,
-    const char *                      original_file_path,
-    char const *                      macroDefinitionsStr,
+    const LeShaderSourceLanguageEnum& shader_source_language,
+    const LeShaderStageEnum&          shaderType,
+    const char*                       original_file_path,
+    char const*                       macroDefinitionsStr,
     size_t                            macroDefinitionsStrSz,
-    le_shader_compilation_result_o *  result ) {
+    le_shader_compilation_result_o*   result ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	logger.info( "Compiling shader file: '%s'", original_file_path );
@@ -553,7 +553,7 @@ static bool le_shader_compiler_compile_source(
 		// If preprocessor step was not successful - return preprocessor result
 		// to keep the promise of always returning a result object.
 		{
-			char const *errMsg = shaderc_result_get_error_message( preprocessorResult );
+			char const* errMsg = shaderc_result_get_error_message( preprocessorResult );
 			std::cmatch cm;
 			bool        scanResult = std::regex_search( errMsg, cm, std::regex( R"regex((.*?):(\d+):\s*error: ?(.*))regex" ) );
 
@@ -588,7 +588,7 @@ static bool le_shader_compiler_compile_source(
 
 	// -- Print error message with context if compilation failed
 	if ( shaderc_result_get_compilation_status( result->result ) != shaderc_compilation_status_success ) {
-		const char *err_msg = shaderc_result_get_error_message( result->result );
+		const char* err_msg = shaderc_result_get_error_message( result->result );
 		le_shader_compiler_print_error_context( err_msg, preprocessorText, original_file_path );
 	}
 
@@ -600,8 +600,8 @@ static bool le_shader_compiler_compile_source(
 // ---------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_shader_compiler, api_ ) {
-	auto  le_shader_compiler_api_i = static_cast<le_shader_compiler_api *>( api_ );
-	auto &compiler_i               = le_shader_compiler_api_i->compiler_i;
+	auto  le_shader_compiler_api_i = static_cast<le_shader_compiler_api*>( api_ );
+	auto& compiler_i               = le_shader_compiler_api_i->compiler_i;
 
 	compiler_i.create         = le_shader_compiler_create;
 	compiler_i.destroy        = le_shader_compiler_destroy;

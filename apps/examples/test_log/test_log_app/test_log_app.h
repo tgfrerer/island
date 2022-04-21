@@ -29,13 +29,13 @@ LE_MODULE_LOAD_DEFAULT( test_log_app );
 #ifdef __cplusplus
 
 namespace test_log_app {
-static const auto &api                 = test_log_app_api_i;
-static const auto &test_log_app_i = api -> test_log_app_i;
+static const auto& api            = test_log_app_api_i;
+static const auto& test_log_app_i = api -> test_log_app_i;
 } // namespace test_log_app
 
 class TestLogApp : NoCopy, NoMove {
 
-	test_log_app_o *self;
+	test_log_app_o* self;
 
   public:
 	TestLogApp()

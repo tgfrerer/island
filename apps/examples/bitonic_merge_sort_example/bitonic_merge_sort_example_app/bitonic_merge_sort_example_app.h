@@ -27,13 +27,13 @@ LE_MODULE_LOAD_DEFAULT( bitonic_merge_sort_example_app );
 #ifdef __cplusplus
 
 namespace bitonic_merge_sort_example_app {
-static const auto &api       = bitonic_merge_sort_example_app_api_i;
-static const auto &bitonic_merge_sort_example_app_i = api -> bitonic_merge_sort_example_app_i;
+static const auto& api                              = bitonic_merge_sort_example_app_api_i;
+static const auto& bitonic_merge_sort_example_app_i = api -> bitonic_merge_sort_example_app_i;
 } // namespace bitonic_merge_sort_example_app
 
 class BitonicMergeSortExampleApp : NoCopy, NoMove {
 
-	bitonic_merge_sort_example_app_o *self;
+	bitonic_merge_sort_example_app_o* self;
 
   public:
 	BitonicMergeSortExampleApp()

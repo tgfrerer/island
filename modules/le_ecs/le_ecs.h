@@ -5,8 +5,8 @@
 #include "assert.h" // FIXME: we shouldn't include this here.
 
 struct le_ecs_o;
-typedef struct EntityId_T *EntityId;
-typedef struct SystemId_T *LeEcsSystemId;
+typedef struct EntityId_T* EntityId;
+typedef struct SystemId_T* LeEcsSystemId;
 
 // clang-format off
 struct le_ecs_api {
@@ -75,19 +75,19 @@ LE_MODULE_LOAD_DEFAULT( le_ecs );
 
 // use this inside a system callback to fetch write parameter
 #	define LE_ECS_GET_WRITE_PARAM( index, param_type ) \
-		static_cast<param_type *>( write_c[ index ] )
+		static_cast<param_type*>( write_c[ index ] )
 
 // use this inside a system callback to fetch read parameter
 #	define LE_ECS_GET_READ_PARAM( index, param_type ) \
-		static_cast<param_type const *>( read_c[ index ] )
+		static_cast<param_type const*>( read_c[ index ] )
 
 namespace le_ecs {
-static const auto &api      = le_ecs_api_i;
-static const auto &le_ecs_i = api -> le_ecs_i;
+static const auto& api      = le_ecs_api_i;
+static const auto& le_ecs_i = api -> le_ecs_i;
 } // namespace le_ecs
 
 class LeEcs : NoCopy, NoMove {
-	le_ecs_o *self;
+	le_ecs_o* self;
 
   public:
 	LeEcs()
@@ -106,24 +106,24 @@ class LeEcs : NoCopy, NoMove {
 	// -- component
 
 	template <typename T>
-	inline bool entity_add_component( EntityId entity_id, const T &&component );
+	inline bool entity_add_component( EntityId entity_id, const T&& component );
 
 	template <typename T>
 	inline void entity_remove_component( EntityId entity_id );
 
 	class EntityBuilder {
-		LeEcs &  parent;
+		LeEcs&   parent;
 		EntityId id;
 
 	  public:
-		EntityBuilder( LeEcs &parent_ )
+		EntityBuilder( LeEcs& parent_ )
 		    : parent( parent_ )
 		    , id( parent.create_entity() ) {
 		}
 
 		template <typename T>
-		EntityBuilder &add_component( const T &&component ) {
-			parent.entity_add_component( id, static_cast<const T &&>( component ) );
+		EntityBuilder& add_component( const T&& component ) {
+			parent.entity_add_component( id, static_cast<const T&&>( component ) );
 			return *this;
 		}
 
@@ -133,12 +133,12 @@ class LeEcs : NoCopy, NoMove {
 	};
 
 	EntityBuilder entity() {
-		return static_cast<EntityBuilder &&>( EntityBuilder{ *this } );
+		return static_cast<EntityBuilder&&>( EntityBuilder{ *this } );
 	}
 
 	// Access data for component of a given entity
 	template <typename T>
-	T &entity_component_get( EntityId entity_id );
+	T& entity_component_get( EntityId entity_id );
 
 	// -- systems
 
@@ -158,40 +158,40 @@ class LeEcs : NoCopy, NoMove {
 	template <typename R, typename S, typename... T>
 	inline bool system_add_write_component( LeEcsSystemId system_id );
 
-	inline void update_system( LeEcsSystemId system_id, void *user_data );
+	inline void update_system( LeEcsSystemId system_id, void* user_data );
 
 	class SystemBuilder {
-		LeEcs &       parent;
+		LeEcs&        parent;
 		LeEcsSystemId id;
 
 	  public:
-		SystemBuilder( LeEcs &parent_ )
+		SystemBuilder( LeEcs& parent_ )
 		    : parent( parent_ )
 		    , id( parent.create_system() ) {
 		}
 
 		template <typename T>
-		SystemBuilder &add_read_components() {
+		SystemBuilder& add_read_components() {
 			auto result = parent.system_add_read_component<T>( id );
 			assert( result );
 			return *this;
 		}
 
 		template <typename R, typename S, typename... T>
-		SystemBuilder &add_read_components() {
+		SystemBuilder& add_read_components() {
 			parent.system_add_read_component<R, S, T...>( id );
 			return *this;
 		}
 
 		template <typename T>
-		SystemBuilder &add_write_components() {
+		SystemBuilder& add_write_components() {
 			auto result = parent.system_add_write_component<T>( id );
 			assert( result );
 			return *this;
 		}
 
 		template <typename R, typename S, typename... T>
-		SystemBuilder &add_write_components() {
+		SystemBuilder& add_write_components() {
 			parent.system_add_write_component<R, S, T...>( id );
 			return *this;
 		}
@@ -202,12 +202,12 @@ class LeEcs : NoCopy, NoMove {
 	};
 
 	SystemBuilder system() {
-		return static_cast<SystemBuilder &&>( SystemBuilder( *this ) );
+		return static_cast<SystemBuilder&&>( SystemBuilder( *this ) );
 	};
 
 	// -- ecs
 
-	inline operator le_ecs_o *() {
+	inline operator le_ecs_o*() {
 		return self;
 	}
 };
@@ -243,8 +243,8 @@ void LeEcs::remove_entity( EntityId entity ) {
 }
 
 template <typename T>
-T &LeEcs::entity_component_get( EntityId entity_id ) {
-	return *static_cast<T *>( le_ecs::le_ecs_i.entity_component_at( self, entity_id, le_ecs_get_component_type<T>() ) );
+T& LeEcs::entity_component_get( EntityId entity_id ) {
+	return *static_cast<T*>( le_ecs::le_ecs_i.entity_component_at( self, entity_id, le_ecs_get_component_type<T>() ) );
 };
 // ----------------------------------------------------------------------
 
@@ -260,7 +260,7 @@ void LeEcs::system_set_method( LeEcsSystemId system_id, le_ecs_api::system_fn fn
 
 // ----------------------------------------------------------------------
 
-void LeEcs::update_system( LeEcsSystemId system_id, void *user_data ) {
+void LeEcs::update_system( LeEcsSystemId system_id, void* user_data ) {
 	le_ecs::le_ecs_i.execute_system( self, system_id, user_data );
 }
 
@@ -303,11 +303,11 @@ bool LeEcs::system_add_write_component( LeEcsSystemId system_id ) {
 // ----------------------------------------------------------------------
 
 template <typename T>
-bool LeEcs::entity_add_component( EntityId entity_id, const T &&component ) {
+bool LeEcs::entity_add_component( EntityId entity_id, const T&& component ) {
 
 	// Allocate memory inside the ECS for our component.
 	constexpr auto ct  = le_ecs_get_component_type<T>();
-	void *         mem = le_ecs::le_ecs_i.entity_component_at( self, entity_id, ct );
+	void*          mem = le_ecs::le_ecs_i.entity_component_at( self, entity_id, ct );
 
 	if ( ct.num_bytes != 0 && nullptr != mem ) {
 		new ( mem )( T ){ component }; // placement new

@@ -10,50 +10,50 @@ constexpr uint64_t FNV1A_PRIME_64_CONST = 0x100000001b3;
 
 // Returns a compile-time calculated 64 bit fnv hash for a given constant string.
 // Adapted from: https://notes.underscorediscovery.com/constexpr-fnv1a/
-inline constexpr uint64_t hash_64_fnv1a_const( const char *const str, const uint64_t value = FNV1A_VAL_64_CONST ) noexcept {
+inline constexpr uint64_t hash_64_fnv1a_const( const char* const str, const uint64_t value = FNV1A_VAL_64_CONST ) noexcept {
 	return ( *str ) ? hash_64_fnv1a_const( str + 1, ( value ^ uint64_t( *str ) ) * FNV1A_PRIME_64_CONST ) : value;
 }
 
 // Returns a compile-time calculated 32 bit fnv hash for a given constant string.
 // Adapted from: https://notes.underscorediscovery.com/constexpr-fnv1a/
-inline constexpr uint32_t hash_32_fnv1a_const( const char *const str, const uint32_t value = FNV1A_VAL_32_CONST ) noexcept {
+inline constexpr uint32_t hash_32_fnv1a_const( const char* const str, const uint32_t value = FNV1A_VAL_32_CONST ) noexcept {
 	return ( *str ) ? hash_32_fnv1a_const( str + 1, ( value ^ uint32_t( *str ) ) * FNV1A_PRIME_32_CONST ) : value;
 }
 
 // ----------------------------------------------------------------------
 
 // Adapted from: https://notes.underscorediscovery.com/constexpr-fnv1a/
-inline uint64_t hash_64_fnv1a( char const *const input ) noexcept {
+inline uint64_t hash_64_fnv1a( char const* const input ) noexcept {
 
 	uint64_t           hash  = FNV1A_VAL_64_CONST;
 	constexpr uint64_t prime = FNV1A_PRIME_64_CONST;
 
-	for ( char const *i = input; *i != 0; ++i ) {
-		uint8_t value = static_cast<const uint8_t &>( *i );
+	for ( char const* i = input; *i != 0; ++i ) {
+		uint8_t value = static_cast<const uint8_t&>( *i );
 		hash          = hash ^ value;
 		hash          = hash * prime;
 	}
 
 	return hash;
 
-} //hash_64_fnv1a
+} // hash_64_fnv1a
 
 // ----------------------------------------------------------------------
 // Adapted from: https://notes.underscorediscovery.com/constexpr-fnv1a/
-inline uint32_t hash_32_fnv1a( char const *const input ) noexcept {
+inline uint32_t hash_32_fnv1a( char const* const input ) noexcept {
 
 	uint32_t           hash  = FNV1A_VAL_32_CONST;
 	constexpr uint32_t prime = FNV1A_PRIME_32_CONST;
 
-	for ( char const *i = input; *i != 0; ++i ) {
-		uint8_t value = static_cast<const uint8_t &>( *i );
+	for ( char const* i = input; *i != 0; ++i ) {
+		uint8_t value = static_cast<const uint8_t&>( *i );
 		hash          = hash ^ value;
 		hash          = hash * prime;
 	}
 
 	return hash;
 
-} //hash_32_fnv1a
+} // hash_32_fnv1a
 
 #ifndef NDEBUG
 
@@ -79,13 +79,13 @@ inline uint32_t hash_32_fnv1a( char const *const input ) noexcept {
 // allow user to explicitly set shader module handle - this is only useful when
 // you want to hard-code the shader module handle within the shader module builder.
 #define LE_SHADER_MODULE_HANDLE( x ) \
-	reinterpret_cast<struct le_shader_module_handle_t *>( hash_64_fnv1a_const( x ) )
+	reinterpret_cast<struct le_shader_module_handle_t*>( hash_64_fnv1a_const( x ) )
 
 // ----------------------------------------------------------------------
 // Returns value of key itself as hash value; useful if you
 // want to enforce key and hash value to be identical.
 struct IdentityHash {
-	auto const &operator()( const uint64_t &key_ ) const noexcept {
+	auto const& operator()( const uint64_t& key_ ) const noexcept {
 		return key_;
 	}
 };

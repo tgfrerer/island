@@ -39,7 +39,7 @@ static void app_terminate() {
 
 // ----------------------------------------------------------------------
 
-static quad_template_app_o *quad_template_app_create() {
+static quad_template_app_o* quad_template_app_create() {
 	auto app = new ( quad_template_app_o );
 
 	le::Window::Settings settings;
@@ -58,9 +58,9 @@ static quad_template_app_o *quad_template_app_create() {
 
 // ----------------------------------------------------------------------
 
-static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
+static bool pass_main_setup( le_renderpass_o* pRp, void* user_data ) {
 	auto rp  = le::RenderPass{ pRp };
-	auto app = static_cast<quad_template_app_o *>( user_data );
+	auto app = static_cast<quad_template_app_o*>( user_data );
 
 	// Attachment resource info may be further specialised using ImageInfoBuilder().
 	// Attachment clear color, load and store op may be set via le_image_attachment_info_t.
@@ -74,8 +74,8 @@ static bool pass_main_setup( le_renderpass_o *pRp, void *user_data ) {
 
 // ----------------------------------------------------------------------
 
-static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto        app = static_cast<quad_template_app_o *>( user_data );
+static void pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+	auto        app = static_cast<quad_template_app_o*>( user_data );
 	le::Encoder encoder{ encoder_ };
 
 	auto extents = encoder.getRenderpassExtent();
@@ -121,20 +121,20 @@ static void pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_da
 
 // ----------------------------------------------------------------------
 
-static void app_process_ui_events( app_o *self ) {
+static void app_process_ui_events( app_o* self ) {
 	using namespace le_window;
 	uint32_t         numEvents;
-	LeUiEvent const *pEvents;
+	LeUiEvent const* pEvents;
 	window_i.get_ui_event_queue( self->window, &pEvents, numEvents );
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
 	bool wantsToggle = false;
 
-	for ( auto &event : events ) {
+	for ( auto& event : events ) {
 		switch ( event.event ) {
 		case ( LeUiEvent::Type::eKey ): {
-			auto &e = event.key;
+			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::eRelease ) {
 				if ( e.key == LeUiEvent::NamedKey::eF11 ) {
 					wantsToggle ^= true;
@@ -142,7 +142,7 @@ static void app_process_ui_events( app_o *self ) {
 			}
 		} break;
 		case ( LeUiEvent::Type::eCursorPosition ): {
-			auto &e         = event.cursorPosition;
+			auto& e         = event.cursorPosition;
 			self->mouse_pos = glm::vec2{ e.x, e.y };
 			break;
 		}
@@ -159,7 +159,7 @@ static void app_process_ui_events( app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static bool quad_template_app_update( quad_template_app_o *self ) {
+static bool quad_template_app_update( quad_template_app_o* self ) {
 
 	// Polls events for all windows
 	// Use `self->window.getUIEventQueue()` to fetch events.
@@ -171,7 +171,6 @@ static bool quad_template_app_update( quad_template_app_o *self ) {
 
 	// Process user interface events such as mouse, keyboard
 	app_process_ui_events( self );
-
 
 	le::RenderModule mainModule{};
 	{
@@ -195,7 +194,7 @@ static bool quad_template_app_update( quad_template_app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void quad_template_app_destroy( quad_template_app_o *self ) {
+static void quad_template_app_destroy( quad_template_app_o* self ) {
 
 	delete ( self ); // deletes camera
 }
@@ -204,8 +203,8 @@ static void quad_template_app_destroy( quad_template_app_o *self ) {
 
 LE_MODULE_REGISTER_IMPL( quad_template_app, api ) {
 
-	auto  quad_template_app_api_i = static_cast<quad_template_app_api *>( api );
-	auto &quad_template_app_i     = quad_template_app_api_i->quad_template_app_i;
+	auto  quad_template_app_api_i = static_cast<quad_template_app_api*>( api );
+	auto& quad_template_app_i     = quad_template_app_api_i->quad_template_app_i;
 
 	quad_template_app_i.initialize = app_initialize;
 	quad_template_app_i.terminate  = app_terminate;

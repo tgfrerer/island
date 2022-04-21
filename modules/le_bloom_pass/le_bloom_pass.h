@@ -39,8 +39,8 @@ LE_MODULE( le_bloom_pass );
 LE_MODULE_LOAD_DEFAULT( le_bloom_pass );
 
 namespace le_bloom_pass {
-static const auto &api             = le_bloom_pass_api_i;
-static const auto &le_bloom_pass_i = api -> le_bloom_pass_i;
+static const auto& api             = le_bloom_pass_api_i;
+static const auto& le_bloom_pass_i = api -> le_bloom_pass_i;
 } // namespace le_bloom_pass
 
 #endif // __cplusplus

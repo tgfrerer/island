@@ -38,21 +38,21 @@ struct img_data_o {
 	vk::Device                 device;                         // Owned by backend
 	vk::PhysicalDevice         physicalDevice;                 // Owned by backend
 	vk::CommandPool            vkCommandPool;                  // Command pool from wich we allocate present and acquire command buffers
-	le_backend_o *             backend = nullptr;              // Not owned. Backend owns swapchain.
+	le_backend_o*              backend = nullptr;              // Not owned. Backend owns swapchain.
 	std::vector<TransferFrame> transferFrames;                 //
-	FILE *                     pipe = nullptr;                 // Pipe to ffmpeg. Owned. must be closed if opened
+	FILE*                      pipe = nullptr;                 // Pipe to ffmpeg. Owned. must be closed if opened
 	std::string                pipe_cmd;                       // command line
 };
 
 // ----------------------------------------------------------------------
 
-static inline vk::Format le_format_to_vk( const le::Format &format ) noexcept {
+static inline vk::Format le_format_to_vk( const le::Format& format ) noexcept {
 	return vk::Format( format );
 }
 
 // ----------------------------------------------------------------------
 
-static inline void vk_result_assert_success( vk::Result const &&result ) {
+static inline void vk_result_assert_success( vk::Result const&& result ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	if ( result != vk::Result::eSuccess ) {
 		logger.warn( "Vulkan operation returned: %s, but we expected vk::Result::eSuccess", vk::to_string( result ).c_str() );
@@ -62,9 +62,9 @@ static inline void vk_result_assert_success( vk::Result const &&result ) {
 
 // ----------------------------------------------------------------------
 
-static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settings_t *settings_ ) {
+static void swapchain_img_reset( le_swapchain_o* base, const le_swapchain_settings_t* settings_ ) {
 
-	auto self = static_cast<img_data_o *const>( base->data );
+	auto self = static_cast<img_data_o* const>( base->data );
 
 	if ( settings_ ) {
 		self->mSettings = *settings_;
@@ -116,7 +116,7 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settin
 			using namespace le_backend_vk;
 			imgAllocationResult = private_backend_vk_i.allocate_image( self->backend, &imageCreateInfo,
 			                                                           &allocationCreateInfo,
-			                                                           reinterpret_cast<VkImage *>( &frame.image ),
+			                                                           reinterpret_cast<VkImage*>( &frame.image ),
 			                                                           &frame.imageAllocation,
 			                                                           &frame.imageAllocationInfo );
 			assert( imgAllocationResult == VK_SUCCESS );
@@ -144,7 +144,7 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settin
 			allocationCreateInfo.usage          = VMA_MEMORY_USAGE_CPU_ONLY;
 			allocationCreateInfo.preferredFlags = 0;
 
-			bufAllocationResult = private_backend_vk_i.allocate_buffer( self->backend, &bufferCreateInfo, &allocationCreateInfo, reinterpret_cast<VkBuffer *>( &frame.buffer ), &frame.bufferAllocation, &frame.bufferAllocationInfo );
+			bufAllocationResult = private_backend_vk_i.allocate_buffer( self->backend, &bufferCreateInfo, &allocationCreateInfo, reinterpret_cast<VkBuffer*>( &frame.buffer ), &frame.bufferAllocation, &frame.bufferAllocationInfo );
 			assert( imgAllocationResult == VK_SUCCESS );
 		}
 
@@ -173,10 +173,10 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settin
 
 	// Add commands to command buffers for all frames.
 
-	for ( auto &frame : self->transferFrames ) {
+	for ( auto& frame : self->transferFrames ) {
 		{
 			// copy == transfer image to buffer memory
-			vk::CommandBuffer &cmdPresent = frame.cmdPresent;
+			vk::CommandBuffer& cmdPresent = frame.cmdPresent;
 
 			cmdPresent.begin( { ::vk::CommandBufferUsageFlags() } );
 
@@ -220,7 +220,7 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settin
 			// Move ownership of image back from transfer -> graphics
 			// Change image layout back to colorattachment
 
-			::vk::CommandBuffer &cmdAcquire = frame.cmdAcquire;
+			::vk::CommandBuffer& cmdAcquire = frame.cmdAcquire;
 
 			cmdAcquire.begin( { ::vk::CommandBufferUsageFlags() } );
 
@@ -244,11 +244,11 @@ static void swapchain_img_reset( le_swapchain_o *base, const le_swapchain_settin
 
 // ----------------------------------------------------------------------
 
-static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchain_interface_t &interface, le_backend_o *backend, const le_swapchain_settings_t *settings ) {
+static le_swapchain_o* swapchain_img_create( const le_swapchain_vk_api::swapchain_interface_t& interface, le_backend_o* backend, const le_swapchain_settings_t* settings ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 	auto        base   = new le_swapchain_o( interface );
 	base->data         = new img_data_o{};
-	auto self          = static_cast<img_data_o *>( base->data );
+	auto self          = static_cast<img_data_o*>( base->data );
 
 	self->backend                        = backend;
 	self->windowSurfaceFormat.format     = le_format_to_vk( self->mSettings.format_hint );
@@ -289,7 +289,7 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 
 		// -- Initialise ffmpeg as a receiver for our frames by selecting one of
 		// these possible command line options.
-		const char *commandLines[] = {
+		const char* commandLines[] = {
 		    "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -vcodec h264_nvenc -preset llhq -rc:v vbr_minqp -qmin:v 19 -qmax:v 21 -b:v 2500k -maxrate:v 5000k -profile:v high isl%s.mp4",
 		    "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -filter_complex \"[0:v] fps=30,split [a][b];[a] palettegen [p];[b][p] paletteuse\" isl%s.gif",
 		    "ffmpeg -r 60 -f rawvideo -pix_fmt rgba -s %dx%d -i - -threads 0 -vcodec nvenc_hevc -preset llhq -rc:v vbr_minqp -qmin:v 0 -qmax:v 4 -b:v 2500k -maxrate:v 50000k -vf \"minterpolate=mi_mode=blend:mc_mode=aobmc:mi_mode=mci,framerate=30\" isl%s.mov",
@@ -326,9 +326,9 @@ static le_swapchain_o *swapchain_img_create( const le_swapchain_vk_api::swapchai
 
 // ----------------------------------------------------------------------
 
-static void swapchain_img_destroy( le_swapchain_o *base ) {
+static void swapchain_img_destroy( le_swapchain_o* base ) {
 
-	auto self = static_cast<img_data_o *const>( base->data );
+	auto self = static_cast<img_data_o* const>( base->data );
 
 	if ( self->pipe ) {
 #ifdef _MSC_VER
@@ -358,7 +358,7 @@ static void swapchain_img_destroy( le_swapchain_o *base ) {
 		}
 	}
 
-	for ( auto &f : self->transferFrames ) {
+	for ( auto& f : self->transferFrames ) {
 
 		// Destroy image allocation for this frame.
 		private_backend_vk_i.destroy_image( self->backend, f.image, f.imageAllocation );
@@ -391,10 +391,10 @@ static void swapchain_img_destroy( le_swapchain_o *base ) {
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore semaphorePresentComplete, uint32_t &imageIndex ) {
+static bool swapchain_img_acquire_next_image( le_swapchain_o* base, VkSemaphore semaphorePresentComplete, uint32_t& imageIndex ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
-	auto self = static_cast<img_data_o *const>( base->data );
+	auto self = static_cast<img_data_o* const>( base->data );
 	// This method will return the next avaliable vk image index for this swapchain, possibly
 	// before this image is available for writing. Image will be ready for writing when
 	// semaphorePresentComplete is signalled.
@@ -421,15 +421,15 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 			// before the next present command is executed.
 
 			// Write out frame contents to ffmpeg via pipe.
-			auto const &frame = self->transferFrames[ imageIndex ];
+			auto const& frame = self->transferFrames[ imageIndex ];
 			fwrite( frame.bufferAllocationInfo.pMappedData, self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4, 1, self->pipe );
 
 		} else {
 			char file_name[ 1024 ];
 			sprintf( file_name, "isl_%08d.rgba", self->totalImages );
-			auto const &  frame = self->transferFrames[ imageIndex ];
+			auto const&   frame = self->transferFrames[ imageIndex ];
 			std::ofstream myfile( file_name, std::ios::out | std::ios::binary );
-			myfile.write( ( char * )frame.bufferAllocationInfo.pMappedData,
+			myfile.write( ( char* )frame.bufferAllocationInfo.pMappedData,
 			              self->mSwapchainExtent.width * self->mSwapchainExtent.height * 4 );
 			myfile.close();
 			logger.info( "Wrote Image: %s", file_name );
@@ -477,9 +477,9 @@ static bool swapchain_img_acquire_next_image( le_swapchain_o *base, VkSemaphore 
 
 // ----------------------------------------------------------------------
 
-static bool swapchain_img_present( le_swapchain_o *base, VkQueue queue_, VkSemaphore renderCompleteSemaphore_, uint32_t *pImageIndex ) {
+static bool swapchain_img_present( le_swapchain_o* base, VkQueue queue_, VkSemaphore renderCompleteSemaphore_, uint32_t* pImageIndex ) {
 
-	auto self = static_cast<img_data_o *const>( base->data );
+	auto self = static_cast<img_data_o* const>( base->data );
 
 	vk::PipelineStageFlags wait_dst_stage_mask = ::vk::PipelineStageFlagBits::eColorAttachmentOutput;
 
@@ -507,9 +507,9 @@ static bool swapchain_img_present( le_swapchain_o *base, VkQueue queue_, VkSemap
 
 // ----------------------------------------------------------------------
 
-static VkImage swapchain_img_get_image( le_swapchain_o *base, uint32_t index ) {
+static VkImage swapchain_img_get_image( le_swapchain_o* base, uint32_t index ) {
 
-	auto self = static_cast<img_data_o *const>( base->data );
+	auto self = static_cast<img_data_o* const>( base->data );
 
 #ifndef NDEBUG
 	assert( index < self->transferFrames.size() );
@@ -519,35 +519,35 @@ static VkImage swapchain_img_get_image( le_swapchain_o *base, uint32_t index ) {
 
 // ----------------------------------------------------------------------
 
-static VkSurfaceFormatKHR *swapchain_img_get_surface_format( le_swapchain_o *base ) {
-	auto self = static_cast<img_data_o *const>( base->data );
-	return &reinterpret_cast<VkSurfaceFormatKHR &>( self->windowSurfaceFormat );
+static VkSurfaceFormatKHR* swapchain_img_get_surface_format( le_swapchain_o* base ) {
+	auto self = static_cast<img_data_o* const>( base->data );
+	return &reinterpret_cast<VkSurfaceFormatKHR&>( self->windowSurfaceFormat );
 }
 
 // ----------------------------------------------------------------------
 
-static uint32_t swapchain_img_get_image_width( le_swapchain_o *base ) {
-	auto self = static_cast<img_data_o *const>( base->data );
+static uint32_t swapchain_img_get_image_width( le_swapchain_o* base ) {
+	auto self = static_cast<img_data_o* const>( base->data );
 	return self->mSwapchainExtent.width;
 }
 
 // ----------------------------------------------------------------------
 
-static uint32_t swapchain_img_get_image_height( le_swapchain_o *base ) {
+static uint32_t swapchain_img_get_image_height( le_swapchain_o* base ) {
 
-	auto self = static_cast<img_data_o *const>( base->data );
+	auto self = static_cast<img_data_o* const>( base->data );
 	return self->mSwapchainExtent.height;
 }
 
 // ----------------------------------------------------------------------
 
-static size_t swapchain_img_get_swapchain_images_count( le_swapchain_o *base ) {
-	auto self = static_cast<img_data_o *const>( base->data );
+static size_t swapchain_img_get_swapchain_images_count( le_swapchain_o* base ) {
+	auto self = static_cast<img_data_o* const>( base->data );
 	return self->mImagecount;
 }
 
-static void swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t *, char const ***exts, size_t *num_exts ) {
-	static std::array<char const *, 0> extensions = {};
+static void swapchain_get_required_vk_instance_extensions( const le_swapchain_settings_t*, char const*** exts, size_t* num_exts ) {
+	static std::array<char const*, 0> extensions = {};
 
 	*exts     = extensions.data();
 	*num_exts = extensions.size();
@@ -555,9 +555,9 @@ static void swapchain_get_required_vk_instance_extensions( const le_swapchain_se
 
 // ----------------------------------------------------------------------
 
-static void swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t *, char const ***exts, size_t *num_exts ) {
+static void swapchain_get_required_vk_device_extensions( const le_swapchain_settings_t*, char const*** exts, size_t* num_exts ) {
 
-	static std::array<char const *, 0> extensions = {};
+	static std::array<char const*, 0> extensions = {};
 
 	*exts     = extensions.data();
 	*num_exts = extensions.size();
@@ -565,9 +565,9 @@ static void swapchain_get_required_vk_device_extensions( const le_swapchain_sett
 
 // ----------------------------------------------------------------------
 
-void register_le_swapchain_img_api( void *api_ ) {
-	auto  api         = static_cast<le_swapchain_vk_api *>( api_ );
-	auto &swapchain_i = api->swapchain_img_i;
+void register_le_swapchain_img_api( void* api_ ) {
+	auto  api         = static_cast<le_swapchain_vk_api*>( api_ );
+	auto& swapchain_i = api->swapchain_img_i;
 
 	swapchain_i.create                              = swapchain_img_create;
 	swapchain_i.destroy                             = swapchain_img_destroy;

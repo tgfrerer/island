@@ -51,8 +51,8 @@ LE_MODULE_LOAD_DEFAULT( le_swapchain_vk );
 
 namespace le_swapchain_vk {
 
-static const auto &api         = le_swapchain_vk_api_i;
-static const auto &swapchain_i = api -> swapchain_i;
+static const auto& api         = le_swapchain_vk_api_i;
+static const auto& swapchain_i = api -> swapchain_i;
 
 } // namespace le_swapchain_vk
 

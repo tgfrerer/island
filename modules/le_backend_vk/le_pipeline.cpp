@@ -60,16 +60,16 @@ class HashTable : NoCopy, NoMove {
 
 	std::shared_mutex mtx;
 	std::vector<T>    handles;
-	std::vector<U *>  objects; // owning, object is copied on add_entry
+	std::vector<U*>   objects; // owning, object is copied on add_entry
 
   public:
 	// Insert a new obj into table, object is copied.
 	// return true if successful, false if entry aready existed.
 	// in case return value is false, object was not copied.
-	bool try_insert( T const &handle, U *obj ) {
+	bool try_insert( T const& handle, U* obj ) {
 		mtx.lock();
 		size_t i = 0;
-		for ( auto const &h : handles ) {
+		for ( auto const& h : handles ) {
 			if ( h == handle ) {
 				break;
 			}
@@ -89,10 +89,10 @@ class HashTable : NoCopy, NoMove {
 
 	// Looks up table entry under `needle`,
 	// returns nullptr if not found.
-	U *const try_find( T const &needle ) {
+	U* const try_find( T const& needle ) {
 		mtx.lock_shared();
-		U *const *obj = objects.data();
-		for ( auto const &h : handles ) {
+		U* const* obj = objects.data();
+		for ( auto const& h : handles ) {
 			if ( h == needle ) {
 				mtx.unlock();
 				return *obj;
@@ -104,12 +104,12 @@ class HashTable : NoCopy, NoMove {
 		return nullptr;
 	}
 
-	typedef void ( *iterator_fun )( U *e, void *user_data );
+	typedef void ( *iterator_fun )( U* e, void* user_data );
 
 	// do something on all objects
-	void iterator( iterator_fun fun, void *user_data ) {
+	void iterator( iterator_fun fun, void* user_data ) {
 		mtx.lock();
-		for ( auto &e : objects ) {
+		for ( auto& e : objects ) {
 			fun( e, user_data );
 		}
 		mtx.unlock();
@@ -117,7 +117,7 @@ class HashTable : NoCopy, NoMove {
 
 	void clear() {
 		mtx.lock();
-		for ( auto &obj : objects ) {
+		for ( auto& obj : objects ) {
 			delete obj;
 		}
 		handles.clear();
@@ -134,11 +134,11 @@ class HashTable : NoCopy, NoMove {
 template <typename S, typename T>
 class HashMap : NoCopy, NoMove {
 
-	std::shared_mutex          mtx;
-	std::unordered_map<S, T *> store; // owning, object is copied on successful try_insert
+	std::shared_mutex         mtx;
+	std::unordered_map<S, T*> store; // owning, object is copied on successful try_insert
 
   public:
-	T *try_find( S needle ) {
+	T* try_find( S needle ) {
 		mtx.lock_shared();
 		auto e = store.find( needle );
 		if ( e == store.end() ) {
@@ -152,7 +152,7 @@ class HashMap : NoCopy, NoMove {
 	}
 	// returns true and stores copy of obj in internal hash - or
 	// returns false if element with key already existed.
-	bool try_insert( S handle, T *obj ) {
+	bool try_insert( S handle, T* obj ) {
 
 		mtx.lock();
 
@@ -171,12 +171,12 @@ class HashMap : NoCopy, NoMove {
 		return result.second;
 	}
 
-	typedef void ( *iterator_fun )( T *e, void *user_data );
+	typedef void ( *iterator_fun )( T* e, void* user_data );
 
 	// do something on all objects
-	void iterator( iterator_fun fun, void *user_data ) {
+	void iterator( iterator_fun fun, void* user_data ) {
 		mtx.lock();
-		for ( auto &e : store ) {
+		for ( auto& e : store ) {
 			fun( e.second, user_data );
 		}
 		mtx.unlock();
@@ -184,7 +184,7 @@ class HashMap : NoCopy, NoMove {
 
 	void clear() {
 		mtx.lock();
-		for ( auto &e : store ) {
+		for ( auto& e : store ) {
 			delete ( e.second );
 		}
 		store.clear();
@@ -210,36 +210,36 @@ struct le_shader_manager_o {
 
 	std::set<le_shader_module_handle> modifiedShaderModules; // non-owning pointers to shader modules which need recompiling (used by file watcher)
 
-	le_shader_compiler_o *shader_compiler   = nullptr; // owning
-	le_file_watcher_o *   shaderFileWatcher = nullptr; // owning
+	le_shader_compiler_o* shader_compiler   = nullptr; // owning
+	le_file_watcher_o*    shaderFileWatcher = nullptr; // owning
 	std::atomic<uint64_t> modules_count     = { 0 };   // zero as handle means unset (first available handle will be 1, as pre-increment)
 };
 
 // NOTE: It might make sense to have one pipeline manager per worker thread, and
 //       to consolidate after the frame has been processed.
 struct le_pipeline_manager_o {
-	le_device_o *le_device = nullptr; // arc-owning, increases reference count, decreases on destruction
+	le_device_o* le_device = nullptr; // arc-owning, increases reference count, decreases on destruction
 	vk::Device   device    = nullptr;
 
 	std::mutex mtx;
 
 	vk::PipelineCache vulkanCache = nullptr;
 
-	le_shader_manager_o *shaderManager = nullptr; // owning: does it make sense to have a shader manager additionally to the pipeline manager?
+	le_shader_manager_o* shaderManager = nullptr; // owning: does it make sense to have a shader manager additionally to the pipeline manager?
 
 	HashTable<le_gpso_handle, graphics_pipeline_state_o> graphicsPso;
 	HashTable<le_cpso_handle, compute_pipeline_state_o>  computePso;
 	HashTable<le_rtxpso_handle, rtx_pipeline_state_o>    rtxPso;
 
 	HashMap<uint64_t, VkPipeline>              pipelines;             // indexed by pipeline_hash
-	HashTable<uint64_t, char *>                rtx_shader_group_data; // indexed by pipeline_hash
+	HashTable<uint64_t, char*>                 rtx_shader_group_data; // indexed by pipeline_hash
 	HashMap<uint64_t, le_pipeline_layout_info> pipelineLayoutInfos;
 
 	HashMap<uint64_t, le_descriptor_set_layout_t> descriptorSetLayouts;
 	HashMap<uint64_t, vk::PipelineLayout>         pipelineLayouts; // indexed by hash of array of descriptorSetLayoutCache keys per pipeline layout
 };
 
-static vk::Format vk_format_from_spv_reflect_format( SpvReflectFormat const &format ) {
+static vk::Format vk_format_from_spv_reflect_format( SpvReflectFormat const& format ) {
 	// clang-format off
 	switch (format)
 	{
@@ -272,7 +272,7 @@ static vk::Format vk_format_from_spv_reflect_format( SpvReflectFormat const &for
 	} // clang-format on
 }
 
-static uint32_t byte_stride_from_spv_type_description( SpvReflectNumericTraits const &traits ) {
+static uint32_t byte_stride_from_spv_type_description( SpvReflectNumericTraits const& traits ) {
 
 	uint32_t unit_size = traits.scalar.width / 8;
 
@@ -286,7 +286,7 @@ static uint32_t byte_stride_from_spv_type_description( SpvReflectNumericTraits c
 	return result;
 }
 
-static vk::DescriptorType descriptor_type_from_spv_descriptor_type( SpvReflectDescriptorType const &spv_descriptor_type ) {
+static vk::DescriptorType descriptor_type_from_spv_descriptor_type( SpvReflectDescriptorType const& spv_descriptor_type ) {
 	// clang-format off
 	switch(spv_descriptor_type)
 	{
@@ -309,7 +309,7 @@ static vk::DescriptorType descriptor_type_from_spv_descriptor_type( SpvReflectDe
 
 // ----------------------------------------------------------------------
 
-static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_vertex_input_rate &input_rate ) {
+static inline vk::VertexInputRate vk_input_rate_from_le_input_rate( const le_vertex_input_rate& input_rate ) {
 	switch ( input_rate ) {
 	case ( le_vertex_input_rate::ePerInstance ):
 		return vk::VertexInputRate::eInstance;
@@ -420,7 +420,7 @@ static inline vk::Format vk_format_from_le_vertex_input_attribute_description( l
 // Converts a le shader stage enum to a vulkan shader stage flag bit
 // Currently these are kept in sync which means conversion is a simple
 // matter of initialising one from the other.
-static inline vk::ShaderStageFlagBits le_to_vk( const le::ShaderStage &stage ) {
+static inline vk::ShaderStageFlagBits le_to_vk( const le::ShaderStage& stage ) {
 	return vk::ShaderStageFlagBits( stage );
 }
 
@@ -428,7 +428,7 @@ static inline vk::ShaderStageFlagBits le_to_vk( const le::ShaderStage &stage ) {
 /// \brief   file loader utility method
 /// \details loads file given by filepath and returns a vector of chars if successful
 /// \note    returns an empty vector if not successful
-static std::vector<char> load_file( const std::filesystem::path &file_path, bool *success ) {
+static std::vector<char> load_file( const std::filesystem::path& file_path, bool* success ) {
 
 	static auto       logger = LeLog( LOGGER_LABEL );
 	std::vector<char> contents;
@@ -468,14 +468,14 @@ static std::vector<char> load_file( const std::filesystem::path &file_path, bool
 
 // ----------------------------------------------------------------------
 // Returns the hash for a given shaderModule
-static inline uint64_t le_shader_module_get_hash( le_shader_manager_o *manager, le_shader_module_handle handle ) {
+static inline uint64_t le_shader_module_get_hash( le_shader_manager_o* manager, le_shader_module_handle handle ) {
 	auto module = manager->shaderModules.try_find( handle );
 	assert( module != nullptr );
 	return module->hash;
 }
 
 // Returns the stage for a given shader module
-static LeShaderStageEnum le_shader_module_get_stage( le_pipeline_manager_o *manager, le_shader_module_handle handle ) {
+static LeShaderStageEnum le_shader_module_get_stage( le_pipeline_manager_o* manager, le_shader_module_handle handle ) {
 	auto module = manager->shaderManager->shaderModules.try_find( handle );
 	assert( module != nullptr );
 	return { module->stage };
@@ -483,7 +483,7 @@ static LeShaderStageEnum le_shader_module_get_stage( le_pipeline_manager_o *mana
 
 // ----------------------------------------------------------------------
 
-static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
+static bool check_is_data_spirv( const void* raw_data, size_t data_size ) {
 
 	struct SpirVHeader {
 		uint32_t magic; // Spirv magic number
@@ -527,15 +527,15 @@ static bool check_is_data_spirv( const void *raw_data, size_t data_size ) {
 /// \brief translate a binary blob into spirv code if possible
 /// \details Blob may be raw spirv data, or glsl data
 static bool translate_to_spirv_code(
-    le_shader_compiler_o *     shader_compiler,
-    void *                     raw_data,
+    le_shader_compiler_o*      shader_compiler,
+    void*                      raw_data,
     size_t                     numBytes,
     LeShaderSourceLanguageEnum shader_source_language,
     LeShaderStageEnum          moduleType,
-    const char *               original_file_name,
-    std::vector<uint32_t> &    spirvCode,
-    std::set<std::string> &    includesSet,
-    std::string const &        shaderDefines ) {
+    const char*                original_file_name,
+    std::vector<uint32_t>&     spirvCode,
+    std::set<std::string>&     includesSet,
+    std::string const&         shaderDefines ) {
 
 	bool result = false;
 
@@ -553,7 +553,7 @@ static bool translate_to_spirv_code(
 
 		compiler_i.compile_source(
 		    shader_compiler,
-		    static_cast<const char *>( raw_data ), numBytes,
+		    static_cast<const char*>( raw_data ), numBytes,
 		    shader_source_language,
 		    moduleType,
 		    original_file_name,
@@ -562,14 +562,14 @@ static bool translate_to_spirv_code(
 		    compilation_result );
 
 		if ( compiler_i.result_get_success( compilation_result ) == true ) {
-			const char *addr;
+			const char* addr;
 			size_t      res_sz;
 			compiler_i.result_get_bytes( compilation_result, &addr, &res_sz );
 			spirvCode.resize( res_sz / 4 );
 			memcpy( spirvCode.data(), addr, res_sz );
 
 			// -- grab a list of includes which this compilation unit depends on:
-			const char *pStr  = nullptr;
+			const char* pStr  = nullptr;
 			size_t      strSz = 0;
 
 			while ( compiler_i.result_get_includes( compilation_result, &pStr, &strSz ) ) {
@@ -592,7 +592,7 @@ static bool translate_to_spirv_code(
 // Flags all modules which are affected by a change in shader_source_file_path,
 // and adds them to a set of shader modules wich need to be recompiled.
 // Note: This method is called via a file changed callback.
-static void le_pipeline_cache_flag_affected_modules_for_source_path( le_shader_manager_o *self, const char *shader_source_file_path ) {
+static void le_pipeline_cache_flag_affected_modules_for_source_path( le_shader_manager_o* self, const char* shader_source_file_path ) {
 	// find all modules from dependencies set
 	// insert into list of modified modules.
 
@@ -608,18 +608,18 @@ static void le_pipeline_cache_flag_affected_modules_for_source_path( le_shader_m
 
 	// ---------| invariant: at least one module depends on this shader source file.
 
-	auto const &moduleDependencies = self->protected_module_dependencies.moduleDependencies[ shader_source_file_path ];
+	auto const& moduleDependencies = self->protected_module_dependencies.moduleDependencies[ shader_source_file_path ];
 
 	// -- add all affected modules to the set of modules which depend on this shader source file.
 
-	for ( auto const &m : moduleDependencies ) {
+	for ( auto const& m : moduleDependencies ) {
 		self->modifiedShaderModules.insert( m );
 	}
 };
 
 // ----------------------------------------------------------------------
-static void le_shader_file_watcher_on_callback( const char *path, void *user_data ) {
-	auto shader_manager = static_cast<le_shader_manager_o *>( user_data );
+static void le_shader_file_watcher_on_callback( const char* path, void* user_data ) {
+	auto shader_manager = static_cast<le_shader_manager_o*>( user_data );
 	// call a method on backend to tell it that the file path has changed.
 	// backend to figure out which modules are affected.
 	static auto logger = LeLog( LOGGER_LABEL );
@@ -630,7 +630,7 @@ static void le_shader_file_watcher_on_callback( const char *path, void *user_dat
 
 // Thread-safety: needs exclusive access to shader_manager->moduleDependencies for full duration
 // We use a lock for this reason.
-static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shader_manager_o *self, le_shader_module_handle module, std::set<std::string> &sourcePaths ) {
+static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shader_manager_o* self, le_shader_module_handle module, std::set<std::string>& sourcePaths ) {
 
 	// To be able to tell quickly which modules need to be recompiled if a source file changes,
 	// we build map from source file to modules which depend on the source file.
@@ -645,7 +645,7 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
 		logger.debug( "Shader module (%p):", module );
 	}
 
-	for ( const auto &s : sourcePaths ) {
+	for ( const auto& s : sourcePaths ) {
 
 		// If no previous entry for this source path existed, we must insert a watch for this path
 		// the watch will call a backend method which figures out how many modules were affected.
@@ -656,7 +656,7 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
 			le_file_watcher_watch_settings settings;
 			settings.filePath                                       = s.c_str();
 			settings.callback_user_data                             = self;
-			settings.callback_fun                                   = ( void ( * )( char const *, void * ) )( le_core_forward_callback( le_backend_vk_api_i->private_shader_file_watcher_i.on_callback_addr ) );
+			settings.callback_fun                                   = ( void ( * )( char const*, void* ) )( le_core_forward_callback( le_backend_vk_api_i->private_shader_file_watcher_i.on_callback_addr ) );
 			auto watch_id                                           = le_file_watcher::le_file_watcher_i.add_watch( self->shaderFileWatcher, &settings );
 			self->protected_module_dependencies.moduleWatchIds[ s ] = watch_id;
 		}
@@ -669,7 +669,7 @@ static void le_pipeline_cache_set_module_dependencies_for_watched_file( le_shade
 
 // Thread-safety: needs exclusive access to shader_manager->moduleDependencies for full duration.
 // We use a lock for this reason.
-static void le_pipeline_cache_remove_module_from_dependencies( le_shader_manager_o *self, le_shader_module_handle module ) {
+static void le_pipeline_cache_remove_module_from_dependencies( le_shader_manager_o* self, le_shader_module_handle module ) {
 	// iterate over all module dependencies in shader manager, remove the module.
 	// then remove any file watchers which have no modules left.
 	auto lck = std::unique_lock( self->protected_module_dependencies.mtx );
@@ -702,7 +702,7 @@ static void le_pipeline_cache_remove_module_from_dependencies( le_shader_manager
 // Calculates a hash of hashes over all pipeline layout hashes over all
 // shader stages held in array shader_modules
 // Note that shader_modules must have not more than 16 elements.
-static uint64_t shader_modules_get_pipeline_layout_hash( le_shader_manager_o *shader_manager, le_shader_module_handle const *shader_modules, size_t numModules ) {
+static uint64_t shader_modules_get_pipeline_layout_hash( le_shader_manager_o* shader_manager, le_shader_module_handle const* shader_modules, size_t numModules ) {
 
 	assert( numModules <= 16 ); // note max 16 shader modules.
 
@@ -713,9 +713,9 @@ static uint64_t shader_modules_get_pipeline_layout_hash( le_shader_manager_o *sh
 
 	uint64_t pipeline_layout_hash_data[ 16 ];
 
-	le_shader_module_handle const *end_shader_modules = shader_modules + numModules;
+	le_shader_module_handle const* end_shader_modules = shader_modules + numModules;
 
-	uint64_t *elem = pipeline_layout_hash_data; // Get first element
+	uint64_t* elem = pipeline_layout_hash_data; // Get first element
 
 	for ( auto s = shader_modules; s != end_shader_modules; s++ ) {
 		auto p_module = ( shader_manager->shaderModules.try_find( *s ) );
@@ -738,7 +738,7 @@ static uint64_t shader_modules_get_pipeline_layout_hash( le_shader_manager_o *sh
 // broadcasting to be much more costly than to set push constants individually per shader stage. It is also
 // considerably simpler to implement, as we don't have to keep track of whether push constant ranges declared
 // in different shader stages are aliasing.
-static void shader_modules_collect_info( le_shader_manager_o *shader_manager, le_shader_module_handle const *shader_modules, size_t numModules, size_t *push_constant_buffer_size_max, vk::ShaderStageFlags *shader_stage_flags ) {
+static void shader_modules_collect_info( le_shader_manager_o* shader_manager, le_shader_module_handle const* shader_modules, size_t numModules, size_t* push_constant_buffer_size_max, vk::ShaderStageFlags* shader_stage_flags ) {
 	for ( le_shader_module_handle const *s = shader_modules, *s_end = shader_modules + numModules; s != s_end; s++ ) {
 		auto p_module = ( shader_manager->shaderModules.try_find( *s ) );
 		assert( p_module && "shader module was not found" );
@@ -749,20 +749,20 @@ static void shader_modules_collect_info( le_shader_manager_o *shader_manager, le
 	}
 }
 
-inline static uint64_t le_shader_bindings_calculate_hash( le_shader_binding_info const *info_vec, size_t info_count ) {
+inline static uint64_t le_shader_bindings_calculate_hash( le_shader_binding_info const* info_vec, size_t info_count ) {
 	uint64_t hash = 0;
 
-	le_shader_binding_info const *info_begin = info_vec;
+	le_shader_binding_info const* info_begin = info_vec;
 	auto const                    info_end   = info_vec + info_count;
 
-	for ( le_shader_binding_info const *info = info_begin; info != info_end; info++ ) {
+	for ( le_shader_binding_info const* info = info_begin; info != info_end; info++ ) {
 		hash = SpookyHash::Hash64( info, offsetof( le_shader_binding_info, name_hash ), hash );
 	}
 
 	return hash;
 }
 
-static void shader_module_update_reflection( le_shader_module_o *module ) {
+static void shader_module_update_reflection( le_shader_module_o* module ) {
 
 	static auto                         logger = LeLog( LOGGER_LABEL );
 	std::vector<le_shader_binding_info> bindings; // <- gets stored in module at end
@@ -799,11 +799,11 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 		input_descriptions.reserve( input_count );
 
 		for ( size_t i = 0; i != input_count; i++ ) {
-			auto &input = spv_module.input_variables[ i ];
+			auto& input = spv_module.input_variables[ i ];
 			if ( input->location != uint32_t( ~0 ) ) {
 
 				input_descriptions.emplace_back();
-				auto &d = input_descriptions.back();
+				auto& d = input_descriptions.back();
 
 				d.name = input->name;
 				d.attribute
@@ -820,11 +820,11 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 
 		std::sort(
 		    input_descriptions.begin(), input_descriptions.end(),
-		    []( AttributeBindingDescription const &lhs, AttributeBindingDescription const &rhs ) -> bool {
+		    []( AttributeBindingDescription const& lhs, AttributeBindingDescription const& rhs ) -> bool {
 			    return lhs.attribute.location < rhs.attribute.location;
 		    } );
 
-		for ( auto &d : input_descriptions ) {
+		for ( auto& d : input_descriptions ) {
 			vertexAttributeDescriptions.emplace_back( std::move( d.attribute ) );
 			vertexBindingDescriptions.emplace_back( std::move( d.binding ) );
 			vertexAttributeNames.emplace_back( std::move( d.name ) );
@@ -853,10 +853,10 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 	}
 
 	for ( size_t set_idx = 0; set_idx != spv_module.descriptor_set_count; set_idx++ ) {
-		auto const &set = spv_module.descriptor_sets[ set_idx ];
+		auto const& set = spv_module.descriptor_sets[ set_idx ];
 
 		for ( size_t binding_idx = 0; binding_idx != set.binding_count; binding_idx++ ) {
-			auto const &binding = set.bindings[ binding_idx ];
+			auto const& binding = set.bindings[ binding_idx ];
 
 			le_shader_binding_info info{};
 
@@ -912,7 +912,7 @@ static void shader_module_update_reflection( le_shader_module_o *module ) {
 // ----------------------------------------------------------------------
 
 /// \brief compare sorted bindings and raise the alarm if two successive bindings alias locations
-static bool shader_module_check_bindings_valid( le_shader_binding_info const *bindings, size_t numBindings ) {
+static bool shader_module_check_bindings_valid( le_shader_binding_info const* bindings, size_t numBindings ) {
 	static auto logger = LeLog( LOGGER_LABEL );
 
 	// -- perform sanity check on bindings - bindings must be unique:
@@ -949,13 +949,13 @@ static bool shader_module_check_bindings_valid( le_shader_binding_info const *bi
 // Note: Bindings *must not* be sparse, otherwise this method will assert(false)
 //
 //
-static std::vector<le_shader_binding_info> shader_modules_merge_bindings( le_shader_manager_o *shader_manager, le_shader_module_handle const *shader_handles, size_t shader_handles_count ) {
+static std::vector<le_shader_binding_info> shader_modules_merge_bindings( le_shader_manager_o* shader_manager, le_shader_module_handle const* shader_handles, size_t shader_handles_count ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 	// maxNumBindings holds the upper bound for the total number of bindings
 	// assuming no overlaps in bindings between shader stages.
 
-	std::vector<le_shader_module_o *> shader_stages;
+	std::vector<le_shader_module_o*> shader_stages;
 	shader_stages.reserve( shader_handles_count );
 
 	for ( auto s = shader_handles; s != shader_handles + shader_handles_count; s++ ) {
@@ -971,17 +971,17 @@ static std::vector<le_shader_binding_info> shader_modules_merge_bindings( le_sha
 
 	// accumulate all bindings
 
-	for ( auto &s : shader_stages ) {
+	for ( auto& s : shader_stages ) {
 		all_bindings.insert( all_bindings.end(), ( s )->bindings.begin(), ( s )->bindings.end() );
 	}
 
-	auto get_filepaths_affected_by_message = []( std::vector<le_shader_module_o *> const &shader_stages,
-	                                             uint32_t                                 stage_bitfield ) {
+	auto get_filepaths_affected_by_message = []( std::vector<le_shader_module_o*> const& shader_stages,
+	                                             uint32_t                                stage_bitfield ) {
 		std::ostringstream os;
 
 		// print out filenames for shader stage which matches stage bitflag
 
-		for ( auto &s : shader_stages ) {
+		for ( auto& s : shader_stages ) {
 			if ( enumToNum( ( s )->stage ) & stage_bitfield ) {
 				os << "\t '" << ( s )->filepath << "'" << std::endl;
 			}
@@ -996,9 +996,9 @@ static std::vector<le_shader_binding_info> shader_modules_merge_bindings( le_sha
 	// -- Merge bindings, so that elements with common set, binding number are kept together.
 
 	std::vector<le_shader_binding_info> combined_bindings;
-	le_shader_binding_info *            last_binding = nullptr;
+	le_shader_binding_info*             last_binding = nullptr;
 
-	for ( auto &b : all_bindings ) {
+	for ( auto& b : all_bindings ) {
 
 		if ( nullptr == last_binding ) {
 			combined_bindings.emplace_back( b );
@@ -1072,7 +1072,7 @@ static std::vector<le_shader_binding_info> shader_modules_merge_bindings( le_sha
 
 // ----------------------------------------------------------------------
 
-static void le_shader_manager_shader_module_update( le_shader_manager_o *self, le_shader_module_handle handle ) {
+static void le_shader_manager_shader_module_update( le_shader_manager_o* self, le_shader_module_handle handle ) {
 
 	// Shader module needs updating if shader code has changed.
 	// if this happens, a new vulkan object for the module must be created.
@@ -1156,7 +1156,7 @@ static void le_shader_manager_shader_module_update( le_shader_manager_o *self, l
 
 // ----------------------------------------------------------------------
 // this method is called via renderer::update - before frame processing.
-static void le_shader_manager_update_shader_modules( le_shader_manager_o *self ) {
+static void le_shader_manager_update_shader_modules( le_shader_manager_o* self ) {
 
 	// -- find out which shader modules have been tainted
 
@@ -1166,7 +1166,7 @@ static void le_shader_manager_update_shader_modules( le_shader_manager_o *self )
 
 	// -- update only modules which have been tainted
 
-	for ( auto &s : self->modifiedShaderModules ) {
+	for ( auto& s : self->modifiedShaderModules ) {
 		le_shader_manager_shader_module_update( self, s );
 	}
 
@@ -1175,7 +1175,7 @@ static void le_shader_manager_update_shader_modules( le_shader_manager_o *self )
 
 // ----------------------------------------------------------------------
 
-le_shader_manager_o *le_shader_manager_create( VkDevice_T *device ) {
+le_shader_manager_o* le_shader_manager_create( VkDevice_T* device ) {
 	auto self = new le_shader_manager_o();
 
 	self->device = device;
@@ -1192,7 +1192,7 @@ le_shader_manager_o *le_shader_manager_create( VkDevice_T *device ) {
 
 // ----------------------------------------------------------------------
 
-static void le_shader_manager_destroy( le_shader_manager_o *self ) {
+static void le_shader_manager_destroy( le_shader_manager_o* self ) {
 
 	using namespace le_shader_compiler;
 	using namespace le_file_watcher;
@@ -1210,8 +1210,8 @@ static void le_shader_manager_destroy( le_shader_manager_o *self ) {
 	}
 
 	// -- destroy retained shader modules
-	self->shaderModules.iterator( []( le_shader_module_o *module, void *user_data ) {
-		vk::Device device{ *static_cast<vk::Device *>( user_data ) };
+	self->shaderModules.iterator( []( le_shader_module_o* module, void* user_data ) {
+		vk::Device device{ *static_cast<vk::Device*>( user_data ) };
 		device.destroyShaderModule( module->module );
 	},
 	                              &self->device );
@@ -1220,7 +1220,7 @@ static void le_shader_manager_destroy( le_shader_manager_o *self ) {
 	delete self;
 }
 
-static le_shader_module_handle le_shader_manager_get_next_available_handle( le_shader_manager_o *self ) {
+static le_shader_module_handle le_shader_manager_get_next_available_handle( le_shader_manager_o* self ) {
 	return reinterpret_cast<le_shader_module_handle>( ++self->modules_count );
 }
 
@@ -1230,15 +1230,15 @@ static le_shader_module_handle le_shader_manager_get_next_available_handle( le_s
 /// ideally, this method is only allowed to be called in the setup phase.
 ///
 static le_shader_module_handle le_shader_manager_create_shader_module(
-    le_shader_manager_o *             self,
-    char const *                      path,
-    const LeShaderSourceLanguageEnum &shader_source_language,
-    const LeShaderStageEnum &         moduleType,
-    char const *                      macro_defines_,
+    le_shader_manager_o*              self,
+    char const*                       path,
+    const LeShaderSourceLanguageEnum& shader_source_language,
+    const LeShaderStageEnum&          moduleType,
+    char const*                       macro_defines_,
     le_shader_module_handle           handle,
-    VkSpecializationMapEntry const *  specialization_map_entries,
+    VkSpecializationMapEntry const*   specialization_map_entries,
     uint32_t                          specialization_map_entries_count,
-    void *                            specialization_map_data,
+    void*                             specialization_map_data,
     uint32_t                          specialization_map_data_num_bytes ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
@@ -1291,15 +1291,15 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 	module.spirv               = std::move( spirv_code );
 	module.source_language     = shader_source_language;
 	module.specialization_map_info.data.assign(
-	    static_cast<char *>( specialization_map_data ),
-	    static_cast<char *>( specialization_map_data ) + specialization_map_data_num_bytes );
+	    static_cast<char*>( specialization_map_data ),
+	    static_cast<char*>( specialization_map_data ) + specialization_map_data_num_bytes );
 	module.specialization_map_info.entries.assign(
-	    reinterpret_cast<vk::SpecializationMapEntry const *>( specialization_map_entries ),
-	    reinterpret_cast<vk::SpecializationMapEntry const *>( specialization_map_entries ) + specialization_map_entries_count );
+	    reinterpret_cast<vk::SpecializationMapEntry const*>( specialization_map_entries ),
+	    reinterpret_cast<vk::SpecializationMapEntry const*>( specialization_map_entries ) + specialization_map_entries_count );
 
 	static_assert( sizeof( vk::SpecializationMapEntry ) == sizeof( VkSpecializationMapEntry ), "SpecializationMapEntry must be of same size, whether using vkhpp or not." );
 
-	le_shader_module_o *cached_module = self->shaderModules.try_find( handle );
+	le_shader_module_o* cached_module = self->shaderModules.try_find( handle );
 
 	if ( cached_module && cached_module->hash == module.hash ) {
 		// A module with the same handle already exists, and it has the same hash: no more work to do.
@@ -1354,7 +1354,7 @@ static le_shader_module_handle le_shader_manager_create_shader_module(
 // ----------------------------------------------------------------------
 // Cold path.
 // called via decoder / produce_frame - only if we create a vkPipeline
-static vk::PipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_manager_o *self, le_shader_module_handle const *shader_modules, size_t numModules ) {
+static vk::PipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_manager_o* self, le_shader_module_handle const* shader_modules, size_t numModules ) {
 
 	static auto logger             = LeLog( LOGGER_LABEL );
 	uint64_t    pipelineLayoutHash = shader_modules_get_pipeline_layout_hash( self->shaderManager, shader_modules, numModules );
@@ -1373,17 +1373,17 @@ static vk::PipelineLayout le_pipeline_manager_get_pipeline_layout( le_pipeline_m
 // ----------------------------------------------------------------------
 // Creates a vulkan graphics pipeline based on a shader state object and a given renderpass and subpass index.
 //
-static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manager_o *self, graphics_pipeline_state_o const *pso, const LeRenderPass &pass, uint32_t subpass ) {
+static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_manager_o* self, graphics_pipeline_state_o const* pso, const LeRenderPass& pass, uint32_t subpass ) {
 
 	std::vector<vk::PipelineShaderStageCreateInfo> pipelineStages;
 	pipelineStages.reserve( pso->shaderModules.size() );
 
-	std::vector<vk::SpecializationInfo *> p_specialization_infos;
+	std::vector<vk::SpecializationInfo*> p_specialization_infos;
 	p_specialization_infos.reserve( pso->shaderModules.size() );
 
-	le_shader_module_o *vertexShaderModule = nullptr; // We may need the vertex shader module later
+	le_shader_module_o* vertexShaderModule = nullptr; // We may need the vertex shader module later
 
-	for ( auto const &shader_stage : pso->shaderModules ) {
+	for ( auto const& shader_stage : pso->shaderModules ) {
 
 		auto s = self->shaderManager->shaderModules.try_find( shader_stage );
 		assert( s && "could not find shader module" );
@@ -1397,7 +1397,7 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 
 		// Create a new (potentially unused) entry for specialization info
 		p_specialization_infos.emplace_back( nullptr );
-		vk::SpecializationInfo *&p_specialization_info = p_specialization_infos.back();
+		vk::SpecializationInfo*& p_specialization_info = p_specialization_infos.back();
 
 		// Fetch specialization constant data from shader
 		// associate it with p_specialization_info
@@ -1443,7 +1443,7 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 			vertexInputAttributeDescriptions.reserve( pso->explicitVertexAttributeDescriptions.size() );
 
 			// Create vertex input binding descriptions
-			for ( auto const &b : pso->explicitVertexInputBindingDescriptions ) {
+			for ( auto const& b : pso->explicitVertexInputBindingDescriptions ) {
 
 				vk::VertexInputBindingDescription bindingDescription;
 				bindingDescription
@@ -1454,7 +1454,7 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 				vertexBindingDescriptions.emplace_back( std::move( bindingDescription ) );
 			}
 
-			for ( auto const &a : pso->explicitVertexAttributeDescriptions ) {
+			for ( auto const& a : pso->explicitVertexAttributeDescriptions ) {
 				vk::VertexInputAttributeDescription attributeDescription;
 				attributeDescription
 				    .setLocation( a.location )
@@ -1545,7 +1545,7 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 
 	auto creation_result = self->device.createGraphicsPipeline( self->vulkanCache, gpi );
 
-	for ( auto &p_spec : p_specialization_infos ) {
+	for ( auto& p_spec : p_specialization_infos ) {
 		delete ( p_spec );
 	}
 	p_specialization_infos.clear();
@@ -1556,14 +1556,14 @@ static vk::Pipeline le_pipeline_cache_create_graphics_pipeline( le_pipeline_mana
 
 // ----------------------------------------------------------------------
 
-static vk::Pipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manager_o *self, compute_pipeline_state_o const *pso ) {
+static vk::Pipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manager_o* self, compute_pipeline_state_o const* pso ) {
 
 	// Fetch vk::PipelineLayout for this pso
 	auto pipelineLayout = le_pipeline_manager_get_pipeline_layout( self, &pso->shaderStage, 1 );
 	auto s              = self->shaderManager->shaderModules.try_find( pso->shaderStage );
 	assert( s && "shader module could not be found" );
 
-	vk::SpecializationInfo *p_specialization_info = nullptr;
+	vk::SpecializationInfo* p_specialization_info = nullptr;
 	if ( !s->specialization_map_info.entries.empty() ) {
 		p_specialization_info = new ( vk::SpecializationInfo );
 		p_specialization_info
@@ -1601,7 +1601,7 @@ static vk::Pipeline le_pipeline_cache_create_compute_pipeline( le_pipeline_manag
 // ----------------------------------------------------------------------
 
 #ifdef LE_FEATURE_RTX
-static vk::RayTracingShaderGroupTypeKHR le_to_vk( le::RayTracingShaderGroupType const &tp ) {
+static vk::RayTracingShaderGroupTypeKHR le_to_vk( le::RayTracingShaderGroupType const& tp ) {
 	// clang-format off
     switch(tp){
 	    case (le::RayTracingShaderGroupType::eTrianglesHitGroup  ) : return vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup;
@@ -1617,7 +1617,7 @@ static vk::RayTracingShaderGroupTypeKHR le_to_vk( le::RayTracingShaderGroupType 
 
 // ----------------------------------------------------------------------
 
-static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o *self, rtx_pipeline_state_o const *pso ) {
+static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o* self, rtx_pipeline_state_o const* pso ) {
 
 	// Fetch vk::PipelineLayout for this pso
 	auto pipelineLayout = le_pipeline_manager_get_pipeline_layout( self, pso->shaderStages.data(), pso->shaderStages.size() );
@@ -1627,7 +1627,7 @@ static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o
 
 	le_shader_module_handle rayGenModule = nullptr; // We may need the ray gen shader module later
 
-	for ( auto const &shader_stage : pso->shaderStages ) {
+	for ( auto const& shader_stage : pso->shaderStages ) {
 
 		auto s = self->shaderManager->shaderModules.try_find( shader_stage );
 		assert( s && "could not find shader module" );
@@ -1654,7 +1654,7 @@ static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o
 
 	// Fill in shading groups from pso->groups
 
-	for ( auto const &group : pso->shaderGroups ) {
+	for ( auto const& group : pso->shaderGroups ) {
 		vk::RayTracingShaderGroupCreateInfoKHR info;
 		info
 		    .setType( le_to_vk( group.type ) )
@@ -1688,9 +1688,9 @@ static vk::Pipeline le_pipeline_cache_create_rtx_pipeline( le_pipeline_manager_o
 // ----------------------------------------------------------------------
 
 /// \brief returns hash key for given bindings, creates and retains new vkDescriptorSetLayout inside backend if necessary
-static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_manager_o *self, std::vector<le_shader_binding_info> const &bindings, vk::DescriptorSetLayout *layout ) {
+static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_manager_o* self, std::vector<le_shader_binding_info> const& bindings, vk::DescriptorSetLayout* layout ) {
 
-	auto &descriptorSetLayouts = self->descriptorSetLayouts; // FIXME: this method only needs rw access to this, and the device
+	auto& descriptorSetLayouts = self->descriptorSetLayouts; // FIXME: this method only needs rw access to this, and the device
 
 	// -- Calculate hash based on le_shader_binding_infos for this set
 	uint64_t set_layout_hash = le_shader_bindings_calculate_hash( bindings.data(), bindings.size() );
@@ -1711,7 +1711,7 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 
 		vk_bindings.reserve( bindings.size() );
 
-		for ( const auto &b : bindings ) {
+		for ( const auto& b : bindings ) {
 			vk::DescriptorSetLayoutBinding binding{};
 			binding.setBinding( b.binding )
 			    .setDescriptorType( vk::DescriptorType( b.type ) )
@@ -1743,7 +1743,7 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 			entries.reserve( bindings.size() );
 
 			size_t base_offset = 0; // offset in bytes into DescriptorData vector, assuming vector is tightly packed.
-			for ( const auto &b : bindings ) {
+			for ( const auto& b : bindings ) {
 				vk::DescriptorUpdateTemplateEntry entry;
 
 				auto descriptorType = vk::DescriptorType( b.type );
@@ -1823,7 +1823,7 @@ static uint64_t le_pipeline_cache_produce_descriptor_set_layout( le_pipeline_man
 // Calculates pipeline layout info by first consolidating all bindings
 // over all referenced shader modules, and then ordering these by descriptor sets.
 //
-static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info( le_pipeline_manager_o *self, le_shader_module_handle const *shader_modules, size_t shader_modules_count ) {
+static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info( le_pipeline_manager_o* self, le_shader_module_handle const* shader_modules, size_t shader_modules_count ) {
 	le_pipeline_layout_info info{};
 
 	std::vector<le_shader_binding_info> combined_bindings = shader_modules_merge_bindings( self->shaderManager, shader_modules, shader_modules_count );
@@ -1841,7 +1841,7 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 		for ( auto it = combined_bindings.begin(); it != combined_bindings.end(); ) {
 
 			// Find next element with different set id
-			auto itN = std::find_if( it, combined_bindings.end(), [ &set_idx ]( const le_shader_binding_info &el ) -> bool {
+			auto itN = std::find_if( it, combined_bindings.end(), [ &set_idx ]( const le_shader_binding_info& el ) -> bool {
 				return el.setIndex != set_idx;
 			} );
 
@@ -1864,9 +1864,9 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 			// FIXME: (check-shader-bindings) we must find a way to recover from this, but it might be difficult without a "linking" stage
 			// which combines various shader stages.
 			set_idx = 0;
-			for ( auto const &s : sets ) {
+			for ( auto const& s : sets ) {
 				uint32_t binding = 0;
-				for ( auto const &b : s ) {
+				for ( auto const& b : s ) {
 					assert( b.binding == binding );
 					assert( b.setIndex == set_idx );
 					binding++;
@@ -1929,11 +1929,11 @@ static le_pipeline_layout_info le_pipeline_manager_produce_pipeline_layout_info(
 // ----------------------------------------------------------------------
 // HOT path - this gets executed every frame
 static inline void le_pipeline_manager_produce_pipeline_layout_info(
-    le_pipeline_manager_o *        self,
-    le_shader_module_handle const *shader_modules,
+    le_pipeline_manager_o*         self,
+    le_shader_module_handle const* shader_modules,
     size_t                         shader_modules_count,
-    le_pipeline_layout_info *      pipeline_layout_info,
-    uint64_t *                     pipeline_layout_hash ) {
+    le_pipeline_layout_info*       pipeline_layout_info,
+    uint64_t*                      pipeline_layout_hash ) {
 
 	*pipeline_layout_hash = shader_modules_get_pipeline_layout_hash( self->shaderManager, shader_modules, shader_modules_count );
 
@@ -1961,9 +1961,9 @@ static inline void le_pipeline_manager_produce_pipeline_layout_info(
 // + NOTE: Access to this method must be sequential - no two frames may access this method
 //   at the same time - and no two renderpasses may access this method at the same time.
 static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeline(
-    le_pipeline_manager_o *self,
+    le_pipeline_manager_o* self,
     le_gpso_handle         gpso_handle,
-    const LeRenderPass &pass, uint32_t subpass ) {
+    const LeRenderPass& pass, uint32_t subpass ) {
 
 	// TODO: Do we need this lock, or are the try_finds with their internal mutexes enough?
 	auto lock = std::unique_lock( self->mtx ); // Enforce sequentiality via scoped lock: no two renderpasses may access cache concurrently.
@@ -1979,7 +1979,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeli
 	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
 
 	// -- 0. Fetch pso from cache using its hash key
-	graphics_pipeline_state_o const *pso = self->graphicsPso.try_find( gpso_handle );
+	graphics_pipeline_state_o const* pso = self->graphicsPso.try_find( gpso_handle );
 	assert( pso );
 
 	// -- 1. get pipeline layout info for a pipeline with these bindings
@@ -2003,7 +2003,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeli
 		pso_renderpass_hash_data[ 1 ]        = pass.renderpassHash;                       // Hash for *compatible* renderpass
 		pso_renderpass_hash_data_num_entries = 2;
 
-		for ( auto const &s : pso->shaderModules ) {
+		for ( auto const& s : pso->shaderModules ) {
 			auto p_module = self->shaderManager->shaderModules.try_find( s );
 			assert( p_module && "shader module not found" );
 			pso_renderpass_hash_data[ pso_renderpass_hash_data_num_entries++ ] = p_module->hash; // Module state - may have been recompiled, hash must be current
@@ -2038,13 +2038,13 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_graphics_pipeli
 //
 // + NOTE: Access to this method must be sequential - no two frames may access this method
 //   at the same time - and no two renderpasses may access this method at the same time.
-static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( le_pipeline_manager_o *self, le_rtxpso_handle pso_handle, char **maybe_shader_group_data ) {
+static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( le_pipeline_manager_o* self, le_rtxpso_handle pso_handle, char** maybe_shader_group_data ) {
 	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
 #ifdef LE_FEATURE_RTX
 
 	static auto logger = LeLog( LOGGER_LABEL );
 	// -- 0. Fetch pso from cache using its hash key
-	rtx_pipeline_state_o const *pso = self->rtxPso.try_find( pso_handle );
+	rtx_pipeline_state_o const* pso = self->rtxPso.try_find( pso_handle );
 	assert( pso );
 
 	// -- 1. get pipeline layout info for a pipeline with these bindings
@@ -2066,7 +2066,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 
 		pso_hash_data.emplace_back( reinterpret_cast<uint64_t>( pso_handle ) ); // Hash associated with `pso`
 
-		for ( auto const &shader_stage : pso->shaderStages ) {
+		for ( auto const& shader_stage : pso->shaderStages ) {
 			auto s = self->shaderManager->shaderModules.try_find( shader_stage );
 			assert( s && "could not find shader module" );
 			pso_hash_data.emplace_back( s->hash ); // Module state - may have been recompiled, hash must be current
@@ -2117,7 +2117,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 			size_t bufferSize = dataSize + sizeof( LeShaderGroupDataHeader );
 
 			// Allocate buffer to store handles
-			char *handles = static_cast<char *>( malloc( bufferSize ) );
+			char* handles = static_cast<char*>( malloc( bufferSize ) );
 
 			// The buffer used to store handles contains a header,
 			// First element is header size,
@@ -2145,7 +2145,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 			logger.info( "Queried rtx shader group handles:" );
 			size_t n_el = props.shaderGroupHandleSize / sizeof( uint32_t );
 
-			uint32_t *debug_handles = reinterpret_cast<uint32_t *>( handles + sizeof( LeShaderGroupDataHeader ) );
+			uint32_t* debug_handles = reinterpret_cast<uint32_t*>( handles + sizeof( LeShaderGroupDataHeader ) );
 			for ( size_t i = 0; i != pso->shaderGroups.size(); i++ ) {
 				std::ostringstream os;
 				for ( size_t j = 0; j != n_el; j++ ) {
@@ -2165,10 +2165,10 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_rtx_pipeline( l
 
 // ----------------------------------------------------------------------
 
-static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipeline( le_pipeline_manager_o *self, le_cpso_handle cpso_handle ) {
+static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipeline( le_pipeline_manager_o* self, le_cpso_handle cpso_handle ) {
 
 	static auto                     logger = LeLog( LOGGER_LABEL );
-	compute_pipeline_state_o const *pso    = self->computePso.try_find( cpso_handle );
+	compute_pipeline_state_o const* pso    = self->computePso.try_find( cpso_handle );
 	assert( pso );
 
 	le_pipeline_and_layout_info_t pipeline_and_layout_info = {};
@@ -2217,7 +2217,7 @@ static le_pipeline_and_layout_info_t le_pipeline_manager_produce_compute_pipelin
 // This method may get called through the pipeline builder -
 // via RECORD in command buffer recording state
 // in SETUP
-bool le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_o *self, graphics_pipeline_state_o *pso, le_gpso_handle *handle ) {
+bool le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_o* self, graphics_pipeline_state_o* pso, le_gpso_handle* handle ) {
 
 	constexpr size_t hash_msg_size = sizeof( le_graphics_pipeline_builder_data );
 	uint64_t         hash_value    = SpookyHash::Hash64( &pso->data, hash_msg_size, 0 );
@@ -2232,7 +2232,7 @@ bool le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_
 	uint64_t         stageHashEntries[ maxShaderStages ]; // array of stage hashes for further hashing
 	uint64_t         stageHashEntriesUsed = 0;            // number of used shader stage hash entries
 
-	for ( auto const &module_handle : pso->shaderModules ) {
+	for ( auto const& module_handle : pso->shaderModules ) {
 		auto p_module = self->shaderManager->shaderModules.try_find( module_handle );
 		assert( p_module && "shader module not found" );
 		stageHashEntries[ stageHashEntriesUsed++ ] = p_module->hash;
@@ -2273,11 +2273,11 @@ bool le_pipeline_manager_introduce_graphics_pipeline_state( le_pipeline_manager_
 // This method may get called through the pipeline builder -
 // via RECORD in command buffer recording state
 // in SETUP
-bool le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o *self, compute_pipeline_state_o *pso, le_cpso_handle *handle ) {
+bool le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o* self, compute_pipeline_state_o* pso, le_cpso_handle* handle ) {
 
-	le_shader_module_o *shader_module = self->shaderManager->shaderModules.try_find( pso->shaderStage );
+	le_shader_module_o* shader_module = self->shaderManager->shaderModules.try_find( pso->shaderStage );
 	assert( shader_module && "could not find shader module" );
-	*handle = reinterpret_cast<le_cpso_handle &>( shader_module->hash );
+	*handle = reinterpret_cast<le_cpso_handle&>( shader_module->hash );
 
 	return self->computePso.try_insert( *handle, pso );
 };
@@ -2286,7 +2286,7 @@ bool le_pipeline_manager_introduce_compute_pipeline_state( le_pipeline_manager_o
 // This method may get called through the pipeline builder -
 // via RECORD in command buffer recording state
 // in SETUP
-bool le_pipeline_manager_introduce_rtx_pipeline_state( le_pipeline_manager_o *self, rtx_pipeline_state_o *pso, le_rtxpso_handle *handle ) {
+bool le_pipeline_manager_introduce_rtx_pipeline_state( le_pipeline_manager_o* self, rtx_pipeline_state_o* pso, le_rtxpso_handle* handle ) {
 
 	// Calculate hash over all pipeline stages,
 	// and pipeline shader group infos
@@ -2298,7 +2298,7 @@ bool le_pipeline_manager_introduce_rtx_pipeline_state( le_pipeline_manager_o *se
 	std::vector<uint64_t> shader_module_hashes;
 
 	shader_module_hashes.reserve( pso->shaderStages.size() );
-	for ( auto const &shader_stage : pso->shaderStages ) {
+	for ( auto const& shader_stage : pso->shaderStages ) {
 		shader_module_hashes.emplace_back( le_shader_module_get_hash( self->shaderManager, shader_stage ) );
 	}
 
@@ -2325,30 +2325,30 @@ bool le_pipeline_manager_introduce_rtx_pipeline_state( le_pipeline_manager_o *se
 
 // ----------------------------------------------------------------------
 
-static VkPipelineLayout le_pipeline_manager_get_pipeline_layout_public( le_pipeline_manager_o *self, uint64_t key ) {
-	vk::PipelineLayout const *pLayout = self->pipelineLayouts.try_find( key );
+static VkPipelineLayout le_pipeline_manager_get_pipeline_layout_public( le_pipeline_manager_o* self, uint64_t key ) {
+	vk::PipelineLayout const* pLayout = self->pipelineLayouts.try_find( key );
 	assert( pLayout && "layout cannot be nullptr" );
 	return *pLayout;
 }
 
 // ----------------------------------------------------------------------
 
-static const le_descriptor_set_layout_t *le_pipeline_manager_get_descriptor_set_layout( le_pipeline_manager_o *self, uint64_t setlayout_key ) {
+static const le_descriptor_set_layout_t* le_pipeline_manager_get_descriptor_set_layout( le_pipeline_manager_o* self, uint64_t setlayout_key ) {
 	return self->descriptorSetLayouts.try_find( setlayout_key );
 };
 
 // ----------------------------------------------------------------------
 
 static le_shader_module_handle le_pipeline_manager_create_shader_module(
-    le_pipeline_manager_o *           self,
-    char const *                      path,
-    const LeShaderSourceLanguageEnum &shader_source_language,
-    const LeShaderStageEnum &         moduleType,
-    char const *                      macro_definitions,
+    le_pipeline_manager_o*            self,
+    char const*                       path,
+    const LeShaderSourceLanguageEnum& shader_source_language,
+    const LeShaderStageEnum&          moduleType,
+    char const*                       macro_definitions,
     le_shader_module_handle           handle,
-    VkSpecializationMapEntry const *  specialization_map_entries,
+    VkSpecializationMapEntry const*   specialization_map_entries,
     uint32_t                          specialization_map_entries_count,
-    void *                            specialization_map_data,
+    void*                             specialization_map_data,
     uint32_t                          specialization_map_data_num_bytes ) {
 	return le_shader_manager_create_shader_module(
 	    self->shaderManager,
@@ -2365,13 +2365,13 @@ static le_shader_module_handle le_pipeline_manager_create_shader_module(
 
 // ----------------------------------------------------------------------
 
-static void le_pipeline_manager_update_shader_modules( le_pipeline_manager_o *self ) {
+static void le_pipeline_manager_update_shader_modules( le_pipeline_manager_o* self ) {
 	le_shader_manager_update_shader_modules( self->shaderManager );
 }
 
 // ----------------------------------------------------------------------
 
-static le_pipeline_manager_o *le_pipeline_manager_create( le_device_o *le_device ) {
+static le_pipeline_manager_o* le_pipeline_manager_create( le_device_o* le_device ) {
 	auto self = new le_pipeline_manager_o();
 
 	using namespace le_backend_vk;
@@ -2393,7 +2393,7 @@ static le_pipeline_manager_o *le_pipeline_manager_create( le_device_o *le_device
 
 // ----------------------------------------------------------------------
 
-static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
+static void le_pipeline_manager_destroy( le_pipeline_manager_o* self ) {
 
 	static auto logger = LeLog( LOGGER_LABEL );
 
@@ -2405,8 +2405,8 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 
 	// -- destroy descriptorSetLayouts, and descriptorUpdateTemplates
 	self->descriptorSetLayouts.iterator(
-	    []( le_descriptor_set_layout_t *e, void *user_data ) {
-		    vk::Device *device = static_cast<vk::Device *>( user_data );
+	    []( le_descriptor_set_layout_t* e, void* user_data ) {
+		    vk::Device* device = static_cast<vk::Device*>( user_data );
 		    if ( e->vk_descriptor_set_layout ) {
 			    device->destroyDescriptorSetLayout( e->vk_descriptor_set_layout );
 			    logger.info( "Destroyed VkDescriptorSetLayout: %p", e->vk_descriptor_set_layout );
@@ -2420,8 +2420,8 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 
 	// -- destroy pipelineLayouts
 	self->pipelineLayouts.iterator(
-	    []( vk::PipelineLayout *e, void *user_data ) {
-		    vk::Device *device = static_cast<vk::Device *>( user_data );
+	    []( vk::PipelineLayout* e, void* user_data ) {
+		    vk::Device* device = static_cast<vk::Device*>( user_data );
 		    device->destroyPipelineLayout( *e );
 		    logger.info( "Destroyed VkPipelineLayout: %p", *e );
 	    },
@@ -2431,8 +2431,8 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 	// we must first iterate over all pipeline objects to delete any pipelines
 
 	self->pipelines.iterator(
-	    []( VkPipeline *p, void *user_data ) {
-		    auto device = static_cast<vk::Device *>( user_data );
+	    []( VkPipeline* p, void* user_data ) {
+		    auto device = static_cast<vk::Device*>( user_data );
 		    device->destroyPipeline( *p );
 		    logger.info( "Destroyed VkPipeline: %p", *p );
 	    },
@@ -2441,7 +2441,7 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 	self->pipelines.clear();
 
 	self->rtx_shader_group_data.iterator(
-	    []( char **p_buffer, void * ) {
+	    []( char** p_buffer, void* ) {
 		    free( *p_buffer );
 	    },
 	    nullptr );
@@ -2460,11 +2460,11 @@ static void le_pipeline_manager_destroy( le_pipeline_manager_o *self ) {
 
 // ----------------------------------------------------------------------
 
-void register_le_pipeline_vk_api( void *api_ ) {
+void register_le_pipeline_vk_api( void* api_ ) {
 
-	auto le_backend_vk_api_i = static_cast<le_backend_vk_api *>( api_ );
+	auto le_backend_vk_api_i = static_cast<le_backend_vk_api*>( api_ );
 	{
-		auto &i = le_backend_vk_api_i->le_pipeline_manager_i;
+		auto& i = le_backend_vk_api_i->le_pipeline_manager_i;
 
 		i.create  = le_pipeline_manager_create;
 		i.destroy = le_pipeline_manager_destroy;
@@ -2481,14 +2481,14 @@ void register_le_pipeline_vk_api( void *api_ ) {
 		i.produce_compute_pipeline          = le_pipeline_manager_produce_compute_pipeline;
 	}
 	{
-		auto &i = le_backend_vk_api_i->le_shader_module_i;
+		auto& i = le_backend_vk_api_i->le_shader_module_i;
 		//		i.get_hash  = le_shader_module_get_hash;
 		i.get_stage = le_shader_module_get_stage;
 	}
 	{
 		// Store callback address with api so that callback gets automatically forwarded to the correct
 		// address when backend reloads : see le_core.h / callback forwarding
-		auto &i            = le_backend_vk_api_i->private_shader_file_watcher_i;
-		i.on_callback_addr = ( void * )le_shader_file_watcher_on_callback;
+		auto& i            = le_backend_vk_api_i->private_shader_file_watcher_i;
+		i.on_callback_addr = ( void* )le_shader_file_watcher_on_callback;
 	}
 }

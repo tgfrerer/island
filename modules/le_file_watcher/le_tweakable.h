@@ -9,14 +9,14 @@
   Each compilation unit which has tweaks must include this header, and must, at the
   most convenient time, call
 
-		UPDATE_TWEAKS();
+        UPDATE_TWEAKS();
 
   Which is the polling method for tweaks. Calling this will trigger callbacks if source
   file changes have been detected via the file watcher.
 
   To tweak individual values, set them as such:
 
-		int myVal = TWEAK(10);
+        int myVal = TWEAK(10);
 
   Important: You must only place one tweakable value per line.
 
@@ -47,7 +47,7 @@
 // We use `class` here purely for RAAI, to ensure the destructor
 // gets called if the object gets deleted.
 class FileWatcher : NoCopy, NoMove {
-	le_file_watcher_o *self = le_file_watcher_api_i->le_file_watcher_i.create();
+	le_file_watcher_o* self = le_file_watcher_api_i->le_file_watcher_i.create();
 
   public:
 	FileWatcher() = default;
@@ -91,7 +91,7 @@ struct CbData {
 	uint32_t       line_num;
 	Type           type;
 	Data           data;
-	struct CbData *next; // linked list.
+	struct CbData* next; // linked list.
 
 #	define INITIALISER( T, TID )                          \
 		explicit CbData( uint32_t line_num_, TID param ) { \
@@ -112,7 +112,7 @@ struct CbData {
 #	undef INITIALISER
 };
 
-static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
+static int tweakable_add_watch( CbData* cb_data, char const* file_path ) {
 
 	le_file_watcher_watch_settings watch;
 	watch.filePath           = file_path;
@@ -130,12 +130,12 @@ static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 	// If the file triggers a callback, we go through all elements
 	// in the linked list of callback parameters, and apply the values we
 	// parse from the file at the given line numbers per list item.
-	static CbData *has_previous_cb = nullptr;
+	static CbData* has_previous_cb = nullptr;
 
 	if ( nullptr == has_previous_cb ) {
 
-		watch.callback_fun = []( const char *path, void *user_data ) -> void {
-			auto cb_data = static_cast<CbData *>( user_data );
+		watch.callback_fun = []( const char* path, void* user_data ) -> void {
+			auto cb_data = static_cast<CbData*>( user_data );
 
 			// Open file read-only.
 			// Print line at correct line number.
@@ -160,7 +160,7 @@ static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 				std::string str;
 				std::getline( file, str );
 
-				char const *str_start = str.c_str();
+				char const* str_start = str.c_str();
 
 				static auto logger = LeLog( "le_tweakable" );
 
@@ -266,12 +266,12 @@ static int tweakable_add_watch( CbData *cb_data, char const *file_path ) {
 	// ----------------------------------------------------------------------
 
 #	define TWEAK( x )                                                                              \
-		[]( auto val, uint32_t line, char const *file_path )                                        \
-		    -> decltype( val ) & {                                                                  \
+		[]( auto val, uint32_t line, char const* file_path )                                        \
+		    -> decltype( val )& {                                                                   \
 			static CbData cb_data( line, val );                                                     \
 			static int    val_watch = tweakable_add_watch( &cb_data, file_path );                   \
 			( void )val_watch; /* <- this does nothing, only to suppress unused variable warning */ \
-			return reinterpret_cast<decltype( val ) &>( cb_data.data );                             \
+			return reinterpret_cast<decltype( val )&>( cb_data.data );                              \
 		}( x, __LINE__, __FILE__ )
 
 	// ----------------------------------------------------------------------

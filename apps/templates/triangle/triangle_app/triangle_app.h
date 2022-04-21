@@ -27,13 +27,13 @@ LE_MODULE_LOAD_DEFAULT( triangle_app );
 #ifdef __cplusplus
 
 namespace triangle_app {
-static const auto &api            = triangle_app_api_i;
-static const auto &triangle_app_i = api -> triangle_app_i;
+static const auto& api            = triangle_app_api_i;
+static const auto& triangle_app_i = api -> triangle_app_i;
 } // namespace triangle_app
 
 class TriangleApp : NoCopy, NoMove {
 
-	triangle_app_o *self;
+	triangle_app_o* self;
 
   public:
 	TriangleApp()

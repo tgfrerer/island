@@ -18,7 +18,7 @@
 static le_img_resource_handle IMGUI_IMG_HANDLE = LE_IMG_RESOURCE( "ImguiDefaultFontImage" );
 
 struct FontTextureInfo {
-	uint8_t *pixels      = nullptr;
+	uint8_t* pixels      = nullptr;
 	int32_t  width       = 0;
 	int32_t  height      = 0;
 	bool     wasUploaded = false;
@@ -30,7 +30,7 @@ struct le_mouse_event_data_o {
 };
 
 struct le_imgui_o {
-	ImGuiContext *        imguiContext            = nullptr;
+	ImGuiContext*         imguiContext            = nullptr;
 	FontTextureInfo       imguiTexture            = {};
 	le_mouse_event_data_o mouse_state             = {};
 	le_texture_handle     texture_font            = {};
@@ -39,7 +39,7 @@ struct le_imgui_o {
 
 // ----------------------------------------------------------------------
 
-static le_imgui_o *le_imgui_create() {
+static le_imgui_o* le_imgui_create() {
 	auto self = new le_imgui_o();
 
 	self->imguiContext = ImGui::CreateContext( nullptr );
@@ -50,7 +50,7 @@ static le_imgui_o *le_imgui_create() {
 
 // ----------------------------------------------------------------------
 
-static void le_imgui_destroy( le_imgui_o *self ) {
+static void le_imgui_destroy( le_imgui_o* self ) {
 
 	ImGui::DestroyContext( self->imguiContext );
 
@@ -59,7 +59,7 @@ static void le_imgui_destroy( le_imgui_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_imgui_begin_frame( le_imgui_o *self ) {
+static void le_imgui_begin_frame( le_imgui_o* self ) {
 	// -- destroy imgui context
 	ImGui::SetCurrentContext( self->imguiContext );
 	ImGui::NewFrame();
@@ -67,7 +67,7 @@ static void le_imgui_begin_frame( le_imgui_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_imgui_end_frame( le_imgui_o *self ) {
+static void le_imgui_end_frame( le_imgui_o* self ) {
 	ImGui::SetCurrentContext( self->imguiContext );
 	ImGui::Render();
 }
@@ -78,7 +78,7 @@ static void le_imgui_end_frame( le_imgui_o *self ) {
 /// Setup key mappings
 /// Upload any resources which need uploading
 ///
-static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *p_render_module, float display_width, float display_height ) {
+static void le_imgui_setup_gui_resources( le_imgui_o* self, le_render_module_o* p_render_module, float display_width, float display_height ) {
 
 	auto module = le::RenderModule{ p_render_module };
 
@@ -103,7 +103,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *
 
 	// get imgui font texture handle
 
-	ImGuiIO &io = ImGui::GetIO();
+	ImGuiIO& io = ImGui::GetIO();
 
 	io.Fonts->AddFontFromFileTTF( "./resources/fonts/IBMPlexSans-Regular.otf", 20.0f, nullptr, io.Fonts->GetGlyphRangesDefault() );
 	io.Fonts->GetTexDataAsRGBA32( &self->imguiTexture.pixels, &self->imguiTexture.width, &self->imguiTexture.height );
@@ -124,8 +124,8 @@ static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *
 
 	pass
 	    .useImageResource( IMGUI_IMG_HANDLE, { LE_IMAGE_USAGE_TRANSFER_DST_BIT } )
-	    .setExecuteCallback( self, []( le_command_buffer_encoder_o *p_encoder, void *user_data ) {
-		    auto imgui = static_cast<le_imgui_o *>( user_data );
+	    .setExecuteCallback( self, []( le_command_buffer_encoder_o* p_encoder, void* user_data ) {
+		    auto imgui = static_cast<le_imgui_o*>( user_data );
 
 		    // Tell encoder to upload imgui image - but only once
 		    if ( false == imgui->imguiTexture.wasUploaded ) {
@@ -150,7 +150,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *
 	// We want to save the raw value in the pointer, because if we passed in a
 	// pointer to the name of the texture, the texture may have changed.
 	// for this to work, we first cast to uint64_t, then cast to void*
-	io.Fonts->TexID = static_cast<void *>( self->texture_font );
+	io.Fonts->TexID = static_cast<void*>( self->texture_font );
 
 	// Keyboard mapping. ImGui will use those indices to peek into the io.KeysDown[] array.
 	io.KeyMap[ ImGuiKey_Tab ]        = uint32_t( LeUiEvent::NamedKey::eTab );
@@ -183,7 +183,7 @@ static void le_imgui_setup_gui_resources( le_imgui_o *self, le_render_module_o *
 
 // ----------------------------------------------------------------------
 
-static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
+static void le_imgui_draw_gui( le_imgui_o* self, le_renderpass_o* p_rp ) {
 
 	auto rp = le::RenderPass{ p_rp };
 
@@ -192,9 +192,9 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 	//
 	rp.sampleTexture( self->texture_font, { { le::Filter::eLinear, le::Filter::eLinear }, { IMGUI_IMG_HANDLE, {} } } );
 
-	rp.setExecuteCallback( self, []( le_command_buffer_encoder_o *p_encoder, void *user_data ) {
+	rp.setExecuteCallback( self, []( le_command_buffer_encoder_o* p_encoder, void* user_data ) {
 		auto encoder = le::Encoder{ p_encoder };
-		auto imgui   = static_cast<le_imgui_o *>( user_data );
+		auto imgui   = static_cast<le_imgui_o*>( user_data );
 
 		// Fetch pipeline Manager so that we can create pipeline,
 		// and shader modules if needed.
@@ -244,10 +244,10 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 
 		// We patch display size as late as possible - here is the best place, since we know extents
 		// of the renderpass into which the gui will be drawn.
-		ImGuiIO &io    = ImGui::GetIO();
+		ImGuiIO& io    = ImGui::GetIO();
 		io.DisplaySize = { float( extents.width ), float( extents.height ) };
 
-		ImDrawData *drawData = ImGui::GetDrawData();
+		ImDrawData* drawData = ImGui::GetDrawData();
 		if ( drawData ) {
 			// draw imgui
 
@@ -270,8 +270,8 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 
 			ImVec4 currentClipRect{};
 
-			for ( ImDrawList **cmdList = drawData->CmdLists; cmdList != drawData->CmdLists + drawData->CmdListsCount; cmdList++ ) {
-				auto &im_cmd_list = *cmdList;
+			for ( ImDrawList** cmdList = drawData->CmdLists; cmdList != drawData->CmdLists + drawData->CmdListsCount; cmdList++ ) {
+				auto& im_cmd_list = *cmdList;
 
 				// upload index data
 				encoder.setIndexData( im_cmd_list->IdxBuffer.Data, size_t( im_cmd_list->IdxBuffer.size() * sizeof( ImDrawIdx ) ), le::IndexType::eUint16 );
@@ -279,7 +279,7 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 				encoder.setVertexData( im_cmd_list->VtxBuffer.Data, size_t( im_cmd_list->VtxBuffer.size() * sizeof( ImDrawVert ) ), 0 );
 
 				uint32_t index_offset = 0;
-				for ( const auto &im_cmd : im_cmd_list->CmdBuffer ) {
+				for ( const auto& im_cmd : im_cmd_list->CmdBuffer ) {
 
 					if ( im_cmd.UserCallback ) {
 						// call user callback
@@ -321,21 +321,21 @@ static void le_imgui_draw_gui( le_imgui_o *self, le_renderpass_o *p_rp ) {
 
 // ----------------------------------------------------------------------
 
-void le_imgui_process_events( le_imgui_o *self, LeUiEvent const *events, size_t numEvents ) {
+void le_imgui_process_events( le_imgui_o* self, LeUiEvent const* events, size_t numEvents ) {
 	// Todo: filter relevant events, update internal state based on events.
-	LeUiEvent const *const events_end = events + numEvents; // end iterator
+	LeUiEvent const* const events_end = events + numEvents; // end iterator
 
 	ImGui::SetCurrentContext( self->imguiContext );
-	ImGuiIO &io = ImGui::GetIO();
+	ImGuiIO& io = ImGui::GetIO();
 
 	bool wantsFullscreenToggle = false; // Accumulate fullscreen toggles to minimize toggles.
 
-	for ( LeUiEvent const *event = events; event != events_end; event++ ) {
+	for ( LeUiEvent const* event = events; event != events_end; event++ ) {
 		// Process events in sequence
 
 		switch ( event->event ) {
 		case LeUiEvent::Type::eKey: {
-			auto &e = event->key;
+			auto& e = event->key;
 
 			if ( e.key == LeUiEvent::NamedKey::eF11 && e.action == LeUiEvent::ButtonAction::eRelease ) {
 				wantsFullscreenToggle ^= 1;
@@ -356,26 +356,26 @@ void le_imgui_process_events( le_imgui_o *self, LeUiEvent const *events, size_t 
 
 		} break;
 		case LeUiEvent::Type::eCharacter: {
-			auto &e = event->character;
+			auto& e = event->character;
 			if ( e.codepoint > 0 && e.codepoint < 0x10000 ) {
 				io.AddInputCharacter( uint16_t( e.codepoint ) );
 			}
 		} break;
 		case LeUiEvent::Type::eCursorPosition: {
-			auto &e                      = event->cursorPosition;
+			auto& e                      = event->cursorPosition;
 			self->mouse_state.cursor_pos = { float( e.x ), float( e.y ) };
 		} break;
 		case LeUiEvent::Type::eCursorEnter: {
-			auto &e = event->cursorEnter;
+			auto& e = event->cursorEnter;
 		} break;
 		case LeUiEvent::Type::eMouseButton: {
-			auto &e = event->mouseButton;
+			auto& e = event->mouseButton;
 			if ( e.button >= 0 && e.button < int( self->mouse_state.buttonState.size() ) ) {
 				self->mouse_state.buttonState[ size_t( e.button ) ] = ( e.action == LeUiEvent::ButtonAction::ePress );
 			}
 		} break;
 		case LeUiEvent::Type::eScroll: {
-			auto &e = event->scroll;
+			auto& e = event->scroll;
 			io.MouseWheelH += float( e.x_offset );
 			io.MouseWheel += float( e.y_offset );
 
@@ -396,7 +396,7 @@ void le_imgui_process_events( le_imgui_o *self, LeUiEvent const *events, size_t 
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_imgui, api ) {
-	auto &le_imgui_i = static_cast<le_imgui_api *>( api )->le_imgui_i;
+	auto& le_imgui_i = static_cast<le_imgui_api*>( api )->le_imgui_i;
 
 	le_imgui_i.create          = le_imgui_create;
 	le_imgui_i.destroy         = le_imgui_destroy;

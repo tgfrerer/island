@@ -37,8 +37,8 @@ LE_MODULE_LOAD_DEFAULT( le_imgui );
 #ifdef __cplusplus
 
 namespace le_imgui {
-static const auto &api        = le_imgui_api_i;
-static const auto &le_imgui_i = api -> le_imgui_i;
+static const auto& api        = le_imgui_api_i;
+static const auto& le_imgui_i = api -> le_imgui_i;
 
 } // namespace le_imgui
 

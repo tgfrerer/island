@@ -78,16 +78,16 @@ LE_MODULE( le_camera );
 LE_MODULE_LOAD_DEFAULT( le_camera );
 
 namespace le_camera {
-static const auto &api = le_camera_api_i;
+static const auto& api = le_camera_api_i;
 
-static const auto &le_camera_i            = api -> le_camera_i;
-static const auto &le_camera_controller_i = api -> le_camera_controller_i;
+static const auto& le_camera_i            = api -> le_camera_i;
+static const auto& le_camera_controller_i = api -> le_camera_controller_i;
 
 } // namespace le_camera
 
 class LeCamera : NoMove {
 
-	le_camera_o *self;
+	le_camera_o* self;
 
   public:
 	LeCamera()
@@ -98,37 +98,37 @@ class LeCamera : NoMove {
 		le_camera::le_camera_i.destroy( self );
 	}
 
-	LeCamera( const LeCamera &rhs )
+	LeCamera( const LeCamera& rhs )
 	    : self( le_camera::le_camera_i.clone( rhs.self ) ) {
 	}
 
-	LeCamera &operator=( const LeCamera &rhs ) = delete;
+	LeCamera& operator=( const LeCamera& rhs ) = delete;
 
 #	if ( ISL_ALLOW_GLM_TYPES == 1 )
 
-	glm::mat4 const &getViewMatrixGlm() const {
+	glm::mat4 const& getViewMatrixGlm() const {
 		return le_camera::le_camera_i.get_view_matrix_glm( self );
 	}
 
-	glm::mat4 const &getProjectionMatrixGlm() const {
+	glm::mat4 const& getProjectionMatrixGlm() const {
 		return le_camera::le_camera_i.get_projection_matrix_glm( self );
 	}
 
-	void setViewMatrixGlm( glm::mat4 const &viewMatrix ) {
+	void setViewMatrixGlm( glm::mat4 const& viewMatrix ) {
 		le_camera::le_camera_i.set_view_matrix_glm( self, viewMatrix );
 	}
 
 #	endif
 
-	void getViewMatrix( float *p_matrix_4x4 ) const {
+	void getViewMatrix( float* p_matrix_4x4 ) const {
 		return le_camera::le_camera_i.get_view_matrix( self, p_matrix_4x4 );
 	}
 
-	void getProjectionMatrix( float *p_matrix_4x4 ) const {
+	void getProjectionMatrix( float* p_matrix_4x4 ) const {
 		return le_camera::le_camera_i.get_projection_matrix( self, p_matrix_4x4 );
 	}
 
-	void setViewMatrix( float const *viewMatrix ) {
+	void setViewMatrix( float const* viewMatrix ) {
 		le_camera::le_camera_i.set_view_matrix( self, viewMatrix );
 	}
 
@@ -136,11 +136,11 @@ class LeCamera : NoMove {
 		return le_camera::le_camera_i.get_unit_distance( self );
 	}
 
-	void setViewport( le::Viewport const &viewport ) {
+	void setViewport( le::Viewport const& viewport ) {
 		le_camera::le_camera_i.set_viewport( self, viewport );
 	}
 
-	le::Viewport const &getViewport() {
+	le::Viewport const& getViewport() {
 		return le_camera::le_camera_i.get_viewport( self );
 	}
 
@@ -155,7 +155,7 @@ class LeCamera : NoMove {
 		return le_camera::le_camera_i.get_fov_radians( self );
 	}
 
-	void getClipDistances( float *nearClip, float *farClip ) {
+	void getClipDistances( float* nearClip, float* farClip ) {
 		le_camera::le_camera_i.get_clip_distances( self, nearClip, farClip );
 	}
 
@@ -163,7 +163,7 @@ class LeCamera : NoMove {
 		le_camera::le_camera_i.set_clip_distances( self, nearClip, farClip );
 	}
 
-	bool getSphereCentreInFrustum( float const *pSphereCentreInCameraSpaceFloat3, float sphereRadius_ ) {
+	bool getSphereCentreInFrustum( float const* pSphereCentreInCameraSpaceFloat3, float sphereRadius_ ) {
 		return le_camera::le_camera_i.get_sphere_in_frustum( self, pSphereCentreInCameraSpaceFloat3, sphereRadius_ );
 	}
 
@@ -173,7 +173,7 @@ class LeCamera : NoMove {
 };
 
 class LeCameraController : NoCopy, NoMove {
-	le_camera_controller_o *self;
+	le_camera_controller_o* self;
 
   public:
 	LeCameraController()
@@ -184,7 +184,7 @@ class LeCameraController : NoCopy, NoMove {
 		le_camera::le_camera_controller_i.destroy( self );
 	}
 
-	void processEvents( le_camera_o *camera, LeUiEvent const *events, size_t numEvents ) {
+	void processEvents( le_camera_o* camera, LeUiEvent const* events, size_t numEvents ) {
 		le_camera::le_camera_controller_i.process_events( self, camera, events, numEvents );
 	}
 

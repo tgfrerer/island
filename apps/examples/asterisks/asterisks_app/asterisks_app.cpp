@@ -212,14 +212,14 @@ std::vector<glm::vec2> explosion_vertices = {
 // clang-format on
 
 typedef asterisks_app_o app_o;
-static void             app_reset_camera( app_o *self ); // ffdecl.
+static void             app_reset_camera( app_o* self ); // ffdecl.
 
 // ----------------------------------------------------------------------
 
 // Returns the largest rectangle given an aspect radio, eg. 4:3,
 // fitting into the frame rect. If it doesn't fit perfectly, it
 // will get centered.
-le::Rect2D le_rect_2d_fit_into( float const width_over_height, le::Rect2D const *frame_rect ) {
+le::Rect2D le_rect_2d_fit_into( float const width_over_height, le::Rect2D const* frame_rect ) {
 
 	le::Rect2D result{};
 	float      target_aspect_ratio = float( frame_rect->width ) / float( frame_rect->height );
@@ -278,27 +278,27 @@ static void app_terminate() {
 
 // ----------------------------------------------------------------------
 
-static void app_remove_asterisks( app_o *self ) {
+static void app_remove_asterisks( app_o* self ) {
 	// first we must remove any asterisks which are left on screen.
 	std::vector<EntityId> asterisk_entities;
 
 	self->ecs.system_set_method(
 	    self->sysFetchAsterisks,
-	    []( LE_ECS_READ_ONLY_PARAMS, void *user_data ) {
-		    auto &asterisks = *static_cast<std::vector<EntityId> *>( user_data );
+	    []( LE_ECS_READ_ONLY_PARAMS, void* user_data ) {
+		    auto& asterisks = *static_cast<std::vector<EntityId>*>( user_data );
 		    asterisks.push_back( entity );
 	    } );
 
 	self->ecs.update_system( self->sysFetchAsterisks, &asterisk_entities );
 
-	for ( auto &e : asterisk_entities ) {
+	for ( auto& e : asterisk_entities ) {
 		self->ecs.remove_entity( e );
 	}
 }
 
 // ----------------------------------------------------------------------
 
-static void app_spawn_spaceship( app_o *app ) {
+static void app_spawn_spaceship( app_o* app ) {
 
 	// ---------| gamestate is either initial or gameover - we can issue a spaceship
 
@@ -311,7 +311,7 @@ static void app_spawn_spaceship( app_o *app ) {
 
 // ----------------------------------------------------------------------
 
-static void app_spawn_asterisks( app_o *app ) {
+static void app_spawn_asterisks( app_o* app ) {
 
 	// Todo: spawn asterisks in border region...
 
@@ -346,7 +346,7 @@ static void app_spawn_asterisks( app_o *app ) {
 
 // ----------------------------------------------------------------------
 
-static void app_start_game( app_o *app ) {
+static void app_start_game( app_o* app ) {
 
 	app->level = 0;
 	// setup spaceship entity
@@ -358,7 +358,7 @@ static void app_start_game( app_o *app ) {
 
 // ----------------------------------------------------------------------
 
-static app_o *app_create() {
+static app_o* app_create() {
 	auto app = new ( app_o );
 
 	srand( 15 );
@@ -461,13 +461,13 @@ static app_o *app_create() {
 
 // ----------------------------------------------------------------------
 
-static void app_destroy( app_o *self ) {
+static void app_destroy( app_o* self ) {
 	delete ( self );
 }
 
 // ----------------------------------------------------------------------
 
-static void app_reset_camera( app_o *self ) {
+static void app_reset_camera( app_o* self ) {
 	le::Extent2D extents{};
 	self->renderer.getSwapchainExtent( &extents.width, &extents.height );
 	self->camera.setViewport( { 0, 0, 640, 480, 0.f, 1.f } );
@@ -478,8 +478,8 @@ static void app_reset_camera( app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void render_pass_main_exec( le_command_buffer_encoder_o *encoder_, void *user_data ) {
-	auto        app = static_cast<app_o *>( user_data );
+static void render_pass_main_exec( le_command_buffer_encoder_o* encoder_, void* user_data ) {
+	auto        app = static_cast<app_o*>( user_data );
 	le::Encoder encoder{ encoder_ };
 
 	// -- Set up pipelines
@@ -564,9 +564,9 @@ static void render_pass_main_exec( le_command_buffer_encoder_o *encoder_, void *
 	std::vector<uint16_t>  indices;
 
 	struct DrawCapture {
-		std::vector<glm::vec3> *vertices;
-		std::vector<uint16_t> * indices;
-		void *                  user_data;
+		std::vector<glm::vec3>* vertices;
+		std::vector<uint16_t>*  indices;
+		void*                   user_data;
 	};
 
 	DrawCapture draw_capture{ &vertices, &indices, &spaceship_vertices };
@@ -574,11 +574,11 @@ static void render_pass_main_exec( le_command_buffer_encoder_o *encoder_, void *
 	// Execute spaceship draw system
 
 	app->ecs.system_set_method(
-	    app->sysDrawSpaceShip, []( LE_ECS_READ_ONLY_PARAMS, void *user_data ) {
+	    app->sysDrawSpaceShip, []( LE_ECS_READ_ONLY_PARAMS, void* user_data ) {
 		    auto pos                = LE_ECS_GET_READ_PARAM( 0, PositionOrientationComponent );
 		    auto state              = LE_ECS_GET_READ_PARAM( 1, SpaceShipComponent );
-		    auto pCapture           = static_cast<DrawCapture *>( user_data );
-		    auto spaceship_vertices = static_cast<std::vector<glm::vec2> const *>( pCapture->user_data );
+		    auto pCapture           = static_cast<DrawCapture*>( user_data );
+		    auto spaceship_vertices = static_cast<std::vector<glm::vec2> const*>( pCapture->user_data );
 		    auto vertex_offset      = pCapture->vertices->size();
 
 		    // first apply orientation
@@ -588,12 +588,12 @@ static void render_pass_main_exec( le_command_buffer_encoder_o *encoder_, void *
 
 		    // Then apply translation
 
-		    for ( auto &v : *spaceship_vertices ) {
+		    for ( auto& v : *spaceship_vertices ) {
 			    auto v2 = ( rot * v ) + pos->pos;
 			    pCapture->vertices->emplace_back( v2.x, v2.y, 0 );
 		    }
 
-		    for ( auto const &si : spaceship_indices ) {
+		    for ( auto const& si : spaceship_indices ) {
 			    pCapture->indices->push_back( vertex_offset + si );
 		    }
 
@@ -622,12 +622,12 @@ static void render_pass_main_exec( le_command_buffer_encoder_o *encoder_, void *
 
 	// Draw Projectiles
 	app->ecs.system_set_method(
-	    app->sysDrawProjectiles, []( LE_ECS_READ_ONLY_PARAMS, void *user_data ) {
+	    app->sysDrawProjectiles, []( LE_ECS_READ_ONLY_PARAMS, void* user_data ) {
 		    auto pos = LE_ECS_GET_READ_PARAM( 0, PositionOrientationComponent );
 		    // auto vel        = LE_ECS_GET_READ_PARAM( 1, VelocityComponent );
 		    // auto projectile = LE_ECS_GET_READ_PARAM( 2, ProjectileComponent );
 
-		    auto pCapture = static_cast<DrawCapture *>( user_data );
+		    auto pCapture = static_cast<DrawCapture*>( user_data );
 
 		    auto const vertex_offset = pCapture->vertices->size();
 
@@ -657,12 +657,12 @@ static void render_pass_main_exec( le_command_buffer_encoder_o *encoder_, void *
 	draw_capture.user_data = &asterisk_vertices;
 
 	app->ecs.system_set_method(
-	    app->sysDrawAsterisks, []( LE_ECS_READ_ONLY_PARAMS, void *user_data ) {
+	    app->sysDrawAsterisks, []( LE_ECS_READ_ONLY_PARAMS, void* user_data ) {
 		    auto pos      = LE_ECS_GET_READ_PARAM( 0, PositionOrientationComponent );
 		    auto asterisk = LE_ECS_GET_READ_PARAM( 1, AsteriskComponent );
 
-		    auto pCapture = static_cast<DrawCapture *>( user_data );
-		    auto verts    = static_cast<std::vector<glm::vec2> const *>( pCapture->user_data );
+		    auto pCapture = static_cast<DrawCapture*>( user_data );
+		    auto verts    = static_cast<std::vector<glm::vec2> const*>( pCapture->user_data );
 
 		    auto const vertex_offset = pCapture->vertices->size();
 
@@ -677,12 +677,12 @@ static void render_pass_main_exec( le_command_buffer_encoder_o *encoder_, void *
 
 		    float scale = ASTERISK_SCALE * asterisk->size;
 
-		    for ( auto &v : *verts ) {
+		    for ( auto& v : *verts ) {
 			    auto v2 = scale * ( rot * v ) + pos->pos;
 			    pCapture->vertices->emplace_back( v2.x, v2.y, 0 );
 		    }
 
-		    for ( auto const &a_i : asterisk_indices ) {
+		    for ( auto const& a_i : asterisk_indices ) {
 			    pCapture->indices->emplace_back( vertex_offset + a_i );
 		    }
 	    } );
@@ -694,13 +694,13 @@ static void render_pass_main_exec( le_command_buffer_encoder_o *encoder_, void *
 	draw_capture.user_data = &explosion_vertices;
 
 	app->ecs.system_set_method(
-	    app->sysDrawExplosions, []( LE_ECS_READ_ONLY_PARAMS, void *user_data ) {
-		    auto const &pos = *LE_ECS_GET_READ_PARAM( 0, PositionOrientationComponent );
-		    auto const &vel = *LE_ECS_GET_READ_PARAM( 1, VelocityComponent );
-		    auto const &age = *LE_ECS_GET_READ_PARAM( 2, TimeLimitedComponent );
+	    app->sysDrawExplosions, []( LE_ECS_READ_ONLY_PARAMS, void* user_data ) {
+		    auto const& pos = *LE_ECS_GET_READ_PARAM( 0, PositionOrientationComponent );
+		    auto const& vel = *LE_ECS_GET_READ_PARAM( 1, VelocityComponent );
+		    auto const& age = *LE_ECS_GET_READ_PARAM( 2, TimeLimitedComponent );
 
-		    auto pCapture = static_cast<DrawCapture *>( user_data );
-		    auto verts    = static_cast<std::vector<glm::vec2> const *>( pCapture->user_data );
+		    auto pCapture = static_cast<DrawCapture*>( user_data );
+		    auto verts    = static_cast<std::vector<glm::vec2> const*>( pCapture->user_data );
 
 		    auto const vertex_offset = pCapture->vertices->size();
 
@@ -714,7 +714,7 @@ static void render_pass_main_exec( le_command_buffer_encoder_o *encoder_, void *
 
 		    float scale = ( ( 30 - age.age ) / 30.f ) * 30.f;
 
-		    for ( auto &v : *verts ) {
+		    for ( auto& v : *verts ) {
 			    auto v2 = scale * ( rot * v ) + pos.pos;
 			    pCapture->vertices->emplace_back( v2.x, v2.y, 0 );
 			    v2 = ( scale * 1.1f ) * ( rot * v ) + pos.pos;
@@ -742,7 +742,7 @@ static void render_pass_main_exec( le_command_buffer_encoder_o *encoder_, void *
 		glm::vec2 cursor = glm::vec2{ 0 };
 
 		auto draw_character = [ & ]( char c ) {
-			int const *h = hershey_simplex[ c - 32 ];
+			int const* h = hershey_simplex[ c - 32 ];
 
 			int num_verts   = *h++;
 			int spacing_hor = *h++;
@@ -781,15 +781,15 @@ static void render_pass_main_exec( le_command_buffer_encoder_o *encoder_, void *
 
 		cursor.x = 320 - 130;
 		cursor.y = 240 - 35;
-		for ( char const *c = score; *c != 0; c++ ) {
+		for ( char const* c = score; *c != 0; c++ ) {
 			draw_character( *c );
 		}
 
 		if ( app->game_state == GameState::eGameOver ) {
-			char const *game_over_msg = "GAME OVER";
+			char const* game_over_msg = "GAME OVER";
 			cursor.x                  = -78;
 			cursor.y                  = -15;
-			for ( char const *c = game_over_msg; *c != 0; c++ ) {
+			for ( char const* c = game_over_msg; *c != 0; c++ ) {
 				draw_character( *c );
 			}
 		}
@@ -806,20 +806,20 @@ static void render_pass_main_exec( le_command_buffer_encoder_o *encoder_, void *
 }
 
 // ----------------------------------------------------------------------
-static void app_process_ui_events( app_o *self ) {
+static void app_process_ui_events( app_o* self ) {
 	using namespace le_window;
 	uint32_t         numEvents;
-	LeUiEvent const *pEvents;
+	LeUiEvent const* pEvents;
 	window_i.get_ui_event_queue( self->window, &pEvents, numEvents );
 
 	std::vector<LeUiEvent> events{ pEvents, pEvents + numEvents };
 
 	bool wantsToggle = false;
 
-	for ( auto &event : events ) {
+	for ( auto& event : events ) {
 		switch ( event.event ) {
 		case ( LeUiEvent::Type::eKey ): {
-			auto &e = event.key;
+			auto& e = event.key;
 			if ( e.action == LeUiEvent::ButtonAction::ePress ) {
 				if ( e.key == LeUiEvent::NamedKey::eUp ) {
 					self->input.up_key_down = true;
@@ -893,7 +893,7 @@ static void app_process_ui_events( app_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static bool app_update( app_o *self ) {
+static bool app_update( app_o* self ) {
 
 	// Poll all windows for events.
 	le::Window::pollEvents();
@@ -906,7 +906,7 @@ static bool app_update( app_o *self ) {
 	app_process_ui_events( self );
 
 	struct spaceship_control_io_t {
-		app_o *   app;
+		app_o*    app;
 		bool      shots_fired;
 		glm::vec2 position;
 		glm::vec2 velocity;
@@ -919,12 +919,12 @@ static bool app_update( app_o *self ) {
 	// Spaceship control: Update spaceship velocity and orientation based on user input
 	//
 	self->ecs.system_set_method(
-	    self->sysControlSpaceship, []( LE_ECS_WRITE_ONLY_PARAMS, void *user_data ) {
+	    self->sysControlSpaceship, []( LE_ECS_WRITE_ONLY_PARAMS, void* user_data ) {
 		    auto pos   = LE_ECS_GET_WRITE_PARAM( 0, PositionOrientationComponent );
 		    auto vel   = LE_ECS_GET_WRITE_PARAM( 1, VelocityComponent );
 		    auto state = LE_ECS_GET_WRITE_PARAM( 2, SpaceShipComponent );
 
-		    auto io  = static_cast<spaceship_control_io_t *>( user_data );
+		    auto io  = static_cast<spaceship_control_io_t*>( user_data );
 		    auto app = io->app;
 
 		    // Update our spaceship orientation based on user input
@@ -991,9 +991,9 @@ static bool app_update( app_o *self ) {
 		std::vector<EntityId> entity_kill_list;
 
 		self->ecs.system_set_method(
-		    self->sysUpdateTimeLimited, []( LE_ECS_WRITE_ONLY_PARAMS, void *user_data ) {
+		    self->sysUpdateTimeLimited, []( LE_ECS_WRITE_ONLY_PARAMS, void* user_data ) {
 			    auto p         = LE_ECS_GET_WRITE_PARAM( 0, TimeLimitedComponent );
-			    auto kill_list = static_cast<std::vector<EntityId> *>( user_data );
+			    auto kill_list = static_cast<std::vector<EntityId>*>( user_data );
 			    if ( p->age < 1 ) {
 				    kill_list->push_back( entity );
 			    }
@@ -1003,7 +1003,7 @@ static bool app_update( app_o *self ) {
 		self->ecs.update_system( self->sysUpdateTimeLimited, &entity_kill_list );
 
 		// remove projectile entities from ecs which have been marked as inactive
-		for ( auto &e : entity_kill_list ) {
+		for ( auto& e : entity_kill_list ) {
 			self->ecs.remove_entity( e );
 		}
 	}
@@ -1011,7 +1011,7 @@ static bool app_update( app_o *self ) {
 	// Update physics system
 	//
 	self->ecs.system_set_method(
-	    self->sysPhysics, []( LE_ECS_READ_WRITE_PARAMS, void * ) {
+	    self->sysPhysics, []( LE_ECS_READ_WRITE_PARAMS, void* ) {
 		    auto pos = LE_ECS_GET_WRITE_PARAM( 0, PositionOrientationComponent );
 		    auto vel = LE_ECS_GET_READ_PARAM( 0, VelocityComponent );
 
@@ -1070,10 +1070,10 @@ static bool app_update( app_o *self ) {
 
 	// Fetch spaceships into collide_data
 	self->ecs.system_set_method(
-	    self->sysFetchSpaceships, []( LE_ECS_READ_ONLY_PARAMS, void *user_data ) {
+	    self->sysFetchSpaceships, []( LE_ECS_READ_ONLY_PARAMS, void* user_data ) {
 		    auto  pos      = LE_ECS_GET_READ_PARAM( 0, PositionOrientationComponent );
 		    auto  collider = LE_ECS_GET_READ_PARAM( 1, ColliderComponent );
-		    auto &data     = *static_cast<CollideData *>( user_data );
+		    auto& data     = *static_cast<CollideData*>( user_data );
 
 		    data.spaceship_data.push_back( { pos->pos, collider->radius, entity, false } );
 	    } );
@@ -1081,10 +1081,10 @@ static bool app_update( app_o *self ) {
 
 	// Fetch projectiles into collide_data
 	self->ecs.system_set_method(
-	    self->sysFetchProjectiles, []( LE_ECS_READ_ONLY_PARAMS, void *user_data ) {
+	    self->sysFetchProjectiles, []( LE_ECS_READ_ONLY_PARAMS, void* user_data ) {
 		    auto  pos      = LE_ECS_GET_READ_PARAM( 0, PositionOrientationComponent );
 		    auto  collider = LE_ECS_GET_READ_PARAM( 1, ColliderComponent );
-		    auto &data     = *static_cast<CollideData *>( user_data );
+		    auto& data     = *static_cast<CollideData*>( user_data );
 
 		    data.projectile_data.push_back( { pos->pos, collider->radius, entity } );
 	    } );
@@ -1095,16 +1095,16 @@ static bool app_update( app_o *self ) {
 	// We now test all projectiles against all asterisks.
 
 	self->ecs.system_set_method(
-	    self->sysCollide, []( LE_ECS_WRITE_ONLY_PARAMS, void *user_data ) {
-		    auto &pos      = *LE_ECS_GET_WRITE_PARAM( 0, PositionOrientationComponent );
-		    auto &vel      = *LE_ECS_GET_WRITE_PARAM( 1, VelocityComponent );
-		    auto &collider = *LE_ECS_GET_WRITE_PARAM( 2, ColliderComponent );
-		    auto &asterisk = *LE_ECS_GET_WRITE_PARAM( 3, AsteriskComponent );
-		    auto &data     = *static_cast<CollideData *>( user_data );
+	    self->sysCollide, []( LE_ECS_WRITE_ONLY_PARAMS, void* user_data ) {
+		    auto& pos      = *LE_ECS_GET_WRITE_PARAM( 0, PositionOrientationComponent );
+		    auto& vel      = *LE_ECS_GET_WRITE_PARAM( 1, VelocityComponent );
+		    auto& collider = *LE_ECS_GET_WRITE_PARAM( 2, ColliderComponent );
+		    auto& asterisk = *LE_ECS_GET_WRITE_PARAM( 3, AsteriskComponent );
+		    auto& data     = *static_cast<CollideData*>( user_data );
 
 		    data.num_asterisks++;
 
-		    for ( auto const &p : data.projectile_data ) {
+		    for ( auto const& p : data.projectile_data ) {
 			    float radii_sum_sq = ( p.radius + collider.radius ) * ( p.radius + collider.radius ); // summed radii squared
 			    float d_sq         = glm::dot( p.pos - pos.pos, p.pos - pos.pos );                    // distance squared
 			    if ( d_sq < radii_sum_sq ) {
@@ -1146,7 +1146,7 @@ static bool app_update( app_o *self ) {
 
 		    // Test whether an asterisk collides with spaceship
 		    {
-			    for ( auto &s : data.spaceship_data ) {
+			    for ( auto& s : data.spaceship_data ) {
 
 				    float radii_sum_sq = ( s.radius + collider.radius ) * ( s.radius + collider.radius ); // summed radii squared
 				    float d_sq         = glm::dot( s.pos - pos.pos, s.pos - pos.pos );                    // distance squared
@@ -1168,12 +1168,12 @@ static bool app_update( app_o *self ) {
 	self->ecs.update_system( self->sysCollide, &collide_data );
 
 	// Remove entities from ecs which have been marked as inactive
-	for ( auto &e : collide_data.kill_list ) {
+	for ( auto& e : collide_data.kill_list ) {
 		self->ecs.remove_entity( e );
 	}
 
 	// Spawn new asterisks which have been split off by explosion
-	for ( auto const &a : collide_data.new_asterisks ) {
+	for ( auto const& a : collide_data.new_asterisks ) {
 		self->ecs.entity()
 		    .add_component( AsteriskComponent{ a.size } )
 		    .add_component( PositionOrientationComponent{ a.pos, 0.34f } )
@@ -1182,7 +1182,7 @@ static bool app_update( app_o *self ) {
 	}
 
 	// Spawn explosions for asterisks which have been hit
-	for ( auto const &e : collide_data.new_explosions ) {
+	for ( auto const& e : collide_data.new_explosions ) {
 		self->ecs.entity()
 		    .add_component( ExplosionComponent{} )
 		    .add_component( TimeLimitedComponent{ 30 } )
@@ -1304,8 +1304,8 @@ static bool app_update( app_o *self ) {
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( asterisks_app, api ) {
-	auto  asterisks_app_api_i = static_cast<asterisks_app_api *>( api );
-	auto &asterisks_app_i     = asterisks_app_api_i->asterisks_app_i;
+	auto  asterisks_app_api_i = static_cast<asterisks_app_api*>( api );
+	auto& asterisks_app_i     = asterisks_app_api_i->asterisks_app_i;
 
 	asterisks_app_i.initialize = app_initialize;
 	asterisks_app_i.terminate  = app_terminate;

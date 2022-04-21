@@ -23,22 +23,22 @@ struct le_file_watcher_o;
 #	define LOG_PREFIX_STR "loader"
 
 // declare function pointer type to register_fun function
-typedef void ( *register_api_fun_p_t )( void * );
+typedef void ( *register_api_fun_p_t )( void* );
 
 struct le_module_loader_o {
 	std::string        mApiName;
 	std::string        mRegisterApiFuncName;
 	std::string        mPath;
-	void *             mLibraryHandle = nullptr;
-	le_file_watcher_o *mFileWatcher   = nullptr;
+	void*              mLibraryHandle = nullptr;
+	le_file_watcher_o* mFileWatcher   = nullptr;
 };
 
-bool grab_and_drop_pdb_handle( char const *path ); // ffdecl
-bool delete_old_artifacts( char const *path );     //ffdecl
+bool grab_and_drop_pdb_handle( char const* path ); // ffdecl
+bool delete_old_artifacts( char const* path );     // ffdecl
 
 // ----------------------------------------------------------------------
 
-static le_log_channel_o *get_logger( le_log_channel_o **logger ) {
+static le_log_channel_o* get_logger( le_log_channel_o** logger ) {
 	// First, initialise logger to nullptr so that we can test against this when the logger module gets loaded.
 	*logger = nullptr;
 	// Next call will initialise logger by calling into this library.
@@ -46,11 +46,11 @@ static le_log_channel_o *get_logger( le_log_channel_o **logger ) {
 	return *logger;
 };
 
-static le_log_channel_o *logger = get_logger( &logger );
+static le_log_channel_o* logger = get_logger( &logger );
 
 // ----------------------------------------------------------------------
 
-static void log_printf( FILE *f_out, const char *msg, ... ) {
+static void log_printf( FILE* f_out, const char* msg, ... ) {
 	fprintf( f_out, "[ %-35s ] ", LOG_PREFIX_STR );
 	va_list arglist;
 	va_start( arglist, msg );
@@ -61,7 +61,7 @@ static void log_printf( FILE *f_out, const char *msg, ... ) {
 }
 
 template <typename... Args>
-static void log_debug( const char *msg, Args &&...args ) {
+static void log_debug( const char* msg, Args&&... args ) {
 	if ( logger && le_log::le_log_channel_i.info ) {
 		le_log::le_log_channel_i.debug( logger, msg, std::move( args )... );
 	} else {
@@ -70,7 +70,7 @@ static void log_debug( const char *msg, Args &&...args ) {
 }
 
 template <typename... Args>
-static void log_info( const char *msg, Args &&...args ) {
+static void log_info( const char* msg, Args&&... args ) {
 	if ( logger && le_log::le_log_channel_i.info ) {
 		le_log::le_log_channel_i.info( logger, msg, std::move( args )... );
 	} else {
@@ -80,7 +80,7 @@ static void log_info( const char *msg, Args &&...args ) {
 
 // ----------------------------------------------------------------------
 template <typename... Args>
-static void log_error( const char *msg, Args &&...args ) {
+static void log_error( const char* msg, Args&&... args ) {
 	if ( logger && le_log::le_log_channel_i.error ) {
 		le_log::le_log_channel_i.error( logger, msg, std::move( args )... );
 	} else {
@@ -90,7 +90,7 @@ static void log_error( const char *msg, Args &&...args ) {
 
 // ----------------------------------------------------------------------
 
-static void unload_library( void *handle_, const char *path ) {
+static void unload_library( void* handle_, const char* path ) {
 	if ( handle_ ) {
 		auto result = FreeLibrary( static_cast<HMODULE>( handle_ ) );
 		// we must detect whether the module that was unloaded was the logger module -
@@ -113,9 +113,9 @@ static void unload_library( void *handle_, const char *path ) {
 
 // ----------------------------------------------------------------------
 
-static void *load_library( const char *lib_name ) {
+static void* load_library( const char* lib_name ) {
 
-	void *handle = LoadLibrary( lib_name );
+	void* handle = LoadLibrary( lib_name );
 	if ( handle == NULL ) {
 		auto loadResult = GetLastError();
 		log_error( "FATAL ERROR: %d", loadResult );
@@ -128,28 +128,28 @@ static void *load_library( const char *lib_name ) {
 
 // ----------------------------------------------------------------------
 
-static void *load_library_persistent( const char *lib_name ) {
+static void* load_library_persistent( const char* lib_name ) {
 	return nullptr;
 }
 
 // ----------------------------------------------------------------------
 
-static le_module_loader_o *instance_create( const char *path_ ) {
-	le_module_loader_o *tmp = new le_module_loader_o{};
+static le_module_loader_o* instance_create( const char* path_ ) {
+	le_module_loader_o* tmp = new le_module_loader_o{};
 	tmp->mPath              = path_;
 	return tmp;
 };
 
 // ----------------------------------------------------------------------
 
-static void instance_destroy( le_module_loader_o *obj ) {
+static void instance_destroy( le_module_loader_o* obj ) {
 	unload_library( obj->mLibraryHandle, obj->mPath.c_str() );
 	delete obj;
 };
 
 // ----------------------------------------------------------------------
 
-static bool load( le_module_loader_o *obj ) {
+static bool load( le_module_loader_o* obj ) {
 	unload_library( obj->mLibraryHandle, obj->mPath.c_str() );
 	obj->mLibraryHandle = load_library( obj->mPath.c_str() );
 	return ( obj->mLibraryHandle != nullptr );
@@ -157,7 +157,7 @@ static bool load( le_module_loader_o *obj ) {
 
 // ----------------------------------------------------------------------
 
-static bool register_api( le_module_loader_o *obj, void *api_interface, const char *register_api_fun_name ) {
+static bool register_api( le_module_loader_o* obj, void* api_interface, const char* register_api_fun_name ) {
 	// define function pointer we will use to initialise api
 	register_api_fun_p_t fptr;
 	// load function pointer to initialisation method
@@ -183,8 +183,8 @@ static bool register_api( le_module_loader_o *obj, void *api_interface, const ch
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_module_loader, p_api ) {
-	auto  api                          = static_cast<le_module_loader_api *>( p_api );
-	auto &loader_i                     = api->le_module_loader_i;
+	auto  api                          = static_cast<le_module_loader_api*>( p_api );
+	auto& loader_i                     = api->le_module_loader_i;
 	loader_i.create                    = instance_create;
 	loader_i.destroy                   = instance_destroy;
 	loader_i.load                      = load;
@@ -203,12 +203,12 @@ constexpr ULONG STATUS_BUFFER_OVERFLOW        = 0x80000005;
 #    define ObjectNameInformation 1
 #    define ObjectAllTypesInformation 3
 
-typedef NTSTATUS( NTAPI *_NtQuerySystemInformation )(
+typedef NTSTATUS( NTAPI* _NtQuerySystemInformation )(
     ULONG  SystemInformationClass,
     PVOID  SystemInformation,
     ULONG  SystemInformationLength,
     PULONG ReturnLength );
-typedef NTSTATUS( NTAPI *_NtDuplicateObject )(
+typedef NTSTATUS( NTAPI* _NtDuplicateObject )(
     HANDLE      SourceProcessHandle,
     HANDLE      SourceHandle,
     HANDLE      TargetProcessHandle,
@@ -216,7 +216,7 @@ typedef NTSTATUS( NTAPI *_NtDuplicateObject )(
     ACCESS_MASK DesiredAccess,
     ULONG       Attributes,
     ULONG       Options );
-typedef NTSTATUS( NTAPI *_NtQueryObject )(
+typedef NTSTATUS( NTAPI* _NtQueryObject )(
     HANDLE ObjectHandle,
     ULONG  ObjectInformationClass,
     PVOID  ObjectInformation,
@@ -281,7 +281,7 @@ PVOID GetLibraryProcAddress( LPCSTR LibraryName, LPCSTR ProcName ) {
 // Handles are wrapped in a custom unique_ptr<>, for which this is
 // the deleter Functor.
 struct HandleDeleter {
-	void operator()( HANDLE *h ) {
+	void operator()( HANDLE* h ) {
 		if ( h ) {
 			CloseHandle( *h );
 		}
@@ -316,10 +316,10 @@ UCHAR get_file_handle_object_type_index( HANDLE processHandle ) {
 		    &resultLength );
 	}
 
-	BYTE * data         = objInformation.data();
-	BYTE * data_end     = data + objInformation.size();
+	BYTE*  data         = objInformation.data();
+	BYTE*  data_end     = data + objInformation.size();
 	size_t num_elements = ( ( POBJECT_ALL_INFORMATION )( data ) )->NumberOfObjectsTypes;
-	data                = ( BYTE * )( ( POBJECT_ALL_INFORMATION )( data ) )->ObjectTypeInformation;
+	data                = ( BYTE* )( ( POBJECT_ALL_INFORMATION )( data ) )->ObjectTypeInformation;
 
 	POBJECT_TYPE_INFORMATION info;
 	for ( size_t i = 0; data != data_end && i != num_elements; i++ ) {
@@ -345,7 +345,7 @@ UCHAR get_file_handle_object_type_index( HANDLE processHandle ) {
 
 // ----------------------------------------------------------------------
 
-bool close_handles_held_by_process_id( ULONG process_id, wchar_t const *needle_suffix ) {
+bool close_handles_held_by_process_id( ULONG process_id, wchar_t const* needle_suffix ) {
 
 	// Grab function pointers to methods which we will need from ntdll.
 
@@ -392,7 +392,7 @@ bool close_handles_held_by_process_id( ULONG process_id, wchar_t const *needle_s
 		return L"";
 	}
 
-	_SYSTEM_HANDLE *sys_handle = pshti->Handles;
+	_SYSTEM_HANDLE* sys_handle = pshti->Handles;
 	auto const      handle_end = sys_handle + NumberOfHandles;
 
 	for ( ; sys_handle != handle_end; sys_handle++ ) {
@@ -422,7 +422,7 @@ bool close_handles_held_by_process_id( ULONG process_id, wchar_t const *needle_s
 		// Duplicate the handle so we can query it.
 		if ( !NT_SUCCESS( NtDuplicateObject(
 		         *pHandle,
-		         ( void * )sys_handle->Handle,
+		         ( void* )sys_handle->Handle,
 		         GetCurrentProcess(),
 		         pFileHandle.get(),
 		         0,
@@ -471,7 +471,7 @@ bool close_handles_held_by_process_id( ULONG process_id, wchar_t const *needle_s
 
 			if ( !NT_SUCCESS( NtDuplicateObject(
 			         *pHandle,
-			         ( void * )sys_handle->Handle,
+			         ( void* )sys_handle->Handle,
 			         GetCurrentProcess(),
 			         pFileHandle.get(),
 			         0,
@@ -501,20 +501,20 @@ bool close_handles_held_by_process_id( ULONG process_id, wchar_t const *needle_s
 
 // ----------------------------------------------------------------------
 
-std::vector<DWORD> enumerate_processes_holding_handle_to_file( PCWSTR file_path, wchar_t const *suffix ) {
+std::vector<DWORD> enumerate_processes_holding_handle_to_file( PCWSTR file_path, wchar_t const* suffix ) {
 
 	std::vector<DWORD> result;
 
 	DWORD dwSession;
 	WCHAR szSessionKey[ CCH_RM_SESSION_KEY + 1 ] = { 0 };
 	DWORD dwError                                = RmStartSession( &dwSession, 0, szSessionKey );
-	//wprintf(L"RmStartSession returned %d\n", dwError);
+	// wprintf(L"RmStartSession returned %d\n", dwError);
 	if ( dwError != ERROR_SUCCESS ) {
 		return {};
 	}
 
 	dwError = RmRegisterResources( dwSession, 1, &file_path, 0, NULL, 0, NULL );
-	//wprintf(L"RmRegisterResources(%ls) returned %d\n", pszFile, dwError);
+	// wprintf(L"RmRegisterResources(%ls) returned %d\n", pszFile, dwError);
 	if ( dwError == ERROR_SUCCESS ) {
 		DWORD dwReason;
 
@@ -523,17 +523,17 @@ std::vector<DWORD> enumerate_processes_holding_handle_to_file( PCWSTR file_path,
 		RM_PROCESS_INFO rgpi[ 10 ];
 
 		dwError = RmGetList( dwSession, &nProcInfoNeeded, &nProcInfo, rgpi, &dwReason );
-		//wprintf(L"RmGetList returned %d\n", dwError);
+		// wprintf(L"RmGetList returned %d\n", dwError);
 
 		if ( dwError == ERROR_SUCCESS ) {
 
-			//wprintf( L"RmGetList returned %d infos (%d needed)\n", nProcInfo, nProcInfoNeeded );
+			// wprintf( L"RmGetList returned %d infos (%d needed)\n", nProcInfo, nProcInfoNeeded );
 
 			for ( UINT i = 0; i < nProcInfo; i++ ) {
 
-				//wprintf( L"%d.ApplicationType = %d\n", i, rgpi[ i ].ApplicationType );
-				//wprintf( L"%d.strAppName = %ls\n", i, rgpi[ i ].strAppName );
-				//wprintf( L"%d.Process.dwProcessId = %d\n", i, rgpi[ i ].Process.dwProcessId );
+				// wprintf( L"%d.ApplicationType = %d\n", i, rgpi[ i ].ApplicationType );
+				// wprintf( L"%d.strAppName = %ls\n", i, rgpi[ i ].strAppName );
+				// wprintf( L"%d.Process.dwProcessId = %d\n", i, rgpi[ i ].Process.dwProcessId );
 
 				HANDLE hProcess = OpenProcess( PROCESS_QUERY_LIMITED_INFORMATION, FALSE, rgpi[ i ].Process.dwProcessId );
 
@@ -545,7 +545,7 @@ std::vector<DWORD> enumerate_processes_holding_handle_to_file( PCWSTR file_path,
 						WCHAR sz[ MAX_PATH ];
 						DWORD cch = MAX_PATH;
 						if ( QueryFullProcessImageNameW( hProcess, 0, sz, &cch ) && cch <= MAX_PATH ) {
-							//wprintf( L"  = %ls\n", sz );
+							// wprintf( L"  = %ls\n", sz );
 							result.push_back( rgpi[ i ].Process.dwProcessId );
 						}
 					}
@@ -561,7 +561,7 @@ std::vector<DWORD> enumerate_processes_holding_handle_to_file( PCWSTR file_path,
 
 // ----------------------------------------------------------------------
 
-bool grab_and_drop_pdb_handle( char const *path ) {
+bool grab_and_drop_pdb_handle( char const* path ) {
 
 	// convert path to wstring
 
@@ -588,7 +588,7 @@ bool grab_and_drop_pdb_handle( char const *path ) {
 		return true;
 	}
 
-	for ( auto const &process_id : process_ids ) {
+	for ( auto const& process_id : process_ids ) {
 		if ( false == close_handles_held_by_process_id( process_id, handle_suffix ) ) {
 			// error: we could not close handle for some reason. abort mission.
 			return false;
@@ -600,7 +600,7 @@ bool grab_and_drop_pdb_handle( char const *path ) {
 
 // ----------------------------------------------------------------------
 
-bool delete_old_artifacts( char const *path ) {
+bool delete_old_artifacts( char const* path ) {
 
 	// Attempts to delete a "${path}.dll.old", and "${path}.pdb.old" file
 	// where ${path} is basename of path, e.g. path == './le_renderer'

@@ -24,7 +24,7 @@ struct WatchedDirectory {
 	HANDLE                     directory_handle    = nullptr;
 	DWORD                      notify_filter       = 0;
 	uint64_t                   directory_name_hash = 0;
-	struct le_file_watcher_o * watcher             = nullptr; // non-owning, refers back to parent
+	struct le_file_watcher_o*  watcher             = nullptr; // non-owning, refers back to parent
 
 	~WatchedDirectory() {
 		if ( overlapped.hEvent ) {
@@ -42,8 +42,8 @@ struct watch_data_t {
 	uint64_t    filename_hash = 0;
 	std::string basename;
 	int         handle             = -1; // per-file_watcher unique handle
-	void *      callback_user_data = nullptr;
-	void ( *callback_fun )( const char *path, void *user_data );
+	void*       callback_user_data = nullptr;
+	void ( *callback_fun )( const char* path, void* user_data );
 };
 
 // ----------------------------------------------------------------------
@@ -52,14 +52,14 @@ struct le_file_watcher_o {
 	int last_watch_handle = -1; // monotonically increases just before we create a new watch_id - *not an index* into vectors below.
 
 	std::vector<uint64_t>                  watch_directory_hash; // < these three vectors run in parallel.
-	std::vector<WatchedDirectory *>        watched_directories;  // < these three vectors run in parallel.
+	std::vector<WatchedDirectory*>         watched_directories;  // < these three vectors run in parallel.
 	std::vector<std::vector<watch_data_t>> watch_data;           // < these three vectors run in parallel.
 
 	/// Returns index of watch_data for given hash.
 	/// If not found, index will be watch_data.size()
 	inline size_t get_watch_data_idx_for_hash( uint64_t hash ) const {
 		size_t idx = 0;
-		for ( auto const &w : watch_directory_hash ) {
+		for ( auto const& w : watch_directory_hash ) {
 			if ( w == hash ) {
 				return idx;
 			}
@@ -70,7 +70,7 @@ struct le_file_watcher_o {
 
 // ----------------------------------------------------------------------
 
-static le_file_watcher_o *file_watcher_instance_create() {
+static le_file_watcher_o* file_watcher_instance_create() {
 	auto instance = new le_file_watcher_o();
 
 	// todo: implement
@@ -78,18 +78,18 @@ static le_file_watcher_o *file_watcher_instance_create() {
 	return instance;
 }
 
-static void refresh_watch( WatchedDirectory *w ); // ffdecl
+static void refresh_watch( WatchedDirectory* w ); // ffdecl
 
 // ----------------------------------------------------------------------
 
-static void file_watcher_instance_destroy( le_file_watcher_o *instance ) {
+static void file_watcher_instance_destroy( le_file_watcher_o* instance ) {
 
 	// close all watch objects in instance
 	// destroy all watch objects in instance
 	// remove all watch objects from instance
 	// destroy instance
 
-	for ( auto &w : instance->watched_directories ) {
+	for ( auto& w : instance->watched_directories ) {
 		delete w;
 	}
 
@@ -100,7 +100,7 @@ static void file_watcher_instance_destroy( le_file_watcher_o *instance ) {
 
 // ----------------------------------------------------------------------
 /// \brief add a watch based on a particular file path
-static int file_watcher_add_watch( le_file_watcher_o *instance, le_file_watcher_watch_settings const *settings ) noexcept {
+static int file_watcher_add_watch( le_file_watcher_o* instance, le_file_watcher_watch_settings const* settings ) noexcept {
 
 	// First we want to find out if there is already a watch for the directory
 	auto file_path = std::filesystem::canonical( settings->filePath );
@@ -168,7 +168,7 @@ static int file_watcher_add_watch( le_file_watcher_o *instance, le_file_watcher_
 // ----------------------------------------------------------------------
 /// \brief remove watch given by watch_id
 /// \return true on success, otherwise false.
-static bool file_watcher_remove_watch( le_file_watcher_o *instance, int watch_id ) {
+static bool file_watcher_remove_watch( le_file_watcher_o* instance, int watch_id ) {
 
 	size_t idx           = 0;
 	size_t watch_idx     = 0;
@@ -176,7 +176,7 @@ static bool file_watcher_remove_watch( le_file_watcher_o *instance, int watch_id
 
 	for ( ; idx < instance->watch_data.size(); ) {
 
-		auto &w_vec = instance->watch_data[ idx ];
+		auto& w_vec = instance->watch_data[ idx ];
 
 		// Remove file watch from directory watch
 
@@ -223,7 +223,7 @@ static bool file_watcher_remove_watch( le_file_watcher_o *instance, int watch_id
 static void CALLBACK watch_callback( DWORD dwErrorCode, DWORD dwNumberOfBytesTransfered, LPOVERLAPPED lpOverlapped ) {
 	char                     callback_filename[ MAX_PATH ];
 	PFILE_NOTIFY_INFORMATION pNotify;
-	WatchedDirectory *       watch  = ( WatchedDirectory * )lpOverlapped;
+	WatchedDirectory*        watch  = ( WatchedDirectory* )lpOverlapped;
 	size_t                   offset = 0;
 
 	if ( dwNumberOfBytesTransfered == 0 ) {
@@ -292,14 +292,14 @@ static void CALLBACK watch_callback( DWORD dwErrorCode, DWORD dwNumberOfBytesTra
 
 	if ( idx < watch->watcher->watch_data.size() ) {
 
-		for ( auto const &filename_hash : callback_file_name_hashes ) {
+		for ( auto const& filename_hash : callback_file_name_hashes ) {
 
 			// For each file - trigger all callbacks that respond to this file.
 			//
 			// Note that there may be more than one callback responding to a
 			// file, as it's possible to register multiple callbacks to a file.
 
-			for ( auto const &w : watch->watcher->watch_data[ idx ] ) {
+			for ( auto const& w : watch->watcher->watch_data[ idx ] ) {
 				// Go through all watches and match against the file name
 				if ( w.filename_hash == filename_hash ) {
 					( *w.callback_fun )( w.path.c_str(), w.callback_user_data );
@@ -316,7 +316,7 @@ static void CALLBACK watch_callback( DWORD dwErrorCode, DWORD dwNumberOfBytesTra
 
 // ----------------------------------------------------------------------
 
-static void refresh_watch( WatchedDirectory *watch_dir ) {
+static void refresh_watch( WatchedDirectory* watch_dir ) {
 
 	ReadDirectoryChangesW( watch_dir->directory_handle,
 	                       watch_dir->buffer.data(),
@@ -331,15 +331,15 @@ static void refresh_watch( WatchedDirectory *watch_dir ) {
 // ----------------------------------------------------------------------
 /// \brief trigger callbacks on any watches which have pending notifications
 ///
-static void file_watcher_poll_notifications( le_file_watcher_o * ) {
+static void file_watcher_poll_notifications( le_file_watcher_o* ) {
 	MsgWaitForMultipleObjectsEx( 0, NULL, 0, QS_ALLINPUT, MWMO_ALERTABLE );
 }
 
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_file_watcher, p_api ) {
-	auto  api                = reinterpret_cast<le_file_watcher_api *>( p_api );
-	auto &api_i              = api->le_file_watcher_i;
+	auto  api                = reinterpret_cast<le_file_watcher_api*>( p_api );
+	auto& api_i              = api->le_file_watcher_i;
 	api_i.create             = file_watcher_instance_create;
 	api_i.destroy            = file_watcher_instance_destroy;
 	api_i.add_watch          = file_watcher_add_watch;

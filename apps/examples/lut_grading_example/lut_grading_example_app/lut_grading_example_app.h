@@ -29,13 +29,13 @@ LE_MODULE_LOAD_DEFAULT( lut_grading_example_app );
 #ifdef __cplusplus
 
 namespace lut_grading_example_app {
-static const auto &api                 = lut_grading_example_app_api_i;
-static const auto &lut_grading_example_app_i = api -> lut_grading_example_app_i;
+static const auto& api                       = lut_grading_example_app_api_i;
+static const auto& lut_grading_example_app_i = api -> lut_grading_example_app_i;
 } // namespace lut_grading_example_app
 
 class LutGradingExampleApp : NoCopy, NoMove {
 
-	lut_grading_example_app_o *self;
+	lut_grading_example_app_o* self;
 
   public:
 	LutGradingExampleApp()

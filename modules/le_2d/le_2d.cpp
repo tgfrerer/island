@@ -28,13 +28,13 @@ using StrokeJoinType = le_2d_api::StrokeJoinType;
 
 // A drawing context, owner of all primitives.
 struct le_2d_o {
-	le_command_buffer_encoder_o *    encoder = nullptr;
-	std::vector<le_2d_primitive_o *> primitives; // owning
+	le_command_buffer_encoder_o*    encoder = nullptr;
+	std::vector<le_2d_primitive_o*> primitives; // owning
 };
 
 struct node_data_t {
 	// application order: t,r,s
-	vec2f translation{ 0 }; //x,y
+	vec2f translation{ 0 }; // x,y
 	vec2f scale{ 1 };
 	float rotation_ccw = 0; // rotation in ccw around z axis, around point at translation
 };
@@ -65,7 +65,7 @@ struct arc_data_t {
 };
 
 struct path_data_t {
-	le_path_o *path;
+	le_path_o* path;
 	float      tolerance;
 };
 
@@ -103,7 +103,7 @@ struct le_2d_primitive_o {
 	uint64_t hash;
 };
 
-void le_2d_primitive_update_hash( le_2d_primitive_o *obj ) {
+void le_2d_primitive_update_hash( le_2d_primitive_o* obj ) {
 	// We can hash everything until `material.color` in one go, as
 	// the top of the struct is tightly packed.
 	//
@@ -115,7 +115,7 @@ void le_2d_primitive_update_hash( le_2d_primitive_o *obj ) {
 
 // ----------------------------------------------------------------------
 
-static le_2d_o *le_2d_create( le_command_buffer_encoder_o *encoder ) {
+static le_2d_o* le_2d_create( le_command_buffer_encoder_o* encoder ) {
 	auto self     = new le_2d_o();
 	self->encoder = encoder;
 	self->primitives.reserve( 4096 / 8 );
@@ -146,7 +146,7 @@ struct PrimitiveInstanceData2D {
 
 // ----------------------------------------------------------------------
 
-static void generate_geometry_line( std::vector<VertexData2D> &geometry, glm::vec2 const &p0, glm::vec2 const &p1, float thickness ) {
+static void generate_geometry_line( std::vector<VertexData2D>& geometry, glm::vec2 const& p0, glm::vec2 const& p1, float thickness ) {
 	if ( p0 == p1 ) {
 		// return empty if line cannot be generated.
 		return;
@@ -175,7 +175,7 @@ static void generate_geometry_line( std::vector<VertexData2D> &geometry, glm::ve
 
 // ----------------------------------------------------------------------
 
-static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, float thickness, float tolerance ) {
+static void generate_geometry_outline_arc( std::vector<VertexData2D>& geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, float thickness, float tolerance ) {
 
 	if ( std::numeric_limits<float>::epsilon() > angle_end_rad - angle_start_rad ) {
 		return;
@@ -246,7 +246,7 @@ static void generate_geometry_outline_arc( std::vector<VertexData2D> &geometry, 
 
 // ----------------------------------------------------------------------
 
-static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, float tolerance ) {
+static void generate_geometry_ellipse( std::vector<VertexData2D>& geometry, float angle_start_rad, float angle_end_rad, glm::vec2 radii, float tolerance ) {
 
 	// --------| invariant: It should be possible to generate circle geometry.
 
@@ -266,7 +266,7 @@ static void generate_geometry_ellipse( std::vector<VertexData2D> &geometry, floa
 		geometry.push_back( v_c ); // centre vertex
 		geometry.push_back( v );   // previous vertex
 
-		/* The maths for this are based on the intuition that an ellipse is 
+		/* The maths for this are based on the intuition that an ellipse is
 		 * a scaled circle.
 		 */
 		float r_length = glm::dot( glm::vec2{ fabsf( n.x ), fabsf( n.y ) }, radii );
@@ -309,7 +309,7 @@ return le_path_api::stroke_attribute_t::LineCapType::eLineCapRound; // unreachab
 
 // ----------------------------------------------------------------------
 
-static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry, le_path_o *path, float tolerance, material_data_t const &material ) {
+static void generate_geometry_outline_path( std::vector<VertexData2D>& geometry, le_path_o* path, float tolerance, material_data_t const& material ) {
 
 	using namespace le_path;
 
@@ -328,9 +328,9 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 			while ( false == le_path_i.get_vertices_for_polyline( path, i, vertices.data(), &num_used_vertices ) ) {
 				vertices.resize( num_used_vertices );
 			}
-			auto const *p_prev = vertices.data();
+			auto const* p_prev = vertices.data();
 			for ( size_t j = 1; j != num_used_vertices; ++j ) {
-				glm::vec2 const *p_cur = vertices.data() + j;
+				glm::vec2 const* p_cur = vertices.data() + j;
 				generate_geometry_line( geometry, *p_prev, *p_cur, stroke_weight );
 				p_prev = p_cur;
 			}
@@ -352,8 +352,8 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 				size_t num_vertices_l = vertices_l.size();
 				size_t num_vertices_r = vertices_r.size();
 
-				glm::vec2 *v_l                   = vertices_l.data();
-				glm::vec2 *v_r                   = vertices_r.data();
+				glm::vec2* v_l                   = vertices_l.data();
+				glm::vec2* v_r                   = vertices_r.data();
 				bool       vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, v_l, &num_vertices_l, v_r, &num_vertices_r );
 
 				if ( !vertices_large_enough ) {
@@ -394,8 +394,8 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 				size_t num_vertices_l = vertices_l.size();
 				size_t num_vertices_r = vertices_r.size();
 
-				glm::vec2 *v_l = vertices_l.data();
-				glm::vec2 *v_r = vertices_r.data();
+				glm::vec2* v_l = vertices_l.data();
+				glm::vec2* v_r = vertices_r.data();
 
 				bool vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, v_l, &num_vertices_l, v_r, &num_vertices_r );
 
@@ -420,9 +420,9 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 			le_tessellator_i.tessellate( tess );
 
-			le_tessellator_api::IndexType const *indices;
+			le_tessellator_api::IndexType const* indices;
 			size_t                               num_indices = 0;
-			glm::vec2 const *                    vertices;
+			glm::vec2 const*                     vertices;
 			size_t                               num_vertices = 0;
 
 			le_tessellator_i.get_indices( tess, &indices, &num_indices );
@@ -447,8 +447,8 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 				size_t num_vertices_l = vertices_l.size();
 				size_t num_vertices_r = vertices_r.size();
 
-				glm::vec2 *v_l = vertices_l.data();
-				glm::vec2 *v_r = vertices_r.data();
+				glm::vec2* v_l = vertices_l.data();
+				glm::vec2* v_r = vertices_r.data();
 
 				bool vertices_large_enough = le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, v_l, &num_vertices_l, v_r, &num_vertices_r );
 
@@ -460,14 +460,14 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 					le_path_i.generate_offset_outline_for_contour( path, i, stroke_weight, tolerance, v_l, &num_vertices_l, v_r, &num_vertices_r );
 				}
 
-				glm::vec2 const *l_prev = v_l;
-				glm::vec2 const *r_prev = v_r;
+				glm::vec2 const* l_prev = v_l;
+				glm::vec2 const* r_prev = v_r;
 
-				glm::vec2 const *l = l_prev + 1;
-				glm::vec2 const *r = r_prev + 1;
+				glm::vec2 const* l = l_prev + 1;
+				glm::vec2 const* r = r_prev + 1;
 
-				glm::vec2 const *const l_end = vertices_l.data() + num_vertices_l;
-				glm::vec2 const *const r_end = vertices_r.data() + num_vertices_r;
+				glm::vec2 const* const l_end = vertices_l.data() + num_vertices_l;
+				glm::vec2 const* const r_end = vertices_r.data() + num_vertices_r;
 
 				for ( ; ( l != l_end || r != r_end ); ) {
 
@@ -500,7 +500,7 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 
 				size_t num_vertices = vertices.size();
 
-				glm::vec2 *v_data = vertices.data();
+				glm::vec2* v_data = vertices.data();
 
 				le_path_api::stroke_attribute_t stroke_attribs{};
 				stroke_attribs.width          = stroke_weight;
@@ -513,8 +513,8 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 					v_data = vertices.data();
 				}
 
-				glm::vec2 const *      v     = v_data;
-				glm::vec2 const *const v_end = v_data + num_vertices;
+				glm::vec2 const*       v     = v_data;
+				glm::vec2 const* const v_end = v_data + num_vertices;
 
 				assert( num_vertices % 3 == 0 ); // vertices count must be divisible by 3
 
@@ -530,7 +530,7 @@ static void generate_geometry_outline_path( std::vector<VertexData2D> &geometry,
 }
 
 // Generates triangles by tessellating what's contained within path
-static void generate_geometry_path( std::vector<VertexData2D> &geometry, le_path_o *path, float tolerance ) {
+static void generate_geometry_path( std::vector<VertexData2D>& geometry, le_path_o* path, float tolerance ) {
 
 	using namespace le_path;
 	using namespace le_tessellator;
@@ -560,9 +560,9 @@ static void generate_geometry_path( std::vector<VertexData2D> &geometry, le_path
 
 	le_tessellator_i.tessellate( tess );
 
-	le_tessellator_api::IndexType const *indices;
+	le_tessellator_api::IndexType const* indices;
 	size_t                               num_indices = 0;
-	glm::vec2 const *                    vertices;
+	glm::vec2 const*                     vertices;
 	size_t                               num_vertices = 0;
 
 	le_tessellator_i.get_indices( tess, &indices, &num_indices );
@@ -581,19 +581,19 @@ static void generate_geometry_path( std::vector<VertexData2D> &geometry, le_path
 
 // ----------------------------------------------------------------------
 
-static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<VertexData2D> &geometry ) {
+static void generate_geometry_for_primitive( le_2d_primitive_o* p, std::vector<VertexData2D>& geometry ) {
 
 	switch ( p->type ) {
 	case le_2d_primitive_o::Type::eLine: {
 		// generate geometry for line
-		auto const &line = p->data.as_line;
+		auto const& line = p->data.as_line;
 
 		generate_geometry_line( geometry, line.p0, line.p1, p->material.stroke_weight );
 
 	} break;
 	case le_2d_primitive_o::Type::eCircle: {
 
-		auto const &circle = p->data.as_circle;
+		auto const& circle = p->data.as_circle;
 
 		if ( p->material.filled ) {
 			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), { circle.radius, circle.radius }, circle.tolerance );
@@ -603,7 +603,7 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 
 	} break;
 	case le_2d_primitive_o::Type::eEllipse: {
-		auto const &ellipse = p->data.as_ellipse;
+		auto const& ellipse = p->data.as_ellipse;
 		if ( p->material.filled ) {
 			generate_geometry_ellipse( geometry, 0, glm::two_pi<float>(), ellipse.radii, ellipse.tolerance );
 		} else {
@@ -611,7 +611,7 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 		}
 	} break;
 	case le_2d_primitive_o::Type::eArc: {
-		auto const &arc = p->data.as_arc;
+		auto const& arc = p->data.as_arc;
 		if ( p->material.filled ) {
 			generate_geometry_ellipse( geometry, arc.angle_start_rad, arc.angle_end_rad, arc.radii, arc.tolerance );
 		} else {
@@ -619,7 +619,7 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 		}
 	} break;
 	case le_2d_primitive_o::Type::ePath: {
-		auto const &path = p->data.as_path;
+		auto const& path = p->data.as_path;
 		if ( p->material.filled ) {
 			generate_geometry_path( geometry, path.path, path.tolerance );
 		} else {
@@ -634,7 +634,7 @@ static void generate_geometry_for_primitive( le_2d_primitive_o *p, std::vector<V
 
 // ----------------------------------------------------------------------
 // internal method, only triggered if le_2d is destroyed.
-static void le_2d_draw_primitives( le_2d_o *self ) {
+static void le_2d_draw_primitives( le_2d_o* self ) {
 
 	/* We might want to do some sorting, and optimising here
 	 * Sort by pipeline for example. Also, issue draw commands
@@ -643,7 +643,7 @@ static void le_2d_draw_primitives( le_2d_o *self ) {
 	 */
 
 	le::Encoder encoder{ self->encoder };
-	auto *      pm = encoder.getPipelineManager();
+	auto*       pm = encoder.getPipelineManager();
 
 	static auto vert = LeShaderModuleBuilder( pm ).setSourceFilePath( "./resources/shaders/2d_primitives.vert" ).setShaderStage( le::ShaderStage::eVertex ).setHandle( LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_vert" ) ).build();
 	static auto frag = LeShaderModuleBuilder( pm ).setSourceFilePath( "./resources/shaders/2d_primitives.frag" ).setShaderStage( le::ShaderStage::eFragment ).setHandle( LE_SHADER_MODULE_HANDLE( "2d_primitives_shader_frag" ) ).build();
@@ -709,7 +709,7 @@ static void le_2d_draw_primitives( le_2d_o *self ) {
 
 	// Update sort key for all primitives
 
-	for ( auto &p : self->primitives ) {
+	for ( auto& p : self->primitives ) {
 		le_2d_primitive_update_hash( p );
 	}
 
@@ -729,7 +729,7 @@ static void le_2d_draw_primitives( le_2d_o *self ) {
 
 	uint64_t previous_hash = 0;
 
-	for ( auto const &p : self->primitives ) {
+	for ( auto const& p : self->primitives ) {
 
 		if ( instanced_draws.empty() ) {
 
@@ -788,9 +788,9 @@ static void le_2d_draw_primitives( le_2d_o *self ) {
 		}
 	}
 
-	for ( auto &d : instanced_draws ) {
+	for ( auto& d : instanced_draws ) {
 
-		auto &geom = geometry_data[ d.geometry_data_index ];
+		auto& geom = geometry_data[ d.geometry_data_index ];
 
 		encoder
 		    .setVertexData( geom.data(), sizeof( VertexData2D ) * geom.size(), 0 )
@@ -801,7 +801,7 @@ static void le_2d_draw_primitives( le_2d_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void le_2d_destroy( le_2d_o *self ) {
+static void le_2d_destroy( le_2d_o* self ) {
 
 	// We draw all primtives which have been attached to this 2d context.
 
@@ -809,7 +809,7 @@ static void le_2d_destroy( le_2d_o *self ) {
 
 	// Clean up
 
-	for ( auto &p : self->primitives ) {
+	for ( auto& p : self->primitives ) {
 
 		// Most primitives are POD types, but some might own
 		// their own heap-allocated objects which we must clean up.
@@ -832,8 +832,8 @@ static void le_2d_destroy( le_2d_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static le_2d_primitive_o *le_2d_allocate_primitive( le_2d_o *self ) {
-	le_2d_primitive_o *p = new le_2d_primitive_o();
+static le_2d_primitive_o* le_2d_allocate_primitive( le_2d_o* self ) {
+	le_2d_primitive_o* p = new le_2d_primitive_o();
 
 	p->hash              = 0;
 	p->node.scale        = vec2f{ 1 };
@@ -855,11 +855,11 @@ static le_2d_primitive_o *le_2d_allocate_primitive( le_2d_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static le_2d_primitive_o *le_2d_primitive_create_circle( le_2d_o *context ) {
+static le_2d_primitive_o* le_2d_primitive_create_circle( le_2d_o* context ) {
 	auto p = le_2d_allocate_primitive( context );
 
 	p->type   = le_2d_primitive_o::Type::eCircle;
-	auto &obj = p->data.as_circle;
+	auto& obj = p->data.as_circle;
 
 	obj.radius    = 100.f;
 	obj.tolerance = 0.5f;
@@ -869,12 +869,12 @@ static le_2d_primitive_o *le_2d_primitive_create_circle( le_2d_o *context ) {
 
 // ----------------------------------------------------------------------
 
-static le_2d_primitive_o *le_2d_primitive_create_ellipse( le_2d_o *context ) {
+static le_2d_primitive_o* le_2d_primitive_create_ellipse( le_2d_o* context ) {
 	auto p = le_2d_allocate_primitive( context );
 
 	p->type = le_2d_primitive_o::Type::eEllipse;
 
-	auto &obj = p->data.as_ellipse;
+	auto& obj = p->data.as_ellipse;
 
 	obj.radii     = { 0.f, 0.f };
 	obj.tolerance = 0.5;
@@ -884,12 +884,12 @@ static le_2d_primitive_o *le_2d_primitive_create_ellipse( le_2d_o *context ) {
 
 // ----------------------------------------------------------------------
 
-static le_2d_primitive_o *le_2d_primitive_create_arc( le_2d_o *context ) {
+static le_2d_primitive_o* le_2d_primitive_create_arc( le_2d_o* context ) {
 	auto p = le_2d_allocate_primitive( context );
 
 	p->type = le_2d_primitive_o::Type::eArc;
 
-	auto &obj = p->data.as_arc;
+	auto& obj = p->data.as_arc;
 
 	obj.radii           = { 0.f, 0.f };
 	obj.tolerance       = 0.5;
@@ -903,11 +903,11 @@ static le_2d_primitive_o *le_2d_primitive_create_arc( le_2d_o *context ) {
 
 // ----------------------------------------------------------------------
 
-static le_2d_primitive_o *le_2d_primitive_create_line( le_2d_o *context ) {
+static le_2d_primitive_o* le_2d_primitive_create_line( le_2d_o* context ) {
 	auto p = le_2d_allocate_primitive( context );
 
 	p->type   = le_2d_primitive_o::Type::eLine;
-	auto &obj = p->data.as_line;
+	auto& obj = p->data.as_line;
 
 	obj.p0                    = {};
 	obj.p1                    = {};
@@ -918,11 +918,11 @@ static le_2d_primitive_o *le_2d_primitive_create_line( le_2d_o *context ) {
 
 // ----------------------------------------------------------------------
 
-static le_2d_primitive_o *le_2d_primitive_create_path( le_2d_o *context ) {
+static le_2d_primitive_o* le_2d_primitive_create_path( le_2d_o* context ) {
 	auto p = le_2d_allocate_primitive( context );
 
 	p->type   = le_2d_primitive_o::Type::ePath;
-	auto &obj = p->data.as_path;
+	auto& obj = p->data.as_path;
 
 	obj.path      = le_path::le_path_i.create();
 	obj.tolerance = 0.5f;
@@ -933,145 +933,145 @@ static le_2d_primitive_o *le_2d_primitive_create_path( le_2d_o *context ) {
 
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_path_move_to( le_2d_primitive_o *p, vec2f const *pos ) {
+static void le_2d_primitive_path_move_to( le_2d_primitive_o* p, vec2f const* pos ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto &obj = p->data.as_path;
+	auto& obj = p->data.as_path;
 	le_path::le_path_i.move_to( obj.path, pos );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_path_line_to( le_2d_primitive_o *p, vec2f const *pos ) {
+static void le_2d_primitive_path_line_to( le_2d_primitive_o* p, vec2f const* pos ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto &obj = p->data.as_path;
+	auto& obj = p->data.as_path;
 	le_path::le_path_i.line_to( obj.path, pos );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_path_close( le_2d_primitive_o *p ) {
+static void le_2d_primitive_path_close( le_2d_primitive_o* p ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto &obj = p->data.as_path;
+	auto& obj = p->data.as_path;
 	le_path::le_path_i.close( obj.path );
 }
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_path_cubic_bezier_to( le_2d_primitive_o *p, vec2f const *pos, vec2f const *c1, vec2f const *c2 ) {
+static void le_2d_primitive_path_cubic_bezier_to( le_2d_primitive_o* p, vec2f const* pos, vec2f const* c1, vec2f const* c2 ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto &obj = p->data.as_path;
+	auto& obj = p->data.as_path;
 	le_path::le_path_i.cubic_bezier_to( obj.path, pos, c1, c2 );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_path_quad_bezier_to( le_2d_primitive_o *p, vec2f const *pos, vec2f const *c1 ) {
+static void le_2d_primitive_path_quad_bezier_to( le_2d_primitive_o* p, vec2f const* pos, vec2f const* c1 ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto &obj = p->data.as_path;
+	auto& obj = p->data.as_path;
 	le_path::le_path_i.quad_bezier_to( obj.path, pos, c1 );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_path_arc_to( le_2d_primitive_o *p, vec2f const *pos, vec2f const *radii, float phi, bool large_arc, bool sweep ) {
+static void le_2d_primitive_path_arc_to( le_2d_primitive_o* p, vec2f const* pos, vec2f const* radii, float phi, bool large_arc, bool sweep ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto &obj = p->data.as_path;
+	auto& obj = p->data.as_path;
 	le_path::le_path_i.arc_to( obj.path, pos, radii, phi, large_arc, sweep );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_path_hobby( le_2d_primitive_o *p ) {
+static void le_2d_primitive_path_hobby( le_2d_primitive_o* p ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto &obj = p->data.as_path;
+	auto& obj = p->data.as_path;
 	le_path::le_path_i.hobby( obj.path );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_path_ellipse( le_2d_primitive_o *p, vec2f const *centre, float r_x, float r_y ) {
+static void le_2d_primitive_path_ellipse( le_2d_primitive_o* p, vec2f const* centre, float r_x, float r_y ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto &obj = p->data.as_path;
+	auto& obj = p->data.as_path;
 	le_path::le_path_i.ellipse( obj.path, centre, r_x, r_y );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_path_add_from_simplified_svg( le_2d_primitive_o *p, char const *svg ) {
+static void le_2d_primitive_path_add_from_simplified_svg( le_2d_primitive_o* p, char const* svg ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto &obj = p->data.as_path;
+	auto& obj = p->data.as_path;
 	le_path::le_path_i.add_from_simplified_svg( obj.path, svg );
 }
 
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_path_set_tolerance( le_2d_primitive_o *p, float tolerance ) {
+static void le_2d_primitive_path_set_tolerance( le_2d_primitive_o* p, float tolerance ) {
 	assert( p->type == le_2d_primitive_o::Type::ePath );
-	auto &obj     = p->data.as_path;
+	auto& obj     = p->data.as_path;
 	obj.tolerance = tolerance;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_2d_primitive_set_node_position( le_2d_primitive_o *p, vec2f const *pos ) {
+static void le_2d_primitive_set_node_position( le_2d_primitive_o* p, vec2f const* pos ) {
 	p->node.translation = *pos;
 }
 
-static void le_2d_primitive_set_stroke_weight( le_2d_primitive_o *p, float weight ) {
+static void le_2d_primitive_set_stroke_weight( le_2d_primitive_o* p, float weight ) {
 	p->material.stroke_weight = weight;
 }
 
-static void le_2d_primitive_set_stroke_cap_type( le_2d_primitive_o *p, StrokeCapType cap_type ) {
+static void le_2d_primitive_set_stroke_cap_type( le_2d_primitive_o* p, StrokeCapType cap_type ) {
 	p->material.stroke_cap_type = cap_type;
 }
 
-static void le_2d_primitive_set_stroke_join_type( le_2d_primitive_o *p, StrokeJoinType join_type ) {
+static void le_2d_primitive_set_stroke_join_type( le_2d_primitive_o* p, StrokeJoinType join_type ) {
 	p->material.stroke_join_type = join_type;
 }
 
-static void le_2d_primitive_set_filled( le_2d_primitive_o *p, bool filled ) {
+static void le_2d_primitive_set_filled( le_2d_primitive_o* p, bool filled ) {
 	p->material.filled = filled;
 }
 
-static void le_2d_primitive_set_color( le_2d_primitive_o *p, uint32_t r8g8b8a8_color ) {
+static void le_2d_primitive_set_color( le_2d_primitive_o* p, uint32_t r8g8b8a8_color ) {
 	p->material.color = r8g8b8a8_color;
 }
 
 #define SETTER_IMPLEMENT( prim_type, field_type, field_name )                                                   \
-	static void le_2d_primitive_##prim_type##_set_##field_name( le_2d_primitive_o *p, field_type field_name ) { \
+	static void le_2d_primitive_##prim_type##_set_##field_name( le_2d_primitive_o* p, field_type field_name ) { \
 		p->data.as_##prim_type.field_name = field_name;                                                         \
 	}
 
 #define SETTER_IMPLEMENT_CPY( prim_type, field_type, field_name )                                               \
-	static void le_2d_primitive_##prim_type##_set_##field_name( le_2d_primitive_o *p, field_type field_name ) { \
+	static void le_2d_primitive_##prim_type##_set_##field_name( le_2d_primitive_o* p, field_type field_name ) { \
 		p->data.as_##prim_type.field_name = *field_name;                                                        \
 	}
 
 SETTER_IMPLEMENT( circle, float, radius );
 SETTER_IMPLEMENT( circle, float, tolerance );
 
-SETTER_IMPLEMENT_CPY( ellipse, vec2f const *, radii );
+SETTER_IMPLEMENT_CPY( ellipse, vec2f const*, radii );
 SETTER_IMPLEMENT( ellipse, float, tolerance );
 
-SETTER_IMPLEMENT_CPY( arc, vec2f const *, radii );
+SETTER_IMPLEMENT_CPY( arc, vec2f const*, radii );
 SETTER_IMPLEMENT( arc, float, tolerance );
 
 SETTER_IMPLEMENT( arc, float, angle_start_rad );
 SETTER_IMPLEMENT( arc, float, angle_end_rad );
 
-SETTER_IMPLEMENT_CPY( line, vec2f const *, p0 );
-SETTER_IMPLEMENT_CPY( line, vec2f const *, p1 );
+SETTER_IMPLEMENT_CPY( line, vec2f const*, p0 );
+SETTER_IMPLEMENT_CPY( line, vec2f const*, p1 );
 
 #undef SETTER_IMPLEMENT
 
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_2d, api ) {
-	auto &le_2d_i = static_cast<le_2d_api *>( api )->le_2d_i;
+	auto& le_2d_i = static_cast<le_2d_api*>( api )->le_2d_i;
 
 	le_2d_i.create  = le_2d_create;
 	le_2d_i.destroy = le_2d_destroy;
 
-	auto &le_2d_primitive_i = static_cast<le_2d_api *>( api )->le_2d_primitive_i;
+	auto& le_2d_primitive_i = static_cast<le_2d_api*>( api )->le_2d_primitive_i;
 
 #define SET_PRIMITIVE_FPTR( prim_type, field_name ) \
 	le_2d_primitive_i.prim_type##_set_##field_name = le_2d_primitive_##prim_type##_set_##field_name

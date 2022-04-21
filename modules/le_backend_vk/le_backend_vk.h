@@ -19,7 +19,7 @@ struct le_staging_allocator_o;
 struct le_resource_handle_t; // defined in renderer_types
 
 struct le_pipeline_manager_o;
-//struct le_shader_module_o;
+// struct le_shader_module_o;
 
 struct graphics_pipeline_state_o; // for le_pipeline_builder
 struct compute_pipeline_state_o;  // for le_pipeline_builder
@@ -66,19 +66,19 @@ struct VmaAllocationInfo;
 
 struct LeShaderStageEnum;
 struct LeShaderSourceLanguageEnum;
-//enum class LeResourceType : uint8_t;
+// enum class LeResourceType : uint8_t;
 
 struct VkFormatEnum; // wrapper around `vk::Format`. Defined in <le_backend_types_internal.h>
 
 struct le_resource_info_t;
 
 struct le_backend_vk_settings_t {
-	const char **            requestedInstanceExtensions    = nullptr;
+	const char**             requestedInstanceExtensions    = nullptr;
 	uint32_t                 numRequestedInstanceExtensions = 0;
-	const char **            requestedDeviceExtensions      = nullptr;
+	const char**             requestedDeviceExtensions      = nullptr;
 	uint32_t                 numRequestedDeviceExtensions   = 0;
 	uint32_t                 concurrency_count              = 1;       // number of potential worker threads
-	le_swapchain_settings_t *pSwapchain_settings            = nullptr; // non-owning, owned by caller of setup method.
+	le_swapchain_settings_t* pSwapchain_settings            = nullptr; // non-owning, owned by caller of setup method.
 	uint32_t                 num_swapchain_settings         = 1;       // must be set by caller of setup method - tells us how many pSwapchain_settings to expect.
 };
 
@@ -90,7 +90,7 @@ struct le_pipeline_layout_info {
 };
 
 struct le_pipeline_and_layout_info_t {
-	struct VkPipeline_T *   pipeline;
+	struct VkPipeline_T*    pipeline;
 	le_pipeline_layout_info layout_info;
 };
 
@@ -259,21 +259,21 @@ LE_MODULE_LOAD_DEFAULT( le_backend_vk );
 namespace le_backend_vk {
 const auto api = le_backend_vk_api_i;
 
-static const auto &vk_backend_i           = api -> vk_backend_i;
-static const auto &private_backend_vk_i   = api -> private_backend_vk_i;
-static const auto &le_allocator_linear_i  = api -> le_allocator_linear_i;
-static const auto &le_staging_allocator_i = api -> le_staging_allocator_i;
-static const auto &vk_instance_i          = api -> vk_instance_i;
-static const auto &vk_device_i            = api -> vk_device_i;
-static const auto &le_pipeline_manager_i  = api -> le_pipeline_manager_i;
-static const auto &le_shader_module_i     = api -> le_shader_module_i;
+static const auto& vk_backend_i           = api -> vk_backend_i;
+static const auto& private_backend_vk_i   = api -> private_backend_vk_i;
+static const auto& le_allocator_linear_i  = api -> le_allocator_linear_i;
+static const auto& le_staging_allocator_i = api -> le_staging_allocator_i;
+static const auto& vk_instance_i          = api -> vk_instance_i;
+static const auto& vk_device_i            = api -> vk_device_i;
+static const auto& le_pipeline_manager_i  = api -> le_pipeline_manager_i;
+static const auto& le_shader_module_i     = api -> le_shader_module_i;
 
 } // namespace le_backend_vk
 
 namespace le {
 
 class Backend : NoCopy, NoMove {
-	le_backend_o *self         = nullptr;
+	le_backend_o* self         = nullptr;
 	bool          is_reference = false;
 
   public:
@@ -286,7 +286,7 @@ class Backend : NoCopy, NoMove {
 	    , is_reference( false ) {
 	}
 
-	Backend( le_backend_o *ref )
+	Backend( le_backend_o* ref )
 	    : self( ref )
 	    , is_reference( true ) {
 	}
@@ -297,7 +297,7 @@ class Backend : NoCopy, NoMove {
 		}
 	}
 
-	void setup( le_backend_vk_settings_t *settings ) {
+	void setup( le_backend_vk_settings_t* settings ) {
 		le_backend_vk::vk_backend_i.setup( self, settings );
 	}
 
@@ -319,10 +319,10 @@ class Backend : NoCopy, NoMove {
 };
 
 class Device : NoCopy, NoMove {
-	le_device_o *self = nullptr;
+	le_device_o* self = nullptr;
 
   public:
-	Device( le_backend_vk_instance_o *instance_, const char **extension_names, uint32_t extension_names_count )
+	Device( le_backend_vk_instance_o* instance_, const char** extension_names, uint32_t extension_names_count )
 	    : self( le_backend_vk::vk_device_i.create( instance_, extension_names, extension_names_count ) ) {
 		le_backend_vk::vk_device_i.increase_reference_count( self );
 	}
@@ -333,22 +333,22 @@ class Device : NoCopy, NoMove {
 	}
 
 	// copy constructor
-	Device( const Device &lhs )
+	Device( const Device& lhs )
 	    : self( lhs.self ) {
 		le_backend_vk::vk_device_i.increase_reference_count( self );
 	}
 
 	// reference from data constructor
-	Device( le_device_o *device_ )
+	Device( le_device_o* device_ )
 	    : self( device_ ) {
 		le_backend_vk::vk_device_i.increase_reference_count( self );
 	}
 
-	VkDevice_T *getVkDevice() const {
+	VkDevice_T* getVkDevice() const {
 		return le_backend_vk::vk_device_i.get_vk_device( self );
 	}
 
-	VkPhysicalDevice_T *getVkPhysicalDevice() const {
+	VkPhysicalDevice_T* getVkPhysicalDevice() const {
 		return le_backend_vk::vk_device_i.get_vk_physical_device( self );
 	}
 
@@ -356,7 +356,7 @@ class Device : NoCopy, NoMove {
 		return le_backend_vk::vk_device_i.get_default_graphics_queue_family_index( self );
 	}
 
-	bool getRaytracingProperties( struct VkPhysicalDeviceRayTracingPipelinePropertiesKHR *properties ) {
+	bool getRaytracingProperties( struct VkPhysicalDeviceRayTracingPipelinePropertiesKHR* properties ) {
 		return le_backend_vk::vk_device_i.get_vk_physical_device_ray_tracing_properties( self, properties );
 	}
 
@@ -364,15 +364,15 @@ class Device : NoCopy, NoMove {
 		return le_backend_vk::vk_device_i.get_default_compute_queue_family_index( self );
 	}
 
-	VkQueue_T *getDefaultGraphicsQueue() const {
+	VkQueue_T* getDefaultGraphicsQueue() const {
 		return le_backend_vk::vk_device_i.get_default_graphics_queue( self );
 	}
 
-	VkQueue_T *getDefaultComputeQueue() const {
+	VkQueue_T* getDefaultComputeQueue() const {
 		return le_backend_vk::vk_device_i.get_default_compute_queue( self );
 	}
 
-	bool isExtensionAvailable( char const *extensionName ) const {
+	bool isExtensionAvailable( char const* extensionName ) const {
 		return le_backend_vk::vk_device_i.is_extension_available( self, extensionName );
 	}
 

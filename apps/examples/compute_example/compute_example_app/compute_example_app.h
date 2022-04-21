@@ -7,7 +7,7 @@
 
 // depends on le_backend_vk. le_backend_vk must be loaded before this class is used.
 
-void register_compute_example_app_api( void *api );
+void register_compute_example_app_api( void* api );
 
 struct compute_example_app_o;
 
@@ -35,15 +35,15 @@ LE_MODULE_LOAD_DEFAULT( compute_example_app );
 #ifdef __cplusplus
 namespace compute_example_app {
 
-static const auto &api = compute_example_app_api_i;
+static const auto& api = compute_example_app_api_i;
 
-static const auto &compute_example_app_i = api -> compute_example_app_i;
+static const auto& compute_example_app_i = api -> compute_example_app_i;
 
 } // namespace compute_example_app
 
 class ComputeExampleApp : NoCopy, NoMove {
 
-	compute_example_app_o *self;
+	compute_example_app_o* self;
 
   public:
 	ComputeExampleApp()

@@ -27,7 +27,7 @@ struct le_window_settings_o {
 	int          width          = 640;
 	int          height         = 480;
 	std::string  title          = "Island default window title";
-	GLFWmonitor *monitor        = nullptr;
+	GLFWmonitor* monitor        = nullptr;
 	uint32_t     useEventsQueue = true; // whether to use an events queue or not
 };
 
@@ -40,19 +40,19 @@ struct WindowGeometry {
 
 struct le_window_o {
 
-	GLFWwindow *         window   = nullptr;
+	GLFWwindow*          window   = nullptr;
 	VkSurfaceKHR         mSurface = nullptr;
 	VkExtent2D           mSurfaceExtent{};
 	le_window_settings_o mSettings{};
 	size_t               referenceCount = 0;
-	void *               user_data      = nullptr;
+	void*                user_data      = nullptr;
 
 	uint32_t                                               eventQueueBack = 0;        // Event queue currently used to record events
 	std::array<std::atomic<uint32_t>, 2>                   numEventsForQueue{ 0, 0 }; // Counter for events per queue (works as arena allocator marker for events queue)
 	std::array<std::array<LeUiEvent, EVENT_QUEUE_SIZE>, 2> eventQueue;                // Events queue is double-bufferd, flip happens on `get_event_queue`
 
-	std::array<std::forward_list<std::string>, 2>               eventStringData; // string data associated with events per queue. vector of strings gets deleted on flip.
-	std::array<std::forward_list<std::vector<char const *>>, 2> eventStringPtr;  // ptrs to string data associated with events per queue. gets deleted on flip.
+	std::array<std::forward_list<std::string>, 2>              eventStringData; // string data associated with events per queue. vector of strings gets deleted on flip.
+	std::array<std::forward_list<std::vector<char const*>>, 2> eventStringPtr;  // ptrs to string data associated with events per queue. gets deleted on flip.
 
 	WindowGeometry windowGeometry{};
 	bool           isFullscreen = false;
@@ -65,7 +65,7 @@ struct le_window_o {
 // Returns true and an available index as a side-effect in eventIdx otherwise.
 //
 // Note that we limit the return value `eventIdx` to EVENT_QUEUE_SIZE-1
-bool event_queue_idx_available( std::atomic<uint32_t> &atomicCounter, uint32_t &eventIdx ) {
+bool event_queue_idx_available( std::atomic<uint32_t>& atomicCounter, uint32_t& eventIdx ) {
 
 	// We post-increment here, so that eventIdx receives the current value of the atomic
 	// counter, just before the counter gets incremented.
@@ -80,9 +80,9 @@ bool event_queue_idx_available( std::atomic<uint32_t> &atomicCounter, uint32_t &
 }
 
 // ----------------------------------------------------------------------
-static void glfw_window_key_callback( GLFWwindow *glfwWindow, int key, int scancode, int action, int mods ) {
+static void glfw_window_key_callback( GLFWwindow* glfwWindow, int key, int scancode, int action, int mods ) {
 
-	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto window = static_cast<le_window_o*>( glfwGetWindowUserPointer( glfwWindow ) );
 
 	if ( window->mSettings.useEventsQueue ) {
 
@@ -90,9 +90,9 @@ static void glfw_window_key_callback( GLFWwindow *glfwWindow, int key, int scanc
 		uint32_t eventIdx = 0;
 
 		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
-			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
+			auto& event = window->eventQueue[ queueIdx ][ eventIdx ];
 			event.event = LeUiEvent::Type::eKey;
-			auto &e     = event.key;
+			auto& e     = event.key;
 			e.key       = LeUiEvent::NamedKey( key );
 			e.action    = LeUiEvent::ButtonAction( action );
 			e.scancode  = scancode;
@@ -104,9 +104,9 @@ static void glfw_window_key_callback( GLFWwindow *glfwWindow, int key, int scanc
 }
 
 // ----------------------------------------------------------------------
-static void glfw_window_character_callback( GLFWwindow *glfwWindow, unsigned int codepoint ) {
+static void glfw_window_character_callback( GLFWwindow* glfwWindow, unsigned int codepoint ) {
 
-	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto window = static_cast<le_window_o*>( glfwGetWindowUserPointer( glfwWindow ) );
 
 	if ( window->mSettings.useEventsQueue ) {
 
@@ -114,9 +114,9 @@ static void glfw_window_character_callback( GLFWwindow *glfwWindow, unsigned int
 		uint32_t eventIdx = 0;
 
 		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
-			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
+			auto& event = window->eventQueue[ queueIdx ][ eventIdx ];
 			event.event = LeUiEvent::Type::eCharacter;
-			auto &e     = event.character;
+			auto& e     = event.character;
 			e.codepoint = codepoint;
 		} else {
 			// we're over the high - watermark for events, we should probably print a warning.
@@ -125,9 +125,9 @@ static void glfw_window_character_callback( GLFWwindow *glfwWindow, unsigned int
 }
 
 // ----------------------------------------------------------------------
-static void glfw_window_cursor_position_callback( GLFWwindow *glfwWindow, double xpos, double ypos ) {
+static void glfw_window_cursor_position_callback( GLFWwindow* glfwWindow, double xpos, double ypos ) {
 
-	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto window = static_cast<le_window_o*>( glfwGetWindowUserPointer( glfwWindow ) );
 
 	if ( window->mSettings.useEventsQueue ) {
 
@@ -135,9 +135,9 @@ static void glfw_window_cursor_position_callback( GLFWwindow *glfwWindow, double
 		uint32_t eventIdx = 0;
 
 		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
-			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
+			auto& event = window->eventQueue[ queueIdx ][ eventIdx ];
 			event.event = LeUiEvent::Type::eCursorPosition;
-			auto &e     = event.cursorPosition;
+			auto& e     = event.cursorPosition;
 			e.x         = xpos;
 			e.y         = ypos;
 		} else {
@@ -147,9 +147,9 @@ static void glfw_window_cursor_position_callback( GLFWwindow *glfwWindow, double
 }
 
 // ----------------------------------------------------------------------
-static void glfw_window_cursor_enter_callback( GLFWwindow *glfwWindow, int entered ) {
+static void glfw_window_cursor_enter_callback( GLFWwindow* glfwWindow, int entered ) {
 
-	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto window = static_cast<le_window_o*>( glfwGetWindowUserPointer( glfwWindow ) );
 
 	if ( window->mSettings.useEventsQueue ) {
 
@@ -157,9 +157,9 @@ static void glfw_window_cursor_enter_callback( GLFWwindow *glfwWindow, int enter
 		uint32_t eventIdx = 0;
 
 		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
-			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
+			auto& event = window->eventQueue[ queueIdx ][ eventIdx ];
 			event.event = LeUiEvent::Type::eCursorEnter;
-			auto &e     = event.cursorEnter;
+			auto& e     = event.cursorEnter;
 			e.entered   = uint32_t( entered );
 		} else {
 			// we're over the high - watermark for events, we should probably print a warning.
@@ -168,9 +168,9 @@ static void glfw_window_cursor_enter_callback( GLFWwindow *glfwWindow, int enter
 }
 
 // ----------------------------------------------------------------------
-static void glfw_window_mouse_button_callback( GLFWwindow *glfwWindow, int button, int action, int mods ) {
+static void glfw_window_mouse_button_callback( GLFWwindow* glfwWindow, int button, int action, int mods ) {
 
-	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto window = static_cast<le_window_o*>( glfwGetWindowUserPointer( glfwWindow ) );
 
 	if ( window->mSettings.useEventsQueue ) {
 
@@ -178,9 +178,9 @@ static void glfw_window_mouse_button_callback( GLFWwindow *glfwWindow, int butto
 		uint32_t eventIdx = 0;
 
 		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
-			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
+			auto& event = window->eventQueue[ queueIdx ][ eventIdx ];
 			event.event = LeUiEvent::Type::eMouseButton;
-			auto &e     = event.mouseButton;
+			auto& e     = event.mouseButton;
 			e.button    = button;
 			e.action    = le::UiEvent::ButtonAction( action );
 			e.mods      = mods;
@@ -191,9 +191,9 @@ static void glfw_window_mouse_button_callback( GLFWwindow *glfwWindow, int butto
 }
 
 // ----------------------------------------------------------------------
-static void glfw_window_scroll_callback( GLFWwindow *glfwWindow, double xoffset, double yoffset ) {
+static void glfw_window_scroll_callback( GLFWwindow* glfwWindow, double xoffset, double yoffset ) {
 
-	auto window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto window = static_cast<le_window_o*>( glfwGetWindowUserPointer( glfwWindow ) );
 
 	if ( window->mSettings.useEventsQueue ) {
 
@@ -201,9 +201,9 @@ static void glfw_window_scroll_callback( GLFWwindow *glfwWindow, double xoffset,
 		uint32_t eventIdx = 0;
 
 		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
-			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
+			auto& event = window->eventQueue[ queueIdx ][ eventIdx ];
 			event.event = LeUiEvent::Type::eScroll;
-			auto &e     = event.scroll;
+			auto& e     = event.scroll;
 			e.x_offset  = xoffset;
 			e.y_offset  = yoffset;
 		} else {
@@ -213,9 +213,9 @@ static void glfw_window_scroll_callback( GLFWwindow *glfwWindow, double xoffset,
 }
 
 // ----------------------------------------------------------------------
-static void glfw_window_drop_callback( GLFWwindow *glfwWindow, int count_paths, char const **utf8_paths ) {
+static void glfw_window_drop_callback( GLFWwindow* glfwWindow, int count_paths, char const** utf8_paths ) {
 
-	auto        window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto        window = static_cast<le_window_o*>( glfwGetWindowUserPointer( glfwWindow ) );
 	static auto logger = LeLog( "le_window" );
 
 	if ( window->mSettings.useEventsQueue ) {
@@ -224,10 +224,10 @@ static void glfw_window_drop_callback( GLFWwindow *glfwWindow, int count_paths, 
 		uint32_t eventIdx = 0;
 
 		if ( event_queue_idx_available( window->numEventsForQueue[ queueIdx ], eventIdx ) ) {
-			auto &event = window->eventQueue[ queueIdx ][ eventIdx ];
+			auto& event = window->eventQueue[ queueIdx ][ eventIdx ];
 			event.event = LeUiEvent::Type::eDrop;
 
-			auto &drop = event.drop;
+			auto& drop = event.drop;
 
 			drop.paths_count = count_paths;
 
@@ -242,7 +242,7 @@ static void glfw_window_drop_callback( GLFWwindow *glfwWindow, int count_paths, 
 			// will get moved to a container tied to and with the same
 			// lifetime as the back event queue: `eventStringPtr[queueIdx]`
 			//
-			std::vector<char const *> str_ptrs;
+			std::vector<char const*> str_ptrs;
 
 			for ( int i = 0; i != count_paths; i++ ) {
 
@@ -265,9 +265,9 @@ static void glfw_window_drop_callback( GLFWwindow *glfwWindow, int count_paths, 
 }
 // ----------------------------------------------------------------------
 
-static void glfw_framebuffer_resize_callback( GLFWwindow *glfwWindow, int width_px, int height_px ) {
+static void glfw_framebuffer_resize_callback( GLFWwindow* glfwWindow, int width_px, int height_px ) {
 
-	auto        window = static_cast<le_window_o *>( glfwGetWindowUserPointer( glfwWindow ) );
+	auto        window = static_cast<le_window_o*>( glfwGetWindowUserPointer( glfwWindow ) );
 	static auto logger = LeLog( "le_window" );
 
 	int w = width_px;
@@ -283,19 +283,19 @@ static void glfw_framebuffer_resize_callback( GLFWwindow *glfwWindow, int width_
 
 // ----------------------------------------------------------------------
 
-static size_t window_get_reference_count( le_window_o *self ) {
+static size_t window_get_reference_count( le_window_o* self ) {
 	return self->referenceCount;
 }
 
 // ----------------------------------------------------------------------
 
-static void window_increase_reference_count( le_window_o *self ) {
+static void window_increase_reference_count( le_window_o* self ) {
 	++self->referenceCount;
 }
 
 // ----------------------------------------------------------------------
 
-static void window_decrease_reference_count( le_window_o *self ) {
+static void window_decrease_reference_count( le_window_o* self ) {
 	--self->referenceCount;
 }
 
@@ -316,12 +316,12 @@ static bool pt2_inside_rect( int x, int y, int left, int top, int width, int hei
 // If more than one monitor is available, the monitor which contains the current
 // window's centre receives the fullscreen window.
 //
-static void window_toggle_fullscreen( le_window_o *self ) {
+static void window_toggle_fullscreen( le_window_o* self ) {
 
-	auto &g = self->windowGeometry;
+	auto& g = self->windowGeometry;
 
 	if ( self->isFullscreen ) {
-		//restore previous window state
+		// restore previous window state
 
 		glfwSetWindowMonitor( self->window, nullptr, g.x, g.y, g.width, g.height, 0 );
 
@@ -335,9 +335,9 @@ static void window_toggle_fullscreen( le_window_o *self ) {
 		glfwGetWindowSize( self->window, &g.width, &g.height );
 
 		int                 monitorCount      = 0;
-		GLFWmonitor **      monitors          = glfwGetMonitors( &monitorCount );
-		GLFWmonitor **const monitors_end      = monitors + monitorCount;
-		GLFWmonitor *       fullscreenMonitor = *monitors;
+		GLFWmonitor**       monitors          = glfwGetMonitors( &monitorCount );
+		GLFWmonitor** const monitors_end      = monitors + monitorCount;
+		GLFWmonitor*        fullscreenMonitor = *monitors;
 
 		// Iterate over all monitors, and find out if our window is inside any of them.
 		// If so, that monitor will be our fullscreen monitor.
@@ -349,7 +349,7 @@ static void window_toggle_fullscreen( le_window_o *self ) {
 			glfwGetMonitorPos( *monitor, &x_m, &y_m );
 
 			// Get monitor extents (in screen corrds) by querying its GLFWvidmode
-			GLFWvidmode const *mode = glfwGetVideoMode( *monitor );
+			GLFWvidmode const* mode = glfwGetVideoMode( *monitor );
 
 			// Check if the current window's centre point is inside the monitor in question.
 			// If yes, we have found our target monitor for going fullscreen.
@@ -369,32 +369,32 @@ static void window_toggle_fullscreen( le_window_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static le_window_settings_o *window_settings_create() {
-	le_window_settings_o *obj = new ( le_window_settings_o );
+static le_window_settings_o* window_settings_create() {
+	le_window_settings_o* obj = new ( le_window_settings_o );
 	return obj;
 }
 
 // ----------------------------------------------------------------------
 
-static void window_settings_set_title( le_window_settings_o *self_, const char *title_ ) {
+static void window_settings_set_title( le_window_settings_o* self_, const char* title_ ) {
 	self_->title = std::string( title_ );
 }
 
 // ----------------------------------------------------------------------
 
-static void window_settings_set_width( le_window_settings_o *self_, int width_ ) {
+static void window_settings_set_width( le_window_settings_o* self_, int width_ ) {
 	self_->width = width_;
 }
 
 // ----------------------------------------------------------------------
 
-static void window_settings_set_height( le_window_settings_o *self_, int height_ ) {
+static void window_settings_set_height( le_window_settings_o* self_, int height_ ) {
 	self_->height = height_;
 }
 
 // ----------------------------------------------------------------------
 
-static void window_settings_destroy( le_window_settings_o *self_ ) {
+static void window_settings_destroy( le_window_settings_o* self_ ) {
 	delete self_;
 }
 
@@ -402,7 +402,7 @@ static void window_settings_destroy( le_window_settings_o *self_ ) {
 // Creates a khr surface using glfw - note that ownership is handed over to
 // the caller which must outlive this le_window_o, and take responsibility
 // of deleting  the surface.
-static VkSurfaceKHR_T *window_create_surface( le_window_o *self, VkInstance vkInstance ) {
+static VkSurfaceKHR_T* window_create_surface( le_window_o* self, VkInstance vkInstance ) {
 	auto        result = glfwCreateWindowSurface( vkInstance, self->window, nullptr, &self->mSurface );
 	static auto logger = LeLog( "le_window" );
 	if ( result == VK_SUCCESS ) {
@@ -421,7 +421,7 @@ static VkSurfaceKHR_T *window_create_surface( le_window_o *self, VkInstance vkIn
 
 // ----------------------------------------------------------------------
 
-static uint32_t window_get_surface_width( le_window_o *self ) {
+static uint32_t window_get_surface_width( le_window_o* self ) {
 	if ( self->mSurface ) {
 		return self->mSurfaceExtent.width;
 	}
@@ -430,7 +430,7 @@ static uint32_t window_get_surface_width( le_window_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static uint32_t window_get_surface_height( le_window_o *self ) {
+static uint32_t window_get_surface_height( le_window_o* self ) {
 	if ( self->mSurface ) {
 		return self->mSurfaceExtent.height;
 	}
@@ -439,7 +439,7 @@ static uint32_t window_get_surface_height( le_window_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void window_set_callbacks( le_window_o *self ) {
+static void window_set_callbacks( le_window_o* self ) {
 	glfwSetKeyCallback( self->window, ( GLFWkeyfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_key_callback_addr ) );
 	glfwSetCharCallback( self->window, ( GLFWcharfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_char_callback_addr ) );
 	glfwSetCursorPosCallback( self->window, ( GLFWcursorposfun )le_core_forward_callback( le_window_api_i->window_callbacks_i.glfw_cursor_pos_callback_addr ) );
@@ -452,7 +452,7 @@ static void window_set_callbacks( le_window_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static void window_remove_callbacks( le_window_o *self ) {
+static void window_remove_callbacks( le_window_o* self ) {
 	glfwSetKeyCallback( self->window, nullptr );
 	glfwSetCharCallback( self->window, nullptr );
 	glfwSetCursorPosCallback( self->window, nullptr );
@@ -467,7 +467,7 @@ static void window_remove_callbacks( le_window_o *self ) {
 // Note that calling this method invalidates any values returned from the previous call to this method.
 //
 // You must only call this method once per Frame.
-static void window_get_ui_event_queue( le_window_o *self, LeUiEvent const **events, uint32_t &numEvents ) {
+static void window_get_ui_event_queue( le_window_o* self, LeUiEvent const** events, uint32_t& numEvents ) {
 	static auto logger = LeLog( "le_window" );
 
 	if ( false == self->mSettings.useEventsQueue ) {
@@ -504,14 +504,14 @@ static void window_get_ui_event_queue( le_window_o *self, LeUiEvent const **even
 
 // ----------------------------------------------------------------------
 
-static le_window_o *window_create() {
+static le_window_o* window_create() {
 	auto obj = new le_window_o();
 	return obj;
 }
 
 // ----------------------------------------------------------------------
 
-static void window_setup( le_window_o *self, const le_window_settings_o *settings ) {
+static void window_setup( le_window_o* self, const le_window_settings_o* settings ) {
 	if ( settings ) {
 		self->mSettings = *settings;
 	}
@@ -527,7 +527,7 @@ static void window_setup( le_window_o *self, const le_window_settings_o *setting
 #ifndef NDEBUG
 
 	int           monitorCount = 0;
-	GLFWmonitor **monitors     = glfwGetMonitors( &monitorCount );
+	GLFWmonitor** monitors     = glfwGetMonitors( &monitorCount );
 
 	int windowX = 100;
 	int windowY = 100;
@@ -557,7 +557,7 @@ static void window_setup( le_window_o *self, const le_window_settings_o *setting
 
 // ----------------------------------------------------------------------
 
-static void window_destroy( le_window_o *self ) {
+static void window_destroy( le_window_o* self ) {
 
 	if ( self->window ) {
 		window_remove_callbacks( self );
@@ -572,13 +572,13 @@ static void window_destroy( le_window_o *self ) {
 
 // ----------------------------------------------------------------------
 
-static bool window_should_close( le_window_o *self ) {
+static bool window_should_close( le_window_o* self ) {
 	return glfwWindowShouldClose( self->window );
 }
 
 // ----------------------------------------------------------------------
 
-static GLFWwindow *window_get_glfw_window( le_window_o *self ) {
+static GLFWwindow* window_get_glfw_window( le_window_o* self ) {
 	return self->window;
 }
 
@@ -588,14 +588,14 @@ static GLFWwindow *window_get_glfw_window( le_window_o *self ) {
 // + Xlib Window / Drawable,
 // + Wayland wl_surface*,
 // + or Android ANativeWindow*.
-static void *window_get_os_native_window_handle( le_window_o *self ) {
+static void* window_get_os_native_window_handle( le_window_o* self ) {
 
 #if defined( __linux__ )
 	//	void *window = ( void * )glfwGetWaylandWindow( self->window );
-	void *window = ( void * )glfwGetX11Window( self->window );
+	void* window = ( void* )glfwGetX11Window( self->window );
 	return window;
 #elif defined( _WIN32 )
-	return ( void * )glfwGetWin32Window( self->window );
+	return ( void* )glfwGetWin32Window( self->window );
 #endif
 }
 
@@ -618,7 +618,7 @@ static int init() {
 
 // ----------------------------------------------------------------------
 
-static const char **get_required_vk_instance_extensions( uint32_t *count ) {
+static const char** get_required_vk_instance_extensions( uint32_t* count ) {
 	return glfwGetRequiredInstanceExtensions( count );
 }
 
@@ -642,14 +642,14 @@ static void le_terminate() {
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_window, api ) {
-	auto windowApi = static_cast<le_window_api *>( api );
+	auto windowApi = static_cast<le_window_api*>( api );
 
 	windowApi->init                                = init;
 	windowApi->terminate                           = le_terminate;
 	windowApi->pollEvents                          = pollEvents;
 	windowApi->get_required_vk_instance_extensions = get_required_vk_instance_extensions;
 
-	auto &window_i                       = windowApi->window_i;
+	auto& window_i                       = windowApi->window_i;
 	window_i.create                      = window_create;
 	window_i.destroy                     = window_destroy;
 	window_i.setup                       = window_setup;
@@ -666,22 +666,22 @@ LE_MODULE_REGISTER_IMPL( le_window, api ) {
 	window_i.toggle_fullscreen  = window_toggle_fullscreen;
 	window_i.get_ui_event_queue = window_get_ui_event_queue;
 
-	auto &window_settings_i      = windowApi->window_settings_i;
+	auto& window_settings_i      = windowApi->window_settings_i;
 	window_settings_i.create     = window_settings_create;
 	window_settings_i.destroy    = window_settings_destroy;
 	window_settings_i.set_title  = window_settings_set_title;
 	window_settings_i.set_width  = window_settings_set_width;
 	window_settings_i.set_height = window_settings_set_height;
 
-	auto &callbacks_i                               = windowApi->window_callbacks_i;
-	callbacks_i.glfw_key_callback_addr              = ( void * )glfw_window_key_callback;
-	callbacks_i.glfw_char_callback_addr             = ( void * )glfw_window_character_callback;
-	callbacks_i.glfw_cursor_pos_callback_addr       = ( void * )glfw_window_cursor_position_callback;
-	callbacks_i.glfw_cursor_enter_callback_addr     = ( void * )glfw_window_cursor_enter_callback;
-	callbacks_i.glfw_mouse_button_callback_addr     = ( void * )glfw_window_mouse_button_callback;
-	callbacks_i.glfw_scroll_callback_addr           = ( void * )glfw_window_scroll_callback;
-	callbacks_i.glfw_framebuffer_size_callback_addr = ( void * )glfw_framebuffer_resize_callback;
-	callbacks_i.glfw_drop_callback_addr             = ( void * )glfw_window_drop_callback;
+	auto& callbacks_i                               = windowApi->window_callbacks_i;
+	callbacks_i.glfw_key_callback_addr              = ( void* )glfw_window_key_callback;
+	callbacks_i.glfw_char_callback_addr             = ( void* )glfw_window_character_callback;
+	callbacks_i.glfw_cursor_pos_callback_addr       = ( void* )glfw_window_cursor_position_callback;
+	callbacks_i.glfw_cursor_enter_callback_addr     = ( void* )glfw_window_cursor_enter_callback;
+	callbacks_i.glfw_mouse_button_callback_addr     = ( void* )glfw_window_mouse_button_callback;
+	callbacks_i.glfw_scroll_callback_addr           = ( void* )glfw_window_scroll_callback;
+	callbacks_i.glfw_framebuffer_size_callback_addr = ( void* )glfw_framebuffer_resize_callback;
+	callbacks_i.glfw_drop_callback_addr             = ( void* )glfw_window_drop_callback;
 
 #if defined PLUGINS_DYNAMIC
 	le_core_load_library_persistently( "libglfw.so" );

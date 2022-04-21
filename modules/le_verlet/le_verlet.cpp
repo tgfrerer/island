@@ -15,24 +15,24 @@ struct le_verlet_particle_system_o {
 
 // ----------------------------------------------------------------------
 
-static le_verlet_particle_system_o *le_verlet_create() {
+static le_verlet_particle_system_o* le_verlet_create() {
 	auto self = new le_verlet_particle_system_o();
 	return self;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_verlet_destroy( le_verlet_particle_system_o *self ) {
+static void le_verlet_destroy( le_verlet_particle_system_o* self ) {
 	delete self;
 }
 
 // ----------------------------------------------------------------------
 
-static void le_verlet_apply_constraints( le_verlet_particle_system_o *self, size_t numSteps ) {
+static void le_verlet_apply_constraints( le_verlet_particle_system_o* self, size_t numSteps ) {
 	float stepCoeff = 1.f / float( numSteps );
-	auto &pos       = self->pos;
+	auto& pos       = self->pos;
 
-	for ( auto const &c : self->constraints ) {
+	for ( auto const& c : self->constraints ) {
 		for ( size_t i = 0; i != numSteps; ++i ) {
 			// Each constraint is evaluated numSteps times, and thus numerically integrated over n discrete steps
 			switch ( c.type ) {
@@ -54,7 +54,7 @@ static void le_verlet_apply_constraints( le_verlet_particle_system_o *self, size
 				glm::vec2 force       = pos[ c.spring.a ] - pos[ c.spring.b ];
 				float     fMagnitude2 = glm::dot( force, force );
 				if ( fMagnitude2 > std::numeric_limits<float>::epsilon() ) {
-					//force *= ((mDistance * mDistance - fMagnitude2) / fMagnitude2) * mStiffness * stepCoeff;
+					// force *= ((mDistance * mDistance - fMagnitude2) / fMagnitude2) * mStiffness * stepCoeff;
 					force *= ( ( c.spring.distance * c.spring.distance - fMagnitude2 ) / fMagnitude2 ) * cSTIFFNESS * stepCoeff;
 					pos[ c.spring.a ] += force;
 					pos[ c.spring.b ] -= force;
@@ -70,7 +70,7 @@ static void le_verlet_apply_constraints( le_verlet_particle_system_o *self, size
 
 // ----------------------------------------------------------------------
 
-static void le_verlet_add_particles( le_verlet_particle_system_o *self, glm::vec2 *p_vertex, size_t num_vertices ) {
+static void le_verlet_add_particles( le_verlet_particle_system_o* self, glm::vec2* p_vertex, size_t num_vertices ) {
 	self->pos.insert( self->pos.end(), p_vertex, p_vertex + num_vertices );
 	self->prev_pos.insert( self->prev_pos.end(), p_vertex, p_vertex + num_vertices );
 }
@@ -78,10 +78,10 @@ static void le_verlet_add_particles( le_verlet_particle_system_o *self, glm::vec
 // ----------------------------------------------------------------------
 // Setup constraint based on positions for indexed particles,
 // then add it to the particle system.
-static void le_verlet_add_constraint( le_verlet_particle_system_o *self, Constraint const &constraint ) {
+static void le_verlet_add_constraint( le_verlet_particle_system_o* self, Constraint const& constraint ) {
 	// setup constraint
 	auto  c   = constraint;
-	auto &pos = self->pos;
+	auto& pos = self->pos;
 
 	switch ( c.type ) {
 	case ( Constraint::eFollow ): {
@@ -100,7 +100,7 @@ static void le_verlet_add_constraint( le_verlet_particle_system_o *self, Constra
 
 // ----------------------------------------------------------------------
 
-static void le_verlet_update( le_verlet_particle_system_o *self, size_t num_steps ) {
+static void le_verlet_update( le_verlet_particle_system_o* self, size_t num_steps ) {
 
 	// first update velocity, friction for all particles.
 
@@ -109,8 +109,8 @@ static void le_verlet_update( le_verlet_particle_system_o *self, size_t num_step
 	size_t const num_elements = self->pos.size();
 
 	for ( size_t i = 0; i != num_elements; ++i ) {
-		auto &p        = self->pos[ i ];
-		auto &pp       = self->prev_pos[ i ];
+		auto& p        = self->pos[ i ];
+		auto& pp       = self->prev_pos[ i ];
 		auto  velocity = ( p - pp );
 
 		// Store current pos as previous pos
@@ -130,7 +130,7 @@ static void le_verlet_update( le_verlet_particle_system_o *self, size_t num_step
 
 // ----------------------------------------------------------------------
 
-static void le_verlet_get_particles( le_verlet_particle_system_o *self, le_verlet_api::Vertex **vertices, size_t *num_vertices ) {
+static void le_verlet_get_particles( le_verlet_particle_system_o* self, le_verlet_api::Vertex** vertices, size_t* num_vertices ) {
 	*vertices = self->pos.data();
 	if ( num_vertices ) {
 		*num_vertices = self->pos.size();
@@ -139,7 +139,7 @@ static void le_verlet_get_particles( le_verlet_particle_system_o *self, le_verle
 
 // ----------------------------------------------------------------------
 
-static void le_verlet_set_particle( le_verlet_particle_system_o *self, size_t idx, le_verlet_api::Vertex const &vertex ) {
+static void le_verlet_set_particle( le_verlet_particle_system_o* self, size_t idx, le_verlet_api::Vertex const& vertex ) {
 
 	assert( self->pos.size() == self->prev_pos.size() );
 
@@ -150,14 +150,14 @@ static void le_verlet_set_particle( le_verlet_particle_system_o *self, size_t id
 
 // ----------------------------------------------------------------------
 
-static size_t le_verlet_get_particle_count( le_verlet_particle_system_o *self ) {
+static size_t le_verlet_get_particle_count( le_verlet_particle_system_o* self ) {
 	return self->pos.size();
 }
 
 // ----------------------------------------------------------------------
 
 LE_MODULE_REGISTER_IMPL( le_verlet, api ) {
-	auto &le_verlet_i = static_cast<le_verlet_api *>( api )->le_verlet_i;
+	auto& le_verlet_i = static_cast<le_verlet_api*>( api )->le_verlet_i;
 
 	le_verlet_i.create             = le_verlet_create;
 	le_verlet_i.destroy            = le_verlet_destroy;

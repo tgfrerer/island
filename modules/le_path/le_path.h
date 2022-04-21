@@ -5,7 +5,7 @@
  *
  * 2D vector graphics, with minimal useful support for SVG-style commands.
  *
-*/
+ */
 
 #include "le_core.h"
 #include <glm/fwd.hpp> // TODO: get rid of glm as this is a cpp header.
@@ -104,15 +104,15 @@ LE_MODULE_LOAD_DEFAULT( le_path );
 #ifdef __cplusplus
 
 namespace le_path {
-static const auto &api       = le_path_api_i;
-static const auto &le_path_i = api -> le_path_i;
+static const auto& api       = le_path_api_i;
+static const auto& le_path_i = api -> le_path_i;
 } // namespace le_path
 
 namespace le {
 
 class Path : NoCopy, NoMove {
 
-	le_path_o *self;
+	le_path_o* self;
 
   public:
 	Path()
@@ -123,42 +123,42 @@ class Path : NoCopy, NoMove {
 		le_path::le_path_i.destroy( self );
 	}
 
-	Path &moveTo( glm::vec2 const &p ) {
+	Path& moveTo( glm::vec2 const& p ) {
 		le_path::le_path_i.move_to( self, &p );
 		return *this;
 	}
 
-	Path &lineTo( glm::vec2 const &p ) {
+	Path& lineTo( glm::vec2 const& p ) {
 		le_path::le_path_i.line_to( self, &p );
 		return *this;
 	}
 
-	Path &quadBezierTo( glm::vec2 const &p, glm::vec2 const &c1 ) {
+	Path& quadBezierTo( glm::vec2 const& p, glm::vec2 const& c1 ) {
 		le_path::le_path_i.quad_bezier_to( self, &p, &c1 );
 		return *this;
 	}
 
-	Path &cubicBezierTo( glm::vec2 const &p, glm::vec2 const &c1, glm::vec2 const &c2 ) {
+	Path& cubicBezierTo( glm::vec2 const& p, glm::vec2 const& c1, glm::vec2 const& c2 ) {
 		le_path::le_path_i.cubic_bezier_to( self, &p, &c1, &c2 );
 		return *this;
 	}
 
-	Path &arcTo( glm::vec2 const &p, glm::vec2 const &radii, float phi, bool large_arc, bool sweep ) {
+	Path& arcTo( glm::vec2 const& p, glm::vec2 const& radii, float phi, bool large_arc, bool sweep ) {
 		le_path::le_path_i.arc_to( self, &p, &radii, phi, large_arc, sweep );
 		return *this;
 	}
 
-	Path &ellipse( glm::vec2 const &centre, float radiusX, float radiusY ) {
+	Path& ellipse( glm::vec2 const& centre, float radiusX, float radiusY ) {
 		le_path::le_path_i.ellipse( self, &centre, radiusX, radiusY );
 		return *this;
 	}
 
-	Path &circle( glm::vec2 const &centre, float radius ) {
+	Path& circle( glm::vec2 const& centre, float radius ) {
 		le_path::le_path_i.ellipse( self, &centre, radius, radius );
 		return *this;
 	}
 
-	Path &addFromSimplifiedSvg( char const *svg ) {
+	Path& addFromSimplifiedSvg( char const* svg ) {
 		le_path::le_path_i.add_from_simplified_svg( self, svg );
 		return *this;
 	}
@@ -191,15 +191,15 @@ class Path : NoCopy, NoMove {
 		return le_path::le_path_i.get_num_contours( self );
 	}
 
-	bool getVerticesForPolyline( size_t const &polyline_index, glm::vec2 *vertices, size_t *numVertices ) {
+	bool getVerticesForPolyline( size_t const& polyline_index, glm::vec2* vertices, size_t* numVertices ) {
 		return le_path::le_path_i.get_vertices_for_polyline( self, polyline_index, vertices, numVertices );
 	}
 
-	bool getTangentsForPolyline( size_t const &polyline_index, glm::vec2 *tangents, size_t *numTangents ) {
+	bool getTangentsForPolyline( size_t const& polyline_index, glm::vec2* tangents, size_t* numTangents ) {
 		return le_path::le_path_i.get_tangents_for_polyline( self, polyline_index, tangents, numTangents );
 	}
 
-	void getPolylineAtPos( size_t const &polylineIndex, float normalizedPos, glm::vec2 *vertex ) {
+	void getPolylineAtPos( size_t const& polylineIndex, float normalizedPos, glm::vec2* vertex ) {
 		le_path::le_path_i.get_polyline_at_pos_interpolated( self, polylineIndex, normalizedPos, vertex );
 	}
 

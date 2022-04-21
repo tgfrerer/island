@@ -57,14 +57,14 @@ LE_MODULE_LOAD_DEFAULT( le_tessellator );
 #ifdef __cplusplus
 
 namespace le_tessellator {
-static const auto &api              = le_tessellator_api_i;
-static const auto &le_tessellator_i = api -> le_tessellator_i;
+static const auto& api              = le_tessellator_api_i;
+static const auto& le_tessellator_i = api -> le_tessellator_i;
 using Options                       = le_tessellator_api::le_tessellator_interface_t::Options;
 } // namespace le_tessellator
 
 class LeTessellator : NoCopy, NoMove {
 
-	le_tessellator_o *self;
+	le_tessellator_o* self;
 
   public:
 	LeTessellator()

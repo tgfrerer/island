@@ -27,13 +27,13 @@ LE_MODULE_LOAD_DEFAULT( asterisks_app );
 #ifdef __cplusplus
 
 namespace asterisks_app {
-static const auto &api             = asterisks_app_api_i;
-static const auto &asterisks_app_i = api -> asterisks_app_i;
+static const auto& api             = asterisks_app_api_i;
+static const auto& asterisks_app_i = api -> asterisks_app_i;
 } // namespace asterisks_app
 
 class AsterisksApp : NoCopy, NoMove {
 
-	asterisks_app_o *self;
+	asterisks_app_o* self;
 
   public:
 	AsterisksApp()
