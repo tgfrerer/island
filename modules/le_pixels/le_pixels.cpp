@@ -1,4 +1,5 @@
 #include "le_pixels.h"
+#include "le_log.h"
 #include "le_core.h"
 #include "3rdparty/stb_image.h"
 #include "assert.h"
@@ -102,14 +103,14 @@ static le_pixels_o *le_pixels_create( image_source_info_t const &info ) {
 		num_channels = info.requested_num_channels;
 	}
 
+	static auto logger = LeLog( "le_pixels" );
+
 	if ( !self->image_data ) {
 
 		if ( info.type == image_source_info_t::Type::eFile ) {
-			std::cerr << "ERROR: Could not load image from file: " << info.data.as_file.file_path << std::endl
-			          << std::flush;
+			logger.error("ERROR: Could not load image from file: '%s'", info.data.as_file.file_path );
 		} else {
-			std::cerr << "ERROR: Could not load image from buffer at address: " << std::hex << info.data.as_buffer.buffer << std::endl
-			          << std::flush;
+			logger.error( "ERROR: Could not load image from buffer at address: %p", info.data.as_buffer.buffer );
 		}
 
 		// If we didn't manage to load an image, this object is invalid,

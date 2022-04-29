@@ -1,3 +1,5 @@
+depends_on_island_module(le_log)
+
 set (TARGET le_pixels)
 
 set (SOURCES "le_pixels.cpp")
