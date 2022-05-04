@@ -48,6 +48,17 @@ jobs:
       run: 
         sudo apt-get install -y libxinerama-dev libxcursor-dev libxi-dev libxrandr-dev;
 
+    - name: (Linux) Setup Environment Variables
+      if: startsWith(matrix.name, 'ubuntu')
+      run: |
+          echo "$VULKAN_SDK/lib" > /tmp/vk.conf;
+          sudo mv /tmp/vk.conf /etc/ld.so.conf.d/vk.conf;
+          sudo ldconfig ;
+          find $VULKAN_SDK -type f -name "*.pc" -exec sed -i 's@/vulkan-sdk/'"${VULKAN_SDK_VERSION}"'/x86_64@'"${VULKAN_SDK}"'@g' {} + ;
+          find $VULKAN_SDK -type f -name "*.pc" -exec sed -i 's@/'"${VULKAN_SDK}"'@@g' {} + ;
+          pkg_config_path="${VULKAN_SDK}/lib/pkgconfig:${PKG_CONFIG_PATH}";
+          echo "PKG_CONFIG_PATH=${pkg_config_path}" >> $GITHUB_ENV 
+
     - name: (Windows) Set VCvars
       if: startsWith(matrix.name, 'windows')
       uses: ilammy/msvc-dev-cmd@v1
@@ -71,11 +82,4 @@ jobs:
     - name: (Linux) Run Tests
       if: startsWith(matrix.name, 'ubuntu')
       run: |
-          echo "$VULKAN_SDK/lib" > /tmp/vk.conf;
-          sudo mv /tmp/vk.conf /etc/ld.so.conf.d/vk.conf;
-          sudo ldconfig ;
-          find $VULKAN_SDK -type f -name "*.pc" -exec sed -i 's@/vulkan-sdk/'"${VULKAN_SDK_VERSION}"'/x86_64@'"${VULKAN_SDK}"'@g' {} + ;
-          find $VULKAN_SDK -type f -name "*.pc" -exec sed -i 's@/'"${VULKAN_SDK}"'@@g' {} + ;
-          pkg_config_path="${VULKAN_SDK}/lib/pkgconfig:${PKG_CONFIG_PATH}";
-          echo "PKG_CONFIG_PATH=$pkg_config_path" >> $GITHUB_ENV
           ./scripts/ci/run_tests.sh;
