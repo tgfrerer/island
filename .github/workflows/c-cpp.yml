@@ -70,4 +70,6 @@ jobs:
           & ./scripts/ci/run_tests.ps1      
     - name: (Linux) Run Tests
       if: startsWith(matrix.name, 'ubuntu')
-      run: ./scripts/ci/run_tests.sh
+      run: |
+          source $VULKAN_SDK/setup-env.sh;
+          ./scripts/ci/run_tests.sh;
