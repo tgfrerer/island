@@ -38,9 +38,9 @@ jobs:
     
     - name: Install Vulkan SDK
       uses: humbletim/install-vulkan-sdk@v1.1.1
-        with:
-          version: latest
-          cache: true
+      with:
+        version: latest
+        cache: true
         
     - name: (Windows) Set VCvars
       if: startsWith(matrix.name, 'windows')
