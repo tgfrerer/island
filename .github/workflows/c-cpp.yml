@@ -71,5 +71,8 @@ jobs:
     - name: (Linux) Run Tests
       if: startsWith(matrix.name, 'ubuntu')
       run: |
-          source $VULKAN_SDK/setup-env.sh;
+          LD_LIBRARY_PATH="$VULKAN_SDK/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}";
+          CMAKE_PREFIX_PATH="$VULKAN_SDK/lib";
+          export LD_LIBRARY_PATH;
+          export CMAKE_PREFIX_PATH;
           ./scripts/ci/run_tests.sh;
