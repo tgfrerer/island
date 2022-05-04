@@ -107,22 +107,19 @@ if (REQUIRES_ISLAND_CORE)
     # create a link to shared resources
     link_resources(${ISLAND_BASE_DIR}/resources ${CMAKE_BINARY_DIR}/resources )
     
-    # Windows - only: 
     # Check if a local copy of the Vulkan SDK exists, and the environment VULKAN_SDK points to it.
     # If yes, use this directory for header includes, and linking.
 
-    if (WIN32)
-        set (VULKAN_SDK_ENV $ENV{VULKAN_SDK})
-        if (EXISTS ${VULKAN_SDK_ENV})
+    set (VULKAN_SDK_ENV $ENV{VULKAN_SDK})
+    if (EXISTS ${VULKAN_SDK_ENV})
     
-        #include vulkan from SDK installation directory
-        include_directories(${VULKAN_SDK_ENV}/include/)
+    #include vulkan from SDK installation directory
+    include_directories(${VULKAN_SDK_ENV}/include/)
     
-        # NOTE: We're linking Vulkan from this system's Vulkan SDK directory
-        link_directories(${VULKAN_SDK_ENV}/lib)
+    # NOTE: We're linking Vulkan from this system's Vulkan SDK directory
+    link_directories(${VULKAN_SDK_ENV}/lib)
     
-        endif(EXISTS ${VULKAN_SDK_ENV})
-    endif()
+    endif(EXISTS ${VULKAN_SDK_ENV})
 
 endif()
 
