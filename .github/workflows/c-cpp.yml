@@ -41,7 +41,13 @@ jobs:
       with:
         version: latest
         cache: true
-        
+
+    - name: (Linux) Install Dependencies
+      if: startsWith(matrix.name, 'ubuntu')
+      shell: bash
+      run: 
+        sudo apt-get install -y libxinerama-dev libxcursor-dev libxi-dev libxrandr-dev;
+
     - name: (Windows) Set VCvars
       if: startsWith(matrix.name, 'windows')
       uses: ilammy/msvc-dev-cmd@v1
